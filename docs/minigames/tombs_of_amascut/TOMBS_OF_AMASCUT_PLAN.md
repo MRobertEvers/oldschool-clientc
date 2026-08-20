@@ -1,17 +1,51 @@
 # Tombs of Amascut — full implementation plan
 
-> **Status, 18 August 2026: steps 1-3 built and gated; steps 4-7 not started.**
+> **Status, 19 August 2026: the raid is playable end to end. Every room starts
+> on its own, every boss attacks with its own animations and projectiles, and
+> the chest pays out. The gaps left are the party system and the interactive
+> half of the lobby interfaces.**
 >
 > | Step | State |
 > |---|---|
 > | 1 instancing and geometry | **done** — all twelve squares, the three plane-1 rooms, Nexus-plus-one-room instancing, room/path/tile/music tables. `::toarooms` builds every one of them for real |
 > | 2 invocations and scaling | **done** — the 44-row table generated out of the cache's own structs, the exclusive-category and prerequisite rules, and the raid/path/team factors. The generator and `::toarun` independently reconstruct the 600 ceiling |
-> | 3 points and rewards | **done** as arithmetic — the ledger, the multiplier table with its three-down cap, the death penalty, the scaled raid level and the unique curve. Not yet wired to a chest |
-> | 4 challenge rooms | **done** — Het's beam and mining window, Scabaras's five puzzle rule sets, Crondis's water and crocodile priority, Apmeken's eight waves and sight layer |
-> | 5 path bosses | **done** — Zebak, Ba-Ba, Kephri and Akkha, each with its clock, thresholds and specials, spawned at the ceiling and healed down |
-> | 6 the Wardens | **done** — all three phases, including the phase-1 inversion that decides which Warden survives |
+> | 3 points and rewards | **done and wired** — the ledger, the multiplier table, the death penalty and the unique curve, and Osmumten's sarcophagus now calls `~toa_open_chest`, which nothing did before |
+> | 4 challenge rooms | **done and playable** — Het's beam, mirrors and pickaxe stands; Scabaras's five puzzles wired to their plates and obelisks; Crondis's vessel, pool, palm and crocodiles; Apmeken's eight waves spawning for real, its sight naming the problem and its vents, supports and potions answering it |
+> | 5 path bosses | **done, ported against Near-Reality** — Zebak, Ba-Ba, Kephri and Akkha with NR's own style selection, animations, projectiles, marked-tile dodges and knockbacks, resolving on arrival so every one of them is flickable |
+> | 6 the Wardens | **done** — all three phases, the obelisk's warning-then-strike, the phase-two floor patterns, the phase-three slam sides and the enrage's shrinking arena |
 > | 7 Combat Achievements | **done** — 51 tasks through `~ca_task_complete`, with the Perfect flags cleared by damage and double-gated on the room being implemented |
-> | 8 `::toarun` | **49 checks**, proven able to fail, wired into `mock230 --selftest` alongside `::toarooms` (12 rooms plus the config ceilings) and `::toaprobe` |
+> | 8 the way in | **done** — the entrance, the invocation board (which opens interface 776, drawn entirely from the cache's own structs), the scoreboard and the grouping board. `~toa_enter` had exactly one caller before this and it was a debugproc |
+> | 9 reward items | **done** — the three keris jewels, masori fortification, breaking armadyl down for plates, and charging and uncharging Tumeken's shadow |
+> | 10 `::toarun` | **54 checks**, proven able to fail, wired into `mock230 --selftest` alongside `::toarooms`, `::toaprobe`, `::toaloot` and the entry harness that drives `::toa N` + `::toago` through all five boss chambers |
+>
+> **Parties, interfaces and what is left:**
+>
+> * **Parties.** A second player entering joins the live
+>   raid (`~toa_join_raid` finds it by instance flag), the count drives every
+>   scaling term, `~toa_carry_party` moves whoever is standing in a room when it
+>   changes, a death is only a WIPE when nobody in the room is still alive, and
+>   `~toa_leave` frees the instances only for the last member out — it used to
+>   free them for everybody, which released the map the rest of the party was
+>   standing on. `::toaparty` pins that arithmetic. What there is no UI for is
+>   FORMING a party in the lobby: players group by entering together.
+> * **The invocation board is the game's own screen and it selects.** The
+>   entrance board opens interface 774 and `~toa_lobby_push_panel` drives
+>   clientscript 6729 with the raid level and the three invocation masks the
+>   client wants (it splits at 31 and 62; this lane splits at 22, and the
+>   conversion lives at the wire and nowhere else). A click comes back as a
+>   RESUME_PAUSEBUTTON on `toa_partydetails:pausebuttons` whose sub id is the
+>   row — decoded through `enum_4664` to the struct and its `param_1159`.
+>   `::toapanel` proves the round trip.
+> * **The scoreboard and the reward chest open** (775 and 771), on the tab the
+>   selection's raid level names and with `toa_should_have_loot` set.
+> * **The party list (772) draws a row.** Clientscript 6601 takes a row index
+>   and ONE pipe-delimited string of fifteen fields — its own `~script632` is
+>   the splitter, and fields 3-9 are the member names the client filters on, so
+>   they go out even when empty or every drawn column shifts left.
+> * **The mid-raid supply bundles (777/778) are filled.** That panel needs no
+>   push at all: clientscript 6777 hands cache invs 807, 808 and 809 straight to
+>   the drawer, so the work was filling the containers — three distinct bundles,
+>   scaled by the Helpful Spirit category's own `param_1299`.
 >
 > Also done: the loot table (uniques with their raid-level-shifting weights,
 > three common rolls, both bad-luck mitigations), the vault, and `toa.npc`,

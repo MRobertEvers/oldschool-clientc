@@ -1,0 +1,244 @@
+{{Otheruses|the boss variant of cave kraken}}
+{{Instance|optional=true}}
+{{HasStrategy}}
+{{Infobox Monster
+|defver = 2
+|version1 = Whirlpool
+|version2 = Kraken
+|name1 = Whirlpool
+|name2 = Kraken
+|image1 = [[File:Whirlpool.png|290px]]
+|image2 = [[File:Kraken.png|290px]]
+|release = [[10 April]] [[2014]]
+|update = Easter & Slayer Updates
+|members = Yes
+|combat1 = N/A
+|combat2 = 291
+|size1 = 5
+|size2 = 4
+|examine1 = Something big lurking beneath the water.
+|examine2 = We'll fight, until world's end.
+|xpbonus = 0
+|max hit = 28
+|aggressive = No
+|poisonous = No
+|attack style = [[Magic]] (100% [[prayer penetration]])
+|attack speed = 4
+|respawn = 10 - 14 ticks (6.0 - 8.4 seconds)
+|slaylvl = 87
+|slayxp = 255
+|cat = Cave Kraken, Bosses
+|assignedby = chaeldar,konar,nieve,duradel
+|hitpoints = 255
+|att = 1
+|str = 1
+|def = 1
+|mage = 1
+|range = 1
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns1 = 0
+|mbns2 = 50
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 130
+|dlight = 300
+|dstandard = 300
+|dheavy = 300
+|elementalweaknesstype1 = None
+|elementalweaknesstype2 = Earth
+|elementalweaknesspercent1 = 
+|elementalweaknesspercent2 = 50
+|poisonresistance = 0
+|venomresistance = Poison
+|immunecannon = Yes
+|immunethrall = No
+|id1 = 496
+|id2 = 494
+}}
+[[File:Cave kraken icon.png|left]]
+The '''Kraken''' is a stronger and larger version of the [[cave kraken]]. It requires level 87 [[Slayer]] to kill and cannot be boosted. Located at the [[Kraken Cove]], it can only be attacked if the player has it, or cave krakens as a [[Slayer task]], which also requires level 50 [[Magic]]. Alongside its [[Cave kraken|non-boss variants]], it is the only monster that drops the [[trident of the seas]] and [[Kraken tentacle]].
+
+Like its smaller brethren, the Kraken is submerged underwater. Magic is the only reliable way of damaging it, as Ranged{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1699360516488011950|date=6 September 2023|archiveurl=https://reldo.runescape.wiki/i/107527|archivedate=6 September 2023|quote=If you rolled 0 damage, it stays as 0. If you rolled >=1 damage, it's divided by 7, with a floor of 1. Accuracy is not affected.}} and Melee deal 1/7th of their normal damage. The Kraken cannot be reached with Melee weapons. To start the fight, players can use a [[fishing explosive]] on the large whirlpool. Otherwise, the four whirlpools around must first be disturbed; when all four whirlpools are disturbed, the larger one can be disturbed, which will result in the Kraken waking up. Either method will release level 112 [[Enormous Tentacle]]s. 
+
+Both the Kraken and Enormous Tentacles use [[typeless]] Magic, and as such [[Protect from Magic]] does '''not''' provide any degree of damage reduction. The Kraken can hit very hard, but has very poor accuracy, while the tentacles are much more accurate but deal less damage. The Kraken's projectile resembles [[Fire Wave]].
+
+Players can create a Kraken instance for 25,000 coins. This fee can be deducted directly from the bank; players do not need to carry coins on them to create the instance. The boss respawns more slowly in a private instance than the public arena.
+
+==Location==
+{{LocTableHead}}
+{{LocLine
+|name = Kraken
+|location = [[Kraken Cove]]
+|levels = 291
+|members = Yes
+|mapID = 19
+|plane = 0
+|x:2278,y:10034
+|mtype = pin
+|leagueRegion = kandarin
+}}
+{{LocTableBottom}}
+
+*The [[fairy ring]] code {{Fairycode|AKQ}} will bring the players just east of the Cove. 
+*Using a [[Piscatoris teleport]] scroll, or either the [[Western banner 3]] or [[Western banner 4|4]] to teleport the [[Piscatoris Fishing Colony]], and running south-west.
+
+==Money making==
+{{Mmgsection|Killing the Kraken}}
+
+==Drops==
+{{DropLogProject|kills=437585}}
+
+{{Average drop value|mob=Kraken}}
+
+{{Average drop value|mob=Kraken|brimstone=yes}}
+
+===Weapons and armour===
+{{DropsTableHead}}
+{{DropsLine|name=Mystic water staff|quantity=1|rarity=3/128}}
+{{DropsLine|name=Rune warhammer|quantity=1|rarity=2/128}}
+{{DropsLine|name=Rune longsword|quantity=1|rarity=2/128}}
+{{DropsLine|name=Mystic robe top|quantity=1|rarity=1/128}}
+{{DropsLine|name=Mystic robe bottom|quantity=1|rarity=1/128}}
+{{DropsLine|name=Trident of the seas (full)|quantity=1|rarity=1/512|raritynotes={{NamedRef|Drop Rates V2}}}}
+{{DropsTableBottom}}
+
+===Runes===
+{{DropsTableHead}}
+{{DropsLine|name=Water rune|quantity=400|rarity=10/128}}
+{{DropsLine|name=Mist rune|quantity=100|rarity=4/128}}
+{{DropsLine|name=Chaos rune|quantity=200|rarity=10/128}}
+{{DropsLine|name=Death rune|quantity=150|rarity=10/128}}
+{{DropsLine|name=Blood rune|quantity=60|rarity=10/128}}
+{{DropsLine|name=Soul rune|quantity=50|rarity=7/128}}
+{{DropsTableBottom}}
+
+===Seeds===
+{{DropsTableHead}}
+{{DropsLine|name=Watermelon seed|quantity=24|rarity=3/128}}
+{{DropsLine|name=Torstol seed|quantity=2|rarity=1/128}}
+{{DropsLine|name=Magic seed|quantity=1|rarity=1/128|raritynotes={{NamedRef|Drop Rates V2}}}}
+{{DropsTableBottom}}
+
+===Materials===
+{{DropsTableHead}}
+{{DropsLine|name=Seaweed|quantity=125 (noted)|rarity=3/128}}
+{{DropsLine|name=Battlestaff|quantity=10 (noted)|rarity=4/128}}
+{{DropsLine|name=Unpowered orb|quantity=50 (noted)|rarity=2/128}}
+{{DropsLine|name=Diamond|quantity=8 (noted)|rarity=1/128}}
+{{DropsLine|name=Oak plank|quantity=60 (noted)|rarity=3/128}}
+{{DropsLine|name=Runite bar|quantity=2|rarity=1/128}}
+{{DropsLine|name=Raw shark|quantity=50 (noted)|rarity=2/128}}
+{{DropsLine|name=Raw monkfish|quantity=100 (noted)|rarity=2/128}}
+{{DropsLine|name=Grimy snapdragon|quantity=6 (noted)|rarity=2/128}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Coins|quantity=10000-19999|rarity=15/128|gemw=No}}
+{{DropsLine|name=Shark|quantity=5|rarity=7/128}}
+{{DropsLine|name=Pirate boots|quantity=1|rarity=4/128}}
+{{DropsLine|name=Sanfew serum(4)|quantity=2|rarity=4/128}}
+{{DropsLine|name=Edible seaweed|quantity=5|rarity=3/128}}
+{{DropsLine|name=Harpoon|quantity=1|rarity=1/128}}
+{{DropsLine|name=Bucket|quantity=1|rarity=1/128}}
+{{DropsLine|name=Crystal key|quantity=1|rarity=1/128}}
+{{DropsLine|name=Rusty sword|quantity=1|rarity=1.75/128|gemw=No}}
+{{DropsLine|name=Antidote++(4)|quantity=2 (noted)|rarity=2/128}}
+{{DropsLine|name=Dragonstone ring|quantity=1|rarity=1/128|raritynotes={{CiteForum|author=Envision|url=https://reldo.runescape.wiki/i/108912|title=Drop Rates V2|name=Drop Rates V2}}}}
+{{DropsLine|name=Kraken tentacle|quantity=1|rarity=1/400|raritynotes={{NamedRef|Drop Rates V2}}}}
+{{DropsTableBottom}}
+
+===Gem drop table===
+{{GemDropTable|2/128|naturetalisman=yes|chaostalisman=yes}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Brimstone key|quantity=1|rarity={{Brimstone rarity|291|bonus=yes}}|raritynotes=<ref group=d>Brimstone keys are only dropped if killed on a [[Slayer task]] given by [[Konar quo Maten]].</ref>|gemw=No|leagueRegion=Kandarin&Kourend}}
+{{DropsLineClue|type=elite|rarity=1/500|raritynotes={{NamedRef|Drop Rates V2}}}}
+{{DropsLine|name=Jar of Dirt|quantity=1|rarity=1/1000|raritynotes={{NamedRef|Drop Rates V2}}}}
+{{DropsLine|name=Pet Kraken|quantity=1|rarity=1/3000|raritynotes={{CiteTwitter|author=Mod JohnC|url=https://twitter.com/JagexJohnC/status/511476391901003777|date=15 September 2014|archiveurl=https://archive.fo/vV6YO|archivedate=15 September 2014|quote=Kraken, Thermy & Penance Queen pet drop rates - DKS for the final reveal next week!|name=Confirmed droprates}}|gemw=No}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Kraken|mobname=the Kraken}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 23 November 2023
+|update = Leagues IV - Post-Launch
+|change = Fixed a bug with Thralls which means you can now use them at the Kraken.
+}}
+{{Subject changes
+|date = 14 July 2021
+|update = Slayer Improvements - Poll 75
+|poll = A Night At The Theatre and Old School Content Poll 75: PvM
+|change = Fishing explosives can now be used to instantly awaken the Kraken.
+}}
+{{Subject changes
+|date = 23 July 2020
+|update = Poll 71 and Ferox Enclave Updates
+|poll =
+|change = The Kraken will now correctly attack the player it is engaged in combat with.
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|change = The Kraken whirlpool can no longer be damaged by poison.
+}}
+{{Subject changes
+|date = 25 June 2015
+|update = Boss Room Counters & Platinum Tokens
+|poll = Old School Content Poll 34: XP droplets & Slayer
+|change = Added a 'peek' option to the entrance of this boss, allowing players to see the number of other players currently in the boss room.
+}}
+{{Subject changes
+|date = 19 March 2015
+|update = Boss Pets, Sets, Chat & More
+|poll = Instanced Kraken
+|change = It is now possible to open an instanced Kraken cave.
+}}
+{{Subject changes
+|date = 17 July 2014
+|update = Boss Pets and Spawn Rates
+|poll = Old School feature poll - Content Poll 22
+|change = Players can now receive a pet version of this boss after defeating it.
+}}
+{{Subject changes
+|date = 22 May 2014
+|update = Chat update and 'Operate'
+|poll = Old School feature poll 19
+|change =
+* The Kraken boss now has an 'Attack' option, rather than 'Fight'.
+* Players can now permanently dismiss the warning that is shown before entering the rooms of the Kraken.
+}}
+{{Subject changes
+|date = 24 April 2014
+|update = The Motherlode Mine!
+|change = Kraken now respawns at the same rate as the thermonuclear smoke devil.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The Kraken uses the same in-game model as the [[Sea Troll Queen]] from the [[Swan Song]] quest, but recoloured. Likewise, its tentacles also use the model of the [[Tentacle (Temple Trekking)|tentacles]] encountered in [[Temple Trekking]], also recoloured.
+*Its examine text and the [[jar of dirt]] are references to ''{{wp|Pirates of the Caribbean: Dead Man's Chest}}'' and its sequel ''{{wp|Pirates of the Caribbean: At World's End|At World's End}}''.
+*The Kraken had a festive override wearing a [[santa hat]] during the [[2016 Christmas event/Gallery|2016]], [[2017 Christmas event/Gallery|2017]], [[2018 Christmas event/Gallery|2018]], [[2019 Christmas event/Gallery|2019]], [[2020 Christmas event/Gallery|2020]], [[2021 Christmas event/Gallery|2021]], [[2022 Christmas event/Gallery|2022]], [[2023 Christmas event/Gallery|2023]], [[2024 Christmas event/Gallery|2024]], and [[2025 Christmas event/Gallery|2025]] Christmas events.
+*The {{WP|Kraken}} is a mythological creature originating from Norse folklore.
+*According to former ''Old School RuneScape'' content developer [[Mod Reach]], the Kraken's underwhelming damage output is due to what he described as a [[game engine]] [[bug]] that, despite his protests, [[Jagex]] ultimately decided to adopt as a feature of the boss.{{CiteVideo|author=Mod Shauny|title=In the Games Industry - An interview with ex-Mod Reach!|url=https://www.youtube.com/watch?v=i55LS-y1ULg&t=9683s|timestamp=2h41m23s|date=28 January 2020|site=|notes=|name=}}
+** Because of this bug, the Kraken's intended Defence level of 150 and Magic level of 390 were both set to 1.
+*The Kraken was inspired by fan concepts{{CiteNews|title=DevBlog: What shall we do next|url=https://secure.runescape.com/m=forum/a=427/sl=0/forums?380,381,6,65435457|quote=Some of the ideas about a Kraken were really fun to read.|newsdate=2013-08-09}}{{CiteNews|quote=We have seen loads of really good concepts already from players, such as the Kraken|title=Dev Blog: Player made content|url=http://services.runescape.com/m=news/dev-blog-player-made-content?oldschool=1|newsdate=2013-10-18}}{{CiteNews|quote=There are numerous ideas that you have put forward to us already such as the Kraken boss|title=Dev Blog: 2014|url=http://services.runescape.com/m=news/dev-blog-2014?oldschool=1|newsdate=2014-01-07}} appearing on the official Old School Community Blog.{{CiteGeneral|author=Capt McGee|url=https://oldschoolrscommunity.blogspot.com/2013/07/the-kraken-osrs-boss.html|title=The Kraken - OSRS Boss.|accessdate=2026-02-09|date=2013-07-27}}{{CiteGeneral|url=https://oldschoolrscommunity.blogspot.com/2013/11/some-kraken-photos.html|author=Capt McGee|title=Some Kraken Photos|date=2013-11-03|accessdate=2026-02-09}} One entry from the blog was republished in the first and only edition of the Old School Community Magazine.{{CiteGeneral|title=Old School Community Magazine|url=https://viewer.joomag.com/old-school-july-2013/0169113001374750162?short&|archiveurl=https://web.archive.org/web/20221207030952/https://viewer.joomag.com/old-school-july-2013/0169113001374750162?short&|archivedate=2022-12-06|date=2013-07-28|accessdate=2026-01-11}} The original blog post detailed a three-stage battle where the Kraken would first be fought from a boat, then retreat underwater where players would don [[fish bowl helmet]]s and [[diving apparatus]]es to destroy the portal it tries to escape into, and finally players would take on the Kraken directly to kill it. Ultimately, a much simpler version of the encounter was implemented.
+
+==References==
+{{Reflist}}
+
+{{Slayer monsters}}
+{{Kraken Cove}}
+{{Bosses}}
+[[Category:Slayer monsters that can only be fought on task]]

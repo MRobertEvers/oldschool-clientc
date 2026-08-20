@@ -1,0 +1,96 @@
+{{Switch infobox
+|item1 =
+{{Infobox Monster
+|name = Acidic Araxyte
+|image = [[File:Acidic Araxyte.png|280px]]
+|release = [[28 August]] [[2024]]
+|update = Araxxor
+|members = Yes
+|combat = 114
+|size = 2
+|examine = A colourful spider.
+|xpbonus = 7.5
+|max hit = 15
+|aggressive = Yes
+|poisonous = Yes ([[venom]])
+|attack style = [[Ranged]]
+|attack speed = 6
+|slaylvl = 92
+|slayxp = 58
+|cat = Spiders, Araxytes
+|assignedby = turael,spria,nieve,duradel
+|hitpoints = 58
+|att = 150
+|str = 120
+|def = 50
+|mage = 1
+|range = 60
+|attbns = 180
+|strbns = 12
+|amagic = 0
+|mbns = 0
+|arange = 450
+|rngbns = 0
+|dstab = 25
+|dslash = 25
+|dcrush = 25
+|dmagic = -10
+|dlight = 25
+|dstandard = 25
+|dheavy = 25
+|elementalweaknesstype = Fire
+|elementalweaknesspercent = 50
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = Yes
+|immunethrall = No
+|id = 13675
+|leagueRegion = Morytania
+}}
+|text1 = Hatched
+|item2 =
+{{Infobox NPC
+|name = Egg
+|image = [[File:Egg (Acidic Araxyte).png|250px]]
+|release = [[28 August]] [[2024]]
+|update = Araxxor
+|members = Yes
+|race = [[Araxyte]]
+|location = [[Morytania Spider Cave]]
+|options = Attack
+|examine = Egg?
+|map = No
+|id = 13674
+|leagueRegion = Morytania
+}}
+|text2 = Egg}}
+'''Acidic Araxytes''' are a type of [[araxyte (disambiguation)|araxyte]] who hatch from green eggs during the battle with [[Araxxor]]. They use accurate ranged attacks that can deal up to 15 damage, and scatters acid pools around it upon death.
+
+Players will always [[max hit]] when attacking them with a [[Crush weapons|crush]] or heavy Ranged weapon (such as a [[Crossbow (weapon)|crossbow]] or [[ballista]]) if crush or ranged is their highest accuracy style respectively, or the [[noxious halberd]].
+
+Araxxor's minions and eggs are considered by the game to be part of an araxyte task without decrementing the task count, allowing the accuracy and damage buff of the [[Slayer helm]] to be utilised against them.
+
+==Locations==
+{{LocTableHead}}
+{{LocLine
+|name = Egg
+|location = [[Morytania Spider Cave]]
+|levels = 114
+|members = Yes
+|mapID = -1
+|3621,9822|3630,9803|3644,9823
+|mtype = pin
+|leagueRegion = Morytania
+}}
+{{LocTableBottom}}
+
+==Strategy==
+With high boosted stats and strong gear, they can be killed in one hit by a [[noxious halberd]] or [[heavy ballista]] with [[Dragon javelin|dragon javelins]], or two hits by a [[hunters' sunlight crossbow]] with [[Moonlight antler bolts|moonlight bolts]]. Alternatively players can leave them alive if they don't mind taking extra damage in the fight.
+
+==Gallery==
+<gallery mode="packed" heights="150">
+Araxxor minions concept art.png|Concept art of Araxxor's minions, by [[Mod Skylark]].
+Araxyte eggs concept art.png|Concept art of the eggs which hatch Araxxor's minions, by Mod Skylark.
+</gallery>
+
+{{Araxxor}}

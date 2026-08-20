@@ -1,0 +1,552 @@
+{{External|rs=Lumbridge achievements}}
+{{Infobox Achievement Diary
+|name = Lumbridge & Draynor Diary
+|image = [[File:Lumbridge & Draynor Diary.png]]
+|release = [[5 March]] [[2015]]
+|update = Achievement Diaries
+|areas = [[Lumbridge]], [[Draynor]], [[Al Kharid]], [[Dorgesh-Kaan]] and [[Zanaris]]
+|members = Yes
+|reward = [[Explorer's ring|Ring]]
+|taskmasters = [[Hatius Cosaintus]]
+|leagueRegion = Misthalin
+}}
+{{Map|name=Lumbridge & Draynor Diary|x=3234|y=3214|r=3|width=250|height=250|caption=Hatius Cosaintus's location|align=left|mtype=square}}
+The '''Lumbridge & Draynor Diary''' is an [[Achievement Diary]] whose tasks revolve around areas in and around [[Lumbridge]], such as [[Draynor Village]], [[Al Kharid]], [[Dorgesh-Kaan]], and [[Zanaris]].
+
+Several skill, quest, and item requirements are needed to complete all tasks. Unless stated otherwise, [[temporary skill boost]]s can be used to meet the skill requirements.
+
+Rewards can be claimed from [[Hatius Cosaintus]] east of [[Lumbridge Castle]]'s courtyard in [[Lumbridge]]. Tasks may be done in any order, but the previous tiers of a diary must be completed to claim rewards of the next tier.
+
+==Overview==
+{{Sync}}
+<tabber>
+|-|
+Easy=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 15
+|Fishing = 15
+|Firemaking = 15
+|Woodcutting = 15
+|Runecraft = 5
+|Slayer = 7
+|Total = 98
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Cook's Assistant"
+|[[Cook's Assistant]]
+|- data-rowid="Rune Mysteries"
+|[[Rune Mysteries]]
+|}
+| style="vertical-align: top" |
+|}
+
+|-|
+Medium=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Strength = 19
+|Mining = 15
+|Agility = 20
+|Smithing = 1
+|SmithingNotes = <ref name="IronMed">[[File:Ironman chat badge.png]] [[Ironman Mode|Ironmen]] require 31 [[Prayer]] for [[Animal Magnetism]], and either access to the [[Ancient Cavern]] or 59 [[Smithing]] and 59 [[Fletching]] for a [[mith grapple]].</ref>
+|Fishing = 30
+|Ranged = 50
+|RangedNotes = {{boostable|n}}
+|Thieving = 38
+|Prayer = 1
+|PrayerNotes = <ref name="IronMed"/>
+|Crafting = 38
+|Firemaking = 15
+|Magic = 31
+|Fletching = 1
+|FletchingNotes = <ref name="IronMed"/>
+|Woodcutting = 36
+|Runecraft = 23
+|Slayer = 18
+|Hunter = 42
+|Combat = 70
+|Total = 394
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Animal Magnetism"
+|[[Animal Magnetism]]
+|- data-rowid="Cook's Assistant"
+|[[Cook's Assistant]]
+|- data-rowid="Rune Mysteries"
+|[[Rune Mysteries]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Started [[Fairytale II - Cure a Queen]]
+|}
+|}
+{{Reflist}}
+
+|-|
+Hard=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 50
+|Strength = 19
+|Agility = 46
+|Smithing = 40
+|SmithingNotes = <ref name="IronHard">[[File:Ironman chat badge.png]] [[Ironman Mode|Ironmen]] require either access to the [[Ancient Cavern]] or 59 [[Smithing]] and 59 [[Fletching]] for a [[mith grapple]].</ref>
+|Herblore = 25
+|Fishing = 53
+|Ranged = 50
+|RangedNotes = {{boostable|n}}
+|Thieving = 53
+|Cooking = 70
+|Prayer = 52
+|PrayerNotes = {{boostable|n}}
+|Crafting = 70
+|Firemaking = 65
+|Magic = 60
+|Fletching = 10
+|FletchingNotes = <ref name="IronHard"/>
+|Woodcutting = 57
+|Runecraft = 59
+|Slayer = 18
+|Farming = 63
+|Hunter = 42
+|Combat = 70
+|Quest = 175
+|Total = 915
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Animal Magnetism"
+|[[Animal Magnetism]]
+|- data-rowid="Another Slice of H.A.M."
+|[[Another Slice of H.A.M.]]
+|- data-rowid="Recipe for Disaster"
+|[[Recipe for Disaster]] fully completed
+|- data-rowid="Rune Mysteries"
+|[[Rune Mysteries]]
+|- data-rowid="Tears of Guthix"
+|[[Tears of Guthix]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Access to the [[Bones to Peaches]] spell from the [[Mage Training Arena]]
+|-
+|Started [[Fairytale II - Cure a Queen]]
+|}
+|}
+{{Reflist}}
+
+|-|
+Elite=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Attack = 50
+|AttackNotes = <ref name="WarriorsGuild">You'll need 130 combined levels in [[Attack]] and [[Strength]], or level 99 in either, to access the [[Warriors' Guild]] during [[While Guthix Sleeps]].</ref>
+|Hitpoints = 50
+|HitpointsNotes = {{boostable|n}}
+|Mining = 72
+|Strength = 70
+|StrengthNotes = <ref name="WarriorsGuild"/>
+|Agility = 70
+|AgilityNotes = {{boostable|n}}
+|Smithing = 88
+|Defence = 65
+|DefenceNotes = {{boostable|n}}
+|Herblore = 70
+|HerbloreNotes = {{boostable|n}}
+|Fishing = 62
+|Ranged = 70
+|Thieving = 78
+|Cooking = 72
+|Prayer = 52
+|PrayerNotes = {{boostable|n}}
+|Crafting = 70
+|CraftingNotes = {{boostable|n}}
+|Firemaking = 75
+|FiremakingNotes = {{boostable|n}}
+|Magic = 75
+|MagicNotes = {{boostable|n}}
+|Fletching = 70
+|FletchingNotes = {{boostable|n}}
+|Woodcutting = 75
+|Runecraft = 76
+|RunecraftNotes = <ref name="RunecraftElite">The minimum required [[Runecraft]] level for the Elite diary tier is 60, but you'll need level 76 (boostable) if you have less than three [[Raiments of the Eye]] pieces.</ref>
+|Slayer = 74
+|SlayerNotes = {{boostable|n}}
+|Farming = 70
+|FarmingNotes = {{boostable|n}}
+|Construction = 70
+|ConstructionNotes = {{boostable|n}}
+|Hunter = 70
+|HunterNotes = {{boostable|n}}
+|Sailing = 52
+|SailingNotes = {{boostable|n}}
+|Combat = 85
+|Quest = {{Globals|quest points}}
+|Total = 1571
+|TotalNotes = <ref name="AllQuests">These skill requirements include the [[Quests#Skill_requirements|required levels]] to complete all quests. [[Ironman Mode|Ironmen]] may need even higher levels due to item requirements in certain quests.</ref>
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|-
+|[[Quests/List|All quests]] <ref name="AllQuests"/>
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Access to the [[Bones to Peaches]] spell from the [[Mage Training Arena]]
+|}
+|}
+{{Reflist}}
+
+|-|
+</tabber>
+
+==Easy==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Lumbridge & Draynor" data-diary-tier="Easy"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Complete a lap of the [[Draynor Village Rooftop Course|Draynor Village agility course]].
+|{{NA|None}}
+|-
+|2. Slay a [[Cave bug]] beneath [[Lumbridge Swamp Caves|Lumbridge Swamp]].
+|
+*{{SCP|Slayer|7|link=yes}}
+*[[Light source]]
+*[[Rope]] if the caves haven't been entered yet
+|-
+|3. Have [[Archmage Sedridor|Sedridor]] teleport you to the [[Rune essence mine]].
+|
+*{{SCP|Quest}} Completion of [[Rune Mysteries]]
+|-
+|4. Craft some [[water rune]]s from Essence.
+|
+*{{SCP|Runecraft|5|link=yes}}
+*[[Pure essence|Pure]], [[Daeyalt essence|daeyalt]], or [[rune essence]]
+*Access to the [[Water Altar]] ([[water talisman]]/[[water tiara|tiara]], [[elemental talisman]]/[[Elemental tiara|tiara]], or the [[Abyss]])
+|-
+|5. Learn your age from [[Hans]] in [[Lumbridge]].
+|{{NA|None}}
+|-
+|6. Pickpocket a [[man]] or [[woman]] in [[Lumbridge]].
+|{{NA|None}}
+|-
+|7. Chop and burn some [[oak logs]] in [[Lumbridge]].
+|
+*{{SCP|Woodcutting|15|link=yes}} and {{SCP|Firemaking|15|link=yes}}
+*Any [[axe]] and [[tinderbox]]
+|-
+|8. Kill a [[Zombie]] in [[Draynor Sewers]].
+|{{NA|None}}
+|-
+|9. Catch some [[Anchovies]] in [[Al Kharid]].
+|
+*{{SCP|Fishing|15|link=yes}}
+*[[Small fishing net]]
+|-
+|10. Bake some [[Bread]] on the [[Cooking range (Lumbridge Castle)|Lumbridge kitchen range]].
+|
+*{{SCP|Quest}} Completion of [[Cook's Assistant]]
+*[[Bread dough]], multiple recommended in case of [[Burnt bread|burning]] one (always successful at {{SCP|Cooking|34|link=yes}})
+|-
+|11. Mine some [[Iron ore]] at the [[Al Kharid mine]].
+|
+*{{SCP|Mining|15|link=yes}}
+*Any [[pickaxe]]
+|-
+|12. Enter the [[H.A.M. Hideout]].
+|
+*None, though a [[lockpick]] is recommended
+|}
+
+===Rewards===
+*[[Explorer's ring 1]]:
+**Can restore 50% of [[Energy|run energy]] twice a day
+**Allows 30 casts of [[Low Level Alchemy]] without [[runes]] each day (no experience granted unless done at the [[Alchemist's Playground]], still requires 21 [[Magic]])
+*[[Antique lamp (easy)|Antique lamp]] worth 2,500 experience in any skill level of at least level 30
+
+==Medium==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Lumbridge & Draynor" data-diary-tier="Medium"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Complete a lap of the [[Al Kharid Rooftop Course|Al Kharid agility course]].
+|
+*{{SCP|Agility|20|link=y}}
+|-
+|2. Grapple across the [[Broken Raft|River Lum]].
+|
+*{{SCP|Agility|8|link=y}}, {{SCP|Strength|19}} and {{SCP|Ranged|37}}
+*[[Mith grapple]]{{efn|[[Ironman Mode|Ironmen]] require either access to the [[Ancient Cavern]] or 59 [[Smithing]] and 59 [[Fletching]] for a [[mith grapple]].}} and any [[Crossbow (weapon)|crossbow]]
+|-
+|3. Purchase an [[Ava's accumulator|upgraded device]] from [[Ava]].
+|
+*{{SCP|Quest}} Completion of [[Animal Magnetism]]
+*{{SCP|Ranged|50|link=y}}{{Boostable|no}}
+*75 [[steel arrows]] with [[Ava's attractor]], or 75 steel arrows with 999 [[coins]] 
+|-
+|4. Travel to the [[Wizards' Tower]] by [[Fairy ring]].
+|
+*{{SCP|Quest}} Started [[Fairytale II - Cure a Queen]]
+*[[Dramen staff|Dramen]] or [[Lunar staff]] to travel to [[Fairy ring]] code {{Fairycode|dis}}
+|-
+|5. Cast the [[Lumbridge Teleport|Teleport to Lumbridge]] spell.
+|
+*{{SCP|Magic|31|link=y}}
+*Means to cast [[Lumbridge Teleport]] ({{RuneReq|Law=1|Air=3|Earth=1}})
+|-
+|6. Catch some [[Salmon]] in [[Lumbridge]].
+|
+*{{SCP|Fishing|30|link=y}}
+*[[Fly fishing rod]] and some [[feather]]s
+|-
+|7. Craft a [[coif]] in the [[Lumbridge cow pen]].
+''Note: Not to be confused with a [[leather cowl|cowl]].
+|
+*{{SCP|Crafting|38|link=y}}
+*[[Leather]], and a [[needle]] and [[thread]] or the [[costume needle]]
+|-
+|8. Chop some [[willow logs]] in [[Draynor Village]].
+|
+*{{SCP|Woodcutting|30|link=y}}
+*Any [[axe]]
+|-
+|9. Pickpocket [[Martin the Master Gardener]].
+|
+*{{SCP|Thieving|38|link=y}}
+|-
+|10. Get a [[slayer task]] from [[Chaeldar]].
+|
+*{{SCP|Quest}} Completion of [[Lost City]]
+*{{SCP|Combat|70|link=y}}
+*[[Dramen staff|Dramen]] or [[Lunar staff]] to enter [[Zanaris]]
+|-
+|11. Catch an [[Essence impling|Essence]] or [[Eclectic impling]] in [[Puro-Puro]].
+|
+*{{SCP|Hunter|42|link=y}}
+*[[Dramen staff|Dramen]] or [[Lunar staff]] to enter [[Zanaris]]
+*[[Butterfly net]] and [[impling jar]]
+|-
+|12. Craft some [[Lava rune]]s at the [[fire altar]] in [[Al Kharid]].
+''Note: Use the [[earth rune]]s you brought on the altar, do not use the essence.
+|
+*{{SCP|Runecraft|23|link=y}}
+*[[Earth talisman]], [[earth runes]], and [[Pure essence|pure]] or [[daeyalt essence]]
+*Access to the [[Fire Altar]] ([[fire talisman]]/[[fire tiara|tiara]], [[elemental talisman]]/[[Elemental tiara|tiara]], or the [[Abyss]])
+*[[Binding necklace]] recommended to guarantee the runes are successfully crafted
+|}
+{{Notelist}}
+
+===Rewards===
+*[[Explorer's ring 2]]:
+**Can restore 50% of [[Energy|run energy]] three times a day
+**Three daily teleports to the [[cabbage]] patch of [[South Falador Farm]]
+*[[Antique lamp (medium)|Antique lamp]] worth 7,500 experience in any skill of at least level 40
+
+==Hard==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Lumbridge & Draynor" data-diary-tier="Hard"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Cast [[Bones to Peaches]] in [[Al Kharid palace]].
+''Note: Using the [[Bones to peaches (tablet)|Bones to Peaches tablet]] does not count.
+|
+*{{SCP|Magic|60|link=y}}
+*Access to [[Bones to Peaches]] via the [[Mage Training Arena]]
+*[[Bones]] and means to cast [[Bones to Peaches]] ({{RuneReq|Nature=2|Earth=4|Water=4}})
+|-
+|2. Squeeze past the [[Jutting_wall_(Zanaris)#Medium|jutting wall]] on your way to the [[cosmic altar]].
+|
+*{{SCP|Quest}} Completion of [[Lost City]]
+*{{SCP|Agility|46|link=y}}
+*[[Dramen staff|Dramen]] or [[Lunar staff]] to enter [[Zanaris]], or access to the [[Abyss]]
+|-
+|3. Craft 56 [[Cosmic runes]] simultaneously from Essence without the use of [[Runic extract|Extracts]].
+|
+*{{SCP|Quest}} Completion of [[Lost City]]
+*{{SCP|Runecraft|59|link=y}}
+*28 [[Pure essence|pure]] or [[daeyalt essence]] (less may suffice with [[Raiments of the Eye]] pieces){{efn|To guarantee the task completes, bring at least 26 essence with 1 piece, 24 with 2 pieces, 22 with 3 pieces, or 19 with the full [[Raiments of the Eye]] set.}}
+*Access to the [[Cosmic Altar]] ([[cosmic talisman]]/[[Cosmic tiara|tiara]], [[catalytic talisman]]/[[Catalytic tiara|tiara]], or the [[Abyss]])
+|-
+|4. Travel from [[Lumbridge]] to [[Edgeville]] on a [[Waka Canoe]].
+|
+*{{SCP|Woodcutting|57|link=y}}
+*Any [[axe]]
+|-
+|5. Collect at least 100 [[Tears of Guthix (minigame)|Tears of Guthix]] in one visit.
+''Note: This [[Tears of Guthix (minigame)|minigame]] can only be tried once a week, so be aware. Each [[quest point]] increases the time you can spend collecting tears by one [[game tick]]. It's recommended to have at least 150 quest points before trying this task. See the [[Tears of Guthix (minigame)]]'' page ''for other strategies you can use to maximize points.'' 
+|
+*{{SCP|Quest}} Completion of [[Tears of Guthix (quest)|Tears of Guthix]]
+*[[Games necklace]] recommended for quick access
+|-
+|6. Take the [[Dorgesh-Kaan–Keldagrim train system|train]] from [[Dorgesh-Kaan]] to [[Keldagrim]].
+|
+*{{SCP|Quest}} Completion of [[Another Slice of H.A.M.]]
+|-
+|7. Purchase some [[Barrows gloves]] from the [[Culinaromancer's Chest|Lumbridge bank chest]]{{sic}}.
+|
+*{{SCP|Quest}} Full completion of [[Recipe for Disaster]]
+*130,000 [[coins]]
+|-
+|8. Pick some [[Belladonna]] from the [[farming patch]] at [[Draynor Manor]].
+|
+*{{SCP|Farming|63|link=y}}
+*[[Belladonna seed]], [[seed dibber]], [[spade]], [[rake]] and any [[gloves]]
+|-
+|9. Light your [[mining helmet]] in the [[Lumbridge castle]] basement.
+|
+*{{SCP|Firemaking|65|link=y}}
+*[[Tinderbox]] and [[mining helmet]]
+|-
+|10. Recharge your [[prayer]] at [[Emir's Arena]] with [[Smite]] activated.
+|
+*{{SCP|Prayer|52|link=y}}
+|-
+|11. Craft, string and enchant an [[Amulet of Power]] in [[Lumbridge]].
+''Note: Doing this upstairs in [[Lumbridge Castle]] does not count.''
+|
+*{{SCP|Crafting|70|link=y}} and {{SCP|Magic|57|link=y}}
+*[[Gold bar]], [[Diamond|cut diamond]], [[amulet mould]], [[ball of wool]]
+*Means to cast [[Lvl-4 Enchant]] ({{RuneReq|Cosmic=1|Earth=10}})
+|}
+{{Notelist}}
+
+===Rewards===
+*[[Explorer's ring 3]]:
+**Can restore 50% of [[Energy|run energy]] four times a day
+**Unlimited teleports to the [[cabbage]] patch of [[South Falador Farm]]
+*[[Antique lamp (hard)|Antique lamp]] worth 15,000 experience in any skill level of at least level 50
+*10% increased experience from [[Tears of Guthix (minigame)|Tears of Guthix]]
+
+==Elite==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Lumbridge & Draynor" data-diary-tier="Elite"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Steal from a [[Dorgesh-Kaan Rich Chest|Dorgesh-Kaan rich chest]].
+|
+*{{SCP|Quest}} Completion of [[Death to the Dorgeshuun]]
+*{{SCP|Thieving|78|link=y}}
+*[[Lockpick]]
+|-
+|2. Grapple across a pylon on the [[Dorgesh-Kaan Agility Course]].
+|
+*{{SCP|Quest}} Completion of [[Death to the Dorgeshuun]]
+*{{SCP|Agility|70|link=y}}, {{SCP|Ranged|70|link=y}} and {{SCP|Strength|70|link=y}}
+*[[Mith grapple]]{{efn|[[Ironman Mode|Ironmen]] require one of: <ul><li>Access to the [[Ancient Cavern]]</li><li>59 [[Smithing]] and 59 [[Fletching]] to make a mith grapple</li><li>99 Fletching for a [[mith grapple]] from the [[Fletching cape]]</li></ul>}}, any [[Crossbow (weapon)|crossbow]], and a [[light source]]
+|-
+|3. Chop some [[magic logs]] at the [[Mage Training Arena]].
+|
+*{{SCP|Woodcutting|75|link=y}}
+*Any [[axe]]
+|-
+|4. Smith an [[Adamant platebody]] down [[Draynor sewer]].{{sic}}
+|
+*{{SCP|Smithing|88|link=y}}
+*5 [[adamantite bar]]s and a [[hammer]]
+|-
+|5. Craft 140 or more [[Water runes]] simultaneously from Essence without the use of [[Runic extract|Extracts]].
+|
+*{{SCP|Runecraft|76|link=y}}
+*{{SCP|Runecraft|57|link=y}} with 3 [[Raiments of the Eye]] pieces
+*{{SCP|Runecraft|38|link=y}} with 4 [[Raiments of the Eye]] pieces (random chance, not guaranteed)
+*28 [[Pure essence|pure]], [[Daeyalt essence|daeyalt]], or [[rune essence]] (less may suffice at higher [[Runecraft]] levels)
+*Access to the [[Water Altar]] ([[water talisman]]/[[water tiara|tiara]], [[elemental talisman]]/[[Elemental tiara|tiara]], or the [[Abyss]])
+|-
+|6. Perform the [[Quest point cape|Quest cape]] emote in the [[Wise Old Man|Wise Old Man's]] house.
+|
+*{{SCP|Quest}} Completion of all quests
+*[[Quest point cape]]
+|}
+{{Notelist}}
+
+===Rewards===
+*[[Explorer's ring 4]]:
+**Can restore full [[Energy|run energy]] three times a day
+**Allows 30 casts of [[High Level Alchemy]] without [[runes]] each day (no experience granted unless done at the [[Alchemist's Playground]], still requires 55 [[Magic]])
+*[[Antique lamp (elite)|Antique lamp]] worth 50,000 experience in any skill of at least level 70
+*20% discount on items in the [[Culinaromancer's Chest]]
+*Steal twice as many [[cave goblin wire]]s in [[Dorgesh-Kaan]]
+*Ability to use [[fairy rings]] without the need of a [[Dramen staff|Dramen]] or [[Lunar staff]]
+*Unlocks the seventh slot for blocking [[Slayer task|Slayer tasks]]
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 10 July 2024
+|update = While Guthix Sleeps
+|poll =
+|change = The task of pickpocketing Movario has been replaced with grappling a pylon on the Dorgesh-Kaan Agility Course.
+}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|poll =
+|change =
+* Completing the elite Lumbridge & Draynor diary will now double how much cave goblin wire is received when thieving.
+* The Lumbridge & Draynor diary is no longer required for several shortcuts.
+}}
+{{Subject changes
+|date = 14 April 2021
+|update = Below Ice Mountain
+|change = All diary tasks to craft runes were changed to clarify they only can be completed with essence.
+}}
+{{Subject changes
+|date = 10 December 2015
+|update = Key Update & Seaweed
+|poll = 
+|change = Completing the hard Lumbridge & Draynor diary now correctly provides unlimited cabbage teleports if the previous daily limit had been reached before completing the diary on the same day.
+}}
+{{Subject changes
+|date = 19 November 2015
+|update = Max Capes & HP Insurance
+|poll = 
+|change = All of the Zombies in the Draynor sewer will now count for the Lumbridge & Draynor achievement diary task.
+}}
+{{Subject changes
+|date = 8 October 2015
+|update = Smoke Battlestaff Buff
+|change = *Pickpocketing a woman in Lumbridge now correctly completes the achievement diary task.
+*Having Sedridor teleport you to the Rune Essence Mine now consistently completes the achievement diary task.
+}}
+{{Subject changes
+|date = 23 April 2015
+|update = Crystal Halberd Special & More
+|poll = Old School Content Poll 32: Resizable Mode
+|change = Completing the elite Lumbridge & Draynor achievement diary now allows use of fairy rings without equipping a staff.
+}}
+{{Subject changes footer}}
+
+{{Achievement diary}}

@@ -1,0 +1,608 @@
+{{External|rs=Seers' Village achievements}}
+{{Infobox Achievement Diary
+|name = Kandarin Diary
+|image = [[File:Kandarin Diary.png]]
+|release = [[5 March]] [[2015]]
+|update = Achievement Diaries
+|areas = [[Seers' Village]], [[Catherby]], [[Hemenster]], [[Barbarian Outpost]]
+|members = Yes
+|reward = [[Kandarin headgear|Headgear]]
+|taskmasters = [[The 'Wedge']]
+|leagueRegion = Kandarin
+}}
+{{Map|name=The 'Wedge'|x=2759|y=3476|align=left|width=250|height=250|r=4|mtype=square|caption=Location of The 'Wedge'}}
+The '''Kandarin Diary''' is an [[Achievement Diary]] whose tasks revolve around areas in and near the northern part of [[Kandarin]], such as [[Seers' Village]], [[Catherby]], and the [[Barbarian Outpost]].
+
+Several skill, quest, and item requirements are needed to complete all tasks. Unless stated otherwise, [[temporary skill boost]]s can be used to meet the skill requirements.
+
+Rewards can be claimed from [[The 'Wedge']] outside the entrance to [[Camelot]]. Tasks may be done in any order, but the previous tiers of a diary must be completed to claim rewards of the next tier.
+
+==Overview==
+{{Sync}}
+<tabber>
+|-|
+Easy=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Agility = 20
+|Fishing = 16
+|Crafting = 1
+|CraftingNotes = <ref name="IronFish">[[File:Ironman chat badge.png]] [[Ironman Mode|Ironmen]] require either 42 [[Crafting]] or completion of [[Skippy and the Mogres]] with 32 [[Slayer]] for a [[fishbowl]].</ref>
+|Slayer = 1
+|SlayerNotes = <ref name="IronFish"/>
+|Farming = 13
+|Total = 78
+}}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Started [[Elemental Workshop I]]
+|}
+|}
+{{Reflist}}
+
+|-|
+Medium=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 30
+|Strength = 22
+|Agility = 36
+|Smithing = 30
+|SmithingNotes = <ref name="IronMith">[[File:Ironman chat badge.png]] [[Ironman Mode|Ironmen]] require either access to the [[Ancient Cavern]] or 59 [[Smithing]] and 59 [[Fletching]] for a [[mith grapple]].</ref>
+|Herblore = 48
+|Fishing = 46
+|Crafting = 31
+|CraftingNotes = <ref name="IronFish">[[File:Ironman chat badge.png]] [[Ironman Mode|Ironmen]] require either 42 [[Crafting]] or completion of [[Skippy and the Mogres]] with 32 [[Slayer]] for a [[fishbowl]].</ref>
+|Ranged = 40
+|Thieving = 47
+|Cooking = 43
+|Magic = 45
+|Fletching = 50
+|FletchingNotes = <ref name="IronMith"/>
+|Woodcutting = 36
+|Slayer = 1
+|SlayerNotes = <ref name="IronFish"/>
+|Farming = 26
+|Total = 577
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+! Quest requirements
+|- data-rowid="Alfred Grimhand's Barcrawl"
+|[[Alfred Grimhand's Barcrawl]]
+|- data-rowid="Waterfall Quest"
+|[[Waterfall Quest]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Started [[Fairytale II - Cure a Queen]]
+|-
+|Partial completion of [[Elemental Workshop II]]
+|}
+|}
+{{Reflist}}
+
+|-|
+Hard=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Attack = 20
+|Mining = 30
+|Strength = 50
+|Agility = 60
+|Smithing = 75
+|Defence = 70
+|DefenceNotes = {{boostable|n}}
+|Herblore = 48
+|Fishing = 70
+|Ranged = 40
+|Thieving = 53
+|Cooking = 43
+|Prayer = 70
+|PrayerNotes = {{boostable|n}}
+|Crafting = 31
+|CraftingNotes = <ref name="IronFish">[[File:Ironman chat badge.png]] [[Ironman Mode|Ironmen]] require either 42 [[Crafting]] or completion of [[Skippy and the Mogres]] with 32 [[Slayer]] for a [[fishbowl]].</ref>
+|Firemaking = 65
+|Magic = 56
+|Fletching = 70
+|Woodcutting = 60
+|Slayer = 1
+|SlayerNotes = <ref name="IronFish"/>
+|Farming = 26
+|Construction = 50
+|ConstructionNotes = {{boostable|n}}
+|Quest = 12
+|Total = 1000
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Alfred Grimhand's Barcrawl"
+|[[Alfred Grimhand's Barcrawl]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Access to [[Barbarian Fishing]], [[Barbarian Firemaking|Firemaking]], and [[Barbarian Smithing|Smithing]]
+|-
+|Started [[Desert Treasure I]]
+|-
+|Started [[Fairytale II - Cure a Queen]]
+|-
+|Partial completion of [[Elemental Workshop II]]
+|-
+|Completion of the [[Knight Waves Training Grounds]]
+|-
+|Defeat the [[Penance Queen]] and complete [[Barbarian Assault]]
+|}
+|}
+{{Reflist}}
+
+|-|
+Elite=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Attack = 20
+|Mining = 60
+|MiningNotes = {{boostable|n}}
+|Strength = 50
+|Agility = 60
+|Smithing = 90
+|Defence = 70
+|DefenceNotes = {{boostable|n}}
+|Herblore = 86
+|Fishing = 76
+|Ranged = 40
+|Thieving = 53
+|Cooking = 80
+|Prayer = 70
+|PrayerNotes = {{boostable|n}}
+|Crafting = 85
+|Firemaking = 85
+|Magic = 87
+|Fletching = 70
+|Woodcutting = 60
+|Farming = 79
+|Construction = 50
+|ConstructionNotes = {{boostable|n}}
+|Quest = 12
+|Total = 1284
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Alfred Grimhand's Barcrawl"
+|[[Alfred Grimhand's Barcrawl]]
+|- data-rowid="Family Crest"
+|[[Family Crest]]
+|- data-rowid="Lunar Diplomacy"
+|[[Lunar Diplomacy]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Access to [[Barbarian Fishing]], [[Barbarian Firemaking|Firemaking]], [[Barbarian Smithing|Smithing]], and [[Barbarian Herblore|Herblore]]
+|-
+|Started [[Desert Treasure I]]
+|-
+|Started [[Fairytale II - Cure a Queen]]
+|-
+|Partial completion of [[Elemental Workshop II]]
+|-
+|Completion of the [[Knight Waves Training Grounds]]
+|-
+|Defeat the [[Penance Queen]] and acquire [[Barbarian_Assault#Rewards|level 5]] in all [[Barbarian Assault]] roles
+|}
+|}
+
+|-|
+</tabber>
+
+==Easy==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Kandarin" data-diary-tier="Easy"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Catch a [[Raw mackerel|Mackerel]] at [[Catherby]].
+|
+*{{SCP|Fishing|16|link=y}}
+*[[Big fishing net]]
+|-
+|2. Buy a [[candle]] from the [[Candle Shop|Chandler]] in [[Catherby]].
+|
+*3 [[coins]]
+|-
+|3. Collect five [[Flax]] from the [[Flax_field#Seers'_Village|Seers' flax fields]].
+|{{NA|None}}
+|-
+|4. Play the [[Church organ|Organ]] in [[Seers' Village church|Seers' church]].
+|{{NA|None}}
+|-
+|5. Plant some [[Jute seed]]s in the [[patch]] north of [[McGrubor's Wood]].
+''Note: This is the [[farming patch]] next to [[Rhonen]].''
+|
+*{{SCP|Farming|13|link=y}}
+*3 [[jute seed]]s, [[rake]], and a [[seed dibber]]
+|-
+|6. Have [[Galahad]] make you a [[cup of tea]].
+|{{NA|None}}
+|-
+|7. Defeat one of each [[elemental]] in the [[Elemental Workshop (location)|workshop]].
+''Note: These are the [[Earth elemental|earth]], [[Water elemental|water]], [[Air elemental|air]], and [[fire elemental]] found on the {{FloorNumber|uk=1}} of the [[Elemental Workshop (location)|workshop]].
+|
+*{{SCP|Quest}} Started [[Elemental Workshop I]]
+*[[Battered key]] and [[weaponry]]
+|-
+|8. Get a [[Fishbowl (pet)|pet fish]] from [[Harry's Fishing Shop|Harry]] in [[Catherby]].
+''Note: You have to talk to [[Harry]] with all required items in your inventory.''
+|
+*[[Fishbowl#Water|Fishbowl with water]]{{efn|[[Ironman Mode|Ironmen]] require either 42 [[Crafting]] or completion of [[Skippy and the Mogres]] with 32 [[Slayer]] for a [[fishbowl]].}}, [[seaweed]], and 10 [[coins]]
+|-
+|9. Buy a [[Stew]] from the [[Forester's Arms|Seers' pub]].
+|
+*20 [[coins]]
+|-
+|10. Speak to [[Sherlock]].
+|{{NA|None}}
+|-
+|11. Cross the [[Log balance (Coal Trucks)|Coal truck log shortcut]].
+''Note: You can take a [[pickaxe]] to mine [[coal]] here to complete a [[#Medium|medium task]].
+|
+*{{SCP|Agility|20|link=y}}
+|}
+{{Notelist}}
+
+===Rewards===
+*[[Kandarin headgear 1]]:
+**Acts as a [[light source]] when worn or held in the inventory
+**While worn, gain double [[logs]] from [[regular tree]]s (no additional experience granted)
+*[[Antique lamp (easy)|Antique lamp]] worth 2,500 experience in any skill of at least level 30
+*[[Coal trucks]] can hold up to 140 [[coal]], up from 120
+*The [[flax keeper]] will offer you 30 [[Bank note|noted]] [[bow string]]s every day for 30 noted [[flax]], for a profit of {{NoCoins|({{GEP|Bow string}}-{{GEP|Flax}})*30}} [[coins]] on the [[Grand Exchange]]
+*5% more [[mark of grace|marks of grace]] from the [[Seers' Village Rooftop Course]]
+
+==Medium==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Kandarin" data-diary-tier="Medium"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Complete a lap of the [[Barbarian Outpost Agility Course|Barbarian agility course]].
+|
+*{{SCP|Quest}} Completion of [[Alfred Grimhand's Barcrawl]]
+*{{SCP|Agility|35|link=y}}
+|-
+|2. Create a [[Superantipoison|Super Antipoison]]{{sic}} potion from scratch in the [[Seers' Village|Seers]]/[[Catherby]] Area.
+''Note: Completing or updating any other task in-between adding ingredients will reset the progress for this task.''
+|
+*{{SCP|Herblore|48|link=y}}
+*[[Vial of water]], [[irit leaf]], [[unicorn horn dust]]
+|-
+|3. Enter the [[Ranging guild]].
+|
+*{{SCP|Ranged|40|link=y}}
+|-
+|4. Use the [[Crossbow Tree|grapple shortcut]] to get from the [[Obelisk of Water|water obelisk]] to [[Catherby]] shore.
+''Note: With 56 [[Magic]], you can bring an [[unpowered orb]] and runes for [[Charge Water Orb]] to complete a [[#Hard|hard task]].
+|
+*{{SCP|Agility|36|link=y}}, {{SCP|Strength|22|link=y}}, and {{SCP|Ranged|39|link=y}}
+*[[Mith grapple]]{{efn|[[Ironman Mode|Ironmen]] require either access to the [[Ancient Cavern]] or 59 [[Smithing]] and 59 [[Fletching]] for a [[mith grapple]].}} and any [[Crossbow (weapon)|crossbow]]
+*[[Dusty key]] or {{SCP|Agility|70|link=y}}
+*Protection from [[dragonfire]] recommended
+|-
+|5. Catch and cook a [[Bass]] in [[Catherby]].
+''Note: Completing or updating any other task in-between these steps will reset the progress for this task.''
+|
+*{{SCP|Fishing|46|link=y}} and {{SCP|Cooking|43|link=y}}
+*[[Big fishing net]]
+|-
+|6. Teleport to [[Camelot]].
+|
+*{{SCP|Magic|45|link=y}}
+*Means to cast [[Camelot Teleport]] ({{RuneReq|Air=5|Law=1}})
+|-
+|7. String a [[Maple shortbow]] in [[Seers' Village bank]].
+|
+*{{SCP|Fletching|50|link=y}}
+*[[Maple shortbow (u)]] and [[bow string]]
+|-
+|8. Pick some [[Limpwurt root]] from the [[farming patch]] in [[Catherby]].
+''Note: This is the [[flower patch]] next to [[Dantaera]].''
+|
+*{{SCP|Farming|26|link=y}}
+*[[Limpwurt seed]], [[seed dibber]] (or [[Barbarian Farming]]), and a [[rake]]
+*[[Ultracompost]] recommended
+|-
+|9. Create a [[Mind helmet]].
+''Note: This task is automatically completed during [[Elemental Workshop II]].''
+|
+*{{SCP|Quest}} Partial completion of [[Elemental Workshop II]]
+|-
+|10. Kill a [[Fire Giant]] inside [[Waterfall Dungeon|Baxtorian Waterfall]].
+|
+*{{SCP|Quest}} Started [[Waterfall Quest]]
+*[[Weaponry]]
+*[[Rope]]
+*[[Glarial's amulet]] only if [[Waterfall Quest]] isn't yet completed
+|-
+|11. Complete a wave of [[Barbarian Assault]].
+|
+* Completion of the [[Barbarian Assault tutorial]] to be able to play the minigame
+|-
+|12. Steal from the [[Chest (steel arrowtips)|chest]] in [[Hemenster]].
+''Note: This chest is located in the building between the buildings with the [[range]] and [[anvil]].
+|
+*{{SCP|Thieving|47|link=y}}
+*[[Lockpick]]
+*[[Combat bracelet]] recommended for quick access from the nearby [[Ranging Guild]]
+|-
+|13. Travel to [[McGrubor's Wood]] by [[Fairy Ring]].
+|
+*{{SCP|Quest}} Started [[Fairytale II - Cure a Queen]]
+*[[Dramen staff|Dramen]] or [[Lunar staff]] to travel to [[Fairy ring]] code {{Fairycode|als}}
+|-
+|14. Mine some [[coal]] near the [[coal trucks]].
+|
+*{{SCP|Mining|30|link=y}}
+*Any [[pickaxe]]
+|}
+{{Notelist}}
+
+===Rewards===
+*[[Kandarin headgear 2]]:
+**No new benefits
+*[[Antique lamp (medium)|Antique lamp]] worth 7,500 experience in any skill of at least level 40
+*[[Coal trucks]] can hold up to 280 [[coal]], up from 140
+*The [[flax keeper]] will offer you 60 [[Bank note|noted]] [[bow string]]s every day for 60 noted [[flax]], for a profit of {{NoCoins|({{GEP|Bow string}}-{{GEP|Flax}})*60}} [[coins]] on the [[Grand Exchange]]
+*10% more [[mark of grace|marks of grace]] from the [[Seers' Village Rooftop Course]], up from 5%
+*10% increased experience from cutting [[maple tree]]s in [[Seers' Village]] (stacks with the [[Lumberjack outfit]])
+*5% increased chance to save a [[Farming#Variable crop yield|"harvest life"]] at the [[herb patch]] in [[Catherby]], slightly increasing your harvest yield
+*The [[spinning wheel]] in [[Seers' Village]] spins 33% faster
+*[[Rope (Baxtorian Falls)|Ropes]] are now permanently secured at the [[Baxtorian Falls]] (with the completion of [[Waterfall Quest]])
+
+==Hard==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Kandarin" data-diary-tier="Hard"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Catch a [[Leaping Sturgeon]].
+''Note: Must be caught at [[Otto's Grotto]] for this task.
+|
+*Access to [[Barbarian Fishing]]
+*{{SCP|Fishing|70|link=y}}, {{SCP|Agility|45|link=y}}, and {{SCP|Strength|45|link=y}}
+*[[Barbarian rod]] and suitable bait ([[fishing bait]], [[feather]]s, [[fish offcuts]], [[roe]], or [[caviar]])
+|-
+|2. Complete a lap of the [[Seers' Village Rooftop Course|Seers' Village agility course]].
+|
+*{{SCP|Agility|60|link=y}}
+|-
+|3. Create a [[Yew Longbow]] from scratch around [[Seers' Village]].
+''Note: This requires chopping a [[yew tree]] in the village, cutting the [[yew logs]] into a [[yew longbow (u)]], then finishing it with a [[bow string]]. Completing or updating any other task in-between these steps will reset the progress for this task.''
+|
+*{{SCP|Fletching|70|link=y}} and {{SCP|Woodcutting|60|link=y}}
+*Any [[axe]], [[bow string]] (can be spun from [[flax]]), and a [[knife]]
+|-
+|4. Enter the [[Seers' Village courthouse]] with [[piety]] turned on.
+|
+*{{SCP|Quest}} Completion of [[King's Ransom]] and the [[Knight Waves Training Grounds]]
+*{{SCP|Prayer|70|link=y}} and {{SCP|Defence|70|link=y}} (neither [[Temporary skill boost|boostable]])
+|-
+|5. Charge a [[Water Orb]].
+|
+*{{SCP|Magic|56|link=y}}
+*[[Dusty key]] or {{SCP|Agility|70|link=y}}
+*[[Unpowered orb]] and means to cast [[Charge Water Orb]] ({{RuneReq|Cosmic=3|Water=30}})
+*Protection from [[dragonfire]] recommended
+|-
+|6. Burn some [[Maple logs]] with a bow in [[Seers' Village]].
+|
+*Access to [[Barbarian Firemaking]]
+*{{SCP|Firemaking|65|link=y}}
+*[[Maple logs]], and any [[bow]] (except the [[Twisted bow|twisted]], [[Cursed goblin bow|cursed]], [[Dark bow|dark]], [[Crystal bow|crystal]], [[ogre bow|ogre]], [[Rain bow|rain]], [[Starter bow|starter]] or [[signed oak bow]])
+|-
+|7. Kill a [[Shadow Hound]] in the [[Shadow dungeon]].
+|
+*{{SCP|Quest}} Started [[Desert Treasure I]]
+*{{SCP|Thieving|53|link=y}}
+*[[Ring of visibility]] (or a [[ring of shadows]]) and [[weapon]]ry
+|-
+|8. Kill a [[Mithril Dragon]].
+''Note: The mithril dragon fought during [[Dragon Slayer II]] does not count for this task.''
+|
+*Access to [[Barbarian Firemaking]]
+*[[Weaponry]] and protection from [[dragonfire]]
+|-
+|9. Purchase and equip a [[granite body]] from [[Barbarian Assault]].
+''Note: This requires having defeated the [[Penance Queen]] at the end of [[Barbarian Assault]]. Buying and equipping the [[granite body]] counts as two separate steps, and completing or updating any other task in-between these steps will reset the progress for this task.
+|
+*{{SCP|Strength|50|link=y}} and {{SCP|Defence|50|link=y}}
+*See the [[Barbarian_Assault#Gameplay|gameplay overview]] and the [[Barbarian Assault/Strategies|strategy guide]]
+*95,000 [[coins]] to purchase the [[granite body]]
+|-
+|10. Have the [[Estate agent|Seers' estate agent]] decorate your [[Player-owned house|house]] with [[Fancy Stone]].
+''Note: You must finish the dialogue or the task will not count as completed.''
+|
+*{{SCP|Construction|50|link=y}} {{Boostable|n}}
+*25,000 [[coins]]
+*Additional 5,000 [[coins]] if already using [[Fancy Stone]], to change to something else and back
+|-
+|11. Smith an [[Adamant spear]] at [[Otto's Grotto]].
+|
+*Access to [[Barbarian Smithing]]
+*{{SCP|Smithing|75|link=y}}
+*[[Yew logs]], [[adamantite bar]], and a [[hammer]]
+|}
+
+===Rewards===
+*[[Kandarin headgear 3]]:
+**One daily teleport to [[Sherlock]]
+*[[Antique lamp (hard)|Antique lamp]] worth 15,000 experience in any skill of at least level 50
+*[[Coal trucks]] can hold up to 308 [[coal]], up from 280
+*The [[flax keeper]] will offer you 120 [[Bank note|noted]] [[bow string]]s every day for 120 noted [[flax]], for a profit of {{NoCoins|({{GEP|Bow string}}-{{GEP|Flax}})*120}} [[coins]] on the [[Grand Exchange]]
+*15% more [[mark of grace|marks of grace]] from the [[Seers' Village Rooftop Course]], up from 10%
+*10% increased chance to save a [[Farming#Variable crop yield|"harvest life"]] at the [[herb patch]] in [[Catherby]], up from 5%
+*25% discount on [[Thormac]]s' [[Mystic staff|enchanting]] services (requires completion of [[Scorpion Catcher]])
+*10% more [[honour points]] from [[Barbarian Assault]]
+*[[Camelot Teleport]] can now be used to teleport to [[Seers' Village bank]] instead
+*10% increased chance to trigger the special effect of [[enchanted bolts]], even in [[PvP]] (stacks additively with other increases, such as that of the [[Armadyl crossbow]]'s special attack){{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1480491964260925444|date=10 January 2022|archiveurl=https://reldo.runescape.wiki/i/105529|archivedate=11 January 2022|quote=The diary reward adds an extra 10% of the base chance.}}
+
+==Elite==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Kandarin" data-diary-tier="Elite"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Read the [[Blackboard (Barbarian Assault)|Blackboard]] at [[Barbarian Assault]] after reaching level 5 in every role.
+''Note: These levels are [[Barbarian Assault#Rewards|bought]] with [[honour points]]. Assuming no points are spent on armour or [[Barbarian Assault/Gambles|gambles]], you'll need a total of 5,600 points (1,400 per role). In Deadman Mode, the task is instead "Read the Blackboard at Barbarian Assault after finishing your training."''
+|
+*See the [[Barbarian_Assault#Gameplay|gameplay overview]] and the [[Barbarian Assault/Strategies|strategy guide]]
+|-
+|2. Pick some [[Dwarf weed]] from the [[herb patch]] at [[Catherby]].
+''Note: This is the [[herb patch]] next to [[Dantaera]].''
+|
+*{{SCP|Farming|79|link=y}}
+*[[Dwarf weed seed]], [[spade]], [[seed dibber]] (or [[Barbarian Farming]]), and a [[rake]]
+*[[Ultracompost]] recommended
+|-
+|3. Fish and Cook 5 [[Shark]]s in [[Catherby]] using the [[Cooking gauntlets]].
+''Note: You specifically have to use the [[range]] in the building between the [[Catherby bank]] and the [[Hickton's Archery Emporium.|archery shop]], the one in the building immediately north of that doesn't count.''
+
+''Extra [[shark]]s provided by [[Rada's blessing]] don't add up to the required number. Completing or updating any other task in-between these steps will reset the progress for this task.''
+|
+*{{SCP|Quest}} Completion of [[Family Crest]]
+*{{SCP|Fishing|76|link=y}} and {{SCP|Cooking|80|link=y}}
+*[[Harpoon]] (or [[Barbarian Training|Barbarian Fishing]]) and [[cooking gauntlets]]
+|-
+|4. Mix a [[Stamina Mix]] on top of the [[Seers' Village bank]].
+''Note: You have to start the [[Seers' Village Agility Course]] to climb on top of the bank.
+|
+*Access to [[Barbarian Herblore]]
+*{{SCP|Herblore|86|link=y}} and {{SCP|Agility|60|link=y}}
+*[[Stamina potion (2)]] and [[caviar]]{{efn|[[Ironman Mode|Ironmen]] must either have access to [[Fossil Island]] to kill [[Lobstrosity|lobstrosities]] for the [[caviar]], or use a [[knife]] on a [[leaping sturgeon]] (see the first [[#Hard|hard task]] of this diary for the requirements to catch one).}}
+|-
+|5. Smith a [[Rune Hasta]] at [[Otto's Grotto]].
+|
+*Access to [[Barbarian Smithing]]
+*{{SCP|Smithing|90|link=y}}
+*[[Runite bar]], [[magic logs]], and a [[hammer]]
+|-
+|6. Construct a [[Pyre ship]] from [[Magic Logs]].
+''Note: You must use [[chewed bones]] for the ship, not [[mangled bones]].''
+|
+*Access to [[Barbarian Firemaking]]
+*{{SCP|Firemaking|85|link=y}} {{boostable|y}} and {{SCP|Crafting|85|link=y}} {{boostable|y}} 
+*[[Magic logs]], [[chewed bones]], [[tinderbox]], and any [[woodcutting axe]]
+|-
+|7. Teleport to [[Catherby]].
+''Note: [[Tele Group Catherby]] will also work here.''
+|
+*{{SCP|Quest}} Completion of [[Lunar Diplomacy]]
+*{{SCP|Magic|87|link=y}}
+*[[Lunar spellbook]] selected
+*Means to cast [[Catherby Teleport]] ({{RuneReq|Law=3|Astral=3|Water=10}})
+|}
+{{Notelist}}
+
+===Rewards===
+*[[Kandarin headgear 4]]:
+**Unlimited teleports to [[Sherlock]]
+*[[Antique lamp (elite)|Antique lamp]] worth 50,000 experience in any skill of at least level 70
+*The first 200 [[coal]] placed in the [[coal trucks]] every day will automatically be transported to your [[bank]]
+*The [[flax keeper]] will offer you 250 [[Bank note|noted]] [[bow string]]s every day for 250 noted [[flax]], for a profit of {{NoCoins|({{GEP|Bow string}}-{{GEP|Flax}})*250}} [[coins]] on the [[Grand Exchange]]
+*15% increased chance to save a [[Farming#Variable crop yield|"harvest life"]] at the [[herb patch]] in [[Catherby]], up from 10%
+*50% discount on [[Thormac]]s' [[Mystic staff|enchanting]] services, up from 25% (requires completion of [[Scorpion Catcher]])
+*[[Otto Godblessed]] now turns your [[Zamorakian spear]] into a [[Zamorakian hasta]] for 150,000 [[coins]], down from 300,000 [[coins]]
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 17 September 2025
+|update = Poll 85 - Bridges, Boots, Ropes & Roots
+|poll = Poll 85 - Clan Chat and Player Tweaks
+|change = After completion of [[Waterfall Quest]] and the Medium Kandarin Diary, players no longer need to bring a rope to use on the rock and dead tree in order to access [[Waterfall Dungeon]].
+}}
+{{Subject changes
+|date = 27 March 2024
+|update = Easter & Varlamore Updates
+|change = A bug in which the 10% proc buff from the Hard Kandarin Diary was being applied twice has been fixed.
+}}
+{{Subject changes
+|date = 6 August 2015
+|update = XP Drops, Jad Pet & Slayer
+|change = 
+*The Kandarin diary task to buy a candle from the Catherby store now cannot be completed by buying a candle from the Tai Bwo Wannai store.
+*The "Create a Super Antipoison potion from scratch in the Seers/Catherby Area." Kandarin Diary task now includes more than just half of Catherby.
+}}
+{{Subject changes
+|date = 23 July 2015
+|update = Big Cats & WWF 
+|change = Fixed typo in Easy Kandarin Achievement Diary.
+}}
+{{Subject changes
+|date = 25 June 2015
+|update = Boss Room Counters & Platinum Tokens
+|change = Diary messages are no longer generated when picking flax without starting the Kandarin diary. 
+}}
+{{Subject changes
+|date = 18 June 2015
+|update = Multiple Clues & Midsummer
+|change = The increased herb yields from Catherby herb patch are now correctly being applied.
+}}
+{{Subject changes
+|date = 11 June 2015
+|update = Clear Private Chat & More
+|change = Catching fish in Catherby for the Kandarin achievement diary now completes the tasks more reliably.
+}}
+{{Subject changes
+|date = 16 April 2015
+|update = Clan Wars Game Modes & More
+|change = Completing the hard Kandarin diary now increases the chance of enchanted bolt special effects activating by 10%.
+}}
+{{Subject changes
+|date = 9 April 2015
+|update = Motherlode Expansion & More
+|change = The Kandarin medium task 'Kill a fire giant in Baxtorian waterfall' now only completes within the waterfall.
+}}
+{{Subject changes
+|date = 19 March 2015
+|update = Boss Pets, Sets, Chat & More
+|change = 
+*Spinning materials on the Seers' spinning wheel is now faster if you've completed the Kandarin medium tasks.
+*Charging water orbs no longer stops after just one if you haven't completed the related diary task.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*In ''RuneScape 3'', this diary is known as the ''Seers' Village achievement set'', which gives the reward of the [[rsw:Seer's headband|Seer's headband]]. The [[Kandarin headgear 1|first Kandarin headgear]] pays homage to this, as it is a leather headband that transforms into a helm after higher tiers are completed.
+*There were a few hints from the ''[[Old School RuneScape]]'' team about the [[rsw:enhanced excalibur|enhanced excalibur]] before the diary update, but it wasn't added due to the fact that it would devalue the [[Saradomin godsword]] and [[Guthan's]] set.{{CiteTwitter|author=Mod John C|url=https://twitter.com/JagexJohnC/status/531939007928999936|date=10 November 2014|archiveurl=https://reldo.runescape.wiki/i/103293|archivedate=11 November 2014|quote=I have no intention of offering it and that won't change unless i some overwhelming support}}
+*The task to equip a granite platebody would reset when the item was banked. This was later fixed.
+* When a player who has completed the medium Ardougne diary downgrades their Ultimate Ironman status to a standard iron or main account, the bucket of sand task is marked as incomplete. However, the diary as a whole remains in the state of rewards having been claimed. The task does not need to be completed again to receive the benefits from the medium, hard, or elite tiers.
+
+==References==
+{{Reflist}}
+
+{{Achievement diary}}

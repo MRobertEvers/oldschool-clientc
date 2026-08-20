@@ -1698,6 +1698,119 @@ mock230_scripts_run_hook_int_sv(
     return 1;
 }
 
+/*
+ * The interaction CLAIM seam: content gets asked before the engine dispatches.
+ *
+ * ------------------------------------------------------------------
+ * Why this exists, when the tree already has triggers
+ * ------------------------------------------------------------------
+ *
+ * A trigger binds to one subject. `[opnpc1,<npc>]` is exclusive, a category
+ * binding loses to a name binding, and `[opnpc1,_]` shadows every specific
+ * handler in the game — which is the failure `inverted-script-fallback`
+ * records. So there is no way, from content, to say "ask me about EVERY npc
+ * before the npc's own handler runs".
+ *
+ * Treasure Trails needs exactly that. A cryptic or anagram clue can point at
+ * any of 218 npcs and 139 of them already own an `[opnpc1,…]` — they are quest
+ * NPCs, shopkeepers, slayer masters. In OSRS, talking to one of them while
+ * holding a matching clue gives the CLUE response instead of the usual
+ * dialogue, so the clue check has to run first and be able to consume the
+ * interaction. Writing that as a trigger would mean either editing 139 quest
+ * handlers or shadowing all of them.
+ *
+ * It is deliberately not a Treasure Trails seam. The same shape is what a
+ * Slayer-task hook, an achievement-diary task hook and the loc-search half of
+ * the clue targets all want: one question, asked of content, before the
+ * ordinary dispatch, whose `true` means "I handled it, stop".
+ *
+ * ------------------------------------------------------------------
+ * The contract
+ * ------------------------------------------------------------------
+ *
+ * The proc is OPTIONAL. A tree that does not define it costs one failed
+ * name lookup per interaction and behaves exactly as before — which is what
+ * makes this safe to add to a dispatch every click goes through.
+ *
+ * It runs with the same actives a trigger would have: the player, and the npc
+ * or loc that was clicked. So it can `~chatnpc`, and does not have to answer a
+ * clue with a floating message.
+ *
+ * It must return a boolean and it must be cheap on the common path — it is
+ * asked about every interaction in the game. Content's side of that bargain is
+ * to answer `false` immediately when the player holds no clue.
+ */
+int
+mock230_scripts_run_claim(
+    struct Mock230Server* srv,
+    const char* name,
+    int npc_slot,
+    int loc_slot,
+    const int32_t* args,
+    int argc,
+    int32_t* out)
+{
+    const struct SSVM_Script* script;
+    struct SSVM_State* state;
+    enum SSVM_Exec status;
+
+    assert(name);
+    assert(out);
+    *out = 0;
+    if( !srv->scripts_ok )
+        return 0;
+    script = SSVM_ProviderGetByName(srv->scripts, name);
+    if( !script )
+        return 0;
+
+    state = SSVM_StateAlloc(srv->script_env, script, args, argc, NULL, 0);
+    if( !state )
+    {
+        fprintf(stderr, "mock230: %s rejected %d argument(s)\n", script->name, argc);
+        return 0;
+    }
+    if( srv->active_player )
+        state->last_int = srv->active_player->last_int;
+    SSVM_SetActive(state, SSVM_ENT_PLAYER, SSVM_PRIMARY, srv->active_player);
+    SSVM_PointerAdd(state, SSVM_PTR_PROTECTED_PLAYER);
+    if( npc_slot >= 0 && npc_slot < MOCK230_NPC_MAX && srv->npcs[npc_slot].active )
+    {
+        SSVM_SetActive(state, SSVM_ENT_NPC, SSVM_PRIMARY, &srv->npcs[npc_slot]);
+        state->host_tag = npc_slot + 1;
+    }
+    if( loc_slot >= 0 )
+    {
+        struct Mock230SceneLoc* loc = mock230_scene_loc(loc_slot);
+
+        /* Slot PLUS ONE, and the liveness check, both copied from
+         * `run_trigger_script` rather than reinvented: `SSVM_ENT_LOC` stores a
+         * one-based slot so that 0 can mean "none", and binding a dead slot is
+         * how a loc opcode ends up describing whatever was there before. */
+        if( loc && loc->active )
+            SSVM_SetActive(state, SSVM_ENT_LOC, SSVM_PRIMARY, (void*)(intptr_t)(loc_slot + 1));
+    }
+
+    status = SSVM_Execute(state);
+    if( status == SSVM_ABORTED )
+        fprintf(stderr, "mock230: %s", SSVM_Backtrace(state));
+    /*
+     * A claim proc that parks (a dialogue, a delay) has NOT answered, and is
+     * treated as no claim. Answering "claimed" for a parked script would eat
+     * the interaction on the strength of a script that has not decided yet;
+     * answering it later is not possible, because the engine has to dispatch
+     * now. Content that wants to talk should claim first and open the dialogue
+     * from the claim's own follow-up.
+     */
+    if( status != SSVM_FINISHED || state->isp < 1 )
+    {
+        SSVM_StateRelease(state);
+        return 0;
+    }
+    *out = state->int_stack[state->isp - 1];
+    SSVM_StateRelease(state);
+    return 1;
+}
+
 /** By name, for tests. See mock230_scripts_run_proc_sv on why the split. */
 int
 mock230_scripts_run_proc_int_sv(

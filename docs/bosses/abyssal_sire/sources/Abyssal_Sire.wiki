@@ -1,0 +1,387 @@
+{{HasStrategy}}
+{{HasTask|Abyssal demons}}
+{{Infobox Monster
+|version1 = Phase 1
+|version2 = Phase 2
+|version3 = Phase 3 (stage 1)
+|version4 = Phase 3 (stage 2)
+|name = Abyssal Sire
+|image1 = [[File:Abyssal Sire (phase 1).png|220px]]
+|image2 = [[File:Abyssal Sire.png|280px]]
+|image3 = [[File:Abyssal Sire (phase 3, stage 1).png|250px]]
+|image4 = [[File:Abyssal Sire (phase 3, stage 2).png|250px]]
+|release = [[1 October]] [[2015]]
+|update = The Abyssal Sire
+|members = Yes
+|combat = 350
+|size = 6
+|examine1 = {{*}} A higher order of abyssal demon.<br/>{{*}} It's disoriented... for now.
+|examine2 = The Sire walks.
+|examine3 = It's manipulating the Nexus for its own protection.
+|examine4 = It's desperate.
+|attributes = demon
+|xpbonus = 12.5
+|max hit = 66 ([[Melee]]), 96 (with explosion)
+|aggressive = No
+|poisonous = Yes (8)
+|attack style = [[Melee]]
+|attack speed = 7
+|respawn1 = 1
+|respawn2 = N/A
+|respawn3 = N/A
+|respawn4 = N/A
+|slaylvl = 85
+|slayxp = 478
+|cat = Bosses, Abyssal Demons
+|assignedby = vannaka,chaeldar,konar,nieve,duradel, Mortimer
+|hitpoints = 425
+|att = 180
+|str = 136
+|def = 250
+|mage = 200
+|range = 1
+|attbns = 65
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab1 = 40
+|dstab2 = 40
+|dstab3 = 40
+|dstab4 = 20
+|dslash1 = 60
+|dslash2 = 60
+|dslash3 = 60
+|dslash4 = 30
+|dcrush1 = 50
+|dcrush2 = 50
+|dcrush3 = 50
+|dcrush4 = 25
+|dmagic1 = 20
+|dmagic2 = 20
+|dmagic3 = 20
+|dmagic4 = -40
+|dlight1 = 60
+|dlight2 = 60
+|dlight3 = 60
+|dlight4 = 30
+|dstandard1 = 60
+|dstandard2 = 60
+|dstandard3 = 60
+|dstandard4 = 30
+|dheavy1 = 60
+|dheavy2 = 60
+|dheavy3 = 60
+|dheavy4 = 30
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = No
+|immunethrall = Yes
+|id1 = 5886,5887,5888
+|id2 = 5889,5890
+|id3 = 5891
+|id4 = 5908
+}}
+[[File:Abyssal demon icon.png|left]]
+The '''Abyssal Sire''' is an [[abyssal demon]] [[Slayer boss]] that requires level 85 [[Slayer]] to kill. To access the boss, the player must have visited the [[Abyss]] at least once, either through the [[Mage of Zamorak]] or the [[Fairy rings|Fairy Ring network]].{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1189844286675783680|date=31 October 2019|archiveurl=https://reldo.runescape.wiki/i/98219|archivedate=20 July 2020|quote=Yeah, you need access to the Abyss, either via the Abyssal miniquest or via fairy rings.}} As with all other Slayer bosses, the Sire can only be fought when assigned abyssal demons (outside of [[Krystilia]]) or itself as a [[Slayer task]]. Although it resides in a multi-combat area, it is a solo-only boss.
+
+According to [[The Overseer]], the Abyssal Sires are the engineers of the Abyss from a time before the God Wars. As their resources began to deplete and they had no means to escape, they constructed the [[Abyssal Nexus|Nexus]] and remained there in deep stasis.
+
+It is known for dropping the [[unsired]], which can be placed in the [[Font of Consumption]] behind The Overseer for a chance of obtaining an [[abyssal whip]], [[abyssal dagger]], [[abyssal head]], [[jar of miasma]], a part of the [[abyssal bludgeon]] - the [[bludgeon axon|axon]], [[bludgeon claw|claw]], or [[bludgeon spine|spine]] - or, rarely, an [[abyssal orphan]].
+
+The Sire was introduced in a [[Update:Dev Blog: Slayer Expansion v2|Slayer expansion developer blog]] on [[2 June]] [[2015]] and [[Poll:Old School Content Poll 34: XP droplets & Slayer|subsequently polled]] with 89.8% of the votes in favour of its addition.
+
+==Location==
+{{LocTableHead}}
+{{LocLine
+|name = Abyssal Sire
+|location = [[Abyssal Nexus]]
+|levels = 350
+|members = yes
+|mapID = 10006
+|plane = 0
+|x:3107,y:4791|x:2967,y:4791|x:2977,y:4855|x:3102,y:4855
+|mtype = pin
+|leagueRegion = General
+}}
+{{LocTableBottom}}
+
+The Sire is located in the [[Abyssal Nexus]], south of the [[Abyss]] used for [[Runecraft]], and may be reached quickly using fairy ring {{Fairycode|dip}}. 
+
+There are four chambers in the Nexus where a Sire can be found, allowing multiple people to fight the Sire per world, similar to [[Cerberus]]. [[Eye (Abyssal Nexus)|Eyes]] at the entrance of each chamber can be peeked at to see if the Sire is being fought by another player.
+
+==Mechanics==
+{{main|Abyssal Sire/Strategies}}
+As with all demons, the Sire is susceptible to the effects of [[demonbane weapons]]. Having auto-retaliate turned off is highly recommended in order to avoid attacking the spawns. 
+
+The fight consists of three phases:
+*In the first phase players must kill the Sire's four [[Respiratory system|respiratory systems]] in the corners of the room, which each grant 50 Slayer experience when killed. The Sire can be disoriented by using [[Shadow spells]] on the [[Ancient Magicks|Ancient spellbook]], or by dealing 75 damage to it with [[Ranged]] or [[Magic]], temporarily disabling the [[Tentacle (Abyssal Sire)|tentacles]] protecting the respiratory systems. It will attack by either spawning poisonous fumes underneath the player, dealing rapid damage in a 3x3 AoE that can inflict [[poison]] starting at 8 damage, or launching [[spawn]]s from its mouth, which attack with ranged or melee. If ignored, the spawn will mature into stronger [[scion]].
+*At the start of the second phase, the Sire gets off its throne to attack the player. Damage dealt to the Sire while it is transitioning between phases is reduced by 50%. Its standard melee attacks can hit up to 66, which is reduced to 26 by using [[Protect from Melee]]. It has an attack range of three, but standing more than two tiles away from it will result in it either launching spawns or spawning poisonous fumes. Likewise, attacking it from more than two tiles away will cause it to forcibly teleport the player next to it before retaliating with portal energy, which deals high damage if not avoided.
+*When the Sire gets below 210 health, it will walk to the middle of the room and stop moving. It no longer attacks with melee, instead creating many spawns and summoning a miasma pool under the player every few seconds, which must be avoided. When the Sire gets below 140 health, it will teleport the player next to itself and trigger a highly damaging area-of-effect attack; the damage can be avoided by running directly away from the Sire (at least 2 tiles) as soon as the player is teleported.
+
+When the Sire dies, any spawns and scions it summoned will die off alongside it, though it is possible to get hit from a dying minion. The Sire respawns immediately.
+
+==Money making==
+{{Mmgsection|Killing the Abyssal Sire}}
+
+==Drops==
+{{DropLogProject|kills=10634755}}<!--
+
+-->{{#vardefine:ASunique|{{#expr:
+(1/100) * 1/128 * (
+  26 * {{GEP|Abyssal dagger}} +
+  12 * {{GEP|Abyssal whip}} +
+  13 * {{GEP|Jar of Miasma}} +
+  62/3 * {{GEP|Abyssal bludgeon}}
+)
+}}}}<!--
+
+-->{{#vardefine:ASuniqueHA|{{#expr:
+(1/100) * 1/128 * (
+  26 * {{HA|Abyssal dagger}} +
+  12 * {{HA|Abyssal whip}} +
+  13 * {{HA|Jar of Miasma}} +
+  62/3 * {{HA|Abyssal bludgeon}}
+)
+}}}}
+
+{| class="wikitable"
+! colspan="4" |Average drop value
+|-
+![[Grand Exchange|GE]]
+![[Grand Exchange|GE]] w/o [[Unsired]] drops
+![[High Level Alchemy|HA]]
+![[High Level Alchemy|HA]] w/o [[Unsired]] drops
+|-
+|{{Coins|floor({{Average drop value|mob=Abyssal Sire|raw=y}} + {{#var:ASunique}})}}
+|{{Coins|floor({{Average drop value|mob=Abyssal Sire|raw=y}})}}
+|{{Coins|floor({{Average drop value|mob=Abyssal Sire|alch=yes|raw=y}} + {{#var:ASuniqueHA}})}}
+|{{Coins|floor({{Average drop value|alch=yes|raw=y}})}}
+|}
+
+===Pre-roll===
+{{DropsTableHead}}
+{{DropsLine|name=Unsired|quantity=1|rarity=1/100|raritynotes={{CiteTwitter|author=Mod Kieren|url=https://twitter.com/JagexKieren/status/665177260698288128|date=13 November 2015|archiveurl=https://reldo.runescape.wiki/i/104972|archivedate=24 May 2020|quote=Here are the Abyssal Sire drop rates in case you didn't catch them on @JagexRonan's stream.}}|gemw=No}}
+{{DropsTableBottom}}
+
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Abyssal ashes|quantity=1|rarity=Always}}
+{{DropsTableBottom}}
+
+===Weapons and armour===
+{{DropsTableHead}}
+{{DropsLine|name=Battlestaff|quantity=10 (noted)|rarity=6/139}}
+{{DropsLine|name=Rune full helm|quantity=3 (noted)|rarity=4/139}}
+{{DropsLine|name=Mystic lava staff|quantity=2 (noted)|rarity=4/139}}
+{{DropsLine|name=Rune sword|quantity=3 (noted)|rarity=4/139}}
+{{DropsLine|name=Rune platebody|quantity=2 (noted)|rarity=4/139}}
+{{DropsLine|name=Rune kiteshield|quantity=2 (noted)|rarity=3/139}}
+{{DropsLine|name=Mystic air staff|quantity=2 (noted)|rarity=2/139}}
+{{DropsLine|name=Air battlestaff|quantity=6 (noted)|rarity=2/139}}
+{{DropsTableBottom}}
+
+===Runes and ammunition===
+{{DropsTableHead}}
+{{DropsLine|name=Blood rune|quantity=190-210|rarity=5/139}}
+{{DropsLine|name=Death rune|quantity=330-370|rarity=5/139}}
+{{DropsLine|name=Law rune|quantity=250|rarity=5/139}}
+{{DropsLine|name=Soul rune|quantity=225-275|rarity=5/139}}
+{{DropsLine|name=Cosmic rune|quantity=350|rarity=4/139}}
+{{DropsLine|name=Steel cannonball|quantity=300|rarity=4/139}}
+{{DropsTableBottom}}
+
+===Herbs===
+''There is a 5/139 (3.6%) chance of rolling the herb subtable. The herbs are dropped in a 5:4:4:3 ratio.''
+{{DropsTableHead}}
+{{DropsLine|name=Grimy kwuarm|quantity=25 (noted)|rarity=25/2224}} <!-- 5/16 * 5/139 -->
+{{DropsLine|name=Grimy dwarf weed|quantity=25 (noted)|rarity=20/2224}} <!-- 4/16 * 5/139 -->
+{{DropsLine|name=Grimy cadantine|quantity=25 (noted)|rarity=20/2224}} <!-- 4/16 * 5/139 -->
+{{DropsLine|name=Grimy lantadyme|quantity=25 (noted)|rarity=15/2224}} <!-- 3/16 * 5/139 -->
+{{DropsTableBottom}}
+
+===Seeds===
+{{TreeHerbSeedDropTableInfo|5/139}}{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/677117984972922880|date=16 December 2015|archiveurl=https://reldo.runescape.wiki/i/106085|archivedate=24 May 2020|quote=It has a 5/139 chance of dropping seeds.}} ''When the drop table is rolled, double the regular quantity of the item is always dropped.''
+{{DropsTableHead}}
+{{TreeHerbSeedDropLines|5/139|multiplier=2}}
+{{DropsTableBottom}}
+
+===Materials===
+{{DropsTableHead}}
+{{DropsLine|name=Earth orb|quantity=47-53 (noted)|rarity=5/139}}
+{{DropsLine|name=Pure essence|quantity=600 (noted)|rarity=5/139}}
+{{DropsLine|name=Magic logs|quantity=50-70 (noted)|rarity=5/139}}
+{{DropsLine|name=Uncut diamond|quantity=15 (noted)|rarity=5/139}}
+{{DropsLine|name=Coal|quantity=380-420 (noted)|rarity=4/139}}
+{{DropsLine|name=Runite ore|quantity=6 (noted)|rarity=4/139}}
+{{DropsLine|name=Onyx bolt tips|quantity=10|rarity=3/139}}
+{{DropsLine|name=Runite bar|quantity=5 (noted)|rarity=2/139}}
+{{DropsLine|name=Aether catalyst|quantity=220-270|rarity=2/139}}
+{{DropsTableBottom}}
+
+===Talismans===
+{{TalismanDropTableInfo|3/139}}{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/676390363762966528|date=14 December 2015|archiveurl=https://reldo.runescape.wiki/i/98326|archivedate=24 May 2020|quote=3/139 to get onto the talisman table.}}
+{{DropsTableHead}}
+{{TalismanDropLines|3/139}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Coins|quantity=48000-52000|rarity=11/139}}
+{{DropsLine|name=Chilli potato|quantity=10|rarity=7/139}}
+{{DropsLine|name=Super restore(4)|quantity=4|rarity=5/139}}
+{{DropsLine|name=Binding necklace|quantity=25 (noted)|rarity=4/139}}
+{{DropsLine|name=Saradomin brew(3)|quantity=6|rarity=2/139}}
+{{DropsLine|name=Jug of water|quantity=250-350 (noted)|rarity=2/139}}
+{{DropsTableBottom}}
+
+===Rare drop table===
+{{RareDropTable|3/139|naturetalisman=yes|override=There is a 3/139 chance of rolling the [[rare drop table]]. This monster will always drop double the usual quantity from this table.|multiplier=2}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Brimstone key|quantity=1|rarity={{Brimstone rarity|350|bonus=yes}}|raritynotes=<ref group='d'>Brimstone keys are dropped if killed on a [[Slayer task]] given by [[Konar quo Maten]].</ref>|gemw=No|leagueRegion=Misthalin&Kourend}}
+{{DropsLineClue|type=elite|rarity=1/180|raritynotes={{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/686623282368540672|date=11 January 2016|archiveurl=https://reldo.runescape.wiki/i/109839|archivedate=24 May 2020|quote=1/180.}}}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Abyssal Sire}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = Added a 2/139 drop of 220-270 [[aether catalyst]], and to compensate made coal more rare, from 6/139 to 4/139.
+}}
+{{Subject changes
+|date = 11 June 2025
+|update = Misc Galore & Yama Tweaks
+|change = Scions melee max hit has been decreased from 15 to 10.
+}}
+{{Subject changes
+|date = 4 June 2025
+|update = Poll 84, AFK Timers & More
+|change = * The Abyssal Sire no longer fully heals when defeated too quickly during phase transitions.
+** If the Sire is hit under 40% health before going to begin phase 2, it will restore to 40% health.
+** If the Sire is killed while walking to begin phase 3, it will restore to 20% health.
+}}
+{{Subject changes
+|date = 30 April 2025
+|update = Poll 84: Batch II
+|poll = Poll 84 - PvM Improvements, Agility Shortcuts & more!
+|change = * The lung phase has been shortened.
+* Abyssal Sire is now targetable during its transition phases.
+* Abyssal Sire's speed has been increased to match the player's running pace.
+* Implemented a minimum hit of 50% of your weapon’s max hit, allowing end-game setups to one-phase the vents more reliably.
+* [[Demonbane weapons]] are now able to one-shot vents.
+* Increased Sire’s [[Hitpoints]] by 25 and introduced a 50% damage reduction during its transition phases, to balance out the above changes.
+* Removed some blocking terrain in the centre of the arena.
+* [[Scion]]s defence has been reduced from 80 to 50.
+* [[Spawn]]s defence has been reduced from 30 to 10.
+* Demonbane weapons are now guaranteed to hit spawns.
+}}
+{{Subject changes
+|date = 16 June 2021
+|update = A Kingdom Divided
+|poll = A Kingdom Divided
+|change = Abyssal Sire now drops [[abyssal ashes]] in place of regular ashes.
+}}
+{{Subject changes
+|date = 7 April 2021
+|update = Collection Log Improvements and The Last of Poll 74
+|change = Miasma pools will no longer deal damage after the Abyssal Sire has died.
+}}
+{{Subject changes
+|date = 9 January 2020
+|update = Eating in the Bank
+|change = The Abyssal Sire will now be re-stunned correctly when autocasting [[shadow spells]].
+}}
+{{Subject changes
+|date = 28 November 2019
+|update = Ashihama Rewards Beta and Sire Changes
+|poll = Rune Pouch, Looting Bag & Abyssal Sire
+|change = *Players no longer deal "lost" hits and the Abyssal Sire transitions when expected during phases.
+*The Abyssal Sire can now be re-stunned with [[Shadow spells]] during the first phase while it is still stunned.
+*Players can now stun the Abyssal Sire to begin the fight, rather than attacking it once and then stunning it. However, the Sire must still complete its waking up animation. In order to do this the stunning of the Sire is not instant, and can result in the player being attacked by the tentacles if they approach the vents too quickly.
+}}
+{{Subject changes
+|date = 17 January 2019
+|update = Kebos Graphical Changes and Other Fixes
+|change = The Abyssal Sire can now be slain as part of an Abyssal Plane [[Slayer task]] for [[Konar quo Maten]].
+}}
+{{Subject changes
+|date = 22 February 2018
+|update = Old School RuneScape's 5th Birthday
+|change = Players are no longer forced to re-attack the Sire immediately after waking it, as the attack they'd be prompted to use was frequently an unhelpful one.
+}}
+{{Subject changes
+|date = 24 August 2017
+|update = Remember username, tooltips, and Wilderness Wars!
+|poll = Old School Content Poll 56: Quality of Life
+|change = The respiratory systems are now affected by the bonus damage and accuracy from an imbued slayer helmet.
+}}
+{{Subject changes
+|daterange = 21 - 22 July 2016
+|change = The NPC will now always appear above other characters or players standing on the same tile.
+}}
+{{Subject changes
+|date = 7 April 2016
+|update = Hell-Rats, Fairy Rings & Perks
+|poll = Old School Content Poll 41: Bank placeholders & Skillcapes
+|change = [[Shadow spells]] now have a 25, 50, 75 and 100% chance for shadow rush, burst, blitz, and barrage to stun the Abyssal Sire in the first phase, rather than a static 2/3 chance for any type of shadow spell.
+}}
+{{Subject changes
+|date = 31 March 2016
+|update = Bugfixes & Combining Tentacles
+|poll = 
+|change = A warning message is now given when teleporting away from Sire's chambers with the [[Ancient Magick]] teleports, as the Sire is able to drop runes for such teleports, risking casting teleporting spells instead in subsequent kills. [[Annakarl Teleport]] was the most likely teleport spell used, as its spell icon was next to that of [[Blood Barrage]].
+}}
+{{Subject changes
+|date = 28 January 2016
+|update = Necromancy Improvements
+|change = The rune platebody, full helm, and kiteshield drops from the Abyssal Sire are now noted.
+}}
+{{Subject changes
+|date = 15 October 2015
+|update = The Max Cape
+|poll = 
+|change = The Abyssal Sire drop table has been improved.
+}}
+{{Subject changes
+|date = 8 October 2015
+|update = Smoke Battlestaff Buff
+|change = Added the Abyssal Sire to the Slayer skill guide and level up message.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery captionalign="centre" widths="180">
+Abyssal Sire work-in-progress.png
+Abyssal Sire work-in-progress 2.png
+Abyssal Sire work-in-progress 3.png
+Abyssal Sire work-in-progress 4.png
+Abyssal Sire work-in-progress 5.png
+Abyssal Sire artwork.jpg|A piece of artwork depicting the Abyssal Sire and its scions.
+Abyssal Sire Chronicle art.png|Abyssal Sire art from Jagex's turn-based card game ''[[rsw:Chronicle: RuneScape Legends|Chronicle: RuneScape Legends]]''
+Abyssal Sire (Trading Card).png|The Abyssal Sire [[Steam Trading Cards|Steam Trading Card]].
+</gallery>
+
+==Trivia==
+*The Sire, as well as its [[respiratory system]]s, have multiple examine options that can be seen throughout the fight.
+*It is one of the few monsters that does not have a defensive animation; rather, it loops its idle animation instead.
+*Despite being a solo-only boss, the Sire's area-of-effect attack at 33% health and poison fumes can harm other players if they are in range.
+*The sire cannot be defeated before its explosion attack. If the player manages to kill it before then it will respawn  where the fight left off with about 1/3 of its max health
+
+==References==
+{{Reflist}}
+
+{{Abyssal Sire}}
+{{Slayer monsters}}
+{{Bosses}}
+{{Demons}}
+{{Abyssal Space}}
+[[Category:Slayer monsters that can only be fought on task]]

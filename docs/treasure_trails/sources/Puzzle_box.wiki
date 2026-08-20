@@ -1,0 +1,151 @@
+{{External|rs}}
+{{Otheruses|def=no|a guide on how to solve puzzle boxes|Treasure Trails/Guide/Puzzle boxes}}
+{{Infobox Item
+|version1 = Castle
+|version2 = Tree
+|version3 = Troll
+|version4 = Tree (elite)
+|version5 = Zulrah
+|version6 = Cerberus
+|version7 = Gnome child
+|version8 = Theatre of Blood
+|name1 = Puzzle box (hard)
+|name2 = Puzzle box (hard)
+|name3 = Puzzle box (hard)
+|name4 = Puzzle box (elite)
+|name5 = Puzzle box (master)
+|name6 = Puzzle box (master)
+|name7 = Puzzle box (master)
+|name8 = Puzzle box (master)
+|image1 = [[File:Puzzle box castle.png]]
+|image2 = [[File:Puzzle box tree.png]]
+|image3 = [[File:Puzzle box troll.png]]
+|image4 = [[File:Puzzle box (elite).png]]
+|image5 = [[File:Puzzle box zulrah.png]]
+|image6 = [[File:Puzzle box cerberus.png]]
+|image7 = [[File:Puzzle box gnome child.png]]
+|image8 = [[File:Puzzle box (Theatre of Blood).png]]
+|release1 = [[5 May]] [[2004]]
+|release2 = [[26 October]] [[2004]]
+|release3 = [[26 October]] [[2004]]
+|release4 = [[12 June]] [[2014]]
+|release5 = [[6 July]] [[2016]]
+|release6 = [[6 July]] [[2016]]
+|release7 = [[6 July]] [[2016]]
+|release8 = [[11 April]] [[2019]]
+|update1 = Bigger Banks & Treasure Trails
+|update2 = Treasure Trails and Changes
+|update3 = Treasure Trails and Changes
+|update4 = Treasure Trail Expansion
+|update5 = Treasure Trail Expansion (2016)
+|update6 = Treasure Trail Expansion (2016)
+|update7 = Treasure Trail Expansion (2016)
+|update8 = Treasure Trails Expansion and Easter 2019
+|members = Yes
+|quest = No
+|tradeable = No
+|bankable1 = Yes
+|bankable2 = Yes
+|bankable3 = Yes
+|bankable4 = Yes
+|bankable5 = Yes
+|bankable6 = Yes
+|bankable7 = No
+|bankable8 = Yes
+|equipable = No
+|stackable = No
+|noteable = No
+|options1 = Open, Drop
+|options2 = Open, Drop
+|options3 = Open, Drop
+|options4 = Open, Check steps, Drop
+|options5 = Open, Destroy
+|options6 = Open, Destroy
+|options7 = Open, Destroy
+|options8 = Open, Destroy
+|destroy1 = None
+|destroy2 = None
+|destroy3 = None
+|destroy4 = None
+|destroy5 = Are you sure you want to destroy the puzzle box? You will have to start another.
+|destroy6 = Are you sure you want to destroy the puzzle box? You will have to start another.
+|destroy7 = Are you sure you want to destroy the puzzle box? You will have to start another.
+|destroy8 = Are you sure you want to destroy the puzzle box? You will have to start another.
+|examine = I need to solve this!
+|value = 100
+|weight = 0.100
+|id1 = 2795,2798,2800,12579,12588,19891,19911,23171
+|id2 = 3565,3567,3578,12582,19887,23173
+|id3 = 3569,3571,3576,12585,19895,19897,19903
+|id4 = 12161
+|id5 = 20280
+|id6 = 20281
+|id7 = 20282
+|id8 = 23417
+}}
+{{Synced switch
+|version1 = [[File:Puzzle box castle detail.png|left|120px]]
+|version2 = [[File:Puzzle box tree detail.png|left|120px]]
+|version3 = [[File:Puzzle box troll detail.png|left|120px]]
+|version4 = [[File:Puzzle box (elite) detail.png|left|120px]]
+|version5 = [[File:Puzzle box zulrah detail.png|left|120px]]
+|version6 = [[File:Puzzle box cerberus detail.png|left|120px]]
+|version7 = [[File:Puzzle box gnome child detail.png|left|120px]]
+|version8 = [[File:Puzzle box (Theatre of Blood) detail.png|left|120px]]
+}}
+'''Puzzle boxes''' can be obtained by doing hard, elite, and master [[Treasure Trails]]. Before you are able to continue with your clue scroll, you will have to complete the puzzle.
+
+A puzzle box is always scrambled 101 times before being handed to the player, by randomly sliding a piece into the empty position starting from the solved state.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1301202083845201921|date=2 September 2020|archiveurl=https://reldo.runescape.wiki/i/109428|archivedate=11 April 2023|quote=[Any clue if puzzle boxes have the same amount of scrambles every time, thanks ash!] Yes, and it's 101 for standard treasure trails, 255 for the Monkey Madness reinitialisation puzzle.}}
+
+If you have a duplicate puzzle box, (obtained by a method such as the [[Drop trick]]) in your inventory or bank after completing the clue, you cannot obtain another clue.
+
+==Solved puzzles==
+{|class="wikitable" style="text-align:center"
+!Castle
+!Tree
+!Troll
+|-
+|[[File:Castle puzzle solved.png]]
+|[[File:Tree puzzle solved.png]]
+|[[File:Troll puzzle solved.png]]
+|-
+!Zulrah
+!Cerberus
+!Gnome child
+|-
+|[[File:Zulrah puzzle solved.png]]
+|[[File:Cerberus puzzle solved.png]]
+|[[File:Gnome child puzzle solved.png]]
+|-
+!Theatre of Blood
+!
+!
+|-
+|[[File:Theatre of Blood puzzle solved.png]]
+|
+|
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 5 November 2025
+|update = Sailing Technical Pre-Release
+|change = The graphical size of puzzle boxes was increased.
+}}
+{{Subject changes
+|date = 20 July 2022
+|update = Activity Adviser: Phase One
+|change = The colour of the Theatre of Blood master clue sliding puzzle background is now easier to differentiate from the sliding pieces.
+}}
+{{Subject changes
+|date = 6 March 2014
+|update = Patch Notes (6 March 2014)
+|change = The item was renamed from "Puzzle box" to "Puzzle box (difficulty)".
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Treasure Trails}}

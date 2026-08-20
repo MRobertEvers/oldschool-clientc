@@ -158,3 +158,6 @@ dig_mud	loc	mdaughter_swampbubbles1	op1	Dig-up	-	Mud
 #   placement dumper. Numbers that ARE known: Brimhaven swing Agility 10 / 3 xp,
 #   Barbarian Outpost 35 / 22 xp, failure costs a small amount of damage and a
 #   climb back to the start.
+sulliuscep	loc	fossil_cep_grown	op1	Cut	-	Sulliuscep
+zahur	npc	elid_herbalist	op4	Clean	-	Zahur
+tgod_vines	loc	tgod_vines_cut	op1	Cut	-	Vines

@@ -1,0 +1,42 @@
+{{External|rs|rsc=Dwarf cannon stand}}
+{{Infobox Item
+|name = Cannon stand
+|image = [[File:Cannon stand.png]]
+|release = [[27 May]] [[2003]]
+|update = New Dwarf Cannon Quest
+|members = Yes
+|quest = [[Dwarf Cannon]]
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Drop
+|examine = The mounting for the multicannon.
+|value = 187500
+|weight = 0.907
+|exchange = Yes
+|id = 8
+|leagueRegion = Asgarnia&Kandarin
+}}
+[[File:Cannon stand detail.png|left|130x200px]]
+The '''cannon stand''' is the second part of the [[dwarf multicannon]] set up on the ground after the [[cannon base]] and before [[cannon barrels]]. It is purchased from [[Multicannon parts for sale]] for {{NoCoins|200625}} coins.
+
+==Products==
+{{Uses material list|Cannon stand}}
+
+==Shop locations==
+{{Store locations list|Cannon stand}}
+
+==Transcript==
+{{Hastranscript|transclude=yes}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|daterange = 14 September –<br/>5 October 2004
+|change = The item's examine was changed from "''The mounting for the muticannon.''"{{sic}} to "''The mounting for the multicannon.''"
+}}
+{{Subject changes footer}}
+
+{{Cannon}}
+{{Dwarf Cannon}}

@@ -1,0 +1,76 @@
+{{External|rs|rsc=Dwarf Cannon engineer}}
+{{Infobox NPC
+|name = Nulodion
+|image = [[File:Nulodion.png|120px]]
+|release = [[27 May]] [[2003]]
+|update = New Dwarf Cannon Quest
+|members = Yes
+|race = [[Dwarf]]
+|quest = [[Dwarf Cannon]]
+|location = Entrance to the [[Dwarven Mine]] on [[Ice Mountain]]
+|shop = [[Multicannon parts for sale]]
+|gender = Male
+|options = Talk-to, Trade
+|examine = The Dwarven armoury engineer.
+|map = {{Map|name=Nulodion|x=3012|y=3452|plane=0|r=4|mtype=square}}
+|id = 1400
+|leagueRegion = Asgarnia
+}}
+[[File:Nulodion chathead.png|left]]
+'''Nulodion''' is the official [[Dwarf multicannon|Dwarf Cannon]] engineer and Weapons Development Chief of the [[Dwarven Black Guard]]. During the [[Dwarf Cannon]] [[quest]], he gives the player an [[ammo mould]] and [[Nulodion's notes]] to bring back to [[Captain Lawgof]]. Nulodion's [[Multicannon parts for sale]] is the only place that sells the parts of the [[dwarf multicannon]] (once the player has completed the [[Dwarf Cannon]] quest). The store also sells the cannon [[instruction manual]], and [[ammo mould]]s to make your own [[cannonball]]s. Ammo moulds are used in the [[Between a Rock...]] quest.
+
+If your cannon decays or you log out while your cannon is set up you can talk to him, selecting the dialogue option "I've lost my cannon" will allow you to retrieve it free of charge. Nulodion is capable of recovering multiple cannons at once if the player has lost multiple cannons before talking with him. If you had [[Shattered cannon ornament kit]]s attached to your cannon, they will also be retrieved.
+
+==Stock==
+{{StoreTableHead|sellmultiplier=1070|buymultiplier=400|delta=10|bucket=No}}
+{{StoreLine|name=Cannon stand|stock=5|restock=100}}
+{{StoreLine|name=Cannon base|stock=5|restock=100}}
+{{StoreLine|name=Cannon furnace|stock=5|restock=100}}
+{{StoreLine|name=Cannon barrels|stock=5|restock=100}}
+{{StoreLine|name=Instruction manual|stock=5|buy=N/A|restock=100|gemw=no}}
+{{StoreLine|name=Ammo mould|stock=5|buy=N/A|gemw=no|restock=100}}
+{{StoreTableBottom}}
+
+===Dialogue===
+Through dialogue, Nulodion will sell all four dwarf multicannon parts as a set at a discounted price of 750,000 coins (compared to 802,500 coins if buying all four parts individually).
+{{StoreTableHead|hidestock=y|hiderestock=y|hidecaption=y|hidebuy=y}}
+{{StoreLine|name=Dwarf cannon set|displayname=All four cannon parts|image=Cannon base.png|stock=inf|restock=N/A|buy=N/A|sell=750000}}
+{{StoreTableBottom}}
+
+==Dialogue==
+{{hastranscript|NPC}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 23 April 2026
+|update = Leagues VI Changes
+|change = Buying more cannon parts from Nulodion no longer prevents you from picking up a cannon that you'd already set up.
+}}
+{{Subject changes
+|date = 20 November 2014
+|update = Instanced Corp & Packs
+|change = Nulodion will now return your cannon if someone else has one setup on the same tile where yours decayed.
+}} 
+{{Subject changes
+|date = 20 February 2006
+|update = Updates, updates and more updates...
+|change = The NPC was graphically updated with the rework of the Dwarven Mine.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Nulodion (historical).png|300x150px]]
+|[[File:Nulodion.png|300x150px]]
+|-
+|[[File:Nulodion chathead (historical).png]]
+|[[File:Nulodion chathead.png]]
+|-
+|29 March 2004 –<br/>20 February 2006
+|20 February 2006 –<br/>present
+|}
+
+{{Dwarf Cannon}}
+{{Dwarven Mine}}
+[[Category:Dwarves]]

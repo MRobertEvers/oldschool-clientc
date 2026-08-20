@@ -1,0 +1,95 @@
+{{External|rs}}
+{{Redirect2|Turadel|the other, higher level Slayer master|Duradel}}
+{{Has calculator|Calculator:Slayer/Slayer_task_weight}}
+{{Infobox NPC
+|name = Turael
+|image = [[File:Turael.png|140px]]
+|release = [[26 January]] [[2005]]
+|update = Slayer Skill
+|members = Yes
+|race = [[Human]]
+|quest = [[Animal Magnetism]]
+|location = [[Burthorpe]]
+|shop = [[Slayer Equipment (shop)|Slayer Equipment]], [[Slayer Rewards]]
+|gender = Male
+|options = Talk-to, Assignment, Trade, Rewards
+|examine = He looks dangerous!
+|map = {{Map|name=Turael|x=2931|y=3536|r=3|mtype=square}}
+|id = 13618
+|leagueRegion = Asgarnia
+}}
+[[File:Turael chathead.png|left]]
+'''Turael''' is the lowest level [[Slayer Master]], along with his daughter [[Spria]]. Turael resides in [[Burthorpe]]; the fastest way to reach him is to [[Teleportation|teleport]] to [[Burthorpe Games Room]] using a [[games necklace]] and running east to Turael's house, just south of the general store.
+
+There are no level requirements to receive [[Slayer task]]s from him, and completing a task assigned by him will always reward 0 points. Blocking a task with Turael costs 40 [[Slayer reward point]]s and the block list is shared with [[Aya]] and [[Spria]].
+
+Because the tasks he assigns are relatively easy, players often use Turael to boost their [[Slayer reward points]]. This is accomplished by completing every 50th task with a Slayer master that gives a lot of points per task, such as [[Konar quo Maten]], and using Turael for the rest of the tasks to get to every interval of 50 more quickly. You can do this every 10 tasks instead but this is not recommended due to the amount of unfavourable tasks that can be given, unless you use a  [[Slayer Master]] other than Konar.
+
+After the events of [[While Guthix Sleeps]], he is replaced with his sister [[Aya]].
+
+==Task changing==
+Turael is capable of changing your Slayer task from another master into a less difficult one. If another master has assigned you a task Turael could assign himself, your request will not work. Additionally, Turael will refuse to change his own tasks. Tasks may be blocked at Turael to remove them from his list of assignments, allowing them to be changed if assigned by other Slayer masters.
+
+This ability to change Slayer tasks is used in a method called "Turael skipping", which is commonly used when seeking a specific Slayer task from another master, such as a [[hydra]] task from [[Konar quo Maten]] or a [[TzHaar]] task in order to speedrun the [[Inferno]]. Players get a task from another Slayer master; if it isn't the task they want, they change their task with Turael, complete Turael's task, and repeat the process until they get the desired task.
+
+'''{{Colour|red|Warning}}: After a task change is processed, your [[Slayer reward point|task streak]] will also be reset to zero!'''
+
+It is possible to use this method with [[Krystilia]] as well, but doing so will still reset your Wilderness Slayer task streak. This mechanic can be used by Ironmen, as it can be combined with Turael boosting as explained above, while hunting Revenant tasks to receive a wilderness weapon or kill the wilderness bosses on-task who drop the Voidwaker pieces.
+
+Note: Turael is a valid contact for the [[Astral Contact]] spell, and you can obtain tasks from them.  It is part of the [[Lunar spellbook]]. 
+
+==Tasks==
+{{:Turael/Slayer assignments}}
+
+==Treasure Trails==
+*{{CrypticNPC|Turael|easy|Talk to the Slayer Master in Burthorpe.}}
+
+==Dialogue==
+{{Hastranscript|NPC}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 27 August 2025
+|update = Summer Sweep Up Slayer & More
+|change = 
+* Blocking a [[Slayer]] task with Turael now costs 40 [[Slayer reward point]]s.
+* Turael, [[Aya]], and [[Spria]] now share a block list.
+}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|poll =
+|change = *Turael no longer assigns sourhogs.
+*Various minimum and maximum quantities of Slayer tasks have been reduced.
+}}
+{{Subject changes
+|date = 12 August 2020
+|update = Darker Graceful and Other Changes
+|poll =
+|change = Turael's Slayer task completion messages will now suggest that you try a higher level task to get reward points, instead of just telling you that you didn't earn any.
+}}
+{{Subject changes
+|date = 18 February 2016
+|update = Dragon Claws & 3rd Birthday
+|poll = Quality of Life - Top 10 PvM Suggestions
+|change = Slayer masters now give information about your current task if you prematurely request a new one.
+}}
+{{Subject changes
+|date = 29 January 2015
+|update = Ignore lists, 1v1s & More
+|poll = Old School Content Poll 29: Grand Exchange
+|change = Slayer masters now have a right-click option, Assignment, which allows players to quickly check a task's progress or start a new one.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Turael's name may derive from the word "tutorial", since he is the first Slayer Master, thus serving as a form of tutorial for the Slayer skill.
+
+{{Slayer Master}}
+{{Animal Magnetism}}
+{{Burthorpe}}
+{{Astral Contact}}
+{{While Guthix Sleeps}}
+
+[[Category:Deceased characters]]

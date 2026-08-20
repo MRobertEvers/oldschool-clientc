@@ -1,0 +1,127 @@
+{{external|rs}}
+{{Has calculator|Calculator:Slayer/Slayer_task_weight}}
+{{Infobox NPC
+|name = Mazchna
+|image = [[File:Mazchna.png|135px]]
+|release = [[26 January]] [[2005]]
+|update = Slayer Skill
+|members = Yes
+|race = [[Demon]]
+|location = [[Canifis]]
+|shop = [[Slayer Equipment (shop)|Slayer Equipment]], [[Slayer Rewards]]
+|gender = Male
+|options = Talk-to, Assignment, Trade, Rewards
+|examine = He looks dangerous!
+|map = {{Map|name=Mazchna|x=3511|y=3509|r=3|mtype=square}}
+|id = 13620
+|leagueRegion = Morytania
+}}
+[[File:Mazchna chathead.png|left|class=notpageimage]]
+'''Mazchna''' ({{IPAc-en|ˈ|m|æ|ʃ|n|ə}} {{respell|mash|ner}}) is the second-to-lowest level [[Slayer Master]], giving tasks to players with a [[Combat level]] of 20 and above. He is located in north-eastern [[Canifis]], and therefore completion of the [[Priest in Peril]] quest is required to access him. His tasks are relatively easy and ideal for players with lower combat levels.
+
+He has a unique sword and is wearing [[Dharok's platebody]] as well as a pair of [[Dharok's platelegs]]. During [[While Guthix Sleeps]], he is replaced by [[Achtryn]].
+
+Blocking a task with this slayer master costs 50 [[Slayer reward point|Slayer reward points]].
+
+==Diaries==
+Getting a Slayer task from Mazchna is a task in the [[Morytania Easy Diary]].
+
+==Slayer points==
+Players can receive [[Slayer reward point]]s for completing [[Slayer task]]s—this is based on how many tasks players have accomplished in a row. Completion of a task assigned by Mazchna will grant you:
+{| class=wikitable style="text-align:center;"
+!Task interval
+!Points given
+|-
+|Every task
+|6
+|-
+|Every 10th
+|30
+|-
+|Every 50th
+|90
+|-
+|Every 100th
+|150
+|-
+|Every 250th
+|210
+|-
+|Every 1,000th
+|300
+|}
+
+==Tasks==
+{{:Mazchna/Slayer assignments}}
+Note: Mazchna is a valid contact for the [[Astral Contact]] spell, and you can obtain tasks from them.  It is part of the [[Lunar spellbook]]. 
+
+==Dialogue==
+{{Hastranscript|NPC}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 27 August 2025
+|update = Summer Sweep Up Slayer & More
+|change =
+The amount of [[Slayer points]] given by Mazchna was increased:
+* Every task - 6 points (up from 2)
+* Every 10th task - 30 points (up from 5)
+* Every 50th task - 90 points (up from 15)
+}}
+{{Subject changes
+|date = 26 March 2025
+|update = Poll 83 QoL Changes
+|poll = Poll 83 - Castle Wars, New Player Changes & More
+|change = Mazchna will now assign [[Slayer task/Crabs|crabs]] tasks.
+}}
+{{Subject changes
+|date = 10 July 2024
+|update = While Guthix Sleeps
+|change = Mazchna was graphically updated.
+}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|poll =
+|change = *Mazchna no longer assigns players Earth Warrior tasks.
+*Various minimum and maximum quantities of Slayer tasks have been reduced.
+}}
+{{Subject changes
+|date = 18 February 2016
+|update = Dragon Claws & 3rd Birthday
+|poll = Quality of Life - Top 10 PvM Suggestions
+|change = Slayer masters now give information about your current task if you prematurely request a new one.
+}}
+{{Subject changes
+|date = 29 January 2015
+|update = Ignore lists, 1v1s & More
+|poll = Old School Content Poll 29: Grand Exchange
+|change = Slayer masters now have a right-click option, Assignment, which allows players to quickly check a task's progress or start a new one.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Mazchna v1.png|center|300x150px]]
+|[[File:Mazchna.png|center|300x150px]]
+|
+|-
+|[[File:Mazchna chathead v1.png|center]]
+|[[File:Mazchna chathead.png|center]]
+|-
+|26 January 2005 –<br/>10 July 2024
+|10 July 2024 –<br/>present
+|}
+
+==Trivia==
+*[[Lithil]] describes Mazchna as viewing himself as a "pillar of chivalry" who refuses to engage in combat with women.
+
+==References==
+{{Reflist}}
+
+{{Slayer Master}}
+{{Canifis}}
+{{Demons}}
+{{Astral Contact}}
+{{While Guthix Sleeps}}

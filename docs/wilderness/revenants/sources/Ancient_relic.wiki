@@ -1,0 +1,59 @@
+{{Otheruses|revenant ancient artefact|the dark relic found in the Library Historical Archive|Ancient Relic (Library Historical Archive)|other uses|Relic (disambiguation)}}
+{{Infobox Item
+|name = Ancient relic
+|image = [[File:Ancient relic.png]]
+|release = [[8 February]] [[2018]]
+|update = PvM QoL updates & Wilderness Rejuvenation improvements
+|members = Yes
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Drop
+|examine = A mysterious artifact{{sic}} of ancient times, emblem traders will pay you extremely handsomely for this.
+|value = 16000000
+|weight = 0.100
+|exchange = Yes
+|id = 22305
+|leagueRegion = wilderness
+}}
+[[File:Ancient relic detail.png|150px|left]]
+The '''ancient relic''' is a drop obtained from [[revenants]] found in the [[Revenant Caves]].
+
+It can be given to the [[Emblem Trader]] wandering around in the Revenant Caves in exchange for 16,000,000 [[coins]]. This '''must''' be done while on the official [[Bounty Hunter]] world. The statuette '''cannot''' be given to him in [[Edgeville]]. A [[chisel]] can be used on the ancient relic to break it into 32,000 [[revenant ether]].
+
+Much like the [[bracelet of ethereum]], the relic is '''always lost''' on death, even if it is the only item in the player's inventory.
+	
+==Products==
+{{Uses material list|Ancient relic}}
+
+==Item sources==
+{{Drop sources|Ancient relic}}
+The drop rate from Revenants is increased when [[Skull (status)|skulled]]. This does not apply to the skull given by a [[PvP world#High-risk%20worlds|high-risk PvP world]].
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 9 July 2025
+|update = The New Renderer Beta is Out Today!
+|change = You can now use a [[chisel]] on an ancient relic to break it into 32,000 [[revenant ether]].
+}}
+{{Subject changes
+|date = 10 September 2020
+|update = A Porcine of Interest
+|poll =
+|change = The [[Grand Exchange]] buy limit was changed from 18,000 to 250.
+}}
+{{Subject changes
+|date = 1 March 2018
+|update = QoL Improvements & Deadman Permadeath Beta
+|change = Ancient artifacts are now always dropped on death
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The ancient relic appears to be a recoloured tier 10 [[archaic emblem]].
+
+{{Revenant Caves}}
+[[Category:Collection log items]]

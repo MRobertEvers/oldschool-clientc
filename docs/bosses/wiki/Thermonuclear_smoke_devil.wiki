@@ -1,0 +1,258 @@
+{{Otheruses|the Deadman Mode variant|Thermonuclear smoke devil (Deadman)|the superior variant| Nuclear smoke devil|def=no}}
+{{hasStrategy}}
+{{HasTask|Smoke devils}}
+{{Infobox Monster
+|name = Thermonuclear smoke devil
+|image = [[File:Thermonuclear smoke devil.png|260px]]
+|release = [[10 April]] [[2014]]
+|update = Easter & Slayer Updates
+|members = Yes
+|combat = 301
+|size = 4
+|examine = Woah.
+|xpbonus = 0
+|max hit = 8
+|aggressive = No
+|poisonous = No
+|attack style = [[Magical ranged]] (100% [[prayer penetration]])
+|attack speed = 2
+|respawn = 15
+|slaylvl = 93
+|slayxp = 240
+|cat = Bosses, Smoke Devils
+|assignedby = konar,nieve,duradel, Mortimer
+|hitpoints = 240
+|att = 230
+|str = 220
+|def = 360
+|mage = 1
+|range = 310
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 11
+|dslash = 4
+|dcrush = 9
+|dmagic = 800
+|dlight = 900
+|dstandard = 900
+|dheavy = 900
+|elementalweaknesstype = Air
+|elementalweaknesspercent = 20
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = No
+|immunethrall = No
+|immuneburn = No
+|id = 499
+|leagueRegion = Kandarin
+}}
+[[File:Smoke devil icon.png|left]]
+The '''thermonuclear smoke devil''', often referred to as '''thermy''', is the boss version of the [[smoke devil]]. It requires a minimum of 93 [[Slayer]] to damage. Located at the [[Smoke Devil Dungeon]] south of [[Castle Wars]], the Thermonuclear smoke devil can only be attacked on a smoke devil task, with the exception of one kill for the [[Western Provinces Diary]] (provided that the player has 93 Slayer without boosting).
+
+It is the only monster to drop the [[smoke battlestaff]], [[jar of smoke]], and the [[Pet Smoke Devil|pet smoke devil]]. It drops the [[occult necklace]] at a higher rate than [[smoke devil]]s.
+
+Unlike most NPCs, the Thermonuclear smoke devil is always able to walk through other monsters/players. This is to prevent players from safespotting the boss using the smoke devils found in its lair.
+
+A [[dwarf multicannon]] cannot be used inside the boss room. If it is set up, the cannon will be destroyed.
+
+==Location==
+There are several ways to access the dungeon:
+*The [[fairy ring]] code {{Fairycode|BKP}} will bring the players just south-west of the dungeon.
+*Using a [[ring of dueling]] to teleport to [[Castle Wars]], then running south-west.
+{{LocTableHead}}
+{{LocLine
+|name = Thermonuclear smoke devil
+|location = [[Smoke Devil Dungeon]]
+|levels = 301
+|members = Yes
+|mapID = 27
+|plane = 0
+|x:2360,y:9452
+|mtype = pin
+|leagueRegion = Kandarin
+}}
+{{LocTableBottom}}
+
+==Money making==
+{{Mmgsection|Killing the Thermonuclear smoke devil}}
+
+==Drops==
+{{DropLogProject|kills=8743517}}
+
+{{Average drop value|mob=Thermonuclear smoke devil}}
+
+{{Average drop value|mob=Thermonuclear smoke devil|brimstone=yes}}
+
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Ashes|quantity=1|rarity=Always}}
+{{DropsTableBottom}}
+
+===Pre-roll===
+{{DropsTableHead}}
+{{DropsLine|name=Occult necklace|quantity=1|rarity=1/350|raritynotes={{CiteForum|author=Envision|url=https://reldo.runescape.wiki/i/108912|title=Drop Rates V2|postdate=29 July 2014|name=DV2}}}}
+{{DropsLine|name=Smoke battlestaff|quantity=1|rarity=1/512|raritynotes={{NamedRef|DV2}}}}
+{{DropsLine|name=Dragon chainbody|quantity=1|rarity=1/2000|raritynotes={{NamedRef|DV2}}}}
+{{DropsTableBottom}}
+
+===Weapons and armour===
+{{DropsTableHead}}
+{{DropsLine|name=Rune dagger|quantity=1|rarity=5/107}}
+{{DropsLine|name=Rune chainbody|quantity=1|rarity=4/107}}
+{{DropsLine|name=Red d'hide body|quantity=1|rarity=3/107}}
+{{DropsLine|name=Rune battleaxe|quantity=1|rarity=3/107}}
+{{DropsLine|name=Mystic air staff|quantity=1|rarity=3/107}}
+{{DropsLine|name=Mystic fire staff|quantity=1|rarity=3/107}}
+{{DropsLine|name=Rune scimitar|quantity=1|rarity=2/107}}
+{{DropsLine|name=Rune knife(p++)|quantity=50|rarity=1/107}}
+{{DropsLine|name=Dragon scimitar|quantity=1|rarity=1/107}}
+{{DropsLine|name=Ancient staff|quantity=1|rarity=1/107}}
+{{DropsTableBottom}}
+
+===Runes and ammunition===
+{{DropsTableHead}}
+{{DropsLine|name=Smoke rune|quantity=100|rarity=10/107}}
+{{DropsLine|name=Air rune|quantity=300|rarity=8/107}}
+{{DropsLine|name=Soul rune|quantity=100|rarity=8/107}}
+{{DropsLine|name=Rune arrow|quantity=100|rarity=2/107}}
+{{DropsTableBottom}}
+
+===Consumables===
+{{DropsTableHead}}
+{{DropsLine|name=Ugthanki kebab|quantity=3|rarity=1/107}}
+{{DropsLine|name=Tuna potato|quantity=3|rarity=3/107}}
+{{DropsLine|name=Sanfew serum(4)|quantity=2|rarity=3/107}}
+{{DropsLine|name=Prayer potion(4)|quantity=2|rarity=1/107}}
+{{DropsTableBottom}}
+
+===Resources===
+{{DropsTableHead}}
+{{DropsLine|name=Pure essence|quantity=300 (noted)|rarity=2/107}}
+{{DropsLine|name=Molten glass|quantity=100 (noted)|rarity=2/107}}
+{{DropsLine|name=Mithril bar|quantity=20 (noted)|rarity=2/107}}
+{{DropsLine|name=Magic logs|quantity=20 (noted)|rarity=2/107}}
+{{DropsLine|name=Gold ore|quantity=200 (noted)|rarity=2/107}}
+{{DropsLine|name=Diamond|quantity=10 (noted)|rarity=1/107}}
+{{DropsLine|name=Raw shark|quantity=30 (noted)|rarity=5/856}} <!-- [[shark drop table]] 1/107 * (3/8 + 2/8) -->
+{{DropsLine|name=Shark lure|quantity=60|rarity=3/856}} <!-- 1/107 * 3/8 -->
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Coins|quantity=10000-19999|rarity=15/107|gemw=No}}
+{{DropsLine|name=Tinderbox|quantity=1|rarity=1/107}}
+{{DropsLine|name=Fire talisman|quantity=1|rarity=1/107}}
+{{DropsLine|name=Goat horn|quantity=50 (noted)|rarity=2/107}}
+{{DropsLine|name=Grimy toadflax|quantity=15 (noted)|rarity=2/107}}
+{{DropsLine|name=Onyx bolt tips|quantity=12|rarity=2/107}}
+{{DropsLine|name=Snapdragon seed|quantity=2|rarity=2/107}}
+{{DropsLine|name=Ranarr seed|quantity=2|rarity=2/107}}
+{{DropsLine|name=Grapes|quantity=100 (noted)|rarity=1/107}}
+{{DropsLine|name=Magic seed|quantity=1|rarity=1/107|raritynotes={{NamedRef|DV2}}}}
+{{DropsLine|name=Dragonstone ring|quantity=1|rarity=1/107}}
+{{DropsLine|name=Crystal key|quantity=1|rarity=1/107|raritynotes={{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/707585888566558720|date=9 March 2016|archiveurl=https://reldo.runescape.wiki/i/103419|archivedate=25 March 2019|quote=1/128. I hope you got some other decent stuff while that was going on.}}}}
+{{DropsTableBottom}}
+
+===Gem drop table===
+{{GemDropTable|2/107|naturetalisman=yes}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Brimstone key|quantity=1|rarity={{Brimstone rarity|301|bonus=yes}}|raritynotes=<ref group=d>Brimstone keys are only dropped if killed on a [[Slayer task]] given by [[Konar quo Maten]].</ref>|gemw=No|leagueRegion=Kandarin&Kourend}}
+{{DropsLineClue|type=hard|rarity=1/96|raritynotes={{CiteGeneral|author=Jagex|url=https://secure.runescape.com/m=news/the-kebos-lowlands?oldschool=1|archiveurl=https://reldo.runescape.wiki/i/105674|title=The Kebos Lowlands|date=10 Jan 2019|archivedate=15 Mar 2019}}}}
+{{DropsLineClue|type=elite|rarity=1/500|raritynotes={{NamedRef|DV2}}}}
+{{DropsLine|name=Jar of Smoke|quantity=1|rarity=1/2000}}
+{{DropsLine|name=Pet Smoke Devil|quantity=1|rarity=1/3000|raritynotes={{CiteTwitter|author=Mod JohnC|url=https://twitter.com/JagexJohnC/status/511476391901003777|date=15 September 2014|archiveurl=https://archive.fo/vV6YO|archivedate=15 September 2014|quote=Kraken, Thermy & Penance Queen pet drop rates - DKS for the final reveal next week!|name=Confirmed droprates}}|gemw=No}}
+{{DropsTableBottom}}
+
+==Dialogue==
+{{hastranscript|speaksin}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Thermonuclear Smoke Devil}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 14 January 2026
+|update = New Player Improvements Round 2
+|change = Reverted an efficiency improvement from the previous week's update that caused the thermonuclear smoke devil to behave incorrectly in certain scenarios. 
+}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = 
+* The thermonuclear smoke devil now has a 20% [[elemental weakness]] to [[wind spells]].
+* The 1/107 bullseye lantern drop was replaced with a 5/856 drop of 30 noted raw sharks and a 3/856 drop of 60 shark lures.
+* The amount of [[soul rune]]s dropped was increased from 60 to 100.
+* The 2/107 drop of 150 noted coal was replaced with 2 [[ranarr seed]]s.
+}}
+{{Subject changes
+|date = 17 March 2021
+|update = Shooting Stars
+|poll = Old School Content Poll 74: Collection Log & Game Improvements
+|change = *Added the Jar of Smoke to the tertiary drop table 
+*Reduced the chance of dropping Tinderboxes, Bullseye Lanterns, Pure Essence and Kebabs.
+}}
+{{Subject changes
+|date = 27 September 2018
+|update = Motherlode Expansion & More
+|poll = Old School Content Poll 60: Portal Nexus and More!
+|change = The boss was given a [[graphical update]] to be more distinguishable from their regular variant.
+}}
+{{Subject changes
+|date = 25 June 2015
+|update = Boss Room Counters & Platinum Tokens
+|poll = Old School Content Poll 34: XP droplets & Slayer
+|change = Added a 'peek' option to the entrance of this boss, allowing players to see the number of other players currently in the boss room. 
+}}
+{{Subject changes
+|date = 19 March 2015
+|update = Boss Pets, Sets, Chat & More
+|change = You can no longer kill Thermy without a slayer assignment if you haven't started the Western Achievement Diary.
+}}
+{{Subject changes
+|date = 17 July 2014
+|update = Boss Pets and Spawn Rates
+|poll = Old School feature poll - Content Poll 22
+|change = Players can now receive a pet version of this boss after defeating it.
+}}
+{{Subject changes
+|date = 22 May 2014
+|update = Chat update and 'Operate'
+|poll = Old School feature poll 19
+|change = 
+* When Thermy drops a clue scroll, it now appears at the correct place on the ground.
+* Thermy now has an 'Attack' option, rather than 'Fight'.
+* Players can now permanently dismiss the warning that is shown before entering the Thermy boss room.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Smoke devil.png|center|300x150px]]
+|[[File:Thermonuclear smoke devil.png|center|300x150px]]
+|-
+|10 April 2014 –<br/>27 September 2018
+|27 September 2018 –<br/>present
+|}
+
+==Trivia==
+[[File:Snowman ring (Thermy) equipped.png|thumb|upright|A player transformed into a Thermy snowman.]]
+* The thermonuclear smoke devil was graphically updated on [[27 September]] [[2018]] as part of an [[Update:Decanting, Withdraw X, and Bucket Packs|update]]. Prior to the update, it was simply a larger version of the smoke devils scattered across the dungeon.
+* The thermonuclear smoke devil and the [[Kraken]] are the only slayer bosses that can be fought with another player.
+* Attempting to attack the thermonuclear smoke devil with a [[stat boost|boosted]] Slayer level of at least 93 will yield the message: {{mes|Although Brieve will allow you to kill this boss off-task for the Achievement Diary, the level 93 requirement still applies. Stat-boosts are not accepted.}}
+* Players can transform into a Thermy snowman by using a [[snowman ring]], which resembles the thermonuclear smoke devil.
+* The thermonuclear smoke devil has an eye and not a mouth, as confirmed in a [[Postbag from the Hedge]] letter <ref>{{PlainCiteNews|url=https://secure.runescape.com/m=news/a=97/gielinor-gazette---may-2022?oldschool=1|title=Gielinor Gazette - May 2022|newsdate=31 May 2022}}</ref>
+
+==References==
+{{Reflist}}
+
+{{Slayer monsters}}
+{{Bosses}}
+[[Category:Slayer monsters that can only be fought on task]]

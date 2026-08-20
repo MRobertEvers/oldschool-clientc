@@ -1,0 +1,146 @@
+{{External|rs=Elite void knight equipment}}
+[[File:Elite void set equipped male.png|130px|right]]
+[[File:Elite void set equipped female.png|130px|right]]
+'''Elite Void Knight equipment''', commonly called '''elite void''', is a reward from the [[Pest Control]] [[Minigames|minigame]], and the upgraded version of regular [[Void Knight equipment]]. The set has two pieces, the [[elite void top]] and [[elite void robe]], and becomes available after completing the hard [[Western Provinces Diary]]. 
+
+Upgrading to elite void costs 200 [[Void Knight commendation points|commendation points]] for each piece, for a total of 400 points to upgrade both the top and bottom. Players can upgrade their equipment by speaking to the [[Elite Void Knight]] at the [[Void Knights' Outpost]]. The regular Void Knight top and bottom are required for the upgrade.
+
+Elite void equipment offers the same defence bonuses as the standard version, and counts as Void Knight gear for the purpose of [[Void Knight equipment#Set effects|Void Knight equipment's set effects]]. However, elite void has a different appearance, gives a [[Prayer]] bonus of +3 per piece (for a total of +6), and provides an additional damage boost of 2.5% to the Ranged set and 5% to the Magic set.
+
+The equipment can be stored in the [[armour case]] of the [[costume room]] in a [[player-owned house]].
+
+==Requirements==
+Like regular Void Knight equipment, Elite Void requires the following skills to be worn: 42 [[Attack]], [[Strength]], [[Defence]], [[Magic]], [[Hitpoints]] and [[Ranged]], as well as 22 [[Prayer]]. 
+
+The prerequisite of completing the hard [[Western Provinces Diary]] also entails multiple requirements:
+
+* Full completion of the [[Swan Song]], [[Recipe for Disaster/Freeing King Awowogei|Freeing King Awowogei]], [[Eagles' Peak]], [[The Eyes of Glouphrie|Eyes of Glouphrie]], [[Big Chompy Bird Hunting]], and [[Rune Mysteries]] [[quests]]
+* Started [[Mourning's End Part I]] and [[One Small Favour]]
+* Defeated [[Zulrah]] and claimed 300 [[Chompy bird hunting|chompy kills]]
+* The following stats are also needed to complete the diary tasks:
+
+{| style="text-align:center;"
+| style="vertical-align:top" | {{DiarySkillStats
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 70
+|Agility = 56
+|Fishing = 62
+|Ranged = 70
+|Thieving = 75
+|Cooking = 70
+|Firemaking = 50
+|Magic = 64
+|Fletching = 20
+|Woodcutting = 50
+|Farming = 68
+|Construction = 65
+|Hunter = 69
+|Combat = 100
+|Total = 
+}}
+|}
+All skills are boostable except for the combat requirements.
+
+==Components==
+{{Infotable Bonuses|Elite void top#Normal|Elite void robe#Normal}}
+
+==Bonuses==
+
+The tables below show the regular equipment bonuses ''without'' the set effects applied.
+
+<tabber>
+
+|-|
+
+Melee=<br/>
+
+{{Infotable Bonuses|Void melee helm#Normal|Elite void top#Normal|Elite void robe#Normal|Void knight gloves#Normal}}
+
+|-|
+
+Ranged=<br/>
+
+{{Infotable Bonuses|Void ranger helm#Normal|Elite void top#Normal|Elite void robe#Normal|Void knight gloves#Normal}}
+
+|-|
+
+Magic=<br/>
+
+{{Infotable Bonuses|Void mage helm#Normal|Elite void top#Normal|Elite void robe#Normal|Void knight gloves#Normal}}
+
+</tabber>
+
+==Gallery==
+<gallery heights="250" style="text-align:left">
+Elite void set (mage helm) equipped male.png|An elite void set with a mage helm on body type A
+Elite void set (mage helm) equipped female.png|An elite void set with a mage helm on body type B
+Elite void set (melee helm) equipped male.png|An elite void set with a melee helm on body type A
+Elite void set (melee helm) equipped female.png|An elite void set with a melee helm on body type B
+Elite void set (ranger helm) equipped male.png|An elite void set with a ranger helm on body type A
+Elite void set (ranger helm) equipped female.png|An elite void set with a ranger helm on body type B
+</gallery>
+
+<gallery heights="250" style="text-align:left">
+Elite void set (or) equipped male.png|An elite void set (or) on body type A
+Elite void set (or) equipped female.png|An elite void set (or) on body type B
+</gallery>
+
+===Historical===
+{|style="text-align: center" cellpadding="15"
+|[[File:Elite void set equipped v1.png|center|300x150px]]
+|[[File:Elite void set equipped v2.png|center|300x150px]]
+|[[File:Elite void set equipped v3.png|center|300x150px]]
+|[[File:Elite void set equipped male.png|center|300x150px]]
+|-
+|5 March 2015 –<br/>6 March 2015
+|6 March 2015 –<br/>9 February 2017
+|9 February 2017 –<br/>Unknown
+|Unknown–<br/>present
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change = The [[Magic damage]] bonus of the Elite Void Mage set has been increased from 2.5% to 5%.
+}}
+{{Subject changes
+|date = 6 August 2020
+|update = PVP Changes
+|change = The set bonus for Elite Void kit has been corrected on the Equipment Info screen.
+}}
+{{Subject changes
+|date = 29 June 2017
+|update = Midsummer 2017
+|change = The accuracy bonus of both the normal and elite Void Mage sets increased from 30% to 45%, and the elite set received a 2.5% magic damage boost.
+}}
+{{Subject changes
+|date = 26 May 2017
+|update = Further Balancing Tweaks
+|change = The damage boost of Elite Void Ranged has been increased from 10% to 12.5%.
+}}
+{{Subject changes
+|date = 25 May 2017
+|update = World Map & Balancing Changes
+|change = The damage bonus of the Elite Void Ranged set has been lowered from 20% to 10%.
+}}
+{{Subject changes
+|date = 9 February 2017
+|update = Colourful Golems & Graphical Improvements
+|poll = Old School Content Poll 50: Models, Anims and More
+|change = The elite void robes were made darker to match the colouration of the normal void robes.
+}}
+{{Subject changes
+|date = 6 March 2015
+|update = System Update (6 March 2015)
+|change = The elite void robes were given a [[graphical update]] to reflect their appearance in ''RuneScape'' before their graphical update on March 2012.
+}}
+{{Subject changes footer}}
+
+{{Pest Control}}
+[[Category:Armour]]
+[[Category:Equipment]]
+[[Category:Hybrid armour]]

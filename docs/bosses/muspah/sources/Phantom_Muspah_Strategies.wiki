@@ -1,0 +1,352 @@
+[[File:Fighting Phantom Muspah.png|thumb|300px|A player fighting the Phantom Muspah, dark magical energy from the Ghorrock Dungeon prison made manifest.]]
+After completion of [[Secrets of the North]], a stronger version of the [[Strange Creature]] can be fought again in the form of a [[Phantom Muspah]] (aka, "Muspah").
+
+== Requirements ==
+* Completion of {{SCP|Quest}} [[Secrets of the North]] to access the [[Ghorrock Dungeon]]
+
+== Suggested skills ==
+* {{SCP|Ranged|85+}} 
+* {{SCP|Magic|85+}} (if using magic)
+* {{SCP|Defence|75+}} 
+* {{SCP|Prayer|74+}} for [[Rigour]]  (77+ for [[Augury]])
+* {{SCP|Construction|82+}} for [[Ornate rejuvenation pool]] (with boost) or completion of the elite [[Desert diary]] for [[Desert Amulet 4]]
+* {{SCP|Herblore|81+}} for [[Surge potion|Surge potions]] (optional)
+
+==Transportation==
+The quickest methods of reaching [[Weiss]], where the Phantom Muspah resides, are:
+*Using the [[ring of shadows]] to teleport to [[Ghorrock Dungeon]]. Requires completion of [[Desert Treasure II - The Fallen Empire]] and the [[frozen tablet]], obtained from [[Duke Sucellus]].
+*Using an [[icy basalt]]. Go through the gap in the fence.
+*Using the Weiss teleport in the [[portal chamber]] or [[portal nexus]] of a player-owned house.
+*Using [[Larry]]'s boat north-east of [[Rellekka]] and sailing to Weiss from there. [[Fairy ring]] code {{Fairycode|DKS}} is the closest teleport to Larry's boat.
+Once in Weiss, enter the [[salt mine]] (accessible from the staircase in Snowflake and My Arm's hut) and go deeper into the cave to enter the [[Ghorrock Dungeon]]. Then, run south.
+
+==Forms==
+Throughout the fight, the [[Phantom Muspah]] will switch forms after taking 100 damage in the Ranged form (barring the teleport attack) or 80 damage in the Melee form. After switching forms for the first time, it must also take damage at least four times before it can switch again. Thrall damage does not count towards these damage thresholds or hits, with the exception of the final stand transformation when the boss reaches ≤127 hitpoints.
+
+During transformations, Muspah will slam the ground and spawn spikes around the arena, with a spike always appearing on the player's current position. Standing on a spike will knock the player back to a clear tile and heal the boss for ~75% of the damage dealt.
+
+Muspah's defence can be reduced down to 125. The defence reduction will preserve between phases until the shielded phase, where Muspah's defence resets to 200.
+
+===Ranged===
+[[File:Phantom Muspah (ranged).png|left|180px|Ranged]]
+Muspah's '''{{Colour|green|Ranged}}''' form will attack with [[ranged]], occasionally [[magic]], and has a significantly lower [[Ranged Defence|ranged defence]] bonus compared to its [[magic defence]] bonus.
+
+'''{{Colour|green|Ranged}}''' attacks are more common and calculated on attack start, therefore [[Protect from Missiles]] should remain active by default. This can deal up to 61 damage.
+
+Occasionally, Muspah will charge up for a '''{{Color|blue|Magic}}''' attack, appearing to stand up and charge a purple orb before launching it at the player. It is imperative to swap to [[Protect from Magic]] '''immediately''' upon seeing this animation, as failing to do so can result in taking up to 72 damage. This will also apply [[Corruption (status)|corruption]] onto the player.
+
+Unlike the other attacks, using Protect from Magic while the projectile is in transit will reduce a significant amount of damage, but the player will still be inflicted corruption.
+
+'''Corruption'''  
+
+Taking damage from the '''{{Color|blue|Magic}}''' attack will also apply [[corruption (status)|corruption]] onto the player that drains 3, 6, and 9 [[prayer points]] every 6 seconds, for a total of 18 prayer points over the course of 18 seconds. Players can cast [[Ward of Arceuus]] to become temporarily immune to being corrupted, or to nullify its effect after the fact. [[Ward of Arceuus]] is cheaper than a dose of [[Super restore]], but 1 additional inventory spot for runes will take up more inventory per use unless a player is hit by 8 or more [[corruption (status)|corruption]] effects per trip.  
+
+{{clear|left}}
+===Melee===
+[[File:Phantom Muspah (melee).png|left|180px]]
+Muspah's '''{{Colour|maroon|Melee}}''' form will deal significantly increased melee damage the longer it stays still. It is imperative to maintain distance at all times and to not allow Muspah to chain melee hits. Muspah's melee hit can deal up to 34 damage. Muspah has a significantly lower magic defence bonus in this form compared to its ranged defence bonuses.
+
+Easiest method to combat this form is to freeze Muspah with ice spells and damaging it from distance. For lower-level players who are struggling to freeze it, Muspah can be [[Safespot#Kiting|kited]] and attacked with ranged or magic to avoid damage from its melee form, similar to kiting Commander Zilyana. However, due to the Muspah’s larger size, an “octagon” run pattern works better than running in a square.
+
+Players can get hit by Muspah and still avoid damage from melee attack entirely if praying protect from melee and Muspah was chasing one tick before the intended attack tick. This led to what is known as the step-back method, which involves moving away from the boss one tick before the intended attack. Below is a breakdown of events on each tick of a step-back method being executed during Muspah's 5-tick melee cycle.
+
+:'''Tick 0''': Muspah attacks player  
+:'''Tick 1''': ''hitsplat fades'' 
+:'''Tick 2''': ''nothing'' 
+:'''Tick 3''': ''Click to step 1 tile away'' 
+:'''Tick 4''': Player moves
+:'''Tick 5''': Muspah will chase and attack the player same tick, for 0 damage if protect from melee is active.
+''Note: With 3-, 4-, and 6-tick weapons, player needs to sometimes move 2 tiles away (instead of 1) a tick earlier to not lose any ticks attacking.''
+
+<gallery mode="packed" heights="200" style="text-align:left">
+File:Phantom Muspah - stepback method 5t.mp4|A player demonstrating the step-back method with a 5-tick weapon. Click one tile away three ticks after Muspah attacks.
+File:Phantom Muspah - stepback method 4t.mp4|A player demonstrating the step-back method with a 4-tick weapon. Same as 5-tick method, but every 4th cycle step back 2 tiles instead of 1.
+File:Phantom Muspah - stepback method 3t.mp4|A player demonstrating the step-back method with a 3-tick weapon. Same as 5-tick method, but every 3rd cycle step back 2 tiles instead of 1.
+</gallery>
+
+===Shielded===
+[[File:Phantom Muspah (shielded).png|left|180px]]
+Muspah's '''{{Colour|teal|Shielded}}''' form is a reinforced '''{{Colour|green|Ranged}}''' form that is immune to all regular sources of damage. This reinforced form reverts back to the normal '''{{Colour|green|Ranged}}''' form when the prayer shield is removed. Prayer-draining attacks such as [[Smite]], [[Corruption spells]], and [[Sapphire bolts (e)|enchanted sapphire bolts]] will drain the shield faster. Entering this form also ends an active homing spikes special attack, which otherwise lasts {{ticks|34}}.
+{{clear|left}}
+
+==Fight overview==
+{{Tile markers box|Module:Tile markers/Phantom Muspah.json}}
+The Phantom Muspah can spawn in ranged or melee form, and will trigger special attacks at 75% and 50% health. Ranged spawns will trigger Lightning clouds at 75%, melee spawns will trigger homing spikes at 75%. The unused special will always occur at 50% health.
+
+*Players may deal large hits at the end of a ranged form, which will count towards ending the melee form.
+*Hitting Muspah below 637 HP before hitting under 650 HP prevents Muspah from entering ranged form before his lightning cloud special attack. This allows you a full 100 damage against range form instead of switching to melee immediately after.
+*Large amounts of damage dealt during the lightning cloud special attack can potentially skip the entirety of the final melee phase.
+*'''Lightning Clouds''' -  Muspah will rapidly teleport around the arena and spawn lightning clouds that travel across the area. 
+** Getting hit by a cloud will deal up to 20 damage, though they can be avoided by standing on a specific tile, provided with the button above. Players should avoid standing on this tile until the attack occurs, so that spikes aren't protruding on it.
+** Muspah will always appear to the north-east when the move is finished.
+** Muspah has combat stats equal to Range form, and can be attacked during this phase.
+** Damage dealt during this phase '''does not''' count towards the damage threshold for a form swap.
+*'''Homing Spikes''' - The Phantom Muspah will slam the ground, causing 2-4 spikes to home in on the player.  
+** Players can stand behind hardened spikes to avoid the homing spikes from reaching them if there's more than one spike grouped together.
+** The spikes move 1 tile per 2 ticks, do not move diagonally, and cannot pass through idle spikes.
+** After {{ticks|34}}, the spikes harden and stop moving.
+** Spikes that are directly adjacent to the player and under the Phantom Muspah will never be chosen to home in on the player.
+<gallery mode="packed" heights="180" style="text-align:left">
+Phantom Muspah - blocking homing spikes.png|A player blocks the homing spikes by standing behind some icicles.
+Muspah-safespots.png|A player completely avoids the lightning clouds by standing on the "optimal" tile labelled '''o'''; a weapon with an attack range of 10 ensures the player is never dragged out of the tile whilst attacking. Two alternative safespots are marked with d1-d2, where player should run to d1, and when dragged by an attack to d2, run back to d1 to prevent being hit by clouds.
+</gallery>
+
+===Shielded phase===
+Upon reaching less than 127 health, Muspah will teleport to the centre of the arena and unleash a massive shockwave that engulfs the entire arena. Players must stand behind a spike to avoid the attack, or it will deal up to 80 damage and the subsequent corruption will drain more prayer points compared to its magic attack. Players can place spikes on 8 specific tiles (also provided with the above button) to block the shockwave most efficiently. Spikes being on all 8 tiles is unlikely, but would completely negate a shockwave. Once Muspah finishes the attack, it will change into its shielded form, activating a prayer shield and [[Soul Split]], as well as increasing the max hit and accuracy of its attacks.
+[[File:Phantom Muspah - prayer flicking.mp4|thumb|400px|The player adjusts their timing to attack Muspah after it attacks, so that they can activate Smite to deplete the prayer shield quicker without risk of being attacked without protection prayers.]]
+
+The prayer shield has 75 health, and is drained by 2 after each attack. The [[Phantom Muspah]] will also heal itself for 50% of the damage inflicted, rounded down to the nearest whole number; e.g., a hit of 23 will cause it to heal 11 health. The player can further speed up the drain by using various prayer-draining methods, such as the [[Smite]] prayer or having a [[corruption spell]] active. 
+
+Using a crossbow with [[Sapphire bolts (e)|enchanted sapphire bolts]] or [[sapphire dragon bolts (e)|enchanted sapphire dragon bolts]] is highly recommended, as they have a 25% chance (27.5% with completion of the [[Hard Kandarin Diary]]){{CiteTwitter|author=Mod Ash|url=https://twitter.com/jagexash/status/1633115030588731395|date=7 March 2023|archiveurl=https://reldo.runescape.wiki/i/27964003|archivedate=13 May 2026|quote=I think it'd be based on 25% (plus diary buffs) for any eligible NPC *if* you pass the accuracy/defence roll first.}} to activate their special effect against the prayer shield, draining around 33 prayer from it.
+
+To successfully use Smite, players should avoid lining up their attacks with Muspah's ranged or magic attacks. Players can utilize the following five-tick cycle to determine when they can use Smite:
+
+* '''Tick 1''': Muspah's ranged attack damage is calculated (Protect from Ranged must be active on this tick to reduce damage)
+* '''Tick 2:''' Empty (can use Smite)
+* '''Tick 3''': Empty (can use Smite)
+* '''Tick 4''': Muspah's magic attack damage is calculated (Protect from Magic must be active on this tick to avoid damage)
+* '''Tick 5''': Empty (can use Smite)
+
+If the player is using a weapon with a five-tick attack speed, such as a crossbow on rapid, attacking Muspah on the first possible tick of the shielded phase will ensure that the player always attacks on Tick 2 of the above cycle, allowing them to flick Smite consistently. If players find themselves attacking on Tick 1 or Tick 4 of the cycle, it is advisable to delay their next attack by one tick to offset their attacks.
+
+Note that because this attack cycle is one tick faster than in previous phases, there is one less tick between a magic attack landing and the next ranged attack being calculated. As a result, players should be prepared to switch prayers quickly after a magic projectile hits them. 
+
+Once the shield is depleted, Muspah will return to its ranged form—though still with a five-tick attack speed—and create a large number of spikes (including one on the player's position) before resuming combat as normal. The spikes will emerge every four attacks and cover more tiles, growing from existing clusters of spikes.
+
+====Shield Skip====
+For players attempting [[Phantom Muspah Speed-Runner]], it is possible to bypass the shielded phase entirely. If Muspah's health reaches zero before the shield is applied, the shield phase is cancelled and Muspah instead restores 1 health. [https://www.youtube.com/watch?v=SEjWqdcQeIE <nowiki>[Youtube]</nowiki>]
+
+To succeed in a shield skip:
+
+* There is a 5-tick vulnerability between Muspah's teleport and shield application. 3-tick and 4-tick weapons can deliver two attacks in this timeframe.
+* When Muspah teleports to the middle, you must be standing within 1-2 tiles of Muspah's 5x5 to prevent delays on ranged weapon damage [https://youtu.be/0PM3xUGMLhA&t=21 <nowiki>[Youtube]</nowiki>].
+* Spam click to attack (Clicking before vulnerability will be lost, and will not cause a delayed attack at first vulnerability)
+* Your first attack will land before the shockwave
+* Your second and final attack will come after the shockwave
+* If Muspah is at 0 Health pending a successful shield skip, '''any further damage will fail the shield skip (ex: Thralls).'''
+* If successful, Muspah will not enter the shield phase, but exit with 1 health to be killed easily.
+
+This skip requires 2 or 3 lucky hits, and is therefore very luck dependent.
+
+# The hit which brings Muspah below 127 health is the most critical. If a player is unlucky and hits Muspah from 135 to 126, players must deal a full 126 damage in the hits to follow. Oppositely, if a player is lucky and hits 80 damage from 130 health down to 50, the player has two hits to deal only 50 damage.
+# The first hit after Muspah teleports.
+# If hit 2 did not bring Muspah to 0 health, the hit following the shockwave must do so.
+
+==Equipment==
+Ideally, use both [[Ranged]] and [[Magic]], to exploit the weaknesses of both forms. Camping a single form will result in greatly increased kill times, with range camp generally being slightly more optimal. To a lesser extent, Magic-only setups with best-in-slot mage gear and a Tumeken's shadow are doable; a ranged swap may still be helpful for Muspah's smite phase.
+
+Ranged setups employing ZCB specs benefit greatly from using [[Surge potion|Surge potions]].
+
+The [[Arceuus spellbook]] is particularly useful against Muspah, and is strongly recommended. In addition to the use of [[thralls]], [[Greater Corruption]] can be used for additional damage against Muspah's prayer shield. [[Ward of Arceuus]] can be used to protect the player from [[Corruption (status)|corruption]]. [[Vile Vigour]] can be used for additional run energy. [[Death Charge]] can be procced off Muspah to restore additional special attack energy, if not resetting between kills.
+
+However, some players opt to use [[Ancient Magicks]] or [[Standard spellbook]] to simply freeze with [[Ice spells]] or [[Entangle]] Muspah to avoid its melee attack. Freezing the Muspah also makes the faster attack speed of the [[Eye of ayak]] easier to take advantage of. Standard spellbook gives access to [[Wind spells]], which Muspah is weak to.
+
+<tabber>
+Magic =
+{{Recommended equipment| style = Magic
+| head1 = {{plink|Slayer helmet (i)}}{{efn|Only while on a Slayer task}} or {{plink|Ancestral hat}}
+| head2 = {{plink|Virtus mask}}
+| head3 = {{plink|Ahrim's hood}} (or: {{plinkp|Blue moon helm}}{{plinkp|Dagon'hai hat}}{{plinkp|Bloodbark helm}}{{plinkp|Infinity hat}})
+| neck1 = {{plink|Occult necklace}}
+| neck2 = {{plink|Amulet of fury}} / {{plink|Amulet of glory}}
+| cape1 = {{plink|God capes#Imbuing|txt=Imbued god cape|pic=Imbued Saradomin cape}}
+| body1 = {{plink|Ancestral robe top}}
+| body2 = {{plink|Virtus robe top}}
+| body3 = {{plink|Ahrim's robetop}} (or: {{plinkp|Blue moon chestplate}}{{plinkp|Dagon'hai robe top}}{{plinkp|Bloodbark body}}{{plinkp|Infinity top}})
+| legs1 = {{plink|Ancestral robe bottom}}
+| legs2 = {{plink|Virtus robe bottom}}
+| legs3 = {{plink|Ahrim's robeskirt}} (or: {{plinkp|Blue moon tassets}}{{plinkp|Dagon'hai robe bottom}}{{plinkp|Bloodbark legs}}{{plinkp|Infinity bottoms}})
+| weapon1 = {{plink|Tumeken's shadow}}
+| weapon2 = {{plink|Harmonised Nightmare staff}}{{efn|When casting [[Wind Surge]].|name="windsurge"}} / {{plink|Eye of ayak}} /  {{plink|Sanguinesti staff}} 
+| weapon3 = {{plink|Mystic smoke staff}}{{efn|When casting [[Wind Surge]].|name="windsurge"}} / {{plink|Twinflame staff}}{{efn|When casting [[Wind Wave]]. May be better than other staves before 95 Magic or without access to [[wrath runes]].|name="windwave"}}
+| weapon4 = {{plink|Trident of the Swamp}} / {{plink|Trident of the Seas}}
+| shield1 = {{plink|Elidinis' ward (f)}}
+| shield2 = {{plink|Arcane spirit shield}}
+| shield3 = {{plink|Ancient wyvern shield}} / {{plink|Elidinis' ward}}
+| shield4 = {{plink|Mage's book}} / {{plink|Malediction ward}}
+| shield5 = {{plink|Book of the Dead}}
+| hands1 = {{plink|Confliction gauntlets}}
+| hands2 = {{plink|Tormented bracelet}}
+| hands3 = {{plink|Barrows gloves}}
+| feet1 = {{plink|Avernic treads (max)}}
+| feet2 = {{plink|Eternal boots}}
+| feet3 = {{plink|Aranea boots}} / {{plink|Infinity boots}}
+| ring1 = {{plink|Lightbearer}}
+| ring2 = {{plink|Magus ring}}
+| ring3 = {{plink|Ring of suffering (i)|txt=Ring of suffering (ri)}}
+| ring5 = {{plink|Ring of shadows}}{{efn|Especially useful with [[Frozen tablet]] for quick returns to the boss after resupplying.|name="teleport"}}
+| special1 = {{plink|Accursed sceptre}} / {{plink|Eye of ayak}}
+}}
+{{Notelist}}
+
+|-|
+Ranged =
+{{Recommended equipment
+| style = Ranged
+| head1 = {{plink|Slayer helmet (i)}}{{efn|Only use with a Slayer task.}} / {{plink|Masori mask (f)}}
+| head2 = {{plink|Crystal helm}}
+| head3 = {{plink|Blessed coif|pic=Ancient coif}}
+| neck1 = {{plink|Necklace of rupture}}
+| neck2 = {{plink|Necklace of anguish}}
+| neck3 = {{plink|Amulet of fury}} / {{plink|Amulet of glory}}
+| cape1 = {{plink|Dizana's quiver}}
+| cape2 = {{plink|Ava's assembler}}
+| cape3 = {{plink|Ava's accumulator}}
+| cape4 = {{plink|Ranging cape}}
+| body1 = {{plink|Masori body (f)}}
+| body2 = {{plink|Crystal body}}
+| body3 = {{plink|Blessed d'hide body|pic=Guthix d'hide body}} (or: {{plinkp|Hueycoatl hide body}}{{plinkp|Eclipse moon chestplate}})
+| body4 = {{plink|Karil's leathertop}}
+| legs1 = {{plink|Masori chaps (f)}}
+| legs2 = {{plink|Crystal legs}}
+| legs3 = {{plink|Blessed chaps|pic=Ancient chaps}} (or: {{plinkp|Hueycoatl hide chaps}}{{plinkp|Eclipse moon tassets}})
+| legs4 = {{plink|Karil's leatherskirt}}
+| weapon1 = {{plink|Twisted bow}}
+| weapon2 = {{plink|Bow of Faerdhinen}}{{efn|Only use with [[crystal armour]]}} / {{plink|Toxic blowpipe}}{{efn|Against ranged phase}}{{efn|Blowpipe outperforms full crystal + bow of Faerdhinen setup only with full masori and amethyst or dragon darts.}}
+| weapon3 = {{plink|Zaryte crossbow}}
+| weapon4 = {{plink|Armadyl crossbow}} > {{plink|Dragon crossbow}} / {{plink|Dragon hunter crossbow}}
+| weapon5 = {{plink|Rune crossbow}}
+| ammo1 = {{plink|Seeking dragon arrow}} & {{plink|Sapphire dragon bolts (e)}}{{efn|For prayer shield phase. Dragon bolts are better if flicking [[Smite]] due to their increased max hit.|name="prayer"}} / {{plink|Ruby dragon bolts (e)}}{{efn|At 400 HP the special effect will hit for 80.}}
+| ammo2 = {{plink|Amethyst arrow}} / {{plink|Diamond dragon bolts (e)}} & {{plink|Sapphire bolts (e)}}{{efn|name="prayer"}}
+| ammo3 = {{plink|Rune arrow}} / {{plink|Ruby bolts (e)}}
+| ammo4 = {{plink|Rada's blessing 4}}
+| ammo5 = {{plink|God blessing|pic=Peaceful blessing}} / {{nowrap|{{plink|Rada's blessing 3|txt=Rada's blessing 3}}/[[Rada's blessing 2|2]]}}
+| hands1 = {{plink|Zaryte vambraces}}
+| hands2 = {{plink|Barrows gloves}}
+| feet1 = {{plink|Avernic treads (max)}}
+| feet2 = {{plink|Pegasian boots}}
+| feet3 = {{plink|Ranger boots}} / {{plink|Aranea boots}}
+| feet4 = {{plink|Blessed boots|pic=Ancient d'hide boots}}
+| ring1 = {{plink|Lightbearer}}
+| ring2 = {{plink|Venator ring}}
+| ring3 = {{plink|Archers ring (i)}}
+| ring4 = {{plink|Ring of suffering (ri)}}
+| special1 = {{plink|Zaryte crossbow}}
+| special2 = {{plink|Elder maul}} > {{plink|Dragon warhammer}}
+| special3 = {{plink|Tonalztics of ralos}}
+| special4 = {{plink|Toxic blowpipe}}
+| special5 = {{plink|Armadyl crossbow}} / {{plink|Bone dagger}}{{efn|Only use as first hit.}}
+| shield1 = {{plink|Twisted buckler}}
+| shield2 = {{plink|Dragonfire ward}}
+| shield3 = {{plink|Odium ward}}
+| shield4 = {{plink|Book of Law}}
+}}
+{{Notelist}}
+|-|
+Melee =
+Without reducing Muspah's defence, Melee setups perform poorly. A ranged swap should also be brought for use when Muspah is teleporting or shielded, and additionally may be helpful at the end of the fight if Muspah is surrounded by spikes. 
+
+Using Melee also requires familarity with the stepback method and can be harder to execute.
+{{Recommended equipment
+| style = Melee
+| head1 = {{plink|Slayer helmet (i)}}{{efn|Only use with a Slayer task.}} / {{plink|Oathplate helm}}{{efn|name=slash}}
+| head2 = {{plink|Torva full helm}}
+| head3 = {{plink|Neitiznot faceguard}}
+| head4 = {{plink|Serpentine helm}} /{{plink|Inquisitor's great helm}}{{efn|Only use with the [[Inquisitor's mace]]|name="inquisitor"}}
+| neck1 = {{plink|Amulet of rancour}}
+| neck2 = {{plink|Amulet of torture}}
+| cape1 = {{plink|Infernal cape}}
+| cape2 = {{plink|Fire cape}}
+| body1 = {{plink|Oathplate chest}}{{efn|name=slash}}
+| body2 = {{plink|Torva platebody}}
+| body3 = {{plink|Bandos chestplate}}/{{plink|Inquisitor's hauberk}}{{efn|name="inquisitor"}}
+| legs1 = {{plink|Oathplate legs}}{{efn|If using a slash weapon|name=slash}}
+| legs2 = {{plink|Torva platelegs}}
+| legs3 = {{plink|Bandos tassets}}/{{plink|Inquisitor's plateskirt}}{{efn|name="inquisitor"}}
+| weapon1 ={{plink|Scythe of Vitur}}{{efn|On slash.|name="Slash"}}
+| weapon2 = {{plink|Inquisitor's mace}}{{efn|With full Inquisitor armour.|name="full inquisitor"}}
+| weapon3 = {{plink|Soulreaper axe}}{{efn|name="Slash"}}
+| ammo1 = {{plink|Rada's blessing 4}}
+| ammo2 = {{plink|God blessing|pic=Peaceful blessing}} / {{nowrap|{{plink|Rada's blessing 3|txt=Rada's blessing 3}}/[[Rada's blessing 2|2]]}}
+| hands1 = {{plink|Ferocious gloves}}
+| feet1 = {{plink|Avernic treads (max)}}
+| feet2 = {{plink|Primordial boots}}
+| feet3 = {{plink|Echo boots}}
+| feet4 = {{plink|Dragon boots}}
+| ring1 = {{plink|Bellator ring}}{{efn|name=slash}}
+| ring2 = {{plink|Ultor ring}}
+| ring3 = {{plink|Berserker ring (i)}}
+| ring4 = {{plink|Lightbearer}}
+| special1 = {{plink|Elder maul}}
+| special2 = {{plink|Dragon warhammer}}
+| shield1 = {{plink|Avernic defender}}
+| shield2 = {{plink|Dragon defender}}
+}}
+
+{{Notelist}}
+</tabber>
+
+<tabber>
+Magic & Ranged = 
+Muspah is most effectively fought with Magic and Ranged. Magic should be used on Muspah's Melee form, and Ranged should be used otherwise. Using [[sapphire bolts (e)]] with a crossbow is strongly recommended on Muspah's prayer shield, ideally in combination with [[Smite]] and [[Greater Corruption]].
+{{Inventory
+|Twisted bow|Masori body (f)|Masori chaps (f)|Masori mask (f)
+|Dizana's quiver|Necklace of rupture|Zaryte vambraces|Ruby dragon bolts (e)
+|Zaryte crossbow|Twisted buckler|Divine bastion potion|Divine bastion potion
+|Super restore|Super restore|Super restore|Saturated heart
+|Anglerfish|Anglerfish|Anglerfish|Anglerfish
+||||Surge potion|Divine rune pouch
+|Desert amulet 4|Ring of shadows|Book of the Dead|Divine rune pouch
+|align = right
+}}
+{{Rune pouch|align=right
+|1=Blood rune
+|2=Fire rune
+|3=Cosmic rune
+|4=Soul rune
+
+}}
+|-|
+Ranged =
+Ranged only setups are sometimes preferred for simplicity, especially if players aren't as comfortable with a large amount of equipment swaps.
+
+Upon entering the boss arena, if Muspah spawns in Melee form, it may save time to leave and re-enter to spend more time overall hitting Muspah's ranged form, which has lower ranged defence. Alternatively, with a [[Zaryte crossbow]], using a special attack with [[Ruby bolts (e)]] special on the first Melee phase can be beneficial.
+
+Alternatively, some players prefer to use a [[Elder maul]], [[Dragon warhammer]], or [[Tonalztics of ralos]] special attack to reduce Muspah's defence and speed up kill times.
+{{Inventory
+|Zaryte crossbow|Sapphire dragon bolts (e)|Book of the Dead|Divine rune pouch
+|Ruby dragon bolts (e)|Divine ranging potion|Stamina potion|Stamina potion
+|Surge potion|{{MinPrice|format=item|link=n|Manta ray|Tuna potato|Anglerfish|Dark crab}}|{{MinPrice|format=item|link=n|Manta ray|Tuna potato|Anglerfish|Dark crab}}|{{MinPrice|format=item|link=n|Manta ray|Tuna potato|Anglerfish|Dark crab}}
+|Prayer potion|{{MinPrice|format=item|link=n|Manta ray|Tuna potato|Anglerfish|Dark crab}}|{{MinPrice|format=item|link=n|Manta ray|Tuna potato|Anglerfish|Dark crab}}|{{MinPrice|format=item|link=n|Manta ray|Tuna potato|Anglerfish|Dark crab}}
+|Prayer potion|{{MinPrice|format=item|link=n|Manta ray|Tuna potato|Anglerfish|Dark crab}}|{{MinPrice|format=item|link=n|Manta ray|Tuna potato|Anglerfish|Dark crab}}|{{MinPrice|format=item|link=n|Manta ray|Tuna potato|Anglerfish|Dark crab}}
+|Prayer potion|{{MinPrice|format=item|link=n|Manta ray|Tuna potato|Anglerfish|Dark crab}}|{{MinPrice|format=item|link=n|Manta ray|Tuna potato|Anglerfish|Dark crab}}|{{MinPrice|format=item|link=n|Manta ray|Tuna potato|Anglerfish|Dark crab}}
+|Prayer potion|{{MinPrice|format=item|link=n|Manta ray|Tuna potato|Anglerfish|Dark crab}}|Ring of shadows|Teleport to house (tablet)
+|align = right
+|orient = h
+}}
+{{Rune pouch|align=right
+|1=Blood rune
+|2=Fire rune
+|3=Cosmic rune
+|4=Soul rune
+}}
+|-|
+Melee =
+Assuming a successful defence-reducing special attack has landed, a [[Scythe of Vitur]] can provide comparable damage to best-in-slot Ranged and Magic options. However, the reliance on this can make it a less effective option, and a ranged swap is still strongly recommended for Muspah's prayer shield and during the teleportation phase.
+
+Mastering the step-back method in Muspah's melee phase is functionally required for this method.
+
+{{Inventory
+|Elder maul|Dizana's quiver|Masori chaps (f)|Zaryte vambraces
+|Zaryte crossbow|Masori body (f)|Necklace of rupture|Ranging potion
+|Divine super combat potion|Super restore|Super restore|Super restore
+|{{MinPrice|format=item|link=n|Manta ray|Tuna potato|Anglerfish|Dark crab}}|{{MinPrice|format=item|link=n|Manta ray|Tuna potato|Anglerfish|Dark crab}}|{{MinPrice|format=item|link=n|Manta ray|Tuna potato|Anglerfish|Dark crab}}|{{MinPrice|format=item|link=n|Manta ray|Tuna potato|Anglerfish|Dark crab}}
+||||
+||||Surge potion|Divine rune pouch
+|Desert amulet 4|Ring of shadows|Book of the Dead|Divine rune pouch
+|align = right
+|orient = h
+}}
+{{Rune pouch|align=right
+|1=Blood rune
+|2=Fire rune
+|3=Cosmic rune
+|4=Soul rune
+}}
+</tabber>
+
+==References==
+{{Reflist}}
+
+{{Phantom Muspah}}
+[[Category:Strategies]]

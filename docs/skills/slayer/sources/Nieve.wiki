@@ -1,0 +1,193 @@
+{{otheruses|def=no|the follower version during Monkey Madness II|non-pet followers}}
+{{Has calculator|Calculator:Slayer/Slayer_task_weight}}
+{{Infobox NPC
+|name = Nieve
+|image = [[File:Nieve.png|150px]]
+|release = [[12 December]] [[2013]]
+|update = First Slayer Batch
+|members = Yes
+|race = [[Human]]
+|quest = [[Monkey Madness II]]
+|location = [[Tree Gnome Stronghold]]
+|shop = [[Slayer Equipment (shop)|Slayer Equipment]], [[Slayer Rewards]]
+|gender = Female
+|options = Talk-to, Assignment, Trade, Rewards
+|examine = She looks rich and dangerous!
+|map = {{Map|name=Nieve|x=2432|y=3423|mtype=pin}}
+|id = 6797,7108,7109,7110
+|leagueRegion = Kandarin
+}}
+[[File:Nieve chathead.png|left]]
+'''Nieve''' (pronounced {{IPAc-en|'|n|i:|v}} {{respell|NEEV}}) is the third-to-highest level [[Slayer master]], behind [[Duradel]]. She is located in the [[Tree Gnome Stronghold]], next to the [[Stronghold Slayer Cave]] near the [[magic tree]]s and the southern [[bank]]. She only assigns [[Slayer task|tasks]] to players with a [[combat level]] of at least 85.
+
+Nieve wields a [[Zamorakian hasta]], full [[Bandos armour]], an [[amulet of fury]], a [[pirate's hook]], an [[elysian spirit shield]], and a [[fire cape]]. She made an appearance with a [[cave kraken]] in [[Prifddinas]] during ''[[Old School RuneScape]]'s'' [[2014 Birthday event|first birthday event]] along with other [[NPCs]].
+
+After completion of [[Monkey Madness II]], she is replaced by [[Steve]].
+
+Blocking a task with this slayer master costs 90 [[Slayer reward point|Slayer reward points]].
+
+==Transportation==
+*The quickest method to obtain an assignment from Nieve is to use the [[Lunar spell]] [[Astral Contact]], requiring the completion of [[Lunar Diplomacy]] to cast.
+*[[Slayer ring]] teleport to the [[Stronghold Slayer Cave]]
+*[[Spirit tree]] to the Gnome Stronghold and then head south-west
+*[[Necklace of passage]] teleport to the [[Outpost]], head through the gates of the Tree Gnome Stronghold and then north-west
+
+==Slayer points==
+Players can receive [[Slayer reward point]]s for completing [[Slayer task]]s—this is based on how many tasks players have accomplished in a row. Completion of a task assigned by Nieve will grant you a varying amount of points, depending if players have completed the [[Elite Western Provinces Diary]], which is increased to match those of [[Duradel]].
+
+{|class=wikitable style="text-align:center;"
+! rowspan="2" |Task interval
+! colspan="2" |Points given
+|-
+!Default
+![[Western_Provinces_Diary#Rewards_4|Elite Diary]]
+|-
+|Every task
+|12
+|15
+|-
+|Every 10th
+|60
+|75
+|-
+|Every 50th
+|180
+|225
+|-
+|Every 100th
+|300
+|375
+|-
+|Every 250th
+|420
+|525
+|-
+|Every 1,000th
+|600
+|750
+|}
+
+==Tasks==
+{{:Nieve/Slayer assignments}}
+Note: Nieve is a valid contact for the [[Astral Contact]] spell, and you can obtain tasks from them.  It is part of the [[Lunar spellbook]]. 
+
+===Increased task numbers===
+{{Main|Slayer reward point#Extend}}
+Unlocking abilities to increase your [[Slayer task|task]] numbers for certain [[Slayer monster]]s can be done by spending [[Slayer reward point]]s from any [[Slayer master]].
+
+==History==
+===Nieve's family===
+Nieve has many cousins, all of whom are [[Slayer guardians]] who operate slayer task only areas, like her. [[Steve]] resides in the [[Asgarnia Ice Dungeon]] and controls the upper level in the [[Skeletal Wyvern]] area until [[Monkey Madness II]] when he is replaced with his little sister [[Pieve]]. [[Slieve]] and [[Eve]] operate out of the [[Taverley Dungeon]], controlling the [[Black dragon|Black]] and [[Blue dragon]] areas, respectively. [[Captain Cleive]] controls access to the [[Lizardman shaman]] slayer caves. [[Lieve McCracken]] oversees [[Kraken Cove]]. [[Hieve]] runs a separate [[metal dragon]] area in the [[Brimhaven Dungeon]], and is the older brother of Pieve and Steve. [[Weve]] guards the [[Wyvern Cave]] for on-task wyverns and [[ammonite crab]]s on [[Fossil Island]]. Nieve's uncle [[Breive]] maintains the [[Smoke Devil Dungeon]]. [[Weave]] guards the [[Morytania Spider Cave]] for access to [[araxyte]]s. [[Peeve]] guards specific sections of the [[Wilderness Slayer Cave]].
+
+====Family tree====
+{{Family tree Nieve}}
+
+===Monkey Madness II===
+In [[Monkey Madness II]], she is recruited by the adventurer to stop [[Glough]] and his experiments from wreaking havoc after his airship crashed north of the [[Tree Gnome Stronghold]]. Nieve helps them against the [[tortured gorilla]]s invading the Stronghold.
+[[File:Monkey Madness II - Nieve dies.png|thumb|left|Nieve is killed by a collapsing boulder.]]
+After the [[10th Squad]] secures the Stronghold, she, along with the adventurer, pursues Glough in the [[Crash Site Cavern]], where she assists them in defeating Glough's tortured and [[demonic gorilla]]s. After Glough drinks the serum to mutate himself, Nieve charges at him, despite the adventurer's warnings. The mutated Glough easily bats Nieve aside before stomping the ground, causing a boulder to fall and kill her. All that was left of her were her remains, and her elysian spirit shield was [[Elysian spirit shield (Monkey Madness II)|pulverised]]. The adventurer ultimately defeats Glough, avenging Nieve.
+[[File:Nieve's gravestone.png|thumb|[[Gravestone (Tree Gnome Stronghold)|Nieve's gravestone]] found at the exit that leads to the crash site.]]
+After the quest, her [[Gravestone (Tree Gnome Stronghold)|gravestone]] can be found between the small swamp and the [[Grand Tree]]'s north-western entrance, next to the exit that leads to the Crash Site Cavern. Her gravestone also functions as the player's [[kill count]] for tortured and demonic gorillas. Her younger cousin, Steve, replaces her as the [[Slayer Master]], and Steve's younger sister [[Pieve]] replaces him at the [[Asgarnian Ice Dungeon]].
+
+===Afterlife===
+Following her death, Nieve was sent to the afterlife, where she met and got along with [[Yanes]]. Even in the afterlife, Nieve is kept occupied and was unable to attend Eve's party, but kept telling him about the adventurer, whom Yanes met in the party. The adventurer misses her, stating that it isn't the same with Steve around.
+
+At some point, [[Icthlarin]] recruited her to fight off servants of [[The Devourer]] in the land of souls to devastating effect, as Death claims that the Devourer's servants were terrified of her.{{CitePostbag|issue=24|author=[[Death]]|letter=3|quote=It seems your friend has been doing valuable work in the land of souls. The servants of The Devourer cower in her presence! I imagine that's a great weight off my colleague's shoulders.}}
+
+==Treasure Trails==
+{{Anagram|Nieve|medium|[[Clue scroll (medium) - I EVEN|I EVEN]]}}. The answer to her challenge is '''2'''.
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 24 March 2016
+|update = White & Black Graceful
+|change = It is now possible to unlock the possibility of receiving a Lizardmen slayer task from Duradel, Nieve and Chaeldar. Unlocking this task costs 75 slayer points.
+}}
+{{Subject changes
+|date = 18 February 2016
+|update = Dragon Claws & 3rd Birthday
+|poll = Quality of Life - Top 10 PvM Suggestions
+|change = Slayer masters now give information about your current task if you prematurely request a new one.
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|poll = Old School Content Poll 36: Skilling Pets
+|change = Spiritual rangers, mages and warrior are now grouped into a single slayer task of spiritual creatures.
+}}
+{{Subject changes
+|date = 17 September 2015
+|update = Angler's Outfit & Slayer
+|change =
+* Rebalanced Duradel & Nieve's slayer assignment lists.
+* Nieve was [[graphically updated]].
+* Nieve's examine text was changed from "''She looks dangerous!''" to "''She looks rich and dangerous!''".
+}}
+{{Subject changes
+|date = 10 September 2015
+|update = Slayer Assignment Rework
+|change = *Nieve can now assign between 10 and 20 black dragons.
+*Nieve can now assign dark beasts.
+}}
+{{Subject changes
+|date = 20 August 2015
+|update = Boss slayer & total worlds
+|change = Nieve and Duradel may assign a boss in place of a regular assignment after unlocking the ''Like a boss'' ability for 200 slayer points.
+}}
+{{Subject changes
+|date = 6 August 2015
+|update = XP Drops, Jad Pet & Slayer
+|change = Nieve and Duradel will be able to assign TzHaar as a task.
+}}
+{{Subject changes
+|date = 5 March 2015
+|update = Achievement Diaries
+|poll = Old School Achievement Diary Rewards Poll
+|change = You now receive the same number of [[slayer points]] from Nieve as [[Duradel]] if you have completed the [[Elite Western Provinces Diary]].
+}}
+{{Subject changes
+|date = 29 January 2015
+|update = Ignore lists, 1v1s & More
+|poll = Old School Content Poll 29: Grand Exchange
+|change = Slayer masters now have a right-click option, Assignment, which allows players to quickly check a task's progress or start a new one.
+}}
+{{Subject changes
+|date = 6 January 2014
+|update = Second Slayer Batch: The Helm
+|poll = Old School feature poll 14: Minigames
+|change = Nieve can now be contacted with the [[Astral Contact]] spell.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Nieve v1.png|center|300x150px]]
+|[[File:Nieve.png|300x150px]]
+|-
+|12 December 2013 –<br/>17 September 2015
+|17 September 2015 –<br/>present
+|}
+
+==Trivia==
+*'Nieve' is the English spelling for the common Irish name Niamh, which has roughly the same pronunciation and can mean "brilliance" or "lustre".<ref>https://www.teanglann.ie/en/fgb/niamh</ref>
+*"Nieve" is an archaic Scottish term for a clenched fist. It also means "snow" in Spanish. "Nieve" is also an archaic alternative spelling of "nief" or "neaf," meaning "a serf or bondsman born into servitude."<ref>https://www.wordnik.com/words/nief</ref>
+*Nieve seems to be very skilled; she wears some of the most powerful equipment available to players and guards the [[Stronghold Slayer Cave]]. Furthermore, she is able to telepathically communicate with players inside the cave, preventing them from attacking monsters outside of their slayer assignments. This suggests that she has a scrying pool, knowledge of Lunar Magicks, or some sort of way to watch the entire dungeon. Most of the [[monsters]] in the cave are also not found around the local area, suggesting that she may have captured them herself.
+*After completing all of the elite tasks in the [[Western Provinces Diary]], the difference between Nieve and [[Duradel]] is that she assigns [[brine rat]]s, [[turoth]]s, [[custodian stalker]]s, and [[Scabarites]] and doesn't assign [[waterfiend]]s.
+*After recruiting her during [[Monkey Madness II]], Nieve is shown to have a combat level of 126.
+*During the [[2020 Halloween event]], a ghostly warrior named [[Yanes]] tells players about Nieve in the afterlife if the player has finished [[Monkey Madness II]]. He claims Nieve "talks about you a lot." The player explains that they miss Nieve and asks Yanes to let her know that [[Glough|the player has avenged her death]].
+*Nieve had a festive override wearing a [[santa hat]] during the [[2023 Christmas event/Gallery|2023]], [[2024 Christmas event/Gallery|2024]], and [[2025 Christmas event/Gallery|2025]] Christmas events.
+
+==References==
+{{Reflist}}
+
+{{Slayer guardians}}
+{{Slayer Master}}
+{{Monkey Madness II}}
+{{Tree Gnome Stronghold}}
+{{Astral Contact}}
+
+[[Category:Deceased characters]]

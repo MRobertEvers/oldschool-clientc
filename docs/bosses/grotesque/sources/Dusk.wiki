@@ -1,0 +1,151 @@
+{{Otheruses|the slayer boss|the mystic robe set|Mystic robes#Dusk|the item suffix|(dusk)}}
+{{HasStrategy|page=Grotesque Guardians/Strategies}}
+{{HasTask|Gargoyles}}
+{{Infobox Monster
+|version1 = First form
+|version2 = Second form
+|name = Dusk
+|image1 = [[File:Dusk.png|250px]]
+|image2 = [[File:Dusk (2nd form).png|300px]]
+|release = [[26 October]] [[2017]]
+|update = Grotesque Guardians
+|members = Yes
+|combat1 = 248
+|combat2 = 328
+|size1 = 4
+|size2 = 6
+|examine1 = The Guardian of Dusk, he's alive!
+|examine2 = The Guardian of Dusk, he's alive!<br/>The crack of Dusk. (''upon death'')
+|attributes = Golem
+|xpbonus = 0
+|flatarmour1 = -1
+|flatarmour2 = 0
+|max hit1 = 15 (melee) 33 (special attack)
+|max hit2 = 26 (melee)<br/> 15x2 (ranged)<br/> 65 (special attack)
+|aggressive = No
+|poisonous = No
+|attack style1 = [[Slash]] {{CiteReddit|author=Mod Kieren|url=https://www.reddit.com/r/2007scape/comments/79pzu8/grotesque_guardians_feedback_tweaks/dp3w45d/|title=Grotesque Guardians: Feedback Tweaks|quote=So, this is the code that's live now: [https://archive.is/aasWC] (...)|date=30 October 2017|archiveurl=https://reldo.runescape.wiki/i/103434|archivedate=11 August 2023|name=script}}
+|attack style2 = [[Slash]], [[Ranged]]
+|attack speed = 6
+|slaylvl = 75
+|slayxp = 1350 <!--DO NOT CHANGE; this is the base amount of experience given before the Morytania Diary bonus-->
+|cat = Bosses, Gargoyles
+|assignedby = vannaka,chaeldar,konar,nieve,duradel, Mortimer
+|hitpoints = 450
+|att1 = 200
+|att2 = 300
+|str1 = 140
+|str2 = 250
+|def1 = 100
+|def2 = 150
+|mage1 = 140
+|mage2 = 250
+|range1 = 140
+|range2 = 250
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|dlight = 0
+|dstandard = 0
+|dheavy = 0
+|elementalweaknesstype = Earth
+|elementalweaknesspercent = 40
+|poisonresistance = 100
+|venomresistance = 100
+|id1 = 7851,7854,7855,7882,7883,7886
+|id2 = 7887,7888,7889
+}}
+[[File:Midnight.png|left|link=]]
+'''Dusk''', along with [[Dawn]], are the [[Grotesque Guardians]] that require level 75 [[Slayer]] to kill. It is the [[boss]] version of the [[gargoyle]], found on the [[Slayer Tower]]'s rooftop. In order to access the roof, players must obtain a [[brittle key]] from gargoyles while assigned them for a [[Slayer task]]. Similar to other [[Slayer bosses]], such as [[Cerberus]] and the [[Abyssal Sire]], the Grotesque Guardians can only be killed while the player is assigned gargoyles as a Slayer task.
+
+To initiate the fight, players must ring the Cloister Bell in the north side of the roof. This will trigger a cutscene in which the Guardians will awaken, and the fight will begin. After reaching a kill count of five, the cutscene may be skipped by right clicking the bell and selecting "Quick-start". Dusk is immune to [[Magic]] and [[Ranged]] attacks; only [[melee]] attacks will harm it. In addition, if players stand under Dusk in the 2nd or last phase (when they are only fighting Dusk), they will be trampled and receive 30-40 damage.
+
+==The fight==
+''Like gargoyles, the player '''must''' bring a [[rock hammer]], [[rock thrownhammer]], or a [[granite hammer]] to defeat Dusk.''
+
+In the beginning of the fight, the player must attack [[Dawn]] with ranged, magic, or halberd attacks (she is immune to all other forms of melee damage); Dusk cannot be harmed during this initial phase of the fight. Once Dawn's health has reached half, she will fly up out of view, and players can begin to attack Dusk.
+
+During this second phase of the fight, Dusk's wings may glow, and will perform an explosive attack. If the player does not run away from him when he does so, the player will be dealt 30+ damage and be knocked back. In addition, debris may fall around the roof, which can deal up to 10 damage and [[Stun (status)|stun]] the player for a brief period of time.
+
+Once his health has reached half, Dawn will return to the fight and together with Dusk, perform a lightning special attack that spawns purple and orange circles indicating where lightning will strike. Each lightning has an AoE of 3x3, rapidly dealing up to 5-10 damage per tick, and can stack together to rapidly kill players should they find themselves too close to the lightning.
+
+After defeating Dawn, Dusk will absorb her essence, and initiate the final phase of the fight. Here, he is stronger, can use melee and ranged attacks, and may drag the player to a prison of purple flames, which has an area of 5x5, with one of the tiles of the wall of flames being absent of fire. The player should attempt to escape the prison or they will be dealt 60+ damage, which heals Dusk. Usually, the player would only need to set a destination tile anywhere outside of the prison of flames; however, should the opening that the player automatically usually paths through be against a wall, then the player should stand in the opening against the wall to avoid the damage from the prison of flames.
+
+==Mechanics==
+Dusk uses a [[slash]] attack that can hit through [[Protect from Melee]], with the damage dealt being reduced by 80%.{{NamedRef|script}}
+
+During the final phase of the battle, Dusk has a 1/6 chance each attack to alternate attack styles; that is to say to switch from melee to Ranged or vice versa. However, using the correct protection prayer will increase this chance to 1/3 per attack.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1243459892037464067|date=27 March 2023|archiveurl=https://reldo.runescape.wiki/i/103705|archivedate=11 August 2023|quote=1/3 switch if you're praying against that style, otherwise 1/6. (...)}} For the first attack at the start of the phase, there is a 2/3 chance Dusk will use the opposite attack style of the one the player is praying against.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/jagexash/status/1674453151691276290|date=29 June 2023|archiveurl=https://reldo.runescape.wiki/i/96409|archivedate=13 August 2023|quote=[On the first attack of P4 of Dusk, does it always attack with the opposite of your prayer? (...)] I think it doubles the chance of picking the one that'd bypass your prayer. [As in if I was praying Melee, there’s a 2/3 chance it would lead with Ranged and a 1/3 chance it would lead with Melee?] Yes, that's it. And vice-versa, if I'm reading this correctly.}}
+
+Dusk's Ranged attack, which consists of two orbs being fired at the player in succession, has a unique form of damage calculation during this phase. If Dusk succeeds the Ranged accuracy check, the first orb will always hit for 60% of his max hit, or half of that number if the player is praying correctly.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1185143100186025984|date=18 October 2019|archiveurl=https://reldo.runescape.wiki/i/107162|archivedate=11 August 2023|quote=[also did you happen to notice whether the first orb had any cheating going on in regard to always dealing the max possible damage (...)?] Ah, yes, it does go with 60% of the max hit, without a random roll.}} The second orb meanwhile will carry out a random damage roll upon succeeding the accuracy check, yet goes on to make a second damage roll ranging between 0 and the damage value rolled directly prior.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1185115040246042624|date=18 October 2019|archiveurl=https://reldo.runescape.wiki/i/105331|archivedate=11 August 2023|quote=1st one rolls ranged accuracy vs your ranged defence, treats the NPC's max hit as 60% of its usual value, then halves it further if you pray. 2nd one does the same, but takes the rolled damage and *rolls a new random number between 0 and the rolled number", thus reducing it.}}
+
+==Money making==
+{{Mmgsection|Killing the Grotesque Guardians}}
+
+==Drops==
+{{main|Grotesque Guardians#Drops}}
+
+''In addition to the 100% drop of [[granite dust]], the player will also have two rolls on the [[Grotesque Guardians]]' drop table.''
+
+==Gallery==
+<gallery>
+Dusk special attack.png|The player is knocked back by Dusk's explosive attack.
+Dusk 2nd form special attack.png|The player is damaged by the prison of purple flames, healing Dusk.
+</gallery>
+
+===Concept art===
+<gallery>
+Dusk work-in-progress.png
+Dusk work-in-progress 2.png
+Dusk work-in-progress 3.png
+Dusk work-in-progress 4.png
+Dusk work-in-progress 5.png
+</gallery>
+
+===Models===
+<gallery>
+Dusk model.gif
+Dusk model 2.gif
+Dusk model 3.gif
+Dusk model 4.gif
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 27 August 2025
+|update = Summer Sweep Up Slayer & More
+|change = Dusk is now vulnerable to [[golembane weapons]].
+}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = 
+*Despite being immune to Magic, Dusk now has a 40% elemental weakness to [[earth spells]].
+*Dusk's first form now has -1 [[Flat armour]].
+}}
+{{Subject changes
+|date = 12 July 2018
+|update = Game Integrity: Pickpocketing
+|change = Dusk's hitpoints were reduced from 600 to 450.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Originally during the opening cutscene of the fight, Dusk started with a combat level of 285.
+*Although [[burn]] will damage enemies who are [[Protect from Missiles|praying ranged]], Dusk will take no damage from burn even when applied by [[Burning claws|Burning Claws]]. When burn is applied on Dusk, every hitsplat will hit zero and trigger the text box message, "Dusk's stone armour absorbs all magic and ranged based attacks."
+
+==References==
+{{Reflist}}
+
+{{Grotesque Guardians}}
+{{Slayer monsters}}
+{{Bosses}}
+[[Category:Slayer monsters that can only be fought on task]]
+[[Category:Zamorakians]]

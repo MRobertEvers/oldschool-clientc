@@ -1,0 +1,330 @@
+{{otheruses|the boss|the fossil display|Leviathan (fossil)}}
+{{Instance}}
+{{HasStrategy}}
+{{Infobox Monster
+|version1 = Post-quest
+|version2 = Awakened
+|version3 = Quest
+|name = The Leviathan
+|image = [[File:The Leviathan.png|280px]]
+|release = [[26 July]] [[2023]]
+|update = Desert Treasure II - The Fallen Empire
+|members = Yes
+|combat1 = 798
+|combat2 = 1157
+|combat3 = 593
+|size = 7
+|examine = An unfathomably huge sea creature.
+|xpbonus1 = 97.5
+|xpbonus2 = 187.5
+|xpbonus3 = 62.5
+|max hit1 = 50 (Melee orb & Bite), 24 (Ranged orb), 32 (Magic orb), 60 (Smoke Blast)
+|max hit2 = 86 (Melee orb & Bite), 41 (Ranged orb), 55 (Magic orb), 75 (Smoke Blast)
+|max hit3 = 34 (Melee orb & Bite), 16 (Ranged orb), 22 (Magic orb), 41+ (Smoke Blast)
+|aggressive = Yes
+|poisonous = No
+|attack style = Melee, Ranged, Magic
+|attack speed = Varies
+|slayxp1 = 1777.4
+|slayxp2 = 2700
+|slayxp3 = 720
+|cat = Bosses
+|assignedby = konar,nieve,duradel
+|hitpoints1 = 900
+|hitpoints2 = 2700
+|hitpoints3 = 720
+|att1 = 300
+|att2 = 525
+|att3 = 250
+|str1 = 360
+|str2 = 630
+|str3 = 270
+|def1 = 250
+|def2 = 287
+|def3 = 200
+|mage1 = 160
+|mage2 = 280
+|mage3 = 130
+|range1 = 160
+|range2 = 280
+|range3 = 130
+|attbns1 = 200
+|attbns2 = 200
+|attbns3 = 170
+|strbns1 = 22
+|strbns2 = 22
+|strbns3 = 14
+|amagic1 = 160
+|amagic2 = 160
+|amagic3 = 130
+|mbns1 = 58
+|mbns2 = 58
+|mbns3 = 36
+|arange1 = 300
+|arange2 = 300
+|arange3 = 230
+|rngbns1 = 26
+|rngbns2 = 26
+|rngbns3 = 10
+|dstab1 = 260
+|dstab2 = 260
+|dstab3 = 200
+|dslash1 = 190
+|dslash2 = 190
+|dslash3 = 150
+|dcrush1 = 230
+|dcrush2 = 230
+|dcrush3 = 180
+|dmagic1 = 280
+|dmagic2 = 280
+|dmagic3 = 220
+|dlight = 50
+|dstandard = 50
+|dheavy = 25
+|poisonresistance = 0
+|venomresistance = Poison
+|immunecannon = Yes
+|id1 = 12214
+|id2 = 12214
+|id3 = 12215,12219
+|leagueRegion = Desert
+}}
+'''The Leviathan''' is a large sea creature found within [[the Scar]], who is encountered during [[Desert Treasure II - The Fallen Empire]]. Once dwelling in the [[Eastern Ocean]], the Leviathan was inadvertently dragged into the Scar during the [[Battle for the Eye]] when [[Perseriya]] of [[the Forgotten Four]] accidentally opened an abyssal rift in an attempt to teleport reinforcements in.
+
+It has since then adapted to the abyssal environment and has made itself at home in a large lake within the Scar, preying upon those who were unfortunate enough to be pulled into the Scar during the battle. This is seen clearly on accounts of survivors and what remains of the Zarosian fleet in the area.
+
+It is replaced by a stronger variant after completion of the quest which the player can repeatedly fight.
+
+==Location==
+{{LocTableHead}}
+{{LocLine
+|name = The Leviathan
+|location = [[The Scar]]
+|levels = 593, 798, 1,157
+|members = Yes
+|mapID = -1
+|plane = 0
+|2081,6372
+|mtype = pin
+|leagueRegion = Desert
+}}
+{{LocTableBottom}}
+
+[[The Scar]] is an area of the [[Abyssal Space]], accessed by talking to the [[Catalytic Guardian]] in the [[Temple of the Eye (location)|Temple of the Eye]]. To reach the Leviathan in the Scar, players must proceed east of the [[Abyssal Rift (The Scar)|Abyssal Rift]] towards [[Wizard Persten]]'s camp. A rowboat there can then be used to reach the island where the Leviathan is located. Climbing the [[Handholds (The Leviathan)|handholds]] onto the platform initiates the fight momentarily.
+
+A [[Scoreboard (The Leviathan)|scoreboard]] just before the rowboat shows statistics related to the Leviathan.
+
+==Fight overview==
+{{Main|The Leviathan/Strategies}}
+The Leviathan is best fought with [[ranged]]; attempting to attack The Leviathan with [[melee]] will result in the following message: {{mes|Your melee attacks can't reach the lure!}} The boss fight is initiated upon climbing into the arena, where it will use a volley of rapid-firing attacks which deal damage upon impact; protection prayers will fully block these attacks.
+[[File:Fighting the Leviathan.png|thumb|left|250px|A player fighting the Leviathan.]]
+The Leviathan will attack with random volleys of coloured orbs - magic (blue), ranged (green), and melee (orange) - at varying attack speeds throughout the fight. At the end of each volley, the boss will roar and cause debris to fall onto the player, potentially restricting movement and obstructing line of sight. Every subsequent volley of attacks will increase in attack speed, which can become very difficult to switch prayers for players at later volleys. The boss can also bite players in the tiles right next to the pool, which deals melee damage.
+
+At any point during the sequence, players can cast [[shadow spells]] to stun the Leviathan (which will always succeed), where it will stay still for 15 [[ticks]] (9 seconds). Damage against it is capped at 10 when stunned, but the player can run around to attack the gaping wound on its backside to deal a large amount of damage, which will cause it to retaliate with a special attack. This also resets the Leviathan's attack speed to the beginning of the 2-tick attacks.
+
+Upon reaching 180 hitpoints, the Leviathan will begin the enrage phase. Its attack speed will now stay at two ticks, losing the ability to launch orange melee orbs (but still being able to bite players) while an [[abyssal pathfinder]] will spawn to the north-west of the arena (or the next clockwise direction if the spawn point is blocked by debris) and will begin to move clockwise. The player must stay within the pathfinder's area-of-effect in order to gain increased accuracy and damage, along with full protection from its attacks; otherwise, its attacks will pierce through prayer.
+
+==Awakened version==
+The Leviathan can also be '''awakened''' by use of an [[Awakener's orb]], greatly increasing the boss's stats and increasing the difficulty of the mechanics for a much harder fight.
+For an overview of the differences between the regular and awakened versions of the boss, see this [[The Leviathan/Strategies#Awakened mode|strategy guide]].
+
+==Money making==
+{{Mmgsection|Killing The Leviathan}}
+
+==Drops==
+{{DropLogProject|kills=387013}}
+
+===Average value===
+{{BossValue/The Leviathan}}
+
+===Mechanics===
+When the Leviathan is defeated, a drop will be rolled for until the roll results in a success, as described below:{{CiteNews|url=https://secure.runescape.com/m=news/desert-treasure-ii---tweaks-and-drop-rates?oldschool=1|title=Desert Treasure II - Tweaks and Drop Rates|newsdate=3 August 2023}}
+* Roll 1/96 for the tradeable unique drop table (3/96 for awakened variant).
+** If unsuccessful, roll 1/53 for the [[awakener's orb]].
+** If unsuccessful, roll 1/25 for [[scarred tablet]].
+** If unsuccessful, roll 1/200 for [[smoke quartz]].
+** If unsuccessful, roll 1/5 for the supply drop table.
+* If all rolls above were unsuccessful, the standard drop table is rolled.
+* Once the player rolls the entire drop table, roll 1/2,500 for [[Lil'viathan]] and 1/40 for a clue scroll.
+
+In addition, defeating the boss perfectly will earn 50% more loot from the standard drop table.{{CiteReddit|author=Mod Ayiza|url=https://www.reddit.com/r/2007scape/comments/15gzjui/desert_treasure_ii_tweaks_and_drop_rates/julpslb/|date=3 August 2023|archiveurl=https://reldo.runescape.wiki/i/27963896|archivedate=26 April 2026|quote=You have to do the fight while avoiding any avoidable damage. Essentially a perfect fight (chip damage does not count).|title=Desert Treasure II - Tweaks and Drop Rates}} This requires the player to kill the Leviathan without taking any avoidable damage, which includes:
+* Standard rapid-fire volleys
+* Getting hit by falling debris during and outside of enrage phase
+* Bite damage
+* Lightning Barrage damage
+* Smoke Blast damage
+* In the awakened fight, getting hit by the tornado
+'''Note''': Taking damage from one of the rapid-fire volleys during the transition to the enrage phase—while praying the correct style—will not disqualify the player from a 'perfect' kill. During the enrage phase, however, standing outside the abyssal pathfinder's area and taking this damage '''will''' disqualify the player, regardless of whether the correct protection prayer is active.
+
+===Uniques===
+{{Listen
+|title = Unique drop [[sound effect]]
+|align = right
+|filename = Unique drop sound effect.ogg
+|desc = The sound that plays when receiving a unique drop.
+}}
+''There is a '''1/96''' chance of rolling the unique drop table per kill. After hitting the table, there is a 1/8 chance to get a piece of the Virtus robes (then a separate 1/3 roll to determine which piece), a 3/8 chance to get a single vestige roll (each roll will drop a gold ring until the final roll which guarantees the vestige), a 3/8 chance for a chromium ingot, and a 1/8 chance for the Leviathan's lure. Below are the effective drop rates.''
+
+{{DropsTableHead}}
+{{DropsLine|name=Venator vestige|quantity=1|rarity=1/768|raritynotes=<ref group=d>To receive the venator vestige, the player must roll an invisible 1/256 drop on the tradeable unique table. The first roll will cause a [[gold ring]] to appear and increment a hidden variable, while the second drops two gold rings; when the third such roll occurs, the vestige is dropped and the variable is reset.</ref>}}
+{{DropsLine|name=Chromium ingot|quantity=1|rarity=3/768}}
+{{DropsLine|name=Leviathan's lure|quantity=1|rarity=1/768}}
+{{DropsLine|name=Virtus mask|quantity=1|rarity=1/2304}}
+{{DropsLine|name=Virtus robe top|quantity=1|rarity=1/2304}}
+{{DropsLine|name=Virtus robe bottom|quantity=1|rarity=1/2304}}
+{{DropsTableBottom}}
+{{reflist|group=d}}
+
+===Secondary uniques===
+''The items are rolled in the following sequence: [[awakener's orb]], [[scarred tablet]], [[smoke quartz]]. These items will replace the normal loot rolls.''
+
+{{DropsTableHead}}
+{{DropsLine|name=Scarred tablet|quantity=1|rarity=1/25.8|raritynotes=<ref name="secondary_uniques" group="d">The scarred tablet will become more common at an unknown rate as kill count increases until the first drop is received. Afterwards, the item will no longer be dropped.</ref>}}
+{{DropsLine|name=Awakener's orb|quantity=1|rarity=1/53.6}}
+{{DropsLine|name=Smoke quartz|quantity=1|rarity=1/206.0|raritynotes={{refn|group=d|If the player has not yet received their first smoke quartz, its drop rate scales from 1/200 to 1/50 as the player's kill count increases, where the best rate is reached at 300 kill count. Once players obtain their first smoke quartz, the drop rate is reverted back to 1/200.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1707308397186465945|date=28 September 2023|archiveurl=https://reldo.runescape.wiki/i/108079{{^|https://reldo.runescape.wiki/i/27963836}}|archivedate=28 September 2023|quote=If I'm reading my colleagues' code correctly, over your first 300 kills, the chance shifts from 1/200 to 1/50, where it stays thereafter.}}}}}}
+{{DropsTableBottom}}
+
+===Supplies===
+''These supplies are all dropped together.''
+{{DropsTableHead}}
+{{DropsLine|name=Prayer potion(3)|quantity=1|rarity=1/5.4}}
+{{DropsLine|name=Ranging potion(2)|quantity=1|rarity=1/5.4}}
+{{DropsLine|name=Sea turtle|quantity=3-4|rarity=1/5.4}}
+{{DropsTableBottom}}
+
+===Resources===
+{{DropsTableHead}}
+{{DropsLine|name=Aether catalyst|quantity=1500,2250|rarity=1/100}}
+{{DropsLine|name=Iron ore|quantity=57,85 (noted)|rarity=1/100}}
+{{DropsLine|name=Silver ore|quantity=57,85 (noted)|rarity=1/100}}
+{{DropsLine|name=Coal|quantity=195,292 (noted)|rarity=8/100}}
+{{DropsLine|name=Gold ore|quantity=67,101 (noted)|rarity=8/100}}
+{{DropsLine|name=Adamantite ore|quantity=57,85 (noted)|rarity=1/100}}
+{{DropsLine|name=Runite ore|quantity=27,40 (noted)|rarity=2/100}}
+
+{{DropsLine|name=Sapphire|quantity=25,38 (noted)|rarity=1/100}}
+{{DropsLine|name=Emerald|quantity=25,38 (noted)|rarity=1/100}}
+{{DropsLine|name=Ruby|quantity=25,38 (noted)|rarity=1/100}}
+{{DropsLine|name=Uncut ruby|quantity=37,56 (noted)|rarity=5/100}}
+{{DropsLine|name=Uncut diamond|quantity=37,56 (noted)|rarity=5/100}}
+
+{{DropsLine|name=Dragon javelin tips|quantity=54,81|rarity=8/100}}
+{{DropsLine|name=Dragon bolts (unf)|quantity=150,225|rarity=2/100}}
+{{DropsLine|name=Onyx bolt tips|quantity=90,135|rarity=1/100}}
+
+{{DropsLine|name=Raw manta ray|quantity=180,270 (noted)|rarity=1/100}}
+{{DropsLine|name=Anglerfish|quantity=4,6|rarity=8/100}}
+{{DropsTableBottom}}
+
+===Runes and ammunition===
+{{DropsTableHead}}
+{{DropsLine|name=Bronze arrow|quantity=63,94|rarity=1/100}}
+{{DropsLine|name=Mithril arrow|quantity=63,94|rarity=1/100}}
+{{DropsLine|name=Adamant arrow|quantity=63,94|rarity=1/100}}
+{{DropsLine|name=Rune arrow|quantity=54,81|rarity=8/100}}
+{{DropsLine|name=Body rune|quantity=180,270|rarity=1/100}}
+{{DropsLine|name=Earth rune|quantity=180,270|rarity=1/100}}
+{{DropsLine|name=Smoke rune|quantity=300,450|rarity=8/100}}
+{{DropsLine|name=Soul rune|quantity=600,900|rarity=2/100}}
+{{DropsTableBottom}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Brimstone key|quantity=1|rarity={{Brimstone rarity|798}}|raritynotes=<ref group="d">Brimstone keys are only dropped while on a [[Slayer task]] given by [[Konar quo Maten]].</ref>|gemw=No|leagueRegion=Desert&Kourend}}
+{{DropsLineClue|type=easy|rarity=1/160}}
+{{DropsLineClue|type=medium|rarity=1/160}}
+{{DropsLineClue|type=hard|rarity=1/160}}
+{{DropsLineClue|type=elite|rarity=1/160}}
+{{DropsLine|name=Lil'viathan|quantity=1|rarity=1/2500|gemw=No}}
+{{DropsLine|name=Ancient blood ornament kit|rarity=Always|quantity=1|gemw=no|raritynotes=<ref group=d>Only when defeated in the awakened encounter as the '''last''' of the four.</ref>}}
+{{DropsTableBottom}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Leviathan}}
+
+==Gallery==
+<gallery mode="packed" heights="150" style="text-align:left">
+The Leviathan concept art.png|Concept of the Leviathan, by [[Mod Jerv]].
+The Leviathan environment concept art.png|Concept art of the Leviathan fight area, by Mod Jerv.
+The Leviathan concept art (early 4).jpg|thumb|A very early concept of the Leviathan, where he appears much larger, by Mod Jerv.
+The Leviathan concept art (early 1).png|An early concept of the Leviathan, by Mod Jerv.
+The Leviathan concept art (early 3).jpg|thumb|Concept of the Leviathan, by Mod Jerv
+The Leviathan concept art (early 2).png|Another early concept of the Leviathan, by Mod Jerv.
+</gallery>
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2025
+|update= Summer Sweep Up: Combat
+|change = 
+* Replaced pure essence with 1500 [[aether catalyst]] drop.
+* Progress towards the venator vestige is now indicated with a [[gold ring]] drop. For players who were in progress before this update, their next kill will guarantee one or two gold rings, indicating 1/3 and 2/3 vestige rolls respectively.
+}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change = Leviathan's heavy ranged defence was changed from 50 to 25.
+}}
+{{Subject changes
+|date = 7 February 2024
+|update = Poll 80 Wilderness Changes & More
+|change = Leviathan's lightning attack now launches 1 tick later if the player is above 25 HP, consistent with its behaviour prior to the [[31 January]] [[2024]] game [[Update:Scurrius & DT2 Combat Achievements|update]].
+}}
+{{Subject changes
+|date = 31 January 2024
+|update = Scurrius & DT2 Combat Achievements
+|change = [[Combat Achievements]] were added for the boss.
+}}
+{{Subject changes
+|date = 16 August 2023
+|update = Desert Treasure II Changes & More
+|change = 
+* The Leviathan's orb projectiles will no longer hit through protection prayers between the beginning of the enrage phase and the spawning of the [[abyssal pathfinder]].
+* The Leviathan will now drop [[brimstone key]]s in an accessible location upon death, rather than where it spawns.
+* Personal best kill times for the Leviathan will now broadcast in [[clan chat]] and [[group ironman]] channels.
+}}
+{{Subject changes
+|update = Desert Treasure II - Further Changes
+|date = 9 August 2023
+|change = 
+* Players will no longer receive the {{mes|Your melee attacks can't reach the lure!}} message when trying to [[autocast]] in [[melee]] range.
+* The colour of the melee projectiles has been adjusted to be clearer for players with visual impairments.
+* [[Shadow spells]] now grant the base [[experience]] when cast on the Leviathan.
+* An issue causing perfect kills to fail has been resolved.
+}}
+{{Subject changes
+|date = 3 August 2023
+|update = Desert Treasure II - Tweaks and Drop Rates
+|change = 
+* The combat level for the quest variant was increased from 574 to 593.
+* The drop rate for the tradeable unique drop table was increased from 1/120 to 1/96.
+* The Leviathan can no longer be received as a boss slayer task prior to completing Desert Treasure II.
+* Slayer tasks no longer apply to the Awakened version.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The {{wp|Leviathan}} is a mythical creature referenced extensively in the Bible and is associated with the sin of envy.
+*Its design appears to be based on a {{RSL|Raw rocktail|rocktail}}, a cave-dwelling fish from ''RuneScape 3'', both the {{RSL|Raw rocktail|raw}} and {{RSL|Rocktail|cooked}} version.
+*The Leviathan is the only Desert Treasure 2 boss which is aggressive towards players upon spawning:
+**[[Duke Sucellus]] is in a sleeping state and is not aggressive until awakened with poison.
+**[[Vardorvis]] does not attack players when entering his arena nor when he respawns, since his barrier mechanic does not trigger until he is attacked.
+**[[The Whisperer]], while as an Odd Figure, does focus on the player, but she cannot attack in that state and is a separate NPC.
+* The Leviathan is the only Desert Treasure 2 boss to not have a lore reason for returning back to life after every kill:
+** Duke Sucellus is not killed by the player, merely subdued after which he falls back asleep.
+** Vardorvis' body is reanimated by [[the Strangler]].
+** The Whisperer is reanimated by the power of [[Ancient Pillar (Desert Treasure II)|the Ancient Pillar]].
+* The Leviathan is the only Desert Treasure 2 Boss to not be a member of [[Zarosian Empire|the Zarosian Empire]].
+* While this Leviathan had adapted to the abyss, a leviathan in its natural state is a [[rsw:Crassian_Leviathan|boss]] in ''RuneScape.''
+* The Leviathan may be inspired by a similar fight in the Drakengard series.
+* Unlike most monsters, the Leviathan's normal mode encounter provides more slayer experience than its health suggests. This is not the case with its Awakened variant.
+
+==References==
+{{Reflist}}
+
+{{The Forgotten Four}}
+{{Desert Treasure II - The Fallen Empire}}
+{{Bosses}}
+{{DEFAULTSORT:Leviathan, The}}

@@ -1,0 +1,157 @@
+{{Otheruses|the bard north of Seers' Village|the bard in Rellekka|Olaf the Bard|an NPC in Varlamore|Bard}}
+{{Infobox NPC
+|name = Falo the Bard
+|image = [[File:Falo the Bard.png|140px]]
+|release = [[6 July]] [[2016]]
+|update = Treasure Trail Expansion (2016)
+|members = Yes
+|race = [[Human]]
+|location = North of [[Seers' Village]]
+|gender = Male
+|options = Talk-to
+|examine = A forgetful Fremennik bard.
+|map = {{Map|name=Falo the Bard|x=2689|y=3549|r=4|mtype=square}}
+|id = 7306
+|leagueRegion = Kandarin
+}}
+[[File:Falo the Bard chathead.png|left]]
+<onlyinclude>'''Falo the Bard''' is a [[Fremennik]] bard, whom players must visit if their [[master clue scroll]] directs them to him. Players must start [[The Fremennik Trials]] in order to speak to him. The fastest way to him is by using the [[Music cape]] or via [[fairy ring]] code {{Fairycode|CJR}}, walking south and then west across the bridge north of [[Seers' Village]].
+
+He will sing a ballad, of which players must find the item he is singing about. Players need to show him the item in order to progress to the next clue, the items cannot be noted.<noinclude>
+
+He is the brother of [[Olaf the Bard]], whose name is "Falo" backwards.
+
+==List of lyrics==
+</noinclude>
+{| class="wikitable lighttable"
+!Lyric
+! colspan="2" |Item
+|-
+| rowspan="3" |A blood red weapon, a strong curved sword, found on the island of primate lords.
+|{{plinkt|Dragon scimitar}}
+|-
+|{{plinkt|Dragon scimitar (or)}}
+|-
+|{{plinkt|Dragon scimitar (cr)}}
+|-
+| rowspan="2" |A book that preaches of some great figure, lending strength, might and vigour.
+|{{plinkt|God book|pic=Book of Balance}}<ref group=n name=god>The book must be completed. Any book will be accepted.</ref>
+|-
+|{{plinkt|God book (or)|pic=Book of Balance (or)}}<ref group=n name=god />
+|-
+| rowspan="2" |A bow of elven craft was made, it shimmers bright, but will soon fade.
+|{{plinkt|Crystal bow}}<ref group=n name=crystal>Falo also accepts an inactive Crystal bow.</ref>
+|-
+|{{plinkt|Bow of Faerdhinen}}<ref group=n>The [[Bow of Faerdhinen (c)]] and all colour variations can also be used for this clue step.</ref>
+|-
+| rowspan="3" |A fiery axe of great inferno, when you use it, you'll wonder where the logs go.
+|{{plinkt|Infernal axe}}<ref group=n name=infernal>The uncharged version can also be used for this clue step.</ref>
+|-
+|{{plinkt|Infernal axe (or)}}<ref group=n name=infernal/>
+|-
+|{{plinkt|Infernal axe (or) (Trailblazer Reloaded)}}<ref group=n name=infernal/>
+|-
+|A mark used to increase one's grace, found atop a seer's place.
+|{{plinkt|Mark of Grace}}
+|-
+|A molten beast with fiery breath, you acquire these with its death.
+|{{plinkt|Lava dragon bones}}
+|-
+|A shiny helmet of flight, to obtain this with melee, struggle you might.
+|{{plinkt|Armadyl helmet}}<ref group=n name=armadyl>[[Masori mask (f)]] does '''not work'''.</ref>
+|-
+| rowspan="3" |A sword held in the other hand, red its colour, Cyclops strength you must withstand.
+|{{plinkt|Dragon defender}}<ref group=n name=locked>The [[locked]] variation can be used for this clue step.</ref>
+|-
+|{{plinkt|Dragon defender (t)}}<ref group=n name=locked/>
+|-
+|{{plinkt|Avernic defender}}<ref group=n name=locked/><ref group=n>The [[Ghommal's avernic defender 5]], [[Ghommal's avernic defender 6]], and their [[locked]] variations can be used for this clue step.</ref>
+|-
+|A token used to kill mythical beasts, in hopes of a blade or just for an xp feast.
+|{{plinkt|Warrior guild token}}
+|-
+|Green is my favourite, mature ale I do love, this takes your herblore above.
+|{{plinkt|Greenman's ale(m)}}<ref group=n>[[Greenmans ale(m) (keg)]] of any filling level does '''not work'''.</ref>
+|-
+| rowspan="2" |It can hold down a boat or crush a goat, this object, you see, is quite heavy.
+|{{plinkt|Barrelchest anchor}}<ref group=n>A broken anchor does '''not work'''.</ref>
+|-
+|{{plinkt|Barrelchest anchor (bh)}}
+|-
+|It comes from the ground, underneath the snowy plain. Trolls aplenty, with what looks like a mane.
+|{{plinkt|Basalt}}
+|-
+| rowspan="2" |No attack to wield, only strength is required, made of obsidian, but with no room for a shield.
+|{{plinkt|Tzhaar-ket-om}}
+|-
+|{{plinkt|Tzhaar-ket-om (t)}}
+|-
+| rowspan="2" |Penance healers runners and more, obtaining this body often gives much deplore.
+|{{plinkt|Fighter torso}}<ref group=n name=locked />
+|-
+|{{plinkt|Fighter torso (or)}}<ref group=n name=locked />
+|-
+|Strangely found in a chest, many believe these gloves are the best.
+|{{plinkt|Barrows gloves}}
+|-
+|These gloves of white won't help you fight, but aid in cooking, they just might.
+|{{plinkt|Cooking gauntlets}}
+|-
+|They come from some time ago, from a land unto the east. Fossilised they have become, this small and gentle beast.
+|{{plinkt|Numulite}}
+|-
+|To slay a dragon you must first do, before this chest piece can be put on you.
+|{{plinkt|Rune platebody}}<ref group=n>[[Rune trimmed armour|Trimmed]], [[Rune god armour|god]], and [[Rune heraldic armour|heraldic]] variants do '''not work'''.</ref>
+|-
+| rowspan="4" |Vampyres are agile opponents, damaged best with a weapon of many components.
+|{{plinkt|Ivandis flail}}
+|-
+|{{plinkt|Rod of Ivandis}}
+|-
+|{{plinkt|Blisterwood flail}}
+|-
+|{{plinkt|Hallowed flail}}
+|-
+|You won't bring me to heel, unless you have a bright red keel.
+|{{plinkt|Dragon keel parts}}<ref group=n>[[Large dragon keel parts]] do '''not work'''.</ref> 
+|}{{reflist|group=n}}</onlyinclude>
+
+==Dialogue==
+{{hastranscript|NPC}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 17 June 2026
+|update = Bank Tags, Trouver System Rework & More!
+|change = Falo the Bard will now accept the Trailblazer Reloaded variant of the infernal axe (or) for his clue step asking for an infernal axe.
+}}
+{{Subject changes
+|date = 1 November 2023
+|update = Forestry Tweaks, Security & More
+|change = Falo the Bard will now recognise the [[Barrelchest anchor (bh)]] if he asks you to bring him a [[Barrelchest anchor]].
+}}
+{{Subject changes
+|date = 9 March 2023
+|update = Even More Poll 78 Changes
+|poll = New Skill: Community Consultation and Poll 78
+|change = * Falo will now accept the [[Bow of Faerdhinen]], the [[Bow of Faerdhinen (c)]] and all colour variations in place of the [[Crystal Bow]].
+* Falo will also now accept all [[Ghommal's hilt]] variations of the [[Avernic Defender]] in place of the Avernic Defender, including [[Trouver parchment|Trouver]] versions.
+}}
+{{Subject changes
+|date = 18 June 2020
+|update = Poll 71 and Darkmeyer Updates
+|poll = 
+|change = Falo's hairstyle has been changed to match his chathead.
+}}
+{{Subject changes
+|date = 4 May 2017
+|update = Skotos & Dark Claws
+|change = Falo the Bard will no longer address players incorrectly if they haven't completed The Fremennik Trials.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Upon release of [[Fossil Island]], a new song was added, with the lyrics being ''Not a dragon and gained from its death, it's used to protect from their icy breath''. The answer to the riddle was the [[ancient wyvern shield]]. Due to player complaints, it was replaced with a different song whose lyrics lead to the answer [[numulite]].
+
+{{Treasure Trails}}

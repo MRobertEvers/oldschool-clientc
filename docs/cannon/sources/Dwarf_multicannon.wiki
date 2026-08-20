@@ -1,0 +1,418 @@
+{{External|rs|rsc}}
+{{redirect|Cannon}}
+{{Otheruses|def=no|the cannon in Between a Rock...|Dwarf MultiCannon (Between a Rock...)}}
+{{Infobox Scenery
+|version1 = Normal
+|version2 = Normal, base
+|version3 = Normal, stand
+|version4 = Normal, barrels
+|version5 = Normal, broken
+|version6 = Ornamented
+|version7 = Ornamented, base
+|version8 = Ornamented, stand
+|version9 = Ornamented, barrels
+|version10 = Ornamented, broken
+|name1 = Dwarf multicannon
+|name2 = Cannon base
+|name3 = Cannon stand
+|name4 = Cannon barrels
+|name5 = Broken multicannon
+|name6 = Dwarf multicannon
+|name7 = Cannon base
+|name8 = Cannon stand
+|name9 = Cannon barrels
+|name10 = Broken multicannon
+|image1 = [[File:Dwarf multicannon.png|250px]]
+|image2 = [[File:Cannon base (scenery).png|250px]]
+|image3 = [[File:Cannon stand (scenery).png|250px]]
+|image4 = [[File:Cannon barrels (scenery).png|250px]]
+|image5 = [[File:Broken multicannon.png|250px]]
+|image6 = [[File:Dwarf multicannon (Shattered Relics League).png|250px]]
+|image7 = [[File:Cannon base (Shattered Relics League).png|250px]]
+|image8 = [[File:Cannon stand (Shattered Relics League).png|250px]]
+|image9 = [[File:Cannon barrels (Shattered Relics League).png|250px]]
+|image10 = [[File:Broken multicannon (Shattered Relics League).png|250px]]
+|release1 = [[27 May]] [[2003]]
+|release2 = [[27 May]] [[2003]]
+|release3 = [[27 May]] [[2003]]
+|release4 = [[27 May]] [[2003]]
+|release5 = [[24 March]] [[2016]]
+|release6 = [[19 January]] [[2022]]
+|release7 = [[19 January]] [[2022]]
+|release8 = [[19 January]] [[2022]]
+|release9 = [[19 January]] [[2022]]
+|release10 = [[19 January]] [[2022]]
+|update1 = New Dwarf Cannon Quest
+|update2 = New Dwarf Cannon Quest
+|update3 = New Dwarf Cannon Quest
+|update4 = New Dwarf Cannon Quest
+|update5 = White & Black Graceful
+|update6 = Leagues III: Shattered Relics - Issues & Fixes
+|update7 = Leagues III: Shattered Relics - Issues & Fixes
+|update8 = Leagues III: Shattered Relics - Issues & Fixes
+|update9 = Leagues III: Shattered Relics - Issues & Fixes
+|update10 = Leagues III: Shattered Relics - Issues & Fixes
+|members = Yes
+|quest = [[Dwarf Cannon]]
+|location = N/A
+|options1 = Fire, Pick-up, Empty, Load X
+|options2 = Pick-up
+|options3 = Pick-up
+|options4 = Pick-up
+|options5 = Repair, Pick-up
+|options6 = Fire, Pick-up, Empty, Load X
+|options7 = Pick-up
+|options8 = Pick-up
+|options9 = Pick-up
+|options10 = Repair, Pick-up
+|examine1 = A powerful ranging device that fires metal balls.
+|examine2 = The cannon is built on here.
+|examine3 = The mounting for the multicannon.
+|examine4 = The barrels of the multicannon.
+|examine5 = A powerful ranging device, unfortunately not working.
+|examine6 = A powerful ranging device that fires metal balls.
+|examine7 = The cannon is built on here.
+|examine8 = The mounting for the multicannon.
+|examine9 = The barrels of the multicannon.
+|examine10 = A powerful ranging device, unfortunately not working.
+|map = No
+|id1 = 6
+|id2 = 7
+|id3 = 8
+|id4 = 9
+|id5 = 14916
+|id6 = 43027
+|id7 = 43029
+|id8 = 43030
+|id9 = 43031
+|id10 = 43028
+|leagueRegion = Asgarnia
+}}
+The '''dwarf multicannon''' (or simply '''cannon''') is a unique type of [[Ranged]] weapon that acts as a deployable turret using [[Steel cannonball|steel cannonballs]] or [[granite cannonball]]s as ammunition. Once deployed and loaded with ammunition, the cannon will fire at targets within its line-of-sight and range. The cannon acts as a supplemental source of damage alongside the player, and is commonly used to speed up [[Slayer task|Slayer tasks]]. Damage with the cannon gives reduced experience. The cannon's accuracy depends heavily on the player's current equipment, attack style and levels.
+
+The cannon has four parts which it can be assembled from. A player may only have one cannon assembled at a time. There are many locations where setting up a cannon will be automatically prevented, as well as bosses which will destroy the cannon. If a cannon is destroyed, [[Nulodion]] will provide a free replacement.
+
+==Parts==
+'''Note:''' you can buy all four parts for cheaper (750,000 GP) by using the "Talk" option on [[Nulodion]] and asking to buy the entire set, rather than buying the parts individually.
+
+{{CostTableHead|caption=Cannon}}
+{{CostLine|Cannon barrels}}
+{{CostLine|Cannon base}}
+{{CostLine|Cannon furnace}}
+{{CostLine|Cannon stand}}
+{{CostTableBottom|total=y|compare=Dwarf cannon set}}
+{{CostTableHead|caption=Ammo}}
+{{CostLine|Steel cannonball}}
+{{CostLine|Granite cannonball|cost=no}}
+{{CostTableBottom}}
+
+Note that the cannon parts are rather heavy, and carrying them will make a player's weight '''extremely high'''. Bringing a few [[Super energy]] or [[Stamina potion]]s can compensate for the more rapid energy loss.
+
+==Assembly==
+[[File:Cannon set up.gif|thumb|Setting up the cannon]]
+To assemble a cannon the [[Dwarf Cannon]] quest must first be completed and you must have four pieces of the cannon in your inventory: the [[Cannon base|base]], the [[Cannon stand|stand]], the [[Cannon barrels|barrels]], and the [[Cannon furnace|furnace]]. The full set is purchasable from [[Nulodion]], when entering dialogue, south of [[Ice Mountain]], for {{NoCoins|750000|c}}. This includes the four parts, an [[ammo mould]] for use in the creation of cannonballs, and the cannon's [[instruction manual]]. If buying through the trade screen, each piece can be bought separately for {{NoCoins|200625|c}}, costing more than buying a full set.
+
+Place the cannon base on a vacant square surrounded by eight more vacant squares, and the other pieces will be automatically assembled alongside the base. The cannon will be assembled in this order: base, stand, barrels, then furnace. Load the cannon with ammunition by clicking the deployed cannon with the ammunition in your inventory. If players have both [[Steel cannonball|steel]] and [[granite cannonballs]] in their inventory, granite cannonballs will be inserted first.  If a player has a cannon filled with granite cannonballs and only steel ones in their inventory, the granite ones within the cannon must be fully used before the cannon can be reloaded with steel cannonballs. The cannon may hold a maximum of 30 cannonballs and can be reloaded at any time by clicking on the cannon again. This capacity can be increased by completing tasks from the [[Combat Achievements]] system, reaching a maximum of 60 for the elite tier. The cannon will also require repair after 25 minutes of use. 
+
+If the cannon runs out of cannonballs, the player will need to reload the cannon in order for it to begin firing again. '''If the player loads cannonballs onto an empty cannon and moves away a tick later, they will be forced to run to the cannon's south-west tile to "push" the cannon to begin firing.'''
+
+==Mechanics==
+[[File:Dwarf multicannon.gif|thumb|The cannon in operation]]
+These are the mechanical aspects of the cannon. This section includes the rotation, targets, and decay of the cannon's parts.
+
+===<span class="anchor" id="Damage"></span> Damage and experience===
+The cannon has a static max hit of 30 with [[Steel cannonball|steel cannonballs]] and 35 with [[granite cannonballs]], regardless of the player's [[Ranged]] level or any other bonuses to the player's ranged damage.
+
+Damage with the cannon yields 2 [[Ranged]] experience per damage rather than the standard 4, and does not yield any [[Hitpoints]] experience.
+
+===Accuracy===
+The cannon's accuracy is affected by the player's accuracy bonus,{{CiteForum|author=Bitterkoekje|url=https://web.archive.org/web/20190905124128/http://webcache.googleusercontent.com/search?q=cache:http://services.runescape.com/m=forum/forums.ws?317,318,712,65587452|title=Combat Formulas|postdate=10 March 2015|name=Bitterkoekje}} which can be boosted{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/853967813962321920|date=17 April 2017|archiveurl=https://reldo.runescape.wiki/i/105747|archivedate=23 February 2019|quote=Yes, it would help.}} and is calculated differently depending on weapon type and attack styles.
+
+* When using '''ranged weapons''', the cannon uses the player's ''ranged accuracy'', taking into account their ranged bonus. This includes ranged accuracy boosting prayers, such as Rigour.
+** When wearing [[Crystal equipment]] alongside the [[Bow of Faerdhinen]], the accuracy bonus is applied to the cannon's accuracy. Giving 5%, 10% and 15% for the helm, legs and chest, respectively. Making full crystal the best accuracy possible for the cannon. {{CiteDiscord|author=Mod Ash|url=https://discord.com/channels/324132423636090880/431834766325841920/1412702792279261195|date=3 September 2025|archiveurl=https://reldo.runescape.wiki/i/27964097#chat-messages-431834766325841920-1412702792279261195|archivedate=6 June 2026|quote=[@JagexAsh does the crystal armour + bowfa accuracy boost get applied to the cannon accuracy roll? and while you're checking maybe you could just send the formula? 😉] Yes, increasing your effective accuracy by (5 x C)% where C is your crystal armour bonus. A helm adds +1 to that, body armour adds +3 and legs add +2.}}
+* When using '''melee weapons''', the cannon uses the player's ''melee accuracy'', taking into account their ''stab'', ''slash'', or ''crush'' bonus depending on their currently selected attack style, as well as their [[Attack]] level and other melee accuracy bonuses. This includes melee accuracy boosting prayers, such as [[Piety]].{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1297156273645985793|date=22 August 2020|archiveurl=https://reldo.runescape.wiki/i/106099|archivedate=22 August 2020|quote=[If it's calculating accuracy from your slash bonus, for instance, will rigour help there or would you want to be using piety?] Piety, as it's looking at a melee accuracy rather than a ranged accuracy.}}
+** Note that the cannon uses the player's ''crush'' bonus when no weapon is equipped, as all unarmed attack styles are crush.
+* When using '''[[Powered staff|Powered staves]]''', such as the [[trident of the seas]], the cannon uses either the player's ''ranged'' or ''melee accuracy'', whichever is higher.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/709785300579586049|date=15 March 2016|archiveurl=https://reldo.runescape.wiki/i/98484|archivedate=28 May 2020|quote=That one picks a plausible melee/ranged accuracy based on whether your Attack or Ranged is higher.}}
+** Note that other magical staves, such as the [[staff of air]], are treated as melee weapons even when autocast is on.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/709798856653934592|date=15 March 2016|archiveurl=https://reldo.runescape.wiki/i/101897|archivedate=28 May 2020|quote=If you have a melee weapon equipped, it looks at your melee accuracy. Autocasting is irrelevant.}}
+
+The cannon's accuracy, while derived from the accuracy of the player's ''selected'' attack style, will use the target's ''heavy'' ranged defence{{CiteTwitter|author=Mod Ash|url=https://x.com/JagexAsh/status/1796884988794708467|date=1 June 2024|archiveurl=https://reldo.runescape.wiki/i/27963238|archivedate=7 April 2026|quote=[With the new combat update, what type of ranged ammo are cannonballs?] It uses the heavy ranged defence.}}. Additionally, the cannon's accuracy '''will not''' benefit from [[passive effect]]s that require the target to have certain attributes, e.g. a [[slayer helmet]] will not boost the cannon's accuracy when used against monsters that are part of the player's current Slayer task.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1297156273645985793|date=22 August 2020|archiveurl=https://reldo.runescape.wiki/i/106099|archivedate=22 August 2020|quote=Yes, boosts that apply to any target will help with the cannon. The boosts that tend not to help are the target-specific ones, e.g. boosts that require the target to be undead or require it to be your Slayer assignment.}}
+
+===Revolutions===
+After the cannon has been set up, loaded, and fired, the barrel will rotate and fire at targets within its line-of-sight and range. The cannon barrel rotates in discrete intervals; there are eight directions the barrel may face, and the barrel makes a 45-degree turn every 0.6 seconds (one [[game tick]]), completing a full revolution in 4.8 seconds. The cannon fires up to one cannonball while facing each direction, so it fires up to eight cannonballs per revolution. The cannon may fire up to 6000 cannonballs per hour.
+
+In a [[Single-way combat|single-combat zone]], the cannon fires at the monster the player is being attacked by. If the player is not being attacked by any monster – not being hit by any monsters – the cannon fires at multiple monsters. This means that a player can [[Ranged|range]], [[mage]], or [[halberd]] from a "[[safespot]]" in a single-combat zone and have the cannon shoot at multiple monsters, as long as the player is never attacked by a monster, in which case that monster will be the only target the cannon attacks. However, the player may need to regularly come out of cover to reload the cannon if it is unreachable from the safespot.
+
+===Targets===
+For each direction the cannon faces during its rotation, there is a specific set of squares relative to the cannon's location that a [[cannonball]] may be shot into at that time. This target region can be visualised by a triangle emanating from the cannon barrel. Squares may be cut off from the target region by an obstacle.
+
+[[File:Cannon Double Shot.png|thumb|Green represents double shots. Red means no fire. For 1x1 monsters, players should lure them onto the green area.]] Target regions for different directions overlap slightly. This may result in shooting multiple cannonballs at one monster in one cannon revolution, even one that is standing still. Up to two cannonballs may be shot at a monster that takes up a single square per rotation. If it is not in the proper location however, only one, or even zero cannonballs may be shot per rotation.
+
+Target standing adjacent to, or one non-diagonal space away from the corner of the 3x3 area the cannon is set up in will be shot twice. Players should aim to lure targets to this space.
+
+For monsters larger than 1x1, only the south-western tile is shot. That being said against 1x1 - 2x2 targets, the worst possible spot to stand is in the middle of the cannon or any corner under the cannon. The best way to slay those is to lure them into a multi-hit spot, or stand far from the cannon. For 3x3 monsters (e.g. [[Black demon]]s), one should stand under the cannon in the north-east tile (1,1).
+
+Players cannot control what target is chosen, thus it may fire at anything around it. However, if a player is already engaged in [[Single-way combat|single combat]], the cannon will only fire at the current opponent and targets between player's cannon and target may prevent the cannon from shooting your target.
+
+===Breaking/Decay/Death===
+Once a cannon has been continually set up for 25 minutes, a message will appear that the cannon has broken (regardless of how many cannonballs have been fired), and the cannon will stop firing. Players can simply click on the cannon to repair it and restore functionality.
+
+If an additional 10 minutes pass without repairing the cannon, it will disappear. Cannons that disappear may be re-obtained for '''free''' from [[Nulodion]] via the dialogue option "''I've lost my cannon''", even if the cannon was originally bought from another player. Replaced cannons come loaded with cannonballs equal to the amount loaded in the cannon when the cannon disappeared.
+
+Otherwise, cannons will remain set up until the player retrieves it. Even if the player switches worlds, it will remain where it was on the previous world until returning to pick it up or until 35 minutes have passed and decay occurs. If a player dies, even to another player in the [[wilderness]], the cannon will remain in place and can be safely reclaimed after it has decayed.
+
+Most bosses, such as the [[King Black Dragon]], destroy cannons set up near them. Cannons destroyed this way can still be reclaimed from Nulodion at no cost.
+
+===Prohibited areas===
+Within the following areas, a cannon cannot be placed down. A message will often appear in the player's chatbox explaining why it cannot be done. A non-exhaustive list of these prohibited areas are:
+*[[Abyssal Area]] - {{mes|You can't set up a cannon here.}}
+*[[Abyssal Nexus]] - {{mes|You can't set up a cannon here.}}
+*[[Ancient Cavern]] - {{mes|It's far too damp for you to set up a cannon here.}} 
+*[[Ancient Guthixian Temple]] - {{mes|A strange magical force won't let you set up a cannon here}}
+*[[Ancient Prison]] - {{mes|An ancient power won't let you set up a cannon here.}}
+*[[Barbarian Assault]] 
+*[[Black Knights' Fortress (location)|Black Knights' Fortress]] (in and around) - {{mes|It is not permitted to set up a cannon this close to the Dwarf Black Guard.}}
+*[[Brutus]] arena - {{mes| It's far too muddy for you to set up a cannon here.}}
+*[[Bryophyta's lair]] - {{mes|You can't set up a cannon here.}}
+*[[Callisto's Den]] - {{mes|It doesn't seem safe to set up a cannon here.}}
+*[[Catacombs of Kourend]] - {{mes|An ancient power won't let you set up a cannon here.}}
+*[[Castle Wars]]
+*[[Cerberus' Lair]] - {{mes|Your cannon would melt if you set it up here.}}
+*[[Chambers of Xeric]] - {{mes|An ancient power won't let you set up a cannon here.}} 
+*[[Clan Hall]] - {{mes|You can't set up a cannon here.}}
+*[[Dwarven Mine]] - {{mes|The dwarves won't be happy if you set up a cannon here.}}
+*[[Enchanted Valley]] - {{mes|You can't set up a cannon here.}}
+*[[Entrana]]
+*[[Feldip Hills]] jungle hunter area - {{mes|You can't set up a cannon here.}} 
+*[[Fight Arena (location)|Fight Arena interior]] - {{mes|The dwarves won't be happy if you set up a cannon here.}}
+*[[Forthos Dungeon]] - {{mes|A mysterious presence won't let you set up a cannon here.}}
+*[[Fossil Island]] bank chest island - {{mes|You can't set up a cannon here.}}
+*[[Fremennik Slayer Dungeon]] - {{mes|The air is too dank for you to set up a cannon here.}}
+*Near [[Gilbert]], south-east of [[Barbarian Village]] - {{mes|A colourful magical force won't let you set up a cannon here.}}
+*[[Gemstone Crab]]'s current location - {{mes|You can't set up a cannon here.}}
+*[[Grand Exchange]] - {{mes|The Grand Exchange staff prefer not to have heavy artillery operated around their premises.}} 
+*[[Hair of the Dog]] - {{mes|Roavar won't be happy if you set up a cannon here.}}
+*[[Hespori]] - {{mes|It's far too damp down here to set up a cannon.}}
+*[[Ice Mountain]] (except on the western tiles of the mountain) - {{mes|The dwarves won't be happy if you set up a cannon here.}}
+*[[Jiggig]] - {{mes|The ogres won't be happy if you set up a cannon here.}}
+*[[Jiggig Dungeon]] - {{mes|The ground is too soft for you to set up a cannon here.}}
+*[[Jormungand's Prison]] basilisk areas - {{mes|The ground is too soft for you to set up a cannon here.}}
+*[[Karuulm Slayer Dungeon]] ([[wyrm]] and [[Alchemical Hydra]] areas) - {{mes|The electricity bursting through this part of the cavern would render the cannon useless.}}
+*[[Killerwatt Plane]] - {{mes|The electricity is too powerful for you to set up a cannon here.}}
+*[[Kraken Cove]]
+*[[Lair of Tarn Razorlor (dungeon)|Lair of Tarn Razorlor]] - {{mes|This temple is ancient and would probably collapse if you started firing a cannon.}}
+*[[Lizardman Caves]] - {{mes|The ground is too marshy here.}}
+*[[Lizardman Temple]] - {{mes|This ancient structure is too unstable to handle the idea of a cannon firing at its walls.}}
+*[[Mogre Camp]] - {{mes|It's just a little too damp for you to set up a cannon here.}}
+*[[Nightmare Zone]] - {{mes|Dominic won't be happy if you set up a cannon here.}}
+*[[Ourania Cave]] bank area - {{mes|Eniola won't be happy if you set up a cannon here.}}
+*[[Pest Control]] - {{mes|You can't set up a cannon here.}}
+*[[Player-owned house]]s - {{mes|You can't set up a cannon here.}}
+*[[Realm of Memories]] - {{mes|The creatures of this realm are neither truly canonical nor cannonable.}} (during the [[20th Anniversary event]]); {{mes|The archaic atmosphere won't let you set up a cannon here.}} (during the [[25th Anniversary event]])
+*[[Red chinchompa hunting ground]] - {{mes|You can't set up a cannon here.}}
+*[[Revenant Caves]] - {{mes|You can't set up a cannon here.}}
+*[[Ruins of Tapoyauik]] (including [[Doom of Mokhaiotl]]) - {{mes|An ancient magical force won't let you set up a cannon here.}}
+*[[Sailing]] [[boat]]s - {{mes|The boat is too damp and unstable for you to set up a cannon here.}}
+*[[Scabaras Dungeon]]
+*[[Scurrius|Scurrius' Lair]] - {{mes|It's far too damp for you to set up a cannon here.}}
+*[[Sorceress's Garden]] - {{mes|You can't set up a cannon here.}} 
+*[[Mort'ton]] and [[Shades of Mort'ton (minigame)|Shades of Mort'ton]] (you can however set up a cannon in the [[Shade catacombs]], but beware of the fact that the shades heal themselves to full health if they are not in combat anymore) - {{mes|You can't set up a cannon here.}}
+*[[Shellbane Gryphon Cave|Shellbane Gryphon Cave -]] {{mes|The ground is too unstable to set up a cannon here.}}
+*[[Silk Chasm]] - {{mes|It doesn't seem safe to set up a cannon here.}}
+*[[Slayer Tower]] - {{mes|A strange magical force won't let you set up a cannon here.}}
+*[[Smoke Dungeon]] (task-only area) - {{mes|Dusty Aliv won't be happy if you set up a cannon here.}}
+*[[Theatre of Blood]] - {{mes|The vampyres won't be happy if you set up a cannon here.}}
+*[[Tombs of Amascut]] - {{mes|An ancient power won't let you set up a cannon here.}}
+*[[Tonali Cavern]] - {{mes|An ancient magical force won't let you set up a cannon here.}}
+*[[Tower of Magic]] (during quest only)
+*[[Mor Ul Rek]], [[TzHaar Fight Cave]] and [[TzHaar Fight Pit]] - {{mes|The TzHaar won't be happy if you set up a cannon here.}}
+*[[Ungael]] ([[Vorkath]] area) - {{mes|The intense cold threatens to crack the metal of your cannon. You probably shouldn't put it down here.}}
+*[[Vanstrom Klause#Sins of the Father|Vanstrom Klause]] (Boss fight area in the [[Sins of the Father]] quest) - {{mes|You can't set up a cannon here.}}
+*[[Vet'ion's Rest]] - {{mes|It doesn't seem safe to set up a cannon here.}}
+*[[Water mill cellar]] ([[Death to the Dorgeshuun]] area) - {{mes|It is too damp for the cannon to function here.}}
+*[[Warriors' Guild]] - {{mes|You can't set up a cannon here.}}
+*[[Wintertodt]] - {{mes|It's far too cold for you to set up a cannon here.}}
+*[[Wyvern Cave]] - {{mes|Fungi start eating into the legs of your cannon; you quickly decide not to set it up here.}}
+*[[Zemouregal's Base]] - {{mes|A strange magical force won't let you set up a cannon here.}}
+*[[Zulrah's Shrine]] - {{mes|It's far too damp for you to set up a cannon here.}}
+
+In other locations, the cannon may be set up but may be destroyed by an [[NPC]] almost instantly, or is almost useless due to limitations:
+
+*Certain [[quest]] bosses: For example, the [[Giant Roc]] will destroy a cannon if the player sets it up within its attack range
+* The [[Kalphite Queen]], [[King Black Dragon]], [[Thermonuclear smoke devil]], and inhabitants of the [[God Wars Dungeon]] may also destroy a cannon if a player attempts to use it
+*[[Demonic gorilla]]s, immune to cannon damage
+*[[Emir's Arena]], it can be set up, though it will not fire on players and may be lost if not picked up
+*[[Sand crab]]s and [[Ammonite crab]]s will not be targeted at all, as it would disrupt other players training.
+*[[Iorwerth Dungeon]] in the [[kurask]] area because they are immune to cannon damage
+
+==Usage==
+Cannons are commonly used by players training [[Slayer]] to speed up [[Slayer task|tasks]]. With the average price of cannonballs, the use of a cannon is often considered to be quite expensive. However, the cost is often considered to be justified by the bonuses of using a cannon. A player doing a Slayer task can [[melee]] almost the entire time getting nearly as much Melee experience as they would without using a cannon. The cannon will also attack several targets even in a [[single-way combat]] area as long as the player is not under attack (e.g. in a [[safespot]]).
+
+Players should be diligent when using a cannon in [[multicombat area]]s, as the cannon can attract large numbers of monsters to attack the player, and continual reloading of the cannon will likely be required due to the number of cannonballs used. 
+
+Outside of Slayer, using the cannon can speed up kills on [[lizardman shaman]]s and [[Wilderness#Bosses|Wilderness bosses]]. [[Ironman mode]] accounts may also find it useful when taking on [[Corporeal Beast]], as the [[dark energy core]] will not return for the rest of the kill if the cannon kills it while it is midair. Players may also use a cannon to obtain [[champion's scroll]]s faster, one of which is required to obtain a [[music cape]], while players that complete the full [[champions' challenge]] are awarded with a [[champion's cape]].
+
+===Common cannon spots===
+* Generally, players prefer to use their cannons in [[multicombat area]]s, due to the mechanics of the cannon. If the player can safespot the monsters they are attacking, they can treat single combat areas as multicombat areas for the cannon, but if the player is actively being attacked in a single combat area the cannon will only fire at the NPC the player is currently fighting.
+*[[Green dragon]]s in the [[Wilderness]] is a common cannon area, as they yield significant profit. Once the cannon is placed, the only risks are losing the [[cannonball]]s the player has brought, as the cannon can be recovered from [[Nulodion]] without further risk.
+*The [[Combat Training Camp]] is the most common low risk spot for cannoning, but is significantly busier than other common spots. Players set their cannon up facing the caged [[Ogre]]s, and are free to do other tasks like [[Fletching]] as they cannot be damaged. These spots are extremely hard to get at peak hours, as players generally will stay at these spots for hours to train ranged and other skills simultaneously.
+*[[Hill Giant]]s in the [[Edgeville Dungeon]] are a less common target, due to the lack of rare drops other than the [[Giant key]]. They can be easily safespotted, and have a large amount of health, allowing the cannon to hit hard enough per cannonball to justify training here. [[Moss giant]]s are also common cannon targets.
+*[[Rock Crab]]s are a very common cannon target, due to their low attack and the multicombat areas they inhabit. [[Sand Crab]]s cannot be targeted by cannons and as such are not suitable for cannon training.
+
+==Ornament kit==
+[[File:Leagues III - Shattered Relics Rewards Poll Blog (14).gif|thumb|The ornamented cannon in operation]]
+The cannon parts can be ornamented using the [[shattered cannon ornament kit]] which converts it into a cannon resembling one from ''[[classicrsw:Dwarf multicannon|RuneScape Classic]]''. All four parts must be ornamented to allow the cannon to actually be set up; ornamented and non-ornamented parts cannot be mixed and matched. If any number of pieces are lost, they will be returned in their ornamented state.
+
+==Comparison between other ranged weapons==
+{{Ranged weapons comparison}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 23 April 2026
+|update = Leagues VI Changes
+|change = Buying more cannon parts from Nulodion no longer prevents you from picking up a cannon that you'd already set up.
+}}
+{{Subject changes
+|date = 18 March 2026
+|update = Boat Combat Fixes
+|change =
+* The dwarf multicannon no longer fires at [[sea creature]]s.
+* Fixed an issue where attempting to assemble a dwarf multicannon without all the required parts could incorrectly display a message stating that your cannon had decayed and should be reclaimed from Nulodion.
+}}
+{{Subject changes
+|date = 20 November 2025
+|type = hotfix
+|change = The dwarf multicannon was re-enabled when fighting [[sea creature]]s, with it now dealing lower damage than normal against them.
+}}
+{{Subject changes
+|date = 19 November 2025
+|type = hotfix
+|change = The dwarf multicannon has been temporarily disabled when fighting [[sea creature]]s.
+}}
+{{Subject changes
+|date = 24 September 2025
+|update = Interface Uplift
+|change = 
+* There is now a "Load X" option when adding cannonballs into the cannon allowing players to add a custom amount.
+* The amount of cannonballs added by the "Load X" option can be set in the [[settings]] menu.
+}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change = The cannon now uses the [[Heavy Ranged weapons|Heavy Ranged]] [[attack types|attack type]].
+}}
+{{Subject changes
+|date = 12 July 2023
+|update = Forestry: Part One - Further Changes
+|change = The cannon will also now automatically decay if a [[Forestry]] event spawns where it is placed.
+}}
+{{Subject changes
+|date = 30 November 2022
+|update = The Garden of Death & More
+|change = * The cannon can now hold 35, 45, and 60 cannonballs after completing the respective combat achievements: medium, hard, and elite.
+* The cannon can no longer be set up on Fossil Island's small island with the bank chest.
+}}
+{{Subject changes
+|date = 4 April 2019
+|update = Treasure Trails Expansion: Progress Update
+|change = Firing a cannon with an extremely low accuracy bonus will now have a chance to deal 1 point of damage instead of hitting 0.
+}}
+{{Subject changes
+|date = 31 March 2016
+|update = Bugfixes & Combining Tentacles
+|change = Cannons can no longer be set up in the Blast furnace.
+}}
+{{Subject changes
+|date = 24 March 2016
+|update = White & Black Graceful
+|poll = Old School Content Poll 40: Vanilla LootShare & QoL
+|change = Cannons which decay no longer suddenly disappear. Instead, they are now given a repair option which allows you to reset your cannon timer without having to pick it up and put it back down!
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|change = The cannon should no longer produce the message "Someone else is fighting that".
+}}
+{{Subject changes
+|date = 10 September 2015
+|update = Slayer Assignment Rework
+|change = NPC's will no longer sometimes turn invisible on the south-west tile of a Dwarf Cannon.
+}}
+{{Subject changes
+|date = 20 August 2015
+|update = Boss slayer & total worlds
+|change = The dwarf cannon now checks ownership correctly when firing.
+}}
+{{Subject changes
+|date = 11 June 2015
+|update = Clear Private Chat & More
+|change = *You can no longer place a cannon by the start of the Seers' agility course.
+*Fixed an issue with prayer draining and the cannon.
+}}
+{{Subject changes
+|date = 23 April 2015
+|update = Crystal Halberd Special & More
+|change = Fixed a no interface fake log (NIFL) bug where by setting up your cannon, hopping worlds, reclaiming your cannon and setting it up in the same spot you set up the previous cannon could allow a fake logout to be performed, resulting in the player entering an untargetable state where both monsters and players could not attack you. 
+}}
+{{Subject changes
+|date = 15 January 2015
+|update = Zulrah's Snakelings
+|change = The cannon no longer works on the Mage Arena mages and Kolodion.
+}}
+{{Subject changes
+|date = 20 November 2014
+|update = Instanced Corp & Packs
+|change = Nulodion will now return your cannon if someone else has one setup on the same tile where yours decayed.
+}}
+{{Subject changes
+|date = 26 June 2014
+|update = Midsummer Event
+|change = The dwarf multicannon no longer always hits zero when wielding a trident of the seas.
+}}
+{{Subject changes
+|date = 15 May 2014
+|update = Coal & gem bags and Attack options
+|change = Cannons can no longer be set up on PvP worlds due to griefing issues.
+}}
+{{Subject changes
+|date = 1 May 2014
+|update = Spirit trees, clues & more!
+|change = Cannons can no longer be setup within the Party room and can now be placed where the Party room used to be.
+}}
+{{Subject changes
+|date = 20 February 2014
+|update = Happy Birthday!
+|poll = Old School feature poll 16
+|change = Left-clicking on your cannon will now let you reload it, even if it isn't currently firing.
+}}
+{{Subject changes
+|date = 3 October 2013
+|update = Patch Notes (3 October 2013)
+|change = The message notifying you that your cannon has decayed no longer appears five minutes too early.
+}}
+{{Subject changes
+|date = 11 July 2013
+|update = Patch Notes (11 July 2013)
+|poll = Old School feature poll 6 - Castle Wars, etc.
+|change = The dwarf multicannon can now be constructed and reloaded with a single click, instead of requiring you to use items on it repeatedly. Also, its decay warning message has been made more visible.
+}}
+{{Subject changes
+|date = 4 April 2013
+|update = Patch Notes (4 April 2013)
+|change = The cannon ownership system has been improved to be more robust.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The only ammunition for cannons that players can use is [[cannonball]]s made from [[steel bar|steel]] and [[Granite cannonball|granite]]. However, [[Dondakan]] from the quest [[Between a Rock...]] fires [[Adamant cannonball|adamant]], [[Rune cannonball|rune]], and [[gold cannonball]]s from his cannon.
+*If the cannon is fired in a [[single-combat area]] the chat will say, "I'm currently under attack" along with an occasional, "Someone else is fighting that" depending on the combat status of the player-character.
+*If a player drops the components of the cannon set, they will discover that the items are 1x1 size, despite the cannon being 3x3.
+*The cannon may sometimes shoot through walls.
+*Despite being called a multicannon, it only has one barrel to fire cannonballs. The name comes from the [[classicrsw:Dwarf cannon|dwarf cannon]] in ''RuneScape Classic'', which had 8 barrels and would fire in all directions instead of spinning.
+
+==References==
+{{Reflist}}
+
+{{Dwarf Cannon}}
+{{Cannon}}
+{{Ranged weapons}}

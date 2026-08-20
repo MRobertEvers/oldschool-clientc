@@ -1,0 +1,420 @@
+{{External|rs}}
+{{Has calculator|Calculator:Slayer/Slayer_task_weight}}
+{{Infobox NPC
+|name = Chaeldar
+|image = [[File:Chaeldar.png|200px]]
+|release = [[26 January]] [[2005]]
+|update = Slayer Skill
+|members = Yes
+|race = [[Fairy (race)|Fairy]]
+|location = [[Zanaris]]
+|shop = [[Slayer Equipment (shop)|Slayer Equipment]], [[Slayer Rewards]]
+|gender = Female
+|options = Talk-to, Assignment, Trade, Rewards
+|examine = She looks dangerous!
+|map = {{NPC map|x=2444|y=4431|mapID=28|r=3|mtype=square}}
+|id = 404
+|leagueRegion = General
+}}
+[[File:Chaeldar chathead.png|left]]
+'''Chaeldar''' is a mid-level [[Slayer master]]. She is found in the throne room of [[Zanaris]], directly south of the entrance from the [[Lumbridge Swamp]], meaning completion of the [[Lost City]] [[quest]] is required to reach her. She gives out mid to high level [[Slayer]] [[Slayer task|tasks]], which may only be attempted by players with a [[combat level]] of at least 70.
+
+Getting a Slayer task from Chaeldar is a task in the [[Lumbridge & Draynor Medium Diary]].
+
+Blocking a task with Chaeldar costs 70 [[Slayer reward point|Slayer reward points]].
+
+==Slayer points==
+Players can receive [[Slayer reward point]]s for completing [[Slayer task]]s—this is based on how many tasks players have accomplished in a row. Completion of a task assigned by Chaeldar will grant you:
+
+{|class=wikitable style="text-align:center;"
+!Task interval
+!Points given
+|-
+|Every Task
+|10
+|-
+|Every 10th
+|50
+|-
+|Every 50th
+|150
+|-
+|Every 100th
+|250
+|-
+|Every 250th
+|350
+|-
+|Every 1,000th
+|500
+|}
+
+==Fairy rings==
+The [[Fairy ring]] network is a useful method of doing Chaeldar's [[Slayer task]]s. It has teleport spots close to the [[Slayer Tower]] ({{Fairycode|CKS}}), the [[Fremennik Slayer Dungeon]] ({{Fairycode|AJR}}), and [[Fairy ring|other locations]] to be reached easily for no cost to the player, all of which contain the [[Slayer monster]]s that she assigns and can be easily reached from the fairy ring in [[Zanaris]].
+
+==Tasks==
+<!-- Unlock Requirement sort value is in the format {slayer req}{combat req}
+So an Aberrant Spectre has a sort value of 6065 because it has a 60 Slayer req and a 65 combat req.
+A Crocodile only has a combat req of 50, so its sort value is 50
+Lizards have a slayer req of 22 with no combat req, so their sort value is 2200, with the 0s at the end to make sure it sorts correctly-->
+{| class="wikitable sortable lighttable qc-active"
+!Monster
+!Amount
+![[Slayer Rewards#Extend|Extended amt.]]
+!class="sortable"|Unlock requirement
+!class="unsortable"|Alternative(s)
+![[Task weight|Weight]]
+|-
+|[[Aberrant spectre]]s
+|70-130
+|200-250
+|data-sort-value="6065"|{{SCP|Slayer|60}}, {{SCP|Combat|65}}, completion of [[Priest in Peril]]
+|[[Deviant spectre]]s
+|{{+=|weight|8|echo=2}}
+|-
+|[[Abyssal demon]]s
+|70-130
+|200-250
+|data-sort-value="8585"|{{SCP|Slayer|85}}, {{SCP|Combat|85}}, completion of [[Priest in Peril]] or [[Fairytale II - Cure a Queen]] {{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1122846921331224576|date=29 April 2019|archiveurl=https://reldo.runescape.wiki/i/108660|archivedate=4 March 2023|quote=(...) Abyssal demons will accept Fairy Tale II for abyss access.}}
+|[[Abyssal sire]]
+|{{+=|weight|12|echo=2}}
+|-
+|[[Aviansie]]
+|70-130
+|130-250
+|data-sort-value="0"|Unlocked the ''Watch the birdie'' ability via spending 80 [[Slayer reward points]]
+|[[Kree'arra]], [[Flight Kilisa]], [[Flockleader Geerin]], [[Wingman Skree]]
+|{{+=|weight|9|echo=2}}
+|-
+|[[Basilisk]]s
+|70-130
+|200-250
+|data-sort-value="4040"|{{SCP|Slayer|40}}, {{SCP|Combat|40}}, {{SCP|Defence|20}}
+|[[Basilisk Knight]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Black demon]]s
+|70-130
+|200-250
+|data-sort-value="80"|{{SCP|Combat|80}}
+|[[Demonic gorilla]]s, [[Balfrug Kreeyath]], [[Porazdir]], [[Skotizo]]
+|{{+=|weight|10|echo=2}}
+|-
+|[[Bloodveld]]
+|70-130
+|200-250
+|data-sort-value="5050"|{{SCP|Slayer|50}}, {{SCP|Combat|50}}, completion of [[Priest in Peril]]
+|[[Mutated Bloodveld]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Blue dragon]]s
+|70-130
+| {{NA}}
+|data-sort-value="65"|{{SCP|Combat|65}}, partial completion of [[Dragon Slayer I]]
+|[[Baby blue dragon]]s, [[brutal blue dragon]]s, [[Vorkath]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Brine rat|Brine rats]]
+|70-130
+| {{NA}}
+|data-sort-value="4745"|{{SCP|Slayer|47}}, {{SCP|Combat|45}}, completion of [[Olaf's Quest]]
+| {{NA|None}}
+|{{+=|weight|7|echo=2}}
+|-
+|[[Cave horror]]s
+|70-130
+|200-250
+|data-sort-value="5885"|{{SCP|Slayer|58}}, {{SCP|Combat|85}}, completion of [[Cabin Fever]]
+| {{NA|None}}
+|{{+=|weight|10|echo=2}}
+|-
+|[[Cave kraken]]
+|30-50
+|150-200
+|data-sort-value="8780"|{{SCP|Slayer|87}}, {{SCP|Combat|80}}, {{SCP|Magic|50}}
+|[[Kraken]]
+|{{+=|weight|12|echo=2}}
+|-
+|[[Slayer task/Crabs|Crabs]]
+|70-130
+|{{NA}}
+|{{SCP|Slayer|1}}
+|[[Ammonite crab]]s, [[Frost crab]]s, [[Rock crab]]s, [[Sand crab]]s, [[Swamp crab]]s
+|{{+=|weight|8|echo=2}}
+|-
+|[[Custodian stalker]]
+|70-130
+|200-250
+|{{SCP|Slayer|54}}, completion of [[Shadows of Custodia]]
+|[[Juvenile custodian stalker]], [[Mature custodian stalker]], [[Elder custodian stalker]]
+|{{+=|weight|11|echo=2}}
+|-
+|[[Dagannoth]]
+|70-130
+| {{NA}}
+|data-sort-value="75"|{{SCP|Combat|75}}, completion of [[Horror from the Deep]]
+|[[Dagannoth spawn]], [[Dagannoth fledgeling]], [[Dagannoth Kings]]
+|{{+=|weight|11|echo=2}}
+|-
+|[[Dust devil]]s
+|70-130
+|200-250
+|data-sort-value="6570"|{{SCP|Slayer|65}}, {{SCP|Combat|70}}, partial completion of [[Desert Treasure I]]
+| {{NA|None}}
+|{{+=|weight|9|echo=2}}
+|-
+|[[Elves]]
+|70-130
+| {{NA}}
+|data-sort-value="70"|{{SCP|Combat|70}}, completion of [[Regicide]]
+|[[Elf warrior]], [[mourner]] ([[Mourner Headquarters]]), [[reanimated elf]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Fever spider]]s
+|70-130
+| {{NA}}
+|data-sort-value="4240"|{{SCP|Slayer|42}}, {{SCP|Combat|40}}, partial completion of [[Rum Deal]]
+| {{NA|None}}
+|{{+=|weight|7|echo=2}}
+|-
+|[[Fire giant]]s
+|70-130
+| {{NA}}
+|data-sort-value="65"|{{SCP|Combat|65}}
+| [[Branda the Fire Queen]]
+|{{+=|weight|12|echo=2}}
+|-
+|[[Fossil Island Wyvern]]s
+|10-20
+|55-75
+|data-sort-value="6660"|{{SCP|Slayer|66}}, {{SCP|Combat|60}}, completion of [[Bone Voyage]] and [[Elemental Workshop I]]{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1298524179629838337|date=27 August 2020|archiveurl=https://reldo.runescape.wiki/i/102411|archivedate=27 August 2020|quote=They do indeed require both of those. There isn't a limit on how many distinct requirements a task may have.}}
+|[[Spitting Wyvern|Spitting]], [[Taloned Wyvern|taloned]] and [[Long-tailed Wyvern|long-tailed wyvern]] ({{SCP|Slayer|66}}), [[Ancient Wyvern]] ({{SCP|Slayer|82}})
+|{{+=|weight|7|echo=2}}
+|-
+|[[Gargoyle]]s
+|70-130
+|200-250
+|data-sort-value="7580"|{{SCP|Slayer|75}}, {{SCP|Combat|80}}, completion of [[Priest in Peril]]
+|[[Grotesque Guardians]]
+|{{+=|weight|11|echo=2}}
+|-
+|[[Greater demon]]s
+|70-130
+|200-250
+|data-sort-value="75"|{{SCP|Combat|70}}
+|[[K'ril Tsutsaroth]], [[Tstanon Karlak]], [[Skotizo]], [[Tormented Demon]]s
+|{{+=|weight|9|echo=2}}
+|-
+|[[Gryphons]]
+|60-100
+|140-180
+|data-sort-value="5145"|{{SCP|Slayer|51}}, {{SCP|Sailing|45}}, completion of [[Troubled Tortugans]]
+|[[Shellbane gryphon]]
+|{{+=|weight|10|echo=2}}
+|-
+|[[Hellhound]]s
+|70-130
+| {{NA}}
+|data-sort-value="75"|{{SCP|Combat|75}}
+|[[Cerberus]], [[Skeleton Hellhound (Vet'ion)|Skeleton Hellhound]], [[Greater Skeleton Hellhound (Vet'ion)|Greater Skeleton Hellhound]]
+|{{+=|weight|9|echo=2}}
+|-
+|[[Jelly|Jellies]]
+|70-130
+| {{NA}}
+|data-sort-value="5257"|{{SCP|Slayer|52}}, {{SCP|Combat|57}}
+|[[Warped Jelly]]
+|{{+=|weight|10|echo=2}}
+|-
+|[[Jungle horror]]s
+|70-130
+| {{NA}}
+|data-sort-value="65"|{{SCP|Combat|65}}, completion of [[Cabin Fever]]
+|[[Reanimated horror|Reanimated Horror]]
+|{{+=|weight|10|echo=2}}
+|-
+|[[Kalphite]]
+|70-130
+| {{NA}}
+|data-sort-value="15"|{{SCP|Combat|15}}
+|[[Kalphite worker]], [[Kalphite soldier]], [[Kalphite guardian]], [[Kalphite Queen]]
+|{{+=|weight|11|echo=2}}
+|-
+|[[Kurask]]
+|70-130
+| {{NA}}
+|data-sort-value="7065"|{{SCP|Slayer|70}}, {{SCP|Combat|65}}
+| {{NA|None}}
+|{{+=|weight|12|echo=2}}
+|-
+|[[Lesser demon]]s
+|70-130
+| {{NA}}
+|data-sort-value="60"|{{SCP|Combat|60}}
+|[[Zakl'n Gritch]]
+|{{+=|weight|9|echo=2}}
+|-
+|[[Lesser Nagua]]
+|50-100
+| {{NA}}
+|{{SCP|Slayer|48}}, completion of [[Perilous Moons]]
+|[[Amoxliatl]]
+|{{+=|weight|4|echo=2}}
+|-
+|[[Lizardmen]]
+|50-90
+| {{NA}}
+|data-sort-value="0"|Unlocked the ''Reptile got ripped'' ability via spending 75 [[Slayer reward points]]
+|[[Lizardman brute]], [[Lizardman shaman]]
+|{{+=|weight|8|echo=2}}
+|-
+|[[Mutated zygomite]]s
+|8-15
+| {{NA}}
+|data-sort-value="5760"|{{SCP|Slayer|57}}, {{SCP|Combat|60}}, completion of [[Lost City]]
+|[[Ancient Zygomite]]
+|{{+=|weight|7|echo=2}}
+|-
+|[[Nechryael]]
+|70-130
+|200-250
+|data-sort-value="8085"|{{SCP|Slayer|80}}, {{SCP|Combat|85}}, completion of [[Priest in Peril]]
+|[[Greater Nechryael]]
+|{{+=|weight|12|echo=2}}
+|-
+|[[Shadow warrior]]s
+|70-130
+| {{NA}}
+|data-sort-value="60"|{{SCP|Combat|60}}, completion of [[Legends' Quest]]
+| {{NA|None}}
+|{{+=|weight|8|echo=2}}
+|-
+|[[Skeletal Wyvern]]s
+|10-20
+|50-70
+|data-sort-value="7270"|{{SCP|Slayer|72}}, {{SCP|Combat|70}}, completion of [[Elemental Workshop I]]
+| {{NA|None}}
+|{{+=|weight|7|echo=2}}
+|-
+|[[Spiritual creatures]]
+|70-130
+|181-250
+|data-sort-value="6360"|{{SCP|Slayer|63}}, {{SCP|Combat|60}}, completion of [[Death Plateau]], level 60 in {{SCP|Strength}} or {{SCP|Agility}}
+|[[Spiritual ranger]] ({{SCP|Slayer|63}}), [[spiritual warrior|warrior]] ({{SCP|Slayer|68}}), [[spiritual mage|mage]] ({{SCP|Slayer|83}})
+|{{+=|weight|12|echo=2}}
+|-
+|[[Troll]]s
+|70-130
+| {{NA}}
+|data-sort-value="60"|{{SCP|Combat|60}}
+|[[Mountain troll]], [[Ice troll]], [[Troll general]]
+|{{+=|weight|11|echo=2}}
+|-
+|[[Turoth]]
+|70-130
+| {{NA}}
+|data-sort-value="5560"|{{SCP|Slayer|55}}, {{SCP|Combat|60}}
+| {{NA|None}}
+|{{+=|weight|10|echo=2}}
+|-
+|[[TzHaar]]
+|90-150
+| {{NA}}
+|data-sort-value="0"|Unlocked the ''Hot stuff'' ability via spending 100 [[Slayer reward points]]
+|[[TzTok-Jad]]<ref name="jad">Players may be given a chance to slay [[TzTok-Jad]], giving 25,000 bonus [[Slayer]] [[experience]] as well as any experience gained throughout the cave.</ref>, [[TzKal-Zuk]]<ref name="zuk">Players may be given a chance to slay [[TzKal-Zuk]], '''provided they have already killed it once before''', giving 100,000 bonus [[Slayer]] [[experience]] as well as any experience gained throughout the [[Inferno]].</ref>
+|{{+=|weight|8|echo=2}}{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1035583849181401088|date=31 August 2018|archiveurl=https://reldo.runescape.wiki/i/98382|archivedate=28 May 2020|quote=8 for TzHaar from Chaeldar.}}
+|-
+|[[Vampyre]]s
+|80-100
+|200-250
+|data-sort-value="0"|Unlocked the ''Actual Vampyre Slayer'' ability via spending 80 [[Slayer reward points]]
+|[[Feral Vampyre]], [[Vampyre Juvinate]], [[Vyrewatch]], [[Vyrewatch Sentinel]], [[Venator]]
+|{{+=|weight|6|echo=2}}
+|-
+|[[Slayer task/Warped creature|Warped creatures]]
+|70-130
+| {{NA}}
+|data-sort-value="0"|Unlocked the ''Warped Reality'' ability via spending 60 [[Slayer reward points]]
+|[[Warped Terrorbird]], [[Warped Tortoise]]
+|{{+=|weight|6|echo=2}}
+|-
+|[[Wyrm]]s
+|60-100
+| 200-250
+|data-sort-value="6200"|{{SCP|Slayer|62}}
+|[[Lava Strykewyrm]], [[Wyrmling]]
+|{{+=|weight|6|echo=2}}
+|-
+!colspan="5" |Total [[task weight]]
+!{{#var:weight}}
+|-
+|}
+Note: Chaeldar is a valid contact for the [[Astral Contact]] spell, and you can obtain tasks from them.  It is part of the [[Lunar spellbook]]. {{Reflist}}
+
+==Dialogue==
+{{hastranscript|NPC}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 26 March 2025
+|update = Poll 83 QoL Changes
+|poll = Poll 83 - Castle Wars, New Player Changes & More
+|change = Chaeldar will now assign [[Slayer task/Crabs|crabs]] tasks.
+}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = *Chaeldar no longer assigns the following tasks:
+**Banshees
+**Bronze dragons
+**Cave crawlers
+**Cave slimes
+**Cockatrice
+**Harpie Bug Swarms
+**Infernal Mages
+**Iron dragons
+**Lizards
+**Mogres
+**Molanisks
+**Pyrefiends
+**Rockslugs
+**Steel dragons
+**Wall beasts
+*Various minimum and maximum quantities of Slayer tasks have been reduced.
+}}
+{{Subject changes
+|date = 24 March 2016
+|update = White & Black Graceful
+|poll = Old School Content Poll 40: Vanilla LootShare & QoL
+|change = It is now possible to unlock the possibility of receiving a Lizardmen slayer task from Duradel, Nieve and Chaeldar. Unlocking this task costs 75 slayer points.
+}}
+{{Subject changes
+|date = 18 February 2016
+|update = Dragon Claws & 3rd Birthday
+|poll = Quality of Life - Top 10 PvM Suggestions
+|change = Slayer masters now give information about your current task if you prematurely request a new one.
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|poll = Old School Content Poll 36: Skilling Pets
+|change = Spiritual rangers, mages and warrior are now grouped into a single slayer task of spiritual creatures.
+}}
+{{Subject changes
+|date = 10 September 2015
+|update = Slayer Assignment Rework
+|change = Chaeldar will now assign between 110 and 170 spirit creatures and aviansie.
+}}
+{{Subject changes
+|date = 29 January 2015
+|update = Ignore lists, 1v1s & More
+|poll = Old School Content Poll 29: Grand Exchange
+|change = Slayer masters now have a right-click option, Assignment, which allows players to quickly check a task's progress or start a new one.
+}}
+{{Subject changes footer}}
+
+{{Slayer Master}}
+{{Zanaris}}
+{{Astral Contact}}
+[[Category:Guthixians]]

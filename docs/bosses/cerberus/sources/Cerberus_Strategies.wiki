@@ -1,0 +1,468 @@
+[[File:Fighting Cerberus.png|thumb|right|A player takes on Cerberus in [[Cerberus' Lair|her lair]].]]
+[[Cerberus]] is a high level [[Slayer]] [[boss]]. A Slayer level of 91 and a [[slayer task]] of Cerberus or [[hellhound]]s is required to inflict damage. [[Wild pie]]s '''can''' be used to boost the player's Slayer level, but only if they have a minimum of 86 Slayer, and the boost must be maintained for the entire kill.
+
+It is the only monster to drop the [[eternal crystal|eternal]], [[pegasian crystal|pegasian]], and [[primordial crystal]]s which are used to upgrade the [[infinity boots|infinity]], [[ranger boots|ranger]], and [[dragon boots]] into the [[eternal boots|eternal]], [[pegasian boots|pegasian]], and [[primordial boots]] respectively.
+
+In addition, it is also able to drop a [[Smouldering stone]], which can be combined with a [[dragon axe]], [[dragon pickaxe|pickaxe]], or [[dragon harpoon|harpoon]] to turn them into their respective infernal counterparts: the [[infernal axe]], [[infernal pickaxe|pickaxe]], and [[infernal harpoon|harpoon]].
+
+==Suggested skills==
+*{{SCP|Attack|85+|link=yes}}
+*{{SCP|Strength|85+|link=yes}}
+*{{SCP|Defence|85+|link=yes}}
+*{{SCP|Ranged|75+|link=yes}}
+*{{SCP|Prayer|70+|link=yes}} ([[Piety]], 74+ [[Rigour]])
+*{{SCP|Magic|76|link=yes}} and completion of [[A Kingdom Divided]] (if using [[thrall]]s; 80 for [[Death Charge]])
+
+==Transportation==
+[[File:Cerberus' Lair map.png|thumb|right|A map of Cerberus' Lair]]
+[[Cerberus' Lair]] can be found in [[Taverley Dungeon]], at the [[hellhounds]]' area. There will be a small opening that players can crawl into to enter the lair.
+
+Effective ways to get to [[Taverley Dungeon]] include teleporting to [[Falador]] and using the wall shortcut near the West bank, only a short run from the dungeon entrance, or moving one's [[Player-owned house]] to Taverley, exiting via the house portal and running south. Alternatively, if using Arceuus spellbook for thralls, one can change their death respawn location to Falador, and use the respawn teleport running west to the wall shortcut.
+
+Due to the huge distance from a bank to Cerberus' lair, it is highly encouraged that players do not attempt the boss until they have 65 or higher Agility, as attempting to run from the entrance to her lair the normal way is extremely unfeasible. 70 [[Agility]] is required for the pipe shortcut, and 80 for the wall trap shortcut. Both can be [[Agility#Temporary boosts|boosted]], meaning 65/75 Agility is the minimum needed to use the shortcuts. This avoids the use of a [[dusty key]]; if entering from pipe, have [[Protect from Magic]] active before going in to avoid potentially getting scorched by a [[blue dragon]]. If entering from the wall spikes, attack a [[skeleton]] and let it attack once before jumping, as the occasional [[poison spider]] can wander around the area.
+
+Alternatively, [[key master teleport]]s can be used to teleport directly to the [[Key Master]] outside Cerberus' Lair.
+
+==Mechanics==
+===Attack Styles===
+Cerberus attacks with all three forms of combat:
+
+*Melee - Cerberus bites the player. This attack will only be used if the player is standing within melee range.
+*Ranged - Cerberus stands on her hind legs and kicks out with her front legs, firing a translucent spiky ball. 
+*Magic - Cerberus lowers her head and fires a smooth black ball.
+**All of these attacks have a max hit of 23.
+**Protection Prayers prevent all damage, but must be active as the attack is launched.
+
+===Triple Attack===
+*This attack is initiated as her first attack and is repeated after every ten attacks in sequence.
+*She uses a magic, ranged and then melee attack 2 ticks after one another. This melee attack will be executed ''regardless'' of distance, and does not act as a projectile.
+*As with her standard attacks, these can deal up to 23 damage and can be fully blocked by prayer.
+
+===Summoned souls===
+[[File:Summoned Souls prayer flick.gif|thumb|right|A player switching the correct prayers against the Summoned Souls.]]
+
+*This attack only starts when Cerberus falls below 400 health, and is used every seventh attack.
+*This attack is indicated with her howling {{overhead|Aaarrrooooooo}}, causing three [[Summoned Soul]]s to appear from behind the archaic skull. They cannot be harmed.
+*Each one attacks using a different combat style:
+**'''{{Colour|#B22222|Red}}''' is melee
+**'''{{Colour|#1E90FF|Blue}}''' is magic
+**'''{{Colour|#008000|Green}}'''  is ranged
+*The souls appear in a randomized order, and attack once each in sequence from '''west to east'''. 
+**If the attack is not protected against, it will deal 30 damage; an [[elysian spirit shield]] reduces this to 22 damage.
+**If the attack is protected against, it drains 30 Prayer points. A [[spectral spirit shield]] halves this to 15, and [[Ward of Arceuus]] reduces it by 33% to 20. With both, it drains 10 Prayer points.
+***It is sufficient to have the correct prayer active when the attack is launched, even if this would drain the player's prayer to 0. As a result, players need a minimum of about 65 prayer points (35 with a spectral spirit shield, 45 with ward, 25 with both) when the attack starts to block all three attacks.
+***In order to block the attack, it must be prayed against before the spirit attacks.
+**A good strategy is to cycle to the next prayer in the sequence once the attacking ghost drains your prayer.
+
+If Cerberus is killed when the spirits are summoned, they will despawn upon attempting to attack the player. Note that any spirits that attack just as she dies will still damage the player, so pray accordingly if this happens.
+
+<gallery>
+File:Summoned Soul (melee).png|A summoned soul using [[melee]]
+File:Summoned Soul (magic).png|A summoned soul using [[magic]]
+File:Summoned Soul (ranged).png|A summoned soul using [[ranged]]
+</gallery>
+
+{{clear}}
+
+===Lava pools===
+*This attack only occurs when Cerberus is below 200 health, is indicated by her howling {{overhead|Grrrrrrrrrrrrrr}} and is used every fifth attack.
+*Three lava pools are deployed when this attack is initiated – one on the player's location, and two at random parts of the area.
+*The pools occupy a single tile.
+**Standing on the tile when it spawns deals 10 damage.
+**Standing on a pool after it spawns deals 15 damage every two ticks.
+**Antifire Protection will reduce the prolonged damage taken if you stay within range of the pools, as demonstrated by the table below.{{CiteTwitter|author=JagexAsh|url=https://twitter.com/JagexAsh/status/1422914477423484932|date=4 August 2021|archiveurl=https://reldo.runescape.wiki/i/105271|archivedate=3 November 2021|quote=It won't help against the initial hit, but that kind of potion/shield can reduce the ongoing damage if you stay in the flame.}}
+*If the player is outside of melee range, there is enough time to react to the animations of the pools forming to move out the way.
+*If the player is in melee range, there is not enough time to dodge the pool unless the player is already running as the attack begins.
+*After a few seconds, the lava pools will dissipate.
+
+If Cerberus is killed, the lava pools will stop dealing damage.
+{{:Dragonfire/Cerberus}}
+
+===Attack pattern===
+Cerberus has a special attack pattern that determines how she uses her attacks.
+
+As mentioned in each attack section, Cerberus' mechanics are initiated after the following, quickly summarized here:
+
+*The triple attack is performed as the first attack, then after every ten normal attacks.
+*The summoned souls attack is performed every seventh attack, but only after Cerberus has under 400 hitpoints.
+*The lava pools are deployed every fifth attack, but only after Cerberus has under 200 hitpoints.
+
+If the attacks end up overlapping with each other (e.g a triple attack and summoned souls on attack #21), Cerberus will instead prioritise the attacks in the following order:
+
+*Triple attack > Summoned Souls > Lava pools
+
+There is also a 10% chance that Cerberus will not use the summoned souls or lava pools special attacks when she is supposed to, and will use a regular attack instead.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1705829425365864637|date=24 September 2023|archiveurl=https://archive.ph/br0fx{{^|https://archive.ph/B7ZFA}}|archivedate=24 September 2023|quote=Her spectre & flame specials are available once her health's under 2/3. But there's still a 10% random chance of her just going for a normal attack rather than doing those.}}
+
+===Fire Wall===
+*This serves as a barrier to prevent the player from killing Cerberus from afar.
+*It does not disappear unless the player dies fighting her.
+*Moving over the fire wall deals 5 damage each time the player passes through it.
+
+===Auto-healing===
+*Cerberus is unattackable when she first spawns, only becoming so when she stands up.
+*If no players are in her chamber, she will return to her idle stance, fully restoring all lost hitpoints.
+
+==General strategy==
+While fighting [[Cerberus]], it is recommended to activate [[Protect from Magic]].
+
+For the most kills per hour, the player should be on the [[Arceuus spellbook]] for [[thrall]]s and bring a [[Book of the Dead]]. If using melee, you can optionally bring soul and death runes for [[Death Charge]] for more frequent special attacks but less space for supplies. Runes to cast [[Ward of Arceuus]] are recommended for players who do not own a [[spectral spirit shield]] to reduce prayer drain, although beware the spell will not reduce damage inflicted by standing in lava pools.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1467199227256360967|date=4 December 2021|archiveurl=https://reldo.runescape.wiki/i/105436|archivedate=13 April 2023}} Otherwise, no spells are needed and you do not need to bring any runes. [[Demonic Offering]] can also be used to restore prayer points, and can be useful when countering the souls attack, since there is no penalty for not having 30 prayer upon being hit. If you are suiciding supplies into the room for longer trips, bring [[High Level Alchemy|alch]] runes.
+
+As a hellhound-type boss, Cerberus has high offensive stats (220) but has a low [[Defence]] level (100). She is weak to [[melee]] attacks, primarily [[crush]]-based ones. She is slightly resistant to [[stab]] attacks and resistant against [[slash]], [[magic]] and [[ranged]] attacks. As a [[Demons|demonic]] creature, she is also weak to [[Arclight]] and [[Emberlight]], which should be set to stab unless the player is using [[oathplate armour]] which offers significant accuracy bonuses to slash. Despite her resistance to ranged, ranged weapons can still be extremely effective against her, in particular the [[twisted bow]]. A [[scorching bow]] also offers a very practical means to kill the boss, offering similar DPS to non-max melee setups.
+
+Upon spawning, Cerberus cannot be attacked; rather, she only has an examine option as she is sitting. Once she detects a player in the arena, she will stand up to confront the intruder and become attackable. If no players are present inside, she will return to the centre of her chamber and her attack option will be removed, which will also restore all of her health if damaged.
+
+It is recommended to deal damage as quickly as possible while taking note of Cerberus' attacks. The most common cause of death is the lava pool and soul combo, regardless of which one comes first. For example, during attacks 14 and 15, Cerberus will summon souls first, then follow up this attack with lava pools. The pools usually disorient players as they try to avoid them and eat up, forgetting about the souls who can deal heavy or fatal damage in the process. Simply count Cerberus' attacks and deal with the spirits as highest priority. Ranged users usually have an advantage over melee users since the targeted pool is not applied on the same tick Cerberus initiates the mechanic, giving them more time to move away from the pool and granting their full attention to the incoming souls. Melee users will simply need to count the attacks and try to avoid running into any other pools in place.
+
+The summoned souls are the most resource-intensive part of the fight, as they cause heavy, unavoidable damage/drain; an unblocked hit deals 30 damage, while a blocked one drains 30 prayer instead, which can significantly cut into profits and supplies. Having a [[spectral spirit shield]] halves the drain to both prolong trips and increase overall profit, while Ward of Arceuus reduces the drain by 33%; having both reduces the drain by 66%. While very expensive and only particularly useful for melee users, an [[elysian spirit shield]] can reduce the damage taken from each soul attack from 30 to 22. It is also possible to use [[Demonic Offering]] to reduce prayer consumption. For an incoming souls attack, one needs to have just enough prayer for the first 2 attacks (so slightly more prayer points than is drained from 1 attack). Then quickly, after the second hit and with 0 prayer, cast Demonic Offering on the ash from the previous kill (restoring a bit of prayer), and immediately pray against the third attack.
+
+It is recommended to start each Cerberus kill standing underneath her and attacking her from there.  
+
+Cerberus attacks on a six-tick (3.6s) cycle, while a scythe attacks on a five-tick (3.0s) cycle. It is possible to hit Cerberus twice for every attack she makes due to this by going under her for a few ticks, then coming out to attack. This significantly increases the scythe's damage and minimises the amount of attacks Cerberus can perform. With high hits and proper execution, this will remove a lot of the boss's health, and in some cases, even kill her before she can summon souls.
+
+=== No Ghosts Strategy ===
+A slower but less resource intensive strategy (particularly for [[Ironman Mode|ironmen]] who don't have a spectral spirit shield or hardcore ironmen who want to avoid dealing with the lava pools and ghosts at once), the player can hit Cerberus to just above 400 hitpoints and wait until the 14th attack (~56 seconds) which ensures no ghosts will appear until the 28th attack. This will reduce prayer potion usage to about two doses per kill if prayer flicking is used while waiting for the 14th attack. It is recommended to put on defensive gear, such as a [[Dinh's bulwark]], and step away from Cerberus while waiting for the 14th attack to minimise damage taken while waiting. [[Guthan the Infested's equipment|Guthan's the Infested equipment]] can also be used (consider equiping a [[Lightbearer]] too), as its subpar dps might get Cerberus to 400 hitpoints just as she reaches her 14th attack, healing the player in the process. If you make a mistake and bring Cerberus' health below 400 before attack #14, you can safely reset the fight by walking back over the entrance [[flames]].
+
+Here is a summary of Cerberus' attacks leading up to Attack 28. You can practice this rotation by counting from the checkpoint special attacks (Combo, Lava, & Ghost attacks). For example, you want to keep Cerberus above 400 hitpoints until attack #14, so start counting 3 attacks after her second combo before resuming damage. Note that the soul and lava mechanics on attacks 25 and 28 are still conditional based on Cerberus's hitpoints, but you will struggle to end the fight before souls if Cerberus still has over 200 HP at attack 25.
+
+{| class="wikitable align-center-1" style="margin-left:auto;margin-right:auto;max-width:30em"
+!#
+! style="width:15%" | Attack
+! style="width:30%" | Condition
+!Note(s)
+|-
+!1
+| colspan="2" class="table-bg-red" | COMBO
+| rowspan="14" | Be wary of attacks 14 and 15 (GHOSTS followed by LAVA), as the dangerous parts of each happen at the same time.
+For the No Ghosts strategy, keep Cerberus' hitpoints above 400 until 14's animation begins.
+|-
+!2
+|Auto
+| {{NA}}
+|-
+!3
+|Auto
+| {{NA}}
+|-
+!4
+|Auto
+| {{NA}}
+|-
+!5
+| class="table-bg-orange" | LAVA
+| class="table-bg-orange" | Only if < 200 HP
+|-
+!6
+|Auto
+| {{NA}}
+|-
+!7
+| class="table-bg-blue" | GHOSTS
+| class="table-bg-blue" | Only if < 400 HP
+|-
+!8
+|Auto
+| {{NA}}
+|-
+!9
+|Auto
+| {{NA}}
+|-
+!10
+| class="table-bg-orange" | LAVA
+| class="table-bg-orange" | Only if < 200 HP
+|-
+!11
+| colspan="2" class="table-bg-red" | COMBO
+|-
+!12
+|Auto
+| {{NA}}
+|-
+!13
+|Auto
+| {{NA}}
+|-
+!14
+| class="table-bg-blue" | GHOSTS
+| class="table-bg-blue" | Only if < 400 HP
+|-
+!15
+| class="table-bg-orange" | LAVA
+| class="table-bg-orange" | Only if < 200 HP
+| rowspan="6" | For the No Ghosts strategy, high DPS sometimes results in LAVA right before COMBO on attacks 20 and 21.
+|-
+!16
+|Auto
+| {{NA}}
+|-
+!17
+|Auto
+| {{NA}}
+|-
+!18
+|Auto
+| {{NA}}
+|-
+!19
+|Auto
+| {{NA}}
+|-
+!20
+| class="table-bg-orange" | LAVA
+| class="table-bg-orange" | Only if < 200 HP
+|-
+!21
+| colspan="2" class="table-bg-red" | COMBO
+| rowspan="8" | After the third COMBO, dodge LAVA on attack 25 and race DPS to kill Cerberus before GHOSTS on attack 28.
+|-
+!22
+|Auto
+| {{NA}}
+|-
+!23
+|Auto
+| {{NA}}
+|-
+!24
+|Auto
+| {{NA}}
+|-
+!25
+| class="table-bg-orange" | LAVA
+| class="table-bg-orange" | Only if < 200 HP
+|-
+!26
+|Auto
+| {{NA}}
+|-
+!27
+|Auto
+| {{NA}}
+|-
+!28
+| class="table-bg-blue" | GHOSTS
+| class="table-bg-blue" | Only if < 400 HP
+|}
+
+=== Dharok's Armour 'Red-Click' Strategy ===
+[[File:Cerberus Red-X DH Method.gif|thumb|A player attacking Cerberus, walking under the boss, and performing a 'red-click' on the exit door.]]
+Another strategy that is less resource-intensive (particularly for ironmen who don't have a spectral spirit shield) is to equip the [[Dharok the Wretched's equipment|Dharok's]] armour set, and to flinch Cerberus and use the 'red-click' strategy to stall the boss. This is done by lowering the player's Health to 1 (using a [[Dwarven rock cake|rock cake]] or [[locator orb]]) to maximize the damage from Dharok's armour, attacking Cerberus, walking under the boss in the next game tick, and then performing a 'red-click' (also known colloquially as 'red-x') by clicking on the exit portcullis (which the player cannot reach while the boss is active, thus the character does not walk out from under the boss). When done successfully, this will cause Cerberus to not move while the player is standing under her. Then, upon waiting for Cerberus' health bar to disappear, the player can repeat this pattern to attack Cerberus again without the boss retaliating. With reduced HP, maximum combat level, boosted stats, Piety, and proper equipment, the player can land a max hit of 104 on Cerberus. Despite this, the actual kill times are quite long, so players should consider whether the conserved resources are worth the time lost compared to using more standard setups.
+
+This method can still prove quite effective with other [[flinching]] weapons if Dharok's gear is not available, such as the purchasable [[Tzhaar-ket-om]] paired with slayer helmet and a [[berserker necklace]] is only a marginal loss of damage, but much safer as the player can remain at full health in case of mistakes.
+
+If playing through a third-party [[game client]], this method can be made more efficient using the Menu Entry Swapper plug-in, allowing the player to re-map their shift-click on Cerberus to walk under the boss, negating the need for the player to right-click and select "Walk here". 
+
+When using this method, the player does not need to be concerned about the boss's special attacks (ghosts or lava), as the boss never performs its initial attack. This means the only supplies consumed throughout the boss kills are boost potions, and potions to restore prayer from offensive prayers. This method is not recommended for Hardcore Ironmen, as a small mistake can lead to the boss attacking the player and likely killing them.
+
+==Equipment==
+<tabber>
+Melee = 
+{{Recommended equipment
+|style = Melee
+|head1 = {{plink|Slayer helmet (i)}}
+|head2 = {{plink|Black mask (i)}}
+|neck1 = {{plink|Amulet of rancour}}
+|neck2 = {{plink|Amulet of torture}}
+|neck3 = {{plink|Amulet of blood fury}}
+|neck4 = {{plink|Amulet of fury}}
+|neck5 = {{plink|Amulet of glory}}
+|cape1 = {{plink|Infernal cape}}
+|cape2 = {{plink|Fire cape}}
+|body1 = {{plink|Inquisitor's hauberk}}{{efn|If using a crush weapon|name=inq}}
+|body2 = {{plink|Torva platebody}}
+|body3 = {{plink|Oathplate chest}} / {{plink|Bandos chestplate}} / {{plink|Blood moon chestplate}}
+|body4 = {{plink|Justiciar chestguard}} / {{plink|Fighter torso}}
+|body5 = {{plink|Barrows equipment|pic=Torag's platebody|txt=Barrows body}}
+|legs1 = {{plink|Inquisitor's plateskirt}}{{efn|name=inq}}
+|legs2 = {{plink|Torva platelegs}}
+|legs3 = {{plink|Oathplate legs}} / {{plink|Bandos tassets}} / {{plink|Blood moon tassets}}
+|legs4 = {{plink|Justiciar legguards}}
+|legs5 = {{plink|Barrows equipment|pic=Torag's platelegs|txt=Barrows legs}}
+|weapon1 = {{plink|Scythe of Vitur}}{{efn|Use on Crush. If bringing a Spectral spirit shield, bring an additional 1-handed weapon to continue attacking the boss.|name=2h}}{{efn|Use on Slash if wearing Oathplate|name=slash}} > {{plink|Emberlight}}{{efn|name=stab}}{{efn|name=slash}}
+|weapon2 = {{plink|Soulreaper axe}}{{efn|name=2h}} / {{plink|Inquisitor's mace}}
+|weapon3 = {{plink|Arclight}}{{efn|Use on Stab|name=stab}}{{efn|name=slash}}
+|weapon4 = {{plink|Osmumten's fang}} / {{plink|Abyssal bludgeon}}
+|weapon5 = {{plink|Ghrazi rapier}}
+|shield1 = {{plink|Avernic defender}} / {{plink|Spectral spirit shield}}{{efn|Only when summoned spirits are attacking|name=spectral}}
+|shield2 = {{plink|Dragon defender}}
+|shield3 = {{plink|Dragonfire shield}}
+|ammo1 = {{plink|Rada's blessing 4}}
+|ammo2 = {{plink|God blessing|pic=Peaceful blessing}} / {{plink|Rada's blessing 3|txt=Rada's blessing 3/2}}
+|hands1 = {{plink|Ferocious gloves}}{{efn|name=gloves|Players might want to extend their cerberus tasks by using or switching to a [[Bracelet of slaughter]] when the boss is almost dead.}}
+|hands2 = {{plink|Barrows gloves}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Primordial boots}}
+|feet3 = {{plink|Echo boots}}
+|feet4 = {{plink|Guardian boots}}
+|feet5 = {{plink|Dragon boots}}
+|ring1 = {{plink|Ultor ring}}
+|ring2 = {{plink|Berserker ring (i)}}
+|ring4 = {{plink|Lightbearer}}
+|ring5 = {{plink|Ring of suffering (i)}} / {{plink|Ring of the gods (i)}}
+|special1 = {{plink|Crimson kisten}} > {{plink|Dragon claws}}
+|special2 = {{plink|Burning claws}}{{efn|Use on Stab unless wearing Oathplate}}{{efn|Cerberus has an immunity to [[burn]] but still benefits from the demonbane bonus.}} / {{plink|Voidwaker}}
+|special3 = {{plink|Bandos godsword}}{{efn|BGS will reduce more defence than Elder maul on average as long as your max hit with it is over 60.}}
+|special4 = {{plink|Dragon dagger}} / {{plink|Elder maul}}
+|special5 = {{plink|Saradomin godsword}} / {{plink|Dragon warhammer}}
+}}
+
+==Inventory==
+{{Inventory|align=right
+|1= Crimson kisten
+|2= Divine super combat potion(4)
+|3= {{Cheap prayer}}
+|4= {{Cheap prayer}}
+|5= Spectral spirit shield
+|6= Emberlight
+|7= {{Cheap prayer}}
+|8= {{Cheap prayer}}
+|9= {{Cheap food}}
+|10= {{Cheap food}}
+|11= {{Cheap prayer}}
+|12= {{Cheap prayer}}
+|13= {{Cheap food}}
+|14= {{Cheap food}}
+|15= {{Cheap food}}
+|16= {{Cheap food}}
+|17= {{Cheap food}}
+|18= {{Cheap food}}
+|19= {{Cheap food}}
+|20= {{Cheap food}}
+|21= {{Cheap food}}
+|22= {{Cheap food}}
+|23= {{Cheap food}}
+|24= {{Cheap food}}
+|25= Teleport to house (tablet)
+|26= Nature rune
+|27= Book of the Dead
+|28= Divine rune pouch
+}}
+{{Rune pouch|align=right
+|1=Fire rune\16000
+|2=Blood rune\16000
+|3=Death rune\16000
+|4=Aether rune\16000
+}}
+*1-2 [[Divine super combat potion]]s
+*6-9 [[Prayer potion]]s or [[Super restore]]s{{efn|name=prayer|The amount of [[Prayer potion|prayer]]/[[super restore potion]]s depends if the player has a [[Spectral spirit shield]] or not.}}
+*[[Special attack]] weapon (e.g. [[Elder maul]] or [[Dragon claws]])
+*[[Spectral spirit shield]]
+**If you are using the [[Scythe of Vitur]] or [[Abyssal bludgeon]], bring a one-handed weapon such as Arclight to use during the summoned souls attack while the spectral spirit shield is equipped
+*[[Rune pouch]] with runes and [[Book of the Dead]] for casting [[resurrection spells]] on the [[Arceuus spellbook]].
+*Runes for [[Ward of Arceuus]] to reduce prayer drain; stacks with spectral spirit shield
+*[[Death rune]]s and [[soul rune]]s for [[Death Charge]] to allow for more special attacks per trip. These inventory slots can be substituted for more food or prayer potions.
+*[[Wrath runes]] for casting [[Demonic Offering]], can be used to restore prayer once per kill in the middle of a ghost attack to save prayer potion doses. Not as helpful if using a spectral spirit shield.
+*[[Teleport to house (tablet)|House tablets]] (or [[Construct. cape]]/[[Max cape]]) or [[Desert amulet 4]]
+*[[Sharks]] or higher tier [[food]] for remaining inventory space
+**[[Bluefin]] make a good alternative high-healing food, due to their extra prayer restore being useful at this boss with its high usage of prayer points.
+
+;Notes
+{{Notelist}}
+|-|
+Ranged =
+As she possesses a Magic level of 220, the [[Twisted bow]] can be used on her with devastating effect. Cerberus does not move in to attack players with melee, meaning that players are only subjected to magic and ranged attacks outside of the triple attack mechanic. Ranging also allows players to quickly avoid the lava marker attack since it does not appear instantly when launched at a distance. The [[Bow of Faerdhinen]] is also effective, but slightly worse than the [[Toxic blowpipe]] if using rune darts or better. [[Crystal armour]] should be worn if using the Bow of Faerdhinen.
+{{Recommended equipment
+|style = Ranged
+|head1 = {{plink|Slayer helmet (i)}}
+|head2 = {{plink|Black mask (i)}}
+|neck1 = {{plink|Necklace of rupture}}
+|neck2 = {{plink|Necklace of anguish}}
+|neck3 = {{plink|Amulet of fury}}
+|neck4 = {{plink|Amulet of glory}}
+|cape1 = {{plink|Dizana's quiver}}
+|cape2 = {{plink|Ava's assembler}}
+|cape3 = {{plink|Ranging cape}} or {{plink|Max cape}}
+|cape4 = {{plink|Ava's accumulator}}
+|body1 = {{plink|Masori body (f)}}
+|body2 = {{plink|Armadyl chestplate}}
+|body3 = {{plink|Crystal body}}
+|body4 = {{plink|Blessed body|pic=Ancient d'hide body}}
+|body5 = {{plink|Karil's leathertop}}
+|legs1 = {{plink|Masori chaps (f)}}
+|legs2 = {{plink|Armadyl chainskirt}}
+|legs3 = {{plink|Crystal legs}}
+|legs4 = {{plink|Blessed chaps|pic=Ancient chaps}}
+|legs5 = {{plink|Karil's leatherskirt}}
+|weapon1 = {{plink|Twisted bow}}
+|weapon2 = {{plink|Scorching bow}} / {{plink|Toxic blowpipe}}{{efn|name=blowpipe|Toxic blowpipe has marginally better DPS than Scorching bow if the user has (completely) max gear and doesn't miss ticks while attacking, but comes at the cost of reduced range. The blowpipe becomes increasingly stronger if Cerberus' defence has been reduced.}}
+|weapon3 = {{plink|Bow of Faerdhinen}}
+|weapon4 = {{plink|Zaryte crossbow}}{{efn|name=1h|When using a two-handed weapon, it is advisable to bring a one-handed weapon if using the spectral spirit shield as it cannot be worn with a two-handed weapon. This is to deal extra damage when the Summoned Souls are present.}}
+|ammo1 = {{plink|Seeking dragon arrow}}
+|ammo2 = {{plink|Dragon arrow}} > {{plink|Seeking amethyst arrow}}
+|ammo3 = {{plink|Amethyst arrow}}
+|ammo4 = {{plink|Ruby dragon bolts (e)}} & {{plink|Diamond dragon bolts (e)}}
+|ammo5 = {{plink|Rada's blessing 4}} (only with blowpipe)
+|hands1 = {{plink|Zaryte vambraces}}
+|hands2 = {{plink|Barrows gloves}}
+|hands3 = {{plink|Blessed vambraces|pic=Ancient bracers}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Pegasian boots}}
+|feet3 = {{plink|Ranger boots}}
+|feet4 = {{plink|Blessed boots|pic=Ancient d'hide boots}}
+|ring1 = {{plink|Lightbearer}}{{efn|name=lightbearer|For more special attacks.}}
+|ring2 = {{plink|Venator ring}}
+|ring3 = {{plink|Ring of suffering (ri)}}
+|ring5 = {{plink|Ring of the gods (i)}}
+|special1 = {{plink|Zaryte crossbow}}
+|special2 = {{plink|Toxic blowpipe}} / {{plink|Tonalztics of ralos}}
+|special3 = {{plink|Saradomin godsword}}
+}}
+
+{{Inventory|align=right
+|1= Zaryte crossbow
+|2= Spectral spirit shield
+|3= Ruby dragon bolts (e)\500
+|4= Divine bastion potion(4)
+|5= {{Cheap prayer}}
+|6= {{Cheap prayer}}
+|7= {{Cheap prayer}}
+|8= {{Cheap prayer}}
+|9= {{Cheap prayer}}
+|10= {{Cheap prayer}}
+|11= {{Cheap prayer}}
+|12= {{Cheap food}}
+|13= {{Cheap food}}
+|14= {{Cheap food}}
+|15= {{Cheap food}}
+|16= {{Cheap food}}
+|17= {{Cheap food}}
+|18= {{Cheap food}}
+|19= {{Cheap food}}
+|20= {{Cheap food}}
+|21= {{Cheap food}}
+|22= {{Cheap food}}
+|23= {{Cheap food}}
+|24= {{Cheap food}}
+|25= Teleport to house (tablet)
+|26= Nature rune
+|27= Book of the Dead
+|28= Rune pouch
+}}
+{{Rune pouch|align=right
+|1=Fire rune\16000
+|2=Blood rune\16000
+|3=Aether rune\16000
+|4=Death rune\16000
+}}
+
+==Inventory==
+*[[Special attack]] weapon (e.g. [[Toxic blowpipe]] or [[Saradomin godsword]])
+*[[Spectral spirit shield]] and a one-handed weapon alongside it
+*[[Book of the Dead]] for casting resurrection spells on the [[Arceuus spellbook]].
+*[[Rune pouch]] with runes for [[Resurrect Greater Skeleton]] or either of the other [[Thrall]] spells. It does not matter which style of thrall is used.
+*Runes for [[Ward of Arceuus]] are optional, but recommended to reduce prayer drain; stacks with spectral spirit shield
+*[[Teleport to house (tablet)|House tablets]] (or [[Construct. cape]]/[[Max cape]]) or [[Desert amulet 4]]
+*1 [[Divine bastion potion]] or 1 [[Divine ranging potion]]
+*6-9 [[Prayer potion]]s or [[Super restore]]s{{efn|name=prayer|The amount of [[Prayer potion|prayer]]/[[super restore potion]]s depends if the player has a [[Spectral spirit shield]] or not.}}
+*[[Sharks]] or higher tier [[food]] for remaining inventory space
+**[[Bluefin]] make a good alternative high-healing food, due to their extra prayer restore being useful at this boss with its high usage of prayer points.
+
+;Notes
+{{Notelist}}
+</tabber>
+
+==References==
+{{Reflist}}
+
+[[Category:Strategies]]
+[[Category:Slayer]]

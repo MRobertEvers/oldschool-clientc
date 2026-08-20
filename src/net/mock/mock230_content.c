@@ -1230,6 +1230,35 @@ apply_param(
     *comma = '\0';
     value = comma + 1;
 
+    /*
+     * A `^constant` is expanded HERE, once, for every param — not per branch.
+     *
+     * It used to be expanded in exactly two branches (`undead` and the
+     * elemental weakness) and read with a bare `atoi` everywhere else, and
+     * `atoi("^slash_style")` is **0**. So `param=damagetype,^slash_style` and
+     * `param=attackrate,^dks_attackrate` both silently became zero: the config
+     * read correctly, the compiler had no opinion, `mock230_pack` was happy
+     * because it checks the text, and the npc simply fought with damage type 0
+     * and no attack rate.
+     *
+     * Found by probing a scene-backed spawn for a param the config plainly
+     * stated. Nothing else in this tree could have reported it — the value is
+     * only observable through `npc_param` on a live npc, which needs a scene,
+     * which the C-driven selftest does not have. That is why the probe existed.
+     *
+     * `mock230_content_constant_int` answers the fallback for a name it does
+     * not know, so an unresolvable `^name` is caught by the same error path a
+     * misspelled constant already takes rather than reading as 0.
+     */
+    if( value[0] == '^' )
+    {
+        static char expanded[32];
+
+        snprintf(expanded, sizeof(expanded), "%d",
+                 (int)mock230_content_constant_int(value, 0));
+        value = expanded;
+    }
+
     for( int i = 0; i < MOCK230_PARAM_BONUS_COUNT; i++ )
     {
         if( strcmp(text, k_bonus_param_names[i]) == 0 )
@@ -2487,6 +2516,19 @@ load_enum_config(const char* path)
                 def->default_int = enum_operand(def->output_kind, 1, expanded, &ok);
                 if( !ok )
                     CONTENT_ERROR("%s:%d: `%s` is not a coord\n", path, line_number, value);
+            }
+            else if( strcmp(expanded, "null") == 0 )
+            {
+                /* `default=null` is the reference's spelling for "this enum has
+                 * no fallback", and the coord branch above already answers it
+                 * with -1. Every other typed output fell through to `atoi`,
+                 * which reads "null" as **0** — and 0 is a real obj, a real npc
+                 * and a real loc. A lookup that missed therefore came back as
+                 * item 0 rather than as nothing, so a caller could not tell
+                 * "this key has no entry" from "this key maps to item 0", and
+                 * the natural `= null` test never fired. Same failure the
+                 * dbrow decoder had with an unset namedobj column. */
+                def->default_int = -1;
             }
             else
                 def->default_int = atoi(expanded);

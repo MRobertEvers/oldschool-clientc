@@ -1,0 +1,540 @@
+{{External|rs=Wilderness achievements}}
+{{Infobox Achievement Diary
+|name = Wilderness Diary
+|image = [[File:Wilderness Diary.png]]
+|release = [[5 March]] [[2015]]
+|update = Achievement Diaries
+|areas = [[Wilderness]], [[Wilderness God Wars Dungeon]]
+|members = Yes
+|reward = [[Wilderness sword|Sword]]
+|taskmasters = [[Lesser Fanatic]]
+|leagueRegion = Wilderness
+}}
+{{Map|name=Lesser Fanatic|x=3121|y=3516|align=left|width=250|height=250|r=4|mtype=square|caption=Lesser Fanatic's location}}
+The '''Wilderness Diary''' is an [[Achievement Diary]] whose tasks are exclusively done within the [[Wilderness]]. Therefore, players should be prepared for attacks from [[Player killing|player killers]].
+
+Several skill, quest, and item requirements are needed to complete all tasks. Unless stated otherwise, [[temporary skill boost]]s can be used to meet the skill requirements.
+
+Rewards can be claimed from the [[Lesser Fanatic]] east of the [[Edgeville]] jailhouse and nearby the bridge, outside of the Wilderness. Tasks may be done in any order, but the previous tiers of a diary must be completed to claim rewards of the next tier.
+
+==Overview==
+{{Sync}}
+<tabber>
+|-|
+Easy=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 15
+|Agility = 15
+|Magic = 21
+|Total = 80
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Enter the Abyss"
+|[[Enter the Abyss]]
+|}
+| style="vertical-align: top" |
+|}
+
+|-|
+Medium=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 55
+|Strength = 1
+|StrengthNotes = <ref name="gwd">You'll need either 60 [[Strength]] or 60 [[Agility]] for the [[Wilderness God Wars Dungeon]], both of which are [[boostable]].</ref>
+|Agility = 52
+|AgilityNotes = <ref name="gwd"/>
+|Smithing = 50
+|Magic = 60
+|Woodcutting = 61
+|WoodcuttingNotes = {{boostable|n}}
+|Slayer = 50
+|Total = 362
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+! Quest requirements
+|- data-rowid="Enter the Abyss"
+|[[Enter the Abyss]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Access to the [[Wilderness God Wars Dungeon]] <ref name="gwd"/>
+|-
+|Partial completion of [[Between a Rock...]]
+|}
+|}
+{{Reflist}}
+
+|-|
+Hard=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 55
+|Agility = 64
+|Smithing = 75
+|Fishing = 53
+|Magic = 66
+|Woodcutting = 61
+|WoodcuttingNotes = {{boostable|n}}
+|Slayer = 68
+|Hunter = 67
+|Total = 533
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Death Plateau"
+|[[Death Plateau]]
+|- data-rowid="Enter the Abyss"
+|[[Enter the Abyss]]
+|- data-rowid="Mage Arena I"
+|[[Mage Arena I]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Access to at least one of the three [[god spells]]
+|-
+|Access to the [[Wilderness God Wars Dungeon]]
+|-
+|Partial completion of [[Between a Rock...]]
+|-
+|Defeat the [[Chaos elemental]]
+|-
+|Defeat the [[Crazy archaeologist]], [[Chaos fanatic]], and [[Scorpia]]
+|}
+|}
+{{Reflist}}
+
+|-|
+Elite=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 85
+|Agility = 64
+|Smithing = 90
+|Herblore = 10
+|Fishing = 85
+|Ranged = 40
+|Thieving = 84
+|Cooking = 90
+|Firemaking = 75
+|Magic = 96
+|Fletching = 10
+|Woodcutting = 75
+|Slayer = 83
+|Hunter = 67
+|Total = 972
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Death Plateau"
+|[[Death Plateau]]
+|- data-rowid="Desert Treasure I"
+|[[Desert Treasure I]]
+|- data-rowid="Enter the Abyss"
+|[[Enter the Abyss]]
+|- data-rowid="Mage Arena I"
+|[[Mage Arena I]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Access to at least one of the three [[god spells]]
+|-
+|Access to the [[Wilderness God Wars Dungeon]]
+|-
+|Partial completion of [[Between a Rock...]]
+|-
+|Defeat [[Callisto]]/[[Artio]], [[Venenatis]]/[[Spindel]], and [[Vet'ion]]/[[Calvar'ion]]
+|-
+|Defeat the [[Chaos elemental]]
+|-
+|Defeat the [[Crazy archaeologist]], [[Chaos fanatic]], and [[Scorpia]]
+|}
+|}
+{{Reflist}}
+
+|-|
+</tabber>
+
+==Easy==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Wilderness" data-diary-tier="Easy"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Cast [[Low Level Alchemy|Low Alchemy]] at the [[Fountain of Rune]].
+|
+*{{SCP|Magic|21|link=y}}
+*Item that can be [[Value|alchemised]] (nearly any item)
+|-
+|2. Enter the [[Wilderness]] from the [[Ardougne teleport lever|Ardougne]] or [[Edgeville teleport lever|Edgeville]] lever.
+|{{NA|None}}
+|-
+|3. Pray at the [[Chaos Temple (church)|Chaos Altar]] in the Western [[Wilderness]].
+|{{NA|None}}
+|-
+|4. Enter the [[Chaos Altar|Chaos Runecrafting temple]].
+''Note: Entering it through the [[Tunnel of Chaos]] or [[Guardians of the Rift]] will not count for this task.
+|
+*Access to the [[Chaos Altar]] ([[chaos talisman]]/[[Chaos tiara|tiara]], [[catalytic talisman]]/[[Catalytic tiara|tiara]], or the [[Abyss]])
+|-
+|5. Kill a [[Mammoth]] in the [[Wilderness]].
+''Note: [[Mammoth]]s are found south-east of [[Ferox Enclave]].
+|
+*[[Weaponry]]
+|-
+|6. Kill an [[Earth Warrior]] in the [[Edgeville Dungeon|Wilderness beneath Edgeville]].
+|
+*{{SCP|Agility|15|link=y}}
+*[[Weaponry]]
+|-
+|7. Restore some [[prayer point]]s at the [[demonic ruins]].
+|{{NA|None}}
+|-
+|8. Enter the [[King Black Dragon Lair|King Black Dragon's lair]].
+''Note: This lair is located beneath the [[Lava Maze]].
+|{{NA|None}}
+|-
+|9. Collect 5 [[Red spiders' eggs]] from the [[Wilderness]]
+''Note: These can be found in the northern part of the [[Edgeville Dungeon]]. You can also bring [[red spiders' eggs|eggs]] into the wilderness, fulfilling the diary by dropping and picking them up five times.''
+|{{NA|None}}
+|-
+|10. Mine some [[Iron ore]] in the [[Wilderness]].
+|
+*{{SCP|Mining|15|link=y}}
+*Any [[pickaxe]]
+|-
+|11. Have the [[Mage of Zamorak]] teleport you to the [[Abyss]].
+''Note: The one-time teleport to the Abyss from Varrock during [[Temple of the Eye]] does not count for this task.''
+|
+*{{SCP|Quest}} Completion of [[Enter the Abyss]]
+|-
+|12. Equip any [[team cape]] in the [[Wilderness]].
+''Note: Entering the [[Wilderness]] with one already equipped does not count for this task.
+|
+*Any [[team cape]]
+|}
+===Rewards===
+*[[Wilderness sword 1]]:
+**Always slashes [[web]]s successfully
+**Identical stats to an [[iron sword]]
+*[[Antique lamp (easy)|Antique lamp]] worth 2,500 experience in any skill of at least level 30
+*You can now use the [[Lever (Deserted Keep)|Wilderness lever]] to teleport to [[Lever (Edgeville)|Edgeville]], as an alternative to [[Lever (Ardougne)|East Ardougne]]
+*[[Lundail]] offers you 40 random [[runes]] for free every day, worth a total average of {{#vardefine:avgrune|{{#expr:({{GEP|Body rune}}+{{GEP|Mind rune}}+{{GEP|Nature rune}}+{{GEP|Chaos rune}}+{{GEP|Law rune}}+{{GEP|Cosmic rune}}+{{GEP|Death rune}})/7}}}}{{NoCoins|{{#var:avgrune}}*40}} [[coins]] on the [[Grand Exchange]]
+
+==Medium==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Wilderness" data-diary-tier="Medium"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Mine some [[Mithril ore]] in the [[wilderness]].
+|
+*{{SCP|Mining|55|link=y}}
+*Any [[pickaxe]]
+|-
+|2. Chop some [[yew logs]] from a fallen [[Ent]].
+''Note: This must be done within the [[Wilderness]]. You can find [[ent]]s north and east of the [[Chaos Temple (Wilderness)|chaos temple]] with the [[elder chaos druid]]s.
+|
+*{{SCP|Woodcutting|61|link=y}}{{Boostable|no}}
+*Any [[axe]] and [[weapon]]ry
+|-
+|3. Enter the [[Wilderness God Wars Dungeon|Wilderness Godwars Dungeon]].
+''Note: While you're here, with a high enough [[Slayer]] level you can also complete another medium task and a [[#Hard|hard task]] by killing a [[bloodveld]] and [[spiritual warrior]], respectively.
+|
+*{{SCP|Agility|60|link=y}} or {{SCP|Strength|60|link=y}}
+*[[God_Wars_Dungeon#God-related_protection|God equipment]] recommended if going further inside
+|-
+|4. Complete a lap of the [[Wilderness Agility course]].
+|
+*{{SCP|Agility|52|link=y}}
+|-
+|5. Kill a [[Green Dragon]].
+''Note: This must be done within the [[Wilderness]].''
+|
+*Protection from [[dragonfire]] recommended if not safe spotting and [[weapon]]ry to slay it
+|-
+|6. Kill an [[Ankou]] in the [[Wilderness]].
+|
+*[[Weaponry]], or sufficient combat stats to defeat a level 86 or level 98 [[Ankou]] while unarmed 
+|-
+|7. [[Charge Earth Orb|Charge]] an [[Earth Orb]].
+|
+*{{SCP|Magic|60|link=y}}
+*[[Unpowered orb]] and means to cast [[Charge Earth Orb]] ({{RuneReq|Cosmic=3|Earth=30}})
+|-
+|8. Kill a [[Bloodveld]] in the [[Wilderness God Wars Dungeon|Wilderness Godwars Dungeon]].
+''Note: Can be [[safespot]]ted in the south-west corner while having a [[Saradomin item|Saradomin]] and [[Zamorak item]] equipped.
+|
+*{{SCP|Agility|60|link=y}} or {{SCP|Strength|60|link=y}}, and {{SCP|Slayer|50|link=y}}
+*[[Weaponry]] and [[God_Wars_Dungeon#God-related_protection|god equipment]]
+|-
+|9. Talk to the [[Emblem Trader]] in Edgeville about emblems. (He's just north of the bank)
+|{{NA|None}}
+|-
+|10. Smith a [[Gold helmet|Golden helmet]]{{Sic}} in the [[Resource Area]].
+''Note: You cannot do this while you already have a [[gold helmet]] in your inventory or bank, this must be dropped first. With 75 [[Smithing]], you can bring 2 [[Adamantite bar|adamantite bars]] here as well to smith an [[adamant scimitar]] for a [[#Hard|hard task]].
+|
+*{{SCP|Quest}} Partial completion of [[Between a Rock...]]
+*{{SCP|Smithing|50|link=y}}
+*7500 [[coins]], 3 [[gold bar]]s, and a [[hammer]]
+|-
+|11. Open the [[Muddy Chest]] in the [[lava maze]].
+''Note: With 53 [[Fishing]], you can bring an [[oily fishing rod]] and [[fishing bait]] to catch a [[raw lava eel]] for a [[#Hard|hard task]].
+|
+*[[Muddy key]]
+*[[Knife]], [[Wilderness sword 1]], or a [[slashing weapon]] (Or with {{SCP|Agility|82|link=y}} using the Stepping Stone shortcut North of the Lava Maze)
+|}
+===Rewards===
+*[[Wilderness sword 2]]:
+**Identical stats to a [[steel sword]]
+*[[Antique lamp (medium)|Antique lamp]] worth 7,500 experience in any skill of at least level 40
+*Entrance fee for the [[Resource Area]] lowered to 6,000 [[coins]], down from 7,500 [[coins]]
+*Possess up to 4 [[ecumenical key]]s at a time, up from 3
+*[[Lundail]] offers you 80 random [[runes]] for free every day, worth a total average of {{NoCoins|{{#var:avgrune}}*80}} [[coins]] on the [[Grand Exchange]]
+*Access to the [[Crevice (Deep Wilderness Dungeon)|crevice shortcut]] in the [[Deep Wilderness Dungeon]] (with 46 [[Agility]])
+*Access to [[Callisto]], [[Venenatis]], and [[Vet'ion]]
+*15% more chance to receive drops from cutting fallen [[ent]]s
+*Ability to obtain loot from [[Chest (Rogues' Castle)|chests]] in the [[Rogues' Castle]] <!--previously 33% increase in loot-->
+*[[Zombie pirate]]s you kill have a 50% chance of dropping something in addition to their [[bones]], up from 15%{{CiteTwitter|author=Jagex|url=https://x.com/OldSchoolRS/status/1805957139111858323|date=26 June 2024|archiveurl=https://reldo.runescape.wiki/i/27962683|archivedate=26 June 2024|quote=PSA: We've deployed a hotfix which reduces your chance to roll on the Zombie Pirates' drop table from 50% to 15% if you have not completed the Wilderness Medium Diary.}}
+
+==Hard==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Wilderness" data-diary-tier="Hard"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Cast any of the 3 [[God spells]] against another player in the [[Wilderness]].
+''Note: You have to successfully hit the player, so multiple casts are recommended.
+
+''[[God spells]] must first be cast 100 times inside the [[Mage Arena]] before they can be cast elsewhere, but this task is just as completable inside the arena.
+|
+*{{SCP|Quest}} Completion of [[Mage Arena I]]
+*{{SCP|Magic|60|link=y}} 
+*Any [[Staves#God_staves|god staff]] and means to cast its related [[God spells|god spell]] ({{RuneReq|Blood=2|Fire=1-4|Air=1-4}} per cast)
+|-
+|2. [[Charge Air Orb|Charge]] an [[Air Orb]].
+|
+*{{SCP|Magic|66|link=y}}
+*[[Unpowered orb]] and means to cast [[Charge Air Orb]] ({{RuneReq|Air=30|Cosmic=3}})
+|-
+|3. Catch a [[Black salamander (Hunter)|Black Salamander]] in the [[Wilderness]].
+|
+*{{SCP|Hunter|67|link=y}}
+*[[Small fishing net]] and a [[rope]]
+|-
+|4. Smith an [[Adamant scimitar]] in the [[Resource Area]].
+''Note: With 75 [[Woodcutting]] and 75 [[Firemaking]], you can bring any [[axe]] and a [[tinderbox]] to cut and burn some [[magic logs]] for an [[#Elite|elite task]].''
+|
+*{{SCP|Smithing|75|link=y}}
+*[[Hammer]] and 2 [[adamantite bar]]s
+*6,000-7,500 [[coins]]{{efn|name=FeeHard|The regular fee to enter the [[Resource Area]] is 7,500 [[coins]]. This is reduced to 6,000 [[coins]] when the rewards for the [[#Medium|medium tasks]] are claimed.}}
+|-
+|5. Kill a [[Lava Dragon]].
+''Note: [[Lava dragon]]s are found on [[Lava Dragon Isle]].
+|
+*Protection from [[dragonfire]] recommended if not safe spotting and [[weapon]]ry to slay it
+|-
+|6. Kill the [[Chaos Elemental]].
+|
+*See the [[Chaos Elemental/Strategies|strategy guide]]
+|-
+|7. Kill the [[Crazy archaeologist|Crazy Arc.]]<!--do not change is verbatim from in-game-->{{sic|Boss name is shortened from "Crazy archaeologist" in-game, this is transcribed verbatim.}}, [[Chaos Fanatic]] & [[Scorpia]].
+''Note: While these bosses can be killed in any order, completing or updating any other task in-between will reset the progress for this task.''
+|
+*See the individual strategy guides for the [[Crazy archaeologist/Strategies|Crazy archaeologist]], [[Chaos Fanatic/Strategies|Chaos Fanatic]], and [[Scorpia/Strategies|Scorpia]]
+|-
+|8. Take the [[Rocks (Wilderness, Trollheim)|agility shortcut]] from [[Trollheim]] into the [[Wilderness]].
+''Note: Not to be confused with the [[Rocky handholds (God Wars Dungeon, Wilderness)|rocky shortcut]] further north. The [[Rocks (Wilderness, Trollheim)|shortcut]] for this task goes in one direction, and cannot be used to leave the [[Wilderness]] again. 
+|
+*{{SCP|Agility|64|link=y}}
+*{{SCP|Quest}} Partial completion of [[Troll Stronghold]], or completion of the {{SCP|combatachievement}} [[Combat Achievements/Easy|Easy Combat Achievements]] for [[Ghommal's hilt 1]]
+|-
+|9. Kill a [[Spiritual warrior]] in the [[Wilderness God Wars Dungeon|Wilderness Godwars Dungeon]].
+''Note: With 83 [[Slayer]], you can also kill a [[spiritual mage]] here to complete an [[#Hard|elite task]]
+|
+*{{SCP|Agility|60|link=y}} or {{SCP|Strength|60|link=y}}, and {{SCP|Slayer|68|link=y}}
+*[[Weaponry]] and [[God_Wars_Dungeon#God-related_protection|god equipment]]
+|-
+|10. Fish some [[Raw Lava Eel]] in the [[Wilderness]].
+|
+*{{SCP|Fishing|53|link=y}} and {{SCP|Herblore|25|link=y}}
+*[[Oily fishing rod]], [[fishing bait]]
+*[[Knife]], [[Wilderness sword 1]] or [[Wilderness sword 2|2]], or a [[slashing weapon]]
+|}
+{{Notelist}}
+
+===Rewards===
+*[[Wilderness sword 3]]:
+**Identical stats to a [[mithril sword]] (only weighs negligibly more)
+**One daily teleport to the [[Fountain of Rune]]
+*[[Antique lamp (hard)|Antique lamp]] worth 15,000 experience in any skill of at least level 50
+*Entrance fee for the [[Resource Area]] lowered to 3,750 [[coins]], down from 6,000 [[coins]]
+*Possess up to 5 [[ecumenical key]]s at a time, up from 4
+*[[Ecumenical key]]s can now be sold to the [[Lesser Fanatic]] in [[Edgeville]] for 61,500 [[coins]] each
+*[[Lundail]] offers you 120 random [[runes]] for free every day, worth an average of {{NoCoins|{{#var:avgrune}}*120}} [[coins]] on the [[Grand Exchange]]
+*50% more [[Lava scale shard|lava shards]] from grinding [[lava scale]]s
+*67% more loot from [[Chest (Rogues' Castle|chests]] in the [[Rogues' Castle]], up from 33%
+*You can now select your destination when using [[Wilderness obelisk]]s, instead of being teleported to a random obelisk
+*You'll no longer have a delay of 2 [[tick]]s (1.2 seconds) when using a teleport in the [[Revenant Caves]] or any of the [[Wilderness#Bosses|Wilderness boss caves]].
+*[[Wine of Zamorak]] taken from the [[Chaos Temple (church)]] and [[Deep Wilderness Dungeon]] will now be [[noted]]
+*Access to [[Spindel]], [[Artio]], and [[Calvar'ion]]
+
+==Elite==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Wilderness" data-diary-tier="Elite"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Kill [[Callisto]], [[Venenatis]] & [[Vet'ion]].
+''Note: The lesser versions of these bosses ([[Artio]], [[Spindel]], and [[Calvar'ion]]) also count towards this task. You must have claimed the rewards from the [[#Hard|hard diary tasks]] before you can access these lesser bosses.''
+
+''While these bosses can be killed in any order, completing or updating any other task in-between will reset the progress for this task.''
+|
+*Completion of the Medium Wilderness diary is required to kill the greater versions, and completion of the Hard Wilderness diary is required to kill the lesser versions
+*See the individual strategy guides for [[Callisto/Strategies|Callisto]], [[Venenatis/Strategies|Venenatis]], and [[Vet'ion/Strategies|Vet'ion]], or those for the weaker bosses [[Artio/Strategies|Artio]], [[Spindel/Strategies|Spindel]], and [[Calvar'ion/Strategies|Calvar'ion]]
+|-
+|2. Teleport to [[Ghorrock]].
+|
+*{{SCP|Quest}} Completion of [[Desert Treasure I]]
+*{{SCP|Magic|96|link=y}}
+*[[Ancient Magicks]] selected
+*Means to cast [[Ghorrock Teleport]] ({{RuneReq|Law=2|Water=8}})
+|-
+|3. Fish and Cook{{sic}} a [[Raw dark crab|Dark Crab]] in the [[Resource Area]].
+|
+*{{SCP|Fishing|85|link=y}} and {{SCP|Cooking|90|link=y}}
+*[[Lobster pot]] and [[dark fishing bait]]
+*3,750-7,500 [[coins]]{{efn|name=FeeElite|The regular fee to enter the [[Resource Area]] is 7,500 [[coins]]. This is reduced to 6,000 [[coins]] when the rewards for the [[#Medium|medium tasks]] are claimed, and further down to 3,750 [[coins]] with the rewards of the [[#Hard|hard tasks]].}}
+|-
+|4. Smith a [[rune scimitar]] from scratch in the [[Resource Area]].
+''Note: You must kill two separate [[Runite Golem]]s and mine them each for [[runite ore]]s, smelt two [[runite bar]]s in the nearby [[furnace]] ([[Superheat Item]] does not work), then smith the [[rune scimitar]] on the [[anvil]]. The steps for mining the ores are still completed if the ores are destroyed by an [[infernal pickaxe]].''
+
+''Completing or updating any other task in-between these steps will reset the progress for this task.''
+|
+*{{SCP|Mining|85|link=y}} and {{SCP|Smithing|90|link=y}}
+*[[Weaponry]], any [[pickaxe]], [[hammer]], and 16 [[coal]]
+*3,750-7,500 [[coins]]{{efn|name=FeeElite}}
+|-
+|5. Steal from the [[Chest (Rogues' Castle)|Rogues' chest]].
+''Note: You must right-click the chest to search for traps. You'll then be attacked by all nearby [[Rogue#Level_135|rogue]]s.
+|
+*{{SCP|Thieving|84|link=y}}
+|-
+|6. Slay a [[spiritual mage]] inside the [[Wilderness God Wars Dungeon|wilderness Godwars Dungeon]]<!--Do not change, is verbatim from in-game.-->{{sic}}.
+|
+*{{SCP|Agility|60|link=y}} or {{SCP|Strength|60|link=y}}, and {{SCP|Slayer|83|link=y}}
+*[[Weaponry]] and [[God_Wars_Dungeon#God-related_protection|god equipment]]
+|-
+|7. Cut and burn some [[magic logs]] in the [[Resource Area]].
+''Note: Logs burnt by an [[infernal axe]] do not count towards this task. Logs may also be burnt on the Forester's Campfire. Completing or updating any other task in-between these steps will reset the progress for this task.''
+|
+*{{SCP|Woodcutting|75|link=y}} and {{SCP|Firemaking|75|link=y}}
+*Any [[axe]] and [[tinderbox]]
+*3,750-7,500 [[coins]]{{efn|name=FeeElite}}
+|}
+{{Notelist}}
+
+===Rewards===
+*[[Wilderness sword 4]]:
+**Identical stats to an [[adamant sword]] (aside from weighing negligibly less)
+**Unlimited teleports to the [[Fountain of Rune]]
+*[[Antique lamp (elite)|Antique lamp]] worth 50,000 experience in any skill of at least level 70
+*Free access to the [[Resource Area]], down from a fee of 3,750 [[coins]]
+*[[Lundail]] offers you 200 random [[runes]] for free every day, worth a total average of {{NoCoins|{{#var:avgrune}}*200}} [[coins]] on the [[Grand Exchange]]
+*[[Dragon bones]] from [[dragon]]s killed in the [[Wilderness]] are now [[noted]], unless this feature is disabled by talking to the [[Lesser Fanatic]] in [[Edgeville]] (this excludes the dragon bones of [[King Black Dragon]], as his [[King Black Dragon Lair|lair]] is considered to be outside of the [[Wilderness]])
+*Catch rate of [[raw dark crab|dark crabs]] increased by 112.5%
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 28 January 2026
+|update = Deadman: Annihilation Drops This Friday!
+|change = 
+* Completion of the medium Widerness Diary will allow players to receive loot from the [[Chest (Rogues' Castle)|chest]] in the [[Rogues' Castle]].
+* Completion of the medium Wilderness Diary now grants access to the lairs of [[Callisto]], [[Venenatis]] and [[Vet'ion]].
+* Completion of the hard Wilderness Diary now grants access to the lairs of [[Artio]], [[Spindel]] and [[Calvar'ion]].
+}}
+{{Subject changes
+|date = 15 May 2024
+|update = Further Project Rebalance (Skilling) & Varlamore Changes
+|change = Players who have completed the hard Wilderness Diary may now sell unwanted [[ecumenical key]]s to the [[Lesser Fanatic]] for 61,500 [[coins]] each.
+}}
+{{Subject changes
+|date = 20 September 2023
+|update = Poll 80 & Shooting Stars Changes
+|change = 
+* The following are now rewards for players have completed the hard Wilderness diary:
+** The teleport delay in the [[Revenant Caves]] will no longer apply to you.
+** The teleport delay in the [[Wilderness boss]] caves will no longer apply to you.
+* [[Spindel]], [[Artio]] and [[Calvar'ion]] are now locked behind the medium Wilderness diary.
+}}
+{{Subject changes
+|date = 16 September 2023
+|update = The Path of Glouphrie
+|poll = 
+|change = The hard diary task to kill a lava dragon and bury its bones has been changed to require just killing the lava dragon.
+}}
+{{Subject changes
+|date = 30 August 2023
+|update = Poll 80 ToA Changes & DMM Tweaks
+|poll =
+|change = The amount of random runes rewarded daily from Lundail has been increased to four times the original amount.
+}}
+{{Subject changes
+|date = 25 February 2016
+|update = Grapes & PvP poll features
+|poll = Quality of Life - Top 10 PvP Suggestions
+|change = Wilderness obelisks no longer require clicking through a menu to choose a destination. Now left-click travel will take players to a random destination. With the hard Wilderness Diary complete, there is an option to set a 'favourite' destination for the portals and another teleports you to that favourite.
+}}
+{{Subject changes
+|date = 18 February 2016
+|update = Dragon Claws & 3rd Birthday
+|poll = 
+|change = The elite diary task to lay 6 box traps has been removed.
+}}
+{{Subject changes
+|date = 5 November 2015
+|update = Skilling Pets & Deadman Tweaks
+|poll = 
+|change = The text on the Achievement Diary interfaces now better describes what is required for the box trap task.
+}}
+{{Subject changes
+|date = 16 July 2015
+|update = Duel Arena Rework
+|change = Fixed misspelling of "receive" in Ardougne, Karamja, Morytania and Wilderness Diaries.
+}}
+{{Subject changes
+|date = 30 April 2015
+|update = Mutagens, Mo & Much More
+|change = You must now kill each of the demi-bosses and Wilderness bosses to complete each of the respective tasks.
+}}
+{{Subject changes footer}}
+
+==References==
+{{reflist}}
+
+{{Achievement diary}}

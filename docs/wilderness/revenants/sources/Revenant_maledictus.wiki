@@ -1,0 +1,141 @@
+{{Infobox Monster
+|name = Revenant maledictus
+|image = [[File:Revenant maledictus.png|250px]]
+|release = [[2 February]] [[2022]]
+|update = Revenant Maledictus & Wilderness Changes
+|members = Yes
+|combat = 397
+|size = 5
+|examine = One ghost to rule them all.
+|attributes = Undead, Spectral
+|xpbonus = 65
+|max hit = 30
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Ranged]], [[Magic]]
+|attack speed = 5
+|slayxp = 920
+|cat = Revenants, Ghosts
+|assignedby = Turael,Spria,Krystilia,Mazchna
+|hitpoints = 1250
+|att = 106
+|str = 126
+|def = 90
+|mage = 130
+|range = 130
+|attbns = 72
+|strbns = 78
+|amagic = 60
+|mbns = 60
+|arange = 265
+|rngbns = 60
+|dstab = 201
+|dslash = 206
+|dcrush = 188
+|dmagic = 101
+|dlight = 231
+|dstandard = 231
+|dheavy = 231
+|poisonresistance = 100
+|venomresistance = 100
+|dropversion = On-task,Off-task
+|id = 11246
+|leagueRegion = Wilderness
+}}
+The '''Revenant maledictus''' is the demi-boss variant of the ethereal [[revenant]]s, an undead [[Spectral (attribute)|spectral]] being shrouded in [[Zaros|Zarosian]] power. It has a rare chance to appear whenever any revenant is slain in the [[Revenant Caves]]. It guarantees an [[ancient emblem]] or [[ancient totem]] drop for the top-damaging player, in addition to giving the player the Forinthry Surge buff if they had an [[amulet of avarice]] worn.
+
+==Mechanics==
+===Spawning===
+There is a small chance of the maledictus appearing whenever any revenant is slain in the [[Revenant Caves]]. This chance is calculated each kill with the total accumulated [[combat level]]s of revenants slain by all players on that world, divided by a flat spawn rate. Once the maledictus appears, this chance is reset and the boss is prevented from appearing for 45 minutes, after which the spawn chance begins accumulating once again. 
+
+While the maledictus is active, all players in the cavern will be notified of its presence and given a hint as to where it appeared: northern, middle, or southern areas of the caves. Players in range will also see a flashing arrow on their mini-map pointing to the boss's location, making an encounter with other players all but guaranteed. The maledictus will remain active for 10 minutes{{Citation needed}} before disappearing, if not killed.
+
+The maledictus can spawn in the following areas:
+*[[Revenant cyclops]]/[[Revenant demon]] chamber (north)
+*[[Revenant dragon]]'s chamber (north)
+*Northern [[revenant imp]]'s area (north)
+*[[Revenant hellhound]]'s/old revenants' ruins (middle)
+*Eastern [[revenant pyrefiend]]'s area (middle)
+*Western revenant pyrefiend's chamber (middle)
+*[[Revenant dark beast]]'s chamber (middle)
+*Northern [[revenant ork]]'s chamber (middle)
+*Southern revenant ork's chamber (south)
+*Southern revenant demon's chamber (south)
+*Outside the southern revenant demon's area (south)
+
+===Attacks===
+Despite the caves being [[singles-plus combat]], the maledictus itself is functionally multi-combat; it can be attacked by any number of players, and will attack all players in range simultaneously. The maledictus will cycle through its three special attacks after every few standard attacks, telegraphing each attack with the Zarosian symbol on its back. Protection prayers will reduce damage taken by half. Its attacks are as follows:
+
+* Standard attack: a white, spike-shaped ranged attack.
+* Ice spell: When the symbol glows blue, it will target players' current tiles, then freeze anyone who doesn't move, dealing damage and preventing them from moving or attacking. 
+* Blood spell: When the symbol glows red, it will target players' current tiles, then deal damage and heal itself for half of the total damage dealt.
+* Air surge: When the symbol glows white, it will launch a typeless area-of-effect at one player. The spell explodes outward from where it lands, and deals up to 25 damage to anyone in a 5x5 area, but less near the edges.
+
+===Forinthry Surge===
+Upon death, the top-damaging player wearing an [[amulet of avarice]] will receive the Forinthry Surge ([[File:Skull (Forinthry surge) icon.png]]) skull, which provides an additional 15% accuracy and damage buff against all [[revenants]] for 30 minutes. The Forinthry Surge skull can also be acquired by killing another player who has it, as long as both players are wearing an avarice. Taking the amulet off will remove the buff, while changing worlds will reduce its duration by 1 minute. The equipped amulet can be checked to show the Surge's time remaining.
+
+===Drop mechanics===
+Upon death, the revenant maledictus will reward players appropriately for their efforts:
+
+*The top damaging player will obtain either an [[ancient totem]] or [[ancient emblem]] drop, along with two rolls on the [[revenant dragon]]'s drop table. They will additionally gain the Forinthry Surge buff, provided that they were wearing an [[amulet of avarice]] before it died.
+**Ironmen are eligible for both Forinthry Surge and item drops, as long as they are the top damage dealer.
+*All other players will get one [[blighted super restore]] and two pieces of blighted food drop under them regardless of their location as long as they dealt damage to the boss.
+
+The drop table below has been copied from the revenant dragon and only represents one of two non-guaranteed loot rolls.
+
+{{Revenants/Drops|combat=135|hitpoints=155}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 March 2026
+|update = Easter 2026 & PvP QoL Improvements
+|change = Revenants and the Revenant Maledictus will no longer invalidate Iron accounts from obtaining loot if another player attacks those NPCs. The Iron account will still only receive a drop if they are the MvP (player that dealt the most damage).
+}}
+{{Subject changes
+|date = 9 March 2023
+|update = Even More Poll 78 Changes
+|poll = New Skill: Community Consultation and Poll 78
+|change = Players can now obtain loot from Revenant maledictus even if the player with the most damage has left the cave before the boss died.
+}}
+{{Subject changes
+|date = 10 August 2022
+|update = LMS Game Modes: Pures & Zerks
+|change = Fixed a bug where players could not attack the player that just killed the revenant maledictus.
+}}
+{{Subject changes
+|date = 11 May 2022
+|update = Equipment Rebalance Tier Changes & Poll 76
+|change = The revenant maledictus will no longer despawn in the middle of a fight.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery mode="packed" heights="180" style="text-align:left">
+Revenant maledictus concept art.jpg|Concept art of the revenant maledictus by [[Mod Jerv]].
+Revenant maledictus concept art (early pitch).jpg|Early concept of the revenant maledictus with a PKer-based design, by Mod Jerv.
+</gallery>
+
+===Ideation sketches===
+As Mod Jerv's first project, multiple sketches of the revenant maledictus were drawn in order to learn the game's artstyle.
+
+<gallery mode="packed" heights="150" style="text-align:left">
+Revenant maledictus ideation sketches.png
+Revenant maledictus ideation sketches 2.png
+Revenant maledictus ideation sketches 3.png
+Revenant maledictus ideation sketches 4.png
+</gallery>
+
+==Trivia==
+* "''[[wiktionary:maledictus|Maledictus]]''" is a Latin word meaning "accursed [one]".
+* Its examine text is a reference to ''{{WP|The Lord of the Rings}}''.
+* The design of the revenant maledictus references the visual language of a typical Magic-based player killer: its horns evoke the elongated shoulder pads of a [[mystic robe top]], while the large Zarosian icon carried on its back alludes to the [[ancient staff]].{{CiteReddit|author=Mod Jerv|url=https://www.reddit.com/r/2007scape/comments/10o5d0x/why_wasnt_this_version_of_the_rev_boss_added/j6e00ol/|title=Why wasn't this version of the Rev Boss added instead?!?!|quote=This was mostly a joke suggestion as I thought it’d be fun for the strongest boss there to be based on one of the biggest threats in the Rev caves. But I was pushed to make it a bit more serious. The current boss is more creature like but actually has shape language of a ‘typical magic pker’, with the horns being based on Mystics, and a massive ancient symbol in its back as a nod to the staff.|date=29 January 2023|archiveurl=https://reldo.runescape.wiki/i/105532|archivedate=18 February 2023}}
+
+==References==
+{{Reflist}}
+
+{{Revenant Caves}}
+{{Wilderness bosses}}
+{{Bosses}}
+
+[[Category:Zarosians]]

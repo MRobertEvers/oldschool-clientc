@@ -1,0 +1,698 @@
+{{External|rs}}
+{{Redirect|Cw|the minigame in [[Ferox Enclave]]|Clan Wars}}
+{{Safe activity|pvp=true}}
+{{Infobox Activity
+|name = Castle Wars
+|image = [[File:Castle Wars.png|300px]]
+|release = [[13 December]] [[2004]]
+|update = Castle Wars
+|aka = CW
+|type = Minigame
+|members = No
+|location = West of [[Yanille]] (P2P)<br>
+[[Ferox Enclave]] (F2P)
+|players = 2+
+|skills = [[Combat]]
+|requirements = None
+|currency = [[Castle wars ticket]], [[Plaudits|Plaudit]]
+|tutorial = No
+|music = [[Castle Wars (music track)|Castle Wars]], [[Ready for Battle]]
+|map = {{Map|name=Castle Wars|x=2407|y=3105|zoom=1}}
+|leagueRegion = Kandarin
+}}
+[[File:Castle Wars logo.png|left]]
+{{Relative location
+|location = Castle Wars
+|north = Observatory
+|west = Poison Waste
+|south = Chompy Marsh
+|east = Yanille
+}}
+'''Castle Wars''' is a [[minigame]] released by [[Jagex]] in December 2004. It is similar to {{wp|Capture the Flag}}, but with a ''[[Old School RuneScape]]'' twist. On [[20 July]] [[2017]], it was made [[free-to-play]], and can be accessed via a portal in the [[Ferox Enclave]].
+
+==Transportation==
+Castle Wars is found in the south-west corner of [[Kandarin]] and may be accessed via a number of ways:
+*Teleport using [[Minigame Teleport]], either through any spellbook or the [[Grouping]] interface, by selecting Castle Wars.
+*Using a [[ring of dueling]] to teleport directly there.
+*Travelling west from [[Yanille]] or [[Gu'Tanoth]].
+*The [[Balloon transport system]] has an endpoint just north-east of the entrance.
+*Walking south-west from [[Ardougne]].
+*The [[fairy ring]] code {{Fairycode|BKP}} is just south of Castle Wars.
+*Green [[Castle Wars portal]] just outside [[The Old Nite]] in east part of [[Ferox Enclave]].
+*South-West corner of the [[Grand Exchange]], speak to the [[Saradominist recruiter|Saradominist]]  or [[Zamorakian recruiter]].
+
+===Main lobby===
+Players waiting in the main lobby will find a bank chest, as well as [[Lanthus]], the manager of the minigame. Players can exchange tickets with Lanthus for rewards. Players can also disable Combat XP with Lanthus.
+
+The [[ring of dueling]] will take players to the main lobby, and is commonly used as a quick teleport to a bank.
+
+==Official worlds==
+The following [[Server#Themed servers/worlds|official worlds]] are assigned to Castle Wars:
+
+{| class="wikitable sortable" style="text-align: left;"
+!World
+!Location
+!Members
+!Activity
+{{WorldLine|334|United Kingdom|mems=yes|Castle Wars 1}}
+{{WorldLine|354|United States (east)|mems=yes|Castle Wars 2}}
+{{WorldLine|383|Germany|mems=no|Castle Wars - Free}}
+|}
+
+==Gameplay==
+[[File:Castle Wars map.png|350px|thumb|A detailed map of the Castle Wars Minigame]]
+The aim of the game is to take the enemy's standard (flag) from their castle and return it to the standard in your own castle, gaining one point each time. You must prevent the opposing team from taking your flag by blocking them from your castle (place [[barricade]]s, lock doors or collapse tunnels underground), or by killing them. Slain players will [[respawn]] in the starting area within the game, so both sides are constantly fighting with a near (if not totally) equal numbered team. This is a safe game, so if you die, you will '''not''' lose items. Each game lasts for 20 minutes, and the team with the most points at the end of the game is declared the winner. You will gain some rewards, as explained in the next section. To have more success in Castle Wars, it is better to have a higher [[Combat level]], but lower level players can focus on the defensive measures mentioned below.
+
+===Restrictions===
+The only items allowed inside the Castle Wars area are Castle Wars tickets, [[potions]], [[runes]], and [[Combat]]-related items such as [[armour]]—with the exception of scarves and [[capes]]. [[Food]] cannot be brought in, but [[bandages]] can be obtained within the arena, which are used to heal players in the same way as food. [[Alchemy spells]] and [[Enchantment spells#Enchanted gold and silver jewellery|jewellery enchantment spells]] cannot be used during the game. [[Lunar spells]] such as [[Heal Other]] and [[Cure Me]] can not be used during the game. The [[Dwarf multicannon]] cannot be brought into Castle Wars. Originally, players were allowed to bring their pet [[cat]]s into the arena, but after many players complained, [[Jagex]] removed this ability.
+
+Since this is a safe [[mini-game]], '''players do not have to worry about dying because they will not lose their items'''. Unlike the [[Emir's Arena]], [[arrows]] will not be returned after each match. It is the player's responsibility to pick up any projectiles fired if they choose to do so. However, if [[Ava's device]] is used on [[Lanthus]] before a player enters the game, he will collect ammunition for the player.
+
+Wearing equipment associated to any of the three gods can invoke funny behaviour in the [[Castle Wars#Waiting area|waiting area]], but this does not affect the game itself.
+
+Ironmen are not able to gain any combat xp inside Castle Wars. However, ironmen can gain magic xp from splashing if they use their own runes in place of a rune pouch. 
+
+===The castles===
+The large square formation covering most of the map is the actual arena. Inside the arena, there are two smaller castles, one for each team. There are four levels to a castle. The {{FloorNumber|uk=0}} has two outer walls facing into the arena, one with a [[Large door (Castle Wars)|large door]] that can be attacked and broken down (or [[barricade]]d by the defending team) and another with a [[Door (Castle Wars)|smaller door]] that can be pick-locked (or locked by the defending team). The battlements on the {{FloorNumber|uk=0}} are accessible via a staircase near the small door, and there is a catapult on top of the outer wall. Within the walls, there is a staircase leading to the battlements, a staircase leading to the second level, a ladder leading to the second level, and a ladder leading to the underground passages. There are tables where [[climbing rope]]s, [[rock]]s, [[barricade]]s, [[pickaxes]], [[Toolkit (Castle Wars)|toolboxes]], [[bucket]]s, [[Rune pouch (Castle Wars)|rune pouches]], and [[explosive potion]]s are attainable. There is a [[Tap (Castle Wars)|tap]] and a [[tinderbox]] respawn. When players die, they are returned to a respawn room in the appropriate castle.
+
+====Second level====
+The {{FloorNumber|uk=1}} contains a passage bent at a right angle, enveloping that team's spawn room, which is only accessible to the castle's team. There is a staircase leading to the next level. Inside the spawn room, there is a [[bandage]] table, a [[tinderbox]] respawn, a ladder leading to the next level, and a portal to leave the current game. This is a common place to put barricades in to slow down potential flag thieves.
+
+====Third level====
+The {{FloorNumber|uk=2}} has a small inside wall enveloping a trapdoor that leads down to that castle's spawn room. The trapdoor is only usable by that castle's team. There is a one-square-wide passage around this wall. A staircase leading to the highest level is located against one of the walls. This is where you will commonly see people standing AFK to get passive rewards without contributing to the game.
+
+====Fourth level====
+The highest floor contains only a standard stand, which may or may not hold that castle's team's standard, depending on whether the enemy team has taken the standard or not.
+
+====Underground====
+The underground passage level can be accessed by two ladders in the middle of the arena or by a ladder from either team's castle. Either castle's ladder is located at opposite ends of the underground area, each with two passages towards the central cavern. At the mouth (facing the centre area) of each passage, there is a deposit of rocks which may be removed or replaced with [[explosive potion]]s or [[pickaxes]]. The central area is a small castle that has two ladders leading up to the centre of the arena's ground level. This area can be used for [[ranging]] and [[maging]].
+
+==Rewards==
+{{Listen
+|title = [[Victory! (Castle Wars)|Victory!]]
+|desc = You are victorious!
+|filename = Victory! (Castle Wars).ogg}}
+{{Listen
+|title = [[Draw. (Castle Wars)|Draw.]]
+|desc = You have met your equal.
+|filename = Draw. (Castle Wars).ogg}}
+{{Listen
+|title = [[Slaughtered... (Castle Wars)|Slaughtered...]]
+|desc = You were slaughtered...
+|filename = Slaughtered... (Castle Wars).ogg}}
+On dedicated Castle Wars worlds, members will earn one [[Plaudits|plaudit]] for every [[Castle Wars ticket]] earned. One plaudit can be exchanged with [[Lanthus]] for one [[Castle Wars supply crate]].
+
+The following ticket rewards for each game scenario are as follows:
+* Castle Wars worlds:
+#Shut-out win (1-0) = 4 tickets to winning team, 2 tickets for losing team.
+#Regular win (2-1) = 3 tickets to the winning team, 2 tickets for the losing team.
+#Scoreless Draw (0-0) = 2 tickets for both teams.
+#Draw with points (1-1) = 3 tickets for both teams.
+* Non-Castle Wars worlds:
+#Shut-out win (1-0) = 3 tickets to winning team, 1 ticket for losing team.
+#Regular win (2-1) = 2 tickets to the winning team, 1 ticket for the losing team.
+#Scoreless Draw (0-0) = 1 tickets for both teams.
+#Draw with points (1-1) = 2 tickets for both teams.
+
+At least 15 minutes spent in the game is required to earn tickets and plaudits. Players will not receive tickets if they have no available inventory slots.
+
+The tickets and all of the rewards are '''untradeable'''.
+
+
+
+Tickets can be spent at the [[Castle Wars Ticket Exchange]] for the rewards below.
+
+{|class="wikitable mw-collapsible align-left-2 sortable" style="text-align:center;"
+! colspan="4" | Castle Wars Ticket Exchange
+|-
+! colspan="2" | Item
+!Price
+!Members
+|-
+|{{plinkt|Decorative full helm (red)|txt=Red decorative full helm}}
+|{{Currency|Castle wars ticket|{{+=|ttl|5|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative helm (red)|txt=Red decorative helm}}
+|{{Currency|Castle wars ticket|{{+=|ttl|4|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative armour (red platebody)|txt=Red decorative body}}
+|{{Currency|Castle wars ticket|{{+=|ttl|8|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative armour (red platelegs)|txt=Red decorative legs}}
+|{{Currency|Castle wars ticket|{{+=|ttl|6|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative armour (red plateskirt)|txt=Red decorative skirt}}
+|{{Currency|Castle wars ticket|{{+=|ttl|6|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative boots (red)|txt=Red decorative boots}}
+|{{Currency|Castle wars ticket|{{+=|ttl|4|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative shield (red)|txt=Red decorative shield}}
+|{{Currency|Castle wars ticket|{{+=|ttl|6|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative sword (red)|txt=Red decorative sword}}
+|{{Currency|Castle wars ticket|{{+=|ttl|5|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative full helm (white)|txt=White decorative full helm}}
+|{{Currency|Castle wars ticket|{{+=|ttl|40|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative helm (white)|txt=White decorative helm}}
+|{{Currency|Castle wars ticket|{{+=|ttl|40|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative armour (white platebody)|txt=White decorative body}}
+|{{Currency|Castle wars ticket|{{+=|ttl|80|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative armour (white platelegs)|txt=White decorative legs}}
+|{{Currency|Castle wars ticket|{{+=|ttl|60|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative armour (white plateskirt)|txt=White decorative skirt}}
+|{{Currency|Castle wars ticket|{{+=|ttl|60|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative boots (white)|txt=White decorative boots}}
+|{{Currency|Castle wars ticket|{{+=|ttl|40|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative shield (white)|txt=White decorative shield}}
+|{{Currency|Castle wars ticket|{{+=|ttl|60|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative sword (white)|txt=White decorative sword}}
+|{{Currency|Castle wars ticket|{{+=|ttl|50|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative full helm (gold)|txt=Gold decorative full helm}}
+|{{Currency|Castle wars ticket|{{+=|ttl|500|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative helm (gold)|txt=Gold decorative helm}}
+|{{Currency|Castle wars ticket|{{+=|ttl|400|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative armour (gold platebody)|txt=Gold decorative body}}
+|{{Currency|Castle wars ticket|{{+=|ttl|800|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative armour (gold platelegs)|txt=Gold decorative legs}}
+|{{Currency|Castle wars ticket|{{+=|ttl|600|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative armour (gold plateskirt)|txt=Gold decorative skirt}}
+|{{Currency|Castle wars ticket|{{+=|ttl|600|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative boots (gold)|txt=Gold decorative boots}}
+|{{Currency|Castle wars ticket|{{+=|ttl|400|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative shield (gold)|txt=Gold decorative shield}}
+|{{Currency|Castle wars ticket|{{+=|ttl|600|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative sword (gold)|txt=Gold decorative sword}}
+|{{Currency|Castle wars ticket|{{+=|ttl|500|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Castlewars hood (Zamorak)}}
+|{{Currency|Castle wars ticket|{{+=|ttl|10|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Castlewars cloak (Zamorak)}}
+|{{Currency|Castle wars ticket|{{+=|ttl|10|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Castlewars hood (Saradomin)}}
+|{{Currency|Castle wars ticket|{{+=|ttl|10|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Castlewars cloak (Saradomin)}}
+|{{Currency|Castle wars ticket|{{+=|ttl|10|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Saradomin banner}}
+|{{Currency|Castle wars ticket|{{+=|ttl|100|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Zamorak banner}}
+|{{Currency|Castle wars ticket|{{+=|ttl|100|echo=2}}}}
+|{{Members|No}}
+|-
+|{{plinkt|Decorative armour (magic hat)|txt=Decorative magic hat}}
+|{{Currency|Castle wars ticket|{{+=|ttl|20|echo=2}}}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Decorative armour (magic top)|txt=Decorative magic robe top}}
+|{{Currency|Castle wars ticket|{{+=|ttl|40|echo=2}}}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Decorative armour (magic legs)|txt=Decorative magic robe legs}}
+|{{Currency|Castle wars ticket|{{+=|ttl|30|echo=2}}}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Decorative armour (ranged top)|txt=Decorative ranged top}}
+|{{Currency|Castle wars ticket|{{+=|ttl|40|echo=2}}}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Decorative armour (ranged legs)|txt=Decorative ranged legs}}
+|{{Currency|Castle wars ticket|{{+=|ttl|30|echo=2}}}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Decorative armour (quiver)|txt=Decorative quiver}}
+|{{Currency|Castle wars ticket|{{+=|ttl|40|echo=2}}}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Saradomin halo}}
+|{{Currency|Castle wars ticket|{{+=|ttl|75|echo=2}}}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Zamorak halo}}
+|{{Currency|Castle wars ticket|{{+=|ttl|75|echo=2}}}}
+|{{Members|Yes}}
+|-
+|{{plinkt|Guthix halo}}
+|{{Currency|Castle wars ticket|{{+=|ttl|75|echo=2}}}}
+|{{Members|Yes}}
+|-
+! colspan="2" |'''Total'''
+|{{Currency|Castle wars ticket|{{#var:ttl}}}}
+|}
+
+==Features of the arena==
+===The catapult===
+[[File:Catapult controls (Castle Wars).png|thumb|Controlling the catapult.]]
+One [[Catapult (Castle Wars)|catapult]] is located in each team's castle. Players may use the catapult if they have ammo, which they can obtain from tables on the {{FloorNumber|uk=0}}. After players have ammo, they can operate the catapult by clicking on it. A display will open up and players must then choose the X and Y coordinates of where they wish to fire; however, often, the shot will not go exactly where you aim. The highest X and Y coordinates are (30,30). All players within the 5x5 area of impact will take between 5 and 15 points of damage, regardless of which team they are on or how close to the centre of impact they were. Catapults can be destroyed by the enemy team using a [[tinderbox]] or an [[explosive potion]]. A [[Toolkit (Castle Wars)|toolkit]] can fix a broken catapult. A catapult that is on fire may be put out with a bucket of water. A good tactic with the catapult is to simply continue firing the catapult at coordinates (0,0). Be careful when using the catapult, because it is possible to harm and even kill your own teammates with it, so be on the look out for renegade flying rocks!
+
+===Stepping stones===
+These are located in the north-east and south-west points of the river. Players can jump from stepping stone to stepping stone to cross the river in the middle of the arena. The stepping stones have many uses—one main use is to escape the enemy team while capturing the flag. If the flag is dropped while standing on stepping stones, it returns to the base. Players were once able to evade [[Ancient Magicks]] [[ice spells]] by crossing these stepping stones, but this was changed so that [[bind]] spells now prevent you from crossing the stones.
+
+===Collapsible rocks===
+The collapsible rocks are located in the caves below the arena. Using a [[pickaxe]] or an [[explosive potion]], players may collapse the walls and fill the cave passageway with rocks, so that players may not pass. To get past the collapsed rocks, players must use either two explosive potions or a pickaxe or both. If rocks are collapsed on top of a player, they will die immediately. This is an excellent trick if you are running through the tunnels with the flag, as it gets rid of many chasers and blocks the rest, but they could also kill you. The best trick to use is when it's clear, put a [[barricade]] on one side of you and put one under you. Therefore, the player doesn't see it under you, and when they go to attack you they actually attack the barricade, and then, you can use an explosive potion on the wall, killing them.
+
+Some useful tactics are:
+*A player bring a [[Dragon spear]]; another player has an explosive potion. The player with a dragon spear uses its [[special]] to push someone into the rockslide area. Another player then collapses the area.
+*Placing a barricade beneath you negates any dragon spear effect on you from another player from the opposing team.
+*If there is a barricade beneath you while a player tries to cross, he will be trapped in the rockslide area, which you can either immediately collapse or slowly mine.
+*In the caves, the most popular cave tunnel is the one on the right when coming down the ladder in a castle. The least popular is the one on the left.
+
+==Useful battle tactics==
+Firstly it is highly recommended to use multiple [[Castle wars bracelet]] and your [[Ava's device]] on [[Lanthus]] so that you receive the healing, damage and ammo collection bonuses from these in your games.
+
+The battle tactics in castle wars vary. Most of the time, each team will have multiple wielders of [[Ancient Magicks]]. These spells are often used to defend the castle from potential flag stealers or by slowing down attackers by freezing them with [[ice spells]].
+
+All combat styles are viable as a [[Rune pouch]] with unlimited runes is provided and you can receive ammo from a [[Castle wars supply crate]] which is an additional reward than a regular [[Castle wars ticket]].
+
+Mages and rangers tend to stand inside the castle near the spawn room, or outside on top of the castle near the catapult where they can see enemies storming the castle to capture the flag. They can then strike down potential threats from the safety of the wall.
+
+Lower-level players can stay in the underground with a [[pickaxe]] and collapse the tunnels with [[explosive potion]]s with their pickaxes. Normally, they will wait for the person to walk under the tunnel when trying to attack them and then collapse the tunnel, instantly killing the other player.
+
+Commonly the majority of players tend to stand AFK in the room under the flag room and hope for draws with little effort involved, this can be taken advantage of as you can just ignore them and take the flag to score without much interruption for additional [[Castle wars ticket|Castle wars tickets]].
+
+A suggestion if you intend to collect the enemy flag and score is to swap to high magic defence armour such as [[Karil's leathertop]] and [[Karil's leatherskirt]]. It is suggested before you leave the base to grab 5-6 [[Explosive potion|Explosive potions]] to quickly get past enemy barricades or fallen rocks, 2-3 [[Barricade|Barricades]] to drop behind you when the enemy is chasing you, 2 [[Castlewars brew|Castlewars brews]] to upkeep overhead prayers and a increased magic prayer such as [[Augury]] to ensure less freezing/binding spells land and the rest [[Bandages]] (These have no cooldown and can be used on other players).
+
+If you manage to kill the enemy flag carrier with your teams flag outside your base you can hold the flag as it will not reset and hide near the stepping stones or underground making it harder for the enemy to score as they have to kill the player first. Rings that morph you such as a [[Ring of stone]] could be useful here as they disguise you as a rock and change your left click to [[Walk here]] instead of attack, they have often been used for as long as castle wars has been around.
+
+==The teams==
+To join a team, either enter the red portal (for [[Zamorak]]) or the blue portal (for [[Saradomin]]). There is a possibility that the team you are trying to enter has too many people, so to keep the teams balanced, you may not join it at that time. However, if you enter the green portal (for [[Guthix]]) you are included in the team with either the fewest number of people, or the lowest score. On dedicated Castle Wars worlds, only the green portal can be used, and it will randomly assign everyone to a team upon the start of the game.
+
+===Waiting area===
+For each team, there is an underground cavern where they can wait until the next game starts. The time until the next game is displayed near the top of the screen in white print.
+
+The time to wait is always five minutes longer than the current game lasts, so if a game has 12 minutes left, the time to wait in the waiting area is 17 minutes. When a game has just finished, the next game will start in five minutes. '''Note:''' Outside the recommended Castle Wars Worlds, the time to wait between games is 2 minutes.
+
+One can leave through the portal of the god's colour located inside the waiting area. A spot may open up on occasion if a game is currently under way, in which case all players in the corresponding waiting room will be asked if they wish to join the current game. A free spot will open up if the sum of all combat levels on a team is 60 levels lower than the total of the opposing team's players.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/541986910374486016|date=8 December 2014|archiveurl=https://reldo.runescape.wiki/i/109360|archivedate=22 April 2023|quote=A vacancy is defined as "total on team A is 60 lower than total on team B", regardless of your actual level.}}
+
+Also, if players are wearing armours or [[Prayer]] symbols/[[Prayer book|books]] of the three [[gods]] ([[Saradomin]], [[Guthix]], [[Zamorak]]), Saradomin will turn a player into a [[Rabbit (Castle Wars)|rabbit]] if they are wearing a Zamorak or Guthix symbol or armour when entering his portal; Guthix will turn them into a [[Sheep (Castle Wars)|sheep]] if they are wearing a Saradomin or Zamorak symbol or armour upon entering its portal; and Zamorak will turn them into an [[Imp (Castle Wars)|imp]] if they are wearing a Saradomin or Guthix symbol or armour when entering his portal. Players transformed into a rabbit, sheep or imp cannot perform any tasks. They also cannot view menu screens other than private and public [[chat]], [[music]] and [[settings]]. However, when the waiting period elapses and the game starts, the player will be turned back to normal.
+<gallery captionalign="center" widths="120">
+Sheep (Castle Wars).png|[[Sheep (Castle Wars)|Sheep]]
+Rabbit (Castle Wars).png|[[Rabbit (Castle Wars)|Rabbit]]
+Imp (Castle Wars).png|[[Imp (Castle Wars)|Imp]]
+</gallery>
+
+==Tools==
+There are a number of special items that players can pick up while playing Castle Wars. These items are free and respawn immediately; however, they disappear once the game you are playing is over.
+
+Also, if you choose to teleport back to the waiting area during a current game with these items in your inventory, you used to be able to keep them until you either entered the game and used them, or left the waiting room. However, [[Jagex]] recently changed this, so the only item you keep when you exit the game is a [[tinderbox]].
+
+===Barricades===
+[[File:Castle Wars barricades.png|thumb|340px|Player setting up barricades to slow down enemies trying to reach the flag.]]
+These can be picked up on one of the tables on the {{FloorNumber|uk=0}} of the castles. [[Barricade]]s can be placed anywhere in the arena, and they are used to "block" the opposing team, hindering their ability to capture your flag. When somebody tries to walk around the barricade, the player must manually click to walk around it, otherwise he will be stuck.
+
+'''Note:''' On the recommended Castle Wars worlds, players need at least 500 skill total to set up barricades. Players without that level can use the barricades on other worlds. Also on Castle Wars worlds, each team has a limit of 10 barricades in their base and 7 barricades outside their base.
+
+If barricades are set up at the ends of the stairs, it will only allow one way direction transport only; for example, if a player is going up a stairs and the other end is being block by barricades, the player can still go back up/down without leaving the stairs end or go through the barricade without destroying the barricade for the first time. However they cannot go back up/down to the stairs after leaving the stairs end, unless the barricades has been destroyed.
+
+Barricades can be destroyed by setting them on fire, by manually attacking them, or by using an [[explosive potion]]. One of the downsides to setting up barricades is that a team can only set up 10 at a time and it also blocks the way of friendly forces.
+
+===Other useful tools===
+Other tools which can be outside Castle Wars or can be obtained in Castle Wars are:
+*[[Bandages]] - Heal 10% of your total [[Hitpoints]] level, rounded down (for example, if your Hitpoints level is 74, you get healed 7 points for every bandage), cure [[poison]], and increase energy by 30%. Can be used on other players of the same team. Players may stock up on these greatly and become medics for their team, breaking off and hiding near where they might be needed.
+*[[Climbing rope]]s - Used to scale the battlements on the other team's castle. These ropes are one way (in other words, you can't climb down them, only up) and can not be cut off. Some people will sabotage the other team's wall by getting a full inventory of ropes and running to the other team's wall. They will try and set up as many ropes as they can on the wall before being attacked and killed. Some attack the catapult by setting up rope next to the enemy, climbing up and blowing the catapult up.
+*[[Bronze pickaxe|Pickaxes]] - For collapsing the underground cave walls to block the enemy. They are also used to clear the way through the collapsed walls. Players typically wait at the rocks and try to time their collapse perfectly as to hit a player trying to run through, although this is easier with [[explosive potion]]s. Barricades may be used in combination with the walls to guarantee the player will have difficulty getting though. Some people bring their own pickaxe, like rune, to clear rocks/collapse tunnels faster.
+*[[Tinderbox]]es - For setting fire to barricades and catapults. The primary use for the tinderbox is to give barricades temporary immunity from explosive potions, as a burning barricade cannot be exploded. The fires can be put out by [[Bucket of water|buckets of water]]. It is typically good practice to have a [[tinderbox]] in your inventory regardless of your choice of "profession" in your game, whether you're a cleric, warrior, or anything else.
+*[[Bucket]]s - Fill them with [[water]] at the faucet, and the bucket of water is usable to put out anything on fire. These are almost never used though due to the fact that they must be refilled every time they are used and the person that set the fire can easily relight it.
+*[[Toolkit (Castle Wars)|Toolkits]] - Used to repair broken catapults or doors.
+*[[Castlewars brew]] - Provides the boosts from a [[super combat potion]], a [[ranging potion]], and [[imbued heart]] at once.
+*[[Explosive potion]] - Used to blow up barricades—unlike tinderboxes, they can only be used once. Also, they're used to collapse the cave walls instantly, killing any person running under. If dropped, this potion explodes and deals 15 damage to the player who dropped it (not anyone else). When damaged by this potion, the player also says, ''"Ow!"''.
+*[[Hooded cloak]] - Apart from being used to identify which team the player is on, this item can also be used to teleport back to the starting room by using the "Surrender" option (when hitpoints are below 15%), fully replenishing the player's health, [[Prayer]] and run energy.
+*[[Rock (Castle Wars)|Rocks]] - Used to fire the catapult.
+*[[Castle wars bracelet]] - Made by [[Lvl-2 Enchant|enchanting]] an [[emerald bracelet]]. The wielder will do an extra 20% of damage against a bearer of their side's flag. Castle wars bandage also heal 50% more to wielders of the bracelet (15% of health instead of 10%). To obtain the effects of the bracelet, it must be worn as the player enters the game from the waiting room. It may then be removed while retaining its advantages. Alternatively, they can be stored at [[Lanthus]] to automatically gain the effects of the bracelet each game, although a charge will still be used for each game this is recommended to save on inventory space.
+
+==Positions==
+*Attackers: Players who storm the enemy castle either to attack other players or try to capture the flag and bring it back to their own castle.
+*Defenders: Players who defend the flag on the {{FloorNumber|uk=2}} or {{FloorNumber|uk=3}} keeping the enemies from getting a point. Those with [[freeze spells]] make good defenders as they can freeze opponents trying to run upstairs. Barricaders may also fall into this category.
+*Archers: Players that are located on the outer wall near the catapult that attack incoming enemies players. They may either be [[Ranged|rangers]] or [[mage]]s.
+*Medics: Players who use [[bandages]] to heal other players.
+*Catapulters: Players who attack incoming enemies using the catapult.
+*Door men: Players who keep on closing the door on incoming enemies stopping them from coming in and leaving.
+*Barricades or Engineers: Players who set up [[barricade]]s slowing enemy players down from taking the flag.
+*Miners: Players who go down in the dungeon and clear the way for their team and setting up collapsible rocks on the enemies. They may also try to repeatedly collapse rocks on enemies.
+*Flag holder: A player who grabs their own flag after an enemy player has dropped it outside their castle and then holds on to it. This player should have a high [[Defence]], [[Magic]], and [[Hitpoints]] level and be experienced in [[Combat]].
+*Leechers: The many players who stand AFK and don't contribute to the game hoping for passive tickets to unlock collection logs and other rewards.
+
+==Flag holding==
+[[File:Saradomin flag.png|right|120px]] [[File:Zamorak flag.png|right|120px]]
+Flag holding is a tactic used by teams to ensure that the opposing team is unable to score points. This consists of a player grabbing their own flag after an enemy player has dropped it outside their castle and then holding on to it, rendering the opposing team unable to pick it up. To retrieve the flag, the opposing team needs to defeat the player holding the flag and pick it up.
+
+When the opposing team has taken a team's flag, the team wait until their enemy is outside the castle and kill them, taking their own team flag in the process (if the flag is dropped inside the castle, attempting to pick it up will result in it being moved back to the standard stand).
+
+A player cannot go into the base when holding their teams standard (flag). This includes climbing up from the ladder underneath the supply room.
+
+The ''"Take From"'' player option allows you to take the enemy flag from your team-mates approximately every 3 minutes of possession, after which it becomes possible for others to take it from you as well.
+
+===Flag-holding tactics===
+The flag is often taken to a corner of the field with some players protecting it, as a player can be easily protected using two [[barricade]]s, using the walls as defence from the other two sides.
+
+Another tactic is to hide underground, next to the collapsible walls. The flag holder can then use an [[explosive potion]] or a [[pickaxe]] to collapse the walls when their enemies try to reach them, thus killing them. One ingenious way of using this method is by placing barricades on the spaces where you can collapse the walls. The flag holder stands in one of the barricades—they put it down, then don't move. This way, if a player tries to attack the flag holder, the flag holder can simply collapse the tunnel. The attacker, having no way to move out of the way, dies. The only way they can reach you is by going around the other tunnel.
+
+The player that holds the flag will often be someone with high [[Hitpoints]], high [[Defence]] and defensive bonuses, or someone with a high [[Magic]] level or [[Ancient Magicks]], as players with high-levelled Magic or Ancient Magicks can use [[spells]] such as [[Entangle]], [[Ice Burst]], or [[Ice Barrage]] to immobilise the enemy flag stealers without the need to hold a weapon. This is advantageous as they can protect themselves using Magic, whereas a player using [[Ranged]] will be unable to attack as they will be holding the flag, and a player using [[Melee]] will have their attack power compromised by holding the flag, as they will have to use the flag as their weapon. The flag gives no bonuses to [[Attack]], [[Defence]], [[Strength]] or [[Prayer]], and has the same [[attack style]]s as a spear.
+
+The player will attempt to stay alive for as long as possible, often with a group of players acting as bodyguards. Donating bandages and other supplies to the flag holder may also prove useful.
+
+Another good tactic of holding the flag is to go to the enemy's castle, go behind the table with the barricades, and get a full stock of them. Set up two barricades on both sides of the table, and there will be no way to get attacked, unless the other team destroys the barricades.
+
+===Flag holder killing tactics===
+In big Castle Wars games, most players will pile onto the enemy flag carrier and hope to overwhelm the carrier. However, there are three significant ways to limit the flag carrier's mobility.
+
+=====Ice Barrage=====
+Perhaps, the most common is [[Ice Barrage]], easily stopping the flag carrier's ability to move if it lands. Ice Barrage is the most effective method, but it has the highest level requirement (level 94 [[Magic]]).
+
+=====Dragon spear=====
+The [[dragon spear]] has a special attack, ''Shove'', that [[Stun (status)|stuns]] the enemy and moves them one square backwards. There are no requirements other than 60 [[Attack]] to wield the dragon spear.
+
+=====Jade bolts (e)=====
+The least common method is the use of the [[Jade bolts (e)]] passive ''Earth's Fury'', which knocks down the victim when it lands. Low level players who cannot deal high damage but still want to be useful might try this tactic to [[Stun (status)|stun]] the carrier to give the higher level players more time to kill the carrier.
+
+===Flag states===
+{|class=wikitable
+!Colour
+!State
+|-
+!Red
+|Taken
+|-
+!Yellow
+|Dropped
+|-
+!Green
+|Safe
+|}
+
+===Views===
+Some players have argued that this stops the fun, as it stops the game from being "Capture the Flag" and turns it into a "Hunt and Kill" game. They argue that flag-holding is basically unfair as if a high-level player gets the flag, they consider the game to be essentially over, especially if their team does not have a player of matching [[Combat]] ability.
+
+Following an update, [[Jagex]] tried to address this by creating the [[Castle wars bracelet]]. Castle wars bracelets work for three games and are then destroyed. While wearing the bracelet at the start of a game, players will deal 20% more damage to the holder of their flag and receive 50% extra healing from [[Bandages|bandages]].
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 March 2026
+|update = Easter 2026 & PvP QoL Improvements
+|change = * Outside designated Castle Wars worlds, barricades will always appear under players. On designated worlds, they will continue to appear on top of other players.
+* On non-designated Castle Wars worlds, bandages will heal a maximum of 18 hitpoints.
+* Added a toggle to disable Combat XP by speaking to Lanthus
+}}
+{{Subject changes
+|date = 27 August 2025
+|update = Summer Sweep Up Slayer & More
+|change = * The [[Dragon spear|dragon]] and [[Zamorakian spear]] [[special attack]]s in Castle Wars now use their original shove mechanics, with chain-spearing disabled and no added freeze immunity outside the shove.
+* [[Bandages]] no longer overheal in games of Castle Wars on non-Castle Wars themed [[Server|worlds]].
+}}
+{{Subject changes
+|date = 30 July 2025
+|update = Varlamore: Bug Fixes & More
+|change = Castle Wars barricades now render over players if they're in the same tile, by default.
+}}
+{{Subject changes
+|date = 29 May 2025
+|update = Yama CAs & More!
+|change = Players entering through the Guthix portal at Castle Wars will now be randomly assigned a team at the start of each game. Leaving and rejoining the waiting room won’t change your team - your assignment only resets when a new game begins.
+}}
+{{Subject changes
+|date = 16 April 2025
+|update = Easter Event
+|change = Autocast settings are now remembered when gear switching in Castle Wars.
+}}
+{{Subject changes
+|date = 9 April 2025
+|update = Farming & Autocast QoL Improvements
+|change = * [[Castle wars supply crate]]s have been re-enabled and contain the following changes:
+** Coins and runes have been removed.
+** Untradeable [[Castle wars arrow|arrows]] and [[Castle wars bolts|bolts]] have been added that are exclusively for use in Castle Wars.
+* The chat message telling you that you cannot attack a teammate in Castle Wars is now filtered.
+* The [[Rune pouch (Castle Wars)|Castle Wars rune pouch]] will now enable free casts of [[Humidify]].
+* Logging out and back in a game of Castle Wars will no longer introduce another rune pouch into your inventory.
+* The new barricade cap restricting teams to 7 barricades outside and 10 inside the base now only applies on dedicated Castle Wars [[Server|worlds]].
+}}
+{{Subject changes
+|date = 4 April 2025
+|update = Poll 83: Castle Wars Update
+|type = hotfix
+|change = Redeeming plaudits for Castle Wars supply crates has been temporarily disabled.
+}}
+{{Subject changes
+|date = 2 April 2025
+|update = Poll 83: Castle Wars Update
+|poll = Poll 83 - Castle Wars, New Player Changes & More
+|change = Dedicated Castle Wars world changes:
+
+* You can now only enter through the Guthix (green) portal to ensure more balanced teams.
+* Players will now earn 1 additional [[Castle wars ticket]] for participating in a game.
+* On members worlds, players are now granted [[plaudit]]s alongside tickets which can be used to purchase [[Castle Wars supply crate]]s via [[Lanthus]].
+
+All Castle Wars world changes:
+
+* The [[Castlewars brew]] now also applies the effects of a [[stamina potion]] and [[super restore]] when consumed. 
+** The reduction in [[run energy]] depletion associated with stamina potions won't occur on [[free-to-play]] [[Server|worlds]].
+* [[Head slot table|Helmets]] can now be worn in Castle Wars, enabling the use of [[Passive_effect#Equipment_sets|equipment set effects]].
+* [[Bandages]] now scale with your [[Hitpoints]] level and can overheal, similar to [[anglerfish]].
+* [[Castle Wars bracelet]]s can now be handed to Lanthus to store charges, automatically consuming one per game.
+* You can now use [[Blighted|blighted food]] and cast [[Vengeance]] with [[blighted rune sack]]s while in the Castle Wars lobby.
+* Players now receive a [[Rune pouch (Castle Wars)|rune pouch]] when entering Castle Wars, providing unlimited [[rune]]s for select [[spell]]s. 
+** These spells do not grant [[Magic]] [[experience]] when cast. To earn full Magic experience, players must provide their own runes.
+* A new barricade cap on dedicated Castle Wars worlds restricts teams to 7 barricades outside and 10 inside the base.
+* Barricades placed now have a coloured rope to indicate what team they belong to.
+* Barricades can now be placed in front of the respawn barriers.
+* A new element has been added to the Castle Wars Heads-Up Display, showing the number of barricades your team has placed both inside and outside your base.
+* Small walls have been added to the stairs and ladder at the respawn point, allowing players to range over them and create more strategic barricade placements.
+* On non-Castle Wars worlds, players within Castle Wars will be able to shove targets back-to-back using the [[dragon spear]] and [[Zamorakian hasta]] [[special attack]]s.
+* There is now a table with [[bucket]]s in the supply room where the bucket spawn used to be.
+* Fixed a bug where the player's overhead yellow arrow would not disappear after depositing the flag.
+}}
+{{Subject changes
+|date = 13 September 2023
+|update = The Path of Glouphrie
+|poll = 
+|change = [[Locator orb]]s can now be brought into the minigame.
+}}
+{{Subject changes
+|date = 12 August 2021
+|update = Tombs of Amascut: Rewards Beta
+|change = On the recommended Castle Wars Worlds, players now need a skill total of 500 or more if they want to set up barricades. Players without that level are welcome to use the barricades on other worlds.
+}}
+{{Subject changes
+|date = 17 March 2021
+|update = Shooting Stars
+|change = * Potion supply tables have been placed in the starting room for each respective game in Castle Wars.
+* A new notification has been added to the game, directing players to Castle Wars worlds.
+* Players can no longer trade members of the opposite team.
+* Players may no longer hop worlds and re-join Castle Wars games (logging in and out in the same world remains unaffected).
+}}
+{{Subject changes
+|date = 13 January 2021
+|update = God Wars Instancing and Soul Wars Improvements
+|change = The Castle Wars scoreboard now includes a counter showing how many games you've played.
+}}
+{{subject changes
+|date = 2 December 2020
+|update = Settings Rework and the last of Poll 73
+|poll = Old School Content Poll 73: The :Joy: of Polls
+|change = Boots and full helms were added to the existing decorative armour rewards.
+}}
+{{subject changes
+|date = 19 March 2020
+|update = Last Man Standing Changes
+|change = The Zamorak castle in Castle Wars now has the same battlement options as the Saradomin castle, rather than having extra places to climb the wall.
+}}
+{{subject changes
+|date = 5 March 2020
+|update = Phosani's Nightmare and Tinted Hitsplats
+|change = On the three official worlds, the preparation time has been increased from two minutes back to five.
+}}
+{{Subject changes
+|date = 27 February 2020
+|update = Game Improvements and Email Linking for Mobile Accounts
+|type = 
+|change = The preparation time has been reduced from five minutes to two.
+}}
+{{Subject changes
+|date = 4 January 2018
+|update = Dragon Slayer II
+|change = Players may bring their own tinderboxes into Castle Wars if they wish, though they are still confiscated on exit as there are free ones in there.
+}}
+{{Subject changes
+|date = 20 July 2017
+|update = F2P Castle Wars
+|poll = Old School Content Poll 54: Binding spells, F2P Castle Wars, etc.
+|change = Castle Wars was added to F2P.
+}}
+{{Subject changes
+|date = 3 March 2016
+|update = Architectural Alliance
+|poll = Quality of Life - Top 10 General Suggestions
+|change = *It is no longer possible to hop between Castle Wars games to claim tickets quickly.
+*The losing Castle Wars team will now receive 1 ticket for their efforts.
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|change = The issue with Castle Wars tracking the players on each team going out of sync has been resolved.
+}}
+{{Subject changes
+|date = 20 August 2015
+|update = Boss slayer & total worlds
+|change = Active prayers will now be disabled upon leaving a game of Castle Wars.
+}}
+{{Subject changes
+|date = 30 October 2014
+|update = Target Teleport & Fedora Tip
+|change = Players can now light fires in the Castle Wars lobby again.
+}}
+{{Subject changes
+|date = 24 July 2014
+|update = F2P Trial Expansion & More
+|poll = Old School feature poll - Content Poll 22
+|change = Castle Wars supply tables now have a right click take-5 option.
+}}
+{{Subject changes
+|date = 3 July 2014
+|update = Halos, God Books & Stamina
+|poll = Old School feature poll - Rewarding Rewards
+|change = Zamorak, Guthix and Saradomin halos added to the reward shop.
+}}
+{{Subject changes
+|date = 24 April 2014
+|update = The Motherlode Mine!
+|poll = Old School feature poll 18
+|change = Castle Wars lobby was made into a safe area in PvP worlds, to cut down on luring.
+}}
+{{Subject changes
+|date = 16 January 2014
+|update = Patch Notes (16 January 2014)
+|poll = Old School feature poll 14: Minigames
+|change = *The Castle Wars reward shop now offers:
+**A [[Decorative magic armour|magic armour set]] and [[Decorative ranged armour|ranger armour set]].
+**[[Saradomin banner|Saradomin]] & [[Zamorak banner|Zamorak]] banners, like the flags used in the game.
+**Plateskirt versions of the melee armour.
+*Players now receive one extra ticket at the end of each Castle Wars game if the opposing team failed to score any points during the game.
+*Routefinding around barricades in Castle Wars has been reverted to its original behaviour, where players' paths are blocked more effectively by the barricades.
+}}
+{{Subject changes
+|date = 2 August 2013
+|update = Patch Notes (2 August 2013)
+|poll = Old School feature poll 7
+|change = Ava's ammo-saving effect has been made more powerful inside Castle Wars so that it protects ammo regardless of where it lands, and regardless of what armour you're wearing.
+}}
+{{Subject changes
+|date = 4 July 2013
+|update = Patch Notes (4 July 2013)
+|poll = Old School feature poll 6 - Castle Wars, etc.
+|change = *If you present Lanthus with a device from Ava, he will have its ammo-saving effect applied to the capes you wear in that minigame.
+*Barricades will have 'Burn' and 'Extinguish' options to help you set them on fire and put them out more conveniently.
+*Altars have been added to the respawn rooms. They will recharge your prayer more slowly than normal altars.
+}}
+{{Subject changes
+|date = 16 May 2013
+|update = Patch Notes (16 May 2013)
+|change = Random events will no longer try to drag you out of Castle Wars on login.
+}}
+{{Subject changes
+|date = 9 May 2013
+|update = Patch Notes (9 May 2013)
+|change = Your prayer points and other stats are now restored when you leave Castle Wars.
+|poll = Old School feature poll 3 – April 2013
+}}
+{{Subject changes
+|date = 13 June 2005
+|update = RuneCraft Update and Tweaks
+|change = * Players may only now bring items that are [[potions]], [[runes]] or [[Equipable items|equipable]] into Castle Wars.
+* It is now impossible to cast [[alchemy spells]] in Castle Wars.
+}}
+{{Subject changes
+|date = 18 April 2005
+|update = Castle Wars Change
+|change = The [[Bandages|bandage]] tables have now been moved to the Castle Wars spawn room.
+}}
+{{Subject changes
+|date = 13 December 2004
+|update = Castle Wars
+|change = The area was made accessible to players.
+}}
+{{Subject changes
+|date = 17 November 2004
+|update = Horror From The Deep
+|change = The area was first added ingame but was inaccessible. It was labelled as '''(due Dec-2004)''' on the world map.
+}}
+{{Subject changes footer}}
+
+==Development history==
+*Castle Wars has had many bugs regarding some aspects of the game remaining active once players had left the game. These include, but are not limited to:
+**Players remaining as imps, sheep or bunnies after leaving the waiting area.
+**Players still holding their team standard after a game.
+**Players having an "attack" option on other players outside of Castle Wars, despite not being able to attack anyone.
+**Players appearing as if still in the 'dead' position.
+*Castle Wars games do not have [[random events]], but can occur in the waiting room. Players used to use Castle Wars as a random-free area in which to cast [[High Level Alchemy]] on large numbers of items without being attacked. Because of this, [[Jagex]] banned non-combat items from the game and made it impossible to cast [[Alchemy spells]] on items in the battlefield. Jagex also made it impossible to bring any non-combat items into the waiting rooms. Now, players may only bring [[potions]], [[weapon]]s, and [[armour]] into Castle Wars.
+*The [[bandage]] table was once located on the {{FloorNumber|uk=0}} alongside the other tool tables. This was moved to the team's spawn room due to the fact that opposing players could effectively camp the enemy's castle with an unlimited health source.
+*At an earlier time, it was possible to leave the game with equipment for the next game, but this was soon changed. Players were also able to log out with materials and have them in the waiting room, but this also is no longer possible.
+*When players log out in the game, and remain logged out for more than two minutes, they will appear in the waiting room once they log in. If players log out in the waiting room, no matter the time, they will be moved to the lobby.
+*At one time, the red and blue [[decorative armour]] was equivalent to [[mithril equipment|mithril]]. This lowered the price of Mithril, so [[Jagex]] updated the red decorative armour to make it the equivalent of [[steel equipment|steel]].
+
+==Trivia==
+*Several members-only pieces of interactive scenery may be observed and "examined" within the Castle Wars area even on free-to-play worlds, effectively rendering them free-to-play objects (despite being unreachable from Castle Wars). These include [[achey tree]]s, the cave entrance to the [[Smoke Devil Dungeon]], [[tree]]s with models unique to [[Tirannwn]], and [[flax]] plants.
+*In pay-to-play worlds, the double doors to the Castle Wars lobby can only be opened a single time per [[Server|world]] reset, since they cannot be interacted with once they have been opened and will remain open indefinitely.
+*In free-to-play worlds, the double doors to the Castle Wars lobby are permanently locked, and instead offer a teleport to the [[Ferox Enclave]].
+*According to the [[Cook (Lumbridge)|Lumbridge Cook]], [[Greenman's Ale]] is the official sponsored drink of Castle Wars.{{CiteNPC|npc=Cook (Lumbridge)|quote=[Where would I find a greenman's ale?] Well, as the official sponsored drink of Castle Wars it might be worth looking around there.|loc=Another Cook's Quest}}
+*Castle Wars is the only place in Kandarin that is accessible to free-to-play players.
+
+==References==
+{{reflist}}
+
+{{Castle Wars}}
+{{Minigames}}
+{{Free-to-play PvP}}
+[[Category:Player vs Player arenas]]
+[[Category:Community]]
+[[Category:Kandarin]]
+[[Category:Free-to-play minigames]]
+[[Category:Castles]]

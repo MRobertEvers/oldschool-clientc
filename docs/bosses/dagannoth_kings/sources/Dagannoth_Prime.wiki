@@ -1,0 +1,213 @@
+{{External|rs}}
+{{HasStrategy|page=Dagannoth Kings/Strategies}}
+{{HasTask|Dagannoth}}
+{{Infobox Monster
+|name = Dagannoth Prime
+|image = [[File:Dagannoth Prime.png|200px]]
+|release = [[7 November]] [[2005]]
+|update = Waterbirth Island - deeper, darker, deadlier!
+|members = Yes
+|combat = 303
+|size = 3
+|examine = A legendary dagannoth king, rumoured to fly on the North winds.
+|xpbonus = 30
+|max hit = 50
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Magic]]
+|attack speed = 4
+|respawn = 150
+|slayxp = 331.4
+|cat = Bosses, Dagannoth
+|assignedby = vannaka,chaeldar,konar,nieve,duradel
+|hitpoints = 255
+|att = 255
+|str = 255
+|def = 255
+|mage = 255
+|range = 0
+|attbns = 0
+|strbns = 0
+|amagic = 0
+|mbns = 0
+|arange = 0
+|rngbns = 0
+|dstab = 255
+|dslash = 255
+|dcrush = 255
+|dmagic = 255
+|dlight = 10
+|dstandard = 10
+|dheavy = 10
+|elementalweaknesstype = Earth
+|elementalweaknesspercent = 35
+|poisonresistance = 0
+|venomresistance = Poison
+|immunecannon = No
+|immunethrall = No
+|id = 2266
+}}
+'''Dagannoth Prime''' is the [[Magic]]-based [[Dagannoth King]] found in the depths of the [[Waterbirth Island Dungeon]], along with fellow Dagannoth Kings, [[Dagannoth Rex]] and [[Dagannoth Supreme]]. Prime is the only monster to drop the [[Seers ring]] and [[Mud battlestaff]]. He, along with the other [[Dagannoth (race)|Dagannoth]] Kings, can also drop the [[dragon axe]].
+
+His projectile resembles [[Water Wave]], and it hits in a 3x3 radius around his target, meaning that any players standing next to his target will also take damage from the attack.
+
+==Location==
+{{LocTableHead}}
+{{LocLine
+|name = Dagannoth Prime
+|location = [[Waterbirth Island Dungeon]]
+|levels = 303
+|members = Yes
+|mapID = 25
+|plane = 0
+|x:2631,y:9667
+|mtype = pin
+|leagueRegion = fremennik
+}}
+{{LocLine
+|name = Dagannoth Prime
+|location = [[Waterbirth Island Dungeon]] (Slayer lair)
+|levels = 303
+|members = Yes
+|mapID = 25
+|plane = 0
+|x:2687,y:9667
+|mtype = pin
+|leagueRegion = fremennik
+}}
+{{LocTableBottom}}
+
+Dagannoth Prime spawns and roams on the north-eastern side of the Dagannoth Kings' lair. The lair is accessible via the [[Kings' ladder]] deep within the [[Waterbirth Island Dungeon]]. A separate lair where players that have a Dagannoth [[Slayer task]] can attack the Kings is accessible by using the "Slayer" option on the ladder. The lair can be peeked at to see if other players are inside it via the ladder and a [[Crack (Waterbirth Island Dungeon)|crack]] inside a safe room nearby the ladder.
+
+==Strategy==
+{{Main|Dagannoth Kings/Strategies}}
+Dagannoth Prime, like the [[combat triangle]] suggests, is weak to [[Ranged]] attacks. The [[Zaryte crossbow|Zaryte]], [[Armadyl crossbow|Armadyl]], [[Dragon hunter crossbow|Dragon hunter]], [[Dragon crossbow|dragon]] and [[rune crossbow]]s are effective weapons against him. The [[toxic blowpipe]] is also effective, especially on a [[Slayer task]]. Wealthier players may opt to use the [[bow of Faerdhinen]] or [[twisted bow]] due to their high accuracy and damage, especially the twisted bow with its effectiveness against monsters with a high [[Magic]] level. The [[crystal bow]] is also fairly effective.
+
+His attack is very powerful and more potent than the other two kings; it can deal up to 50 damage in one hit, so [[Protect from Magic]] prayer is a must whenever Prime is attacking. The attack is also AoE-based; any other players stood in a 3x3 tile radius around the main target will also be hit. Meleers are advised to stay away from Dagannoth Prime at all costs and fend off [[Dagannoth Supreme]] meanwhile, as Prime can kill any player not using the Protect from Magic prayer within a couple of attacks and is resistant to non-Ranged attacks.
+
+The most effective way to kill Prime is to stand in the north-east corner of the lair while not being under attack by the other two kings, staying out of their attack radius.
+
+If players get too close to [[Dagannoth Rex]] when they are fighting Dagannoth Prime, they may inadvertently gain Rex's attention, potentially resulting in unnecessary damage. This can be avoided by staying on the western part of the arena, as Rex will rarely (if ever) go there. [[Dagannoth Supreme]] may respawn while fighting Prime. Supreme can be avoided by staying in the north-eastern part of the arena by the seaweed. Players will want to use the "Long-range" style with their [[Ranged]] combat unless the player is sure that they will not get the attention of Supreme. Prime, along with his fellow king Supreme, have a very long-ranged attack, and if both of them focus on one player, the high damage can lead to a quick death. Players should either kill Supreme or leave the area if they find themselves under attack from both Prime and Supreme.
+
+==Drops==
+{{DropLogProject|kills=63560}}
+
+{{Average drop value}}
+
+{{Average drop value|brimstone=yes}}
+
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Dagannoth bones|quantity=1|quantitynotes=<ref group="d">Dropped in noted form if the player has completed the elite tier of the [[Fremennik diary]]</ref>|rarity=Always}}
+{{DropsLine|name=Dagannoth hide|quantity=1|rarity=Always}}
+{{DropsTableBottom}}
+{{Reflist|group="d"}}
+
+===Weapons and armour===
+{{DropsTableHead}}
+{{DropsLine|name=Earth battlestaff|quantity=1|rarity=10/128}}
+{{DropsLine|name=Water battlestaff|quantity=1|rarity=5/128}}
+{{DropsLine|name=Air battlestaff|quantity=1|rarity=4/128}}
+{{DropsLine|name=Battlestaff|quantity=1-10 (noted)|rarity=1/128}}
+{{DropsLine|name=Fremennik blade|quantity=1|rarity=1/128|gemw=No}}
+{{DropsLine|name=Fremennik shield|quantity=1|rarity=1/128|gemw=No}}
+{{DropsLine|name=Fremennik helm|quantity=1|rarity=1/128|gemw=No}}
+{{DropsLine|name=Mud battlestaff|quantity=1|rarity=1/128|raritynotes={{NamedRef|Drop Rates V2}}}}
+{{DropsLine|name=Dragon axe|quantity=1|rarity=1/128|raritynotes={{CiteForum|author=Envision|url=https://reldo.runescape.wiki/i/108912|title=Drop Rates V2|name=Drop Rates V2}}{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/648561290034683904|date=28 September 2015|archiveurl=https://reldo.runescape.wiki/i/97635|archivedate=15 April 2019|quote=1/42 for a hard clue, 1/750 for elite, 1/128 for a d axe and 1/128 for a ring.|name=Ash tweet unique rates}}}}
+{{DropsLine|name=Farseer helm|quantity=1|rarity=1/128}}
+{{DropsLine|name=Skeletal top|quantity=1|rarity=1/128|raritynotes={{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1016722619100487681|date=10 July 2018|archiveurl=https://reldo.runescape.wiki/i/98552|archivedate=15 April 2019|quote=Each of those items is 1/128.|name=Armour+Rings}}}}
+{{DropsLine|name=Skeletal bottoms|quantity=1|rarity=1/128|raritynotes={{NamedRef|Armour+Rings}}}}
+{{DropsLine|name=Seers ring|quantity=1|rarity=1/128|raritynotes={{NamedRef|Drop Rates V2}}{{NamedRef|Ash tweet unique rates}}{{NamedRef|Armour+Rings}}}}
+{{DropsTableBottom}}
+
+===Runes===
+{{DropsTableHead}}
+{{DropsLine|name=Air rune|quantity=100-200|rarity=6/128}}
+{{DropsLine|name=Earth rune|quantity=50-100|rarity=5/128}}
+{{DropsLine|name=Blood rune|quantity=25-75|rarity=2/128|raritynotes={{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/859442262123700226|date=2 May 2017|archiveurl=https://reldo.runescape.wiki/i/99217|archivedate=15 April 2019|quote=Prime has a 1/64 chance of blood runes.}}}}
+{{DropsLine|name=Law rune|quantity=10-75|rarity=2/128}}
+{{DropsLine|name=Nature rune|quantity=25-75|rarity=2/128}}
+{{DropsLine|name=Mud rune|quantity=25-75|rarity=2/128}}
+{{DropsLine|name=Death rune|quantity=25-85|rarity=2/128}}
+{{DropsTableBottom}}
+
+===Seeds===
+{{RareSeedDropTableInfo|7/128}}
+{{DropsTableHead}}
+{{RareSeedDropLines|7/128}}
+{{DropsTableBottom}}
+
+===Talismans===
+{{TalismanDropTableInfo|1/128}}{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/745561134040645633|date=22 June 2016|archiveurl=https://reldo.runescape.wiki/i/103291|archivedate=15 April 2019|quote=He has a 1/128 chance of calling the talisman table; it has a 1/7 chance of giving an air talisman.}}
+{{DropsTableHead}}
+{{TalismanDropLines|1/128}}
+{{DropsTableBottom}}
+
+===Talismans (noted)===
+{{DropsTableHead}}
+{{DropsLine|name=Earth talisman|quantity=25-75 (noted)|rarity=10/128}}
+{{DropsLine|name=Air talisman|quantity=25-75 (noted)|rarity=7/128}}
+{{DropsLine|name=Water talisman|quantity=1-76 (noted)|rarity=7/128}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Shark|quantity=5|rarity=10/128}}
+{{DropsLine|name=Coins|quantity=500-1109|rarity=3/128|gemw=No}}
+{{DropsLine|name=Oyster pearls|quantity=1|rarity=5/128}}
+{{DropsLine|name=Pure essence|quantity=150 (noted)|rarity=5/128}}
+{{DropsLine|name=Grimy ranarr weed|quantity=1|rarity=5/128}}
+{{DropsTableBottom}}
+
+===Rare and Gem drop table===
+{{RareDropTable|8/128|10/128|naturetalisman=yes}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Dagannoth ribs|quantity=1|rarity=1/4|raritynotes=<ref group=d>Dagannoth ribs are only dropped during [[Rag and Bone Man II]].</ref>|gemw=No}}
+{{DropsLine|name=Ensouled dagannoth head|quantity=1|rarity=1/20}}
+{{DropsLineClue|type=hard|rarity=1/42|raritynotes={{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/648561290034683904|date=28 September 2015|archiveurl=https://reldo.runescape.wiki/i/97635|archivedate=15 April 2019|quote=1/42 for a hard clue, 1/750 for elite, 1/128 for a d axe and 1/128 for a ring.|name=Ash tweet unique rates}}}}
+{{DropsLine|name=Brimstone key|quantity=1|rarity={{Brimstone rarity|303}}|raritynotes=<ref group="d">Brimstone keys are only dropped if killed on a [[Slayer task]] given by [[Konar quo Maten]].</ref>|gemw=No|leagueRegion=Fremennik&Kourend}}
+{{DropsLineClue|type=elite|rarity=1/750|raritynotes={{NamedRef|Drop Rates V2}}{{NamedRef|Ash tweet unique rates}}}}
+{{DropsLine|name=Pet Dagannoth Prime|quantity=1|rarity=1/5000|raritynotes={{CiteTwitter|author=Mod JohnC|url=https://twitter.com/JagexJohnC/status/514022931790565376|date=22 September 2014|archiveurl=https://reldo.runescape.wiki/i/103448|archivedate=25 March 2019|quote=Almost forgot the final week of boss pet drop rates! DKS Pets are all 1 in 5000|name=Confirmed droprates}}|gemw=No}}
+{{DropsTableBottom}}
+{{Reflist|group="d"}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Dagannoth Prime}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 27 August 2025
+|update = Summer Sweep Up Slayer & More
+|change = Dagannoth Prime can now drop [[dagannoth ribs]] during [[Rag and Bone Man II]].
+}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = 
+Dagannoth Prime now has a 35% elemental weakness to [[earth spells]].
+}}
+{{Subject changes
+|date = 5 March 2015
+|update = Achievement Diaries
+|poll = Old School Achievement Diary Rewards Poll
+|change = [[Dagannoth bones]] are now noted drops if you have completed the [[Fremennik Elite|Fremennik Elite Diary]].
+}}
+{{Subject changes
+|date = 17 July 2014
+|update = Boss Pets and Spawn Rates
+|poll = Old School feature poll - Content Poll 22
+|change = Players can now receive a pet version of this boss after defeating it.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Dagannoth}}
+{{Waterbirth Island}}
+{{Bosses}}
+[[Category:Monsters that do not become tolerant]]

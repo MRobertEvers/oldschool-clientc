@@ -1,0 +1,76 @@
+{{Infobox Item
+|name = Imbued tephra
+|image = [[File:Imbued tephra.png]]
+|release = [[25 July]] [[2019]]
+|update = Song of the Elves
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = Yes
+|stackable = Yes
+|bankable = No
+|noteable = No
+|options = Wield, Destroy
+|destroy = You can obtain more tephra by mining it in Zalcano's prison.
+|examine = This is refined, imbued, and ready to go.
+|value = 100
+|weight = 0.000
+|id = 23907
+}}
+[[File:Imbued tephra detail.png|left|130px]]
+'''Imbued tephra''' is obtained by imbuing [[refined tephra]] at the [[Altar (Zalcano)|Seren altar]] in the western end of [[Zalcano]]'s prison. It can also be obtained from [[golem (Zalcano)|golem]]s that Zalcano occasionally summons.
+
+The imbued tephra is the only item that can deal damage to Zalcano while she is still standing; the damage dealt is scaled based on the player's [[Smithing]] and [[Runecraft]] levels. In addition, if she has summoned [[demonic symbol]]s around the prison, the blue symbols will increase the damage dealt. Players can either attack Zalcano directly while having the imbued tephra in their inventory to use them, or equip and throw them at her.
+
+==Combat stats==
+{{Infobox Bonuses
+|astab = 0
+|aslash = 0
+|acrush = 0
+|amagic = 0
+|arange = 0
+|dstab = 0
+|dslash = 0
+|dcrush = 0
+|dmagic = 0
+|drange = 0
+|str = 0
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = weapon
+|speed = 3
+|attackrange = 10
+|combatstyle = Unarmed
+|image = [[File:Imbued tephra equipped.png|140px]]
+|altimage = [[File:Imbued tephra equipped female.png|140px]]
+}}
+
+{{CombatStyles|Unarmed|speed=3|attackrange=10}}
+
+==Item sources==
+{{Recipe
+|skill1 = Runecraft
+|skill1lvl = 1
+|skill1exp = 5
+|members = Yes
+|ticks = 1
+|facilities = Altar (Zalcano)
+|mat1 = Refined tephra
+|mat1cost = No
+|output1 = Imbued tephra
+|output1cost = No
+}}
+
+{{Drop sources|Imbued tephra}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 27 February 2020
+|update = Game Improvements and Email Linking for Mobile Accounts
+|change = Damage dealt with imbued tephra now scales to the player's [[Smithing]] and [[Runecraft]] levels.
+}}
+{{Subject changes footer}}
+
+{{Zalcano}}

@@ -1,0 +1,378 @@
+[[File:Fighting Alchemical Hydra - flame phase.png|thumb|300px|A player fighting the Alchemical Hydra in its flame phase.]]
+The [[Alchemical Hydra]] is a level 95 [[Slayer]] [[boss]] encountered in the [[Karuulm Slayer Dungeon]]. In order to fight it, players must be assigned a [[Hydra]] [[Slayer task|task]].
+
+To reach the boss, players must run north past the [[Tasakaal]], then east past the [[Hydra]]s. They will then reach the entrance to the lair by [[Orrvor quo Maten]]. Alternatively, players with level 88 [[Agility]] can reach it safely by using the [[mysterious pipe]] just behind [[Kaal-Ket-Jor]].
+
+==Fight overview==
+The fight is [[instanced]]; if players [[die]] while fighting the Hydra, then they may reclaim their items from [[Orrvor quo Maten]] outside for 100,000 [[coins]] each time. Dying elsewhere with items still held by him will result in them being lost forever.
+
+While the Hydra is in the room, players cannot leave through the doors, as they are jammed when this occurs. Teleports will still work, however. The Hydra has a respawn time of 20 seconds.
+{{Tile markers box|Module:Tile markers/Alchemical Hydra.json}}
+
+The Hydra has four phases, each one beginning upon each 25% health threshold (~275 health). A head will fall off each time this occurs, as the Hydra roars and changes colour. At the start of each phase, the Hydra will perform three auto-attacks before performing a special attack.
+
+The Hydra attacks with both [[Magic]] and [[Ranged]]. The Hydra will begin the fight with either combat style. For the first three phases, after every three basic attacks, the Hydra will sway its heads backwards as an indicator that it is changing combat styles.
+
+During the first three phases, the Hydra reduces incoming damage by 75% until it is lured over and sprayed by the appropriate chemical vent. The Hydra will {{overhead|Roaaaaaaaaaaar!}} when hit by the correct vent. If Hydra is sprayed by an incorrect vent, the damage of its attacks increase, although protection prayers continue to block all damage regardless.
+
+In the final phase, the Hydra attacks alternately with Magic and Ranged, choosing to start with the opposite of what it attacked with last. On the fourth attack, the Hydra instead throws poison splatters as in the first phase.
+
+{| class="wikitable align-center-1"
+|-
+! colspan="2" | Hydra phase
+! Vent colour
+! Phase-specific mechanic
+|-
+| class="table-bg-green" | [[File:Alchemical Hydra (serpentine).png|50px]]
+| class="table-bg-green" | Serpentine 
+| class="table-bg-red" | Red vent<br>(South-east)
+| Poison splatters
+|-
+| class="table-bg-blue" | [[File:Alchemical Hydra (electric).png|50px]]
+| class="table-bg-blue" | Electric
+| class="table-bg-green" | Green vent<br>(North-east)
+| Lightning converges on the player
+|-
+| class="table-bg-red" | [[File:Alchemical Hydra (fire).png|50px]]
+| class="table-bg-red" | Flame
+| class="table-bg-blue" | Blue vent<br>(North-west)
+| A stun followed by fire walls and a flame trail
+|-
+| [[File:Alchemical Hydra (extinguished).png|50px]]
+| Enrage
+| {{NA}}
+| Alternates between mage and range every attack.<br>Poison splatters on the fourth attack and every ninth attack afterwards
+|}
+
+===Poison===
+[[File:Fighting Alchemical Hydra - poison phase.png|thumb|250px|A player fighting the Alchemical Hydra in its poison phase.]]
+In this phase, the Hydra starts with a '''green''' carapace, and should be lured to the '''red''' chemical pool. After the first kill, the player should stand right next to the red chemical vat (to the east) so that the Hydra is automatically lured to the red chemical pool as soon as it spawns.
+
+After the first three attacks, the Hydra will launch damaging poison blobs on and around the player's location which form poison pools on the ground, damaging the player in several ways:
+* The blobs have a 3x3 splatter effect dealing up to 7 damage as thrown
+* Standing on the poison pools will deal up to 12 poison damage per tick
+* If damaged by the targetted blob, the player is poisoned for 6 damage, and otherwise poisoned for 4 damage
+
+The best way to avoid this attack is by running north on the Hydra's fourth attack.
+
+Once the Hydra reaches 75% of its health, the bottom-right head falls off and it changes its carapace to '''blue'''.
+
+===Lightning===
+[[File:Fighting Alchemical Hydra - lightning phase.png|thumb|250px|A player fighting the Alchemical Hydra in its lightning phase.]]
+Now with a '''blue''' carapace, the Hydra should be lured to the '''green''' chemical pool.
+
+[[File:Alchemical Hydra - lightning trapping.gif|thumb|left|250px|A player performs the lightning trapping method.]]
+Throughout the phase, the Hydra will launch an electric ball in the centre of the room, which spawns four lightning currents in the four corners of the chamber, converging on the player's location. Getting hit by them will bind the player and deal up to 22 damage.
+
+The easiest way to avoid their damage is by running west along the northern wall as the lightning approaches. It is also possible to trap the lightning by standing in the north-west corner, moving one tile diagonally south-east when the lightning is two tiles away from you, and instantly moving one tile north. This does not despawn the lightning, so if the player were to move off of the tile, the lightning will start following them again.
+
+Once the Hydra reaches 50% of its health, the bottom-left head falls off and it changes its carapace to '''red'''.
+
+'''Note:''' If the Hydra transitions to the next phase while there is lightning on the field, they will dissipate immediately.
+
+===Flame===
+Now with a '''red''' carapace, the Hydra should be lured to the '''blue''' chemical pool.
+
+Throughout the phase, the Hydra will occasionally walk to the centre of the chamber and face the direction the player is at. Once it reaches the centre, it will inflict a stun on the player, but they can still attack it. If the player is underneath the Hydra, then it forces them out into a random direction. Upon reaching the centre, it breathes 5x5 layer of fire to the player's sides based on their location before staring down the middle and launching a tracking fire.
+[[File:Alchemical Hydra - no-movement flames.mp4|thumb|400px|A player demonstrates how to avoid the flame trail during the hydra's flame phase.]]
+This tracking fire follows the player's movement, and travels significantly faster the further the player is (or if they start running). Turning off run and walking in a line as the fire trails is the best course of action. Getting hit by any of the fires will result in the player taking up to 25 damage, followed by a subsequent burn of 5 damage for 5 hits. The Hydra will not attack for roughly seven ticks after the tracking fire is launched.
+
+Similarly to the lightning trap in the previous phase, the flames can be trapped in by standing on a specific tile adjacent to the green vents, seen in the demonstration to the right. This is mostly for melee players, since range can still attack over the fires without being dragged into one.
+
+Once the Hydra reaches 25% of its health, the middle head falls off and it changes its carapace to '''grey'''.
+
+'''Note:''' If the Hydra transitions to the next phase while performing this attack, it ends abruptly. This also includes the tracking fire, but any fires started before the phase transition will still persist as usual. For the duration of the side fires, the Hydra also becomes a solid NPC, meaning that it is not possible to walk under it.
+
+===Enraged===
+[[File:Fighting Alchemical Hydra - enraged phase.png|thumb|250px|A player fighting the Alchemical Hydra in its enraged phase.]]
+Now with a '''grey''' carapace, the Hydra no longer needs to be lured to any chemical pools for this phase, as its damage reduction ability does not reset. During this phase, the Hydra's attack speed will increase to every four ticks, and its enrage stack will increase to max, allowing it to deal up to '''55''' damage per hit.
+
+The Hydra starts off this phase with the combat style '''opposite''' of what it used in the previous phase; if it attacked with magic, then it will start the phase with ranged. If the Hydra attacked with magic and changes to ranged as it transitions phases, it will still start with ranged attacks. These attacks will alternate after every single hit; e.g one magic attack is followed by a ranged attack and repeats. Continue to switch prayers with each basic attack for the remainder of the fight. The player can safely switch to the next prayer as soon as the Hydra starts its attack animation for the current attack.
+
+After the first three auto-attacks, the Hydra will use the poison attack from phase 1, and will continue to use it after every nine subsequent auto-attacks. Unlike the first phase, there is a possibility of one poison blob being launched rather than five. This is mostly guaranteed if any fires from the previous phase are present. 
+
+If the Hydra is killed while queuing up an auto-attack, it will still be launched but deal no damage. Poison blobs will still deal damage and need to be avoided as these will fade as normal.
+
+Players may choose to bring a [[bracelet of slaughter]] to extend their slayer tasks, and sometimes bring it as a switch so that gloves with offensive stats can be worn for the majority of the kill. If going with this option, remember to switch to the bracelet sometime during this final phase. It can be convenient to switch to the bracelet while dodging the poison special, as prayer does not have to be changed during this attack, though optimally the offensive gloves should be worn as long as possible.
+
+==Equipment==
+The Alchemical Hydra has a Defence level of 100. It is weakest to ranged attacks, possessing +45 global ranged resistance. 
+
+As it is considered draconic, [[Dragonbane weapons]] are effective against it. If using melee, use a [[dragon hunter lance]] on stab. The Hydra's stab defence is slightly higher than its ranged but still provides acceptable accuracy due to its lower Defence level. Magic is not recommended due to its Magic level of 260.
+<tabber>
+Ranged=
+
+{{Recommended equipment
+|style = Ranged
+|head1 = {{plink|Slayer helmet (i)}}
+|head2 = {{plink|Black mask (i)}}
+|neck1 = {{plink|Necklace of rupture}}
+|neck2 = {{plink|Necklace of anguish}}
+|neck3 = {{plink|Dragonbone necklace}}
+|neck4 = {{plink|Amulet of fury}}
+|neck5 = {{plink|Amulet of glory}}
+|cape1 = {{plink|Dizana's quiver}}
+|cape2 = {{plink|Ava's assembler}}
+|cape3 = {{plink|Max cape}} <br>/ {{plink|Ranging cape(t)}}
+|cape4 = {{plink|Ava's accumulator}} <br>/ {{plink|Ranging cape}}
+|body1 = {{plink|Masori body (f)}}
+|body2 = {{plink|Crystal body}} / {{plink|Eclipse moon chestplate}}
+|body3 = {{plink|Hueycoatl hide body}}
+|body4 = {{plink|Blessed body|pic=Ancient d'hide body}}
+|legs1 = {{plink|Masori chaps (f)}}
+|legs2 = {{plink|Crystal legs}} / {{plink|Eclipse moon tassets}}
+|legs3 = {{plink|Hueycoatl hide chaps}}
+|legs4 = {{plink|Blessed chaps|pic=Ancient chaps}}
+|weapon1 = {{plink|Twisted bow}}
+|weapon2 = {{plink|Toxic blowpipe}}{{efn|With high enough range stats & gear, [[Blowpipe]] fully beats [[Dragon hunter crossbow|DHCB]]. At lower stats, it only beats DHCB when Hydra is sufficiently below 500 HP}} / {{plink|Dragon hunter crossbow}}{{efn|Using [[Ruby dragon bolts (e)]]. Blowpipe always beats [[Diamond dragon bolts (e)]]}}
+|weapon4 = {{plink|Bow of Faerdhinen}}
+|weapon5 = {{plink|Eclipse atlatl}}{{efn|Use with armour with melee strength and ranged accuracy, such as [[berserker ring (i)|berserker ring]], [[barrows gloves]], [[amulet of fury]]}}
+|shield1 = {{plink|Twisted buckler}}
+|shield2 = {{plink|Dragonfire ward}}
+|shield3 = {{plink|Odium ward}}
+|shield4 = {{plink|Antler guard}}
+|shield5 = {{plink|Aquanite hopper}}
+|ammo1 = {{plink|Dragon arrow}}{{efn|With a [[Twisted bow]]|name=bow}} /</br> {{plink|Ruby dragon bolts (e)}}{{efn|With a [[Zaryte crossbow]]|name=crossbow}}
+|ammo2 = {{plink|Amethyst arrow}}{{efn|name=bow}} /</br> {{plink|Ruby bolts (e)}}{{efn|name=crossbow}}
+|ammo3 = {{plink|Rada's blessing 4}}
+|ammo4 = {{plink|Blessing|pic=Peaceful blessing|txt=Any blessing}} / {{plink|Atlatl dart}}{{efn|With [[Eclipse atlatl]]}}
+|hands1 = {{plink|Zaryte vambraces}}
+|hands2 = {{plink|Barrows gloves}}
+|hands3 = {{plink|Blessed bracers|pic=Ancient bracers}} / {{plink|Hueycoatl hide vambraces}}
+|hands4 = {{plink|Black d'hide vambraces}}
+|feet1 = {{plink|Avernic treads (max)}}{{efn|name=Diary|After completing the [[elite Kourend & Kebos]] [[Achievement diary]]}}
+|feet2 = {{plink|Pegasian boots}}{{efn|name=Diary}}
+|feet3 = {{plink|Devout boots}}{{efn|name=Diary}}
+|feet4 = {{plink|Blessed boots|pic=Ancient d'hide boots}}{{efn|name=Diary}} / {{plink|Aranea boots}}{{efn|name=Diary}}
+|feet5 = {{plink|Boots of brimstone}}
+|ring1 = {{plink|Lightbearer}} (with a [[Zaryte crossbow]] switch)
+|ring2 = {{plink|Venator ring}}
+|ring3 = {{plink|Ring of the gods (i)}}
+|ring4 = {{plink|Ring of suffering (i)}}
+|ring5 = {{plink|Archers ring (i)}}
+|special1 = {{plink|Zaryte crossbow}} ([[Ruby bolts (e)]])
+|special2 = {{plink|Tonalztics of ralos}}{{efn|name=defencedebuff|Use while waiting for the first vent to trigger}}
+|special3 = {{plink|Toxic blowpipe}}
+|special4 = {{plink|Dragon warhammer}}{{efn|name=defencedebuff|Use while waiting for the first vent to trigger}}
+|hidecol5 = yes
+}}
+{{Notelist}}
+Prayer bonus is prioritised over ranged accuracy because of the boss's relatively low defensive stats and the minimal damage taken when dealing with the mechanics correctly. Alternatively, players may use gear that maximizes ranged accuracy if they are confident with [[prayer flicking]], as it greatly reduces the need for prayer potions. With sufficient experience, barely any damage should be taken most kills; the only unavoidable damage players may take is the first hit at the start of kill, and self-inflicted damage from Divine potions or the special attack of Ruby bolts (e).
+
+===Inventory===
+{{Inventory
+| align = right
+| 1 = Zaryte crossbow
+| 2 = Divine ranging potion(4)
+| 3 = Divine ranging potion(4)
+| 4 = Divine ranging potion(4)
+| 5 = Ruby bolts (e)
+| 6 = {{Cheap prayer}}
+| 7 = {{Cheap prayer}}
+| 8 = {{Cheap prayer}}
+| 9 = {{Cheap prayer}}
+| 10 = {{Cheap prayer}}
+| 11 = {{Cheap prayer}}
+| 12 = {{Cheap prayer}}
+| 13 = {{Cheap prayer}}
+| 14 = {{Cheap prayer}}
+| 15 = {{Cheap prayer}}
+| 16 = {{Cheap prayer}}
+| 17 = Cooked moonlight antelope
+| 18 = Cooked moonlight antelope
+| 19 = Cooked moonlight antelope
+| 20 = Cooked moonlight antelope
+| 21 = Cooked moonlight antelope
+| 22 = Cooked moonlight antelope
+| 23 = Cooked moonlight antelope
+| 24 = Cooked moonlight antelope
+| 25 = Cooked moonlight antelope
+| 26 = Cooked moonlight antelope
+| 27 = Cooked moonlight antelope
+| 28 = Divine rune pouch
+}}
+{{Rune pouch|align=right
+|1=Nature rune\1000
+|2=Lava rune\5000
+|3=Law rune\1000
+|4=Dust rune\1000
+}}
+
+* About 4–20 [[prayer potion]]s or [[super restore]]s.
+** More prayer potions allows for longer trips at the cost of not being able to bank [[hydra bones]]; however, banking the bones will lower overall kill rates due to time spent running to and from a bank, and is not recommended without [[Rada's blessing 4]].
+* About 4-10 food, preferrably [[Cooked moonlight antelope]].
+** As the player becomes more proficient at fighting this boss, they should take very little damage per kill, so excess food can be replaced with more prayer potions if doing long trips.
+* [[Antidote++]] if not bringing cooked moonlight antelope.
+* [[Divine ranging potion]], [[ranging potion]], or [[bastion potion]] (the latter is largely superfluous, as all damage taken in the fight can be mitigated with prayer and good positioning once the player is experienced enough)
+* [[Teleport to house (tablet)|House tablets]] or [[Ring of dueling|rings of dueling]] to restore stats and bank
+* Rada's blessing 4 for fast teleport back, if using a bow of Faerdhinen or toxic blowpipe.
+* [[Zaryte crossbow]] with [[ruby dragon bolts (e)]] is best used for its special attack during the flame phase to maximise the chance of skipping its flame wall attack. Particularly powerful when combined with the [[Lightbearer]].
+* [[Toxic blowpipe]] for healing special attack if using a twisted bow or bow of Faerdhinen
+* [[Divine rune pouch]] with runes for [[High Level Alchemy]] and [[Teleport to house]] (or two open slots for rune drops if using tabs/ring of dueling)
+* (Optional) [[Bracelet of slaughter]] to extend the task
+* (Optional) [[Bonecrusher]] or [[bonecrusher necklace]] to auto-bury hydra bones. Bonecrusher necklace can also be equipped during boss death animation to restore an extra 8 prayer points per kill.
+* (Optional) [[Noxious halberd]] can be used to cure poison as necessary at the cost of 50% special attack energy.
+|-|
+
+Melee=
+
+{{Recommended equipment
+|style = Melee
+|head1 = {{plink|Slayer helmet (i)}}
+|head2 = {{plink|Black mask (i)}}
+|neck1 = {{plink|Amulet of rancour}}
+|neck2 = {{plink|Amulet of torture}}
+|neck3 = {{plink|Amulet of blood fury}}
+|neck4 = {{plink|Amulet of fury}}
+|neck5 = {{plink|Amulet of glory}}
+|cape1 = {{plink|Infernal cape}}
+|cape2 = {{plink|Fire cape}}
+|cape3 = {{plink|Ardougne cloak 4}}
+|body1 = {{plink|Torva platebody}} / {{plink|Oathplate chest}}{{efn|With Scythe of Vitur|name=scythe}}
+|body2 = {{plink|Bandos chestplate}} (or: {{plinkp|Blood moon chestplate}}{{plinkp|Fighter torso}})
+|body3 = {{plink|Inquisitor's hauberk}}
+|body4 = {{plink|Mixed hide top}}
+|body5 = {{plink|Obsidian platebody}}
+|legs1 = {{plink|Torva platelegs}} / {{plink|Oathplate legs}}{{efn|name=scythe}}
+|legs2 = {{plink|Bandos tassets}} (or: {{plinkp|Blood moon tassets}})
+|legs3 = {{plink|Inquisitor's plateskirt}}
+|legs4 = {{plink|Mixed hide legs}}
+|legs5 = {{plink|Obsidian platelegs}}
+|weapon1 = {{plink|Scythe of Vitur}} > {{plink|Dragon hunter lance}} (on stab)
+|weapon2 = {{plink|Osmumten's fang}}{{efn|Better with damaging special attack weapons like [[Dragon claws]] than with defence reducing special attacks like [[Bandos godsword]] special attack}} / {{plink|Ghrazi rapier}} / {{plink 
+|Soulreaper axe}}
+|weapon3 = {{plink|Blade of Saeldor}} / {{plink|Inquisitor's mace}} (on stab)
+|weapon4 = {{plink|Abyssal dagger}} > {{plink|Noxious halberd}} / {{plink|Zamorakian hasta}} (on stab)
+|weapon5 = {{plink|Dragon sword}} > {{plink|Dual macuahuitl}}
+|shield1 = {{plink|Avernic defender}}
+|shield2 = {{plink|Dragon defender}}
+|shield3 = {{plink|Dragonfire shield}}
+|shield4 = {{plink|Rune defender}}
+|ammo1 = {{plink|Rada's blessing 4}}
+|ammo2 = {{plink|Holy blessing|txt=Any god blessing}} / {{plink|Rada's blessing 3}}
+|hands1 = {{plink|Ferocious gloves}}
+|hands2 = {{plink|Barrows gloves}}
+|hands3 = {{plink|Regen bracelet}}
+|feet1 = {{plink|Avernic treads (max)}}{{efn|name=Diary|After completing the [[elite Kourend & Kebos]] [[Achievement diary]]}}
+|feet2 = {{plink|Primordial boots}} {{efn|name=Diary}}
+|feet3 = {{plink|Aranea boots}} {{efn|name=Diary}} > {{plink|Dragon boots}}{{efn|name=Diary}} / {{plink|Echo boots}}{{efn|name=Diary}}
+|feet4 = {{plink|Granite boots}}
+|feet5 = {{plink|Devout boots}}{{efn|name=Diary}}
+|ring1 = {{plink|Ultor ring}} / {{plink|Lightbearer}}
+|ring2 = {{plink|Berserker ring (i)}}
+|ring3 = {{plink|Brimstone ring}}
+|ring4 = {{plink|Treasonous ring (i)}} > {{plink|Ring of shadows}}
+|special1 = {{plink|Bandos godsword}}{{efn|name=defencedebuff|Use while waiting for the first vent to trigger, BGS spec applies before Hydra's 75% damage reduction}}
+|special2 = {{plink|Elder maul}} > {{plink|Dragon warhammer}}
+|special3 = {{plink|Dragon claws}} > {{plink|Burning claws}}{{efn|name=burn|Use during the start of the blue or grey phases, as the red phase is immune to burns}} (on stab)
+|special4 = {{plink|Crimson kisten}} / {{plink|Voidwaker}}
+|special5 = {{plink|Bone dagger}} > {{plink|Arkan blade}} > {{plink|Dragon dagger}}
+|special6 = {{plink|Saradomin godsword}}{{efn|Use in addition to a defence reduction and/or damaging special attack if using lightbearer, to heal off chip damage from divine potions, the starts of each fight, and mistakes.}} 
+}}
+{{Notelist}}
+* Strength bonus is preferred over prayer bonus for melee.
+* Melee setups often provide similar damage output to range setups, especially when a good special attack weapon is available, and typically have lower to no upkeep cost for weapons and armour.
+* When meleeing Hydra, effectively luring it over the vents without missing attacks can be more complex than using a range setup.
+* Despite having low defence, the Hydra has enough health that a small improvement in DPS from defence reduction adds up greatly over the course of the fight.
+* On average, unless the ultor ring adds a max hit of 5 to a dragon hunter lance, lightbearer and a strong spec weapon will result in faster kill times.
+* Damaging special attacks should be used during the flame phase to maximise the chance of phasing him before the flame wall attacks, except for when using burning claws, as this phase specifically is immune to burn damage.
+* Learning to skip the flame phase will significantly speed up kill times and reduce the chance to take damage during the phase.
+
+===Inventory (If banking bones)===
+{{Inventory
+| align = right
+| 1 = Bandos godsword
+| 2 = Burning claws
+| 3 = {{Cheap prayer}}
+| 4 = {{Cheap prayer}}
+| 5 = {{Cheap prayer}}
+| 6 = {{Cheap prayer}}
+| 7 = {{Cheap prayer}}
+| 8 = {{Cheap prayer}}
+| 9 = {{Cheap prayer}}
+| 10 = {{Cheap prayer}}
+| 11 = {{Cheap prayer}}
+| 12 = {{Cheap prayer}}
+| 13 = Cooked moonlight antelope
+| 14 = Cooked moonlight antelope
+| 15 = Cooked moonlight antelope
+| 16 = Cooked moonlight antelope
+| 17 = Cooked moonlight antelope
+| 18 = Cooked moonlight antelope
+| 19 = Cooked moonlight antelope
+| 20 = Cooked moonlight antelope
+| 21 = Cooked moonlight antelope
+| 22 = Cooked moonlight antelope
+| 23 = Cooked moonlight antelope
+| 24 = Cooked moonlight antelope
+| 25 = Bracelet of slaughter
+| 26 = Desert amulet 4
+| 27 = Divine rune pouch
+| 28 = Divine super combat potion(4)
+}}
+{{Rune pouch|align=right
+|1=Nature rune\1000
+|2=Fire rune\5000
+|3=
+|4=
+}}
+* 1 [[Divine super combat potion]] or [[Super combat potion]].
+* 4-5 [[Prayer potion]]s, find what works for you. Each kill should take around 1:45-2:15 with close to max gear and stats. Prayer flicking can help make the most out of the potions, allowing for more efficient trips.
+* Special attack weapon, or multiple if using [[lightbearer]]. Any defence reduction special to use at the start of kills, and then spare special attack energy can be used with the DPS special. 
+* Fill your inventory with the rest high healing food, such as [[manta ray]]s or [[cooked moonlight antelope]]. The latter negates the need for bringing antipoison, as it will cure poison after being eaten, and its healing delay should not be an issue for skilled players. As you gain more experience, less or no food is necessary.
+* 1 [[antidote++]] or [[sanfew serum]] if not bringing cooked moonlight antelope.
+* [[Divine rune pouch]] with runes for [[High Level Alchemy]] and [[Teleport to house]] (or two open slots for rune drops)
+* [[Teleport to house (tablet)|House tablets]] or other teleport of choice to restore stats and bank if using divine pouch space to pick up rune drops.
+* (Optional) [[Bracelet of slaughter]] to extend the task
+* (Optional) [[Noxious halberd]] can be used to cure poison as necessary at the cost of 50% special attack energy.
+
+===Inventory (Long trips)===
+{{Inventory
+| align = right
+| 1 = Bandos godsword
+| 2 = Saradomin godsword
+| 3 = Burning claws
+| 4 = Cooked moonlight antelope
+| 5 = Super restore(4)
+| 6 = Super restore(4)
+| 7 = Super restore(4)
+| 8 = Super restore(4)
+| 9 = Super restore(4)
+| 10 = Super restore(4)
+| 11 = Super restore(4)
+| 12 = Super restore(4)
+| 13 = Super restore(4)
+| 14 = Super restore(4)
+| 15 = Super restore(4)
+| 16 = Super restore(4)
+| 17 = Bracelet of slaughter
+| 18 = Prayer regeneration potion(4)
+| 19 = Prayer regeneration potion(4)
+| 20 = Divine super combat potion(4)
+| 21 = Explorer's ring 4
+| 22 = Book of the Dead
+| 23 = Sanfew serum(4)
+| 24 = Divine super combat potion(4)
+| 25 = Holy wrench
+| 26 = Death rune\5000
+| 27 = Divine rune pouch
+| 28 = Divine super combat potion(4)
+}}
+{{Rune pouch|align=right
+|1=Blood rune\5000
+|2=Fire rune\10000
+|3=Aether rune\5000
+|4=Wrath rune\1000
+}}
+* 2-3 [[Divine super combat potion]]s or [[Super combat potion]]s.
+* Special attack weapon, or multiple if using [[lightbearer]]. Any defence reduction special to use at the start of kills, and then spare special attack energy can be used with a DPS and/or Sustain special attack as needed.
+* Fill your inventory with [[super restore]]s or [[prayer potion]]s, 1-2 [[prayer regeneration potion]]s, and 1-2 [[sanfew serum]]s for poison immunity. If less experienced with the boss, bring a few pieces of high healing food such as [[manta ray]] or [[cooked moonlight antelope]]. As you gain more experience, less or no food is necessary, especially if bringing [[saradomin godsword]] or [[amulet of blood fury]].
+* [[Holy wrench]] or [[prayer cape]]/[[max cape]] to increase prayer restored from potions.
+* 1 [[antidote++]] if not bringing cooked moonlight antelope or sanfews.
+* [[Divine rune pouch]] with runes for [[Resurrect Greater Ghost]], [[Death charge]], and optionally [[Sinister Offering]] for more [[Prayer]] experience.
+* (Optional) [[Bracelet of slaughter]] to extend the task.
+* (Optional) [[Bonecrusher necklace]] to auto-bury hydra bones if not using Sinister Offering. It can also be equipped during boss death animation to restore an extra 8 prayer points per kill. This will restore 2 more points of Prayer than offering, but for much less exp.
+* (Optional) [[Noxious halberd]] can be used to cure poison as necessary at the cost of 50% special attack energy.
+</tabber>
+
+[[Category:Strategies]]

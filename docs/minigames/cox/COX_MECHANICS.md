@@ -398,13 +398,16 @@ Pickaxe spawn is a loc, `raids_stoneguardians_pickaxe` (41754) ✅.
 
 | Quantity | Value |
 | --- | --- |
-| Attack speed | 🔧 plugin: `setTicksUntilAttack(5)` on the attack animation → **5 ticks**. 📖 wiki: **4 ticks**. ⚠️ **conflict** |
+| Attack speed | ✅ **4 ticks** — wiki infobox and weirdgloop `monsters.json` agree. 🔧 plugin's `setTicksUntilAttack(5)` is an animation-timing observation, not the combat-defs attack speed field; not adopted (resolved 2026-08-19). |
 | Damage gate 📖 | pickaxe only; everything else **reduced to 0** |
 | Damage formula 📖 | `D = (50 + Mining level + pickaxe level req) / 150`; crystal pickaxe caps at dragon |
-| Stomp 📖 | 3×3 at the attacking player's tile; defeated by attacking then stepping **2 tiles** away |
+| Stomp 📖 | 3×3 centred on the attacked player's tile at swing time; population re-checked one tick later, which is the dodge window ("attacking then stepping 2 tiles away") |
+| Melee vs. stomp 🔧 | RaidGuardianNPC.attack: forced stomp when no player is within melee range, otherwise a 50/50 coin flip. No rung1-3 numbers; NR's shape adopted uncontradicted. |
+| Flinch 🔧 | RaidGuardianNPC.flinch: a landed hit halves the current attack countdown to `floor(attackrate/2)`, gated by an attackrate-tick cooldown so it cannot re-trigger inside one window. No rung1-3 numbers; NR's shape adopted uncontradicted. |
+| Pushback 📖🔧 | stepping within one tile of the gap between the statues: wiki confirms damage + points are awarded but states the point-cap formula is unpublished; NR supplies the only concrete numbers (15-30 damage, flat 40 points, `ForceMovement` slide to the paired push tile). |
 | Stat regen 📖 | 1 per **8** ticks |
 | Immunities 📖 | thralls, poison, venom |
-| HP formula 📖 | `H = 151 × (1 + ⌊T × 12⌋) + ⌊M̄⌋ × T` ⚠️ almost certainly mis-transcribed on the wiki — nonsensical at T=1. **Re-derive** |
+| HP formula 📖 | `H = 151 × (1 + ⌊T × 1/2⌋) + ⌊M̄⌋ × T` — resolved 2026-08-19: the raw wikitext is LaTeX `\lfloor T \times \frac{1}{2} \rfloor`, i.e. T times **one-half**, not T times twelve; the `× 12` in the row above was a markdown-rendering artifact of an earlier transcription. At T=1, M=99 this evaluates to 151+99=250, matching the infobox's own `hitpoints1=250` exactly. |
 
 ---
 
@@ -718,9 +721,11 @@ guess.
    These will have to be authored from video observation or chosen by us.
 5. ❓ Exact tick intervals for: Olm auto-heal delay, deep burn ticks, Tekton's
    repair interval.
-6. ❓ Guardian HP formula — the published one is mis-transcribed.
-7. ⚠️ **Nine known conflicts** between sources, each flagged inline above:
-   Tekton attack speed (3 vs 4), Guardian speed (4 vs 5), Vespula grounding
+6. ✅ Guardian HP formula — resolved 2026-08-19: the wiki's raw wikitext is
+   `T × 1/2`, not `T × 12`; see S4.
+7. ⚠️ **Eight remaining known conflicts** between sources, each flagged inline
+   above (Guardian attack speed resolved to 4 ticks, 2026-08-19):
+   Tekton attack speed (3 vs 4), Vespula grounding
    (20 % vs 23 %), Muttadile heal (40 % vs 50 %), shaman count (2–4 vs 2–5),
    falling-crystal damage, ice demon prayer-reaction direction, ice demon fire
    multiplier (250 % vs 150 %), overload formula.

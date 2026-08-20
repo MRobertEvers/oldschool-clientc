@@ -12,6 +12,9 @@ Two passes:
   --worklist  the curated subset of --coverage that is real, actionable work,
               re-resolved against the tree every run so a row can never claim
               done while the binding is still absent.
+  --audit     the completion gate: every cache-declared option in the curated
+              verb families must be bound, or listed in the exclusions file with
+              a reason.  Anything in neither is a gap nobody has decided about.
   --dead      the inverse and the higher-signal half: a script binds opN on a
               target where NO member declares opN, so the trigger can never
               fire.  Ranked, because most are benign (see OUTAGE vs resume).
@@ -223,6 +226,84 @@ def dead(cache, cats, live, sites, reissue, out_json):
 
 
 WORKLIST = os.path.join(HERE, "world_interaction_worklist.tsv")
+EXCLUSIONS = os.path.join(HERE, "world_interaction_exclusions.tsv")
+
+# The verbs the worklist curates.  The audit re-derives the whole population
+# from these rather than from the worklist file, so a row that was never
+# written down is still caught.
+AUDIT_VERBS = {
+    "Churn", "Pick-banana", "Pick-orange", "Pick-leaf", "Pick-fruit",
+    "Pick-coconut", "Swing-on", "Cut", "Pray", "Pray-at", "Drink-from",
+    "Swim", "Pump", "Pluck", "Spin", "Dig-up", "Shake", "Clean", "Weave",
+    "Shear", "Smelt",
+}
+
+
+def load_exclusions():
+    """symbol (or `prefix*`) -> reason."""
+    out = []
+    with open(EXCLUSIONS, encoding="utf-8") as f:
+        for line in f:
+            if line.startswith("#") or not line.strip():
+                continue
+            sym, _, reason = line.rstrip("\n").partition("\t")
+            out.append((sym, reason))
+    return out
+
+
+def excluded(sym, rules):
+    for pat, reason in rules:
+        if pat.endswith("*") and sym.startswith(pat[:-1]):
+            return reason
+        if pat == sym:
+            return reason
+    return None
+
+
+def audit(cache, cats, live):
+    """Bound, or excluded with a reason.  Nothing may be neither."""
+    cat_trigs = collections.defaultdict(set)
+    for (kind, target), ops in live.items():
+        if target.startswith("_"):
+            cid = cats.get(target[1:])
+            if cid is not None:
+                cat_trigs[cid] |= {kind + o for o in ops}
+
+    rules = load_exclusions()
+    bound = unaccounted = 0
+    excused = collections.Counter()
+    gaps = []
+    for tbl in ("loc", "npc"):
+        trig_kind = "oploc" if tbl == "loc" else "opnpc"
+        for sym, rec in cache[tbl].items():
+            for opkey, verb in sorted(rec["ops"].items()):
+                if verb not in AUDIT_VERBS:
+                    continue
+                n = opkey[-1]
+                trig = trig_kind + n
+                if n in live.get((trig_kind, sym), set()) or (
+                        rec["category"] is not None and
+                        trig in cat_trigs.get(rec["category"], set())):
+                    bound += 1
+                    continue
+                why = excluded(sym, rules)
+                if why:
+                    excused[why] += 1
+                    continue
+                unaccounted += 1
+                gaps.append((tbl, sym, opkey, verb, rec["name"] or ""))
+
+    print(f"{bound} bound, {sum(excused.values())} excluded, {unaccounted} unaccounted")
+    if excused:
+        print("\nexcluded, by reason:")
+        for reason, c in excused.most_common():
+            print(f"  {c:4d}  {reason}")
+    if gaps:
+        print("\nUNACCOUNTED — bind it, or give it a row in "
+              "tools/world_interaction_exclusions.tsv:")
+        for tbl, sym, opkey, verb, name in sorted(gaps):
+            print(f'  {tbl} {sym}.{opkey}={verb}  "{name}"')
+    return 1 if unaccounted else 0
 
 
 def worklist(cache, cats, live, todo_only):
@@ -273,12 +354,14 @@ def main():
                     help="curated actionable subset, status re-derived per run")
     ap.add_argument("--todo", action="store_true",
                     help="with --worklist, hide rows that are already bound")
+    ap.add_argument("--audit", action="store_true",
+                    help="every option is bound or excluded with a reason")
     ap.add_argument("--dead", action="store_true",
                     help="bindings pointing at an op the cache never declares")
     ap.add_argument("--json", metavar="PATH", help="also dump findings as JSON")
     a = ap.parse_args()
-    if not (a.coverage or a.dead or a.worklist):
-        ap.error("pick --coverage, --worklist or --dead")
+    if not (a.coverage or a.dead or a.worklist or a.audit):
+        ap.error("pick --coverage, --worklist, --audit or --dead")
     if not os.path.isdir(CFG):
         sys.exit(f"content tree not found at {ROOT} (set MOCK230_CONTENT_DIR)")
 
@@ -289,6 +372,8 @@ def main():
         coverage(cache, cats, live, a.json)
     if a.worklist:
         worklist(cache, cats, live, a.todo)
+    if a.audit:
+        sys.exit(audit(cache, cats, live))
     if a.dead:
         dead(cache, cats, live, sites, reissue, a.json)
 

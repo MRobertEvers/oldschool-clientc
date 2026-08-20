@@ -123,6 +123,32 @@ struct CP_MergeSet
 };
 
 /**
+ * The rank a source file merges at.
+ *
+ * Three layers, not two, and the third one exists because the tree has files
+ * nobody wrote by hand. `index == 0` is the cache export (rank 0). Above it the
+ * authored layer splits: `*.generated.*` — `combat_stats.generated.npc`,
+ * `npc_anims.generated.npc`, the machine tables — merges at rank 1, and a file
+ * a person wrote at rank 2, so the person wins.
+ *
+ * That is not this reader's opinion; it is `mock230_content.c`'s, which has
+ * always loaded npc configs in three passes (`load_npc_default_config`, then
+ * `load_npc_generated_config`, then `load_npc_authored_config`). Flattening
+ * both authored classes to one rank here made the merge resolve ties by
+ * directory order instead — `npc/` sorts after `areas/`, so a generated anim
+ * table silently outranked the hand-written God Wars block — and the two
+ * readers disagreed about 56 npcs while each was internally consistent. The
+ * server band is validated against the runtime's parse, so every one of those
+ * surfaced as a mismatched archive that no amount of re-packing could settle.
+ *
+ * Ties *within* a class stay a hard error, which is what the rule is for: two
+ * hand-written files arguing about one npc is a content bug with no defined
+ * answer.
+ */
+int
+cp_merge_rank_for(int index, const char* path);
+
+/**
  * Fold `file` into `set` at `rank`.
  *
  * Blocks are matched by name. A block the set has not seen is appended; one it has

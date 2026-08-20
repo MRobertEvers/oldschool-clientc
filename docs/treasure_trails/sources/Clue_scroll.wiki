@@ -1,0 +1,60 @@
+'''Clue scrolls''' are part of [[Treasure Trails]], an activity that involves completing [[Treasure Trails/Full guide/All|steps]] for a [[reward casket]].
+
+==Clue scrolls==
+*[[Clue scroll (beginner)]]
+*[[Clue scroll (easy)]]
+*[[Clue scroll (medium)]]
+*[[Clue scroll (hard)]]
+*[[Clue scroll (elite)]]
+*[[Clue scroll (master)]]
+
+==Scroll cases==
+*[[Scroll case]]s
+*Minor scroll cases:
+**[[Minor beginner scroll case]]
+**[[Minor easy scroll case]]
+**[[Minor medium scroll case]]
+**[[Minor hard scroll case]]
+**[[Minor elite scroll case]]
+**[[Minor master scroll case]]
+*Major scroll cases:
+**[[Major beginner scroll case]]
+**[[Major easy scroll case]]
+**[[Major medium scroll case]]
+**[[Major hard scroll case]]
+**[[Major elite scroll case]]
+**[[Major master scroll case]]
+
+==Clue scroll containers==
+* [[Scroll box]]es
+** [[Scroll box (beginner)]]
+** [[Scroll box (easy)]]
+** [[Scroll box (medium)]]
+** [[Scroll box (hard)]]
+** [[Scroll box (elite)]]
+** [[Scroll box (master)]]
+*[[Clue bottle]]s
+**[[Clue bottle (beginner)]]
+**[[Clue bottle (easy)]]
+**[[Clue bottle (medium)]]
+**[[Clue bottle (hard)]]
+**[[Clue bottle (elite)]]
+*[[Clue nest]]s
+**[[Clue nest (beginner)]]
+**[[Clue nest (easy)]]
+**[[Clue nest (medium)]]
+**[[Clue nest (hard)]]
+**[[Clue nest (elite)]]
+* [[Clue geode]]s
+** [[Clue geode (beginner)]]
+** [[Clue geode (easy)]]
+** [[Clue geode (medium)]]
+** [[Clue geode (hard)]]
+** [[Clue geode (elite)]]
+
+==Other uses==
+*[[Clue box]], a consumable item that can protect a clue scroll in the [[Wilderness]].
+*[[Clue scroll (Song of the Elves)|Clue scroll]], a quest item used during [[Song of the Elves]].
+*For clue scroll skill requirements, see [[Clue scroll/Requirements by skill]]
+
+{{Disambig}}

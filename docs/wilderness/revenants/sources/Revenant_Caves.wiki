@@ -1,0 +1,233 @@
+{{External|rs=Forinthry Dungeon}}
+{{Infobox Location
+|name = Revenant Caves
+|image = [[File:Revenant Caves.png|300px]]
+|release = [[23 November]] [[2017]]
+|update = Mage Arena II, Revenant Caves & Deadman Beta
+|members = Yes
+|floors = 1
+|location = [[Wilderness]]
+|race = [[Revenants]]
+|music = [[Revenants (music track)|Revenants]]
+|map = [[File:Revenant Caves map.png|300px]]
+|type = dungeon
+|leagueRegion = Wilderness
+}}
+The '''Revenant Caves''', also known as the '''Forinthry Dungeon''', are a set of caverns found in the [[Wilderness]]. Accessible to [[members]] only, it is an extremely dangerous cave that ranges from level 17 to 40 Wilderness and is exclusively a [[singles-plus combat]] area.
+
+The caves serve as a refuge for [[revenants]]. There are three one-way entrances:
+* [[Cavern (Revenant Caves)#Level 17|Level 17 Wilderness]] — east of the [[Dark Warriors' Fortress]].
+* [[Crevice (Revenant Caves)|Level 26 Wilderness]] — north of the [[Bandit Camp (Wilderness)|Bandit Camp]].
+* [[Cavern (Revenant Caves)#Level 40|Level 40 Wilderness]] — south-east of the [[Lava Maze]].
+
+In addition to the entrances, there is also an [[stairs (Revenant Caves)|exit]] by the level 17 and level 40 locations that allows players to leave the dungeon. These are intentionally placed away from the dungeon entrance to prevent players from escaping player killers by going in and out of them. In addition, there is a delay of 2 [[RuneScape clock|ticks]] (1.2 seconds) upon selecting any method of teleportation before it is activated, provided the player is in combat with an NPC while the attempt to teleport is made. This delay can be interrupted by another incoming attack from an NPC, resulting in the teleport delay timer having to be run down anew. The teleport delay is removed if the player has completed the [[hard Wilderness Diary]].
+
+Unlike other locations in the Wilderness, [[death|dying]] to a revenant in the caves without taking damage from another player will be considered a '''player-versus-player''' death and follows its death mechanics accordingly. Any items not converted into coins or an untradeable/broken variant '''will be seen by every player for up to 60 minutes.'''
+
+Players wearing an [[amulet of avarice]] gain a 20% bonus to damage and accuracy while fighting revenants in the cave, and will find that all their drops come in noted form, at the cost of being permanently [[Skull (status)|skulled]] while it is equipped.
+
+A [[dwarf multicannon]] cannot be placed in the caves.
+
+[[File:Revenant Caves location.png|thumb|left|200px|Revenant Caves entrance locations]]
+'''{{Colour|red|Warning}}:''' The entire area counts as the Wilderness. Players will be able to attack you here. So, only bring items you can afford to lose!
+
+==Transportation==
+To get to the caves, players will have to traverse the [[Wilderness]]. Aside from simply walking there, there are some other options:
+*[[Revenant cave teleport]], which teleports the player to the level 40 entrance.
+*[[Burning amulet]], can take players to two entrances:
+**[[Bandit Camp (Wilderness)|Bandit Camp]] option - head east for the level 17 entrance.
+**[[Lava Maze]] option - head east for the level 40 entrance.
+*[[Wilderness Obelisk]]s can take players to two entrances:
+**Level 27 obelisk - head east to the level 26 entrance.
+**Level 35 obelisk - head north-east to the level 40 entrance.
+*[[Carrallanger Teleport]], or the [[Carrallanger teleport|equivalent teleport tablet]], takes players to the [[Graveyard of Shadows]], close to the level 17 entrance.
+*[[Canoeing]] to the Wilderness will take players close to the level 40 entrance.
+
+==Features==
+Before entering the caves, players must pay a fee of 100,000 coins. The fee can be taken from the bank and does not need to be brought along in the inventory. As long as the player does not die inside the cave or get killed by another player, the fee does not need to be repaid. Upon dying to anything inside the caves ('''including''' monsters) or to another player '''anywhere in the Wilderness''', the fee will be lost and '''must be repaid before re-entering the caves'''. If the killer was another player, the 100,000 coins will be dropped as loot.
+
+The caves are very large but only contain [[revenants]], who are sparsely scattered throughout the caves.
+
+There are five [[shortcuts]] around the dungeon, requiring various [[Agility]] levels to use. Boosts may be used to meet the requirement.
+
+*The [[Pillar (Revenant Caves)#Easy|shortcut]] between the revenant goblin and the southern revenant ork requires 65 Agility.
+*The [[Pillar (Revenant Caves)#Medium|shortcut]] west of the northern revenant ork and the shortcuts in the north-western area require 75 Agility.
+*The [[Pillar (Revenant Caves)#Hard|shortcut]] between the northern revenant ork and eastern revenant pyrefiend requires 89 Agility.
+
+===Revenants===
+{{Main|Revenants}}
+[[Revenants]] are monsters that were slain during the [[God Wars]]. Extremely vengeful spirits, they are the main attraction of the dungeon. Revenants use all three forms of combat. They prioritise the [[combat style]] that the player is weak against as their primary attacks, and will adapt to any changes in equipment or prayers the player applies. They are also capable of healing themselves when their health falls below 50%.
+
+Revenants drop various resources, equipment and several unique items. Revenants always drop [[revenant ether]], which is used to charge the [[bracelet of ethereum]]. This bracelet reduces all damage inflicted through a revenant's attack by 75%, at the cost of 1 charge per attack. It is carried at the player's own risk, as it is always lost on death with all charges regardless of the player's item protection settings. They also drop [[ancient artefacts]] that can be sold to the [[Emblem Trader]] wandering the caves for a hefty amount of coins. Revenants also drop [[ancient crystal]]s, four of which are required to build an [[Obelisk (Construction)|obelisk]] in the [[superior garden]] of a [[player-owned house]]. Lastly, they are able to drop weapons that are most effective if used within the Wilderness: [[Craw's bow]], [[Thammaron's sceptre]] and [[Viggora's chainmace]].
+
+Killing revenants may also cause a [[revenant maledictus]] to spawn in one of several locations in the caves.
+
+{| class="wikitable" width="75%"
+! Monster
+! Image
+! Combat Level
+! Quantity
+|-
+| [[Revenant imp]]
+| [[File:Revenant imp.png|100px]]
+| 7
+| 4
+|-
+| [[Revenant goblin]]
+| [[File:Revenant goblin.png|100px]]
+| 15
+| 2
+|-
+| [[Revenant pyrefiend]]
+| [[File:Revenant pyrefiend.png|75px]]
+| 52
+| 4
+|-
+| [[Revenant hobgoblin]]
+| [[File:Revenant hobgoblin.png|100px]]
+| 60
+| 2
+|-
+| [[Revenant cyclops]]
+| [[File:Revenant cyclops.png|100px]]
+| 82
+| 2
+|-
+| [[Revenant hellhound]]
+| [[File:Revenant hellhound.png|100px]]
+| 90
+| 2
+|-
+| [[Revenant demon]]
+| [[File:Revenant demon.png|100px]]
+| 98
+| 4
+|-
+| [[Revenant ork]]
+| [[File:Revenant ork.png|100px]]
+| 105
+| 4
+|-
+| [[Revenant dark beast]]
+| [[File:Revenant dark beast.png|150px]]
+| 120
+| 2
+|-
+| [[Revenant knight]]
+| [[File:Revenant knight.png|100px]]
+| 126
+| 2
+|-
+| [[Revenant dragon]]
+| [[File:Revenant dragon.png|150px]]
+| 135
+| 2
+|-
+| [[Revenant maledictus]]
+| [[File:Revenant maledictus.png|150px]]
+| 397
+| Special
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 March 2026
+|update = Easter 2026 & PvP QoL Improvements
+|change = * When crossing a Revenant Cave shortcut, the slight delay when arriving at the other side has been removed.
+* Ranging ammunition no longer spawns on top of the Revenant Cave shortcut pillars.
+}}
+{{Subject changes
+|date = 30 July 2025
+|update = Varlamore: Bug Fixes & More
+|change = 
+* Fixed a bug that caused the Agility shortcuts in the Revenant Caves to float in midair.
+* Fixed an issue where one food item appeared immediately on death to monsters in the Revenant Caves; all tradeable drops now appear after the intended delay.
+}}
+{{Subject changes
+|date = 20 September 2023
+|update = Poll 80 & Shooting Stars Changes
+|change = 
+* Players can no longer jump the [[Agility]] [[shortcut]] [[Pillar (Revenant Caves)|pillars]] in the Revenant Caves if they are frozen or bound.
+* Players who complete the hard Wilderness Diary will now have the 2-tick teleportation delay removed.
+}}
+{{Subject changes
+|date = 10 August 2022
+|update = LMS Game Modes: Pures & Zerks
+|change = A 2-tick delay has been added to any teleportation method while in combat with an NPC inside of the Revenant Caves.
+}}
+{{Subject changes
+|date = 22 June 2022
+|update = Pride 2022, Pet Reclaim Changes & New Mobile Client!
+|change = The entrance and exits of the Revenant Caves are now even further apart. 
+}}
+{{Subject changes
+|date = 13 April 2022
+|update = Easter 2022
+|change = The entrances are now one-way into the caves; to make up for this, players can leave the dungeon by using a one-way exit near these entrances.
+}}
+{{Subject changes
+|date = 22 September 2021
+|update = Wilderness & Equipment Rebalance Changes
+|poll =
+|change = The entrance at level 26 Wilderness has been made one-way; players will be warned when attempting to enter from here.
+}}
+{{Subject changes
+|date = 21 October 2020
+|update = Halloween 2020
+|change = 
+*Revenant Caves overhauled - non-revenant monsters moved to the [[Wilderness Slayer Cave]].
+*Increased amount of Revenants in the cave, and spread them over the entirety of the cave
+*Third entrance added at level 26 Wilderness.
+*100,000 coin entry fee required to access dungeon.
+*Combat zones modified to "singles-plus" - players can still fight revenants, but they can be attacked by another player while fighting them.
+*Being skulled has less impact on drop rates
+*A dwarf multicannon can no longer be set up anywhere within the caves
+*Numerous uninteractable ghosts added across the caves
+}}
+{{Subject changes
+|date = 6 August 2020
+|update = PVP Changes
+|change = 
+*[[Bracelet of Ethereum]] damage reduction lowered by 25% for a total of 75% damage reduction.
+*The average value of the revenant drop table been reduced by around 20%.
+}}
+{{Subject changes
+|date = 6 December 2018
+|update = The Collection Log and Deadman Permadeath Beta
+|change = Players are now prevented from spamming the entrance/exit to the Revenant caves to avoid PKers.
+}}
+{{Subject changes
+|date = 1 March 2018
+|update = QoL Improvements & Deadman Permadeath Beta
+|change = *The magic attack of the Revenants will now target several players at once. Up to 10 players stood on the same tile as the main target will be targeted with the magic attack. 
+*The chances of rolling on the normal loot table have been increased slightly.
+}}
+{{Subject changes
+|date = 21 February 2018
+|update = Revenant Caves: Hotfix
+|change = *Reduced overall value of revenant drops
+*Dwarf multicannons can no longer be placed within the Revenant area of the caves
+}}
+{{Subject changes
+|date = 26 January 2018
+|update = Wilderness Rejuvenation II & QoL Month
+|change = *Increased the likelihood of landing on the normal loot table instead of coins.
+*Removed some lesser valuable drops and increased quantities of regular loot.
+*Tweaked various weightings across the normal loot table and all 100x drops have been removed.
+*Added Ancient Statuettes to the drop table.
+}}
+{{Subject changes
+|date = 30 November 2017
+|update = Buffs, Deadman and Mythical Cape Designs
+|change = *Revenants now correctly play their correct defend animations.
+*The Slayer gem will now log kills of Revenants.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*The caves are based on the {{RSL|Forinthry Dungeon}} in ''RuneScape 3''. Revenants were originally the replacement for [[player killers]] between December 2007 and February 2011 when PvP was removed from the Wilderness, and when it was reinstated, the dungeon was created to house the revenants.
+
+{{Revenant Caves}}
+{{Dungeons}}
+{{Wilderness}}

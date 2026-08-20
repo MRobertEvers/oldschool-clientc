@@ -1,0 +1,91 @@
+{{Infobox NPC
+|version1 = Melee
+|version2 = Ranged
+|version3 = Magic
+|name = Summoned Soul
+|image1 = [[File:Summoned Soul (melee).png|250x250px]]
+|image2 = [[File:Summoned Soul (ranged).png|250x250px]]
+|image3 = [[File:Summoned Soul (magic).png|250x250px]]
+|release = [[27 August]] [[2015]]
+|update = Cerberus - The Hellhound Boss
+|level1 = 79
+|level2 = 96
+|level3 = 96
+|members = Yes
+|race = [[Ghost]]
+|location = [[Cerberus' Lair]]
+|examine = A tortured soul, summoned from the river to do the bidding of Cerberus.
+|map = {{Map|name=Summoned Soul|1240,1256|1239,1256|1241,1256|1304,1320|1303,1320|1305,1320|1368,1256|1367,1256|1369,1256|mtype=pin|mapID=10030}}
+|id1 = 5869
+|id2 = 5867
+|id3 = 5868
+|leagueRegion = Asgarnia
+}}
+'''Summoned Souls''' are summoned from the [[River of Souls]] during the fight with [[Cerberus]], indicated by it howling {{overhead|Aaarrrooooooo}}. The souls' colour and equipped weapon coordinates to their attack style: red/spear is melee, green/bow is range, and blue/staff is magic.
+
+The order in which they appear is randomised, but they always attack from west to east. Thus, players can predict the order of attack the souls will do, and [[prayer flick]] as they attack to mitigate their damage. If an incorrect overhead [[prayer]] is used when they attack, they will '''always''' deal 30 damage regardless of the player's defensive bonuses. [[Tick manipulation|Tick eating]] does not work against the attack.
+
+If the player uses the correct overhead prayer just before they attack, they will drain 30 prayer points instead. This can be taxing on players without 90+ Prayer, as they will always be completely drained of prayer after the third spirit attacks. The prayer drain can be reduced to 20 points with the [[Ward of Arceuus]] spell, 15 points by wielding a [[spectral spirit shield]] or to 10 points if both the Ward and spectral are used together.
+
+Once all three finish their attack, they return to the River of Souls, wailing quotes such as {{overhead|Join us.}}, {{overhead|I obey.}}, and {{overhead|Steal your soul.}} They will stay there and despawn after a short time unless they are called before they do so.
+
+==Dialogue==
+{{Hastranscript|npc}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 28 November 2019
+|update = Ashihama Rewards Beta and Sire Changes
+|change = Summoned Souls were further [[Graphical updates|graphically updated]] to be more distinguishable for colourblind players.{{CiteTwitter|author=Mod Gee|url=https://twitter.com/JagexGee/status/1200419318275686401|date=29 November 2019|archiveurl=https://reldo.runescape.wiki/i/104790|archivedate=28 May 2020|quote=The Cerberus Ghosts needed some updating to make them more visually unique for colour-blind players.}}
+}}
+{{Subject changes
+|date = 16 March 2017
+|update = Quality of Life & Deadman Prep
+|change = Summoned Souls now disappear if Cerberus dies after they were summoned instead of continuing to attack the player.
+}}
+{{Subject changes
+|date = 8 October 2015
+|update = Smoke Battlestaff Buff
+|change = Weapons were given to the Summoned Soul models to make them more easily distinguishable for colourblind players.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{{Switch infobox
+|text1 = Melee
+|item1 =
+|text2 = Ranged
+|item2 =
+|text3 = Magic
+|item3 =
+}}
+{|style="text-align: center" cellpadding="15"
+|
+{{Synced switch
+|version1 = [[File:Summoned Soul (melee) v1.png|center|300x150px]]
+|version2 = [[File:Summoned Soul (ranged) v1.png|center|300x150px]]
+|version3 = [[File:Summoned Soul (magic) v1.png|center|300x150px]]
+}}
+|
+{{Synced switch
+|version1 = [[File:Summoned Soul (melee) v2.png|center|300x150px]]
+|version2 = [[File:Summoned Soul (ranged) v2.png|center|300x150px]]
+|version3 = [[File:Summoned Soul (magic) v2.png|center|300x150px]]
+}}
+|
+{{Synced switch
+|version1 = [[File:Summoned Soul (melee).png|center|300x150px]]
+|version2 = [[File:Summoned Soul (ranged).png|center|300x150px]]
+|version3 = [[File:Summoned Soul (magic).png|center|300x150px]]
+}}
+|-
+|27 August 2015 –<br/>8 October 2015
+|8 October 2015 –<br/>28 November 2019
+|28 November 2019 –<br/>present
+|}
+
+==References==
+{{reflist}}
+
+{{Cerberus}}

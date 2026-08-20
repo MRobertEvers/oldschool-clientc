@@ -1,0 +1,54 @@
+{{External|rs}}
+{{Redirect3|Defender|For the [[Barbarian Assault]] role, see [[Barbarian Assault#Roles|here]]}}
+{{Infobox Armour Group
+|name = Defender
+|images = {{plinkp|Bronze defender}}{{plinkp|Iron defender}}{{plinkp|Steel defender}}{{plinkp|Mooleta}}{{plinkp|Black defender}}{{plinkp|Mithril defender}}{{plinkp|Adamant defender}}{{plinkp|Rune defender}}{{plinkp|Dragon defender}}{{plinkp|Avernic defender}}
+|slot = [[Shield slot]]
+|type = [[Melee]]
+}}
+'''Defenders''' are untradeable items wielded in the [[shield slot]] resembling [[dagger]]s, providing some of the best [[melee strength]] and [[attack bonus]]es in the slot, as well as good defensive stats. Wielding a defender requires both the [[Attack]] and [[Defence]] level corresponding to its tier of [[metal]].
+
+Due to their untradeable nature and high melee bonuses, killing the monsters that drop defenders is very often a goal for players.
+
+The [[mooleta]] is the only defender obtainable by [[free-to-play]] players, and is the only shield slot item available to free-to-play accounts that has offensive melee bonuses. It is dropped by the boss [[Brutus]] and has similar bonuses to a steel defender.
+
+Standard metal defenders are obtained by killing [[Cyclops|cyclopes]] in the [[Warriors' Guild]] at a rate of 1/50 for bronze through rune and 1/100 for dragon. '''After obtaining the first defender of each metal, the player must leave the room and re-enter before the next tier defender can drop.''' Once the defender is obtained and you've left the room, it can be banked and the next defender will still drop regardless of whether it is in the player's inventory. Defenders up to rune are obtained on the top floor, while the [[dragon defender]] can only be obtained in the basement after showing [[Lorelai]] a rune defender. The entrance to the basement is behind the Warriors' Guild.
+
+Multiple defenders of the same metal can be obtained by having the next lowest defender while killing cyclopes. On average, a player will need to kill approximately 450 cyclopes to obtain a dragon defender. The number of tokens needed will vary heavily based on combat levels and gear, but expect upwards of 2,000 [[warrior guild token]]s.
+
+Once a dragon defender has been obtained, it can be combined with a tradeable [[Avernic defender hilt]] to create an [[Avernic defender]], which has even higher stats. [[Ghommal's hilt 5]] or [[Ghommal's hilt 6|6]] can then be attached to the Avernic defender to form [[Ghommal's avernic defender 5|Ghommal's Avernic defender 5]] or [[Ghommal's avernic defender 6|6]], which possess the bonuses of the Avernic defender and the additional benefits of the hilt.
+
+Defenders do not count as a [[knife]] or [[Slash weapons|slash weapon]] for the purposes of cutting [[Web|webs]] or [[Kharidian cactus|Kharidian cacti]].
+
+==Option responses==
+Before showing any of the metal defenders to Kamfreena, she says: ''"I'll release some cyclopes which might drop bronze defenders for you to start off with, unless you show me another. Have fun in there."''
+
+Using a metal defender on Kamfreena: ''"I have a (type) defender, please let me in to kill some more Cyclopes!"''
+
+Kamfreena's responses to each metal:
+*''(Bronze) "Bronze eh? The next cyclopes are ready, toddle in when you're ready."''
+*''(Iron) "Wow, iron eh? The next cyclopes are ready, toddle in when you're ready."''
+*''(Steel) "Strong as steel eh? The next cyclopes are ready, toddle in when you're ready."''
+*''(Black) "Black, hmmm, about half way to Rune then! Keep going! Cyclopes have been released, enter when you're ready."''
+*''(Mithril) "Mithril? Getting good at this aren't you? Okay, I've released those cyclopes that sometimes drop adamant defenders, enter when you're ready."''
+*''(Adamant) "An adamant defender, eh? Trying for the Rune defender I'm betting. Okay, I've released those cyclopes. Enter when you're ready."''
+*''(Rune) "Well done, you truly are a brilliant warrior! You should speak to my apprentice Lorelai in the basement for an additional challenge. If you'd rather stay up here, I've released the cyclopes. Enter when you're ready."''
+*''(Dragon) "Well done! You can only get more Dragon defenders from the basement. If you'd rather stay up here, I've released the cyclopes that can drop rune defenders. Enter when you're ready."''
+Lorelai's response to getting a dragon defender: 
+*"Congratulations you've found a Dragon defender! You're welcome to go back inside and try to get more."
+
+==Standard defenders==
+There is notably no [[white equipment|white metal]] defender.
+{{Infotable Bonuses|Bronze defender#Normal|Iron defender#Normal|Steel defender#Normal|Black defender#Normal|Mithril defender#Normal|Adamant defender#Normal|Rune defender#Normal|Dragon defender#Normal|sort=aslash|nototals=yes}}
+
+==Other defenders==
+{{Infotable Bonuses|Rune defender (t)#Normal|Dragon defender (t)#Normal|Avernic defender#Normal|Ghommal's avernic defender 5#Normal|Ghommal's avernic defender 6#Normal|sort=aslash|nototals=yes|Mooleta}}
+
+==Beta weapons==
+{{Infotable Bonuses|Avernic defender (beta)|sort=aslash|nototals=yes}}
+
+== Trivia ==
+* Defenders are based off of the {{WP|parrying dagger}}, specifically the ''main-gauche'' - a dagger wielded alongside a longer weapon, used to assist with parrying.
+
+{{Weapon}}
+{{Warriors' Guild}}

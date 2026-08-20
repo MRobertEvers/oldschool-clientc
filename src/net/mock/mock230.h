@@ -5915,6 +5915,28 @@ mock230_scripts_run_proc_int(
     int argc,
     int32_t* out);
 
+/**
+ * Ask content whether it wants to consume an interaction, before the engine
+ * dispatches it.
+ *
+ * `name` is a `[proc,…]` that takes `args` and returns a boolean. It runs with
+ * the clicked npc or loc bound as the primary active entity, so it can answer
+ * in dialogue rather than in a floating message. Returns 1 if the proc ran and
+ * `out` holds its answer; 0 if the tree does not define it, if it parked, or if
+ * it aborted — all of which mean "no claim".
+ *
+ * See the definition in mock230_scripts.c for why this is not a trigger.
+ */
+int
+mock230_scripts_run_claim(
+    struct Mock230Server* srv,
+    const char* name,
+    int npc_slot,
+    int loc_slot,
+    const int32_t* args,
+    int argc,
+    int32_t* out);
+
 /** Queue a named script (`name` includes the brackets, e.g.
  *  "[queue,playerhit_n_retaliate]") on the player, `delay` ticks out, carrying
  *  one int argument. Lets the engine start an exchange content finishes.

@@ -1,0 +1,563 @@
+{{Infobox Achievement Diary
+|name = Western Provinces Diary
+|image = [[File:Western Provinces Diary.png]]
+|release = [[5 March]] [[2015]]
+|update = Achievement Diaries
+|areas = [[Tree Gnome Stronghold]], [[Feldip Hills]], [[Ape Atoll]], [[Pest Control Island]], and [[Tirannwn]]
+|members = Yes
+|reward = [[Western banner|Banner]]
+|taskmasters = [[Elder Gnome child]]
+|leagueRegion = Kandarin&Tirannwn
+}}
+{{Map|name=Elder Gnome child|x=2467|y=3459|r=5|mtype=square|height=250|width=250|align=left|caption=Elder gnome child's location}}
+The '''Western Provinces Diary''' is an [[Achievement Diary]] whose tasks revolve around areas in the western provinces of [[Gielinor]], such as the [[Tree Gnome Stronghold]], [[Feldip Hills]], [[Tirannwn]], and [[Ape Atoll]].
+
+Several skill, quest, and item requirements are needed to complete all tasks. Unless stated otherwise, [[temporary skill boost]]s can be used to meet the skill requirements.
+
+Rewards can be claimed from the [[Elder Gnome child]] just south of the [[Grand Tree]] in the [[Tree Gnome Stronghold]]. Tasks may be done in any order, but the previous tiers of a diary must be completed to claim rewards of the next tier.
+
+==Overview==
+{{Sync}}
+<tabber>
+|-|
+Easy=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 15
+|Ranged = 30
+|RangedNotes = {{boostable|n}}
+|Cooking = 30
+|Fletching = 20
+|Hunter = 9
+|Combat = 40
+|Total = 131
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Big Chompy Bird Hunting"
+|[[Big Chompy Bird Hunting]]
+|- data-rowid="Rune Mysteries"
+|[[Rune Mysteries]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Reach 30 [[chompy bird|chompy]] or [[jubbly bird]] kills
+|}
+|}
+
+|-|
+Medium=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 40
+|Agility = 37
+|Smithing = 30
+|Herblore = 18
+|Fishing = 46
+|Ranged = 30
+|RangedNotes = {{boostable|n}}
+|Cooking = 42
+|Crafting = 25
+|Firemaking = 35
+|Magic = 46
+|Fletching = 20
+|Woodcutting = 35
+|Construction = 5
+|Hunter = 31
+|Combat = 70
+|Total = 458
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Big Chompy Bird Hunting"
+|[[Big Chompy Bird Hunting]]
+|- data-rowid="Eagles' Peak"
+|[[Eagles' Peak]]
+|- data-rowid="The Eyes of Glouphrie"
+|[[The Eyes of Glouphrie]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Partial completion of [[Monkey Madness I]]
+|-
+|Partial completion of [[One Small Favour]]
+|-
+|Reach 125 [[chompy bird|chompy]] or [[jubbly bird]] kills
+|}
+|}
+
+|-|
+Hard=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 70
+|Agility = 56
+|Smithing = 45
+|Herblore = 18
+|Fishing = 62
+|Ranged = 70
+|RangedNotes = {{boostable|n}}
+|Thieving = 75
+|Cooking = 70
+|Crafting = 40
+|Firemaking = 50
+|Magic = 66
+|Fletching = 20
+|Woodcutting = 50
+|Farming = 68
+|Construction = 65
+|Hunter = 69
+|Combat = 100
+|Quest = 100
+|Total = 910
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Eagles' Peak"
+|[[Eagles' Peak]]
+|- data-rowid="The Eyes of Glouphrie"
+|[[The Eyes of Glouphrie]]
+|- data-rowid="Recipe for Disaster/King Awowogei"
+|[[Recipe for Disaster/Freeing King Awowogei]] subquest
+|- data-rowid="Swan Song"
+|[[Swan Song]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Started [[Mourning's End Part I]]
+|-
+|Defeat [[Zulrah]]
+|-
+|Reach 300 [[chompy bird|chompy]] or [[jubbly bird]] kills
+|}
+
+|-|
+Elite=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Attack = 42
+|Hitpoints = 42
+|Mining = 70
+|Strength = 42
+|Agility = 85
+|Smithing = 45
+|Defence = 42
+|Herblore = 18
+|Fishing = 62
+|Ranged = 70
+|RangedNotes = {{boostable|n}}
+|Thieving = 85
+|Cooking = 70
+|Prayer = 22
+|Crafting = 40
+|Firemaking = 50
+|Magic = 66
+|Fletching = 85
+|Woodcutting = 50
+|Slayer = 93
+|SlayerNotes = {{boostable|n}}
+|Farming = 75
+|Construction = 65
+|Hunter = 69
+|Combat = 100
+|Quest = 100
+|Total = 1289
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Eagles' Peak"
+|[[Eagles' Peak]]
+|- data-rowid="The Eyes of Glouphrie"
+|[[The Eyes of Glouphrie]]
+|- data-rowid="Recipe for Disaster/King Awowogei"
+|[[Recipe for Disaster/Freeing King Awowogei]] subquest
+|- data-rowid="Swan Song"
+|[[Swan Song]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Started [[Mourning's End Part I]]
+|-
+|Defeat the [[Thermonuclear smoke devil]]
+|-
+|Defeat [[Zulrah]]
+|-
+|Reach 1,000 [[chompy bird|chompy]] or [[jubbly bird]] kills
+|-
+|Acquire and wear any complete [[Void Knight equipment|void set]]
+|}
+|}
+
+|-|
+</tabber>
+
+==Easy==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Western Provinces" data-diary-tier="Easy"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Catch a [[Copper Longtail]].
+|
+*{{SCP|Hunter|9|link=y}}
+*[[Bird snare]]
+|-
+|2. Complete a novice game of [[Pest Control]].
+''Note: You must've earnt [[Void Knight commendation points|commendation points]] for this task to count as completed. In Deadman Mode, the task is instead "Attempt to board the novice Pest Control lander with at least 40 combat."''
+|
+*{{SCP|Combat|40|link=y}}
+|-
+|3. Mine some [[Iron Ore]] near [[Piscatoris]].
+''Note: This must be done at the [[Piscatoris mine]].''
+|
+*{{SCP|Mining|15|link=y}}
+*Any [[pickaxe]]
+|-
+|4. Complete a lap of the [[Gnome Stronghold Agility Course|Gnome agility course]].
+|{{NA|None}}
+|-
+|5. Score a goal in a [[Gnome Ball|Gnomeball]] match.
+|{{NA|None}}
+|-
+|6. Claim any [[Chompy bird hat]] from [[Rantz]].
+''Note: You need to have a ([[comp ogre bow|comp]]) [[ogre bow]] in your inventory to claim hats.''
+|
+*{{SCP|Quest}} Completion of [[Big Chompy Bird Hunting]]
+*[[Ogre bellows]], ([[comp ogre bow|comp]]) [[ogre bow]], and [[ogre arrows|ogre]] or [[brutal arrows]]
+*30 [[chompy bird|chompy]] or [[jubbly bird]] kills
+|-
+|7. Teleport to [[Pest Control]] using the [[Minigame Teleport]].
+''Note: In Deadman Mode, the task is instead "Travel to the Void Knight Outpost from Port Sarim."''
+|
+*{{SCP|Combat|40|link=y}}
+|-
+|8. Collect a [[Swamp toad (item)|swamp toad]] at the [[Tree Gnome Stronghold|Gnome Stronghold]].
+''Note: Only a [[Swamp toad (item)|swamp toad]] collected from the swamp pen north-west of [[Grand Tree]] counts for this task.''
+|{{NA|None}}
+|-
+|9. Have [[Brimstail]] teleport you to the [[Rune essence mine|Essence Mine]].
+''Note: You can right-click him to teleport.''
+|
+*{{SCP|Quest}} Completion of [[Rune Mysteries]]
+|-
+|10. Fletch an [[Oak Shortbow]] in the [[Tree Gnome Stronghold|Gnome Stronghold]].
+|
+*{{SCP|Fletching|20|link=y}}
+*[[Oak shortbow (u)]] and [[bow string]]
+|-
+|11. Kill a [[Terrorbird]] in the Terrorbird enclosure.
+''Note: This enclosure is found in the south-west of the [[Tree Gnome Stronghold]], across the river.
+|
+*[[Weaponry]]
+|}
+
+===Rewards===
+*[[Western banner 1]]:
+**Depicts a [[chompy bird]]
+**No benefits aside from being a [[crush weapon]]
+*[[Antique lamp (easy)|Antique lamp]] worth 2,500 experience in any skill of at least level 30
+*25% chance of two [[chompy bird]]s appearing at once when [[chompy bird hunting]]
+*[[Rantz]] offers you 25 [[ogre arrow]]s for free every day, worth a total of {{NoCoins|{{GEP|Ogre arrow|25}}}} [[coins]] on the [[Grand Exchange]]
+
+==Medium==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Western Provinces" data-diary-tier="Medium"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Take the [[agility shortcut]] from the [[Grand Tree]] to [[Otto's Grotto]].
+|
+*{{SCP|Quest}} Completion of [[Tree Gnome Village]] and [[The Grand Tree]]
+*{{SCP|Agility|37|link=y}}
+|-
+|2. Travel to the [[Tree Gnome Stronghold|Gnome Stronghold]] by [[Spirit Tree]].
+|
+*{{SCP|Quest}} Completion of [[Tree Gnome Village]]
+|-
+|3. Trap a [[Spined Larupia]].
+''Note: This creature is found in the [[Feldip Hunter area]].
+|
+*{{SCP|Hunter|31|link=y}}
+*[[Teasing stick]], [[logs]], and a [[knife]]
+|-
+|4. Fish some [[Raw bass|Bass]] on [[Ape Atoll]].
+|
+*{{SCP|Quest}} Partial completion of [[Monkey Madness I]]
+*{{SCP|Fishing|46|link=y}}
+*[[Big fishing net]]
+|-
+|5. Chop and burn some [[teak logs]] on [[Ape Atoll]].
+''Note: With 50 [[Woodcutting]] and 50 [[Firemaking]], you can also chop and burn some [[mahogany logs]] here for a [[#Hard|hard task]].''
+
+''Completing or updating any other task in-between these steps will reset the progress for this task.''
+|
+*{{SCP|Quest}} Partial completion of [[Monkey Madness I]]
+*{{SCP|Woodcutting|35|link=y}} and {{SCP|Firemaking|35|link=y}}
+*Any [[axe]] and [[tinderbox]]
+|-
+|6. Complete an intermediate game of [[Pest Control]].
+''Note: You must've earnt [[Void Knight commendation points|commendation points]] for this task to count as completed. In Deadman Mode, the task is instead "Attempt to board the intermediate Pest Control lander with at least 70 combat."''
+|
+*{{SCP|Combat|70|link=y}}
+|-
+|7. Travel to the [[Feldip Hills]] by [[Gnome Glider]].
+|
+*{{SCP|Quest}} Completion of [[The Grand Tree]] and partial completion of [[One Small Favour]]
+|-
+|8. Claim a [[Chompy bird hat]] from [[Rantz]] after registering at least 125 kills.
+''Note: You need to have a ([[comp ogre bow|comp]]) [[ogre bow]] in your inventory to claim hats.''
+|
+*{{SCP|Quest}} Completion of [[Big Chompy Bird Hunting]]
+*[[Ogre bellows]], ([[comp ogre bow|comp]]) [[ogre bow]], and [[ogre arrows|ogre]] or [[brutal arrows]]
+*125 [[chompy bird|chompy]] or [[jubbly bird]] kills
+|-
+|9. Travel from [[Eagles' Peak (mountain)|Eagles' Peak]] to the [[Feldip Hills]] by [[Eagle transport system|Eagle]].
+''Note: You'll unlock travel from the [[Eagles' Peak Dungeon]] after the required quest.''
+|
+*{{SCP|Quest}} Completion of [[Eagles' Peak]]
+*[[Rope]]
+|-
+|10. Make a [[Chocolate Bomb]] at the [[Grand Tree]].
+|
+*{{SCP|Cooking|42|link=y}}
+*[[Gnomebowl mould]], [[Gianne dough]], 4 [[chocolate bar]]s, an [[Equa leaves|equa leaf]], 2 [[Pot of cream|pots of cream]], and [[chocolate dust]] (can all be purchased at [[Grand Tree Groceries]])
+|-
+|11. Complete a delivery for the [[Gnome Restaurant]].
+|
+*Completion of the [[Gnome Restaurant tutorial]]
+*{{SCP|Cooking|29-42|link=y}} (varies per food)
+|-
+|12. Turn your [[Crystal saw seed|small crystal seed]] into a [[Crystal saw]].
+''Note: You have to enchant it with the [[singing bowl]] in [[Brimstail's cave]].
+|
+*{{SCP|Quest}} Completion of [[The Eyes of Glouphrie]]
+*[[Crystal saw seed]]
+|-
+|13. Mine some [[Gold ore]] underneath the [[Grand Tree]].
+|
+*{{SCP|Quest}} Completion of [[The Grand Tree]]
+*{{SCP|Mining|40|link=y}}
+*Any [[pickaxe]]
+|}
+
+===Rewards===
+*[[Western banner 2]]:
+**Depicts [[King Awowogei]]
+*[[Antique lamp (medium)|Antique lamp]] worth 7,500 [[experience]] in any skill of at least level 40
+*50% chance of two [[chompy bird]]s appearing at once when [[chompy bird hunting]]
+*[[Rantz]] offers you 50 [[ogre arrow]]s for free every day, worth a total of {{NoCoins|{{GEP|Ogre arrow|50}}}} [[coins]] on the [[Grand Exchange]]
+*The [[crystal saw]] will now hold up to 56 charges, up from 28
+
+==Hard==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Western Provinces" data-diary-tier="Hard"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Kill an [[Elf]] with a [[Crystal bow]].
+''Note: an inactive bow can be used if equipped whilst the elf dies to poison.''
+|
+*{{SCP|Quest}} Completion of [[Roving Elves]]
+*{{SCP|Ranged|70|link=y}} {{boostable|n}}
+*[[Crystal bow]] or [[Bow of Faerdhinen]]
+|-
+|2. Catch and cook a [[Monkfish]] in [[Piscatoris]].
+''Note: [[Monkfish]] is caught in the [[Piscatoris Fishing Colony]].
+|
+*{{SCP|Quest}} Completion of [[Swan Song]]
+*{{SCP|Fishing|62|link=y}} and {{SCP|Cooking|62|link=y}}
+*[[Small fishing net]]
+|-
+|3. Complete a Veteran game of [[Pest Control]].
+''Note: You must've earnt [[Void Knight commendation points|commendation points]] for this task to count as completed. In Deadman Mode, the task is instead "Attempt to board the veteran Pest Control lander with at least 100 combat."''
+|
+*{{SCP|Combat|100|link=y}}
+|-
+|4. Catch a [[Dashing Kebbit]].
+''Note: This [[kebbit]] is found in the [[Piscatoris falconry area]].'' 
+|
+*{{SCP|Hunter|69|link=y}} {{boostable|y}}
+*500 [[coins]]
+|-
+|5. Complete a lap of the [[Ape Atoll agility course]].
+|
+*{{SCP|Quest}} Partial completion of [[Monkey Madness I]]
+*{{SCP|Agility|48|link=y}}
+*[[Ninja monkey greegree]] or [[Kruk monkey greegree]] (other [[greegree]]s will cause you to fail the course)
+|-
+|6. Chop and burn some [[Mahogany logs]] on [[Ape Atoll]].
+''Note: Logs burnt by the [[Infernal axe]] do not count towards this task.''
+|
+*{{SCP|Quest}} Partial completion of [[Monkey Madness I]]
+*{{SCP|Woodcutting|50|link=y}} and {{SCP|Firemaking|50|link=y}}
+*Any [[axe]] (excluding [[felling axe]]s) and a [[tinderbox]]
+*
+|-
+|7. Mine some [[Adamantite ore]] in [[Tirannwn]].
+''Note: This can be done in the [[Isafdar mine]] outside of [[Lletya]], or the [[Trahaearn mine]] in [[Prifddinas]] (with completion of [[Song of the Elves]]).''
+|
+*{{SCP|Quest}} Started [[Regicide]]
+*{{SCP|Mining|70|link=y}} {{boostable|y}}
+*Any [[pickaxe]]
+|-
+|8. Check the health of your [[Palm tree]] in [[Lletya]].
+|
+*{{SCP|Quest}} Started [[Mourning's End Part I]]
+*{{SCP|Farming|68|link=y}} {{boostable|y}}
+*[[Palm sapling]], [[rake]], and [[spade]]
+*15 [[Papaya fruit|papayas]] recommended to pay the [[Liliwen|gardener]]
+|-
+|9. Claim a [[Chompy bird hat]] from [[Rantz]] after registering at least 300 kills.
+''Note: You need to have a ([[comp ogre bow|comp]]) [[ogre bow]] in your inventory to claim hats.''
+|
+*{{SCP|Quest}} Completion of [[Big Chompy Bird Hunting]]
+*[[Ogre bellows]], ([[comp ogre bow|comp]]) [[ogre bow]], and [[ogre arrows|ogre]] or [[brutal arrows]]
+*300 [[chompy bird|chompy]] or [[jubbly bird]] kills
+|-
+|10. Build an [[Isafdar (painting)|Isafdar painting]] in your [[Hall (quest trophies)|POH Quest hall]].
+|
+*{{SCP|Quest}} Completion of [[Roving Elves]]
+*{{SCP|Construction|65|link=y}} {{boostable|y}}
+*3 [[mahogany plank]]s, [[saw]], and [[hammer]]
+*[[Isafdar painting]] (bought from [[Sir Renitee]] for 2,000 [[coins]])
+*25,000 [[coins]] to construct a [[Hall (quest trophies)|Quest Hall]] if you haven't already
+|-
+|11. Kill [[Zulrah]].
+''Note: In Deadman Mode, the task is listed as "Attempt to visit Zulrah.", but doing so will not complete the task, and you must kill Zulrah like normal to complete it.''
+|
+*{{SCP|Quest}} Started [[Regicide]]
+*See the [[Zulrah/Strategies|strategy guide]]
+|-
+|12. Teleport to [[Ape Atoll]].
+|
+*{{SCP|Quest}} Completion of the [[Recipe for Disaster/Freeing King Awowogei|Awowogei subquest]] of [[Recipe for Disaster]] 
+*{{SCP|Magic|64|link=y}} {{boostable|y}}
+*Means to cast [[Ape Atoll Teleport (standard)|Ape Atoll Teleport]] ({{RuneReq|Law=2|Fire=2|Water=2|Banana=1}})
+|-
+|13. Pickpocket a [[Gnome]].
+|
+*{{SCP|Thieving|75|link=yes}} {{Boostable|y}}
+|}
+
+===Rewards===
+*[[Western banner 3]]:
+**Depicts a [[gnome child]]
+**One daily teleport to the [[Piscatoris Fishing Colony]]
+*[[Antique lamp (hard)|Antique lamp]] worth 15,000 [[experience]] in any skill of at least level 50
+*[[Rantz]] offers you 100 [[ogre arrow]]s for free every day, worth a total of {{NoCoins|{{GEP|Ogre arrow|100}}}} [[coins]] on the [[Grand Exchange]]
+*[[Teleport crystal]]s will now hold up to 5 charges, up from 3
+*The [[void knight top]] and [[void knight robe|robe]] can now be upgraded into an [[elite void top]] and [[elite void robe|robe]] for 200 [[Void Knight commendation points|commendation points]] each, by speaking to the [[Elite Void Knight]]
+*Access to the room with the [[monkey skull]] in the [[Temple of Marimbo Dungeon]], allowing you to make the [[ancient gorilla greegree]]
+*Access to the [[Hunting expert (Red chinchompa hunting ground)|Hunting expert]]'s private [[Red chinchompa hunting ground]]
+*[[Islwyn]] now sells [[Crystal halberd]]s for 750,000 [[coins]], which can be wielded with 70 [[Attack]] and 35 [[Strength]], and you gain the ability to create them yourself (with 78 [[Crafting]] and 78 [[Smithing]])
+
+==Elite==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Western Provinces" data-diary-tier="Elite"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Fletch a [[Magic Longbow]] in [[Tirannwn]].
+|
+*{{SCP|Quest}} Started [[Regicide]]
+*{{SCP|Fletching|85|link=y}} {{boostable|y}}
+*[[Magic longbow (u)]] and a [[bow string]]
+|-
+|2. Kill the [[Thermonuclear Smoke Devil]].
+''Note: While this boss normally requires a [[Slayer task]], this is not needed for the first kill. You do not have to contact a [[Slayer master]] for this task.''
+
+''You must be in the room when its death animation ends, or the task will not be completed. Be mindful of this if you are attempting the [[Thermonuclear_smoke_devil#Combat_Achievements|Combat Achievements]]. If this occurs, you will still be able to kill it again without a slayer task.''
+|
+*{{SCP|Slayer|93|link=y}} {{Boostable|n}}
+*See the [[Thermonuclear smoke devil/Strategies|strategy guide]]
+|-
+|3. Have [[Prissy Scilla]] protect your [[Magic tree (Farming)|Magic tree]].
+|
+*{{SCP|Farming|75|link=y}} {{boostable|y}}
+*[[Magic sapling]], 25 [[coconut]]s, [[rake]], and a [[spade]]
+|-
+|4. Use the [[Rocks (Tirannwn)#Advanced|Elven overpass advanced cliffside shortcut]].
+|
+*{{SCP|Quest}} Completion of [[Underground Pass]]
+*{{SCP|Agility|85|link=y}} {{Boostable|y}}
+|-
+|5. Equip any complete [[Void Knight equipment|void set]].
+''Note: In Deadman Mode, the task is instead "Speak to the Elite Void Knight after claiming the Western hard diary reward."
+|
+*{{SCP|Combat|40|link=y}}, {{SCP|Prayer|22|link=y}}, {{SCP|Attack|42|link=y}}, {{SCP|Strength|42|link=y}}, {{SCP|Defence|42|link=y}}, {{SCP|Hitpoints|42|link=y}}, {{SCP|Ranged|42|link=y}}, and {{SCP|Magic|42|link=y}}
+*Any [[Void Knight helmet|void helm]] ([[Void melee helm|melee]], [[Void ranger helm|ranger]], or [[Void mage helm|mage helm]])
+*[[Void knight top]], [[Void knight robe|robe]], and [[Void knight gloves|gloves]]
+|-
+|6. Claim a [[Chompy bird hat]] from [[Rantz]] after registering at least 1,000 kills.
+''Note: You need to have a ([[comp ogre bow|comp]]) [[ogre bow]] in your inventory to claim hats.''
+|
+*{{SCP|Quest}} Completion of [[Big Chompy Bird Hunting]]
+*[[Ogre bellows]], ([[comp ogre bow|comp]]) [[ogre bow]], and [[ogre arrows|ogre]] or [[brutal arrows]]
+*1,000 [[chompy bird|chompy]] or [[jubbly bird]] kills
+|-
+|7. Pickpocket an [[Elf (thieving)|Elf]].
+|
+*{{SCP|Quest}} Started [[Mourning's End Part I]]
+*{{SCP|Thieving|85|link=y}} {{Boostable|y}}
+|}
+
+===Rewards===
+*[[Western banner 4]]:
+**Depicts an [[Elf|elven]] pattern
+**Unlimited teleports to the [[Piscatoris Fishing Colony]]
+*[[Antique lamp (elite)|Antique lamp]] worth 50,000 [[experience]] in any skill of at least level 70
+*Two [[chompy bird]]s will always appear at once when [[chompy bird hunting]]
+*Chance of receiving a [[chompy chick]] when [[chompy bird hunting]], at a rate of 1/500
+*[[Rantz]] offers you 150 [[ogre arrow]]s for free every day, worth a total of {{NoCoins|{{GEP|Ogre arrow|150}}}} [[coins]] on the [[Grand Exchange]]
+*[[Nieve]]/[[Steve]] now grant as many [[slayer reward point]]s as [[Duradel]]/[[Kuradal]]
+*Resurrect with full health and restored stats once per day when you reach 0 [[hitpoints]] against [[Zulrah]], allowing you to continue on with the fight (the task list of this diary will show you whether you've used this daily resurrection, and this is considered a "safe death" for [[Ironman Mode#Hardcore|Hardcore Ironman]] players)
+{{Reflist|group=h}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 18 February 2016
+|update = Dragon Claws & 3rd Birthday
+|poll = 
+|change = The elite diary task to lay 5 box traps has been removed.
+}}
+{{Subject changes
+|date = 5 November 2015
+|update = Skilling Pets & Deadman Tweaks
+|poll = 
+|change = The text on the Achievement Diary interfaces now better describes what is required for the box trap task.
+}}
+{{Subject changes
+|date = 19 March 2015
+|update = Boss Pets, Sets, Chat & More
+|change = 
+*Eluned will now charge your teleport crystal with 5 charges if you have completed the Western hard tasks.
+*You can no longer kill Thermy without a slayer assignment if you haven't started the Western Achievement Diary.
+}}
+{{Subject changes footer}}
+
+{{Achievement diary}}

@@ -1,0 +1,319 @@
+{{Otheruses|Deadman Mode variant|Cerberus (Deadman)|Leagues variant|Cerberus (Echo)|def=no}}
+{{HasStrategy}}
+{{HasTask|Hellhounds}}
+{{Infobox Monster
+|name = Cerberus
+|image = [[File:Cerberus.png|280px]]
+|release = [[27 August]] [[2015]]
+|update = Cerberus - The Hellhound Boss
+|members = Yes
+|combat = 318
+|size = 5
+|examine = A three-headed gigantic hound. Guardian of the River of Souls.
+|attributes = demon
+|xpbonus = 15
+|max hit = 23
+|aggressive = Yes
+|poisonous = No
+|attack style = [[Stab]], [[Ranged]], [[Magic]]
+|attack speed = 6
+|respawn = 15
+|slaylvl = 91
+|slayxp = 690
+|cat = Hellhounds, Bosses
+|assignedby = vannaka,chaeldar,konar,nieve,duradel
+|hitpoints = 600
+|att = 220
+|str = 220
+|def = 100
+|mage = 220
+|range = 220
+|attbns = 50
+|strbns = 0
+|amagic = 50
+|mbns = 0
+|arange = 50
+|rngbns = 0
+|dstab = 50
+|dslash = 100
+|dcrush = 25
+|dmagic = 65
+|dlight = 100
+|dstandard = 100
+|dheavy = 100
+|elementalweaknesstype = Water
+|elementalweaknesspercent = 40
+|poisonresistance = 100
+|venomresistance = 100
+|immunecannon = No
+|immunethrall = No
+|immuneburn = Immune to normal burns
+|id = 5862,5863,5866
+}}
+[[File:Cerberus icon.png|left]]
+'''Cerberus''' is a level 318 [[hellhound]] [[boss]] who resides in [[Cerberus' Lair]], deep beneath the [[Taverley Dungeon]] in the cave entrance in the north-east part of the hellhound area, which is found beyond the [[poisonous spider]]s. Defeating Cerberus requires a [[Slayer]] level of 91, along with a task of hellhounds or Cerberus herself. In the event of a hellhound or [[Clue scroll (elite) - A demon's best friend|elite clue scroll]] task, [[wild pie]]s may be used to boost the player's Slayer level. While boosting, the player's Slayer level must remain at or above 91.
+
+Cerberus drops three different crystals: the [[eternal crystal|eternal]], [[pegasian crystal|pegasian]], and [[primordial crystal]]s which are used to upgrade the [[infinity boots|infinity]], [[ranger boots|ranger]], and [[dragon boots]] to the [[eternal boots|eternal]], [[pegasian boots|pegasian]], and [[primordial boots]] respectively, which boast the second highest bonuses for the [[feet slot]]. She can also drop the [[smouldering stone]] at a much better rate compared to her lesser brethren, along with the [[jar of souls]] and the [[hellpuppy]] [[pet]].
+
+A [[dwarf multicannon]] cannot be set up inside Cerberus' Lair; if attempted, players will receive the message: {{Mes|You cannot place the cannon here, it would melt.}}
+
+==History==
+As the Guardian of the [[River of Souls]], Cerberus{{CiteNPC|npc=Konar quo Maten|quote=Cerberus lives in her chamber linked to Taverley dungeon. She attacks with all combat styles so be prepared. |loc=|notes=|name=}} protects the souls of the departed from whatever troubles they may face on their journey by the [[Citizens of Arceuus]]. Despite her important task, Cerberus longs to escape her post, and has successfully done so on multiple occasions, although with each attempt she was quickly captured and returned. Cerberus has killed many adventurers who have stumbled into her lair, with one of her more recent kills dropping a [[damaged soul bearer]] which the Arceuus Elders inspected and eventually discarded when they could not repair it.
+
+==Location==
+{{LocTableHead}}
+{{LocLine
+|name = Cerberus
+|location = [[Cerberus' Lair]]
+|levels = 318
+|members = Yes
+|mapID = 10030
+|plane = 0
+|x:1238,y:1250|x:1366,y:1250|x:1302,y:1314
+|mtype = pin
+|leagueRegion = asgarnia
+}}
+{{LocTableBottom}}
+
+*There are 3 different rooms inside [[Cerberus' Lair]] in which [[Cerberus]] can be found.
+
+==Fight overview==
+{{Main|Cerberus/Strategies}}
+When approaching her, Cerberus will become aggressive. She may attack with magic, ranged and melee attacks, each with a max hit of 23. The magic attack appears as a grey ball, the ranged attack appears as a ball of spikes, and the melee attack is her biting.
+
+Cerberus has three special attacks that she may use under certain circumstances:
+* She attacks in quick succession with magic followed by ranged and melee. The melee attack will hit the player even at a distance.
+* She summons three [[Summoned Soul|souls]] – indicated by her howling {{Overhead|Aaarrrooooooo}} – that come from the river behind her and attack the player with each combat style. Each attack will drain 30 prayer (20 with [[Ward of Arceuus]], 15 with [[spectral spirit shield]] equipped, 10 with both) if blocked or 30 hitpoints if not blocked.
+* She spits three balls of fire on the ground, indicated by a {{Overhead|Grrrrrr}} chat text above her head. One lava spot will land on the player and two in random spots around the room. Standing on one will deal continuous damage, which can be reduced with appropriate [[dragonfire]] protection.{{CiteTwitter|author=Mod Arcane|url=https://twitter.com/JagexArcane/status/1429082258602876930|date=21 August 2021|archiveurl=https://reldo.runescape.wiki/i/103708|archivedate=21 August 2021|quote=antifire actually seems to reduce damage from cerberus flame attack}}
+
+If a player has recently fought the boss, a line of [[Flames|fire]] will spawn between the entrance and the boss; stepping over this will deal 5 damage each way. The line of fire may be bugged, as it will not despawn unless the challenger dies to Cerberus or goes back through the line of fire after it respawns and if the player comes back after teleporting away mid-fight. Cerberus will restore all of her health if there are no players in her lair (she is not attackable and only has an examine option when this happens).
+
+Once defeated, Cerberus will respawn in nine seconds.
+
+==Money making==
+{{Mmgsection|Killing Cerberus}}
+
+==Drops==
+{{DropLogProject|kills=203624}}
+
+{{Average drop value|mob=Cerberus}}
+
+{{Average drop value|mob=Cerberus|brimstone=yes}}
+
+Excluding [[Primordial crystal]] drops, the average kill is worth {{Coins|floor(({{Average drop value|raw=y}} - (1/512) * {{GEP|Primordial crystal}}))}}. Excluding all unique drops, the average kill is worth {{Coins|floor(({{Average drop value|raw=y}} - (1/512) * {{GEP|Primordial crystal}} - (1/512) * {{GEP|Eternal crystal}} - (1/512) * {{GEP|Pegasian crystal}} - (1/512) * {{GEP|Smouldering stone}} - (1/2000) * {{GEP|Jar of Souls}}))}}.
+
+===100%===
+{{DropsTableHead}}
+{{DropsLine|name=Infernal ashes|quantity=1|rarity=Always}}
+{{DropsTableBottom}}
+
+===Uniques===
+''There is a 1 in 130<!--DO NOT CHANGE--> chance of hitting the unique drop table. Below lists the effective drop rates.''{{CiteTwitter|author=Mod Maz|url=https://twitter.com/JagexMaz/status/644582652650110976|date=17 September 2015|archiveurl=https://reldo.runescape.wiki/i/101725|archivedate=18 April 2019|quote=As promised, I'm home... and you get Cerberus drops... [https://i.imgur.com/yBoDsbT.png]|name=Cerberus uniques|notes=While the tweet cited uses 1/128, as of 2 July 2025 it is 1/130 due to the addition of ranarr seeds to Cerberus's drop table.}}
+{{DropsTableHead}}
+{{DropsLine|name=Primordial crystal|quantity=1|rarity=1/520}}
+{{DropsLine|name=Pegasian crystal|quantity=1|rarity=1/520}}
+{{DropsLine|name=Eternal crystal|quantity=1|rarity=1/520}}
+{{DropsLine|name=Smouldering stone|quantity=1|rarity=1/520}}
+{{DropsTableBottom}}
+
+===Weapons and armour===
+{{DropsTableHead}}
+{{DropsLine|name=Rune platebody|quantity=1|rarity=5/130}}
+{{DropsLine|name=Rune chainbody|quantity=1|rarity=4/130}}
+{{DropsLine|name=Rune 2h sword|quantity=1|rarity=4/130}}
+{{DropsLine|name=Black d'hide body|quantity=1|rarity=3/130}}
+{{DropsLine|name=Rune axe|quantity=1|rarity=3/130}}
+{{DropsLine|name=Rune pickaxe|quantity=1|rarity=3/130}}
+{{DropsLine|name=Battlestaff|quantity=6 (noted)|rarity=3/130}}
+{{DropsLine|name=Rune full helm|quantity=1|rarity=3/130}}
+{{DropsLine|name=Lava battlestaff|quantity=1|rarity=2/130}}
+{{DropsLine|name=Rune halberd|quantity=1|rarity=2/130}}
+{{DropsTableBottom}}
+
+===Runes and ammunition===
+{{DropsTableHead}}
+{{DropsLine|name=Fire rune|quantity=300|rarity=6/130}}
+{{DropsLine|name=Soul rune|quantity=100|rarity=6/130}}
+{{DropsLine|name=Pure essence|quantity=300 (noted)|rarity=5/130}}
+{{DropsLine|name=Blood rune|quantity=60|rarity=4/130}}
+{{DropsLine|name=Steel cannonball|quantity=50|rarity=4/130}}
+{{DropsLine|name=Runite bolts (unf)|quantity=40|rarity=4/130}}
+{{DropsLine|name=Death rune|quantity=100|rarity=3/130}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead}}
+{{DropsLine|name=Coal|quantity=120 (noted)|rarity=6/130}}
+{{DropsLine|name=Super restore(4)|quantity=2|rarity=6/130}}
+{{DropsLine|name=Summer pie|quantity=3|rarity=6/130}}
+{{DropsLine|name=Coins|quantity=10000-20000|rarity=5/130|gemw=No}}
+{{DropsLine|name=Dragon bones|quantity=20 (noted)|rarity=5/130}}
+{{DropsLine|name=Unholy symbol|quantity=1|rarity=5/130}}
+{{DropsLine|name=Wine of Zamorak|quantity=15 (noted)|rarity=5/130}}
+{{DropsLine|name=Ashes|quantity=50 (noted)|rarity=4/130}}
+{{DropsLine|name=Fire orb|quantity=20 (noted)|rarity=4/130}}
+{{DropsLine|name=Grimy torstol|quantity=6 (noted)|rarity=4/130}}
+{{DropsLine|name=Runite ore|quantity=5 (noted)|rarity=3/130}}
+{{DropsLine|name=Uncut diamond|quantity=5 (noted)|rarity=3/130}}
+{{DropsLine|name=Torstol seed|quantity=3|rarity=2/130}}
+{{DropsLine|name=Ranarr seed|quantity=2|rarity=2/130}}
+{{DropsLine|name=Key master teleport|quantity=7|rarity=2/130}}
+{{DropsTableBottom}}
+
+===Rare drop table===
+{{RareDropTable|3/130|naturetalisman=yes}}
+
+===Tertiary===
+{{DropsTableHead}}
+{{DropsLine|name=Ensouled hellhound head|quantity=1|rarity=1/15}}
+{{DropsLine|name=Clue scroll (elite)|quantity=1|rarity=Always|raritynotes=<ref name='elite' group="d">Elite clue scrolls and reward caskets are only dropped when completing an elite clue scroll asking you to kill a hellhound.</ref>|gemw=No|bucket=No}}
+{{DropsLine|name=Reward casket (elite)|quantity=1|rarity=Always|raritynotes=<ref name='elite' group="d" />|gemw=No|bucket=No}}
+{{DropsLine|name=Brimstone key|quantity=1|rarity={{Brimstone rarity|318|bonus=yes}}|raritynotes=<ref group=d>Brimstone keys are only dropped if killed on a [[Slayer task]] given by [[Konar quo Maten]].</ref>|gemw=No|leagueRegion=Asgarnia&Kourend}}
+{{DropsLineClue|type=elite|rarity=1/100|raritynotes={{NamedRef|Cerberus uniques}}}}
+{{DropsLine|name=Jar of Souls|quantity=1|rarity=1/2000|raritynotes={{NamedRef|Cerberus uniques}}}}
+{{DropsLine|name=Hellpuppy|quantity=1|rarity=1/3000|raritynotes={{NamedRef|Cerberus uniques}}|gemw=No}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Combat Achievements==
+{{Sync}}
+{{Combat Achievements list|Cerberus}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 2 July 2025
+|type = hotfix
+|change = [[Key master teleport]]s were readded to the drop table, and now drop in batches of 7 instead of 3.
+}}
+{{Subject changes
+|date = 25 June 2025
+|update = Summer Sweep Up: Combat
+|change = * The lava pool attack has been adjusted to be easier to react to when it appears, especially when in melee distance.
+* The lava pool will now only deal damage to players when stood on, rather than in a 3x3 area around it.
+*[[Key master teleport]]s were made tradeable but mistakenly removed from the drop table.
+* Cerberus now drops [[ranarr seeds]].
+* [[Ward of Arceuus]] now reduces Prayer drain from demon attacks by 33%. This effect stacks multiplicatively with the Spectral Spirit Shield, meaning you'd lose 10 Prayer points per ghost at Cerberus if you're using both of these.
+}}
+{{Subject changes
+|date = 9 April 2025
+|update = Farming & Autocast QoL Improvements
+|change = Cerberus' [[Magic defence]] has been reduced from +100 to +65.
+}}
+{{Subject changes
+|date = 14 August 2024
+|update = Slayer Partners
+|change = Restored previous Red-X methods when fighting Cerberus.
+}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change = Cerberus now has a 40% elemental weakness to [[water spells]].
+}}
+{{Subject changes
+|date = 21 February 2024
+|update = Defender of Varrock
+|change = The [[Key Master]] will now tell players whether there are other players fighting Cerberus from any of the three [[Iron Winch]]es, rather than the one the player is peeking from. Additionally, he has a new "Listen" option that conveys the same information.
+}}
+{{Subject changes
+|date = 29 March 2023
+|update = Bounty Hunter Rewards Beta & More
+|change = Cerberus' flame attack will no longer damage players after Cerberus has died.
+}}
+{{Subject changes
+|date = 18 May 2022
+|update = Poll 76 Improvements
+|poll = Old School Content Poll 76: Game Improvements
+|change = Cerberus now drops ensouled hellhound heads at a rate of 1/15.
+}}
+{{Subject changes
+|date = 16 December 2021
+|update = Christmas 2021
+|poll = 
+|change = Cerberus can now perform her attacks from a greater distance, to discourage safe-spotting.
+}}
+{{Subject changes
+|date = 16 June 2021
+|update = A Kingdom Divided
+|poll = A Kingdom Divided
+|change = Cerberus now drops [[infernal ashes]] in place of regular ashes.
+}}
+{{Subject changes
+|date = 19 May 2021
+|update = Clans Soft Launch
+|change = A sound effect has been added to Cerberus' lava pools attack.
+}}
+{{Subject changes
+|date = 17 March 2021
+|update = Shooting Stars
+|change = Several monsters, including Cerberus, were tagged as demonic, allowing demonbane weapons to work on them.
+}}
+{{Subject changes
+|date = 28 October 2020
+|update = Leagues II - Trailblazer Launch
+|poll = 
+|change = Cerberus can now walk through players.
+}}
+{{Subject changes
+|date = 30 September 2020
+|update = Last Poll 72 Updates
+|poll = 
+|change = Cerberus' lava pools, as well as the wall of flames, will now despawn when she is killed.
+}}
+{{Subject changes
+|date = 12 August 2020
+|update = Darker Graceful and Other Changes
+|poll = 
+|change = Cerberus now counts for the elite clue scroll step that asks players to kill a hellhound.
+}}
+{{Subject changes
+|date = 16 March 2017
+|update = Quality of Life & Deadman Prep
+|change = Summoned Souls now disappear if Cerberus dies after they were summoned instead of continuing to attack the player.
+}}
+{{Subject changes
+|date = 31 March 2016
+|update = Bugfixes & Combining Tentacles
+|change = Cerberus will now take twice as long to sit down again after a period of no combat.
+}}
+{{Subject changes
+|date = 22 October 2015
+|update = Abyssal Bludgeon Buff
+|poll = 
+|change = The Jar of Souls is now a tertiary drop.
+}}
+{{Subject changes
+|date = 8 October 2015
+|update = Smoke Battlestaff Buff
+|change = The Tortured Souls in Cerberus' lair now wield weapons to make it easier to distinguish between them.
+}}
+{{Subject changes
+|date = 
+|update = 
+|change = Players may now enter Cerberus' lair without having a hellhound task, as some players would die as they finished their task and be unable to retrieve their items.
+}}
+{{Subject changes footer}}
+
+==Gallery==
+<gallery>
+Cerberus work-in-progress.png|Pre-release work-in-progress model of Cerberus
+Cerberus artwork.jpg|A piece of artwork depicting a player facing Cerberus.
+Cerberus Chronicle art.png|Cerberus art from Jagex's turn-based card game, ''[[rsw:Chronicle: RuneScape Legends|Chronicle: RuneScape Legends]]''
+Cerberus (Trading Card).png|The Cerberus [[Steam Trading Cards|Steam Trading Card]].
+</gallery>
+
+==Trivia==
+*In Greek and Roman mythology, {{wp|Cerberus}} is a multi-headed hellhound with a serpent's tail, a mane of snakes, and a lion's claws, guarding the entrance of the Greek underworld to prevent the dead from escaping and the living from entering. This reflects the area around Cerberus as it guards the rivers that take souls to the Underworld and explains the [[jar of souls]] drop.
+**Although in its associated mythology Cerberus is male, the [[boss lair display]] refers to the boss in-game as female.
+*Cerberus stands on a trapdoor as a reference to the book/film ''{{wp|Harry Potter and the Philosopher's Stone}}'' (or ''{{wp|Harry Potter and the Sorcerer's Stone}}''), in which a three-headed dog guarded a trapdoor.
+*When bones are used on Cerberus, a message appears saying "Those aren't Cerby snacks". This is a reference to "Scooby Snacks" from ''Scooby-Doo''.
+*Cerberus had a festive override wearing a [[green partyhat]], [[black santa hat]], and [[blue partyhat]] during the [[2016 Christmas event/Gallery|2016]], [[2017 Christmas event/Gallery|2017]], [[2018 Christmas event/Gallery|2018]], [[2019 Christmas event/Gallery|2019]], [[2020 Christmas event/Gallery|2020]], [[2021 Christmas event/Gallery|2021]], [[2022 Christmas event/Gallery|2022]], [[2023 Christmas event/Gallery|2023]], [[2024 Christmas event/Gallery|2024]], and [[2025 Christmas event/Gallery|2025]] Christmas events.
+
+==References==
+{{Reflist}}
+
+{{Cerberus}}
+{{Slayer monsters}}
+{{Bosses}}
+{{Demons}}
+[[Category:Slayer monsters that can only be fought on task]]

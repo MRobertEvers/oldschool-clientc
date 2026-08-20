@@ -1508,7 +1508,7 @@ pack_type(
 
         if( !cp_config_file_load(&layer, found[i]) )
             continue;
-        ok = cp_merge_add(&merged, &layer, i == 0 ? 0 : 1, found[i]);
+        ok = cp_merge_add(&merged, &layer, cp_merge_rank_for(i, found[i]), found[i]);
         cp_config_file_free(&layer);
     }
     if( !ok )
@@ -1838,7 +1838,7 @@ cp_pack_server_run(
 
             if( !cp_config_file_load(&layer, found[f]) )
                 continue;
-            ok = cp_merge_add(&merged, &layer, f == 0 ? 0 : 1, found[f]);
+            ok = cp_merge_add(&merged, &layer, cp_merge_rank_for(f, found[f]), found[f]);
             cp_config_file_free(&layer);
         }
         /*
@@ -2205,7 +2205,7 @@ cp_membership_emit(
 
             if( !cp_config_file_load(&layer, found[f]) )
                 continue;
-            ok = cp_merge_add(&merged, &layer, f == 0 ? 0 : 1, found[f]);
+            ok = cp_merge_add(&merged, &layer, cp_merge_rank_for(f, found[f]), found[f]);
             cp_config_file_free(&layer);
         }
         if( !ok )
@@ -2684,7 +2684,7 @@ cp_membership_check(
 
             if( !cp_config_file_load(&layer, found[f]) )
                 continue;
-            ok = cp_merge_add(&merged, &layer, f == 0 ? 0 : 1, found[f]);
+            ok = cp_merge_add(&merged, &layer, cp_merge_rank_for(f, found[f]), found[f]);
             cp_config_file_free(&layer);
         }
         if( !ok )

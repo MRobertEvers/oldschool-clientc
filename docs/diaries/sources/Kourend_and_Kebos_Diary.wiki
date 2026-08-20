@@ -1,0 +1,540 @@
+{{Infobox Achievement Diary
+|name = Kourend & Kebos Diary
+|image = [[File:Kourend & Kebos Diary.png]]
+|release = [[10 January]] [[2019]]
+|update = The Kebos Lowlands
+|areas = [[Great Kourend]], [[Kebos Lowlands]]
+|members = Yes
+|reward = [[Rada's blessing|Blessing]]
+|taskmasters = [[Elise]]
+|leagueRegion = Kourend
+}}
+{{Map|name=Elise|x=1648|y=3665|r=3|mtype=square|width=250|height=250|caption=Elise's location|align=left}}
+The '''Kourend & Kebos Diary''' is an [[Achievement Diary]] whose tasks revolve around areas in [[Great Kourend]] as well as the [[Kebos Lowlands]].
+
+Several skill, quest, and item requirements are needed to complete all tasks. Unless stated otherwise, [[temporary skill boost]]s can be used to meet the skill requirements.
+
+Rewards can be claimed from [[Elise]], south-east of the [[statue of King Rada I]] in the courtyard of the [[Kourend Castle]]. Tasks may be done in any order, but the previous tiers of a diary must be completed to claim rewards of the next tier.
+
+==Overview==
+{{Sync}}
+<tabber>
+|-|
+Easy=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 15
+|Herblore = 12
+|Fishing = 20
+|Thieving = 25
+|Construction = 25
+|ConstructionNotes = {{boostable|n}}
+|Total = 124
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="Druidic Ritual"
+|[[Druidic Ritual]]
+|}
+| style="vertical-align: top" |
+|}
+
+|-|
+Medium=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 42
+|Strength = 16
+|Agility = 49
+|Herblore = 12
+|Fishing = 43
+|Thieving = 25
+|Crafting = 31
+|Firemaking = 50
+|Woodcutting = 50
+|Farming = 45
+|Construction = 30
+|Hunter = 53
+|Total = 466
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+! Quest requirements
+|- data-rowid="The Ascent of Arceuus"
+|[[The Ascent of Arceuus]]
+|- data-rowid="The Depths of Despair"
+|[[The Depths of Despair]]
+|- data-rowid="The Forsaken Tower"
+|[[The Forsaken Tower]]
+|- data-rowid="The Queen of Thieves"
+|[[The Queen of Thieves]]
+|- data-rowid="Tale of the Righteous"
+|[[Tale of the Righteous]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Started [[Fairytale II - Cure a Queen]]
+|-
+|Partial completion of [[Eagles' Peak]]
+|}
+|}
+
+|-|
+Hard=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 65
+|Strength = 16
+|Agility = 49
+|Smithing = 70
+|Defence = 40
+|Herblore = 31
+|Fishing = 43
+|Thieving = 49
+|Crafting = 61
+|CraftingNotes = {{boostable|n}}
+|Firemaking = 50
+|Magic = 66
+|Fletching = 25
+|Woodcutting = 60
+|Slayer = 62
+|Farming = 74
+|Construction = 30
+|Hunter = 53
+|Combat = 85
+|Total = 859
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="The Ascent of Arceuus"
+|[[The Ascent of Arceuus]]
+|- data-rowid="The Depths of Despair"
+|[[The Depths of Despair]]
+|- data-rowid="Dream Mentor"
+|[[Dream Mentor]]
+|- data-rowid="The Forsaken Tower"
+|[[The Forsaken Tower]]
+|- data-rowid="The Queen of Thieves"
+|[[The Queen of Thieves]]
+|- data-rowid="Tale of the Righteous"
+|[[Tale of the Righteous]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Started [[Fairytale II - Cure a Queen]]
+|-
+|Partial completion of [[Eagles' Peak]]
+|-
+|Defeat a [[Lizardman shaman#Lizardman Temple|Lizardman Shaman]] in the [[Lizardman Temple]]
+|}
+|}
+
+
+|-|
+Elite=
+{| class="diary-table" style="text-align:center;"
+| style="vertical-align:top" |
+{{DiarySkillStats
+|margin=no
+|maxrefs=2
+|boostable=true
+|selectable=true
+|Mining = 65
+|Strength = 16
+|Agility = 49
+|Smithing = 70
+|Defence = 40
+|Herblore = 31
+|Fishing = 82
+|Thieving = 49
+|Cooking = 84
+|Crafting = 61
+|CraftingNotes = {{boostable|n}}
+|Firemaking = 50
+|Magic = 90
+|Fletching = 40
+|Woodcutting = 90
+|Runecraft = 77
+|Slayer = 95
+|Farming = 85
+|Construction = 30
+|Hunter = 53
+|Combat = 85
+|Total = 1170
+}}
+| width="225px" style="vertical-align:top;" |
+{| class="wikitable lighttable qc-active" style="width:inherit;"
+!Quest requirements
+|- data-rowid="The Ascent of Arceuus"
+|[[The Ascent of Arceuus]]
+|- data-rowid="The Depths of Despair"
+|[[The Depths of Despair]]
+|- data-rowid="Dream Mentor"
+|[[Dream Mentor]]
+|- data-rowid="The Forsaken Tower"
+|[[The Forsaken Tower]]
+|- data-rowid="The Queen of Thieves"
+|[[The Queen of Thieves]]
+|- data-rowid="Tale of the Righteous"
+|[[Tale of the Righteous]]
+|}
+| width="400px" style="vertical-align:top" |
+{| class="wikitable lighttable qc-active"
+!Additional requirements
+|-
+|Started [[Fairytale II - Cure a Queen]]
+|-
+|Partial completion of [[Eagles' Peak]]
+|-
+|Completion of the [[Chambers of Xeric]]
+|-
+|Defeat a [[Hydra]] in the [[Karuulm Slayer Dungeon]]
+|-
+|Defeat a [[Lizardman shaman#Lizardman Temple|Lizardman Shaman]] in the [[Lizardman Temple]]
+|-
+|Defeat [[Skotizo]]
+|}
+|}
+
+|-|
+</tabber>
+
+==Easy==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Kourend & Kebos" data-diary-tier="Easy"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Mine some [[Iron ore|Iron]] at the [[Mount Karuulm mine]].
+|
+*{{SCP|Mining|15|link=y}}
+*Any [[pickaxe]]
+|-
+|2. Kill a [[Sand Crab|Sandcrab]]{{sic}}.
+|{{NA|None}}
+|-
+|3. Hand in a book at the [[Arceuus Library]].
+|{{NA|None}}
+|-
+|4. Steal from a [[Fruit Stall|Hosidius Food Stall]].
+|
+*{{SCP|Thieving|25|link=y}}
+|-
+|5. Browse the [[Warrens General Store]].
+|{{NA|None}}
+|-
+|6. Take a boat to [[Land's End]].
+''Note: You have to travel with [[Veos]] or [[Cabin Boy Herbert]] from [[Port Sarim]] or [[Port Piscarilius]].''
+|{{NA|None}}
+|-
+|7. Pray at the [[Altar]] in [[Kourend Castle]]
+''Note: This altar is found on the top floor of the castle.
+|{{NA|None}}
+|-
+|8. Dig up some [[Saltpetre (deposit)|Saltpetre]].
+|
+*[[Spade]]
+|-
+|9. Enter your [[Player-owned house|Player Owned House]] from [[Hosidius]].
+|
+*{{SCP|Construction|25|link=y}} {{Boostable|n}}
+*8,750 [[coins]] for an [[estate agent]] to move your house to [[Hosidius]] (can only be done after you've visited [[Great Kourend]])
+|-
+|10. Do a lap of either tier of the [[Shayzien Agility Course]].
+|{{NA|None}}
+|-
+|11. Create a [[Strength potion]] in the [[The Deeper Lode|Lovakengj Pub]].
+|
+*{{SCP|Quest}} Completion of [[Druidic Ritual]]
+*{{SCP|Herblore|12|link=y}}
+*[[Tarromin potion (unf)]] and [[limpwurt root]]
+|-
+|12. Fish a [[Raw trout|Trout]] from the [[River Molch]].
+''Note: The fishing spot is found south-east of the [[Farming Guild]].
+|
+*{{SCP|Fishing|20|link=y}}
+*[[Fly fishing rod]] and some [[feather]]s (bring enough feathers to account for fishing raw salmon multiple times before you get a raw trout)
+|-
+|}
+
+===Rewards===
+*[[Rada's blessing 1]]:
+**Three daily teleports to the [[Kourend Woodland]]
+**2% chance to catch two [[fish]] at once anywhere when equipped, excluding at [[Tempoross]]' [[Tempoross Cove|Cove]] (no additional experience granted)
+*[[Antique lamp (easy)|Antique lamp]] worth 2,500 experience in any skill of at least level 30
+*Entrance fee for the [[Crabclaw Isle]] lowered to 5,000 [[coins]], down from 10,000 [[coins]]
+*Doubled chance at receiving a [[Xeric's talisman]] from [[Lizardman|lizardmen]], [[lizardman brute]]s, and [[lizardman shaman]]s (1/125, up from 1/250)
+*20% discount on [[Eodan]]'s [[tanner|tanning]] services 
+*Access to the [[range|cooking ranges]] in the [[Hosidius Kitchen]], which have an additive 5% increased success rate over other ranges
+*The [[farming patch]]es in [[Hosidius]], south of the church, will never get [[Disease (Farming)|disease]]d
+
+==Medium==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Kourend & Kebos" data-diary-tier="Medium"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Travel to the [[Fairy Ring]] south of [[Mount Karuulm]].
+|
+*{{SCP|Quest}} Started [[Fairytale II - Cure a Queen]]
+*[[Dramen staff|Dramen]] or [[Lunar staff]] to travel to [[Fairy ring]] code {{Fairycode|CIR}}
+|-
+|2. Kill a [[Lizardman]].
+|
+*[[Combat gear]]
+*[[Antipoison]] recommended
+|-
+|3. Use [[Kharedst's memoirs]] to teleport to all five cities in [[Great Kourend]].
+|
+*{{SCP|Quest}} Completion of [[The Depths of Despair]], [[The Queen of Thieves]], [[Tale of the Righteous]], [[The Forsaken Tower]] and [[The Ascent of Arceuus]]
+*[[Kharedst's memoirs]] or the [[Book of the Dead]]
+|-
+|4. Mine some [[Volcanic Sulphur]].
+|
+*{{SCP|Mining|42|link=y}}
+*Any [[pickaxe]]
+*[[Face mask]], [[gas mask]], or [[slayer helmet]]
+|-
+|5. Enter the [[Farming Guild]].
+''Note: You have to walk through the guild's main entrance.''
+|
+*{{SCP|Farming|45|link=y}}
+|-
+|6. Switch to the [[Arceuus spellbook|Necromancy Spellbook]] at [[Tyss]].{{sic}}
+|{{NA|None}}
+|-
+|7. Repair a [[Fishing crane|Piscarilius crane]].
+|
+*{{SCP|Crafting|30|link=y}} and {{SCP|Construction|30|link=yes}}
+*[[Hammer]], 3 regular [[planks]], and about 50 [[nail]]s of any variant
+|-
+|8. Deliver some [[intelligence]] to [[Captain Ginea]].
+|
+*[[Combat gear]]
+|-
+|9. Catch a [[Bluegill]] on [[Lake Molch|Molch Island]].
+|
+*{{SCP|Fishing|43|link=y}} and {{SCP|Hunter|35|link=y}}
+*[[King worm]]s (found on the island) or [[fish offcuts]]
+|-
+|10. Use the [[Boulder (dense essence mine)|boulder leap shortcut]] in the [[Dense essence mine|Arceuus essence mine]].
+|
+*{{SCP|Agility|49|link=y}}
+|-
+|11. Subdue the [[Wintertodt]]
+''Note: You must earn at least 500 [[Wintertodt#Reward_points|points]].
+|
+*{{SCP|Firemaking|50|link=y}}
+*Any [[axe]], [[tinderbox]], and [[warm clothing]]
+*[[Knife]] and a [[hammer]] or [[Imcando hammer]] recommended to score more points
+*[[Rejuvenation potion]]s recommended for learners (these are made in the minigame's lobby)
+|-
+|12. Catch a [[Chinchompa (Hunter)|Chinchompa]] in the [[Kourend Woodland]].
+|
+*{{SCP|Quest}} Partial completion of [[Eagles' Peak]]
+*{{SCP|Hunter|53|link=y}}
+*[[Box trap]]
+|-
+|13. Chop some [[Mahogany logs]] north of the [[Farming Guild]].
+|
+*{{SCP|Woodcutting|50|link=y}}
+*Any [[axe]]
+|}
+
+=== Rewards ===
+*[[Rada's blessing 2]]:
+**Five daily teleports to the [[Kourend Woodland]]
+**4% chance to catch two [[fish]] at once anywhere when equipped, excluding at [[Tempoross]]' [[Tempoross Cove|Cove]] (no additional experience granted)
+**Has a [[Prayer bonus]] of +1 when equipped, similar to the [[God blessing|god blessings]]
+*[[Antique lamp (medium)|Antique lamp]] worth 7,500 experience in any skill of at least level 40
+*Free access to [[Crabclaw Isle]], down from a fee of 5,000 [[coins]]
+*40% discount on [[Eodan]]'s [[tanner|tanning]] services, up from 20%
+*5% chance to mine two [[dense essence block]]s at once
+*[[Thirus]] offers you 20 [[dynamite]] for free every day, worth a total of {{NoCoins|{{GEP|Dynamite}}*20}} [[coins]] on the [[Grand Exchange]]
+
+==Hard==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Kourend & Kebos" data-diary-tier="Hard"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Enter the [[Woodcutting Guild]].
+|
+*{{SCP|Woodcutting|60|link=y}}
+|-
+|2. Smelt an [[Adamantite bar]] in [[The Forsaken Tower (location)|The Forsaken Tower]].
+''Note: Using the [[Superheat Item]] spell does not count.
+|
+*{{SCP|Quest}} Completion of [[The Forsaken Tower]]
+*{{SCP|Smithing|70|link=y}}
+*[[Adamantite ore]] and 6 [[coal]]
+|-
+|3. Kill a [[Lizardman shaman#Lizardman Temple|Lizardman Shaman]] in the [[Lizardman Temple]].
+|
+*See the [[Lizardman shaman/Strategies|strategy guide]]
+|-
+|4. Mine some [[Lovakite ore|Lovakite]].
+|
+*{{SCP|Mining|65|link=y}}
+*Any [[pickaxe]]
+|-
+|5. Plant some [[Logavano seed]]s at the [[Tithe Farm]].
+|
+*{{SCP|Farming|74|link=y}}{{Boostable|yes}}
+*[[Seed dibber]]
+|-
+|6. Kill a [[Zombie (Shayzien Crypts)|Zombie]] in the [[Shayzien Crypts]].
+|
+*[[Combat gear]] and a [[light source]]
+|-
+|7. Teleport to [[Kourend Castle|Xeric's Heart]] using [[Xeric's Talisman]].
+|
+*[[Xeric's talisman]] charged with a [[lizardman fang]], or a [[mounted xeric's talisman]] inside any [[player-owned house]] (see the [[House party]] worlds)
+|-
+|8. Deliver an [[Stealing artefacts|artefact]] to [[Captain Khaled]].
+|
+*{{SCP|Thieving|49|link=y}}
+*[[Lockpick]]
+|-
+|9. Kill a [[Wyrm]] in the [[Karuulm Slayer Dungeon]].
+|
+*{{SCP|Slayer|62|link=y}}
+*[[Combat gear]]
+*[[Boots of stone]], [[boots of brimstone|brimstone]], or [[granite boots|granite]]
+|-
+|10. Cast [[Monster Examine]] on a [[Mountain troll|Troll]] south of [[Mount Quidamortem]].
+|
+*{{SCP|Quest}} Completion of [[Dream Mentor]]
+*{{SCP|Magic|66|link=y}}
+*[[Lunar spellbook]] selected
+*Means to cast [[Monster Examine]] ({{RuneReq|Astral=1|Mind=1|Cosmic=1}})
+|-
+|}
+
+===Rewards===
+*[[Rada's blessing 3]]:
+**Unlimited teleports to the [[Kourend Woodland]]
+**Three daily teleports to the top of [[Mount Karuulm]]
+**6% chance to catch two [[fish]] at once anywhere when equipped, excluding at [[Tempoross]]' [[Tempoross Cove|Cove]] (no additional experience granted)
+**Has a [[Prayer bonus]] of +1 when equipped, similar to the [[God blessing|god blessings]]
+*[[Ash sanctifier]], claimable from [[Tyss]]
+**An additional item that, when carried, causes [[Remains#Demonic ashes|demonic ashes]] dropped from killed monsters to be automatically scattered, granting half the [[Prayer]] experience that would have been granted for scattering them normally
+**This item is charged with [[death rune]]s
+*[[Antique lamp (hard)|Antique lamp]] worth 15,000 experience in any skill of at least level 50
+*Any [[slayer helmet]] can be used in place of a [[Shayzien helm (5)]] for its [[Shayzien armour (tier 5)|protection]] against [[lizardman shaman]]s, after talking to [[Captain Cleive]] (requires having the helm in your [[collection log]])
+*60% discount on [[Eodan]]'s [[tanner|tanning]] services, up from 40%
+*5% increased chance to save a [[Farming#Variable crop yield|"harvest life"]] at the [[herb patch]]es in [[Hosidius]] and the [[Farming Guild]], slightly increasing your harvest yield
+*[[Thirus]] offers you 40 [[dynamite]] for free every day, worth a total of {{NoCoins|{{GEP|Dynamite}}*40}} [[coins]] on the [[Grand Exchange]]
+
+==Elite==
+{| class="wikitable lighttable qc-active diary-table" style=width:750px; data-diary-name="Kourend & Kebos" data-diary-tier="Elite"
+! style="width:50%;" | Task
+! style="width:50%;" | Requirements
+|-
+|1. Craft one or more [[Blood rune]]s from [[Dark essence fragments|Dark essence]].
+''Note: This requires mining a [[dark essence block]] and breaking it down into [[Dark essence fragment|fragments]], then using those fragments on the [[Blood Altar (Kourend)|Kourend Blood Altar]].
+|
+*{{SCP|Runecraft|77|link=y}}, {{SCP|Mining|38|link=y}}, and {{SCP|Crafting|38|link=y}}
+*Any [[pickaxe]] and [[chisel]]
+|-
+|2. Chop some [[Redwood logs]].
+|
+*{{SCP|Woodcutting|90|link=y}}
+*Any [[axe]]
+|-
+|3. Defeat [[Skotizo]] in the [[Catacombs of Kourend]].
+|
+*[[Dark totem]]
+*See the [[Skotizo/Strategies|strategy guide]]
+|-
+|4. Catch an [[Anglerfish]] and cook it whilst in [[Great Kourend]].
+|
+*{{SCP|Fishing|82|link=y}} and {{SCP|Cooking|84|link=y}}
+*[[Fishing rod]] and some [[sandworms]]
+|-
+|5. Kill a [[Hydra (disambiguation)|Hydra]] in the [[Karuulm Slayer Dungeon]].
+Note: Either variant may be killed to fulfill this requirement. Only the [[Alchemical Hydra]] requires a slayer task to kill.
+|
+*{{SCP|Slayer|95|link=y}}
+*[[Weapon]]ry
+*[[Poison#Curing_poison|Antipoison]] recommended
+|-
+|6. Create an [[Ape Atoll teleport tablet]].
+|
+*{{SCP|Magic|90|link=y}}
+*[[Arceuus spellbook]] selected
+*[[Dark essence block]] and the required [[runes]] ({{RuneReq|Soul=2|Blood=2|Law=2}})
+|-
+|7. Complete a Raid in the [[Chambers of Xeric]].
+|
+*See the [[Chambers of Xeric/Strategies|strategy guide]]
+|-
+|8. Create your own [[Battlestaff]] from scratch within the [[Farming Guild]].
+|
+*{{SCP|Farming|85|link=y}} and {{SCP|Fletching|40|link=y}}
+*[[Celastrus sapling]], [[knife]], [[spade]], [[rake]], and any [[axe]]
+*8 [[potato cacti]] recommended to protect your sapling
+|}
+
+===Rewards===
+*[[Rada's blessing 4]]:
+**Unlimited teleports to the top of [[Mount Karuulm]]
+**8% chance to catch two [[fish]] at once anywhere when equipped, excluding at [[Tempoross]]' [[Tempoross Cove|Cove]] (no additional experience granted)
+**Has a [[Prayer bonus]] of +2, up from +1, the highest of any item in the [[Worn_Equipment#Ammunition_slot|ammunition slot]]
+*[[Antique lamp (elite)|Antique lamp]] worth 50,000 experience in any skill of at least level 70
+*Roughly 11% more [[slayer reward point]]s from [[Konar quo Maten]]'s tasks, including milestone tasks
+*10% additive success rate when using the [[range|cooking ranges]] in the [[Hosidius Kitchen]], up from 5%
+*Permanent protection from the burning effect in the [[Karuulm Slayer Dungeon]] without the need for protective footwear
+*Ashes scattered via the [[Ash sanctifier]] now grant full [[Prayer]] experience
+*80% discount on [[Eodan]]'s [[tanner|tanning]] service, up from 60%
+*10% additional [[blood runes]] from the [[Blood Altar (Kourend)|false blood altar]] (no additional experience granted)
+*10% increased chance of obtaining higher-tier [[ore]]s in the [[Blast mine]]
+*[[Thirus]] offers you 80 [[dynamite]] for free every day, worth a total of {{NoCoins|{{GEP|Dynamite}}*80}} [[coins]] on the [[Grand Exchange]]
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 10 January 2024
+|update = Children of the Sun
+|poll = Varlamore Activities & Kourend Changes
+|change = The easy task to heal a [[wounded soldier|wounded Shayzien soldier]] has been replaced with completing a lap of the [[Shayzien Agility Course]].
+}}
+{{Subject changes
+|date = 14 April 2021
+|update = Below Ice Mountain
+|change = All diary tasks to craft runes were changed to clarify they only can be completed with essence.
+}}
+{{Subject changes
+|date = 4 July 2019
+|update = Forthos Dungeon
+|poll = The Forthos Dungeon
+|change = Addition of Eodan tanning price reduction benefit.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Certain tasks that can be tracked, such as finishing a raid in [[Chambers of Xeric]], were automatically marked as done if the player had completed it before the diary was released.{{CiteTwitter|author=Mod Kieren|url=https://twitter.com/JagexKieren/status/1080551724425887745|date=2 January 2019|archiveurl=https://reldo.runescape.wiki/i/99202|archivedate=29 May 2020|quote=They will autocomplete!}}
+{{clear|left}}
+
+==References==
+{{reflist}}
+
+{{Achievement diary}}

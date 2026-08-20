@@ -1,5 +1,7 @@
 #include "cp_merge.h"
 
+#include <assert.h>
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -292,6 +294,19 @@ push_line(struct CP_MergedRecord* rec, const char* key, const char* value, int r
 }
 
 int
+cp_merge_rank_for(int index, const char* path)
+{
+    const char* base;
+
+    if( index == 0 )
+        return 0;
+    assert(path);
+    base = strrchr(path, '/');
+    base = base ? base + 1 : path;
+    return strstr(base, ".generated.") ? 1 : 2;
+}
+
+int
 cp_merge_add(
     struct CP_MergeSet* set,
     const struct CP_ConfigFile* file,
@@ -314,13 +329,34 @@ cp_merge_add(
             const char* key = block->lines[l].key;
             const char* value = block->lines[l].value;
             int at = slot_for(rec, key, value);
+            /*
+             * Is this key a LIST for merge purposes?
+             *
+             * `param` is stated many times per record, so `key_is_multi` says
+             * yes — but a param line carries its own sub-key and `slot_for`
+             * already matched on it. Two lines reaching here are therefore two
+             * statements of ONE param, not two entries in a list, and every
+             * test below that asks "is this a list?" has to answer no or the
+             * duplicate is appended and never noticed.
+             *
+             * It was not noticed. `arena_bouncer` carried
+             * `param=death_drop,vile_ashes` from `combat_stats.generated.npc`
+             * and `param=death_drop,null` from `quest_arena.npc`; both survived
+             * the merge, `merged_value` returned the FIRST, and the server band
+             * was written with the ashes while the runtime — which assigns
+             * `def->death_drop` per line, so last file wins — held -1. Three
+             * npcs disagreed that way and `mock230_pack`'s band equivalence
+             * check reported them as mismatched archives with no way to
+             * converge: re-running the packer reproduced them exactly.
+             */
+            int listy = key_is_multi(set, key) && !key_is_map(key);
 
             /*
              * A key rank 0 states more than once is a list: append, never replace.
              * Overriding it would collapse a record's frames, params or condops to
              * whichever line came last.
              */
-            if( at >= 0 && key_is_multi(set, key) && !key_is_map(key) )
+            if( at >= 0 && listy )
                 at = -1;
 
             if( at < 0 )
@@ -330,7 +366,7 @@ cp_merge_add(
                 contributed = 1;
                 continue;
             }
-            if( rec->lines[at].rank == rank && rank > 0 && !key_is_multi(set, key) &&
+            if( rec->lines[at].rank == rank && rank > 0 && !listy &&
                 !key_seen_rank0(set, key) )
             {
                 /* Rank 0 has no opinion on this key, so the authored layer is
@@ -342,7 +378,56 @@ cp_merge_add(
                 contributed = 1;
                 continue;
             }
-            if( rec->lines[at].rank == rank && rank > 0 && !key_is_multi(set, key) )
+            /*
+             * A restatement is not a disagreement. `combat_stats.generated.npc`
+             * emits `param=attackrate` twice per block with the same value —
+             * 4,4xx of the 4,5xx duplicates in this tree are that, and treating
+             * them as ambiguity would bury the eight that actually contradict.
+             * Identical text keeps the slot it already has and says nothing.
+             */
+            if( at >= 0 && strcmp(rec->lines[at].value, value) == 0 )
+                continue;
+
+            if( rec->lines[at].rank == rank && rank > 0 && !listy && key_is_map(key) )
+            {
+                /*
+                 * Two authored files contradicting each other about one param.
+                 *
+                 * Reported, then resolved LAST-WINS — because that is what the
+                 * server does. `mock230_content.c` assigns `def->death_drop`
+                 * (and every other param it reads) per line as it walks
+                 * `server/scripts`, so the file the walk reaches last is the one
+                 * the running game obeys. This merge is the *validator's* view
+                 * of the same tree, and a validator that resolved the tie the
+                 * other way would not be catching a bug, it would be inventing
+                 * one: that is exactly how three npcs came to have a server band
+                 * saying `vile_ashes`/`big_bones` while the world they validate
+                 * said "drops nothing", with no re-run able to converge them.
+                 *
+                 * It stays a warning rather than a hard failure because the tie
+                 * has a defined answer and the game is already playing it. What
+                 * is *not* defined is whether that answer is the one anybody
+                 * meant — 82 of these exist in this tree, 56 of them a
+                 * hand-authored God Wars or Theatre anim being overridden by
+                 * `npc_anims.generated.npc` purely because `npc/` sorts after
+                 * `areas/`. Re-ranking generated files below authored ones is
+                 * the fix for that, and it is a content-behaviour change owned
+                 * by its own pass, not a side effect of this one.
+                 */
+                char subkey[128];
+
+                map_subkey(value, subkey, sizeof(subkey));
+                fprintf(stderr,
+                        "cachepack: [%s] states `%s=%s` twice in the authored layer — %s "
+                        "then %s, and the later file wins (as it does at run time)\n",
+                        block->debugname, key, subkey, rec->lines[at].origin, origin);
+                free(rec->lines[at].value);
+                rec->lines[at].value = strdup(value);
+                rec->lines[at].origin = origin;
+                contributed = 1;
+                continue;
+            }
+            if( rec->lines[at].rank == rank && rank > 0 && !listy )
             {
                 /* Only the authored layer is policed. Two hand-written files
                  * stating one key is ambiguous and last-wins would pick by

@@ -215,7 +215,7 @@ four distinct loc records above being placed many times.
   [Cheese](https://oldschool.runescape.wiki/w/Cheese),
   [Pot of cream](https://oldschool.runescape.wiki/w/Pot_of_cream)
 
-### 3.2 Fruit trees — no species can be harvested
+### 3.2 Fruit trees — no species can be harvested — **DONE**
 
 **Every fruit tree in this cache is unharvestable.** The harvest verb is
 per-species (the wiki is explicit that there is no generic "Pick-fruit"), and
@@ -251,23 +251,53 @@ calquat is cleared with a spade rather than chopped at all.
   [Curry tree](https://oldschool.runescape.wiki/w/Curry_tree),
   [Palm tree](https://oldschool.runescape.wiki/w/Palm_tree)
 
-### 3.3 Rope swings — Swing-on — **still deferred, and correctly so**
+### 3.3 Rope swings — Swing-on — **DONE**
 
 Seven locs, `op1=Swing-on`, unbound: `tree_ropeswing1..4`,
 `agilityarena_ropeswing`, `royal_ropeswing_mid`,
 `obstical_rockswing_withrope`.
 
-Left alone in this pass. Six of the seven are obstacles on the Barbarian
-Outpost, Wilderness and Brimhaven Agility courses, and
-`docs/AGILITY_COMPLETION_PLAN.md` records those whole courses as **absent**
-— a swing needs a start tile and a landing tile, and those come from the
-course port, not from the loc record. Binding `Swing-on` to a guess would
-be worse than the current silence. The seventh,
-`obstical_rockswing_withrope`, is Underground Pass's own and is the one
-worth doing standalone: its start/landing coords are already written down
-in `quest_upass/scripts/upass_obstacles.rs2`.
+All seven are bound, and the note below about the courses being absent is
+**stale** — `AGILITY_COMPLETION_PLAN.md`'s own progress table records Barbarian
+Outpost, Wilderness and the Brimhaven Arena as done, and their swings
+(`obstical_ropeswing1`, `obstical_ropeswing2`) were never these records. The
+seven split three ways:
 
-This one is *known* deferred — `quests/quest_itwatchtower/…:15` says
+- `agilityarena_ropeswing` — the one obstacle missing from an otherwise
+  complete arena port. 20 xp, in `agilityarena.rs2` beside its fourteen
+  siblings, direction from `loc_angle` and the file's own two-tile traverse.
+- `obstical_rockswing_withrope` — Underground Pass's tied rope. Its start and
+  landing were already written down in the tie flow directly above it in
+  `quest_upass/scripts/upass_obstacles.rs2`; for the five ticks the tied rope
+  stands, its one option did nothing.
+- `tree_ropeswing1..4` and `royal_ropeswing_mid` — the two 10-Agility
+  shortcuts (Brimhaven to Moss Giant Island, Ogre island west of Yanille) and
+  Royal Trouble's cave swing, in `skill_agility/scripts/rope_swings.rs2`.
+
+**The landing tiles came out of the cache, not out of a guess**, which is the
+part worth reusing. No wiki page publishes them. `make -C src
+loc-placement-probe` (new, the companion to `walkable-probe`) reports where a
+loc id is actually placed and which way it faces, and a swing's loc spans
+exactly the gap it crosses — so the two banks are the tiles immediately beyond
+its ends, and `walkable-probe` confirms both are standable:
+
+| loc | placement | axis | span | banks |
+| --- | --- | --- | --- | --- |
+| `tree_ropeswing1` | 2705,3209 a1 | x | 6 | 2704 / 2711 |
+| `tree_ropeswing2` | 2703,3205 a3 | x | 6 | 2702 / 2709 |
+| `tree_ropeswing3` | 2511,3090 a2 | z | 6 | 3089 / 3096 |
+| `tree_ropeswing4` | 2499,3087 a3 | x | 6 | 2498 / 2505 |
+| `royal_ropeswing_mid` | 2539,10296 a1 | x | 2 | 2538 / 2541 |
+
+`tree_ropeswing4` is never placed by any map square: what the map places is
+`tree_ropeswing4_norope` ("Branch", no ops), and the roped record replaces it.
+That is also why one bank of the Royal Trouble swing reads blocked — the cave
+wall runs diagonally across it — so the shared helper steps one tile further
+out rather than landing the player inside the rock.
+
+The old note below is kept because its warning still stands:
+
+This one was *known* deferred — `quests/quest_itwatchtower/…:15` says
 "tree_ropeswing deferred". Underground Pass has its own bespoke swing
 (`quest_upass/scripts/upass_obstacles.rs2:116`), so the machinery
 (`~agility_exactmove`, `loc_anim(ropeswing_long)`, `human_ropeswing_long`)
@@ -286,7 +316,7 @@ Brimhaven Agility Arena, Wilderness course and Underground Pass swings.
   [Ropeswing (Brimhaven)](https://oldschool.runescape.wiki/w/Ropeswing_(Brimhaven)),
   [Ropeswing (Barbarian Outpost)](https://oldschool.runescape.wiki/w/Ropeswing_(Barbarian_Outpost_Agility_Course))
 
-### 3.4 Redwood trees and crystal outcrops — Cut
+### 3.4 Redwood trees and crystal outcrops — Cut — **DONE**
 
 `redwoodtree_l`, `redwoodtree_r` (category 953),
 `redwood_tree_fullygrown_1_2/_1_4/_1_6/_1_8`, and the crystal outcrops
@@ -303,7 +333,7 @@ not.
 - Wiki: [Redwood tree](https://oldschool.runescape.wiki/w/Redwood_tree),
   [Woodcutting](https://oldschool.runescape.wiki/w/Woodcutting)
 
-### 3.5 Altars and shrines — Pray
+### 3.5 Altars and shrines — Pray — **DONE**
 
 Six unbound, category 897: `hosidius_altar`, `lovakengj_altar`, `gh_altar`,
 `ranul_shrine`, `twilight_shrine`, `slug2_altar_saradomin`.
@@ -317,10 +347,18 @@ Ectofuntus or POH gilded altars, which are bone-offering *training* methods.
 - Wiki: [Altar](https://oldschool.runescape.wiki/w/Altar),
   [Prayer](https://oldschool.runescape.wiki/w/Prayer)
 
-### 3.6 Drink-from — quest objects only
+### 3.6 Drink-from — quest objects only — **closed as WONT-DO**
 
-`100_osman_fountain` (The Feud) and `cauldron_generic_drink`, `op1=Drink-from`,
-unbound.
+`100_osman_fountain` and `cauldron_generic_drink` stay unbound, and so do the
+five others the scan turns up (`barbassault_natural_spring`,
+`civitas_bird_bath`, `nightmare_challenge_portal_enabled`, and DT2's two
+`dt2_lassar_stamina_pool_*`). Each now has a row in
+`tools/world_interaction_exclusions.tsv` giving the reason, so the decision is
+recorded rather than merely never made.
+
+The one Drink-from with a real mechanic behind it — Witch's Potion's
+`hettycauldron` — was already bound (`quest_hetty/scripts/quest_hetty.rs2:6`).
+`cauldron_generic_drink` is the *decorative* cauldron, a different record.
 
 > Scope this narrowly. **Ordinary fountains and wells have no `Drink-from`
 > option at all** — the wiki lists their options as *None*, and the only way to
@@ -333,7 +371,7 @@ unbound.
 - Wiki: [Cauldron (Witch's Potion)](https://oldschool.runescape.wiki/w/Cauldron_(Witch's_Potion)),
   [Water source](https://oldschool.runescape.wiki/w/Water_source)
 
-### 3.7 Smaller one-offs
+### 3.7 Smaller one-offs — **DONE**
 
 | Symbol | Op | Note |
 | --- | --- | --- |
@@ -345,6 +383,16 @@ unbound.
 | `kharazi_bamboo_tree_base_leafy` | `op1=Shake` | Karamja |
 | `vm_specimen_table1/2` | `op1=Clean` | Varrock Museum (cat 691) |
 | `dirty_arrowtips` | `ifop1=Clean` | inventory op |
+
+Three more surfaced only once the first pass was bound and the scan re-run,
+and all three are worth reading — none of them looks like a missing option
+from the outside:
+
+| Symbol | Op | What it actually was |
+| --- | --- | --- |
+| `tgod_vines_cut` | `op1=Cut` | **The loom defect again, in ported quest content.** The Garden of Death binds `[oploc1,tgod_vines]` — the multiloc *shell*. The server resolves a multiloc **before** it dispatches (`mock230_loc_resolve_transform`, `mock230_world.c:1631`), so the trigger only ever fires on the resolved rung and the shell binding never ran once. The whole vine step of the quest was a dead click. Now bound to `tgod_vines_inspect` / `_cut` / `_squeeze`, whose ladder the quest's own `^god_vines`=22 already matched. |
+| `elid_herbalist` (Zahur) | `op4=Clean` | Only `op1=Talk-to` was bound, by Beneath Cursed Sands. The 200-coin herb-cleaning service — the thing most players know her for — did nothing. `areas/area_desert/scripts/zahur_services.rs2`. Her `op3=Decant` and `op5=Make unfinished potion(s)` stay unbound on purpose; both are noted in that file. |
+| `fossil_cep_grown` | `op1=Cut` | The **Sulliuscep**, and the cache ships all of it: six `fossil_cep_multi1..6` placements keyed on the `fossil_cep` varbit, `fossil_cep_sprout` for the five that are not grown, and all three yields. Woodcutting 65 for 127 xp; `skill_woodcutting/scripts/sulliuscep.rs2`. It could not be another `woodcutting_trees` row like redwood because its yield is three-way and it does not deplete into a loc — the varbit moves and the *next* mushroom grows, which is why players run a circuit. |
 
 ---
 
@@ -440,6 +488,45 @@ class is invisible precisely because a checklist can lie about it. The cheap
 proof that the gate works is to put a fixed op number back and watch the family
 drop: restoring `[oploc1,_loom]` takes `weave` from `4/4` to `2/4`.
 
+### The completion gate
+
+A worklist can only ever report on rows someone thought to write down, and the
+whole failure mode here is a gap nobody noticed. So `--audit` does not read the
+worklist at all: it re-derives the entire population from a fresh `--coverage`
+scan over the curated verb set, subtracts what is bound, subtracts
+`tools/world_interaction_exclusions.tsv`, and reports whatever is left.
+
+```sh
+python3 tools/world_interaction_scan.py --audit    # exits 1 if anything is unaccounted
+```
+
+Every row in the exclusions file is a **decision** — POH furniture belongs to
+the Construction plan, Varlamore's alpacas have no shearable product in this
+cache, the Gorilla Statue is not an altar — and it carries the reason with it.
+A finding that is in neither file is an oversight, and the two now look
+different from each other. Current state: **226 bound, 139 excluded, 0
+unaccounted**.
+
+Proven by mutation the same way: delete the `mm_gorillastatue1` row from the
+exclusions file and `--audit` reports it and exits 1.
+
+### Two probes, and why the second one exists
+
+Both build the server's own scene out of real map squares, so what they report
+is what the world does:
+
+```sh
+make -C src walkable-probe        # walkable_probe <cache> <x> <z> <level> [radius]
+make -C src loc-placement-probe   # loc_placement_probe <cache> <loc_id> <x> <z> [radius]
+```
+
+`walkable-probe` answers "can a player stand here", which is what an agility
+landing needs. `loc-placement-probe` is new here and answers the other half —
+"where is this loc, and which way does it face" — which is what you need before
+you can pick a landing at all. Between them the rope swings in §3.3 got real
+coordinates instead of invented ones; the loc ids come from
+`configs/all.loc.compack`.
+
 ### Verifying a fix
 
 Per `docs/QUEST_PORTING_FIELD_GUIDE.md` §1 — rebuild the compiler first, always
@@ -457,7 +544,12 @@ shares one RNG stream, so unrelated failures shift. See the field guide §1.
 
 ---
 
-## 6. Suggested order of work
+## 6. Order of work — **all closed**
+
+Everything below is done; the list is kept because the order it argues for is
+the one worth reusing on the next audit of this shape (cheapest real outage
+first, largest single gap last).
+
 
 1. **§2.2 loom** — one-character fix, restores a whole skill entry point.
 2. **§2.3 sheep Shear** — mechanical, eleven trigger heads, reuses the
@@ -469,8 +561,12 @@ shares one RNG stream, so unrelated failures shift. See the field guide §1.
    step is missing, and all six share one shape.
 6. Everything else in §3 as content work.
 
-Before starting any of these, re-run `--dead` — this tree has concurrent
-sessions and the list moves.
+Before starting any of these, re-run `--audit` — this tree has concurrent
+sessions and the list moves *under you*. During the pass that closed this list,
+another session was working the same document at the same time and landed the
+fruit trees, altars, redwood and crystal outcrops while this one was mid-file;
+the two collided on `dairy_churn` (duplicate script name, a hard compile
+error). Derive status from the tree before believing any of it.
 
 Each fix needs an assertion proven to fail by mutation (field guide §7) — for
 this defect class the natural mutation is to put the op number back the way it

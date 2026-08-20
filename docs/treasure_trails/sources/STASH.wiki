@@ -1,0 +1,1705 @@
+{{External|rs=Hidey-holes}}
+[[File:S.T.A.S.H chart built.png|left|120px]]
+[[File:STASH unit.png|thumb|Interacting with a STASH unit.]]
+'''STASH''' (short for "'''Store Things And Stuff Here'''") are storage units for [[emote clue]] items, saving [[bank]] space and time for players who frequent [[Treasure Trails]]. While beginner-tier clues can be done in [[free-to-play]], only [[member]]s can make use of these units as they require use of the [[Construction]] skill.
+
+There are a total of {{#var_final:STASHcount}} constructible STASH units throughout [[Gielinor]]. All these locations are initially labelled as "inconspicuous bushes/crates/holes/rocks" and, once built, become usable STASH units. Players can see which units they've already constructed and filled via a [[S.t.a.s.h chart]] in the [[study]] of a [[player-owned house]], or by reading the [[Noticeboard (Watson's house)|noticeboard]] within [[Watson's house]].
+
+==Materials==
+The materials and level required to construct a STASH unit from an inconspicuous object depend on the tier of the related clue scroll. These levels can be [[Construction#Temporary boosts|boosted]]. 
+
+Players require any [[hammer]] and [[saw]] to construct these units. The type of [[nails]] used is irrelevant, however all ten nails must be made of the same metal. Since nails cannot be bent while constructing STASH units, it's advised to use the cheapest possible nails. Notably, [[dragon nail|dragon nails]] do '''not''' work.
+
+{| class="wikitable lighttable"
+|+
+! rowspan="2" |Clue tier
+! colspan="2" |{{SCP|Construction|link=y}}
+! rowspan="2" |Materials per unit
+! rowspan="2" |Amount
+! rowspan="2" |Total materials
+! rowspan="2" |Total exp
+! rowspan="2" |Total cost ([[Grand Exchange|GE]])<br />incl. stashed items 
+|-
+!Level
+!Exp
+|-
+|Beginner
+|12
+|150
+|2 [[Plank|planks (regular)]], 10 [[nails]]
+|{{#var_final:int1}}
+|6 [[Plank|planks (regular)]], 30 [[nails]]
+|{{#var_final:exp1}}
+|{{#var_final:totalbeginner}}
+|-
+|Easy
+|27
+|150
+|2 [[Plank|planks (regular)]], 10 [[nails]]
+|{{#var_final:int2}}
+|62 [[Plank|planks (regular)]], 310 [[nails]]
+|{{#var_final:exp2}}
+|{{#var_final:totaleasy}}
+|-
+|Medium
+|42
+|250
+|2 [[oak plank]]s, 10 [[nails]]
+|{{#var_final:int3}}
+|50 [[Oak plank|oak planks]], 250 [[nails]]
+|{{#var_final:exp3}}
+|{{#var_final:totalmedium}}
+|-
+|Hard
+|55
+|400
+|2 [[teak plank]]s, 10 [[nails]]
+|{{#var_final:int4}}
+|32 [[Teak plank|teak planks]], 160 [[nails]]
+|{{#var_final:exp4}}
+|{{#var_final:totalhard}}
+|-
+|Elite
+|77
+|600
+|2 [[mahogany plank]]s, 10 [[nails]]
+|{{#var_final:int5}}
+|38 [[Mahogany plank|mahogany planks]], 190 [[nails]]
+|{{#var_final:exp5}}
+|{{#var_final:totalelite}}
+|-
+|Master
+|88
+|1,500
+|2 [[mahogany plank]]s, 1 [[gold leaf]], 10 [[nails]]
+|{{#var_final:int6}}
+|50 [[Mahogany plank|mahogany planks]], 25 [[gold leaf|gold leaves]], 250 [[nails]]
+|{{#var_final:exp6}}
+|{{#var_final:totalmaster}}
+|-
+!colspan="4"|Total
+|class="nohighlight"|{{#var_final:STASHcount}}
+|class="nohighlight"|238 planks (68 [[plank|regular]], 50 [[Oak plank|oak]], 32 [[Teak plank|teak]], 88 [[Mahogany plank|mahogany]])<br/>25 [[gold leaf|gold leaves]], 1,190 [[nails]]
+|class="nohighlight"|{{#var_final:expall}}
+|class="nohighlight"|{{#var_final:totalall}}
+|}
+
+Along with the listed materials, in order to access every STASH unit, players must have completed the following quests:
+
+{|class="mw-collapsible mw-collapsed"
+! style="text-align:left;" | Quests
+|-
+|
+{{Sync}}
+<div class="qc-active">
+{{Checklist|smallindent=yes|notoggleparent=yes|
+* [[Children of the Sun]]
+* [[Darkness of Hallowvale]]
+* [[Desert Treasure I]]
+* [[The Fremennik Isles]]
+* [[Fairy Tale II - Cure a Queen]]
+* [[Horror from the Deep]]
+* [[Icthlarin's Little Helper]]
+* [[Legends' Quest]]
+* [[Mountain Daughter]]
+* [[Shilo Village]]
+* [[Song of the Elves]]
+* [[Troll Romance]]
+* [[Watchtower]]
+* [[Zogre Flesh Eaters]]
+* Started [[Barbarian Firemaking]]
+}}
+</div>
+|}
+
+==Types==
+Inconspicuous objects will visually appear in one of four different ways, so STASH units blend in as well as possible with their scenery.
+{| class="wikitable" style="text-align:center;"
+! colspan="4" |Inconspicuous objects
+|-
+!Bush
+!Crate
+!Hole
+!Rocks
+|-
+|[[File:Bush scenery.png|150px]]
+|[[File:Inconspicuous crate.png|150px]]
+|[[File:Inconspicuous hole.png|170px]]
+|[[File:Inconspicuous rocks.png|170px]]
+|-
+! colspan="4" |Constructed STASH units
+|-
+!Bush
+!Crate
+!Hole
+!Rocks
+|-
+|[[File:STASH unit (bush).png|150px]]
+|[[File:STASH unit (crate).png|150px]]
+|[[File:STASH unit (hole).png|170px]]
+|[[File:STASH unit (rock).png|170px]]
+|}
+
+==Stashing items==
+Interacting with a constructed STASH unit allows the player to stash the related [[emote clue]] items in it. It's only possible to stash the full set of items required for the emote clue, not individual parts of it. [[(g)|Gilded]], [[(or)|ornamented]], and other variants of required items can be used and stashed in place unless stated otherwise. Other items cannot be stashed in these storage units.
+
+Enabling the "STASH units take equipped items" setting in the [[Settings]] menu allows the player to directly store equipped emote clue items without having to unequip them first. In case the player has more than one of a storable item, those in the inventory take priority over those equipped.
+
+Items can be taken out of a filled STASH unit by interacting with it again, as long as the player has enough inventory space to take out all stashed items at once.
+
+==Beginner==
+[[File:Clue scroll (beginner) detail.png|thumb|160px|[[Clue scroll (beginner)|Beginner clue scroll]]]]
+{{Recipe
+|skill1 = Construction
+|skill1lvl = 12
+|skill1boostable = Yes
+|skill1exp = 150
+|ticks = 3
+|tools = Hammer, Saw
+|members = Yes
+|mat1 = Plank
+|mat1txt = Plank (regular)
+|mat1quantity = 2
+|mat2 = Bronze nails
+|mat2txt = Nails (any)
+|mat2quantity = 10
+|output1 = STASH
+|output1txt = STASH (beginner)
+|output1pic = Stash units
+|output1cost = No
+|output1subtxt = Beginner
+}}
+
+{| class="wikitable lighttable sortable" style=width:750px
+!style="width:50px" class="unsortable"|Type
+!style="width:400px" colspan="2"|Location
+!style="width:200px" class="unsortable"|Stored items
+!style="width:100px"|Item cost ([[Grand Exchange|GE]])
+|-
+|Bush
+|{{StashLocation|x=3206|y=3422|pin = greyPin
+|text="Aris' tent"
+}}
+|Outside [[Aris]]' tent on [[Varrock Square]]
+|
+*{{plink|Gold ring}}
+*{{plink|Gold necklace}}
+|{{Coins|{{+=|totalbeginner|{{GEP|Gold ring}} + {{GEP|Gold necklace}}|echo=2}}}}{{+=|int1}}
+|-
+|Bush
+|{{StashLocation|x=3233|y=3200|pin = greyPin
+|text="Bob's Brilliant Axes in Lumbridge"
+}}
+|Outside [[Bob's Brilliant Axes]]
+|
+*{{plink|Leather boots}}
+*{{plink|Bronze axe}}
+|{{Coins|{{+=|totalbeginner|{{GEP|Leather boots}} + {{GEP|Bronze axe}}|echo=2}}}}{{+=|int1}}
+|-
+|Bush
+|{{StashLocation|x=3209|y=3416|pin = greyPin
+|text="Iffie Nitter in Varrock"
+}}
+|Outside [[Thessalia's Fine Clothes]], next to [[Aris]]' tent
+|
+*{{plink|Chef's hat}}
+*{{plink|Red cape}}
+|{{Coins|{{+=|totalbeginner|{{GEP|Chef's hat}} + {{GEP|Red cape}}|echo=2}}}}{{+=|int1}}
+|- class="sortbottom"
+!colspan="4"|Total
+|class="nohighlight"|{{Coins|{{#var:totalbeginner}}}}
+|}
+
+==Easy==
+[[File:Clue scroll (easy) detail.png|thumb|160px|[[Clue scroll (easy)|Easy clue scroll]]]]
+{{Recipe
+|skill1 = Construction
+|skill1lvl = 27
+|skill1boostable = Yes
+|skill1exp = 150
+|ticks = 3
+|tools = Hammer, Saw
+|members = Yes
+|mat1 = Plank
+|mat1txt = Plank (regular)
+|mat1quantity = 2
+|mat2 = Bronze nails
+|mat2txt = Nails (any)
+|mat2quantity = 10
+|output1 = STASH
+|output1txt = STASH (easy)
+|output1pic = Stash units
+|output1cost = No
+|output1subtxt = Easy
+}}
+
+{| class="wikitable lighttable sortable" style=width:750px
+!style="width:50px" class="unsortable"|Type
+!style="width:400px" colspan="2"|Location
+!style="width:200px" class="unsortable"|Stored items
+!style="width:100px"|Item cost ([[Grand Exchange|GE]])
+|-
+|Hole
+|{{StashLocation|x=3201|y=3170|pin = greenPin
+|text="Near a shed in Lumbridge Swamp"
+}}
+|Outside the [[Shed (Lumbridge Swamp)|Lumbridge Swamp shed]]
+|
+*{{plink|Bronze dagger}}
+*{{plink|Iron full helm}}
+*{{plink|Gold ring}} 
+|{{Coins|{{+=|totaleasy|{{GEP|Bronze dagger}} + {{GEP|Iron full helm}} + {{GEP|Gold ring}}|echo=2}}}}{{+=|int2}}
+|-
+|Hole
+|{{StashLocation|x=3083|y=3254|pin = greenPin
+|text="Draynor Village market"
+}}
+|[[Draynor Village]] marketplace
+|
+*{{plink|Studded chaps}}
+*{{plink|Iron kiteshield}}
+*{{plink|Steel longsword}}
+|{{Coins|{{+=|totaleasy|{{GEP|Studded chaps}} + {{GEP|Iron kiteshield}} + {{GEP|Steel longsword}}|echo=2}}}}{{+=|int2}}
+|-
+|Bush
+|{{StashLocation|x=2734|y=3349|pin = greenPin
+|text="Outside the Legends' Guild gates"
+}}
+|[[Legends' Guild]], outside the gates
+|
+*{{plink|Iron platelegs}}
+*{{plink|Emerald amulet}}
+*{{plink|Oak longbow}}
+|{{Coins|{{+=|totaleasy|{{GEP|Iron platelegs}} + {{GEP|Emerald amulet}} + {{GEP|Oak longbow}}|echo=2}}}}{{+=|int2}}
+|-
+|Crate
+|{{StashLocation|x=3049|y=3237|pin = greenPin
+|text="Near the Entrana ferry in Port Sarim"
+}}
+|Near the [[Monk of Entrana|Monks of Entrana]] in [[Port Sarim]] 
+|
+*{{plink|Coif}}
+*{{plink|Steel plateskirt}}
+*{{plink|Sapphire necklace}}
+|{{Coins|{{+=|totaleasy|{{GEP|Coif}} + {{GEP|Steel plateskirt}} + {{GEP|Sapphire necklace}}|echo=2}}}}{{+=|int2}}
+|-
+|Rock
+|{{StashLocation|x=3089|y=3332|pin = greenPin
+|text="Draynor Manor by the fountain"
+}}
+|Next to the fountain in [[Draynor Manor]]
+|
+*{{plink|Iron platebody}}
+*{{plink|Studded chaps}}
+*{{plink|Bronze full helm}}
+|{{Coins|{{+=|totaleasy|{{GEP|Iron platebody}} + {{GEP|Studded chaps}} + {{GEP|Bronze full helm}}|echo=2}}}}{{+=|int2}}
+|-
+|Bush
+|{{StashLocation|x=3111|y=3290|pin = greenPin
+|text="Crossroads north of Draynor Village"
+}}
+|Crossroads north of [[Draynor Village]]
+|
+*{{plink|Iron chainbody}}
+*{{plink|Sapphire ring}}
+*{{plink|Longbow}}
+|{{Coins|{{+=|totaleasy|{{GEP|Iron chainbody}} + {{GEP|Sapphire ring}} + {{GEP|Longbow}}|echo=2}}}}{{+=|int2}}
+|-
+|Crate
+|{{StashLocation|x=3214|y=3490|pin = greenPin
+|text="Varrock Palace Library"
+}}
+|[[Varrock Palace Library]]
+|
+*{{plink|Green robe top}}
+*{{plink|Ham robe}}
+*{{plink|Iron warhammer}}
+|{{Coins|{{+=|totaleasy|{{GEP|Green robe top}} + {{GEP|Ham robe}} + {{GEP|Iron warhammer}}|echo=2}}}}{{+=|int2}}
+|-
+|Bush
+|{{StashLocation|x=3044|y=3371|pin = greenPin
+|text="Outside the Falador Party Room"
+}}
+|Outside the [[Falador Party Room]]
+|
+*{{plink|Steel full helm}}
+*{{plink|Steel platebody}}
+*{{plink|Iron plateskirt}}
+|{{Coins|{{+=|totaleasy|{{GEP|Steel full helm}} + {{GEP|Steel platebody}} + {{GEP|Iron plateskirt}}|echo=2}}}}{{+=|int2}}
+|-
+|Bush
+|{{StashLocation|x=2764|y=3438|pin = greenPin
+|text="Catherby beehive field"
+}}
+|[[Beehive]]s west of [[Catherby]]
+|
+*{{plink|Desert shirt}}
+*{{plink|Green robe bottoms}}
+*{{plink|Steel axe}}
+|{{Coins|{{+=|totaleasy|{{GEP|Desert shirt}} + {{GEP|Green robe bottoms}} + {{GEP|Steel axe}}|echo=2}}}}{{+=|int2}}
+|-
+|Rock
+|{{StashLocation|x=2982|y=3277|pin = greenPin
+|text="Road junction north of Rimmington"
+}}
+|Road junction between [[Falador]] and [[Rimmington]]
+|
+*{{plink|Green hat}}
+*{{plink|Cream robe top}}
+*{{plink|Leather chaps}}
+|{{Coins|{{+=|totaleasy|{{GEP|Green hat}} + {{GEP|Cream robe top}} + {{GEP|Leather chaps}}|echo=2}}}}{{+=|int2}}
+|-
+|Hole
+|{{StashLocation|x=2755|y=3398|pin = greenPin
+|text="Outside Keep Le Faye"
+}}
+|Outside [[Keep Le Faye]]
+|
+*{{plink|Coif}}
+*{{plink|Iron platebody}}
+*{{plink|Leather gloves}}
+|{{Coins|{{+=|totaleasy|{{GEP|Coif}} + {{GEP|Iron platebody}} + {{GEP|Leather gloves}}|echo=2}}}}{{+=|int2}}
+|-
+|Bush
+|{{StashLocation|x=3354|y=3344|pin = greenPin
+|text="Outside the Digsite Exam Centre"
+}}
+|Outside the [[Exam Centre]]
+|
+*{{plink|White apron}}
+*{{plink|Green boots}}
+*{{plink|Leather gloves}}
+|{{Coins|{{+=|totaleasy|{{GEP|White apron}} + {{GEP|Green boots}} + {{GEP|Leather gloves}}|echo=2}}}}{{+=|int2}}
+|-
+|Crate
+|{{StashLocation|x=3316|y=3242|pin = greenPin
+|text="Mubariz's room at the Emir's Arena"
+}}
+|[[Mubariz]]'s room at the [[Emir's Arena]]
+|
+*{{plink|Iron chainbody}}
+*{{plink|Leather chaps}}
+*{{plink|Coif}}
+|{{Coins|{{+=|totaleasy|{{GEP|Iron chainbody}} + {{GEP|Leather chaps}} + {{GEP|Coif}}|echo=2}}}}{{+=|int2}}
+|-
+|Bush
+|{{StashLocation|x=2944|y=3339|pin = greenPin
+|text="Near Herquin's shop in Falador"
+}}
+|Outside [[Herquin's Gems.]]
+|
+*{{plink|Mithril pickaxe}}
+*{{plink|Black platebody}}
+*{{plink|Iron kiteshield}}
+|{{Coins|{{+=|totaleasy|{{GEP|Mithril pickaxe}} + {{GEP|Black platebody}} + {{GEP|Iron kiteshield}}|echo=2}}}}{{+=|int2}}
+|-
+|Crate
+|{{StashLocation|x=3253|y=3404|pin = greenPin
+|text="Aubury's shop in Varrock"
+}}
+|[[Aubury's Rune Shop]]
+|
+*{{plink|Air tiara}}
+*{{plink|Staff of water}}
+|{{Coins|{{+=|totaleasy|{{GEP|Air tiara}} + {{GEP|Staff of water}}|echo=2}}}}{{+=|int2}}
+|-
+|Crate
+|{{StashLocation|x=3045|y=2963|pin = greenPin
+|text="Behind the bar on the Pandemonium"
+}}
+|Behind the bar on [[the Pandemonium]]
+|
+*{{plink|Right eye patch}}
+*{{plink|Bronze scimitar}}
+|{{Coins|{{+=|totaleasy|{{GEP|Right eye patch}} + {{GEP|Bronze scimitar}}|echo=2}}}}{{+=|int2}}
+|-
+|Crate
+|{{StashLocation|x=3115|y=3197|pin = greenPin
+|text="On the bridge to the Misthalin Wizards' Tower"
+}}
+|On the bridge towards the [[Wizards' Tower]]
+|
+*{{plink|Iron med helm}}
+*{{plink|Emerald ring}}
+*{{plink|White apron}}
+|{{Coins|{{+=|totaleasy|{{GEP|Iron med helm}} + {{GEP|Emerald ring}} + {{GEP|White apron}}|echo=2}}}}{{+=|int2}}
+|-
+|Rock
+|{{StashLocation|x=3372|y=3497|pin = greenPin
+|text="Limestone mine"
+}}
+|The [[Limestone Mine]] in [[Silvarea]]
+|
+*{{plink|Bronze platelegs}}
+*{{plink|Steel pickaxe}}
+*{{plink|Steel med helm}}
+|{{Coins|{{+=|totaleasy|{{GEP|Bronze platelegs}} + {{GEP|Steel pickaxe}} + {{GEP|Steel med helm}}|echo=2}}}}{{+=|int2}}
+|-
+|Hole
+|{{StashLocation|x=2987|y=3110|pin = greenPin
+|text="Mudskipper Point"
+}}
+|[[Mudskipper Point]], west of the [[fairy ring]] ({{fairycode|AIQ}})
+|
+*{{plink|Black cape}}
+*{{plink|Leather chaps}}
+*{{plink|Steel mace}}
+|{{Coins|{{+=|totaleasy|{{GEP|Black cape}} + {{GEP|Leather chaps}} + {{GEP|Steel mace}}|echo=2}}}}{{+=|int2}}
+|-
+|Rock
+|{{StashLocation|x=3303|y=3289|pin = greenPin
+|text="Al Kharid scorpion mine"
+}}
+|[[Al Kharid mine]]
+|
+*{{plink|Desert shirt}}
+*{{plink|Leather gloves}}
+*{{plink|Leather boots}}
+|{{Coins|{{+=|totaleasy|{{GEP|Desert shirt}} + {{GEP|Leather gloves}} + {{GEP|Leather boots}}|echo=2}}}}{{+=|int2}}
+|-
+|Hole
+|{{StashLocation|x=3164|y=3296|pin = greenPin
+|text="Wheat field near the Lumbridge windmill"
+}}
+|Wheat field outside the [[Mill Lane Mill]]
+|
+*{{plink|Blue robe top}}
+*{{plink|Turquoise robe bottoms}}
+*{{plink|Oak shortbow}}
+|{{Coins|{{+=|totaleasy|{{GEP|Blue robe top}} + {{GEP|Turquoise robe bottoms}} + {{GEP|Oak shortbow}}|echo=2}}}}{{+=|int2}}
+|-
+|Rock
+|{{StashLocation|x=2977|y=3237|pin = greenPin
+|text="Rimmington mine"
+}}
+|[[Rimmington mine]]
+|
+*{{plink|Gold necklace}}
+*{{plink|Gold ring}}
+*{{plink|Bronze spear}}
+|{{Coins|{{+=|totaleasy|{{GEP|Gold necklace}} + {{GEP|Gold ring}} + {{GEP|Bronze spear}}|echo=2}}}}{{+=|int2}}
+|-
+|Crate
+|{{StashLocation|x=2633|y=3387|pin = greenPin
+|text="Upstairs in the Ardougne windmill"
+}}
+|[[Kandarin windmill]] top floor
+|
+*{{plink|Blue robe top}}
+*{{plink|Ham robe}}
+*{{plink|Tiara}}
+|{{Coins|{{+=|totaleasy|{{GEP|Blue robe top}} + {{GEP|Ham robe}} + {{GEP|Tiara}}|echo=2}}}}{{+=|int2}}
+|-
+|Rock
+|{{StashLocation|x=2924|y=3478|pin = greenPin
+|text="Taverley Stone Circle"
+}}
+|[[Stone circle]] in [[Taverley]]
+|
+*{{plink|Blue wizard hat}}
+*{{plink|Bronze 2h sword}}
+*{{plink|Ham boots}} 
+|{{Coins|{{+=|totaleasy|{{GEP|Blue wizard hat}} + {{GEP|Bronze 2h sword}} + {{GEP|Ham boots}}|echo=2}}}}{{+=|int2}}
+|-
+|Bush
+|{{StashLocation|x=2609|y=3284|pin = greenPin
+|text="Near the parrots in Ardougne Zoo"
+}}
+|Next to the [[Parrots|parrot cage]] at the [[Ardougne Zoo]]
+|
+*{{plink|Studded body}}
+*{{plink|Bronze platelegs}}
+*{{plink|Staff}}
+|{{Coins|{{+=|totaleasy|{{GEP|Studded body}} + {{GEP|Bronze platelegs}} + {{GEP|Staff}}|echo=2}}}}{{+=|int2}}
+|-
+|Hole
+|{{StashLocation|x=2610|y=3393|pin = greenPin
+|text="Outside the Fishing Guild"
+}}
+|Next to the [[Master fisher]] outside of the [[Fishing Guild]]
+|
+*{{plink|Emerald ring}}
+*{{plink|Sapphire amulet}}
+*{{plink|Bronze chainbody}}
+|{{Coins|{{+=|totaleasy|{{GEP|Emerald ring}} + {{GEP|Sapphire amulet}} + {{GEP|Bronze chainbody}}|echo=2}}}}{{+=|int2}}
+|-
+|Rock
+|{{StashLocation|x=2735|y=3533|pin = greenPin
+|text="Road junction south of Sinclair Mansion"
+}}
+|Road junction between [[Sinclair Mansion]] and [[Camelot]]
+|
+*{{plink|Leather cowl}}
+*{{plink|Iron scimitar}}
+*{{plink|Blue wizard robe}}
+|{{Coins|{{+=|totaleasy|{{GEP|Leather cowl}} + {{GEP|Iron scimitar}} + {{GEP|Blue wizard robe}}|echo=2}}}}{{+=|int2}}
+|-
+|Bush
+|{{StashLocation|x=3300|y=3490|pin = greenPin
+|text="Near the Sawmill Operator's booth"
+}}
+|Next to the [[Sawmill operator]] at the [[Lumber Yard]]
+|
+*{{plink|Hardleather body}}
+*{{plink|Leather chaps}}
+*{{plink|Bronze axe}}
+|{{Coins|{{+=|totaleasy|{{GEP|Hardleather body}} + {{GEP|Leather chaps}} + {{GEP|Bronze axe}}|echo=2}}}}{{+=|int2}}
+|-
+|Bush
+|{{StashLocation|x=3211|y=3454|pin = greenPin
+|text="Outside Varrock Palace courtyard"
+}}
+|[[Varrock Palace]] courtyard, north of [[Varrock Square]]
+|
+*{{plink|Black axe}}
+*{{plink|Coif}}
+*{{plink|Ruby ring}}
+|{{Coins|{{+=|totaleasy|{{GEP|Black axe}} + {{GEP|Coif}} + {{GEP|Ruby ring}}|echo=2}}}}{{+=|int2}}
+|-
+|Bush
+|{{StashLocation|x=3161|y=3465|pin = greenPin
+|text="South of the Grand Exchange"
+}}
+|Southern entrance of the [[Grand Exchange]]
+|
+*{{plink|Pink skirt}}
+*{{plink|Pink robe top}}
+*{{plink|Body tiara}}
+|{{Coins|{{+=|totaleasy|{{GEP|Pink skirt}} + {{GEP|Pink robe top}} + {{GEP|Body tiara}}|echo=2}}}}{{+=|int2}}
+|-
+|Hole
+||{{StashLocation|x=1723|y=3153|pin = greenPin
+|text="Near the entrance of the Civitas illa Fortis Grand Museum"
+}}
+|South-eastern corner of the [[Grand Museum]] in [[Civitas illa Fortis]]
+|
+*{{plink|Turquoise robe top}}
+*{{plink|Blue skirt}}
+*{{plink|Emerald necklace}}
+|{{Coins|{{+=|totaleasy|{{GEP|Turquoise robe top}} + {{GEP|Blue skirt}} + {{GEP|Emerald necklace}}|echo=2}}}}{{+=|int2}}
+
+|- class="sortbottom"
+!colspan="4"|Total
+|class="nohighlight"|{{Coins|{{#var:totaleasy}}}}
+|}
+
+==Medium==
+[[File:Clue scroll (medium) detail.png|thumb|160px|[[Clue scroll (medium)|Medium clue scroll]]]]
+{{Recipe
+|skill1 = Construction
+|skill1lvl = 42
+|skill1boostable = Yes
+|skill1exp = 250
+|ticks = 3
+|tools = Hammer, Saw
+|members = Yes
+|mat1 = Oak plank
+|mat1quantity = 2
+|mat2 = Bronze nails
+|mat2txt = Nails (any)
+|mat2quantity = 10
+|output1 = STASH
+|output1txt = STASH (medium)
+|output1pic = Stash units
+|output1cost = No
+|output1subtxt = Medium
+}}
+
+{| class="wikitable lighttable sortable" style=width:800px
+!style="width:50px" class="unsortable"|Type
+!style="width:400px" colspan="2"|Location
+!style="width:250px" class="unsortable"|Stored items
+!style="width:100px"|Item cost ([[Grand Exchange|GE]])
+|-
+|Rock
+|{{StashLocation|x=3491|y=3490|pin = cyanPin
+|text="Centre of Canifis"
+}}
+|Centre of [[Canifis]]
+|
+*{{plink|Green robe top}}
+*{{plink|Mithril platelegs}}
+*{{plink|Iron 2h sword}}
+|{{Coins|{{+=|totalmedium|{{GEP|Green robe top}} + {{GEP|Mithril platelegs}} + {{GEP|Iron 2h sword}}|echo=2}}}}{{+=|int3}}
+|-
+|Bush
+|{{StashLocation|x=3111|y=3423|pin = cyanPin
+|text="East of the Barbarian Village bridge"
+}}
+|East of [[Barbarian Village]], across the river
+|
+*{{plink|Purple gloves}}
+*{{plink|Steel kiteshield}}
+*{{plink|Mithril full helm}}
+|{{Coins|{{+=|totalmedium|{{GEP|Purple gloves}} + {{GEP|Steel kiteshield}} + {{GEP|Mithril full helm}}|echo=2}}}}{{+=|int3}}
+|-
+|Crate
+|{{StashLocation|x=2444|y=3093|pin = cyanPin
+|text="Castle Wars bank"
+}}
+|Next to [[Lanthus]] at the [[Castle Wars]]
+|
+*{{plink|Ruby amulet}}
+*{{plink|Mithril scimitar}}
+*{{plink|Team cape|pic=Team-1 cape}} (any)
+|{{Coins|{{+=|totalmedium|{{GEP|Ruby amulet}} + {{GEP|Mithril scimitar}} + {{GEP|Team-1 cape}}|echo=2}}}}{{+=|int3}}
+|-
+|Crate
+|{{StashLocation|x=2475|y=3418|pin = cyanPin
+|text="Gnome Stronghold balancing rope"
+}}
+|[[Gnome Stronghold Agility Course]], on the [[Balancing rope (Gnome Stronghold Agility Course)|balancing rope]] platform
+|
+*{{plink|Steel kiteshield}}
+*{{plink|Green d'hide chaps}}
+*{{plink|Ring of forging}}
+|{{Coins|{{+=|totalmedium|{{GEP|Steel kiteshield}} + {{GEP|Green d'hide chaps}} + {{GEP|Ring of forging}}|echo=2}}}}{{+=|int3}}
+|-
+|Crate
+|{{StashLocation|x=2439|y=3164|pin = cyanPin
+|text="Observatory"
+}}
+|[[Observatory]], optionally via the [[Rocks (Observatory)|rock shortcut]] with a [[mith grapple]] and a [[crossbow]]
+|
+*{{plink|Mithril chainbody}}
+*{{plink|Green d'hide chaps}}
+*{{plink|Ruby amulet}}
+|{{Coins|{{+=|totalmedium|{{GEP|Mithril chainbody}} + {{GEP|Green d'hide chaps}} + {{GEP|Ruby amulet}}|echo=2}}}}{{+=|int3}}
+|-
+|Rock
+|{{StashLocation|x=3371|y=3421|pin = cyanPin
+|text="Digsite"
+}}
+|[[Digsite]], between several archaeological sites 
+|
+*{{plink|Green hat}}
+*{{plink|Snakeskin boots}}
+*{{plink|Iron pickaxe}}
+|{{Coins|{{+=|totalmedium|{{GEP|Green hat}} + {{GEP|Snakeskin boots}} + {{GEP|Iron pickaxe}}|echo=2}}}}{{+=|int3}}
+|-
+|Crate
+|{{StashLocation|x=3308|y=3124|pin = cyanPin
+|text="Shantay Pass"
+}}
+|[[Shantay Pass]]
+|
+*{{plink|Pointed bruise blue snelm}}
+*{{plink|Staff of air}}
+*{{plink|Bronze sq shield}}
+|{{Coins|{{+=|totalmedium|{{GEP|Pointed bruise blue snelm}} + {{GEP|Staff of air}} + {{GEP|Bronze sq shield}}|echo=2}}}}{{+=|int3}}
+|-
+|Bush
+|{{StashLocation|x=2807|y=3437|pin = cyanPin
+|text="Outside Catherby bank"
+}}
+|Outside the [[Catherby bank]]
+|
+*{{plink|Maple longbow}}
+*{{plink|Green d'hide chaps}}
+*{{plink|Iron med helm}}
+|{{Coins|{{+=|totalmedium|{{GEP|Maple longbow}} + {{GEP|Green d'hide chaps}} + {{GEP|Iron med helm}}|echo=2}}}}{{+=|int3}}
+|-
+|Bush
+|{{StashLocation|x=2836|y=3436|pin = cyanPin
+|text="Outside Harry's Fishing Shop in Catherby"
+}}
+|Outside the [[Harry's Fishing Shop]]
+|
+*{{plink|Adamant sq shield}}
+*{{plink|Bone dagger}}
+*{{plink|Mithril platebody}}
+|{{Coins|{{+=|totalmedium|{{GEP|Adamant sq shield}} + {{GEP|Bone dagger}} + {{GEP|Mithril platebody}}|echo=2}}}}{{+=|int3}}
+|-
+|Bush
+|{{StashLocation|x=3078|y=3505|pin = cyanPin
+|text="North of Evil Dave's house in Edgeville"
+}}
+|Outside the [[Edgeville General Store]]
+|
+*{{plink|Brown apron}}
+*{{plink|Leather boots}}
+*{{plink|Leather gloves}}
+|{{Coins|{{+=|totalmedium|{{GEP|Brown apron}} + {{GEP|Leather boots}} + {{GEP|Leather gloves}}|echo=2}}}}{{+=|int3}}
+|-
+|Crate
+|{{StashLocation|x=1641|y=3807|pin = cyanPin
+|text="Entrance of the Arceuus library"
+}}
+|Centre of the [[Arceuus library]]{{efn|For some unknown reason{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1121328142336110592|date=25 April 2019|archiveurl=https://reldo.runescape.wiki/i/100826|archivedate=30 May 2020|quote=Interestingly, yes, that one is blocked for Iron players. The code does not say why.}}, [[Ironman Mode|Ironmen]] will never receive this step.}}
+|
+*{{plink|Blue d'hide vambraces}}
+*{{plink|Adamant boots}}
+*{{plink|Adamant dagger}}
+|{{Coins|{{+=|totalmedium|{{GEP|Blue d'hide vambraces}} + {{GEP|Adamant boots}} + {{GEP|Adamant dagger}}|echo=2}}}}{{+=|int3}}
+|-
+|Hole
+|{{StashLocation|x=1304|y=3838|pin = cyanPin
+|text="North of Mouth Karuulm"
+}}
+|Northern part of [[Mount Karuulm]]
+|
+*{{Plink|Adamant warhammer}}
+*{{Plink|Mithril boots}}
+*{{Plink|Ring of life}}
+|{{Coins|{{+=|totalmedium|{{GEP|Adamant warhammer}} + {{GEP|Mithril boots}} + {{GEP|Ring of life}}|echo=2}}}}{{+=|int3}}
+|-
+|Rock
+|{{StashLocation|x=1629|y=3239|pin = cyanPin
+|text="Where the River Ortus meets the Proudspire"
+}}
+|Fishing spot north-west of the [[Tower of Ascension]]
+|
+*{{plink|Blue wizard hat}}
+*{{plink|Blue wizard robe}}
+|{{Coins|{{+=|totalmedium|{{GEP|Blue wizard hat}} + {{GEP|Blue wizard robe}}|echo=2}}}}{{+=|int3}}
+|-
+|Hole
+|{{StashLocation|x=3501|y=3574|pin = cyanPin
+|text="Mausoleum off the Morytania coast"
+}}
+|[[Mausoleum]], accessed through a tunnel via the eastern-most [[Memorial (Experiment cave)|memorial]] outside [[Fenkenstrain's Castle]]
+|
+*{{plink|Mithril plateskirt}}
+*{{plink|Maple longbow}}
+|{{Coins|{{+=|totalmedium|{{GEP|Mithril plateskirt}} + {{GEP|Maple longbow}}|echo=2}}}}{{+=|int3}}
+|-
+|Crate
+|{{StashLocation|x=2801|y=3081|pin = cyanPin
+|text="South of the shrine in Tai Bwo Wannai Village"
+}}
+|Near the [[Tribal Statue]] in [[Tai Bwo Wannai]]
+|
+*{{plink|Green d'hide chaps}}
+*{{plink|Ring of dueling}}
+*{{plink|Mithril med helm}}
+|{{Coins|{{+=|totalmedium|{{GEP|Green d'hide chaps}} + {{GEP|Ring of dueling(8)}} + {{GEP|Mithril med helm}}|echo=2}}}}{{+=|int3}}
+|-
+|Bush
+|{{StashLocation|x=2540|y=3548|pin = cyanPin
+|text="Barbarian Outpost obstacle course"
+}}
+|Inside the [[Barbarian Outpost Agility Course]]
+|
+*{{plink|Steel platebody}}
+*{{plink|Maple shortbow}}
+*{{plink|Team cape|pic=Team-1 cape}} (any)
+|{{Coins|{{+=|totalmedium|{{GEP|Steel platebody}} + {{GEP|Maple shortbow}} + {{GEP|Team-1 cape}}|echo=2}}}}{{+=|int3}}
+|-
+|Rock
+|{{StashLocation|x=2603|y=3093|pin = cyanPin
+|text="Outside Yanille bank"
+}}
+|Outside the [[Yanille bank]]
+|
+*{{plink|Brown apron}}
+*{{plink|Adamant med helm}}
+*{{plink|Snakeskin chaps}}
+|{{Coins|{{+=|totalmedium|{{GEP|Brown apron}} + {{GEP|Adamant med helm}} + {{GEP|Snakeskin chaps}}|echo=2}}}}{{+=|int3}}
+|-
+|Hole
+|{{StashLocation|x=2533|y=3377|pin = cyanPin
+|text="Ogre cage in the Ardougne Training Camp"
+}}
+|Inside the [[ogre]] cage in the [[Combat Training Camp]]
+|
+*{{plink|Green d'hide body}}
+*{{plink|Green d'hide chaps}}
+*{{plink|Steel sq shield}}
+|{{Coins|{{+=|totalmedium|{{GEP|Green d'hide body}} + {{GEP|Green d'hide chaps}} + {{GEP|Steel sq shield}}|echo=2}}}}{{+=|int3}}
+|-
+|Crate
+|{{StashLocation|x=2825|y=3441|pin = cyanPin
+|text="Hickton's Archery Emporium"
+}}
+|[[Hickton's Archery Emporium]]
+|
+*{{plink|Blue boots}}
+*{{plink|Hardleather body}}
+*{{plink|Silver sickle}}
+|{{Coins|{{+=|totalmedium|{{GEP|Blue boots}} + {{GEP|Hardleather body}} + {{GEP|Silver sickle}}|echo=2}}}}{{+=|int3}}
+|-
+|Rock
+|{{StashLocation|x=3168|y=9570|pin = cyanPin
+|text="Lumbridge Swamp caves"
+}}
+|Inside the [[Lumbridge Swamp Caves]], several available locations{{efn|Uniquely, the STASH unit for the [[Lumbridge Swamp Caves]] appears at every cave entrance. It only has to be constructed at one location for it to appear at all possible locations inside these caves. Items can be stashed and retrieved at any of these locations.}}
+|
+*{{plink|Staff of air}}
+*{{plink|Bronze full helm}}
+*{{plink|Amulet of power}}
+|{{Coins|{{+=|totalmedium|{{GEP|Staff of air}} + {{GEP|Bronze full helm}} + {{GEP|Amulet of power}}|echo=2}}}}{{+=|int3}}
+|-
+|Bush
+|{{StashLocation|x=2733|y=3476|pin = cyanPin
+|text="Outside the Seers' Village courthouse"
+}}
+|Outside the [[Seers' Village courthouse]]
+|
+*{{plink|Adamant halberd}}
+*{{plink|Mystic robe bottom}} (other variants cannot be used)
+*{{plink|Diamond ring}}
+|{{Coins|{{+=|totalmedium|{{GEP|Adamant halberd}} + {{GEP|Mystic robe bottom}} + {{GEP|Diamond ring}}|echo=2}}}}{{+=|int3}}
+|-
+|Hole
+|{{StashLocation|x=2479|y=5146|pin = cyanPin
+|text="TzHaar weapons store"
+}}
+|[[TzHaar-Hur-Tel's Equipment Store]]
+|
+*{{plink|Steel longsword}}
+*{{plink|Blue d'hide body}}
+*{{plink|Mystic gloves}} (other variants cannot be used)
+|{{Coins|{{+=|totalmedium|{{GEP|Steel longsword}} + {{GEP|Blue d'hide body}} + {{GEP|Mystic gloves}}|echo=2}}}}{{+=|int3}}
+|-
+|Crate
+|{{StashLocation|x=1541|y=3631|pin = cyanPin
+|text="North of the Shayzien combat ring"
+}}
+|North of the [[Combat Ring (Shayzien)|Shayzien combat ring]]
+|
+*{{plink|Adamant platebody}}
+*{{plink|Adamant full helm}}
+*{{plink|Adamant platelegs}}
+|{{Coins|{{+=|totalmedium|{{GEP|Adamant platebody}} + {{GEP|Adamant full helm}} + {{GEP|Adamant platelegs}}|echo=2}}}}{{+=|int3}}
+|-
+|Bush
+|{{StashLocation|x=3128|y=3249|pin = cyanPin
+|text="Outside Draynor Village jail"
+}}
+|Outside the [[Draynor jail]]
+|
+*{{plink|Adamant sword}}
+*{{plink|Sapphire amulet}}
+*{{plink|Adamant plateskirt}}
+|{{Coins|{{+=|totalmedium|{{GEP|Adamant sword}} + {{GEP|Sapphire amulet}} + {{GEP|Adamant plateskirt}}|echo=2}}}}{{+=|int3}}
+|-
+|Hole
+|{{StashLocation|x=1668|y=3287|pin = cyanPin
+|text="North of the Twilight Temple"
+}}
+|[[East Salvager Overlook mine]]
+|
+*{{plink|Maple longbow}}
+*{{plink|Ruby amulet}}
+*{{plink|Steel platelegs}}
+|{{Coins|{{+=|totalmedium|{{GEP|Maple longbow}} + {{GEP|Ruby amulet}} + {{GEP|Steel platelegs}}|echo=2}}}}{{+=|int3}}
+|- class="sortbottom"
+!colspan="4"|Total
+|class="nohighlight"|{{Coins|{{#var:totalmedium}}}}
+|}
+{{Notelist}}
+
+==Hard==
+[[File:Clue scroll (hard) detail.png|thumb|160px|[[Clue scroll (hard)|Hard clue scroll]]]]
+{{Recipe
+|skill1 = Construction
+|skill1lvl = 55
+|skill1boostable = Yes
+|skill1exp = 400
+|ticks = 3
+|tools = Hammer, Saw
+|members = Yes
+|mat1 = Teak plank
+|mat1quantity = 2
+|mat2 = Bronze nails
+|mat2txt = Nails (any)
+|mat2quantity = 10
+|output1 = STASH
+|output1txt = STASH (hard)
+|output1pic = Stash units
+|output1cost = No
+|output1subtxt = Hard
+}}
+
+{| class="wikitable lighttable sortable" style=width:900px
+!style="width:50px" class="unsortable"|Type
+!style="width:400px" colspan="2"|Location
+!style="width:350px" class="unsortable"|Stored items
+!style="width:100px"|Item cost ([[Grand Exchange|GE]])
+|-
+|Rock
+|{{StashLocation|x=3243|y=3662|pin = magentaPin
+|text="Chaos Temple in the south-eastern Wilderness"
+}}
+|North of the [[Chaos Temple (Wilderness)|Wilderness Chaos Temple]] with the [[Elder Chaos druid]]s
+|
+*{{plink|Rune platelegs}}
+*{{plink|Iron platebody}}
+*{{plink|Blue d'hide vambraces}}
+|{{Coins|{{+=|totalhard|{{GEP|Rune platelegs}} + {{GEP|Iron platebody}} + {{GEP|Blue d'hide vambraces}}|echo=2}}}}{{+=|int4}}
+|-
+|Crate
+|{{StashLocation|x=2511|y=3640|pin = magentaPin
+|text="Top floor of the Lighthouse"
+}}
+|[[Lighthouse]] top floor, only accessible after fixing the light during the [[Horror from the Deep]] quest
+|
+*{{plink|Blue d'hide body}}
+*{{plink|Blue d'hide vambraces}}
+|{{Coins|{{+=|totalhard|{{GEP|Blue d'hide body}} + {{GEP|Blue d'hide vambraces}}|echo=2}}}}{{+=|int4}}
+|-
+|Hole
+|{{StashLocation|x=3027|y=3699|pin = magentaPin
+|text="Noterazzo's shop in the Wilderness"
+}}
+|[[Bandit Duty Free]] in the [[Bandit Camp (Wilderness)|Wilderness Bandit Camp]]
+|
+*{{plink|Adamant sq shield}}
+*{{plink|Blue d'hide vambraces}}
+*{{plink|Rune pickaxe}}
+|{{Coins|{{+=|totalhard|{{GEP|Adamant sq shield}} + {{GEP|Blue d'hide vambraces}} + {{GEP|Rune pickaxe}}|echo=2}}}}{{+=|int4}}
+|-
+|Rock
+|{{StashLocation|x=2811|y=3678|pin = magentaPin
+|text="Mountain Camp goat enclosure"
+}}
+|Outside [[Jokul]]'s tent at the [[Mountain Camp]]
+|
+*{{plink|Rune full helm}}
+*{{plink|Blue d'hide chaps}}
+*{{plink|Fire battlestaff}}
+|{{Coins|{{+=|totalhard|{{GEP|Rune full helm}} + {{GEP|Blue d'hide chaps}} + {{GEP|Fire battlestaff}}|echo=2}}}}{{+=|int4}}
+|-
+|Crate
+|{{StashLocation|x=2852|y=2952|pin = magentaPin
+|text="Shilo Village bank"
+}}
+|[[Shilo Village bank]]
+|
+*{{plink|Mystic hat}} (other variants cannot be used)
+*{{plink|Bone spear}}
+*{{plink|Rune platebody}}
+|{{Coins|{{+=|totalhard|{{GEP|Mystic hat}} + {{GEP|Bone spear}} + {{GEP|Rune platebody}}|echo=2}}}}{{+=|int4}}
+|-
+|Hole
+|{{StashLocation|x=2966|y=2924|pin = magentaPin
+|text="North-east corner of the Kharazi Jungle"
+}}
+|Easternmost part of the [[Kharazi Jungle]]
+|
+*{{plink|Rune heraldic armour#Kiteshield|txt=Rune heraldic shield|pic=Rune shield (h1)}} (any)
+*{{plink|Stole|pic=Zamorak stole}} (any)
+|{{Coins|{{+=|totalhard|{{GEP|Rune shield (h3)}} + {{GEP|Armadyl stole}}|echo=2}}}}{{+=|int4}}
+|-
+|Rock
+|{{StashLocation|x=2480|y=3046|pin = magentaPin
+|text="In the middle of Jiggig"
+}}
+|[[Jiggig]], near the [[Jiggig Dungeon]] entrance
+|
+*{{plink|Rune spear}}
+*{{plink|Rune platelegs}}
+*{{plink|Rune heraldic armour#Full helm|txt=Rune heraldic helm|pic=Rune helm (h3)}} (any)
+|{{Coins|{{+=|totalhard|{{GEP|Rune spear}} + {{GEP|Rune platelegs}} + {{GEP|Rune helm (h1)}}|echo=2}}}}{{+=|int4}}
+|-
+|Crate
+|{{StashLocation|x=1645|y=3629|pin = magentaPin
+|text="Hosidius Mess"
+}}
+|[[Mess]], south of [[Kourend Castle]]
+|
+*{{plink|Rune halberd}}
+*{{plink|Rune platebody}}
+*{{plink|Amulet of strength}}
+|{{Coins|{{+=|totalhard|{{GEP|Rune halberd}} + {{GEP|Rune platebody}} + {{GEP|Amulet of strength}}|echo=2}}}}{{+=|int4}}
+|-
+|Crate
+|{{StashLocation|x=2593|y=3411|pin = magentaPin
+|text="Fishing Guild bank"
+}}
+|[[Fishing Guild bank]]
+|
+*{{plink|Elemental shield}}
+*{{plink|Blue d'hide chaps}}
+*{{plink|Rune warhammer}}
+|{{Coins|{{+=|totalhard|{{GEP|Elemental shield}} + {{GEP|Blue d'hide chaps}} + {{GEP|Rune warhammer}}|echo=2}}}}{{+=|int4}}
+|-
+|Hole
+|{{StashLocation|x=3292|y=2780|pin = magentaPin
+|text="Outside the great pyramid of Sophanem"
+}}
+|Outside the entrance to [[Klenter's Pyramid]]
+|
+*{{plink|Ring of life}}
+*{{plink|Amulet of glory|txt=Uncharged amulet of glory}}
+*{{plink|Adamant 2h sword}}
+|{{Coins|{{+=|totalhard|{{GEP|Ring of life}} + {{GEP|Amulet of glory}} + {{GEP|Adamant 2h sword}}|echo=2}}}}{{+=|int4}}
+|-
+|Crate
+|{{StashLocation|x=2910|y=3168|pin = magentaPin
+|text="West side of the Karamja banana plantation"
+}}
+|Western entrance of the [[banana plantation]]
+|
+*{{plink|Diamond ring}}
+*{{plink|Amulet of power}}
+|{{Coins|{{+=|totalhard|{{GEP|Diamond ring}} + {{GEP|Amulet of power}}|echo=2}}}}{{+=|int4}}
+|-
+|Hole
+|{{StashLocation|x=2851|y=3496|pin = magentaPin
+|text="Gnome Glider on White Wolf Mountain"
+}}
+|Next to [[Captain Bleemadge]] on [[White Wolf Mountain]]
+|
+*{{plink|Mithril platelegs}}
+*{{plink|Ring of life}}
+*{{plink|Rune axe}}
+|{{Coins|{{+=|totalhard|{{GEP|Mithril platelegs}} + {{GEP|Ring of life}} + {{GEP|Rune axe}}|echo=2}}}}{{+=|int4}}
+|-
+|Crate
+|{{StashLocation|x=3356|y=3332|pin = magentaPin
+|text="Inside the Digsite Exam Centre"
+}}
+|Next to [[Terry Balando]] inside the [[Exam Centre]]
+|
+*{{plink|Mystic fire staff}}
+*{{plink|Diamond bracelet}}
+*{{plink|Rune boots}}
+|{{Coins|{{+=|totalhard|{{GEP|Mystic fire staff}} + {{GEP|Diamond bracelet}} + {{GEP|Rune boots}}|echo=2}}}}{{+=|int4}}
+|-
+|Rock
+|{{StashLocation|x=3368|y=3931|pin = magentaPin
+|text="Volcano in the north-eastern Wilderness"
+}}
+|[[Blighted Volcano]] in the north-eastern corner of the [[Wilderness]]
+|
+*{{plink|Headband|pic=White headband}} (any)
+*{{plink|Crozier|pic=Saradomin crozier}} (any)
+|{{Coins|{{+=|totalhard|{{GEP|White headband}} + {{GEP|Saradomin crozier}}|echo=2}}}}{{+=|int4}}
+|-
+|Hole
+|{{StashLocation|x=3356|y=2830|pin = magentaPin
+|text="Agility Pyramid"
+}}
+|At the start of the [[Agility Pyramid]]
+|
+*{{plink|Mystic robe top}} (other variants cannot be used)
+*{{plink|Rune heraldic shield|pic=Rune shield (h1)}} (any)
+|{{Coins|{{+=|totalhard|{{GEP|Mystic robe top}} + {{GEP|Rune shield (h3)}}|echo=2}}}}{{+=|int4}}
+|-
+|Crate
+|{{StashLocation|x=1693|y=3243|pin = magentaPin
+|text="Twilight Temple"
+}}
+|Outside the [[Twilight Temple]]
+|
+*{{plink|Rune longsword}}
+*{{plink|Rune platebody}}
+*{{plink|Rune plateskirt}}
+|{{Coins|{{+=|totalhard|{{GEP|Rune longsword}} + {{GEP|Rune platebody}} + {{GEP|Rune plateskirt}}|echo=2}}}}{{+=|int4}}
+|- class="sortbottom"
+!colspan="4"|Total
+|class="nohighlight"|{{Coins|{{#var:totalhard}}}}
+|}
+{{Notelist}}
+
+==Elite==
+[[File:Clue scroll (elite) detail.png|thumb|160px|[[Clue scroll (elite)|Elite clue scroll]]]]
+{{Recipe
+|skill1 = Construction
+|skill1lvl = 77
+|skill1boostable = Yes
+|skill1exp = 600
+|ticks = 3
+|tools = Hammer, Saw
+|members = Yes
+|mat1 = Mahogany plank
+|mat1quantity = 2
+|mat2 = Bronze nails
+|mat2txt = Nails (any)
+|mat2quantity = 10
+|output1 = STASH
+|output1txt = STASH (elite)
+|output1pic = Stash units
+|output1cost = No
+|output1subtxt = Elite
+}}
+
+{| class="wikitable lighttable sortable" style=width:900px
+!style="width:50px" class="unsortable"|Type
+!style="width:400px" colspan="2"|Location
+!style="width:350px" class="unsortable"|Stored items
+!style="width:100px"|Item cost ([[Grand Exchange|GE]])
+|-
+|Crate
+|{{StashLocation|x=2528|y=3294|pin = yellowPin
+|text="Chapel in West Ardougne"
+}}
+|[[West Ardougne church]]
+|
+*{{plink|Dragon spear}}, or {{plink|Dragon spear (cr)}}
+*{{plink|Red d'hide chaps}}
+|{{Coins|{{+=|totalelite|{{GEP|Dragon spear}} + {{GEP|Red d'hide chaps}}|echo=2}}}}{{+=|int5}}
+|-
+|Rock
+|{{StashLocation|x=3068|y=3861|pin = yellowPin
+|text="Near a ladder in the Wilderness Lava Maze"
+}}
+|Entrance to the [[Lava Maze Dungeon]] in the middle of the [[Lava Maze]]
+''Requires a [[knife]] or {{SCP|Agility|82|link=y}}''
+|
+*{{plink|Black d'hide chaps}}
+*{{plink|Spotted cape}}
+*{{plink|Rolling pin}}
+|{{Coins|{{+=|totalelite|{{GEP|Black d'hide chaps}} + {{GEP|Spotted cape}} + {{GEP|Rolling pin}}|echo=2}}}}{{+=|int5}}
+|-
+|Hole
+|{{StashLocation|x=2843|y=3537|pin = yellowPin
+|text="Warriors' Guild bank"
+}}
+|[[Warriors' Guild bank]]
+|
+*{{plink|Black salamander}}
+|{{Coins|{{+=|totalelite|{{GEP|Black salamander}}|echo=2}}}}{{+=|int5}}
+|-
+|Crate
+|{{StashLocation|x=2786|y=3277|pin = yellowPin
+|text="South-east corner of the Fishing Platform"
+}}
+|South-eastern corner of the [[Fishing Platform]]
+|
+*{{plink|Barrows gloves}}
+*{{plink|Dragon med helm}}, or {{plink|Dragon med helm (cr)}}
+*{{plink|Amulet of glory}}, or {{plink|amulet of eternal glory}}
+|{{Coins|{{+=|totalelite|130000 + {{GEP|Dragon med helm}} + {{GEP|Amulet of glory}}|echo=2}}}}{{+=|int5}}
+|-
+|Rock
+|{{StashLocation|x=2891|y=3675|pin = yellowPin
+|text="On top of Trollheim Mountain"
+}}
+|On top of [[Trollheim]]
+|
+*{{plink|Lava battlestaff}}
+*{{plink|Black d'hide vambraces}}
+*{{plink|Mind shield}}
+|{{Coins|{{+=|totalelite|{{GEP|Lava battlestaff}} + {{GEP|Black d'hide vambraces}} + {{GEP|Mind shield}}|echo=2}}}}{{+=|int5}}
+|-
+|Rock
+|{{StashLocation|x=1767|y=5366|plane=1|pin = yellowPin
+|text="Entrance of the cavern under the whirlpool"
+}}
+|Inside the [[Ancient Cavern]], just below the [[Whirlpool (Baxtorian Falls)|whirlpool]]
+|
+*{{plink|Granite shield}}
+*{{plink|Splitbark body}}
+*{{plink|Rune heraldic armour#Full helm|txt=Rune heraldic helm|pic=Rune helm (h1)}} (any)
+|{{Coins|{{+=|totalelite|{{GEP|Granite shield}} + {{GEP|Splitbark body}} + {{GEP|Rune helm (h3)}}|echo=2}}}}{{+=|int5}}
+|-
+|Crate
+|{{StashLocation|x=1488|y=3637|pin = yellowPin
+|text="Shayzien War Tent"
+}}
+|[[War Tent]] in the [[Shayzien Encampment]]
+|
+*{{plink|Mystic robe bottom}} (other variants cannot be used)
+*{{plink|Rune kiteshield}}
+*{{plink|Bob shirt|pic=Bob's black shirt}} (any)
+|{{Coins|{{+=|totalelite|{{GEP|Mystic robe bottom}} + {{GEP|Rune kiteshield}} + {{GEP|Bob's green shirt}}|echo=2}}}}{{+=|int5}}
+|-
+|Hole
+|{{StashLocation|x=2671|y=3302|pin = yellowPin
+|text="Near the gem stall in Ardougne market"
+}}
+|[[Ardougne Gem Stall.]]
+|
+*{{plink|Castle wars bracelet}}
+*{{plink|Dragonstone amulet}}
+*{{plink|Ring of forging}}
+|{{Coins|{{+=|totalelite|{{GEP|Castle wars bracelet(3)}} + {{GEP|Dragonstone amulet}} + {{GEP|Ring of forging}}|echo=2}}}}{{+=|int5}}
+|-
+|Crate
+|{{StashLocation|x=1713|y=3469|pin = yellowPin
+|text="Near the Charcoal Burners"
+}}
+|[[Charcoal furnace]]s, south-west of [[Hosidius]]
+|
+*{{plink|Farmer's strawhat}}
+*{{plink|Shayzien body (5)}}
+*{{plink|Pyromancer robe}}
+|{{Coins|{{+=|totalelite|0|echo=2}}}}{{+=|int5}}
+|-
+|Rock
+|{{StashLocation|x=2072|y=2608|pin = yellowPin
+|text="Wintumber Island"
+}}
+|[[Wintumber Island]]
+|
+*{{plink|Crab helmet}}
+*{{plink|Crab claw}}
+|{{Coins|{{+=|totalelite|0|echo=2}}}}{{+=|int5}}
+|-
+|Rock
+|{{StashLocation|x=2376|y=3848|pin = yellowPin
+|text="Near a runite rock in the Fremennik Isles"
+}}
+|[[Central Fremennik Isles mine]], north-east of [[Neitiznot]] 
+|
+*{{plink|Rune boots}}
+*{{plink|Proselyte hauberk}}
+*{{plink|Dragonstone ring}}
+|{{Coins|{{+=|totalelite|{{GEP|Rune boots}} + {{GEP|Proselyte hauberk}} + {{GEP|Dragonstone ring}}|echo=2}}}}{{+=|int5}}
+|-
+|Hole
+|{{StashLocation|x=2545|y=3423|pin = yellowPin
+|text="Entrance of the cave of Damis"
+}}
+|Near the ladder inside the [[Shadow Dungeon]], requires a [[ring of visibility]] or [[ring of shadows]]
+|
+*{{plink|Rune crossbow}}
+*{{plink|Climbing boots}}
+*{{plink|Mitre|pic=Zamorak mitre}} (any)
+|{{Coins|{{+=|totalelite|{{GEP|Rune crossbow}} + {{GEP|Climbing boots}} + {{GEP|Armadyl mitre}}|echo=2}}}}{{+=|int5}}
+|-
+|Crate
+|{{StashLocation|x=3056|y=3482|pin = yellowPin
+|text="South-east corner of the Monastery"
+}}
+|South-eastern corner of the [[Edgeville Monastery]]
+|
+*{{plink|God book|pic=Book of Balance}} (any)
+|{{Coins|{{+=|totalelite|{{GEP|Bandos page 1}} + {{GEP|Bandos page 2}} + {{GEP|Bandos page 3}} + {{GEP|Bandos page 4}}|echo=2}}}}{{+=|int5}}
+|-
+|Crate
+|{{StashLocation|x=3422|y=3535|pin = yellowPin
+|text="Outside the Slayer Tower gargoyle room"
+}}
+|[[Slayer Tower]] {{FloorNumber|uk=2}}, just outside the [[Roof Entrance]]
+|
+*{{plink|Seercull}}
+*{{plink|Combat bracelet}}
+*{{plink|Helm of neitiznot}}, or {{plink|Helm of neitiznot (or)}} (the [[Neitiznot faceguard]] cannot be used)
+|{{Coins|{{+=|totalelite|{{GEP|Seercull}} + {{GEP|Combat bracelet}} + {{GEP|Helm of neitiznot}}|echo=2}}}}{{+=|int5}}
+|-
+|Hole
+|{{StashLocation|x=2918|y=9891|pin = yellowPin
+|text="Fountain of Heroues"
+}}
+|[[Fountain of Heroes]] in the [[Heroes' Guild]] basement
+|
+*{{plink|Splitbark legs}}
+*{{plink|Dragon boots}}, {{plink|Dragon boots (cr)}}, {{plink|Primordial boots}}, or {{plink|Avernic treads}}{{efn|The base [[avernic treads]] cannot be used, it is unknown if other variants without the Primordial upgrade can be used. Should you use [[avernic treads]] for the related emote clue, only those with "(pr)" or "(max)" will work.}}
+*{{plink|Rune longsword}}
+|{{Coins|{{+=|totalelite|{{GEP|Splitbark legs}} + {{GEP|Dragon boots}} + {{GEP|Rune longsword}}|echo=2}}}}{{+=|int5}}
+|-
+|Rock
+|{{StashLocation|x=2781|y=3785|pin = yellowPin
+|text="Half-way down Trollweiss Mountain"
+}}
+|[[Trollweiss Mountain]], after [[sled|sledding]] down towards the [[Trollweiss|trollweiss flowers]]
+|
+*{{plink|Blue d'hide vambraces}}
+*{{plink|Dragon spear}}, or {{plink|Dragon spear (cr)}}
+*{{plink|Rune plateskirt}}
+|{{Coins|{{+=|totalelite|{{GEP|Blue d'hide vambraces}} + {{GEP|Dragon spear}} + {{GEP|Rune plateskirt}}|echo=2}}}}{{+=|int5}}
+|-
+|Bush
+|{{StashLocation|x=2727|y=3371|pin = yellowPin
+|text="Outside the Legends' Guild door"
+}}
+|Within the [[Legends' Guild]], outside the main building
+|
+*{{plink|Cape of legends}}
+*{{plink|Dragon battleaxe}}
+*{{plink|Amulet of glory}}, or {{plink|amulet of eternal glory}}
+|{{Coins|{{+=|totalelite|675 + {{GEP|Dragon battleaxe}} + {{GEP|Amulet of glory}}|echo=2}}}}{{+=|int5}}
+|-
+|Crate
+|{{StashLocation|x=2571|y=3151|pin = yellowPin
+|text="Outside the bar by the Fight Arena"
+}}
+|Outside the [[Fight Arena Bar]]
+|
+*{{plink|Bandana eyepatch|pic=bandana eyepatch (brown)}} (any), or {{plink|Pirate bandana|pic=Pirate bandana (brown)}} (any)
+*{{plink|Dragon necklace}}
+*{{plink|Magic longbow}}
+|{{Coins|{{+=|totalelite|{{GEP|Bandana eyepatch (red)}} + {{GEP|Dragon necklace}} + {{GEP|Magic longbow}}|echo=2}}}}{{+=|int5}}
+|-
+|Bush
+|{{StashLocation|x=1702|y=3079|pin = yellowPin
+|text="Outside the temple in Civitas illa Fortis"
+}}
+|Outside the temple where [[Metzli]] is first met, south-east of [[Civitas illa Fortis]] marketplace
+|
+*{{plink|Sunfire fanatic armour|pic=Sunfire fanatic helm|txt=Any single piece of sunfire fanatic armour}}
+|{{Coins|{{+=|totalelite|{{GEP|Sunfire fanatic helm}}|echo=2}}}}{{+=|int5}}{{efn|The item cost for the [[sunfire fanatic armour]] is based on the cheapest piece.}}
+|- class="sortbottom"
+!colspan="4"|Total
+|class="nohighlight"|{{Coins|{{#var:totalelite}}}}
+|}
+{{Notelist}}
+
+==Master==
+[[File:Clue scroll (master) detail.png|thumb|160px|[[Clue scroll (master)|Master clue scroll]]]]
+{{Recipe
+|skill1 = Construction
+|skill1lvl = 88
+|skill1boostable =Yes 
+|skill1exp = 1500
+|ticks = 3
+|tools = Hammer, Saw
+|members = Yes
+|mat1 = Mahogany plank
+|mat1quantity = 2
+|mat2 = Bronze nails
+|mat2txt = Nails (any)
+|mat2quantity = 10
+|mat3 = Gold leaf
+|mat3quantity = 1
+|output1 = STASH
+|output1txt = STASH (master)
+|output1pic = Stash units
+|output1cost = No
+|output1subtxt = Master
+}}
+
+{| class="wikitable lighttable sortable" style=width:900px
+!style="width:50px" class="unsortable"|Type
+!style="width:400px" colspan="2"|Location
+!style="width:350px" class="unsortable"|Stored items
+!style="width:100px"|Item cost ([[Grand Exchange|GE]])
+|-
+|Hole
+|{{StashLocation|x=3229|y=3832|pin = redPin
+|text="South-east corner of Lava Dragon Isle"
+}}
+|Eastern part of [[Lava Dragon Isle]]
+|
+*{{plink|Dragon med helm}}, or {{plink|Dragon med helm (cr)}}
+*{{plink|Toktz-ket-xil}}
+*{{plink|Rune platebody}}
+*{{plink|Brine sabre}}
+*{{plink|Amulet of glory|txt=Uncharged amulet of glory}}
+|{{Coins|{{+=|totalmaster|{{GEP|Dragon med helm}} + {{GEP|Toktz-ket-xil}} + {{GEP|Rune platebody}} + {{GEP|Brine sabre}} + {{GEP|Amulet of glory}}|echo=2}}}}{{+=|int6}}
+|-
+|Hole
+|{{StashLocation|x=3548|y=9691|pin = redPin
+|text="Barrows Chest"
+}}
+|In the room with the [[Chest (Barrows)|Barrows chest]]
+|
+*[[Barrows equipment|Any complete set of Barrows equipment]], excluding the [[echo ahrim's ornament kit|echo Ahrim's set]]
+|{{Coins|{{+=|totalmaster|{{GEP|Verac's flail}} + {{GEP|Verac's helm}} + {{GEP|Verac's brassard}} + {{GEP|Verac's plateskirt}}|echo=2}}}}{{+=|int6}}{{efn|The item cost for the [[Barrows equipment]] is based on the cheapest set.}}
+|-
+|Rock
+|{{StashLocation|x=3563|y=3379|pin = redPin
+|text="Northern wall of Castle Drakan"
+}}
+|On top of the northern wall of [[Castle Drakan]], by the sickle floor marking
+|
+*{{plink|Boater|pic=Red boater}} (any)
+*{{plink|Splitbark body}}
+*{{plink|Dragon sq shield}}, or {{plink|Dragon sq shield (cr)}}
+|{{Coins|{{+=|totalmaster|{{GEP|Orange boater}} + {{GEP|Splitbark body}} + {{GEP|Dragon sq shield}}|echo=2}}}}{{+=|int6}}
+|-
+|Hole
+|{{StashLocation|x=1811|y=3853|pin = redPin
+|text="Soul Altar"
+}}
+|Outside the [[Soul Altar]]
+|
+*{{plink|Dragon pickaxe}}{{efn|name=Dragon|The [[dragon pickaxe]] and [[dragon axe]] may be replaced with the [[infernal pickaxe]]/[[infernal axe|axe]] or [[crystal pickaxe]]/[[crystal axe|axe]]. The axe may also be replaced with a [[dragon felling axe|dragon]] or [[Crystal felling axe]].}}
+*{{plink|Helm of neitiznot}}, or {{plink|Helm of neitiznot (or)}}
+*{{plink|Rune boots}}
+|{{Coins|{{+=|totalmaster|{{GEP|Dragon pickaxe}} + {{GEP|Helm of neitiznot}} + {{GEP|Rune boots}}|echo=2}}}}{{+=|int6}}
+|-
+|Crate
+|{{StashLocation|x=2851|y=3354|pin = redPin
+|text="Entrana Chapel"
+}}
+|[[Entrana church]]
+|
+*{{plink|Black d'hide body}}{{efn|name=Entrana|Armour cannot be brought onto [[Entrana]], therefore the items needed for the [[Entrana church]] emote clue must be crafted on the island. The cost for the raw materials used for this armour is calculated for this emote clue.}}
+*{{plink|Black d'hide chaps}}{{efn|name=Entrana}}
+*{{plink|Black d'hide vambraces}}{{efn|name=Entrana}}
+|{{Coins|{{+=|totalmaster|{{#expr:{{GEP|Black dragon leather|6}} + ceil({{GEP|Thread|0.6}})}}|echo=2}}}}{{+=|int6}}{{efn|name=Entrana}}
+|-
+|Crate
+|{{StashLocation|x=2199|y=3254|pin = redPin
+|text="Tent in Lord Iorwerth's encampment"
+}}
+|Centre of [[Iorwerth Camp]]
+|
+*{{plink|Crystal bow}} (must have charges to store) , or the {{plink|bow of Faerdhinen}} (any)
+|{{Coins|{{+=|totalmaster|{{GEP|Crystal weapon seed}}|echo=2}}}}{{+=|int6}}{{efn|The cost for the [[crystal bow]] is the price of a [[crystal weapon seed]], and does not include the value of the 40 [[crystal shard]]s required to [[Crystal singing|sing]] the bow.}}
+|-
+|Hole
+|{{StashLocation|x=1662|y=10044|pin = redPin
+|text="Centre of the Catacombs of Kourend"
+}}
+|Centre of the [[Catacombs of Kourend]], below [[Kourend Castle]]
+|
+*{{plink|Arclight}}, or the {{plink|Emberlight}}
+*{{plink|Amulet of the damned}}
+|{{Coins|{{+=|totalmaster|{{GEP|Amulet of the damned (full)}}|echo=2}}}}{{+=|int6}}
+|-
+|Hole
+|{{StashLocation|x=2931|y=5337|plane=2|pin = redPin
+|text="Outside K'ril Tsutsaroth's room"
+}}
+|Outside [[K'ril Tsutsaroth]]'s room in the [[God Wars Dungeon]]
+''Requires {{SCP|Hitpoints|70|link=y}} {{boostable|n}}''
+|
+*{{plink|Zamorak full helm}}
+*{{plink|Shadow sword}}
+|{{Coins|{{+=|totalmaster|{{GEP|Zamorak full helm}}|echo=2}}}}{{+=|int6}}
+|-
+|Hole
+|{{StashLocation|x=3188|y=3957|pin = redPin
+|text="Outside the Wilderness axe hut"
+}}
+|Outside the [[magic axe hut]] in the [[Wilderness]]
+|
+*{{plink|Flared trousers}}
+|{{Coins|{{+=|totalmaster|{{GEP|Flared trousers}}|echo=2}}}}{{+=|int6}}
+|-
+|Hole
+|{{StashLocation|x=2210|y=4842|pin = redPin
+|text="Death Altar"
+}}
+|Inside the [[Death Altar]]
+|
+*{{plink|Death tiara}}
+*{{plink|Cape of legends}}
+*{{plink|Ring of wealth}}
+|{{Coins|{{+=|totalmaster|{{GEP|Death tiara}} + 675 + {{GEP|Ring of wealth (5)}}|echo=2}}}}{{+=|int6}}
+|-
+|Bush
+|{{StashLocation|x=3022|y=4517|pin = redPin
+|text="North-western corner of the Enchanted Valley"
+}}
+|North-western corner of the [[Enchanted Valley]], accessible only via [[fairy ring]] {{Fairycode|bkq}}
+|
+*{{plink|Dragon axe}}{{efn|name=Dragon}}
+|{{Coins|{{+=|totalmaster|{{GEP|Dragon axe}}|echo=2}}}}{{+=|int6}}
+|-
+|Hole
+|{{StashLocation|x=1428|y=3119|pin = redPin
+|text="South of the gates to Cam Torum"
+}}
+|Outside the entrance to [[Cam Torum]]
+|
+*{{plink|Blue moon helm}}
+*{{plink|Blue moon chestplate}}
+*{{plink|Blue moon tassets}}
+*{{plink|Blue moon spear}}
+|{{Coins|{{+=|totalmaster|{{GEP|Blue moon helm}} + {{GEP|Blue moon chestplate}} + {{GEP|Blue moon tassets}} + {{GEP|Blue moon spear}}|echo=2}}}}{{+=|int6}}
+|-
+|Hole
+|{{StashLocation|x=2204|y=3059|pin = redPin
+|text="Near the pier in Zul-Andra"
+}}
+|[[Zul-Andra]], near the pier to [[Zulrah]]
+|
+*{{plink|Dragon 2h sword}}, or {{plink|Dragon 2h sword (cr)}}
+*{{plink|Bandos boots}}, {{plink|guardian boots}}, or {{plink|echo boots}}
+*{{plink|Obsidian cape}}
+|{{Coins|{{+=|totalmaster|{{GEP|Dragon 2h sword}} + {{GEP|Bandos boots}} + {{GEP|Obsidian cape}}|echo=2}}}}{{+=|int6}}
+|-
+|Hole
+|{{StashLocation|x=2006|y=4709|plane=1|pin = redPin
+|text="Well of Voyage"
+}}
+|[[Iban's Temple]] in the [[Underground Pass (dungeon)|Underground Pass]]
+|
+*{{plink|Iban's staff}}, {{plink|Iban's staff (u)}}, {{plink|Iban's staff (o)}}, or {{plink|Iban's staff (u) (o)}}
+*{{plink|Mystic robe top (dark)}}
+*{{plink|Mystic robe bottom (dark)}}
+|{{Coins|{{+=|totalmaster|200000 + {{GEP|Mystic robe top (dark)}} + {{GEP|Mystic robe bottom (dark)}}|echo=2}}}}{{+=|int6}}
+|-
+|Hole
+|{{StashLocation|x=1951|y=4431|pin = redPin
+|text="7th Chamber of Jalsavrah"
+}}
+|Seventh room of the [[Jalsavrah Pyramid]] in the [[Pyramid Plunder]] minigame
+''Requires {{SCP|Thieving|81|link=y}} {{boostable|n}}''
+|
+*{{plink|Pharaoh's sceptre}}{{efn|In contrast to other item sets, the [[pharaoh's sceptre]] is only required for the emote clue step, not to fill its STASH unit.}}
+*{{plink|Menaphite purple hat}} / {{plink|Menaphite red hat|txt=red hat}}
+*{{plink|Menaphite purple top}} / {{plink|Menaphite red top|txt=red top}}
+*{{plink|Menaphite purple robe}} / {{plink|Menaphite red robe|txt=red robe}}, or {{plink|Menaphite purple kilt}} / {{plink|Menaphite red kilt|txt=red kilt}}
+|{{Coins|{{+=|totalmaster|{{GEP|Pharaoh's sceptre (uncharged)}} + {{GEP|Menaphite purple hat}} + {{GEP|Menaphite purple top}} + {{GEP|Menaphite purple robe}}|echo=2}}}}{{+=|int6}}
+|-
+|Crate
+|{{StashLocation|x=2843|y=3540|pin = redPin
+|text="Warriors' Guild bank"
+}}
+|[[Warriors' Guild bank]]
+|
+*{{plink|Dragon battleaxe}}
+*{{plink|Dragon defender}}, or the {{plink|avernic defender}}
+*{{plink|Slayer helmet}} (any)
+|{{Coins|{{+=|totalmaster|{{GEP|Dragon battleaxe}} + {{GEP|Black mask}} + {{GEP|Earmuffs}} + {{GEP|Facemask}} + {{GEP|Nose peg}} + {{GEP|Spiny helmet}} + 1|echo=2}}}}{{+=|int6}}
+|-
+|Hole
+|{{StashLocation|x=2466|y=5150|pin = redPin
+|text="TzHaar gem store"
+}}
+|[[TzHaar-Hur-Lek's Ore and Gem Store]]
+|
+*{{plink|Fire cape}}{{efn|The [[fire cape]] may be replaced with the [[infernal cape]], [[fire max cape]], or [[infernal max cape]].}}
+*{{plink|Toktz-xil-ul}}
+|{{Coins|{{+=|totalmaster|{{GEP|Toktz-xil-ul}}|echo=2}}}}{{+=|int6}}
+|-
+|Rock
+|{{StashLocation|x=2959|y=3502|pin = redPin
+|text="Outside Mudknuckles' hut"
+}}
+|[[Goblin Village]], outside [[Goblin Cook|Mudknuckles]]' hut
+|
+*{{plink|Bandos platebody}}
+*{{plink|Bandos cloak}}
+*{{plink|Bandos godsword}}
+|{{Coins|{{+=|totalmaster|{{GEP|Bandos platebody}} + {{GEP|Bandos cloak}} + {{GEP|Bandos godsword}}|echo=2}}}}{{+=|int6}}
+|-
+|Rock
+|{{StashLocation|x=2286|y=4680|pin = redPin
+|text="King Black Dragon's lair"
+}}
+|Inside the [[King Black Dragon Lair]], after pulling the lever to access the lair
+|
+*{{plink|Black d'hide body}}
+*{{plink|Black d'hide vambraces}}
+*{{plink|Black dragon mask}}
+|{{Coins|{{+=|totalmaster|{{GEP|Black d'hide body}} + {{GEP|Black d'hide vambraces}} + {{GEP|Black dragon mask}}|echo=2}}}}{{+=|int6}}
+|-
+|Bush
+|{{StashLocation|x=3232|y=3493|pin = redPin
+|text="By the bear cage in Varrock Palace gardens"
+}}
+|North-eastern corner of the [[Varrock Palace]] courtyard, near the [[black bear|bear]] cage
+|
+*{{plink|Zamorak godsword}}
+|{{Coins|{{+=|totalmaster|{{GEP|Zamorak godsword}}|echo=2}}}}{{+=|int6}}
+|-
+|Crate
+|{{StashLocation|x=2548|y=3112|pin = redPin
+|text="Top floor of the Yanille Watchtower"
+}}
+|[[Watchtower (building)|Watchtower]] top floor
+|
+*{{plink|Bullroarer}}
+*{{plink|Dragon plateskirt}}, or {{plink|Dragon plateskirt (cr)}}
+*{{plink|Dragon chainbody}}, or {{plink|Dragon chainbody (cr)}}
+*{{plink|Climbing boots}}
+|{{Coins|{{+=|totalmaster|{{GEP|Cooked oomlie wrap}} + {{GEP|Dragon plateskirt}} + {{GEP|Climbing boots}} + {{GEP|Dragon chainbody}}|echo=2}}}}{{+=|int6}}
+|-
+|Bush
+|{{StashLocation|x=3095|y=3255|pin = redPin
+|text="Behind Miss Schism in Draynor Village"
+}}
+|Next to [[Miss Schism]] in [[Draynor Village]]
+|
+*{{plink|Abyssal whip}}, or the {{plink|abyssal tentacle}}
+*{{plink|Cape of legends}}
+*{{plink|Spined chaps}}
+|{{Coins|{{+=|totalmaster|{{GEP|Abyssal whip}} + 675 + {{GEP|Spined chaps}}|echo=2}}}}{{+=|int6}}
+|-
+|Hole
+|{{StashLocation|x=2213|y=3427|pin = redPin
+|text="North of Prifddinas by several maple trees"
+}}
+|North of [[Gwenith]], near the [[maple tree]]s
+|
+*{{plink|Bryophyta's staff}}
+*{{plink|Nature tiara}}
+|{{Coins|{{+=|totalmaster|{{GEP|Bryophyta's staff (uncharged)}} + {{GEP|Nature tiara}}|echo=2}}}}{{+=|int6}}
+|-
+|Hole
+|{{StashLocation|x=1614|y=3296|pin = redPin
+|text="West side of Salvager Overlook"
+}}
+|[[Salvager Overlook]]
+|
+*{{plink|Hueycoatl hide coif}}
+*{{plink|Hueycoatl hide vambraces}}
+|{{Coins|{{+=|totalmaster|{{GEP|Hueycoatl hide vambraces}} + {{GEP|Hueycoatl hide coif}}|echo=2}}}}{{+=|int6}}
+|-
+|Rocks
+|{{StashLocation|x=1952|y=4074|pin = redPin
+|text="East side of Brittle Isle"
+}}
+|[[Brittle Isle]]
+|
+*{{plink|Medallion of the deep}}
+*{{plink|Rosewood blowpipe}}{{efn|NOTE: Players are not able to store an empty Rosewood Blowpipe in this STASH. The blowpipe must be filled with any type of darts to be deposited.}}
+|{{Coins|{{+=|totalmaster|{{GEP|Rosewood blowpipe (empty)}}|echo=2}}}}{{+=|int6}}
+|- class="sortbottom"
+!colspan="4"|Total
+|class="nohighlight"|{{Coins|{{#var:totalmaster}}}}
+|}
+{{Notelist}}<!--
+
+--><!-- Calculate total costs to build all STASH units here. Used at the top of the page. If new stashes are added, the material counts here need to be updated as well.
+-->{{#vardefine:STASHcount|{{#expr:{{#var:int1}}+{{#var:int2}}+{{#var:int3}}+{{#var:int4}}+{{#var:int5}}+{{#var:int6}}}}}}<!--
+-->{{#vardefine:totalall|{{Coins|{{GEP|Gold leaf|{{#var:int6}}}}+{{GEP|Mahogany plank|{{#expr:2*({{#var:int5}}+{{#var:int6}})}}}}+{{GEP|Teak plank|{{#expr:2*{{#var:int4}}}}}}+{{GEP|Oak plank|{{#expr:2*{{#var:int3}}}}}}+{{GEP|Plank|{{#expr:2*({{#var:int1}}+{{#var:int2}})}}}}+{{#expr:10*{{#var:STASHcount}}}}*{{NailsCost|min}}+{{#var:totalbeginner}}+{{#var:totaleasy}}+{{#var:totalmedium}}+{{#var:totalhard}}+{{#var:totalelite}}+{{#var:totalmaster}}}}}}<!--
+-->{{#vardefine:totalbeginner|{{Coins|{{#var:int1}}*({{GEP|Plank|2}}+10*{{NailsCost|min}})+{{#var:totalbeginner}}}}}}<!--
+-->{{#vardefine:totaleasy|{{Coins|{{#var:int2}}*({{GEP|Plank|2}}+10*{{NailsCost|min}})+{{#var:totaleasy}}}}}}<!--
+-->{{#vardefine:totalmedium|{{Coins|{{#var:int3}}*({{GEP|Oak plank|2}}+10*{{NailsCost|min}})+{{#var:totalmedium}}}}}}<!--
+-->{{#vardefine:totalhard|{{Coins|{{#var:int4}}*({{GEP|Teak plank|2}}+10*{{NailsCost|min}})+{{#var:totalhard}}}}}}<!--
+-->{{#vardefine:totalelite|{{Coins|{{#var:int5}}*({{GEP|Mahogany plank|2}}+10*{{NailsCost|min}})+{{#var:totalelite}}}}}}<!--
+-->{{#vardefine:totalmaster|{{Coins|{{#var:int6}}*({{GEP|Mahogany plank|2}}+{{GEP|Gold leaf|1}}+10*{{NailsCost|min}})+{{#var:totalmaster}}}}}}<!--
+-->{{#vardefine:exp1|{{formatnum:{{#expr:{{#var:int1}}*150}}}}}}<!--
+-->{{#vardefine:exp2|{{formatnum:{{#expr:{{#var:int2}}*150}}}}}}<!--
+-->{{#vardefine:exp3|{{formatnum:{{#expr:{{#var:int3}}*250}}}}}}<!--
+-->{{#vardefine:exp4|{{formatnum:{{#expr:{{#var:int4}}*400}}}}}}<!--
+-->{{#vardefine:exp5|{{formatnum:{{#expr:{{#var:int5}}*600}}}}}}<!--
+-->{{#vardefine:exp6|{{formatnum:{{#expr:{{#var:int6}}*1500}}}}}}<!--
+-->{{#vardefine:expall|{{formatnum:{{#expr:{{#var:int1}}*150+{{#var:int2}}*150+{{#var:int3}}*250+{{#var:int4}}*400+{{#var:int5}}*600+{{#var:int6}}*1500}}}}}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 17 December 2025
+|update = More Sailing and Interface Changes
+|change = The STASH unit at the Lava Maze now allow you to deposit equipped items that are required for its clue step.
+}}
+{{Subject changes
+|date = 1 October 2025
+|update = Interface Uplift Round 2
+|change = Equipped items can now be deposited directly into STASH units, if the new "STASH units take equipped items" setting is enabled in the Settings menu.
+}}
+{{Subject changes
+|date = 2 October 2024
+|update = Rewards and XP Improvements - Varlamore: The Rising Darkness
+|change = Added S.T.A.S.H. units that were missing from three new Treasure Trail steps at the Twilight Temple, and where the River Ortus meets the Proudspire.
+}}
+{{Subject changes
+|date = 10 April 2024
+|update = Undead Pirates, Colosseum Changes & more!
+|change = The chaos temple S.T.A.S.H. unit was moved further north along with the clue location.
+}}
+{{Subject changes
+|date = 3 April 2024
+|update = Varlamore Tweaks & Drop Rates
+|change = Only one of the  [[sunfire fanatic helm]], [[sunfire fanatic cuirass]], and [[sunfire fanatic chausses]] is required for the Elite S.T.A.S.H. unit, rather than all three.
+}}
+{{Subject changes
+|date = 21 June 2023
+|update = More Poll 79 Changes
+|poll = Old School Content Poll 79: Quality of Life
+|change = [[Ultimate Ironmen]] can now store the [[abyssal tentacle]], [[guardian boots]], and [[primordial boots]] in S.T.A.S.H. units where they can be stored.
+}}
+{{Subject changes
+|date = 9 March 2023
+|update = Even More Poll 78 Changes
+|change = 
+* [[Climbing boots (g)]] can now be substituted for [[Climbing boots]] in the Elite S.T.A.S.H. near the [[Shadow Dungeon]] entrance.
+* The [[Abyssal tentacle]] and [[Abyssal tentacle (or)]] can now be substituted for the [[Abyssal whip]] in the S.T.A.S.H. near [[Draynor Village]] bank.
+* [[Guardian boots]] can be substituted for [[Bandos boots]] in the S.T.A.S.H. near [[Zul-Andra]].
+}}
+{{Subject changes
+|date = 14 July 2016
+|update = Hidey Holes & Miniquests
+|change = Added to the game.
+|poll = Old School Content Poll 42: Clue Scrolls Expansion
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* STASH units were referred to as '''Hidey Holes''' in the blogposts and poll proposing the system be added to the game. While this name is used in ''[[rsw:Hidey-holes|RuneScape 3]]'' for the name of its equivalent of the STASH unit system, it is not used in ''[[Old School RuneScape]]''.
+
+==References==
+{{Reflist}}
+
+{{Treasure Trails}}
+[[Category:Bank PIN protection]]

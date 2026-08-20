@@ -1,0 +1,57 @@
+{{External|rs}}
+{{Infobox Item
+|name = Castle wars ticket
+|image = [[File:Castle wars ticket.png]]
+|release = [[13 December]] [[2004]]
+|update = Castle Wars
+|members = No
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Drop
+|examine = I can exchange these for further items.
+|value = 1
+|weight = 0.000
+|id = 4067
+}}
+[[File:Castle wars ticket detail.png|left|160px]]
+'''Castle Wars tickets''' are tickets that are awarded in the [[Castle Wars]] [[minigame]] to players who spend at least 15 minutes in the game. The amount of tickets earned are dependent on whether the player's team wins, loses or ties, as well as whether the opposing team has scored, and also on whether the player is in a dedicated Castle Wars world.
+
+Dedicated Castle Wars worlds:
+
+* 2 tickets are earned if the player's team loses.
+* 2 tickets are earned if scores are tied at 0-0.
+* 3 tickets are earned if scores are tied at any number other than 0.
+* 3 tickets are earned for winning if the opposing team has scored.
+* 4 tickets are earned for winning if the opposing team had 0 points.
+
+Non-Castle Wars worlds:
+*1 ticket is earned if the player's team loses.
+*1 ticket is earned if scores are tied at 0-0.
+*2 tickets are earned if scores are tied at any number other than 0.
+*2 tickets are earned for winning if the opposing team has scored.
+*3 tickets are earned for winning if the opposing team had 0 points.
+
+Tickets can be spent on items in the [[Castle Wars Ticket Exchange]] shop.
+
+Items can be sold back for a full ticket refund.
+
+==Item sources==
+{{Drop sources|Castle wars ticket}}
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 20 July 2017
+|update = F2P Castle Wars
+|change = The item was made available to free-to-play players.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Castle Wars tickets have the same model as [[Agility arena ticket|Agility Arena ticket]]s.
+*You can get a Castle Wars ticket from the [[Wanted!]] quest.
+
+{{Currencies}}
+{{Castle Wars}}

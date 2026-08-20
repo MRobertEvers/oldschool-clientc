@@ -1,0 +1,549 @@
+[[File:Fighting Abyssal Sire.png|thumb|300px|A player takes on the Abyssal Sire.]]
+The [[Abyssal Sire]] is a level 350 [[Slayer]] boss that can only be killed when assigned [[Abyssal demon]]s or the Sire itself with the required [[Slayer]] level of 85.
+
+It is mainly killed for its [[unsired]] drops, which can be used at the [[Font of Consumption]] to obtain valuable rewards such as the [[abyssal dagger]], parts of the [[abyssal bludgeon]], or the [[abyssal orphan]] [[pet]].
+
+Note that while the Sire is a boss residing in a [[multicombat area]], it can only be fought by one player at any given time. If the attacker does not fight the Sire in ~20 seconds from their last attack, another player may attack it.
+
+==Requirements==
+*{{SCP|Slayer|85}} with an [[Abyssal demon]] slayer task
+*Access to [[Fairy rings]] or partial completion of the [[Enter the Abyss]] miniquest to access the [[Abyssal Nexus]]
+
+===Recommendations===
+*High combat stats. Although not required, see the skill levels below for an indication of the advised stats:
+*{{SCP|Attack|90}} or higher
+*{{SCP|Strength|90}} or higher
+*{{SCP|Defence|90}} or higher
+*{{SCP|Ranged|90}} or higher
+*{{SCP|Hitpoints|90}} or higher
+*{{SCP|Magic|92}} or higher
+*{{SCP|Prayer|70+}} for [[Piety]]
+
+==Transportation==
+The Sire is located in the [[Abyssal Nexus]], which can be easily accessed by fairy ring code {{Fairycode|DIP}}. Players without partial completion of [[Fairytale II - Cure a Queen]] will instead have to enter the [[Abyss]] via the [[Mage of Zamorak]] and go through the one-way passage on the south side. This requires running briefly through the [[Wilderness]], [[Skull (status)|Skulling]], and will drain all of your prayer points so it is not recommended.
+
+There are four Sires in each world, in the north-east, north-west, south-east and south-western areas of the Nexus. There are four [[Eye (Abyssal Nexus)|eyes]] near the Font of Consumption; interacting with them will tell you if there is another player in that chamber.
+
+==Mechanics==
+===Respiratory systems, tentacles, and stunning===
+During Phase 1 the player will need to kill all four [[respiratory system]]s. They are protected by six immobile [[Tentacle (Abyssal Sire)|tentacles]] which, when active, prevent almost all damage to the respiratory systems and attack nearby players for up to 30 damage (reduced slightly by Protect from Melee). Players will always hit at least 50% of their weapon's maximum hit on the respiratory systems, meaning all four can be taken down in 2 attacks each with a non-demonbane weapon that has a max hit of at least 50, assuming the player does not miss either attack. Demonbane weapons (other than [[holy water]]) will always destroy the respiratory systems in one hit regardless of the player's stats.
+
+The Sire and its tentacles can be stunned for 30 seconds by one of the following methods, leaving the respiratory systems open to attack:
+*Deal 75 damage to the Sire with ranged/magic
+*Cast a [[Shadow spells|Shadow spell]] on the Sire (effect applies even if it splashes):
+**[[Shadow Rush]]: 25% chance to stun
+**[[Shadow Burst]]: 50% chance to stun
+**[[Shadow Blitz]]: 75% chance to stun
+**[[Shadow Barrage]]: 100% chance to stun
+The tentacles are inactive during Phase 2 but become active again in Phase 3.
+
+The fastest way to handle Phase 1 is to attack the Sire with any ranged or magic weapon/spell that is not a shadow spell to wake it up, then manually cast Shadow Barrage on the Sire to stun it for 27 seconds. This allows you to begin attacking the 4 respiratory vents around the edge of the room instantly. While it is possible to initiate the fight by casting Shadow Barrage on an inactive Sire, the stun will not be applied for 10 game ticks after being cast (due to the Sire having to perform its waking up animation before the stun applies), meaning a player who does this may be attacked by the tentacles if they move in to kill the respiratory systems too fast.
+
+===Standard attacks===
+During phase 2, the Sire uses three types of melee attacks; a swipe from its right arm, a flick from its right tendril, or a flick from both tendrils. These can hit moderately high, with the exception of the double flick attack, which can deal up to 66 damage. Using [[Protect from Melee]] will reduce the damage from these attacks to 6, 6 and 26 respectively.
+
+===Miasma Pools===
+[[File:Sire poisonous fumes.gif|frame|left|The poisonous fumes that players must avoid.]]
+In all phases of the fight (though it won't be used in Phase 1 if stunning correctly), the Sire can summon a pool of miasma under the player's position. The pool causes damage in a 3x3 area, dealing 10-30 poison damage per tick if on the central tile or 2-8 per tick on the outer tiles. This damage cannot be mitigated by any type of poison protection, and can also poison the player starting at 8 damage. There is enough time upon seeing the pool appear to avoid all damage by running 2 tiles away.
+
+In Phases 1 and 2 the attack is indicated by the Sire clenching both its claws towards its stomach, along with a dark-green spiral energy appearing above it. There is no animation for the attack in Phase 3.
+
+After the Sire explodes in Phase 3, it uses this attack a minimum of three more times then stops if all 15 minions are alive.
+
+===Minions===
+In all phases of the fight the Sire can create [[Spawn|spawns]]. They randomly attack with ranged for up to 9 damage and melee for up to 4. They have 15 hitpoints and low accuracy. 
+
+The spawns in phase 1 and 2 are indicated with the spawn being thrown out of the Sire's mouth, after which they will land in a random tile in front of/around it (phase 1/2) before attacking the player.
+
+If the spawn is not killed within 15 seconds, it will mature into a [[scion]], which has 60 hitpoints and has higher accuracy. Spawns and scions attack randomly with ranged for up to 16 damage and melee for up to 10. They will close the gap for melee, but will not use ranged unless they decide to change styles. Because the ranged attacks are much more damaging and accurate than their melee attacks, it is highly recommended to keep [[Protect from Missiles]] on at all times, as numerous minions using ranged can quickly kill a player in seconds regardless of their defence bonuses. If they are unable to attack the player for ~35 or so seconds (including the morph into a scion), they will automatically die off in a manner similar to [[Zulrah]]'s [[snakeling]]s. 
+
+Demonbane attacks will always land as [[successful hit]]s against them regardless of the player's bonuses, but will not guarantee a max hit. 
+
+When the Sire is killed, all scions and spawns will die alongside it.
+
+<gallery>
+Spawn.png|A spawn.
+Scion.png|A scion.
+Spawn maturing.gif|A spawn transforming into a scion.
+</gallery>
+
+===Forced Teleport and Explosion===
+During Phase 2, if the player attempts to safespot the Sire, it will forcibly teleport them next to it before discharging a blast of energy from the portal in its stomach, dealing up to 60 damage if the player doesn't run away in time.
+
+During Phase 3, when the Sire goes under 140 health, it will teleport the player next to itself and trigger a highly damaging explosion; the damage can be avoided by running directly away from the Sire as soon as the player is teleported.
+
+==Strategy==
+'''Note:''' Make sure that [[Auto Retaliate]] is off when killing the Sire.
+{{Tile markers box|Module:Tile markers/Abyssal Sire.json}}
+===Phase 1===
+The Sire wakes up and begins the fight when attacked. If not stunned, it will summon miasma pools under the player and create spawns. The six [[Tentacle (Abyssal Sire)|tentacles]] will also awaken. These tentacles are static, but attack with typeless crush that can deal up to 30 damage, slightly reduced with [[Protect from Melee]].
+
+If the Sire is attacked by a player but that player stops attacking it for some reason, the Sire can be attacked by another player after ~20 or so seconds pass.
+
+The player needs to kill all four [[Respiratory system|respiratory systems]] to progress. However, with the Sire awake, the tentacles will protect the respiratory systems from attacks, and any attacks dealt to them while the boss is awake will be reduced to 0-3 damage regardless of the experience drop given.
+
+In order to remove the protection provided by the tentacles, the Sire must be disoriented. This can be done in one of two ways; dealing 75 damage with ranged or magic (as the boss is not accessible with melee), or using a [[shadow spells|shadow spell]] against it. Shadow spells, if they successfully disorient the Sire, will do so for 30 seconds. The chance of this occurring is dependent on the tier of shadow spell; [[Shadow Rush]] has a 25% chance, [[Shadow Burst]] 50%, [[Shadow Blitz]] 75% and [[Shadow Barrage]] guarantees it. '''While casting a shadow spell on an inactive Sire will both wake it up and potentially stun it, the stun from this spell will not be applied for 10 game ticks after being cast. A shadow spell cast on an awoken Sire will be applied instantly.'''
+
+When stunned, the respiratory systems should be killed with ranged or magic, depending on what the player prefers. Upon a [[successful hit]], demonbane weapons and spells (other than [[holy water]]) will destroy them instantly regardless of the player's bonuses. It is highly recommended players bring a [[scorching bow]] and [[bronze arrow]]s, since these are cheap and readily available, and the bow has high accuracy even when not bringing ranged armour switches.
+
+If a non-demonbane weapon is used, the player will deal anywhere from 50%-100% of their maximum hit as damage. Bringing a weapon that has a max hit of 50 or higher will be sufficient enough to destroy the respiratory systems in two hits.
+
+Within 30 seconds, the player will be easily able to destroy all of the respiratory systems in one cycle with demonbane. Without demonbane, it is possible to do so if they can be two hit; three hits will likely require a second stun. Despite the 30 second stun timer, it is actually 27 seconds, as the tentacles will awaken at this mark and immediately protect the systems.
+
+[[File:Sire tile markers.png|alt=Image showing tiles useful for fighting Sire|thumb|In Phase 2 stand on Row 1. When the Sire walks to the centre of the room at the start of Phase 3, run to Row 2. To avoid the explosion attack, run to Row 3 immediately after you are teleported. The other marked tiles show useful spots to hit the respiratory systems from with a 10-range weapon.]]
+[[File:Sire_in_stasis.png|thumb|200px|The Abyssal Sire in stasis.]]Overall, the optimal strategy for this phase is as follows:
+#Switch to your ranged or mage gear and attack the Sire with any ranged or magic weapon/spell that is not a shadow spell to wake it up.
+#Cast Shadow Barrage on the Sire to stun it. 
+#Begin killing respiratory systems. Focus on killing the systems on either the east or west side, re-stun the Sire with Shadow Barrage if needed, then finish off the remaining systems.
+
+Any damage dealt to the Sire during this phase will only count for the purposes of disorientation; if the Sire has taken any damage, it will be restored back to full health until the end of the phase.
+
+After the last respiratory system is killed, head back to the centre and attack the Sire as soon as it steps out into the main arena (or in transit if range/mage). While damage is reduced by 50%, the amount of time the Sire takes to begin the next phase is usually significant enough to deal some damage. If the Sire somehow reaches 0 health before the next phase starts, it will begin the next phase with 40% of its health.
+
+===Phase 2===
+Stay on Row 1 during this phase, as attacking it from outside melee distance will cause the Sire to teleport you to itself and discharge a damaging blast of energy. 
+
+At this point, if the Sire is not in combat for ~1 minute, it will despawn, resetting the fight. 
+
+The Sire will use melee attacks that can hit up to 26 through prayer. Watch for miasma pools underneath the player; when they appear run to the other marked tile on Row 1. Ignore spawns unless killing the Sire at low levels with low DPS (in which case long kill times may make removing minions desirable). If reducing the Sire's defence, use one special attack now, otherwise save all special attack energy for phase 3.
+
+Once the Sire is damaged below 50% of its health (212 health or less) it will start walking south. Run to Row 2 and activate [[Protect from Missiles]]. Advanced techniques can be used to pull the Sire south while attacking it, reducing the amount of time spent waiting for the Sire.
+
+If the Sire reaches 0 health before the next phase starts, it will begin the next phase with 20% of its health.
+
+===Phase 3===
+====Stage I====
+The Sire will latch onto the floor and summon four spawns to assist it in battle. This will occur before the pools appear. It will no longer attack with melee, but instead launch miasma pools as its "attacks". The tentacles will reawaken, limiting the amount of space allowed to attack the boss.
+
+Once the Sire is damaged below 35% of its health (around 143 or so health), it will teleport the player, beginning the final stage. In the event of multi-hit weapons triggering the transition (e.g [[scythe of Vitur]] dealing 66 damage (over 3 hits such as a 44-21-3)) against a Sire with 150 health, the first hit would trigger the transition, while the remaining two hits will apply once the second stage starts.
+
+====Stage II====
+[[File:Abyssal_Sire_phase_3.gif|thumb|300px|left|The Sire opens a large portal within its body, causing spawns to emerge until it dies.]]
+The Sire teleports the player to the western tile of Row 2. Two ticks later it explodes, dealing up to 96 damage if the player is within the blast radius. This damage can be recoiled with [[Vengeance]], but this requires either a spellbook switch beforehand via [[Magic cape]], [[Spellbook Swap]], or a second player to assist with [[Vengeance Other]] and [[Heal Other]]. As soon as the teleport occurs, spam-click on Row 3 to avoid the attack. Then return to melee distance to finish the fight. 
+
+After the explosion the Sire creates a huge number of spawns, after which the remainder will spawn either underneath or around the boss. It will use its miasma pool attack a minimum of three more times, then stop as long as 15 minions are left alive. This means you should '''not''' kill any minions, but should run back and forth on Row 2 while attacking until it has made three miasma pools, after which it is safe to stop moving. Use any remaining specs and watch your health, as the scions can do a lot of damage. If the player's health drops below 40, they should run away for a brief respite.
+
+It is possible to safespot the minions and heal off them with [[Blood Burst]]/[[Blood Barrage]]; their low magic defence should ensure all spells hit. This is primarily done for players with lower stats or are doing prolonged trips at the boss, as it is uncommon for a player even with good gear to take longer than expected or take more damage than usual from the minions. 
+
+When the Sire is killed, all minions will die alongside it. If they were tagged by the player, this will activate [[Death Charge]], maintaining special attack energy at all times but can make trips slower due to the lack of ancients for the first phase.
+
+'''Attacks made by minions before the Sire dies (including those that spawn on the same tick as its death) will roll as normal, meaning a player can potentially die after the Sire does; although somewhat unlikely, it is possible and players with lower combat stats should be aware of this.'''
+
+[[File:Sire_safespot.png|thumb|The south-eastern safespot to heal off the minions.]]
+{{clear}}
+
+==Equipment==
+===Phase 1===
+{{anchor|phase 1 equipment}}<tabber>
+Recommended=
+
+'''Note:''' This is only if the player is using melee for phase 2 and 3. The melee gear will be whatever you're using later in the fight. For phase 2 and 3, a melee weapon will be needed (if one handed, a shield slot item too).
+
+<br/><br/>
+
+The player brings a [[Scorching bow]] and arrows with full Melee gear in order to take out the respiratory system with the bow. This is because even with full melee gear, the bow is fairly accurate and usually oneshots the respiratory systems. The scorching bow allows the player to quickly dispose of the respiratory system without needing a full gear switch, making it possible to quickly move on to phase 2 so the player can melee the boss. At that stage, the weapon and shield slot can be switched out.
+
+{{Recommended equipment
+|style = Phase 1 Melee
+|head1 = {{plink|Slayer helmet (i)}}
+|head2 = {{plink|Black mask (i)}}
+|neck1 = {{plink|Amulet of rancour}}
+|neck2 = {{plink|Amulet of torture}}
+|neck3 = {{plink|Amulet of fury}}
+|neck4 = {{plink|Amulet of glory}}
+|cape1 = {{plink|Infernal cape}}
+|cape2 = {{plink|Fire cape}}
+|cape3 = {{plink|Max cape}} / {{plink|Hitpoints cape}}
+|cape4 = {{plink|Mixed hide cape}}
+|body1 = {{plink|Torva platebody}}
+|body2 = {{plink|Bandos chestplate}}
+|body3 = {{plink|Blood moon chestplate}}
+|body4 = {{plink|Fighter torso}}
+|legs1 = {{plink|Torva platelegs}}
+|legs2 = {{plink|Bandos tassets}}
+|legs3 = {{plink|Blood moon tassets}}
+|legs4 = {{plink|Obsidian platelegs}}
+|weapon1 = {{plink|Scorching bow}}{{efn|Only for phase 1. A melee weapon switch for phase 2 and 3 is needed. For example [[Emberlight]] and [[Avernic defender]] will be in the inventory ready to switch for phase 2; The player will also have special attack melee weapon}}
+|ammo1 = {{plink|Amethyst arrow}}{{efn|The player can usually get a couple of shots off on the boss in the transition between phase 1 and 2, before it is in melee range. Therefore having decent arrows can help deal a little more damage, but are not necessary}}
+|ammo2 = {{plink|Arrows|pic=Bronze arrow}}{{efn|Weaker arrows do not reduce accuracy and are therefore just as likely to oneshot the respiratory systems}}
+|hands1 = {{plink|Ferocious gloves}}
+|hands2 = {{plink|Barrows gloves}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Primordial boots}}
+|feet3 = {{plink|Dragon boots}}
+|feet4 = {{plink|Rune boots}}
+|ring1 = {{plink|Lightbearer}}
+|ring2 = {{plink|Ultor ring}}
+|ring3 = {{plink|Berserker ring (i)}}
+}}
+{{notelist}}
+
+|-|
+Magic=
+Unless using a [[Tumeken's shadow]], [[Magic]] is only used to kill the [[respiratory system]]s. Their magic defence is so low they can be hit when wearing full melee gear.
+
+{{Recommended equipment
+|style = Phase 1 Magic
+|head1 = {{plink|Slayer helmet (i)}}
+|head2 = {{plink|Black mask (i)}}
+|neck1 = {{plink|Occult necklace}}
+|cape1 = {{plink|Imbued god cape|pic=Imbued Guthix cape}}
+|body1 = {{plink|Ancestral robe top}}
+|body2 = {{plink|Virtus robe top}}
+|body3 = {{plink|Bloodbark body}}{{efn|name=bloodbark|with [[Ancient blood sceptre]] for additional healing}}
+|legs1 = {{plink|Ancestral robe bottom}}
+|legs2 = {{plink|Virtus robe bottom}}
+|legs3 = {{plink|Bloodbark legs}}{{efn|name=bloodbark|with [[Ancient blood sceptre]] for additional healing}}
+|weapon1 = {{plink|Tumeken's shadow}}
+|weapon2 = {{plink|Sanguinesti staff}}
+|weapon3 = {{plink|Trident of the Swamp}}
+|weapon4 = {{plink|Trident of the Seas}}
+|weapon5 = {{plink|Blood ancient sceptre}} (for overheal) / {{plink|Ancient sceptre}}
+|shield1 = {{plink|Elidinis' ward (f)}}{{efn|name=offhand|with 1 handed staffs}}
+|shield2 = {{plink|Elidinis' ward}} / {{plink|Arcane spirit shield}}{{efn|name=offhand|with 1 handed staffs}}
+|shield3 = {{plink|Ancient wyvern shield}} / {{plink|Malediction ward}} / {{plink|Mage's book}}{{efn|name=offhand|with 1 handed staffs}}
+|hands1 = {{plink|Confliction gauntlets}}
+|hands2 = {{plink|Tormented bracelet}}
+|hands3 = {{plink|Bloodbark gauntlets}}{{efn|name=gauntlets|If blood barrage's max hit is >39 with [[Blood ancient sceptre]], will give 1 more hp}}
+}}
+{{notelist}}
+
+|-|
+Ranged=
+Unless ranging the boss, [[Ranged]] is only used to kill the [[respiratory system]]s. Their defence is very low so high accuracy is unnecessary. The Scorching bow will one-shot the systems, even with bronze arrows. You do not need any switches other than the bow.
+
+{{Recommended equipment
+|style = Phase 1 Ranged
+|head1 = {{plink|Slayer helmet (i)}}
+|head2 = {{plink|Black mask (i)}}
+|neck1 = {{plink|Necklace of rupture}}
+|neck2 = {{plink|Amulet of fury}}
+|neck3 = {{plink|Amulet of glory}}
+|cape1 = {{plink|Dizana's quiver}}
+|cape2 = {{plink|Ava's assembler}} (Or best [[Ava's device]])
+|body1 = {{plink|Masori body (f)}}
+|body2 = {{plink|Crystal body}} {{efn|name=Crystal|With Bow of Faerdhinen}}
+|body3 = {{plink|Hueycoatl hide body}} > <br>{{plink|Blessed body|pic=Guthix d'hide body}}
+|body4 = {{plink|Black d'hide body}}
+|legs1 = {{plink|Masori chaps (f)}}
+|legs2 = {{plink|Crystal legs}} {{efn|name=Crystal|With Bow of Faerdhinen}}
+|legs3 = {{plink|Hueycoatl hide chaps}} > <br>{{plink|Blessed chaps|pic=Guthix chaps}}
+|legs4 = {{plink|Black d'hide chaps}}
+|weapon1 = {{plink|Scorching bow}}
+|weapon2 = {{plink|Bow of Faerdhinen}}
+|weapon3 = {{plink|Toxic blowpipe}} (with {{plink|amethyst dart}}s or better)
+|weapon4 = {{plink|Webweaver bow}} / <br/>{{plink|Craw's bow}}
+|weapon5 = {{plink|Crystal bow}}{{efn|name=Crystal2|With Crystal equipment}}
+|ammo1 = {{plink|Seeking dragon arrow}}
+|ammo2 = {{plink|Seeking amethyst arrow}} > {{plink|Dragon arrow}}
+|ammo3 = {{plink|Amethyst arrow}}
+|hands1 = {{plink|Zaryte vambraces}}
+|hands2 = {{plink|Barrows gloves}}
+|hands3 = {{plink|Blessed vambraces|pic=Guthix bracers}} <br>{{plink|Black d'hide vambraces}}
+}}
+{{notelist}}
+|-|
+Melee=
+[[Melee]] is only viable for killing the [[respiratory system]]s if using a [[Noxious halberd]], but is worse than both ranged and magic due to the extra distance the player must run.
+
+{{Recommended equipment
+|style = Phase 1 Melee
+|head1 = {{plink|Slayer helmet (i)}}
+|head2 = {{plink|Black mask (i)}}
+|neck1 = {{plink|Amulet of rancour}}
+|neck2 = {{plink|Amulet of torture}}
+|neck3 = {{plink|Amulet of fury}}
+|neck4 = {{plink|Amulet of glory}}
+|cape1 = {{plink|Infernal cape}}
+|cape2 = {{plink|Fire cape}}
+|cape3 = {{plink|Max cape}} / {{plink|Hitpoints cape}}
+|cape4 = {{plink|Mixed hide cape}}
+|body1 = {{plink|Torva platebody}}
+|body2 = {{plink|Bandos chestplate}}
+|body3 = {{plink|Blood moon chestplate}}
+|body4 = {{plink|Fighter torso}}
+|legs1 = {{plink|Torva platelegs}}
+|legs2 = {{plink|Bandos tassets}}
+|legs3 = {{plink|Blood moon tassets}}
+|legs4 = {{plink|Obsidian platelegs}}
+|weapon1 = {{plink|Noxious halberd}}
+|ammo1 = {{plink|Rada's blessing 4}}
+|ammo2 = {{plink|God blessing|pic=Peaceful blessing}}
+|hands1 = {{plink|Ferocious gloves}}
+|hands2 = {{plink|Barrows gloves}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Primordial boots}}
+|feet3 = {{plink|Dragon boots}}
+|feet4 = {{plink|Rune boots}}
+|ring1 = {{plink|Ultor ring}}
+|ring2 = {{plink|Berserker ring (i)}}
+|ring3 = {{plink|Lightbearer}}
+}}
+{{notelist}}
+</tabber>
+
+===Phase 2 and Phase 3===
+<tabber>
+Melee - No defence reduction=
+The optimal strategy is to use [[Emberlight]] or [[Osmumten's fang]], along with a [[Lightbearer]]. The high accuracy of these weapons makes reducing the Sire's defence unnecessary, so all special attack energy is saved for damage in Phase 3.
+
+{{Recommended equipment
+|style = Phase 2 Melee - DPS
+|head1 = {{plink|Slayer helmet (i)}}
+|head2 = {{plink|Black mask (i)}}
+|neck1 = {{plink|Amulet of rancour}}
+|neck2 = {{plink|Amulet of torture}}
+|neck3 = {{plink|Amulet of fury}}
+|neck4 = {{plink|Amulet of glory}}
+|cape1 = {{plink|Infernal cape}}
+|cape2 = {{plink|Fire cape}}
+|cape3 = {{plink|Ardougne cloak 4}}
+|cape4 = {{plink|Max cape}} / {{plink|Hitpoints cape}}
+|body1 = {{plink|Torva platebody}}
+|body2 = {{plink|Bandos chestplate}} ><br>{{plink|Oathplate chest}}
+|body3 = {{plink|Justiciar chestguard}}
+|body4 = {{plink|Barrows equipment|pic=Torag's platebody|txt=Barrows body}}
+|body5 = {{plink|Fighter torso}}
+|legs1 = {{plink|Torva platelegs}}
+|legs2 = {{plink|Bandos tassets}} ><br>{{plink|Oathplate legs}}
+|legs3 = {{plink|Justiciar legguards}}
+|legs4 = {{plink|Barrows equipment|pic=Torag's platelegs|txt=Barrows legs}}
+|legs5 = {{plink|Obsidian platelegs}}
+|weapon1 = {{plink|Emberlight}}{{efn|name=stab|Use stab attack style, use slash when using Oathplate armour.}}
+|weapon2 = {{plink|Osmumten's fang}}
+|shield1 = {{plink|Avernic defender}}
+|shield2 = {{plink|Dragon defender}}
+|shield3 = {{plink|Dragonfire shield}}
+|shield4 = {{plink|Rune defender}}
+|ammo1 = ''See [[#phase 1 equipment|Phase 1]] recommended''
+|ammo2 = {{plink|Rada's blessing 4}}
+|ammo3 = {{plink|God blessing|pic=Peaceful blessing}}
+|hands1 = {{plink|Ferocious gloves}}
+|hands2 = {{plink|Barrows gloves}}
+|hands3 = {{plink|Dragon gloves}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Primordial boots}}
+|feet3 = {{plink|Dragon boots}}
+|feet4 = {{plink|Echo boots}}
+|feet5 = {{plink|Guardian boots}}
+|ring1 = {{plink|Lightbearer}}
+|special1 = {{plink|Burning claws}}{{efn|name=stab|Use stab attack style, use slash when using Oathplate armour.}}
+|special2 = {{plink|Voidwaker}}
+|special3 = {{plink|Dragon claws}} /<br/>{{plink|Crystal halberd}}{{efn|Dragon claws will deal higher damage per second, but a crystal halberd will deal more damage per special attack energy.}}
+|special4 = {{plink|Abyssal dagger}}
+|special5 = {{plink|Dragon dagger}}
+}}
+{{notelist}}
+
+|-|
+Melee - Defence reduction=
+If the player can reduce the Sire's defence with an [[Elder maul]] or [[Dragon warhammer]] special attack, weapons such as the [[Scythe of Vitur]] become considerably more effective. However, this approach is typically slower than using a highly accurate weapon and damaging special attacks.</br>
+
+With lower defence levels, players should consider prioritising ranged defence over melee strength to avoid being overwhelmed with damage from the spawns.
+
+{{Recommended equipment
+|style = Phase 2 Other Melee Weapons
+|head1 = {{plink|Slayer helmet (i)}}
+|head2 = {{plink|Black mask (i)}}
+|neck1 = {{plink|Amulet of rancour}}
+|neck2 = {{plink|Amulet of torture}}
+|neck3 = {{plink|Amulet of fury}}
+|neck4 = {{plink|Amulet of glory}}
+|cape1 = {{plink|Infernal cape}}
+|cape2 = {{plink|Fire cape}}
+|cape3 = {{plink|Ardougne cloak 4}}
+|cape4 = {{plink|Max cape}} / {{plink|Hitpoints cape}}
+|body1 = {{plink|Torva platebody}} /<br>{{plink|Oathplate chest}}
+|body2 = {{plink|Bandos chestplate}} / {{plink|Blood moon chestplate}}
+|body3 = {{plink|Justiciar chestguard}}
+|body4 = {{plink|Barrows equipment|pic=Torag's platebody|txt=Barrows body}}
+|body5 = {{plink|Fighter torso}}
+|legs1 = {{plink|Torva platelegs}} /<br>{{plink|Oathplate legs}}
+|legs2 = {{plink|Bandos tassets}} / {{plink|Blood moon tassets}}
+|legs3 = {{plink|Justiciar legguards}}
+|legs4 = {{plink|Barrows equipment|pic=Torag's platelegs|txt=Barrows legs}}
+|legs5 = {{plink|Obsidian platelegs}}
+|weapon1 = {{plink|Scythe of Vitur}} > {{plink|Emberlight}}{{efn|name=stab|Use stab attack style, use slash when using Oathplate armour.}}
+|weapon2 = {{plink|Ghrazi rapier}} / {{plink|Arclight}}
+|weapon3 = {{plink|Inquisitor's mace}}
+|weapon4 = {{plink|Blade of Saeldor}}
+|weapon5 = {{plink|Zamorakian hasta}}
+|shield1 = {{plink|Avernic defender}}
+|shield2 = {{plink|Dragon defender}}
+|shield3 = {{plink|Dragonfire shield}}
+|shield4 = {{plink|Rune defender}}
+|ammo1 = {{plink|Rada's blessing 4}}
+|ammo2 = {{plink|God blessing|pic=Peaceful blessing}}
+|hands1 = {{plink|Ferocious gloves}}
+|hands2 = {{plink|Barrows gloves}}
+|hands3 = {{plink|Dragon gloves}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Primordial boots}}
+|feet3 = {{plink|Dragon boots}}
+|feet4 = {{plink|Echo boots}}
+|feet5 = {{plink|Guardian boots}}
+|ring1 = {{plink|Ultor ring}}
+|ring2 = {{plink|Bellator ring}}{{efn|If using a slash weapon|name=bellator}}
+|ring3 = {{plink|Lightbearer}}
+|ring4 = {{plink|Berserker ring (i)}}
+|ring5 = {{plink|Ring of suffering (i)}}
+|special1 = {{plink|Elder maul}}
+|special2 = {{plink|Dragon warhammer}}
+|special3 = {{plink|Bandos godsword}}
+|special4 = {{plink|Emberlight}} > {{plink|Arclight}}
+}}
+{{notelist}}
+
+|-|
+Magic - Tumeken's Shadow=
+
+Magic is a viable method for killing the Abyssal Sire if using a Tumeken’s shadow as the primary weapon. With the best possible gear, Tumeken's shadow can offer excellent damage output against the Abyssal Sire, comparable to the best possible gear with melee. Important to keep in mind is the overall lower defence of a magic setup, so you should be careful with keeping your health up. The method is low effort as it reduces the amount of swaps; allowing you to bring more supplies. 
+
+The Eldritch Nightmare staff and Accursed sceptre can be used interchangeably. It is recommended to use the Accursed sceptre for faster kills as it reduces the boss's magic and defence levels regardless of hit. Remember to bring an imbued heart/saturated heart if possible.
+
+{{Recommended equipment
+|style = Phase 2 Magic
+|head1 = {{plink|Slayer helmet (i)}}
+|head2 = {{plink|Black mask (i)}}
+|neck1 = {{plink|Occult necklace}}
+|neck2 = {{plink|Amulet of fury}}
+|neck3 = {{plink|Amulet of glory}}
+|cape1 = {{plink|God capes#Imbuing|txt=Imbued god cape|pic=Imbued Saradomin cape}}
+|cape2 = {{plink|God capes|pic=Saradomin cape}}
+|cape3 = {{plink|Max cape}}
+|cape4 = {{plink|Infernal cape}}
+|ammo1 = {{plink|Rada's blessing 4}}
+|body1 = {{plink|Ancestral robe top}}
+|body2 = {{plink|Virtus robe top}}
+|legs1 = {{plink|Ancestral robe bottom}}
+|legs2 = {{plink|Virtus robe bottom}}
+|weapon1 = {{plink|Tumeken's shadow}}
+|shield1 = {{plink|Elidinis' ward (f)}}{{efn|name=spec|For special attack}}
+|shield2 = {{plink|Elidinis' ward}} {{efn|name=spec}}
+|shield3 = {{plink|Ancient wyvern shield}} / {{plink|Malediction ward}} / {{plink|Mage's book}} {{efn|name=spec}}
+|hands1 = {{plink|Confliction gauntlets}}
+|hands2 = {{plink|Tormented bracelet}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Eternal boots}}
+|feet3 = {{plink|Echo boots}}
+|feet4 = {{plink|Guardian boots}}
+|ring1 = {{plink|Magus ring}} / {{plink|Lightbearer}}
+|ring2 = {{plink|Seers ring (i)}}
+|ring3 = {{plink|Brimstone ring}}
+|special1 = {{plink|Eldritch Nightmare staff}}
+|special2 = {{plink|Accursed sceptre}}
+}}
+{{notelist}}
+
+|-|
+Ranged=
+
+Ranged generally performs worse than melee, and the reduced defence will shorten trips. </br>
+</br>
+
+However, ranged can be used to deal additional damage before the start of Phase 2. Once all four respiratory systems are defeated, there is a brief window to attack the boss, despite it being out of melee range initially. Once the Abyssal Sire raises its arms, it becomes vulnerable to damage, including ranged attacks. During this window players can shoot the boss three times with the Scorching bow before it comes within melee range. Doing this can reduce its health by a good amount (up to 50% of your Scorching bow's max hit, multiplied by 3) before Phase 2 properly begins, making it a good strategy for players who want to optimize their kills.</br>
+</br>
+Thus, it can be a good idea to bring a few ranged switches, to ensure the player doesn't hit any zeroes while killing the respiratory systems, and to also help with the few bonus hits the Phase 1 to Phase 2 transition provides.
+
+{{Recommended equipment
+|style = Phase 2 Ranged
+|head1 = {{plink|Slayer helmet (i)}}
+|head2 = {{plink|Black mask (i)}}
+|neck1 = {{plink|Necklace of rupture}}
+|neck2 = {{plink|Amulet of fury}}
+|neck3 = {{plink|Amulet of glory}}
+|cape1 = {{plink|Dizana's quiver}}
+|cape2 = {{plink|Ava's assembler}} (Or best [[Ava's device]])
+|cape3 = {{plink|Max cape}}
+|cape4 = {{plink|Ranging cape}}
+|cape5 = {{plink|Infernal cape}} / {{plink|Mythical cape}} (for special)
+|ammo1 = {{plink|Seeking dragon arrow}}
+|ammo2 = {{plink|Seeking amethyst arrow}} > {{plink|Dragon arrow}}
+|ammo3 = {{plink|Amethyst arrow}}
+|body1 = {{plink|Masori body (f)}}
+|body2 = {{plink|Armadyl chestplate}}
+|body3 = {{plink|Crystal body}}
+|body4 = {{plink|Blessed body|pic=Guthix d'hide body}}
+|body5 = {{plink|Karil's leathertop}}
+|legs1 = {{plink|Masori chaps (f)}}
+|legs2 = {{plink|Armadyl chainskirt}}
+|legs3 = {{plink|Crystal legs}}
+|legs4 = {{plink|Blessed chaps|pic=Guthix chaps}}
+|legs5 = {{plink|Karil's leatherskirt}}
+|weapon1 = {{plink|Scorching bow}}
+|weapon2 = {{plink|Twisted bow}}
+|weapon3 = {{plink|Toxic blowpipe}} ([[Dragon darts]])
+|weapon4 = {{plink|Bow of Faerdhinen}} (With [[Crystal armour]])
+|weapon5 = {{plink|Toxic blowpipe}} (Amethyst or Rune darts)
+|hands1 = {{plink|Zaryte vambraces}}
+|hands2 = {{plink|Barrows gloves}}
+|hands3 = {{plink|Combat bracelet|pic=Combat bracelet(4)}}
+|feet1 = {{plink|Avernic treads (max)}}
+|feet2 = {{plink|Pegasian boots}}
+|feet3 = {{plink|Ranger boots}}
+|feet4 = {{plink|Blessed boots|pic=Guthix d'hide boots}}
+|feet5 = {{plink|Aranea boots}}
+|ring1 = {{plink|Venator ring}}
+|ring2 = {{plink|Archers ring (i)}}
+|ring3 = {{plink|Ring of suffering (i)}}
+|ring4 = {{plink|Tyrannical ring (i)}} (for special)
+|special1 = {{plink|Elder maul}} /<br/>{{plink|Bandos godsword}}
+|special2 = {{plink|Toxic blowpipe}}
+|special3 = {{plink|Dragon claws}}
+}}
+
+|-|
+
+</tabber>
+
+==Inventory recommendations==
+===Melee and ranged===
+{{Inventory
+|align = right
+|1 = Ava's assembler
+|2 = Dramen staff
+|3 = Super combat potion(4)
+|4 = Super restore(4)
+|5 = Bracelet of slaughter
+|6 = Scorching bow
+|7 = Super restore(4)
+|8 = Super restore(4)
+|9 = Burning claws
+|10 =
+|11 = Super restore(4)
+|12 = Super restore(4)
+|13 = Blood ancient sceptre
+|14 = 
+|15 = Super restore(4)
+|16 = Super restore(4)
+|17 =
+|18 =
+|19 = Super restore(4)
+|20 = Super restore(4)
+|21 = Anglerfish
+|22 = Anglerfish
+|23 = Anglerfish
+|24 = Anglerfish
+|25 = Divine rune pouch
+|26 = Ash sanctifier
+|27 = Sailors' amulet
+|28 = Teleport to house (tablet)
+}}
+
+{{Rune pouch|align=right
+|1=Air rune
+|2=Blood rune
+|3=death rune
+|4=soul rune
+}}
+*[[Lunar staff|Lunar]]/[[Dramen staff]] (if [[Elite Lumbridge & Draynor Diary]] not completed)
+*1 [[super combat potion]] (if going for long trips, use the [[divine super combat potion|divine]] variant otherwise)
+*[[Bracelet of slaughter]]
+*[[Scorching bow]]
+*Special attack weapon of your choice
+*A staff to autocast [[Ancient Magicks]] (for long trips); [[Blood ancient sceptre]] provides the best effects, allowing the player to overheal up to 108 hitpoints at level 99.
+*A quick-teleport for fast banking
+*[[Teleport to house (tablet)]] or [[Construction cape]] for pool and fairy ring back. A [[Desert amulet 4]] and a [[Quest point cape]] can also be used.
+
+[[Category:Strategies]]
+[[Category:Slayer]]

@@ -1,0 +1,175 @@
+{{Infobox Item
+|name = Reward casket (beginner)
+|image = [[File:Reward casket (beginner).png]]
+|release = [[11 April]] [[2019]]
+|update = Treasure Trails Expansion and Easter 2019
+|members = No
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = Yes
+|noteable = No
+|options = Open, Drop
+|examine = I hope this was easy loot.
+|value = 50
+|weight = 0.000
+|id = 23245
+|leagueRegion = Misthalin,Asgarnia,Desert
+}}
+[[File:Reward casket (beginner) detail.png|left|130px]]
+A '''[[reward casket]] (beginner)''' is received after completing the final clue of a [[Clue scroll (beginner)|beginner clue scroll]] trail, and contains the final reward for the trail. Opening the reward casket is required for treasure trail completion to be tracked on the [[HiScores]] and [[collection log]].
+
+The player can possess unlimited amounts of reward caskets up to the [[Stackable_items#Limit_of_a_stack|stack limit]]. Players are eligible to receive more clue scrolls regardless of how many reward caskets are in the player's posession.
+
+The beginner reward casket, unlike other reward caskets, cannot be opened on Entrana. If players attempt to do so, the chatbox will state "''You cannot open this on Entrana, the monks are watching you too closely.''" Furthermore, accounts that are less than 10 hours old will not be able to receive any unique rewards from these caskets.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1418876325192929281|date=24 July 2021|archiveurl=https://reldo.runescape.wiki/i/106201|archivedate=22:34, 29 July 2021 (UTC)|quote=10 hours, applies to all accounts doing beginner clues.}}
+
+==Rewards==
+Beginner clues generate a minimum of 1 reward and a maximum of 3, granting an average of 2 rewards per casket. The rewards consist of generic items, and items that are unique for beginner clues. On average it will take 597 beginner clues to obtain every unique, not counting the black pickaxe which you can get from easy clues at a higher rate. 
+
+All droprates are confirmed by [[Mod Tide]].{{CiteTwitter|author=Mod Tide|url=https://twitter.com/JagexTide/status/1182709121566564355|date=11 October 2019|archiveurl=https://reldo.runescape.wiki/i/27964269|archivedate=31 July 2026|quote=Hey guys and gals, i'ts been 6 months since the release of beginner clues so I thought you might like to see what the drop rates are! Enjoy those cabbages, they taste great.|name=Clue rates tweet}} The listed rarities are per roll.
+
+The average loot roll is worth {{Coins|floor({{BeginnerClueValue}})}}. On average, beginner clues are worth {{Coins|floor(2 * {{BeginnerClueValue}})}}.
+
+===Beginner clue uniques===
+*The chance to receive any unique is 1/24 per roll, with a specific unique being 1/360 per roll. Players obtain an average of 1 unique per 12 clue scrolls, and a specific unique an average of once per 180 clue scrolls.
+
+{{DropsTableHead}}
+{{DropsLineReward|name=Mole slippers|quantity=1|rarity=1/360}}
+{{DropsLineReward|name=Frog slippers|quantity=1|rarity=1/360}}
+{{DropsLineReward|name=Bear feet|quantity=1|rarity=1/360}}
+{{DropsLineReward|name=Demon feet|quantity=1|rarity=1/360}}
+{{DropsLineReward|name=Jester cape|quantity=1|rarity=1/360}}
+{{DropsLineReward|name=Shoulder parrot|quantity=1|rarity=1/360}}
+{{DropsLineReward|name=Monk's robe top (t)|quantity=1|rarity=1/360}}
+{{DropsLineReward|name=Monk's robe (t)|quantity=1|rarity=1/360}}
+{{DropsLineReward|name=Amulet of defence (t)|quantity=1|rarity=1/360}}
+{{DropsLineReward|name=Sandwich lady hat|quantity=1|rarity=1/360}}
+{{DropsLineReward|name=Sandwich lady top|quantity=1|rarity=1/360}}
+{{DropsLineReward|name=Sandwich lady bottom|quantity=1|rarity=1/360}}
+{{DropsLineReward|name=Rune scimitar ornament kit (Guthix)|quantity=1|rarity=1/360}}
+{{DropsLineReward|name=Rune scimitar ornament kit (Saradomin)|quantity=1|rarity=1/360}}
+{{DropsLineReward|name=Rune scimitar ornament kit (Zamorak)|quantity=1|rarity=1/360}}
+{{DropsTableBottom}}
+
+===Black items table===
+There is a 11/492 (~1/44.72) chance of rolling the black items table. On average it will take 1407 beginner clues to obtain every black item on the table.
+{{DropsTableHead}}
+{{DropsLineReward|name=Black 2h sword|quantity=1|rarity=11/8856}}
+{{DropsLineReward|name=Black axe|quantity=1|rarity=11/8856}}
+{{DropsLineReward|name=Black battleaxe|quantity=1|rarity=11/8856}}
+{{DropsLineReward|name=Black chainbody|quantity=1|rarity=11/8856}}
+{{DropsLineReward|name=Black dagger|quantity=1|rarity=11/8856}}
+{{DropsLineReward|name=Black full helm|quantity=1|rarity=11/8856}}
+{{DropsLineReward|name=Black kiteshield|quantity=1|rarity=11/8856}}
+{{DropsLineReward|name=Black longsword|quantity=1|rarity=11/8856}}
+{{DropsLineReward|name=Black mace|quantity=1|rarity=11/8856}}
+{{DropsLineReward|name=Black med helm|quantity=1|rarity=11/8856}}
+{{DropsLineReward|name=Black pickaxe|quantity=1|rarity=11/8856}}
+{{DropsLineReward|name=Black platebody|quantity=1|rarity=11/8856}}
+{{DropsLineReward|name=Black plateskirt|quantity=1|rarity=11/8856}}
+{{DropsLineReward|name=Black platelegs|quantity=1|rarity=11/8856}}
+{{DropsLineReward|name=Black sq shield|quantity=1|rarity=11/8856}}
+{{DropsLineReward|name=Black scimitar|quantity=1|rarity=11/8856}}
+{{DropsLineReward|name=Black sword|quantity=1|rarity=11/8856}}
+{{DropsLineReward|name=Black warhammer|quantity=1|rarity=11/8856}}
+{{DropsTableBottom}}
+
+===Weapons and armour===
+{{DropsTableHead}}
+{{DropsLineReward|name=Shortbow|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Longbow|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Oak shortbow|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Oak longbow|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Iron pickaxe|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Staff of air|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Staff of water|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Staff of earth|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Staff of fire|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Steel full helm|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Steel platebody|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Steel platelegs|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Steel plateskirt|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Steel longsword|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Steel dagger|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Steel axe|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Steel battleaxe|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Leather cowl|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Leather body|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Leather chaps|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Leather vambraces|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Hardleather body|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Blue wizard hat|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Blue wizard robe|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Wizard hat|quantity=1|rarity=11/492}}
+{{DropsLineReward|name=Black robe|quantity=1|rarity=11/492}}
+{{DropsTableBottom}}
+
+===Runes and ammunition===
+{{DropsTableHead}}
+{{DropsLineReward|name=Air rune|quantity=15-35|rarity=11/492}}
+{{DropsLineReward|name=Mind rune|quantity=15-35|rarity=11/492}}
+{{DropsLineReward|name=Water rune|quantity=15-35|rarity=11/492}}
+{{DropsLineReward|name=Earth rune|quantity=15-35|rarity=11/492}}
+{{DropsLineReward|name=Fire rune|quantity=15-35|rarity=11/492}}
+{{DropsLineReward|name=Body rune|quantity=15-35|rarity=11/492}}
+{{DropsLineReward|name=Chaos rune|quantity=2-7|rarity=11/492}}
+{{DropsLineReward|name=Nature rune|quantity=2-7|rarity=11/492}}
+{{DropsLineReward|name=Law rune|quantity=2-7|rarity=11/492}}
+{{DropsLineReward|name=Bronze arrow|quantity=15-30|rarity=11/492}}
+{{DropsLineReward|name=Iron arrow|quantity=7-15|rarity=11/492}}
+{{DropsTableBottom}}
+
+===Food===
+When you hit the 1 in 12 chance for a unique, you will then hit a sub table where you have a 50% chance to receive either some cabbages or a unique drop.
+
+{{DropsTableHead}}
+{{DropsLineReward|name=Cabbage|quantity=5-9 (noted)|rarity=1/24}}
+{{DropsLineReward|name=Shrimps|quantity=5-14 (noted)|rarity=11/492}}
+{{DropsLineReward|name=Sardine|quantity=5-12 (noted)|rarity=11/492}}
+{{DropsLineReward|name=Herring|quantity=5-9 (noted)|rarity=11/492}}
+{{DropsTableBottom}}
+
+===Tertiary===
+{{DropsTableHead|leagueRegion=No}}
+{{DropsLineReward|name=Minor beginner scroll case|quantity=1|rarity=Always|raritynotes=<ref group="d">Players will always receive a [[minor beginner scroll case]] on their 50th completed beginner clue scroll ''or'' their first completed beginner clue scroll if their clue count is above 50 (if the player has lost the item and did not open it before).</ref>|gemw=No}}
+{{DropsLineReward|name=Major beginner scroll case|quantity=1|rarity=Always|raritynotes=<ref group="d">Players will always receive a [[major beginner scroll case]] on their 100th completed beginner clue scroll ''or'' their first completed beginner clue scroll if their clue count is above 100 (if the player has lost the item and did not open it before).</ref>|gemw=No}}
+{{DropsLineReward|name=Explore|quantity=1|rarity=Always|raritynotes=<ref group=d>Players will always receive the [[Explore]] emote on their 600th completed beginner clue ''or'' their first completed beginner clue after if their beginner clue count is above 600.</ref>|gemw=No|image=Explore emote icon.png}}
+{{DropsTableBottom}}
+
+{{Reflist|group=d}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 January 2020
+|update = Poll 69, BH Rewards, and Welcome Screen
+|poll = Old School Content Poll 69: Game Improvements
+|change = Players can now unlock the [[Explore]] emote for completing 600 beginner clue scrolls.
+}}
+{{Subject changes
+|date = 15 August 2019
+|update = Small Game Updates and Betas
+|poll = Old School Content Poll 68: Small Game Improvements
+|change = The locks on the reward casket have been changed to reflect the tier of Treasure Trail it comes from.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Reward casket (beginner) (v1) detail.png|center|300x150px]]
+|[[File:Reward casket (beginner) detail.png|center|300x150px]]
+|-
+|[[File:Reward casket (beginner) v1.png|center]]
+|[[File:Reward casket (beginner).png|center]]
+|-
+|11 April 2019 –<br/>15 August 2019
+|15 August 2019 –<br/>present
+|}
+
+==Trivia==
+*When a player rolls the unique drop table, there is a 50% chance that the player will receive a [[cabbage]] or a unique item.
+
+==References==
+{{Reflist}}
+
+{{Treasure Trails}}

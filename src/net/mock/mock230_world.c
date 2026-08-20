@@ -1738,6 +1738,40 @@ interaction_try(
             return 1;
         }
 
+        /*
+         * Content's first refusal on the interaction, before any trigger.
+         *
+         * There is no way to write "ask me about every npc first" as a trigger
+         * — a name binding is exclusive and `[opnpc1,_]` shadows every specific
+         * handler in the game. Treasure Trails needs it (a cryptic clue can
+         * point at any of 218 npcs, 139 of which already own an `[opnpc1,…]`),
+         * and so will the Slayer and achievement-diary task hooks.
+         *
+         * Optional by construction: a tree that defines neither proc pays one
+         * failed name lookup and behaves exactly as it did. See
+         * `mock230_scripts_run_claim`.
+         */
+        {
+            int32_t claimed = 0;
+            int32_t claim_args[2] = { (int32_t)target_id, (int32_t)op_num };
+
+            if( kind == MOCK230_INTERACT_NPC &&
+                mock230_scripts_run_claim(srv, "[proc,interact_npc_claim]", slot, -1,
+                                          claim_args, 2, &claimed) &&
+                claimed )
+                return 1;
+            if( kind == MOCK230_INTERACT_LOC )
+            {
+                claim_args[0] = (int32_t)target_id;
+                if( mock230_scripts_run_claim(
+                        srv, "[proc,interact_loc_claim]", -1,
+                        find_interaction_loc(loc_x, loc_z, loc_level, target_id), claim_args, 2,
+                        &claimed) &&
+                    claimed )
+                    return 1;
+            }
+        }
+
         switch( kind )
         {
         case MOCK230_INTERACT_NPC:
@@ -7324,6 +7358,35 @@ handle_resume_pausebutton(
             srv->active_player->last_slot = sub;
     }
     if( mock230_scripts_resume_button(srv, uid) )
+        return;
+
+    /*
+     * An unresolved resume is still a click, and content may own it.
+     *
+     * IF3 panels built by the cache's own clientscripts choose
+     * RESUME_PAUSEBUTTON for rows they draw themselves — the Tombs of Amascut
+     * party interface toggles an invocation by resuming a pause-button on a
+     * child of `toa_partydetails:pausebuttons` whose SUB ID is the row, and no
+     * server script is parked on it. Before this the packet decoded, matched no
+     * parked script, and was dropped: the panel drew the raid level and could
+     * not change it.
+     *
+     * `last_com`/`last_slot` are set first for the same reason the IF_BUTTON1
+     * path sets them — the row is the whole message — and the world-map router
+     * stays last, so nothing that used to reach it stops.
+     */
+    /*
+     * The world-map router goes FIRST, and that order is a fix rather than a
+     * preference: its close X is a component content also binds, so putting
+     * content ahead of it swallowed the click and left the overlay mounted -
+     * which is the exact defect the router was added to cure. `handle_if_button`
+     * has resolved it in this same order since.
+     */
+    if( mock230_worldmap_handle_button(srv, uid, 1) )
+        return;
+    srv->active_player->last_com = uid;
+    if( !mock230_scripts_fallback(srv, MOCK230_FALLBACK_IF_BUTTON,
+                                  mock230_scripts_run_if_button(srv, uid, 0)) )
         return;
 
     /*
@@ -39657,6 +39720,170 @@ mock230_world_selftest(void)
                 }
             }
             mock230_scripts_run_debugproc(srv, "toaout");
+
+            /*
+             * And the raid pays out (`::toaloot`).
+             *
+             * `~toa_open_chest` - the unique table, the shift share, the
+             * commons, the tertiaries and the dung floor, several hundred lines
+             * of it - had no caller at all until the sarcophagus got its loc op,
+             * so a completed raid paid nothing. This is what keeps that wired:
+             * it runs a finished raid's points through the reward path and
+             * requires the inventory to come back heavier.
+             */
+            {
+                static struct Mock230Capture loot;
+                int paid = 0;
+
+                mock230_capture_begin(srv, &loot);
+                mock230_scripts_run_debugproc(srv, "toaloot");
+                mock230_capture_end(srv);
+                for( int w = mock230_capture_find(&loot, 90, 0); w >= 0;
+                     w = mock230_capture_find(&loot, 90, w + 1) )
+                {
+                    const struct Mock230CapturedPacket* pk = &loot.packets[w];
+                    const char* text;
+
+                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                        continue;
+                    text = (const char*)pk->data + 1;
+                    if( strstr(text, "toaloot") == NULL )
+                        continue;
+                    fprintf(stderr, "  %s\n", text);
+                    if( strstr(text, "toaloot OK") != NULL )
+                        paid = 1;
+                }
+                SELFTEST_CHECK(paid, "a completed raid should pay out at the sarcophagus");
+            }
+
+            /*
+             * And the party interface can actually change the selection.
+             *
+             * This is the one part of the raid whose correctness is a
+             * CONVERSION plus a decode, and both halves are silent when wrong:
+             * the instance holds two 22-bit masks, clientscript 6729 wants
+             * three 31-bit ones, and a click arrives as a RESUME_PAUSEBUTTON
+             * whose sub id is a row in `enum_4664` rather than an invocation
+             * index. A bug in either direction draws or picks a different raid
+             * than the party asked for, and every value involved is a valid
+             * bitmask.
+             *
+             * So: click row 0 the way the client does - the sub id the cache's
+             * own `~script6754` would compute - and require the raid level to
+             * become Try Again's +5 and the mask to hold exactly its bit.
+             */
+            {
+                static struct Mock230Capture panel;
+                int level = -1;
+                int m0 = -1;
+                int m1 = -1;
+                int m2 = -1;
+                int component = mock230_content_symbol(
+                    MOCK230_PACK_COMPONENT, "toa_partydetails:pausebuttons");
+
+                mock230_scripts_run_debugproc(srv, "toapanelclear");
+                SELFTEST_CHECK(component > 0,
+                               "the party interface's pause-button pool should be a "
+                               "named component");
+                if( component > 0 )
+                {
+                    /* 52 is `enum_getoutputcount(enum_4792) + 24 + 2 * 8`, the
+                     * base the cache's own script adds the row to. */
+                    player->last_slot = 52;
+                    mock230_scripts_run_if_button(srv, component, 0);
+                }
+                mock230_capture_begin(srv, &panel);
+                mock230_scripts_run_debugproc(srv, "toapanel");
+                mock230_capture_end(srv);
+                for( int w = mock230_capture_find(&panel, 90, 0); w >= 0;
+                     w = mock230_capture_find(&panel, 90, w + 1) )
+                {
+                    const struct Mock230CapturedPacket* pk = &panel.packets[w];
+
+                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                        continue;
+                    if( sscanf((const char*)pk->data + 1,
+                               "toapanel level=%d m0=%d m1=%d m2=%d",
+                               &level, &m0, &m1, &m2) == 4 )
+                        fprintf(stderr, "  %s\n", (const char*)pk->data + 1);
+                }
+                SELFTEST_CHECK(level == 5,
+                               "clicking the first invocation row should select Try "
+                               "Again (+5), raid level read back as %d", level);
+                SELFTEST_CHECK(m0 == 2 && m1 == 0 && m2 == 0,
+                               "invocation 1 should be bit 1 of the first client mask "
+                               "and nothing else, got %d/%d/%d", m0, m1, m2);
+                mock230_scripts_run_debugproc(srv, "toapanelclear");
+            }
+
+            /*
+             * And a party outlives one of its members leaving (`::toaparty`).
+             *
+             * `~toa_leave` freed both instances unconditionally, which releases
+             * the map the rest of the party is standing on. Nothing could see
+             * it while the only way in was a debugproc one player ran, and it
+             * is the kind of defect that shows up as "the raid vanished" with
+             * no error anywhere.
+             */
+            {
+                static struct Mock230Capture party;
+                int said_ok = 0;
+
+                mock230_capture_begin(srv, &party);
+                mock230_scripts_run_debugproc(srv, "toaparty");
+                mock230_capture_end(srv);
+                for( int w = mock230_capture_find(&party, 90, 0); w >= 0;
+                     w = mock230_capture_find(&party, 90, w + 1) )
+                {
+                    const struct Mock230CapturedPacket* pk = &party.packets[w];
+                    const char* text;
+
+                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                        continue;
+                    text = (const char*)pk->data + 1;
+                    if( strstr(text, "toaparty") == NULL )
+                        continue;
+                    fprintf(stderr, "  %s\n", text);
+                    if( strstr(text, "toaparty OK") != NULL )
+                        said_ok = 1;
+                }
+                SELFTEST_CHECK(said_ok,
+                               "a raid should outlive one member leaving and end with "
+                               "the last one out");
+            }
+
+            /*
+             * And the Helpful Spirit's bundles are filled (`::toasupply`).
+             *
+             * The mid-raid loot panel reads three cache invs straight out of
+             * the containers, so an empty container is an empty panel and no
+             * amount of interface wiring shows it.
+             */
+            {
+                static struct Mock230Capture supply;
+                int said_ok = 0;
+
+                mock230_capture_begin(srv, &supply);
+                mock230_scripts_run_debugproc(srv, "toasupply");
+                mock230_capture_end(srv);
+                for( int w = mock230_capture_find(&supply, 90, 0); w >= 0;
+                     w = mock230_capture_find(&supply, 90, w + 1) )
+                {
+                    const struct Mock230CapturedPacket* pk = &supply.packets[w];
+                    const char* text;
+
+                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                        continue;
+                    text = (const char*)pk->data + 1;
+                    if( strstr(text, "toasupply") == NULL )
+                        continue;
+                    fprintf(stderr, "  %s\n", text);
+                    if( strstr(text, "toasupply OK") != NULL )
+                        said_ok = 1;
+                }
+                SELFTEST_CHECK(said_ok, "the Helpful Spirit should offer three distinct "
+                                        "supply bundles");
+            }
         }
 
         /*
@@ -50043,6 +50270,257 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: treasure trails read the cache's clue database\n");
+    {
+        /*
+         * The whole Treasure Trails system rests on one claim about
+         * cache.osrs239: that `param=trail_clue_row` on 658 clue-step objs
+         * points into 26 `cluehelper_*` dbtables the server can read. That is
+         * why this tree has no clue tables of its own where Near-Reality has
+         * 13,000 lines of them — and it is why the claim is checked here
+         * rather than assumed.
+         *
+         * The failure it guards against is quiet: a broken link does not throw,
+         * it opens `trail_cluetext` with an empty string. A scroll that shows
+         * nothing reads as a UI bug for as long as it takes somebody to think
+         * of the database.
+         *
+         * Driven through the content procs rather than through
+         * `mock230_obj_param` directly, because the interesting part is the
+         * chain (obj -> param -> dbrow -> table -> column), and each proc
+         * writes a distinct progress value so a red line names the link.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static const struct
+            {
+                const char* proc;
+                int expect;
+                const char* what;
+            } k_trail[] = {
+                { "[proc,selftest_trail_tier]", 7,
+                  "six tier markers resolve and a non-clue resolves to none" },
+                { "[proc,selftest_trail_row]", 6,
+                  "obj -> trail_clue_row -> cluehelper row -> table -> clue text" },
+                { "[proc,selftest_trail_pool]", 8,
+                  "the generated step pools are the sizes gen_trail_steps.py reported" },
+                { "[proc,selftest_trail_steps]", 5,
+                  "a rolled trail length covers the wiki's range and both its ends" },
+                { "[proc,selftest_trail_run]", 5,
+                  "a whole easy trail walks to its reward casket" },
+                { "[proc,selftest_trail_emote_data]", 7,
+                  "an emote clue's emote index is the emote tab's own, and its "
+                  "target resolves to a world coord" },
+                { "[proc,selftest_trail_outfit]", 5,
+                  "the outfit check refuses naked and half-dressed and accepts "
+                  "the stated pair" },
+                { "[proc,selftest_trail_target]", 9,
+                  "the five target kinds resolve and refuse the wrong accessor" },
+                { "[proc,selftest_trail_dig]", 5,
+                  "a dig solves a step only on the clue's own tile" },
+                { "[proc,selftest_trail_claim]", 7,
+                  "the interaction claim says no without a clue, no to the wrong "
+                  "npc, and no to a non-Talk op" },
+                { "[proc,selftest_trail_casket]", 8,
+                  "a reward casket is consumed and pays out inside the wiki's "
+                  "roll range" },
+                { "[proc,selftest_trail_kill_challenge]", 3,
+                  "a challenge row yields its question AND its answer, and a "
+                  "kill target is a list" },
+                { "[proc,selftest_trail_clue_drops]", 8,
+                  "656 npcs can drop a clue, every rate is a real 1-in-N, and the "
+                  "holding cap is per tier" },
+                { "[proc,selftest_trail_device]", 9,
+                  "the strange device reads the wiki's temperature bands at their "
+                  "boundaries, and is inactive without a clue" },
+                { "[proc,selftest_trail_milestone]", 6,
+                  "milestone counts and prizes are the wiki's, and Mimic dry "
+                  "protection fires once rather than always" },
+                { "[proc,selftest_trail_key]", 6,
+                  "a key-target loc is not claimable without the key" },
+                { "[proc,selftest_trail_stash]", 8,
+                  "every unbuilt STASH pairs with a different built one and both "
+                  "report the same tier" },
+            };
+
+            for( size_t i = 0; i < sizeof(k_trail) / sizeof(k_trail[0]); i++ )
+            {
+                const struct SSVM_Script* script =
+                    SSVM_ProviderGetByName(srv->scripts, k_trail[i].proc);
+
+                SELFTEST_CHECK(script != NULL, "%s should be in the pack", k_trail[i].proc);
+                if( !script )
+                    continue;
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                mock230_scripts_run_script(srv, script->id);
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == k_trail[i].expect,
+                               "%s, got %d of %d", k_trail[i].what,
+                               player->varps[SELFTEST_VARP_QUEST_PROGRESS], k_trail[i].expect);
+            }
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: multicannon, Tears of Guthix, Shooting Stars, diaries\n");
+    {
+        /*
+         * The cannon's two rules that are easy to implement backwards:
+         * ammunition types do not mix, and the barrel rotation IS the fire
+         * clock rather than a separate attack speed. Both are the wiki's, both
+         * are quoted in `cannon/configs/cannon.constant`, and neither shows up
+         * as a crash when it is wrong — a cannon that mixed ammunition would
+         * simply pay out the wrong max hit for the rest of its load.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static const struct
+            {
+                const char* proc;
+                int expect;
+                const char* what;
+            } k_cannon[] = {
+                { "[proc,selftest_cannon_setup]", 3,
+                  "all four parts are required, not just the base" },
+                { "[proc,selftest_cannon_ammo]", 9,
+                  "steel and granite do not mix, the cap is 30, and emptying "
+                  "returns what went in" },
+                { "[proc,selftest_tog_gate]", 5,
+                  "Tears of Guthix needs BOTH seven days and something earned "
+                  "since" },
+                { "[proc,selftest_tog_streams]", 2,
+                  "three blue and three green streams land on six different "
+                  "walls of nine" },
+                { "[proc,selftest_tog_lowest]", 3,
+                  "the tears reward the genuine lowest skill, Hitpoints "
+                  "included" },
+                { "[proc,selftest_star_sizes]", 3,
+                  "the nine star sizes map to nine distinct locs and gate on the "
+                  "wiki's mining levels" },
+                { "[proc,selftest_star_sites]", 3,
+                  "every generated landing site resolves to a real coord" },
+                { "[proc,selftest_star_chance]", 2,
+                  "the stardust roll is neither never nor always" },
+                { "[proc,selftest_diary_registry]", 5,
+                  "the generated diary registry agrees with the authored totals "
+                  "on all 48 pairs" },
+                { "[proc,selftest_cerberus_rotation]", 7,
+                  "Cerberus's souls and lava have different gates and both are "
+                  "due on attack 35" },
+                { "[proc,selftest_gg]", 13,
+                  "the Guardians' phase gates, per-phase immunity, and Mod Ash's "
+                  "phase-4 style and orb rules" },
+                { "[proc,selftest_sire]", 11,
+                  "the Sire's stun ladder, the vent damage FLOOR, and a "
+                  "once-only explosion gate" },
+                { "[proc,selftest_muspah]", 13,
+                  "the Muspah swaps on DAMAGE not health, and needs four hits "
+                  "after the first swap" },
+                { "[proc,selftest_dks]", 5,
+                  "the three Dagannoth Kings' authored params PARSE to three "
+                  "different damage types on a live npc" },
+                { "[proc,selftest_hydra]", 13,
+                  "the Hydra's vent table, its 75% reduction, and enrage poison "
+                  "on 4 then every NINTH" },
+                { "[proc,selftest_zalcano]", 13,
+                  "Zalcano's tephra formula excludes Mining, and armour damage "
+                  "counts double toward points" },
+                { "[proc,selftest_araxxor]", 16,
+                  "Araxxor's eggs and specials are two different counts, and the "
+                  "Mirrorback composes three effects" },
+                { "[proc,selftest_dt2]", 12,
+                  "Vardorvis hits HARDER as he weakens, and the Whisperer's "
+                  "melee lands twice" },
+                { "[proc,selftest_nightmare]", 13,
+                  "the Nightmare's shield scales from FIVE players up, and each "
+                  "special is locked to its phase" },
+                { "[proc,selftest_castlewars]", 12,
+                  "Castle Wars pays FOUR outcomes, and a capture needs your own "
+                  "standard at home" },
+                { "[proc,selftest_nightmare_scene]", 6,
+                  "the selftest CAN build an arena: boss and four totems spawn, "
+                  "live, and read their own stats" },
+                { "[proc,selftest_stronghold]", 8,
+                  "the Stronghold's portal skip is on combat level and is "
+                  "independent of the reward" },
+                { "[proc,selftest_warriorsguild]", 10,
+                  "a defender needs a re-entry before the next tier can drop" },
+                { "[proc,selftest_krystilia]", 7,
+                  "Krystilia's base and extended amounts are separate "
+                  "columns" },
+                { "[proc,selftest_motherlode_nuggets]", 8,
+                  "the nugget batch cap deletes and the upgraded sack is not "
+                  "double" },
+                { "[proc,selftest_chompy_hats]", 10,
+                  "eighteen chompy hats against twenty-two ranks" },
+                { "[proc,selftest_wildyevents]", 13,
+                  "the hot zone's two bands overlap at 30 and only one prize "
+                  "cell pays an item" },
+                { "[proc,selftest_partyroom]", 17,
+                  "the party room's members threshold is the HIGHER one" },
+                { "[proc,selftest_barrows_reward]", 10,
+                  "Barrows' 1000 cap is on the kill sum and the brothers sit "
+                  "above it" },
+                { "[proc,selftest_revenant_rates]", 14,
+                  "a skull helps the revenant table except where it hurts, "
+                  "and the amulet is not the cape of skulls" },
+                { "[proc,selftest_konar]", 14,
+                  "the brimstone key's two branches meet at combat 100 and "
+                  "the Slayer boost scales the denominator" },
+                { "[proc,selftest_prif_clan]", 10,
+                  "two different clans are missing two different halves of "
+                  "the crystal set" },
+                { "[proc,selftest_duel_rules]", 12,
+                  "the duel's rule bits and worn bits share one varp and must "
+                  "not collide" },
+                { "[proc,selftest_pestcontrol_activity]", 18,
+                  "Pest Control eligibility is a draining activity bar that "
+                  "cannot refill from zero" },
+                { "[proc,selftest_gauntlet_stats]", 6,
+                  "the Gauntlet's global best time is a minimum, and its "
+                  "unset value stays out of the comparison" },
+                { "[proc,selftest_retrieval]", 14,
+                  "the retrieval container holds one death, not a running "
+                  "total" },
+            };
+
+            for( size_t i = 0; i < sizeof(k_cannon) / sizeof(k_cannon[0]); i++ )
+            {
+                const struct SSVM_Script* script =
+                    SSVM_ProviderGetByName(srv->scripts, k_cannon[i].proc);
+
+                SELFTEST_CHECK(script != NULL, "%s should be in the pack", k_cannon[i].proc);
+                if( !script )
+                    continue;
+                player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
+                mock230_scripts_run_script(srv, script->id);
+                SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == k_cannon[i].expect,
+                               "%s, got %d of %d", k_cannon[i].what,
+                               player->varps[SELFTEST_VARP_QUEST_PROGRESS], k_cannon[i].expect);
+            }
+            player->varps[SELFTEST_VARP_QUEST_PROGRESS] = 0;
+            mock230_scripts_free(srv);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: nc_param\n");
     {
         /*
@@ -53884,6 +54362,289 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: ::gobdiprun\n");
+    {
+        /*
+         * Goblin Diplomacy (2026-08-20 audit). The hand-in labels
+         * (goblin_diplomacy_blue_armour/_brown_armour/_finish) and the
+         * generals' greeting/reply chain all end in ~chatnpc_specific /
+         * ~mesbox, which p_pausebutton and silently park a debugproc --
+         * same limitation as ::cookrun/::priestrun before it. `gobdiprun`
+         * instead drives the two pieces this audit actually changed for
+         * real: the three goblin-mail crates (previously entirely unwired
+         * -- the cache shipped the locs and the gobdip_crate1/2/3_searched
+         * varbits, nothing bound them) and the dye-conversion worker proc.
+         * See the debugproc's own header comment in
+         * quests/quest_gobdip/scripts/quest_gobdip.rs2.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture gobdiprun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &gobdiprun_capture);
+            mock230_scripts_run_debugproc(srv, "gobdiprun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&gobdiprun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&gobdiprun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &gobdiprun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                fprintf(stderr, "  DBG %s\n", text);
+                if( strstr(text, "GOBDIPRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "GOBDIPRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::gobdiprun should report no failures");
+            SELFTEST_CHECK(said_ok, "::gobdiprun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::doricrun\n");
+    {
+        /*
+         * Doric's Quest (2026-08-20 audit). `[opnpc1,doric]`'s
+         * doric_not_started/start_quest_options rungs block on
+         * ~p_choice4/~p_choice2 (p_pausebutton -- a real client resume), so
+         * `doricrun` mirrors those branches' own state lines directly
+         * rather than through dispatch -- see the debugproc's own header
+         * comment in quests/quest_doric/scripts/quest_doric.rs2. The fix
+         * this audit made (a missing bronze pickaxe handout on quest
+         * accept) is exercised for real via inv_add/inv_total, and
+         * completion goes through the real, shared ~quest_complete_rewards
+         * proc with the exact same arguments the live script uses.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture doricrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &doricrun_capture);
+            mock230_scripts_run_debugproc(srv, "doricrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&doricrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&doricrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &doricrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "DORICRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "DORICRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::doricrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::doricrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::druidrun\n");
+    {
+        /*
+         * Druidic Ritual (2026-08-20 audit). `[opnpc1,kaqemeex]`/
+         * `[opnpc1,sanfew]`'s accept/assignment/hand-in rungs block on
+         * ~p_choice2/3 (p_pausebutton -- a real client resume), and
+         * `[oplocu,cauldron_of_thunder]` is a raw trigger body, not a
+         * `~`-callable proc, so `druidrun` mirrors those branches' own
+         * state/item lines directly -- see the debugproc's own header
+         * comment in quests/quest_druid/scripts/quest_druid.rs2. Two real
+         * fixes are exercised for real, not mirrored: the Herblore
+         * quest-lock (`~attempt_clean_herb`/`~attempt_brew_potion`/
+         * `~attempt_grind_ingredient`, the actual shared procs, called
+         * directly) and the lesson-before-completion reorder (the
+         * assertion reads %druidquest before the mirrored completion
+         * write, which only matches the fixed file's own order).
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture druidrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &druidrun_capture);
+            mock230_scripts_run_debugproc(srv, "druidrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&druidrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&druidrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &druidrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                fprintf(stderr, "  DBG %s\n", text);
+                if( strstr(text, "DRUIDRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "DRUIDRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::druidrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::druidrun should reach its OK line");
+
+            /* C-side: the suit of armour's death_drop fix, real npc death
+             * dispatch (drop tables key off `mock230_world_npc_died`, not
+             * something a debugproc can invoke -- same mechanism as
+             * ::hettyrun's rat_indoors check above). Was `param=death_drop,
+             * bones`; the wiki's own Suit of armour page has no Drops
+             * section at all, so this asserts nothing lands on death. */
+            {
+                int npc_suit = mock230_content_symbol(MOCK230_PACK_NPC, "suit_of_armour");
+                int obj_bones = mock230_content_symbol(MOCK230_PACK_OBJ, "bones");
+
+                SELFTEST_CHECK(npc_suit >= 0 && obj_bones >= 0,
+                               "the ::druidrun C-side names should all resolve: "
+                               "npc=%d bones=%d", npc_suit, obj_bones);
+                if( npc_suit >= 0 && obj_bones >= 0 )
+                {
+                    int slot = npc_spawn(srv, npc_suit, player->x + 2, player->z, player->level);
+
+                    SELFTEST_CHECK(slot >= 0, "suit_of_armour should spawn for the C-side check");
+                    if( slot >= 0 )
+                    {
+                        int tile_x = srv->npcs[slot].x;
+                        int tile_z = srv->npcs[slot].z;
+                        int drop_count;
+                        int i;
+
+                        selftest_clear_ground(srv);
+                        mock230_world_npc_died(srv, slot);
+                        drop_count = 0;
+                        for( i = 0; i < MOCK230_GROUND_MAX; i++ )
+                        {
+                            if( srv->ground[i].active && srv->ground[i].x == tile_x &&
+                                srv->ground[i].z == tile_z )
+                                drop_count++;
+                        }
+                        SELFTEST_CHECK(drop_count == 0,
+                                       "suit_of_armour should leave no ground item on death "
+                                       "(wiki: no Drops section), got %d",
+                                       drop_count);
+                    }
+                }
+            }
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::blackknightrun\n");
+    {
+        /*
+         * Black Knights' Fortress (2026-08-20 audit). `[oploc1,
+         * bkfortressdoor1]`/`[opnpc1,fortressguard]`'s disguise gate and
+         * `[label,black_knights_fortress_sir_amik_*]`'s accept/in-progress/
+         * postquest branches all block on ~p_choice2/3 (a real client
+         * resume) or ~chatnpc_anim/~mesbox (which silently kill a
+         * debugproc under --selftest), so `blackknightrun` mirrors those
+         * branches' own state lines directly -- see the debugproc's own
+         * header comment in quests/quest_blackknight/scripts/
+         * quest_blackknight.rs2. The fix this audit made (the disguise
+         * check only ever recognised bronze med helm + iron chainbody,
+         * never the wiki's alternate black full helm + platebody +
+         * platelegs/plateskirt outfit) is exercised for real through
+         * ~blackknight_disguised, the exact proc both trigger sites call.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture blackknightrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &blackknightrun_capture);
+            mock230_scripts_run_debugproc(srv, "blackknightrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&blackknightrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&blackknightrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &blackknightrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "BLACKKNIGHTRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "BLACKKNIGHTRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::blackknightrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::blackknightrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: ::demonrun\n");
     {
         /*
@@ -53998,6 +54759,872 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: ::blackarmgangrun\n");
+    {
+        /*
+         * Shield of Arrav (2026-08-19 audit). `[opnpc1,reldo/baraek/
+         * straven/curator/king_roald]` all block on `last_slot` dialogue
+         * choices, so `blackarmgangrun` drives the %phoenixgang/item/reward
+         * state machine directly rather than through dispatch -- see the
+         * debugproc's own header comment in quests/quest_blackarmgang/
+         * scripts/quest_blackarmgang.rs2 for exactly which pieces that does
+         * and does not exercise for real (this quest needs a second real
+         * player to reach genuine two-account completion; this only proves
+         * one side's own path plus the item contract of the certificate
+         * hand-in/combine mechanic this audit rebuilt).
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture blackarmgangrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &blackarmgangrun_capture);
+            mock230_scripts_run_debugproc(srv, "blackarmgangrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&blackarmgangrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&blackarmgangrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &blackarmgangrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "BLACKARMGANGRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "BLACKARMGANGRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::blackarmgangrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::blackarmgangrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::hauntedrun\n");
+    {
+        /*
+         * Ernest the Chicken (2026-08-19 audit). `[opnpc1,veronica/
+         * professor_oddenstein]` block on `last_slot` dialogue choices, so
+         * `hauntedrun` drives the %haunted/item/reward state machine
+         * directly rather than through dispatch -- see the debugproc's own
+         * header comment in quests/quest_haunted/scripts/quest_haunted.rs2
+         * for exactly which pieces that does and does not exercise for real
+         * (notably the lever/door maze puzzle, left unverified rather than
+         * pinning a guessed door-to-lever mapping this audit could not
+         * confirm against the wiki's diagram image).
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture hauntedrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &hauntedrun_capture);
+            mock230_scripts_run_debugproc(srv, "hauntedrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&hauntedrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&hauntedrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &hauntedrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "HAUNTEDRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "HAUNTEDRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::hauntedrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::hauntedrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::imprun\n");
+    {
+        /*
+         * Imp Catcher (2026-08-19 audit). `[opnpc1,wizard_mizgog]` blocks on
+         * `last_slot` dialogue choices, so `imprun` drives the %imp/item/
+         * reward state machine directly rather than through dispatch -- see
+         * the debugproc's own header comment in quests/quest_imp/scripts/
+         * quest_imp.rs2. Exercises both completion paths: accept-then-hand-
+         * in-later, and the "already holding all 4 beads" shortcut this
+         * audit added (a real Transcript branch, not just Trivia).
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture imprun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &imprun_capture);
+            mock230_scripts_run_debugproc(srv, "imprun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&imprun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&imprun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &imprun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "IMPRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "IMPRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::imprun should report no failures");
+            SELFTEST_CHECK(said_ok, "::imprun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::princerun\n");
+    {
+        /*
+         * Prince Ali Rescue (2026-08-20 audit). Every `[opnpc1,...]`/
+         * `[opnpcu,...]` handler on this quest's ladder blocks on `last_slot`
+         * dialogue choices, so `princerun` drives the %princequest/%prince_
+         * keystatus state machine directly rather than through dispatch,
+         * same limitation as every other quest audited this pass. The bug:
+         * the port still had Osman craft the bronze key from a handed-in key
+         * print + bronze bar; the wiki's own Changes section (14 January
+         * 2026) moved that to the player smelting the key themselves at any
+         * furnace. Fixed by adding `[label,prince_make_key]` (quest_prince.rs2)
+         * and dispatching `keyprint` to it from smelting.rs2's
+         * `[label,use_furnace]`; osman.rs2's now-dead crafting branch was
+         * replaced with a redirect line. `princerun` exercises the new
+         * label's guards (already-made, no-bronze-bar) directly, then drives
+         * the rest of the ladder through to completion via the real, shared
+         * `~quest_complete_rewards` proc. See the debugproc's own header
+         * comment in quests/quest_prince/scripts/quest_prince.rs2 for detail.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture princerun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &princerun_capture);
+            mock230_scripts_run_debugproc(srv, "princerun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&princerun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&princerun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &princerun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                fprintf(stderr, "  DBG %s\n", text);
+                if( strstr(text, "PRINCERUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "PRINCERUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::princerun should report no failures");
+            SELFTEST_CHECK(said_ok, "::princerun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::hettyrun\n");
+    {
+        /*
+         * Witch's Potion (2026-08-20 audit). `[opnpc1,hetty]`/
+         * `[oploc1,hettycauldron]`/`[queue,hetty_quest_complete]` all block on
+         * dialogue or are plain non-`~`-callable triggers, so `hettyrun`
+         * mirrors their state-transition lines and calls the real, shared
+         * `~quest_complete_rewards` for the completion path, same limitation
+         * as every other quest audited this pass. The bug: `rat_indoors` --
+         * the archery-shop rat this quest's own wiki page and Quest Helper
+         * point players to for the rat's tail -- had no
+         * `[ai_queue3,rat_indoors]` binding (only plain `rat` was bound), so
+         * killing it dropped nothing at all: no bones, no raw meat, and no
+         * rats_tail, silently soft-locking the quest for anyone following the
+         * wiki's own directions. Fixed by adding `rat_indoors` to
+         * drop_tables/scripts/rat.rs2's trigger header. Proven for real here,
+         * not mirrored, via `mock230_world_npc_died` on a spawned
+         * `rat_indoors` -- the same mechanism "the death drop is content's"
+         * above uses -- since drop tables dispatch off the engine's own npc
+         * death path, not something a debugproc can invoke.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture hettyrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &hettyrun_capture);
+            mock230_scripts_run_debugproc(srv, "hettyrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&hettyrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&hettyrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &hettyrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                fprintf(stderr, "  DBG %s\n", text);
+                if( strstr(text, "HETTYRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "HETTYRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::hettyrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::hettyrun should reach its OK line");
+
+            /* C-side: the drop-table fix itself, real npc death dispatch.
+             * Scripts must stay loaded for `mock230_world_npc_died` to
+             * dispatch `[ai_queue3,rat_indoors]` at all -- freeing them
+             * first (the older imprun/priestrun stanzas do, since they have
+             * no C-side follow-up) leaves `run_trigger_impl` looking at an
+             * unloaded provider and every dispatch attempt returns nothing,
+             * silently. */
+            {
+                int npc_rat_indoors = mock230_content_symbol(MOCK230_PACK_NPC, "rat_indoors");
+                int obj_rats_tail = mock230_content_symbol(MOCK230_PACK_OBJ, "rats_tail");
+                int varp_hetty = mock230_content_symbol(MOCK230_PACK_VARP, "hetty");
+
+                SELFTEST_CHECK(npc_rat_indoors >= 0 && obj_rats_tail >= 0 && varp_hetty >= 0,
+                               "the ::hettyrun C-side names should all resolve: "
+                               "npc=%d rats_tail=%d varp_hetty=%d",
+                               npc_rat_indoors, obj_rats_tail, varp_hetty);
+                if( npc_rat_indoors >= 0 && obj_rats_tail >= 0 && varp_hetty >= 0 )
+                {
+                    /* rat_indoors' own world spawn is Rimmington
+                     * (areas/world/configs/m46_50.spawn), nowhere near the
+                     * default selftest scene, so it is never a "standing"
+                     * roster member here -- spawned fresh near the player
+                     * instead, same as ::vampirerun's Count Draynor. */
+                    int slot = npc_spawn(srv, npc_rat_indoors, player->x + 2, player->z, player->level);
+
+                    SELFTEST_CHECK(slot >= 0, "rat_indoors should spawn for the C-side check");
+                    if( slot >= 0 )
+                    {
+                        int tile_x = srv->npcs[slot].x;
+                        int tile_z = srv->npcs[slot].z;
+                        int tail_here;
+                        int i;
+
+                        /* Quest not started: no tail, matching the wiki's
+                         * own "Giant rats will NOT drop a rat's tail"
+                         * caveat -- the gate is on %hetty, not the npc
+                         * type, so this exercises the same guard for the
+                         * indoor rat. */
+                        selftest_clear_ground(srv);
+                        player->varps[varp_hetty] = 0; /* hetty_not_started */
+                        mock230_world_npc_died(srv, slot);
+                        tail_here = 0;
+                        for( i = 0; i < MOCK230_GROUND_MAX; i++ )
+                        {
+                            if( srv->ground[i].active && srv->ground[i].x == tile_x &&
+                                srv->ground[i].z == tile_z &&
+                                srv->ground[i].obj_id == obj_rats_tail )
+                                tail_here++;
+                        }
+                        SELFTEST_CHECK(tail_here == 0,
+                                       "rat_indoors should not drop a rat's tail before "
+                                       "the quest is started, got %d",
+                                       tail_here);
+
+                        /* Quest started: a real kill drops the tail. This is
+                         * the fix -- before it, `[ai_queue3,rat_indoors]`
+                         * did not exist and nothing dropped here at all. A
+                         * fresh spawn: the first died and was reaped above. */
+                        slot = npc_spawn(srv, npc_rat_indoors, player->x + 2, player->z, player->level);
+                        selftest_clear_ground(srv);
+                        player->varps[varp_hetty] = 1; /* hetty_started */
+                        SELFTEST_CHECK(slot >= 0, "rat_indoors should spawn again for the "
+                                                   "started-quest kill");
+                        if( slot >= 0 )
+                        {
+                            tile_x = srv->npcs[slot].x;
+                            tile_z = srv->npcs[slot].z;
+                            mock230_world_npc_died(srv, slot);
+                            tail_here = 0;
+                            for( i = 0; i < MOCK230_GROUND_MAX; i++ )
+                            {
+                                if( srv->ground[i].active && srv->ground[i].x == tile_x &&
+                                    srv->ground[i].z == tile_z &&
+                                    srv->ground[i].obj_id == obj_rats_tail )
+                                    tail_here++;
+                            }
+                            SELFTEST_CHECK(tail_here == 1,
+                                           "rat_indoors should drop exactly one rat's tail "
+                                           "once the quest is started, got %d",
+                                           tail_here);
+                        }
+                        selftest_clear_ground(srv);
+                    }
+                }
+            }
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::arthurrun\n");
+    {
+        /*
+         * Merlin's Crystal (2026-08-20 audit). `[opnpc1,sir_gawain]`/
+         * `[ai_queue3,sir_mordred]`/`[opnpc1,candle_maker]`/
+         * `[opnpc1,ladyofthelake]`/`[opheld5,bat_bones]` etc. all block on
+         * dialogue, so `arthurrun` mirrors their state-transition lines
+         * (same limitation as every other quest audited this pass), but
+         * calls two real, `~`-callable procs directly: `~light_black_candle`
+         * and `~quest_complete_rewards`.
+         *
+         * Two real bugs, both quest-blocking: (1) there was NO way to light
+         * the black candle anywhere in the tree at all --
+         * skill_firemaking/scripts/firemaking.rs2's shared
+         * `[opheldu,tinderbox]` never handled `unlit_black_candle`, so the
+         * wiki's own "light your black candle with your tinderbox" step
+         * hard-blocked every player; fixed with a splice there calling a
+         * new `~light_black_candle` proc in thrantax_altar.rs2, proven for
+         * real by `arthurrun` below. (2) Thrantax the Mighty had no
+         * authored combat stats anywhere (script-spawned via npc_add, no
+         * `.spawn` file names it -- same gap class as Dragon Slayer I's
+         * Melzar's Maze / Lost City's tree_spirit) AND the wrong-incantation
+         * branch's own `~npc_retaliate(0)` call (which queues ai_queue1)
+         * had no `[ai_queue1,thrantax]` handler anywhere to receive it, so
+         * "the spirit will attack you" (wiki) was silently inert. Both
+         * fixed and proven C-side below, since combat stats and npc mode
+         * are not script-readable at all.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture arthurrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &arthurrun_capture);
+            mock230_scripts_run_debugproc(srv, "arthurrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&arthurrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&arthurrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &arthurrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                fprintf(stderr, "  DBG %s\n", text);
+                if( strstr(text, "ARTHURRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "ARTHURRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::arthurrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::arthurrun should reach its OK line");
+
+            /* C-side: Thrantax's combat stats + its new [ai_queue1]
+             * retaliation handler. Scripts must stay loaded for
+             * mock230_scripts_run_trigger to dispatch anything. */
+            {
+                int npc_thrantax = mock230_content_symbol(MOCK230_PACK_NPC, "thrantax");
+
+                SELFTEST_CHECK(npc_thrantax >= 0,
+                               "the ::arthurrun C-side thrantax symbol should resolve: %d",
+                               npc_thrantax);
+                if( npc_thrantax >= 0 )
+                {
+                    int slot = npc_spawn(srv, npc_thrantax, player->x + 2, player->z, player->level);
+
+                    SELFTEST_CHECK(slot >= 0, "thrantax should spawn for the C-side check");
+                    if( slot >= 0 )
+                    {
+                        struct Mock230Npc* npc = &srv->npcs[slot];
+
+                        SELFTEST_CHECK(npc->max_hitpoints == 80 && npc->def->attack == 80 &&
+                                       npc->def->strength == 80 && npc->def->defence == 80,
+                                       "thrantax hp=%d atk=%d str=%d def=%d, want hp=80 atk=80 "
+                                       "str=80 def=80",
+                                       npc->max_hitpoints, npc->def->attack, npc->def->strength,
+                                       npc->def->defence);
+
+                        mock230_scripts_run_trigger(srv, SS_TRIGGER_AI_QUEUE1, npc->type,
+                                                     mock230_npc_category(npc->type), slot);
+                        SELFTEST_CHECK(npc->mode >= MOCK230_NPCMODE_APPLAYER1 &&
+                                       npc->mode <= MOCK230_NPCMODE_APPLAYER5,
+                                       "thrantax's [ai_queue1] handler should set an applayer "
+                                       "mode after ~npc_retaliate, got mode=%d",
+                                       npc->mode);
+                        npc->active = 0;
+                    }
+                }
+            }
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::squirerun\n");
+    {
+        /*
+         * The Knight's Sword (2026-08-20 audit). `[opnpc1,squire]`/
+         * `[opnpc1,thurgo]`/`[opnpc1,reldo]`/`[oploc1,vyvincupboardopen]`
+         * all block on `last_slot` dialogue choices, so `squirerun` drives
+         * the %squire state machine directly rather than through dispatch,
+         * same limitation as every other quest audited this pass. Calls the
+         * real, shared `~vyvin_distracted` and `~quest_complete_rewards`
+         * procs. The fix under test: thurgo.rs2 had no path for the wiki's
+         * own documented shortcut ("If you have already completed The Giant
+         * Dwarf, skip [Reldo] and go straight to Thurgo") -- the existing
+         * cross-quest splice only covered the narrow window while Giant
+         * Dwarf's own axe subtask is active, not a Giant Dwarf finished
+         * before Knight's Sword was ever started. See the debugproc's own
+         * header comment in quests/quest_squire/scripts/quest_squire.rs2.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture squirerun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &squirerun_capture);
+            mock230_scripts_run_debugproc(srv, "squirerun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&squirerun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&squirerun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &squirerun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                fprintf(stderr, "  DBG %s\n", text);
+                if( strstr(text, "SQUIRERUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "SQUIRERUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::squirerun should report no failures");
+            SELFTEST_CHECK(said_ok, "::squirerun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::huntrun\n");
+    {
+        /*
+         * Pirate's Treasure (2026-08-20 audit). Every dispatch on this
+         * quest's ladder blocks on dialogue or is a plain non-`~`-callable
+         * trigger, so `huntrun` drives the %hunt/rum-smuggling state
+         * directly rather than through dispatch, same limitation as every
+         * other quest audited this pass. Calls the real, shared
+         * `~quest_complete_rewards`. The fix under test: the cache ships a
+         * dedicated `pirate_casket` (tradeable=no, ifop1=Open) matching the
+         * wiki's own Casket (Pirate's Treasure) item page (added 22 May
+         * 2006, "Royal Trouble") that this port never wired up -- digging
+         * up the treasure granted 450 coins + a gold ring + an emerald
+         * directly, the pre-2006 mechanic. See the debugproc's own header
+         * comment in quests/quest_hunt/scripts/dig.rs2.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture huntrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &huntrun_capture);
+            mock230_scripts_run_debugproc(srv, "huntrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&huntrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&huntrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &huntrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                fprintf(stderr, "  DBG %s\n", text);
+                if( strstr(text, "HUNTRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "HUNTRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::huntrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::huntrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::dragonrun\n");
+    {
+        /*
+         * Dragon Slayer I (2026-08-20 audit). Every dispatch on this
+         * quest's ladder blocks on dialogue or is a plain non-`~`-callable
+         * trigger, so `dragonrun` mirrors the state-transition lines
+         * rather than dispatching through them, same limitation as every
+         * other quest audited this pass -- at this quest's scale (18 NPCs,
+         * a 6-room maze, a boat cutscene, a boss fight) a full per-room
+         * dispatch walk is out of scope for one iteration; the debugproc
+         * covers the state ladder plus the ship-repair nail-count fix.
+         * The other fix -- Melzar the Mad and every "kill for a key"
+         * marked maze npc had no combat stats anywhere -- is proven here,
+         * C-side, by spawning each one and reading its def directly, since
+         * combat stats are not script-readable at all.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture dragonrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &dragonrun_capture);
+            mock230_scripts_run_debugproc(srv, "dragonrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&dragonrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&dragonrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &dragonrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                fprintf(stderr, "  DBG %s\n", text);
+                if( strstr(text, "DRAGONRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "DRAGONRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::dragonrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::dragonrun should reach its OK line");
+
+            /* C-side: the combat-stats fix itself. Melzar's Maze's marked
+             * npcs are quest-only and script-spawned, not in any roster,
+             * so each is spawned fresh near the player. */
+            {
+                static const struct
+                {
+                    const char* name;
+                    int hitpoints;
+                    int attack;
+                    int strength;
+                    int defence;
+                } expect[] = {
+                    { "melzar_the_mad", 44, 37, 37, 34 },
+                    { "dragonslayer_giantrat_1_key", 5, 2, 3, 2 },
+                    { "dragonslayer_ghost_1_key", 25, 13, 13, 18 },
+                    { "dragonslayer_skeleton_1_key", 29, 15, 18, 17 },
+                    { "dragonslayer_zombie_1_key", 30, 19, 21, 16 },
+                    { "dragonslayer_demon", 79, 68, 70, 71 },
+                };
+                size_t ei;
+
+                for( ei = 0; ei < sizeof(expect) / sizeof(expect[0]); ei++ )
+                {
+                    int npc_type = mock230_content_symbol(MOCK230_PACK_NPC, expect[ei].name);
+
+                    SELFTEST_CHECK(npc_type >= 0, "dragonrun: %s should resolve", expect[ei].name);
+                    if( npc_type < 0 )
+                        continue;
+
+                    {
+                        int slot = npc_spawn(srv, npc_type, player->x + 2, player->z, player->level);
+
+                        SELFTEST_CHECK(slot >= 0, "dragonrun: %s should spawn", expect[ei].name);
+                        if( slot >= 0 )
+                        {
+                            struct Mock230Npc* npc = &srv->npcs[slot];
+
+                            SELFTEST_CHECK(npc->def != NULL, "dragonrun: %s should resolve a def", expect[ei].name);
+                            if( npc->def )
+                            {
+                                SELFTEST_CHECK(
+                                    npc->max_hitpoints == expect[ei].hitpoints &&
+                                        npc->def->attack == expect[ei].attack &&
+                                        npc->def->strength == expect[ei].strength &&
+                                        npc->def->defence == expect[ei].defence,
+                                    "dragonrun: %s hp=%d atk=%d str=%d def=%d, want "
+                                    "hp=%d atk=%d str=%d def=%d (wiki level, silently "
+                                    "missing before this audit)",
+                                    expect[ei].name, npc->max_hitpoints, npc->def->attack,
+                                    npc->def->strength, npc->def->defence,
+                                    expect[ei].hitpoints, expect[ei].attack,
+                                    expect[ei].strength, expect[ei].defence);
+                            }
+                            npc->active = 0;
+                        }
+                    }
+                }
+            }
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::zanarisrun\n");
+    {
+        /*
+         * Lost City (2026-08-20 audit). `[opnpc1,warrioradventurerpg]`/
+         * `[opnpc1,zanarisleprechaun]` block on dialogue, and this audit's
+         * own new tree/door triggers need a real loc context a headless
+         * debugproc has none of, so `zanarisrun` mirrors the state ladder
+         * rather than dispatching through them, same limitation as every
+         * other quest audited this pass. It calls the two genuinely
+         * `~`-callable procs this audit added for real: `~craft_dramen_
+         * staff` and `~quest_complete_rewards`. Before this audit almost
+         * none of this quest's back half existed at all: no binding on the
+         * leprechaun tree's "Chop" verb (distinct from ordinary "Chop
+         * down", so the woodcutting skill's own dispatch never reached
+         * it), no Dramen tree chop/tree-spirit-spawn/branch-cutting, no
+         * staff crafting, and the Zanaris door was a bare walk-through
+         * door with no staff check or destination at all -- the quest was
+         * not completable past speaking to the Guildmaster's own follow-up
+         * dialogue. quest_zanaris.constant's own "body deferred" comment
+         * and zanaris_journal.rs2's own already-written text for every one
+         * of these states said as much. The other fix -- tree_spirit and
+         * zombie_entranan had no combat stats anywhere -- is proven here,
+         * C-side, by spawning each one and reading its def directly.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture zanarisrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &zanarisrun_capture);
+            mock230_scripts_run_debugproc(srv, "zanarisrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&zanarisrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&zanarisrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &zanarisrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                fprintf(stderr, "  DBG %s\n", text);
+                if( strstr(text, "ZANARISRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "ZANARISRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::zanarisrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::zanarisrun should reach its OK line");
+
+            /* C-side: the combat-stats fix itself. Both npcs are spawned
+             * fresh near the player -- tree_spirit is quest-only and
+             * script-spawned (no roster entry at all); zombie_entranan is
+             * a normal roster npc but nowhere near the default selftest
+             * scene. */
+            {
+                static const struct
+                {
+                    const char* name;
+                    int hitpoints;
+                    int attack;
+                    int strength;
+                    int defence;
+                } expect[] = {
+                    { "tree_spirit", 85, 90, 95, 80 },
+                    { "zombie_entranan", 30, 19, 21, 21 },
+                };
+                size_t ei;
+
+                for( ei = 0; ei < sizeof(expect) / sizeof(expect[0]); ei++ )
+                {
+                    int npc_type = mock230_content_symbol(MOCK230_PACK_NPC, expect[ei].name);
+
+                    SELFTEST_CHECK(npc_type >= 0, "zanarisrun: %s should resolve", expect[ei].name);
+                    if( npc_type < 0 )
+                        continue;
+
+                    {
+                        int slot = npc_spawn(srv, npc_type, player->x + 2, player->z, player->level);
+
+                        SELFTEST_CHECK(slot >= 0, "zanarisrun: %s should spawn", expect[ei].name);
+                        if( slot >= 0 )
+                        {
+                            struct Mock230Npc* npc = &srv->npcs[slot];
+
+                            SELFTEST_CHECK(npc->def != NULL, "zanarisrun: %s should resolve a def", expect[ei].name);
+                            if( npc->def )
+                            {
+                                SELFTEST_CHECK(
+                                    npc->max_hitpoints == expect[ei].hitpoints &&
+                                        npc->def->attack == expect[ei].attack &&
+                                        npc->def->strength == expect[ei].strength &&
+                                        npc->def->defence == expect[ei].defence,
+                                    "zanarisrun: %s hp=%d atk=%d str=%d def=%d, want "
+                                    "hp=%d atk=%d str=%d def=%d (wiki level, silently "
+                                    "missing before this audit)",
+                                    expect[ei].name, npc->max_hitpoints, npc->def->attack,
+                                    npc->def->strength, npc->def->defence,
+                                    expect[ei].hitpoints, expect[ei].attack,
+                                    expect[ei].strength, expect[ei].defence);
+                            }
+                            npc->active = 0;
+                        }
+                    }
+                }
+            }
+            mock230_scripts_free(srv);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: ::priestrun\n");
     {
         /*
@@ -54095,6 +55722,407 @@ mock230_world_selftest(void)
                 }
             }
 
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::vampirerun\n");
+    {
+        /*
+         * Vampyre Slayer (2026-08-19 audit). `[opnpc1,morgan]` / `[opnpc1,
+         * dr_harlow]` block on `last_slot` dialogue choices, so `vampirerun`
+         * drives those hand-offs directly rather than through dispatch, same
+         * limitation as ::priestrun/::blackarmgangrun before it. See the
+         * debugproc's own header comment in
+         * quests/quest_vampire/scripts/quest_vampire.rs2 for exactly which
+         * pieces this does and does not exercise for real.
+         *
+         * The one thing genuinely C-only here: the soft-lock fix in
+         * count_draynor.rs2's `[ai_queue3]`. Before this audit, "The vampyre
+         * seems to regenerate!" was cosmetic text -- an unconditional
+         * `gosub(npc_default_death)` ran on every branch regardless of
+         * stake/hammer, so Draynor died on any hit that zeroed his hitpoints
+         * with no stake required at all. Since he is a one-shot `npc_add`
+         * off the FIRST coffin open (a second open plays a "pillow" mesbox,
+         * not another spawn), that permanently soft-locked the quest. The
+         * fix (`npc_statheal(hitpoints, 0, 100)` in the two failure
+         * branches) is the idiom this tree already uses to cancel a scripted
+         * death -- mock230_combat.c's `npc_death_step`/MOCK230_DEATH_REAP
+         * reads `npc->hitpoints > 0` as "an `[ai_queue3]` that puts
+         * hitpoints back is not a death", the same rule the Kalphite
+         * Queen's own `[ai_queue3]` relies on. No script opcode exposes
+         * that REAP decision, so it is checked here via
+         * `mock230_world_npc_died` -- the same production entry point "the
+         * death drop is content's" section above already uses to dispatch
+         * `[ai_queue3]` directly.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture vampirerun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &vampirerun_capture);
+            mock230_scripts_run_debugproc(srv, "vampirerun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&vampirerun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&vampirerun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &vampirerun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                fprintf(stderr, "  DBG %s\n", text);
+                if( strstr(text, "VAMPIRERUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "VAMPIRERUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::vampirerun should report no failures");
+            SELFTEST_CHECK(said_ok, "::vampirerun should reach its OK line");
+
+            /* C-side: huntmode is not readable from script at all, and the
+             * soft-lock cancel needs the engine's own death dispatch. */
+            {
+                int npc_type = mock230_content_symbol(MOCK230_PACK_NPC, "count_draynor");
+                int obj_stake = mock230_content_symbol(MOCK230_PACK_OBJ, "stake");
+                int obj_hammer = mock230_content_symbol(MOCK230_PACK_OBJ, "hammer");
+                int varp_vampire = mock230_content_symbol(MOCK230_PACK_VARP, "vampire");
+                int varp_qp = mock230_content_symbol(MOCK230_PACK_VARP, "qp");
+
+                SELFTEST_CHECK(npc_type >= 0 && obj_stake >= 0 && obj_hammer >= 0 &&
+                                   varp_vampire >= 0 && varp_qp >= 0,
+                               "the ::vampirerun C-side names should all resolve: "
+                               "npc=%d stake=%d hammer=%d varp_vampire=%d varp_qp=%d",
+                               npc_type, obj_stake, obj_hammer, varp_vampire, varp_qp);
+                if( npc_type >= 0 && obj_stake >= 0 && obj_hammer >= 0 &&
+                    varp_vampire >= 0 && varp_qp >= 0 )
+                {
+                    int slot = npc_spawn(srv, npc_type, player->x + 2, player->z, player->level);
+
+                    SELFTEST_CHECK(slot >= 0, "count_draynor should spawn for the C-side check");
+                    if( slot >= 0 )
+                    {
+                        struct Mock230Npc* npc = &srv->npcs[slot];
+                        int stake_slot;
+                        int s;
+
+                        SELFTEST_CHECK(npc->huntmode == MOCK230_HUNT_AGGRESSIVE,
+                                       "Count Draynor huntmode=%d, want "
+                                       "MOCK230_HUNT_AGGRESSIVE (wiki infobox: "
+                                       "aggressive)",
+                                       npc->huntmode);
+
+                        /* Clean slate -- ::vampirerun's own reward mirror left a
+                         * hammer behind, which would falsify the "no hammer"
+                         * branch below. Quest sitting at spoke_to_harlow, the
+                         * only state the coffin-open guard lets reach the
+                         * fight. */
+                        for( s = 0; s < MOCK230_INV_SLOTS; s++ )
+                        {
+                            if( player->inv[s].obj_id == obj_stake ||
+                                player->inv[s].obj_id == obj_hammer )
+                                inv_set(player, s, -1, 0);
+                        }
+                        player->varps[varp_vampire] = 2; /* quest_vampire_spoke_to_harlow */
+
+                        /*
+                         * A real killing blow, through `mock230_combat_hit_npc` --
+                         * NOT the direct `mock230_world_npc_died` shortcut "the
+                         * death drop is content's" above uses. That shortcut
+                         * dispatches `[ai_queue3]` without arming `death_tick`/
+                         * `death_stage` at all, so the success branch's own
+                         * `p_delay(1)` parks the script with nothing left to ever
+                         * resume it (`npc_death_step`'s retry loop is keyed off
+                         * `death_tick`, which a direct call never sets) -- caught
+                         * by this test itself the first time it was written: the
+                         * two revive branches (no p_delay) passed, the completion
+                         * branch hung at vampire=2. `last_movement` is backdated
+                         * so `npc_arrivedelay` adds no slack, matching the
+                         * fixture-goblin idiom above. A pending scene rebuild has
+                         * to be cleared before each tick too -- `phase_players`
+                         * skips `phase_player` (and with it `mock230_scripts_
+                         * process_queues`, which is what drains
+                         * `queue(quest_vampire_complete, 3, 0)`) for any player
+                         * with `rebuild_scene_pending` set, same guard the fuzz
+                         * harness and the goblin respawn section above both use;
+                         * without it the two revive branches still passed (their
+                         * cancellation is pure npc-side death-stage machinery,
+                         * gated on nothing about the player) and only the
+                         * completion branch silently never drained, forever --
+                         * a per-tick trace out to 100 ticks pinned it, not a
+                         * guess.
+                         */
+                        npc->last_movement = (int)srv->tick - 5;
+                        mock230_combat_hit_npc(srv, slot, 0, npc->hitpoints);
+                        /*
+                         * 8 ticks, not 30: comfortably past the cancel (REAP
+                         * resolves within 2-3 per an earlier trace) but well
+                         * short of `npc_spawn`'s real `respawnrate` (~27
+                         * ticks in the same trace). A mutation that deletes
+                         * the `npc_statheal` this checks for still dies for
+                         * real and then genuinely respawns -- active again,
+                         * hp back at the def's 35 -- inside a 30-tick window,
+                         * which read as a false PASS the first time this was
+                         * written and is why the window is this narrow.
+                         */
+                        for( int t = 0; t < 8; t++ )
+                        {
+                            if( player->rebuild_scene_pending )
+                                mock230_world_handle(
+                                    player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                            mock230_world_tick(srv);
+                        }
+                        SELFTEST_CHECK(npc->active && npc->hitpoints > 0,
+                                       "MUTATION TARGET 1: with no stake, "
+                                       "count_draynor.rs2's [ai_queue3] should "
+                                       "npc_statheal him back up and cancel the "
+                                       "death -- active=%d %d hp, he actually died",
+                                       npc->active, npc->hitpoints);
+                        SELFTEST_CHECK(player->varps[varp_vampire] == 2,
+                                       "and the quest must NOT complete without "
+                                       "a stake, vampire=%d",
+                                       player->varps[varp_vampire]);
+
+                        stake_slot = inv_first_free(player);
+                        inv_set(player, stake_slot, obj_stake, 1);
+                        npc->last_movement = (int)srv->tick - 5;
+                        mock230_combat_hit_npc(srv, slot, 0, npc->hitpoints);
+                        for( int t = 0; t < 8; t++ )
+                        {
+                            if( player->rebuild_scene_pending )
+                                mock230_world_handle(
+                                    player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                            mock230_world_tick(srv);
+                        }
+                        SELFTEST_CHECK(npc->active && npc->hitpoints > 0,
+                                       "MUTATION TARGET 2: with a stake but no "
+                                       "hammer, he should still regenerate "
+                                       "rather than die, active=%d got %d hp",
+                                       npc->active, npc->hitpoints);
+                        SELFTEST_CHECK(player->varps[varp_vampire] == 2,
+                                       "and the quest must NOT complete without "
+                                       "a hammer, vampire=%d",
+                                       player->varps[varp_vampire]);
+                        SELFTEST_CHECK(player->inv[stake_slot].obj_id == obj_stake &&
+                                           player->inv[stake_slot].count == 1,
+                                       "and the stake must not be spent on a "
+                                       "failed attempt");
+
+                        inv_set(player, inv_first_free(player), obj_hammer, 1);
+                        /* Same npc object as the two revive branches above --
+                         * matches a real fight (try, fail twice, then finish
+                         * him) rather than starting over on a fresh spawn. A
+                         * one-off fresh-spawn variant of this exact hit
+                         * confirmed the abort below was not an artefact of
+                         * reusing this object across two prior revives: it
+                         * reproduced identically on a first, only kill. */
+                        npc->last_movement = (int)srv->tick - 5;
+                        mock230_combat_hit_npc(srv, slot, 0, npc->hitpoints);
+                        /*
+                         * A fixed, narrow window rather than the 30 ticks the
+                         * two revive branches above use: `npc_spawn` (a
+                         * world-roster fixture helper, unlike the quest's own
+                         * one-shot `npc_add`) carries a real `respawnrate`,
+                         * and a per-tick trace showed him reaped by tick 2 but
+                         * back -- a fresh, unrelated life, hp at the def's 35
+                         * again -- around tick 27. 14 ticks clears the reap
+                         * and the queue drain (both complete well before tick
+                         * 10 once the scene-rebuild guard above is in place)
+                         * with room, while staying well inside the respawn
+                         * window.
+                         */
+                        for( int t = 0; t < 14; t++ )
+                        {
+                            if( player->rebuild_scene_pending )
+                                mock230_world_handle(
+                                    player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                            mock230_world_tick(srv);
+                        }
+                        SELFTEST_CHECK(!npc->active,
+                                       "Count Draynor should actually die with "
+                                       "stake and hammer, active=%d hp=%d",
+                                       npc->active, npc->hitpoints);
+                        SELFTEST_CHECK(player->inv[stake_slot].obj_id != obj_stake,
+                                       "and the stake should be consumed on the "
+                                       "successful kill");
+                        /*
+                         * NOT asserted here, disclosed rather than guessed:
+                         * `%vampire == vampire_complete`, the qp award and
+                         * the attack xp all live behind `queue(quest_vampire_
+                         * complete, 3, 0)`, and on this specific harness's
+                         * player object that queue entry decrements forever
+                         * without ever being drained -- `player->queue[]`
+                         * showed nine other, unrelated entries stuck the
+                         * identical way before this test ever touched the
+                         * player, and neither closing every modal
+                         * (`mock230_world_close_modal`) nor zeroing
+                         * `mainmodal_group`/`chatmodal_group` by hand moved
+                         * it, so `player_can_access()`'s third possible gate
+                         * (`srv->tick < player->delayed_until`) or something
+                         * upstream of this harness's `::vampirerun` bootstrap
+                         * is still refusing it for a reason this test did not
+                         * pin down. `qp_before`/`attack_xp_before` above are
+                         * therefore unread past this point -- the two things
+                         * they were captured for are exactly what
+                         * `::vampirerun`'s own debugproc output already
+                         * proves, mirrored the same way ::priestrun/
+                         * ::cookrun mirror a `[queue,...]` completion for the
+                         * identical structural reason (queue triggers are not
+                         * independently ~-callable): "VAMPIRERUN PASS: attack
+                         * xp +48250" and "VAMPIRERUN PASS: quest points +3"
+                         * in this same run's DBG output. What IS asserted
+                         * here through the real, unmirrored production
+                         * dispatch -- the death actually completing and the
+                         * stake being spent -- is the part neither mirror
+                         * could stand in for.
+                         */
+
+                        if( npc->active )
+                            mock230_world_npc_free(srv, slot);
+                    }
+                }
+            }
+
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::sheeprun\n");
+    {
+        /*
+         * Sheep Shearer (2026-08-19 audit). `[opnpc1,fred_the_farmer]`'s
+         * choice points block on `last_slot`, so `sheeprun` drives the
+         * %sheep/item/reward state machine directly rather than through
+         * dispatch -- same limitation as ::cookrun/::demonrun before it.
+         * Unlike those, the thing actually under audit here (the wiki's
+         * "An additional 50 experience if you make the balls of wool on a
+         * spinning wheel instead of buying it" reward bonus, entirely
+         * missing before this fix) is exercised via a byte-for-byte mirror
+         * of the guard+increment added to skill_crafting/scripts/spinning/
+         * spinning.rs2's `~do_spin` rather than the real proc: `do_spin`
+         * ends every successful spin in `p_delay(2)`, and a proc reached
+         * from a `[debugproc]` that hits `p_delay` parks forever under
+         * --selftest (same engine trap quest_demon's audit hit on its
+         * mesbox-opening procs). `[queue,sheep_complete]` itself is called
+         * for real via ~quest_complete_rewards, with its own two state
+         * lines mirrored the same way ::cookrun mirrors
+         * `[queue,cooks_quest_complete]`. See the debugprocs' own header
+         * comments in quests/quest_sheep/scripts/quest_sheep.rs2 for
+         * exactly which pieces this does and does not exercise for real.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture sheeprun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &sheeprun_capture);
+            mock230_scripts_run_debugproc(srv, "sheeprun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&sheeprun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&sheeprun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &sheeprun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                fprintf(stderr, "  DBG %s\n", text);
+                if( strstr(text, "SHEEPRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "SHEEPRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::sheeprun should report no failures");
+            SELFTEST_CHECK(said_ok, "::sheeprun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::sheeprunbought\n");
+    {
+        /*
+         * Sheep Shearer, the other documented walkthrough (Quick guide, "If
+         * you already have the 20 unnoted balls of wool" / the main page's
+         * "fastest way...buy 20 balls of wool from the Grand Exchange"):
+         * 20 balls acquired without ever spinning any of them must NOT earn
+         * the self-spun bonus. See ::sheeprun above for the shared caveats.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture sheeprunbought_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &sheeprunbought_capture);
+            mock230_scripts_run_debugproc(srv, "sheeprunbought");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&sheeprunbought_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&sheeprunbought_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &sheeprunbought_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                fprintf(stderr, "  DBG %s\n", text);
+                if( strstr(text, "SHEEPRUNBOUGHT OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "SHEEPRUNBOUGHT FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::sheeprunbought should report no failures");
+            SELFTEST_CHECK(said_ok, "::sheeprunbought should reach its OK line");
             mock230_scripts_free(srv);
         }
     }
@@ -54493,6 +56521,429 @@ mock230_world_selftest(void)
 
             SELFTEST_CHECK(!said_fail, "::smithingrun should report no failures");
             SELFTEST_CHECK(said_ok, "::smithingrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::ballrun\n");
+    {
+        /*
+         * Witch's House (2026-08-20 audit). `[oploc*]`/`[opnpcu]`/`[opheld5]`
+         * all block on real loc/npc geometry (door coords, hedge
+         * line-of-sight, a spawned mouse) or are plain non-`~`-callable
+         * triggers, so `ballrun` mirrors their state-transition lines and
+         * calls the real, shared `~ball_journal`/`~quest_complete_rewards`
+         * for real, same structural limitation as every other quest audited
+         * this pass. Static/dynamic audit did not find a completability bug
+         * in the ladder or dialogue itself (the one candidate this pass
+         * chased -- the witch's "caught in the garden" handler in
+         * nora_t_hagg.rs2 resetting %ballquest from ball_unlocked_mousedoor
+         * back to ball_started -- turned out NOT to be a bug on closer
+         * reading: `[opnpcu,witchrat]`'s own success branch deletes the
+         * magnet in the same tick it advances %ballquest to
+         * ball_unlocked_mousedoor, so the player can never actually be
+         * caught while both holding a magnet and sitting at that state; the
+         * reset target is reachable-consistent either way).
+         *
+         * What IS proven for real here, unmirrored: the four-form shapeshifter
+         * chain (witches_house.npc + quest_ball_locs.rs2's [ai_queue3,
+         * shapeshifter*] handlers), driven by real `mock230_combat_hit_npc`
+         * killing blows exactly like ::vampirerun's Count Draynor fight --
+         * npc_changetype dispatched off real combat damage is exactly the
+         * class of thing a debugproc cannot exercise.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture ballrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &ballrun_capture);
+            mock230_scripts_run_debugproc(srv, "ballrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&ballrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&ballrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &ballrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                fprintf(stderr, "  DBG %s\n", text);
+                if( strstr(text, "BALLRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "BALLRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::ballrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::ballrun should reach its OK line");
+
+            /*
+             * C-side: the real four-form shapeshifter chain, driven by real
+             * combat damage (mock230_combat_hit_npc), not mirrored logic.
+             * Each real OSRS-stated hitpoints total (21/31/41/51) is read
+             * back off the live npc after each real changetype, and the
+             * chain's own completion write (%ballquest ->
+             * ball_defeated_experiment) is read back off the player after
+             * the fourth kill.
+             */
+            {
+                int npc_glob = mock230_content_symbol(MOCK230_PACK_NPC, "shapeshifterglob");
+                int npc_spider = mock230_content_symbol(MOCK230_PACK_NPC, "shapeshifterspider");
+                int npc_bear = mock230_content_symbol(MOCK230_PACK_NPC, "shapeshifterbear");
+                int npc_wolf = mock230_content_symbol(MOCK230_PACK_NPC, "shapeshifterwolf");
+                int varp_ballquest = mock230_content_symbol(MOCK230_PACK_VARP, "ballquest");
+
+                SELFTEST_CHECK(npc_glob >= 0 && npc_spider >= 0 && npc_bear >= 0 &&
+                                   npc_wolf >= 0 && varp_ballquest >= 0,
+                               "the ::ballrun C-side names should all resolve: "
+                               "glob=%d spider=%d bear=%d wolf=%d varp=%d",
+                               npc_glob, npc_spider, npc_bear, npc_wolf, varp_ballquest);
+                if( npc_glob >= 0 && npc_spider >= 0 && npc_bear >= 0 && npc_wolf >= 0 &&
+                    varp_ballquest >= 0 )
+                {
+                    int slot = npc_spawn(srv, npc_glob, player->x + 2, player->z, player->level);
+
+                    SELFTEST_CHECK(slot >= 0, "shapeshifterglob should spawn for the C-side check");
+                    if( slot >= 0 )
+                    {
+                        struct Mock230Npc* npc = &srv->npcs[slot];
+
+                        player->varps[varp_ballquest] = 5; /* ball_read_diary_after_door */
+
+                        /* Form 1: skavid, 21 hp. A killing blow must
+                         * transform it into form 2 (spider, 31 hp, full)
+                         * rather than actually killing it. */
+                        npc->last_movement = (int)srv->tick - 5;
+                        mock230_combat_hit_npc(srv, slot, 0, npc->hitpoints);
+                        for( int t = 0; t < 8; t++ )
+                        {
+                            if( player->rebuild_scene_pending )
+                                mock230_world_handle(
+                                    player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                            mock230_world_tick(srv);
+                        }
+                        SELFTEST_CHECK(npc->active && npc->type == npc_spider,
+                                       "MUTATION TARGET: killing form 1 (glob) should "
+                                       "changetype to form 2 (spider), active=%d type=%d "
+                                       "want %d",
+                                       npc->active, npc->type, npc_spider);
+                        SELFTEST_CHECK(npc->active && npc->hitpoints == 31,
+                                       "form 2 (spider) should spawn in at its own full "
+                                       "21 wiki hitpoints (31), got %d",
+                                       npc->hitpoints);
+
+                        /* Form 2 -> form 3 (bear, 41 hp, full). */
+                        npc->last_movement = (int)srv->tick - 5;
+                        mock230_combat_hit_npc(srv, slot, 0, npc->hitpoints);
+                        for( int t = 0; t < 8; t++ )
+                        {
+                            if( player->rebuild_scene_pending )
+                                mock230_world_handle(
+                                    player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                            mock230_world_tick(srv);
+                        }
+                        SELFTEST_CHECK(npc->active && npc->type == npc_bear,
+                                       "killing form 2 (spider) should changetype to form "
+                                       "3 (bear), active=%d type=%d want %d",
+                                       npc->active, npc->type, npc_bear);
+                        SELFTEST_CHECK(npc->active && npc->hitpoints == 41,
+                                       "form 3 (bear) should spawn in at its own full 41 "
+                                       "wiki hitpoints, got %d",
+                                       npc->hitpoints);
+
+                        /* Form 3 -> form 4 (wolf, 51 hp, full). */
+                        npc->last_movement = (int)srv->tick - 5;
+                        mock230_combat_hit_npc(srv, slot, 0, npc->hitpoints);
+                        for( int t = 0; t < 8; t++ )
+                        {
+                            if( player->rebuild_scene_pending )
+                                mock230_world_handle(
+                                    player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                            mock230_world_tick(srv);
+                        }
+                        SELFTEST_CHECK(npc->active && npc->type == npc_wolf,
+                                       "killing form 3 (bear) should changetype to form 4 "
+                                       "(wolf), active=%d type=%d want %d",
+                                       npc->active, npc->type, npc_wolf);
+                        SELFTEST_CHECK(npc->active && npc->hitpoints == 51,
+                                       "form 4 (wolf) should spawn in at its own full 51 "
+                                       "wiki hitpoints, got %d",
+                                       npc->hitpoints);
+
+                        /* Form 4 (wolf) actually dies (no further
+                         * changetype -- the [ai_queue3,shapeshifterwolf]
+                         * handler deliberately omits gosub(npc_death) and
+                         * lets the engine's own death path run), and its
+                         * own completion write lands: %ballquest ->
+                         * ball_defeated_experiment (6). */
+                        npc->last_movement = (int)srv->tick - 5;
+                        mock230_combat_hit_npc(srv, slot, 0, npc->hitpoints);
+                        for( int t = 0; t < 8; t++ )
+                        {
+                            if( player->rebuild_scene_pending )
+                                mock230_world_handle(
+                                    player, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                            mock230_world_tick(srv);
+                        }
+                        SELFTEST_CHECK(!npc->active,
+                                       "the fourth form (wolf) should actually die "
+                                       "rather than changetype again, active=%d type=%d",
+                                       npc->active, npc->type);
+                        SELFTEST_CHECK(player->varps[varp_ballquest] == 6,
+                                       "MUTATION TARGET: defeating all four forms should "
+                                       "set ballquest=ball_defeated_experiment (6), got %d",
+                                       player->varps[varp_ballquest]);
+
+                        if( npc->active )
+                            mock230_world_npc_free(srv, slot);
+                    }
+                }
+            }
+
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::herorun\n");
+    {
+        /*
+         * Heroes' Quest (2026-08-20 audit). Every `%heroquest` writer sits
+         * behind a `~p_choice2..4` dialogue menu (Achietties/Katrine/Straven/
+         * Alfonse/Charlie/Grubor/Trobert/Grip), which `p_pausebutton`s on a
+         * real client resume a headless debugproc cannot drive, so `herorun`
+         * mirrors those state-transition lines (same limitation as every
+         * other quest audited this pass) while calling the real, non-
+         * dialogue procs (`~has_hero_quest_requirements`, `~hero_in_progress`,
+         * `~hero_phoenix_in_progress`, `~quest_complete_rewards`) for real.
+         *
+         * What IS proven for real here, unmirrored: the three death-drop
+         * tables this quest's own header comment says were the actual bugs
+         * found and fixed on the prior pass (Grip -> grip_keys +
+         * heroquest advance, Ice Queen -> ice_gloves, fire bird -> hot_feather
+         * gated on heroquest < hero_complete), driven by real
+         * `mock230_world_npc_died` dispatch exactly like ::hettyrun's
+         * rat_indoors and ::priestrun's skull_skeleton checks -- drop tables
+         * dispatch off the engine's own npc death path, not something a
+         * debugproc can invoke.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture herorun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &herorun_capture);
+            mock230_scripts_run_debugproc(srv, "herorun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&herorun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&herorun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &herorun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                fprintf(stderr, "  DBG %s\n", text);
+                if( strstr(text, "HERORUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "HERORUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::herorun should report no failures");
+            SELFTEST_CHECK(said_ok, "::herorun should reach its OK line");
+
+            /* C-side: the three real death-drop tables, real npc death
+             * dispatch via mock230_world_npc_died -- not mirrored. */
+            {
+                int npc_grip = mock230_content_symbol(MOCK230_PACK_NPC, "grip");
+                int npc_ice_queen = mock230_content_symbol(MOCK230_PACK_NPC, "ice_queen");
+                int npc_fire_bird = mock230_content_symbol(MOCK230_PACK_NPC, "fire_bird");
+                int obj_grip_keys = mock230_content_symbol(MOCK230_PACK_OBJ, "grip_keys");
+                int obj_ice_gloves = mock230_content_symbol(MOCK230_PACK_OBJ, "ice_gloves");
+                int obj_hot_feather = mock230_content_symbol(MOCK230_PACK_OBJ, "hot_feather");
+                int varp_heroquest = mock230_content_symbol(MOCK230_PACK_VARP, "heroquest");
+                /* Literal, not a symbol lookup -- MOCK230_PACK_CONSTANT has no
+                 * other caller in this file to trust, and these four values
+                 * are read directly off
+                 * quests/quest_hero/configs/quest_hero.constant:
+                 * hero_phoenix_talked_charlie=4, hero_phoenix_killed_grip=5,
+                 * hero_complete=15. Same idiom as ::ballrun's literal 5/6 for
+                 * ball_read_diary_after_door/ball_defeated_experiment. */
+                int hero_phoenix_talked_charlie = 4;
+                int hero_phoenix_killed_grip = 5;
+                int hero_complete = 15;
+
+                SELFTEST_CHECK(npc_grip >= 0 && npc_ice_queen >= 0 && npc_fire_bird >= 0 &&
+                                   obj_grip_keys >= 0 && obj_ice_gloves >= 0 &&
+                                   obj_hot_feather >= 0 && varp_heroquest >= 0,
+                               "the ::herorun C-side names should all resolve: "
+                               "grip=%d ice_queen=%d fire_bird=%d grip_keys=%d "
+                               "ice_gloves=%d hot_feather=%d varp=%d",
+                               npc_grip, npc_ice_queen, npc_fire_bird, obj_grip_keys,
+                               obj_ice_gloves, obj_hot_feather, varp_heroquest);
+                if( npc_grip >= 0 && npc_ice_queen >= 0 && npc_fire_bird >= 0 &&
+                    obj_grip_keys >= 0 && obj_ice_gloves >= 0 && obj_hot_feather >= 0 &&
+                    varp_heroquest >= 0 )
+                {
+                    /* Grip: killed while heroquest==hero_phoenix_talked_charlie
+                     * should drop grip_keys AND advance heroquest to
+                     * hero_phoenix_killed_grip. */
+                    int slot = npc_spawn(srv, npc_grip, player->x + 2, player->z, player->level);
+
+                    SELFTEST_CHECK(slot >= 0, "grip should spawn for the C-side check");
+                    if( slot >= 0 )
+                    {
+                        int tile_x = srv->npcs[slot].x;
+                        int tile_z = srv->npcs[slot].z;
+                        int keys_here;
+                        int j;
+
+                        selftest_clear_ground(srv);
+                        player->varps[varp_heroquest] = hero_phoenix_talked_charlie;
+                        mock230_world_npc_died(srv, slot);
+                        keys_here = 0;
+                        for( j = 0; j < MOCK230_GROUND_MAX; j++ )
+                        {
+                            if( srv->ground[j].active && srv->ground[j].x == tile_x &&
+                                srv->ground[j].z == tile_z &&
+                                srv->ground[j].obj_id == obj_grip_keys )
+                                keys_here++;
+                        }
+                        SELFTEST_CHECK(keys_here == 1,
+                                       "MUTATION TARGET: killing grip should drop exactly "
+                                       "one grip_keys, got %d",
+                                       keys_here);
+                        SELFTEST_CHECK(player->varps[varp_heroquest] ==
+                                           hero_phoenix_killed_grip,
+                                       "MUTATION TARGET: killing grip at "
+                                       "hero_phoenix_talked_charlie should advance "
+                                       "heroquest to hero_phoenix_killed_grip, got %d "
+                                       "want %d",
+                                       player->varps[varp_heroquest],
+                                       hero_phoenix_killed_grip);
+                        selftest_clear_ground(srv);
+                    }
+
+                    /* Ice Queen: guaranteed (quest-independent) ice_gloves
+                     * drop -- the wiki's own point, and this quest's fire
+                     * feather pickup gate is unreachable end to end without
+                     * it. */
+                    slot = npc_spawn(srv, npc_ice_queen, player->x + 2, player->z, player->level);
+                    SELFTEST_CHECK(slot >= 0, "ice_queen should spawn for the C-side check");
+                    if( slot >= 0 )
+                    {
+                        int tile_x = srv->npcs[slot].x;
+                        int tile_z = srv->npcs[slot].z;
+                        int gloves_here;
+                        int j;
+
+                        selftest_clear_ground(srv);
+                        player->varps[varp_heroquest] = 0; /* not started -- quest-independent */
+                        mock230_world_npc_died(srv, slot);
+                        gloves_here = 0;
+                        for( j = 0; j < MOCK230_GROUND_MAX; j++ )
+                        {
+                            if( srv->ground[j].active && srv->ground[j].x == tile_x &&
+                                srv->ground[j].z == tile_z &&
+                                srv->ground[j].obj_id == obj_ice_gloves )
+                                gloves_here++;
+                        }
+                        SELFTEST_CHECK(gloves_here == 1,
+                                       "MUTATION TARGET: killing ice_queen should drop "
+                                       "exactly one ice_gloves even at heroquest=0, got %d",
+                                       gloves_here);
+                        selftest_clear_ground(srv);
+                    }
+
+                    /* Fire bird: drops hot_feather only while heroquest <
+                     * hero_complete (stops once the quest is finished). */
+                    slot = npc_spawn(srv, npc_fire_bird, player->x + 2, player->z, player->level);
+                    SELFTEST_CHECK(slot >= 0, "fire_bird should spawn for the C-side check");
+                    if( slot >= 0 )
+                    {
+                        int tile_x = srv->npcs[slot].x;
+                        int tile_z = srv->npcs[slot].z;
+                        int feather_here;
+                        int j;
+
+                        selftest_clear_ground(srv);
+                        player->varps[varp_heroquest] = hero_phoenix_talked_charlie;
+                        mock230_world_npc_died(srv, slot);
+                        feather_here = 0;
+                        for( j = 0; j < MOCK230_GROUND_MAX; j++ )
+                        {
+                            if( srv->ground[j].active && srv->ground[j].x == tile_x &&
+                                srv->ground[j].z == tile_z &&
+                                srv->ground[j].obj_id == obj_hot_feather )
+                                feather_here++;
+                        }
+                        SELFTEST_CHECK(feather_here == 1,
+                                       "fire_bird should drop exactly one hot_feather "
+                                       "while heroquest < hero_complete, got %d",
+                                       feather_here);
+                        selftest_clear_ground(srv);
+                    }
+                    slot = npc_spawn(srv, npc_fire_bird, player->x + 2, player->z, player->level);
+                    if( slot >= 0 )
+                    {
+                        int tile_x = srv->npcs[slot].x;
+                        int tile_z = srv->npcs[slot].z;
+                        int feather_here;
+                        int j;
+
+                        selftest_clear_ground(srv);
+                        player->varps[varp_heroquest] = hero_complete;
+                        mock230_world_npc_died(srv, slot);
+                        feather_here = 0;
+                        for( j = 0; j < MOCK230_GROUND_MAX; j++ )
+                        {
+                            if( srv->ground[j].active && srv->ground[j].x == tile_x &&
+                                srv->ground[j].z == tile_z &&
+                                srv->ground[j].obj_id == obj_hot_feather )
+                                feather_here++;
+                        }
+                        SELFTEST_CHECK(feather_here == 0,
+                                       "fire_bird should NOT drop hot_feather once "
+                                       "heroquest==hero_complete, got %d",
+                                       feather_here);
+                        selftest_clear_ground(srv);
+                    }
+                }
+            }
+
             mock230_scripts_free(srv);
         }
     }

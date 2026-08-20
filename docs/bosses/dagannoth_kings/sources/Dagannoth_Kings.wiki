@@ -1,0 +1,116 @@
+{{External|rs}}
+{{Redirect2|Dks|information on the fairy ring code (to [[Rellekka Hunter area|Snowy Hunter area]])|Fairy ring DKS|the [[dragon item]]|Dragon kiteshield}}
+{{HasStrategy}}
+{{Infobox Activity
+|name = Dagannoth Kings
+|image = [[File:Fighting Dagannoth Kings.png|300px]]
+|release = [[7 November]] [[2005]]
+|update = Waterbirth Island - deeper, darker, deadlier!
+|aka = DKs
+|members = Yes
+|location = [[Waterbirth Island Dungeon]]
+|music = [[Xenophobe]]
+|map = no
+|leagueRegion = Fremennik
+}}
+
+The '''Dagannoth Kings''' (commonly abbreviated '''DKs''') are a group of three [[Dagannoth (race)|dagannoth]] that live deep in the cave on [[Waterbirth Island]] which is a multiway combat area. They are all level 303, and also represent the [[combat triangle]]. Each of the kings uses a different [[combat style]], is weak against the type that defeats them on the combat triangle, and has a high defence against all others. They all have their own, unique ring drops, with [[Rex]] having two - these rings give the second best bonuses for their respective combat styles in the ring slot. All three kings have the ability to drop the [[dragon axe]], and also drop [[dagannoth bones]].
+
+*[[Dagannoth Rex]] - Attacks with [[Melee]] and is weak to [[Magic]]. Unique loot includes: [[berserker ring]] and [[warrior ring]].
+*[[Dagannoth Prime]] - Attacks with [[Magic]] and is weak to [[Ranged]]. Unique loot includes: [[seers ring]] and [[mud battlestaff]].
+*[[Dagannoth Supreme]] - Attacks with [[Ranged]] and is weak to [[Melee]]. Unique loot includes: [[archers ring]] and [[Seercull]].
+
+Killing all three Dagannoth Kings is a requirement for the [[Elite Fremennik Diary]].
+
+==Transportation==
+{{Main|Waterbirth Island Dungeon}}
+{{Tile markers box|Module:Tile markers/Waterbirth_Dungeon.json|showpreview=false}}
+[[File:Waterbirth Dungeon Map.png|thumb|right|300px|A map of the dungeon.]]
+The Dagannoth Kings reside in the sixth level of the [[Waterbirth Island Dungeon]]. Players will need to get past a series of doors and then run through several chambers of the dungeon to reach them. 
+
+There are several methods to quickly getting to [[Waterbirth Island]], with the [[Waterbirth Teleport]] from the [[Lunar spellbook]], a [[Portal chamber|portal]] ([[Portal nexus|nexus]]) in a [[Player-owned house|POH]] directed to the island, or using an [[enchanted lyre]] to teleport to the island directly (after completion of the [[Fremennik Diary#Hard|Hard Fremennik Diary]]) being the fastest ways. Alternative ways to reach the island include teleporting to [[Rellekka]] with a [[Rellekka teleport]] tablet, an enchanted lyre or the [[Fremennik sea boots 2]]/[[Fremennik sea boots 3|3]]/[[Fremennik sea boots 4|4]], and travelling there via [[Jarvald]].
+
+Without [[Stamina potion|stamina]] or [[Super energy|super energy potions]], it is recommended to pause at the following spots to restore run energy, as the trek is very long.
+*Before entering the dungeon.
+*Before using the [[rune thrownaxe]]'s special attack.
+*In any of the rooms where [[Giant Rock Crab|giant rock crabs]] are.
+*In the area where the [[rock lobster]]s are. 
+*Past the boss' ladder, where there is a safe zone with a crevice to peek the boss' lairs.
+
+At this final step, restore health, prayer, and run energy as needed before attempting to enter the boss lair.
+
+There are two high-level [[Agility]] [[shortcuts]] that players can use to reach the kings' lair more quickly. The first one, a set of climbable rocks to the south of Jarvald on Waterbirth Island, requires level 85 Agility and takes players to the cave entrance connecting to the ladder room, bypassing the need for a rune thrownaxe and a [[pet rock]] or another player. The second is a '''one-way''' crevice on the eastern wall past the first giant rock crabs after the aforementioned ladder room, requires level 81 Agility and takes players to the penultimate chamber before the kings' lair. Both of these requirements are [[Temporary_skill_boost#Agility|boostable]].
+
+==Slayer lair==
+{{Map|name=Dagannoth Kings Lair|mapID=25|x=2634|y=9667|width=250|height=250|zoom=2|caption=A map of the Dagannoth Kings' lair itself.|align=right}}
+The Dagannoth Kings have a Slayer-only lair for players who have been assigned dagannoth or a Dagannoth King [[Slayer task|slayer assignment]]. All players can enter the lair, but will only be able to damage the kings if they are on one of the two tasks. It is accessed by right-clicking the ladder down to their lair and choosing the "Slayer" option. 
+
+==Money making==
+{{Mmgsection|Killing Dagannoth Kings (Solo tribrid)|Killing Dagannoth Kings (Rex only)}}
+
+==Combat Achievements==
+The following [[Combat Achievement]] tasks involve the Dagannoth Kings.
+{{Sync}}
+
+===Dagannoth Rex===
+{{Combat Achievements list|Dagannoth Rex}}
+
+===Dagannoth Prime===
+{{Combat Achievements list|Dagannoth Prime}}
+
+===Dagannoth Supreme===
+{{Combat Achievements list|Dagannoth Supreme}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 26 August 2020
+|update = Mahogany Homes
+|poll =
+|change = The Dagannoth Kings' [[ensouled dagannoth head]] drop will now appear on the correct tile.
+}}
+{{Subject changes
+|date = 9 July 2020
+|update = Grotesque Guardian Changes and Monkey Backpacks
+|poll =
+|change = The Dagannoth Kings' attacking animations will no longer be interrupted by their defending animations.
+}}
+{{Subject changes
+|date = 16 February 2017
+|update = Party Pete's Birthday Bash
+|poll =
+|change = Two peek options added - one at the ladder and a second in a small enclosure. A Slayer task-only arena also added to accommodate for players on a Dagannoth slayer task.
+}}
+{{Subject changes
+|date = 21 May 2015
+|update = World Switcher & RotG (i)
+|poll = Old School Content Poll 33
+|change = You can now right-click the ladder leading to the Dagannoth Kings lair to see how many players are inside.
+}}
+{{Subject changes
+|date = 5 March 2015
+|update = Achievement Diaries
+|poll = Old School Achievement Diary Rewards Poll
+|change = [[Dagannoth bones]] are now noted drops if you have completed the [[Fremennik Elite|Fremennik Elite Diary]].
+}}
+{{Subject changes
+|date = 6 February 2014
+|update = Quick-prayers & Loot Broadcast
+|poll = Old School feature poll 15: Rejuvenating the Wilderness
+|change = The [[Kalphite Queen]], [[King Black Dragon]], the [[Chaos Elemental]] and the Dagannoth Kings now notify all nearby players of the loot they're dropping.
+}}
+{{Subject changes
+|date = 30 January 2014
+|update = Release the Kraken!
+|change = Seeds, gems and clue scrolls dropped by DKS now appear in the correct location.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Each of the three kings' names come from a Latin word: ''supremus'' means 'highest', ''primus'' means 'first' and ''rex'' means 'King'.
+*The kings are an allegory for the game Rock, Paper, Scissors: each of the kings' initials corresponds to one of Rock (Rex), Paper (Prime) or Scissors (Supreme), with their attack styles corresponding to which of the three options beats which, as per the [[combat triangle]].
+
+{{Dagannoth Kings}}
+{{Dagannoth}}
+{{Bosses}}
+[[Category:Fremennik Province]][[Category:Monarchs and Rulers]]

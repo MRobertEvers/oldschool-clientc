@@ -1,0 +1,65 @@
+{{External|rs}}
+{{Confuse|Broken sextant}}
+{{Infobox Item
+|name = Sextant
+|image = [[File:Sextant.png]]
+|release = [[5 May]] [[2004]]
+|update = Bigger Banks & Treasure Trails
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable = No
+|stackable = No
+|noteable = No
+|options = Look through, Drop
+|examine = Used by navigators to find their position in Gielinor.
+|value = 50
+|weight = 0.200
+|id = 2574
+}}
+[[File:Sextant detail.png|160px|left]]
+A '''sextant''' is an item used for solving [[Treasure Trails/Guide/Coordinates|coordinate clues]] whilst on a [[Treasure Trail]]. It '''does not''' need to be brought with the player if the exact coordinate is known beforehand.
+
+A [[chart]] can be obtained by first talking to the [[Observatory professor]] (who may be at the [[Observatory]] or the nearby [[Observatory#Observatory reception|Observatory reception building]] to the north-east, depending upon whether the player has completed the [[Observatory Quest]]), then, speaking to [[Murphy]] in [[Port Khazard]], who will give you a sextant. Murphy is found on the dock near the trawler for the [[Fishing Trawler]]. [[Brother Kojo]] in the [[Clock Tower (building)|Clock Tower]] can then give the player a [[watch]].
+
+After first obtaining a sextant from Murphy, the player may thereafter make sextants with level 23 [[Crafting]] or higher. A sextant can be made by having one [[steel bar]] in the inventory and clicking on a [[crafting table 4]] in the [[Workshop]] of a player's [[player-owned house|house]]. Making a sextant will give 15 Crafting [[experience]].
+[[File:Sextant interface.png|thumb|left|250px|The interface shown when looking through a sextant.]]
+Operating the sextant is a fairly simple task. The idea is to put the horizon and the sun in the middle of the screen.
+
+First use the vertical 'arrow buttons' on the right to put the horizon in the centre of the viewer on the right hand side. Then use the horizontal arrow buttons to move the sun onto the horizon in the middle of the screen. Clicking 'get location' will give the coordinates of the player's position. This consists of two numbers; the first indicates how far the player is north or south of the [[Observatory]], in degrees and minutes, and the second how far east or west. Note that one degree is 60 minutes, and each game square is approximately 1.875 minutes.
+
+Sextants will often need to be used quickly in [[wilderness]] locations, as monster attacks can interrupt plotting.
+==Creation==
+{{Recipe
+|skill1 = Crafting
+|skill1lvl = 23
+|skill1boostable = Yes
+|skill1exp = 15
+|members = Yes
+|ticks = 3
+|ticksnote = 4 ticks if the player is not already seated
+|facilities = Crafting table 4
+|mat1 = Steel bar
+|output1 = Sextant
+|output1cost = 0
+}}
+
+==Transcript==
+{{Hastranscript|item}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 26 June 2014
+|update = Midsummer Event
+|change = Players can now claim sextants, watches, and charts without needing a clue scroll with coordinates on it.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* Even though the item appears to be made of wood and brass, a steel bar is the only item used in its construction.
+* Multiple sextants can be obtained from Murphy using the [[drop trick]].
+* When looking through the sextant in an underground region, the sun will not be visible in the interface. However, the sky above the horizon will still appear blue.
+* Using the sextant in some [[instanced]] areas like a [[player-owned house]] or [[Tithe Farm]] can show unexpectedly high coordinates in the range of 200-435 east.
+
+{{Treasure Trails}}

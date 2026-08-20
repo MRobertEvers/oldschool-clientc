@@ -1,0 +1,142 @@
+{{ToC|right}}
+{{Shortcut|Ttg}}
+:''For the main article, see [[Treasure Trails]]. For a full list of all clues, see the [[Treasure Trails/Full guide|Full guide]]''.
+
+==Preparation==
+===Difficulty levels===
+The 'level' of a clue scroll relates to its difficulty. There are six levels of clue scroll:
+*A beginner clue is a very low difficulty treasure trail available to [[free-to-play]] players.
+*An easy clue is a low difficulty treasure trail, with a low reward yield.
+*A medium clue scroll is a medium difficulty treasure trail with a more substantial reward yield.
+*A hard clue scroll is a hazardous Treasure trail which can be very rewarding.
+*An elite clue scroll is the second most dangerous clue scroll (both to receive and to complete.) Elite clue scrolls require killing higher level monsters, which is rewarded by much greater and expensive rewards as compared to other levelled scrolls.
+*Master clue scrolls are the most difficult to complete and can only be obtained as a reward from other clue scrolls or by handing one of each tier clue scroll over to [[Watson]], who lives in [[Hosidius]].
+
+Clue scrolls are generated primarily by monster drops, but also can be generated through thieving, and as certain activity rewards. Each level of clue has a very different set of possible rewards and items, as well as hazards, so it is worth knowing what the player is in for.
+
+===Length===
+*[[Clue scroll (beginner)|Beginner clue scrolls]] can be between 1-3 clues long with few or no quest requirements.
+*[[Clue scroll (easy)|Easy clue scrolls]] can be between 2-4 clues long with few or no quest requirements.
+*[[Clue scroll (medium)|Medium clue scrolls]] can be between 3-5 clues long with some quest requirements.
+*[[Clue scroll (hard)|Hard clue scrolls]] can be between 4-6 clues long, with multiple enemies to defeat and can have high-levelled quest requirements.
+*[[Clue scroll (elite)|Elite clue scrolls]] can be between 5-7 clues long, with multiple fights, and puzzles every step.
+*[[Clue scroll (master)|Master clue scrolls]] can be between 6-8 clues long, with multiple fights, and puzzles every step. Very high levelled skills recommended.
+
+===Recommended items===
+====All level clues====
+{|class="wikitable align-center-1"
+! colspan="2" | Item
+! Description
+|-
+| style="width: 53pt;" | {{plinkp|Clue scroll (beginner)}} {{plinkp|Clue scroll (easy)}} {{plinkp|Clue scroll (medium)}} {{plinkp|Clue scroll (hard)}} {{plinkp|Clue scroll (elite)}} {{plinkp|Clue scroll (master)}}
+| [[Clue scroll]]
+| Must be in the inventory in order to receive the next step or reward.
+|-
+| {{plinkt|Spade}}
+| Digging in certain locations is required for some clues.
+|-
+| {{plinkp|Law rune}} {{plinkp|Amulet of glory(4)}}
+| [[Teleportation]] [[runes]] and enchanted [[jewellery]]
+| Use this to travel over large distances.
+|-
+| {{plinkp|Energy potion}} {{plinkp|Super energy}} {{plinkp|Stamina potion}}
+| [[Energy potion]]s ([[Super energy potion|super]]) or [[stamina potion]]s
+| Use these to restore [[energy]].
+|-
+| {{plinkp|Coins|pic=Coins 10000}}
+| [[Money]]
+| Use this to buy items needed for [[emote clues]] and for travel costs.
+|-
+| {{plinkt|Ring of Charos(a)}}
+| Used for extra benefits.
+|-
+| {{plinkp|Dramen staff}} {{plinkp|Lunar staff}}
+| [[Dramen staff|Dramen]] or [[lunar staff]]
+| Use this to access the [[Fairy ring]] network shortly into [[Fairytale II - Cure a Queen]] (especially useful for [[medium clue]]s).
+|}
+
+====Medium, hard, elite, and master====
+'''Note: You are no longer required to own a [[sextant]], [[watch]], or [[chart]] in order to complete [[coordinate clues]].'''
+Alongside the above mentioned items, for these types of clues, you will often need some additional tools:
+{|class="wikitable align-center-1"
+! colspan=2 | Item
+! Description
+|-
+| {{plinkt|Sextant}}
+| Use this to solve coordinate clues.
+|-
+| {{plinkt|Watch}}
+| Use this to solve coordinate clues.
+|-
+| {{plinkt|Chart}}
+| Use this to solve coordinate clues.
+|}
+
+====Hard, elite, and master====
+Hard, elite, and master clues will often encounter various wizards that may prove difficult to fight. Therefore the following items are recommended:
+{|class="wikitable align-center-1"
+! colspan=2 | Item
+! Description
+|-
+| {{plinkp|Shark}}
+| [[Food]]
+| Use this to restore your [[Hitpoints]] in [[combat]].
+|-
+| {{plinkt|Prayer potion}}s
+| Use this to restore your [[prayer points]] in [[combat]].
+|-
+| {{plinkp|Superantipoison}}
+| ([[Superantipoison|Super]]) [[antipoison]] potions
+| Use this to cure [[poison]] caused by [[Saradomin wizard]]s.
+|-
+| {{plinkp|Abyssal whip}}
+| [[Armour]] and a [[weapon]]
+| Use this to protect yourself and deal damage in [[combat]].
+|}
+
+===Quests===
+Having a high amount of [[quest points]] is beneficial when doing treasure trails. Many higher-level trails will lead a player into areas which are locked by [[quests]]. If this is the case, the player must do the quest, up to where access to the area is granted, if they wish to complete their trail. If the player hasn't done the needed quest yet, but they have the requirements or are in a position to get them quickly, it is recommended that the player (trains and) does the quest, rather than getting rid of the clue scroll.
+
+*Starting [[Fairytale II - Cure a Queen]] is highly recommended, as you will be able to use the [[Fairy rings]].
+
+==Anagrams==
+{{main|Treasure Trails/Guide/Anagrams}} An anagram is a string of letters which have been purposefully scrambled. For example: ''od olpe'' is, unscrambled, ''poodle''. Anagrams can appear in medium and hard clues. The solution of an anagram is always the name of an NPC. Once the solution is found, the player can get their next clue by talking to that NPC. When the player talks to the solution NPC in a hard trail, they will receive a [[Treasure Trails/Guide/Challenge scrolls|challenge scroll]] or a [[Treasure Trails/Guide/Puzzle boxes|puzzle box]]. Solve the puzzle box and talk to the NPC again, or tell the NPC the answer to the challenge scroll, to receive the next clue.
+
+==Challenge scrolls==
+{{main|Treasure Trails/Guide/Challenge scrolls}} Challenge scrolls are logical problems posed to the player by an NPC. Challenge scrolls appear in medium, hard, and elite clues. Challenge scrolls are 'step two' of a clue. To complete the scroll, view the question on the scroll, then speak to the NPC which gave it to provide the answer. When the correct answer is provided the challenge is complete, and the player will receive either the next clue, or the reward.
+
+==Cipher clues==
+{{main|Treasure Trails/Guide/Ciphers}} A cipher is a string of letters which have been purposefully scrambled using the {{wp|Caesar cipher}} method. For example: ''ZCZL'' is unscrambled by shifting each letter through the English alphabet forward by one letter, and becomes ''ADAM'' (A comes after Z again). However, each cipher can be different - some require more shifts than one. The solution will be the name of an NPC, who you need to speak to in order to receive a challenge. These challenges include challenge scrolls and puzzle boxes.
+
+==Coordinate clues==
+{{main|Treasure Trails/Guide/Coordinates}} A '''coordinate clue''' is a clue scroll that contains a set of coordinates. Much like the real-world [[wikipedia:Geographic coordinate system|longitude &amp; latitude geographic coordinate system]], coordinates in ''Old School RuneScape'' indicate a precise point somewhere on the surface where the next clue scroll, or potentially the treasure casket, is buried. Coordinate clues will only appear in Treasure Trails of medium difficulty or above. '''Note:''' For Hard, Elite, or Master Coordinate clues, expect combat.
+
+==Cryptic clues/simple clues==
+{{main|Treasure Trails/Guide/Cryptic_clues}} This section includes both simple and cryptic clues. Simple clues are clues containing a straightforward message such as "Search the boxes in a house in Lumbridge". Cryptic clues are similar to simple clues, but with increased difficulty. They are found essentially in medium and higher level clues. These clues demand a fairly wide variety of tasks, anything from leading the player to speak with an NPC, searching a designated crate, or directing the player to dig in some fairly obscure location. However, these tasks usually require an additional task in order to complete the clue. These challenges include: finding a key, or completing a puzzle box.
+
+==Emote clues==
+{{main|Treasure Trails/Guide/Emotes}} [[Emote]] clues involve equipping certain [[items]] in a particular location and performing an emote, like some strange secret handshake. These types of clues are found in all levels of clue scrolls, and most (but not all) items required for the emote clues can be obtained in shops or other players. Once the emote has been performed, an extremely odd NPC called [[Uri]] will appear and usually give the player a [[casket]] (and an earful of nonsense). If the player has been requested to do another emote before talking to Uri, and they forgot to do it, he will say, ''I don't believe we have any business...'' but will not leave. The player can then complete the second emote and finish the clue. Easy clues require doing one emote, medium clues require doing two, and hard clues require doing an emote and combat.
+
+==Hot Cold clues==
+{{main|Treasure Trails/Guide/Hot Cold}} Hot/Cold clues involve using a [[strange device]] obtained from talking to [[Jorral]] to determine whether the player is ''Hot'' (close to) or ''Cold'' (far away from) the intended location to dig. This is based on an {{wp|Hunt the Thimble|older children's game}}.
+
+==Light boxes==
+{{main|Treasure Trails/Guide/Light boxes}}When speaking to an NPC in a master treasure trail, the player may receive a [[light box]]. Light boxes are 'step two' of a clue: first the player has to find the right NPC to speak to (when they get a cryptic or anagram clue), and then they have to solve the light box, to advance along their trail. Light boxes contain a 5x5 grid of lights and 8 switches to turn them on and off. The goal of the puzzle is to light all the lights. Once the light box is completed, players will need to talk to the NPC who gave the light box to receive the next clue or the reward.
+
+==Map clues==
+{{main|Treasure Trails/Guide/Maps}} Map clues are an image of the location the player needs to search to advance along their trail. Maps are found across all levels of clue scroll. They are rough pictures of a very local area. If the map leads to an X, the player needs to take a [[spade]] to the place indicated on the map with the X and dig there. If the map leads to a crate, it must simply be searched. Sometimes players may find a small pile of crates, or a multitude of them. Search all of them until the next clue or the reward is found. Maps can include landmarks such as buildings, fish to indicate fishing spots, roads, rivers, bridges, and other things.
+
+==Puzzle boxes==
+{{main|Treasure Trails/Guide/Puzzle boxes}} When speaking to an NPC in a hard or elite trail, the player may receive a puzzle box. Puzzle boxes are 'step two' of a clue: first the player has to find the right NPC to speak to (when they get a cryptic or anagram clue), and then they have to solve the puzzle, to advance along their trail. Puzzle boxes contain a scrambled image that players must work to unscramble by clicking on tiles to move them to an empty space. Once the puzzle box is completed, players will need to talk to the NPC who gave the puzzle to receive the next clue or the reward.
+
+==Fairy ring clues==
+Several clue scrolls are in the format of three letters and then four numbers. The meaning of these scrolls is to go to a [[fairy ring]] with the code of the ring as the first three letters and the four numbers indicating the amount of steps to move north, east, south, and then west. For example, the following text on a clue scroll:
+
+{| class="wikitable"
+| style="padding:5px 10px;"|{{Fairycode|ckp}}<br/>0 2 2 4
+|}
+
+means to go to the fairy ring {{Fairycode|ckp}}, then moving 0 steps north, 2 steps east, 2 steps south, and finally 4 steps west.
+
+{{Treasure Trails}}
+[[Category:Guides]]

@@ -1,0 +1,190 @@
+{{External|rs}}
+{{Infobox Item
+|version1 = Normal
+|version2 = Broken
+|version3 = Locked
+|name1 = Dragon defender
+|name2 = Dragon defender (broken)
+|name3 = Dragon defender (l)
+|image1 = [[File:Dragon defender.png]]
+|image2 = [[File:Dragon defender (broken).png]]
+|image3 = [[File:Dragon defender.png]]
+|release1 = [[5 February]] [[2015]]
+|release2 = [[21 July]] [[2016]]
+|release3 = [[29 August]] [[2019]]
+|update1 = The Dragon Defender
+|update2 = Broken Armour & Open Beta
+|update3 = Last Man Standing (2019)
+|aka = Ddef
+|members = Yes
+|quest = No
+|tradeable = No
+|equipable1 = Yes
+|equipable2 = No
+|equipable3 = Yes
+|stackable = No
+|noteable = No
+|options1 = Wield, Drop
+|options2 = Drop
+|options3 = Wield, Drop
+|examine1 = A defensive weapon.
+|examine2 = A broken defensive weapon.
+|examine3 = A defensive weapon.
+|value1 = 68007
+|value2 = 1
+|value3 = 68007
+|alchable = No
+|weight = 0.453
+|id1 = 12954
+|id2 = 20463
+|id3 = 24143
+|leagueRegion = Asgarnia
+}}
+{{Synced switch
+|version1 = [[File:Dragon defender detail.png|left|150px]]
+|version2 = [[File:Dragon defender (broken) detail.png|left|150px]]
+|version3 = [[File:Dragon defender detail.png|left|150px]]
+}}
+
+The '''dragon defender''' is the second strongest [[defender]], behind the [[Avernic defender]]. It is used for its attack and strength bonus and is held in the shield slot. It requires level 60 [[Defence]] to equip.
+
+The dragon defender can only be obtained from the stronger level 106 [[Cyclops|Cyclopes]] found exclusively in the [[Warriors' Guild|Warrior Guild]]'s basement. To enter the basement for the first time, a player must show a [[rune defender]] to [[Lorelai]], who will then grant them permanent access. [[Warrior guild token|Warrior Guild tokens]] are still required for time spent inside the basement unless the player has an [[Attack cape|Attack Cape]] equipped. Players '''can''' obtain a dragon defender without having a rune defender in their bank.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1013488521590595586|date=1 July 2018|archiveurl=https://reldo.runescape.wiki/i/99206|archivedate=13 March 2023|quote=[say you lose your rune defender after showing Lorelai the rune defender, can the basement cyclops' still drop dragon defenders?] If she let you in there, you can get the dragon one.}} Players can obtain the dragon defender without having 60 [[Defence]].{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1598256388979183616|date=1 December 2022|archiveurl=https://reldo.runescape.wiki/i/108131|archivedate=13 March 2023|quote=[stupid question perhaps but will the dragon defender drop for you w/o meeting the 60 def requirment?? (...)] If she lets you into that room to fight the cyclopes in there, you're eligible to get that drop. The monsters do not check your stat.}}
+
+Its [[melee]] defensive bonuses are comparable to those of an [[Adamant sq shield|adamant square shield]], with slight differences. Its strength bonus is surpassed by both the [[dragonfire shield]] and the [[Avernic defender]], which give +7 and +8 strength bonuses, respectively. However, the dragon defender is more commonly used than either of these for melee training, due to its superior melee attack bonuses over the dragonfire shield and the overall rarity of the [[Avernic defender]].
+
+If the player dies to a [[PvP]] death and the dragon defender is not one of the player's protected items, it will remain in the player's inventory, but will become [[(broken)|broken]], which means the item is unusable and must be repaired with {{NoCoins|240000|c}} by using the item on [[Perdu]].
+
+==Combat stats==
+{{Infobox Bonuses
+|version1 = Normal
+|version2 = Broken
+|version3 = Locked
+|astab = +25
+|aslash = +24
+|acrush = +23
+|amagic = -3
+|arange = -2
+|dstab = +25
+|dslash = +24
+|dcrush = +23
+|dmagic = -3
+|drange = -2
+|str = +6
+|rstr = 0
+|mdmg = 0
+|prayer = 0
+|slot = shield
+|image = [[File:Dragon defender equipped.png|120px]]
+|altimage = [[File:Dragon defender equipped female.png|110px]]
+}}
+
+==Upgrading==
+Players can upgrade a dragon defender by attaching an [[Avernic defender hilt]] to it, creating the [[Avernic defender]], which requires an [[Attack]] and [[Defence]] level of 70 and has increased bonuses, as shown below. This process is reversible, but the hilt '''will be destroyed''' in the process.
+
+{{Infotable Bonuses|Dragon defender#Normal|Avernic defender#Normal|nototals=yes}}
+
+Players can also attach a [[dragon defender ornament kit]], obtained from [[master clue scroll]]s, to create a [[dragon defender (t)]]. This is a cosmetic upgrade only, as it merely alters its appearance and gives no stat enhancements. It can be safely dismantled, returning both the defender and ornament kit.
+
+==Products==
+{{Uses material list|Dragon defender}}
+
+==Item sources==
+''[[Defenders]] are only dropped by cyclopes found within the [[Warriors' Guild]].''
+
+''This item is only dropped from the level 106 variant.''
+{{Drop sources|Dragon defender}}
+
+==Treasure Trails==
+{{EmoteClueHeader}}
+{{EmoteClue|tier=master|emote=Raspberry|location={{StashLocation|x=2843|y=3540|pin = redPin|text=[[Warriors' Guild]] bank}}
+ |item1=Dragon defender|cost=0
+ |item2=Dragon battleaxe
+ |item3=Slayer helmet|cost3={{GEP|Black mask}}+{{GEP|Earmuffs}}+{{GEP|Facemask}}+{{GEP|Nose peg}}+{{GEP|Spiny helmet}}}}
+{{EmoteClueBottom}}
+{{FaloItem|Dragon defender|A sword held in the other hand, red its colour, Cyclops strength you must withstand.}}
+
+==Used in recommended equipment==
+{{Used in recommended equipment|Dragon defender}}
+
+==Concept art==
+<gallery>
+Dragon defender livestream demo.png
+Dragon defender work-in-progress.png
+Dragon defender work-in-progress 2.png
+Dragon defender work-in-progress 3.png
+</gallery>
+
+==Sound effects==
+{{SFXTableHead}}
+{{SFXLine|file=Equip fun.wav|desc=Wielding}}<!-- no sfx for orn kit -->
+{{SFXTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 20 September 2023
+|update = Poll 80 & Shooting Stars Changes
+|change = The repair cost of the dragon defender has been increased from 80,000 to 240,000 [[coins]].
+}}
+{{Subject changes
+|date = 30 November 2022
+|update = The Garden of Death & More
+|change = Dragon defenders are now prioritised higher for [[items kept on death|protection on death]].
+}}
+{{Subject changes
+|date = 28 February 2019
+|update = QoL and CoX Changes
+|poll = Quality of Life - Mostly Re-runs 2019
+|change = The defender was [[graphical updates|graphically updated]], removing the pink tint.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{{Switch infobox
+|text1 = Normal
+|item1 =
+|text2 = Broken
+|item2 =
+}}
+{|style="text-align: center" cellpadding="15"
+|
+{{Synced switch
+|version1 = [[File:Dragon defender (v1) detail.png|center|300x150px]]
+|version2 = [[File:Dragon defender (broken) (v1) detail.png|center|300x150px]] 
+}}
+|
+{{Synced switch
+|version1 = [[File:Dragon defender detail.png|center|300x150px]]
+|version2 = [[File:Dragon defender (broken) detail.png|center|300x150px]] 
+}}
+|-
+|
+{{Synced switch
+|version1 = [[File:Dragon defender v1.png|center]]
+|version2 = [[File:Dragon defender (broken) v1.png|center]] 
+}}
+|
+{{Synced switch
+|version1 = [[File:Dragon defender.png|center]]
+|version2 = [[File:Dragon defender (broken).png|center]] 
+}}
+|-
+|
+{{Synced switch
+|version1 = 5 February 2015 –<br/>28 February 2019
+|version2 = 21 July 2016 –<br/>28 February 2019
+}}
+|28 February 2019 –<br/>present
+|}
+
+==Trivia==
+*The dragon defender is the only defender which does not require a corresponding Attack level to equip.
+
+==References==
+{{Reflist}}
+
+{{Defender}}
+{{Dragon equipment}}
+{{Warriors' Guild}}
+[[Category:Collection log items]]
+[[Category:Lockable items]]

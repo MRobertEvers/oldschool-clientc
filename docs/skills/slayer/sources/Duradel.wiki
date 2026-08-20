@@ -1,0 +1,173 @@
+{{External|rs}}
+{{Otheruses|the second-highest level [[Slayer master]]|the lowest level [[Slayer master]]|Turael}}
+{{Has calculator|Calculator:Slayer/Slayer_task_weight}}
+{{Infobox NPC
+|name = Duradel
+|image = [[File:Duradel.png|125px]]
+|release = [[26 January]] [[2005]]
+|update = Slayer Skill
+|members = Yes
+|race = [[Human]]
+|location = [[Shilo Village (location)|Shilo Village]]
+|shop = [[Slayer Equipment (shop)|Slayer Equipment]], [[Slayer Rewards]]
+|gender = Male
+|options = Talk-to, Assignment, Trade, Rewards
+|examine = He looks dangerous!
+|map = {{NPC map|x=2869|y=2982|plane=1|r=3|mtype=square}}
+|id = 13622
+|leagueRegion = Karamja
+}}
+[[File:Duradel chathead.png|left]]
+'''Duradel''' is the second-highest level [[Slayer master]], after [[Mortimer]]. He's located in [[Shilo Village (location)|Shilo Village]], which requires the completion of the [[Shilo Village]] quest to be accessed. He can be reached by climbing the ladder in the fishing shop located just south of the river. To receive [[Slayer task]]s from Duradel, a [[combat level]] of 100 and a [[Slayer]] level of 50 is required, or any combat level if the player has achieved 99 Slayer and shows him the [[Slayer cape]]. Being assigned a Slayer task from him is a hard task in the [[Karamja Diary]]. 
+
+Duradel is popular amongst high-level slayers who are looking to profit the most out of slayer tasks, as he usually assigns more compared to other slayer masters (if not extended) and has higher weight on several potential tasks, such as [[boss]]es.
+
+Blocking a task with Duradel costs 100 [[Slayer reward point|Slayer reward points]].
+
+Players who have achieved 99 Slayer can purchase a [[Slayer cape]] from him for 99,000 coins.
+
+==Transportation==
+*Using the "Slayer Master" option on the [[Karamja gloves 4]] to teleport directly next to Duradel.
+*The [[Lunar spell]] [[Astral Contact]] can be used to receive a new assignment from Duradel remotely.
+*Using the [[Karamja gloves 3]] will teleport you beside the ladder inside the [[Gem mine]] under Shilo Village. Go up the ladder, then cross the bridge to the south and head east.
+*[[Fairy ring]] code {{Fairycode|ckr}} to teleport west of Shilo Village then heading south towards the [[Kharazi Jungle]] and then east and up to reach the village. Then head a bit north.
+*Using the [[cart system]] to travel from [[Brimhaven]] for 200 [[coins]] once you finish the Shilo Village quest, then run east.
+
+==Slayer points==
+Players can receive [[Slayer reward point]]s for completing [[Slayer task]]s—this is based on how many tasks players have accomplished in a row. Completion of a task assigned by Duradel will grant you:
+
+{|class=wikitable style="text-align:center;"
+!Task interval
+!Points given
+|-
+|Every task
+|15
+|-
+|Every 10th
+|75
+|-
+|Every 50th
+|225
+|-
+|Every 100th
+|375
+|-
+|Every 250th
+|525
+|-
+|Every 1,000th
+|750
+|}
+
+==Tasks==
+{{:Duradel/Slayer assignments}}
+Note: Duradel is a valid contact for the [[Astral Contact]] spell, and you can obtain tasks from him. It is part of the [[Lunar spellbook]].
+
+==Stock==
+Note: If a player has multiple [[Skill mastery|99s]], they will receive the trimmed variant of the cape instead.
+{{StoreTableHead|hidebuy=y|hidege=y|hidecaption=y|hidestock=y|hiderestock=y}}
+{{StoreLine|name=Slayer cape|stock=inf|sell=99000|buy=N/A|gemw=n}}
+{{StoreLine|name=Slayer cape(t)|stock=inf|sell=99000|buy=N/A|gemw=n}}
+{{StoreTableBottom}}
+
+==Dialogue==
+{{hastranscript|NPC}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 27 August 2025
+|update = Summer Sweep Up Slayer & More
+|poll = 
+|change = Bronze, Iron, Steel, Mithril, Adamant, and Runite dragon tasks are now combined into a single "Metal Dragons" Slayer task, with updated quantities and extensions.
+}}
+{{Subject changes
+|date = 24 March 2016
+|update = White & Black Graceful
+|poll = Old School Content Poll 40: Vanilla LootShare & QoL
+|change = It is now possible to unlock the possibility of receiving a Lizardmen slayer task from Duradel, Nieve and Chaeldar. Unlocking this task costs 75 slayer points.
+}}
+{{Subject changes
+|date = 18 February 2016
+|update = Dragon Claws & 3rd Birthday
+|poll = Quality of Life - Top 10 PvM Suggestions
+|change = Slayer masters now give information about your current task if you prematurely request a new one.
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|poll = Old School Content Poll 36: Skilling Pets
+|change = Spiritual rangers, mages and warrior are now grouped into a single slayer task of spiritual creatures.
+}}
+{{Subject changes
+|date = 17 September 2015
+|update = Angler's Outfit & Slayer
+|change = Duradel and Nieve's Slayer assignment lists have been rebalanced.
+}}
+{{Subject changes
+|date = 10 September 2015
+|update = Slayer Assignment Rework
+|change = *Duradel will now assign between 130 and 200 nechryaels, spiritual mages and spiritual rangers.
+*Removed a number of assignments from Duradel:
+** Brine rat
+**Cockatrice
+**Fever Spider
+**Gorak
+**Harpie Bug Swarm
+**Infernal Mage
+**Jungle Horror
+**Jelly
+**Mogre
+**Molanisk
+**Pyrefiend
+**Turoth
+**Wall Beast
+}}
+{{Subject changes
+|date = 20 August 2015
+|update = Boss slayer & total worlds
+|change = Nieve and Duradel may assign a boss in place of a regular assignment after unlocking the ''Like a boss'' ability for 200 slayer points.
+}}
+{{Subject changes
+|date = 6 August 2015
+|update = XP Drops, Jad Pet & Slayer
+|change = Nieve and Duradel will be able to assign TzHaar as a task.
+}}
+{{Subject changes
+|date = 29 January 2015
+|update = Ignore lists, 1v1s & More
+|poll = Old School Content Poll 29: Grand Exchange
+|change = Slayer masters now have a right-click option, Assignment, which allows players to quickly check a task's progress or start a new one.
+}}
+{{Subject changes
+|date = 18 October 2006
+|update = Capes of Achievement... and Goats!
+|change = The NPC was graphically updated.
+}}
+{{Subject changes footer}}
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Duradel (historical).png|center|300x150px]]
+|[[File:Duradel.png|center|300x150px]]
+|-
+|26 January 2005 –<br/>18 October 2006
+|18 October 2006 –<br/>present
+|}
+
+==Trivia==
+*Duradel's hair is probably inspired by the [[Wikipedia:Sikha|Sikha]], or Shikha. In [[Wikipedia:Hinduism|Hinduism]], this can signify a lock of hair left on the shaven head of a male Orthodox Hindu. Duradel's clothing also resembles that of a Hindu saint.
+*Duradel shares his iconic face paint with many others around [[Gielinor]], such as [[Vannaka]], the [[Oracle]] (on top of [[Ice Mountain]]) and the [[random event]] [[Genie]].
+*The difference between Duradel and [[Nieve]]/[[Steve]]'s [[Slayer task|tasks]] is that he assigns [[waterfiend]]s and doesn't assign [[brine rat]]s, [[turoth]]s, [[Scabarites]], and [[custodian stalker]]s, as well as the different weights and amounts to kill for each task.
+*In the 20th [[Postbag from the Hedge]], it is revealed [[Vannaka]] is a student of Duradel. He once challenged Duradel and lost.{{CitePostbag|issue=20|author=Duradel|letter=Letter 8|name=}}
+*After the events of [[While Guthix Sleeps]] he is replaced by his daughter, [[Kuradal]].
+
+==References==
+{{Reflist}}
+
+{{Slayer Master}}
+{{Skillcape}}
+{{Shilo Village (location)}}
+{{Astral Contact}}
+{{While Guthix Sleeps}}
+
+[[Category:Deceased characters]]

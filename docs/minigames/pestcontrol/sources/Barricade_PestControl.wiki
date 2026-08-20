@@ -1,0 +1,57 @@
+{{Infobox Scenery
+|version1 = 1
+|version2 = 2
+|version3 = 3
+|version4 = 1 (broken)
+|version5 = 2 (broken)
+|version6 = 3 (broken)
+|version7 = 1 (destroyed)
+|version8 = 2 (destroyed)
+|version9 = 3 (destroyed)
+|name = Barricade
+|image1 = [[File:Barricade (Pest Control, 1, healthy).png|250x250px]]
+|image2 = [[File:Barricade (Pest Control, 2, healthy).png|250x250px]]
+|image3 = [[File:Barricade (Pest Control, 3, healthy).png|250x250px]]
+|image4 = [[File:Barricade (Pest Control, 1, broken).png|250x250px]]
+|image5 = [[File:Barricade (Pest Control, 2, broken).png|250x250px]]
+|image6 = [[File:Barricade (Pest Control, 3, broken).png|250x250px]]
+|image7 = [[File:Barricade (Pest Control, 1, destroyed).png|250x250px]]
+|image8 = [[File:Barricade (Pest Control, 2, destroyed).png|250x250px]]
+|image9 = [[File:Barricade (Pest Control, 3, destroyed).png|250x250px]]
+|release = [[18 April]] [[2006]]
+|update = Pest Control
+|members = Yes
+|quest = No
+|location = [[Pest Control]]
+|options1 = None
+|options2 = None
+|options3 = None
+|options4 = Repair
+|options5 = Repair
+|options6 = Repair
+|options7 = Repair
+|options8 = Repair
+|options9 = Repair
+|examine1 = A protective barricade.
+|examine2 = A protective barricade.
+|examine3 = A protective barricade.
+|examine4 = It's almost totally destroyed.
+|examine5 = It's almost totally destroyed.
+|examine6 = It's almost totally destroyed.
+|examine7 = It's almost totally destroyed.
+|examine8 = It's almost totally destroyed.
+|examine9 = It's almost totally destroyed.
+|map = {{Map|name=Barricade (Pest Control)|2648,2578|2649,2578|2667,2578|2668,2578|2673,2591|2673,2592|2650,2578|2669,2578|2673,2593|2647,2578|2666,2578|2673,2590|2676,2587|2676,2586|2676,2585|2676,2584|2676,2574|2676,2573|2676,2572|2676,2571|2656,2575|2657,2575|2658,2575|2659,2575|2636,2591|2636,2590|2636,2589|2636,2588|2637,2574|2637,2573|2637,2572|2637,2571|plane=0|mapID=-1|fill=#AB9060|mtype=dot}}
+|id1 = 14224
+|id2 = 14225
+|id3 = 14226
+|id4 = 14227
+|id5 = 14228
+|id6 = 14229
+|id7 = 14230
+|id8 = 14231
+|id9 = 14232
+}}
+'''Barricades''' can be found during the [[Pest Control]] [[minigame]]. The monsters during the minigame will deal damage to the barricades, causing them to be destroyed and lose efficacy. Players can repair the barricades with a [[hammer]] and a [[logs|log]]; repairing them to full health, as well as granting the player a moderate increase in activity and some [[Crafting]] [[experience]]. The speed of repairing the barricades is determined by the player's equipped weapon's [[attack speed]], so having a fast speed weapon such as [[dart]]s will allow them to be repaired quickly.
+
+{{Pest Control}}

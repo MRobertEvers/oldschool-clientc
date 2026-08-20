@@ -1,0 +1,24 @@
+# Cache-declared options in the curated verb families that are deliberately NOT
+# bound, and why. Every row here is a claim that the silence is correct.
+#
+# `--audit` subtracts this file and the worklist from a fresh --coverage scan.
+# Anything left over is a gap nobody has decided about, which is the state this
+# whole audit exists to keep at zero. Adding a row here is a decision; leaving a
+# finding out of both files is an oversight, and the two now look different.
+#
+# symbol-or-prefix*	reason
+hw24_scarecrow_*	POH Construction furniture. `Dig-up` is the hotspot-removal flow, which docs/CONSTRUCTION_COMPLETION_PLAN.md owns; docs/WORLD_INTERACTIONS.md scopes POH out.
+gub_wintumber_tree_standard	POH holiday furniture, same owner as the scarecrows above.
+toa_het_mirror_dirty	Tombs of Amascut. Raid puzzle state, owned by minigames/minigame_toa.
+raids_dogodile_meat_tree	Chambers of Xeric. Raid resource, owned by minigames/minigame_cox.
+nightmare_challenge_portal_enabled	The Nightmare. Boss not ported.
+dt2_lassar_stamina_pool_op	Desert Treasure II. Quest not ported past its soft-skip stubs.
+dt2_lassar_stamina_pool_shadow_op	Desert Treasure II. Quest not ported past its soft-skip stubs.
+cowboss_demonic_potato	Unported boss content.
+varlamore_alpaca_1	Varlamore. The cache ships no alpaca wool item to shear off it -- only `cargo_crate_alpaca_wool_*`, which is Sailing cargo. Nothing to implement.
+varlamore_alpaca_2	Varlamore. Same: no shearable product exists in this cache.
+mm_gorillastatue1	Not an altar. Monkey Madness quest flavour that happens to use the `Pray-at` verb; binding it to the prayer-altar handler would restore prayer at a statue that does not.
+civitas_bird_bath	Varlamore scenery. No published mechanic; a bird bath is not a water source.
+barbassault_natural_spring	Barbarian Assault. Minigame not ported.
+cauldron_generic_drink	The generic decorative cauldron, not Witch's Potion's (`hettycauldron`, which IS bound). docs/WORLD_INTERACTIONS.md S3.6: ordinary containers have no drink mechanic and a generic handler would be invented content.
+100_osman_fountain	Same class as the cauldron above: a decorative fountain with a water anim. No wiki-documented mechanic behind the verb.

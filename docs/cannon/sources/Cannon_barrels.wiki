@@ -1,0 +1,35 @@
+{{External|rs|rsc=Dwarf cannon barrels}}
+{{otheruses|[[Dwarf multicannon]] part|item used in [[Cabin Fever]]|Cannon barrel (Cabin Fever)|the Sailing item|Dragon cannon barrel}}
+{{Infobox Item
+|name = Cannon barrels
+|image = [[File:Cannon barrels.png]]
+|release = [[27 May]] [[2003]]
+|update = New Dwarf Cannon Quest
+|members = Yes
+|quest = [[Dwarf Cannon]]
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Drop
+|examine = The barrels of the multicannon.
+|value = 187500
+|weight = 15.000
+|exchange = Yes
+|id = 10
+|leagueRegion = Asgarnia&Kandarin
+}}
+[[File:Cannon barrels detail.png|left|130x200px]]
+'''Cannon barrels''' are the third part of the [[dwarf multicannon]] set up on top of the [[cannon base]] after placing the [[cannon stand]] and before the [[cannon furnace]]. They shoot the enemy with a barrage of [[steel cannonball]]s or [[granite cannonballs]]. It is purchased from [[Multicannon parts for sale]] for {{NoCoins|200625}} coins.
+
+==Products==
+{{Uses material list|Cannon barrels}}
+
+==Shop locations==
+{{Store locations list|Cannon barrels}}
+
+==Transcript==
+{{Hastranscript|transclude=yes}}
+
+{{Cannon}}
+{{Dwarf Cannon}}
