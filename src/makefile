@@ -1434,6 +1434,16 @@ test-editor-derive: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
 	./$(OBJ_DIR)/editor_derive_test $(EDITOR_CONTENT_DIR) $(EDITOR_CACHE_DIR) 600
 
+# Convex hull (ToriDraw): the silhouette a loc highlight is drawn from, plus the
+# degenerate shapes real footprints produce -- edge-on, collinear, duplicated
+# corners shared between adjacent tiles.
+test-convex-hull: $(OBJ_DIR) $(TORIDRAW_DIR)/graphics/convex_hull.c \
+		$(TORIDRAW_DIR)/graphics/test/convex_hull_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/convex_hull_test \
+		$(TORIDRAW_DIR)/graphics/convex_hull.c \
+		$(TORIDRAW_DIR)/graphics/test/convex_hull_test.c
+	./$(OBJ_DIR)/convex_hull_test
+
 # ToriDbgUI dropdown interaction, driven through the real input entry points:
 # opening, choosing, dismissing by clicking away, wheel scrolling and clamping,
 # and swapping the option list out from under an open one.
@@ -1442,7 +1452,8 @@ test-editor-dropdown: $(OBJ_DIR) ui/uitree_debug_overlay.c ui/test/uitree_test_d
 		ui/uitree_debug_overlay.c ui/test/uitree_test_dropdown.c
 	./$(OBJ_DIR)/uitree_test_dropdown
 
-test-editor: test-editor-cmd test-editor-jm2 test-editor-derive test-editor-dropdown
+test-editor: test-editor-cmd test-editor-jm2 test-editor-derive test-editor-dropdown \
+	test-convex-hull
 
 # NpcType.multiNpc (opcode 106) decode -> ToriRS_Npctype.transform_* -- pure
 # struct plumbing, no cache file or App needed.

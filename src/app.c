@@ -10,6 +10,7 @@
 #include "cmd/cmdbus.h"
 #include "cs2vm2/cs2vm2.h"
 #include "editor/editor.h"
+#include "graphics/convex_hull.h"
 #include "engine/dat1/dat1_buildcache.h"
 #include "engine/dat1/dat1_tasks.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -2412,6 +2413,50 @@ app_overlay_push_segment(
  * Each footprint tile is outlined at terrain height through the same
  * projector the health bars use, so the outline hugs the contour.
  */
+/**
+ * Emit a convex polygon as a closed outline.
+ *
+ * The overlay's own primitives are boxes and box-diagonals, so a polygon is
+ * expanded here into one LINE per edge rather than reaching the draw layer as a
+ * single command. That keeps the emit walk's one-item-one-command stepping
+ * intact — a real multi-segment render command would need a sub-step counter
+ * threaded through every backend, which is worth doing only when a highlight
+ * needs to be FILLED rather than outlined.
+ *
+ * Degenerate hulls are drawn as what they are: two points are a single
+ * segment (a footprint seen edge-on), and one point draws nothing rather than a
+ * zero-length line the rasteriser would have to special-case.
+ */
+static void
+app_overlay_push_polygon(
+    struct App* app,
+    const int* points_x,
+    const int* points_y,
+    int point_count,
+    uint32_t color)
+{
+    assert(app);
+    assert(points_x);
+    assert(points_y);
+    assert(point_count >= 0);
+
+    if( point_count < 2 )
+        return;
+
+    if( point_count == 2 )
+    {
+        app_overlay_push_segment(app, points_x[0], points_y[0], points_x[1], points_y[1], color);
+        return;
+    }
+
+    for( int i = 0; i < point_count; i++ )
+    {
+        int const next = (i + 1) % point_count;
+        app_overlay_push_segment(
+            app, points_x[i], points_y[i], points_x[next], points_y[next], color);
+    }
+}
+
 static void
 app_overlay_outline_scenery(
     struct App* app,
@@ -2430,37 +2475,83 @@ app_overlay_outline_scenery(
      * meant to describe. */
     plane_y = app_world_height(app, base_x * 128, base_z * 128, scenery->grid_position.level);
 
-    for( int tz = base_z; tz < base_z + size_z; tz++ )
+    /*
+     * The SILHOUETTE of the footprint, not a box per tile.
+     *
+     * Outlining each tile separately draws every internal edge — a 3x3 loc came
+     * out as nine overlapping quads, which reads as a grid laid over the loc
+     * rather than as the loc being highlighted. Hulling the projected corners
+     * collapses that to the one closed outline the eye is looking for, and it
+     * costs less to draw: four segments instead of thirty-six.
+     *
+     * The corners are projected first and hulled in SCREEN space, not hulled on
+     * the ground and then projected. A footprint is convex on the ground, but
+     * "convex after projection" is what makes the outline enclose the pixels,
+     * and the two only agree for an axis-aligned camera.
+     */
     {
-        for( int tx = base_x; tx < base_x + size_x; tx++ )
-        {
-            /* Corner order SW, SE, NE, NW; fine coords are tile * 128. */
-            static const int corner[4][2] = {
-                { 0, 0 },
-                { 1, 0 },
-                { 1, 1 },
-                { 0, 1 }
-            };
-            int px[4];
-            int py[4];
-            int visible = 1;
+        /* Corner order SW, SE, NE, NW; fine coords are tile * 128. */
+        static const int corner[4][2] = {
+            { 0, 0 },
+            { 1, 0 },
+            { 1, 1 },
+            { 0, 1 }
+        };
+        int px[TORIDRAW_CONVEX_HULL_MAX_POINTS];
+        int py[TORIDRAW_CONVEX_HULL_MAX_POINTS];
+        int hull_x[TORIDRAW_CONVEX_HULL_MAX_POINTS];
+        int hull_y[TORIDRAW_CONVEX_HULL_MAX_POINTS];
+        int count = 0;
+        int hull_size;
 
-            for( int c = 0; c < 4 && visible; c++ )
-                visible = app_world_project_at(
-                    app,
-                    (tx + corner[c][0]) * 128,
-                    (tz + corner[c][1]) * 128,
-                    plane_y,
-                    &px[c],
-                    &py[c]);
-            if( !visible )
-                continue;
-            for( int c = 0; c < 4; c++ )
+        for( int tz = base_z; tz < base_z + size_z; tz++ )
+        {
+            for( int tx = base_x; tx < base_x + size_x; tx++ )
             {
-                int next = (c + 1) & 3;
-                app_overlay_push_segment(app, px[c], py[c], px[next], py[next], 0xFFFF0000u);
+                for( int c = 0; c < 4; c++ )
+                {
+                    int screen_x;
+                    int screen_y;
+
+                    if( count >= TORIDRAW_CONVEX_HULL_MAX_POINTS )
+                        break;
+                    /* A corner behind the camera projects to nothing usable, so
+                     * it is dropped rather than clamped: the hull of what IS in
+                     * front is still the right outline for the visible part,
+                     * where a clamped point would drag an edge across the
+                     * screen. */
+                    if( !app_world_project_at(
+                            app,
+                            (tx + corner[c][0]) * 128,
+                            (tz + corner[c][1]) * 128,
+                            plane_y,
+                            &screen_x,
+                            &screen_y) )
+                        continue;
+                    px[count] = screen_x;
+                    py[count] = screen_y;
+                    count++;
+                }
             }
         }
+
+        if( count == 0 )
+            return;
+
+        hull_size = ToriDraw_ConvexHull(px, py, count, hull_x, hull_y);
+        /* Why an outline looks wrong, in one line: too few corners means the
+         * projection dropped some (behind the camera), and hull < corners is
+         * the interior points being discarded, which is the point. */
+        if( getenv("TORIRS_HULL_DEBUG") )
+            fprintf(
+                stderr,
+                "hull: loc %d footprint %dx%d corners=%d hull=%d\n",
+                scenery->loc_id,
+                size_x,
+                size_z,
+                count,
+                hull_size);
+        app_overlay_push_polygon(app, hull_x, hull_y, hull_size, 0xFFFF0000u);
     }
 }
 
