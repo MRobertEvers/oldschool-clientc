@@ -5170,7 +5170,12 @@ app_loc_editor_tick(
             ToriDbgUI_PanelSetVisible(&app->dbg_ui, app->locedit_panel, 0);
         }
 
-        activated = ToriDbgUI_TakeActivated(&app->dbg_ui);
+        /* Only when the LOC editor is open. The block above widened to route
+         * input for any visible panel, but this half is loc-editor rows, and
+         * draining the shared activation latch here swallowed the map editor's
+         * clicks -- its dropdown showed the new value while its tool never
+         * changed, because the activation was taken before its tick ran. */
+        activated = app->locedit_visible ? ToriDbgUI_TakeActivated(&app->dbg_ui) : -1;
         if( activated >= 0 )
         {
             if( activated == app->locedit_item_xplus )
@@ -6470,9 +6475,21 @@ app_map_editor_world_click(
     if( app->editor_panel.tool == EDITOR_TOOL_SELECT )
         return;
     if( app->input_frame_consumed )
+    {
+        if( getenv("TORIRS_EDIT_DEBUG") && input->curr.mouse_button_up[TORIRSM_LEFT] )
+            fprintf(stderr, "edit: click swallowed (input_frame_consumed)\n");
         return;
+    }
     if( !input->curr.mouse_button_up[TORIRSM_LEFT] )
         return;
+    if( getenv("TORIRS_EDIT_DEBUG") )
+        fprintf(
+            stderr,
+            "edit: click tool=%d consumed=%d hover=%d,%d\n",
+            (int)app->editor_panel.tool,
+            app->input_frame_consumed,
+            app->world_hover_tile_x,
+            app->world_hover_tile_z);
     if( app->world_hover_tile_x < 0 )
         return;
 
