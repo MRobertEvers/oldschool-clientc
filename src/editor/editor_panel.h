@@ -128,4 +128,35 @@ Editor_PanelApplyToolAt(
     int scene_z,
     int level);
 
+/**
+ * Record a loc move or rotate in the DOCUMENT, so it survives a save.
+ *
+ * The loc editor already re-places the loc in the scene through
+ * App_WorldLocChange, which is what makes the move visible. That is a
+ * client-side scene edit and nothing more — it never touched the square's
+ * `.jl2`, so the move was gone on the next world reload and could never be
+ * saved. This is the other half: the same move as an undoable command against
+ * the authored loc list.
+ *
+ * Coordinates are SCENE tiles, as the loc editor holds them; the square and
+ * tile they belong to are resolved here.
+ *
+ * Returns 1 when a command was recorded. 0 means there is no editor session, or
+ * the square the loc sits in is not open in the document — a loc can be visible
+ * in the scene while its square was never loaded for editing.
+ */
+int
+Editor_PanelRecordLocEdit(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int from_scene_x,
+    int from_scene_z,
+    int level,
+    int loc_id,
+    int shape,
+    int from_angle,
+    int to_scene_x,
+    int to_scene_z,
+    int to_angle);
+
 #endif

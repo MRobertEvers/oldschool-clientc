@@ -406,6 +406,76 @@ Editor_PanelApplyToolAt(
     return Editor_Apply(editor, &command);
 }
 
+int
+Editor_PanelRecordLocEdit(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int from_scene_x,
+    int from_scene_z,
+    int level,
+    int loc_id,
+    int shape,
+    int from_angle,
+    int to_scene_x,
+    int to_scene_z,
+    int to_angle)
+{
+    struct Editor_Cmd command;
+    int from_map_x;
+    int from_map_z;
+    int from_tile_x;
+    int from_tile_z;
+    int to_map_x;
+    int to_map_z;
+    int to_tile_x;
+    int to_tile_z;
+
+    assert(panel);
+    assert(app);
+    (void)panel;
+
+    if( !app->editor )
+        return 0;
+    if( !scene_to_square(
+            app, from_scene_x, from_scene_z, &from_map_x, &from_map_z, &from_tile_x, &from_tile_z) )
+        return 0;
+    if( !scene_to_square(
+            app, to_scene_x, to_scene_z, &to_map_x, &to_map_z, &to_tile_x, &to_tile_z) )
+        return 0;
+
+    /* A move across a square border is two edits to two files, which this one
+     * command cannot express -- it carries a single map_x/map_z. Refusing is
+     * better than writing the placement into the wrong square's `.jl2`. */
+    if( from_map_x != to_map_x || from_map_z != to_map_z )
+    {
+        fprintf(stderr, "editor: loc moves across a square border are not saved yet\n");
+        return 0;
+    }
+    if( !Editor_DocFindSquare(&app->editor->doc, from_map_x, from_map_z) )
+        return 0;
+
+    memset(&command, 0, sizeof(command));
+    command.kind = EDITOR_CMD_LOC;
+    command.map_x = from_map_x;
+    command.map_z = from_map_z;
+
+    command.has_before = 1;
+    command.loc_before.loc_id = loc_id;
+    command.loc_before.shape = shape;
+    command.loc_before.rotation = from_angle;
+    command.loc_before.level = level;
+    command.loc_before.x = from_tile_x;
+    command.loc_before.z = from_tile_z;
+
+    command.has_after = 1;
+    command.loc_after = command.loc_before;
+    command.loc_after.rotation = to_angle;
+    command.loc_after.x = to_tile_x;
+    command.loc_after.z = to_tile_z;
+
+    return Editor_Apply(app->editor, &command);
+}
+
 /* ---- tick ---------------------------------------------------------------- */
 
 static void

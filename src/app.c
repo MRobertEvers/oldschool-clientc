@@ -4934,6 +4934,22 @@ app_loc_editor_nudge(
         -1,
         app->locedit_shape,
         app->locedit_angle);
+    /* The scene edit above is client-side only; this records the same move
+     * against the authored loc list so it survives a reload and can be saved.
+     * Recorded BEFORE the coordinates advance, since the command needs both
+     * ends of the move. */
+    Editor_PanelRecordLocEdit(
+        &app->editor_panel,
+        app,
+        app->locedit_scene_x,
+        app->locedit_scene_z,
+        app->locedit_level,
+        app->locedit_loc_id,
+        app->locedit_shape,
+        app->locedit_angle,
+        app->locedit_scene_x + dx,
+        app->locedit_scene_z + dz,
+        app->locedit_angle);
     app->locedit_scene_x += dx;
     app->locedit_scene_z += dz;
     App_WorldLocChange(
@@ -4955,6 +4971,19 @@ app_loc_editor_rotate(struct App* app)
 {
     if( app->locedit_loc_id < 0 )
         return;
+    /* Same pair as a nudge: the authored record first, then the scene. */
+    Editor_PanelRecordLocEdit(
+        &app->editor_panel,
+        app,
+        app->locedit_scene_x,
+        app->locedit_scene_z,
+        app->locedit_level,
+        app->locedit_loc_id,
+        app->locedit_shape,
+        app->locedit_angle,
+        app->locedit_scene_x,
+        app->locedit_scene_z,
+        (app->locedit_angle + 1) % 4);
     app->locedit_angle = (app->locedit_angle + 1) % 4;
     App_WorldLocChange(
         app,
