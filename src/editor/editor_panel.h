@@ -33,6 +33,10 @@ enum Editor_Tool
     EDITOR_TOOL_UNDERLAY,
     EDITOR_TOOL_OVERLAY,
     EDITOR_TOOL_FLAGS,
+    /** Stamp the catalog's picked loc at the clicked tile. */
+    EDITOR_TOOL_LOC_PLACE,
+    /** Move the SELECTED loc to the clicked tile. */
+    EDITOR_TOOL_LOC_MOVE,
     EDITOR_TOOL_COUNT
 };
 
@@ -40,6 +44,41 @@ enum Editor_Tool
  *  space, which is a byte for underlays and a u16 for overlays. */
 #define EDITOR_PALETTE_MAX 512
 #define EDITOR_PALETTE_LABEL_MAX 32
+
+/** Session-placed spawns awaiting save. Bounded generously: hand-placing
+ *  hundreds of npcs in one sitting is not the workflow this serves. */
+#define EDITOR_SPAWN_MAX 256
+
+struct Editor_SpawnEntry
+{
+    /** 0 npc, 1 obj (matches the .spawn file's two sections). */
+    int is_obj;
+    int id;
+    /** ABSOLUTE world tile, as the .spawn grammar stores. */
+    int abs_x;
+    int abs_z;
+    int level;
+    int count; /* obj stack size; 1 for npcs */
+    char name[48];
+};
+
+/** Catalog rows the loc/npc/obj picker holds. A world load brings a few
+ *  hundred locs into the provider; this bounds a region, not the cache. */
+#define EDITOR_CATALOG_MAX 512
+#define EDITOR_CATALOG_LABEL_MAX 48
+
+/**
+ * Squares the browser can hold coordinates for, and rows it can show.
+ *
+ * Two different numbers on purpose. Every square in the tree is SEARCHABLE --
+ * holding 4096 coordinate pairs costs 32KB and means the filter can reach any
+ * of them -- while only 512 are DRAWN at once, because a dropdown nobody can
+ * scroll to the end of is not a list. Capping what is searchable would make
+ * squares silently unreachable; capping what is drawn only makes the user
+ * type.
+ */
+#define EDITOR_SQUARE_MAX 4096
+#define EDITOR_SQUARE_ROWS 512
 
 /** What EDITOR_TOOL_SELECT is latched onto. Own concept from the loc editor's
  *  locedit_* fields (src/app.c) -- that tool targets a loc to nudge/rotate;
@@ -50,11 +89,18 @@ enum Editor_SelectionKind
 {
     EDITOR_SELECTION_NONE = 0,
     EDITOR_SELECTION_TERRAIN,
-    EDITOR_SELECTION_LOC
+    EDITOR_SELECTION_LOC,
+    /** A session-placed npc/obj spawn (the editor world has no server, so
+     *  every npc and obj on screen is one this session placed). */
+    EDITOR_SELECTION_NPC,
+    EDITOR_SELECTION_OBJ
 };
 
 struct Editor_Panel
 {
+    /** Chrome scale the panels were last placed for. A display change moves
+     *  them; see Editor_PanelPlaceForScale. */
+    int placed_scale;
     int panel;
     int built;
 
@@ -73,11 +119,18 @@ struct Editor_Panel
     int cb_flag_bridge;
     int cb_flag_roof;
     int cb_flag_below;
-    int item_undo;
-    int item_redo;
-    int item_save;
-    int item_bake;
-    int item_close;
+    int dd_level;
+    int dd_loc_shape;
+    int dd_loc_rot;
+    /** The File/Edit bar across the top of the screen. */
+    int menubar_panel;
+    int menu_file;
+    int menu_edit;
+    int menu_view;
+    /** "Delete selection": shown whenever something deletable is selected.
+     *  The separate Delete tool this replaced made deletion a MODE, and a
+     *  mode for a one-shot act is a tool switch you have to undo afterwards. */
+    int item_delete;
 
     int visible;
     enum Editor_Tool tool;
@@ -110,9 +163,137 @@ struct Editor_Panel
     int sel_level;
     int sel_element_id;
     int sel_loc_id;
+    /** The selected loc's placement, held here because the scene element dies
+     *  on every reshape (a loc change is a delete + add): the overlay and the
+     *  apply path re-find the NEW element by tile + shape when the old id has
+     *  gone stale. */
+    int sel_shape;
+    int sel_angle;
+
+    /* ---- the Loc panel ---------------------------------------------------
+     *
+     * The selected loc's config, readable: name, examine, the fields that
+     * decide how it sits in the world, and its right-click ops. Appears when a
+     * loc is selected, goes with the selection. Placement EDITING stays on the
+     * tool panel (LocSh/LocRot + Apply): this panel answers "what is this",
+     * the tool panel answers "make it different".
+     */
+    int loc_panel;
+    int loc_row_name;
+    int loc_row_desc;
+    int loc_row_place;
+    int loc_row_cfg;
+    int loc_row_model;
+    int loc_row_render;
+    int loc_row_ops;
+    /** "View tile": re-selects the loc's own tile as TERRAIN, so the tool
+     *  panel flips to the ground under the loc -- height, flags, overlays --
+     *  at the loc's level, without hunting for a bare pixel of it to click. */
+    int loc_row_view_tile;
+    /** Selection changed away from a loc; the tick hides the panel. Set by the
+     *  terrain/clear paths, which have no ToriRSChrome handle to hide it with. */
+    int loc_panel_stale;
+    /** The tile the terrain fields were last seeded from, so seeding re-runs
+     *  only when the latch moves -- not on the user's own edits. */
+    int seeded_x;
+    int seeded_z;
+    int seeded_level;
+
+    /* ---- the loc / npc / obj catalog -------------------------------------
+     *
+     * The picker: what is loaded, filtered by a typed substring, in a list you
+     * choose from. Its own panel rather than rows on the tool panel, so it can
+     * sit down the left of the screen at full height -- a catalog is a column,
+     * and folding it into the tool panel would make both of them worse.
+     */
+    /* ---- the square browser ---------------------------------------------
+     *
+     * Every square the content tree ships, from EditorHost's square_list --
+     * a host call rather than a directory read up here, because a browser
+     * panel has no directory to read in the browser.
+     */
+    int square_panel;
+    int sq_dd_list;
+    int sq_in_search;
+    int sq_row_current;
+    int sq_item_open;
+    /** Every square the host listed. Searchable in full. */
+    int sq_coords[EDITOR_SQUARE_MAX * 2];
+    int sq_total;
+    /** The filtered view: labels drawn, and the index each row came from. */
+    char sq_labels[EDITOR_SQUARE_ROWS][16];
+    char const* sq_options[EDITOR_SQUARE_ROWS];
+    int sq_row_index[EDITOR_SQUARE_ROWS];
+    int sq_count;
+    /** The filter the view was built for, so it rebuilds only on change. */
+    char sq_shown_search[EDITOR_CATALOG_LABEL_MAX];
+    /** Filled once; the content tree does not gain squares mid-session. */
+    int sq_listed;
+    /** A square the browser asked for. The app drains it and starts the load;
+     *  the panel never calls the world loader itself. */
+    int sq_open_pending;
+    int sq_open_x;
+    int sq_open_z;
+
+    int catalog_panel;
+    int cat_row_count;
+    int cat_dd_kind;
+    int cat_in_search;
+    int cat_dd_list;
+    int cat_row_picked;
+    /** The picked entry's rendered model, host-fed (see the preview updater
+     *  in app.c). */
+    int cat_view;
+    int cat_reset_view;
+
+    /** Which kind the list is showing (enum CacheProvider_CatalogKind). */
+    int cat_kind;
+    /** The filter the list was last built for, so it rebuilds only on change. */
+    char cat_shown_search[EDITOR_CATALOG_LABEL_MAX];
+    int cat_shown_kind;
+    /** Rebuilt when the filter changes or the world reloads. */
+    int cat_built_epoch;
+
+    char cat_labels[EDITOR_CATALOG_MAX][EDITOR_CATALOG_LABEL_MAX];
+    char const* cat_options[EDITOR_CATALOG_MAX];
+    int cat_ids[EDITOR_CATALOG_MAX];
+    int cat_count;
+
+    /**
+     * Edit level: -1 follows the pick, 0..3 pins a plane.
+     *
+     * The CACHE level, which is what a `.jm2` stores and therefore the only one
+     * an edit can mean -- a column's draw and paint levels are derived and
+     * differ on bridge decks (see World_TerrainDrawLevel). Pinning matters when
+     * shaping a plane you are not standing on.
+     */
+    int edit_level;
+
+    /** Session spawn list: what Place stamped, what Save writes. */
+    struct Editor_SpawnEntry spawns[EDITOR_SPAWN_MAX];
+    int spawn_count;
+    int spawns_dirty;
+    /** The selected spawn's index, when sel_kind is NPC/OBJ. */
+    int sel_spawn;
+
+    /** The chosen entry, or -1. This is what a place tool would stamp. */
+    int cat_picked_id;
+    char cat_picked_name[EDITOR_CATALOG_LABEL_MAX];
 };
 
 /** Construct the rows. Call once, after the overlay exists. */
+/**
+ * Re-place every panel at its default spot for the chrome's current scale.
+ *
+ * Called on a scale change: panel positions are pixel counts, and a 2x chrome
+ * makes every panel twice as wide, so 1x-authored origins put them on top of
+ * each other. @see Editor_PanelTick, which notices the change.
+ */
+void
+Editor_PanelPlaceForScale(
+    struct Editor_Panel* panel,
+    struct ToriRSChrome* ui);
+
 void
 Editor_PanelInit(
     struct Editor_Panel* panel,
@@ -185,6 +366,124 @@ Editor_PanelSelectTerrain(
  *  is not a live scenery element. */
 void
 Editor_PanelSelectLoc(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int element_id);
+
+/** The level an edit means: the panel's pinned plane, or the pick's when the
+ *  Level row is on "auto". Callers driving a click pass this rather than the
+ *  hover level, or pinning a plane would do nothing. */
+int
+Editor_PanelEditLevel(
+    struct Editor_Panel const* panel,
+    struct App const* app);
+
+/** Stamp the catalog's picked loc at a scene tile: document command + the live
+ *  scene change. 0 when nothing is picked, or the square is not open. */
+int
+Editor_PanelPlaceLocAt(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level);
+
+/** Remove the first loc on a tile, whatever layer it is on. */
+int
+Editor_PanelDeleteLocAt(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level);
+
+/** Delete every loc on a tile as one undo step. @return how many went. */
+int
+Editor_PanelClearLocsAt(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level);
+
+/** Apply the current tool to the SELECTION rather than to a click. This is the
+ *  select-then-operate half: pick a subject once, then act on it as many times
+ *  as you like without hunting for it again with the cursor.
+ *  @return what the tool returned, or 0 when nothing is selected. */
+int
+Editor_PanelApplyToSelection(
+    struct Editor_Panel* panel,
+    struct App* app);
+
+/** The pose the Place tool would stamp right now: the LocSh/LocRot dropdowns
+ *  with sane defaults. For the hover ghost, which must match the commit. */
+void
+Editor_PanelGhostSpec(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int* out_shape,
+    int* out_angle);
+
+/** Rewrite the selected loc's placement -- id, shape, rotation -- as ONE
+ *  undoable command, with the scene updated to match. The workhorse behind
+ *  Apply-to-selection on a loc and the Edit menu's swap-to-catalog-pick. */
+int
+Editor_PanelReplaceSelectedLoc(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int new_loc_id,
+    int new_shape,
+    int new_angle,
+    int new_level);
+
+/** Move the selected loc to a scene tile: one undoable command + the scene
+ *  change. Refuses a cross-square move, as the underlying record does. */
+int
+Editor_PanelMoveSelectedLocTo(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int scene_x,
+    int scene_z);
+
+/** Record a session spawn placement (the scene add is the caller's; this is
+ *  the document half). @return the entry index or -1 when full. */
+int
+Editor_PanelSpawnAdd(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int is_obj,
+    int id,
+    char const* name,
+    int scene_x,
+    int scene_z,
+    int level,
+    int count);
+
+/** Emit + save every square's edited .spawn file via the host. Called from
+ *  Save-all so spawns ride the same explicit save as tiles and locs. */
+int
+Editor_PanelSpawnsSave(
+    struct Editor_Panel* panel,
+    struct App* app);
+
+/** Delete one session spawn by index: scene despawn + list removal. */
+int
+Editor_PanelDeleteSpawn(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int index);
+
+/** Delete whatever is selected. @return 1 when something was deleted. */
+int
+Editor_PanelDeleteSelection(
+    struct Editor_Panel* panel,
+    struct App* app);
+
+/** Delete one EXACT loc by scene element id -- the minimenu's "Delete Wall"
+ *  rows' handler, layer-precise where the tile-based delete takes the first
+ *  loc it finds. */
+int
+Editor_PanelDeleteLocByElement(
     struct Editor_Panel* panel,
     struct App* app,
     int element_id);

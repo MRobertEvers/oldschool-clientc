@@ -220,9 +220,9 @@ owns no keymap (see §6).
 
 ### 5.1 Bordered backgrounds — `TORIDBG_PANEL_WINDOW`
 
-A body fill, a 1px border, and a title bar in the menu face. Content is clipped
-to the panel's inner rect, so an over-long label is cut at the border rather
-than spilling onto the scene.
+A body fill, the **minimenu's chrome**, and a title bar in the menu face.
+Content is clipped to the panel's inner rect, so an over-long label is cut at
+the border rather than spilling onto the scene.
 
 ```c
 int p = ToriRSChrome_PanelAdd(&ui, TORIDBG_PANEL_WINDOW, 8, 8, 120, "Stats");
@@ -230,11 +230,39 @@ ToriRSChrome_Label(&ui, p, "fps 60");
 ToriRSChrome_LabelColored(&ui, p, "draws 812", 0x50FF50);
 ```
 
-An outline needs no new render command: a `TORIDBG_PRIM_RECT` with `filled == 0`
-becomes `ToriDraw2D_DrawRectOutline`.
+"Chrome" here is literal, not a family resemblance: the header bar, the
+separator under it, the bottom rule and the two side rails come off the same
+`dbg_menu_layout()` §5.2 uses, at the same offsets, and the title draws in the
+same bold menu face at the same `x + 3`. A window panel and a real game
+minimenu side by side differ only in what is inside them. There is no outer
+outline — the minimenu has none, and it was the last thing that gave a panel
+away.
+
+The palette keys stay separate (`panel_*` vs `menu_*`) so the flat developer
+theme can keep a legible grey title; it is the osrs theme that points them at
+the same colours.
+
+Pass a resizable panel a grip:
+
+```c
+ToriRSChrome_PanelSetResizable(&ui, p, 1);
+```
+
+Three carets in the bottom-right corner, in a strip the layout reserves for
+them so they never sit under a row. Dragging takes both edges with the cursor
+and writes what it lands on into `fixed_w` / `fixed_h`; the origin never moves,
+which is why the grip is in that corner and not another.
+
+There is no scrolling here, so a panel dragged shorter than its content
+**drops** the rows that no longer fit — undrawn *and* unclickable, because
+`dbg_build_window` zeroes their hit boxes. A row that is invisible but still
+toggles when clicked is the worse failure, and the one worth ruling out by
+construction. Grow the panel back and the rows return. If these panels ever get
+a scroll offset, this is the behaviour it replaces.
 
 Visual: `build/debug_overlay_01_bordered_background.bmp`,
-`build/debug_overlay_08_clipping.bmp`.
+`build/debug_overlay_08_clipping.bmp`, `build/debug_overlay_14_grip.bmp`,
+`build/debug_overlay_16_grip_clamped.bmp`.
 
 ### 5.2 Menus — `TORIDBG_PANEL_MENU`
 
@@ -299,7 +327,61 @@ keys are `BACKSPACE`, `DELETE`, `LEFT`, `RIGHT`, `HOME`, `END`, `ENTER`,
 Visual: `build/debug_overlay_05_textinput_caret_on.bmp`,
 `..._06_textinput_caret_off.bmp`.
 
-### 5.5 Labels and separators
+### 5.5 Dropdowns, menus and the scrollbar
+
+```c
+int tool = ToriRSChrome_Dropdown(&ui, p, "Tool", tool_names, TOOL_COUNT, 0);
+int file = ToriRSChrome_MenuDrop(&ui, bar, "File", file_items, 4);
+...
+if( ToriRSChrome_TakeActivated(&ui) == tool )
+    editor_set_tool(ToriRSChrome_DropdownSelected(&ui, tool));
+```
+
+`options` is **borrowed**, not copied: the array and every string in it must
+outlive the widget. One popup list serves the whole overlay (see
+`dropdown_open`), so only one can ever be open, and it is built after every
+panel and therefore never buried under one.
+
+**Two looks, because the game has two widgets.** A value dropdown is the
+cache's CS2 dropdown and a `MenuDrop` is the minimenu, and no palette turns one
+into the other, so the split is in the code rather than in the theme:
+
+| | Value dropdown | Menu (`MenuDrop`) |
+| --- | --- | --- |
+| Closed state | tiled button, framed and inset, arrow on the **left** | the bare title |
+| List body | the list's own tile (`TORIDBG_SKIN_DROPDOWN_BODY`) | flat `menu_body` |
+| Rows | centred, `dropdown_text`, alternating black bands | left-aligned, `menu_text` |
+| Hover | the row's band thins out, lightening it | the row's **text** goes `menu_hover_text` |
+
+Every number in the first column is read off the scripts that build the real
+thing — `script_3850` for the button, `script_9114` for the list — down to the
+`cc_settrans` values of the two bands (220 and 200) and the thinner veil under
+the cursor (240). The arrow is the cache's own sprite, and it is the *same*
+sprite the scrollbar's ends wear: down while the list is shut, up while it is
+open.
+
+**The scrollbar** appears on a list that overflows (`TORIDBG_DROPDOWN_ROWS`
+rows are shown at once), 16 chrome pixels wide, *inside* the list — so the rows
+lose that width rather than running under the bar. It is the client's bar in
+both of the forms the client draws it:
+
+- with the baked skin, the six sprites `~script31` assembles — two arrow
+  buttons, a track, and a grip whose middle stretches between two 5px caps;
+- without it, the flat IF1 form: `scroll_track` under a `scroll_grip` with a
+  `scroll_grip_hi` highlight down its top and left and a `scroll_grip_lo`
+  shadow down its bottom and right (the same four values as
+  `UITREE_SCROLLBAR_*_ARGB`, restated here because this module has no
+  dependencies).
+
+It is a control, not a picture: an arrow steps a row, the track pages by the
+window, and the grip drags. The wheel still works over the list either way.
+
+Visual: `build/debug_overlay_17_dropdown_closed.bmp`,
+`..._18_dropdown_open_short.bmp`, `..._19_dropdown_open_long.bmp`,
+`..._20_dropdown_scrolled_to_end.bmp`, `..._22_dropdown_no_skin.bmp`,
+`..._23_dropdown_3x.bmp`, `..._21_menubar_dropdown.bmp`.
+
+### 5.6 Labels and separators
 
 `ToriRSChrome_Label` / `ToriRSChrome_LabelColored` (colour `0` = the theme's `text`),
 and `ToriRSChrome_Separator` — a 1px rule with air above and below. Neither is
@@ -381,8 +463,9 @@ follows (`y -= font->line_height`).
 
 ## 8. Theme
 
-18 `0xRRGGBB` fields. `ToriRSChrome_Init` installs `toridbg_theme_default`;
-`ToriRSChrome_SetTheme` swaps it wholesale.
+`0xRRGGBB` colours plus a handful of non-colour switches.
+`ToriRSChrome_Init` installs `toridbg_theme_default`; `ToriRSChrome_SetTheme`
+swaps it wholesale.
 
 | Group | Fields |
 | --- | --- |
@@ -391,9 +474,48 @@ follows (`y -= font->line_height`).
 | Text input | `input_bg` `input_border` `input_border_focus` `input_text` |
 | Checkbox | `check_box` `check_mark` |
 | Menu | `menu_body` `menu_chrome` `menu_text` `menu_hover_text` |
+| Dropdown | `dropdown_border` `dropdown_border_inner` `dropdown_text` `dropdown_veil` |
+| Dropdown (trans) | `dropdown_band_trans` `dropdown_band_trans_alt` `dropdown_row_trans_hover` `dropdown_hover_trans` |
+| Scrollbar | `scroll_track` `scroll_grip` `scroll_grip_hi` `scroll_grip_lo` |
+| Switches | `text_shadowed` `font_row` `skin_panel_body` `skin_dropdown` |
+
+The `*_trans` fields are the **client's** transparency, `0` opaque to `255`
+invisible — not an alpha. They are written that way round because the values
+are lifted straight from the `cc_settrans` calls in the scripts that draw the
+real widget, and a field that read the other way would have every one of them
+inverted at the call site.
+
+The two `skin_*` switches are what a theme uses to ask for the baked cache art
+(§8.1) instead of flat boxes. Off is the flat look *and* the automatic
+fallback: each draw checks the slot it is about to use against `skin_avail`,
+so a build with the skin module stubbed out still renders.
 
 The menu group defaults to the minimenu's own palette, so a debug menu and a
-game minimenu on screen at the same time read as the same widget.
+game minimenu on screen at the same time read as the same widget. Under
+`toridbg_theme_osrs` the window group points at those same values —
+`panel_title_text` is the minimenu's brown-on-black, not the interfaces'
+heading orange — so a window panel matches too.
+
+### 8.1 The baked skin
+
+`engine/torirs_chrome_skin_baked.c` is a `spritebake` run over the cache: a
+handful of cache sprites as compiled-in ARGB arrays, addressed by *semantic
+slot* (`enum ToriDbgSkinSlot`) rather than by archive id, so a re-bake from a
+different cache — or no bake at all — needs no change here.
+
+| Slot | Cache sprite | Drawn as |
+| --- | --- | --- |
+| `PANEL_BODY` | `tradebacking` (297) | tiled behind a window panel and a closed dropdown |
+| `DROPDOWN_BODY` | 1040 | tiled behind an open dropdown list |
+| `SCROLL_UP` / `SCROLL_DOWN` | 773 / 788 | the bar's two arrow buttons, and the dropdown button's arrow |
+| `SCROLL_TRACK` | 792 | stretched down the bar between the arrows |
+| `SCROLL_GRIP_TOP/MID/BOTTOM` | 789 / 790 / 791 | the grip: middle stretched, then a cap on each end |
+
+The host uploads them as one multi-frame scene entry and sets one `skin_avail`
+bit per slot it actually got; `skin_tile_w/h` carry the tile's size so the
+tiling loop up here can step by it without holding any pixels.
+
+Regenerate with the command in the generated file's header comment.
 
 ---
 
@@ -403,31 +525,75 @@ Both generated files come out of one `fontbake` run over one cache, so the
 advances the overlay lays out with and the glyphs the renderer draws cannot
 disagree.
 
+Three faces, each baked at three sizes:
+
 | Slot | Archive | Ascent | Line box | Glyph bytes |
 | --- | --- | --- | --- | --- |
-| `TORIDBG_FONT_SMALL` | 494 | 10 | 12 | 2725 |
-| `TORIDBG_FONT_MENU` | 496 | 12 | 16 | 5045 |
+| `TORIDBG_FONT_SMALL` | 494 | 10 / 20 / 30 | 12 / 24 / 36 | 2725 / 10900 / 24525 |
+| `TORIDBG_FONT_BODY` | 495 | 12 / 24 / 36 | 16 / 32 / 48 | 4237 / 16948 / 38133 |
+| `TORIDBG_FONT_MENU` | 496 | 12 / 24 / 36 | 16 / 32 / 48 | 5045 / 20180 / 45405 |
 
 In a dat2 cache the metrics blob lives in the **fonts** table and the glyph
 bitmaps live in the **sprites** table at the same archive id; `fontbake` reads
 both.
 
-To regenerate (the host-tool lane wants the mingw64 compiler, not the i686 one
-the client builds with):
+### Why the sizes are baked and not scaled
+
+A HighDPI display gives the client a framebuffer with twice the pixels per
+inch. Chrome authored for 1x pixels and drawn into it comes out half the
+physical size, and the obvious fix — draw it small and stretch the result — is
+not available here and should not be: `ToriDraw2D` blits a glyph by testing its
+mask byte for non-zero and writing the colour (`toridraw_font.c`). There is no
+coverage, no blend, and therefore nothing for a filter to interpolate. A
+stretched pixel font is a stretched pixel font.
+
+So the sizes are authored. `fontbake --font 496=Menu2x@2` block-scales the
+glyph masks on an integer grid and multiplies every metric — advance, offsets,
+ascent, line box — by the same integer. The result is not an approximation of
+the face at twice the size: at scale N each source pixel is an N×N block, so
+the 2x chrome is the 1x chrome with every coordinate doubled, exactly. The
+visual test asserts that as an equality on drawn pixel COUNT (4x at 2x, 9x at
+3x), which is the assertion that catches a resampled glyph or a rule left at
+1px.
+
+Integer only, for the same reason: a 1.5x glyph would land stems on half
+pixels and the mask test would round them to uneven widths. `TORIDBG_SCALE_MAX`
+is 3 because three sizes are baked — raising it means baking the size first, in
+the one `fontbake` run that writes both generated files.
+
+### Who sets the scale
+
+`ToriRSChrome_SetScale` relayouts the chrome; `UITreeSceneBridge_EnsureDebugFont`
+resolves the slot against the same scale so layout and glyphs cannot come from
+different bakes. `App_SetChromeScale` is the one call that does both (and
+re-points the tree's overlay components), and the desktop shell drives it from
+`PlatformSDL2_PixelDensity` every frame — so a window dragged between a Retina
+display and an ordinary one re-bakes its chrome size on arrival.
+
+`TORIRS_CHROME_SCALE=N` pins it, which is how scaled chrome gets worked on from
+an ordinary display. `TORIRS_HIDPI=0` gives up the HighDPI drawable entirely,
+for a machine where the software rasteriser cannot afford 4x the pixels.
+
+### Regenerating
 
 ```bash
-export PATH="/c/Users/mrobe/Documents/git_repos/oldschool-clientc/toolchain/mingw64/bin:$PATH"
-mingw32-make -C 3rd/rscache/tools fontbake CC=gcc
-./3rd/rscache/tools/fontbake/fontbake --rev osrs239 \
-    /c/Users/mrobe/Documents/git_repos/oldschool-clientc/cache.osrs239 \
-    --font 494=Small --font 496=Menu --prefix ToriDbgFont \
+make -C 3rd/rscache/tools fontbake
+./3rd/rscache/tools/fontbake/fontbake --rev osrs239 "$PWD/cache.osrs239" \
+    --font 494=Small   --font 495=Body   --font 496=Menu \
+    --font 494=Small2x@2 --font 495=Body2x@2 --font 496=Menu2x@2 \
+    --font 494=Small3x@3 --font 495=Body3x@3 --font 496=Menu3x@3 \
+    --prefix ToriDbgFont \
     --out     src/engine/torirs_debug_font_baked.c \
     --header  src/engine/torirs_debug_font_baked.h \
     --metrics src/ui/uitree_debug_font_metrics.h
 ```
 
+(On the Windows host-tool lane that is `mingw32-make ... CC=gcc` with the
+mingw64 compiler on PATH, not the i686 one the client builds with.)
+
 `--metrics` is the advance-table half that keeps the module dependency-free;
-`--out`/`--header` are the glyph half the renderer needs.
+`--out`/`--header` are the glyph half the renderer needs. `@1` is the identity:
+a 1x bake through the scaling path is byte-identical to one without it.
 
 ---
 
@@ -457,6 +623,17 @@ feature into `build/`:
 | `07_damage` | 5 | old ∪ new bounds after a move |
 | `08_clipping` | 5 | content cut at the panel's inner rect |
 | `09_kitchen_sink` | 35 | everything at once |
+| `10_skin_off` / `11_skin_on` | 9 / 13 | flat fallback vs the tiled parchment |
+| `11_scale1x/2x/3x` | 12 | HighDPI relayout; ink area is exactly `scale²` |
+| `12`/`13_chrome_*_drag` | 12 | minimenu chrome on a window, carried by its header |
+| `14`/`15`/`16_grip*` | 19 / 19 / 13 | resize grip, drag, clamp |
+| `17_dropdown_closed` | 29 | the CS2 button: tile, frame, inset, left arrow |
+| `18_dropdown_open_short` | 39 | banded rows, centred, the hover veil |
+| `19_dropdown_open_long` | 59 | the scrollbar column, mid-list |
+| `20_dropdown_scrolled_to_end` | 58 | arrow / track / grip driven by the mouse |
+| `21_menubar_dropdown` | 9 | a menu list did **not** become a settings dropdown |
+| `22_dropdown_no_skin` | — | the flat IF1 bar, with the skin withheld |
+| `23_dropdown_3x` | — | sprites blown up to the box, not left at 16px |
 
 Assertions are written against theme colours and module-reported geometry, never
 against hardcoded pixel coordinates, so moving a panel in the test does not mean
@@ -495,7 +672,7 @@ if you are generating panels programmatically.
 | | |
 | --- | --- |
 | **Lifecycle** | `Init` `Reset` `SetTheme` |
-| **Panels** | `PanelAdd` `PanelMove` `PanelSetVisible` `PanelRect` |
+| **Panels** | `PanelAdd` `PanelMove` `PanelSetVisible` `PanelSetResizable` `PanelRect` |
 | **Widgets** | `Label` `LabelColored` `Checkbox` `TextInput` `Separator` `MenuItem` |
 | **Mutation** | `SetText` `SetLabel` `SetColor` `SetChecked` `SetCaretVisible` |
 | **Query** | `Checked` `Text` `HitTest` `MeasureText` `FontLineHeight` `FontLineBox` |

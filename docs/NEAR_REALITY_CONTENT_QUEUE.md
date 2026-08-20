@@ -267,7 +267,7 @@ Status: `pending` | `in_progress` | `done` | `blocked` | `deferred`.
 | --- | --- | --- | --- | --- | --- |
 | B1 | **The Nightmare of Ashihama** + Phosani's | 4899 | 260 | **partial** | Party-size scaling (from FIVE up), the per-phase special table, all twelve totem records and the both-halves drop gate are in and tested. Arena, instance and AoE need a scene. |
 | B2 | **Vorkath** | 1264 | 320 | **partial** | The special-attack rotation — alternation, the random first, spawn immunity, the flat 50% acid reduction and the scaled explosion — is in and tested. The dragonfire types, the fireball dodge and the drop table remain. |
-| B3 | **Wilderness bosses** — Callisto/Artio, Vet'ion/Calvar'ion, Venenatis/Spindel | 2883 | 352 | pending | `boss/wildernessbosses/` |
+| B3 | **Wilderness bosses** — Callisto/Artio, Vet'ion/Calvar'ion, Venenatis/Spindel | 2883 | 352 | **partial** | Dens/fees/exits were already in. Combat **mechanics** now under contract (`wildy_boss_combat.rs2`, 14-step): style precedence, per-variant max hits, knockback, phases, hound scaling and invulnerability, spiderling damage scaling. The per-tick AI wiring (projectiles, trap locs, live summons) is NOT done — the kill handlers are still counters. |
 | B3b | Wilderness singles — **Scorpia, Chaos Fanatic, both archaeologists** | — | config | **partial** | Primaries done and correctly routed. The archaeologists' specials need the machine-owned `npc_stats_attackstyle.generated.rs2` extended, which is a generator change and not a batch pass. |
 | B4 | **Alchemical Hydra** | 2384 | 240 | **partial** | Phase table, vent table, the 75% reduction and the enrage poison cadence are in and tested. The vents, arena and record swapping need a scene. |
 | B5 | **Mage Arena II** | 1031 | 340 | **partial** | All three bosses' signature mechanics — the 1+5% drains, Porazdir's prayer-proof ball, Derwen's healing orbs, Zachariah's bind — are in and tested. Tele Block, freezes and the Kolodion wiring remain. |
@@ -275,21 +275,21 @@ Status: `pending` | `in_progress` | `done` | `blocked` | `deferred`.
 | B7 | **Xamphur** | 1031 | 210 | **partial** | The fight A Kingdom Divided soft-skipped: Marks of Darkness, escalating corruption, magic immunity, no-melee. The crushing press and the cutscene remain. |
 | B8 | **Abyssal Sire** | 1540 | 240 | **partial** | Stun ladder, vent damage floor, miasma bands and the once-only explosion gate are in and tested. The lair layout, tentacles and record swapping need a scene. |
 | B9 | **Cerberus** | 1516 | 290 | **done** | The full rotation: three-style attack, souls every 7th under 400hp, lava every 5th under 200hp, and Mod Ash's 10% skip. |
-| B10 | **Rise of the Six** | 895 | 120 | **partial** | The encounter's one rule — a death heals the survivors and resets the corpses — is in and tested. The arena, the entry puzzle and the reward table remain. |
+| B10 | **Rise of the Six** (B15 folded in) | 895 | 120 | **partial** | The encounter's one rule and now the **supply chest table** (`rots_rewards.rs2`, 7-step): uniform weights, the truncating 1.5 modifier, and the nine noted entries. The arena and the entry puzzle remain. |
 | B11 | **Skotizo** | 861 | 200 | **partial** | The four awakened altars — two reduction rates, two caps, the one-hit demonbane disable, the 50-129 tick check interval and the one-minute cooldown — are in and tested. The lair, the totem and the drop table remain. |
 | B12 | **Corporeal Beast** | 1284 | 210 | **partial** | The damage rules — corpbane, the stab-only gate, the 100 cap, Protect-from-Magic's 33%, split poison immunity — are in and tested. The dark energy core and the drop table remain. |
-| B13 | **Mage Arena II** | 930 | 168 | pending | `boss/magearenaii/` |
-| B14 | **Xamphur** | 875 | — | pending | `content/xamphur/` — phantom hand, area |
-| B15 | **Rise of the Six** | 870 | — | pending | `content/rots/` |
-| B16 | **Skotizo** | 829 | 44 | pending | instance, npc, plugins |
-| B17 | **Corporeal Beast** | 766 | — | pending | `boss/corporealbeast/` (+ dark core) |
+| B13 | **Mage Arena II** | 930 | 168 | **partial** | The three bosses' own specials were already in `ma2_mechanics.rs2`. The shared **attack selection** is now under contract (`ma2_base.rs2`, 11-step): availability-built special pool, the one-in-five roll, melee frequency 0 = always, the moving splash threshold. Kolodion's stages and the enchanted symbol remain. |
+| B14 | **Xamphur** | 875 | — | **partial** | Corruption and magic immunity were already in `xamphur.rs2`. The **phantom hands** are now under contract (`xamphur_hands.rs2`, 7-step): hands gate all damage, spawn in pairs, 25-tile reach, corruption needs a landed hit. The arena instance and the XamphurBoost world-event table remain. |
+| B15 | ~~**Rise of the Six**~~ — **DUPLICATE of B10** | — | — | **folded** | Same content, listed twice in the original plan with different line counts (895 / 870). NR has exactly one `com/zenyte/game/content/rots` package. Track it at B10. |
+| B16 | **Skotizo** | 829 | 44 | **partial** | Altar damage reduction was already in. **Minion spawning** now under contract (`skotizo_minions.rs2`, 7-step): the ankou/demon else-if coupling, one ankou at a time, the three-at-once demon top-up. The instance (DynamicMap) and loot remain. |
+| B17 | **Corporeal Beast** | 766 | — | **partial** | Damage reduction was already in `corp_damage.rs2`. The **dark energy core** is now under contract (`corp_core.rs2`, 10-step): spawn gates, the mirrored heal, the single-use poison stun, flight time, mid-air removal. The cavern instance and drop processor remain. |
 | B18 | **Kraken** | 644 | config | **done (combat)** | Magic, speed 4. Single-style, fully described by the contract. |
 | B19 | **King Black Dragon** | 471 | already owned | **done** | `areas/wilderness/king_black_dragon.rs2` already has a three-way rotation incl. dragonfire — MORE than the infobox's two styles. This slice added its `damagetype`; a second rung would have been a duplicate. |
 | B20 | **Sarachnis** | 469 | 140 shared | **done** | Melee primary + ranged secondary, both rungs. |
 | B21 | **Obor** + **Bryophyta** | 774 | 140 shared | **done** | Obor melee+ranged, Bryophyta melee+magic, both rungs. |
 | B22 | **Thermonuclear Smoke Devil** | 391 | config | **done (combat)** | Magic, speed 2. Single-style. |
-| B23 | **Nex** — parity sweep against NR's 4190-line package | 4190 | 5600 (GWD total) | pending | ours may already exceed; **audit, do not rewrite** |
-| B24 | **Tormented Demons** — NR variant vs our rs2012 port | 896 | 47 files | pending | reconcile; ours is an rs2012 backport, NR's is OSRS. See `tormented-demons-osrs` |
+| B23 | **Nex** — parity sweep against NR's package | 1934 (not 4190) | 1228 Nex-specific | **done (audit + 2 gaps closed)** | Swept 23 NR mechanics against ours: 20 present, 2 real gaps now closed (`nex_containment.rs2`, 7-step), 1 non-gap (NR has it commented out). |
+| B24 | **Tormented Demons** — NR variant vs ours | 345 (not 896) | ~1500 OSRS + ~1300 rs2012 | **done (reconcile)** | Row premise was stale: we have BOTH the OSRS demon and the rs2012 one. Ours is ahead of NR on every axis; NR carries a De Morgan defect we do not. 286 lines of our TD assertions were debugproc-only — the pure subset is now in CI (`td_shield_selftest.rs2`, 6-step). |
 
 ### Wave C — minigames and areas
 
@@ -349,20 +349,20 @@ to leave it out.
 | E5 | **Wilderness Vault** + Queen Reaver | 1982 | 110 | **partial** | The state machine and its four clocks are in and verified. Genuinely NR-custom — the boss and vault locs are NR ids absent from this cache, held behind one constant each. |
 | E6 | **Bounty Hunter** | — | 160 | **partial** | Target range settings, the coffer's four deposit bands, the five skull tiers and the teleport gate are in and verified. The Emblem Trader's store and the (bh) equipment charges remain. |
 | E7 | **Follower / pet system** | — | 150 | **partial** | The award rule, its three outcomes and messages, the skilling priority and Probita's free reclaim are in and verified. Spawning, calling and the menagerie remain. |
-| E8 | **Commands** (staff + player command surface) | 1499 | partial | pending | audit which are engine vs content |
-| E9 | **Magic storage unit** | 1262 | — | pending | |
+| E8 | **Commands** (staff + player command surface) | 1499 | partial | **done (model)** | The 1499 commands are administration; the PRIVILEGE MODEL is the game behaviour and is ported. `staff_privilege/`, 9-step selftest. |
+| E9 | **Magic storage unit** | 1262 | done | **done** | Costume storage: all-of-pieces over any-of-ids, the UIM's cheaper unlock, and NR's store-without-delete duplication corrected. `storage_magic/`, 8-step selftest. |
 | E11 | **Flower poker** | 1109 | 120 | **partial** | The hand ranking and the draw rule are in and verified. The planting session and the stake remain. |
 | E12 | **Loot keys** | 571 | 130 | **partial** | Who gets a key, when they get none, the destroy cap and the disengage rule are in and verified. Skully, the chest and the per-player filters remain. |
-| E13 | **Universal shop** | 989 | — | pending | |
+| E13 | **Universal shop** | 989 | 70 | **partial** | The listing model — the -1/0 price distinction and per-item ironman restriction — is in and verified. The tabbed interface needs cache assets NR packs itself. |
 | E14 | **Clans** | 977 | 150 | **partial** | Clan Wars' four victory conditions, the per-condition re-join rule and the five magic settings are in and verified. The chat-channel/clan social system itself remains. |
 | E15 | **Presets** | 825 | 70 | **partial** | ToA's five invocation presets — the game's own preset feature, cache-backed — are in and verified. NR's tournament loadouts are its own and need E2's controller. |
 | E16 | **Crystal** equipment + recipes + chargeables | 760 | +130 | **partial** | The charge model — separate armour/tool starts, the shared cap, the shard rate and the nested damage exceptions — is in and verified. Ilfeen's pricing ladder and the recolour crystals remain. |
-| E17 | **Hiscores** | 713 | — | pending | |
-| E18 | **Rotten potato** (staff tool) | 677 | — | pending | |
+| E17 | **Hiscores** | 713 | — | **determined: no portable content** | A SQL schema (`user_skill_stats` and friends) plus an exporter. Its one game rule — hitpoints starting at level 10 / 1154 xp — this tree already asserts in `mock230_world.c`. See the log. |
+| E18 | **Rotten potato** (staff tool) | 677 | done (dispatch) | **done** | Ban/mute are infra; the per-viewer menu build, option NONE, and the delete-on-ineligible-click are ported. `staff_potato/`, 8-step selftest. |
 | E19 | **Drops** framework + rewards + larran's key | 571+465 | +90 | **partial** | Larran's three-branch key rate is in and verified against Mod Ash's published formula. The drops framework itself remains. |
 | E20 | **Well of Goodwill**, **comp capes**, **contests**, **challenges**, **killstreaks**, **wheel of fortune**, **server events** | 516+512+420+190+290+124+159 | 90 | **partial** | The Well's four perks, their shared threshold and the 32-bit overflow are in and verified. The other six systems remain. |
-| E21 | **Donation / donator / vote** | 417+108+58 | partial (vote) | pending | |
-| E22 | **Gravestones parity**, **ground items**, **imbue**, **glider**, **sailing**, **object/shop/combat/quest shims** | ~900 | +170 | **partial** | Gliders and Death's Office are in and verified. Ground items, imbue, sailing and the shims remain. |
+| E21 | **Donation / donator / vote** | 417+108+58 | partial (vote) | **done** | MemberRank tables, the three-way `togglesChance` sentinel, toggle declaration order and the claim remainder cascade. `donator/`, 11-step selftest. |
+| E22 | **Gravestones parity**, **ground items**, **imbue**, **glider**, **sailing**, **object/shop/combat/quest shims** | ~900 | +170 | **partial** | Gliders, Death's Office and **imbue** are in and verified (`item_imbue/`, 10-step). **Sailing and ground items determined: already covered here from better sources** — see the 2026-08-20 entry. The object/shop/combat/quest shims remain. |
 
 ### Wave F — seasonal and event content
 
@@ -3595,6 +3595,523 @@ with and without, and what was explicitly deferred with its reason.
   lookup that maps a donation total to one perk silently drops the second; the
   test counts perks at each boundary (0 -> 0, 200 -> **2**, 250 -> 3,
   4000 -> 4) rather than checking them one at a time.
+
+- 2026-08-20 — **E13 universal shop, and a determination on E17 Hiscores.**
+
+  **E13.** NR-custom: one interface serving every shop's stock. The listing
+  model has a distinction a port collapses — **-1 means "cannot", 0 means
+  "free"**:
+
+  ```
+  val canBuy  get() = buyPrice  != -1
+  val canSell get() = sellPrice != -1
+  ```
+
+  An item priced 0 is a giveaway the player may take; an item priced -1 is one
+  the shop will not trade. Read 0 as "no price" and every giveaway becomes a
+  refusal — or, read the other way round, every refusal becomes a giveaway. And
+  `ironmanRestricted` is **per item**, not per shop: one stall holds restricted
+  and unrestricted stock side by side, which a shop-level flag cannot express.
+
+  The tabbed interface itself needs cache assets NR packs into its own cache
+  (`assets/osnr/universal_shop/`), so that half is an asset dependency rather
+  than a porting question.
+
+  **E17 Hiscores — determined, not skipped.** `HiScoreTables.kt` is a SQL schema
+  (`user_skill_stats`, one column per skill) and an exporter around it. There is
+  no game behaviour in it to hold to a source: it reports state this tree
+  already maintains. Its one embedded rule is the starting stats — hitpoints at
+  level 10 / 1,154 xp against every other skill's 1 / 0 — and **this tree
+  already asserts exactly that** at `mock230_world.c:25663`. Marked *determined:
+  no portable content* rather than left looking untouched, because "there is
+  nothing here" is a finding and an empty row is not.
+
+- 2026-08-20 — **E8/E18/E21 staff and donator systems — three tables, three sentinels.**
+  These three rows were flagged in §7 as possibly "administration, not game
+  behaviour". Two thirds of that is right and one third is not, and the split
+  runs through the middle of each row rather than between them.
+
+  **E8.** The 1499 commands are administration and porting a list of them ports
+  nothing. The model underneath them is not: `PlayerPrivilege` is a SET, not a
+  rank. `eligibleTo` is `inheritance.contains`, and the tree's existing
+  `staff_level > 1` (mock230_friends.h, inherited from LostCity) is exactly the
+  rank shape that gets it wrong. Three places the two disagree:
+    * **HIDDEN_ADMINISTRATOR** holds every developer permission while sending
+      the client login code 0 — the same code as a plain player — and reporting
+      `pMod` false. Rank by login code and the one account whose entire purpose
+      is invisible authority has none.
+    * **Nobody inherits YOUTUBER.** It sits at ordinal 2, below every staff
+      type, and appears in no other privilege's `inherits` list. Under a rank
+      port every moderator and administrator silently acquires it.
+    * **loginCode is neither unique nor monotone**: MEMBER, YOUTUBER and
+      FORUM_MODERATOR all send 2, and TRUE_DEVELOPER sends 69.
+  Verified by mutation: replacing `~priv_has` with `$held < $needed` — the
+  obvious port — fails the stanza at 3 of 9, on the youtuber step.
+
+- 2026-08-20 — **E18 rotten potato — NONE is not a default, and the click is destructive.**
+  Ban/mute/kick are infrastructure. The dispatch is not:
+    * The menu is built **per viewer** — `getActions` filters by `eligibleTo`,
+      so a support sees three punishments and a moderator sees five, from the
+      same item in the same inventory.
+    * **Option `NONE` is not an empty menu.** `itemOptionMap` really does hold
+      the two npc actions under it; `RottenPotatoItem.handle()` skips the key at
+      bind time with a bare `continue`. Filtering the map without reproducing
+      the skip counts two entries into a menu no player can open — which is the
+      bug my first version of `~potato_menu_size` shipped, and which the stanza
+      caught at 2 of 8 before I did.
+    * **A click below SUPPORT deletes the item**, rather than refusing. A port
+      that renders an ineligible click as a no-op leaves a staff tool sitting in
+      an ordinary player's inventory.
+
+- 2026-08-20 — **E21 donator — a chance of 0 is a guarantee.**
+  `MemberRank.togglesChance` carries three meanings in one int, and the sentinel
+  reading is the opposite of the obvious one:
+
+      if (rate == -1) return false;            // never
+      if (rate == 0)  return true;             // always
+      return randomNoPlus(rate) == 0;          // one in `rate`
+
+  **UBER and AMASCUT hold 0**, so reading 0 as "no chance" leaves the two top
+  ranks as the only ones whose toggles never fire. Same family as the E13
+  price sentinel, one value wider. Two more findings in the same row:
+    * `formatRate` uses `rate <= 0`, swallowing -1 alongside 0, so the toggles
+      menu prints **100% for a rank that fires never**. Transcribed as NR has it
+      — it is the only source — but recorded as a disagreement between the label
+      and the predicate, not smoothed over.
+    * `DonationHandler.claim` threads the **remainder** through inventory →
+      bank → floor, each stage receiving only what the stage above could not
+      take. "Did not all fit, so bank it" either duplicates the part that fit or
+      discards a partial fit.
+  Verified by mutation: reading 0 as "never" fails the stanza.
+
+- 2026-08-20 — **E22 imbue — the two tables are not one table read backwards.**
+  33 normal/imbued pairs, and three things a "swap the id" port gets wrong:
+    * **Charges survive imbuing and are lost un-imbuing.** Imbue builds
+      `new Item(imbued, 1, charges)`; disimbue calls `addOrDrop(normal, 1)` with
+      no charge argument. One shared helper makes the two directions agree, and
+      whichever way it is written one of them is then wrong.
+    * **The imbue set and the disimbue set are different sets** — 33 against 10.
+      `DisimbueItemAction` filters the bind list by enum NAME, excluding every
+      slayer helmet, every black mask, every crystal item and both suffering
+      rings.
+    * **[cache] The imbued id is not always the higher one.** 32 pairs have
+      imbued > normal; the crystal halberd is 13080 against 13091. Not an NR
+      slip — the cache confirms it and says why: `13080=nzone_crystal_halberd_new`
+      sits in the imbued block 13080..13090, laid down *before* the plain block
+      13091..13101. Sorting or id-comparison gets this one entry backwards.
+  Also noted, not ported: `IMBUEABLES` is keyed on both ids, so `get(id)`
+  answers "which pair is this" and cannot answer "is this imbued" — and
+  `DisimbueItemAction` binds "Uncharge" to the plain ids as well as the imbued
+  ones, guarded only for the suffering pair.
+
+- 2026-08-20 — **E22 sailing — determined: already ported, from a better source, and NR's row is broken.**
+  I wrote a charter lane from `CharterLocation` and the compiler refused it:
+  `^charter_brimhaven` was already declared by `transport_charter/`. That lane
+  is 16 ports and 228 fares generated from the wiki's own fare template
+  (precedence rank 2) against NR's 11 ports (rank 4). Deleted mine.
+
+  Two findings worth keeping from the comparison:
+    * **NR's Mos Le'Harmless row lists TEN fares where every other row lists
+      eleven.** `CharterLocation(final Location, final String, final int... costs)`
+      takes a short row without complaint, so this is an out-of-bounds read
+      waiting on the first player who asks that desk for Prifddinas. Which index
+      is missing cannot be recovered — the matrix is asymmetric elsewhere by
+      design, so the absent fare cannot be inferred from its mirror.
+    * **NR's asymmetries are two data sources blended.** Brimhaven→Karamja 480
+      against Karamja→Brimhaven 200; Brimhaven→Port Khazard 400 against 1600
+      back. `charter_fare.dbrow`'s own header already diagnosed exactly this
+      pair set — "Musa Point to Brimhaven 200 vs 480, Karamja Shipyard to Port
+      Khazard 720 vs 1600" — as the shortest-path tsv disagreeing with the wiki,
+      and chose the wiki. NR took some cells from each. Our Mos Le'Harmless ↔
+      Prifddinas is 2475 both ways; NR's one surviving direction is 4950,
+      exactly double, the same doubling the header records for Sunset Coast.
+
+- 2026-08-20 — **E22 ground items — determined: the model is already here, and the guard over it was wrong.**
+  NR's `FloorItem.isVisibleTo` turns on three things: `invisibleTicks <= 0`
+  makes a pile public unconditionally, a null `receiverName` makes it public
+  subject to the ironman flag, and otherwise only the named receiver sees it.
+  This tree already implements all of that — `mock230_world_obj_add_private`
+  with a private window whose header states the same rule ("A non-positive
+  private window is the same as obj_add"), and `receiver_pid` gating
+  `mock230_world_ground_visible_to`. Owner and receiver are already separate.
+  Nothing to port. NR's only addition is `visibleToIronmenOnly`, which is a
+  temporary restriction — it is bypassed the moment the window expires — and
+  has no counterpart here because this tree has no ironman-only drops.
+
+  **Engine fix taken while reading it.** `mock230_world_ground_visible_to`
+  opened with
+
+      if( slot < 0 || slot >= MOCK230_GROUND_MAX )
+          return 0;
+
+  which is the shape CLAUDE.md forbids: a bad index returns "you cannot see
+  it", and every caller treats a false as skip-this-obj, refuse-the-take, or
+  omit-from-the-zone-flush. A caller bug would have surfaced as a pile that
+  silently never appears. Replaced with asserts on `srv` and both bounds. The
+  guard was also not protecting the one path that looks riskiest —
+  `mock230_zone.c:1390` indexes `srv->ground[zone->objs[i]]` on the line above
+  its call, so a bad index is already UB before the check runs. No assert fires
+  across the full selftest: every call site passes a loop index or a validated
+  lookup, which is what the guard was hiding.
+
+- 2026-08-20 — **E9 magic storage unit — and a correction to why I had left it.**
+  I said last session that E9 was the Chambers of Xeric storage unit and that
+  the concurrent session's work in that lane was a reason to hand it over. That
+  was a misidentification: E9 is `com.zenyte.game.content.magicstorageunit`,
+  costume storage in the pre-Construction era, and the CoX storage unit is a
+  different class in a different package. Nothing about it touched the CoX lane.
+
+  Four rules, one of them a defect in the reference:
+    * **Completeness is all-of-pieces over any-of-ids.** A `StorableSetPiece`
+      is a bag of interchangeable ids — one slot in several colours or charge
+      states — and `containedCount == 0` fails only that piece. Flattening the
+      two levels breaks it in whichever direction: "all ids" demands every
+      variant at once, "any id" stores a set on the strength of one boot.
+    * **Every held id is banked, not one per piece.** `list.add(id)` sits inside
+      the loop over the piece's ids, and withdrawal returns all of them.
+    * **The ultimate ironman unlock is the CHEAPER rate** — 1,000,000 against
+      2,500,000. The usual direction for an ironman branch is a surcharge, and
+      the refund path reads the amount actually paid, so getting the two
+      backwards pays out the wrong refund rather than just charging wrong.
+      Varbit 16001 is `unlockPayment == 0 ? 0 : 1`, a flag derived from an
+      amount — it cannot answer the refund on its own.
+    * **[ours] NR's `store()` never deletes the items.** The put into
+      `storedSets` is live; the inventory deletion below it is inside a block
+      comment, while `MagicStorageInterface:71` adds every stored id back on
+      withdrawal. Store a set, keep the items, withdraw the set: two copies.
+      Corrected here rather than transcribed, and recorded as a correction.
+
+  **A gap in my own stanza, found by the mutation check.** Deleting the middle
+  piece's test from `~storage_set_complete` did not fail the suite: every
+  incomplete case I had written was missing the first or last piece, so the
+  middle one was never exercised alone. Added `(1,0,1)` and `(0,1,1)`; the
+  mutation then fails as it should. Worth stating because the stanza looked
+  thorough — six cases over three pieces — and still pinned nothing about the
+  piece in the middle.
+
+- 2026-08-20 — **B3 wilderness bosses — the numbers the stubs deferred.**
+  The dens, entry fees and exits were already here; the three fights were
+  `ai_queue3` counters printing "(Specials / loot deferred)". The specials are
+  now stated and under contract. What a port collapses, in each fight:
+    * **Callisto's style is not a three-way roll.** `isWithinMeleeDistance` is
+      checked first and returns immediately, so in melee range he melees on the
+      roll that would otherwise have chosen magic. Rolling the style first
+      produces a boss that shoots at point-blank range. Verified by mutation.
+    * **Artio is weaker at range and identical in melee** — 40/40 against
+      Callisto's 55 ranged / 60 magic, but both melee for 55. A single "the
+      weak variant hits for X%" factor gets the melee row wrong.
+    * **Only the magic attack knocks back, and Protect from Magic stops it.**
+      The knockback carries its own flat 3 damage on top of the spell's.
+    * **A living hellhound blocks Vet'ion's damage AND his experience.** One
+      predicate, two effects — `hit.setDamage(0)` and
+      `getXpModifier() { return isDamageable() ? 1 : 0; }`. Zeroing only the
+      damage still pays out for hits that did nothing.
+    * **Calvar'ion never scales his summon.** Vet'ion is `min(2 + players - 1,
+      25)`; the weaker variant is a flat 2 whatever the room holds.
+    * **Venenatis' melee maximum is `21 + 2 * spiderlings alive`.** Reading the
+      base and dropping the term gives a boss that never gets more dangerous
+      for leaving its spawns up, which is the only reason to kill them.
+  [cache] Hitpoints cross-checked rather than taken from NR: `callisto`
+  stat4=1000 (NR hardcodes 1000 and the cache agrees), Artio 450, Vet'ion and
+  Calvar'ion 255/150 **per phase**, Venenatis 850, Spindel 515.
+
+  **[ours] NR's Callisto phase guard oscillates.** It reads
+
+      if (hp% < 66 && phase != TWO)      { howl(); phase = TWO; }
+      else if (hp% < 33 && phase != ONE) { howl(); phase = THREE; }
+
+  Once phase is THREE the first branch is live again — `phase != TWO` holds —
+  so it drops back to TWO and howls, and the next hit promotes it to THREE and
+  howls again. Below 33% Callisto howls on *every* hit, and the comment above
+  that block says a howl "resets his freeze and attack timers". The second
+  guard was meant to say `phase != THREE`. Phase THREE is also never
+  behaviourally distinct: the sole read is `phase == TWO || phase == THREE`.
+  Ported as a function of hitpoints, so it is monotone and cannot oscillate.
+
+  **Not done, and the row says so:** the per-tick AI wiring. Projectile
+  dispatch, trap loc spawning, live hellhound summoning and the top-ten damage
+  split are still absent; the kill handlers remain counters. This slice is the
+  arithmetic those handlers will need, not the fight.
+
+- 2026-08-20 — **B15 is B10. Folded rather than worked twice.**
+  The original plan lists Rise of the Six as both B10 (895 lines) and B15 (870,
+  `content/rots/`). NR has exactly one `com/zenyte/game/content/rots` package.
+  B15 is marked folded; the count of outstanding rows drops by one for free,
+  which is worth more than a second implementation of the same encounter.
+
+- 2026-08-20 — **B10 supply chest — a `+ 1` that means "noted".**
+  Three findings in a 36-line table:
+    * **[cache] `ItemId.X + 1` is the NOTED form.** Nine of the twenty entries
+      are written that way — bones, four herbs, two foods, three potions —
+      and every one is meant to arrive noted. Verified here rather than assumed:
+      `536=dragon_bones` / `537=cert_dragon_bones`, `2998=toadflax` /
+      `2999=cert_toadflax`; `cert_` is this cache's prefix for a note.
+      Transcribing the constant name and dropping the `+ 1` hands over 25
+      unnoted dragon bones and 40 unnoted manta rays, which will not fit in an
+      inventory beside the rest of the chest.
+    * **The table is uniform.** `MysteryItem(int id, int weight)` resolves to
+      `this(id, 1, 1, weight)`, so the two-argument entries are quantity-one at
+      weight one, and every four-argument entry passes 1 as its weight too. The
+      dragon med helm and both key halves are exactly as likely as coins. The
+      trailing 1 reads naturally as a quantity — which is what it means in the
+      four-argument form's *second* slot — and reading it that way turns a flat
+      table into a weighted one.
+    * **The 1.5 modifier truncates.** `(int)(2889 * 1.5)` is 4333, not 4334.
+      Three of the seven scaled rows land on a half — mind runes, chaos runes,
+      bolt racks — and the other four divide evenly, which is what makes the
+      three easy to miss. Verified by mutation: rounding fails the stanza.
+
+- 2026-08-20 — **B16 Skotizo minions — two spawners that are secretly one.**
+  The altar damage reduction was already here; this is the spawning half the
+  entry stub deferred.
+    * **The ankou branch and the demon branch are `if` / `else if` on the ankou
+      timer.** A tick on which the ankou timer is due suppresses the demon check
+      entirely — even when no ankou spawns, because one is already alive. Two
+      independent-looking spawners are one, and the ankou has priority. Verified
+      by mutation: making them independent fails the stanza.
+    * **The ankou timer resets whether or not an ankou spawns.**
+      `resetAnkouSpawnDelay()` precedes the count check.
+    * **A demon wave tops the count up to three in one go** —
+      `for (i = count; i < 3; i++)` — so an empty field spawns three, not one.
+      Spawning one per wave takes three waves to reach a state NR reaches in one.
+    * **The taunt and the 30-second clock both fire on a wave that spawns
+      nothing.** `setForceTalk` and the delay assignment precede the
+      `if (count >= 3) return;`, so a full field still silences the spawner.
+
+- 2026-08-20 — **B17 dark energy core — the half of the fight that heals the boss.**
+  `corp_damage.rs2` already had the beast's damage reduction. The core is the
+  other half, and it hangs on values that read the wrong way:
+    * **`Utils.random(i)` is `nextInt(i + 1)` — INCLUSIVE.** NR carries both
+      forms; `randomNoPlus` is the exclusive one. So `Utils.random(7) == 0` is
+      one chance in EIGHT, and `Utils.random(1, 13)` is 1..13 inclusive —
+      thirteen outcomes. Reading `random(7)` as exclusive makes the core appear
+      14% more often than it should.
+    * **The spawn needs a hit ABOVE 32**, exclusive — `hit.getDamage() <= 32`
+      returns. A hit of exactly 32 never spawns it.
+    * **The heal mirrors the damage.** One roll, used twice:
+      `applyHit(amount)` then `corporealBeast.heal(amount)`. Rolling the two
+      separately, or healing a flat figure, breaks the only reason the core is
+      worth killing.
+    * **The siphon hits every adjacent player separately**, so a core sitting
+      between three players returns three times as much to the beast.
+    * **Poison stuns the core exactly once per fight.** A stunned core does not
+      siphon — but its next jump clears `stunned` AND `canBeStunned`, and the
+      latter never comes back. Modelling the stun as a repeatable status makes
+      the core permanently harmless.
+    * [wiki] A core killed in mid-air does not return for the rest of the kill
+      (Dwarf multicannon page); NR carries the same idea as `canRespawn`.
+
+  **Recorded, not silently resolved:** `^corp_core_leech = 5` already existed in
+  `corp.constant`, tagged `[wiki]`, but the wiki text quoted beside it states no
+  number and the constant is referenced by no script. NR says the siphon is
+  `Utils.random(1, 13)`. I left the existing constant alone and wrote the range
+  as its own pair rather than overwrite a value whose provenance I could not
+  establish. Someone should settle which is right.
+
+- 2026-08-20 — **A false pass, and how it was caught.**
+  `selftest_corp_core` reported green on its first run and then survived a
+  mutation that should have failed it. The row was not in the binary at all: my
+  edit to the registration table in `mock230_world.c` was clobbered between the
+  write and the build — the concurrent session is active in that file, and this
+  is the `concurrent-session-commits-your-tree` hazard showing up as a *missing*
+  edit rather than a conflicting one. An unregistered stanza cannot fail, so it
+  reads exactly like a passing one.
+
+  The mutation check is what caught it: a green run proves nothing on its own,
+  and "the mutation did not fail" was the signal that sent me to look. Worth
+  noting the checker could not have caught this either — it verifies that no
+  FAIL line matches an owned expectation, and an absent stanza emits no line.
+  After re-registering, the mutation fails at "got 0 of 10" as it should. I
+  audited all nine rows added this session; the other eight were present.
+
+- 2026-08-20 — **Engine/tooling: `tools/check_selftest_registration.py`, and six dead tests it found.**
+  Written in response to the false pass above, because that failure mode is
+  invisible to everything else we have. A stanza that is never registered
+  cannot fail, so it reads exactly like a passing one:
+    * the C loop's `SELFTEST_CHECK(script != NULL, ...)` fires for a proc that
+      IS in the table but missing from the pack — the opposite direction;
+    * `trail_selftest_check.sh` asks whether any FAIL line matches an owned
+      expectation, and a stanza that never ran emits no line.
+  So the check runs from outside: enumerate every `[proc,selftest_*]` in the
+  tree and require each to be either named in a `k_*` table in
+  `src/net/mock/*.c` or called as a helper with `~name`. Wired into
+  `mock230-scripts`, so it gates every build rather than being a thing to
+  remember. Verified by simulating the exact failure — renaming the
+  `selftest_corp_core` table entry makes it report the stanza as running
+  nowhere.
+
+  **It immediately found six stanzas that had never run.** Five of them are the
+  herblore port's — venom raise-don't-stack-down, venom immunity, disease,
+  and both decant cases — sitting in `selftest_herblore.rs2`, compiled into
+  every pack and executed by nothing. All five are orphaned together, which
+  points at a single lost registration edit rather than five oversights: the
+  same accident that hit me today, committed at some earlier point and never
+  noticed. **Registered, and all five pass** — they were correct code that had
+  simply never been run, which is the quiet version of this failure. They use
+  that file's own convention rather than a step count (a distinct failure code
+  in the 509x range at each guard, a success code in the 500x range at the
+  end), so the table's `expect` is the success code.
+
+  The sixth, `selftest_npc_mode_none`, writes no `%mock_quest_progress` at all
+  and so has no success code to register against. Left recorded in the tool's
+  KNOWN_DEAD list with a note rather than deleted or given an invented code —
+  `defaultmode=none` is already covered by `defaultmode-none-was-a-noop.md`, so
+  it may be redundant rather than missing, and that is someone's call to make.
+
+  Two stanzas are legitimately unreachable and the tool knows why:
+  `selftest_curses_sa_energy_scale` lives in `ported_rs558_ancient_curses`,
+  which is a compiled-off lane.
+
+- 2026-08-20 — **B13 Mage Arena II — the base class that decides which attack happens.**
+  The three bosses' own specials were already here; `MageArenaBossBase` is what
+  picks between them, and it is built out of the same traps as the rest of NR:
+    * **The special pool is built from what the target's state still ALLOWS,
+      then one is drawn uniformly from that pool.** Teleblock is offered only
+      if the target is not already teleblocked, the bind only if not frozen,
+      the boss's own only if ready. So each special's probability depends on
+      how many others survive the filter: against a target already teleblocked
+      and frozen, the boss's own special is CERTAIN on a special turn; against
+      a fresh one it is one in three. Rolling the type first and then checking
+      whether it applies produces neither distribution.
+    * **`Utils.random(4) == 0` is one turn in FIVE.** Same inclusive-random
+      trap as the Corporeal Beast's core spawn, in a different file.
+    * **`meleeFrequency()` of 0 means ALWAYS, not never.** `Utils.random(0)` is
+      `nextInt(1)`, which can only return 0, so Justiciar Zachariah — whose
+      override returns 0 — melees on every turn he is in range, while Derwen
+      and Porazdir at 2 melee one turn in three. Reading 0 as "no chance" gets
+      the one boss built around melee exactly backwards, and an exclusive
+      `nextInt(0)` would throw instead of returning anything. This is the third
+      time this session that a 0 has meant "always" in NR — the donator toggle
+      chance and the universal shop price were the others. Verified by
+      mutation: reading it as "never" fails at 5 of 11.
+    * **Melee range alone does not force a melee here** — the opposite of
+      Callisto in slice B3, who short-circuits to melee whenever he can reach
+      you. Two bosses in one tree with opposite answers to the same question,
+      so neither can be inferred from the other.
+    * **The splash threshold moves with the prayer**: `damage <= (protect ? 1 : 0)`,
+      so a hit of 1 splashes against Protect from Magic and lands without it.
+      A fixed `damage == 0` test cannot express that.
+
+  **A value conflict left standing rather than resolved.** NR's teleblock is
+  200 ticks, halved to 100 under Protect from Magic, with a separate immunity
+  of 300/200. The tree already carries `^ma2_teleblock_ticks = 100` tagged
+  `[wiki]` from "can also cast a Tele Block lasting one minute". The two agree
+  only for a praying player. The wiki outranks NR, so the existing constant
+  stays the one the content uses; NR's pair is recorded beside it under
+  `^ma2_nr_*` names for the structure it carries — two timers, the immunity
+  outlasting the block, one prayer halving both — which the tree did not have
+  either way.
+
+- 2026-08-20 — **B14 Xamphur's phantom hands — the half of `handleIngoingHit` that was missing.**
+  The tree already had Xamphur's corruption effect and his magic immunity. The
+  immunity was ported as its own rule, but in NR it shares a branch:
+
+      if (hit.getHitType().equals(HitType.MAGIC) || handNpcs.size() > 0)
+          hit.setDamage(0);
+
+  **A living hand blocks melee and ranged too** — the same shape as Vet'ion's
+  hellhounds in B3, and the third boss this session whose real gate is "kill
+  the adds first". Porting only the magic half — which is the half the wiki
+  describes — leaves the hands as decoration and the fight with no gate at all.
+  Verified by mutation: dropping the hands condition fails at 0 of 7.
+
+  Four smaller rules with it:
+    * **Hands spawn as a pair**, left and right, two tiles either side of the
+      middle. One hand is never spawned alone, so a "spawn a hand" that
+      produces one leaves the fight beatable at half the intended cost.
+    * **25-tile reach** — `attackDistance`, `maxDistance` and
+      `aggressionDistance` are all 25, far past a normal npc's, so no corner of
+      the arena is out of range.
+    * **Corruption needs a hit that landed**: `if (hit.getDamage() > 0)`. A
+      blocked or splashed hand attack does not corrupt, so the corruption clock
+      is a function of damage taken and not of attacks received.
+    * The "your hit is ineffective" message is a **separate `if`**, not the
+      else of the damage branch, so a magic hit with no hands alive is zeroed
+      in silence with no explanation offered.
+
+- 2026-08-20 — **B23 Nex parity sweep — the audit, and the two gaps it found.**
+  The row guessed "ours may already exceed" and told me to audit rather than
+  rewrite. Both halves of that turned out right, and the row's own number was
+  wrong.
+
+  **The 4190 figure is not NR's Nex package.** The whole
+  `plugins/excluded/boss/nex` tree is **1934** lines, of which `NexNPC.java` is
+  1491. Ours is 1228 Nex-specific lines across `godwars_nex.rs2` (968) and
+  `godwars_nex_drops.rs2` (260). Wherever 4190 came from, it was not this; the
+  row has been corrected rather than left to imply a 3.4x shortfall.
+
+  **The sweep.** I took the method inventory off `NexNPC` — 23 distinct
+  mechanics — and checked each against our lane by its distinctive term rather
+  than by a fuzzy name match, which was giving false positives on words like
+  "dash" and "attack" that appear everywhere. Result: **20 present** — smoke
+  dash and drag, choke, shadow embrace and smash, blood siphon, sacrifice and
+  reavers, ice prison and stalagmites, zaros auto, wrath, turmoil transfer,
+  soul split, style swapping, the HUD, power drain. **Three absent**, of which
+  two are real:
+    * **Ice containment ("Contain this!")** — absent entirely; "containment"
+      appeared zero times in the lane. It is anchored on NEX, not on a player:
+      the box is her footprint grown one tile on every side, so 5x5 for a
+      size-3 Nex, unlike the ice prison which follows a target. Anyone inside
+      **loses their overhead protection prayer** — a deactivation, not a
+      one-hit bypass, so the stalagmite volley that follows finds them
+      unprotected too. The hit is `Utils.random(60)`, inclusive 0..60, and the
+      10-tick stun and 10-tick movement lock land whatever it rolls: a
+      containment that dealt zero damage is still the one that kills. Verified
+      by mutation — starting the box at her own corner instead of one tile out
+      fails at 1 of 7.
+    * **The stuck watchdog** — absent. It is gated on stage AND style
+      (`stage.isAutoAttack() && getCombatDefinitions().isMelee()`), because
+      outside a melee auto stage a long gap between attacks is normal; an
+      ungated watchdog dashes Nex home in the middle of her own specials. The
+      threshold is three of her CURRENT attack speeds, so it scales with the
+      phase rather than being a fixed tick count.
+    * **`increaseAttack` is a non-gap.** Its only real behaviour — switching
+      target every third attack — is commented out in NR, with a `//TODO
+      target switching proper`. Nothing to port; recorded so the next sweep
+      does not re-flag it.
+
+- 2026-08-20 — **B24 Tormented Demons reconcile — ours is ahead, and NR has a De Morgan bug.**
+  The row's premise was stale. It says "ours is an rs2012 backport, NR's is
+  OSRS" and asks me to reconcile them. We have **both**: the Old School demon
+  in `bosses/boss_tormented_demons/` (~1500 lines, built 2026-08-13) and the
+  revision-727 one in `areas/area_rs2012_tormented_demons/` (~1300). NR's whole
+  contribution is **345** Kotlin lines, not the 896 the row claims.
+
+  **Nothing to port.** Ours is wiki-sourced and covers what NR does not — the
+  unshielded damage bonus (X squared minus 16), the six-tick prayer-switch
+  stall, the four-step damage ordering (defencelessness, then prayer, then
+  shield, then the counter), the fire bomb, the consumables. NR's only items we
+  lack are `isTolerable = false` and a 25-tick accuracy-boost ticker, both of
+  which our lane handles differently. Cannon immunity we deliberately do not
+  model, and the existing header says why: this tree has no cannon that deals
+  damage, so the branch would be unreachable, and an unreachable guard reads as
+  a live rule.
+
+  **[nr] The fire-shield exemption is inverted in NR:**
+
+      if (weapon is Item && (!weapon.isDemonbaneWeapon || !weapon.isAbyssalWeapon))
+          hit.damage = (hit.damage * 0.8).toInt()
+
+  `(!a || !b)` is `!(a && b)`, so the 20% reduction is skipped only for a
+  weapon that is BOTH demonbane and abyssal. Every ordinary demonbane weapon —
+  arclight, emberlight, the purging staff — is still reduced, and the exemption
+  never fires for the weapons it exists for. The intended form is `!(a || b)`.
+  Ours already has the correct disjunction; I pinned it so a refactor cannot
+  drift into the same shape. Verified by mutation: rewriting our `|` as `&`
+  fails at 0 of 6.
+
+  Note the shape of that defect — under NR's form the ONLY case that behaves
+  correctly is a weapon that is neither demonbane nor abyssal, which is what
+  most testing uses. That is why it survives.
+
+  **A coverage hole of the same family as the registration one.**
+  `td_selftest.rs2` holds 286 lines of real assertions, but behind
+  `[debugproc,tdtest]` — they run when someone types the command and never
+  otherwise. `check_selftest_registration.py` cannot see this either: it looks
+  for `[proc,selftest_*]`, and these are helpers called from a debugproc. The
+  pure subset — the checks needing no live demon — is now a registered stanza;
+  the live-npc assertions stay in the debugproc where they belong. Worth a
+  sweep for other debugproc-only test files.
 
 ## 7. Open questions to settle before Wave E
 

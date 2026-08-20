@@ -25,7 +25,12 @@ enum ToriRSChromeSkin_Slot
     ToriRSChromeSkin_SLOT_PanelBody = 0,
     ToriRSChromeSkin_SLOT_ScrollUp = 1,
     ToriRSChromeSkin_SLOT_ScrollDown = 2,
-    ToriRSChromeSkin_SLOT_COUNT = 3
+    ToriRSChromeSkin_SLOT_ScrollTrack = 3,
+    ToriRSChromeSkin_SLOT_ScrollGripTop = 4,
+    ToriRSChromeSkin_SLOT_ScrollGripMid = 5,
+    ToriRSChromeSkin_SLOT_ScrollGripBottom = 6,
+    ToriRSChromeSkin_SLOT_DropdownBody = 7,
+    ToriRSChromeSkin_SLOT_COUNT = 8
 };
 
 /** The baked image for `slot`, or NULL when the slot is out of range. */

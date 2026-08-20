@@ -1254,6 +1254,25 @@ translate_ui_cmd(
         {
             int atlas;
 
+            /* A prim carrying its own scene id (a model-view preview) blits
+             * that sprite directly; only slot-addressed prims go through the
+             * baked-skin mapping. */
+            if( prim->sprite_scene_id > 0 )
+            {
+                out->kind = TORIRSRC_SPRITE;
+                out->u.sprite.scene_id = prim->sprite_scene_id;
+                out->u.sprite.atlas_index = 0;
+                out->u.sprite.x = prim->x;
+                out->u.sprite.y = prim->y;
+                out->u.sprite.w = 0;
+                out->u.sprite.h = 0;
+                out->u.sprite.scissor_x = prim->clip.x;
+                out->u.sprite.scissor_y = prim->clip.y;
+                out->u.sprite.scissor_w = prim->clip.w;
+                out->u.sprite.scissor_h = prim->clip.h;
+                return true;
+            }
+
             if( prim->sprite_slot < 0 || prim->sprite_slot >= TORIDBG_SKIN_SLOT_COUNT )
                 return false;
             atlas = desc->debug_skin_atlas[prim->sprite_slot];
@@ -1268,10 +1287,19 @@ translate_ui_cmd(
             out->u.sprite.atlas_index = atlas;
             out->u.sprite.x = prim->x;
             out->u.sprite.y = prim->y;
-            /* 0: blit at the sprite's own size. The chrome tiles by emitting
-             * one prim per copy, so nothing here ever scales. */
-            out->u.sprite.w = 0;
-            out->u.sprite.h = 0;
+            /* 0 stays "blit at the sprite's own size" -- tiling emits one prim
+             * per copy and asks for that. A non-zero box is the chrome drawing
+             * a 1x image at a scaled size, or stretching the grip's middle
+             * piece over the run between its caps.
+             *
+             * `if3` is the renderer's flag for "scale the image into w x h"
+             * rather than a statement about where the sprite came from, and
+             * without it the destination box is read and then ignored: a 3x
+             * chrome drew 16px arrows in a 48px bar. Set only when a box was
+             * actually asked for, so native tiling keeps the plain-blit path. */
+            out->u.sprite.w = prim->w;
+            out->u.sprite.h = prim->h;
+            out->u.sprite.if3 = prim->w > 0 && prim->h > 0;
             out->u.sprite.scissor_x = prim->clip.x;
             out->u.sprite.scissor_y = prim->clip.y;
             out->u.sprite.scissor_w = prim->clip.w;
@@ -1289,8 +1317,10 @@ translate_ui_cmd(
         /* Prims carry 0xRRGGBB, the same convention the UITree colour fields
          * use; the alpha byte is this layer's to supply. ToriDraw2D_FillRect
          * early-outs on alpha 0, so a raw copy here draws nothing at all. The
-         * overlay is developer chrome and never translucent, hence trans 0. */
-        out->u.fill_rect.argb = emit_color_argb((int)prim->color, 0);
+         * prim's own trans is the reference's 0-opaque..255-invisible sense,
+         * which emit_color_argb already speaks -- the dropdown's row bands are
+         * the cache's `cc_settrans` values unchanged. */
+        out->u.fill_rect.argb = emit_color_argb((int)prim->color, prim->trans);
         out->u.fill_rect.filled = prim->filled;
         out->u.fill_rect.scissor_x = prim->clip.x;
         out->u.fill_rect.scissor_y = prim->clip.y;

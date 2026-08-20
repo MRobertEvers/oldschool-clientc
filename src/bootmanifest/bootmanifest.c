@@ -292,6 +292,26 @@ bm_set_kv(
             bm_join_path(bm->editor_repo_root, sizeof(bm->editor_repo_root), manifest_dir, value);
             return;
         }
+        /* Which binding draws the command panel. Named values only, and an
+         * unknown one is a hard error rather than a fallback to the default:
+         * a manifest that asks for a panel this build cannot open should say
+         * so at load time, next to the line that asked. */
+        if( strcmp(key, "panel") == 0 )
+        {
+            if( strcmp(value, "inprocess") == 0 )
+                bm->editor_panel = BOOTMANIFEST_EDITOR_PANEL_INPROCESS;
+            else if( strcmp(value, "tab") == 0 )
+                bm->editor_panel = BOOTMANIFEST_EDITOR_PANEL_TAB;
+            else
+            {
+                fprintf(
+                    stderr,
+                    "bootmanifest: [editor:boot] panel must be inprocess|tab, got '%s'\n",
+                    value);
+                bm->editor_panel_error = 1;
+            }
+            return;
+        }
         break;
 
     case BM_SECTION_CACHE:
@@ -1068,6 +1088,24 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
     }
     if( bm->debug_hotkey_error )
         return -1;
+    if( bm->editor_panel_error )
+        return -1;
+
+    /* A tab panel needs a browser to open the tab in. Caught here rather than
+     * at the open call, so a native run of a web manifest fails at load with
+     * the reason, instead of booting into an editor whose panel never appears
+     * and looks merely broken. */
+#if !defined(__EMSCRIPTEN__)
+    if( bm->editor_panel == BOOTMANIFEST_EDITOR_PANEL_TAB )
+    {
+        fprintf(
+            stderr,
+            "bootmanifest: '%s' asks for [editor:boot] panel=tab, which only a web "
+            "build can open. Use panel=inprocess for a native boot.\n",
+            path);
+        return -1;
+    }
+#endif
 
     /* All four identity keys are required. Missing one is user input, not an
      * assert — report and fail the load. */
@@ -1112,6 +1150,7 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->editor_content_dir = bm->editor_content_dir;
     if( bm->editor_repo_root[0] )
         cfg->editor_repo_root = bm->editor_repo_root;
+    cfg->editor_panel = (int)bm->editor_panel;
 
     if( bm->cache_quirks_set && bm->cache_game != 0 && bm->cache_epoch != 0 &&
         bm->cache_revision >= 0 )

@@ -3442,13 +3442,31 @@ load_spawn_config(const char* path)
             continue;
         }
 
-        id = mock230_content_symbol(section == JM2_NPC ? MOCK230_PACK_NPC : MOCK230_PACK_OBJ,
-                                    name);
-        if( id < 0 )
+        /* `#<id>` is the numeric escape the MAP EDITOR writes: it holds cache
+         * display names, not pack symbols, and a display name here would
+         * resolve to nothing -- or to the wrong record, which is worse. The
+         * escape is explicit (a leading `#`) rather than "digits mean id", so
+         * a pack symbol that happens to be numeric can never be shadowed. */
+        if( name[0] == '#' )
         {
-            CONTENT_ERROR("%s:%d: `%s` is not in configs/all.%s.compack\n", path, line_number,
-                          name, section == JM2_NPC ? "npc" : "obj");
-            continue;
+            char* end = NULL;
+            id = (int)strtol(name + 1, &end, 10);
+            if( !end || *end != '\0' || id < 0 )
+            {
+                CONTENT_ERROR("%s:%d: `%s` is not a valid #id\n", path, line_number, name);
+                continue;
+            }
+        }
+        else
+        {
+            id = mock230_content_symbol(
+                section == JM2_NPC ? MOCK230_PACK_NPC : MOCK230_PACK_OBJ, name);
+            if( id < 0 )
+            {
+                CONTENT_ERROR("%s:%d: `%s` is not in configs/all.%s.compack\n", path, line_number,
+                              name, section == JM2_NPC ? "npc" : "obj");
+                continue;
+            }
         }
 
         if( section == JM2_NPC )

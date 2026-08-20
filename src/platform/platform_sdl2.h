@@ -46,6 +46,19 @@ PlatformSDL2_Width(struct PlatformSDL2* platform);
 int
 PlatformSDL2_Height(struct PlatformSDL2* platform);
 
+/**
+ * Drawable pixels per window point: 1 on an ordinary display, 2 on a Retina or
+ * 200%-scaled one.
+ *
+ * The framebuffer is already sized in drawable pixels, so nothing multiplies
+ * by this to draw. It exists for the chrome, which has to pick which BAKED
+ * font size to lay itself out with -- a UI authored for 1x pixels, drawn into
+ * a 2x framebuffer, is half the physical size it should be, and the fix is a
+ * bigger authored font rather than a stretch.
+ */
+int
+PlatformSDL2_PixelDensity(struct PlatformSDL2* platform);
+
 bool
 PlatformSDL2_QuitRequested(struct PlatformSDL2* platform);
 

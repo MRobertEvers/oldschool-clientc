@@ -106,7 +106,14 @@ Rules that keep this honest:
 - **A new selftest stanza that spawns npcs or ticks the world moves every
   stanza after it.** Place it immediately before a `selftest_reset_world`
   call, then prove it costs nothing by compiling it out (`if(0)`) and
-  diffing normalized failure sets.
+  diffing normalized failure sets. When the `if(0)` diff is NOT clean, check
+  for an npc your own stanza spawned and never despawned before chasing
+  anything else — Sea Slug's own C-side checks left one `seaslug` npc
+  standing, and that alone shifted 15 unrelated RNG-gated checks several
+  stanzas later (Tormented Demons weapon-pierce rolls, a concurrent
+  session's own Biohazard test); `mock230_world_npc_free(srv, slot)` +
+  `mock230_world_npc_reap(srv)` right after the check that needed it made
+  the diff clean again.
 - **Headless client runs are only for client-visible behaviour** (anims,
   interfaces, drawing). Embed builds need their own objdir; grep the log for
   `net: this build has no embedded server` before diagnosing anything —
@@ -194,7 +201,24 @@ not a missing statement.
 - **A loc's symbol is this port's name, not the cache's.** Classify what a
   loc IS from its cache `name=`; 49 climb records disagree. And `[oploc...]`
   headers **stack** — a scan keeping only the last header before a body
-  misses the rest.
+  misses the rest. **A bound symbol can be entirely invented and still
+  compile clean** — Sea Slug's `[oploc1,slugladder]`/`[oploc1,loosepanel]`/
+  `[oploc1,fishingcrane]` all resolved to real, valid ids in the pack
+  (`configs/all.loc` genuinely has `[slugladder]` etc.) but this cache's own
+  Fishing Platform map data placed NONE of them anywhere — the whole
+  "help Kennith escape" puzzle was a dead click, discovered only by scanning
+  the built scene for the exact id (`mock230_scene_find_loc_id` over the
+  loaded window) and finding nothing, then dumping every REAL loc actually
+  standing near the target NPC (`mock230_scene_find_loc(x,z,lvl,-1)` +
+  `mock230_script_loc_resolve` for the raw id, cross-referenced by counting
+  `[` blocks in `configs/all.loc` up to that id) to find the cache's actual
+  names (`seaslug_ladder`, `seaslug_crane`, `slug_breakable_panel`).
+  **A closed/open pair is often a MULTILOC SHELL, not two standalone
+  locs** — `slug_breakable_panel`'s own cache record is
+  `multivarp=seaslugquest, multiloc1..9=seaslug_wall_closed, multiloc10..
+  13=seaslug_wall_open`, already auto-swapping its own visual off the
+  quest's own progress varp; the content only had to bind the shell (never
+  a rung) and needed no `loc_change` at all once it did.
 - **`[if_close]` keys on the bare interface id; `[if_button]` on the packed
   `(iface<<16)|child` uid.** `[if_close]` is a notification, not a handler —
   the unmount happens regardless.
@@ -321,6 +345,24 @@ reading as "it got harder at 70%"):
 - **World state that isn't a player's** goes in `%vars`
   (`configs/*.vars` + `tools/ss_allocate.py`); testing it needs TWO players
   or the shared/per-player distinction is unobservable.
+- **A `queue()` you armed will sit BLOCKED forever if `player_can_access()`
+  is false, and nothing tells you why.** `player_can_access()` requires
+  `mainmodal_group <= 0 && chatmodal_group <= 0` — any open interface,
+  including one your OWN debugproc just opened (e.g. `~xxx_journal`
+  legitimately does `if_opensub(..., mainmodal, ...)`, matching a real
+  player checking their journal), blocks the drain exactly like it would a
+  real player who has not clicked it away. `TORIRS_ANIM_DEBUG=1` shows this
+  directly: `queue: script=N BLOCKED tick=T mainmodal=<iface>` repeating
+  with no `FIRE`. Fix: `mock230_world_close_modal(srv)` before the tick
+  meant to drain it — but **one close+tick is not always enough on the
+  shared `--selftest` player**: earlier stanzas that also call
+  `~quest_complete_rewards` leave their OWN stuck `queue(quest_scroll_show,
+  ...)` entries sitting in the same queue array (this player never "clicks
+  through" a reward scroll either), and each of those wins the access race
+  ahead of yours and re-opens mainmodal the moment it fires. Loop
+  close+tick a handful of times per boundary, not once. Found and fixed in
+  the Hazeel Cult audit (2026-08-20): `hazeelcultrun2..4`'s completion
+  queues never fired until this was in place.
 
 ---
 

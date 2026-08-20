@@ -455,6 +455,26 @@ test_minimenu_release_swallow(void)
     TEST_ASSERT(interact.swallow_left_click, "release latched");
     UIMinimenu_Hide(&interact.minimenu);
 
+    /*
+     * The state an early-frame consumer sees on the release frame, pinned.
+     *
+     * This exact pair -- menu already hidden, latch still standing -- is what
+     * anything running BEFORE UITree_InteractFrame observes, and the map
+     * editor's world click (app_map_editor_world_click) is such a consumer:
+     * it triggers on the mouse-up and must not treat this one as a world
+     * click. It reads `swallow_left_click` rather than `minimenu.visible`
+     * for precisely the reason asserted here -- visible is already 0, so a
+     * gate on it alone opens and the release lands in the world. That was a
+     * real bug: picking "Select Object" from the menu also latched the
+     * terrain underneath it.
+     */
+    TEST_ASSERT(
+        !interact.minimenu.visible,
+        "menu is already hidden when the release frame begins");
+    TEST_ASSERT(
+        interact.swallow_left_click,
+        "latch still standing when the release frame begins (pre-InteractFrame consumers)");
+
     /* Release at the same point: menu is gone, but nothing may fire. */
     LibToriRS_Input_Begin(input, 20);
     LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, row_x, row_y);

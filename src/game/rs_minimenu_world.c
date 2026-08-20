@@ -534,7 +534,8 @@ add_scenery_rows(
     struct WorldEntity_Scenery const* scenery,
     struct World_Picked const* picked,
     bool locedit_active,
-    bool mapedit_select_active)
+    bool mapedit_select_active,
+    bool mapedit_delete_active)
 {
     char text[UITREE_MINIMENU_OPTION_LEN];
     char name_buf[UITREE_MINIMENU_OPTION_LEN];
@@ -588,6 +589,16 @@ add_scenery_rows(
             text, sizeof(text), "Select %s @cya@ %s", mapedit_select_category(scenery->shape),
             name);
         UIMinimenu_AddOption(menu, text, RS_MINIMENU_ACTION_MAPEDIT_SELECT, 0, pick);
+    }
+
+    /* The Delete tool's twin of the Select rows: same disambiguated pick, so
+     * "Delete Wall Decor" removes the decor and never the wall under it. */
+    if( mapedit_delete_active )
+    {
+        snprintf(
+            text, sizeof(text), "Delete %s @cya@ %s", mapedit_select_category(scenery->shape),
+            name);
+        UIMinimenu_AddOption(menu, text, RS_MINIMENU_ACTION_MAPEDIT_DELETE, 0, pick);
     }
 }
 
@@ -1104,7 +1115,7 @@ RS_Minimenu_AddWorldRows(
             if( scenery )
                 add_scenery_rows(
                     menu, sel, ctx->world, scenery, picked, ctx->locedit_active,
-                    ctx->mapedit_select_active);
+                    ctx->mapedit_select_active, ctx->mapedit_delete_active);
             break;
         }
         case WORLD_PICK_OBJSTACK:

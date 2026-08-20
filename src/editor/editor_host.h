@@ -102,6 +102,26 @@ struct EditorHost_VTable
         size_t jl2_length);
 
     /**
+     * Write one square's EDITED spawn file -- the hand-authored lane beside
+     * the generated one.
+     *
+     * `server/scripts/areas/edited/configs/m<x>_<z>.spawn`, never the
+     * generated `areas/world` file: that one opens with "do not hand-edit,
+     * the next run overwrites it", and writing into it would hand the next
+     * regeneration our edits to destroy. The server loader recurses the whole
+     * scripts tree and merges every .spawn it finds, so the second file needs
+     * no registration anywhere. Atomic like square_save. NULL text with zero
+     * length deletes the file (a square whose session spawns were all
+     * removed).
+     */
+    enum EditorHost_Status (*spawn_save)(
+        void* user_data,
+        int map_x,
+        int map_z,
+        const char* text,
+        size_t length);
+
+    /**
      * Bake the content tree into the cache the game reads.
      *
      * **Only ever called from the editor's Bake action.** Saving writes text

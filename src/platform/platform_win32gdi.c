@@ -688,6 +688,22 @@ PlatformSDL2_Height(struct PlatformSDL2* p)
     return p->height;
 }
 
+/*
+ * Drawable pixels per window point.
+ *
+ * 1, and honestly so: this backend creates its window and its DIB in the same
+ * unit, so there is no second coordinate space here to differ from. The chrome
+ * asks every backend this question and gets a truthful answer; a Windows
+ * per-monitor-DPI story would be told here, by making the DIB follow the
+ * monitor's scale, rather than by inventing a factor at this accessor.
+ */
+int
+PlatformSDL2_PixelDensity(struct PlatformSDL2* p)
+{
+    (void)p;
+    return 1;
+}
+
 bool
 PlatformSDL2_QuitRequested(struct PlatformSDL2* p)
 {

@@ -97,9 +97,19 @@ main(void)
 
     /* Choose the third row. */
     {
-        int const row_y = ui.widgets[dd].y + ui.widgets[dd].h + 1 +
-                          2 * ToriRSChrome_FontLineBox(TORIDBG_FONT_SMALL) + 2;
-        click(&ui, box_x, row_y);
+        /* The centre of row 2, by the hit test's own formula: rows start at
+         * rect.y (= widget bottom) + the 2px list pad, and the pitch is the
+         * theme row face's line box + 4px of leading, everything scaled.
+         * Derived rather than hardcoded because this math has now drifted
+         * twice -- first when the default theme grew p12 rows, then when the
+         * list gained its pad and leading -- and each drift made this click
+         * land on the wrong row while looking reasonable. */
+        int const pitch = ToriRSChrome_FontLineBox(ui.theme.font_row, ui.scale) + 4 * ui.scale;
+        int const row_y =
+            ui.widgets[dd].y + ui.widgets[dd].h + 2 * ui.scale + 2 * pitch + pitch / 2;
+        /* Left of the scrollbar column the list grew on its right edge -- a
+         * click there is a grip press, not a row choice, by design. */
+        click(&ui, box_x - 20, row_y);
         check(ui.dropdown_open == -1, "choosing closes the list");
         check(ToriRSChrome_DropdownSelected(&ui, dd) == 2, "the chosen row became the selection");
         check(ToriRSChrome_TakeActivated(&ui) == dd, "the choice is reported as an activation");
@@ -159,6 +169,52 @@ main(void)
         widget_centre(&ui, empty, &box_x, &box_y);
         click(&ui, box_x, box_y);
         check(ui.dropdown_open == -1, "an empty dropdown does not open");
+    }
+
+    /* ---- the wheel on a CLOSED dropdown, and over bare panel ------------- */
+
+    /* The cases above left a one-row list, which cannot step anywhere; give
+     * the wheel something to step through. */
+    ToriRSChrome_DropdownSetOptions(&ui, dd, options, OPTION_COUNT, 1);
+
+    /* Steps the selection without opening, and reports it as an activation, so
+     * a wheel behaves exactly like choosing the neighbouring row. */
+    ToriRSChrome_Build(&ui);
+    check(ui.dropdown_open == -1, "list closed before the closed-wheel cases");
+    {
+        int const before = ToriRSChrome_DropdownSelected(&ui, dd);
+        widget_centre(&ui, dd, &box_x, &box_y);
+        check(ToriRSChrome_MouseWheel(&ui, box_x, box_y, -1), "wheel over the closed row consumed");
+        check(
+            ToriRSChrome_DropdownSelected(&ui, dd) == before + 1,
+            "wheel down steps to the next option");
+        check(ToriRSChrome_TakeActivated(&ui) == dd, "the wheel step is an activation");
+        check(ToriRSChrome_MouseWheel(&ui, box_x, box_y, 1), "wheel up consumed");
+        check(
+            ToriRSChrome_DropdownSelected(&ui, dd) == before, "wheel up steps back");
+        ToriRSChrome_TakeActivated(&ui);
+    }
+
+    /* The ends clamp: no wrap, and still consumed so the camera stays still. */
+    ToriRSChrome_DropdownSetSelected(&ui, dd, 0);
+    check(ToriRSChrome_MouseWheel(&ui, box_x, box_y, 1), "wheel at the top consumed");
+    check(ToriRSChrome_DropdownSelected(&ui, dd) == 0, "no wrap past the top");
+
+    /* Over panel body (no widget): consumed into nothing. Off panel: not. */
+    {
+        struct ToriDbgRect const r = ToriRSChrome_PanelRect(&ui, panel);
+        check(
+            ToriRSChrome_MouseWheel(&ui, r.x + 2, r.y + 2, -1),
+            "wheel over the panel body is consumed");
+        check(
+            !ToriRSChrome_MouseWheel(&ui, r.x + r.w + 40, r.y, -1),
+            "wheel off the panel is not consumed");
+        check(
+            ToriRSChrome_WantsWheel(&ui, r.x + 2, r.y + 2),
+            "WantsWheel claims the panel");
+        check(
+            !ToriRSChrome_WantsWheel(&ui, r.x + r.w + 40, r.y),
+            "WantsWheel declines open ground");
     }
 
     printf("uitree_test_dropdown: %d checks, %d failed\n", g_checks, g_failures);

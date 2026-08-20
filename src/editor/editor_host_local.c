@@ -12,6 +12,7 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <sys/stat.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -373,8 +374,57 @@ local_free(void* user_data)
     free(host);
 }
 
+static enum EditorHost_Status
+local_spawn_save(
+    void* user_data,
+    int map_x,
+    int map_z,
+    const char* text,
+    size_t length)
+{
+    struct local_host* host = user_data;
+    char dir[1200];
+    char path[1300];
+
+    assert(host);
+
+    if( host->lock_path[0] == '\0' )
+    {
+        fprintf(stderr, "editor: refusing to save without the session lock\n");
+        return EDITOR_HOST_LOCKED;
+    }
+
+    /* mkdir -p the edited lane; every component may already exist, and EEXIST
+     * is success for this purpose. */
+    {
+        static char const* const legs[] = {
+            "server", "server/scripts", "server/scripts/areas", "server/scripts/areas/edited",
+            "server/scripts/areas/edited/configs"
+        };
+        for( size_t i = 0; i < sizeof(legs) / sizeof(legs[0]); i++ )
+        {
+            snprintf(dir, sizeof(dir), "%s/%s", host->content_dir, legs[i]);
+            if( mkdir(dir, 0755) != 0 && errno != EEXIST )
+            {
+                fprintf(stderr, "editor: cannot create %s\n", dir);
+                return EDITOR_HOST_IO_ERROR;
+            }
+        }
+    }
+
+    snprintf(
+        path, sizeof(path), "%s/server/scripts/areas/edited/configs/m%d_%d.spawn",
+        host->content_dir, map_x, map_z);
+    if( !text || length == 0 )
+    {
+        remove(path); /* absent == no edited spawns; missing is already that */
+        return EDITOR_HOST_OK;
+    }
+    return write_file_atomic(path, text, length);
+}
+
 static const struct EditorHost_VTable local_vtable = {
-    local_square_list, local_square_load, local_square_save,
+    local_square_list, local_square_load, local_square_save, local_spawn_save,
     local_bake,        local_session,     local_free,
 };
 

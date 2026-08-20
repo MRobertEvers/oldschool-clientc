@@ -146,6 +146,14 @@ struct AppConfig
     char const* editor_content_dir;
     /** [editor:boot] repo_root — where a bake would run. NULL disables baking. */
     char const* editor_repo_root;
+    /**
+     * enum BootManifestEditorPanel: where the command panel is drawn.
+     *
+     * 0 (inprocess) is the default a zeroed config gets, which is the binding
+     * that needs nothing outside this process -- so a caller that never sets
+     * this gets the panel it already had.
+     */
+    int editor_panel;
     int interface_id;
     enum AppCacheKind cache_kind;
     /** Cache identity from [cache:boot]. All four stated; used by
@@ -455,6 +463,70 @@ struct App
      *  world_camera_pos freely; relocking eases back onto the player (the
      *  follow's own >500-unit teleport snap handles the return). */
     int camera_unlocked;
+
+    /**
+     * Camera hold across an offline world reload.
+     *
+     * Captured in ABSOLUTE fine coordinates at load begin, restored at load
+     * finish if the new scene contains the point. Absolute, because the scene
+     * window can move: a rebuild of the same region has the same base tile and
+     * the camera lands exactly where it was, while opening a distant square
+     * shifts the base until the held point falls outside the new scene -- and
+     * then recentring is the right thing, which is why the restore is a
+     * containment test rather than a flag.
+     */
+    int cam_keep_valid;
+    int cam_keep_abs_x;
+    int cam_keep_abs_z;
+    int cam_keep_y;
+    int cam_keep_pitch;
+    int cam_keep_yaw;
+
+    /**
+     * The Place-loc tool's hover ghost: a REAL loc placed at the hovered tile
+     * through the same App_WorldLocChange seam a commit uses, then made
+     * translucent by forcing its element's face alphas. Real rather than a
+     * separate preview renderer, for the reason the artifact gives: a second
+     * draw path drifts, and this one shows the actual model at the actual
+     * scale in the actual light.
+     *
+     * `alpha_done` because the add is async: the element exists only once its
+     * assets land, so the translucency pass retries until it finds it.
+     */
+    int ghost_active;
+    int ghost_x;
+    int ghost_z;
+    int ghost_level;
+    int ghost_loc_id;
+    int ghost_shape;
+    int ghost_angle;
+    int ghost_alpha_done;
+    /**
+     * What the ghost DISPLACED, so leaving the tile puts it back.
+     *
+     * The painter holds one loc per layer per tile, so ghosting a wall onto a
+     * tile that has a wall REPLACES it in the scene -- and a plain delete on
+     * hover-out left the slot empty, which read as "hovering destroyed my
+     * wall". The document was never touched; only the scene lied. Captured
+     * synchronously before the ghost's add is queued, restored on removal.
+     */
+    /** The catalog preview's camera: pitch/yaw in raster angle units, zoom as
+     *  the raster's distance. fit_pending recomputes zoom from the next
+     *  model's bounds so it fills the well; dirty forces a re-render with the
+     *  pick unchanged (a key moved the camera). */
+    int preview_xan;
+    int preview_yan;
+    int preview_zoom;
+    int preview_fit_pending;
+    int preview_dirty;
+    /** Set with preview_dirty when the re-render is a camera nudge: the pick
+     *  "changed" from the updater's view, but the framing must not reset. */
+    int preview_keep_camera;
+
+    int ghost_displaced_valid;
+    int ghost_displaced_loc_id;
+    int ghost_displaced_shape;
+    int ghost_displaced_angle;
     /* Latches the lazy load so a map that fails is not re-queued every frame. */
     int world_load_attempted;
 
@@ -1237,6 +1309,26 @@ App_SetCanvasSize(
     int height);
 
 /**
+ * Set the chrome scale: device pixels per ToriRSChrome pixel, 1..3.
+ *
+ * One call, because the three things it touches must never disagree: the
+ * overlay's LAYOUT (which measures against a baked font), the scene FONTS the
+ * renderer draws those rows with, and the tree components that name them. Set
+ * two of the three and the chrome lays out at one size and paints at another
+ * -- which reads as a broken font rather than as a missed call.
+ *
+ * The caller is whoever knows the display: on the desktop shell that is
+ * PlatformSDL2_PixelDensity, so a Retina window gets 2x chrome authored at 2x
+ * rather than 1x chrome stretched onto it. @return 1 if the scale changed.
+ */
+int
+App_SetChromeScale(struct App* app, int scale);
+
+/** Device pixels per chrome pixel. */
+int
+App_ChromeScale(struct App const* app);
+
+/**
  * Width of the right-docked chrome strip (popout launcher / open panel) after
  * the live layout pass. Measured from the UITree: the widest full-height,
  * fixed-width, parent-height, right-anchored component whose right edge is the
@@ -1664,6 +1756,18 @@ App_WorldObjStackAdd(
     int level,
     int obj_id,
     int count);
+
+/** Editor placement: enqueue the same client-side spawn task the debug
+ *  hotkeys use (awaits assets, then lands the entity). Scene only -- the
+ *  spawn FILE half lives in the editor's session list. */
+void
+App_EditorPlaceSpawn(
+    struct App* app,
+    int is_obj,
+    int id,
+    int scene_x,
+    int scene_z,
+    int level);
 
 void
 App_WorldObjStackDel(

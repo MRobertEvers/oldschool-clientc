@@ -449,10 +449,21 @@ test_migrated_spawn_actions(void)
         struct AppConfig cfg = { 0 };
         CHECK(BootManifest_LoadFile(&bm, manifests[i]) == 0);
         BootManifest_ApplyToConfig(&bm, &cfg);
-        CHECK(cfg.debug_hotkey_count == 1);
-        CHECK(cfg.debug_hotkeys[0].key == TORIRSK_8);
-        CHECK(cfg.debug_hotkeys[0].target == APP_DEBUG_HOTKEY_SPAWN_NPC);
-        CHECK(strncmp(cfg.debug_hotkeys[0].args, "id=", 3) == 0);
+        /* The migrated spawn action is present and well-formed. Searched for
+         * rather than asserted at index 0 with a count of 1: these manifests
+         * carry other hotkeys too (a loc-editor toggle arrived later), and
+         * pinning the total made this test fail for every manifest that grew
+         * a binding -- which says nothing about the migration it is testing. */
+        int spawn = -1;
+        for( int h = 0; h < cfg.debug_hotkey_count; h++ )
+            if( cfg.debug_hotkeys[h].target == APP_DEBUG_HOTKEY_SPAWN_NPC )
+            {
+                spawn = h;
+                break;
+            }
+        CHECK(spawn >= 0);
+        CHECK(cfg.debug_hotkeys[spawn].key == TORIRSK_8);
+        CHECK(strncmp(cfg.debug_hotkeys[spawn].args, "id=", 3) == 0);
     }
 }
 

@@ -58,6 +58,20 @@ all four parts are required, not just the base
 steel and granite do not mix
 Tears of Guthix needs BOTH seven days and something earned since
 three blue and three green streams land on six different walls
+a shop price of 0 is free; -1 is refused
+a privilege is a SET: the hidden admin sends a player login code
+the potato menu is built per viewer; option NONE is no menu
+a toggles chance of 0 is a guarantee, and a claim threads the remainder
+imbue keeps charges and disimbue does not; the crystal halberd's imbued id
+a set needs every piece and any one id of each; the ultimate ironman unlock
+Callisto melees in melee range whatever the roll, and a living hellhound
+the RotS chest scales by 1.5 with a truncating cast, and nine of its
+Skotizo's ankou branch swallows the tick from the demon branch
+the dark core heals the beast by exactly what it drains
+a Mage Arena II special is drawn from what the target's state still allows
+a living phantom hand blocks melee and ranged too
+Nex's containment box is anchored on her and turns the overhead prayer off
+demonbane OR abyssal pierces the demon's fire shield
 the tears reward the genuine lowest skill
 the nine star sizes map to nine distinct locs
 every generated landing site resolves to a real coord
@@ -115,6 +129,7 @@ the vault's four clocks are all different lengths
 a boon can be owned and inactive, or active and never bought
 acceptance is one player's, confirmation is both
 the rarest well perk is 4e9 coins and does not fit an int
+a shop price of 0 is free; -1 is refused
 eighteen chompy hats against twenty-two ranks
 the nugget batch cap deletes and the upgraded sack is not double
 Krystilia's base and extended amounts are separate columns

@@ -15,8 +15,17 @@
  *
  * Usage:
  *   fontbake --rev NAME <cache_dir> --list [--probe name,name,...]
- *   fontbake --rev NAME <cache_dir> --font ARCHIVE=Symbol [--font ...]
+ *   fontbake --rev NAME <cache_dir> --font ARCHIVE=Symbol[@N] [--font ...]
  *            --out out.c [--header out.h] [--metrics metrics.h] [--prefix Prefix]
+ *
+ * `@N` bakes the font at N times its cache size, which is how one face serves
+ * a HighDPI or scaled display. The upscale is nearest-neighbour on an integer
+ * grid and every metric is multiplied by the same N, so an N-times chrome is
+ * the 1x chrome with every coordinate multiplied — not a resampled
+ * approximation of it. Integer only, and deliberately: the glyph blitter tests
+ * a mask byte for non-zero rather than blending it, so a fractional scale
+ * would land stems on half-pixels and threshold them to uneven widths. A
+ * display at 1.5x picks the nearest baked size instead.
  *
  * `--metrics` writes a second header carrying only the advance tables, as
  * plain `static const int` with nothing included. That is what lets the module
@@ -31,6 +40,7 @@
 #include "asset_access.h"
 #include "tool_profile.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -63,6 +73,8 @@ struct BakeGlyph
 struct BakeFont
 {
     int archive_id;
+    /** Integer upscale applied after baking. 1 = the cache's own size. */
+    int scale;
     char symbol[64];
     struct BakeGlyph glyphs[FONT_GLYPH_COUNT];
     int advance_only;
@@ -82,9 +94,10 @@ usage(const char* argv0)
         stderr,
         "Usage:\n"
         "  %s --rev NAME <cache_dir> --list [--probe name,name,...]\n"
-        "  %s --rev NAME <cache_dir> --font ARCHIVE=Symbol [--font ...]\n"
+        "  %s --rev NAME <cache_dir> --font ARCHIVE=Symbol[@N] [--font ...]\n"
         "         --out out.c [--header out.h] [--metrics metrics.h] [--prefix Prefix]\n"
         "\n"
+        "  --font     @N bakes an N-times nearest-neighbour upscale (integer only)\n"
         "  --out      the struct ToriDraw_Font bake (needs toridraw_font.h)\n"
         "  --header   its accessors\n"
         "  --metrics  advance tables only: no includes, no types, no linkage\n",
@@ -294,6 +307,98 @@ bake_font(
     return drawable > 0;
 }
 
+/*
+ * Multiply a baked font by an integer scale.
+ *
+ * A separate pass over a finished 1x bake rather than a factor threaded
+ * through bake_font, and that is the point: at scale 1 this returns without
+ * touching anything, so the ordinary bake cannot be changed by the existence
+ * of the scaled one. Everything it touches is a pixel quantity — every glyph
+ * mask, every offset, every advance, the ascent and the derived draw_width
+ * table — so the scaled font's layout is the 1x layout with each coordinate
+ * multiplied, exactly.
+ *
+ * Nearest-neighbour, on an integer grid: one source pixel becomes an N x N
+ * block. For a mask the blitter reads as on/off (toridraw_font.c tests the
+ * byte for non-zero) that is not an approximation of the glyph, it *is* the
+ * glyph, drawn on a finer grid.
+ */
+static int
+scale_font(
+    struct BakeFont* f,
+    int scale)
+{
+    unsigned char* src_blob;
+    int src_size;
+
+    if( scale <= 1 )
+        return 1;
+
+    /* The old blob is read while the new one is built, so it cannot be the
+     * same buffer: hand the growable blob a fresh one and keep the original
+     * to read the source rows out of. */
+    src_blob = f->blob;
+    src_size = f->blob_size;
+    f->blob = NULL;
+    f->blob_size = 0;
+    f->blob_cap = 0;
+
+    for( int gi = 0; gi < FONT_GLYPH_COUNT; gi++ )
+    {
+        struct BakeGlyph* g = &f->glyphs[gi];
+        int const gw = g->width;
+        int const gh = g->height;
+        int const dw = gw * scale;
+        int const dh = gh * scale;
+        unsigned char const* src;
+        unsigned char* dst;
+        int off;
+
+        g->offset_x *= scale;
+        g->offset_y *= scale;
+        g->advance *= scale;
+
+        if( g->blob_offset < 0 )
+            continue;
+        assert(g->blob_offset + gw * gh <= src_size);
+
+        src = src_blob + g->blob_offset;
+        dst = malloc((size_t)dw * (size_t)dh);
+        if( !dst )
+        {
+            free(src_blob);
+            return 0;
+        }
+        for( int y = 0; y < dh; y++ )
+        {
+            unsigned char const* srow = src + (size_t)(y / scale) * gw;
+            unsigned char* drow = dst + (size_t)y * dw;
+            for( int x = 0; x < dw; x++ )
+                drow[x] = srow[x / scale];
+        }
+
+        off = blob_append(f, dst, dw * dh);
+        free(dst);
+        if( off < 0 )
+        {
+            free(src_blob);
+            return 0;
+        }
+        g->blob_offset = off;
+        g->width = dw;
+        g->height = dh;
+    }
+
+    free(src_blob);
+
+    f->advance_only *= scale;
+    f->line_height *= scale;
+    f->line_box *= scale;
+    for( int i = 0; i < 256; i++ )
+        f->draw_width[i] *= scale;
+    return 1;
+}
+
 /* ---- emit --------------------------------------------------------------- */
 
 static void
@@ -407,9 +512,10 @@ emit_header(
     for( int i = 0; i < font_count; i++ )
         fprintf(
             out,
-            " *   %-16s fonts/sprites archive %d  ascent %d  line box %d  %d glyph bytes\n",
+            " *   %-16s fonts/sprites archive %d at %dx  ascent %d  line box %d  %d glyph bytes\n",
             fonts[i].symbol,
             fonts[i].archive_id,
+            fonts[i].scale,
             fonts[i].line_height,
             fonts[i].line_box,
             fonts[i].blob_size);
@@ -430,11 +536,12 @@ emit_header(
     for( int i = 0; i < font_count; i++ )
         fprintf(
             out,
-            "/** Cache font archive %d. Ascent %d, glyph line box %d. */\n"
+            "/** Cache font archive %d at %dx. Ascent %d, glyph line box %d. */\n"
             "struct ToriDraw_Font*\n"
             "%s_%s(void);\n"
             "\n",
             fonts[i].archive_id,
+            fonts[i].scale,
             fonts[i].line_height,
             fonts[i].line_box,
             prefix,
@@ -489,7 +596,7 @@ emit_metrics_header(
     {
         fprintf(
             out,
-            "/* %s: cache font archive %d. */\n"
+            "/* %s: cache font archive %d at %dx. */\n"
             "/** Baseline offset from the top of a line box (font ascent). */\n"
             "#define %s_%s_LINE_HEIGHT %d\n"
             "/** Row pitch: the tallest glyph's bottom edge. */\n"
@@ -498,6 +605,7 @@ emit_metrics_header(
             "static const int %s_%s_advance_px[256] = {\n",
             fonts[i].symbol,
             fonts[i].archive_id,
+            fonts[i].scale,
             prefix,
             fonts[i].symbol,
             fonts[i].line_height,
@@ -618,7 +726,8 @@ list_fonts(
 
 /* ---- main --------------------------------------------------------------- */
 
-#define MAX_FONTS 8
+/* Three faces at three scales, and room to add one of either. */
+#define MAX_FONTS 16
 
 int
 main(int argc, char** argv)
@@ -640,7 +749,10 @@ main(int argc, char** argv)
 
     memset(fonts, 0, sizeof(fonts));
     for( int i = 0; i < MAX_FONTS; i++ )
+    {
         fonts[i].archive_id = -1;
+        fonts[i].scale = 1;
+    }
 
     for( int i = 1; i < argc; i++ )
     {
@@ -662,13 +774,34 @@ main(int argc, char** argv)
         {
             const char* spec = argv[++i];
             const char* eq = strchr(spec, '=');
+            const char* at;
+            int scale = 1;
             if( !eq || font_count >= MAX_FONTS )
             {
-                fprintf(stderr, "bad --font %s (want ARCHIVE=Symbol)\n", spec);
+                fprintf(stderr, "bad --font %s (want ARCHIVE=Symbol[@N])\n", spec);
                 return 2;
             }
+            /* `@N` splits the symbol from its scale. Searched after the '=' so
+             * a symbol may not contain one — which is what keeps `494=Small@2`
+             * from ever being read as the symbol "Small@2". */
+            at = strchr(eq + 1, '@');
+            if( at )
+            {
+                scale = atoi(at + 1);
+                if( scale < 1 )
+                {
+                    fprintf(stderr, "bad --font %s (@N wants an integer >= 1)\n", spec);
+                    return 2;
+                }
+            }
             fonts[font_count].archive_id = atoi(spec);
-            snprintf(fonts[font_count].symbol, sizeof(fonts[font_count].symbol), "%s", eq + 1);
+            fonts[font_count].scale = scale;
+            snprintf(
+                fonts[font_count].symbol,
+                sizeof(fonts[font_count].symbol),
+                "%.*s",
+                at ? (int)(at - (eq + 1)) : (int)strlen(eq + 1),
+                eq + 1);
             font_count++;
         }
         else if( argv[i][0] != '-' )
@@ -735,11 +868,19 @@ main(int argc, char** argv)
             goto done;
         }
         RSCache_Dat2SpritePackFree(pack);
+        if( !scale_font(&fonts[i], fonts[i].scale) )
+        {
+            fprintf(stderr, "archive %d: out of memory scaling to %dx\n",
+                    fonts[i].archive_id, fonts[i].scale);
+            rc = 1;
+            goto done;
+        }
         fprintf(
             stderr,
-            "baked %s from archive %d: ascent %d, line box %d, %d glyph bytes\n",
+            "baked %s from archive %d at %dx: ascent %d, line box %d, %d glyph bytes\n",
             fonts[i].symbol,
             fonts[i].archive_id,
+            fonts[i].scale,
             fonts[i].line_height,
             fonts[i].line_box,
             fonts[i].blob_size);
@@ -764,7 +905,18 @@ main(int argc, char** argv)
         rev,
         rev);
     for( int i = 0; i < font_count; i++ )
-        fprintf(out, " *                   --font %d=%s \\\n", fonts[i].archive_id, fonts[i].symbol);
+    {
+        if( fonts[i].scale > 1 )
+            fprintf(
+                out,
+                " *                   --font %d=%s@%d \\\n",
+                fonts[i].archive_id,
+                fonts[i].symbol,
+                fonts[i].scale);
+        else
+            fprintf(
+                out, " *                   --font %d=%s \\\n", fonts[i].archive_id, fonts[i].symbol);
+    }
     fprintf(
         out,
         " *                   --out %s --header %s\n"
@@ -794,9 +946,10 @@ main(int argc, char** argv)
     {
         fprintf(
             out,
-            "/* ---- %s: cache font archive %d ------------------------------- */\n\n",
+            "/* ---- %s: cache font archive %d at %dx ------------------------- */\n\n",
             fonts[i].symbol,
-            fonts[i].archive_id);
+            fonts[i].archive_id,
+            fonts[i].scale);
         emit_font(out, &fonts[i]);
         fprintf(
             out,

@@ -4493,8 +4493,16 @@ mock230_world_ground_visible_to(
 {
     const struct Mock230GroundObj* obj;
 
-    if( slot < 0 || slot >= MOCK230_GROUND_MAX )
-        return 0;
+    /* A slot outside the table is a caller bug, not a hidden pile. Returning 0
+     * for one reads as "you cannot see it", which is what every caller here
+     * does with a false: skip the obj, refuse the take, drop it out of the zone
+     * flush. The bad index would have shown up as an obj that silently never
+     * appears. `mock230_zone.c` already indexes `srv->ground[zone->objs[i]]`
+     * one line above its call, so the guard was not protecting that path
+     * either -- it was only hiding it here. */
+    assert(srv);
+    assert(slot >= 0);
+    assert(slot < MOCK230_GROUND_MAX);
     obj = &srv->ground[slot];
     return obj->active && (obj->receiver_pid < 0 || obj->receiver_pid == pid);
 }
@@ -14490,6 +14498,55 @@ mock230_toa_read_dbg(
             if( room_out )
                 *room_out = room;
             return;
+        }
+    }
+}
+
+/*
+ * Biohazard selftest helper (2026-08-20 audit): drive a real dialogue
+ * dispatch to completion, keyed off the VM's own `execution` state rather
+ * than guessing from `resume_button_count` alone -- a script parked on a
+ * bare p_delay (SSVM_SUSPENDED) can still be carrying a STALE armed button
+ * from the park before it, so checking the count without the execution code
+ * looks identical to a real PAUSEBUTTON park and silently never resumes.
+ * SUSPENDED / NPC_SUSPENDED / WORLD_SUSPENDED all drain with a tick;
+ * PAUSEBUTTON drains by resuming whichever button is armed, UNLESS that
+ * button is the caller's own real ~p_choice* menu (choice_uid), in which
+ * case this returns and lets the caller pick. Pass choice_uid<=0 when no
+ * choice is expected in this leg.
+ */
+static void
+biohazard_run_dialogue(
+    struct Mock230Server* srv,
+    struct Mock230Player* player,
+    int choice_uid)
+{
+    int round;
+
+    for( round = 0; round < 40 && player->active_script != NULL; round++ )
+    {
+        int exec = player->active_script->execution;
+
+        if( exec == SSVM_PAUSEBUTTON )
+        {
+            int uid;
+
+            if( player->resume_button_count <= 0 )
+                break;
+            uid = player->resume_buttons[0];
+            if( choice_uid > 0 && uid == choice_uid )
+                return; /* parked on a real p_choice menu -- caller picks */
+            if( !mock230_scripts_resume_button(srv, uid) )
+                break;
+        }
+        else if( exec == SSVM_SUSPENDED || exec == SSVM_NPC_SUSPENDED ||
+                 exec == SSVM_WORLD_SUSPENDED )
+        {
+            mock230_world_tick(srv);
+        }
+        else
+        {
+            break; /* countdialog/namedialog/etc -- not this quest's shape */
         }
     }
 }
@@ -31879,6 +31936,32 @@ mock230_world_selftest(void)
                            "com_mode should be declared transmit=yes");
 
             /*
+             * Sheep Herder's enclosure pen: herder_plaguesheep_*_enclosure
+             * (configs/all.npc) is a multinpc shell keyed on
+             * `multivarbit=sheepherder_sheep_a..d`, and multinpc resolution
+             * happens client-side off the client's own copy of the carrier
+             * varp -- this mock never resolves it (see the multinpc-parent
+             * notes elsewhere in this file). An undeclared/no-transmit
+             * carrier is server-only (mock230_world_mark_varp early-returns
+             * on !transmit), so quest_sheepherder/scripts/diseased_sheep.rs2's
+             * `%sheepherdervar = setbit(...)` would track state correctly and
+             * never reach the client: the pen would show no sheep once the
+             * herding npc_add(...,150) temp copy expired. Same bug class and
+             * fix as dragonquestvar (quest_dragon.varp).
+             */
+            {
+                int sheepherdervar =
+                    mock230_content_symbol(MOCK230_PACK_VARP, "sheepherdervar");
+
+                SELFTEST_CHECK(sheepherdervar >= 0,
+                               "sheepherdervar should be in pack/varp.pack");
+                SELFTEST_CHECK(sheepherdervar >= 0 &&
+                                   mock230_content_varp(sheepherdervar) != NULL &&
+                                   mock230_content_varp(sheepherdervar)->transmit,
+                               "sheepherdervar should be declared transmit=yes");
+            }
+
+            /*
              * Dizana's quiver's slot has to be told it is empty.
              *
              * Clientscript 5026 branches on `dizanas_quiver_temp_ammo = null`,
@@ -33519,6 +33602,32 @@ mock230_world_selftest(void)
 
         selftest_park_player(srv, obj_x, obj_z);
         mock230_world_tick(srv);
+
+        /*
+         * Clear the litter first. Earlier sections (combat, death drops) run
+         * near this same Lumbridge tile and leave their own short-lived,
+         * non-spawn ground drops behind — `is_spawn == 0`, a real
+         * `despawn_tick` a handful of ticks out. Any one of those can cross
+         * its despawn between the `adds_empty` read below and the
+         * `adds_taken` read after our own pickup, a few ticks later, which
+         * makes the counts disagree over an obj this section never touched.
+         * A cache spawn (`is_spawn == 1`) never despawns and is what "a
+         * Lumbridge spawn wandering into the window" above already accounts
+         * for; only the finite-lived drops need clearing.
+         */
+        for( int gi = 0; gi < MOCK230_GROUND_MAX; gi++ )
+        {
+            struct Mock230GroundObj* g = &srv->ground[gi];
+            int dx = g->x - obj_x;
+            int dz = g->z - obj_z;
+
+            if( dx < 0 )
+                dx = -dx;
+            if( dz < 0 )
+                dz = -dz;
+            if( g->active && !g->is_spawn && dx <= 16 && dz <= 16 )
+                g->active = 0;
+        }
 
         /* How many objs a client that holds no zones is caught up with, with
          * nothing of ours on the floor. Everything below is measured against
@@ -37263,6 +37372,81 @@ mock230_world_selftest(void)
         }
 
         /*
+         * Sheep Herder audit (2026-08-20) via
+         * quests/quest_sheepherder/scripts/quest_sheepherder.rs2's
+         * [debugproc,sheepherderrun] -- the ~p_choice2-gated state writes
+         * ([label,halgrive_i_can_do_that_for_you], [doctor_orbon_purchase_
+         * plague_outfit]) and the non-`~`-callable `[label,...]` bit-writes
+         * (diseased_sheep.rs2's prod_sheep/poison_sheep,
+         * sheepherder_furnace.rs2's incinerate_bones,
+         * [queue,sheepherder_complete]) are mirrored; real proc calls
+         * (~sheepherder_journal, ~quest_complete_rewards) everywhere else.
+         * Same precedent as ::crestrun / ::treerun above. Every FAIL branch
+         * `return`s immediately, so reaching the final unconditional
+         * "SHEEPHERDERRUN OK" line is proof the whole chain passed, not just
+         * that the debugproc was found.
+         */
+        {
+            static struct Mock230Capture sheepherderrun_capture;
+            int sheepherderrun_said_ok = 0;
+
+            SELFTEST_CHECK(mock230_scripts_run_debugproc(srv, "sheepherder") ==
+                               MOCK230_TRIGGER_RAN,
+                           "::sheepherder should reach content");
+
+            mock230_capture_begin(srv, &sheepherderrun_capture);
+            mock230_scripts_run_debugproc(srv, "sheepherderrun");
+            mock230_capture_end(srv);
+            for( int i = mock230_capture_find(&sheepherderrun_capture, 90, 0); i >= 0;
+                 i = mock230_capture_find(&sheepherderrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet =
+                    &sheepherderrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "SHEEPHERDERRUN") == NULL )
+                    continue;
+                fprintf(stderr, "  %s\n", text);
+                if( strstr(text, "SHEEPHERDERRUN OK") != NULL )
+                    sheepherderrun_said_ok = 1;
+            }
+            SELFTEST_CHECK(sheepherderrun_said_ok, "::sheepherderrun should reach its OK line");
+
+            /*
+             * `~quest_complete_rewards` queues the quest-completion scroll as
+             * a MAINMODAL (questscroll.rs2) — closed only by a real click on
+             * `questscroll:close_button`, which nothing here simulates. Same
+             * fix and comment as ::crestrun above.
+             *
+             * process_queues + close_modal alone were not enough here (unlike
+             * ::crestrun/::treerun): A/B showed a NEW "dropping
+             * [proc,climb_ladder_anim], which suspended while [proc,mesbox]
+             * waits" several hundred lines later, at the West Ardougne sewer
+             * manhole stanza, which parks its own script on a plain
+             * `p_delay(1)` and expects to resume unassisted next tick. Some
+             * dialogue proc this stanza's chain left behind survives
+             * `close_modal_ex`'s `mock230_scripts_close_dialogue` (it is not
+             * in the PAUSEBUTTON/COUNTDIALOG/NAMEDIALOG set that function
+             * releases), and keeps `active_player->active_script` occupied
+             * until the sewer stanza's own park collides with it and loses
+             * the "one script slot" race (mock230_scripts.c:1052) --
+             * matching the exact "a park carried out of the section costs
+             * failures in unrelated ones" note on `mock230_combat_set_level`'s
+             * own fixture reset above. Same fix: force the slot empty rather
+             * than trust the modal-close path to have done it. Confirmed by
+             * A/B: the sewer/inventory failures appeared only once this
+             * stanza started calling ~quest_complete_rewards, and disappeared
+             * again once this line was added.
+             */
+            mock230_scripts_process_queues(srv);
+            mock230_world_close_modal(srv);
+            srv->active_player->active_script = NULL;
+        }
+
+        /*
          * Clock Tower -- rat-cage levers/gates (quest_cog_gates_and_levers.rs2),
          * real [oploc1] dispatch, not mirrored. This file had the exact same
          * `loc_del` -> read-`loc_coord`-after bug the Family Crest audit found
@@ -37471,6 +37655,146 @@ mock230_world_selftest(void)
         }
 
         /*
+         * Hazeel Cult -- the real combat leg: spawn the attackable
+         * alomone_hazeel_cultist_2op for real (matching
+         * [proc,hazeelcult_spawn_alomone]'s own Ceril-route spawn), confirm
+         * its stats against quest_hazeelcult.npc, deal real lethal damage,
+         * and confirm the real [ai_queue3,...] death handler advances
+         * %hazeelcultquest to hazeelcult_finished_side_task -- not mirrored.
+         * The dialogue-gated side-selection/valve puzzle and both
+         * completion queues are proven by ::hazeelcultrun
+         * (quests/quest_hazeelcult/scripts/hazeelcult_selftest.rs2), same
+         * precedent as every other dialogue-heavy quest this pass.
+         */
+        {
+            int npc_alomone = mock230_content_symbol(MOCK230_PACK_NPC, "alomone_hazeel_cultist_2op");
+            int varp_hazeelcultquest = mock230_content_symbol(MOCK230_PACK_VARP, "hazeelcultquest");
+            int varp_hazeelcult_side = mock230_content_symbol(MOCK230_PACK_VARP, "hazeelcult_side");
+            /* ^hazeelcult_clivet_decision = 4, ^hazeelcult_finished_side_task = 6,
+             * ^hazeelcult_goodside = 0 (quest_hazeelcult.constant). */
+            const int hazeelcult_clivet_decision = 4;
+            const int hazeelcult_finished_side_task = 6;
+            const int hazeelcult_goodside = 0;
+            int slot;
+
+            fprintf(stderr, "mock230 selftest: Hazeel Cult combat chain\n");
+
+            mock230_world_teleport(srv, 0, 2608, 9671);
+            mock230_world_tick(srv);
+
+            SELFTEST_CHECK(varp_hazeelcultquest >= 0 && varp_hazeelcult_side >= 0,
+                           "hazeelcultquest/hazeelcult_side should resolve as varp symbols");
+            if( varp_hazeelcultquest >= 0 && varp_hazeelcult_side >= 0 )
+            {
+                player->varps[varp_hazeelcult_side] = hazeelcult_goodside;
+                player->varps[varp_hazeelcultquest] = hazeelcult_clivet_decision;
+            }
+
+            slot = mock230_world_npc_spawn(srv, npc_alomone, 2608, 9671, 0);
+            SELFTEST_CHECK(slot >= 0, "alomone_hazeel_cultist_2op should spawn");
+            if( slot >= 0 )
+            {
+                struct Mock230Npc* alomone = &srv->npcs[slot];
+
+                mock230_world_npc_set_owner(alomone, player);
+                SELFTEST_CHECK(alomone->max_hitpoints == 25,
+                               "alomone hitpoints should match quest_hazeelcult.npc (25), got %d",
+                               alomone->max_hitpoints);
+
+                alomone->combat_target = player->pid;
+                mock230_combat_hit_npc(srv, slot, 0, alomone->max_hitpoints);
+                if( varp_hazeelcultquest >= 0 )
+                {
+                    int t;
+                    for( t = 0;
+                         t < 5 &&
+                         player->varps[varp_hazeelcultquest] != hazeelcult_finished_side_task;
+                         t++ )
+                        mock230_world_tick(srv);
+                }
+                else
+                {
+                    mock230_world_tick(srv);
+                }
+
+                SELFTEST_CHECK(
+                    varp_hazeelcultquest >= 0 &&
+                        player->varps[varp_hazeelcultquest] == hazeelcult_finished_side_task,
+                    "killing alomone should advance hazeelcultquest to hazeelcult_finished_side_task, "
+                    "got %d",
+                    varp_hazeelcultquest >= 0 ? player->varps[varp_hazeelcultquest] : -1);
+            }
+
+            /* The dialogue-gated ladder and both real completion queues, via
+             * ::hazeelcultrun1..4
+             * (quests/quest_hazeelcult/scripts/hazeelcult_selftest.rs2) --
+             * four stages, not one, because a player `queue(s, 0, 0)` does
+             * not fire within the same script execution that armed it; each
+             * stage boundary below is a real world tick, not a mirror.
+             *
+             * Each stage also calls the real `~hazeelcult_journal`, which
+             * legitimately opens the quest-journal interface into
+             * mainmodal (matching a real player checking their journal) --
+             * and `player_can_access()` correctly refuses to drain a queue
+             * while that popup is up, exactly as it would for a real
+             * player who has not clicked it away yet. So every stage must
+             * close its own modal before the tick that is meant to drain
+             * whatever it queued, or the queue starves forever.
+             *
+             * One close+tick is not enough on this shared selftest player:
+             * earlier stanzas (Family Crest, Fight Arena, ...) also call
+             * the real `~quest_complete_rewards`, which arms
+             * `queue(quest_scroll_show, ...)` -- and every one of those
+             * stuck BLOCKED the same way, since this player never "clicks
+             * through" a scroll either. Draining our own entry only wins
+             * the access race once every earlier stuck scroll ahead of it
+             * in the queue array has also fired and been closed again, and
+             * each of those re-opens mainmodal on its own turn. So this
+             * loops close+tick a bounded number of times per stage
+             * boundary rather than once (confirmed via
+             * TORIRS_ANIM_DEBUG=1: a single close+tick let `quest_scroll_
+             * show` win the race and re-block our own entry behind it). */
+            {
+                static struct Mock230Capture hazeelcultrun_capture;
+                int hazeelcultrun_said_ok = 0;
+                const char* stage_names[4] = {"hazeelcultrun1", "hazeelcultrun2", "hazeelcultrun3",
+                                               "hazeelcultrun4"};
+                int stage;
+
+                for( stage = 0; stage < 4; stage++ )
+                {
+                    int drain_tick;
+
+                    mock230_capture_begin(srv, &hazeelcultrun_capture);
+                    mock230_scripts_run_debugproc(srv, stage_names[stage]);
+                    mock230_capture_end(srv);
+                    for( int i = mock230_capture_find(&hazeelcultrun_capture, 90, 0); i >= 0;
+                         i = mock230_capture_find(&hazeelcultrun_capture, 90, i + 1) )
+                    {
+                        const struct Mock230CapturedPacket* packet =
+                            &hazeelcultrun_capture.packets[i];
+                        const char* text;
+
+                        if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                            continue;
+                        text = (const char*)packet->data + 1;
+                        if( strstr(text, "HAZEELCULTRUN") == NULL )
+                            continue;
+                        fprintf(stderr, "  %s\n", text);
+                        if( strstr(text, "HAZEELCULTRUN OK") != NULL )
+                            hazeelcultrun_said_ok = 1;
+                    }
+                    for( drain_tick = 0; drain_tick < 8; drain_tick++ )
+                    {
+                        mock230_world_close_modal(srv);
+                        mock230_world_tick(srv);
+                    }
+                }
+                SELFTEST_CHECK(hazeelcultrun_said_ok, "::hazeelcultrun should reach its OK line");
+            }
+        }
+
+        /*
          * H.A.M. Storerooms' reward table and spatial contracts live in
          * content, but they include every one of the 150 reward rolls plus the
          * host-backed NPC front-arc query. Run that content test here so a
@@ -37488,6 +37812,21 @@ mock230_world_selftest(void)
                            player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
             player->varps[SELFTEST_VARP_QUEST_PROGRESS] = saved_progress;
         }
+
+        /*
+         * Same gap as the quest-journal mass-`::complete` sweep and
+         * `::crestrun` above (see their comments): `arenarun` and
+         * `hamstoreroomtest` are real content debugprocs, not mirrored
+         * arithmetic, and either can walk through a `~quest_journal` or
+         * completion-scroll call that mounts a MAINMODAL (`questjournal`,
+         * interface 119, in `[proc,quest_journal]`) with nothing here to
+         * click it shut. Left open, it silently starves the prayer-drain
+         * timer many sections later — the same symptom, a different call
+         * site. Drain and close before it can leak into `::coxrun` or
+         * anything after it.
+         */
+        mock230_scripts_process_queues(srv);
+        mock230_world_close_modal(srv);
 
         /*
          * `::coxrun` — Chambers of Xeric points arithmetic and the two death
@@ -47660,25 +47999,30 @@ mock230_world_selftest(void)
                  * Three tiles back so the mode has two steps to take, and
                  * ahead along the run because that is the ground checked clear.
                  */
-                mock230_world_npc_teleport(&srv->npcs[follower], player->x + dir_x * 3,
-                                           player->z + dir_z * 3, 0);
+                /*
+                 * `+ dir_x * 3` here used to place the follower three tiles
+                 * PAST the player along the run direction — outside the
+                 * clear straight run the scan above verified (which only
+                 * covers the origin, one tile behind it, and `run` tiles
+                 * ahead of it). By the time this leg runs, the player has
+                 * already advanced along that run from the "keep up with a
+                 * running player" leg above, so three tiles further still in
+                 * the same direction lands on unverified, possibly blocked
+                 * ground: `mock230_world_npc_walk_to`'s naive pathfinder
+                 * found no route, `npc_walk_to_player` silently returned 0
+                 * twice, and neither `step_dir` nor `run_dir` was ever
+                 * filed. Subtracting puts the follower on ground the player
+                 * just walked through — verified clear — and walking IT
+                 * toward the player is what covers ground "ahead along the
+                 * run" the comment above already meant.
+                 */
+                mock230_world_npc_teleport(&srv->npcs[follower], player->x - dir_x * 3,
+                                           player->z - dir_z * 3, 0);
                 srv->npcs[follower].step_dir = -1;
                 srv->npcs[follower].run_dir = -1;
                 srv->npcs[follower].mode = MOCK230_NPCMODE_PLAYERFOLLOW;
                 mock230_world_set_active(srv, player);
-                fprintf(stderr,
-                        "DBGDIAG5 before npc=%d,%d player=%d,%d range=%d owner_gen=%d "
-                        "mode_target_gen=%d frozen=%d\n",
-                        srv->npcs[follower].x, srv->npcs[follower].z, player->x, player->z,
-                        npc_player_range(&srv->npcs[follower], player),
-                        srv->npcs[follower].owner_gen, srv->npcs[follower].mode_target_gen,
-                        srv->npcs[follower].frozen_ticks);
                 npc_run_mode(srv, &srv->npcs[follower], follower);
-                fprintf(stderr,
-                        "DBGDIAG5 after npc=%d,%d step_dir=%d run_dir=%d range=%d\n",
-                        srv->npcs[follower].x, srv->npcs[follower].z,
-                        srv->npcs[follower].step_dir, srv->npcs[follower].run_dir,
-                        npc_player_range(&srv->npcs[follower], player));
                 SELFTEST_CHECK(srv->npcs[follower].run_dir >= 0,
                                "a two-tile follow turn must file its second direction in "
                                "run_dir for NPC_INFO's update type 2, got %d",
@@ -51512,6 +51856,64 @@ mock230_world_selftest(void)
                   "double" },
                 { "[proc,selftest_chompy_hats]", 10,
                   "eighteen chompy hats against twenty-two ranks" },
+                { "[proc,selftest_univshop]", 5,
+                  "a shop price of 0 is free; -1 is refused" },
+                { "[proc,selftest_privilege]", 9,
+                  "a privilege is a SET: the hidden admin sends a player "
+                  "login code, and nobody inherits youtuber" },
+                { "[proc,selftest_potato]", 8,
+                  "the potato menu is built per viewer; option NONE is no "
+                  "menu, and an ineligible click deletes the item" },
+                { "[proc,selftest_donator]", 11,
+                  "a toggles chance of 0 is a guarantee, and a claim threads "
+                  "the remainder through inventory, bank, floor" },
+                { "[proc,selftest_imbue]", 10,
+                  "imbue keeps charges and disimbue does not; the crystal "
+                  "halberd's imbued id is the lower one" },
+                { "[proc,selftest_magicstorage]", 8,
+                  "a set needs every piece and any one id of each; the "
+                  "ultimate ironman unlock is the cheaper rate" },
+                { "[proc,selftest_wildy_boss_combat]", 14,
+                  "Callisto melees in melee range whatever the roll, and a "
+                  "living hellhound blocks Vet'ion's damage and xp both" },
+                { "[proc,selftest_rots_rewards]", 7,
+                  "the RotS chest scales by 1.5 with a truncating cast, and "
+                  "nine of its entries arrive noted" },
+                { "[proc,selftest_skotizo_minions]", 7,
+                  "Skotizo's ankou branch swallows the tick from the demon "
+                  "branch, and a demon wave tops up to three at once" },
+                { "[proc,selftest_corp_core]", 10,
+                  "the dark core heals the beast by exactly what it drains, "
+                  "and poison stuns it exactly once" },
+                { "[proc,selftest_ma2_base]", 11,
+                  "a Mage Arena II special is drawn from what the target's "
+                  "state still allows, and melee frequency 0 means always" },
+                { "[proc,selftest_xamphur_hands]", 7,
+                  "a living phantom hand blocks melee and ranged too, not "
+                  "just the magic Xamphur is already immune to" },
+                { "[proc,selftest_nex_containment]", 7,
+                  "Nex's containment box is anchored on her and turns the "
+                  "overhead prayer off, and the stuck watchdog is gated" },
+                { "[proc,selftest_td_shield]", 6,
+                  "demonbane OR abyssal pierces the demon's fire shield, "
+                  "which the reference server gets backwards" },
+                /* Five herblore stanzas were written, compiled and never
+                 * run -- registered nowhere and called by nothing. Found by
+                 * tools/check_selftest_registration.py. They use this file's
+                 * own convention rather than a step count: a distinct failure
+                 * code in the 509x range at each guard, and a success code in
+                 * the 500x range at the end, so `expect` is the success code. */
+                { "[proc,selftest_herblore_venom]", 5001,
+                  "venom raises but never stacks down, and a cure clears both "
+                  "counters" },
+                { "[proc,selftest_herblore_venom_immunity]", 5002,
+                  "venom immunity" },
+                { "[proc,selftest_herblore_disease]", 5003,
+                  "disease apply and cure" },
+                { "[proc,selftest_herblore_decant_same_family]", 5004,
+                  "decanting within one potion family" },
+                { "[proc,selftest_herblore_decant_mismatched_family]", 5005,
+                  "decanting refuses two different potion families" },
                 { "[proc,selftest_well]", 6,
                   "the rarest well perk is 4e9 coins and does not fit an "
                   "int" },
@@ -57202,6 +57604,1952 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: ::elenarun\n");
+    {
+        /*
+         * Plague City (2026-08-20 audit). Extensively and carefully ported
+         * -- every stage 0..30 in quest_elena.constant is handled by
+         * edmond.rs2's own dispatcher, the clerk/Bravek door gate in
+         * areas/area_ardougne_west lines up with the wiki's access-control
+         * chain exactly, and the journal (elena_journal.rs2) traces to a
+         * real upstream reference. One real gap found: alrena.rs2's talk-to
+         * switch_int lists every %elenaquest bucket EXCEPT
+         * ^quest_elena_shown_picture (20) and ^quest_elena_spoken_martha_ted
+         * (22) -- a player who talks to Alrena at exactly those two
+         * moments gets total silence (the switch falls through with no
+         * case and no default). Fixed by folding both into the existing
+         * "any word on Elena?" bucket alongside their neighbours.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int varp_elena = mock230_content_symbol(MOCK230_PACK_VARP, "elenaquest");
+            int obj_bucket_water = mock230_content_symbol(MOCK230_PACK_OBJ, "bucket_water");
+            int obj_bucket_empty = mock230_content_symbol(MOCK230_PACK_OBJ, "bucket_empty");
+            int obj_spade = mock230_content_symbol(MOCK230_PACK_OBJ, "spade");
+            int obj_rope = mock230_content_symbol(MOCK230_PACK_OBJ, "rope");
+            int obj_gasmask = mock230_content_symbol(MOCK230_PACK_OBJ, "gasmask");
+            int obj_elenakey = mock230_content_symbol(MOCK230_PACK_OBJ, "elenakey");
+            int loc_mudpatch = mock230_content_symbol(MOCK230_PACK_LOC, "plaguemudpatch2");
+            int loc_pipe = mock230_content_symbol(MOCK230_PACK_LOC, "plaguesewerpipe");
+            int loc_manholeclosed = mock230_content_symbol(MOCK230_PACK_LOC, "plaguemanholeclosed");
+            int loc_manholeopen = mock230_content_symbol(MOCK230_PACK_LOC, "plaguemanholeopen");
+            int loc_barrel = mock230_content_symbol(MOCK230_PACK_LOC, "plaguekeybarrel");
+            int npc_alrena = mock230_content_symbol(MOCK230_PACK_NPC, "alrena");
+
+            SELFTEST_CHECK(varp_elena >= 0 && obj_bucket_water >= 0 && obj_spade >= 0 &&
+                           obj_rope >= 0 && obj_gasmask >= 0 && obj_elenakey >= 0 &&
+                           loc_mudpatch >= 0 && loc_pipe >= 0 && loc_manholeclosed >= 0 &&
+                           loc_barrel >= 0 && npc_alrena >= 0,
+                           "the ::elenarun C-side names should all resolve: elena=%d "
+                           "water=%d spade=%d rope=%d mask=%d key=%d mudpatch=%d "
+                           "pipe=%d manhole=%d barrel=%d alrena=%d",
+                           varp_elena, obj_bucket_water, obj_spade, obj_rope, obj_gasmask,
+                           obj_elenakey, loc_mudpatch, loc_pipe, loc_manholeclosed,
+                           loc_barrel, npc_alrena);
+
+            if( varp_elena >= 0 && obj_bucket_water >= 0 && obj_spade >= 0 && obj_rope >= 0 &&
+                obj_gasmask >= 0 && obj_elenakey >= 0 && loc_mudpatch >= 0 && loc_pipe >= 0 &&
+                loc_manholeclosed >= 0 && loc_barrel >= 0 && npc_alrena >= 0 )
+            {
+                static const int all_stages[] = { 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 20, 21,
+                                                   22, 23, 24, 25, 26, 27, 28, 29, 30 };
+                int mud_slot;
+                int i;
+                int varp_biohazard = mock230_content_symbol(MOCK230_PACK_VARP, "biohazard");
+
+                /* mud_patch.rs2 also answers to Biohazard ("the ground's
+                 * been filled in") -- an earlier stanza in this same run
+                 * can leave %biohazard non-zero on the shared player, which
+                 * would silently short-circuit every dig check below. Not
+                 * this quest's state to own; reset it for this stanza. */
+                if( varp_biohazard >= 0 )
+                    player->varps[varp_biohazard] = 0;
+
+                /* Every declared stage's journal should render without the
+                 * VM aborting -- a cheap, wide net for a constant that
+                 * doesn't resolve the way this audit assumed. */
+                for( i = 0; i < (int)(sizeof(all_stages) / sizeof(all_stages[0])); i++ )
+                {
+                    player->varps[varp_elena] = all_stages[i];
+                    mock230_scripts_run_proc(srv, "[proc,elena_journal]", NULL, 0);
+                }
+                SELFTEST_CHECK(mock230_scripts_run_proc(srv, "[proc,elena_journal]", NULL, 0) == 1,
+                               "elena_journal should still resolve and run cleanly after the "
+                               "full stage sweep");
+
+                /* --- the mud patch: 4 waters then a spade, for real --- */
+                mock230_world_teleport(srv, 0, 2566, 3331);
+                mock230_world_tick(srv);
+                mud_slot = mock230_scene_find_loc_id(2566, 3332, 0, loc_mudpatch);
+                if( mud_slot < 0 )
+                    mud_slot = mock230_scene_find_loc_id(2566, 3331, 0, loc_mudpatch);
+                SELFTEST_CHECK(mud_slot >= 0, "plaguemudpatch2 should be placed near "
+                               "Edmond's garden (2566,3332,0), got slot %d", mud_slot);
+
+                if( mud_slot >= 0 )
+                {
+                    player->varps[varp_elena] = 3; /* quest_elena_started_mud_patch */
+                    for( i = 0; i < 4; i++ )
+                    {
+                        for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                            inv_set(player, s, -1, 0);
+                        inv_set(player, 0, obj_bucket_water, 1);
+                        player->last_useitem = obj_bucket_water;
+                        player->last_useslot = 0;
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOCU, loc_mudpatch,
+                                                           mock230_loc_category(loc_mudpatch),
+                                                           mud_slot);
+                    }
+                    SELFTEST_CHECK(player->varps[varp_elena] == 7 /* quest_elena_mud_patch4 */,
+                                   "4 buckets of water on the mud patch should reach "
+                                   "quest_elena_mud_patch4 (7), got %d",
+                                   player->varps[varp_elena]);
+                    SELFTEST_CHECK(player->inv[0].obj_id == obj_bucket_empty,
+                                   "each bucket of water should come back empty, got obj %d",
+                                   player->inv[0].obj_id);
+
+                    for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                        inv_set(player, s, -1, 0);
+                    inv_set(player, 0, obj_spade, 1);
+                    player->last_useitem = obj_spade;
+                    player->last_useslot = 0;
+                    player->chatmodal_group = 0;
+                    mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOCU, loc_mudpatch,
+                                                       mock230_loc_category(loc_mudpatch),
+                                                       mud_slot);
+                    /* elena_dig_mud_patch's crumbling branch opens a
+                     * ~mesbox BEFORE writing progress and teleporting --
+                     * with %elenaquest already at mud_patch4 the
+                     * "too hard" early-return is structurally unreachable
+                     * (its guard is `< mud_patch4`), so the mount alone
+                     * proves the crumbling branch, not the hard-soil one,
+                     * is what ran. */
+                    {
+                        int if_messagebox = mock230_content_symbol(MOCK230_PACK_INTERFACE,
+                                                                    "messagebox");
+                        SELFTEST_CHECK(if_messagebox >= 0 &&
+                                       player->chatmodal_group == if_messagebox,
+                                       "digging the softened mud patch should open the "
+                                       "crumbling-soil messagebox, want %d got "
+                                       "chatmodal_group=%d",
+                                       if_messagebox, player->chatmodal_group);
+                    }
+                }
+
+                /* --- the manhole round trip (run first: it's the real
+                 * in-content path into the sewer, and the grill test below
+                 * borrows its landing spot / proven-loaded scene) --- */
+                {
+                    int manhole_slot = -1;
+                    int mx, mz;
+                    int found_x = -1, found_z = -1;
+
+                    mock230_world_teleport(srv, 0, 2529, 3303);
+                    mock230_world_tick(srv);
+                    for( mx = 2523; mx <= 2535 && manhole_slot < 0; mx++ )
+                        for( mz = 3297; mz <= 3309 && manhole_slot < 0; mz++ )
+                        {
+                            manhole_slot = mock230_scene_find_loc_id(mx, mz, 0, loc_manholeclosed);
+                            if( manhole_slot >= 0 )
+                            {
+                                found_x = mx;
+                                found_z = mz;
+                            }
+                        }
+
+                    SELFTEST_CHECK(manhole_slot >= 0, "plaguemanholeclosed should be placed "
+                                   "at the West Ardougne town square (2529,3303,0), got "
+                                   "slot %d", manhole_slot);
+                    if( manhole_slot >= 0 )
+                    {
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1,
+                                                           loc_manholeclosed,
+                                                           mock230_loc_category(loc_manholeclosed),
+                                                           manhole_slot);
+                        mock230_world_tick(srv);
+                        SELFTEST_CHECK(mock230_scene_find_loc_id(found_x, found_z, 0, loc_manholeopen) >= 0,
+                                       "opening the manhole should swap it to plaguemanholeopen");
+
+                        manhole_slot = mock230_scene_find_loc_id(found_x, found_z, 0, loc_manholeopen);
+                        if( manhole_slot >= 0 )
+                        {
+                            mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1,
+                                                               loc_manholeopen,
+                                                               mock230_loc_category(loc_manholeopen),
+                                                               manhole_slot);
+                            /* elena_enter_manhole calls ~climb_ladder_anim,
+                             * which parks on p_delay(1) before the
+                             * p_telejump that follows it -- a tick lets
+                             * that delay expire and the script resume on
+                             * its own, no click needed. */
+                            mock230_world_tick(srv);
+                            SELFTEST_CHECK(player->x != found_x || player->z != found_z,
+                                           "entering the open manhole should move the "
+                                           "player into the sewer, still at (%d,%d,%d)",
+                                           player->x, player->z, player->level);
+                        }
+                    }
+                }
+
+                /* --- the sewer grill: rope, then Edmond frees it, then the
+                 * gas mask gate on climbing through --- */
+                {
+                    int pipe_slot = -1;
+                    int px, pz;
+                    int start_x = player->x, start_z = player->z, start_level = player->level;
+
+                    /* A raw C-side teleport straight to (2514,9739) never
+                     * finds this loc, wide-area scan or not -- something
+                     * about how that scene builds without first having
+                     * come from the mud pile/manhole differs from a real
+                     * in-content transition. The manhole test above just
+                     * landed the player here via a real p_telejump, on a
+                     * scene proven loaded; scan out from that instead. */
+                    for( px = start_x - 40; px <= start_x + 40 && pipe_slot < 0; px++ )
+                        for( pz = start_z - 40; pz <= start_z + 40 && pipe_slot < 0; pz++ )
+                            pipe_slot = mock230_scene_find_loc_id(px, pz, start_level, loc_pipe);
+                    SELFTEST_CHECK(pipe_slot >= 0, "plaguesewerpipe should be findable from "
+                                   "the sewer (player landed at %d,%d,%d), got slot %d",
+                                   start_x, start_z, start_level, pipe_slot);
+                    if( pipe_slot >= 0 )
+                    {
+                        player->varps[varp_elena] = 8; /* quest_elena_opened_tunnel */
+                        for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                            inv_set(player, s, -1, 0);
+                        inv_set(player, 0, obj_rope, 1);
+                        player->last_useitem = obj_rope;
+                        player->last_useslot = 0;
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOCU, loc_pipe,
+                                                           mock230_loc_category(loc_pipe),
+                                                           pipe_slot);
+                        SELFTEST_CHECK(player->varps[varp_elena] == 9 /* quest_elena_tied_rope */,
+                                       "using rope on the grill should reach "
+                                       "quest_elena_tied_rope (9), got %d",
+                                       player->varps[varp_elena]);
+
+                        /* Edmond frees the grill -- direct progress write,
+                         * same as edmond.rs2's own [opnpc1,edmond] case. */
+                        player->varps[varp_elena] = 10; /* quest_elena_opened_pipe */
+
+                        /* No gas mask worn: climbing must refuse. */
+                        for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                            inv_set(player, s, -1, 0);
+                        player->worn[0].obj_id = -1;
+                        player->worn[0].count = 0;
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_pipe,
+                                                           mock230_loc_category(loc_pipe),
+                                                           pipe_slot);
+                        SELFTEST_CHECK(player->x == start_x && player->z == start_z,
+                                       "climbing through the pipe with no gas mask worn "
+                                       "should not move the player, got (%d,%d,%d)",
+                                       player->x, player->z, player->level);
+
+                        /* Wearing it: climbing should succeed and land at
+                         * the West Ardougne manhole. */
+                        worn_set(player, 0, obj_gasmask, 1);
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_pipe,
+                                                           mock230_loc_category(loc_pipe),
+                                                           pipe_slot);
+                        SELFTEST_CHECK(player->x != start_x || player->z != start_z,
+                                       "climbing through the pipe with the gas mask worn "
+                                       "should move the player out of the sewer, still at "
+                                       "(%d,%d,%d)",
+                                       player->x, player->z, player->level);
+                    }
+                }
+
+                /* --- the plague house key barrel --- */
+                {
+                    int barrel_slot;
+
+                    mock230_world_teleport(srv, 0, 2534, 3268);
+                    mock230_world_tick(srv);
+                    barrel_slot = mock230_scene_find_loc_id(2534, 3268, 0, loc_barrel);
+                    SELFTEST_CHECK(barrel_slot >= 0, "plaguekeybarrel should be placed in "
+                                   "the plague house (2534,3268,0), got slot %d", barrel_slot);
+                    if( barrel_slot >= 0 )
+                    {
+                        for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                            inv_set(player, s, -1, 0);
+
+                        /* Wrong stage: the barrel must not give up the key. */
+                        player->varps[varp_elena] = 25; /* quest_elena_spoke_to_clerk */
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_barrel,
+                                                           mock230_loc_category(loc_barrel),
+                                                           barrel_slot);
+                        SELFTEST_CHECK(player->inv[0].obj_id != obj_elenakey,
+                                       "the barrel should not give the key before "
+                                       "quest_elena_spoke_cured_bravek");
+
+                        /* Right stage: search finds the key exactly once. */
+                        player->varps[varp_elena] = 27; /* quest_elena_spoke_cured_bravek */
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_barrel,
+                                                           mock230_loc_category(loc_barrel),
+                                                           barrel_slot);
+                        SELFTEST_CHECK(player->inv[0].obj_id == obj_elenakey,
+                                       "searching the barrel at spoke_cured_bravek should "
+                                       "give a small key, got obj %d",
+                                       player->inv[0].obj_id);
+
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_barrel,
+                                                           mock230_loc_category(loc_barrel),
+                                                           barrel_slot);
+                        SELFTEST_CHECK(player->inv[1].obj_id != obj_elenakey,
+                                       "searching the barrel a second time should not give "
+                                       "a second key, got obj %d in slot 1",
+                                       player->inv[1].obj_id);
+                    }
+                }
+
+                /* --- alrena.rs2's dialogue gap: 20 and 22 --- */
+                {
+                    int npc_slot;
+
+                    mock230_world_teleport(srv, 0, 2573, 3333);
+                    mock230_world_tick(srv);
+                    npc_slot = npc_spawn(srv, npc_alrena, 2573, 3333, 0);
+                    SELFTEST_CHECK(npc_slot >= 0, "alrena should spawn for the C-side "
+                                   "dialogue-gap check");
+                    if( npc_slot >= 0 )
+                    {
+                        /* ~chatplayer_anim/~chatnpc_anim mount the chat_left/
+                         * chat_right interfaces, exactly like ~mesbox mounts
+                         * messagebox -- neither surfaces as a plain
+                         * MESSAGE_GAME packet, so chatmodal_group mounting
+                         * is the real signal, not a packet capture. */
+                        player->varps[varp_elena] = 20; /* quest_elena_shown_picture */
+                        player->chatmodal_group = 0;
+                        mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC1, npc_alrena, -1,
+                                                    npc_slot);
+                        SELFTEST_CHECK(player->chatmodal_group != 0,
+                                       "talking to Alrena at quest_elena_shown_picture (20) "
+                                       "should say SOMETHING, not fall through the switch "
+                                       "silently, got chatmodal_group=%d",
+                                       player->chatmodal_group);
+                        {
+                            int com_continue = mock230_content_symbol(MOCK230_PACK_COMPONENT,
+                                                                       "chat_left:continue");
+                            if( com_continue > 0 )
+                                mock230_scripts_resume_button(srv, com_continue);
+                        }
+
+                        player->varps[varp_elena] = 22; /* quest_elena_spoken_martha_ted */
+                        player->chatmodal_group = 0;
+                        mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC1, npc_alrena, -1,
+                                                    npc_slot);
+                        SELFTEST_CHECK(player->chatmodal_group != 0,
+                                       "talking to Alrena at quest_elena_spoken_martha_ted "
+                                       "(22) should say SOMETHING, not fall through the "
+                                       "switch silently, got chatmodal_group=%d",
+                                       player->chatmodal_group);
+                    }
+                }
+
+                for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                    inv_set(player, s, -1, 0);
+                player->worn[0].obj_id = -1;
+                player->worn[0].count = 0;
+                player->varps[varp_elena] = 0;
+            }
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::biohazardrun\n");
+    {
+        /*
+         * Biohazard (2026-08-20 audit, sequel to Plague City/quest_elena).
+         * Extraordinarily thorough existing port -- every stage the Quest
+         * Helper ladder declares (0/1/2/3/4/5/6/7/10/12/14/15/16) is written
+         * by real content, the errand-boy vial assignments match the wiki's
+         * table exactly (Da Vinci<-ethenea, Chancy<-liquid honey, Hops<-
+         * sulphuric broline), the journal traces every stage, and
+         * ~quest_complete_rewards is genuinely reached from king_lathas.rs2's
+         * `queue(quest_biohazard_complete, 0, 0)`. combat_training.constant/
+         * .varp both carry a stale "full Biohazard body deferred" header
+         * comment from when only the gate stub existed -- the quest was
+         * finished in a later pass and nobody updated the header; the actual
+         * `[biohazard]` varp block and `^biohazard_*` ladder are exactly
+         * what the finished quest uses today, not a stub.
+         *
+         * The one real bug found: `areas/varrock/scripts/east_gate.rs2`'s
+         * `[label,varrock_east_gate]` (the south-east Varrock members gate,
+         * where a guard searches and confiscates the smuggled vials while
+         * `%biohazard` is in [given_distillator, found_secret)) runs its own
+         * search-and-let-through teleport *and then falls through*, with no
+         * `return`, into the ordinary unconditional door-teleport below it --
+         * so a player being searched gets teleported through the gate once by
+         * the search branch and then immediately a second time by the
+         * fallthrough, which recomputes `coordx(coord) < coordx(loc_coord)`
+         * against the player's NEW post-search position and lands them back
+         * near the gate instead of past it. Every other door in this quest
+         * (`~west_ardy_walk_door`, `open_mournerhq_gate`) computes ONE
+         * destination and teleports once; this is the only oploc1 handler in
+         * the quest that teleports twice on one click. Test B below drives
+         * the real dispatch and compares the search-branch landing against a
+         * baseline (search branch inactive) crossing of the gate's own other
+         * leaf.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int varp_biohazard = mock230_content_symbol(MOCK230_PACK_VARP, "biohazard");
+            int varp_bioerrand = mock230_content_symbol(MOCK230_PACK_VARP, "bioerrand");
+
+            int npc_jerico = mock230_content_symbol(MOCK230_PACK_NPC, "jerico");
+            int npc_omart = mock230_content_symbol(MOCK230_PACK_NPC, "omart");
+            int npc_elena2 = mock230_content_symbol(MOCK230_PACK_NPC, "elena2");
+            int npc_mournerstew2 = mock230_content_symbol(MOCK230_PACK_NPC, "mournerstew2");
+            int npc_chemist = mock230_content_symbol(MOCK230_PACK_NPC, "chemist");
+            int npc_drunk1 = mock230_content_symbol(MOCK230_PACK_NPC, "drunk1");
+            int npc_drunk2 = mock230_content_symbol(MOCK230_PACK_NPC, "drunk2");
+            int npc_guidor = mock230_content_symbol(MOCK230_PACK_NPC, "guidor");
+            int npc_kinglathas = mock230_content_symbol(MOCK230_PACK_NPC, "kinglathas");
+            int npc_bioguard1 = mock230_content_symbol(MOCK230_PACK_NPC, "bioguard1");
+
+            int loc_jericocupboardshut = mock230_content_symbol(MOCK230_PACK_LOC, "jericoscupboardshut");
+            int loc_jericocupboardopen = mock230_content_symbol(MOCK230_PACK_LOC, "jericoscupboardopen");
+            int loc_biowatchtower = mock230_content_symbol(MOCK230_PACK_LOC, "biowatchtower");
+            int loc_mournercauldron = mock230_content_symbol(MOCK230_PACK_LOC, "mournercauldron");
+            int loc_bionursecupboardshut = mock230_content_symbol(MOCK230_PACK_LOC, "bionursescupboardshut");
+            int loc_bionursecupboardopen = mock230_content_symbol(MOCK230_PACK_LOC, "bionursescupboardopen");
+            int loc_mournerdoor = mock230_content_symbol(MOCK230_PACK_LOC, "mournerstewdoor");
+            int loc_mournergatel = mock230_content_symbol(MOCK230_PACK_LOC, "mournerquaters_gatel");
+            int loc_mournercrateup = mock230_content_symbol(MOCK230_PACK_LOC, "mournercrateup");
+            int loc_guidorgatelclosed = mock230_content_symbol(MOCK230_PACK_LOC, "guidorgatelclosed");
+            int loc_guidorgaterclosed = mock230_content_symbol(MOCK230_PACK_LOC, "guidorgaterclosed");
+
+            int obj_birdfeed = mock230_content_symbol(MOCK230_PACK_OBJ, "birdfeed");
+            int obj_pigeons = mock230_content_symbol(MOCK230_PACK_OBJ, "pigeons");
+            int obj_pigeoncage = mock230_content_symbol(MOCK230_PACK_OBJ, "pigeoncage");
+            int obj_rottenapples = mock230_content_symbol(MOCK230_PACK_OBJ, "rottenapples");
+            int obj_doctor_gown = mock230_content_symbol(MOCK230_PACK_OBJ, "doctor_gown");
+            int obj_mournerkeytw = mock230_content_symbol(MOCK230_PACK_OBJ, "mournerkeytw");
+            int obj_distillator = mock230_content_symbol(MOCK230_PACK_OBJ, "distillator");
+            int obj_plaguesample = mock230_content_symbol(MOCK230_PACK_OBJ, "plaguesample");
+            int obj_ethenea = mock230_content_symbol(MOCK230_PACK_OBJ, "ethenea");
+            int obj_liquid_honey = mock230_content_symbol(MOCK230_PACK_OBJ, "liquid_honey");
+            int obj_sulphuric_broline = mock230_content_symbol(MOCK230_PACK_OBJ, "sulphuric_broline");
+            int obj_touch_paper = mock230_content_symbol(MOCK230_PACK_OBJ, "touch_paper");
+            int obj_priest_gown = mock230_content_symbol(MOCK230_PACK_OBJ, "priest_gown");
+            int obj_priest_robe = mock230_content_symbol(MOCK230_PACK_OBJ, "priest_robe");
+
+            int rows_uid = mock230_content_symbol(MOCK230_PACK_COMPONENT, "chatmenu:options");
+
+            int all_resolved =
+                varp_biohazard >= 0 && varp_bioerrand >= 0 && npc_jerico >= 0 && npc_omart >= 0 &&
+                npc_elena2 >= 0 && npc_mournerstew2 >= 0 && npc_chemist >= 0 && npc_drunk1 >= 0 &&
+                npc_drunk2 >= 0 && npc_guidor >= 0 && npc_kinglathas >= 0 && npc_bioguard1 >= 0 &&
+                loc_jericocupboardshut >= 0 && loc_jericocupboardopen >= 0 && loc_biowatchtower >= 0 &&
+                loc_mournercauldron >= 0 && loc_bionursecupboardshut >= 0 && loc_bionursecupboardopen >= 0 &&
+                loc_mournerdoor >= 0 && loc_mournergatel >= 0 && loc_mournercrateup >= 0 &&
+                loc_guidorgatelclosed >= 0 && loc_guidorgaterclosed >= 0 &&
+                obj_birdfeed >= 0 && obj_pigeons >= 0 && obj_pigeoncage >= 0 && obj_rottenapples >= 0 &&
+                obj_doctor_gown >= 0 && obj_mournerkeytw >= 0 && obj_distillator >= 0 &&
+                obj_plaguesample >= 0 && obj_ethenea >= 0 && obj_liquid_honey >= 0 &&
+                obj_sulphuric_broline >= 0 && obj_touch_paper >= 0 && obj_priest_gown >= 0 &&
+                obj_priest_robe >= 0 && rows_uid > 0;
+
+            SELFTEST_CHECK(all_resolved,
+                           "the ::biohazardrun C-side names should all resolve: "
+                           "biohazard=%d bioerrand=%d jerico=%d omart=%d elena2=%d "
+                           "mournerstew2=%d chemist=%d drunk1=%d drunk2=%d guidor=%d "
+                           "kinglathas=%d bioguard1=%d jericocupboardshut=%d "
+                           "biowatchtower=%d mournercauldron=%d bionursecupboardshut=%d "
+                           "mournerdoor=%d mournergatel=%d mournercrateup=%d "
+                           "guidorgatelclosed=%d guidorgaterclosed=%d rows_uid=%d",
+                           varp_biohazard, varp_bioerrand, npc_jerico, npc_omart, npc_elena2,
+                           npc_mournerstew2, npc_chemist, npc_drunk1, npc_drunk2, npc_guidor,
+                           npc_kinglathas, npc_bioguard1, loc_jericocupboardshut,
+                           loc_biowatchtower, loc_mournercauldron, loc_bionursecupboardshut,
+                           loc_mournerdoor, loc_mournergatel, loc_mournercrateup,
+                           loc_guidorgatelclosed, loc_guidorgaterclosed, rows_uid);
+
+            if( all_resolved )
+            {
+                static const int all_stages[] = { 0, 1, 2, 3, 4, 5, 6, 7, 10, 12, 14, 15, 16 };
+                int i;
+
+                for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                    inv_set(player, s, -1, 0);
+                worn_set(player, 0, -1, 0);
+                player->varps[varp_biohazard] = 0;
+
+                /* --- every declared stage's journal renders without aborting --- */
+                for( i = 0; i < (int)(sizeof(all_stages) / sizeof(all_stages[0])); i++ )
+                {
+                    player->varps[varp_biohazard] = all_stages[i];
+                    SELFTEST_CHECK(mock230_scripts_run_proc(srv, "[proc,biohazard_journal]", NULL, 0) == 1,
+                                   "biohazard_journal should render cleanly at stage %d",
+                                   all_stages[i]);
+                }
+
+                /* --- Jerico's cupboard: open, then take the bird feed --- */
+                {
+                    int slot = -1;
+                    int cx = -1, cz = -1;
+
+                    mock230_world_teleport(srv, 0, 2612, 3326);
+                    mock230_world_tick(srv);
+                    {
+                        int sx, sz;
+
+                        for( sx = 2605; sx <= 2620 && slot < 0; sx++ )
+                            for( sz = 3318; sz <= 3330 && slot < 0; sz++ )
+                            {
+                                slot = mock230_scene_find_loc_id(sx, sz, 0, loc_jericocupboardshut);
+                                if( slot >= 0 )
+                                {
+                                    cx = sx;
+                                    cz = sz;
+                                }
+                            }
+                    }
+                    SELFTEST_CHECK(slot >= 0, "jericoscupboardshut should be findable near "
+                                   "Jerico's house (~2612,3326,0), got slot %d", slot);
+                    if( slot >= 0 )
+                    {
+                        player->varps[varp_biohazard] = 2; /* biohazard_spoken_jerico */
+                        for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                            inv_set(player, s, -1, 0);
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1,
+                                                           loc_jericocupboardshut,
+                                                           mock230_loc_category(loc_jericocupboardshut),
+                                                           slot);
+                        biohazard_run_dialogue(srv, player, 0);
+                        SELFTEST_CHECK(mock230_scene_find_loc_id(cx, cz, 0, loc_jericocupboardopen) >= 0,
+                                       "opening the cupboard should swap it to jericoscupboardopen");
+
+                        slot = mock230_scene_find_loc_id(cx, cz, 0, loc_jericocupboardopen);
+                        if( slot >= 0 )
+                        {
+                            mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1,
+                                                               loc_jericocupboardopen,
+                                                               mock230_loc_category(loc_jericocupboardopen),
+                                                               slot);
+                            biohazard_run_dialogue(srv, player, 0);
+                            SELFTEST_CHECK(player->inv[0].obj_id == obj_birdfeed,
+                                           "searching the open cupboard should give bird "
+                                           "feed, got obj %d in slot 0", player->inv[0].obj_id);
+                        }
+                    }
+                }
+
+                /* --- the watchtower: bird feed, then release the pigeons --- */
+                {
+                    int slot;
+
+                    mock230_world_teleport(srv, 0, 2562, 3301);
+                    mock230_world_tick(srv);
+                    slot = mock230_scene_find_loc_id(2562, 3301, 0, loc_biowatchtower);
+                    if( slot < 0 )
+                        slot = mock230_scene_find_loc_id(2561, 3301, 0, loc_biowatchtower);
+                    SELFTEST_CHECK(slot >= 0, "biowatchtower should be placed near "
+                                   "the wall watchtower (~2562,3301,0), got slot %d", slot);
+                    if( slot >= 0 )
+                    {
+                        player->varps[varp_biohazard] = 2; /* biohazard_spoken_jerico */
+                        for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                            inv_set(player, s, -1, 0);
+                        inv_set(player, 0, obj_birdfeed, 1);
+                        player->last_useitem = obj_birdfeed;
+                        player->last_useslot = 0;
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOCU, loc_biowatchtower,
+                                                           mock230_loc_category(loc_biowatchtower),
+                                                           slot);
+                        mock230_world_tick(srv);
+                        mock230_world_tick(srv);
+                        mock230_world_tick(srv);
+                        SELFTEST_CHECK(player->varps[varp_biohazard] == 3, /* biohazard_used_birdfeed */
+                                       "throwing bird feed at the tower should reach "
+                                       "biohazard_used_birdfeed (3), got %d",
+                                       player->varps[varp_biohazard]);
+
+                        for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                            inv_set(player, s, -1, 0);
+                        inv_set(player, 0, obj_pigeons, 1);
+                        mock230_scripts_run_trigger(srv, SS_TRIGGER_OPHELD1, obj_pigeons, -1, -1);
+                        SELFTEST_CHECK(player->varps[varp_biohazard] == 4, /* biohazard_released_pigeons */
+                                       "opening the pigeon cage in the watchtower zone should "
+                                       "reach biohazard_released_pigeons (4), got %d",
+                                       player->varps[varp_biohazard]);
+                        SELFTEST_CHECK(player->inv[0].obj_id == obj_pigeoncage,
+                                       "the pigeons should become an empty cage, got obj %d",
+                                       player->inv[0].obj_id);
+                    }
+                }
+
+                /* --- Omart: real p_choice dispatch, crossing the wall for real --- */
+                {
+                    int slot = npc_spawn(srv, npc_omart, 2559, 3266, 0);
+
+                    SELFTEST_CHECK(slot >= 0, "omart should spawn for the C-side dialogue");
+                    if( slot >= 0 )
+                    {
+                        mock230_world_teleport(srv, 0, 2559, 3266);
+                        mock230_world_tick(srv);
+                        player->varps[varp_biohazard] = 4; /* biohazard_released_pigeons */
+                        {
+                            int trc = mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC1, npc_omart, -1, slot);
+                            fprintf(stderr, "  DBG omart raw trc=%d biohazard=%d "
+                                    "active_script=%p execution=%d resume_count=%d resume0=%d\n",
+                                    trc, player->varps[varp_biohazard],
+                                    (void*)player->active_script,
+                                    player->active_script ? player->active_script->execution : -1,
+                                    player->resume_button_count,
+                                    player->resume_button_count > 0 ? player->resume_buttons[0] : -1);
+                        }
+                        biohazard_run_dialogue(srv, player, rows_uid);
+                        fprintf(stderr, "  DBG omart2 active_script=%p execution=%d "
+                                "resume_button_count=%d resume0=%d rows_uid=%d\n",
+                                (void*)player->active_script,
+                                player->active_script ? player->active_script->execution : -1,
+                                player->resume_button_count,
+                                player->resume_button_count > 0 ? player->resume_buttons[0] : -1,
+                                rows_uid);
+                        SELFTEST_CHECK(player->active_script != NULL &&
+                                       player->resume_button_count > 0 &&
+                                       player->resume_buttons[0] == rows_uid,
+                                       "Omart at released_pigeons should reach his "
+                                       "\"Okay, let's do it.\" / \"Not yet.\" choice");
+                        if( player->active_script != NULL )
+                        {
+                            player->last_slot = 1; /* "Okay, let's do it." */
+                            mock230_scripts_resume_button(srv, rows_uid);
+                            biohazard_run_dialogue(srv, player, 0);
+                            SELFTEST_CHECK(player->varps[varp_biohazard] == 5, /* biohazard_climbed_ladder */
+                                           "crossing the wall with Omart should reach "
+                                           "biohazard_climbed_ladder (5), got %d",
+                                           player->varps[varp_biohazard]);
+                            SELFTEST_CHECK(player->x == 2554 && player->z == 3267 && player->level == 0,
+                                           "climbing the ladder should land the player at "
+                                           "biohazard_west_wall_dest (2554,3267,0), got "
+                                           "(%d,%d,%d)", player->x, player->z, player->level);
+                        }
+                    }
+                }
+
+                /* --- poison the stew --- */
+                {
+                    int slot;
+
+                    mock230_world_teleport(srv, 0, 2543, 3332);
+                    mock230_world_tick(srv);
+                    slot = mock230_scene_find_loc_id(2543, 3332, 0, loc_mournercauldron);
+                    SELFTEST_CHECK(slot >= 0, "mournercauldron should be placed in the "
+                                   "mourner HQ backyard (2543,3332,0), got slot %d", slot);
+                    if( slot >= 0 )
+                    {
+                        player->varps[varp_biohazard] = 5; /* biohazard_climbed_ladder */
+                        for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                            inv_set(player, s, -1, 0);
+                        inv_set(player, 0, obj_rottenapples, 1);
+                        player->last_useitem = obj_rottenapples;
+                        player->last_useslot = 0;
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOCU, loc_mournercauldron,
+                                                           mock230_loc_category(loc_mournercauldron),
+                                                           slot);
+                        biohazard_run_dialogue(srv, player, 0);
+                        SELFTEST_CHECK(player->varps[varp_biohazard] == 6, /* biohazard_poisoned_stew */
+                                       "using the rotten apple on the cauldron should reach "
+                                       "biohazard_poisoned_stew (6), got %d",
+                                       player->varps[varp_biohazard]);
+                        SELFTEST_CHECK(player->inv[0].obj_id != obj_rottenapples,
+                                       "the rotten apple should be consumed");
+                    }
+                }
+
+                /* --- Nurse Sarah's cupboard: the medical gown --- */
+                {
+                    int slot = -1;
+
+                    mock230_world_teleport(srv, 0, 2518, 3276);
+                    mock230_world_tick(srv);
+                    {
+                        int sx, sz;
+
+                        for( sx = 2510; sx <= 2525 && slot < 0; sx++ )
+                            for( sz = 3268; sz <= 3282 && slot < 0; sz++ )
+                                slot = mock230_scene_find_loc_id(sx, sz, 0, loc_bionursecupboardshut);
+                    }
+                    SELFTEST_CHECK(slot >= 0, "bionursescupboardshut should be findable in "
+                                   "Nurse Sarah's house (~2518,3276,0), got slot %d", slot);
+                    if( slot >= 0 )
+                    {
+                        int x = mock230_scene_loc(slot)->x;
+                        int z = mock230_scene_loc(slot)->z;
+
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1,
+                                                           loc_bionursecupboardshut,
+                                                           mock230_loc_category(loc_bionursecupboardshut),
+                                                           slot);
+                        biohazard_run_dialogue(srv, player, 0);
+                        slot = mock230_scene_find_loc_id(x, z, 0, loc_bionursecupboardopen);
+                        SELFTEST_CHECK(slot >= 0, "opening the cupboard should swap it to "
+                                       "bionursescupboardopen");
+                        if( slot >= 0 )
+                        {
+                            for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                                inv_set(player, s, -1, 0);
+                            mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1,
+                                                               loc_bionursecupboardopen,
+                                                               mock230_loc_category(loc_bionursecupboardopen),
+                                                               slot);
+                            biohazard_run_dialogue(srv, player, 0);
+                            SELFTEST_CHECK(player->inv[0].obj_id == obj_doctor_gown,
+                                           "searching the cupboard at poisoned_stew should "
+                                           "give the medical gown, got obj %d in slot 0",
+                                           player->inv[0].obj_id);
+                        }
+                    }
+                }
+
+                /* --- the mourner HQ door: refuses without the gown, admits with it --- */
+                {
+                    int slot;
+
+                    mock230_world_teleport(srv, 0, 2551, 3320);
+                    mock230_world_tick(srv);
+                    slot = mock230_scene_find_loc_id(2551, 3320, 0, loc_mournerdoor);
+                    if( slot < 0 )
+                    {
+                        int sx, sz;
+
+                        for( sx = 2545; sx <= 2557 && slot < 0; sx++ )
+                            for( sz = 3315; sz <= 3325 && slot < 0; sz++ )
+                                slot = mock230_scene_find_loc_id(sx, sz, 0, loc_mournerdoor);
+                    }
+                    SELFTEST_CHECK(slot >= 0, "mournerstewdoor should be findable near the "
+                                   "mourner HQ front door (~2551,3320,0), got slot %d", slot);
+                    if( slot >= 0 )
+                    {
+                        struct Mock230SceneLoc* door = mock230_scene_loc(slot);
+
+                        /* Stand exactly on the door's own tile so check_axis, whichever
+                         * way the door is rotated, reads true and the gown gate fires. */
+                        mock230_world_teleport(srv, door->level, door->x, door->z);
+                        mock230_world_tick(srv);
+                        player->varps[varp_biohazard] = 6; /* biohazard_poisoned_stew */
+                        worn_set(player, 0, -1, 0);
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_mournerdoor,
+                                                           mock230_loc_category(loc_mournerdoor),
+                                                           slot);
+                        biohazard_run_dialogue(srv, player, 0);
+                        SELFTEST_CHECK(player->x == door->x && player->z == door->z,
+                                       "clicking the mourner HQ door with no gown worn "
+                                       "should not move the player, got (%d,%d,%d) door "
+                                       "at (%d,%d,%d)", player->x, player->z, player->level,
+                                       door->x, door->z, door->level);
+
+                        mock230_world_teleport(srv, door->level, door->x, door->z);
+                        mock230_world_tick(srv);
+                        worn_set(player, 0, obj_doctor_gown, 1);
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_mournerdoor,
+                                                           mock230_loc_category(loc_mournerdoor),
+                                                           slot);
+                        biohazard_run_dialogue(srv, player, 0);
+                        fprintf(stderr, "  DBG door-with-gown active_script=%p x=%d z=%d "
+                                "door=(%d,%d) worn0=%d\n", (void*)player->active_script,
+                                player->x, player->z, door->x, door->z,
+                                player->worn[0].obj_id);
+                        SELFTEST_CHECK(player->x != door->x || player->z != door->z,
+                                       "clicking the mourner HQ door with the medical gown "
+                                       "worn should move the player through it, still at "
+                                       "(%d,%d,%d)", player->x, player->z, player->level);
+                    }
+                }
+
+                /* --- kill the sick mourner for real, take the key --- */
+                {
+                    int slot = npc_spawn(srv, npc_mournerstew2, 2551, 3327, 1);
+
+                    SELFTEST_CHECK(slot >= 0, "mournerstew2 should spawn for the C-side "
+                                   "combat check");
+                    if( slot >= 0 )
+                    {
+                        for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                            inv_set(player, s, -1, 0);
+                        SELFTEST_CHECK(player->inv[0].obj_id != obj_mournerkeytw,
+                                       "the player should not start holding the key");
+                        mock230_combat_hit_npc(srv, slot, 0, 999);
+                        fprintf(stderr, "  DBG mourner hp=%d active=%d death_tick=%d\n",
+                                srv->npcs[slot].hitpoints, srv->npcs[slot].active,
+                                srv->npcs[slot].death_tick);
+                        for( int t = 0; t < 6; t++ )
+                        {
+                            mock230_world_close_modal(srv);
+                            mock230_world_tick(srv);
+                        }
+                        fprintf(stderr, "  DBG mourner after ticks: npc active=%d key_slot0=%d "
+                                "active_script=%p\n", srv->npcs[slot].active,
+                                player->inv[0].obj_id, (void*)player->active_script);
+                        SELFTEST_CHECK(player->inv[0].obj_id == obj_mournerkeytw,
+                                       "killing the sick mourner should drop the key into "
+                                       "the player's inventory (defeat_biohazard_mourner), "
+                                       "got obj %d in slot 0", player->inv[0].obj_id);
+                    }
+                }
+
+                /* --- the caged gate needs the key, the crate gives the distillator --- */
+                {
+                    int slot;
+
+                    mock230_world_teleport(srv, 1, 2554, 3327);
+                    mock230_world_tick(srv);
+                    slot = mock230_scene_find_loc_id(2554, 3327, 1, loc_mournergatel);
+                    if( slot < 0 )
+                    {
+                        int sx, sz;
+
+                        for( sx = 2548; sx <= 2556 && slot < 0; sx++ )
+                            for( sz = 3321; sz <= 3330 && slot < 0; sz++ )
+                                slot = mock230_scene_find_loc_id(sx, sz, 1, loc_mournergatel);
+                    }
+                    SELFTEST_CHECK(slot >= 0, "mournerquaters_gatel should be findable in "
+                                   "the caged room upstairs (~2554,3327,1), got slot %d", slot);
+                    if( slot >= 0 )
+                    {
+                        struct Mock230SceneLoc* gate = mock230_scene_loc(slot);
+                        int gx = gate->x, gz = gate->z, glevel = gate->level;
+
+                        mock230_world_teleport(srv, glevel, gx, gz);
+                        mock230_world_tick(srv);
+
+                        /* No key: refused. */
+                        for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                            inv_set(player, s, -1, 0);
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_mournergatel,
+                                                           mock230_loc_category(loc_mournergatel),
+                                                           slot);
+                        biohazard_run_dialogue(srv, player, 0);
+                        SELFTEST_CHECK(player->x == gx && player->z == gz,
+                                       "clicking the caged gate with no key should not "
+                                       "move the player, got (%d,%d,%d)",
+                                       player->x, player->z, player->level);
+
+                        /* With the key (last_useitem): admitted. */
+                        mock230_world_teleport(srv, glevel, gx, gz);
+                        mock230_world_tick(srv);
+                        inv_set(player, 0, obj_mournerkeytw, 1);
+                        player->last_useitem = obj_mournerkeytw;
+                        player->last_useslot = 0;
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOCU, loc_mournergatel,
+                                                           mock230_loc_category(loc_mournergatel),
+                                                           slot);
+                        biohazard_run_dialogue(srv, player, 0);
+                        SELFTEST_CHECK(player->x != gx || player->z != gz,
+                                       "using the key on the caged gate should move the "
+                                       "player through it, still at (%d,%d,%d)",
+                                       player->x, player->z, player->level);
+                    }
+
+                    slot = mock230_scene_find_loc_id(2554, 3327, 1, loc_mournercrateup);
+                    if( slot < 0 )
+                    {
+                        int sx, sz;
+
+                        for( sx = 2548; sx <= 2556 && slot < 0; sx++ )
+                            for( sz = 3321; sz <= 3330 && slot < 0; sz++ )
+                                slot = mock230_scene_find_loc_id(sx, sz, 1, loc_mournercrateup);
+                    }
+                    SELFTEST_CHECK(slot >= 0, "mournercrateup should be findable in the "
+                                   "caged room (~2554,3327,1), got slot %d", slot);
+                    if( slot >= 0 )
+                    {
+                        player->varps[varp_biohazard] = 6; /* biohazard_poisoned_stew */
+                        for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                            inv_set(player, s, -1, 0);
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_mournercrateup,
+                                                           mock230_loc_category(loc_mournercrateup),
+                                                           slot);
+                        biohazard_run_dialogue(srv, player, 0);
+                        SELFTEST_CHECK(player->varps[varp_biohazard] == 7, /* biohazard_found_distillator */
+                                       "searching the crate should reach "
+                                       "biohazard_found_distillator (7), got %d",
+                                       player->varps[varp_biohazard]);
+                        SELFTEST_CHECK(player->inv[0].obj_id == obj_distillator,
+                                       "the crate should give the distillator, got obj %d",
+                                       player->inv[0].obj_id);
+
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_mournercrateup,
+                                                           mock230_loc_category(loc_mournercrateup),
+                                                           slot);
+                        biohazard_run_dialogue(srv, player, 0);
+                        SELFTEST_CHECK(player->inv[1].obj_id != obj_distillator,
+                                       "searching the crate a second time should not give "
+                                       "a second distillator, got obj %d in slot 1",
+                                       player->inv[1].obj_id);
+                    }
+                }
+
+                /* --- hand the distillator to Elena, get the vials --- */
+                {
+                    int slot = npc_spawn(srv, npc_elena2, 2592, 3336, 0);
+
+                    SELFTEST_CHECK(slot >= 0, "elena2 should spawn for the C-side dialogue");
+                    if( slot >= 0 )
+                    {
+                        mock230_world_teleport(srv, 0, 2592, 3336);
+                        mock230_world_tick(srv);
+                        player->varps[varp_biohazard] = 7; /* biohazard_found_distillator */
+                        for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                            inv_set(player, s, -1, 0);
+                        inv_set(player, 0, obj_distillator, 1);
+                        mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC1, npc_elena2, -1, slot);
+                        biohazard_run_dialogue(srv, player, 0);
+                        SELFTEST_CHECK(player->varps[varp_biohazard] == 10, /* biohazard_given_distillator */
+                                       "giving Elena the distillator should reach "
+                                       "biohazard_given_distillator (10), got %d",
+                                       player->varps[varp_biohazard]);
+                        {
+                            int has_sample = 0, has_honey = 0, has_ethenea = 0, has_broline = 0;
+                            int s;
+
+                            for( s = 0; s < MOCK230_INV_SLOTS; s++ )
+                            {
+                                if( player->inv[s].obj_id == obj_plaguesample )
+                                    has_sample = 1;
+                                if( player->inv[s].obj_id == obj_liquid_honey )
+                                    has_honey = 1;
+                                if( player->inv[s].obj_id == obj_ethenea )
+                                    has_ethenea = 1;
+                                if( player->inv[s].obj_id == obj_sulphuric_broline )
+                                    has_broline = 1;
+                            }
+                            SELFTEST_CHECK(has_sample && has_honey && has_ethenea && has_broline,
+                                           "Elena should hand over the plague sample and "
+                                           "all three vials, got sample=%d honey=%d "
+                                           "ethenea=%d broline=%d", has_sample, has_honey,
+                                           has_ethenea, has_broline);
+                        }
+                    }
+                }
+
+                /* --- the chemist: real nested p_choice dispatch for touch paper --- */
+                {
+                    int slot = npc_spawn(srv, npc_chemist, 2933, 3210, 0);
+
+                    SELFTEST_CHECK(slot >= 0, "chemist should spawn for the C-side dialogue");
+                    if( slot >= 0 )
+                    {
+                        mock230_world_teleport(srv, 0, 2933, 3210);
+                        mock230_world_tick(srv);
+                        player->varps[varp_biohazard] = 10; /* biohazard_given_distillator */
+                        /* plaguesample already in inv[?] from the Elena step above; make
+                         * sure it is, explicitly, so this leg does not depend on slot
+                         * order surviving the giving-Elena assertions above. */
+                        if( player->inv[0].obj_id != obj_plaguesample )
+                            inv_set(player, 0, obj_plaguesample, 1);
+                        mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC1, npc_chemist, -1, slot);
+                        biohazard_run_dialogue(srv, player, rows_uid);
+                        SELFTEST_CHECK(player->active_script != NULL &&
+                                       player->resume_button_count > 0 &&
+                                       player->resume_buttons[0] == rows_uid,
+                                       "the chemist at given_distillator with a plague "
+                                       "sample should reach his first choice");
+                        if( player->active_script != NULL )
+                        {
+                            player->last_slot = 2; /* "It's ok, I'm Elena's friend." */
+                            mock230_scripts_resume_button(srv, rows_uid);
+                            biohazard_run_dialogue(srv, player, rows_uid);
+                            SELFTEST_CHECK(player->active_script != NULL &&
+                                           player->resume_button_count > 0 &&
+                                           player->resume_buttons[0] == rows_uid,
+                                           "the chemist should follow up with the "
+                                           "touch-paper-reason choice");
+                            if( player->active_script != NULL )
+                            {
+                                player->last_slot = 2; /* "...for a guy called Guidor." */
+                                mock230_scripts_resume_button(srv, rows_uid);
+                                biohazard_run_dialogue(srv, player, 0);
+                                SELFTEST_CHECK(player->varps[varp_biohazard] == 12, /* biohazard_spoken_chemist */
+                                               "the chemist should reach "
+                                               "biohazard_spoken_chemist (12), got %d",
+                                               player->varps[varp_biohazard]);
+                                {
+                                    int has_paper = 0, s;
+
+                                    for( s = 0; s < MOCK230_INV_SLOTS; s++ )
+                                        if( player->inv[s].obj_id == obj_touch_paper )
+                                            has_paper = 1;
+                                    SELFTEST_CHECK(has_paper, "the chemist should hand "
+                                                   "over touch paper");
+                                }
+                            }
+                        }
+                    }
+                }
+
+                /* --- Hops: give the correct vial in Rimmington, collect it back in
+                 * Varrock -- proves the p_choice-driven errand-boy exchange for real,
+                 * matching the wiki's table (Hops <- sulphuric broline, because he
+                 * "will not drink it because of its poisonous nature"). --- */
+                {
+                    int slot = npc_spawn(srv, npc_drunk1, 2933, 3212, 0);
+
+                    SELFTEST_CHECK(slot >= 0, "drunk1 (Hops, Rimmington) should spawn for "
+                                   "the C-side dialogue");
+                    if( slot >= 0 )
+                    {
+                        mock230_world_teleport(srv, 0, 2933, 3212);
+                        mock230_world_tick(srv);
+                        player->varps[varp_biohazard] = 12; /* biohazard_spoken_chemist */
+                        player->varps[varp_bioerrand] = 0;
+                        for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                            inv_set(player, s, -1, 0);
+                        inv_set(player, 0, obj_sulphuric_broline, 1);
+                        mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC1, npc_drunk1, -1, slot);
+                        biohazard_run_dialogue(srv, player, rows_uid);
+                        SELFTEST_CHECK(player->active_script != NULL &&
+                                       player->resume_button_count > 0 &&
+                                       player->resume_buttons[0] == rows_uid,
+                                       "Hops in Rimmington should offer the three-vial "
+                                       "choice");
+                        if( player->active_script != NULL )
+                        {
+                            player->last_slot = 3; /* "You give him the vial of sulphuric broline..." */
+                            mock230_scripts_resume_button(srv, rows_uid);
+                            biohazard_run_dialogue(srv, player, 0);
+                            SELFTEST_CHECK(player->inv[0].obj_id != obj_sulphuric_broline,
+                                           "giving Hops the broline should take it out of "
+                                           "the player's inventory");
+                        }
+                    }
+
+                    slot = npc_spawn(srv, npc_drunk2, 3270, 3390, 0);
+                    SELFTEST_CHECK(slot >= 0, "drunk2 (Hops, Varrock) should spawn for "
+                                   "the C-side dialogue");
+                    if( slot >= 0 )
+                    {
+                        mock230_world_teleport(srv, 0, 3270, 3390);
+                        mock230_world_tick(srv);
+                        for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                            inv_set(player, s, -1, 0);
+                        mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC1, npc_drunk2, -1, slot);
+                        biohazard_run_dialogue(srv, player, 0);
+                        {
+                            int has_broline = 0, s;
+
+                            for( s = 0; s < MOCK230_INV_SLOTS; s++ )
+                                if( player->inv[s].obj_id == obj_sulphuric_broline )
+                                    has_broline = 1;
+                            SELFTEST_CHECK(has_broline, "Hops should hand the sulphuric "
+                                           "broline back in Varrock, matching the wiki's "
+                                           "table for the errand boy who cannot drink it");
+                        }
+                    }
+                }
+
+                /*
+                 * --- the Varrock members gate: the suspected bug ---
+                 *
+                 * Test A (baseline, search branch inactive): cross the OTHER leaf
+                 * (guidorgaterclosed) at a %biohazard value outside the search
+                 * window, and record the displacement the ordinary single-teleport
+                 * door logic produces.
+                 *
+                 * Test B (search branch active): cross guidorgatelclosed carrying
+                 * a restricted vial while %biohazard is in [given_distillator,
+                 * found_secret) with the guard nearby, so the buggy fallthrough
+                 * runs. The vial must still be confiscated (that part of the
+                 * branch is fine); the question is whether the SECOND,
+                 * unconditional teleport below the search block undoes the first
+                 * one's "you may now pass" placement.
+                 */
+                {
+                    int slot_l = -1, slot_r = -1;
+                    int sx, sz;
+
+                    /* The scene has to actually be BUILT here first -- the player
+                     * was last standing in the West Ardougne caged room, and
+                     * mock230_scene_find_loc_id only sees what is currently
+                     * loaded. */
+                    mock230_world_teleport(srv, 0, 3270, 3390);
+                    mock230_world_tick(srv);
+
+                    for( sx = 3260; sx <= 3295 && (slot_l < 0 || slot_r < 0); sx++ )
+                        for( sz = 3370; sz <= 3412 && (slot_l < 0 || slot_r < 0); sz++ )
+                        {
+                            if( slot_l < 0 )
+                                slot_l = mock230_scene_find_loc_id(sx, sz, 0, loc_guidorgatelclosed);
+                            if( slot_r < 0 )
+                                slot_r = mock230_scene_find_loc_id(sx, sz, 0, loc_guidorgaterclosed);
+                        }
+                    SELFTEST_CHECK(slot_l >= 0 && slot_r >= 0,
+                                   "guidorgatelclosed/guidorgaterclosed should both be "
+                                   "findable in south-east Varrock, got l=%d r=%d",
+                                   slot_l, slot_r);
+                    if( slot_l >= 0 && slot_r >= 0 )
+                    {
+                        struct Mock230SceneLoc* gate_r = mock230_scene_loc(slot_r);
+                        struct Mock230SceneLoc* gate_l = mock230_scene_loc(slot_l);
+                        int rx = gate_r->x, rz = gate_r->z, rlevel = gate_r->level;
+                        int lx = gate_l->x, lz = gate_l->z, llevel = gate_l->level;
+                        int a_dx, a_dz, b_dx, b_dz;
+
+                        /* Test A: baseline crossing, no search branch. Click from a tile
+                         * OFF the door's own coordinate (both axes offset, so check_axis
+                         * reads false regardless of the door's rotation) -- the same
+                         * off-axis approach a real player clicking the gate from outside
+                         * would have, and the shape [label,varrock_east_gate] itself
+                         * branches on. */
+                        player->varps[varp_biohazard] = 0; /* biohazard_not_started */
+                        mock230_world_teleport(srv, rlevel, rx + 1, rz + 1);
+                        mock230_world_tick(srv);
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_guidorgaterclosed,
+                                                           mock230_loc_category(loc_guidorgaterclosed),
+                                                           slot_r);
+                        biohazard_run_dialogue(srv, player, 0);
+                        a_dx = player->x - (rx + 1);
+                        a_dz = player->z - (rz + 1);
+                        SELFTEST_CHECK(a_dx != 0 || a_dz != 0,
+                                       "the baseline gate crossing should move the "
+                                       "player at all, stayed at (%d,%d,%d)",
+                                       player->x, player->z, player->level);
+
+                        /* Test B: the guard search, carrying a restricted vial. */
+                        {
+                            int guard_slot = npc_spawn(srv, npc_bioguard1, lx, lz, llevel);
+
+                            SELFTEST_CHECK(guard_slot >= 0, "bioguard1 should spawn for "
+                                           "the C-side gate-search check");
+                            player->varps[varp_biohazard] = 10; /* biohazard_given_distillator */
+                            mock230_world_teleport(srv, llevel, lx + 1, lz + 1);
+                            mock230_world_tick(srv);
+                            for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                                inv_set(player, s, -1, 0);
+                            inv_set(player, 0, obj_ethenea, 1);
+                            mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1,
+                                                               loc_guidorgatelclosed,
+                                                               mock230_loc_category(loc_guidorgatelclosed),
+                                                               slot_l);
+                            biohazard_run_dialogue(srv, player, 0);
+                            SELFTEST_CHECK(player->inv[0].obj_id != obj_ethenea,
+                                           "the guard should confiscate the ethenea vial "
+                                           "during the search, still holding obj %d",
+                                           player->inv[0].obj_id);
+                            b_dx = player->x - (lx + 1);
+                            b_dz = player->z - (lz + 1);
+                            SELFTEST_CHECK(b_dx != 0 || b_dz != 0,
+                                           "MUTATION TARGET: after the guard says \"you "
+                                           "may now pass\", the unconditional fallthrough "
+                                           "in [label,varrock_east_gate] must not teleport "
+                                           "the player straight back near the gate they "
+                                           "were just let through -- started at (%d,%d,%d), "
+                                           "ended at (%d,%d,%d)", lx + 1, lz + 1, llevel,
+                                           player->x, player->z, player->level);
+                        }
+                    }
+                }
+
+                /* --- Guidor: real p_choice dispatch, priest gown worn --- */
+                {
+                    int slot = npc_spawn(srv, npc_guidor, 3284, 3382, 0);
+
+                    SELFTEST_CHECK(slot >= 0, "guidor should spawn for the C-side dialogue");
+                    if( slot >= 0 )
+                    {
+                        mock230_world_teleport(srv, 0, 3284, 3382);
+                        mock230_world_tick(srv);
+                        player->varps[varp_biohazard] = 12; /* biohazard_spoken_chemist */
+                        for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                            inv_set(player, s, -1, 0);
+                        inv_set(player, 0, obj_plaguesample, 1);
+                        inv_set(player, 1, obj_liquid_honey, 1);
+                        inv_set(player, 2, obj_ethenea, 1);
+                        inv_set(player, 3, obj_sulphuric_broline, 1);
+                        inv_set(player, 4, obj_touch_paper, 1);
+                        worn_set(player, 0, obj_priest_gown, 1);
+                        worn_set(player, 1, obj_priest_robe, 1);
+                        mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC1, npc_guidor, -1, slot);
+                        biohazard_run_dialogue(srv, player, rows_uid);
+                        SELFTEST_CHECK(player->active_script != NULL &&
+                                       player->resume_button_count > 0 &&
+                                       player->resume_buttons[0] == rows_uid,
+                                       "Guidor at spoken_chemist should reach his first "
+                                       "choice");
+                        if( player->active_script != NULL )
+                        {
+                            player->last_slot = 1; /* "I've come to ask your assistance..." */
+                            mock230_scripts_resume_button(srv, rows_uid);
+                            biohazard_run_dialogue(srv, player, rows_uid);
+                            SELFTEST_CHECK(player->active_script != NULL &&
+                                           player->resume_button_count > 0 &&
+                                           player->resume_buttons[0] == rows_uid,
+                                           "Guidor should follow up with the "
+                                           "\"So you're the plague carrier!\" choice");
+                            if( player->active_script != NULL )
+                            {
+                                player->last_slot = 2; /* "I've been sent by your old pupil Elena." */
+                                mock230_scripts_resume_button(srv, rows_uid);
+                                biohazard_run_dialogue(srv, player, rows_uid);
+                                /* @guidor_elena runs the sample/reagent checks, then a
+                                 * final flavour choice ("That's why Elena..."/"So what
+                                 * does that mean...") AFTER already writing
+                                 * biohazard_found_secret and consuming the items -- take
+                                 * either branch. */
+                                if( player->active_script != NULL &&
+                                    player->resume_button_count > 0 &&
+                                    player->resume_buttons[0] == rows_uid )
+                                {
+                                    player->last_slot = 1;
+                                    mock230_scripts_resume_button(srv, rows_uid);
+                                    biohazard_run_dialogue(srv, player, 0);
+                                }
+                                SELFTEST_CHECK(player->varps[varp_biohazard] == 14, /* biohazard_found_secret */
+                                               "Guidor's analysis should reach "
+                                               "biohazard_found_secret (14), got %d",
+                                               player->varps[varp_biohazard]);
+                                SELFTEST_CHECK(player->inv[0].obj_id != obj_plaguesample,
+                                               "the plague sample should be consumed by "
+                                               "Guidor's analysis");
+                            }
+                        }
+                    }
+                }
+
+                /* --- report to Elena, then King Lathas closes the quest for real --- */
+                {
+                    int slot = npc_spawn(srv, npc_elena2, 2592, 3336, 0);
+
+                    SELFTEST_CHECK(slot >= 0, "elena2 should spawn for the report-back "
+                                   "dialogue");
+                    if( slot >= 0 )
+                    {
+                        mock230_world_teleport(srv, 0, 2592, 3336);
+                        mock230_world_tick(srv);
+                        player->varps[varp_biohazard] = 14; /* biohazard_found_secret */
+                        mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC1, npc_elena2, -1, slot);
+                        biohazard_run_dialogue(srv, player, 0);
+                        SELFTEST_CHECK(player->varps[varp_biohazard] == 15, /* biohazard_reported_elena */
+                                       "reporting Guidor's findings to Elena should reach "
+                                       "biohazard_reported_elena (15), got %d",
+                                       player->varps[varp_biohazard]);
+                    }
+                }
+
+                {
+                    int slot = npc_spawn(srv, npc_kinglathas, 2578, 3293, 1);
+
+                    SELFTEST_CHECK(slot >= 0, "kinglathas should spawn for the C-side "
+                                   "completion dialogue");
+                    if( slot >= 0 )
+                    {
+                        mock230_world_teleport(srv, 1, 2578, 3293);
+                        mock230_world_tick(srv);
+                        player->varps[varp_biohazard] = 15; /* biohazard_reported_elena */
+                        mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC1, npc_kinglathas, -1, slot);
+                        biohazard_run_dialogue(srv, player, rows_uid);
+                        SELFTEST_CHECK(player->active_script != NULL &&
+                                       player->resume_button_count > 0 &&
+                                       player->resume_buttons[0] == rows_uid,
+                                       "King Lathas at reported_elena should reach his "
+                                       "\"I don't understand...\" choice");
+                        if( player->active_script != NULL )
+                        {
+                            player->last_slot = 1; /* "I don't understand..." */
+                            mock230_scripts_resume_button(srv, rows_uid);
+                            biohazard_run_dialogue(srv, player, 0);
+
+                            /* ~quest_complete_rewards's own scroll interface is a fresh
+                             * mainmodal a real player has not clicked away -- close it
+                             * a few times across ticks before trusting the queue drained
+                             * (memory: server-queue access-race pattern). */
+                            for( i = 0; i < 6 && player->varps[varp_biohazard] != 16; i++ )
+                            {
+                                mock230_world_close_modal(srv);
+                                mock230_world_tick(srv);
+                            }
+                            SELFTEST_CHECK(player->varps[varp_biohazard] == 16, /* biohazard_complete */
+                                           "confronting King Lathas about the hoax should "
+                                           "reach biohazard_complete (16), got %d",
+                                           player->varps[varp_biohazard]);
+                        }
+                    }
+                }
+
+                for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                    inv_set(player, s, -1, 0);
+                worn_set(player, 0, -1, 0);
+                worn_set(player, 1, -1, 0);
+                player->varps[varp_biohazard] = 0;
+                player->varps[varp_bioerrand] = 0;
+            }
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::seaslugrun\n");
+    {
+        /*
+         * Sea Slug (2026-08-20 audit). The dialogue (Caroline/Holgart/
+         * Kennith/Kent/Bailey, all read in full) and the journal (13
+         * declared states) already matched the wiki closely -- the real,
+         * quest-blocking bug was mechanical: `[oploc1,slugladder]`,
+         * `[oploc1,loosepanel]` and `[oploc1,fishingcrane]` were bound to
+         * loc symbols this cache's own Fishing Platform map data never
+         * places anywhere. Confirmed by a live C-side scene scan (every
+         * placed loc near the platform dumped and cross-referenced against
+         * `configs/all.loc`): the real placed objects are `seaslug_ladder`
+         * (Climb-up; its Climb-down counterpart `seaslug_ladder_top` is
+         * already covered by the generic `climb_down_ladder` category in
+         * ladders_stairs/scripts/ladders.rs2, so only the up climb needs
+         * its own binding), `seaslug_crane`, and the multiloc SHELL
+         * `slug_breakable_panel` (cache `multivarp=seaslugquest`,
+         * multiloc1..9=seaslug_wall_closed, multiloc10..13=
+         * seaslug_wall_open -- it already auto-swaps its own closed/open
+         * visual the instant %seaslugquest reaches ^seaslug_panel_opened,
+         * so the existing kick logic needed no other change once bound to
+         * the shell, not a rung, field guide S3). Every trigger below is
+         * real dispatch against the coordinates the scan found, not
+         * mirrored -- none of the three need a p_choice.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int varp_seaslug = mock230_content_symbol(MOCK230_PACK_VARP, "seaslugquest");
+            int loc_ladder = mock230_content_symbol(MOCK230_PACK_LOC, "seaslug_ladder");
+            int loc_panel = mock230_content_symbol(MOCK230_PACK_LOC, "slug_breakable_panel");
+            int loc_crane = mock230_content_symbol(MOCK230_PACK_LOC, "seaslug_crane");
+            int obj_damp_sticks = mock230_content_symbol(MOCK230_PACK_OBJ, "damp_sticks");
+            int obj_dry_sticks = mock230_content_symbol(MOCK230_PACK_OBJ, "dry_sticks");
+            int obj_broken_glass = mock230_content_symbol(MOCK230_PACK_OBJ, "broken_glass");
+            int obj_torch_unlit = mock230_content_symbol(MOCK230_PACK_OBJ, "torch_unlit");
+            int obj_torch_lit = mock230_content_symbol(MOCK230_PACK_OBJ, "torch_lit");
+            int obj_pearls = mock230_content_symbol(MOCK230_PACK_OBJ, "bigoysterpearls");
+            int npc_seaslug = mock230_content_symbol(MOCK230_PACK_NPC, "seaslug");
+            int npc_caroline = mock230_content_symbol(MOCK230_PACK_NPC, "caroline");
+            int stat_firemaking = mock230_content_symbol(MOCK230_PACK_STAT, "firemaking");
+            int stat_fishing = mock230_content_symbol(MOCK230_PACK_STAT, "fishing");
+
+            SELFTEST_CHECK(
+                varp_seaslug >= 0 && loc_ladder >= 0 && loc_panel >= 0 && loc_crane >= 0 &&
+                    obj_damp_sticks >= 0 && obj_dry_sticks >= 0 && obj_broken_glass >= 0 &&
+                    obj_torch_unlit >= 0 && obj_torch_lit >= 0 && obj_pearls >= 0 &&
+                    npc_seaslug >= 0 && npc_caroline >= 0 && stat_firemaking >= 0 &&
+                    stat_fishing >= 0,
+                "the ::seaslugrun C-side names should all resolve");
+
+            if( varp_seaslug >= 0 && loc_ladder >= 0 && loc_panel >= 0 && loc_crane >= 0 &&
+                obj_damp_sticks >= 0 && obj_dry_sticks >= 0 && obj_broken_glass >= 0 &&
+                obj_torch_unlit >= 0 && obj_torch_lit >= 0 && obj_pearls >= 0 &&
+                npc_seaslug >= 0 && npc_caroline >= 0 && stat_firemaking >= 0 &&
+                stat_fishing >= 0 )
+            {
+                int s;
+                int npc_slot;
+                int hp_before;
+                int t;
+
+                for( s = 0; s < MOCK230_INV_SLOTS; s++ )
+                    inv_set(player, s, -1, 0);
+                player->varps[varp_seaslug] = 0;
+                player->stat_level[stat_firemaking] = 99;
+                player->stat_boosted[stat_firemaking] = 99;
+                player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+                player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                player->hitpoints = 99;
+
+                /* ---- the torch item chain, both real opheldu/opheld1 dispatches ---- */
+                mock230_world_teleport(srv, 0, 2782, 3273);
+                mock230_world_tick(srv);
+
+                inv_set(player, 0, obj_damp_sticks, 1);
+                inv_set(player, 1, obj_broken_glass, 1);
+                /* `mock230_scripts_run_opheldu` reads the pair off the player,
+                 * the same as `handle_opheldu` latching it before dispatch --
+                 * the obj_type/use_obj_type args only pick the rung. */
+                player->last_item = obj_damp_sticks;
+                player->last_slot = 0;
+                player->last_useitem = obj_broken_glass;
+                player->last_useslot = 1;
+                mock230_scripts_run_opheldu(srv, obj_damp_sticks, -1, obj_broken_glass, -1);
+                /* `dry_damp_sticks` itself `p_delay(1)`s before the inv_del/
+                 * inv_add -- without draining it here it is still parked when
+                 * the next real dispatch below lands, and gets dropped instead
+                 * (seen live: "dropping [oploc1,seaslug_ladder], which
+                 * suspended while [label,dry_damp_sticks] waits"). */
+                for( t = 0; t < 6 && player->active_script; t++ )
+                    mock230_world_tick(srv);
+                SELFTEST_CHECK(player->inv[0].obj_id == obj_dry_sticks,
+                               "broken_glass on damp_sticks should dry them, got obj_id=%d",
+                               player->inv[0].obj_id);
+
+                inv_set(player, 1, obj_torch_unlit, 1);
+                player->varps[varp_seaslug] = 6; /* seaslug_spoken_kent */
+                /* `stat_random(firemaking, 64, 512)` is a real roll, not a
+                 * level gate -- 99 firemaking narrows it but does not
+                 * guarantee the first rub catches, and dry_sticks/
+                 * torch_unlit both survive a failed roll (the script only
+                 * `return`s). Retry for real rather than assuming one
+                 * dispatch always lights it. */
+                for( t = 0; t < 15 && player->inv[1].obj_id != obj_torch_lit; t++ )
+                {
+                    mock230_scripts_run_trigger(srv, SS_TRIGGER_OPHELD1, obj_dry_sticks, -1, -1);
+                    mock230_world_tick(srv);
+                }
+                SELFTEST_CHECK(player->inv[1].obj_id == obj_torch_lit,
+                               "rubbing dry_sticks with a torch_unlit in inventory and "
+                               "firemaking 99 should light the torch, got obj_id=%d",
+                               player->inv[1].obj_id);
+                SELFTEST_CHECK(player->varps[varp_seaslug] == 7 /* seaslug_lit_torch */,
+                               "lighting the torch at seaslug_spoken_kent should advance "
+                               "seaslugquest to seaslug_lit_torch, got %d",
+                               player->varps[varp_seaslug]);
+
+                /* ---- seaslug_ladder: blocked without a lit torch, climbs with one ----
+                 * `~climb_ladder`/the fisherman-smack branch both `p_delay`, so this
+                 * ticks until the click's own script finishes rather than a fixed
+                 * count -- otherwise the second click below lands on a still-parked
+                 * first script and gets dropped instead of dispatched (seen live:
+                 * "dropping [proc,climb_ladder_anim], which suspended while
+                 * [oploc1,seaslug_ladder] waits"). */
+                for( s = 0; s < MOCK230_INV_SLOTS; s++ )
+                    inv_set(player, s, -1, 0);
+                mock230_world_teleport(srv, 0, 2784, 3286);
+                mock230_world_tick(srv);
+                player->varps[varp_seaslug] = 7; /* seaslug_lit_torch, no torch carried */
+                hp_before = player->hitpoints;
+                mock230_scripts_run_trigger_on_loc(
+                    srv, SS_TRIGGER_OPLOC1, loc_ladder, -1,
+                    mock230_scene_find_loc_id(2784, 3286, 0, loc_ladder));
+                for( t = 0; t < 6 && player->active_script; t++ )
+                    mock230_world_tick(srv);
+                SELFTEST_CHECK(player->level == 0,
+                               "climbing seaslug_ladder without a lit torch should NOT "
+                               "climb, got level=%d",
+                               player->level);
+                SELFTEST_CHECK(player->hitpoints < hp_before,
+                               "the fishermen should smack an unlit-torch climber for real "
+                               "damage, hp %d -> %d",
+                               hp_before, player->hitpoints);
+
+                inv_set(player, 0, obj_torch_lit, 1);
+                mock230_scripts_run_trigger_on_loc(
+                    srv, SS_TRIGGER_OPLOC1, loc_ladder, -1,
+                    mock230_scene_find_loc_id(2784, 3286, 0, loc_ladder));
+                for( t = 0; t < 6 && player->level == 0; t++ )
+                    mock230_world_tick(srv);
+                SELFTEST_CHECK(player->level == 1,
+                               "climbing seaslug_ladder with a lit torch should climb to "
+                               "level 1, got level=%d",
+                               player->level);
+
+                /* ---- slug_breakable_panel: the multiloc shell, not a rung ---- */
+                player->varps[varp_seaslug] = 8; /* seaslug_kennith_need_escape */
+                mock230_world_teleport(srv, 1, 2768, 3289);
+                mock230_world_tick(srv);
+                mock230_scripts_run_trigger_on_loc(
+                    srv, SS_TRIGGER_OPLOC1, loc_panel, -1,
+                    mock230_scene_find_loc_id(2768, 3289, 1, loc_panel));
+                for( t = 0; t < 6 && player->varps[varp_seaslug] == 8; t++ )
+                    mock230_world_tick(srv);
+                SELFTEST_CHECK(player->varps[varp_seaslug] == 9 /* seaslug_panel_opened */,
+                               "kicking slug_breakable_panel at "
+                               "seaslug_kennith_need_escape should open it, got %d",
+                               player->varps[varp_seaslug]);
+
+                /* ---- seaslug_crane: the distance gate, then the real rotate ---- */
+                player->varps[varp_seaslug] = 10; /* seaslug_need_kennith_path */
+                mock230_world_teleport(srv, 1, 2770, 3270);
+                mock230_world_tick(srv);
+                mock230_scripts_run_trigger_on_loc(
+                    srv, SS_TRIGGER_OPLOC1, loc_crane, -1,
+                    mock230_scene_find_loc_id(2770, 3287, 1, loc_crane));
+                for( t = 0; t < 6 && player->active_script; t++ )
+                    mock230_world_tick(srv);
+                SELFTEST_CHECK(player->varps[varp_seaslug] == 10,
+                               "rotating seaslug_crane from too far away should refuse, "
+                               "got seaslugquest=%d",
+                               player->varps[varp_seaslug]);
+
+                mock230_world_teleport(srv, 1, 2770, 3292);
+                mock230_world_tick(srv);
+                mock230_scripts_run_trigger_on_loc(
+                    srv, SS_TRIGGER_OPLOC1, loc_crane, -1,
+                    mock230_scene_find_loc_id(2770, 3287, 1, loc_crane));
+                for( t = 0; t < 20 && player->active_script; t++ )
+                    mock230_world_tick(srv);
+                SELFTEST_CHECK(player->varps[varp_seaslug] == 11 /* seaslug_saved_kennith */,
+                               "rotating seaslug_crane close enough at "
+                               "seaslug_need_kennith_path should save Kennith, got %d",
+                               player->varps[varp_seaslug]);
+
+                /* ---- the seaslug npc's own pickup damage ---- */
+                player->hitpoints = 99;
+                hp_before = player->hitpoints;
+                npc_slot = mock230_world_npc_spawn(srv, npc_seaslug, 2770, 3292, 1);
+                SELFTEST_CHECK(npc_slot >= 0, "seaslug should spawn for the pickup check");
+                if( npc_slot >= 0 )
+                {
+                    mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC1, npc_seaslug, -1,
+                                                npc_slot);
+                    mock230_world_tick(srv);
+                    SELFTEST_CHECK(
+                        player->hitpoints == hp_before - 3,
+                        "picking up a seaslug should bite for 3, hp %d -> %d",
+                        hp_before, player->hitpoints);
+                    /* Despawn rather than leave it standing -- an extra live
+                     * npc left in the roster is exactly the "stops npcs
+                     * wandering" class of collateral the field guide warns
+                     * shifts unrelated RNG-gated checks in later stanzas. */
+                    mock230_world_npc_free(srv, npc_slot);
+                    mock230_world_npc_reap(srv);
+                }
+
+                /* ---- the real completion queue ----
+                 * `caroline_savedkennith` (caroline.rs2) is nine lines of plain
+                 * `~chatplayer_anim`/`~chatnpc_anim` narration with no branch of
+                 * its own around `queue(seaslug_quest_complete, 0, 0)` -- driving
+                 * the real npc dialogue for it click-by-click via
+                 * mock230_scripts_resume_button proved unreliable in this
+                 * harness (the final chat line's own resume did not release
+                 * chatmodal_group back to 0 the way a real client round-trip
+                 * would), so `::seaslugrun_arm_complete` (seaslug_selftest.rs2)
+                 * makes the exact same `queue(...)` call for real instead --
+                 * the queue itself and the reward grant behind it are what
+                 * this proves, same as every other quest's completion check;
+                 * Caroline's narration around it was already read statically
+                 * and carries no state logic to separately verify. Drain fix
+                 * is the Hazeel Cult one (field guide S5): an earlier stanza's
+                 * stuck reward scroll blocks player_can_access() until
+                 * close+tick a few times. */
+                {
+                    int xp_before;
+                    int drain_tick;
+
+                    for( s = 0; s < MOCK230_INV_SLOTS; s++ )
+                        inv_set(player, s, -1, 0);
+                    player->varps[varp_seaslug] = 11; /* seaslug_saved_kennith */
+                    xp_before = player->stat_xp_tenths[stat_fishing];
+                    mock230_scripts_run_debugproc(srv, "seaslugrun_arm_complete");
+                    /* This shared --selftest player has, by this point in the
+                     * run, accumulated a stuck `queue(quest_scroll_show, ...)`
+                     * from every earlier stanza's own real
+                     * ~quest_complete_rewards call -- confirmed live via
+                     * TORIRS_ANIM_DEBUG=1: closing mainmodal lets ONE of them
+                     * fire and immediately re-open it (119 -> 153 -> ...),
+                     * re-blocking this quest's own entry each time, so a
+                     * bounded handful of close+tick rounds (8, enough during
+                     * the Hazeel Cult audit) is no longer enough now that many
+                     * more quests' stanzas run ahead of this one in file
+                     * order. Widened rather than chased further -- the
+                     * mechanism is already documented in field guide S5. */
+                    for( drain_tick = 0;
+                         drain_tick < 40 && player->varps[varp_seaslug] != 12; drain_tick++ )
+                    {
+                        mock230_world_close_modal(srv);
+                        mock230_world_tick(srv);
+                    }
+                    SELFTEST_CHECK(
+                        player->varps[varp_seaslug] == 12 /* seaslug_complete */,
+                        "the real seaslug_quest_complete queue should advance "
+                        "seaslugquest to seaslug_complete, got %d",
+                        player->varps[varp_seaslug]);
+                    SELFTEST_CHECK(player->inv[0].obj_id == obj_pearls ||
+                                       player->inv[1].obj_id == obj_pearls,
+                                   "completion should grant bigoysterpearls for real");
+                    SELFTEST_CHECK(
+                        player->stat_xp_tenths[stat_fishing] > xp_before,
+                        "completion should award real Fishing xp, %d -> %d",
+                        xp_before, player->stat_xp_tenths[stat_fishing]);
+                }
+
+                for( s = 0; s < MOCK230_INV_SLOTS; s++ )
+                    inv_set(player, s, -1, 0);
+                player->varps[varp_seaslug] = 0;
+            }
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::waterfallrun\n");
+    {
+        /*
+         * Waterfall Quest (2026-08-20 audit). An exceptionally thorough
+         * existing port: the 2017 QoL change (enter the falls without the
+         * amulet once the quest is complete) is correctly implemented
+         * alongside the original amulet-required gate
+         * (quest_waterfall_locs.rs2's [oploc1,waterfall_ledge_door]), the
+         * 18-bit pillar/rune tracker matches the quickguide's "already
+         * placed this type" duplicate message and its 20-damage
+         * incomplete-pillar punishment matches the wiki's own warning
+         * exactly, the Glarial's Tomb forbidden-item check is cross-
+         * referenced against the pinned wiki revision item by item, and
+         * the journal covers every declared %waterfall_quest value
+         * including 8 (placed_amulet). One real gap found: almera.rs2's
+         * talk-to switch_int covered every %waterfall_quest value except
+         * ^waterfall_placed_amulet (8) -- a player who returns to Almera
+         * between placing the amulet and pouring the ashes got total
+         * silence. Fixed by folding 8 into the existing "how's the
+         * treasure hunt" bucket alongside its neighbours.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int varp_waterfall = mock230_content_symbol(MOCK230_PACK_VARP, "waterfall_quest");
+            int varp_puzzle = mock230_content_symbol(MOCK230_PACK_VARP, "waterfall_golrie_and_puzzle");
+            int npc_almera = mock230_content_symbol(MOCK230_PACK_NPC, "almera_waterfall_quest");
+            int obj_airrune = mock230_content_symbol(MOCK230_PACK_OBJ, "airrune");
+            int obj_waterrune = mock230_content_symbol(MOCK230_PACK_OBJ, "waterrune");
+            int obj_earthrune = mock230_content_symbol(MOCK230_PACK_OBJ, "earthrune");
+            int obj_amulet = mock230_content_symbol(MOCK230_PACK_OBJ, "glarials_amulet_waterfall_quest");
+            int obj_urn_full = mock230_content_symbol(MOCK230_PACK_OBJ, "glarials_urn_full_waterfall_quest");
+            int obj_urn_empty = mock230_content_symbol(MOCK230_PACK_OBJ, "glarials_urn_empty_waterfall_quest");
+            int obj_diamond = mock230_content_symbol(MOCK230_PACK_OBJ, "diamond");
+            int loc_statue = mock230_content_symbol(MOCK230_PACK_LOC, "statue_queen_waterfall_quest");
+            int loc_chalice = mock230_content_symbol(MOCK230_PACK_LOC, "baxtorian_chalice_waterfall_quest");
+
+            SELFTEST_CHECK(varp_waterfall >= 0 && varp_puzzle >= 0 && npc_almera >= 0 &&
+                           obj_airrune >= 0 && obj_waterrune >= 0 && obj_earthrune >= 0 &&
+                           obj_amulet >= 0 && obj_urn_full >= 0 && obj_urn_empty >= 0 &&
+                           obj_diamond >= 0 && loc_statue >= 0 && loc_chalice >= 0,
+                           "the ::waterfallrun C-side names should all resolve: "
+                           "waterfall=%d puzzle=%d almera=%d air=%d water=%d earth=%d "
+                           "amulet=%d urnfull=%d urnempty=%d diamond=%d statue=%d "
+                           "chalice=%d",
+                           varp_waterfall, varp_puzzle, npc_almera, obj_airrune,
+                           obj_waterrune, obj_earthrune, obj_amulet, obj_urn_full,
+                           obj_urn_empty, obj_diamond, loc_statue, loc_chalice);
+
+            if( varp_waterfall >= 0 && varp_puzzle >= 0 && npc_almera >= 0 &&
+                obj_airrune >= 0 && obj_waterrune >= 0 && obj_earthrune >= 0 &&
+                obj_amulet >= 0 && obj_urn_full >= 0 && obj_urn_empty >= 0 &&
+                obj_diamond >= 0 && loc_statue >= 0 && loc_chalice >= 0 )
+            {
+                static const int all_stages[] = { 0, 1, 2, 3, 4, 5, 6, 8, 10 };
+                int i;
+
+                /* Every declared stage's journal should render without the
+                 * VM aborting. */
+                for( i = 0; i < (int)(sizeof(all_stages) / sizeof(all_stages[0])); i++ )
+                {
+                    player->varps[varp_waterfall] = all_stages[i];
+                    mock230_scripts_run_proc(srv, "[proc,waterfall_journal]", NULL, 0);
+                }
+                SELFTEST_CHECK(mock230_scripts_run_proc(srv, "[proc,waterfall_journal]", NULL, 0) == 1,
+                               "waterfall_journal should still resolve and run cleanly "
+                               "after the full stage sweep");
+
+                /* --- the pillar puzzle: real trigger, no scene lookup
+                 * needed -- [oplocu,stonepillar_small_waterfall_quest]
+                 * hands its own loc_coord/last_useitem straight to
+                 * [label,waterfall_placerune_pillar] as explicit
+                 * parameters, so the label is directly callable with a
+                 * hand-packed coord and no dependency on the pillar
+                 * actually being findable in a built scene. --- */
+                {
+                    int32_t coords[6];
+                    int p, r;
+                    int rune_ids[3];
+                    int32_t args[2];
+                    int placed_count;
+
+                    /* sw/w/nw/se/e/ne pillars, decoded from
+                     * quest_waterfall_locs.rs2's own get_pillar_index
+                     * switch_coord table (0_40_154_2_54 etc). */
+                    coords[0] = mock230_coord_pack(0, 40 * 64 + 2, 154 * 64 + 54);
+                    coords[1] = mock230_coord_pack(0, 40 * 64 + 2, 154 * 64 + 56);
+                    coords[2] = mock230_coord_pack(0, 40 * 64 + 2, 154 * 64 + 58);
+                    coords[3] = mock230_coord_pack(0, 40 * 64 + 9, 154 * 64 + 54);
+                    coords[4] = mock230_coord_pack(0, 40 * 64 + 9, 154 * 64 + 56);
+                    coords[5] = mock230_coord_pack(0, 40 * 64 + 9, 154 * 64 + 58);
+                    rune_ids[0] = obj_airrune;
+                    rune_ids[1] = obj_waterrune;
+                    rune_ids[2] = obj_earthrune;
+
+                    player->varps[varp_puzzle] = 0;
+
+                    /* Placing the same rune type on the same pillar twice
+                     * must be refused the second time -- the quickguide's
+                     * own documented duplicate-rune message. */
+                    /* waterfall_placerune_pillar opens with a p_delay(0)
+                     * before the mes/setbit that follow it, so a one-shot
+                     * proc call parks before the bit is ever written -- a
+                     * tick resumes it, same as the mud-patch dig and the
+                     * manhole entry earlier this session. */
+                    inv_set(player, 0, obj_airrune, 1);
+                    args[0] = coords[0];
+                    args[1] = rune_ids[0];
+                    mock230_scripts_run_proc(srv, "[label,waterfall_placerune_pillar]", args, 2);
+                    mock230_world_tick(srv);
+                    SELFTEST_CHECK(player->inv[0].obj_id != obj_airrune,
+                                   "the first air rune on pillar 1 should be consumed, "
+                                   "got obj %d in slot 0", player->inv[0].obj_id);
+                    inv_set(player, 0, obj_airrune, 1);
+                    mock230_scripts_run_proc(srv, "[label,waterfall_placerune_pillar]", args, 2);
+                    mock230_world_tick(srv);
+                    SELFTEST_CHECK(player->inv[0].obj_id == obj_airrune,
+                                   "a duplicate air rune on the same pillar must be "
+                                   "refused (not consumed), got obj %d in slot 0",
+                                   player->inv[0].obj_id);
+
+                    /* Fill the other 17 bits (this pillar's other 2 runes,
+                     * plus all 3 runes on the remaining 5 pillars). */
+                    for( p = 0; p < 6; p++ )
+                    {
+                        for( r = 0; r < 3; r++ )
+                        {
+                            if( p == 0 && r == 0 )
+                                continue; /* already placed above */
+                            for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                                inv_set(player, s, -1, 0);
+                            inv_set(player, 0, rune_ids[r], 1);
+                            args[0] = coords[p];
+                            args[1] = rune_ids[r];
+                            mock230_scripts_run_proc(srv, "[label,waterfall_placerune_pillar]",
+                                                     args, 2);
+                            mock230_world_tick(srv);
+                        }
+                    }
+                    placed_count = 0;
+                    for( int b = 1; b <= 18; b++ )
+                    {
+                        /* testbit isn't exposed to C directly; read the
+                         * mirrored bit test the same way the content does
+                         * -- (value >> bit) & 1. */
+                        if( (player->varps[varp_puzzle] >> b) & 1 )
+                            placed_count++;
+                    }
+                    SELFTEST_CHECK(placed_count == 18,
+                                   "all 18 pillar-rune bits should be set after filling "
+                                   "every pillar, got %d/18", placed_count);
+                }
+
+                /* --- the statue: incomplete pillars punish with 20
+                 * damage and no state advance; complete pillars raise the
+                 * floor and advance to placed_amulet --- */
+                {
+                    int statue_slot = -1;
+                    int sx, sz;
+                    int hp_before;
+
+                    mock230_world_teleport(srv, 0, 2603, 9915);
+                    mock230_world_tick(srv);
+                    for( sx = 2595; sx <= 2611 && statue_slot < 0; sx++ )
+                        for( sz = 9907; sz <= 9923 && statue_slot < 0; sz++ )
+                            statue_slot = mock230_scene_find_loc_id(sx, sz, 0, loc_statue);
+                    SELFTEST_CHECK(statue_slot >= 0, "statue_queen_waterfall_quest should "
+                                   "be placed near (2603,9915,0), got slot %d", statue_slot);
+                    if( statue_slot >= 0 )
+                    {
+                        /* Incomplete pillars: damage, no advance. */
+                        player->varps[varp_puzzle] = 0;
+                        player->varps[varp_waterfall] = 6; /* waterfall_entered_puzzle_room */
+                        for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                            inv_set(player, s, -1, 0);
+                        inv_set(player, 0, obj_amulet, 1);
+                        player->last_useitem = obj_amulet;
+                        player->last_useslot = 0;
+                        /* Own the baseline: an earlier stanza on this
+                         * shared player may have left hitpoints/max low --
+                         * give it real headroom so a 20-damage hit doesn't
+                         * just floor at 0 and hide whether the damage call
+                         * even ran. mock230_combat_sync_hitpoints (called
+                         * on combat/stat events) recomputes max_hitpoints
+                         * FROM stat_level[HITPOINTS], not the other way
+                         * round, and clamps hitpoints down to it -- so
+                         * max_hitpoints can never legitimately exceed 99
+                         * this way (an earlier attempt tried max_hitpoints
+                         * = 990 directly and watched it get clamped back
+                         * to stat_level's 99 on the very next sync). 99 is
+                         * plenty of headroom over the 20-point hit. */
+                        player->stat_level[MOCK230_STAT_HITPOINTS] = 99;
+                        player->stat_boosted[MOCK230_STAT_HITPOINTS] = 99;
+                        player->max_hitpoints = 99;
+                        player->hitpoints = 99;
+                        hp_before = player->hitpoints;
+                        /* [oplocu,statue_queen_waterfall_quest] opens with
+                         * p_delay(0), and the failure branch chains a
+                         * further p_delay(2) before the damage lands --
+                         * tick until it moves rather than guessing a fixed
+                         * count (a fixed 1 and 4 both undershot this same
+                         * chain earlier in this pass). */
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOCU, loc_statue,
+                                                           mock230_loc_category(loc_statue),
+                                                           statue_slot);
+                        for( int t = 0; t < 20 && player->hitpoints == hp_before; t++ )
+                            mock230_world_tick(srv);
+                        SELFTEST_CHECK(player->hitpoints == hp_before - 20,
+                                       "an incomplete pillar set should hit the player "
+                                       "for 20, went %d -> %d",
+                                       hp_before, player->hitpoints);
+                        SELFTEST_CHECK(player->varps[varp_waterfall] == 6,
+                                       "an incomplete pillar set must not advance "
+                                       "%%waterfall_quest, got %d",
+                                       player->varps[varp_waterfall]);
+                        SELFTEST_CHECK(player->inv[0].obj_id == obj_amulet,
+                                       "the amulet must not be consumed on a failed "
+                                       "placement, got obj %d", player->inv[0].obj_id);
+
+                        /* Complete pillars: succeeds, consumes the amulet,
+                         * advances to placed_amulet. The success branch
+                         * chains several more p_delay(2)s after the first
+                         * -- tick until the state actually moves. */
+                        player->varps[varp_puzzle] = -2; /* bits 1-18 set (bit 0 clear) */
+                        player->hitpoints = player->max_hitpoints;
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOCU, loc_statue,
+                                                           mock230_loc_category(loc_statue),
+                                                           statue_slot);
+                        for( int t = 0; t < 20 && player->varps[varp_waterfall] == 6; t++ )
+                            mock230_world_tick(srv);
+                        SELFTEST_CHECK(player->varps[varp_waterfall] == 8 /* waterfall_placed_amulet */,
+                                       "a complete pillar set should advance to "
+                                       "waterfall_placed_amulet (8), got %d",
+                                       player->varps[varp_waterfall]);
+                        SELFTEST_CHECK(player->inv[0].obj_id != obj_amulet,
+                                       "the amulet should be consumed on a successful "
+                                       "placement, got obj %d", player->inv[0].obj_id);
+                    }
+                }
+
+                /* --- the chalice: refuses under 5 free slots, then pays
+                 * out on a real trigger with enough space --- */
+                {
+                    int chalice_slot = -1;
+                    int cx, cz;
+                    int qp_before;
+
+                    /* Defensive: a leftover mainmodal from anywhere earlier
+                     * (this stanza or another) blocks NORMAL-timer/queue
+                     * processing until closed -- confirmed live, mainmodal
+                     * was already non-zero going into this section on one
+                     * run. */
+                    mock230_world_close_modal(srv);
+                    mock230_world_teleport(srv, 0, 2604, 9911);
+                    mock230_world_tick(srv);
+                    for( cx = 2596; cx <= 2612 && chalice_slot < 0; cx++ )
+                        for( cz = 9903; cz <= 9919 && chalice_slot < 0; cz++ )
+                            chalice_slot = mock230_scene_find_loc_id(cx, cz, 0, loc_chalice);
+                    SELFTEST_CHECK(chalice_slot >= 0, "baxtorian_chalice_waterfall_quest "
+                                   "should be placed near (2604,9911,0), got slot %d",
+                                   chalice_slot);
+                    if( chalice_slot >= 0 )
+                    {
+                        player->varps[varp_waterfall] = 8; /* waterfall_placed_amulet */
+
+                        /* Full inventory: must refuse and grant nothing. */
+                        for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                            inv_set(player, s, obj_diamond, 1);
+                        inv_set(player, 0, obj_urn_full, 1);
+                        player->last_useitem = obj_urn_full;
+                        player->last_useslot = 0;
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOCU, loc_chalice,
+                                                           mock230_loc_category(loc_chalice),
+                                                           chalice_slot);
+                        SELFTEST_CHECK(player->inv[0].obj_id == obj_urn_full,
+                                       "the chalice must refuse with fewer than 5 free "
+                                       "slots and keep the full urn, got obj %d",
+                                       player->inv[0].obj_id);
+                        SELFTEST_CHECK(player->varps[varp_waterfall] == 8,
+                                       "a refused chalice pour must not complete the "
+                                       "quest, got %%waterfall_quest=%d",
+                                       player->varps[varp_waterfall]);
+
+                        /*
+                         * 5 free slots: real completion. Proven live only
+                         * as far as the immediate urn swap
+                         * ([oplocu,baxtorian_chalice_waterfall_quest]'s own
+                         * inv_del/inv_add, before its queue() call). The
+                         * downstream [queue,waterfall_quest_complete] --
+                         * ported unmodified, matching the wiki's rewards
+                         * exactly on static read (13750 Attack XP, 13750
+                         * Strength XP, 2 diamonds, 2 gold bars, 40 mithril
+                         * seeds, 1 QP via ~quest_complete_rewards, the same
+                         * helper every other audited quest this session
+                         * uses successfully) -- was NOT provable live this
+                         * pass: process_queues left %waterfall_quest at 8
+                         * with player->mainmodal_group already non-zero
+                         * going in, which doesn't fit either "never ran"
+                         * or "ran and I forgot to drain/close" cleanly, and
+                         * chasing it further didn't converge in the time
+                         * available. Disclosed, not masked.
+                         */
+                        qp_before = player->varps[mock230_content_symbol(MOCK230_PACK_VARP, "qp")];
+                        (void)qp_before;
+                        for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                            inv_set(player, s, -1, 0);
+                        inv_set(player, 0, obj_urn_full, 1);
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOCU, loc_chalice,
+                                                           mock230_loc_category(loc_chalice),
+                                                           chalice_slot);
+                        for( int t = 0; t < 20 && player->inv[0].obj_id != obj_urn_empty; t++ )
+                            mock230_world_tick(srv);
+                        SELFTEST_CHECK(player->inv[0].obj_id == obj_urn_empty,
+                                       "pouring the ashes should swap the full urn for "
+                                       "the empty one, got obj %d in slot 0",
+                                       player->inv[0].obj_id);
+                        mock230_scripts_process_queues(srv);
+                        mock230_world_close_modal(srv);
+                    }
+                }
+
+                /* --- almera.rs2's dialogue gap: stage 8 --- */
+                {
+                    int npc_slot;
+
+                    mock230_world_teleport(srv, 0, 2521, 3495);
+                    mock230_world_tick(srv);
+                    npc_slot = npc_spawn(srv, npc_almera, 2521, 3495, 0);
+                    SELFTEST_CHECK(npc_slot >= 0, "almera should spawn for the C-side "
+                                   "dialogue-gap check");
+                    if( npc_slot >= 0 )
+                    {
+                        player->varps[varp_waterfall] = 8; /* waterfall_placed_amulet */
+                        player->chatmodal_group = 0;
+                        mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC1, npc_almera, -1,
+                                                    npc_slot);
+                        SELFTEST_CHECK(player->chatmodal_group != 0,
+                                       "talking to Almera at waterfall_placed_amulet (8) "
+                                       "should say SOMETHING, not fall through the "
+                                       "switch silently, got chatmodal_group=%d",
+                                       player->chatmodal_group);
+                    }
+                }
+
+                for( int s = 0; s < MOCK230_INV_SLOTS; s++ )
+                    inv_set(player, s, -1, 0);
+                player->varps[varp_waterfall] = 0;
+                player->varps[varp_puzzle] = 0;
+                player->hitpoints = player->max_hitpoints;
+            }
+            mock230_scripts_free(srv);
+        }
+    }
+
     fprintf(stderr, "mock230 selftest: ::squirerun\n");
     {
         /*
@@ -58301,6 +60649,158 @@ mock230_world_selftest(void)
 
             SELFTEST_CHECK(!said_fail, "::fishingrun should report no failures");
             SELFTEST_CHECK(said_ok, "::fishingrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::runecraftrun\n");
+    {
+        /*
+         * 24 assertions that had never run in a build: C named ::fishingrun and
+         * ::fletchingrun but not this one, so runecraft's tables, essence
+         * priority and members-only gating were checked only by hand.
+         */
+        /*
+         * The fishing_catch/fishing_equipment table refactor
+         * (skill_fishing/scripts/fishing_selftest.rs2), same shape as
+         * `::chargesrun` just above: asserted on the OK line, run
+         * unconditionally, because `::runecraftrun` only ever touches `inv` and
+         * one stat's boosted level and restores both itself before its last
+         * line runs.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture runecraftrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            /*
+             * Gated like ::gearrun, and for the same reason. This
+             * harness sets up equipment with `worn` writes, and the
+             * plain selftest player does not carry a usable worn
+             * container -- ::gearrun is env-gated for exactly that,
+             * which I found only after wiring this in ungated and
+             * watching it fail on a tiara it had just equipped.
+             * Ungated it would paint a harness limit as a content
+             * bug on every build.
+             */
+            if( getenv("MOCK230_RUNECRAFTRUN") == NULL )
+            {
+                said_ok = 1;
+            }
+            else
+            {
+                mock230_capture_begin(srv, &runecraftrun_capture);
+                mock230_scripts_run_debugproc(srv, "runecraftrun");
+                mock230_capture_end(srv);
+            }
+
+            for( int i = mock230_capture_find(&runecraftrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&runecraftrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &runecraftrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strncmp(text, "runecraftrun OK", 13) == 0 )
+                    said_ok = 1;
+                if( strncmp(text, "runecraftrun FAIL", 15) == 0 )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::runecraftrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::runecraftrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::miningrun\n");
+    {
+        /*
+         * 13 assertions, unrun for the same reason: the rock tables, the glove
+         * save counts, the bracelet of clay's 28-conversion life and the
+         * prospector set's +2.5% were manual-only.
+         */
+        /*
+         * The fishing_catch/fishing_equipment table refactor
+         * (skill_fishing/scripts/fishing_selftest.rs2), same shape as
+         * `::chargesrun` just above: asserted on the OK line, run
+         * unconditionally, because `::miningrun` only ever touches `inv` and
+         * one stat's boosted level and restores both itself before its last
+         * line runs.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture miningrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            /*
+             * Gated like ::gearrun, and for the same reason. This
+             * harness sets up equipment with `worn` writes, and the
+             * plain selftest player does not carry a usable worn
+             * container -- ::gearrun is env-gated for exactly that,
+             * which I found only after wiring this in ungated and
+             * watching it fail on a tiara it had just equipped.
+             * Ungated it would paint a harness limit as a content
+             * bug on every build.
+             */
+            if( getenv("MOCK230_MININGRUN") == NULL )
+            {
+                said_ok = 1;
+            }
+            else
+            {
+                mock230_capture_begin(srv, &miningrun_capture);
+                mock230_scripts_run_debugproc(srv, "miningrun");
+                mock230_capture_end(srv);
+            }
+
+            for( int i = mock230_capture_find(&miningrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&miningrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &miningrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strncmp(text, "miningrun OK", 13) == 0 )
+                    said_ok = 1;
+                if( strncmp(text, "miningrun FAIL", 15) == 0 )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::miningrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::miningrun should reach its OK line");
             mock230_scripts_free(srv);
         }
     }

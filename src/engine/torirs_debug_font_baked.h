@@ -4,9 +4,15 @@
  * Source cache: /Users/matthewevers/Documents/git_repos/3draster/cache.osrs239 (--rev osrs239)
  *
  * Fonts baked in this file:
- *   Small            fonts/sprites archive 494  ascent 10  line box 12  2725 glyph bytes
- *   Body             fonts/sprites archive 495  ascent 12  line box 16  4237 glyph bytes
- *   Menu             fonts/sprites archive 496  ascent 12  line box 16  5045 glyph bytes
+ *   Small            fonts/sprites archive 494 at 1x  ascent 10  line box 12  2725 glyph bytes
+ *   Body             fonts/sprites archive 495 at 1x  ascent 12  line box 16  4237 glyph bytes
+ *   Menu             fonts/sprites archive 496 at 1x  ascent 12  line box 16  5045 glyph bytes
+ *   Small2x          fonts/sprites archive 494 at 2x  ascent 20  line box 24  10900 glyph bytes
+ *   Body2x           fonts/sprites archive 495 at 2x  ascent 24  line box 32  16948 glyph bytes
+ *   Menu2x           fonts/sprites archive 496 at 2x  ascent 24  line box 32  20180 glyph bytes
+ *   Small3x          fonts/sprites archive 494 at 3x  ascent 30  line box 36  24525 glyph bytes
+ *   Body3x           fonts/sprites archive 495 at 3x  ascent 36  line box 48  38133 glyph bytes
+ *   Menu3x           fonts/sprites archive 496 at 3x  ascent 36  line box 48  45405 glyph bytes
  *
  * The returned fonts are statically allocated and live for the life of
  * the process. Never pass one to ToriDraw_FontFree: it frees every
@@ -17,16 +23,40 @@
 
 #include "toridraw_font.h"
 
-/** Cache font archive 494. Ascent 10, glyph line box 12. */
+/** Cache font archive 494 at 1x. Ascent 10, glyph line box 12. */
 struct ToriDraw_Font*
 ToriDbgFont_Small(void);
 
-/** Cache font archive 495. Ascent 12, glyph line box 16. */
+/** Cache font archive 495 at 1x. Ascent 12, glyph line box 16. */
 struct ToriDraw_Font*
 ToriDbgFont_Body(void);
 
-/** Cache font archive 496. Ascent 12, glyph line box 16. */
+/** Cache font archive 496 at 1x. Ascent 12, glyph line box 16. */
 struct ToriDraw_Font*
 ToriDbgFont_Menu(void);
+
+/** Cache font archive 494 at 2x. Ascent 20, glyph line box 24. */
+struct ToriDraw_Font*
+ToriDbgFont_Small2x(void);
+
+/** Cache font archive 495 at 2x. Ascent 24, glyph line box 32. */
+struct ToriDraw_Font*
+ToriDbgFont_Body2x(void);
+
+/** Cache font archive 496 at 2x. Ascent 24, glyph line box 32. */
+struct ToriDraw_Font*
+ToriDbgFont_Menu2x(void);
+
+/** Cache font archive 494 at 3x. Ascent 30, glyph line box 36. */
+struct ToriDraw_Font*
+ToriDbgFont_Small3x(void);
+
+/** Cache font archive 495 at 3x. Ascent 36, glyph line box 48. */
+struct ToriDraw_Font*
+ToriDbgFont_Body3x(void);
+
+/** Cache font archive 496 at 3x. Ascent 36, glyph line box 48. */
+struct ToriDraw_Font*
+ToriDbgFont_Menu3x(void);
 
 #endif

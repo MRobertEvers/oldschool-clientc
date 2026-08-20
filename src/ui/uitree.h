@@ -1158,6 +1158,24 @@ UITree_FindByComponentId(
     struct UITree const* tree,
     int component_id);
 
+/**
+ * Re-point every debug-overlay component at a different set of baked fonts.
+ *
+ * The chrome's scale can change after the tree is built -- the window moves to
+ * a display of a different pixel density, or the editor's scale row is changed
+ * -- and the font ids were resolved once, at bake time. Without this the
+ * overlay lays out at the new size and draws at the old one, which reads as a
+ * broken font rather than as a stale id.
+ *
+ * @param font_id_* scene font ids from UITreeSceneBridge_EnsureDebugFont.
+ */
+void
+UITree_DebugOverlaySetFontIds(
+    struct UITree* tree,
+    int font_id_small,
+    int font_id_menu,
+    int font_id_body);
+
 void
 UITree_WalkAdvance(
     struct UITree const* tree,

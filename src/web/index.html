@@ -304,6 +304,50 @@
 </script>
 
 <!-- Order matters: the harness defines Module, which the runtime reads on load. -->
+<script src="torirs_channel.js"></script>
+<script>
+/*
+ * The renderer half of the panel channel.
+ *
+ * Created unconditionally but idle: no tab is opened until the wasm side calls
+ * torirsOpenPanelTab(), which it does only for `[editor:boot] panel=tab`. So a
+ * plain game boot, or an editor boot with panel=inprocess, pays nothing for
+ * this beyond the listener.
+ *
+ * The host owns the state; this page is where it lives. buildSnapshot and
+ * onIntent are the two seams to fill in as the editor's state is exposed to
+ * the wasm boundary -- until then a panel tab attaches, syncs, and shows an
+ * empty mirror, which is the honest picture of what is wired.
+ */
+window.torirsChannelHost = ToriRSChannel.createHost({
+  buildSnapshot: function () {
+    var state = (window.torirsEditorState && window.torirsEditorState()) || {};
+    return new TextEncoder().encode(JSON.stringify(state));
+  },
+  onIntent: function (type, payload) {
+    /* Intents are handed to the wasm side verbatim. Nothing is interpreted
+     * here: the renderer owns the state, and a page that started making
+     * decisions about intents would be a second writer of it. */
+    if (typeof window.torirsOnPanelIntent === 'function') {
+      window.torirsOnPanelIntent(type, payload);
+    }
+  }
+});
+
+/** Called from C (web_editor_open_panel_tab) when the manifest asked for a tab. */
+window.torirsOpenPanelTab = function () {
+  var conn = window.torirsChannelHost.openPanelTab('./panel.html');
+  if (!conn) {
+    console.warn('[torirs] the panel tab was blocked \u2014 allow popups for this site');
+  }
+  return !!conn;
+};
+
+/** A second view of the world, in its own tab and its own wasm instance. */
+window.torirsOpenCanvasTab = function () {
+  return !!window.torirsChannelHost.openCanvasTab('./index.html', 'torirs-canvas-2');
+};
+</script>
 <script src="torirs_host.js"></script>
 <script src="torirs.js"></script>
 </body>

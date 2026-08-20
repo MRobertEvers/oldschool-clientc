@@ -39,7 +39,98 @@ struct PlatformSDL2
     int resizable_w;
     int resizable_h;
     int interface_scale_mode;
+    /* Drawable pixels per window point, from SDL: 1 on an ordinary display, 2
+     * on a Retina/200% one. The framebuffer is sized in DRAWABLE pixels, so
+     * this is not a scale anything multiplies by at draw time -- it is what the
+     * chrome reads to choose which baked font size to lay out with. */
+    int pixel_density;
 };
+
+/*
+ * Drawable size of the window, in real pixels.
+ *
+ * SDL reports window geometry in points and the drawable in pixels, and on a
+ * HighDPI display those differ by the density factor. Everything this platform
+ * hands the client is a PIXEL count -- the framebuffer it rasterises into, the
+ * viewport GL draws to -- so this is the size that matters, and asking
+ * SDL_GetWindowSize for it is the bug that makes a Retina window render at a
+ * quarter of its resolution and then stretch.
+ */
+static void
+sdl_drawable_size(
+    struct PlatformSDL2* platform,
+    int* out_w,
+    int* out_h)
+{
+    int w = 0;
+    int h = 0;
+
+    assert(platform);
+    assert(platform->window);
+    if( platform->use_opengl )
+        SDL_GL_GetDrawableSize(platform->window, &w, &h);
+    else if( platform->renderer )
+        SDL_GetRendererOutputSize(platform->renderer, &w, &h);
+    else
+        SDL_GetWindowSize(platform->window, &w, &h);
+    if( w <= 0 || h <= 0 )
+        SDL_GetWindowSize(platform->window, &w, &h);
+    if( out_w )
+        *out_w = w;
+    if( out_h )
+        *out_h = h;
+}
+
+/*
+ * Refresh the cached drawable-pixels-per-point ratio.
+ *
+ * Rounded to an integer, because it selects a BAKED chrome size and there is
+ * no such thing as a 1.5x baked font here (see TORIDBG_SCALE_MAX). A 1.5x
+ * display therefore lands on 2x chrome in a 1.5x-pixel framebuffer, which is
+ * chrome slightly larger than nominal drawn at native resolution -- the
+ * failure this whole path exists to avoid is the other one, chrome drawn at
+ * one size and stretched to another.
+ */
+static void
+sdl_refresh_pixel_density(struct PlatformSDL2* platform)
+{
+    int window_w = 0;
+    int window_h = 0;
+    int drawable_w = 0;
+    int drawable_h = 0;
+
+    assert(platform);
+    SDL_GetWindowSize(platform->window, &window_w, &window_h);
+    sdl_drawable_size(platform, &drawable_w, &drawable_h);
+    platform->pixel_density = 1;
+    if( window_w > 0 && drawable_w > 0 )
+        platform->pixel_density = (drawable_w + window_w / 2) / window_w;
+    if( platform->pixel_density < 1 )
+        platform->pixel_density = 1;
+}
+
+/*
+ * Whether to ask for a HighDPI drawable at all. OFF unless TORIRS_HIDPI=1.
+ *
+ * Opt-in, because a device-pixel drawable is only half of a HighDPI client and
+ * the other half is not wired yet: the CANVAS is what the client lays out and
+ * renders at, and it is driven by the window-mode machinery (fixed pins it to
+ * the classic frame, resizable tracks the window). Hand the platform a
+ * drawable twice the canvas and the GL viewport covers a quarter of it -- the
+ * frame draws into the top-left corner and the rest stays black.
+ *
+ * So the drawable stays at window points until the canvas can be made to
+ * follow it in every window mode. The CHROME's own HighDPI support does not
+ * wait on that and is not gated here: it is a baked font size, chosen by
+ * App_SetChromeScale, and it is correct in whatever size framebuffer it is
+ * handed.
+ */
+static bool
+sdl_want_highdpi(void)
+{
+    char const* env = getenv("TORIRS_HIDPI");
+    return env && env[0] == '1';
+}
 
 static SDL_ScaleMode
 sdl_interface_scale_mode(int mode)
@@ -363,7 +454,8 @@ PlatformSDL2_Init(
         SDL_WINDOWPOS_UNDEFINED,
         width,
         height,
-        SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+        SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE |
+            (sdl_want_highdpi() ? SDL_WINDOW_ALLOW_HIGHDPI : 0));
     if( !platform->window )
     {
         fprintf(stderr, "SDL_CreateWindow failed: %s\n", SDL_GetError());
@@ -384,6 +476,13 @@ PlatformSDL2_Init(
         SDL_Quit();
         return false;
     }
+
+    /* From here on `width`/`height` are DRAWABLE pixels. On a HighDPI display
+     * the window was asked for in points and SDL gave it a drawable twice that
+     * on each axis; rasterising at the point size and letting the present
+     * stretch it is exactly the blur this path exists to avoid. */
+    sdl_drawable_size(platform, &width, &height);
+    sdl_refresh_pixel_density(platform);
 
     platform->texture = SDL_CreateTexture(
         platform->renderer,
@@ -467,7 +566,8 @@ PlatformSDL2_InitForOpenGL3(
         SDL_WINDOWPOS_UNDEFINED,
         width,
         height,
-        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE);
+        SDL_WINDOW_OPENGL | SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE |
+            (sdl_want_highdpi() ? SDL_WINDOW_ALLOW_HIGHDPI : 0));
     if( !platform->window )
     {
         fprintf(stderr, "SDL_CreateWindow (OpenGL) failed: %s\n", SDL_GetError());
@@ -481,6 +581,12 @@ PlatformSDL2_InitForOpenGL3(
     platform->pixels = NULL;
 
     SDL_StartTextInput();
+
+    /* Drawable pixels, for the same reason the software path takes them: the
+     * GL viewport is sized from platform->width, and a point-sized viewport on
+     * a Retina window renders a quarter of the framebuffer and scales it up. */
+    sdl_drawable_size(platform, &width, &height);
+    sdl_refresh_pixel_density(platform);
 
     platform->width = width;
     platform->height = height;
@@ -541,6 +647,13 @@ PlatformSDL2_Height(struct PlatformSDL2* platform)
 {
     assert(platform);
     return platform->height;
+}
+
+int
+PlatformSDL2_PixelDensity(struct PlatformSDL2* platform)
+{
+    assert(platform);
+    return platform->pixel_density > 0 ? platform->pixel_density : 1;
 }
 
 bool
@@ -688,7 +801,12 @@ PlatformSDL2_SetCanvasFollowsWindow(
         platform->resizable_h = 0;
     }
 
-    SDL_GetWindowSize(platform->window, &window_w, &window_h);
+    /* Drawable pixels, not window points: the canvas the client lays out at is
+     * the buffer it rasterises into, and on a HighDPI window those differ by
+     * the density. Pushing points here is what leaves a Retina window drawing
+     * a quarter-resolution canvas that the present then stretches back up. */
+    sdl_refresh_pixel_density(platform);
+    sdl_drawable_size(platform, &window_w, &window_h);
     if( bus && window_w > 0 && window_h > 0 )
         CmdBus_PushWindowResize(bus, window_w, window_h);
 }
@@ -859,8 +977,12 @@ PlatformSDL2_PollCommands(
                 event.window.event == SDL_WINDOWEVENT_SIZE_CHANGED &&
                 platform->canvas_follows_window )
             {
-                pending_resize_w = event.window.data1;
-                pending_resize_h = event.window.data2;
+                /* data1/data2 are POINTS. The canvas is pixels, and the two
+                 * differ by the density -- and the density itself can change
+                 * here, which is what a window dragged between a Retina and an
+                 * ordinary display looks like from in here. */
+                sdl_refresh_pixel_density(platform);
+                sdl_drawable_size(platform, &pending_resize_w, &pending_resize_h);
             }
             break;
         case SDL_MOUSEBUTTONDOWN:

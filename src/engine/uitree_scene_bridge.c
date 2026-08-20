@@ -360,6 +360,27 @@ UITreeSceneBridge_EnsureFont(
     return cache_font_id;
 }
 
+void
+UITreeSceneBridge_SetChromeScale(struct UITreeSceneBridge* bridge, int scale)
+{
+    assert(bridge);
+    assert(scale >= TORIDBG_SCALE_MIN);
+    assert(scale <= TORIDBG_SCALE_MAX);
+    /* Fonts already uploaded at the old scale stay in the scene. They cost a
+     * few tens of KB and a display that changed scale once can change back;
+     * dropping them would make that flip a re-upload rather than a lookup. */
+    bridge->chrome_scale = scale;
+}
+
+int
+UITreeSceneBridge_ChromeScale(struct UITreeSceneBridge const* bridge)
+{
+    assert(bridge);
+    /* Init memsets the bridge, so an unset scale reads as 0. Report the native
+     * size for that: a 0 would multiply every chrome metric to nothing. */
+    return bridge->chrome_scale > 0 ? bridge->chrome_scale : 1;
+}
+
 int
 UITreeSceneBridge_EnsureDebugFont(
     struct UITreeSceneBridge* bridge,
@@ -367,24 +388,35 @@ UITreeSceneBridge_EnsureDebugFont(
 {
     struct ToriDraw_Font const* baked;
     struct ToriDraw_Font* copy;
+    int const scale = UITreeSceneBridge_ChromeScale(bridge);
     int scene_id;
 
     assert(bridge);
     assert(bridge->scene);
 
+    /* One switch over (slot, scale), because the two must not be resolvable
+     * apart: the advance table the overlay measured with and the glyphs drawn
+     * here come from the same bake at the same size, or text lays out to one
+     * width and paints at another. */
     switch( font_slot )
     {
     case TORIDBG_FONT_SMALL:
-        baked = ToriDbgFont_Small();
-        scene_id = UITREE_SCENE_DEBUG_FONT_SMALL_ID;
+        baked = scale == 3 ? ToriDbgFont_Small3x() : scale == 2 ? ToriDbgFont_Small2x()
+                                                                : ToriDbgFont_Small();
+        scene_id = scale == 1 ? UITREE_SCENE_DEBUG_FONT_SMALL_ID
+                              : UITREE_SCENE_DEBUG_FONT_SCALED_ID(TORIDBG_FONT_SMALL, scale);
         break;
     case TORIDBG_FONT_MENU:
-        baked = ToriDbgFont_Menu();
-        scene_id = UITREE_SCENE_DEBUG_FONT_MENU_ID;
+        baked = scale == 3 ? ToriDbgFont_Menu3x() : scale == 2 ? ToriDbgFont_Menu2x()
+                                                               : ToriDbgFont_Menu();
+        scene_id = scale == 1 ? UITREE_SCENE_DEBUG_FONT_MENU_ID
+                              : UITREE_SCENE_DEBUG_FONT_SCALED_ID(TORIDBG_FONT_MENU, scale);
         break;
     case TORIDBG_FONT_BODY:
-        baked = ToriDbgFont_Body();
-        scene_id = UITREE_SCENE_DEBUG_FONT_BODY_ID;
+        baked = scale == 3 ? ToriDbgFont_Body3x() : scale == 2 ? ToriDbgFont_Body2x()
+                                                               : ToriDbgFont_Body();
+        scene_id = scale == 1 ? UITREE_SCENE_DEBUG_FONT_BODY_ID
+                              : UITREE_SCENE_DEBUG_FONT_SCALED_ID(TORIDBG_FONT_BODY, scale);
         break;
     default:
         assert(0 && "unknown debug font slot");

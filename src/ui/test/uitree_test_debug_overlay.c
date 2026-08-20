@@ -63,7 +63,7 @@ test_debug_overlay_menu_geometry(void)
         rect = ToriRSChrome_PanelRect(&g_ui, panel);
         TEST_ASSERT(rect.h == 3 * l.row_stride + l.chrome_h, "menu height == UIMinimenu_Height");
         TEST_ASSERT(
-            rect.w == ToriRSChrome_MeasureText(TORIDBG_FONT_MENU, "Examine Guard") + l.width_pad,
+            rect.w == ToriRSChrome_MeasureText(TORIDBG_FONT_MENU, 1, "Examine Guard") + l.width_pad,
             "menu width == widest row + width_pad");
 
         for( int i = 0; i < 3; i++ )
@@ -122,20 +122,100 @@ test_debug_overlay_measure(void)
             small += ToriDbgFont_Small_advance_px[*p];
             menu += ToriDbgFont_Menu_advance_px[*p];
         }
-        TEST_ASSERT(ToriRSChrome_MeasureText(TORIDBG_FONT_SMALL, cases[i]) == small, "measure small");
-        TEST_ASSERT(ToriRSChrome_MeasureText(TORIDBG_FONT_MENU, cases[i]) == menu, "measure menu");
+        TEST_ASSERT(ToriRSChrome_MeasureText(TORIDBG_FONT_SMALL, 1, cases[i]) == small, "measure small");
+        TEST_ASSERT(ToriRSChrome_MeasureText(TORIDBG_FONT_MENU, 1, cases[i]) == menu, "measure menu");
     }
 
     TEST_ASSERT(
-        ToriRSChrome_FontLineHeight(TORIDBG_FONT_SMALL) == ToriDbgFont_Small_LINE_HEIGHT,
+        ToriRSChrome_FontLineHeight(TORIDBG_FONT_SMALL, 1) == ToriDbgFont_Small_LINE_HEIGHT,
         "small ascent");
     TEST_ASSERT(
-        ToriRSChrome_FontLineBox(TORIDBG_FONT_MENU) == ToriDbgFont_Menu_LINE_BOX, "menu line box");
+        ToriRSChrome_FontLineBox(TORIDBG_FONT_MENU, 1) == ToriDbgFont_Menu_LINE_BOX, "menu line box");
     /* A wider face has to measure wider, or the two tables got swapped. */
     TEST_ASSERT(
-        ToriRSChrome_MeasureText(TORIDBG_FONT_MENU, "Choose Option") >
-            ToriRSChrome_MeasureText(TORIDBG_FONT_SMALL, "Choose Option"),
+        ToriRSChrome_MeasureText(TORIDBG_FONT_MENU, 1, "Choose Option") >
+            ToriRSChrome_MeasureText(TORIDBG_FONT_SMALL, 1, "Choose Option"),
         "menu face is the wider one");
+}
+
+/*
+ * The scaled-chrome claim: 2x and 3x are the 1x chrome multiplied, exactly.
+ *
+ * Worth pinning rather than assuming, because it is a property of the BAKE and
+ * not of this module -- fontbake scales every glyph and every metric by the
+ * same integer, and if it ever stopped doing so (a rounded advance, a glyph
+ * resampled instead of block-scaled) the chrome would still lay out and still
+ * draw, just fractionally wrong at one size and not the other. Which is
+ * precisely the bug nobody finds by looking.
+ */
+static void
+test_debug_overlay_scaled_metrics(void)
+{
+    static char const* const cases[] = {
+        "", "i", "W", "Choose Option", "fps 60  tris 128394", "0123456789",
+    };
+    static int const slots[] = { TORIDBG_FONT_SMALL, TORIDBG_FONT_BODY, TORIDBG_FONT_MENU };
+
+    for( int si = 0; si < 3; si++ )
+    {
+        int const slot = slots[si];
+        for( int scale = TORIDBG_SCALE_MIN; scale <= TORIDBG_SCALE_MAX; scale++ )
+        {
+            TEST_ASSERT(
+                ToriRSChrome_FontLineHeight(slot, scale) ==
+                    ToriRSChrome_FontLineHeight(slot, 1) * scale,
+                "scaled ascent is the 1x ascent times the scale");
+            TEST_ASSERT(
+                ToriRSChrome_FontLineBox(slot, scale) ==
+                    ToriRSChrome_FontLineBox(slot, 1) * scale,
+                "scaled line box is the 1x line box times the scale");
+            for( size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++ )
+                TEST_ASSERT(
+                    ToriRSChrome_MeasureText(slot, scale, cases[i]) ==
+                        ToriRSChrome_MeasureText(slot, 1, cases[i]) * scale,
+                    "scaled measure is the 1x measure times the scale");
+        }
+    }
+}
+
+/*
+ * And the same claim one level up: a scaled PANEL is the 1x panel multiplied.
+ *
+ * The metrics test above proves the fonts scale; this proves the layout does,
+ * which is the half that lives in this file. Row padding, rules, the header
+ * block and the content column all have to move together -- a padding that
+ * stayed at 1x while the text grew is a panel whose rows overlap, and it is
+ * invisible until someone runs the editor on a HighDPI display.
+ */
+static void
+test_debug_overlay_scaled_layout(void)
+{
+    struct ToriDbgRect base = { 0, 0, 0, 0 };
+
+    for( int scale = TORIDBG_SCALE_MIN; scale <= TORIDBG_SCALE_MAX; scale++ )
+    {
+        struct ToriDbgRect rect;
+        int panel;
+
+        ToriRSChrome_Init(&g_ui);
+        ToriRSChrome_SetScale(&g_ui, scale);
+        panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 0, 0, 0, "Map Editor");
+        ToriRSChrome_Label(&g_ui, panel, "a considerably longer row");
+        ToriRSChrome_Checkbox(&g_ui, panel, "block", 1);
+        ToriRSChrome_TextInput(&g_ui, panel, "Height", "30");
+        ToriRSChrome_Build(&g_ui);
+        rect = ToriRSChrome_PanelRect(&g_ui, panel);
+
+        TEST_ASSERT(ToriRSChrome_Scale(&g_ui) == scale, "scale is what was set");
+        if( scale == 1 )
+            base = rect;
+        else
+        {
+            TEST_ASSERT(rect.w == base.w * scale, "panel width scales exactly");
+            TEST_ASSERT(rect.h == base.h * scale, "panel height scales exactly");
+        }
+    }
+    ToriRSChrome_Init(&g_ui);
 }
 
 /* The retained-mode claim: a frame where nothing changed rebuilds nothing. */
@@ -240,16 +320,28 @@ test_debug_overlay_damage(void)
     }
 }
 
-/* Bordered background: body fill and a 1px outline of the same box, which is
- * TORIRSRC_FILL_RECT with filled == 0 and needs no new render command. */
+/*
+ * A window panel wears the minimenu's chrome: body fill, black header bar, the
+ * separator under it, a bottom rule and a rail down each side -- at the same
+ * offsets dbg_build_menu uses, because a panel and a real game menu on screen
+ * together have to read as one widget.
+ *
+ * The outer 1px outline this used to draw is deliberately gone: the minimenu
+ * has no such edge, and it was the one thing that still gave a panel away.
+ */
 static void
 test_debug_overlay_border(void)
 {
+    struct UIMinimenuLayout const l = UIMinimenu_LayoutFromLineBox(ToriDbgFont_Menu_LINE_BOX);
     int panel;
     struct ToriDbgPrim const* prims;
     int count = 0;
     int outlines = 0;
     int fills = 0;
+    int header = 0;
+    int separator = 0;
+    int bottom = 0;
+    int rails = 0;
     struct ToriDbgRect rect;
 
     ToriRSChrome_Init(&g_ui);
@@ -262,36 +354,52 @@ test_debug_overlay_border(void)
     prims = ToriRSChrome_Prims(&g_ui, &count);
     for( int i = 0; i < count; i++ )
     {
-        if( prims[i].kind != TORIDBG_PRIM_RECT )
+        struct ToriDbgPrim const* q = &prims[i];
+        if( q->kind != TORIDBG_PRIM_RECT )
             continue;
-        if( prims[i].x != rect.x || prims[i].y != rect.y )
-            continue;
-        if( prims[i].w != rect.w || prims[i].h != rect.h )
-            continue;
-        if( prims[i].filled )
-            fills++;
-        else
-            outlines++;
+        if( q->x == rect.x && q->y == rect.y && q->w == rect.w && q->h == rect.h )
+        {
+            if( q->filled )
+                fills++;
+            else
+                outlines++;
+        }
+        if( q->x == rect.x + 1 && q->y == rect.y + 1 && q->w == rect.w - 2 &&
+            q->h == l.header_bar_h )
+            header++;
+        if( q->x == rect.x + 1 && q->y == rect.y + l.separator_y && q->w == rect.w - 2 &&
+            q->h == 1 )
+            separator++;
+        if( q->x == rect.x + 1 && q->y == rect.y + rect.h - 2 && q->w == rect.w - 2 && q->h == 1 )
+            bottom++;
+        if( q->y == rect.y + l.separator_y && q->w == 1 && q->h == rect.h - l.border_inset &&
+            (q->x == rect.x + 1 || q->x == rect.x + rect.w - 2) )
+            rails++;
     }
     TEST_ASSERT(fills == 1, "panel body is one filled rect");
-    TEST_ASSERT(outlines == 1, "panel border is one outlined rect");
+    TEST_ASSERT(outlines == 0, "no outer outline: the minimenu does not draw one");
+    TEST_ASSERT(header == 1, "header bar at the minimenu's offset");
+    TEST_ASSERT(separator == 1, "separator rule at the minimenu's offset");
+    TEST_ASSERT(bottom == 1, "bottom rule at the minimenu's offset");
+    TEST_ASSERT(rails == 2, "a rail down each side, starting at the separator");
 
-    /* Border after body, or the fill paints over the border it belongs to. */
+    /* Chrome after body, or the fill paints over the chrome it belongs to. */
     {
         int body_at = -1;
-        int border_at = -1;
+        int chrome_at = -1;
         for( int i = 0; i < count; i++ )
         {
-            if( prims[i].kind != TORIDBG_PRIM_RECT || prims[i].w != rect.w )
+            struct ToriDbgPrim const* q = &prims[i];
+            if( q->kind != TORIDBG_PRIM_RECT )
                 continue;
-            if( prims[i].h != rect.h )
-                continue;
-            if( prims[i].filled && body_at < 0 )
+            if( body_at < 0 && q->x == rect.x && q->y == rect.y && q->w == rect.w &&
+                q->h == rect.h )
                 body_at = i;
-            if( !prims[i].filled && border_at < 0 )
-                border_at = i;
+            if( chrome_at < 0 && q->x == rect.x + 1 && q->y == rect.y + 1 &&
+                q->w == rect.w - 2 && q->h == l.header_bar_h )
+                chrome_at = i;
         }
-        TEST_ASSERT(body_at >= 0 && border_at > body_at, "border draws after the body");
+        TEST_ASSERT(body_at >= 0 && chrome_at > body_at, "chrome draws after the body");
     }
 
     /* Row content is clipped to the content column, so an over-long label is
@@ -457,7 +565,7 @@ test_debug_overlay_layout(void)
     rect = ToriRSChrome_PanelRect(&g_ui, panel);
     TEST_ASSERT(g_ui.widgets[a].y < g_ui.widgets[b].y, "rows stack downward in order");
     TEST_ASSERT(
-        rect.w >= ToriRSChrome_MeasureText(g_ui.theme.font_row, "a considerably longer row"),
+        rect.w >= ToriRSChrome_MeasureText(g_ui.theme.font_row, 1, "a considerably longer row"),
         "panel fits its widest row");
     TEST_ASSERT(
         g_ui.widgets[b].y + g_ui.widgets[b].h <= rect.y + rect.h, "last row fits inside the panel");
@@ -479,11 +587,11 @@ test_debug_overlay_layout(void)
         /* The glyph line box is [y - line_height, y - line_height + line_box).
          * Both edges have to be inside the panel or the row is misplaced. */
         TEST_ASSERT(
-            prims[i].y - ToriRSChrome_FontLineHeight(prims[i].font_slot) >= rect.y,
+            prims[i].y - ToriRSChrome_FontLineHeight(prims[i].font_slot, 1) >= rect.y,
             "glyph box top inside the panel");
         TEST_ASSERT(
-            prims[i].y - ToriRSChrome_FontLineHeight(prims[i].font_slot) +
-                    ToriRSChrome_FontLineBox(prims[i].font_slot) <=
+            prims[i].y - ToriRSChrome_FontLineHeight(prims[i].font_slot, 1) +
+                    ToriRSChrome_FontLineBox(prims[i].font_slot, 1) <=
                 rect.y + rect.h,
             "glyph box bottom inside the panel");
     }
@@ -633,12 +741,109 @@ test_debug_overlay_emit_pass(void)
     UITree_Free(tree);
 }
 
+/* Hidden widgets: no space, no hit box, and the handle survives. */
+static void
+test_debug_overlay_hidden(void)
+{
+    struct ToriDbgRect full;
+    struct ToriDbgRect less;
+    int panel;
+    int a;
+    int b;
+
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 10, 10, 0, "T");
+    a = ToriRSChrome_Label(&g_ui, panel, "row a");
+    b = ToriRSChrome_Checkbox(&g_ui, panel, "row b", 0);
+    ToriRSChrome_Build(&g_ui);
+    full = ToriRSChrome_PanelRect(&g_ui, panel);
+
+    ToriRSChrome_SetHidden(&g_ui, b, 1);
+    ToriRSChrome_Build(&g_ui);
+    less = ToriRSChrome_PanelRect(&g_ui, panel);
+    TEST_ASSERT(less.h < full.h, "hiding a row shrinks the panel");
+    TEST_ASSERT(g_ui.widgets[b].w == 0 && g_ui.widgets[b].h == 0, "hidden row has no box");
+
+    ToriRSChrome_SetHidden(&g_ui, b, 0);
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(ToriRSChrome_PanelRect(&g_ui, panel).h == full.h, "unhiding restores the layout");
+    (void)a;
+}
+
+/* Table layout: labelled controls share one box column; off, they don't. */
+static void
+test_debug_overlay_table(void)
+{
+    int panel;
+    int a;
+    int b;
+
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 10, 10, 0, "T");
+    a = ToriRSChrome_TextInput(&g_ui, panel, "X", "one");
+    b = ToriRSChrome_TextInput(&g_ui, panel, "Longer label", "two");
+
+    /* The observable is each input's CONTENT text prim -- its x is the box
+     * start plus a fixed pad, and "one"/"two" are unique strings. Matching
+     * fills by input_bg colour is the trap this replaces: in the osrs theme
+     * that black is also the chrome's black, so the filter caught rails and
+     * header bars and compared their x instead. */
+    {
+        int one_x = -1;
+        int two_x = -1;
+        int count;
+        struct ToriDbgPrim const* prims;
+
+        ToriRSChrome_Build(&g_ui);
+        prims = ToriRSChrome_Prims(&g_ui, &count);
+        for( int i = 0; i < count; i++ )
+        {
+            if( prims[i].kind != TORIDBG_PRIM_TEXT || !prims[i].text )
+                continue;
+            if( strcmp(prims[i].text, "one") == 0 )
+                one_x = prims[i].x;
+            if( strcmp(prims[i].text, "two") == 0 )
+                two_x = prims[i].x;
+        }
+        TEST_ASSERT(one_x >= 0 && two_x >= 0, "both input contents drew");
+        TEST_ASSERT(one_x != two_x, "no table: each box starts after its own label");
+
+        ToriRSChrome_PanelSetTable(&g_ui, panel, 1);
+        ToriRSChrome_Build(&g_ui);
+        one_x = -1;
+        two_x = -1;
+        prims = ToriRSChrome_Prims(&g_ui, &count);
+        for( int i = 0; i < count; i++ )
+        {
+            if( prims[i].kind != TORIDBG_PRIM_TEXT || !prims[i].text )
+                continue;
+            if( strcmp(prims[i].text, "one") == 0 )
+                one_x = prims[i].x;
+            if( strcmp(prims[i].text, "two") == 0 )
+                two_x = prims[i].x;
+        }
+        TEST_ASSERT(one_x >= 0 && two_x >= 0, "both contents drew in table mode");
+        TEST_ASSERT(one_x == two_x, "table: both boxes share the label column");
+    }
+
+    /* A hidden wide-label row stops voting: the column snaps back. */
+    ToriRSChrome_SetHidden(&g_ui, b, 1);
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(
+        g_ui.panels[panel].label_col ==
+            ToriRSChrome_MeasureText(g_ui.theme.font_row, g_ui.scale, "X"),
+        "hidden rows do not hold the column open");
+    (void)a;
+}
+
 void
 test_debug_overlay(void)
 {
     printf("TEST: debug overlay (measure / menu geometry / retained / damage / widgets)\n");
 
     test_debug_overlay_measure();
+    test_debug_overlay_scaled_metrics();
+    test_debug_overlay_scaled_layout();
     test_debug_overlay_menu_geometry();
     test_debug_overlay_retained();
     test_debug_overlay_damage();
@@ -648,4 +853,6 @@ test_debug_overlay(void)
     test_debug_overlay_layout();
     test_debug_overlay_capacity();
     test_debug_overlay_emit_pass();
+    test_debug_overlay_hidden();
+    test_debug_overlay_table();
 }

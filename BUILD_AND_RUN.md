@@ -1150,8 +1150,13 @@ a single record by id is instant.
 ```sh
 # fontbake — bake cache fonts into C
 fontbake --rev NAME <cache_dir> --list [--probe name,name,...]
-fontbake --rev NAME <cache_dir> --font ARCHIVE=Symbol --out out.c \
+fontbake --rev NAME <cache_dir> --font ARCHIVE=Symbol[@N] --out out.c \
          [--header out.h] [--metrics metrics.h] [--prefix Prefix]
+# @N bakes an N-times nearest-neighbour upscale of the face, every metric
+# multiplied to match — how one cache font serves a HighDPI or scaled display.
+# Integer only: the glyph blitter tests a mask byte rather than blending it,
+# so there is no half-covered pixel for a fractional scale to land on.
+# See src/ui/README_DEBUG_OVERLAY.md §9 for the chrome's three baked sizes.
 
 # poser-gl — the SDL2 + OpenGL 3.3 animation editor (a C port of fglass/poser-gl)
 make -C 3rd/rscache/tools poser-gl

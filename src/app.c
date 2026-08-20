@@ -22,6 +22,25 @@
 #define APP_OUTLINE_COLOR_EDITOR_SELECT 0xFF00FF00u
 /* 0 opaque .. 255 invisible. High enough that the model reads through it. */
 #define APP_OUTLINE_FILL_TRANS 205
+#if defined(TORIRS_PLATFORM_WEB)
+#include <emscripten.h>
+
+/*
+ * Ask the page to open the command-panel tab (`[editor:boot] panel=tab`).
+ *
+ * EM_JS rather than EM_ASM, matching main.c: EM_ASM is rejected in `-std=c*`
+ * modes and this file is C11. The page owns the channel -- this only asks, and
+ * a page that defines no hook (or a browser that blocks the popup) leaves the
+ * editor running without its chrome rather than failing the boot.
+ */
+EM_JS(void, web_editor_open_panel_tab, (void), {
+    if( typeof window.torirsOpenPanelTab === 'function' )
+        window.torirsOpenPanelTab();
+    else
+        console.warn('[torirs] panel=tab, but the page defines no torirsOpenPanelTab()');
+});
+#endif
+
 #include "engine/torirs_chrome_skin_baked.h"
 #include "engine/dat1/dat1_buildcache.h"
 #include "engine/dat1/dat1_tasks.h"
@@ -278,6 +297,9 @@ app_iface_text_input_focused(struct App const* app)
  * spawning while typing a bank amount, W flying the camera through a search
  * term — all one bug, four times.
  */
+static int
+app_modelview_focused(struct App const* app);
+
 static int
 app_text_input_focused(struct App const* app)
 {
@@ -2810,8 +2832,33 @@ app_overlay_build_editor_selection(struct App* app)
 {
     struct Editor_Panel const* panel = &app->editor_panel;
 
-    if( !panel->visible || panel->tool != EDITOR_TOOL_SELECT )
+    /* Whatever tool is active: the selection is tool-independent (pick with
+     * Select, then rotate/move/reshape with the others), so its highlight
+     * must not vanish the moment the tool that will act on it is chosen --
+     * the Move tool with an invisible subject is aiming blind. The old
+     * SELECT-only gate predates select-then-operate. */
+    if( !panel->visible )
         return;
+
+    /* The Place-loc ghost's FOOTPRINT: the translucent model says what it
+     * looks like, this says which tiles it will own -- the question that
+     * decides whether it fits beside the wall. Same silhouette the hover
+     * footprint draws, fed by the ghost's own scenery entity, so a 3x2 loc
+     * shows 3x2 here without anything re-deriving sizes. Before the
+     * selection early-out: a ghost exists with or without a selection. */
+    if( app->ghost_active && app->world )
+    {
+        int const idx = World_SceneryFindAt(
+            app->world, app->ghost_x, app->ghost_z, app->ghost_level, app->ghost_shape);
+        if( idx >= 0 )
+        {
+            struct WorldEntity_Scenery* ghost =
+                World_EntityPoolGet(&app->world->entities.scenery, idx);
+            if( ghost )
+                app_overlay_outline_scenery(app, ghost);
+        }
+    }
+
     if( panel->sel_kind == EDITOR_SELECTION_NONE || !app->world )
         return;
 
@@ -2819,6 +2866,22 @@ app_overlay_build_editor_selection(struct App* app)
     {
         struct WorldEntity_Scenery* scenery =
             World_SceneryGetByElementId(app->world, panel->sel_element_id);
+
+        /* A reshape/swap deleted the element this selection pointed at (a loc
+         * change is delete + add, and the add is async). Re-find the NEW
+         * element by tile and shape, and heal the selection -- transiently
+         * absent while the add is still in flight, which draws no highlight
+         * for a frame or two rather than the wrong one forever. */
+        if( !scenery )
+        {
+            int const idx = World_SceneryFindAt(
+                app->world, panel->sel_scene_x, panel->sel_scene_z, panel->sel_level,
+                panel->sel_shape);
+            if( idx >= 0 )
+                scenery = World_EntityPoolGet(&app->world->entities.scenery, idx);
+            if( scenery )
+                app->editor_panel.sel_element_id = scenery->element_id;
+        }
         if( !scenery )
             return;
         app_overlay_outline_element_model(
@@ -4591,6 +4654,62 @@ app_provider_set_cache_profile(
  * as the digits change under it. */
 static char const k_app_debug_overlay_title[] = "Frame time (10-frame avg)";
 
+/*
+ * Point the tree's overlay components at the faces baked for the current
+ * chrome scale.
+ *
+ * Split out because it runs twice: once when the scale is set, and again after
+ * a tree rebuild, which resolves the ids itself at bake time but from whatever
+ * scale the bridge is holding. Both paths end at the same three ids.
+ */
+static void
+app_chrome_fonts_resolve(struct App* app)
+{
+    int small;
+    int menu;
+    int body;
+
+    assert(app);
+    /* Before the tree exists there is nothing to point at, and the bake will
+     * resolve these itself from the scale the bridge is now holding. Not a
+     * contract violation: App_SetChromeScale is legitimately called at boot,
+     * ahead of the first build. */
+    if( !app->tree )
+        return;
+    small = UITreeSceneBridge_EnsureDebugFont(&app->bridge, TORIDBG_FONT_SMALL);
+    menu = UITreeSceneBridge_EnsureDebugFont(&app->bridge, TORIDBG_FONT_MENU);
+    body = UITreeSceneBridge_EnsureDebugFont(&app->bridge, TORIDBG_FONT_BODY);
+    UITree_DebugOverlaySetFontIds(app->tree, small, menu, body);
+}
+
+int
+App_SetChromeScale(struct App* app, int scale)
+{
+    assert(app);
+    if( scale < TORIDBG_SCALE_MIN )
+        scale = TORIDBG_SCALE_MIN;
+    /* Clamped, not asserted: this number comes from the DISPLAY, and a 4x
+     * monitor is a fact about the world rather than a caller's bug. Chrome one
+     * baked size below the display's density is a little small; an assert here
+     * would be a crash on a machine nobody tested on. */
+    if( scale > TORIDBG_SCALE_MAX )
+        scale = TORIDBG_SCALE_MAX;
+    if( ToriRSChrome_Scale(&app->dbg_ui) == scale )
+        return 0;
+
+    ToriRSChrome_SetScale(&app->dbg_ui, scale);
+    UITreeSceneBridge_SetChromeScale(&app->bridge, scale);
+    app_chrome_fonts_resolve(app);
+    return 1;
+}
+
+int
+App_ChromeScale(struct App const* app)
+{
+    assert(app);
+    return ToriRSChrome_Scale(&app->dbg_ui);
+}
+
 static void
 app_debug_overlay_init(struct App* app)
 {
@@ -5198,7 +5317,14 @@ app_loc_editor_tick(
      * most of what a placement or footprint question is actually about. Told
      * here, once, from the two toggles that own the state, so neither tool has
      * to reach into the pick path itself. */
-    WorldEntity_SceneryDebugSetTools(app->locedit_visible || app->hover_footprint != 0);
+    /* The MAP editor makes every loc pickable too: its Select/Delete minimenu
+     * rows are built per PICKED element, so a wall or roof with no ops of its
+     * own -- invisible to the pick without this flag -- could never grow a
+     * "Select Wall" row however the menu was gated. This one line is the
+     * difference between "the menu ignores half the tile" and not. */
+    WorldEntity_SceneryDebugSetTools(
+        app->locedit_visible || app->hover_footprint != 0 ||
+        (app->editor && app->editor_panel.visible));
 
     /* Remember the world tile under the cursor whenever the cursor is NOT
      * over the panel itself. Runs every frame, panel open or not, so the
@@ -5285,15 +5411,95 @@ app_loc_editor_tick(
                 app->input_frame_consumed = 1;
         }
 
-        /* Keyboard control, the fast path the menu rows advertise. IsKeyDown
+        /*
+         * A focused model view owns the movement keys: WASD orbits, E/F zooms,
+         * arrows orbit too. Every accepted key re-renders with the camera
+         * held, consumes the frame, and never reaches the world camera --
+         * which also checks this focus itself, for the keys that arrive on
+         * frames this block does not see.
+         */
+        if( app_modelview_focused(app) )
+        {
+            int took = 0;
+            int const yaw_step = 64;
+            int const pitch_step = 32;
+
+            if( LibToriRS_Input_IsKeyDown(input, TORIRSK_A) ||
+                LibToriRS_Input_IsKeyDown(input, TORIRSK_LEFT) )
+            {
+                app->preview_yan = (app->preview_yan + 2048 - yaw_step) & 2047;
+                took = 1;
+            }
+            if( LibToriRS_Input_IsKeyDown(input, TORIRSK_D) ||
+                LibToriRS_Input_IsKeyDown(input, TORIRSK_RIGHT) )
+            {
+                app->preview_yan = (app->preview_yan + yaw_step) & 2047;
+                took = 1;
+            }
+            if( LibToriRS_Input_IsKeyDown(input, TORIRSK_W) ||
+                LibToriRS_Input_IsKeyDown(input, TORIRSK_UP) )
+            {
+                app->preview_xan = (app->preview_xan + 2048 - pitch_step) & 2047;
+                took = 1;
+            }
+            if( LibToriRS_Input_IsKeyDown(input, TORIRSK_S) ||
+                LibToriRS_Input_IsKeyDown(input, TORIRSK_DOWN) )
+            {
+                app->preview_xan = (app->preview_xan + pitch_step) & 2047;
+                took = 1;
+            }
+            if( LibToriRS_Input_IsKeyDown(input, TORIRSK_E) )
+            {
+                app->preview_zoom = app->preview_zoom * 9 / 10;
+                if( app->preview_zoom < 300 )
+                    app->preview_zoom = 300;
+                took = 1;
+            }
+            if( LibToriRS_Input_IsKeyDown(input, TORIRSK_F) )
+            {
+                app->preview_zoom = app->preview_zoom * 11 / 10;
+                if( app->preview_zoom > 16000 )
+                    app->preview_zoom = 16000;
+                took = 1;
+            }
+            if( took )
+            {
+                app->preview_dirty = 1;
+                app->preview_keep_camera = 1;
+                app->input_frame_consumed = 1;
+                app->need_redraw = 1;
+            }
+        }
+
+        /* The map editor's own key: apply the current tool to the SELECTION,
+         * so a subject picked once can be operated on without going back to
+         * the world with the cursor. `E` because the camera's up/down moved to
+         * R/F, leaving it free next to WASD. */
+        if( app->editor && app->editor_panel.visible && !app_text_input_focused(app) &&
+            !app_modelview_focused(app) && LibToriRS_Input_IsKeyDown(input, TORIRSK_E) )
+        {
+            Editor_PanelApplyToSelection(&app->editor_panel, app);
+            app->input_frame_consumed = 1;
+        }
+
+        /*
+         * Keyboard control, the fast path the menu rows advertise. IsKeyDown
          * (edge, not held) so one press moves one tile rather than a nudge
          * repeating every frame a key is held down. Space reselects at the
          * live world_hover_tile_x/z directly -- pressing a key, unlike
          * clicking a menu row, never moves the cursor off the world first, so
          * the live hover is already correct and the remembered
          * locedit_hover_x/z (which Reselect itself reads) is equally valid
-         * here since this same tick already refreshed it above. */
-        if( LibToriRS_Input_IsKeyDown(input, TORIRSK_D) )
+         * here since this same tick already refreshed it above.
+         *
+         * Gated on the LOC editor specifically, not on "any panel is open".
+         * The enclosing block widened to route input for the map editor too,
+         * and these came along with it -- so with only the map editor open,
+         * W/A/S/D nudged whatever loc the loc editor had latched *while also*
+         * flying the camera, since a nudge does not consume the frame. Same
+         * reasoning as the activation latch below.
+         */
+        if( app->locedit_visible && LibToriRS_Input_IsKeyDown(input, TORIRSK_D) )
             app_loc_editor_nudge(app, 1, 0);
         else if( LibToriRS_Input_IsKeyDown(input, TORIRSK_A) )
             app_loc_editor_nudge(app, -1, 0);
@@ -5870,7 +6076,33 @@ App_Init(
         /* Open on boot: this manifest asked for an editor, so the panel is the
          * point of the session rather than a debug aid to go find. */
         Editor_PanelInit(&app->editor_panel, &app->dbg_ui);
-        Editor_PanelSetVisible(&app->editor_panel, &app->dbg_ui, 1);
+        Editor_PanelSetVisible(
+            &app->editor_panel,
+            &app->dbg_ui,
+            cfg->editor_panel == BOOTMANIFEST_EDITOR_PANEL_INPROCESS);
+
+        /*
+         * panel=tab: the panel lives in a second browser tab instead of in
+         * this window, so the in-process rows stay hidden and the page is
+         * asked to open it. The world view keeps the whole canvas.
+         *
+         * Only the *open* happens here. Whether that tab ever attaches is the
+         * channel's business (torirs_channel.js), and the renderer never waits
+         * on it -- a blocked popup or a closed tab leaves an editor that still
+         * edits, just without its chrome, which is why nothing below this is
+         * conditional on the tab appearing.
+         */
+        if( cfg->editor_panel == BOOTMANIFEST_EDITOR_PANEL_TAB )
+        {
+#if defined(TORIRS_PLATFORM_WEB)
+            web_editor_open_panel_tab();
+#else
+            /* Unreachable: bootmanifest refuses panel=tab on a native build.
+             * Kept as a loud stop rather than a silent skip, so a future
+             * platform that reaches here has to decide what it means. */
+            assert(0 && "panel=tab reached a build with no tabs to open");
+#endif
+        }
     }
 
     /* Phase 6: networking (opt-in). The default RSA key is the rev_245_2 Lost
@@ -6557,6 +6789,25 @@ app_world_load_begin(
         chunk_pair_count = 1;
     }
 
+    /*
+     * Hold the camera across the reload.
+     *
+     * Every editor edit lands here through app_map_editor_drain's chunklist
+     * rebuild, and without this each paint click snapped the eye back to the
+     * scene centre -- the finish path places the camera for a FIRST look at a
+     * scene, and a rebuild is not a first look. Absolute coordinates, so the
+     * restore survives the scene window moving; see cam_keep_valid in app.h.
+     */
+    if( app->world && app->world_active )
+    {
+        app->cam_keep_valid = 1;
+        app->cam_keep_abs_x = app->world->_base_tile_x * 128 + app->world_camera_pos.x;
+        app->cam_keep_abs_z = app->world->_base_tile_z * 128 + app->world_camera_pos.z;
+        app->cam_keep_y = app->world_camera_pos.y;
+        app->cam_keep_pitch = app->world_camera.pitch;
+        app->cam_keep_yaw = app->world_camera.yaw;
+    }
+
     app->world_load_attempted = 1;
     app->world_load_inflight = 1;
     App_WorldDrainEntityRemoved(app);
@@ -6607,6 +6858,30 @@ app_mapedit_select_active(struct App const* app)
     return app->editor_panel.visible && app->editor_panel.tool == EDITOR_TOOL_SELECT;
 }
 
+static void
+app_map_editor_ghost_forget(struct App* app);
+
+/** Keyboard belongs to the catalog's model view? (Focused via a click; the
+ *  chrome holds the focus, the app routes the keys.) */
+static int
+app_modelview_focused(struct App const* app)
+{
+    int const f = app->dbg_ui.focus;
+    return f >= 0 && f < app->dbg_ui.widget_count &&
+           app->dbg_ui.widgets[f].kind == TORIDBG_W_MODELVIEW;
+}
+
+/** The minimenu's "Delete <category>" rows. The dedicated Delete tool they
+ *  were tied to is gone -- deletion is a selection act now -- but the rows
+ *  themselves stay useful as the layer-precise one-shot, so they ride with
+ *  the editor being open rather than with any tool. */
+static bool
+app_mapedit_delete_active(struct App const* app)
+{
+    assert(app);
+    return app->editor_panel.visible;
+}
+
 /**
  * A click in the world applies the current tool, as one undoable edit.
  *
@@ -6614,17 +6889,24 @@ app_mapedit_select_active(struct App const* app)
  * also paint the tile behind it -- the overlay sets that flag when it takes a
  * press, and this runs after it for exactly that reason.
  *
- * ALSO gated on the minimenu being open. `input_frame_consumed` cannot cover
- * that case: this runs early in the frame (Editor_PanelTick's caller, before
- * UITree_InteractFrame), so a click that is about to select a minimenu row
- * -- or just dismiss the menu, same as the reference's "first click on an
- * open menu never also acts" -- has not been classified as a menu click yet
- * this frame. `app->interact.minimenu.visible` still reads the state the menu
- * opened INTO this frame (set when the right-click that opened it was
- * processed, a prior frame or earlier this same one via out.right_click),
- * so it is already correct here. Without this, choosing "Select Wall" from
- * the SELECT tool's own minimenu row raced this function's plain-click
- * terrain latch and the terrain always won, since this runs first.
+ * ALSO gated on the minimenu owning this gesture, which is TWO conditions and
+ * not one. `input_frame_consumed` covers neither: this runs early in the frame
+ * (before UITree_InteractFrame), so nothing has classified the click yet.
+ *
+ *   - `minimenu.visible` -- a menu is on screen, so the world is not taking
+ *     clicks at all.
+ *   - `interact.swallow_left_click` -- the menu already consumed the PRESS
+ *     edge of this click and this is the matching RELEASE.
+ *
+ * The second is the one that actually bites, and checking only the first is
+ * why "Select Object" still latched terrain after it was supposedly fixed:
+ * the minimenu selects on mousedown and hides itself immediately, so by the
+ * time the mouse-up arrives -- the edge THIS function triggers on, a frame
+ * later -- `minimenu.visible` is already 0 and the gate opens. The latch is
+ * still set at that instant because interact_frame retires it further down
+ * the same frame, after this ran. Reading it here is not a race: this runs
+ * before the retire by construction, which is the same ordering that made
+ * the bug.
  *
  * The tile is the one under the cursor THIS frame. The pickset and hover are
  * refreshed by the render pass, so they are at most one frame stale, which at
@@ -6640,8 +6922,16 @@ app_map_editor_world_click(
 
     if( !app->editor || !app->editor_panel.visible )
         return;
-    if( app->interact.minimenu.visible )
+    if( app->interact.minimenu.visible || app->interact.swallow_left_click )
+    {
+        if( getenv("TORIRS_EDIT_DEBUG") && input->curr.mouse_button_up[TORIRSM_LEFT] )
+            fprintf(
+                stderr,
+                "edit: click belongs to the minimenu (visible=%d swallow=%d)\n",
+                app->interact.minimenu.visible,
+                app->interact.swallow_left_click);
         return;
+    }
     if( app->input_frame_consumed )
     {
         if( getenv("TORIRS_EDIT_DEBUG") && input->curr.mouse_button_up[TORIRSM_LEFT] )
@@ -6661,6 +6951,46 @@ app_map_editor_world_click(
     if( app->world_hover_tile_x < 0 )
         return;
 
+    /*
+     * Modifier accelerators: hold a key to act on a layer without changing the
+     * tool dropdown first.
+     *
+     *   L  place the catalog's picked loc      (the tool's Place loc)
+     *   K  delete the loc under the cursor     (the tool's Delete loc)
+     *   C  clear every loc on the tile
+     *
+     * Deliberately resolving to the SAME functions the tool rows call rather
+     * than to a parallel path, so the readout, the undo step and the document
+     * write are identical however the edit was asked for. Gated on
+     * app_text_input_focused via the caller's chain -- without that, `L` typed
+     * into the catalog's search box would place a loc.
+     */
+    if( !app_text_input_focused(app) )
+    {
+        int const level = Editor_PanelEditLevel(&app->editor_panel, app);
+        int const hx = app->world_hover_tile_x;
+        int const hz = app->world_hover_tile_z;
+
+        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_L) )
+        {
+            Editor_PanelPlaceLocAt(&app->editor_panel, app, hx, hz, level);
+            app->need_redraw = 1;
+            return;
+        }
+        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_K) )
+        {
+            Editor_PanelDeleteLocAt(&app->editor_panel, app, hx, hz, level);
+            app->need_redraw = 1;
+            return;
+        }
+        if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_C) )
+        {
+            Editor_PanelClearLocsAt(&app->editor_panel, app, hx, hz, level);
+            app->need_redraw = 1;
+            return;
+        }
+    }
+
     /* SELECT latches the plain-click default: the hovered TILE, unambiguous
      * even where a wall, a wall-decor and a ground loc share it. Picking one
      * of those exactly is what the minimenu's "Select wall/object/decor" rows
@@ -6677,13 +7007,37 @@ app_map_editor_world_click(
 
     /* One click is one undo step. A drag would open the stroke on press and
      * close it on release; this is the single-click case, which is a stroke of
-     * one and needs no bracketing. */
+     * one and needs no bracketing.
+     *
+     * The level the PANEL says to edit, not the one the pick happened to
+     * return: a pinned plane is the whole point of the Level row, and reading
+     * the hover here would silently ignore it. */
     Editor_PanelApplyToolAt(
         &app->editor_panel,
         app,
         app->world_hover_tile_x,
         app->world_hover_tile_z,
-        app->world_hover_tile_level);
+        Editor_PanelEditLevel(&app->editor_panel, app));
+
+    /* A Place or Move click landed on the ghost's tile: the real add just
+     * replaced the ghost's element, so the ghost must be FORGOTTEN, not
+     * removed -- removing now would delete the loc that was just placed. */
+    if( app->editor_panel.tool == EDITOR_TOOL_LOC_PLACE ||
+        app->editor_panel.tool == EDITOR_TOOL_LOC_MOVE )
+        app_map_editor_ghost_forget(app);
+
+    /*
+     * The subject follows the work -- BY KIND.
+     *
+     * A tile tool's click latches the tile it painted, so the readout
+     * describes what just happened and Apply repeats there. The LOC tools do
+     * NOT latch terrain: their subject is a loc, and stamping a terrain latch
+     * after every place/move wiped the loc selection the user was working
+     * with -- Place selects what it placed (inside PlaceLocAt), Move keeps
+     * the selection riding the loc, and Delete's handler latches the vacated
+     * tile itself. Switching tools never touches the selection at all.
+     */
+    app->need_redraw = 1;
 }
 
 /**
@@ -6694,6 +7048,497 @@ app_map_editor_world_click(
  * terrain nobody has seen yet. Draining here coalesces them, so a drag costs
  * one rebuild per square per frame however fast the mouse moves.
  */
+/** Forget the ghost WITHOUT removing it from the scene -- for the commit
+ *  click, whose real placement just replaced the ghost's element on the same
+ *  tile and layer. Removing would delete the loc that was just placed. */
+static void
+app_map_editor_ghost_forget(struct App* app)
+{
+    assert(app);
+    app->ghost_active = 0;
+    app->ghost_alpha_done = 0;
+    /* A commit chose to overwrite the displaced occupant; forgetting it too
+     * is what makes that choice stick instead of resurrecting the old loc
+     * over the one just placed. */
+    app->ghost_displaced_valid = 0;
+}
+
+/** Remove the ghost from the scene, put back whatever it displaced, forget. */
+static void
+app_map_editor_ghost_remove(struct App* app)
+{
+    assert(app);
+    if( !app->ghost_active )
+        return;
+    App_WorldLocChange(
+        app, app->ghost_x, app->ghost_z, app->ghost_level, -1, app->ghost_shape,
+        app->ghost_angle);
+    /* The slot the ghost sat in belonged to someone: restore them, or the
+     * hover reads as a deletion. Scene-only, like the ghost itself -- the
+     * document never knew about either. */
+    if( app->ghost_displaced_valid )
+        App_WorldLocChange(
+            app, app->ghost_x, app->ghost_z, app->ghost_level, app->ghost_displaced_loc_id,
+            app->ghost_displaced_shape, app->ghost_displaced_angle);
+    app_map_editor_ghost_forget(app);
+    app->need_redraw = 1;
+}
+
+/**
+ * Keep the Place-loc hover ghost current. Once per frame, with the other
+ * editor drains.
+ */
+static void
+app_map_editor_ghost_update(struct App* app)
+{
+    int want;
+    int id = -1;
+    int shape = 0;
+    int angle = 0;
+    int level;
+
+    assert(app);
+
+    if( !app->editor )
+        return;
+
+    /* Two tools ghost: Place previews the CATALOG pick, Move previews the
+     * SELECTED loc at the tile it would land on. Move skips the selection's
+     * own tile -- ghosting a loc onto itself replaces it with its own
+     * translucent double, which reads as flicker, not preview. */
+    {
+        struct Editor_Panel const* panel = &app->editor_panel;
+        int const hover_ok = app->world_hover_tile_x >= 0 &&
+                             !app->interact.minimenu.visible && !app->input_frame_consumed;
+
+        want = 0;
+        if( panel->visible && hover_ok && panel->tool == EDITOR_TOOL_LOC_PLACE &&
+            panel->cat_picked_id >= 0 &&
+            panel->cat_kind == CACHEPROVIDER_CATALOG_LOC )
+        {
+            want = 1;
+            id = panel->cat_picked_id;
+            Editor_PanelGhostSpec(&app->editor_panel, app, &shape, &angle);
+            level = Editor_PanelEditLevel(panel, app);
+        }
+        else if(
+            panel->visible && hover_ok && panel->tool == EDITOR_TOOL_LOC_MOVE &&
+            panel->sel_kind == EDITOR_SELECTION_LOC &&
+            !(app->world_hover_tile_x == panel->sel_scene_x &&
+              app->world_hover_tile_z == panel->sel_scene_z) )
+        {
+            want = 1;
+            id = panel->sel_loc_id;
+            shape = panel->sel_shape;
+            angle = panel->sel_angle;
+            /* A move keeps its plane; the Level row is for edits, not this. */
+            level = panel->sel_level;
+        }
+        else
+            level = Editor_PanelEditLevel(panel, app);
+    }
+
+    /* The ghost follows the hover; any change of tile, loc or pose is a
+     * remove + add. Same tile and spec: nothing to do but the alpha pass. */
+    if( app->ghost_active &&
+        (!want || app->ghost_x != app->world_hover_tile_x ||
+         app->ghost_z != app->world_hover_tile_z || app->ghost_level != level ||
+         app->ghost_loc_id != id || app->ghost_shape != shape || app->ghost_angle != angle) )
+        app_map_editor_ghost_remove(app);
+
+    if( want && !app->ghost_active )
+    {
+        /* Whoever holds this tile's slot in the ghost's layer is about to be
+         * replaced by the add below; remember them for the restore. Read
+         * BEFORE the add is queued -- the capture must see the pre-ghost
+         * scene. */
+        app->ghost_displaced_valid = 0;
+        if( app->world )
+        {
+            int const occ = World_SceneryFindAt(
+                app->world, app->world_hover_tile_x, app->world_hover_tile_z, level, shape);
+            if( occ >= 0 )
+            {
+                struct WorldEntity_Scenery const* occupant =
+                    World_EntityPoolGet(&app->world->entities.scenery, occ);
+                if( occupant )
+                {
+                    app->ghost_displaced_valid = 1;
+                    app->ghost_displaced_loc_id = occupant->loc_id;
+                    app->ghost_displaced_shape = occupant->shape;
+                    app->ghost_displaced_angle = occupant->angle;
+                }
+            }
+        }
+
+        App_WorldLocChange(
+            app, app->world_hover_tile_x, app->world_hover_tile_z, level, id, shape, angle);
+        app->ghost_active = 1;
+        app->ghost_x = app->world_hover_tile_x;
+        app->ghost_z = app->world_hover_tile_z;
+        app->ghost_level = level;
+        app->ghost_loc_id = id;
+        app->ghost_shape = shape;
+        app->ghost_angle = angle;
+        app->ghost_alpha_done = 0;
+        app->need_redraw = 1;
+    }
+
+    /* Translucency, once the async add has produced an element. Forcing the
+     * ELEMENT's model is safe because world elements own their model copies
+     * (Task_WorldLoad and ApplyLocChange both copy) -- a shared instance
+     * would ghost every placement of this loc on screen. */
+    if( app->ghost_active && !app->ghost_alpha_done && app->world && app->scene )
+    {
+        int const idx = World_SceneryFindAt(
+            app->world, app->ghost_x, app->ghost_z, app->ghost_level, app->ghost_shape);
+        if( idx >= 0 )
+        {
+            struct WorldEntity_Scenery* scenery =
+                World_EntityPoolGet(&app->world->entities.scenery, idx);
+            struct ToriDraw_SceneElement* element =
+                scenery && ToriDraw_SceneElementIsLive(app->scene, scenery->element_id)
+                    ? ToriDraw_SceneElementGet(app->scene, scenery->element_id)
+                    : NULL;
+            /* The handle is a tagged union; only a full model carries faces
+             * to fade (a sprite billboard has none). */
+            struct ToriDraw_Model* model =
+                element && element->model.kind == TORIDRAWMK_MODEL ? element->model.u.model.model
+                                                                   : NULL;
+
+            if( model && model->face_count > 0 )
+            {
+                /* RS face alpha: 0 opaque, higher more transparent. */
+                if( !model->face_alphas )
+                {
+                    model->face_alphas = malloc((size_t)model->face_count);
+                    assert(model->face_alphas);
+                }
+                memset(model->face_alphas, 150, (size_t)model->face_count);
+                app->ghost_alpha_done = 1;
+                app->need_redraw = 1;
+            }
+        }
+    }
+}
+
+/**
+ * Render the catalog's picked entry into its model-view well.
+ *
+ * Objs ride the inventory-icon pipeline unchanged. Locs have no equivalent --
+ * loc models are composed per shape by the world builder, privately -- so this
+ * picks the models for the DEFAULT shape (the catalog previews "what is this",
+ * not a placement) and rasterises the first through the same
+ * ModelFromToriRS -> light -> raster route the icons take. Models not resident
+ * yet are queued and retried: the updater latches its key only once a render
+ * lands, so a miss this frame is a retry next frame, not a permanent blank.
+ */
+/**
+ * Raster a preview model with the preview camera, fitting the zoom on demand.
+ *
+ * The fit reads the model's bounds cylinder and scales the raster distance so
+ * the larger dimension fills most of the well -- a candle and a castle gate
+ * both arrive framed, instead of one vanishing and the other cropping to a
+ * wall of pixels. The constant is calibrated against the obj-icon pipeline
+ * (zoom 2000 frames a typical item in ~30px) and clamped so a degenerate
+ * bounds cannot zoom to infinity.
+ */
+static struct ToriDraw_Sprite*
+app_preview_raster(struct App* app, struct ToriDraw_ModelHandle hnd)
+{
+    if( app->preview_fit_pending )
+    {
+        struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(hnd);
+        int size = 128;
+        if( bounds )
+        {
+            int const height = bounds->max_y - bounds->min_y;
+            size = 2 * bounds->radius > height ? 2 * bounds->radius : height;
+        }
+        app->preview_zoom = (size * 9) / 2;
+        if( app->preview_zoom < 500 )
+            app->preview_zoom = 500;
+        if( app->preview_zoom > 12000 )
+            app->preview_zoom = 12000;
+        app->preview_fit_pending = 0;
+    }
+    return ToriDraw_SpriteNewFromModelRaster(
+        app->scene, hnd, app->preview_zoom, app->preview_xan, app->preview_yan, 120, 96, false);
+}
+
+static void
+app_map_editor_preview_update(struct App* app)
+{
+    static int last_kind = -1;
+    static int last_id = -1;
+    struct Editor_Panel* panel = &app->editor_panel;
+    struct ToriDraw_Sprite* sprite = NULL;
+
+    assert(app);
+
+    if( !app->editor || !panel->visible || panel->cat_view < 0 )
+        return;
+    if( panel->cat_picked_id < 0 )
+    {
+        ToriRSChrome_ModelViewSet(&app->dbg_ui, panel->cat_view, 0);
+        last_kind = -1;
+        last_id = -1;
+        return;
+    }
+    if( app->preview_dirty )
+    {
+        /* A key moved the camera: re-render the same pick. */
+        app->preview_dirty = 0;
+        last_kind = -1;
+        last_id = -1;
+    }
+    if( panel->cat_kind == last_kind && panel->cat_picked_id == last_id )
+        return;
+    if( panel->cat_kind != last_kind || panel->cat_picked_id != last_id )
+    {
+        /* A NEW pick gets the default framing; a camera nudge does not. */
+        if( !app->preview_keep_camera )
+        {
+            app->preview_xan = 160;
+            app->preview_yan = 300;
+            app->preview_fit_pending = 1;
+        }
+        app->preview_keep_camera = 0;
+    }
+
+    if( panel->cat_kind == CACHEPROVIDER_CATALOG_OBJ )
+    {
+        int const scene_id =
+            UITreeSceneBridge_EnsureObjIcon(&app->bridge, panel->cat_picked_id, 1);
+        if( scene_id >= 0 )
+        {
+            ToriRSChrome_ModelViewSet(&app->dbg_ui, panel->cat_view, scene_id);
+            last_kind = panel->cat_kind;
+            last_id = panel->cat_picked_id;
+        }
+        else if( ObjModelLoad_NeedsWork(app->provider, panel->cat_picked_id, 1) )
+        {
+            int const ids[1] = { panel->cat_picked_id };
+            int const counts[1] = { 1 };
+            struct ToriRS_Task* task =
+                CreateTask_ObjModelLoad(app->provider, ids, counts, 1);
+            if( task )
+                ToriRS_TaskQueue_Add(app->runner.queue, task);
+        }
+        return;
+    }
+
+    if( panel->cat_kind == CACHEPROVIDER_CATALOG_LOC )
+    {
+        struct ToriRS_Location* cfg =
+            CacheProvider_LocationGet(app->provider, panel->cat_picked_id);
+        int model_id = -1;
+
+        if( !cfg )
+            return;
+        /* The default-shape model set: no shapes array means one set; with
+         * one, prefer the centrepiece (10) row, else the first row. */
+        if( cfg->shapes_and_model_count > 0 && cfg->models && cfg->lengths )
+        {
+            int row = 0;
+            if( cfg->shapes )
+                for( int i = 0; i < cfg->shapes_and_model_count; i++ )
+                    if( cfg->shapes[i] == RSCACHE_LOC_SHAPE_SCENERY )
+                    {
+                        row = i;
+                        break;
+                    }
+            if( cfg->lengths[row] > 0 )
+                model_id = cfg->models[row][0];
+        }
+        if( model_id <= 0 )
+        {
+            ToriRSChrome_ModelViewSet(&app->dbg_ui, panel->cat_view, 0);
+            last_kind = panel->cat_kind;
+            last_id = panel->cat_picked_id;
+            return;
+        }
+
+        if( !CacheProvider_ModelHas(app->provider, model_id) )
+        {
+            struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, model_id);
+            if( task )
+                ToriRS_TaskQueue_Add(app->runner.queue, task);
+            return; /* retry next frame once it lands */
+        }
+
+        {
+            struct ToriRS_Model* rs_model = CacheProvider_ModelGet(app->provider, model_id);
+            struct ToriDraw_Model* model;
+            struct ToriDraw_ModelHandle hnd;
+
+            assert(rs_model);
+            model = ToriDraw_ModelFromToriRS(rs_model);
+            assert(model);
+            for( int i = 0; i < cfg->recolor_count; i++ )
+                ToriDraw_ModelRecolor(model, cfg->recolors_from[i], cfg->recolors_to[i]);
+            ToriDraw_ModelSetBoundsCylinder(model);
+            ToriDraw_ModelDropNonSdTextures(app->provider, model);
+            memset(&hnd, 0, sizeof(hnd));
+            hnd.kind = TORIDRAWMK_MODEL;
+            hnd.u.model.model = model;
+            ToriDraw_LightModelScene(hnd, cfg->contrast, cfg->ambient);
+            sprite = app_preview_raster(app, hnd);
+            ToriDraw_ModelFree(model);
+        }
+
+        if( sprite )
+        {
+            struct ToriDraw_Sprite** sprites = malloc(sizeof(*sprites));
+            assert(sprites);
+            sprites[0] = sprite;
+            /* One well, re-rendered per pick: the old sprite goes with the
+             * old registration. The scene owns what it holds. */
+            if( ToriDraw_SceneSpriteHas(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID) )
+                ToriDraw_SceneSpriteRemove(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID);
+            ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID, sprites, 1);
+            ToriRSChrome_ModelViewSet(
+                &app->dbg_ui, panel->cat_view, UITREE_SCENE_EDITOR_PREVIEW_ID);
+            last_kind = panel->cat_kind;
+            last_id = panel->cat_picked_id;
+        }
+        return;
+    }
+
+    if( panel->cat_kind == CACHEPROVIDER_CATALOG_NPC )
+    {
+        struct ToriRS_Npctype* npc = CacheProvider_NpctypeGet(app->provider, panel->cat_picked_id);
+        int missing = 0;
+
+        if( !npc || npc->models_count <= 0 )
+        {
+            ToriRSChrome_ModelViewSet(&app->dbg_ui, panel->cat_view, 0);
+            last_kind = panel->cat_kind;
+            last_id = panel->cat_picked_id;
+            return;
+        }
+        for( int i = 0; i < npc->models_count; i++ )
+            if( npc->models[i] > 0 && !CacheProvider_ModelHas(app->provider, npc->models[i]) )
+            {
+                struct ToriRS_Task* task = CreateTask_ModelLoad(app->provider, npc->models[i]);
+                if( task )
+                    ToriRS_TaskQueue_Add(app->runner.queue, task);
+                missing = 1;
+            }
+        if( missing )
+            return; /* retry once the parts land */
+
+        {
+            /* An npc body is its PARTS MERGED -- QBD is two models, and a
+             * first-part-only render shows a torso and reads as corruption.
+             * Merge exactly as the entity path does, then raster the merge. */
+            struct ToriDraw_Model* parts[16];
+            struct ToriDraw_Model* merged = NULL;
+            struct ToriDraw_ModelHandle hnd;
+            int part_count = 0;
+
+            for( int i = 0; i < npc->models_count && part_count < 16; i++ )
+            {
+                struct ToriRS_Model* rs =
+                    npc->models[i] > 0 ? CacheProvider_ModelGet(app->provider, npc->models[i])
+                                       : NULL;
+                if( !rs )
+                    continue;
+                parts[part_count] = ToriDraw_ModelFromToriRS(rs);
+                assert(parts[part_count]);
+                part_count++;
+            }
+            if( part_count == 0 )
+            {
+                ToriRSChrome_ModelViewSet(&app->dbg_ui, panel->cat_view, 0);
+                last_kind = panel->cat_kind;
+                last_id = panel->cat_picked_id;
+                return;
+            }
+            merged = part_count == 1 ? parts[0] : ToriDraw_ModelNewMerge(parts, part_count);
+            assert(merged);
+            for( int i = 0; i < npc->recolor_count; i++ )
+                ToriDraw_ModelRecolor(merged, npc->recolors_from[i], npc->recolors_to[i]);
+            ToriDraw_ModelSetBoundsCylinder(merged);
+            ToriDraw_ModelDropNonSdTextures(app->provider, merged);
+            memset(&hnd, 0, sizeof(hnd));
+            hnd.kind = TORIDRAWMK_MODEL;
+            hnd.u.model.model = merged;
+            ToriDraw_LightModelScene(hnd, npc->contrast, npc->ambient);
+            sprite = app_preview_raster(app, hnd);
+            if( part_count > 1 )
+                for( int i = 0; i < part_count; i++ )
+                    ToriDraw_ModelFree(parts[i]);
+            ToriDraw_ModelFree(merged);
+        }
+
+        if( sprite )
+        {
+            struct ToriDraw_Sprite** sprites = malloc(sizeof(*sprites));
+            assert(sprites);
+            sprites[0] = sprite;
+            if( ToriDraw_SceneSpriteHas(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID) )
+                ToriDraw_SceneSpriteRemove(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID);
+            ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID, sprites, 1);
+            ToriRSChrome_ModelViewSet(
+                &app->dbg_ui, panel->cat_view, UITREE_SCENE_EDITOR_PREVIEW_ID);
+            last_kind = panel->cat_kind;
+            last_id = panel->cat_picked_id;
+        }
+        return;
+    }
+
+    ToriRSChrome_ModelViewSet(&app->dbg_ui, panel->cat_view, 0);
+    last_kind = panel->cat_kind;
+    last_id = panel->cat_picked_id;
+}
+
+static void
+app_world_spawn_npc(struct App* app, int tile_x, int tile_z, int level, char const* args);
+static void
+app_world_spawn_obj(struct App* app, int tile_x, int tile_z, int level, char const* args);
+
+void
+App_EditorPlaceSpawn(
+    struct App* app,
+    int is_obj,
+    int id,
+    int scene_x,
+    int scene_z,
+    int level)
+{
+    char args[32];
+
+    assert(app);
+
+    snprintf(args, sizeof(args), "id=%d", id);
+    if( is_obj )
+        app_world_spawn_obj(app, scene_x, scene_z, level, args);
+    else
+        app_world_spawn_npc(app, scene_x, scene_z, level, args);
+}
+
+/** Start a load the square browser asked for. Runs on the frame boundary with
+ *  the other editor drains, so a panel click never loads a world mid-tick. */
+static void
+app_map_editor_open_pending_square(struct App* app)
+{
+    int chunks[2];
+
+    assert(app);
+
+    if( !app->editor || !app->editor_panel.sq_open_pending )
+        return;
+    app->editor_panel.sq_open_pending = 0;
+    if( app->world_load_inflight )
+        return;
+
+    chunks[0] = app->editor_panel.sq_open_x;
+    chunks[1] = app->editor_panel.sq_open_z;
+    fprintf(stderr, "editor: opening m%d_%d\n", chunks[0], chunks[1]);
+    app_world_load_begin(app, chunks, 1);
+}
+
 static void
 app_map_editor_drain(struct App* app)
 {
@@ -6760,12 +7605,39 @@ App_WorldLoadFinish(struct App* app)
         }
         if( !server_driven )
         {
-            /* Offline/hotkey load: place the camera at scene centre. */
-            app->world_camera_pos.x = app->world->_scene_size / 2 * 128 + 64;
-            app->world_camera_pos.z = app->world->_scene_size / 2 * 128 + 64;
-            app->world_camera_pos.y = -2000;
-            app->world_camera.pitch = 450;
-            app->world_camera.yaw = 0;
+            int restored = 0;
+
+            /* A held camera wins over the first-look placement, IF the new
+             * scene contains it. Outside the scene (the square browser opened
+             * somewhere distant) the hold is meaningless and the first-look
+             * centre below is correct. */
+            if( app->cam_keep_valid )
+            {
+                int const sx = app->cam_keep_abs_x - app->world->_base_tile_x * 128;
+                int const sz = app->cam_keep_abs_z - app->world->_base_tile_z * 128;
+                int const max = app->world->_scene_size * 128;
+
+                app->cam_keep_valid = 0;
+                if( sx >= 0 && sx < max && sz >= 0 && sz < max )
+                {
+                    app->world_camera_pos.x = sx;
+                    app->world_camera_pos.z = sz;
+                    app->world_camera_pos.y = app->cam_keep_y;
+                    app->world_camera.pitch = app->cam_keep_pitch;
+                    app->world_camera.yaw = app->cam_keep_yaw;
+                    restored = 1;
+                }
+            }
+
+            if( !restored )
+            {
+                /* Offline/hotkey load: place the camera at scene centre. */
+                app->world_camera_pos.x = app->world->_scene_size / 2 * 128 + 64;
+                app->world_camera_pos.z = app->world->_scene_size / 2 * 128 + 64;
+                app->world_camera_pos.y = -2000;
+                app->world_camera.pitch = 450;
+                app->world_camera.yaw = 0;
+            }
             {
                 char const* cam = getenv("TORIRS_WORLD_CAM");
                 int cx, cy, cz, cpitch, cyaw;
@@ -11587,8 +12459,10 @@ app_world_camera_keys(
     if( !app->world_active || !app->world_view_valid )
         return;
     /* Suppressed while any text input has focus (the chat line, a modal
-     * prompt, a panel's search box), so typing never flies the camera. */
-    if( app_text_input_focused(app) )
+     * prompt, a panel's search box), so typing never flies the camera -- and
+     * while the catalog's model view holds focus, whose WASD/EF orbit the
+     * preview, not the world. */
+    if( app_text_input_focused(app) || app_modelview_focused(app) )
         return;
     (void)out;
 
@@ -11935,6 +12809,13 @@ app_world_camera_mouse(
      * scroll layer is pass-through. */
     if( app->world_emit_desc.world_wheel_zoom && input->curr.mouse_wheel_y != 0 &&
         !out->wheel_consumed && !app->interact.minimenu.visible &&
+        /* The chrome's claim is checked HERE, not inferred from consumed
+         * flags: this runs long after the overlay handled input, when
+         * input_frame_consumed is 1 on every frame. A wheel over a panel or
+         * an open dropdown belongs to the chrome even when the chrome had
+         * nothing to do with it -- consumed into nothing beats zooming the
+         * world behind a panel. */
+        !ToriRSChrome_WantsWheel(&app->dbg_ui, mouse_x, mouse_y) &&
         app_world_mouse_gate(app, mouse_x, mouse_y) )
     {
         if( follow_cam )
@@ -15963,6 +16844,7 @@ app_hover_text_update(
                 .click_in_world = click_in_world != 0,
                 .locedit_active = app->locedit_visible != 0,
                 .mapedit_select_active = app_mapedit_select_active(app),
+            .mapedit_delete_active = app_mapedit_delete_active(app),
             };
             UIMinimenu_Reset(&scratch);
             scratch.font_id = app->hover_text.font_id;
@@ -16055,6 +16937,7 @@ app_minimenu_open(
         .click_in_world = click_in_world != 0,
         .locedit_active = app->locedit_visible != 0,
         .mapedit_select_active = app_mapedit_select_active(app),
+            .mapedit_delete_active = app_mapedit_delete_active(app),
     };
     struct UIMinimenu* menu = &app->interact.minimenu;
     struct UIMinimenuLayout layout;
@@ -16526,6 +17409,7 @@ app_run_default_ui_row(
         .click_in_world = false,
         .locedit_active = app->locedit_visible != 0,
         .mapedit_select_active = app_mapedit_select_active(app),
+            .mapedit_delete_active = app_mapedit_delete_active(app),
     };
     struct UIMinimenu scratch;
     int default_idx;
@@ -17126,6 +18010,13 @@ app_minimenu_run_option(
     {
         if( app_mapedit_select_active(app) )
             Editor_PanelSelectLoc(&app->editor_panel, app, opt.pick.id);
+        return 0; /* handled locally; no CS2 task was dispatched */
+    }
+
+    if( opt.action == RS_MINIMENU_ACTION_MAPEDIT_DELETE )
+    {
+        if( app_mapedit_delete_active(app) )
+            Editor_PanelDeleteLocByElement(&app->editor_panel, app, opt.pick.id);
         return 0; /* handled locally; no CS2 task was dispatched */
     }
 
@@ -18246,6 +19137,9 @@ App_RunOnce(
     {
         Editor_PanelTick(&app->editor_panel, app);
         app_map_editor_world_click(app, input);
+        app_map_editor_ghost_update(app);
+        app_map_editor_preview_update(app);
+        app_map_editor_open_pending_square(app);
         app_map_editor_drain(app);
     }
 
@@ -18573,6 +19467,7 @@ App_RunOnce(
             .selection = app_minimenu_selection(app),
             .locedit_active = app->locedit_visible != 0,
             .mapedit_select_active = app_mapedit_select_active(app),
+            .mapedit_delete_active = app_mapedit_delete_active(app),
         };
         struct UIMinimenu scratch;
         int default_idx;
@@ -18696,6 +19591,7 @@ App_RunOnce(
             .selection = app_minimenu_selection(app),
             .locedit_active = app->locedit_visible != 0,
             .mapedit_select_active = app_mapedit_select_active(app),
+            .mapedit_delete_active = app_mapedit_delete_active(app),
         };
         struct UIMinimenu scratch;
         int default_idx;

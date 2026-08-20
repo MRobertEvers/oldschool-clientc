@@ -81,31 +81,52 @@ enum ToriDbgFontSlot
     TORIDBG_FONT_SLOT_COUNT = 3
 };
 
-/** Pixel width of a NUL-terminated string in `font_slot`, from the baked
- *  advance tables. Plain bytes only — no markup tokens. */
+/**
+ * Integer chrome zoom. 1 is the baked fonts' native size; higher scales
+ * multiply every metric and glyph, so the layout reflows rather than blurs.
+ *
+ * The upper bound is what the BAKE carries, not a taste: fontbake wrote
+ * Small/Body/Menu at @2 and @3 (src/engine/torirs_debug_font_baked.h), and a
+ * scale with no font behind it would lay rows out at a size nothing can draw.
+ * Raising it means baking that size first, in the one fontbake run that writes
+ * both generated files.
+ *
+ * Integer only, and that is the renderer's property rather than a shortcut:
+ * the glyph blitter tests a mask byte for non-zero instead of blending it
+ * (toridraw_font.c), so there is no half-covered pixel for a 1.5x glyph to
+ * resample onto. A display at 1.5x picks the nearer baked size; nothing is
+ * ever stretched, which is the whole point of authoring the sizes.
+ */
+#define TORIDBG_SCALE_MIN 1
+#define TORIDBG_SCALE_MAX 3
+
+/** Pixel width of a NUL-terminated string in `font_slot` at `scale`, from the
+ *  baked advance tables. Plain bytes only — no markup tokens. */
 int
-ToriRSChrome_MeasureText(int font_slot, char const* text);
+ToriRSChrome_MeasureText(int font_slot, int scale, char const* text);
 
 /** Baseline offset from the top of a line box (the font's ascent). */
 int
-ToriRSChrome_FontLineHeight(int font_slot);
+ToriRSChrome_FontLineHeight(int font_slot, int scale);
 
 /** Row pitch for `font_slot` (the tallest glyph's bottom edge). */
 int
-ToriRSChrome_FontLineBox(int font_slot);
+ToriRSChrome_FontLineBox(int font_slot, int scale);
 
 enum ToriDbgPrimKind
 {
     TORIDBG_PRIM_RECT = 0,
     TORIDBG_PRIM_TEXT,
     /**
-     * One blit of a baked skin image at its native size.
+     * One blit of a baked skin image, into `w` x `h` or at its native size
+     * when those are 0.
      *
-     * Native size, not a stretched destination rect, and one prim per copy:
-     * tiling a parchment across a panel is a loop up here rather than a repeat
-     * mode down in the renderer, which keeps the render layer's sprite command
-     * exactly the plain blit it already was. The cost is prims, which the
-     * clip rect bounds anyway -- a panel is a handful of tiles.
+     * Tiling is still a loop up here rather than a repeat mode down in the
+     * renderer -- a parchment is a handful of native-size copies, and the clip
+     * rect bounds the count. The destination box exists for the other case:
+     * chrome authored at 1x and drawn at 2x or 3x, and the scrollbar grip,
+     * whose middle piece is one 16x5 image stretched over the run between its
+     * two caps exactly as ~script31 stretches it.
      */
     TORIDBG_PRIM_SPRITE,
 };
@@ -123,8 +144,25 @@ enum ToriDbgSkinSlot
 {
     /** Tiled behind a window panel's content. */
     TORIDBG_SKIN_PANEL_BODY = 0,
+    /**
+     * The six pieces of the reference scrollbar, in the order ~script31 builds
+     * them: two 16x16 arrow buttons, a track, and a three-part grip whose
+     * middle stretches between two fixed caps.
+     *
+     * Six sprites and not one nine-slice because that is how the cache ships
+     * it -- the bar the game draws beside every CS2 list is exactly these
+     * images at exactly these sizes, so a bar assembled from them is the same
+     * bar rather than a drawing of one.
+     */
     TORIDBG_SKIN_SCROLL_UP,
     TORIDBG_SKIN_SCROLL_DOWN,
+    TORIDBG_SKIN_SCROLL_TRACK,
+    TORIDBG_SKIN_SCROLL_GRIP_TOP,
+    TORIDBG_SKIN_SCROLL_GRIP_MID,
+    TORIDBG_SKIN_SCROLL_GRIP_BOTTOM,
+    /** Tiled behind an open dropdown list. A *different* tile from the panel
+     *  body -- the cache backs the floating list with its own, lighter one. */
+    TORIDBG_SKIN_DROPDOWN_BODY,
     TORIDBG_SKIN_SLOT_COUNT
 };
 
@@ -164,6 +202,18 @@ struct ToriDbgPrim
     char const* text;
     /** enum ToriDbgSkinSlot. SPRITE only. */
     int sprite_slot;
+    /** SPRITE: a scene sprite id to draw INSTEAD of the skin slot -- the
+     *  model-view widget's rendered preview. 0 = use the skin mapping. */
+    int sprite_scene_id;
+    /**
+     * RECT/SPRITE: the client's transparency, 0 opaque .. 255 invisible.
+     *
+     * The reference's sense, not an alpha, because the values here are lifted
+     * from the scripts that draw the real widget -- the dropdown's row bands
+     * are `cc_settrans(220)` and `cc_settrans(200)` -- and a field that reads
+     * the other way round would have every one of them written backwards.
+     */
+    int trans;
     /** Scissor box. Panel content is clipped to the panel's inner rect. */
     struct ToriDbgRect clip;
 };
@@ -189,6 +239,56 @@ struct ToriDbgTheme
     uint32_t menu_text;
     uint32_t menu_hover_text;
     uint32_t separator;
+
+    /* ---- dropdowns, as the cache's own CS2 dropdown draws them -----------
+     *
+     * Every value below is read off script_3850 (the closed button) and
+     * script_9114 (the open list), the two scripts that build every dropdown
+     * on the settings page. They are theme keys rather than constants so the
+     * flat developer look can stay flat, but the osrs theme is a transcript:
+     * a tiled body under a black outline and a grey inset, an arrow sprite on
+     * the LEFT, orange shadowed text, and rows that are black veils at
+     * alternating transparency with a lighter veil under the cursor.
+     */
+
+    /** Outer 1px frame of the closed button (`cc_setcolour(0x0e0e0c)`). */
+    uint32_t dropdown_border;
+    /** The 1px inset inside it (`cc_setcolour(0x474745)`), which is what makes
+     *  the button read as sunk rather than as a plain outlined box. */
+    uint32_t dropdown_border_inner;
+    /** Button and row text (`0xff981f`). */
+    uint32_t dropdown_text;
+    /** The colour every veil is drawn in: the row bands, and the one the
+     *  closed button wears while hovered. Black in the reference. */
+    uint32_t dropdown_veil;
+    /**
+     * Transparency of the two alternating row bands, and of a hovered row.
+     *
+     * 220 / 200 / 240 in the reference -- note the hover value is the LARGEST,
+     * so the row under the cursor is the one wearing the *thinnest* veil. The
+     * highlight is the background showing through, not a colour laid on top.
+     */
+    int dropdown_band_trans;
+    int dropdown_band_trans_alt;
+    int dropdown_row_trans_hover;
+    /** Veil over the closed button while the cursor is on it (220). */
+    int dropdown_hover_trans;
+
+    /* ---- scrollbars -----------------------------------------------------
+     *
+     * The four colours the client fills an IF1 scrollbar with -- the same
+     * values as UITREE_SCROLLBAR_TRACK/GRIP/GRIP_HI/GRIP_LO_ARGB, which this
+     * module cannot include (it has no dependencies; see the header note).
+     * They are the bar's *flat* form: with the baked skin present the bar is
+     * assembled from the CS2 sprites instead and these are not read at all.
+     * Both themes carry the client's values, because a scrollbar is chrome
+     * rather than palette -- the flat look is a different panel, not a
+     * different scrollbar.
+     */
+    uint32_t scroll_track;
+    uint32_t scroll_grip;
+    uint32_t scroll_grip_hi;
+    uint32_t scroll_grip_lo;
 
     /**
      * Draw every string with the 1px black drop shadow, not just the menu rows
@@ -225,6 +325,17 @@ struct ToriDbgTheme
      * optional rather than load-bearing.
      */
     int skin_panel_body;
+
+    /**
+     * Draw dropdowns and their scrollbars from the baked skin rather than as
+     * flat boxes.
+     *
+     * Separate from skin_panel_body because the two fail independently: a bake
+     * carrying the panel parchment and no scrollbar pieces must still draw a
+     * usable bar. As with skin_panel_body, off is the flat look and also the
+     * automatic fallback -- each draw checks the slot it is about to use.
+     */
+    int skin_dropdown;
 };
 
 /** The flat developer look: grey chrome, no shadows, no sprites. */
@@ -234,9 +345,9 @@ extern struct ToriDbgTheme const toridbg_theme_default;
  * The reference interface palette.
  *
  * Every value here is a colour the game itself uses -- the minimenu's body
- * brown, its black chrome strips and yellow hover, and the orange the
- * interfaces title headings with -- so a panel drawn in this theme and a real
- * game widget on screen together read as one system rather than two. Paired
+ * brown, its black chrome strips, its yellow hover and the brown-on-black it
+ * titles with -- so a panel drawn in this theme and a real game widget on
+ * screen together read as one system rather than two. Paired
  * with a baked skin (struct ToriDbgSkin) it gets the sprite art as well; on its
  * own it is already the right colours in the right places, which is most of
  * what makes chrome look like it belongs.
@@ -247,6 +358,14 @@ enum ToriDbgPanelStyle
 {
     /** Bordered background with a title bar. */
     TORIDBG_PANEL_WINDOW = 0,
+    /**
+     * A horizontal strip of menu titles across the top of the screen -- the
+     * File/Edit bar. Its widgets lay out left to right in one row instead of
+     * stacking, and the intended child is a menu-mode dropdown
+     * (ToriRSChrome_MenuDrop): the title is the whole closed state, and the
+     * option list opens beneath it as the menu.
+     */
+    TORIDBG_PANEL_MENUBAR = 2,
     /**
      * The minimenu's chrome: body fill, black title bar, black separator and
      * side/bottom border strips, shadowed rows that go accent-coloured on
@@ -271,6 +390,13 @@ enum ToriDbgWidgetKind
      * shared rather than per-widget.
      */
     TORIDBG_W_DROPDOWN,
+    /**
+     * A rendered model preview: draws one scene sprite the HOST rendered and
+     * registered (a model rasterised through the same pipeline as inventory
+     * icons). The chrome stays a non-rasteriser -- it draws a handle, and
+     * which pixels that handle holds is the host's business.
+     */
+    TORIDBG_W_MODELVIEW,
 };
 
 /** Rows the open dropdown list shows at once; longer lists scroll. Chosen so a
@@ -323,6 +449,21 @@ struct ToriDbgWidget
     int option_count;
     /** Index into `options`, or -1 for "nothing chosen". */
     int selected;
+    /** MODELVIEW: the box size and the host-rendered scene sprite (0 none). */
+    int view_w;
+    int view_h;
+    int view_scene_id;
+    /**
+     * Dropdown-as-menu: the closed state is just the label, opening clears
+     * `selected` so choosing the same row twice still reads as a fresh choice,
+     * and the caller treats each activation as a command rather than a value.
+     */
+    int menu_mode;
+    /** Skipped by layout, drawing and hit testing. For panels whose row set
+     *  depends on state -- the tool panel shows only the active tool's
+     *  inputs -- so the alternative to this flag is rebuilding the panel's
+     *  widgets every switch, which invalidates every held handle. */
+    int hidden;
     /** First visible row while the list is open. */
     int scroll;
 };
@@ -331,10 +472,38 @@ struct ToriDbgPanel
 {
     int style;
     int visible;
+    /**
+     * Draw a resize grip in the bottom-right corner and let it be dragged.
+     *
+     * Both axes. The origin stays put and the dragged corner follows the
+     * cursor, so a resize never moves the panel.
+     *
+     * A hand-set height overrides content sizing, and there is no scrolling
+     * here: rows that fall past the bottom are DROPPED -- not drawn, and not
+     * clickable either (dbg_build_window zeroes their hit boxes, so a panel
+     * cannot take clicks on rows nobody can see). Shrinking a panel therefore
+     * hides controls until it is grown back, which is the honest behaviour
+     * available without a scroll offset, and the thing to revisit if these
+     * panels ever get one.
+     */
+    int resizable;
+    /**
+     * Table layout: every labelled control in this panel starts its box at one
+     * shared column, sized to the panel's widest label. Off, each row's box
+     * starts right after its own label, which reads as a ragged pile the
+     * moment two labels differ in width -- "Tool" and "LocRot" gave every
+     * dropdown its own left edge.
+     */
+    int table;
+    /** Resolved by Build: the shared label column width, 0 when not a table
+     *  or no row carries a label. */
+    int label_col;
     int x;
     int y;
-    /** 0 = size to content. */
+    /** 0 = size to content. A grip drag writes the width it lands on here. */
     int fixed_w;
+    /** 0 = size to content. A grip drag writes the height it lands on here. */
+    int fixed_h;
     /** Resolved by Build. */
     int w;
     int h;
@@ -349,6 +518,9 @@ struct ToriDbgPanel
 struct ToriRSChrome
 {
     struct ToriDbgTheme theme;
+    /** Integer chrome zoom, TORIDBG_SCALE_MIN..MAX. Every layout metric and
+     *  glyph multiplies by it; Init sets 1. */
+    int scale;
     struct ToriDbgPanel panels[TORIDBG_MAX_PANELS];
     int panel_count;
     struct ToriDbgWidget widgets[TORIDBG_MAX_WIDGETS];
@@ -375,6 +547,29 @@ struct ToriRSChrome
     int dirty;
     /** Caret phase for the focused text input; the app drives the blink. */
     int caret_visible;
+    /**
+     * Panel being dragged by its header, or -1.
+     *
+     * Held as a panel handle rather than a pointer because the panel array is
+     * the stable thing here -- and the grab offset is stored, not recomputed,
+     * so the panel keeps the exact point it was picked up by instead of
+     * snapping its corner to the cursor on the first move.
+     */
+    int drag_panel;
+    int drag_grab_x;
+    int drag_grab_y;
+
+    /**
+     * Panel being resized by its grip, or -1.
+     *
+     * The two grabs are offsets from the CORNER being dragged, not from the
+     * origin -- held, not recomputed, for the same reason the drag holds its
+     * offset: recomputing snaps the corner to the cursor on the first move.
+     */
+    int resize_panel;
+    int resize_grab_x;
+    int resize_grab_y;
+
     /** Widget handles, -1 for none. */
     int focus;
     int hover;
@@ -395,6 +590,16 @@ struct ToriRSChrome
     /** Row of the open list under the pointer, or -1. List-local, not a widget
      *  handle: the rows are not widgets, they are a view on `options`. */
     int dropdown_hover_row;
+    /**
+     * Non-zero while the open list's scrollbar grip is being dragged.
+     *
+     * Held with the grab offset -- the pixels from the top of the grip to the
+     * point it was picked up by -- for the same reason the panel drag holds
+     * one: recomputing it every move snaps the grip's top to the cursor, which
+     * reads as the list jumping the moment you touch the bar.
+     */
+    int dropdown_scroll_drag;
+    int dropdown_scroll_grab;
     /** Set by Build when a capacity limit truncated the display list. */
     int overflow;
     /** Union of what changed since the last DamageClear. w/h 0 = nothing. */
@@ -403,9 +608,29 @@ struct ToriRSChrome
 
 /* ---- lifecycle ---------------------------------------------------------- */
 
-/** Zero the model and install toridbg_theme_default. No allocation. */
+/** Zero the model, install the default theme and set scale 1. No allocation. */
 void
 ToriRSChrome_Init(struct ToriRSChrome* ui);
+
+/**
+ * Set the device pixels per chrome pixel: TORIDBG_SCALE_MIN..TORIDBG_SCALE_MAX.
+ *
+ * A relayout, not a transform: every panel is remeasured against the fonts
+ * baked at that size, so rows grow with the text in them instead of text
+ * overflowing boxes sized for a smaller face. Panel ORIGINS are left alone --
+ * whoever placed a panel knows whether it meant a device pixel or a chrome
+ * one, and this module does not.
+ *
+ * The host must map the font slots onto the same scale's baked fonts or the
+ * layout and the glyphs disagree; UITreeSceneBridge_EnsureDebugFont takes the
+ * scale for exactly that reason.
+ */
+void
+ToriRSChrome_SetScale(struct ToriRSChrome* ui, int scale);
+
+/** Device pixels per chrome pixel. */
+int
+ToriRSChrome_Scale(struct ToriRSChrome const* ui);
 
 /** Drop every panel and widget. The theme survives; the vacated area is damaged. */
 void
@@ -428,6 +653,27 @@ ToriRSChrome_PanelMove(struct ToriRSChrome* ui, int panel, int x, int y);
 
 void
 ToriRSChrome_PanelSetVisible(struct ToriRSChrome* ui, int panel, int visible);
+
+/**
+ * Give a window panel a resize grip in its bottom-right corner.
+ *
+ * Window panels only -- a menu panel is a popup sized to its rows, with
+ * nothing a hand-set size would mean. @see ToriDbgPanel::resizable for what
+ * happens to rows a shrunk panel no longer has room for.
+ */
+void
+ToriRSChrome_PanelSetResizable(struct ToriRSChrome* ui, int panel, int resizable);
+
+/**
+ * Set a panel's hand-picked width, or 0 to go back to sizing from content.
+ *
+ * The counterpart to the `fixed_w` PanelAdd takes: a width authored in chrome
+ * pixels stops being right the moment the scale changes, and a panel that
+ * cannot be re-widened keeps a 1x column around a 2x row -- which draws as
+ * text cut off mid-word, the exact symptom of a UI that was scaled halfway.
+ */
+void
+ToriRSChrome_PanelSetFixedWidth(struct ToriRSChrome* ui, int panel, int width);
 
 /** Resolved bounds of a panel as of the last Build. 0 when unknown. */
 struct ToriDbgRect
@@ -484,6 +730,55 @@ ToriRSChrome_Separator(struct ToriRSChrome* ui, int panel);
 
 int
 ToriRSChrome_MenuItem(struct ToriRSChrome* ui, int panel, char const* text);
+
+/**
+ * A menu title for a MENUBAR panel: a dropdown in menu mode.
+ *
+ * Activation fires when a row of the opened list is chosen;
+ * ToriRSChrome_DropdownSelected then says which row, and the caller runs the
+ * command it maps to. The selection is not a value -- it is cleared on every
+ * open -- which is the difference between a menu and a picker.
+ */
+int
+ToriRSChrome_MenuDrop(
+    struct ToriRSChrome* ui,
+    int panel,
+    char const* title,
+    char const* const* options,
+    int option_count);
+
+/** Show or hide one widget. Hidden widgets take no space, draw nothing and hit
+ *  nothing; the handle stays valid throughout. */
+void
+ToriRSChrome_SetHidden(struct ToriRSChrome* ui, int widget, int hidden);
+
+/** Turn table layout on or off for a panel; see ToriDbgPanel::table. */
+void
+ToriRSChrome_PanelSetTable(struct ToriRSChrome* ui, int panel, int table);
+
+/** A model-view box of w x h chrome pixels. Draws nothing until the host
+ *  hands it a rendered sprite via ToriRSChrome_ModelViewSet. */
+int
+ToriRSChrome_ModelView(struct ToriRSChrome* ui, int panel, int w, int h);
+
+/** Point a model view at a scene sprite id the host registered (0 = clear).
+ *  The widget draws the sprite at its native size, centred in the box. */
+void
+ToriRSChrome_ModelViewSet(struct ToriRSChrome* ui, int widget, int scene_sprite_id);
+
+/**
+ * Would a wheel event at (x, y) belong to the chrome?
+ *
+ * True over any visible panel and over the open dropdown popup (which extends
+ * beyond its panel). Const and side-effect free, so the CALLER's wheel gate
+ * can ask it: the camera-zoom path runs long after the chrome handled input
+ * this frame, and this probe is what keeps a wheel over a panel from also
+ * zooming the world behind it -- the chrome may consume the event and do
+ * nothing with it, and "consumed into nothing" over a panel is correct where
+ * "fell through to the camera" is not.
+ */
+int
+ToriRSChrome_WantsWheel(struct ToriRSChrome const* ui, int x, int y);
 
 /* ---- mutation (compare-then-set; a no-op change does not dirty) ---------- */
 

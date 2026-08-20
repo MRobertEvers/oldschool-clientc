@@ -2365,6 +2365,66 @@ CacheProvider_LocationAdd(
     entry->location = location;
 }
 
+int
+CacheProvider_VisitLoaded(
+    struct CacheProvider* provider,
+    enum CacheProvider_CatalogKind kind,
+    CacheProvider_CatalogVisitFn visit,
+    void* user)
+{
+    struct HMapIter* iter;
+    void* raw;
+    int count = 0;
+
+    assert(provider);
+    assert(visit);
+
+    switch( kind )
+    {
+    case CACHEPROVIDER_CATALOG_LOC:
+        iter = hmap_iter_new(provider->location_cache);
+        while( (raw = hmap_iter_next(iter)) )
+        {
+            struct MapEntry_ProviderLocation const* e = raw;
+            if( !e->location )
+                continue;
+            visit(user, e->id, e->location->name);
+            count++;
+        }
+        hmap_iter_free(iter);
+        return count;
+
+    case CACHEPROVIDER_CATALOG_NPC:
+        iter = hmap_iter_new(provider->npctype_cache);
+        while( (raw = hmap_iter_next(iter)) )
+        {
+            struct MapEntry_ProviderNpctype const* e = raw;
+            if( !e->npctype )
+                continue;
+            visit(user, e->id, e->npctype->name);
+            count++;
+        }
+        hmap_iter_free(iter);
+        return count;
+
+    case CACHEPROVIDER_CATALOG_OBJ:
+        iter = hmap_iter_new(provider->objtype_cache);
+        while( (raw = hmap_iter_next(iter)) )
+        {
+            struct MapEntry_ProviderObjtype const* e = raw;
+            if( !e->objtype )
+                continue;
+            visit(user, e->id, e->objtype->name);
+            count++;
+        }
+        hmap_iter_free(iter);
+        return count;
+    }
+
+    assert(0 && "unknown catalog kind");
+    return 0;
+}
+
 struct ToriRS_Location*
 CacheProvider_LocationGet(
     struct CacheProvider* provider,

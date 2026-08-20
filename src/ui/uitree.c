@@ -1591,6 +1591,29 @@ uitree_id_index_note_removed(struct UITree* tree, int32_t idx)
  * folds the new id in so the map stays usable — otherwise the bump alone leaves
  * it stale and the next lookup rebuilds. Must be called after component_id and
  * `dynamic` are both set, since the tie-break reads both. */
+
+void
+UITree_DebugOverlaySetFontIds(
+    struct UITree* tree,
+    int font_id_small,
+    int font_id_menu,
+    int font_id_body)
+{
+    assert(tree);
+    /* Every overlay component, not the first: a tree may carry more than one,
+     * and a scale change that reached only one of them would put two chromes
+     * at two sizes on one screen. */
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        struct UITreeComponent* c = &tree->components[i];
+        if( c->type != UIELEM_BUILTIN_DEBUG_OVERLAY )
+            continue;
+        c->u.debug_overlay.font_id_small = font_id_small;
+        c->u.debug_overlay.font_id_menu = font_id_menu;
+        c->u.debug_overlay.font_id_body = font_id_body;
+    }
+}
+
 static void
 uitree_id_index_note_added(struct UITree* tree, int32_t idx)
 {

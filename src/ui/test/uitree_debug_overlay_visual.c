@@ -154,12 +154,15 @@ World_PickSetAdd(
 /* ------------------------------------------------------------------------- */
 
 #define CANVAS_W 400
-#define CANVAS_H 260
+#define CANVAS_H 320
 
-/** Slot -> scene font id. Arbitrary local handles; see the file comment. */
+/** Slot -> scene font id at 1x. Arbitrary local handles; see the file comment. */
 #define FONT_ID_SMALL 0
 #define FONT_ID_MENU 1
 #define FONT_ID_BODY 2
+/** The same three at scale N: one block of handles per scale, as the real
+ *  bridge does with UITREE_SCENE_DEBUG_FONT_SCALED_ID. */
+#define FONT_ID_AT(slot_id, scale) ((slot_id) + ((scale) - 1) * 16)
 /** Local scene handle for the baked chrome skin atlas; see the file comment. */
 #define SKIN_SCENE_ID 7
 
@@ -239,9 +242,13 @@ render(char const* name)
     desc.kind = UITREE_EMIT_DEBUG_OVERLAY;
     desc.debug_prims = ToriRSChrome_Prims(&g_ui, &count);
     desc.debug_prim_count = count;
-    desc.debug_font_id[TORIDBG_FONT_SMALL] = FONT_ID_SMALL;
-    desc.debug_font_id[TORIDBG_FONT_MENU] = FONT_ID_MENU;
-    desc.debug_font_id[TORIDBG_FONT_BODY] = FONT_ID_BODY;
+    /* Slot -> font id follows the chrome's SCALE, exactly as the real bridge
+     * resolves it. Drawing a 2x layout with the 1x faces is the specific bug
+     * this mapping exists to make impossible, and it would still render -- as
+     * small text rattling around in big boxes. */
+    desc.debug_font_id[TORIDBG_FONT_SMALL] = FONT_ID_AT(FONT_ID_SMALL, g_ui.scale);
+    desc.debug_font_id[TORIDBG_FONT_MENU] = FONT_ID_AT(FONT_ID_MENU, g_ui.scale);
+    desc.debug_font_id[TORIDBG_FONT_BODY] = FONT_ID_AT(FONT_ID_BODY, g_ui.scale);
     desc.debug_skin_scene_id = SKIN_SCENE_ID;
     for( int i = 0; i < TORIDBG_SKIN_SLOT_COUNT; i++ )
         desc.debug_skin_atlas[i] = i;
@@ -315,11 +322,18 @@ visual_bordered_background(void)
     render("01_bordered_background");
 
     VT_ASSERT(r.w > 0 && r.h > 0, "panel resolved a box");
-    VT_ASSERT(px(r.x, r.y) == t->panel_border, "top-left corner is border");
-    VT_ASSERT(px(r.x + r.w - 1, r.y + r.h - 1) == t->panel_border, "bottom-right is border");
-    VT_ASSERT(px(r.x + r.w / 2, r.y + r.h - 1) == t->panel_border, "bottom edge is border");
-    /* One pixel in: body, not border. That is the outline being 1px wide. */
-    VT_ASSERT(px(r.x + 1, r.y + r.h - 2) == t->panel_body, "border is 1px, body underneath");
+    /* The outermost ring is BODY, not an outline: a window panel wears the
+     * minimenu's chrome, and the minimenu has no outer edge -- its body meets
+     * whatever it floats over. The black is one pixel in. */
+    VT_ASSERT(px(r.x, r.y + r.h / 2) == t->panel_body, "outer edge is body, not an outline");
+    VT_ASSERT(px(r.x + r.w / 2, r.y + r.h - 1) == t->panel_body, "bottom edge is body");
+    VT_ASSERT(
+        px(r.x + r.w / 2, r.y + r.h - 2) == t->panel_border, "bottom rule is one pixel in");
+    VT_ASSERT(px(r.x + 1, r.y + r.h - 4) == t->panel_border, "left rail sits inside the edge");
+    VT_ASSERT(
+        px(r.x + r.w - 2, r.y + r.h - 4) == t->panel_border, "right rail sits inside the edge");
+    VT_ASSERT(
+        px(r.x + 2, r.y + r.h - 4) != t->panel_border, "body resumes inside the rail");
     /* Outside the box the canvas is untouched: the panel did not bleed. */
     VT_ASSERT(px(r.x - 1, r.y + r.h / 2) == BG_RGB, "nothing drawn left of the panel");
     VT_ASSERT(px(r.x + r.w, r.y + r.h / 2) == BG_RGB, "nothing drawn right of the panel");
@@ -575,7 +589,10 @@ visual_damage(void)
      * Checked before the marker goes down — mark_rect paints over the damage
      * outline, and (before.x, before.y) is a corner of it. */
     VT_ASSERT(px(before.x, before.y) == BG_RGB, "the old position was vacated");
-    VT_ASSERT(px(after.x, after.y) == g_ui.theme.panel_border, "the new position is painted");
+    /* Only that something is there: the corner pixel is the panel's body now
+     * that the chrome draws no outer outline, and pinning which colour a body
+     * is would be this test doing test 01's job. */
+    VT_ASSERT(px(after.x, after.y) != BG_RGB, "the new position is painted");
 
     mark_rect(dmg, 0xFF00FFu);
     bmp_write_file("build/debug_overlay_07_damage.bmp", g_pixels, CANVAS_W, CANVAS_H);
@@ -733,10 +750,724 @@ visual_skin(void)
     VT_ASSERT(
         skinned_body_px < flat_body_px,
         "skin on: the parchment replaced flat-fill pixels");
-    /* The border still wins: the skin tiles under the chrome, not over it. */
-    VT_ASSERT(px(r.x, r.y) == g_ui.theme.panel_border, "border still drawn over the skin");
+    /* The chrome still wins: the skin tiles under it, not over it. Checked on
+     * the rail rather than the corner -- the corner is body, and under a skin
+     * that means parchment. */
+    VT_ASSERT(
+        px(r.x + 1, r.y + r.h - 4) == g_ui.theme.panel_border, "rail still drawn over the skin");
     VT_ASSERT(
         px(r.x + 1, r.y + 1) == g_ui.theme.panel_title_bg, "title bar still drawn over the skin");
+}
+
+
+/* ---- 12. minimenu-style chrome, and dragging by the header --------------- */
+
+/*
+ * A window panel wears the minimenu's chrome (header bar, the rule under it,
+ * side rails, bottom rule) and is carried by that header.
+ *
+ * The drag half is asserted through the module's own reported geometry rather
+ * than by eyeballing the BMP: grab a point inside the header, move, and the
+ * panel's rect must have travelled by exactly the mouse delta -- travelling by
+ * a different amount is the grab offset being recomputed instead of held,
+ * which reads as the panel snapping its corner to the cursor.
+ */
+static void
+visual_panel_drag(void)
+{
+    struct ToriDbgRect before;
+    struct ToriDbgRect after;
+    int panel;
+    int consumed;
+
+    printf("VISUAL: minimenu chrome + header drag\n");
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 40, 30, 150, "Map Editor");
+    ToriRSChrome_Label(&g_ui, panel, "m50_50  tile 12,40");
+    ToriRSChrome_Checkbox(&g_ui, panel, "block", 1);
+    ToriRSChrome_Build(&g_ui);
+    before = ToriRSChrome_PanelRect(&g_ui, panel);
+    render("12_chrome_before_drag");
+
+    /* The header strip carries the title bar's fill, and a rail runs down each
+     * side of the body -- the minimenu's chrome, not a plain 1px outline. */
+    VT_ASSERT(
+        px(before.x + before.w / 2, before.y + 2) == g_ui.theme.panel_title_bg,
+        "header bar fills the title strip");
+    VT_ASSERT(
+        px(before.x + 1, before.y + before.h - 4) == g_ui.theme.panel_border,
+        "left rail runs down the body");
+    VT_ASSERT(
+        px(before.x + before.w - 2, before.y + before.h - 4) == g_ui.theme.panel_border,
+        "right rail runs down the body");
+
+    /* Grab the header off-centre, so a recomputed offset would show up. */
+    consumed = ToriRSChrome_MouseDown(&g_ui, before.x + 20, before.y + 3);
+    VT_ASSERT(consumed, "press on the header is consumed");
+    ToriRSChrome_MouseMove(&g_ui, before.x + 20 + 60, before.y + 3 + 25);
+    ToriRSChrome_Build(&g_ui);
+    after = ToriRSChrome_PanelRect(&g_ui, panel);
+    VT_ASSERT(after.x == before.x + 60, "panel followed the mouse in x");
+    VT_ASSERT(after.y == before.y + 25, "panel followed the mouse in y");
+    VT_ASSERT(after.w == before.w && after.h == before.h, "dragging did not resize it");
+
+    ToriRSChrome_MouseUp(&g_ui, before.x + 20 + 60, before.y + 3 + 25);
+    /* Released: the pointer is the world's again, and a later move must not
+     * keep dragging the panel around. */
+    ToriRSChrome_MouseMove(&g_ui, before.x + 200, before.y + 200);
+    ToriRSChrome_Build(&g_ui);
+    VT_ASSERT(
+        ToriRSChrome_PanelRect(&g_ui, panel).x == after.x,
+        "panel stays put after the release");
+    render("13_chrome_after_drag");
+
+    /* A press on the body, not the header, is not a drag handle. */
+    ToriRSChrome_MouseDown(&g_ui, after.x + 5, after.y + after.h - 4);
+    ToriRSChrome_MouseMove(&g_ui, after.x + 90, after.y + after.h + 40);
+    ToriRSChrome_Build(&g_ui);
+    VT_ASSERT(
+        ToriRSChrome_PanelRect(&g_ui, panel).x == after.x,
+        "a press on the body does not drag the panel");
+    ToriRSChrome_MouseUp(&g_ui, after.x + 90, after.y + after.h + 40);
+}
+
+/* ---- 13. the resize grip ------------------------------------------------- */
+
+/*
+ * The bottom-right grip: drawn where the hit box says it is, and dragging it
+ * takes the panel with it on both axes while the origin stays put.
+ *
+ * The origin is the assertion that matters. A resize that quietly slides the
+ * whole panel -- because the size changed and x/y went along with it -- looks
+ * almost right while you are dragging and is wrong the moment you stop, so it
+ * is checked on every step rather than only at the end.
+ */
+static void
+visual_panel_resize(void)
+{
+    struct ToriDbgRect before;
+    struct ToriDbgRect after;
+    struct ToriDbgRect grip;
+    int panel;
+    int rows;
+    int consumed;
+
+    printf("VISUAL: resize grip\n");
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 60, 30, 160, "Catalog");
+    ToriRSChrome_Label(&g_ui, panel, "m50_50  tile 12,40");
+    ToriRSChrome_Label(&g_ui, panel, "u50 o10;1;3 f4");
+    ToriRSChrome_Checkbox(&g_ui, panel, "block", 1);
+    ToriRSChrome_Build(&g_ui);
+    before = ToriRSChrome_PanelRect(&g_ui, panel);
+
+    /* Not resizable yet: nothing is drawn in the corner and a press there is
+     * an ordinary press on the body. */
+    grip.x = before.x + before.w - 10;
+    grip.y = before.y + before.h - 10;
+    grip.w = 8;
+    grip.h = 8;
+    VT_ASSERT(
+        count_eq(grip.x, grip.y, grip.w, grip.h, g_ui.theme.panel_border) == 0,
+        "no grip on a panel that is not resizable");
+    ToriRSChrome_MouseDown(&g_ui, grip.x + 4, grip.y + 4);
+    ToriRSChrome_MouseMove(&g_ui, grip.x + 60, grip.y + 40);
+    ToriRSChrome_Build(&g_ui);
+    VT_ASSERT(
+        ToriRSChrome_PanelRect(&g_ui, panel).w == before.w,
+        "dragging the corner of a fixed panel does nothing");
+    ToriRSChrome_MouseUp(&g_ui, grip.x + 60, grip.y + 40);
+
+    /* Turning the grip on reserves a strip along the bottom for it, so the
+     * panel grows and the corner has to be measured again. */
+    ToriRSChrome_PanelSetResizable(&g_ui, panel, 1);
+    ToriRSChrome_Build(&g_ui);
+    before = ToriRSChrome_PanelRect(&g_ui, panel);
+    grip.x = before.x + before.w - 10;
+    grip.y = before.y + before.h - 10;
+    render("14_grip");
+    VT_ASSERT(
+        count_eq(grip.x, grip.y, grip.w, grip.h, g_ui.theme.panel_border) > 0,
+        "the grip is drawn in the bottom-right corner");
+    VT_ASSERT(
+        count_eq(before.x + 2, grip.y, grip.w, grip.h, g_ui.theme.panel_border) == 0,
+        "and nothing is drawn in the bottom-left one");
+
+    /* Grab it off-centre, so a recomputed offset would show up as a jump. */
+    consumed = ToriRSChrome_MouseDown(&g_ui, grip.x + 3, grip.y + 4);
+    VT_ASSERT(consumed, "press on the grip is consumed");
+    ToriRSChrome_MouseMove(&g_ui, grip.x + 3 + 70, grip.y + 4 + 45);
+    ToriRSChrome_Build(&g_ui);
+    after = ToriRSChrome_PanelRect(&g_ui, panel);
+    VT_ASSERT(after.x == before.x && after.y == before.y, "the origin did not move");
+    VT_ASSERT(after.w == before.w + 70, "the right edge followed the mouse");
+    VT_ASSERT(after.h == before.h + 45, "the bottom edge followed the mouse");
+    render("15_grip_resized");
+
+    /* Rows survive the grow: a taller panel is the same rows with air under
+     * them, not a relayout. */
+    rows = 0;
+    for( int i = 0; i < g_ui.widget_count; i++ )
+        if( g_ui.widgets[i].h > 0 )
+            rows++;
+    VT_ASSERT(rows == 3, "growing the panel kept every row live");
+
+    /* And back, past the minimum on both axes, which clamps rather than
+     * inverting the panel. */
+    ToriRSChrome_MouseMove(&g_ui, before.x - 200, before.y - 200);
+    ToriRSChrome_Build(&g_ui);
+    after = ToriRSChrome_PanelRect(&g_ui, panel);
+    VT_ASSERT(after.x == before.x && after.y == before.y, "the origin still did not move");
+    VT_ASSERT(after.w > 0 && after.h > 0, "a drag past the origin clamps");
+    VT_ASSERT(after.w < before.w && after.h < before.h, "and it really did shrink");
+    render("16_grip_clamped");
+
+    /*
+     * The rows that no longer fit are GONE, not merely undrawn.
+     *
+     * Checked on the hit boxes, not on pixels: an undrawn row whose box is
+     * still live is the failure that matters here -- the panel would keep
+     * toggling a checkbox nobody can see. Every surviving box must also end
+     * inside the panel, or a row is half-out and still clickable.
+     */
+    {
+        int live = 0;
+        for( int i = 0; i < g_ui.widget_count; i++ )
+        {
+            struct ToriDbgWidget const* w = &g_ui.widgets[i];
+            if( w->w <= 0 || w->h <= 0 )
+                continue;
+            live++;
+            VT_ASSERT(
+                w->y + w->h <= after.y + after.h, "a surviving row ends inside the panel");
+        }
+        VT_ASSERT(live < rows, "the rows that no longer fit were dropped");
+        VT_ASSERT(
+            ToriRSChrome_HitTest(&g_ui, after.x + 8, before.y + before.h - 14) < 0,
+            "nothing is hittable where the dropped rows used to be");
+    }
+
+    ToriRSChrome_MouseUp(&g_ui, before.x - 200, before.y - 200);
+    ToriRSChrome_MouseMove(&g_ui, before.x + 400, before.y + 400);
+    ToriRSChrome_Build(&g_ui);
+    VT_ASSERT(
+        ToriRSChrome_PanelRect(&g_ui, panel).w == after.w &&
+            ToriRSChrome_PanelRect(&g_ui, panel).h == after.h,
+        "the panel stops resizing after the release");
+}
+
+/* ---- 17. dropdowns ------------------------------------------------------- */
+
+/*
+ * The closed row and the open list, in the skin the map editor actually wears.
+ *
+ * Two BMPs rather than one: the closed box is chrome the panel draws every
+ * frame, and the open list is a popup built after every panel, so a break in
+ * one is invisible in the other. The long-list scene is the one that matters
+ * for the scrollbar -- 40 options against a 10-row window is the case where a
+ * list has to say how far down it goes.
+ */
+static char const* const dd_short[] = { "Hidden", "Wall", "Roof", "Floor decoration" };
+static char const* const dd_long[] = {
+    "0000 nothing",     "0001 dirt",        "0002 grass",       "0003 water",
+    "0004 sand",        "0005 gravel",      "0006 stone",       "0007 lava",
+    "0008 snow",        "0009 ice",         "0010 wood",        "0011 marble",
+    "0012 cobbles",     "0013 mud",         "0014 swamp",       "0015 path",
+    "0016 tiles",       "0017 carpet",      "0018 metal",       "0019 rubble",
+    "0020 ash",         "0021 leaves",      "0022 bark",        "0023 clay",
+    "0024 chalk",       "0025 slate",       "0026 brick",       "0027 thatch",
+    "0028 shingle",     "0029 planks",      "0030 rope",        "0031 cloth",
+    "0032 glass",       "0033 crystal",     "0034 bone",        "0035 scales",
+    "0036 fur",         "0037 hide",        "0038 wool",        "0039 silk",
+};
+
+/* The dropdown geometry the chrome contracts to, restated in the test's own
+ * terms. Mirrors of DBG_SCROLL_W and DBG_DROP_LIST_PAD, which are private to
+ * the module -- a test that imported them could not see them change. */
+#define DD_SCROLL_W 16
+#define DD_LIST_PAD 2
+
+/** Row pitch of the open list: the theme's row face plus its air. */
+static int
+dd_row_h(void)
+{
+    return ToriRSChrome_FontLineBox(g_ui.theme.font_row, g_ui.scale) + 4;
+}
+
+/** The laid-out box of a widget, read back off the chrome's own state. */
+static struct ToriDbgRect
+dbg_widget_box(int widget)
+{
+    struct ToriDbgRect r;
+    r.x = g_ui.widgets[widget].x;
+    r.y = g_ui.widgets[widget].y;
+    r.w = g_ui.widgets[widget].w;
+    r.h = g_ui.widgets[widget].h;
+    return r;
+}
+
+/** Where the open list lands under `widget`: the box below it, as wide as the
+ *  box for a value dropdown and as wide as its widest row for a menu. */
+static struct ToriDbgRect
+dbg_dropdown_list_rect(int widget)
+{
+    struct ToriDbgRect const box = dbg_widget_box(widget);
+    struct ToriDbgWidget const* w = &g_ui.widgets[widget];
+    struct ToriDbgRect r;
+    int rows = w->option_count < TORIDBG_DROPDOWN_ROWS ? w->option_count : TORIDBG_DROPDOWN_ROWS;
+    int label_w = ToriRSChrome_MeasureText(g_ui.theme.font_row, g_ui.scale, w->label);
+
+    r.x = box.x + label_w + (label_w > 0 ? 5 : 0);
+    r.w = box.x + box.w - r.x;
+    if( w->menu_mode )
+    {
+        int widest = 0;
+        for( int i = 0; i < w->option_count; i++ )
+        {
+            int const ow = ToriRSChrome_MeasureText(g_ui.theme.font_row, g_ui.scale, w->options[i]);
+            if( ow > widest )
+                widest = ow;
+        }
+        r.x = box.x;
+        r.w = widest + 2 * 3 + 6;
+    }
+    r.y = box.y + box.h;
+    r.h = rows * dd_row_h() + 2 * DD_LIST_PAD;
+    return r;
+}
+
+/** A press and release at one point, then a rebuild -- one user click. */
+static void
+dd_click(int x, int y)
+{
+    ToriRSChrome_MouseMove(&g_ui, x, y);
+    ToriRSChrome_MouseDown(&g_ui, x, y);
+    ToriRSChrome_MouseUp(&g_ui, x, y);
+    ToriRSChrome_Build(&g_ui);
+}
+
+/** Open a dropdown by clicking its closed box. */
+static void
+dd_open(int widget)
+{
+    struct ToriDbgRect const box = dbg_widget_box(widget);
+    dd_click(box.x + box.w / 2, box.y + box.h / 2);
+}
+
+static void
+visual_dropdown(void)
+{
+    int panel;
+    int dd_kind;
+    int dd_list;
+    struct ToriDbgRect box;
+    struct ToriDbgRect list;
+    struct ToriDbgRect bar;
+
+    printf("VISUAL: dropdowns\n");
+
+    ToriRSChrome_Init(&g_ui);
+    g_ui.theme = toridbg_theme_osrs;
+    g_ui.skin_avail = (1u << TORIDBG_SKIN_PANEL_BODY) | (1u << TORIDBG_SKIN_SCROLL_UP) |
+                      (1u << TORIDBG_SKIN_SCROLL_DOWN);
+    g_ui.skin_tile_w = ToriRSChromeSkin_Get(TORIDBG_SKIN_PANEL_BODY)->w;
+    g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIDBG_SKIN_PANEL_BODY)->h;
+
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 20, 8, 210, "Catalog");
+    dd_kind = ToriRSChrome_Dropdown(&g_ui, panel, "Kind", dd_short, 4, 1);
+    dd_list = ToriRSChrome_Dropdown(
+        &g_ui, panel, "", dd_long, (int)(sizeof(dd_long) / sizeof(dd_long[0])), 0);
+    ToriRSChrome_Build(&g_ui);
+    render("17_dropdown_closed");
+
+    /* Open the short list by clicking its box, exactly as the user does. */
+    box = dbg_widget_box(dd_kind);
+    ToriRSChrome_MouseMove(&g_ui, box.x + box.w - 6, box.y + box.h / 2);
+    ToriRSChrome_MouseDown(&g_ui, box.x + box.w - 6, box.y + box.h / 2);
+    ToriRSChrome_MouseUp(&g_ui, box.x + box.w - 6, box.y + box.h / 2);
+    ToriRSChrome_Build(&g_ui);
+    render("18_dropdown_open_short");
+
+    /* Dismiss it before opening the other one: an open list covers the row
+     * beneath it, so a click aimed at the second box would land in the first
+     * list instead. */
+    ToriRSChrome_MouseDown(&g_ui, CANVAS_W - 8, CANVAS_H - 8);
+    ToriRSChrome_MouseUp(&g_ui, CANVAS_W - 8, CANVAS_H - 8);
+
+    /* The long list, scrolled off the top so the grip is not at either end. */
+    box = dbg_widget_box(dd_list);
+    ToriRSChrome_MouseMove(&g_ui, box.x + box.w - 6, box.y + box.h / 2);
+    ToriRSChrome_MouseDown(&g_ui, box.x + box.w - 6, box.y + box.h / 2);
+    ToriRSChrome_MouseUp(&g_ui, box.x + box.w - 6, box.y + box.h / 2);
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChrome_MouseWheel(&g_ui, box.x + 4, box.y + box.h + 20, 12);
+    ToriRSChrome_MouseMove(&g_ui, box.x + 8, box.y + box.h + 20);
+    ToriRSChrome_Build(&g_ui);
+    render("19_dropdown_open_long");
+
+    /*
+     * The bar, checked where the module says it drew one.
+     *
+     * Its column is reconstructed here from the widget box and the two public
+     * constants rather than read back off the chrome, which is deliberate:
+     * these coordinates are the CONTRACT -- 16 wide, inset by the list's own
+     * 2px pad, an arrow button at each end -- and a test that asked the module
+     * where it put the bar could not notice the module moving it.
+     */
+    list = dbg_dropdown_list_rect(dd_list);
+    bar.w = DD_SCROLL_W;
+    bar.x = list.x + list.w - DD_LIST_PAD - bar.w;
+    bar.y = list.y + DD_LIST_PAD;
+    bar.h = list.h - 2 * DD_LIST_PAD;
+
+    /* The two arrow buttons are sprites, so they are neither the track colour
+     * nor the list's own tile: they are the lightest thing in the column. */
+    VT_ASSERT(
+        count_not(bar.x, bar.y, bar.w, DD_SCROLL_W, px(bar.x + 1, bar.y + bar.h / 2)) > 0,
+        "scrollbar: an up arrow at the top of the column");
+    VT_ASSERT(
+        count_not(
+            bar.x, bar.y + bar.h - DD_SCROLL_W, bar.w, DD_SCROLL_W,
+            px(bar.x + 1, bar.y + bar.h / 2)) > 0,
+        "scrollbar: a down arrow at the bottom of the column");
+    /* A grip somewhere in the track, and not filling it: mid-list is exactly
+     * the case where a bar that drew a full-length grip would look right and
+     * mean nothing. */
+    {
+        uint32_t const track = px(bar.x + bar.w / 2, bar.y + DD_SCROLL_W + 1);
+        int const grip_px = count_not(
+            bar.x, bar.y + DD_SCROLL_W, bar.w, bar.h - 2 * DD_SCROLL_W, track);
+        VT_ASSERT(grip_px > 0, "scrollbar: a grip inside the track");
+        VT_ASSERT(
+            grip_px < bar.w * (bar.h - 2 * DD_SCROLL_W),
+            "scrollbar: the grip is shorter than the track");
+    }
+
+    /* No row runs under the bar. The rows are clipped to the column left of
+     * it, which is what stops a long option painting over the grip. */
+    VT_ASSERT(
+        count_eq(bar.x, bar.y + DD_SCROLL_W, bar.w, bar.h - 2 * DD_SCROLL_W, g_ui.theme.dropdown_text) == 0,
+        "scrollbar: no row text bleeds into the bar");
+}
+
+/* ---- 20. the scrollbar is a control, not a picture ----------------------- */
+
+/*
+ * Arrow, track and grip, driven through the real mouse entry points.
+ *
+ * Behaviour rather than pixels, because the failure this is guarding against
+ * is a bar that LOOKS right and does nothing -- which is what the list had
+ * before: a thumb drawn from the scroll position, with no way to move it but
+ * the wheel. Each leg asserts against the widget's own `scroll`, so it fails
+ * whether the cause is a hit box in the wrong place or a press routed to the
+ * rows underneath.
+ */
+static void
+visual_dropdown_scrollbar_drag(void)
+{
+    int panel;
+    int dd;
+    struct ToriDbgRect list;
+    struct ToriDbgRect bar;
+    int const count = (int)(sizeof(dd_long) / sizeof(dd_long[0]));
+    int rows;
+    int before;
+
+    printf("VISUAL: dropdown scrollbar\n");
+
+    ToriRSChrome_Init(&g_ui);
+    g_ui.theme = toridbg_theme_osrs;
+    for( int i = 0; i < TORIDBG_SKIN_SLOT_COUNT && i < ToriRSChromeSkin_Count(); i++ )
+        g_ui.skin_avail |= 1u << i;
+    g_ui.skin_tile_w = ToriRSChromeSkin_Get(TORIDBG_SKIN_PANEL_BODY)->w;
+    g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIDBG_SKIN_PANEL_BODY)->h;
+
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 20, 8, 210, "Catalog");
+    dd = ToriRSChrome_Dropdown(&g_ui, panel, "", dd_long, count, 0);
+    ToriRSChrome_Build(&g_ui);
+    dd_open(dd);
+
+    list = dbg_dropdown_list_rect(dd);
+    bar.w = DD_SCROLL_W;
+    bar.x = list.x + list.w - DD_LIST_PAD - bar.w;
+    bar.y = list.y + DD_LIST_PAD;
+    bar.h = list.h - 2 * DD_LIST_PAD;
+    rows = list.h / dd_row_h();
+
+    /* The down arrow steps one row; the track below the grip pages by the
+     * window. Both are presses, so both also have to NOT be read as a click on
+     * the option the bar happens to cover. */
+    before = g_ui.widgets[dd].scroll;
+    dd_click(bar.x + bar.w / 2, bar.y + bar.h - 2);
+    VT_ASSERT(g_ui.widgets[dd].scroll == before + 1, "scrollbar: the down arrow steps one row");
+    VT_ASSERT(g_ui.dropdown_open == dd, "scrollbar: pressing an arrow does not choose a row");
+
+    before = g_ui.widgets[dd].scroll;
+    dd_click(bar.x + bar.w / 2, bar.y + bar.h - DD_SCROLL_W - 2);
+    VT_ASSERT(
+        g_ui.widgets[dd].scroll == before + rows, "scrollbar: the track below the grip pages down");
+
+    /* The up arrow, back. */
+    before = g_ui.widgets[dd].scroll;
+    dd_click(bar.x + bar.w / 2, bar.y + 2);
+    VT_ASSERT(g_ui.widgets[dd].scroll == before - 1, "scrollbar: the up arrow steps one row");
+
+    /* Drag the grip to the bottom of the track. It must land on the last page
+     * -- clamped, not run past it -- and the release must not choose whatever
+     * option the grip finished over.
+     *
+     * Wound back to the top first so the grip is where the geometry says it is
+     * without this test having to recompute it: at scroll 0 it starts flush
+     * under the up arrow. */
+    ToriRSChrome_MouseWheel(&g_ui, list.x + 4, list.y + 4, -100);
+    ToriRSChrome_Build(&g_ui);
+    VT_ASSERT(g_ui.widgets[dd].scroll == 0, "scrollbar: wound back to the top");
+    ToriRSChrome_MouseDown(&g_ui, bar.x + bar.w / 2, bar.y + DD_SCROLL_W + 2);
+    VT_ASSERT(g_ui.dropdown_scroll_drag != 0, "scrollbar: pressing the grip starts a drag");
+    ToriRSChrome_MouseMove(&g_ui, bar.x + bar.w / 2, bar.y + bar.h * 4);
+    ToriRSChrome_MouseUp(&g_ui, bar.x + bar.w / 2, bar.y + bar.h * 4);
+    ToriRSChrome_Build(&g_ui);
+    VT_ASSERT(
+        g_ui.widgets[dd].scroll == count - rows, "scrollbar: a drag past the end clamps to it");
+    VT_ASSERT(g_ui.dropdown_open == dd, "scrollbar: ending a drag does not choose a row");
+    render("20_dropdown_scrolled_to_end");
+
+    /* And back to the top the same way. */
+    ToriRSChrome_MouseDown(&g_ui, bar.x + bar.w / 2, bar.y + bar.h - DD_SCROLL_W - 4);
+    ToriRSChrome_MouseMove(&g_ui, bar.x + bar.w / 2, bar.y - bar.h);
+    ToriRSChrome_MouseUp(&g_ui, bar.x + bar.w / 2, bar.y - bar.h);
+    ToriRSChrome_Build(&g_ui);
+    VT_ASSERT(g_ui.widgets[dd].scroll == 0, "scrollbar: a drag past the start clamps to it");
+}
+
+/* ---- 20b. the two fallbacks: no skin, and a scaled chrome ---------------- */
+
+/*
+ * The same open list with the skin withheld, and again at 3x with it.
+ *
+ * Two separate failure modes, and neither is visible in the scene above. A
+ * build with no baked skin must still get a usable bar -- the flat IF1 form,
+ * a dark track under a grip with a highlight and a shadow -- because that is
+ * the form every host without an uploaded skin renders. And a 3x chrome must
+ * BLOW THE SPRITES UP rather than leave 16px images marooned in a 48px column,
+ * which is the bug the destination box on the sprite primitive exists to
+ * prevent; the arrow ends up drawn at a third of the width of the bar it is
+ * supposed to cap.
+ */
+static void
+visual_dropdown_fallbacks(void)
+{
+    int panel;
+    int dd;
+    struct ToriDbgRect list;
+    struct ToriDbgRect bar;
+    int const count = (int)(sizeof(dd_long) / sizeof(dd_long[0]));
+
+    printf("VISUAL: dropdown fallbacks\n");
+
+    /* No skin at all: the flat developer look, flat bar included. */
+    ToriRSChrome_Init(&g_ui);
+    ToriRSChrome_SetTheme(&g_ui, &toridbg_theme_default);
+    g_ui.skin_avail = 0;
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 20, 8, 210, "Catalog");
+    dd = ToriRSChrome_Dropdown(&g_ui, panel, "", dd_long, count, 0);
+    ToriRSChrome_Build(&g_ui);
+    dd_open(dd);
+    render("22_dropdown_no_skin");
+
+    list = dbg_dropdown_list_rect(dd);
+    bar.w = DD_SCROLL_W;
+    bar.x = list.x + list.w - DD_LIST_PAD - bar.w;
+    bar.y = list.y + DD_LIST_PAD;
+    bar.h = list.h - 2 * DD_LIST_PAD;
+    VT_ASSERT(
+        count_eq(bar.x, bar.y + DD_SCROLL_W, bar.w, bar.h - 2 * DD_SCROLL_W,
+                 g_ui.theme.scroll_track) > 0,
+        "no skin: the bar falls back to the flat track colour");
+    VT_ASSERT(
+        count_eq(bar.x, bar.y + DD_SCROLL_W, bar.w, bar.h - 2 * DD_SCROLL_W,
+                 g_ui.theme.scroll_grip_hi) > 0,
+        "no skin: the flat grip keeps its highlight edge");
+
+    /* 3x with the skin: every sprite is blown up to the column it fills. */
+    ToriRSChrome_Init(&g_ui);
+    g_ui.theme = toridbg_theme_osrs;
+    ToriRSChrome_SetScale(&g_ui, 3);
+    for( int i = 0; i < TORIDBG_SKIN_SLOT_COUNT && i < ToriRSChromeSkin_Count(); i++ )
+        g_ui.skin_avail |= 1u << i;
+    g_ui.skin_tile_w = ToriRSChromeSkin_Get(TORIDBG_SKIN_PANEL_BODY)->w;
+    g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIDBG_SKIN_PANEL_BODY)->h;
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 8, 4, 0, "Catalog");
+    dd = ToriRSChrome_Dropdown(&g_ui, panel, "", dd_short, 4, 1);
+    ToriRSChrome_Build(&g_ui);
+    dd_open(dd);
+    render("23_dropdown_3x");
+
+    /*
+     * The arrow on the closed button is 48 wide, not 16.
+     *
+     * Asserted as a COMPARISON between the two halves of the arrow's box
+     * rather than against a colour, because the tile behind it is brown and
+     * the arrow is brown -- naming a colour would pass on the tile alone,
+     * which is exactly how the un-scaled version of this first went green.
+     * The arrow's own frame is near-black, so its bottom-right quarter (only
+     * reached if the sprite really is 48 wide) holds pixels much darker than
+     * anything the tile has.
+     */
+    {
+        struct ToriDbgRect const box = dbg_widget_box(dd);
+        int const arrow_x = box.x + 2 * 3;
+        int const arrow_y = box.y + (box.h - 48) / 2;
+        int dark_near = 0;
+        int dark_far = 0;
+
+        for( int j = 0; j < 48; j++ )
+            for( int i = 0; i < 48; i++ )
+            {
+                uint32_t const c = px(arrow_x + i, arrow_y + j);
+                int const lum = (int)((c >> 16) & 0xFF) + (int)((c >> 8) & 0xFF) + (int)(c & 0xFF);
+                if( lum >= 3 * 0x20 )
+                    continue;
+                if( i < 16 && j < 16 )
+                    dark_near++;
+                else
+                    dark_far++;
+            }
+        VT_ASSERT(dark_near > 0, "3x: the arrow is drawn at all");
+        VT_ASSERT(dark_far > dark_near, "3x: the arrow fills its 48px box, not the top-left 16");
+    }
+}
+
+/* ---- 21. a menu list is still a menu ------------------------------------- */
+
+/*
+ * The File/Edit bar's list, which shares the dropdown popup machinery.
+ *
+ * It must NOT have picked up the settings dropdown's look. The game has both
+ * widgets and they are not the same one: a value list is banded and centred
+ * and orange, a menu is the minimenu -- flat brown, left-aligned, and the
+ * cursor turns a row's TEXT yellow rather than lighting the row. One popup
+ * implementation serving both is only correct if this stays true.
+ */
+static char const* const dd_menu[] = { "New map", "Open...", "Save", "Quit" };
+
+static void
+visual_menubar_dropdown(void)
+{
+    int bar_panel;
+    int menu;
+    struct ToriDbgRect box;
+    struct ToriDbgRect list;
+
+    printf("VISUAL: menubar dropdown\n");
+
+    ToriRSChrome_Init(&g_ui);
+    g_ui.theme = toridbg_theme_osrs;
+    for( int i = 0; i < TORIDBG_SKIN_SLOT_COUNT && i < ToriRSChromeSkin_Count(); i++ )
+        g_ui.skin_avail |= 1u << i;
+    g_ui.skin_tile_w = ToriRSChromeSkin_Get(TORIDBG_SKIN_PANEL_BODY)->w;
+    g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIDBG_SKIN_PANEL_BODY)->h;
+
+    bar_panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_MENUBAR, 0, 0, CANVAS_W, "");
+    menu = ToriRSChrome_MenuDrop(&g_ui, bar_panel, "File", dd_menu, 4);
+    ToriRSChrome_Build(&g_ui);
+
+    box = dbg_widget_box(menu);
+    dd_click(box.x + box.w / 2, box.y + box.h / 2);
+    /* Hover the second row, which is where the two looks differ most. */
+    list = dbg_dropdown_list_rect(menu);
+    ToriRSChrome_MouseMove(&g_ui, list.x + 4, list.y + DD_LIST_PAD + dd_row_h() + 2);
+    ToriRSChrome_Build(&g_ui);
+    render("21_menubar_dropdown");
+
+    VT_ASSERT(g_ui.dropdown_open == menu, "menu: the title opened its list");
+    /* Left-aligned: there is ink in the first few pixels of the row's text
+     * column, which a centred row of this width would leave empty. */
+    VT_ASSERT(
+        count_eq(
+            list.x + DD_LIST_PAD, list.y + DD_LIST_PAD, 10, dd_row_h(),
+            g_ui.theme.menu_text) > 0,
+        "menu: rows are left-aligned");
+    /* Yellow text under the cursor, and no band behind it. */
+    VT_ASSERT(
+        count_eq(
+            list.x + DD_LIST_PAD, list.y + DD_LIST_PAD + dd_row_h(), list.w - 2 * DD_LIST_PAD,
+            dd_row_h(), g_ui.theme.menu_hover_text) > 0,
+        "menu: the hovered row goes yellow");
+    VT_ASSERT(
+        count_eq(
+            list.x + DD_LIST_PAD, list.y + DD_LIST_PAD, list.w - 2 * DD_LIST_PAD, dd_row_h(),
+            g_ui.theme.menu_body) > 0,
+        "menu: unhovered rows keep the flat menu body");
+}
+
+/* ---- 11. HighDPI / scaled chrome ----------------------------------------
+ *
+ * The same panel at 1x, 2x and 3x, drawn with the faces baked at each size.
+ *
+ * The pixel assertion is the point of doing it visually rather than in the
+ * model test: a layout can scale perfectly and still be drawn with the wrong
+ * font, and the rect arithmetic cannot see that. Ink AREA can -- and it comes
+ * out EXACT, which is worth stating as the equality it is rather than as a
+ * threshold. Every pixel of the 1x chrome becomes an N x N block at scale N:
+ * the glyphs because fontbake block-scales the masks, the rules and boxes
+ * because DBG_PX multiplies every coordinate. So the ink is scale^2 times the
+ * 1x ink, to the pixel, and anything else -- a resampled glyph, a rule left at
+ * 1px, a font slot resolved at the wrong size -- breaks the equality.
+ */
+static void
+visual_scaled(void)
+{
+    int ink[TORIDBG_SCALE_MAX + 1];
+    struct ToriDbgRect rect[TORIDBG_SCALE_MAX + 1];
+
+    memset(ink, 0, sizeof(ink));
+    memset(rect, 0, sizeof(rect));
+
+    for( int scale = TORIDBG_SCALE_MIN; scale <= TORIDBG_SCALE_MAX; scale++ )
+    {
+        char name[32];
+        int panel;
+
+        ToriRSChrome_Init(&g_ui);
+        ToriRSChrome_SetTheme(&g_ui, &toridbg_theme_default);
+        ToriRSChrome_SetScale(&g_ui, scale);
+        panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 4, 4, 0, "Map Editor");
+        ToriRSChrome_Label(&g_ui, panel, "m50_50 (1,2)");
+        ToriRSChrome_Checkbox(&g_ui, panel, "block", 1);
+        ToriRSChrome_Build(&g_ui);
+        rect[scale] = ToriRSChrome_PanelRect(&g_ui, panel);
+
+        snprintf(name, sizeof(name), "11_scale%dx", scale);
+        render(name);
+
+        /* Ink: anything that is neither the cleared background nor the panel
+         * body. Counted over the panel's own box so a larger panel does not
+         * count more background as ink. */
+        for( int y = rect[scale].y; y < rect[scale].y + rect[scale].h && y < CANVAS_H; y++ )
+            for( int x = rect[scale].x; x < rect[scale].x + rect[scale].w && x < CANVAS_W; x++ )
+            {
+                uint32_t const c = px(x, y);
+                if( c != BG_RGB && c != toridbg_theme_default.panel_body )
+                    ink[scale]++;
+            }
+    }
+
+    for( int scale = TORIDBG_SCALE_MIN; scale <= TORIDBG_SCALE_MAX; scale++ )
+        printf(
+            "  scale %dx: panel %dx%d, ink %d px\n", scale, rect[scale].w, rect[scale].h,
+            ink[scale]);
+
+    for( int scale = TORIDBG_SCALE_MIN + 1; scale <= TORIDBG_SCALE_MAX; scale++ )
+    {
+        VT_ASSERT(
+            rect[scale].w == rect[1].w * scale && rect[scale].h == rect[1].h * scale,
+            "scaled panel box is the 1x box times the scale");
+        VT_ASSERT(
+            ink[scale] == ink[1] * scale * scale,
+            "scaled chrome is the 1x chrome pixel-doubled, ink and all");
+    }
+    ToriRSChrome_Init(&g_ui);
 }
 
 int
@@ -755,6 +1486,12 @@ main(void)
     ToriDraw_SceneFontAdd(g_scene, FONT_ID_SMALL, ToriDbgFont_Small());
     ToriDraw_SceneFontAdd(g_scene, FONT_ID_MENU, ToriDbgFont_Menu());
     ToriDraw_SceneFontAdd(g_scene, FONT_ID_BODY, ToriDbgFont_Body());
+    ToriDraw_SceneFontAdd(g_scene, FONT_ID_AT(FONT_ID_SMALL, 2), ToriDbgFont_Small2x());
+    ToriDraw_SceneFontAdd(g_scene, FONT_ID_AT(FONT_ID_MENU, 2), ToriDbgFont_Menu2x());
+    ToriDraw_SceneFontAdd(g_scene, FONT_ID_AT(FONT_ID_BODY, 2), ToriDbgFont_Body2x());
+    ToriDraw_SceneFontAdd(g_scene, FONT_ID_AT(FONT_ID_SMALL, 3), ToriDbgFont_Small3x());
+    ToriDraw_SceneFontAdd(g_scene, FONT_ID_AT(FONT_ID_MENU, 3), ToriDbgFont_Menu3x());
+    ToriDraw_SceneFontAdd(g_scene, FONT_ID_AT(FONT_ID_BODY, 3), ToriDbgFont_Body3x());
 
     /* The baked skin, uploaded the same way the scene bridge uploads it in the
      * real client: one multi-frame entry, atlas index == skin slot. Pointing
@@ -785,6 +1522,13 @@ main(void)
     visual_clipping();
     visual_kitchen_sink();
     visual_skin();
+    visual_panel_drag();
+    visual_panel_resize();
+    visual_dropdown();
+    visual_dropdown_scrollbar_drag();
+    visual_dropdown_fallbacks();
+    visual_menubar_dropdown();
+    visual_scaled();
 
     if( g_failures )
     {

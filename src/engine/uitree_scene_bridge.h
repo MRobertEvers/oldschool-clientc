@@ -17,6 +17,10 @@ struct UITreeSceneBridge
     struct CacheProvider* provider;
     int next_scene_id;
 
+    /** Device pixels per chrome pixel for the baked overlay faces: 1, 2 or 3.
+     *  Init leaves 1; @see UITreeSceneBridge_SetChromeScale. */
+    int chrome_scale;
+
     /** cache_graphic_id → scene_id */
     struct HMap* sprite_map;
     /** cache_model_id → scene_id (usually same as cache id) */
@@ -101,14 +105,30 @@ struct UITreeSceneBridge
  * to a MODEL widget, e.g. the combat-tab weapon): scene ids are base | obj_id. */
 #define UITREE_SCENE_OBJ_MODEL_BASE 0x58000000
 
-/* Reserved scene font ids for the two baked debug-overlay faces. Scene font ids
- * are cache font ids everywhere else (see EnsureFont), so these sit out of that
- * range alongside the reserved model/sprite ids above. */
+/* Reserved scene font ids for the baked debug-overlay faces at 1x. Scene font
+ * ids are cache font ids everywhere else (see EnsureFont), so these sit out of
+ * that range alongside the reserved model/sprite ids above. */
 #define UITREE_SCENE_DEBUG_FONT_SMALL_ID 0x40000006
 #define UITREE_SCENE_DEBUG_FONT_MENU_ID 0x40000007
 #define UITREE_SCENE_DEBUG_FONT_BODY_ID 0x40000008
+
+/**
+ * The same three faces at scale 2 and 3, one block of slots per scale.
+ *
+ * A separate block rather than an id arithmetic that runs on from the 1x ids:
+ * the next id after BODY is already taken (the chrome skin, below), and a
+ * scaled face silently landing on the skin's entry is the kind of collision
+ * that shows up as a missing panel background three subsystems away. Scale 1
+ * keeps its historic ids so nothing that already resolved one has to change.
+ */
+#define UITREE_SCENE_DEBUG_FONT_SCALED_BASE 0x40001000
+/** @param slot enum ToriDbgFontSlot. @param scale >= 2. */
+#define UITREE_SCENE_DEBUG_FONT_SCALED_ID(slot, scale)                                        \
+    (UITREE_SCENE_DEBUG_FONT_SCALED_BASE + ((scale) - 2) * 16 + (slot))
 /** The baked chrome skin: one scene entry, one atlas index per skin slot. */
 #define UITREE_SCENE_CHROME_SKIN_ID 0x40000009
+/** The editor catalog's model preview: one slot, re-rendered per pick. */
+#define UITREE_SCENE_EDITOR_PREVIEW_ID 0x4000000A
 
 void
 UITreeSceneBridge_Init(
@@ -179,6 +199,20 @@ UITreeSceneBridge_EnsureFont(
  */
 int
 UITreeSceneBridge_EnsureChromeSkin(struct UITreeSceneBridge* bridge);
+
+/**
+ * Which chrome scale the debug-overlay faces resolve at: 1, 2 or 3.
+ *
+ * Held here because this is where slot becomes scene font id, and the whole
+ * requirement is that the size the chrome LAID OUT with is the size the
+ * renderer DRAWS with. One value, read by every resolve, is what makes the two
+ * unable to disagree.
+ */
+void
+UITreeSceneBridge_SetChromeScale(struct UITreeSceneBridge* bridge, int scale);
+
+int
+UITreeSceneBridge_ChromeScale(struct UITreeSceneBridge const* bridge);
 
 int
 UITreeSceneBridge_EnsureDebugFont(

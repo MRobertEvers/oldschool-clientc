@@ -1806,6 +1806,11 @@ frame_loop_step(void)
      * the clamped canvas, which is also what fixed mode does. */
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_SURFACE_SYNC)
     {
+        /* Cheap and unconditional: a window dragged from a Retina display to
+         * an ordinary one changes density with no event that says so, and
+         * App_SetChromeScale returns immediately when nothing moved. */
+        if( !getenv("TORIRS_CHROME_SCALE") )
+            App_SetChromeScale(&app, PlatformSDL2_PixelDensity(sdl));
         PlatformSDL2_Resize(sdl, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 #if defined(TORIRS_HAVE_D3D9)
         if( d3d9 )
@@ -3934,6 +3939,31 @@ main(
          * Same call the runtime mode switch makes after the frame, so the two
          * paths cannot drift.
          */
+        /*
+         * Chrome at the display's own pixel density.
+         *
+         * The framebuffer is drawable pixels now, so a 1x chrome on a 2x
+         * display would be laid out in half-size pixels -- correct, sharp, and
+         * unreadably small. The fix is the BAKED 2x face, not a stretch: this
+         * hands the app the density and every chrome metric follows it.
+         *
+         * TORIRS_CHROME_SCALE overrides, for working on scaled chrome from an
+         * ordinary display (and for pinning the size a screenshot test wants).
+         */
+        {
+            int density = PlatformSDL2_PixelDensity(sdl);
+            char const* forced = getenv("TORIRS_CHROME_SCALE");
+            if( forced && forced[0] )
+                density = atoi(forced);
+            App_SetChromeScale(&app, density);
+            if( getenv("TORIRS_RESIZE_DEBUG") )
+                fprintf(
+                    stderr,
+                    "chrome: scale %d (display density %d)\n",
+                    App_ChromeScale(&app),
+                    PlatformSDL2_PixelDensity(sdl));
+        }
+
         {
             int const boot_mode = App_WindowMode(&app);
             bool const resizable = boot_mode == CS2VM_WINDOW_MODE_RESIZABLE;

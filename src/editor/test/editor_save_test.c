@@ -207,6 +207,76 @@ main(
         free(reload);
     }
 
+    /*
+     * A PLACED loc reaches the .jl2 and parses back.
+     *
+     * The place tool (Editor_PanelPlaceLocAt) builds exactly this command --
+     * has_after with no has_before -- so this covers the half of placement
+     * that a silent bug would hurt most: an edit that looks right on screen,
+     * because the scene was changed directly, but never reaches disk.
+     */
+    {
+        struct Editor_Cmd place;
+        size_t length;
+        char* text;
+
+        memset(&place, 0, sizeof(place));
+        place.kind = EDITOR_CMD_LOC;
+        place.map_x = 50;
+        place.map_z = 50;
+        place.has_after = 1;
+        place.loc_after.loc_id = 4321;
+        place.loc_after.shape = 10;
+        place.loc_after.rotation = 3;
+        place.loc_after.level = 0;
+        place.loc_after.x = 31;
+        place.loc_after.z = 29;
+        Editor_CmdApply(doc, &place, EDITOR_CMD_FORWARD);
+        check(square->dirty_loc == 1, "placing a loc dirties the loc half");
+
+        length = Editor_Jl2Emit(square, NULL, 0);
+        text = malloc(length + 1);
+        Editor_Jl2Emit(square, text, length + 1);
+        check(
+            host.vtable->square_save(host.user_data, 50, 50, NULL, 0, text, length) ==
+                EDITOR_HOST_OK,
+            "the placed loc saves");
+        free(text);
+    }
+
+    {
+        struct Editor_Doc* reload = calloc(1, sizeof(*reload));
+        struct Editor_Square* fresh;
+        size_t size = 0;
+        char* text = slurp(jl2_path, &size);
+        int found;
+
+        fresh = Editor_DocOpenSquare(reload, 50, 50);
+        check(
+            text && Editor_Jl2Parse(fresh, text, size).status == EDITOR_PARSE_OK,
+            "the saved .jl2 parses again");
+        /* Searched by ID, not by tile: the square already carries locs, and a
+         * tile-and-shape lookup can land on one that was always there --
+         * which would pass whether or not the placement saved. */
+        found = -1;
+        for( int i = 0; i < fresh->loc_count; i++ )
+            if( fresh->locs[i].loc_id == 4321 )
+            {
+                found = i;
+                break;
+            }
+        check(found >= 0, "the placed loc is on disk");
+        if( found >= 0 )
+        {
+            check(fresh->locs[found].x == 31 && fresh->locs[found].z == 29, "at the placed tile");
+            check(fresh->locs[found].shape == 10, "with the placed shape");
+            check(fresh->locs[found].rotation == 3, "and the placed rotation");
+        }
+        free(text);
+        Editor_DocFree(reload);
+        free(reload);
+    }
+
     /* No temporary left behind: the atomic write renames onto the target. */
     {
         char temp_path[1300];

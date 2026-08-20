@@ -142,6 +142,10 @@ struct RS_MinimenuBuildCtx
      * than by name, since the map editor's tile tools care which layer they
      * would be affecting, not which loc it is. */
     bool mapedit_select_active;
+    /** The map editor's Delete-loc tool: every loc that earns an Examine row
+     *  earns a "Delete <category>" row, layer-precise via the same pick the
+     *  Select rows ride. Same lifecycle as mapedit_select_active. */
+    bool mapedit_delete_active;
 };
 
 /* Custom, client-only minimenu action id: never sent to a server, and picked
@@ -169,6 +173,8 @@ struct RS_MinimenuBuildCtx
  * ("Select Wall" vs "Select Ground Decor"), not the handler. */
 #define RS_MINIMENU_ACTION_MAPEDIT_SELECT (UITREE_MINIMENU_ACTION_CLIENT_BASE + 2)
 #define RS_MINIMENU_ACTION_MAPEDIT_SELECT_TERRAIN (UITREE_MINIMENU_ACTION_CLIENT_BASE + 3)
+/** Delete the exact picked loc -- the Delete tool's minimenu row. */
+#define RS_MINIMENU_ACTION_MAPEDIT_DELETE (UITREE_MINIMENU_ACTION_CLIENT_BASE + 4)
 
 /** Build the full menu for a right click at (click_x, click_y): Cancel row,
  * per-hit-node rows (top-most component first), priority-sorted. */

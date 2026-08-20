@@ -155,6 +155,23 @@ struct ToriRS_ExecutorConfig; /* fwd; src/executor_config.h */
  * sscompile will accept in one build. */
 #define BOOTMANIFEST_LANE_MAX 32
 #define BOOTMANIFEST_LANE_CAP 128
+/** Where `[editor:boot] panel=` puts the command panel. */
+enum BootManifestEditorPanel
+{
+    /**
+     * Rows in the renderer's own window, drawn by ToriRSChrome. The default,
+     * and the only binding that needs nothing outside this process.
+     */
+    BOOTMANIFEST_EDITOR_PANEL_INPROCESS = 0,
+    /**
+     * Web only: a second browser tab running panel.html, talking to the canvas
+     * tab over torirs_channel.js. Rejected on a native boot rather than
+     * silently ignored -- a native binary has no tab to open, and a manifest
+     * that asks for one is stating an intent this build cannot honour.
+     */
+    BOOTMANIFEST_EDITOR_PANEL_TAB
+};
+
 #define BOOTMANIFEST_DEBUG_ACTION_MAX 64
 #define BOOTMANIFEST_DEBUG_HOTKEY_MAX 64
 #define BOOTMANIFEST_DEBUG_NAME_CAP 64
@@ -246,6 +263,18 @@ struct BootManifest
      * which is the right default for a look-only session. Baking is never a
      * side effect of saving; it happens only when the user asks. */
     char editor_repo_root[512];
+
+    /**
+     * Where the command panel is drawn (`[editor:boot] panel=`).
+     *
+     * A boot-time choice rather than a runtime toggle because the panel's
+     * binding decides what gets constructed: the in-process panel is rows in
+     * the renderer's own ToriRSChrome, and the tab panel is a second browser
+     * context that has to be opened before it can be talked to.
+     */
+    enum BootManifestEditorPanel editor_panel;
+    /** Set when `panel=` named something unknown; the load fails on it. */
+    int editor_panel_error;
 
     /* [content:lanes] — which gated content lanes `server_scripts` above was
      * compiled from, one `lane=` per line.

@@ -808,6 +808,48 @@ CacheProvider_LocationHas(
 void
 CacheProvider_LocationsCleanup(struct CacheProvider* provider);
 
+/* ---- catalog enumeration -------------------------------------------------
+ *
+ * What is ALREADY DECODED, not what the cache contains.
+ *
+ * There is deliberately no "list every loc in the cache" here. Config records
+ * load one at a time through the task system, and a sweep that pulled all of
+ * them to build a list would decode tens of thousands of records in a frame --
+ * the same trap the entity viewer hit walking npcs by id. What a map editor
+ * actually wants is the set in front of it: after a world load the location
+ * cache holds every loc in the loaded squares, which is exactly the palette
+ * you place more of.
+ *
+ * A record reaches these by being loaded for some other reason. To put a
+ * specific absent id in the list, load it first (the *Load task) and it
+ * appears.
+ */
+
+enum CacheProvider_CatalogKind
+{
+    CACHEPROVIDER_CATALOG_LOC = 0,
+    CACHEPROVIDER_CATALOG_NPC,
+    CACHEPROVIDER_CATALOG_OBJ
+};
+
+/** Called once per loaded record. `name` is never NULL, but may be empty. */
+typedef void (*CacheProvider_CatalogVisitFn)(void* user, int id, char const* name);
+
+/**
+ * Visit every loaded record of `kind`, in unspecified order.
+ *
+ * @return how many were visited. The entry layout stays private to the
+ *         provider -- callers get ids and names, not the records, because a
+ *         catalog needs nothing else and handing out the pointers would make
+ *         cache trimming a use-after-free.
+ */
+int
+CacheProvider_VisitLoaded(
+    struct CacheProvider* provider,
+    enum CacheProvider_CatalogKind kind,
+    CacheProvider_CatalogVisitFn visit,
+    void* user);
+
 void
 CacheProvider_FlotypeAdd(
     struct CacheProvider* provider,

@@ -4131,14 +4131,45 @@ gl3_ev_line(
     {
         x1 = cmd->x; y1 = cmd->y; x2 = cmd->x + cmd->w; y2 = cmd->y + cmd->h;
     }
-    gl3_flush_2d_batch(renderer);
-    gl3_draw_textured_quad(renderer, renderer->white_texture, 0, false, NULL,
-        (float)x1, (float)y1 - (float)(thickness - 1) * 0.5f,
-        (float)x2, (float)y1 + (float)thickness * 0.5f, 0, 0, 1, 1, rgba);
-    if( y2 != y1 )
-        gl3_draw_textured_quad(renderer, renderer->white_texture, 0, false, NULL,
-            (float)x2 - (float)thickness * 0.5f, (float)y1,
-            (float)x2 + (float)thickness * 0.5f, (float)y2, 0, 0, 1, 1, rgba);
+    /*
+     * A line is a quad extruded along its own direction -- not the axis-
+     * aligned L this used to draw. The old shape rendered any diagonal as a
+     * horizontal run plus a vertical drop, which turned every slanted edge of
+     * a selection outline into staircase chrome: the "contour lines only go
+     * in cardinal directions" bug, visible on every hull the overlay draws
+     * over sloped ground. The soft rasteriser always drew true diagonals;
+     * this brings GL to parity.
+     */
+    {
+        float const fx1 = (float)x1;
+        float const fy1 = (float)y1;
+        float const fx2 = (float)x2;
+        float const fy2 = (float)y2;
+        float const dx = fx2 - fx1;
+        float const dy = fy2 - fy1;
+        float const len = sqrtf(dx * dx + dy * dy);
+        float px;
+        float py;
+        struct GL3Vertex2D verts[6];
+
+        if( len <= 0.0f )
+            return;
+        /* Perpendicular, scaled to half the stroke width. */
+        px = -dy / len * (float)thickness * 0.5f;
+        py = dx / len * (float)thickness * 0.5f;
+
+        verts[0] = (struct GL3Vertex2D){ { fx1 - px, fy1 - py }, { 0, 0 }, { rgba[0], rgba[1], rgba[2], rgba[3] } };
+        verts[1] = (struct GL3Vertex2D){ { fx2 - px, fy2 - py }, { 0, 0 }, { rgba[0], rgba[1], rgba[2], rgba[3] } };
+        verts[2] = (struct GL3Vertex2D){ { fx2 + px, fy2 + py }, { 0, 0 }, { rgba[0], rgba[1], rgba[2], rgba[3] } };
+        verts[3] = (struct GL3Vertex2D){ { fx1 - px, fy1 - py }, { 0, 0 }, { rgba[0], rgba[1], rgba[2], rgba[3] } };
+        verts[4] = (struct GL3Vertex2D){ { fx2 + px, fy2 + py }, { 0, 0 }, { rgba[0], rgba[1], rgba[2], rgba[3] } };
+        verts[5] = (struct GL3Vertex2D){ { fx1 + px, fy1 + py }, { 0, 0 }, { rgba[0], rgba[1], rgba[2], rgba[3] } };
+
+        gl3_batch2d_append_verts(
+            renderer, renderer->white_texture, 0, false, NULL, renderer->draw_scissor_x,
+            renderer->draw_scissor_y, renderer->draw_scissor_w, renderer->draw_scissor_h, verts,
+            6u);
+    }
 }
 
 static void
