@@ -457,6 +457,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	engine/world_builder/task_world_load.c \
 	editor/editor.c editor/editor_doc.c editor/editor_jm2.c \
 	editor/editor_cmd.c editor/editor_derive.c editor/editor_host_local.c \
+	editor/editor_panel.c \
 	painters/painters.c \
 	painters/painters_cull_project.c \
 	painters/scene_occluders.c \
@@ -1433,7 +1434,15 @@ test-editor-derive: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
 	./$(OBJ_DIR)/editor_derive_test $(EDITOR_CONTENT_DIR) $(EDITOR_CACHE_DIR) 600
 
-test-editor: test-editor-cmd test-editor-jm2 test-editor-derive
+# ToriDbgUI dropdown interaction, driven through the real input entry points:
+# opening, choosing, dismissing by clicking away, wheel scrolling and clamping,
+# and swapping the option list out from under an open one.
+test-editor-dropdown: $(OBJ_DIR) ui/uitree_debug_overlay.c ui/test/uitree_test_dropdown.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/uitree_test_dropdown \
+		ui/uitree_debug_overlay.c ui/test/uitree_test_dropdown.c
+	./$(OBJ_DIR)/uitree_test_dropdown
+
+test-editor: test-editor-cmd test-editor-jm2 test-editor-derive test-editor-dropdown
 
 # NpcType.multiNpc (opcode 106) decode -> ToriRS_Npctype.transform_* -- pure
 # struct plumbing, no cache file or App needed.

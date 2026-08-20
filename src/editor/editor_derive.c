@@ -17,28 +17,24 @@ Editor_SquareDeriveTerrain(
     const struct RSCache* profile,
     struct ToriRS_MapTerrain* out_terrain)
 {
-    struct RSCache_MapTerrain* authored = NULL;
-    struct RSCache_MapTerrain* derived = NULL;
-    uint8_t* encoded = NULL;
-    uint32_t bound;
-    uint32_t written;
-    int flags;
+    struct RSCache_MapTerrain* terrain = NULL;
 
     assert(square);
     assert(profile);
     assert(out_terrain);
-
-    flags = RSCache_MapTerrainFlags(profile);
+    /* Kept in the signature: the tile widths it selects are an era property the
+     * caller must not have to guess, and a future encode path here needs it. */
+    (void)profile;
 
     /* 1. Authored record -> the cache's terrain struct, unfixed. `height` here
      *    is the raw wire value (0 where the file said nothing), which is
      *    exactly what the decoder would have produced. */
-    authored = malloc(sizeof(*authored));
-    assert(authored);
-    memset(authored, 0, sizeof(*authored));
-    authored->map_x = square->map_x;
-    authored->map_z = square->map_z;
-    authored->is_fixedup = false;
+    terrain = malloc(sizeof(*terrain));
+    assert(terrain);
+    memset(terrain, 0, sizeof(*terrain));
+    terrain->map_x = square->map_x;
+    terrain->map_z = square->map_z;
+    terrain->is_fixedup = false;
 
     for( int level = 0; level < EDITOR_SQUARE_LEVELS; level++ )
     {
@@ -48,7 +44,7 @@ Editor_SquareDeriveTerrain(
             {
                 const struct Editor_Tile* tile = &square->tiles[Editor_TileIndex(x, z, level)];
                 struct RSCache_MapFloor* floor =
-                    &authored->tiles_xyz[RSCACHE_MAP_TILE_COORD(x, z, level)];
+                    &terrain->tiles_xyz[RSCACHE_MAP_TILE_COORD(x, z, level)];
 
                 floor->height = tile->has_height ? (int16_t)tile->height : 0;
                 floor->height_authored = tile->has_height;
@@ -69,38 +65,29 @@ Editor_SquareDeriveTerrain(
 
     if( square->trailing_size > 0 )
     {
-        authored->trailing = malloc((size_t)square->trailing_size);
-        assert(authored->trailing);
-        memcpy(authored->trailing, square->trailing, (size_t)square->trailing_size);
-        authored->trailing_size = square->trailing_size;
+        terrain->trailing = malloc((size_t)square->trailing_size);
+        assert(terrain->trailing);
+        memcpy(terrain->trailing, square->trailing, (size_t)square->trailing_size);
+        terrain->trailing_size = square->trailing_size;
     }
 
-    /* 2. Through the real codec, so the heights the renderer gets are the ones
-     *    the game would have produced from this file. */
-    bound = RSCache_MapTerrainEncodeBoundFor(authored, flags);
-    encoded = malloc(bound ? bound : 1);
-    assert(encoded);
-    written = RSCache_MapTerrainEncode(authored, flags, encoded, bound);
-    if( written == 0 )
-    {
-        free(encoded);
-        RSCache_MapTerrainFree(authored);
-        return 0;
-    }
-
-    derived = RSCache_MapTerrainNewFromDecodeFlags(
-        (char*)encoded, (int)written, square->map_x, square->map_z, flags);
-    free(encoded);
-    RSCache_MapTerrainFree(authored);
-    if( !derived )
-        return 0;
+    /*
+     * 2. Resolve heights with the cache's own fixup.
+     *
+     * The same function the client's load path calls after decoding a square
+     * raw, so an edited square resolves exactly the way a loaded one does. This
+     * used to go out through the encoder and back through the decoder to reach
+     * that function while it was private; now it is called directly, which is
+     * both correct and about two orders of magnitude cheaper per rebuild.
+     */
+    RSCache_MapTerrainFixup(terrain, square->map_x, square->map_z);
 
     /* 3. Into the client's form. */
     out_terrain->map_x = square->map_x;
     out_terrain->map_z = square->map_z;
     for( int i = 0; i < EDITOR_SQUARE_TILES; i++ )
     {
-        const struct RSCache_MapFloor* from = &derived->tiles_xyz[i];
+        const struct RSCache_MapFloor* from = &terrain->tiles_xyz[i];
         struct ToriRS_MapFloor* to = &out_terrain->tiles_xyz[i];
 
         to->overlay_id = from->overlay_id;
@@ -109,9 +96,13 @@ Editor_SquareDeriveTerrain(
         to->settings = from->settings;
         to->shape = from->shape;
         to->rotation = from->rotation;
+        /* Carried so a square that came from the editor is indistinguishable
+         * from one that came from the cache: both know what their file said. */
+        to->has_authored_height = from->height_authored;
+        to->authored_height = from->authored_height;
     }
 
-    RSCache_MapTerrainFree(derived);
+    RSCache_MapTerrainFree(terrain);
     return 1;
 }
 

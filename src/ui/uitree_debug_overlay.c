@@ -31,6 +31,10 @@
 #define DBG_INPUT_PAD_Y 2
 /** A text input never lays out narrower than this, even when empty. */
 #define DBG_INPUT_MIN_W 60
+/** Width of the dropdown's arrow gutter, right-aligned inside the box. */
+#define DBG_DROP_ARROW_W 9
+/** Row pitch inside the open dropdown list. */
+#define DBG_DROP_ROW_H (ToriDbgFont_Small_LINE_BOX)
 /** Height of a separator row: a 1px rule with air above and below. */
 #define DBG_SEP_H 5
 /** Narrowest a panel may be, before borders. */
@@ -235,6 +239,7 @@ ToriDbgUI_Init(struct ToriDbgUI* ui)
     ui->hover = -1;
     ui->press = -1;
     ui->activated = -1;
+    ui->dropdown_open = -1;
     ui->caret_visible = 1;
 }
 
@@ -246,6 +251,8 @@ ToriDbgUI_Reset(struct ToriDbgUI* ui)
     for( int i = 0; i < ui->panel_count; i++ )
         dbg_damage_add(ui, ui->panels[i].last_rect);
     ui->panel_count = 0;
+    ui->dropdown_open = -1;
+    ui->dropdown_hover_row = -1;
     ui->widget_count = 0;
     ui->prim_count = 0;
     ui->focus = -1;
@@ -400,6 +407,96 @@ ToriDbgUI_TextInput(struct ToriDbgUI* ui, int panel, char const* label, char con
     return h;
 }
 
+/** Keep `selected` inside the list and the scroll window over the selection. */
+static void
+dbg_dropdown_clamp(struct ToriDbgWidget* w)
+{
+    int rows;
+
+    if( w->selected >= w->option_count )
+        w->selected = w->option_count - 1;
+    if( w->selected < -1 )
+        w->selected = -1;
+
+    rows = w->option_count < TORIDBG_DROPDOWN_ROWS ? w->option_count : TORIDBG_DROPDOWN_ROWS;
+    if( w->scroll > w->option_count - rows )
+        w->scroll = w->option_count - rows;
+    if( w->scroll < 0 )
+        w->scroll = 0;
+}
+
+int
+ToriDbgUI_Dropdown(
+    struct ToriDbgUI* ui,
+    int panel,
+    char const* label,
+    char const* const* options,
+    int option_count,
+    int selected)
+{
+    int const h = dbg_widget_add(ui, panel, TORIDBG_W_DROPDOWN);
+    if( h < 0 )
+        return -1;
+    dbg_copy(ui->widgets[h].label, TORIDBG_LABEL_MAX, label);
+    ui->widgets[h].options = options;
+    ui->widgets[h].option_count = options ? option_count : 0;
+    ui->widgets[h].selected = selected;
+    dbg_dropdown_clamp(&ui->widgets[h]);
+    /* Open on the selection so a palette of hundreds does not open at the top
+     * with the current choice off screen. */
+    ui->widgets[h].scroll = ui->widgets[h].selected > 0 ? ui->widgets[h].selected : 0;
+    dbg_dropdown_clamp(&ui->widgets[h]);
+    return h;
+}
+
+void
+ToriDbgUI_DropdownSetOptions(
+    struct ToriDbgUI* ui,
+    int widget,
+    char const* const* options,
+    int option_count,
+    int selected)
+{
+    struct ToriDbgWidget* w;
+
+    if( !dbg_valid_widget(ui, widget) )
+        return;
+    w = &ui->widgets[widget];
+    w->options = options;
+    w->option_count = options ? option_count : 0;
+    w->selected = selected;
+    w->scroll = selected > 0 ? selected : 0;
+    dbg_dropdown_clamp(w);
+    /* The rows under an open list just changed identity; leaving it open would
+     * let the next click select something the user never saw. */
+    if( ui->dropdown_open == widget )
+        ui->dropdown_open = -1;
+    dbg_dirty_widget(ui, widget);
+}
+
+int
+ToriDbgUI_DropdownSelected(struct ToriDbgUI const* ui, int widget)
+{
+    if( !dbg_valid_widget(ui, widget) )
+        return -1;
+    return ui->widgets[widget].selected;
+}
+
+void
+ToriDbgUI_DropdownSetSelected(struct ToriDbgUI* ui, int widget, int selected)
+{
+    struct ToriDbgWidget* w;
+
+    if( !dbg_valid_widget(ui, widget) )
+        return;
+    w = &ui->widgets[widget];
+    if( w->selected == selected )
+        return;
+    w->selected = selected;
+    dbg_dropdown_clamp(w);
+    dbg_dirty_widget(ui, widget);
+}
+
 int
 ToriDbgUI_Separator(struct ToriDbgUI* ui, int panel)
 {
@@ -525,6 +622,22 @@ dbg_widget_width(struct ToriDbgUI const* ui, struct ToriDbgWidget const* w)
     }
     case TORIDBG_W_MENUITEM:
         return w->text ? ToriDbgUI_MeasureText(TORIDBG_FONT_MENU, w->text) : 0;
+    case TORIDBG_W_DROPDOWN:
+    {
+        int const label_w = w->label[0] ? ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, w->label) : 0;
+        int box_w = DBG_INPUT_MIN_W;
+        /* Sized to the widest option, so choosing one never resizes the panel
+         * under the cursor. Palettes are built once, so this walk is not per
+         * frame -- dbg_widget_width only runs on a dirty build. */
+        for( int i = 0; i < w->option_count; i++ )
+        {
+            int const ow = ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, w->options[i]);
+            if( ow > box_w )
+                box_w = ow;
+        }
+        box_w += 2 * DBG_INPUT_PAD_X + 2 + DBG_DROP_ARROW_W;
+        return label_w + (label_w > 0 ? DBG_CHECK_GAP : 0) + box_w;
+    }
     case TORIDBG_W_SEPARATOR:
     default:
         return 0;
@@ -541,6 +654,7 @@ dbg_widget_height(struct ToriDbgWidget const* w)
     case TORIDBG_W_CHECKBOX:
         return dbg_max(line, DBG_CHECK_SIZE);
     case TORIDBG_W_TEXTINPUT:
+    case TORIDBG_W_DROPDOWN:
         return line + 2 * DBG_INPUT_PAD_Y + 2;
     case TORIDBG_W_SEPARATOR:
         return DBG_SEP_H;
@@ -759,6 +873,100 @@ dbg_build_window(struct ToriDbgUI* ui, struct ToriDbgPanel* p)
             break;
         }
 
+        /* A clickable row inside a window panel.
+         *
+         * MENUITEM used to be drawn only by the menu-style panel, so one placed
+         * in a window laid out a row and then painted nothing into it — an
+         * action the user could click but could not see. A window panel that
+         * can hold checkboxes and dropdowns should be able to hold a command
+         * too, so it draws one: accent-coloured on hover, which is the whole of
+         * what makes a row read as pressable. */
+        case TORIDBG_W_MENUITEM:
+            dbg_push_text(
+                ui,
+                row_x,
+                row_y + ToriDbgFont_Small_LINE_HEIGHT,
+                w->text,
+                hovered ? th->accent : (w->color ? w->color : th->text),
+                TORIDBG_FONT_SMALL,
+                0,
+                clip);
+            break;
+
+        case TORIDBG_W_DROPDOWN:
+        {
+            int const label_w = ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, w->label);
+            int const box_x = row_x + label_w + (label_w > 0 ? DBG_CHECK_GAP : 0);
+            int const box_w = row_x + w->w - box_x;
+            int const open = ui->dropdown_open == widget;
+            char const* shown = (w->selected >= 0 && w->selected < w->option_count)
+                                    ? w->options[w->selected]
+                                    : "";
+            struct ToriDbgRect inner;
+            int arrow_x;
+
+            if( label_w > 0 )
+                dbg_push_text(
+                    ui,
+                    row_x,
+                    row_y + DBG_INPUT_PAD_Y + 1 + ToriDbgFont_Small_LINE_HEIGHT,
+                    w->label,
+                    w->color ? w->color : th->text_dim,
+                    TORIDBG_FONT_SMALL,
+                    0,
+                    clip);
+            if( box_w <= 0 )
+                break;
+
+            dbg_push_rect(ui, box_x, row_y, box_w, row_h, th->input_bg, 1, clip);
+            dbg_push_rect(
+                ui,
+                box_x,
+                row_y,
+                box_w,
+                row_h,
+                (open || hovered) ? th->input_border_focus : th->input_border,
+                0,
+                clip);
+
+            /* The chosen option is clipped to the box rather than to the row,
+             * so a long name is cut at the arrow instead of running under it. */
+            inner = clip;
+            if( inner.x < box_x + 1 )
+                inner.x = box_x + 1;
+            {
+                int const right = box_x + box_w - 1 - DBG_DROP_ARROW_W;
+                if( inner.x + inner.w > right )
+                    inner.w = right - inner.x;
+                if( inner.w < 0 )
+                    inner.w = 0;
+            }
+            dbg_push_text(
+                ui,
+                box_x + DBG_INPUT_PAD_X + 1,
+                row_y + DBG_INPUT_PAD_Y + 1 + ToriDbgFont_Small_LINE_HEIGHT,
+                shown,
+                th->input_text,
+                TORIDBG_FONT_SMALL,
+                0,
+                inner);
+
+            /* A three-step wedge rather than a glyph: the baked fonts carry no
+             * arrow, and three rects cost less than teaching the font bake one. */
+            arrow_x = box_x + box_w - DBG_DROP_ARROW_W;
+            for( int step = 0; step < 3; step++ )
+                dbg_push_rect(
+                    ui,
+                    arrow_x + step,
+                    row_y + row_h / 2 - 1 + (open ? 2 - step : step),
+                    DBG_DROP_ARROW_W - 2 * step - 2,
+                    1,
+                    (open || hovered) ? th->accent : th->text_dim,
+                    1,
+                    clip);
+            break;
+        }
+
         case TORIDBG_W_TEXTINPUT:
         {
             int const label_w = ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, w->label);
@@ -927,6 +1135,11 @@ dbg_build_menu(struct ToriDbgUI* ui, struct ToriDbgPanel* p)
     }
 }
 
+static void
+dbg_build_dropdown_list(struct ToriDbgUI* ui);
+static struct ToriDbgRect
+dbg_dropdown_rect(struct ToriDbgUI const* ui);
+
 int
 ToriDbgUI_Build(struct ToriDbgUI* ui)
 {
@@ -977,8 +1190,102 @@ ToriDbgUI_Build(struct ToriDbgUI* ui)
         p->last_rect = rect;
     }
 
+    /* After every panel, so the open list is never buried under one drawn
+     * later. This is the whole reason the list is overlay state rather than a
+     * child of the panel that owns the dropdown. */
+    dbg_build_dropdown_list(ui);
+
     ui->dirty = 0;
     return 1;
+}
+
+/** Screen rect of the open list, or a zero rect when none is open. */
+static struct ToriDbgRect
+dbg_dropdown_rect(struct ToriDbgUI const* ui)
+{
+    struct ToriDbgRect rect = { 0, 0, 0, 0 };
+    struct ToriDbgWidget const* w;
+    int rows;
+
+    if( ui->dropdown_open < 0 )
+        return rect;
+
+    w = &ui->widgets[ui->dropdown_open];
+    rows = w->option_count < TORIDBG_DROPDOWN_ROWS ? w->option_count : TORIDBG_DROPDOWN_ROWS;
+    if( rows <= 0 )
+        return rect;
+
+    {
+        int const label_w = ToriDbgUI_MeasureText(TORIDBG_FONT_SMALL, w->label);
+        rect.x = w->x + label_w + (label_w > 0 ? DBG_CHECK_GAP : 0);
+        rect.w = w->x + w->w - rect.x;
+    }
+    rect.y = w->y + w->h;
+    rect.h = rows * DBG_DROP_ROW_H + 2;
+    return rect;
+}
+
+static void
+dbg_build_dropdown_list(struct ToriDbgUI* ui)
+{
+    struct ToriDbgTheme const* th = &ui->theme;
+    struct ToriDbgWidget const* w;
+    struct ToriDbgRect rect;
+    struct ToriDbgRect clip;
+    int rows;
+
+    if( ui->dropdown_open < 0 )
+        return;
+
+    w = &ui->widgets[ui->dropdown_open];
+    rect = dbg_dropdown_rect(ui);
+    if( rect.w <= 0 || rect.h <= 0 )
+        return;
+
+    rows = w->option_count < TORIDBG_DROPDOWN_ROWS ? w->option_count : TORIDBG_DROPDOWN_ROWS;
+    clip = rect;
+
+    dbg_push_rect(ui, rect.x, rect.y, rect.w, rect.h, th->menu_body, 1, clip);
+    dbg_push_rect(ui, rect.x, rect.y, rect.w, rect.h, th->menu_chrome, 0, clip);
+
+    for( int row = 0; row < rows; row++ )
+    {
+        int const index = w->scroll + row;
+        int const y = rect.y + 1 + row * DBG_DROP_ROW_H;
+        int const chosen = index == w->selected;
+        int const hovered = ui->dropdown_hover_row == row;
+
+        if( index < 0 || index >= w->option_count )
+            break;
+
+        if( hovered )
+            dbg_push_rect(ui, rect.x + 1, y, rect.w - 2, DBG_DROP_ROW_H, th->panel_title_bg, 1, clip);
+        dbg_push_text(
+            ui,
+            rect.x + 1 + DBG_INPUT_PAD_X,
+            y + ToriDbgFont_Small_LINE_HEIGHT,
+            w->options[index],
+            hovered ? th->menu_hover_text : (chosen ? th->accent : th->menu_text),
+            TORIDBG_FONT_SMALL,
+            0,
+            clip);
+    }
+
+    /* A scroll thumb only when the list does not fit, sized to the fraction
+     * shown -- otherwise a long palette gives no clue how far down it goes. */
+    if( w->option_count > rows )
+    {
+        int const track_h = rect.h - 2;
+        int thumb_h = track_h * rows / w->option_count;
+        int thumb_y;
+
+        if( thumb_h < 4 )
+            thumb_h = 4;
+        thumb_y = rect.y + 1;
+        if( w->option_count > rows )
+            thumb_y += (track_h - thumb_h) * w->scroll / (w->option_count - rows);
+        dbg_push_rect(ui, rect.x + rect.w - 3, thumb_y, 2, thumb_h, th->accent, 1, clip);
+    }
 }
 
 struct ToriDbgPrim const*
@@ -1053,12 +1360,70 @@ ToriDbgUI_HitTest(struct ToriDbgUI const* ui, int x, int y)
     return -1;
 }
 
+
+/**
+ * Row of the open dropdown list under a point, or -1.
+ *
+ * The list is not made of widgets, so it is not part of the widget hit test —
+ * it is a view on the borrowed `options` array, and its rows are addressed by
+ * index. Every mouse entry point asks this FIRST, because an open list sits
+ * over whatever panel is beneath it and must take the click.
+ */
+static int
+dbg_dropdown_row_at(struct ToriDbgUI const* ui, int x, int y)
+{
+    struct ToriDbgRect rect;
+    struct ToriDbgWidget const* w;
+    int row;
+    int rows;
+
+    if( ui->dropdown_open < 0 )
+        return -1;
+    rect = dbg_dropdown_rect(ui);
+    if( rect.w <= 0 || !dbg_point_in(x, y, rect.x, rect.y, rect.w, rect.h) )
+        return -1;
+
+    w = &ui->widgets[ui->dropdown_open];
+    rows = w->option_count < TORIDBG_DROPDOWN_ROWS ? w->option_count : TORIDBG_DROPDOWN_ROWS;
+    row = (y - rect.y - 1) / DBG_DROP_ROW_H;
+    if( row < 0 || row >= rows || w->scroll + row >= w->option_count )
+        return -1;
+    return row;
+}
+
+/** Close the open list, damaging the area it occupied. */
+static void
+dbg_dropdown_close(struct ToriDbgUI* ui)
+{
+    if( ui->dropdown_open < 0 )
+        return;
+    dbg_damage_add(ui, dbg_dropdown_rect(ui));
+    dbg_dirty_widget(ui, ui->dropdown_open);
+    ui->dropdown_open = -1;
+    ui->dropdown_hover_row = -1;
+    ui->dirty = 1;
+}
+
 int
 ToriDbgUI_MouseMove(struct ToriDbgUI* ui, int x, int y)
 {
     int hit;
 
     assert(ui);
+
+    if( ui->dropdown_open >= 0 )
+    {
+        int const row = dbg_dropdown_row_at(ui, x, y);
+        if( row != ui->dropdown_hover_row )
+        {
+            ui->dropdown_hover_row = row;
+            ui->dirty = 1;
+            dbg_damage_add(ui, dbg_dropdown_rect(ui));
+        }
+        if( row >= 0 )
+            return 1;
+    }
+
     hit = ToriDbgUI_HitTest(ui, x, y);
     if( hit != ui->hover )
     {
@@ -1076,6 +1441,20 @@ ToriDbgUI_MouseDown(struct ToriDbgUI* ui, int x, int y)
     int hit;
 
     assert(ui);
+
+    /* A press inside the open list belongs to the list; MouseUp turns it into
+     * a selection. A press anywhere else closes it, which is what makes
+     * clicking away dismiss rather than select. */
+    if( ui->dropdown_open >= 0 )
+    {
+        if( dbg_dropdown_row_at(ui, x, y) >= 0 )
+        {
+            ui->press = -1;
+            return 1;
+        }
+        dbg_dropdown_close(ui);
+    }
+
     hit = ToriDbgUI_HitTest(ui, x, y);
     ui->press = hit;
     if( hit >= 0 && ui->widgets[hit].kind == TORIDBG_W_TEXTINPUT )
@@ -1102,6 +1481,24 @@ ToriDbgUI_MouseUp(struct ToriDbgUI* ui, int x, int y)
     int hit;
 
     assert(ui);
+
+    if( ui->dropdown_open >= 0 )
+    {
+        int const row = dbg_dropdown_row_at(ui, x, y);
+        if( row >= 0 )
+        {
+            struct ToriDbgWidget* dd = &ui->widgets[ui->dropdown_open];
+            int const chosen = ui->dropdown_open;
+            dd->selected = dd->scroll + row;
+            dbg_dropdown_close(ui);
+            /* Reported like any other activation, so a caller drains choices
+             * and clicks through one TakeActivated loop. */
+            ui->activated = chosen;
+            ui->press = -1;
+            return 1;
+        }
+    }
+
     hit = ToriDbgUI_HitTest(ui, x, y);
     /* Press and release must land on the same widget, so a drag off a checkbox
      * cancels rather than toggles. */
@@ -1118,9 +1515,56 @@ ToriDbgUI_MouseUp(struct ToriDbgUI* ui, int x, int y)
         {
             ui->activated = hit;
         }
+        else if( w->kind == TORIDBG_W_DROPDOWN )
+        {
+            /* Toggle: a second click on the closed row shuts it again. */
+            if( ui->dropdown_open == hit )
+            {
+                dbg_dropdown_close(ui);
+            }
+            else if( w->option_count > 0 )
+            {
+                ui->dropdown_open = hit;
+                ui->dropdown_hover_row = -1;
+                dbg_dropdown_clamp(w);
+                dbg_dirty_widget(ui, hit);
+            }
+        }
     }
     ui->press = -1;
     return dbg_panel_at(ui, x, y) >= 0;
+}
+
+
+int
+ToriDbgUI_MouseWheel(struct ToriDbgUI* ui, int x, int y, int delta)
+{
+    struct ToriDbgWidget* w;
+    int before;
+
+    assert(ui);
+    if( ui->dropdown_open < 0 )
+        return 0;
+
+    {
+        struct ToriDbgRect const rect = dbg_dropdown_rect(ui);
+        if( rect.w <= 0 || !dbg_point_in(x, y, rect.x, rect.y, rect.w, rect.h) )
+            return 0;
+    }
+
+    w = &ui->widgets[ui->dropdown_open];
+    before = w->scroll;
+    w->scroll += delta;
+    dbg_dropdown_clamp(w);
+    if( w->scroll != before )
+    {
+        /* The list is not a panel, so panel dirtying would not repaint it. */
+        ui->dirty = 1;
+        dbg_damage_add(ui, dbg_dropdown_rect(ui));
+    }
+    /* Consumed either way: a wheel over an open list must never also zoom the
+     * camera behind it, including at the ends of the list. */
+    return 1;
 }
 
 int

@@ -33,6 +33,11 @@ ToriRS_MapTerrainFromRSCache(
         d->settings = s->settings;
         d->shape = s->shape;
         d->rotation = s->rotation;
+        /* Carried, not derivable: once the fixup has run, `height` no longer
+         * says whether the file authored one. Anything writing terrain back
+         * reads these instead. */
+        d->has_authored_height = s->height_authored;
+        d->authored_height = s->authored_height;
     }
 
     return terrain;

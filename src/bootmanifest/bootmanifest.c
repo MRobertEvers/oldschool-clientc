@@ -667,7 +667,8 @@ bm_set_kv(
             "paint_toggle",     "paint_more",     "paint_less",      "paint_more_100",
             "paint_less_100",   "spawn_player",   "spawn_npc",       "spawn_obj",
             "spawn_projectile", "spawn_spotanim", "entity_spotanim", "damage_test",
-            "debug_overlay",    "loc_editor_toggle", "hover_footprint"
+            "debug_overlay",    "loc_editor_toggle", "hover_footprint",
+            "map_editor_toggle"
         };
         char const* name = section_name + 7;
         struct BootManifestDebugAction* action = NULL;

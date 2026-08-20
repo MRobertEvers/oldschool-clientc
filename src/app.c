@@ -4721,6 +4721,17 @@ app_loc_editor_tick(
         fprintf(stderr, "hover_footprint: %d\n", app->hover_footprint);
     }
 
+    /* Map editor panel. Gated on the session existing, so binding this key in a
+     * manifest with no [editor:boot] is inert rather than a panel with nothing
+     * behind it. */
+    if( app->editor && !app_text_input_focused(app) &&
+        app_debug_key_down(app, input, APP_DEBUG_HOTKEY_MAP_EDITOR) )
+    {
+        Editor_PanelSetVisible(
+            &app->editor_panel, &app->dbg_ui, !app->editor_panel.visible);
+        app->need_redraw = 1;
+    }
+
     /* Both tools inspect locs the pick classifier drops by default — walls,
      * fences, gravel, ground decor: everything with no ops on it, which is
      * most of what a placement or footprint question is actually about. Told
@@ -5342,6 +5353,10 @@ App_Init(
             "app: map editor over %s (%s)\n",
             cfg->editor_content_dir,
             app->editor->writable ? "writable" : "read-only, another session holds it");
+        /* Open on boot: this manifest asked for an editor, so the panel is the
+         * point of the session rather than a debug aid to go find. */
+        Editor_PanelInit(&app->editor_panel, &app->dbg_ui);
+        Editor_PanelSetVisible(&app->editor_panel, &app->dbg_ui, 1);
     }
 
     /* Phase 6: networking (opt-in). The default RSA key is the rev_245_2 Lost
@@ -17562,6 +17577,11 @@ App_RunOnce(
     /* Loc editor next, same reasoning -- and it has to run before anything
      * downstream reads input_frame_consumed for click-to-walk. */
     app_loc_editor_tick(app, input);
+    /* Map editor panel after the loc editor, for the same reason and in the
+     * same order it is drawn: both read this frame's hover, and the map editor
+     * acts on activations the overlay latched during the two calls above. */
+    if( app->editor )
+        Editor_PanelTick(&app->editor_panel, app);
 
     /*
      * Is the link still worth talking to?

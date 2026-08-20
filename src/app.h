@@ -6,6 +6,7 @@
 #include "engine/uitree_anim.h"
 #include "engine/uitree_builder/task_interface_open.h"
 #include "engine/uitree_builder/uitree_builder.h"
+#include "editor/editor_panel.h"
 #include "engine/uitree_scene_bridge.h"
 #include "engine/torirs_model_inst_cache.h"
 #include "features/features.h"
@@ -119,6 +120,8 @@ enum AppDebugHotkey
     APP_DEBUG_HOTKEY_DEBUG_OVERLAY,
     APP_DEBUG_HOTKEY_LOC_EDITOR,
     APP_DEBUG_HOTKEY_HOVER_FOOTPRINT,
+    /** Show/hide the map editor panel. Only does anything in an editor boot. */
+    APP_DEBUG_HOTKEY_MAP_EDITOR,
     APP_DEBUG_HOTKEY_COUNT
 };
 
@@ -466,6 +469,10 @@ struct App
      * states no `[net:boot]`, so the whole net stack is simply not constructed.
      */
     struct Editor* editor;
+    /** The editor's panel. Inline rather than behind the pointer above: it is
+     *  ToriDbgUI widget handles and palette storage, and the dropdowns BORROW
+     *  that storage, so it must not move once the widgets point into it. */
+    struct Editor_Panel editor_panel;
 
     /* Baked world map the minimap widget blits (rebaked on every world load).
      * scene_id is -1 until the first bake; w/h are the sprite's pixel size,

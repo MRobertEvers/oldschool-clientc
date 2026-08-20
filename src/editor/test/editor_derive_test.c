@@ -156,7 +156,29 @@ check_square(
         const struct RSCache_MapFloor* want = &reference->tiles_xyz[i];
         const struct ToriRS_MapFloor* got = &derived->tiles_xyz[i];
 
-        if( want->height != got->height || want->overlay_id != got->overlay_id ||
+        /*
+         * Authored as well as resolved.
+         *
+         * The cache decode records height provenance whether or not the fixup
+         * ran, so this checks the other half of the claim: the editor's text
+         * parse agrees with the cache about which tiles the FILE gave a height,
+         * not just about where the ground ends up. Getting `height` right while
+         * getting this wrong is exactly the failure that bakes generated
+         * terrain into a saved square.
+         */
+        if( want->height_authored != got->has_authored_height ||
+            (want->height_authored && want->authored_height != got->authored_height) )
+        {
+            if( mismatches == 0 )
+                fprintf(
+                    stderr,
+                    "FAIL m%d_%d tile %d: authored %d/%d value %d/%d (cache/derived)\n",
+                    map_x, map_z, i, want->height_authored, got->has_authored_height,
+                    want->authored_height, got->authored_height);
+            mismatches++;
+        }
+        else if(
+            want->height != got->height || want->overlay_id != got->overlay_id ||
             want->underlay_id != got->underlay_id || want->settings != got->settings ||
             want->shape != got->shape || want->rotation != got->rotation )
         {
