@@ -17,6 +17,8 @@
  * information and reads as such. */
 #define APP_OUTLINE_COLOR_HOVER 0xFFFFFF00u
 #define APP_OUTLINE_COLOR_FOOTPRINT 0xFFFF0000u
+/* 0 opaque .. 255 invisible. High enough that the model reads through it. */
+#define APP_OUTLINE_FILL_TRANS 205
 #include "engine/dat1/dat1_buildcache.h"
 #include "engine/dat1/dat1_tasks.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -2433,6 +2435,57 @@ app_overlay_push_segment(
  * segment (a footprint seen edge-on), and one point draws nothing rather than a
  * zero-length line the rasteriser would have to special-case.
  */
+/**
+ * Emit a convex polygon as a FILL: a begin / point... / end run.
+ *
+ * The run is three kinds of overlay item rather than one item holding an array
+ * so that each still maps to exactly one render command — the emit walk is one
+ * command per step, and bracketing is what lets a variable-length primitive
+ * through it without a sub-step counter in the walk and in all four backends.
+ *
+ * @param trans 0 opaque .. 255 invisible. A highlight is a wash over the model
+ *        it marks, so an opaque fill would hide the thing being highlighted.
+ */
+static void
+app_overlay_push_polygon_filled(
+    struct App* app,
+    const int* points_x,
+    const int* points_y,
+    int point_count,
+    uint32_t color,
+    int trans)
+{
+    struct UITreeEntityOverlay item;
+
+    assert(app);
+    assert(points_x);
+    assert(points_y);
+
+    /* Under three points there is no area to fill. The caller still draws the
+     * outline, so a hull seen edge-on degrades to a line rather than vanishing. */
+    if( point_count < 3 )
+        return;
+
+    memset(&item, 0, sizeof(item));
+    item.kind = UITREE_ENTITY_OVERLAY_POLY_BEGIN;
+    item.color = color;
+    item.trans = trans;
+    app_overlay_push(app, &item);
+
+    for( int i = 0; i < point_count; i++ )
+    {
+        memset(&item, 0, sizeof(item));
+        item.kind = UITREE_ENTITY_OVERLAY_POLY_POINT;
+        item.x = points_x[i];
+        item.y = points_y[i];
+        app_overlay_push(app, &item);
+    }
+
+    memset(&item, 0, sizeof(item));
+    item.kind = UITREE_ENTITY_OVERLAY_POLY_END;
+    app_overlay_push(app, &item);
+}
+
 static void
 app_overlay_push_polygon(
     struct App* app,
@@ -2554,6 +2607,11 @@ app_overlay_outline_element_model(
         return 0;
 
     hull_size = ToriDraw_ConvexHull(px, py, count, hull_x, hull_y);
+    /* Fill first, outline over it: the wash says "this one" at a glance and the
+     * outline gives it a definite edge, which a translucent fill alone does not
+     * have against busy ground. */
+    app_overlay_push_polygon_filled(
+        app, hull_x, hull_y, hull_size, color, APP_OUTLINE_FILL_TRANS);
     app_overlay_push_polygon(app, hull_x, hull_y, hull_size, color);
     return 1;
 }

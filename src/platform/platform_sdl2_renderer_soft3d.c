@@ -695,6 +695,103 @@ soft3d_draw_clear_rect(
     ToriDraw2D_FillRect(&vp, x0, y0, x1, y1, TORIRS_SOFT3D_BG, soft->pixels);
 }
 
+
+/* ---- convex polygon ------------------------------------------------------ *
+ *
+ * The shared decomposition (render/torirs_polygon.c) turns the polygon into
+ * horizontal runs; this writes them. Blending is the same alpha the sprite path
+ * uses, because a highlight is a wash over what is already drawn -- an opaque
+ * fill would hide the very model it is marking.
+ */
+
+struct soft3d_span_ctx
+{
+    struct ToriRS_Soft3D* soft;
+    uint32_t argb;
+    int trans;
+};
+
+static void
+soft3d_polygon_span(
+    void* user_data,
+    int x,
+    int y,
+    int count)
+{
+    struct soft3d_span_ctx* ctx = user_data;
+    struct ToriRS_Soft3D* soft = ctx->soft;
+    int* row;
+    int alpha;
+
+    if( y < 0 || y >= soft->height || count <= 0 )
+        return;
+    if( x < 0 )
+    {
+        count += x;
+        x = 0;
+    }
+    if( x + count > soft->width )
+        count = soft->width - x;
+    if( count <= 0 )
+        return;
+
+    row = soft->pixels + (size_t)y * (size_t)soft->stride + (size_t)x;
+    alpha = 255 - (ctx->trans & 0xFF);
+    if( alpha >= 255 )
+    {
+        for( int i = 0; i < count; i++ )
+            row[i] = (int)ctx->argb;
+        return;
+    }
+    if( alpha <= 0 )
+        return;
+
+    {
+        int const sr = (int)((ctx->argb >> 16) & 0xFF);
+        int const sg = (int)((ctx->argb >> 8) & 0xFF);
+        int const sb = (int)(ctx->argb & 0xFF);
+        int const inv = 255 - alpha;
+        for( int i = 0; i < count; i++ )
+        {
+            uint32_t const d = (uint32_t)row[i];
+            int const dr = (int)((d >> 16) & 0xFF);
+            int const dg = (int)((d >> 8) & 0xFF);
+            int const db = (int)(d & 0xFF);
+            row[i] = (int)(0xFF000000u | (uint32_t)(((sr * alpha + dr * inv) / 255) << 16) |
+                           (uint32_t)(((sg * alpha + dg * inv) / 255) << 8) |
+                           (uint32_t)((sb * alpha + db * inv) / 255));
+        }
+    }
+}
+
+static void
+soft3d_polygon_end(struct ToriRS_Soft3D* soft)
+{
+    struct soft3d_span_ctx ctx;
+    int cx;
+    int cy;
+    int cw;
+    int ch;
+
+    assert(soft);
+    if( !soft->polygon_open )
+        return;
+    soft->polygon_open = 0;
+
+    ctx.soft = soft;
+    ctx.argb = (uint32_t)soft->polygon.argb;
+    ctx.trans = soft->polygon.trans;
+
+    cx = soft->polygon.scissor_w > 0 ? soft->polygon.scissor_x : 0;
+    cy = soft->polygon.scissor_w > 0 ? soft->polygon.scissor_y : 0;
+    cw = soft->polygon.scissor_w > 0 ? soft->polygon.scissor_w : soft->width;
+    ch = soft->polygon.scissor_h > 0 ? soft->polygon.scissor_h : soft->height;
+
+    ToriRS_PolygonFillConvex(
+        soft->polygon_x, soft->polygon_y, soft->polygon_count, cx, cy, cw, ch,
+        soft3d_polygon_span, &ctx);
+}
+
 static void
 soft3d_draw_line(
     struct ToriRS_Soft3D* soft,
@@ -994,6 +1091,29 @@ ToriRS_Soft3D_Execute(
 
     case TORIRSRC_LINE:
         soft3d_draw_line(soft, &cmd->u.line);
+        break;
+
+    case TORIRSRC_POLYGON_BEGIN:
+        soft->polygon = cmd->u.polygon_begin;
+        soft->polygon_count = 0;
+        soft->polygon_open = 1;
+        break;
+
+    case TORIRSRC_POLYGON_POINT:
+        /* Points past the cap are dropped rather than growing the run: the
+         * cap is far above any highlight, so hitting it means something is
+         * wrong upstream, and a dropped tail distorts the shape less than a
+         * wrapped write would destroy memory. */
+        if( soft->polygon_open && soft->polygon_count < TORIRS_POLYGON_MAX_POINTS )
+        {
+            soft->polygon_x[soft->polygon_count] = cmd->u.polygon_point.x;
+            soft->polygon_y[soft->polygon_count] = cmd->u.polygon_point.y;
+            soft->polygon_count++;
+        }
+        break;
+
+    case TORIRSRC_POLYGON_END:
+        soft3d_polygon_end(soft);
         break;
 
     case TORIRSRC_MODEL_LOAD:

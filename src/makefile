@@ -458,6 +458,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	editor/editor.c editor/editor_doc.c editor/editor_jm2.c \
 	editor/editor_cmd.c editor/editor_derive.c editor/editor_host_local.c \
 	editor/editor_panel.c \
+	render/torirs_polygon.c \
 	painters/painters.c \
 	painters/painters_cull_project.c \
 	painters/scene_occluders.c \
@@ -1444,6 +1445,13 @@ test-convex-hull: $(OBJ_DIR) $(TORIDRAW_DIR)/graphics/convex_hull.c \
 		$(TORIDRAW_DIR)/graphics/test/convex_hull_test.c
 	./$(OBJ_DIR)/convex_hull_test
 
+# Convex polygon span decomposition -- the geometry all four renderers share, so
+# a bug in it is a bug in every backend at once.
+test-polygon-fill: $(OBJ_DIR) render/torirs_polygon.c render/test/torirs_polygon_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirs_polygon_test \
+		render/torirs_polygon.c render/test/torirs_polygon_test.c
+	./$(OBJ_DIR)/torirs_polygon_test
+
 # ToriDbgUI dropdown interaction, driven through the real input entry points:
 # opening, choosing, dismissing by clicking away, wheel scrolling and clamping,
 # and swapping the option list out from under an open one.
@@ -1453,7 +1461,7 @@ test-editor-dropdown: $(OBJ_DIR) ui/uitree_debug_overlay.c ui/test/uitree_test_d
 	./$(OBJ_DIR)/uitree_test_dropdown
 
 test-editor: test-editor-cmd test-editor-jm2 test-editor-derive test-editor-dropdown \
-	test-convex-hull
+	test-convex-hull test-polygon-fill
 
 # NpcType.multiNpc (opcode 106) decode -> ToriRS_Npctype.transform_* -- pure
 # struct plumbing, no cache file or App needed.

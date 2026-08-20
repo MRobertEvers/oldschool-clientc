@@ -507,7 +507,12 @@ struct App
      * by the GET_ENTITY_OVERLAYS host request and consumed by the same
      * frame's draw. Reference drawEntities budget: each entity contributes at
      * most 2 bar rects + 4 hitsplats x 3 primitives. */
-    struct UITreeEntityOverlay entity_overlays[512];
+    /* 2048, not 512: a filled polygon is a begin/point.../end RUN of items, so
+     * one highlighted entity now costs a dozen entries rather than one. At 512
+     * the fill runs starved the outlines that follow them -- the buffer filled
+     * and every later push was dropped, which looks like a broken outline
+     * rather than a full buffer. */
+    struct UITreeEntityOverlay entity_overlays[2048];
     int entity_overlay_count;
     /* Per-frame world map blits, filled by the GET_WORLDMAP_TILES host request
      * and consumed by the same frame's draw: the visible regions first, then
