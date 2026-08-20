@@ -46,7 +46,15 @@ import sys
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 CONTENT = os.path.join(ROOT, "OSRS-Content", "osrs239-content", "server", "scripts")
-CSRC = os.path.join(ROOT, "src", "net", "mock")
+# The C server tree was renamed from src/net/mock to src/torirsserver on
+# 2026-08-20. Both are checked so the tool works either side of the rename and
+# in a worktree that predates it.
+CSRC_CANDIDATES = [
+    os.path.join(ROOT, "src", "torirsserver"),
+    os.path.join(ROOT, "src", "net", "mock"),
+]
+CSRC = next((d for d in CSRC_CANDIDATES if os.path.isdir(d)),
+            CSRC_CANDIDATES[0])
 
 # Lanes that are compiled off carry stanzas that legitimately never run. The
 # lane list is printed by sscompile; keeping the names here rather than parsing

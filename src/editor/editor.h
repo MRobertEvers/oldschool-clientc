@@ -2,20 +2,22 @@
 #define SRC_EDITOR_EDITOR_H
 
 /**
- * The editor session: document, history, host, and the seam every edit passes
- * through.
+ * The editor session: one connection's MIRROR of the ToriRSMapEd server.
  *
- * One executor, several entry paths. Interactive tools, replayed input, undo
- * and redo all reach the document through Editor_Apply — the editor's
- * equivalent of the net stack having a single door for packets. Nothing else
- * mutates a tile or a placement, which is what keeps "the square is dirty",
- * "the mesh needs rebuilding" and "this is undoable" from being three
- * bookkeeping jobs that drift apart.
+ * The authoritative document, the undo history, the content tree and the
+ * shared session state all live in the server; this session holds a mirror
+ * document and the connection. Every edit path — interactive tools, replayed
+ * input, undo, redo — goes through the same door (Editor_Apply and friends),
+ * but the door now sends an INTENT: the mirror mutates only when the
+ * server's broadcast comes back, in Editor_PumpFacts, exactly as it does for
+ * every other connection. That is what keeps N clients agreeing about the
+ * world: nobody applies their own edit, everybody applies the authority's
+ * echo — and the dirty flags, rebuild queue and undo answers can never
+ * disagree with a server they all came from.
  *
- * The session never talks to a game server. It is constructed only in an
- * editor boot, where the client's networking is not built at all, and the
- * squares it shows come from the content tree rather than from a rebuild
- * packet.
+ * The session never talks to a GAME server. An editor boot's [net:boot]
+ * phase does not run; the server here is the editor's own
+ * (`[editor:boot] server=embed|tcp`).
  */
 
 #include "editor_cmd.h"
@@ -32,15 +34,26 @@ struct RSCache;
 
 struct Editor
 {
+    /** The mirror. The authoritative document is the server's. */
     struct Editor_Doc doc;
-    struct Editor_UndoStack undo;
+    /** The connection — always a ToriRSMapEd binding. */
     struct EditorHost host;
     int host_open;
 
-    /** 0 when the session could not take the content-tree lock. The editor
-     *  still runs — looking at a tree somebody else is editing is useful — it
-     *  just cannot save. */
+    /** 0 when the SERVER cannot save its tree (another server holds the
+     *  lock). The editor still runs — looking at a tree somebody else is
+     *  editing is useful — it just cannot save. */
     int writable;
+
+    /** Where shared-state facts land (the panel registers here). May be
+     *  NULL; the session still mirrors nothing for state — semantics are
+     *  the registrant's. */
+    void (*on_state)(
+        void* user_data,
+        uint32_t key,
+        const int32_t* values,
+        int count);
+    void* on_state_user_data;
 
     /**
      * Squares whose meshes are stale, as (map_x, map_z) pairs.
@@ -56,14 +69,35 @@ struct Editor
 };
 
 /**
- * Open a session over a content tree.
+ * Open a session over an already-opened host — the general form.
  *
- * @param content_dir  the revision content root holding `maps/`.
- * @param repo_root    where a bake would run; NULL disables baking.
- * @param profile      cache identity, for the terrain codec's tile widths.
+ * The host is how the session reaches its content tree, and since the
+ * MapEditor became the ToriRSMapEd server it is normally one of the
+ * editor_host_remote.c bindings: the embedded server or the torirsmaped
+ * daemon. The session takes ownership; Editor_Close closes it.
+ *
+ * @param label    what to call the tree in messages ("OSRS-Content/…",
+ *                 "maped://localhost:43610").
+ * @param profile  cache identity, for the terrain codec's tile widths.
  *
  * Takes the content-tree lock if it can. Returns 1 always — a session that
  * could not lock is read-only, not a failure; check `writable`.
+ */
+int
+Editor_OpenHost(
+    struct Editor* editor,
+    const struct EditorHost* host,
+    const char* label,
+    const struct RSCache* profile);
+
+/**
+ * Convenience form: an embedded ToriRSMapEd over a local content tree — the
+ * whole client-server loop in one process, one call.
+ *
+ * @param content_dir  the revision content root holding `maps/`.
+ * @param repo_root    where a bake would run; NULL disables baking.
+ *
+ * Returns 0 when the embedded server could not start.
  */
 int
 Editor_Open(
@@ -93,22 +127,59 @@ Editor_LoadSquare(
     int map_z);
 
 /**
- * Apply an edit: mutate the document, record it for undo, and queue the
- * squares it invalidates.
+ * Apply an edit: submit it to the authority, and on acceptance apply its
+ * echo to the mirror, mark dirty, and queue the squares it invalidates —
+ * the same three effects the local apply used to have, now guaranteed to
+ * match every other client's, because everyone applied the same echo.
  *
- * `open_stroke` groups this command with the ones around it into a single undo
- * step — pass it for every command in a brush drag.
+ * Returns 1 when the authority accepted the command.
  */
 int
 Editor_Apply(
     struct Editor* editor,
     const struct Editor_Cmd* command);
 
+/** Undo/redo the newest history group ON THE SERVER — the history is the
+ *  authority's, shared by every client. Returns the commands reverted. */
 int
 Editor_Undo(struct Editor* editor);
 
 int
 Editor_Redo(struct Editor* editor);
+
+/** Group every command until StrokeEnd into one undo step (a brush drag). */
+void
+Editor_StrokeBegin(struct Editor* editor);
+
+void
+Editor_StrokeEnd(struct Editor* editor);
+
+/**
+ * Apply every pending broadcast from the server to the mirror: other
+ * clients' edits, save confirmations, and this Client's shared-state
+ * changes (forwarded to `on_state`). Editor_DrainRebuilds calls this, so a
+ * session that rebuilds each frame is always current; call it directly when
+ * acting on the mirror outside that cadence.
+ */
+int
+Editor_PumpFacts(struct Editor* editor);
+
+/** Publish one shared-state field to this session's Client — selection,
+ *  tool, catalog pick. Semantics live with the subscribers; see
+ *  enum ToriRSMapEdStateKey for the registry. */
+int
+Editor_StateSet(
+    struct Editor* editor,
+    uint32_t key,
+    const int32_t* values,
+    int count);
+
+/** Register where shared-state facts land. One registrant; NULL clears. */
+void
+Editor_SetStateCallback(
+    struct Editor* editor,
+    void (*on_state)(void* user_data, uint32_t key, const int32_t* values, int count),
+    void* user_data);
 
 /**
  * Push the document's current derivation of every queued square back into the

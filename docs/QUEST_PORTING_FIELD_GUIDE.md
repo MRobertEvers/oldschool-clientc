@@ -17,6 +17,37 @@
 
 ---
 
+## RENAME NOTICE (2026-08-20, mid-session): `mock230` is now `torirsserver`
+
+A concurrent session renamed the entire engine while this loop was running.
+**Every `mock230`/`MOCK230_`-prefixed name in the examples below is stale.**
+The mapping is mechanical and total — apply it to anything you read here or
+in an older ledger entry:
+
+| Old | New |
+|---|---|
+| `mock230` binary, `src/net/mock/` source dir | `torirsserver` binary, `src/torirsserver/` |
+| `mock230_world_teleport`, `mock230_scripts_run_trigger`, ... (snake_case) | `ToriRSServer_WorldTeleport`, `ToriRSServer_ScriptsRunTrigger`, ... (PascalCase — every C function renamed this way, no exceptions found) |
+| `struct Mock230Server*` / `struct Mock230Player*` | `struct ToriRSServer*` / `struct ToriRSServerPlayer*` (struct MEMBER field names, e.g. `player->hitpoints`, `player->chatmodal_group`, are UNCHANGED) |
+| `MOCK230_PACK_LOC` etc (enum `Mock230PackKind`) | `TORIRSSERVER_PACK_LOC` etc (enum `ToriRSServerPackKind`) |
+| `MOCK230_INV_SLOTS`, `MOCK230_NPC_MAX`, ... | `TORIRSSERVER_INV_SLOTS`, `TORIRSSERVER_NPC_MAX`, ... |
+| `mock230-scripts`, `mock230-scripts-lanes` (make targets) | `torirsserver-scripts`, `torirsserver-scripts-lanes` |
+| `MOCK230_SCRIPT_OUT`, `MOCK230_SCRIPT_LANES`, `MOCK230_CONTENT_DIR` (build-time env) | `TORIRSSERVER_SCRIPT_OUT`, `TORIRSSERVER_SCRIPT_LANES`, `TORIRSSERVER_CONTENT_DIR` |
+| `MOCK230_REV`, `MOCK230_CACHE`, `MOCK230_VERBOSE`, `MOCK230_ALLOW_STALE_SCRIPTS`, `MOCK230_SAVES` (runtime env, read via `getenv`) | `TORIRSSERVER_REV`, `TORIRSSERVER_CACHE`, `TORIRSSERVER_VERBOSE`, `TORIRSSERVER_ALLOW_STALE_SCRIPTS`, `TORIRSSERVER_SAVES` |
+| `"mock230 selftest: ..."` fprintf prefix in `--selftest` output | `"ToriRSServer selftest: ..."` |
+| `TORIRS_ANIM_DEBUG`, `SS_TRIGGER_OPLOC1`/`SS_TRIGGER_*`, `SSVM_*` | **unchanged** — these live outside the renamed engine dir (`src/serverscript/`) |
+
+`SS_TRIGGER_*` constants, the `[oploc1,...]`/quest content syntax, and
+everything about §1's build loop shape are otherwise identical — only the
+names changed. Confirmed working end to end under the new names during the
+Jungle Potion audit (2026-08-20): rebuild `sscompile`, then
+`make -C src torirsserver-scripts-lanes TORIRSSERVER_SCRIPT_LANES=""
+TORIRSSERVER_SCRIPT_OUT=<absolute path> PLATFORM_OBJ_BASE=<scratch>`, then
+`make -C src torirsserver PLATFORM_OBJ_BASE=<scratch>`, then
+`./src/<scratch>_opt/torirsserver --selftest`.
+
+---
+
 ## 0. Before you write anything
 
 1. **Grep the cache first. It probably ships the feature already.** Zulrah
@@ -362,7 +393,43 @@ reading as "it got harder at 70%"):
   ahead of yours and re-opens mainmodal the moment it fires. Loop
   close+tick a handful of times per boundary, not once. Found and fixed in
   the Hazeel Cult audit (2026-08-20): `hazeelcultrun2..4`'s completion
-  queues never fired until this was in place.
+  queues never fired until this was in place. **This tree has grown enough
+  quest stanzas that the "handful of times" bound itself needs revisiting
+  per quest** — Sea Slug (2026-08-20) needed 40 close+tick rounds where
+  Hazeel Cult's 8 had been enough weeks earlier, because every quest audited
+  in between also calls `~quest_complete_rewards` and adds one more stuck
+  scroll ahead of yours in the queue array. When in doubt, widen the bound
+  rather than assume 8 still covers it.
+- **`ToriRSServer_WorldCloseModal` ABORTS a parked script; it does not
+  RESUME one.** If the queue you are draining is armed by a line that comes
+  AFTER an unresolved `~mesbox`/`~chatnpc_anim` in the same script (e.g.
+  `~mesbox("..."); queue(quest_complete, 0, 0);` — Jungle Potion's
+  `trufitus_finish_quest`), looping close+tick alone will loop forever
+  without the queue ever being armed, because the close kills the script
+  before it reaches the `queue()` line rather than letting it continue past
+  the mesbox's own pause. Fix: resume the real pause button first
+  (`ToriRSServer_ScriptsResumeButton(srv, <component>)` —
+  `messagebox:continue` for `~mesbox`, `chat_left:continue`/`chat_right:
+  continue` for `~chatnpc_anim`/`~chatplayer_anim`, per the trigger's own
+  `if_addresumebutton` call), and only reach for the close+tick loop above
+  once the queue is actually armed. Confirmed live (2026-08-20): looping
+  close+tick alone left `%junglepotion` stuck at `junglepotion_found_all_
+  herbs` forever; the resume-button fix armed the queue on the first try.
+- **A stanza that calls `ToriRSServer_ScriptsFree` at its own end unloads
+  the pack for every stanza after it, silently.** `ToriRSServer_ScriptsRun*`
+  then returns `TORIRSSERVER_TRIGGER_NONE` for everything — real npc AND
+  real loc dispatch both fail identically, with no error to say why,
+  because the check (`if (!srv->scripts_ok) return ...NONE;`) happens
+  before the trigger table is even consulted. If your new stanza sits right
+  after one that frees its pack (check with `grep -n
+  ToriRSServer_ScriptsFree` around your insertion point), reload your own
+  copy at the top (`ToriRSServer_ScriptsLoad(srv, "OSRS-Content/
+  osrs239-content/server/scripts/build")`, with the `../` fallback and
+  `ToriRSServer_ScriptsFree` at your own end, same as `::elenarun`/
+  `::waterfallrun` already do) rather than assuming a pack is already
+  loaded. Cost the Jungle Potion audit (2026-08-20) a long detour chasing a
+  phantom dispatch bug before the real cause (sitting right after
+  `::seaslugrun`'s own free call) was found.
 
 ---
 

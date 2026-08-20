@@ -171,9 +171,27 @@ palette_rebuild(
 #define EDITOR_PANEL_TOOL_Y 28
 #define EDITOR_PANEL_COL_X 8
 #define EDITOR_PANEL_CATALOG_Y 28
-#define EDITOR_PANEL_SQUARE_Y 176
+/*
+ * Below the catalog, not on top of it.
+ *
+ * 176 put the Squares panel over the bottom two thirds of the catalog -- and
+ * the model-view well sits at 148..246 in that column, so most of the preview
+ * was behind another panel. That is not merely a cosmetic overlap: the hit
+ * test resolves the TOPMOST panel under the cursor and then searches only
+ * THAT panel's widgets, so a click aimed at the well found the Squares panel
+ * instead, which clears the focus rather than taking it. The well could
+ * therefore never be focused by clicking anywhere but its top sliver, and the
+ * camera keys it owns looked dead.
+ *
+ * The catalog is ~265 rows tall with its variant block hidden; the stacker
+ * below re-places this panel from the measured height, and this constant is
+ * only where it starts before the first layout has run.
+ */
+#define EDITOR_PANEL_SQUARE_Y 300
 #define EDITOR_PANEL_LOC_Y 260
 #define EDITOR_PANEL_COL_W 176
+/** Breathing room between the left column's two stacked panels. */
+#define EDITOR_PANEL_STACK_GAP 6
 
 /** A 1x-authored editor layout constant at the chrome's current scale. */
 static int
@@ -181,6 +199,104 @@ editor_px(struct ToriRSChrome const* ui, int px)
 {
     assert(ui);
     return px * ToriRSChrome_Scale(ui);
+}
+
+/* ---- one loc record, as rows ---------------------------------------------
+ *
+ * Shared by the Loc panel (the selected placement's record) and the catalog's
+ * multiloc variant readout (a rung of the picked shell's transform table).
+ * Both answer "what is this loc", so both go through the same fill -- the two
+ * used to be one readout, and letting the second grow its own formatting is
+ * how they would end up disagreeing about the same record.
+ */
+
+/** Fill the rows from a record that IS resident. */
+static void
+editor_loc_rows_fill(
+    struct ToriRSChrome* ui,
+    struct Editor_LocRows const* rows,
+    struct ToriRS_Location const* cfg,
+    int loc_id)
+{
+    char line[TORIDBG_LABEL_MAX];
+
+    assert(ui);
+    assert(rows);
+    assert(cfg);
+
+    snprintf(line, sizeof(line), "%s  (loc %d)", cfg->name[0] ? cfg->name : "<unnamed>", loc_id);
+    ToriRSChrome_SetText(ui, rows->name, line);
+
+    ToriRSChrome_SetText(ui, rows->desc, cfg->desc[0] ? cfg->desc : "(no examine)");
+
+    snprintf(
+        line, sizeof(line), "size %dx%d  walk %s  proj %s  approach %d", cfg->size_x,
+        cfg->size_z, cfg->blocks_walk ? "block" : "-", cfg->blocks_projectiles ? "block" : "-",
+        cfg->force_approach);
+    ToriRSChrome_SetText(ui, rows->cfg, line);
+
+    /* The rest of the record: what it is built from, and how it renders.
+     * "Pull up the loc config" means the CONFIG, not a summary of it. */
+    snprintf(
+        line, sizeof(line), "models %d  seq %d  wallw %d", cfg->shapes_and_model_count,
+        cfg->seq_id, cfg->wall_width);
+    ToriRSChrome_SetText(ui, rows->model, line);
+
+    snprintf(
+        line, sizeof(line), "amb %d con %d%s%s%s%s", cfg->ambient, cfg->contrast,
+        cfg->sharelight ? "  sharelight" : "", cfg->occlude ? "  occlude" : "",
+        cfg->shadowed ? "  shadowed" : "", cfg->contoured_ground ? "  contoured" : "");
+    ToriRSChrome_SetText(ui, rows->render, line);
+
+    line[0] = '\0';
+    for( int i = 0; i < TORIRS_MENU_ACTION_SLOTS; i++ )
+        if( cfg->actions[i][0] )
+        {
+            size_t const at = strlen(line);
+            snprintf(line + at, sizeof(line) - at, "%s%s", at ? " / " : "", cfg->actions[i]);
+        }
+    ToriRSChrome_SetText(ui, rows->ops, line[0] ? line : "(no ops)");
+}
+
+/** Fill the rows for a record that is NOT resident, or for no record at all.
+ *  `why` names which -- a trimmed cache and an empty rung look identical in a
+ *  blank readout, and they are not the same thing. */
+static void
+editor_loc_rows_blank(
+    struct ToriRSChrome* ui,
+    struct Editor_LocRows const* rows,
+    char const* why)
+{
+    assert(ui);
+    assert(rows);
+    assert(why);
+
+    ToriRSChrome_SetText(ui, rows->name, why);
+    ToriRSChrome_SetText(ui, rows->desc, "");
+    ToriRSChrome_SetText(ui, rows->cfg, "");
+    ToriRSChrome_SetText(ui, rows->model, "");
+    ToriRSChrome_SetText(ui, rows->render, "");
+    ToriRSChrome_SetText(ui, rows->ops, "");
+}
+
+/** Show or hide the catalog's whole multiloc block in one go. */
+static void
+editor_variant_rows_hidden(
+    struct Editor_Panel* panel,
+    struct ToriRSChrome* ui,
+    int hidden)
+{
+    assert(panel);
+    assert(ui);
+
+    ToriRSChrome_SetHidden(ui, panel->cat_row_multi, hidden);
+    ToriRSChrome_SetHidden(ui, panel->cat_dd_variant, hidden);
+    ToriRSChrome_SetHidden(ui, panel->cat_var_rows.name, hidden);
+    ToriRSChrome_SetHidden(ui, panel->cat_var_rows.desc, hidden);
+    ToriRSChrome_SetHidden(ui, panel->cat_var_rows.cfg, hidden);
+    ToriRSChrome_SetHidden(ui, panel->cat_var_rows.model, hidden);
+    ToriRSChrome_SetHidden(ui, panel->cat_var_rows.render, hidden);
+    ToriRSChrome_SetHidden(ui, panel->cat_var_rows.ops, hidden);
 }
 
 /*
@@ -222,6 +338,8 @@ Editor_PanelPlaceForScale(
             editor_px(ui, EDITOR_PANEL_SQUARE_Y));
         ToriRSChrome_PanelSetFixedWidth(
             ui, panel->square_panel, editor_px(ui, EDITOR_PANEL_COL_W));
+        /* This is a placement, so the stacker still owns the panel. */
+        panel->square_stack_y = editor_px(ui, EDITOR_PANEL_SQUARE_Y);
     }
     if( panel->loc_panel >= 0 )
         ToriRSChrome_PanelMove(
@@ -242,6 +360,11 @@ Editor_PanelInit(
     panel->shown_x = -1;
     panel->shown_z = -1;
     panel->placed_scale = ToriRSChrome_Scale(ui);
+    /* The authored spot IS a stacker placement -- without this the memset's 0
+     * reads as "the user dragged it" and the stacker never follows the catalog
+     * at all, because Editor_PanelPlaceForScale does not run at boot (the
+     * scale it would re-place for is the one just recorded above). */
+    panel->square_stack_y = editor_px(ui, EDITOR_PANEL_SQUARE_Y);
 
     /* The tool stack sits to the RIGHT of the catalog column below, so the two
      * do not open on top of each other. Both are draggable by their headers, so
@@ -312,9 +435,28 @@ Editor_PanelInit(
         panel->cat_dd_list = ToriRSChrome_Dropdown(ui, panel->catalog_panel, "", NULL, 0, -1);
         ToriRSChrome_Separator(ui, panel->catalog_panel);
         panel->cat_row_picked = ToriRSChrome_Label(ui, panel->catalog_panel, "nothing picked");
+        /* The multiloc header and its variant list sit ABOVE the well, because
+         * choosing a rung is what the well is then showing. The rung's config
+         * rows go BELOW everything: they are six rows that come and go, and
+         * putting them above would shove the well down the column -- onto the
+         * Squares panel -- every time the pick happened to be a multiloc.
+         *
+         * All of it is created up front and hidden, not built on demand: row
+         * order in a chrome panel is creation order, so a dropdown made later
+         * would appear at the bottom rather than under the header it belongs
+         * to. */
+        panel->cat_row_multi = ToriRSChrome_Label(ui, panel->catalog_panel, "");
+        panel->cat_dd_variant = ToriRSChrome_Dropdown(ui, panel->catalog_panel, "", NULL, 0, -1);
         panel->cat_view = ToriRSChrome_ModelView(ui, panel->catalog_panel, 120, 96);
         panel->cat_reset_view = ToriRSChrome_MenuItem(ui, panel->catalog_panel, "Reset view");
         panel->cat_row_count = ToriRSChrome_Label(ui, panel->catalog_panel, "");
+        panel->cat_var_rows.name = ToriRSChrome_Label(ui, panel->catalog_panel, "");
+        panel->cat_var_rows.desc = ToriRSChrome_Label(ui, panel->catalog_panel, "");
+        panel->cat_var_rows.cfg = ToriRSChrome_Label(ui, panel->catalog_panel, "");
+        panel->cat_var_rows.model = ToriRSChrome_Label(ui, panel->catalog_panel, "");
+        panel->cat_var_rows.render = ToriRSChrome_Label(ui, panel->catalog_panel, "");
+        panel->cat_var_rows.ops = ToriRSChrome_Label(ui, panel->catalog_panel, "");
+        editor_variant_rows_hidden(panel, ui, 1);
         /* The list is the widest thing in the editor and the one most worth
          * widening, so this panel is resizable for the same reason. */
         ToriRSChrome_PanelSetResizable(ui, panel->catalog_panel, 1);
@@ -343,13 +485,13 @@ Editor_PanelInit(
         editor_px(ui, EDITOR_PANEL_LOC_Y), 0, "Loc");
     if( panel->loc_panel >= 0 )
     {
-        panel->loc_row_name = ToriRSChrome_Label(ui, panel->loc_panel, "");
-        panel->loc_row_desc = ToriRSChrome_Label(ui, panel->loc_panel, "");
+        panel->loc_rows.name = ToriRSChrome_Label(ui, panel->loc_panel, "");
+        panel->loc_rows.desc = ToriRSChrome_Label(ui, panel->loc_panel, "");
         panel->loc_row_place = ToriRSChrome_Label(ui, panel->loc_panel, "");
-        panel->loc_row_cfg = ToriRSChrome_Label(ui, panel->loc_panel, "");
-        panel->loc_row_model = ToriRSChrome_Label(ui, panel->loc_panel, "");
-        panel->loc_row_render = ToriRSChrome_Label(ui, panel->loc_panel, "");
-        panel->loc_row_ops = ToriRSChrome_Label(ui, panel->loc_panel, "");
+        panel->loc_rows.cfg = ToriRSChrome_Label(ui, panel->loc_panel, "");
+        panel->loc_rows.model = ToriRSChrome_Label(ui, panel->loc_panel, "");
+        panel->loc_rows.render = ToriRSChrome_Label(ui, panel->loc_panel, "");
+        panel->loc_rows.ops = ToriRSChrome_Label(ui, panel->loc_panel, "");
         panel->loc_row_view_tile = ToriRSChrome_MenuItem(ui, panel->loc_panel, "View tile");
         ToriRSChrome_PanelSetResizable(ui, panel->loc_panel, 1);
         ToriRSChrome_PanelSetVisible(ui, panel->loc_panel, 0);
@@ -378,6 +520,9 @@ Editor_PanelInit(
     panel->edit_level = -1;
     panel->cat_kind = CACHEPROVIDER_CATALOG_LOC;
     panel->cat_shown_kind = -1;
+    panel->cat_var_shown_id = -1;
+    panel->cat_var_shown_kind = -1;
+    panel->cat_var_shown_epoch = -1;
 
     panel->visible = 0;
     panel->built = 1;
@@ -556,6 +701,187 @@ editor_catalog_rebuild(
         &app->dbg_ui, panel->cat_dd_list, panel->cat_options, panel->cat_count, -1);
     snprintf(
         panel->cat_picked_name, sizeof(panel->cat_picked_name), "%d loaded", panel->cat_count);
+}
+
+/* ---- multiloc variants ---------------------------------------------------
+ *
+ * A multiloc's transform table, as a list you can preview from. See the field
+ * block in editor_panel.h for why the shell alone answers nothing.
+ */
+
+/** The loc a variant row previews, or -1 for the shell row / a blank rung. */
+static int
+editor_variant_loc_id(struct Editor_Panel const* panel)
+{
+    assert(panel);
+
+    if( panel->cat_var_choice <= 0 || panel->cat_var_choice >= panel->cat_var_count )
+        return -1;
+    return panel->cat_var_ids[panel->cat_var_choice];
+}
+
+int
+Editor_PanelCatalogPreviewId(struct Editor_Panel const* panel)
+{
+    assert(panel);
+
+    if( panel->cat_kind != CACHEPROVIDER_CATALOG_LOC )
+        return panel->cat_picked_id;
+    if( panel->cat_var_count > 0 && panel->cat_var_choice > 0 )
+        return editor_variant_loc_id(panel);
+    return panel->cat_picked_id;
+}
+
+/** Write the chosen row's record into the variant rows. */
+static void
+editor_variant_readout(
+    struct Editor_Panel* panel,
+    struct App* app)
+{
+    struct ToriRSChrome* ui = &app->dbg_ui;
+    int const loc_id = panel->cat_var_choice > 0 ? editor_variant_loc_id(panel)
+                                                 : panel->cat_picked_id;
+    struct ToriRS_Location* cfg;
+
+    assert(panel);
+    assert(app);
+
+    if( loc_id < 0 )
+    {
+        /* Row 0 with no pick cannot happen -- the block is hidden then -- so
+         * this is the -1 rung: the value that draws nothing. */
+        editor_loc_rows_blank(ui, &panel->cat_var_rows, "(nothing at this value)");
+        return;
+    }
+
+    cfg = app->provider ? CacheProvider_LocationGet(app->provider, loc_id) : NULL;
+    if( cfg )
+        editor_loc_rows_fill(ui, &panel->cat_var_rows, cfg, loc_id);
+    else
+        editor_loc_rows_blank(ui, &panel->cat_var_rows, "(config not resident)");
+}
+
+/**
+ * Rebuild the variant list for the current pick.
+ *
+ * Rungs are ordinarily NOT resident: the catalog lists what the loaded squares
+ * decoded, and a transform table names locs no square placed -- the closed
+ * door, the built bridge, the stage-3 quest prop. So each missing rung is
+ * queued here, once per build, and the tick rebuilds when the resident count
+ * moves; that converges, because a rung that has landed is never queued again.
+ */
+static void
+editor_variant_rebuild(
+    struct Editor_Panel* panel,
+    struct App* app)
+{
+    struct ToriRSChrome* ui = &app->dbg_ui;
+    struct ToriRS_Location* cfg = NULL;
+    char line[TORIDBG_LABEL_MAX];
+
+    assert(panel);
+    assert(app);
+
+    /* A new pick starts on its shell row: carrying rung 3 across from the
+     * last multiloc would preview a variant the user never chose. */
+    if( panel->cat_var_shown_id != panel->cat_picked_id ||
+        panel->cat_var_shown_kind != panel->cat_kind )
+        panel->cat_var_choice = 0;
+    panel->cat_var_shown_id = panel->cat_picked_id;
+    panel->cat_var_shown_kind = panel->cat_kind;
+    panel->cat_var_shown_epoch = panel->cat_built_epoch;
+    panel->cat_var_count = 0;
+
+    if( app->provider && panel->cat_kind == CACHEPROVIDER_CATALOG_LOC &&
+        panel->cat_picked_id >= 0 )
+        cfg = CacheProvider_LocationGet(app->provider, panel->cat_picked_id);
+
+    if( !cfg || cfg->transform_count <= 0 || !cfg->transforms )
+    {
+        /* Not a multiloc. The rows go away rather than sitting empty: an
+         * always-present variant list would read as "this loc has one". */
+        panel->cat_var_choice = 0;
+        ToriRSChrome_DropdownSetOptions(ui, panel->cat_dd_variant, NULL, 0, -1);
+        editor_variant_rows_hidden(panel, ui, 1);
+        return;
+    }
+
+    snprintf(
+        panel->cat_var_labels[0], EDITOR_CATALOG_LABEL_MAX, "shell: %s (%d)",
+        cfg->name[0] ? cfg->name : "<unnamed>", panel->cat_picked_id);
+    panel->cat_var_options[0] = panel->cat_var_labels[0];
+    panel->cat_var_ids[0] = -1;
+    panel->cat_var_count = 1;
+
+    for( int i = 0; i < cfg->transform_count && panel->cat_var_count < EDITOR_LOC_VARIANT_MAX;
+         i++ )
+    {
+        int const rung = cfg->transforms[i];
+        int const row = panel->cat_var_count;
+        /* The last entry answers every value past the end of the table, so it
+         * is labelled for what it does rather than for its index. */
+        int const is_fallback = i == cfg->transform_count - 1;
+        struct ToriRS_Location* rung_cfg =
+            rung > 0 ? CacheProvider_LocationGet(app->provider, rung) : NULL;
+
+        /* The row is addressed by the value that SELECTS it -- what content
+         * writes to the varbit/varp to make this rung live -- except the
+         * fallback, which answers every value the table does not name. */
+        char key[8];
+        if( is_fallback )
+            snprintf(key, sizeof(key), "else");
+        else
+            snprintf(key, sizeof(key), "%d", i);
+
+        if( rung <= 0 )
+            snprintf(panel->cat_var_labels[row], EDITOR_CATALOG_LABEL_MAX, "%s: none", key);
+        else if( rung_cfg )
+            snprintf(
+                panel->cat_var_labels[row], EDITOR_CATALOG_LABEL_MAX, "%s: %s (%d)", key,
+                rung_cfg->name[0] ? rung_cfg->name : "<unnamed>", rung);
+        else
+            snprintf(
+                panel->cat_var_labels[row], EDITOR_CATALOG_LABEL_MAX, "%s: loc %d (loading)",
+                key, rung);
+        panel->cat_var_options[row] = panel->cat_var_labels[row];
+        panel->cat_var_ids[row] = rung > 0 ? rung : -1;
+        panel->cat_var_count++;
+
+        if( rung > 0 && !rung_cfg )
+        {
+            struct ToriRS_Task* task = CreateTask_LocLoad(app->provider, rung);
+            if( task )
+                ToriRS_TaskQueue_Add(app->runner.queue, task);
+        }
+    }
+    if( cfg->transform_count > EDITOR_LOC_VARIANT_MAX - 1 )
+        fprintf(
+            stderr, "editor: loc %d has %d variants, listing the first %d\n",
+            panel->cat_picked_id, cfg->transform_count, EDITOR_LOC_VARIANT_MAX - 1);
+
+    if( panel->cat_var_choice >= panel->cat_var_count )
+        panel->cat_var_choice = 0;
+
+    if( cfg->transform_varbit != -1 )
+        snprintf(
+            line, sizeof(line), "multiloc: varbit %d, %d variants", cfg->transform_varbit,
+            cfg->transform_count);
+    else if( cfg->transform_varp != -1 )
+        snprintf(
+            line, sizeof(line), "multiloc: varp %d, %d variants", cfg->transform_varp,
+            cfg->transform_count);
+    else
+        /* No selector at all: the resolver falls to the last entry forever,
+         * which is worth saying out loud rather than showing a live-looking
+         * list nothing can move. */
+        snprintf(line, sizeof(line), "multiloc: no selector, %d variants", cfg->transform_count);
+    ToriRSChrome_SetText(ui, panel->cat_row_multi, line);
+
+    ToriRSChrome_DropdownSetOptions(
+        ui, panel->cat_dd_variant, panel->cat_var_options, panel->cat_var_count,
+        panel->cat_var_choice);
+    editor_variant_rows_hidden(panel, ui, 0);
+    editor_variant_readout(panel, app);
 }
 
 /* Defined with the loc-placement helpers below; SelectLoc runs earlier. */
@@ -1123,59 +1449,18 @@ editor_loc_panel_refresh(
         return;
 
     cfg = app->provider ? CacheProvider_LocationGet(app->provider, panel->sel_loc_id) : NULL;
-
-    snprintf(
-        line, sizeof(line), "%s  (loc %d)",
-        cfg && cfg->name[0] ? cfg->name : "<unnamed>", panel->sel_loc_id);
-    ToriRSChrome_SetText(ui, panel->loc_row_name, line);
-
-    ToriRSChrome_SetText(
-        ui, panel->loc_row_desc, cfg && cfg->desc[0] ? cfg->desc : "(no examine)");
+    if( cfg )
+        editor_loc_rows_fill(ui, &panel->loc_rows, cfg, panel->sel_loc_id);
+    else
+    {
+        snprintf(line, sizeof(line), "loc %d  (config not resident)", panel->sel_loc_id);
+        editor_loc_rows_blank(ui, &panel->loc_rows, line);
+    }
 
     snprintf(
         line, sizeof(line), "tile %d,%d  lvl %d  shape %d  rot %d", panel->sel_scene_x,
         panel->sel_scene_z, panel->sel_level, panel->sel_shape, panel->sel_angle);
     ToriRSChrome_SetText(ui, panel->loc_row_place, line);
-
-    if( cfg )
-        snprintf(
-            line, sizeof(line), "size %dx%d  walk %s  proj %s  approach %d", cfg->size_x,
-            cfg->size_z, cfg->blocks_walk ? "block" : "-",
-            cfg->blocks_projectiles ? "block" : "-", cfg->force_approach);
-    else
-        snprintf(line, sizeof(line), "(config not resident)");
-    ToriRSChrome_SetText(ui, panel->loc_row_cfg, line);
-
-    /* The rest of the record: what it is built from, and how it renders.
-     * "Pull up the loc config" means the CONFIG, not a summary of it. */
-    if( cfg )
-        snprintf(
-            line, sizeof(line), "models %d  seq %d  wallw %d", cfg->shapes_and_model_count,
-            cfg->seq_id, cfg->wall_width);
-    else
-        line[0] = '\0';
-    ToriRSChrome_SetText(ui, panel->loc_row_model, line);
-
-    if( cfg )
-        snprintf(
-            line, sizeof(line), "amb %d con %d%s%s%s%s", cfg->ambient, cfg->contrast,
-            cfg->sharelight ? "  sharelight" : "", cfg->occlude ? "  occlude" : "",
-            cfg->shadowed ? "  shadowed" : "",
-            cfg->contoured_ground ? "  contoured" : "");
-    else
-        line[0] = '\0';
-    ToriRSChrome_SetText(ui, panel->loc_row_render, line);
-
-    line[0] = '\0';
-    if( cfg )
-        for( int i = 0; i < TORIRS_MENU_ACTION_SLOTS; i++ )
-            if( cfg->actions[i][0] )
-            {
-                size_t const at = strlen(line);
-                snprintf(
-                    line + at, sizeof(line) - at, "%s%s", at ? " / " : "", cfg->actions[i]);
-            }
-    ToriRSChrome_SetText(ui, panel->loc_row_ops, line[0] ? line : "(no ops)");
 }
 
 /* ---- loc placement -------------------------------------------------------
@@ -1854,6 +2139,47 @@ panel_bake_progress(
     fprintf(stderr, "bake: %s\n", line);
 }
 
+/*
+ * Keep the Squares panel under the catalog rather than over it.
+ *
+ * The catalog's height is not a constant: the multiloc variant block is six
+ * rows that appear when the pick has a transform table, and the panel is
+ * resizable besides. A fixed Y therefore cannot stay clear of it -- and an
+ * overlap here is not cosmetic, because the hit test only searches the topmost
+ * panel under the cursor, so whatever the Squares panel covers stops taking
+ * clicks (EDITOR_PANEL_SQUARE_Y says what that cost).
+ *
+ * Follows only while the panel is still where this function put it: the moment
+ * the user drags it, `square_stack_y` stops matching and the stacker lets go
+ * for the rest of the session. A panel that walked back out from under the
+ * cursor after being placed by hand would be the worse bug.
+ */
+static void
+editor_square_panel_stack(
+    struct Editor_Panel* panel,
+    struct ToriRSChrome* ui)
+{
+    struct ToriDbgRect cat;
+    int want;
+
+    assert(panel);
+    assert(ui);
+
+    if( panel->catalog_panel < 0 || panel->square_panel < 0 )
+        return;
+    cat = ToriRSChrome_PanelRect(ui, panel->catalog_panel);
+    if( cat.h <= 0 )
+        return; /* not laid out yet; the authored Y stands until it is */
+    if( ToriRSChrome_PanelRect(ui, panel->square_panel).y != panel->square_stack_y )
+        return; /* dragged by hand -- the user's placement wins */
+
+    want = cat.y + cat.h + editor_px(ui, EDITOR_PANEL_STACK_GAP);
+    if( want == panel->square_stack_y )
+        return;
+    ToriRSChrome_PanelMove(ui, panel->square_panel, cat.x, want);
+    panel->square_stack_y = want;
+}
+
 void
 Editor_PanelTick(
     struct Editor_Panel* panel,
@@ -1878,6 +2204,7 @@ Editor_PanelTick(
      * pixels were a different size. */
     if( panel->placed_scale != ToriRSChrome_Scale(ui) )
         Editor_PanelPlaceForScale(panel, ui);
+    editor_square_panel_stack(panel, ui);
 
     panel_refresh(panel, app);
 
@@ -2008,6 +2335,14 @@ Editor_PanelTick(
                 editor_catalog_kind_names[panel->cat_kind]);
             ToriRSChrome_SetText(ui, panel->cat_row_count, line);
         }
+
+        /* The variant list follows the pick, and again once a rung it queued
+         * has landed -- that is what the epoch half catches, and it is the
+         * only reason a name in the list ever changes. */
+        if( panel->cat_var_shown_id != panel->cat_picked_id ||
+            panel->cat_var_shown_kind != panel->cat_kind ||
+            panel->cat_var_shown_epoch != panel->cat_built_epoch )
+            editor_variant_rebuild(panel, app);
     }
 
     /* The square coordinates, listed once. The content tree does not gain
@@ -2296,6 +2631,16 @@ Editor_PanelTick(
             snprintf(line, sizeof(line), "nothing picked");
         }
         ToriRSChrome_SetText(ui, panel->cat_row_picked, line);
+    }
+    else if( activated == panel->cat_dd_variant )
+    {
+        int const choice = ToriRSChrome_DropdownSelected(ui, panel->cat_dd_variant);
+
+        panel->cat_var_choice =
+            (choice >= 0 && choice < panel->cat_var_count) ? choice : 0;
+        /* The well re-renders on its own: the preview updater keys on
+         * Editor_PanelCatalogPreviewId, which just changed. */
+        editor_variant_readout(panel, app);
     }
     else if( activated == panel->dd_tool )
     {

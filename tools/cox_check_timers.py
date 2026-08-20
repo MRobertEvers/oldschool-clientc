@@ -85,6 +85,20 @@ def check(pkgs) -> int:
             reason = "no [ai_spawn] at all" if npc not in spawns else "[ai_spawn] never calls npc_settimer"
             print(f"DEAD TIMER: [ai_timer,{npc}] in {where} -- {reason}")
             failures += 1
+        # The OTHER direction (P1 audit, 2026-08-20 pass): an [ai_spawn,<npc>]
+        # that calls npc_settimer but has no matching [ai_timer,<npc>] block
+        # anywhere. This is exactly the ice demon's own bug before this pass --
+        # `[ai_spawn,raids_icedemon_noncombat] npc_settimer(1);` armed a clock
+        # nothing was listening to, and the stage machine could never run
+        # through normal play. The first check above cannot see this shape: it
+        # only walks npcs that HAVE an [ai_timer] block, so a missing one is
+        # invisible to it by construction.
+        for npc in sorted(armed):
+            if npc in timers:
+                continue
+            where = ", ".join(sorted(set(spawns[npc])))
+            print(f"ARMED BUT UNHEARD: [ai_spawn,{npc}] calls npc_settimer in {where}, but no [ai_timer,{npc}] exists anywhere")
+            failures += 1
         print(f"{pkg.name}: {len(timers)} ai_timer npc(s), {len(armed)} armed")
     return failures
 
@@ -110,6 +124,32 @@ def main() -> int:
                 print("FAIL: a package with no npc_settimer passed - this gate proves nothing")
                 return 1
             print("OK: the gate reports dead timers, so a clean run means something\n")
+
+        # The other direction's own gate: delete one [ai_timer,<npc>] header
+        # (renaming it so its body becomes unreachable dead text) while
+        # leaving the matching [ai_spawn,<npc>] npc_settimer call intact, and
+        # confirm the ARMED BUT UNHEARD check catches it. Mirrors the ice
+        # demon's real P1 bug: delete or rename
+        # [ai_timer,raids_icedemon_noncombat] and rerun this tool.
+        with tempfile.TemporaryDirectory() as tmp:
+            broken = Path(tmp) / pkgs[0].name
+            shutil.copytree(pkgs[0], broken)
+            target = broken / "scripts" / "cox_icedemon.rs2"
+            text = target.read_text(encoding="utf-8", errors="replace")
+            mutated = text.replace(
+                "[ai_timer,raids_icedemon_noncombat]",
+                "[ai_timer,raids_icedemon_noncombat_renamed]",
+                1,
+            )
+            if mutated == text:
+                print("FAIL: could not find [ai_timer,raids_icedemon_noncombat] to mutate")
+                return 1
+            target.write_text(mutated, encoding="utf-8")
+            print("--- selftest: with [ai_timer,raids_icedemon_noncombat] renamed away ---")
+            if check([broken]) == 0:
+                print("FAIL: an armed-but-unheard timer passed - this gate proves nothing")
+                return 1
+            print("OK: the gate reports the armed-but-unheard timer, so a clean run means something\n")
 
     failures = check(pkgs)
     if failures:

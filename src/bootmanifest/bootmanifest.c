@@ -292,6 +292,38 @@ bm_set_kv(
             bm_join_path(bm->editor_repo_root, sizeof(bm->editor_repo_root), manifest_dir, value);
             return;
         }
+        /* Which ToriRSMapEd deployment this session's edits go through — the
+         * editor's counterpart of [net:boot] naming the game server. Named
+         * values only, and an unknown one is a hard error rather than a
+         * fallback: silently editing a different tree than the manifest
+         * asked for is the worst possible reading of a typo. */
+        if( strcmp(key, "server") == 0 )
+        {
+            if( strcmp(value, "embed") == 0 )
+                bm->editor_server = BOOTMANIFEST_EDITOR_SERVER_EMBED;
+            else if( strcmp(value, "tcp") == 0 )
+                bm->editor_server = BOOTMANIFEST_EDITOR_SERVER_TCP;
+            else
+            {
+                fprintf(
+                    stderr,
+                    "bootmanifest: [editor:boot] server must be embed|tcp, got '%s'\n",
+                    value);
+                bm->editor_server_error = 1;
+            }
+            return;
+        }
+        /* Where the torirsmaped daemon listens; only server=tcp reads them. */
+        if( strcmp(key, "host") == 0 )
+        {
+            snprintf(bm->editor_server_host, sizeof(bm->editor_server_host), "%s", value);
+            return;
+        }
+        if( strcmp(key, "port") == 0 )
+        {
+            bm->editor_server_port = atoi(value);
+            return;
+        }
         /* Which binding draws the command panel. Named values only, and an
          * unknown one is a hard error rather than a fallback to the default:
          * a manifest that asks for a panel this build cannot open should say
@@ -575,6 +607,15 @@ bm_set_kv(
                 return;
             }
             bm->chrome_scale = scale;
+            return;
+        }
+        if( strcmp(key, "hidpi") == 0 )
+        {
+            /* Tri-state, so "the manifest said no" is distinguishable from
+             * "the manifest did not say" -- the same shape chrome_scale uses,
+             * and for the same reason: a default that a boot can only turn ON
+             * is a default nobody can turn off from the file. */
+            bm->hidpi = atoi(value) != 0 ? 1 : -1;
             return;
         }
         if( strcmp(key, "window") == 0 )
@@ -1114,6 +1155,23 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
         return -1;
     if( bm->editor_panel_error )
         return -1;
+    if( bm->editor_server_error )
+        return -1;
+
+    /* server=embed serves `content_dir`, so leaving it out means there is no
+     * tree to serve — a manifest mistake to report at load, not a blank
+     * square browser to puzzle over. (server=tcp is different: the daemon
+     * owns the tree, so content_dir is optional there.) */
+    if( bm->editor_server == BOOTMANIFEST_EDITOR_SERVER_EMBED
+        && (bm->editor_server_host[0] || bm->editor_server_port > 0) )
+    {
+        fprintf(
+            stderr,
+            "bootmanifest: '%s' sets [editor:boot] host/port without server=tcp; "
+            "the embedded ToriRSMapEd has no address\n",
+            path);
+        return -1;
+    }
 
     /* A tab panel needs a browser to open the tab in. Caught here rather than
      * at the open call, so a native run of a web manifest fails at load with
@@ -1175,6 +1233,11 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
     if( bm->editor_repo_root[0] )
         cfg->editor_repo_root = bm->editor_repo_root;
     cfg->editor_panel = (int)bm->editor_panel;
+    cfg->editor_server = (int)bm->editor_server;
+    if( bm->editor_server_host[0] )
+        cfg->editor_server_host = bm->editor_server_host;
+    if( bm->editor_server_port > 0 )
+        cfg->editor_server_port = bm->editor_server_port;
 
     if( bm->cache_quirks_set && bm->cache_game != 0 && bm->cache_epoch != 0 &&
         bm->cache_revision >= 0 )
@@ -1293,6 +1356,8 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->window_mode = bm->window_mode;
     if( bm->chrome_scale )
         cfg->chrome_scale = bm->chrome_scale;
+    if( bm->hidpi )
+        cfg->hidpi = bm->hidpi;
     if( bm->window_w > 0 && bm->window_h > 0 )
     {
         cfg->window_w = bm->window_w;

@@ -59,6 +59,16 @@ PlatformSDL2_Height(struct PlatformSDL2* platform);
 int
 PlatformSDL2_PixelDensity(struct PlatformSDL2* platform);
 
+/**
+ * Ask the next window for a device-pixel (HighDPI) drawable.
+ *
+ * Must be called BEFORE PlatformSDL2_Init / _InitForOpenGL3: the flag becomes
+ * SDL_WINDOW_ALLOW_HIGHDPI at creation and SDL has no way to add it after.
+ * `[ui:boot] hidpi=` is what drives it; TORIRS_HIDPI overrides either way.
+ */
+void
+PlatformSDL2_SetWantHighDPI(bool want);
+
 bool
 PlatformSDL2_QuitRequested(struct PlatformSDL2* platform);
 

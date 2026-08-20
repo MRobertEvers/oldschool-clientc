@@ -38,7 +38,14 @@ struct Editor_Doc
 
     /** Cache identity, for the tile-width flags the terrain codec needs. The
      *  widths are an era difference (u8 before OldSchool 209, u16 after), so
-     *  deriving with the wrong one shifts every tile. Borrowed, not owned. */
+     *  deriving with the wrong one shifts every tile. Borrowed, not owned.
+     *
+     *  NULL is a legal state with a precise meaning: this document never
+     *  derives. ToriRSMapEd's authoritative copy is one — the server parses,
+     *  applies commands and emits, while deriving-for-render happens in each
+     *  client's mirror, which does carry a profile. Editor_SquareDeriveTerrain
+     *  asserts its profile argument, so a NULL-profile doc that tries to
+     *  derive stops there, at the call that meant it. */
     const struct RSCache* profile;
 };
 

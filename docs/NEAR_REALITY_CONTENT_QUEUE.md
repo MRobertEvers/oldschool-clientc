@@ -246,16 +246,16 @@ Status: `pending` | `in_progress` | `done` | `blocked` | `deferred`.
 | A3b | Treasure Trails — **talk and search targets** (327 clues) | 1140 | 180 | **done** | Rides a new engine seam: `[proc,interact_npc_claim]` / `[proc,interact_loc_claim]` are asked before any `[opnpc/oploc]` dispatch. Unblocks Slayer and diary task hooks too. |
 | A3c | Treasure Trails — **challenges, kill targets, and the clue DROPS** | — | 200 | **done** | Challenge questions answered via `p_countdialog`; 14 kill targets; and 807 (npc, tier) clue drops generated from this repo's own pinned wiki corpus — the 21 sites `shared_droptables.rs2` §2 deleted, restored from a better source. |
 | A3d | Treasure Trails — **key targets** | — | 110 | **done** | The 12 two-action clues: kill for a key, then unlock a loc with it. |
-| A3e | Treasure Trails — **the map-clue interface** | — | — | pending | `trail_map01`..`24` plus six per-clue variants; a map clue currently reads as a message. |
+| A3e | Treasure Trails — **the map-clue interface** | — | — | **partial** | The table's shape is established and pinned (`trail_mapclue.rs2`, 7-step): 41 rows, the tier counts, the two easy clues outside the id block, and **eight** variants not six. The row-to-interface RULE is still unknown — see the log; do not guess it. |
 | A4a | Treasure Trails — **Hot & Cold** (the strange device) | 196 | 110 | **done** | The wiki's eight temperature bands; master device costs 3-8 hp a use. The dig that ends a hot/cold clue was already A3a's. |
-| A4b | Treasure Trails — **light box, puzzle box, sextant UI** | 772 | — | pending | `clues/{LightBox,PuzzleBox}`, `coordinateutils/SextantInterface`; cache ships `light_puzzle`, `trail_slidepuzzle`, `trail_sextant`. |
+| A4b | Treasure Trails — **light box, puzzle box, sextant UI** | 772 | — | **partial** | The **light box generator** is in and tested (`trail_lightbox.rs2`, 10-step): owner ceiling, the state clamp, the flip-on-add path, and the fill-in pass NR reads with the wrong variable. The puzzle box and sextant UI remain. |
 | A5 | Treasure Trails — **reward tables** (easy→master) + casket open | 1347 | 1083 rows | **done** | Generated from the pinned wikitext by `tools/gen_trail_rewards.py` — 1,238 `DropsLineReward` entries parsed in exact rational arithmetic, 0 unresolved item names. |
 | A6a | Treasure Trails — **milestones + the Mimic roll** | — | 130 | **done** | The wiki's six milestone counts; Mimic at 1/35 elite and 1/15 master with first-encounter dry protection. |
 | A6b | Treasure Trails — **STASH units** | — | 260 | **done** | 44 hidey locs categorised and paired by a generator; the wiki's Construction build table; per-tier storage (stated deviation from per-unit). |
-| A6c | Treasure Trails — **the Mimic fight, Watson, Patchy, Sherlock, scroll boxes** | 1100 | — | pending | Uri is done (A2); the Mimic ROLL and item are done (A6a). |
+| A6c | Treasure Trails — **the Mimic fight, Watson, Patchy, Sherlock, scroll boxes** | 1100 | — | **partial** | **Watson's hand-in gate** is in and tested (`trail_watson.rs2`, 10-step): the four-tier bitpack and its consume-on-completion. The Mimic fight, Patchy, Sherlock and the scroll boxes remain. |
 | A7a | Achievement Diaries — **the task registry** | — | 492 rows | **done** | 492 tasks generated from twelve pinned wiki pages. Cross-checks the authored per-tier totals on all 48 pairs — and caught two diaries' ids swapped. |
 | A7b | Achievement Diaries — **the ~492 task hooks** | 3883 | — | pending | Each task's completion CONDITION. The wiki states them as prose and the cache states them nowhere, so every one is hand-written against the content it watches. The claim seam (A3b) is what the interaction-based ones will use. |
-| A8 | **Grand Exchange** | 1882 | — | pending | `content/grandexchange/` |
+| A8 | **Grand Exchange** | 1882 | — | **partial** | The **matching engine** is in and tested (`ge_matching.rs2`, 11-step): seller-price execution, buyer refund, priority order, tie-break, self-match refusal. The offer slots, the interface and the price index remain. |
 | A9 | **Dwarf Multicannon** | 963 | 310 | **done** | Cache ships the whole build chain (4 stage locs + the finished cannon's own 4 ops). Rotation IS the fire clock, per the wiki. |
 | A10 | **Tears of Guthix** | 827 | 290 | **done** | Replaces the quest tree's placeholder. Cache ships the cave, the nine walls, the stream forms and the side panel; the walls are discovered with `loc_findallzone` rather than listed. |
 | A11 | **Shooting Stars** | 623 | 200 | **done** | 83 landing sites generated from the wiki's own map pins. Star state is `%vars` (world-shared), not a player varp. |
@@ -333,7 +333,7 @@ Status: `pending` | `in_progress` | `done` | `blocked` | `deferred`.
 | D11 | **Thieving** (tables, actions, pickpocket depth) | 1769 | 1515 + 3 contracts | **done** | All four thieving data tables — pickpockets, stalls, chests, doors — are under contract. Four stale experience awards found and corrected; one wiki self-conflict recorded rather than guessed at. |
 | D12 | **Mining** + **Smithing** completion | 2627 | 1817 + 3 contracts | **done** | All three data tables under contract: 19 rocks, 8 bars, and 158 anvil rows checked against the wiki's stated per-bar rule. |
 | D13 | **Woodcutting** + **Firemaking** completion | 1581 | 510 + nests | **partial** | Bird nests from every tree are in and verified — rate, cape bonus and the rabbit-foot range rule. Machetes and the guild's remaining shortcuts remain; NR's bonfire is RS3 and out of scope. |
-| D14 | **AFK skilling** + fletching/cooking/fishing/herblore parity sweep | 661 + 3432 | present | pending | audit-and-fill, not rewrite |
+| D14 | **AFK skilling** + fletching/cooking/fishing/herblore parity sweep | 661 + 3432 | present | **partial** | AFK skilling's shared rules are in (`skill_afk/`, 8-step): the non-monotonic xp ladder, points, the cap sentinel. The four-skill parity sweep remains. |
 
 ### Wave E — Near-Reality custom and meta systems
 
@@ -4188,6 +4188,192 @@ with and without, and what was explicitly deferred with its reason.
   That is the second NR feature this session where the ultimate ironman branch
   is the unusual one — the magic storage unit's cheaper unlock was the first.
   Worth expecting rather than being surprised by in the rows that remain.
+
+- 2026-08-20 — **D14 AFK skilling — a ladder that is not monotone, and the fall-through nobody reads.**
+  Ten AFK skills share one base class, so every rule is ten rules.
+    * **The experience per action falls as the server's xp rate RISES** — 4.8
+      at rate 5..9, 2.75 at 10..19, 2.0 at 20..49, 1.5 at 50+. Counter-
+      intuitive but consistent, and easy to port as a plain descending ladder.
+    * **A rate BELOW 5 falls past every branch to a final `return 1.5`** — the
+      same figure as the 50+ band, not the 4.8 the ladder's shape argues for.
+      So the curve rises from 4 to 5 and falls thereafter, and rate 1 and rate
+      50 award the same. Dropping the fall-through hands rates 1..4 the peak
+      band: a 3.2x error on exactly the servers running closest to Old School
+      rates. Verified by mutation — returning the 5..9 figure instead fails at
+      2 of 8.
+    * **The x2 xp multiplier is not a bonus** — it applies to everyone,
+      unconditionally, before the "No One's Home" boon doubles it again. Two
+      multipliers that look alike and are not.
+    * **`getSkillCap()` refuses a level strictly ABOVE the cap, and -1 disables
+      the check.** The default is 99, which a normal account cannot exceed, so
+      the default cap never refuses anybody and -1 and 99 are indistinguishable
+      in practice — but they are different values and an override could set a
+      real one, so the sentinel has to survive.
+  Points are `Utils.random(1, 3)`, inclusive, doubled by any of THREE sleeping
+  cap ids in equipment.
+
+  **Not done:** the fletching/cooking/fishing/herblore parity sweep, which is
+  the other half of this row.
+
+- 2026-08-20 — **The C server tree was renamed mid-turn; what that cost and what it did not.**
+  The concurrent session committed `e9284bf4 rename`: `src/net/mock/` became
+  `src/torirsserver/`, `mock230_world.c` became `torirs_server_world.c`, and the
+  make targets moved from `mock230*` to `torirsserver*`. My first sign of it was
+  a python edit failing with `FileNotFoundError` on a path that had existed
+  minutes earlier.
+
+  **All fourteen selftest registrations I had added survived**, because the
+  rename was a `git mv` that carried the working tree with it — I checked each
+  by name rather than assuming. What did NOT survive was
+  `tools/check_selftest_registration.py`, which I wrote this session with
+  `src/net/mock` hardcoded; it now tries `src/torirsserver` first and falls back,
+  so it works either side of the rename and in a worktree that predates it.
+
+  Also worth recording because it produced a confusing result an hour earlier:
+  `tools/trail_selftest_check.sh` was edited to grep for `ToriRSServer selftest:`
+  while the binary still emitted `mock230 selftest:`, so it reported NOT RUN for
+  sections that had run. That half of the rename landed before the C half. I
+  left their script alone and verified my rows by grepping the log for their own
+  FAIL text directly, which is what I would recommend to anyone reading a red
+  checker during a rename.
+
+- 2026-08-20 — **A8 Grand Exchange — the matching engine.**
+  The part of the GE that decides who trades with whom and at what price. Five
+  rules, each of which a port gets wrong in a different way:
+    * **The trade executes at the SELLER's price, and the buyer is refunded the
+      margin.** `exchangePrice = sellOffer.getPrice()`, then
+      `returnedAmount = (qty * buyOffer.getPrice()) - seller_got`. A buyer who
+      offers over the asking price does not pay it. Executing at the buyer's
+      price is the obvious reading of "they agreed to pay that" and silently
+      overcharges every buyer who set a margin. Verified by mutation: it fails
+      at 3 of 11.
+    * **The refund is measured against what actually REACHED the seller**, not
+      the nominal total — `result.getSucceededAmount()`. If the seller's
+      collection box could not take all the coins, the shortfall returns to the
+      buyer rather than vanishing. That couples two containers that look
+      independent.
+    * **Priority is produced by a sort written in the OPPOSITE order, inverted
+      by a backwards walk.** Buying sorts price descending and walks from the
+      end, giving the cheapest seller first; selling sorts ascending and walks
+      from the end, giving the highest-paying buyer first. Keeping the sort and
+      tidying the loop into a forward walk yields exactly the WORST match first,
+      in both directions.
+    * **Ties go to the older offer** — the comparator's second key is time
+      descending, which the backwards walk inverts again. Two inversions in one
+      comparator is what makes this worth pinning rather than re-deriving.
+    * **Compatibility is inclusive at the boundary** (`price < o.getPrice()`
+      rejects, so equality matches) and **a player never matches their own
+      offers** — the matcher skips the whole username entry before looking at
+      any price.
+  Also noted: `OFFER_TIMEOUT_DELAY` is 7 days, and a stale offer is skipped by
+  the matcher without being cancelled — it keeps its slot and still shows on the
+  player's screen.
+
+  **Not done:** the offer slots, the interface and the price index.
+
+- 2026-08-20 — **A4b light box — a fill-in pass that tests the wrong variable.**
+  The generator lays 25 bits across 8 buttons: one unique bit each, then
+  `Utils.random(3, 10)` more, with no bit owned by more than four buttons.
+  Three rules and one defect:
+    * **The extra-bit count is a target, not a guarantee.** Each button gets a
+      100-attempt budget and simply ends with fewer bits if it cannot place its
+      quota. A port that loops until the quota is met builds a different puzzle
+      — and on an unlucky draw, one that never terminates.
+    * **The starting lit/unlit split is clamped at seven**, so the eighth button
+      is forced the other way. NR's comment beside that code says it ensures "at
+      least 2 buttons lit and unlit"; the code guarantees **one**. A 7/1 split
+      passes every clamp. Transcribed as the code has it, with the discrepancy
+      recorded rather than splitting the difference.
+    * **A bit given to an already-toggled button arrives flipped** — construction
+      and play share one path, so building the grid first and applying toggles
+      afterwards yields a different board.
+
+  **[nr] The defect.** After the quota pass, NR walks the 25 bits handing each
+  unowned one to a random button:
+
+      num = usedBits.getOrDefault(i, 0);
+      if (num > 0) continue;
+      if (uniqueBits.contains(num)) continue;   // `num`, not `i`
+      addBit(Utils.random(7), i);
+
+  `num` is zero on every line that reaches the second test — the line above
+  skipped everything non-zero — so the guard asks whether **bit 0** is unique,
+  not whether bit `i` is. Two outcomes, neither intended:
+    * bit 0 is unique (8 in 25): the guard fires for every unowned bit and the
+      entire fill-in pass does nothing, leaving bits with no owner;
+    * bit 0 is not unique (17 in 25): the guard never fires, so an unowned
+      unique bit can be handed to a second button, breaking the
+      one-unique-bit-per-button property the puzzle rests on.
+  Ported as `i`, which is what the surrounding code means. Verified by mutation:
+  reproducing NR's reading fails at 8 of 10.
+
+  That is the third variable-level defect found in NR this session — the
+  Tormented Demon's De Morgan inversion and Callisto's oscillating phase guard
+  were the others. All three survive because the common case behaves correctly.
+
+  **Not done:** the puzzle box and the sextant interface.
+
+- 2026-08-20 — **A6c Watson — an accumulator that is consumed, not banked.**
+  `trail.constant` already carried the Mimic's own numbers and said the gate in
+  front of them was "A6's". This is that gate.
+
+  Watson takes one clue of each lower tier and gives a master scroll box.
+  The four tiers are bitpacked into one attribute — NR's comment says "we
+  bitpack the value to avoid unnecessarily verbose vars" — at bits 1, 2, 4, 8.
+    * **A tier is offered only if its bit is CLEAR and the clue is in the
+      inventory.** Both halves, and they are independent: having given the easy
+      clue leaves the other three open.
+    * **Completion RESETS the hash to zero**:
+
+          final boolean completed = depositedCluesHash == (1 | 2 | 4 | 8);
+          player.addAttribute("...hash", completed ? 0 : depositedCluesHash);
+
+      So it is not a permanent unlock — it is a four-slot accumulator that is
+      spent. A second master clue costs four more clues. Reading it as an
+      unlock, which is the natural reading of a bitmask that only ever gains
+      bits, hands out every later master scroll box for nothing. Verified by
+      mutation: banking the hash fails at 6 of 10.
+    * The bit index is `type.ordinal() - 1`, guarded in the source by an
+      `assert ClueItem.EASY.ordinal() == 1` — there is a beginner tier at
+      ordinal 0 that Watson does not accept, and the subtraction is what keeps
+      easy on bit 0.
+    * "Hand over all clues" replaces "Cancel" only above one depositable tier.
+
+  **Not done:** the Mimic fight itself, Patchy, Sherlock and the scroll boxes.
+
+- 2026-08-20 — **A3e map clues — what the cache settles, and the one thing it does not.**
+  `trail_read.rs2` answers a map clue with "You should take a closer look at
+  this map." and a comment saying picking the interface is A3's. I could not
+  finish that, and the useful part of this slice is being precise about why.
+
+  **Established from the cache and pinned:**
+    * `cluehelper_clue_map` holds **41 rows**: beginner 5, easy 9, medium 12,
+      hard 7, elite 6, quest 2. There is no difficulty 5.
+    * The ids are one tidy run 101..137 in difficulty order — and **two
+      easy-rated clues sit outside it**, `treasure_scroll_0` at 138 and
+      `mysterious_orb_0` at 139, with the quest pair far away at 954 and 957.
+      Deriving a clue's tier from its id, which that tidy run invites, gets
+      exactly those two wrong. Verified by mutation: widening the block to
+      swallow them fails at 2 of 7.
+    * The pack holds **24 generic `trail_map01`..`24` plus EIGHT per-clue
+      variants** — `trail_clue_easy_map006`, `trail_clue_hard_map006` and
+      `007`, `trail_clue_medium_map008`..`012`. The plan row said six. Counted,
+      not trusted.
+    * **41 rows against 32 interfaces**, so no one-row-one-picture mapping
+      exists. Anything that builds a 41-entry interface table is wrong before
+      it starts, and that is worth asserting so the next attempt starts from it.
+
+  **Not established: which interface a given row opens.** The table has no
+  interface column — its columns are id, difficulty, target, region,
+  requirements — and the interface files carry no clue id either
+  (`trail_map01` is interface 346, `trail_clue_easy_map006` is 337, neither
+  references a row). I had a plausible reading, that the 24 generic maps cover
+  ids 101..124 as `id - 100`, and it is wrong: that range is exactly
+  beginner+easy+medium, but five of those medium rows have their own
+  `trail_clue_medium_map008..012` variants, so the generic block cannot own
+  them. Rather than ship a formula that fits the counts and not the data, the
+  rule is recorded as open. Settling it needs the clientscript that opens these
+  interfaces, or a wiki cross-reference of which picture belongs to which clue.
 
 ## 7. Open questions to settle before Wave E
 

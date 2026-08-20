@@ -110,26 +110,40 @@ sdl_refresh_pixel_density(struct PlatformSDL2* platform)
 }
 
 /*
- * Whether to ask for a HighDPI drawable at all. OFF unless TORIRS_HIDPI=1.
+ * Whether to ask for a HighDPI drawable at all.
  *
- * Opt-in, because a device-pixel drawable is only half of a HighDPI client and
- * the other half is not wired yet: the CANVAS is what the client lays out and
- * renders at, and it is driven by the window-mode machinery (fixed pins it to
- * the classic frame, resizable tracks the window). Hand the platform a
- * drawable twice the canvas and the GL viewport covers a quarter of it -- the
- * frame draws into the top-left corner and the rest stays black.
+ * Declared by the boot manifest (`[ui:boot] hidpi=`), because it is not a
+ * property of the machine: it is a trade the BOOT makes. A device-pixel
+ * drawable on a 2x display is four times the pixels, which the map editor's
+ * GL path wants and the software rasteriser may not be able to afford.
  *
- * So the drawable stays at window points until the canvas can be made to
- * follow it in every window mode. The CHROME's own HighDPI support does not
- * wait on that and is not gated here: it is a baked font size, chosen by
- * App_SetChromeScale, and it is correct in whatever size framebuffer it is
- * handed.
+ * The other half of a HighDPI client -- a CANVAS that follows the drawable
+ * rather than the window points -- is wired now: SetCanvasFollowsWindow and
+ * the SIZE_CHANGED branch both push sdl_drawable_size(), and MapMouse derives
+ * its letterbox from the canvas against window points, so clicks land where
+ * they are drawn. Without this flag the drawable stays at points and the
+ * window server magnifies the whole frame, chrome and world alike -- which is
+ * the ONE failure the baked chrome sizes exist to avoid, arriving from
+ * underneath them where no amount of chrome work can reach it.
+ *
+ * TORIRS_HIDPI overrides the manifest either way: =0 gives up the drawable on
+ * a machine that cannot afford it, =1 turns it on for a boot that did not ask.
  */
+static bool g_want_highdpi = false;
+
+void
+PlatformSDL2_SetWantHighDPI(bool want)
+{
+    g_want_highdpi = want;
+}
+
 static bool
 sdl_want_highdpi(void)
 {
     char const* env = getenv("TORIRS_HIDPI");
-    return env && env[0] == '1';
+    if( env && env[0] )
+        return env[0] != '0';
+    return g_want_highdpi;
 }
 
 static SDL_ScaleMode
@@ -653,6 +667,13 @@ int
 PlatformSDL2_PixelDensity(struct PlatformSDL2* platform)
 {
     assert(platform);
+    /* Re-read rather than answer from the cache. The value taken at window
+     * creation is stale on macOS -- the drawable is not backed at its device
+     * size until the window is shown, so a HighDPI boot read 1 there and the
+     * chrome picked its 1x face for a 2x framebuffer. Two SDL getters, on a
+     * path that runs once a frame at most. */
+    if( platform->window )
+        sdl_refresh_pixel_density(platform);
     return platform->pixel_density > 0 ? platform->pixel_density : 1;
 }
 
@@ -1061,10 +1082,26 @@ PlatformSDL2_Present(struct PlatformSDL2* platform)
     }
     SDL_UnlockTexture(platform->texture);
 
-    SDL_GetWindowSize(platform->window, &window_w, &window_h);
+    /*
+     * The renderer's OUTPUT size, not the window's.
+     *
+     * These are the same number until the window is HighDPI, and then they are
+     * not: RenderCopy's destination rect is in the render target's own pixels,
+     * while SDL_GetWindowSize answers in points. Sizing the letterbox from
+     * points puts a full-size texture into a half-size rect in the top-left
+     * corner and clears the rest to black -- which is what soft3d did the
+     * moment `hidpi` was switched on, and what the GL path never showed
+     * because its viewport is set from the canvas in drawable pixels already.
+     *
+     * MapMouse keeps SDL_GetWindowSize deliberately: SDL delivers mouse
+     * positions in points, so its letterbox has to be built in points too. The
+     * two call sites disagree because their inputs are in different units, not
+     * because one of them is stale.
+     */
+    sdl_drawable_size(platform, &window_w, &window_h);
     letterbox_dst(platform->width, platform->height, window_w, window_h, &dst);
 
-    /* When the letterbox fills the window, RenderCopy overwrites every pixel —
+    /* When the letterbox fills the output, RenderCopy overwrites every pixel —
      * skip the clear (and the software-renderer SDL_FillRect4 it becomes under
      * the headless harness). */
     if( dst.x != 0 || dst.y != 0 || dst.w != window_w || dst.h != window_h )

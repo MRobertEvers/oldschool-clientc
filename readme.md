@@ -97,6 +97,92 @@ TORIRS_MAX_FRAMES=150 TORIRS_EXIT_BMP=frame.bmp TORIRS_WORLD_MAP=50,50 \
     src/torirs --manifest manifest_osrs239_packed.ini --offline
 ```
 
+## Display scaling (DPI)
+
+Four independent knobs decide how many device pixels a drawn pixel covers.
+They compose, and most scaling complaints are two of them disagreeing rather
+than any one of them being wrong.
+
+### The knobs
+
+| Knob | Where | Values | What it decides |
+| --- | --- | --- | --- |
+| `hidpi` | `[ui:boot]`, env `TORIRS_HIDPI` | `0`/`1` (default off) | Whether the GL/render drawable is device **pixels** or window **points** |
+| `chrome_scale` | `[ui:boot]`, env `TORIRS_CHROME_SCALE` | `1..4`, `dynamic`, unset | Device pixels per ToriRSChrome pixel |
+| `windowmode` | `[ui:boot]`, `--windowmode` | `fixed`/`resizable` | Whether the canvas tracks the window at all |
+| Interface scaling | device option 27, in-client | percent | Canvas divided down so the IF3 layer draws larger |
+
+Precedence for the first two is env, then manifest, then the display. `hidpi`
+is read once, before the window exists: `SDL_WINDOW_ALLOW_HIGHDPI` is a
+creation flag and SDL cannot add it to a live window.
+
+### The two layers
+
+Only one of them has authored sizes, and that asymmetry is the source of most
+of the confusion:
+
+- **ToriRSChrome** — editor panels, debug overlay, minimenu. Scales by picking
+  a **baked** face, never by stretching. `fontbake` writes Small/Body/Menu at
+  @1/@2/@3 (`TORIDBG_SCALE_MAX` is what the bake carries, not a taste), and
+  every metric in `uitree_debug_overlay.c` goes through `DBG_PX()`, so the
+  layout reflows rather than blurs.
+- **The UITree / IF3 game layer**, and the world's 2D overlays (click cross,
+  loc outlines, hover text, minimap) — **no density concept at all**. One art
+  pixel is one canvas pixel, always. Its art is 1x cache sprites, and there is
+  no second size to pick.
+
+The 3D world is neither: the projection's field of view is a function of the
+canvas, so geometry keeps its physical size and merely gains resolution. Turn
+`hidpi` on and the world gets sharper while the 2D overlays over it halve.
+
+### `chrome_scale=dynamic`
+
+    scale = canvas_h / density / 500 * density
+
+Two questions, deliberately separated. *How big* the chrome should be is a
+question about room, and room is measured in **points** — 500 per step, so the
+classic 503-row frame is one step. *How many pixels* one chrome pixel spans is
+a question about the display, and that is the density. Stepping off the raw
+canvas instead counts density twice: on a 2x display a 733-point window is a
+1466-row canvas, reads as two steps, and then gets drawn at 2x anyway.
+
+### Points vs pixels
+
+SDL delivers **mouse positions in points**. `SDL_RenderCopy` destinations and
+GL viewports are in **pixels**. `letterbox_dst` is therefore called in both
+units, at two sites, on purpose:
+
+- `PlatformSDL2_MapMouse` builds its box from `SDL_GetWindowSize` (points).
+- `PlatformSDL2_Present` builds its box from `sdl_drawable_size` (pixels).
+
+Making those two agree "for consistency" breaks either picking or presentation.
+Likewise `PlatformSDL2_PixelDensity` re-reads rather than answering from a
+cache: on macOS the drawable is not backed at device size until the window is
+shown, so a value taken at creation reports 1 on a Retina display.
+
+### Recognising the failure modes
+
+| Symptom | Cause |
+| --- | --- |
+| Whole frame soft/blocky, world included | `hidpi` off on a 2x display — the window server is magnifying the finished frame. Nothing drawn can fix it |
+| Frame in the top-left quarter, rest black | A present path sizing its destination in points against a pixel target |
+| Panels grow just from enabling `hidpi` | A dynamic ladder reading the raw canvas — density counted twice |
+| Chrome correct, game UI half-size | `hidpi` on. Expected: the IF3 layer has no scale to follow |
+| Chrome text crisp, arrows and scrollbars chunky | `spritebake` has no scale variants — see below |
+
+### Known gaps
+
+- **The skin bake is 1x only.** `fontbake` writes three sizes; `spritebake`
+  writes one. At `chrome_scale=2` the boxed blits (dropdown and scrollbar
+  arrows, grip caps) get an integer nearest stretch while the text beside them
+  is a true 2x bake, and the tiled fills (`PanelBody`, `DropdownBody`) keep
+  tiling at *native* size, so the parchment grain stays 1x. Closing it means
+  baking scaled variants, not changing the blitter.
+- **The IF3 layer cannot follow the density.** Interface scaling (option 27) is
+  the only knob that resizes it, and it works by shrinking the canvas — which
+  costs the world the resolution `hidpi` just bought. A real fix is a scale
+  factor on the IF3 layer itself.
+
 ## Engine notes
 
 The remaining material is an engineering notebook, not a platform build or

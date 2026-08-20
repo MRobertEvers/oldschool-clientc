@@ -67,6 +67,11 @@ struct Editor_SpawnEntry
 #define EDITOR_CATALOG_MAX 512
 #define EDITOR_CATALOG_LABEL_MAX 48
 
+/** Rows the multiloc variant list holds: the shell plus its transform table.
+ *  Transform tables are short -- a door is two rungs, a quest prop a handful
+ *  -- and the cap only bounds what is LISTED, never what the cache holds. */
+#define EDITOR_LOC_VARIANT_MAX 33
+
 /**
  * Squares the browser can hold coordinates for, and rows it can show.
  *
@@ -79,6 +84,24 @@ struct Editor_SpawnEntry
  */
 #define EDITOR_SQUARE_MAX 4096
 #define EDITOR_SQUARE_ROWS 512
+
+/**
+ * The row handles one loc-config readout writes to.
+ *
+ * Two readouts show a loc record -- the Loc panel's selection and the
+ * catalog's multiloc variant -- and they answer the same question, so they
+ * share the fill instead of each formatting the record its own way. Placement
+ * is deliberately absent: a variant has no tile.
+ */
+struct Editor_LocRows
+{
+    int name;
+    int desc;
+    int cfg;
+    int model;
+    int render;
+    int ops;
+};
 
 /** What EDITOR_TOOL_SELECT is latched onto. Own concept from the loc editor's
  *  locedit_* fields (src/app.c) -- that tool targets a loc to nudge/rotate;
@@ -101,6 +124,10 @@ struct Editor_Panel
     /** Chrome scale the panels were last placed for. A display change moves
      *  them; see Editor_PanelPlaceForScale. */
     int placed_scale;
+    /** Where the stacker last parked the Squares panel, so it can tell its own
+     *  placement from one the user dragged and stop following in that case.
+     *  See EDITOR_PANEL_SQUARE_Y for why the two panels must not overlap. */
+    int square_stack_y;
     int panel;
     int built;
 
@@ -179,13 +206,9 @@ struct Editor_Panel
      * the tool panel answers "make it different".
      */
     int loc_panel;
-    int loc_row_name;
-    int loc_row_desc;
+    struct Editor_LocRows loc_rows;
+    /** Where it sits, which only a placed loc has. */
     int loc_row_place;
-    int loc_row_cfg;
-    int loc_row_model;
-    int loc_row_render;
-    int loc_row_ops;
     /** "View tile": re-selects the loc's own tile as TERRAIN, so the tool
      *  panel flips to the ground under the loc -- height, flags, overlays --
      *  at the loc's level, without hunting for a bare pixel of it to click. */
@@ -258,6 +281,45 @@ struct Editor_Panel
     char const* cat_options[EDITOR_CATALOG_MAX];
     int cat_ids[EDITOR_CATALOG_MAX];
     int cat_count;
+
+    /* ---- the picked loc's transform table ("multiloc") --------------------
+     *
+     * A multiloc is a SHELL: LocType.transforms is the list of real locs the
+     * varbit/varp picks between, and the shell itself usually carries no model
+     * or ops of its own. Previewing the shell therefore answers nothing -- a
+     * blank well and an empty op row -- which is why these rows exist: the
+     * variant list makes each rung of the table pickable, and the preview and
+     * the config readout below it follow the pick rather than the shell.
+     *
+     * Row 0 is always the shell. Rungs are addressed by their INDEX in the
+     * table, because that index is the varbit/varp value that selects them --
+     * the number a piece of content would have to write to make this rung the
+     * live one -- and the last entry is the fallback for any value past the
+     * end. A -1 rung is a legal entry meaning "nothing is drawn at this
+     * value"; it is listed, and picking it previews nothing on purpose.
+     *
+     * Placement is unaffected: Place and the Edit menu's swap still stamp
+     * cat_picked_id, the shell, because the shell is what a map stores.
+     */
+    int cat_row_multi;
+    int cat_dd_variant;
+    /** The chosen row's record, in the same rows the Loc panel uses -- same
+     *  helper, so the two readouts cannot drift apart. */
+    struct Editor_LocRows cat_var_rows;
+    char cat_var_labels[EDITOR_LOC_VARIANT_MAX][EDITOR_CATALOG_LABEL_MAX];
+    char const* cat_var_options[EDITOR_LOC_VARIANT_MAX];
+    /** The loc each row previews; -1 for the shell row and for a -1 rung. */
+    int cat_var_ids[EDITOR_LOC_VARIANT_MAX];
+    int cat_var_count;
+    /** Which row is chosen. 0 is the shell, so the default previews the pick. */
+    int cat_var_choice;
+    /** The pick, the kind and the resident-record count the variant list was
+     *  built for, so it rebuilds when the pick moves, when the list flips to
+     *  npcs or objs (which have no transform rows here), and again when a
+     *  queued rung lands and can finally contribute its name. */
+    int cat_var_shown_id;
+    int cat_var_shown_kind;
+    int cat_var_shown_epoch;
 
     /**
      * Edit level: -1 follows the pick, 0..3 pins a plane.
@@ -414,6 +476,16 @@ int
 Editor_PanelApplyToSelection(
     struct Editor_Panel* panel,
     struct App* app);
+
+/** What the catalog's model-view well should be showing: the picked entry,
+ *  except while a multiloc VARIANT row is chosen, where it is that rung's loc.
+ *  Locs only -- npcs and objs have no transform rows -- and -1 for "nothing to
+ *  draw", which covers both an empty pick and a deliberately blank -1 rung.
+ *  The preview updater in app.c keys its cache on this, so choosing a rung
+ *  re-renders the well the same way choosing a new pick does. */
+int
+Editor_PanelCatalogPreviewId(
+    struct Editor_Panel const* panel);
 
 /** The pose the Place tool would stamp right now: the LocSh/LocRot dropdowns
  *  with sane defaults. For the hover ghost, which must match the commit. */

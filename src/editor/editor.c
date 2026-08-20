@@ -11,31 +11,53 @@
 #include <string.h>
 
 int
+Editor_OpenHost(
+    struct Editor* editor,
+    const struct EditorHost* host,
+    const char* label,
+    const struct RSCache* profile)
+{
+    assert(editor);
+    assert(host);
+    assert(host->vtable);
+    assert(label);
+    assert(profile);
+    /* The session is a mirror; only a ToriRSMapEd connection has an
+     * authority behind it to mirror. */
+    assert(Editor_HostIsMapEd(host));
+
+    memset(editor, 0, sizeof(*editor));
+    Editor_DocInit(&editor->doc, profile);
+
+    editor->host = *host;
+    editor->host_open = 1;
+
+    editor->writable = Editor_HostMapEdWritable(&editor->host);
+    if( !editor->writable )
+        fprintf(
+            stderr,
+            "editor: another server holds %s — opening read-only\n",
+            label);
+
+    return 1;
+}
+
+int
 Editor_Open(
     struct Editor* editor,
     const char* content_dir,
     const char* repo_root,
     const struct RSCache* profile)
 {
+    struct EditorHost host;
+
     assert(editor);
     assert(content_dir);
     assert(profile);
 
-    memset(editor, 0, sizeof(*editor));
-    Editor_DocInit(&editor->doc, profile);
-    Editor_UndoInit(&editor->undo);
-
-    Editor_HostOpenLocal(&editor->host, content_dir, repo_root);
-    editor->host_open = 1;
-
-    editor->writable = editor->host.vtable->session(editor->host.user_data, 1) == EDITOR_HOST_OK;
-    if( !editor->writable )
-        fprintf(
-            stderr,
-            "editor: another session holds %s — opening read-only\n",
-            content_dir);
-
-    return 1;
+    if( !Editor_HostOpenMapEdEmbed(&host, content_dir, repo_root) )
+        return 0;
+    return Editor_OpenHost(editor, &host, content_dir, profile);
 }
 
 void
@@ -46,7 +68,6 @@ Editor_Close(struct Editor* editor)
 
     if( editor->host_open )
     {
-        editor->host.vtable->session(editor->host.user_data, 0);
         Editor_HostClose(&editor->host);
         editor->host_open = 0;
     }
@@ -123,6 +144,9 @@ Editor_LoadSquare(
     assert(editor);
     assert(provider);
 
+    int dirty_map = 0;
+    int dirty_loc = 0;
+
     square = Editor_DocOpenSquare(&editor->doc, map_x, map_z);
     if( !square )
     {
@@ -132,8 +156,11 @@ Editor_LoadSquare(
     if( square->loaded )
         return 1;
 
-    status = editor->host.vtable->square_load(
-        editor->host.user_data, map_x, map_z, &jm2, &jl2);
+    /* Open on the AUTHORITY, mirror what it answers — which is the doc's
+     * current text, another client's unsaved edits included, plus the dirty
+     * flags so this mirror agrees about what is unsaved. */
+    status = Editor_HostMapEdSquareOpen(
+        &editor->host, map_x, map_z, &jm2, &jl2, &dirty_map, &dirty_loc);
     if( status != EDITOR_HOST_OK )
     {
         fprintf(stderr, "editor: cannot read square %d,%d\n", map_x, map_z);
@@ -177,6 +204,9 @@ Editor_LoadSquare(
 
     Editor_HostBlobFree(&jm2);
     Editor_HostBlobFree(&jl2);
+
+    square->dirty_map = dirty_map;
+    square->dirty_loc = dirty_loc;
 
     if( !seed_provider(editor, provider, square) )
         return 0;
@@ -232,13 +262,75 @@ queue_span(
         queue_rebuild(editor, coords[i * 2], coords[i * 2 + 1]);
 }
 
+/* ---- the fact sink: where the mirror actually mutates -------------------- */
+
 static void
-on_history_step(
+mirror_on_cmd(
     void* user_data,
+    uint32_t seq,
+    int direction,
     const struct Editor_Cmd* command)
 {
-    queue_span(user_data, command);
+    struct Editor* editor = user_data;
+
+    (void)seq;
+    /* A command against a square this mirror never opened applies to
+     * nothing, and that is correct: this client is not showing it, and the
+     * authority's copy is what a save writes. */
+    Editor_CmdApply(
+        &editor->doc,
+        command,
+        direction == EDITOR_CMD_INVERSE ? EDITOR_CMD_INVERSE : EDITOR_CMD_FORWARD);
+    queue_span(editor, command);
 }
+
+static void
+mirror_on_saved(
+    void* user_data,
+    int count,
+    const int* coords)
+{
+    struct Editor* editor = user_data;
+
+    for( int i = 0; i < count; i++ )
+    {
+        struct Editor_Square* square =
+            Editor_DocFindSquare(&editor->doc, coords[i * 2], coords[i * 2 + 1]);
+        if( !square )
+            continue;
+        square->dirty_map = 0;
+        square->dirty_loc = 0;
+    }
+}
+
+static void
+mirror_on_state(
+    void* user_data,
+    uint32_t key,
+    const int32_t* values,
+    int count)
+{
+    struct Editor* editor = user_data;
+
+    if( editor->on_state )
+        editor->on_state(editor->on_state_user_data, key, values, count);
+}
+
+int
+Editor_PumpFacts(struct Editor* editor)
+{
+    struct EditorHostMapEdFacts sink;
+
+    assert(editor);
+
+    sink.user_data = editor;
+    sink.on_cmd = mirror_on_cmd;
+    sink.on_saved = mirror_on_saved;
+    sink.on_state = mirror_on_state;
+    return Editor_HostMapEdDrainFacts(&editor->host, &sink);
+}
+
+/* ---- intents ------------------------------------------------------------- */
 
 int
 Editor_Apply(
@@ -248,26 +340,73 @@ Editor_Apply(
     assert(editor);
     assert(command);
 
-    if( !Editor_CmdApply(&editor->doc, command, EDITOR_CMD_FORWARD) )
+    if( Editor_HostMapEdCmd(&editor->host, command) != EDITOR_HOST_OK )
         return 0;
-
-    Editor_UndoPush(&editor->undo, command);
-    queue_span(editor, command);
+    /* The authority broadcast before it acked, so the echo is in hand;
+     * consuming it here is what lets callers read the document's new state
+     * the moment this returns, as they always could. */
+    Editor_PumpFacts(editor);
     return 1;
 }
 
 int
 Editor_Undo(struct Editor* editor)
 {
+    int count;
+
     assert(editor);
-    return Editor_UndoUndo(&editor->undo, &editor->doc, on_history_step, editor);
+
+    count = Editor_HostMapEdUndo(&editor->host);
+    Editor_PumpFacts(editor);
+    return count;
 }
 
 int
 Editor_Redo(struct Editor* editor)
 {
+    int count;
+
     assert(editor);
-    return Editor_UndoRedo(&editor->undo, &editor->doc, on_history_step, editor);
+
+    count = Editor_HostMapEdRedo(&editor->host);
+    Editor_PumpFacts(editor);
+    return count;
+}
+
+void
+Editor_StrokeBegin(struct Editor* editor)
+{
+    assert(editor);
+    Editor_HostMapEdStroke(&editor->host, 1);
+}
+
+void
+Editor_StrokeEnd(struct Editor* editor)
+{
+    assert(editor);
+    Editor_HostMapEdStroke(&editor->host, 0);
+}
+
+int
+Editor_StateSet(
+    struct Editor* editor,
+    uint32_t key,
+    const int32_t* values,
+    int count)
+{
+    assert(editor);
+    return Editor_HostMapEdStateSet(&editor->host, key, values, count);
+}
+
+void
+Editor_SetStateCallback(
+    struct Editor* editor,
+    void (*on_state)(void* user_data, uint32_t key, const int32_t* values, int count),
+    void* user_data)
+{
+    assert(editor);
+    editor->on_state = on_state;
+    editor->on_state_user_data = user_data;
 }
 
 int
@@ -282,6 +421,10 @@ Editor_DrainRebuilds(
     assert(editor);
     assert(provider);
     assert(out_coords || max == 0);
+
+    /* Other clients' edits land here: their FACT_CMDs mutate the mirror and
+     * queue their spans, and this frame's rebuild pass shows them. */
+    Editor_PumpFacts(editor);
 
     for( int i = 0; i < editor->rebuild_count; i++ )
     {
@@ -311,66 +454,16 @@ Editor_DrainRebuilds(
 int
 Editor_SaveAll(struct Editor* editor)
 {
-    int saved = 0;
+    int saved;
 
     assert(editor);
 
-    if( !editor->writable )
-        return -1;
-
-    for( int i = 0; i < editor->doc.square_count; i++ )
-    {
-        struct Editor_Square* square = &editor->doc.squares[i];
-        char* jm2_text = NULL;
-        char* jl2_text = NULL;
-        size_t jm2_length = 0;
-        size_t jl2_length = 0;
-        enum EditorHost_Status status;
-
-        if( !square->dirty_map && !square->dirty_loc )
-            continue;
-
-        /* Only the changed half is emitted; the other stays NULL and the host
-         * leaves that file alone. Rewriting an untouched `.jl2` would show up
-         * as a diff on placements the user never edited. */
-        if( square->dirty_map )
-        {
-            jm2_length = Editor_Jm2Emit(square, NULL, 0);
-            jm2_text = malloc(jm2_length + 1);
-            assert(jm2_text);
-            Editor_Jm2Emit(square, jm2_text, jm2_length + 1);
-        }
-        if( square->dirty_loc )
-        {
-            jl2_length = Editor_Jl2Emit(square, NULL, 0);
-            jl2_text = malloc(jl2_length + 1);
-            assert(jl2_text);
-            Editor_Jl2Emit(square, jl2_text, jl2_length + 1);
-        }
-
-        status = editor->host.vtable->square_save(
-            editor->host.user_data,
-            square->map_x,
-            square->map_z,
-            jm2_text,
-            jm2_length,
-            jl2_text,
-            jl2_length);
-
-        free(jm2_text);
-        free(jl2_text);
-
-        if( status != EDITOR_HOST_OK )
-        {
-            fprintf(
-                stderr, "editor: save failed for %d,%d\n", square->map_x, square->map_z);
-            continue;
-        }
-
-        square->dirty_map = 0;
-        square->dirty_loc = 0;
-        saved++;
-    }
+    /* The AUTHORITY emits and writes — its document is the one that counts,
+     * and every mirror (this one included) clears its dirty flags on the
+     * FACT_SAVED broadcast consumed just below. -1 means the server is
+     * read-only, exactly as it meant when the lock was this session's. */
+    saved = Editor_HostMapEdSaveAll(&editor->host);
+    Editor_PumpFacts(editor);
     return saved;
 }
 

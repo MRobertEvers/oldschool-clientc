@@ -35,8 +35,13 @@
  *                and [cache:boot] revision. fallback_port defaults to 443 only
  *                when the resolved primary is 43594; 0 explicitly disables it.
  *   [editor:boot] content_dir=<path>  repo_root=<path>
- *                Turn on the world map editor over a content tree. Stating
- *                `content_dir` is what enables it; `repo_root` additionally
+ *                server=embed|tcp  host=<h>  port=<n>  panel=inprocess|tab
+ *                Turn on the world map editor. The editor is a client of the
+ *                ToriRSMapEd server: `server=embed` (default) hosts it in
+ *                this process over `content_dir`, `server=tcp` dials a
+ *                torirsmaped daemon — the editor's counterpart of [net:boot]
+ *                choosing the game server. Stating `content_dir` (or
+ *                server=tcp) is what enables it; `repo_root` additionally
  *                allows baking, which only ever runs when the user asks for it.
  *
  *   [features:boot] era=lostcity|osrs|server_routed
@@ -155,6 +160,19 @@ struct ToriRS_ExecutorConfig; /* fwd; src/executor_config.h */
  * sscompile will accept in one build. */
 #define BOOTMANIFEST_LANE_MAX 32
 #define BOOTMANIFEST_LANE_CAP 128
+/** Which ToriRSMapEd deployment `[editor:boot] server=` names. */
+enum BootManifestEditorServer
+{
+    /**
+     * ToriRSMapEd runs inside this process; the wire is a pair of in-memory
+     * queues. The default, and the only deployment that needs nothing
+     * outside this binary — the analogue of `[net:boot] transport=embed`.
+     */
+    BOOTMANIFEST_EDITOR_SERVER_EMBED = 0,
+    /** The torirsmaped daemon, reached over TCP (`host=`/`port=`). */
+    BOOTMANIFEST_EDITOR_SERVER_TCP
+};
+
 /** Where `[editor:boot] panel=` puts the command panel. */
 enum BootManifestEditorPanel
 {
@@ -265,6 +283,25 @@ struct BootManifest
     char editor_repo_root[512];
 
     /**
+     * Which ToriRSMapEd the editor session talks to (`[editor:boot] server=`).
+     *
+     * The editor's counterpart of `[net:boot]` choosing the game server: the
+     * client is one binary, and the manifest decides which server a boot
+     * connects to. `embed` (the default) hosts ToriRSMapEd in-process over
+     * `content_dir`; `tcp` dials a torirsmaped daemon at `host`/`port`, and
+     * the DAEMON's content tree is then the one being edited — `content_dir`
+     * here only enables the editor and labels the session.
+     */
+    enum BootManifestEditorServer editor_server;
+    /** Set when `server=` named something unknown; the load fails on it. */
+    int editor_server_error;
+    /* [editor:boot] host/port — where the torirsmaped daemon listens.
+     * "" / 0 = localhost / TORIRSMAPED_DEFAULT_PORT. Only server=tcp reads
+     * them. */
+    char editor_server_host[128];
+    int editor_server_port;
+
+    /**
      * Where the command panel is drawn (`[editor:boot] panel=`).
      *
      * A boot-time choice rather than a runtime toggle because the panel's
@@ -367,6 +404,12 @@ struct BootManifest
     /** `[ui:boot] chrome_scale=`: pin the ToriRSChrome zoom (1..4). 0 = unset,
      *  the chrome follows the display's pixel density. */
     int chrome_scale;
+    /** `[ui:boot] hidpi=`: render into a device-pixel drawable. 0 = unset
+     *  (off), 1 = on, -1 = explicitly off. A boot that says yes is one whose
+     *  renderer can afford 4x the pixels on a 2x display; without it the
+     *  window server magnifies the whole frame and no chrome size can help.
+     *  TORIRS_HIDPI overrides. */
+    int hidpi;
     /* `window = WxH` — initial canvas/window size. 0 = unset (the fixed frame).
      * Clamped to the canvas floor by App_SetCanvasSize like any other size. */
     int window_w;

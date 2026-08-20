@@ -677,6 +677,39 @@ static int paced_value = -1;
  * visual frame. They are cleared only after a stable tree reaches interaction. */
 static int input_frame_pending;
 
+/*
+ * The `chrome_scale=dynamic` ladder: device pixels per ToriRSChrome pixel.
+ *
+ * Two questions live in here, and conflating them is what makes a HighDPI boot
+ * silently resize its own panels. HOW BIG the chrome should be is a question
+ * about ROOM, and room is measured in POINTS -- 500 rows of window per step,
+ * so the classic 503-row frame is one step and a window twice that is two. How
+ * many pixels one chrome pixel spans is a question about the DISPLAY, and that
+ * is the density. The scale is the product of the two.
+ *
+ * Reading the ladder off the raw canvas instead counts density twice: on a 2x
+ * display a 733-point window is a 1466-row canvas, which reads as two steps
+ * and then gets drawn at 2x anyway -- panels half again as large as the same
+ * window gets on an ordinary display, purely for being drawn sharply. Turning
+ * HighDPI on is supposed to change the RESOLUTION of the chrome and nothing
+ * else about it.
+ *
+ * No upper clamp: App_SetChromeScale holds it to what the bake carries
+ * (TORIDBG_SCALE_MAX), which is the one place that knows.
+ */
+static int
+main_dynamic_chrome_scale(int canvas_h, int density)
+{
+    int steps;
+
+    assert(canvas_h > 0);
+    assert(density > 0);
+    steps = canvas_h / density / 500;
+    if( steps < 1 )
+        steps = 1;
+    return steps * density;
+}
+
 /** One iteration of the frame loop. Returns 0 when the client should stop. */
 static int
 frame_loop_step(void)
@@ -1814,13 +1847,20 @@ frame_loop_step(void)
             if( app.cfg.chrome_scale < 0 )
             {
                 /* dynamic: re-derive from the canvas every frame, so a drag
-                 * to fullscreen steps the chrome up as the canvas grows. */
-                int scale = UITREE_LAYOUT_ROOT_H / 500;
-                if( scale < 1 )
-                    scale = 1;
-                if( scale > 4 )
-                    scale = 4;
-                App_SetChromeScale(&app, scale);
+                 * to fullscreen steps the chrome up as the canvas grows -- and
+                 * so a drag onto a display of a different density re-picks the
+                 * baked face for it, which raises no event of its own. */
+                int const density = PlatformSDL2_PixelDensity(sdl);
+                int const scale =
+                    main_dynamic_chrome_scale(UITREE_LAYOUT_ROOT_H, density);
+                if( App_SetChromeScale(&app, scale) && getenv("TORIRS_RESIZE_DEBUG") )
+                    fprintf(
+                        stderr,
+                        "chrome: scale %d (canvas %dx%d, density %d)\n",
+                        App_ChromeScale(&app),
+                        UITREE_LAYOUT_ROOT_W,
+                        UITREE_LAYOUT_ROOT_H,
+                        density);
             }
             else if( app.cfg.chrome_scale == 0 )
                 App_SetChromeScale(&app, PlatformSDL2_PixelDensity(sdl));
@@ -3869,6 +3909,12 @@ main(
             App_Shutdown(&app);
             return 1;
         }
+        /* Before either Init below, and it has to be: ALLOW_HIGHDPI is a
+         * window-creation flag and SDL cannot add it to a live window. Getting
+         * this after the window is a drawable at window points for the whole
+         * session, which the compositor then magnifies -- the frame looks
+         * scaled and nothing downstream can tell that it was. */
+        PlatformSDL2_SetWantHighDPI(cfg.hidpi > 0);
 #if defined(TORIRS_HAVE_GL3)
         if( use_opengl3 )
         {
@@ -3977,16 +4023,11 @@ main(
             else if( cfg.chrome_scale > 0 )
                 density = cfg.chrome_scale;
             else if( cfg.chrome_scale < 0 )
-            {
-                /* dynamic: proportional to the canvas, 500 rows per step --
-                 * the classic 503-row frame is 1x, a 2x-the-frame canvas gets
-                 * 2x chrome. */
-                density = UITREE_LAYOUT_ROOT_H / 500;
-                if( density < 1 )
-                    density = 1;
-                if( density > 4 )
-                    density = 4;
-            }
+                /* dynamic: proportional to the canvas, 500 POINTS per step,
+                 * times the density -- the classic 503-row frame is one step,
+                 * a window twice that is two, and each step is drawn at the
+                 * display's own resolution. */
+                density = main_dynamic_chrome_scale(UITREE_LAYOUT_ROOT_H, density);
             App_SetChromeScale(&app, density);
             if( getenv("TORIRS_RESIZE_DEBUG") )
                 fprintf(

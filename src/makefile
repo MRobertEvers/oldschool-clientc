@@ -457,7 +457,9 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	engine/world_builder/task_world_load.c \
 	editor/editor.c editor/editor_doc.c editor/editor_jm2.c \
 	editor/editor_cmd.c editor/editor_derive.c editor/editor_host_local.c \
-	editor/editor_panel.c \
+	editor/editor_host_remote.c editor/editor_panel.c \
+	torirsmaped/torirs_maped.c torirsmaped/torirs_maped_buf.c \
+	torirsmaped/torirs_maped_embed.c \
 	render/torirs_polygon.c \
 	painters/painters.c \
 	painters/painters_cull_project.c \
@@ -1449,6 +1451,25 @@ test-editor-save: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/edit
 	./$(OBJ_DIR)/editor_save_test $(OBJ_DIR)/editor_save_scratch \
 		$(EDITOR_CONTENT_DIR)/maps/m50_50.jm2 $(EDITOR_CONTENT_DIR)/maps/m50_50.jl2
 
+# The whole ToriRSMapEd loop with no socket: the client-side remote binding,
+# the frame protocol, the server core, and the real file layer, end to end
+# through the embed pipes. Everything the save test proves about files must
+# still hold across the wire, plus the wire-only properties (absent != empty,
+# a second embed finding the tree locked, no stranded lock).
+test-torirsmaped-embed: $(OBJ_DIR) torirsmaped/torirs_maped.c torirsmaped/torirs_maped_buf.c \
+		torirsmaped/torirs_maped_embed.c editor/editor_host_local.c \
+		editor/editor_host_remote.c editor/editor_doc.c editor/editor_cmd.c \
+		editor/editor_jm2.c torirsmaped/test/maped_embed_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/maped_embed_test \
+		torirsmaped/torirs_maped.c torirsmaped/torirs_maped_buf.c \
+		torirsmaped/torirs_maped_embed.c editor/editor_host_local.c \
+		editor/editor_host_remote.c editor/editor_doc.c editor/editor_cmd.c \
+		editor/editor_jm2.c torirsmaped/test/maped_embed_test.c
+	rm -rf $(OBJ_DIR)/maped_scratch
+	mkdir -p $(OBJ_DIR)/maped_scratch/maps
+	./$(OBJ_DIR)/maped_embed_test $(OBJ_DIR)/maped_scratch \
+		$(EDITOR_CONTENT_DIR)/maps/m50_50.jm2 $(EDITOR_CONTENT_DIR)/maps/m50_50.jl2
+
 # Convex hull (ToriDraw): the silhouette a loc highlight is drawn from, plus the
 # degenerate shapes real footprints produce -- edge-on, collinear, duplicated
 # corners shared between adjacent tiles.
@@ -1475,7 +1496,7 @@ test-editor-dropdown: $(OBJ_DIR) ui/uitree_debug_overlay.c ui/test/uitree_test_d
 	./$(OBJ_DIR)/uitree_test_dropdown
 
 test-editor: test-editor-cmd test-editor-jm2 test-editor-derive test-editor-dropdown \
-	test-convex-hull test-polygon-fill test-editor-save
+	test-convex-hull test-polygon-fill test-editor-save test-torirsmaped-embed
 
 # NpcType.multiNpc (opcode 106) decode -> ToriRS_Npctype.transform_* -- pure
 # struct plumbing, no cache file or App needed.
@@ -2149,6 +2170,31 @@ torirsserver: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o -lm $(JS5_SOCKET_LIBS)
 	@echo "built $(OBJ_DIR)/torirsserver"
+
+# ---- ToriRSMapEd -----------------------------------------------------------
+#
+# The map editor's server: the EditorHost operations (square list/load/save,
+# spawn save, bake, the content-tree lock) served as length-prefixed frames.
+# The client's editor session is its client, through editor_host_remote.c,
+# and the manifest picks the deployment: `[editor:boot] server=embed` hosts
+# it inside the client's process, `server=tcp` dials this daemon.
+#
+# Unlike the game server there is no EMBED flag: the embedded ToriRSMapEd is
+# in every client build, because it is a file server measured in kilobytes
+# with no content-tree build dependency — the cost that made EMBED_SERVER
+# opt-in does not exist here.
+#
+#   src/build/torirsmaped [port] [--content-dir <dir>] [--repo-root <dir>]
+#
+# POSIX only for now (the client's tcp binding is likewise); the browser
+# lane's WebSocket front door is future work.
+TORIRSMAPED_SRCS = torirsmaped/torirs_maped_main.c torirsmaped/torirs_maped.c \
+	torirsmaped/torirs_maped_buf.c editor/editor_host_local.c \
+	editor/editor_doc.c editor/editor_cmd.c editor/editor_jm2.c
+
+torirsmaped: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirsmaped $(TORIRSMAPED_SRCS)
+	@echo "built $(OBJ_DIR)/torirsmaped"
 
 # A second binary from the same sources, listening on 43597 rather than 43595.
 # It exists so two people (or two agents) can each hold a live session against

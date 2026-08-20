@@ -97,7 +97,9 @@ Editor_DocInit(
     const struct RSCache* profile)
 {
     assert(doc);
-    assert(profile);
+    /* No profile assert: NULL means "this document never derives" — the
+     * server's authoritative doc. See the field's comment in editor_doc.h;
+     * Editor_SquareDeriveTerrain asserts its own profile argument. */
 
     memset(doc, 0, sizeof(*doc));
     doc->profile = profile;

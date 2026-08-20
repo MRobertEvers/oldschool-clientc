@@ -147,6 +147,16 @@ struct AppConfig
     /** [editor:boot] repo_root — where a bake would run. NULL disables baking. */
     char const* editor_repo_root;
     /**
+     * enum BootManifestEditorServer: which ToriRSMapEd deployment the editor
+     * session talks to. 0 (embed) hosts the server in-process over
+     * `editor_content_dir`; tcp dials the torirsmaped daemon below, and then
+     * enables the editor even with no content_dir of its own.
+     */
+    int editor_server;
+    /** torirsmaped daemon address; NULL/0 = localhost, its default port. */
+    char const* editor_server_host;
+    int editor_server_port;
+    /**
      * enum BootManifestEditorPanel: where the command panel is drawn.
      *
      * 0 (inprocess) is the default a zeroed config gets, which is the binding
@@ -295,6 +305,9 @@ struct AppConfig
     /** Manifest-pinned chrome zoom; 0 follows the display density. The env
      *  TORIRS_CHROME_SCALE outranks both. */
     int chrome_scale;
+    /** `[ui:boot] hidpi` — 1 renders into a device-pixel drawable, -1 declines
+     *  it, 0 is unset (declines). TORIRS_HIDPI outranks all three. */
+    int hidpi;
     /** `[ui:boot] window` — initial canvas AND window size, 0 = unset (the
      * 765x503 fixed frame). Only meaningful in resizable mode, where it is the
      * size the gameframe is laid out at before the user touches anything.

@@ -5417,47 +5417,55 @@ app_loc_editor_tick(
          * held, consumes the frame, and never reaches the world camera --
          * which also checks this focus itself, for the keys that arrive on
          * frames this block does not see.
+         *
+         * HELD, not the down edge. The world camera flies for as long as W is
+         * down and the preview has to answer the same gesture the same way: on
+         * the edge alone, holding a key nudged the model once and then sat
+         * there, which is indistinguishable from a control that does not work.
+         * The steps are per FRAME because of it -- a fifth of the old edge
+         * step, so a press-and-release is still a small turn and a hold is a
+         * smooth orbit rather than a spin.
          */
         if( app_modelview_focused(app) )
         {
             int took = 0;
-            int const yaw_step = 64;
-            int const pitch_step = 32;
+            int const yaw_step = 12;
+            int const pitch_step = 6;
 
-            if( LibToriRS_Input_IsKeyDown(input, TORIRSK_A) ||
-                LibToriRS_Input_IsKeyDown(input, TORIRSK_LEFT) )
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_A) ||
+                LibToriRS_Input_IsKeyHeld(input, TORIRSK_LEFT) )
             {
                 app->preview_yan = (app->preview_yan + 2048 - yaw_step) & 2047;
                 took = 1;
             }
-            if( LibToriRS_Input_IsKeyDown(input, TORIRSK_D) ||
-                LibToriRS_Input_IsKeyDown(input, TORIRSK_RIGHT) )
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_D) ||
+                LibToriRS_Input_IsKeyHeld(input, TORIRSK_RIGHT) )
             {
                 app->preview_yan = (app->preview_yan + yaw_step) & 2047;
                 took = 1;
             }
-            if( LibToriRS_Input_IsKeyDown(input, TORIRSK_W) ||
-                LibToriRS_Input_IsKeyDown(input, TORIRSK_UP) )
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_W) ||
+                LibToriRS_Input_IsKeyHeld(input, TORIRSK_UP) )
             {
                 app->preview_xan = (app->preview_xan + 2048 - pitch_step) & 2047;
                 took = 1;
             }
-            if( LibToriRS_Input_IsKeyDown(input, TORIRSK_S) ||
-                LibToriRS_Input_IsKeyDown(input, TORIRSK_DOWN) )
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_S) ||
+                LibToriRS_Input_IsKeyHeld(input, TORIRSK_DOWN) )
             {
                 app->preview_xan = (app->preview_xan + pitch_step) & 2047;
                 took = 1;
             }
-            if( LibToriRS_Input_IsKeyDown(input, TORIRSK_E) )
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_E) )
             {
-                app->preview_zoom = app->preview_zoom * 9 / 10;
+                app->preview_zoom = app->preview_zoom * 49 / 50;
                 if( app->preview_zoom < 300 )
                     app->preview_zoom = 300;
                 took = 1;
             }
-            if( LibToriRS_Input_IsKeyDown(input, TORIRSK_F) )
+            if( LibToriRS_Input_IsKeyHeld(input, TORIRSK_F) )
             {
-                app->preview_zoom = app->preview_zoom * 11 / 10;
+                app->preview_zoom = app->preview_zoom * 51 / 50;
                 if( app->preview_zoom > 16000 )
                     app->preview_zoom = 16000;
                 took = 1;
@@ -7263,12 +7271,16 @@ app_map_editor_preview_update(struct App* app)
     static int last_id = -1;
     struct Editor_Panel* panel = &app->editor_panel;
     struct ToriDraw_Sprite* sprite = NULL;
+    /* Not the pick: while a multiloc VARIANT row is chosen this is that
+     * rung's loc, so the well shows the variant the catalog is reading out. */
+    int preview_id;
 
     assert(app);
 
     if( !app->editor || !panel->visible || panel->cat_view < 0 )
         return;
-    if( panel->cat_picked_id < 0 )
+    preview_id = Editor_PanelCatalogPreviewId(panel);
+    if( preview_id < 0 )
     {
         ToriRSChrome_ModelViewSet(&app->dbg_ui, panel->cat_view, 0);
         last_kind = -1;
@@ -7282,9 +7294,9 @@ app_map_editor_preview_update(struct App* app)
         last_kind = -1;
         last_id = -1;
     }
-    if( panel->cat_kind == last_kind && panel->cat_picked_id == last_id )
+    if( panel->cat_kind == last_kind && preview_id == last_id )
         return;
-    if( panel->cat_kind != last_kind || panel->cat_picked_id != last_id )
+    if( panel->cat_kind != last_kind || preview_id != last_id )
     {
         /* A NEW pick gets the default framing; a camera nudge does not. */
         if( !app->preview_keep_camera )
@@ -7298,22 +7310,84 @@ app_map_editor_preview_update(struct App* app)
 
     if( panel->cat_kind == CACHEPROVIDER_CATALOG_OBJ )
     {
-        int const scene_id =
-            UITreeSceneBridge_EnsureObjIcon(&app->bridge, panel->cat_picked_id, 1);
-        if( scene_id >= 0 )
+        /*
+         * The obj's own model, rastered with the preview camera -- NOT the
+         * inventory icon.
+         *
+         * The icon was the obvious thing to reach for (it is already cached,
+         * one call) and it is the one thing in this well that cannot be
+         * turned: an icon is baked at the objtype's authored xan2d/yan2d/zoom2d
+         * and handed back from an id-keyed cache, so every camera key was a
+         * no-op for the whole obj kind while loc and npc orbited fine. Building
+         * the model here costs a raster per nudge and answers the keys.
+         *
+         * The resize/recolour order is ObjModelLoader's (resize first, 128 ==
+         * 1.0), so the preview is the item the game builds.
+         */
+        struct ToriRS_Objtype* obj = CacheProvider_ObjtypeGet(app->provider, preview_id);
+        struct ToriDraw_Model* model;
+        struct ToriDraw_ModelHandle hnd;
+
+        if( !obj || (obj->inventory_model_id > 0 &&
+                     !CacheProvider_ModelHas(app->provider, obj->inventory_model_id)) )
         {
-            ToriRSChrome_ModelViewSet(&app->dbg_ui, panel->cat_view, scene_id);
-            last_kind = panel->cat_kind;
-            last_id = panel->cat_picked_id;
+            /* Objtype or model still to come. Task_ObjModelLoad fetches the
+             * objtype, its count variant, the inventory model and that model's
+             * textures together, so ask it once rather than per piece. */
+            if( ObjModelLoad_NeedsWork(app->provider, preview_id, 1) )
+            {
+                int const ids[1] = { preview_id };
+                int const counts[1] = { 1 };
+                struct ToriRS_Task* task =
+                    CreateTask_ObjModelLoad(app->provider, ids, counts, 1);
+                if( task )
+                    ToriRS_TaskQueue_Add(app->runner.queue, task);
+            }
+            return; /* retry next frame once it lands */
         }
-        else if( ObjModelLoad_NeedsWork(app->provider, panel->cat_picked_id, 1) )
+        if( obj->inventory_model_id <= 0 )
         {
-            int const ids[1] = { panel->cat_picked_id };
-            int const counts[1] = { 1 };
-            struct ToriRS_Task* task =
-                CreateTask_ObjModelLoad(app->provider, ids, counts, 1);
-            if( task )
-                ToriRS_TaskQueue_Add(app->runner.queue, task);
+            /* A real answer, not a pending one: a bank note or placeholder
+             * has no model of its own. Cached, so this does not re-ask. */
+            ToriRSChrome_ModelViewSet(&app->dbg_ui, panel->cat_view, 0);
+            last_kind = panel->cat_kind;
+            last_id = preview_id;
+            return;
+        }
+
+        {
+            struct ToriRS_Model* rs_model =
+                CacheProvider_ModelGet(app->provider, obj->inventory_model_id);
+
+            assert(rs_model);
+            model = ToriDraw_ModelFromToriRS(rs_model);
+            assert(model);
+            if( obj->resize_x != 128 || obj->resize_y != 128 || obj->resize_z != 128 )
+                ToriDraw_ModelScale(model, obj->resize_x, obj->resize_z, obj->resize_y);
+            for( int i = 0; i < obj->recolor_count; i++ )
+                ToriDraw_ModelRecolor(model, obj->recolors_from[i], obj->recolors_to[i]);
+            ToriDraw_ModelSetBoundsCylinder(model);
+            ToriDraw_ModelDropNonSdTextures(app->provider, model);
+            memset(&hnd, 0, sizeof(hnd));
+            hnd.kind = TORIDRAWMK_MODEL;
+            hnd.u.model.model = model;
+            ToriDraw_LightModelScene(hnd, obj->contrast, obj->ambient);
+            sprite = app_preview_raster(app, hnd);
+            ToriDraw_ModelFree(model);
+        }
+
+        if( sprite )
+        {
+            struct ToriDraw_Sprite** sprites = malloc(sizeof(*sprites));
+            assert(sprites);
+            sprites[0] = sprite;
+            if( ToriDraw_SceneSpriteHas(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID) )
+                ToriDraw_SceneSpriteRemove(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID);
+            ToriDraw_SceneSpriteAdd(app->scene, UITREE_SCENE_EDITOR_PREVIEW_ID, sprites, 1);
+            ToriRSChrome_ModelViewSet(
+                &app->dbg_ui, panel->cat_view, UITREE_SCENE_EDITOR_PREVIEW_ID);
+            last_kind = panel->cat_kind;
+            last_id = preview_id;
         }
         return;
     }
@@ -7321,7 +7395,7 @@ app_map_editor_preview_update(struct App* app)
     if( panel->cat_kind == CACHEPROVIDER_CATALOG_LOC )
     {
         struct ToriRS_Location* cfg =
-            CacheProvider_LocationGet(app->provider, panel->cat_picked_id);
+            CacheProvider_LocationGet(app->provider, preview_id);
         int model_id = -1;
 
         if( !cfg )
@@ -7345,7 +7419,7 @@ app_map_editor_preview_update(struct App* app)
         {
             ToriRSChrome_ModelViewSet(&app->dbg_ui, panel->cat_view, 0);
             last_kind = panel->cat_kind;
-            last_id = panel->cat_picked_id;
+            last_id = preview_id;
             return;
         }
 
@@ -7390,21 +7464,21 @@ app_map_editor_preview_update(struct App* app)
             ToriRSChrome_ModelViewSet(
                 &app->dbg_ui, panel->cat_view, UITREE_SCENE_EDITOR_PREVIEW_ID);
             last_kind = panel->cat_kind;
-            last_id = panel->cat_picked_id;
+            last_id = preview_id;
         }
         return;
     }
 
     if( panel->cat_kind == CACHEPROVIDER_CATALOG_NPC )
     {
-        struct ToriRS_Npctype* npc = CacheProvider_NpctypeGet(app->provider, panel->cat_picked_id);
+        struct ToriRS_Npctype* npc = CacheProvider_NpctypeGet(app->provider, preview_id);
         int missing = 0;
 
         if( !npc || npc->models_count <= 0 )
         {
             ToriRSChrome_ModelViewSet(&app->dbg_ui, panel->cat_view, 0);
             last_kind = panel->cat_kind;
-            last_id = panel->cat_picked_id;
+            last_id = preview_id;
             return;
         }
         for( int i = 0; i < npc->models_count; i++ )
@@ -7442,7 +7516,7 @@ app_map_editor_preview_update(struct App* app)
             {
                 ToriRSChrome_ModelViewSet(&app->dbg_ui, panel->cat_view, 0);
                 last_kind = panel->cat_kind;
-                last_id = panel->cat_picked_id;
+                last_id = preview_id;
                 return;
             }
             merged = part_count == 1 ? parts[0] : ToriDraw_ModelNewMerge(parts, part_count);
@@ -7473,14 +7547,14 @@ app_map_editor_preview_update(struct App* app)
             ToriRSChrome_ModelViewSet(
                 &app->dbg_ui, panel->cat_view, UITREE_SCENE_EDITOR_PREVIEW_ID);
             last_kind = panel->cat_kind;
-            last_id = panel->cat_picked_id;
+            last_id = preview_id;
         }
         return;
     }
 
     ToriRSChrome_ModelViewSet(&app->dbg_ui, panel->cat_view, 0);
     last_kind = panel->cat_kind;
-    last_id = panel->cat_picked_id;
+    last_id = preview_id;
 }
 
 static void
