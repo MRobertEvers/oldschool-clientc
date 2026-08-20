@@ -346,7 +346,21 @@ struct Editor_Panel
      */
     int edit_level;
 
-    /** Session spawn list: what Place stamped, what Save writes. */
+    /*
+     * Session spawn list: what Place stamped, what Save writes.
+     *
+     * KNOWN BOUNDARY, stated so it is not mistaken for an oversight: unlike
+     * tiles and locs, spawns are NOT in the authoritative document. They live
+     * in whichever connection placed them, and its Save writes them through
+     * the server's file layer (spawn_save) — so they persist correctly, but
+     * a second Client does not see them appear, and undo does not reach them.
+     *
+     * Closing it is a document-format change, not a wiring one: an
+     * EDITOR_CMD_SPAWN kind, spawn storage on Editor_Square, a wider command
+     * on the wire, and the server emitting the `.spawn` file for its dirty
+     * squares the way it already emits `.jm2`/`.jl2`. Everything else about
+     * the relay is in place to carry it.
+     */
     struct Editor_SpawnEntry spawns[EDITOR_SPAWN_MAX];
     int spawn_count;
     int spawns_dirty;
