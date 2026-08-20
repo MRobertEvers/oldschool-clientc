@@ -9,6 +9,7 @@
 #include "bootmanifest/bootmanifest.h"
 #include "cmd/cmdbus.h"
 #include "cs2vm2/cs2vm2.h"
+#include "editor/editor.h"
 #include "engine/dat1/dat1_buildcache.h"
 #include "engine/dat1/dat1_tasks.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -5317,6 +5318,32 @@ App_Init(
         app->bridge.player_head_light_ambient = app->player_head_light_ambient;
     }
 
+    /*
+     * Phase 5b: the world map editor (opt-in, and mutually exclusive with a
+     * server in practice).
+     *
+     * Constructed before the networking phase below on purpose: an editor boot
+     * states no `[net:boot]`, so that phase does not run at all and this is the
+     * last thing built. The editor is the second writer of world state — the
+     * first being the packet layer that is absent here — and it reaches the
+     * world through the same seams that layer would.
+     */
+    if( cfg->editor_content_dir && cfg->editor_content_dir[0] )
+    {
+        app->editor = malloc(sizeof(*app->editor));
+        assert(app->editor);
+        Editor_Open(
+            app->editor,
+            cfg->editor_content_dir,
+            cfg->editor_repo_root,
+            CacheProvider_Profile(app->provider));
+        fprintf(
+            stderr,
+            "app: map editor over %s (%s)\n",
+            cfg->editor_content_dir,
+            app->editor->writable ? "writable" : "read-only, another session holds it");
+    }
+
     /* Phase 6: networking (opt-in). The default RSA key is the rev_245_2 Lost
      * City pair (v0 tori_rs_init); TORIRS_RSA_EXP/MOD override it. */
     if( cfg->connect_target && cfg->connect_target[0] )
@@ -5417,6 +5444,17 @@ App_Shutdown(struct App* app)
 {
     assert(app);
     app_prefs_flush(app);
+    if( app->editor )
+    {
+        /* Releases the content-tree lock. Unsaved edits are NOT written here:
+         * a save is something the user asks for, and silently flushing on exit
+         * would put edits on disk that were abandoned on purpose. */
+        if( Editor_DocHasUnsaved(&app->editor->doc) )
+            fprintf(stderr, "app: map editor closing with unsaved edits\n");
+        Editor_Close(app->editor);
+        free(app->editor);
+        app->editor = NULL;
+    }
     if( app->net )
     {
         ToriRS_Network_Free(app->net);
@@ -5993,6 +6031,26 @@ app_world_load_begin(
     app->world_load_attempted = 1;
     app->world_load_inflight = 1;
     App_WorldDrainEntityRemoved(app);
+
+    /*
+     * Editor boots seed the provider from the content tree before the load
+     * runs, so what gets meshed is the `.jm2`/`.jl2` text being edited rather
+     * than the last bake. Task_WorldLoad skips a square the provider already
+     * holds, so the text wins simply by being there first — the editor never
+     * has to invalidate or race the cache path, and an unsaved edit is visible
+     * without a bake.
+     *
+     * A square the content tree does not carry is left alone and loads from the
+     * cache as usual, which is what lets an editor session sit at the edge of
+     * authored content and still see the world around it.
+     */
+    if( app->editor )
+    {
+        for( int i = 0; i < chunk_pair_count; i++ )
+            Editor_LoadSquare(
+                app->editor, app->provider, chunks_xz[i * 2], chunks_xz[i * 2 + 1]);
+    }
+
     task = CreateTask_WorldLoad(
         app->provider,
         app->world_builder,

@@ -455,6 +455,8 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
 	engine/world_builder/task_world_load.c \
+	editor/editor.c editor/editor_doc.c editor/editor_jm2.c \
+	editor/editor_cmd.c editor/editor_derive.c editor/editor_host_local.c \
 	painters/painters.c \
 	painters/painters_cull_project.c \
 	painters/scene_occluders.c \
@@ -1389,6 +1391,49 @@ run: $(TARGET)
 test-varp: $(OBJ_DIR) varp/varp_manager.c varp/varp_manager_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/varp_manager_test varp/varp_manager.c varp/varp_manager_test.c
 	./$(OBJ_DIR)/varp_manager_test
+
+# ---- map editor ------------------------------------------------------------
+#
+# The content root the editor edits. Both map-editor tests are read-only over
+# it; neither writes into a content tree.
+EDITOR_CONTENT_DIR ?= $(REPO_ROOT)/OSRS-Content/osrs239-content
+EDITOR_CACHE_DIR   ?= $(REPO_ROOT)/cache.osrs239
+
+# Document and command layer: undo restoring an authored *absence*, strokes
+# undoing as one step, edits at a square edge reaching the neighbour. Pure
+# data — no cache, no window, runs in milliseconds.
+test-editor-cmd: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
+		editor/test/editor_cmd_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_cmd_test \
+		editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
+		editor/test/editor_cmd_test.c
+	./$(OBJ_DIR)/editor_cmd_test
+
+# Codec fidelity over the whole content tree: every .jm2/.jl2 must survive
+# parse -> emit byte for byte. The editor's save path rewrites the file it
+# loaded, so any asymmetry here is a diff the user never asked for, landing
+# across thousands of squares at once.
+test-editor-jm2: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c \
+		editor/test/editor_jm2_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_jm2_test \
+		editor/editor_jm2.c editor/editor_doc.c editor/test/editor_jm2_test.c
+	./$(OBJ_DIR)/editor_jm2_test $(EDITOR_CONTENT_DIR)
+
+# The editor renders what the game renders: a square loaded from text derives
+# to exactly the terrain the cache decodes, resolved heights included. This is
+# the one test that exercises the Perlin height fixup end to end.
+test-editor-derive: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
+		editor/editor_jm2.c editor/editor_doc.c editor/editor_derive.c \
+		editor/test/editor_derive_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_derive_test \
+		editor/editor_jm2.c editor/editor_doc.c editor/editor_derive.c \
+		editor/test/editor_derive_test.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o \
+		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+	./$(OBJ_DIR)/editor_derive_test $(EDITOR_CONTENT_DIR) $(EDITOR_CACHE_DIR) 600
+
+test-editor: test-editor-cmd test-editor-jm2 test-editor-derive
 
 # NpcType.multiNpc (opcode 106) decode -> ToriRS_Npctype.transform_* -- pure
 # struct plumbing, no cache file or App needed.

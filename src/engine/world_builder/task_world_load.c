@@ -222,10 +222,39 @@ Task_WorldLoad_Run(
     /* 1. Map terrain + scenery per chunk. */
     for( self->c = 0; self->c < self->chunk_count; self->c++ )
     {
-        PT_TASK_AWAITSELF_IF(CreateTask_MapTerrainLoad(
-            p, self->chunks_xz[self->c * 2], self->chunks_xz[self->c * 2 + 1]));
-        PT_TASK_AWAITSELF_IF(CreateTask_MapSceneryLoad(
-            p, self->chunks_xz[self->c * 2], self->chunks_xz[self->c * 2 + 1]));
+        /*
+         * Resident squares are skipped, the same way the underlay, flotype and
+         * texture loads below skip what the provider already holds.
+         *
+         * Without this a square is re-read from the cache on every rebuild,
+         * which is wasted IO for the game — and wrong for anything that puts a
+         * square into the provider from somewhere other than the cache. The
+         * map editor does exactly that: it parses the `.jm2`/`.jl2` text in the
+         * content tree and seeds the provider with it, so that what the world
+         * builder meshes is the file being edited rather than the last bake.
+         * An unconditional load here would overwrite the edit with the stale
+         * baked copy between one frame and the next.
+         *
+         * The coordinates are spelled out at each use rather than hoisted into
+         * a local: this is a protothread, and a local does not survive the
+         * yield inside PT_TASK_AWAITSELF_IF.
+         */
+        PT_TASK_AWAITSELF_IF(
+            CacheProvider_MapTerrainHas(
+                p,
+                CacheProvider_MapId(
+                    self->chunks_xz[self->c * 2], self->chunks_xz[self->c * 2 + 1]))
+                ? NULL
+                : CreateTask_MapTerrainLoad(
+                      p, self->chunks_xz[self->c * 2], self->chunks_xz[self->c * 2 + 1]));
+        PT_TASK_AWAITSELF_IF(
+            CacheProvider_MapSceneryHas(
+                p,
+                CacheProvider_MapId(
+                    self->chunks_xz[self->c * 2], self->chunks_xz[self->c * 2 + 1]))
+                ? NULL
+                : CreateTask_MapSceneryLoad(
+                      p, self->chunks_xz[self->c * 2], self->chunks_xz[self->c * 2 + 1]));
         if( !CacheProvider_MapTerrainHas(
                 p,
                 CacheProvider_MapId(

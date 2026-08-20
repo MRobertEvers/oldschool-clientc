@@ -34,6 +34,11 @@
  *                host/port/revision inherit the finalized [net:boot] endpoint
  *                and [cache:boot] revision. fallback_port defaults to 443 only
  *                when the resolved primary is 43594; 0 explicitly disables it.
+ *   [editor:boot] content_dir=<path>  repo_root=<path>
+ *                Turn on the world map editor over a content tree. Stating
+ *                `content_dir` is what enables it; `repo_root` additionally
+ *                allows baking, which only ever runs when the user asks for it.
+ *
  *   [features:boot] era=lostcity|osrs|server_routed
  *                 Client-behaviour generation (src/features/features.h): who
  *                 computes a click's route, and which approach model decides
@@ -229,6 +234,18 @@ struct BootManifest
     /* Compiled script pack for the embedded mock server. Relative paths are
      * resolved against the manifest directory; "" keeps the server default. */
     char server_scripts[512];
+
+    /* [editor:boot] content_dir — the revision content root the map editor
+     * edits, the directory holding `maps/`. "" = no editor this boot.
+     *
+     * Stating a directory is what enables the editor: it edits the `.jm2`/
+     * `.jl2` text sources rather than the baked cache, so a content root is not
+     * one of its options, it is the thing it operates on. */
+    char editor_content_dir[512];
+    /* [editor:boot] repo_root — where a bake runs from. "" disables baking,
+     * which is the right default for a look-only session. Baking is never a
+     * side effect of saving; it happens only when the user asks. */
+    char editor_repo_root[512];
 
     /* [content:lanes] — which gated content lanes `server_scripts` above was
      * compiled from, one `lane=` per line.

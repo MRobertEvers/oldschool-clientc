@@ -60,6 +60,7 @@ struct ToriRS_CmdBus;
 struct ToriRS_Network;
 struct PktNpcInfoOp;
 struct PktPlayerInfoOp;
+struct Editor;
 
 /*
  * Application shell: owns every subsystem and the update loop body, with no
@@ -136,6 +137,12 @@ struct AppConfig
     char const* cache_dir;
     char const* config_dir;
     char const* script_dir;
+    /** [editor:boot] content_dir — the content root whose `maps/` the world map
+     *  editor edits. NULL = no editor this boot, which is every normal client
+     *  run. Borrowed from the BootManifest, which outlives the App. */
+    char const* editor_content_dir;
+    /** [editor:boot] repo_root — where a bake would run. NULL disables baking. */
+    char const* editor_repo_root;
     int interface_id;
     enum AppCacheKind cache_kind;
     /** Cache identity from [cache:boot]. All four stated; used by
@@ -447,6 +454,18 @@ struct App
     int camera_unlocked;
     /* Latches the lazy load so a map that fails is not re-queued every frame. */
     int world_load_attempted;
+
+    /**
+     * World map editor session, or NULL — which is every boot that did not ask
+     * for one, i.e. every normal client run.
+     *
+     * Owned. Present only when `[editor:boot] content_dir=` named a content
+     * tree. While it exists the squares the world builder meshes come from that
+     * tree's `.jm2`/`.jl2` text rather than from the baked cache, and edits are
+     * saved back as text. It never speaks to a game server: an editor boot
+     * states no `[net:boot]`, so the whole net stack is simply not constructed.
+     */
+    struct Editor* editor;
 
     /* Baked world map the minimap widget blits (rebaked on every world load).
      * scene_id is -1 until the first bake; w/h are the sprite's pixel size,
