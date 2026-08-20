@@ -301,6 +301,19 @@ reading as "it got harder at 70%"):
   `loc_change(intermediate, N)` (reverts to final).
 - **The loc revert table is 512 shared world slots**; an overflowing room
   leaves locs changed forever. Sweep your own on cleanup.
+- **`loc_del` retires the active-loc slot as a side effect** — read
+  `loc_coord`/`loc_angle`/`loc_shape` into locals BEFORE `loc_del`, not
+  after (the idiom `quest_cog_gates_and_levers.rs2` uses, `loc_del(500);
+  loc_add(loc_coord, ...)`), or the read aborts "the active loc is gone".
+  Measured directly during the Family Crest lever puzzle (2026-08-20): the
+  read-after form aborted on every single pull; `deal_water_hopper.rs2`
+  already snapshots first for this exact reason, and that is the pattern to
+  copy. **A `~proc`/`@label` call in between is just as dangerous, and
+  silently** — a `loc_find` inside the callee (e.g. a gate's own "is the
+  puzzle solved" check) rebinds the active-loc pointer to whatever it just
+  matched as a side effect, so `loc_coord` read *after* that call returns
+  the callee's loc, not the caller's, with no abort at all. Snapshot before
+  calling out, not just before `loc_del`.
 - **`~map_instance_from_square` copies exactly one 64×64 square** — floor
   crossing the boundary becomes void (`_block` variant exists; grow east or
   north so local coords keep meaning). `map_instance_alloc` register space

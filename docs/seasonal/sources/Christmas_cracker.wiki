@@ -1,0 +1,107 @@
+{{External|rs|rsc}}
+{{Infobox Item
+|name = Christmas cracker
+|image = [[File:Christmas cracker.png]]
+|release = [[24 December]] [[2001]]
+|update = No
+|members = No
+|quest = No
+|tradeable = Yes
+|equipable = No
+|stackable = No
+|noteable = Yes
+|options = Drop
+|examine = I need to pull this.
+|value = 1
+|weight = 0.200
+|exchange = Yes
+|id = 962
+}}
+[[File:Christmas cracker detail.png|left|130px]]
+'''Christmas crackers''' are a tradeable [[holiday item]] that can be obtained by completing one of the [[Christmas event|Christmas]] [[holiday events]] that occur once per year. They can be used on another player to provide party hats and rewards to both participants.
+[[File:Pulling christmas cracker.gif|thumb|left|250px|A player pulling a Christmas cracker.]]
+
+[[Ironmen]] cannot use party crackers on other players, so they have no use for crackers other than to sacrifice them to [[Death's coffer]]. [[Group ironmen]] however ''can'' open crackers with members of their group.
+
+==History==
+Previously, they were obtained by using the clues given by Jagex through various means (forums, Twitter, etc) and giving a specific set of items to an [[NPC]]. This event started on [[1 September]] [[2013]] and lasted until 7 September, with one clue being shown every day. Players could only receive a Christmas cracker for the clue given that day. If a player participated for all 7 days, they would have received 7 crackers. If a player tried to do a clue from a previous day, the specified NPC would not accept the items.
+
+*Day 1:	[[Dommik]]	1 hammer, 3 tin, 5 clay	
+*Day 2:	[[Advisor Ghrim]]	2 planks, 6 logs, 10 bronze nails
+*Day 3:	[[TzHaar-Ket-Zuh]]	1 coal, 3 iron bars, 4 limestone
+*Day 4:	[[Barker]]	1 (soft) leather, 2 balls of wool, 5 silk
+*Day 5:	[[Cook (Lumbridge)]]	2 chef's hats, 2 white aprons, 12 knives
+*Day 6:	[[Baker|Baker (Ardougne)]]	2 pot of flour, 3 cheese, 6 tomatoes
+*Day 7:	[[Emily|Emily (Falador)]]	1 bucket of water, 4 redberries, 5 cooking apples
+{{Clear|left}}
+
+==Rewards==
+Held within the cracker is a [[partyhat]] and one other item or a stack of items, such as some [[coins]], runes, or weapons. To open it, it must be used with another player. Upon opening, the player who used the cracker can choose a partyhat and a secondary item that both will receive.
+
+===Partyhats===
+{{DropsTableHead|leagueRegion=No}}
+{{DropsLineReward|name=Red partyhat|quantity=1|rarity=Always|raritynotes={{Refn|Players may choose which partyhat to receive.|name=phat|group=d}}}}
+{{DropsLineReward|name=Yellow partyhat|quantity=1|rarity=Always|raritynotes={{NamedRef|phat|group=d}}}}
+{{DropsLineReward|name=White partyhat|quantity=1|rarity=Always|raritynotes={{NamedRef|phat|group=d}}}}
+{{DropsLineReward|name=Green partyhat|quantity=1|rarity=Always|raritynotes={{NamedRef|phat|group=d}}}}
+{{DropsLineReward|name=Blue partyhat|quantity=1|rarity=Always|raritynotes={{NamedRef|phat|group=d}}}}
+{{DropsLineReward|name=Purple partyhat|quantity=1|rarity=Always|raritynotes={{NamedRef|phat|group=d}}}}
+{{DropsTableBottom}}
+
+===Other===
+{{DropsTableHead|leagueRegion=No}}
+{{DropsLineReward|name=Chocolate bar|quantity=1|rarity=Always|raritynotes={{Refn|Players may choose which item to receive.|name=secondary|group=d}}}}
+{{DropsLineReward|name=Chocolate cake|quantity=1|rarity=Always|raritynotes={{NamedRef|secondary|group=d}}}}
+{{DropsLineReward|name=Gold ring|quantity=1|rarity=Always|raritynotes={{NamedRef|secondary|group=d}}}}
+{{DropsLineReward|name=Iron ore|quantity=5 (noted)|rarity=Always|raritynotes={{NamedRef|secondary|group=d}}}}
+{{DropsLineReward|name=Black dagger|quantity=1|rarity=Always|raritynotes={{NamedRef|secondary|group=d}}}}
+{{DropsLineReward|name=Law rune|quantity=1|rarity=Always|raritynotes={{NamedRef|secondary|group=d}}}}
+{{DropsLineReward|name=Spinach roll|quantity=1|rarity=Always|raritynotes={{NamedRef|secondary|group=d}}}}
+{{DropsLineReward|name=Silk|quantity=1|rarity=Always|raritynotes={{NamedRef|secondary|group=d}}}}
+{{DropsLineReward|name=Holy symbol|quantity=1|rarity=Always|raritynotes={{NamedRef|secondary|group=d}}}}
+{{DropsLineReward|name=Silver bar|quantity=1|rarity=Always|raritynotes={{NamedRef|secondary|group=d}}}}
+{{DropsTableBottom}}
+{{Reflist|group=d}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change =
+* Christmas crackers now allows players to wish for a specific colour partyhat and trinket when pulled.
+* Both players will now receive rewards from the christmas cracker when pulled.
+}}
+{{Subject changes
+|date = 20 March 2024
+|update = Varlamore: Part One
+|change = The [[Grand Exchange]] buy limit was changed from 50 to 4, to combat price manipulation.
+}}
+{{Subject changes
+|date = 26 January 2005
+|update = Slayer Skill
+|change = The item's examine was changed from "''I need to pull this''"{{sic}} to "''I need to pull this.''"
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:Christmas cracker detail (beta).png|center|300x150px]]
+|[[File:Christmas cracker detail.png|center|300x150px]]
+|-
+|[[File:Christmas cracker (beta).png|center]]
+|[[File:Christmas cracker.png|center]]
+|-
+|RuneScape 2<br/>Beta
+|29 March 2004 –<br/>present
+|}
+
+==Trivia==
+*Christmas crackers are infamous in ''RuneScape'' history, dating back to ''[[RuneScape Classic]]'' when they were first introduced to the game during the 2001 Christmas Event. Due to the fact this was the ''only'' time a supply of them was added to the game, they quickly became rare items worth hundreds of thousands to millions of gold in the years to come. While Christmas crackers varied wildly in perceived value, raising or dropping by millions of gold in just a few days' time, they typically went for substantially more than any individual partyhat in ''RuneScape 2'' due to being rare items in and of themselves and also having the possibility of containing one of the more desired hats.
+*Attempting to use a Christmas cracker on a [[Jagex Moderator]] account returns the chatbox message {{mes|Sorry, but you can't do that to Staff Mods.}}
+*Christmas crackers may be used to obtain a [[Black dagger]] on [[Entrana]].
+*Crackers and crown-shaped partyhats are typical Christmas dinner toys in England and other Commonwealth countries such as Australia and New Zealand, but are not particularly common elsewhere. In the rest of the world, brightly-coloured paper crowns have no obvious association with Christmas.
+**They are called "crackers" because of the loud popping sound they make when broken, and traditionally contain a deliberately poor-quality or overused joke (along with a toy and a tissue paper crown).
+**Players of ''Multi-User Dungeon'', the first MUD (proto-MMO) from 1978, received Christmas crackers for its 1984 Christmas event. The game was based in Essex, England and many other local MUD games continued the tradition.
+
+{{Christmas event rewards}}

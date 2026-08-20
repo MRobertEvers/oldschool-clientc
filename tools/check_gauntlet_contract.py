@@ -28,6 +28,9 @@ MAP_STATE = (GAUNTLET / "scripts/gauntlet_map_state.rs2").read_text()
 NPC_CONFIG = (GAUNTLET / "configs/gauntlet_monsters.npc").read_text()
 INV_CONFIG = (GAUNTLET / "configs/gauntlet.inv").read_text()
 RECIPE_INTERFACE = (BASE / "interfaces/gauntlet_recipes.if").read_text()
+COSTUME_ROOM = (
+    BASE / "server/scripts/skill_construction/scripts/poh_costume_room.rs2"
+).read_text()
 MAGIC = (BASE / "server/scripts/skill_magic/scripts/magic.rs2").read_text()
 TELEPORT = (BASE / "server/scripts/skill_magic/scripts/spells/teleport.rs2").read_text()
 HOME_TELEPORT = (BASE / "server/scripts/skill_magic/scripts/spells/home_teleport.rs2").read_text()
@@ -263,9 +266,18 @@ def check_content_contract() -> None:
         "[opheld5,gauntletpet]", "[opnpc4,gauntlet_pet]",
         "[opnpc3,gauntlet_pet]", "[opnpc1,gauntlet_pet]",
         "%total_completed_gauntlet_hm > 0", "%pet_insurance_gauntlet = 1",
-        "[oplocu,poh_cos_room_cape_rack_oak]", "[oploc1,poh_cos_room_cape_rack_magic_stone]",
     ):
         require(PROGRESS, needle, "Youngllef follower lifecycle")
+    # The Gauntlet cape's own storage hook was retired in favor of the
+    # cache-enum Costume Room; `%gauntlet_cape_rack` survives only as the
+    # one-time migration flag Construction imports on cape-rack open.
+    require(PROGRESS, "%gauntlet_cape_rack", "cape-rack migration flag retained")
+    for needle in (
+        "[proc,poh_costume_open]", "%gauntlet_cape_rack = 1",
+        "inv_add(poh_costumes, gauntlet_crystalline_cape, 1)",
+        "%gauntlet_cape_rack = 0",
+    ):
+        require(COSTUME_ROOM, needle, "Gauntlet cape costume-room migration")
     constants = (GAUNTLET / "configs" / "gauntlet.constant").read_text()
     require(constants, "^gauntlet_music_track = 650", "cache music dbrow contract")
     for needle in (

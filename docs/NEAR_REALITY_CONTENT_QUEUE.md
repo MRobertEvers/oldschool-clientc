@@ -328,7 +328,7 @@ Status: `pending` | `in_progress` | `done` | `blocked` | `deferred`.
 | D6 | Magic — **Arceuus spellbook** | 1542 | 67 spells generated | **data done, scripts pending** | All 67 Arceuus spells, same source and generator as D5. |
 | D7 | Magic — **regular spellbook remainder + lecterns + resources + actions** | 2701 | 84 spells generated | **data partly done** | The standard book's 84 spells are in the generated table. Lecterns, tablets and the non-spell actions remain. |
 | D8 | **Slayer — completion** (tasks, masters, unlocks, dialogue) | 3544 | 1804 + Konar + Krystilia | **partial** | Task tables cache-backed, unlocks from cache dbtable 117. Superior coverage raised from 16 to **26 of 34**; the last 8 need their base monster identified by something other than its display name. |
-| D9 | **Farming — completion** (contracts, Hespori, seed vault, supercompost) | 8463 | 5804 + Hespori | **partial** | The Hespori fight is in and verified — buds, invulnerability, the entangle's six clicks. Farming contracts and the seed vault remain; the contract wiki page is a redirect that this cache's era may not have. |
+| D9 | **Farming — completion** (contracts, Hespori, seed vault, supercompost) | 8463 | 5804 + Hespori + vault | **partial** | Hespori and the seed vault are in and verified. Farming contracts remain — their wiki page is a redirect this cache's era may predate. |
 | D10 | **Prayer** (ectofuntus, altars, bone burying at depth) | 1706 | 1419 + gilded altar | **partial** | The gilded altar's 250/300/350 ladder and its two-burner message are in and verified. The Chaos Altar's 50% bone-save and the libation bowl remain. |
 | D11 | **Thieving** (tables, actions, pickpocket depth) | 1769 | 1515 + 3 contracts | **done** | All four thieving data tables — pickpockets, stalls, chests, doors — are under contract. Four stale experience awards found and corrected; one wiki self-conflict recorded rather than guessed at. |
 | D12 | **Mining** + **Smithing** completion | 2627 | 1817 + 3 contracts | **done** | All three data tables under contract: 19 rocks, 8 bars, and 158 anvil rows checked against the wiki's stated per-bar rule. |
@@ -348,7 +348,7 @@ to leave it out.
 | E4 | **Middleman trading** | 2038 | — | pending | staff-mediated trade, history, offers |
 | E5 | **Wilderness Vault** + Queen Reaver | 1982 | — | pending | |
 | E6 | **Bounty Hunter** | — | 160 | **partial** | Target range settings, the coffer's four deposit bands, the five skull tiers and the teleport gate are in and verified. The Emblem Trader's store and the (bh) equipment charges remain. |
-| E7 | **Follower / pet system** | 1531 | partial (summoning familiars) | pending | registry gates B-wave pet drops |
+| E7 | **Follower / pet system** | — | 150 | **partial** | The award rule, its three outcomes and messages, the skilling priority and Probita's free reclaim are in and verified. Spawning, calling and the menagerie remain. |
 | E8 | **Commands** (staff + player command surface) | 1499 | partial | pending | audit which are engine vs content |
 | E9 | **Magic storage unit** | 1262 | — | pending | |
 | E10 | **Flower poker** | — | 120 | **partial** | The hand ranking and the draw rule are in and verified. The planting session and the stake are not — staking needs the asset decision the rest of Wave E needs. |
@@ -3079,6 +3079,67 @@ with and without, and what was explicitly deferred with its reason.
     every tier by one coin, which the test pins at all four boundaries.
   * **"Within N combat levels" is symmetric** — N above or N below — and
     Teleport to Target needs twelve seconds (20 ticks) clear of combat.
+
+- 2026-08-20 — **D9 seed vault — both numbers came from the cache, not the prose.**
+
+  [cache] `seed_vault` is inv **626, size 104**, and the cache ships exactly
+  **eight** `seed_vault_fave*` varbits. So the capacity and the favourite-slot
+  count are both facts of the cache rather than readings of the wiki's "up to
+  eight types" — and the two agree, which is the cross-check.
+
+  **Three exclusions, two different tests, and that is the whole slice.** The
+  wiki: "all common types of seeds and saplings ... **but not seeds or sapling
+  given through quests. The seed vault does not store seedlings** that have not
+  grown into saplings."
+
+  * A **seedling** is refused for its **growth stage** — it is on its way to
+    being a sapling the vault would happily take.
+  * A **quest seed** is refused for its **origin** — it is an otherwise
+    perfectly ordinary seed.
+
+  A vault that filters on the seed category accepts both; a vault that filters
+  on category alone cannot express either. The test asserts the two exclusions
+  are independent by refusing a quest *sapling* as well.
+
+  One more that is easy to invert: **Managing Miscellania routing depends on
+  what is ALREADY in the vault**, not on whether the seed is storable. "For
+  seeds that the player receives that aren't present in the vault, it will be
+  placed in their bank instead" — so a storable seed still goes to the bank when
+  the vault holds none of it yet.
+
+- 2026-08-20 — **E7 pets — four activities rolled for one and none had anywhere to put it.**
+
+  Agility, the Gauntlet, the Inferno and CoX each have a `*_pet_roll`. None of
+  them had a follower system to hand the pet to. **Real OSRS content again** —
+  the fourth Wave E slice running where "NR implements it" did not mean "NR
+  invented it".
+
+  **Three outcomes, not two, and the third is the one a port loses.** The wiki:
+
+  > "if a player receives a pet while having a follower out ... it will be
+  >  placed into their inventory. If a player's inventory is full **and** they
+  >  have a follower already, they **will not** receive the pet; it must instead
+  >  be claimed from Probita."
+
+  Both conditions are required, and the pet is **not dropped on the floor** — it
+  is held for you. A port that drops it loses the pet the moment the player
+  walks away. The test asserts the third outcome differs from the second, and
+  that a full inventory *alone* never triggers it.
+
+  **Three distinct messages**, one per outcome, and they are how the player
+  tells which happened. The duplicate case uses the conditional — "you would
+  have been followed..." — and is a different string from a real award's.
+
+  Two Mod Ash rulings pinned:
+
+  * **The pet beats the resource for the last inventory slot** and the resource
+    drops underneath the player — **except in Farming**, where "the herb would
+    get the slot and the pet roll would not give you the pet". Per-skill, and a
+    documented exception rather than an oversight to normalise away.
+  * **Reclaims are free.** Pets are auto-insured on receipt; the 500,000 fee and
+    the reclaim tokens were both removed. A port from older material charges for
+    something the game gives away — and **cats cannot be reclaimed at all**,
+    which is a third answer, not "free".
 
 ## 7. Open questions to settle before Wave E
 

@@ -14461,7 +14461,8 @@ mock230_toa_read_dbg(
     int* shield,
     int* hp,
     int* type,
-    int* done)
+    int* done,
+    int* room_out)
 {
     static struct Mock230Capture cap;
     int room = 0;
@@ -14485,7 +14486,11 @@ mock230_toa_read_dbg(
                    "wave=%d shield=%d done=%d bosshp=%d bosstype=%d",
                    &room, &started, &clock, &now, &attacks, phase, wave, shield,
                    done, hp, type) == 11 )
+        {
+            if( room_out )
+                *room_out = room;
             return;
+        }
     }
 }
 
@@ -40083,6 +40088,7 @@ mock230_world_selftest(void)
                 int toa_hp = -1;
                 int toa_type = -1;
                 int toa_done = -1;
+                int toa_room = -1;
                 int kephri = -1;
                 int shield_hp_at_start = 0;
 
@@ -40121,7 +40127,7 @@ mock230_world_selftest(void)
                         srv->npcs[kephri].hitpoints = 0;
                         mock230_world_tick(srv);
                         mock230_toa_read_dbg(srv, &toa_phase, &toa_wave, &toa_shield,
-                                             &toa_hp, &toa_type, &toa_done);
+                                             &toa_hp, &toa_type, &toa_done, &toa_room);
                         fprintf(stderr,
                                 "  Kephri shield %d broken: phase=%d wave=%d "
                                 "shield=%d hp=%d type=%d\n",
@@ -40147,7 +40153,7 @@ mock230_world_selftest(void)
                             mock230_world_tick(srv);
                             mock230_world_tick(srv);
                             mock230_toa_read_dbg(srv, &toa_phase, &toa_wave,
-                                                 &toa_shield, &toa_hp, &toa_type, &toa_done);
+                                                 &toa_shield, &toa_hp, &toa_type, &toa_done, &toa_room);
                             SELFTEST_CHECK(toa_type == 11720,
                                            "Kephri should be dazed (11720) two ticks "
                                            "into intermission %d, saw %d",
@@ -40160,7 +40166,7 @@ mock230_world_selftest(void)
                             for( int t = 0; t < 60; t++ )
                                 mock230_world_tick(srv);
                             mock230_toa_read_dbg(srv, &toa_phase, &toa_wave,
-                                                 &toa_shield, &toa_hp, &toa_type, &toa_done);
+                                                 &toa_shield, &toa_hp, &toa_type, &toa_done, &toa_room);
                             fprintf(stderr,
                                     "  Kephri intermission %d over: phase=%d "
                                     "shield=%d hp=%d type=%d\n",
@@ -40218,25 +40224,69 @@ mock230_world_selftest(void)
                             srv->npcs[kephri].hitpoints = 0;
                             for( int t = 0; t < 4; t++ )
                                 mock230_world_tick(srv);
+                            /*
+                             * Read from the NPC STRUCT, not from `::toazdbg`.
+                             *
+                             * Banking the room is the whole point of the check,
+                             * and banking it returns the party to the Nexus and
+                             * frees the chamber — after which the debugproc
+                             * prints "toazdbg nexus", the parser matches
+                             * nothing, and every out-parameter keeps the value
+                             * it held before the kill. The first version of this
+                             * read `done=0 type=11721 hp=80` and called it a
+                             * failure; those were the PREVIOUS tick's numbers
+                             * and Kephri had died correctly. The struct cannot
+                             * lie about a corpse.
+                             */
+                            toa_room = -1;
                             mock230_toa_read_dbg(srv, &toa_phase, &toa_wave,
                                                  &toa_shield, &toa_hp, &toa_type,
-                                                 &toa_done);
+                                                 &toa_done, &toa_room);
                             fprintf(stderr,
-                                    "  Kephri killed: done=%d type=%d hp=%d\n",
-                                    toa_done, toa_type, toa_hp);
-                            SELFTEST_CHECK(toa_done == 1,
-                                           "killing Kephri should bank the room "
-                                           "(`~toa_boss_complete`), saw done=%d",
-                                           toa_done);
+                                    "  Kephri killed: npc active=%d type=%d hp=%d, "
+                                    "room now %d\n",
+                                    srv->npcs[kephri].active, srv->npcs[kephri].type,
+                                    srv->npcs[kephri].hitpoints, toa_room);
                             /*
-                             * And she leaves a BODY. NR transforms her to
-                             * 11722 and leaves it standing rather than reaping
-                             * her, which is why this one is a corpse check and
-                             * not a "the npc is gone" check.
+                             * SHE TRANSFORMED BEFORE SHE WENT, which is what
+                             * this asserts rather than "a corpse is standing
+                             * there".
+                             *
+                             * NR leaves the finished body (11722) in the room
+                             * because its party is still in it. Here
+                             * `~toa_boss_complete` returns them to the Nexus and
+                             * frees the chamber in the same breath, and freeing
+                             * an instance takes its npcs with it — so the body
+                             * is correctly gone by the time this looks, and the
+                             * durable evidence is the TYPE it was carrying when
+                             * it went plus the hitpoint that was put back.
+                             *
+                             * That hitpoint is the load-bearing half: an npc
+                             * removed at ZERO with an unsent `death_seq` is what
+                             * the suite-wide SILENT DEATH counter fails over,
+                             * and it is exactly what the first version of
+                             * `~toa_akkha_die` would have produced.
                              */
-                            SELFTEST_CHECK(toa_type == 11722,
-                                           "a dead Kephri is the finished body "
-                                           "11722, saw %d", toa_type);
+                            SELFTEST_CHECK(srv->npcs[kephri].type == 11722,
+                                           "a dying Kephri should transform to the "
+                                           "finished body 11722, saw %d",
+                                           srv->npcs[kephri].type);
+                            SELFTEST_CHECK(srv->npcs[kephri].hitpoints > 0,
+                                           "Kephri must be held off zero hitpoints "
+                                           "through her death, or the engine reaps "
+                                           "her before the corpse exists and the "
+                                           "player sees her vanish, saw %d",
+                                           srv->npcs[kephri].hitpoints);
+                            /*
+                             * And the room is banked, which shows as the party
+                             * no longer being in it — `~toa_boss_complete` ends
+                             * with `~toa_return_to_nexus`. `toa_room` staying -1
+                             * (the debugproc reported the Nexus) is the pass.
+                             */
+                            SELFTEST_CHECK(toa_room != 5,
+                                           "killing Kephri should bank the room and "
+                                           "return the party (`~toa_boss_complete`), "
+                                           "but they are still in room %d", toa_room);
                         }
                     }
                 }
@@ -51155,6 +51205,9 @@ mock230_world_selftest(void)
                   "double" },
                 { "[proc,selftest_chompy_hats]", 10,
                   "eighteen chompy hats against twenty-two ranks" },
+                { "[proc,selftest_pets]", 9,
+                  "a pet needs a follower out AND a full inventory before "
+                  "Probita holds it" },
                 { "[proc,selftest_seed_vault]", 6,
                   "the seed vault refuses seedlings for their stage and quest "
                   "seeds for their origin" },
@@ -55544,6 +55597,106 @@ mock230_world_selftest(void)
 
                 SELFTEST_CHECK(said_sardine, "::fishingcompo_catchtest_lose should catch a sardine at the willow-tree spot even with red vine worm");
                 SELFTEST_CHECK(!said_carp, "::fishingcompo_catchtest_lose must NOT catch the winning fish away from the pipe spot");
+            }
+
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::drunkmonkrun\n");
+    {
+        /*
+         * Monk's Friend (2026-08-20 audit). `[opnpc1,brother_omad]` /
+         * `[opnpc1,brother_cedric]` both block on `~p_choice*` (a real
+         * client resume), so `drunkmonkrun` mirrors the state-transition
+         * lines rather than dispatching through the trigger -- see the
+         * debugproc's own header comment in
+         * quests/quest_drunkmonk/scripts/quest_drunkmonk.rs2. This audit's
+         * item-check fix (`cedric_get_wood` silently rejected a regular
+         * plank, wiki: "Regular logs or a regular plank") is exercised
+         * there with the same logic the fixed trigger runs. The other fix
+         * -- Head Thief (headthief_blanket)'s combat stats, compiled empty
+         * despite a full wiki-sourced ledger existing -- is proven for real
+         * below: spawn the npc and read hitpoints/attack/strength/defence
+         * directly off its def, since combat stats are not script-visible.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture drunkmonkrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &drunkmonkrun_capture);
+            mock230_scripts_run_debugproc(srv, "drunkmonkrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&drunkmonkrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&drunkmonkrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &drunkmonkrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                fprintf(stderr, "  DBG %s\n", text);
+                if( strstr(text, "DRUNKMONKRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "DRUNKMONKRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::drunkmonkrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::drunkmonkrun should reach its OK line");
+
+            /* C-side: the Head Thief combat-stats fix. headthief_blanket IS
+             * in the general roster (npc_stats/h/headthief_blanket.stats
+             * has a full `source = generated` ledger, wiki id 4248, combat
+             * level 26), but combat_stats.generated.npc's own compiled
+             * block for it was empty -- fought at the engine default
+             * (hitpoints=10) instead of the wiki's level 26 guarding the
+             * child's blanket. Spawn it fresh and read its def directly. */
+            {
+                int npc_type = mock230_content_symbol(MOCK230_PACK_NPC, "headthief_blanket");
+
+                SELFTEST_CHECK(npc_type >= 0, "drunkmonkrun: headthief_blanket should resolve");
+                if( npc_type >= 0 )
+                {
+                    int slot = npc_spawn(srv, npc_type, player->x + 2, player->z, player->level);
+
+                    SELFTEST_CHECK(slot >= 0, "drunkmonkrun: headthief_blanket should spawn");
+                    if( slot >= 0 )
+                    {
+                        struct Mock230Npc* npc = &srv->npcs[slot];
+
+                        SELFTEST_CHECK(npc->def != NULL, "drunkmonkrun: headthief_blanket should resolve a def");
+                        if( npc->def )
+                        {
+                            SELFTEST_CHECK(
+                                npc->max_hitpoints == 37 && npc->def->attack == 24 &&
+                                    npc->def->strength == 18 && npc->def->defence == 16,
+                                "drunkmonkrun: headthief_blanket hp=%d atk=%d str=%d def=%d, "
+                                "want hp=37 atk=24 str=18 def=16 (wiki level 26, silently "
+                                "missing before this audit)",
+                                npc->max_hitpoints, npc->def->attack, npc->def->strength,
+                                npc->def->defence);
+                        }
+                        npc->active = 0;
+                    }
+                }
             }
 
             mock230_scripts_free(srv);

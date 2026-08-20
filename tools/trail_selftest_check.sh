@@ -100,6 +100,7 @@ four of a kind and two doubles both total four and are different hands
 a full inventory still makes a loot key; five held makes none
 Bounty Hunter's skull boundary coin belongs to the lower tier
 the seed vault refuses seedlings for their stage and quest seeds for their origin
+a pet needs a follower out AND a full inventory before Probita holds it
 eighteen chompy hats against twenty-two ranks
 the nugget batch cap deletes and the upgraded sack is not double
 Krystilia's base and extended amounts are separate columns
