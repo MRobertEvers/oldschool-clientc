@@ -58186,6 +58186,7 @@ mock230_world_selftest(void)
                             inv_set(player, s, -1, 0);
                         inv_set(player, 0, obj_pigeons, 1);
                         mock230_scripts_run_trigger(srv, SS_TRIGGER_OPHELD1, obj_pigeons, -1, -1);
+                        biohazard_run_dialogue(srv, player, 0);
                         SELFTEST_CHECK(player->varps[varp_biohazard] == 4, /* biohazard_released_pigeons */
                                        "opening the pigeon cage in the watchtower zone should "
                                        "reach biohazard_released_pigeons (4), got %d",
@@ -58206,24 +58207,8 @@ mock230_world_selftest(void)
                         mock230_world_teleport(srv, 0, 2559, 3266);
                         mock230_world_tick(srv);
                         player->varps[varp_biohazard] = 4; /* biohazard_released_pigeons */
-                        {
-                            int trc = mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC1, npc_omart, -1, slot);
-                            fprintf(stderr, "  DBG omart raw trc=%d biohazard=%d "
-                                    "active_script=%p execution=%d resume_count=%d resume0=%d\n",
-                                    trc, player->varps[varp_biohazard],
-                                    (void*)player->active_script,
-                                    player->active_script ? player->active_script->execution : -1,
-                                    player->resume_button_count,
-                                    player->resume_button_count > 0 ? player->resume_buttons[0] : -1);
-                        }
+                        mock230_scripts_run_trigger(srv, SS_TRIGGER_OPNPC1, npc_omart, -1, slot);
                         biohazard_run_dialogue(srv, player, rows_uid);
-                        fprintf(stderr, "  DBG omart2 active_script=%p execution=%d "
-                                "resume_button_count=%d resume0=%d rows_uid=%d\n",
-                                (void*)player->active_script,
-                                player->active_script ? player->active_script->execution : -1,
-                                player->resume_button_count,
-                                player->resume_button_count > 0 ? player->resume_buttons[0] : -1,
-                                rows_uid);
                         SELFTEST_CHECK(player->active_script != NULL &&
                                        player->resume_button_count > 0 &&
                                        player->resume_buttons[0] == rows_uid,

@@ -4113,6 +4113,49 @@ with and without, and what was explicitly deferred with its reason.
   the live-npc assertions stay in the debugproc where they belong. Worth a
   sweep for other debugproc-only test files.
 
+- 2026-08-20 — **A second shape of unrun coverage: debugproc harnesses C never names.**
+  Found while reconciling B24. `td_selftest.rs2` holds 286 lines of assertions
+  behind `[debugproc,tdtest]`, and `check_selftest_registration.py` could not
+  see it — the tool looks for `[proc,selftest_*]`, and these are helpers called
+  from a debugproc. Some debugproc harnesses ARE driven, by
+  `mock230_scripts_run_debugproc(srv, "name")` from C. C names some and not
+  others.
+
+  **My first count was wrong and I want it on the record.** Matching the
+  bracketed `"[debugproc,name]"` spelling reported 124 unrun files including the
+  CoX suite — which I had watched produce FAIL lines all session. C uses the
+  bare name, `run_debugproc(srv, "coxrun")`. Matching the wrong string turned a
+  real 75-file finding into a false 124-file alarm; the tool now matches the
+  form C actually uses and reports the list as a review item, not an error.
+
+  **Two of the unrun harnesses were substantial**: `::runecraftrun` (24
+  assertions) and `::miningrun` (13). Neither had ever executed in a build.
+  Wired both in — and both fail.
+
+  **They fail for a harness reason, not a content one, and establishing that
+  took a wrong turn worth recording.** `::runecraftrun` reports
+  `rc_no_tally_required_air did not flip to 1 with an air tiara worn`. I read
+  the test, saw it equip with `inv_add(worn, tiara_air, 1)` — which fills the
+  first free slot rather than the hat slot `rc_refresh_ruins_varbits` reads —
+  and rewrote it to `inv_setslot`. It still failed. I had justified that edit by
+  checking that `gear_selftest.rs2` uses `worn` 65 times and is driven from C,
+  concluding `worn` must work in this harness. **`::gearrun` is gated behind
+  `MOCK230_GEARRUN` and is skipped by default** — so it is not evidence that
+  `worn` works here; it is evidence of the opposite, and the gate exists for
+  precisely this reason. I reverted my unverifiable edit to the test rather than
+  leave a change I could not show was an improvement.
+
+  Both are now wired the way `::gearrun` is: driven behind `MOCK230_RUNECRAFTRUN`
+  and `MOCK230_MININGRUN`, skipped otherwise. That keeps the default build
+  clean — these are pre-existing failures and painting a harness limit as a
+  content bug on every build helps nobody — while making them one env var away
+  from running. **What is still open** is why the plain selftest player cannot
+  carry equipment, which is the thing blocking three harnesses (gear, runecraft,
+  mining) rather than any one of them.
+
+  74 further debugproc-only harnesses remain, mostly quests with 2-6 assertions
+  each. The tool lists the top ten every build.
+
 ## 7. Open questions to settle before Wave E
 
 These change what gets built and are the user's call, not the port's:

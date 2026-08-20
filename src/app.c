@@ -6871,16 +6871,6 @@ app_modelview_focused(struct App const* app)
            app->dbg_ui.widgets[f].kind == TORIDBG_W_MODELVIEW;
 }
 
-/** The minimenu's "Delete <category>" rows. The dedicated Delete tool they
- *  were tied to is gone -- deletion is a selection act now -- but the rows
- *  themselves stay useful as the layer-precise one-shot, so they ride with
- *  the editor being open rather than with any tool. */
-static bool
-app_mapedit_delete_active(struct App const* app)
-{
-    assert(app);
-    return app->editor_panel.visible;
-}
 
 /**
  * A click in the world applies the current tool, as one undoable edit.
@@ -16844,7 +16834,6 @@ app_hover_text_update(
                 .click_in_world = click_in_world != 0,
                 .locedit_active = app->locedit_visible != 0,
                 .mapedit_select_active = app_mapedit_select_active(app),
-            .mapedit_delete_active = app_mapedit_delete_active(app),
             };
             UIMinimenu_Reset(&scratch);
             scratch.font_id = app->hover_text.font_id;
@@ -16937,7 +16926,6 @@ app_minimenu_open(
         .click_in_world = click_in_world != 0,
         .locedit_active = app->locedit_visible != 0,
         .mapedit_select_active = app_mapedit_select_active(app),
-            .mapedit_delete_active = app_mapedit_delete_active(app),
     };
     struct UIMinimenu* menu = &app->interact.minimenu;
     struct UIMinimenuLayout layout;
@@ -17409,7 +17397,6 @@ app_run_default_ui_row(
         .click_in_world = false,
         .locedit_active = app->locedit_visible != 0,
         .mapedit_select_active = app_mapedit_select_active(app),
-            .mapedit_delete_active = app_mapedit_delete_active(app),
     };
     struct UIMinimenu scratch;
     int default_idx;
@@ -18010,13 +17997,6 @@ app_minimenu_run_option(
     {
         if( app_mapedit_select_active(app) )
             Editor_PanelSelectLoc(&app->editor_panel, app, opt.pick.id);
-        return 0; /* handled locally; no CS2 task was dispatched */
-    }
-
-    if( opt.action == RS_MINIMENU_ACTION_MAPEDIT_DELETE )
-    {
-        if( app_mapedit_delete_active(app) )
-            Editor_PanelDeleteLocByElement(&app->editor_panel, app, opt.pick.id);
         return 0; /* handled locally; no CS2 task was dispatched */
     }
 
@@ -19467,7 +19447,6 @@ App_RunOnce(
             .selection = app_minimenu_selection(app),
             .locedit_active = app->locedit_visible != 0,
             .mapedit_select_active = app_mapedit_select_active(app),
-            .mapedit_delete_active = app_mapedit_delete_active(app),
         };
         struct UIMinimenu scratch;
         int default_idx;
@@ -19591,7 +19570,6 @@ App_RunOnce(
             .selection = app_minimenu_selection(app),
             .locedit_active = app->locedit_visible != 0,
             .mapedit_select_active = app_mapedit_select_active(app),
-            .mapedit_delete_active = app_mapedit_delete_active(app),
         };
         struct UIMinimenu scratch;
         int default_idx;
