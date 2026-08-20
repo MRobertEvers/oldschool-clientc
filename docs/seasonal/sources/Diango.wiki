@@ -1,0 +1,360 @@
+{{External|rs}}
+{{Infobox NPC
+|name = Diango
+|image = [[File:Diango.png|120px]]
+|release = [[1 April]] [[2004]]
+|update = RuneScape chat improved!
+|members = No
+|race = [[Human]]
+|location = [[Draynor Village]]
+|shop = [[Diango's Toy Store]]
+|gender = Male
+|options = Talk-to, Trade, Holiday-items, Redeem-code
+|examine = He smells funny.
+|map = {{Map|name=Diango|x=3081|y=3247|plane=0|r=3|mtype=square}}
+|id = 8693
+|leagueRegion = Misthalin
+}}
+[[File:Diango chathead.png|left]]
+'''Diango''' is a merchant located in [[Draynor Village]] who sells toys and other commemorative items in his store, [[Diango's Toy Store]]. He is able to replace lost [[holiday items]] that the player has previously earned from [[holiday events]].
+
+He was originally added as part of an [[April Fools']] joke. Players had been requesting horses in the game for some time, and were excited to find out that Diango was to be added to sell "[[horse]]s" in his store. However, Diango actually sells [[toy horsey]]s, which are not rideable and are mostly useless. He has since been a part of several holiday events, such as the [[2013 Halloween event]].
+
+His dialogue and his attire conforms to a horse rancher's, and he wears a reddish-brown [[cavaliers|cavalier hat]], dark red [[canifis gloves|gloves]], [[leather chaps]] without arrows holstered, and boots with spurs.
+
+[[File:Holiday item return.png|thumb|right|300px|The holiday item return interface.]]
+
+== Code redemptions ==
+Players can redeem the following code from Diango by right-clicking on him and selecting ''Redeem-code''.
+* <code>osrsrf2014</code> - <s>Unlocks the [[Animation overrides#Home Teleport|Runefest 2014]] [[animation overrides|animation override]]</s> (now unlocked by default).
+* <code>runefest17</code> - <s>Unlocks the [[Runefest shield]]</s> (now unlocked by default).
+* <code>premierclub18</code> - <s>Unlocks the [[Premier Shield]] emote</s> (now unlocked by default).
+* <code>v1r354cqu1r173und0</code>  - Unlocks the [[mystic cards]].
+
+==Stock==
+{{StoreTableHead|sellmultiplier=1500|buymultiplier=500|delta=2|bucket=No}}
+{{StoreLine|name=Brown toy horsey|stock=5|restock=20}}
+{{StoreLine|name=White toy horsey|stock=5|restock=20}}
+{{StoreLine|name=Black toy horsey|stock=5|restock=20}}
+{{StoreLine|name=Grey toy horsey|stock=5|restock=20}}
+{{StoreLine|name=Spinning plate|stock=250|buy=N/A|restock=20|gemw=no}}
+{{StoreLine|name=Beach boxing gloves (yellow)|bucketname=Beach boxing gloves#Yellow|restock=5|stock=5|buy=N/A|gemw=no}}
+{{StoreLine|name=Beach boxing gloves (pink)|bucketname=Beach boxing gloves#Pink|restock=5|stock=5|buy=N/A|gemw=no}}
+{{StoreLine|name=Cursed goblin hammer|restock=5|stock=3|buy=N/A|gemw=no}}
+{{StoreLine|name=Cursed goblin bow|stock=3|buy=N/A|restock=5|gemw=no}}
+{{StoreLine|name=Cursed goblin staff|stock=3|buy=N/A|restock=5|gemw=no}}
+{{StoreLine|name=Goblin paint cannon|stock=100|buy=N/A|gemw=no|restock=1}}
+{{StoreLine|name=Diango's claws|stock=5|buy=N/A|gemw=no|restock=5}}
+{{StoreLine|name=Green banner|stock=5|buy=N/A|gemw=no|restock=5}}
+{{StoreLine|name=Chronicle|stock=1|buy=N/A|gemw=no|restock=1}}
+{{StoreLine|name=Teleport card|stock=100|gemw=yes|restock=1}}
+{{StoreLine|name=Cabbage cape|stock=10|buy=N/A|gemw=no|restock=1}}
+{{StoreLine|name=Cruciferous codex|stock=15|buy=N/A|gemw=no|restock=2}}
+{{StoreLine|name=Tiger toy|stock=15|buy=N/A|gemw=no|restock=3}}
+{{StoreLine|name=Lion toy|stock=15|buy=N/A|gemw=no|restock=2}}
+{{StoreLine|name=Snow leopard toy|stock=15|buy=N/A|gemw=no|restock=2}}
+{{StoreLine|name=Amur leopard toy|stock=15|buy=N/A|gemw=no|restock=2}}
+{{StoreLine|name=Rainbow scarf|stock=5|buy=N/A|gemw=no|restock=1}}
+{{StoreLine|name=Holy handegg|stock=100|gemw=no|restock=1}}
+{{StoreLine|name=Peaceful handegg|stock=100|gemw=no|restock=1}}
+{{StoreLine|name=Chaotic handegg|stock=100|gemw=no|restock=1}}
+{{StoreLine|name=Hornwood helm|stock=100|gemw=no|restock=1}}
+{{StoreLine|name=Hand fan|stock=100|sell=1|gemw=no|restock=1}}
+{{StoreLine|name=Mask of Balance|stock=100|gemw=no|restock=1}}
+{{StoreLine|name=Druidic wreath|stock=100|gemw=no|restock=1}}
+{{StoreLine|name=Disk of Returning|stock=7|sell=21000|buy=|restock=160}}
+{{StoreLine|name=Oculus orb|stock=100|restock=1|buy=N/A}}
+{{StoreTableBottom}}
+
+==Diango's Holiday Item Retrieval==
+Items can be recovered from Diango's Holiday Item Retrieval only after unlocking them, typically via the associated holiday event. Items will not be displayed if they already exist in the player's inventory, equipment, or bank. If items are stored in a PoH storage, they will be removed from there when retrieved here.
+
+{{StoreTableHead|hidebuy=y|hidecaption=y|hidestock=y|hidege=y|hiderestock=y}}
+{{StoreLine|name=War ship|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Bunny ears|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Scythe (Halloween event)|displayname=Scythe|image=Scythe (Halloween event).png|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Yo-yo|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Rubber chicken|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Black partyhat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Zombie head|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Easter ring|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Jack lantern mask|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Skeleton boots|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Skeleton gloves|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Skeleton leggings|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Skeleton shirt|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Skeleton mask|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Reindeer hat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Wintumber tree|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Chicken feet|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Chicken legs|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Chicken wings|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Chicken head|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Bobble hat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Jester hat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Tri-jester hat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Woolly hat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Bobble scarf|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Jester scarf|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Tri-jester scarf|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Woolly scarf|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Red marionette|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Blue marionette|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Green marionette|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Black h'ween mask|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Rainbow partyhat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Cow mask|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Easter basket|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Druidic wreath|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Grim reaper hood|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Santa mask|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Santa jacket|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Santa pantaloons|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Santa gloves|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Santa boots|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Antisanta mask|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Antisanta jacket|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Antisanta pantaloons|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Antisanta gloves|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Antisanta boots|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Cow top|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Cow trousers|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Cow gloves|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Cow shoes|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Bunny feet|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Mask of Balance|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Tiger toy|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Lion toy|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Snow leopard toy|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Amur leopard toy|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Anti-panties|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Gravedigger mask|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Gravedigger top|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Gravedigger leggings|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Gravedigger boots|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Gravedigger gloves|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Black santa hat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Inverted santa hat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Gnome child hat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Bunny top|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Bunny legs|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Bunny paws|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Cabbage cape|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Cruciferous codex|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Hornwood helm|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Banshee mask|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Banshee top|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Banshee robe|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Hunting knife|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Snow globe|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Sack of presents|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Giant present|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=4th birthday hat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Birthday balloons|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Easter egg helm|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Rainbow scarf|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Hand fan|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Runefest shield|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Jonas mask|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Snow imp costume head|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Snow imp costume body|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Snow imp costume legs|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Snow imp costume tail|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Snow imp costume gloves|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Snow imp costume feet|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Wise old man's santa hat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Prop sword|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Eggshell platebody|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Eggshell platelegs|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Oculus orb|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Clown mask|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Clown gown|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Clown bow tie|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Clown trousers|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Clown shoes|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Eek|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Star-face|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Tree top|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Tree skirt|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Candy cane|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Birthday cake|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Giant easter egg|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Bunnyman mask|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Spooky hood|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Spooky robe|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Spooky skirt|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Spooky gloves|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Spooky boots|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Pumpkin lantern|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Skeleton lantern|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Spookier hood|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Spookier robe|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Spookier skirt|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Spookier gloves|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Spookier boots|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Green gingerbread shield|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Cat ears|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Magic egg ball|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Carrot sword|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name='24-carat' sword|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Headless head|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Magical pumpkin|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Giant boulder|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Goblin decorations|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=20th anniversary necklace|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=20th anniversary hat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=20th anniversary top|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=20th anniversary bottom|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=20th anniversary boots|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=20th anniversary gloves|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=20th anniversary cape|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Gnome child icon|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Gnome child mask|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Cursed banana|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Banana cape|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Gregg's eastdoor|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Propeller hat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Banana hat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Saucepan|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Ugly halloween jumper (orange)|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Haunted wine bottle|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Festive elf slippers|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Festive elf hat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Snowman ring|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Secret santa present (red)|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Skis|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Easter hat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Crate ring|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Flower crown|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Treat cauldron|image=Treat cauldron (style 1).png|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Witch hat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Witch top|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Witch robes|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Witch boots|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Witch cape|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Halloween wig|image=Halloween wig (style 1).png|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Santa's list|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Christmas jumper|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Snow goggles & hat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Sack of coal|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Festive nutcracker hat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Festive nutcracker top|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Festive nutcracker trousers|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Festive nutcracker boots|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Festive nutcracker staff|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Festive games crown|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Mystic cards|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=10th birthday cape|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Gnome child backpack|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Cake hat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Bob the cat slippers|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Gnome child plush|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Oldschool jumper|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Dragon candle dagger|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Silver partyhat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=10th birthday balloons|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Giant bronze dagger|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Eastfloor spade|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Nest hat|image=Nest hat (easter egg).png|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Rainbow jumper|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Poet's jacket|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Love crossbow|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Cobweb cape|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Spider hat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Snowglobe helmet|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Icy jumper|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Book of Egg|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Egg priest robe top|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Egg priest robe|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Egg priest mitre|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Egg priest necklace|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Rainbow cape|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Rainbow crown shirt|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Carved pumpkin head|image=Orange pumpkin (happy).png|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Scarecrow shirt|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Halloween scarecrow|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Dog boots|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Dog disguise|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Festive scarf|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Present box hat|image=Present box hat (festive).png|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Classic imp hood|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Classic imp tail|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Carrot costume hat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Carrot costume body|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Carrot costume tights|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Carrot costume gloves|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Spooky pumpkin lantern|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Spooky chair|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Grim reaper top|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Grim reaper bottoms|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Grim reaper gloves|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Lovley jubbly bib|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Christmas dinner|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Beer belly sweater|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Jad jumper|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=25th anniversary helmet|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=25th anniversary warrior tabard|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=25th anniversary skeleton tabard|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=25th anniversary 5x5 hat|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreLine|name=Archibald|stock=inf|sell=0|buy=N/A|gemw=no}}
+{{StoreTableBottom}}
+
+==Dialogue==
+{{hastranscript|NPC}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 30 November 2022
+|update = The Garden of Death & More
+|change = Players no longer need to redeem codes for the cow-themed [[Home Teleport]] animation, [[Runefest shield]], and [[Premier Shield]] [[emote]].
+}}
+{{Subject changes
+|date = 18 May 2022
+|update = Poll 76 Improvements
+|change = The daily buy limit of 100 [[teleport card]]s from Diango's shop has been removed.
+}}
+{{Subject changes
+|date = 29 June 2017
+|update = Midsummer 2017
+|change = 
+Discontinued items from the [[Big Cats & WWF|WWF event]] have been added to Diango's shop.
+}}
+{{Subject changes
+|date = 21 May 2015
+|update = World Switcher & RotG (i)
+|poll = Old School Content Poll 33
+|change = Diango in Draynor gained the right-click option to check your holiday items.
+}}
+{{Subject changes
+|date = 2 October 2014
+|update = Content Poll 25 - Batch 1
+|change = You can now claim the [[goblin paint cannon]] from Diango in [[Draynor village]].
+}}
+{{Subject changes
+|daterange = 9 May –<br/>6 June 2005
+|change = The cavalier in the NPC's chathead was altered again.
+}}
+{{Subject changes
+|daterange = 20 July –<br/>7 September 2004
+|change = The cavalier in the NPC's chathead was altered.
+}}
+{{Subject changes footer}}
+===Gallery (historical)===
+{| style="text-align: center" cellpadding="15"
+|[[File:Diango chathead (historical v1).png]]
+|[[File:Diango chathead (historical v2).png]]
+|[[File:Diango chathead.png]]
+|-
+|1 April 2004 –<br />July-September 2004
+|July-September 2004 –<br />May/June 2005
+|May/June 2005 –<br/>present
+|}
+
+==Trivia==
+* In the [[2017 Christmas event]], Diango reveals that he has {{wp|tinnitus}}.
+
+{{Draynor Village}}
+{{2013 Halloween event}}
+{{2014 Christmas event}}
+{{2017 Christmas event}}

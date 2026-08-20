@@ -1,0 +1,134 @@
+{{Redirect|Larran's chest|the small version|Larran's small chest}}
+{{Infobox Scenery
+|version1 = Closed
+|version2 = Opened
+|name = Larran's big chest
+|image1 = [[File:Larran's big chest.png|284px]]
+|image2 = [[File:Larran's big chest (opened).png|284px]]
+|release = [[20 June]] [[2019]]
+|update = Wilderness Updates and DMM Summer Finals
+|members = Yes
+|quest = No
+|location = Ship west of [[Pirates' Hideout]]
+|options1 = Unlock, Check
+|options2 = None
+|examine = A secure chest.
+|map = {{Map|name=Larran's big chest|x:3018,y:3955|plane=1|mapID=0|mtype=pin}}
+|id1 = 34829
+|id2 = 34830
+|leagueRegion = Wilderness
+}}
+'''Larran's big chest''' can be found on the ship west of [[Pirates' Hideout]]. The chest is locked and can only be opened by using [[Larran's key]], which is obtained from killing monsters that [[Krystilia]] assigns the player, or from the [[muddy chest]].
+
+Though sharing the same loot compared to [[Larran's small chest]], the quantities obtained from the big chest are much higher and also give a chance at receiving [[Dagon'hai robes]]. It also shares most of its main table loot with the [[brimstone chest]], which is instead opened with [[brimstone keys]].
+
+The chest will announce the name of the player that opened it as well as the loot obtained to a large area around the ship on which it is found.
+
+Larran's keys are always dropped on death. On an account where dying is a viable strategy, and where a [[gravestone]] can be utilised, one can intentionally die to create a grave near the chest. Afterwards, intentionally dying with keys will transport keys to that gravestone, regardless of where the second death occurs. You can then recover the keys closer to the chest, rather than risking them on the way there.
+
+==Money making==
+{{Mmgsection|Opening larran's big chests}}
+
+==Possible loot==
+{{DropLogProject|kills=787160|type=openings}} <!-- Per Cook, using this number for both Larran's chests and brimstone chests -->
+
+{{Average drop value|mob=Larran's big chest|killname=loot}}
+
+Fish add {{Coins|{{Slayer chest fish value|chest=big|level=1}}}} to the average value at level 1 [[Fishing]], and {{Coins|{{Slayer chest fish value|chest=big|level=99}}}} at level 99.
+
+===Pre-roll===
+<!-- are we sure this is 1/256? Looks an awful lot like ~1/64 to hit the table then 1/3 for each to me, but my sample size is way lower, like 500k instead of 750k -->
+{{DropsTableHead}}
+{{DropsLineReward|name=Dagon'hai hat|quantity=1|rarity=1/256}}
+{{DropsLineReward|name=Dagon'hai robe top|quantity=1|rarity=1/256}}
+{{DropsLineReward|name=Dagon'hai robe bottom|quantity=1|rarity=1/256}}
+{{DropsTableBottom}}
+
+===Main table===
+{{DropsTableHead}}
+{{DropsLineReward|name=Uncut diamond|quantity=35-45 (noted)|rarity=5/60}}
+{{DropsLineReward|name=Uncut ruby|quantity=35-45 (noted)|rarity=5/60}}
+{{DropsLineReward|name=Coal|quantity=450-650 (noted)|rarity=5/60}}
+{{DropsLineReward|name=Gold ore|quantity=150-250 (noted)|rarity=4/60}}
+{{DropsLineReward|name=Dragon arrowtips|quantity=100-250|rarity=4/60}}
+{{DropsLineReward|name=Coins|quantity=75000-175000|rarity=3/60}}
+{{DropsLineReward|name=Iron ore|quantity=500-650 (noted)|rarity=3/60}}
+{{DropsLineReward|name=Rune full helm|quantity=3-5 (noted)|rarity=3/60}}
+{{DropsLineReward|name=Rune platebody|quantity=2-3 (noted)|rarity=3/60}}
+{{DropsLineReward|name=Rune platelegs|quantity=2-3 (noted)|rarity=3/60}}
+{{DropsLineReward|name=Pure essence|quantity=4500-7500 (noted)|rarity=3/60}}
+{{DropsLineReward|name=Runite ore|quantity=15-20 (noted)|rarity=2/60}}
+{{DropsLineReward|name=Steel bar|quantity=350-550 (noted)|rarity=2/60}}
+{{DropsLineReward|name=Magic logs|quantity=180-220 (noted)|rarity=2/60}}
+{{DropsLineReward|name=Dragon dart tip|quantity=80-200|rarity=2/60}}
+{{DropsLineReward|name=Palm tree seed|quantity=3-5|rarity=1/60}}
+{{DropsLineReward|name=Magic seed|quantity=3-4|rarity=1/60}}
+{{DropsLineReward|name=Celastrus seed|quantity=3-5|rarity=1/60}}
+{{DropsLineReward|name=Dragonfruit tree seed|quantity=3-5|rarity=1/60}}
+{{DropsLineReward|name=Redwood tree seed|quantity=1|rarity=1/60}}
+{{DropsLineReward|name=Torstol seed|quantity=4-6|rarity=1/60}}
+{{DropsLineReward|name=Snapdragon seed|quantity=4-6|rarity=1/60}}
+{{DropsLineReward|name=Ranarr seed|quantity=4-6|rarity=1/60}}
+{{DropsTableBottom}}
+
+===Fish drop table===
+There is a 1/20 chance to receive raw fish, with the specific type of raw fish obtained being dependent on the player's [[Fishing]] level. Possible quantities are 50% higher than all the possible quantities from the 
+{{Section|Brimstone chest|Fish drop table}}, rounded down. As a result, not all quantities in the range can be dropped. The average quantity of each fish is listed in a table further below.
+
+{{DropsTableHead}}
+{{DropsLineReward|name=Raw tuna|quantity=150-525 (noted)|rarity=Varies}}
+{{DropsLineReward|name=Raw lobster|quantity=150-525 (noted)|rarity=Varies}}
+{{DropsLineReward|name=Raw swordfish|quantity=150-450 (noted)|rarity=Varies}}
+{{DropsLineReward|name=Raw monkfish|quantity=150-450 (noted)|rarity=Varies}}
+{{DropsLineReward|name=Raw shark|quantity=120-375 (noted)|rarity=Varies}}
+{{DropsLineReward|name=Shark lure|quantity=240-750|rarity=Varies}}
+{{DropsLineReward|name=Raw sea turtle|quantity=120-300 (noted)|rarity=Varies}}
+{{DropsLineReward|name=Raw manta ray|quantity=120-240 (noted)|rarity=Varies}}
+{{DropsTableBottom}}
+
+Upon hitting the fish drop table, sequential rolls are made until one succeeds, starting with raw manta rays and ending with raw lobsters in case all rolls fail. Succeeding on a shark, sea turtle, or manta ray roll has a chance to instead reward raw sharks or shark lures.
+{{Slayer chest fish chart|Larran's big chest fish chance}}
+
+{| class="wikitable align-center-3 align-center-4"
+!colspan=2 | Fish
+!Minimum<br>{{SCP|Fishing}} level
+!Average<br>quantity<ref name=fishsplain>On a successful roll for this fish, not across all chest openings.</ref>
+|-
+|{{plinkt|Raw tuna}}||1||337.3
+|-
+|{{plinkt|Raw lobster}}||1||337.3
+|-
+|{{plinkt|Raw swordfish}}||1||299.8
+|-
+|{{plinkt|Raw monkfish}}||1||299.8
+|-
+|{{plinkt|Raw shark}}||17||247.3
+|-
+|{{plinkt|Shark lure}}||17||495
+|-
+|{{plinkt|Raw sea turtle}}||17||209.8
+|-
+|{{plinkt|Raw manta ray}}||33||179.8
+|}
+{{Reflist|name=fishsplain}}
+
+== Comparison ==
+{| class="wikitable sortable"
+! Chest
+! colspan=2| Key
+! Average loot value
+|-
+| [[Brimstone chest]]
+| {{plinkt|Brimstone key}}
+| {{Coins|{{Average drop value|Brimstone chest|raw=yes}}}}
+|-
+| [[Larran's big chest]]
+| {{plinkt|Larran's key}} 
+| {{Coins|{{Average drop value|mob=Larran's big chest|raw=total only}}}} 
+|-
+| [[Larran's small chest]]
+| {{plinkt|Larran's key}} 
+| {{Coins|{{Average drop value|mob=Larran's small chest|raw=total only|exclude=Fish}}}} 
+|-
+|}
+{{Chests}}

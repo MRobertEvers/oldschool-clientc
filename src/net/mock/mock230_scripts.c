@@ -571,8 +571,14 @@ static const struct
       "'a flagged follow-on'. So the opcode on its own would encode nothing, or encode "
       "into a packet the client discards: a no-op that looks implemented. Blocked on "
       "the client's hint-arrow render lane, and it deletes itself the day that lands. "
-      "Siblings HINT_COORD/HINT_PL/HINT_STOP are absent too and no content wants them "
-      "yet. 5 sites, 3 live, all in quest_mm's demon fight",
+      "Siblings HINT_COORD/HINT_PL/HINT_STOP are absent too. 5 sites, 3 live, all in "
+      "quest_mm's demon fight",
+    },
+    { "HINT_STOP",
+      "Same missing render lane as HINT_NPC above — clearing a hint arrow the client "
+      "never drew is still a no-op. First wanted 2026-08-20 by quest_troll's "
+      "[label,troll_dad_surrender], undoing the hint_npc that starts the Dad fight. "
+      "Deletes itself alongside HINT_NPC's row the day the arrow lane lands.",
     },
 };
 

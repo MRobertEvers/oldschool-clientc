@@ -1,0 +1,641 @@
+{{Infobox Activity
+|name = Farming contracts
+|image = [[File:Farming Guild.png]]
+|release = [[10 January]] [[2019]]
+|update = The Kebos Lowlands
+|type = Minigame
+|members = Yes
+|location = [[Farming Guild]]
+|players = 1
+|skills = [[Farming]]
+|currency = None
+|tutorial = No
+|music = None
+|map = No
+|leagueRegion = Kourend
+}}
+'''Farming contracts''' are given by [[Guildmaster Jane]], who instructs the player to grow a specific crop within the [[Farming Guild]]. Completing a contract awards players with a [[seed pack]], which can be opened for some amount of seeds. [[Temporary skill boost|Boosts]] may be used to accept a contract you are below the required level for, though you will not need your levels boosted to claim your reward. All entries on the table for which the player meets the requirements are given equal weighting when Jane decides what contract to give out.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1358140192327163904|date=6 February 2021|archiveurl=https://reldo.runescape.wiki/i/97079|archivedate=29 March 2023|quote=It's using equal weighting out of all the entries in the list for which you have the requirement. Can you confirm your Farming level isn't drained at the time when you're requesting one, though? That could affect it.}} The same crop will not be assigned back-to-back.
+
+==Completion==
+For types of crops with health checking, the contract is completed when the player checks the health. For other types, the contract is completed after the patch is fully harvested. Should the player get a contract for a crop where they have already checked the health, they will need to plant a new seed and wait for it to grow. If the player is assigned a crop that has already been planted but not checked or harvested (including partially-harvested crops of the second type), it will still count as a contract completion. 
+
+A count of how many contracts the player has completed can be found by asking Guildmaster Jane.
+
+==Cancelling==
+Players can cancel a contract by asking Guildmaster Jane, "Do you have anything easier?" at which point she will switch the contract to one of a lower level. Easy contracts cannot be cancelled. Players can also view how many contracts they have completed by speaking to Guildmaster Jane.
+
+==Strategy==
+If you grow certain time-consuming crops beforehand and ''do not'' check health/harvest them, you can get credit for a contract completion immediately after completing a previous one; sometimes you can repeat this for multiple contracts in succession.
+
+For example, if you complete a snapdragon contract and then immediately get a redwood contract, instead of having to wait a few days for the redwood to grow or skip the contract and thus a poorer seed pack, you can instantly complete it by just checking the redwood's health and then move on to the next contract. Simply ensuring all of your patches are pre-grown and replacing them as you complete contracts will greatly improve the amount of contracts you can do in a given amount of time.
+
+More information on pre-planting strategies can be found [[Ironman_Guide/Farming#All_seeds:_Farming_contracts|here.]]
+
+==Contract required seeds and Rewards==
+===Contract difficulty vs. seed pack tiers===
+The table below shows the proportion of seed pack tiers to contract difficulty. For example, there are 31 unique easy contracts; 11 of those will reward a tier 1 seed pack, 12 will reward a tier 2 seed pack, and 8 will reward a tier 3 seed pack. A full breakdown of each contract can be seen in the next section.
+
+{| class="wikitable" style="text-align:center;"
+! '''Tier'''
+! 1
+! 2
+! 3
+! 4
+! 5
+! Totals
+|-
+! Easy
+| class="table-bg-green" | 11
+| class="table-bg-green" | 12
+| class="table-bg-green" | 8
+| {{NA}}
+| {{NA}}
+| 31
+|-
+! Medium
+| {{NA}}
+| class="table-bg-green" | 4
+| class="table-bg-green" | 10
+| class="table-bg-green" | 8
+| {{NA}}
+| 22
+|-
+! Hard
+| {{NA}}
+| {{NA}}
+| class="table-bg-green" | 3
+| class="table-bg-green" | 8
+| class="table-bg-green" | 7
+| 18
+|-
+! Totals
+| 11
+| 16
+| 21
+| 16
+| 7
+| 71
+|}
+
+===By contract tasks===
+These tables show the tier of seed packs awarded for completion of each type of contract. For the possible contents of the seed packs and the estimated reward values, see the [[Seed pack]]s page.
+
+====Easy contract tasks (45 Farming)====
+{| class="wikitable sortable" style="text-align:center"
+! rowspan="2" | Task Unlock Level
+! rowspan="2" | Seed
+! rowspan="2" | Protection
+! rowspan="2" | Growth time<ref name="growth" group="n">''N×X mins'' means the crop will grow a little for each X minutes. This happens N times until it is fully grown.</ref>
+! rowspan="2" | Patch Type
+! rowspan="2" | Tier
+|-
+
+|-
+| 45
+| {{plinkp|Potato seed}}<br/>[[Potato seed|Potatoes]]
+| {{plink|Marigolds}}<br/>{{plink|White lily}}<br/>{{plink|Compost}} x2
+| data-sort-value="40" | 40 mins (4×10 mins)
+| Allotment
+| 1
+|-
+| 45
+| {{plinkp|Marigold seed}}<br/>[[Marigold seed|Marigold]]
+| {{NA}}
+| data-sort-value="20" | 20 mins (4×5 mins)
+| Flower
+| 1
+|-
+| 45
+| {{plinkp|Onion seed}}<br/>[[Onion seed|Onions]]
+| {{plink|Marigolds}}<br/>{{plink|White lily}}<br/>{{plink|Potatoes|txt=Potatoes(10)}} ×1
+| data-sort-value="40" | 40 mins (4×10 mins)
+| Allotment
+| 1
+|-
+| 45
+| {{plinkp|Cabbage seed}}<br/>[[Cabbage seed|Cabbages]]
+| {{Plink|Rosemary}}<br/>{{plink|White lily}}<br/>{{plink|Onions|txt=Onions(10)}} ×1
+| data-sort-value="40" | 40 mins (4×10 mins)
+| Allotment
+| 1
+|-
+| 45
+| {{plinkp|Redberry seed}}<br/>[[Redberry seed|Redberries]]
+| {{plink|Cabbages|txt=Cabbages(10)}} ×4
+| data-sort-value="100" | 1 hr 40 mins (5×20 mins)
+| Bush
+| 2
+|-
+| 45
+| {{plinkp|Rosemary seed}}<br/>[[Rosemary seed|Rosemary]]
+| {{NA}}
+| data-sort-value="20" | 20 mins (4×5 mins)
+| Flower
+| 1
+|-
+| 45
+| {{plinkp|Tomato seed}}<br/>[[Tomato seed|Tomatoes]]
+| {{plink|Marigolds}}<br/>{{plink|White lily}}<br/> {{plink|Cabbages|txt=Cabbages(10)}} ×2
+| data-sort-value="40" | 40 mins (4×10 mins)
+| Allotment
+| 1
+|-
+| 45
+| {{plinkp|Sweetcorn seed}}<br/>[[Sweetcorn seed|Sweetcorn]]
+| {{plink|Scarecrow}}<br/>{{plink|White lily}}<br/>{{plink|Jute fibre}} x10
+| data-sort-value="60" | 60 mins (6×10 mins)
+| Allotment
+| 1
+|-
+| 45
+| {{plinkp|Cadavaberry seed}}<br/>[[Cadavaberry seed|Cadavaberries]]
+| {{plink|Tomatoes|txt=Tomatoes(5)}} x3
+| data-sort-value="120" | 2 hrs (6×20 mins)
+| Bush
+| 2
+|-
+| 45
+| {{plinkp|Nasturtium seed}}<br/>[[Nasturtium seed|Nasturtium]]
+| {{NA}}
+| data-sort-value="20" | 20 mins (4×5 mins)
+| Flower
+| 1
+|-
+| 45
+| {{plinkp|Woad seed}}<br/>[[Woad seed|Woad]]
+| {{NA}}
+| data-sort-value="20" | 20 mins (4×5 mins)
+| Flower
+| 1
+|-
+| 45
+| {{plinkp|Limpwurt seed}}<br/>[[Limpwurt seed|Limpwurt]]
+| {{NA}}
+| data-sort-value="20" | 20 mins (4×5 mins)
+| Flower
+| 1
+|-
+| 45
+| {{plinkp|Strawberry seed}}<br/>[[Strawberry seed|Strawberries]]
+| {{plink|White lily}}<br/>{{plink|Apples|txt=Apples(5)}} x1
+| data-sort-value="60" | 60 mins (6×10 mins)
+| Allotment
+| 1
+|-
+| 45
+| {{plinkp|Dwellberry seed}}<br/>[[Dwellberry seed|Dwellberries]]
+| {{plink|Strawberries|txt=Strawberries(5)}} x3
+| data-sort-value="140" | 2 hrs 20 mins (7×20 mins)
+| Bush
+| 2
+|-
+| 48
+| {{plinkp|Jangerberry seed}}<br/>[[Jangerberry seed|Jangerberries]]
+| {{plink|Watermelon}} x6
+| data-sort-value="160" | 2 hrs 40 mins (8×20 mins)
+| Bush
+| 2
+|-
+| 55
+| {{plinkp|Cactus seed}}<br/>[[Cactus seed|Cactus]]
+| {{plink|Cadava berries}} ×6
+| data-sort-value="560" | 9 hrs 20 mins (7×80 mins)
+| Cactus
+| 3
+|-
+| 65
+| {{plinkp|Guam seed}}<br/>[[Guam seed|Guam]]
+| {{NA}}
+| data-sort-value="80" | 1 hr 20 mins (4×20 mins)
+| Herb
+| 2
+|-
+| 65
+| {{plinkp|Marrentill seed}}<br/>[[Marrentill seed|Marrentill]]
+| {{NA}}
+| data-sort-value="80" | 1 hr 20 mins (4×20 mins)
+| Herb
+| 2
+|-
+| 65
+| {{plinkp|Acorn}}<br/>[[Acorn|Oak tree]]
+| {{plink|Tomatoes|txt=Tomatoes(5)}} x1
+| data-sort-value="200" | 3 hrs 20 mins (5×40 mins)
+| Tree
+| 3
+|-
+| 65
+| {{plinkp|Tarromin seed}}<br/>[[Tarromin seed|Tarromin]]
+| {{NA}}
+| data-sort-value="80" | 1 hr 20 mins (4×20 mins)
+| Herb
+| 2
+|-
+| 65
+| {{plinkp|Harralander seed}}<br/>[[Harralander seed|Harralander]]
+| {{NA}}
+| data-sort-value="80" | 1 hr 20 mins (4×20 mins)
+| Herb
+| 2
+|-
+| 65
+| {{plinkp|Willow seed}}<br/>[[Willow seed|Willow tree]]
+| {{plink|Apples|txt=Apples(5)}} x1
+| data-sort-value="280" | 4 hrs 40 mins (7×40 mins)
+| Tree
+| 3
+|-
+| 65
+| {{plinkp|Ranarr seed}}<br/>[[Ranarr seed|Ranarr]]
+| {{NA}}
+| data-sort-value="80" | 1 hr 20 mins (4×20 mins)
+| Herb
+| 2
+|-
+| 65
+| {{plinkp|Toadflax seed}}<br/>[[Toadflax seed|Toadflax]]
+| {{NA}}
+| data-sort-value="80" | 1 hr 20 mins (4×20 mins)
+| Herb
+| 2
+|-
+| 65
+| {{plinkp|Irit seed}}<br/>[[Irit seed|Irit]]
+| {{NA}}
+| data-sort-value="80" | 1 hr 20 mins (4×20 mins)
+| Herb
+| 2
+|-
+| 65
+| {{plinkp|Maple seed}}<br/>[[Maple seed|Maple tree]]
+| {{plink|Oranges|txt=Oranges(5)}} x1
+| data-sort-value="320" | 5 hrs 20 mins (8×40 mins)
+| Tree
+| 3
+|-
+| 65
+| {{plinkp|Avantoe seed}}<br/>[[Avantoe seed|Avantoe]]
+| {{NA}}
+| data-sort-value="80" | 1 hr 20 mins (4×20 mins)
+| Herb
+| 2
+|-
+| 85
+| {{plinkp|Apple tree seed}}<br/>[[Apple tree seed|Apple tree]]
+| {{plink|Sweetcorn}} ×9
+| data-sort-value="960" | 16 hrs (6×160 mins)
+| Fruit Tree
+| 3
+|-
+| 85
+| {{plinkp|Banana tree seed}}<br/>[[Banana tree seed|Banana tree]]
+| {{plink|Apples|txt=Apples(5)}} x4
+| data-sort-value="960" | 16 hrs (6×160 mins)
+| Fruit Tree
+| 3
+|-
+| 85
+| {{plinkp|Orange tree seed}}<br/>[[Orange tree seed|Orange tree]]
+| {{plink|Strawberries|txt=Strawberries(5)}} x3
+| data-sort-value="960" | 16 hrs (6×160 mins)
+| Fruit Tree
+| 3
+|-
+| 85
+| {{plinkp|Curry tree seed}}<br/>[[Curry tree seed|Curry tree]]
+| {{plink|Bananas|txt=Bananas(5)}} x5
+| data-sort-value="960" | 16 hrs (6×160 mins)
+| Fruit Tree
+| 3
+|}
+<references group="n" />
+
+====Medium contract tasks (65 Farming)====
+{| class="wikitable sortable" style="text-align:center"
+! rowspan="2" | Task Unlock Level
+! rowspan="2" | Seed
+! rowspan="2" | Protection
+! rowspan="2" | Growth time<ref name="growth" group="n">''N×X mins'' means the crop will grow a little for each X minutes. This happens N times until it is fully grown.</ref>
+! rowspan="2" | Patch Type
+! rowspan="2" | Tier
+|-
+
+|-
+| 65
+| {{plinkp|Strawberry seed}}<br/>[[Strawberry seed|Strawberries]]
+| {{plink|White lily}}<br/>{{plink|Apples|txt=Apples(5)}}
+| data-sort-value="60" | 60 mins (6×10 mins)
+| Allotment
+| 2
+|-
+| 65
+| {{plinkp|Irit seed}}<br/>[[Irit seed|Irit]]
+| {{NA}}
+| data-sort-value="80" | 1 hr 20 mins (4×20 mins)
+| Herb
+| 3
+|-
+| 65
+| {{plinkp|Maple seed}}<br/>[[Maple seed|Maple tree]]
+| {{plink|Oranges|txt=Oranges(5)}}
+| data-sort-value="320" | 5 hrs 20 mins (8×40 mins)
+| Tree
+| 4
+|-
+| 65
+| {{plinkp|Watermelon seed}}<br/>[[Watermelon seed|Watermelons]]
+| {{plink|Curry leaf}} ×10<br/>{{plink|Nasturtiums}}<br/>{{plink|White lily}}
+| data-sort-value="80" | 1 hr 20 mins (8×10 mins)
+| Allotment
+| 3
+|-
+| 65
+| {{plinkp|Jangerberry seed}}<br/>[[Jangerberry seed|Jangerberries]]
+| {{plink|Watermelon}} ×6
+| data-sort-value="160" | 2 hrs 40 mins (8×20 mins)
+| Bush
+| 3
+|-
+| 65
+| {{plinkp|Avantoe seed}}<br/>[[Avantoe seed|Avantoe]]
+| {{NA}}
+| data-sort-value="80" | 1 hr 20 mins (4×20 mins)
+| Herb
+| 3
+|-
+| 65
+| {{plinkp|Cactus seed}}<br/>[[Cactus seed|Cactus]]
+| {{plink|Cadava berries}} ×6
+| data-sort-value="560" | 9 hrs 20 mins (7×80 mins)
+| Cactus
+| 4
+|-
+| 65
+| {{plinkp|Kwuarm seed}}<br/>[[Kwuarm seed|Kwuarm]]
+| {{NA}}
+| data-sort-value="80" | 1 hr 20 mins (4×20 mins)
+| Herb
+| 3
+|-
+| 65
+| {{plinkp|White lily seed}}<br/>[[White lily seed|White lily]]
+| {{NA}}
+| data-sort-value="20" | 20 mins (4×5 mins)
+| Flower
+| 2
+|-
+| 65
+| {{plinkp|Whiteberry seed}}<br/>[[Whiteberry seed|Whiteberries]]
+| {{plink|Mushroom}} ×8
+| data-sort-value="160" | 2 hrs 40 mins (8×20 mins)
+| Bush
+| 3
+|-
+| 65
+| {{plinkp|Yew seed}}<br/>[[Yew seed|Yew tree]]
+| {{plink|Cactus spine}} ×10
+| data-sort-value="400" | 6 hrs 40 mins (10×40 mins)
+| Tree
+| 4
+|-
+| 65
+| {{plinkp|Snape grass seed}}<br/>[[Snape grass seed|Snape grass]]
+| {{plink|Jangerberries}} ×5<br/>{{plink|White lily}}
+| data-sort-value="70" | 1 hr 10 mins (7×10 mins)
+| Allotment
+| 2
+|-
+| 65
+| {{plinkp|Snapdragon seed}}<br/>[[Snapdragon seed|Snapdragon]]
+| {{NA}}
+| data-sort-value="80" | 1 hr 20 mins (4×20 mins)
+| Herb
+| 3
+|-
+| 65
+| {{plinkp|Potato cactus seed}}<br/>[[Potato cactus seed|Potato cactus]]
+| {{plink|Snape grass}} ×8
+| data-sort-value="70" | 1 hr 10 mins (7×10 mins)
+| Cactus
+| 2
+|-
+| 67
+| {{plinkp|Cadantine seed}}<br/>[[Cadantine seed|Cadantine]]
+| {{NA}}
+| data-sort-value="80" | 1 hr 20 mins (4×20 mins)
+| Herb
+| 3
+|-
+| 70
+| {{plinkp|Poison ivy seed}}<br/>[[Poison ivy seed|Poison ivy]]
+| {{NA|Immune to disease}}
+| data-sort-value="160" | 2 hrs 40 mins (8×20 mins)
+| Bush
+| 3
+|-
+| 73
+| {{plinkp|Lantadyme seed}}<br/>[[Lantadyme seed|Lantadyme]]
+| {{NA}}
+| data-sort-value="80" | 1 hr 20 mins (4×20 mins)
+| Herb
+| 3
+|-
+| 75
+| {{plinkp|Magic seed}}<br/>[[Magic seed|Magic tree]]
+| {{plink|Coconut}} ×25
+| data-sort-value="480" | 8 hrs (12×40 mins)
+| Tree
+| 4
+|-
+| 85
+| {{plinkp|Curry tree seed}}<br/>[[Curry tree seed|Curry tree]]
+| {{plink|Bananas|txt=Bananas(5)}} x5
+| data-sort-value="960" | 16 hrs (6×160 mins)
+| Fruit Tree
+| 4
+|-
+| 85
+| {{plinkp|Pineapple seed}}<br/>[[Pineapple seed|Pineapple plant]]
+| {{plink|Watermelon}} ×10
+| data-sort-value="960" | 16 hrs (6×160 mins)
+| Fruit Tree
+| 4
+|-
+| 85
+| {{plinkp|Papaya tree seed}}<br/>[[Papaya tree seed|Papaya tree]]
+| {{plink|Pineapple}} x10
+| data-sort-value="960" | 16 hrs (6×160 mins)
+| Fruit Tree
+| 4
+|-
+| 85
+| {{plinkp|Palm tree seed}}<br/>[[Palm tree seed|Palm tree]]
+| {{plink|Papaya fruit}} ×15
+| data-sort-value="960" | 16 hrs (6×160 mins)
+| Fruit Tree
+| 4
+|}
+<references group="n" />
+
+====Hard contract tasks (85 Farming)====
+{| class="wikitable sortable" style="text-align:center"
+! rowspan="2" | Task Unlock Level
+! rowspan="2" | Seed
+! rowspan="2" | Protection
+! rowspan="2" | Growth time<ref name="growth" group="n">''N×X mins'' means the crop will grow a little for each X minutes. This happens N times until it is fully grown.</ref>
+! rowspan="2" | Patch Type
+! rowspan="2" | Tier
+|-
+
+|-
+| 85
+| {{plinkp|Maple seed}}<br/>[[Maple seed|Maple tree]]
+| {{plink|Oranges|txt=Oranges(5)}}
+| data-sort-value="320" | 5 hrs 20 mins (8×40 mins)
+| Tree
+| 5
+|-
+| 85
+| {{plinkp|Watermelon seed}}<br/>[[Watermelon seed|Watermelons]]
+| {{plink|Curry leaf}} ×10<br/>{{plink|Nasturtiums}}<br/>{{plink|White lily}}
+| data-sort-value="80" | 1 hr 20 mins (8×10 mins)
+| Allotment
+| 4
+|-
+| 85
+| {{plinkp|White lily seed}}<br/>[[White lily seed|White lily]]
+| {{NA}}
+| data-sort-value="20" | 20 mins (4×5 mins)
+| Flower
+| 3
+|-
+| 85
+| {{plinkp|Whiteberry seed}}<br/>[[Whiteberry seed|Whiteberries]]
+| {{plink|Mushroom}} ×8
+| data-sort-value="160" | 2 hrs 40 mins (8×20 mins)
+| Bush
+| 4
+|-
+| 85
+| {{plinkp|Yew seed}}<br/>[[Yew seed|Yew tree]]
+| {{plink|Cactus spine}} ×10
+| data-sort-value="400" | 6 hrs 40 mins (10×40 mins)
+| Tree
+| 5
+|-
+| 85
+| {{plinkp|Snape grass seed}}<br/>[[Snape grass seed|Snape grass]]
+| {{plink|Jangerberries}} x5<br/>{{plink|White lily}}
+| data-sort-value="70" | 1 hr 10 mins (7×10 mins)
+| Allotment
+| 3
+|-
+| 85
+| {{plinkp|Snapdragon seed}}<br/>[[Snapdragon seed|Snapdragon]]
+| {{NA}}
+| data-sort-value="80" | 1 hr 20 mins (4×20 mins)
+| Herb
+| 4
+|-
+| 85
+| {{plinkp|Potato cactus seed}}<br/>[[Potato cactus seed|Potato cactus]]
+| {{plink|Snape grass}} x8
+| data-sort-value="70" | 1 hr 10 mins (7×10 mins)
+| Cactus
+| 3
+|-
+| 85
+| {{plinkp|Cadantine seed}}<br/>[[Cadantine seed|Cadantine]]
+| {{NA}}
+| data-sort-value="80" | 1 hr 20 mins (4×20 mins)
+| Herb
+| 4
+|-
+| 85
+| {{plinkp|Palm tree seed}}<br/>[[Palm tree seed|Palm tree]]
+| {{plink|Papaya fruit}} ×15
+| data-sort-value="960" | 16 hrs (6×160 mins)
+| Fruit Tree
+| 5
+|-
+| 85
+| {{plinkp|Poison ivy seed}}<br/>[[Poison ivy seed|Poison ivy]]
+| {{NA|Immune to disease}}
+| data-sort-value="160" | 2 hrs 40 mins (8×20 mins)
+| Bush
+| 4
+|-
+| 85
+| {{plinkp|Lantadyme seed}}<br/>[[Lantadyme seed|Lantadyme]]
+| {{NA}}
+| data-sort-value="80" | 1 hr 20 mins (4×20 mins)
+| Herb
+| 4
+|-
+| 85
+| {{plinkp|Magic seed}}<br/>[[Magic seed|Magic tree]]
+| {{plink|Coconut}} ×25
+| data-sort-value="480" | 8 hrs (12×40 mins)
+| Tree
+| 5
+|-
+| 85
+| {{plinkp|Dwarf weed seed}}<br/>[[Dwarf weed seed|Dwarf weed]]
+| {{NA}}
+| data-sort-value="80" | 1 hr 20 mins (4×20 mins)
+| Herb
+| 4
+|-
+| 85
+| {{plinkp|Dragonfruit tree seed}}<br/>[[Dragonfruit tree seed|Dragonfruit tree]]
+| {{plink|Coconut}} ×15
+| data-sort-value="960" | 16 hrs (6×160 mins)
+| Fruit Tree
+| 5
+|-
+| 85
+| {{plinkp|Celastrus seed}}<br/>[[Celastrus seed|Celastrus tree]]
+| {{plink|Potato cactus}} ×8
+| data-sort-value="800" | 13 hrs 20 mins (5×160 mins)
+| Special
+| 5
+|-
+| 85
+| {{plinkp|Torstol seed}}<br/>[[Torstol seed|Torstol]]
+| {{NA}}
+| data-sort-value="80" | 1 hr 20 mins (4×20 mins)
+| Herb
+| 4
+|-
+| 90
+| {{plinkp|Redwood tree seed}}<br/>[[Redwood tree seed|Redwood tree]]
+| {{plink|Dragonfruit}} ×6
+| data-sort-value="6400" | 4 days 10 hrs 40 mins (10×640 mins)
+| Redwood
+| 5
+|}
+<references group="n" />
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 16 April 2025
+|update = Easter Event
+|change = Players can no longer receive a farming contract through the "take another contract" option if they do not meet the level requirement for the tier of contract.
+}}
+{{Subject changes
+|date = 26 March 2025
+|update = Poll 83 QoL Changes
+|poll = Poll 83 - Castle Wars, New Player Changes & More
+|change = Guildmaster Jane now provides a dialogue option to select the same tier of farming contract after completing the previous contract.
+}}
+{{Subject changes
+|date = 22 January 2025
+|update = Bank QoL & Mini Menu Improvements
+|change = Guildmaster Jane now speaks fewer lines of dialogue when she rewards the player for completing a contract and offers them another one.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Farming Guild}}

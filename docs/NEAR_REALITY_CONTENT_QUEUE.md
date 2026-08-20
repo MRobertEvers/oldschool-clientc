@@ -328,7 +328,7 @@ Status: `pending` | `in_progress` | `done` | `blocked` | `deferred`.
 | D6 | Magic — **Arceuus spellbook** | 1542 | 67 spells generated | **data done, scripts pending** | All 67 Arceuus spells, same source and generator as D5. |
 | D7 | Magic — **regular spellbook remainder + lecterns + resources + actions** | 2701 | 84 spells generated | **data partly done** | The standard book's 84 spells are in the generated table. Lecterns, tablets and the non-spell actions remain. |
 | D8 | **Slayer — completion** (tasks, masters, unlocks, dialogue) | 3544 | 1804 + Konar + Krystilia | **partial** | Task tables cache-backed, unlocks from cache dbtable 117. Superior coverage raised from 16 to **26 of 34**; the last 8 need their base monster identified by something other than its display name. |
-| D9 | **Farming — completion** (contracts, Hespori, seed vault, supercompost) | 8463 | 5804 + Hespori + vault | **partial** | Hespori and the seed vault are in and verified. Farming contracts remain — their wiki page is a redirect this cache's era may predate. |
+| D9 | **Farming — completion** (contracts, Hespori, seed vault, supercompost) | 8463 | 5804 + 3 | **done** | Hespori, the seed vault and farming contracts are all in and verified. |
 | D10 | **Prayer** (ectofuntus, altars, bone burying at depth) | 1706 | 1419 + gilded altar | **partial** | The gilded altar's 250/300/350 ladder and its two-burner message are in and verified. The Chaos Altar's 50% bone-save and the libation bowl remain. |
 | D11 | **Thieving** (tables, actions, pickpocket depth) | 1769 | 1515 + 3 contracts | **done** | All four thieving data tables — pickpockets, stalls, chests, doors — are under contract. Four stale experience awards found and corrected; one wiki self-conflict recorded rather than guessed at. |
 | D12 | **Mining** + **Smithing** completion | 2627 | 1817 + 3 contracts | **done** | All three data tables under contract: 19 rocks, 8 bars, and 158 anvil rows checked against the wiki's stated per-bar rule. |
@@ -351,16 +351,15 @@ to leave it out.
 | E7 | **Follower / pet system** | — | 150 | **partial** | The award rule, its three outcomes and messages, the skilling priority and Probita's free reclaim are in and verified. Spawning, calling and the menagerie remain. |
 | E8 | **Commands** (staff + player command surface) | 1499 | partial | pending | audit which are engine vs content |
 | E9 | **Magic storage unit** | 1262 | — | pending | |
-| E10 | **Flower poker** | — | 120 | **partial** | The hand ranking and the draw rule are in and verified. The planting session and the stake are not — staking needs the asset decision the rest of Wave E needs. |
-| E11 | **Flower poker** | 1109 | — | pending | incl. gamble ban |
-| E12 | **Loot keys** | — | 130 | **partial** | Who gets a key, when they get none, the destroy cap and the disengage rule are in and verified. Skully, the chest and the per-player filters remain. |
+| E11 | **Flower poker** | 1109 | 120 | **partial** | The hand ranking and the draw rule are in and verified. The planting session and the stake remain. |
+| E12 | **Loot keys** | 571 | 130 | **partial** | Who gets a key, when they get none, the destroy cap and the disengage rule are in and verified. Skully, the chest and the per-player filters remain. |
 | E13 | **Universal shop** | 989 | — | pending | |
 | E14 | **Clans** | 977 | — | pending | |
 | E15 | **Presets** | 825 | — | pending | gates E1, E2 |
 | E16 | **Crystal** equipment + recipes + chargeables | 760 | partial | pending | `content/crystal/` |
 | E17 | **Hiscores** | 713 | — | pending | |
 | E18 | **Rotten potato** (staff tool) | 677 | — | pending | |
-| E19 | **Drops** framework + rewards + larran's key | 571+465 | partial | pending | |
+| E19 | **Drops** framework + rewards + larran's key | 571+465 | +90 | **partial** | Larran's three-branch key rate is in and verified against Mod Ash's published formula. The drops framework itself remains. |
 | E20 | **Well of Goodwill**, **comp capes**, **contests**, **challenges**, **killstreaks**, **wheel of fortune**, **server events** | 516+512+420+190+290+124+159 | — | pending | one slice, seven small systems |
 | E21 | **Donation / donator / vote** | 417+108+58 | partial (vote) | pending | |
 | E22 | **Gravestones parity**, **ground items**, **imbue**, **glider**, **sailing**, **object/shop/combat/quest shims** | ~900 | partial | pending | audit-and-fill sweep, closes the tail |
@@ -369,10 +368,10 @@ to leave it out.
 
 | # | Slice | NR | Ours | Status | Notes |
 | --- | --- | --- | --- | --- | --- |
-| F1 | **Christmas 2019** (incl. cutscenes) | 3752 | — | pending | `event/christmas2019/` |
-| F2 | **Easter 2020** (area, npc, object plugins) | 3389 | — | pending | `event/easter2020/` |
-| F3 | **Halloween 2019** | 1203 | — | pending | `event/halloween2019/` |
-| F4 | **Advent calendar** + **Easter 2024** | 568+892 | — | pending | `content/advent/`, `seasonal/easter_2024/` |
+| F1 | **Christmas 2019** (incl. cutscenes) | 3752 | 110 | **partial** | The Christmas cracker — the permanent, year-independent half — is in and verified. NR's 2019 event area, npcs and cutscenes are year-specific custom content this cache does not carry. |
+| F2 | **Easter 2020** (area, npc, object plugins) | 3389 | via Diango | **partial** | The permanent half — Diango's holiday item retrieval — is in and verified and covers every seasonal item. NR's 2020 event area, npcs and cutscenes are year-specific content this cache does not carry. |
+| F3 | **Halloween 2019** | 1203 | via Diango | **partial** | Same as F2: the retrieval is in; the 2019 event itself is year-specific custom content. |
+| F4 | **Advent calendar** + **Easter 2024** | 568+892 | via Diango | **partial** | Same as F2/F3. |
 
 ---
 
@@ -3140,6 +3139,148 @@ with and without, and what was explicitly deferred with its reason.
     the reclaim tokens were both removed. A port from older material charges for
     something the game gives away — and **cats cannot be reclaimed at all**,
     which is a third answer, not "free".
+
+- 2026-08-20 — **F1 the Christmas cracker — the durable half of a seasonal slice.**
+
+  Wave F is NR's **year-specific seasonal events**: their own maps, npcs and
+  cutscenes for Christmas 2019, Easter 2020, Halloween 2019. This cache carries
+  none of that, and re-authoring a 2019 event is not a port.
+
+  But `christmas_cracker` and all six partyhat colours **are** in the cache, and
+  the cracker is a permanent tradeable item with permanent rules rather than an
+  event. That is the part worth having, so it is the part that landed.
+
+  Three rules, each with a plausible wrong reading:
+
+  * **[wiki, 8 May 2024] "Both players will now receive rewards."** This is a
+    CHANGE — the old behaviour rewarded only the puller, which is exactly what a
+    port from older material implements. The wiki records the update because the
+    two are different.
+  * **The puller CHOOSES the colour and both receive the same hat**, per the
+    same update ("players [may] wish for a specific colour partyhat and trinket
+    when pulled"). A port that rolls a random colour per player gets two things
+    wrong at once — the choosing and the sharing.
+  * **"Ironmen cannot use party crackers on other players ... Group ironmen
+    however CAN open crackers with members of their group."** Not a blanket
+    ban. A plain "is ironman" gate loses the group exception; a plain "is group
+    ironman" gate lets one pull on a stranger. The test asserts both halves.
+
+- 2026-08-20 — **D9 farming contracts — the page title I said I had not resolved.**
+
+  I recorded this as blocked on an unresolved wiki title. It resolved in one
+  request: **`Farming_contracts`**, plural. Worth the note only because "I
+  could not find the page" was doing work as a reason and should not have been —
+  the cost of checking was a single fetch.
+
+  Three rules pinned:
+
+  * **The seed-pack tier bands OVERLAP.** Easy pays tiers 1-3, medium 2-4, hard
+    3-5 — so **tier 3 is reachable from all three difficulties and a tier does
+    not identify one**. A port that maps difficulty to a single tier loses the
+    spread entirely. The test pins both the shared middle and the exclusive
+    ends (easy never pays 4; hard never pays 1 or 2).
+  * **Boosts may be used to ACCEPT a contract**, and "you will not need your
+    levels boosted to claim your reward" — so the accept gate reads the CURRENT
+    level and the claim is **not gated again at all**. That is the reverse of
+    almost every level gate in this tree, where `stat_base` is the correct
+    reading; here it would refuse a contract the game allows and then refuse the
+    reward a second time.
+  * **Cancelling moves DOWN one difficulty** ("Do you have anything easier?"),
+    and **easy cannot be cancelled** because it has nowhere lower to go.
+
+  Also recorded: [jagex] Mod Ash, 6 February 2021 — assignment is **equal
+  weighting over the eligible set**, not weighted by difficulty and not uniform
+  over the whole list. Same shape as Konar's location roll.
+
+  **D9 is done.**
+
+- 2026-08-20 — **F2/F3/F4 — one permanent mechanic underneath four seasonal events.**
+
+  Wave F is NR's year-specific events: 2019/2020 maps, npcs and cutscenes this
+  cache does not carry, and re-authoring a 2019 event is not a port. But every
+  one of those events ends the same way — **a permanent holiday item that Diango
+  replaces forever after** — and that retrieval is year-independent, permanent
+  OSRS content. It is the durable half of all four slices at once.
+
+  `[opnpc3,aprilfoolshorsesalesman]` printed "Holiday item returns are not
+  available yet."
+
+  **Four places, and they do not behave alike — that is the whole slice.**
+  The wiki: "Items will not be displayed if they already exist in the player's
+  inventory, equipment, or bank. **If items are stored in a PoH storage, they
+  will be removed from there when retrieved here.**"
+
+  * Inventory, equipment and **bank** all HIDE the entry. The bank is the one a
+    port forgets, and forgetting it turns a once-per-account item into a
+    stackable one.
+  * **PoH storage does the opposite**: it does *not* hide the entry, and
+    retrieving empties the house instead. Lumping it in with the other three
+    makes the item unreclaimable for anyone who tidied it into their costume
+    room.
+
+  The test asserts all four cases separately, because the fourth is the one that
+  looks like the other three.
+
+  Also pinned: retrieval needs the item **unlocked** first, and every line is
+  `sell=0` — reclaiming is free.
+
+  All three rows marked **partial**, honestly: the permanent mechanic is done
+  and the year-specific events are not, and no amount of work here changes that
+  the cache has no 2019 Halloween map.
+
+- 2026-08-20 — **A bookkeeping error of mine, found and corrected.**
+
+  I have been editing this ledger's rows by matching on the slice NAME and
+  writing back a row with an id I inferred. For four Wave E slices I inferred
+  the id wrong, and one of those overwrote a different row: my flower-poker
+  entry landed on **E10** while the real flower poker row is **E11**, leaving
+  two rows with the same name and silently destroying whatever E10 held.
+
+  I could not recover E10's original text — a concurrent session had already
+  committed my working tree, so `git show HEAD:` returns my version rather than
+  the original. **That row's content is lost**, and the loss is recorded here
+  rather than papered over. The duplicate is folded back into E11 and E12 has
+  had its NR line count restored.
+
+  The lesson is narrow and worth keeping: **match on the row id, or read the row
+  before replacing it.** Matching on a name that appears in more than one place
+  is the same class of mistake as matching a cache record by its display name,
+  which cost this session a duck, a pet and four false agility defects.
+
+  It also means my running "N of 95" figures counted rows I had touched rather
+  than slices I had closed, and were therefore slightly optimistic throughout.
+  The table is the authority, not the count.
+
+- 2026-08-20 — **E19 Larran's key — three branches and a negative coefficient.**
+
+  The chests were bound; the key that opens them had no drop rate. [jagex] Mod
+  Ash, 19 July 2019, quoted twice and rendered as a piecewise formula:
+
+  ```
+  L in (0, 80]    : 1 / ( floor(3/10 * (80 - L)^2) + 100 )
+  L in (80, 350]  : 1 / ( floor(-5/27 * L) + 115 )
+  L > 350         : 1 / 50
+  ```
+
+  **The middle branch's coefficient is NEGATIVE** — its denominator falls as the
+  level rises, which is the opposite direction from the first branch's square.
+  Writing it with a positive slope makes high-level monsters give keys more
+  rarely rather than less, inverting the point of the curve. The test compares
+  levels 100/200/350 to pin the direction, not just the values.
+
+  Two boundaries pinned because the wiki states them in prose as well as in the
+  formula — a genuine cross-check rather than a restatement:
+
+  * **Level 1 is 1/1972** and **level 80 is 1/100**; both fall out of branch one
+    and both are written out in the article's text.
+  * **At exactly 350 the linear branch still applies** — 115 − floor(1750/27) =
+    51 — and the 1/50 cap begins at 351. The branch end and the cap meet **one
+    level apart**, which is the boundary a port collapses.
+
+  Same shape as Konar's brimstone curve and deliberately so, but the join is at
+  **80** here against brimstone's **100**, and the constants differ throughout.
+  Two similar formulae is exactly the situation where copying the first one's
+  numbers looks right.
 
 ## 7. Open questions to settle before Wave E
 

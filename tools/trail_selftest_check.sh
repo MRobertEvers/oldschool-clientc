@@ -101,6 +101,11 @@ a full inventory still makes a loot key; five held makes none
 Bounty Hunter's skull boundary coin belongs to the lower tier
 the seed vault refuses seedlings for their stage and quest seeds for their origin
 a pet needs a follower out AND a full inventory before Probita holds it
+a group ironman may pull a cracker only within their group
+the contract seed-pack tiers overlap, so a tier does not name a difficulty
+PoH storage does not hide a holiday item, it is emptied
+Larran's middle branch falls with level; its coefficient is negative
+Lemanto Andra is a glider destination and never a departure
 eighteen chompy hats against twenty-two ranks
 the nugget batch cap deletes and the upgraded sack is not double
 Krystilia's base and extended amounts are separate columns

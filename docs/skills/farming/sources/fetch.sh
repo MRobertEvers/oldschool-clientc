@@ -12,3 +12,4 @@ fetch() {
 }
 fetch Hespori Hespori.wiki
 fetch Farming_contract Farming_contract.wiki
+fetch Farming_contracts Farming_contracts.wiki

@@ -41,6 +41,18 @@ enum Editor_Tool
 #define EDITOR_PALETTE_MAX 512
 #define EDITOR_PALETTE_LABEL_MAX 32
 
+/** What EDITOR_TOOL_SELECT is latched onto. Own concept from the loc editor's
+ *  locedit_* fields (src/app.c) -- that tool targets a loc to nudge/rotate;
+ *  this one targets a tile or loc the OTHER tools (height/underlay/overlay/
+ *  flags) act on, and the two panels can be open at once with different
+ *  subjects. */
+enum Editor_SelectionKind
+{
+    EDITOR_SELECTION_NONE = 0,
+    EDITOR_SELECTION_TERRAIN,
+    EDITOR_SELECTION_LOC
+};
+
 struct Editor_Panel
 {
     int panel;
@@ -88,6 +100,16 @@ struct Editor_Panel
     int shown_x;
     int shown_z;
     int shown_level;
+
+    /** EDITOR_TOOL_SELECT's latch: what the other tools' click/readout targets
+     *  when it is not just the live hover. sel_scene_x/z/level are valid for
+     *  both kinds; sel_element_id/sel_loc_id only for EDITOR_SELECTION_LOC. */
+    enum Editor_SelectionKind sel_kind;
+    int sel_scene_x;
+    int sel_scene_z;
+    int sel_level;
+    int sel_element_id;
+    int sel_loc_id;
 };
 
 /** Construct the rows. Call once, after the overlay exists. */
@@ -145,6 +167,33 @@ Editor_PanelApplyToolAt(
  * the square the loc sits in is not open in the document — a loc can be visible
  * in the scene while its square was never loaded for editing.
  */
+/** Latch the SELECT tool onto a ground tile -- either a plain click (the
+ *  hovered tile) or the "Select terrain" minimenu row (the exact tile the
+ *  row named). Clears any loc latch: one panel, one subject. */
+void
+Editor_PanelSelectTerrain(
+    struct Editor_Panel* panel,
+    int scene_x,
+    int scene_z,
+    int level);
+
+/** Latch the SELECT tool onto an exact loc, by scene element id -- the
+ *  "Select wall/object/decor" minimenu rows' handler. Comes from the same
+ *  pick/classify/dedup pipeline the minimenu itself uses, so it disambiguates
+ *  a tile carrying a wall AND a decor AND a ground loc exactly the way the
+ *  row that was clicked named it. No-op (selection unchanged) if the element
+ *  is not a live scenery element. */
+void
+Editor_PanelSelectLoc(
+    struct Editor_Panel* panel,
+    struct App* app,
+    int element_id);
+
+/** Clear the SELECT tool's latch without touching the world. */
+void
+Editor_PanelClearSelection(
+    struct Editor_Panel* panel);
+
 int
 Editor_PanelRecordLocEdit(
     struct Editor_Panel* panel,

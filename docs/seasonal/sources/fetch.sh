@@ -12,3 +12,4 @@ fetch() {
 }
 fetch Christmas_cracker Christmas_cracker.wiki
 fetch Party_hat Party_hat.wiki
+fetch Diango Diango.wiki

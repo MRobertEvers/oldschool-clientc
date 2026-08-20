@@ -51205,6 +51205,20 @@ mock230_world_selftest(void)
                   "double" },
                 { "[proc,selftest_chompy_hats]", 10,
                   "eighteen chompy hats against twenty-two ranks" },
+                { "[proc,selftest_glider]", 5,
+                  "Lemanto Andra is a glider destination and never a "
+                  "departure" },
+                { "[proc,selftest_larran_key]", 8,
+                  "Larran's middle branch falls with level; its coefficient "
+                  "is negative" },
+                { "[proc,selftest_holiday_items]", 6,
+                  "PoH storage does not hide a holiday item, it is emptied" },
+                { "[proc,selftest_farming_contracts]", 7,
+                  "the contract seed-pack tiers overlap, so a tier does not "
+                  "name a difficulty" },
+                { "[proc,selftest_cracker]", 7,
+                  "a group ironman may pull a cracker only within their "
+                  "group" },
                 { "[proc,selftest_pets]", 9,
                   "a pet needs a follower out AND a full inventory before "
                   "Probita holds it" },
@@ -52084,11 +52098,24 @@ mock230_world_selftest(void)
                  * Attack on most records) or finishing the `opnpc` eviction —
                  * which is the real close, and would delete the npc half of
                  * `k_engine_npc_verbs` with it.
+                 *
+                 * **Two since 2026-08-20.** `[opnpc5,chompybird]` (Big Chompy
+                 * Bird Hunting) is the cache's Attack op for that npc, and the
+                 * script does not decline it — `player_combat_chompybird`
+                 * calls `p_opnpc(5)` on both its re-delay branch and after
+                 * every shot, which is the real discharge. `script_calls` only
+                 * walks the bytecode of the trigger's own script, though, and
+                 * that call sits one `@label` jump away in
+                 * `[label,player_combat_chompybird]` — a different
+                 * `SSVM_Script` — so the static check cannot see it. Reviewed
+                 * by hand rather than taught to follow `@label` jumps: a
+                 * traversal change to a review-list detector is a bigger,
+                 * riskier edit than confirming one entry by reading it.
                  */
-                SELFTEST_CHECK(mock230_scripts_report_shadowed_ops(srv) == 1,
-                               "only [opnpc1,doti_backupactor] should shadow an engine verb "
-                               "— if this moved, read the new list and say why each entry "
-                               "is right");
+                SELFTEST_CHECK(mock230_scripts_report_shadowed_ops(srv) == 2,
+                               "only [opnpc1,doti_backupactor] and [opnpc5,chompybird] should "
+                               "shadow an engine verb — if this moved, read the new list and "
+                               "say why each entry is right");
             }
 
             SELFTEST_CHECK(sword > 0, "bronze_sword should be in obj.pack");
@@ -56435,6 +56462,132 @@ mock230_world_selftest(void)
                     SELFTEST_CHECK((player->varps[varp_traps] & (1 << 0)) != 0,
                                    "K/U/R/T should set the door-solved bit, got %d",
                                    player->varps[varp_traps]);
+                }
+            }
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::ikovrun\n");
+    {
+        /*
+         * Temple of Ikov (2026-08-20 audit). ~quest_complete_rewards was
+         * never called anywhere in this quest -- both completion paths
+         * (siding with Lucien or the Guardians of Armadyl) just set %ikov
+         * and printed a message, zero QP/XP payout. The dungeon mechanics
+         * were mostly missing too (ikov_luciendoor.rs2's own header said
+         * "Ice-arrow chest randomize / staff take / lucien_attack
+         * deferred"). Fixed all of it in
+         * quests/quest_ikov/scripts/ikov_dungeon.rs2 and ikov_lucien2.rs2.
+         * `[opnpc1,ikov_lucien1]`/winelda/guardian dialogue all blocks on
+         * ~p_choice*, so `ikovrun` mirrors those state transitions
+         * (established precedent), but calls the real
+         * `~ikov_search_chest` 200 times and both real
+         * `~quest_complete_rewards` calls. The genuinely novel, highest-
+         * risk fix -- ikov_lucien2 had ZERO combat stats anywhere (no
+         * npc/configs/combat_stats.generated.npc entry at all) and no
+         * death handler, so the entire Armadyl-path ending could never
+         * even be started -- is proven for real here, C-side: spawn it,
+         * read its def, then dispatch a real death via
+         * mock230_world_npc_died (the same production path a real combat
+         * kill takes) and confirm the quest actually completes.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture ikovrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &ikovrun_capture);
+            mock230_scripts_run_debugproc(srv, "ikovrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&ikovrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&ikovrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &ikovrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                fprintf(stderr, "  DBG %s\n", text);
+                if( strstr(text, "IKOVRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "IKOVRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::ikovrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::ikovrun should reach its OK line");
+
+            /* C-side: Lucien2's combat stats + the real Armadyl-path
+             * death dispatch. */
+            {
+                int npc_lucien2 = mock230_content_symbol(MOCK230_PACK_NPC, "ikov_lucien2");
+                int varp_ikov = mock230_content_symbol(MOCK230_PACK_VARP, "ikov");
+                int obj_pendant = mock230_content_symbol(MOCK230_PACK_OBJ, "ikov_pendantofarmardyl");
+
+                SELFTEST_CHECK(npc_lucien2 >= 0 && varp_ikov >= 0 && obj_pendant >= 0,
+                               "the ::ikovrun C-side names should all resolve: lucien2=%d "
+                               "varp_ikov=%d pendant=%d",
+                               npc_lucien2, varp_ikov, obj_pendant);
+                if( npc_lucien2 >= 0 && varp_ikov >= 0 && obj_pendant >= 0 )
+                {
+                    int slot = npc_spawn(srv, npc_lucien2, player->x + 2, player->z, player->level);
+
+                    SELFTEST_CHECK(slot >= 0, "ikov_lucien2 should spawn for the C-side check");
+                    if( slot >= 0 )
+                    {
+                        struct Mock230Npc* npc = &srv->npcs[slot];
+                        int qp_before;
+
+                        SELFTEST_CHECK(npc->max_hitpoints == 17 && npc->def->attack == 12 &&
+                                       npc->def->strength == 10 && npc->def->defence == 11,
+                                       "ikov_lucien2 hp=%d atk=%d str=%d def=%d, want hp=17 "
+                                       "atk=12 str=10 def=11",
+                                       npc->max_hitpoints, npc->def->attack, npc->def->strength,
+                                       npc->def->defence);
+
+                        player->varps[varp_ikov] = 70; /* ikov_helping_armadyl */
+                        player->worn[2].obj_id = obj_pendant; /* wearpos=2, cache-confirmed */
+                        player->worn[2].count = 1;
+                        qp_before = player->varps[mock230_content_symbol(MOCK230_PACK_VARP, "qp")];
+
+                        mock230_world_npc_died(srv, slot);
+                        /*
+                         * `mock230_world_npc_died` only dispatches
+                         * [ai_queue3] synchronously; the handler's own
+                         * `queue(queue_defeat_lucien2, 0, 0)` schedules a
+                         * queue entry that needs an actual drain to fire --
+                         * confirmed by the first attempt at this stanza
+                         * failing with %ikov still at helping_armadyl.
+                         */
+                        mock230_scripts_process_queues(srv);
+
+                        SELFTEST_CHECK(player->varps[varp_ikov] == 80 /* ikov_completed_armadyl */,
+                                       "ikov_lucien2's death should complete the Armadyl path, "
+                                       "got ikov=%d",
+                                       player->varps[varp_ikov]);
+                        SELFTEST_CHECK(player->varps[mock230_content_symbol(MOCK230_PACK_VARP, "qp")] ==
+                                       qp_before + 1,
+                                       "ikov_lucien2's death should award +1 QP, went %d -> %d",
+                                       qp_before,
+                                       player->varps[mock230_content_symbol(MOCK230_PACK_VARP, "qp")]);
+                    }
                 }
             }
             mock230_scripts_free(srv);
