@@ -1,0 +1,70 @@
+{{External|rs|rsc=Earth strike}}
+{{Infobox Spell
+|name = Earth Strike
+|image = [[File:Earth Strike.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 9
+|spellbook = Normal
+|type = Combat
+|exp = 9.5
+|element = Earth
+|damage = 6 or 8
+|cost = {{RuneReq|Earth=2|Air=1|Mind=1}}
+|speed = 5 ticks
+|description = A basic Earth missile
+|anim = [[File:Earth Strike.gif|300px]]
+|sound = [[File:Earth Strike.ogg]]
+}}
+[[File:Earth Strike icon (mobile).png|left]]
+'''Earth Strike''' is an [[Earth spells|earth]]-based [[Strike spells|strike spell]] in the [[standard spellbook]], requiring level 9 [[Magic]] to cast. As an [[Combat spells#Offensive spells|offensive combat spell]] it can only be cast on [[Monster|attackable NPCs]], or other players in a [[Player killing|PvP situation]].
+
+==Damage==
+Earth Strike starts out with a base maximum hit of 6. Once the player has the Magic level required to cast [[Fire Strike]], Earth Strike's base maximum hit is increased to match.
+{| class="wikitable"
+!{{SCP|Magic|link=yes}} level
+!Highest-level [[Strike spells|strike spell]] available
+!{{Plink|Earth Strike}} base maximum hit
+|-
+|{{SCP|Magic|9}}- 12
+|{{Plink|Earth Strike}}
+|6
+|-
+|{{SCP|Magic|13}}+
+|{{Plink|Fire Strike}}
+|8
+|}
+As with all combat spells, Earth Strike's maximum hit is also increased based on the player's [[Magic damage|magic damage bonus]].
+
+As an earth-based spell, Earth Strike's maximum hit is also increased against targets that are [[Elemental weakness|weak to earth]].
+
+===Calculator===
+{{Magic damage calculator|Earth Strike|weapons=Smoke battlestaff,Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand, Twinflame staff|elementalweakness=y|tome=earth}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = earth
+|Rune1num = 2
+|Rune2 = air
+|Rune2num = 1
+|Rune3 = mind
+|Rune3num = 1
+|is_offensive = y
+|uses_pages = y
+}}
+
+== Notable uses ==
+
+* As a strike spell, Earth Strike is one of the only spells that can be used to damage [[Salarin the twisted]]. When used this way, its damage is scaled up to match that of [[Earth Bolt]].
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change =  The maximum hit of the spell now depends on how many [[strike spell]]s the player has unlocked, based on their [[Magic]] level.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}

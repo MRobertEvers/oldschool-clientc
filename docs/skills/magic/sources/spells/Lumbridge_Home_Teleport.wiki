@@ -1,0 +1,50 @@
+{{External|rs=Lumbridge Home Teleport}}
+{{Infobox Spell
+|name = Lumbridge Home Teleport
+|image = [[File:Lumbridge Home Teleport.png]]
+|release = [[27 September]] [[2006]]
+|update = Skill Tutors
+|members = No
+|level = 0
+|spellbook = Normal
+|type = Teleport
+|exp = 0
+|cost = None (see article)
+|speed = 24 ticks (default)<br/>Variable ([[Animation overrides#Home Teleport|animation]])
+|cooldown = 3,000 ticks
+|description = Requires no runes - recharge time 30 mins. Warning: This spell takes a long time to cast and will be interrupted by combat.
+|anim = [[File:Home Teleport.gif]]
+|sound = [[File:Home Teleport.ogg]]
+}}
+[[File:Lumbridge Home Teleport icon (mobile).png|left|class=pageimage]]
+'''Lumbridge Home Teleport''' is the [[home teleport]] on the [[standard spellbook]]. It provides players with a free transport every half an hour to [[Lumbridge]], it is similar in most respects to [[Lumbridge Teleport]]. Home teleport has no level requirements in order to be used, allowing players who are low levelled or have had their stats drained access to it.
+
+Casting the spell takes around fourteen seconds, and can be interrupted by [[combat]]. It also cannot be used while in combat. Like most [[teleport spells]], the spell cannot be cast beyond level 20 [[Wilderness]]. Unlike other teleport spells, it cannot be cast in the cell in the [[H.A.M. Hideout]]. Additionally, it cannot be cast within certain areas of the grounds of [[Draynor Manor]]. The spell may only be used every 30 minutes: if a player tries to cast it before 30 minutes have elapsed, they are notified with the remaining time in minutes.
+
+This cooldown is shared with that of other home teleports. Switching spell book will not allow you to use a different home teleport spell until 30 minutes has elapsed.
+
+As with all home teleports, the Lumbridge Home Teleport default animation can be overridden with an alternative [[Animation overrides#Home Teleport|animation]], if unlocked.
+
+==Destination==
+{{Map|3221,3218|mtype=square|r=2|align=left}}{{clear|left}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 17 December 2025
+|update = More Sailing and Interface Changes
+|change = The spell's icon will now appear grey if it is on cooldown.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* This spell was originally added to the [[spellbook]] during the early days of [[RuneScape 2]] as a way for players to teleport out in case the new 3D environments made their characters get stuck and unable to move. Prior to this addition, the player would have had to contact a [[Jagex Moderator]] to teleport them out. The spell was left in the game due to how much the players liked it.
+* During the RuneScape 2 beta, the [[Lumbridge Teleport]] spell required no runes to cast, making it function similarly to the present day Lumbridge Home Teleport.
+* [[Wizard Persten]] claims to have created this spell.{{CiteNPC|npc=Wizard Persten|loc=Temple of the Eye|quote=What? You haven't heard of me? The great Mia Persten of the Order of Wizards? The leading researcher in teleportation magic? The creator of the Home Teleport spell?|name="n"}}
+* During the [[March 2025 Sailing Alpha]], the Lumbridge Home Teleport took the players to [[Port Sarim]] instead. The teleport also had the 30-minute cooldown removed.
+
+==References==
+{{reflist}}
+
+{{Standard spellbook}}
+{{Teleport spells}}

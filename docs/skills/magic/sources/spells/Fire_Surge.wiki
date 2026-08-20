@@ -1,0 +1,51 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Fire Surge
+|image = [[File:Fire Surge.png]]
+|release = [[4 January]] [[2018]]
+|update = Dragon Slayer II
+|members = Yes
+|level = 95
+|spellbook = Normal
+|type = Combat
+|exp = 50.5
+|element = Fire
+|damage = 24
+|cost = {{RuneReq|Fire=10|Air=7|Wrath=1}}
+|speed = 5 ticks
+|description = A very high level Fire missile
+|anim = [[File:Fire Surge.gif|300px]]
+|sound = [[File:Fire Surge.ogg]]
+}}
+[[File:Fire Surge icon (mobile).png|left]]
+'''Fire Surge''' is a [[Fire spells|fire]]-based [[Surge spells|surge spell]] in the [[standard spellbook]], requiring level 95 [[Magic]] to cast. As an [[Combat spells#Offensive spells|offensive combat spell]] it can only be cast on [[Monster|attackable NPCs]], or other players in a [[Player killing|PvP situation]].
+
+It is the strongest fire spell in the game, and the highest-level combat spell in the standard spellbook.
+
+==Damage==
+Fire Surge has a base maximum hit of 24. As with all combat spells, this is increased based on the player's [[Magic damage|magic damage bonus]].
+
+As a fire-based spell, Fire Surge's maximum hit is also increased against targets that are [[Elemental weakness|weak to fire]].
+
+===Calculator===
+{{Magic damage calculator|Fire Surge|weapons=Smoke battlestaff,Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand, Twinflame staff|elementalweakness=y|tome=fire}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = fire
+|Rune1num = 10
+|Rune2 = air
+|Rune2num = 7
+|Rune3 = wrath
+|Rune3num = 1
+|uses_pages = y
+|is_offensive = y
+}}
+{| class="wikitable"
+|+
+! colspan="3" |Wilderness-only casting
+|-
+|{{CostLine|Blighted surge sack|cost=no}}
+|}
+
+{{Standard spellbook}}

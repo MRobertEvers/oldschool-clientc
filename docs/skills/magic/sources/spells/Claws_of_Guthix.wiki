@@ -1,0 +1,73 @@
+{{External|rs|rsc}}
+{{Infobox Spell
+|name = Claws of Guthix
+|image = [[File:Claws of Guthix.png|Claws of Guthix]]
+|release = [[22 September]] [[2003]]
+|update = Mage Arena
+|members = Yes
+|level = 60
+|spellbook = Normal
+|type = Combat
+|exp = 35
+|element = God
+|damage = {{*}} 20 <br/>'''Charged & Guthix cape worn:'''<br/> {{*}} 30
+|cost = {{RuneReq|Fire=1|Blood=2|Air=4}}
+|speed = 5 ticks
+|quest = [[Mage Arena]]
+|description = Summons the power of Guthix
+|anim = [[File:Claws of Guthix.gif|300px]]
+|sound = [[File:Claws of Guthix.ogg]]
+}}
+[[File:Claws of Guthix icon (mobile).png|left]]
+'''Claws of Guthix''' is a [[combat spell]] in the [[standard spellbook]], requiring 60 [[Magic]] and the completion of [[Mage Arena I]] to cast. In addition, players must also be wielding a [[Guthix staff]], [[void knight mace]], or [[staff of balance]]. Only  the void knight mace and staff of balance are able to [[autocast]] the spell.
+
+Initially, the spell can only be cast within the [[Mage Arena]] against the [[battle mage]]s. Upon casting the spell 100 times (regardless of whether it was a [[successful hit]] or not), the spell becomes usable outside the arena.
+
+Claws of Guthix has a maximum hit of 20. Upon a successful hit, Claws of Guthix lowers the target's [[Defence]] by 1 + 5%.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/463645094311366656|date=6 May 2014|archiveurl=https://archive.ph/I3a2i|archivedate=13 April 2023|quote=Saradomin: 1 prayer point flat rate. Guthix: 1 defence + 5%. Zamorak: 1 magic + 5%.}} This decrease does not stack nor will it reapply itself until the opponent returns to their base Defence level.
+
+Like the other [[god spells]], the maximum hit is temporarily increased to 30 while the [[Charge]] spell is active and the respective [[god cape]] is worn.
+
+==Damage==
+===Calculator===
+{{Magic damage calculator|Claws of Guthix|charge=y}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = fire
+|Rune1num = 1
+|Rune2 = blood
+|Rune2num = 2
+|Rune3 = air
+|Rune3num = 4
+|nostaff = 1
+}}
+
+Note that since Claws of Guthix requires a Guthix staff, void knight mace, or a staff of balance, rune-providing staves cannot be used. However, a [[tome of fire]] can be worn to provide infinite fire runes. This does not grant the damage boost from the tome and will not consume its charges.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 7 March 2019
+|update = QoL and W45 Changes
+|poll = Quality of Life - Miscellaneous 2019
+|change = The icon was [[Graphical updates|graphically updated]] to be more distinct from the other god spells.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="10"
+|[[File:Claws of Guthix icon v1.png|center]]
+|[[File:Claws of Guthix.png|center]]
+|-
+|22 September 2003–<br/>7 March 2019
+|7 March 2019 ⁠–<br/>present
+|}
+
+==References==
+{{Reflist}}
+
+{{Mage Arena}}
+{{Mage Arena I}}
+{{Standard spellbook}}
+
+[[Category:Defence reduction]]

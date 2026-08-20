@@ -1,0 +1,61 @@
+{{otheruses|the teleport spell|the teleport tablet|Barrows teleport (tablet)}}
+{{Infobox Spell
+|name = Barrows Teleport
+|image = [[File:Barrows Teleport.png]]
+|release = [[28 January]] [[2016]]
+|update = Necromancy Improvements
+|members = Yes
+|level = 83
+|spellbook = Arceuus
+|type = Teleport
+|exp = 90
+|cost = {{RuneReq|Law=2|Soul=2|Blood=1}}
+|speed = 4 ticks
+|description = Teleports you to the Barrows brothers' graveyard
+|anim = [[File:Arceuus teleport.gif|150px]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Barrows Teleport icon (mobile).png|left|class=pageimage]]
+'''Barrows Teleport''' teleports the caster to the [[Barrows]].
+
+In order to cast this spell, players must have spoken to [[Tyss]] to unlock the [[Arceuus spellbook]]. Completion of the quest [[Priest in Peril]] and receiving [[Drezel]]'s warning is required to use the teleport. Casting Barrows Teleport requires 83 [[Magic]] ([[Temporary skill boost/Magic|boosts]] can be used).
+
+This spell can be added to the [[teleport nexus]] and [[Portal chamber|portal frame]] inside a POH.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Law
+|Rune1num = 2
+|Rune2 = Soul
+|Rune2num = 2
+|Rune3 = Blood
+|Rune3num = 1
+}}
+
+==Destination==
+{{Map|3564,3315|mtype=square|r=2|align=left}}{{clear|left}}
+
+==Treasure Trails==
+*{{SherlockChallenge|Creating a barrows teleport tablet|master}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 28 April 2021
+|update = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|poll = 
+|change = The icon was [[Graphical updates|graphically updated]].
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="10"
+|[[File:Barrows Teleport v1.png|center]]
+|[[File:Barrows Teleport.png|center]]
+|-
+|28 January 2016–<br/>28 April 2021
+|28 April 2021 ⁠–<br/>present
+|}
+
+{{Arceuus spellbook}}
+{{Teleport spells}}

@@ -1,0 +1,68 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Vengeance Other
+|image = [[File:Vengeance Other.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 93
+|spellbook = Lunar
+|type = Combat
+|exp = 108
+|cost = {{RuneReq|Astral=3|Earth=10|Death=2}}
+|speed = 0 ticks
+|cooldown = 50 ticks
+|description = Allows another player to rebound damage to an opponent
+|anim = [[File:Vengeance Other.gif|180px]]
+|sound = [[File:Vengeance Other.ogg]]
+}}
+[[File:Vengeance Other icon (mobile).png|left]]
+'''Vengeance Other''' is a level 93 [[Lunar spells|Lunar spell]] that allows another player to rebound 75% of the damage of their opponent's next hit, similar to a [[ring of recoil]]. The player this spell is cast on receives the message "You have the power of vengeance!" in their chat. The receiving player's [[Accept Aid]] must also be on.
+
+As with all [[Lunar spells]], the quest [[Lunar Diplomacy]] must be completed to cast this spell. ''Vengeance spells may only be cast every 30 seconds by the same caster.'' The spell icon will be slightly greyed out too if the spell is still on the cooldown timer.
+
+You are unable to cast Vengeance Other inside of a [[player-owned house]] or in a single-combat area inside the Wilderness.
+==Spell cost==
+{{Spell cost table
+| Rune1 = Death
+| Rune1num = 2
+| Rune2 = Astral
+| Rune2num = 3
+| Rune3 = Earth
+| Rune3num = 10
+}}
+{| class="wikitable"
+|+
+! colspan="3" |Wilderness-only casting
+|-
+|{{CostLine|Blighted vengeance sack}}
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 31 July 2024
+|update = QoL Improvements & Further Deadman: Armageddon Tweaks
+|change = Players can now cast Vengeance Other from a [[blighted vengeance sack]].
+}}
+{{Subject changes
+|date = 3 March 2016
+|update = Architectural Alliance
+|poll = Quality of Life - Top 10 General Suggestions
+|change = The Vengeance Other spell icon will now be greyed out if the spell is on cooldown.
+}}
+{{Subject changes
+|date = 19 September 2013
+|update = Patch Notes (19 September 2013)
+|change = The Vengeance spells will now reflect damage more reliably when you are on low health.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*Cyrisus casts Vengeance Other on the player when fighting the [[Dream Mentor]] bosses.
+
+==See also==
+*[[Vengeance]]
+
+{{Lunar spellbook}}
+{{Combat spells}}

@@ -1,0 +1,65 @@
+{{otheruses|the removed Arceuus spell|the new spell for reanimating minotaurs|Basic reanimation}}
+{{Gone|update=Arceuus Spellbook Beta and A Kingdom Divided Preparation}}
+{{Infobox Spell
+|bucket = no
+|name = Reanimate Minotaur
+|image = [[File:Reanimate Minotaur.png]]
+|release = [[7 January]] [[2016]]
+|update = Zeah: Great Kourend
+|removal = [[28 April]] [[2021]]
+|removalupdate = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|members = Yes
+|level = 16
+|spellbook = Arceuus
+|type = Utility
+|exp = 32
+|cost = {{RuneReq|Body=4|Nature=2}}
+|speed = 
+|quest = None
+|description = Reanimates an ensouled corpse
+|anim = [[File:Reanimate.gif|200px]]
+|sound = [[File:Reanimate (Arceuus spells).ogg]]
+}}
+[[File:Reanimate Minotaur icon (mobile).png|left]]
+'''Reanimate Minotaur''' was a [[reanimation spell]] which required a [[Magic]] level of 16 and an [[ensouled minotaur head]] to cast. This spell would summon a [[reanimated minotaur]] with ten Hitpoints.
+
+Upon killing the reanimated minotaur, players would gain 364 [[Prayer]] experience and 0.5% [[Arceuus]] [[favour]].
+
+The spell can be cast anywhere across [[Gielinor]] '''only if''' the ensouled head is obtained as a drop from the respective monster, and using it within a certain time frame in the area it was killed in.
+
+Reanimation can be cast on any ensouled head within an 31x31 area where that head was dropped by a monster. This will work indefinitely, even if the ensouled head is picked up, so long as it is not put into the [[bank]], [[trade]] screen, [[Grand Exchange]], or [[price checker]]. If the player has put the head into the bank, trade screen, Grand Exchange, or price checker, the reanimation spell will only work within range of the [[Dark Altar]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = body
+|Rune1num = 4
+|Rune2 = nature
+|Rune2num = 2
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 October 2018
+|update = Spellbook Rework, Wise Old Man and, Increased Zoom
+|poll = 
+|change = The icon was [[Graphical updates|graphically updated]].
+}}
+{{Subject changes
+|date = 14 January 2016
+|update = Price Checks & Improvements
+|poll = 
+|change = The prayer experience from defeating reanimated creatures has been doubled. As a result, the 50% experience bonus gained from doing so when within range of the Dark Altar was removed.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="10"
+|[[File:Reanimate Minotaur v1.png|center]]
+|[[File:Reanimate Minotaur.png|center]]
+|-
+|7 January 2016–<br/>11 October 2018
+|11 October 2018 ⁠–<br/>present
+|}
+
+{{Arceuus spellbook}}

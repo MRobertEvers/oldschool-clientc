@@ -2246,6 +2246,12 @@ check-dks-contract:
 # script here. The hitpoints check is on the CACHE rather than the config and
 # catches a record picked by the wrong name, which is the likeliest mistake in a
 # batch and the hardest to see afterwards.
+check-agility-courses:
+	@cd $(REPO_ROOT) && python3 tools/check_agility_course_contract.py
+
+check-spellbooks:
+	@cd $(REPO_ROOT) && python3 tools/gen_spellbook_tables.py --check
+
 check-dbtable-rows:
 	@cd $(REPO_ROOT) && python3 tools/check_dbtable_rows.py --check
 
@@ -2359,7 +2365,7 @@ mock230-lanes: sscompile
 # This is the target every content contract hangs off, so it carries them all;
 # the lane variants below are development builds of the same tree and do not
 # re-run gates the default build has already passed.
-mock230-scripts: check-dks-contract check-boss-contract check-clan-crystals check-konar-locations check-chompy-hats check-krystilia-tasks check-agility-shortcuts check-dbtable-rows check-crystal-set-contract check-agility-xp check-wintertodt-rewards check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-tob-pillar-contract
+mock230-scripts: check-dks-contract check-boss-contract check-clan-crystals check-konar-locations check-chompy-hats check-krystilia-tasks check-agility-shortcuts check-dbtable-rows check-spellbooks check-agility-courses check-crystal-set-contract check-agility-xp check-wintertodt-rewards check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-tob-pillar-contract
 	@$(MAKE) mock230-scripts-lanes \
 		MOCK230_SCRIPT_LANES= \
 		MOCK230_SCRIPT_OUT=$(MOCK230_CONTENT_DIR)/server/scripts/build

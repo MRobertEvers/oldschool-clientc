@@ -1,0 +1,46 @@
+{{External|rs=Stagger|rsc}}
+{{otheruses|the [[Magic]] spell|the temporary status|Stun (status)}}
+{{Infobox Spell
+|name = Stun
+|image = [[File:Stun.png]]
+|release = [[23 October]] [[2002]]
+|update = Updates galore!
+|members = Yes
+|level = 80
+|spellbook = Normal
+|type = Combat
+|exp = 90
+|cost = {{RuneReq|Soul=1|Earth=12|Water=12}}
+|speed = 5 ticks
+|description = Reduces your opponent's attack by 10%
+|anim = [[File:Stun.gif|300px]]
+|sound = [[File:Stun.ogg]]
+}}
+[[File:Stun icon (mobile).png|left]]
+'''Stun''' is a level 80 [[Magic]] [[Spells|spell]]. When cast on an opponent, their [[Attack]] level is reduced by 10%. The spell can only be cast if their stats haven't already been lowered, meaning you cannot stack stat reduction with multiple spells in a row.
+
+The spell gives 90 Magic experience and needs 1 [[Soul rune|Soul]], 12 [[Earth rune|Earth]], and 12 [[Water rune]]s to be cast.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Water
+|Rune1num = 12
+|Rune2 = Earth
+|Rune2num = 12
+|Rune3 = Soul
+|Rune3num = 1
+|uses_pages_water = yes
+}}
+
+==Magic training==
+Stunning is commonly used as a method for [[Pay-to-play Magic training|Magic training]].
+
+The popular locations that are used for training with Stun are [[Edgeville]], casting at [[skeleton]]s in the first few levels of the [[Wilderness]]; at the caged [[Monk of Zamorak]] at [[Varrock Palace]] and in the [[Wizards' Guild]] basement, where there are caged zombies. However, any location with a [[safespot]] can be used.
+
+Because Stun cannot be [[autocast]], repeatedly casting it on monsters involves a lot of clicking.
+
+When using this method, the maximum experience rate is 108,000 experience per hour, at 1,200 casts per hour (1 cast every 3 seconds).
+
+One other method of using Stun, is to use it in combination with [[High Level Alchemy]], known as [[stun-alching]].
+
+{{Standard spellbook}}

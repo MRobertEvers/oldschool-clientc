@@ -1,0 +1,44 @@
+{{External|rs=Ape Atoll Teleport}}
+{{otheruses|the spell found in the [[standard spellbook]]|the spell found in the [[Arceuus spellbook]]|Ape Atoll Teleport (Arceuus)}}
+{{Infobox Spell
+|name = Ape Atoll Teleport
+|image = [[File:Ape Atoll Teleport (standard).png]]
+|release = [[15 March]] [[2006]]
+|update = Hundredth Quest - Recipe for Disaster!
+|members = Yes
+|level = 64
+|spellbook = Normal
+|type = Teleport
+|exp = 74
+|cost = {{RuneReq|Law=2|Fire=2|Water=2|Banana=1}}
+|speed = 4 ticks
+|quest = [[Recipe for Disaster]]<br/>([[Recipe for Disaster#Awowogei|Awowogei]])
+|description = Teleports you to Ape Atoll
+|anim = [[File:Teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Ape Atoll Teleport (standard) icon (mobile).png|left|class=pageimage]]
+'''Ape Atoll Teleport''' teleports the caster to [[Ape Atoll]], next to [[Hafuba]] in the safe upstairs section of the [[Temple of Marimbo]]. Players must have completed the [[Recipe for Disaster/Freeing King Awowogei|Awowogei section]] of the [[Recipe for Disaster]] [[quest]] to use this spell; therefore the full requirements of this spell are the completion of [[Cook's Assistant]] and [[Monkey Madness I]], 70 [[Cooking]] (boostable), 48 [[Agility]], and 64 [[Magic]].
+
+Note that the banana required for the spell must be unnoted.
+
+This spell cannot be transferred into a [[Magic tablet|teleport tablet]], but it can be added to a [[Portal chamber|portal]] or [[portal nexus]] in the [[player-owned house|player owned house]].
+
+Casting this spell is a requirement for the [[Hard Western Provinces]] diary.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Water
+|Rune1num = 2
+|Rune2 = Fire
+|Rune2num = 2
+|Rune3 = Law
+|Rune3num = 2
+|Rune4 = Banana
+|Rune4num = 1
+}}
+==Destination==
+{{Map|2798,2799|mtype=square|r=2|align=left}}
+
+{{Standard spellbook}}
+{{Teleport spells}}

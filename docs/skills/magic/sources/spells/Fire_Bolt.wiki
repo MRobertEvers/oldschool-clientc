@@ -1,0 +1,45 @@
+{{External|rs|rsc=Fire bolt}}
+{{Infobox Spell
+|name = Fire Bolt
+|image = [[File:Fire Bolt.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 35
+|spellbook = Normal
+|type = Combat
+|exp = 22.5
+|element = Fire
+|damage = 12
+|cost = {{RuneReq|Fire=4|Air=3|Chaos=1}}
+|speed = 5 ticks
+|description = A low level Fire missile
+|anim = [[File:Fire Bolt.gif|300px]]
+|sound = [[File:Fire Bolt.ogg]]
+}}
+[[File:Fire Bolt icon (mobile).png|left]]
+'''Fire Bolt''' is a [[Fire spells|fire]]-based [[Bolt spells|bolt spell]] in the [[standard spellbook]], requiring level 35 [[Magic]] to cast. As an [[Combat spells#Offensive spells|offensive combat spell]] it can only be cast on [[Monster|attackable NPCs]], or other players in a [[Player killing|PvP situation]].
+
+==Damage==
+Fire Bolt has a base maximum hit of 12. Players who have completed the [[Family Crest]] quest can wear [[Chaos gauntlets]] to increase the maximum hit by an additional +3, up to 15.
+
+As with all combat spells, Fire Bolt's maximum hit is also increased based on the player's [[Magic damage|magic damage bonus]].
+
+As a fire-based spell, Fire Bolt's maximum hit is also increased against targets that are [[Elemental weakness|weak to fire]].
+
+It should be noted that even with a fire rune-providing staff, [[tome of fire]] charges will still be consumed. 
+
+===Calculator===
+{{Magic damage calculator|Fire Bolt|weapons=Smoke battlestaff,Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand, Twinflame staff|elementalweakness=y|chaosgauntlets=y|tome=fire}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = fire
+|Rune1num = 4
+|Rune2 = air
+|Rune2num = 3
+|Rune3 = chaos
+|Rune3num = 1
+|uses_pages = y
+|is_offensive = y
+}}{{Standard spellbook}}

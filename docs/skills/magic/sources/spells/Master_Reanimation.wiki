@@ -1,0 +1,53 @@
+{{Infobox Spell
+|name = Master Reanimation
+|image = [[File:Master Reanimation.png]]
+|release = [[28 April]] [[2021]]
+|update = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|members = Yes
+|level = 90
+|spellbook = Arceuus
+|type = Utility
+|exp = 170
+|cost = {{RuneReq|Nature=4|Blood=2|Soul=4}}
+|speed = 
+|quest = None
+|description = Reanimates a very high levelled creature
+|anim = [[File:Reanimate.gif|200px]]
+|sound = [[File:Reanimate (Arceuus spells).ogg]]
+}}
+[[File:Master Reanimation icon (mobile).png|left]]
+'''Master Reanimation''' is a spell within the [[Arceuus spellbook]] that requires level 90 [[Magic]] to use. It can be cast on certain [[ensouled head]]s to bring forth a [[reanimated creature]]. Killing the reanimated creature will grant [[Prayer]] experience.
+
+Reanimation can be cast on any ensouled head within an 31x31 area where that head was dropped by a monster. This will work indefinitely, even if the ensouled head is picked up, so long as it is not put into the [[bank]], [[trade]] screen, [[Grand Exchange]], or [[price checker]]. If the player has put the head into the bank, trade screen, Grand Exchange, or price checker, the reanimation spell will only work within range of the [[Dark Altar]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = nature
+|Rune1num = 4
+|Rune2 = blood
+|Rune2num = 2
+|Rune3 = soul
+|Rune3num = 4
+}}
+
+==Compatible heads==
+{|class="wikitable" style="text-align:center;"
+! colspan="2" |Ensouled head
+!Reanimated monster
+!{{SCP|Prayer|link=yes}} XP
+|-
+|{{plinkt|Ensouled aviansie head|txt=Aviansie}}
+|[[Reanimated aviansie]]
+|1,234
+|-
+|{{plinkt|Ensouled abyssal head|txt=Abyssal}}
+|[[Reanimated abyssal]]
+|1,300
+|-
+|{{plinkt|Ensouled dragon head|txt=Dragon}}
+|[[Reanimated dragon]]
+|1,560
+|}
+
+{{Arceuus spellbook}}
+{{Utility spells}}

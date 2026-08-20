@@ -1,0 +1,51 @@
+{{External|rs|rsc=Fire wave}}
+{{Infobox Spell
+|name = Fire Wave
+|image = [[File:Fire Wave.png]]
+|release = [[18 March]] [[2002]]
+|update = Latest RuneScape News (18 March 2002)
+|members = Yes
+|level = 75
+|spellbook = Normal
+|type = Combat
+|exp = 42.5
+|element = Fire
+|damage = 20
+|cost = {{RuneReq|Fire=7|Air=5|Blood=1}}
+|speed = 5 ticks
+|description = A high level Fire missile
+|anim = [[File:Fire Wave.gif|300px]]
+|sound = [[File:Fire Wave.ogg]]
+}}
+[[File:Fire Wave icon (mobile).png|left]]
+'''Fire Wave''' is a [[Fire spells|fire]]-based [[Wave spells|wave spell]] in the [[standard spellbook]], requiring level 75 [[Magic]] to cast. As an [[Combat spells#Offensive spells|offensive combat spell]] it can only be cast on [[Monster|attackable NPCs]], or other players in a [[Player killing|PvP situation]]. 
+
+It is the second-strongest fire spell in the game, with the strongest being [[Fire Surge]].
+
+== Damage ==
+Fire Wave has a base maximum hit of 20. As with all combat spells, this maximum hit is increased based on the player's [[Magic damage|magic damage bonus]].
+
+As a fire-based spell, Fire Wave's maximum hit is also increased against targets that are [[Elemental weakness|weak to fire]].
+
+===Calculator===
+{{Magic damage calculator|Fire Wave|weapons=Smoke battlestaff,Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand, Twinflame staff|elementalweakness=y|tome=fire}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = fire
+|Rune1num = 7
+|Rune2 = air
+|Rune2num = 5
+|Rune3 = blood
+|Rune3num = 1
+|uses_pages = y
+|is_offensive = y
+}}
+{| class="wikitable"
+|+
+! colspan="3" |Wilderness-only casting
+|-
+|{{CostLine|Blighted surge sack|cost=no}}
+|}
+
+{{Standard spellbook}}

@@ -1,0 +1,40 @@
+{{External|rs|rsc}}
+{{Infobox Spell
+|name = Charge Fire Orb
+|image = [[File:Charge Fire Orb.png]]
+|release = [[18 March]] [[2002]]
+|update = Latest RuneScape News (18 March 2002)
+|members = Yes
+|level = 63
+|spellbook = Normal
+|type = Utility
+|exp = 73
+|cost = {{RuneReq|Cosmic=3|Fire=30|Orb=1}}
+|speed = 3 ticks (6 on autocast)
+|description = Needs to be cast on a fire obelisk
+|anim = [[File:Charge Fire Orb.gif]]
+|sound = [[File:Charge Fire Orb.ogg]]
+}}
+[[File:Charge Fire Orb icon (mobile).png|left|class=pageimage]]
+'''Charge Fire Orb''' is an [[enchantment]] spell that requires a [[Magic]] level of 63 to use. It can only be cast on a [[fire obelisk]], deep in the [[Taverley Dungeon]] after passing the ladder to the [[water obelisk]] and the two [[black dragon]]s in the dungeon on the main floor.
+
+When you have an [[unpowered orb]] and the correct [[runes]] in your inventory, it will turn each orb into a [[fire orb]].
+
+Using a fire orb on a [[battlestaff]] makes a [[fire battlestaff]]. This requires 62 [[Crafting]] and gives 125 Crafting experience.
+
+If a player has an [[Agility]] level of 80 (can be boosted at a minimum of 75 Agility), they can use the [[shortcut]] at the start of the entrance, as it's the fastest way of reaching the fire obelisk. The second best way is to have an Agility level of 70 (65 or higher if boosted) and use the pipe on the right. This will only be half a minute longer than using the higher level shortcut. If you don't meet any of these requirements, then fire orb running will be very long, as the dungeon is relatively long and can take around 3–5 minutes per inventory.
+
+==Cost==
+{{Spell cost table
+|Rune1 = fire
+|Rune1num = 30
+|Rune2 = cosmic
+|Rune2num = 3
+|Rune3 = unpowered orb
+|Rune3num = 1
+}}
+
+==Money making==
+{{Mmgsection|Charging fire orbs}}
+
+{{Standard spellbook}}

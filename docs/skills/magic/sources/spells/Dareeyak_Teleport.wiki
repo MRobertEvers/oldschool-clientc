@@ -1,0 +1,38 @@
+{{External|rs}}
+{{otheruses|the teleport spell|the teleport tablet|Dareeyak teleport (tablet)}}
+{{Infobox Spell
+|name = Dareeyak Teleport
+|image = [[File:Dareeyak Teleport.png]]
+|release = [[18 April]] [[2005]]
+|update = Desert Treasure
+|members = Yes
+|level = 78
+|spellbook = Ancient
+|type = Teleport
+|exp = 88
+|cost = {{RuneReq|Law=2|Fire=3|Air=2}}
+|speed = 5 ticks
+|description = A teleportation spell
+|anim = [[File:Ancient teleport.gif]]
+|sound = [[File:Teleport (Ancient Magicks).ogg]]
+}}
+[[File:Dareeyak Teleport icon (mobile).png|left|class=pageimage]]
+'''Dareeyak Teleport''' is a spell in the [[Ancient Magicks]] spellbook, requiring a [[Magic]] level of 78 to cast. It teleports the caster to the [[Ruins (west)|ruins]] south of [[The Forgotten Cemetery]] in level 23 [[Wilderness]]. It can be useful for easy access to the [[Crazy archaeologist]], or to the [[Chaos Temple (church)|chaos temple]] for Prayer training.
+
+As with all Ancient Magicks spells, the quest [[Desert Treasure I]] must be completed to cast this spell.
+
+==Cost==
+{{Spell cost table
+|Rune1 = law
+|Rune1num = 2
+|Rune2 = fire
+|Rune2num = 3
+|Rune3 = air
+|Rune3num = 2
+}}
+
+==Destination==
+{{Map|2968,3696|mtype=square|r=2|align=left}}{{clear|left}}
+
+{{Ancient Magicks}}
+{{Teleport spells}}

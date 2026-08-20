@@ -1,0 +1,36 @@
+{{External|rs=Tele-other Camelot}}
+{{Infobox Spell
+|name = Teleother Camelot
+|image = [[File:Teleother Camelot.png]]
+|release = [[14 March]] [[2005]]
+|update = Magic and Wilderness Updates
+|members = Yes
+|level = 90
+|spellbook = Normal
+|type = teleport
+|exp = 100
+|cost = {{RuneReq|Soul=2|Law=1}}
+|speed = 10 ticks
+|description = Teleports target to Camelot
+|anim = [[File:Teleother.gif]]
+|sound = [[File:Teleother.ogg]]
+}}
+[[File:Teleother Camelot icon (mobile).png|left|class=pageimage]]
+'''Teleother Camelot''' is a [[member]]'s spell which requires a [[Magic]] level of 90 and teleports the target player, who has [[Accept Aid]] switched on, to [[Camelot]]. A window will pop for the person being teleported asking them if they wished to be teleported.
+
+==Cost==
+{{Spell cost table
+|Rune1 = soul
+|Rune1num = 2
+|Rune2 = law
+|Rune2num = 1
+}}
+
+==Destination==
+{{Map|2757,3479|mtype=square|r=2|align=left}}{{clear|left}}
+
+==Trivia==
+* [[Solus Dellagar]] forcibly casts Teleother Camelot on the player during [[Wanted!]]. The player has no option to cancel it.
+
+{{Standard spellbook}}
+{{Teleport spells}}

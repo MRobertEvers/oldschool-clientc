@@ -1,0 +1,120 @@
+{{External|rs}}
+[[File:Enchant Crossbow Bolt icon (mobile).png|left]]
+[[File:Enchant bolts.gif|frame|right|A player casting the Enchant Crossbow Bolt spell.]]
+[[File:Enchanting crossbow bolts.png|thumb|The interface of the spell Enchant Crossbow Bolt.]]
+[[File:Enchanting dragon crossbow bolts.png|thumb|The interface of the spell Enchant Crossbow Bolt for dragon bolts.]]
+
+The '''Enchant Crossbow Bolt''' spell is a [[members]]-only spell used to give gem-tipped [[Crossbow (weapon)|crossbow]] [[bolts]] special powers that have a chance of activating upon impact.
+
+Although Enchant Crossbow Bolt is listed as one spell in a player's [[spellbook]] requiring 4 [[Magic]] to cast, the only bolts that can be enchanted at this level are Opal bolts. When attempting to cast Enchant Crossbow Bolt, an interface will appear, asking you to choose from up to 10 different [[spells]]. Each of these spells requires a different Magic level, different [[runes]], and grants different amounts of experience. When successfully cast, the message {{Mes|The magic of the runes coaxes out the true nature of the gem tips.}} is displayed.
+
+Regardless of the spell cast or your Magic level, each spell enchants a set of 10 bolts. While this process is done at a set pace, you can hold down the space bar and rapidly click on the spell to speed up the process. Casting the spell does not interrupt skilling actions such as [[mining]] and [[fishing]], and can therefore be used as a [[zero time|zero-time]] method to train Magic.
+
+After completing the [[hard Kandarin Diary]], enchanted bolts will have a 10% increased chance of the special effect activating (even in PvP).
+
+==Spells==
+{| class="wikitable"
+!Icon
+!Spell
+!Bolts created
+![[Magic]] level
+!Runes
+!Experience
+!Effect
+|-
+|[[File:Opal bolts 5.png]]
+|[[Enchant Crossbow Bolt (Opal)]]
+|[[Opal bolts (e)]]<br/>[[Opal dragon bolts (e)]]
+|4
+|{{RuneReq|Cosmic = 1|Air = 2}}
+|9
+|''Lucky Lightning'': Extra damage
+|-
+|[[File:Sapphire bolts 5.png]]
+|[[Enchant Crossbow Bolt (Sapphire)]]
+|[[Sapphire bolts (e)]]<br/>[[Sapphire dragon bolts (e)]]
+|7
+|{{RuneReq|Cosmic = 1|Water = 1|Mind = 1}}
+|17.5
+|''Clear Mind'': [[Prayer]] siphon
+|-
+|[[File:Jade bolts 5.png]]
+|[[Enchant Crossbow Bolt (Jade)]]
+|[[Jade bolts (e)]]<br/>[[Jade dragon bolts (e)]]
+|14
+|{{RuneReq|Cosmic = 1|Earth = 2}}
+|19
+|''Earth's Fury'': Opponent knockdown
+|-
+|[[File:Pearl bolts 5.png]]
+|[[Enchant Crossbow Bolt (Pearl)]]
+|[[Pearl bolts (e)]]<br/>[[Pearl dragon bolts (e)]]
+|24
+|{{RuneReq|Cosmic = 1|Water = 2}}
+|29
+|''Sea Curse:'' Extra (water-based) damage
+|-
+|[[File:Emerald bolts 5.png]]
+|[[Enchant Crossbow Bolt (Emerald)]]
+|[[Emerald bolts (e)]]<br/>[[Emerald dragon bolts (e)]]
+|27
+|{{RuneReq|Cosmic = 1|Air = 3|Nature = 1}}
+|37
+|''Magical Poison'': Greater chance of [[poison]]
+|-
+|[[File:Topaz bolts 5.png]]
+|[[Enchant Crossbow Bolt (Red Topaz)]]
+|[[Topaz bolts (e)]]<br/>[[Topaz dragon bolts (e)]]
+|29
+|{{RuneReq|Cosmic = 1|Fire = 2}}
+|33
+|''Down to Earth'': Lowers target's [[Magic]] (other players only)
+|-
+|[[File:Ruby bolts 5.png]]
+|[[Enchant Crossbow Bolt (Ruby)]]
+|[[Ruby bolts (e)]]<br/>[[Ruby dragon bolts (e)]]
+|49
+|{{RuneReq|Cosmic = 1|Fire = 5|Blood = 1}}
+|59
+|''Blood Forfeit'': -10% HP from self, -20% from target
+|-
+|[[File:Diamond bolts 5.png]]
+|[[Enchant Crossbow Bolt (Diamond)]]
+|[[Diamond bolts (e)]]<br/>[[Diamond dragon bolts (e)]]
+|57
+|{{RuneReq|Cosmic = 1|Earth = 10|Law = 2}}
+|67
+|''Armour Piercing'': Ignore much of target's ranged defence
+|-
+|[[File:Dragonstone bolts 5.png]]
+|[[Enchant Crossbow Bolt (Dragonstone)]]
+|[[Dragonstone bolts (e)]]<br/>[[Dragonstone dragon bolts (e)]]
+|68
+|{{RuneReq|Cosmic = 1|Earth = 15|Soul = 1}}
+|78
+|''Dragon's Breath'': [[Dragonbreath]] damage
+|-
+|[[File:Onyx bolts 5.png]]
+|[[Enchant Crossbow Bolt (Onyx)]]
+|[[Onyx bolts (e)]]<br/>[[Onyx dragon bolts (e)]]
+|87
+|{{RuneReq|Cosmic = 1|Fire = 20|Death = 1}}
+|97
+|''Life Leech'': Extra damage, HP siphon
+|}
+
+==Magic Table==
+{{Table/Magic/Enchanting Gem Tipped Bolts}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 3 August 2022
+|update = Maximum Hitsplats & Clan Hall Changes
+|poll = 
+|change = Enchant Crossbow Bolt spells now have their level checks corrected; in a previous update, all unenchanted dragon bolts required level 64 Magic to enchant due to a bug.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}
+{{Bolts}}

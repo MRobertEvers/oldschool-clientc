@@ -1,0 +1,137 @@
+{{Navbox
+|name = Standard spellbook
+|title = [[Standard spellbook]]
+|gtitle1 = Combat
+|gtype1 = subgroup
+|group1 =
+  {{Navbox
+  |subgroup = yes
+  |gtitle1 = [[Strike spells]]
+  |group1 =
+   * {{plink|Wind Strike|txt=Wind}}
+   * {{plink|Water Strike|txt=Water}}
+   * {{plink|Earth Strike|txt=Earth}}
+   * {{plink|Fire Strike|txt=Fire}}
+  |gtitle2 = [[Bolt spells]]
+  |group2 =
+   * {{plink|Wind Bolt|txt=Wind}}
+   * {{plink|Water Bolt|txt=Water}}
+   * {{plink|Earth Bolt|txt=Earth}}
+   * {{plink|Fire Bolt|txt=Fire}}
+  |gtitle3 = [[Blast spells]]
+  |group3 =
+   * {{plink|Wind Blast|txt=Wind}}
+   * {{plink|Water Blast|txt=Water}}
+   * {{plink|Earth Blast|txt=Earth}}
+   * {{plink|Fire Blast|txt=Fire}}
+  |gtitle4 = [[Wave spells]]
+  |group4 =
+   * {{plink|Wind Wave|txt=Wind}}
+   * {{plink|Water Wave|txt=Water}}
+   * {{plink|Earth Wave|txt=Earth}}
+   * {{plink|Fire Wave|txt=Fire}}
+  |gtitle5 = [[Surge spells]]
+  |group5 =
+   * {{plink|Wind Surge|txt=Wind}}
+   * {{plink|Water Surge|txt=Water}}
+   * {{plink|Earth Surge|txt=Earth}}
+   * {{plink|Fire Surge|txt=Fire}}
+  |gtitle6 = [[God spells]]
+  |group6 =
+   * {{plink|Saradomin Strike}}
+   * {{plink|Claws of Guthix}}
+   * {{plink|Flames of Zamorak}}
+   * {{plink|Charge}}
+  |gtitle7 = [[Curse spells]]
+  |group7 =
+   * {{plink|Confuse}}
+   * {{plink|Weaken}}
+   * {{plink|Curse}}
+   * {{plink|Bind}}
+   * {{plink|Snare}}
+   * {{plink|Vulnerability}}
+   * {{plink|Enfeeble}}
+   * {{plink|Entangle}}
+   * {{plink|Stun}}
+   * {{plink|Tele Block}}
+  |gtitle8 = Other
+  |group8 =
+   * {{plink|Crumble Undead}}
+   * {{plink|Iban Blast}}
+   * {{plink|Magic Dart}}
+  }}
+|gtitle2 = Teleport
+|gtype2 = subgroup
+|group2 =
+  {{Navbox
+  |subgroup = yes
+  |group1 =
+   * {{plink|Lumbridge Home Teleport|txt=Lumbridge Home}}
+   * {{plink|Minigame Teleport|txt=Minigame}}
+   * {{plink|Varrock Teleport|txt=Varrock}}
+   * {{plink|Lumbridge Teleport|txt=Lumbridge}}
+   * {{plink|Falador Teleport|txt=Falador}}
+   * {{plink|Teleport to House|txt=House}}
+   * {{plink|Camelot Teleport|txt=Camelot}}
+   * {{plink|Kourend Castle Teleport|txt=Kourend Castle}}
+   * {{plink|Ardougne Teleport|txt=Ardougne}}
+   * {{plink|Civitas illa Fortis Teleport|txt=Civitas illa Fortis}}
+   * {{plink|Watchtower Teleport|txt=Watchtower}}
+   * {{plink|Trollheim Teleport|txt=Trollheim}}
+   * {{plink|Ape Atoll Teleport (standard)|txt=Ape Atoll}}
+   * {{plink|Teleport to Boat|txt=Boat}}
+   * {{plink|Teleport to Target|txt=Target}}
+   |gtitle2 = Teleother
+   |group2 =
+   * {{plink|Teleother Lumbridge|txt=Lumbridge}}
+   * {{plink|Teleother Falador|txt=Falador}}
+   * {{plink|Teleother Camelot|txt=Camelot}}
+   }}
+|gtitle3 = Utility
+|gtype3 = subgroup
+|group3 =
+  {{Navbox
+  |subgroup = yes
+  |gtitle1 = {{plink|Jewellery Enchantments}}
+  |group1 =
+   * {{plink|Lvl-1 Enchant|txt=Sapphire/Opal}}
+   * {{plink|Lvl-2 Enchant|txt=Emerald/Jade}}
+   * {{plink|Lvl-3 Enchant|txt=Ruby/Topaz}}
+   * {{plink|Lvl-4 Enchant|txt=Diamond}}
+   * {{plink|Lvl-5 Enchant|txt=Dragonstone}}
+   * {{plink|Lvl-6 Enchant|txt=Onyx}}
+   * {{plink|Lvl-7 Enchant|txt=Zenyte}}
+  |gtitle2 = Charge Orb spells
+  |group2 =
+   * {{plink|Charge Water Orb|txt=Water}}
+   * {{plink|Charge Earth Orb|txt=Earth}}
+   * {{plink|Charge Fire Orb|txt=Fire}}
+   * {{plink|Charge Air Orb|txt=Air}}
+  |gtitle3 = {{plink|Enchant Crossbow Bolt}}
+  |group3 =
+   * {{plink|Enchant Crossbow Bolt (Opal)|pic=Opal bolts 5|txt=Opal}}
+   * {{plink|Enchant Crossbow Bolt (Sapphire)|pic=Sapphire bolts 5|txt=Sapphire}}
+   * {{plink|Enchant Crossbow Bolt (Jade)|pic=Jade bolts 5|txt=Jade}}
+   * {{plink|Enchant Crossbow Bolt (Pearl)|pic=Pearl bolts 5|txt=Pearl}}
+   * {{plink|Enchant Crossbow Bolt (Emerald)|pic=Emerald bolts 5|txt=Emerald}}
+   * {{plink|Enchant Crossbow Bolt (Red Topaz)|pic=Topaz bolts 5|txt=Red Topaz}}
+   * {{plink|Enchant Crossbow Bolt (Ruby)|pic=Ruby bolts 5|txt=Ruby}}
+   * {{plink|Enchant Crossbow Bolt (Diamond)|pic=Diamond bolts 5|txt=Diamond}}
+   * {{plink|Enchant Crossbow Bolt (Dragonstone)|pic=Dragonstone bolts 5|txt=Dragonstone}}
+   * {{plink|Enchant Crossbow Bolt (Onyx)|pic=Onyx bolts 5|txt=Onyx}}
+  |gtitle4 = Alchemy
+  |group4 =
+   * {{plink|Bones to Bananas}}
+   * {{plink|Low Level Alchemy}}
+   * {{plink|Superheat Item}}
+   * {{plink|High Level Alchemy}}
+   * {{plink|Bones to Peaches}}
+   * {{plink|Alchemic Divergence}}
+   * {{plink|Alchemic Convergence}}
+  |gtitle5 = Other
+  |group5 = 
+   * {{plink|Telekinetic Grab}}
+   * {{plink|Monster Inspect}}
+   * {{plink|Summon Boat}}
+  }}
+}}{{Ctg|Standard spells}}

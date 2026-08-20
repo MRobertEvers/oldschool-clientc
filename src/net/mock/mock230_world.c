@@ -56721,6 +56721,68 @@ mock230_world_selftest(void)
         }
     }
 
+    fprintf(stderr, "mock230 selftest: heroquest mansion geometry probe\n");
+    {
+        /*
+         * TEMP, one-shot diagnostic -- not a SELFTEST_CHECK, no pass/fail.
+         * Does not depend on the compiled script pack (loc/npc/obj symbol
+         * packs load from the cache at boot, independent of sscompile), so
+         * it can run even while quest_arthur's own in-progress edit blocks
+         * a full script compile elsewhere in the tree. Answers: is
+         * pete_sidedoor's `[oploc1]` walk-through branch
+         * (`coordz(coord) = coordz(loc_coord)`) reachable from the Mr
+         * Olbors' garden side, i.e. can a solo Phoenix-only account (which
+         * can never hold `misc_key`, a Black-Arm-exclusive item from Grip)
+         * reach Grip at all?
+         */
+        int saved_x = player->x;
+        int saved_z = player->z;
+        int saved_level = player->level;
+        int loc_garvdoor = mock230_content_symbol(MOCK230_PACK_LOC, "garvdoor");
+        int loc_pete_sidedoor = mock230_content_symbol(MOCK230_PACK_LOC, "pete_sidedoor");
+        int loc_pete_treasuredoor = mock230_content_symbol(MOCK230_PACK_LOC, "pete_treasuredoor");
+        int loc_gripcbshut = mock230_content_symbol(MOCK230_PACK_LOC, "gripcbshut");
+        int loc_gripcbopen = mock230_content_symbol(MOCK230_PACK_LOC, "gripcbopen");
+        int loc_herokitchendoor = mock230_content_symbol(MOCK230_PACK_LOC, "herokitchendoor");
+        int loc_herokitchenpanel = mock230_content_symbol(MOCK230_PACK_LOC, "herokitchenpanel");
+
+        fprintf(stderr, "  symbols: garvdoor=%d pete_sidedoor=%d pete_treasuredoor=%d "
+                         "gripcbshut=%d gripcbopen=%d herokitchendoor=%d "
+                         "herokitchenpanel=%d\n",
+                loc_garvdoor, loc_pete_sidedoor, loc_pete_treasuredoor, loc_gripcbshut,
+                loc_gripcbopen, loc_herokitchendoor, loc_herokitchenpanel);
+
+        /* Garv's own npc spawn tile (areas/world/configs/m43_49.spawn):
+         * 2776,3186,0 -- dead centre of the mansion/restaurant cluster. */
+        mock230_world_teleport(srv, 0, 2776, 3186);
+        mock230_world_tick(srv);
+        fprintf(stderr, "  player now at %d,%d,%d\n", player->x, player->z, player->level);
+
+        for( int slot = 0;; slot++ )
+        {
+            struct Mock230SceneLoc* loc = mock230_scene_loc(slot);
+
+            if( !loc )
+                break;
+            if( !loc->active )
+                continue;
+            if( loc->loc_id == loc_garvdoor || loc->loc_id == loc_pete_sidedoor ||
+                loc->loc_id == loc_pete_treasuredoor || loc->loc_id == loc_gripcbshut ||
+                loc->loc_id == loc_gripcbopen || loc->loc_id == loc_herokitchendoor ||
+                loc->loc_id == loc_herokitchenpanel )
+            {
+                fprintf(stderr,
+                        "  GEOM loc_id=%d x=%d z=%d level=%d angle=%d shape=%d "
+                        "size_x=%d size_z=%d\n",
+                        loc->loc_id, loc->x, loc->z, loc->level, loc->angle, loc->shape,
+                        loc->size_x, loc->size_z);
+            }
+        }
+
+        mock230_world_teleport(srv, saved_level, saved_x, saved_z);
+        mock230_world_tick(srv);
+    }
+
     fprintf(stderr, "mock230 selftest: ::herorun\n");
     {
         /*

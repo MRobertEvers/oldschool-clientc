@@ -1,0 +1,52 @@
+{{otheruses|the teleport spell|the teleport tablet|Summon boat (tablet)}}
+{{otheruses|teleporting your boat|teleporting to your boat's location|Teleport to Boat}}
+{{Infobox Spell
+|name = Summon Boat
+|image = [[File:Summon Boat.png]]
+|release = [[19 November]] [[2025]]
+|update = Sailing is OUT TODAY!
+|members = Yes
+|level = 56
+|spellbook = Normal
+|type = Teleport
+|exp = 66
+|cost = {{RuneReq|Law=2|Earth=1|Water=1}}
+|speed = 
+|quest = [[Pandemonium]]
+|lectern = [[Mahogany eagle lectern]]
+|description = Teleports your boat to the dock nearest you
+|anim = 
+}}
+[[File:Summon Boat icon (mobile).png|left|class=pageimage]]
+'''Summon Boat''' is a spell from the [[standard spellbook]] that teleports their [[Boat|player-owned boat]] to the [[File:Docking_point_icon.png]] [[mooring point]] where they are currently located. This spell can only be cast after completion of [[Pandemonium]]. The spell requires the caster's boat to have a [[Teleport focus (facility)|teleport focus]] on it. The spell is one of the two [[boat spell]]s.
+
+Much like the boat recovery service offered by [[Shipwright|shipwrights]], the boat's port task cargo, bounty items, salvage, and fish in the cargo hold will be '''lost''' when summoned.<ref>{{PlainCiteNews|url=https://secure.runescape.com/m=news/christmas-event-2025?oldschool=1|title=Christmas Event 2025|newsdate=10 December 2025|quote=When quick-transporting your boat - for example by recovering via a shipwright or using a boat spell - players will now only lose Port Task cargo, Bounty items, salvage and fish from their Cargo Hold. Anything else will be kept and accessible once your ship is recovered.}}</ref>
+
+When cast, the player receives a menu to select which boat to summon. Any boats without a teleport focus will be greyed out. The last-used boat can be selected by pressing spacebar, and all subsequent boats via the number keys.
+
+Casting the spell and summoning a boat does ''not'' have the same 55 Sailing requirement as building the teleport focus.
+
+==Cost==
+{{Spell cost table
+|Rune1 = earth
+|Rune1num = 1
+|Rune2 = water
+|Rune2num = 1
+|Rune3 = law
+|Rune3num = 2
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 20 May 2026
+|update = The Red Reef is Out Today!
+|change = Added a right-click 'Last Boat' option to the Summon Boat spell, which will summon the boat you last summoned.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Standard spellbook}}
+{{Teleport spells}}

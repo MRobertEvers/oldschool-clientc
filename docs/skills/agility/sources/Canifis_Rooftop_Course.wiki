@@ -1,0 +1,107 @@
+{{Infobox Location
+|name = Canifis Rooftop Course
+|image = [[File:Canifis Rooftop Course (6).png]]
+|release = [[5 December]] [[2013]]
+|update = Rooftop Agility Courses
+|members = Yes
+|location = [[Canifis]]
+|map = {{Map|3507:3488|plane=0|r=3|mtype=square}}
+|type = agility course
+|leagueRegion = Morytania
+}}
+{{Relativelocation
+|location = Agility course
+|north = Mausoleum
+|west = Canifis
+|south = Mort Myre Swamp
+|east = Haunted Woods
+}}
+The '''Canifis Rooftop Agility Course''' is a [[Rooftop Agility Course]] found in [[Canifis]] available to players with an [[Agility]] level of 40 or above. It is only accessible to players who have completed the [[Priest in Peril]] quest. It is preceded by the [[Varrock Rooftop Course]] and followed by the [[Falador Rooftop Course]]. The Canifis Rooftop Agility Course should generally earn players roughly 16-18 marks per hour, depending on luck.
+
+The Canifis Rooftop Agility Course can be started by climbing the Tall Tree just north of the [[bank]] and is finished by jumping off the north side of the bank. Players get 240 experience from completing the course, including 175 experience upon completion of the course. It has double the chance to spawn [[Mark of grace|Marks of grace]] compared to most other rooftop courses (2/3 instead of 1/3), and unlike other rooftop courses, the mark of grace rate '''does not''' decrease at level 60 (20 levels above the course requirement) due to a [[Glitch|coding error]].{{CiteDiscord|author=Mod Lenny|url=https://discord.com/channels/177206626514632704/269673599554551808/1060187143936417862|date=4 January 2023|quote=...there looks like there's been something wrong with canifis for potentially a long time (...) may just be kind of disregarding your level being higher, and also allowing for higher rates that say ardy would get (kind of, ish, maybe) (...) [okay if it's actually 400 instead of 40 that's fucking hilarious] (...) 140|archiveurl=https://reldo.runescape.wiki/i/27963017#chat-messages-269673599554551808-1060187143936417862|archivedate=9 March 2026}} This makes the Canifis course the second-best for marks of grace, nearly tied with the base rate of the [[Ardougne Rooftop Course]].
+
+With a lap time of 43.8 seconds, it is possible to get around 19,700 Agility experience per hour from this course. The short distance between obstacles makes it possible to completely fill one's run energy while manoeuvring the course.
+
+There is 1 failable obstacle in this agility course, located at the jump between the tanner and the general store (Jump Gap 3). It is recommended to have some food stored in the bank in case you repeatedly fail obstacles. The chance to succeed starts at 88.28% at level 40 Agility, scaling linearly until the player stops failing the obstacle at level 64 Agility.
+
+Completing a lap of the Canifis Rooftop Course is a task in the [[medium Morytania Diary]].
+
+==Obstacles==
+{| class="wikitable align-center-3"
+|+Experience per obstacle
+|-
+!Image
+!Obstacle
+!Experience
+!Chance to fail
+|-
+|[[File:Canifis Rooftop Course (1).png|200px]]
+|[[Tall tree]]
+|{{+=|xp|10|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Canifis Rooftop Course (2).png|200px]]
+|[[Gap (Canifis Rooftop Course)#1|Gap]]
+|{{+=|xp|8|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Canifis Rooftop Course (3).png|200px]]
+|[[Gap (Canifis Rooftop Course)#2|Gap]]
+|{{+=|xp|8|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Canifis Rooftop Course (4).png|200px]]
+|[[Gap (Canifis Rooftop Course)#3|Gap]]
+|{{+=|xp|10|echo=2}}
+| style="text-align:center;" |Yes
+|-
+|[[File:Canifis Rooftop Course (5).png|200px]]
+|[[Gap (Canifis Rooftop Course)#4|Gap]]
+|{{+=|xp|8|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Canifis Rooftop Course (6).png|200px]]
+|[[Pole-vault (Canifis Rooftop Course)|Pole-vault]]
+|{{+=|xp|10|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Canifis Rooftop Course (7).png|200px]]
+|[[Gap (Canifis Rooftop Course)#5|Gap]]
+|{{+=|xp|11|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Canifis Rooftop Course (8).png|200px]]
+|[[Gap (Canifis Rooftop Course)#6|Gap]]
+|{{+=|xp|175|echo=2}}
+| style="text-align:center;" |No
+|-
+! colspan="2" style="text-align:right;"|Total
+!{{#var:xp}}
+! 1
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 15 May 2024
+|update = Further Project Rebalance (Skilling) & Varlamore Changes
+|change = The fifth gap jump between the [[Hair of the Dog]] inn and the bank can no longer be failed.
+}}
+{{Subject changes
+|date = 12 December 2013
+|update = First Slayer Batch
+|change = The random lump of cellar wall has been removed from Canifis.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+*This course was designed by BigRedJapan as a part of the 2013 Player Designed Content Roof Top Agility Courses.
+*Jump Gap 2 is one tick slower than the other Jump Gap obstacles, meaning an inexperienced player may click on Jump Gap 3 before the XP drop and will need to click again.
+*The course gives a substantial amount of [[marks of grace|marks]] at higher levels. With nonstop running, players can expect to see a max rate of ~18 marks per hour once they stop failing the obstacles.
+
+==References==
+{{Reflist}}
+
+{{Agility courses}}
+{{Agility rooftop obstacles}}
+{{Canifis}}

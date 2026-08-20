@@ -1,0 +1,29 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Enchant Crossbow Bolts (Pearl)
+|image = [[File:Enchant Crossbow Bolt.png]]
+|release = [[31 July]] [[2006]]
+|update = Crossbows
+|members = Yes
+|level = 24
+|spellbook = Normal
+|type = Utility
+|exp = 29
+|cost = {{RuneReq|Cosmic=1|Water=2}}
+|speed = 1 ticks (3 on autocast)
+|description = For use on pearl-tipped bolts.
+|anim = [[File:Enchant bolts.gif]]
+|sound = [[File:Enchant Crossbow Bolt.ogg]]
+}}
+[[File:Pearl bolts (e) detail.png|left|130px]]
+'''Enchant Crossbow Bolt (Pearl)''' is a [[Enchant Crossbow Bolt|bolt enchantment spell]] that requires a [[Magic]] level of 24 to cast. It imbues 10 [[pearl bolts]] each cast and turns them into 10 [[pearl bolts (e)]] or 10 [[pearl dragon bolts]] into 10 [[pearl dragon bolts (e)]]. The enchantment gives the effect ''Sea Curse''. Each bolt has a small chance of causing extra water damage towards your enemy. When used towards a fire-type monster or a player with fiery equipment, it can hit much greater damage. The effect is fully negated when used against a player holding a [[staff of water]] or any of its stronger counterparts.
+
+==Cost==
+{{Spell cost table
+|Rune1 = water
+|Rune1num = 2
+|Rune2 = cosmic
+|Rune2num = 1
+}}
+
+{{Standard spellbook}}

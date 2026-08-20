@@ -1,0 +1,51 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Heal Other
+|image = [[File:Heal Other.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 92
+|spellbook = Lunar
+|type = combat
+|exp = 101
+|cost = {{RuneReq|Blood=1|Law=3|Astral=3}}
+|speed = 
+|description = Transfers up to 75% of Hitpoints to another player
+|anim = [[File:Heal Other.gif|180px]]
+|sound = [[File:Heal Other.ogg]]
+}}
+[[File:Heal Other icon (mobile).png|left]]
+'''Heal Other''' transfers up to 75% of the caster's current [[hitpoints]] to the targeted player. The targeted player must have [[Accept Aid]] turned on to be healed by this spell, thus making it impossible for ironmen to be healed by others. As with all [[Lunar spells]], the quest [[Lunar Diplomacy]] must be completed to cast this spell. Additionally, a player needs at least 11% of their hitpoints to cast this spell.
+
+Some players may choose to use this spell as a method of training [[Magic]] in tandem with another player. One player would cast the spell on another, who would then cast it on them, resulting in a constant transfer of hitpoints and rapid gain of Magic experience. The downside to this sort of training is the great expense required for the [[runes]]. 
+
+It can be very useful in [[PvP|PvP.]] In PvM, it sees niche use in speedrun strategies and in keeping teammates alive during raids.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Blood
+|Rune1num = 1
+|Rune2 = Law
+|Rune2num = 3
+|Rune3 = Astral
+|Rune3num = 3
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 5 May 2021
+|update = Games Room Tables and Fishing Skill Boss Improvements
+|type = hotfix
+|change = The Heal Other spell no longer has a cooldown to cast.
+}}
+{{Subject changes
+|date = 5 May 2021
+|update = Games Room Tables and Fishing Skill Boss Improvements
+|change = The Heal Group and Heal Other spell now have a 90 second cooldown once cast, being shared between the two.
+}}
+{{Subject changes footer}}
+
+{{Lunar spellbook}}
+{{Combat spells}}

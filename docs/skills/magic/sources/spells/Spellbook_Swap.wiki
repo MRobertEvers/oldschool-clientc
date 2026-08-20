@@ -1,0 +1,60 @@
+{{External|rs}}
+{{Redirect|Sbs|the weapon|Saradomin's blessed sword}}
+{{otheruses|the Lunar spell|manually changing spellbooks|Spellbook#Changing spellbooks}}
+{{Infobox Spell
+|name = Spellbook Swap
+|image = [[File:Spellbook Swap.png]]
+|release = [[15 May]] [[2007]]
+|update = Dream Mentor
+|members = Yes
+|level = 96
+|spellbook = Lunar
+|type = Utility
+|exp = 130
+|cost = {{RuneReq|Astral=3|Cosmic=2|Law=1}}
+|speed = 
+|quest = [[Dream Mentor]]
+|description = Change to another spellbook for 1 spell cast
+|anim = [[File:Spellbook Swap.gif|180px]]
+|sound = [[File:Spellbook Swap.ogg]]
+}}
+[[File:Spellbook Swap icon (mobile).png|left]]
+The '''Spellbook Swap''' spell is one of the [[Lunar spells]] that can be used after completion of [[Dream Mentor]]. This spell gives the caster the ability to switch to another [[spellbook]] that they have access to and cast one spell from it. When a player casts the spell, they are presented with a choice of the spellbooks they have access to. When they select one, the runes for this spell are spent, experience is granted for it, and the player has two minutes to cast one spell from the selected spellbook granted they have the required runes to do so. They will return to the Lunar spellbook once they cast one spell from their selected spellbook or if two minutes have passed.
+
+The spell can be useful for combining teleport spells from different spellbooks. The occasional [[High Alchemy]] of valuable [[slayer]] monster drops is also useful. This spell also opens the Lunar spellbook to offensive capabilities from the other types of magic, although with a much reduced frequency. Beware of casting it in combat however, as it will prevent interaction for 4 ticks (2.4 seconds), which will potentially delay attacks and prevent healing.
+
+With a requirement of 96 [[Magic]], tied with [[Ghorrock Teleport]] for the highest Magic requirement of all spells, this option is available only to very high level players. Spellbook Swap is often used for activities consisting of many teleports around [[Gielinor]], such as [[Farming runs]] and [[Treasure Trails]]. It is also used for efficiency in bossing to provide access to lunar utility spells such as [[Boost Potion Share]] and [[Vengeance]] alongside [[thralls]] and [[Ancient Magicks]].
+
+Spellbook Swap can be cast while moving, but if cast while stationary the player will be unable to move until the spell is finished casting. If cast while moving, no [[run energy]] is consumed for the duration of the cast. 
+
+==Cost==
+{{Spell cost table
+|Rune1 = Law
+|Rune1num = 1
+|Rune2 = Cosmic
+|Rune2num = 2
+|Rune3 = Astral
+|Rune3num = 3
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 October 2023
+|update = Forestry: Part Two
+|change = An active Spellbook Swap is now cancelled at the beginning of [[Last Man Standing]].
+}}
+{{Subject changes
+|date = 18 February 2016
+|update = Dragon Claws & 3rd Birthday
+|change = The quick spellbook swap option for the Arceuus spellbook is now labelled as 'Arceuus' rather than 'Necromancy'.
+}}
+{{Subject changes
+|date = 30 January 2014
+|update = Release the Kraken!
+|change = The spellbook will now revert to Lunar after using Spellbook Swap more consistently.
+}}
+{{Subject changes footer}}
+
+{{Lunar spellbook}}
+{{Utility spells}}

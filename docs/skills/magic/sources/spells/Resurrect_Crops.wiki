@@ -1,0 +1,173 @@
+{{Infobox Spell
+|name = Resurrect Crops
+|image = [[File:Resurrect Crops.png]]
+|release = [[28 January]] [[2016]]
+|update = Necromancy Improvements
+|members = Yes
+|level = 78
+|spellbook = Arceuus
+|type = Utility
+|exp = 90
+|cost = {{RuneReq|Soul=8|Nature=12|Blood=8|Earth=25}}
+|speed = 
+|quest = None
+|description = Gives a chance to resurrect dead farming crops
+|anim = [[File:Resurrect Crops.gif|250pxpx]]
+|sound = No
+}}
+[[File:Resurrect Crops icon (mobile).png|left]]
+[[File:Resurrect Crops failure.gif|right|thumb|A different animation, when the spell fails.]]
+'''Resurrect Crops''' is a spell within the [[Arceuus spellbook]] that requires a [[Magic]] level of 78 to cast. This spell gives the caster a chance to bring a dead [[Farming patch]] back to life (excluding the [[anima patch]], [[Hespori]], and [[Tithe Farm]]). The chance of the spell succeeding is dependent on a player's Magic level, with a 50% chance at 78 Magic, scaling to a 75% chance at 99 Magic.{{CiteNews|author=The Old School Team|url=https://secure.runescape.com/m=news/necromancy-improvements?oldschool=1|title=Necromancy Improvements|newsdate=28 January 2016|quote=The chance of the spell succeeding is dependent on your Magic level, starting with a 50% chance at 78 Magic and scaling up to a 75% chance at 99 Magic.}} Visible [[Temporary skill boost|boosts]] to the player's Magic level will increase the chance of a successful resurrection, but note that boosts beyond level 99 have no impact on the [[Skilling success rate|skilling success function]].{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1470793534148157443|date=14 December 2021|archiveurl=https://reldo.runescape.wiki/i/108063|archivedate=13 April 2023|quote=It rolls on your Magic stat, so visible boosts to that will help. It doesn't appear to involve your Farming stat.}}
+
+If cast successfully, the patch will return to life and resume growing. If the spell fails, the patch is automatically cleared. Note that if a resurrected patch dies once more, this spell will not work again; attempting to do so will result in a message in the chatbox stating {{Mes|You already resurrected these crops once. Clear the patch and start again.}}.
+
+The spell is relatively expensive to cast, so it is not recommended to use it on cheap seeds. It can be used to help reduce the cost of training [[farming]] with higher level [[tree seed]]s when not paying a nearby [[Group of Advanced Gardeners|gardener]] for protection.
+
+==Cost==
+{{Spell cost table
+|Rune1 = soul
+|Rune1num = 8
+|Rune2 = nature
+|Rune2num = 12
+|Rune3 = blood
+|Rune3num = 8
+|Rune4 = earth
+|Rune4num = 25
+}}
+
+==Success chance==
+{{Skilling success chart
+|label=Dead crop revival chance
+|xlabel=Magic level
+|ylabel=Success chance
+|showbefore=no
+|label1=Resurrect Crops|low1=-106|high1=192|req1=78|color1=#AFEF0B|image1=Resurrect Crops.png
+}}
+
+<math display="inline">f(level) = \frac{\lfloor \frac{64(level - 36)}{21} + 0.5 \rfloor + 1}{256}</math>
+==Profit==
+This table takes into account the expected profit from saving the herb seed compared to the cost of the resurrection. <!--A table of other seeds would might be useful especially tree seed-->
+{{#if:{{{main|}}}|{{main|Resurrect Crops}}|}} <!--Allows optional main page link below the header.-->
+{| class="wikitable sortable lighttable align-left-4" style="text-align:center"
+|-
+! Level
+! Seed
+! profit at lvl 99
+! profit at lvl 78
+|-
+|9
+|{{plinkp|Guam seed}}<br/>[[Guam seed|Guam]]
+|{{Coins|({{GEP|Guam seed|1}}*0.7539 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|{{Coins|({{GEP|Guam seed|1}}*0.5039 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|-
+|14
+|{{plinkp|Marrentill seed}}<br/>[[Marrentill seed|Marrentill]]
+|{{Coins|({{GEP|Marrentill seed|1}}*0.7539 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|{{Coins|({{GEP|Marrentill seed|1}}*0.5039 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|-
+|19
+|{{plinkp|Tarromin seed}}<br/>[[Tarromin seed|Tarromin]]
+|{{Coins|({{GEP|Tarromin seed|1}}*0.7539 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|{{Coins|({{GEP|Tarromin seed|1}}*0.5039 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|-
+|26
+|{{plinkp|Harralander seed}}<br/>[[Harralander seed|Harralander]]
+|{{Coins|({{GEP|Harralander seed|1}}*0.7539 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|{{Coins|({{GEP|Harralander seed|1}}*0.5039 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|-
+|29
+|{{plinkp|Gout tuber}}<br/>[[Gout tuber]]
+|{{Coins|({{GEP|Gout tuber}}*0.7539 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|{{Coins|({{GEP|Gout tuber}}*0.5039 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|-
+|32
+|{{plinkp|Ranarr seed}}<br/>[[Ranarr seed|Ranarr]]
+|{{Coins|({{GEP|Ranarr seed|1}}*0.7539 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|{{Coins|({{GEP|Ranarr seed|1}}*0.5039 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|-
+|38
+|{{plinkp|Toadflax seed}}<br/>[[Toadflax seed|Toadflax]]
+|{{Coins|({{GEP|Toadflax seed|1}}*0.7539 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|{{Coins|({{GEP|Toadflax seed|1}}*0.5039 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|-
+|44
+|{{plinkp|Irit seed}}<br/>[[Irit seed|Irit]]
+|{{Coins|({{GEP|Irit seed|1}}*0.7539 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|{{Coins|({{GEP|Irit seed|1}}*0.5039 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|-
+|50
+|{{plinkp|Avantoe seed}}<br/>[[Avantoe seed|Avantoe]]
+|{{Coins|({{GEP|Avantoe seed|1}}*0.7539 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|{{Coins|({{GEP|Avantoe seed|1}}*0.5039 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|-
+|56
+|{{plinkp|Kwuarm seed}}<br/>[[Kwuarm seed|Kwuarm]]
+|{{Coins|({{GEP|Kwuarm seed|1}}*0.7539 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|{{Coins|({{GEP|Kwuarm seed|1}}*0.5039 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|-
+|61
+|{{plinkp|Snape grass seed}}<br/>[[Snape grass seed|Snape Grass]]
+|{{Coins|({{GEP|Snape grass seed|1}}*0.7539 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|{{Coins|({{GEP|Snape grass seed|1}}*0.5039 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|-
+|62
+|{{plinkp|Snapdragon seed}}<br/>[[Snapdragon seed|Snapdragon]]
+|{{Coins|({{GEP|Snapdragon seed|1}}*0.7539 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|{{Coins|({{GEP|Snapdragon seed|1}}*0.5039 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|-
+|65
+|{{plinkp|Huasca seed}}<br/>[[Huasca seed|Huasca]]
+|{{Coins|({{GEP|Huasca seed|1}}*0.7539 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|{{Coins|({{GEP|Huasca seed|1}}*0.5039 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|-
+|67
+|{{plinkp|Cadantine seed}}<br/>[[Cadantine seed|Cadantine]]
+|{{Coins|({{GEP|Cadantine seed|1}}*0.7539 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|{{Coins|({{GEP|Cadantine seed|1}}*0.5039 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|-
+|73
+|{{plinkp|Lantadyme seed}}<br/>[[Lantadyme seed|Lantadyme]]
+|{{Coins|({{GEP|Lantadyme seed|1}}*0.7539 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|{{Coins|({{GEP|Lantadyme seed|1}}*0.5039 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|-
+|79
+|{{plinkp|Dwarf weed seed}}<br/>[[Dwarf weed seed|Dwarf weed]]
+|{{Coins|({{GEP|Dwarf weed seed|1}}*0.7539 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|{{Coins|({{GEP|Dwarf weed seed|1}}*0.5039 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|-
+|85
+|{{plinkp|Torstol seed}}<br/>[[Torstol seed|Torstol]]
+|{{Coins|({{GEP|Torstol seed|1}}*0.7539 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|{{Coins|({{GEP|Torstol seed|1}}*0.5039 - {{GEP|Soul rune|8}} - {{GEP|Blood rune|8}} - {{GEP|Nature rune|12}})}}
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 28 April 2021
+|update = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|poll = 
+|change = The icon was [[Graphical updates|graphically updated]].
+}}
+{{Subject changes
+|date = 29 January 2016
+|update = System Update (29 January 2016)
+|poll = 
+|change = The spell now correctly switches back to the player's previous spellbook when using [[Spellbook Swap]].
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="10"
+|[[File:Resurrect Crops v1.png|center]]
+|[[File:Resurrect Crops.png|center]]
+|-
+|28 January 2016–<br/>28 April 2021
+|28 April 2021 ⁠–<br/>present
+|}
+
+==References==
+{{Reflist}}
+
+{{Arceuus spellbook}}
+{{Utility spells}}

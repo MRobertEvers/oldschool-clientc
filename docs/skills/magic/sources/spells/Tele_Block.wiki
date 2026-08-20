@@ -1,0 +1,132 @@
+{{External|rs=Teleport Block}}
+{{Redirect|TB|the minigame|Trouble Brewing|the weapon|Toxic blowpipe}}
+{{Redirect|Anti teleport|the unlock stopping monsters from teleporting your character|Teleport anchoring scroll}}
+{{Infobox Spell
+|name = Tele Block
+|image = [[File:Tele Block.png]]
+|release = [[14 March]] [[2005]]
+|update = Magic and Wilderness Updates
+|members = No
+|level = 85
+|spellbook = Normal
+|type = Combat
+|exp = 83.6
+|cost = {{RuneReq|Law=1|Chaos=1|Death=1}}
+|speed = 5 ticks
+|description = Stops your target from teleporting
+|anim = [[File:Tele Block.gif|300px]]
+|sound = [[File:Tele Block.ogg]]
+}}
+[[File:Tele Block icon (mobile).png|left]]
+'''Tele Block''' is a [[spell]] that requires a [[Magic]] level of 85 and can only be cast on another player in the [[Wilderness]]. 
+
+When used, if it [[successful hit|successfully hits]] the target, a large purple sphere will emerge and collide with the target, applying the [[Status effect|status effect]] of the same name. The target will also be notified of the Tele Block being applied on them with the message {{mes|A Tele Block has been cast on you by [player name]. It will expire in [time].|colour=purple}} 
+
+The default duration of the Tele Block is 5 minutes, but if the target had [[Protect from Magic]] up before it was cast and landed, it will be reduced by 50% to 2 minutes and 30 seconds. It should be noted that Protect from Magic does not affect the chance that Tele Block will splash. 
+
+[[File:Skull_Tele_Block.png|left|The Wilderness level UI element as it appears while the player is under the effects of Tele Block.]]
+While Tele Blocked, the player will be unable to use most forms of [[teleportation]], including the [[Wilderness Obelisk]]s and various teleport levers, such as the ones in the [[Deserted Keep]], [[Mage Arena]] and [[King Black Dragon Lair]]. They will also be unable to enter the [[Corporeal Beast]]'s cave or the [[Ferox Enclave]]. Exceptions to this rule are the [[Mage of Zamorak]] who can teleport the player to the [[Abyss]], and the [[Chaos Altar]] which can be entered with a [[chaos talisman]] or [[chaos tiara]]. Once Tele Blocked, the player is immune from further attempts until the current one expires. The player is briefly immune after the Tele Block wears off, though an observant player can quickly apply another one if timed properly.
+
+There are various ways to remove the Tele Block:
+
+*Kill the player who cast the Tele Block. When this occurs, the message "Your Tele Block has been removed because you killed [player name]." Forcing them to leave the Wilderness does not count.
+*Leave the Wilderness by any means - jump over the [[Wilderness Ditch]] or [[death|dying]]
+*Logging out, assuming the player is able to get out of combat.
+
+In the Wilderness, the runes can be substituted with a [[Blighted teleport spell sack]].
+
+[[File:Tele Block (fail).gif|thumb|250px|left|A failed cast of Tele Block.]]
+
+==Cost==
+{{Spell cost table
+|Rune1 = law
+|Rune1num = 1
+|Rune2 = chaos
+|Rune2num = 1
+|Rune3 = death
+|Rune3num = 1
+}}
+{| class="wikitable"
+|+
+! colspan="3" |Wilderness-only casting
+|-
+|{{CostLine|Blighted teleport spell sack}}
+|}
+
+==Sound effects==
+{{SFXTableHead}}
+{{SFXLine|file=Tele Block cast.wav|desc=Casting}}
+{{SFXLine|file=Tele Block impact.wav|desc=Impact, if cast successfully}}
+{{SFXLine|file=Spell failure.wav|desc=Impact, if cast failed}}
+{{SFXTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 14 February 2024
+|update = Barbarian Training, Forestry Changes & More
+|change = The player casting Tele Block will no longer have the 10-second logout prevention timer applied to them, only to the target.
+}}
+{{Subject changes
+|date = 5 December 2019
+|update = Game Improvements and Nightmare Beta Changes
+|change = An issue in which Tele Block had started to erroneously block player-owned house portals and similar teleports has now been fixed.
+}}
+{{Subject changes
+|date = 17 October 2019
+|update = Bounty Hunter Rework Beta
+|change = The Teleblock spell no longer gives options for casting it on NPCs.
+}}
+{{Subject changes
+|date = 27 June 2019
+|update = Changes to Teleblock and Extra Clan Wars Options
+|poll = State of PvP Poll
+|change = Killing an opponent that cast the spell on the player removes the Tele Block effect, though they will not be temporarily immune to another Tele Block should they successfully removes their Tele Block this way.
+}}
+{{Subject changes
+|date = 13 June 2019
+|update = PvP Improvements and W45 Changes
+|poll =
+|change = There are now additional messages displayed when Tele Blocked to notify players when 30 seconds remain, and when the Tele Block has expired.
+}}
+{{Subject changes
+|date = 6 June 2019
+|update = PvP Changes and Deadman Beta
+|poll =
+|change = Tele Block can now be cast in [[free-to-play]] worlds.
+}}
+{{Subject changes
+|date = 23 August 2018
+|update = Bush Yield Improvements, Nordic Soft Launch and Mobile Changes
+|poll =
+|change = The effects of Tele Block now expire upon logging out.
+}}
+{{Subject changes
+|date = 2 March 2017
+|update = Wilderness & PvP Improvements
+|poll = Quality of Life - PvP-related Suggestions
+|change = 
+*When under the effect of a Tele Block, players will now be told how long it'll be before they can teleport when you attempt to teleport.
+*Failing a Tele Block will now give 84 experience, while a successful cast now gives 95. Previously, the experience given was 80 regardless.
+*Tele Block are now cleared when players enter a safe area on PvP worlds.
+}}
+{{Subject changes
+|date = 25 February 2016
+|update = Grapes & PvP poll features
+|poll = Quality of Life - Top 10 PvP Suggestions
+|change = The Tele Block spell now has different animations to reflect whether or not the spell will hit successfully.
+}}
+{{Subject changes
+|date = 30 April 2015
+|update = Mutagens, Mo & Much More
+|poll = Old School Content Poll 32: Resizable Mode
+|change = A coloured notification now appears in the chatbox when you get teleblocked.
+}}
+{{Subject changes footer}}
+
+==Trivia==
+* Tele Block is the highest level spell available to [[free-to-play]] players.
+* Several monsters are also capable of using Tele Block, such as the bosses of [[Mage Arena II]] and [[Elder Chaos druid]]s. The former's duration is 2 minutes (1 with Protect from Magic) and the latter uses the standard duration, but can cast it repeatedly and refresh its duration. This monster variant does not expire even if the caster is killed.
+
+{{Standard spellbook}}
+{{Status effects}}

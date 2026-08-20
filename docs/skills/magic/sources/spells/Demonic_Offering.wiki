@@ -1,0 +1,95 @@
+{{Infobox Spell
+|name = Demonic Offering
+|image = [[File:Demonic Offering.png]]
+|release = [[16 June]] [[2021]]
+|update = A Kingdom Divided
+|members = Yes
+|level = 84
+|spellbook = Arceuus
+|type = Utility
+|exp = 175
+|cost = {{RuneReq|Soul=1|Wrath=1}}
+|speed = 
+|cooldown = 9 ticks
+|quest = [[A Kingdom Divided]]
+|description = Converts demonic ashes into prayer points and experience
+|anim = [[File:Demonic Offering.gif|180px]]
+|sound = [[File:Demonic Offering.ogg]]
+}}
+[[File:Demonic Offering icon (mobile).png|left]]
+'''Demonic Offering''' is a spell within the [[Arceuus spellbook]] that requires level 84 [[Magic]] and the completion of [[A Kingdom Divided]] to be cast. When cast, the spell instantly offers up to three [[Remains#Demonic ashes|demonic ashes]] in the player's inventory, granting three times the normal [[Prayer]] experience per ash for scattering them. The spell offers the first three demonic ashes in the player's inventory regardless of type. Players may only cast offering spells once every 5.4 seconds.
+
+The spell also restores one prayer point for each ash converted; for [[infernal ashes]], two prayer points are restored instead.
+
+The spell can be cast without runes at the [[Fountain of Rune]], which is useful for Ironmen without access to [[wrath rune]]s.
+
+==Cost==
+{{Spell cost table
+|Rune1 = soul
+|Rune1num = 1
+|Rune2 = wrath
+|Rune2num = 1
+}}
+
+==Prayer experience==
+{{#vardefine:CastPerHour|600}}
+{| class="wikitable"
+!rowspan="2" colspan="2"|Ashes
+!colspan="2"|Without Spell
+!colspan="3"|With Spell{{efn|Assumes that three ashes are consumed per spell cast.}}
+|-
+!XP
+!GP/XP
+!XP
+!GP/XP
+!{{SCP|Prayer}}XP/hr{{efn|Assumes 600 casts per hour, awarding {{SCP|Magic}}105,000 per hour.}}
+|-
+|{{plinkt|Fiendish ashes}}
+|10
+|{{Coins|-{{GEP|Fiendish ashes}}/10}}
+|30
+|{{Coins|-({{GEP|Fiendish ashes}}+({{GEP|Soul rune}}+{{GEP|Wrath rune}})/3)/30}}
+|{{formatnum:{{#expr:30*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Vile ashes}}
+|25
+|{{Coins|-{{GEP|Vile ashes}}/25}}
+|75
+|{{Coins|-({{GEP|Vile ashes}}+({{GEP|Soul rune}}+{{GEP|Wrath rune}})/3)/75}}
+|{{formatnum:{{#expr:75*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Malicious ashes}}
+|65
+|{{Coins|-{{GEP|Malicious ashes}}/65}}
+|195
+|{{Coins|-({{GEP|Malicious ashes}}+({{GEP|Soul rune}}+{{GEP|Wrath rune}})/3)/195}}
+|{{formatnum:{{#expr:195*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Abyssal ashes}}
+|85
+|{{Coins|-{{GEP|Abyssal ashes}}/85}}
+|255
+|{{Coins|-({{GEP|Abyssal ashes}}+({{GEP|Soul rune}}+{{GEP|Wrath rune}})/3)/255}}
+|{{formatnum:{{#expr:255*{{#var:CastPerHour}}*3}}}}
+|-
+|{{plinkt|Infernal ashes}}
+|110
+|{{Coins|-{{GEP|Infernal ashes}}/110}}
+|330
+|{{Coins|-({{GEP|Infernal ashes}}+({{GEP|Soul rune}}+{{GEP|Wrath rune}})/3)/330}}
+|{{formatnum:{{#expr:330*{{#var:CastPerHour}}*3}}}}
+|}
+{{notelist}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 30 June 2021
+|update = Phosani's Nightmare
+|poll =
+|change = Offering spells are now cast instantly, and have a cooldown of 9 game ticks (5.4 seconds).
+}}
+{{Subject changes footer}}
+
+{{Arceuus spellbook}}
+{{Utility spells}}

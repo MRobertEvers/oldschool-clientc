@@ -1,0 +1,53 @@
+{{Infobox Spell
+|name = Dark Demonbane
+|image = [[File:Dark Demonbane.png]]
+|release = [[16 June]] [[2021]]
+|update = A Kingdom Divided
+|members = Yes
+|level = 82
+|spellbook = Arceuus
+|type = Combat
+|exp = 43.5
+|damage = 30
+|cost = {{RuneReq|Fire=7|Soul=2}}
+|speed = 5 ticks
+|quest = [[A Kingdom Divided]]
+|description = Hits a demon for major damage
+|anim = [[File:Dark Demonbane.gif|250px]]
+|sound = [[File:Dark Demonbane.ogg]]
+}}
+[[File:Dark Demonbane icon (mobile).png|left]]
+'''Dark Demonbane''' is a spell within the [[Arceuus spellbook]] that requires level 82 [[Magic]] and the completion of [[A Kingdom Divided]] to be cast. This spell has a base max hit of 30 but can only be cast on [[Demon (attribute)|demonic]] creatures.
+
+By default, [[demonbane spells]] have an accuracy bonus of 20% but can be doubled to 40% when the [[Mark of Darkness]] spell is active, which additionally gives a 25% damage bonus. If attacking with a [[purging staff]], this is further doubled to an 80% accuracy and 50% damage bonus when under the effects of the Mark of Darkness. All of these bonuses are calculated after the player's own [[magic damage]] bonuses from their equipment.
+
+==Damage==
+===Calculator===
+{{Magic damage calculator|Dark Demonbane|weapons=Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Purging staff|markofdarkness=y}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = fire
+|Rune1num = 7
+|Rune2 = soul
+|Rune2num = 2
+|is_offensive = y
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 May 2025
+|update = Yama: The Calm Before the Contract Storm
+|change = The [[fire rune]] cost to cast the spell has been reduced from 12 to 7.
+}}
+{{Subject changes
+|date = 30 June 2021
+|update = Phosani's Nightmare
+|poll = 
+|change = Demonbane spells now have a 20% accuracy bonus, increasing to 40% for demonic creatures while the player is under the effects of the [[Mark of Darkness]] spell.
+}}
+{{Subject changes footer}}
+
+{{Arceuus spellbook}}
+{{Attribute_affinities}}

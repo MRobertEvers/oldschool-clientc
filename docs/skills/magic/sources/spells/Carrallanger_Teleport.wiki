@@ -1,0 +1,47 @@
+{{External|rs=Carrallangar Teleport}}
+{{otheruses|the teleport spell|the teleport tablet|Carrallanger teleport (tablet)}}
+{{Infobox Spell
+|name = Carrallanger Teleport
+|image = [[File:Carrallanger Teleport.png]]
+|release = [[18 April]] [[2005]]
+|update = Desert Treasure
+|members = Yes
+|level = 84
+|spellbook = Ancient
+|type = Teleport
+|exp = 94
+|cost = {{RuneReq|Soul=2|Law=2}}
+|speed = 5 ticks
+|description = A teleportation spell
+|anim = [[File:Ancient teleport.gif]]
+|sound = [[File:Teleport (Ancient Magicks).ogg]]
+}}
+[[File:Carrallanger Teleport icon (mobile).png|left|class=pageimage]]
+'''Carrallanger Teleport''' requires a [[Magic]] level of 84 to cast. It teleports the caster to the [[Graveyard of Shadows]] (known in ancient times as [[Carrallanger]]) in level 19 [[Wilderness]].
+
+As with all [[Ancient Magicks]] spells, the quest [[Desert Treasure I]] must be completed to cast this spell.
+
+This teleport is popular for players who wish to kill [[green dragon]]s, as they are located very close to the teleport spot, and can greatly increase kills and profit per hour.
+
+==Cost==
+{{Spell cost table
+|Rune1 = law
+|Rune1num = 2
+|Rune2 = soul
+|Rune2num = 2
+}}
+
+==Destination==
+{{Map|3158,3666|mtype=square|r=2|align=left}}{{clear|left}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 26 July 2023
+|update = Desert Treasure II - The Fallen Empire
+|change = The spell was renamed from "Carrallangar Teleport" to "Carrallanger Teleport".
+}}
+{{Subject changes footer}}
+
+{{Ancient Magicks}}
+{{Teleport spells}}

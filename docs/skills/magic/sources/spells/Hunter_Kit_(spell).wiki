@@ -1,0 +1,65 @@
+{{External|rs}}
+{{otheruses|the spell|the item|Hunter Kit|the item used to store various hunting equipment|Huntsman's kit}}
+{{Infobox Spell
+|name = Hunter Kit
+|image = [[File:Hunter Kit.png]]
+|release = [[15 May]] [[2007]]
+|update = Dream Mentor
+|members = Yes
+|level = 71
+|spellbook = Lunar
+|type = Utility
+|exp = 70
+|cost = {{RuneReq|Astral=2|Earth=2}}
+|speed = 3 ticks
+|quest = [[Dream Mentor]]
+|description = Get a kit of hunter gear
+|anim = [[File:Hunter Kit.gif]]
+|sound = [[File:Hunter Kit.ogg]]
+}}
+[[File:Hunter Kit icon (mobile).png|left]]
+'''Hunter Kit''' is a [[Lunar spell]] that produces a [[hunter kit]] in the player's inventory, filled with various [[Hunter]] items. It requires 71 [[Magic]] and completion of the [[Dream Mentor]] [[quest]] to cast. The hunter kit's items are somewhat useful for beginning hunters, but has very limited uses for experienced hunters due to the role of the magically-produced items in the skill.
+
+The spell '''cannot''' be cast with a hunter kit or a full set of its contents in one's inventory. Attempting to do so will result in the game message {{mes|Why do you want to create a kit? You already have all the Hunter equipment it contains.}}
+
+The kit contains 8 items in total:
+*[[Noose wand]]
+*[[Butterfly net]]
+*[[Bird snare]]
+*[[Rabbit snare]]
+*[[Teasing stick]]
+*[[Unlit torch]]
+*[[Box trap]]
+*[[Impling jar]]
+
+Each cast of the spell has a net profit of {{Coins|(({{GEP|Noose wand}}+{{GEP|Butterfly net}}+{{GEP|Bird snare}}+{{GEP|Rabbit snare}}+{{GEP|Teasing stick}}+{{GEP|Unlit torch}}+{{GEP|Box trap}}+{{GEP|Impling jar}}-{{GEP|Astral rune|2}}))}} when using a [[staff of earth]] and selling the items of the hunter kit.
+
+Casting Hunter Kit while returning to [[Eniola]] after crafting runes at the [[Ourania Altar]] can be an effective way for [[Ironmen]] to stockpile Impling jars for later use - each cast only provides one jar, but no time is spent casting the spell, and thousands of altar runs must be done to train the [[Runecraft]] skill. 
+
+==Cost==
+{{Spell cost table
+|Rune1 = Astral
+|Rune1num = 2
+|Rune2 = Earth
+|Rune2num = 2
+}}
+
+==Money making==
+{{Mmgsection|Casting Hunter kit}}
+
+==Training==
+[[File:Hunter Kit Magic training.gif|alt=Hunter Kit training demonstration|thumb|Efficient method of casting Hunter Kit for Magic training.]]
+Training with this spell can yield 60,000-65,000 Magic experience per hour. Because it is only possible to have 1 [[hunter kit]] in your inventory at a time or the products of a kit, banking is required after every cast. Opening the hunter kit isn't required for banking. Make sure the setting for the escape key to close the current interface is enabled and fill your inventory with enough items, or filter your spellbook, so that the spell will be on top of where the kit is placed in your inventory. Opening and selling the kit contents results in a profit of around {{Coins|((({{GEP|Noose wand}}+{{GEP|Butterfly net}}+{{GEP|Bird snare}}+{{GEP|Rabbit snare}}+{{GEP|Teasing stick}}+{{GEP|Unlit torch}}+{{GEP|Box trap}}+{{GEP|Impling jar}}-{{GEP|Astral rune|2}})*800))}} per hour.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 25 June 2015
+|update = Boss Room Counters & Platinum Tokens
+|poll = Old School Content Poll 34: XP droplets & Slayer
+|change = Hunter kits created with the Lunar spell 'Hunter Kit' now contain impling jars. 
+}}
+{{Subject changes footer}}
+
+{{Lunar spellbook}}
+{{Utility spells}}

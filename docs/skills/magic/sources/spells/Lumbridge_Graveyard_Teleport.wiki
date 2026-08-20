@@ -1,0 +1,45 @@
+{{otheruses|the teleport spell|the teleport tablet|Lumbridge graveyard teleport (tablet)}}
+{{Gone|update=Arceuus Spellbook Beta and A Kingdom Divided Preparation}}
+{{Infobox Spell
+|bucket = no
+|name = Lumbridge Graveyard Teleport
+|image = [[File:Lumbridge Graveyard Teleport.png]]
+|release = [[28 January]] [[2016]]
+|update = Necromancy Improvements
+|removal = [[28 April]] [[2021]]
+|removalupdate = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|members = Yes
+|level = 6
+|spellbook = Arceuus
+|type = Teleport
+|exp = 9
+|cost = {{RuneReq|Law=1|Earth=2}}
+|speed = 4 ticks
+|description = Teleports you to the graveyard in Lumbridge
+|anim = [[File:Arceuus teleport.gif|150px]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Lumbridge Graveyard Teleport icon (mobile).png|left]]
+'''Lumbridge Graveyard Teleport''' was a spell that teleported the caster to the [[Lumbridge Graveyard|graveyard]] directly south of the [[Lumbridge]] church. In order to cast this spell, players must have earned at least 60% [[Arceuus]] [[favour]] to unlock the [[Arceuus spellbook]].
+
+The spell was replaced with the [[Arceuus Library Teleport]] in [[Update:Arceuus Spellbook Beta and A Kingdom Divided Preparation|an update]] on [[28 April]] [[2021]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = Law
+|Rune1num = 1
+|Rune2 = Earth
+|Rune2num = 2
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 January 2016
+|update = System Update (29 January 2016)
+|poll = 
+|change = The spell now correctly uses [[combination rune]]s.
+}}
+{{Subject changes footer}}
+
+{{Arceuus spellbook}}

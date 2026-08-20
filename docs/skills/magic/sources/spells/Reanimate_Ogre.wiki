@@ -1,0 +1,65 @@
+{{otheruses|the removed Arceuus spell|the new spell for reanimating ogres|Adept reanimation}}
+{{Gone|update=Arceuus Spellbook Beta and A Kingdom Divided Preparation}}
+{{Infobox Spell
+|bucket = no
+|name = Reanimate Ogre
+|image = [[File:Reanimate Ogre.png]]
+|release = [[7 January]] [[2016]]
+|update = Zeah: Great Kourend
+|removal = [[28 April]] [[2021]]
+|removalupdate = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|members = Yes
+|level = 40
+|spellbook = Arceuus
+|type = Utility
+|exp = 80
+|cost = {{RuneReq|Soul=1|Nature=3|Body=4}}
+|speed = 
+|quest = None
+|description = Reanimates an ensouled corpse
+|anim = [[File:Reanimate.gif|200px]]
+|sound = [[File:Reanimate (Arceuus spells).ogg]]
+}}
+[[File:Reanimate Ogre icon (mobile).png|left]]
+'''Reanimate Ogre''' was a [[reanimation spell]] which required a [[Magic]] level of 40 and an [[ensouled ogre head]] to cast. This spell would summon a [[reanimated ogre]] with 35 [[Hitpoints]].
+
+Upon killing the reanimated ogre, players would gain 716 [[Prayer]] experience and 1.0% [[Arceuus]] [[favour]].
+
+Reanimation can be cast on any ensouled head within an 31x31 area where that head was dropped by a monster. This will work indefinitely, even if the ensouled head is picked up, so long as it is not put into the [[bank]], [[trade]] screen, [[Grand Exchange]], or [[price checker]]. If the player has put the head into the bank, trade screen, Grand Exchange, or price checker, the reanimation spell will only work within range of the [[Dark Altar]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = soul
+|Rune1num = 1
+|Rune2 = nature
+|Rune2num = 3
+|Rune3 = body
+|Rune3num = 4
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 11 October 2018
+|update = Spellbook Rework, Wise Old Man and, Increased Zoom
+|poll = 
+|change = The icon was [[Graphical updates|graphically updated]].
+}}
+{{Subject changes
+|date = 14 January 2016
+|update = Price Checks & Improvements
+|poll = 
+|change = The prayer experience from defeating reanimated creatures has been doubled. As a result, the 50% experience bonus gained from doing so when within range of the Dark Altar was removed.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="10"
+|[[File:Reanimate Ogre v1.png|center]]
+|[[File:Reanimate Ogre.png|center]]
+|-
+|7 January 2016–<br/>11 October 2018
+|11 October 2018 ⁠–<br/>present
+|}
+
+{{Arceuus spellbook}}

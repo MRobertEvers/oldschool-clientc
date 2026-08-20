@@ -1,0 +1,64 @@
+{{otheruses|the teleport spell|the teleport tablet|Cemetery teleport (tablet)}}
+{{Infobox Spell
+|name = Cemetery Teleport
+|image = [[File:Cemetery Teleport.png]]
+|release = [[28 January]] [[2016]]
+|update = Necromancy Improvements
+|members = Yes
+|level = 71
+|spellbook = Arceuus
+|type = Teleport
+|exp = 82
+|cost = {{RuneReq|Law=1|Soul=1|Blood=1}}
+|speed = 4 ticks
+|description = Teleports you to the Forgotten Cemetery
+|anim = [[File:Arceuus teleport.gif|150px]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Cemetery Teleport icon (mobile).png|left|class=pageimage]]
+'''Cemetery Teleport''' teleports the caster to [[The Forgotten Cemetery]] in the [[Wilderness]] (lv 31). It is north of the [[Ruins (west)|ruins]], which is reasonably similar to the [[Dareeyak Teleport]].
+
+In order to cast this spell, players must have spoken to [[Tyss]] to unlock the [[Arceuus spellbook]].
+
+Players must be careful when casting this spell, as they are unable to teleport away immediately because the highest Wilderness level that you can teleport from is 30 and you teleport to level 31 Wilderness.
+
+The player is also likely to be attacked immediately upon teleporting in by aggressive [[Skeletons]] and [[Ankou]] that roam the cemetery, so this leaves them unable to log out immediately should they wish to escape a PKer.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Law
+|Rune1num = 1
+|Rune2 = Soul
+|Rune2num = 1
+|Rune3 = Blood
+|Rune3num = 1
+}}
+==Destination==
+{{Map|2981,3764|mtype=square|r=2|align=left}}{{clear|left}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 March 2023
+|update = Quest Speedrunning's Final Batch
+|change = The Wilderness warning will no longer appear when clicking the spell unless the player can cast the spell.
+}}
+{{Subject changes
+|date = 28 April 2021
+|update = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|poll = 
+|change = The icon was [[Graphical updates|graphically updated]].
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="10"
+|[[File:Cemetery Teleport v1.png|center]]
+|[[File:Cemetery Teleport.png|center]]
+|-
+|28 January 2016–<br/>28 April 2021
+|28 April 2021 ⁠–<br/>present
+|}
+
+{{Arceuus spellbook}}
+{{Teleport spells}}

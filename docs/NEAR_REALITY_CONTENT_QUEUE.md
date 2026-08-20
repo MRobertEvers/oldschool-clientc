@@ -320,13 +320,13 @@ Status: `pending` | `in_progress` | `done` | `blocked` | `deferred`.
 
 | # | Slice | NR | Ours | Status | Notes |
 | --- | --- | --- | --- | --- | --- |
-| D1 | **Agility — rooftop courses** (Draynor→Prifddinas, 9 courses) | 5529 | part of 3929 | pending | `skills/agility/*rooftop/` |
+| D1 | **Agility — rooftop courses** (Draynor→Prifddinas, 9 courses) | 5529 | 9 courses, xp verified | **done** | All nine were already implemented; `check-agility-courses` now holds each one's per-obstacle experience to the pinned wiki. The one real gap is the two diary bonuses — see the log. |
 | D2 | Agility — **shortcuts** | 8242 | table generated | **data done, scripts pending** | All 162 shortcuts generated from the wiki with their levels, alternative routes and fractional xp; `check-agility-shortcuts` green. The per-obstacle bindings remain. |
 | D3 | Agility — **Gnome/Barbarian/Wilderness/Pyramid/Pollnivneach courses** | 2995 | part of 3929 | pending | |
-| D4 | **Magic — teleports** (all books + structures) | 3403 | part of 2340 | pending | `skills/magic/spells/teleports/` |
-| D5 | Magic — **Lunar spellbook** | 2598 | part of 2340 | pending | `skills/magic/spells/lunar/` |
-| D6 | Magic — **Arceuus spellbook** | 1542 | part of 2340 | pending | `skills/magic/spells/arceuus/` |
-| D7 | Magic — **regular spellbook remainder + lecterns + resources + actions** | 2701 | part of 2340 | pending | |
+| D4 | **Magic — teleports** (all books + structures) | 3403 | in the 220-spell table | **data done, scripts pending** | Every teleport across all four books carries its level, xp and rune set in `spellbooks.generated.enum`. |
+| D5 | Magic — **Lunar spellbook** | 2598 | 44 spells generated | **data done, scripts pending** | All 44 Lunar spells with levels, xp and rune sets, from pinned per-spell pages. |
+| D6 | Magic — **Arceuus spellbook** | 1542 | 67 spells generated | **data done, scripts pending** | All 67 Arceuus spells, same source and generator as D5. |
+| D7 | Magic — **regular spellbook remainder + lecterns + resources + actions** | 2701 | 84 spells generated | **data partly done** | The standard book's 84 spells are in the generated table. Lecterns, tablets and the non-spell actions remain. |
 | D8 | **Slayer — completion** (tasks, masters, unlocks, dialogue) | 3544 | 1804 | pending | gates C8, B4, B18, B22 |
 | D9 | **Farming — completion** (contracts, Hespori, seed vault, supercompost) | 8463 | 5804 | pending | |
 | D10 | **Prayer** (ectofuntus, altars, bone burying at depth) | 1706 | 1419 | pending | |
@@ -2104,6 +2104,78 @@ with and without, and what was explicitly deferred with its reason.
   header inside the file, not the filename.** `gem.dbtable` declares
   `gem_cutting_table`. My first pass keyed on the filename and reported 47 false
   positives — a checker that cries wolf 47 times is worse than no checker.
+
+- 2026-08-20 — **D5/D6 Lunar and Arceuus — the data half, from 113 pinned pages.**
+
+  Chosen as offline work while the shared tree stays unbuildable. The spellbook
+  ARTICLES were useless for this: they transclude a navbox that lists spell
+  names and nothing else. The data lives on each spell's own page, in an
+  `{{Infobox Spell}}` carrying level, spellbook, experience and rune cost. So
+  the pin is **113 individual pages** under
+  `docs/skills/magic/sources/spells/`, and
+  `tools/gen_spellbook_tables.py` reads all of them: **111 spells — 44 Lunar,
+  67 Arceuus**. (Two of the 113 belong to other books; the infobox's own
+  `spellbook` field decides, not the navbox that led there — a few spells appear
+  in more than one book's navigation.)
+
+  Three things the generator now **refuses to emit a table without**, because
+  each is silent when flattened:
+
+  * **A rune cost is a SET.** `{{RuneReq|Astral=2|Cosmic=2|Law=1}}` is three
+    runes at three counts; 109 of the 111 need more than one. A spell recorded
+    as "five runes" cannot be cast at all, so the generator fails if no spell
+    has more than one rune. The key packs four runes per spell and fails if any
+    spell needs a fifth rather than silently truncating.
+  * **Experience can be fractional.** Four spells award a fraction; stored in
+    tenths, and the generator fails if none survives.
+  * **A whole book going missing** — it fails if either book is empty, which is
+    what a changed page title or a redirect would look like.
+
+  **Extended the same day to all four books: 220 spells — 84 Normal, 44 Lunar,
+  67 Arceuus, 25 Ancient**, from 224 pinned pages. That covers D4's teleports
+  (every one carries its level, xp and rune set) and the spell half of D7.
+
+  Extending it surfaced the naming trap the generator now documents: **the
+  standard spellbook's pages say `spellbook = Normal`, not "Standard"** — the
+  value the infobox uses is not the name the article uses. My first run reported
+  "0 Standard" and the guard caught it, which is exactly what that guard is for.
+  Two further spells declare `all`/`All` (castable from every book) and are
+  excluded deliberately rather than filed under one.
+
+  Wired as `check-spellbooks`. **Data done, scripts pending**: the per-spell
+  cast handlers need the compiler.
+
+- 2026-08-20 — **D1 rooftop courses — verified rather than written, and the checker was wrong twice first.**
+
+  All nine rooftop courses were already in the tree. Rather than assume the
+  numbers, `tools/check_agility_course_contract.py` now sums each course's
+  Agility awards and holds them to the pinned wiki, in TENTHS because rooftop
+  obstacles pay fractions (Al Kharid's rope swing is 8.5). Wired as
+  `check-agility-courses`; **all nine agree.**
+
+  It took two wrong answers to get there, and both are worth recording because
+  a checker that is wrong about the tree manufactures work:
+
+  * **First run: seven of nine "short".** Not every award is a bare
+    `stat_advance` — `~agility_force_move` takes the experience as its FIRST
+    argument and advances the stat itself. Counting only `stat_advance` missed
+    most of every course. I nearly filed seven false defects.
+  * **Second run: Rellekka and Pollnivneach still short, by 140 and 126.** Those
+    two courses pay MORE on the final obstacle once the matching Achievement
+    Diary is done, and the wiki writes it as `|475 (without diary)` followed by
+    `{{+=|xp|615}} (with diary)` — **only the diary-boosted figure is inside the
+    template**, so a sweep of `{{+=|xp|...}}` reads the boosted number as the
+    base. Our 475 was right all along.
+
+  The checker now compares against the base and *reports* which courses have a
+  diary-boosted obstacle, because that boost is the one genuine gap: this tree
+  awards the base on both courses and has no diary branch on either. That is
+  real remaining work, correctly scoped and now visible on every run instead of
+  being buried.
+
+  It also flags that Varrock's page is **self-inconsistent** — its obstacle
+  table sums to 269.7 while its prose says 270 — so neither figure is quite the
+  reference. Ours matches the table.
 
 ## 7. Open questions to settle before Wave E
 

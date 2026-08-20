@@ -1,0 +1,37 @@
+{{External|rs}}
+{{otheruses|the spell|the teleport tablet|Waterbirth teleport (tablet)}}
+{{Infobox Spell
+|name = Waterbirth Teleport
+|image = [[File:Waterbirth Teleport.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 72
+|spellbook = Lunar
+|type = Teleport
+|exp = 71
+|cost = {{RuneReq|Law=1|Water=1|Astral=2}}
+|speed = 4 ticks
+|description = Teleports you to Waterbirth Island
+|anim = [[File:Lunar teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Waterbirth Teleport icon (mobile).png|left]]
+'''Waterbirth Teleport''' teleports the player beside [[Jarvald]]'s ship on [[Waterbirth Island]], right by the [[snape grass]] spawns. As with all [[Lunar spells]], the quest [[Lunar Diplomacy]] must be completed to cast this spell.
+
+Casting this spell is a [[hard Fremennik Diary]] task.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Water
+|Rune1num = 1
+|Rune2 = Law
+|Rune2num = 1
+|Rune3 = Astral
+|Rune3num = 2
+}}
+==Destination==
+{{Map|2546,3755|mtype=square|r=2|align=left}}{{clear|left}}
+
+{{Lunar spellbook}}
+{{Teleport spells}}

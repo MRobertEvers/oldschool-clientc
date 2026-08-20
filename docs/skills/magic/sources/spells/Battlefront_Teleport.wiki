@@ -1,0 +1,56 @@
+{{otheruses|the teleport spell|the teleport tablet|Battlefront teleport (tablet)}}
+{{Infobox Spell
+|name = Battlefront Teleport
+|image = [[File:Battlefront Teleport.png]]
+|release = [[10 January]] [[2019]]
+|update = The Kebos Lowlands
+|members = Yes
+|level = 23
+|spellbook = Arceuus
+|type = Teleport
+|exp = 19
+|cost = {{RuneReq|Law=1|Earth=1|Fire=1}}
+|speed = 
+|description = Teleports you to the grave north-west of Kebos Battlefront
+|anim = [[File:Arceuus teleport.gif|150px]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Battlefront Teleport icon (mobile).png|left|class=pageimage]]
+'''Battlefront Teleport''' teleports the caster to the [[Ancient Grave]] just outside the [[Battlefront]] in the [[Kebos Lowlands]].
+
+In order to cast this spell, players must have spoken to [[Tyss]] to unlock the [[Arceuus spellbook]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = Law
+|Rune1num = 1
+|Rune2 = Earth
+|Rune2num = 1
+|Rune3 = Fire
+|Rune3num = 1
+}}
+
+==Destination==
+{{Map|1347,3740|mtype=square|r=2|align=left}}{{clear|left}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 28 April 2021
+|update = Arceuus Spellbook Beta and A Kingdom Divided Preparation
+|poll = 
+|change = The icon was [[Graphical updates|graphically updated]].
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="10"
+|[[File:Battlefront Teleport v1.png|center]]
+|[[File:Battlefront Teleport.png|center]]
+|-
+|10 January 2019–<br/>28 April 2021
+|28 April 2021 ⁠–<br/>present
+|}
+
+{{Arceuus spellbook}}
+{{Teleport spells}}

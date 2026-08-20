@@ -1,0 +1,38 @@
+{{Infobox Spell
+|name = Resurrect Lesser Skeleton
+|image = [[File:Resurrect Lesser Skeleton.png]]
+|release = [[16 June]] [[2021]]
+|update = A Kingdom Divided
+|members = Yes
+|level = 38
+|spellbook = Arceuus
+|type = Combat
+|exp = 55
+|cost = {{RuneReq|Air=10|Mind=5|Cosmic=1}} <sup>2</sup> {{SCP|Prayer}} {{plinkp|Book of the Dead}}
+|speed = 4 ticks
+|cooldown = 16 ticks
+|quest = [[A Kingdom Divided]]
+|description = Calls upon a lesser skeletal thrall to fight alongside you
+|anim = [[File:Resurrect Skeleton.gif|300px]]
+|sound = [[File:Resurrect Lesser Skeleton.ogg]]
+}}
+[[File:Resurrect Lesser Skeleton icon (mobile).png|left]]
+'''Resurrect Lesser Skeleton''' is a [[resurrection spells|resurrection spell]] within the [[Arceuus spellbook]] that requires level 38 [[Magic]] and the completion of [[A Kingdom Divided]] to be cast. In addition to the required runes, casting this spell requires two [[prayer points]] and having the [[Book of the Dead]] equipped or in the player's inventory.
+
+The spell will summon a [[lesser skeletal thrall]], which has an [[attack speed]] of 4 (attacking every 2.4 seconds) and attacks using [[Ranged]] (with a max hit of 1), ignoring any accuracy checks in the process. They will attack the same target that the player is attacking, and cannot be damaged. However, they '''cannot''' attack other players. Damage dealt by the thrall counts as damage dealt by the player that summoned it.
+
+Thralls will remain for a set amount of time (<math>0.6 * CurrentMagicLevel</math> seconds), but players can cast resurrection spells again after 10 seconds, albeit the existing thrall will disappear if players do so.
+
+Summoned [[thrall]]s last twice as long as normal after claiming the [[Master Combat Achievements]] rewards. 
+
+==Cost==
+{{Spell cost table
+|Rune1 = air
+|Rune1num = 10
+|Rune2 = mind
+|Rune2num = 5
+|Rune3 = cosmic
+|Rune3num = 1
+}}
+
+{{Arceuus spellbook}}

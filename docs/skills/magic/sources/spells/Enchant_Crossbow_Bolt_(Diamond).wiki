@@ -1,0 +1,31 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Enchant Crossbow Bolts (Diamond)
+|image = [[File:Enchant Crossbow Bolt.png]]
+|release = [[31 July]] [[2006]]
+|update = Crossbows
+|members = Yes
+|level = 57
+|spellbook = Normal
+|type = Utility
+|exp = 67
+|cost = {{RuneReq|Cosmic=1|Earth=10|Law=2}}
+|speed = 1 ticks (3 on autocast)
+|description = For use on diamond-tipped bolts.
+|anim = [[File:Enchant bolts.gif]]
+|sound = [[File:Enchant Crossbow Bolt.ogg]]
+}}
+[[File:Diamond bolts (e) detail.png|left|130px]]
+'''Enchant Crossbow Bolts (Diamond)''' is a [[Enchant Crossbow Bolt|bolt enchantment spell]] that requires a [[Magic]] level of 57 to cast. It imbues 10 [[diamond bolts]] or [[diamond dragon bolts]] each cast and turns them into [[diamond bolts (e)]] or [[diamond dragon bolts (e)]] respectively. The enchanted bolts have a chance of triggering an effect that increases the max hit by 15% while guaranteeing a [[successful hit]]. They are very useful when fighting enemies with high defence, like [[metal dragons]] or creatures in the [[TzHaar Fight Cave]], especially when they are relatively cheap to buy.
+
+==Cost==
+{{Spell cost table
+|Rune1 = earth
+|Rune1num = 10
+|Rune2 = cosmic
+|Rune2num = 1
+|Rune3 = law
+|Rune3num = 2
+}}
+
+{{Standard spellbook}}

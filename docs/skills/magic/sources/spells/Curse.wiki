@@ -1,0 +1,40 @@
+{{External|rs|rsc}}
+{{otheruses|the spell in the [[Standard spellbook|standard spellbook]]|the category of spells|Curse spells|the developer|Mod Curse}}
+{{Infobox Spell
+|name = Curse
+|image = [[File:Curse.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 19
+|spellbook = Normal
+|type = Combat
+|exp = 29
+|cost = {{RuneReq|Body=1|Earth=3|Water=2}}
+|speed = 5 ticks
+|description = Reduces your opponent's defence by 5%
+|anim = [[File:Curse.gif|300px]]
+|sound = [[File:Curse.ogg]]
+}}
+[[File:Curse icon (mobile).png|left]]
+'''Curse''' is a level 19 [[Magic]] [[spell]]. When cast on an opponent, their [[defence]] is reduced by 5%. The spell gives 29 [[experience]] whether it hits or misses, making it a popular way to gain experience cheaply. The spell can only be cast if the target's stats haven't already been lowered, meaning you can not stack stat reduction with multiple spells in a row.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Water
+|Rune1num = 2
+|Rune2 = Earth
+|Rune2num = 3
+|Rune3 = Body
+|Rune3num = 1
+|uses_pages_water = yes
+}}
+
+==Failed Cursing==
+{{Main|Splashing}}
+Casting Curse while wearing full [[metal armour]] (including an [[elemental staff]] with no more than +10 magic points) and d'hide [[vambraces]] can give a magic attack as low as -65, which guarantees a "splash," or a missed hit. This provides very cheap Magic experience, as players can instantly recast the spell on the same target. Additionally, casting Curse grants players no experience in the [[Hitpoints]] skill and, thus, is useful to [[combat pure|pures]]. The usual method is to buy the Body runes needed for the cast, as well as an appropriate amount of one of the other two runes, and using the respective staff of the third rune. An expensive alternative is to buy a [[Mud battlestaff]], which provides an unlimited supply of both Water and Earth runes. [[Snakeskin boots]] are also a recommended item to bring when splashing as they give an additional -10 magic attack.
+
+When doing this method, it is helpful to position a monster so that it is just on the edge of your screen, so that there is minimal distance between it and your spellbook.
+
+{{Standard spellbook}}
+[[Category:Defence reduction]]

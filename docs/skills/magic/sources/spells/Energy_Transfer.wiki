@@ -1,0 +1,52 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Energy Transfer
+|image = [[File:Energy Transfer.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 91
+|spellbook = Lunar
+|type = Combat
+|exp = 100
+|cost = {{RuneReq|Astral=3|Law=2|Nature=1}}
+|speed = 
+|description = Spend Hitpoints and SA energy to give another SA and run energy
+|anim = [[File:Energy Transfer.gif|180px]]
+|sound = [[File:Energy Transfer.ogg]]
+}}
+[[File:Energy Transfer icon (mobile).png|left]]
+'''Energy Transfer''' is a [[Lunar spell]]. As with all Lunar spells, completion of [[Lunar Diplomacy]] is required to cast this spell. It costs 100% [[special attack]] energy and 10 [[hitpoints]] to cast, and restores all of the target's [[energy|run energy]] and [[special attack]]. The target's [[Accept Aid]] setting must be enabled. If you try to cast it with 10 hitpoints or less you will get the message: {{mes|You need more hitpoints to cast this spell.}} 
+
+This spell is often used with hard/high hitting special attack weapons, such as [[Dragon claws]], to enable the targets to use the special attacks more frequently than they would have been able to do otherwise. However, players cannot cast this spell in [[single-way combat]] PvP areas, or on targets who have recently been in combat on [[PvP world]]s.
+
+{{Spell cost table
+|Rune1 = Nature
+|Rune1num = 1
+|Rune2 = Law
+|Rune2num = 2
+|Rune3 = Astral
+|Rune3num = 3}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 22 November 2018
+|update = Bird Nest Balancing and PvP Changes
+|change = Energy Transfer can no longer be cast on targets who have recently been in combat on PvP worlds.
+}}
+{{Subject changes
+|date = 8 September 2016
+|update = The Wintertodt
+|change = A player can no longer cast energy transfer in [[single combat]] PvP areas.
+}}
+{{Subject changes
+|date = 24 September 2015
+|update = New Animations & Barbarian Assault Changes
+|change = A player can no longer cast energy transfer when standing in [[multi combat]] wilderness to a player stood in single combat wilderness.
+}}
+
+{{Subject changes footer}}
+
+{{Lunar spellbook}}
+{{Combat spells}}

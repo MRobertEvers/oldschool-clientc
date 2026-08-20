@@ -1,0 +1,77 @@
+{{External|rsc=Wind strike|rs=Air Strike}}
+{{Infobox Spell
+|name = Wind Strike
+|image = [[File:Wind Strike.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 1
+|spellbook = Normal
+|type = Combat
+|exp = 5.5
+|element = Air
+|damage = 2, 4, 6, or 8
+|cost = {{RuneReq|Air=1|Mind=1}}
+|speed = 5 ticks
+|description = A basic Air missile
+|anim = [[File:Wind Strike.gif|300px]]
+|sound = [[File:Wind Strike.ogg]]
+}}
+[[File:Wind Strike icon (mobile).png|left]]
+'''Wind Strike''' is an [[Wind spells|air]]-based [[Strike spells|strike spell]] in the [[standard spellbook]] available starting at level 1 [[Magic]]. As an [[Combat spells#Offensive spells|offensive combat spell]] it can only be cast on [[Monster|attackable NPCs]], or other players in a [[Player killing|PvP situation]].
+
+Wind Strike is the weakest wind spell in the game, as well as the first combat spell players gain access to. It is commonly used by players training Magic via [[splashing]], due to its low rune cost.
+
+==Damage==
+Wind Strike's base maximum hit starts at 2 and increases as the player unlocks additional strike spells, up to 8 at level 13 Magic.
+{| class="wikitable"
+!{{SCP|Magic|link=yes}} level
+!Highest-level [[Strike spells|strike spell]] available
+!{{Plink|Wind Strike}} base maximum hit
+|-
+|{{SCP|Magic|1}}- 4
+|{{Plink|Wind Strike}}
+|2
+|-
+|{{SCP|Magic|5}}- 8
+|{{Plink|Water Strike}}
+|4
+|-
+|{{SCP|Magic|9}}- 12
+|{{Plink|Earth Strike}}
+|6
+|-
+|{{SCP|Magic|13}}+
+|{{Plink|Fire Strike}}
+|8
+|}
+As with all combat spells, Wind Strike's maximum hit is also increased based on the player's [[Magic damage|magic damage bonus]].
+
+As an air-based spell, Wind Strike's maximum hit is also increased against targets that are [[Elemental weakness|weak to air]].
+
+===Calculator===
+{{Magic damage calculator|Wind Strike|weapons=Smoke battlestaff,Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand, Twinflame staff|elementalweakness=y}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = Air
+|Rune1num = 1
+|Rune2 = Mind
+|Rune2num = 1
+|is_offensive = y
+}}
+
+==Notable uses==
+*On [[Tutorial Island]], the magic instructor [[Magic Instructor|Terrova]] tasks the player with casting Wind Strike on a [[chicken]].
+*As a strike spell, Wind Strike is one of the only spells that can be used to damage [[Salarin the twisted]]. When used this way, its damage is scaled up to match that of [[Wind Bolt]].
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change =  The maximum hit of the spell now depends on how many [[strike spell]]s the player has unlocked, based on their [[Magic]] level.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}

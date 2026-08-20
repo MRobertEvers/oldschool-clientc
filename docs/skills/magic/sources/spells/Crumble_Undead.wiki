@@ -1,0 +1,62 @@
+{{External|rs|rsc=Crumble undead}}
+{{Infobox Spell
+|name = Crumble Undead
+|image = [[File:Crumble Undead.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 39
+|spellbook = Normal
+|type = Combat
+|exp = 24.5
+|damage = 15
+|cost = {{RuneReq|Earth=2|Air=2|Chaos=1}}
+|speed = 5 ticks
+|description = Hits skeletons, ghosts, shades & zombies hard
+|anim = [[File:Crumble Undead.gif|300px]]
+|sound = [[File:Crumble Undead.ogg]]
+}}
+[[File:Crumble Undead icon (mobile).png|left]]
+'''Crumble Undead''' is a spell on the [[standard spellbook]], requiring level 39 [[Magic]] to cast and costing 2 [[air runes]], 2 [[earth runes]], and 1 [[chaos rune]]. This spell can only be cast on [[undead]] enemies, such as [[skeleton]]s, [[zombie]]s, [[Ghost (monster)|ghost]]s and [[Shade (disambiguation)|shade]]s; trying to cast it a non-undead NPC yields the chatbox message: {{mes|This spell only affects skeletons, zombies, ghosts and shades}}.
+
+Crumble Undead can '''only''' be [[autocast]] by a [[skull sceptre (i)]], [[slayer's staff]], [[slayer's staff (e)]], [[Staff of the Dead|staff of the dead]], [[toxic staff of the dead]], [[staff of light]], [[staff of balance]], or [[void knight mace]]. In particular, the skull sceptre (i) is the only [[free-to-play]] weapon that can autocast this spell.
+
+Crumble Undead costs 1 less [[earth rune]] than [[Earth Bolt]] by default, but can be outdone in damage by all [[Bolt spells]] in F2P, depending on magic level and the extent of the monster's elemental weakness; something very common amongst undead monsters. Further, the only method to autocast via the skull sceptre (i) means paying the full rune cost each time, making it inefficient to train with. 
+
+Despite requiring chaos runes, [[chaos gauntlets]] have no effect on this spell, as they only increase the max hit of [[Bolt spells]].
+
+Crumble Undead is highly useful for fighting [[Vorkath]], as it is capable of instantly killing the [[Zombified Spawn|zombified spawn]] it summons during the fight.
+
+The spell is also cheap and convenient for killing the [[Tree spirit (Lost City)|tree spirit]] in the [[Lost City]] quest from a [[safespot]], as both the tree spirit and the zombies that need to be killed during the quest are susceptible to Crumble Undead.
+==Damage==
+Crumble undead has a max hit of 15, 18 when paired with the [[salve amulet (ei)]].
+
+===Calculator===
+{{Magic damage calculator|Crumble Undead}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = earth
+|Rune1num = 2
+|Rune2 = air
+|Rune2num = 2
+|Rune3 = chaos
+|Rune3num = 1
+|is_offensive = y
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 6 December 2004
+|update = Various Small Changes.
+|change = "the crumble undead spell was a bit underpowered before; we have now increased the amount of damage it does."
+}}
+{{Subject changes footer}}
+
+==Trivia==
+
+*'''Crumble undead''' was the first spell or item to have an affinity for a specific [[Attribute affinities|monster attribute]]. 
+
+{{Standard spellbook}}
+{{Attribute_affinities}}

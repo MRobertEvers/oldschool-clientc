@@ -1,0 +1,47 @@
+{{Navbox
+|name = Ancient Magicks
+|title = [[Ancient Magicks]]
+|gtitle1 = Combat
+|gtype1 = subgroup
+|group1 =
+  {{Navbox
+  |subgroup = yes
+  |gtitle1 = [[Rush spells]]
+  |group1 =
+   * {{plink|Smoke Rush|txt=Smoke}}
+   * {{plink|Shadow Rush|txt=Shadow}}
+   * {{plink|Blood Rush|txt=Blood}}
+   * {{plink|Ice Rush|txt=Ice}}
+  |gtitle2 = [[Burst spells]]
+  |group2 =
+ * {{plink|Smoke Burst|txt=Smoke}}
+ * {{plink|Shadow Burst|txt=Shadow}}
+ * {{plink|Blood Burst|txt=Blood}}
+ * {{plink|Ice Burst|txt=Ice}}
+  |gtitle3 = [[Blitz spells]]
+  |group3 =
+ * {{plink|Smoke Blitz|txt=Smoke}}
+ * {{plink|Shadow Blitz|txt=Shadow}}
+ * {{plink|Blood Blitz|txt=Blood}}
+ * {{plink|Ice Blitz|txt=Ice}}
+  |gtitle4 = [[Barrage spells]]
+  |group4 =
+ * {{plink|Smoke Barrage|txt=Smoke}}
+ * {{plink|Shadow Barrage|txt=Shadow}}
+ * {{plink|Blood Barrage|txt=Blood}}
+ * {{plink|Ice Barrage|txt=Ice}}
+  }}
+|gtitle2 = Teleport
+|group2 =
+ * {{plink|Edgeville Home Teleport|txt=Edgeville Home}}
+ * {{plink|Minigame Teleport|txt=Minigame}}
+ * {{plink|Paddewwa Teleport|txt=Paddewwa}}
+ * {{plink|Senntisten Teleport|txt=Senntisten}}
+ * {{plink|Kharyrll Teleport|txt=Kharyrll}}
+ * {{plink|Lassar Teleport|txt=Lassar}}
+ * {{plink|Dareeyak Teleport|txt=Dareeyak}}
+ * {{plink|Carrallanger Teleport|txt=Carrallanger}}
+ * {{plink|Teleport to Target|txt=Target}}
+ * {{plink|Annakarl Teleport|txt=Annakarl}}
+ * {{plink|Ghorrock Teleport|txt=Ghorrock}}
+}}{{Ctg|Ancient Magicks}}

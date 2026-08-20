@@ -1,0 +1,111 @@
+{{External|rs}}
+{{Otheruses|the [[spell]] that reflects [[damage]] done to the [[player character|player]]|the spell that applies this effect to other players|Vengeance Other}}
+{{Infobox Spell
+|name = Vengeance
+|image = [[File:Vengeance.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 94
+|spellbook = Lunar
+|type = Combat
+|exp = 112
+|cost = {{RuneReq|Astral=4|Earth=10|Death=2}}
+|speed = 0 ticks
+|cooldown = 50 ticks
+|description = Rebound damage to an opponent
+|anim = [[File:Vengeance.gif|150px]]
+|sound = No
+}}
+[[File:Vengeance icon (mobile).png|left]]
+'''Vengeance''' is a level 94 [[Lunar spell]] that rebounds 75% of the damage taken in the next hit back to the opponent dealing it. The player will say {{Overhead|Taste vengeance!}} when the rebound is activated. Vengeance can only be cast once every 30 seconds, and the spell icon will be greyed out if the spell is on cooldown. Additionally, the effect will wear off upon logout or when teleporting into a [[player-owned house]]. 
+
+As with all Lunar spells, the [[quest]] [[Lunar Diplomacy]] must be completed to cast Vengeance. 
+
+==Mechanics==
+===Reflected damage===
+Vengeance reflects 75% of damage taken back to an opponent. The damage is always <u>rounded down</u> to the nearest integer, but has a minimum of 1. 
+
+As an example, if an opponent deals 80 points of damage, the player reflects 60 (80 * 0.75) points of damage. If the opponent instead deals 81 points of damage, the player will still reflect 60 points of damage because 60.75 (81 * 0.75) rounds down. If the opponent deals just 1 point of damage, the player will reflect 1 point of damage back.
+
+Vengeance's effect '''does''' stack with the [[ring of recoil]]. 
+
+===Use in PvP===
+Vengeance is popular in [[PvP]], especially when an opponent is using hard-hitting weapons such as [[godsword]]s or [[Dharok the Wretched's equipment]], since it is possible to rebound large amounts of damage back onto the opponent.
+
+[[Player killers]] sometimes remove their armour when attacking with Vengeance activated, in order to increase the chance of their opponent hitting them. Players seeking to counter Vengeance can simply strike the player with a lower-hitting weapon to minimise the full potential of this spell. 
+
+If players desire to hide the Vengeance animation from an opponent, they must cast Vengeance at the exact same [[tick]] as the start of another weapon animation, such as the [[Armadyl godsword]] special attack. The Vengeance animation will then be cancelled, hiding its activation from opponents.
+
+===Use in PvM===
+In PvM, monster damage can typically be negated or reduced through various means, such as movement or praying correctly. If a monster is vulnerable to vengeance and its damage is distributed to one large hit splat, players can intentionally tank more damage than is necessary in order to proc a larger Vengeance. Although the [[Thermonuclear smoke devil]] deals a sizable chunk of damage, its damage is distributed through lots of tiny hit splats - it has a low max hit of 8, making vengeance not ideal. Whereas monsters like the [[Kalphite Queen|Kalphite queen]] will deal its large amount of damage in one hit splat.
+
+Being on the Lunar spellbook, players can also [[Spellbook Swap|spellbook swap]] and benefit from other spellbooks as well.
+
+===Rebounding all damage===
+Wearing [[Dharok the Wretched's equipment]] whilst wearing an [[amulet of the damned]] along with [[Ring of recoil|rings of recoil]] makes it possible for players to rebound 100% of damage received in a single hit back onto their opponent. Runes can be provided with a [[Blighted vengeance sack]], although it is restricted to the Wilderness only.
+
+===Exceptions===
+The rebound effect of Vengeance will not be activated on [[poison]], [[venom]] or [[disease]] hits, and does not count towards [[Smite]] drains if used in [[PvP]]. Additionally, some [[monsters]] are immune to it.
+{{Recoil immune}}
+Vengeance cannot be cast while in a [[player-owned house]]. Any active Vengeance casts will be removed from the player if they enter one.
+
+== Spell cost ==
+{{Spell cost table
+|Rune1 = Earth
+|Rune1num = 10
+|Rune2 = Death
+|Rune2num = 2
+|Rune3 = Astral
+|Rune3num = 4
+}}
+{| class="wikitable"
+|+
+! colspan="3" |Wilderness-only casting
+|-
+|{{CostLine|Blighted vengeance sack}}
+|}
+
+==Animation override==
+[[File:Vengeance (Trailblazer Reloaded League).gif|thumb|150px|''Leagues IV - Trailblazer reloaded'' Vengeance animation]]
+An [[animation override]] is available for Vengeance, unlockable via the [[Trailblazer reloaded vengeance scroll]]. Players can apply and revert the animation override at any time via the "Animation" menu option on the spell's icon.
+
+==Sound effects==
+{{SFXTableHead}}
+{{SFXLine|file=Vengeance.ogg|name=lunar_vengence|desc=Casting the spell|id=2907}}
+{{SFXLine|file=Vengeance (Trailblazer Reloaded League).wav|name=leagues4_vengence_spell_01|desc=Casting the spell with the ''Leagues IV - Trailblazer reloaded'' animation override|id=7569}}
+{{SFXTableBottom}}
+
+==Combat Achievements==
+Three [[combat achievements]] require using Vengeance against a boss: 
+*[[Demonic Rebound]] for the [[Abyssal Sire]]
+*[[Insect Deflection]] for the [[Kalphite Queen]]
+*[[Snake Rebound]] for [[Zulrah]]
+
+It is also of great use for getting most combat achievement speed times where it is available to use, by intentionally taking a large hit to reflect back for extra damage.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 6 June 2019
+|update = PvP Changes and Deadman Beta
+|poll =
+|change = The Vengeance spell no longer disrupts a player's walk animation unless they're already in a PvP area when they cast it, intending to minimise affecting genuine PvP situations while limiting the ability to lure using the spell.
+}}
+{{Subject changes
+|date = 3 March 2016
+|update = Architectural Alliance
+|poll = Quality of Life - Top 10 General Suggestions
+|change = The Vengeance spell icon will now be greyed out if the spell is on cooldown.
+}}
+{{Subject changes
+|date = 19 September 2013
+|update = Patch Notes (19 September 2013)
+|change = The Vengeance spells will now reflect damage more reliably when you are on low health.
+}}
+{{Subject changes footer}}
+
+{{Lunar spellbook}}
+{{Combat spells}}
+
+[[Category:Forced speech]]

@@ -1,0 +1,55 @@
+{{External|rs|rsc=Varrock teleport}}
+{{otheruses|the spell|the teleport tablet|Varrock teleport (tablet)}}
+{{Infobox Spell
+|name = Varrock Teleport
+|image = [[File:Varrock Teleport.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 25
+|spellbook = Normal
+|type = Teleport
+|exp = 35
+|cost = {{RuneReq|Law=1|Air=3|Fire=1}}
+|speed = 4 ticks
+|lectern = [[Oak lectern|Oak]]
+|description = Teleports you to Varrock
+|anim = [[File:Teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Varrock Teleport icon (mobile).png|left|class=pageimage]]
+'''Varrock Teleport''' is a [[Teleportation spells|teleport spell]] in the [[standard spellbook]] which teleports the player to [[Varrock]]'s town square, near the fountain. This spell may be transferred to a piece of [[soft clay]] at a [[lectern]] in the [[Study]] of a [[player-owned house]], creating a [[Varrock teleport (tablet)|teleport tablet]]. The same runes are required, as well as the [[Magic]] level needed to cast the spell, and the Magic experience is gained at the time the tablet is created.
+
+Casting this spell is a requirement for completing the [[Medium Varrock Diary]]. Completing it allows players to switch the location of the teleport to the [[Grand Exchange]] by right-clicking the spell and changing the destination. Changing the default location using the right-click '''Configure''' option will also change the default teleport when using the [[Varrock Portal]].
+
+Like most teleports, this spell cannot be used past level 20 [[Wilderness]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = fire
+|Rune1num = 1
+|Rune2 = air
+|Rune2num = 3
+|Rune3 = law
+|Rune3num = 1
+}}
+
+==Teleportation options==
+{{TeleportLocationTableHead}}
+{{TeleportLocationLine|name=[[Varrock]] centre|x=3213|y=3424}}
+{{TeleportLocationLine|name=[[Grand Exchange]]|note={{Efn|If medium [[Varrock Diary]] has been completed.|group=L}}|x=3165|y=3479}}
+{{TableBottom}}
+{{Notelist|group=L}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 7 April 2016
+|update = Hell-Rats, Fairy Rings & Perks
+|poll = 
+|change = The right-click options on the Varrock teleport spell has been adjusted slightly to make it more convenient to configure.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}
+{{Teleport spells}}

@@ -1,0 +1,75 @@
+{{Infobox Spell
+|name = Mark of Darkness
+|image = [[File:Mark of Darkness.png]]
+|release = [[16 June]] [[2021]]
+|update = A Kingdom Divided
+|members = Yes
+|level = 59
+|spellbook = Arceuus
+|type = Combat
+|exp = 70
+|cost = {{RuneReq|Cosmic=1|Soul=1}}
+|speed = 0 ticks
+|cooldown = 10 ticks
+|quest = [[A Kingdom Divided]]
+|description = Makes your offensive Arceuus spells more potent
+|anim = [[File:Mark of Darkness.gif]]
+|sound = [[File:Mark of Darkness.ogg]]
+}}
+[[File:Mark of Darkness icon (mobile).png|left]]
+[[File:Mark of Darkness fade.gif|thumb|130px|left|A Mark of Darkness fading away from the caster.]]
+'''Mark of Darkness''' is a spell within the [[Arceuus spellbook]] that requires level 59 [[Magic]] and the completion of [[A Kingdom Divided]] to be cast.
+
+When under the effects of the spell, the caster will gain various buffs for a certain amount of time (<math>(Y * 3) * 0.6</math> seconds), where <math>Y</math> is the player's base Magic level. If cast with a [[purging staff]] equipped, the duration is multiplied by five. With level 99 Magic and a purging staff equipped, the spell will last 14 minutes and 51 seconds.
+
+Casting the spell results in the message {{Mes|You have placed a Mark of Darkness upon yourself}}. The player will receive the following message {{ticks|10}} before the spell expires: {{Mes|Your Mark of Darkness is about to run out.}}. An animation will play when the caster is no longer under the effects of the spell and the player will receive the message {{Mes|Your Mark of Darkness has faded away.}}.
+
+==Mechanics==
+Players under the effects of the Mark of Darkness will temporarily gain the following buffs:
+* The bind chance of [[grasp spells]] is doubled, though the bind duration remains the same.
+* [[Corruption spells]] will always inflict [[Corruption (status)|corruption]] on the player's next [[successful hit]], up from a 50% chance.
+* [[Demonbane spells]] will have their accuracy bonus doubled (+40%) and an additional 25% damage bonus against [[demons]]. This is calculated after the player's own [[magic damage]] bonuses from their equipment.
+** If attacking with a [[purging staff]], this is further doubled to an 80% accuracy and 50% damage bonus when under the effects of the Mark of Darkness. 
+
+==Cost==
+{{Spell cost table
+|Rune1 = cosmic
+|Rune1num = 1
+|Rune2 = soul
+|Rune2num = 1
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 27 August 2025
+|update = Summer Sweep Up Slayer & More
+|change = The spell's base duration has been increased by 200% (e.g. at 99 Magic, the duration has been increased from 59.4 seconds to 2 minutes 58.2 seconds).
+}}
+{{Subject changes
+|date = 14 May 2025
+|update = Yama, the Master of Pacts: Out Today
+|change = Mark of Darkness can now be recast before it expires.
+}}
+{{Subject changes
+|date = 24 July 2024
+|update = Deadman: Armageddon & While Guthix Sleeps Tweaks
+|change = The spell's duration is now increased by 5x when a [[purging staff]] is equipped.
+}}
+{{Subject changes
+|date = 30 August 2023
+|update = Poll 80 ToA Changes & DMM Tweaks
+|poll = Awakened DT2 Bosses & Poll 80
+|change = 
+* The spell is now a self-casting spell rather than a target-casting spell.
+* The spell's description has been changed; previously, it was "''Makes your target vulnerable to the effects of offensive Arceuus spells''"
+* Players will now receive a message 10 [[ticks]] before Mark of Darkness expires.
+}}
+{{Subject changes
+|date = 30 June 2021
+|update = Phosani's Nightmare
+|change = An animation will now play when a target is no longer under the effects of the Mark of Darkness spell.
+}}
+{{Subject changes footer}}
+
+{{Arceuus spellbook}}

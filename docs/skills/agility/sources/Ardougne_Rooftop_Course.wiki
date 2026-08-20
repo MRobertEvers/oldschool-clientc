@@ -1,0 +1,149 @@
+{{Infobox Location
+|name = Ardougne Rooftop Course
+|image = [[File:Ardougne Rooftop Course (6).png]]
+|release = [[5 December]] [[2013]]
+|update = Rooftop Agility Courses
+|members = Yes
+|location = [[East Ardougne]] ([[Ardougne]])
+|map = {{Map|2673:3298|plane=0|r=3|mtype=square}}
+|type = agility course
+|leagueRegion = Kandarin
+}}
+The '''Ardougne Rooftop Agility Course''' is a [[Rooftop Agility Course]] located above the [[Ardougne]] marketplace available to players with an [[Agility]] level of 90 or over. It is preceded by the [[Rellekka Rooftop Course]]. Players stop failing this course at 95 [[Agility]]. It can be started by climbing the Wooden Beams outside of the house next to the [[Ardougne Gem Stall.|gem stall]] in the south-east corner of the marketplace.
+
+Being the last rooftop course, it has a very high chance of spawning [[mark of grace|marks of grace]], as well as having the highest experience rate, at approximately 70,000 experience per hour. A full lap of this course can be completed in 45.6 seconds (76 [[tick]]s) making the maximum experience per hour 70,184 assuming perfect laps.
+
+The [[Dorgesh-Kaan Agility Course]] offers a similar experience rate to the Ardougne course; however, Ardougne is typically preferred because it does not require energy restoration while training and it requires less concentration. Alternatively, [[Hallowed Sepulchre]] offers significantly higher experience rates for skilled players but requires more attention. As such, the Ardougne course is commonly used for easy semi-efficient training as well as for marks of grace.
+
+==Marks of grace==
+On this course, [[mark of grace|marks of grace]] only spawn on one spot, so the player can continue to run the course without picking them up almost indefinitely: marks will stack and only despawn if the player stops using the course for about 10 minutes.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/939088173543706624|date=8 December 2017|archiveurl=https://reldo.runescape.wiki/i/106685|archivedate=25 May 2020}} However, as a precaution, it is recommended to pick up the marks every so often. Also note that the marks acquired before hopping worlds will despawn after 10 minutes.
+
+Completing the [[elite Ardougne Diary]] will increase the chance of receiving marks of grace on this course by 25%. With the completion of the [[elite Ardougne Diary]], players can on average expect to receive a mark for every 2750 experience gained on the course. This translates to 22.6 marks per hour with perfect laps or roughly 1 mark every 3.5 laps. 
+
+Marks only spawn when completing the last obstacle. They will spawn on either a 3-minute timer or have a 50% chance of spawning every 2 minutes if the [[elite Ardougne Diary]] is completed. This results in a theoretical maximum of 20 tokens per hour without the diary, and 25 per hour with the diary. These theoretical rates can be achieved by using a timer and avoiding jumping the last obstacle until either a 2-minute or 3-minute timer runs out. Both timers continue running even when the player is logged out.
+
+==Experience==
+Using this course alone, levelling up from level 90 to 99 would require 8,649 laps, meaning roughly 110 hours at the maximum hourly rate. There is also a ~26% chance of receiving the [[giant squirrel]] pet when using this course from level 90 to 99, which is a substantial portion of the ~44% chance of getting the pet from level 1 to level 99, using the standard courses.
+
+{|class="wikitable" style="text-align:center;"
+|+Experience per obstacle
+|-
+!Image
+!Obstacle
+!Experience
+!Chance to fail
+|-
+|[[File:Ardougne Rooftop Course (1).png|200px]]
+|[[Wooden Beams (Ardougne Rooftop Course)|Wooden Beams]]
+|{{+=|xp|43|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Ardougne Rooftop Course (2).png|200px]]
+|[[Gap (Ardougne Rooftop Course)#1|Gap]]
+|{{+=|xp|65|echo=2}}
+| style="text-align:center;" |Yes (until 95)
+|-
+|[[File:Ardougne Rooftop Course (3).png|200px]]
+|[[Plank (Ardougne Rooftop Course)|Plank]]
+|{{+=|xp|50|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Ardougne Rooftop Course (4).png|200px]]
+|[[Gap (Ardougne Rooftop Course)#2|Gap]]
+|{{+=|xp|21|echo=2}}
+| style="text-align:center;" |Yes (until 95)
+|-
+|[[File:Ardougne Rooftop Course (5).png|200px]]
+|[[Gap (Ardougne Rooftop Course)#3|Gap]]
+|{{+=|xp|28|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Ardougne Rooftop Course (6).png|200px]]
+|[[Steep roof (Ardougne Rooftop Course)|Steep roof]]
+|{{+=|xp|57|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Ardougne Rooftop Course (7).png|200px]]
+|[[Gap (Ardougne Rooftop Course)#4|Gap]]
+||{{+=|xp|625|echo=2}}
+| style="text-align:center;" |No
+|-
+! colspan="2" |'''Total'''
+!{{#var:xp}}
+!2
+|}
+
+==Boosting==
+[[Summer pie]]s can be used to run the course from 85 Agility to gain higher experience rates than previous rooftop courses. The [[Preserve]] prayer can be used to reduce the amounts of pies needed; in this case, bring items that increase [[prayer bonus]]. The player's Agility level needs to be boosted to at least 90 only when attempting the first, second and fourth obstacles, because the other obstacles are impossible to fail even at levels below 90.
+
+{|class="wikitable" style="text-align:center;"
+|+Summer pies used with Preserve prayer enabled, optimal mouse-clicking, and zero obstacle failures
+|-
+!Level
+!Laps per summer pie
+!Experience
+!Summer pies
+|-
+|85 to 86
+|3.6
+|339,198
+|119
+|-
+|86 to 87
+|7.2
+|374,502
+|66
+|-
+|87 to 88
+|10.8
+|413,482
+|49
+|-
+|88 to 89
+|14.4
+|456,519
+|40
+|-
+|89 to 90
+|18
+|504,037
+|36
+|-
+!
+!
+!Total
+!310
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 23 April 2025
+|update = Poll 84: Misc Mayhem
+|change = The click boxes of the [[Plank (Ardougne Rooftop Course)|plank]] and [[steep roof]] have now been increased.
+}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|change = The xp rewarded from the final [[ Gap_(Ardougne_Rooftop_Course)#4|Gap Obstacle]] was increased from 529 to 625, increasing the xp/hr from 62,300 to 70,000.
+}}
+{{Subject changes
+|date = 25 June 2015
+|update = Boss Room Counters & Platinum Tokens
+|change = The [[elite Ardougne Diary]] rewards now give increased [[Mark of grace|marks of grace]] on the [[Rooftop Agility Courses|Ardougne Rooftop Agility Course]].
+}}
+{{Subject changes
+|date = 5 March 2015
+|update = Achievement Diaries
+|poll = Old School Achievement Diary Rewards Poll
+|change = <nowiki />
+You now receive 25% (previously 50%) more marks of grace from the [[Rooftop Agility Courses|Ardougne Rooftop Agility Course]] if you have completed the elite [[Ardougne Diary]].
+}}
+{{Subject changes footer}}
+
+==References==
+{{reflist}}
+
+{{Agility courses}}
+{{Agility rooftop obstacles}}
+{{East Ardougne}}

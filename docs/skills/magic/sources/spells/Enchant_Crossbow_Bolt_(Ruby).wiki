@@ -1,0 +1,31 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Enchant Crossbow Bolts (Ruby)
+|image = [[File:Enchant Crossbow Bolt.png]]
+|release = [[31 July]] [[2006]]
+|update = Crossbows
+|members = Yes
+|level = 49
+|spellbook = Normal
+|type = Utility
+|exp = 59
+|cost = {{RuneReq|Cosmic=1|Fire=5|Blood=1}}
+|speed = 1 ticks (3 on autocast)
+|description = For use on ruby-tipped bolts.
+|anim = [[File:Enchant bolts.gif]]
+|sound = [[File:Enchant Crossbow Bolt.ogg]]
+}}
+[[File:Ruby bolts (e) detail.png|left|130px]]
+'''Enchant Crossbow Bolts (Ruby)''' is a [[Enchant Crossbow Bolt|bolt enchantment spell]] that requires a [[Magic]] level of 49 to cast. It imbues 10 [[ruby bolts]] each cast and turns them into [[ruby bolts (e)]] or 10 [[ruby dragon bolts]] into 10 [[ruby dragon bolts (e)]]. The enchantment gives the effect ''Blood Forfeit''. These bolts have a chance of removing 20% [[hitpoints]] from your opponent, while sacrificing 10% of your [[Hitpoints]]. These bolts are mainly useful against creatures like [[TzTok-Jad]] and [[God Wars Dungeon]] bosses, as they have very high hitpoints and bring them down faster than normal. If you use these to kill players or normal creatures, it won't have that great of an effect, and can be surpassed by other bolts for better damage output.
+
+==Cost==
+{{Spell cost table
+|Rune1 = fire
+|Rune1num = 5
+|Rune2 = blood
+|Rune2num = 1
+|Rune3 = cosmic
+|Rune3num = 1
+}}
+
+{{Standard spellbook}}

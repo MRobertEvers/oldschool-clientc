@@ -1,0 +1,67 @@
+{{External|rs|rsc}}
+{{Infobox Spell
+|name = Flames of Zamorak
+|image = [[File:Flames of Zamorak.png]]
+|release = [[22 September]] [[2003]]
+|update = Mage Arena
+|members = Yes
+|level = 60
+|spellbook = Normal
+|type = Combat
+|exp = 35
+|element = God
+|damage = {{*}} 20 <br/>'''Charged & Zamorak cape worn:'''<br/> {{*}} 30
+|cost = {{RuneReq|Fire=4|Blood=2|Air=1}}
+|speed = 5 ticks
+|quest = [[Mage Arena]]
+|description = Summons the power of Zamorak
+|anim = [[File:Flames of Zamorak.gif|300px]]
+|sound = [[File:Flames of Zamorak.ogg]]
+}}
+[[File:Flames of Zamorak icon (mobile).png|left]]
+'''Flames of Zamorak''' is a [[combat spell]] in the [[standard spellbook]], requiring 60 [[Magic]] and the completion of [[Mage Arena I]] to cast. In addition, players must also be wielding a [[Zamorak staff]], [[Staff of the Dead|staff of the dead]], [[Thammaron's sceptre (a)]], [[accursed sceptre (a)]], or [[toxic staff of the dead]]; all except the Zamorak staff are able to [[autocast]] the spell.
+
+Initially, the spell can only be cast within the [[Mage Arena]] against the [[battle mage]]s. Upon casting the spell 100 times (regardless of whether it was a [[successful hit]] or not), the spell becomes usable outside the arena.
+
+Flames of Zamorak has a maximum hit of 20. Upon a successful hit, the spell reduces the target's [[Magic]] level by 1 + 5%.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/463645094311366656|date=6 May 2014|archiveurl=https://archive.ph/I3a2i|archivedate=13 April 2023|quote=Saradomin: 1 prayer point flat rate. Guthix: 1 defence + 5%. Zamorak: 1 magic + 5%.}} This decrease does not stack nor will it reapply itself until the opponent returns to their base Magic level. Since Magic level affects [[magic defence]], this causes subsequent attacks to be more accurate; however, the spell's max hit will not be increased.
+
+Like the other [[god spells]], the maximum hit is temporarily increased to 30 while the [[Charge]] spell is active and the respective [[god cape]] is worn.
+
+==Damage==
+===Calculator===
+{{Magic damage calculator|Flames of Zamorak|charge=y}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = fire
+|Rune1num = 4
+|Rune2 = blood
+|Rune2num = 2
+|Rune3 = air
+|Rune3num = 1
+|nostaff = 1
+}}
+
+Note that since Flames of Zamorak requires a Zamorak staff, staff of the dead, Thammaron's sceptre (a), accursed sceptre (a), or toxic staff of the dead, rune-providing staves cannot be used. However, a tome of fire can be worn to provide infinite fire runes. This does not grant the damage boost from the tome and will not consume its charges. Also, the staff of the dead and the toxic staff of the dead provide a (1/7) chance to negate rune cost.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 5 June 2024
+|update = Pride 2024
+|change = The spell is no longer classified as a [[fire spell]], as it was not intended to benefit from the [[elemental weakness]] adjustments that were part of [[Project Rebalance]].
+}}
+{{Subject changes
+|date = 5 January 2017
+|update = Chambers of Xeric
+|change = The spell was made into a fire spell for the purpose of dealing increased damage against the [[ice demon]].
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Mage Arena}}
+{{Mage Arena I}}
+{{Standard spellbook}}
+[[Category:Defence reduction]]

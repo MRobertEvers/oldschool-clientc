@@ -1,0 +1,57 @@
+{{External|rs|rsc=Camelot teleport}}
+{{otheruses|the teleport spell|the teleport tablet|Camelot teleport (tablet)}}
+{{Infobox Spell
+|name = Camelot Teleport
+|image = [[File:Camelot Teleport.png]]
+|release = [[18 March]] [[2002]]
+|update = Latest RuneScape News (18 March 2002)
+|members = Yes
+|level = 45
+|spellbook = Normal
+|type = Teleport
+|exp = 55.5
+|cost = {{RuneReq|Law=1|Air=5}}
+|speed = 4 ticks
+|description = Teleports you to Camelot
+|anim = [[File:Teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Camelot Teleport icon (mobile).png|left|class=pageimage]]
+'''Camelot Teleport''' teleports the caster to the front gate of [[Camelot]]. Camelot Teleport is an excellent training spell, because you can use an [[air staff]] and use up only one [[law rune]] per cast for extremely quick and easy experience. It is possible to earn upwards of 80,000 [[Magic]] experience an hour with this method of training, however most players switch to using [[High Level Alchemy]] when 55 Magic is achieved.
+
+Casting this spell is a requirement for the [[Medium Kandarin|medium Kandarin diary]]. After completing the [[Hard Kandarin Diary|Kandarin Hard tasks]], you may switch the location of the teleport to [[Seers' Village bank]] by right-clicking the spell and choosing Toggle-location.
+
+==Cost==
+{{Spell cost table
+|Rune1 = air
+|Rune1num = 5
+|Rune2 = law
+|Rune2num = 1
+}}
+
+==Teleportation options==
+{{TeleportLocationTableHead}}
+{{TeleportLocationLine|name=[[Camelot]]|x=2757|y=3479}}
+|[[Seers' Village bank]]{{Efn|If hard [[Kandarin Diary]] has been completed.|group=L}}
+|{{Map|text=Maplink|2724,3487|2729,3487|2729,3482|2728,3482|2728,3483|2727,3483|2727,3484|2724,3484|mtype=polygon|width=200|height=200}}
+{{TableBottom}}
+{{Notelist|group=L}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 7 April 2016
+|update = Hell-Rats, Fairy Rings & Perks
+|poll = 
+|change = The right-click options on the Camelot teleport spell have been adjusted slightly to make it more convenient to configure.
+}}
+{{Subject changes
+|date = 5 March 2015
+|update = Achievement Diaries
+|poll = Old School Achievement Diary Rewards Poll
+|change = You can now change the Camelot teleport location to just outside the [[Seers' Village]] [[bank]] if you have completed the [[Kandarin Hard Diary]].
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}
+{{Teleport spells}}

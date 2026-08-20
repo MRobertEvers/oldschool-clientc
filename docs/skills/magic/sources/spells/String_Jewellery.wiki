@@ -1,0 +1,48 @@
+{{External|rs}}
+{{Infobox Spell
+|name = String Jewellery
+|image = [[File:String Jewellery.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 80
+|spellbook = Lunar
+|type = Utility
+|exp = 83
+|cost = {{RuneReq|Astral=2|Earth=10|Water=5}}
+|speed = 3 ticks
+|description = String amulets without wool
+|anim = [[File:String Jewellery.gif|150px]]
+|sound = [[File:String Jewellery.ogg]]
+}}
+[[File:String Jewellery icon (mobile).png|left]]
+'''String Jewellery''' is a level 80 [[Lunar spellbook|Lunar Magic]] spell which strings [[amulets]] without the need for a [[ball of wool]]. The spell takes 1.8 seconds per amulet strung, and gives 4 [[Crafting]] [[experience]] and 83 Magic experience per amulet. Once clicked, it will string each amulet one by one in your inventory, giving you experience per strung amulet. This is known to be a very fast, and a reduced clicking alternative of training Magic, as a single click gives experience for the entire inventory, unlike [[High Alchemy]], where experience is earned per click. While only partially paying attention, this spell can provide over 130,000 Magic experience per hour (around 1,500 casts) and reaching around 160,000 Magic experience per hour (around 1900-2000 casts) when full attention is given.
+
+Ideally, if one's inventory only consists of the astral runes and the jewellery about to be strung, the initial amount of experience per inventory would be 2,241 Magic XP, and 108 Crafting XP.
+
+The spell can also be used to string [[Salve amulet]]s, [[unstrung symbol]]s, and [[unstrung emblem]]s.
+
+Note that though you only need to click to cast this spell once per inventory, the rune cost is one cast for '''each''' amulet in your inventory, NOT the rune cost of one cast for all amulets. (e.g. when wielding [[mud battlestaff]] and inventory consists of astral runes and 27 unstrung amulets, with one cast you will string 27 amulets at the cost of 54 astral runes.)
+
+When casting, the spell is interrupted by walking around or interactions with other players or NPCs. 
+
+==Cost==
+{{Spell cost table
+|Rune1 = Astral
+|Rune1num = 2
+|Rune2 = Water
+|Rune2num = 5
+|Rune3 = Earth
+|Rune3num = 10
+}}
+
+==Cost analysis==
+*Cost analysis assumes the use of a [[mud battlestaff]] or [[mystic mud staff]]. Values may ''significantly'' differ due to the low volume of some Unstrung items.
+* [[Salve amulet]]s not included, as they are untradeable.
+{{Table/Magic/String Jewellery}}
+
+== Trivia ==
+
+* Casting the spell does not hide one's equipped weapon.
+{{Lunar spellbook}}
+{{Utility spells}}

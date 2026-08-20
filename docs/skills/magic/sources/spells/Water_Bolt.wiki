@@ -1,0 +1,74 @@
+{{External|rs|rsc=Water bolt}}
+{{Infobox Spell
+|name = Water Bolt
+|image = [[File:Water Bolt.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 23
+|spellbook = Normal
+|type = Combat
+|exp = 16.5
+|element = Water
+|damage = 10, 11, or 12
+|cost = {{RuneReq|Water=2|Air=2|Chaos=1}}
+|speed = 5 ticks
+|description = A low level Water missile
+|anim = [[File:Water Bolt.gif|300px]]
+|sound = [[File:Water Bolt.ogg]]
+}}
+[[File:Water Bolt icon (mobile).png|left]]
+'''Water Bolt''' is a [[Water spells|water]]-based [[Bolt spells|bolt spell]] in the [[standard spellbook]], requiring level 23 [[Magic]] to cast. As an [[Combat spells#Offensive spells|offensive combat spell]] it can only be cast on [[Monster|attackable NPCs]], or other players in a [[Player killing|PvP situation]].
+
+==Damage==
+Water Bolt's base maximum hit starts at 10 and increases as the player unlocks additional bolt spells, up to 12. Players who have completed the [[Family Crest]] quest can wear [[Chaos gauntlets]] to increase the maximum hit by an additional +3, up to 15 at level 35 Magic.
+{| class="wikitable"
+!{{SCP|Magic|link=yes}} level
+!Highest-level bolt spell available
+!{{Plink|Water Bolt}} base maximum hit
+!{{Plink|Water Bolt}} maximum hit with {{Plink|Chaos gauntlets}}
+|-
+|{{SCP|Magic|23}}- 28
+|{{Plink|Water Bolt}}
+|10
+|13
+|-
+|{{SCP|Magic|29}}- 34
+|{{Plink|Earth Bolt}}
+|11
+|14
+|-
+|{{SCP|Magic|35}}+
+|{{Plink|Fire Bolt}}
+|12
+|15
+|}
+As with all combat spells, Water Bolt's maximum hit is also increased based on the player's [[Magic damage|magic damage bonus]].
+
+As a water-based spell, Water Bolt's maximum hit is also increased against targets that are [[Elemental weakness|weak to water]].
+
+===Calculator===
+{{Magic damage calculator|Water Bolt|weapons=Smoke battlestaff,Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand, Twinflame staff|elementalweakness=y|chaosgauntlets=y|tome=water}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = water
+|Rune1num = 2
+|Rune2 = air
+|Rune2num = 2
+|Rune3 = chaos
+|Rune3num = 1
+|is_offensive = y
+|uses_pages = y
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change =  The maximum hit of the spell now depends on how many [[bolt spell]]s the player has unlocked, based on their [[Magic]] level.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}

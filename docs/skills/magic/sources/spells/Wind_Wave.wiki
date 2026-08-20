@@ -1,0 +1,79 @@
+{{External|rs=Air Wave|rsc=Wind wave}}
+{{Infobox Spell
+|name = Wind Wave
+|image = [[File:Wind Wave.png]]
+|release = [[18 March]] [[2002]]
+|update = Latest RuneScape News (18 March 2002)
+|members = Yes
+|level = 62
+|spellbook = Normal
+|type = Combat
+|exp = 36
+|element = Air
+|damage = 17, 18, 19, or 20
+|cost = {{RuneReq|Air=5|Blood=1}}
+|speed = 5 ticks
+|description = A high level Air missile
+|anim = [[File:Wind Wave.gif|300px]]
+|sound = [[File:Wind Wave.ogg]]
+}}
+[[File:Wind Wave icon (mobile).png|left]]
+'''Wind Wave''' is an [[Wind spells|air]]-based [[Wave spells|wave spell]] in the [[standard spellbook]], requiring level 62 [[Magic]] to cast. As an [[Combat spells#Offensive spells|offensive combat spell]] it can only be cast on [[Monster|attackable NPCs]], or other players in a [[Player killing|PvP situation]].
+
+It is the second-strongest wind spell in the game, with the strongest being [[Wind Surge]]. It is also the most cost-effective wave spell to cast.
+
+==Damage==
+Wind Wave's base maximum hit starts at 17 and increases as the player unlocks additional wave spells, up to 20 at level 75 Magic.
+{| class="wikitable"
+!{{SCP|Magic|link=yes}} level
+!Highest-level wave spell available
+!{{Plink|Wind Wave}} base maximum hit
+|-
+|{{SCP|Magic|62}}- 64
+|{{Plink|Wind Wave}}
+|17
+|-
+|{{SCP|Magic|65}}- 69
+|{{Plink|Water Wave}}
+|18
+|-
+|{{SCP|Magic|70}}- 74
+|{{Plink|Earth Wave}}
+|19
+|-
+|{{SCP|Magic|75}}+
+|{{Plink|Fire Wave}}
+|20
+|}
+As with all combat spells, Wind Wave's maximum hit is also increased based on the player's [[Magic damage|magic damage bonus]].
+
+As an air-based spell, Wind Wave's maximum hit is also increased against targets that are [[Elemental weakness|weak to air]].
+
+===Calculator===
+{{Magic damage calculator|Wind Wave|weapons=Smoke battlestaff,Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand, Twinflame staff|elementalweakness=y}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = air
+|Rune1num = 5
+|Rune2 = blood
+|Rune2num = 1
+|is_offensive = y
+}}
+{| class="wikitable"
+|+
+! colspan="3" |Wilderness-only casting
+|-
+|{{CostLine|Blighted surge sack|cost=no}}
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 29 May 2024
+|update = Project Rebalance: Combat Changes
+|change =  The maximum hit of the spell now depends on how many [[wave spell]]s the player has unlocked, based on their [[Magic]] level.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}

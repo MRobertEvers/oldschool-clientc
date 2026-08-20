@@ -1,0 +1,39 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Lunar Home Teleport
+|image = [[File:Lunar Home Teleport.png]]
+|release = [[15 May]] [[2007]]
+|update = Dream Mentor
+|members = Yes
+|level = 1
+|spellbook = Lunar
+|type = Teleport
+|exp = 0
+|cost = None ''(see article)''
+|speed = 24 ticks (default)<br/>Variable ([[Animation overrides#Home Teleport|animation]])
+|cooldown = 3,000 ticks
+|description = Requires no runes - recharge time 30 mins. Warning: This spell takes a long time to cast and will be interrupted by combat.
+|anim = [[File:Home Teleport.gif]]
+|sound = [[File:Home Teleport.ogg]]
+}}
+[[File:Lunar Home Teleport icon (mobile).png|left|class=pageimage]]
+'''Lunar Home Teleport''' is the [[home teleport]] on the [[Lunar spellbook]]. It provides players with a free [[teleport]] every half an hour to [[Lunar Isle]]. It takes around 10 seconds to cast the spell, and importantly, this can be interrupted at any time by [[combat]], and only can be cast 10 seconds or more after combat has ended (similar to logging out). The spell may also only be used every 30 minutes: if a player tries to cast it before 30 minutes have elapsed, they are notified with the remaining time in minutes.
+
+This cooldown is shared with that of other home teleports. Switching spell book will not allow you to use a different home teleport spell until 30 minutes has elapsed.
+
+As with all home teleports, the Lunar Home Teleport default animation can be overridden with an alternative [[Animation overrides#Home Teleport|animation]], if unlocked.
+
+==Destination==
+{{Map|2094,3913|mtype=square|r=2|align=left}}{{clear|left}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 17 December 2025
+|update = More Sailing and Interface Changes
+|change = The spell's icon will now appear grey if it is on cooldown.
+}}
+{{Subject changes footer}}
+
+{{Lunar spellbook}}
+{{Teleport spells}}

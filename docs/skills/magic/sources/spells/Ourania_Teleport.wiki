@@ -1,0 +1,41 @@
+{{External|rs}}
+{{otheruses|the spell|the teleport tablet|Ourania teleport (tablet)}}
+{{Infobox Spell
+|name = Ourania Teleport
+|image = [[File:Ourania Teleport.png]]
+|release = [[13 October]] [[2016]]
+|update = The Ourania Altar
+|members = Yes
+|level = 71
+|spellbook = Lunar
+|type = Teleport
+|exp = 69
+|cost = {{RuneReq|Law=1|Earth=6|Astral=2}}
+|speed = 4 ticks
+|description = Teleports you to the Ourania altar
+|anim = [[File:Lunar teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Ourania Teleport icon (mobile).png|left|class=pageimage]]
+'''Ourania Teleport''' teleports the player outside of the [[Ourania Cave]] and the [[Ourania Altar]]. As with all [[Lunar spells]], the quest [[Lunar Diplomacy]] must be completed to cast this spell and 71 [[Magic]] is required.
+
+Players must speak to [[Baba Yaga]] with Lunar spells active to unlock the ability to cast this spell. Before completion of the [[Elite Fremennik Diary]], this also requires a [[seal of passage]] equipped or in your inventory.
+Speaking to Baba Yaga is '''not''' required to add the teleport to a [[portal chamber]] in a [[player-owned house]].
+
+Unlike most other Lunar teleports, this spell does not have a corresponding tele group spell.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Earth
+|Rune1num = 6
+|Rune2 = Law
+|Rune2num = 1
+|Rune3 = Astral
+|Rune3num = 2
+}}
+
+==Destination==
+{{Map|2468,3246|mtype=square|r=2|align=left}}{{clear|left}}
+
+{{Lunar spellbook}}
+{{Teleport spells}}

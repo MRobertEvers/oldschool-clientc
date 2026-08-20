@@ -1,0 +1,70 @@
+{{Infobox Spell
+|name = Lvl-7 Enchant
+|image = [[File:Lvl-7 Enchant.png]]
+|release = [[6 May]] [[2016]]
+|update = Monkey Madness II
+|members = Yes
+|level = 93
+|spellbook = Normal
+|type = Utility
+|exp = 110
+|cost = {{RuneReq|Blood=20|Soul=20|Cosmic=1}}
+|speed = 3 ticks (7 on autocast)
+|description = For use on zenyte jewellery
+|anim = [[File:Lvl-7 Enchant.gif|300px]]
+|sound = [[File:Lvl-7 Enchant.ogg]]
+}}
+[[File:Lvl-7 Enchant icon (mobile).png|left|class=pageimage]]
+'''Lvl-7 Enchant''' is a [[utility spell]] in the [[standard spellbook]], requiring level 93 [[Magic]] to cast. The spell enchants [[zenyte]] [[jewellery]], granting 110 Magic experience when doing so.
+
+Unlike other enchanting spells, this spell does not have a [[magic tablet]] equivalent that can be made.
+
+==List of items==
+{| class="wikitable sortable"
+! colspan="3" | Unenchanted
+! colspan="3" | Enchanted
+! rowspan="2" | Profit{{Refn|Includes spell costs.|group=e}}
+|-
+! colspan="2" | Item
+![[GE]] price
+! colspan="2" | Item
+![[GE]] price
+|-
+|{{plinkt|Zenyte ring}} 
+|{{Coins|{{GEP|Zenyte ring}}}}
+|{{plinkt|Ring of suffering}}
+|{{Coins|{{GEP|Ring of suffering}}}}
+|{{coins|{{GEP|Ring of suffering}} - ({{GEP|Zenyte ring}} + {{GEP|Blood rune|20}} + {{GEP|Soul rune|20}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Zenyte necklace}}
+|{{Coins|{{GEP|Zenyte necklace}}}}
+|{{plinkt|Necklace of anguish}}
+|{{Coins|{{GEP|Necklace of anguish}}}}
+|{{coins|{{GEP|Necklace of anguish}} - ({{GEP|Zenyte necklace}} + {{GEP|Blood rune|20}} + {{GEP|Soul rune|20}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Zenyte bracelet}}
+|{{Coins|{{GEP|Zenyte bracelet}}}}
+|{{plinkt|Tormented bracelet}} 
+|{{Coins|{{GEP|Tormented bracelet}}}}
+|{{coins|{{GEP|Tormented bracelet}} - ({{GEP|Zenyte bracelet}} + {{GEP|Blood rune|20}} + {{GEP|Soul rune|20}} + {{GEP|Cosmic rune}})}}
+|-
+|{{plinkt|Zenyte amulet}}
+|{{Coins|{{GEP|Zenyte amulet}}}}
+|{{plinkt|Amulet of torture}}
+|{{Coins|{{GEP|Amulet of torture}}}}
+|{{coins|{{GEP|Amulet of torture}} - ({{GEP|Zenyte amulet}} + {{GEP|Blood rune|20}} + {{GEP|Soul rune|20}} + {{GEP|Cosmic rune}})}}
+|}
+{{Reflist|group=e}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = blood
+|Rune1num = 20
+|Rune2 = soul
+|Rune2num = 20
+|Rune3 = cosmic
+|Rune3num = 1
+}}
+
+{{Utility spells}}
+{{Standard spellbook}}

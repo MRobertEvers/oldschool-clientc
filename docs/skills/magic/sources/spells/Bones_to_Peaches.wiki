@@ -1,0 +1,90 @@
+{{External|rs|dw}}
+{{Otheruses|the spell|the tablet|Bones to peaches (tablet)}}
+{{Infobox Spell
+|name = Bones to Peaches
+|image = [[File:Bones to Peaches.png]]
+|release = [[4 January]] [[2006]]
+|update = Mage Training Arena
+|members = Yes
+|level = 60
+|spellbook = Normal
+|type = Utility
+|exp = 35.5
+|cost = {{RuneReq|Nature=2|Water=4|Earth=4}}
+|speed = 1 tick
+|description = Changes held bones into peaches
+|anim = [[File:Bones to Peaches.gif|200px]]
+|sound = [[File:Bones to Peaches.ogg]]
+}}
+[[File:Bones to Peaches icon (mobile).png|left]]
+'''Bones to Peaches''' is a [[spell]] that can be used to turn all [[Bones|normal bones]], [[burnt bones]], [[bat bones]], [[bleached bones]], [[jogre bones]], [[wolf bones]], [[monkey bones]], [[Alan's bones]], [[animals' bones]], and [[big bones]] in the inventory into [[peach]]es, which can be eaten to heal 8 [[Hitpoints]]. Before it can be cast, it must be unlocked from the [[Mage Training Arena]], which costs all of the following:
+{| class="wikitable"
+!Amount
+!Task
+|-
+|200
+|[[Mage Training Arena/Telekinetic Theatre|Telekinetic]] pizazz points
+|-
+|300
+|[[Mage Training Arena/Alchemist's Playground|Alchemist]] pizazz points
+|-
+|2,000
+|[[Mage Training Arena/Enchanting Chamber|Enchantment]] pizazz points
+|-
+|200
+|[[Mage Training Arena/Creature Graveyard|Graveyard]] pizazz points
+|}
+Unlocking this spell requires level 60 Magic, this requirement is [[Temporary skill boost/Magic|boostable]].
+
+Its [[Bones to peaches (tablet)|tablet form]] is usable without unlocking the spell, albeit granting no experience. However, ''crafting'' the tablet requires the player to have unlocked the spell.
+
+Bones to Peaches is commonly used to extend trips when food is scarce but bones are plentiful, such as in the [[God Wars Dungeon]]. Players may also consider the healing effect of [[Guthan the Infested's equipment|Guthan's equipment]] as an alternative (or in addition) to the spell. Tablets can be used to save inventory space instead of bringing the runes required to cast the spell.
+
+[[Remains#Demonic ashes|Demonic ashes]] cannot be converted as they are not considered bones. Attempting to convert bones of a higher tier than big bones gives the message {{mes|The bones you're holding aren't suitable for peachifying.}} Attempting to cast the spell without any bones gives the message {{mes|You aren't holding any bones!}}
+
+Casting the spell in the [[Al Kharid Palace]] is a hard task in the [[Lumbridge & Draynor Diary]] (using the tablet form of the spell '''does not''' work).
+
+==Cost==
+{{Spell cost table
+|Rune1 = nature
+|Rune1num = 2
+|Rune2 = water
+|Rune2num = 4
+|Rune3 = earth
+|Rune3num = 4
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 8 May 2024
+|update = Project Rebalance: Skilling & Poll 81 MTA Changes
+|poll = Poll 81 - Mage Training Arena
+|change = Casting Bones to Peaches will no longer stall the player.
+}}
+{{Subject changes
+|date = 27 March 2024
+|update = Easter & Varlamore Updates
+|poll = 
+|change = The spell is now filtered out if the player chooses to filter spells they cannot cast.
+}}
+{{Subject changes
+|date = 9 December 2021
+|update = Grand Exchange Tax & Item Sink
+|change = Bones to Peaches will now appear locked on the [[Spellbook]] menu if it has not been unlocked from the [[Mage Training Arena]].
+}}
+{{Subject changes
+|date = 31 March 2016
+|update = Bugfixes & Combining Tentacles
+|change = Adjusted the delays of the Bones to Bananas and Bones to Peaches to match the behaviour of the tablet versions of the spells.
+}}
+{{Subject changes
+|date = 23 May 2013
+|update = Patch Notes (23 May 2013)
+|poll = Old School feature poll 4 – May 2013
+|change = The 'Bones to Bananas' and 'Bones to Peaches' spells now work on more types of bone, including big bones.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}
+[[Category:Collection log items]]

@@ -1,0 +1,36 @@
+{{External|rs}}
+{{otheruses|the spell|the teleport tablet|Barbarian teleport (tablet)}}
+{{Infobox Spell
+|name = Barbarian Teleport
+|image = [[File:Barbarian Teleport.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 75
+|spellbook = Lunar
+|type = Teleport
+|exp = 76
+|cost = {{RuneReq|Law=2|Fire=3|Astral=2}}
+|speed = 4 ticks
+|description = Teleports you to the Barbarian Outpost
+|anim = [[File:Lunar teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Barbarian Teleport icon (mobile).png|left|class=pageimage]]
+'''Barbarian Teleport''' teleports the caster to the [[Barbarian Outpost]], north-west of [[Ardougne]]. As with all [[Lunar spells]], the quest [[Lunar Diplomacy]] must be completed to cast this spell.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Fire
+|Rune1num = 3
+|Rune2 = Law
+|Rune2num = 2
+|Rune3 = Astral
+|Rune3num = 2
+}}
+
+==Destination==
+{{Map|2543,3569|mtype=square|r=2|align=left}}{{clear|left}}
+
+{{Lunar spellbook}}
+{{Teleport spells}}

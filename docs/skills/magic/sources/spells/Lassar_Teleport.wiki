@@ -1,0 +1,41 @@
+{{External|rs}}
+{{otheruses|the teleport spell|the teleport tablet|Lassar teleport (tablet)}}
+{{Infobox Spell
+|name = Lassar Teleport
+|image = [[File:Lassar Teleport.png]]
+|release = [[18 April]] [[2005]]
+|update = Desert Treasure
+|members = Yes
+|level = 72
+|spellbook = Ancient
+|type = teleport
+|exp = 82
+|cost = {{RuneReq|Law=2|Water=4}}
+|speed = 5 ticks
+|description = A teleportation spell
+|anim = [[File:Ancient teleport.gif]]
+|sound = [[File:Teleport (Ancient Magicks).ogg]]
+}}
+[[File:Lassar Teleport icon (mobile).png|left|class=pageimage]]
+'''Lassar Teleport''' requires a [[Magic]] level of 72 to cast. It [[teleport]]s the caster to the top of [[Ice Mountain]].
+
+It is the teleport nearest to [[icefiend]]s, which is useful if they are assigned as a [[Slayer]] task. Other potential uses of the teleport include retrieving a lost [[Dwarf Cannon]] from the nearby [[Dwarven Mine]], accessing the [[Ruins of Camdozaal]], getting to [[The Whisperer]] and digging nearby, or speaking to the [[Oracle]] for a [[clue scroll]].
+
+As with all [[Ancient Magicks]] spells, the quest [[Desert Treasure I]] must be completed to cast this spell.
+
+==Cost==
+{{Spell cost table
+|Rune1 = law
+|Rune1num = 2
+|Rune2 = water
+|Rune2num = 4
+}}
+
+==Destination==
+{{Map|3002,3473|3007,3473|3007,3468|3002,3468|mtype=polygon|align=left}}
+{{clear}}
+==Trivia==
+* Casting this spell whilst in the [[Lassar Undercity]] will additionally give the game message {{mes|Ironic...}}
+
+{{Ancient Magicks}}
+{{Teleport spells}}

@@ -1,0 +1,771 @@
+{{External|rs|rsc=High level alchemy}}
+{{Has calculator|RuneScape:Grand Exchange Market Watch/Alchemy}}
+{{Infobox Spell
+|name = High Level Alchemy
+|image = [[File:High Level Alchemy.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 55
+|spellbook = Normal
+|type = Utility
+|exp = 65
+|cost = {{RuneReq|Nature=1|Fire=5}}
+|speed = 5 ticks
+|description = Converts an item into more gold
+|anim = [[File:High Level Alchemy.gif]]
+|sound = [[File:High Level Alchemy.ogg]]
+}}
+[[File:High Level Alchemy icon (mobile).png|left]]
+'''High Level Alchemy''' (also known as '''high alch''', '''hi alch,''' or '''HA''') is a [[Utility spells|utility spell]] available in the [[standard spellbook]]. It requires level 55 [[Magic]] to cast, and grants 65 Magic [[experience]] per cast.
+
+When cast on an item in the player's inventory, the item is converted into a number of [[coins]] equivalent to 60% of the item's [[value]] (not the item's [[Grand Exchange]] price). This is a 50% higher yield than [[Low Level Alchemy]].
+
+Casting High Level Alchemy (commonly known as "alching") is a popular way for players to train [[Magic]], either by itself or in tandem with other skills (such as [[Agility]]). Players who train this way can break even on the cost of runes, or even turn a profit, by buying items on the Grand Exchange for a lower cost than the item's High Alchemy value ([[High Level Alchemy#High Alchemy profit/loss on some items|see below]]).
+
+==Cost==
+The [[Explorer's ring 4]] can be used to cast High Level Alchemy up to 30 times per day without requiring any runes. Players will not gain any experience when casting High Level Alchemy this way, but this can be used regardless of the player's current [[spellbook]].
+
+Standing near the [[Fountain of Rune]] in the [[Wilderness]] allows players to cast High Level Alchemy without requiring any runes. Players will not gain any experience when casting High Level Alchemy this way. This method can be used to turn a greater profit when alching by removing the cost of runes, but comes with significant risk, as the Fountain of Rune is a hotspot for [[Player killing|player killers]].
+
+{{Spell cost table
+|Rune1 = fire
+|Rune1num = 5
+|Rune2 = nature
+|Rune2num = 1
+}}
+==Break even Point==
+{{Var|rune_type|Fire}}
+{{Var|rune_num|5}}
+{{Var|rune_name|{{#switch: {{#var:rune_type}} | Fire = Fire rune | Earth = Earth rune | Water = Water rune }}}}
+{{Var|staff_name|{{#switch: {{#var:rune_type}} | Fire = Staff of fire | Earth = Staff of earth | Water = Staff of water }}}}
+{{Var|tome_name|{{#switch: {{#var:rune_type}} | Fire = Tome of Fire | Earth = Tome of Earth | Water = Tome of Water }}}}
+{{Var|page_name|{{#switch: {{#var:rune_type}} | Fire = Burnt page | Earth = Soiled page | Water = Soaked page }}}}
+{{Var|tome_rune|({{#var:rune_num}}*{{GEP|{{#var:rune_name}}}})}}
+{{Var|natur_93|({{GEP|Nature rune}}*(1-1/15))}}
+{{Var|t_cost|({{GEP|Nature rune}} + {{#var:tome_rune}})}}
+{{Var|bryo_staff|{{GEP|Bryophyta's staff (uncharged)}}}}
+{{Var|tome|({{GEP|{{#var:tome_name}} (empty)}} + {{GEP|{{#var:page_name}}}})}}
+{{Var|staff_p_tome|({{#var:bryo_staff}} + {{#var:tome}})}}
+{| class="wikitable sortable align-right-3 align-right-5 align-right-6"
+|+
+![[Staves|Staff]]
+![[Tome]]
+!Equipment Cost
+!class="unsortable" | Rune
+!Saved GP
+!Break even Point
+|-
+|Nothing
+|Nothing
+|{{Coins|0}}
+|{{RuneReq|{{#var:rune_type}}={{#var:rune_num}}|Nature=1}}
+|{{Coins|({{#var:t_cost}}-{{#var:t_cost}})/1}}
+|0
+|-
+|{{plink|{{#var:staff_name}}}} 
+|Nothing
+|{{Coins|{{GEP|{{#var:staff_name}}}}}}
+|{{RuneReq|Nature=1}}
+|{{Coins|({{#var:t_cost}}-{{GEP|Nature rune}})/1}}
+|{{Formatexpr|ceil(({{GEP|{{#var:staff_name}}}})/({{#var:tome_rune}}))}}
+|-
+|Nothing
+|{{plink|{{#var:tome_name}}}} + {{plink|{{#var:page_name}}}}
+|{{Coins|{{#var:tome}}}}
+|{{RuneReq|Nature=1}}
+|{{Coins|({{#var:t_cost}}-{{GEP|Nature rune}})/1}}
+|{{Formatexpr|ceil(({{#var:tome}})/({{#var:tome_rune}}))}}
+|-
+|{{plink|Bryophyta's staff}} 
+|{{plink|{{#var:tome_name}}}} + {{plink|{{#var:page_name}}}}
+|{{Coins|{{#var:staff_p_tome}}}}
+|{{RuneReq|Nature=0.93}}
+|{{Coins|({{#var:t_cost}}-{{#var:natur_93}})/1}}
+|{{Formatexpr|ceil({{#var:staff_p_tome}} /({{#var:tome_rune}}+({{GEP|Nature rune}}/15)))}}
+|-
+|{{plink|Bryophyta's staff}} 
+|{{plink|{{#var:tome_name}}}} + {{plink|{{#var:page_name}}}}
+|{{Coins|{{#var:staff_p_tome}}}}
+|{{RuneReq|Nature=1}}
+|{{Coins|({{#var:t_cost}}-{{GEP|Nature rune}})/1}}
+|<ref group=d name=ONLYFIRE>Not selling [[Bryophyta's staff]] and buying [[{{#var:tome_name}}]] to save the {{#var:rune_num}} [[{{#var:rune_name}}]]s.</ref>{{Formatexpr|ceil({{#var:staff_p_tome}} /({{#var:tome_rune}}))}}
+|-
+|{{plink|Bryophyta's staff}} 
+|Nothing
+|{{Coins|{{#var:bryo_staff}}}}
+|{{RuneReq|{{#var:rune_type}}={{#var:rune_num}}|Nature=0.93}}
+|{{Coins|({{#var:t_cost}}-{{#var:natur_93}}- {{#var:tome_rune}})/1}}
+|{{Formatexpr|ceil({{#var:bryo_staff}}/({{GEP|Nature rune}}/15))}} 
+|-
+|{{plink|Bryophyta's staff}} 
+|{{plink|{{#var:tome_name}}}} + {{plink|{{#var:page_name}}}}
+|{{Coins|{{#var:staff_p_tome}}}}
+|{{RuneReq|{{#var:rune_type}}={{#var:rune_num}}|Nature=0.93}}
+|{{Coins|({{#var:t_cost}}-{{#var:natur_93}}- {{#var:tome_rune}})/1}}
+|<ref group=d name=ONLYNATURE>Buying [[Bryophyta's staff]] and [[{{#var:tome_name}}]] to "only" save 1/15 of the [[Nature rune]] because saving the [[{{#var:rune_name}}]]s is a lot cheaper with the [[{{#var:staff_name}}]].</ref>{{Formatexpr|ceil({{#var:staff_p_tome}} /(({{GEP|Nature rune}}/15)))}}
+|}
+{{Reflist|group=d}}
+To get from 55 to 99 it is needed to cast {{Formatexpr|ceil(({{XP|99}}-{{XP|55}})/65)}} of [[High Level Alchemy]].
+
+==Money making==
+{{Mmgsection|High alching profitable free-to-play items}}
+
+==Usage==
+Casting High Alchemy is done by first clicking the icon in the [[spell book]] and then clicking the item to cast it on in the inventory. The inventory screen will pop up automatically after clicking the spell icon.
+
+High (and Low) Alchemy can be cast on noted items, saving much withdrawal time from the bank, and simplifying the "click pattern", i.e. the player can place the stack of notes in the same position in their inventory that the alchemy spell is in the spellbook, so that they do not have to move their mouse much to repeatedly cast the spell. Casting alchemy spells on stackable items will only alchemise one at a time. As High Level Alchemy can recast every 5 ticks (3.0 seconds), it is possible to alch around 1,200 items per hour (one item every three seconds) for a total of 78,000 Magic experience.
+
+By using [[Auto Retaliate]], a player can use the spell after their attack (typically by checking for an XP drop), but before getting hit, to alch while training combat skills. If done correctly, the player can maintain combat by re-aggroing from the hit landing after the spell is cast. This can be inefficient against NPCs with slow attack speeds, while being difficult to time correctly against NPCs with high attack speeds.
+
+If the player attempts to cast an alchemy spell on a valuable item, the player will receive a warning message as explained below.
+
+==Warning system==
+An alchemy warning is set to automatically prompt when trying to cast it on an untradeable item or on an item worth 1,000 coins or more. This helps to prevent casting it accidentally on items that are hard to obtain. The threshold value for which the warning is displayed can be altered, and the warning for untradeable items can be disabled, by navigating to '''All Settings'''. You can find the relevant settings in the "'''Warnings'''" tab, under the "'''Items'''" section.
+
+'''"Minimum item value needed for Alchemy spells warning"''' changes the value at which a warning appears on screen. Setting this to a very high value will ensure the warning is never triggered.
+
+'''"Casting Alchemy spells on untradeable items always triggers a warning"''' enables warning when attempting to cast an Alchemy spell on untradeable items.
+
+'''"Casting Alchemy spells by 'using' items together always triggers a warning"''' enables warning when attempting to cast alchemy by using the item on an [[Explorer's ring|Explorer's Ring]]. 
+
+It should be noted that the valuable item warning depends upon the item's ''Grand Exchange value'', not its High Alchemy value, even if the alchemy value is higher. This is useful to avoid accidentally alchemising very expensive items with a relatively low high alchemy value, such as [[Ranger boots]], which have a Grand Exchange value of {{NoCoins|{{GEP|Ranger boots}}}} coins compared to their High Alchemy value of 120 coins. As long as the warning threshold value is set below its Grand Exchange value, accidental alching of the item should not happen if the player is paying attention.
+
+==High Alchemy profit/loss on some items==
+{{Main|RuneScape:Grand Exchange Market Watch/Alchemy}}
+Generally, using High Alchemy will not produce as much GP per hour as other, [[Money making guide|much better methods]], however because it can be done so easily at a profit while levelling [[Magic]] it is still used. While Grand Exchange buy limits may present a limiting factor, with a large enough starting amount of GP, a player with 55 Magic can net several hundred thousand GP every few hours buying and alchemizing a combination of the following items in the table below while standing around the Grand Exchange. High Level Alchemy can also be done while training other skills such as [[Agility]], allowing players to train Magic at the same time. Here is a list of commonly crafted items players may wish to alchemise and their calculated possible profit/loss. Prices assume a source of unlimited fire runes is used, such as a [[Staff of fire]].
+
+===Item + High Alchemy===
+{|class="wikitable sortable align-center-1 align-left-2" style="text-align: right;"
+! colspan="2" |Item
+!Item Cost (GE)
+!Nature Rune Cost
+!High Alch Return
+!Profit/Loss
+!Limit 
+!Invest 4 hrs
+!Total Profit/Loss
+!Member
+|-
+|{{plinkt|Steel kiteshield}}
+|{{Coins|{{GEP|Steel kiteshield|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|510}}
+|{{Coins|510-({{GEP|Steel kiteshield|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Steel kiteshield}}
+|{{Coins|({{GEP|Steel kiteshield|1}}+{{GEP|Nature rune|1}})*{{GELimit|Steel kiteshield}}}}
+|{{Coins|(510-({{GEP|Steel kiteshield|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Steel kiteshield}}}}
+|{{members|No}}
+|-
+|{{plinkt|Adamant mace}}
+|{{Coins|{{GEP|adamant mace|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|864}}
+|{{Coins|864-({{GEP|Adamant mace|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Adamant mace}}
+|{{Coins|({{GEP|Adamant mace|1}}+{{GEP|Nature rune|1}})*{{GELimit|Adamant mace}}}}
+|{{Coins|(864-({{GEP|Adamant mace|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Adamant mace}}}}
+|{{members|No}}
+|-
+|{{plinkt|Steel platebody}}
+|{{Coins|{{GEP|Steel platebody|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|1200}}
+|{{Coins|1200-({{GEP|Steel platebody|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Steel platebody}}
+|{{Coins|({{GEP|Steel platebody|1}}+{{GEP|Nature rune|1}})*{{GELimit|Steel platebody}}}}
+|{{Coins|(1200-({{GEP|Steel platebody|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Steel platebody}}}}
+|{{members|No}}
+|-
+|{{plinkt|Mithril platebody}}
+|{{Coins|{{GEP|Mithril platebody|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|3120}}
+|{{Coins|3120-({{GEP|Mithril platebody|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Mithril platebody}}
+|{{Coins|({{GEP|Mithril platebody|1}}+{{GEP|Nature rune|1}})*{{GELimit|Mithril platebody}}}}
+|{{Coins|(3120-({{GEP|Mithril platebody|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Mithril platebody}}}}
+|{{members|No}}
+|-
+|{{plinkt|Green d'hide body}}
+|{{Coins|{{GEP|Green d'hide body|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|4680}}
+|{{Coins|4680-({{GEP|Green d'hide body|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Green d'hide body}}
+|{{Coins|({{GEP|Green d'hide body|1}}+{{GEP|Nature rune|1}})*{{GELimit|Green d'hide body}}}}
+|{{Coins|(4680-({{GEP|Green d'hide body|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Green d'hide body}}}}
+|{{members|No}}
+|-
+|{{plinkt|Adamant platebody}}
+|{{Coins|{{GEP|Adamant platebody|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|9984}}
+|{{Coins|9984-({{GEP|Adamant platebody|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Adamant platebody}}
+|{{Coins|({{GEP|Adamant platebody|1}}+{{GEP|Nature rune|1}})*{{GELimit|Adamant platebody}}}}
+|{{Coins|(9984-({{GEP|Adamant platebody|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Adamant platebody}}}}
+|{{members|No}}
+|-
+|{{plinkt|Rune mace}}
+|{{Coins|{{GEP|Rune mace|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|8640}}
+|{{Coins|8640-({{GEP|Rune mace|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Rune mace}}
+|{{Coins|({{GEP|Rune mace|1}}+{{GEP|Nature rune|1}})*{{GELimit|Rune mace}}}}
+|{{Coins|(8640-({{GEP|Rune mace|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Rune mace}}}}
+|{{members|No}}
+|-
+|{{plinkt|Rune med helm}}
+|{{Coins|{{GEP|Rune med helm|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|11520}}
+|{{Coins|11520-({{GEP|Rune med helm|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Rune med helm}}
+|{{Coins|({{GEP|Rune med helm|1}}+{{GEP|Nature rune|1}})*{{GELimit|Rune med helm}}}}
+|{{Coins|(11520-({{GEP|Rune med helm|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Rune med helm}}}}
+|{{members|No}}
+|-
+|{{plinkt|Rune scimitar}}
+|{{Coins|{{GEP|Rune scimitar|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|15360}}
+|{{Coins|15360-({{GEP|Rune scimitar|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Rune scimitar}}
+|{{Coins|({{GEP|Rune scimitar|1}}+{{GEP|Nature rune|1}})*{{GELimit|Rune scimitar}}}}
+|{{Coins|(15360-({{GEP|Rune scimitar|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Rune scimitar}}}}
+|{{members|No}}
+|-
+|{{plinkt|Rune warhammer}}
+|{{Coins|{{GEP|Rune warhammer|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|24900}}
+|{{Coins|24900-({{GEP|Rune warhammer|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Rune warhammer}}
+|{{Coins|({{GEP|Rune warhammer|1}}+{{GEP|Nature rune|1}})*{{GELimit|Rune warhammer}}}}
+|{{Coins|(24900-({{GEP|Rune warhammer|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Rune warhammer}}}}
+|{{members|No}}
+|-
+|{{plinkt|Rune longsword}}
+|{{Coins|{{GEP|Rune longsword|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|19200}}
+|{{Coins|19200-({{GEP|Rune longsword|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Rune longsword}}
+|{{Coins|({{GEP|Rune longsword|1}}+{{GEP|Nature rune|1}})*{{GELimit|Rune longsword}}}}
+|{{Coins|(19200-({{GEP|Rune longsword|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Rune longsword}}}}
+|{{members|No}}
+|-
+|{{plinkt|Rune sq shield}}
+|{{Coins|{{GEP|Rune sq shield|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|23040}}
+|{{Coins|23040-({{GEP|Rune sq shield|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Rune sq shield}}
+|{{Coins|({{GEP|Rune sq shield|1}}+{{GEP|Nature rune|1}})*{{GELimit|Rune sq shield}}}}
+|{{Coins|(23040-({{GEP|Rune sq shield|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Rune sq shield}}}}
+|{{members|No}}
+|-
+|{{plinkt|Rune full helm}}
+|{{Coins|{{GEP|Rune full helm|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|21,120}}
+|{{Coins|21120-({{GEP|Rune full helm|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Rune full helm}}
+|{{Coins|({{GEP|Rune full helm|1}}+{{GEP|Nature rune|1}})*{{GELimit|Rune full helm}}}}
+|{{Coins|(21120-({{GEP|Rune full helm|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Rune full helm}}}}
+|{{members|No}}
+|-
+|{{plinkt|Rune battleaxe}}
+|{{Coins|{{GEP|Rune battleaxe|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|24960}}
+|{{Coins|24960-({{GEP|Rune battleaxe|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Rune battleaxe}}
+|{{Coins|({{GEP|Rune battleaxe|1}}+{{GEP|Nature rune|1}})*{{GELimit|Rune battleaxe}}}}
+|{{Coins|(24960-({{GEP|Rune battleaxe|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Rune battleaxe}}}}
+|{{members|No}}
+|-
+|{{plinkt|Rune chainbody}}
+|{{Coins|{{GEP|Rune chainbody|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|30000}}
+|{{Coins|30000-({{GEP|Rune chainbody|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Rune chainbody}}
+|{{Coins|({{GEP|Rune chainbody|1}}+{{GEP|Nature rune|1}})*{{GELimit|Rune chainbody}}}}
+|{{Coins|(30000-({{GEP|Rune chainbody|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Rune chainbody}}}}
+|{{members|No}}
+|-
+|{{plinkt|Rune kiteshield}}
+|{{Coins|{{GEP|Rune kiteshield|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|32640}}
+|{{Coins|32640-({{GEP|Rune kiteshield|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Rune kiteshield}}
+|{{Coins|({{GEP|Rune kiteshield|1}}+{{GEP|Nature rune|1}})*{{GELimit|Rune kiteshield}}}}
+|{{Coins|(32640-({{GEP|Rune kiteshield|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Rune kiteshield}}}}
+|{{members|No}}
+|-
+|{{plinkt|Rune 2h sword}}
+|{{Coins|{{GEP|Rune 2h sword|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|38400}}
+|{{Coins|38400-({{GEP|Rune 2h sword|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Rune 2h sword}}
+|{{Coins|({{GEP|Rune 2h sword|1}}+{{GEP|Nature rune|1}})*{{GELimit|Rune 2h sword}}}}
+|{{Coins|(38400-({{GEP|Rune 2h sword|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Rune 2h sword}}}}
+|{{members|No}}
+|-
+|{{plinkt|Rune platelegs}}
+|{{Coins|{{GEP|Rune platelegs|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|38400}}
+|{{Coins|38400-({{GEP|Rune platelegs|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Rune platelegs}}
+|{{Coins|({{GEP|Rune platelegs|1}}+{{GEP|Nature rune|1}})*{{GELimit|Rune platelegs}}}}
+|{{Coins|(38400-({{GEP|Rune platelegs|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Rune platelegs}}}}
+|{{members|No}}
+|-
+|{{plinkt|Rune plateskirt}}
+|{{Coins|{{GEP|Rune plateskirt|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|38400}}
+|{{Coins|38400-({{GEP|Rune plateskirt|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Rune plateskirt}}
+|{{Coins|({{GEP|Rune plateskirt|1}}+{{GEP|Nature rune|1}})*{{GELimit|Rune plateskirt}}}}
+|{{Coins|(38400-({{GEP|Rune plateskirt|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Rune plateskirt}}}}
+|{{members|No}}
+|-
+|{{plinkt|Rune platebody}}
+|{{Coins|{{GEP|Rune platebody|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|39000}}
+|{{Coins|39000-({{GEP|Rune platebody|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Rune platebody}}
+|{{Coins|({{GEP|Rune platebody|1}}+{{GEP|Nature rune|1}})*{{GELimit|Rune platebody}}}}
+|{{Coins|(39000-({{GEP|Rune platebody|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Rune platebody}}}}
+|{{members|No}}
+|-
+|{{plinkt|Rune halberd}}
+|{{Coins|{{GEP|Rune halberd|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|38400}}
+|{{Coins|38400-({{GEP|Rune halberd|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Rune halberd}}
+|{{Coins|({{GEP|Rune halberd|1}}+{{GEP|Nature rune|1}})*{{GELimit|Rune halberd}}}}
+|{{Coins|(38400-({{GEP|Rune halberd|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Rune halberd}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Blue d'hide body}}
+|{{Coins|{{GEP|Blue d'hide body|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|5616}}
+|{{Coins|5616-({{GEP|Blue d'hide body|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Blue d'hide body}}
+|{{Coins|({{GEP|Blue d'hide body|1}}+{{GEP|Nature rune|1}})*{{GELimit|Blue d'hide body}}}}
+|{{Coins|(5616-({{GEP|Blue d'hide body|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Blue d'hide body}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Red d'hide body}}
+|{{Coins|{{GEP|Red d'hide body|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|6738}}
+|{{Coins|6738-({{GEP|Red d'hide body|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Red d'hide body}}
+|{{Coins|({{GEP|Red d'hide body|1}}+{{GEP|Nature rune|1}})*{{GELimit|Red d'hide body}}}}
+|{{Coins|(6738-({{GEP|Red d'hide body|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Red d'hide body}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Dragon med helm}}
+|{{Coins|{{GEP|Dragon med helm|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|60000}}
+|{{Coins|60000-({{GEP|Dragon med helm|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Dragon med helm}}
+|{{Coins|({{GEP|Dragon med helm|1}}+{{GEP|Nature rune|1}})*{{GELimit|Dragon med helm}}}}
+|{{Coins|(60000-({{GEP|Dragon med helm|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Dragon med helm}}}}
+|{{members|Yes}}
+|-
+|{{plinkt|Black d'hide body}}
+|{{Coins|{{GEP|Black d'hide body|1}}}}
+|{{Coins|{{GEP|Nature rune|1}}}}
+|{{Coins|8088}}
+|{{Coins|8088-({{GEP|Black d'hide body|1}}+{{GEP|Nature rune|1}})}}
+|{{GELimit|Black d'hide body}}
+|{{Coins|({{GEP|Black d'hide body|1}}+{{GEP|Nature rune|1}})*{{GELimit|Black d'hide body}}}}
+|{{Coins|(8088-({{GEP|Black d'hide body|1}}+{{GEP|Nature rune|1}}))*{{GELimit|Black d'hide body}}}}
+|{{members|Yes}}
+|}
+
+===Crafting/Smithing/Fletching + High Alchemy===
+This is typically '''NOT''' the best way to profit from High Alchemy unless the player creates the items themselves. However, casting High Alchemy on platebodies typically results in less financial loss as opposed to simply buying the materials, smithing the armour, and selling the finished armour back. As such, this is primarily done by players who wish to train [[Magic]] along with other skills such as [[Crafting]] or [[Smithing]] or [[Fletching]] through buying materials directly from the [[Grand Exchange]]. The table below does not include the price of the mould for items which require one to craft, as molds are not consumed. The materials cost includes the price of High Alchemy assuming use of fire staff + nature rune.
+
+(* If using silver ore instead of silver bars add {{Coins|{{GEP|Silver bar|1}}-{{GEP|Silver ore|1}}}} to the Profit / Loss)
+
+{| class="wikitable sortable align-center-1 align-left-2 align-left-3" style="text-align: right;"
+! colspan="2" |Item
+!Materials Needed
+!Materials Cost (GE)
+!High Alch Return
+!Profit/Loss
+|-
+|{{plinkt|Iron platebody}}
+|{{plinkp|Iron bar}} x5
+|{{Coins|{{GEP|Iron bar|5}}+{{GEP|Nature rune|1}} round 0}}
+|{{Coins|336}}
+|{{Coins|336 - ({{GEP|Iron bar|5}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Steel platebody}}
+|{{plinkp|Steel bar}} x5
+|{{Coins|{{GEP|Steel bar|5}}+{{GEP|Nature rune|1}}}}
+|{{Coins|1200}}
+|{{Coins|1200-({{GEP|Steel bar|5}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Mithril platebody}}
+|{{plinkp|Mithril bar}} x5
+|{{Coins|{{GEP|Mithril bar|5}}+{{GEP|Nature rune|1}}}}
+|{{Coins|3120}}
+|{{Coins|3120-({{GEP|Mithril bar|5}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Adamant platebody}}
+|{{plinkp|Adamantite bar}} x5
+|{{Coins|{{GEP|Adamantite bar|5}}+{{GEP|Nature rune|1}}}}
+|{{Coins|9984}}
+|{{Coins|9984-({{GEP|Adamantite bar|5}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Rune platebody}}
+|{{plinkp|Runite bar}} x5
+|{{Coins|{{GEP|Runite bar|5}}+{{GEP|Nature rune|1}}}}
+|{{Coins|39000}}
+|{{Coins|39000-({{GEP|Runite bar|5}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Rune sword}}
+|{{plinkp|Runite bar}} x1
+|{{Coins|{{GEP|Runite bar|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|12480}}
+|{{Coins|12480-({{GEP|Runite bar|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Rune 2h sword}}
+|{{plinkp|Runite bar}} x3
+|{{Coins|{{GEP|Runite bar|3}}+{{GEP|Nature rune|1}}}}
+|{{Coins|38400}}
+|{{Coins|38400-({{GEP|Runite bar|3}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Gold ring}}
+|{{plinkp|Gold bar}} {{plinkp|Ring mould}}
+|{{Coins|{{GEP|Gold bar|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|210}}
+|{{Coins|210-({{GEP|Gold bar|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Gold necklace}}
+|{{plinkp|Gold bar}} {{plinkp|Necklace mould}}
+|{{Coins|{{GEP|Gold bar|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|270}}
+|{{Coins|270-({{GEP|Gold bar|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Gold bracelet}}
+|{{plinkp|Gold bar}} {{plinkp|Bracelet mould}}
+|{{Coins|{{GEP|Gold bar|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|330}}
+|{{Coins|330-({{GEP|Gold bar|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Gold amulet (u)}}
+|{{plinkp|Gold bar}} {{plinkp|Amulet mould}}
+|{{Coins|{{GEP|Gold bar|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|210}}
+|{{Coins|210-({{GEP|Gold bar|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Gold amulet}}
+|{{plinkp|Gold amulet (u)}} {{plinkp|Ball of wool}}
+|{{Coins|{{GEP|Gold bar|1}}+{{GEP|Ball of wool|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|210}}
+|{{Coins|210-({{GEP|Gold bar|1}}+{{GEP|Ball of wool|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Opal ring}} *
+|{{plinkp|Silver bar}} {{plinkp|Opal}} {{plinkp|Ring mould}}
+|{{Coins|{{GEP|Silver bar|1}}+{{GEP|Opal|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|630}}
+|{{Coins|630-({{GEP|Silver bar|1}}+{{GEP|Opal|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Opal necklace}} *
+|{{plinkp|Silver bar}} {{plinkp|Opal}} {{plinkp|Necklace mould}}
+|{{Coins|{{GEP|Silver bar|1}}+{{GEP|Opal|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|630}}
+|{{Coins|630-({{GEP|Silver bar|1}}+{{GEP|Opal|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Opal bracelet}} *
+|{{plinkp|Silver bar}} {{plinkp|Opal}} {{plinkp|Bracelet mould}}
+|{{Coins|{{GEP|Silver bar|1}}+{{GEP|Opal|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|690}}
+|{{Coins|690-({{GEP|Silver bar|1}}+{{GEP|Opal|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Jade ring}} *
+|{{plinkp|Silver bar}} {{plinkp|Jade}} {{plinkp|Ring mould}}
+|{{Coins|{{GEP|Silver bar|1}}+{{GEP|Jade|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|765}}
+|{{Coins|765-({{GEP|Silver bar|1}}+{{GEP|Jade|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Jade necklace}} *
+|{{plinkp|Silver bar}} {{plinkp|Jade}} {{plinkp|Necklace mould}}
+|{{Coins|{{GEP|Silver bar|1}}+{{GEP|Jade|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|765}}
+|{{Coins|765-({{GEP|Silver bar|1}}+{{GEP|Jade|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Jade bracelet}} *
+|{{plinkp|Silver bar}} {{plinkp|Jade}} {{plinkp|Bracelet mould}}
+|{{Coins|{{GEP|Silver bar|1}}+{{GEP|Jade|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|780}}
+|{{Coins|780-({{GEP|Silver bar|1}}+{{GEP|Jade|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Emerald necklace}}
+|{{plinkp|Gold bar}} {{plinkp|Emerald}} {{plinkp|Necklace mould}}
+|{{Coins|{{GEP|Gold bar|1}}+{{GEP|Emerald}}+{{GEP|Nature rune|1}}}}
+|{{Coins|855}}
+|{{Coins|855-({{GEP|Gold bar|1}}+{{GEP|Emerald}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Emerald bracelet}}
+|{{plinkp|Gold bar}} {{plinkp|Emerald}} {{plinkp|Bracelet mould}}
+|{{Coins|{{GEP|Gold bar|1}}+{{GEP|Emerald}}+{{GEP|Nature rune|1}}}}
+|{{Coins|915}}
+|{{Coins|915-({{GEP|Gold bar|1}}+{{GEP|Emerald}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Ruby necklace}}
+|{{plinkp|Gold bar}} {{plinkp|Ruby}} {{plinkp|Necklace mould}}
+|{{Coins|{{GEP|Gold bar|1}}+{{GEP|Ruby}}+{{GEP|Nature rune|1}}}}
+|{{Coins|1305}}
+|{{Coins|1305-({{GEP|Gold bar|1}}+{{GEP|Ruby}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Ruby bracelet}}
+|{{plinkp|Gold bar}} {{plinkp|Ruby}} {{plinkp|Bracelet mould}}
+|{{Coins|{{GEP|Gold bar|1}}+{{GEP|Ruby}}+{{GEP|Nature rune|1}}}}
+|{{Coins|1395}}
+|{{Coins|1395-({{GEP|Gold bar|1}}+{{GEP|Ruby}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Diamond necklace}}
+|{{plinkp|Gold bar}}{{plinkp|Diamond}}{{plinkp|Necklace mould}}
+|{{Coins|{{GEP|Gold bar|1}}+{{GEP|Diamond}}+{{GEP|Nature rune|1}}}}
+|{{Coins|2205}}
+|{{Coins|2205-({{GEP|Gold bar|1}}+{{GEP|Diamond}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Diamond amulet (u)|pic=Diamond amulet (u)}}
+|{{plinkp|Gold bar}}{{plinkp|Diamond}}{{plinkp|Amulet mould}}
+|{{Coins|{{GEP|Gold bar|1}}+{{GEP|Diamond}}+{{GEP|Nature rune|1}}}}
+|{{Coins|2115}}
+|{{Coins|2115-({{GEP|Gold bar|1}}+{{GEP|Diamond}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Diamond bracelet}}
+|{{plinkp|Gold bar}} {{plinkp|diamond}} {{plinkp|bracelet mould}}
+|{{Coins|{{GEP|Gold bar}}+{{GEP|diamond}}+{{GEP|nature rune|1}}}}
+|{{Coins|2295}}
+|{{Coins|2295-({{GEP|Gold bar}}+{{GEP|diamond}}+{{GEP|nature rune|1}})}}
+|-
+|{{plinkt|Abyssal bracelet}}
+|{{plinkp|Gold bar}} {{plinkp|diamond}} {{plinkp|cosmic rune}} {{plinkp|bracelet mould}}
+|{{Coins|{{GEP|Gold bar}}+{{GEP|diamond}}+{{GEP|cosmic rune|1}}+{{GEP|nature rune|1}}}}
+|{{Coins|2520}}
+|{{Coins|2520-({{GEP|Gold bar}}+{{GEP|diamond}}+{{GEP|cosmic rune|1}}+{{GEP|nature rune|1}})}}
+|-
+|{{plinkt|Abyssal bracelet}}
+|{{plinkp|Diamond bracelet}} {{plinkp|cosmic rune}}
+|{{Coins|{{GEP|Diamond bracelet}}+{{GEP|cosmic rune|1}}+{{GEP|nature rune|1}}}}
+|{{Coins|2520}}
+|{{Coins|2520-({{GEP|Diamond bracelet}}+{{GEP|cosmic rune|1}}+{{GEP|nature rune|1}})}}
+|-
+|{{plinkt|Dragonstone bracelet}}
+|{{plinkp|Gold bar}} {{plinkp|Dragonstone}} {{plinkp|bracelet mould}}
+|{{Coins|{{GEP|Gold bar|1}}+{{GEP|dragonstone}}+{{GEP|Nature rune|1}}}}
+|{{Coins|11475}}
+|{{Coins|11475-({{GEP|Gold bar|1}}+{{GEP|dragonstone}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Combat bracelet}}
+|{{plinkp|Gold bar}} {{plinkp|Dragonstone}} {{plinkp|Cosmic rune}} {{plinkp|bracelet mould}}
+|{{Coins|{{GEP|Gold bar|1}}+{{GEP|dragonstone}}+{{GEP|Cosmic rune|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|12624}}
+|{{Coins|12624-({{GEP|Gold bar|1}}+{{GEP|dragonstone}}+{{GEP|Cosmic rune|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Combat bracelet}}
+|{{plinkp|Dragonstone bracelet}} {{plinkp|Cosmic rune}}
+|{{Coins|{{GEP|Dragonstone bracelet|1}}+{{GEP|Cosmic rune|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|12624}}
+|{{Coins|12624-({{GEP|Dragonstone bracelet|1}}+{{GEP|Cosmic rune|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Green d'hide body}}
+|{{plinkp|Green dragon leather}} {{plinkp|Thread}} {{plinkp|Needle}}
+|{{Coins|{{GEP|Green dragon leather|3}}+{{GEP|Thread|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|4680}}
+|{{Coins|4680-({{GEP|Green dragon leather|3}}+{{GEP|Thread|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Blue d'hide body}}
+|{{plinkp|Blue dragon leather}} {{plinkp|Thread}} {{plinkp|Needle}}
+|{{Coins|{{GEP|Blue dragon leather|3}}+{{GEP|Thread|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|5616}}
+|{{Coins|5616-({{GEP|Blue dragon leather|3}}+{{GEP|Thread|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Red d'hide body}}
+|{{plinkp|Red dragon leather}} {{plinkp|Thread}} {{plinkp|Needle}}
+|{{Coins|{{GEP|Red dragon leather|3}}+{{GEP|Thread|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|6738}}
+|{{Coins|6738-({{GEP|Red dragon leather|3}}+{{GEP|Thread|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Black d'hide body}}
+|{{plinkp|Black dragon leather}} {{plinkp|Thread}} {{plinkp|Needle}}
+|{{Coins|{{GEP|Black dragon leather|3}}+{{GEP|Thread|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|8088}}
+|{{Coins|8088-({{GEP|Black dragon leather|3}}+{{GEP|Thread|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Water battlestaff}}
+|{{plinkp|Battlestaff}} {{plinkp|Water orb}}
+|{{Coins|{{GEP|Battlestaff|1}}+{{GEP|Water orb|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|9300}}
+|{{Coins|9300-({{GEP|Battlestaff|1}}+{{GEP|Water orb|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Earth battlestaff}}
+|{{plinkp|Battlestaff}} {{plinkp|Earth orb}}
+|{{Coins|{{GEP|Battlestaff|1}}+{{GEP|Earth orb|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|9300}}
+|{{Coins|9300-({{GEP|Battlestaff|1}}+{{GEP|Earth orb|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Fire battlestaff}}
+|{{plinkp|Battlestaff}} {{plinkp|Fire orb}}
+|{{Coins|{{GEP|Battlestaff|1}}+{{GEP|Fire orb|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|9300}}
+|{{Coins|9300-({{GEP|Battlestaff|1}}+{{GEP|Fire orb|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Air battlestaff}}
+|{{plinkp|Battlestaff}} {{plinkp|Air orb}}
+|{{Coins|{{GEP|Battlestaff|1}}+{{GEP|Air orb|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|9300}}
+|{{Coins|9300-({{GEP|Battlestaff|1}}+{{GEP|Air orb|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Amethyst javelin tips}}
+|{{plinkp|Amethyst}}x0.2 {{plinkp|Chisel}}
+|{{Coins|{{GEP|Amethyst|0.2}}+{{GEP|Nature rune|1}}}}
+|{{Coins|912}}
+|{{Coins|912-({{GEP|Amethyst|0.2}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Maple longbow}}
+|{{plinkp|Maple longbow (u)}} {{plinkp|Bow string}} {{plinkp|Knife}}
+|{{Coins|{{GEP|Maple longbow (u)|1}}+{{GEP|Bow string|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|384}}
+|{{Coins|384-({{GEP|Maple longbow (u)|1}}+{{GEP|Bow string|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Yew longbow}}
+|{{plinkp|Yew longbow (u)}} {{plinkp|Bow string}} {{plinkp|Knife}}
+|{{Coins|{{GEP|Yew longbow (u)|1}}+{{GEP|Bow string|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|768}}
+|{{Coins|768-({{GEP|Yew longbow (u)|1}}+{{GEP|Bow string|1}}+{{GEP|Nature rune|1}})}}
+|-
+|{{plinkt|Magic longbow}}
+|{{plinkp|Magic longbow (u)}} {{plinkp|Bow string}} {{plinkp|Knife}}
+|{{Coins|{{GEP|Magic longbow (u)|1}}+{{GEP|Bow string|1}}+{{GEP|Nature rune|1}}}}
+|{{Coins|1536}}
+|{{Coins|1536-({{GEP|Magic longbow (u)|1}}+{{GEP|Bow string|1}}+{{GEP|Nature rune|1}})}}
+|}
+
+===Special cases===
+Some [[specialty shop]]s may offer a higher price for certain items than the amount High Level Alchemy gives. For example, High Level Alchemy converts a [[gold necklace]] into 270 coins, but [[Grum's Gold Exchange]] in [[Port Sarim]] offers 315 if there are no gold necklace in the shop's stock. The price decreases 9 coins for each additional necklace in the shop inventory until it reaches a low limit of 45 coins when there are 30 or more necklaces. Some players sell up to about 11 items and then [[world switch]] to find another shop which has a low inventory.
+
+There are also some [[general store]]s which buy initially for item's 60% value:
+
+*[[Bandit Duty Free]] shop in the [[Bandit Camp (Wilderness)|Bandit Camp]], mid [[Wilderness]].
+*[[Martin Thwait's Lost and Found.]] in the [[Rogues' Den]], level 50 [[Thieving]] and [[Agility]] required.
+*[[Karamja General Store]] buys at 40% item value, or 60% when a pair of [[Karamja gloves 3]] or above are equipped.
+
+The following stores buy for 55%:
+*[[Pollnivneach general store]]
+*[[Moon Clan General Store]]
+*[[Legends Guild General Store.|Legends Guild General Store]]
+
+The following stores also will buy for 55% but lose their value quickly:
+*[[West Ardougne General Store]]
+*[[Dorgesh-Kaan General Supplies]]
+*[[The Lighthouse Store]]
+
+==Animation override==
+[[File:High Level Alchemy (Trailblazer Reloaded League).gif|thumb|''Leagues IV - Trailblazer reloaded'' High Level Alchemy animation]]
+An [[animation override]] is available for High Level Alchemy, unlockable via the [[Trailblazer reloaded alchemy scroll]]. Players can apply and revert the animation override at any time via the "Animation" menu option on the spell's icon.
+
+==Alchemy-restricted zones==
+Alchemy is inaccessible in [[random events]] (as the interface is limited) and disabled in the following: 
+* [[Barbarian Assault]]
+* [[Castle Wars]]
+* [[Clan Wars]]
+* [[Fishing Trawler]]
+* [[Guardians of the Rift]]
+* [[Last Man Standing]]
+* [[Nightmare Zone]]
+* [[Pest Control]]
+* [[Soul Wars]]
+* [[Tempoross]]
+* [[Wintertodt]]
+* [[Ape Atoll Agility Course]] - As you are Transformed into Monkey
+* [[Goblin Temple]] - As you are Transformed into Goblin
+
+==Sound effects==
+{{SFXTableHead}}
+{{SFXLine|file=High Level Alchemy.ogg|name=high_alchemy|desc=Casting the spell|id=97}}
+{{SFXLine|file=High Level Alchemy (Trailblazer Reloaded League).wav|name=leagues4_highlvl_alchemy_01|desc=Casting the spell with the ''Leagues IV - Trailblazer reloaded'' animation override|id=7557}}
+{{SFXTableBottom}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 4 January 2018
+|update = Dragon Slayer II
+|change = An optional extra warning can be enabled for alching untradeable items. Right-click the alchemy spells in the spellbook if you wish to enable this.
+}}
+{{Subject changes
+|date = 21 April 2016
+|update = Deadman Changes & Implings
+|poll = 
+|change = It is now possible to use the alchemy spells whilst in most instances.
+}}
+{{Subject changes
+|date = 23 April 2015
+|update = Crystal Halberd Special & More
+|poll = Old School Content Poll 32: Resizable Mode
+|change = Warnings when trying to use high alchemy on valuable items will now appear based on the Grand Exchange value of items rather than the alchemy value.
+}}
+{{Subject changes
+|date = 5 March 2015
+|update = Achievement Diaries
+|poll = Old School Achievement Diary Rewards Poll
+|change = You can now cast high level alchemy 30 times per day (no rune cost, no experience) with the [[Explorer's ring 4]].
+}}
+{{Subject changes
+|date = 16 May 2013
+|update = Patch Notes (16 May 2013)
+|change = The alchemy spells will no longer try to run on sliding puzzle pieces.
+}}
+{{Subject changes
+|date = 11 April 2013
+|update = Patch Notes (11 April 2013)
+|change = For the benefit of players with certain medical conditions, flashing effects have been toned down in the Killerwatts' realm and for High Level Alchemy animation.
+}}
+{{Subject changes
+|date = 11 April 2013
+|update = Patch Notes (11 April 2013)
+|poll = Old School feature poll 2 – April 2013
+|change = If you cast a second alchemy spell before your last one finishes, it's now queued up.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="15"
+|[[File:High Level Alchemy v1.gif|center|300x150px]]
+|[[File:High Level Alchemy.gif|center|300x150px]]
+|-
+|–11 April 2013
+|11 April 2013 –<br/>present
+|}
+
+==Trivia==
+*An attempt was made to implement a [[magic tablet]] for the High Level Alchemy spell in the lead-up to the [[Construction]] update, which ultimately proved unsuccessful due to limitations in the way item interactions were handled.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1219674749447569408|date=21 January 2020|archiveurl=https://reldo.runescape.wiki/i/27963120|archivedate=16 March 2026|quote=[Ever thought about adding high alchemy tablets to the game? (...)] Yes. The dev who wrote POH even tried, but he ran into problems with all the items that have their own use-item-on-item code. We could maybe do it by letting the tablet open a different side-interface, though. One that's allowed during combat.}} Players would have been required to use a High Alchemy tablet on another item in order to alchemise it, which would run into problems when that item already had use-item-on-item code defined. For example, if one were to have used a High Alchemy tablet on a [[rune spear]], the weapon would execute the item interaction code associated with using [[weapon poison]] on it instead, frustrating the attempt to run the alchemisation code defined on the magic tablet.
+*According to an issue of the [[Postbag from the Hedge]], a portion of the alchemised gold is "waylaid" by [[Santa Claus]] whenever someone uses High Level Alchemy on an item, as a means to fund [[Christmas event|Christmas]] present production.{{CitePostbag|issue=14|author=Santa|letter=letter 1|quote=It does not cost me much to make so many presents, as we have a deal that I cannot completely reveal to you. All I can say is that when you 'High-Alch', as you call it, some of the material gets a little 'waylaid'.}} Presumably, the percentage of gold siphoned off is equal to 40% of an item's value, that is to say the share not received by the player.
+*It is possible to cast [[alchemy spells]] on a living being. [[Goldie]] is a rabbit who accidentally had an alchemy spell cast on him by an adventurer, which transformed him into gold.{{CiteNPC|npc=Goldie|quote=Some adventurer had an accident with an alchemy spell... I don't want to talk about it.|loc=2017 Easter event|notes=|name=}}
+
+==References==
+{{Reflist}}
+
+{{Standard spellbook}}

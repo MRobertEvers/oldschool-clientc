@@ -1,0 +1,56 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Ice Burst
+|image = [[File:Ice Burst.png]]
+|release = [[18 April]] [[2005]]
+|update = Desert Treasure
+|members = Yes
+|level = 70
+|spellbook = Ancient
+|type = Combat
+|exp = 40
+|element = Ice
+|damage = 22
+|cost = {{RuneReq|Death=2|Chaos=4|Water=4}}
+|speed = 5 ticks
+|description = A multi-target ice attack
+|anim = [[File:Ice Burst.gif|300px]]
+|sound = [[File:Ice Burst.ogg]]
+}}
+[[File:Ice Burst icon (mobile).png|left]]
+'''Ice Burst''' is the second tier [[ice spell]] from the [[Ancient Magicks]] spellbook, available at level 70 [[Magic]]. It is capable of hitting up to 22 damage (without any [[magic damage]] boosts) per cast.
+
+Ice Burst can [[freeze]] targets, causing them to become unable to move for {{ticks|16}}, or {{ticks|17}} with the [[ancient sceptre]]. It is also able to target up to 9 targets in a 3x3 grid around its primary target, just like all other [[Burst spells|burst]] and [[barrage spells]].
+
+As with all [[Ancient Magicks]] spells, the quest [[Desert Treasure I]] must be completed to cast this spell.
+
+Ice Burst is commonly used in [[Castle Wars]] and the [[Fight Pits]], due to its relative low cost and level requirement compared with [[Ice Barrage]], and the relatively large number of targets in small spaces, especially on crowded worlds.
+
+It is also used as a cheaper alternative to [[Ice Barrage]] for certain [[Slayer task]]s such as [[dust devil]]s, or when used to train [[Magic]] (and [[Defence]]) quickly; See [[Pay-to-play Magic training#Level 70–94/99 – Bursting MM2 Monkeys|Magic training]] for more information.
+
+Ice Burst, like all Ice spells, gains a 10% accuracy bonus against unfrozen targets while wielding the [[ice ancient sceptre]].
+
+==Damage==
+===Calculator===
+{{Magic damage calculator|Ice Burst|weapons=Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = chaos
+|Rune1num = 4
+|Rune2 = death
+|Rune2num = 2
+|Rune3 = water
+|Rune3num = 4
+|is_offensive = y
+}}
+{| class="wikitable"
+|+
+! colspan="3" |Wilderness-only casting
+|-
+|{{CostLine|Blighted ancient ice sack}}
+
+|}
+
+{{Ancient Magicks}}
+{{Combat spells}}

@@ -1,0 +1,45 @@
+{{External|rs=Tele-group Fishing Guild}}
+{{Infobox Spell
+|name = Tele Group Fishing Guild
+|image = [[File:Tele Group Fishing Guild.png]]
+|release = [[24 July]] [[2006]]
+|update = Lunar Diplomacy
+|members = Yes
+|level = 86
+|spellbook = Lunar
+|type = Teleport
+|exp = 90
+|cost = {{RuneReq|Law=3|Water=14|Astral=3}}
+|speed = 4 ticks
+|description = Teleports players to the Fishing Guild
+|anim = [[File:Lunar teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Tele Group Fishing Guild icon (mobile).png|left|class=pageimage]]
+'''Tele Group Fishing Guild''' teleports the caster along with anyone within a 3x3 square area (including standing on the player's square) outside the door to the [[Fishing Guild]]. Players must have [[Accept Aid]] turned on in order to be teleported by this spell. A window will pop for the person being teleported asking them if they wished to be teleported. As with all [[Lunar spells]], the quest [[Lunar Diplomacy]] must be completed to cast this spell.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Water
+|Rune1num = 14
+|Rune2 = Law
+|Rune2num = 3
+|Rune3 = Astral
+|Rune3num = 3
+}}
+
+==Destination==
+{{Map|2613,3391|mtype=square|r=2|align=left}}{{clear|left}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 21 April 2016
+|update = Deadman Changes & Implings
+|poll = 
+|change = Lunar's group teleports will no longer trigger the 10 second teleport delay timer in Deadman mode twice.
+}}
+{{Subject changes footer}}
+
+{{Lunar spellbook}}
+{{Teleport spells}}

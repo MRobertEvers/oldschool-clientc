@@ -1,0 +1,68 @@
+{{External|rs=Bind (spell)}}
+{{Infobox Spell
+|name = Bind
+|image = [[File:Bind.png]]
+|release = [[29 March]] [[2004]]
+|update = RS2 Launched!
+|members = No
+|level = 20
+|spellbook = Normal
+|type = Combat
+|exp = 31
+|damage = 0
+|cost = {{RuneReq|Nature=2|Earth=3|Water=3}}
+|speed = 5 ticks
+|description = Holds your opponent for 5 seconds
+|anim = [[File:Bind.gif|300px]]
+|sound = [[File:Bind.ogg]]
+}}
+[[File:Bind icon (mobile).png|left]]
+'''Bind''' is a level 20 [[Magic]] [[Spells|spell]] located in the [[Standard spellbook]]. Casting bind on an opponent will prevent it from moving for 8 [[ticks]]  (4.8 seconds). When used on a player and the bind is about to wear off, the bound player will receive this message in their chatbox: {{mes|The holding effect is beginning to fade.|color=red}} Players can increase the binding duration by equipping [[swampbark armour]]; the [[Swampbark helm|helm]], [[Swampbark body|body]], and [[Swampbark legs|legs]] will increase the duration by 2 [[ticks]] (1.2 seconds) each, up to a maximum of 14 [[ticks]] (8.4 seconds).
+
+Bind gives 31 Magic [[experience]] if it successfully hits the target, or 30 experience if it [[splash]]es. It requires two [[Nature rune|nature]], three [[Earth rune|earth]], and three [[water rune]]s to be cast.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Water
+|Rune1num = 3
+|Rune2 = Earth
+|Rune2num = 3
+|Rune3 = Nature
+|Rune3num = 2
+|uses_pages_water = yes
+}}
+{| class="wikitable"
+|+
+! colspan="3" |Wilderness-only casting
+|-
+|{{CostLine|Blighted entangle sack}}
+|}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 13 September 2023
+|update = The Path of Glouphrie
+|change = Bind now yields 31 [[Magic]] [[experience]] upon a successful cast.
+}}
+{{Subject changes
+|date = 21 June 2023
+|update = More Poll 79 Changes
+|poll = Old School Content Poll 79: Quality of Life
+|change = 
+* The maximum Swampbark Armour set bonus for the Bind spell can now be achieved with just the [[Swampbark helm|helm]], [[Swampbark_body|body]] and [[Swampbark_legs|legs]] as opposed to the full set.
+* Each outfit piece now increases the duration of the Bind spell by an additional [[tick]], so the complete bonus increases the duration to 6 ticks.
+}}
+{{Subject changes
+|date = 11 January 2023
+|update = Secrets of the North & More!
+|change = An audio cue and message have been added to the Bind spell to tell the victims when the freeze is about to expire.
+}}
+{{Subject changes
+|date = 5 September 2019
+|update = PvP Balancing, LMS, and Elf Graphics
+|change = [[Protect from Magic]] no longer halves the duration of Bind.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}

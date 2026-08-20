@@ -1,0 +1,49 @@
+{{External|rs|rsc}}
+{{Infobox Spell
+|name = Charge Water Orb
+|image = [[File:Charge Water Orb.png]]
+|release = [[18 March]] [[2002]]
+|update = Latest RuneScape News (18 March 2002)
+|members = Yes
+|level = 56
+|spellbook = Normal
+|type = Utility
+|exp = 66
+|cost = {{RuneReq|Cosmic=3|Water=30|Orb=1}}
+|speed = 3 ticks (6 on autocast)
+|description = Needs to be cast on a water obelisk
+|anim = [[File:Charge Water Orb.gif]]
+|sound = [[File:Charge Water Orb.ogg]]
+}}
+[[File:Charge Water Orb icon (mobile).png|left|class=pageimage]]
+'''Charge Water Orb''' is an enchantment spell that requires a [[Magic]] level of 56 to cast. It can only be used on the [[Obelisk of Water]], located on an island in [[Catherby]] bay, accessed by climbing a ladder in [[Taverley Dungeon]] very close to the [[water obelisk]]. Each cast will turn an [[unpowered orb]] in the player's inventory into a [[water orb]].
+
+Using a water orb on a [[battlestaff]] makes a [[water battlestaff]]. This requires 54 [[Crafting]] and gives 100 Crafting experience.
+
+The fastest method of charging would be to have a [[player-owned house]] located in Taverley, with a [[mounted amulet of glory]], requiring 47 [[Construction]], and using a [[Teleport to House]] tablet to get to [[Edgeville]] via the mounted glory, bank, and then return, requiring two tablets per trip. It is highly recommended to have the high agility requirements for the two obstacles as it significantly lessens the time for each run and makes this a good way to make profit.
+
+Casting this spell is a requirement for the [[hard Kandarin]] diary.
+
+==Cost==
+{{Spell cost table
+|Rune1 = water
+|Rune1num = 30
+|Rune2 = cosmic
+|Rune2num = 3
+|Rune3 = unpowered orb
+|Rune3num = 1
+}}
+
+==Money making==
+{{Mmgsection|Charging water orbs}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 19 March 2015
+|update = Boss Pets, Sets, Chat & More
+|change = Charging water orbs no longer stops after just one if you haven't completed the related diary task.
+}}
+{{Subject changes footer}}
+
+{{Standard spellbook}}

@@ -1,0 +1,77 @@
+{{External|rsc=Saradomin strike|rs}}
+{{Infobox Spell
+|name = Saradomin Strike
+|image = [[File:Saradomin Strike.png|Saradomin Strike]]
+|release = [[22 September]] [[2003]]
+|update = Mage Arena
+|members = Yes
+|level = 60
+|spellbook = Normal
+|type = Combat
+|exp = 35
+|element = God
+|damage = {{*}} 20 <br/>'''Charged & Saradomin cape worn:'''<br/> {{*}} 30
+|cost = {{RuneReq|Air=4|Fire=2|Blood=2}}
+|speed = 5 ticks
+|quest = [[Mage Arena]]
+|description = Summons the power of Saradomin
+|anim = [[File:Saradomin Strike.gif|300px]]
+|sound = [[File:Saradomin Strike.ogg]]
+}}
+[[File:Saradomin Strike icon (mobile).png|left]]
+'''Saradomin Strike''' is a [[combat spell]] in the [[standard spellbook]], requiring 60 [[Magic]] and the completion of [[Mage Arena I]] to cast. In addition, players must also be wielding a [[Saradomin staff]] or [[staff of light]]; only the staff of light is able to [[autocast]] the spell.
+
+Initially, the spell can only be cast within the [[Mage Arena]] against the [[battle mage]]s. Upon casting the spell 100 times (regardless of whether it was a [[successful hit]] or not), the spell becomes usable outside the arena.
+
+Saradomin Strike has a maximum hit of 20. Upon a successful hit, this spell lowers the enemy's [[Prayer points]] by 1. This can be effective in [[PvP]] activities. Like other prayer draining attacks, it doesn't affect nearly all NPCs as most do not have prayer points. However, this does drain the prayer points of [[Elite Black Knight]]s, although this cannot be seen by the player.
+
+Like the other [[god spells]], the maximum hit is temporarily increased to 30 while the [[Charge]] spell is active and the respective [[god cape]] is worn.
+
+==Damage==
+===Calculator===
+{{Magic damage calculator|Saradomin Strike|charge=y}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = fire
+|Rune1num = 2
+|Rune2 = blood
+|Rune2num = 2
+|Rune3 = air
+|Rune3num = 4
+|nostaff = 2
+}}
+
+Note that since Saradomin Strike requires a Saradomin staff or staff of light, rune-providing staves cannot be used. However, a tome of fire can be worn to provide infinite fire runes. This does not grant the damage boost from the tome and will not consume its charges.
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 17 November 2021
+|update = Duel Arena Changes
+|change = The word "strike" in the spellbook tab is now capitalised.
+}}
+{{Subject changes
+|date = 7 March 2019
+|update = QoL and W45 Changes
+|poll = Quality of Life - Miscellaneous 2019
+|change = The icon was [[Graphical updates|graphically updated]] to be more distinct from the other god spells.
+}}
+{{Subject changes footer}}
+
+===Gallery (historical)===
+{|style="text-align: center" cellpadding="10"
+|[[File:Saradomin Strike icon v1.png|center]]
+|[[File:Saradomin Strike.png|center]]
+|-
+|22 September 2003–<br/>7 March 2019
+|7 March 2019 ⁠–<br/>present
+|}
+
+==Trivia==
+*[[Saradomin priest]]s and Saradomin-aligned [[spiritual mage]]s use Saradomin Strike to attack
+*The Wise Old Man is a noteable user of this spell. This is seen during the [[Draynor bank robbery]] cutscene and many more cutscenes of him. 
+
+{{Mage Arena}}
+{{Mage Arena I}}
+{{Standard spellbook}}

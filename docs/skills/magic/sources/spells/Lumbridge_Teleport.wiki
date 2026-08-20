@@ -1,0 +1,40 @@
+{{External|rs|rsc=Lumbridge teleport}}
+{{Otheruses|the teleport spell|the teleport tablet|Lumbridge teleport (tablet)|the spell requiring no runes|Lumbridge Home Teleport}}
+{{Infobox Spell
+|name = Lumbridge Teleport
+|image = [[File:Lumbridge Teleport.png]]
+|release = [[24 May]] [[2001]]
+|update = New magic system online!
+|members = No
+|level = 31
+|spellbook = Normal
+|type = Teleport
+|exp = 41
+|cost = {{RuneReq|Law=1|Air=3|Earth=1}}
+|speed = 4 ticks
+|quest = No
+|lectern = [[Eagle lectern|Eagle]]
+|description = Teleports you to Lumbridge
+|anim = [[File:Teleport.gif]]
+|sound = [[File:Teleport.ogg]]
+}}
+[[File:Lumbridge Teleport icon (mobile).png|left|class=pageimage]]
+'''Lumbridge Teleport''' teleports the caster to [[Lumbridge]]. Unlike the free [[Lumbridge Home Teleport]] spell, this is fast and cannot be interrupted by combat, though like most other teleports, it is unusable above level 20 [[Wilderness]] or when the player is [[teleblock]]ed. Players returning to Lumbridge may save [[runes]] by using the free teleport instead, if they are not in danger.
+
+Casting this spell is a requirement for the [[medium Lumbridge & Draynor]] diary.
+
+==Cost==
+{{Spell cost table
+|Rune1 = earth
+|Rune1num = 1
+|Rune2 = air
+|Rune2num = 3
+|Rune3 = law
+|Rune3num = 1
+}}
+
+==Destination==
+{{Map|3219,3218|3219,3220|3221,3220|3221,3221|3223,3221|3223,3220|3224,3220|3224,3218|3223,3218|3223,3216|3221,3216|3221,3218|mtype=polygon|align=left}}{{clear|left}}
+
+{{Standard spellbook}}
+{{Teleport spells}}

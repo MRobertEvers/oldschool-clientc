@@ -1,0 +1,75 @@
+{{Infobox Location
+|name = Al Kharid Rooftop Course
+|image = [[File:Al Kharid Rooftop Course.png]]
+|release = [[5 December]] [[2013]]
+|update = Rooftop Agility Courses
+|members = Yes
+|location = [[Al Kharid]] ([[Kharidian Desert]])
+|map = {{Map|3273:3195|plane=0|r=3|mtype=square}}
+|type = agility course
+|leagueRegion = Desert
+}}
+The '''Al Kharid Rooftop Course''' is a [[Rooftop Agility Course]] located in [[Al Kharid]] that is available to players with an [[Agility]] level of 20 or higher. It is preceded by the [[Draynor Village Rooftop Course]] and followed by the [[Varrock Rooftop Course]].
+
+The Al Kharid Rooftop Agility course can be started by climbing the ''rough wall'' on the north side of [[Ellis]] the Tanner's building and is finished by jumping off a building east of the [[Zeke's Superior Scimitars|scimitar shop]]. Players get 216 experience points from completing the course, which is more evenly spread throughout the course, unlike other Agility courses.
+
+It is possible to fail the ''Cross Tightrope 1'' and ''Teeth-grip Zip Line'' obstacles during the course, taking 1-5 damage each time.
+
+A player can complete this course in 64.2 seconds (107 ticks). Using this course, one can gain up to around 12,100 experience per hour.
+
+This course is not recommended over [[Draynor Village Rooftop Course]] for accounts without access to [[energy-restoring items]] such as [[Stamina potion|stamina potions]] because it is possible to run out of energy on this course, thus lowering the experience rate below that of Draynor's course. Furthermore, the rate at which one receives [[Mark of grace|marks of grace]] is slightly lower on this course.
+
+==Obstacles==
+{| class="wikitable align-center-3 align-center-4"
+!Image
+!Obstacle
+!Experience
+!Chance to fail
+|-
+|[[File:Al Kharid Rooftop Course (1).png|200px]]
+|[[Rough wall (Al Kharid Rooftop Course)|Rough wall]]
+|{{+=|xp|12|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Al Kharid Rooftop Course (2).png|200px]]
+|[[Tightrope (Al Kharid Rooftop Course)#Tightrope_1|Tightrope 1]]
+|{{+=|xp|36|echo=2}}
+| style="text-align:center;" |Yes
+|-
+|[[File:Al Kharid Rooftop Course (3).png|200px]]
+|[[Cable (Al Kharid Rooftop Course)|Cable]]
+|{{+=|xp|48|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Al Kharid Rooftop Course (4).png|200px]]
+|[[Zip line (Al Kharid Rooftop Course)|Zip line]]
+|{{+=|xp|48|echo=2}}
+| style="text-align:center;" |Yes
+|-
+|[[File:Al Kharid Rooftop Course (5).png|200px]]
+|[[Tropical tree (Al Kharid Rooftop Course)|Tropical tree]]
+|{{+=|xp|12|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Al Kharid Rooftop Course (6).png|200px]]
+|[[Roof top beams (Al Kharid Rooftop Course)|Roof top beams]]
+|{{+=|xp|6|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Al Kharid Rooftop Course (7).png|200px]]
+|[[Tightrope_(Al_Kharid_Rooftop_Course)#Tightrope_2|Tightrope 2]]
+|{{+=|xp|18|echo=2}}
+| style="text-align:center;" |No
+|-
+|[[File:Al Kharid Rooftop Course (8).png|200px]]
+|[[Gap (Al Kharid Rooftop Course)|Gap]]
+|{{+=|xp|36|echo=2}}
+| style="text-align:center;" |No
+|-
+! colspan="3" |Total
+!{{#var:xp}}
+|}
+
+{{Agility courses}}
+{{Agility rooftop obstacles}}
+{{Al Kharid}}

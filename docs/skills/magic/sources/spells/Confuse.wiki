@@ -1,0 +1,34 @@
+{{External|rs|rsc|dw}}
+{{Infobox Spell
+|name = Confuse
+|image = [[File:Confuse.png]]
+|release = [[4 January]] [[2001]]
+|update = Runescape beta is now online!
+|members = No
+|level = 3
+|spellbook = Normal
+|type = Combat
+|exp = 13
+|cost = {{RuneReq|Body=1|Earth=2|Water=3}}
+|speed = 5 ticks
+|description = Reduces your opponent's attack by 5%
+|anim = [[File:Confuse.gif|300px]]
+|sound = [[File:Confuse.ogg]]
+}}
+[[File:Confuse icon (mobile).png|left]]
+'''Confuse''' is a low-level [[Magic]] [[spell]]. When cast on an opponent, their [[Attack]] level is reduced by 5%. The spell gives [[experience]] whether it hits or misses, making it a popular way to gain experience cheaply. The spell can only be cast if an opponent's stats haven't already been lowered, meaning you can not stack stat-reduction with multiple spells in a row.
+
+The spell grants 13 Magic experience and requires three [[Water rune|water]], two [[Earth rune|earth]], and one [[body rune]] in order to be cast.
+
+==Cost==
+{{Spell cost table
+|Rune1 = Body
+|Rune1num = 1
+|Rune2 = Earth
+|Rune2num = 2
+|Rune3 = Water
+|Rune3num = 3
+|uses_pages_water = yes
+}}
+
+{{Standard spellbook}}

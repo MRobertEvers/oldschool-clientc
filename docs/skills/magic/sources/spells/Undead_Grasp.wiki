@@ -1,0 +1,38 @@
+{{Infobox Spell
+|name = Undead Grasp
+|image = [[File:Undead Grasp.png]]
+|release = [[16 June]] [[2021]]
+|update = A Kingdom Divided
+|members = Yes
+|level = 79
+|spellbook = Arceuus
+|type = Combat
+|exp = 46.5
+|damage = 24
+|cost = {{RuneReq|Fire=12|Blood=1}}
+|speed = 5 ticks
+|quest = [[A Kingdom Divided]]
+|description = Deals major damage with a high chance of holding your target
+|anim = [[File:Undead Grasp.gif|250px]]
+|sound = [[File:Undead Grasp.ogg]]
+}}
+[[File:Undead Grasp icon (mobile).png|left]]
+'''Undead Grasp''' is a [[Grasp_spells|Grasp Spell]] within the [[Arceuus spellbook]] that requires level 79 [[Magic]] and the completion of [[A Kingdom Divided]] to be cast. This spell has a base max hit of 24, and has a 50% chance to stop the target from moving for four [[ticks]] (2.4 seconds); streak marks mid-animation indicate a successful bind on the target. The chance to bind an opponent is only rolled upon a [[successful hit]], which means that a bind will not be rolled if the spell fails the accuracy roll.
+
+Undead Grasp has a 100% chance to bind a target if the [[Mark of Darkness]] spell is active, though the bind duration remains the same. However, if the target is under the effects of the [[Ward of Arceuus]] spell, they will only be bound in place for one [[tick]] (0.6 seconds) if successfully bound by the caster. 
+
+Undead Grasp is relatively rare in that it has a static [[hit delay]] regardless of distance to the target, and is used in some niche speedrunning situations. 
+
+==Damage==
+===Calculator===
+{{Magic damage calculator|Undead Grasp|weapons=Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = fire
+|Rune1num = 12
+|Rune2 = blood
+|Rune2num = 1
+}}
+
+{{Arceuus spellbook}}

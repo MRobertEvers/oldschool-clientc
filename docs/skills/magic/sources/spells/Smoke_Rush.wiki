@@ -1,0 +1,55 @@
+{{External|rs}}
+{{Infobox Spell
+|name = Smoke Rush
+|image = [[File:Smoke Rush.png]]
+|release = [[18 April]] [[2005]]
+|update = Desert Treasure
+|members = Yes
+|level = 50
+|spellbook = Ancient
+|type = Combat
+|exp = 30
+|element = Smoke
+|damage = 13
+|cost = {{RuneReq|Air=1|Fire=1|Chaos=2|Death=2}}
+|speed = 5 ticks
+|description = A single target smoke attack
+|anim = [[File:Smoke Rush.gif|300px]]
+|sound = [[File:Smoke Rush.ogg]]
+}}
+[[File:Smoke Rush icon (mobile).png|left]]
+'''Smoke Rush''' requires a [[Magic]] level of 50 to be cast and can inflict a maximum of 13 damage (without any [[magic damage]] boosts) per cast.
+
+Smoke Rush is capable of [[poison]]ing a target at a 1/8 chance on hit, having a [[poison severity]] of 10 (where poison starts at 2 damage every 30 [[Tick|ticks]] or 18 seconds); this can be increased to 11 with an [[ancient sceptre]]. Increasing the total poison damage to 18 (first hit does 3 damage), instead of 15.
+
+As with all [[Ancient Magicks]] spells, the quest [[Desert Treasure I]] must be completed to cast this spell.
+
+It is the weakest of the [[smoke spells]], and also the weakest [[combat spell]] of the [[Ancient Magicks]] spellbook.
+==Damage==
+===Calculator===
+{{Magic damage calculator|Smoke Rush|weapons=Thammaron's sceptre (Wilderness),Accursed sceptre (Wilderness),Dragon hunter wand}}
+
+==Cost==
+{{Spell cost table
+|Rune1 = chaos
+|Rune1num = 2
+|Rune2 = death
+|Rune2num = 2
+|Rune3 = fire
+|Rune3num = 1
+|Rune4 = air
+|Rune4num = 1
+|is_offensive = y
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 12 September 2013
+|update = Patch Notes (12 September 2013)
+|change = The smoke spells on the Ancient Magicks spellbook no longer try to poison creatures that are immune to poison.
+}}
+{{Subject changes footer}}
+
+{{Ancient Magicks}}
+{{Combat spells}}

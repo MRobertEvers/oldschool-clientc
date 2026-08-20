@@ -1,0 +1,276 @@
+{{confuse|Monster Examine}}
+{{Infobox Spell
+|name = Monster Inspect
+|image = [[File:Monster Inspect.png]]
+|release = [[25 June]] [[2025]]
+|update = Summer Sweep Up: Combat
+|members = No
+|level = 42
+|spellbook = Normal
+|type = Utility
+|exp = 30.5
+|cost = {{RuneReq|Body=2|Mind=2}}
+|speed = 
+|description = Inspect various statistics of a monster
+|anim = [[File:Monster Examine.gif|200px]]
+|sound = [[File:Monster Examine.ogg]]
+}}
+[[File:Monster Inspect icon (mobile).png|left]]
+'''Monster Inspect''' is a [[Utility spells|utility spell]] available in the [[standard spellbook]]. It requires level 42 [[Magic]] to cast, and grants 30.5 Magic [[experience]] per cast.
+
+The spell must be cast on a [[monster]]. The spell provides basic information about the monster that is useful in combat. It is a weaker version of the [[Lunar spellbook|Lunar]] spell [[Monster Examine]].
+
+==Information==
+The spell gives information about the monster inspected in four tabs:  
+
+=== [[File:Monster_Examine_general.png|width=25x25]] Stats ===
+{| class="wikitable"
+|+
+!Stats
+![[File:Monster Inspect.png]] Monster Inspect
+![[File:Monster Examine.png]] Monster Examine
+|-
+|Monster's [[combat level]] 
+|{{Yes}}
+|{{Yes}}
+|-
+|Current [[hitpoints]]
+|{{Yes}}
+|{{Yes}}
+|-
+|Current [[Attack]]
+|{{Yes}}
+|{{Yes}}
+|-
+|Current [[Defence]]
+|{{Yes}}
+|{{Yes}}
+|-
+|Current [[Strength]]
+|{{Yes}}
+|{{Yes}}
+|-
+|Current [[Magic]]
+|{{Yes}}
+|{{Yes}}
+|-
+|Current [[Ranged]]
+|{{Yes}}
+|{{Yes}}
+|-
+|[[Max Hit]] (excluding [[special attacks]])
+|{{No}}
+|{{Yes}}
+|-
+|Main [[attack style]]
+|{{No}}
+|{{Yes}}
+|}
+
+=== [[File:Attack_icon.png]] Aggressive Stats ===
+''(If a monster does not have a bonus of any kind, it is omitted from the interface.)''
+{| class="wikitable"
+|+
+!Stats
+![[File:Monster Inspect.png]] Monster Inspect
+![[File:Monster Examine.png]] Monster Examine
+!Remark
+|-
+|[[Attack speed]]
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|Attack bonus
+|{{Yes}}
+|{{Yes}}
+|Applicable to whatever melee style the NPC uses by default.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/966611692259078144|date=20 February 2018|archiveurl=https://reldo.runescape.wiki/i/100030|archivedate=30 May 2020|quote=You know how that spell lists "Main attack style"? If the listed main attack style is stab, slash or crush, the attack bonus will be its accuracy bonus in that style.}} For example, casting the spell on [[Justiciar Zachariah]] would display an Attack bonus of 200 under the Aggressive Stats tab. This means that in actuality, he has a Slash bonus of +200, as slash is the only melee style he uses.
+|-
+|Stab bonus
+|{{No}}
+|{{Yes}}
+|
+|-
+|Slash bonus
+|{{No}}
+|{{Yes}}
+|
+|-
+|Crush bonus
+|{{No}}
+|{{Yes}}
+|
+|-
+|Ranged bonus
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|Magic bonus
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|Strength bonus
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|Ranged strength bonus
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|Magic strength bonus
+|{{Yes}}
+|{{Yes}}
+|Is equal to [[Magic damage]] for the player.{{CiteTwitter|author=Mod Ash|url=https://twitter.com/JagexAsh/status/1009727169998835712|date=21 June 2018|archiveurl=https://reldo.runescape.wiki/i/104658|archivedate=30 May 2020|quote=[Is ["Magic str bonus"] equivalent to the Magic Damage % for players?] Yup.}}
+|}
+
+=== [[File:Defence_icon.png]] Defensive Stats ===
+{| class="wikitable"
+|+
+!Stats
+![[File:Monster Inspect.png]] Monster Inspect
+![[File:Monster Examine.png]] Monster Examine
+!Remark
+|-
+|Stab bonus
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|Slash bonus
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|Crush bonus
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|Magic bonus
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|Light ranged bonus
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|Standard ranged bonus
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|Heavy ranged bonus
+|{{Yes}}
+|{{Yes}}
+|
+|-
+|[[Flat armour|Armour]]
+|{{No}}
+|{{Yes}}
+|Armour value applies a flat reduction to all melee and ranged damage. For example, an armour value of 5 means that any melee/ranged damage it receives is decreased by 5.
+|}
+
+=== [[File:Monster_Examine_other_attributes.png]] Other Attributes ===
+''(If a monster does not possess a certain criteria, it is omitted from the interface.)''
+{| class="wikitable"
+|+
+!Informs whether the monster...
+![[File:Monster Inspect.png]] Monster Inspect
+![[File:Monster Examine.png]] Monster Examine
+|-
+|can be killed for a [[slayer task]].
+|{{Yes}}
+|{{Yes}}
+|-
+|is a [[slayer boss]] that can be killed for a Slayer task.
+|{{No}}
+|{{Yes}}
+|-
+|can be [[poisoned]] or is immune to [[venom]].
+|{{Yes}}
+|{{Yes}}
+|-
+|can be attacked using a [[dwarf multicannon]].
+|{{No}}
+|{{Yes}}
+|-
+|is immune to [[Thrall|thralls]].
+|{{Yes}}
+|{{Yes}}
+|-
+|is immune to [[Burn|burns]], and the tier of burn it is immune to.
+|{{Yes}}
+|{{Yes}}
+|-
+|has [[freeze]] resistance, and the percentage of that resistance.
+|{{Yes}}
+|{{Yes}}
+|-
+|is [[demonic]].
+|{{Yes}}
+|{{Yes}}
+|-
+|is [[Draconic (attribute)|draconic.]]
+|{{Yes}}
+|{{Yes}}
+|-
+|is [[vampyric]], and the tier of vampyrism it is classified under.
+|{{Yes}}
+|{{Yes}}
+|-
+|is [[spectral]].
+|{{Yes}}
+|{{Yes}}
+|-
+|is a [[Rat (attribute)|rat]].
+|{{Yes}}
+|{{Yes}}
+|-
+|is a [[Golem (attribute)|golem]].
+|{{Yes}}
+|{{Yes}}
+|-
+|is [[Flying (attribute)|flying]].
+|{{No}}
+|{{Yes}}
+|-
+|has a certain [[elemental weakness]].
+|{{Yes}}
+|{{Yes}}
+|}
+
+== Cost ==
+{{Spell cost table
+|Rune1 = body
+|Rune1num = 2
+|Rune2 = mind
+|Rune2num = 2
+}}
+
+==Changes==
+{{Subject changes header}}
+{{Subject changes
+|date = 7 January 2026
+|update = QoL Tweaks & Fixes
+|change =
+* Monster Inspect is now correctly marked as a [[free-to-play]] spell and is no longer greyed out on free-to-play worlds.
+* Monster Inspect now properly requires 42 Magic and can no longer be cast at any Magic level.
+}}
+{{Subject changes
+|date = 2 July 2025
+|update = Stackable Clues are here!
+|change = The runes required have been changed; previously, it required 2 cosmic runes and 2 mind runes.
+}}
+{{Subject changes footer}}
+
+==References==
+{{Reflist}}
+
+{{Standard spellbook}}
+{{Combat spells}}

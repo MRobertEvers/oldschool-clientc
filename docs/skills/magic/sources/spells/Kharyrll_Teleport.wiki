@@ -1,0 +1,40 @@
+{{External|rs}}
+{{otheruses|the teleport spell|the teleport tablet|Kharyrll teleport (tablet)}}
+{{Infobox Spell
+|name = Kharyrll Teleport
+|image = [[File:Kharyrll Teleport.png]]
+|release = [[18 April]] [[2005]]
+|update = Desert Treasure
+|members = Yes
+|level = 66
+|spellbook = Ancient
+|type = Teleport
+|exp = 76
+|cost = {{RuneReq|Law=2|Blood=1}}
+|speed = 5 ticks
+|description = A teleportation spell
+|anim = [[File:Ancient teleport.gif]]
+|sound = [[File:Teleport (Ancient Magicks).ogg]]
+}}
+[[File:Kharyrll Teleport icon (mobile).png|left|class=pageimage]]
+'''Kharyrll Teleport''' is an [[Ancient Magicks]] spell, requiring 66 [[Magic]], that [[teleports]] the caster to [[Canifis]], near the bank, which is the modern location of what was once known as [[Kharyrll]]. As with all [[Ancient Magicks]], the quest [[Desert Treasure I]] must be completed to cast this spell.
+
+Players who can cast this spell and who have 50 [[Construction]] can build a portal in the [[portal chamber]] of their [[player-owned house]] and direct it to Kharyrll. The required runes for the portal chamber are 200 [[law rune]]s and 100 [[blood rune]]s, which is 100 times the cost of casting the spell. Directing such a portal does not require the player's spellbook to be on Ancient Magicks.
+
+Players who can cast this spell and who have 72 [[Construction]] can add the teleport to the [[portal nexus]] of their [[player-owned house]] and direct it to Kharyrll. The required runes for the portal nexus are 2,000 [[law rune]]s and 1,000 [[blood rune]]s, which is 1,000 times the cost of casting the spell. Directing the portal nexus does not require the player's spellbook to be on Ancient Magicks.
+
+Entering a [[Kharyrll Portal]] in your [[POH]] is also a requirement for the [[Hard Morytania Diary]].
+
+==Cost==
+{{Spell cost table
+|Rune1 = law
+|Rune1num = 2
+|Rune2 = blood
+|Rune2num = 1
+}}
+
+==Destination==
+{{Map|3494,3473|mtype=square|r=2|align=left}}{{clear|left}}
+
+{{Ancient Magicks}}
+{{Teleport spells}}
