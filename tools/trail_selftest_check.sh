@@ -94,6 +94,7 @@ Porazdir's ball ignores prayer and only distance stops it
 the Mark of Darkness doubles two things and is opt-in
 a Rise of the Six death heals the survivors and resets the corpses
 the rabbit foot narrows the nest range, it does not reweight the table
+the gilded altar is 250/300/350, not a doubling
 eighteen chompy hats against twenty-two ranks
 the nugget batch cap deletes and the upgraded sack is not double
 Krystilia's base and extended amounts are separate columns

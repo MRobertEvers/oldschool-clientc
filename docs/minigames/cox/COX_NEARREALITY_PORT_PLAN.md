@@ -672,3 +672,490 @@ Check 40 is the one that would have caught the bug this pass exists to fix.
    *absence* of another session's uncommitted `src/world` and `src/net/mock`
    work rather than a regression from this pass — the worktree branched from
    HEAD — but that has not been A/B'd against the shared checkout.
+
+---
+
+## 11. Pass 2 — stage B, the combat room mechanics port — 2026-08-19
+
+Eight combat rooms, each ported independently against its own NR dossier/plan:
+scavengers, guardians, skeletal mystics, lizardman shamans, vanguards,
+muttadiles, vasa, vespula, tekton. §10 moved the monsters onto authored tiles;
+this pass ports what they *do* — `processNPC`, prayer interactions, HP/CM
+scaling, room-level state machines — on top of that geometry.
+
+| Room | Status | Gates | `cox_verify.sh` |
+| --- | --- | --- | --- |
+| Scavengers | OK | #49–53 | green |
+| Guardians | OK | #54–63 | green |
+| Skeletal mystics | OK | #64–73 | green |
+| Lizardman shamans | OK | #74–87 | green |
+| Vanguards | OK | #88–99 | green |
+| Muttadiles | OK | #100–107 | green |
+| Vasa Nistirio | OK | #108–118 | green |
+| Vespula | OK | #119–131 | green |
+| Tekton | **NEEDS ATTENTION** | #132–142 | not obtained this session (§11.10) |
+
+94 new `::coxrun` gates (48 → 142), every one but tekton's mutation-proved
+against a real `mock230 --selftest` run: broken, confirmed red at its own
+check number, restored, reconfirmed green.
+
+### 11.1 The finding that shaped the pass
+
+The plan's own literals could not be trusted at face value. Every room turned
+up at least one place where re-deriving a number from this engine's actual C
+source, or from a live run, contradicted what the dossier said or assumed:
+scavengers' `combat_xp_multiplier` unit, guardians' active-player pointer
+hazard, mystics' RNG-calibrated tolerance band, vanguards' `npc_findallany`
+signature, tekton's untested operator combination. Re-verifying a plan's
+"VERIFY live" flags against the engine, not against the plan's own text, kept
+surfacing bugs the plan itself could not have caught from the Java side alone.
+
+### 11.2 A pervasive bug, found six times, fixed in five files
+
+`npc_findallany(coord, npc_type, distance)` — used throughout this package as
+if the middle argument filtered by type — does not take a type argument at
+all. The real signature is `(coord, distance, checkvis)`; a type value passed
+there silently lands in the distance slot. Every room that touched it found
+this independently, the same way: a live run returned hundreds or thousands
+of npcs instead of the two or three the code expected.
+
+Fixed, this pass, in code this pass wrote or wired live:
+
+| File | Where |
+| --- | --- |
+| `cox_scavengers.rs2` | new collision-avoidance spawn finder (own new code, caught before commit) |
+| `cox_vanguards.rs2` | `~cox_vanguard_hp` / `_is_dead` / `_heal_one` (pre-existing, dead until this pass wired `~cox_vanguard_check_heal` live) |
+| `cox_minions.rs2` | lizardman shaman + skeletal mystic code (written correctly from the start, using `npc_findall`) |
+| `cox_muttadiles.rs2` | HP-scaling code (written correctly from the start) |
+| `cox_vespula.rs2` | new selftest gates (initially copied the bad idiom, caught at gate #123+, fixed) |
+
+Confirmed still present, pre-existing, **not** fixed — out of scope for the
+room each was found in:
+
+- `cox_guardians.rs2` — `~cox_guardian_dist_from`, `~cox_guardian_pushback_anim`,
+  `~cox_guardian_anyone_adjacent`, `~cox_guardian_set_hp`
+- `cox_points.rs2` — `~cox_points_cap_scan`, which every room's point cap
+  depends on
+- `cox_puzzles.rs2` — the tightrope scan
+
+Point caps and HP-set procs across most of this raid may currently be scanning
+far more npcs than intended. This is real and likely significant; fixing five
+established call sites in files this pass did not otherwise touch was judged
+out of scope room-by-room and is flagged here instead of anywhere partial.
+
+### 11.3 Scavengers
+
+| # | What the tree had | What the source says | Where |
+| --- | --- | --- | --- |
+| S1 | Duplicate `raids_scavenger_beast_a/_b` block pair | One block, better-commented | `cox.npc` |
+| S2 | `maxrange` 32 (`RaidNPC`'s own default) | NR `ScavengerBeast` overrides it to 4 | `cox.npc` |
+| S3 | No xp modifier | NR's 10% xp is `param=combat_xp_multiplier,100` — confirmed live that `combat.rs2` reads this param in thousandths (1000 = 100%), so 100 is correct, not a typo for 1000 | `cox.npc` |
+| S4 | `^cox_scav_small_count` / `^cox_scav_large_count`, a size split | NR's table has no size split at all | `cox.constant` |
+| S5 | `respawnrate` assumed sufficient | Dead weight on any npc this package `npc_add`s — `mock230_world.c`'s own selftest asserts a killed `npc_add` npc stays dead. A queued respawn is the real primitive | `cox_scavengers.rs2` |
+| S6 | Large-room shortcut blocking-object tiles unsurveyed | Surveyed live with `tools/cox_nr_locs.py` against NR's `LargeScavengerRoom.blockingObjectTiles` | `cox.constant` |
+
+**Built:** `~cox_scavenger_count` (NR's 8-bracket party table, shared by both
+rooms), `~cox_scavenger_npc` (50/50 id roll), a scatter-with-collision-avoidance
+spawn finder (radius-5 random search, up to 10 attempts, min 2-tile gap — the
+first genuine runtime-random spawn plumbing in this package), a queued 2-tick
+respawn bound to the killing player (mirrors `godwars_chamber.rs2`'s
+`~gwd_private_schedule_respawn`), and the large-room shortcut mechanic: real
+cache loc names (`raids_corridor_rocks`/`roots`/`boulder` + `_cleared`
+variants, all already registered), a level roll
+(`min(99, random(lowest, highest+2))`), and an OURS-flagged click → queued
+resolve → loc-state-gated clear paying `level*5` points directly, bypassing
+the room's combat point cap (the thieving-grubs/crab-crystals convention).
+`coxgoto_scavsmall`/`coxgoto_scavlarge` debugprocs added to `cox.rs2`, and a
+`clearqueue(cox_scavenger_respawn)` safety net to `~cox_clear_session`.
+
+**Gates #49–53**, all mutation-proved (mutate → red → restore → green):
+party-count table at all 13 boundaries, npc-id 50/50 variety, shortcut kind
+round-trip, the respawn-tick literal, and a live gate that builds a real
+scratch `map_instance` and spawns through the real production procs. That
+live gate's first *unplanned* run — before any deliberate mutation — came
+back "found 2200" instead of 2: the §11.2 bug, caught for real.
+
+**Still missing:** no `npc_maxrange` accessor exists, so the maxrange=4 change
+is source-verified only, not selftest-gated. No gate for the shortcut's
+level-99 clamp (no existing precedent for mocking a player's skill level in
+this test file). `tools/cox_sim.sh` was not exercised — no `^cox_trace_scav_*`
+codes exist and scavengers were never in that harness's scope.
+
+### 11.4 Guardians
+
+| # | What the tree had | What the source says | Where |
+| --- | --- | --- | --- |
+| G1 | `~cox_guardian_scale_damage` (pickaxe gate) written but never called | Wired into the real `player_hit_npc_prepare` funnel — also fixes combat XP for free | `cox_guardians.rs2`, `rs2012_td_player_hit.rs2` |
+| G2 | Single always-stomp attack | 50/50 melee-vs-stomp roll, forced stomp when nobody is adjacent | `cox_guardians.rs2` |
+| G3 | Stomp centred on `npc_coord`, same tick | Centred on the attacked player's captured tile, resolves one tick later (the dodge window) | `cox_guardians.rs2` |
+| G4 | No flinch | Halves the attack countdown once per attackrate window, via a new per-npc var slot | `cox_guardians.rs2`, `cox.constant` |
+| G5 | No pushback | Movement, 15–30 damage, 40 points, flavour attack anims, reading Pass 1's previously-unused blocked-tile/push-tile data | `cox_guardians.rs2`, `cox.constant` |
+
+Correction G2 was found by reading the mock230 C engine directly: `huntall`/
+`huntnext` repoint the same "active player" `queue*()` depends on, so the
+adjacency scan has to be followed by a re-hunt on the captured target tile
+before dispatch — an active-player VM-pointer hazard, not just a logic gap.
+
+**Built:** as above, plus a corrected npc-var-slot table entry and
+pushback/flinch/attack-speed constants in `cox.constant`, and closed out
+`COX_MECHANICS.md`'s Guardian HP-formula and attack-speed TODOs.
+
+**Gates #54–63**, all mutation-proved. Two real self-test bugs surfaced and
+were fixed in the process: gate #57 (flinch cooldown) was tautological as
+first written — two calls in one synchronous tick can't observe `map_clock`
+moving, so a missing-guard mutation left both readings identical and the gate
+passed under mutation. Rewritten to seed the cooldown var into the future and
+assert flinch leaves it untouched. Gate #61 (pushback) discovered the live
+selftest fixture has 10 hitpoints and that `damage()` clamps hitpoints to
+base on every call — a real pushback hit fires the engine's own death
+trigger synchronously, before content's own death-check runs, which cannot be
+undone from script. Fixed by splitting `~cox_guardian_pushback_apply` into
+separately-callable move/roll sub-procs and gating the fixture player out of
+the damage path entirely. A third slip — a diagnostic value smuggled through
+the failure code and left in place — produced one false green pass; caught by
+diffing against a saved backup, which became a standing check for the rest of
+this pass.
+
+**Still missing:** the stomp's captured-epicenter and the queue*-delay dodge
+window are documented but not independently gate-provable — a synchronous
+debugproc cannot observe a real one-tick defer; the closest achievable
+equivalent (the stomp's Chebyshev boundary, gate #60) is gated instead.
+Pushback movement is `p_telejump` (instant), not a client-animated slide — no
+`ForceMovement` primitive exists in this engine, flagged rather than silently
+approximated. The pushback's flavour attack anims play but do not force
+either guardian's actual combat target onto the player — no primitive exists
+for that either. Guardian target-sharing (hit either statue, pull both) is
+out of scope per the plan. `tools/cox_sim.sh` has no guardians section
+(pre-existing tool gap, not closed here).
+
+### 11.5 Skeletal mystics
+
+| # | What the tree had | What the source says | Where |
+| --- | --- | --- | --- |
+| M1 | One attack style, implied | Melee/fire/Vulnerability split, per-npc style state machine (`processNPC`'s reach-stuck counter, a post-attack 50/50 walk-reach-gated reroll) | `cox_minions.rs2` |
+| M2 | No prayer interaction | Symmetric Protect-from-Melee/Magic halving | `cox_minions.rs2` |
+| M3 | No party/CM scaling on maxhit | Fire exact per NR's published formula; melee approximated from `RaidNPC.aggressiveLevelMultiplier` (no stage-A raid-combat-level input yet); vuln defaulted to fire (NR's `combatDefinitions.getMaxHit()` is opaque) | `cox_minions.rs2` |
+| M4 | No proactive engagement | `forceAggressive`, with `checkvis` matching the current style — the one CoX room where `isEntityClipped=true` | `cox_minions.rs2` |
+| M5 | No exit block | Mark of Power loc, spawned with the pack, removed only when the last mystic's `onFinish`-equivalent runs, tracked via new `%cox_mystics_alive` varp | `cox_minions.rs2`, `cox.varp` |
+| M6 | Three decorative portal locs missing | Added | `cox_minions.rs2` |
+| M7 | Mark/portal tiles hand-guessed | Re-derived with `tools/cox_nr_locs.py` | `cox.constant` |
+
+**Built:** as above.
+
+**Gates #64–73**, all mutation-proved — run against an isolated
+`git worktree add --detach HEAD` snapshot with the CoX package overlaid,
+since the shared tree was mid-edit by other sessions for most of this room's
+work. Gate #69's original tolerance band (a textbook statistical guess) did
+not reliably separate the correct 1-in-5 roll from a denom-5-to-4 mutation,
+because this engine's selftest RNG is deterministically seeded — the mutated
+draw happened to land inside the guessed band. Recalibrated to the two
+actually-measured values (187 vs 230) instead of a formula, then reverified.
+
+**Still missing:** Vulnerability's true max hit is unresolved (NR's own
+method is opaque), defaulted to the fire formula. Sound wiring (five ids)
+skipped per the plan's explicit permission, pending a lane-wide npc-cast
+sound helper. Melee's raid-combat-level term is approximated at 1.0 (solo).
+`checkvis`/proactive engagement is implemented and reasoned through, but per
+this file's own documented boundary ("not a substitute for playing the
+room"), cannot be gated by a debugproc.
+
+### 11.6 Lizardman shamans
+
+| # | What the tree had | What the source says | Where |
+| --- | --- | --- | --- |
+| L1 | No exit block | Tendril gate: 2 `blockwalk=all` `raids_lizardshaman_blocker` npcs + tendril wall locs, CCW getting 2 extra per the wiki's "one or two sets" | `cox_minions.rs2` |
+| L2 | Poison splash not reworked | Centred on the target's tile via `~map_projectile`, 2-tile radius, 20–40 roll, Shayzien tier-5 reduction, severity-12 poison at 1-in-3 on land | `cox_minions.rs2` |
+| L3 | No minion "spawn special" | 1-in-60/tick, ~33-tick cooldown, a 3-minion cluster that chases and self-destructs for `5+min(5, distance*2)` | `cox_minions.rs2` |
+| L4 | Partial attack-style roll | Full `LizardmanShaman.attack()` roll (ranged/poison/melee/jump), jump's cooldown doubled to 8 ticks | `cox_minions.rs2` |
+| L5 | Assumed fresh cache/pack registration needed | Reused two already-registered npc records (`raids_lizardshaman_blocker` 7575, `zeah_lizardshaman_spawn` 6768) and an already-authored loc — no namespace gap | `cox_minions.rs2` |
+
+**Built:** as above. `~cox_shaman_count`/`^cox_shaman_min`/`^cox_shaman_max`/
+`^cox_shaman_step_first`/`^cox_shaman_step_party` deliberately untouched per
+the task's own instruction; the existing shaman-count gate (#26) still passes
+unchanged.
+
+**Gates #74–87** (14), all individually mutated, confirmed red at the exact
+plan-suggested break, restored, and diffed byte-identical against a
+pre-mutation backup before moving on.
+
+**Still missing:** Slayer helm(i)/hard Kourend diary substitution for the
+Shayzien reduction not ported (no diary-check primitive found). Shaman
+attack anim ids not set — no source names them and this cache's
+`npc_combat` ledger has no entry for either record. The jump attack uses
+`npc_walk`, not a true teleport — this engine has no npc teleport primitive
+at all. The jump's blocked-landing reroll fraction (50/50) is OURS, not
+sourced. Gate #74 could not use `map_blocked` as originally envisioned — a
+freshly built scratch instance has no scene built around it within one
+synchronous debugproc call; the gate verifies via npc existence/position
+instead, which does not catch a hypothetical `blockwalk` mutation in
+`cox.npc` itself. The "Shayzien Specialist" Combat Achievement was
+deliberately not wired — its real name/reward is unconfirmed on the live
+wiki. Camera-shake for the spawn special is dropped, disclosed rather than
+silently omitted. `cox_guardians.rs2`'s own `npc_findallany` misuse
+confirmed present and flagged (§11.2), not fixed here.
+
+### 11.7 Vanguards
+
+| # | What the tree had | What the source says | Where |
+| --- | --- | --- | --- |
+| V1 | No dormant→active state machine | Dormant spawn → wake/rise (2-tick, still shelled) → style-roll opens the shell → active combat | `cox_vanguards.rs2` |
+| V2 | Attack rolls not implemented per style | Melee: 3 independent single-target rolls. Magic/ranged: one guaranteed AoE hit on the target's tile plus two random splash tiles in a radius-3 box | `cox_vanguards.rs2` |
+| V3 | No prayer gating | Each style's own praying-check gates a 33%-remaining reduction; CM scaling live via the shared `~cox_scale_challenge` | `cox_vanguards.rs2` |
+| V4 | Shuffle countdown decremented 3x too fast | Fixed to a single room-wide decrement | `cox_vanguards.rs2` |
+| V5 | Shuffle used self-only `npc_changetype` — the three npcs desynced | Fixed via one tile-indexed npc var, shared and rotated across all three | `cox_vanguards.rs2` |
+| V6 | No stomp-in-path mechanic | 3–6 damage on anyone in a shelled vanguard's path during shuffle | `cox_vanguards.rs2` |
+| V7 | Shell reopened without confirming real arrival | Reopens only once all three have genuinely arrived | `cox_vanguards.rs2` |
+| V8 | Death handling ignored the shuffle/heal-threshold survive rule | Survives at 1hp during a shuffle, or while the group is still over the 40%/33.3% heal-spread threshold | `cox_vanguards.rs2` |
+| V9 | `~cox_vanguard_check_heal` fully written, never called | Wired to run every active tick from all three forms | `cox_vanguards.rs2` |
+| V10 | `~cox_vanguard_heal_all` only printed a message | Now actually heals | `cox_vanguards.rs2` |
+
+**Built:** as above. `configs/all.seq` needed no new entries — the cache
+already ships every named vanguard animation the plan asked for. New npcvar
+slot `^cox_npcvar_vanguard_slot` is 7, not the plan draft's suggested 1 (1
+collides with `^cox_guardian_var_flinch_until`).
+
+**Gates #88–99** (12), each mutation-proved against a harness that
+temporarily disabled checks 1–87's dispatch lines so a vanguard mutation
+couldn't be masked by an earlier shared-formula check (several gates share
+`~cox_scale_challenge` with pre-existing checks). Two real production bugs
+surfaced and were fixed: `~cox_vanguard_on_death` called `~cox_vanguard_hp`
+three times while gathering the group's HP, and each call's own
+`npc_findall` left a *different* npc active by the time the heal ran — the
+vanguard meant to survive at 1hp was silently left dead. And
+`~cox_vanguard_hp`/`_is_dead`/`_heal_one` carried the §11.2 `npc_findallany`
+bug, harmless while dead code, load-bearing the moment it was wired live. A
+third, engine-level trap: `npc_damage`'s flinch/block anim defers `npc_del`
+by one phase, so two npc-spawning gates within 32 tiles of each other could
+grab a prior gate's not-yet-reaped leftover — fixed by spacing damage-using
+gates more than 32 tiles apart. Gate #94 (stomp range) was tautological as
+first written, validating rolls against the same constants they were rolled
+from; fixed to check literal bounds.
+
+**Still missing:** party-size HP/stat scaling not wired — no opcode exists to
+raise a live npc's base/max hitpoints past `npc_statheal`'s clamp-at-authored
+or `npc_statadd`'s 255 ceiling, and `~cox_olm_party_size` is a hardcoded
+`return(1)`. Exit-crystal loc clearing not implemented — no equivalent loc
+found via template survey; this room carries no identifying loc at all.
+Drops deferred to stage F per the plan. Two unrelated pre-existing failures
+(a ToB Verzik content-contract violation; concurrent-session breakage in
+files this task never opened) confirmed unrelated and left untouched.
+
+### 11.8 Muttadiles
+
+| # | What the tree had | What the source says | Where |
+| --- | --- | --- | --- |
+| MU1 | `raids_dogodile` (surfaced/attackable large form) never reached by `npc_changetype` — the encounter could not be finished by combat once the small one died | Real tick-counted state machine: walks the submerged npc 5 tiles, transforms at tick 4/5, deliberately ungated by any `isLaunched`-equivalent per the NR bug-correction note | `cox_muttadiles.rs2` |
+| MU2 | Small muttadile's attack entirely unscripted despite having combat stats | Wired `[ai_opplayer2,raids_dogodile_junior]` | `cox_muttadiles.rs2` |
+| MU3 | No party HP scaling — every party fought the solo 250hp floor | Wired via `cox_scaling.rs2`'s `~cox_scale_hp` (the guardian pattern) | `cox_muttadiles.rs2` |
+| MU4 | `^cox_mutta_ranged_maxhit` 44 | 45, plus CM variants for every maxhit including the small form's own 28/30 (declared, never scripted) | `cox.constant` |
+| MU5 | No stomp-vs-single-target split | Implemented via `huntall` headcount | `cox_muttadiles.rs2` |
+| MU6 | `~cox_mutta_check_meal` fully set up, never called — the meat-tree heal mechanic was dead code | Wired into a new `~cox_mutta_meal_tick`, trigger threshold fixed to compare against `npc_basestat(hitpoints)` | `cox_muttadiles.rs2` |
+
+**Built:** as above, using the correct 4-arg `npc_findall` throughout — noted
+inline that `cox_guardians.rs2`'s own HP-set proc misuses `npc_findallany`
+the same way (§11.2, left alone).
+
+**Gates #100–107** (8), each mutation-proved by hand. Gate #106's first
+design was self-caught as a false-positive risk: the original mutation
+(`>0`→`>=0`) did not turn the gate red because the test sequence never
+reached the boundary the two spellings disagree on; rewritten to seed the
+style lock at 1 so the boundary is actually exercised, then reconfirmed red
+under the same mutation.
+
+**Still missing, per the plan's own guidance:** tendril room-entry gating
+and its 3 blocking scenery objects; the meat-tree loc swap and the actual
+woodcutting chop-down action (a substantial sub-feature); the exit-blocking
+crystal and death/loot/room-finish cleanup; the anti-kite leash (no
+LOS-equivalent primitive confirmed); the bite-heal-amount reconciliation
+against NR's literal figure (left as this tree's existing 25%-per-bite
+formula — no rung 1–3 source states one). Visual parity (projectile/gfx ids,
+walk-out-of-water anim) omitted — no muttadile-specific seq exists in this
+cache. Earth-elemental weakness and the bronze-axe room amenity deferred.
+Separately: this engine's `npc_statheal` clamps healing at the npc's
+cache-authored base hitpoints with no script-reachable way to raise it, so
+the guardian-style HP-scaling pattern this file also uses cannot actually
+exceed `cox.npc`'s authored 250 for any party — a pre-existing engine
+limitation shared with `cox_guardians.rs2`, out of scope to fix here.
+
+### 11.9 Vasa Nistirio
+
+| # | What the tree had | What the source says | Where |
+| --- | --- | --- | --- |
+| VA1 | Special attack fired once, did not repeat on crystal timeout | `%cox_vasa_stage`/`%cox_vasa_substage` state machine (announce → teleport → explosion resolve → crystal cycle → return-to-centre) loops to a fresh special only when a timeout armed `%cox_vasa_explosion_pending`; a timely kill goes straight to the next crystal | `cox_vasa.rs2` |
+| VA2 | Stunned players in place | Physically relocated via `p_teleport` into measured, walkability-checked rings (2–8 nearby, 10–24 distant) | `cox_vasa.rs2` |
+| VA3 | Damage computed per player | One shared `(hp-5)` pool banked at the teleport moment, divided once at resolve | `cox_vasa.rs2` |
+| VA4 | 12-tile Vasa-relative hunt radius | Room-wide 32, matching Great Olm's convention | `cox_vasa.rs2` |
+| VA5 | Corner draw could repeat within one special | Draws each corner without replacement via four boolean flags (no bitwise opcodes in this dialect), reset only on a fresh special | `cox_vasa.rs2` |
+| VA6 | Unconditional `[ai_opplayer2]` attack block | Unconditional-every-tick stomp + walk-gated (not attack-gated) spark hazard | `cox_vasa.rs2` |
+| VA7 | No ranged-immune/magic-multiplier on the crystal | Added via the shared `player_hit_npc_prepare` funnel, plus accuracy-side stab/slash/crush defence params | `rs2012_td_player_hit.rs2`, `cox.npc` |
+| VA8 | Dossier proposed an `hitpoints=0` poll for death cleanup | Wired instead to `[ai_queue3,raids_vasanistirio_*]`, this engine's real death trigger — confirmed in `mock230_world.c`, already used by this file's own crystal-kill handler and by `cox_tekton.rs2`/`cox_vanguards.rs2` — a deliberate, evidenced deviation | `cox_vasa.rs2` |
+| VA9 | Walking-form timer armed at a 10-tick interval | Moved to 1-tick (regen rerouted through `~cox_regen_counted`) — the special's sub-tick table and the stomp/spark cadences need per-tick granularity a 10-tick timer cannot give | `cox_vasa.rs2` |
+
+**Built:** every `[ai_timer]`/`[ai_queue3]` body extracted into a named
+`[proc,...]` specifically so `::coxrun` drives the real dispatch logic, not a
+copy of it; hitbox/gating checks split into pure predicates so no gate risks
+damaging the live selftest player.
+
+**Gates #108–118** (11), all mutation-proved against a genuinely running
+`mock230 --selftest` (not just a compile check). Getting there cost real
+time: `MOCK230_SCRIPTS`/`MOCK230_CONTENT` are not honored by the general
+selftest path (only one GWD-specific branch reads them) — mutations had to
+be recompiled into the live tree's actual `server/scripts/build`.
+
+**Still missing:** **GIT STATE WARNING** — a concurrent session's commit
+(`9dec26bb3a`, "quest content and raids") captured a broken intermediate
+state of `cox_vasa.rs2` mid-mutation-test (the P20 sparks guard removed).
+The current working tree holds the correct, fully restored, verified-passing
+version and differs from `HEAD` by exactly that one hunk (`git diff` on this
+file shows only that restoration) — do not `git checkout`/`reset` this file
+without preserving it first. Cosmetic gaps deferred: no sound effects, no
+tick+4 telegraph substep, "stun blocks prayer" approximated via the existing
+freeze primitive rather than a new stun system. The decorative lit/unlit
+corner crystal locs are unwired — not registered in `pack/loc.server` and
+outside the dossier's concrete plan. `^cox_vasa_boulder_maxhit=25` remains
+flagged unverified — NR's own base is a scaling function, not a flat number,
+and no rung 1–3 source states one.
+
+### 11.10 Vespula
+
+| # | What the tree had | What the source says | Where |
+| --- | --- | --- | --- |
+| VE1 | 4-state grub chain, hp 125 | HP-driven decay/sting/feed FSM, grub hp 30 | `cox_vespula.rs2` |
+| VE2 | Vespula sting logic unimplemented | Walk+lockout sting FSM, farthest-eligible-grub selection, skip-stinging | `cox_vespula.rs2` |
+| VE3 | Grounding/enrage checks written but dead | Wired live | `cox_vespula.rs2` |
+| VE4 | Portal drain used a radius | Tile-exact target, hit-detection poll driving tendril spawn + the enrage window | `cox_vespula.rs2` |
+| VE5 | Portal combat range wrong | Corrected to 6 | `cox_vespula.rs2` |
+| VE6 | No melee-block/ranged-magic-immunity gate | Added, mirroring `godwars_bosses.rs2`'s aviansie pattern via `[opnpc2,...]` | `cox_vespula.rs2` |
+| VE7 | No guaranteed kill-drop | Guaranteed 4-item drop including Overload(+)(4) | `cox_vespula.rs2` |
+| VE8 | Portal death had no pillar-swap/boil-burst/tendril-removal/message | Added | `cox_vespula.rs2` |
+| VE9 | Vespine soldier ground/self-destruct timers missing | Added | `cox_vespula.rs2` |
+| VE10 | This encounter flooded the shared trace varp (§13 note) | New private Vespula trace channel, mirroring Olm/Tekton | `cox.rs2` |
+| VE11 | Survey tiles (portal hit tiles, tendrils, boils) not derived | Derived by solving each door variant's chunk base from 4 decoded anchor tiles, cross-validated against 2 independent NR source arrays — both matched exactly | `cox.constant` |
+
+**Built:** as above; several `ai_timer`/`opnpc2` bodies refactored into
+named, independently-callable procs specifically so the new gates could
+drive real production logic.
+
+**Gates #119–131** (13), all mutation-proved. One live bug found while
+writing the gates themselves: the new selftest code initially copied the
+§11.2 `npc_findallany` idiom, and at gate position #123+ (scene no longer
+guaranteed clean) it picked up stray leftover npcs from earlier tests
+instead of the freshly-spawned scratch grub. Fixed to `npc_findall` with an
+explicit type filter.
+
+**Still missing:** the Medivaemia-blossom harvest interaction is not
+implemented — no `[oploc1,raids_vespula_herb]` handler exists anywhere in
+this package. `VespineSoldier.rise()`'s "heals the boss and portal to full"
+behaviour, noticed while reading source, is not in the given
+corrections/plan list and was deliberately not added — flagged for a future
+pass rather than silently ported. The enraged-Vespula AoE poison sub-effect
+is dropped — no npc-applies-player-poison seam exists in this file. The
+pillar loc's exact co-location with the portal's survey tile is flagged
+unverified in-code. Two concurrent-session auto-commits swept most of this
+room's work mid-task; one small correctness fix (the grub-sting target-hp
+formula, restored to max-relative after a mutation test) remains
+uncommitted in the current working tree, verified green as-is.
+
+### 11.11 Tekton — NEEDS ATTENTION
+
+| # | What the tree had | What the source says | Where |
+| --- | --- | --- | --- |
+| T1 | Undirected 6×6 hit box | Direction-aware wedge: front row + right column | `cox_tekton.rs2` |
+| T2 | No Protect-from-Melee interaction | Halving implemented | `cox_tekton.rs2` |
+| T3 | One re-engagement band | Separate, shorter enraged re-engagement band | `cox_tekton.rs2` |
+| T4 | Anvil-return unconditional | No-reachable-target anvil-return scan added | `cox_tekton.rs2` |
+| T5 | Unconditional room-wide spark hit | Positional, dodgeable spark AoE (captured target tile, radius, one-tick delay) | `cox_tekton.rs2` |
+| T6 | No passive hazard | Smoke-pillar hazard added | `cox_tekton.rs2` |
+| T7 | Room-empty state did not reset to dormant | Reset to the dormant `raids_tekton_waiting` form wired — the pass's named focus item | `cox_tekton.rs2` |
+| T8 | No elemental weakness | Water elemental weakness added to all six `raids_tekton_*` records | `cox.npc` |
+| T9 | `^cox_tekton_reengage_distance` declared, unread | Wired into `~cox_tekton_in_reach` | `cox_tekton.rs2` |
+
+Correction #12 (elder maul/DWH/BGS special-attack interaction) and
+correction #9 (exit-blocking crystal, entrance fire, combat-stance block)
+were left unimplemented per the plan's own guidance — #12 needs a read of
+`player_special_attack.rs2`'s per-weapon hook shape outside this pass's file
+list, and #9's Zenyte loc ids resolve to nothing this cache authors. No
+scaffolding or constants were added for either, to avoid the "declared but
+unread" trap correction #11 itself warned about.
+
+**Built:** as above. Several production procs (`in_reach`, `room_empty`'s
+safe-tile check, the smoke cadence gate, the spark per-target split, the
+spark radius) refactored to take explicit parameters instead of reading
+active-npc/live-clock state internally, matching this file's own
+established testability convention.
+
+**Gates #132–142** (11). Gate #142 (elemental weakness) genuinely caught a
+real bug live, not a deliberate mutation: the first implementation combined
+two `!` comparisons with `|` inside one `if(...)` — a pattern with no other
+precedent in this codebase — and a full-tree run reported failure #142 while
+#132–141 passed. Fixed by splitting into a small per-form helper proc,
+matching the `npc $fighting_form`-parameter pattern already used elsewhere
+in this file. A second real bug, found by code review rather than a live
+run: `~cox_tekton_has_reachable_target`'s `huntall(npc_coord, 3, 0)` — a
+range copied from the task's own pseudocode — was narrower than
+`~cox_tekton_in_reach`'s actual box, which reaches `size-1+^cox_tekton_reengage_distance`
+(5) tiles past the anchor on the far corner; `huntall` filters by plain
+Chebyshev distance from the SW anchor (confirmed by reading `SS_OP_HUNTALL`),
+so a legitimately-in-reach player near that corner would never reach the
+scan loop. Fixed to compute the hunt range from `nc_size(...)` and the
+reengage constant directly.
+
+**Verification: not fully obtained this session.** `tools/cox_compile_check.sh`
+is clean on every run, and `tools/cox_check_timers.py` reports every
+`ai_timer` armed. But no fresh, fully green `tools/cox_verify.sh` run exists
+after the last two fixes above: across roughly a dozen attempts over ~15
+minutes, the shared tree was persistently broken by two other,
+actively-editing sessions (`minigame_toa/toa_kephri.rs2` — unknown constant
+`^toa_kephri_phase_dead`; `quest_totem/totem_mansion.rs2` — `human_climbstairs`
+is not a command), and `cox_verify.sh`'s own isolated-tree fallback is
+separately blocked by a pre-existing, already-committed bug in
+`ported_rs558_ancient_curses/scripts/curses.rs2` (confirmed present at `HEAD`
+via `git show`, unrelated to this task). None of these three files were
+touched by this pass. Consequently gates #132–133 and #135–141 were
+design-reviewed by hand rather than mutated-and-restored live — lower
+confidence than every other gate in this pass, disclosed rather than
+presented as equivalent.
+
+**Still missing:** correction #12 and #9, unimplemented (above). Magic
+damage reduction (80%) and ranged immunity for Tekton are entirely
+unimplemented at any rung — this needs a general incoming-player-damage-
+modifier engine seam that does not exist anywhere in this tree (the identical
+gap blocks Vasa's crystal; `cox_guardian_scale_damage` is the one candidate
+shared hook and it is dead code). Documented as an explicit OPEN item in
+`COX_MECHANICS.md` §3.4 so a later pass does not assume this port covered
+it. The spark's cosmetic origin tile (which room tile it visually flies
+from) is not ported — no sourced projectile/gfx id was found. Other
+concurrent sessions' auto-commits swept most of this pass's uncommitted
+edits into their own commits; all content is intact, and only the
+`has_reachable_target` range fix remains uncommitted as of this report. A
+fresh `tools/cox_verify.sh` run, once the shared tree is quiet, is the
+outstanding item for this room.
+
+### 11.12 What's still missing across the pass
+
+1. **Tekton has no confirmed fully-green `cox_verify.sh` run** for its final
+   state (§11.11) — the one room in this pass that does not close cleanly.
+2. **The §11.2 `npc_findallany` bug remains live** in `cox_guardians.rs2`,
+   `cox_points.rs2` (`~cox_points_cap_scan` — every room's point cap depends
+   on it), and `cox_puzzles.rs2` (tightrope). A dedicated pass to fix all
+   five established call sites, not just the ones this pass's own new code
+   touched, is warranted.
+3. **Nothing here has been played**, same caveat as §10.7 — every gate is
+   arithmetic, table shape, or a scratch-instance live check; none stands in
+   a room with a real party and watches the fight.
+4. **Stage A's remaining items are still open**: `CombatPointCapCalculator`'s
+   per-room caps beyond what §11.2 already flags as scanning wrong,
+   `RoomController`'s lifecycle seam, and `FloorEdgeRoom`/floor progression.
+5. **A general incoming-player-damage-modifier seam** is now a confirmed gap
+   in two places (Tekton's magic/ranged resistance, Vasa's crystal) rather
+   than one — the next room to need it should build the shared hook instead
+   of a third one-off.
+6. **Deferred sub-features**, recorded per-room above rather than repeated
+   here: muttadiles' meat-tree woodcutting minigame and tendril gating,
+   vespula's herb-harvest interaction, vanguards' exit-crystal and drops,
+   shamans' Combat Achievement tracking — none silently dropped, all flagged
+   in their own section.
+7. **Concurrent-session churn was constant and, in Vasa's case, committed a
+   broken intermediate file to `HEAD`** (§11.9). The working tree is correct;
+   the git history for that one file is not, until the current working-tree
+   state is committed over it.

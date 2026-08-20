@@ -327,12 +327,12 @@ Status: `pending` | `in_progress` | `done` | `blocked` | `deferred`.
 | D5 | Magic — **Lunar spellbook** | 2598 | 44 spells generated | **data done, scripts pending** | All 44 Lunar spells with levels, xp and rune sets, from pinned per-spell pages. |
 | D6 | Magic — **Arceuus spellbook** | 1542 | 67 spells generated | **data done, scripts pending** | All 67 Arceuus spells, same source and generator as D5. |
 | D7 | Magic — **regular spellbook remainder + lecterns + resources + actions** | 2701 | 84 spells generated | **data partly done** | The standard book's 84 spells are in the generated table. Lecterns, tablets and the non-spell actions remain. |
-| D8 | **Slayer — completion** (tasks, masters, unlocks, dialogue) | 3544 | 1804 | pending | gates C8, B4, B18, B22 |
+| D8 | **Slayer — completion** (tasks, masters, unlocks, dialogue) | 3544 | 1804 + Konar + Krystilia | **partial** | Task tables cache-backed, unlocks from cache dbtable 117. Superior coverage raised from 16 to **26 of 34**; the last 8 need their base monster identified by something other than its display name. |
 | D9 | **Farming — completion** (contracts, Hespori, seed vault, supercompost) | 8463 | 5804 | pending | |
-| D10 | **Prayer** (ectofuntus, altars, bone burying at depth) | 1706 | 1419 | pending | |
-| D11 | **Thieving** (tables, actions, pickpocket depth) | 1769 | 1515 | pending | |
-| D12 | **Mining** + **Smithing** completion | 2627 | 1817 | pending | |
-| D13 | **Woodcutting** + **Firemaking** completion | 1581 | 510 | pending | largest proportional skill gap |
+| D10 | **Prayer** (ectofuntus, altars, bone burying at depth) | 1706 | 1419 + gilded altar | **partial** | The gilded altar's 250/300/350 ladder and its two-burner message are in and verified. The Chaos Altar's 50% bone-save and the libation bowl remain. |
+| D11 | **Thieving** (tables, actions, pickpocket depth) | 1769 | 1515 + 3 contracts | **done** | All four thieving data tables — pickpockets, stalls, chests, doors — are under contract. Four stale experience awards found and corrected; one wiki self-conflict recorded rather than guessed at. |
+| D12 | **Mining** + **Smithing** completion | 2627 | 1817 + 3 contracts | **done** | All three data tables under contract: 19 rocks, 8 bars, and 158 anvil rows checked against the wiki's stated per-bar rule. |
+| D13 | **Woodcutting** + **Firemaking** completion | 1581 | 510 + nests | **partial** | Bird nests from every tree are in and verified — rate, cape bonus and the rabbit-foot range rule. Machetes and the guild's remaining shortcuts remain; NR's bonfire is RS3 and out of scope. |
 | D14 | **AFK skilling** + fletching/cooking/fishing/herblore parity sweep | 661 + 3432 | present | pending | audit-and-fill, not rewrite |
 
 ### Wave E — Near-Reality custom and meta systems
@@ -2667,6 +2667,298 @@ with and without, and what was explicitly deferred with its reason.
   a damagetype" and "crush" are different answers and the generator gives the
   second, so the list needs a design decision rather than a lookup-table row —
   which is why it is *reported* and not *failed*. It is now impossible to miss.
+
+- 2026-08-20 — **D11 pickpocketing — three stale experience awards, inherited and never questioned.**
+
+  `tools/check_pickpocket_contract.py` holds the fifteen rows of
+  `pickpocket.dbrow` to the wiki's Thievable NPCs table. Nine are checkable by
+  name and **three of those nine were wrong**:
+
+  ```
+  gnome     config 198.3   wiki 133.3
+  hero      config 273.3   wiki 163.3
+  paladin   config 151.8   wiki 131.8
+  ```
+
+  All three came in from LostCity, which is a rev-254 tree, and nobody had
+  reason to doubt them — the **levels are right in all three cases**, which is
+  exactly what makes a wrong award survive: the row looks checked because half
+  of it is.
+
+  I did not take the table's word for it alone. The **hero's own article states
+  163.3** in prose, independently of the table — two places on the wiki agreeing
+  against one inherited value, which is what settled it. Corrected, with that
+  reasoning written into the file's header so the next reader does not have to
+  re-derive it.
+
+  Experience is compared in **tenths** throughout: a farmer pays 14.5 and the
+  H.A.M. member 22.2, so an integer comparison would call two different awards
+  equal.
+
+  One thing deliberately NOT checked, and said so in the tool: **stun duration.**
+  The wiki gives stun *damage* in the table and duration only in prose for some
+  npcs, while this tree stores `stun_ticks` — ticks against seconds with no
+  stated conversion for every row. Checking it would mean inventing the mapping,
+  so it is left alone rather than half-checked.
+
+- 2026-08-20 — **D11 stalls — a fourth stale award, and a parser that nearly matched the wrong column.**
+
+  `tools/check_stall_contract.py`, wired as `check-stalls`. One more inherited
+  value was wrong: **the fur stall paid 36 experience where the game gives 45.**
+  Cross-checked the way the pickpocket ones were — the Fur stall article states
+  45 in its own prose, independently of the table.
+
+  Two things about the parser are worth recording, because both would have
+  produced a confident wrong answer:
+
+  * **The wiki's table is one row per stall INSTANCE, not per stall type.**
+    Silver ore appears twice at level 50 (205 and 80 experience) and sapphire
+    twice at level 75 (408 and 129.5). So the checker requires the (name, level)
+    match to be **unique** and skips the stall otherwise, rather than guessing
+    which instance this tree implements. Three of our seven stalls are skipped
+    for exactly that reason and the tool says so — four checked is the honest
+    number, not a bigger one.
+  * **My first parser keyed on the first `[[link]]` in the row, which is the
+    LOOT column, not the label.** `{{plinkt|Fur stall|...}}` carries no
+    brackets, so "Fur stall" and "Fur stall (Port Roberts)" — two different
+    stalls, same level, 45 against 38.5 — would have collapsed onto one key.
+    It happened to give the right answer for fur and would not have for silk.
+    Keying on the `plinkt` label is the fix.
+
+  **Four stale experience awards found across D11's two tables** (gnome, hero,
+  paladin, fur stall), every one inherited from LostCity, every one with its
+  LEVEL correct — which is what let them survive: the row looks checked because
+  half of it is.
+
+- 2026-08-20 — **D11 chests and doors — clean, and that is a result.**
+
+  `tools/check_thieving_tables.py` completes D11's data coverage: **15 chest and
+  door rows agree exactly** with the pinned wiki. After four stale awards in the
+  previous thirteen rows I expected more; there are none.
+
+  That is worth recording rather than shrugging at. **The staleness LostCity
+  handed this tree is not uniform** — the pickpocket and stall tables carried
+  wrong experience while the chest and door tables did not — so "inherited from
+  LostCity" is not by itself evidence a value is wrong, and the next person does
+  not need to re-check these fifteen.
+
+  Rows are matched by **level**, not by name: our block names carry the cache's
+  loc symbol (`trapped_chest_trapchest1`, `locked_door_picklock3_l`) and the
+  wiki's carry the chest's English name, with no shared key to join on. A level
+  shared by two wiki rows is skipped rather than guessed.
+
+  **One row is skipped for a reason worth keeping**: the Magic axe hut door. The
+  Thieving table says level 23 for 22.5 experience; the door's own article says
+  level **32**. Ours is level 23 for 25. Two wiki pages contradict each other on
+  the level, so the experience cannot be trusted from either without settling
+  that first — and "correcting" ours would be picking a side at random. Recorded
+  in the checker with both figures, the same way the Revenant maledictus'
+  cache/wiki divergence and Varrock's self-inconsistent course total are.
+
+  **D11 is done**: all four of its data tables are under contract.
+
+- 2026-08-20 — **D13 bird nests — verified at last, after four blocked builds.**
+
+  The tree rolled nests only inside the Woodcutting Guild. They come from every
+  tree in the game, and the rule is a Mod Ash quote the wiki preserves:
+
+  > "If you've got the rabbit foot necklace, pick number 0-94 inclusive.
+  > Otherwise, pick number 0-99 inclusive. 0 = red egg, 1 = blue egg, 2 = green
+  > egg, 3-34 = ring, otherwise it's seeds."
+
+  **The rabbit foot narrows the RANGE; it does not reweight the table.** The egg
+  and ring slots keep their absolute positions 0..34 and only the seed tail
+  shortens — which is exactly why the wiki can state the result as 3/95 and
+  32/95. A port that "increases the egg and ring chance by some percent"
+  produces different numbers and cannot reproduce either figure. The test proves
+  it is the range and not the weights by asserting slot 34 is a ring and slot 2
+  a green egg **either way**.
+
+  Two more: the rate is **1/256 per log you would normally get, regardless of
+  tree type** — per log, so a redwood rolls several times, and flat across every
+  tree, the opposite of how the rest of woodcutting scales. And the Woodcutting
+  cape's "additional 10% chance" is a better RATE: denominator 232, not 246.
+
+  Also checked before building: **NR's `BonfireAction` is not OSRS content.**
+  The OSRS "Bonfire" is scenery at the Wintertodt Camp; bonfire log-stacking is
+  RS3. Same category as the Ganodermic Beast, and cheaper to find out first than
+  after.
+
+- 2026-08-20 — **D12 mining — 19 rocks, all clean.**
+
+  `tools/check_mining_contract.py`, wired as `check-mining`. Nineteen rock rows
+  agree exactly with the pinned wiki on both level and experience; two are
+  skipped because they have no wiki ore row to match by name — the gem rock
+  (`gems`) and this tree's `'perfect' gold`, both of which are rock VARIANTS
+  rather than ores in the wiki's table.
+
+  Matched by **ore name** here (`{{plinkt|Iron ore|txt=Iron}}` against our
+  `ore_name,iron`), which is a genuine shared key — unlike the chest and door
+  tables, where our blocks carry cache loc symbols and had to be matched by
+  level instead. Worth noting because picking the wrong join key is what nearly
+  broke the stall checker: there is no single right way to match these tables
+  and each one has to be looked at.
+
+  Experience in tenths again: blurite pays 17.5 and volcanic ash 10.
+
+  **Running tally of the LostCity-inherited data now under contract:** 13 rows
+  in pickpockets and stalls (4 wrong, corrected), 15 in chests and doors (clean),
+  19 rocks (clean), 17 agility courses (clean after four false alarms from my
+  own tooling). The staleness is real but concentrated — it is not a reason to
+  distrust everything, and now four of those five tables can never drift again
+  without the build saying so.
+
+- 2026-08-20 — **D12 smelting — 8 bars clean, and a row the parser refuses to read.**
+
+  `tools/check_smelting_contract.py`, wired as `check-smelting`.
+
+  **The row shape cost me a wrong first parse.** The level is the line BEFORE
+  the bar's name, not after it, and the experience is two lines further on past
+  the ore-requirement line:
+
+  ```
+  |15
+  |{{plinkt|Iron bar|txt=Iron}}
+  |{{plinkp|Iron ore}}<sup>x1</sup>
+  |12.5
+  ```
+
+  Scraping numbers in order gives the ore COUNT where the experience should be —
+  "Bronze bar 1, 1, 1" — which reads plausibly because bronze really is level 1.
+  That is the fifth time this session a parser has produced a confident wrong
+  answer, and the second where the wrong answer was *plausible* rather than
+  obviously broken.
+
+  **Blurite is skipped, and the reason is content rather than parsing.** Its row
+  carries a footnote: *"smelting blurite bars has a requirement of level 8
+  Smithing, attempting to do so with less than 13 Smithing will prompt the
+  player that the level requirement is 13 Smithing."* The data says 8, the game
+  enforces 13, and **this tree carries 13** — the behaviour rather than the
+  table. Automating that would mean teaching a parser to prefer a footnote over
+  a column, so it is skipped with the quote in the tool.
+
+  Its experience column is doubled for the same kind of reason — "8 (9.5)",
+  because superheat pays 9.5 where a furnace pays 8. The furnace figure is what
+  a smelting table wants.
+
+- 2026-08-20 — **D10 the gilded altar — the reason Prayer is trained in a house.**
+
+  This tree buries bones and prays at altars; it did not *offer* bones on one.
+
+  [wiki] "It gives 250% Prayer experience when a bone is used with it. With one
+  incense burner lit, it gives 300% ... When both are lit, it gives 350%."
+
+  **+50 per burner from a base of 250** — not a doubling and not a percentage of
+  the base per burner. Two burners is 350%, not 500%. And **the base is already
+  250 with nothing lit**, so an altar that pays 100% until a burner is lit is
+  wrong at the configuration most players actually use. The test rules out both
+  misreadings explicitly: it asserts two burners is *not* twice the base and is
+  below 500, and that one burner sits strictly between the other two — which a
+  boolean "any burner lit" flag could not produce.
+
+  Also pinned: **the "very" belongs to BOTH burners.** "The gods are very
+  pleased with your offering" against "The gods are pleased" — one burner lit
+  omits it. That word is how a player checks their second burner is still
+  alight, so collapsing the two messages removes the only feedback the mechanic
+  gives.
+
+  And the burner tier is irrelevant: "Any type of incense burners can be used to
+  gain the same amount of experience, **provided that they are lit with
+  marrentill**." The herb is the requirement, not the burner.
+
+- 2026-08-20 — **D12 smithing — 158 anvil rows checked against a RULE, not a table.**
+
+  The wiki does not tabulate 159 smithable items. It states the rule:
+
+  > "Smithing experience is calculated by taking the experience granted from 1
+  >  bar and multiplying it by the number of bars used. For example, a bronze
+  >  platebody is 62.5 experience using 5 bars. 1 bar is 12.5 exp, so go
+  >  5 * 12.5 = 62.5. This works for all bars and all smithing items, with a few
+  >  exceptions such as cannonballs."
+
+  Checking against the rule is **stronger** than checking 159 values against 159
+  cells, because it also catches a wrong bar COUNT: a platebody recorded as
+  using 3 bars would have to have its experience wrong by exactly the same
+  factor to slip through. Both fields have to be wrong together and
+  consistently, which is a much smaller target.
+
+  And the per-bar rate is **derived from the tree's own table**, not typed:
+  whatever a metal's 1-bar items award is that metal's rate, and every other
+  item in that metal must be a whole multiple of it. So there are no per-metal
+  constants to maintain and no second source to drift from — the check is for
+  internal consistency against a rule the wiki states.
+
+  **158 rows across 8 metals obey it.** One metal is skipped: gold has no 1-bar
+  item in this table, so it offers no rate to derive. Cannonballs are skipped as
+  the exception the wiki itself names.
+
+  **D12 is done** — all three of its data tables are under contract.
+
+- 2026-08-20 — **D8 Slayer — most of it was already there, and one gap is 18 monsters wide.**
+
+  Measured rather than assumed, after C2/D1/D8 all turned out to be further
+  along than the ledger said:
+
+  * **Task tables are cache-backed** (dbtable 114, 21,912 rows load at boot) —
+    the near-miss recorded earlier.
+  * **Unlock costs are transcribed from cache dbtable 117** by
+    `gen_slayer_unlock.py`, whose own header says "if the two disagree, the
+    cache is right". 201 rows.
+  * Superior rolling, Konar's location lock and brimstone curve, Krystilia's
+    37-task table — all landed earlier today.
+
+  **The real gap: `~slayer_superior_for_category` maps 16 superiors and the
+  cache ships 34.** Eighteen superior monsters can never spawn — and they fail
+  *silently*, because the 1/200 roll succeeds and then the mapping returns null,
+  so nothing appears and nothing is logged. Among them: the dark beast, drake,
+  hydra, smoke devil, turoth, pyrefiend and both wyrms.
+
+  `tools/check_superior_coverage.py` now reports the list every build. It
+  **reports rather than fails**: closing it means finding each npc's category id,
+  which is mechanical but not automatic, and failing the build for a known
+  content gap helps nobody.
+
+  Cache *variants* are excluded deliberately and the tool says why —
+  `superior_gargoyle_dead` is a corpse, `superior_nechryael_*_spawn` are its
+  summons, `superior_cave_crawler_ice` and the `superior_kourend_*` set are
+  region reskins. None is a separate superior a roll should pick, and counting
+  them would have made the gap look 46 wide instead of 34.
+
+- 2026-08-20 — **D8 superiors — ten wired, eight refused, and a duck.**
+
+  `check-superior-coverage` reported eighteen superiors the cache ships that
+  `~slayer_superior_for_category` never named. **Ten are now wired**, taking
+  coverage from 16 of 34 to **26 of 34**: aquanite, araxyte, basilisk knight,
+  gryphon, lava strykewyrm, pyrefiend, pyrelord, turoth, warped terrorbird and
+  warped tortoise. Each category comes from the cache's own `category=` field on
+  the base monster's records, all of which agree per monster.
+
+  **Eight are deliberately NOT wired, and the reason is a duck.** Matching a
+  base monster by its display name picks the wrong record for every one of them:
+
+  * **Drake** — the only cache record named "Drake" is
+    `duck_update_on_land_drake`, category 425. A duck.
+  * **Smoke devil** — the only records named "Smoke Devil" are `poh_smoke_pet`
+    and its old variant, category **764**, which is the *pet* category, shared
+    with Ikkle Hydra.
+  * **Hydra** — 13 records across three categories, most of them pets.
+  * **Wyrm** — no record is named "Wyrm" at all; the closest are league
+    superiors already sitting in category 980.
+  * **Dark beast** — two categories, revenant (1189) and crystalline (1391),
+    neither the plain slayer dark beast.
+  * **Custodian** — only "custodian stalker" records, a different family.
+  * **Venator** — two categories across 15 records with nothing to choose
+    between them.
+
+  Wiring any of those would spawn a superior off the wrong kill, permanently and
+  visibly. They need the base monster identified by the slayer task table rather
+  than by name, and the eight are listed in the source with the specific reason
+  each one failed — so the next attempt starts from the evidence rather than
+  repeating the search.
+
+  This is the same trap as `cache_find.py`'s, inverted: **a display name is a
+  reliable way to FIND a record and an unreliable way to CHOOSE one**, because
+  ducks, pets and league variants share names with the monsters they depict.
 
 ## 7. Open questions to settle before Wave E
 

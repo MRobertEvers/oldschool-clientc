@@ -2246,6 +2246,27 @@ check-dks-contract:
 # script here. The hitpoints check is on the CACHE rather than the config and
 # catches a record picked by the wrong name, which is the likeliest mistake in a
 # batch and the hardest to see afterwards.
+check-superior-coverage:
+	@cd $(REPO_ROOT) && python3 tools/check_superior_coverage.py
+
+check-smithing:
+	@cd $(REPO_ROOT) && python3 tools/check_smithing_contract.py
+
+check-smelting:
+	@cd $(REPO_ROOT) && python3 tools/check_smelting_contract.py
+
+check-mining:
+	@cd $(REPO_ROOT) && python3 tools/check_mining_contract.py
+
+check-thieving-tables:
+	@cd $(REPO_ROOT) && python3 tools/check_thieving_tables.py
+
+check-stalls:
+	@cd $(REPO_ROOT) && python3 tools/check_stall_contract.py
+
+check-pickpocket:
+	@cd $(REPO_ROOT) && python3 tools/check_pickpocket_contract.py
+
 check-npc-style-defaults:
 	@cd $(REPO_ROOT) && python3 tools/check_npc_style_defaults.py
 
@@ -2371,7 +2392,7 @@ mock230-lanes: sscompile
 # This is the target every content contract hangs off, so it carries them all;
 # the lane variants below are development builds of the same tree and do not
 # re-run gates the default build has already passed.
-mock230-scripts: check-dks-contract check-boss-contract check-clan-crystals check-konar-locations check-chompy-hats check-krystilia-tasks check-agility-shortcuts check-dbtable-rows check-spellbooks check-agility-courses check-corpbane check-npc-style-defaults check-crystal-set-contract check-agility-xp check-wintertodt-rewards check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-tob-pillar-contract
+mock230-scripts: check-dks-contract check-boss-contract check-clan-crystals check-konar-locations check-chompy-hats check-krystilia-tasks check-agility-shortcuts check-dbtable-rows check-spellbooks check-agility-courses check-corpbane check-npc-style-defaults check-pickpocket check-stalls check-thieving-tables check-mining check-smelting check-smithing check-superior-coverage check-crystal-set-contract check-agility-xp check-wintertodt-rewards check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-tob-pillar-contract
 	@$(MAKE) mock230-scripts-lanes \
 		MOCK230_SCRIPT_LANES= \
 		MOCK230_SCRIPT_OUT=$(MOCK230_CONTENT_DIR)/server/scripts/build

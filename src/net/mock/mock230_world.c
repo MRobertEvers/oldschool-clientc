@@ -37057,8 +37057,128 @@ mock230_world_selftest(void)
         SELFTEST_CHECK(!mock230_scripts_run_debugproc(srv, "nosuchcheat 1"),
                        "and a line no debugproc claims falls through to the engine");
 
-        /* SCRATCH -- Family Crest geometry probe, remove after use. */
-        mock230_scripts_run_debugproc(srv, "crestgeo");
+        /*
+         * Family Crest -- Witchaven Dungeon lever puzzle (crest_witchaven.rs2),
+         * real [oploc1] dispatch, not mirrored. Coordinates are the measured
+         * placements (see that file's header), not the wiki's alone -- the
+         * cache's own famcrest_door* naming turned out to describe FOUR
+         * separate physical doors, and only a live scene told them apart.
+         * A single teleport covers the whole puzzle: it spans ~2719-2743 x,
+         * ~9669-9718 z, well inside the 104-tile scene window.
+         */
+        {
+            int loc_leverg = mock230_content_symbol(MOCK230_PACK_LOC, "leverg");
+            int loc_leverg2 = mock230_content_symbol(MOCK230_PACK_LOC, "leverg2");
+            int loc_leverh = mock230_content_symbol(MOCK230_PACK_LOC, "leverh");
+            int loc_leverh2 = mock230_content_symbol(MOCK230_PACK_LOC, "leverh2");
+            int loc_leveri = mock230_content_symbol(MOCK230_PACK_LOC, "leveri");
+            int loc_leveri2 = mock230_content_symbol(MOCK230_PACK_LOC, "leveri2");
+            int loc_gate = mock230_content_symbol(MOCK230_PACK_LOC, "famcrest_doori2h1");
+            int loc_gate_open = mock230_content_symbol(MOCK230_PACK_LOC, "famcrest_doori2h1_open");
+            int slot;
+
+            fprintf(stderr, "mock230 selftest: Family Crest Witchaven lever puzzle\n");
+
+            mock230_world_teleport(srv, 0, 2725, 9695);
+            mock230_world_tick(srv);
+
+            /* Pull leverg (2722,9710): down -> up. */
+            slot = mock230_scene_find_loc(2722, 9710, 0, loc_leverg);
+            SELFTEST_CHECK(slot >= 0, "leverg should be placed at its wiki coordinate");
+            if( slot >= 0 )
+                mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_leverg,
+                                                    mock230_loc_category(loc_leverg), slot);
+            mock230_world_tick(srv);
+            SELFTEST_CHECK(mock230_scene_find_loc(2722, 9710, 0, loc_leverg2) >= 0,
+                           "pulling leverg should swap it to leverg2 (up)");
+
+            /* Pull leverh (2724,9669): down -> up. */
+            slot = mock230_scene_find_loc(2724, 9669, 0, loc_leverh);
+            SELFTEST_CHECK(slot >= 0, "leverh should be placed at its wiki coordinate");
+            if( slot >= 0 )
+                mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_leverh,
+                                                    mock230_loc_category(loc_leverh), slot);
+            mock230_world_tick(srv);
+            SELFTEST_CHECK(mock230_scene_find_loc(2724, 9669, 0, loc_leverh2) >= 0,
+                           "pulling leverh should swap it to leverh2 (up)");
+
+            /* Pull leveri (2722,9718): down -> up. */
+            slot = mock230_scene_find_loc(2722, 9718, 0, loc_leveri);
+            SELFTEST_CHECK(slot >= 0, "leveri should be placed at its wiki coordinate");
+            if( slot >= 0 )
+                mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_leveri,
+                                                    mock230_loc_category(loc_leveri), slot);
+            mock230_world_tick(srv);
+            SELFTEST_CHECK(mock230_scene_find_loc(2722, 9718, 0, loc_leveri2) >= 0,
+                           "pulling leveri should swap it to leveri2 (up)");
+
+            /*
+             * Wrong combination so far (leverh is UP, needs to be DOWN): the
+             * gate must refuse and stay closed. Negative-path proof that the
+             * unlock check is not a rubber stamp.
+             */
+            slot = mock230_scene_find_loc(2727, 9690, 0, loc_gate);
+            SELFTEST_CHECK(slot >= 0, "the gate should still be closed with the wrong combination");
+            if( slot >= 0 )
+                mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_gate,
+                                                    mock230_loc_category(loc_gate), slot);
+            mock230_world_tick(srv);
+            SELFTEST_CHECK(mock230_scene_find_loc(2727, 9690, 0, loc_gate_open) < 0,
+                           "the gate must not open on the wrong combination");
+
+            /* Pull leverh again: up -> down. Combination is now correct. */
+            slot = mock230_scene_find_loc(2724, 9669, 0, loc_leverh2);
+            SELFTEST_CHECK(slot >= 0, "leverh2 should still be up before the second pull");
+            if( slot >= 0 )
+                mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_leverh2,
+                                                    mock230_loc_category(loc_leverh2), slot);
+            mock230_world_tick(srv);
+            SELFTEST_CHECK(mock230_scene_find_loc(2724, 9669, 0, loc_leverh) >= 0,
+                           "pulling leverh2 should swap it back to leverh (down)");
+
+            slot = mock230_scene_find_loc(2727, 9690, 0, loc_gate);
+            SELFTEST_CHECK(slot >= 0, "the gate should still be the closed record before the real combination");
+            if( slot >= 0 )
+                mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_gate,
+                                                    mock230_loc_category(loc_gate), slot);
+            mock230_world_tick(srv);
+            SELFTEST_CHECK(mock230_scene_find_loc(2727, 9690, 0, loc_gate_open) >= 0,
+                           "the gate should open once leverh reads down and leveri2 reads up");
+
+            /*
+             * The rest of this quest's fixes (Chronozon's real
+             * ~chronozon_spell dispatch, goldrock2's mining_table row,
+             * ~quest_complete_rewards, the gauntlet imbue) via
+             * quests/quest_crest/scripts/crest_selftest.rs2's
+             * [debugproc,crestrun] -- dialogue-mirrored where content is
+             * ~p_choice*-gated, real proc calls everywhere it is not (same
+             * precedent as ::herorun/::scorpcatcherrun).
+             */
+            {
+                static struct Mock230Capture crestrun_capture;
+                int crestrun_said_ok = 0;
+
+                mock230_capture_begin(srv, &crestrun_capture);
+                mock230_scripts_run_debugproc(srv, "crestrun");
+                mock230_capture_end(srv);
+                for( int i = mock230_capture_find(&crestrun_capture, 90, 0); i >= 0;
+                     i = mock230_capture_find(&crestrun_capture, 90, i + 1) )
+                {
+                    const struct Mock230CapturedPacket* packet = &crestrun_capture.packets[i];
+                    const char* text;
+
+                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                        continue;
+                    text = (const char*)packet->data + 1;
+                    if( strstr(text, "CRESTRUN") == NULL )
+                        continue;
+                    fprintf(stderr, "  %s\n", text);
+                    if( strstr(text, "CRESTRUN OK") != NULL )
+                        crestrun_said_ok = 1;
+                }
+                SELFTEST_CHECK(crestrun_said_ok, "::crestrun should reach its OK line");
+            }
+        }
 
         /*
          * H.A.M. Storerooms' reward table and spatial contracts live in
@@ -39531,6 +39651,64 @@ mock230_world_selftest(void)
         }
 
         /*
+         * The Path of Crondis's FIXTURES, counted in a real instance
+         * (`::toacrondis` then `::toacrondischeck`).
+         *
+         * That room's traps are two hundred poison tiles, forty statues and
+         * forty spears that map square 61,82 places and the server animates
+         * through `loc_find`. If an instanced square did not carry its scenery
+         * into the scene, every `loc_anim` would be dropped and the corridors
+         * would be a walk with nothing anywhere reporting it -- so the count is
+         * the check, exactly as ::toarooms's plane test is.
+         *
+         * TWO DEBUGPROCS WITH A TICK BETWEEN THEM, and the tick is the whole
+         * reason this is not one command. `loc_find` reads the same built scene
+         * `map_blocked` does, and that scene is rebuilt on the tick boundary
+         * rather than inside `p_teleport` (the plan's [E1], and the reason
+         * ::toarooms's own plane check is the weak self-consistent one). Asked
+         * in the same script as the teleport, this counted zero of everything.
+         * It also, on an earlier run, counted the full two hundred -- because
+         * the scene still held a Crondis instance from a previous section and
+         * the pool handed the same base back. Both readings were the same bug.
+         *
+         * The ticks also start the room: the entry tile is inside the arena
+         * radius, so the watchdog runs ~toa_crondis_begin and the palm and the
+         * two water containers -- the only fixtures NOT in the map -- are
+         * standing by the time the second command counts them. Three of them
+         * rather than one because ~toa_arm_watchdog is a `queue(..., 1, 0)`
+         * armed back in ~toa_enter: the scene needs one tick, the watchdog
+         * needs its own, and starting the room is a third.
+         */
+        {
+            static struct Mock230Capture toacrondis_capture;
+            int toacrondis_said_ok = 0;
+
+            mock230_capture_begin(srv, &toacrondis_capture);
+            mock230_scripts_run_debugproc(srv, "toacrondis");
+            for( int t = 0; t < 3; t++ )
+                mock230_world_tick(srv);
+            mock230_scripts_run_debugproc(srv, "toacrondischeck");
+            mock230_capture_end(srv);
+            for( int i = mock230_capture_find(&toacrondis_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0; i = mock230_capture_find(&toacrondis_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &toacrondis_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "toacrondis") == NULL )
+                    continue;
+                fprintf(stderr, "  %s\n", text);
+                if( strstr(text, "toacrondis OK") != NULL )
+                    toacrondis_said_ok = 1;
+            }
+            SELFTEST_CHECK(toacrondis_said_ok,
+                           "::toacrondis should reach its OK line");
+        }
+
+        /*
          * ToA hands its map-instance slots back (`::toaleak`), and the pool is
          * empty when it is done.
          *
@@ -40260,6 +40438,27 @@ mock230_world_selftest(void)
                 SELFTEST_CHECK(said_ok,
                                "a Nexus pyramid should move the player into its chamber "
                                "and start the challenge");
+            }
+
+            /* Diagnostic, not a check: prints how many poison tiles the whole
+             * Crondis square carries, which tells a zero from ::toarooms's
+             * block sweep apart from a block sweep looking in the wrong place. */
+            {
+                static struct Mock230Capture poison;
+
+                mock230_capture_begin(srv, &poison);
+                mock230_scripts_run_debugproc(srv, "toapoison");
+                mock230_capture_end(srv);
+                for( int w = mock230_capture_find(&poison, 90, 0); w >= 0;
+                     w = mock230_capture_find(&poison, 90, w + 1) )
+                {
+                    const struct Mock230CapturedPacket* pk = &poison.packets[w];
+
+                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                        continue;
+                    if( strstr((const char*)pk->data + 1, "toapoison") != NULL )
+                        fprintf(stderr, "  %s\n", (const char*)pk->data + 1);
+                }
             }
         }
 
@@ -50870,6 +51069,8 @@ mock230_world_selftest(void)
                   "double" },
                 { "[proc,selftest_chompy_hats]", 10,
                   "eighteen chompy hats against twenty-two ranks" },
+                { "[proc,selftest_gilded_altar]", 6,
+                  "the gilded altar is 250/300/350, not a doubling" },
                 { "[proc,selftest_bird_nests]", 7,
                   "the rabbit foot narrows the nest range, it does not "
                   "reweight the table" },
@@ -55865,6 +56066,123 @@ mock230_world_selftest(void)
 
             SELFTEST_CHECK(!said_fail, "::scorpcatcherrun should report no failures");
             SELFTEST_CHECK(said_ok, "::scorpcatcherrun should reach its OK line");
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::totemrun\n");
+    {
+        /*
+         * Tribal Totem (2026-08-20 audit). The mansion body was entirely
+         * missing -- kangai_mau.rs2's own header said "Totem body
+         * (crate/house) deferred", handelmort_traps.varp's said "trap body
+         * deferred", and alphabet.enum (landed for the door's letter-wheel
+         * interface) had zero consumers anywhere. `[opnpc1,kangai_mau]`/
+         * `[opnpc1,ardounge_wizard]` block on dialogue, so `totemrun`
+         * mirrors those state transitions (established precedent), but
+         * calls three real, `~`-callable procs directly:
+         * `~totem_investigate_horncrate`, `~totem_search_chest`, and the
+         * completion's own item/xp/qp grants. The genuinely novel piece
+         * this iteration -- a raw IF3 combination-lock interface, the
+         * first of its kind wired in this pass -- is proven for real here,
+         * C-side: a real `[if_button,tribal_door:tribalenter]` dispatch
+         * via `mock230_scripts_run_trigger`, both wrong and correct
+         * combinations, since neither reads the debugproc's missing
+         * npc/loc context at all.
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            static struct Mock230Capture totemrun_capture;
+            int said_ok = 0;
+            int said_fail = 0;
+
+            mock230_capture_begin(srv, &totemrun_capture);
+            mock230_scripts_run_debugproc(srv, "totemrun");
+            mock230_capture_end(srv);
+
+            for( int i = mock230_capture_find(&totemrun_capture, 90 /* MESSAGE_GAME */, 0);
+                 i >= 0;
+                 i = mock230_capture_find(&totemrun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &totemrun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                fprintf(stderr, "  DBG %s\n", text);
+                if( strstr(text, "TOTEMRUN OK") != NULL )
+                    said_ok = 1;
+                if( strstr(text, "TOTEMRUN FAIL") != NULL )
+                {
+                    said_fail = 1;
+                    fprintf(stderr, "  %s\n", text);
+                }
+            }
+
+            SELFTEST_CHECK(!said_fail, "::totemrun should report no failures");
+            SELFTEST_CHECK(said_ok, "::totemrun should reach its OK line");
+
+            /* C-side: the combination-lock door's real [if_button] dispatch. */
+            {
+                int varp_if1 = mock230_content_symbol(MOCK230_PACK_VARP, "if1");
+                int varp_if2 = mock230_content_symbol(MOCK230_PACK_VARP, "if2");
+                int varp_if3 = mock230_content_symbol(MOCK230_PACK_VARP, "if3");
+                int varp_if4 = mock230_content_symbol(MOCK230_PACK_VARP, "if4");
+                int varp_traps = mock230_content_symbol(MOCK230_PACK_VARP, "handelmort_traps_disabled");
+                int com_enter = mock230_content_symbol(MOCK230_PACK_COMPONENT, "tribal_door:tribalenter");
+
+                SELFTEST_CHECK(varp_if1 >= 0 && varp_if2 >= 0 && varp_if3 >= 0 && varp_if4 >= 0 &&
+                               varp_traps >= 0 && com_enter >= 0,
+                               "the ::totemrun C-side names should all resolve: if1=%d if2=%d "
+                               "if3=%d if4=%d traps=%d enter=%d",
+                               varp_if1, varp_if2, varp_if3, varp_if4, varp_traps, com_enter);
+                if( varp_if1 >= 0 && varp_if2 >= 0 && varp_if3 >= 0 && varp_if4 >= 0 &&
+                    varp_traps >= 0 && com_enter >= 0 )
+                {
+                    /*
+                     * `~mesbox`'s text does not surface as a plain
+                     * MESSAGE_GAME (opcode 90) packet the way `mes()` does
+                     * -- confirmed by this stanza's own first attempt,
+                     * where a `strstr` scan for "This combination is
+                     * incorrect" never matched despite the wrong branch
+                     * genuinely running (the door-solved bit correctly
+                     * stayed clear). State, not chat text, is the
+                     * observable signal here.
+                     */
+                    player->varps[varp_traps] = 0;
+                    player->varps[varp_if1] = 0;
+                    player->varps[varp_if2] = 0;
+                    player->varps[varp_if3] = 0;
+                    player->varps[varp_if4] = 0;
+
+                    mock230_scripts_run_if_button(srv, com_enter, 1);
+
+                    SELFTEST_CHECK((player->varps[varp_traps] & (1 << 0)) == 0,
+                                   "a wrong combination should not set the door-solved bit, got %d",
+                                   player->varps[varp_traps]);
+
+                    player->varps[varp_if1] = 10; /* K */
+                    player->varps[varp_if2] = 20; /* U */
+                    player->varps[varp_if3] = 17; /* R */
+                    player->varps[varp_if4] = 19; /* T */
+
+                    mock230_scripts_run_if_button(srv, com_enter, 1);
+
+                    SELFTEST_CHECK((player->varps[varp_traps] & (1 << 0)) != 0,
+                                   "K/U/R/T should set the door-solved bit, got %d",
+                                   player->varps[varp_traps]);
+                }
+            }
             mock230_scripts_free(srv);
         }
     }
