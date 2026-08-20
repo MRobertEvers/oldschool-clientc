@@ -31,7 +31,19 @@
 #include "editor_host.h"
 
 #include "torirsmaped/torirs_maped.h"
+
+/*
+ * TORIRS_MAPED_NO_EMBED: build the TCP half only.
+ *
+ * A connection that dials a daemon needs no server in its own address space,
+ * and torirsmapedctl is the proof — it is a controller, and a controller that
+ * had to link a document, a content tree and a bake to talk to one would make
+ * "controllers hold nothing" a claim rather than a fact. Everything else
+ * (the game client) leaves the flag off and gets both deployments.
+ */
+#if !defined(TORIRS_MAPED_NO_EMBED)
 #include "torirsmaped/torirs_maped_embed.h"
+#endif
 
 #include <assert.h>
 #include <stdio.h>
@@ -100,8 +112,10 @@ link_send(
     assert(remote);
     assert(data || len == 0);
 
+#if !defined(TORIRS_MAPED_NO_EMBED)
     if( remote->embed )
         return ToriRSMapEd_EmbedWrite(remote->embed, remote->embed_client, data, len) == len;
+#endif
 
 #if !defined(_WIN32)
     {
@@ -139,6 +153,7 @@ link_fill(
 
     assert(remote);
 
+#if !defined(TORIRS_MAPED_NO_EMBED)
     if( remote->embed )
     {
         int got = 0;
@@ -155,6 +170,7 @@ link_fill(
             return -1;
         return got;
     }
+#endif
 
 #if !defined(_WIN32)
     {
@@ -658,6 +674,7 @@ remote_free(void* user_data)
     ToriRSMapEd_WriteU32(header + 4, 0);
     link_send(remote, header, sizeof(header));
 
+#if !defined(TORIRS_MAPED_NO_EMBED)
     if( remote->embed )
     {
         ToriRSMapEd_EmbedPump(remote->embed);
@@ -666,6 +683,7 @@ remote_free(void* user_data)
         else
             ToriRSMapEd_EmbedStop(remote->embed);
     }
+#endif
 #if !defined(_WIN32)
     if( remote->fd >= 0 )
         close(remote->fd);
@@ -746,6 +764,8 @@ hello(
     }
     return 1;
 }
+
+#if !defined(TORIRS_MAPED_NO_EMBED)
 
 int
 Editor_HostOpenMapEdEmbed(
@@ -828,11 +848,15 @@ Editor_HostOpenMapEdEmbedPeer(
     return 1;
 }
 
+#endif /* !TORIRS_MAPED_NO_EMBED */
+
 int
 Editor_HostOpenMapEdTcp(
     struct EditorHost* host,
     const char* server_host,
-    int port)
+    int port,
+    int role,
+    uint32_t join_group)
 {
 #if !defined(_WIN32)
     struct maped_remote* remote;
@@ -879,7 +903,7 @@ Editor_HostOpenMapEdTcp(
     memset(remote, 0, sizeof(*remote));
     remote->fd = fd;
 
-    if( !hello(remote, TORIRSMAPED_ROLE_GENERIC, 0) )
+    if( !hello(remote, (uint32_t)role, join_group) )
     {
         close(fd);
         ToriRSMapEd_BufFree(&remote->in);
@@ -894,6 +918,8 @@ Editor_HostOpenMapEdTcp(
     (void)host;
     (void)server_host;
     (void)port;
+    (void)role;
+    (void)join_group;
     fprintf(stderr, "editor: server=tcp is not built for this platform yet\n");
     return 0;
 #endif

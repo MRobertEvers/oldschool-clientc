@@ -205,7 +205,7 @@ type in every existing test silently fell back to `int`.
 ## 9. What is proven, and what is not
 
 Proven, in the headless client over the embed transport
-(`manifest_osrs230_embed.ini`, `TORIRS_NET_CHEAT="container …"`):
+(`manifests/manifest_osrs230_embed.ini`, `TORIRS_NET_CHEAT="container …"`):
 
 - `collection_transmit` — a container **no C file names** — resolves, sizes
   itself to **500** from the cache, accepts a write at **slot 480**, refuses

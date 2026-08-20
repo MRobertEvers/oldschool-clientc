@@ -6,8 +6,8 @@
 /*
  * Boot manifest — one INI file collapsing the whole per-generation boot
  * parameterization (cache identity/dir, protocol rev, transport, host:port,
- * login RSA/CRCs/version, revconfig includes, ui logic). See manifest_rs254.ini
- * / manifest_xrsps.ini at the repo root and docs/MULTI_GENERATIONAL_PARITY.md.
+ * login RSA/CRCs/version, revconfig includes, ui logic). See manifests/manifest_rs254.ini
+ * / manifests/manifest_xrsps.ini at the repo root and docs/MULTI_GENERATIONAL_PARITY.md.
  *
  * Schema (house style [type:name] sections, lowercase key=value, ; / # comments):
  *
@@ -35,7 +35,8 @@
  *                and [cache:boot] revision. fallback_port defaults to 443 only
  *                when the resolved primary is 43594; 0 explicitly disables it.
  *   [editor:boot] content_dir=<path>  repo_root=<path>
- *                server=embed|tcp  host=<h>  port=<n>  panel=inprocess|tab
+ *                server=embed|tcp  host=<h>  port=<n>  client=<n>
+ *                panel=inprocess|tab
  *                Turn on the world map editor. The editor is a client of the
  *                ToriRSMapEd server: `server=embed` (default) hosts it in
  *                this process over `content_dir`, `server=tcp` dials a
@@ -300,6 +301,10 @@ struct BootManifest
      * them. */
     char editor_server_host[128];
     int editor_server_port;
+    /* [editor:boot] client — the Client (session group) to join, 0 = new.
+     * How a second PROCESS joins a running session: the first prints its id
+     * at boot, this states it. Meaningful for server=tcp only. */
+    int editor_client_id;
 
     /**
      * Where the command panel is drawn (`[editor:boot] panel=`).
@@ -404,10 +409,10 @@ struct BootManifest
     /** `[ui:boot] chrome_scale=`: pin the ToriRSChrome zoom (1..4). 0 = unset,
      *  the chrome follows the display's pixel density. */
     int chrome_scale;
-    /** `[ui:boot] hidpi=`: render into a device-pixel drawable. 0 = unset
-     *  (off), 1 = on, -1 = explicitly off. A boot that says yes is one whose
-     *  renderer can afford 4x the pixels on a 2x display; without it the
-     *  window server magnifies the whole frame and no chrome size can help.
+    /** `[ui:boot] hidpi=`: render into a device-pixel drawable. 0 = unset, 1 =
+     *  on, -1 = explicitly off. Unset keeps the platform default, which is ON
+     *  everywhere but the web lane -- so this key exists to DECLINE HighDPI on
+     *  a machine whose renderer cannot afford 4x the pixels, not to ask for it.
      *  TORIRS_HIDPI overrides. */
     int hidpi;
     /* `window = WxH` — initial canvas/window size. 0 = unset (the fixed frame).

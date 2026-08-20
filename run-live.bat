@@ -53,8 +53,8 @@ exit /b %ERRORLEVEL%
 :usage
 echo usage: run-live.bat ^<manifest.ini^> [user] [pass] [client args...]
 echo.
-echo   run-live.bat manifest_osrs239_rs2012.ini
-echo   run-live.bat manifest_osrs239_rs2012.ini testc test --soft3d
+echo   run-live.bat manifests/manifest_osrs239_rs2012.ini
+echo   run-live.bat manifests/manifest_osrs239_rs2012.ini testc test --soft3d
 echo.
-echo   PowerShell prompt:  .\run-live.ps1 manifest_osrs239_rs2012.ini
+echo   PowerShell prompt:  .\run-live.ps1 manifests/manifest_osrs239_rs2012.ini
 exit /b 1

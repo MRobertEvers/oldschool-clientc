@@ -93,7 +93,7 @@ New-Item -ItemType Directory -Force $dist | Out-Null
 Copy-Item $built (Join-Path $dist "torirs.exe") -Force
 Write-Host ("[winxp] done -> dist\win32\torirs.exe  ({0:N0} KB)" -f ((Get-Item (Join-Path $dist 'torirs.exe')).Length/1KB))
 Write-Host "[winxp] local run (nonpacked OSRS239, fixed-function D3D9):"
-Write-Host "        .\src\torirs.exe --manifest .\manifest_osrs239.ini"
+Write-Host "        .\src\torirs.exe --manifest .\manifests/manifest_osrs239.ini"
 Write-Host "[winxp] deploy + run on XP with the RemoteProxyDesktopXP build server, e.g.:"
 Write-Host "        rpdxpctl push dist\win32\torirs.exe C:\dev\torirs.exe"
 } finally {

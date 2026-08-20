@@ -242,7 +242,7 @@ checks that they agree:
 
 ```sh
 src/build/torirsserver 43596 --rev osrs239 &
-src/torirs --manifest manifest_osrs239_net.ini --user testc --pass test
+src/torirs --manifest manifests/manifest_osrs239_net.ini --user testc --pass test
 ```
 
 ```
@@ -460,13 +460,13 @@ between them a diff rather than an argument.
 ## 8. The C client on the 239 wire — the `::zuk` black-screen pair (2026-08-06)
 
 After the manifests moved to `rev=osrs239`, `::zuk` (and the whole
-`manifest_osrs230_zuk.ini` boot) showed an empty screen in torirs. Two
+`manifests/manifest_osrs230_zuk.ini` boot) showed an empty screen in torirs. Two
 independent defects, both invisible from the chatbox, plus one launcher race:
 
 1. **The embedded server booted on the wrong wire.** `ToriRSServer_EmbedStart`
    chose its wire from `TORIRSSERVER_REV` (default `osrs230`) — correct for
    run-live.sh, wrong for the documented direct invocation
-   `src/torirs --manifest manifest_osrs230_zuk.ini`. A 230 reader on the 239
+   `src/torirs --manifest manifests/manifest_osrs230_zuk.ini`. A 230 reader on the 239
    login block reads the RSA size two bytes out of position and dies as
    `rsa decrypt failed`, so nothing after login exists. The embed and its
    client are two ends of one in-process queue pair and can never validly
@@ -498,7 +498,7 @@ independent defects, both invisible from the chatbox, plus one launcher race:
    `app->world_active`, the same instant a human could first type.
 
 Verified headless on both wires from the same tree:
-`manifest_osrs230_zuk.ini` boots into the fight (Zuk at 1200/1200, arena,
+`manifests/manifest_osrs230_zuk.ini` boots into the fight (Zuk at 1200/1200, arena,
 minimap), and a wire-230 twin of the manifest renders identically.
 `REBUILD_REGION` V2 itself (`osrs239_parse`) was already correct — the scene
 built to the same 70-loc window on both wires; only the camera lied.

@@ -204,7 +204,7 @@ src/build_win64/rs2012_material_bake.exe --alpha-textures --alpha-report
 # apply, keep priorities (do NOT run rs2012_strip_priorities), re-pack, run
 src/build_win64/rs2012_material_bake.exe --alpha-textures --apply
 make -C src torirsserver-cache-rs2012
-./dist/win64/torirs.exe --manifest manifest_osrs239_rs2012.ini --soft3d
+./dist/win64/torirs.exe --manifest manifests/manifest_osrs239_rs2012.ini --soft3d
 ```
 
 Runtime evidence that the path is live, with `TORIRS_RASTER_TEX_DEBUG=1`:

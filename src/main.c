@@ -3909,12 +3909,18 @@ main(
             App_Shutdown(&app);
             return 1;
         }
-        /* Before either Init below, and it has to be: ALLOW_HIGHDPI is a
+        /* Only when the manifest actually said something. Unset leaves the
+         * platform's own default standing, which is what makes HighDPI
+         * automatic: a boot that never heard of this still gets a device-pixel
+         * drawable on the displays that have one.
+         *
+         * Before either Init below, and it has to be: ALLOW_HIGHDPI is a
          * window-creation flag and SDL cannot add it to a live window. Getting
          * this after the window is a drawable at window points for the whole
          * session, which the compositor then magnifies -- the frame looks
          * scaled and nothing downstream can tell that it was. */
-        PlatformSDL2_SetWantHighDPI(cfg.hidpi > 0);
+        if( cfg.hidpi )
+            PlatformSDL2_SetWantHighDPI(cfg.hidpi > 0);
 #if defined(TORIRS_HAVE_GL3)
         if( use_opengl3 )
         {

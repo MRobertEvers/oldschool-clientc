@@ -92,7 +92,7 @@ It never writes to the cache it serves.
 
 ```bash
 mkdir -p /tmp/sparse239                       # must exist; JS5 will not create it
-src/torirs /tmp/sparse239 --manifest manifest_osrs239.ini \
+src/torirs /tmp/sparse239 --manifest manifests/manifest_osrs239.ini \
   --offline --js5 --js5-host 127.0.0.1 --js5-port 43594 --js5-fallback-port 0
 ```
 
@@ -103,7 +103,7 @@ explicitly, which is what makes a cache-only test possible.
 
 ```bash
 SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=400 TORIRS_EXIT_BMP=/tmp/boot.bmp \
-  src/torirs /tmp/sparse239 --manifest manifest_osrs239.ini --offline \
+  src/torirs /tmp/sparse239 --manifest manifests/manifest_osrs239.ini --offline \
   --js5 --js5-host 127.0.0.1 --js5-port 43594 --js5-fallback-port 0
 sips -s format png /tmp/boot.bmp --out /tmp/boot.png    # macOS
 ```

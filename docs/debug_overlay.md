@@ -137,14 +137,14 @@ slot it was declared in.
 ```sh
 SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=8 \
 TORIRS_EXIT_BMP=/tmp/out.bmp TORIRS_DUMP_ROOTS=1 \
-  ./src/torirs.exe cache.osrs239 --manifest manifest_osrs230_dev.ini
+  ./src/torirs.exe cache.osrs239 --manifest manifests/manifest_osrs230_dev.ini
 ```
 
 `TORIRS_EXIT_BMP` is not optional — every `*_EXIT` dump in `main.c` is nested
 inside it, and it only fires at teardown, so `TORIRS_MAX_FRAMES` is what makes
 teardown happen.
 
-It prints the root sibling list in paint order. Measured on `manifest_osrs239.ini`
+It prints the root sibling list in paint order. Measured on `manifests/manifest_osrs239.ini`
 plus an `overlay` record, after all six on_load scripts and six var-transmit
 hooks:
 
@@ -170,10 +170,10 @@ of them, verbatim. That is affordable because a switched-off overlay is not a
 cheap drawing, it is *no* drawing: the panel is hidden, `ToriDbgUI_Build`
 produces an empty display list, `UITREE_HOST_GET_DEBUG_OVERLAY` returns 0 and
 the emit pass appends nothing. One host call a frame, no pixels. Measured on
-`manifest_osrs230.ini`, 30 frames, `SDL_VIDEODRIVER=dummy`: `tree_components`
+`manifests/manifest_osrs230.ini`, 30 frames, `SDL_VIDEODRIVER=dummy`: `tree_components`
 1069 → 1070 (the overlay node) and a byte-identical exit BMP.
 
-`manifest_osrs230_zuk.ini`, `manifest_rs254.ini` and `manifest_rs377.ini`
+`manifests/manifest_osrs230_zuk.ini`, `manifests/manifest_rs254.ini` and `manifests/manifest_rs377.ini`
 declare no `[revconfig:layout:root]` and so have nowhere to hang it; they take
 the synthesised default root (§1) and would need the two sections spelled out.
 
@@ -215,7 +215,7 @@ Three details that are deliberate:
   list rather than the next one's. It marks `need_redraw` only when
   `ToriDbgUI_Build` actually rebuilt, which on a steady readout is never.
 
-Verified on `manifest_osrs230_dev.ini`, 60 frames, headless: the overlay
+Verified on `manifests/manifest_osrs230_dev.ini`, 60 frames, headless: the overlay
 reports 19.30 ms against the perf harness's `frame_ns p50 = 18.3 ms` for the
 same run, and pressing `P` twice gives a frame byte-identical to never pressing
 it at all — the vacated pixels are repainted, not left behind.
@@ -231,18 +231,18 @@ committed manifests, 8 frames, `SDL_VIDEODRIVER=dummy`, `cmp` on the exit BMP:
 
 | Manifest | Root iface | `tree_components` base → new | BMP |
 | --- | --- | --- | --- |
-| `manifest_osrs239.ini` | 161 | 1068 → 1069 | identical |
-| `manifest_osrs239_worldmap.ini` | 595 | 732 → 733 | identical |
-| `manifest_osrs230_worldmap.ini` | 595 | 732 → 733 | identical |
-| `manifest_osrs239_packed.ini` | 161 | 99 → 100 | identical |
+| `manifests/manifest_osrs239.ini` | 161 | 1068 → 1069 | identical |
+| `manifests/manifest_osrs239_worldmap.ini` | 595 | 732 → 733 | identical |
+| `manifests/manifest_osrs230_worldmap.ini` | 595 | 732 → 733 | identical |
+| `manifests/manifest_osrs239_packed.ini` | 161 | 99 → 100 | identical |
 
 The `+1` is exactly the `rs_iface` owner node.
 
-**Not measured, for want of a local cache:** `manifest_osrs230.ini`, `_alt`,
-`_bank`, `_dev`, `_embed` and `manifest_osrs239_net.ini` (need
-`cache.osrs239.baked`); `manifest_rs254.ini` (`cache.rs254_zuk`);
-`manifest_rs377.ini` (`cache.rs377`); `manifest_void634.ini` (`cache.void634`);
-`manifest_xrsps.ini` (an absolute macOS path). rs254 and rs377 are the two with
+**Not measured, for want of a local cache:** `manifests/manifest_osrs230.ini`, `_alt`,
+`_bank`, `_dev`, `_embed` and `manifests/manifest_osrs239_net.ini` (need
+`cache.osrs239.baked`); `manifests/manifest_rs254.ini` (`cache.rs254_zuk`);
+`manifests/manifest_rs377.ini` (`cache.rs377`); `manifests/manifest_void634.ini` (`cache.void634`);
+`manifests/manifest_xrsps.ini` (an absolute macOS path). rs254 and rs377 are the two with
 a behaviour change to expect, not just a code path change — see §1.1.
 
 **Tests:** `test-uitree` (incl. `debug overlay (measure / menu geometry /
@@ -259,7 +259,7 @@ again. That is not redundant: the on_load scripts resize and reposition, and the
 transmit hooks read that geometry back — the world map sizes its view from the
 resolved box — so dispatching against stale boxes paints the wrong thing. It
 mirrors `layout_tree(self)` at the end of `task_interface_open.c`'s onload loop.
-Removing it regresses `manifest_osrs239_worldmap.ini` by 17507 bytes in a box at
+Removing it regresses `manifests/manifest_osrs239_worldmap.ini` by 17507 bytes in a box at
 x=387..536 y=150..332, with a byte-identical emit list, which is the shape of
 this bug: right tree, wrong geometry.
 

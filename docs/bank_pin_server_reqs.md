@@ -257,7 +257,7 @@ person at the keyboard did not just type, and it is what §6 uses.
 
 ## 6. Verified in the client, headlessly
 
-`SDL_VIDEODRIVER=dummy … src/torirs --manifest manifest_osrs230_embed.ini`, with
+`SDL_VIDEODRIVER=dummy … src/torirs --manifest manifests/manifest_osrs230_embed.ini`, with
 `TORIRS_NET_CHEAT` for the entry point, `TORIRS_SIM_CLICK_AT` for the digits and
 `TORIRS_BMP_SERIES` to read the shuffled layout before each click.
 

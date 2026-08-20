@@ -2204,11 +2204,11 @@ and composes each into a labelled sheet.
 
 Two traps, both hit on the first run:
 
-- **Use the embedded manifest.** `manifest_osrs239_net.ini` expects a separately
+- **Use the embedded manifest.** `manifests/manifest_osrs239_net.ini` expects a separately
   launched ToriRSServer on port 43596; without it the client fails with "Connection
   refused" and then renders a perfectly good *empty* world. The sheets come out
   looking like a raid with no monsters in it rather than like an error.
-  `manifest_osrs239.ini` is `transport=embed` and needs no second process.
+  `manifests/manifest_osrs239.ini` is `transport=embed` and needs no second process.
 - **Put the player where the encounter is.** The room spawn procs place npcs at
   the room origin and the player stands where they entered, so the first sweep
   produced eight frames of an empty room with one pillar — which reads as
@@ -2232,7 +2232,7 @@ the 32-tile grid, so it cannot go through `~cox_place_room`).
 
 **What these sheets do NOT show yet: the npcs.** The raid geometry, lighting and
 the player all render correctly; the monsters do not appear in any frame. That is
-the rev-239 wire, not CoX — `manifest_osrs239_net.ini`'s own header lists
+the rev-239 wire, not CoX — `manifests/manifest_osrs239_net.ini`'s own header lists
 `NPC_INFO` among the packets "whose layout moved" that the 239 client
 deliberately refuses rather than decoding with the 230 layout
 (docs/RSPROT_OSRS239_PORT.md §6). A rev-230 twin manifest against the same cache

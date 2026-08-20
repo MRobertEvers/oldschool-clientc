@@ -1212,7 +1212,7 @@ Map/cache port:
 - `src/engine/proctex/test/rs2012_material_bake.c`
 - `OSRS-Content/osrs239-content/port/rs2012_qbd_td.materials.tsv`
 - `OSRS-Content/osrs239-content/ported/rs2012_qbd_td/PROVENANCE.md`
-- `manifest_osrs239_rs2012.ini`, `manifest_osrs239_rs2012_td.ini`, and the
+- `manifests/manifest_osrs239_rs2012.ini`, `manifests/manifest_osrs239_rs2012_td.ini`, and the
   `torirsserver-cache-rs2012` make target
 
 Global integration is limited to the shared player-hit preparation point,

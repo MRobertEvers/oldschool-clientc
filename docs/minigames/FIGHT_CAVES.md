@@ -685,7 +685,7 @@ Live:
 
 ```sh
 make -C src EMBED_SERVER=1 torirs
-./run-live.sh manifest_osrs239.ini
+./run-live.sh manifests/manifest_osrs239.ini
 ::fightcavetest    # the three arithmetic/record groups, with per-check lines
 ::fightcave 3      # rotation base and the Jad tile
 ::fightcave 31     # Ket-Zek magic at range

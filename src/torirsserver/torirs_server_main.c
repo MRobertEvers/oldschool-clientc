@@ -14,7 +14,7 @@
  *
  *   make -C src ToriRSServer
  *   src/build/torirsserver [port]
- *   src/torirs --manifest manifest_osrs230.ini --user test --pass test
+ *   src/torirs --manifest manifests/manifest_osrs230.ini --user test --pass test
  *
  * Env:
  *   TORIRSSERVER_VERBOSE=1   log every packet in and out

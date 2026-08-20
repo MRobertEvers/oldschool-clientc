@@ -15,7 +15,7 @@ CONTENT = REPO / "OSRS-Content/osrs239-content"
 CLIENT = REPO / "src/torirs"
 CACHE = REPO / "cache.osrs239.summoning"
 SCRIPTS = CONTENT / "server/scripts/build_summoning"
-MANIFEST = REPO / "manifest_osrs239.ini"
+MANIFEST = REPO / "manifests/manifest_osrs239.ini"
 OUT = REPO / "build/summoning-phase7d"
 NPC, ITEM, BODY, HEAD, READY = 27300, 47300, 123000, 123001, 25300
 

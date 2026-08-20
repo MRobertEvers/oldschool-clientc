@@ -36,7 +36,7 @@ instead of `orbs_worldmap_setup`.
 
 The map itself was done in an earlier session (`src/game/rs_worldmap.c`,
 `rs_worldmap_render.c`, the `WORLDMAP_*`/`MEC_*` opcode family, the `dat2`
-table-19 decode). `./run-live.sh manifest_osrs230_worldmap.ini asdf a --offline`
+table-19 decode). `./run-live.sh manifests/manifest_osrs230_worldmap.ini asdf a --offline`
 boots straight into interface 595 and draws Gielinor, its icons, its key panel
 and its zoom buttons. Drag-to-pan was there too
 (`app_worldmap_drag_tick` in `src/app.c`).
@@ -224,12 +224,12 @@ torirsserver: <- CLICK_WORLD_MAP ...   # phantom — map is already gone
 `hide` on the group roots, not on the builtin itself), and require
 `UITree_RootIsDisplayable` on its top root. Idle frames skip the scan; an
 in-progress drag still reaches its release handling. Measured after the fix
-(`manifest_osrs230_alt.ini`, orb at 704,140, close X at 470,22):
+(`manifests/manifest_osrs230_alt.ini`, orb at 704,140, close X at 470,22):
 
 ```sh
 TORIRSSERVER_VERBOSE=1 SDL_VIDEODRIVER=dummy TORIRS_MOCK_BIN=src/build/alt_torirsserver \
 TORIRS_NET_DEBUG=1 TORIRS_SIM_CLICK_AT="250,704,140;320,470,22;400,400,90" \
-TORIRS_MAX_FRAMES=520 ./run-live.sh manifest_osrs230_alt.ini
+TORIRS_MAX_FRAMES=520 ./run-live.sh manifests/manifest_osrs230_alt.ini
 # torirsserver: world map opened
 # torirsserver: <- IF_BUTTON1 595:38
 # torirsserver: world map closed
@@ -267,13 +267,13 @@ section left off.
 
 ### Verified end to end
 
-Against `manifest_osrs230_alt.ini`, headless:
+Against `manifests/manifest_osrs230_alt.ini`, headless:
 
 ```sh
 # open, then click the map: teleports and the marker follows
 TORIRSSERVER_VERBOSE=1 SDL_VIDEODRIVER=dummy TORIRS_MOCK_BIN=src/build/alt_torirsserver \
 TORIRS_SIM_CLICK_AT="150,704,140;260,400,90" TORIRS_MAX_FRAMES=400 \
-TORIRS_EXIT_BMP=/tmp/wm.bmp ./run-live.sh manifest_osrs230_alt.ini
+TORIRS_EXIT_BMP=/tmp/wm.bmp ./run-live.sh manifests/manifest_osrs230_alt.ini
 # torirsserver: <- IF_BUTTON2 160:53 sub=-1
 # torirsserver: world map opened
 # worldmap_click: screen=400,90 display=3248,3238 -> 0,3248,3238
@@ -571,7 +571,7 @@ reference client wrapper composites the same disc for the same reason
 
 ### Verified in the client, on pixels
 
-Server `torirsserver-alt` on 43599, `manifest_osrs230_alt.ini`, orb at 704,140.
+Server `torirsserver-alt` on 43599, `manifests/manifest_osrs230_alt.ini`, orb at 704,140.
 
 1. **The varbit latches.** `TORIRS_SIM_CLICK_AT="150,704,140;300,46,241"` —
    `script=1720 pc=0 PUSH_VARBIT 5640 itop=4` (was `itop=0`), and 1720 takes the
@@ -614,7 +614,7 @@ Server `torirsserver-alt` on 43599, `manifest_osrs230_alt.ini`, orb at 704,140.
   area's texture into `overview_display`. Red viewport rects stay on CS2
   `overview_overlay` / script 1750). Overview flash dots (official
   `method5511` yellow markers) are still out of scope.
-  **Verified** (`manifest_osrs239_worldmap.ini`, headless Soft3D): after
+  **Verified** (`manifests/manifest_osrs239_worldmap.ini`, headless Soft3D): after
   `TORIRS_SIM_CLICK_AT` on overview_toggle (738,480), tree shows
   `kind=worldmap_overview` on 595:12; the overview box samples thousands of
   distinct colours (ocean/land), not a solid grey fill, with the red viewport
@@ -704,7 +704,7 @@ derive group from `dst_region`; `RSCache_WorldMapGeographyReader` +
 `ReadChunk` / `ReadRegion` with a per-file cursor shared across sibling
 records.
 
-**Verified** (`manifest_osrs239_worldmap.ini`, headless; BMP col/row equality
+**Verified** (`manifests/manifest_osrs239_worldmap.ini`, headless; BMP col/row equality
 ratio ≈ 1.0 = no striping):
 
 | `FORCE_MAP` | area | decode fail | leftover | notes |
@@ -728,14 +728,14 @@ Two agents (or two people) holding live sessions fight over port 43595 and over
 
 | target | binary | port | manifest |
 |---|---|---|---|
-| `ToriRSServer` | `src/build/torirsserver` | 43595 | `manifest_osrs230.ini` |
-| `torirsserver-dev` | `src/build/dev_torirsserver` | 43597 | `manifest_osrs230_dev.ini` |
-| `torirsserver-alt` | `src/build/alt_torirsserver` | 43599 | `manifest_osrs230_alt.ini` |
+| `ToriRSServer` | `src/build/torirsserver` | 43595 | `manifests/manifest_osrs230.ini` |
+| `torirsserver-dev` | `src/build/dev_torirsserver` | 43597 | `manifests/manifest_osrs230_dev.ini` |
+| `torirsserver-alt` | `src/build/alt_torirsserver` | 43599 | `manifests/manifest_osrs230_alt.ini` |
 
 `run-live.sh` picks the binary up from `TORIRS_MOCK_BIN`:
 
 ```sh
-TORIRS_MOCK_BIN=src/build/alt_torirsserver ./run-live.sh manifest_osrs230_alt.ini
+TORIRS_MOCK_BIN=src/build/alt_torirsserver ./run-live.sh manifests/manifest_osrs230_alt.ini
 ```
 
 The port still comes from the manifest, so the two only have to agree there.

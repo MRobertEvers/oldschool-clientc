@@ -31,6 +31,8 @@
  */
 
 #include <stddef.h>
+#include <stdint.h>
+#include <stdlib.h>
 
 /** A file's bytes. NUL-terminated for the text the codec parses; `size`
  *  excludes that terminator. Freed with Editor_HostBlobFree. */
@@ -40,8 +42,19 @@ struct EditorHost_Blob
     size_t size;
 };
 
-void
-Editor_HostBlobFree(struct EditorHost_Blob* blob);
+/* Inline because both bindings free blobs and neither owns the concept: the
+ * local binding fills them from files, the remote one from wire frames, and a
+ * shared .c for four lines would be a unit with nothing else in it. */
+static inline void
+Editor_HostBlobFree(struct EditorHost_Blob* blob)
+{
+    if( !blob )
+        return;
+
+    free(blob->data);
+    blob->data = NULL;
+    blob->size = 0;
+}
 
 /** Progress line from a bake, without its newline. */
 typedef void (*EditorHost_ProgressFn)(void* user_data, const char* line);
@@ -178,9 +191,22 @@ Editor_HostOpenLocal(
     const char* content_dir,
     const char* repo_root);
 
-/** Calls the binding's free_ and clears the host. NULL-tolerant. */
-void
-Editor_HostClose(struct EditorHost* host);
+/** Calls the binding's free_ and clears the host. NULL-tolerant.
+ *
+ * Inline for the same reason as Editor_HostBlobFree: it belongs to the SEAM,
+ * not to either binding, and a caller that links only one binding must still
+ * be able to close it. */
+static inline void
+Editor_HostClose(struct EditorHost* host)
+{
+    if( !host )
+        return;
+
+    if( host->vtable && host->vtable->free_ )
+        host->vtable->free_(host->user_data);
+    host->vtable = NULL;
+    host->user_data = NULL;
+}
 
 /* ---- ToriRSMapEd bindings (editor_host_remote.c) ------------------------- */
 
@@ -200,12 +226,20 @@ Editor_HostOpenMapEdEmbed(
  * The torirsmaped daemon over TCP. `port` <= 0 means the default
  * (TORIRSMAPED_DEFAULT_PORT). Returns 0 when the daemon cannot be reached —
  * a legitimate runtime state the caller must handle, unlike a bad argument.
+ *
+ * `role` is enum ToriRSMapEdRole. `join_group` is the Client id to join — a
+ * viewer's, when this connection is a controller for the session that viewer
+ * already started — or 0 to be granted a fresh Client. The id the server
+ * settled on is readable afterwards with Editor_HostMapEdClientId, which is
+ * what a viewer prints for its controllers to pass back.
  */
 int
 Editor_HostOpenMapEdTcp(
     struct EditorHost* host,
     const char* server_host,
-    int port);
+    int port,
+    int role,
+    uint32_t join_group);
 
 /**
  * A second connection to the embedded server another MapEd host owns —
@@ -231,8 +265,6 @@ Editor_HostOpenMapEdEmbedPeer(
  */
 
 #include "editor_cmd.h"
-
-#include <stdint.h>
 
 /** 1 when this host is a ToriRSMapEd connection. The calls below assert it. */
 int

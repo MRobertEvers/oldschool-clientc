@@ -155,7 +155,7 @@ make -C src torirsserver-cache-rs2012
 
 **3. Proof the encounter uses the ported model.** Three links, each checked
 against the packed cache the encounter manifest boots
-(`manifest_osrs239_rs2012.ini` → `cache.osrs239.rs2012`):
+(`manifests/manifest_osrs239_rs2012.ini` → `cache.osrs239.rs2012`):
 
 ```sh
 # npc -> model id (from the packed cache, not the source tree)
@@ -179,7 +179,7 @@ attempt and what it found, because the next person will hit the same wall:
 TORIRSSERVER_STAFF_LEVEL=2 TORIRSSERVER_VERBOSE=1 TORIRS_MAX_FRAMES=600 \
 TORIRS_SIM_CMD="150,rs2012qbdmanifest" \
 TORIRS_BMP_SERIES="build/qbd_encounter,150,10,45" \
-  ./dist/win64/torirs.exe --manifest manifest_osrs239_rs2012.ini --offline
+  ./dist/win64/torirs.exe --manifest manifests/manifest_osrs239_rs2012.ini --offline
 ```
 
 - `TORIRSSERVER_STAFF_LEVEL=2` is required — without it the login never advertises

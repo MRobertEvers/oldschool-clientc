@@ -2,8 +2,8 @@
 # Run a boot manifest's world under the REAL OldSchool client: RuneLite, driving
 # the recompiled deob gamepack, against this repo's mock server.
 #
-#   ./run-runelite.sh                            manifest_osrs239.ini
-#   ./run-runelite.sh manifest_osrs239_rs2012.ini
+#   ./run-runelite.sh                            manifests/manifest_osrs239.ini
+#   ./run-runelite.sh manifests/manifest_osrs239_rs2012.ini
 #   ./run-runelite.sh --stop | --status
 #   ./run-runelite.sh -- --developer-mode        args after -- go to RuneLite
 #
@@ -36,7 +36,7 @@
 #
 # The manifest's [net:boot] port is NOT the game port for an embed manifest --
 # there it is a placeholder for a transport that never binds (see
-# manifest_osrs239.ini). An OldSchool client cannot be handed an arbitrary port
+# manifests/manifest_osrs239.ini). An OldSchool client cannot be handed an arbitrary port
 # either: it derives one from the jav_config world id, as 40000 + world_id when
 # the environment is nonzero, and the fixed 43594 when it is zero. So an embed
 # manifest runs on 43594 (GAME_PORT= overrides) and only a transport=tcp
@@ -98,7 +98,7 @@ ACTION=${ACTION:-run}
 
 # The default the header advertises, and the one everything below is verified
 # against. Any manifest whose [net:boot] rev is osrs239 works the same way.
-MANIFEST=${MANIFEST:-manifest_osrs239.ini}
+MANIFEST=${MANIFEST:-manifests/manifest_osrs239.ini}
 
 say()  { printf '%s\n' "$*"; }
 warn() { printf 'run-runelite: %s\n' "$*" >&2; }

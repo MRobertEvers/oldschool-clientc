@@ -56,7 +56,7 @@ def main() -> int:
     parser.add_argument(
         "--scripts", type=Path, default=CONTENT / "server/scripts/build_summoning"
     )
-    parser.add_argument("--manifest", type=Path, default=REPO / "manifest_osrs239.ini")
+    parser.add_argument("--manifest", type=Path, default=REPO / "manifests/manifest_osrs239.ini")
     parser.add_argument("--out", type=Path, default=REPO / "build/summoning-leash")
     parser.add_argument(
         "--static-only",

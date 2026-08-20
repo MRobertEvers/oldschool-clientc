@@ -108,7 +108,7 @@ rev 239+ (IfSetEventsV2, i64)   bits 1-10 are DEPRECATED ops
                                 bits 32-63 are the real ops 1..32
 ```
 
-We speak the rev-230 wire (`manifest_osrs230.ini`) against a rev-239 *cache*, so
+We speak the rev-230 wire (`manifests/manifest_osrs230.ini`) against a rev-239 *cache*, so
 the **v1 layout is the correct one** even though the cache is newer. rsprot's
 `protocol/osrs-230/.../IfSetEventsEncoder.kt` vs `osrs-239/.../IfSetEventsV2Encoder.kt`
 is where to check this, and it is the single easiest thing to get silently wrong:
@@ -220,7 +220,7 @@ Given a LostCity `.rs2` that drives an IF1 interface:
    ```sh
    SDL_VIDEODRIVER=dummy TORIRS_NO_MOCK=1 \
      TORIRS_SIM_CLICK_AT="200,545,128" TORIRS_EXIT_BMP=/tmp/shot.bmp \
-     TORIRS_MAX_FRAMES=300 ./src/torirs --manifest manifest_osrs230.ini --user testc --pass test
+     TORIRS_MAX_FRAMES=300 ./src/torirs --manifest manifests/manifest_osrs230.ini --user testc --pass test
    ```
    and check `torirsserver: <- IF_BUTTON1 160:28` came back.
 

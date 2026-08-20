@@ -36,7 +36,7 @@ family:
 The toplevels are all named in the pack
 (`OSRS-Content/osrs239-content/pack/3_interfaces.pack`): 80 `toplevel_spectator`,
 161 `toplevel_osrs_stretch`, 164 `toplevel_pre_eoc`, 165 `toplevel_display`,
-548 `toplevel`, 601 `toplevel_osm`. `manifest_osrs230.ini` boots **161**.
+548 `toplevel`, 601 `toplevel_osm`. `manifests/manifest_osrs230.ini` boots **161**.
 
 **The layout script was never the gap.** It runs correctly and always did.
 
@@ -245,7 +245,7 @@ reason.
 
 ## 5. Verified (2026-08-02, `SDL_VIDEODRIVER=dummy`, live ToriRSServer on 43595)
 
-Boot canvas unchanged — `manifest_osrs230.ini` with no knobs still gives
+Boot canvas unchanged — `manifests/manifest_osrs230.ini` with no knobs still gives
 `(161|0) 765x503`, `(161|92) 765x503`, and a pixel-identical frame.
 
 **The drift, gone.** `TORIRS_ROOT_SIZE=1024x768 TORIRS_DUMP_BOUNDS=161`:
@@ -312,7 +312,7 @@ Tests: `cmdbus_test`, `uitree_test`, `ss_provider_test`,
 Method: two binaries, one stimulus. **before** = `2f167941` (the commit before
 the boot-mode wiring), rebuilt in a throwaway worktree with the
 `TORIRS_SIM_WINDOW` knob patched in so it receives the same window resize.
-**after** = this tree. Both run `manifest_osrs230.ini` (port-swapped) against
+**after** = this tree. Both run `manifests/manifest_osrs230.ini` (port-swapped) against
 the same mock, `TORIRS_MAX_FRAMES=400`, resize injected at frame 260.
 
 **Geometry — the window resize is now heard.**
@@ -466,7 +466,7 @@ from `gameframe.enum` block named after that toplevel.
 ### 8.2 Verification (re-measured 2026-08-03)
 
 Embed client (`make -C src torirs EMBED_SERVER=1`,
-`manifest_osrs230_embed.ini`), against a cache baked from the tree
+`manifests/manifest_osrs230_embed.ini`), against a cache baked from the tree
 (`make -C src torirsserver-cache`, §8.3):
 
 ```
@@ -675,7 +675,7 @@ a real, observable `IF_OPENSUB` packet:
 
 Traced live with `TORIRS_NET_DEBUG=1 TORIRS_CS2_MOUNT_DEBUG=1
 TORIRS_SPILLOVER_DEBUG=1` against the embed transport
-(`manifest_osrs230_embed.ini`, `make -C src torirs EMBED_SERVER=1`): every
+(`manifests/manifest_osrs230_embed.ini`, `make -C src torirs EMBED_SERVER=1`): every
 mount at login is an `if-opensub: iface=N target=0x00a1xxxx` line, `pvp_icons`
 included — group 90 into `161:3`, from the enum row, same as every other
 panel.

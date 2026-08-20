@@ -1436,7 +1436,7 @@ main(
     viewer.provider = dat1_buildcache_as_provider(viewer.buildcache);
 
     /* The decoders branch on cache identity, and the world load asserts it has
-     * been stated. cache254 is the rev-254 RS2 dat1 cache (manifest_rs254.ini
+     * been stated. cache254 is the rev-254 RS2 dat1 cache (manifests/manifest_rs254.ini
      * [cache:boot]); TORIRS_SCANLINE_REV overrides the revision for other dat1
      * caches. */
     {

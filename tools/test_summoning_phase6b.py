@@ -16,7 +16,7 @@ CONTENT = REPO / "OSRS-Content/osrs239-content"
 CLIENT = REPO / "src/torirs"
 CACHE = REPO / "cache.osrs239.summoning"
 SCRIPTS = CONTENT / "server/scripts/build_summoning"
-MANIFEST = REPO / "manifest_osrs239.ini"
+MANIFEST = REPO / "manifests/manifest_osrs239.ini"
 OUT = REPO / "build/summoning-phase6b"
 # The actual BOB panel's backpack coordinate selects the starter leather gloves
 # after the fixed-side panel became live. Keep the save assertion tied to the

@@ -297,7 +297,7 @@ SDL_VIDEODRIVER=dummy TORIRSSERVER_SAVES=$S/saves \
 TORIRS_NET_CHEAT="farmkit" TORIRS_MAX_FRAMES=1200 \
 TORIRS_SIM_CLICK_AT="300,455,160,1;310,400,190;450,375,291;600,555,228" \
 TORIRS_EXIT_BMP=$S/all.bmp TORIRSSERVER_VERBOSE=1 \
-  ./src/torirs --manifest manifest_osrs230_embed.ini --user testc --pass test
+  ./src/torirs --manifest manifests/manifest_osrs230_embed.ini --user testc --pass test
 ```
 
 - Right-click the leprechaun → **Talk-to / Exchange / Deposit-all / Examine**;

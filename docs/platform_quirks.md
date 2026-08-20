@@ -632,7 +632,7 @@ one lane only.
   together; a missed gate remains an open performance defect even when capped
   wall cadence happens to look correct.
 - **Current optimized measurement (2026-08-06):** Win64 `-O3`, pristine
-  revision-239 offline scene (`manifest_osrs239.ini`), uncapped. Each run used
+  revision-239 offline scene (`manifests/manifest_osrs239.ini`), uncapped. Each run used
   6,000 frames in twelve 500-frame windows with a stable 1,072-component,
   4,946-command workload. Times are milliseconds and include no frame-limiter
   wait; aggregate distributions cover the profiler's retained last 2,048

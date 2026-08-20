@@ -70,14 +70,14 @@ fi
 # It is what provisions the account (summoning unlock, pouches, curses); drop it
 # and the run is a differently-equipped player, which is not the flow being
 # reproduced. Reading it instead of copying it means the two cannot drift.
-MANIFEST="${MANIFEST:-manifest_osrs239_torirs.ini}"
+MANIFEST="${MANIFEST:-manifests/manifest_osrs239_torirs.ini}"
 BASE_CHEATS=$(sed -n 's/^cheat=//p' "$MANIFEST" | head -1)
 USER_NAME=$(sed -n 's/^user=//p' "$MANIFEST" | head -1); USER_NAME="${USER_NAME:-asdf}"
 PASS=$(sed -n 's/^pass=//p' "$MANIFEST" | head -1); PASS="${PASS:-a}"
 QBD_CHEATS="${QBD_CHEATS:-qbd;god;jas;jas;jas;rs2012qbddrain;rs2012qbdrestore;rs2012qbddrain;rs2012qbdrestore;rs2012qbddrain;rs2012qbdrestore}"
 CHEATS="${BASE_CHEATS:+$BASE_CHEATS;}$QBD_CHEATS"
 
-# Everything below mirrors `./run-live.sh manifest_osrs239_torirs.ini --soft3d`:
+# Everything below mirrors `./run-live.sh manifests/manifest_osrs239_torirs.ini --soft3d`:
 # same manifest, same embed transport that run-live exports for a native osrs239
 # run, same user/pass the manifest declares, same --soft3d. The additions are
 # the dummy video driver, a scratch save dir (a shared one makes runs depend on

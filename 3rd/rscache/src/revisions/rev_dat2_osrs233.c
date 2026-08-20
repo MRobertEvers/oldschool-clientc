@@ -3,7 +3,7 @@
 #include "datatypes/dat2_config_sequence.h"
 
 /*
- * OSRS revision 233 — the xrsps target (manifest_xrsps.ini).
+ * OSRS revision 233 — the xrsps target (manifests/manifest_xrsps.ini).
  *
  * Format-identical to 230 for every datatype this library decodes. Texture
  * codec V2 is selected by RSCache_Dat2TextureCodecVersion at revision >= 233;

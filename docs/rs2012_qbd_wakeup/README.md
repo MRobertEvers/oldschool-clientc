@@ -147,12 +147,12 @@ someone needs to diff decoded keyframe data directly.
 
 ```sh
 SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=1400 TORIRS_ANIM_DEBUG=1 \
-  ./src/torirs_win64.exe --manifest manifest_osrs239_rs2012.ini \
+  ./src/torirs_win64.exe --manifest manifests/manifest_osrs239_rs2012.ini \
   --user <name> --pass test --soft3d 2>&1 \
   | grep -E "^queue: script.*FIRE|message_game: The Queen"
 ```
 
-`manifest_osrs239_rs2012.ini` carries `[net:boot] cheat=rs2012qbdmanifest`,
+`manifests/manifest_osrs239_rs2012.ini` carries `[net:boot] cheat=rs2012qbdmanifest`,
 which starts the encounter automatically on login. Login/asset-load latency
 jitters by hundreds of frames run to run, so don't rely on absolute frame
 numbers across separate processes — correlate within one run (see the

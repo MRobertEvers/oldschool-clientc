@@ -36,7 +36,7 @@
 
 /* --- dat1 / jagfile era ------------------------------------------------- */
 
-/** LostCity rev 254 (`cache254.lostcity`, manifest_rs254.ini). */
+/** LostCity rev 254 (`cache254.lostcity`, manifests/manifest_rs254.ini). */
 struct RSCache
 RSCache_ProfileDat1Lc254(void);
 
@@ -91,7 +91,7 @@ RSCache_ProfileDat2Rs727(void);
 struct RSCache
 RSCache_ProfileDat2Osrs184Kronos(void);
 
-/** OSRS 230 (`cache.osrs230`, manifest_osrs230.ini). */
+/** OSRS 230 (`cache.osrs230`, manifests/manifest_osrs230.ini). */
 struct RSCache
 RSCache_ProfileDat2Osrs230(void);
 
@@ -103,7 +103,7 @@ RSCache_ProfileDat2Osrs231(void);
 struct RSCache
 RSCache_ProfileDat2Osrs232(void);
 
-/** OSRS 233 (xrsps, manifest_xrsps.ini). Format-identical to 230 for every
+/** OSRS 233 (xrsps, manifests/manifest_xrsps.ini). Format-identical to 230 for every
  *  datatype this library decodes; declared so revision=233 resolves. */
 struct RSCache
 RSCache_ProfileDat2Osrs233(void);
@@ -128,7 +128,7 @@ RSCache_ProfileDat2Osrs237(void);
 struct RSCache
 RSCache_ProfileDat2Osrs238(void);
 
-/** OSRS 239 (`cache.osrs239`, manifest_osrs239.ini). */
+/** OSRS 239 (`cache.osrs239`, manifests/manifest_osrs239.ini). */
 struct RSCache
 RSCache_ProfileDat2Osrs239(void);
 

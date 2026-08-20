@@ -21,8 +21,8 @@ exercises the client's **server-driven** paths — the ones that never run
 offline, because offline the client has nothing to obey.
 
 ```
-./run-live.sh     manifest_osrs230.ini testc test   # native  — in-process server
-./run-live.sh web manifest_osrs230.ini testc test   # browser — ToriRSServer + IO server
+./run-live.sh     manifests/manifest_osrs230.ini testc test   # native  — in-process server
+./run-live.sh web manifests/manifest_osrs230.ini testc test   # browser — ToriRSServer + IO server
 
 make -C src test-ToriRSServer     # game logic, no socket
 make -C src test-rsareabuf   # the wire buffer
@@ -39,7 +39,7 @@ By hand:
 
 ```
 make -C src ToriRSServer && src/build_opt/torirsserver &
-src/torirs --manifest manifest_osrs230.ini --user test --pass test
+src/torirs --manifest manifests/manifest_osrs230.ini --user test --pass test
 ```
 
 | env | effect |
@@ -1317,7 +1317,7 @@ builds:
 
 ```
 SDL_VIDEODRIVER=dummy TORIRS_NET_DEBUG=1 TORIRS_MAX_FRAMES=900 \
-  TORIRS_NET_CHEAT="fight" ./torirs --manifest manifest_osrs230_embed.ini \
+  TORIRS_NET_CHEAT="fight" ./torirs --manifest manifests/manifest_osrs230_embed.ini \
   --user testc --pass test
 ```
 
@@ -1613,11 +1613,11 @@ selected by `[net:boot] transport=embed`:
 
 ```sh
 make -C src torirs EMBED_SERVER=1
-src/torirs --manifest manifest_osrs230_embed.ini --user testc --pass test
+src/torirs --manifest manifests/manifest_osrs230_embed.ini --user testc --pass test
 ```
 
 That boots the scene, the player and the npc roster with **no server process and
-no socket**. The manifest differs from `manifest_osrs230.ini` by one line.
+no socket**. The manifest differs from `manifests/manifest_osrs230.ini` by one line.
 
 Three notes on it:
 
@@ -2173,7 +2173,7 @@ Verified in the real client, headless, at the revision that matters:
 ```
 SDL_VIDEODRIVER=dummy TORIRSSERVER_EXT_DEBUG=1 TORIRS_NET_DEBUG=1 \
 TORIRS_NET_CHEAT=exactmove TORIRS_MAX_FRAMES=600 TORIRS_EXIT_BMP=/tmp/em.bmp \
-  ./src/torirs --manifest manifest_osrs239.ini      # needs EMBED_SERVER=1
+  ./src/torirs --manifest manifests/manifest_osrs239.ini      # needs EMBED_SERVER=1
 ```
 
 which prints the server's block, the script's own view and the client's apply:
@@ -2858,7 +2858,7 @@ forever. `in_range` tests level now, the same way `player_in_view` always did.
   enclosed `OBJ_ADD`; a client holding no zones is caught up with `FULL_FOLLOWS`
   plus the objs already on the floor, with nothing having changed; a door open
   writes a zone record naming what the map square has under it.
-- Headless client, `manifest_osrs230_embed.ini`, `SDL_VIDEODRIVER=dummy`: all
+- Headless client, `manifests/manifest_osrs230_embed.ini`, `SDL_VIDEODRIVER=dummy`: all
   seven Lumbridge obj spawns arrive **exactly once** each, on the right tiles
   (they arrived twice before the double-send above was found), and a scripted
   `loc_change` + its revert arrive through the enclosed stream and apply to the
@@ -3506,7 +3506,7 @@ landed; the spread waits.
   merge; making the dispatch bind no active obj (7 checks red — the script
   aborts and, correctly, the fallback does **not** stand in for a script that
   failed).
-- The real client, `manifest_osrs230_embed.ini` headless: right-click the tile
+- The real client, `manifests/manifest_osrs230_embed.ini` headless: right-click the tile
   reads *Take Bones*, clicking it prints *You pick up the Bones.* and the bones
   are in the backpack. With `[opobj3,_]` unbound the same run logs
   `no trigger for [opobj3,bones]` and the C picks it up instead — which is the
@@ -3564,7 +3564,7 @@ because the latch is set by the packet handler and the trigger lookup happens on
 arrival — an op no script answers still walks you there, and nothing else pins
 that.
 
-**Verified in the real client**, headless, `manifest_osrs230_embed.ini`,
+**Verified in the real client**, headless, `manifests/manifest_osrs230_embed.ini`,
 `SDL_VIDEODRIVER=dummy`, three matched runs from a deleted save:
 
 | run | ground | backpack | chat |
@@ -3725,7 +3725,7 @@ leaves both on. Wearing a shortbow and a kiteshield at once is a live defect and
 the port fixes it. The existing engine test only runs shield-then-bow, which is
 the direction that already works.
 
-Demonstrated in the real client, headless, `manifest_osrs230_embed.ini`,
+Demonstrated in the real client, headless, `manifests/manifest_osrs230_embed.ini`,
 `SDL_VIDEODRIVER=dummy`, matched runs from the same checked-out save, one line
 of content apart:
 
@@ -3932,7 +3932,7 @@ go.
 
 #### In the real client
 
-`manifest_osrs230_embed.ini`, `SDL_VIDEODRIVER=dummy`, `TORIRSSERVER_VERBOSE=1`,
+`manifests/manifest_osrs230_embed.ini`, `SDL_VIDEODRIVER=dummy`, `TORIRSSERVER_VERBOSE=1`,
 right-click the inventory cell and click the row — the click a player makes,
 not a cheat:
 
@@ -4286,7 +4286,7 @@ run and each turned exactly the assertions it should red:
 The last one is the load-bearing one: it is the mutation that shows the auto-close
 is not a tidy-up but the thing that lets reference content run at all here.
 
-Headless client, `manifest_osrs230_embed.ini`, `SDL_VIDEODRIVER=dummy`,
+Headless client, `manifests/manifest_osrs230_embed.ini`, `SDL_VIDEODRIVER=dummy`,
 `TORIRS_NET_CHEAT="setlevel prayer 40;pray 18"`: `[debugproc,pray]` arms
 `[timer,prayer_drain]` through content and the drain reaches the real client as a
 run of `UPDATE_STAT` packets spaced over ticks — the NORMAL timer path end to end,
@@ -4685,7 +4685,7 @@ otherwise untestable**, because no real content binds anything at the map's
 origin. `selftest_zone.rs2` binds `[zoneexit,0_0_0_0_0]` and `[mapzoneexit,0_0_0]`
 for no other purpose than to make that mistake print a digit.
 
-**Headless client**, `manifest_osrs230_embed.ini`, `SDL_VIDEODRIVER=dummy`,
+**Headless client**, `manifests/manifest_osrs230_embed.ini`, `SDL_VIDEODRIVER=dummy`,
 `TORIRSSERVER_VERBOSE=1`, `TORIRS_NET_CHEAT="tele 3238 3218"` — a real client, real
 login, real ISAAC, real wire:
 

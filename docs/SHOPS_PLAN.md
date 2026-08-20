@@ -1344,7 +1344,7 @@ A shop now transmits `row->slots`. Measured in the real client, not argued:
     TORIRS_SIM_CMD="150,shop" \
     TORIRS_SIM_CLICK_AT="200,537,230,1;206,500,261" \
     TORIRS_MAX_FRAMES=300 TORIRS_EXIT_BMP=<scratch>/shop.bmp \
-    ./src/torirs --manifest manifest_osrs239.ini --user testc --pass test
+    ./src/torirs --manifest manifests/manifest_osrs239.ini --user testc --pass test
 
 (`::shop` opens the store, the right-click is a backpack cell in the side
 panel, the second click is the "Sell 1" row of the menu it opens.) Before:

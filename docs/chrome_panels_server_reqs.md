@@ -448,7 +448,7 @@ make -C src torirsserver-scripts        # the debugprocs live in the script pack
 for p in xptracker loottools hiscores; do
   SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=1500 TORIRS_NET_CHEAT="$p" \
     TORIRS_NET_DEBUG=1 TORIRS_EXIT_BMP=/tmp/$p.bmp \
-    ./src/torirs --manifest manifest_osrs230_embed.ini --user testbl --pass test
+    ./src/torirs --manifest manifests/manifest_osrs230_embed.ini --user testbl --pass test
 done
 ```
 
@@ -607,7 +607,7 @@ new canvas), not the old x≈744 on a 765 canvas.
 1. **`TORIRS_DUMP_BOUNDS` only prints when `TORIRS_EXIT_BMP` is also set** — it
    lives inside that block, the same way `TORIRS_DUMP_TREE_EXIT` does. Without
    it the dump is silently empty and reads as "the component does not exist".
-2. **`TORIRSSERVER_VERBOSE` on the client does nothing.** `manifest_osrs230.ini`
+2. **`TORIRSSERVER_VERBOSE` on the client does nothing.** `manifests/manifest_osrs230.ini`
    connects to an *external* server on `localhost:43595`; the verbose flag has
    to be set on that server's own process. Chasing "the server never received
    my packet" through a log that structurally cannot contain it is the whole

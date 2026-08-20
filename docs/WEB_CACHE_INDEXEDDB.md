@@ -299,7 +299,7 @@ manifest on every load.
 Then open the page with the manifest on the query string:
 
 ```
-http://localhost:8099/index.html?arg=--manifest&arg=manifest_osrs239.ini&arg=--offline
+http://localhost:8099/index.html?arg=--manifest&arg=manifests/manifest_osrs239.ini&arg=--offline
 ```
 
 Web-only knobs, beyond the ones in [web_build.md](web_build.md):

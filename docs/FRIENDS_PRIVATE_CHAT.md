@@ -137,7 +137,7 @@ that already works today, and §8.2 uses it as a fallback probe.
 
 ### 1.4 What `friend_count` returning 0 looks like (measured)
 
-Booting `manifest_osrs230_embed.ini` headless with `TORIRS_DUMP_TREE_EXIT=1`:
+Booting `manifests/manifest_osrs230_embed.ini` headless with `TORIRS_DUMP_TREE_EXIT=1`:
 429 mounts, `script123` runs, `429:3` reads `"Friends List - World 0"`, the sort
 tabs and scrollbar exist, `429:11` has **zero children**, and `429:13` reads the
 `$count17 = 0` branch string. That is the correct empty state, not a blank
@@ -1046,7 +1046,7 @@ do and is the stronger form.
   `ToriRSServer_Pack --check-only` (0 errors, 13 pre-existing warnings).
 - The client links and runs: `make -C src EMBED_SERVER=1` clean, then
   `SDL_VIDEODRIVER=dummy TORIRSSERVER_VERBOSE=1 ./src/torirs --manifest
-  manifest_osrs230_embed.ini` — the login burst emits `FRIENDLIST_LOADED`
+  manifests/manifest_osrs230_embed.ini` — the login burst emits `FRIENDLIST_LOADED`
   (op 15, 1 byte), `UPDATE_IGNORELIST` (op 21, 0 bytes) and
   `CHAT_FILTER_SETTINGS` (op 3, 3 bytes), the real client decodes all three,
   and **nothing asserts, desyncs or warns** — no `frames it as` line, no
@@ -1093,7 +1093,7 @@ TORIRS_SIM_TICKS=... \
 TORIRS_SIM_CLICK_AT=<friends tab>  \
 TORIRS_SIM_KEYS="alice\n" ...      \
 TORIRS_EXIT_BMP=/tmp/pm.bmp TORIRS_DUMP_TREE_EXIT=1 \
-  ./src/build_lane2/torirs --manifest manifest_osrs230_embed.ini
+  ./src/build_lane2/torirs --manifest manifests/manifest_osrs230_embed.ini
 ```
 
 Assertions, in order of what they isolate:
@@ -1147,7 +1147,7 @@ SDL_VIDEODRIVER=dummy TORIRSSERVER_VERBOSE=1 \
 TORIRS_SIM_HOOK="120,0x01AD000E;220,0x01AD9C7A" \
 TORIRS_SIM_TYPE="140,c103,c117,c101,c115,c116,k84;240,c104,c105,c32,c116,c104,c101,c114,c101,k84" \
 TORIRS_MAX_FRAMES=600 TORIRS_EXIT_BMP=/tmp/friends.bmp TORIRS_DUMP_TREE_EXIT=1 \
-  ./src/torirs --manifest manifest_osrs230_embed.ini
+  ./src/torirs --manifest manifests/manifest_osrs230_embed.ini
 ```
 
 `0x01AD000E` is `friends:addfriend` (429:14); `0x01AD9C7A` is the friend row
@@ -1382,7 +1382,7 @@ TORIRS_SIM_CLICK_AT="100,536,484" \
 TORIRS_SIM_HOOK="120,0x01AD000E;220,0x01AD9C7A" \
 TORIRS_SIM_TYPE="140,c103,c117,c101,c115,c116,k84;240,c104,c105,c32,c116,c104,c101,c114,c101,k84" \
 TORIRS_MAX_FRAMES=600 TORIRS_EXIT_BMP=/tmp/friends.bmp TORIRS_DUMP_TREE_EXIT=1 \
-  ./src/torirs --manifest manifest_osrs230_embed.ini
+  ./src/torirs --manifest manifests/manifest_osrs230_embed.ini
 ```
 
 #### 8.5.3 The client half had no permanent check

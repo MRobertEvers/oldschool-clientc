@@ -2,10 +2,10 @@
 # Profile torirs on macOS and write a flamegraph — no sudo (unlike profile.d,
 # which needs dtrace). Uses /usr/bin/sample, which works on your own processes.
 #
-#   ./profile-mac.sh                              # headless, manifest_osrs230.ini, 25s
-#   ./profile-mac.sh manifest_rs254.ini           # another manifest
-#   ./profile-mac.sh manifest_osrs230_embed.ini 40 # embedded server, Soft3D (harness)
-#   ./profile-mac.sh manifest_osrs230.ini 40      # sample for 40 seconds
+#   ./profile-mac.sh                              # headless, manifests/manifest_osrs230.ini, 25s
+#   ./profile-mac.sh manifests/manifest_rs254.ini           # another manifest
+#   ./profile-mac.sh manifests/manifest_osrs230_embed.ini 40 # embedded server, Soft3D (harness)
+#   ./profile-mac.sh manifests/manifest_osrs230.ini 40      # sample for 40 seconds
 #   TORIRS_PROFILE_WINDOWED=1 ./profile-mac.sh    # real SDL window instead of dummy
 #   TORIRS_PROFILE_ATTACH=<pid> ./profile-mac.sh  # sample a client you already started
 #
@@ -25,7 +25,7 @@ set -eu
 
 cd "$(dirname "$0")"
 
-MANIFEST="${1:-manifest_osrs230.ini}"
+MANIFEST="${1:-manifests/manifest_osrs230.ini}"
 DURATION="${2:-25}"
 WARMUP="${TORIRS_PROFILE_WARMUP:-8}"
 OUT="${OUT:-flamegraph_$(basename "$MANIFEST" .ini)}"

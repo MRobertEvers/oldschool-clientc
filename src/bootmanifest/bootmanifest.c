@@ -324,6 +324,12 @@ bm_set_kv(
             bm->editor_server_port = atoi(value);
             return;
         }
+        /* Which Client to join — the handle a running session printed. */
+        if( strcmp(key, "client") == 0 )
+        {
+            bm->editor_client_id = atoi(value);
+            return;
+        }
         /* Which binding draws the command panel. Named values only, and an
          * unknown one is a hard error rather than a fallback to the default:
          * a manifest that asks for a panel this build cannot open should say
@@ -1163,12 +1169,14 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
      * square browser to puzzle over. (server=tcp is different: the daemon
      * owns the tree, so content_dir is optional there.) */
     if( bm->editor_server == BOOTMANIFEST_EDITOR_SERVER_EMBED
-        && (bm->editor_server_host[0] || bm->editor_server_port > 0) )
+        && (bm->editor_server_host[0] || bm->editor_server_port > 0
+            || bm->editor_client_id > 0) )
     {
         fprintf(
             stderr,
-            "bootmanifest: '%s' sets [editor:boot] host/port without server=tcp; "
-            "the embedded ToriRSMapEd has no address\n",
+            "bootmanifest: '%s' sets [editor:boot] host/port/client without "
+            "server=tcp; the embedded ToriRSMapEd has no address and no other "
+            "process to share a Client with\n",
             path);
         return -1;
     }
@@ -1238,6 +1246,8 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->editor_server_host = bm->editor_server_host;
     if( bm->editor_server_port > 0 )
         cfg->editor_server_port = bm->editor_server_port;
+    if( bm->editor_client_id > 0 )
+        cfg->editor_client_id = bm->editor_client_id;
 
     if( bm->cache_quirks_set && bm->cache_game != 0 && bm->cache_epoch != 0 &&
         bm->cache_revision >= 0 )

@@ -443,7 +443,7 @@ ever matters.
   copyable implementation of it. No code changes yet.
 
 - **2026-07-23 — Phase 0 landed (boot-manifest system + offline rev-233 boot).**
-  - Boot-manifest INI: `manifest_rs254.ini` / `manifest_xrsps.ini` at repo root;
+  - Boot-manifest INI: `manifests/manifest_rs254.ini` / `manifests/manifest_xrsps.ini` at repo root;
     loader `src/bootmanifest/bootmanifest.{h,c}` (`struct BootManifest`,
     `BootManifest_LoadFile` / `_ApplyToConfig`) reuses the `3rd/ini` tokenizer.
     Sections `[cache:boot]` / `[net:boot]` / `[ui:boot]`; relative path values
@@ -464,8 +464,8 @@ ever matters.
     instead of `cache_kind == DAT1`.
   - Verified: `make` links clean; `test-bootmanifest` (new) + `test-revconfig`,
     `test-net-login`, `test-net-loopback`, `test-net-exec`, `test-entity-decode`
-    all green. `--manifest manifest_rs254.ini --offline` boots the dat1 world +
-    revconfig UI as before; `--manifest manifest_xrsps.ini --offline` boots the
+    all green. `--manifest manifests/manifest_rs254.ini --offline` boots the dat1 world +
+    revconfig UI as before; `--manifest manifests/manifest_xrsps.ini --offline` boots the
     rev-233 dat2 cache and opens interface 161 (1116 components, 6 CS2 onloads)
     — confirming the dat2 config/component/clientscript decoders handle rev 233.
   - Known follow-up (Phase 2): the map XTEA loader (app.c:1352) reads
@@ -574,7 +574,7 @@ ever matters.
   - **Mock server** (`src/torirsserver/torirs_server_main.c`, `make -C src ToriRSServer`): a
     standalone TCP listener that RSA-decrypts the login block with a fixed
     private key (client uses the matching public key via
-    `manifest_osrs230.ini` rsa_exp/rsa_mod), arms ISAAC, and sends the on-login
+    `manifests/manifest_osrs230.ini` rsa_exp/rsa_mod), arms ISAAC, and sends the on-login
     burst — REBUILD_NORMAL (Lumbridge zone 402,402) + VARP_SMALL + run
     energy/weight + a welcome MESSAGE_GAME — then idles.
   - **Map XTEA**: the client loads keys from the cache's own `xteas.json`
@@ -583,10 +583,10 @@ ever matters.
     `RSCache_MapLocsEncrypted` says keys are required** (OldSchool below 237;
     RS2 dat2 from 414). The correct cache is `cache.osrs230/` (has xteas.json), NOT the
     xrsps keys.json cache — so REBUILD_NORMAL keys are only needed for instanced
-    regions. `manifest_osrs230.ini` points at `cache.osrs230`. At OldSchool ≥ 237
-    (`manifest_osrs239.ini` / `cache.osrs239`) archives are plain and no key file
+    regions. `manifests/manifest_osrs230.ini` points at `cache.osrs230`. At OldSchool ≥ 237
+    (`manifests/manifest_osrs239.ini` / `cache.osrs239`) archives are plain and no key file
     is shipped or applied.
-  - **Verified end-to-end**: `ToriRSServer` + `torirs --manifest manifest_osrs230.ini`
+  - **Verified end-to-end**: `ToriRSServer` + `torirs --manifest manifests/manifest_osrs230.ini`
     → 230 login handshake (RSA/ISAAC) completes, client reaches GAME, parses
     REBUILD_NORMAL (zoneX=402 zoneZ=402), triggers the existing
     `CreateTask_WorldLoad`, and builds the Lumbridge scene — `world_load: 430
@@ -800,7 +800,7 @@ ever matters.
     customisation flags and truncated blocks are refused; 239 transmog ends
     the equipment array early), `test-mock239-playerinfo`,
     `test-torirsserver-embed`, `ToriRSServer_Pack --check-only` (0 errors), and a
-    headless `torirs --manifest manifest_osrs230_embed.ini` run
+    headless `torirs --manifest manifests/manifest_osrs230_embed.ini` run
     (`SDL_VIDEODRIVER=dummy`) with `TORIRS_NET_CHEAT="equip 0;equip 1;..."`
     confirming the local player still renders equipped gear end to end.
 

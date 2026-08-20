@@ -29,7 +29,7 @@
 #include <time.h>
 
 /*
- * The server's identity. Fixed, and matching manifest_osrs230.ini: the client
+ * The server's identity. Fixed, and matching manifests/manifest_osrs230.ini: the client
  * encrypts the login block with (E=10001, N), this decrypts with (D, N).
  */
 static const char* MOCK_RSA_D =

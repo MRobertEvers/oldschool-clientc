@@ -24,7 +24,7 @@ SDL_VIDEODRIVER=dummy TORIRSSERVER_SAVES=<scratch-saves> TORIRS_NO_CACHE_BAKE=1 
 TORIRS_NET_CHEAT='rs2012qbdmanifest;rs2012qbdheal;…;rs2012qbddrain;rs2012qbdrestore;…' \
 TORIRS_NET_CHEAT_EVERY=180 TORIRS_NET_CHEAT_ROTATE=1 \
 TORIRS_BMP_SERIES=<dir>,400,20,240 TORIRS_MAX_FRAMES=5600 \
-./run-live.sh manifest_osrs239_rs2012.ini qbdshot test
+./run-live.sh manifests/manifest_osrs239_rs2012.ini qbdshot test
 ```
 
 `TORIRSSERVER_SAVES` must point at a scratch directory — headless runs write the

@@ -209,7 +209,7 @@ mandatory — no quit event arrives under the dummy driver):
 SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=900 \
 TORIRS_NET_CHEAT="farmingview 8 guam_leaf 3 4" \
 TORIRS_SIM_HOVER="75,140" TORIRS_EXIT_BMP=/tmp/fv.bmp \
-./src/torirs --manifest manifest_osrs230_embed.ini --user testbl --pass test
+./src/torirs --manifest manifests/manifest_osrs230_embed.ini --user testbl --pass test
 ```
 
 `runclientscript: script=1119 argc=5 str_mask=0x10` on the wire, and the cell

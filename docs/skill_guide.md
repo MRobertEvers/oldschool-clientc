@@ -263,7 +263,7 @@ click on the menu row:
 SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=400 \
 TORIRS_SIM_CLICK_AT="150,536,186;230,535,220,1;242,535,240" \
 TORIRS_EXIT_BMP=/tmp/guide.bmp TORIRSSERVER_VERBOSE=1 \
-  ./src/torirs --manifest manifest_osrs230_embed.ini --user testc --pass test
+  ./src/torirs --manifest manifests/manifest_osrs230_embed.ini --user testc --pass test
 ```
 
 `TORIRS_MAX_FRAMES` is not optional under the dummy video driver: no quit event
@@ -338,7 +338,7 @@ reuses `CS2VM_HOST_REQUEST_CC_SETCOMPONENTPARAM`. 2705 remains
 SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=500 \
 TORIRS_SIM_CLICK_AT="150,536,186;230,535,220,1;242,535,240;300,70,52" \
 TORIRS_EXIT_BMP=/tmp/guide_ov_click.bmp TORIRSSERVER_VERBOSE=1 \
-  ./src/torirs --manifest manifest_osrs230_embed.ini --user testc --pass test
+  ./src/torirs --manifest manifests/manifest_osrs230_embed.ini --user testc --pass test
 ```
 
 Exit **0**. No `unimplemented` / `Assertion failed` / `cs2-stub`. BMP title

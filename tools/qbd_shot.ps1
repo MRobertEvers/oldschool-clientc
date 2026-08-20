@@ -53,7 +53,7 @@ param(
     [int]$Frames = 700,
     [string]$Strip = "",
     [string]$Out = "build/qbd_shots",
-    [string]$Manifest = "manifest_osrs239_rs2012.ini",
+    [string]$Manifest = "manifests/manifest_osrs239_rs2012.ini",
     [switch]$TexDebug,
     [switch]$Sweep,
     [string]$Exe = "dist\win64\torirs.exe"

@@ -11,6 +11,7 @@
 #include "cs2vm2/cs2vm2.h"
 #include "editor/editor.h"
 #include "graphics/convex_hull.h"
+#include "torirsmaped/torirs_maped.h"
 
 /* Highlight colours. The model silhouette is the brighter of the two because it
  * is the "this is the thing" mark; the ground footprint under it is supporting
@@ -5573,6 +5574,15 @@ App_SetWorldRenderMode(
         app->world_render_mode = mode;
 }
 
+/* Defined with the other map-editor helpers below; App_Init registers it as
+ * the editor session's shared-state sink. */
+static void
+app_editor_on_state(
+    void* user_data,
+    uint32_t key,
+    const int32_t* values,
+    int count);
+
 void
 App_Init(
     struct App* app,
@@ -6059,31 +6069,99 @@ App_Init(
 
     /*
      * Phase 5b: the world map editor (opt-in, and mutually exclusive with a
-     * server in practice).
+     * GAME server in practice).
      *
      * Constructed before the networking phase below on purpose: an editor boot
      * states no `[net:boot]`, so that phase does not run at all and this is the
      * last thing built. The editor is the second writer of world state — the
      * first being the packet layer that is absent here — and it reaches the
      * world through the same seams that layer would.
+     *
+     * The session is a client of ToriRSMapEd, and the manifest picks the
+     * deployment the same way [net:boot] picks the game server:
+     * `server=embed` (default) hosts the server inside this process over
+     * content_dir, `server=tcp` dials the torirsmaped daemon — which is what
+     * enables the editor even without a content_dir of its own, since the
+     * daemon owns the tree in that deployment.
      */
-    if( cfg->editor_content_dir && cfg->editor_content_dir[0] )
+    if( (cfg->editor_content_dir && cfg->editor_content_dir[0])
+        || cfg->editor_server == BOOTMANIFEST_EDITOR_SERVER_TCP )
     {
+        struct EditorHost editor_host = { NULL, NULL };
+        char editor_label[600];
+        int editor_ok;
+
+        if( cfg->editor_server == BOOTMANIFEST_EDITOR_SERVER_TCP )
+        {
+            char const* maped_host =
+                cfg->editor_server_host && cfg->editor_server_host[0]
+                    ? cfg->editor_server_host
+                    : "localhost";
+            snprintf(
+                editor_label,
+                sizeof(editor_label),
+                "maped://%s:%d",
+                maped_host,
+                cfg->editor_server_port > 0 ? cfg->editor_server_port
+                                            : TORIRSMAPED_DEFAULT_PORT);
+            /* A client with a world is a VIEWER; `client=` joins a Client
+             * another connection already started, so several processes can
+             * share one selection. */
+            editor_ok = Editor_HostOpenMapEdTcp(
+                &editor_host,
+                maped_host,
+                cfg->editor_server_port,
+                TORIRSMAPED_ROLE_VIEWER,
+                (uint32_t)cfg->editor_client_id);
+        }
+        else
+        {
+            snprintf(
+                editor_label,
+                sizeof(editor_label),
+                "%s (embedded ToriRSMapEd)",
+                cfg->editor_content_dir);
+            editor_ok = Editor_HostOpenMapEdEmbed(
+                &editor_host, cfg->editor_content_dir, cfg->editor_repo_root);
+        }
+
+        /* An unreachable daemon is a deployment state, not a build defect:
+         * boot the client without the editor and say why, rather than booting
+         * an editor whose every operation would fail one at a time. */
+        if( !editor_ok )
+        {
+            fprintf(
+                stderr,
+                "app: cannot reach ToriRSMapEd at %s — the map editor is disabled "
+                "this session\n",
+                editor_label);
+            goto editor_skipped;
+        }
+
         app->editor = malloc(sizeof(*app->editor));
         assert(app->editor);
-        Editor_Open(
+        Editor_OpenHost(
             app->editor,
-            cfg->editor_content_dir,
-            cfg->editor_repo_root,
+            &editor_host,
+            editor_label,
             CacheProvider_Profile(app->provider));
+        /* The Client id is printed because it is the handle another PROCESS
+         * needs to join this session: `torirsmapedctl --client <id>`. */
         fprintf(
             stderr,
-            "app: map editor over %s (%s)\n",
-            cfg->editor_content_dir,
-            app->editor->writable ? "writable" : "read-only, another session holds it");
+            "app: map editor over %s (%s, client %u)\n",
+            editor_label,
+            app->editor->writable ? "writable" : "read-only, another server holds it",
+            Editor_HostMapEdClientId(&app->editor->host));
         /* Open on boot: this manifest asked for an editor, so the panel is the
          * point of the session rather than a debug aid to go find. */
         Editor_PanelInit(&app->editor_panel, &app->dbg_ui);
+        /* The selection relay, both halves: the panel publishes its latch
+         * through the session, and the Client's state facts land back on the
+         * panel — which is how a controller connection follows this viewer's
+         * clicks, and how this panel will follow a detached viewer's. */
+        app->editor_panel.editor = app->editor;
+        Editor_SetStateCallback(app->editor, app_editor_on_state, app);
         Editor_PanelSetVisible(
             &app->editor_panel,
             &app->dbg_ui,
@@ -6111,6 +6189,7 @@ App_Init(
             assert(0 && "panel=tab reached a build with no tabs to open");
 #endif
         }
+    editor_skipped:;
     }
 
     /* Phase 6: networking (opt-in). The default RSA key is the rev_245_2 Lost
@@ -6997,7 +7076,7 @@ app_map_editor_world_click(
     if( app->editor_panel.tool == EDITOR_TOOL_SELECT )
     {
         Editor_PanelSelectTerrain(
-            &app->editor_panel, app->world_hover_tile_x, app->world_hover_tile_z,
+            &app->editor_panel, app, app->world_hover_tile_x, app->world_hover_tile_z,
             app->world_hover_tile_level);
         app->need_redraw = 1;
         return;
@@ -7601,6 +7680,24 @@ app_map_editor_open_pending_square(struct App* app)
     chunks[1] = app->editor_panel.sq_open_z;
     fprintf(stderr, "editor: opening m%d_%d\n", chunks[0], chunks[1]);
     app_world_load_begin(app, chunks, 1);
+}
+
+/** Shared-state facts from this connection's Client land on the panel — the
+ *  receiving half of the selection relay. Registered at editor construction;
+ *  fires from Editor_PumpFacts inside the per-frame drain below, and for the
+ *  common single-connection boot that includes this panel's own echoes,
+ *  which apply idempotently. */
+static void
+app_editor_on_state(
+    void* user_data,
+    uint32_t key,
+    const int32_t* values,
+    int count)
+{
+    struct App* app = user_data;
+
+    assert(app);
+    Editor_PanelApplySharedState(&app->editor_panel, app, key, values, count);
 }
 
 static void
@@ -18078,7 +18175,7 @@ app_minimenu_run_option(
     {
         if( app_mapedit_select_active(app) )
             Editor_PanelSelectTerrain(
-                &app->editor_panel, opt.pick.secondary_id, opt.pick.tertiary_id,
+                &app->editor_panel, app, opt.pick.secondary_id, opt.pick.tertiary_id,
                 opt.pick.quaternary_id);
         return 0; /* handled locally; no CS2 task was dispatched */
     }

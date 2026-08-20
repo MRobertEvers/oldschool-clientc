@@ -197,7 +197,7 @@ make -C src EMBED_SERVER=1 torirs && make -C src torirsserver-scripts
 # the whole-square copy
 SDL_VIDEODRIVER=dummy TORIRSSERVER_VERBOSE=1 TORIRS_MAX_FRAMES=1400 \
   TORIRS_EXIT_BMP=/tmp/inst.bmp TORIRS_NET_CHEAT="mapinstance" \
-  ./src/torirs --manifest manifest_osrs230_embed.ini --user testc --pass test
+  ./src/torirs --manifest manifests/manifest_osrs230_embed.ini --user testc --pass test
 
 # the four rotations
 TORIRS_NET_CHEAT="mapinstance_turn"   # ... same otherwise

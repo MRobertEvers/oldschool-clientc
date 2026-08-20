@@ -459,7 +459,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	editor/editor_cmd.c editor/editor_derive.c editor/editor_host_local.c \
 	editor/editor_host_remote.c editor/editor_panel.c \
 	torirsmaped/torirs_maped.c torirsmaped/torirs_maped_buf.c \
-	torirsmaped/torirs_maped_embed.c \
+	torirsmaped/torirs_maped_cmdwire.c torirsmaped/torirs_maped_embed.c \
 	render/torirs_polygon.c \
 	painters/painters.c \
 	painters/painters_cull_project.c \
@@ -1457,17 +1457,31 @@ test-editor-save: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/edit
 # still hold across the wire, plus the wire-only properties (absent != empty,
 # a second embed finding the tree locked, no stranded lock).
 test-torirsmaped-embed: $(OBJ_DIR) torirsmaped/torirs_maped.c torirsmaped/torirs_maped_buf.c \
+		torirsmaped/torirs_maped_cmdwire.c \
 		torirsmaped/torirs_maped_embed.c editor/editor_host_local.c \
 		editor/editor_host_remote.c editor/editor_doc.c editor/editor_cmd.c \
 		editor/editor_jm2.c torirsmaped/test/maped_embed_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/maped_embed_test \
 		torirsmaped/torirs_maped.c torirsmaped/torirs_maped_buf.c \
+		torirsmaped/torirs_maped_cmdwire.c \
 		torirsmaped/torirs_maped_embed.c editor/editor_host_local.c \
 		editor/editor_host_remote.c editor/editor_doc.c editor/editor_cmd.c \
 		editor/editor_jm2.c torirsmaped/test/maped_embed_test.c
 	rm -rf $(OBJ_DIR)/maped_scratch
 	mkdir -p $(OBJ_DIR)/maped_scratch/maps
 	./$(OBJ_DIR)/maped_embed_test $(OBJ_DIR)/maped_scratch \
+		$(EDITOR_CONTENT_DIR)/maps/m50_50.jm2 $(EDITOR_CONTENT_DIR)/maps/m50_50.jl2
+
+# The multi-PROCESS half: a real daemon, several client processes, and the
+# Client scoping that decides who hears what. Covers what the in-process test
+# structurally cannot — that the same protocol works between processes, and
+# that one Client's selection never reaches another's.
+#
+# TORIRSMAPED_TEST_PORT overrides the port when 43611 is busy.
+test-torirsmaped-daemon: torirsmaped torirsmapedctl
+	sh torirsmaped/test/maped_daemon_test.sh \
+		$(OBJ_DIR)/torirsmaped $(OBJ_DIR)/torirsmapedctl \
+		$(OBJ_DIR)/maped_daemon_scratch \
 		$(EDITOR_CONTENT_DIR)/maps/m50_50.jm2 $(EDITOR_CONTENT_DIR)/maps/m50_50.jl2
 
 # Convex hull (ToriDraw): the silhouette a loc highlight is drawn from, plus the
@@ -1496,7 +1510,8 @@ test-editor-dropdown: $(OBJ_DIR) ui/uitree_debug_overlay.c ui/test/uitree_test_d
 	./$(OBJ_DIR)/uitree_test_dropdown
 
 test-editor: test-editor-cmd test-editor-jm2 test-editor-derive test-editor-dropdown \
-	test-convex-hull test-polygon-fill test-editor-save test-torirsmaped-embed
+	test-convex-hull test-polygon-fill test-editor-save test-torirsmaped-embed \
+	test-torirsmaped-daemon
 
 # NpcType.multiNpc (opcode 106) decode -> ToriRS_Npctype.transform_* -- pure
 # struct plumbing, no cache file or App needed.
@@ -2188,18 +2203,43 @@ torirsserver: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.
 #
 # POSIX only for now (the client's tcp binding is likewise); the browser
 # lane's WebSocket front door is future work.
+# The two ws_ units are what lets a BROWSER reach this daemon at all: an
+# emscripten client's connect() is a WebSocket, so the reactor sniffs the
+# first byte and speaks either raw frames or RFC 6455 on the same port.
 TORIRSMAPED_SRCS = torirsmaped/torirs_maped_main.c torirsmaped/torirs_maped.c \
-	torirsmaped/torirs_maped_buf.c editor/editor_host_local.c \
+	torirsmaped/torirs_maped_buf.c torirsmaped/torirs_maped_cmdwire.c \
+	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c \
+	editor/editor_host_local.c \
 	editor/editor_doc.c editor/editor_cmd.c editor/editor_jm2.c
 
 torirsmaped: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/torirsmaped $(TORIRSMAPED_SRCS)
 	@echo "built $(OBJ_DIR)/torirsmaped"
 
+# The controller client: a ToriRSMapEd connection in its own process with no
+# world, no renderer and no cache — the design's "controllers have no world at
+# all" made literal. It drives and follows a session through exactly the API
+# the game client's editor uses (editor_host_remote.c), so what it can do a
+# panel can do.
+#
+#   src/build/torirsmapedctl --client <id> watch
+#
+# The `--client <id>` is the Client the viewer printed at boot; without it this
+# connection is its own Client and hears only its own state.
+# No server, by construction: TORIRS_MAPED_NO_EMBED compiles the client
+# binding's TCP half only, so this binary cannot contain a document, a content
+# tree or a bake even by accident.
+TORIRSMAPEDCTL_SRCS = torirsmaped/torirs_mapedctl_main.c torirsmaped/torirs_maped_buf.c \
+	torirsmaped/torirs_maped_cmdwire.c editor/editor_host_remote.c
+
+torirsmapedctl: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -DTORIRS_MAPED_NO_EMBED=1 -o $(OBJ_DIR)/torirsmapedctl $(TORIRSMAPEDCTL_SRCS)
+	@echo "built $(OBJ_DIR)/torirsmapedctl"
+
 # A second binary from the same sources, listening on 43597 rather than 43595.
 # It exists so two people (or two agents) can each hold a live session against
 # their own server without fighting over the port or over one output file.
-# manifest_osrs230_dev.ini points at it; everything else is identical.
+# manifests/manifest_osrs230_dev.ini points at it; everything else is identical.
 #
 # The name is `dev_torirsserver`, not `ToriRSServer_Dev`, on purpose: the usual way to
 # stop a stray server is `pkill -f build/torirsserver`, and that pattern is a prefix
@@ -2253,7 +2293,7 @@ test-torirsserver-dev: torirsserver-dev
 
 # A third binary on 43599, same deal as torirsserver-dev above — one more parallel
 # session that owns its own port and its own output file.
-# manifest_osrs230_alt.ini points at it.
+# manifests/manifest_osrs230_alt.ini points at it.
 torirsserver-alt: $(OBJ_DIR) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o
@@ -2268,7 +2308,7 @@ test-torirsserver-alt: torirsserver-alt
 
 # A fourth binary on 43601, for the bank work. Same sources, same reason as the
 # two above: a live session that owns its own port and its own output file.
-# manifest_osrs230_bank.ini points at it.
+# manifests/manifest_osrs230_bank.ini points at it.
 # `rsprot_buf.o` is in this list because $(TORIRSSERVER_SRCS) includes
 # mock239_interface_inbound.c, which wraps the rev-239 buffer readers. `ToriRSServer`
 # links it and this target did not, so `torirsserver-bank` had been failing to link
@@ -2647,7 +2687,7 @@ torirsserver-servpack: test-rs2012-server-overlay
 #
 #   make -C src torirsserver-cache TORIRSSERVER_CACHE_DIR=$(REPO_ROOT)/cache.osrs239_packed
 #
-# The default output stays `cache.osrs239.baked` because manifest_osrs239_net.ini
+# The default output stays `cache.osrs239.baked` because manifests/manifest_osrs239_net.ini
 # and the rev-230 manifests name that directory. Previously `--base`/`--out`
 # were spelled literally in the recipe while TORIRSSERVER_CACHE_DIR was used only by
 # the `rm -rf` above them, so the two could disagree and the wrong tree would be
@@ -2706,7 +2746,7 @@ torirsserver-cache-check:
 # The cache-727 QBD/TD client records are isolated below `ported/` and therefore
 # do not enter an ordinary `torirsserver-cache` bake. Compose that marked lane through
 # its audited sparse stager, then verify the client-facing interface/sprite/script
-# archives against the resulting cache. `manifest_osrs239_rs2012.ini` points the
+# archives against the resulting cache. `manifests/manifest_osrs239_rs2012.ini` points the
 # client at this directory; main.c hands the same resolved path to the embedded
 # mock, so scene/NPC reads and JS5 cannot fall back to pristine cache.osrs239.
 RS2012_OVERLAY_DIR = $(REPO_ROOT)/build/rs2012-overlay
@@ -2744,7 +2784,7 @@ torirsserver-cache-rs2012: check-crystal-set-contract test-rs2012-server-overlay
 	@cd $(REPO_ROOT) && python3 tools/test_rs2012_audio_bridge.py \
 		--content $(TORIRSSERVER_CONTENT_DIR) \
 		--cache $(RS2012_CACHE_DIR) --audioprobe $(AUDIOPROBE_BIN)
-	@echo "torirsserver-cache-rs2012: use ./run-live.sh manifest_osrs239_rs2012.ini"
+	@echo "torirsserver-cache-rs2012: use ./run-live.sh manifests/manifest_osrs239_rs2012.ini"
 
 # The 2009scape Summoning client records are deliberately absent from the
 # ordinary content walk.  A feature-on cache is a second pass over the explicit
@@ -2834,7 +2874,7 @@ test-summoning-phase5b-runtime: test-summoning-phase5b torirsserver-cache-summon
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase5b_runtime.py \
 		--client $(SRC_DIR)/torirs --cache $(SUMMONING_CACHE_DIR) \
 		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
-		--manifest $(REPO_ROOT)/manifest_osrs239.ini
+		--manifest $(REPO_ROOT)/manifests/manifest_osrs239.ini
 
 test-summoning-phase6b: torirsserver-cache-summoning torirsserver-scripts-summoning
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase6b.py
@@ -2928,7 +2968,7 @@ torirsserver-cache-curses: check-crystal-set-contract test-curses-isolation test
 		echo "curses cs2: third-book arm and mask varbit present in $(CURSES_CACHE_DIR)"
 
 # ------------------------------------------------------------------
-# All lanes on: the combination manifest_osrs239_torirs.ini boots
+# All lanes on: the combination manifests/manifest_osrs239_torirs.ini boots
 # ------------------------------------------------------------------
 #
 # The default manifest carries rs2012 + Summoning + Ancient Curses, so it needs
@@ -2938,7 +2978,7 @@ torirsserver-cache-curses: check-crystal-set-contract test-curses-isolation test
 CURSES_ALL_CACHE_BASE = $(REPO_ROOT)/cache.osrs239.rs2012-summoning
 CURSES_ALL_CACHE_DIR = $(REPO_ROOT)/cache.osrs239.rs2012-summoning-curses
 
-# Both gated lanes at once, for manifest_osrs239_torirs.ini. Two names on one
+# Both gated lanes at once, for manifests/manifest_osrs239_torirs.ini. Two names on one
 # line rather than a third recipe: that the combination is expressible at all,
 # without restating either lane's inputs, is the point of the descriptors.
 torirsserver-scripts-summoning-curses:
@@ -3010,7 +3050,7 @@ torirsserver-cache-summoning: check-crystal-set-contract test-summoning-isolatio
 		grep -Rqs 'case 24 :' "$$tmp"; grep -Rqs 'varbit20411' "$$tmp"; \
 		echo "torirsserver-cache-summoning: verified 9 clientscript archives"
 
-# Both marked lanes in one cache, for manifest_osrs239_rs2012_summoning.ini.
+# Both marked lanes in one cache, for manifests/manifest_osrs239_rs2012_summoning.ini.
 #
 # Neither lane's own bake carries the other's records — `ported/` is out of the
 # ordinary content walk precisely so that a lane reaches a client through one
@@ -3028,7 +3068,7 @@ torirsserver-cache-summoning: check-crystal-set-contract test-summoning-isolatio
 # Base and output must be different directories: torirsserver-cache-summoning deletes
 # its output before packing, so aiming both at one path would delete the base
 # mid-recipe. The QBD/TD cache is reused as-is rather than rebuilt into a
-# private copy — it is the same bytes manifest_osrs239_rs2012.ini boots, which
+# private copy — it is the same bytes manifests/manifest_osrs239_rs2012.ini boots, which
 # is what makes a defect seen here reproducible there.
 RS2012_SUMMONING_CACHE_DIR ?= $(REPO_ROOT)/cache.osrs239.rs2012-summoning
 
@@ -3044,7 +3084,7 @@ torirsserver-cache-rs2012-summoning:
 	@$(MAKE) --no-print-directory torirsserver-cache-summoning \
 		SUMMONING_CACHE_BASE=$(RS2012_CACHE_DIR) \
 		SUMMONING_CACHE_DIR=$(RS2012_SUMMONING_CACHE_DIR)
-	@echo "torirsserver-cache-rs2012-summoning: use ./run-live.sh manifest_osrs239_rs2012_summoning.ini"
+	@echo "torirsserver-cache-rs2012-summoning: use ./run-live.sh manifests/manifest_osrs239_rs2012_summoning.ini"
 
 test-summoning-phase1: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
@@ -3052,7 +3092,7 @@ test-summoning-phase1: torirsserver-cache-summoning torirsserver-scripts-summoni
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase1.py \
 		--client $(SRC_DIR)/torirs --flag-on $(SUMMONING_CACHE_DIR) \
 		--flag-off $(REPO_ROOT)/cache.osrs239 --scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
-		--manifest $(REPO_ROOT)/manifest_osrs239.ini
+		--manifest $(REPO_ROOT)/manifests/manifest_osrs239.ini
 
 test-summoning-phase4: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
@@ -3060,7 +3100,7 @@ test-summoning-phase4: torirsserver-cache-summoning torirsserver-scripts-summoni
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase4.py \
 		--client $(SRC_DIR)/torirs --cache $(SUMMONING_CACHE_DIR) \
 		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
-		--manifest $(REPO_ROOT)/manifest_osrs239.ini
+		--manifest $(REPO_ROOT)/manifests/manifest_osrs239.ini
 
 test-summoning-phase4c: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
@@ -3068,7 +3108,7 @@ test-summoning-phase4c: torirsserver-cache-summoning torirsserver-scripts-summon
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase4c.py \
 		--client $(SRC_DIR)/torirs --cache $(SUMMONING_CACHE_DIR) \
 		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
-		--manifest $(REPO_ROOT)/manifest_osrs239.ini
+		--manifest $(REPO_ROOT)/manifests/manifest_osrs239.ini
 
 test-summoning-phase4d: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
@@ -3076,7 +3116,7 @@ test-summoning-phase4d: torirsserver-cache-summoning torirsserver-scripts-summon
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase4d.py \
 		--client $(SRC_DIR)/torirs --cache $(SUMMONING_CACHE_DIR) \
 		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
-		--manifest $(REPO_ROOT)/manifest_osrs239.ini
+		--manifest $(REPO_ROOT)/manifests/manifest_osrs239.ini
 
 # Ordinary world replies must not be mistaken for unfinished CS2/UI ticks, and
 # a real settlement pause must not discard its pending mouse-up. This burst used
@@ -3087,7 +3127,7 @@ test-cs2-world-click-responsiveness: torirsserver-cache-summoning torirsserver-s
 	@cd $(REPO_ROOT) && python3 tools/test_cs2_world_click_responsiveness.py \
 		--client $(SRC_DIR)/torirs --cache $(SUMMONING_CACHE_DIR) \
 		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
-		--manifest $(REPO_ROOT)/manifest_osrs239.ini
+		--manifest $(REPO_ROOT)/manifests/manifest_osrs239.ini
 
 test-summoning-phase4e: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
@@ -3095,7 +3135,7 @@ test-summoning-phase4e: torirsserver-cache-summoning torirsserver-scripts-summon
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase4e.py \
 		--client $(SRC_DIR)/torirs --cache $(SUMMONING_CACHE_DIR) \
 		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
-		--manifest $(REPO_ROOT)/manifest_osrs239.ini
+		--manifest $(REPO_ROOT)/manifests/manifest_osrs239.ini
 
 test-summoning-phase4f: torirsserver-cache-summoning torirsserver-scripts-summoning torirsserver-servpack
 	@$(MAKE) --no-print-directory PLATFORM_OBJ_BASE=$(PLATFORM_OBJ_BASE) \
@@ -3103,7 +3143,7 @@ test-summoning-phase4f: torirsserver-cache-summoning torirsserver-scripts-summon
 	@cd $(REPO_ROOT) && python3 tools/test_summoning_phase4f.py \
 		--client $(SRC_DIR)/torirs --cache $(SUMMONING_CACHE_DIR) \
 		--scripts $(TORIRSSERVER_CONTENT_DIR)/server/scripts/build_summoning \
-		--manifest $(REPO_ROOT)/manifest_osrs239.ini
+		--manifest $(REPO_ROOT)/manifests/manifest_osrs239.ini
 
 # Content validator + cache exporter. Separate binary from the server: it needs
 # the same content and cache readers but none of the socket or tick code, and it

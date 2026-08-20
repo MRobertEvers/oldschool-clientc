@@ -57,7 +57,7 @@ TORIRS_NET_CHEAT="$CHEATS" \
 TORIRS_NET_CHEAT_ROTATE=1 \
 TORIRS_NET_CHEAT_EVERY=500 \
 TORIRS_MAX_FRAMES="$FRAMES" \
-  ./src/torirs --manifest manifest_osrs239_torirs.ini --user testc --pass test --soft3d \
+  ./src/torirs --manifest manifests/manifest_osrs239_torirs.ini --user testc --pass test --soft3d \
   > "$OUT/run.log" 2>&1 || true
 
 echo "log: $OUT/run.log"

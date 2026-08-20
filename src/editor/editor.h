@@ -25,6 +25,8 @@
 #include "editor_host.h"
 #include "editor_types.h"
 
+#include <stdint.h>
+
 struct CacheProvider;
 struct RSCache;
 
@@ -54,6 +56,10 @@ struct Editor
         const int32_t* values,
         int count);
     void* on_state_user_data;
+
+    /** The newest document-fact seq this mirror applied, for the divergence
+     *  check in mirror_on_cmd. 0 until the first one arrives. */
+    uint32_t last_cmd_seq;
 
     /**
      * Squares whose meshes are stale, as (map_x, map_z) pairs.

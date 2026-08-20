@@ -58,7 +58,7 @@ git clone --recurse-submodules <repo-url> 3draster
 cd 3draster
 
 make -C src all                                    # -> src/torirs
-src/torirs --manifest manifest_osrs239.ini --offline
+src/torirs --manifest manifests/manifest_osrs239.ini --offline
 ```
 
 ### Windows 10/11
@@ -69,7 +69,7 @@ cd 3draster
 git lfs pull --include="lib/mingw64-win64-toolchain.zip"
 
 .\build_windows.ps1 -Opt                           # -> dist\win64\torirs.exe
-.\dist\win64\torirs.exe --manifest .\manifest_osrs239.ini --offline
+.\dist\win64\torirs.exe --manifest .\manifests/manifest_osrs239.ini --offline
 ```
 
 ### Web
@@ -77,13 +77,13 @@ git lfs pull --include="lib/mingw64-win64-toolchain.zip"
 ```sh
 make -C src web            # -> build-web/torirs.js
 make -C src io-server      # see §12 — currently fails to link
-./run-live.sh web manifest_osrs239.ini asdf a --offline
+./run-live.sh web manifests/manifest_osrs239.ini asdf a --offline
 ```
 
 ### Playing against a server (macOS / Linux)
 
 ```sh
-./run-live.sh manifest_osrs239.ini testc test
+./run-live.sh manifests/manifest_osrs239.ini testc test
 ```
 
 This one script builds the client **with the server linked in**, compiles the
@@ -208,20 +208,20 @@ somewhere the name does not suggest:
 
 | Manifest | `[cache:boot] dir=` |
 |---|---|
-| `manifest_osrs239.ini` | `cache.osrs239` |
-| `manifest_osrs230.ini` | `cache.osrs239.baked` ← the **baked** cache, not `cache.osrs230` |
-| `manifest_osrs239_packed.ini` | `cache.osrs239_packed` (built by the content pipeline) |
-| `manifest_rs254.ini` | `cache.rs254_zuk` |
-| `manifest_rs377.ini` | `cache.rs377` |
-| `manifest_void634.ini` | `cache.void634` |
+| `manifests/manifest_osrs239.ini` | `cache.osrs239` |
+| `manifests/manifest_osrs230.ini` | `cache.osrs239.baked` ← the **baked** cache, not `cache.osrs230` |
+| `manifests/manifest_osrs239_packed.ini` | `cache.osrs239_packed` (built by the content pipeline) |
+| `manifests/manifest_rs254.ini` | `cache.rs254_zuk` |
+| `manifests/manifest_rs377.ini` | `cache.rs377` |
+| `manifests/manifest_void634.ini` | `cache.void634` |
 
 ```sh
-grep -m1 '^dir=' manifest_osrs239.ini      # what this manifest actually opens
+grep -m1 '^dir=' manifests/manifest_osrs239.ini      # what this manifest actually opens
 ```
 
 Obtain an OldSchool cache from an archive such as OpenRS2 and place it at the
 directory the manifest names, or point the manifest elsewhere by editing that
-line. `manifest_osrs239_packed.ini` is `manifest_osrs239.ini` with
+line. `manifests/manifest_osrs239_packed.ini` is `manifests/manifest_osrs239.ini` with
 `dir=cache.osrs239_packed`, so one build boots either a pristine dump or one
 built from content.
 
@@ -282,8 +282,8 @@ produced it. Their objects never mix — debug goes to `src/build/`, optimized t
 Run it:
 
 ```sh
-src/torirs --manifest manifest_osrs239.ini --offline
-src/torirs --manifest manifest_osrs239.ini --offline --opengl3     # GPU renderer
+src/torirs --manifest manifests/manifest_osrs239.ini --offline
+src/torirs --manifest manifests/manifest_osrs239.ini --offline --opengl3     # GPU renderer
 ```
 
 ### 4.3 Linux
@@ -293,7 +293,7 @@ Identical to macOS:
 ```sh
 make -C src all
 make -C src release
-src/torirs --manifest manifest_osrs239.ini --offline
+src/torirs --manifest manifests/manifest_osrs239.ini --offline
 ```
 
 ### 4.4 Windows 10/11 (x86_64)
@@ -312,8 +312,8 @@ Output: `dist\win64\torirs.exe` — a single static file. No compiler or runtime
 DLL needs to be installed on the target.
 
 ```powershell
-.\dist\win64\torirs.exe --manifest .\manifest_osrs239.ini
-.\dist\win64\torirs.exe --manifest .\manifest_osrs239.ini --soft3d   # GDI fallback
+.\dist\win64\torirs.exe --manifest .\manifests/manifest_osrs239.ini
+.\dist\win64\torirs.exe --manifest .\manifests/manifest_osrs239.ini --soft3d   # GDI fallback
 ```
 
 For any other make target, use `.\make.ps1` — it resolves the pinned toolchain
@@ -380,7 +380,7 @@ The module is **not** self-sufficient: cache reads are answered by
 command line arrives through the page's query string.
 
 ```sh
-./run-live.sh web manifest_osrs239.ini asdf a --offline
+./run-live.sh web manifests/manifest_osrs239.ini asdf a --offline
 ```
 
 Same script, same arguments as a native run — `web` is the only difference. It
@@ -393,7 +393,7 @@ By hand:
 ```sh
 make -C src web
 make -C src io-server
-./src/build/io_server --manifest manifest_osrs239.ini    # http://localhost:8088/
+./src/build/io_server --manifest manifests/manifest_osrs239.ini    # http://localhost:8088/
 ```
 
 Web-only knobs: `TORIRS_WEB_PORT` (default 8088), `TORIRS_WEB_DEBUG=1` for the
@@ -405,8 +405,8 @@ a browser.
 
 | Query | Meaning |
 |---|---|
-| `?arg=--manifest&arg=manifest_osrs239.ini&arg=--offline` | one argument per param (what `run-live.sh` generates) |
-| `?args=--manifest,manifest_osrs239.ini,--offline` | the same, comma-joined |
+| `?arg=--manifest&arg=manifests/manifest_osrs239.ini&arg=--offline` | one argument per param (what `run-live.sh` generates) |
+| `?args=--manifest,manifests/manifest_osrs239.ini,--offline` | the same, comma-joined |
 | `?env=TORIRS_TASK_LOG=1&env=TORIRS_NET_DEBUG=1` | environment `getenv` will see |
 | `?io=http://host:8088/io` | IO endpoint when the page is served elsewhere |
 
@@ -489,12 +489,12 @@ keys, the UI root, and optionally an extra argv layer. Everything else is a
 flag on top of it.
 
 ```sh
-src/torirs --manifest manifest_osrs239.ini --offline
+src/torirs --manifest manifests/manifest_osrs239.ini --offline
 ```
 
 Manifests in the repo root: `manifest_osrs230*.ini`, `manifest_osrs239*.ini`,
-`manifest_rs254.ini`, `manifest_rs377.ini`, `manifest_void634.ini`,
-`manifest_xrsps.ini`.
+`manifests/manifest_rs254.ini`, `manifests/manifest_rs377.ini`, `manifests/manifest_void634.ini`,
+`manifests/manifest_xrsps.ini`.
 
 ### Command line
 
@@ -547,9 +547,9 @@ arg=Jane Doe
 ```
 
 ```sh
-./run-live.sh manifest_osrs239.ini testc test          # live, embedded server
-./run-live.sh manifest_rs254.ini asdf a --offline      # offline
-./run-live.sh web manifest_osrs239.ini asdf a --offline
+./run-live.sh manifests/manifest_osrs239.ini testc test          # live, embedded server
+./run-live.sh manifests/manifest_rs254.ini asdf a --offline      # offline
+./run-live.sh web manifests/manifest_osrs239.ini asdf a --offline
 ```
 
 For fast client-code iteration, `--skip-checks` skips the cache-overlay and
@@ -559,7 +559,7 @@ is explicit: content or server-script edits will not appear until a normal run.
 `TORIRS_SKIP_CHECKS=1` provides the same behavior for scripts and aliases.
 
 ```sh
-./run-live.sh --skip-checks manifest_osrs239.ini testc test
+./run-live.sh --skip-checks manifests/manifest_osrs239.ini testc test
 ```
 
 What it does for you, and why each part exists:
@@ -589,12 +589,12 @@ is done:
 
 ```sh
 SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=60 TORIRS_EXIT_BMP=frame.bmp \
-    src/torirs --manifest manifest_osrs239.ini --offline
+    src/torirs --manifest manifests/manifest_osrs239.ini --offline
 ```
 
 ```sh
 TORIRS_MAX_FRAMES=150 TORIRS_EXIT_BMP=frame.bmp TORIRS_WORLD_MAP=50,50 \
-    src/torirs --manifest manifest_osrs239_packed.ini --offline
+    src/torirs --manifest manifests/manifest_osrs239_packed.ini --offline
 ```
 
 Selected variables (`src/main.c` reads ~70; these are the ones you reach for):
@@ -622,7 +622,7 @@ page's query string, so a web run is configured exactly like a native one.
 
 ```sh
 ./run-worldmap.sh [manifest.ini] [--show]
-./run-worldmap.sh manifest_osrs239_worldmap.ini --headless
+./run-worldmap.sh manifests/manifest_osrs239_worldmap.ini --headless
 ```
 
 Runs an interface's `onLoad` CS2 scripts and writes
@@ -654,11 +654,11 @@ does not have the host cache/content filesystem.
 ```sh
 make -C src EMBED_SERVER=1 torirs
 make -C src torirsserver-scripts                    # the script pack is a separate build
-TORIRS_TRANSPORT=embed src/torirs --manifest manifest_osrs239.ini --user testc --pass test
+TORIRS_TRANSPORT=embed src/torirs --manifest manifests/manifest_osrs239.ini --user testc --pass test
 ```
 
-Or just `./run-live.sh manifest_osrs239.ini`, which does all three. On Windows
-that is `.\run-live.ps1 manifest_osrs239.ini` (`run-live.bat` is a shim onto the
+Or just `./run-live.sh manifests/manifest_osrs239.ini`, which does all three. On Windows
+that is `.\run-live.ps1 manifests/manifest_osrs239.ini` (`run-live.bat` is a shim onto the
 same script, for a cmd prompt). Credentials are optional in both: a manifest
 carrying its own `user=`/`pass=` supplies them, falling back to `asdf`/`a`, and
 an explicit argument still wins.
@@ -672,8 +672,8 @@ cache cannot drift apart:
 
 | Manifest | Cache | Built by |
 |---|---|---|
-| `manifest_osrs239_rs2012.ini` (QBD), `manifest_osrs239_rs2012_td.ini` (Tormented Demons) | `cache.osrs239.rs2012` | `torirsserver-cache-rs2012` + `torirsserver-servpack` |
-| `manifest_osrs239_summoning.ini` | `cache.osrs239.summoning` | `torirsserver-cache-summoning` |
+| `manifests/manifest_osrs239_rs2012.ini` (QBD), `manifests/manifest_osrs239_rs2012_td.ini` (Tormented Demons) | `cache.osrs239.rs2012` | `torirsserver-cache-rs2012` + `torirsserver-servpack` |
+| `manifests/manifest_osrs239_summoning.ini` | `cache.osrs239.summoning` | `torirsserver-cache-summoning` |
 
 The bake deletes and repacks the cache, which takes minutes and tears it out
 from under anything else reading it (a second client, an osrsify search wave).
@@ -692,7 +692,7 @@ Neither launcher makes you know which checkout that is. Both look at
 take the first one carrying both lanes:
 
 ```powershell
-.\run-live.ps1 manifest_osrs239_rs2012.ini      # finds the tree itself
+.\run-live.ps1 manifests/manifest_osrs239_rs2012.ini      # finds the tree itself
 ```
 
 `TORIRS_PRINT_ONLY=1` reports which tree was chosen and how (`auto` or
@@ -704,12 +704,12 @@ launchers take the same override, `TORIRSSERVER_CONTENT_DIR` — there is no sep
 
 ```powershell
 $env:TORIRSSERVER_CONTENT_DIR = "$PWD\some\other\osrs239-content"
-.\run-live.ps1 manifest_osrs239_rs2012.ini
+.\run-live.ps1 manifests/manifest_osrs239_rs2012.ini
 ```
 
 ```sh
 TORIRSSERVER_CONTENT_DIR=$PWD/some/other/osrs239-content \
-  ./run-live.sh manifest_osrs239_rs2012.ini
+  ./run-live.sh manifests/manifest_osrs239_rs2012.ini
 ```
 
 If no candidate carries the lanes, the run stops before building and lists
@@ -725,7 +725,7 @@ src/build_opt/torirsserver [port]
 Then point a TCP manifest at it:
 
 ```sh
-src/torirs --manifest manifest_osrs230.ini --user test --pass test
+src/torirs --manifest manifests/manifest_osrs230.ini --user test --pass test
 ```
 
 Parallel-session variants exist so two people (or two agents) can each hold a
@@ -733,10 +733,10 @@ live session without fighting over the port or the output file:
 
 | Target | Binary | Port | Manifest |
 |---|---|---|---|
-| `ToriRSServer` | `src/build_opt/torirsserver` | 43595 | `manifest_osrs230.ini` |
-| `torirsserver-dev` | `src/build/dev_torirsserver` | 43597 | `manifest_osrs230_dev.ini` |
-| `torirsserver-alt` | `src/build/alt_torirsserver` | 43599 | `manifest_osrs230_alt.ini` |
-| `torirsserver-bank` | `src/build/bank_torirsserver` | 43601 | `manifest_osrs230_bank.ini` |
+| `ToriRSServer` | `src/build_opt/torirsserver` | 43595 | `manifests/manifest_osrs230.ini` |
+| `torirsserver-dev` | `src/build/dev_torirsserver` | 43597 | `manifests/manifest_osrs230_dev.ini` |
+| `torirsserver-alt` | `src/build/alt_torirsserver` | 43599 | `manifests/manifest_osrs230_alt.ini` |
+| `torirsserver-bank` | `src/build/bank_torirsserver` | 43601 | `manifests/manifest_osrs230_bank.ini` |
 
 > The dev binary is named `dev_torirsserver`, not `ToriRSServer_Dev`, on purpose: the usual
 > way to stop a stray server is `pkill -f build/torirsserver`, which is a prefix match
@@ -814,7 +814,7 @@ only process the web build needs.
 
 ```sh
 make -C src io-server               # -> src/build/io_server  (always native)
-./src/build/io_server --manifest manifest_osrs239.ini     # http://localhost:8088/
+./src/build/io_server --manifest manifests/manifest_osrs239.ini     # http://localhost:8088/
 ```
 
 Options: `--manifest <boot.ini>` (recommended — it is the same file the native
@@ -876,14 +876,14 @@ with no idx file is a table the client cannot read.
 Boot the result:
 
 ```sh
-src/torirs --manifest manifest_osrs239_packed.ini --offline
+src/torirs --manifest manifests/manifest_osrs239_packed.ini --offline
 ```
 
 Headless verification proves the cache is **bootable**, not merely complete:
 
 ```sh
 TORIRS_MAX_FRAMES=150 TORIRS_EXIT_BMP=frame.bmp TORIRS_WORLD_MAP=50,50 \
-    src/torirs --manifest manifest_osrs239_packed.ini --offline
+    src/torirs --manifest manifests/manifest_osrs239_packed.ini --offline
 ```
 
 Other pipeline targets:
@@ -1401,7 +1401,7 @@ scripts/flamegraph_torirs.sh           # builds EMBED_SERVER=1 TORIDRAW_OPT=1 fo
 
 ```sh
 make -C src MEMTRACE=1                 # -> src/torirs_mt (its own objdir, build_mt/)
-TORIRS_MEMTRACE_OUT=/tmp/boot.bin ./src/torirs_mt --manifest manifest_osrs239.ini --offline
+TORIRS_MEMTRACE_OUT=/tmp/boot.bin ./src/torirs_mt --manifest manifests/manifest_osrs239.ini --offline
 python3 tools/memtrace/summarize.py /tmp/boot.bin        # start here for a large trace
 python3 tools/memtrace/decode_memtrace.py /tmp/boot.bin  # per-event JSONL
 # then load the JSONL in tools/memtrace/viewer.html
@@ -1464,7 +1464,7 @@ Everything else in this document was built and run successfully on macOS arm64:
 the native client, `lane-check-all`, the web lane, `ToriRSServer`, `js5_server`,
 `sscompile`, all ten `3rd/rscache` tools, `dump_interface`, `dump_npc`,
 `make -C 3rd/rsprot test`, `make -C src test-cmdbus`, and a headless
-`manifest_osrs239.ini --offline` run that produced a frame.
+`manifests/manifest_osrs239.ini --offline` run that produced a frame.
 
 ### Common problems
 

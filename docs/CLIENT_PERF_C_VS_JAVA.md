@@ -412,7 +412,7 @@ away.
 
 ## 4. C client baselines (measured)
 
-Build: `EMBED_SERVER=1`, `manifest_osrs230_embed.ini`, `--uncapped --soft3d`,
+Build: `EMBED_SERVER=1`, `manifests/manifest_osrs230_embed.ini`, `--uncapped --soft3d`,
 1200 frames, headless (`SDL_VIDEODRIVER=dummy`), scenario `idle`.
 `-O0` also carries `TORIDRAW_OPT=1` (Soft3D at `-O2`), which is the tree's
 standard developer build; `-O3` is `OPT=1`, the whole tree.

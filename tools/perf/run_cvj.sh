@@ -27,7 +27,7 @@ OUT_DIR="$ROOT/tools/perf/results/cvj"
 mkdir -p "$OUT_DIR"
 CSV="$OUT_DIR/${TAG}-${SCENARIO}.csv"
 LOG="$OUT_DIR/${TAG}-${SCENARIO}.log"
-MANIFEST="$ROOT/manifest_osrs230_embed.ini"
+MANIFEST="$ROOT/manifests/manifest_osrs230_embed.ini"
 
 EXTRA_ENV=()
 case "$SCENARIO" in

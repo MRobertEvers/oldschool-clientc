@@ -26,13 +26,13 @@ cd "$ROOT"
 
 OUT=build/cox_sprites
 WORK=build/cox_sprites/frames
-# The EMBEDDED manifest, not the TCP one. `manifest_osrs239_net.ini` expects a
+# The EMBEDDED manifest, not the TCP one. `manifests/manifest_osrs239_net.ini` expects a
 # separately-launched ToriRSServer on port 43596 and fails with "Connection refused"
 # -- and the client then renders a perfectly good empty world, so the sheets come
 # out looking like a raid with no monsters in it rather than like an error.
 # `transport=embed` runs the server in-process, which is what makes this one
 # command instead of two.
-MANIFEST=${COX_MANIFEST:-manifest_osrs239.ini}
+MANIFEST=${COX_MANIFEST:-manifests/manifest_osrs239.ini}
 
 # Frames per encounter, and how far apart. A tick is ~15 render frames under the
 # dummy driver, so 30 apart is one capture every two ticks -- enough to catch an

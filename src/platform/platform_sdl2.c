@@ -110,26 +110,39 @@ sdl_refresh_pixel_density(struct PlatformSDL2* platform)
 }
 
 /*
- * Whether to ask for a HighDPI drawable at all.
+ * Whether to ask for a HighDPI drawable at all. ON by default; nothing has to
+ * ask for it.
  *
- * Declared by the boot manifest (`[ui:boot] hidpi=`), because it is not a
- * property of the machine: it is a trade the BOOT makes. A device-pixel
- * drawable on a 2x display is four times the pixels, which the map editor's
- * GL path wants and the software rasteriser may not be able to afford.
+ * There is nothing to decide in the common case, which is why this is not a
+ * question the boot is made to answer. On a 1x display SDL_WINDOW_ALLOW_HIGHDPI
+ * is a no-op -- the drawable already equals the window points -- so the flag
+ * costs those machines nothing. On a 2x display the alternative is not "fewer
+ * pixels", it is the window server magnifying the finished frame, chrome and
+ * world alike. That is the ONE failure the baked chrome sizes exist to avoid,
+ * arriving from underneath them where no amount of chrome work can reach it,
+ * so defaulting it off buys a blurry frame rather than a cheap one.
  *
  * The other half of a HighDPI client -- a CANVAS that follows the drawable
- * rather than the window points -- is wired now: SetCanvasFollowsWindow and
- * the SIZE_CHANGED branch both push sdl_drawable_size(), and MapMouse derives
- * its letterbox from the canvas against window points, so clicks land where
- * they are drawn. Without this flag the drawable stays at points and the
- * window server magnifies the whole frame, chrome and world alike -- which is
- * the ONE failure the baked chrome sizes exist to avoid, arriving from
- * underneath them where no amount of chrome work can reach it.
+ * rather than the window points -- is wired: SetCanvasFollowsWindow and the
+ * SIZE_CHANGED branch both push sdl_drawable_size(), and MapMouse derives its
+ * letterbox from the canvas against window points, so clicks land where they
+ * are drawn.
  *
- * TORIRS_HIDPI overrides the manifest either way: =0 gives up the drawable on
- * a machine that cannot afford it, =1 turns it on for a boot that did not ask.
+ * The web lane is the exception and defaults OFF. There the density is
+ * devicePixelRatio, which is 3 on a phone rather than 2 on a desk, and the
+ * renderer is a software rasteriser in wasm -- nine times the pixels is not a
+ * sharper frame, it is no frame. That one is a real trade, so the web boot has
+ * to opt in.
+ *
+ * `[ui:boot] hidpi=` overrides the default per boot, and TORIRS_HIDPI
+ * overrides the manifest: =0 gives up the drawable on a machine that cannot
+ * afford it, =1 turns it on for a lane whose default is off.
  */
+#if defined(TORIRS_PLATFORM_WEB)
 static bool g_want_highdpi = false;
+#else
+static bool g_want_highdpi = true;
+#endif
 
 void
 PlatformSDL2_SetWantHighDPI(bool want)

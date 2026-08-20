@@ -94,7 +94,7 @@ attributes the pixels that changed:
 
 ```sh
 TORIRS_PIXOWNER='355,375,150,250' TORIRS_PIXOWNER_OUT=/tmp/pixowner.txt \
-  ./src/torirs_win64.exe --manifest manifest_osrs239_rs2012.ini \
+  ./src/torirs_win64.exe --manifest manifests/manifest_osrs239_rs2012.ini \
   --user qbdvisual --pass test --soft3d
 ```
 
@@ -128,7 +128,7 @@ every geometry emission, in order, with the tile and plane each belongs to.
 
 ```sh
 TORIRS_WEDGELOG=/tmp/wedge.log TORIRS_WEDGELOG_AT=800 TORIRS_WEDGELOG_FRAMES=1 \
-  ./src/torirs_win64.exe --manifest manifest_osrs239_rs2012.ini \
+  ./src/torirs_win64.exe --manifest manifests/manifest_osrs239_rs2012.ini \
   --user qbdvisual --pass test --soft3d
 ```
 
@@ -196,7 +196,7 @@ investigation there was no way to swap them in the live client, so
 `TORIRS_PAINTER_W3D=1` was added to [`src/app.c`](src/app.c):
 
 ```sh
-TORIRS_PAINTER_W3D=1 ./src/torirs_win64.exe --manifest manifest_osrs239_rs2012.ini ...
+TORIRS_PAINTER_W3D=1 ./src/torirs_win64.exe --manifest manifests/manifest_osrs239_rs2012.ini ...
 ```
 
 Same scene, same frame, the other traversal. This is the lever that separates
@@ -591,7 +591,7 @@ locs in it.
 | `make -C src test-painters-terrain-levels` | 2 failures | OK |
 | `make -C src test-painters-occluders` | — | OK |
 
-As a control, the ordinary `manifest_osrs239.ini` scene (Lumbridge — walls,
+As a control, the ordinary `manifests/manifest_osrs239.ini` scene (Lumbridge — walls,
 stairs, fences, bushes, a fountain) was rendered with the fix in place and
 inspected: every one of those is in the right order. The relaxation must not
 fire anywhere it was not already wrong.
@@ -609,7 +609,7 @@ make -C src torirsserver-cache-rs2012
 SDL_VIDEODRIVER=dummy TORIDRAW_RASTER_SCANLINE=1 \
 TORIRS_MAX_FRAMES=850 TORIRS_SIM_WINDOW='500,1200x800' \
 TORIRS_EXIT_BMP=/tmp/qbd.bmp \
-  ./src/torirs_win64.exe --manifest manifest_osrs239_rs2012.ini \
+  ./src/torirs_win64.exe --manifest manifests/manifest_osrs239_rs2012.ini \
   --user qbdvisual --pass test --soft3d
 
 # 2. who owns the strip's pixels

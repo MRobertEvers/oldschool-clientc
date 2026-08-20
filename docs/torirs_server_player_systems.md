@@ -17,11 +17,11 @@ the tick; this is only what sits on top.
 ```
 make -C src torirsserver-dev              # the server, on 43597
 make -C src test-torirsserver-dev         # game logic, no socket
-./run-live.sh manifest_osrs230_dev.ini testc test
+./run-live.sh manifests/manifest_osrs230_dev.ini testc test
 ```
 
 `torirsserver-dev` builds `src/build/dev_torirsserver`, a second binary from the same
-sources listening on 43597 instead of 43595, with `manifest_osrs230_dev.ini`
+sources listening on 43597 instead of 43595, with `manifests/manifest_osrs230_dev.ini`
 pointed at it. It exists so two sessions can run side by side. The name is
 `dev_torirsserver` and not `ToriRSServer_Dev` on purpose: the usual way to stop a stray
 server is `pkill -f build/torirsserver`, and that pattern would take a

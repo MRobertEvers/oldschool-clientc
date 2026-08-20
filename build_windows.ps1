@@ -94,7 +94,7 @@ $staged = Join-Path $dist "torirs.exe"
 Copy-Item -LiteralPath $built -Destination $staged -Force
 Write-Host ("[win64] done -> dist\win64\torirs.exe  ({0:N0} KB)" -f ((Get-Item -LiteralPath $staged).Length / 1KB))
 Write-Host "[win64] local run (fixed-function D3D9):"
-Write-Host "        .\dist\win64\torirs.exe --manifest .\manifest_osrs239.ini"
+Write-Host "        .\dist\win64\torirs.exe --manifest .\manifests/manifest_osrs239.ini"
 } finally {
     $env:PATH = $originalPath
 }

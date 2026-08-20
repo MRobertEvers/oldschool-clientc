@@ -7,7 +7,7 @@
  *for cam in "6464,-3000,4400,180,0" "6464,-4200,5400,300,0" "5200,-2600,5400,160,1600"; do n=$(echo
  *$cam | tr ',' '_'); SDL_VIDEODRIVER=dummy TORIRSSERVER_ALLOW_STALE_SCRIPTS=1 TORIRSSERVER_SAVES=$SC/saves2
  *TORIRS_SIM_CMD="200,tob 5;280,tobgo" TORIRS_WEDGE_CAM="$cam" TORIRS_MAX_FRAMES=460
- *TORIRS_EXIT_BMP=$SC/xc_$n.bmp ./src/torirs --manifest manifest_osrs239_torirs.ini --user probe1
+ *TORIRS_EXIT_BMP=$SC/xc_$n.bmp ./src/torirs --manifest manifests/manifest_osrs239_torirs.ini --user probe1
  *--pass test > /dev/null 2>&1; sips -s format png $SC/xc_$n.bmp --out $SC/xc_$n.png >/dev/null
  *2>&1; done; ls $SC/xc_*.png The client used to draw every bar as a 30x5 green/red rectangle and
  *take the *fill value the server sent* as the bar's pixel width. That is two mistakes stacked: the

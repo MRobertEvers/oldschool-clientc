@@ -15,7 +15,7 @@
     Parsing one raw argument array by hand, the same way the shell script
     shifts $1, removes that whole class of surprise.
 
-    The manifest (manifest_osrs239_rs2012.ini, manifest_osrs230.ini, ...)
+    The manifest (manifests/manifest_osrs239_rs2012.ini, manifests/manifest_osrs230.ini, ...)
     names the cache, rev, transport, host/port and RSA keys, and everything
     this script decides it reads from there:
 
@@ -97,12 +97,12 @@
     ambiguous parameter name before this script is ever entered.
 
 .EXAMPLE
-    .\run-live.ps1 manifest_osrs239_rs2012.ini
-    .\run-live.ps1 manifest_osrs239_rs2012.ini --opengl3
-    .\run-live.ps1 manifest_osrs230.ini qbdrepro test --soft3d
-    .\run-live.ps1 --skip-checks manifest_osrs230.ini qbdrepro test
-    .\run-live.ps1 web manifest_osrs239_rs2012.ini
-    .\run-live.ps1 web manifest_osrs230.ini qbdrepro test --offline
+    .\run-live.ps1 manifests/manifest_osrs239_rs2012.ini
+    .\run-live.ps1 manifests/manifest_osrs239_rs2012.ini --opengl3
+    .\run-live.ps1 manifests/manifest_osrs230.ini qbdrepro test --soft3d
+    .\run-live.ps1 --skip-checks manifests/manifest_osrs230.ini qbdrepro test
+    .\run-live.ps1 web manifests/manifest_osrs239_rs2012.ini
+    .\run-live.ps1 web manifests/manifest_osrs230.ini qbdrepro test --offline
 #>
 [CmdletBinding()]
 param(
@@ -662,7 +662,7 @@ function Build-CacheOverlay {
             }
             break
         }
-        # The ordinary bake itself (manifest_osrs239_net.ini). It had no arm at
+        # The ordinary bake itself (manifests/manifest_osrs239_net.ini). It had no arm at
         # all, so the one cache every non-lane profile runs on was the only one
         # nothing ever checked.
         '*cache.osrs239.baked' {

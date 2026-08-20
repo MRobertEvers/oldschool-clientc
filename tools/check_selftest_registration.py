@@ -83,12 +83,34 @@ def rs2_files():
                 yield os.path.join(base, name)
 
 
+def read_or_none(path):
+    """Read a script, or return None if the tree cannot hand it to us.
+
+    This gates the build, so it must not become the reason nobody can compile.
+    A dangling or looping symlink in the content tree is a real thing that
+    happens while another session is moving files around -- it cost a build
+    here, raising `OSError: Too many levels of symbolic links` out of a tool
+    whose whole job is to be a cheap precondition. Unreadable files are
+    reported and skipped, never fatal.
+    """
+    try:
+        with open(path, encoding="utf-8", errors="replace") as handle:
+            return handle.read()
+    except OSError as exc:
+        UNREADABLE.append((path, exc.strerror or str(exc)))
+        return None
+
+
+UNREADABLE = []
+
+
 def main():
     defined = {}
     called = set()
     for path in rs2_files():
-        with open(path, encoding="utf-8", errors="replace") as handle:
-            text = handle.read()
+        text = read_or_none(path)
+        if text is None:
+            continue
         for name in re.findall(r"^\[proc,(selftest_[a-z0-9_]+)\]", text, re.M):
             defined[name] = path
         called.update(re.findall(r"~(selftest_[a-z0-9_]+)\b", text))
@@ -117,8 +139,9 @@ def main():
 
     undriven = []
     for path in rs2_files():
-        with open(path, encoding="utf-8", errors="replace") as handle:
-            text = handle.read()
+        text = read_or_none(path)
+        if text is None:
+            continue
         if "FAIL" not in text:
             continue
         if re.search(r"^\[proc,selftest_", text, re.M):
@@ -145,6 +168,12 @@ def main():
     print("selftest stanzas: %d defined, %d registered in C, %d called as "
           "helpers" % (len(defined), len(registered & set(defined)),
                        len(called & set(defined))))
+
+    if UNREADABLE:
+        print("\n%d file(s) could not be read and were skipped:"
+              % len(UNREADABLE))
+        for path, why in UNREADABLE[:5]:
+            print("    %-64s %s" % (os.path.relpath(path, ROOT), why))
 
     if stale:
         print("\nThese are listed as known-dead but now run. Remove them from "

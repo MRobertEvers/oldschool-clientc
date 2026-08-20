@@ -347,7 +347,7 @@ SDL_VIDEODRIVER=dummy TORIRSSERVER_SAVES=$S/saves TORIRS_MAX_FRAMES=900 \
 TORIRS_NET_CHEAT="slayerpoints 5000;talk slayer_master_1_tureal 5" \
 TORIRS_SIM_CLICK_AT="500,278,88;600,294,259" \
 TORIRS_EXIT_BMP=$S/buy.bmp TORIRSSERVER_VERBOSE=1 \
-  ./src/torirs --manifest manifest_osrs230_embed.ini --user testc --pass test
+  ./src/torirs --manifest manifests/manifest_osrs230_embed.ini --user testc --pass test
 ```
 
 - Right-click Turael → the cache's five ops; **"Rewards"** mounts 426 with the

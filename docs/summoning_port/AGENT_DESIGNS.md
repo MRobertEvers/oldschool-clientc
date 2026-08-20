@@ -377,7 +377,7 @@ Unchanged from the existing path — **new archives need no JS5 wiring**.
    - For a new archive id, `cp_reference_sync` (`cp_binary.c:375-470`) grows **both** the reference table's `archives` array (indexed by archive id, gaps at `index == -1`) and its ascending `ids` list; `cp_reference_set_name` names it (`cp_assets.c:1350`).
    - CRC gotcha, `EXCEPTIONS.md` H4: the reference-table CRC covers the container **minus** the u16 version trailer. Get it wrong and the client rejects the archive. This is already right; don't re-derive it.
 2. `torirsserver-cache-check` asserts all 23 idx tables landed.
-3. **Point both the world and JS5 at the bake.** `js5_server --cache cache.osrs239.baked` and `[cache:boot] dir=cache.osrs239.baked`. This is the one-cache rule; `manifest_osrs239.ini` boots pristine `cache.osrs239` and will not see a single ported record — which is, usefully, the flag-off client for free.
+3. **Point both the world and JS5 at the bake.** `js5_server --cache cache.osrs239.baked` and `[cache:boot] dir=cache.osrs239.baked`. This is the one-cache rule; `manifests/manifest_osrs239.ini` boots pristine `cache.osrs239` and will not see a single ported record — which is, usefully, the flag-off client for free.
 4. The client's metadata-prime barrier (`docs/JS5_INCREMENTAL_CACHE.md`, "Boot contract") validates `255/255` and every reference table **before `App_Init`**, then fills the sparse local cache on demand. A new archive is served like any other.
 5. Verify with `tools/js5_cache_verify.py` and `tools/js5_probe.py`.
 
@@ -439,7 +439,7 @@ Per the `npc-anims-from-rig-catalog` memory note, the rig-share gate is the reli
 ```sh
 SDL_VIDEODRIVER=dummy TORIRSSERVER_VERBOSE=1 \
   TORIRS_SIM_CLICK_AT=… TORIRS_EXIT_BMP=build/verify/familiar.bmp \
-  src/build/torirs --manifest manifest_osrs239_summoning.ini
+  src/build/torirs --manifest manifests/manifest_osrs239_summoning.ini
 ```
 
 Plus `audioprobe --sweep cache.osrs239.baked osrs239` → 0 failures, and a `::debugproc` per slice.
@@ -817,12 +817,12 @@ make -C src torirsserver-cache          # cachepack pack --base cache.osrs239 \
                                    #   --out cache.osrs239.baked --assets --binary --gamevals
 
 # 4. run
-./src/torirs --manifest manifest_osrs230_embed.ini --user testc --pass test
+./src/torirs --manifest manifests/manifest_osrs230_embed.ini --user testc --pass test
 ```
 
 Two traps to write into the runbook:
 - **`CACHEPACK_CS2_NAMES` is a hard, undeclared dependency.** Without it, `script_393.cs2` fails on `unknown constant '^iftype_graphic'` (measured), `cachepack` prints one stderr line and **ships the base cache's bytes**. `src/makefile:1675` hard-codes `$(HOME)/Documents/git_repos/cs2/...`.
-- **`manifest_osrs239.ini` boots the pristine `cache.osrs239` and will never show an edit.** Use `manifest_osrs230*.ini` / `manifest_osrs239_net.ini`, which point at `cache.osrs239.baked`.
+- **`manifests/manifest_osrs239.ini` boots the pristine `cache.osrs239` and will never show an edit.** Use `manifest_osrs230*.ini` / `manifests/manifest_osrs239_net.ini`, which point at `cache.osrs239.baked`.
 
 `stat_24` is a **legal CS2 spelling with no names-table entry** — `3rd/rscache/src/cs2/cs2_names.c:630-677` falls back to `<literal>_<id>` for `RSCACHE_CS2_TYPE_STAT` and the compiler reads it back. The cache itself already does this: `script_1003.cs2` spells Sailing `stat_xp(stat_23)`. **Do not depend on editing the external RuneStar `stat-names.tsv`** — that would make the build non-hermetic.
 
@@ -1051,7 +1051,7 @@ The gate varbit is then `content_restrict_summoning_serverside`: `basevar=conten
 
 | layer | mechanism | what it gates | cost |
 |---|---|---|---|
-| **1. bake** (primary) | which cache is baked / booted. `manifest_osrs239.ini` → pristine `cache.osrs239` = flag-off client, for free. `make -C src torirsserver-cache TORIRSSERVER_CACHE_DIR=$PWD/cache.osrs239.summoning` + `manifest_osrs239_summoning.ini` = flag-on. | every client-visible record: the 25th cell, the enums, the guide rows, the orb, the sprites | zero new mechanism |
+| **1. bake** (primary) | which cache is baked / booted. `manifests/manifest_osrs239.ini` → pristine `cache.osrs239` = flag-off client, for free. `make -C src torirsserver-cache TORIRSSERVER_CACHE_DIR=$PWD/cache.osrs239.summoning` + `manifests/manifest_osrs239_summoning.ini` = flag-on. | every client-visible record: the 25th cell, the enums, the guide rows, the orb, the sprites | zero new mechanism |
 | **2. server** | `^summoning_enabled` in `ported_scape2009_summoning/configs/summoning.constant`, tested at the top of every ported entry point; plus the one C branch in §2 gating the stat-24 transmit | all server behaviour, and third-party-client safety | one constant + one `if` |
 | **3. in-cache soft gate** (polish) | `script_8950` `case 24` → `content_restrict_summoning_serverside` on varp 4940 bit 1 | lets **one** baked cache ship both states: cell greys out, Total level excludes it, guide still opens | needs §5.2 |
 
@@ -1217,14 +1217,14 @@ New assertions to add (each must be proved able to fail by mutating the impl —
 ```sh
 SDL_VIDEODRIVER=dummy TORIRSSERVER_VERBOSE=1 TORIRSSERVER_SAVES=$SCRATCH/saves \
 TORIRS_SIM_HOOK=... TORIRS_EXIT_BMP=build/summ_tab.bmp \
-  src/build/torirs --manifest manifest_osrs239_summoning.ini --user testc --pass test
+  src/build/torirs --manifest manifests/manifest_osrs239_summoning.ini --user testc --pass test
 ```
 (use a scratch `TORIRSSERVER_SAVES` — headless runs are not independent)
 
 | # | scenario | assertion |
 |---|---|---|
 | S1 | open the stats tab, flag **on** | `build/summ_tab.bmp` shows 25 cells; the row-9 cell at (64,209) is non-blank; pixel-diff vs a golden |
-| S2 | same, flag **off** (pristine `manifest_osrs239.ini`) | 24 cells, `[universe]` unchanged, no row 9 |
+| S2 | same, flag **off** (pristine `manifests/manifest_osrs239.ini`) | 24 cells, `[universe]` unchanged, no row 9 |
 | S3 | flag on, `content_restrict_summoning` = 1 | Summoning cell carries the two lock plates; `Total level:` string equals S2's |
 | S4 | `::setlevel summoning 50`, reopen tab | cell reads `50/50`; Total level = S2's + 49 |
 | S5 | right-click Summoning → "View Summoning guide" | interface 860 mounts; title reads `Summoning - Overview`; guide title icon is sprite 20002 |
@@ -1431,7 +1431,7 @@ Two structural notes:
 
 Recon proposed inventing a flag. Don't: the cache ships one.
 
-**Layer 1 — the bake (asset presence).** A ported record reaches the client cache only if `pack/<ns>.client` names it *or* the base cache already holds its id (`cp_pack.c:690-760`, the "substrate clause"). Every summoning record is new ⇒ every one needs a membership line. Therefore **`manifest_osrs239.ini`, which boots the pristine `cache.osrs239`, is the flag-off client for free.** No build-time script exclusion is needed, and none is legal (`.cursor/rules/no-park-sibling-content.mdc`, `alwaysApply: true`, forbids `.skip` parking).
+**Layer 1 — the bake (asset presence).** A ported record reaches the client cache only if `pack/<ns>.client` names it *or* the base cache already holds its id (`cp_pack.c:690-760`, the "substrate clause"). Every summoning record is new ⇒ every one needs a membership line. Therefore **`manifests/manifest_osrs239.ini`, which boots the pristine `cache.osrs239`, is the flag-off client for free.** No build-time script exclusion is needed, and none is legal (`.cursor/rules/no-park-sibling-content.mdc`, `alwaysApply: true`, forbids `.skip` parking).
 
 **Layer 2 — the server.** One constant:
 
@@ -1464,7 +1464,7 @@ Gate returns 1 ⇒ `script_393` draws the two 90%-transparent lock overlays on t
 
 **Cost:** `[namespace:varbit] ids = cache` must become `ids = server` (base 25000 is already in `content_register.c:171`; cache max is 20410). This is PORTING_GUIDE §2.4 item 4 — *"a namespace that cannot grow is a bug, not a constraint."* It is a register edit, not an engine one.
 
-**Asymmetry to respect (from rs-feature-flags, and correct):** a flag-*on* client against a flag-off server is benign. A flag-*off* client against a flag-on server is not — `IF_OPENSUB` on interface 969 which that cache has no group for is an unverified failure mode. **Rule: one embedded server per manifest; only `manifest_osrs239_summoning.ini` sets `^summoning_enabled = 1`.** Verify the missing-interface path (§Risks R2) before relying on anything else.
+**Asymmetry to respect (from rs-feature-flags, and correct):** a flag-*on* client against a flag-off server is benign. A flag-*off* client against a flag-on server is not — `IF_OPENSUB` on interface 969 which that cache has no group for is an unverified failure mode. **Rule: one embedded server per manifest; only `manifests/manifest_osrs239_summoning.ini` sets `^summoning_enabled = 1`.** Verify the missing-interface path (§Risks R2) before relying on anything else.
 
 ---
 
@@ -1862,7 +1862,7 @@ Same shape for a loc, plus `pack/loc.client`.
 - **C3** `configs/all.enum` — the six enum rows (§3). **No key gap in `enum_681`.**
 - **C4** `interfaces/stats.{if,compack}` 25th cell + `[universe]`/`[total]` geometry; `levelup.rs2` `[advancestat,summoning]`.
 - **C5** Skill guide: `^skill_guide_summoning = 25`, `if_setevents`, `[if_button2,stats:summoning]`, plus `dbrow`s in `skill_guide_subsections` (212) / `skill_features` (213) **and the hand-edited `dbindex/dbindex_21{2,3}.dbi`** — the one place with no regenerator. Client-side tables only; the server tables in §4 need none.
-- **C6** `make -C src torirsserver-cache`; boot `manifest_osrs230_embed.ini`; screenshot the stats tab headlessly. Summoning cell present, greyed.
+- **C6** `make -C src torirsserver-cache`; boot `manifests/manifest_osrs230_embed.ini`; screenshot the stats tab headlessly. Summoning cell present, greyed.
 
 ### Phase D — the feature gate
 
@@ -1969,7 +1969,7 @@ same-packet extended/update + mask-`0x1` transformed-16-bit replacement path. Th
 | Layer | Name | Kind | Where declared | What it does |
 |---|---|---|---|---|
 | **Build** | `SUMMONING=1` | make variable | `src/makefile` (new targets `torirsserver-cache-summoning`, `torirsserver-scripts-summoning`, `torirsserver-summoning`) | Selects whether the overlay bake and the second script pack are produced at all. **Default unset.** |
-| **Client boot** | `[cache:boot] dir=cache.osrs239.summoning` | existing manifest key | `manifest_osrs239_summoning.ini` (new file, copy of `manifest_osrs230_embed.ini` with one line changed) | Which cache the client loads. No new manifest schema, no `bootmanifest.c` change. |
+| **Client boot** | `[cache:boot] dir=cache.osrs239.summoning` | existing manifest key | `manifests/manifest_osrs239_summoning.ini` (new file, copy of `manifests/manifest_osrs230_embed.ini` with one line changed) | Which cache the client loads. No new manifest schema, no `bootmanifest.c` change. |
 | **Server boot** | `TORIRSSERVER_SCRIPTS=<tree>/server/scripts/build-summoning` | existing env var (`torirs_server_boot.c`) | set by the summoning manifest's launcher / the make run target | Which compiled script pack the server loads. No new env var. |
 | **Content compile** | `^summoning_enabled` | ServerScript constant | `ported_scape2009_summoning/server/scripts/configs/summoning.constant` | Every ported entry point opens `if (^summoning_enabled = 0) { return; }`. Defence in depth against a mis-staged build. |
 | **Content runtime** | `%summoning_enabled` | server varp, `transmit=no`, `scope=perm` | same folder, `summoning.varp` | Per-account kill switch and the hook a future Wolf-Whistle-style unlock hangs on. |
@@ -2078,7 +2078,7 @@ Two checks, both permanent:
 
 **Mitigation, and it is the whole answer:** the flag is *paired* — the summoning script pack and the summoning cache are produced by the same `SUMMONING=1` build and named by the same manifest. There is no supported configuration in which a summoning server faces a vanilla client. Enforce it:
 
-- `manifest_osrs239_summoning.ini` is the only manifest whose launcher sets `TORIRSSERVER_SCRIPTS=.../build-summoning`, and it is the only manifest pointing at `cache.osrs239.summoning`.
+- `manifests/manifest_osrs239_summoning.ini` is the only manifest whose launcher sets `TORIRSSERVER_SCRIPTS=.../build-summoning`, and it is the only manifest pointing at `cache.osrs239.summoning`.
 - `^summoning_enabled` is `0` in the base tree's copy of the constant and `1` only in the staged summoning script tree. A mis-staged build summons nothing rather than opening a missing interface.
 - Phase-0 must **verify the missing-interface behaviour empirically** (boot the pristine cache, `IF_OPENSUB` a nonexistent group id from a debugproc, watch for a hang). If it hangs, file it as a pre-existing client robustness bug and fix it independently — do not let Summoning own it.
 
@@ -2164,7 +2164,7 @@ cachepack verify --cache cache.osrs239.summoning --rev osrs239 \
 # --- headless in-client proof (per slice, left permanent)
 TORIRSSERVER_SAVES=$(mktemp -d) SDL_VIDEODRIVER=dummy TORIRSSERVER_VERBOSE=1 \
 TORIRS_SIM_HOOK=... TORIRS_EXIT_BMP=build/summoning_slice1.bmp \
-  src/build/torirs --manifest manifest_osrs239_summoning.ini --user testc --pass test
+  src/build/torirs --manifest manifests/manifest_osrs239_summoning.ini --user testc --pass test
 
 # --- triage when a panel is blank (in this order)
 TORIRS_DUMP_TREE_EXIT=1 ; TORIRS_DUMP_BOUNDS=<group> ; TORIRS_DUMP_SETSIZE=1
@@ -2177,7 +2177,7 @@ Memory-debugging on this machine is `MallocScribble`, **not ASAN** (`ENABLE_ASAN
 | Phase | Acceptance |
 |---|---|
 | **0 Prerequisites** | `rev_dat2_rs530.c` exists and decodes rev-530 npc/obj/seq/model/framemap with a full exact-consumption sweep, not a spot check. The framemap V3→V1 transcode bug in `tools/common/cache_write.c:545-580` is fixed with a test that fails on the old code. `stage_summoning_overlay.py` produces a cache where `cmp` against the pass-1 bake differs only in the archives the overlay states. Docs amended. `check_summoning_isolation.py --check` green. Missing-interface behaviour empirically characterised. |
-| **1 Vertical slice** | With `manifest_osrs239_summoning.ini`: log in → Summoning shows in the skill tab at level 1 → `::setlevel summoning 20` raises it → use the pouch → one familiar spawns, follows across a region boundary, survives a logout/login, dismisses on click and on timer expiry. Proved by BMP screenshots at four points and a `::summontest` debugproc. `make -C src test-content` and `ToriRSServer_Pack --check-only` green **on the flag-off tree**. Flag-off bake digest unchanged. |
+| **1 Vertical slice** | With `manifests/manifest_osrs239_summoning.ini`: log in → Summoning shows in the skill tab at level 1 → `::setlevel summoning 20` raises it → use the pouch → one familiar spawns, follows across a region boundary, survives a logout/login, dismisses on click and on timer expiry. Proved by BMP screenshots at four points and a `::summontest` debugproc. `make -C src test-content` and `ToriRSServer_Pack --check-only` green **on the flag-off tree**. Flag-off bake digest unchanged. |
 | **2 Skill surfaces** | Skill guide opens on Summoning and lists real rows from a new dbtable (with the `dbindex_21{2,3}.dbi` hand-edit verified by an actual `db_find` hit, not by inspection). Points orb renders and drains. Obelisk loc gives Renew-points. Infusion UI produces a pouch from ingredients with correct xp. |
 | **3 Breadth** | N familiars summonable, each with its own model/anims/sounds; scroll specials fire; every rev-530 definition id has a recorded osrs239 cache/config mapping. No acceptance criterion is derived from the direct initial-definition width. |
 | **4 Beast of Burden** | `fields/inv.ini` + `[namespace:inv]` landed (this unblocks `shop` too — bank the credit). BoB container opens, stores, withdraws, spills on death, **survives logout** (the `clear()` vs `dismiss()` asymmetry). |

@@ -15,7 +15,7 @@ SDL_VIDEODRIVER=dummy TORIRSSERVER_ALLOW_STALE_SCRIPTS=1 TORIRSSERVER_SAVES=<scr
 TORIRS_SIM_CMD="200,tob <room>;280,tobgo" TORIRS_MAX_FRAMES=430 \
 TORIRS_PAINTER_ALT=1 TORIRS_BMP_SERIES=<dir>,420,1,1 \
 TORIRS_WEDGE_CAM=<x,y,z,pitch,yaw> \
-./src/torirs --manifest manifest_osrs239_torirs.ini --user probe1 --pass test
+./src/torirs --manifest manifests/manifest_osrs239_torirs.ini --user probe1 --pass test
 ```
 
 `TORIRS_PAINTER_ALT=1` makes `TORIRS_BMP_SERIES` also write

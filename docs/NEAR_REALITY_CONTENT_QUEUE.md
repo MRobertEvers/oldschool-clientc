@@ -254,7 +254,7 @@ Status: `pending` | `in_progress` | `done` | `blocked` | `deferred`.
 | A6b | Treasure Trails — **STASH units** | — | 260 | **done** | 44 hidey locs categorised and paired by a generator; the wiki's Construction build table; per-tier storage (stated deviation from per-unit). |
 | A6c | Treasure Trails — **the Mimic fight, Watson, Patchy, Sherlock, scroll boxes** | 1100 | — | **partial** | **Watson's hand-in gate** is in and tested (`trail_watson.rs2`, 10-step): the four-tier bitpack and its consume-on-completion. The Mimic fight, Patchy, Sherlock and the scroll boxes remain. |
 | A7a | Achievement Diaries — **the task registry** | — | 492 rows | **done** | 492 tasks generated from twelve pinned wiki pages. Cross-checks the authored per-tier totals on all 48 pairs — and caught two diaries' ids swapped. |
-| A7b | Achievement Diaries — **the ~492 task hooks** | 3883 | — | pending | Each task's completion CONDITION. The wiki states them as prose and the cache states them nowhere, so every one is hand-written against the content it watches. The claim seam (A3b) is what the interaction-based ones will use. |
+| A7b | Achievement Diaries — **the 492 task hooks** | 3883 | — | **partial (seam fixed and wired)** | The claim seam was **not idempotent**. Per-task bits, 48 mask carriers and an idempotent `~diary_task_award` are in and tested (`diary_claim.rs2` 8-step, `diary_award.rs2` 7-step); the one existing caller is migrated and its hand-rolled flag retired. The 492 conditions remain. |
 | A8 | **Grand Exchange** | 1882 | — | **partial** | The **matching engine** is in and tested (`ge_matching.rs2`, 11-step): seller-price execution, buyer refund, priority order, tie-break, self-match refusal. The offer slots, the interface and the price index remain. |
 | A9 | **Dwarf Multicannon** | 963 | 310 | **done** | Cache ships the whole build chain (4 stage locs + the finished cannon's own 4 ops). Rotation IS the fire clock, per the wiki. |
 | A10 | **Tears of Guthix** | 827 | 290 | **done** | Replaces the quest tree's placeholder. Cache ships the cave, the nine walls, the stream forms and the side panel; the walls are discovered with `loc_findallzone` rather than listed. |
@@ -4374,6 +4374,67 @@ with and without, and what was explicitly deferred with its reason.
   them. Rather than ship a formula that fits the counts and not the data, the
   rule is recorded as open. Settling it needs the clientscript that opens these
   interfaces, or a wiki cross-reference of which picture belongs to which clue.
+
+- 2026-08-20 — **A7b — the seam under the 492 hooks was broken, which is the thing to fix first.**
+  This row is 492 hand-written completion conditions, and I did not write them.
+  What I did instead is worth more than a few dozen of them would have been.
+
+  The registry is generated and the panel reads it: 492 tasks over 12 areas and
+  4 tiers, 48 (area, tier) pairs, the largest tier holding 19 (Karamja medium).
+  The claim seam is `~diary_task_complete($area, $tier)` and it does exactly one
+  thing:
+
+      if ($tier = ^diary_tier_easy) %karamja_easy_count = calc(%karamja_easy_count + 1);
+
+  **It counts. It never learns WHICH task.** There is no per-task bit anywhere
+  in the lane — I checked every varp and config in it. So the same task claimed
+  twice credits the diary twice, and a repeatable task completes a tier on its
+  own: "Cook a spider on a stick", "Catch a karambwan", "Mine a red topaz from
+  a gem rock" are all in the Karamja medium tier, and any one of them repeated
+  19 times would finish it.
+
+  Nothing has gone wrong yet because **exactly one content hook calls the seam**
+  (Wintertodt). Writing the other 491 against it is what would make it go wrong
+  491 times — each new hook is a new way to inflate a diary, and the failure is
+  silent and per-account. So the seam had to be fixed before the hooks, not
+  after.
+
+  Per-task bits are now in: `~diary_task_bit` (1-based, doubling — no shift
+  operator in this dialect), `~diary_task_done`, `~diary_task_claim` and
+  `~diary_task_is_new`, the last being the guard the counter increment needs
+  and cannot currently apply. 19 bits is the widest tier, so one int per
+  (area, tier) pair carries every task. Verified by mutation: making the claim
+  additive rather than a bit-set fails at 3 of 8.
+
+  **Still to do:** the 492 conditions themselves, and rewiring
+  `~diary_task_complete` to take a task number and consult
+  `~diary_task_is_new`. The second is small and the first is the row's real
+  bulk; both are now safe to write, which they were not this morning.
+
+- 2026-08-20 — **A7b, second pass: the seam is now wired, not just designed.**
+  The previous entry added per-task bits but left `~diary_task_complete` still
+  counting, so nothing used them. That gap is closed:
+    * **48 mask carriers declared** — one varp per (area, tier), server-only
+      with `transmit=no`, because the client's Character Summary reads the
+      COUNT varbits and needs nothing from these. Nineteen bits is the widest
+      tier, so no packing is required and one varp per pair is honest storage
+      rather than a bit-fiddling scheme somebody has to decode later.
+    * **`~diary_task_award($area, $tier, $task)`** is the entry point new hooks
+      should use. It refuses a second claim and returns false, crediting the
+      tier only on the first. The old counting proc is left untouched so
+      nothing that works today stops working.
+    * **The one existing caller is migrated.** Wintertodt's hook carried its
+      own `%wint_diary_done` flag — the hand-rolled idempotence every hook
+      needed under the old seam. It now calls `~diary_task_award` and the flag
+      is gone from the script. That is the pattern the remaining 491 follow,
+      and it is worth having proved once rather than described.
+    * Task numbers get named constants (`^diary_task_kourend_med_wintertodt`)
+      rather than bare integers, so a hook reads as the task it credits and a
+      registry renumber breaks the build instead of silently crediting a
+      different task.
+  Verified by mutation: crediting unconditionally fails at 1 of 7, and the
+  stanza also pins that masks are per (area, tier) — a shared mask would
+  complete tasks in tiers the player never entered.
 
 ## 7. Open questions to settle before Wave E
 

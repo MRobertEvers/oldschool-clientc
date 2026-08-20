@@ -3,7 +3,7 @@
 #include "datatypes/dat2_config_sequence.h"
 
 /*
- * OSRS revision 239 (`cache.osrs239`, manifest_osrs239.ini).
+ * OSRS revision 239 (`cache.osrs239`, manifests/manifest_osrs239.ini).
  *
  * Past every gate from 231..238, plus:
  *   - obj opcode 160 stackable = 2

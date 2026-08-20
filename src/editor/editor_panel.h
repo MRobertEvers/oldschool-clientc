@@ -121,6 +121,21 @@ enum Editor_SelectionKind
 
 struct Editor_Panel
 {
+    /**
+     * The editor session, for publishing shared state (selection, tool) to
+     * this connection's Client. Borrowed from the App, which owns both; NULL
+     * in a panel that has no session yet, where publishing is a no-op.
+     *
+     * The panel PUBLISHES on its own latching and APPLIES on the server's
+     * echo (Editor_PanelApplySharedState) — the same rule mirrors follow
+     * for the document, which is what lets a controller connection with no
+     * world follow a viewer connection's clicks.
+     */
+    struct Editor* editor;
+    /** Set while applying a received state fact, so the apply path's own
+     *  latching does not re-publish what the server just said. */
+    int applying_shared_state;
+
     /** Chrome scale the panels were last placed for. A display change moves
      *  them; see Editor_PanelPlaceForScale. */
     int placed_scale;
@@ -416,6 +431,7 @@ Editor_PanelApplyToolAt(
 void
 Editor_PanelSelectTerrain(
     struct Editor_Panel* panel,
+    struct App* app,
     int scene_x,
     int scene_z,
     int level);
@@ -563,7 +579,24 @@ Editor_PanelDeleteLocByElement(
 /** Clear the SELECT tool's latch without touching the world. */
 void
 Editor_PanelClearSelection(
-    struct Editor_Panel* panel);
+    struct Editor_Panel* panel,
+    struct App* app);
+
+/**
+ * Apply a shared-state fact from this connection's Client — the receiving
+ * half of the selection relay. The publishing half is the latch functions
+ * above, which announce what they latched; this is what a fact from ANY of
+ * the Client's connections (this one's own echo included — applying it is
+ * idempotent) does to the panel. Unknown keys are ignored: the key space is
+ * open, and a panel build that predates a key must not break the session.
+ */
+void
+Editor_PanelApplySharedState(
+    struct Editor_Panel* panel,
+    struct App* app,
+    uint32_t key,
+    const int32_t* values,
+    int count);
 
 int
 Editor_PanelRecordLocEdit(

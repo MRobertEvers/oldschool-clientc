@@ -27,17 +27,6 @@ struct local_host
     char lock_path[1100];
 };
 
-void
-Editor_HostBlobFree(struct EditorHost_Blob* blob)
-{
-    if( !blob )
-        return;
-
-    free(blob->data);
-    blob->data = NULL;
-    blob->size = 0;
-}
-
 static void
 square_path(
     const struct local_host* host,
@@ -450,16 +439,4 @@ Editor_HostOpenLocal(
     host->vtable = &local_vtable;
     host->user_data = local;
     return 1;
-}
-
-void
-Editor_HostClose(struct EditorHost* host)
-{
-    if( !host )
-        return;
-
-    if( host->vtable && host->vtable->free_ )
-        host->vtable->free_(host->user_data);
-    host->vtable = NULL;
-    host->user_data = NULL;
 }

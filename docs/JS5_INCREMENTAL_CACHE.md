@@ -76,7 +76,7 @@ created empty target directory:
 
 ```powershell
 src\build\js5_server --cache cache.osrs239 --revision 239 --port 43594
-src\torirs C:\temp\cache.osrs239.sparse --manifest manifest_osrs239.ini `
+src\torirs C:\temp\cache.osrs239.sparse --manifest manifests/manifest_osrs239.ini `
   --offline --js5 --js5-host 127.0.0.1 --js5-port 43594 `
   --js5-fallback-port 0
 ```

@@ -273,7 +273,26 @@ mirror_on_cmd(
 {
     struct Editor* editor = user_data;
 
-    (void)seq;
+    /*
+     * The authority stamps every document fact with a monotonic seq, and a
+     * mirror that skips one has silently diverged from the world everyone
+     * else is editing. It cannot repair itself — the missing command is gone
+     * — so it says so loudly rather than drawing a document nobody agrees
+     * with; re-opening the affected squares re-syncs from the authority.
+     *
+     * Broadcasts share the counter with state facts, so a gap here is normal
+     * whenever this Client also moved its selection. Only a BACKWARDS or
+     * repeated seq is a true fault.
+     */
+    if( editor->last_cmd_seq != 0 && seq <= editor->last_cmd_seq )
+        fprintf(
+            stderr,
+            "editor: maped command seq went backwards (%u after %u) — this mirror "
+            "may have diverged; re-open the square to re-sync\n",
+            seq,
+            editor->last_cmd_seq);
+    editor->last_cmd_seq = seq;
+
     /* A command against a square this mirror never opened applies to
      * nothing, and that is correct: this client is not showing it, and the
      * authority's copy is what a save writes. */

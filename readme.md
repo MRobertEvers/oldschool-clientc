@@ -64,20 +64,20 @@ reference-table index—is what makes every other table reachable at all.
 
 ### Booting a packed cache
 
-[`manifest_osrs239_packed.ini`](manifest_osrs239_packed.ini) is
-`manifest_osrs239.ini` with `dir=cache.osrs239_packed`, so the client boots the
+[`manifests/manifest_osrs239_packed.ini`](manifests/manifest_osrs239_packed.ini) is
+`manifests/manifest_osrs239.ini` with `dir=cache.osrs239_packed`, so the client boots the
 cache built from content rather than the pristine dump:
 
 ```sh
-src/torirs --manifest manifest_osrs239_packed.ini --offline
+src/torirs --manifest manifests/manifest_osrs239_packed.ini --offline
 ```
 
 On Windows, build either repository-owned lane with the wrapper described
 above, then run its staged artifact:
 
 ```powershell
-.\dist\win64\torirs.exe --manifest .\manifest_osrs239_packed.ini
-.\dist\win32\torirs.exe --manifest .\manifest_osrs239_packed.ini
+.\dist\win64\torirs.exe --manifest .\manifests/manifest_osrs239_packed.ini
+.\dist\win32\torirs.exe --manifest .\manifests/manifest_osrs239_packed.ini
 ```
 
 Two things a from-scratch cache needs that a `--base` bake inherits for free,
@@ -94,7 +94,7 @@ complete:
 
 ```
 TORIRS_MAX_FRAMES=150 TORIRS_EXIT_BMP=frame.bmp TORIRS_WORLD_MAP=50,50 \
-    src/torirs --manifest manifest_osrs239_packed.ini --offline
+    src/torirs --manifest manifests/manifest_osrs239_packed.ini --offline
 ```
 
 ## Display scaling (DPI)
@@ -107,14 +107,21 @@ than any one of them being wrong.
 
 | Knob | Where | Values | What it decides |
 | --- | --- | --- | --- |
-| `hidpi` | `[ui:boot]`, env `TORIRS_HIDPI` | `0`/`1` (default off) | Whether the GL/render drawable is device **pixels** or window **points** |
+| `hidpi` | `[ui:boot]`, env `TORIRS_HIDPI` | `0`/`1` (default **on**, off on web) | Whether the GL/render drawable is device **pixels** or window **points** |
 | `chrome_scale` | `[ui:boot]`, env `TORIRS_CHROME_SCALE` | `1..4`, `dynamic`, unset | Device pixels per ToriRSChrome pixel |
 | `windowmode` | `[ui:boot]`, `--windowmode` | `fixed`/`resizable` | Whether the canvas tracks the window at all |
 | Interface scaling | device option 27, in-client | percent | Canvas divided down so the IF3 layer draws larger |
 
-Precedence for the first two is env, then manifest, then the display. `hidpi`
-is read once, before the window exists: `SDL_WINDOW_ALLOW_HIGHDPI` is a
+Precedence for the first two is env, then manifest, then the platform default.
+`hidpi` is read once, before the window exists: `SDL_WINDOW_ALLOW_HIGHDPI` is a
 creation flag and SDL cannot add it to a live window.
+
+Nothing has to declare `hidpi`. It is on unless a boot declines it, because on
+a 1x display the flag is a no-op and on a 2x display the alternative is not
+fewer pixels but a magnified frame. The key exists to say **no** — for a
+renderer that cannot afford 4x the pixels — not to ask. The web lane inverts
+that and defaults off: there the density is `devicePixelRatio`, 3 on a phone
+rather than 2 on a desk, against a software rasteriser in wasm.
 
 ### The two layers
 
@@ -164,7 +171,7 @@ shown, so a value taken at creation reports 1 on a Retina display.
 
 | Symptom | Cause |
 | --- | --- |
-| Whole frame soft/blocky, world included | `hidpi` off on a 2x display — the window server is magnifying the finished frame. Nothing drawn can fix it |
+| Whole frame soft/blocky, world included | `hidpi` declined on a 2x display — the window server is magnifying the finished frame. Nothing drawn can fix it |
 | Frame in the top-left quarter, rest black | A present path sizing its destination in points against a pixel target |
 | Panels grow just from enabling `hidpi` | A dynamic ladder reading the raw canvas — density counted twice |
 | Chrome correct, game UI half-size | `hidpi` on. Expected: the IF3 layer has no scale to follow |
@@ -928,7 +935,7 @@ The whole thing reproduces headlessly, no human at the mouse:
 TORIRS_MAX_FRAMES=600 TORIRS_EXIT_BMP=out.bmp TORIRS_NET_CHEAT=zuk \
 TORIRS_SIM_CLICK_AT="560,120,140" TORIRS_WORLD_PICK_DEBUG=1 \
 TORIRS_NET_DEBUG=1 TORIRSSERVER_VERBOSE=1 \
-    src/torirs --manifest manifest_osrs239.ini --user testc --pass test
+    src/torirs --manifest manifests/manifest_osrs239.ini --user testc --pass test
 ```
 
 (`dist\win64\torirs.exe` on Windows; add `--soft3d` to exercise the software
@@ -1005,8 +1012,8 @@ if the port is idle, boot the client headless, sample it, render the SVG, and
 print the main-thread breakdown:
 
 ```
-./profile-mac.sh                              # manifest_osrs230.ini, 25s sample
-./profile-mac.sh manifest_rs254.ini 40        # another manifest, 40s
+./profile-mac.sh                              # manifests/manifest_osrs230.ini, 25s sample
+./profile-mac.sh manifests/manifest_rs254.ini 40        # another manifest, 40s
 TORIRS_PROFILE_WINDOWED=1 ./profile-mac.sh    # real window instead of SDL dummy
 TORIRS_PROFILE_ATTACH=$(pgrep -f src/torirs) ./profile-mac.sh   # client already running
 OUT=before ./profile-mac.sh                   # names the outputs before.svg/.folded
@@ -1016,7 +1023,7 @@ It finds FlameGraph under `~/Documents/git_repos/FlameGraph`,
 `~/git_repos/FlameGraph`, `../FlameGraph` or `$FLAMEGRAPH_DIR`. By hand it is:
 
 ```
-./run-live.sh manifest_osrs230.ini &          # or a headless run, see below
+./run-live.sh manifests/manifest_osrs230.ini &          # or a headless run, see below
 sample $(pgrep -f 'src/torirs') 20 1 -f out.sample
 awk -f ~/git_repos/FlameGraph/stackcollapse-sample.awk out.sample > out.folded
 ~/git_repos/FlameGraph/flamegraph.pl out.folded > flamegraph.svg
@@ -1028,7 +1035,7 @@ regressions until frames blow past 20 ms):
 
 ```
 time SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=1000 \
-    src/torirs --manifest manifest_osrs230.ini --user asdf --pass a
+    src/torirs --manifest manifests/manifest_osrs230.ini --user asdf --pass a
 ```
 
 Note the main thread is only half the samples — the other ~50% is AppKit's event
@@ -1038,12 +1045,12 @@ thread parked in `mach_msg2_trap`. Filter to the main thread
 ## UITree performance — what pegged the CPU on rev230
 
 > **2026-08-03 update:** for live frame-budget work see
-> [`docs/PERF_HARNESS.md`](docs/PERF_HARNESS.md). On `manifest_osrs230_embed.ini`
+> [`docs/PERF_HARNESS.md`](docs/PERF_HARNESS.md). On `manifests/manifest_osrs230_embed.ini`
 > with `-O0` + `TORIDRAW_OPT=1`, idle/ui frame p95 is ~8 ms (50 fps gate is
 > 20 ms). Soft3D remains the dominant stage; the numbers below are the
 > historical UITree-only story.
 
-`./run-live.sh manifest_osrs230.ini` used to sit at 100% CPU: 33 s of CPU per
+`./run-live.sh manifests/manifest_osrs230.ini` used to sit at 100% CPU: 33 s of CPU per
 1000 frames (~33 ms/frame) against a 20 ms budget, in the default `-O0` build.
 Almost none of it was the renderer. Three things compounded, all of them widget
 bookkeeping:
@@ -1120,7 +1127,7 @@ sync and the var-transmit scripts are 0.0%, `app_logic_tick` as a whole is 0.3%,
 and **84% is inside `ToriDraw`** — the software renderer, which is where it
 belongs. `flamegraph_osrs230_before.svg` and `flamegraph_osrs230_after.svg` in
 the repo root are those two profiles. Re-measure with `./tools/perf/run_perf.sh`
-/ `./profile-mac.sh manifest_osrs230_embed.ini` before citing these percentages —
+/ `./profile-mac.sh manifests/manifest_osrs230_embed.ini` before citing these percentages —
 they are from an older tree; live numbers live in `docs/PERF_HARNESS.md`.
 
 ### The rebuild burst — node size and the by-sub-id scan
@@ -1339,15 +1346,15 @@ new Int8Array([19, 0, 79, 0, -6, 1, -12, 20, 0, 5, 8, -120, 8, -119, 8, 25, 8, 2
 On linux
 
 ```
-valgrind --leak-check=full src/torirs --manifest manifest_osrs230.ini --offline
+valgrind --leak-check=full src/torirs --manifest manifests/manifest_osrs230.ini --offline
 
 # Callgrind must be built without ASan
-valgrind --tool=callgrind src/torirs --manifest manifest_osrs230.ini --offline > log.txt 2>&1
+valgrind --tool=callgrind src/torirs --manifest manifests/manifest_osrs230.ini --offline > log.txt 2>&1
 callgrind_annotate $(ls callgrind.out.* | sort -V | tail -n 1) | less
 kcachegrind $(ls callgrind.out.* | sort -V | tail -n 1) | less
 
 valgrind --tool=massif --threshold=0.1 --massif-out-file=massif.out \
-  src/torirs --manifest manifest_osrs230.ini --offline
+  src/torirs --manifest manifests/manifest_osrs230.ini --offline
 ms_print massif.out > log_mem.txt
 massif-visualizer massif.out
 ```
@@ -1509,7 +1516,7 @@ dat2 model task adapts a _copy_ — drop the field and everything silently
 un-scales again.
 
 Full write-ups: `3rd/rscache/EXCEPTIONS.md` B12 (scale) and B18 "The SD gate"
-(materials); `manifest_rs643.ini` carries the status and the debug tooling
+(materials); `manifests/manifest_rs643.ini` carries the status and the debug tooling
 (`test_rs2_sweep <root> loc|model|spawns|materials`).
 
 ## Server

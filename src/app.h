@@ -157,6 +157,16 @@ struct AppConfig
     char const* editor_server_host;
     int editor_server_port;
     /**
+     * [editor:boot] client — the ToriRSMapEd Client (session group) to join,
+     * or 0 to be granted a fresh one.
+     *
+     * A Client is a group of connections sharing selection and tool state, so
+     * this is how a second PROCESS joins a session already running: read the
+     * id the first one printed at boot and state it here. server=tcp only —
+     * an embedded server has no other process to share with.
+     */
+    int editor_client_id;
+    /**
      * enum BootManifestEditorPanel: where the command panel is drawn.
      *
      * 0 (inprocess) is the default a zeroed config gets, which is the binding
@@ -306,7 +316,8 @@ struct AppConfig
      *  TORIRS_CHROME_SCALE outranks both. */
     int chrome_scale;
     /** `[ui:boot] hidpi` — 1 renders into a device-pixel drawable, -1 declines
-     *  it, 0 is unset (declines). TORIRS_HIDPI outranks all three. */
+     *  it, 0 is unset and leaves the platform default standing (on, except on
+     *  the web lane). TORIRS_HIDPI outranks all three. */
     int hidpi;
     /** `[ui:boot] window` — initial canvas AND window size, 0 = unset (the
      * 765x503 fixed frame). Only meaningful in resizable mode, where it is the

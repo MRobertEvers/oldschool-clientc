@@ -51,7 +51,7 @@ checking lives (below).
 ## io_server
 
 ```sh
-./src/build/io_server --manifest manifest_osrs239.ini    # http://localhost:8088/
+./src/build/io_server --manifest manifests/manifest_osrs239.ini    # http://localhost:8088/
 ./src/build/io_server --root build-web --boot-root . --port 8099
 ```
 
@@ -194,14 +194,14 @@ make -C src web-idb          # module + both servers
 ```
 
 ```
-http://localhost:8099/index.html?arg=--manifest&arg=manifest_osrs239.ini&arg=--offline
+http://localhost:8099/index.html?arg=--manifest&arg=manifests/manifest_osrs239.ini&arg=--offline
 ```
 
 The wire lane is one command, since it needs no cache server:
 
 ```sh
 make -C src web
-./src/build/io_server --manifest manifest_osrs239.ini    # http://localhost:8088/
+./src/build/io_server --manifest manifests/manifest_osrs239.ini    # http://localhost:8088/
 ```
 
 `run-live.sh web <manifest> …` drives the wire lane end to end, starting

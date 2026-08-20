@@ -23,6 +23,9 @@
 
 #include "torirs_maped.h"
 
+#include "platform/net_transport_ws_frame.h"
+#include "platform/net_transport_ws_handshake.h"
+
 #include <arpa/inet.h>
 #include <errno.h>
 #include <fcntl.h>
@@ -35,10 +38,179 @@
 #include <sys/socket.h>
 #include <unistd.h>
 
+/** Outbound backlog one connection may accumulate before the daemon gives
+ *  up on it. Generous — a square's text is ~200KB — because the point is to
+ *  catch a peer that has STOPPED reading, not one that is merely slow. */
+#define MAPED_SEND_QUEUE_MAX (8 * 1024 * 1024)
+
+/*
+ * How this connection carries the protocol.
+ *
+ * A browser cannot open a TCP socket, so a wasm client's connect() arrives as
+ * an HTTP upgrade and every byte after it is RFC 6455 framed — a daemon that
+ * only speaks raw TCP is simply unreachable from a page. Both are served on
+ * the one port, chosen by the first byte, the same way js5_server and the
+ * game server do it: a raw client sends its opening bytes and waits, so
+ * peeking further than one byte would deadlock.
+ */
+enum conn_mode
+{
+    /** Nothing read yet; the first byte decides. */
+    CONN_MODE_UNDECIDED = 0,
+    CONN_MODE_RAW,
+    /** An upgrade request is arriving. */
+    CONN_MODE_WS_HANDSHAKE,
+    CONN_MODE_WS,
+};
+
 struct fd_ctx
 {
     int fd;
+    /** Queued outbound socket bytes — already framed when this is a
+     *  WebSocket, so the flush path never has to know the mode. */
+    struct ToriRSMapEdBuf out;
+    /** Socket bytes not yet turned into protocol bytes: the upgrade request
+     *  while handshaking, undecoded frames afterwards. */
+    struct ToriRSMapEdBuf raw_in;
+    /** Protocol bytes ready for the session — frame payloads, concatenated.
+     *  On a raw connection this is just what arrived. */
+    struct ToriRSMapEdBuf plain_in;
+    enum conn_mode mode;
+    int dead;
 };
+
+/** Move everything waiting on a raw connection straight through. */
+static void
+promote_raw(struct fd_ctx* c)
+{
+    int pending = ToriRSMapEd_BufAvailable(&c->raw_in);
+
+    if( pending <= 0 )
+        return;
+    ToriRSMapEd_BufWrite(&c->plain_in, ToriRSMapEd_BufPeek(&c->raw_in), pending);
+    ToriRSMapEd_BufConsume(&c->raw_in, pending);
+}
+
+/**
+ * Turn buffered WebSocket frames into protocol bytes.
+ *
+ * Control frames are answered here rather than passed up: the session speaks
+ * ToriRSMapEd frames and knows nothing about RFC 6455, which is the whole
+ * point of putting the mode in the transport.
+ */
+static void
+promote_ws(struct fd_ctx* c)
+{
+    for( ;; )
+    {
+        struct WsFrame frame;
+        int consumed = 0;
+        enum WsDecodeStatus status;
+        int pending = ToriRSMapEd_BufAvailable(&c->raw_in);
+
+        if( pending <= 0 )
+            return;
+
+        /* Decoding unmasks in place, so it needs the buffer's own storage
+         * rather than a const view of it. */
+        status = ws_frame_decode(
+            c->raw_in.data + c->raw_in.head, pending, &frame, &consumed);
+        if( status == WS_DECODE_INCOMPLETE )
+            return;
+        if( status == WS_DECODE_ERROR )
+        {
+            fprintf(stderr, "torirsmaped: malformed WebSocket frame — closing\n");
+            c->dead = 1;
+            return;
+        }
+
+        switch( frame.opcode )
+        {
+        case WS_OP_BINARY:
+        case WS_OP_TEXT:
+        case WS_OP_CONT:
+            if( frame.payload_len > 0 )
+                ToriRSMapEd_BufWrite(&c->plain_in, frame.payload, frame.payload_len);
+            break;
+        case WS_OP_PING:
+        {
+            /* A pong carries the ping's payload back, unmasked (RFC 6455
+             * §5.1: a server never masks). */
+            uint8_t pong[128 + 14];
+            int framed = ws_frame_encode(
+                WS_OP_PONG,
+                frame.payload,
+                frame.payload_len > 125 ? 125 : frame.payload_len,
+                NULL,
+                pong,
+                (int)sizeof(pong));
+            if( framed > 0 )
+                ToriRSMapEd_BufWrite(&c->out, pong, framed);
+            break;
+        }
+        case WS_OP_CLOSE:
+            c->dead = 1;
+            ToriRSMapEd_BufConsume(&c->raw_in, consumed);
+            return;
+        default:
+            break;
+        }
+        ToriRSMapEd_BufConsume(&c->raw_in, consumed);
+    }
+}
+
+/** Decide the mode, complete an upgrade if that is what this is, and leave
+ *  whatever protocol bytes resulted in `plain_in`. */
+static void
+promote_inbound(struct fd_ctx* c)
+{
+    if( c->mode == CONN_MODE_UNDECIDED )
+    {
+        if( ToriRSMapEd_BufAvailable(&c->raw_in) < 1 )
+            return;
+        c->mode = WsHandshake_LooksLikeHttp(ToriRSMapEd_BufPeek(&c->raw_in)[0])
+                      ? CONN_MODE_WS_HANDSHAKE
+                      : CONN_MODE_RAW;
+    }
+
+    if( c->mode == CONN_MODE_WS_HANDSHAKE )
+    {
+        struct WsHandshake handshake;
+        enum WsHandshakeStatus status = WsHandshake_Consume(
+            ToriRSMapEd_BufPeek(&c->raw_in),
+            ToriRSMapEd_BufAvailable(&c->raw_in),
+            &handshake);
+
+        if( status == WS_HANDSHAKE_INCOMPLETE )
+        {
+            if( ToriRSMapEd_BufAvailable(&c->raw_in) > WS_HANDSHAKE_REQUEST_MAX )
+            {
+                fprintf(stderr, "torirsmaped: oversized upgrade request — closing\n");
+                c->dead = 1;
+            }
+            return;
+        }
+        if( status == WS_HANDSHAKE_ERROR )
+        {
+            fprintf(stderr, "torirsmaped: bad WebSocket upgrade — closing\n");
+            c->dead = 1;
+            return;
+        }
+
+        /* The 101 goes out UNFRAMED, which is why it is queued here rather
+         * than through fd_send — by the next line this connection is framed. */
+        ToriRSMapEd_BufWrite(
+            &c->out, (const uint8_t*)handshake.response, handshake.response_len);
+        ToriRSMapEd_BufConsume(&c->raw_in, handshake.consumed);
+        c->mode = CONN_MODE_WS;
+        fprintf(stderr, "torirsmaped: client upgraded to WebSocket\n");
+    }
+
+    if( c->mode == CONN_MODE_RAW )
+        promote_raw(c);
+    else if( c->mode == CONN_MODE_WS )
+        promote_ws(c);
+}
 
 static int
 fd_recv(
@@ -47,15 +219,60 @@ fd_recv(
     int max)
 {
     struct fd_ctx* c = ctx;
-    ssize_t taken = recv(c->fd, dst, (size_t)max, 0);
+    uint8_t chunk[16384];
+    ssize_t taken;
 
+    if( c->dead )
+        return -1;
+
+    taken = recv(c->fd, chunk, sizeof(chunk), 0);
     if( taken > 0 )
-        return (int)taken;
-    if( taken == 0 )
-        return -1; /* orderly close */
-    if( errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR )
+    {
+        ToriRSMapEd_BufWrite(&c->raw_in, chunk, (int)taken);
+        promote_inbound(c);
+    }
+    else if( taken == 0 )
+        c->dead = 1; /* orderly close */
+    else if( !(errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) )
+        c->dead = 1;
+
+    /* Drain what the modes produced before reporting the peer gone: a client
+     * may send its last request and hang up in one breath. */
+    if( ToriRSMapEd_BufAvailable(&c->plain_in) > 0 )
+        return ToriRSMapEd_BufRead(&c->plain_in, dst, max);
+    return c->dead ? -1 : 0;
+}
+
+/**
+ * Push whatever is queued for this connection, as far as the socket will
+ * take it right now. Returns 0 once the peer is gone.
+ *
+ * Never waits: this is a multi-connection reactor, and a connection that
+ * blocked here would stop the server serving everyone else — including the
+ * broadcasts that made it block, since a document fact goes to every session
+ * from inside one session's pump.
+ */
+static int
+fd_flush(struct fd_ctx* c)
+{
+    while( ToriRSMapEd_BufAvailable(&c->out) > 0 )
+    {
+        int pending = ToriRSMapEd_BufAvailable(&c->out);
+        ssize_t sent = send(c->fd, ToriRSMapEd_BufPeek(&c->out), (size_t)pending, 0);
+
+        if( sent > 0 )
+        {
+            ToriRSMapEd_BufConsume(&c->out, (int)sent);
+            continue;
+        }
+        if( sent < 0 && (errno == EAGAIN || errno == EWOULDBLOCK) )
+            return 1; /* the socket is full; the reactor will come back */
+        if( sent < 0 && errno == EINTR )
+            continue;
+        c->dead = 1;
         return 0;
-    return -1;
+    }
+    return 1;
 }
 
 static int
@@ -65,29 +282,48 @@ fd_send(
     int len)
 {
     struct fd_ctx* c = ctx;
-    int sent_total = 0;
 
-    /* The fd is non-blocking for recv's sake, so a large fact (a square's
-     * text, a whole square list) can short-write. The daemon has nothing
-     * else to do with the time, so looping here is the whole of the
-     * back-pressure story. */
-    while( sent_total < len )
+    if( c->dead )
+        return -1;
+
+    /*
+     * Queue, then push what fits. The transport contract allows buffering
+     * internally, and buffering is the only answer that keeps a reactor
+     * honest — the alternative is one slow reader freezing the world.
+     *
+     * A WebSocket peer gets each write as one unmasked binary frame. The
+     * header goes in ahead of the payload rather than copying the payload
+     * into a scratch buffer, because a square's text is hundreds of KB and
+     * this path runs for every fact.
+     */
+    if( c->mode == CONN_MODE_WS )
     {
-        ssize_t sent = send(c->fd, src + sent_total, (size_t)(len - sent_total), 0);
-        if( sent > 0 )
-        {
-            sent_total += (int)sent;
-            continue;
-        }
-        if( sent < 0 && (errno == EAGAIN || errno == EWOULDBLOCK || errno == EINTR) )
-        {
-            fd_set writable;
-            FD_ZERO(&writable);
-            FD_SET(c->fd, &writable);
-            if( select(c->fd + 1, NULL, &writable, NULL, NULL) < 0 && errno != EINTR )
-                return -1;
-            continue;
-        }
+        uint8_t header[14];
+        int header_len = ws_frame_encode_header(
+            WS_OP_BINARY, len, NULL, header, (int)sizeof(header));
+
+        if( header_len < 0
+            || ToriRSMapEd_BufWrite(&c->out, header, header_len) != header_len )
+            return -1;
+    }
+    if( ToriRSMapEd_BufWrite(&c->out, src, len) != len )
+        return -1;
+    if( !fd_flush(c) )
+        return -1;
+
+    /*
+     * A client that never reads is a leak with a deadline. The cap is far
+     * above any legitimate backlog — a square's text is ~200KB and the
+     * square list ~24KB — so reaching it means the peer stopped consuming,
+     * and dropping it is kinder than growing until the daemon dies.
+     */
+    if( ToriRSMapEd_BufAvailable(&c->out) > MAPED_SEND_QUEUE_MAX )
+    {
+        fprintf(
+            stderr,
+            "torirsmaped: a client stopped reading (%d bytes queued) — dropping it\n",
+            ToriRSMapEd_BufAvailable(&c->out));
+        c->dead = 1;
         return -1;
     }
     return len;
@@ -104,6 +340,9 @@ static void
 conn_close(struct conn* conn)
 {
     ToriRSMapEd_SessionFree(&conn->session);
+    ToriRSMapEd_BufFree(&conn->ctx.out);
+    ToriRSMapEd_BufFree(&conn->ctx.raw_in);
+    ToriRSMapEd_BufFree(&conn->ctx.plain_in);
     close(conn->ctx.fd);
     conn->open = 0;
     fprintf(stderr, "torirsmaped: client gone\n");
@@ -123,20 +362,27 @@ serve_forever(
     for( ;; )
     {
         fd_set readable;
+        fd_set writable;
         struct timeval timeout = { 0, 500 * 1000 };
         int top = listen_fd;
 
         FD_ZERO(&readable);
+        FD_ZERO(&writable);
         FD_SET(listen_fd, &readable);
         for( int i = 0; i < TORIRSMAPED_SESSION_MAX; i++ )
         {
             if( !conns[i].open )
                 continue;
             FD_SET(conns[i].ctx.fd, &readable);
+            /* Only ask about writability while something is queued: an idle
+             * connection would otherwise report writable every pass and spin
+             * the loop at full speed. */
+            if( ToriRSMapEd_BufAvailable(&conns[i].ctx.out) > 0 )
+                FD_SET(conns[i].ctx.fd, &writable);
             if( conns[i].ctx.fd > top )
                 top = conns[i].ctx.fd;
         }
-        if( select(top + 1, &readable, NULL, NULL, &timeout) < 0 )
+        if( select(top + 1, &readable, &writable, NULL, &timeout) < 0 )
         {
             if( errno == EINTR )
                 continue;
@@ -170,6 +416,7 @@ serve_forever(
                 {
                     struct ToriRSMapEdTransport transport;
                     fcntl(fd, F_SETFL, fcntl(fd, F_GETFL, 0) | O_NONBLOCK);
+                    memset(&conns[slot].ctx, 0, sizeof(conns[slot].ctx));
                     conns[slot].ctx.fd = fd;
                     transport.ctx = &conns[slot].ctx;
                     transport.recv = fd_recv;
@@ -187,9 +434,23 @@ serve_forever(
         {
             if( !conns[i].open )
                 continue;
-            if( !FD_ISSET(conns[i].ctx.fd, &readable) )
+
+            /* Drain the backlog first: a pump can enqueue more, and a
+             * connection whose queue never moves is the one to notice. */
+            if( FD_ISSET(conns[i].ctx.fd, &writable) && !fd_flush(&conns[i].ctx) )
+            {
+                conn_close(&conns[i]);
                 continue;
-            if( !ToriRSMapEd_SessionPump(&conns[i].session) )
+            }
+            if( FD_ISSET(conns[i].ctx.fd, &readable)
+                && !ToriRSMapEd_SessionPump(&conns[i].session) )
+            {
+                conn_close(&conns[i]);
+                continue;
+            }
+            /* fd_send marks a peer dead when it stops reading; the session
+             * itself may still look alive, so the reactor is what retires it. */
+            if( conns[i].ctx.dead )
                 conn_close(&conns[i]);
         }
     }

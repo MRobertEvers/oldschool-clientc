@@ -229,7 +229,7 @@ per appearance change — one per equip, never a burst.
 src/build/torirsserver 43596 &
 SDL_VIDEODRIVER=dummy TORIRS_ANIM_DEBUG=1 TORIRS_MAX_FRAMES=1900 \
   TORIRS_SIM_CLICK_AT="200,634,186;400,534,433;700,601,186;1000,533,230;1200,573,230" \
-  TORIRS_EXIT_BMP=build/eq.bmp src/torirs --manifest manifest_osrs230.ini --user testc --pass test
+  TORIRS_EXIT_BMP=build/eq.bmp src/torirs --manifest manifests/manifest_osrs230.ini --user testc --pass test
 ```
 
 (equipment tab → "View equipment stats" → inventory tab → wield two items, with
@@ -237,7 +237,7 @@ the screen open the whole time.) The figure picks up each item as it is worn and
 the bonus rows follow; the trace shows exactly one rebuild per equip. A
 `TORIRS_BMP_SERIES` strip over the same window shows the figure swinging through
 its ±45°, and the offline dat1 design screen
-(`TORIRS_SIM_OPENMAIN=3559 --manifest manifest_rs254.ini --offline`) renders
+(`TORIRS_SIM_OPENMAIN=3559 --manifest manifests/manifest_rs254.ini --offline`) renders
 byte-identically to before the change.
 
 ---

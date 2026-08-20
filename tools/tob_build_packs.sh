@@ -1,6 +1,6 @@
 #!/bin/sh
 # Build BOTH server script packs: the pristine one `ToriRSServer --selftest` reads and
-# the lane pack `run-live.sh` loads for manifest_osrs239_torirs.ini.
+# the lane pack `run-live.sh` loads for manifests/manifest_osrs239_torirs.ini.
 #
 # They are separate compiles, not copies (`lanes: 2 of 4` vs `4 of 4`), and
 # building only the first is how a session verifies a fix against a pack the

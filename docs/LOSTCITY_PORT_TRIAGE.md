@@ -2440,7 +2440,7 @@ and the port states it **76**. Four went with things that were not ported — th
 adds one back. **Not one of the 76 that guards a table was dropped.**
 
 **Verified in the real client, headlessly** — `SDL_VIDEODRIVER=dummy`,
-`manifest_osrs230_embed.ini`, `TORIRS_NET_CHEAT="…;tele …;fight"`,
+`manifests/manifest_osrs230_embed.ini`, `TORIRS_NET_CHEAT="…;tele …;fight"`,
 `TORIRS_SIM_CLICK_AT` right-click on the corpse tile, `TORIRS_EXIT_BMP`:
 
 - **a chicken** (teleport to 3231,3296) — the right-click menu on the loot tile

@@ -219,7 +219,7 @@ cp -f src/torirs src/torirs_ubsan
 env TORIDRAW_DEBUG_NDJSON=1 TORIDRAW_DEBUG_RUN=fixN \
   TORIRS_TRANSPORT=embed TORIRSSERVER_REV=osrs239 \
   UBSAN_OPTIONS=print_stacktrace=1:halt_on_error=1 \
-  ./src/torirs_ubsan --manifest manifest_osrs239_rs2012.ini \
+  ./src/torirs_ubsan --manifest manifests/manifest_osrs239_rs2012.ini \
   --user qbdrepro --pass test --soft3d \
   2>/tmp/toridraw_ubsan.log
 ```
@@ -426,7 +426,7 @@ in the live client, which is how a traversal fault is told from a geometry one.
 | `3rd/toridraw/triangles/toridraw_triangle_clip.u.c` | Slope reciprocal fallback |
 | `src/engine/world_builder/world_sharelight.u.c` | Adjacency buffer fix |
 | `src/makefile` | `TORIDRAW_NO_SIMD` / `ENABLE_UBSAN` |
-| `manifest_osrs239_rs2012.ini` | QBD repro manifest |
+| `manifests/manifest_osrs239_rs2012.ini` | QBD repro manifest |
 | `saves/qbdrepro.ini` | Repro save |
 
 ---
@@ -492,7 +492,7 @@ fails the matching CHECKs.
 ### Reproducing it
 
 `tools/qbd_anim_compound_harness.sh` mirrors
-`./run-live.sh manifest_osrs239_torirs.ini --soft3d` and drives the encounter
+`./run-live.sh manifests/manifest_osrs239_torirs.ini --soft3d` and drives the encounter
 to the artefact restore. Two things it gets wrong if you rebuild it from
 scratch:
 

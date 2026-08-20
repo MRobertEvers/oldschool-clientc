@@ -1,7 +1,7 @@
 # Performance harness
 
 Entry point for measuring and iterating on torirs client frame time,
-especially under `manifest_osrs230.ini` / `manifest_osrs230_embed.ini`.
+especially under `manifests/manifest_osrs230.ini` / `manifests/manifest_osrs230_embed.ini`.
 
 ## Gate
 
@@ -108,7 +108,7 @@ longer allocates/copies a temporary image or scans it merely to rewrite alpha.
 Transformed/outlined sprites keep bounded specialized paths.
 
 Final Win64 `-O3` measurements on 2026-08-06 used the pristine revision-239
-offline scene (`manifest_osrs239.ini`) and `--uncapped`. Every run captured
+offline scene (`manifests/manifest_osrs239.ini`) and `--uncapped`. Every run captured
 6,000 frames as twelve 500-frame windows; every steady window held exactly
 1,072 UI components and 4,946 painter commands. Values below are milliseconds
 and exclude the client frame limiter. The aggregate rows are the profiler's
@@ -159,7 +159,7 @@ reported no z-buffer counters in a separate regression run.
 ## Flamegraphs
 
 ```bash
-./profile-mac.sh manifest_osrs230_embed.ini 25
+./profile-mac.sh manifests/manifest_osrs230_embed.ini 25
 # builds EMBED_SERVER=1 TORIDRAW_OPT=1 automatically for transport=embed
 ```
 
@@ -217,7 +217,7 @@ TORIRS_PKT_SLOW_MS=<n> print `pkt_slow: type=<id> <ms> cycle=<n>` for any server
 ## Historical Soft3D baseline (measured 2026-08-03, rev `9175a425`)
 
 Build: `-O0` client + `TORIDRAW_OPT=1` Soft3D, `EMBED_SERVER=1`,
-`manifest_osrs230_embed.ini`, `--uncapped`, Soft3D, 900 frames.
+`manifests/manifest_osrs230_embed.ini`, `--uncapped`, Soft3D, 900 frames.
 CSV: `tools/perf/results/9175a425-idle.csv`. Flamegraph:
 `tools/perf/results/flame_now.svg` (30 s sample after 8 s warmup).
 
@@ -473,7 +473,7 @@ frame (`max` ≈ 4.6 s); steady-state frames never approach the budget.
 
 ### What the flamegraph said at each step
 
-Sampled with `OUT=... TORIDRAW_OPT=1 ./profile-mac.sh manifest_osrs230_embed.ini 30`,
+Sampled with `OUT=... TORIDRAW_OPT=1 ./profile-mac.sh manifests/manifest_osrs230_embed.ini 30`,
 main-thread leaf shares:
 
 | leaf                                                                 | before | after |
@@ -632,7 +632,7 @@ emit (see [skill_guide.md](skill_guide.md) §9).
 | `test-torirsserver-embed`                                                                                                                                                           | green                                                                                                                              |
 | `test-ui-slots`                                                                                                                                                                | fails on `manifest must state [cache:boot] identity` — pre-existing, the target passes a bare `../cache254` rather than a manifest |
 
-Windowed eye-check is left to the operator (`./run-live.sh manifest_osrs230_embed.ini`
+Windowed eye-check is left to the operator (`./run-live.sh manifests/manifest_osrs230_embed.ini`
 after an `EMBED_SERVER=1 TORIDRAW_OPT=1` build). Pixel A/B against a pre-cache
 baseline was not retained in-tree; re-capture with `TORIRS_EXIT_BMP` if a visual
 regression is suspected after further cache work.

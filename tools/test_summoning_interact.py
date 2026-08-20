@@ -48,7 +48,7 @@ SCRIPT_LANE = CONTENT / "server/scripts/ported_scape2009_summoning"
 CLIENT = Path(os.environ.get("TORIRS_CLIENT") or REPO / "src/torirs")
 CACHE = REPO / "cache.osrs239.summoning"
 SCRIPTS = CONTENT / "server/scripts/build_summoning"
-MANIFEST = REPO / "manifest_osrs239.ini"
+MANIFEST = REPO / "manifests/manifest_osrs239.ini"
 
 # Familiar type ids, from ~summoning_familiar_npc.
 TYPE_GRAAHK = 40

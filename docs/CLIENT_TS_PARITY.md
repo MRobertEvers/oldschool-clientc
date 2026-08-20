@@ -1551,7 +1551,7 @@ for rev-230 UI behaviour is the Java deob, not in-repo `Client-TS`.
 
 Verified: `test-uitree`, `test-inv`, `test-varp` (incl. optimistic+sync),
 `test-net-exec`, `ToriRSServer --selftest` (inventory drag stanza), and
-`ToriRSServer_Pack --check-only` at 0 errors. Live under `manifest_osrs230.ini`:
+`ToriRSServer_Pack --check-only` at 0 errors. Live under `manifests/manifest_osrs230.ini`:
 CS2 backpack drag `541,229→583,229` sends ClientProt 48
 (`INV_BUTTOND 149|0#0 → 149|0#1`) and the server's `UPDATE_INV_PARTIAL`
 repaints; Escape after `TORIRS_NET_CHEAT=bank` sends `CLOSE_MODAL` and locally
@@ -1729,7 +1729,7 @@ IfButtonD). The 2004 `objReplace` / bank-insert cascade are not IF3
 features; do not reintroduce them on the CS2 path.
 
 Verified: `test-inv`, `test-uitree`, `test-net-exec`, `test-varp` pass. Live
-under `manifest_osrs230.ini`: press-hold a worn item does not move; a plain
+under `manifests/manifest_osrs230.ini`: press-hold a worn item does not move; a plain
 backpack click runs its op with no fade; a promoted backpack drag fires
 `onDragComplete` + dual-endpoint `INV_BUTTOND` (no local swap on CS2). CS1
 against LostCity still does the optimistic swap (see §21.4).
@@ -3720,7 +3720,7 @@ lengths and run one curve tick per client cycle (v1 parity).
 
 ```
 TORIRS_ANIM_DEBUG=1 TORIRS_WORLD_MAP=50,50 TORIRS_SIM_WORLD_KEY=400,300,8 \
-  TORIRS_SIM_TICKS=20 TORIRS_WORLD_BMP=1 ./src/torirs --manifest manifest_osrs239.ini --offline
+  TORIRS_SIM_TICKS=20 TORIRS_WORLD_BMP=1 ./src/torirs --manifest manifests/manifest_osrs239.ini --offline
 
 seq_load: seq=10230 skeletal maya=13893632 bones=236 baked=125 play=120
 seq_bind: element=9015 seq=10230 frames=120 skeletal=1
@@ -3919,7 +3919,7 @@ main-modal slot once the gameframe is up — the same `RS_UISlots_OpenMain` path
 
 ```
 SDL_VIDEODRIVER=dummy TORIRS_SIM_OPENMAIN=3559 TORIRS_MAX_FRAMES=250 \
-  TORIRS_EXIT_BMP=build/design.bmp ./src/torirs --manifest manifest_rs254.ini --offline
+  TORIRS_EXIT_BMP=build/design.bmp ./src/torirs --manifest manifests/manifest_rs254.ini --offline
 ```
 
 The default male composites and renders (bald head + goatee, olive top, green
@@ -4028,7 +4028,7 @@ effect once the gameframe is up:
 
 ```
 TORIRS_AUDIO_DEBUG=1 TORIRS_SIM_SOUND=41 TORIRS_MAX_FRAMES=200 \
-  ./src/torirs --manifest manifest_rs254.ini
+  ./src/torirs --manifest manifests/manifest_rs254.ini
 ```
 
 ```
@@ -4051,7 +4051,7 @@ Confirmed on every shipped manifest: `manifest_rs254` (dat1),
   what plays; 3 sample-only, which are silent). Decoding BCV means a Vorbis
   implementation plus its shared codebook, and rt4's `VorbisSound` header layout
   does not match these bytes — no reference to port.
-- **`manifest_rs377.ini` states `revision=254`** while pointing at
+- **`manifests/manifest_rs377.ini` states `revision=254`** while pointing at
   `cache.rs377`. It is a copy of the 254 manifest with only `dir=` changed (its
   header comment still says "rev 254"), so the sound codec picks the pre-filter
   flavour and the stream mis-frames — the loader reports
@@ -4111,7 +4111,7 @@ frame and so reproduce exactly the pre-mount race:
 
 ```
 TORIRS_SIM_OPENCHAT=2459 TORIRS_SIM_SETHIDE=2468:0,2465:1 \
-TORIRS_SIM_SETTAB=0:3796 ./src/torirs --manifest manifest_rs254.ini --offline
+TORIRS_SIM_SETTAB=0:3796 ./src/torirs --manifest manifests/manifest_rs254.ini --offline
 ```
 
 `TORIRS_NET_DEBUG=1` prints `if_sethide: com=7624 hide=0 applied=0` — the
@@ -4174,7 +4174,7 @@ re-bake would otherwise clear them):
 
 ```
 TORIRS_SIM_SETTAB=0:3796 TORIRS_SIM_SETHIDE=7624:0 \
-TORIRS_SIM_SETVARP=300:500,301:0 ./src/torirs --manifest manifest_rs254.ini --offline
+TORIRS_SIM_SETVARP=300:500,301:0 ./src/torirs --manifest manifests/manifest_rs254.ini --offline
 ```
 
 Sampling one row across the bar shows the fill tracking varp 300 exactly —
@@ -4535,7 +4535,7 @@ multilocs, Restless Ghost tower altar (`%restless_ghost_altar_var`).
 
 ### Symptom
 
-Under the exact live C-client path (`run-live.sh manifest_osrs239.ini`), the
+Under the exact live C-client path (`run-live.sh manifests/manifest_osrs239.ini`), the
 backpack drew correctly and its right-click object rows existed, but a drag did
 nothing.  The server had armed `149:0` for slots `0..27` with mask `0x33f8fc`;
 the live minimenu trace nevertheless printed `events=0x0`, so the object-drag

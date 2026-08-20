@@ -4,10 +4,10 @@
 #   ./run-live.sh [--skip-checks]       <manifest.ini> [user] [pass] [client args...]
 #   ./run-live.sh [--skip-checks] web   <manifest.ini> [user] [pass] [client args...]
 #
-# The manifest (manifest_rs254.ini, manifest_osrs230.ini, manifest_xrsps.ini, …)
+# The manifest (manifests/manifest_rs254.ini, manifests/manifest_osrs230.ini, manifests/manifest_xrsps.ini, …)
 # specifies cache, rev, transport, host/port and RSA keys. user/pass default to
 # asdf/a. Anything after them is passed straight through to the client, so
-# `./run-live.sh manifest_rs254.ini asdf a --offline` works. Extra behavior via
+# `./run-live.sh manifests/manifest_rs254.ini asdf a --offline` works. Extra behavior via
 # env vars: TORIRS_NET_DEBUG=1, TORIRS_NET_CHEAT="tele 0,50,50,21,21",
 # TORIRS_MAX_FRAMES/TORIRS_EXIT_BMP.
 #
@@ -20,7 +20,7 @@
 # default because it reports the whole steady-state heap and buries everything
 # else.
 #
-#   TORIRS_SANITIZE=1 ./run-live.sh manifest_osrs239_torirs.ini --soft3d
+#   TORIRS_SANITIZE=1 ./run-live.sh manifests/manifest_osrs239_torirs.ini --soft3d
 #
 # A manifest naming a marked-lane cache (cache.osrs239.rs2012,
 # cache.osrs239.summoning) gets that cache baked here when the content tree has
@@ -707,7 +707,7 @@ build_cache_overlay() {
                 tools/stage_rs2012_overlay.py torirsserver-cache-rs2012
             cache_base_warn "$CACHE_DIR"
             ;;
-        # A manifest that boots the ordinary bake itself (manifest_osrs239_net.ini).
+        # A manifest that boots the ordinary bake itself (manifests/manifest_osrs239_net.ini).
         # It had no arm at all, so the one cache every non-lane profile runs on was
         # the only one nothing ever checked.
         *cache.osrs239.baked)

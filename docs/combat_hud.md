@@ -323,12 +323,12 @@ make -C src && make -C src ToriRSServer
 # stats tab (sidebar icon 2)
 SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=900 TORIRS_EXIT_BMP=/tmp/stats.bmp \
   TORIRS_SIM_CLICK_AT="600,534,187" \
-  ./src/torirs --manifest manifest_osrs230.ini --user testc --pass test
+  ./src/torirs --manifest manifests/manifest_osrs230.ini --user testc --pass test
 
 # a fight, with the overlay primitives dumped
 SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=2300 TORIRS_OVERLAY_DEBUG=1 \
   TORIRS_NET_CHEAT="tele 3263 3232" \
-  ./src/torirs --manifest manifest_osrs230.ini --user testc --pass test
+  ./src/torirs --manifest manifests/manifest_osrs230.ini --user testc --pass test
 
 # a film strip through the fight, to catch a splat mid-flight
 TORIRS_BMP_SERIES="/tmp/strip,2150,12,20"

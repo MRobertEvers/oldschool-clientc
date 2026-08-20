@@ -328,7 +328,7 @@ make -C src PLATFORM_OBJ_BASE=build_lane2 EMBED_SERVER=1
 SDL_VIDEODRIVER=dummy TORIRSSERVER_CONTENT=$DST TORIRSSERVER_VERBOSE=1 TORIRS_NET_DEBUG=1 \
 TORIRS_SIM_CLICK_AT="140,536,484;220,686,215;300,686,215" \
 TORIRS_MAX_FRAMES=420 TORIRS_EXIT_BMP=/tmp/swap.bmp TORIRS_DUMP_TREE_EXIT=1 \
-  ./src/torirs --manifest manifest_osrs230_embed.ini
+  ./src/torirs --manifest manifests/manifest_osrs230_embed.ini
 # afterwards: rm src/torirs && git checkout -- src/.last_flavor
 ```
 

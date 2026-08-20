@@ -51918,6 +51918,12 @@ ToriRSServer_WorldSelftest(void)
                 { "[proc,selftest_diary_claim]", 8,
                   "a diary task claim must be idempotent; the counting seam "
                   "lets one repeatable task complete a whole tier" },
+                { "[proc,selftest_diary_award]", 7,
+                  "the second claim of a diary task must credit nothing, and "
+                  "masks must not be shared across tiers" },
+                { "[proc,selftest_diary_promote]", 8,
+                  "finishing a diary tier's tasks must set the flag its perks "
+                  "read; an unknown tier must never read as finished" },
                 /* Five herblore stanzas were written, compiled and never
                  * run -- registered nowhere and called by nothing. Found by
                  * tools/check_selftest_registration.py. They use this file's
@@ -56255,6 +56261,288 @@ ToriRSServer_WorldSelftest(void)
 
             SELFTEST_CHECK(!said_fail, "::demonrun should report no failures");
             SELFTEST_CHECK(said_ok, "::demonrun should reach its OK line");
+            ToriRSServer_ScriptsFree(srv);
+        }
+    }
+
+    fprintf(stderr, "ToriRSServer selftest: ::grandtreerun\n");
+    {
+        /*
+         * The Grand Tree (2026-08-20 audit). Every `[opnpc*]` handler in
+         * quests/quest_grandtree/scripts/*.rs2 blocks on ~chatnpc_anim/
+         * ~mesbox/~p_choice* (a real client resume) or a multi-tick npc-walk
+         * `p_delay`, so the %grandtree ladder itself is mirrored the same
+         * way every other quest audit in this loop mirrors a dialogue-gated
+         * state machine (demonrun, fishingcomporun, ...). What this stanza
+         * drives through REAL trigger dispatch instead of mirroring:
+         *
+         *   - `~grandtree_journal` at every declared ladder state (dead-end
+         *     coverage: a state with no matching `if` falls through to the
+         *     next block's text, which reads fine in isolation and wrong in
+         *     sequence).
+         *   - the TUZO pillar puzzle, `[oplocu,grandtree_pillar{t,u,z,o}]`
+         *     (grandtree_locs_chest.rs2), all four placements found in the
+         *     live scene and used for real.
+         *   - the black demon's death -> state transition,
+         *     `[ai_queue3,grandtree_blackdemon]`
+         *     (grandtree_black_demon.rs2), via a real
+         *     `ToriRSServer_CombatHitNpc` kill, not a varp write.
+         *   - the completion reward queue, `[queue,grandtree_quest_complete]`
+         *     (king_narnode.rs2) -- this is where `~quest_complete_rewards`
+         *     actually lives, and the field guide's standing concern this
+         *     loop (Temple of Ikov, Holy Grail) is whether that call is
+         *     genuinely reached, not just present in the source.
+         *
+         * The one question this stanza exists to settle empirically rather
+         * than by reading the source: whether `[oploc1,
+         * grandtree_trapdoorunder]` (grandtree_locs_climb.rs2) -- gated on
+         * `%grandtree = ^grandtree_complete` -- is reachable *before* the
+         * quest finishes. The wiki's own "Encountering the Black demon"
+         * section requires a mid-fight exit ("If the demon is not killed
+         * within 10 minutes... walk through the tunnel and leave through the
+         * ladder next to King Narnode Shareen, and re-enter Glough's
+         * trapdoor"), and neither symbol
+         * (grandtree_trapdoorunder/grandtree_trapdoorclosed) appears in
+         * ladders_stairs/configs/ladders.loc or maplink.dbrow's generic
+         * category system, which is where an un-authored generic ladder
+         * would otherwise be covered.
+         */
+        int loaded = ToriRSServer_ScriptsLoad(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            struct ToriRSServerPlayer* player = srv->active_player;
+            int npc_blackdemon = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "grandtree_blackdemon");
+            int loc_pillart = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "grandtree_pillart");
+            int loc_pillaru = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "grandtree_pillaru");
+            int loc_pillarz = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "grandtree_pillarz");
+            int loc_pillaro = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "grandtree_pillaro");
+            int loc_trapdoorunder =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "grandtree_trapdoorunder");
+            int obj_twigt = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "grandtree_twigt");
+            int obj_twigu = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "grandtree_twigu");
+            int obj_twigz = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "grandtree_twigz");
+            int obj_twigo = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "grandtree_twigo");
+            int obj_daconiarock = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "grandtree_daconiarock");
+            int varp_grandtree = ToriRSServer_WorldVarp("grandtree");
+            int varp_tuzo = ToriRSServer_WorldVarp("grandtree_tuzo_mask");
+            int varp_qp = ToriRSServer_WorldVarp("qp");
+            int c_given_twigs = ToriRSServer_ContentConstantInt("grandtree_given_twigs", -1);
+            int c_unlocked_trapdoor = ToriRSServer_ContentConstantInt("grandtree_unlocked_trapdoor", -1);
+            int c_defeated_demon = ToriRSServer_ContentConstantInt("grandtree_defeated_black_demon", -1);
+            int c_complete = ToriRSServer_ContentConstantInt("grandtree_complete", -1);
+
+            SELFTEST_CHECK(npc_blackdemon >= 0 && loc_pillart >= 0 && loc_pillaru >= 0 &&
+                               loc_pillarz >= 0 && loc_pillaro >= 0 && loc_trapdoorunder >= 0 &&
+                               obj_twigt >= 0 && obj_twigu >= 0 && obj_twigz >= 0 && obj_twigo >= 0 &&
+                               obj_daconiarock >= 0 && varp_grandtree >= 0 && varp_tuzo >= 0 &&
+                               varp_qp >= 0,
+                           "grandtreerun: every content symbol used below should resolve");
+            SELFTEST_CHECK(c_given_twigs >= 0 && c_unlocked_trapdoor >= 0 && c_defeated_demon >= 0 &&
+                               c_complete >= 0,
+                           "grandtreerun: every %%grandtree ladder constant used below should resolve");
+
+            /* ---- grandtree_journal: every declared ladder state renders, no dead ends ---- */
+            {
+                int states[] = {0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100, 110, 120, 130, 140, 150, 160};
+                int ok = 1;
+                size_t i;
+
+                for( i = 0; i < sizeof(states) / sizeof(states[0]); i++ )
+                {
+                    ToriRSServer_WorldSetVarp(srv, varp_grandtree, states[i]);
+                    if( !ToriRSServer_ScriptsRunProc(srv, "[proc,grandtree_journal]", NULL, 0) )
+                        ok = 0;
+                }
+                SELFTEST_CHECK(ok, "grandtree_journal should render at every declared %%grandtree "
+                                    "state, 0..160");
+            }
+
+            /* ---- TUZO pillars: real [oplocu] dispatch on all four live placements ---- */
+            if( loc_pillart >= 0 )
+            {
+                int pillars[4][2] = {
+                    {loc_pillart, obj_twigt},
+                    {loc_pillaru, obj_twigu},
+                    {loc_pillarz, obj_twigz},
+                    {loc_pillaro, obj_twigo},
+                };
+                int i;
+                int got_mask;
+
+                ToriRSServer_WorldSetVarp(srv, varp_grandtree, c_given_twigs);
+                ToriRSServer_WorldSetVarp(srv, varp_tuzo, 0);
+                ToriRSServer_WorldTeleport(srv, 2, 2486, 3464);
+                ToriRSServer_WorldTick(srv);
+
+                for( i = 0; i < 4; i++ )
+                {
+                    int loc_id = pillars[i][0];
+                    int obj_id = pillars[i][1];
+                    int slot = -1;
+                    int sx, sz;
+
+                    for( sx = 2482; sx <= 2491 && slot < 0; sx++ )
+                        for( sz = 3459; sz <= 3469 && slot < 0; sz++ )
+                            slot = ToriRSServer_SceneFindLocId(sx, sz, 2, loc_id);
+                    SELFTEST_CHECK(slot >= 0, "TUZO pillar %d (obj %d) should be placed in the "
+                                              "watchtower (2482-2491,3459-3469,2)",
+                                   i, obj_id);
+                    if( slot < 0 )
+                        continue;
+
+                    inv_set(player, 0, obj_id, 1);
+                    player->last_useitem = obj_id;
+                    player->last_useslot = 0;
+                    ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_id,
+                                                        ToriRSServer_LocCategory(loc_id), slot);
+                    player->last_useitem = -1;
+                    player->last_useslot = -1;
+                }
+                got_mask = player->varps[varp_tuzo];
+                SELFTEST_CHECK(got_mask == 15, "all four real pillar uses should set every "
+                                               "grandtree_tuzo_mask bit, got %d",
+                               got_mask);
+                SELFTEST_CHECK(player->varps[varp_grandtree] == c_unlocked_trapdoor,
+                               "completing TUZO for real should advance %%grandtree to "
+                               "unlocked_trapdoor (%d), got %d",
+                               c_unlocked_trapdoor, player->varps[varp_grandtree]);
+            }
+
+            /* ---- black demon: real [ai_queue3] death dispatch, not a varp write ---- */
+            if( npc_blackdemon >= 0 )
+            {
+                int slot;
+
+                ToriRSServer_WorldSetVarp(srv, varp_grandtree, c_unlocked_trapdoor);
+                /* 0_38_154_47_11 in glough.rs2's cutscene spawn -- world (2432+47,9856+11). */
+                slot = npc_spawn(srv, npc_blackdemon, 2479, 9867, 0);
+                SELFTEST_CHECK(slot >= 0, "grandtree_blackdemon should spawn at its wiki-cutscene "
+                                          "coordinate");
+                if( slot >= 0 )
+                {
+                    int t;
+
+                    ToriRSServer_CombatHitNpc(srv, slot, 0, 9999);
+                    for( t = 0; t < 4; t++ )
+                    {
+                        ToriRSServer_WorldCloseModal(srv);
+                        ToriRSServer_WorldTick(srv);
+                    }
+                    SELFTEST_CHECK(player->varps[varp_grandtree] == c_defeated_demon,
+                                   "really killing the black demon should advance %%grandtree to "
+                                   "defeated_black_demon (%d), got %d",
+                                   c_defeated_demon, player->varps[varp_grandtree]);
+                }
+            }
+
+            /* ---- the trapdoor exit: investigated, NOT a bug ----
+             *
+             * `[oploc1,grandtree_trapdoorunder]` (grandtree_locs_climb.rs2) is
+             * genuinely dead: `loc_trapdoorunder` resolves to a real id (this
+             * cache's port/names.map has a symbol for it) but the id is placed
+             * on no tile anywhere in the tunnels (scanned the full
+             * 2432-2495,9856-9919,0 window against a scene that DOES carry
+             * grandtree_rootdoor/largeroot_gnome/largeroot2_gnome at their
+             * real coordinates, so the scan and the scene are both good --
+             * the Sea Slug shape from the field guide, a bound symbol that
+             * compiles clean and is simply never placed).
+             *
+             * That would matter if the wiki's mid-fight escape depended on
+             * it, so it was worth chasing: dumping every real loc within six
+             * tiles of the static `grandtree_narnode` tunnel spawn
+             * (m38_154.spawn: 2464,9897,0) turned up `ladder_from_cellar`
+             * (ladders_stairs/configs/ladders.loc, category=climb_up_ladder,
+             * generic — used at hundreds of cellar exits across the whole
+             * cache, none of them Grand-Tree-specific) standing right next
+             * to him at (2463,9897,0), and ladders_stairs/configs/
+             * maplink.dbrow already carries its real destination:
+             * `src=0_38_154_32_41 dest=0_38_54_32_41 dir=1` -- local (32,41)
+             * in region 38,154 is exactly (2464,9897), and the destination
+             * in region 38,54 is (2464,3497), one tile from Narnode's own
+             * throne-room coordinate (2466,3495 per the wiki infobox
+             * `startmap`). That IS "the ladder next to King Narnode
+             * Shareen" the wiki names, wired generically (`_climb_up_ladder`
+             * category -> `~climb_ladder` -> `~climb` -> `~maplink_try`),
+             * needing no Grand Tree content at all. Exercised for real below
+             * through the same category dispatch a live click takes.
+             */
+            {
+                int loc_ladder = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "ladder_from_cellar");
+
+                SELFTEST_CHECK(loc_ladder >= 0, "ladder_from_cellar should resolve");
+                if( loc_ladder >= 0 )
+                {
+                    int slot;
+                    int before_x, before_z, before_level;
+                    int category = ToriRSServer_LocCategory(loc_ladder);
+                    int t;
+
+                    ToriRSServer_WorldSetVarp(srv, varp_grandtree, c_unlocked_trapdoor);
+                    ToriRSServer_WorldTeleport(srv, 0, 2464, 9897);
+                    ToriRSServer_WorldTick(srv);
+                    slot = ToriRSServer_SceneFindLocId(2463, 9897, 0, loc_ladder);
+                    SELFTEST_CHECK(slot >= 0, "ladder_from_cellar should really be placed beside "
+                                              "grandtree_narnode's tunnel spawn (2463,9897,0)");
+                    if( slot >= 0 )
+                    {
+                        before_x = player->x;
+                        before_z = player->z;
+                        before_level = player->level;
+                        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_ladder, category,
+                                                            slot);
+                        for( t = 0; t < 4; t++ )
+                        {
+                            ToriRSServer_WorldCloseModal(srv);
+                            ToriRSServer_WorldTick(srv);
+                        }
+                        SELFTEST_CHECK(player->level != before_level || player->x != before_x ||
+                                           player->z != before_z,
+                                       "climbing the real ladder beside Narnode's tunnel spawn "
+                                       "should move the player (mid-fight escape, "
+                                       "%%grandtree=unlocked_trapdoor) -- stayed at (%d,%d,%d)",
+                                       player->x, player->z, player->level);
+                        SELFTEST_CHECK(player->z < 6400,
+                                       "and it should land back on the surface (z<6400), not "
+                                       "another tunnel tile -- landed at (%d,%d,%d)",
+                                       player->x, player->z, player->level);
+                    }
+                }
+            }
+
+            /* ---- completion: real [queue] dispatch reaches ~quest_complete_rewards ---- */
+            if( obj_daconiarock >= 0 )
+            {
+                int qp_before;
+                int i;
+
+                for( i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+                    inv_set(player, i, -1, 0);
+                inv_set(player, 0, obj_daconiarock, 1);
+                ToriRSServer_WorldSetVarp(srv, varp_grandtree, c_defeated_demon);
+                qp_before = player->varps[varp_qp];
+
+                ToriRSServer_ScriptsRunProc(srv, "[queue,grandtree_quest_complete]", NULL, 0);
+
+                SELFTEST_CHECK(player->varps[varp_grandtree] == c_complete,
+                               "the real completion queue should advance %%grandtree to "
+                               "complete (%d), got %d",
+                               c_complete, player->varps[varp_grandtree]);
+                SELFTEST_CHECK(player->inv[0].obj_id != obj_daconiarock,
+                               "the real completion queue should consume the daconia rock");
+                SELFTEST_CHECK(player->varps[varp_qp] == qp_before + 5,
+                               "the real completion queue should award 5 quest points via "
+                               "~quest_complete_rewards, went %d -> %d",
+                               qp_before, player->varps[varp_qp]);
+            }
+
             ToriRSServer_ScriptsFree(srv);
         }
     }

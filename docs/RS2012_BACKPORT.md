@@ -367,7 +367,7 @@ back-face culling is working; `bucket_overflow: 0` says nothing was dropped.
 
 ```sh
 TORIRS_MAX_FRAMES=1100 TORIRS_EXIT_BMP=shot.bmp \
-  ./dist/win64/torirs.exe --manifest manifest_osrs239_rs2012.ini --soft3d
+  ./dist/win64/torirs.exe --manifest manifests/manifest_osrs239_rs2012.ini --soft3d
 ```
 
 Two caveats, both learned the hard way:
@@ -427,7 +427,7 @@ src/build/rs2012_strip_priorities --apply
 make -C src torirsserver-cache-rs2012 torirsserver-scripts torirsserver-servpack
 
 # 4. run
-./dist/win64/torirs.exe --manifest manifest_osrs239_rs2012.ini --soft3d
+./dist/win64/torirs.exe --manifest manifests/manifest_osrs239_rs2012.ini --soft3d
 ```
 
 Both tools are idempotent and both report before they write. Run them without

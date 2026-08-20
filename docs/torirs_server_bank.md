@@ -6,7 +6,7 @@ container come back down the wire.
 
 ```
 make -C src torirsserver-bank && src/build/bank_torirsserver &
-src/torirs --manifest manifest_osrs230_bank.ini --user testc --pass test
+src/torirs --manifest manifests/manifest_osrs230_bank.ini --user testc --pass test
 ```
 
 Then `::bank` in the chat box, or walk to a bank booth — the Lumbridge castle

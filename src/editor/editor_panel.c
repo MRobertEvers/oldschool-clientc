@@ -1,6 +1,7 @@
 #include "editor_panel.h"
 
 #include "app.h"
+#include "torirsmaped/torirs_maped.h"
 #include "ui/uitree_debug_overlay.h"
 #include "ui/uitree_layout.h"
 #include "world/world.h"
@@ -8,6 +9,113 @@
 #include <assert.h>
 #include <stdio.h>
 #include <string.h>
+
+/*
+ * The selection relay speaks ABSOLUTE WORLD TILES, never scene coordinates.
+ *
+ * A scene coordinate is meaningless outside the world that produced it: it is
+ * an offset from that load region's `_base_tile_x/z`, so the same number names
+ * a different tile in a viewer showing a different region, and names nothing
+ * at all in a controller connection that has no world. Absolute tiles are the
+ * one address every connection can agree on — the same reason the document's
+ * commands are keyed by (map square, tile) rather than by anything the
+ * renderer holds.
+ *
+ * The two converters below are the whole of it, and they are the only place
+ * a scene coordinate may cross the wire boundary.
+ */
+
+/** Scene -> absolute. 0 when this connection has no world to measure from,
+ *  which is a legitimate state (a controller connection), not a bug. */
+static int
+panel_scene_to_world(
+    struct App const* app,
+    int scene_x,
+    int scene_z,
+    int* out_world_x,
+    int* out_world_z)
+{
+    assert(app);
+    assert(out_world_x);
+    assert(out_world_z);
+
+    if( !app->world )
+        return 0;
+    *out_world_x = app->world->_base_tile_x + scene_x;
+    *out_world_z = app->world->_base_tile_z + scene_z;
+    return 1;
+}
+
+/** Absolute -> scene. 0 when this connection has no world, or when the tile
+ *  lies outside the region it is showing — a viewer legitimately cannot latch
+ *  onto a selection made in a region it never loaded. */
+static int
+panel_world_to_scene(
+    struct App const* app,
+    int world_x,
+    int world_z,
+    int* out_scene_x,
+    int* out_scene_z)
+{
+    int scene_x;
+    int scene_z;
+    int span;
+
+    assert(app);
+    assert(out_scene_x);
+    assert(out_scene_z);
+
+    if( !app->world )
+        return 0;
+    scene_x = world_x - app->world->_base_tile_x;
+    scene_z = world_z - app->world->_base_tile_z;
+    span = app->world->_scene_size;
+    if( scene_x < 0 || scene_z < 0 || (span > 0 && (scene_x >= span || scene_z >= span)) )
+        return 0;
+
+    *out_scene_x = scene_x;
+    *out_scene_z = scene_z;
+    return 1;
+}
+
+/**
+ * Announce the SELECT latch to this connection's Client, so a controller
+ * connection with no world of its own can follow this one's clicks. Values
+ * per TORIRSMAPED_STATE_SELECTION's registry entry, in absolute world tiles.
+ *
+ * Publishing is skipped while APPLYING a received fact — the server said it,
+ * repeating it back would ping-pong — and before the session exists. A
+ * connection with no world publishes nothing but a cleared selection: it has
+ * no way to say WHERE anything is, and a scene coordinate sent raw would be
+ * read by the receiver as a different tile entirely.
+ */
+static void
+panel_publish_selection(
+    struct Editor_Panel* panel,
+    struct App const* app)
+{
+    int32_t values[7];
+    int world_x = 0;
+    int world_z = 0;
+
+    assert(panel);
+    assert(app);
+
+    if( !panel->editor || panel->applying_shared_state )
+        return;
+    if( panel->sel_kind != EDITOR_SELECTION_NONE
+        && !panel_scene_to_world(app, panel->sel_scene_x, panel->sel_scene_z, &world_x, &world_z) )
+        return;
+
+    values[0] = (int32_t)panel->sel_kind;
+    values[1] = world_x;
+    values[2] = world_z;
+    values[3] = panel->sel_level;
+    values[4] = panel->sel_loc_id;
+    values[5] = panel->sel_shape;
+    values[6] = panel->sel_angle;
+    Editor_StateSet(panel->editor, TORIRSMAPED_STATE_SELECTION, values, 7);
+}
 
 /* Chrome strings. Baked into the binary like every other row label here — the
  * editor's own UI never reads the cache, because the cache is what it repairs. */
@@ -1095,6 +1203,7 @@ editor_apply_tool_field(
             panel->sel_spawn = idx;
             panel->sel_element_id = -1;
             panel->loc_panel_stale = 1;
+            panel_publish_selection(panel, app);
             return 1;
         }
         return Editor_PanelPlaceLocAt(panel, app, scene_x, scene_z, level);
@@ -1336,11 +1445,13 @@ editor_seed_terrain_fields(
 void
 Editor_PanelSelectTerrain(
     struct Editor_Panel* panel,
+    struct App* app,
     int scene_x,
     int scene_z,
     int level)
 {
     assert(panel);
+    assert(app);
 
     panel->sel_kind = EDITOR_SELECTION_TERRAIN;
     panel->sel_scene_x = scene_x;
@@ -1349,6 +1460,7 @@ Editor_PanelSelectTerrain(
     panel->sel_element_id = -1;
     panel->sel_loc_id = -1;
     panel->loc_panel_stale = 1;
+    panel_publish_selection(panel, app);
 }
 
 void
@@ -1419,18 +1531,22 @@ Editor_PanelSelectLoc(
                 break;
             }
     }
+    panel_publish_selection(panel, app);
 }
 
 void
 Editor_PanelClearSelection(
-    struct Editor_Panel* panel)
+    struct Editor_Panel* panel,
+    struct App* app)
 {
     assert(panel);
+    assert(app);
 
     panel->sel_kind = EDITOR_SELECTION_NONE;
     panel->sel_element_id = -1;
     panel->sel_loc_id = -1;
     panel->loc_panel_stale = 1;
+    panel_publish_selection(panel, app);
 }
 
 /** Fill the Loc panel from the selection: placement from the scene entity,
@@ -1761,6 +1877,7 @@ Editor_PanelPlaceLocAt(
     editor_loc_panel_refresh(panel, app);
     if( panel->loc_panel >= 0 && panel->visible )
         ToriRSChrome_PanelSetVisible(&app->dbg_ui, panel->loc_panel, 1);
+    panel_publish_selection(panel, app);
     return 1;
 }
 
@@ -1880,7 +1997,7 @@ Editor_PanelDeleteSpawn(
     panel->spawn_count--;
     panel->spawns_dirty = 1;
     if( panel->sel_kind == EDITOR_SELECTION_NPC || panel->sel_kind == EDITOR_SELECTION_OBJ )
-        Editor_PanelClearSelection(panel);
+        Editor_PanelClearSelection(panel, app);
     app->need_redraw = 1;
     return 1;
 }
@@ -2044,7 +2161,7 @@ Editor_PanelDeleteSelection(
     App_WorldLocChange(
         app, panel->sel_scene_x, panel->sel_scene_z, panel->sel_level, -1, panel->sel_shape,
         panel->sel_angle);
-    Editor_PanelSelectTerrain(panel, panel->sel_scene_x, panel->sel_scene_z, panel->sel_level);
+    Editor_PanelSelectTerrain(panel, app, panel->sel_scene_x, panel->sel_scene_z, panel->sel_level);
     return 1;
 }
 
@@ -2073,7 +2190,7 @@ Editor_PanelDeleteLocByElement(
     /* A deleted selection cannot stay a selection; its tile can. */
     if( panel->sel_kind == EDITOR_SELECTION_LOC && panel->sel_element_id == element_id )
         Editor_PanelSelectTerrain(
-            panel, scenery->grid_position.x, scenery->grid_position.z,
+            panel, app, scenery->grid_position.x, scenery->grid_position.z,
             scenery->grid_position.level);
 
     App_WorldLocChange(
@@ -2095,6 +2212,13 @@ Editor_PanelClearLocsAt(
     assert(panel);
     assert(app);
 
+    /* One undo step for the whole tile, which is what the user did: a stroke
+     * groups the per-layer commands on the authority, so Ctrl+Z restores the
+     * wall AND its decoration AND the ground loc together rather than
+     * peeling them back one press at a time. */
+    if( panel->editor )
+        Editor_StrokeBegin(panel->editor);
+
     /* Bounded rather than `while(found)`: each delete should retire one loc, but
      * a layer this fails to remove would spin here forever, and a tile holds a
      * handful of layers at most. */
@@ -2104,6 +2228,9 @@ Editor_PanelClearLocsAt(
             break;
         removed++;
     }
+
+    if( panel->editor )
+        Editor_StrokeEnd(panel->editor);
     return removed;
 }
 
@@ -2484,7 +2611,7 @@ Editor_PanelTick(
         if( panel->sel_kind == EDITOR_SELECTION_LOC )
         {
             Editor_PanelSelectTerrain(
-                panel, panel->sel_scene_x, panel->sel_scene_z, panel->sel_level);
+                panel, app, panel->sel_scene_x, panel->sel_scene_z, panel->sel_level);
             app->need_redraw = 1;
         }
     }
@@ -2582,7 +2709,7 @@ Editor_PanelTick(
             Editor_PanelApplyToSelection(panel, app);
             break;
         case 3:
-            Editor_PanelClearSelection(panel);
+            Editor_PanelClearSelection(panel, app);
             break;
         case 4:
             editor_clear_tile_locs(panel, app);
@@ -2648,4 +2775,107 @@ Editor_PanelTick(
         panel->tool = (choice >= 0 && choice < EDITOR_TOOL_ROW_COUNT) ? editor_tool_ids[choice]
                                                                      : EDITOR_TOOL_SELECT;
     }
+}
+
+void
+Editor_PanelApplySharedState(
+    struct Editor_Panel* panel,
+    struct App* app,
+    uint32_t key,
+    const int32_t* values,
+    int count)
+{
+    assert(panel);
+    assert(app);
+    assert(values || count == 0);
+
+    /* Open key space: a key this panel build does not know is another
+     * subscriber's business, not an error. */
+    if( key != TORIRSMAPED_STATE_SELECTION )
+        return;
+    if( count < 7 )
+        return;
+
+    panel->applying_shared_state = 1;
+
+    if( values[0] == EDITOR_SELECTION_NONE )
+    {
+        Editor_PanelClearSelection(panel, app);
+        panel->applying_shared_state = 0;
+        return;
+    }
+
+    /*
+     * The fact addresses an absolute world tile. A connection showing a region
+     * that does not contain it keeps its own selection: it cannot draw a
+     * highlight on a tile it never loaded, and inventing scene coordinates
+     * outside the region would put the highlight on the wrong ground.
+     *
+     * A connection with NO world (the controller case) has no scene frame at
+     * all, so it stores the absolute tile: its readouts show the square and
+     * tile the selection names, which is the whole of what it can display.
+     */
+    {
+        int scene_x = values[1];
+        int scene_z = values[2];
+
+        if( app->world
+            && !panel_world_to_scene(app, values[1], values[2], &scene_x, &scene_z) )
+        {
+            panel->applying_shared_state = 0;
+            return;
+        }
+
+        switch( values[0] )
+        {
+        case EDITOR_SELECTION_TERRAIN:
+            Editor_PanelSelectTerrain(panel, app, scene_x, scene_z, values[3]);
+            break;
+        case EDITOR_SELECTION_LOC:
+        {
+            /* Latch directly rather than through Editor_PanelSelectLoc: the
+             * fact carries tile + loc identity, and the ELEMENT id is each
+             * viewer's own to re-find — a controller connection has no world
+             * and keeps -1, which every consumer of sel_element_id already
+             * tolerates (a loc change kills elements mid-session anyway). */
+            panel->sel_kind = EDITOR_SELECTION_LOC;
+            panel->sel_scene_x = scene_x;
+            panel->sel_scene_z = scene_z;
+            panel->sel_level = values[3];
+            panel->sel_loc_id = values[4];
+            panel->sel_shape = values[5];
+            panel->sel_angle = values[6];
+            panel->sel_element_id = -1;
+            if( app->world )
+            {
+                int idx =
+                    World_SceneryFindAt(app->world, scene_x, scene_z, values[3], values[5]);
+                if( idx >= 0 )
+                {
+                    struct WorldEntity_Scenery* scenery =
+                        World_EntityPoolGet(&app->world->entities.scenery, idx);
+                    if( scenery )
+                        panel->sel_element_id = scenery->element_id;
+                }
+            }
+            editor_loc_panel_refresh(panel, app);
+            if( panel->loc_panel >= 0 && panel->visible )
+                ToriRSChrome_PanelSetVisible(&app->dbg_ui, panel->loc_panel, 1);
+            break;
+        }
+        case EDITOR_SELECTION_NPC:
+        case EDITOR_SELECTION_OBJ:
+            panel->sel_kind = (enum Editor_SelectionKind)values[0];
+            panel->sel_scene_x = scene_x;
+            panel->sel_scene_z = scene_z;
+            panel->sel_level = values[3];
+            panel->sel_element_id = -1;
+            panel->loc_panel_stale = 1;
+            break;
+        default:
+            break;
+        }
+    }
+
+    panel->applying_shared_state = 0;
 }
