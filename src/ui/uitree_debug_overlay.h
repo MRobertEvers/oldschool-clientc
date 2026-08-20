@@ -70,7 +70,15 @@ enum ToriDbgFontSlot
     TORIDBG_FONT_SMALL = 0,
     /** The menu face: panel titles and menu rows, matching the minimenu. */
     TORIDBG_FONT_MENU = 1,
-    TORIDBG_FONT_SLOT_COUNT = 2
+    /**
+     * The game's plain body face (p12), the bold menu face's twin.
+     *
+     * Same line box as MENU, so swapping a row between the two reflows
+     * nothing -- which is the point: it lets a skin choose plain-vs-bold per
+     * row without the layout moving underneath it.
+     */
+    TORIDBG_FONT_BODY = 2,
+    TORIDBG_FONT_SLOT_COUNT = 3
 };
 
 /** Pixel width of a NUL-terminated string in `font_slot`, from the baked
@@ -90,6 +98,34 @@ enum ToriDbgPrimKind
 {
     TORIDBG_PRIM_RECT = 0,
     TORIDBG_PRIM_TEXT,
+    /**
+     * One blit of a baked skin image at its native size.
+     *
+     * Native size, not a stretched destination rect, and one prim per copy:
+     * tiling a parchment across a panel is a loop up here rather than a repeat
+     * mode down in the renderer, which keeps the render layer's sprite command
+     * exactly the plain blit it already was. The cost is prims, which the
+     * clip rect bounds anyway -- a panel is a handful of tiles.
+     */
+    TORIDBG_PRIM_SPRITE,
+};
+
+/**
+ * Which baked image a sprite primitive draws.
+ *
+ * Semantic slots, not archive ids: the chrome names *what the image is for*
+ * and whoever draws the display list maps that onto whatever it uploaded, the
+ * same indirection the font slots already use. That is what lets the skin be
+ * re-baked from a different cache, or be absent entirely, without this module
+ * knowing.
+ */
+enum ToriDbgSkinSlot
+{
+    /** Tiled behind a window panel's content. */
+    TORIDBG_SKIN_PANEL_BODY = 0,
+    TORIDBG_SKIN_SCROLL_UP,
+    TORIDBG_SKIN_SCROLL_DOWN,
+    TORIDBG_SKIN_SLOT_COUNT
 };
 
 struct ToriDbgRect
@@ -126,6 +162,8 @@ struct ToriDbgPrim
     int shadowed;
     /** TEXT: NUL-terminated, owned by the widget that produced this prim. */
     char const* text;
+    /** enum ToriDbgSkinSlot. SPRITE only. */
+    int sprite_slot;
     /** Scissor box. Panel content is clipped to the panel's inner rect. */
     struct ToriDbgRect clip;
 };
@@ -151,9 +189,59 @@ struct ToriDbgTheme
     uint32_t menu_text;
     uint32_t menu_hover_text;
     uint32_t separator;
+
+    /**
+     * Draw every string with the 1px black drop shadow, not just the menu rows
+     * that ask for it per-call.
+     *
+     * A theme-level flag rather than an edit to each dbg_push_text call site,
+     * because "does this skin shadow its text" is a property of the skin: the
+     * reference interface shadows all of it, the flat debug look shadows none
+     * of it, and a call site that hard-codes 1 could not express either. The
+     * per-call argument still wins where it is already 1 (the minimenu rows),
+     * so turning this on never *removes* a shadow.
+     */
+    int text_shadowed;
+
+    /**
+     * enum ToriDbgFontSlot: the face window-panel rows lay out and draw in.
+     *
+     * Layout follows it, not just colour -- row height and every measured
+     * width come from this slot -- so a skin that picks the game's p12 body
+     * face gets game-sized rows rather than debug-sized rows with game-sized
+     * glyphs spilling out of them. Panel titles are not affected; those are
+     * always the bold menu face, which is what the reference titles with.
+     */
+    int font_row;
+
+    /**
+     * Draw window-panel bodies as the tiled skin image instead of a flat fill.
+     *
+     * Off is not a degraded mode, it is the flat look -- and it is also the
+     * automatic fallback: whoever draws the list reports which skin slots it
+     * actually has, and a panel whose body image never uploaded falls back to
+     * `panel_body` on its own. A build with the baked skin module stubbed out
+     * therefore still renders, which is the property that lets the skin be
+     * optional rather than load-bearing.
+     */
+    int skin_panel_body;
 };
 
+/** The flat developer look: grey chrome, no shadows, no sprites. */
 extern struct ToriDbgTheme const toridbg_theme_default;
+
+/**
+ * The reference interface palette.
+ *
+ * Every value here is a colour the game itself uses -- the minimenu's body
+ * brown, its black chrome strips and yellow hover, and the orange the
+ * interfaces title headings with -- so a panel drawn in this theme and a real
+ * game widget on screen together read as one system rather than two. Paired
+ * with a baked skin (struct ToriDbgSkin) it gets the sprite art as well; on its
+ * own it is already the right colours in the right places, which is most of
+ * what makes chrome look like it belongs.
+ */
+extern struct ToriDbgTheme const toridbg_theme_osrs;
 
 enum ToriDbgPanelStyle
 {
@@ -267,6 +355,21 @@ struct ToriRSChrome
     int widget_count;
     struct ToriDbgPrim prims[TORIDBG_MAX_PRIMS];
     int prim_count;
+
+    /**
+     * Bit per enum ToriDbgSkinSlot the drawer actually has an image for.
+     *
+     * The host sets this after it uploads the baked skin; 0 (the Init default)
+     * means "no skin", and every skinned draw falls back to its flat form. So
+     * the fallback is the state the module starts in rather than an error path
+     * that has to be remembered -- a build with no skin module, or a host that
+     * never uploads one, renders the flat chrome without anything special.
+     */
+    uint32_t skin_avail;
+    /** Native size of the PANEL_BODY image, so the tiling loop can step by it.
+     *  Set alongside skin_avail; ignored when that bit is clear. */
+    int skin_tile_w;
+    int skin_tile_h;
 
     /** Any panel needs relayout. Build clears it. */
     int dirty;

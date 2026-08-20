@@ -457,15 +457,18 @@ test_debug_overlay_layout(void)
     rect = ToriRSChrome_PanelRect(&g_ui, panel);
     TEST_ASSERT(g_ui.widgets[a].y < g_ui.widgets[b].y, "rows stack downward in order");
     TEST_ASSERT(
-        rect.w >= ToriRSChrome_MeasureText(TORIDBG_FONT_SMALL, "a considerably longer row"),
+        rect.w >= ToriRSChrome_MeasureText(g_ui.theme.font_row, "a considerably longer row"),
         "panel fits its widest row");
     TEST_ASSERT(
         g_ui.widgets[b].y + g_ui.widgets[b].h <= rect.y + rect.h, "last row fits inside the panel");
-    /* No title given, so no title bar and no menu-face text. */
+    /* No title given, so no title bar and no menu-face text. Asserted against
+     * the MENU face rather than for the row face: which face rows use is the
+     * theme's choice (ToriDbgTheme::font_row), and the claim here is only that
+     * the bold title face went unused. */
     prims = ToriRSChrome_Prims(&g_ui, &count);
     for( int i = 0; i < count; i++ )
         TEST_ASSERT(
-            prims[i].kind != TORIDBG_PRIM_TEXT || prims[i].font_slot == TORIDBG_FONT_SMALL,
+            prims[i].kind != TORIDBG_PRIM_TEXT || prims[i].font_slot != TORIDBG_FONT_MENU,
             "untitled window panel draws no menu-face text");
 
     for( int i = 0; i < count; i++ )

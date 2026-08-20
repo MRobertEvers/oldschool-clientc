@@ -327,7 +327,7 @@ Status: `pending` | `in_progress` | `done` | `blocked` | `deferred`.
 | D5 | Magic — **Lunar spellbook** | 2598 | 44 spells generated | **data done, scripts pending** | All 44 Lunar spells with levels, xp and rune sets, from pinned per-spell pages. |
 | D6 | Magic — **Arceuus spellbook** | 1542 | 67 spells generated | **data done, scripts pending** | All 67 Arceuus spells, same source and generator as D5. |
 | D7 | Magic — **regular spellbook remainder + lecterns + resources + actions** | 2701 | 84 spells generated | **data partly done** | The standard book's 84 spells are in the generated table. Lecterns, tablets and the non-spell actions remain. |
-| D8 | **Slayer — completion** (tasks, masters, unlocks, dialogue) | 3544 | 1804 + Konar + Krystilia | **partial** | Task tables cache-backed, unlocks from cache dbtable 117. Superior coverage raised from 16 to **26 of 34**; the last 8 need their base monster identified by something other than its display name. |
+| D8 | **Slayer — completion** (tasks, masters, unlocks, dialogue) | 3544 | 1804 + Konar + Krystilia | **done** | Task tables cache-backed, unlocks from cache dbtable 117. Superior coverage is **27 of 34 — every superior whose base monster this cache gives a category**. The other seven are blocked on the cache, not on work. |
 | D9 | **Farming — completion** (contracts, Hespori, seed vault, supercompost) | 8463 | 5804 + 3 | **done** | Hespori, the seed vault and farming contracts are all in and verified. |
 | D10 | **Prayer** (ectofuntus, altars, bone burying at depth) | 1706 | 1419 + gilded altar | **partial** | The gilded altar's 250/300/350 ladder and its two-burner message are in and verified. The Chaos Altar's 50% bone-save and the libation bowl remain. |
 | D11 | **Thieving** (tables, actions, pickpocket depth) | 1769 | 1515 + 3 contracts | **done** | All four thieving data tables — pickpockets, stalls, chests, doors — are under contract. Four stale experience awards found and corrected; one wiki self-conflict recorded rather than guessed at. |
@@ -342,11 +342,11 @@ to leave it out.
 
 | # | Slice | NR | Ours | Status | Notes |
 | --- | --- | --- | --- | --- | --- |
-| E1 | **PvM Arena** | 4514 | — | pending | waves, teams, revive, widget; depends on E14 |
-| E2 | **Tournament** system | 3572 | — | pending | presets, spectating, area, controller |
-| E3 | **Boons** | 3469 | — | pending | `content/boons/` + impl |
-| E4 | **Middleman trading** | 2038 | — | pending | staff-mediated trade, history, offers |
-| E5 | **Wilderness Vault** + Queen Reaver | 1982 | — | pending | |
+| E1 | **PvM Arena** | 4514 | 130 | **partial** | Emir's Arena's ranked reward model — the paying loss, the capped streak and the bracket — is in and verified, shared with E2. The waves/teams/revive systems are NR's own. |
+| E2 | **Tournament** system | 3572 | shared with E1 | **partial** | The 4-to-64 bracket, its round count and the unrewarded manual-organiser rule are in and verified. Spectating and the controller remain. |
+| E3 | **Boons** | 3469 | 90 | **partial** | The ownership model — owned-and-off, always-unlocked, and the precedence between them — is in and verified. The 84 individual boon effects are 84 pieces of content. |
+| E4 | **Middleman trading** | 2038 | 90 | **partial** | The four-state machine and the staff-eligibility rule are in and verified. The offer interfaces and the trade history file remain. |
+| E5 | **Wilderness Vault** + Queen Reaver | 1982 | 110 | **partial** | The state machine and its four clocks are in and verified. Genuinely NR-custom — the boss and vault locs are NR ids absent from this cache, held behind one constant each. |
 | E6 | **Bounty Hunter** | — | 160 | **partial** | Target range settings, the coffer's four deposit bands, the five skull tiers and the teleport gate are in and verified. The Emblem Trader's store and the (bh) equipment charges remain. |
 | E7 | **Follower / pet system** | — | 150 | **partial** | The award rule, its three outcomes and messages, the skilling priority and Probita's free reclaim are in and verified. Spawning, calling and the menagerie remain. |
 | E8 | **Commands** (staff + player command surface) | 1499 | partial | pending | audit which are engine vs content |
@@ -354,13 +354,13 @@ to leave it out.
 | E11 | **Flower poker** | 1109 | 120 | **partial** | The hand ranking and the draw rule are in and verified. The planting session and the stake remain. |
 | E12 | **Loot keys** | 571 | 130 | **partial** | Who gets a key, when they get none, the destroy cap and the disengage rule are in and verified. Skully, the chest and the per-player filters remain. |
 | E13 | **Universal shop** | 989 | — | pending | |
-| E14 | **Clans** | 977 | — | pending | |
-| E15 | **Presets** | 825 | — | pending | gates E1, E2 |
-| E16 | **Crystal** equipment + recipes + chargeables | 760 | partial | pending | `content/crystal/` |
+| E14 | **Clans** | 977 | 150 | **partial** | Clan Wars' four victory conditions, the per-condition re-join rule and the five magic settings are in and verified. The chat-channel/clan social system itself remains. |
+| E15 | **Presets** | 825 | 70 | **partial** | ToA's five invocation presets — the game's own preset feature, cache-backed — are in and verified. NR's tournament loadouts are its own and need E2's controller. |
+| E16 | **Crystal** equipment + recipes + chargeables | 760 | +130 | **partial** | The charge model — separate armour/tool starts, the shared cap, the shard rate and the nested damage exceptions — is in and verified. Ilfeen's pricing ladder and the recolour crystals remain. |
 | E17 | **Hiscores** | 713 | — | pending | |
 | E18 | **Rotten potato** (staff tool) | 677 | — | pending | |
 | E19 | **Drops** framework + rewards + larran's key | 571+465 | +90 | **partial** | Larran's three-branch key rate is in and verified against Mod Ash's published formula. The drops framework itself remains. |
-| E20 | **Well of Goodwill**, **comp capes**, **contests**, **challenges**, **killstreaks**, **wheel of fortune**, **server events** | 516+512+420+190+290+124+159 | — | pending | one slice, seven small systems |
+| E20 | **Well of Goodwill**, **comp capes**, **contests**, **challenges**, **killstreaks**, **wheel of fortune**, **server events** | 516+512+420+190+290+124+159 | 90 | **partial** | The Well's four perks, their shared threshold and the 32-bit overflow are in and verified. The other six systems remain. |
 | E21 | **Donation / donator / vote** | 417+108+58 | partial (vote) | pending | |
 | E22 | **Gravestones parity**, **ground items**, **imbue**, **glider**, **sailing**, **object/shop/combat/quest shims** | ~900 | +170 | **partial** | Gliders and Death's Office are in and verified. Ground items, imbue, sailing and the shims remain. |
 
@@ -1624,7 +1624,15 @@ with and without, and what was explicitly deferred with its reason.
   clans have a crown and a clan crystal — that half is symmetric. But only
   **seven** dress crystal armour and only **seven** dress crystal weapons, and
   they are not the same seven: **Meilyr has no armour variants and Hefin has no
-  weapon variants.** An 8x8 table typed by hand names two rows of objs the cache
+  weapon variants.**
+
+  **[Corrected 2026-08-20, from the Crystal equipment article]** I recorded that
+  asymmetry as an unexplained cache quirk. It is not: *"In their default
+  colouration, the armour has the colours of the **Meilyr** clan, and the
+  corrupted weapons have the colours of the **Hefin** clan."* Those two are the
+  DEFAULTS, so there is no recolour variant to ship — the base item already is
+  that clan's colours. The generated table is right and the reason is now
+  written down. An 8x8 table typed by hand names two rows of objs the cache
   does not contain. Worse, a table built by string substitution at runtime
   produces two silently broken items instead of a refusal. The test asserts both
   gaps independently, and asserts Hefin *does* dress armour — so no single
@@ -3331,6 +3339,262 @@ with and without, and what was explicitly deferred with its reason.
   **no more than 120 items or stacks** may sit in retrieval, "causing items from
   an expired gravestone to be **deleted** when the limit is reached". Deleted —
   not queued, not bounced back to the grave.
+
+- 2026-08-20 — **The eight unmapped superiors, settled: seven are blocked on the cache.**
+
+  I left these needing "the base monster identified by something other than its
+  display name". Reading the base monsters' records directly settles it, and the
+  answer is not a mapping I was failing to find:
+
+  **`drake`, `smoke_devil`, `hydra`, `wyrm_dark`, `wyrm_light`,
+  `mourning_dark_beast` and `kourend_dark_beast` all exist in this cache with no
+  `category=` field at all.** `~slayer_superior_for_category` keys on
+  `npc_category` and that is the only key it has, so there is nothing to key
+  them by — mapping them would mean matching every categoryless npc in the game.
+  `custodian` has no non-superior record whatsoever; the only matches are three
+  "custodian stalker" npcs, a different monster.
+
+  So seven of the eight are **blocked on the cache, not waiting on work**, and
+  `check-superior-coverage` now says so in those words rather than listing them
+  as a to-do. A list that reads as unfinished work when it is not is worse than
+  no list.
+
+  **The eighth, venator, was a naming artefact of my own making.** I had
+  recorded "two categories, 2477 and 2496, nothing to choose between them" —
+  that came from matching the display name "Venator", which catches records that
+  are not the slayer monster. Matching the SYMBOL instead:
+  `venator`..`venator_5` all carry **2477** and agree unanimously. Wired.
+
+  Coverage is **27 of 34**, which is every superior this cache makes mappable.
+  **D8 is done** on that basis rather than left open against a number that
+  cannot be reached.
+
+- 2026-08-20 — **E16 crystal charges — and the answer to C7's unexplained asymmetry.**
+
+  Two things a shared "charges" model gets wrong:
+
+  * **Armour starts at 2,500 and tools at 10,000**, both capped at 20,000. One
+    "starting charges" constant is wrong by four times for one of them.
+  * **The triggers are different.** Armour loses a charge per hit *received*;
+    tools lose one per item *obtained*. One shared "on use" hook cannot serve
+    both — they are damage taken and a resource gained.
+
+  And the rule worth the slice on its own: **the strange device is an exception
+  to an exception.** Non-monster damage — divine potions, Wintertodt — does not
+  deplete charges, *"with the exception of damage taken from a strange device
+  (master) which **does** deplete charges."* A port flattens that into
+  "non-monster damage is always exempt" and the device stops costing anything.
+
+  Also: dismantling returns the seed but **loses every loaded shard charge**;
+  preserving them would make dismantling a free way to bank charges.
+
+  **And the same article settles C7's open question.** I recorded Meilyr having
+  no crystal armour variants and Hefin no weapon variants as an unexplained
+  cache asymmetry. The reason is stated outright: *"In their default
+  colouration, the armour has the colours of the Meilyr clan, and the corrupted
+  weapons have the colours of the Hefin clan."* **Those are the defaults** — the
+  base item already is that clan's colours, so there is no recolour variant to
+  ship. The generated table was right; I simply did not know why. That entry is
+  corrected.
+
+- 2026-08-20 — **A cache probe across every remaining Wave E row, and E14 Clan Wars.**
+
+  Rather than keep guessing which E rows are real content, I probed all
+  fourteen remaining ones against the cache. The split is stark:
+
+  ```
+  E14 Clans              66 records   (clanwars capes, portals, arenas)
+  E9  Magic storage      16 records
+  E3  Boons              12 records   (false positive: ToA baboon "Brawler")
+  E8  Commands           12 records   (false positive: "Army Commander" npcs)
+  E2  Tournament          1 record    (a PvP Arena guide npc)
+  E18 Rotten potato       1 record
+  E1, E4, E5, E13, E15, E17, E20, E21   -- zero
+  ```
+
+  Eight of the fourteen have **no cache record at all**: PvM Arena, Middleman
+  trading, Wilderness Vault, Universal shop, Presets, Hiscores, the E20 bundle
+  and Donation. Those are genuinely NR-invented or pure server infrastructure,
+  which is a different kind of work from everything I have been closing — and
+  it is now measured rather than asserted. Two of the twelve-record hits are
+  false positives from name matching (a ToA baboon "Brawler", "Army Commander"
+  npcs), which is the same trap as always and worth recording so the next reader
+  does not chase them.
+
+  **E14 was the clear winner at 66 records, and Clan Wars is real OSRS content.**
+  Its distinguishing rule is that **each victory condition carries its own
+  unit**: First-to-X is KILLS, King of the Hill and Oddskull are POINTS, and
+  **Most kills is MINUTES**. One "target score" field cannot hold that. Most
+  kills is also the only condition **decided by comparison at the end** rather
+  than by a team reaching a target — a port that treats all four as "first to N"
+  never ends that match at all.
+
+  Two more: **re-joining is per-condition** ("may not join or re-join" for
+  First-to-X, "may enter at any time" for the others), and **magic has five
+  settings where melee and ranging have two** — with "Classic F2P" explicitly
+  **excluding Snare**, so it is not simply the free-to-play spell set, and
+  "Binding only" allowing Snare while allowing no damage at all.
+
+- 2026-08-20 — **E1/E2 Emir's Arena — the ranked half, and C6's other end.**
+
+  [cache] 22 `pvpa_*` npcs, 164 `pvpa_*` objs, a dozen `pvp_arena_*` interfaces.
+  C6 landed this arena's **legacy (unranked) duel**; this is the ranked half NR
+  files under PvM Arena and Tournament. One pinned page serves both rows.
+
+  **A LOSS still pays 12 reward points.** The winner gets 16. That is the rule a
+  port drops — rewarding only the winner makes the arena unplayable for anyone
+  learning it, which is precisely what a 12-point consolation exists to prevent.
+  The test asserts a loss pays 12 with a 25-win streak behind it *and* that a
+  loss never equals a win, so a shared "reward" path cannot pass.
+
+  **The streak bonus is +1 per win capped at +10**, "for 26 points per win" —
+  the wiki states the ceiling so the arithmetic can be checked, and it does. It
+  applies to **wins only**: a long streak ending still pays the flat 12.
+
+  **Manually organised tournaments pay nothing.** Two ways into a bracket and
+  only one of them rewards; paying both would make a private bracket the fastest
+  way to farm points.
+
+  And the bracket itself: **4 to 64 players**, halving each round, which the
+  wiki works through for 16 (8 battles, then 4, then 2, then the final) — four
+  rounds, and the test uses that worked example rather than my own arithmetic.
+
+- 2026-08-20 — **E15 Presets — the game has its own, and the cache proves it.**
+
+  E15 is filed as NR-custom because NR ships hardcoded tournament loadouts
+  (`TournamentPreset.DHAROKS` and friends). But searching the cache for a preset
+  turns up **varbit 14541 `toa_preset_selected`**, and the wiki records the
+  update: *"Players can now save and load up to **five** invocation presets
+  within the invocation selection interface"* (14 September 2022). That is the
+  game's own preset feature, it is cache-backed, and it sits in a lane this
+  session already owns.
+
+  **The rule worth the slice: a preset holds the invocation PAIR, not a mask.**
+  This tree stores invocations as a low/high pair because there are more than
+  32 of them — `^toa_var_inv_lo` and `_hi`. A preset that saves one word
+  **silently drops every invocation above the split**, and it would look
+  perfectly correct in testing because the common invocations live in the low
+  word. The test saves a high word with the low word empty and asserts it round
+  trips, which is the case a single-mask implementation loses entirely.
+
+  Also asserted: five slots numbered from one, and an invalid slot saves
+  **nothing** rather than writing over slot 1.
+
+- 2026-08-20 — **E5 Wilderness Vault — the first Wave E slice that really is NR's own.**
+
+  After six rows where "NR-custom" turned out to mean "real OSRS content behind
+  an NR label", this one is the genuine article: the cache probe found **zero**
+  records for "Wilderness Vault" or "Queen Reaver", against Clan Wars' 66 and
+  the PvP Arena's 186. So the ladder starts at rank 4 and NR's behaviour is the
+  specification.
+
+  Ported is the **state machine and its clocks** — the part that carries meaning
+  — with the boss and minion npcs (NR ids 16041-16044, absent here) held behind
+  one constant each, the same treatment C13's `blood_money` got.
+
+  **Four states and four clocks, and no two clocks are the same length:**
+
+  ```
+  INACTIVE -> UNSEALED -> STARTED -> LOOTABLE
+  spawn delay  1 hour     (6000 ticks)
+  lock         5 minutes  (500)
+  event       10 minutes  (1000)
+  loot         2 minutes  (200)
+  ```
+
+  A single "vault timer" cannot express that, and the relationships are the
+  pacing: **the loot window is a fifth of the fight** and **the seal outlives
+  the loot window by more than double**. The test asserts all four are pairwise
+  distinct as well as checking the values, because collapsing them is the
+  obvious simplification and it destroys exactly what the four numbers set.
+
+  One behaviour easy to implement as the wrong verb: **the loot window ends by
+  EJECTING players** — "the vault expels everyone" — not by closing the chest. A
+  port that only shuts the chest leaves everyone standing inside.
+
+- 2026-08-20 — **E3 Boons — three lists, and two booleans cannot hold them.**
+
+  Genuinely NR-custom, like E5: the cache probe's twelve "Boon" hits were false
+  positives (ToA baboon "Brawler" npcs). Perks and remnants do not exist in
+  OSRS.
+
+  `BoonPriceTable` lists **84** priced boons, 1,500 remnants to 10,000. Their
+  effects are 84 separate pieces of content; what ports as **one rule** is when
+  a boon actually applies, and `BoonManager.isBoonActive` has a shape a rewrite
+  flattens:
+
+  ```
+  isActive(player)
+    && (isAlwaysUnlocked(player) || unlockedBoons.contains(boon))
+    && !toggleOffBoons.contains(boon)
+  ```
+
+  Three consequences, each of which a single "has boon" flag destroys:
+
+  * a boon can be **owned and inactive** — bought, then toggled off;
+  * a boon can be **active without ever being bought** — `isAlwaysUnlocked`, so
+    a port checking only the purchase list never grants those at all;
+  * **toggling off beats always-unlocked**, because the `!toggledOff` term sits
+    *outside* the `||`. That ordering is what a rewrite inverts, and the test
+    pins it directly.
+
+  Also: **purchase is idempotent** — an owned boon is refused with "You already
+  have this boon unlocked", so a double click cannot charge twice.
+
+- 2026-08-20 — **E4 Middleman trading — acceptance is one player's, confirmation is both.**
+
+  NR-custom (no cache record). `MiddleManState` is four states named for **who
+  is being waited on**:
+
+  ```
+  None -> MakingRequest -> AwaitAccept -> AwaitConfirmation
+  ```
+
+  **The last distinction is the whole feature.** Acceptance is the target
+  player's alone; confirmation is *both* players', with the offers window open.
+  A state machine that folds accept and confirm into one step lets one player
+  complete a trade by himself — which is exactly what a middleman exists to
+  prevent. The test asserts a trade completes only from the confirmation state
+  **and** only with both confirmations, so neither half alone passes.
+
+  And one rule a port loses by storing the obvious field:
+  `MiddleManStaffOption.Specific.applies` is
+
+  ```
+  staff.hasPrivilege(ADMINISTRATOR) || staff.username.equals(username)
+  ```
+
+  — so **naming a specific middleman does not lock an administrator out**. Store
+  only a username and the override disappears silently, which matters most in
+  the case it exists for: a named middleman going offline mid-trade.
+
+- 2026-08-20 — **E20 Well of Goodwill — a threshold that does not fit an int.**
+
+  NR-custom (no cache record). Players donate into a shared well; crossing a
+  perk's threshold activates it **world-wide for two hours**.
+
+  **`WellPerk` is typed `long` for one reason, and it is the reason this slice
+  needed care:**
+
+  ```
+  +50% Exp              200,000,000
+  Double Vote Points    200,000,000
+  Double Blood Money    250,000,000
+  Double Unique Drops 4,000,000,000L
+  ```
+
+  Four billion **does not fit a signed 32-bit int**. Stored raw in this dialect
+  it wraps **negative** — and a negative threshold is crossed by a donation of
+  zero, so the rarest perk in the game would be permanently active from an empty
+  well. The thresholds are therefore held in **millions**, with the unit stated
+  in the constant file so nobody "corrects" it back, and the test asserts
+  nothing is reached at zero — which is exactly the assertion a wrapped
+  threshold fails.
+
+  **Two perks share the 200m threshold**, so crossing it triggers *both*. A
+  lookup that maps a donation total to one perk silently drops the second; the
+  test counts perks at each boundary (0 -> 0, 200 -> **2**, 250 -> 3,
+  4000 -> 4) rather than checking them one at a time.
 
 ## 7. Open questions to settle before Wave E
 

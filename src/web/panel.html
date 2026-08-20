@@ -1,0 +1,209 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ToriRS Map Editor — Command Panel</title>
+<!--
+  The command panel, as its own tab.
+
+  It is HTML rather than a second wasm canvas on purpose: this page is forms,
+  and forms are what the DOM is already good at. It links no wasm, opens no
+  cache and holds no world -- every fact on screen arrived as a frame from the
+  renderer tab, and every control sends an intent back. See torirs_channel.js.
+
+  The look is the same skin the native chrome wears (src/ui/uitree_debug_overlay.c's
+  toridbg_theme_osrs), spelled in CSS: the same brown, the same black chrome,
+  the same orange headings, the same drop shadow on the text. One extraction,
+  two renderers.
+-->
+<style>
+  :root {
+    --body: #5D5447;
+    --chrome: #000000;
+    --title: #FF981F;
+    --text: #FFFFFF;
+    --dim: #C8C8C8;
+    --accent: #FFFF00;
+    --input-bg: #000000;
+    --input-border: #3E3529;
+    --ground: #2B2B2B;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    padding: 12px;
+    background: var(--ground);
+    color: var(--text);
+    font: 13px/1.45 "Trebuchet MS", Verdana, system-ui, sans-serif;
+    text-shadow: 1px 1px 0 #000;
+  }
+  .panel {
+    background: var(--body);
+    border: 1px solid var(--chrome);
+    max-width: 320px;
+    margin: 0 0 12px;
+  }
+  .panel > h2 {
+    margin: 0;
+    background: var(--chrome);
+    color: var(--title);
+    font-size: 13px;
+    font-weight: 700;
+    padding: 3px 6px;
+  }
+  .rows { padding: 6px; display: flex; flex-direction: column; gap: 5px; }
+  .row { display: flex; align-items: center; gap: 6px; }
+  .row > label { min-width: 74px; color: var(--dim); }
+  select, input[type="text"] {
+    flex: 1;
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    color: var(--text);
+    font: inherit;
+    text-shadow: inherit;
+    padding: 2px 4px;
+  }
+  select:focus, input:focus { outline: none; border-color: var(--accent); }
+  button {
+    background: var(--input-bg);
+    border: 1px solid var(--input-border);
+    color: var(--text);
+    font: inherit;
+    text-shadow: inherit;
+    padding: 3px 10px;
+    cursor: pointer;
+  }
+  button:hover { color: var(--accent); border-color: var(--accent); }
+  hr { border: 0; border-top: 1px solid var(--chrome); margin: 3px 0; }
+  .readout { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 12px; }
+  .state { color: var(--dim); font-size: 12px; }
+  .state.bad { color: #FF4444; }
+  #log {
+    background: #000; border: 1px solid var(--chrome); color: var(--dim);
+    font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 11px;
+    height: 130px; overflow-y: auto; padding: 4px; max-width: 320px;
+    text-shadow: none; white-space: pre-wrap;
+  }
+</style>
+</head>
+<body>
+
+<div class="panel">
+  <h2>Map Editor</h2>
+  <div class="rows">
+    <div class="row"><label>square</label><span class="readout" id="r-square">—</span></div>
+    <div class="row"><label>tile</label><span class="readout" id="r-tile">—</span></div>
+    <hr>
+    <div class="row">
+      <label>Tool</label>
+      <select id="tool">
+        <option value="0">Select</option>
+        <option value="1">Height</option>
+        <option value="2">Underlay</option>
+        <option value="3">Overlay</option>
+        <option value="4">Flags</option>
+      </select>
+    </div>
+    <div class="row"><label>Height</label><input type="text" id="height" value="0"></div>
+    <hr>
+    <div class="row">
+      <button id="undo">Undo</button>
+      <button id="redo">Redo</button>
+      <button id="save">Save</button>
+      <button id="bake">Bake</button>
+    </div>
+    <div class="row"><span class="state" id="state">connecting…</span></div>
+  </div>
+</div>
+
+<div id="log"></div>
+
+<script src="./torirs_channel.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var enc = new TextEncoder();
+  var dec = new TextDecoder();
+  var $ = function (id) { return document.getElementById(id); };
+
+  function log(msg) {
+    var el = $('log');
+    el.textContent += msg + '\n';
+    el.scrollTop = el.scrollHeight;
+  }
+
+  function setState(text, bad) {
+    var el = $('state');
+    el.textContent = text;
+    el.className = bad ? 'state bad' : 'state';
+  }
+
+  /*
+   * Facts arrive as JSON here rather than as packed structs.
+   *
+   * The framing is the C wire (so a frame can cross to the native bus
+   * unchanged), but what rides inside it between two JS tabs is this page's
+   * business. JSON keeps the panel readable and costs nothing at this rate --
+   * a readout per tile crossing. The intents below do the same in reverse.
+   */
+  var panel = ToriRSChannel.createPanel({
+    onFact: function (type, payload, seq) {
+      var body = payload.length ? JSON.parse(dec.decode(payload)) : {};
+      if (type === ToriRSChannel.FACT.SNAPSHOT) {
+        setState('synced (seq ' + seq + ')');
+        log('SNAPSHOT seq=' + seq);
+        if (body.tool !== undefined) { $('tool').value = String(body.tool); }
+      } else if (type === ToriRSChannel.FACT.DELTA) {
+        setState('synced (seq ' + seq + ')');
+      } else if (type === ToriRSChannel.FACT.PROGRESS) {
+        log(body.line || '');
+        return;
+      } else if (type === ToriRSChannel.FACT.NACK) {
+        log('refused: ' + (body.why || '?'));
+        return;
+      }
+      if (body.square !== undefined) { $('r-square').textContent = body.square; }
+      if (body.tile !== undefined) { $('r-tile').textContent = body.tile; }
+    },
+    onDesync: function (had, got) {
+      setState('resyncing (gap ' + had + '→' + got + ')', true);
+      log('desync: seq jumped ' + had + ' -> ' + got + ', asked for a snapshot');
+    }
+  });
+
+  function intent(type, obj) {
+    panel.send(type, enc.encode(JSON.stringify(obj || {})));
+  }
+
+  $('tool').addEventListener('change', function () {
+    intent(ToriRSChannel.INTENT.SET, { tool: parseInt(this.value, 10) });
+  });
+  $('height').addEventListener('change', function () {
+    intent(ToriRSChannel.INTENT.SET, { height: this.value });
+  });
+  $('undo').addEventListener('click', function () {
+    intent(ToriRSChannel.INTENT.OP, { op: 'undo' });
+  });
+  $('redo').addEventListener('click', function () {
+    intent(ToriRSChannel.INTENT.OP, { op: 'redo' });
+  });
+  $('save').addEventListener('click', function () {
+    intent(ToriRSChannel.INTENT.SAVE, {});
+    log('save requested');
+  });
+  $('bake').addEventListener('click', function () {
+    /* The one and only producer of a bake request in this page, matching the
+     * native rule: baking is never a side effect of anything else. */
+    intent(ToriRSChannel.INTENT.BAKE, { scope: 'dirty' });
+    log('bake requested');
+  });
+
+  if (!window.opener) {
+    setState('no renderer tab — open this from the canvas page', true);
+  }
+})();
+</script>
+</body>
+</html>

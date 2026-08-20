@@ -63,6 +63,30 @@ def main():
 
     print("check_superior_coverage: %d superior(s) in the cache, %d mapped by "
           "~slayer_superior_for_category" % (len(all_sup), len(have)))
+    # A superior whose BASE monster carries no `category=` in the cache can
+    # never be mapped by this proc, because `npc_category` is the only key it
+    # has. Settled 2026-08-20 by reading the records: drake, smoke devil, hydra,
+    # both wyrms and both dark beasts are all categoryless, and custodian has no
+    # non-superior record at all. Those seven are not work waiting to be done --
+    # they are blocked on the cache, and saying so stops the list reading as a
+    # to-do.
+    UNMAPPABLE = {
+        "superior_drake": "base `drake` has no category= in this cache",
+        "superior_smoke_devil": "base `smoke_devil` has no category=",
+        "superior_hydra": "base `hydra` has no category=",
+        "superior_wyrm_dark": "base `wyrm_dark` has no category=",
+        "superior_wyrm_light": "base `wyrm_light` has no category=",
+        "superior_dark_beast": "both dark beast records have no category=",
+        "superior_custodian": "no non-superior `custodian` record exists",
+    }
+    blocked = [m for m in missing if m in UNMAPPABLE]
+    missing = [m for m in missing if m not in UNMAPPABLE]
+
+    if blocked:
+        print("  blocked on the cache, not mappable (%d):" % len(blocked))
+        for b in blocked:
+            print("    %-24s %s" % (b, UNMAPPABLE[b]))
+
     if missing:
         print("  never spawnable (%d):" % len(missing))
         for i in range(0, len(missing), 4):
@@ -72,7 +96,7 @@ def main():
               % (len(stray), " ".join(stray)))
         return 1
     if not missing:
-        print("  every superior the cache ships can be rolled")
+        print("  every superior with a mappable base monster is rolled")
     return 0
 
 

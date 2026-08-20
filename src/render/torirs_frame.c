@@ -1250,6 +1250,35 @@ translate_ui_cmd(
             return true;
         }
 
+        if( prim->kind == TORIDBG_PRIM_SPRITE )
+        {
+            int atlas;
+
+            if( prim->sprite_slot < 0 || prim->sprite_slot >= TORIDBG_SKIN_SLOT_COUNT )
+                return false;
+            atlas = desc->debug_skin_atlas[prim->sprite_slot];
+            /* No skin uploaded for this slot. The chrome only emits these once
+             * the host set the matching skin_avail bit, so reaching here means
+             * the two disagree -- draw nothing rather than blit slot 0 of some
+             * unrelated scene. */
+            if( desc->debug_skin_scene_id < 0 || atlas < 0 )
+                return false;
+            out->kind = TORIRSRC_SPRITE;
+            out->u.sprite.scene_id = desc->debug_skin_scene_id;
+            out->u.sprite.atlas_index = atlas;
+            out->u.sprite.x = prim->x;
+            out->u.sprite.y = prim->y;
+            /* 0: blit at the sprite's own size. The chrome tiles by emitting
+             * one prim per copy, so nothing here ever scales. */
+            out->u.sprite.w = 0;
+            out->u.sprite.h = 0;
+            out->u.sprite.scissor_x = prim->clip.x;
+            out->u.sprite.scissor_y = prim->clip.y;
+            out->u.sprite.scissor_w = prim->clip.w;
+            out->u.sprite.scissor_h = prim->clip.h;
+            return true;
+        }
+
         /* RECT. filled == 0 reaches ToriDraw2D_DrawRectOutline, which is what
          * makes a bordered background one primitive instead of four. */
         out->kind = TORIRSRC_FILL_RECT;

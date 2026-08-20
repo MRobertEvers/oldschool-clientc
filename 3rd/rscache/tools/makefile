@@ -53,13 +53,13 @@ LIB_OBJS := \
 	$(BUILD)/xteas.o \
 	$(BUILD)/ini.o
 
-.PHONY: all clean find_anims find_named anim_compare port_npc port_lostcity map_port packfile cs2 cachepack fontbake audioprobe poser-gl
+.PHONY: all clean find_anims find_named anim_compare port_npc port_lostcity map_port packfile cs2 cachepack fontbake spritebake audioprobe poser-gl
 .DEFAULT_GOAL := all
 
 # poser-gl is not in `all`: it needs SDL2 and an OpenGL 3.3 context, which the
 # other tools do not, and a machine without SDL2 should still build the rest.
 # `make poser-gl` builds it.
-all: find_anims find_named anim_compare port_npc port_lostcity map_port packfile cs2 cachepack fontbake audioprobe
+all: find_anims find_named anim_compare port_npc port_lostcity map_port packfile cs2 cachepack fontbake spritebake audioprobe
 
 find_anims: $(TOOLS)/find_anims/find_anims
 find_named: $(TOOLS)/find_named/find_named
@@ -69,6 +69,7 @@ port_lostcity: $(TOOLS)/port_lostcity/port_lostcity
 map_port: $(TOOLS)/map_port/map_port
 packfile: $(TOOLS)/packfile/packfile
 fontbake: $(TOOLS)/fontbake/fontbake
+spritebake: $(TOOLS)/spritebake/spritebake
 audioprobe: $(TOOLS)/audioprobe/audioprobe
 
 LC_SRCS := \
@@ -175,6 +176,11 @@ $(TOOLS)/port_npc/port_npc: $(TOOLS)/port_npc/main.c $(COMMON_OBJS) $(LIB_OBJS)
 $(TOOLS)/fontbake/fontbake: $(TOOLS)/fontbake/main.c $(COMMON_OBJS) $(LIB_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ -lm -lpthread
 
+# spritebake — fontbake's sibling: cache sprites to compiled-in ARGB arrays.
+# bmp.o already rides in the common objects, for the --sheet contact sheet.
+$(TOOLS)/spritebake/spritebake: $(TOOLS)/spritebake/main.c $(COMMON_OBJS) $(LIB_OBJS)
+	$(CC) $(CFLAGS) -o $@ $^ -lm -lpthread
+
 # audioprobe — the audio tables, read as bytes. See its header for why it exists.
 $(TOOLS)/audioprobe/audioprobe: $(TOOLS)/audioprobe/main.c $(COMMON_OBJS) $(LIB_OBJS)
 	$(CC) $(CFLAGS) -o $@ $^ -lm -lpthread
@@ -201,7 +207,7 @@ $(TOOLS)/cachepack/cachepack: $(CACHEPACK_SRCS) $(COMMON_OBJS) $(LIB_OBJS)
 clean:
 	rm -rf $(BUILD) $(TOOLS)/find_anims/find_anims $(TOOLS)/find_named/find_named $(TOOLS)/anim_compare/anim_compare $(TOOLS)/port_npc/port_npc \
 		$(TOOLS)/port_lostcity/port_lostcity $(TOOLS)/map_port/map_port $(TOOLS)/packfile/packfile $(TOOLS)/cs2/cs2 \
-		$(TOOLS)/cachepack/cachepack $(TOOLS)/fontbake/fontbake $(TOOLS)/audioprobe/audioprobe \
+		$(TOOLS)/cachepack/cachepack $(TOOLS)/fontbake/fontbake $(TOOLS)/spritebake/spritebake $(TOOLS)/audioprobe/audioprobe \
 		$(TOOLS)/poser-gl-c/poser-gl
 
 # cs2 — the CS2 decompiler/compiler front end. Links the library only; the

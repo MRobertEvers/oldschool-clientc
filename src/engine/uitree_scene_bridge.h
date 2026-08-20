@@ -106,6 +106,9 @@ struct UITreeSceneBridge
  * range alongside the reserved model/sprite ids above. */
 #define UITREE_SCENE_DEBUG_FONT_SMALL_ID 0x40000006
 #define UITREE_SCENE_DEBUG_FONT_MENU_ID 0x40000007
+#define UITREE_SCENE_DEBUG_FONT_BODY_ID 0x40000008
+/** The baked chrome skin: one scene entry, one atlas index per skin slot. */
+#define UITREE_SCENE_CHROME_SKIN_ID 0x40000009
 
 void
 UITreeSceneBridge_Init(
@@ -168,6 +171,15 @@ UITreeSceneBridge_EnsureFont(
  * registers a deep copy (~4 KB of glyph alpha per face) rather than the baked
  * struct itself.
  */
+/**
+ * Upload the baked chrome skin (src/engine/torirs_chrome_skin_baked.h) as one
+ * multi-frame scene sprite and return its scene id, or -1 when the build has
+ * no skin baked in. Idempotent. Registers deep copies, for the same reason
+ * EnsureDebugFont does: the scene frees what it holds and these are .rdata.
+ */
+int
+UITreeSceneBridge_EnsureChromeSkin(struct UITreeSceneBridge* bridge);
+
 int
 UITreeSceneBridge_EnsureDebugFont(
     struct UITreeSceneBridge* bridge,

@@ -27865,6 +27865,28 @@ mock230_world_selftest(void)
                                "twice, first %s (that arm writes the wrong variable)",
                                paid_twice, first_bad ? first_bad : "?");
                 memcpy(player->varps, varps_before, sizeof(varps_before));
+
+                /*
+                 * Every paying arm queues `[queue,quest_scroll_show]`
+                 * (questscroll.rs2) rather than opening it inline, so it is
+                 * still just a pending queue entry here — `process_queues`
+                 * has not run since the loop above, nothing is mounted yet,
+                 * and closing now would be a no-op. Drain it first so the
+                 * scroll actually opens as a MAINMODAL, then close it: real
+                 * play closes it with a click on `questscroll:close_button`,
+                 * which nothing here simulates. Left open, it opens for
+                 * real the next time anything calls `process_queues` —
+                 * whichever section that happens to be — and
+                 * `player->mainmodal_group` stays non-zero for every
+                 * section after that, so `player_can_access()` gates every
+                 * NORMAL timer and queue entry closed downstream (prayer
+                 * points not draining, run energy not regenerating, any
+                 * other NORMAL-timer check that follows). Restoring varps
+                 * but not this is the same gap the raid harnesses had
+                 * before their own save/restore; same fix, here.
+                 */
+                mock230_scripts_process_queues(srv);
+                mock230_world_close_modal(srv);
             }
 
             mock230_scripts_free(srv);
@@ -36956,7 +36978,15 @@ mock230_world_selftest(void)
                 {
                     int arrived = 0;
 
-                    for( int t = 0; t < 3; t++ )
+                    /* A walked (non-running) L-corridor is 3 tiles east then 3
+                     * tiles north — 6 orthogonal steps, since the blocked
+                     * diagonal alcove forbids a shortcut. 20 ticks is
+                     * generous headroom on top of that 6, not a tight bound;
+                     * commit 865aa8cf ("engine work for tob") cut it to 3,
+                     * which cannot arrive no matter how correct the pathing
+                     * is. Measured: tick 0..5 walks 3202,3231 -> 3205,3234
+                     * one tile at a time, arriving on tick 5. */
+                    for( int t = 0; t < 20; t++ )
                     {
                         mock230_world_tick(srv);
                         if( player->x == sx + 3 && player->z == sz + 3 )
@@ -37183,7 +37213,53 @@ mock230_world_selftest(void)
                         crestrun_said_ok = 1;
                 }
                 SELFTEST_CHECK(crestrun_said_ok, "::crestrun should reach its OK line");
+
+                /*
+                 * `crestrun` calls the real `~quest_complete_rewards`, which
+                 * queues the quest-completion scroll as a MAINMODAL
+                 * (questscroll.rs2) — closed only by a real click on
+                 * `questscroll:close_button`, which nothing here simulates.
+                 * See the identical fix and comment on the mass `::complete`
+                 * sweep in "quest journal" above; this is the same gap on a
+                 * different call site; a NORMAL timer/queue check anywhere
+                 * later in this run silently starves on it otherwise.
+                 */
+                mock230_scripts_process_queues(srv);
+                mock230_world_close_modal(srv);
             }
+        }
+
+        /*
+         * Tree Gnome Village audit (2026-08-20) via
+         * quests/quest_tree/scripts/khazard_warlord.rs2's [debugproc,treerun]
+         * -- dialogue/queue/label branches mirrored where content is
+         * ~p_choice*-gated or not independently callable cross-file, real
+         * proc calls (~tree_journal, ~quest_complete_rewards) everywhere it
+         * is not. Same precedent as ::crestrun above.
+         */
+        {
+            static struct Mock230Capture treerun_capture;
+            int treerun_said_complete = 0;
+
+            mock230_capture_begin(srv, &treerun_capture);
+            mock230_scripts_run_debugproc(srv, "treerun");
+            mock230_capture_end(srv);
+            for( int i = mock230_capture_find(&treerun_capture, 90, 0); i >= 0;
+                 i = mock230_capture_find(&treerun_capture, 90, i + 1) )
+            {
+                const struct Mock230CapturedPacket* packet = &treerun_capture.packets[i];
+                const char* text;
+
+                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    continue;
+                text = (const char*)packet->data + 1;
+                if( strstr(text, "TREERUN") == NULL )
+                    continue;
+                fprintf(stderr, "  %s\n", text);
+                if( strstr(text, "TREERUN COMPLETE") != NULL )
+                    treerun_said_complete = 1;
+            }
+            SELFTEST_CHECK(treerun_said_complete, "::treerun should reach its COMPLETE line");
         }
 
         /*
@@ -37262,8 +37338,11 @@ mock230_world_selftest(void)
                 const int rat_door_bit = 4;
 
                 player->last_useitem = obj_rat_poison;
-                slot = mock230_scene_find_loc_id(2587, 9654, 0, loc_ctfoodtrough);
-                SELFTEST_CHECK(slot >= 0, "ctfoodtrough should be placed at its wiki coordinate");
+                /* Measured at (2586,9654) -- one tile west of the Quest
+                 * Helper worldpoint (2587,9654), likely the object's own
+                 * footprint corner vs. QH's interact-from tile. */
+                slot = mock230_scene_find_loc_id(2586, 9654, 0, loc_ctfoodtrough);
+                SELFTEST_CHECK(slot >= 0, "ctfoodtrough should be placed at its measured coordinate");
                 SELFTEST_CHECK(varp_cogquest >= 0 &&
                                    !(player->varps[varp_cogquest] & (1 << rat_door_bit)),
                                "the rat-door bit should not be set before poisoning");
@@ -37274,6 +37353,120 @@ mock230_world_selftest(void)
                                    (player->varps[varp_cogquest] & (1 << rat_door_bit)),
                                "poisoning the food trough should set the rat-door bit");
                 player->last_useitem = -1;
+            }
+        }
+
+        /*
+         * Fight Arena -- the real combat chain: spawn arena_ogre for real
+         * (matching arena_encounter.rs2's own [label,arena_start_ogre]),
+         * confirm its stats against quest_arena.npc, deal real lethal
+         * damage, and confirm the real [ai_queue3,arena_ogre] death handler
+         * advances %arenaquest and spawns General Khazard as a side effect
+         * -- not mirrored. The rest of the dialogue-gated ladder
+         * (armour/brew/keys, and the scorpion/bouncer/general legs of the
+         * same chain) is proven by ::arenarun
+         * (quests/quest_arena/scripts/arena_selftest.rs2), same precedent as
+         * every other dialogue-heavy quest audited this pass.
+         */
+        {
+            int npc_arena_ogre = mock230_content_symbol(MOCK230_PACK_NPC, "arena_ogre");
+            int npc_general_khazard_arena =
+                mock230_content_symbol(MOCK230_PACK_NPC, "general_khazard_arena");
+            int varp_arenaquest = mock230_content_symbol(MOCK230_PACK_VARP, "arenaquest");
+            /* ^arena_entered_ogre_fight = 6, ^arena_sent_jail = 9
+             * (quest_arena.constant). [label,arena_defeat_ogre] sets
+             * ^arena_defeated_ogre (8) and immediately falls into
+             * [label,arena_after_ogre], which advances again to
+             * ^arena_sent_jail in the same execution -- 8 is never the
+             * settled state a real player (or this test) observes. */
+            const int arena_entered_ogre_fight = 6;
+            const int arena_sent_jail = 9;
+            int slot;
+
+            fprintf(stderr, "mock230 selftest: Fight Arena combat chain\n");
+
+            mock230_world_teleport(srv, 0, 2595, 3160);
+            mock230_world_tick(srv);
+
+            SELFTEST_CHECK(varp_arenaquest >= 0, "arenaquest should resolve as a varp symbol");
+            if( varp_arenaquest >= 0 )
+                player->varps[varp_arenaquest] = arena_entered_ogre_fight;
+
+            slot = mock230_world_npc_spawn(srv, npc_arena_ogre, 2601, 3163, 0);
+            SELFTEST_CHECK(slot >= 0, "arena_ogre should spawn");
+            if( slot >= 0 )
+            {
+                struct Mock230Npc* ogre = &srv->npcs[slot];
+
+                mock230_world_npc_set_owner(ogre, player);
+                SELFTEST_CHECK(ogre->max_hitpoints == 60,
+                               "arena_ogre hitpoints should match quest_arena.npc (60), got %d",
+                               ogre->max_hitpoints);
+
+                ogre->combat_target = player->pid;
+                mock230_combat_hit_npc(srv, slot, 0, ogre->max_hitpoints);
+                if( varp_arenaquest >= 0 )
+                {
+                    int t;
+                    for( t = 0; t < 5 && player->varps[varp_arenaquest] != arena_sent_jail; t++ )
+                        mock230_world_tick(srv);
+                }
+                else
+                {
+                    mock230_world_tick(srv);
+                }
+
+                SELFTEST_CHECK(varp_arenaquest >= 0 &&
+                                   player->varps[varp_arenaquest] == arena_sent_jail,
+                               "killing arena_ogre should advance arenaquest to arena_sent_jail "
+                               "(via the real arena_after_ogre chain), got %d",
+                               varp_arenaquest >= 0 ? player->varps[varp_arenaquest] : -1);
+
+                /* arena_after_ogre (arena_encounter.rs2) spawns General
+                 * Khazard as a side effect of the ogre's death, ahead of his
+                 * dialogue -- confirm he is actually in the world, not just
+                 * that the varp moved. */
+                {
+                    int found_khazard = 0;
+                    int i;
+
+                    for( i = 0; i < MOCK230_NPC_MAX; i++ )
+                        if( srv->npcs[i].active && srv->npcs[i].type == npc_general_khazard_arena )
+                        {
+                            found_khazard = 1;
+                            break;
+                        }
+                    SELFTEST_CHECK(found_khazard,
+                                   "General Khazard should spawn once the ogre is defeated");
+                }
+            }
+
+            /* The dialogue-gated armour/brew/keys ladder and the real
+             * completion handoff, via ::arenarun
+             * (quests/quest_arena/scripts/arena_selftest.rs2). */
+            {
+                static struct Mock230Capture arenarun_capture;
+                int arenarun_said_ok = 0;
+
+                mock230_capture_begin(srv, &arenarun_capture);
+                mock230_scripts_run_debugproc(srv, "arenarun");
+                mock230_capture_end(srv);
+                for( int i = mock230_capture_find(&arenarun_capture, 90, 0); i >= 0;
+                     i = mock230_capture_find(&arenarun_capture, 90, i + 1) )
+                {
+                    const struct Mock230CapturedPacket* packet = &arenarun_capture.packets[i];
+                    const char* text;
+
+                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                        continue;
+                    text = (const char*)packet->data + 1;
+                    if( strstr(text, "ARENARUN") == NULL )
+                        continue;
+                    fprintf(stderr, "  %s\n", text);
+                    if( strstr(text, "ARENARUN OK") != NULL )
+                        arenarun_said_ok = 1;
+                }
+                SELFTEST_CHECK(arenarun_said_ok, "::arenarun should reach its OK line");
             }
         }
 
@@ -38170,6 +38363,17 @@ mock230_world_selftest(void)
                 mock230_scripts_free(srv);
             }
         }
+
+        /*
+         * Onto open ground, explicitly. Every walk below is `player->x + 6`
+         * relative to wherever the player already stands, and nothing before
+         * this section guarantees that — Clock Tower's rat-cage leg leaves
+         * the player parked inside its cramped puzzle room a few tiles from
+         * a wall, so a 6-tile walk queues no waypoints at all
+         * (`mock230_world_walk_to` finds no path) and every check below that
+         * depends on `move_count` reads a silent 0, not a wrong number.
+         */
+        selftest_park_player(srv, 3222, 3218);
 
         steps_clear(player);
         player->run_energy = MOCK230_RUN_ENERGY_MAX;
@@ -47462,7 +47666,19 @@ mock230_world_selftest(void)
                 srv->npcs[follower].run_dir = -1;
                 srv->npcs[follower].mode = MOCK230_NPCMODE_PLAYERFOLLOW;
                 mock230_world_set_active(srv, player);
+                fprintf(stderr,
+                        "DBGDIAG5 before npc=%d,%d player=%d,%d range=%d owner_gen=%d "
+                        "mode_target_gen=%d frozen=%d\n",
+                        srv->npcs[follower].x, srv->npcs[follower].z, player->x, player->z,
+                        npc_player_range(&srv->npcs[follower], player),
+                        srv->npcs[follower].owner_gen, srv->npcs[follower].mode_target_gen,
+                        srv->npcs[follower].frozen_ticks);
                 npc_run_mode(srv, &srv->npcs[follower], follower);
+                fprintf(stderr,
+                        "DBGDIAG5 after npc=%d,%d step_dir=%d run_dir=%d range=%d\n",
+                        srv->npcs[follower].x, srv->npcs[follower].z,
+                        srv->npcs[follower].step_dir, srv->npcs[follower].run_dir,
+                        npc_player_range(&srv->npcs[follower], player));
                 SELFTEST_CHECK(srv->npcs[follower].run_dir >= 0,
                                "a two-tile follow turn must file its second direction in "
                                "run_dir for NPC_INFO's update type 2, got %d",
@@ -51296,6 +51512,28 @@ mock230_world_selftest(void)
                   "double" },
                 { "[proc,selftest_chompy_hats]", 10,
                   "eighteen chompy hats against twenty-two ranks" },
+                { "[proc,selftest_well]", 6,
+                  "the rarest well perk is 4e9 coins and does not fit an "
+                  "int" },
+                { "[proc,selftest_middleman]", 6,
+                  "acceptance is one player's, confirmation is both" },
+                { "[proc,selftest_boons]", 6,
+                  "a boon can be owned and inactive, or active and never "
+                  "bought" },
+                { "[proc,selftest_wildyvault]", 7,
+                  "the vault's four clocks are all different lengths" },
+                { "[proc,selftest_toa_presets]", 4,
+                  "an invocation preset holds the PAIR; one word drops half "
+                  "the invocations" },
+                { "[proc,selftest_pvparena]", 7,
+                  "an arena loss still pays 12, and the streak never touches "
+                  "it" },
+                { "[proc,selftest_clanwars]", 8,
+                  "Most kills is measured in minutes and decided by "
+                  "comparison" },
+                { "[proc,selftest_crystal_charges]", 8,
+                  "the strange device is an exception to the non-monster "
+                  "exception" },
                 { "[proc,selftest_deaths_office]", 8,
                   "the ironman discount is 50% off the FEE, and ultimates are "
                   "excluded" },
@@ -56683,6 +56921,282 @@ mock230_world_selftest(void)
                                        player->varps[mock230_content_symbol(MOCK230_PACK_VARP, "qp")]);
                     }
                 }
+            }
+            mock230_scripts_free(srv);
+        }
+    }
+
+    fprintf(stderr, "mock230 selftest: ::grailrun\n");
+    {
+        /*
+         * Holy Grail (2026-08-20 audit). The dialogue trees (king_arthur,
+         * merlin, high_priest_of_entrana, grail_crone, brother_galahad,
+         * fisher_king, sir_percival, black_knight_titan, grail_realm_npcs)
+         * were already thorough and wiki-accurate on static read, and the
+         * NPC combat config (142 HP, +1000 magic/ranged defence) matches
+         * the pinned Black Knight Titan page exactly. The quest was not
+         * completable at all, though: no trigger anywhere in the tree ever
+         * put a magic_whistle into a player's hands (grep-confirmed), so a
+         * player could never leave ^grail_spoken_crone -- [opheld1,
+         * magic_whistle] had nothing to ever be held. Draynor Manor's
+         * `whistledoor` (category=door_selfstage, doors/configs/
+         * doors_selfstage.loc) had no name-bound handler of its own, only
+         * the shared swing.
+         *
+         * Fixed in quests/quest_grail/scripts/quest_grail.rs2:
+         * `[oploc1,whistledoor]` now tops the player up to 2 magic_whistle
+         * when opened with the holy_table_napkin (ported from LostCity's
+         * own quest_grail.rs2 -- same coordinate 2_48_52_35_31, same
+         * half-lootdrop-duration ground timer), then re-issues
+         * `~door_selfstage_open` since a name binding shadows the category
+         * one (field guide §3) -- confirmed live below, not just read.
+         * Also added `[opobj3,holy_grail]` (the worthiness/one-at-a-time
+         * gate the generic `[opobj3,_]` pickup wildcard does not know
+         * about) and `[opheld1,grail_bell]` (the item's real ifop1=Ring
+         * verb; the pre-existing `[opobj1,grail_bell]` ground handler is
+         * left in place alongside it, in case the cache does expose a
+         * ground Ring option too).
+         */
+        int loaded = mock230_scripts_load(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = mock230_scripts_load(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int varp_grail = mock230_content_symbol(MOCK230_PACK_VARP, "grail");
+            int obj_napkin = mock230_content_symbol(MOCK230_PACK_OBJ, "holy_table_napkin");
+            int obj_whistle = mock230_content_symbol(MOCK230_PACK_OBJ, "magic_whistle");
+            int obj_grail = mock230_content_symbol(MOCK230_PACK_OBJ, "holy_grail");
+            int obj_bell = mock230_content_symbol(MOCK230_PACK_OBJ, "grail_bell");
+            int loc_whistledoor = mock230_content_symbol(MOCK230_PACK_LOC, "whistledoor");
+            int npc_maiden = mock230_content_symbol(MOCK230_PACK_NPC, "grail_maiden");
+
+            SELFTEST_CHECK(varp_grail >= 0 && obj_napkin >= 0 && obj_whistle >= 0 &&
+                           obj_grail >= 0 && obj_bell >= 0 && loc_whistledoor >= 0 &&
+                           npc_maiden >= 0,
+                           "the ::grailrun C-side names should all resolve: grail=%d "
+                           "napkin=%d whistle=%d grail_obj=%d bell=%d whistledoor=%d "
+                           "maiden=%d",
+                           varp_grail, obj_napkin, obj_whistle, obj_grail, obj_bell,
+                           loc_whistledoor, npc_maiden);
+
+            if( varp_grail >= 0 && obj_napkin >= 0 && obj_whistle >= 0 && obj_grail >= 0 &&
+                obj_bell >= 0 && loc_whistledoor >= 0 && npc_maiden >= 0 )
+            {
+                int x, z;
+                int door_slot;
+                int count;
+
+                for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                    inv_set(player, i, -1, 0);
+
+                /* --- whistledoor: the reachability fix --- */
+                mock230_world_teleport(srv, 2, 3107, 3359);
+                mock230_world_tick(srv);
+
+                door_slot = -1;
+                for( x = 3095; x <= 3119 && door_slot < 0; x++ )
+                    for( z = 3345; z <= 3369 && door_slot < 0; z++ )
+                        door_slot = mock230_scene_find_loc_id(x, z, 2, loc_whistledoor);
+                SELFTEST_CHECK(door_slot >= 0,
+                               "whistledoor should be placed near Draynor Manor's top "
+                               "floor (3107,3359,2), got slot %d", door_slot);
+
+                if( door_slot >= 0 )
+                {
+                    /* obj_add drops the whistles on the FLOOR of the room
+                     * (2_48_52_35_31 -> 3107,3359,2), same as the reference
+                     * -- the player still has to walk up and Take them, so
+                     * every check below counts srv->ground[], not the
+                     * backpack. */
+#define GRAIL_TEST_GROUND_WHISTLES(total_out)                                   \
+    do                                                                          \
+    {                                                                           \
+        int ground_total_ = 0;                                                  \
+        for( int gi_ = 0; gi_ < MOCK230_GROUND_MAX; gi_++ )                     \
+        {                                                                       \
+            const struct Mock230GroundObj* g_ = &srv->ground[gi_];              \
+            if( g_->active && g_->obj_id == obj_whistle && g_->x == 3107 &&     \
+                g_->z == 3359 && g_->level == 2 )                               \
+                ground_total_ += g_->count;                                     \
+        }                                                                       \
+        (total_out) = ground_total_;                                            \
+    } while( 0 )
+
+                    /* No napkin: opening the door must grant nothing. */
+                    mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_whistledoor,
+                                                       mock230_loc_category(loc_whistledoor),
+                                                       door_slot);
+                    mock230_world_tick(srv);
+                    GRAIL_TEST_GROUND_WHISTLES(count);
+                    SELFTEST_CHECK(count == 0,
+                                   "opening whistledoor without the napkin should grant "
+                                   "no whistles, got %d on the floor",
+                                   count);
+
+                    /* The door swung open (loc_del/loc_add to a shifted
+                     * tile) even though it declined to spawn anything --
+                     * re-scan before the next click. */
+                    door_slot = -1;
+                    for( x = 3095; x <= 3119 && door_slot < 0; x++ )
+                        for( z = 3345; z <= 3369 && door_slot < 0; z++ )
+                            door_slot = mock230_scene_find_loc_id(x, z, 2, loc_whistledoor);
+                    SELFTEST_CHECK(door_slot >= 0,
+                                   "whistledoor should still resolve after swinging, got "
+                                   "slot %d", door_slot);
+
+                    /* With the napkin: opening now should grant exactly 2
+                     * onto the floor. */
+                    inv_set(player, 0, obj_napkin, 1);
+                    if( door_slot >= 0 )
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_whistledoor,
+                                                           mock230_loc_category(loc_whistledoor),
+                                                           door_slot);
+                    mock230_world_tick(srv);
+                    GRAIL_TEST_GROUND_WHISTLES(count);
+                    SELFTEST_CHECK(count == 2,
+                                   "opening whistledoor with the napkin should grant 2 "
+                                   "magic_whistle onto the floor, got %d",
+                                   count);
+
+                    /* Already carrying 2 (picked them up already): opening
+                     * again must not spawn more, matching the reference's
+                     * own `inv_total(inv, magic_whistle) < 2` gate. */
+                    door_slot = -1;
+                    for( x = 3095; x <= 3119 && door_slot < 0; x++ )
+                        for( z = 3345; z <= 3369 && door_slot < 0; z++ )
+                            door_slot = mock230_scene_find_loc_id(x, z, 2, loc_whistledoor);
+                    for( int gi = 0; gi < MOCK230_GROUND_MAX; gi++ )
+                        if( srv->ground[gi].active && srv->ground[gi].obj_id == obj_whistle &&
+                            srv->ground[gi].x == 3107 && srv->ground[gi].z == 3359 &&
+                            srv->ground[gi].level == 2 )
+                            ground_clear(srv, gi);
+                    inv_set(player, 1, obj_whistle, 2);
+                    if( door_slot >= 0 )
+                        mock230_scripts_run_trigger_on_loc(srv, SS_TRIGGER_OPLOC1, loc_whistledoor,
+                                                           mock230_loc_category(loc_whistledoor),
+                                                           door_slot);
+                    mock230_world_tick(srv);
+                    GRAIL_TEST_GROUND_WHISTLES(count);
+                    SELFTEST_CHECK(count == 0,
+                                   "already carrying 2 whistles, reopening should not "
+                                   "spawn more, got %d on the floor",
+                                   count);
+#undef GRAIL_TEST_GROUND_WHISTLES
+                }
+
+                for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                    inv_set(player, i, -1, 0);
+
+                /* --- holy_grail: worthiness + one-at-a-time --- */
+                {
+                    int ground_slot;
+
+                    mock230_world_teleport(srv, 2, 2649, 4684);
+                    mock230_world_tick(srv);
+
+                    ground_slot = mock230_world_obj_add(srv, obj_grail, 1, 2649, 4684, 2, -1);
+                    SELFTEST_CHECK(ground_slot >= 0, "test holy_grail ground spawn should succeed");
+                    if( ground_slot >= 0 )
+                    {
+                        player->varps[varp_grail] = 8; /* grail_finding_percival, < given_whistle */
+                        srv->pending_active_obj = mock230_world_obj_handle(srv, ground_slot);
+                        mock230_scripts_run_trigger(srv, SS_TRIGGER_OPOBJ3, obj_grail, -1, -1);
+                        srv->pending_active_obj = 0;
+                        count = 0;
+                        for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                            if( player->inv[i].obj_id == obj_grail )
+                                count += player->inv[i].count;
+                        SELFTEST_CHECK(count == 0,
+                                       "the grail should refuse pickup before "
+                                       "grail_given_whistle, got %d",
+                                       count);
+
+                        player->varps[varp_grail] = 9; /* grail_given_whistle */
+                        srv->pending_active_obj = mock230_world_obj_handle(srv, ground_slot);
+                        mock230_scripts_run_trigger(srv, SS_TRIGGER_OPOBJ3, obj_grail, -1, -1);
+                        srv->pending_active_obj = 0;
+                        count = 0;
+                        for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                            if( player->inv[i].obj_id == obj_grail )
+                                count += player->inv[i].count;
+                        SELFTEST_CHECK(count == 1,
+                                       "the grail should be pickable once worthy, got %d",
+                                       count);
+
+                        ground_slot = mock230_world_obj_add(srv, obj_grail, 1, 2649, 4684, 2, -1);
+                        if( ground_slot >= 0 )
+                        {
+                            srv->pending_active_obj = mock230_world_obj_handle(srv, ground_slot);
+                            mock230_scripts_run_trigger(srv, SS_TRIGGER_OPOBJ3, obj_grail, -1, -1);
+                            srv->pending_active_obj = 0;
+                        }
+                        count = 0;
+                        for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                            if( player->inv[i].obj_id == obj_grail )
+                                count += player->inv[i].count;
+                        SELFTEST_CHECK(count == 1,
+                                       "a second grail should not stack once one is "
+                                       "already owned, got %d",
+                                       count);
+                    }
+                }
+
+                for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                    inv_set(player, i, -1, 0);
+
+                /* --- grail_bell: the item's real ifop1=Ring verb --- */
+                {
+                    int maiden_slot;
+                    int if_messagebox = mock230_content_symbol(MOCK230_PACK_INTERFACE, "messagebox");
+
+                    /* Away from the maiden: ringing should do nothing --
+                     * no ~mesbox mount, no movement. */
+                    mock230_world_teleport(srv, 0, 2700, 4700);
+                    mock230_world_tick(srv);
+                    inv_set(player, 0, obj_bell, 1);
+                    player->chatmodal_group = 0;
+                    mock230_scripts_run_trigger(srv, SS_TRIGGER_OPHELD1, obj_bell, -1, -1);
+                    SELFTEST_CHECK(player->chatmodal_group == 0,
+                                   "ringing away from the maiden should not open any "
+                                   "chatbox, got chatmodal_group=%d",
+                                   player->chatmodal_group);
+                    SELFTEST_CHECK(player->x == 2700 && player->z == 4700 && player->level == 0,
+                                   "ringing away from the maiden should not move the "
+                                   "player, got (%d,%d,%d)",
+                                   player->x, player->z, player->level);
+
+                    /* Beside the maiden: ringing should open the maiden's
+                     * ~mesbox greeting -- `p_teleport(^grail_castle_entry_
+                     * coord)` follows it in the same script, but ~mesbox
+                     * parks on `p_pausebutton` until the continue button is
+                     * clicked (interface_chat/scripts/chat.rs2), so the
+                     * mount itself, not a same-tick teleport, is what a
+                     * one-shot trigger call can observe here. */
+                    mock230_world_teleport(srv, 0, 2762, 4694);
+                    mock230_world_tick(srv);
+                    maiden_slot = npc_spawn(srv, npc_maiden, 2763, 4690, 0);
+                    SELFTEST_CHECK(maiden_slot >= 0,
+                                   "grail_maiden should spawn for the C-side ring check");
+                    mock230_world_tick(srv);
+                    player->chatmodal_group = 0;
+
+                    mock230_scripts_run_trigger(srv, SS_TRIGGER_OPHELD1, obj_bell, -1, -1);
+                    SELFTEST_CHECK(if_messagebox >= 0 &&
+                                   player->chatmodal_group == if_messagebox,
+                                   "ringing the bell beside the maiden should open the "
+                                   "messagebox greeting, want %d got chatmodal_group=%d",
+                                   if_messagebox, player->chatmodal_group);
+                }
+
+                for( int i = 0; i < MOCK230_INV_SLOTS; i++ )
+                    inv_set(player, i, -1, 0);
+                player->varps[varp_grail] = 0;
             }
             mock230_scripts_free(srv);
         }

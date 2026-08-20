@@ -8,6 +8,7 @@
 #include "engine/toridraw_font_from_torirs.h"
 #include "engine/toridraw_model_from_torirs.h"
 #include "engine/toridraw_sprite_from_torirs.h"
+#include "engine/torirs_chrome_skin_baked.h"
 #include "engine/torirs_debug_font_baked.h"
 #include "engine/torirs_types.h"
 #include "hmap.h"
@@ -381,6 +382,10 @@ UITreeSceneBridge_EnsureDebugFont(
         baked = ToriDbgFont_Menu();
         scene_id = UITREE_SCENE_DEBUG_FONT_MENU_ID;
         break;
+    case TORIDBG_FONT_BODY:
+        baked = ToriDbgFont_Body();
+        scene_id = UITREE_SCENE_DEBUG_FONT_BODY_ID;
+        break;
     default:
         assert(0 && "unknown debug font slot");
         return -1;
@@ -412,6 +417,48 @@ UITreeSceneBridge_EnsureDebugFont(
 
     ToriDraw_SceneFontAdd(bridge->scene, scene_id, copy);
     return scene_id;
+}
+
+int
+UITreeSceneBridge_EnsureChromeSkin(struct UITreeSceneBridge* bridge)
+{
+    struct ToriDraw_Sprite** sprites;
+    int const count = ToriRSChromeSkin_Count();
+
+    assert(bridge);
+    assert(bridge->scene);
+
+    if( count <= 0 )
+        return -1;
+    if( ToriDraw_SceneSpriteHas(bridge->scene, UITREE_SCENE_CHROME_SKIN_ID) )
+        return UITREE_SCENE_CHROME_SKIN_ID;
+
+    /* One scene entry holding every skin image, so a chrome slot is just an
+     * atlas index into it -- the same shape a multi-frame cache sprite already
+     * has, which is why the render command needs no new field to reach these. */
+    sprites = calloc((size_t)count, sizeof(*sprites));
+    assert(sprites);
+    for( int i = 0; i < count; i++ )
+    {
+        struct ToriRSChromeSkin_Sprite const* baked = ToriRSChromeSkin_Get(i);
+        struct ToriDraw_Sprite* spr = calloc(1, sizeof(*spr));
+        size_t const bytes = (size_t)baked->w * (size_t)baked->h * sizeof(uint32_t);
+
+        assert(spr);
+        spr->width = baked->w;
+        spr->height = baked->h;
+        spr->crop_width = baked->w;
+        spr->crop_height = baked->h;
+        /* Deep copy, for the reason the font path above deep-copies: the scene
+         * frees every sprite it holds, and these pixels are `static const`. */
+        spr->pixels_argb = malloc(bytes);
+        assert(spr->pixels_argb);
+        memcpy(spr->pixels_argb, baked->argb, bytes);
+        sprites[i] = spr;
+    }
+
+    ToriDraw_SceneSpriteAdd(bridge->scene, UITREE_SCENE_CHROME_SKIN_ID, sprites, count);
+    return UITREE_SCENE_CHROME_SKIN_ID;
 }
 
 int

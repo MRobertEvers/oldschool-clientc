@@ -26,6 +26,7 @@
 #include "ui/uitree_debug_overlay.h"
 #include "ui/uitree_emit.h"
 
+#include "engine/torirs_chrome_skin_baked.h"
 #include "engine/torirs_debug_font_baked.h"
 #include "platform/platform_sdl2_renderer_soft3d.h"
 #include "render/torirs_frame.h"
@@ -35,6 +36,7 @@
 
 #include "bmp.h"
 
+#include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -102,6 +104,30 @@ World_ObjStackGetByElementId(struct World* world, int element_id)
     return NULL;
 }
 
+bool
+WorldEntity_SceneryPickInactive(void)
+{
+    return false;
+}
+
+int
+World_LocPaintLevel(struct World const* world, int x, int z, int cache_level)
+{
+    (void)world;
+    (void)x;
+    (void)z;
+    return cache_level;
+}
+
+int
+World_TerrainDrawLevel(struct World const* world, int x, int z, int mesh_level)
+{
+    (void)world;
+    (void)x;
+    (void)z;
+    return mesh_level;
+}
+
 void
 World_PickSetReset(struct World_PickSet* pickset)
 {
@@ -133,6 +159,9 @@ World_PickSetAdd(
 /** Slot -> scene font id. Arbitrary local handles; see the file comment. */
 #define FONT_ID_SMALL 0
 #define FONT_ID_MENU 1
+#define FONT_ID_BODY 2
+/** Local scene handle for the baked chrome skin atlas; see the file comment. */
+#define SKIN_SCENE_ID 7
 
 /** Soft3D clears to TORIRS_SOFT3D_BG; this is that colour without alpha. */
 #define BG_RGB (TORIRS_SOFT3D_BG & 0xFFFFFF)
@@ -212,6 +241,10 @@ render(char const* name)
     desc.debug_prim_count = count;
     desc.debug_font_id[TORIDBG_FONT_SMALL] = FONT_ID_SMALL;
     desc.debug_font_id[TORIDBG_FONT_MENU] = FONT_ID_MENU;
+    desc.debug_font_id[TORIDBG_FONT_BODY] = FONT_ID_BODY;
+    desc.debug_skin_scene_id = SKIN_SCENE_ID;
+    for( int i = 0; i < TORIDBG_SKIN_SLOT_COUNT; i++ )
+        desc.debug_skin_atlas[i] = i;
     desc.clip.x = 0;
     desc.clip.y = 0;
     desc.clip.w = CANVAS_W;
@@ -649,6 +682,63 @@ visual_kitchen_sink(void)
 
 /* ------------------------------------------------------------------------- */
 
+
+/* ---- 10. the baked OSRS skin --------------------------------------------- */
+
+/*
+ * The skin path end to end: TORIDBG_PRIM_SPRITE out of the chrome, through the
+ * frame translator's sprite case, into a real Soft3D blit of the baked
+ * parchment.
+ *
+ * The two halves are checked separately on purpose. `skin_avail` clear must
+ * produce the flat fill -- that is the fallback every build without a baked
+ * skin relies on -- and setting it must actually change the pixels. Asserting
+ * only the second would pass just as well if the fallback were broken.
+ */
+static void
+visual_skin(void)
+{
+    struct ToriDbgRect r;
+    int panel;
+    int flat_body_px;
+    int skinned_body_px;
+
+    printf("VISUAL: baked OSRS skin\n");
+
+    /* No skin available: the body is the theme's flat fill. */
+    ToriRSChrome_Init(&g_ui);
+    g_ui.skin_avail = 0;
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 24, 20, 160, "Map Editor");
+    ToriRSChrome_Label(&g_ui, panel, "m50_50  tile 12,40");
+    ToriRSChrome_Label(&g_ui, panel, "u50 o10;1;3 f4");
+    ToriRSChrome_Build(&g_ui);
+    r = ToriRSChrome_PanelRect(&g_ui, panel);
+    render("10_skin_off");
+    flat_body_px = count_eq(r.x + 1, r.y + r.h - 6, r.w - 2, 4, g_ui.theme.panel_body);
+    VT_ASSERT(flat_body_px > 0, "no skin: body is the flat theme fill");
+
+    /* Same panel, skin available: the parchment covers the flat fill. */
+    ToriRSChrome_Init(&g_ui);
+    g_ui.skin_avail = 1u << TORIDBG_SKIN_PANEL_BODY;
+    g_ui.skin_tile_w = ToriRSChromeSkin_Get(TORIDBG_SKIN_PANEL_BODY)->w;
+    g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIDBG_SKIN_PANEL_BODY)->h;
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 24, 20, 160, "Map Editor");
+    ToriRSChrome_Label(&g_ui, panel, "m50_50  tile 12,40");
+    ToriRSChrome_Label(&g_ui, panel, "u50 o10;1;3 f4");
+    ToriRSChrome_Build(&g_ui);
+    r = ToriRSChrome_PanelRect(&g_ui, panel);
+    render("11_skin_on");
+    skinned_body_px = count_eq(r.x + 1, r.y + r.h - 6, r.w - 2, 4, g_ui.theme.panel_body);
+
+    VT_ASSERT(
+        skinned_body_px < flat_body_px,
+        "skin on: the parchment replaced flat-fill pixels");
+    /* The border still wins: the skin tiles under the chrome, not over it. */
+    VT_ASSERT(px(r.x, r.y) == g_ui.theme.panel_border, "border still drawn over the skin");
+    VT_ASSERT(
+        px(r.x + 1, r.y + 1) == g_ui.theme.panel_title_bg, "title bar still drawn over the skin");
+}
+
 int
 main(void)
 {
@@ -664,6 +754,28 @@ main(void)
      * reach ToriDraw_FontFree, so the scene is deliberately not freed. */
     ToriDraw_SceneFontAdd(g_scene, FONT_ID_SMALL, ToriDbgFont_Small());
     ToriDraw_SceneFontAdd(g_scene, FONT_ID_MENU, ToriDbgFont_Menu());
+    ToriDraw_SceneFontAdd(g_scene, FONT_ID_BODY, ToriDbgFont_Body());
+
+    /* The baked skin, uploaded the same way the scene bridge uploads it in the
+     * real client: one multi-frame entry, atlas index == skin slot. Pointing
+     * straight at the const arrays is safe here only because this scene is
+     * never torn down. */
+    {
+        int const n = ToriRSChromeSkin_Count();
+        struct ToriDraw_Sprite** sprites = calloc((size_t)n, sizeof(*sprites));
+        for( int i = 0; i < n; i++ )
+        {
+            struct ToriRSChromeSkin_Sprite const* baked = ToriRSChromeSkin_Get(i);
+            struct ToriDraw_Sprite* spr = calloc(1, sizeof(*spr));
+            spr->width = baked->w;
+            spr->height = baked->h;
+            spr->crop_width = baked->w;
+            spr->crop_height = baked->h;
+            spr->pixels_argb = (uint32_t*)baked->argb;
+            sprites[i] = spr;
+        }
+        ToriDraw_SceneSpriteAdd(g_scene, SKIN_SCENE_ID, sprites, n);
+    }
 
     visual_bordered_background();
     visual_menu();
@@ -672,6 +784,7 @@ main(void)
     visual_damage();
     visual_clipping();
     visual_kitchen_sink();
+    visual_skin();
 
     if( g_failures )
     {

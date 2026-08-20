@@ -107,6 +107,14 @@ PoH storage does not hide a holiday item, it is emptied
 Larran's middle branch falls with level; its coefficient is negative
 Lemanto Andra is a glider destination and never a departure
 the ironman discount is 50% off the FEE, and ultimates are excluded
+the strange device is an exception to the non-monster exception
+Most kills is measured in minutes and decided by comparison
+an arena loss still pays 12, and the streak never touches it
+an invocation preset holds the PAIR; one word drops half the invocations
+the vault's four clocks are all different lengths
+a boon can be owned and inactive, or active and never bought
+acceptance is one player's, confirmation is both
+the rarest well perk is 4e9 coins and does not fit an int
 eighteen chompy hats against twenty-two ranks
 the nugget batch cap deletes and the upgraded sack is not double
 Krystilia's base and extended amounts are separate columns

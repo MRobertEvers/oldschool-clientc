@@ -427,7 +427,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
 	ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
-	engine/torirs_debug_font_baked.c \
+	engine/torirs_debug_font_baked.c engine/torirs_chrome_skin_baked.c \
 	ui/uitree_interact.c ui/uitree_iface_stats.c \
 	varp/varp_manager.c \
 	varc/varc_manager.c \
@@ -1828,13 +1828,23 @@ test-font-markup: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_fon
 # two World_* symbols on the UITREE_EMIT_WORLD path, which an overlay-only emit
 # buffer never takes, and the test closes the link itself rather than dragging
 # painters/collision/heightmap/minimap into a rectangles-and-text test.
+# The web panel channel: the wire codec, and a two-tab handshake driven through
+# the real torirs_channel.js with two fake windows. Node only -- no browser, no
+# wasm, no build step, because the channel deliberately has none of those.
+.PHONY: test-web-channel
+test-web-channel:
+	node web/test/channel_codec_test.js
+	node web/test/channel_handshake_test.js
+
 test-debug-overlay-visual: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o \
 		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o
 	@mkdir -p build
 	$(CC) $(CFLAGS) -I$(BMP_DIR) -o $(OBJ_DIR)/debug_overlay_visual \
 		ui/test/uitree_debug_overlay_visual.c \
 		ui/uitree_debug_overlay.c engine/torirs_debug_font_baked.c \
+		engine/torirs_chrome_skin_baked.c \
 		render/torirs_frame.c render/torirs_pick.c \
+		render/torirs_polygon.c \
 		platform/platform_sdl2_renderer_soft3d.c \
 		$(BMP_DIR)/bmp.c \
 		$(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o \

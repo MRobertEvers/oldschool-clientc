@@ -22,6 +22,7 @@
 #define APP_OUTLINE_COLOR_EDITOR_SELECT 0xFF00FF00u
 /* 0 opaque .. 255 invisible. High enough that the model reads through it. */
 #define APP_OUTLINE_FILL_TRANS 205
+#include "engine/torirs_chrome_skin_baked.h"
 #include "engine/dat1/dat1_buildcache.h"
 #include "engine/dat1/dat1_tasks.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -281,8 +282,17 @@ static int
 app_text_input_focused(struct App const* app)
 {
     assert(app);
+    /* dbg_ui.focus: the ToriRSChrome text input under caret, if any -- set
+     * only for TORIDBG_W_TEXTINPUT widgets (ToriRSChrome_MouseDown) and
+     * cleared by a click elsewhere, so this is exactly "the editor/loc
+     * editor panel has a field being typed into" (e.g. the map editor's
+     * Height field). Without it, typing a height value like "8" both edited
+     * the field AND fired the map-editor-toggle hotkey on the same
+     * keystroke -- one more instance of the bug this function exists to
+     * kill everywhere at once. */
     return app->chat_input_active || app->chat.social_input_open ||
-           app->chat.dialog_input_open || app_iface_text_input_focused(app);
+           app->chat.dialog_input_open || app_iface_text_input_focused(app) ||
+           app->dbg_ui.focus >= 0;
 }
 
 /*
@@ -4587,6 +4597,35 @@ app_debug_overlay_init(struct App* app)
     assert(app);
 
     ToriRSChrome_Init(&app->dbg_ui);
+
+    /*
+     * Tell the chrome which baked skin images this build actually carries.
+     *
+     * The chrome cannot ask: it reaches nothing outside the C library, which is
+     * the property that lets it draw on a cache that failed to open. So the
+     * host, which does link the baked module, reports what it has -- and a
+     * build with the skin stubbed out reports nothing and gets the flat look,
+     * with no code path here that has to know about that case.
+     *
+     * TORIRS_CHROME_THEME=flat forces the flat developer palette, for reading a
+     * dense readout without the parchment behind it.
+     */
+    {
+        char const* theme = getenv("TORIRS_CHROME_THEME");
+        if( theme && strcmp(theme, "flat") == 0 )
+            app->dbg_ui.theme = toridbg_theme_default;
+
+        for( int i = 0; i < TORIDBG_SKIN_SLOT_COUNT && i < ToriRSChromeSkin_Count(); i++ )
+            app->dbg_ui.skin_avail |= 1u << i;
+        if( app->dbg_ui.skin_avail & (1u << TORIDBG_SKIN_PANEL_BODY) )
+        {
+            struct ToriRSChromeSkin_Sprite const* body =
+                ToriRSChromeSkin_Get(TORIDBG_SKIN_PANEL_BODY);
+            app->dbg_ui.skin_tile_w = body->w;
+            app->dbg_ui.skin_tile_h = body->h;
+        }
+    }
+
     app->dbg_visible = 0;
     app->dbg_frame_head = 0;
     app->dbg_frame_count = 0;
@@ -6575,6 +6614,18 @@ app_mapedit_select_active(struct App const* app)
  * also paint the tile behind it -- the overlay sets that flag when it takes a
  * press, and this runs after it for exactly that reason.
  *
+ * ALSO gated on the minimenu being open. `input_frame_consumed` cannot cover
+ * that case: this runs early in the frame (Editor_PanelTick's caller, before
+ * UITree_InteractFrame), so a click that is about to select a minimenu row
+ * -- or just dismiss the menu, same as the reference's "first click on an
+ * open menu never also acts" -- has not been classified as a menu click yet
+ * this frame. `app->interact.minimenu.visible` still reads the state the menu
+ * opened INTO this frame (set when the right-click that opened it was
+ * processed, a prior frame or earlier this same one via out.right_click),
+ * so it is already correct here. Without this, choosing "Select Wall" from
+ * the SELECT tool's own minimenu row raced this function's plain-click
+ * terrain latch and the terrain always won, since this runs first.
+ *
  * The tile is the one under the cursor THIS frame. The pickset and hover are
  * refreshed by the render pass, so they are at most one frame stale, which at
  * mouse speed is the tile the user is looking at.
@@ -6588,6 +6639,8 @@ app_map_editor_world_click(
     assert(input);
 
     if( !app->editor || !app->editor_panel.visible )
+        return;
+    if( app->interact.minimenu.visible )
         return;
     if( app->input_frame_consumed )
     {
