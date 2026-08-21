@@ -22,6 +22,36 @@
 #include <assert.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
+
+/* TORIRS_REBUILD_TIMING=1: per-phase wall-clock of a scene rebuild on stderr.
+ * The helpers live above the .u.c includes so the scenery pass can charge its
+ * model-build time to the same accumulators. */
+static double
+wb_now_ms(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1e6;
+}
+
+static int
+wb_timing_on(void)
+{
+    static int v = -1;
+    if( v < 0 )
+    {
+        const char* e = getenv("TORIRS_REBUILD_TIMING");
+        v = (e && *e && *e != '0') ? 1 : 0;
+    }
+    return v;
+}
+
+/* Scenery model-build accumulators (reset in Begin, reported at End). */
+static double g_wb_t_model_convert_ms; /* ModelFromToriRS + merge */
+static double g_wb_t_model_transform_ms; /* apply_transforms + SD strip + bounds */
+static int g_wb_n_model_builds;
+static int g_wb_n_model_srcs;
 
 // clang-format off
 #include "world_terrain.u.c"
@@ -256,6 +286,11 @@ WorldBuilder_RebuildCenterzoneBegin(
 {
     struct World* world = builder->world;
     assert(world && "WorldBuilder_RebuildCenterzoneBegin: world is NULL");
+
+    g_wb_t_model_convert_ms = 0.0;
+    g_wb_t_model_transform_ms = 0.0;
+    g_wb_n_model_builds = 0;
+    g_wb_n_model_srcs = 0;
 
     world_builder_free_transient_maps(builder);
     World_ResetScene(world, zone_center_x, zone_center_z, scene_size);
@@ -513,6 +548,7 @@ WorldBuilder_RebuildInstance(
     const int32_t* zones)
 {
     int zone_count = scene_size / 8;
+    double t0 = wb_timing_on() ? wb_now_ms() : 0.0;
 
     assert(zones && "WorldBuilder_RebuildInstance: no descriptor grid");
     assert(zone_count <= WORLD_INSTANCE_ZONES);
@@ -560,6 +596,9 @@ WorldBuilder_RebuildInstance(
     WorldBuilder_RebuildCenterzoneEnd(builder);
 
     ToriDraw_SceneBatchEnd(builder->scene);
+
+    if( wb_timing_on() )
+        fprintf(stderr, "rebuild_timing: instance total=%.1fms\n", wb_now_ms() - t0);
 }
 
 /* Minimap sibling to the geometry push-down in RebuildCenterzoneEnd: for each
@@ -599,13 +638,16 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
 {
     struct World* world = builder->world;
     int scene_size = world->_scene_size;
+    double te0 = wb_timing_on() ? wb_now_ms() : 0.0;
 
     /* Terrain first (place-time LinkBelow shift for BLOCK flags), then End's
      * no-op bridge hook — loc collision already shifted at place time. Geometry
      * push-down below is separate. See docs/COLLISION_MAP.md. */
     world_collision_apply_terrain(builder);
     world_collision_apply_bridges(builder);
+    double te_collision = wb_timing_on() ? wb_now_ms() : 0.0;
     world_contour_ground(builder);
+    double te_contour = wb_timing_on() ? wb_now_ms() : 0.0;
     world_builder_apply_wall_decor_offsets(builder);
 
     /* Bridge decks are LinkBelow: geometry / painter push-down below move a
@@ -732,8 +774,11 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
     if( world->painter )
         painter_mark_static_count(world->painter);
 
+    double te_mid = wb_timing_on() ? wb_now_ms() : 0.0;
     world_build_scene_terrain(builder);
+    double te_terrain_mesh = wb_timing_on() ? wb_now_ms() : 0.0;
     world_build_lighting(builder);
+    double te_lighting = wb_timing_on() ? wb_now_ms() : 0.0;
 
     /* A level with no terrain mesh emits nothing. The reference never queues a
      * content-less tile at all (class112.method3940 gates marking on the
@@ -821,6 +866,27 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
         builder->lightmap = NULL;
     }
 
+    if( wb_timing_on() )
+    {
+        double te1 = wb_now_ms();
+        fprintf(
+            stderr,
+            "rebuild_timing: end=%.1fms collision=%.1f contour=%.1f minimap_bridge=%.1f "
+            "terrain_mesh=%.1f lighting=%.1f occluders_free=%.1f | scenery models: n=%d "
+            "srcs=%d convert=%.1fms transform=%.1fms\n",
+            te1 - te0,
+            te_collision - te0,
+            te_contour - te_collision,
+            te_mid - te_contour,
+            te_terrain_mesh - te_mid,
+            te_lighting - te_terrain_mesh,
+            te1 - te_lighting,
+            g_wb_n_model_builds,
+            g_wb_n_model_srcs,
+            g_wb_t_model_convert_ms,
+            g_wb_t_model_transform_ms);
+    }
+
     world->load_complete = true;
 }
 
@@ -841,7 +907,11 @@ WorldBuilder_RebuildCenterzone(
     int zone_center_z,
     int scene_size)
 {
+    double t0 = wb_timing_on() ? wb_now_ms() : 0.0;
+
     WorldBuilder_RebuildCenterzoneBegin(builder, zone_center_x, zone_center_z, scene_size);
+
+    double t_begin = wb_timing_on() ? wb_now_ms() : 0.0;
 
     ToriDraw_SceneBatchBegin(builder->scene);
 
@@ -852,15 +922,36 @@ WorldBuilder_RebuildCenterzone(
             WorldBuilder_RebuildCenterzoneChunkTerrain(builder, mapx, mapz);
     }
 
+    double t_terrain = wb_timing_on() ? wb_now_ms() : 0.0;
+
     for( int mapx = world->_chunk_sw_x; mapx <= world->_chunk_ne_x; mapx++ )
     {
         for( int mapz = world->_chunk_sw_z; mapz <= world->_chunk_ne_z; mapz++ )
             WorldBuilder_RebuildCenterzoneChunkScenery(builder, mapx, mapz);
     }
 
+    double t_scenery = wb_timing_on() ? wb_now_ms() : 0.0;
+
     WorldBuilder_RebuildCenterzoneEnd(builder);
 
+    double t_end = wb_timing_on() ? wb_now_ms() : 0.0;
+
     ToriDraw_SceneBatchEnd(builder->scene);
+
+    if( wb_timing_on() )
+    {
+        double t_batch = wb_now_ms();
+        fprintf(
+            stderr,
+            "rebuild_timing: total=%.1fms begin=%.1f terrain=%.1f scenery=%.1f end=%.1f "
+            "batch_flush=%.1f\n",
+            t_batch - t0,
+            t_begin - t0,
+            t_terrain - t_begin,
+            t_scenery - t_terrain,
+            t_end - t_scenery,
+            t_batch - t_end);
+    }
 }
 
 void

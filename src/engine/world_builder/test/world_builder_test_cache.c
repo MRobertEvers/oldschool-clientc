@@ -630,3 +630,161 @@ cleanup:
     ToriRS_IO_Free(io);
     dat2_buildcache_free(bc);
 }
+
+/* ------------------------------------------------------------------ */
+/* Rebuild stutter bench (WB_BENCH=1)                                  */
+/* ------------------------------------------------------------------ */
+
+#include "engine/world_builder/task_world_load.h"
+
+#include <time.h>
+
+static double
+bench_now_ms(void)
+{
+    struct timespec ts;
+    clock_gettime(CLOCK_MONOTONIC, &ts);
+    return (double)ts.tv_sec * 1000.0 + (double)ts.tv_nsec / 1e6;
+}
+
+/*
+ * Times the live REBUILD_NORMAL path: one Task_WorldLoad (IO prefetch + the
+ * synchronous WorldBuilder_RebuildCenterzone) over the 3x3 map squares around
+ * Lumbridge, then warm re-runs of the rebuild alone — the warm number is the
+ * per-teleport stutter with every asset already resident, which is the common
+ * in-game case (walking across a zone boundary re-uses almost everything).
+ * Run with TORIRS_REBUILD_TIMING=1 for the per-phase split.
+ */
+void
+test_world_builder_bench(void)
+{
+    const char* cache_dir = getenv("CACHE_DIR");
+    if( !cache_dir )
+        cache_dir = DEFAULT_CACHE_DIR;
+
+    struct stat st;
+    if( stat(cache_dir, &st) != 0 || !S_ISDIR(st.st_mode) )
+    {
+        printf("SKIP: cache dir not found: %s\n", cache_dir);
+        return;
+    }
+
+    struct ToriRS_IO* io = ToriRS_IO_New();
+    struct ToriRS_TaskQueue* queue = ToriRS_TaskQueue_New();
+    struct Dat2BuildCache* bc = dat2_buildcache_new();
+    struct CacheProvider* provider = dat2_buildcache_as_provider(bc);
+    struct RSCache_Dat2Disk* disk = RSCache_Dat2DiskNewFromDirectory(cache_dir);
+    if( !disk )
+    {
+        printf("SKIP: could not open dat2 disk cache at %s\n", cache_dir);
+        ToriRS_TaskQueue_Free(queue);
+        ToriRS_IO_Free(io);
+        dat2_buildcache_free(bc);
+        return;
+    }
+
+    struct RSCache profile;
+    const char* profile_name = profile_name_for_cache_dir(cache_dir);
+    if( !profile_name || !RSCache_ProfileByName(profile_name, &profile) )
+    {
+        printf("SKIP: cache dir %s has no labelled profile\n", cache_dir);
+        RSCache_Dat2DiskFree(disk);
+        ToriRS_TaskQueue_Free(queue);
+        ToriRS_IO_Free(io);
+        dat2_buildcache_free(bc);
+        return;
+    }
+    RSCache_Dat2DiskSetProfile(disk, &profile);
+    CacheProvider_SetProfile(provider, &profile);
+
+    if( RSCache_MapLocsEncrypted(&profile) )
+    {
+        char xtea_path[1024];
+        snprintf(xtea_path, sizeof(xtea_path), "%s/xteas.json", cache_dir);
+        RSCache_XteaConfigLoadKeys(xtea_path);
+    }
+
+    struct PlatformX_IO* px = PlatformX_IO_New();
+    PlatformX_IO_InitDat2Disk(px, disk);
+
+    ToriDraw_Init();
+    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+    struct World* world = World_New();
+    struct VarPManager varp;
+    VarPManager_Init(&varp);
+    struct WorldBuilder* builder = WorldBuilder_New(world, provider, scene, &varp);
+
+    /* Lumbridge: map square (50,50); the player's tile centre is
+     * (50*64+32) -> zone 404. Prefetch the full 3x3 the classic 104x104
+     * scene can touch. */
+    int chunks[18];
+    int count = 0;
+    for( int mx = 49; mx <= 51; mx++ )
+        for( int mz = 49; mz <= 51; mz++ )
+        {
+            chunks[count * 2] = mx;
+            chunks[count * 2 + 1] = mz;
+            count++;
+        }
+    int zone_x = (50 * 64 + 32) / 8;
+    int zone_z = (50 * 64 + 32) / 8;
+
+    double t0 = bench_now_ms();
+    run_task(
+        queue, io, px,
+        CreateTask_WorldLoad(provider, builder, chunks, count, zone_x, zone_z, NULL, NULL, NULL));
+    double t1 = bench_now_ms();
+    printf("bench: cold WorldLoad (IO + rebuild) = %.1f ms\n", t1 - t0);
+
+    int bench_iters = atoi(getenv("WB_BENCH")) > 1 ? atoi(getenv("WB_BENCH")) : 4;
+    for( int iter = 0; iter < bench_iters; iter++ )
+    {
+        double w0 = bench_now_ms();
+        WorldBuilder_RebuildCenterzone(builder, zone_x, zone_z, 104);
+        double w1 = bench_now_ms();
+        printf("bench: warm rebuild %d = %.1f ms\n", iter, w1 - w0);
+    }
+
+    printf(
+        "bench: scene elements terrain=%d scenery=%d\n",
+        world->entities.terrain.active_count,
+        world->entities.scenery.active_count);
+
+    /* Lighting checksum over every scenery model's lit face colours: any
+     * change to the sharelight merge/apply pipeline must keep this stable. */
+    {
+        unsigned long long sum = 1469598103934665603ull;
+        struct World_EntityPool* spool = &world->entities.scenery;
+        for( int i = World_EntityPoolHead(spool); i != WORLD_ENTITY_NIL;
+             i = World_EntityPoolNext(spool, i) )
+        {
+            struct WorldEntity_Scenery* sc = World_EntityPoolGet(spool, i);
+            if( !sc )
+                continue;
+            struct ToriDraw_SceneElement* el = ToriDraw_SceneElementGet(scene, sc->element_id);
+            if( !el || el->model.kind != TORIDRAWMK_MODEL || !el->model.u.model.model )
+                continue;
+            struct ToriDraw_Model* dm = el->model.u.model.model;
+            for( int f = 0; f < dm->face_count; f++ )
+            {
+                unsigned long long v =
+                    ((unsigned long long)(uint16_t)dm->face_colors_a[f] << 32) ^
+                    ((unsigned long long)(uint16_t)dm->face_colors_b[f] << 16) ^
+                    (unsigned long long)(uint16_t)dm->face_colors_c[f];
+                if( dm->face_infos )
+                    v ^= (unsigned long long)dm->face_infos[f] << 48;
+                sum = (sum ^ v) * 1099511628211ull;
+            }
+        }
+        printf("bench: lighting checksum = %llx\n", sum);
+    }
+
+    WorldBuilder_Free(builder);
+    World_Free(world);
+    VarPManager_Free(&varp);
+    PlatformX_IO_Free(px);
+    RSCache_Dat2DiskFree(disk);
+    ToriRS_TaskQueue_Free(queue);
+    ToriRS_IO_Free(io);
+    dat2_buildcache_free(bc);
+}

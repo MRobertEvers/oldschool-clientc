@@ -9,7 +9,9 @@ ownership of the processes that name implies.
 """
 
 import argparse
+import contextlib
 import os
+import signal
 import subprocess
 import sys
 import time
@@ -409,6 +411,42 @@ def _start_services(plan):
     return True
 
 
+class _Signalled(KeyboardInterrupt):
+    """SIGTERM or SIGHUP, raised where a Ctrl-C would be.
+
+    So that one path — the `finally` in cmd_run — takes the run down whether
+    the user pressed Ctrl-C, closed the terminal, or `kill`ed the launcher.
+    Without this, the default disposition kills the launcher outright and its
+    services are left holding their ports with nothing watching them.
+    """
+
+
+@contextlib.contextmanager
+def _dying_is_an_exception():
+    """Turn SIGTERM/SIGHUP into _Signalled for the duration of a block."""
+
+    def handler(signum, frame):
+        raise _Signalled("signal %d" % signum)
+
+    previous = {}
+    for name in ("SIGTERM", "SIGHUP"):
+        signum = getattr(signal, name, None)
+        if signum is None:
+            continue
+        try:
+            previous[signum] = signal.signal(signum, handler)
+        except (OSError, ValueError):
+            pass
+    try:
+        yield
+    finally:
+        for signum, old_handler in previous.items():
+            try:
+                signal.signal(signum, old_handler)
+            except (OSError, ValueError):
+                pass
+
+
 def cmd_run(args):
     profile = load_profile(REPO_ROOT, args.profile)
     plan = build_plan(profile, args.client, args.flavor, args.args)
@@ -421,8 +459,29 @@ def cmd_run(args):
         say("stop them first:  ./launch stop %s" % profile.name)
         return 1
 
+    # From here down this process OWNS whatever it starts, and every exit path
+    # runs the same shutdown: the client exiting, Ctrl-C at any point —
+    # including one landing in the middle of the shutdown itself — a SIGTERM,
+    # or an exception. A service that outlives the launcher goes on holding
+    # its port, which presents on the next run as "port already in use" with
+    # nothing visible to blame. The one deliberate exception is a run that
+    # asked for the services to outlive it (--detach, --no-client) AND got far
+    # enough to hand them over; an interrupted startup is not that.
+    leave_up = False
+    with _dying_is_an_exception():
+        try:
+            code, leave_up = _run_plan(plan, args)
+            return code
+        finally:
+            if not leave_up:
+                _stop_quietly(profile.name)
+
+
+def _run_plan(plan, args):
+    """Do the run. Returns (exit code, whether the services should stay up)."""
+    profile = plan.profile
     if not _prepare(plan, args.skip_checks, args.force_bake):
-        return 1
+        return 1, False
 
     if plan.delegate:
         say("delegating to %s (it owns jar patching and its own services)"
@@ -432,45 +491,48 @@ def cmd_run(args):
         env = dict(os.environ)
         env["TORIRS_NO_PREPARE"] = "1"
         env.update({str(k): str(v) for k, v in plan.env.items()})
-        return subprocess.run(argv, cwd=REPO_ROOT, env=env).returncode
+        # The delegate started nothing of ours and stops its own services, so
+        # there is nothing here to take down.
+        return subprocess.run(argv, cwd=REPO_ROOT, env=env).returncode, True
 
     if plan.target and not args.no_build:
         if _run_make(plan.target, plan.make_args, plan.env) != 0:
             say("client build failed")
-            return 1
+            return 1, False
 
     if not _ensure_services_built(plan):
-        return 1
+        return 1, False
 
     supervisor.write_plan(REPO_ROOT, profile.name, plan.to_json())
 
     if not _start_services(plan):
-        return 1
+        return 1, False
 
     if args.no_client:
         say("services up; --no-client, so nothing else is started")
         say("status:  ./launch status %s" % profile.name)
         say("stop:    ./launch stop %s" % profile.name)
-        return 0
+        return 0, True
 
-    try:
-        if plan.url:
-            say(plan.url)
-            if not args.no_open:
-                _open_browser(plan.url)
-            say("serving — Ctrl-C to stop (services stop with it)")
-            return _supervise_until_interrupt(plan)
-
+    if plan.url:
+        say(plan.url)
+        if not args.no_open:
+            _open_browser(plan.url)
         if args.detach:
-            say("--detach with a native client would leave nothing to watch; "
-                "starting the client in the foreground")
-        env = dict(os.environ)
-        env.update({str(k): str(v) for k, v in plan.env.items()})
-        say(" ".join(plan.client_argv))
-        return subprocess.run(plan.client_argv, cwd=REPO_ROOT, env=env).returncode
-    finally:
-        if not args.detach and not args.no_client:
-            _stop_quietly(profile.name)
+            say("services up; --detach, so they keep running without me")
+            say("stop:    ./launch stop %s" % profile.name)
+            return 0, True
+        say("serving — Ctrl-C to stop (services stop with it)")
+        return _supervise_until_interrupt(plan), False
+
+    if args.detach:
+        say("--detach with a native client would leave nothing to watch; "
+            "starting the client in the foreground")
+    env = dict(os.environ)
+    env.update({str(k): str(v) for k, v in plan.env.items()})
+    say(" ".join(plan.client_argv))
+    code = subprocess.run(plan.client_argv, cwd=REPO_ROOT, env=env).returncode
+    return code, args.detach
 
 
 def _open_browser(url):
@@ -510,7 +572,7 @@ def _supervise_until_interrupt(plan):
 
 
 def _stop_quietly(profile_name):
-    for name, outcome in supervisor.stop_run(REPO_ROOT, profile_name):
+    for name, outcome in supervisor.stop_run_now(REPO_ROOT, profile_name):
         if outcome.startswith("stopped"):
             say("stopped %s" % name)
 
@@ -555,7 +617,7 @@ def cmd_stop(args):
         print("nothing to stop")
         return 0
     for name in names:
-        results = supervisor.stop_run(REPO_ROOT, name)
+        results = supervisor.stop_run_now(REPO_ROOT, name)
         if not results:
             continue
         print("%s:" % name)

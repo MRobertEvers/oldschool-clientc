@@ -2900,6 +2900,9 @@ npc_spawn(
         npc->generation = generation;
         npc->active = 1;
         npc->type = type;
+        /* The form every timed `npc_changetype` unwinds to. Set here and
+         * nowhere else — see the field. */
+        npc->spawn_type = type;
         npc->x = x;
         npc->z = z;
         npc->level = level;
@@ -4128,6 +4131,28 @@ advance_npcs(struct ToriRSServer* srv)
         ToriRSServer_CombatNpcPoisonTick(srv, slot);
         if( !npc->active || npc->death_tick >= 0 )
             continue;
+
+        /*
+         * A timed `npc_changetype` expiring: back to `spawn_type`.
+         *
+         * ABOVE the `npc_delay` gate, unlike the timers and queues below it,
+         * because this is not the npc taking a turn — it is a clock on what the
+         * npc *is*, and it has to keep running while the npc is busy. The gate
+         * skips every tick an npc spends delayed, and the npcs that transform
+         * are the ones that then fight: a rock crab swings on `npc_delay`, so
+         * behind the gate its 1000-tick reversion would only count the ticks
+         * nobody was hitting it. That is the same starvation the queue drain's
+         * comment below describes, and it is worse here — the reversion is what
+         * ENDS the transformation, so it would never arrive at all for anything
+         * kept permanently busy.
+         *
+         * `^max_32bit_int` is content's "never", and a countdown holds it: it
+         * decrements toward a value it cannot reach in any session, with no
+         * `tick + duration` to overflow. The loc revert table learned that one
+         * the hard way (docs and `loc_reverts`).
+         */
+        if( npc->changetype_delay > 0 && --npc->changetype_delay == 0 )
+            ToriRSServer_NpcChangeType(npc, npc->spawn_type, 0);
 
         /* `npc_delay` makes the reference NPC invalid for the remainder of
          * its turn (`Npc.isValid()` returns false while delayed). Its parked
@@ -40519,7 +40544,8 @@ ToriRSServer_WorldSelftest(void)
          * empty when it is done.
          *
          * The script side of this proves the arithmetic - which handle a leave
-         * frees, and that a logout frees anything at all. What it cannot see is
+         * frees, and that a logout holds the raid (linger) rather than
+         * stranding anything. What it cannot see is
          * the pool, and the pool is where a leak actually shows up: the raid
          * held two of eight slots and returned at most one of them, so four
          * sessions in, `~map_instance_from_square` started answering "the Tombs
@@ -40564,6 +40590,50 @@ ToriRSServer_WorldSelftest(void)
                            "::toaleak should leave no map instance reserved "
                            "(live=%d)",
                            live_after);
+        }
+
+        /*
+         * A dropped session resumes, per raid. Each drill builds its raid the
+         * way its debug entry does, erases the temp session varps the way a
+         * real logout does, runs the [login]-side reenter handler and asserts
+         * the session and the encounter came back — then leaves for real, so
+         * the pool ends clean. The engine's own linger/rescue mechanics are
+         * covered by the generic-control stanza at the end of the suite; these
+         * cover the content half (`~tob_on_reenter` and friends).
+         */
+        {
+            static const char* const resume_procs[] = { "tobresume", "toaresume",
+                                                        "coxresume" };
+
+            for( size_t rp = 0; rp < sizeof(resume_procs) / sizeof(resume_procs[0]); rp++ )
+            {
+                static struct ToriRSServerCapture resume_capture;
+                int said_ok = 0;
+
+                ToriRSServer_CaptureBegin(srv, &resume_capture);
+                ToriRSServer_ScriptsRunDebugproc(srv, resume_procs[rp]);
+                ToriRSServer_CaptureEnd(srv);
+                for( int p = ToriRSServer_CaptureFind(&resume_capture, 90 /* MESSAGE_GAME */, 0);
+                     p >= 0; p = ToriRSServer_CaptureFind(&resume_capture, 90, p + 1) )
+                {
+                    const struct ToriRSServerCapturedPacket* packet =
+                        &resume_capture.packets[p];
+                    const char* text;
+
+                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                        continue;
+                    text = (const char*)packet->data + 1;
+                    if( strstr(text, resume_procs[rp]) == NULL )
+                        continue;
+                    fprintf(stderr, "  %s\n", text);
+                    if( strstr(text, "OK") != NULL )
+                        said_ok = 1;
+                }
+                SELFTEST_CHECK(said_ok, "::%s should reach its OK line", resume_procs[rp]);
+            }
+            SELFTEST_CHECK(ToriRSServer_MapInstanceLiveCount() == 0,
+                           "the resume drills should leave no reservation, %d live",
+                           ToriRSServer_MapInstanceLiveCount());
         }
 
         /*
@@ -46823,6 +46893,171 @@ ToriRSServer_WorldSelftest(void)
             player->stat_xp_tenths[TORIRSSERVER_STAT_HITPOINTS] = hp_xp_before;
             ToriRSServer_CombatSyncHitpoints(player);
             player->hitpoints = player->max_hitpoints;
+        }
+    }
+
+    fprintf(stderr, "ToriRSServer selftest: a timed npc_changetype changes back\n");
+    {
+        /*
+         * `npc_changetype(<type>, <duration>)` — the second argument, which the
+         * op used to pop and throw away.
+         *
+         * The sheep is the fixture because it is the plainest statement of what
+         * a duration is for: `[label,shear_sheep]` is `npc_changetype($sheered,
+         * 100)`, and the wool is meant to be back a hundred ticks later. With
+         * the duration dropped the flock was shorn once and stayed shorn for
+         * the life of the world — and the same silence covered every other
+         * timed transform in the tree (rock crabs never becoming rocks again,
+         * Mort'ton's cured locals never relapsing).
+         *
+         * Three ticks rather than a hundred: the countdown is the same
+         * countdown, and this section shares its world with everything after
+         * it, so it spends as few of them as it can. It is placed immediately
+         * before the next `selftest_reset_world` for that reason.
+         */
+        int base_type = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "sheepunsheered");
+        int shorn_type = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "sheepsheered");
+        int slot = (base_type > 0 && shorn_type > 0)
+                       ? npc_spawn(srv, base_type, player->x + 6, player->z + 6, player->level)
+                       : -1;
+
+        SELFTEST_CHECK(base_type > 0 && shorn_type > 0 && slot >= 0,
+                       "the sheep fixture should spawn (unsheared %d -> sheared %d, "
+                       "slot %d)",
+                       base_type, shorn_type, slot);
+        if( slot >= 0 )
+        {
+            struct ToriRSServerNpc* npc = &srv->npcs[slot];
+
+            SELFTEST_CHECK(npc->spawn_type == base_type,
+                           "spawn records the form to come back to, got %d want %d",
+                           npc->spawn_type, base_type);
+
+            ToriRSServer_NpcChangeType(npc, shorn_type, 3);
+            SELFTEST_CHECK(npc->type == shorn_type && npc->changetype_delay == 3,
+                           "shearing transforms it and arms the reversion, type %d "
+                           "delay %d",
+                           npc->type, npc->changetype_delay);
+            SELFTEST_CHECK(npc->spawn_type == base_type,
+                           "and does NOT move the form to come back to, got %d",
+                           npc->spawn_type);
+
+            ToriRSServer_WorldTick(srv);
+            ToriRSServer_WorldTick(srv);
+            SELFTEST_CHECK(npc->type == shorn_type,
+                           "it stays shorn while the timer runs, type %d delay %d",
+                           npc->type, npc->changetype_delay);
+
+            ToriRSServer_WorldTick(srv);
+            SELFTEST_CHECK(npc->type == base_type,
+                           "and the wool is back on the deadline, type %d want %d",
+                           npc->type, base_type);
+            /*
+             * `change_type` rather than the mask: the mask is spent and cleared
+             * inside the very tick that fired the reversion (phase 11), so by
+             * the time this line runs a client has already been told. What is
+             * checked here is WHAT it was told — a reversion the server keeps
+             * to itself leaves every client drawing a bald sheep forever.
+             */
+            SELFTEST_CHECK(npc->change_type == base_type,
+                           "and the client was told which form, got %d",
+                           npc->change_type);
+            SELFTEST_CHECK(npc->changetype_delay == 0,
+                           "and the timer is spent, got %d", npc->changetype_delay);
+
+            /*
+             * `^max_32bit_int` is how content spells "permanent" — Galvek's
+             * elemental phases, Sigmund's prayer swap, the Underground Pass
+             * demons. It must not arm anything: a countdown that starts at
+             * INT32_MAX cannot be reached, but a deadline computed as
+             * `tick + duration` would have overflowed and undone the transform
+             * on the following tick, which is exactly what the loc revert table
+             * had to be taught.
+             */
+            ToriRSServer_NpcChangeType(npc, shorn_type, INT32_MAX);
+            SELFTEST_CHECK(npc->changetype_delay == INT32_MAX,
+                           "a max-int duration counts down rather than overflowing, "
+                           "got %d", npc->changetype_delay);
+            ToriRSServer_WorldTick(srv);
+            SELFTEST_CHECK(npc->type == shorn_type,
+                           "so a permanent transform survives the next tick, got %d",
+                           npc->type);
+
+            /*
+             * And the cancel. Mort'ton's Razmire turns afflicted for 200 ticks
+             * on being talked to and is cured by a serum used inside that
+             * window — `npc_changetype(razmire_keelgan, 200)`, a change back to
+             * the spawn form. If that left the pending reversion running the
+             * cure would visibly un-apply itself a few ticks later.
+             */
+            ToriRSServer_NpcChangeType(npc, shorn_type, 5);
+            ToriRSServer_NpcChangeType(npc, base_type, 5);
+            SELFTEST_CHECK(npc->type == base_type && npc->changetype_delay == 0,
+                           "changing back to the spawn form cancels the reversion, "
+                           "type %d delay %d",
+                           npc->type, npc->changetype_delay);
+
+            ToriRSServer_WorldNpcFree(srv, slot);
+        }
+    }
+
+    fprintf(stderr, "ToriRSServer selftest: Sheep Shearer wool hand-in\n");
+    {
+        int loaded = ToriRSServer_ScriptsLoad(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded =
+                ToriRSServer_ScriptsLoad(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int fred_type = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "fred_the_farmer");
+            int ball = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "ball_of_wool");
+            int sheep_varp = ToriRSServer_WorldVarp("sheep");
+            int fred = fred_type > 0 ? selftest_find_npc(srv, fred_type) : -1;
+
+            fprintf(stderr, "  SHEEPDBG fred_type=%d ball=%d varp=%d slot=%d\n", fred_type, ball,
+                    sheep_varp, fred);
+            if( fred >= 0 && ball > 0 && sheep_varp >= 0 )
+            {
+                struct ToriRSServerNpc* npc = &srv->npcs[fred];
+
+                selftest_park_player(srv, npc->x + 1, npc->z);
+                selftest_clear_inv(player);
+                for( int i = 0; i < 20; i++ )
+                    selftest_give(player, ball, 1);
+                ToriRSServer_WorldSetVarp(srv, sheep_varp, 1);
+
+                {
+                    uint8_t opnpc[2];
+
+                    selftest_npc_payload(player, fred, opnpc);
+                    ToriRSServer_WorldHandle(player, PKTOUT_NAME_OPNPC1, opnpc, sizeof(opnpc));
+                }
+                for( int round = 0; round < 200; round++ )
+                {
+                    if( player->active_script &&
+                        player->active_script->execution == SSVM_PAUSEBUTTON )
+                    {
+                        if( selftest_click_through(srv, 1) == 0 )
+                            break;
+                        continue;
+                    }
+                    ToriRSServer_WorldTick(srv);
+                    fprintf(stderr, "  SHEEPDBG t=%d balls=%d sheep=%d script=%s exec=%d\n",
+                            round, selftest_count(player, ball), player->varps[sheep_varp],
+                            player->active_script && player->active_script->script
+                                ? player->active_script->script->name
+                                : "-",
+                            player->active_script ? (int)player->active_script->execution : -1);
+                }
+                fprintf(stderr, "  SHEEPDBG after: balls=%d sheep=%d script=%p\n",
+                        selftest_count(player, ball), player->varps[sheep_varp],
+                        (void*)player->active_script);
+            }
         }
     }
 
@@ -66554,9 +66789,13 @@ ToriRSServer_WorldSelftest(void)
                 }
             }
 
-            /* Generic control: content with no activity-specific teardown must
-             * still be covered by [logout,_]'s map-instance backstop and by the
-             * host fallback in world_remove_player. */
+            /* Generic control: content with no activity-specific teardown is
+             * covered by the LINGER — the logout leaves the character standing
+             * in the reservation (a resumable save coord), the engine holds
+             * the square for TORIRSSERVER_MAPINSTANCE_LINGER_DEFAULT ticks, and
+             * the world tick's linger clock is what finally releases it. The
+             * old immediate teleport-and-free lives on only for instances that
+             * opt out with map_instance_setlinger(h, 0). */
             selftest_reset_world(srv, player, 402, 402);
             /* `::mapinstance` and not the Inferno, deliberately. The subject is
              * the *reservation*, and the generic debugproc is the smallest thing
@@ -66572,17 +66811,113 @@ ToriRSServer_WorldSelftest(void)
                            "got coord %d,%d", player->x, player->z);
             if( handle != 0 )
             {
+                int inside_x = player->x;
+                int inside_z = player->z;
+                int inside_level = player->level;
+                int generic_handle_varp =
+                    ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, "map_instance_handle");
+                /* A second session, parked on ordinary map for the whole
+                 * stanza. The linger window is ticked out below with the
+                 * dropped session gone, and a wholly empty world cannot tick:
+                 * every script dispatch (an imp's [ai_timer], a respawn's
+                 * [ai_spawn]) reads `srv->active_player` unconditionally in
+                 * run_or_park. The observer is what every real deployment has
+                 * anyway — a world somebody is standing in. */
+                struct ToriRSServerPlayer* observer = ToriRSServer_WorldAddPlayer(srv, NULL);
+
+                SELFTEST_CHECK(observer != NULL,
+                               "the pool should admit the observer session");
+                if( observer )
+                {
+                    observer->x = 3222;
+                    observer->z = 3218;
+                    observer->level = 0;
+                }
                 SELFTEST_CHECK(ToriRSServer_MapInstanceLiveCount() == 1,
                                "one reservation should be live, got %d",
                                ToriRSServer_MapInstanceLiveCount());
+                ToriRSServer_WorldSetActive(srv, player);
                 ToriRSServer_WorldRemovePlayer(srv, player);
-                SELFTEST_CHECK(ToriRSServer_MapInstanceLiveCount() == 0,
-                               "the logout should have released it, %d still live",
+                ToriRSServer_WorldSetActive(srv, observer);
+                SELFTEST_CHECK(ToriRSServer_MapInstanceLiveCount() == 1,
+                               "the logout should leave the reservation lingering, "
+                               "got %d live",
                                ToriRSServer_MapInstanceLiveCount());
-                SELFTEST_CHECK(ToriRSServer_MapInstanceFind(player->x, player->z) == 0,
-                               "the logout should have moved the player out of the "
-                               "pool before the save, still at %d,%d",
-                               player->x, player->z);
+                SELFTEST_CHECK(ToriRSServer_MapInstanceFind(inside_x, inside_z) == handle,
+                               "the saved coord should still be inside the lingering "
+                               "square — that is what makes the session resumable");
+
+                /* The comeback, inside the window: a fresh session whose saved
+                 * coord is the in-instance tile. [login,_]'s tail
+                 * (~map_instance_login_rescue) must re-attach the generic
+                 * handle varp and leave the character standing where the save
+                 * put them. */
+                player = ToriRSServer_WorldAddPlayer(srv, NULL);
+                SELFTEST_CHECK(player != NULL, "the pool should re-admit the session");
+                if( player )
+                {
+                    player->x = inside_x;
+                    player->z = inside_z;
+                    player->level = inside_level;
+                    ToriRSServer_WorldSetActive(srv, player);
+                    ToriRSServer_ScriptsRunTriggerSpecific(srv, SS_TRIGGER_LOGIN, -1, -1, -1);
+                    SELFTEST_CHECK(generic_handle_varp >= 0 &&
+                                       player->varps[generic_handle_varp] == handle,
+                                   "logging back in inside the lingering square should "
+                                   "re-attach %%map_instance_handle, got %d want %d",
+                                   generic_handle_varp >= 0
+                                       ? player->varps[generic_handle_varp]
+                                       : -1,
+                                   handle);
+                    SELFTEST_CHECK(player->x == inside_x && player->z == inside_z,
+                                   "the comeback must NOT be rescued away from a "
+                                   "square that is still live, moved to %d,%d",
+                                   player->x, player->z);
+                    ToriRSServer_WorldRemovePlayer(srv, player);
+                }
+                ToriRSServer_WorldSetActive(srv, observer);
+
+                /* Nobody comes back again: the linger window closes and the
+                 * engine takes the square. One tick past the default, because
+                 * the clock starts counting on the first tick AFTER the
+                 * logout. */
+                for( int i = 0; i <= TORIRSSERVER_MAPINSTANCE_LINGER_DEFAULT; i++ )
+                    ToriRSServer_WorldTick(srv);
+                SELFTEST_CHECK(ToriRSServer_MapInstanceLiveCount() == 0,
+                               "the linger clock should have released it, %d still "
+                               "live after %d ticks",
+                               ToriRSServer_MapInstanceLiveCount(),
+                               TORIRSSERVER_MAPINSTANCE_LINGER_DEFAULT + 1);
+
+                /* And the comeback that came too late: the reservation is
+                 * gone, the saved coord is void in the allocator's band, and
+                 * the login rescue must move the character to real map instead
+                 * of leaving them standing on nothing. */
+                player = ToriRSServer_WorldAddPlayer(srv, NULL);
+                SELFTEST_CHECK(player != NULL, "the pool should re-admit the late session");
+                if( player )
+                {
+                    player->x = inside_x;
+                    player->z = inside_z;
+                    player->level = inside_level;
+                    ToriRSServer_WorldSetActive(srv, player);
+                    ToriRSServer_ScriptsRunTriggerSpecific(srv, SS_TRIGGER_LOGIN, -1, -1, -1);
+                    SELFTEST_CHECK(ToriRSServer_MapInstanceFind(player->x, player->z) == 0 &&
+                                       (player->x != inside_x || player->z != inside_z),
+                                   "a login onto an expired instance must be rescued to "
+                                   "real map, still at %d,%d",
+                                   player->x, player->z);
+                    SELFTEST_CHECK(player->x < 100 * 64,
+                                   "the rescue destination must be outside the "
+                                   "allocator's pool band, got x=%d",
+                                   player->x);
+                    ToriRSServer_WorldRemovePlayer(srv, player);
+                }
+                if( observer )
+                {
+                    ToriRSServer_WorldSetActive(srv, observer);
+                    ToriRSServer_WorldRemovePlayer(srv, observer);
+                }
             }
             ToriRSServer_ScriptsFree(srv);
         }

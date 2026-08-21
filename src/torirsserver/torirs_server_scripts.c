@@ -4353,6 +4353,39 @@ npc_changetype_rehydrate(
     }
 }
 
+void
+ToriRSServer_NpcChangeType(
+    struct ToriRSServerNpc* npc,
+    int type,
+    int duration)
+{
+    assert(npc);
+    npc_changetype_rehydrate(npc, type);
+    npc->change_type = type;
+    npc->masks |= TORIRSSERVER_NMASK_CHANGE_TYPE;
+    /*
+     * Arming the revert is the whole of the duration, and the *cancel* half
+     * matters as much as the arm half.
+     *
+     * Mort'ton's Razmire is the case that needs it: he is spawned unafflicted,
+     * turns afflicted for 200 ticks when you talk to him without a serum, and
+     * a serum used on him mid-timer is `npc_changetype(razmire_keelgan, 200)`.
+     * That call means "you are cured", and it is only cured if it takes the
+     * pending reversion to afflicted down with it. Leaving the timer running
+     * would put the affliction back a few ticks later — the cure would visibly
+     * un-apply itself.
+     *
+     * A form that IS `spawn_type` therefore never arms a timer regardless of
+     * the duration passed: there is nothing to go back to. That also keeps the
+     * engine from spending a CHANGE_TYPE on the wire for a transformation from
+     * a record to itself.
+     */
+    if( duration > 0 && type != npc->spawn_type )
+        npc->changetype_delay = duration;
+    else
+        npc->changetype_delay = 0;
+}
+
 /*
  * The container the *active* player means by `inv_id`.
  *
@@ -7646,9 +7679,10 @@ ToriRSServer_ScriptCommand(
         int32_t duration;
         struct ToriRSServerNpc* npc = active_npc(state);
 
-        /* engine.rs2 declares (npc type, int duration). Timed reversion is not
-         * modelled yet, but the argument still has to leave the stack and the
-         * type is the first value, not the top-most duration. */
+        /* engine.rs2 declares (npc type, int duration), and the type is the
+         * first value, not the top-most duration. `duration` ticks the new form
+         * down to `spawn_type` in the npc phase — see
+         * `ToriRSServerNpc.changetype_delay`. */
         if( !SSVM_PopInt(state, &duration) || !SSVM_PopInt(state, &type) )
             return 1;
         if( !npc )
@@ -7656,10 +7690,7 @@ ToriRSServer_ScriptCommand(
             SSVM_Abort(state, "npc_changetype with no active npc");
             return 1;
         }
-        npc_changetype_rehydrate(npc, type);
-        npc->change_type = type;
-        npc->masks |= TORIRSSERVER_NMASK_CHANGE_TYPE;
-        (void)duration;
+        ToriRSServer_NpcChangeType(npc, type, duration);
         return 1;
     }
 
@@ -8518,6 +8549,13 @@ ToriRSServer_ScriptCommand(
             return 1;
         }
         saved_player = srv->active_player;
+        /* A script damaging its own player is the shape every self-inflicted
+         * hit in the game takes — an overload's five ticks of 10, a dwarven
+         * rock cake, a poison karambwan. The Nightmare Zone's absorption pool
+         * must not soak those, and the damage funnel cannot tell them from a
+         * swing on its own. See `hit_self_inflicted`. */
+        if( target_player == saved_player )
+            target_player->hit_self_inflicted = 1;
         ToriRSServer_WorldSetActive(srv, target_player);
         ToriRSServer_CombatHitPlayer(srv, values[1], values[2]);
         ToriRSServer_WorldSetActive(srv, saved_player);
@@ -10146,7 +10184,15 @@ ToriRSServer_ScriptCommand(
         base = player->stat_level[values[0]];
         current = player->stat_boosted[values[0]];
         target = values[1] + base * values[2] / 100;
-        target = boosting ? current + target : current - target;
+        /* The inner `min(current + d, base + d)` is what stops a second dose of
+         * the same potion stacking: one boost's worth above base is the ceiling,
+         * however many times it is drunk. Without it every consume script in
+         * player/scripts/consumption compounds — four sips of an attack potion
+         * read as +12 instead of +3, and an overload's 25-tick re-apply climbs
+         * for its whole five minutes. stat_add is the unclamped member of the
+         * family for the callers that genuinely want to keep adding. */
+        target = boosting ? (current + target < base + target ? current + target : base + target)
+                          : current - target;
         if( target < 0 )
             target = 0;
         if( boosting && target < current )

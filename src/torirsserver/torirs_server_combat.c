@@ -415,6 +415,57 @@ hitsplat_poison(void)
     return id >= 0 ? id : 7;
 }
 
+static int
+hitsplat_shield(void)
+{
+    int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT, "hitsplat_shield");
+
+    /* The splat OldSchool draws for a hit the Nightmare Zone's absorption pool
+     * ate. A pack without it falls back to a block splat, which reads as "no
+     * damage" — wrong in colour, right in meaning. */
+    return id >= 0 ? id : hitsplat_block();
+}
+
+/**
+ * Nightmare Zone absorption. The pool lives in the cache varbit the client
+ * already carries (`nzone_absorb_potion_effects`, ten bits, so 0..1023 holds
+ * the wiki's 1000 cap), rather than in a field here, because it is the potion's
+ * state and the potion is content — the engine only spends it, because spending
+ * it means reaching into the one place player hitpoints go down.
+ *
+ * Returns the damage left after the pool has taken what it can, and writes the
+ * pool back. Poison and venom are excluded by their splat type and self-damage
+ * by the caller's flag, both per the wiki.
+ */
+static int
+absorb_player_damage(struct ToriRSServer* srv, struct ToriRSServerPlayer* player, int type, int amount)
+{
+    int varbit_id;
+    int pool;
+    int soaked;
+
+    assert(srv);
+    assert(player);
+
+    if( amount <= 0 )
+        return amount;
+    if( player->hit_self_inflicted )
+        return amount;
+    if( type == hitsplat_poison() )
+        return amount;
+
+    varbit_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARBIT, "nzone_absorb_potion_effects");
+    if( varbit_id < 0 )
+        return amount;
+    pool = ToriRSServer_VarbitGet(player, varbit_id);
+    if( pool <= 0 )
+        return amount;
+
+    soaked = pool < amount ? pool : amount;
+    ToriRSServer_VarbitSetOn(srv, player, varbit_id, pool - soaked);
+    return amount - soaked;
+}
+
 
 /* ------------------------------------------------------------------ */
 /* Disengaging                                                         */
@@ -1177,12 +1228,29 @@ ToriRSServer_CombatHitPlayer(
     if( player->godmode )
         amount = 0;
 
+    /*
+     * Absorption sits beside `::god` for the same reason it does: this is the
+     * only place player hitpoints go down, so a pool that is meant to stand in
+     * front of every source has exactly one place it can stand. A fully
+     * absorbed hit still produces a splat and still counts as a hit for
+     * retaliation — only the subtraction is skipped.
+     */
+    int after = absorb_player_damage(srv, player, type, amount);
+    /* Fully absorbed: the splat is the shield, not the block splat the
+     * zero-amount default below would otherwise pick — a soaked hit and a
+     * missed swing must not look the same. */
+    int absorbed_fully = after == 0 && amount > 0;
+
+    amount = after;
+    /* One-shot: consumed whether or not a pool was there to spend. */
+    player->hit_self_inflicted = 0;
+
     if( amount > player->hitpoints )
         amount = player->hitpoints;
     player->hitpoints -= amount;
 
     ToriRSServer_HitmarkAdd(player->hitmarks, &player->hitmark_count, amount,
-                        amount > 0 ? type : hitsplat_block());
+                        amount > 0 ? type : (absorbed_fully ? hitsplat_shield() : hitsplat_block()));
     player->damage = player->hitmarks[0].damage;
     player->damage_type = player->hitmarks[0].type;
     player->hitpoints = player->hitpoints < 0 ? 0 : player->hitpoints;
@@ -2245,6 +2313,10 @@ ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv)
          * hits went missing too. */
         npc->delayed_until = 0;
         npc->frozen_ticks = 0;
+        /* A pending `npc_changetype` reversion describes the life that ended.
+         * Left running it would fire on whatever form the new life is standing
+         * in and change it out from under a fresh `[ai_spawn]`. */
+        npc->changetype_delay = 0;
         /* A new life: its death has not been shown yet. */
         npc->death_seq_sent = 0;
         npc->death_seq_tick = -1;

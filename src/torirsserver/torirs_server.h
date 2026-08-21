@@ -2089,6 +2089,32 @@ struct ToriRSServerNpc
     /** Bumped whenever this pool slot becomes a different NPC. */
     uint16_t generation;
     int type;
+    /**
+     * The type this npc was stood up as — the reference's `Npc.origType`, and
+     * the form a timed `npc_changetype` goes back to.
+     *
+     * `type` alone cannot answer that: it is the CURRENT form, so by the time
+     * the timer fires the original is gone. Written once, at spawn, and
+     * deliberately never by `npc_changetype` — a chain of transformations all
+     * unwind to the same record, which is what content expects. The rock crab
+     * is the clearest case: `horror_rockcrab_inactive` is a rock, and every
+     * activation is "be a crab for 1000 ticks, then be a rock again".
+     */
+    int spawn_type;
+    /**
+     * Ticks left before this npc reverts to `spawn_type`, or 0 for "this form
+     * is permanent".
+     *
+     * `npc_changetype(<type>, <duration>)` has always taken the duration —
+     * engine.rs2 declares it and every caller passes one — but it used to be
+     * popped and dropped, so a transformation the content meant to be temporary
+     * lasted for the life of the npc. A shorn sheep never grew its wool back, a
+     * rock crab never became a rock again, and a cured Mort'ton local stayed
+     * cured. `^max_32bit_int` is content's way of saying "never", and a
+     * countdown holds it without the overflow the loc revert table had to
+     * learn about (see `loc_reverts`).
+     */
+    int changetype_delay;
     int x, z, level;
     int spawn_x, spawn_z, spawn_level;
     int wander_radius;
@@ -2873,6 +2899,14 @@ struct ToriRSServerPlayer
      *  happens during it, is `[queue,player_death]`. There was a `death_tick`
      *  here, which meant the engine owned the length of a death. */
     int dying;
+    /** One-shot: the next `ToriRSServer_CombatHitPlayer` on this player is
+     *  self-inflicted — a script that called `damage()` on its own uid, which
+     *  is how an overload, a dwarven rock cake and a poison karambwan all hurt
+     *  their drinker. The Nightmare Zone's absorption pool must not soak those
+     *  (wiki Absorption: "It will not absorb damage the player inflicts on
+     *  themselves"), and the damage funnel has no other way to tell a swing
+     *  from a sip. Set by the `damage()` opcode, cleared by the funnel. */
+    int hit_self_inflicted;
     /** Debug invulnerability (`::god`). Gates the one player damage funnel,
      *  `ToriRSServer_CombatHitPlayer`, so every source — npc melee, the Inferno's
      *  queued projectile damage, poison, content's own `damage()` — lands as a
@@ -4942,6 +4976,24 @@ ToriRSServer_NpcSetModeTarget(
     npc->mode_target_pid = player->pid;
     npc->mode_target_gen = player->login_generation;
 }
+
+/**
+ * `Npc.changeType()` — become `type`, and for `duration > 0` become
+ * `spawn_type` again that many ticks later.
+ *
+ * The one door into a transformation, because it is two things that have to
+ * happen together: the new record has to be resolved into the live npc (combat
+ * definition, footprint, turnspeed, animations) *and* the client has to be told
+ * with a CHANGE_TYPE. A caller that set `npc->type` itself would get an npc
+ * fighting with the old form's stats, or a client still drawing the old model.
+ *
+ * `duration <= 0` is permanent, and so is a change to `spawn_type` itself.
+ */
+void
+ToriRSServer_NpcChangeType(
+    struct ToriRSServerNpc* npc,
+    int type,
+    int duration);
 
 /** When a just-appeared npc may first consider roaming, staggered so a room
  *  spawned on one tick does not step in unison. Spawn and respawn both use it. */

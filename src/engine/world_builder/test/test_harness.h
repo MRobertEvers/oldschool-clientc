@@ -25,4 +25,7 @@ void test_prerotate_placement(void);
 /* Cache-backed render integration test (skips if cache dir missing). */
 void test_world_builder_cache_render(void);
 
+/* Rebuild stutter bench (WB_BENCH=1 runs this instead of the tests). */
+void test_world_builder_bench(void);
+
 #endif

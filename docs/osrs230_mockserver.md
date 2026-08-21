@@ -5023,12 +5023,18 @@ backstop for an activity that has no logout policy of its own. The reference's
 here reads one.
 
 **Pinned.** `ToriRSServer --selftest`, last leg: `::mapinstance` puts the player in
-an instance, `ToriRSServer_WorldRemovePlayer` takes them out, and the two
-assertions are that the reservation count is back to 0 and that the player's
-coord is no longer inside the pool. Both go red under either mutation — an empty
-`[logout,_]` body, or the engine dispatch removed — which is what makes it a
-test rather than a description. It loads its own script pack, because an earlier
-leg deliberately frees the shared one.
+an instance and `ToriRSServer_WorldRemovePlayer` takes them out — into the
+LINGER, which is the contract since instances learned to outlive their last
+occupant: the reservation stays live with the saved coord inside it (that is
+what makes a dropped session resumable), a re-login inside the square
+re-attaches `%map_instance_handle` through `[login,_]`'s
+`~map_instance_login_rescue`, the linger clock
+(`TORIRSSERVER_MAPINSTANCE_LINGER_DEFAULT`, 100 ticks) releases the square once
+nobody comes back, and a login onto the *expired* square is rescued to
+`^respawn_coord`. Each of those four legs is asserted, and the per-raid
+comebacks (`::tobresume`, `::toaresume`, `::coxresume`) pin the content half —
+the [login]-side reenter handlers that restart an abandoned encounter. It loads
+its own script pack, because an earlier leg deliberately frees the shared one.
 
 **One diagnostic came out of it.** `SS_OP_MAP_INSTANCE_FREE` now counts the npcs
 still standing inside the instance being released and says so under

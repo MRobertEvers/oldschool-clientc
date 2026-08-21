@@ -713,6 +713,8 @@ scenery_load_model(
         return -1;
     }
 
+    double t_convert0 = wb_timing_on() ? wb_now_ms() : 0.0;
+
     struct ToriDraw_Model* models[10] = { 0 };
     for( int i = 0; i < models_count; i++ )
     {
@@ -758,6 +760,14 @@ scenery_load_model(
     }
     else
         model = models[0];
+
+    if( wb_timing_on() )
+    {
+        g_wb_t_model_convert_ms += wb_now_ms() - t_convert0;
+        g_wb_n_model_builds++;
+        g_wb_n_model_srcs += models_count;
+    }
+    double t_transform0 = wb_timing_on() ? wb_now_ms() : 0.0;
 
     /* Recolour pairs partition into texture swaps (endpoints <= 50) and HSL
      * recolours (see apply_transforms). Without the texture-swap half, scenery
@@ -886,6 +896,9 @@ scenery_load_model(
     }
 
     ToriDraw_ModelSetBoundsCylinder(model);
+
+    if( wb_timing_on() )
+        g_wb_t_model_transform_ms += wb_now_ms() - t_transform0;
 
     int element_id = ToriDraw_SceneElementAdd(builder->scene);
     assert(element_id >= 0 && "world_load_scenery_model: invalid element_id");

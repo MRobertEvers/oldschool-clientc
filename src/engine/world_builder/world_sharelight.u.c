@@ -99,6 +99,60 @@ static int g_merge_index = 0;
 static int g_vertex_a_merge_index[10000] = { 0 };
 static int g_vertex_b_merge_index[10000] = { 0 };
 
+/*
+ * Scratch hash for merge_normals: buckets the OTHER model's vertex positions so
+ * each of this model's vertices probes a chain instead of scanning every other
+ * vertex. Grow-only, reused across the whole build (a rebuild calls
+ * merge_normals tens of thousands of times; per-call malloc would dominate).
+ *
+ * head[] entries are stamped with the build serial rather than cleared, so a
+ * new pair costs O(vertices inserted), not O(table).
+ */
+static uint32_t* g_slh_head; /* bucket -> (serial, first chain index) */
+static int32_t* g_slh_next; /* per-inserted-vertex chain link, -1 ends */
+static uint32_t* g_slh_serial; /* bucket stamp; matches g_slh_build if live */
+static int g_slh_bucket_cap;
+static int g_slh_next_cap;
+static uint32_t g_slh_build;
+
+static inline uint32_t
+slh_hash(
+    int x,
+    int y,
+    int z)
+{
+    uint32_t h = (uint32_t)x * 73856093u ^ (uint32_t)y * 19349663u ^ (uint32_t)z * 83492791u;
+    h ^= h >> 15;
+    return h;
+}
+
+static void
+slh_reserve(
+    int vertex_count)
+{
+    int want_buckets = 16;
+    while( want_buckets < vertex_count * 2 )
+        want_buckets <<= 1;
+    if( want_buckets > g_slh_bucket_cap )
+    {
+        free(g_slh_head);
+        free(g_slh_serial);
+        g_slh_head = malloc((size_t)want_buckets * sizeof(*g_slh_head));
+        assert(g_slh_head);
+        g_slh_serial = calloc((size_t)want_buckets, sizeof(*g_slh_serial));
+        assert(g_slh_serial);
+        g_slh_bucket_cap = want_buckets;
+        g_slh_build = 0;
+    }
+    if( vertex_count > g_slh_next_cap )
+    {
+        free(g_slh_next);
+        g_slh_next_cap = vertex_count * 2;
+        g_slh_next = malloc((size_t)g_slh_next_cap * sizeof(*g_slh_next));
+        assert(g_slh_next);
+    }
+}
+
 static int*
 ToriDraw_ModelFaceInfosEnsureZero(struct ToriDraw_Model* model)
 {
@@ -128,7 +182,6 @@ merge_normals(
     struct ToriDraw_Normal* model_a_lighting_normal = NULL;
     struct ToriDraw_Normal* model_b_lighting_normal = NULL;
     int x, y, z;
-    int other_x, other_y, other_z;
 
     int merged_vertex_count = 0;
 
@@ -142,44 +195,73 @@ merge_normals(
     vertexint_t* other_vy = other_model->vertices_y;
     vertexint_t* other_vz = other_model->vertices_z;
 
+    /* Bucket the other model's shareable vertices (face_count > 0) by position,
+     * then probe once per own vertex. Yields exactly the (vertex, other_vertex)
+     * pairs the old full cross scan found — duplicates included, since bucket
+     * chains keep every vertex at a position — at O(m + n) instead of O(m * n).
+     * Serial-stamped buckets make the table reusable without clearing. */
+    slh_reserve(other_vc);
+    g_slh_build++;
+    uint32_t const bucket_mask = (uint32_t)g_slh_bucket_cap - 1;
+    for( int other_vertex = 0; other_vertex < other_vc; other_vertex++ )
+    {
+        if( other_vertex_normals[other_vertex].face_count == 0 )
+            continue;
+        uint32_t b =
+            slh_hash(other_vx[other_vertex], other_vy[other_vertex], other_vz[other_vertex]) &
+            bucket_mask;
+        if( g_slh_serial[b] != g_slh_build )
+        {
+            g_slh_serial[b] = g_slh_build;
+            g_slh_next[other_vertex] = -1;
+        }
+        else
+            g_slh_next[other_vertex] = (int32_t)g_slh_head[b];
+        g_slh_head[b] = (uint32_t)other_vertex;
+    }
+
     for( int vertex = 0; vertex < model_vc; vertex++ )
     {
+        model_a_normal = &vertex_normals[vertex];
+        if( model_a_normal->face_count == 0 )
+            continue;
+
         x = model_vx[vertex] - check_offset_x;
         y = model_vy[vertex] - check_offset_y;
         z = model_vz[vertex] - check_offset_z;
 
-        model_a_normal = &vertex_normals[vertex];
+        uint32_t b = slh_hash(x, y, z) & bucket_mask;
+        if( g_slh_serial[b] != g_slh_build )
+            continue;
+
         model_a_lighting_normal = &lighting_vertex_normals[vertex];
 
-        for( int other_vertex = 0; other_vertex < other_vc; other_vertex++ )
+        for( int32_t other_vertex = (int32_t)g_slh_head[b]; other_vertex != -1;
+             other_vertex = g_slh_next[other_vertex] )
         {
-            other_x = other_vx[other_vertex];
-            other_y = other_vy[other_vertex];
-            other_z = other_vz[other_vertex];
+            if( x != other_vx[other_vertex] || y != other_vy[other_vertex] ||
+                z != other_vz[other_vertex] )
+                continue;
 
             model_b_normal = &other_vertex_normals[other_vertex];
             model_b_lighting_normal = &other_lighting_vertex_normals[other_vertex];
 
-            if( x == other_x && y == other_y && z == other_z && model_b_normal->face_count > 0 &&
-                model_a_normal->face_count > 0 )
-            {
-                model_a_lighting_normal->x += model_b_normal->x;
-                model_a_lighting_normal->y += model_b_normal->y;
-                model_a_lighting_normal->z += model_b_normal->z;
-                model_a_lighting_normal->face_count += model_b_normal->face_count;
-                model_a_lighting_normal->merged++;
+            model_a_lighting_normal->x += model_b_normal->x;
+            model_a_lighting_normal->y += model_b_normal->y;
+            model_a_lighting_normal->z += model_b_normal->z;
+            model_a_lighting_normal->face_count += model_b_normal->face_count;
+            model_a_lighting_normal->merged++;
 
-                model_b_lighting_normal->x += model_a_normal->x;
-                model_b_lighting_normal->y += model_a_normal->y;
-                model_b_lighting_normal->z += model_a_normal->z;
-                model_b_lighting_normal->face_count += model_a_normal->face_count;
-                model_b_lighting_normal->merged++;
+            model_b_lighting_normal->x += model_a_normal->x;
+            model_b_lighting_normal->y += model_a_normal->y;
+            model_b_lighting_normal->z += model_a_normal->z;
+            model_b_lighting_normal->face_count += model_a_normal->face_count;
+            model_b_lighting_normal->merged++;
 
-                merged_vertex_count++;
+            merged_vertex_count++;
 
-                g_vertex_a_merge_index[vertex] = g_merge_index;
-                g_vertex_b_merge_index[other_vertex] = g_merge_index;
-            }
+            g_vertex_a_merge_index[vertex] = g_merge_index;
+            g_vertex_b_merge_index[other_vertex] = g_merge_index;
         }
     }
 
@@ -545,27 +627,58 @@ world_build_lighting(struct WorldBuilder* builder)
     assert(builder->sharelight_map);
 
     int scene_size = builder->sharelight_map->width;
+    double t_alloc = 0.0;
+    double t_merge = 0.0;
+    double t_apply = 0.0;
+    double tp;
 
     int initial_cols =
         scene_size < SHARELIGHT_MERGE_LOOKAHEAD + 1 ? scene_size : SHARELIGHT_MERGE_LOOKAHEAD + 1;
+    tp = wb_timing_on() ? wb_now_ms() : 0.0;
     for( int sx = 0; sx < initial_cols; sx++ )
         alloc_normals_for_column(builder, sx);
+    if( wb_timing_on() )
+        t_alloc += wb_now_ms() - tp;
 
     for( int sx = 0; sx < scene_size; sx++ )
     {
         int alloc_sx = sx + SHARELIGHT_MERGE_LOOKAHEAD;
         if( alloc_sx < scene_size && alloc_sx >= initial_cols )
+        {
+            tp = wb_timing_on() ? wb_now_ms() : 0.0;
             alloc_normals_for_column(builder, alloc_sx);
+            if( wb_timing_on() )
+                t_alloc += wb_now_ms() - tp;
+        }
 
+        tp = wb_timing_on() ? wb_now_ms() : 0.0;
         merge_column(builder, sx);
+        if( wb_timing_on() )
+        {
+            double t = wb_now_ms();
+            t_merge += t - tp;
+            tp = t;
+        }
 
         if( sx >= 1 )
             apply_and_free_column(builder, sx - 1);
+        if( wb_timing_on() )
+            t_apply += wb_now_ms() - tp;
     }
 
+    tp = wb_timing_on() ? wb_now_ms() : 0.0;
     apply_and_free_column(builder, scene_size - 1);
 
     defaultlight_build(builder);
+
+    if( wb_timing_on() )
+        fprintf(
+            stderr,
+            "rebuild_timing: lighting alloc=%.1fms merge=%.1fms apply=%.1fms tail=%.1fms\n",
+            t_alloc,
+            t_merge,
+            t_apply,
+            wb_now_ms() - tp);
 }
 
 #endif

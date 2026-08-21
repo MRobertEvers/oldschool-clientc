@@ -11565,11 +11565,12 @@ app_world_paint(struct App* app)
      * point of the row is to see a plane the ordinary rules would hide, and an
      * AND could only ever take levels away. 0 is "all levels", the default,
      * and leaves everything above untouched. */
+    uint8_t editor_vis_mask = 0;
     if( app->editor )
     {
-        uint8_t const vis_mask = Editor_PanelVisLevelMask(&app->editor_panel);
-        if( vis_mask )
-            level_mask = vis_mask;
+        editor_vis_mask = Editor_PanelVisLevelMask(&app->editor_panel);
+        if( editor_vis_mask )
+            level_mask = editor_vis_mask;
     }
     /* CAM_SHAKE jitter (reference Client-TS 4448): each axis is a sine plus a
      * random spread, and all five compound. It displaces the camera for this
@@ -11644,6 +11645,20 @@ app_world_paint(struct App* app)
         if( occ && !occ_off )
         {
             int top_level = app_world_roof_check(app);
+            /* The occluder set is bucketed by the top level being drawn --
+             * bucket N holds every surface spanning levels 0..N. The Vis row
+             * replaced the painter's level mask above, so the bucket has to
+             * follow it: left at the roof-check level, the floors and roofs of
+             * the storeys the row just hid keep casting their shadows and cull
+             * the plane the user asked to look at. Highest set bit of the mask
+             * is the top level it draws (solo included -- bucket N is the only
+             * one whose surfaces can be in front of level N's geometry). */
+            if( editor_vis_mask )
+            {
+                top_level = 0;
+                while( (editor_vis_mask >> (top_level + 1)) != 0 )
+                    top_level++;
+            }
             /* Eye for depth/spread stays raw (deob cameraX/Y/Z); only the
              * camera tile used by the footprint gate is scene-clamped inside
              * select_for_camera so it lines up with the painter's cam_sx/sz. */

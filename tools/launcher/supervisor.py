@@ -11,6 +11,7 @@ with it. A launcher that kills by pattern would reintroduce exactly that bug,
 so this one only ever signals pids it started.
 """
 
+import contextlib
 import errno
 import json
 import os
@@ -38,10 +39,54 @@ def planfile_path(repo_root, profile_name):
     return os.path.join(run_dir(repo_root, profile_name), "plan.json")
 
 
+@contextlib.contextmanager
+def signals_ignored():
+    """Ignore Ctrl-C (and SIGTERM/SIGHUP) for the duration of a block.
+
+    For work that must not be abandoned half-done. Ignored rather than
+    deferred: a second Ctrl-C during a shutdown means "yes, stop", which is
+    already what is happening, so replaying it afterwards would only produce a
+    traceback over a run that is already down.
+    """
+    previous = {}
+    for name in ("SIGINT", "SIGTERM", "SIGHUP"):
+        signum = getattr(signal, name, None)
+        if signum is None:
+            continue
+        try:
+            previous[signum] = signal.signal(signum, signal.SIG_IGN)
+        except (OSError, ValueError):
+            pass
+    try:
+        yield
+    finally:
+        for signum, handler in previous.items():
+            try:
+                signal.signal(signum, handler)
+            except (OSError, ValueError):
+                pass
+
+
 def pid_alive(pid):
-    """Is this pid a live process we may signal?"""
+    """Is this pid a live process we may signal?
+
+    Reaps first, because the services are this process's own children while a
+    `run` is in the foreground: once one exits, it stays a zombie until it is
+    waited for, and a zombie answers `kill(pid, 0)` exactly like a live
+    process. Untreated, that made every in-run shutdown sit through the full
+    grace period and then report "WOULD NOT DIE" for a process that had
+    already gone — and made `_supervise_until_interrupt` blind to a service
+    that crashed, since the corpse still read as "running". `./launch stop`
+    never saw either, because there the pids belong to a previous process and
+    the waitpid below simply fails with ECHILD.
+    """
     if pid <= 0:
         return False
+    try:
+        if os.waitpid(pid, os.WNOHANG)[0] == pid:
+            return False
+    except OSError:
+        pass
     try:
         os.kill(pid, 0)
     except OSError as error:
@@ -151,24 +196,28 @@ def start_service(repo_root, profile_name, service, env=None, settle=1.5):
     if env:
         process_env.update({str(k): str(v) for k, v in env.items()})
 
-    with open(log_path, "wb") as log_handle:
-        log_handle.write(
-            ("=== %s: %s\n" % (service.name, " ".join(service.argv)))
-            .encode("utf-8"))
-        log_handle.flush()
-        proc = subprocess.Popen(
-            service.argv,
-            cwd=repo_root,
-            stdout=log_handle,
-            stderr=subprocess.STDOUT,
-            stdin=subprocess.DEVNULL,
-            env=process_env,
-            start_new_session=True,
-        )
+    # Spawn and record as one unit: a Ctrl-C in the gap between them would
+    # leave a live process with no pidfile, which is an orphan nothing can
+    # find again.
+    with signals_ignored():
+        with open(log_path, "wb") as log_handle:
+            log_handle.write(
+                ("=== %s: %s\n" % (service.name, " ".join(service.argv)))
+                .encode("utf-8"))
+            log_handle.flush()
+            proc = subprocess.Popen(
+                service.argv,
+                cwd=repo_root,
+                stdout=log_handle,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                env=process_env,
+                start_new_session=True,
+            )
 
-    with open(pidfile_path(repo_root, profile_name, service.name), "w",
-              encoding="utf-8") as handle:
-        handle.write(str(proc.pid))
+        with open(pidfile_path(repo_root, profile_name, service.name), "w",
+                  encoding="utf-8") as handle:
+            handle.write(str(proc.pid))
 
     ok, reason = wait_ready(service, proc=proc, log_path=log_path)
     if not ok:
@@ -298,6 +347,25 @@ def run_status(repo_root, profile_name):
             "description": entry.get("description", ""),
         })
     return {"profile": profile_name, "plan": plan, "services": rows}
+
+
+def stop_run_now(repo_root, profile_name):
+    """stop_run, proof against a user leaning on Ctrl-C while it works.
+
+    Taking a run down is the one block that must finish: `stop_pid` waits out
+    a grace period per service, and a Ctrl-C landing in that wait used to
+    abandon the loop with the remaining services still alive. Those orphans go
+    on holding their ports, so the next `run` refuses to start with nothing on
+    screen to blame. The retry covers a Ctrl-C that Python had already queued
+    before the handlers were swapped out; stop_run re-reads the pidfiles it
+    has not removed yet, so running it again resumes rather than repeats.
+    """
+    with signals_ignored():
+        while True:
+            try:
+                return stop_run(repo_root, profile_name)
+            except KeyboardInterrupt:
+                continue
 
 
 def stop_run(repo_root, profile_name):
