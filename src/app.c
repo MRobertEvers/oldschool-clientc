@@ -3762,11 +3762,15 @@ app_chrome_merged_prims(struct App* app, int* out_count)
      * the common case -- no plugin window open -- costs exactly what it did
      * before this existed.
      *
-     * A SURFACE executor is the other way to get here: the plugin window's
-     * pixels are going to its own OS window, so putting them in the canvas as
-     * well would draw it twice, in two places, both of them live.
+     * ANY bound executor other than the buffer one is the other way to get
+     * here: the plugin window is being presented somewhere else -- its own OS
+     * window, the DOM, a tool window, the interface tree -- so putting its
+     * prims in the canvas as well would draw it twice, in two places, both of
+     * them live. That is not only a surface executor's problem: a native-widget
+     * executor rebuilds the window out of foreign controls and the chrome's own
+     * display list is exactly what must NOT also appear.
      */
-    if( win_count == 0 || app->plugin_exec.exec.is_surface )
+    if( win_count == 0 || app->plugin_exec_kind != TORIRS_CHROME_EXEC_BUFFER )
     {
         *out_count = dbg_count;
         return dbg;
@@ -16925,43 +16929,24 @@ app_plugin_screenshot(void* user, char const* plugin, char const* dir, char cons
 }
 
 /*
- * Take every queued capture, as one render.
+ * Where a capture's pixels come from when the lane could not supply any.
  *
- * Rendered here rather than lifted out of whatever the window is showing,
- * because the window is not always readable: three of the four renderer lanes
- * (GL3, WebGL1, D3D9) never fill a client-side pixel buffer at all, and the
- * browser lane is one of them. App_Render is the one path that exists
- * everywhere, headless included, so a screenshot means the same thing on every
- * platform -- the scene through the client's own rasteriser -- rather than
- * meaning "a GPU readback" on the lanes that happen to support one.
+ * A software re-render of the frame the emit buffer is still holding. It is
+ * the same scene through the client's own rasteriser, which is NOT the same
+ * thing as the frame that was presented: a GPU lane may have drawn it with
+ * different textures, filtering and draw distance, and none of that is in
+ * here. It exists so a lane with no readback (D3D9) and a run with no
+ * renderer at all (headless) still produce a picture rather than nothing.
  *
- * The cost is one extra software frame per capture, which is the right trade
- * for something that happens when a skill goes up.
+ * Every lane that can read its own frame back should, and does.
  */
-static void
-app_plugin_screenshots_take(struct App* app)
+static int
+app_capture_fallback_render(struct App* app, int* pixels, int width, int height)
 {
-    int const width = UITREE_LAYOUT_ROOT_W;
-    int const height = UITREE_LAYOUT_ROOT_H;
-    int pending = 0;
     int saved_pick;
-    int* pixels;
-    unsigned char* rgb;
-    void* png;
-    size_t png_size = 0;
 
     assert(app);
-
-    for( int i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
-        pending += app->plugin_screenshots[i].in_use;
-    if( pending == 0 )
-        return;
-
-    /* A capture of the loading bar is not a capture of anything. Requests
-     * survive the wait; a plugin cannot ask for one before it has started
-     * anyway, so this only covers a boot that re-enters. */
-    if( App_IsBooting(app, NULL) )
-        return;
+    assert(pixels);
 
     /*
      * Disarm the world pick for the duration.
@@ -16974,12 +16959,26 @@ app_plugin_screenshots_take(struct App* app)
      */
     saved_pick = app->world_mouse_in_viewport;
     app->world_mouse_in_viewport = 0;
-
-    pixels = malloc((size_t)width * (size_t)height * sizeof(int));
-    assert(pixels);
     App_Render(app, pixels, width, height);
-
     app->world_mouse_in_viewport = saved_pick;
+    return 1;
+}
+
+/*
+ * Encode one frame and hand every waiting capture a copy.
+ *
+ * One encode for all of them: the pending queue holds requests made during the
+ * same frame, so they are requests for the same picture under different names.
+ */
+static void
+app_plugin_screenshots_write(struct App* app, int const* pixels, int width, int height)
+{
+    unsigned char* rgb;
+    void* png;
+    size_t png_size = 0;
+
+    assert(app);
+    assert(pixels);
 
     /* Three channels, not four: the client's canvas has no alpha to carry
      * (the high byte is padding), and a PNG that claimed one would be half
@@ -16992,7 +16991,6 @@ app_plugin_screenshots_take(struct App* app)
         rgb[i * 3 + 1] = (unsigned char)((pixels[i] >> 8) & 0xFF);
         rgb[i * 3 + 2] = (unsigned char)(pixels[i] & 0xFF);
     }
-    free(pixels);
 
     png = tdefl_write_image_to_png_file_in_memory_ex(rgb, width, height, 3, &png_size, 6, MZ_FALSE);
     free(rgb);
@@ -17053,6 +17051,46 @@ app_plugin_screenshots_take(struct App* app)
     }
 
     mz_free(png);
+}
+
+void
+App_DrawComplete(
+    struct App* app,
+    App_FrameSupplier supplier,
+    void* supplier_user)
+{
+    int const width = UITREE_LAYOUT_ROOT_W;
+    int const height = UITREE_LAYOUT_ROOT_H;
+    int pending = 0;
+    int* pixels;
+
+    assert(app);
+
+    /*
+     * Nobody waiting, nothing to do -- and this test comes FIRST, before the
+     * supplier is so much as called. That ordering is the whole design: it is
+     * what lets a lane hand over a glReadPixels here and pay for it only on
+     * the frames a capture was asked for.
+     */
+    for( int i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
+        pending += app->plugin_screenshots[i].in_use;
+    if( pending == 0 )
+        return;
+
+    /* A capture of the loading bar is not a capture of anything. Requests
+     * survive the wait; a plugin cannot ask for one before it has started
+     * anyway, so this only covers a boot that re-enters. */
+    if( App_IsBooting(app, NULL) )
+        return;
+
+    pixels = malloc((size_t)width * (size_t)height * sizeof(int));
+    assert(pixels);
+
+    if( !supplier || !supplier(supplier_user, pixels, width, height) )
+        app_capture_fallback_render(app, pixels, width, height);
+
+    app_plugin_screenshots_write(app, pixels, width, height);
+    free(pixels);
 }
 
 /* ------------------------------------------------- notable moments */
@@ -21104,12 +21142,6 @@ App_RunOnce(
      * read a stale one. */
     app->plugin_input = input;
 
-    /* Anything a plugin asked to photograph last frame, before this frame
-     * touches the emit buffer: the committed frame still standing here is the
-     * one the request was made against, and the one the player just saw. */
-    if( app->plugins )
-        app_plugin_screenshots_take(app);
-
     /* Plugins before the built-in developer tools, for the same reason those
      * run first: a plugin panel's toggle has to latch during a boot, and
      * anything it changes has to be visible to this frame's emit rebuild. */
@@ -21471,8 +21503,27 @@ App_RunOnce(
         out.clicked_com_id >= 0 &&
         app_obj_cell_at(app, out.clicked_x, out.clicked_y, &pressed_cell);
 
-    if( app->inv_drag_com_id < 0 && !pressed_filled_obj && out.clicked_com_id >= 0 &&
-        !out.minimenu_closed && out.minimenu_select < 0 )
+    /*
+     * The CS2 chrome executor's own components, before the game sees them.
+     *
+     * Its widgets ARE interface components, so without this a click on the
+     * plugin window's checkbox would also build a minimenu for whatever the
+     * component looks like to the game -- a rectangle with no ops, which is
+     * "Walk here". Recognised by component id: the executor allocates from a
+     * private high range precisely so this is a bounds test.
+     */
+    int chrome_took_click = 0;
+    if( out.clicked_com_id >= TORIRS_CHROME_CS2_ID_BASE &&
+        out.clicked_com_id < TORIRS_CHROME_CS2_ID_END &&
+        ToriRSChromeExecCs2_Click(out.clicked_com_id) )
+    {
+        chrome_took_click = 1;
+        app->input_frame_consumed = 1;
+        app->need_redraw = 1;
+    }
+
+    if( !chrome_took_click && app->inv_drag_com_id < 0 && !pressed_filled_obj &&
+        out.clicked_com_id >= 0 && !out.minimenu_closed && out.minimenu_select < 0 )
     {
         struct RS_MinimenuBuildCtx mctx = {
             .tree = app->tree,

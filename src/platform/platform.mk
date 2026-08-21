@@ -473,9 +473,20 @@ PLATFORM_WINDOW_SRC ?= platform/platform_sdl2.c
 # what actually decides it -- the aux window is SDL_CreateWindow, so every lane
 # using platform_sdl2.c gets it and the two Win32 lanes (which will get a GDI
 # tool window instead) do not.
-ifeq ($(PLATFORM_WINDOW_SRC),platform/platform_sdl2.c)
+ifeq ($(PLATFORM),web)
+# The web lane builds on SDL but presents through the DOM: a second SDL window
+# in a browser tab is not a thing, and the page can host real form controls,
+# which is strictly better than a canvas pretending to be one.
+PLATFORM_CHROME_EXEC_SRC ?= ui/torirs_chrome_exec_web.c
+PLATFORM_CHROME_EXEC_CFLAGS ?= -DTORIRS_CHROME_EXEC_WEB_AVAILABLE=1
+else ifeq ($(PLATFORM_WINDOW_SRC),platform/platform_sdl2.c)
 PLATFORM_CHROME_EXEC_SRC ?= ui/torirs_chrome_exec_sdl.c
 PLATFORM_CHROME_EXEC_CFLAGS ?= -DTORIRS_CHROME_EXEC_SDL_AVAILABLE=1
+else ifeq ($(PLATFORM_WINDOW_SRC),platform/platform_win32gdi.c)
+# USER32 only -- see the no-comctl32 note in the executor. Nothing is added to
+# PLATFORM_LDFLAGS because the Windows lanes already link user32 and gdi32.
+PLATFORM_CHROME_EXEC_SRC ?= ui/torirs_chrome_exec_gdi.c
+PLATFORM_CHROME_EXEC_CFLAGS ?= -DTORIRS_CHROME_EXEC_GDI_AVAILABLE=1
 else
 PLATFORM_CHROME_EXEC_SRC ?=
 PLATFORM_CHROME_EXEC_CFLAGS ?=

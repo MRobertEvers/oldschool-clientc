@@ -69,4 +69,27 @@ ToriRS_GL3_DrawBootBar(struct ToriRS_GL3* gl3, int progress);
 struct ToriRS_PickHits const*
 ToriRS_GL3_PickHits(struct ToriRS_GL3 const* gl3);
 
+/**
+ * Read the presented frame back off the device into `pixels`, top-down ARGB.
+ *
+ * `width`/`height` are the CANVAS size, not the window's: the drawable is
+ * letterboxed and possibly scaled by the display's DPI, so the readback is
+ * sampled back down onto the canvas grid the rest of the client thinks in.
+ * That is what makes a GPU capture the same size as a software one.
+ *
+ * Call it AFTER the buffer swap, from the lane's own present path -- the back
+ * buffer is only the finished frame at that point. Returns false when there is
+ * no context to read.
+ *
+ * This is a pipeline stall and is meant to be called rarely: the app asks for
+ * it only when a capture is actually pending (App_DrawComplete), the same way
+ * RuneLite's DrawManager only invokes its supplier when a listener is queued.
+ */
+bool
+ToriRS_GL3_ReadPixels(
+    struct ToriRS_GL3* gl3,
+    int* pixels,
+    int width,
+    int height);
+
 #endif

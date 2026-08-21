@@ -346,6 +346,69 @@ test_chrome_exec_refused(void)
     }
 }
 
+/*
+ * Widgets are announced in ROW order, not handle order.
+ *
+ * The two diverge as soon as a panel is cleared and rebuilt: the free list
+ * hands handles back in removal order, so a rebuilt panel's rows carry handles
+ * in an order that has nothing to do with where they sit. A native-widget
+ * executor creates its controls in the order the ADDs arrive, so getting this
+ * wrong lays the window out in the order rows were FIRST created -- which is
+ * how it was found: a Save button above the settings it commits.
+ */
+static void
+test_chrome_exec_row_order(void)
+{
+    int panel;
+    int first;
+    int second;
+
+    exec_reset();
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 0, 0, 200, "P");
+    /* Three rows, then a rebuild that puts them back in the SAME order. The
+     * handles come back off the free list reversed, which is the whole point. */
+    ToriRSChrome_Label(&g_ui, panel, "one");
+    ToriRSChrome_Label(&g_ui, panel, "two");
+    ToriRSChrome_Label(&g_ui, panel, "three");
+    ToriRSChrome_Build(&g_ui);
+    exec_settle();
+
+    ToriRSChrome_PanelClearWidgets(&g_ui, panel);
+    first = ToriRSChrome_Label(&g_ui, panel, "alpha");
+    second = ToriRSChrome_Label(&g_ui, panel, "beta");
+    ToriRSChrome_Label(&g_ui, panel, "gamma");
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChromeSync_Run(&g_sync, &g_ui);
+
+    /* A recycled handle is a DIFFERENT widget, so the rebuild must announce a
+     * removal and a fresh add for each -- not "nothing changed". */
+    TEST_ASSERT(
+        ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_WIDGET_ADD) == 3,
+        "a rebuilt panel re-adds every row");
+
+    {
+        int alpha_at = -1;
+        int beta_at = -1;
+        for( int i = 0; i < g_rec.count; i++ )
+        {
+            if( g_rec.cmds[i].kind != TORIRS_CHROME_CMD_WIDGET_ADD )
+                continue;
+            if( g_rec.cmds[i].widget == first )
+                alpha_at = i;
+            if( g_rec.cmds[i].widget == second )
+                beta_at = i;
+        }
+        TEST_ASSERT(alpha_at >= 0 && beta_at >= 0, "both rows were announced");
+        TEST_ASSERT(alpha_at < beta_at, "and in the order they sit in the panel");
+    }
+
+    /* The property that makes the above possible: a handle reused for a new
+     * widget is not mistaken for the old one still being there. */
+    TEST_ASSERT(
+        g_ui.widgets[first].serial != g_ui.widgets[second].serial,
+        "every widget has its own serial");
+}
+
 void
 test_chrome_exec(void)
 {
@@ -358,4 +421,5 @@ test_chrome_exec(void)
     test_chrome_exec_options();
     test_chrome_exec_intents();
     test_chrome_exec_refused();
+    test_chrome_exec_row_order();
 }

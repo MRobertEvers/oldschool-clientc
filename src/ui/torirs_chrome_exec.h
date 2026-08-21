@@ -72,6 +72,16 @@ enum ToriRSChromeCmdKind
      *  Advisory: a native executor is free to let its own window manager place
      *  and size the thing, and most should. */
     TORIRS_CHROME_CMD_PANEL_RECT,
+    /**
+     * `value` = which tab of this panel is showing.
+     *
+     * Not advisory, unlike the rect: a widget's `tab` says which tab OWNS it
+     * and this says which one is up, and an executor needs both to decide what
+     * to show. Without it a native executor can see that widget 7 belongs to
+     * tab 2 and still have no idea whether tab 2 is the one in front -- which
+     * is a window that draws every tab's controls at once.
+     */
+    TORIRS_CHROME_CMD_PANEL_TAB,
 
     /** A widget appeared: `widget`, `value` = enum ToriDbgWidgetKind, `tab` =
      *  which tab owns it (-1 = all), `label`/`text` = its initial strings.
@@ -279,6 +289,11 @@ struct ToriRSChromeExec
 struct ToriRSChromeShadowWidget
 {
     int live;
+    /** ToriDbgWidget::serial, so a RECYCLED handle is seen as a different
+     *  widget rather than as the same one unchanged. Comparing kind and panel
+     *  is not enough: a rebuilt panel commonly puts the same kind back on the
+     *  same panel under the same handle, in a different row. */
+    int serial;
     int kind;
     int panel;
     int tab;
@@ -443,6 +458,77 @@ struct ToriRSChromeExec
 ToriRSChromeExec_ForKind(
     int kind, void* platform, ToriRSChromeRasteriseFn rasterise, void* rasterise_user,
     int* out_kind);
+
+/* ---- the CS2 native-widget executor (ui/torirs_chrome_exec_cs2.c) --------
+ *
+ * Always compiled: its "native" toolkit is the game's own interface tree, so
+ * unlike the other three it needs no platform support and works on every lane.
+ */
+
+/**
+ * Component ids this executor allocates from.
+ *
+ * Group 0x7FFE, which is not an arbitrary high number: it is the group
+ * UITree_RootIsDisplayable already recognises as "app-overlay chrome". A root
+ * in any other unmounted group is deliberately dropped by the emit walk --
+ * that filter exists so a CS2 script auto-mounting an interface for property
+ * access cannot cover the gameframe with it -- so a private range picked for
+ * being far away renders nothing at all. This one is the tree's own answer to
+ * "chrome the app built", and using it is what makes the panel displayable.
+ *
+ * A range rather than a registry, because a component id is how a click gets
+ * home: the tree reports one, and the host has to recognise it as the chrome's
+ * before the game's own dispatch sees it. A bounds test does that in a line.
+ */
+#define TORIRS_CHROME_CS2_GROUP 0x7FFE
+#define TORIRS_CHROME_CS2_ID_BASE (TORIRS_CHROME_CS2_GROUP << 16)
+#define TORIRS_CHROME_CS2_ID_END (TORIRS_CHROME_CS2_ID_BASE + 0x10000)
+#define TORIRS_CHROME_CS2_ID_TAB_BASE (TORIRS_CHROME_CS2_ID_BASE + 0x10)
+#define TORIRS_CHROME_CS2_TABS_MAX 12
+
+struct UITree;
+
+/**
+ * @param tree the interface tree to build in.
+ * @param mount_node the node index everything mounts under; -1 for its own root.
+ * @param font_id the SCENE font id text is drawn in.
+ *
+ * All three injected rather than reached for: ui/ owns the tree type but not
+ * the App that holds one, which slot a panel belongs in is a gameframe
+ * question, and a scene font id comes from the bridge that uploaded the face.
+ * A font_id of 0 draws no text at all -- the id has to be a real one, and only
+ * the host knows which.
+ */
+struct ToriRSChromeExec
+ToriRSChromeExec_Cs2(struct UITree* tree, int32_t mount_node, int font_id);
+
+/**
+ * Offer one clicked component id to the executor.
+ *
+ * @return 1 when it belonged to the plugin window and became an intent, so the
+ * caller can stop before the game's own interface dispatch runs. A click on a
+ * chrome checkbox must not also become a minimenu.
+ */
+int
+ToriRSChromeExecCs2_Click(int component_id);
+
+#if defined(TORIRS_CHROME_EXEC_GDI_AVAILABLE)
+/* ---- the Win32 native-widget executor (ui/torirs_chrome_exec_gdi.c) ------- */
+
+/** An owned tool window of USER32 controls.
+ *  @param platform struct PlatformSDL2*, as every executor is handed. */
+struct ToriRSChromeExec
+ToriRSChromeExec_Gdi(void* platform);
+#endif
+
+#if defined(TORIRS_CHROME_EXEC_WEB_AVAILABLE)
+/* ---- the web native-widget executor (ui/torirs_chrome_exec_web.c) --------- */
+
+/** Real DOM controls, built by the page from the command stream. Takes no
+ *  platform handle: the page it talks to is a global, not a window this owns. */
+struct ToriRSChromeExec
+ToriRSChromeExec_Web(void);
+#endif
 
 #if defined(TORIRS_CHROME_EXEC_SDL_AVAILABLE)
 /* ---- the SDL surface executor (ui/torirs_chrome_exec_sdl.c) --------------- */

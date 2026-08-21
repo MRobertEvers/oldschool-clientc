@@ -503,6 +503,54 @@ app_plugin_exec_bind(struct App* app)
     if( app->plugin_exec.live )
         return;
 
+    /*
+     * The CS2 executor is bound here rather than by the shell, because it is
+     * the one whose target is not a platform: it needs the interface tree and
+     * a node to mount under, and both are the App's. The shell has neither,
+     * which is why ToriRSChromeExec_ForKind answers "cs2" with the buffer
+     * executor and leaves this to the only place that can.
+     *
+     * The main overlay slot is the mount: it is where the gameframe puts
+     * things that float over the world without taking the modal, which is
+     * exactly what a window a player opened beside the game is.
+     */
+    if( app->plugin_exec_kind == TORIRS_CHROME_EXEC_CS2 && app->tree )
+    {
+        /*
+         * The main overlay slot if the layout declares one, the tree root if
+         * not.
+         *
+         * Not every gameframe has an overlay slot -- the rev-239 layout
+         * declares chat, main_modal and side_modal and no more -- and falling
+         * back to the root is honest rather than lucky: the root is what a
+         * floating window with no slot of its own belongs to, and it is the
+         * one node every tree has.
+         */
+        /*
+         * Mounted as its own ROOT (-1), not inside a slot.
+         *
+         * A slot was the obvious choice and is wrong twice over: not every
+         * gameframe declares an overlay slot (the rev-239 layout has chat,
+         * main_modal and side_modal and no more), and a panel inside the first
+         * root draws UNDER every later root -- so the gameframe covers it.
+         *
+         * A -1 parent appends a root after the existing ones and the emit walk
+         * takes roots in order, so the window lands on top of the game and
+         * under nothing. That is the same answer the in-canvas chrome gets from
+         * running its pass last, reached the interface tree's own way.
+         */
+        /* The game's own p12 body face, the one interface text is set in --
+         * asked of the bridge that uploaded it, because a scene font id is
+         * what a TEXT component needs and only the bridge knows it. */
+        int const font = UITreeSceneBridge_EnsureDebugFont(&app->bridge, TORIDBG_FONT_BODY);
+        struct ToriRSChromeExec cs2 = ToriRSChromeExec_Cs2(app->tree, -1, font);
+        if( ToriRSChromeSync_Init(&app->plugin_exec, &cs2) )
+            return;
+        fprintf(
+            stderr, "chrome: the cs2 executor would not start; staying in the canvas\n");
+        app->plugin_exec_kind = TORIRS_CHROME_EXEC_BUFFER;
+    }
+
     /* Nothing was handed over: in-canvas, which is also what every lane with
      * no native executor gets. */
     if( !app->plugin_exec_pending.begin && !app->plugin_exec_pending.apply )

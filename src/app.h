@@ -2471,6 +2471,41 @@ App_NotifyStatLevel(
     int skill,
     int base_level);
 
+/* ------------------------------------------------------------------------ */
+/* Frame capture                                                             */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Hand back the frame that was just presented, as width*height top-down ARGB.
+ *
+ * One per renderer lane, because only the lane knows where its pixels are: the
+ * software rasteriser already has a client-side buffer, and a GPU lane has to
+ * read one back off the device. Returns 1 when `pixels` was filled.
+ */
+typedef int (*App_FrameSupplier)(void* user, int* pixels, int width, int height);
+
+/**
+ * "The frame is on screen." Called by whichever lane presented it, AFTER the
+ * present, and it is what turns a plugin's api->screenshot into a file.
+ *
+ * `supplier` is pulled rather than pushed, and never called unless a capture
+ * is actually waiting -- this is RuneLite's DrawManager.processDrawComplete
+ * arrangement and it is the reason a GPU readback is affordable at all. A
+ * readback is a pipeline stall; done every frame on the chance someone wants a
+ * picture it would cost the frame rate of the whole client, and done only when
+ * asked it costs nothing until a skill goes up.
+ *
+ * A lane with no readback passes NULL, and a supplier that fails returns 0.
+ * Either way the capture is still taken, from a software re-render of the same
+ * frame -- see the fallback's own comment for why that is a substitute and not
+ * an equivalent.
+ */
+void
+App_DrawComplete(
+    struct App* app,
+    App_FrameSupplier supplier,
+    void* supplier_user);
+
 /** Rasterize the current emit buffer into pixels (width x height ARGB). */
 void
 App_Render(

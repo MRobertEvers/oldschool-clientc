@@ -523,6 +523,21 @@ struct ToriDbgWidget
      * every row, so the untabbed panel needs no special case anywhere.
      */
     int tab;
+    /**
+     * Monotonic id, distinct for every widget this instance has ever created.
+     *
+     * A HANDLE is not an identity: the free list recycles them, so handle 5
+     * removed and handle 5 added are two different widgets wearing one number.
+     * Anything downstream that diffs by handle -- the executor seam's shadow --
+     * then sees "widget 5, still a checkbox, still on panel 0" and concludes
+     * nothing changed, when in fact the row it names was replaced. The visible
+     * symptom is a rebuilt panel whose rows come out in the order they were
+     * FIRST created rather than the order they are in now.
+     *
+     * Never reused, never reset by a panel clear: it only ever has to be
+     * comparable and distinct.
+     */
+    int serial;
     /** First visible row while the list is open. */
     int scroll;
 };
@@ -629,6 +644,8 @@ struct ToriRSChrome
     /** High-water mark of the widget array, NOT the number of live widgets:
      *  removed slots below it are on the free list. */
     int widget_count;
+    /** Next ToriDbgWidget::serial to hand out. */
+    int next_serial;
     /**
      * Head of the removed-slot list, chained through ToriDbgWidget::next, or -1.
      *

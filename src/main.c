@@ -419,6 +419,51 @@ sim_render_frame(struct App* app)
     App_Render(app, sim_pixels, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
 }
 
+/*
+ * Where a presented frame comes from, per lane.
+ *
+ * One supplier each, handed to App_DrawComplete after the present, and called
+ * by it ONLY when a capture is actually waiting -- see App_DrawComplete for
+ * why that ordering is the point rather than an optimisation.
+ *
+ * The GPU ones read the device back; the software one already has the pixels
+ * it just wrote and only has to copy them. D3D9 has no readback and passes
+ * NULL, which is the documented way to say "use the software re-render".
+ */
+#if defined(TORIRS_HAVE_GL3)
+static int
+capture_from_gl3(void* user, int* pixels, int width, int height)
+{
+    return ToriRS_GL3_ReadPixels((struct ToriRS_GL3*)user, pixels, width, height) ? 1 : 0;
+}
+#endif
+
+/* The canvas IS this lane's framebuffer, so the "readback" is a copy. The size
+ * check is not defensive noise: a resize lands between App_Render and here, and
+ * copying the wrong number of rows out of the smaller of the two is how a
+ * screenshot would become a heap overrun. */
+#if defined(TORIRS_HAVE_D3D9)
+static int
+capture_from_d3d9(void* user, int* pixels, int width, int height)
+{
+    return ToriRS_D3D9_ReadPixels((struct ToriRS_D3D9*)user, pixels, width, height) ? 1 : 0;
+}
+#endif
+
+static int
+capture_from_software(void* user, int* pixels, int width, int height)
+{
+    struct PlatformSDL2* sdl = (struct PlatformSDL2*)user;
+    int const* src = PlatformSDL2_Pixels(sdl);
+
+    if( !src )
+        return 0;
+    if( width != UITREE_LAYOUT_ROOT_W || height != UITREE_LAYOUT_ROOT_H )
+        return 0;
+    memcpy(pixels, src, (size_t)width * (size_t)height * sizeof(int));
+    return 1;
+}
+
 /** Interactive present: Soft3D writes pixels then blits; GPU backends drain the
  * same retained frame and present it. Headless/BMP paths keep using App_Render. */
 static void
@@ -474,6 +519,17 @@ interactive_render_present(
                 }
             }
         }
+        /*
+         * BEFORE the present, unlike every other lane.
+         *
+         * The swap chain is D3DSWAPEFFECT_DISCARD, which leaves the back
+         * buffer undefined the moment it is presented -- so this is the last
+         * instant the finished frame still exists to be read. RuneLite's GPU
+         * plugin reads after its swapBuffers because GL's back buffer survives
+         * one; D3D9's does not, and the ordering has to follow the API rather
+         * than the other lanes.
+         */
+        App_DrawComplete(app, capture_from_d3d9, d3d9);
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_PRESENT)
         {
             ToriRS_D3D9_Present(d3d9);
@@ -528,6 +584,8 @@ interactive_render_present(
         {
             PlatformSDL2_PresentGL(sdl);
         }
+        /* After the swap: the back buffer is the finished frame only now. */
+        App_DrawComplete(app, capture_from_gl3, gl3);
         return;
     }
 #else
@@ -539,6 +597,7 @@ interactive_render_present(
     {
         PlatformSDL2_Present(sdl);
     }
+    App_DrawComplete(app, capture_from_software, sdl);
 }
 
 /* App_RunOnce returned no frame commit.  The software surface can safely
@@ -3992,13 +4051,19 @@ main(
             chrome_exec = ToriRSChromeExec_ForKind(
                 wanted < 0 ? TORIRS_CHROME_EXEC_BUFFER : wanted, sdl, App_ChromeRasterise, &app,
                 &got);
-            if( wanted > TORIRS_CHROME_EXEC_BUFFER && got != wanted )
+            if( wanted > TORIRS_CHROME_EXEC_BUFFER && got != wanted &&
+                wanted != TORIRS_CHROME_EXEC_CS2 )
                 fprintf(
                     stderr,
                     "chrome: no '%s' executor in this build; the plugin window stays in the "
                     "canvas\n",
                     ToriRSChromeExec_KindName(wanted));
-            App_SetPluginChromeExec(&app, &chrome_exec, got);
+            /* The KIND asked for, not the one ForKind produced: "cs2" is
+             * bound by the App itself -- it needs the interface tree, which
+             * the shell does not have -- so the shell's job is to carry the
+             * request rather than to satisfy it. */
+            App_SetPluginChromeExec(
+                &app, &chrome_exec, wanted == TORIRS_CHROME_EXEC_CS2 ? wanted : got);
         }
 
 #if defined(TORIRS_HAVE_D3D9)

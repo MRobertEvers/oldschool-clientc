@@ -110,4 +110,28 @@ ToriRS_D3D9_RenderFrame(struct ToriRS_D3D9* d3d9, struct ToriRS_Frame* frame);
 void
 ToriRS_D3D9_Present(struct ToriRS_D3D9* d3d9);
 
+/**
+ * Read the finished frame off the device into `pixels`, top-down ARGB.
+ *
+ * `width`/`height` are the CANVAS size, not the window's -- the back buffer is
+ * the client rect and the canvas is letterboxed inside it, so the readback is
+ * sampled back down onto the canvas grid, exactly as the GL lanes do
+ * (ToriRS_GL3_ReadPixels).
+ *
+ * MUST be called BEFORE ToriRS_D3D9_Present, and that is the one place this
+ * differs from the GL twin, which reads after its swap. The swap chain is
+ * D3DSWAPEFFECT_DISCARD: after Present the back buffer's contents are
+ * explicitly undefined, so reading it then is reading whatever the driver
+ * left behind.
+ *
+ * Returns false when there is no usable device. A pipeline stall by nature,
+ * so App_DrawComplete only asks for it when a capture is actually pending.
+ */
+bool
+ToriRS_D3D9_ReadPixels(
+    struct ToriRS_D3D9* d3d9,
+    int* pixels,
+    int width,
+    int height);
+
 #endif

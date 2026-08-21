@@ -6251,6 +6251,114 @@ ToriRS_D3D9_RenderFrame(struct ToriRS_D3D9* renderer, struct ToriRS_Frame* frame
 }
 
 void
+/*
+ * The finished frame, sampled back onto the canvas grid.
+ *
+ * The GL twin's shape (ToriRS_GL3_ReadPixels) with two differences that are
+ * the API's, not choices:
+ *
+ *   - It runs BEFORE Present, not after. DISCARD leaves the back buffer
+ *     undefined once presented; see the header.
+ *   - No row flip. D3D9 surfaces are already top-down, where GL reports
+ *     bottom-up. Flipping here "for symmetry" would invert every capture.
+ *
+ * GetRenderTargetData is the GPU->system-memory copy, and it refuses a
+ * multisampled source -- which is why this can use it directly: the present
+ * parameters are created with D3DMULTISAMPLE_NONE.
+ */
+bool
+ToriRS_D3D9_ReadPixels(
+    struct ToriRS_D3D9* renderer,
+    int* pixels,
+    int width,
+    int height)
+{
+    IDirect3DSurface9* target = NULL;
+    IDirect3DSurface9* readback = NULL;
+    D3DSURFACE_DESC desc;
+    D3DLOCKED_RECT locked;
+    HRESULT hr;
+    bool ok = false;
+
+    assert(renderer);
+    assert(pixels);
+    assert(width > 0);
+    assert(height > 0);
+
+    if( !d3d9_device_ready(renderer) )
+        return false;
+
+    hr = IDirect3DDevice9_GetRenderTarget(renderer->device, 0u, &target);
+    if( FAILED(hr) || !target )
+    {
+        d3d9_log_hr("GetRenderTarget(readback)", hr);
+        return false;
+    }
+    hr = IDirect3DSurface9_GetDesc(target, &desc);
+    if( FAILED(hr) )
+    {
+        d3d9_log_hr("GetDesc(readback)", hr);
+        IDirect3DSurface9_Release(target);
+        return false;
+    }
+
+    hr = IDirect3DDevice9_CreateOffscreenPlainSurface(
+        renderer->device, desc.Width, desc.Height, desc.Format, D3DPOOL_SYSTEMMEM, &readback, NULL);
+    if( FAILED(hr) || !readback )
+    {
+        d3d9_log_hr("CreateOffscreenPlainSurface(readback)", hr);
+        IDirect3DSurface9_Release(target);
+        return false;
+    }
+
+    hr = IDirect3DDevice9_GetRenderTargetData(renderer->device, target, readback);
+    if( SUCCEEDED(hr) )
+    {
+        hr = IDirect3DSurface9_LockRect(readback, &locked, NULL, D3DLOCK_READONLY);
+        if( SUCCEEDED(hr) )
+        {
+            uint8_t const* base = (uint8_t const*)locked.pBits;
+            float const sx = (float)renderer->lb_w / (float)width;
+            float const sy = (float)renderer->lb_h / (float)height;
+
+            for( int y = 0; y < height; y++ )
+            {
+                int src_y = renderer->lb_y + (int)((float)y * sy);
+                uint32_t const* row;
+
+                if( src_y < 0 )
+                    src_y = 0;
+                if( src_y >= (int)desc.Height )
+                    src_y = (int)desc.Height - 1;
+                /* Pitch is bytes and is NOT width*4: the driver pads rows. */
+                row = (uint32_t const*)(base + (size_t)src_y * (size_t)locked.Pitch);
+
+                for( int x = 0; x < width; x++ )
+                {
+                    int src_x = renderer->lb_x + (int)((float)x * sx);
+
+                    if( src_x < 0 )
+                        src_x = 0;
+                    if( src_x >= (int)desc.Width )
+                        src_x = (int)desc.Width - 1;
+                    pixels[y * width + x] = (int)row[src_x];
+                }
+            }
+            IDirect3DSurface9_UnlockRect(readback);
+            ok = true;
+        }
+        else
+            d3d9_log_hr("LockRect(readback)", hr);
+    }
+    else
+        d3d9_log_hr("GetRenderTargetData", hr);
+
+    IDirect3DSurface9_Release(readback);
+    IDirect3DSurface9_Release(target);
+    return ok;
+}
+
+void
 ToriRS_D3D9_Present(struct ToriRS_D3D9* renderer)
 {
     HRESULT hr;

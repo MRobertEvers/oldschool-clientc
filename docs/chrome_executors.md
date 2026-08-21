@@ -59,13 +59,27 @@ native controls on every keystroke -- losing focus, losing the caret, making a
 text field impossible to type into. The shadow is the price of native controls
 that survive their own updates.
 
-Two orderings are load-bearing and both are tested:
+Three orderings are load-bearing and all three are tested:
 
 - **Panel closes before panel opens.** An executor may assume a widget's panel
   exists when it hears about the widget.
 - **Widget removals before widget additions.** A freed handle can be recycled by
   an add in the same frame; an executor told `add 7` before `remove 7` would end
   up with neither.
+- **Widgets are announced in ROW order, not handle order.** The sync walks each
+  panel's own row list. Array order is *allocation* order, and the free list
+  makes the two diverge the moment a panel is cleared and rebuilt -- an
+  executor creating controls in arrival order would then lay the window out in
+  the order rows were first created. The symptom was a Save button above the
+  settings it commits.
+
+### A handle is not an identity
+
+`ToriDbgWidget::serial` is. Handles come off a free list, so handle 5 removed
+and handle 5 added are two different widgets wearing one number, and a shadow
+that diffed on `(handle, kind, panel)` concluded "nothing changed" for a row
+that had in fact been replaced. The serial is monotonic, never reused, and never
+reset by a panel clear -- it only ever has to be comparable and distinct.
 
 ### Strings are copied at the seam
 
@@ -101,28 +115,64 @@ them a choice would be four more consumers to keep working for nobody.
 
 ## 4. What is implemented
 
-| Executor | State |
-|---|---|
-| `buffer` | **Done.** The in-canvas prim path; the default and the fallback everywhere. |
-| `sdl` | **Done.** One auxiliary OS window on the SDL lanes (macOS, Linux, and the web lane's SDL build). See COMMON-CHROME-001. |
-| `web` | Not implemented. Chooser falls back to `buffer` with a message. |
-| `gdi` | Not implemented. Chooser falls back to `buffer` with a message. |
-| `cs2` | Not implemented. Chooser falls back to `buffer` with a message. |
+| Executor | Kind | Lanes | State |
+|---|---|---|---|
+| `buffer` | surface | every | **Done.** The in-canvas prim path; the default and the fallback everywhere. |
+| `sdl` | surface | macOS, Linux | **Done.** One auxiliary OS window. See COMMON-CHROME-001. |
+| `web` | native-widget | web | **Done.** Real DOM controls, built by the page from the command stream. |
+| `gdi` | native-widget | win32, win64 | **Written, not run.** Compiles only on Windows; parsed here by `make -C src check-gdi-syntax`. |
+| `cs2` | native-widget | every | **Done.** The window as game interface components. |
 
-The three unimplemented ones need no further seam work -- they are
-native-widget executors, and `apply`/`poll` is the whole contract. What each
-still needs:
+### What each native-widget executor does
 
-- **web** -- an `EM_JS` façade following the existing `web_editor_open_panel_tab`
-  pattern (C asks, the page owns the DOM), a widget builder in the page script
-  over `src/web/torirs_channel.js`, and intent frames coming home on the same
-  wire. `src/web/panel.html` already renders the chrome's OSRS skin in CSS.
-- **gdi** -- an owned `WS_EX_TOOLWINDOW` of common controls, plus `lane-check`
-  rules for the comctl32 imports. COMMON-CHROME-001 and the WINDOWS-HOST-001
-  amendment already permit the window.
-- **cs2** -- a sidebar Plugin button (a `tab_icon` + `redstone_tab` + `sidebar`
-  triple in a layout INI) and a panel body built with `UIBuildComponent` /
-  `UITree_CcCreate`. Needs no new platform code at all.
+- **web** (`src/ui/torirs_chrome_exec_web.c` + `src/web/torirs_chrome.js`) --
+  every crossing is an `EM_JS` call onto a `window.torirsChrome*` hook,
+  following the existing `web_editor_open_panel_tab` pattern: C asks, the page
+  owns the DOM. Commands go out as JSON (not the channel's packed frames --
+  this direction has no need to be handed to a wasm bus, the volume is a
+  handful per tab build, and a page you can debug by reading its console beats
+  one whose messages have to be unpacked first). Intents come back the same
+  way. The hooks' *presence* is the availability test, so a cached `index.html`
+  without them degrades to in-canvas chrome instead of a window that silently
+  does nothing.
+
+- **gdi** (`src/ui/torirs_chrome_exec_gdi.c`) -- an owned
+  `WS_EX_TOOLWINDOW` whose children are USER32 controls: `BUTTON` with
+  `BS_AUTOCHECKBOX`, `EDIT`, `COMBOBOX`, `STATIC`. **No comctl32**: a real
+  `WC_TABCONTROL` would mean linking it, shipping a v6 common-controls
+  manifest, and adding both to the lane's import audit, where a row of
+  `BS_PUSHBUTTON`s is the same affordance with none of that. The XP lane's
+  one-file artifact contract (`WINXP-ABI-001`) is what makes that trade worth
+  taking.
+
+- **cs2** (`src/ui/torirs_chrome_exec_cs2.c`) -- the window as real interface
+  components, built through the same `UITree_PushBuildComponent` any
+  programmatic panel uses and clicked through the same hit test as any
+  cache-authored interface. It needs no platform support at all, which is why
+  it is the one executor available on every lane.
+
+  Three things about it are worth knowing before touching it, because each was
+  a bug first:
+
+  1. **Component ids come from group `0x7FFE`**, not a private high range. A
+     root in any other unmounted group is deliberately dropped by
+     `UITree_RootIsDisplayable` -- that filter exists so a CS2 script
+     auto-mounting an interface for property access cannot cover the gameframe
+     -- so ids picked for being far away render *nothing*. `0x7FFE` is the
+     tree's own "app-overlay chrome" group.
+  2. **It mounts as its own root (`-1`), not in a slot.** Not every gameframe
+     declares an overlay slot, and a panel inside the first root draws *under*
+     every later root. A `-1` parent appends a root after the existing ones and
+     the emit walk takes roots in order.
+  3. **The tree owns its text.** `UITree_PushBuildComponent` strdups the
+     string and node teardown frees it, so assigning a pointer of your own into
+     `u.rs_text.text` afterwards is a heap corruption on the next rebuild, not
+     a leak. Hand strings to the *builder*.
+
+  Not done: a sidebar Plugin button (a `tab_icon` + `redstone_tab` + `sidebar`
+  triple in a layout INI, with `side_overlay_id[tabno]` populated client-side),
+  panel scrolling, and editable text fields -- the last needs the chat-input
+  keyboard handoff the client already has one of.
 
 ## 5. The SDL executor
 
@@ -249,6 +299,8 @@ switch it back on behind the user's back.
 | `make -C src test-uitree` | Chrome model (tabs, buttons, scrolling, widget removal) and the executor seam (deltas, ordering, intents, refusal) |
 | `make -C src test-debug-overlay-visual` | What the chrome looks like, as BMPs into `src/build/` -- including a tabbed, scrolling panel |
 | `make -C src test-plugin-host` | The window registry, dispatch, and reload, against a fake engine with no window at all |
+| `make -C src test-web-channel` | The web executor's DOM half, driven against a fake document -- node only, no browser |
+| `make -C src check-gdi-syntax` | That `torirs_chrome_exec_gdi.c` still parses, on a machine with no Windows SDK |
 
 End-to-end, headlessly:
 
@@ -275,7 +327,12 @@ the verification COMMON-CHROME-001 asks for.
 |---|---|
 | `src/ui/uitree_debug_overlay.{h,c}` | The chrome: model, layout, display list, input |
 | `src/ui/torirs_chrome_exec.{h,c}` | The seam: commands, intents, sync, buffer + recorder executors, the chooser |
+| `src/ui/torirs_chrome_mirror.{h,c}` | Handle→native map, row order and the intent queue -- shared by all three native-widget executors |
 | `src/ui/torirs_chrome_exec_sdl.c` | The SDL surface executor |
+| `src/ui/torirs_chrome_exec_web.c` | The web executor's C half |
+| `src/web/torirs_chrome.js` | The web executor's DOM half |
+| `src/ui/torirs_chrome_exec_gdi.c` | The Win32 executor |
+| `src/ui/torirs_chrome_exec_cs2.c` | The CS2 executor |
 | `src/platform/platform_sdl2.{h,c}` | `PlatformSDL2_Aux*` -- the auxiliary window |
 | `src/plugin/torirs_plugin.h` | The plugin contract, ABI 5: `win_*`, `EV_UI`, `EV_UI_BUILD` |
 | `src/plugin/torirs_plugin_host.{h,c}` | The window registry, dispatch, `PluginHost_Reload` |

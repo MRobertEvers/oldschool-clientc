@@ -726,6 +726,8 @@ dbg_widget_add(struct ToriRSChrome* ui, int panel, int kind)
     w->panel = panel;
     w->next = -1;
     w->tab = ui->panels[panel].build_tab;
+    /* Distinct for the life of the instance -- see ToriDbgWidget::serial. */
+    w->serial = ++ui->next_serial;
 
     if( ui->panels[panel].first_widget < 0 )
         ui->panels[panel].first_widget = handle;

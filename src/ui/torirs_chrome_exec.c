@@ -201,7 +201,11 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
             sp->w = p->w;
             sp->h = p->h;
         }
-        sp->active_tab = p->active_tab;
+        if( sp->active_tab != p->active_tab )
+        {
+            sync_emit_value(sync, TORIRS_CHROME_CMD_PANEL_TAB, i, -1, p->active_tab);
+            sp->active_tab = p->active_tab;
+        }
     }
 
     /* Removals before additions, for the same reason panel closes come first:
@@ -213,13 +217,28 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
         if( !sw->live )
             continue;
         if( i < ui->widget_count && sync_widget_relevant(ui, i) &&
-            ui->widgets[i].kind == sw->kind && ui->widgets[i].panel == sw->panel )
+            ui->widgets[i].serial == sw->serial )
             continue;
         sync_emit_value(sync, TORIRS_CHROME_CMD_WIDGET_REMOVE, sw->panel, i, 0);
         memset(sw, 0, sizeof(*sw));
     }
 
-    for( int i = 0; i < ui->widget_count; i++ )
+    /*
+     * In ROW order, walking each panel's own list -- not by handle index.
+     *
+     * The array order is allocation order, and the free list makes those two
+     * diverge the moment a panel is cleared and rebuilt. An executor that
+     * creates its controls in the order the ADDs arrive would then lay the
+     * window out in the order rows were first created rather than the order
+     * they are in now -- the Save button above the settings it commits, which
+     * is exactly how this was found. The row list is the model's own order, so
+     * emitting in it means an executor never has to sort.
+     */
+    for( int p = 0; p < ui->panel_count; p++ )
+    {
+        if( !ui->panels[p].visible )
+            continue;
+    for( int i = ui->panels[p].first_widget; i >= 0; i = ui->widgets[i].next )
     {
         struct ToriDbgWidget const* w = &ui->widgets[i];
         struct ToriRSChromeShadowWidget* sw = &sync->widgets[i];
@@ -238,6 +257,7 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
             sync_emit(sync, &cmd);
 
             sw->live = 1;
+            sw->serial = w->serial;
             sw->kind = w->kind;
             sw->panel = w->panel;
             sw->tab = w->tab;
@@ -305,6 +325,7 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
             sync_emit_value(sync, TORIRS_CHROME_CMD_WIDGET_SELECTED, w->panel, i, w->selected);
             sw->selected = w->selected;
         }
+    }
     }
 
     cmd_init(&cmd, TORIRS_CHROME_CMD_SYNC_END, -1, -1);
@@ -444,6 +465,34 @@ ToriRSChromeExec_ForKind(
 {
     switch( kind )
     {
+    case TORIRS_CHROME_EXEC_CS2:
+    {
+        /* The only executor whose target is not a platform: `platform` is
+         * unused and the tree comes from the host, which binds it separately
+         * through ToriRSChromeExec_Cs2. Reaching it from here would need this
+         * file to know what an App is. */
+        if( out_kind )
+            *out_kind = TORIRS_CHROME_EXEC_BUFFER;
+        break;
+    }
+#if defined(TORIRS_CHROME_EXEC_GDI_AVAILABLE)
+    case TORIRS_CHROME_EXEC_GDI:
+    {
+        struct ToriRSChromeExec exec = ToriRSChromeExec_Gdi(platform);
+        if( out_kind )
+            *out_kind = TORIRS_CHROME_EXEC_GDI;
+        return exec;
+    }
+#endif
+#if defined(TORIRS_CHROME_EXEC_WEB_AVAILABLE)
+    case TORIRS_CHROME_EXEC_WEB:
+    {
+        struct ToriRSChromeExec exec = ToriRSChromeExec_Web();
+        if( out_kind )
+            *out_kind = TORIRS_CHROME_EXEC_WEB;
+        return exec;
+    }
+#endif
 #if defined(TORIRS_CHROME_EXEC_SDL_AVAILABLE)
     case TORIRS_CHROME_EXEC_SDL:
     {

@@ -305,6 +305,10 @@
 
 <!-- Order matters: the harness defines Module, which the runtime reads on load. -->
 <script src="torirs_channel.js"></script>
+<!-- The plugin window's DOM half, for TORIRS_CHROME_EXECUTOR=web. Loaded before
+     the wasm so its window.torirsChrome* hooks exist by the time the client
+     asks whether this page can host the window at all. -->
+<script src="torirs_chrome.js"></script>
 <script>
 /*
  * The renderer half of the panel channel.
