@@ -34,6 +34,120 @@ PlatformSDL2_Window(struct PlatformSDL2* platform);
 void*
 PlatformSDL2_NativeWindowHandle(struct PlatformSDL2* platform);
 
+/* ---- the auxiliary window -------------------------------------------------
+ *
+ * ONE extra window, optional, and never a render target: it exists for chrome a
+ * user may want beside the game rather than on top of it -- the plugin window,
+ * today. The game's own window is untouched, which is what keeps the D3D9
+ * contract ("consumes the existing HWND; must not create a second window",
+ * docs/platform_quirks.md WINDOWS-HOST-001) true: nothing here ever hosts a
+ * renderer.
+ *
+ * A backend that cannot provide one says so by returning false from Open, and
+ * the caller falls back to drawing the same chrome in the game canvas. That is
+ * the whole reason this is a small, refusable API rather than a general
+ * multi-window layer: exactly one caller wants it, and every platform is
+ * allowed to decline.
+ *
+ * Input from it arrives on the SAME command bus as the game's, tagged with the
+ * aux window so the drain can tell them apart. Sharing the bus is deliberate:
+ * record/replay, and the headless input simulator, then cover the second window
+ * with no machinery of their own.
+ */
+
+/**
+ * A frame of the aux window's input, in ITS coordinates.
+ *
+ * The platform's own POD rather than the chrome executor's, because platform/
+ * sits below ui/ and must not include it -- the same reason the plugin
+ * contract restates key codes instead of including the input header. The
+ * executor copies across, and the two are three ints and a string apart.
+ */
+struct PlatformSDL2_AuxInput
+{
+    int mouse_x;
+    int mouse_y;
+    int mouse_down;
+    int mouse_up;
+    int wheel;
+    /** Printable bytes typed this frame, NUL-terminated. */
+    char text[32];
+    /** SDL scancode-derived editing key, or 0. @see PlatformSDL2_AuxEditKey. */
+    int edit_key;
+    int resized;
+    int width;
+    int height;
+};
+
+/**
+ * Editing keys the aux window reports, spelled here so ui/ and platform/ can
+ * agree without either including the other. Values match enum ToriDbgKey,
+ * which a _Static_assert in the executor pins.
+ */
+enum PlatformSDL2_AuxEditKey
+{
+    PLATFORM_AUX_KEY_NONE = 0,
+    PLATFORM_AUX_KEY_BACKSPACE,
+    PLATFORM_AUX_KEY_DELETE,
+    PLATFORM_AUX_KEY_LEFT,
+    PLATFORM_AUX_KEY_RIGHT,
+    PLATFORM_AUX_KEY_HOME,
+    PLATFORM_AUX_KEY_END,
+    PLATFORM_AUX_KEY_ENTER,
+    PLATFORM_AUX_KEY_ESCAPE
+};
+
+/**
+ * Take the aux window's accumulated gesture. @return true when there was one.
+ *
+ * Coalesced by the pump rather than queued: a settings form cares where the
+ * pointer ended up and whether a button went down, not about the path it took.
+ * Draining clears the EDGES (press, release, wheel, typed text) but keeps the
+ * position, because a pointer that stopped moving is still where it was.
+ */
+bool
+PlatformSDL2_AuxTakeInput(struct PlatformSDL2* platform, struct PlatformSDL2_AuxInput* out);
+
+/** Open the aux window. @return false when this backend has none. */
+bool
+PlatformSDL2_AuxOpen(struct PlatformSDL2* platform, int width, int height, char const* title);
+
+/** Close it. Safe when it was never opened. */
+void
+PlatformSDL2_AuxClose(struct PlatformSDL2* platform);
+
+/** Is it up? */
+bool
+PlatformSDL2_AuxIsOpen(struct PlatformSDL2 const* platform);
+
+/** Its ARGB staging buffer, or NULL when closed. Width * height ints. */
+int*
+PlatformSDL2_AuxPixels(struct PlatformSDL2* platform);
+
+int
+PlatformSDL2_AuxWidth(struct PlatformSDL2 const* platform);
+int
+PlatformSDL2_AuxHeight(struct PlatformSDL2 const* platform);
+
+/** Resize the aux surface. @return false when it could not be resized. */
+bool
+PlatformSDL2_AuxResize(struct PlatformSDL2* platform, int width, int height);
+
+/** Push the staging buffer to the aux window. */
+void
+PlatformSDL2_AuxPresent(struct PlatformSDL2* platform);
+
+/**
+ * Did the user close the aux window since the last ask? Clears the flag.
+ *
+ * A latch rather than an event, because the one thing a caller does with it is
+ * take its own chrome down -- and a close that arrived on a frame nobody asked
+ * would otherwise be lost, leaving a window the OS has destroyed still being
+ * drawn into.
+ */
+bool
+PlatformSDL2_AuxTakeCloseRequest(struct PlatformSDL2* platform);
+
 void
 PlatformSDL2_Free(struct PlatformSDL2* platform);
 

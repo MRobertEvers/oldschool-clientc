@@ -118,10 +118,6 @@ Task_PrefsSave_Run(
     task->item = &io->io_slots[PREFS_IO_SLOT];
     if( IOITEM_ERROR_CODE(task->item) != 0 )
         fprintf(stderr, "prefs: could not write %s\n", task->path);
-    /* Hand the borrowed payload back before releasing the slot: ClearItem frees
-     * whatever `data` points at, and this buffer is the task's. */
-    task->item->data = NULL;
-    task->item->data_size = 0;
     ToriRS_IO_ClearItem(task->item);
 
     PT_END(&task->pt);

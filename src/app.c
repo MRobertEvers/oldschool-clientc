@@ -3217,6 +3217,14 @@ app_overlay_build_editor_selection(struct App* app)
  * menu rows, all written against the static helpers above. Included here
  * rather than compiled separately so those helpers stay static -- the same
  * arrangement world_builder.c uses for world_terrain.u.c. */
+/* Defined far below, beside the other chrome plumbing; the plugin window's
+ * tick calls it for its own chrome instance and is included here. */
+static void
+app_chrome_route_input(
+    struct App* app,
+    struct ToriRSChrome* ui,
+    struct LibToriRS_Input* input);
+
 #include "plugin/torirs_plugin_bridge.u.c"
 #include "plugin/torirs_plugin_panel.u.c"
 
@@ -3725,6 +3733,67 @@ app_inv_drag_promoted(struct App const* app);
 static int
 app_inv_drag_ghosting(struct App const* app);
 
+/**
+ * Both chrome instances' display lists, back to back.
+ *
+ * Rebuilt only when the pair actually differs from what was merged last: the
+ * prim arrays are handed downstream by pointer and a steady frame must stay a
+ * pointer copy, which is the property the whole retained design is for. The
+ * cheap comparison is the two counts plus the two damage states, and Build
+ * having already decided nothing changed is what makes both stable.
+ *
+ * The plugin window goes SECOND, so it draws over the developer readout: it is
+ * the one a player opened, and a frame-time counter on top of it would be a
+ * developer tool covering a user's window.
+ */
+static struct ToriDbgPrim const*
+app_chrome_merged_prims(struct App* app, int* out_count)
+{
+    int dbg_count = 0;
+    int win_count = 0;
+    struct ToriDbgPrim const* dbg = ToriRSChrome_Prims(&app->dbg_ui, &dbg_count);
+    struct ToriDbgPrim const* win = ToriRSChrome_Prims(&app->plugin_ui, &win_count);
+    int total;
+
+    assert(out_count);
+
+    /*
+     * Nothing to merge: hand the developer chrome's own array straight out, so
+     * the common case -- no plugin window open -- costs exactly what it did
+     * before this existed.
+     *
+     * A SURFACE executor is the other way to get here: the plugin window's
+     * pixels are going to its own OS window, so putting them in the canvas as
+     * well would draw it twice, in two places, both of them live.
+     */
+    if( win_count == 0 || app->plugin_exec.exec.is_surface )
+    {
+        *out_count = dbg_count;
+        return dbg;
+    }
+
+    total = dbg_count + win_count;
+    if( total > APP_CHROME_PRIMS_MAX )
+        total = APP_CHROME_PRIMS_MAX;
+
+    /* Exact, not a heuristic: the serials move on every rebuild, including one
+     * that changed a string without changing the prim count. */
+    if( app->chrome_merged_dbg != app->dbg_ui.build_serial ||
+        app->chrome_merged_win != app->plugin_ui.build_serial )
+    {
+        int n = dbg_count < total ? dbg_count : total;
+        memcpy(app->chrome_merged, dbg, (size_t)n * sizeof(*dbg));
+        if( n < total )
+            memcpy(
+                &app->chrome_merged[n], win, (size_t)(total - n) * sizeof(*win));
+        app->chrome_merged_dbg = app->dbg_ui.build_serial;
+        app->chrome_merged_win = app->plugin_ui.build_serial;
+        app->chrome_merged_count = total;
+    }
+    *out_count = app->chrome_merged_count;
+    return app->chrome_merged;
+}
+
 static int
 app_host_request(
     void* user,
@@ -3950,7 +4019,20 @@ app_host_request(
         int count = 0;
         if( !req->u.get_debug_overlay.out_prims )
             return 0;
-        *req->u.get_debug_overlay.out_prims = ToriRSChrome_Prims(&app->dbg_ui, &count);
+        /*
+         * Two chrome instances, one display list.
+         *
+         * The emit layer takes a single pointer-and-count for the whole
+         * overlay, so the alternative to concatenating here would be a second
+         * overlay NODE -- a second entry in the tree, a second pass, a second
+         * z-order question to answer. Concatenation answers it instead: the
+         * plugin window's prims go last and therefore draw on top, which is
+         * what a window a player opened should do over a developer readout.
+         *
+         * The merge only runs when one of the two actually rebuilt; a steady
+         * frame is still the one pointer copy the retained design promises.
+         */
+        *req->u.get_debug_overlay.out_prims = app_chrome_merged_prims(app, &count);
         return count;
     }
     default:
@@ -4985,6 +5067,65 @@ app_chrome_fonts_resolve(struct App* app)
     UITree_DebugOverlaySetFontIds(app->tree, small, menu, body);
 }
 
+/*
+ * Draw a chrome display list into an arbitrary buffer.
+ *
+ * Lent to a SURFACE executor so a second window is drawn by the same code as
+ * the first: the same prim list, the same ToriRS_Frame translator, the same
+ * software backend. A second rasteriser for the aux window would be a second
+ * set of rounding, a second baseline convention, and a second place for the
+ * chrome to be almost right.
+ *
+ * The frame is hand-built rather than walked out of the tree, because the tree
+ * describes the GAME canvas -- its layout, its viewport, its world. This window
+ * holds one thing, so the emit buffer is exactly one desc long.
+ */
+void
+App_ChromeRasterise(
+    void* user,
+    int* pixels,
+    int width,
+    int height,
+    struct ToriDbgPrim const* prims,
+    int count)
+{
+    struct App* app = user;
+    struct UITreeEmitDesc desc;
+    struct ToriRS_Frame frame;
+    struct ToriRS_Soft3D soft;
+
+    assert(app);
+    assert(pixels);
+    if( !app->scene || count <= 0 )
+        return;
+
+    memset(&desc, 0, sizeof(desc));
+    desc.kind = UITREE_EMIT_DEBUG_OVERLAY;
+    desc.debug_prims = prims;
+    desc.debug_prim_count = count;
+    for( int i = 0; i < TORIDBG_FONT_SLOT_COUNT; i++ )
+        desc.debug_font_id[i] = UITreeSceneBridge_EnsureDebugFont(&app->bridge, i);
+    desc.debug_skin_scene_id = UITreeSceneBridge_EnsureChromeSkin(&app->bridge);
+    for( int i = 0; i < TORIDBG_SKIN_SLOT_COUNT; i++ )
+        desc.debug_skin_atlas[i] = i;
+    desc.clip.x = 0;
+    desc.clip.y = 0;
+    desc.clip.w = width;
+    desc.clip.h = height;
+
+    ToriRS_FrameInit(&frame);
+    ToriRS_FrameSetScene(&frame, app->scene);
+    /* The surface's own size, not the game canvas's: every clip in the list
+     * below is measured against this, and a frame that thinks it is 765 wide
+     * would clip a 360-wide window's chrome to a box off the right of it. */
+    ToriRS_FrameSetCanvas(&frame, width, height);
+    /* One desc, handed directly: the buffer form exists for the tree's whole
+     * emit walk, and this window is a single display list. */
+    ToriRS_FrameSetEmit(&frame, &desc, 1);
+    ToriRS_Soft3D_Init(&soft, app->scene, pixels, width, height);
+    ToriRS_Soft3D_RenderFrame(&soft, &frame);
+}
+
 int
 App_SetChromeScale(struct App* app, int scale)
 {
@@ -5001,6 +5142,11 @@ App_SetChromeScale(struct App* app, int scale)
         return 0;
 
     ToriRSChrome_SetScale(&app->dbg_ui, scale);
+    /* Both instances, because there is one scale: the font ids resolved below
+     * are shared, so a plugin window left at 1x would lay its rows out for a
+     * face the renderer draws at 2x -- text overflowing boxes sized for a
+     * smaller font, which is the exact failure SetScale exists to prevent. */
+    ToriRSChrome_SetScale(&app->plugin_ui, scale);
     UITreeSceneBridge_SetChromeScale(&app->bridge, scale);
     app_chrome_fonts_resolve(app);
     return 1;
@@ -5047,6 +5193,20 @@ app_debug_overlay_init(struct App* app)
             app->dbg_ui.skin_tile_h = body->h;
         }
     }
+
+    /*
+     * The plugin window's own instance.
+     *
+     * Copied wholesale from the developer one rather than initialised
+     * separately, so the two cannot drift on theme, scale or which skin slots
+     * the build carries -- three things a second Init would have to repeat and
+     * a fourth panel would eventually be found not to have.
+     */
+    app->plugin_ui = app->dbg_ui;
+    app->plugin_panel = -1;
+    app->plugin_panel_tabs = -1;
+    app->plugin_panel_built_for = -1;
+    app->plugin_panel_built_rev = -1;
 
     app->dbg_visible = 0;
     app->dbg_frame_head = 0;
@@ -5571,6 +5731,73 @@ app_dbgui_key_edit_from_osrs(int osrs_key)
     }
 }
 
+/**
+ * Feed one frame's pointer and keyboard to one chrome instance.
+ *
+ * Instance-taking rather than reaching for app->dbg_ui, because the plugin
+ * window is a chrome of its own: routing input is the half of "a second chrome
+ * is a second of all of this" that genuinely would have been duplicated, and
+ * this is the one copy both instances share.
+ *
+ * Chrome first, then the game (README_DEBUG_OVERLAY.md §6): a click or drag
+ * that lands on a panel must not also reach the world's click-to-walk
+ * underneath it, which is what `input_frame_consumed` says.
+ */
+static void
+app_chrome_route_input(
+    struct App* app,
+    struct ToriRSChrome* ui,
+    struct LibToriRS_Input* input)
+{
+    assert(app);
+    assert(ui);
+    assert(input);
+
+    if( ToriRSChrome_MouseMove(ui, input->curr.mouse_x, input->curr.mouse_y) )
+        app->input_frame_consumed = 1;
+    if( input->curr.mouse_button_down[TORIRSM_LEFT] &&
+        ToriRSChrome_MouseDown(ui, input->curr.mouse_x, input->curr.mouse_y) )
+        app->input_frame_consumed = 1;
+    if( input->curr.mouse_button_up[TORIRSM_LEFT] &&
+        ToriRSChrome_MouseUp(ui, input->curr.mouse_x, input->curr.mouse_y) )
+        app->input_frame_consumed = 1;
+
+    /* The wheel, so an open dropdown or a scrolling panel moves. Consumed when
+     * the chrome takes it, or the camera would zoom behind it at the same time. */
+    if( input->curr.mouse_wheel_y != 0 &&
+        ToriRSChrome_MouseWheel(
+            ui, input->curr.mouse_x, input->curr.mouse_y, input->curr.mouse_wheel_y) )
+        app->input_frame_consumed = 1;
+
+    /*
+     * Typing, so text inputs work at all.
+     *
+     * `key_typed` carries the OSRS key code and `key_pressed` the typed
+     * character (see torirs_input.h), so editing keys and printable bytes come
+     * off different fields of the same event.
+     *
+     * Safe to run for any visible panel: with nothing focused the chrome
+     * consumes neither, so a panel that is merely on screen -- the developer
+     * readout, say -- never swallows a keystroke meant for the game.
+     */
+    for( int i = 0; i < input->key_event_count; i++ )
+    {
+        struct LibToriRS_KeyEvent const* ev = &input->key_events[i];
+        int consumed = 0;
+
+        if( ev->key_pressed >= 32 && ev->key_pressed < 127 )
+            consumed = ToriRSChrome_KeyChar(ui, ev->key_pressed);
+        else
+        {
+            int const edit = app_dbgui_key_edit_from_osrs(ev->key_typed);
+            if( edit != TORIDBG_KEY_NONE )
+                consumed = ToriRSChrome_KeyEdit(ui, edit);
+        }
+        if( consumed )
+            app->input_frame_consumed = 1;
+    }
+}
+
 static void
 app_loc_editor_tick(
     struct App* app,
@@ -5643,14 +5870,18 @@ app_loc_editor_tick(
     }
 
     /*
-     * Overlay input, for ANY visible overlay panel.
+     * Overlay input, for ANY visible chrome panel.
      *
-     * This used to be gated on the loc editor alone, which was invisible while
-     * it was the only panel with controls. It is not: the map editor's
-     * dropdowns and buttons sit in the same ToriRSChrome instance, and with the
-     * loc editor closed they received no clicks at all -- every control was
-     * inert, which reads as a broken panel rather than an unrouted one.
+     * Asked of the chrome rather than listed here, because the list was the
+     * bug: this was gated on the loc editor, then on the loc editor OR the map
+     * editor, and every panel added after that -- the plugin settings panel
+     * among them -- silently got no clicks. A panel whose checkboxes cannot be
+     * ticked reads as broken, not as unrouted, so the gate is now "is anything
+     * of this instance on screen" and a new panel needs no gate edit at all.
      */
+    if( ToriRSChrome_HasVisiblePanel(&app->dbg_ui) )
+        app_chrome_route_input(app, &app->dbg_ui, input);
+
     if( app->locedit_visible || app->editor_panel.visible )
     {
         /* A chat line stealing W/A/S/D/R/Space/Backspace would make the panel
@@ -5658,61 +5889,15 @@ app_loc_editor_tick(
          * long as this panel is open rather than merely suppressing the
          * toggle key like the developer overlay does. The later chat-focus
          * code (Enter / click-in-chat-region) is itself gated on
-         * locedit_visible so it cannot steal focus back mid-session. */
+         * locedit_visible so it cannot steal focus back mid-session.
+         *
+         * Deliberately NOT part of the generic routing above: this is an
+         * editor's claim on the whole keyboard, and a panel a player may leave
+         * open beside the game -- the plugin window -- must not disable chat
+         * for as long as it is up. */
         app->chat_input_active = 0;
         app->chat.social_input_open = 0;
         app->chat.dialog_input_open = 0;
-
-        /* Overlay first, then the game (README_DEBUG_OVERLAY.md §6): a click
-         * or drag that lands on this panel must not also reach the world's
-         * own click-to-walk handling underneath it. */
-        if( ToriRSChrome_MouseMove(&app->dbg_ui, input->curr.mouse_x, input->curr.mouse_y) )
-            app->input_frame_consumed = 1;
-        if( input->curr.mouse_button_down[TORIRSM_LEFT] &&
-            ToriRSChrome_MouseDown(&app->dbg_ui, input->curr.mouse_x, input->curr.mouse_y) )
-            app->input_frame_consumed = 1;
-        if( input->curr.mouse_button_up[TORIRSM_LEFT] &&
-            ToriRSChrome_MouseUp(&app->dbg_ui, input->curr.mouse_x, input->curr.mouse_y) )
-            app->input_frame_consumed = 1;
-
-        /* The wheel, so an open dropdown scrolls. Consumed when the overlay
-         * takes it, or the camera would zoom behind the list at the same time. */
-        if( input->curr.mouse_wheel_y != 0 &&
-            ToriRSChrome_MouseWheel(
-                &app->dbg_ui,
-                input->curr.mouse_x,
-                input->curr.mouse_y,
-                input->curr.mouse_wheel_y) )
-            app->input_frame_consumed = 1;
-
-        /*
-         * Typing, so text inputs work at all.
-         *
-         * Nothing routed keys to the overlay before this: the loc editor is
-         * menu rows only, so its inputs were never exercised and the gap did
-         * not show. A height field you cannot type into is the whole of what
-         * that costs.
-         *
-         * `key_typed` carries the OSRS key code and `key_pressed` the typed
-         * character (see torirs_input.h), so editing keys and printable bytes
-         * come off different fields of the same event.
-         */
-        for( int i = 0; i < input->key_event_count; i++ )
-        {
-            struct LibToriRS_KeyEvent const* ev = &input->key_events[i];
-            int consumed = 0;
-
-            if( ev->key_pressed >= 32 && ev->key_pressed < 127 )
-                consumed = ToriRSChrome_KeyChar(&app->dbg_ui, ev->key_pressed);
-            else
-            {
-                int const edit = app_dbgui_key_edit_from_osrs(ev->key_typed);
-                if( edit != TORIDBG_KEY_NONE )
-                    consumed = ToriRSChrome_KeyEdit(&app->dbg_ui, edit);
-            }
-            if( consumed )
-                app->input_frame_consumed = 1;
-        }
 
         /*
          * A focused model view owns the movement keys: WASD orbits, E/F zooms,
@@ -16822,10 +17007,32 @@ app_plugin_screenshots_take(struct App* app)
             continue;
         shot->in_use = 0;
 
-        if( shot->dir[0] )
+        /*
+         * An absolute destination is the user's own folder and is used as
+         * given. A relative one -- and that includes the common case of no
+         * destination at all -- lands under the plugin's saved-asset
+         * directory, so "Bob/Levels" sorts a browser run's captures the same
+         * way it sorts a desktop one. The browser lane has no path to name;
+         * without this it would have no way to organise them either.
+         */
+        if( shot->dir[0] == '/' )
             snprintf(path, sizeof(path), "%s/%s", shot->dir, shot->name);
         else
-            app_plugin_asset_saved_path(app, shot->plugin, shot->name, path, sizeof(path));
+        {
+            char base[TORIRS_IOITEM_MAX_PATH];
+
+            app_plugin_asset_saved_path(app, shot->plugin, "", base, sizeof(base));
+            if( base[0] && shot->dir[0] )
+            {
+                /* asset_saved_path ends in the trailing separator plus the
+                 * empty name it was handed, so the slash is already there. */
+                snprintf(path, sizeof(path), "%s%s/%s", base, shot->dir, shot->name);
+            }
+            else if( base[0] )
+                snprintf(path, sizeof(path), "%s%s", base, shot->name);
+            else
+                path[0] = '\0';
+        }
 
         if( !path[0] )
         {
@@ -16835,7 +17042,8 @@ app_plugin_screenshots_take(struct App* app)
             fprintf(
                 stderr,
                 "plugin: %s cannot save screenshot '%s'; plugin persistence is off for "
-                "this run (TORIRS_PLUGIN_PREFS is empty) and no destination was set\n",
+                "this run (TORIRS_PLUGIN_PREFS is empty), so there is no folder to put it "
+                "under and the destination is not an absolute path\n",
                 shot->plugin,
                 shot->name);
             continue;
@@ -16886,6 +17094,20 @@ App_NotifyChatMessage(
         return;
 
     PluginHost_ChatMessage(app->plugins, type, sender, text);
+
+    /*
+     * Only the GAME channel is recognised, and that is a security property
+     * rather than a filter.
+     *
+     * Every pattern the recogniser knows is a sentence a player can type. If
+     * public chat fed it, standing in a bank and saying "Your Zulrah kill
+     * count is: 122." would fire a boss kill in everyone's client -- taking
+     * their screenshots, tripping their notifications, and writing to their
+     * disk. The game channel is the server talking, and nobody else can put a
+     * line on it.
+     */
+    if( type != RS_CHAT_TYPE_GAME )
+        return;
     if( RS_GameEvent_FromText(RS_GAME_EVENT_SRC_CHAT, text, &ev) )
         app_dispatch_game_event(app, &ev);
 }
@@ -19596,12 +19818,24 @@ app_minimenu_run_option(
             return 1;
     }
 
-    /* Examine (OPLOC6/OPNPC6/OPOBJ6): reference resolves these locally from the
-     * config desc and sends no packet (Client-TS doAction OP_LOC6/OP_NPC6/
-     * OP_OBJ6). Look the desc up from the config by the entity's type id, and
-     * fall back to "It's a <name>." when the config carries none (e.g. dat2
-     * NPCs, whose examine is server-driven). Must run before the pick.kind
-     * switch or the scenery/NPC cases would mis-send OPLOC1/OPNPC1. */
+    /*
+     * Examine (OPLOC6/OPNPC6/OPOBJ6): resolved locally from the config desc, no
+     * packet (Client-TS doAction OP_LOC6/OP_NPC6/OP_OBJ6). Look the desc up from
+     * the config by the entity's type id, and fall back to "It's a <name>."
+     * when the config carries none. Must run before the pick.kind switch or the
+     * scenery/NPC cases would mis-send OPLOC1/OPNPC1.
+     *
+     * Where the text comes from is worth stating, because the two halves differ.
+     * An OBJ record states its own examine in every era. An npc's and a loc's
+     * were retired from Jagex's configs in 2006 -- rev-239 OldSchool sends those
+     * two from the server (deob: menu ops 1002/1004/1013 each build a packet and
+     * print what comes back), so `cache.osrs239` states not one of them. This
+     * client answers Examine off the record, so the text is carried in the
+     * content pack instead, under the same opcode 3 the field has always had:
+     * tools/import_examine.py writes configs/examine.{npc,loc} and the bake puts
+     * them in the npc and loc archives. A pristine cache therefore still shows
+     * the fallback, and a content-baked one does not.
+     */
     if( opt.action == REVCONFIG_MINIMENU_OPLOC6 || opt.action == REVCONFIG_MINIMENU_OPNPC6 ||
         opt.action == REVCONFIG_MINIMENU_OPOBJ6 )
     {
@@ -23732,4 +23966,16 @@ App_WriteBmp(
 {
     assert(app);
     return UITreeCmd_WriteBmp(app->scene, app->emit.cmds, app->emit.count, path, width, height);
+}
+
+void
+App_SetPluginChromeExec(struct App* app, struct ToriRSChromeExec const* exec, int kind)
+{
+    assert(app);
+    assert(exec);
+    app->plugin_exec_pending = *exec;
+    /* Carried so a refusal can name what refused. Without it the fallback
+     * message said "the 'buffer' executor would not start", which is both
+     * impossible and unhelpful. */
+    app->plugin_exec_kind = kind;
 }

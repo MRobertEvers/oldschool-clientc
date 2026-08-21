@@ -82,19 +82,17 @@ local function plugin_draw_player(api, draw)
 
   if not api.config.show_dest then return end
 
-  -- Where the walk ends: the far end of the route queue.
+  -- Where the walk ends, which is the map flag and nothing else -- the same
+  -- value RuneLite's tile indicator draws through
+  -- Client.getLocalDestinationLocation().
   --
-  -- Between the click and the server's echo that queue is still empty, and
-  -- for that window the minimap flag latch is the only record of where the
-  -- click was aimed. Without the fallback the destination marker blinks off
-  -- for exactly the tick a player is watching it.
-  local dx, dz = me.dest_x, me.dest_z
-  if dx == me.true_x and dz == me.true_z and me.flag_x >= 0 then
-    dx, dz = me.flag_x, me.flag_z
-  end
-
-  if dx ~= me.true_x or dz ~= me.true_z then
-    draw.tile(dx, dz, me.level, api.config.dest_color, 0)
+  -- Reading the route queue instead is what made this marker vanish a tick
+  -- after the click: that queue is the interpolator's history, so its far end
+  -- trails BEHIND the player and never holds the destination at all. The flag
+  -- is set from the routed destination and cleared on arrival, which is
+  -- exactly as long as a destination marker should live.
+  if me.dest_x ~= me.true_x or me.dest_z ~= me.true_z then
+    draw.tile(me.dest_x, me.dest_z, me.level, api.config.dest_color, 0)
   end
 end
 

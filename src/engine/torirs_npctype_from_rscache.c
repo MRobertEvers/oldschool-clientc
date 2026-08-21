@@ -194,9 +194,21 @@ ToriRS_NpctypeFromRSCacheDat2(
         strncpy(npctype->name, src->name, TORIRS_NAME_MAX - 1);
         npctype->name[TORIRS_NAME_MAX - 1] = '\0';
     }
-    /* No desc: dat2 (OSRS) NPC config carries no examine opcode — NPC examine is
-     * server-driven there. npctype->desc stays "" (calloc) so the handler falls
-     * back to "It's a <name>.". */
+    /*
+     * The examine string, npc config opcode 3.
+     *
+     * Jagex's own dat2 records state none — the opcode was retired in 2006 and
+     * OldSchool sends npc examine from the server — so for a pristine cache this
+     * leaves `desc` at the calloc'd "" and the Examine handler falls back to
+     * "It's a <name>.". A record the content pack authored does state one, and
+     * that is where an npc's examine text comes from here: the same archive, the
+     * same opcode, and the same field a loc has always used.
+     */
+    if( src->desc )
+    {
+        strncpy(npctype->desc, src->desc, TORIRS_DESC_MAX - 1);
+        npctype->desc[TORIRS_DESC_MAX - 1] = '\0';
+    }
 
     torirs_copy_menu_actions(npctype->actions, src->actions);
     npctype->combat_level = src->combat_level;

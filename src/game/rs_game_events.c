@@ -221,31 +221,48 @@ event_subject_sentence(struct RS_GameEvent* out, char const* src)
 
 /*
  * "Your Zulrah kill count is: 122."
- * "Your completed Chambers of Xeric count is: 5."
- * "Your Barrows chest count is: 40."
+ * "Your Yama success count is: 227"
+ * "Your completed Chambers of Xeric count is: 489."
+ * "Your Barrows chest count is 310"
+ * "Your Kalphite Queen (Echo) kill count is:1"
  *
- * One pattern for all three: everything between "Your " and " count is: " is
- * what was killed, opened or completed. Two words are trimmed off that span
- * because they belong to the sentence rather than to the thing -- a leading
- * "completed " and a trailing " kill" -- while "chest" is deliberately kept,
- * since "Barrows chest" is what was opened and "Barrows" alone is a place.
+ * One pattern for all five, and every part of it is load-bearing -- these
+ * five spellings are RuneLite's own test corpus (ScreenshotPluginTest), and
+ * the differences between them are not decoration:
+ *
+ *   - The verb before "count" is "kill" for most things and "success" for a
+ *     few (Yama, Wintertodt). Both are trimmed, because neither belongs to
+ *     the name. "chest" is NOT trimmed: "Barrows chest" is what was opened
+ *     and "Barrows" alone is a place.
+ *   - The colon after "is" is OPTIONAL. Barrows omits it entirely.
+ *   - The space after the colon is optional too, because the number arrives
+ *     inside a colour tag and stripping the tag can leave "is:1".
+ *   - A leading "completed " is the raids' phrasing and is dropped, so the
+ *     subject is the raid and not a sentence fragment.
  *
  * A kill count is the only signal a raid or a chest gives that a run ended,
- * which is why all three share one kind rather than each getting one nobody
+ * which is why all of them share one kind rather than each getting one nobody
  * would think to enable separately.
  */
 static int
 match_kill_count(char const* body, struct RS_GameEvent* out, char const* full)
 {
-    char const* count_at = strstr(body, " count is: ");
+    char const* count_at = strstr(body, " count is");
     char const* subject = body;
+    char const* number;
     char const* completed;
     size_t span;
     int value = 0;
 
     if( !count_at )
         return 0;
-    if( !read_grouped_int(count_at + strlen(" count is: "), &value) )
+
+    number = count_at + strlen(" count is");
+    if( *number == ':' )
+        number++;
+    while( *number == ' ' )
+        number++;
+    if( !read_grouped_int(number, &value) )
         return 0;
 
     completed = after_prefix(subject, "completed ");
@@ -257,6 +274,8 @@ match_kill_count(char const* body, struct RS_GameEvent* out, char const* full)
     span = (size_t)(count_at - subject);
     if( span > 5 && strncmp(count_at - 5, " kill", 5) == 0 )
         span -= 5;
+    else if( span > 8 && strncmp(count_at - 8, " success", 8) == 0 )
+        span -= 8;
     if( span == 0 )
         return 0;
 
@@ -314,27 +333,92 @@ match_treasure_trail(char const* body, struct RS_GameEvent* out, char const* ful
 }
 
 /*
- * The quest scroll's title, "You have completed Cook's Assistant!".
+ * The quest scroll's title.
  *
- * A quest completion is painted, not announced -- questscroll.rs2 writes this
- * into `questscroll:quest_title` and the chatbox says nothing at all -- so this
- * is matched off interface text. Requiring the exclamation mark is what keeps
- * it off the Treasure Trails line, which is prose and ends in a full stop.
+ * A quest completion is painted, not announced -- questscroll.rs2 writes the
+ * title into `questscroll:quest_title` and the chatbox says nothing at all --
+ * so this is matched off interface text. RuneLite's Screenshot plugin reads
+ * the same widget (Questscroll.QUEST_TITLE) for the same reason.
+ *
+ * The scroll has two shapes, and RuneLite carries a regex for each
+ * (QUEST_PATTERN_1 and QUEST_PATTERN_2) because neither covers the other:
+ *
+ *      "You have completed The Corsair Curse!"      -- name after the verb
+ *      "'One Small Favour' completed!"              -- name before it
+ *
+ * plus two adverbs that change what was completed rather than decorating it:
+ * "You have... kind of... completed the Hazeel Cult Quest!" is a partial
+ * completion, and "You have completely completed Rag and Bone Man!" is the
+ * SECOND quest of that name, not the first one again.
+ *
+ * What is deliberately NOT ported is RuneLite's cosmetic tail: a list of seven
+ * quests whose names contain the word "Quest" and a list of four Recipe for
+ * Disaster tags. Both exist to undo an earlier step of their own regex -- it
+ * strips a trailing " Quest" and then puts it back for the quests that needed
+ * it -- so the honest version is to not strip it in the first place, and
+ * "Doric's Quest" arrives as its own name without a lookup table.
  */
 static int
-match_quest_title(char const* body, struct RS_GameEvent* out, char const* full)
+match_quest_title(char const* line, struct RS_GameEvent* out, char const* full)
 {
-    size_t const len = strlen(body);
+    char const* head = line;
+    char const* quest;
+    char const* at = strstr(line, " completed ");
+    size_t len;
+    char subject[RS_GAME_EVENT_SUBJECT_MAX];
+    int partial = 0;
+    int second = 0;
 
-    if( len < 2 || body[len - 1] != '!' )
+    if( at )
+    {
+        quest = at + strlen(" completed ");
+        /* Lowercase only: "the " here is the article ("completed the Hazeel
+         * Cult"), whereas "The Corsair Curse" wears its own. */
+        if( after_prefix(quest, "the ") )
+            quest += 4;
+        partial = strstr(head, "kind of") != NULL;
+        second = strstr(head, "completely") != NULL;
+    }
+    else
+    {
+        /* The name-first shape. The line must END in the verb, or "completed"
+         * anywhere in a sentence would swallow the whole of it. */
+        len = strlen(line);
+        while( len > 0 && (line[len - 1] == '!' || line[len - 1] == '.') )
+            len--;
+        if( len < strlen(" completed") ||
+            strncmp(line + len - strlen(" completed"), " completed", strlen(" completed")) != 0 )
+            return 0;
+        len -= strlen(" completed");
+        if( len == 0 || len >= sizeof(subject) )
+            return 0;
+        memcpy(subject, line, len);
+        subject[len] = '\0';
+        quest = subject;
+    }
+
+    len = strlen(quest);
+    while( len > 0 && (quest[len - 1] == '!' || quest[len - 1] == '.') )
+        len--;
+    /* The scroll quotes a name that is not a sentence: 'One Small Favour'. */
+    if( len >= 2 && quest[0] == '\'' && quest[len - 1] == '\'' )
+    {
+        quest++;
+        len -= 2;
+    }
+    if( len == 0 )
         return 0;
-    /* A digit here is a count, not a quest: every "you have completed N of
-     * something" line in the game is one of those. */
-    if( body[0] >= '0' && body[0] <= '9' )
+    /* A digit here is a count, not a quest -- "You have completed 15 medium
+     * Treasure Trails." is prose that reaches this far on the chat channel. */
+    if( quest[0] >= '0' && quest[0] <= '9' )
         return 0;
 
     event_init(out, RS_GAME_EVENT_QUEST_COMPLETE, full);
-    event_subject(out, body, len - 1);
+    event_subject(out, quest, len);
+    if( partial )
+        strncat(out->subject, " partial completion", sizeof(out->subject) - strlen(out->subject) - 1);
+    else if( second )
+        strncat(out->subject, " II", sizeof(out->subject) - strlen(out->subject) - 1);
     return 1;
 }
 
@@ -380,9 +464,16 @@ match_chat(char const* line, struct RS_GameEvent* out)
         return 1;
     }
 
-    /* "...like you're being followed", "...like you would have been followed."
-     * The pet is never named, so there is no subject to take. */
-    if( after_prefix(line, "You have a funny feeling like") )
+    /*
+     * Three sentences for one moment, and RuneLite lists all three
+     * (PET_MESSAGES) because they are not variations of a phrase -- the first
+     * two are the pet following you, and the third is the pet going into your
+     * bag because your follower slot was taken. Matching only the "funny
+     * feeling" ones silently misses every pet dropped while you already had
+     * one out. The pet is never named, so there is no subject to take.
+     */
+    if( after_prefix(line, "You have a funny feeling like") ||
+        strstr(line, "You feel something weird sneaking into your backpack") )
     {
         event_init(out, RS_GAME_EVENT_PET, line);
         return 1;
@@ -418,20 +509,31 @@ match_chat(char const* line, struct RS_GameEvent* out)
         return 1;
 
     /* A server that announces the completion in the chatbox instead of on the
-     * scroll. Ours paints the scroll, but LostCity-era content says it. */
-    if( (body = after_prefix(line, "Congratulations! ")) != NULL )
+     * scroll. Ours paints the scroll, but LostCity-era content says it. The
+     * name-less form is checked first because it has nothing for the title
+     * matcher to find. */
+    if( (body = after_prefix(line, "Congratulations! ")) != NULL &&
+        after_prefix(body, "Quest complete") )
     {
-        char const* named = after_prefix(body, "You have completed ");
-        if( named )
-            return match_quest_title(named, out, line);
-        if( after_prefix(body, "Quest complete") )
-        {
-            event_init(out, RS_GAME_EVENT_QUEST_COMPLETE, line);
-            return 1;
-        }
+        event_init(out, RS_GAME_EVENT_QUEST_COMPLETE, line);
+        return 1;
     }
+    if( strstr(line, " completed ") && match_quest_title(line, out, line) )
+        return 1;
 
     return 0;
+}
+
+/*
+ * Interface text is a wide firehose -- every journal line, every reward row,
+ * every button caption, rewritten whenever a panel is repainted -- so exactly
+ * one pattern is recognised off it, and the scan below rejects everything else
+ * before the line is even copied.
+ */
+static int
+match_interface(char const* line, struct RS_GameEvent* out)
+{
+    return match_quest_title(line, out, line);
 }
 
 int
@@ -441,7 +543,6 @@ RS_GameEvent_FromText(
     struct RS_GameEvent* out)
 {
     char line[RS_GAME_EVENT_TEXT_MAX];
-    char const* body;
 
     assert(out);
     /* An empty line is a legitimate runtime state -- IF_SETTEXT blanks unused
@@ -452,21 +553,25 @@ RS_GameEvent_FromText(
     if( !text[0] )
         return 0;
 
+    /*
+     * Reject before copying.
+     *
+     * strip_markup writes up to 200 bytes, and this runs on every IF_SETTEXT
+     * the server sends -- a panel refresh is hundreds of them in one tick. A
+     * scan for the one word every interface pattern contains costs nothing and
+     * turns that into a pass over a string already in cache. The chat side has
+     * no such gate because chat is a handful of lines a tick, and gating it
+     * would be a second copy of the pattern list to keep in step.
+     */
+    if( source == RS_GAME_EVENT_SRC_INTERFACE && !strstr(text, "completed") )
+        return 0;
+
     strip_markup(text, line, (int)sizeof(line));
     if( !line[0] )
         return 0;
 
-    if( source == RS_GAME_EVENT_SRC_INTERFACE )
-    {
-        /* Interface text is a wide firehose -- every journal line, every
-         * button caption -- so exactly one pattern is recognised off it. */
-        body = after_prefix(line, "You have completed ");
-        if( !body )
-            return 0;
-        return match_quest_title(body, out, line);
-    }
-
-    return match_chat(line, out);
+    return source == RS_GAME_EVENT_SRC_INTERFACE ? match_interface(line, out)
+                                                 : match_chat(line, out);
 }
 
 int

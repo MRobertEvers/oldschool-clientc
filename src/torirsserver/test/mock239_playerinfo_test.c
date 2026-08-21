@@ -442,6 +442,65 @@ main(void)
             free(name->_name_change.name);
     }
 
+    /*
+     * Literal hitmark + headbar tail, spelled in raw bytes rather than through
+     * this tree's own transform helpers.
+     *
+     * The npc and player headbar blocks carry the same six fields and disagree
+     * on two of the three byte transforms, and until 2026-08-21 every one of
+     * the four sites here had the pair swapped. Four consistent mistakes
+     * round-trip perfectly, so a writer-against-reader test could not see it;
+     * the golden client saw it at once, read a count of 1 as 127, ran off the
+     * end of a 32-byte NPC_INFO and threw `RuntimeException: 600,32`.
+     *
+     * So the count and the target fill are written as the literal bytes the
+     * deob's own accessors demand -- `Statics.method10109` reads the count
+     * with `method13137` (`0 - b`) and the target fill with `method13166`
+     * (`128 - b`) -- and a decoder that reverts to the player's transforms
+     * fails here instead of in front of a client.
+     */
+    fprintf(stderr, "mock239-playerinfo: literal npc hitmark + headbar tail\n");
+    rsab_wrap(&buf, storage, sizeof(storage));
+    rsab_bits(&buf);
+    rsab_pbit(&buf, 8, 1);       /* one tracked npc */
+    rsab_pbit(&buf, 1, 1);       /* it has something to say */
+    rsab_pbit(&buf, 2, 0);       /* no movement, extended tail follows */
+    rsab_pbit(&buf, 16, 0xffff); /* protect the byte tail from the add loop */
+    rsab_bytes(&buf);
+    rsab_p1(&buf, 0x40);         /* flag byte 0: continuation only */
+    rsab_p1(&buf, 0x08);         /* flag byte 1: continuation only */
+    rsab_p1(&buf, 0x28);         /* flag byte 2: HITMARKS + continuation */
+    rsab_p1(&buf, 0x01);         /* flag byte 3: HEADBARS */
+    rsab_p1(&buf, 0x81);         /* hitmark count 1, p1Alt1 (deob: b - 128) */
+    rsab_p1(&buf, 28);           /* smart type */
+    rsab_p1(&buf, 8);            /* smart value */
+    rsab_p1(&buf, 0);            /* smart delay */
+    rsab_p1(&buf, 4);            /* smart slot limit */
+    rsab_p1(&buf, 0xff);         /* headbar count 1, p1Alt2 (deob: 0 - b) */
+    rsab_p1(&buf, 0);            /* smart type */
+    rsab_p1(&buf, 1);            /* smart duration */
+    rsab_p1(&buf, 0);            /* smart start delay */
+    rsab_p1(&buf, 0x9e);         /* start fill 30, p1Alt1 (deob: b - 128) */
+    rsab_p1(&buf, 0x74);         /* target fill 12, p1Alt3 (deob: 128 - b) */
+    {
+        struct PktNpcInfoOp ops[32];
+        struct PktNpcInfoOp const* hit = NULL;
+        struct PktNpcInfoOp const* bar = NULL;
+        int op_count = osrs239_npc_info_read(storage, (int)rsab_len(&buf), ops, 32);
+
+        for( int i = 0; i < op_count; i++ )
+        {
+            if( ops[i].kind == PKT_NPC_INFO_OP_DAMAGE ) hit = &ops[i];
+            if( ops[i].kind == PKT_NPC_INFO_OP_HEADBAR ) bar = &ops[i];
+        }
+        CHECK(hit && hit->_damage.damage_type == 28 && hit->_damage.damage == 8,
+              "npc hitmark type/value survive the literal tail");
+        CHECK(bar && !bar->_headbar.remove && bar->_headbar.type == 0 &&
+                  bar->_headbar.duration == 1 && bar->_headbar.start_fill == 30 &&
+                  bar->_headbar.end_fill == 12,
+              "npc headbar count/fills use the npc transforms, not the player's");
+    }
+
     /* Literal layouts from RSProt's revision-239 Face encoder.  These do not
      * round-trip through another implementation: the first fixture proves the
      * PlayerFacingEncoder p1Alt2 header and Loc payload, the second proves the
@@ -633,6 +692,25 @@ main(void)
                   bar->_headbar.duration == 1 && bar->_headbar.start_fill == 30 &&
                   bar->_headbar.end_fill == 18,
               "headbar type/duration/fills survive the v239 tail");
+        /*
+         * And the literal bytes, because the round trip above passes just as
+         * happily when the writer and the reader make the same mistake -- see
+         * the npc fixture below for what that cost. The player block's count
+         * and target fill are the OTHER two transforms: class109.method3804
+         * reads them with `method13164` (b - 128) and `method13137` (0 - b).
+         */
+        {
+            static uint8_t const golden[] = { 0x81, 0x00, 0x01, 0x00, 0x9e, 0xee };
+            size_t const written = rsab_len(&buf);
+            int found = 0;
+
+            for( size_t i = 0; i + sizeof(golden) <= written; i++ )
+                if( memcmp(storage + i, golden, sizeof(golden)) == 0 )
+                    found = 1;
+            CHECK(found,
+                  "player headbar block is p1Alt1 count, smart type/duration/delay, "
+                  "p1Alt1 start fill, p1Alt2 target fill");
+        }
     }
     memset(&got, 0, sizeof(got));
     got.local_index = LOCAL_INDEX;

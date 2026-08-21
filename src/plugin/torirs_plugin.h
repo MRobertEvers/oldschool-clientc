@@ -24,10 +24,16 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 4
+#define TORIRS_PLUGIN_ABI 5
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 #define TORIRS_PLUGIN_MENU_ROWS_MAX 16
+/** Controls one plugin may put on its tab. A budget, not a limit on what a
+ *  window can hold: sixteen plugins sharing one window need the SHARE bounded,
+ *  or the first one to ask takes the whole chrome. */
+#define TORIRS_PLUGIN_WIDGETS_MAX 24
+/** Bytes of a control id, terminator included. */
+#define TORIRS_PLUGIN_WIDGET_ID_MAX 32
 /** Longest asset name a plugin may ask for, including its extension. */
 #define TORIRS_PLUGIN_ASSET_NAME_MAX 64
 /** Recolour pairs one world object may carry, matching a spotanimtype's six. */
@@ -92,6 +98,24 @@ enum ToriRS_PluginEvent
     /** A notable moment the client recognised -- a level-up, a quest
      *  completion, a valuable drop, a boss kill. Payload: EvGameEvent. */
     TORIRS_PLUGIN_EV_GAME_EVENT,
+    /**
+     * Someone used a control on this plugin's window tab. Payload: EvUi.
+     *
+     * Raised for the plugin that owns the widget and no other, so a plugin
+     * never sees another's controls -- the window is shared, the tabs are not.
+     */
+    TORIRS_PLUGIN_EV_UI,
+    /**
+     * This plugin's tab needs its contents. Payload: EvUi with `widget_id`
+     * NULL.
+     *
+     * Raised after every win_clear the host itself performs -- on a reload, on
+     * a re-enable, when the window is first opened -- so a plugin declares its
+     * controls in ONE place and that place is re-run whenever the tab is
+     * empty. A plugin that built its tab only in on_start would come back from
+     * a reload with a blank tab.
+     */
+    TORIRS_PLUGIN_EV_UI_BUILD,
 
     TORIRS_PLUGIN_EV_COUNT
 };
@@ -127,11 +151,16 @@ struct ToriRS_PluginPlayerSnap
      *  straight to api->project. */
     int fine_x;
     int fine_z;
-    /** Far end of the route queue, absolute. Equals true_* when idle. */
+    /** Where the walk ends, absolute -- the map flag, which lives from the
+     *  click to the arrival. Equals true_* when there is no destination, so a
+     *  marker only has to ask whether the two differ. LOCAL PLAYER ONLY: every
+     *  other player reports itself, because nothing tells this client where
+     *  someone else is headed. */
     int dest_x;
     int dest_z;
-    /** Minimap flag latch, absolute; -1 when unset. Covers the window between
-     *  a click and the server's echo, when the route queue is still empty. */
+    /** The same flag, unfolded: -1 when there is no destination at all, which
+     *  dest_* cannot say (standing on your own destination reads the same as
+     *  having none). Local player only. */
     int flag_x;
     int flag_z;
     /** Server pid, or -1 when unsynced. */
@@ -358,6 +387,56 @@ struct ToriRS_PluginEvGameEvent
     /** The line it was recognised from, markup stripped. Empty for a level-up,
      *  which comes from UPDATE_STAT and has no sentence behind it. */
     char text[200];
+};
+
+/* ------------------------------------------------------------------------ */
+/* Plugin windows                                                            */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * What a plugin can put on its tab.
+ *
+ * A deliberately small set, and the small set is the point: these are the
+ * controls every executor can present natively. A checkbox is a checkbox in
+ * the canvas, in the DOM, in comctl32 and in a cache interface; anything
+ * richer would be a control one of them has to fake, and a faked control is
+ * how a "native" window stops looking native.
+ */
+enum ToriRS_PluginWidgetKind
+{
+    TORIRS_PLUGIN_W_LABEL = 0,
+    TORIRS_PLUGIN_W_CHECKBOX,
+    TORIRS_PLUGIN_W_INPUT,
+    TORIRS_PLUGIN_W_DROPDOWN,
+    TORIRS_PLUGIN_W_BUTTON,
+    TORIRS_PLUGIN_W_SEPARATOR,
+};
+
+/** What happened to a control. */
+enum ToriRS_PluginUiAction
+{
+    /** A button was pressed. */
+    TORIRS_PLUGIN_UI_ACTIVATE = 0,
+    /** A checkbox changed: `value` is its new state. */
+    TORIRS_PLUGIN_UI_TOGGLE,
+    /** A field was edited: `text` is its whole new contents. */
+    TORIRS_PLUGIN_UI_TEXT,
+    /** A list choice was made: `value` is the index, `text` the chosen entry. */
+    TORIRS_PLUGIN_UI_PICK,
+};
+
+struct ToriRS_PluginEvUi
+{
+    /** The id the plugin gave the control in api->win_widget. NULL on
+     *  EV_UI_BUILD, which is about the tab rather than about a control. */
+    char const* widget_id;
+    /** enum ToriRS_PluginUiAction. */
+    int action;
+    /** Index or flag, per the action; -1 when the action carries none. */
+    int value;
+    /** The control's text after the change. Never NULL; "" when it has none.
+     *  Valid for this dispatch only. */
+    char const* text;
 };
 
 struct ToriRS_PluginEvAsset
@@ -657,14 +736,36 @@ struct ToriRS_PluginApi
      * is that a screenshot is the user's, not the plugin's: it is write-only,
      * of pixels they are already looking at, and the destination comes from a
      * config key THEY typed. `..` is still refused, so a plugin cannot climb
-     * out of a directory the user named. NULL or "" means the plugin's own
-     * saved-asset directory, which is the only destination the browser lane
-     * can write to and therefore the only sane default.
+     * out of a directory the user named.
+     *
+     * It is read two ways, and the split is what lets one plugin work on both
+     * lanes without asking which it is on:
+     *
+     *   ABSOLUTE (leading '/') -- used as given. A desktop user naming a
+     *      folder they can find in a file manager.
+     *   RELATIVE, or absent -- under the plugin's own saved-asset directory.
+     *      Subdirectories still work, so "Bob/Levels" sorts a browser run's
+     *      captures exactly like a desktop one; the browser lane has no path
+     *      to name and this is the only place it can write.
      *
      * `name` is a bare filename; the host appends ".png" when it has no
      * extension. Returns 1 when the capture was queued.
      */
     int (*screenshot)(struct ToriRS_PluginCtx* ctx, char const* dir, char const* name);
+
+    /**
+     * Local wall-clock time as "YYYY-MM-DD_HH-MM-SS", into `out`.
+     *
+     * Not frame_ms, which is a monotonic client clock with no relation to a
+     * calendar, and not something a script can work out for itself: the
+     * sandbox does not link `os`, so a plugin has no date at all without this.
+     * The format is the one RuneLite names screenshots with (ImageCapture's
+     * TIME_FORMAT), which is also, not by accident, filename-safe under the
+     * character set `name` above is held to.
+     *
+     * Returns 1 on success; `out` is always NUL terminated.
+     */
+    int (*datestamp)(struct ToriRS_PluginCtx* ctx, char* out, int out_size);
 
     /* -- world objects --
      *
@@ -735,6 +836,52 @@ struct ToriRS_PluginApi
     int (*hsl_from_rgb)(struct ToriRS_PluginCtx* ctx, uint32_t rgb);
     /** Packed HSL -> 0xRRGGBB, through the same palette the rasteriser uses. */
     uint32_t (*hsl_to_rgb)(struct ToriRS_PluginCtx* ctx, int hsl);
+
+    /* -- the plugin window -------------------------------------------------
+     *
+     * ONE window, shared: win_request claims a TAB in it, not a window of its
+     * own. That is the sandbox rule, not a simplification -- sixteen plugins
+     * that could each open a window could bury the game under sixteen of them,
+     * and a plugin cannot be trusted to be reasonable about a resource it does
+     * not have to share.
+     *
+     * Where that tab actually appears is the host's business and the user's:
+     * in the game canvas, in an OS window, in a browser tab, or as a panel
+     * behind a sidebar button. A plugin declares controls and hears about
+     * clicks; it never learns which of those it got.
+     *
+     * Controls are named by plugin-scoped string ids rather than handles,
+     * because a reload rebuilds the tab from nothing: an id survives that and
+     * a handle does not, so a saved setting can be routed back to the control
+     * it came from on the other side of a reload.
+     */
+
+    /**
+     * Claim this plugin's tab, titled `tab_title`. Idempotent -- calling it
+     * again only renames the tab.
+     *
+     * @return false when the window is full or the host has none.
+     */
+    bool (*win_request)(struct ToriRS_PluginCtx* ctx, char const* tab_title);
+
+    /**
+     * Append a control. `id` is this plugin's own name for it; `label` is what
+     * the user reads, and may be NULL for a control that needs none.
+     *
+     * @param kind enum ToriRS_PluginWidgetKind.
+     * @return false when the per-plugin control budget is spent.
+     */
+    bool (*win_widget)(
+        struct ToriRS_PluginCtx* ctx, int kind, char const* id, char const* label);
+
+    bool (*win_set_text)(struct ToriRS_PluginCtx* ctx, char const* id, char const* text);
+    bool (*win_set_checked)(struct ToriRS_PluginCtx* ctx, char const* id, bool on);
+    /** `choices` is "a|b|c", as a config schema's enum is. */
+    bool (*win_set_options)(
+        struct ToriRS_PluginCtx* ctx, char const* id, char const* choices, int selected);
+
+    /** Drop every control on this plugin's tab, to rebuild it from the top. */
+    void (*win_clear)(struct ToriRS_PluginCtx* ctx);
 };
 
 /* ------------------------------------------------------------------------ */
@@ -758,6 +905,23 @@ struct ToriRS_PluginDef
     /** Both may be NULL. `init` is where subscriptions are made. */
     void (*init)(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api);
     void (*shutdown)(struct ToriRS_PluginCtx* ctx);
+    /**
+     * Rebuild this plugin from its source, in place. NULL for a plugin that has
+     * no source to reread -- a compiled-in C plugin, where stopping and
+     * starting it IS a full reload.
+     *
+     * Exists because a scripted plugin's reload is a thing only its adapter can
+     * do: the host can drop the subscriptions and call init again, but init for
+     * a Lua script re-subscribes the SAME function references, so the file's
+     * text is never re-executed and a reload changes nothing. This is the hook
+     * where the VM tears its state down and builds a new one.
+     *
+     * Called between the teardown and the restart, with the plugin stopped. The
+     * implementation may rewrite the fields of this very struct -- the host
+     * holds it by pointer and rereads them afterwards -- which is how a script
+     * that grew a config key or a handler comes back with it.
+     */
+    void (*reload)(struct ToriRS_PluginCtx* ctx);
 };
 
 #endif /* TORIRS_PLUGIN_H */

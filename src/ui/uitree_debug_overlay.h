@@ -561,9 +561,16 @@ struct ToriDbgPanel
     /** Rows scrolled past, in pixels. Clamped by Build to the content that
      *  actually overflows, so shrinking a panel can never strand it. */
     int scroll_y;
-    /** Resolved by Build: total row height, and the height of the window onto
-     *  it. Held because the bar's geometry, its hit test and its drag all have
-     *  to agree, and a value computed three times is a grip that jumps. */
+    /**
+     * Resolved by Build: where the scroll window starts on screen, the total
+     * height of the rows inside it, and the height of the window onto them.
+     *
+     * Held rather than recomputed because the bar's draw, its hit test and its
+     * drag all need the same three numbers, and deriving them separately from
+     * the header/footer/strip metrics is how a grip ends up landing somewhere
+     * different depending on who asked.
+     */
+    int content_y;
     int content_h;
     int view_h;
     /**
@@ -729,6 +736,17 @@ struct ToriRSChrome
      */
     int scroll_panel;
     int scroll_grab;
+    /**
+     * Incremented every time Build actually rebuilt the display list.
+     *
+     * A host holding the prim array by pointer -- which is the whole retained
+     * contract -- has no other way to ask "is what I copied last still what
+     * this says". The prim COUNT is not that answer: an edit that replaces one
+     * string with another of the same shape leaves the count identical and the
+     * contents different, which is exactly the case a count-compare misses and
+     * a serial does not.
+     */
+    int build_serial;
     /** Set by Build when a capacity limit truncated the display list. */
     int overflow;
     /** Union of what changed since the last DamageClear. w/h 0 = nothing. */
@@ -1005,6 +1023,19 @@ void
 ToriRSChrome_SetCaretVisible(struct ToriRSChrome* ui, int visible);
 
 /* ---- input -------------------------------------------------------------- */
+
+/**
+ * Is any panel of this instance on screen?
+ *
+ * The gate a host routes input on. Asking the chrome rather than tracking it
+ * caller-side is what lets a new panel work the day it is added: the four
+ * consumers that share the developer instance each had their own visibility
+ * flag, the input gate named only two of them, and the panels the gate did not
+ * name received no clicks at all -- inert controls, which reads as a broken
+ * panel rather than an unrouted one.
+ */
+int
+ToriRSChrome_HasVisiblePanel(struct ToriRSChrome const* ui);
 
 /** @return widget handle under (x,y), or -1. Only hits visible panels. */
 int

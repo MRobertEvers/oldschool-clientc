@@ -1261,6 +1261,13 @@ RS_GameProto_Exec(
                                                    : RS_CHAT_TYPE_PRIVATE_FROM,
                 name,
                 packet->_message_private.text);
+            if( ctx->app )
+                App_NotifyChatMessage(
+                    ctx->app,
+                    packet->_message_private.staff_mod ? RS_CHAT_TYPE_PRIVATE_FROM_MOD
+                                                       : RS_CHAT_TYPE_PRIVATE_FROM,
+                    name,
+                    packet->_message_private.text);
         }
         break;
     case PKT_NAME_CHAT_FILTER_SETTINGS:

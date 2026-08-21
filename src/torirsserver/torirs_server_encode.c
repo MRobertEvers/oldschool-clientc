@@ -4590,15 +4590,28 @@ put_npc_extended_v5(
                     npc->type, npc->size, headbar, width, fill, npc->hitpoints,
                     npc->max_hitpoints);
 
-        /* NpcHeadbarEncoder differs from the player only in the count and
-         * target-fill byte transform -- alt1 and alt2 here against the
-         * player's alt2 and alt3. See the matching decoder's V5 block. */
-        rsab_p1_alt1(buf, 1);
+        /*
+         * NpcHeadbarEncoder differs from the player only in the count and
+         * target-fill byte transform -- alt2 and alt3 here against the
+         * player's alt1 and alt2. See the matching decoder's V5 block.
+         *
+         * These two were the other way round until 2026-08-21, and the swap
+         * was not survivable: the golden client reads the count as `0 - b`,
+         * so a count of 1 written alt1 (0x81) came back as 127. It then read
+         * 126 head bars that were not there, walked off the end of a 32-byte
+         * NPC_INFO and threw `RuntimeException: 600,32` -- 600 bytes consumed
+         * of a 32-byte packet -- the first time an npc took a hit in front of
+         * a real client. Nothing here catches it, because the mock's own
+         * decoder made the same swap and round-tripped happily; the authority
+         * is the deob (`Statics.method10109`, `method13137`/`method13166`) and
+         * RSProt's NpcHeadbarEncoder, and they agree with each other.
+         */
+        rsab_p1_alt2(buf, 1);
         v5_psmart1or2(buf, headbar);
         v5_psmart1or2(buf, 1);
         v5_psmart1or2(buf, 0);
         rsab_p1_alt1(buf, width);
-        rsab_p1_alt2(buf, fill);
+        rsab_p1_alt3(buf, fill);
     }
     if( classic & TORIRSSERVER_NMASK_ANIM )
     {

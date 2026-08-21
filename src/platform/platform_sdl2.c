@@ -39,6 +39,31 @@ struct PlatformSDL2
     int resizable_w;
     int resizable_h;
     int interface_scale_mode;
+
+    /*
+     * The auxiliary window: one extra, optional, never a render target.
+     *
+     * Its own renderer and texture rather than a second viewport on the game's,
+     * because they are separate OS windows with separate swap chains -- and its
+     * own pixel buffer, because whoever draws into it draws a different picture
+     * at a different size. Nothing here is touched when it is closed, which is
+     * the state it is in for almost every run.
+     */
+    SDL_Window* aux_window;
+    SDL_Renderer* aux_renderer;
+    SDL_Texture* aux_texture;
+    int* aux_pixels;
+    int aux_width;
+    int aux_height;
+    /* SDL's id for aux_window, so the event pump can tell which window an
+     * event came from without comparing pointers on every event. */
+    uint32_t aux_window_id;
+    /* Latched by the pump, drained by AuxTakeCloseRequest -- see the header. */
+    bool aux_close_requested;
+    /* This frame's aux gesture, coalesced by the pump. */
+    struct PlatformSDL2_AuxInput aux_input;
+    bool aux_have_input;
+
     /* Last title handed to SDL, so a per-frame caller does not repeat itself.
      * See PlatformSDL2_SetTitle. Sized to hold main.c's readout whole: a title
      * that overflows would compare equal on its tail and stop updating. */
@@ -638,6 +663,9 @@ PlatformSDL2_Free(struct PlatformSDL2* platform)
 {
     if( !platform )
         return;
+    /* Before the main window's teardown, so the aux one never outlives the
+     * SDL_Quit that follows. */
+    PlatformSDL2_AuxClose(platform);
     free(platform->pixels);
     platform->pixels = NULL;
     if( platform->texture )
@@ -664,6 +692,357 @@ PlatformSDL2_Pixels(struct PlatformSDL2* platform)
 {
     assert(platform);
     return platform->pixels;
+}
+
+/* ---- the auxiliary window ------------------------------------------------ */
+
+/*
+ * Route one event to the aux window, or report that it was not ours.
+ *
+ * The gesture is coalesced into aux_input rather than queued, so a frame that
+ * saw twenty motion events costs one position. Coordinates are the window's
+ * own -- the chrome laid its panels out in that space, and there is no
+ * letterbox to undo here because the aux surface IS the window.
+ */
+static bool
+sdl_aux_event(struct PlatformSDL2* platform, SDL_Event const* event)
+{
+    uint32_t const id = platform->aux_window_id;
+
+    switch( event->type )
+    {
+    case SDL_WINDOWEVENT:
+        if( event->window.windowID != id )
+            return false;
+        if( event->window.event == SDL_WINDOWEVENT_CLOSE )
+            platform->aux_close_requested = true;
+        else if( event->window.event == SDL_WINDOWEVENT_SIZE_CHANGED )
+        {
+            platform->aux_input.resized = 1;
+            platform->aux_input.width = event->window.data1;
+            platform->aux_input.height = event->window.data2;
+            platform->aux_have_input = true;
+        }
+        return true;
+
+    case SDL_MOUSEBUTTONDOWN:
+        if( event->button.windowID != id )
+            return false;
+        platform->aux_input.mouse_x = event->button.x;
+        platform->aux_input.mouse_y = event->button.y;
+        if( event->button.button == SDL_BUTTON_LEFT )
+            platform->aux_input.mouse_down = 1;
+        platform->aux_have_input = true;
+        return true;
+
+    case SDL_MOUSEBUTTONUP:
+        if( event->button.windowID != id )
+            return false;
+        platform->aux_input.mouse_x = event->button.x;
+        platform->aux_input.mouse_y = event->button.y;
+        if( event->button.button == SDL_BUTTON_LEFT )
+            platform->aux_input.mouse_up = 1;
+        platform->aux_have_input = true;
+        return true;
+
+    case SDL_MOUSEMOTION:
+        if( event->motion.windowID != id )
+            return false;
+        platform->aux_input.mouse_x = event->motion.x;
+        platform->aux_input.mouse_y = event->motion.y;
+        platform->aux_have_input = true;
+        return true;
+
+    case SDL_MOUSEWHEEL:
+        if( event->wheel.windowID != id )
+            return false;
+        platform->aux_input.wheel +=
+            event->wheel.direction == SDL_MOUSEWHEEL_FLIPPED ? -event->wheel.y : event->wheel.y;
+        platform->aux_have_input = true;
+        return true;
+
+    case SDL_TEXTINPUT:
+        if( event->text.windowID != id )
+            return false;
+        {
+            size_t const have = strlen(platform->aux_input.text);
+            size_t const room = sizeof(platform->aux_input.text) - have - 1;
+            strncat(platform->aux_input.text, event->text.text, room);
+        }
+        platform->aux_have_input = true;
+        return true;
+
+    case SDL_KEYDOWN:
+        if( event->key.windowID != id )
+            return false;
+        /* Only the EDITING keys: printable bytes arrive on TEXTINPUT above,
+         * which is the one that has already applied the keyboard layout and
+         * any dead keys. */
+        switch( event->key.keysym.sym )
+        {
+        case SDLK_BACKSPACE:
+            platform->aux_input.edit_key = PLATFORM_AUX_KEY_BACKSPACE;
+            break;
+        case SDLK_DELETE:
+            platform->aux_input.edit_key = PLATFORM_AUX_KEY_DELETE;
+            break;
+        case SDLK_LEFT:
+            platform->aux_input.edit_key = PLATFORM_AUX_KEY_LEFT;
+            break;
+        case SDLK_RIGHT:
+            platform->aux_input.edit_key = PLATFORM_AUX_KEY_RIGHT;
+            break;
+        case SDLK_HOME:
+            platform->aux_input.edit_key = PLATFORM_AUX_KEY_HOME;
+            break;
+        case SDLK_END:
+            platform->aux_input.edit_key = PLATFORM_AUX_KEY_END;
+            break;
+        case SDLK_RETURN:
+        case SDLK_KP_ENTER:
+            platform->aux_input.edit_key = PLATFORM_AUX_KEY_ENTER;
+            break;
+        case SDLK_ESCAPE:
+            platform->aux_input.edit_key = PLATFORM_AUX_KEY_ESCAPE;
+            break;
+        default:
+            return true;
+        }
+        platform->aux_have_input = true;
+        return true;
+
+    case SDL_KEYUP:
+        /* Swallowed, not forwarded: a key pressed in this window must not
+         * release one the game thinks is held. */
+        return event->key.windowID == id;
+
+    default:
+        return false;
+    }
+}
+
+bool
+PlatformSDL2_AuxTakeInput(struct PlatformSDL2* platform, struct PlatformSDL2_AuxInput* out)
+{
+    assert(platform);
+    assert(out);
+    if( !platform->aux_window || !platform->aux_have_input )
+        return false;
+
+    *out = platform->aux_input;
+    /* Edges cleared, position kept: a press left in the buffer would be
+     * delivered again every frame until the next one arrived, and a pointer
+     * that stopped moving is still where it was. */
+    platform->aux_input.mouse_down = 0;
+    platform->aux_input.mouse_up = 0;
+    platform->aux_input.wheel = 0;
+    platform->aux_input.text[0] = '\0';
+    platform->aux_input.edit_key = PLATFORM_AUX_KEY_NONE;
+    platform->aux_input.resized = 0;
+    platform->aux_have_input = false;
+    return true;
+}
+
+
+
+/** Allocate (or reallocate) the aux surface and its texture at w x h. */
+static bool
+aux_make_surface(struct PlatformSDL2* platform, int width, int height)
+{
+    int* pixels;
+    SDL_Texture* texture;
+
+    assert(platform);
+    assert(platform->aux_renderer);
+    if( width <= 0 || height <= 0 )
+        return false;
+
+    texture = SDL_CreateTexture(
+        platform->aux_renderer,
+        SDL_PIXELFORMAT_ARGB8888,
+        SDL_TEXTUREACCESS_STREAMING,
+        width,
+        height);
+    if( !texture )
+    {
+        fprintf(stderr, "aux window: texture: %s\n", SDL_GetError());
+        return false;
+    }
+
+    pixels = calloc((size_t)width * (size_t)height, sizeof(*pixels));
+    assert(pixels);
+
+    if( platform->aux_texture )
+        SDL_DestroyTexture(platform->aux_texture);
+    free(platform->aux_pixels);
+    platform->aux_texture = texture;
+    platform->aux_pixels = pixels;
+    platform->aux_width = width;
+    platform->aux_height = height;
+    return true;
+}
+
+bool
+PlatformSDL2_AuxOpen(struct PlatformSDL2* platform, int width, int height, char const* title)
+{
+    assert(platform);
+
+    if( platform->aux_window )
+        return true;
+    if( width <= 0 || height <= 0 )
+        return false;
+
+    /*
+     * Placed by the window manager rather than beside the game deliberately:
+     * on a multi-monitor desktop "next to the main window" is as likely to be
+     * off-screen as not, and every platform already has a policy for where a
+     * new window goes.
+     */
+    platform->aux_window = SDL_CreateWindow(
+        title ? title : "Plugins",
+        SDL_WINDOWPOS_UNDEFINED,
+        SDL_WINDOWPOS_UNDEFINED,
+        width,
+        height,
+        SDL_WINDOW_RESIZABLE | SDL_WINDOW_ALLOW_HIGHDPI);
+    if( !platform->aux_window )
+    {
+        fprintf(stderr, "aux window: %s\n", SDL_GetError());
+        return false;
+    }
+
+    /* Software, and never accelerated: this window shows chrome the CPU
+     * rasteriser already produced, and asking for a GPU context here would put
+     * a second swap chain beside the game's for a panel of rectangles. */
+    platform->aux_renderer = SDL_CreateRenderer(platform->aux_window, -1, SDL_RENDERER_SOFTWARE);
+    if( !platform->aux_renderer )
+    {
+        fprintf(stderr, "aux window renderer: %s\n", SDL_GetError());
+        SDL_DestroyWindow(platform->aux_window);
+        platform->aux_window = NULL;
+        return false;
+    }
+
+    if( !aux_make_surface(platform, width, height) )
+    {
+        SDL_DestroyRenderer(platform->aux_renderer);
+        SDL_DestroyWindow(platform->aux_window);
+        platform->aux_renderer = NULL;
+        platform->aux_window = NULL;
+        return false;
+    }
+
+    platform->aux_window_id = SDL_GetWindowID(platform->aux_window);
+    platform->aux_close_requested = false;
+    return true;
+}
+
+void
+PlatformSDL2_AuxClose(struct PlatformSDL2* platform)
+{
+    assert(platform);
+
+    if( platform->aux_texture )
+    {
+        SDL_DestroyTexture(platform->aux_texture);
+        platform->aux_texture = NULL;
+    }
+    if( platform->aux_renderer )
+    {
+        SDL_DestroyRenderer(platform->aux_renderer);
+        platform->aux_renderer = NULL;
+    }
+    if( platform->aux_window )
+    {
+        SDL_DestroyWindow(platform->aux_window);
+        platform->aux_window = NULL;
+    }
+    free(platform->aux_pixels);
+    platform->aux_pixels = NULL;
+    platform->aux_width = 0;
+    platform->aux_height = 0;
+    platform->aux_window_id = 0;
+    platform->aux_close_requested = false;
+}
+
+bool
+PlatformSDL2_AuxIsOpen(struct PlatformSDL2 const* platform)
+{
+    assert(platform);
+    return platform->aux_window != NULL;
+}
+
+int*
+PlatformSDL2_AuxPixels(struct PlatformSDL2* platform)
+{
+    assert(platform);
+    return platform->aux_pixels;
+}
+
+int
+PlatformSDL2_AuxWidth(struct PlatformSDL2 const* platform)
+{
+    assert(platform);
+    return platform->aux_width;
+}
+
+int
+PlatformSDL2_AuxHeight(struct PlatformSDL2 const* platform)
+{
+    assert(platform);
+    return platform->aux_height;
+}
+
+bool
+PlatformSDL2_AuxResize(struct PlatformSDL2* platform, int width, int height)
+{
+    assert(platform);
+    if( !platform->aux_window )
+        return false;
+    if( width == platform->aux_width && height == platform->aux_height )
+        return true;
+    return aux_make_surface(platform, width, height);
+}
+
+void
+PlatformSDL2_AuxPresent(struct PlatformSDL2* platform)
+{
+    int* write = NULL;
+    int pitch = 0;
+
+    assert(platform);
+    if( !platform->aux_window || !platform->aux_texture || !platform->aux_pixels )
+        return;
+
+    if( SDL_LockTexture(platform->aux_texture, NULL, (void**)&write, &pitch) < 0 )
+    {
+        fprintf(stderr, "aux window lock: %s\n", SDL_GetError());
+        return;
+    }
+    /* Row by row rather than one memcpy: SDL's pitch is not required to equal
+     * the row width, and assuming it does is the classic torn-diagonal bug. */
+    {
+        int const row_ints = pitch / (int)sizeof(int);
+        for( int y = 0; y < platform->aux_height; y++ )
+            memcpy(
+                &write[y * row_ints],
+                &platform->aux_pixels[y * platform->aux_width],
+                (size_t)platform->aux_width * sizeof(int));
+    }
+    SDL_UnlockTexture(platform->aux_texture);
+
+    SDL_RenderClear(platform->aux_renderer);
+    SDL_RenderCopy(platform->aux_renderer, platform->aux_texture, NULL, NULL);
+    SDL_RenderPresent(platform->aux_renderer);
+}
+
+bool
+PlatformSDL2_AuxTakeCloseRequest(struct PlatformSDL2* platform)
+{
+    bool const asked = platform->aux_close_requested;
+    assert(platform);
+    platform->aux_close_requested = false;
+    return asked;
 }
 
 int
@@ -957,6 +1336,18 @@ PlatformSDL2_PollCommands(
 
     while( SDL_PollEvent(&event) )
     {
+        /*
+         * The aux window's events first, and they never reach the game.
+         *
+         * Routed by SDL's window id rather than by "is the pointer over it",
+         * because a drag that started in one window keeps delivering to that
+         * window -- which is what makes a grip drag work when the cursor
+         * leaves the frame, and what would make a click in the plugin window
+         * also walk the player if this fell through.
+         */
+        if( platform->aux_window && sdl_aux_event(platform, &event) )
+            continue;
+
         switch( event.type )
         {
         case SDL_QUIT:

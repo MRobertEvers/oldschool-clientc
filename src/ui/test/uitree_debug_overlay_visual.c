@@ -1470,6 +1470,89 @@ visual_scaled(void)
     ToriRSChrome_Init(&g_ui);
 }
 
+/* ---- tabs, buttons and a scrolling panel ---------------------------------
+ *
+ * The three Phase-0 additions in one shot, because they are one feature in
+ * practice: a settings window is a tab strip over a scrolling column with a
+ * commit button at the bottom. What a BMP proves here that the model tests
+ * cannot is that a scrolled panel really does paint its rows clipped to the
+ * scroll window, and that the strip stays put while they move under it.
+ */
+static void
+visual_tabs_and_scroll(void)
+{
+    static char const* const tabs[] = { "Plugins", "tile_indicator", "lootbeam" };
+    struct ToriDbgTheme const* t = &g_ui.theme;
+    struct ToriDbgRect r;
+    int panel;
+    int strip;
+    int save;
+    int first_row;
+
+    printf("VISUAL: tabs / buttons / panel scroll\n");
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 20, 16, 250, "Plugins");
+    ToriRSChrome_PanelSetTable(&g_ui, panel, 1);
+    strip = ToriRSChrome_Tabs(&g_ui, panel, tabs, 3, 1);
+
+    ToriRSChrome_PanelBeginTab(&g_ui, panel, 0);
+    ToriRSChrome_Label(&g_ui, panel, "2 plugins loaded");
+
+    ToriRSChrome_PanelBeginTab(&g_ui, panel, 1);
+    first_row = ToriRSChrome_Checkbox(&g_ui, panel, "enabled", 1);
+    ToriRSChrome_TextInput(&g_ui, panel, "colour", "#FFCC00");
+    ToriRSChrome_TextInput(&g_ui, panel, "width", "2");
+    ToriRSChrome_Checkbox(&g_ui, panel, "show text", 0);
+    ToriRSChrome_TextInput(&g_ui, panel, "alpha", "128");
+    ToriRSChrome_Checkbox(&g_ui, panel, "outline", 1);
+    ToriRSChrome_TextInput(&g_ui, panel, "radius", "3");
+    ToriRSChrome_Separator(&g_ui, panel);
+    save = ToriRSChrome_Button(&g_ui, panel, "Save");
+
+    ToriRSChrome_PanelBeginTab(&g_ui, panel, -1);
+    ToriRSChrome_Build(&g_ui);
+    r = ToriRSChrome_PanelRect(&g_ui, panel);
+    render("24_tabs_unscrolled");
+
+    VT_ASSERT(g_ui.widgets[strip].h > 0, "the strip laid out");
+    VT_ASSERT(g_ui.widgets[save].w > 0, "the button laid out");
+    /* Tab 0 is not the selected one, so it keeps the rule along its bottom --
+     * the pixel row the selected tab erases to join itself to the content. */
+    {
+        struct ToriDbgWidget const* s = &g_ui.widgets[strip];
+        VT_ASSERT(
+            px(s->x + 2, s->y + s->h - 1) == t->panel_border,
+            "an unselected tab keeps its base rule");
+    }
+
+    /* Now force it short and scrollable: the same tab, below the fold. */
+    ToriRSChrome_PanelSetScrollable(&g_ui, panel, 1);
+    g_ui.panels[panel].fixed_h = 96;
+    g_ui.panels[panel].dirty = 1;
+    g_ui.dirty = 1;
+    ToriRSChrome_Build(&g_ui);
+    render("25_tabs_scroll_top");
+    VT_ASSERT(
+        g_ui.panels[panel].content_h > g_ui.panels[panel].view_h,
+        "the short panel overflows its view");
+    VT_ASSERT(g_ui.widgets[first_row].h > 0, "the first row is in view at rest");
+    VT_ASSERT(g_ui.widgets[save].h == 0, "the button is below the fold at rest");
+
+    /* Wheel to the end: the button arrives, the first row leaves. */
+    {
+        int const wx = r.x + 8;
+        int const wy = r.y + 60;
+        for( int i = 0; i < 30; i++ )
+            ToriRSChrome_MouseWheel(&g_ui, wx, wy, -1);
+        ToriRSChrome_Build(&g_ui);
+        render("26_tabs_scroll_end");
+        VT_ASSERT(g_ui.widgets[save].h > 0, "the button scrolls into view");
+        VT_ASSERT(g_ui.widgets[first_row].h == 0, "the first row scrolls out");
+        VT_ASSERT(g_ui.widgets[strip].h > 0, "the strip does not scroll away with the rows");
+    }
+    ToriRSChrome_Init(&g_ui);
+}
+
 int
 main(void)
 {
@@ -1528,6 +1611,7 @@ main(void)
     visual_dropdown_scrollbar_drag();
     visual_dropdown_fallbacks();
     visual_menubar_dropdown();
+    visual_tabs_and_scroll();
     visual_scaled();
 
     if( g_failures )

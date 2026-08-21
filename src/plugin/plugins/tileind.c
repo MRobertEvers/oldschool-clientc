@@ -31,8 +31,6 @@ tileind_draw(
 
     struct ToriRS_PluginEvDraw* ev = (struct ToriRS_PluginEvDraw*)event;
     struct ToriRS_PluginPlayerSnap me;
-    int dest_x;
-    int dest_z;
     int hover_x;
     int hover_z;
     int hover_level;
@@ -74,23 +72,25 @@ tileind_draw(
         return TORIRS_PLUGIN_PASS;
 
     /*
-     * Where the walk ends: the far end of the route queue.
+     * Where the walk ends, which is the map flag and nothing else -- the same
+     * value RuneLite's tile indicator draws through
+     * Client.getLocalDestinationLocation().
      *
-     * Between the click and the server's PLAYER_INFO echo the queue is still
-     * empty, and during that window the minimap flag latch is the only record
-     * of where the click was aimed -- without it the destination marker
-     * blinks off for the tick that matters most.
+     * Reading the route queue instead is what made this marker vanish a tick
+     * after the click: that queue is the interpolator's history, so its far
+     * end trails behind the player and never holds the destination at all.
+     * The flag is set from the routed destination and cleared on arrival,
+     * which is exactly as long as a destination marker should live.
      */
-    dest_x = me.dest_x;
-    dest_z = me.dest_z;
-    if( dest_x == me.true_x && dest_z == me.true_z && me.flag_x >= 0 )
-    {
-        dest_x = me.flag_x;
-        dest_z = me.flag_z;
-    }
-    if( dest_x != me.true_x || dest_z != me.true_z )
+    if( me.dest_x != me.true_x || me.dest_z != me.true_z )
         g_api->draw_tile(
-            ctx, ev->surface, dest_x, dest_z, me.level, g_api->cfg_color(ctx, "dest_color"), 0);
+            ctx,
+            ev->surface,
+            me.dest_x,
+            me.dest_z,
+            me.level,
+            g_api->cfg_color(ctx, "dest_color"),
+            0);
 
     return TORIRS_PLUGIN_PASS;
 }

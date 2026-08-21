@@ -3963,6 +3963,44 @@ main(
             return 1;
         }
 
+        /*
+         * Choose the plugin window's presentation.
+         *
+         * Here rather than in the App because choosing needs the platform handle,
+         * and the App is deliberately platform-free -- App_Render is handed a pixel
+         * buffer rather than a window for the same reason. What crosses is a
+         * vtable, not a started executor: the App brings it up the first time the
+         * plugin window is opened, so a session that never opens it never opens a
+         * second OS window either.
+         *
+         * TORIRS_CHROME_EXECUTOR names one (buffer|sdl|web|gdi|cs2), beside
+         * TORIRS_CHROME_THEME which the developer chrome already reads. An unknown
+         * name, or one this build has no executor for, lands on the in-canvas
+         * chrome -- which is what every lane without a native executor uses anyway.
+         */
+        {
+            char const* want = getenv("TORIRS_CHROME_EXECUTOR");
+            int const wanted = ToriRSChromeExec_KindFromName(want);
+            int got = TORIRS_CHROME_EXEC_BUFFER;
+            struct ToriRSChromeExec chrome_exec;
+
+            if( want && want[0] && wanted < 0 )
+                fprintf(
+                    stderr,
+                    "chrome: '%s' is not an executor (buffer|sdl|web|gdi|cs2); using buffer\n",
+                    want);
+            chrome_exec = ToriRSChromeExec_ForKind(
+                wanted < 0 ? TORIRS_CHROME_EXEC_BUFFER : wanted, sdl, App_ChromeRasterise, &app,
+                &got);
+            if( wanted > TORIRS_CHROME_EXEC_BUFFER && got != wanted )
+                fprintf(
+                    stderr,
+                    "chrome: no '%s' executor in this build; the plugin window stays in the "
+                    "canvas\n",
+                    ToriRSChromeExec_KindName(wanted));
+            App_SetPluginChromeExec(&app, &chrome_exec, got);
+        }
+
 #if defined(TORIRS_HAVE_D3D9)
         if( use_d3d9 )
         {

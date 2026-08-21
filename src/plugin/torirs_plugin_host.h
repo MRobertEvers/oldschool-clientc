@@ -177,6 +177,24 @@ void PluginHost_Start(struct ToriRS_PluginHost* host);
  *  script is taken out of the frame. Fires EV_START/EV_STOP and drops the
  *  plugin's subscriptions, menu routes and draw budget. */
 void PluginHost_SetEnabled(struct ToriRS_PluginHost* host, int plugin_index, bool enabled);
+
+/**
+ * Stop a plugin, rebuild it from its source, and start it again.
+ *
+ * What "Save" in the plugin window does after it writes the settings, and the
+ * reason it does: a plugin reads its config in on_start and caches what it
+ * found, so writing a key underneath a running plugin leaves it running on the
+ * old value with the panel showing the new one.
+ *
+ * Saved config values SURVIVE -- that is the whole point -- while keys the
+ * reloaded source newly declares arrive with their defaults. Subscriptions,
+ * world objects, resident assets and the window tab are all released and
+ * rebuilt, so nothing from the previous run outlives it.
+ *
+ * A disabled plugin is left alone: it is already torn down, and restarting it
+ * here would switch it on behind the user's back.
+ */
+void PluginHost_Reload(struct ToriRS_PluginHost* host, int plugin_index);
 bool PluginHost_IsEnabled(struct ToriRS_PluginHost const* host, int plugin_index);
 int PluginHost_Count(struct ToriRS_PluginHost const* host);
 char const* PluginHost_Name(struct ToriRS_PluginHost const* host, int plugin_index);
@@ -311,5 +329,87 @@ struct ToriRS_PluginConfigItem const* PluginHost_ConfigItem(
     struct ToriRS_PluginHost const* host,
     int plugin_index,
     int item_index);
+
+/* ---- the plugin window ---------------------------------------------------
+ *
+ * The host owns the MODEL of the shared window -- which plugin claimed a tab,
+ * what controls are on it, what they say -- and owns nothing about how it is
+ * presented. Whoever draws it (the settings panel, and through it whichever
+ * chrome executor is bound) reads this registry and mirrors it.
+ *
+ * Kept here rather than in the panel because a plugin's controls have to
+ * outlive any particular presentation of them: the window can be closed,
+ * reopened, moved from the canvas to an OS window or a browser tab, and the
+ * plugin must not have to rebuild its tab for any of that.
+ */
+
+/** Window controls across ALL plugins. A shared budget on top of the
+ *  per-plugin TORIRS_PLUGIN_WIDGETS_MAX, so sixteen greedy plugins cannot
+ *  between them exhaust a fixed-size host. */
+#define TORIRS_PLUGIN_WIN_WIDGETS_MAX 256
+
+/** One control on a plugin's tab, as the host holds it. */
+struct ToriRS_PluginWinWidget
+{
+    /** enum ToriRS_PluginWidgetKind. */
+    int kind;
+    char id[TORIRS_PLUGIN_WIDGET_ID_MAX];
+    char label[64];
+    char text[TORIRS_PLUGIN_CONFIG_VALUE_MAX];
+    int checked;
+    int selected;
+    /** "a|b|c" for a dropdown; empty otherwise. */
+    char choices[TORIRS_PLUGIN_CONFIG_VALUE_MAX];
+};
+
+/** Has this plugin claimed a tab? */
+bool PluginHost_WinHasTab(struct ToriRS_PluginHost const* host, int plugin_index);
+/** Its tab's title; "" when it has none. Never NULL. */
+char const* PluginHost_WinTabTitle(struct ToriRS_PluginHost const* host, int plugin_index);
+
+int PluginHost_WinWidgetCount(struct ToriRS_PluginHost const* host, int plugin_index);
+struct ToriRS_PluginWinWidget const* PluginHost_WinWidgetAt(
+    struct ToriRS_PluginHost const* host,
+    int plugin_index,
+    int widget_index);
+
+/**
+ * Ask a plugin to declare its controls, if its tab is empty.
+ *
+ * Raises EV_UI_BUILD. Called by whoever presents the window when it opens, and
+ * by the host itself after a reload -- the plugin declares its tab in one
+ * place and never has to know which of those happened.
+ */
+void PluginHost_WinBuild(struct ToriRS_PluginHost* host, int plugin_index);
+
+/**
+ * Deliver a control's use to the plugin that owns it, updating the host's copy
+ * of the control first so a plugin reading its own tab back sees the new value.
+ *
+ * @param action enum ToriRS_PluginUiAction.
+ * @return 1 when the widget was found and the event dispatched.
+ */
+int PluginHost_WinDispatch(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    char const* widget_id,
+    int action,
+    int value,
+    char const* text);
+
+/** Drop a plugin's tab and every control on it. Used by disable and reload. */
+void PluginHost_WinClearPlugin(struct ToriRS_PluginHost* host, int plugin_index);
+
+/**
+ * Bumped whenever the registry's SHAPE changes -- a tab claimed or dropped, a
+ * control added or removed. A presentation compares it against what it last
+ * built and rebuilds only when it differs, which is what keeps a window that
+ * nothing has touched from being torn down and reassembled every frame.
+ *
+ * Value changes (a checkbox toggled, a field edited) do NOT bump it: those are
+ * mirrored onto the existing controls, which is the whole reason the chrome
+ * has compare-then-set mutators.
+ */
+int PluginHost_WinRevision(struct ToriRS_PluginHost const* host);
 
 #endif /* TORIRS_PLUGIN_HOST_H */

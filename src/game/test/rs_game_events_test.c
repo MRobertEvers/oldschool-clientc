@@ -138,6 +138,155 @@ test_kill_counts(void)
     TEST_ASSERT(!chat("Your kill count is: not a number", &ev), "no number, no event");
 }
 
+/*
+ * RuneLite's own corpus, verbatim.
+ *
+ * Every string below is copied out of ScreenshotPluginTest.java, colour tags
+ * and all. They are here rather than paraphrased because three of them broke
+ * this recogniser when it was written from the shape of the messages rather
+ * than from the messages: Barrows has no colon after "is", Yama says
+ * "success" where everything else says "kill", and a stripped colour tag can
+ * leave the number pressed straight up against the colon.
+ */
+static void
+test_runelite_corpus(void)
+{
+    struct RS_GameEvent ev;
+
+    printf("TEST: RuneLite's ScreenshotPluginTest corpus\n");
+
+    /* No colon at all after "is". */
+    TEST_ASSERT(
+        chat("Your Barrows chest count is <col=ff0000>310</col>", &ev), "barrows chest");
+    TEST_ASSERT(strcmp(ev.subject, "Barrows chest") == 0, "keeps 'chest' in the name");
+    TEST_ASSERT(ev.value == 310, "and reads the count without a colon");
+
+    TEST_ASSERT(
+        chat("Your completed Chambers of Xeric count is: <col=ff0000>489</col>.", &ev),
+        "chambers of xeric");
+    TEST_ASSERT(strcmp(ev.subject, "Chambers of Xeric") == 0, "drops the 'completed'");
+    TEST_ASSERT(ev.value == 489, "and reads the count");
+
+    TEST_ASSERT(
+        chat("Your completed Theatre of Blood: Hard Mode count is: <col=ff0000>73</col>.", &ev),
+        "theatre of blood hard mode");
+    TEST_ASSERT(
+        strcmp(ev.subject, "Theatre of Blood: Hard Mode") == 0, "keeps the mode in the name");
+
+    /* "success", not "kill". */
+    TEST_ASSERT(chat("Your Yama success count is: <col=ff0000>227</col>", &ev), "yama");
+    TEST_ASSERT(strcmp(ev.subject, "Yama") == 0, "trims 'success' the way it trims 'kill'");
+    TEST_ASSERT(ev.value == 227, "and reads the count");
+
+    /* Tag stripped, so the number sits against the colon with no space. */
+    TEST_ASSERT(
+        chat("Your <col=6800bf>Kalphite Queen (Echo)</col> kill count is:<col=e00a19>1</col>", &ev),
+        "kalphite queen echo");
+    TEST_ASSERT(strcmp(ev.subject, "Kalphite Queen (Echo)") == 0, "names it through the tags");
+    TEST_ASSERT(ev.value == 1, "and reads a number with no space before it");
+
+    TEST_ASSERT(
+        chat("Your <col=a53fff>Corrupted Hunllef (Echo)</col> kill count is: <col=ff3045>31</col>",
+             &ev),
+        "corrupted hunllef echo");
+    TEST_ASSERT(ev.value == 31, "reads the count");
+
+    TEST_ASSERT(chat("Your Nightmare kill count is: <col=ff0000>1,130</col>", &ev), "nightmare");
+    TEST_ASSERT(ev.value == 1130, "un-groups the thousands");
+
+    /* Drops. */
+    TEST_ASSERT(
+        chat("<col=ef1020>Valuable drop: 6 x Bronze arrow (42 coins)</col>", &ev),
+        "a stacked valuable drop");
+    TEST_ASSERT(strcmp(ev.subject, "6 x Bronze arrow") == 0, "keeps the count in the name");
+    TEST_ASSERT(ev.value == 42, "and reads the value");
+
+    TEST_ASSERT(
+        chat("<col=ef1020>Untradeable drop: Rusty sword</col>", &ev), "untradeable drop");
+    TEST_ASSERT(strcmp(ev.subject, "Rusty sword") == 0, "names the item");
+
+    TEST_ASSERT(
+        chat("New item added to your collection log: <col=ef1020>Chompy bird hat</col>", &ev),
+        "collection log");
+    TEST_ASSERT(strcmp(ev.subject, "Chompy bird hat") == 0, "names the item through the tag");
+
+    /* Duels. RuneLite requires the word "now", and so does this: without it
+     * the line is the running total being restated, not a duel ending. */
+    TEST_ASSERT(chat("You won! You have now won 1,909 duels.", &ev), "duel won");
+    TEST_ASSERT(strcmp(ev.subject, "won") == 0 && ev.value == 1909, "which way, and how many");
+    TEST_ASSERT(chat("You have now lost 1,909 duels.", &ev), "duel lost");
+    TEST_ASSERT(strcmp(ev.subject, "lost") == 0, "reports the loss");
+    TEST_ASSERT(!chat("You have lost 145 duels.", &ev), "no 'now', no duel end");
+    TEST_ASSERT(
+        !chat("You were defeated! You have won 1,909 duels.", &ev),
+        "and a restated total is not one either");
+
+    /* Combat achievements, across every tier RuneLite tests. The subject keeps
+     * its own punctuation -- "Why Cook?" is the task's name; making it
+     * filename-safe is the caller's job and not the recogniser's. */
+    TEST_ASSERT(
+        chat("Congratulations, you've completed an easy combat task: "
+             "<col=06600c>Into the Den of Giants</col>.",
+             &ev),
+        "easy combat task");
+    TEST_ASSERT(strcmp(ev.subject, "Into the Den of Giants") == 0, "names the task");
+    TEST_ASSERT(
+        chat("Congratulations, you've completed a hard combat task: <col=0cc919>Why Cook?</col>.",
+             &ev),
+        "hard combat task");
+    TEST_ASSERT(strcmp(ev.subject, "Why Cook?") == 0, "keeping the task's own punctuation");
+    TEST_ASSERT(
+        chat("Congratulations, you've completed a grandmaster combat task: "
+             "<col=0cc919>Chambers of Xeric: CM (5-Scale) Speed-Runner</col>.",
+             &ev),
+        "grandmaster combat task");
+    TEST_ASSERT(
+        strcmp(ev.subject, "Chambers of Xeric: CM (5-Scale) Speed-Runner") == 0,
+        "colons and brackets included");
+
+    /* The pet line RuneLite lists third and this recogniser used to miss: the
+     * follower slot was full, so it went into the bag instead. */
+    TEST_ASSERT(
+        chat("You feel something weird sneaking into your backpack.", &ev), "pet into the bag");
+    TEST_ASSERT(ev.kind == RS_GAME_EVENT_PET, "is still a pet");
+}
+
+/* The quest scroll's two shapes, and the two adverbs that change the answer.
+ * Same strings RuneLite asserts on in testParseQuestWidget. */
+static void
+test_quest_corpus(void)
+{
+    struct RS_GameEvent ev;
+
+    printf("TEST: quest scroll titles (RuneLite corpus)\n");
+
+    TEST_ASSERT(iface("You have completed The Corsair Curse!", &ev), "name after the verb");
+    TEST_ASSERT(strcmp(ev.subject, "The Corsair Curse") == 0, "keeps the quest's own 'The'");
+
+    TEST_ASSERT(iface("'One Small Favour' completed!", &ev), "name before the verb");
+    TEST_ASSERT(strcmp(ev.subject, "One Small Favour") == 0, "and unquoted");
+
+    /* Not decoration: this is a partial completion, and the scroll says so. */
+    TEST_ASSERT(
+        iface("You have... kind of... completed the Hazeel Cult Quest!", &ev), "kind of");
+    TEST_ASSERT(
+        strcmp(ev.subject, "Hazeel Cult Quest partial completion") == 0,
+        "drops the article and says what it was");
+
+    /* Nor is this: it is the SECOND quest of that name. */
+    TEST_ASSERT(
+        iface("You have completely completed Rag and Bone Man!", &ev), "completely");
+    TEST_ASSERT(strcmp(ev.subject, "Rag and Bone Man II") == 0, "which is a different quest");
+
+    /* A quest whose name contains the word Quest keeps it. RuneLite strips a
+     * trailing " Quest" and then re-adds it from a list of seven; not
+     * stripping it needs no list. */
+    TEST_ASSERT(iface("You have completed Doric's Quest!", &ev), "quest named 'Quest'");
+    TEST_ASSERT(strcmp(ev.subject, "Doric's Quest") == 0, "keeps its whole name");
+    TEST_ASSERT(iface("You have completed Another Cook's Quest!", &ev), "and another");
+    TEST_ASSERT(strcmp(ev.subject, "Another Cook's Quest") == 0, "keeps its whole name too");
+}
+
 static void
 test_quest_complete(void)
 {
@@ -236,6 +385,8 @@ test_markup_and_noise(void)
     TEST_ASSERT(!chat("Hello world", &ev), "ordinary chat is not an event");
     TEST_ASSERT(!chat("You feel a funny feeling", &ev), "and neither is a near miss");
     TEST_ASSERT(!chat("Your attack is now stronger.", &ev), "'Your ...' alone is not a kill");
+    /* Markup that leaves nothing behind is not a line. */
+    TEST_ASSERT(!chat("<col=ffffff></col>", &ev), "a line that is only markup is not an event");
     TEST_ASSERT(!chat(NULL, &ev), "a NULL line is not an event");
     TEST_ASSERT(!chat("", &ev), "and neither is an empty one");
 }
@@ -249,7 +400,9 @@ main(void)
     test_level_up();
     test_drops();
     test_kill_counts();
+    test_runelite_corpus();
     test_quest_complete();
+    test_quest_corpus();
     test_misc();
     test_markup_and_noise();
 

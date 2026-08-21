@@ -16,6 +16,18 @@ struct RSCache_Dat2ConfigNpc
     int* models;
     int models_count;
     char* name;
+    /**
+     * Opcode 3 — the examine string.
+     *
+     * Retired from Jagex's own npc records in 2006: no record in cache.osrs239
+     * states one (all 16,292 decode with the opcode unused), and the reference
+     * client ignores the opcode without reading a payload. It is decoded and
+     * encoded here because this tree's content pack *authors* examine text into
+     * the npc archive, exactly as it already does for a loc (`desc`, the same
+     * opcode) — the field is the historical native slot for the data, and a
+     * record that carries one is only ever read back by this client.
+     */
+    char* desc;
     int size;
     int standing_animation;
     int walking_animation;

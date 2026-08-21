@@ -335,8 +335,12 @@ struct ToriRS_Npctype
 {
     int id;
     char name[TORIRS_NAME_MAX];
-    /** Examine text (NpcType.desc, config opcode 3). Empty on dat2 (OSRS) caches,
-     *  where NPC examine is server-driven and no config opcode carries it. */
+    /** Examine text (NpcType.desc, config opcode 3). Jagex's own dat2 records
+     *  state none -- OldSchool retired the opcode in 2006 and sends npc examine
+     *  from the server -- so on a pristine cache this stays empty and the
+     *  examine handler falls back to "It's a <name>.". The content pack authors
+     *  it into the npc archive under that same opcode; see
+     *  tools/import_examine.py. */
     char desc[TORIRS_DESC_MAX];
     char actions[TORIRS_MENU_ACTION_SLOTS][TORIRS_MENU_ACTION_LEN];
     int combat_level;

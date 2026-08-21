@@ -465,6 +465,22 @@ endif
 # platform_sdl2.c; both Windows blocks override this with platform_win32gdi.c.
 PLATFORM_WINDOW_SRC ?= platform/platform_sdl2.c
 
+# The chrome executor that comes with this window backend, and the define that
+# tells the chooser it is here. Empty is a valid answer: a lane with no native
+# executor falls back to the in-canvas buffer one, which every build has.
+#
+# Keyed off the WINDOW backend rather than the platform name because that is
+# what actually decides it -- the aux window is SDL_CreateWindow, so every lane
+# using platform_sdl2.c gets it and the two Win32 lanes (which will get a GDI
+# tool window instead) do not.
+ifeq ($(PLATFORM_WINDOW_SRC),platform/platform_sdl2.c)
+PLATFORM_CHROME_EXEC_SRC ?= ui/torirs_chrome_exec_sdl.c
+PLATFORM_CHROME_EXEC_CFLAGS ?= -DTORIRS_CHROME_EXEC_SDL_AVAILABLE=1
+else
+PLATFORM_CHROME_EXEC_SRC ?=
+PLATFORM_CHROME_EXEC_CFLAGS ?=
+endif
+
 # What OPT=0 means for this lane's -O level. -O0 everywhere except the web
 # lane, which cannot afford it: see the web block above.
 PLATFORM_DEBUG_O_LEVEL ?= -O0

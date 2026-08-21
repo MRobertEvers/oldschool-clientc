@@ -521,6 +521,36 @@ static int g_gamma_assets;
 static int g_gamma_asset_ok;
 static int g_gamma_objects[3];
 static int g_gamma_object_count;
+static int g_gamma_chats;
+static char g_gamma_chat_text[200];
+static int g_gamma_game_events;
+static char g_gamma_event_kind[32];
+static char g_gamma_event_subject[64];
+static int g_gamma_event_value;
+
+static enum ToriRS_PluginVerdict
+gamma_chat(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
+{
+    (void)ctx;
+    (void)ud;
+    struct ToriRS_PluginEvChat* c = ev;
+    g_gamma_chats++;
+    snprintf(g_gamma_chat_text, sizeof(g_gamma_chat_text), "%s", c->text);
+    return TORIRS_PLUGIN_PASS;
+}
+
+static enum ToriRS_PluginVerdict
+gamma_game_event(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
+{
+    (void)ctx;
+    (void)ud;
+    struct ToriRS_PluginEvGameEvent* g = ev;
+    g_gamma_game_events++;
+    snprintf(g_gamma_event_kind, sizeof(g_gamma_event_kind), "%s", g->kind ? g->kind : "");
+    snprintf(g_gamma_event_subject, sizeof(g_gamma_event_subject), "%s", g->subject);
+    g_gamma_event_value = g->value;
+    return TORIRS_PLUGIN_PASS;
+}
 
 static enum ToriRS_PluginVerdict
 gamma_asset(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
@@ -537,6 +567,8 @@ static void
 gamma_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
 {
     api->subscribe(ctx, TORIRS_PLUGIN_EV_ASSET, gamma_asset, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_CHAT_MESSAGE, gamma_chat, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_GAME_EVENT, gamma_game_event, NULL);
 
     g_gamma_object_count = 0;
     for( int i = 0; i < 3; i++ )
@@ -561,6 +593,135 @@ static struct ToriRS_PluginDef const GAMMA = {
     .priority = 0,
     .config = NULL,
     .init = gamma_init,
+};
+
+
+/* ---- a plugin with a window tab ------------------------------------------
+ *
+ * Declares its controls in EV_UI_BUILD rather than in init, which is the shape
+ * the contract asks for: the host re-raises BUILD whenever the tab is empty --
+ * after a reload, after a re-enable -- and a plugin that built its tab only
+ * once would come back from either with a blank one.
+ */
+static int g_win_builds;
+static int g_win_events;
+static char g_win_last_id[64];
+static int g_win_last_action;
+static int g_win_last_value;
+static char g_win_last_text[64];
+
+static enum ToriRS_PluginVerdict
+win_build(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
+{
+    struct ToriRS_PluginApi const* api = g_api;
+    (void)ev;
+    (void)ud;
+    g_win_builds++;
+    api->win_request(ctx, "Beams");
+    api->win_widget(ctx, TORIRS_PLUGIN_W_CHECKBOX, "enabled", "enabled");
+    api->win_widget(ctx, TORIRS_PLUGIN_W_INPUT, "colour", "colour");
+    api->win_widget(ctx, TORIRS_PLUGIN_W_DROPDOWN, "mode", "mode");
+    api->win_widget(ctx, TORIRS_PLUGIN_W_BUTTON, "reset", "Reset");
+    api->win_set_checked(ctx, "enabled", true);
+    api->win_set_text(ctx, "colour", "#FFCC00");
+    api->win_set_options(ctx, "mode", "beam|ring|off", 0);
+    return TORIRS_PLUGIN_PASS;
+}
+
+static enum ToriRS_PluginVerdict
+win_ui(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
+{
+    struct ToriRS_PluginEvUi const* e = ev;
+    (void)ctx;
+    (void)ud;
+    g_win_events++;
+    snprintf(g_win_last_id, sizeof(g_win_last_id), "%s", e->widget_id ? e->widget_id : "");
+    g_win_last_action = e->action;
+    g_win_last_value = e->value;
+    snprintf(g_win_last_text, sizeof(g_win_last_text), "%s", e->text ? e->text : "");
+    return TORIRS_PLUGIN_PASS;
+}
+
+static void
+winner_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
+{
+    g_api = api;
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_UI_BUILD, win_build, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_UI, win_ui, NULL);
+}
+
+static struct ToriRS_PluginDef const WINNER = {
+    .name = "winner",
+    .version = "1",
+    .priority = 0,
+    .config = NULL,
+    .init = winner_init,
+};
+
+
+/* ---- a plugin that reads its config at start ------------------------------
+ *
+ * The shape reload exists for: a plugin reads a key in on_start and caches
+ * what it found, so writing that key underneath a running plugin leaves it
+ * running on the old value. The counter proves the restart happened and the
+ * captured string proves it happened AFTER the write.
+ */
+static int g_reload_starts;
+static int g_reload_stops;
+static int g_reload_hook_calls;
+static char g_reload_seen[64];
+
+static enum ToriRS_PluginVerdict
+reloader_start(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
+{
+    char const* v;
+    (void)ev;
+    (void)ud;
+    g_reload_starts++;
+    v = g_api->cfg_str(ctx, "colour");
+    snprintf(g_reload_seen, sizeof(g_reload_seen), "%s", v ? v : "");
+    return TORIRS_PLUGIN_PASS;
+}
+
+static enum ToriRS_PluginVerdict
+reloader_stop(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
+{
+    (void)ctx;
+    (void)ev;
+    (void)ud;
+    g_reload_stops++;
+    return TORIRS_PLUGIN_PASS;
+}
+
+static struct ToriRS_PluginConfigItem const RELOADER_CFG[] = {
+    { .key = "colour", .label = "colour", .type = TORIRS_PLUGIN_CFG_STRING,
+      .default_value = "#000000" },
+    { 0 },
+};
+
+static void
+reloader_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
+{
+    g_api = api;
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_START, reloader_start, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_STOP, reloader_stop, NULL);
+}
+
+/* Stands in for the Lua adapter's rebuild-from-source hook. */
+static void
+reloader_reload(struct ToriRS_PluginCtx* ctx)
+{
+    (void)ctx;
+    g_reload_hook_calls++;
+}
+
+static struct ToriRS_PluginDef const RELOADER = {
+    .name = "reloader",
+    .version = "1",
+    .priority = 0,
+    .config = RELOADER_CFG,
+    .init = reloader_init,
+    .reload = reloader_reload,
 };
 
 /* Higher priority: must be dispatched before alpha regardless of order. */
@@ -834,6 +995,67 @@ main(void)
                 "and the resident copy is the new one immediately, not after the IO");
         }
 
+        /*
+         * Screenshots.
+         *
+         * The name goes through the same gate an asset name does, because it
+         * is the same kind of thing -- a filename the plugin chose. The
+         * DESTINATION does not, deliberately: it is a path the user typed into
+         * a config field, so separators are the point of it. What both refuse
+         * is `..`, which is the only thing standing between a config field and
+         * the rest of the disk.
+         */
+        {
+            g_engine.screenshots = 0;
+            CHECK(
+                g_api->screenshot(ctx, NULL, "levelup.png") == 1,
+                "a bare filename with no destination is accepted");
+            CHECK(g_engine.screenshots == 1, "and reaches the engine");
+            CHECK(g_engine.last_shot_dir[0] == '\0', "with no destination of its own");
+
+            CHECK(
+                g_api->screenshot(ctx, "shots/levels", "levelup.png") == 1,
+                "a destination with a separator is accepted");
+            CHECK(
+                strcmp(g_engine.last_shot_dir, "shots/levels") == 0,
+                "and is forwarded unchanged");
+
+            CHECK(
+                g_api->screenshot(ctx, "shots/../../etc", "levelup.png") == 0,
+                "a destination that climbs out is refused");
+            CHECK(
+                g_api->screenshot(ctx, NULL, "../levelup.png") == 0,
+                "and so is a name that does");
+            CHECK(g_engine.screenshots == 2, "neither reaches the engine");
+        }
+
+        /* Chat, and the moments the client recognises in it. Both are plain
+         * forwarding here -- the recognising happens in the client, and is
+         * tested against real message text in test-game-events. */
+        {
+            g_gamma_chats = 0;
+            g_gamma_game_events = 0;
+
+            PluginHost_ChatMessage(host3, 0, NULL, "Your Zulrah kill count is: 122.");
+            CHECK(g_gamma_chats == 1, "a chat line reaches its subscriber");
+            CHECK(
+                strcmp(g_gamma_chat_text, "Your Zulrah kill count is: 122.") == 0,
+                "with its text");
+
+            PluginHost_GameEvent(host3, "boss_kill", "Zulrah", 122, "Your Zulrah kill count is: 122.");
+            CHECK(g_gamma_game_events == 1, "a game event reaches its subscriber");
+            CHECK(strcmp(g_gamma_event_kind, "boss_kill") == 0, "naming the kind");
+            CHECK(strcmp(g_gamma_event_subject, "Zulrah") == 0, "and the subject");
+            CHECK(g_gamma_event_value == 122, "and the value");
+
+            /* A sender-less system line and a subject-less moment both have to
+             * arrive as empty strings rather than as NULL: a plugin reading
+             * ev.sender must never have to test for one. */
+            PluginHost_GameEvent(host3, "pet", NULL, -1, NULL);
+            CHECK(g_gamma_event_subject[0] == '\0', "an unnamed subject reads as empty");
+            CHECK(g_gamma_event_value == -1, "and a valueless moment as -1");
+        }
+
         /* Stopping the plugin takes its geometry and its bytes with it. */
         PluginHost_SetEnabled(host3, g, false);
         CHECK(g_engine.objects_live == 0, "a stopped plugin's world objects are destroyed");
@@ -852,6 +1074,136 @@ main(void)
         }
 
         PluginHost_Free(host3);
+    }
+
+
+    /* ---- the plugin window ------------------------------------------------ */
+    {
+        struct ToriRS_PluginHost* hw = PluginHost_New(&engine);
+        int const w = PluginHost_Register(hw, &WINNER);
+        int rev_after_build;
+
+        g_win_builds = 0;
+        g_win_events = 0;
+        PluginHost_Start(hw);
+
+        CHECK(!PluginHost_WinHasTab(hw, w), "a plugin has no tab until it asks");
+        CHECK(PluginHost_WinWidgetCount(hw, w) == 0, "and no controls");
+
+        PluginHost_WinBuild(hw, w);
+        CHECK(g_win_builds == 1, "an empty tab is built once");
+        CHECK(PluginHost_WinHasTab(hw, w), "the tab is claimed");
+        CHECK(strcmp(PluginHost_WinTabTitle(hw, w), "Beams") == 0, "with the title it asked for");
+        CHECK(PluginHost_WinWidgetCount(hw, w) == 4, "every declared control is registered");
+        rev_after_build = PluginHost_WinRevision(hw);
+
+        /* Values the plugin set during the build are held by the host, so a
+         * presentation opening later shows them without asking the plugin. */
+        {
+            struct ToriRS_PluginWinWidget const* c = PluginHost_WinWidgetAt(hw, w, 0);
+            struct ToriRS_PluginWinWidget const* t = PluginHost_WinWidgetAt(hw, w, 1);
+            struct ToriRS_PluginWinWidget const* d = PluginHost_WinWidgetAt(hw, w, 2);
+            CHECK(c && strcmp(c->id, "enabled") == 0, "controls keep declaration order");
+            CHECK(c && c->checked == 1, "a checkbox holds the state the plugin set");
+            CHECK(t && strcmp(t->text, "#FFCC00") == 0, "a field holds its text");
+            CHECK(d && strcmp(d->choices, "beam|ring|off") == 0, "a dropdown holds its list");
+        }
+
+        /* Building again is a no-op: a non-empty tab must not be reset by
+         * whatever else happens to open the window. */
+        PluginHost_WinBuild(hw, w);
+        CHECK(g_win_builds == 1, "a tab that already has controls is not rebuilt");
+        CHECK(PluginHost_WinWidgetCount(hw, w) == 4, "and its controls are not duplicated");
+        CHECK(PluginHost_WinRevision(hw) == rev_after_build, "nothing shape-like changed");
+
+        /* Using a control reaches the plugin, and the host's copy is updated
+         * FIRST so a handler reading its own control back sees the new value. */
+        PluginHost_WinDispatch(hw, w, "enabled", TORIRS_PLUGIN_UI_TOGGLE, 0, NULL);
+        CHECK(g_win_events == 1, "a control's use reaches the plugin");
+        CHECK(strcmp(g_win_last_id, "enabled") == 0, "naming the control");
+        CHECK(g_win_last_action == TORIRS_PLUGIN_UI_TOGGLE, "and the action");
+        CHECK(PluginHost_WinWidgetAt(hw, w, 0)->checked == 0, "the host's copy is updated");
+
+        PluginHost_WinDispatch(hw, w, "colour", TORIRS_PLUGIN_UI_TEXT, -1, "#00FF00");
+        CHECK(strcmp(g_win_last_text, "#00FF00") == 0, "an edit carries its new text");
+        CHECK(
+            strcmp(PluginHost_WinWidgetAt(hw, w, 1)->text, "#00FF00") == 0,
+            "and the host holds it");
+
+        /* A control nobody declared is refused rather than dispatched: a stale
+         * presentation must not be able to raise events for controls that are
+         * gone. */
+        CHECK(
+            PluginHost_WinDispatch(hw, w, "ghost", TORIRS_PLUGIN_UI_ACTIVATE, -1, NULL) == 0,
+            "an unknown control dispatches nothing");
+
+        /* Disabling takes the tab with it -- controls left in the window would
+         * dispatch to a plugin that is not running. */
+        PluginHost_SetEnabled(hw, w, false);
+        CHECK(!PluginHost_WinHasTab(hw, w), "a disabled plugin loses its tab");
+        CHECK(PluginHost_WinWidgetCount(hw, w) == 0, "and its controls");
+        CHECK(PluginHost_WinRevision(hw) != rev_after_build, "which is a shape change");
+
+        /* Re-enabling gives it back, through the same one declaration site. */
+        PluginHost_SetEnabled(hw, w, true);
+        PluginHost_WinBuild(hw, w);
+        CHECK(g_win_builds == 2, "a re-enabled plugin is asked to rebuild");
+        CHECK(PluginHost_WinWidgetCount(hw, w) == 4, "and gets its controls back");
+
+        PluginHost_Free(hw);
+    }
+
+
+    /* ---- reload ------------------------------------------------------------ */
+    {
+        struct ToriRS_PluginHost* hr = PluginHost_New(&engine);
+        int const r = PluginHost_Register(hr, &RELOADER);
+
+        g_reload_starts = 0;
+        g_reload_stops = 0;
+        g_reload_hook_calls = 0;
+        PluginHost_Start(hr);
+        CHECK(g_reload_starts == 1, "the plugin started once");
+        CHECK(strcmp(g_reload_seen, "#000000") == 0, "reading its declared default");
+
+        /* The case the whole thing exists for: write the key, reload, and the
+         * plugin's on_start sees the NEW value. Without the reload it would
+         * still be running on the one it cached at boot. */
+        PluginHost_ConfigSet(hr, r, "colour", "#FFCC00");
+        PluginHost_Reload(hr, r);
+        CHECK(g_reload_stops == 1, "reload stops the plugin");
+        CHECK(g_reload_hook_calls == 1, "and gives the adapter its rebuild hook");
+        CHECK(g_reload_starts == 2, "and starts it again");
+        CHECK(strcmp(g_reload_seen, "#FFCC00") == 0, "on_start sees the saved value");
+
+        /* Saved values SURVIVE the reload -- a reload that reset the store to
+         * defaults would make Save a button that undoes itself. */
+        CHECK(
+            strcmp(PluginHost_ConfigGet(hr, r, "colour"), "#FFCC00") == 0,
+            "the saved value survives the reload");
+
+        /* Everything the previous run held is released: subscriptions are
+         * dropped and rebuilt rather than accumulated, so a plugin reloaded
+         * ten times still handles each event once. */
+        {
+            int const before = g_reload_starts;
+            for( int i = 0; i < 5; i++ )
+                PluginHost_Reload(hr, r);
+            CHECK(g_reload_starts == before + 5, "five reloads are five starts, not thirty-two");
+            CHECK(g_reload_stops == before + 4, "each one stopped the run before it");
+        }
+
+        /* A disabled plugin is left alone: reloading it here would switch it
+         * back on behind the user's back. */
+        PluginHost_SetEnabled(hr, r, false);
+        {
+            int const starts = g_reload_starts;
+            PluginHost_Reload(hr, r);
+            CHECK(g_reload_starts == starts, "a disabled plugin is not reloaded");
+            CHECK(!PluginHost_IsEnabled(hr, r), "and is not switched on by the attempt");
+        }
+
+        PluginHost_Free(hr);
     }
 
     PluginHost_Free(host);

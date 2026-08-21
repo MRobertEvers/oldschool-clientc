@@ -20,9 +20,13 @@
 #
 #   the gamepack     Deobfuscator/instr/src recompiled into an injected-client
 #                    jar. Checked for changes on every run and rebuilt when its
-#                    sources moved; then gated on instr/tools/verify_api.py,
-#                    because a dropped accessor is an AbstractMethodError inside
-#                    a plugin hours away from this build.
+#                    sources moved; then gated on instr/tools/verify_api.py and
+#                    instr/tools/verify_static_init.py. Both guard the same
+#                    thing: something the decompiler changed that javac accepts.
+#                    A dropped accessor is an AbstractMethodError inside a
+#                    plugin hours away from this build; a forward-referenced
+#                    static initialiser is a zero-length array that crashes
+#                    whenever the field is finally used.
 #   the RSA modulus  compiled into that jar. It has to be the manifest's
 #                    rsa_mod, which is the mock server's public key -- otherwise
 #                    the login block is encrypted to a key nothing here holds
@@ -395,6 +399,17 @@ elif deob_stale; then
     if [ -x "$DEOB/instr/tools/verify_api.py" ]; then
         ( cd "$DEOB" && python3 instr/tools/verify_api.py ) \
             || die "API surface incomplete — see the census above"
+    fi
+    # The second gate, and it is the same shape of problem: something the
+    # decompiler changed that javac accepts. CFR orders fields its own way and
+    # folds <clinit> into the declarations, so a field initialised from one
+    # declared below it gets qualified as `Self.later` -- legal Java that reads
+    # the DEFAULT value. class70's nine draw arrays came out four int[0] and
+    # five int[50] that way, and the first npc to say anything overhead killed
+    # the client in Statics.method6709 with an index-0-of-length-0.
+    if [ -x "$DEOB/instr/tools/verify_static_init.py" ]; then
+        ( cd "$DEOB" && python3 instr/tools/verify_static_init.py ) \
+            || die "forward-referenced static initialiser — see the list above"
     fi
 else
     say "gamepack is up to date ($INSTR_JAR)"

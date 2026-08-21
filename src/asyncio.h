@@ -339,12 +339,31 @@ ToriRS_IO_Free(struct ToriRS_IO* io)
     free(io);
 }
 
+/*
+ * Release a served item.
+ *
+ * `data` is freed for every kind that FILLED it -- a read's payload belongs to
+ * the item and this is where it dies. FILE_WRITE is the one kind that carries
+ * data the other way: the bytes are the caller's, borrowed for the duration of
+ * the request, and QueueFileWrite says in as many words that freeing them is
+ * still the caller's job. Freeing them here made that promise false, and the
+ * caller -- which frees them itself, exactly as told -- was freeing them a
+ * second time.
+ *
+ * Tested by nothing for a long while because only three tasks write files, and
+ * the one that ran on every boot (Task_PrefsSave) had worked around it by
+ * detaching the pointer before calling this. The two that did not were the
+ * plugin settings save and the plugin asset write, neither of which runs until
+ * a plugin actually stores something -- so the first plugin to do it aborted
+ * the client.
+ */
 static inline void
 ToriRS_IO_ClearItem(struct ToriRS_IOItem* item)
 {
     assert(item != NULL);
+    if( item->kind != TORIRS_IOK_FILE_WRITE )
+        free(item->data);
     item->kind = TORIRS_IOK_NONE;
-    free(item->data);
     item->error_code = 0;
     item->data = NULL;
     item->data_size = 0;

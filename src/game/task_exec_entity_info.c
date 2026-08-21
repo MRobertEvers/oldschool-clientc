@@ -685,6 +685,11 @@ player_apply_op(
                 RS_CHAT_TYPE_PUBLIC,
                 player && player->name[0] ? player->name : "Player",
                 op->_say.text);
+            App_NotifyChatMessage(
+                app,
+                RS_CHAT_TYPE_PUBLIC,
+                player && player->name[0] ? player->name : "Player",
+                op->_say.text);
             /* Forced chat draws overhead in plain yellow (colour/effect 0). */
             World_PlayerSetChat(world, idx, op->_say.text, 0, 0);
         }
@@ -702,6 +707,11 @@ player_apply_op(
                     World_EntityPoolGet(&world->entities.player, idx);
                 RS_Chat_AddMessage(
                     &app->chat,
+                    RS_CHAT_TYPE_PUBLIC,
+                    player && player->name[0] ? player->name : "Player",
+                    text);
+                App_NotifyChatMessage(
+                    app,
                     RS_CHAT_TYPE_PUBLIC,
                     player && player->name[0] ? player->name : "Player",
                     text);

@@ -83,22 +83,41 @@ app_plugin_fill_player(
     out->fine_x = (int)player->draw_position.x;
     out->fine_z = (int)player->draw_position.z;
 
-    /* The tail of the queue is where the walk ends; an empty queue means the
-     * entity is standing on its true tile. */
-    if( player->pathing.route_length > 0 )
+    /*
+     * Where the walk ends is the MAP FLAG, and only the map flag.
+     *
+     * The route queue cannot answer it. `route` is a history buffer the draw
+     * position interpolates through -- route[0] is the newest tile and the
+     * entries above it are the ones being slid away from -- so its far end
+     * trails BEHIND the player rather than leading. Under server-authoritative
+     * pathing it is never more than a step or two long either, because the
+     * server hands out one tile per tick; the destination is not in it at any
+     * point in the walk.
+     *
+     * The flag is what the client is actually told: it is set from the routed
+     * destination on the click (or by the server's SET_MAP_FLAG) and cleared
+     * on arrival, which is exactly the lifetime a destination marker wants.
+     * RuneLite's tile indicator draws this same value -- Client.
+     * getLocalDestinationLocation() is the flag, not a path.
+     *
+     * It belongs to the local player alone. Every other player's snapshot
+     * reports itself as its own destination, which is what "not walking
+     * anywhere I can see" has to look like.
+     */
+    if( player == app_local_player(app) && app->minimap_flag_x >= 0 )
     {
-        int const last = player->pathing.route_length - 1;
-        out->dest_x = base_x + player->pathing.route_x[last];
-        out->dest_z = base_z + player->pathing.route_z[last];
+        out->flag_x = base_x + app->minimap_flag_x;
+        out->flag_z = base_z + app->minimap_flag_z;
+        out->dest_x = out->flag_x;
+        out->dest_z = out->flag_z;
     }
     else
     {
+        out->flag_x = -1;
+        out->flag_z = -1;
         out->dest_x = out->true_x;
         out->dest_z = out->true_z;
     }
-
-    out->flag_x = app->minimap_flag_x >= 0 ? base_x + app->minimap_flag_x : -1;
-    out->flag_z = app->minimap_flag_x >= 0 ? base_z + app->minimap_flag_z : -1;
 
     out->server_pid = player->server_pid;
     out->element_id = player->element_id;

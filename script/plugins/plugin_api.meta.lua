@@ -70,9 +70,9 @@ dofile = nil
 ---@field level integer
 ---@field fine_x integer Interpolated position, in 1/128ths of a tile.
 ---@field fine_z integer
----@field dest_x integer Far end of the route queue; equals true_x when idle.
+---@field dest_x integer Where the walk ends -- the map flag, which lives from the click to the arrival. Equals true_x when there is no destination. Local player only: every other player reports itself.
 ---@field dest_z integer
----@field flag_x integer Minimap click latch, or -1. The only record of a click the server has not echoed yet.
+---@field flag_x integer The same flag, unfolded: -1 when there is no destination at all, which dest_x cannot say. Local player only.
 ---@field flag_z integer
 ---@field server_pid integer
 ---@field element_id integer Scene element id, for draw.hull().
@@ -128,6 +128,8 @@ dofile = nil
 ---@field asset_data fun(name: string): string? The resident bytes, or nil while pending / after a failure. Binary-safe: Lua strings count their bytes and may contain NULs.
 ---@field asset_save fun(name: string, data: string): boolean Replace `name` and queue the write. The resident copy is updated before returning, so asset_data() answers with the new bytes at once.
 ---@field asset_release fun(name: string) Drop the resident copy. The file is untouched.
+---@field screenshot fun(name: string, dir?: string): boolean Capture the client's frame as a PNG. DEFERRED: taken at the top of the next frame, because every caller runs before the interface it wants has been laid out. `name` is a bare filename of [A-Za-z0-9._-]; ".png" is appended when it carries no extension. `dir` is a destination the USER named -- the one place the asset sandbox does not apply, since a screenshot is write-only and the path comes from a config field; `..` is still refused. ABSOLUTE (leading '/') is used as given; RELATIVE or absent lands under the plugin's own saved-asset folder, so subdirectories work on the browser lane too.
+---@field datestamp fun(): string? Local wall-clock as "YYYY-MM-DD_HH-MM-SS". The only clock a script has with any relation to a calendar -- the sandbox does not link `os`, and frame_ms is monotonic. Filename-safe by construction, and the format RuneLite names screenshots with.
 ---@field object_create fun(): integer? A world object owned by this plugin, inactive and with no model yet. nil when the plugin is at its object budget.
 ---@field object_destroy fun(object: integer)
 ---@field object_model fun(object: integer, id: integer, kind?: '"model"'|'"spotanim"') `model` is a raw model id; `spotanim` is a spotanimtype, drawn with its own recolours, resize, angle and seq. Defaults to "model".
@@ -218,6 +220,23 @@ dofile = nil
 ---@field y integer
 ---@field row torirs.MenuRow
 
+--- One line that reached the chatbox.
+---@class torirs.EvChat
+---@field type integer Protocol message type: 0 game, 2 public, 3 private-from, and so on.
+---@field sender string Empty for a system line.
+---@field text string As the chatbox holds it, colour tags and all.
+
+--- One notable moment the client recognised.
+---
+--- `kind` is a string rather than a number because the recogniser
+--- (src/game/rs_game_events.c) owns the list and a plugin's config lists these
+--- by name; a kind added there reaches every plugin without an ABI change.
+---@class torirs.EvGameEvent
+---@field kind '"level_up"'|'"quest_complete"'|'"valuable_drop"'|'"untradeable_drop"'|'"boss_kill"'|'"pet"'|'"collection_log"'|'"combat_achievement"'|'"death"'|'"treasure_trail"'|'"duel_end"'
+---@field subject string The skill, boss, quest or item; "" when the moment names none.
+---@field value integer New level / kill count / coin value, or -1 when the kind carries none.
+---@field text string The line it was recognised from, markup stripped. Empty for a level-up, which comes from UPDATE_STAT rather than from prose.
+
 ---@class torirs.EvConfig
 ---@field key string
 
@@ -274,3 +293,5 @@ dofile = nil
 ---@field on_obj_count? fun(api: torirs.Api, obj: torirs.ObjSnap): torirs.Verdict A stack's count changed in place; `obj` carries the new one.
 ---@field on_obj_despawn? fun(api: torirs.Api, obj: torirs.ObjSnap): torirs.Verdict The last known state; fires before the entity is released.
 ---@field on_asset? fun(api: torirs.Api, ev: torirs.EvAsset): torirs.Verdict
+---@field on_chat_message? fun(api: torirs.Api, ev: torirs.EvChat): torirs.Verdict Every chat line, raw. Use on_game_event for the moments the client already recognises.
+---@field on_game_event? fun(api: torirs.Api, ev: torirs.EvGameEvent): torirs.Verdict A level-up, quest completion, drop, boss kill or other notable moment.

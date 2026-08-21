@@ -119,6 +119,18 @@ struct LuaScript
 
     size_t mem_used;
     bool alive;
+
+    /**
+     * The script's text, kept so it can be re-executed.
+     *
+     * Reload is why: tearing the lua_State down and calling init again
+     * re-subscribes the SAME function references, so without the source the
+     * file's text is never run a second time and a "reload" changes nothing.
+     * Held on the C heap rather than in the per-script Lua arena, because the
+     * arena is exactly what a reload throws away.
+     */
+    char* source;
+    int source_len;
 };
 
 static struct LuaScript g_scripts[PLUGIN_LUA_MAX_SCRIPTS];
@@ -512,6 +524,104 @@ lua_api_cfg_set(lua_State* L)
     return 0;
 }
 
+/* ------------------------------------------------------- the window tab
+ *
+ * `api.window.*`, a thin forward of the win_* verbs. Kinds arrive as STRINGS
+ * ("checkbox", "input") rather than as numeric constants, because a script that
+ * has to be handed a table of enum values in order to name a checkbox is a
+ * script whose api leaked the C header into it -- and a typo'd string can be
+ * reported by name, where a wrong integer cannot.
+ */
+
+static int
+lua_window_kind_from_name(char const* name)
+{
+    if( !name )
+        return -1;
+    if( strcmp(name, "label") == 0 )
+        return TORIRS_PLUGIN_W_LABEL;
+    if( strcmp(name, "checkbox") == 0 )
+        return TORIRS_PLUGIN_W_CHECKBOX;
+    if( strcmp(name, "input") == 0 )
+        return TORIRS_PLUGIN_W_INPUT;
+    if( strcmp(name, "dropdown") == 0 )
+        return TORIRS_PLUGIN_W_DROPDOWN;
+    if( strcmp(name, "button") == 0 )
+        return TORIRS_PLUGIN_W_BUTTON;
+    if( strcmp(name, "separator") == 0 )
+        return TORIRS_PLUGIN_W_SEPARATOR;
+    return -1;
+}
+
+static int
+lua_window_request(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* title = luaL_optstring(L, 1, script->name);
+    lua_pushboolean(L, g_api->win_request(script->cur_ctx, title));
+    return 1;
+}
+
+static int
+lua_window_widget(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* kind_name = luaL_checkstring(L, 1);
+    char const* id = luaL_checkstring(L, 2);
+    char const* label = luaL_optstring(L, 3, NULL);
+    int const kind = lua_window_kind_from_name(kind_name);
+
+    /* Named, not numbered: the message says which word was wrong. */
+    if( kind < 0 )
+        return luaL_error(
+            L,
+            "window.widget: unknown kind '%s' (label, checkbox, input, dropdown, button, "
+            "separator)",
+            kind_name);
+
+    lua_pushboolean(L, g_api->win_widget(script->cur_ctx, kind, id, label));
+    return 1;
+}
+
+static int
+lua_window_set_text(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* id = luaL_checkstring(L, 1);
+    char const* text = luaL_tolstring(L, 2, NULL);
+    lua_pushboolean(L, g_api->win_set_text(script->cur_ctx, id, text));
+    return 1;
+}
+
+static int
+lua_window_set_checked(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* id = luaL_checkstring(L, 1);
+    lua_pushboolean(L, g_api->win_set_checked(script->cur_ctx, id, lua_toboolean(L, 2) != 0));
+    return 1;
+}
+
+static int
+lua_window_set_options(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* id = luaL_checkstring(L, 1);
+    char const* choices = luaL_checkstring(L, 2);
+    /* 1-based in Lua, as every index a script writes is; -1 stays "none". */
+    int const selected = (int)luaL_optinteger(L, 3, 0) - 1;
+    lua_pushboolean(L, g_api->win_set_options(script->cur_ctx, id, choices, selected));
+    return 1;
+}
+
+static int
+lua_window_clear(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    g_api->win_clear(script->cur_ctx);
+    return 0;
+}
+
 /* Reads go through the schema so a colour arrives as an integer and a bool as
  * a boolean, rather than every script re-parsing "#RRGGBB" by hand. */
 static int
@@ -792,6 +902,21 @@ lua_api_screenshot(lua_State* L)
     return 1;
 }
 
+static int
+lua_api_datestamp(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char stamp[32];
+
+    if( !g_api->datestamp(script->cur_ctx, stamp, (int)sizeof(stamp)) )
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_pushstring(L, stamp);
+    return 1;
+}
+
 /* -- world objects -- */
 
 static int
@@ -1026,6 +1151,7 @@ lua_build_api_table(struct LuaScript* script)
         { "asset_save", lua_api_asset_save },
         { "asset_release", lua_api_asset_release },
         { "screenshot", lua_api_screenshot },
+        { "datestamp", lua_api_datestamp },
         { "object_create", lua_api_object_create },
         { "object_destroy", lua_api_object_destroy },
         { "object_model", lua_api_object_model },
@@ -1048,6 +1174,32 @@ lua_build_api_table(struct LuaScript* script)
         lua_pushlightuserdata(L, script);
         lua_pushcclosure(L, FNS[i].fn, 1);
         lua_setfield(L, -2, FNS[i].name);
+    }
+
+    /* api.window: the plugin's tab in the shared window. A sub-table rather
+     * than six more api.win_* names, because these only make sense together
+     * and a script reading `api.window.widget(...)` is told as much. */
+    {
+        static const struct
+        {
+            char const* name;
+            lua_CFunction fn;
+        } WIN[] = {
+            { "request", lua_window_request },
+            { "widget", lua_window_widget },
+            { "set_text", lua_window_set_text },
+            { "set_checked", lua_window_set_checked },
+            { "set_options", lua_window_set_options },
+            { "clear", lua_window_clear },
+        };
+        lua_createtable(L, 0, (int)(sizeof(WIN) / sizeof(WIN[0])));
+        for( size_t i = 0; i < sizeof(WIN) / sizeof(WIN[0]); i++ )
+        {
+            lua_pushlightuserdata(L, script);
+            lua_pushcclosure(L, WIN[i].fn, 1);
+            lua_setfield(L, -2, WIN[i].name);
+        }
+        lua_setfield(L, -2, "window");
     }
 
     /* api.config: a proxy, so panel edits are visible on the next event
@@ -1189,6 +1341,8 @@ static char const* const LUA_HANDLER_NAME[TORIRS_PLUGIN_EV_COUNT] = {
     [TORIRS_PLUGIN_EV_ASSET] = "on_asset",
     [TORIRS_PLUGIN_EV_CHAT_MESSAGE] = "on_chat_message",
     [TORIRS_PLUGIN_EV_GAME_EVENT] = "on_game_event",
+    [TORIRS_PLUGIN_EV_UI] = "on_ui",
+    [TORIRS_PLUGIN_EV_UI_BUILD] = "on_ui_build",
 };
 
 /* Push the event's second argument. Returns the number of arguments pushed. */
@@ -1284,6 +1438,37 @@ lua_push_event_arg(struct LuaScript* script, int event, void* payload)
         lua_setfield(L, -2, "text");
         return 1;
     }
+    case TORIRS_PLUGIN_EV_UI:
+    {
+        struct ToriRS_PluginEvUi const* ev = payload;
+        static char const* const ACTION[] = { "activate", "toggle", "text", "pick" };
+        lua_createtable(L, 0, 4);
+        lua_pushstring(L, ev->widget_id ? ev->widget_id : "");
+        lua_setfield(L, -2, "widget");
+        /* The action as a word, matching the strings window.widget takes: a
+         * script writes `if ev.action == "toggle"`, never a bare number. */
+        lua_pushstring(
+            L,
+            ev->action >= 0 && ev->action < (int)(sizeof(ACTION) / sizeof(ACTION[0]))
+                ? ACTION[ev->action]
+                : "");
+        lua_setfield(L, -2, "action");
+        /* PICK indices are 0-based across the contract and 1-based in Lua. */
+        lua_pushinteger(
+            L, ev->action == TORIRS_PLUGIN_UI_PICK ? ev->value + 1 : ev->value);
+        lua_setfield(L, -2, "value");
+        lua_pushstring(L, ev->text ? ev->text : "");
+        lua_setfield(L, -2, "text");
+        /* A toggle's state reads better as a boolean than as 0/1, and a script
+         * asking "is it on" should not have to know which it got. */
+        lua_pushboolean(L, ev->value != 0);
+        lua_setfield(L, -2, "on");
+        return 1;
+    }
+    case TORIRS_PLUGIN_EV_UI_BUILD:
+        /* No payload worth pushing: "build your tab" carries nothing but the
+         * instruction, and the api the handler needs is its first argument. */
+        return 0;
     case TORIRS_PLUGIN_EV_PACKET_IN:
     {
         struct ToriRS_PluginEvPacketIn const* ev = payload;
@@ -1485,6 +1670,8 @@ lua_script_release(struct LuaScript* script)
         lua_close(script->L);
     script->L = NULL;
     script->alive = false;
+    /* The source deliberately OUTLIVES the state: a reload releases the VM and
+     * then rebuilds from exactly these bytes. PluginLua_Shutdown frees it. */
 }
 
 /* Copy one declared config item into the script's own storage. The host holds
@@ -1560,45 +1747,47 @@ lua_read_config_item(struct LuaScript* script, lua_State* L, int idx, int slot)
     return true;
 }
 
-int
-PluginLua_AddScript(
-    struct ToriRS_PluginHost* host,
-    char const* name,
-    char const* source,
-    int source_len)
+/*
+ * Build a script's VM from its text: a fresh state, the chunk run, the table it
+ * returned read for a name, a version, a config schema and handlers.
+ *
+ * Extracted from PluginLua_AddScript so reload can run exactly the same path.
+ * Anything a reload did differently from a first load would be a difference
+ * that only shows up after a reload, which is the worst place for one.
+ *
+ * `name` seeds the identity; a script that names itself overrides it. On
+ * failure the script is left released and `false` is returned.
+ */
+static void lua_script_plugin_reload(struct ToriRS_PluginCtx* ctx);
+
+static bool
+lua_script_build(struct LuaScript* script, char const* name, char const* source, int source_len)
 {
-    struct LuaScript* script;
     lua_State* L;
     char chunk[TORIRS_PLUGIN_NAME_MAX + 2];
 
-    assert(host);
+    assert(script);
     assert(name);
     assert(source);
     assert(source_len > 0);
 
-    if( g_script_count >= PLUGIN_LUA_MAX_SCRIPTS )
-    {
-        fprintf(stderr, "plugin: lua script table full, refusing '%s'\n", name);
-        return -1;
-    }
-
-    script = &g_scripts[g_script_count];
-    memset(script, 0, sizeof(*script));
-    script->host = host;
-    script->plugin_index = -1;
+    /* Every ref is dead with the old state; re-seed them so a failure halfway
+     * through does not leave a stale index pointing into a closed registry. */
     script->table_ref = LUA_NOREF;
     script->api_ref = LUA_NOREF;
     script->draw_ref = LUA_NOREF;
     script->menu_ref = LUA_NOREF;
     for( int i = 0; i < TORIRS_PLUGIN_EV_COUNT; i++ )
         script->handler_ref[i] = LUA_NOREF;
+    script->config_count = 0;
+    script->mem_used = 0;
     snprintf(script->name, sizeof(script->name), "%s", name);
 
     L = lua_newstate(lua_script_alloc, script, 0);
     if( !L )
     {
         fprintf(stderr, "plugin: lua state for '%s' would not start\n", name);
-        return -1;
+        return false;
     }
     script->L = L;
     script->alive = true;
@@ -1613,7 +1802,7 @@ PluginLua_AddScript(
         fprintf(stderr, "plugin: lua script '%s' failed to load: %s\n", name, err ? err : "?");
         lua_disarm_budget(script);
         lua_script_release(script);
-        return -1;
+        return false;
     }
     lua_disarm_budget(script);
 
@@ -1625,7 +1814,7 @@ PluginLua_AddScript(
             name,
             luaL_typename(L, -1));
         lua_script_release(script);
-        return -1;
+        return false;
     }
 
     /* A script may name itself; the file name is the fallback so a plugin's
@@ -1664,7 +1853,7 @@ PluginLua_AddScript(
                 PLUGIN_LUA_MAX_CONFIG,
                 (int)n - PLUGIN_LUA_MAX_CONFIG);
             lua_script_release(script);
-            return -1;
+            return false;
         }
         for( lua_Integer i = 1; i <= n && script->config_count < PLUGIN_LUA_MAX_CONFIG; i++ )
         {
@@ -1693,17 +1882,92 @@ PluginLua_AddScript(
     lua_build_api_table(script);
     lua_build_menu(script);
 
+    /* Rewritten every build, not only the first: a reloaded script may have
+     * gained or lost config keys, and the host rereads the def through the same
+     * pointer after calling `reload`. */
     script->def.name = script->name;
     script->def.version = script->version;
     script->def.priority = 0;
     script->def.config = script->config_count > 0 ? script->config : NULL;
     script->def.init = lua_script_plugin_init;
     script->def.shutdown = NULL;
+    script->def.reload = lua_script_plugin_reload;
+    return true;
+}
+
+/*
+ * The def's `reload` hook: throw the VM away and build a new one from the text
+ * this script was loaded with.
+ *
+ * A failed rebuild leaves the plugin released and disabled rather than half
+ * alive, and says so where the user is looking -- the window's roster shows a
+ * plugin's last fault beside its switch. Reloading a file that no longer
+ * compiles has to be visible: a plugin that silently stopped after a Save
+ * would read as the Save having broken it.
+ */
+static void
+lua_script_plugin_reload(struct ToriRS_PluginCtx* ctx)
+{
+    struct LuaScript* script = lua_script_for_ctx(ctx);
+
+    assert(ctx);
+    if( !script || !script->source )
+        return;
+
+    lua_script_release(script);
+    if( !lua_script_build(script, script->name, script->source, script->source_len) )
+    {
+        PluginHost_SetError(script->host, script->plugin_index, "reload failed; see the log");
+        PluginHost_SetEnabled(script->host, script->plugin_index, false);
+    }
+}
+
+int
+PluginLua_AddScript(
+    struct ToriRS_PluginHost* host,
+    char const* name,
+    char const* source,
+    int source_len)
+{
+    struct LuaScript* script;
+
+    assert(host);
+    assert(name);
+    assert(source);
+    assert(source_len > 0);
+
+    if( g_script_count >= PLUGIN_LUA_MAX_SCRIPTS )
+    {
+        fprintf(stderr, "plugin: lua script table full, refusing '%s'\n", name);
+        return -1;
+    }
+
+    script = &g_scripts[g_script_count];
+    memset(script, 0, sizeof(*script));
+    script->host = host;
+    script->plugin_index = -1;
+
+    /* The text is kept for the life of the script so a reload can re-run it.
+     * On the C heap, deliberately: the per-script Lua arena is exactly what a
+     * reload throws away. */
+    script->source = malloc((size_t)source_len);
+    assert(script->source);
+    memcpy(script->source, source, (size_t)source_len);
+    script->source_len = source_len;
+
+    if( !lua_script_build(script, name, source, source_len) )
+    {
+        free(script->source);
+        script->source = NULL;
+        return -1;
+    }
 
     script->plugin_index = PluginHost_Register(host, &script->def);
     if( script->plugin_index < 0 )
     {
         lua_script_release(script);
+        free(script->source);
+        script->source = NULL;
         return -1;
     }
 
@@ -1741,7 +2005,15 @@ void
 PluginLua_Shutdown(void)
 {
     for( int i = 0; i < g_script_count; i++ )
+    {
         lua_script_release(&g_scripts[i]);
+        /* Released separately from the state, because it outlives one: a
+         * reload closes the VM and rebuilds from these bytes, so only the
+         * final teardown may free them. */
+        free(g_scripts[i].source);
+        g_scripts[i].source = NULL;
+        g_scripts[i].source_len = 0;
+    }
     g_script_count = 0;
 }
 

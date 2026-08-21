@@ -263,7 +263,7 @@ TORIDRAW_CFLAGS = -std=c11 $(TORIDRAW_O_LEVEL) -fno-omit-frame-pointer -g -MMD -
 # Toolchain, SDL and link flags come from the selected platform block. The
 # base subset also reaches the vendored units: a platform whose libc hides
 # strdup behind a feature macro hides it from 3rd/ too.
-CFLAGS += $(PLATFORM_CFLAGS)
+CFLAGS += $(PLATFORM_CFLAGS) $(PLATFORM_CHROME_EXEC_CFLAGS)
 RSCACHE_CFLAGS  += $(PLATFORM_BASE_CFLAGS)
 RSPROT_CFLAGS   += $(PLATFORM_BASE_CFLAGS)
 COMPRESS_CFLAGS += $(PLATFORM_BASE_CFLAGS)
@@ -329,7 +329,7 @@ endif
 
 # platform/platform_sdl2*.c is shared (emscripten ports SDL2); the IO, audio
 # and 3D-renderer backends are per-platform and come in via $(PLATFORM_SRCS).
-SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
+SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_EXEC_SRC) \
 	platform/platform_sdl2_renderer_soft3d.c \
 	$(ASAN_COMPAT_SRC) \
 	$(PLATFORM_SRCS) \
@@ -431,6 +431,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
 	ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
+	ui/torirs_chrome_exec.c \
 	engine/torirs_debug_font_baked.c engine/torirs_chrome_skin_baked.c \
 	ui/uitree_interact.c ui/uitree_iface_stats.c \
 	varp/varp_manager.c \
@@ -1860,6 +1861,12 @@ test-painters-ground-decor: $(OBJ_DIR)
 		$(TORIDRAW_DIR)/graphics/shared_tables.c
 	./$(OBJ_DIR)/painters_test_ground_decor_dynamic
 
+# The model tests link no platform, so they are a build with no NATIVE chrome
+# executor -- a real and supported configuration, and the one every lane falls
+# back to. Undefining the availability flag here says so, rather than leaving
+# the chooser referring to a symbol this binary does not have.
+CHROME_EXEC_TEST_CFLAGS = -UTORIRS_CHROME_EXEC_SDL_AVAILABLE
+
 test-uitree: $(OBJ_DIR)
 	@mkdir -p build
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ui -I$(SRC_DIR)/ui/test -o $(OBJ_DIR)/uitree_test \
@@ -1880,6 +1887,8 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_id_index.c ui/test/uitree_test_component_params.c \
 		ui/test/uitree_test_open_close.c ui/test/uitree_test_live_sets.c \
 		ui/test/uitree_test_debug_overlay.c \
+		ui/test/uitree_test_chrome_exec.c ui/torirs_chrome_exec.c \
+		$(CHROME_EXEC_TEST_CFLAGS) \
 		ui/test/uitree_test_entity_overlay_order.c
 	./$(OBJ_DIR)/uitree_test
 

@@ -188,6 +188,10 @@ dump_npc(
         return;
     }
     printf("npc %d  \"%s\"%s\n", id, npc->name ? npc->name : "(null)", exact ? "" : "  [INEXACT DECODE]");
+    /* Opcode 3. Absent from every pristine dat2 record - a content bake is what
+     * puts one there, and this is how to see whether it landed. */
+    if( npc->desc )
+        printf("  %-22s%s\n", "examine", npc->desc);
     printf("  %-22s%d\n", "size", npc->size);
     printf("  %-22s%d\n", "combat_level", npc->combat_level);
     print_int_list("models", npc->models, npc->models_count);

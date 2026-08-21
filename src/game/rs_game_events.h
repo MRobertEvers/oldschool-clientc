@@ -23,6 +23,21 @@
  *     server that never sends the congratulation line (ours does not), and
  *     cannot be fooled by someone typing the sentence into public chat.
  *
+ * That last one is a deliberate divergence from RuneLite, which is worth
+ * writing down because it is the only place this file does not follow it.
+ * RuneLite's Screenshot plugin reads a level-up off the LEVELUP_DISPLAY
+ * widget, and off the chat line only when the varbit that disables that
+ * widget is set -- two sources, kept from colliding by a varbit. Neither
+ * exists here: this tree's server sends no level-up interface and no
+ * congratulation line, so both of RuneLite's sources would produce nothing at
+ * all, while the numbers are always there.
+ *
+ * The cost is timing. RuneLite photographs the moment the box is on screen,
+ * because the box IS its trigger; a stat packet arrives a little before
+ * whatever announces it, which is why the plugin on top of this waits a
+ * couple of ticks. On a server that does send the box, that wait is the
+ * difference, and it is a config key rather than a constant for that reason.
+ *
  * Recognition is deliberately conservative. A line nobody recognises is not an
  * event, and a wrong guess is worse than a miss: this drives screenshots and
  * notifications, and a plugin that fires on ordinary chat is noise the user

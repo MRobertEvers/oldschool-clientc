@@ -79,6 +79,54 @@ test_dat2_no_multinpc_leaves_transform_count_zero(void)
     free(npctype);
 }
 
+/*
+ * The examine string, npc config opcode 3.
+ *
+ * No pristine dat2 record states one -- OldSchool retired the opcode in 2006
+ * and sends npc examine from the server -- so the converter used to drop the
+ * field on the floor and every npc examined as "It's a <name>.". This tree's
+ * content pack authors examine text into the npc archive under that opcode,
+ * exactly as it already did for a loc, and the hop from the decoded record to
+ * ToriRS_Npctype is the half that was missing.
+ */
+static void
+test_dat2_carries_the_examine_string(void)
+{
+    struct RSCache_Dat2ConfigNpc src;
+    struct ToriRS_Npctype* npctype;
+    char desc[] = "A dangerous cave-dwelling creature.";
+
+    memset(&src, 0, sizeof(src));
+    src.desc = desc;
+
+    npctype = ToriRS_NpctypeFromRSCacheDat2(1, &src);
+    TEST_ASSERT(npctype != NULL, "decode succeeds");
+    TEST_ASSERT(
+        strcmp(npctype->desc, "A dangerous cave-dwelling creature.") == 0,
+        "opcode 3 lands on ToriRS_Npctype.desc");
+
+    free(npctype->transforms);
+    free(npctype);
+}
+
+/* A record that states none leaves the field empty, which is what makes the
+ * Examine handler's "It's a <name>." fallback reachable. */
+static void
+test_dat2_without_examine_leaves_desc_empty(void)
+{
+    struct RSCache_Dat2ConfigNpc src;
+    struct ToriRS_Npctype* npctype;
+
+    memset(&src, 0, sizeof(src));
+
+    npctype = ToriRS_NpctypeFromRSCacheDat2(1, &src);
+    TEST_ASSERT(npctype != NULL, "decode succeeds");
+    TEST_ASSERT(npctype->desc[0] == '\0', "no opcode 3 -> empty desc");
+
+    free(npctype->transforms);
+    free(npctype);
+}
+
 static void
 test_dat1_has_no_multinpc(void)
 {
@@ -187,6 +235,8 @@ main(void)
     test_dat2_carries_multinpc_fields();
     test_dat2_carries_the_movement_animation_set();
     test_dat2_carries_idle_anim_restart();
+    test_dat2_carries_the_examine_string();
+    test_dat2_without_examine_leaves_desc_empty();
     test_dat2_no_multinpc_leaves_transform_count_zero();
     test_dat1_has_no_multinpc();
     return g_failures ? 1 : 0;

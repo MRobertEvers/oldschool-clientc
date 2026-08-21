@@ -33,6 +33,7 @@
 #include "toridraw_sprite.h"
 #include "ui/uitree.h"
 #include "ui/uitree_cross.h"
+#include "ui/torirs_chrome_exec.h"
 #include "ui/uitree_debug_overlay.h"
 #include "ui/uitree_emit.h"
 #include "ui/uitree_host.h"
@@ -129,7 +130,30 @@ enum AppDebugHotkey
 };
 
 /* Enable checkbox plus config rows, across every plugin the panel shows. */
-#define APP_PLUGIN_PANEL_ROWS_MAX 192
+#define APP_PLUGIN_PANEL_ROWS_MAX 320
+/** What one chrome widget in the plugin window edits. */
+enum AppPluginRowKind
+{
+    /** The roster's per-plugin enable switch. Applied immediately. */
+    APP_PLUGIN_ROW_ENABLE = 0,
+    /**
+     * A config key from the plugin's schema. STAGED: the chrome widget holds
+     * the edit and nothing reaches the store until Save.
+     *
+     * The chrome is the staging buffer, which is why there is no third copy of
+     * these values anywhere -- a retained widget already holds exactly "what
+     * the user typed but has not committed".
+     */
+    APP_PLUGIN_ROW_CONFIG,
+    /** A control the plugin declared itself. Dispatched on use, not staged: a
+     *  plugin's own button is an action, not a setting. */
+    APP_PLUGIN_ROW_PLUGIN_WIDGET,
+    APP_PLUGIN_ROW_SAVE,
+    APP_PLUGIN_ROW_REVERT,
+};
+
+/** Room for both chrome instances' display lists at once. */
+#define APP_CHROME_PRIMS_MAX (2 * TORIDBG_MAX_PRIMS)
 
 /* World objects across every plugin at once. Per-plugin budgeting is the
  * host's (TORIRS_PLUGIN_OBJECT_BUDGET); this is the ceiling on the table those
@@ -986,19 +1010,82 @@ struct App
      * anything -- an absent host has to be as cheap as a disabled one.
      */
     struct ToriRS_PluginHost* plugins;
-    /** Settings panel handle in dbg_ui, or -1 before it is built. */
+    /**
+     * The plugin window: a chrome instance of its own, not a panel in dbg_ui.
+     *
+     * Its own instance because it is the one piece of chrome a PLAYER uses
+     * rather than a developer: it has to be able to be open beside the game
+     * without the editors' claim on the keyboard, it needs its own capacity for
+     * a tab per plugin, and it is the surface a native executor is bound to
+     * while the developer chrome stays on the in-canvas one. The objection this
+     * answers -- "a second chrome is a second of all the focus, damage and
+     * scale handling" -- stopped applying once input routing became one shared
+     * call that takes the instance (app_chrome_route_input).
+     */
+    struct ToriRSChrome plugin_ui;
+    /**
+     * Which presentation the plugin window is bound to, and the sync driving
+     * it.
+     *
+     * The developer chrome is deliberately NOT bound to anything: the editors
+     * are in-canvas tools and always have been, and giving them an executor
+     * would be four more consumers to keep working for no one's benefit. The
+     * plugin window is the surface a user might want elsewhere, so it is the
+     * one with a choice.
+     */
+    struct ToriRSChromeSync plugin_exec;
+    /**
+     * The vtable the shell handed over, not yet started.
+     *
+     * Held unbound because begin() is what opens an OS window, and a window
+     * the user never asked to see must not be opened at boot. The sync above
+     * Inits from this the first time the plugin window is shown.
+     */
+    struct ToriRSChromeExec plugin_exec_pending;
+    /** enum ToriRSChromeExecKind actually bound -- which is not always the one
+     *  asked for: an executor that will not start falls back to buffer. */
+    int plugin_exec_kind;
+    /**
+     * The two chrome instances' display lists, concatenated for the emit layer
+     * -- which takes one pointer and one count for the whole overlay.
+     *
+     * Rebuilt only when a build serial moves, so the steady frame stays the
+     * pointer copy the retained chrome promises. Sized for both instances at
+     * once because that is the worst case it has to hold.
+     */
+    struct ToriDbgPrim chrome_merged[APP_CHROME_PRIMS_MAX];
+    int chrome_merged_count;
+    /** The build serials the merge was made from. */
+    int chrome_merged_dbg;
+    int chrome_merged_win;
+    /** The window's panel handle in plugin_ui, or -1 before it is built. */
     int plugin_panel;
     int plugin_panel_visible;
-    /** Plugin count the panel was built against. The panel is rebuilt when
-     *  this stops matching, because scripts register asynchronously and the
-     *  list is short one row until their boot task finishes. */
+    /** The tab strip, and the titles it borrows. The strip borrows rather than
+     *  copies, so the array has to outlive it -- hence App state and not a
+     *  local. Slot 0 is the roster; the rest are one per tabbed plugin. */
+    int plugin_panel_tabs;
+    char plugin_tab_titles[TORIRS_PLUGIN_MAX + 1][64];
+    char const* plugin_tab_title_ptrs[TORIRS_PLUGIN_MAX + 1];
+    int plugin_tab_count;
+    /** Which plugin each tab past the roster shows; -1 for unused slots. */
+    int plugin_tab_owner[TORIRS_PLUGIN_MAX + 1];
+    /** Plugin count and window revision the panel was built against. Rebuilt
+     *  when either stops matching: scripts register asynchronously, and a
+     *  plugin can declare or drop controls at any time. */
     int plugin_panel_built_for;
-    /** widget -> what it edits. cfg_index -1 marks the enable checkbox. */
+    int plugin_panel_built_rev;
+
     struct AppPluginPanelRow
     {
         int widget;
         int plugin;
+        /** enum AppPluginRowKind. */
+        int kind;
+        /** CONFIG: index into the plugin's schema. */
         int cfg_index;
+        /** PLUGIN_WIDGET: the id the plugin gave it. */
+        char widget_id[TORIRS_PLUGIN_WIDGET_ID_MAX];
     } plugin_panel_rows[APP_PLUGIN_PANEL_ROWS_MAX];
     int plugin_panel_row_count;
     /**
@@ -1471,6 +1558,41 @@ App_SetCanvasSize(
  */
 int
 App_SetChromeScale(struct App* app, int scale);
+
+/**
+ * Draw a chrome display list into a buffer of `width` x `height` ARGB pixels.
+ *
+ * Public so the shell can lend it to a chrome SURFACE executor -- a second OS
+ * window drawing the same widgets. Signature matches ToriRSChromeRasteriseFn;
+ * `user` is the struct App*.
+ *
+ * Not a general "draw this anywhere" entry point: it needs the scene the baked
+ * fonts and chrome skin were registered in, which is exactly what this App
+ * holds and why the drawing lives here rather than beside the executor.
+ */
+void
+App_ChromeRasterise(
+    void* user,
+    int* pixels,
+    int width,
+    int height,
+    struct ToriDbgPrim const* prims,
+    int count);
+
+/**
+ * Give the plugin window a presentation to use.
+ *
+ * The shell chooses, because choosing needs the platform handle and the App is
+ * deliberately platform-free -- App_Render is handed a pixel buffer rather than
+ * a window for the same reason. What arrives here is a vtable, NOT a started
+ * executor: it is brought up the first time the plugin window is opened, so a
+ * session that never opens it never opens a second OS window either.
+ *
+ * Optional. Without it the plugin window draws in the game canvas, which is
+ * what every lane with no native executor does anyway.
+ */
+void
+App_SetPluginChromeExec(struct App* app, struct ToriRSChromeExec const* exec, int kind);
 
 /** Device pixels per chrome pixel. */
 int

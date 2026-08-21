@@ -1041,13 +1041,18 @@ player_extended(
             /*
              * The three byte transforms here are NOT the npc block's, and the
              * two blocks do not even agree on which is which: the player reads
-             * the count alt2 and the target fill alt3, the npc reads the count
-             * alt1 and the target fill alt2. Both used to be spelled the other
-             * way round, which costs nothing against a server that makes the
-             * same swap and turns a fill of 12 into 140 against one that does
-             * not -- and a target fill of 140 drew a 140-pixel bar.
+             * the count alt1 and the target fill alt2, the npc reads the count
+             * alt2 and the target fill alt3.
+             *
+             * The pair was inverted -- here, in the npc block below and in
+             * both of the mock's writers -- until 2026-08-21. Four consistent
+             * mistakes round-trip perfectly, so nothing in this tree noticed;
+             * the golden client did, immediately, by reading a count of 1 as
+             * 127 and walking off the end of the packet. The authority is the
+             * deob (class109.method3804 for the player, Statics.method10109
+             * for the npc) and RSProt's Player/NpcHeadbarEncoder.
              */
-            int bars = tail_g1_alt2(data, len, &pos);
+            int bars = tail_g1_alt1(data, len, &pos);
 
             for( int b = 0; b < bars; b++ )
             {
@@ -1071,7 +1076,7 @@ player_extended(
                     {
                         int start_delay = tail_smart(data, len, &pos);
                         int start_fill = tail_g1_alt1(data, len, &pos);
-                        int end_fill = duration > 0 ? tail_g1_alt3(data, len, &pos) : start_fill;
+                        int end_fill = duration > 0 ? tail_g1_alt2(data, len, &pos) : start_fill;
 
                         if( op )
                         {
@@ -1432,9 +1437,10 @@ npc_extended(
         }
         if( (flag & V5_NPC_HEADBARS) != 0 )
         {
-            /* Count alt1 and target fill alt2 -- see the player block above
-             * for why these two are worth spelling out separately. */
-            int bars = tail_g1_alt1(data, len, &pos);
+            /* Count alt2 and target fill alt3 -- see the player block above
+             * for why these two are worth spelling out separately, and for
+             * what reading them the player's way cost. */
+            int bars = tail_g1_alt2(data, len, &pos);
 
             for( int b = 0; b < bars; b++ )
             {
@@ -1457,7 +1463,7 @@ npc_extended(
                     {
                         int start_delay = tail_smart(data, len, &pos);
                         int start_fill = tail_g1_alt1(data, len, &pos);
-                        int end_fill = duration > 0 ? tail_g1_alt2(data, len, &pos) : start_fill;
+                        int end_fill = duration > 0 ? tail_g1_alt3(data, len, &pos) : start_fill;
 
                         if( op )
                         {

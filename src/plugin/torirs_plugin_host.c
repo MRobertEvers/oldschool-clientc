@@ -6,6 +6,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <time.h>
 
 /*
  * Plugin action ids start well clear of the four the editors already own
@@ -114,6 +115,28 @@ struct ToriRS_PluginHost
     struct PluginAsset assets[TORIRS_PLUGIN_ASSETS_MAX];
     int asset_count;
 
+    /*
+     * The shared plugin window.
+     *
+     * One flat pool of controls, each stamped with its owning plugin, rather
+     * than a fixed slice per plugin: a pool of 256 lets one plugin with a rich
+     * settings tab spend what fifteen quiet ones never will, while
+     * TORIRS_PLUGIN_WIDGETS_MAX still stops any single plugin from taking the
+     * lot. A per-plugin array would have to be sized for the greediest and
+     * multiplied by thirty-two.
+     */
+    struct ToriRS_PluginWinWidget win_widgets[TORIRS_PLUGIN_WIN_WIDGETS_MAX];
+    /** Owning plugin index per slot, or -1 for a free one. */
+    int win_owner[TORIRS_PLUGIN_WIN_WIDGETS_MAX];
+    int win_widget_count;
+    /** Per plugin: has a tab, and what it is called. */
+    bool win_tab[TORIRS_PLUGIN_MAX];
+    char win_tab_title[TORIRS_PLUGIN_MAX][64];
+    int win_revision;
+    /** Set while an EV_UI_BUILD dispatch is in flight, so the win_* verbs can
+     *  tell a declaration from a mutation. */
+    bool win_building;
+
     bool config_dirty;
 };
 
@@ -178,6 +201,13 @@ plugin_config_slot(struct ToriRS_PluginCtx* ctx, char const* key, bool create)
     snprintf(slot->key, sizeof(slot->key), "%s", key);
     slot->schema_index = plugin_schema_index(ctx, key);
     return slot;
+}
+
+/** Bounded copy into a fixed buffer; NULL reads as "". */
+static void
+plugin_copy_str(char* dst, size_t cap, char const* src)
+{
+    snprintf(dst, cap, "%s", src ? src : "");
 }
 
 /* Seed the store from the schema. Called at registration so a plugin can read
@@ -842,6 +872,37 @@ api_screenshot(struct ToriRS_PluginCtx* ctx, char const* dir, char const* name)
     return ctx->host->engine.screenshot(ctx->host->engine.user, ctx->name, dir, name);
 }
 
+/*
+ * Wall-clock, in the one format a filename can carry.
+ *
+ * libc rather than an engine call, unlike every other clock here: frame_ms and
+ * world_cycle are the CLIENT's clocks and only the engine knows them, while
+ * this is the machine's, is the same on both lanes, and has no engine state
+ * behind it to fake. A plugin cannot reach it any other way -- the Lua sandbox
+ * does not link `os` -- so its absence would be permanent rather than
+ * inconvenient.
+ */
+static int
+api_datestamp(struct ToriRS_PluginCtx* ctx, char* out, int out_size)
+{
+    time_t now;
+    struct tm local;
+
+    assert(ctx);
+    assert(out);
+    assert(out_size > 0);
+
+    out[0] = '\0';
+    now = time(NULL);
+    /* The reentrant form: a plugin handler runs mid-frame and localtime()'s
+     * shared buffer is not something to hand around. */
+    if( !localtime_r(&now, &local) )
+        return 0;
+    if( strftime(out, (size_t)out_size, "%Y-%m-%d_%H-%M-%S", &local) == 0 )
+        return 0;
+    return 1;
+}
+
 void
 PluginHost_AssetDeliver(
     struct ToriRS_PluginHost* host,
@@ -1054,6 +1115,192 @@ api_hsl_to_rgb(struct ToriRS_PluginCtx* ctx, int hsl)
     return ctx->host->engine.hsl_to_rgb(ctx->host->engine.user, hsl);
 }
 
+/* -- the plugin window -----------------------------------------------------
+ *
+ * The registry is a flat pool stamped with owners, walked linearly. Linear
+ * because a plugin's tab is a couple of dozen controls at most and the walks
+ * happen when a control is declared or used -- never per frame, which is what
+ * the revision counter exists to make true.
+ */
+
+/** Slot index of `id` within `plugin`'s controls, or -1. */
+static int
+plugin_win_find(struct ToriRS_PluginHost const* host, int plugin_index, char const* id)
+{
+    assert(host);
+    assert(id);
+    for( int i = 0; i < host->win_widget_count; i++ )
+        if( host->win_owner[i] == plugin_index && strcmp(host->win_widgets[i].id, id) == 0 )
+            return i;
+    return -1;
+}
+
+static int
+plugin_win_count_owned(struct ToriRS_PluginHost const* host, int plugin_index)
+{
+    int n = 0;
+    for( int i = 0; i < host->win_widget_count; i++ )
+        if( host->win_owner[i] == plugin_index )
+            n++;
+    return n;
+}
+
+/**
+ * Drop every control of one plugin, compacting the pool.
+ *
+ * Compaction rather than a free list because these slots are addressed by
+ * POSITION only within a walk that recomputes it -- nothing outside this file
+ * holds a slot index across a call, so there is no handle to invalidate, and a
+ * compact array keeps the enumeration the panel does a straight scan.
+ */
+static void
+plugin_win_drop(struct ToriRS_PluginHost* host, int plugin_index)
+{
+    int keep = 0;
+
+    assert(host);
+    for( int i = 0; i < host->win_widget_count; i++ )
+    {
+        if( host->win_owner[i] == plugin_index )
+            continue;
+        host->win_widgets[keep] = host->win_widgets[i];
+        host->win_owner[keep] = host->win_owner[i];
+        keep++;
+    }
+    if( keep != host->win_widget_count )
+    {
+        host->win_widget_count = keep;
+        host->win_revision++;
+    }
+}
+
+static bool
+api_win_request(struct ToriRS_PluginCtx* ctx, char const* tab_title)
+{
+    struct ToriRS_PluginHost* host;
+
+    assert(ctx);
+    assert(tab_title);
+    host = ctx->host;
+
+    if( !host->win_tab[ctx->index] )
+    {
+        host->win_tab[ctx->index] = true;
+        host->win_revision++;
+    }
+    if( strcmp(host->win_tab_title[ctx->index], tab_title) != 0 )
+    {
+        plugin_copy_str(
+            host->win_tab_title[ctx->index], sizeof(host->win_tab_title[ctx->index]), tab_title);
+        host->win_revision++;
+    }
+    return true;
+}
+
+static bool
+api_win_widget(struct ToriRS_PluginCtx* ctx, int kind, char const* id, char const* label)
+{
+    struct ToriRS_PluginHost* host;
+    struct ToriRS_PluginWinWidget* w;
+
+    assert(ctx);
+    assert(id);
+    host = ctx->host;
+
+    /* A tab is implied by putting something on it, so a plugin that only ever
+     * wanted controls does not have to remember to ask for the tab first. */
+    if( !host->win_tab[ctx->index] )
+        api_win_request(ctx, ctx->name);
+
+    /* Re-declaring an id is a no-op rather than a duplicate: EV_UI_BUILD can be
+     * raised more than once for the same tab, and a plugin that declares its
+     * controls unconditionally there must not stack them up. */
+    if( plugin_win_find(host, ctx->index, id) >= 0 )
+        return true;
+
+    if( plugin_win_count_owned(host, ctx->index) >= TORIRS_PLUGIN_WIDGETS_MAX ||
+        host->win_widget_count >= TORIRS_PLUGIN_WIN_WIDGETS_MAX )
+    {
+        PluginHost_SetError(host, ctx->index, "window control budget exhausted");
+        return false;
+    }
+
+    w = &host->win_widgets[host->win_widget_count];
+    memset(w, 0, sizeof(*w));
+    w->kind = kind;
+    w->selected = -1;
+    plugin_copy_str(w->id, sizeof(w->id), id);
+    plugin_copy_str(w->label, sizeof(w->label), label ? label : "");
+    host->win_owner[host->win_widget_count] = ctx->index;
+    host->win_widget_count++;
+    host->win_revision++;
+    return true;
+}
+
+static bool
+api_win_set_text(struct ToriRS_PluginCtx* ctx, char const* id, char const* text)
+{
+    int slot;
+
+    assert(ctx);
+    assert(id);
+    slot = plugin_win_find(ctx->host, ctx->index, id);
+    if( slot < 0 )
+        return false;
+    /* A value change deliberately does not bump the revision -- see the note on
+     * PluginHost_WinRevision. The presentation mirrors it onto the control it
+     * already has rather than rebuilding the tab around it. */
+    plugin_copy_str(
+        ctx->host->win_widgets[slot].text, sizeof(ctx->host->win_widgets[slot].text),
+        text ? text : "");
+    return true;
+}
+
+static bool
+api_win_set_checked(struct ToriRS_PluginCtx* ctx, char const* id, bool on)
+{
+    int slot;
+
+    assert(ctx);
+    assert(id);
+    slot = plugin_win_find(ctx->host, ctx->index, id);
+    if( slot < 0 )
+        return false;
+    ctx->host->win_widgets[slot].checked = on ? 1 : 0;
+    return true;
+}
+
+static bool
+api_win_set_options(
+    struct ToriRS_PluginCtx* ctx, char const* id, char const* choices, int selected)
+{
+    struct ToriRS_PluginWinWidget* w;
+    int slot;
+
+    assert(ctx);
+    assert(id);
+    slot = plugin_win_find(ctx->host, ctx->index, id);
+    if( slot < 0 )
+        return false;
+    w = &ctx->host->win_widgets[slot];
+    if( strcmp(w->choices, choices ? choices : "") != 0 )
+    {
+        plugin_copy_str(w->choices, sizeof(w->choices), choices ? choices : "");
+        /* The LIST is shape, unlike the selection into it: a presentation
+         * holding a native combo box has to be rebuilt around a new list. */
+        ctx->host->win_revision++;
+    }
+    w->selected = selected;
+    return true;
+}
+
+static void
+api_win_clear(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+    plugin_win_drop(ctx->host, ctx->index);
+}
+
 /* -- drawing -- */
 
 /* One gate for every draw call: the window must be open, and the plugin must
@@ -1239,6 +1486,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .asset_save = api_asset_save,
         .asset_release = api_asset_release,
         .screenshot = api_screenshot,
+        .datestamp = api_datestamp,
         .object_create = api_object_create,
         .object_destroy = api_object_destroy,
         .object_set_model = api_object_set_model,
@@ -1251,6 +1499,12 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .object_ready = api_object_ready,
         .hsl_from_rgb = api_hsl_from_rgb,
         .hsl_to_rgb = api_hsl_to_rgb,
+        .win_request = api_win_request,
+        .win_widget = api_win_widget,
+        .win_set_text = api_win_set_text,
+        .win_set_checked = api_win_set_checked,
+        .win_set_options = api_win_set_options,
+        .win_clear = api_win_clear,
     };
     host->api = api;
     return host;
@@ -1400,6 +1654,52 @@ PluginHost_Start(struct ToriRS_PluginHost* host)
     }
 }
 
+/**
+ * Take one plugin down: stop it and release everything it holds.
+ *
+ * The teardown half of both disabling and reloading, in one place because they
+ * ARE the same teardown -- and because getting it half right is how a reload
+ * leaves a beam burning in the world or a tab in the window dispatching to a
+ * plugin that is no longer running. Leaves `enabled` alone: what the caller
+ * means to do next is the caller's business.
+ */
+static void
+plugin_teardown(struct ToriRS_PluginHost* host, int plugin_index)
+{
+    struct ToriRS_PluginCtx* ctx = plugin_at(host, plugin_index);
+
+    if( ctx->running )
+    {
+        struct ToriRS_PluginEvFrame ev = { 0 };
+        host->dispatching = plugin_index;
+        for( int s = 0; s < host->sub_count[TORIRS_PLUGIN_EV_STOP]; s++ )
+        {
+            struct PluginSub const* sub = &host->subs[TORIRS_PLUGIN_EV_STOP][s];
+            if( sub->plugin == plugin_index )
+                sub->handler(ctx, &ev, sub->userdata);
+        }
+        host->dispatching = -1;
+        if( ctx->def->shutdown )
+            ctx->def->shutdown(ctx);
+    }
+    plugin_drop_subs(host, plugin_index);
+    /* Geometry and bytes go out with the subscriptions, and for the same
+     * reason: nothing is left running that could remove them later. */
+    plugin_objects_destroy_all(host, ctx);
+    plugin_assets_drop_plugin(host, plugin_index);
+    /* The tab goes with them: a stopped plugin's controls would otherwise sit
+     * in the window still taking clicks, dispatching to a plugin that is not
+     * running and silently doing nothing. */
+    plugin_win_drop(host, plugin_index);
+    if( host->win_tab[plugin_index] )
+    {
+        host->win_tab[plugin_index] = false;
+        host->win_tab_title[plugin_index][0] = '\0';
+        host->win_revision++;
+    }
+    ctx->running = false;
+}
+
 void
 PluginHost_SetEnabled(struct ToriRS_PluginHost* host, int plugin_index, bool enabled)
 {
@@ -1415,31 +1715,75 @@ PluginHost_SetEnabled(struct ToriRS_PluginHost* host, int plugin_index, bool ena
 
     if( !enabled )
     {
-        if( ctx->running )
-        {
-            struct ToriRS_PluginEvFrame ev = { 0 };
-            host->dispatching = plugin_index;
-            for( int s = 0; s < host->sub_count[TORIRS_PLUGIN_EV_STOP]; s++ )
-            {
-                struct PluginSub const* sub = &host->subs[TORIRS_PLUGIN_EV_STOP][s];
-                if( sub->plugin == plugin_index )
-                    sub->handler(ctx, &ev, sub->userdata);
-            }
-            host->dispatching = -1;
-            if( ctx->def->shutdown )
-                ctx->def->shutdown(ctx);
-        }
-        plugin_drop_subs(host, plugin_index);
-        /* Geometry and bytes go out with the subscriptions, and for the same
-         * reason: nothing is left running that could remove them later. */
-        plugin_objects_destroy_all(host, ctx);
-        plugin_assets_drop_plugin(host, plugin_index);
-        ctx->running = false;
+        plugin_teardown(host, plugin_index);
         ctx->enabled = false;
         return;
     }
 
     ctx->enabled = true;
+    PluginHost_Start(host);
+}
+
+void
+PluginHost_Reload(struct ToriRS_PluginHost* host, int plugin_index)
+{
+    struct ToriRS_PluginCtx* ctx;
+
+    assert(host);
+    ctx = plugin_at(host, plugin_index);
+
+    /* A disabled plugin has nothing to reload: it is already torn down, and
+     * restarting it here would switch it on behind the user's back. */
+    if( !ctx->enabled )
+        return;
+
+    plugin_teardown(host, plugin_index);
+
+    /*
+     * The adapter's chance to rebuild from source. It may rewrite the def in
+     * place -- a script that grew a config key or a handler comes back with
+     * it -- so everything below rereads through ctx->def rather than caching
+     * anything from before this call.
+     */
+    if( ctx->def->reload )
+        ctx->def->reload(ctx);
+
+    /*
+     * Re-seed the schema, PRESERVING values that already have one.
+     *
+     * Not plugin_config_seed: that writes every declared default over the
+     * store, which on a reload would throw away the very settings the user
+     * just saved -- the reload exists to make them take effect, so wiping them
+     * would make Save a button that resets the plugin. What this does add is
+     * defaults for keys the reloaded source declares and the store has never
+     * seen, so a script that gained a setting comes back with it populated.
+     */
+    ctx->schema_count = 0;
+    if( ctx->def->config )
+    {
+        for( int i = 0; ctx->def->config[i].key; i++ )
+        {
+            struct ToriRS_PluginConfigItem const* item = &ctx->def->config[i];
+            struct PluginConfigSlot* slot;
+            bool const existed = plugin_config_slot(ctx, item->key, false) != NULL;
+
+            slot = plugin_config_slot(ctx, item->key, true);
+            ctx->schema_count++;
+            if( !slot )
+                continue;
+            /* Re-point the slot at its item in the NEW schema: the old index
+             * may name a different key, or none at all. */
+            slot->schema_index = plugin_schema_index(ctx, item->key);
+            if( !existed )
+                plugin_copy_str(
+                    slot->value, sizeof(slot->value),
+                    item->default_value ? item->default_value : "");
+        }
+    }
+
+    /* Whatever the last run faulted with was about the run that just ended. */
+    ctx->error[0] = '\0';
+
     PluginHost_Start(host);
 }
 
@@ -2081,4 +2425,196 @@ PluginHost_ConfigItem(struct ToriRS_PluginHost const* host, int plugin_index, in
     if( !ctx->def->config || item_index < 0 || item_index >= ctx->schema_count )
         return NULL;
     return &ctx->def->config[item_index];
+}
+
+/* ---- the plugin window, public face -------------------------------------- */
+
+/**
+ * Dispatch one event to ONE plugin.
+ *
+ * The window events are plugin-scoped in a way no other event is: a control
+ * belongs to exactly one tab, and delivering its use to every subscriber would
+ * hand every plugin every other plugin's clicks. Shares the snapshot-and-step
+ * discipline of plugin_dispatch for the same reason -- a handler may disable
+ * its own plugin, rewriting the list underneath the walk.
+ */
+static void
+plugin_dispatch_one(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    enum ToriRS_PluginEvent ev,
+    void* payload)
+{
+    int const prev_dispatching = host->dispatching;
+
+    assert(host);
+    assert(ev >= 0);
+    assert(ev < TORIRS_PLUGIN_EV_COUNT);
+
+    if( plugin_index < 0 || plugin_index >= host->plugin_count )
+        return;
+
+    for( int i = 0; i < host->sub_count[ev]; i++ )
+    {
+        struct PluginSub const sub = host->subs[ev][i];
+        struct ToriRS_PluginCtx* ctx;
+
+        if( sub.plugin != plugin_index )
+            continue;
+        ctx = &host->plugins[sub.plugin];
+        if( !ctx->enabled || !ctx->running )
+            continue;
+
+        host->dispatching = sub.plugin;
+        sub.handler(ctx, payload, sub.userdata);
+        host->dispatching = prev_dispatching;
+
+        if( i < host->sub_count[ev] && host->subs[ev][i].handler != sub.handler )
+            i--;
+    }
+}
+
+bool
+PluginHost_WinHasTab(struct ToriRS_PluginHost const* host, int plugin_index)
+{
+    assert(host);
+    if( plugin_index < 0 || plugin_index >= host->plugin_count )
+        return false;
+    return host->win_tab[plugin_index];
+}
+
+char const*
+PluginHost_WinTabTitle(struct ToriRS_PluginHost const* host, int plugin_index)
+{
+    assert(host);
+    if( plugin_index < 0 || plugin_index >= host->plugin_count )
+        return "";
+    return host->win_tab_title[plugin_index];
+}
+
+int
+PluginHost_WinWidgetCount(struct ToriRS_PluginHost const* host, int plugin_index)
+{
+    assert(host);
+    if( plugin_index < 0 || plugin_index >= host->plugin_count )
+        return 0;
+    return plugin_win_count_owned(host, plugin_index);
+}
+
+struct ToriRS_PluginWinWidget const*
+PluginHost_WinWidgetAt(
+    struct ToriRS_PluginHost const* host, int plugin_index, int widget_index)
+{
+    int n = 0;
+
+    assert(host);
+    if( plugin_index < 0 || plugin_index >= host->plugin_count || widget_index < 0 )
+        return NULL;
+    for( int i = 0; i < host->win_widget_count; i++ )
+    {
+        if( host->win_owner[i] != plugin_index )
+            continue;
+        if( n == widget_index )
+            return &host->win_widgets[i];
+        n++;
+    }
+    return NULL;
+}
+
+void
+PluginHost_WinBuild(struct ToriRS_PluginHost* host, int plugin_index)
+{
+    struct ToriRS_PluginEvUi ev;
+
+    assert(host);
+    if( plugin_index < 0 || plugin_index >= host->plugin_count )
+        return;
+    /* Only when the tab is empty: a plugin that keeps live state in its
+     * controls -- a running count, a last-seen value -- must not have them
+     * reset every time something else opens the window. */
+    if( plugin_win_count_owned(host, plugin_index) > 0 )
+        return;
+
+    memset(&ev, 0, sizeof(ev));
+    ev.widget_id = NULL;
+    ev.action = -1;
+    ev.value = -1;
+    ev.text = "";
+    host->win_building = true;
+    plugin_dispatch_one(host, plugin_index, TORIRS_PLUGIN_EV_UI_BUILD, &ev);
+    host->win_building = false;
+}
+
+int
+PluginHost_WinDispatch(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    char const* widget_id,
+    int action,
+    int value,
+    char const* text)
+{
+    struct ToriRS_PluginEvUi ev;
+    struct ToriRS_PluginWinWidget* w;
+    int slot;
+
+    assert(host);
+    assert(widget_id);
+
+    slot = plugin_win_find(host, plugin_index, widget_id);
+    if( slot < 0 )
+        return 0;
+    w = &host->win_widgets[slot];
+
+    /*
+     * The host's copy is updated BEFORE the plugin hears about it, so a handler
+     * that reads its own control back sees the value the user just set rather
+     * than the one it replaced. Without this a plugin's only way to know its
+     * own state would be to shadow every control itself.
+     */
+    switch( action )
+    {
+    case TORIRS_PLUGIN_UI_TOGGLE:
+        w->checked = value ? 1 : 0;
+        break;
+    case TORIRS_PLUGIN_UI_TEXT:
+        plugin_copy_str(w->text, sizeof(w->text), text);
+        break;
+    case TORIRS_PLUGIN_UI_PICK:
+        w->selected = value;
+        plugin_copy_str(w->text, sizeof(w->text), text);
+        break;
+    default:
+        break;
+    }
+
+    memset(&ev, 0, sizeof(ev));
+    ev.widget_id = w->id;
+    ev.action = action;
+    ev.value = value;
+    ev.text = text ? text : w->text;
+    plugin_dispatch_one(host, plugin_index, TORIRS_PLUGIN_EV_UI, &ev);
+    return 1;
+}
+
+void
+PluginHost_WinClearPlugin(struct ToriRS_PluginHost* host, int plugin_index)
+{
+    assert(host);
+    if( plugin_index < 0 || plugin_index >= host->plugin_count )
+        return;
+    plugin_win_drop(host, plugin_index);
+    if( host->win_tab[plugin_index] )
+    {
+        host->win_tab[plugin_index] = false;
+        host->win_tab_title[plugin_index][0] = '\0';
+        host->win_revision++;
+    }
+}
+
+int
+PluginHost_WinRevision(struct ToriRS_PluginHost const* host)
+{
+    assert(host);
+    return host->win_revision;
 }

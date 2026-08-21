@@ -2046,6 +2046,10 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriDbgPanel* p)
     int bar_w;
     int row_y;
     int widget;
+    /** The pinned tab strip, and the band it reserves above the rows. */
+    int strip = -1;
+    int strip_h = 0;
+    int strip_y;
 
     /* The label column first: every width below depends on it in a table
      * panel, and only VISIBLE labelled rows vote -- a hidden tool's wide
@@ -2073,6 +2077,19 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriDbgPanel* p)
         w = dbg_widget_width(ui, &ui->widgets[widget]);
         if( w > content_w )
             content_w = w;
+        /*
+         * The strip is PINNED, not scrolled: it sits between the header and the
+         * rows, and the rows move under it. A strip counted as content would
+         * scroll off the top of its own panel, and the tabs it holds are the
+         * only way back to the rows that scrolled it away -- the same
+         * unreachable-destination problem tab compression exists to avoid.
+         */
+        if( ui->widgets[widget].kind == TORIDBG_W_TABSTRIP && strip < 0 )
+        {
+            strip = widget;
+            strip_h = dbg_widget_height(ui, &ui->widgets[widget]) + DBG_ROW_GAP;
+            continue;
+        }
         content_h += dbg_widget_height(ui, &ui->widgets[widget]) + DBG_ROW_GAP;
     }
     if( content_h > 0 )
@@ -2089,7 +2106,8 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriDbgPanel* p)
     p->w = p->fixed_w > 0 ? p->fixed_w : content_w + 2 * DBG_PAD_X + 2 * DBG_RULE;
     /* content_h is 0 for an empty panel, so this is also the empty case: the
      * header block, the pads and the bottom border. */
-    p->h = p->fixed_h > 0 ? p->fixed_h : head_h + DBG_PAD_Y + content_h + foot_h + DBG_RULE;
+    p->h = p->fixed_h > 0 ? p->fixed_h
+                          : head_h + DBG_PAD_Y + strip_h + content_h + foot_h + DBG_RULE;
 
     /*
      * The scroll window, and whether there is anything to scroll.
@@ -2101,7 +2119,9 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriDbgPanel* p)
      * scrolling only ever engages under a hand-set or dragged height.
      */
     p->content_h = content_h;
-    p->view_h = p->h - head_h - DBG_PAD_Y - foot_h - DBG_RULE;
+    /* The strip's band is taken off the view, not off the content: it is chrome
+     * above the scroll window, in the same category as the title bar. */
+    p->view_h = p->h - head_h - DBG_PAD_Y - strip_h - foot_h - DBG_RULE;
     if( p->view_h < 0 )
         p->view_h = 0;
     overflow = p->scrollable && content_h > p->view_h;
@@ -2215,8 +2235,34 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriDbgPanel* p)
     if( p->resizable )
         dbg_push_grip(ui, p, clip);
 
-    content_top = p->y + head_h + DBG_PAD_Y;
+    strip_y = p->y + head_h + DBG_PAD_Y;
+    content_top = strip_y + strip_h;
     content_bot = p->y + p->h - foot_h - DBG_RULE;
+    p->content_y = content_top;
+
+    /* The strip, before the scroll window is set up: it is drawn against the
+     * panel's own clip, so the rows' tighter one never crops it. */
+    if( strip >= 0 )
+    {
+        struct ToriDbgWidget* s = &ui->widgets[strip];
+        struct ToriDbgRect strip_clip;
+
+        s->x = p->x + DBG_RULE + DBG_PAD_X;
+        s->y = strip_y;
+        s->w = p->w - 2 * DBG_RULE - 2 * DBG_PAD_X;
+        s->h = dbg_widget_height(ui, s);
+
+        strip_clip.x = s->x;
+        strip_clip.y = s->y;
+        strip_clip.w = s->w;
+        strip_clip.h = s->h;
+        dbg_push_tabstrip(
+            ui,
+            s,
+            p->active_tab,
+            ui->hover == strip ? dbg_tab_at(ui, s, ui->hover_x, ui->hover_y) : -1,
+            strip_clip);
+    }
 
     /* The bar sits in the content column's right-hand edge, above the footer,
      * and is drawn before the rows so a row's clip can exclude its column. */
@@ -2226,7 +2272,7 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriDbgPanel* p)
         bar.x = p->x + p->w - DBG_RULE - DBG_PAD_X - bar_w;
         bar.y = content_top;
         bar.w = bar_w;
-        bar.h = content_bot - content_top;
+        bar.h = p->view_h;
         if( bar.h > 0 )
             dbg_push_scrollbar(ui, bar, p->content_h, p->view_h, p->scroll_y, clip);
     }
@@ -2264,6 +2310,10 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriDbgPanel* p)
             w->h = 0;
             continue;
         }
+        /* Already placed and drawn above the scroll window, and it must not
+         * take a row's worth of space here as well. */
+        if( widget == strip )
+            continue;
         row_h = dbg_widget_height(ui, w);
         row_x = p->x + DBG_RULE + DBG_PAD_X;
         hovered = ui->hover == widget;
@@ -2455,11 +2505,9 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriDbgPanel* p)
             break;
         }
 
-        case TORIDBG_W_TABSTRIP:
-            dbg_push_tabstrip(
-                ui, w, p->active_tab, hovered ? dbg_tab_at(ui, w, ui->hover_x, ui->hover_y) : -1,
-                clip);
-            break;
+        /* TORIDBG_W_TABSTRIP is not reachable here: the panel's one strip is
+         * placed and drawn above, and a second one is skipped as a row with
+         * nothing to draw rather than laid out as a second strip. */
 
         case TORIDBG_W_DROPDOWN:
         {
@@ -2800,6 +2848,10 @@ ToriRSChrome_Build(struct ToriRSChrome* ui)
 
     ui->prim_count = 0;
     ui->overflow = 0;
+    /* Bumped here rather than at the end, so it moves even on a build that
+     * ends up emitting nothing -- a panel being hidden is a change a host
+     * copying this list has to see. */
+    ui->build_serial++;
 
     for( int i = 0; i < ui->panel_count; i++ )
     {
@@ -3247,25 +3299,26 @@ dbg_panel_scrolls(struct ToriDbgPanel const* p)
     return p->scrollable && p->view_h > 0 && p->content_h > p->view_h;
 }
 
-/** The panel's scrollbar box, or an empty rect when it has none. */
+/**
+ * The panel's scrollbar box, or an empty rect when it has none.
+ *
+ * Built from the origin and view height Build resolved, not from the
+ * header/strip/footer metrics all over again -- the bar has to sit exactly over
+ * the window the rows scroll inside, and two derivations of the same band drift
+ * the moment either end of it grows a new piece of chrome.
+ */
 static struct ToriDbgRect
 dbg_panel_scrollbar_rect(struct ToriRSChrome const* ui, int panel)
 {
     struct ToriDbgRect r = { 0, 0, 0, 0 };
     struct ToriDbgPanel const* p = &ui->panels[panel];
-    struct DbgMenuLayout const l =
-        dbg_menu_layout(ToriRSChrome_FontLineBox(TORIDBG_FONT_MENU, ui->scale), ui->scale);
-    int const head_h = p->title[0] ? l.separator_y + DBG_RULE : DBG_RULE;
-    int const foot_h = p->resizable ? DBG_GRIP_HIT : DBG_PAD_Y;
 
     if( !p->visible || p->last_rect.w <= 0 || !dbg_panel_scrolls(p) )
         return r;
     r.x = p->last_rect.x + p->last_rect.w - DBG_RULE - DBG_PAD_X - DBG_SCROLL_W;
-    r.y = p->last_rect.y + head_h + DBG_PAD_Y;
+    r.y = p->content_y;
     r.w = DBG_SCROLL_W;
-    r.h = p->last_rect.y + p->last_rect.h - foot_h - DBG_RULE - r.y;
-    if( r.h < 0 )
-        r.h = 0;
+    r.h = p->view_h;
     return r;
 }
 
@@ -3355,6 +3408,16 @@ dbg_panel_scroll_drag_to(struct ToriRSChrome* ui, int y)
         return;
     dbg_panel_scroll_to(
         ui, panel, (y - ui->scroll_grab - g.track_y) * (p->content_h - p->view_h) / travel);
+}
+
+int
+ToriRSChrome_HasVisiblePanel(struct ToriRSChrome const* ui)
+{
+    assert(ui);
+    for( int i = 0; i < ui->panel_count; i++ )
+        if( ui->panels[i].visible )
+            return 1;
+    return 0;
 }
 
 int

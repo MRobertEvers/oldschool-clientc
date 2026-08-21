@@ -91,6 +91,36 @@ one lane only.
   resize every frame; steady `surface_sync` p95 should be effectively zero.
 - **Sources:** [`src/app.c`](../src/app.c), [`src/main.c`](../src/main.c)
 
+### COMMON-CHROME-001 - The chrome auxiliary window is never a render target
+
+- **Status:** Contract
+- **Applies to:** Every lane with a chrome executor
+  (`TORIRS_CHROME_EXECUTOR=sdl` today; `gdi` and `web` when they land)
+- **Behavior:** A chrome SURFACE executor may open exactly ONE auxiliary
+  window, and only when the user opens the chrome it presents. The game's
+  renderer -- Soft3D, GL3, WebGL1, D3D9 -- is never bound to it: the aux
+  surface holds a `ToriDbgPrim` display list rasterised through the same
+  `ToriRS_Frame` translator the canvas uses, and nothing else. The window is
+  opened lazily by `begin()`, not at boot, and a backend that cannot provide
+  one returns `false` so the surface falls back to in-canvas chrome.
+- **Reason:** Two render windows means two swap chains, two resize paths and
+  two present cadences, on every lane, for a settings panel. It is also what
+  WINDOWS-HOST-001 exists to forbid, and the amendment there is deliberately
+  narrow for the same reason: a window holding rectangles and glyphs costs a
+  DIB or a software renderer, where a window holding the world costs a device.
+- **Failure mode:** Binding a renderer to the aux window would put a second
+  D3D9 device (or GL context) beside the game's on a machine chosen for the
+  first one. On the SDL lanes it would also make the frame loop present twice
+  per frame, halving the pacing headroom the 50 Hz deadline is built on.
+- **Verification:** With `TORIRS_CHROME_EXECUTOR=sdl`, the plugin window opens
+  in its own window AND leaves the game canvas: sampling canvas pixels where
+  the in-canvas panel would be shows world, not panel body. With
+  `TORIRS_CHROME_EXECUTOR=buffer` (the default) the same pixels are panel body
+  and no second window is created at all.
+- **Sources:** [`src/ui/torirs_chrome_exec.h`](../src/ui/torirs_chrome_exec.h),
+  [`src/ui/torirs_chrome_exec_sdl.c`](../src/ui/torirs_chrome_exec_sdl.c),
+  [`src/platform/platform_sdl2.c`](../src/platform/platform_sdl2.c)
+
 ### COMMON-INPUT-001 - Escape is an application key by default
 
 - **Status:** Contract
@@ -309,6 +339,10 @@ one lane only.
 - **Reason:** Requiring SDL or an audio runtime would violate the standalone
   artifact contract. D3D9 consumes the existing `HWND`; it must not create a
   second window.
+- **Amendment (chrome executors):** The prohibition is on a second *render*
+  window, not on a second window. A chrome executor may own one auxiliary
+  window for chrome the user opened -- the plugin window -- provided no
+  renderer is ever bound to it. See COMMON-CHROME-001.
 
 ### WINDOWS-RENDER-001 - D3D9 is the default; GDI is an explicit fallback
 

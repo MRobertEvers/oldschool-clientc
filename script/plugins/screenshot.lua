@@ -3,30 +3,43 @@
 --
 -- Takes a picture when something worth keeping happens, after RuneLite's
 -- Screenshot plugin (net.runelite.client.plugins.screenshot). The moments are
--- the same ones: a level-up, a quest completion, a valuable or untradeable
--- drop, a boss kill, a pet, a collection-log entry, a combat achievement, a
--- death, a clue casket, the end of a duel.
+-- the same ones, the folders are laid out the same way, and the filenames
+-- carry the same timestamp -- see ImageCapture.saveScreenshot for the layout
+-- this mirrors:
 --
--- What is NOT here is the pattern matching. RuneLite recognises each of those
--- by re-reading the chatbox itself, which is why its Screenshot plugin carries
--- a dozen regexes that every other plugin wanting the same moments has to
--- carry again. Here the client recognises them once (src/game/rs_game_events.c)
--- and this plugin only decides which ones are worth a picture -- so the
--- config below is a list of switches rather than a list of patterns, and the
--- next plugin to want "on boss kill" gets it for free.
+--      <destination>/<Player>/<Category>/<what>_<when>.png
 --
--- Two things are worth knowing about the capture itself:
+-- (RuneLite separates the two halves with a space and brackets the number:
+-- "Fishing(42) 2026-08-21_10-14-44.png". Neither character is in the set the
+-- host holds a filename to, so a dash and an underscore carry the same
+-- meaning; everything else about the layout is theirs.)
+--
+-- What is NOT here is the pattern matching. RuneLite recognises each moment by
+-- re-reading the chatbox itself, which is why its Screenshot plugin carries a
+-- dozen regexes -- and why every other plugin wanting the same moments has to
+-- carry them again. Here the client recognises them once
+-- (src/game/rs_game_events.c, tested against RuneLite's own corpus) and this
+-- plugin only decides which are worth a picture. The config below is a list of
+-- switches rather than a list of patterns, and the next plugin to want "on
+-- boss kill" gets it for free.
+--
+-- Three things are worth knowing about the capture itself:
 --
 --   * It is DELAYED. A game event is recognised while the packet carrying it
 --     is being executed, which is before the interface announcing it has been
---     laid out. `delay_ticks` is how long to let the moment settle -- the
---     default of 2 is enough for a level-up box or a quest scroll to be on
---     screen.
---   * `destination` is a DIRECTORY, and empty is the right default. The client
---     runs in a browser as well as on a desktop, and the browser lane has no
---     filesystem to name a path in; empty means "the client's own plugin data
---     folder", which exists on every platform. Set it on a desktop if you want
---     the pictures somewhere you can find them.
+--     laid out. RuneLite has the same problem and solves it the same way --
+--     its widget handler only sets a flag, and the shot is taken on the next
+--     GameTick. `delay_ticks` is that wait, made adjustable because our
+--     server may take a tick longer to put the box up than Jagex's does.
+--   * `destination` is a DIRECTORY. Absolute means exactly where you said;
+--     anything else (including the empty default) lands under the client's own
+--     plugin folder, which is the only place the browser lane can write. The
+--     Player/Category structure is built either way, so a browser run's
+--     captures are organised exactly like a desktop one's.
+--   * Everything is switchable, and two things are off by default: `on_death`
+--     and `on_duel_end`. RuneLite defaults those on; a client that
+--     photographs your death without being asked is a different judgement
+--     call, and this one errs the other way.
 --
 
 ---@type torirs.Plugin
@@ -73,33 +86,45 @@ local plugin = {
             label = "Valuable drop threshold"
         },
 
-        -- No label: this is state the plugin keeps for itself, not a setting.
-        -- It is what stops the second Woodcutting level of the session
-        -- overwriting the first, and it is persisted rather than counted from
-        -- zero so a restart does not start overwriting either.
-        { key = "counter", type = "int", default = "0", min = 0, max = 2000000000 },
+        -- RuneLite's manual screenshot, which is its `hotkey` config and its
+        -- toolbar button. There is no toolbar to put a button on here, so the
+        -- key is the whole of it. 0 means unbound.
+        {
+            key = "hotkey",
+            type = "int",
+            default = "0",
+            min = 0,
+            max = 512,
+            label = "Manual screenshot key (LibToriRS_KeyCode, 0 = off)"
+        },
     },
 }
 
--- kind -> the config key that switches it on. A kind the client learns to
--- recognise later and this table does not know is IGNORED rather than
--- photographed: a new moment appearing in someone's screenshots folder
--- unannounced is the wrong way round.
-local SWITCH = {
-    level_up           = "on_level_up",
-    quest_complete     = "on_quest_complete",
-    valuable_drop      = "on_valuable_drop",
-    untradeable_drop   = "on_untradeable_drop",
-    boss_kill          = "on_boss_kill",
-    pet                = "on_pet",
-    collection_log     = "on_collection_log",
-    combat_achievement = "on_combat_achievement",
-    death              = "on_death",
-    treasure_trail     = "on_treasure_trail",
-    duel_end           = "on_duel_end",
+-- kind -> { config key that switches it on, folder it files under }.
+--
+-- A kind the client learns to recognise later and this table does not know is
+-- IGNORED rather than photographed: a new moment appearing in someone's
+-- screenshots folder unannounced is the wrong way round.
+--
+-- The folder names are RuneLite's own (its SD_* constants), with its spaces
+-- turned into dashes because the host holds a filename to
+-- [A-Za-z0-9._-]. Keeping the names means a folder of RuneLite screenshots
+-- and a folder of these ones sort the same and merge cleanly.
+local KINDS = {
+    level_up           = { "on_level_up",           "Levels" },
+    quest_complete     = { "on_quest_complete",     "Quests" },
+    valuable_drop      = { "on_valuable_drop",      "Valuable-Drops" },
+    untradeable_drop   = { "on_untradeable_drop",   "Untradeable-Drops" },
+    boss_kill          = { "on_boss_kill",          "Boss-Kills" },
+    pet                = { "on_pet",                "Pets" },
+    collection_log     = { "on_collection_log",     "Collection-Log" },
+    combat_achievement = { "on_combat_achievement", "Combat-Achievements" },
+    death              = { "on_death",              "Deaths" },
+    treasure_trail     = { "on_treasure_trail",     "Clue-Scroll-Rewards" },
+    duel_end           = { "on_duel_end",           "Duels" },
 }
 
--- Captures waiting out their delay: { ticks_left, filename }.
+-- Captures waiting out their delay: { ticks_left, name, dir }.
 local pending = {}
 
 -- The host only accepts a bare filename of [A-Za-z0-9._-], which is not a
@@ -116,54 +141,88 @@ local function slug(text)
     return out
 end
 
--- kind, subject and a number that never repeats. The number is last so the
--- name sorts by what happened rather than by when, which is how you find the
--- Fishing levels in a folder of four hundred pictures.
-local function filename(ev, n)
-    local name = ev.kind
-    local subject = slug(ev.subject)
+-- <destination>/<Player>/<Category>, RuneLite's layout.
+--
+-- The player folder is theirs too, and for the reason they have it: two
+-- accounts played from one install would otherwise drop their screenshots into
+-- the same pile. An unknown player (not logged in yet) simply leaves that
+-- level out rather than inventing a name.
+local function folder(api, category)
+    local out = api.config.destination
+    local player = api.local_player()
 
-    if subject ~= "" then
-        name = name .. "-" .. subject
+    if player and player.name ~= "" then
+        local who = slug(player.name)
+        if who ~= "" then
+            out = (out ~= "" and (out .. "/") or "") .. who
+        end
     end
-    -- The level or the kill count, when the moment has one. `value` is -1 for
-    -- the kinds that carry none.
+    if category then
+        out = (out ~= "" and (out .. "/") or "") .. category
+    end
+    return out
+end
+
+-- "<what> <when>", RuneLite's naming, with its space as an underscore.
+--
+-- The timestamp rather than a counter, and that is worth being deliberate
+-- about: a counter has to be persisted, and a persisted counter that resets --
+-- a fresh install, a cleared config -- starts overwriting the screenshots it
+-- already took. A wall-clock stamp cannot collide with the past no matter what
+-- state is lost. api.datestamp() exists because the plugin sandbox does not
+-- link `os`, so there is no other clock a script can read.
+local function filename(api, ev)
+    local name = slug(ev.subject)
+
+    if name == "" then
+        name = ev.kind
+    end
+    -- The level or the kill count, when the moment has one. RuneLite writes
+    -- these as "Fishing(42)"; brackets are not in the host's character set, so
+    -- the dash carries the same meaning.
     if ev.value and ev.value >= 0 then
         name = name .. "-" .. tostring(ev.value)
     end
-    return name .. "-" .. tostring(n) .. ".png"
+    return name .. "_" .. (api.datestamp() or "unknown") .. ".png"
 end
 
--- Is this moment one we were asked for?
+-- Is this moment one we were asked for? Returns the folder when it is.
 local function wanted(api, ev)
-    local switch = SWITCH[ev.kind]
+    local kind = KINDS[ev.kind]
 
-    if not switch then return false end
-    if not api.config[switch] then return false end
+    if not kind then return nil end
+    if not api.config[kind[1]] then return nil end
 
-    -- The one kind with a threshold as well as a switch. A boss that drops
-    -- five stackable things per kill would otherwise fill the folder.
-    if ev.kind == "valuable_drop" and ev.value >= 0 then
-        return ev.value >= api.config.min_drop_value
+    -- The one kind with a threshold as well as a switch, exactly as RuneLite
+    -- pairs screenshotValuableDrop with valuableDropThreshold. A boss that
+    -- drops five stackable things per kill would otherwise fill the folder.
+    if ev.kind == "valuable_drop" and ev.value >= 0 and
+        ev.value < api.config.min_drop_value then
+        return nil
     end
-    return true
+    return kind[2]
+end
+
+local function capture(api, name, dir)
+    if api.screenshot(name, dir) then
+        api.log("captured " .. (dir ~= "" and (dir .. "/") or "") .. name)
+    end
 end
 
 function plugin.on_game_event(api, ev)
-    if not wanted(api, ev) then return end
+    local category = wanted(api, ev)
 
-    local n = api.config.counter + 1
-    api.cfg_set("counter", n)
+    if not category then return end
 
-    local delay = api.config.delay_ticks
-    local shot = { ticks_left = delay, name = filename(ev, n) }
+    local shot = { ticks_left = api.config.delay_ticks,
+                   name = filename(api, ev),
+                   dir = folder(api, category) }
 
     -- Zero delay means this frame, and the frame is still the one BEFORE the
     -- event landed on screen -- so it is honoured rather than special-cased,
     -- and anyone who sets it gets what they asked for.
-    if delay <= 0 then
-        api.screenshot(shot.name, api.config.destination)
-        api.log("captured " .. shot.name)
+    if shot.ticks_left <= 0 then
+        capture(api, shot.name, shot.dir)
         return
     end
     pending[#pending + 1] = shot
@@ -171,8 +230,8 @@ end
 
 -- Counted in SERVER ticks rather than frames, because what is being waited for
 -- is the server's own doing: the level-up box and the quest scroll arrive in a
--- later packet, not a later frame. A frame count would mean something
--- different on every machine.
+-- later packet, not a later frame. RuneLite counts GameTicks here for the same
+-- reason. A frame count would mean something different on every machine.
 function plugin.on_server_tick(api, ev)
     if #pending == 0 then return end
 
@@ -181,14 +240,23 @@ function plugin.on_server_tick(api, ev)
         local shot = pending[i]
         shot.ticks_left = shot.ticks_left - 1
         if shot.ticks_left <= 0 then
-            if api.screenshot(shot.name, api.config.destination) then
-                api.log("captured " .. shot.name)
-            end
+            capture(api, shot.name, shot.dir)
         else
             keep[#keep + 1] = shot
         end
     end
     pending = keep
+end
+
+-- RuneLite's manual screenshot: no category, no delay, no waiting for anything
+-- to settle. Whatever is on screen is what was asked for.
+function plugin.on_key(api, ev)
+    local key = api.config.hotkey
+
+    if key == 0 or not ev.down or ev.key ~= key then return end
+    capture(api,
+        "screenshot_" .. (api.datestamp() or "unknown") .. ".png",
+        folder(api, nil))
 end
 
 function plugin.on_stop(api)
