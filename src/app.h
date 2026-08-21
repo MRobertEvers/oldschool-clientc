@@ -27,6 +27,7 @@
 #include "input/torirs_input.h"
 #include "inv/inv_manager.h"
 #include "platform/platform_x_io.h"
+#include "plugin/torirs_plugin_host.h"
 #include "task_runner.h"
 #include "toridraw_scene.h"
 #include "toridraw_sprite.h"
@@ -122,8 +123,13 @@ enum AppDebugHotkey
     APP_DEBUG_HOTKEY_HOVER_FOOTPRINT,
     /** Show/hide the map editor panel. Only does anything in an editor boot. */
     APP_DEBUG_HOTKEY_MAP_EDITOR,
+    /** Show/hide the plugin settings panel. */
+    APP_DEBUG_HOTKEY_PLUGIN_PANEL,
     APP_DEBUG_HOTKEY_COUNT
 };
+
+/* Enable checkbox plus config rows, across every plugin the panel shows. */
+#define APP_PLUGIN_PANEL_ROWS_MAX 192
 
 #define APP_DEBUG_HOTKEY_MAX 64
 #define APP_DEBUG_HOTKEY_ARGS_CAP 512
@@ -916,6 +922,44 @@ struct App
      * manifest permanently. The ring below keeps filling while it is hidden,
      * so the average is already settled the frame it is shown. */
     struct ToriRSChrome dbg_ui;
+    /**
+     * Scripting/plugin host (src/plugin/). NULL when plugins are switched off
+     * (TORIRS_PLUGINS=0), which is what every seam call tests before it does
+     * anything -- an absent host has to be as cheap as a disabled one.
+     */
+    struct ToriRS_PluginHost* plugins;
+    /** Settings panel handle in dbg_ui, or -1 before it is built. */
+    int plugin_panel;
+    int plugin_panel_visible;
+    /** Plugin count the panel was built against. The panel is rebuilt when
+     *  this stops matching, because scripts register asynchronously and the
+     *  list is short one row until their boot task finishes. */
+    int plugin_panel_built_for;
+    /** widget -> what it edits. cfg_index -1 marks the enable checkbox. */
+    struct AppPluginPanelRow
+    {
+        int widget;
+        int plugin;
+        int cfg_index;
+    } plugin_panel_rows[APP_PLUGIN_PANEL_ROWS_MAX];
+    int plugin_panel_row_count;
+    /**
+     * This frame's input, parked for the plugin api's key_held.
+     *
+     * The input frame is a parameter to App_RunOnce rather than App state
+     * everywhere else, but a plugin handler fires from inside the overlay
+     * build and the menu build -- call sites several frames of stack below the
+     * one holding it -- and threading it through every one of them to answer
+     * "is shift down" would be a wider change than parking the pointer for the
+     * duration of the frame that owns it.
+     */
+    struct LibToriRS_Input* plugin_input;
+    /** Where plugin settings are written; NULL turns persistence off. */
+    char const* plugin_prefs_path;
+    /** logic_cycle at which the plugin config store last moved, or 0 when it
+     *  is on disk. Same settle delay as prefs_dirty_cycle, for the same
+     *  reason: a script editing state every tick must not be fifty writes. */
+    uint64_t plugin_prefs_dirty_cycle;
     /** Panel / frame-time row handles, -1 until App_Init built them. */
     int dbg_panel;
     int dbg_frame_row;

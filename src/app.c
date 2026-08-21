@@ -62,6 +62,10 @@ EM_JS(void, web_editor_open_panel_tab, (void), {
 #include "game/rs_cs2_dispatch.h"
 #include "game/rs_gameproto_exec.h"
 #include "game/rs_minimenu_build.h"
+#include "plugin/torirs_plugin_lua.h"
+#include "plugin/task_plugin_io.h"
+#include "plugin/torirs_plugin_lua.h"
+#include "plugin/torirs_plugin_registry.h"
 #include "game/rs_minimenu_cross.h"
 #include "game/rs_worldmap.h"
 #include "game/rs_worldmap_render.h"
@@ -856,13 +860,29 @@ app_entity_spotanim_detach(
     struct AppEntitySpotanim* entry,
     bool restore);
 
-/* Send an outbound packet built by a net_out_* builder, gated on networking.
+/*
+ * Send an outbound packet built by a net_out_* builder, gated on networking.
  * The builder writes into a scratch buffer using the game out-cipher; the
- * bytes then queue to the socket via the subsystem's SEND_DATA ring. */
+ * bytes then queue to the socket via the subsystem's SEND_DATA ring.
+ *
+ * The plugin veto sits BEFORE the builder runs, and that ordering is the whole
+ * point of putting it here rather than around ToriRS_Network_SendRaw. Every
+ * net_out_* builder encrypts its opcode by advancing the outbound ISAAC
+ * stream, so a packet that is built and then discarded leaves the cipher one
+ * step ahead of the server's and every opcode after it decrypts to garbage. A
+ * veto that never lets the builder run costs the stream nothing.
+ *
+ * The packet is identified to plugins by the stringified builder call, trimmed
+ * to its leading identifier by the host. That is what lets one macro make all
+ * sixty send sites observable: there is no packet-name argument anywhere on
+ * this path to pass instead, and a hand-written builder-to-enum table would be
+ * sixty more chances to label a send wrong.
+ */
 #define APP_NET_SEND(app, builder_call)                                                            \
     do                                                                                             \
     {                                                                                              \
-        if( (app)->net && (app)->net->state == TORIRS_NET_GAME )                                   \
+        if( (app)->net && (app)->net->state == TORIRS_NET_GAME &&                                  \
+            !PluginHost_PacketOutVeto((app)->plugins, #builder_call) )                             \
         {                                                                                          \
             uint8_t _nsbuf[512];                                                                   \
             int _nslen = builder_call;                                                             \
@@ -2577,13 +2597,18 @@ app_overlay_push_polygon(
  * same code with a bigger input — see ToriDraw_ConvexHullScratch, which exists
  * for that and has no point cap.
  *
+ * @param fill_trans 0 opaque .. 255 invisible, or -1 for no fill at all. The
+ *        hover and editor marks pass APP_OUTLINE_FILL_TRANS; a plugin picks
+ *        its own, because a highlight over a crowd of npcs wants to be lighter
+ *        than one over a single latched selection -- or absent entirely.
  * @return 1 when an outline was emitted.
  */
 static int
-app_overlay_outline_element_model(
+app_overlay_outline_element_model_trans(
     struct App* app,
     int element_id,
-    uint32_t color)
+    uint32_t color,
+    int fill_trans)
 {
     struct ToriDraw_SceneElement* element;
     struct ToriDraw_BoundsCylinder* bounds;
@@ -2646,10 +2671,22 @@ app_overlay_outline_element_model(
     /* Fill first, outline over it: the wash says "this one" at a glance and the
      * outline gives it a definite edge, which a translucent fill alone does not
      * have against busy ground. */
-    app_overlay_push_polygon_filled(
-        app, hull_x, hull_y, hull_size, color, APP_OUTLINE_FILL_TRANS);
+    if( fill_trans >= 0 )
+        app_overlay_push_polygon_filled(app, hull_x, hull_y, hull_size, color, fill_trans);
     app_overlay_push_polygon(app, hull_x, hull_y, hull_size, color);
     return 1;
+}
+
+/* The mark the hover footprint and the editor selection both draw: the
+ * silhouette with the standard wash under it. */
+static int
+app_overlay_outline_element_model(
+    struct App* app,
+    int element_id,
+    uint32_t color)
+{
+    return app_overlay_outline_element_model_trans(
+        app, element_id, color, APP_OUTLINE_FILL_TRANS);
 }
 
 static void
@@ -2930,6 +2967,12 @@ app_overlay_build_editor_selection(struct App* app)
         app_overlay_push_polygon(app, hull_x, hull_y, hull_size, APP_OUTLINE_COLOR_EDITOR_SELECT);
     }
 }
+
+/* The plugin host's view of the engine: snapshots, projection, drawing and
+ * menu rows, all written against the static helpers above. Included here
+ * rather than compiled separately so those helpers stay static -- the same
+ * arrangement world_builder.c uses for world_terrain.u.c. */
+#include "plugin/torirs_plugin_bridge.u.c"
 
 /**
  * Pixel size of a sprite already resident in the scene.
@@ -3376,6 +3419,19 @@ app_build_entity_overlays(
      * above so a select-tool session and TORIRS_HOVER_FOOTPRINT can be on at
      * once without one drawing over the other's meaning. */
     app_overlay_build_editor_selection(app);
+
+    /*
+     * Plugins last, so their marks layer above every built-in in this pass.
+     *
+     * This whole layer is hoisted to just above the 3D world by
+     * emit_hoist_entity_overlays, which puts plugin drawing exactly where a
+     * RuneLite scene overlay sits: over the world, under the interfaces, the
+     * cross, the hover line and the minimenu. It costs nothing when no plugin
+     * subscribed, and the items land in the pool the built-ins have already
+     * taken what they need from -- so a crowded scene clips the plugin, never
+     * a health bar.
+     */
+    PluginHost_DrawWorld(app->plugins);
 
     /* TORIRS_OVERLAY_DEBUG=1: the primitives this frame, plus the two assets
      * they need — a missing p11 (font -1) or hitmarks pack is the usual
@@ -5790,6 +5846,27 @@ App_Init(
     app->worldmap_overview_area_id = -1;
     app->minimap_flag_x = -1;
     app->minimap_flag_z = -1;
+    /*
+     * The plugin host.
+     *
+     * Built here so a plugin's config is readable the moment anything asks,
+     * but NOT started: PluginHost_Start runs after the saved settings have
+     * been applied, or every plugin would spend its first frames on defaults
+     * and then jump when the ini arrived. TORIRS_PLUGINS=0 switches the whole
+     * layer off, which is what the headless parity harnesses use to prove a
+     * change is theirs and not a plugin's.
+     */
+    {
+        char const* plugins_env = getenv("TORIRS_PLUGINS");
+        if( !plugins_env || atoi(plugins_env) != 0 )
+        {
+            struct ToriRS_PluginEngine engine = app_plugin_engine(app);
+            app->plugins = PluginHost_New(&engine);
+            app->plugin_prefs_path = PluginPrefs_Path();
+            PluginLua_Bind(app->plugins);
+            PluginRegistry_RegisterAll(app->plugins);
+        }
+    }
     app->rebuild_zone_x = -1;
     app->rebuild_zone_z = -1;
     app->proj_src_tile_x = -1;
@@ -6292,6 +6369,10 @@ App_Shutdown(struct App* app)
 {
     assert(app);
     app_prefs_flush(app);
+    /* Plugins first: EV_STOP handlers may still read world state and the
+     * config store, and both are torn down below. */
+    PluginHost_Free(app->plugins);
+    app->plugins = NULL;
     if( app->editor )
     {
         /* Releases the content-tree lock. Unsaved edits are NOT written here:
@@ -7740,6 +7821,12 @@ App_WorldLoadFinish(struct App* app)
         int server_driven = app->world_load_server_driven;
 
         app->world_active = 1;
+        /* The absolute tile origin just moved, which is the one thing a plugin
+         * holding saved tiles has to hear about: every scene-local number it
+         * might have cached is renumbered by a rebuild. Raised after
+         * world_active so a handler that queries the world finds it live. */
+        PluginHost_WorldLoaded(
+            app->plugins, app->world->_base_tile_x, app->world->_base_tile_z);
         World_SetHeightFn(app->world, app_world_height, app);
         {
             struct World_SeqSource seq_source = {
@@ -8424,6 +8511,21 @@ Task_AppBoot_Run(
         PT_TASK_AWAITSELF_IF(CreateTask_PrefsLoad(&app->prefs, app->prefs_path));
     if( !app->boot_config_ready )
         RS_Prefs_ApplyToHost(&app->prefs, &app->host);
+
+    /*
+     * Plugins: read the script manifest, compile each script, apply saved
+     * settings, then start everything. Awaited here, on the boot path, for the
+     * same reason the settings above are -- a plugin that starts after the
+     * first frame has already missed events, and one that starts before its
+     * saved config arrives runs a frame on defaults and then jumps.
+     *
+     * Everything it touches goes through the IO queue, so this is the same
+     * code on the native lanes and in the browser, where a synchronous read
+     * does not exist.
+     */
+    if( !app->boot_config_ready && app->plugins )
+        PT_TASK_AWAITSELF_IF(
+            CreateTask_PluginBoot(app->plugins, PluginManifest_Path(), PluginPrefs_Path()));
 
     /*
      * A window mode the manifest or command line stated wins over the saved
@@ -9780,6 +9882,24 @@ app_pump_net_packets(struct App* app)
             app->net_last_recv_ms = app->last_frame_ms;
             if( !app->net_first_recv_ms )
                 app->net_first_recv_ms = app->last_frame_ms;
+
+            /*
+             * Decoded, and not yet applied to anything.
+             *
+             * A plugin may drop the packet here. That is a live wire and is
+             * meant to be: PLAYER_INFO and NPC_INFO carry extended-info blocks
+             * indexed by list position, so dropping one desyncs entity
+             * bookkeeping for the rest of the session. The fence is the one
+             * packet that may never be dropped -- without it the clientscript
+             * gate never closes and the UI stops updating -- so that is an
+             * assert rather than a silently honoured request.
+             */
+            if( app->plugins && PluginHost_PacketIn(app->plugins, (int)packet.packet_type, -1) )
+            {
+                assert(packet.packet_type != PKT_NAME_SERVER_TICK_END);
+                gameproto_free(&packet);
+                continue;
+            }
             /* Once a revision has demonstrated explicit tick fences,
              * retain only packets that participate in an atomic UI/CS2
              * transaction. World feedback is valid between those ticks.
@@ -9851,6 +9971,12 @@ app_logic_tick(struct App* app)
     int redraw = 0;
 
     app->logic_cycle++;
+
+    /* Before the packet pump, so a handler that samples world state sees the
+     * cycle it was told about rather than one already half-advanced by this
+     * tick's packets. The 600ms server cadence is a different event
+     * (EV_SERVER_TICK, raised at the tick fence). */
+    PluginHost_LogicTick(app->plugins, (int)app->logic_cycle);
 
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TICK_PACKETS)
     {
@@ -10442,6 +10568,27 @@ app_logic_tick(struct App* app)
             ToriRS_TaskQueue_Add(
                 app->runner.queue, CreateTask_PrefsSave(&app->prefs, app->prefs_path));
             app->prefs_dirty_cycle = 0;
+        }
+    }
+
+    /* Plugin settings, on the same settle delay and for the same reason: a
+     * script writing state every tick (a tag list being edited, a counter)
+     * must not be fifty file rewrites a second. */
+    if( app->plugins && app->plugin_prefs_path )
+    {
+        if( PluginHost_ConfigDirty(app->plugins) )
+        {
+            PluginHost_ConfigClearDirty(app->plugins);
+            app->plugin_prefs_dirty_cycle = app->logic_cycle;
+        }
+        else if(
+            app->plugin_prefs_dirty_cycle &&
+            app->logic_cycle - app->plugin_prefs_dirty_cycle >= APP_PREFS_SAVE_SETTLE_TICKS )
+        {
+            ToriRS_TaskQueue_Add(
+                app->runner.queue,
+                CreateTask_PluginSave(app->plugins, app->plugin_prefs_path));
+            app->plugin_prefs_dirty_cycle = 0;
         }
     }
 
@@ -14151,6 +14298,18 @@ app_world_spawn_npc_now(
                 (unsigned long long)bd_tex);
     }
     app->need_redraw = 1;
+    /* After the entity is in the pool and carries its name and facts, so a
+     * handler's snapshot is the finished npc rather than a half-built one. */
+    if( app->plugins && idx != WORLD_ENTITY_NIL )
+    {
+        struct WorldEntity_NPC* spawned = World_EntityPoolGet(&app->world->entities.npc, idx);
+        if( spawned )
+        {
+            struct ToriRS_PluginNpcSnap snap;
+            app_plugin_fill_npc(app, spawned, &snap);
+            PluginHost_NpcSpawn(app->plugins, &snap);
+        }
+    }
     return idx;
 }
 
@@ -16820,6 +16979,33 @@ App_WorldDrainEntityRemoved(struct App* app)
         const struct World_Event* ev = World_EventsPeek(world, i);
         if( ev->kind == WorldEventKind_EntityRemoved && ev->element_id >= 0 )
         {
+            /*
+             * Ahead of the element being freed, so a plugin's last look at the
+             * npc is a whole one.
+             *
+             * The pool entry may already be gone by the time this drain runs
+             * -- the event exists to clean up the RENDER side after the world
+             * side has let go. When it is, the snapshot carries the element id
+             * and nothing else, which is still enough for a plugin to drop
+             * per-element state; nothing is invented to fill the gap.
+             */
+            if( app->plugins )
+            {
+                struct WorldEntity_NPC* going =
+                    World_NpcGetByElementId(world, ev->element_id, NULL);
+                struct ToriRS_PluginNpcSnap snap;
+                if( going )
+                    app_plugin_fill_npc(app, going, &snap);
+                else
+                {
+                    memset(&snap, 0, sizeof(snap));
+                    snap.server_slot = -1;
+                    snap.npc_id = -1;
+                    snap.base_npc_id = -1;
+                    snap.element_id = ev->element_id;
+                }
+                PluginHost_NpcDespawn(app->plugins, &snap);
+            }
             app_entity_spotanim_drop(app, ev->element_id);
             app_seq_bind_pending_drop(app, ev->element_id);
             if( app->scene )
@@ -17077,6 +17263,7 @@ app_hover_text_update(
             UIMinimenu_Reset(&scratch);
             scratch.font_id = app->hover_text.font_id;
             RS_Minimenu_Build(&mctx, mouse_x, mouse_y, &scratch);
+            app_plugin_menu_build(app, &scratch, 1);
         }
         UIHoverText_Compose(&scratch, &app->hover_text);
     }
@@ -17173,6 +17360,7 @@ app_minimenu_open(
 
     app_minimenu_ctx_ground_fallback(app, &mctx, click_x, click_y);
     RS_Minimenu_Build(&mctx, click_x, click_y, menu);
+    app_plugin_menu_build(app, menu, 0);
 
     /* TORIRS_MINIMENU_DEBUG=1: the world pickset that fed the rows plus every
      * row built from it — the one place to see why a loc/obj came up bare. */
@@ -17644,6 +17832,7 @@ app_run_default_ui_row(
     UIMinimenu_Reset(&scratch);
     scratch.font_id = app->interact.minimenu.font_id;
     RS_Minimenu_Build(&mctx, click_x, click_y, &scratch);
+    app_plugin_menu_build(app, &scratch, 0);
     default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
     /*
      * TORIRS_CLICK_DEBUG=1: the same readout the generic left-click path
@@ -18141,6 +18330,44 @@ app_minimenu_run_option(
      * inventory/UI dispatch case (for example Deposit-1 arrived as 2231
      * instead of IF_BUTTON 231). */
     opt.action = UIMinimenu_ActionNormalize(opt.action);
+
+    /*
+     * The plugins get the row before the engine acts on it.
+     *
+     * After the cross and the normalize, so a handler sees the action id the
+     * dispatcher below will switch on; before every branch of that dispatch,
+     * so CONSUME actually suppresses the behaviour rather than racing it. For
+     * a plugin-owned row there is no engine behaviour to fall through to and
+     * this always returns 1 -- which is what makes menu_add a complete feature
+     * rather than a row that draws and does nothing.
+     */
+    if( app->plugins )
+    {
+        struct ToriRS_PluginMenuRow row;
+        memset(&row, 0, sizeof(row));
+        row.text = opt.text;
+        row.action = opt.action;
+        row.pick_kind = (int)opt.pick.kind;
+        row.npc_slot = -1;
+        row.player_pid = -1;
+        row.target_id = -1;
+        if( opt.pick.kind == UI_MINIMENU_PICK_NPC && app->world )
+        {
+            struct WorldEntity_NPC* npc =
+                World_NpcGetByElementId(app->world, opt.pick.id, NULL);
+            if( npc )
+                row.npc_slot = npc->server_slot;
+            row.target_id = opt.pick.secondary_id;
+        }
+        else if( opt.pick.kind == UI_MINIMENU_PICK_PLAYER )
+            row.player_pid = opt.pick.secondary_id;
+        else if(
+            opt.pick.kind == UI_MINIMENU_PICK_SCENERY || opt.pick.kind == UI_MINIMENU_PICK_OBJ )
+            row.target_id = opt.pick.secondary_id;
+
+        if( PluginHost_MenuSelect(app->plugins, &row, click_x, click_y) )
+            return 1;
+    }
 
     /* Examine (OPLOC6/OPNPC6/OPOBJ6): reference resolves these locally from the
      * config desc and sends no packet (Client-TS doAction OP_LOC6/OP_NPC6/
@@ -19410,6 +19637,17 @@ App_RunOnce(
      * post-interaction async yield must not replay the same click. */
     app->input_frame_consumed = 0;
 
+    /* Park this frame's input where the plugin api can reach it: a handler
+     * fires from inside the overlay and menu builds, far below the frame that
+     * owns the pointer. Cleared at the end of the frame, so a plugin can never
+     * read a stale one. */
+    app->plugin_input = input;
+
+    /* Plugins before the built-in developer tools, for the same reason those
+     * run first: a plugin panel's toggle has to latch during a boot, and
+     * anything it changes has to be visible to this frame's emit rebuild. */
+    PluginHost_FrameStart(app->plugins, now_ms);
+
     /* Developer overlay first: its toggle key has to latch during a boot too,
      * and its readout has to be current before this frame's emit rebuild. */
     app_debug_overlay_tick(app, input);
@@ -19793,6 +20031,7 @@ App_RunOnce(
         UIMinimenu_Reset(&scratch);
         scratch.font_id = app->interact.minimenu.font_id;
         RS_Minimenu_Build(&mctx, out.clicked_x, out.clicked_y, &scratch);
+        app_plugin_menu_build(app, &scratch, 0);
         default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
         /*
          * TORIRS_CLICK_DEBUG=1: what the left click resolved to.
@@ -19917,6 +20156,7 @@ App_RunOnce(
         scratch.font_id = app->interact.minimenu.font_id;
         app_minimenu_ctx_ground_fallback(app, &mctx, out.left_click_miss_x, out.left_click_miss_y);
         RS_Minimenu_Build(&mctx, out.left_click_miss_x, out.left_click_miss_y, &scratch);
+        app_plugin_menu_build(app, &scratch, 0);
         default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
         if( default_idx >= 0 )
         {
@@ -20041,6 +20281,34 @@ App_RunOnce(
     int const chat_keys_suppressed =
         app_chat_focus_tick(app, input, out.minimenu_consumed_pointer, &chat_submit_pending);
 
+    /*
+     * Plugins see the keyboard before the interface scripts do.
+     *
+     * Reported as transitions of the key_down/key_up arrays rather than from
+     * the key-event stream, because those arrays are indexed by
+     * LibToriRS_KeyCode -- the same space api->key_held answers in. The event
+     * stream carries OSRS key codes instead, and handing a plugin two
+     * different numbering schemes for "which key" is how a handler ends up
+     * gating on the wrong one.
+     *
+     * CONSUME suppresses this frame's onKey broadcast, which is the whole of
+     * what a key means to the interface layer. It deliberately does not reach
+     * the chat focus decision above: that has already run, and a plugin
+     * silently eating a keystroke the chat box was waiting for is a worse
+     * failure than not being able to intercept it.
+     */
+    int plugin_ate_keys = 0;
+    if( app->plugins )
+    {
+        for( int k = 0; k < TORIRSK_COUNT; k++ )
+        {
+            if( LibToriRS_Input_IsKeyDown(input, (enum LibToriRS_KeyCode)k) )
+                plugin_ate_keys |= PluginHost_Key(app->plugins, k, 0, true);
+            if( LibToriRS_Input_IsKeyUp(input, (enum LibToriRS_KeyCode)k) )
+                plugin_ate_keys |= PluginHost_Key(app->plugins, k, 0, false);
+        }
+    }
+
     /* Keyboard broadcast: every event this frame times every visible onKey
      * handler (reference OsrsClient key dispatch). Unlike the intent loop above
      * this re-resolves each component id immediately before dispatching it
@@ -20048,7 +20316,7 @@ App_RunOnce(
      * in one frame, and an earlier one can CC_CREATE (realloc components[]) or
      * CC_DELETEALL (reclaim the slot), so a target collected during the scan may
      * be gone by its turn. Same reasoning as the on_timer loop. */
-    for( int e = 0; e < out.key_event_count; e++ )
+    for( int e = 0; e < out.key_event_count && !plugin_ate_keys; e++ )
     {
         for( int t = 0; t < out.key_target_count; t++ )
         {
@@ -21819,6 +22087,15 @@ App_WorldApplyNpcType(
             for( int i = 0; i < 5; i++ )
                 snprintf(
                     npc->actions[i].name, sizeof(npc->actions[i].name), "%s", npctype->actions[i]);
+            /* The drawn type changed; base_npc_id -- the multinpc shell --
+             * did not. A plugin keyed on the shell, which is how anything
+             * tagging an npc has to be keyed, keeps its tag across this. */
+            if( app->plugins )
+            {
+                struct ToriRS_PluginNpcSnap retyped;
+                app_plugin_fill_npc(app, npc, &retyped);
+                PluginHost_NpcRetype(app->plugins, &retyped);
+            }
             if( getenv("TORIRS_NET_DEBUG") )
                 fprintf(
                     stderr,

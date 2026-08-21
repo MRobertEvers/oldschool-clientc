@@ -1515,6 +1515,12 @@ RS_GameProto_Exec(
             ctx->app->server_tick_fence_seen = 1;
             ctx->app->server_tick_open = 0;
             App_FlushPendingClientScripts(ctx->app);
+            /* The 600ms cadence a plugin actually wants: every packet of this
+             * server tick is now in world state, so a snapshot read here
+             * agrees with what the server believes. Anything sampled mid-tick
+             * is reading a half-applied world. */
+            PluginHost_ServerTick(
+                ctx->app->plugins, ctx->app->world ? ctx->app->world->cycle : 0);
         }
         break;
 

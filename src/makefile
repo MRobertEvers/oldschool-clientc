@@ -178,6 +178,7 @@ TRSPK_DIR    := $(REPO_ROOT)/3rd/trspk
 BMP_DIR      := $(REPO_ROOT)/3rd/bmp
 HMAP_DIR     := $(REPO_ROOT)/3rd/hmap
 RSAREABUF_DIR := $(REPO_ROOT)/3rd/rsareabuf
+LUA_DIR      := $(REPO_ROOT)/3rd/lua
 
 # -Werror=incompatible-pointer-types: passing a `T**` where a `T*` is wanted is
 # not a style question, it is a wrong pointer that compiles. It bit twice while
@@ -463,6 +464,9 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	torirsmaped/torirs_maped.c torirsmaped/torirs_maped_buf.c \
 	torirsmaped/torirs_maped_cmdwire.c torirsmaped/torirs_maped_embed.c \
 	render/torirs_polygon.c \
+	plugin/torirs_plugin_host.c plugin/torirs_plugin_registry.c \
+	plugin/torirs_plugin_lua.c plugin/task_plugin_io.c \
+	plugin/plugins/tileind.c \
 	painters/painters.c \
 	painters/painters_cull_project.c \
 	painters/scene_occluders.c \
@@ -570,7 +574,7 @@ OBJS = $(sort $(addprefix $(OBJ_DIR)/,$(notdir $(SRCS:.c=.o))) \
 	$(OBJ_DIR)/trspk_unity.o $(GPU_OBJS) \
 	$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o \
 	$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
-	$(OBJ_DIR)/tommath.o \
+	$(OBJ_DIR)/tommath.o $(OBJ_DIR)/lua_unity.o \
 	$(WB_OBJS))
 
 # World builder pipeline objects (compiled as standalone objects; world_builder.c is a single
@@ -866,7 +870,7 @@ NET_REV_SRCS = net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_r
 # rsprot_bridge.c is excluded for the same reason the rev tables are: it has an
 # explicit rule below carrying extra include paths, and letting the generic
 # rule also claim it makes make warn about overriding commands.
-$(foreach src,$(filter-out painters/painters.c net/rev/rsprot_bridge.c $(NET_REV_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
+$(foreach src,$(filter-out plugin/torirs_plugin_lua.c painters/painters.c net/rev/rsprot_bridge.c $(NET_REV_SRCS),$(SRCS)),$(eval $(call make-goal,$(src))))
 
 $(OBJ_DIR)/painters.o: painters/painters.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters -c painters/painters.c -o $@
@@ -1295,6 +1299,18 @@ test-rsareabuf: $(OBJ_DIR)
 
 $(OBJ_DIR)/ini.o: $(INI_SRC) | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -c $(INI_SRC) -o $@
+
+# Lua 5.5, one object with its own flags (see plugin/lua_unity.c for what is
+# deliberately left out of it). -w because a vendored library's warnings are
+# not ours to fix and would drown the tree's own.
+LUA_CFLAGS = -std=c99 $(O_LEVEL) -g -I$(LUA_DIR)
+$(OBJ_DIR)/lua_unity.o: $(SRC_DIR)/plugin/lua_unity.c | $(OBJ_DIR)
+	$(CC) $(LUA_CFLAGS) -w -c $(SRC_DIR)/plugin/lua_unity.c -o $@
+
+# The one TU that includes lua.h. Everything else in src/plugin/ is written
+# against the plugin contract alone and needs no Lua on its include path.
+$(OBJ_DIR)/torirs_plugin_lua.o: $(SRC_DIR)/plugin/torirs_plugin_lua.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(LUA_DIR) -c $(SRC_DIR)/plugin/torirs_plugin_lua.c -o $@
 
 $(OBJ_DIR)/rscache_unity.o: $(RSCACHE_UNITY_SRC) | $(OBJ_DIR)
 	$(CC) $(RSCACHE_CFLAGS) -w -c $(RSCACHE_UNITY_SRC) -o $@
