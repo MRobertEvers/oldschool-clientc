@@ -77,9 +77,14 @@ ToriRS_GL3_PickHits(struct ToriRS_GL3 const* gl3);
  * sampled back down onto the canvas grid the rest of the client thinks in.
  * That is what makes a GPU capture the same size as a software one.
  *
- * Call it AFTER the buffer swap, from the lane's own present path -- the back
- * buffer is only the finished frame at that point. Returns false when there is
- * no context to read.
+ * Call it BEFORE the buffer swap: it reads GL_BACK, which holds the finished
+ * frame right up to the swap and is undefined immediately after one. Returns
+ * false when there is no context to read.
+ *
+ * (RuneLite reads after its swapBuffers, which is the other valid pairing
+ * rather than a disagreement -- rlawt's getBufferMode hands it GL_FRONT, the
+ * buffer the swap moved the frame into. Mixing the two, back-buffer-after,
+ * reads whatever the driver happened to leave behind.)
  *
  * This is a pipeline stall and is meant to be called rarely: the app asks for
  * it only when a capture is actually pending (App_DrawComplete), the same way

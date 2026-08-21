@@ -90,8 +90,15 @@ or written to a recording. Every string entering a command is copied into it.
 
 ## 3. Choosing one
 
-`TORIRS_CHROME_EXECUTOR=buffer|sdl|web|gdi|cs2`, alongside the
-`TORIRS_CHROME_THEME` the developer chrome already reads. Default is `buffer`.
+`[chrome] executor=buffer|sdl|web|gdi|cs2` in the boot manifest, overridden by
+`TORIRS_CHROME_EXECUTOR` -- the same precedence `TORIRS_CHROME_THEME` has over
+the theme beside it, so a lane can ship a default a developer steps past without
+editing it. Default is `buffer`.
+
+A manifest naming something that is not an executor at all is a **load-time
+error**, next to the line that asked. A name this *build* has no executor for is
+not: every lane carries a different set, and the chooser answers that with the
+in-canvas one and a message.
 
 The shell chooses, because choosing needs the platform handle and `struct App`
 is deliberately platform-free (`App_Render` is handed a pixel buffer rather than
@@ -169,10 +176,13 @@ them a choice would be four more consumers to keep working for nobody.
      `u.rs_text.text` afterwards is a heap corruption on the next rebuild, not
      a leak. Hand strings to the *builder*.
 
-  Not done: a sidebar Plugin button (a `tab_icon` + `redstone_tab` + `sidebar`
-  triple in a layout INI, with `side_overlay_id[tabno]` populated client-side),
-  panel scrolling, and editable text fields -- the last needs the chat-input
-  keyboard handoff the client already has one of.
+  Scrolls with two arrow buttons rather than a draggable bar: a bar means a
+  grip sized from the content, a track to hit-test and a drag held across
+  frames -- three things the in-canvas chrome already implements and that this
+  would be a second copy of, in a toolkit with no drag.
+
+  Not done: editable text fields. Clicking one reports an activation; making it
+  type needs the chat-input keyboard handoff the client already has one of.
 
 ## 5. The SDL executor
 
@@ -197,6 +207,35 @@ Input is routed by SDL **window id**, not by "is the pointer over it": a drag
 that started in one window keeps delivering to that window, which is what makes
 a grip drag work when the cursor leaves the frame -- and what would otherwise
 let a click in the plugin window also walk the player.
+
+## 5a. Opening it: the sidebar Plugin button
+
+A client-built component that toggles the window, sitting with the gameframe's
+own sidebar furniture. Also reachable by the `plugin_panel_toggle` debug action.
+
+It is **not** a sidebar tab, and that is a finding rather than a shortcut. A tab
+would be a `tab_icon` + `redstone_tab` + `sidebar` triple in a layout INI --
+which is how the rev-245 lane declares its tabs, and which this lane has none
+of: its gameframe is a *cache* interface (`interface_id=161`), so the tab strip
+on screen is cache components with cache hooks and there is no INI triple to add
+one to. Declaring a builtin `tab_icon` anyway would render, and then route its
+click through `SET_SELECTED_TAB` -- selecting a tabno the gameframe does not
+have, which blanks its sidebar.
+
+So the button is built the way the CS2 executor builds its panel: a component in
+the app-overlay chrome group, its own root, clicked through the same
+interception. That works on every executor and every revision, needs no cache
+sprite, and leaves the game's tab machinery alone.
+
+Two things about its placement were bugs first:
+
+- **It must wait for the gameframe.** The plugin tick runs before the BOOTING
+  early-out -- deliberately, so the window is usable while a cache loads --
+  which means the first frames see an *empty* tree. A button built there becomes
+  component 0 and is wiped by the first real tree build.
+- **Position comes from the canvas, not the layout root.** They are different
+  spaces: on this lane the layout root is 1224 wide while the canvas is 765, so
+  a button placed from the root sits four hundred pixels off the right edge.
 
 ## 6. The plugin window
 
@@ -225,6 +264,23 @@ Toggle with the `plugin_panel_toggle` debug action (`p` in
   has not committed", so no third copy of a pending edit exists anywhere.
 - **Controls the plugin declared itself** are dispatched the moment they are
   used, because a plugin's own button is an action rather than a setting.
+
+### Dropdowns need storage neither side owns
+
+A config schema's `choices` and a plugin's `win_set_options` are both one
+`"a|b|c"` string owned by the plugin. The chrome's dropdown *borrows* a
+`char const* const*` whose strings must outlive the widget. Neither shape fits,
+which is why both used to render as text fields with the choices printed in the
+label.
+
+The window now splits them into a pool on `struct App`, reset once per panel
+rebuild so the slices live exactly as long as the rows pointing into them. A
+declared enum is then a real dropdown -- which matters beyond looks: a text
+field that accepts anything for a key that accepts three things is a typo
+waiting to be saved.
+
+Save reads a dropdown's chosen **option**, not its text field; a dropdown's text
+is empty, and reading it wrote every enum key blank.
 
 ### The plugin API (ABI 5)
 

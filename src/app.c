@@ -94,6 +94,7 @@ EM_JS(void, web_editor_open_panel_tab, (void), {
 #include "render/torirs_pick.h"
 #include "toridraw.h"
 #include "toridraw_model_transform.h"
+#include "ui/uitree_build.h"
 #include "ui/uitree_iface_stats.h"
 #include "ui/uitree_layout.h"
 #include "ui/uitree_obj_cell.h"
@@ -5208,6 +5209,7 @@ app_debug_overlay_init(struct App* app)
      */
     app->plugin_ui = app->dbg_ui;
     app->plugin_panel = -1;
+    app->plugin_button_node = -1;
     app->plugin_panel_tabs = -1;
     app->plugin_panel_built_for = -1;
     app->plugin_panel_built_rev = -1;
@@ -21515,7 +21517,8 @@ App_RunOnce(
     int chrome_took_click = 0;
     if( out.clicked_com_id >= TORIRS_CHROME_CS2_ID_BASE &&
         out.clicked_com_id < TORIRS_CHROME_CS2_ID_END &&
-        ToriRSChromeExecCs2_Click(out.clicked_com_id) )
+        (app_plugin_button_click(app, out.clicked_com_id) ||
+         ToriRSChromeExecCs2_Click(out.clicked_com_id)) )
     {
         chrome_took_click = 1;
         app->input_frame_consumed = 1;

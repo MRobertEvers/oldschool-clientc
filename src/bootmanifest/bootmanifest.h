@@ -315,6 +315,18 @@ struct BootManifest
      * context that has to be opened before it can be talked to.
      */
     enum BootManifestEditorPanel editor_panel;
+
+    /**
+     * `[chrome] executor=` -- enum ToriRSChromeExecKind for the plugin window.
+     *
+     * Defaults to 0 (buffer, the in-canvas chrome), which is also what a
+     * manifest that says nothing means and what every build can provide.
+     * TORIRS_CHROME_EXECUTOR overrides it, the way TORIRS_CHROME_THEME
+     * overrides the theme beside it.
+     */
+    int chrome_executor;
+    /** Set when the key named something that is not an executor at all. */
+    int chrome_executor_error;
     /** Set when `panel=` named something unknown; the load fails on it. */
     int editor_panel_error;
 

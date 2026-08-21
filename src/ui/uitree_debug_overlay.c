@@ -175,7 +175,11 @@ struct ToriDbgTheme const toridbg_theme_osrs = {
      * minimenu titled in brown read as two different widgets. */
     .panel_title_text = 0x5D5447,
     .text = 0xFFFFFF,
-    .text_dim = 0xC8C8C8,
+    /* script_3850 sets an ENABLED setting's label in 0xff981f and a disabled
+     * one in 0x9f9f9f -- so the settings page's row labels are orange, not the
+     * grey this used. That one colour is most of why a panel here and the real
+     * settings page side by side did not read as the same interface. */
+    .text_dim = 0xFF981F,
     .accent = 0xFFFF00,
     /* Text entry is black-on-black-bordered in the reference, not inset grey. */
     .input_bg = 0x000000,
@@ -1862,6 +1866,42 @@ dbg_push_tabstrip(
 }
 
 /*
+ * The chrome a SETTINGS FIELD wears: a tiled body under a near-black frame with
+ * a grey inset one pixel inside it.
+ *
+ * script_3850 verbatim, and shared because the reference shares it: a dropdown
+ * button and a text input on the settings page are the SAME box -- tiled
+ * graphic_297, an 0x0e0e0c outline, an 0x474745 inset -- and differ only in
+ * what goes inside. A text input drawn as a flat rectangle instead is the one
+ * thing that made this chrome not look like the game's.
+ */
+static void
+dbg_push_field_chrome(struct ToriRSChrome* ui, struct ToriDbgRect box, struct ToriDbgRect clip)
+{
+    struct ToriDbgTheme const* th = &ui->theme;
+    struct ToriDbgRect const inside = dbg_rect_clip(clip, box);
+
+    /* Flat fill first either way: the tile carries transparent pixels at its
+     * edges, and tiling it straight onto the panel would show through them. */
+    dbg_push_rect(ui, box.x, box.y, box.w, box.h, th->input_bg, 1, clip);
+    if( th->skin_dropdown && dbg_skin_has(ui, TORIDBG_SKIN_PANEL_BODY) )
+        dbg_fill_tiled(
+            ui, box.x, box.y, box.w, box.h, TORIDBG_SKIN_PANEL_BODY, ui->skin_tile_w,
+            ui->skin_tile_h, inside);
+
+    dbg_push_rect(ui, box.x, box.y, box.w, box.h, th->dropdown_border, 0, clip);
+    dbg_push_rect(
+        ui,
+        box.x + DBG_RULE,
+        box.y + DBG_RULE,
+        box.w - 2 * DBG_RULE,
+        box.h - 2 * DBG_RULE,
+        th->dropdown_border_inner,
+        0,
+        clip);
+}
+
+/*
  * The closed dropdown button, as script_3850 builds it.
  *
  * Five pieces in this order: the panel tile, a near-black frame, a grey inset
@@ -1897,24 +1937,7 @@ dbg_push_dropdown_button(
     if( box.w <= 0 || box.h <= 0 )
         return;
 
-    /* Flat fill first either way: the tile carries transparent pixels at its
-     * edges, and tiling it straight onto the panel would show through them. */
-    dbg_push_rect(ui, box.x, box.y, box.w, box.h, th->input_bg, 1, clip);
-    if( th->skin_dropdown && dbg_skin_has(ui, TORIDBG_SKIN_PANEL_BODY) )
-        dbg_fill_tiled(
-            ui, box.x, box.y, box.w, box.h, TORIDBG_SKIN_PANEL_BODY, ui->skin_tile_w,
-            ui->skin_tile_h, inside);
-
-    dbg_push_rect(ui, box.x, box.y, box.w, box.h, th->dropdown_border, 0, clip);
-    dbg_push_rect(
-        ui,
-        box.x + DBG_RULE,
-        box.y + DBG_RULE,
-        box.w - 2 * DBG_RULE,
-        box.h - 2 * DBG_RULE,
-        th->dropdown_border_inner,
-        0,
-        clip);
+    dbg_push_field_chrome(ui, box, clip);
 
     dbg_push_scroll_arrow(
         ui,
@@ -2569,16 +2592,29 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriDbgPanel* p)
             if( box_w <= 0 )
                 break;
 
-            dbg_push_rect(ui, box_x, row_y, box_w, row_h, th->input_bg, 1, clip);
-            dbg_push_rect(
-                ui,
-                box_x,
-                row_y,
-                box_w,
-                row_h,
-                focused ? th->input_border_focus : th->input_border,
-                0,
-                clip);
+            {
+                /* The same box a dropdown button wears -- see
+                 * dbg_push_field_chrome. Focus is a third outline INSIDE the
+                 * inset rather than a recolour of it: the reference's frame is
+                 * two fixed colours, and swapping one for yellow would be a
+                 * focused field that no longer reads as the same control. */
+                struct ToriDbgRect field;
+                field.x = box_x;
+                field.y = row_y;
+                field.w = box_w;
+                field.h = row_h;
+                dbg_push_field_chrome(ui, field, clip);
+                if( focused )
+                    dbg_push_rect(
+                        ui,
+                        box_x + 2 * DBG_RULE,
+                        row_y + 2 * DBG_RULE,
+                        box_w - 4 * DBG_RULE,
+                        row_h - 4 * DBG_RULE,
+                        th->input_border_focus,
+                        0,
+                        clip);
+            }
 
             /* Scroll the content so the caret stays inside the box — the
              * classic single-line edit behaviour. */

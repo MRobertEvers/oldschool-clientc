@@ -118,11 +118,9 @@ ToriRS_D3D9_Present(struct ToriRS_D3D9* d3d9);
  * sampled back down onto the canvas grid, exactly as the GL lanes do
  * (ToriRS_GL3_ReadPixels).
  *
- * MUST be called BEFORE ToriRS_D3D9_Present, and that is the one place this
- * differs from the GL twin, which reads after its swap. The swap chain is
- * D3DSWAPEFFECT_DISCARD: after Present the back buffer's contents are
- * explicitly undefined, so reading it then is reading whatever the driver
- * left behind.
+ * MUST be called BEFORE ToriRS_D3D9_Present, the same as the GL twin: the swap
+ * chain is D3DSWAPEFFECT_DISCARD, so after Present the back buffer's contents
+ * are explicitly undefined.
  *
  * Returns false when there is no usable device. A pipeline stall by nature,
  * so App_DrawComplete only asks for it when a capture is actually pending.

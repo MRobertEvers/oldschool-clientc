@@ -2427,8 +2427,10 @@ UITree_CcCopy(
      * as "already correct" and would keep it. */
     dst->position.layout_resolved = 0;
     /* Deep: the submenu block is owned per component, so the copy must not alias
-     * the source's (both are reclaimed independently). */
-    UITree_MenuOptionsSet(dst, src.menu_options);
+     * the source's (both are reclaimed independently). A template row with no
+     * menu options copies as none — dst was just pushed, so it has none yet. */
+    if( src.menu_options )
+        UITree_MenuOptionsSet(dst, src.menu_options);
     /* Deep for the same reason as the submenu block above: the hook block is
      * owned per component. A template row with no hooks copies as none. */
     if( src.runtime_hooks )

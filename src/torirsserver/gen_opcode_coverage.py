@@ -24,7 +24,7 @@ import re
 import sys
 from pathlib import Path
 
-SRC = Path(__file__).resolve().parent.parent.parent  # src/
+SRC = Path(__file__).resolve().parent.parent  # src/
 REPO = SRC.parent
 
 # (path, human label). The label reaches the generated comment so a reader can
@@ -38,14 +38,14 @@ REPO = SRC.parent
 # fine. The glob cannot forget.
 SOURCES = [
     (SRC / "serverscript" / "ssvm.c", "VM core"),
-    (SRC / "net" / "mock" / "torirs_server_scripts.c", "host commands"),
+    (SRC / "torirsserver" / "torirs_server_scripts.c", "host commands"),
 ] + [
-    (path, f"host commands ({path.stem.replace('ToriRSServer_Ops_', '')})")
-    for path in sorted((SRC / "net" / "mock").glob("ToriRSServer_Ops_*.c"))
+    (path, f"host commands ({path.stem.replace('torirs_server_ops_', '')})")
+    for path in sorted((SRC / "torirsserver").glob("torirs_server_ops_*.c"))
 ]
 
 OPCODE_HEADER = SRC / "serverscript" / "ss_opcode.h"
-OUTPUT = SRC / "net" / "mock" / "torirs_server_opcode_coverage.gen.h"
+OUTPUT = SRC / "torirsserver" / "torirs_server_opcode_coverage.gen.h"
 
 CASE_RE = re.compile(r"^\s*case\s+(SS_OP_[A-Z0-9_]+)\s*:", re.MULTILINE)
 DEFINE_RE = re.compile(r"^#define\s+(SS_OP_[A-Z0-9_]+)\s+(\d+)", re.MULTILINE)

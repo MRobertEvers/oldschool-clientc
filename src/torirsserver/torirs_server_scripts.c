@@ -5979,6 +5979,51 @@ ToriRSServer_ScriptCommand(
         return 1;
     }
 
+    case SS_OP_NPC_SETMAXHP:
+    {
+        int32_t max;
+        struct ToriRSServerNpc* npc = active_npc(state);
+
+        if( !SSVM_PopInt(state, &max) )
+            return 1;
+        if( !npc )
+        {
+            SSVM_Abort(state, "npc_setmaxhp with no active npc");
+            return 1;
+        }
+        if( max <= 0 )
+        {
+            SSVM_Abort(state, "npc_setmaxhp %d is not a hitpoint pool", max);
+            return 1;
+        }
+        /*
+         * The POOL, not the current hitpoints -- `npc_statheal`/`npc_statsub`
+         * are how those move.
+         *
+         * All three fields travel together because the spawn sets them equal
+         * (torirs_server_world.c) and two of them answer the same question to
+         * different callers: `base_hitpoints` is what `npc_basestat(hitpoints)`
+         * reports and what `npc_statheal` clamps at, `max_hitpoints` is what
+         * the NPC_INFO HEADBAR encoder divides by. Moving one without the other
+         * is what this command exists to make impossible -- a scaled raid boss
+         * that set only its current hitpoints left both holding the authored
+         * 5-man figure, so its overhead bar drew a fixed fraction of the truth
+         * (75% for a 3-scale Maiden, at every point of the fight including full
+         * health) while the raid HUD, which tracks the scaled maximum in
+         * content, was right the whole time.
+         *
+         * Current hitpoints clamp DOWN into the new pool and are otherwise left
+         * alone: shrinking a pool below what the npc is standing on would
+         * otherwise leave it above its own maximum, which reads as >100% on
+         * every bar that divides by it. Growing the pool does not heal.
+         */
+        npc->base_hitpoints = max;
+        npc->max_hitpoints = max;
+        if( npc->hitpoints > max )
+            npc->hitpoints = max;
+        return 1;
+    }
+
     /* ---- players by uid, logging, gendered text --------------------- */
 
     case SS_OP_FINDUID:

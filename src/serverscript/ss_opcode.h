@@ -513,10 +513,11 @@
 #define SS_OP_MAP_INSTANCE_SETLINGER 11084
 #define SS_OP_MAP_INSTANCE_LINGER 11085
 #define SS_OP_MAP_INSTANCE_SETLINGERGROUP 11086
+#define SS_OP_NPC_SETMAXHP 11087
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11087
+#define SS_OPCODE_MAX 11088
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 491
+#define SS_OPCODE_COUNT 492
 
 #endif

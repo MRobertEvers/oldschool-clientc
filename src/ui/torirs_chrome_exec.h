@@ -486,7 +486,34 @@ ToriRSChromeExec_ForKind(
 #define TORIRS_CHROME_CS2_ID_TAB_BASE (TORIRS_CHROME_CS2_ID_BASE + 0x10)
 #define TORIRS_CHROME_CS2_TABS_MAX 12
 
+/**
+ * The sidebar Plugin button's component id.
+ *
+ * In the same group and recognised by the same click interception, but it is
+ * NOT the CS2 executor's: the button exists on every executor, because it is
+ * how the window is opened rather than part of how it is drawn. Placed well
+ * clear of the widget range so the two never have to be told apart by
+ * arithmetic.
+ */
+#define TORIRS_CHROME_PLUGIN_BUTTON_ID (TORIRS_CHROME_CS2_ID_BASE + 0x8000)
+
 struct UITree;
+
+/**
+ * May client-built chrome be added to this tree yet?
+ *
+ * It may not be the FIRST root, and that is not a style rule.
+ * UITree_RootIsDisplayable derives "the active gameframe's group" from
+ * whatever root_index happens to point at, and every other root is displayable
+ * only if it matches. So a chrome root that arrives first makes the gameframe's
+ * own group the odd one out: every real root stops being displayable and the
+ * screen goes black -- which is exactly what a plugin button added one frame
+ * too early did.
+ *
+ * @return 1 once a non-chrome root exists to define that group.
+ */
+int
+ToriRSChrome_TreeAcceptsChrome(struct UITree const* tree);
 
 /**
  * @param tree the interface tree to build in.

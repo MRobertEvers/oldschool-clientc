@@ -14,6 +14,10 @@ M.config = {
   { key = "colour", label = "beam colour", type = "string", default = "#FFCC00" },
   { key = "width",  label = "beam width",  type = "int",    default = "2", min = 1, max = 16 },
   { key = "labels", label = "show labels", type = "bool",   default = "1" },
+  -- A declared enum: the window renders this as a real dropdown, because the
+  -- schema already says exactly what the legal values are.
+  { key = "shape",  label = "beam shape",  type = "enum",   default = "ring",
+    choices = "beam|ring|pillar" },
 }
 
 local presses = 0
@@ -30,9 +34,11 @@ function M.on_ui_build(api)
   api.window.widget("checkbox", "live", "live preview")
   api.window.widget("input", "note", "note")
   api.window.widget("button", "reset", "Reset counter")
+  api.window.widget("dropdown", "mode", "mode")
   api.window.widget("label", "count", "presses: 0")
   api.window.set_checked("live", true)
   api.window.set_text("note", "hello")
+  api.window.set_options("mode", "off|low|high", 2)
 end
 
 function M.on_ui(api, ev)

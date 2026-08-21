@@ -1,3 +1,5 @@
+#include "ui/torirs_chrome_exec.h"
+
 #include "bootmanifest.h"
 
 #include "app.h"
@@ -169,6 +171,7 @@ enum bm_section
     BM_SECTION_RENDER,
     BM_SECTION_CONTENT,
     BM_SECTION_EDITOR,
+    BM_SECTION_CHROME,
     /* Inline RevConfig. Recognised so the keys are not reported as unknown, but
      * never decoded here — revconfig_load_fields_from_ini_prefixed re-reads the
      * file for them, because only the RevConfig parser knows that dialect. */
@@ -205,6 +208,8 @@ bm_section_of(char const* header)
         return BM_SECTION_CONTENT;
     if( strncmp(header, "editor:", 7) == 0 )
         return BM_SECTION_EDITOR;
+    if( strncmp(header, "chrome", 6) == 0 )
+        return BM_SECTION_CHROME;
     if( strncmp(header, "revconfig:", 10) == 0 )
         return BM_SECTION_REVCONFIG;
     return BM_SECTION_NONE;
@@ -348,6 +353,36 @@ bm_set_kv(
                     value);
                 bm->editor_panel_error = 1;
             }
+            return;
+        }
+        break;
+
+    case BM_SECTION_CHROME:
+        /*
+         * Which presentation the plugin window uses. Named values only, and an
+         * unknown one is a hard error rather than a silent fallback: a manifest
+         * that asks for an executor by a name that does not exist should say so
+         * at load time, next to the line that asked.
+         *
+         * A name this BUILD has no executor for is NOT an error -- every lane
+         * carries a different set, and the chooser answers that with the
+         * in-canvas one and a message. TORIRS_CHROME_EXECUTOR overrides this,
+         * matching TORIRS_CHROME_THEME beside it.
+         */
+        if( strcmp(key, "executor") == 0 )
+        {
+            int const kind = ToriRSChromeExec_KindFromName(value);
+            if( kind < 0 )
+            {
+                fprintf(
+                    stderr,
+                    "bootmanifest: [chrome] executor must be "
+                    "buffer|sdl|web|gdi|cs2, got '%s'\n",
+                    value);
+                bm->chrome_executor_error = 1;
+            }
+            else
+                bm->chrome_executor = kind;
             return;
         }
         break;

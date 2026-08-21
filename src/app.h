@@ -152,6 +152,8 @@ enum AppPluginRowKind
     APP_PLUGIN_ROW_REVERT,
 };
 
+/** Choice strings across every dropdown in the plugin window at once. */
+#define APP_PLUGIN_CHOICES_MAX 128
 /** Room for both chrome instances' display lists at once. */
 #define APP_CHROME_PRIMS_MAX (2 * TORIDBG_MAX_PRIMS)
 
@@ -1058,6 +1060,9 @@ struct App
     /** The build serials the merge was made from. */
     int chrome_merged_dbg;
     int chrome_merged_win;
+    /** Tree node of the sidebar Plugin button, or -1. Rechecked rather than
+     *  trusted: a tree rebuild takes it, and the index alone cannot say so. */
+    int32_t plugin_button_node;
     /** The window's panel handle in plugin_ui, or -1 before it is built. */
     int plugin_panel;
     int plugin_panel_visible;
@@ -1070,6 +1075,27 @@ struct App
     int plugin_tab_count;
     /** Which plugin each tab past the roster shows; -1 for unused slots. */
     int plugin_tab_owner[TORIRS_PLUGIN_MAX + 1];
+
+    /**
+     * Split-out choice strings for every dropdown in the plugin window, and
+     * the pointer array the chrome borrows.
+     *
+     * The chrome's dropdown BORROWS `char const* const*` and the strings must
+     * outlive the widget -- deliberately, so a palette of hundreds does not
+     * have to be copied into a fixed-size POD. Both sources here are the wrong
+     * shape for that: a config schema's `choices` and a plugin's
+     * win_set_options are one `"a|b|c"` string owned by the plugin, which is
+     * neither an array nor guaranteed to outlive a reload.
+     *
+     * So the window splits them into this pool at build time. It lives on App
+     * for the same reason plugin_tab_titles does: the widgets point into it
+     * until the panel is rebuilt, and a local would be freed first. That is
+     * what turns an enum row from a text field with the choices printed in its
+     * label into an actual dropdown.
+     */
+    char plugin_choice_text[APP_PLUGIN_CHOICES_MAX][48];
+    char const* plugin_choice_ptrs[APP_PLUGIN_CHOICES_MAX];
+    int plugin_choice_count;
     /** Plugin count and window revision the panel was built against. Rebuilt
      *  when either stops matching: scripts register asynchronously, and a
      *  plugin can declare or drop controls at any time. */

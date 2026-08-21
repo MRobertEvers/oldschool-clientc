@@ -6254,13 +6254,10 @@ void
 /*
  * The finished frame, sampled back onto the canvas grid.
  *
- * The GL twin's shape (ToriRS_GL3_ReadPixels) with two differences that are
- * the API's, not choices:
- *
- *   - It runs BEFORE Present, not after. DISCARD leaves the back buffer
- *     undefined once presented; see the header.
- *   - No row flip. D3D9 surfaces are already top-down, where GL reports
- *     bottom-up. Flipping here "for symmetry" would invert every capture.
+ * The GL twin's shape (ToriRS_GL3_ReadPixels), sharing its "read the finished
+ * frame before presenting it" rule, with one difference that is the API's and
+ * not a choice: no row flip. D3D9 surfaces are already top-down, where GL
+ * reports bottom-up. Flipping here "for symmetry" would invert every capture.
  *
  * GetRenderTargetData is the GPU->system-memory copy, and it refuses a
  * multisampled source -- which is why this can use it directly: the present

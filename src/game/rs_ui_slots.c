@@ -189,6 +189,12 @@ void
 RS_UISlots_OpenSide(struct App* app, int iface_id)
 {
     assert(app);
+    /* TORIRS_TAB_DEBUG=1 prints what the SERVER mounts where. The sidebar
+     * panels a gameframe shows are mounted by IF_SETTAB / IF_OPENSIDE at
+     * runtime, so nothing offline -- not the cache, not the scripts -- can say
+     * which interface ends up on which tab. This is the only place that knows. */
+    if( getenv("TORIRS_TAB_DEBUG") )
+        fprintf(stderr, "TABDBG openside iface=%d\n", iface_id);
     app->slots.side_modal_id = iface_id > 0 ? iface_id : -1;
     slot_mount(app, app->slots.side_modal_index, iface_id);
     app->need_redraw = 1;
@@ -261,6 +267,8 @@ RS_UISlots_SetTab(struct App* app, int tabno, int iface_id)
             tabno,
             iface_id,
             app->slots.side_owner_index[tabno]);
+    if( getenv("TORIRS_TAB_DEBUG") )
+        fprintf(stderr, "TABDBG settab tab=%d iface=%d\n", tabno, iface_id);
     app->slots.side_overlay_id[tabno] = iface_id > 0 ? iface_id : -1;
     slot_mount(app, app->slots.side_owner_index[tabno], iface_id);
 }

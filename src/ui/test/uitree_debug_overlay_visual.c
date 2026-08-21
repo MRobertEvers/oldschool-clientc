@@ -531,9 +531,19 @@ visual_textinput(void)
     VT_ASSERT(
         count_eq(plain->x, plain->y, plain->w, plain->h, t->input_border_focus) == 0,
         "an unfocused field is not");
+    /*
+     * A field wears the settings page's own frame, not a plain outline: an
+     * 0x0e0e0c edge with an 0x474745 inset one pixel inside it, which is what
+     * script_3850 draws around both a dropdown button and a text input. Both
+     * are checked, because either one alone would still pass with the box
+     * drawn as a single-colour rectangle.
+     */
     VT_ASSERT(
-        count_eq(plain->x, plain->y, plain->w, plain->h, t->input_border) > 0,
-        "unfocused field keeps the plain border");
+        count_eq(plain->x, plain->y, plain->w, plain->h, t->dropdown_border) > 0,
+        "an unfocused field has the reference's outer frame");
+    VT_ASSERT(
+        count_eq(plain->x, plain->y, plain->w, plain->h, t->dropdown_border_inner) > 0,
+        "and the inset one pixel inside it");
     VT_ASSERT(
         count_eq(plain->x, plain->y, plain->w, plain->h, t->input_text) > 0,
         "field contents are drawn");

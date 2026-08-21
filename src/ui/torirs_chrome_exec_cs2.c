@@ -57,6 +57,12 @@
 #define CS2_COL_ACCENT 0xFFFF00
 #define CS2_COL_ON 0x00FF00
 
+/* The two scroll arrows' component ids, in the executor's own range. */
+#define CS2_ID_SCROLL_UP (TORIRS_CHROME_CS2_ID_BASE + 0x20)
+#define CS2_ID_SCROLL_DOWN (TORIRS_CHROME_CS2_ID_BASE + 0x21)
+/** Width of the scroll column. Always reserved -- see cs2_rebuild. */
+#define CS2_SCROLL_W 14
+
 struct ChromeCs2
 {
     struct UITree* tree;
@@ -72,6 +78,15 @@ struct ChromeCs2
     int dirty;
     struct ToriRSChromeMirror mirror;
 
+    /**
+     * Rows scrolled past, in whole rows.
+     *
+     * Rows rather than pixels because every row here is the same height, so a
+     * row index is the honest unit and there is no partial row to clip. The
+     * in-canvas chrome scrolls by pixels because its rows are NOT uniform -- a
+     * model view, a separator and a text input are three different heights.
+     */
+    int scroll_row;
     /** Which panel owns the strip, and its titles. One window, one strip. */
     int tab_panel;
     int tab_strip_widget;
@@ -88,6 +103,21 @@ struct ChromeCs2
 };
 
 static struct ChromeCs2 g_chrome_cs2;
+
+int
+ToriRSChrome_TreeAcceptsChrome(struct UITree const* tree)
+{
+    int group;
+
+    if( !tree || tree->root_index < 0 )
+        return 0;
+    if( (uint32_t)tree->root_index >= tree->component_count )
+        return 0;
+    group = (tree->components[tree->root_index].component_id >> 16) & 0xffff;
+    /* Our own group already sitting first means chrome got in ahead of the
+     * gameframe -- the state this exists to keep out of. */
+    return group != TORIRS_CHROME_CS2_GROUP;
+}
 
 /* ---- building the interface ---------------------------------------------- */
 
@@ -109,38 +139,6 @@ cs2_resolve_font(void* ud, int font)
      * this panel is built from the gameframe's own resolved faces rather than
      * from cache font ids that would still need looking up. */
     return font;
-}
-
-/** The panel LAYER. The leaf kinds below build their own components, so
- *  each can fill the fields its type actually reads. */
-static int32_t
-cs2_push(
-    struct ChromeCs2* s,
-    int32_t parent,
-    enum UIBuildComponentType type,
-    int com_id,
-    int x,
-    int y,
-    int w,
-    int h)
-{
-    struct UIBuildComponent comp;
-
-    memset(&comp, 0, sizeof(comp));
-    comp.id = com_id;
-    comp.type = type;
-    comp.parent_id = -1;
-    comp.base_x = x;
-    comp.base_y = y;
-    comp.base_width = w;
-    comp.base_height = h;
-    comp.if3 = 1;
-    comp.model_active_id = -1;
-    comp.model_seq_id = -1;
-    comp.graphic = -1;
-    comp.graphic_active = -1;
-    return UITree_PushBuildComponent(
-        s->tree, parent, &comp, cs2_resolve_sprite, cs2_resolve_font, s);
 }
 
 /** A filled or outlined rectangle. */
@@ -252,9 +250,11 @@ cs2_rebuild(struct ChromeCs2* s)
 {
     int32_t panel;
     int y;
+    int panel_w;
+    int panel_h;
     int com = TORIRS_CHROME_CS2_ID_BASE;
 
-    if( !s->tree )
+    if( !s->tree || !ToriRSChrome_TreeAcceptsChrome(s->tree) )
         return;
 
     if( cs2_panel_alive(s) )
@@ -262,19 +262,67 @@ cs2_rebuild(struct ChromeCs2* s)
     else
     {
         /* Gone with a tree rebuild, or never made. Either way the index we
-         * hold means nothing now, so a fresh root rather than a clear. */
+         * hold means nothing now, so a fresh one rather than a clear. */
+        struct UIBuildComponent layer;
         s->panel_node = -1;
-        s->panel_node = cs2_push(
-            s, s->mount, UIBUILD_LAYER, com++, 8, 8, CS2_PANEL_W, CS2_PANEL_H);
+        memset(&layer, 0, sizeof(layer));
+        layer.id = com++;
+        layer.type = UIBUILD_LAYER;
+        layer.parent_id = -1;
+        layer.if3 = 1;
+        layer.graphic = -1;
+        layer.graphic_active = -1;
+        layer.model_active_id = -1;
+        layer.model_seq_id = -1;
+        if( s->mount >= 0 )
+        {
+            /*
+             * Pure fill-parent, exactly as xptracker, loottools and hiscores
+             * are authored: their roots carry no chrome because the strip's
+             * nine-slice frame is a SIBLING under popout:frame. A panel that
+             * placed and sized itself here would sit inside that frame at its
+             * own size, which is a box in a box.
+             */
+            layer.x_mode = 1;
+            layer.y_mode = 1;
+            layer.width_mode = 1;
+            layer.height_mode = 1;
+        }
+        else
+        {
+            layer.base_x = 8;
+            layer.base_y = 8;
+            layer.base_width = CS2_PANEL_W;
+            layer.base_height = CS2_PANEL_H;
+        }
+        s->panel_node = UITree_PushBuildComponent(
+            s->tree, s->mount, &layer, cs2_resolve_sprite, cs2_resolve_font, s);
         if( s->panel_node < 0 )
             return;
     }
     panel = s->panel_node;
 
-    /* Body and border, in the minimenu's own chrome: a brown fill inside a
-     * black edge, which is what every interface panel in the game wears. */
-    cs2_rect(s, panel, com++, 0, 0, CS2_PANEL_W, CS2_PANEL_H, CS2_COL_BODY, 1);
-    cs2_rect(s, panel, com++, 0, 0, CS2_PANEL_W, CS2_PANEL_H, CS2_COL_CHROME, 0);
+    /*
+     * The panel's own box.
+     *
+     * Mounted in the strip we take the slot's resolved size and draw NO body
+     * and NO border: popout:frame already draws both around us, and a second
+     * set inside it is the box-in-a-box the fill-parent modes above exist to
+     * avoid. Standalone we are the whole window and have to draw them.
+     */
+    if( s->mount >= 0 )
+    {
+        struct UITreeComponent const* box = &s->tree->components[panel];
+        panel_w = box->position.width > 0 ? box->position.width : CS2_PANEL_W;
+        panel_h = box->position.height > 0 ? box->position.height : CS2_PANEL_H;
+    }
+    else
+    {
+        panel_w = CS2_PANEL_W;
+        panel_h = CS2_PANEL_H;
+        cs2_rect(s, panel, com++, 0, 0, panel_w, panel_h, CS2_COL_BODY, 1);
+        cs2_rect(s, panel, com++, 0, 0, panel_w, panel_h, CS2_COL_CHROME, 0);
+    }
 
     /* The tab strip, pinned above the rows -- the same rule the in-canvas
      * chrome follows, and for the same reason. */
@@ -313,6 +361,34 @@ cs2_rebuild(struct ChromeCs2* s)
     {
     int order[TORIDBG_MAX_WIDGETS];
     int const shown_count = ToriRSChromeMirror_Order(&s->mirror, order, TORIDBG_MAX_WIDGETS);
+    /*
+     * The scroll column is reserved up front, not once an overflow is found.
+     *
+     * A column that appeared only when rows overflowed would reflow every row
+     * the moment one was added, and a settings tab that jumps sideways as it
+     * fills reads as a bug rather than as a scrollbar arriving.
+     */
+    int const row_w = panel_w - 2 * CS2_PAD - CS2_SCROLL_W;
+    int visible = 0;
+    int drawn = 0;
+    int skipped = 0;
+
+    for( int oi = 0; oi < shown_count; oi++ )
+    {
+        int const i = order[oi];
+        if( i == s->tab_strip_widget )
+            continue;
+        if( ToriRSChromeMirror_Shown(&s->mirror, i) )
+            visible++;
+    }
+    /* Clamped here rather than at the arrows: a tab switch or a reload can
+     * shorten the list under a scroll offset, and an offset past the end shows
+     * an empty panel with no way back. */
+    if( s->scroll_row > visible - 1 )
+        s->scroll_row = visible - 1;
+    if( s->scroll_row < 0 )
+        s->scroll_row = 0;
+
     for( int oi = 0; oi < shown_count; oi++ )
     {
         int const i = order[oi];
@@ -323,8 +399,18 @@ cs2_rebuild(struct ChromeCs2* s)
             continue;
         if( i == s->tab_strip_widget )
             continue;
-        if( y + CS2_ROW_H > CS2_PANEL_H - CS2_PAD )
+        /* Scrolled past: skipped, and NOT counted as placed. */
+        if( skipped < s->scroll_row )
+        {
+            skipped++;
+            continue;
+        }
+        /* Out of room. The break comes BEFORE the count, so the row that did
+         * not fit is not counted as one that did -- counting it made
+         * `placed + skipped == visible` and the arrows never appeared. */
+        if( y + CS2_ROW_H > panel_h - CS2_PAD )
             break;
+        drawn++;
 
         switch( w->kind )
         {
@@ -348,7 +434,7 @@ cs2_rebuild(struct ChromeCs2* s)
         case TORIDBG_W_DROPDOWN:
         {
             int const bx = CS2_PAD + CS2_LABEL_W;
-            int const bw = CS2_PANEL_W - bx - CS2_PAD;
+            int const bw = CS2_PAD + row_w - bx;
             int32_t box;
             cs2_text(s, panel, -1, CS2_PAD, y, CS2_LABEL_W, s->label[i], CS2_COL_DIM);
             box = cs2_rect(s, panel, id, bx, y, bw, CS2_ROW_H, CS2_COL_CHROME, 1);
@@ -373,39 +459,58 @@ cs2_rebuild(struct ChromeCs2* s)
 
         case TORIDBG_W_SEPARATOR:
             cs2_rect(
-                s, panel, -1, CS2_PAD, y + CS2_ROW_H / 2, CS2_PANEL_W - 2 * CS2_PAD, 1,
-                CS2_COL_CHROME, 1);
+                s, panel, -1, CS2_PAD, y + CS2_ROW_H / 2, row_w, 1, CS2_COL_CHROME, 1);
             break;
 
         case TORIDBG_W_LABEL:
         default:
             cs2_text(
-                s, panel, -1, CS2_PAD, y, CS2_PANEL_W - 2 * CS2_PAD,
+                s, panel, -1, CS2_PAD, y, row_w,
                 s->text[i][0] ? s->text[i] : s->label[i], CS2_COL_TEXT);
             break;
         }
         y += CS2_ROW_H + CS2_ROW_GAP;
     }
+
+    /*
+     * Two arrows rather than a draggable bar.
+     *
+     * A bar means a grip whose length is a function of the content, a track to
+     * hit-test against, and a drag held across frames -- three things the
+     * in-canvas chrome already implements and that this would be a second copy
+     * of, in a toolkit that has no drag. Two buttons are the whole affordance a
+     * settings tab needs, and they are two more components.
+     */
+    if( s->scroll_row > 0 || skipped + drawn < visible )
+    {
+        int const ax = panel_w - CS2_PAD - CS2_SCROLL_W;
+        int const top = CS2_PAD + (s->tab_count > 1 ? CS2_TAB_H + CS2_ROW_GAP : 0);
+        int const bottom = panel_h - CS2_PAD - CS2_ROW_H;
+        int32_t box;
+
+        box = cs2_rect(
+            s, panel, CS2_ID_SCROLL_UP, ax, top, CS2_SCROLL_W, CS2_ROW_H,
+            CS2_COL_CHROME, 1);
+        if( box >= 0 )
+            UITree_ApplyClickMask(s->tree, CS2_ID_SCROLL_UP, 1);
+        /* Dimmed at the end of its travel: an arrow that looks live and does
+         * nothing is worse than one that says it cannot. */
+        cs2_text(
+            s, panel, -1, ax + 4, top, CS2_SCROLL_W, "^",
+            s->scroll_row > 0 ? CS2_COL_ACCENT : CS2_COL_DIM);
+
+        box = cs2_rect(
+            s, panel, CS2_ID_SCROLL_DOWN, ax, bottom, CS2_SCROLL_W, CS2_ROW_H,
+            CS2_COL_CHROME, 1);
+        if( box >= 0 )
+            UITree_ApplyClickMask(s->tree, CS2_ID_SCROLL_DOWN, 1);
+        cs2_text(
+            s, panel, -1, ax + 4, bottom, CS2_SCROLL_W, "v",
+            skipped + drawn < visible ? CS2_COL_ACCENT : CS2_COL_DIM);
+    }
     }
 
     UITree_MarkAllDirty(s->tree);
-    if( getenv("TORIRS_CHROME_DEBUG") )
-    {
-        int32_t r;
-        int is_root = 0;
-        for( r = s->tree->root_index; r >= 0; r = s->tree->components[r].next_sibling )
-            if( r == s->panel_node )
-                is_root = 1;
-        fprintf(
-            stderr,
-            "chrome cs2: node=%d com_id=%#x root=%d displayable=%d parent=%d children_of_root=%u\n",
-            (int)s->panel_node,
-            (unsigned)s->tree->components[s->panel_node].component_id,
-            is_root,
-            UITree_RootIsDisplayable(s->tree, s->panel_node),
-            (int)s->tree->components[s->panel_node].parent,
-            (unsigned)s->tree->component_count);
-    }
 }
 
 /* ---- the executor -------------------------------------------------------- */
@@ -560,6 +665,19 @@ ToriRSChromeExecCs2_Click(int component_id)
     if( !s->open || component_id < TORIRS_CHROME_CS2_ID_BASE )
         return 0;
 
+    if( component_id == CS2_ID_SCROLL_UP || component_id == CS2_ID_SCROLL_DOWN )
+    {
+        int const before = s->scroll_row;
+        s->scroll_row += component_id == CS2_ID_SCROLL_DOWN ? 1 : -1;
+        if( s->scroll_row < 0 )
+            s->scroll_row = 0;
+        /* The upper bound is the rebuild's job -- it is the only place that
+         * knows how many rows are visible on this tab. */
+        if( s->scroll_row != before )
+            s->dirty = 1;
+        return 1;
+    }
+
     if( component_id >= TORIRS_CHROME_CS2_ID_TAB_BASE &&
         component_id < TORIRS_CHROME_CS2_ID_TAB_BASE + TORIRS_CHROME_CS2_TABS_MAX )
     {
@@ -570,6 +688,10 @@ ToriRSChromeExecCs2_Click(int component_id)
         intent.widget = s->tab_strip_widget;
         intent.value = component_id - TORIRS_CHROME_CS2_ID_TAB_BASE;
         ToriRSChromeMirror_PushIntent(&s->mirror, &intent);
+        /* A new tab is a different list, so an offset measured against the old
+         * one means nothing -- and a tab that opens already scrolled reads as
+         * a broken panel. */
+        s->scroll_row = 0;
         return 1;
     }
 

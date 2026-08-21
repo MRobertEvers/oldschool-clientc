@@ -840,6 +840,25 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     "MAP_INSTANCE_LINGER": (11085, 1, 0, 1, 0),
     "MAP_INSTANCE_SETLINGERGROUP": (11086, 2, 0, 0, 0),
 
+    # npc_setmaxhp(max) — the active npc's hitpoint POOL, not its current hp.
+    #
+    # Sets `base_hitpoints` and `max_hitpoints` together and clamps current
+    # hitpoints into the new range, so `npc_basestat(hitpoints)` and the engine
+    # agree on one number.
+    #
+    # It exists because a scaled raid boss has no way to say how big it is. The
+    # config `hitpoints=` is authored at one scale (5-man for every boss in the
+    # Theatre), and a party below that gets its real pool by SETTING current
+    # hitpoints lower — which leaves the base, and therefore the engine, still
+    # holding the 5-man figure. Two things read that base and get it wrong:
+    # `npc_statheal` clamps a heal at 3500 for a Maiden whose party will only
+    # ever see 2625, and the NPC_INFO HEADBAR encoder divides by it, so the
+    # overhead bar drew 75% of the truth at every point of the fight including
+    # full health. The raid HUD was right throughout because content tracks the
+    # scaled maximum itself (`~tob_boss_hp_max_here`) — this is how that number
+    # reaches the engine instead of living only in a content var.
+    "NPC_SETMAXHP": (11087, 1, 0, 0, 0),
+
     # npc_findowned2()(boolean)
     # Resolve the active player's familiar into the secondary NPC context. A
     # targeted trigger can retain its primary target while `.npc_*` addresses
@@ -1102,6 +1121,7 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     "NPC_VAR_GET": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_VAR_SET": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_SETMOVESPEED": (1 << POINTER_BITS["active_npc"], 0),
+    "NPC_SETMAXHP": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_FACING_COORD": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_ATTACKNPC": (1 << POINTER_BITS["active_npc"], 0),
     "NPC_ATTACKPLAYER": (

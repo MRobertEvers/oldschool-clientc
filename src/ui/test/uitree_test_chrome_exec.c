@@ -409,6 +409,70 @@ test_chrome_exec_row_order(void)
         "every widget has its own serial");
 }
 
+/*
+ * An executor lost mid-session.
+ *
+ * Not the same case as one that refuses to start: this one came up, was driven
+ * for a while, and then went away -- the user closed its window, the page
+ * navigated, the tool window was destroyed. What has to hold is that the sync
+ * goes inert rather than calling into a presentation that is gone, and that
+ * whatever is bound NEXT is caught up from the model rather than from a shadow
+ * describing a window nobody can see.
+ */
+static void
+test_chrome_exec_lost(void)
+{
+    struct ToriRSChromeExec exec;
+    static struct ToriRSChromeRecorder second;
+    int panel;
+
+    exec_reset();
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 0, 0, 200, "P");
+    ToriRSChrome_Checkbox(&g_ui, panel, "enabled", 1);
+    ToriRSChrome_TextInput(&g_ui, panel, "colour", "#FFCC00");
+    ToriRSChrome_Build(&g_ui);
+    exec_settle();
+
+    /* Lost. The executor's own end() runs, and everything after is a no-op. */
+    ToriRSChromeSync_Shutdown(&g_sync);
+    TEST_ASSERT(g_rec.begun == 0, "shutdown takes the executor down");
+
+    g_rec.count = 0;
+    ToriRSChrome_SetText(&g_ui, 1, "#00FF00");
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(ToriRSChromeSync_Run(&g_sync, &g_ui) == 0, "a lost executor is not driven");
+    TEST_ASSERT(g_rec.count == 0, "and nothing reaches it");
+    TEST_ASSERT(ToriRSChromeSync_Pump(&g_sync, &g_ui) == 0, "nor is it polled");
+
+    /*
+     * Rebinding catches the NEW executor up from the model, not from the old
+     * one's shadow. A shadow carried across would describe a window this
+     * executor never built, so it would be told about nothing and show nothing.
+     */
+    ToriRSChromeRecorder_Init(&second);
+    exec = ToriRSChromeExec_Recorder(&second);
+    TEST_ASSERT(ToriRSChromeSync_Init(&g_sync, &exec) == 1, "a replacement binds");
+    ToriRSChromeSync_Run(&g_sync, &g_ui);
+    TEST_ASSERT(
+        ToriRSChromeRecorder_CountKind(&second, TORIRS_CHROME_CMD_PANEL_OPEN) == 1,
+        "the replacement is told about the panel");
+    TEST_ASSERT(
+        ToriRSChromeRecorder_CountKind(&second, TORIRS_CHROME_CMD_WIDGET_ADD) == 2,
+        "and about every widget, from the model");
+    {
+        struct ToriRSChromeCmd const* text =
+            ToriRSChromeRecorder_Find(&second, TORIRS_CHROME_CMD_WIDGET_TEXT, 1);
+        struct ToriRSChromeCmd const* add =
+            ToriRSChromeRecorder_Find(&second, TORIRS_CHROME_CMD_WIDGET_ADD, 1);
+        /* The edit made while nothing was bound is present -- carried on the
+         * ADD, since to this executor the widget is new. */
+        TEST_ASSERT(
+            (text && strcmp(text->text, "#00FF00") == 0) ||
+                (add && strcmp(add->text, "#00FF00") == 0),
+            "including a change made while no executor was bound");
+    }
+}
+
 void
 test_chrome_exec(void)
 {
@@ -422,4 +486,5 @@ test_chrome_exec(void)
     test_chrome_exec_intents();
     test_chrome_exec_refused();
     test_chrome_exec_row_order();
+    test_chrome_exec_lost();
 }

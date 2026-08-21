@@ -584,7 +584,19 @@ interactive_render_present(
         {
             PlatformSDL2_PresentGL(sdl);
         }
-        /* After the swap: the back buffer is the finished frame only now. */
+        /*
+         * AFTER the swap, and that is measured rather than reasoned.
+         *
+         * Reading before it returns the clear colour on this stack: SDL's GL
+         * context on macOS is Metal-backed and the frame is not resident in a
+         * readable buffer until the swap flushes it. The spec argument for
+         * reading first (the back buffer is defined up to the swap and
+         * undefined after) describes an implementation this is not one of.
+         *
+         * RuneLite reads after its swapBuffers too, though not from the same
+         * buffer -- rlawt's AWTContext.getBufferMode hands it GL_FRONT, or the
+         * FBO's GL_COLOR_ATTACHMENT0 when it renders through one.
+         */
         App_DrawComplete(app, capture_from_gl3, gl3);
         return;
     }
@@ -597,6 +609,9 @@ interactive_render_present(
     {
         PlatformSDL2_Present(sdl);
     }
+    /* After the present, matching the GL lanes. This one's buffer is
+     * client-side and valid either side of it, so the ordering is chosen to
+     * keep one rule rather than because this lane needs it. */
     App_DrawComplete(app, capture_from_software, sdl);
 }
 
@@ -4038,17 +4053,28 @@ main(
          * chrome -- which is what every lane without a native executor uses anyway.
          */
         {
+            /* The manifest says which, the env var overrides it -- the same
+             * precedence TORIRS_CHROME_THEME has over the theme beside it, and
+             * what lets a lane ship a default a developer can step past
+             * without editing it. */
             char const* want = getenv("TORIRS_CHROME_EXECUTOR");
-            int const wanted = ToriRSChromeExec_KindFromName(want);
+            int wanted = boot_manifest.chrome_executor;
             int got = TORIRS_CHROME_EXEC_BUFFER;
             struct ToriRSChromeExec chrome_exec;
 
-            if( want && want[0] && wanted < 0 )
-                fprintf(
-                    stderr,
-                    "chrome: '%s' is not an executor (buffer|sdl|web|gdi|cs2); using buffer\n",
-                    want);
-            chrome_exec = ToriRSChromeExec_ForKind(
+            if( want && want[0] )
+            {
+                int const from_env = ToriRSChromeExec_KindFromName(want);
+                if( from_env < 0 )
+                    fprintf(
+                        stderr,
+                        "chrome: '%s' is not an executor (buffer|sdl|web|gdi|cs2); "
+                        "using buffer\n",
+                        want);
+                else
+                    wanted = from_env;
+            }
+                chrome_exec = ToriRSChromeExec_ForKind(
                 wanted < 0 ? TORIRS_CHROME_EXEC_BUFFER : wanted, sdl, App_ChromeRasterise, &app,
                 &got);
             if( wanted > TORIRS_CHROME_EXEC_BUFFER && got != wanted &&
