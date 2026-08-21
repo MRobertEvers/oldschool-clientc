@@ -229,6 +229,30 @@ enum ToriRSChromeSkinSlot
     TORIRS_CHROME_SKIN_FRAME_BOTTOM_LEFT,
     TORIRS_CHROME_SKIN_FRAME_BOTTOM,
     TORIRS_CHROME_SKIN_FRAME_BOTTOM_RIGHT,
+    /**
+     * The interfaces' own window X, and the same button with its bevel
+     * inverted -- which is what this game's buttons do under the cursor.
+     *
+     * A CLOSE BUTTON IS NOT A DISMISS MARK. The red cross this replaces
+     * (`CHECK_OFF`) is the game's *no* answer -- the other half of the tick, as
+     * it appears against every boolean setting -- and using it to shut a window
+     * read as "reject" rather than "close". Sprites 831/832 are the button the
+     * interfaces actually put in a title bar.
+     *
+     * The pair is one image twice, lit from opposite corners: the glyph pixels
+     * are identical and only the bevel flips, so the resting button reads as
+     * raised and the hovered one as pressed in. That is the whole hover effect
+     * and it is why the accent outline every other control wears is *not* drawn
+     * over this one -- the art already says it.
+     *
+     * 16x16, matching the scrollbar arrows rather than the 24x24 pair beside
+     * them in the cache (799/800, the same button drawn larger). The title
+     * bar's button box is 14 at 1x chrome scale, and the bake has no scale
+     * variants: the larger art would land there as a 0.58x downscale, which is
+     * the speckling this chrome already avoids everywhere else.
+     */
+    TORIRS_CHROME_SKIN_CLOSE,
+    TORIRS_CHROME_SKIN_CLOSE_OVER,
     TORIRS_CHROME_SKIN_SLOT_COUNT
 };
 
@@ -644,7 +668,7 @@ struct ToriRSChromePanel
     int style;
     int visible;
     /**
-     * The panel carries its own Ok and Close buttons in its title bar.
+     * The panel carries its own Close button in its title bar.
      *
      * OPT-IN, and that is the point. Most panels here are developer tools
      * toggled by a hotkey, and a close box on one is chrome that duplicates a
@@ -653,19 +677,15 @@ struct ToriRSChromePanel
      * rather than a key, and in the CS2 presentation -- where it is a column
      * of game components with no window furniture of its own -- there was no
      * way to shut it at all. It opened and stayed open.
+     *
+     * ONE button, and it does one thing. There was an Ok beside it that
+     * committed the page's Save row on the way out; it is gone, along with the
+     * `confirm_widget` that told it what to fire. A window's title bar is where
+     * a user looks for the way OUT, not for a second copy of a control the page
+     * already carries -- and a page that stages edits carries Save and Revert
+     * as rows, where they are labelled and can be found.
      */
     int closable;
-    /**
-     * Which widget the Ok button stands for, or -1 for "Ok just closes".
-     *
-     * The MODEL resolves it, so a presentation's confirm affordance needs to
-     * know nothing about what this panel is for: it sends CONFIRM, and the
-     * model latches this handle as activated exactly as a click on it would.
-     * The plugin window points it at the page's Save row, which is what makes
-     * Ok mean what it says on a page that stages its edits -- and what makes
-     * it a plain dismiss on the roster, which stages nothing.
-     */
-    int confirm_widget;
     /**
      * Draw a resize grip in the bottom-right corner and let it be dragged.
      *
@@ -860,6 +880,17 @@ struct ToriRSChrome
      */
     int hover_x;
     int hover_y;
+    /**
+     * The panel whose Close button is under the cursor, or -1.
+     *
+     * Held rather than derived at draw time, because it is what a repaint has
+     * to be triggered BY. The button is not a widget -- it belongs to the
+     * panel's chrome, so `hover` never names it -- and a build that reads the
+     * pointer position but is never told the pointer moved simply does not run:
+     * the pressed art would appear only on a frame something else had already
+     * dirtied.
+     */
+    int hover_close_panel;
     /** Latched by input, drained by ToriRSChrome_TakeActivated. -1 = none. */
     int activated;
     /** Set beside `activated` when a LISTROW's ACTION zone was what fired it,
@@ -1017,20 +1048,16 @@ void
 ToriRSChrome_PanelSetFramed(struct ToriRSChrome* ui, int panel, int framed);
 
 /**
- * Give a panel an Ok and a Close button in its title bar.
+ * Give a panel a Close button in its title bar: the interfaces' own window X.
  *
- * @param confirm_widget the handle Ok stands for, or -1 to make Ok a plain
- *        dismiss. @see ToriRSChromePanel::confirm_widget.
- *
- * Both dismiss the panel; Ok additionally fires `confirm_widget`, so a page
- * that stages its edits commits them on the way out and one that does not is
- * unaffected. Discarding is what CLOSE has always meant here -- staged rows
- * live in the chrome and nothing writes them but their own Save -- so the two
- * buttons are the two honest outcomes rather than one of them plus a synonym.
+ * Closing DISCARDS, which is what closing has always meant here -- staged rows
+ * live in the chrome and nothing writes them but their own Save. There is no
+ * commit-on-the-way-out beside it: a page that stages edits carries Save and
+ * Revert as labelled rows, and a second, unlabelled copy of Save in the title
+ * bar is a control a user has to already know about to use.
  */
 void
-ToriRSChrome_PanelSetClosable(
-    struct ToriRSChrome* ui, int panel, int closable, int confirm_widget);
+ToriRSChrome_PanelSetClosable(struct ToriRSChrome* ui, int panel, int closable);
 
 /**
  * Set a panel's hand-picked width, or 0 to go back to sizing from content.

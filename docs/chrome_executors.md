@@ -180,13 +180,32 @@ assertion that they agree, and the page's copy of the same table is pinned by
 
   The page builds the panel out of it: tradebacking behind the window and every
   field, the interfaces' tick and cross as an `appearance:none` checkbox's
-  background, the scrollbar's own down arrow on a `<select>`,
-  `::-webkit-scrollbar` wearing the bar's track and grip, and the nine-slice
-  frame as a `border-image` -- composed from the eight pieces into one 9x9,
-  because `border-image` takes a single source. Every rule is an OVERRIDE of a
+  background, the scrollbar's own arrow on the closed dropdown and its lighter
+  parchment behind the open list, `::-webkit-scrollbar` wearing the bar's track
+  and grip, and the nine-slice frame as a `border-image` -- composed from the
+  eight pieces into one 9x9, because `border-image` takes a single source. Every rule is an OVERRIDE of a
   flat one, scoped to `.skinned`, and the class goes on only when every sprite
   the sheet names has arrived: a nine-slice frame around a flat black panel
   reads as a fault, where a complete flat window reads as a theme.
+
+  **The dropdown is not a `<select>`.** It was: a `<select>` is the platform's
+  idiom for the control, and the CLOSED button could be made to look like the
+  game -- the tile, the frame, the arrow at the right. The list it opens is the
+  operating system's, though, and no page may style it, so the one part of the
+  window a user opens in order to LOOK at it was the one part that could not be
+  made to match. The button is a span now and the list is built in the document
+  when it is pressed, on the shared table's geometry, wearing the cache's
+  lighter parchment and script_9114's alternating bands.
+
+  Everything the `<select>` did for free is done by hand as a result, and each
+  of those is a line in `web/test/chrome_dom_test.js`: it shuts on the next
+  press anywhere else (a capture-phase listener on the document that asks where
+  the press was, since a `stopPropagation` in the row would shut the list out
+  from under the very click choosing it), it flips above the button when there
+  is no room below, and it takes the keyboard -- arrows for a cursor row, Enter
+  to choose, Escape to leave the setting alone. The rows are built at open and
+  thrown away at close, so a panel of twenty dropdowns carries twenty lists of
+  nothing.
 
   The shuffle from the bake's `0xAARRGGBB` words to ImageData's R,G,B,A bytes
   happens in C, and `make -C src test-chrome-web-skin` is what keeps it honest
@@ -233,9 +252,9 @@ assertion that they agree, and the page's copy of the same table is pinned by
   like the SDL window's X.
 
   **Its close mark was dead for a release**, and the cause is worth keeping:
-  Ok and Close name a panel, and the page latched which panel that was when a
+  a close names a panel, and the page latched which panel that was when a
   `TABSTRIP` arrived. The plugin window is *paged*, not tabbed, so no strip
-  ever arrives: both buttons addressed panel `-1`, `PanelSetVisible` validated
+  ever arrives: the button addressed panel `-1`, `PanelSetVisible` validated
   that away, and every layer reported success. It is latched on `PANEL_OPEN`
   now -- the one command every window gets -- and `ToriRSChromeIntent_Apply`
   answers a close naming a panel the model does not have with **0** rather
@@ -245,13 +264,63 @@ assertion that they agree, and the page's copy of the same table is pinned by
   strip first.
 
 - **gdi** (`src/ui/torirs_chrome_exec_gdi.c`) -- an owned
-  `WS_EX_TOOLWINDOW` whose children are USER32 controls: `BUTTON` with
-  `BS_AUTOCHECKBOX`, `EDIT`, `COMBOBOX`, `STATIC`. **No comctl32**: a real
-  `WC_TABCONTROL` would mean linking it, shipping a v6 common-controls
-  manifest, and adding both to the lane's import audit, where a row of
-  `BS_PUSHBUTTON`s is the same affordance with none of that. The XP lane's
-  one-file artifact contract (`WINXP-ABI-001`) is what makes that trade worth
-  taking.
+  `WS_EX_TOOLWINDOW` whose children are USER32 controls: `BUTTON`, `EDIT`,
+  `COMBOBOX`, `STATIC`. **No comctl32**: a real `WC_TABCONTROL` would mean
+  linking it, shipping a v6 common-controls manifest, and adding both to the
+  lane's import audit, where a row of buttons is the same affordance with none
+  of that. The XP lane's one-file artifact contract (`WINXP-ABI-001`) is what
+  makes that trade worth taking.
+
+  **They are still USER32 controls; they just wear the game's art.** Every
+  button, checkbox, tab and dropdown is `BS_OWNERDRAW` / `CBS_OWNERDRAWFIXED`
+  and painted from the bake; `WM_ERASEBKGND` tiles the tradebacking and draws
+  the nine-slice frame; `WM_CTLCOLOR*` puts a pattern brush over the tile behind
+  the ones that keep their own painting. An `EDIT` is still an `EDIT`, with its
+  caret, its selection and its keyboard -- that is what a native executor is
+  for, and skinning a control is not the same as replacing it.
+
+  **gdi32 only, no msimg32.** `AlphaBlend` and `TransparentBlt` live in
+  msimg32, another import on a lane whose whole contract is a one-file
+  artifact, so the sprites are composited in *software* into a scratch DIB and
+  blitted back opaque. The destination is read back first rather than assumed:
+  these sprites have soft edges, and a tick composited against a guessed
+  background wears a halo of that guess wherever the guess was wrong -- which
+  over the tradebacking is every pixel. It also keeps the nearest-neighbour
+  scaling ours, which is what makes a 2x checkbox crisp rather than smeared.
+
+  A roster row becomes **three** controls -- a name, a settings well, an
+  on/off switch -- for the same reason it becomes two components under `cs2`: a
+  single owner-drawn button reports a click without saying where in itself it
+  landed, so one control could never tell "open this plugin's page" from "turn
+  it off". Before that, a `LISTROW` fell through to the default branch and
+  became a `STATIC`: a column of plugin names with no switch and no way in.
+
+  Three more things follow from owner-drawing, and each was a bug first:
+
+  1. **The check state is the executor's now.** `BS_AUTOCHECKBOX` kept its own
+     tick and answered `BM_GETCHECK`; `BS_OWNERDRAW` knows nothing, so the bit
+     lives in the executor and the click flips it. A `WIDGET_CHECKED` that
+     disagrees overwrites it, which is how a toggle the model refused snaps
+     back.
+  2. **A `STATIC`'s brush may not be hollow.** Hollow looks right -- the parent
+     has already tiled that area -- until a caption changes: a `STATIC` erases
+     with the brush this hands back, and one that paints nothing leaves the old
+     caption on screen under the new one. It gets the tile brush.
+  3. **A relayout must repaint the whole window.** The background is drawn from
+     the *controls'* boxes -- the field frame under each `EDIT` is placed from
+     that control's rect -- so a row that moved leaves its old frame behind and
+     its new one unpainted until something else invalidates the window.
+
+  One thing it cannot match: a `CBS_DROPDOWNLIST` combo draws its own drop-down
+  arrow, in the shell's 3D style, in a strip that is not part of the owner-draw
+  rect and that no style takes away. So the scrollbar arrow every other
+  presentation puts there is deliberately *not* drawn -- two arrows side by side
+  reads worse than one of the wrong shape. Its open list is the shell's too,
+  which is the same gap the DOM executor had with `<select>` and closed by
+  building the list itself; whether this one follows is open.
+
+  **Still written, not run.** Everything above compiles under
+  `make -C src check-gdi-syntax` and nothing here has been on a screen.
 
 - **cs2** (`src/ui/torirs_chrome_exec_cs2.c`) -- the window as real interface
   components, built through the same `UITree_PushBuildComponent` any
@@ -328,9 +397,34 @@ assertion that they agree, and the page's copy of the same table is pinned by
   deliver every click to that ghost as well. The field shows no caret -- the
   text component has none -- but it takes and shows typing.
 
-  Dropdowns **cycle** on click rather than opening a list: a popup is an open
-  state held across frames plus its own hit test, and stepping to the next
-  option is the whole affordance a declared enum needs.
+  **Dropdowns open a list**, built as components after every row -- children
+  draw in the order they are pushed, so a list built where its row is would be
+  painted over by the rows below it. It is the in-canvas list in this
+  presentation's vocabulary: the shared table's geometry (the button's width,
+  the 2px pad, the 20px rows), the cache's lighter parchment tiled behind it,
+  script_9114's two alternating band transparencies, and `~script31`'s bar
+  inside it once the options overflow the ten rows it shows.
+
+  Three things are this executor's own. The open state is HELD HERE rather than
+  mirrored from the model, because the model's list is prims at the in-canvas
+  window's floating position and this presentation is neither -- what crosses
+  the seam is the PICK a row makes, the same intent the click sent before. The
+  cursor is the row band's `over_color`, so the tree finds the hovered row per
+  frame and there is no hover state to keep. And the list **opens upward** when
+  there is more room above than below: the strip is short, a settings tab fills
+  it, and a fixed downward list would stop working the further down the panel
+  its row sat.
+
+  A click on anything else dismisses it before that click is acted on, which is
+  what makes it modal the way every dropdown in the game is.
+
+  It used to CYCLE instead: a click stepped to the next option, because a popup
+  is an open state held across frames plus a hit test of its own and this
+  toolkit had neither. That is wrong on its own terms once a list exists -- a
+  click that changes the setting on the way to reading the options commits a
+  value nobody chose, and on a palette of two thousand loc names it is not an
+  affordance at all. `make -C src test-uitree` pins the replacement
+  (`ui/test/uitree_test_chrome_cs2.c`).
 
   The focused field is **outlined** in the accent, from `WIDGET_FOCUS`. Before
   that command existed the rows took typing perfectly well and gave no sign of
@@ -420,7 +514,7 @@ Closing comes back through the panel's own Close button, which it already had.
 is never told about a mouse-down inside one, so every control drawn inside a
 handle has to be punched back out of it or it silently stops being clickable.
 That is what `struct ToriRSChromeDragRegion` is: handles, minus holes. The holes
-are the tab run, a closable panel's Ok and Close, and any dropdown list or
+are the tab run, a closable panel's Close, and any dropdown list or
 colour picker floating over the strip while it is open.
 
 The tab run is **one** hole rather than one per tab, because tabs are laid out
@@ -496,9 +590,9 @@ The chain is worth stating because no link in it is obviously the owner:
 1. A close arrives. From the panel's own close box (any presentation), from
    the window's title bar (SDL, GDI), from a popped-out tab being closed
    (web), or from the toggle.
-2. It lands on the **model**: `CLOSE` and `CONFIRM` both end at
-   `PanelSetVisible(0)`, which is what keeps five presentations of one panel
-   from disagreeing about whether it is up.
+2. It lands on the **model**: `CLOSE` ends at `PanelSetVisible(0)`, which is
+   what keeps five presentations of one panel from disagreeing about whether it
+   is up.
 3. The host reconciles its own flag against the model each frame -- the model
    is the only thing every presentation shares, so it is the only place the
    answer can be read -- and calls `app_plugin_window_set_open(app, 0)`.

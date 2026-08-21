@@ -98,6 +98,12 @@ _Static_assert(
     (int)TORIRS_CHROME_SKIN_FRAME_BOTTOM_RIGHT == (int)ToriRSChromeSkin_SLOT_FrameBottomRight,
     "chrome skin: FRAME_BOTTOM_RIGHT is not the baked FrameBottomRight");
 _Static_assert(
+    (int)TORIRS_CHROME_SKIN_CLOSE == (int)ToriRSChromeSkin_SLOT_CloseButton,
+    "chrome skin: CLOSE is not the baked CloseButton");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_CLOSE_OVER == (int)ToriRSChromeSkin_SLOT_CloseButtonOver,
+    "chrome skin: CLOSE_OVER is not the baked CloseButtonOver");
+_Static_assert(
     (int)TORIRS_CHROME_SKIN_SLOT_COUNT == (int)ToriRSChromeSkin_SLOT_COUNT,
     "chrome skin: the semantic slots and the bake disagree on how many there are");
 

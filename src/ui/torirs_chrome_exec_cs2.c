@@ -171,18 +171,17 @@
  * picker from `colorpick_open`.
  */
 /**
- * Ok and Close, at the top of the panel.
+ * Close, at the top of the panel.
  *
  * This presentation has no window furniture of its own -- it is a column of
  * components inside the gameframe's popout strip -- so there was nothing to
  * shut it with: the window opened and stayed open. The in-canvas chrome grew
- * the same pair in its title bar (ToriRSChrome_PanelSetClosable); here they
- * are two components at the top right, and the intents they send are the
- * model's, so both presentations mean the same thing by them.
+ * the same button in its title bar (ToriRSChrome_PanelSetClosable); here it is
+ * a component at the top right, and the intent it sends is the model's, so both
+ * presentations mean the same thing by it.
  */
-#define CS2_ID_OK (TORIRS_CHROME_CS2_ID_BASE + 0x22)
 #define CS2_ID_CLOSE (TORIRS_CHROME_CS2_ID_BASE + 0x23)
-/** Side of those two buttons. */
+/** Side of that button. */
 #define CS2_BTN 14
 
 #define CS2_ID_SWATCH_BASE (TORIRS_CHROME_CS2_ID_BASE + 0x800)
@@ -946,7 +945,11 @@ cs2_push_dropdown_list(struct ChromeCs2* s, int32_t panel, int panel_h)
     count = s->option_count[handle];
     if( count <= 0 )
     {
+        /* Dirty as well as shut: the button above was drawn this pass with its
+         * arrow pointing UP, and leaving that on screen over no list is the
+         * one state a viewer cannot make sense of. */
         cs2_dropdown_close(s);
+        s->dirty = 1;
         return;
     }
 
@@ -972,6 +975,7 @@ cs2_push_dropdown_list(struct ChromeCs2* s, int32_t panel, int panel_h)
     if( rows < 1 )
     {
         cs2_dropdown_close(s);
+        s->dirty = 1;
         return;
     }
 
@@ -1198,46 +1202,45 @@ cs2_rebuild(struct ChromeCs2* s)
     y = CS2_PAD;
 
     /*
-     * The two ways out, before anything else claims the top row.
+     * The way out, before anything else claims the top row.
      *
-     * The interfaces' own tick and cross -- the same pair the checkboxes wear,
-     * and for the same reason: there is no drawn button in this cache to
-     * imitate, and every accept/dismiss in the game is these two sprites. Ok
-     * fires the panel's confirm row on the way out and Close does not, which
-     * is the model's distinction (see TORIRS_CHROME_INTENT_CONFIRM) rather
-     * than one this file invents.
+     * The interfaces' own window X -- the same slot the in-canvas chrome draws,
+     * because this is the same window by another means (see dbg_build_window,
+     * and torirs_chrome_metrics.h on why the two presentations may not each
+     * carry their own answer).
+     *
+     * ONE button. There was an Ok beside it wearing the checkbox tick, which
+     * committed the page's Save row on the way out; both it and the confirm
+     * intent behind it are gone. A green tick is the game's answer to a
+     * question, not a way out of a window, and this presentation already draws
+     * Save as a labelled row a few pixels below.
      */
     {
         int const btn_y = y;
         int const close_x = panel_w - CS2_PAD - CS2_BTN;
-        int const ok_x = close_x - CS2_BTN - 3;
-        int const ids[2] = { CS2_ID_OK, CS2_ID_CLOSE };
-        int const xs[2] = { ok_x, close_x };
-        int const slots[2] = { TORIRS_CHROME_SKIN_CHECK_ON, TORIRS_CHROME_SKIN_CHECK_OFF };
+        int32_t hit;
 
-        for( int i = 0; i < 2; i++ )
+        if( s->skin_scene_id > 0 )
+            cs2_graphic(
+                s, panel, -1, close_x, btn_y, CS2_BTN, CS2_BTN, TORIRS_CHROME_SKIN_CLOSE, 0);
+        else
         {
-            int32_t hit;
-            if( s->skin_scene_id > 0 )
-                cs2_graphic(s, panel, -1, xs[i], btn_y, CS2_BTN, CS2_BTN, slots[i], 0);
-            else
-            {
-                cs2_rect(
-                    s, panel, -1, xs[i], btn_y, CS2_BTN, CS2_BTN, CS2_COL_FIELD_BG, 1);
-                cs2_rect(
-                    s, panel, -1, xs[i] + 2, btn_y + 2, CS2_BTN - 4, CS2_BTN - 4,
-                    i == 0 ? CS2_COL_ON : CS2_COL_ACCENT, 1);
-            }
-            /* The click target over the art, not the art itself: a graphic
-             * component sized to the hit box would stretch the sprite -- the
-             * same trade the checkboxes make. */
-            hit = cs2_rect_trans(
-                s, panel, ids[i], xs[i], btn_y, CS2_BTN, CS2_BTN, CS2_COL_FIELD_BG, 1, 255);
-            if( hit >= 0 )
-                UITree_ApplyClickMask(s->tree, ids[i], 1);
+            cs2_rect(s, panel, -1, close_x, btn_y, CS2_BTN, CS2_BTN, CS2_COL_FIELD_BG, 1);
+            cs2_rect(
+                s, panel, -1, close_x + 2, btn_y + 2, CS2_BTN - 4, CS2_BTN - 4,
+                CS2_COL_ACCENT, 1);
         }
-        /* The rows start below them, so the strip and the first row cannot be
-         * drawn under the buttons. */
+        /* The click target over the art, not the art itself: a graphic
+         * component sized to the hit box would stretch the sprite -- the
+         * same trade the checkboxes make. */
+        hit = cs2_rect_trans(
+            s, panel, CS2_ID_CLOSE, close_x, btn_y, CS2_BTN, CS2_BTN, CS2_COL_FIELD_BG, 1,
+            255);
+        if( hit >= 0 )
+            UITree_ApplyClickMask(s->tree, CS2_ID_CLOSE, 1);
+
+        /* The rows start below it, so the strip and the first row cannot be
+         * drawn under the button. */
         y += CS2_BTN + CS2_ROW_GAP;
     }
 
@@ -2028,12 +2031,11 @@ ToriRSChromeExecCs2_Click(int component_id)
         }
     }
 
-    if( component_id == CS2_ID_OK || component_id == CS2_ID_CLOSE )
+    if( component_id == CS2_ID_CLOSE )
     {
         struct ToriRSChromeIntent intent;
         memset(&intent, 0, sizeof(intent));
-        intent.kind = component_id == CS2_ID_OK ? TORIRS_CHROME_INTENT_CONFIRM
-                                                : TORIRS_CHROME_INTENT_CLOSE;
+        intent.kind = TORIRS_CHROME_INTENT_CLOSE;
         /* The panel the window IS. Taken from the tab strip's owner where
          * there is one and from any live widget otherwise, because this
          * executor presents exactly one panel and only needs to name it. */

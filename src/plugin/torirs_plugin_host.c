@@ -1341,12 +1341,13 @@ api_draw_tile(
     int tile_z,
     int level,
     uint32_t rgb,
+    uint32_t fill_rgb,
     int fill_alpha)
 {
     if( !plugin_draw_allow(ctx, surface) )
         return;
     ctx->draw_used += ctx->host->engine.draw_tile(
-        ctx->host->engine.user, tile_x, tile_z, level, rgb, fill_alpha);
+        ctx->host->engine.user, tile_x, tile_z, level, rgb, fill_rgb, fill_alpha);
 }
 
 static void

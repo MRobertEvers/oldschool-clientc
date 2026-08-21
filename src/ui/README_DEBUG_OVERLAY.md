@@ -348,8 +348,9 @@ into the other, so the split is in the code rather than in the theme:
 
 | | Value dropdown | Menu (`MenuDrop`) |
 | --- | --- | --- |
-| Closed state | tiled button, framed and inset, arrow on the **left** | the bare title |
+| Closed state | tiled button, framed and inset, arrow on the **right** | the bare title |
 | List body | the list's own tile (`TORIRS_CHROME_SKIN_DROPDOWN_BODY`) | flat `menu_body` |
+| List edge | the button's own frame: `dropdown_border` with `dropdown_border_inner` a pixel inside it | one `menu_chrome` rule |
 | Rows | centred, `dropdown_text`, alternating black bands | left-aligned, `menu_text` |
 | Hover | the row's band thins out, lightening it | the row's **text** goes `menu_hover_text` |
 
@@ -359,6 +360,17 @@ thing — `script_3850` for the button, `script_9114` for the list — down to t
 the cursor (240). The arrow is the cache's own sprite, and it is the *same*
 sprite the scrollbar's ends wear: down while the list is shut, up while it is
 open.
+
+**The chosen row is not marked.** It used to draw in the accent, which is a
+highlight the reference's list does not have: the row under the pointer is the
+only one it picks out, and it picks it out by its BAND. Two highlights in two
+colours read as two cursors, and the chosen option is already stated by the
+button above the list.
+
+The list wearing the button's own frame rather than a single flat rule is the
+same rule from the other side: in the reference the two are one control seen
+open, and a list edged in one line reads as a tooltip that happened to appear
+under a field.
 
 **The scrollbar** appears on a list that overflows (`TORIRS_CHROME_DROPDOWN_ROWS`
 rows are shown at once), 16 chrome pixels wide, *inside* the list — so the rows
@@ -564,6 +576,37 @@ different cache — or no bake at all — needs no change here.
 | `PLUGIN_ICON` | `sideicons_interface_11` (785) | the wrench that opens the plugin window from the gameframe's strip |
 | `CHECK_ON` / `CHECK_OFF` | 8380 / 8379 | every on/off state: a checkbox, and a roster row's switch |
 | `FRAME_TOP_LEFT` … `FRAME_BOTTOM_RIGHT` | 5814–5822 | the nine-slice border a framed panel wears |
+| `CLOSE` / `CLOSE_OVER` | 831 / 832 | a closable panel's window X, resting and under the cursor |
+
+**A closable panel has ONE title-bar button.** There was an Ok beside the close
+box wearing `CHECK_ON`, which fired the panel's `confirm_widget` on the way out.
+Both are gone, along with `TORIRS_CHROME_INTENT_CONFIRM` and the web page's
+`ok` button — a green tick is the game's answer to a *question*, not a way out
+of a window, and in a title bar it read as a second unlabelled copy of the Save
+row a few pixels below. Closing discards; a page that stages edits carries Save
+and Revert as labelled rows. A kind nothing can raise is worse than an absent
+one, which is why the intent went with the button rather than staying behind.
+
+**`CLOSE` is not `CHECK_OFF`.** The red cross is the game's *no* answer — the
+other half of the tick, as it appears against every boolean setting — and using
+it to shut a window read as rejecting whatever the panel was showing. 831/832
+are the button the interfaces actually put in a title bar. The cache carries the
+same button at 24x24 as well (799/800); the 16x16 pair is baked because the
+title bar's button box is 14 at 1x chrome scale and the bake has no scale
+variants, so the larger art would land there as a 0.58x downscale.
+
+The pair is **one image lit from opposite corners** — the glyph pixels are
+identical and only the bevel flips, so the resting button reads as raised and
+the hovered one as pressed in. That is the whole hover effect, and it is why
+`dbg_build_window` does *not* lay the accent outline over this one control: art
+that already says "hovered" plus an outline reads as selected instead.
+
+Because these buttons are panel chrome rather than widgets, nothing in the
+widget hover path marks them dirty. `ToriRSChrome::hover_button_panel` /
+`hover_button_which` are what `ToriRSChrome_MouseMove` compares to trigger the
+repaint — without them the pressed art would appear only on a frame something
+unrelated had already rebuilt. `visual_panel_close` asserts the `Build` return,
+not just the pixels, for exactly that reason.
 
 **`CHECK_ON` is 8380, not 8379**, which is the opposite of what the ids
 suggest. `script3422` sets 8379 alongside `if_setop(1, "Show", ..)` -- the op is
@@ -702,7 +745,7 @@ feature into `build/`:
 | `11_scale1x/2x/3x` | 12 | HighDPI relayout; ink area is exactly `scale²` |
 | `12`/`13_chrome_*_drag` | 12 | minimenu chrome on a window, carried by its header |
 | `14`/`15`/`16_grip*` | 19 / 19 / 13 | resize grip, drag, clamp |
-| `17_dropdown_closed` | 29 | the CS2 button: tile, frame, inset, left arrow |
+| `17_dropdown_closed` | 29 | the CS2 button: tile, frame, inset, right arrow |
 | `18_dropdown_open_short` | 39 | banded rows, centred, the hover veil |
 | `19_dropdown_open_long` | 59 | the scrollbar column, mid-list |
 | `20_dropdown_scrolled_to_end` | 58 | arrow / track / grip driven by the mouse |

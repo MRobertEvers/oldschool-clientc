@@ -30,7 +30,7 @@ end
 function plugin.on_draw_world(api, draw)
     local x, z, level = api.hover_tile()
     if not x then return end
-    draw.tile(x, z, level, "#FF00FF", 96)
+    draw.tile(x, z, level, "#FF00FF", "#FF00FF", 96)
 end
 
 return plugin

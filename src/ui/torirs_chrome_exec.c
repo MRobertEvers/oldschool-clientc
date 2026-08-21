@@ -492,24 +492,6 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
         ToriRSChrome_PanelSetVisible(ui, intent->panel, 0);
         return 1;
 
-    case TORIRS_CHROME_INTENT_CONFIRM:
-        /* Ok: fire the panel's confirm row on the way out, then dismiss --
-         * exactly what a click on the in-canvas title bar's tick does, through
-         * the same two steps, so the two presentations cannot disagree about
-         * what Ok means. */
-        if( intent->panel < 0 || intent->panel >= ui->panel_count )
-            return 0; /* the same drift, and the same answer. */
-        {
-            int const confirm = ui->panels[intent->panel].confirm_widget;
-            if( confirm >= 0 && confirm < ui->widget_count )
-            {
-                ui->activated = confirm;
-                ui->activated_action = 0;
-            }
-        }
-        ToriRSChrome_PanelSetVisible(ui, intent->panel, 0);
-        return 1;
-
     default:
         return 0;
     }

@@ -66,7 +66,7 @@ function plugin.on_draw_world(api, draw)
     if ex then
         draw.text(ex + 1, ey + 1, "+2 east (absolute)", 0x000000)
         draw.text(ex, ey, "+2 east (absolute)", colour)
-        draw.tile(tx, tz, me.level, colour, 0)
+        draw.tile(tx, tz, me.level, colour)
     end
 
     if not reported then

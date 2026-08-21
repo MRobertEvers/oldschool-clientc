@@ -852,7 +852,7 @@ test_chrome_exec_drag_region(void)
      * rather than merely awkward: the press that should activate one would
      * start a window drag and the button would never see a click at all.
      */
-    ToriRSChrome_PanelSetClosable(&g_ui, panel, 1, -1);
+    ToriRSChrome_PanelSetClosable(&g_ui, panel, 1);
     ToriRSChrome_Build(&g_ui);
     ToriRSChrome_WindowDragRegion(&g_ui, panel, &region);
     TEST_ASSERT(

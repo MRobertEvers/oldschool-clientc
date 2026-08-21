@@ -47,8 +47,7 @@
 
   /* Intent kinds — enum ToriRSChromeIntentKind. */
   var INTENT = {
-    ACTIVATE: 1, ACTION: 2, TOGGLE: 3, TEXT: 4, PICK: 5, TAB: 6, CLOSE: 7,
-    CONFIRM: 8
+    ACTIVATE: 1, ACTION: 2, TOGGLE: 3, TEXT: 4, PICK: 5, TAB: 6, CLOSE: 7
   };
 
   /*
@@ -58,6 +57,12 @@
    * least once (see the note on W). `web/test/chrome_enum_sync_test.js` reads
    * the header and fails if this diverges, which is the only thing that has
    * ever kept them honest.
+   *
+   * Every slot is named whether or not the page draws it -- the test compares
+   * the whole enum -- and several are never sent across. CLOSE/CLOSE_OVER are
+   * among them: this executor's close is a real DOM <button> wearing the
+   * browser's own hover, which is the whole point of a native-widget executor.
+   * @see k_web_skin_slots in ui/torirs_chrome_exec_web.c for what ships.
    */
   var SKIN = {
     PANEL_BODY: 0,
@@ -66,7 +71,8 @@
     DROPDOWN_BODY: 7, PLUGIN_ICON: 8, CHECK_ON: 9, CHECK_OFF: 10,
     FRAME_TOP_LEFT: 11, FRAME_TOP: 12, FRAME_TOP_RIGHT: 13,
     FRAME_LEFT: 14, FRAME_CENTRE: 15, FRAME_RIGHT: 16,
-    FRAME_BOTTOM_LEFT: 17, FRAME_BOTTOM: 18, FRAME_BOTTOM_RIGHT: 19
+    FRAME_BOTTOM_LEFT: 17, FRAME_BOTTOM: 18, FRAME_BOTTOM_RIGHT: 19,
+    CLOSE: 20, CLOSE_OVER: 21
   };
 
   /*
@@ -968,7 +974,6 @@
     var root = doc.createElement('div');
     var name = doc.createElement('span');
     var pop = doc.createElement('button');
-    var ok = doc.createElement('button');
     var close = doc.createElement('button');
 
     root.className = 'torirs-chrome';
@@ -995,27 +1000,18 @@
     this.popOutBtn = pop;
 
     /*
-     * A panel's TWO ways out, matching what the other presentations offer.
+     * The panel's way out, matching what the other presentations offer.
      *
-     * Ok fires the panel's confirm row on the way out and Close does not --
-     * which row that is, and whether there is one, is the model's business
-     * (ToriRSChromePanel::confirm_widget), so the page sends the intent and
-     * knows nothing about what the panel is for. With only a close box the
-     * window could be abandoned but never committed, which is the failure
-     * TORIRS_CHROME_INTENT_CONFIRM exists to prevent.
+     * ONE button. There was an Ok beside it that committed the page's Save row
+     * on the way out; it is gone from every presentation, along with the
+     * CONFIRM intent behind it. A page that stages edits carries Save and
+     * Revert as labelled rows, which is where a user looks for them.
      *
-     * Both are reported rather than acted on: the MODEL decides whether the
-     * window is up, and it hides the panel when it receives one. Taking the
-     * DOM down here as well would close it twice and leave the model thinking
-     * it is still open.
+     * Reported rather than acted on: the MODEL decides whether the window is
+     * up, and it hides the panel when it receives this. Taking the DOM down
+     * here as well would close it twice and leave the model thinking it is
+     * still open.
      */
-    ok.type = 'button';
-    ok.className = 'ok';
-    ok.textContent = '\u2713';
-    ok.title = 'Ok';
-    ok.addEventListener('click', function () {
-      self.push({ k: INTENT.CONFIRM, p: self.tabPanel, w: -1, v: 0, text: '' });
-    });
     close.type = 'button';
     close.className = 'close';
     close.textContent = '\u2715';
@@ -1025,7 +1021,6 @@
     });
     this.titleEl.appendChild(name);
     this.titleEl.appendChild(pop);
-    this.titleEl.appendChild(ok);
     this.titleEl.appendChild(close);
 
     this.tabsEl = doc.createElement('div');
@@ -1193,8 +1188,22 @@
      * window being resized -- all of them leave the list pointing at nothing,
      * and the press one is what makes the control modal the way every other
      * dropdown in the game is.
+     *
+     * The press listener is on the DOCUMENT in the CAPTURE phase, and it
+     * therefore runs BEFORE the row or the button the press landed on: a
+     * `stopPropagation` down there cannot hold it off, and one that tried
+     * would shut the list out from under the very click that was choosing a
+     * row. So it asks where the press was instead, and lets anything inside
+     * this list or on its own button through untouched.
      */
-    var dismiss = function () { self.closeDropdown(); };
+    var dismiss = function (ev) {
+      var node = ev && ev.target;
+      while (node) {
+        if (node === list || node === w.control) return;
+        node = node.parentNode;
+      }
+      self.closeDropdown();
+    };
     doc.addEventListener('mousedown', dismiss, true);
     if (this.body) this.body.addEventListener('scroll', dismiss);
     if (doc.defaultView) doc.defaultView.addEventListener('resize', dismiss);
@@ -1228,24 +1237,43 @@
    * the list a scroll's distance away from it.
    */
   ChromeHost.prototype.placeDropdown = function () {
+    var m = METRICS;
     var w = this.widgets[this.dropOpen];
     var list = this.dropList;
     var root;
-    var box;
     var here;
     var height;
+    var below;
+    var above;
 
     if (!w || !list || !this.root) return;
     root = this.root.getBoundingClientRect();
     here = w.control.getBoundingClientRect();
     list.style.left = (here.left - root.left) + 'px';
     list.style.width = here.width + 'px';
+    list.style.top = (here.bottom - root.top) + 'px';
     /* Measured after the width lands: the height depends on how the rows wrap
      * into it, and reading it before is a height for the wrong box. */
-    list.style.top = (here.bottom - root.top) + 'px';
     height = list.getBoundingClientRect().height;
-    if (here.bottom + height > root.bottom && here.top - root.top > height)
+
+    /*
+     * Above when there is more room there, and never taller than the room it
+     * ends up in.
+     *
+     * The window is a docked iframe as often as not, and a list that ran past
+     * its bottom edge would simply be CUT there -- the rows below the cut are
+     * unreachable and there is nothing on screen to say so. Capped instead, so
+     * what does not fit scrolls, which is what the bar inside the list is for.
+     */
+    below = root.bottom - here.bottom;
+    above = here.top - root.top;
+    if (height > below && above > below) {
+      list.style.maxHeight = Math.max(above, 2 * m.dropListRowH * K) + 'px';
+      height = list.getBoundingClientRect().height;
       list.style.top = (here.top - root.top - height) + 'px';
+    } else if (height > below) {
+      list.style.maxHeight = Math.max(below, 2 * m.dropListRowH * K) + 'px';
+    }
   };
 
   ChromeHost.prototype.pickDropdown = function (index) {

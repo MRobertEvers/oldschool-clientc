@@ -907,6 +907,7 @@ ToriRSChrome_Init(struct ToriRSChrome* ui)
     ui->resize_panel = -1;
     ui->free_widget = -1;
     ui->scroll_panel = -1;
+    ui->hover_close_panel = -1;
     ui->caret_visible = 1;
 }
 
@@ -935,6 +936,7 @@ ToriRSChrome_Reset(struct ToriRSChrome* ui)
     ui->drag_panel = -1;
     ui->resize_panel = -1;
     ui->scroll_panel = -1;
+    ui->hover_close_panel = -1;
     ui->overflow = 0;
     ui->dirty = 1;
 }
@@ -1006,9 +1008,6 @@ ToriRSChrome_PanelAdd(
     p->fixed_w = fixed_w;
     p->first_widget = -1;
     p->last_widget = -1;
-    /* Not 0, which is a legitimate widget handle: an unset confirm row must
-     * read as "Ok just closes", not as "Ok fires whatever ended up first". */
-    p->confirm_widget = -1;
     /* -1 is "every tab": a panel with no strip must not have its rows stamped
      * onto tab 0, or adding a strip later would hide all of them at once. */
     p->build_tab = -1;
@@ -1070,33 +1069,27 @@ ToriRSChrome_PanelSetResizable(struct ToriRSChrome* ui, int panel, int resizable
 }
 
 void
-ToriRSChrome_PanelSetClosable(
-    struct ToriRSChrome* ui, int panel, int closable, int confirm_widget)
+ToriRSChrome_PanelSetClosable(struct ToriRSChrome* ui, int panel, int closable)
 {
     assert(ui);
     if( !dbg_valid_panel(ui, panel) )
         return;
     closable = closable ? 1 : 0;
-    if( ui->panels[panel].closable == closable &&
-        ui->panels[panel].confirm_widget == confirm_widget )
+    if( ui->panels[panel].closable == closable )
         return;
     ui->panels[panel].closable = closable;
-    ui->panels[panel].confirm_widget = confirm_widget;
     dbg_dirty_panel(ui, panel);
 }
 
 /**
- * Screen rect of a closable panel's Ok or Close button, or a zero rect.
+ * Screen rect of a closable panel's Close button, or a zero rect.
  *
  * Pinned to the RIGHT end of the title bar and sized to the bar's own height,
- * so the two sit where a window's buttons sit and cannot land on the title
- * text -- which is left-aligned and, on this window, says which page is up.
- *
- * @param which 0 = Ok, 1 = Close. Close is the outermost, which is the order
- *        every window furniture set on this machine uses.
+ * so it sits where a window's close box sits and cannot land on the title text
+ * -- which is left-aligned and, on this window, says which page is up.
  */
 static struct ToriRSChromeRect
-dbg_panel_button_box(struct ToriRSChrome const* ui, struct ToriRSChromeRect box, int which)
+dbg_panel_close_box(struct ToriRSChrome const* ui, struct ToriRSChromeRect box)
 {
     struct ToriRSChromeRect out = { 0, 0, 0, 0 };
     int const side =
@@ -1107,12 +1100,12 @@ dbg_panel_button_box(struct ToriRSChrome const* ui, struct ToriRSChromeRect box,
     out.w = side;
     out.h = side;
     out.y = box.y + 2 * DBG_RULE;
-    out.x = box.x + box.w - 2 * DBG_RULE - side - (which == 1 ? 0 : side + DBG_RULE);
+    out.x = box.x + box.w - 2 * DBG_RULE - side;
     return out;
 }
 
 static struct ToriRSChromeRect
-dbg_panel_button_rect(struct ToriRSChrome const* ui, int panel, int which)
+dbg_panel_close_rect(struct ToriRSChrome const* ui, int panel)
 {
     struct ToriRSChromeRect out = { 0, 0, 0, 0 };
     struct ToriRSChromePanel const* p;
@@ -1125,25 +1118,19 @@ dbg_panel_button_rect(struct ToriRSChrome const* ui, int panel, int which)
     /* Hit off LAST_RECT, not the live x/y -- the same rule the header drag and
      * the resize grip follow. Mid-drag the panel's own fields have already
      * moved, and the button that was clicked is the one that was drawn. */
-    return dbg_panel_button_box(ui, p->last_rect, which);
+    return dbg_panel_close_box(ui, p->last_rect);
 }
 
-/** Which of a closable panel's buttons is under the point: 0 = Ok, 1 = Close,
- *  -1 = neither. `out_panel` names the panel when one was hit. */
+/** Panel whose Close button is under the point, or -1. */
 static int
-dbg_panel_button_at(struct ToriRSChrome const* ui, int x, int y, int* out_panel)
+dbg_panel_close_at(struct ToriRSChrome const* ui, int x, int y)
 {
     for( int i = ui->panel_count - 1; i >= 0; i-- )
     {
         if( !ui->panels[i].visible || !ui->panels[i].closable )
             continue;
-        for( int which = 0; which < 2; which++ )
-            if( dbg_point_in_rect(x, y, dbg_panel_button_rect(ui, i, which)) )
-            {
-                if( out_panel )
-                    *out_panel = i;
-                return which;
-            }
+        if( dbg_point_in_rect(x, y, dbg_panel_close_rect(ui, i)) )
+            return i;
     }
     return -1;
 }
@@ -3120,51 +3107,59 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             clip);
 
         /*
-         * Ok and Close, when the panel asked for them.
+         * Close, when the panel asked for it: the interfaces' own window X.
          *
-         * The interfaces' own tick and cross, for the same reason the
-         * checkboxes are: there is no drawn button anywhere in this cache to
-         * imitate, and every accept/dismiss pair in the game is this pair of
-         * sprites. Drawn from last_rect via dbg_panel_button_rect so the hit
-         * test and the picture cannot drift apart.
+         * ONE button. There was an Ok beside it wearing the checkbox tick, and
+         * a green tick is the game's answer to a QUESTION -- it belongs against
+         * a setting, not in a title bar, where it read as a second unlabelled
+         * copy of the Save row two inches below it.
+         *
+         * Drawn from the panel's LIVE box rather than last_rect: last_rect is
+         * written at the end of this same build, so reading it here draws
+         * nothing at all on the frame a panel first appears -- which is every
+         * frame, for a panel rebuilt from scratch. dbg_panel_close_box is
+         * shared with the hit test off last_rect, so the two cannot drift.
          */
         if( p->closable )
-            for( int which = 0; which < 2; which++ )
-            {
-                int const slot = which == 1 ? TORIRS_CHROME_SKIN_CHECK_OFF
-                                            : TORIRS_CHROME_SKIN_CHECK_ON;
-                /* From the panel's LIVE box, not last_rect: last_rect is
-                 * written at the end of this same build, so reading it here
-                 * draws nothing at all on the frame a panel first appears --
-                 * which is every frame, for a panel rebuilt from scratch. */
-                struct ToriRSChromeRect live;
-                struct ToriRSChromeRect box;
-                live.x = p->x;
-                live.y = p->y;
-                live.w = p->w;
-                live.h = p->h;
-                box = dbg_panel_button_box(ui, live, which);
-                int const hot =
-                    dbg_point_in_rect(ui->hover_x, ui->hover_y, box);
+        {
+            struct ToriRSChromeRect live;
+            struct ToriRSChromeRect box;
 
-                if( box.w <= 0 )
-                    continue;
+            live.x = p->x;
+            live.y = p->y;
+            live.w = p->w;
+            live.h = p->h;
+            box = dbg_panel_close_box(ui, live);
+            if( box.w > 0 )
+            {
+                /*
+                 * The hover is IN THE ART: the two baked images are one button
+                 * lit from opposite corners, so the hovered one reads as
+                 * pressed in. That is also why no accent outline goes over it
+                 * -- a control with two hover indications reads as selected
+                 * rather than as under the cursor.
+                 */
+                int const hot = dbg_point_in_rect(ui->hover_x, ui->hover_y, box);
+                int const slot =
+                    hot ? TORIRS_CHROME_SKIN_CLOSE_OVER : TORIRS_CHROME_SKIN_CLOSE;
+
                 if( th->skin_dropdown && dbg_skin_has(ui, slot) )
                     dbg_push_sprite_box(ui, box.x, box.y, box.w, box.h, slot, clip);
                 else
                 {
-                    /* No skin: a box with the accept/dismiss colours the theme
-                     * already carries, so the buttons exist on a build that
-                     * baked no art rather than being invisible. */
+                    /* No skin: a framed box in the theme's dismiss colour, so
+                     * the way out exists on a build that baked no art rather
+                     * than being invisible. The outline comes back with it --
+                     * a flat box has no bevel to invert. */
                     dbg_push_rect(ui, box.x, box.y, box.w, box.h, th->input_bg, 1, clip);
                     dbg_push_rect(
                         ui, box.x + DBG_RULE, box.y + DBG_RULE, box.w - 2 * DBG_RULE,
-                        box.h - 2 * DBG_RULE,
-                        which == 1 ? th->accent : th->check_mark, 1, clip);
+                        box.h - 2 * DBG_RULE, th->accent, 1, clip);
+                    if( hot )
+                        dbg_push_rect(ui, box.x, box.y, box.w, box.h, th->accent, 0, clip);
                 }
-                if( hot )
-                    dbg_push_rect(ui, box.x, box.y, box.w, box.h, th->accent, 0, clip);
             }
+        }
     }
     /* Bottom rule and the two side rails: inset a pixel, and running from the
      * separator down, exactly as dbg_build_menu draws them. A titleless panel
@@ -5055,19 +5050,17 @@ ToriRSChrome_WindowDragRegion(
         return 0;
 
     /*
-     * A closable panel's Ok and Close sit IN the title bar.
+     * A closable panel's Close sits IN the title bar.
      *
-     * Unpunched they are unreachable rather than merely awkward: the press that
-     * would activate one starts a window drag instead and the button never
+     * Unpunched it is unreachable rather than merely awkward: the press that
+     * would close the window starts a drag of it instead, and the button never
      * sees a click at all. That is the whole hazard of this feature in one
-     * case -- a handle is not a decoration, it is a region that eats input.
+     * case -- a handle is not a decoration, it is a region that eats input --
+     * and it lands on the one control a frameless window cannot do without.
      */
-    for( int which = 0; which < 2; which++ )
-    {
-        r = dbg_panel_button_rect(ui, panel, which);
-        if( r.w > 0 && out->hole_count < TORIRS_CHROME_DRAG_HOLES_MAX )
-            out->holes[out->hole_count++] = r;
-    }
+    r = dbg_panel_close_rect(ui, panel);
+    if( r.w > 0 && out->hole_count < TORIRS_CHROME_DRAG_HOLES_MAX )
+        out->holes[out->hole_count++] = r;
 
     /*
      * Popups float OUTSIDE the widget that owns them, so an open list or picker
@@ -5274,6 +5267,29 @@ ToriRSChrome_MouseMove(struct ToriRSChrome* ui, int x, int y)
     ui->hover_x = x;
     ui->hover_y = y;
 
+    /*
+     * The title bar's Close, tracked here for the same reason and with the same
+     * "before any early return" placement.
+     *
+     * It is not a widget -- it is the panel's own chrome, so the widget hover
+     * below never names it -- and it changes PICTURE under the cursor rather
+     * than gaining an outline. A change of picture that nothing marks dirty is
+     * a change that does not get drawn: the pressed art would turn up only on a
+     * frame something unrelated had already rebuilt.
+     */
+    {
+        int const panel = dbg_panel_close_at(ui, x, y);
+
+        if( panel != ui->hover_close_panel )
+        {
+            /* Both panels repaint: the one losing the highlight and the one
+             * gaining it, exactly as the widget hover below does. */
+            dbg_dirty_panel(ui, ui->hover_close_panel);
+            ui->hover_close_panel = panel;
+            dbg_dirty_panel(ui, panel);
+        }
+    }
+
     /* A panel's own grip, held for as long as the button is: same rule as the
      * dropdown's below it, and checked first for the same reason. */
     if( ui->scroll_panel >= 0 )
@@ -5429,19 +5445,16 @@ ToriRSChrome_MouseDown(struct ToriRSChrome* ui, int x, int y)
     }
 
     /*
-     * A closable panel's Ok/Close, before its header drag: the buttons live IN
-     * the title bar, and a press on one must not also pick the window up.
-     * Acted on at RELEASE like every other clickable thing here, so a press
-     * that slides off cancels.
+     * A closable panel's Close, before its header drag: the button lives IN the
+     * title bar, and a press on it must not also pick the window up. Acted on
+     * at RELEASE like every other clickable thing here, so a press that slides
+     * off cancels.
      */
+    if( dbg_panel_close_at(ui, x, y) >= 0 )
     {
-        int panel = -1;
-        if( dbg_panel_button_at(ui, x, y, &panel) >= 0 )
-        {
-            dbg_focus_release(ui);
-            ui->press = -1;
-            return 1;
-        }
+        dbg_focus_release(ui);
+        ui->press = -1;
+        return 1;
     }
 
     /* A panel's own bar, before its rows: the bar's column is inside the
@@ -5578,23 +5591,14 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y)
         return 1;
     }
 
-    /* A closable panel's Ok/Close. Ahead of the row logic for the same reason
-     * every other piece of panel furniture is: the buttons sit over the title
-     * bar, not over a row. */
+    /* A closable panel's Close. Ahead of the row logic for the same reason
+     * every other piece of panel furniture is: the button sits over the title
+     * bar, not over a row. It DISCARDS -- staged rows live in the chrome and
+     * nothing writes them but their own Save. */
     {
-        int panel = -1;
-        int const which = dbg_panel_button_at(ui, x, y, &panel);
-        if( which >= 0 )
+        int const panel = dbg_panel_close_at(ui, x, y);
+        if( panel >= 0 )
         {
-            /* Ok fires the panel's confirm row on the way out, so a page that
-             * stages its edits commits them; Close does not, which is what
-             * makes the two buttons two outcomes rather than one and a
-             * synonym for it. */
-            if( which == 0 && dbg_valid_widget(ui, ui->panels[panel].confirm_widget) )
-            {
-                ui->activated = ui->panels[panel].confirm_widget;
-                ui->activated_action = 0;
-            }
             ToriRSChrome_PanelSetVisible(ui, panel, 0);
             ui->press = -1;
             return 1;

@@ -54,7 +54,8 @@ tileind_draw(
             hover_z,
             hover_level,
             g_api->cfg_color(ctx, "hover_color"),
-            g_api->cfg_int(ctx, "hover_fill"));
+            g_api->cfg_color(ctx, "hover_fill_color"),
+            g_api->cfg_int(ctx, "hover_fill_alpha"));
 
     if( !g_api->local_player(ctx, &me) )
         return TORIRS_PLUGIN_PASS;
@@ -66,7 +67,8 @@ tileind_draw(
         me.true_z,
         me.level,
         g_api->cfg_color(ctx, "true_color"),
-        g_api->cfg_int(ctx, "true_fill"));
+        g_api->cfg_color(ctx, "true_fill_color"),
+        g_api->cfg_int(ctx, "true_fill_alpha"));
 
     if( !g_api->cfg_bool(ctx, "show_dest") )
         return TORIRS_PLUGIN_PASS;
@@ -90,7 +92,8 @@ tileind_draw(
             me.dest_z,
             me.level,
             g_api->cfg_color(ctx, "dest_color"),
-            0);
+            g_api->cfg_color(ctx, "dest_fill_color"),
+            g_api->cfg_int(ctx, "dest_fill_alpha"));
 
     return TORIRS_PLUGIN_PASS;
 }
@@ -108,15 +111,33 @@ tileind_init(
     api->subscribe(ctx, TORIRS_PLUGIN_EV_DRAW_WORLD, tileind_draw, NULL);
 }
 
+/*
+ * Every marker is an outline colour, a fill colour and the fill's opacity.
+ *
+ * The fill used to be the opacity alone, washed in the outline's colour, and
+ * it read as a text box asking for a number between 0 and 255 next to two
+ * colour rows -- the one setting on the tab you could not point at. Splitting
+ * it puts a picker on the fill, where a picker belongs, and leaves the number
+ * to say the one thing a palette entry cannot: how much of the ground below
+ * still shows through, with 0 meaning outline only.
+ *
+ * The opacities keep the markers looking as they did -- a light wash under the
+ * player, nothing under the destination or the pointer -- so the new pickers
+ * are an offer rather than a change of appearance.
+ */
 static struct ToriRS_PluginConfigItem const TILEIND_CONFIG[] = {
-    { "true_color", TORIRS_PLUGIN_CFG_COLOR, "True tile colour",   "#00FFFF", 0, 0,   NULL },
-    { "true_fill",  TORIRS_PLUGIN_CFG_INT,   "True tile fill",     "40",      0, 255, NULL },
-    { "dest_color", TORIRS_PLUGIN_CFG_COLOR, "Destination colour", "#FFFF00", 0, 0,   NULL },
-    { "show_dest",  TORIRS_PLUGIN_CFG_BOOL,  "Show destination",   "1",       0, 0,   NULL },
-    { "hover_color", TORIRS_PLUGIN_CFG_COLOR, "Hover tile colour", "#FFFFFF", 0, 0,   NULL },
-    { "hover_fill", TORIRS_PLUGIN_CFG_INT,   "Hover tile fill",    "0",       0, 255, NULL },
-    { "show_hover", TORIRS_PLUGIN_CFG_BOOL,  "Show hover tile",    "1",       0, 0,   NULL },
-    { NULL,         TORIRS_PLUGIN_CFG_BOOL,  NULL,                 NULL,      0, 0,   NULL },
+    { "true_color",       TORIRS_PLUGIN_CFG_COLOR, "True tile colour",         "#00FFFF", 0, 0,   NULL },
+    { "true_fill_color",  TORIRS_PLUGIN_CFG_COLOR, "True tile fill",           "#00FFFF", 0, 0,   NULL },
+    { "true_fill_alpha",  TORIRS_PLUGIN_CFG_INT,   "True tile fill opacity",   "40",      0, 255, NULL },
+    { "dest_color",       TORIRS_PLUGIN_CFG_COLOR, "Destination colour",       "#FFFF00", 0, 0,   NULL },
+    { "dest_fill_color",  TORIRS_PLUGIN_CFG_COLOR, "Destination fill",         "#FFFF00", 0, 0,   NULL },
+    { "dest_fill_alpha",  TORIRS_PLUGIN_CFG_INT,   "Destination fill opacity", "0",       0, 255, NULL },
+    { "show_dest",        TORIRS_PLUGIN_CFG_BOOL,  "Show destination",         "1",       0, 0,   NULL },
+    { "hover_color",      TORIRS_PLUGIN_CFG_COLOR, "Hover tile colour",        "#FFFFFF", 0, 0,   NULL },
+    { "hover_fill_color", TORIRS_PLUGIN_CFG_COLOR, "Hover tile fill",          "#FFFFFF", 0, 0,   NULL },
+    { "hover_fill_alpha", TORIRS_PLUGIN_CFG_INT,   "Hover tile fill opacity",  "0",       0, 255, NULL },
+    { "show_hover",       TORIRS_PLUGIN_CFG_BOOL,  "Show hover tile",          "1",       0, 0,   NULL },
+    { NULL,               TORIRS_PLUGIN_CFG_BOOL,  NULL,                       NULL,      0, 0,   NULL },
 };
 
 /*

@@ -1896,6 +1896,7 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_chrome_exec.c ui/torirs_chrome_exec.c \
 		ui/torirs_chrome_exec_kind.c \
 		ui/torirs_chrome_mirror.c \
+		ui/test/uitree_test_chrome_cs2.c ui/torirs_chrome_exec_cs2.c \
 		$(CHROME_EXEC_TEST_CFLAGS) \
 		ui/test/uitree_test_entity_overlay_order.c
 	./$(OBJ_DIR)/uitree_test

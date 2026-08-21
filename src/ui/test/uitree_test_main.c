@@ -39,6 +39,7 @@ main(void)
     test_live_node_sets();
     test_debug_overlay();
     test_chrome_exec();
+    test_chrome_cs2();
     test_entity_overlay_draw_order();
 
     if( g_failures )

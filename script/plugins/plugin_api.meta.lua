@@ -169,7 +169,11 @@ dofile = nil
 --- every call checks the open surface and raises otherwise. `fill` is 0..255
 --- and 0 means outline only.
 ---@class torirs.Draw
----@field tile fun(tile_x: integer, tile_z: integer, level: integer, colour: torirs.Colour, fill?: integer)
+--- A tile's wash has a colour of its own -- the marker is read against the
+--- ground rather than against a model, so a bright outline can stay findable
+--- while the fill only tints the tile. Both halves are given together: pass
+--- the outline colour again for the old single-colour marker.
+---@field tile fun(tile_x: integer, tile_z: integer, level: integer, colour: torirs.Colour, fill_colour?: torirs.Colour, fill?: integer)
 ---@field hull fun(element_id: integer, colour: torirs.Colour, fill?: integer, shape?: torirs.HullShape) Convex hull of a scene element -- the element_id off a snapshot.
 ---@field line fun(x0: integer, y0: integer, x1: integer, y1: integer, colour: torirs.Colour) Screen space; see api.project().
 ---@field text fun(x: integer, y: integer, text: string, colour: torirs.Colour)

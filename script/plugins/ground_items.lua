@@ -591,7 +591,8 @@ function plugin.on_draw_world(api, draw)
 
         if fill_tiles then
             -- Reference: the tile takes the colour of the item on it.
-            draw.tile(tile.x, tile.z, me.level, tile.items[1].colour, tile_fill)
+            draw.tile(tile.x, tile.z, me.level,
+              tile.items[1].colour, tile.items[1].colour, tile_fill)
         end
     end
 end

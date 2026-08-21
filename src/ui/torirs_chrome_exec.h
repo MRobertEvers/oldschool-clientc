@@ -181,20 +181,16 @@ enum ToriRSChromeIntentKind
     /** The presentation was dismissed by its own chrome (a window's close box,
      *  a tab being shut). `widget` is -1; `panel` says which. */
     TORIRS_CHROME_INTENT_CLOSE,
-    /**
-     * The presentation's CONFIRM affordance was used -- an Ok button beside
-     * the close box. `widget` is -1; `panel` says which.
-     *
-     * Distinct from CLOSE because the two are a panel's two ways out and a
-     * presentation that could only report one of them would have a window you
-     * can abandon but not commit. What "confirm" means is the MODEL's to
-     * decide (ToriRSChromePanel::confirm_widget), so an executor sending this
-     * needs to know nothing about what the panel is for -- which is the whole
-     * reason it is one intent rather than "activate the Save row", a thing
-     * only the host can identify.
-     */
-    TORIRS_CHROME_INTENT_CONFIRM,
 };
+
+/*
+ * There was a CONFIRM here -- "the Ok beside the close box was used" -- and it
+ * is gone with the button. Kept as a note rather than as a value, because a
+ * kind nothing can raise is worse than an absent one: every executor still
+ * switches on it, every recording still round-trips it, and the seam claims a
+ * capability no presentation offers. A panel commits through its own Save row,
+ * which is a widget and arrives as ACTIVATE like any other.
+ */
 
 /**
  * One thing a user did, addressed at the model.

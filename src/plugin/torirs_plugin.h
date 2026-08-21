@@ -24,7 +24,7 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 5
+#define TORIRS_PLUGIN_ABI 6
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 #define TORIRS_PLUGIN_MENU_ROWS_MAX 16
@@ -634,8 +634,17 @@ struct ToriRS_PluginApi
      *    only; it is the wash's opacity, not the reference's inverted
      *    transparency. -- */
 
-    /** Absolute tile, outlined at per-corner terrain height so it stays
-     *  coplanar on a slope. */
+    /**
+     * Absolute tile, outlined at per-corner terrain height so it stays
+     * coplanar on a slope.
+     *
+     * The wash has a colour OF ITS OWN, unlike a hull's. A tile marker is read
+     * against the ground it is drawn on rather than against a model, so the
+     * two halves want to differ: a bright outline stays findable at a glance
+     * while the fill is whatever tints the tile without hiding what is
+     * standing on it. Pass `rgb` again to get the old single-colour marker.
+     * `fill_alpha` still decides whether there is a fill at all.
+     */
     void (*draw_tile)(
         struct ToriRS_PluginCtx* ctx,
         void* surface,
@@ -643,6 +652,7 @@ struct ToriRS_PluginApi
         int tile_z,
         int level,
         uint32_t rgb,
+        uint32_t fill_rgb,
         int fill_alpha);
     /** Convex hull of a scene element: the silhouette that wraps the model in
      *  three dimensions. `shape` picks what is hulled -- see

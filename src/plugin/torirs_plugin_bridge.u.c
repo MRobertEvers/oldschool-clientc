@@ -459,6 +459,7 @@ app_plugin_draw_tile(
     int tile_z,
     int level,
     uint32_t rgb,
+    uint32_t fill_rgb,
     int fill_alpha)
 {
     struct App* app = (struct App*)user;
@@ -515,13 +516,15 @@ app_plugin_draw_tile(
         return 0;
 
     hull_size = ToriDraw_ConvexHull(px, py, count, hull_x, hull_y);
+    /* The wash is the caller's fill colour, which is not always the outline's
+     * -- see draw_tile in torirs_plugin.h. */
     if( fill_alpha > 0 )
         app_overlay_push_polygon_filled(
             app,
             hull_x,
             hull_y,
             hull_size,
-            app_plugin_overlay_argb(rgb),
+            app_plugin_overlay_argb(fill_rgb),
             255 - (fill_alpha > 255 ? 255 : fill_alpha));
     app_overlay_push_polygon(app, hull_x, hull_y, hull_size, app_plugin_overlay_argb(rgb));
     return app->entity_overlay_count - before;

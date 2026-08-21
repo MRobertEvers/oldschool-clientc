@@ -224,6 +224,7 @@ void test_chatmodal_reclaim_no_shadow_text(void);
 void test_live_node_sets(void);
 void test_debug_overlay(void);
 void test_chrome_exec(void);
+void test_chrome_cs2(void);
 void test_entity_overlay_draw_order(void);
 
 #endif

@@ -140,7 +140,7 @@ fake_project(void* u, int fx, int fz, int h, int* ox, int* oy)
     return 1;
 }
 static int
-fake_draw_tile(void* u, int a, int b, int c, uint32_t d, int e)
+fake_draw_tile(void* u, int a, int b, int c, uint32_t d, uint32_t e, int f)
 {
     (void)u;
     (void)a;
@@ -148,6 +148,7 @@ fake_draw_tile(void* u, int a, int b, int c, uint32_t d, int e)
     (void)c;
     (void)d;
     (void)e;
+    (void)f;
     g_engine.draw_items += 5;
     return 5;
 }
@@ -478,7 +479,7 @@ alpha_draw(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
     g_api->draw_hull(ctx, d->surface, 3, 0xff0000u, 0, TORIRS_PLUGIN_HULL_MESH);
     /* Well past the budget, to prove the host stops handing calls through. */
     for( int i = 0; i < 400; i++ )
-        g_api->draw_tile(ctx, d->surface, 1, 1, 0, 0xffffffu, 0);
+        g_api->draw_tile(ctx, d->surface, 1, 1, 0, 0xffffffu, 0xffffffu, 0);
     return TORIRS_PLUGIN_PASS;
 }
 

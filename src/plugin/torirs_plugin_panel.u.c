@@ -290,9 +290,6 @@ app_plugin_panel_sync(struct App* app)
 {
     int count;
     int rev;
-    /** What the window's Ok button stands for on the page being built, or -1
-     *  when this page stages nothing. @see ToriRSChromePanel::confirm_widget. */
-    int confirm_widget = -1;
 
     assert(app);
     if( !app->plugins )
@@ -592,13 +589,9 @@ app_plugin_panel_sync(struct App* app)
         {
             int save_widget;
             ToriRSChrome_Separator(&app->plugin_ui, app->plugin_panel);
+            /* The only way to commit this page, now that the title bar's Ok is
+             * gone: closing DISCARDS, which is what closing a form means. */
             save_widget = ToriRSChrome_Button(&app->plugin_ui, app->plugin_panel, "Save");
-            /* The window's Ok stands for THIS row, so closing with Ok commits
-             * the page the way the button does and closing with the cross
-             * abandons it -- which is what those two words mean on a form.
-             * Re-pointed on every rebuild because the handle is a new one each
-             * time; a stale handle would make Ok fire whatever recycled it. */
-            confirm_widget = save_widget;
             app_plugin_panel_track(
                 app,
                 save_widget,
@@ -617,15 +610,14 @@ app_plugin_panel_sync(struct App* app)
     }
 
     /*
-     * The window's own way out.
+     * The window's own way out: the interfaces' window X in the title bar.
      *
-     * Declared here rather than at PanelAdd because what Ok STANDS FOR moves
-     * with the page: a plugin's settings page has a Save row and the roster
-     * has nothing to commit, so on the roster Ok is a plain dismiss. Opt-in
-     * per panel -- the developer tools beside this one are toggled by hotkeys
-     * and do not want a close box.
+     * Opt-in per panel -- the developer tools beside this one are toggled by
+     * hotkeys and do not want a close box. Set on every rebuild rather than at
+     * PanelAdd because the panel is cleared and rebuilt per page, and the flag
+     * has to survive that.
      */
-    ToriRSChrome_PanelSetClosable(&app->plugin_ui, app->plugin_panel, 1, confirm_widget);
+    ToriRSChrome_PanelSetClosable(&app->plugin_ui, app->plugin_panel, 1);
 
     app->plugin_panel_built_for = count;
     app->plugin_panel_built_rev = rev;

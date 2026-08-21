@@ -677,6 +677,14 @@ lua_check_color(lua_State* L, int idx)
     return (uint32_t)luaL_checkinteger(L, idx) & 0xffffffu;
 }
 
+/*
+ * draw.tile(x, z, level [, colour [, fill_colour, fill_opacity]])
+ *
+ * The fill's colour comes before its opacity, and the opacity is CHECKED
+ * rather than defaulted: a script written against the old (colour, opacity)
+ * pair would otherwise read its opacity as a fill colour and quietly draw no
+ * wash at all. Asking for a fill means saying what colour it is.
+ */
 static int
 lua_draw_tile(lua_State* L)
 {
@@ -685,11 +693,14 @@ lua_draw_tile(lua_State* L)
     int const tz = (int)luaL_checkinteger(L, 2);
     int const level = (int)luaL_checkinteger(L, 3);
     uint32_t const rgb = lua_check_color(L, 4);
-    int const fill = (int)luaL_optinteger(L, 5, 0);
+    int const want_fill = !lua_isnoneornil(L, 5);
+    uint32_t const fill_rgb = want_fill ? lua_check_color(L, 5) : rgb;
+    int const fill = want_fill ? (int)luaL_checkinteger(L, 6) : 0;
 
     if( !script->cur_surface )
         return luaL_error(L, "draw calls are only legal inside on_draw_world");
-    g_api->draw_tile(script->cur_ctx, script->cur_surface, tx, tz, level, rgb, fill);
+    g_api->draw_tile(
+        script->cur_ctx, script->cur_surface, tx, tz, level, rgb, fill_rgb, fill);
     return 0;
 }
 

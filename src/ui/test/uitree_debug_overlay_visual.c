@@ -524,6 +524,76 @@ skin_hue_is_green(int slot)
     return greener > redder;
 }
 
+/** Does this baked slot's art read RED -- the dismiss cross rather than a
+ *  button? The mirror of skin_hue_is_green, and what tells the interfaces' own
+ *  window X apart from the sprite it replaced. */
+static int
+skin_reads_red(int slot)
+{
+    struct ToriRSChromeSkin_Sprite const* spr = ToriRSChromeSkin_Get(slot);
+    long redder = 0;
+    long rest = 0;
+
+    if( !spr )
+        return 0;
+    for( int i = 0; i < spr->w * spr->h; i++ )
+    {
+        uint32_t const argb = spr->argb[i];
+        int const r = (int)((argb >> 16) & 0xFF);
+        int const g = (int)((argb >> 8) & 0xFF);
+        int const b = (int)((argb)&0xFF);
+
+        if( (argb >> 24) != 0xFFu )
+            continue;
+        if( r > g + 40 && r > b + 40 )
+            redder++;
+        else
+            rest++;
+    }
+    return redder * 4 > rest;
+}
+
+/** Are two baked slots actually two pictures? A hover pair that baked the same
+ *  image twice would satisfy every render assertion and show nothing. */
+static int
+skin_slots_differ(int a, int b)
+{
+    struct ToriRSChromeSkin_Sprite const* sa = ToriRSChromeSkin_Get(a);
+    struct ToriRSChromeSkin_Sprite const* sb = ToriRSChromeSkin_Get(b);
+
+    if( !sa || !sb )
+        return 0;
+    if( sa->w != sb->w || sa->h != sb->h )
+        return 1;
+    for( int i = 0; i < sa->w * sa->h; i++ )
+        if( sa->argb[i] != sb->argb[i] )
+            return 1;
+    return 0;
+}
+
+/**
+ * A cheap order-sensitive hash of what was rendered inside `r`.
+ *
+ * Compared against itself across two renders, so what it is worth is telling
+ * "these pixels changed" from "these pixels did not". Deliberately not a
+ * pixel-for-pixel compare against the bake: the title bar's button box is 14
+ * at 1x chrome scale and the art is 16x16, so what lands on the canvas is a
+ * scaled blit rather than a copy.
+ */
+static uint32_t
+box_checksum(struct ToriRSChromeRect r)
+{
+    uint32_t h = 2166136261u;
+
+    for( int y = r.y; y < r.y + r.h; y++ )
+        for( int x = r.x; x < r.x + r.w; x++ )
+        {
+            h ^= px(x, y);
+            h *= 16777619u;
+        }
+    return h;
+}
+
 static int
 skinned_check_pixels(struct ToriRSChromeWidget const* w, int slot)
 {
@@ -2140,14 +2210,17 @@ visual_colorpick(void)
 }
 
 /*
- * A panel's Ok and Close.
+ * A panel's Close, and the fact that it is the ONLY thing in the title bar.
  *
  * Opt-in, because most panels here are developer tools with a hotkey. The
  * plugin window is the one a player uses, and in the CS2 presentation -- a
  * column of game components with no window furniture of its own -- it opened
- * and then had no way to shut. Both buttons dismiss; Ok additionally fires the
- * panel's confirm row, which is what makes them two outcomes rather than one
- * and a synonym for it.
+ * and then had no way to shut.
+ *
+ * There was an Ok beside it that fired the page's Save row on the way out.
+ * It is gone, and the assertions below say so in the one way that matters:
+ * closing commits NOTHING, and the space Ok occupied belongs to the title bar
+ * again.
  */
 static void
 visual_panel_close(void)
@@ -2155,12 +2228,12 @@ visual_panel_close(void)
     int panel;
     int save;
 
-    printf("VISUAL: panel Ok / Close\n");
+    printf("VISUAL: panel Close\n");
     ToriRSChrome_Init(&g_ui);
     panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 20, 16, 220, "Plugins");
     ToriRSChrome_Checkbox(&g_ui, panel, "live preview", 1);
     save = ToriRSChrome_Button(&g_ui, panel, "Save");
-    ToriRSChrome_PanelSetClosable(&g_ui, panel, 1, save);
+    ToriRSChrome_PanelSetClosable(&g_ui, panel, 1);
     ToriRSChrome_Build(&g_ui);
     render("32_panel_close");
 
@@ -2169,24 +2242,119 @@ visual_panel_close(void)
         int const bar = ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_MENU, g_ui.scale);
         int const side = bar - 2;
         int const close_x = box.x + box.w - 2 - side / 2;
-        int const ok_x = close_x - side - 1;
+        /* Where the Ok used to be -- one button's width further in. */
+        int const was_ok_x = close_x - side - 1;
         int const by = box.y + 2 + side / 2;
 
-        /* Close: dismisses, and fires nothing. */
+        /* Close dismisses, and fires nothing: closing a form DISCARDS. */
         ToriRSChrome_MouseDown(&g_ui, close_x, by);
         ToriRSChrome_MouseUp(&g_ui, close_x, by);
         VT_ASSERT(!g_ui.panels[panel].visible, "Close dismisses the panel");
         VT_ASSERT(
             ToriRSChrome_TakeActivated(&g_ui) < 0, "and commits nothing on the way out");
 
-        /* Ok: fires the confirm row, then dismisses. */
+        /*
+         * And Ok is GONE, not merely undrawn. The slot it held is title bar
+         * again -- which is a drag handle, so a press there picks the window up
+         * instead of committing the page.
+         */
         ToriRSChrome_PanelSetVisible(&g_ui, panel, 1);
         ToriRSChrome_Build(&g_ui);
-        ToriRSChrome_MouseDown(&g_ui, ok_x, by);
-        ToriRSChrome_MouseUp(&g_ui, ok_x, by);
-        VT_ASSERT(ToriRSChrome_TakeActivated(&g_ui) == save, "Ok fires the confirm row");
-        VT_ASSERT(!g_ui.panels[panel].visible, "and dismisses the panel too");
+        ToriRSChrome_MouseDown(&g_ui, was_ok_x, by);
+        VT_ASSERT(
+            g_ui.drag_panel == panel, "where Ok stood is title bar, and drags the window");
+        ToriRSChrome_MouseUp(&g_ui, was_ok_x, by);
+        VT_ASSERT(
+            ToriRSChrome_TakeActivated(&g_ui) != save, "nothing there fires the Save row");
+        VT_ASSERT(g_ui.panels[panel].visible, "and nothing there closes the panel");
+        (void)save;
     }
+
+    /*
+     * The skinned pair, and the whole point of it: Close is the interfaces'
+     * WINDOW X, not the red cross that answers "no" to a checkbox.
+     *
+     * The two baked images are one button lit from opposite corners, so the
+     * hover is a change of PICTURE rather than an outline laid over one. Every
+     * assertion below is about that swap, because a swap is the thing that can
+     * silently not happen: the buttons are panel chrome rather than widgets, so
+     * nothing in the widget hover path marks them dirty, and art that changes
+     * on a frame nobody rebuilds is art that never changes at all.
+     */
+    {
+        int const bar = ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_MENU, g_ui.scale);
+        int const side = bar - 2;
+        struct ToriRSChromeRect box;
+        struct ToriRSChromeRect close_box;
+        struct ToriRSChromeRect ok_box;
+        uint32_t rest_close;
+        uint32_t rest_ok;
+
+        ToriRSChrome_Init(&g_ui);
+        g_ui.skin_avail = (1u << TORIRS_CHROME_SKIN_CHECK_ON) |
+                          (1u << TORIRS_CHROME_SKIN_CLOSE) |
+                          (1u << TORIRS_CHROME_SKIN_CLOSE_OVER);
+        panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 20, 16, 220, "Plugins");
+        ToriRSChrome_Checkbox(&g_ui, panel, "live preview", 1);
+        save = ToriRSChrome_Button(&g_ui, panel, "Save");
+        ToriRSChrome_PanelSetClosable(&g_ui, panel, 1);
+        ToriRSChrome_Build(&g_ui);
+        box = ToriRSChrome_PanelRect(&g_ui, panel);
+
+        /* dbg_panel_button_box's own arithmetic at scale 1, where DBG_RULE is
+         * 1: Close outermost, Ok one gap inside it. */
+        close_box.x = box.x + box.w - 2 - side;
+        close_box.y = box.y + 2;
+        close_box.w = side;
+        close_box.h = side;
+        /* The slot Ok used to hold: bare title bar now, and it has to STAY
+         * bare when the cursor moves onto Close beside it. */
+        ok_box = close_box;
+        ok_box.x = close_box.x - side - 1;
+
+        render("33_panel_close_skinned");
+        rest_close = box_checksum(close_box);
+        rest_ok = box_checksum(ok_box);
+
+        VT_ASSERT(
+            !skin_hue_is_green(TORIRS_CHROME_SKIN_CLOSE),
+            "the close slot is not the tick");
+        VT_ASSERT(
+            !skin_reads_red(TORIRS_CHROME_SKIN_CLOSE),
+            "nor the red cross it replaced -- it is the olive window button");
+        VT_ASSERT(
+            skin_slots_differ(TORIRS_CHROME_SKIN_CLOSE, TORIRS_CHROME_SKIN_CLOSE_OVER),
+            "and the hover slot is a different image from the resting one");
+
+        /*
+         * The cursor arrives. Build must REPORT work -- that return is the
+         * repaint, and a 0 here is the bug this hover tracking exists to stop.
+         */
+        ToriRSChrome_MouseMove(&g_ui, close_box.x + side / 2, close_box.y + side / 2);
+        VT_ASSERT(
+            ToriRSChrome_Build(&g_ui) != 0,
+            "the pointer landing on Close dirties the panel");
+        render("34_panel_close_hover");
+        VT_ASSERT(
+            box_checksum(close_box) != rest_close,
+            "and Close is drawn with its other picture");
+        VT_ASSERT(
+            box_checksum(ok_box) == rest_ok,
+            "while the bar beside it, where Ok used to be, is untouched");
+
+        /* And back off it again, which is the half that a latch with no clear
+         * would leave stuck pressed. */
+        ToriRSChrome_MouseMove(&g_ui, box.x + 4, box.y + box.h - 4);
+        VT_ASSERT(ToriRSChrome_Build(&g_ui) != 0, "leaving it dirties the panel too");
+        render("35_panel_close_unhover");
+        VT_ASSERT(
+            box_checksum(close_box) == rest_close, "and Close goes back to resting");
+    }
+
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 20, 16, 220, "Plugins");
+    ToriRSChrome_Label(&g_ui, panel, "spacer");
+    ToriRSChrome_Build(&g_ui);
 
     /* A panel that never asked for them has neither, and its title bar is
      * still a drag handle all the way to its right edge. */

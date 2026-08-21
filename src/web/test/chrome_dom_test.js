@@ -526,6 +526,21 @@ check(!!ddBtn, 'a dropdown gets the shared field box, not a <select>');
 check(ddBtn.tagName === 'SPAN', 'which is a span, because a select cannot be styled open');
 check(ddBtn.children[0].textContent === DD_OPTS[0], 'showing the model\'s value');
 
+/**
+ * A press on a node, as a BROWSER delivers one.
+ *
+ * The document's capture-phase listeners first, then the node's own -- which
+ * is the order that matters here and the reason this is a helper rather than
+ * a bare `node.fire`: the open list's dismisser is a capture listener on the
+ * document, so it runs BEFORE the row that was pressed. A test that fired only
+ * the node would never see a dismisser that shuts the list out from under the
+ * click choosing a row, which is exactly the bug this ordering has.
+ */
+function press(node) {
+  document.fire('mousedown', { target: node });
+  node.fire('mousedown');
+}
+
 /** The list, if one is up. It is placed against the window ROOT rather than
  *  the row, so that is where to look for it. */
 function ddList() {
@@ -537,7 +552,7 @@ function ddList() {
 check(!ddList(), 'and no list until it is asked for');
 
 intents();
-ddBtn.fire('mousedown');
+press(ddBtn);
 var list = ddList();
 check(!!list, 'pressing the button opens a list');
 check(list.children.length === DD_OPTS.length, 'with one row per option');
@@ -549,7 +564,7 @@ check(intents().length === 0, 'opening a list chooses nothing on its own');
  * event, or the button would open the list and shut it again. */
 check(!!ddList(), 'the press that opened it did not also dismiss it');
 
-list.children[2].fire('mousedown');
+press(list.children[2]);
 got = intents();
 check(got.length === 1 && got[0].k === INTENT.PICK, 'choosing a row queues a PICK');
 check(got[0].w === 40 && got[0].v === 2, 'naming the handle and the option index');
@@ -566,15 +581,15 @@ check(ddBtn.children[0].textContent === DD_OPTS[2], 'and follows it when it answ
 
 /* Modal, the way every dropdown in this game is: the next press anywhere else
  * takes it down, whatever that press was for. */
-ddBtn.fire('mousedown');
+press(ddBtn);
 check(!!ddList(), 'it opens again');
 document.fire('mousedown');
 check(!ddList(), 'a press elsewhere dismisses it');
 check(document.listenerCount('mousedown') === 0, 'and takes its listener off the document');
 
 /* Pressing the button while it is open shuts it rather than reopening. */
-ddBtn.fire('mousedown');
-ddBtn.fire('mousedown');
+press(ddBtn);
+press(ddBtn);
 check(!ddList(), 'the button toggles');
 
 /* The keyboard, which the <select> had for free. */
@@ -603,49 +618,47 @@ check(intents().length === 0, 'and changes nothing');
 
 /* A list being restated is not the list that is open, and an index into the
  * old one means nothing against the new. */
-ddBtn.fire('mousedown');
+press(ddBtn);
 check(!!ddList(), 'open again');
 apply(cmd(CMD.WIDGET_OPTIONS, { w: 40, v: 2 }));
 check(!ddList(), 'restating the options shuts the open list');
 apply(cmd(CMD.WIDGET_OPTION, { w: 40, v: 0, text: 'Only' }));
 apply(cmd(CMD.WIDGET_OPTION, { w: 40, v: 1, text: 'Two' }));
-ddBtn.fire('mousedown');
+press(ddBtn);
 check(ddList().children.length === 2, 'and the next open shows the new list');
 document.fire('mousedown');
 
 /* A hidden row, a tab switch or the row going away all leave a list hanging
  * off a button that is not there. */
-ddBtn.fire('mousedown');
+press(ddBtn);
 apply(cmd(CMD.WIDGET_HIDDEN, { w: 40, v: 1 }));
 check(!ddList(), 'hiding the row takes its list with it');
 apply(cmd(CMD.WIDGET_HIDDEN, { w: 40, v: 0 }));
-ddBtn.fire('mousedown');
+press(ddBtn);
 apply(cmd(CMD.WIDGET_REMOVE, { w: 40 }));
 check(!ddList(), 'and so does removing it');
 check(document.listenerCount('mousedown') === 0, 'with no listener left behind');
 ADD_ORDER.pop();
 
-/* ---- the two ways out ------------------------------------------------------ */
+/* ---- the way out ----------------------------------------------------------- */
 
 /*
- * A window that can be abandoned but not committed is the failure CONFIRM
- * exists to prevent, and the page had only a close box. Both are reported
- * rather than acted on -- the model decides whether the window is up.
+ * ONE button, and it is REPORTED rather than acted on -- the model decides
+ * whether the window is up, and taking the DOM down here as well would close it
+ * twice. There was an Ok beside it that committed the page's Save row; it is
+ * gone from every presentation, so the page must not offer one either.
  */
 var titleBar = root().children[0];
 var okBtn = titleBar.children.filter(function (c) { return c.classList.contains('ok'); })[0];
 var closeBtn = titleBar.children.filter(function (c) { return c.classList.contains('close'); })[0];
-check(okBtn !== undefined, 'the title bar offers Ok');
-check(closeBtn !== undefined, 'and Close');
+check(okBtn === undefined, 'the title bar offers no Ok');
+check(closeBtn !== undefined, 'only Close');
 
 intents();
-okBtn.fire('click');
-got = intents();
-check(got.length === 1 && got[0].k === INTENT.CONFIRM, 'Ok reports a CONFIRM');
 closeBtn.fire('click');
 got = intents();
-check(got.length === 1 && got[0].k === INTENT.CLOSE, 'Close reports a CLOSE, not a confirm');
-check(document.body.children.length === 1, 'and neither takes the window down itself');
+check(got.length === 1 && got[0].k === INTENT.CLOSE, 'Close reports a CLOSE');
+check(document.body.children.length === 1, 'and does not take the window down itself');
 
 /* ---- the baked skin -------------------------------------------------------
  *
@@ -766,10 +779,6 @@ check(document.body.children.length === 0, 'closing the window removes its root'
   check(one.length === 1 && one[0].k === INTENT.CLOSE, 'Close reports a CLOSE');
   check(one[0].p === 4, 'naming the panel the window is showing, with no strip to say so');
 
-  button('ok').fire('click');
-  one = queued();
-  check(one.length === 1 && one[0].k === INTENT.CONFIRM, 'Ok reports a CONFIRM');
-  check(one[0].p === 4, 'naming the same panel');
   h.close();
 })();
 

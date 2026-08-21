@@ -92,6 +92,7 @@ struct ToriRS_PluginEngine
         int tile_z,
         int level,
         uint32_t rgb,
+        uint32_t fill_rgb,
         int fill_alpha);
     int (*draw_hull)(void* user, int element_id, uint32_t rgb, int fill_alpha, int shape);
     int (*draw_line)(void* user, int x0, int y0, int x1, int y1, uint32_t rgb);

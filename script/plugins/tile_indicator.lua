@@ -24,6 +24,13 @@ local plugin = {
   name    = "tile-indicator-lua",
   version = "1.0.0",
   config  = {
+    -- Every marker is an outline colour, a fill colour and the fill's
+    -- opacity. The fill used to be the opacity alone, washed in the outline's
+    -- colour, which left a text box asking for a number between 0 and 255
+    -- sitting between two colour rows -- the one setting on the tab you could
+    -- not point at. The number stays for the one thing a palette entry cannot
+    -- say: how much of the ground below still shows through, 0 meaning
+    -- outline only. The defaults keep every marker looking as it did.
     {
       key = "true_color",
       type = "color",
@@ -31,18 +38,38 @@ local plugin = {
       label = "True tile colour"
     },
     {
-      key = "true_fill",
+      key = "true_fill_color",
+      type = "color",
+      default = "#00FFFF",
+      label = "True tile fill"
+    },
+    {
+      key = "true_fill_alpha",
       type = "int",
       default = "40",
       min = 0,
       max = 255,
-      label = "True tile fill"
+      label = "True tile fill opacity"
     },
     {
       key = "dest_color",
       type = "color",
       default = "#FFFF00",
       label = "Destination colour"
+    },
+    {
+      key = "dest_fill_color",
+      type = "color",
+      default = "#FFFF00",
+      label = "Destination fill"
+    },
+    {
+      key = "dest_fill_alpha",
+      type = "int",
+      default = "0",
+      min = 0,
+      max = 255,
+      label = "Destination fill opacity"
     },
     {
       key = "show_dest",
@@ -57,12 +84,18 @@ local plugin = {
       label = "Hover tile colour"
     },
     {
-      key = "hover_fill",
+      key = "hover_fill_color",
+      type = "color",
+      default = "#FFFFFF",
+      label = "Hover tile fill"
+    },
+    {
+      key = "hover_fill_alpha",
       type = "int",
       default = "0",
       min = 0,
       max = 255,
-      label = "Hover tile fill"
+      label = "Hover tile fill opacity"
     },
     {
       key = "show_hover",
@@ -78,7 +111,7 @@ local function plugin_draw_player(api, draw)
   if not me then return end
 
   draw.tile(me.true_x, me.true_z, me.level,
-    api.config.true_color, api.config.true_fill)
+    api.config.true_color, api.config.true_fill_color, api.config.true_fill_alpha)
 
   if not api.config.show_dest then return end
 
@@ -92,7 +125,8 @@ local function plugin_draw_player(api, draw)
   -- is set from the routed destination and cleared on arrival, which is
   -- exactly as long as a destination marker should live.
   if me.dest_x ~= me.true_x or me.dest_z ~= me.true_z then
-    draw.tile(me.dest_x, me.dest_z, me.level, api.config.dest_color, 0)
+    draw.tile(me.dest_x, me.dest_z, me.level,
+      api.config.dest_color, api.config.dest_fill_color, api.config.dest_fill_alpha)
   end
 end
 
@@ -113,7 +147,8 @@ function plugin.on_draw_world(api, draw)
   local hx, hz, hlevel = api.hover_tile()
   if not hx then return end
 
-  draw.tile(hx, hz, hlevel, api.config.hover_color, api.config.hover_fill)
+  draw.tile(hx, hz, hlevel,
+    api.config.hover_color, api.config.hover_fill_color, api.config.hover_fill_alpha)
 end
 
 return plugin
