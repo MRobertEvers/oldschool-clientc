@@ -6,6 +6,8 @@
     ./launch show osrs239-web
     ./launch status
     ./launch stop --all
+
+Tab completion:  eval "$(./launch completion zsh)"   (or bash)
 """
 
 import os

@@ -1187,6 +1187,95 @@ ToriRSServer_GameframeBindSlots(
     player->gameframe_floater = uid;
 }
 
+static int
+gameframe_mount_index(
+    const struct ToriRSServerInterfaceState* state,
+    int target_uid)
+{
+    assert(state);
+    for( int i = 0; i < state->mount_count; i++ )
+        if( state->mounts[i].target_uid == target_uid )
+            return i;
+    return -1;
+}
+
+/* A mount target only exists if the group holding it is on screen: either the
+ * root itself, or a group mounted somewhere inside it. */
+static int
+gameframe_group_present(
+    struct ToriRSServerPlayer const* player,
+    int group)
+{
+    assert(player);
+    if( group == ToriRSServer_PlayerGameframeIface(player) )
+        return 1;
+    for( int i = 0; i < player->interfaces.mount_count; i++ )
+        if( player->interfaces.mounts[i].interface_id == group )
+            return 1;
+    return 0;
+}
+
+/*
+ * Everything the server has open that `gameframe.enum` does not name.
+ *
+ * IF_OPENTOP destroys the client's entire widget tree, and the enum is only the
+ * login set — chatbox, orbs, the fourteen sidebar tabs. A modal the player has
+ * open, a raid HUD mounted in `overlay_atmosphere`, a panel nested inside one
+ * of the enum's own groups: those are server authority too, and the root switch
+ * clears their mount records along with everything else. Nothing ever mounts
+ * them again, so a Display-panel layout switch taken mid-raid removed the HUD
+ * permanently — the symptom this exists to fix, and the reason
+ * `~xpdrops_sync_mount` had to be spelled out by hand in gameframe_layout.rs2.
+ *
+ * So the mount table is snapshotted before the root is replaced and replayed
+ * after the enum has rebuilt the frame. Replay order is mount order, which is
+ * chronological, so a parent group is always re-opened before the child whose
+ * target uid names it.
+ */
+static void
+ToriRSServer_GameframeCarryMounts(
+    struct ToriRSServerPlayer* player,
+    const struct ToriRSServerIfMount* carried,
+    int carried_count)
+{
+    assert(player);
+    assert(carried);
+    for( int i = 0; i < carried_count; i++ )
+    {
+        /* Slots are named against whichever top the content spelled. The
+         * remapper moves a `:role` slot onto the live root; a uid already under
+         * it comes back unchanged. */
+        int uid = ToriRSServer_RemapGameframeSlotUid(player, carried[i].target_uid);
+        int at = gameframe_mount_index(&player->interfaces, uid);
+
+        /* The enum's own rebuild — or an onIfOpen it ran — may already have put
+         * this back. Only an identical mount counts: a slot now holding some
+         * other group is the older state, and the snapshot is the newer. */
+        if( at >= 0 &&
+            player->interfaces.mounts[at].interface_id == carried[i].interface_id &&
+            player->interfaces.mounts[at].type == carried[i].type )
+            continue;
+        if( !gameframe_group_present(player, TORIRSSERVER_COM_GROUP(uid)) )
+        {
+            /* A slot on the root that was just replaced, with no `:role`
+             * spelling for the remapper to follow. Re-sending it would address
+             * a group the client no longer has. */
+            fprintf(stderr,
+                    "torirsserver: if_opentop drops interface %d — target 0x%08x has "
+                    "no slot under the new root\n",
+                    carried[i].interface_id,
+                    (unsigned)uid);
+            continue;
+        }
+        ToriRSServer_SendIfOpensub(
+            player,
+            TORIRSSERVER_COM_GROUP(uid),
+            TORIRSSERVER_COM_CHILD(uid),
+            carried[i].interface_id,
+            carried[i].type);
+    }
+}
+
 void
 ToriRSServer_GameframeOpentop(
     struct ToriRSServerPlayer* player,
@@ -1195,6 +1284,8 @@ ToriRSServer_GameframeOpentop(
     const char* top_name;
     const struct ToriRSServerEnumDef* frame;
     const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+    struct ToriRSServerIfMount carried[TORIRSSERVER_IF_MOUNT_MAX];
+    int carried_count;
 
     assert(player);
     top_name = ToriRSServer_ContentSymbolName(TORIRSSERVER_PACK_INTERFACE, group);
@@ -1203,6 +1294,12 @@ ToriRSServer_GameframeOpentop(
         fprintf(stderr, "torirsserver: if_opentop group=%d has no pack name\n", group);
         return;
     }
+
+    /* Before IF_OPENTOP, which is what clears the table. */
+    carried_count = player->interfaces.mount_count;
+    assert(carried_count >= 0);
+    assert(carried_count <= TORIRSSERVER_IF_MOUNT_MAX);
+    memcpy(carried, player->interfaces.mounts, (size_t)carried_count * sizeof(carried[0]));
 
     ToriRSServer_SendIfOpentop(player, group);
     ToriRSServer_GameframeBindSlots(player, group, top_name);
@@ -1219,20 +1316,19 @@ ToriRSServer_GameframeOpentop(
 
     frame = ToriRSServer_ContentEnum(top_name);
     if( !frame || frame->count == 0 )
-    {
         fprintf(stderr,
                 "torirsserver: no `%s` gameframe enum — HUD/tabs will be empty\n",
                 top_name);
-        ToriRSServer_SendIfResyncV2(player);
-        return;
-    }
-    for( int i = 0; i < frame->count; i++ )
-        ToriRSServer_SendIfOpensub(
-            player,
-            group,
-            frame->values[i].key & 0xffff,
-            frame->values[i].value,
-            1);
+    else
+        for( int i = 0; i < frame->count; i++ )
+            ToriRSServer_SendIfOpensub(
+                player,
+                group,
+                frame->values[i].key & 0xffff,
+                frame->values[i].value,
+                1);
+    /* The frame is back; now put back what the frame does not know about. */
+    ToriRSServer_GameframeCarryMounts(player, carried, carried_count);
     /* The V2 snapshot is the authoritative commit for this root. It also
      * removes stale client-side mounts/event ranges left by an interrupted
      * layout switch. Revision 230's sender is deliberately a no-op. */

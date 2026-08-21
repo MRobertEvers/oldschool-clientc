@@ -823,6 +823,23 @@ EXTRA_OPCODES: dict[str, tuple[int, int, int, int, int]] = {
     # knockback wants.
     "MAP_CANSTEP": (11083, 3, 0, 1, 0),
 
+    # map_instance_setlinger(int $handle, int $ticks) /
+    # map_instance_linger(int $handle)(int) /
+    # map_instance_setlingergroup(int $handle, int $group)
+    #
+    # How long a reservation survives once its linger group has been empty of
+    # players — the engine's abandoned-encounter reclaim. Every alloc starts at
+    # the 100-tick default; `setlinger(h, 0)` opts out and hands the lifetime
+    # back to content. The getter exists so the [logout] backstop can tell a
+    # lingering instance (leave the character standing in it for a resumable
+    # login) from an opted-out one (teleport out and free, as it always did).
+    # Groups make emptiness a raid-wide question: a ToA Nexus is legitimately
+    # empty for the whole fight and must live as long as the room its party is
+    # actually in.
+    "MAP_INSTANCE_SETLINGER": (11084, 2, 0, 0, 0),
+    "MAP_INSTANCE_LINGER": (11085, 1, 0, 1, 0),
+    "MAP_INSTANCE_SETLINGERGROUP": (11086, 2, 0, 0, 0),
+
     # npc_findowned2()(boolean)
     # Resolve the active player's familiar into the secondary NPC context. A
     # targeted trigger can retain its primary target while `.npc_*` addresses
@@ -1154,6 +1171,11 @@ EXTRA_POINTERS: dict[str, tuple[int, int]] = {
     # correctly takes no pointer at all.
     "P_STUN": (1 << POINTER_BITS["active_player"], 0),
     "P_STUNNED": (1 << POINTER_BITS["active_player"], 0),
+    # Registry bookkeeping addressed by handle, like the rest of the
+    # map_instance family: no active anything.
+    "MAP_INSTANCE_SETLINGER": (0, 0),
+    "MAP_INSTANCE_LINGER": (0, 0),
+    "MAP_INSTANCE_SETLINGERGROUP": (0, 0),
 }
 
 # ScriptVarType: every type except `string` lives on the int stack. `any` means

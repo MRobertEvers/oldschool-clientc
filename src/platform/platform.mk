@@ -430,6 +430,18 @@ else ifeq ($(PLATFORM),web)
   # against.
   PLATFORM_TARGET_MEMTRACE_SUFFIX :=
 
+  # OPT=0 on the web lane is -Og, not -O0. Every other lane can afford a
+  # literal -O0 debug build; wasm cannot. Clang emits one wasm local per
+  # source temporary and one load/store per access at -O0, so the module comes
+  # out several times larger, the browser spends that much longer compiling it,
+  # and the client runs too slowly to reproduce anything worth debugging --
+  # a frame budget missed by 10x changes what the bug looks like. -Og keeps
+  # every local variable inspectable and does not reorder the code, so a
+  # DWARF-stepping session still works; it just stops emitting the naive form
+  # of it. PLATFORM_DEBUG_O_LEVEL is what the makefile puts in $(O_LEVEL) for
+  # OPT=0 (see the default at the bottom of this file).
+  PLATFORM_DEBUG_O_LEVEL := -Og
+
   ifeq ($(OPT),1)
     # -g0 discards the DWARF the shared CFLAGS' -g put in the objects. Without
     # it emcc keeps the debug info and, to keep it valid, runs only a subset of
@@ -437,7 +449,12 @@ else ifeq ($(PLATFORM),web)
     # slower than asked for.
     PLATFORM_LDFLAGS += -O3 -g0
   else
-    PLATFORM_LDFLAGS += -sASSERTIONS=1
+    # -Og at link too: emcc decides the binaryen pass set from the *link*
+    # -O level, and defaults to -O0 there no matter what the objects were
+    # compiled with -- so leaving it off gives back the unoptimized wasm the
+    # compile-side -Og was chosen to avoid. ASSERTIONS stays on; that is what
+    # the debug lane is for.
+    PLATFORM_LDFLAGS += -Og -sASSERTIONS=1
   endif
 
 else
@@ -447,3 +464,7 @@ endif
 # The windowing implementation of the PlatformSDL2 interface. SDL platforms use
 # platform_sdl2.c; both Windows blocks override this with platform_win32gdi.c.
 PLATFORM_WINDOW_SRC ?= platform/platform_sdl2.c
+
+# What OPT=0 means for this lane's -O level. -O0 everywhere except the web
+# lane, which cannot afford it: see the web block above.
+PLATFORM_DEBUG_O_LEVEL ?= -O0

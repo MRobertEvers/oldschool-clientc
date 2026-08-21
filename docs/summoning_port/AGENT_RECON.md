@@ -1683,7 +1683,7 @@ cachepack membership --src DIR --rev NAME [--types a,b] [--check-only]
 Repo build integration:
 - `src/makefile:1677` `torirsserver-cache` → `cachepack pack --src OSRS-Content/osrs239-content --base cache.osrs239 --out cache.osrs239.baked --rev osrs239 --assets --binary --gamevals`, then `torirsserver-cache-check` (asserts idx `0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 18 19 20 21 22 24 255` all exist).
 - `src/makefile:1632` `torirsserver-servpack` → `pack --server-only` (server band, no cache).
-- `manifests/manifest_osrs239_net.ini:24` `dir=cache.osrs239.baked` — the baked cache is already the boot target for the net manifest. `TORIRSSERVER_CACHE_DIR_DEFAULT "cache.osrs239"` (`src/torirsserver/torirs_server.h:99`) is the pristine default; the one-cache rule says point BOTH the world and JS5 at the bake.
+- `the osrs239-net profile (profiles/osrs239-net.ini):24` `dir=cache.osrs239.baked` — the baked cache is already the boot target for the net manifest. `TORIRSSERVER_CACHE_DIR_DEFAULT "cache.osrs239"` (`src/torirsserver/torirs_server.h:99`) is the pristine default; the one-cache rule says point BOTH the world and JS5 at the bake.
 
 ---
 
@@ -2251,7 +2251,7 @@ make -C src torirsserver-cache          # src/makefile:1676-1692
 ./src/torirs --manifest manifests/manifest_osrs230_embed.ini --user testc --pass test
 ```
 
-`manifest_osrs230*.ini` and `manifests/manifest_osrs239_net.ini` all boot `dir=cache.osrs239.baked`. **`manifests/manifest_osrs239.ini` boots the pristine `cache.osrs239` and will NOT see any edit** (`BUILD_AND_RUN.md:212`). `src/makefile:1636-1652` states the rule: only *client-visible* edits (CS2, interfaces, sprites, configs) need a bake; pure `.rs2` server work travels via `torirsserver-scripts` + `torirsserver-servpack`.
+`manifest_osrs230*.ini` and `the osrs239-net profile (profiles/osrs239-net.ini)` all boot `dir=cache.osrs239.baked`. **`manifests/manifest_osrs239.ini` boots the pristine `cache.osrs239` and will NOT see any edit** (`BUILD_AND_RUN.md:212`). `src/makefile:1636-1652` states the rule: only *client-visible* edits (CS2, interfaces, sprites, configs) need a bake; pure `.rs2` server work travels via `torirsserver-scripts` + `torirsserver-servpack`.
 
 `--base cache.osrs239` copies the pristine cache first, so untouched records keep their bytes; the output is ~440 MB and the container appends rather than compacts (re-packing the same `--out` grows it — the recipe `rm -rf`s first).
 

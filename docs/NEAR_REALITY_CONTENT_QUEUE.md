@@ -4747,6 +4747,64 @@ with and without, and what was explicitly deferred with its reason.
   Six of 492 wired: Karamja easy 9, Karamja medium 6 and 10, Fremennik easy 3,
   Morytania easy 7, Desert hard 4. Three of the six are trigger-tested.
 
+- 2026-08-20 — **A7b: nine hooks wired, five of them trigger-tested through real deaths.**
+  Three more from the location-free kill set, each with a variant question the
+  cache's display names could not answer:
+    * **Morytania medium 5, "Kill a Terror Dog".** `lotr_terror_dog_large` and
+      `lotr_terror_dog_small` route through one label, so a single call covers
+      the pair. The two `lotr_terror_dog_statue*` records share the display name
+      and are scenery — they have no death, so binding by symbol excludes them
+      without needing a guard.
+    * **Kandarin hard 8, "Kill a Mithril Dragon".** `brut_mithril_dragon` is the
+      Ancient Cavern one. `ds2_mithril_dragon` and `ds2_mithril_dragon_cutscene`
+      are Desert Treasure 2 fixtures sharing the name.
+    * **Desert easy 5, "Kill a Vulture".** `rag_vulture` and
+      `rag_vulture_flying` are the grounded and airborne forms of one bird, so
+      BOTH are bound. The award refuses the second claim, so a player who kills
+      one of each is credited once.
+
+  The trigger leg now stages five real deaths in sequence. It deliberately kills
+  the **small** terror dog and the **flying** vulture — the forms a hook written
+  from the task text alone would be least likely to bind — so binding only the
+  obvious record fails. Verified: unbinding the flying vulture fails the leg at
+  `got 5`.
+
+  Nine of 492 wired. Five are proven through the content's own death path rather
+  than reviewed: rock crab, ghoul, kalphite queen, terror dog, mithril dragon,
+  vulture.
+
+- 2026-08-20 — **A7b: fourteen hooks, nine trigger-tested. The location-free kill set is done.**
+  Five more, finishing the 18 kill tasks that name no location:
+    * **Wilderness medium 5, Green Dragon.** Five records over TWO death paths —
+      `green_dragon` has its own file, `green_dragon2`..`5` share
+      `wiki_green_dragon.rs2`'s label — so both paths needed the hook.
+      `babygreendragon1`..`3` are a different monster and stay out by symbol
+      binding; `brut_green_dragon` is the Ancient Cavern variant.
+    * **Wilderness hard 5, Lava Dragon** — three spawn variants, all bound.
+    * **Wilderness hard 6, Chaos Elemental** — `chaoselemental` only, not the
+      clan-cup fixture or either pet record.
+    * **Western elite 2, Thermonuclear Smoke Devil** — `smoke_devil_boss` only;
+      `deadman_breach_smoke_devil` and `league_6_smoke_devil_boss` are
+      seasonal-mode fixtures sharing the name, and a seasonal kill is not this
+      task. Placed after the existing `%thermy_active` guard, so a boss cleaned
+      up outside a live fight credits nothing.
+    * **Kourend easy 2, Sandcrab** — `zeah_sandcrab` and `zeah_sandcrab_small`.
+      `kourend_rockcrab` is a rock crab: same region, different monster, and the
+      one the Fremennik task counts. The trigger stanza asserts a sandcrab death
+      leaves the Fremennik tier at zero.
+
+  The trigger leg now stages **nine real deaths**, and each one deliberately
+  picks the least obvious record — `green_dragon3` rather than `green_dragon`,
+  `lava_dragon3`, the small sandcrab, the small terror dog, the flying vulture.
+  A hook bound only to the first record of its family passes a test that kills
+  the first record and proves nothing. Verified: deleting the shared-label green
+  dragon hook fails the leg at `got 6`.
+
+  Fourteen of 492 wired, nine proven through the content's own death path.
+  The remaining kill tasks all carry location clauses, which is a different
+  problem — they need a coord test, and that wants deciding once rather than
+  guessed per task, the same way the counted tasks did.
+
 ## 7. Open questions to settle before Wave E
 
 These change what gets built and are the user's call, not the port's:

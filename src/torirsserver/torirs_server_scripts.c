@@ -9393,6 +9393,38 @@ ToriRSServer_ScriptCommand(
         return 1;
     }
 
+    case SS_OP_MAP_INSTANCE_SETLINGER:
+    {
+        int32_t handle;
+        int32_t ticks;
+
+        if( !SSVM_PopInt(state, &ticks) || !SSVM_PopInt(state, &handle) )
+            return 1;
+        ToriRSServer_MapInstanceSetLinger(handle, ticks);
+        return 1;
+    }
+
+    case SS_OP_MAP_INSTANCE_LINGER:
+    {
+        int32_t handle;
+
+        if( !SSVM_PopInt(state, &handle) )
+            return 1;
+        SSVM_PushInt(state, ToriRSServer_MapInstanceLinger(handle));
+        return 1;
+    }
+
+    case SS_OP_MAP_INSTANCE_SETLINGERGROUP:
+    {
+        int32_t handle;
+        int32_t group;
+
+        if( !SSVM_PopInt(state, &group) || !SSVM_PopInt(state, &handle) )
+            return 1;
+        ToriRSServer_MapInstanceSetLingerGroup(handle, group);
+        return 1;
+    }
+
     case SS_OP_MAP_INSTANCE_PLAYERCOUNT:
     {
         int32_t handle;

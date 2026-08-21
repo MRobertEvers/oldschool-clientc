@@ -372,7 +372,7 @@ rpdxpctl push dist\win32\torirs.exe C:\dev\torirs.exe
 
 ```sh
 make -C src web              # -O3   -> build-web/torirs.js + torirs.wasm
-make -C src web-debug        # -O0 + assertions
+make -C src web-debug        # -Og + assertions
 ```
 
 The module is **not** self-sufficient: cache reads are answered by
@@ -890,13 +890,22 @@ Other pipeline targets:
 
 ```sh
 make -C src torirsserver-pack            # content validator + cache exporter binary
+make -C src check-content-audits         # the settled audits: crystal-set contract,
+                                         # Agility lap XP, Wintertodt rewards
 make -C src check-crystal-set-contract   # client/server ::~command contract gate
-make -C src test-content            # the whole content gate: register, codec, symbols,
-                                    # scripts, bands, membership, pack, clean, port
+make -C src test-content            # the whole content gate: audits, register, codec,
+                                    # symbols, scripts, bands, membership, pack,
+                                    # clean, port
 ```
 
-`check-crystal-set-contract` runs automatically before both `torirsserver-scripts`
-and `torirsserver-cache`. It exists because `::crystal_set` once failed on both sides
+`check-content-audits` is the three checks that used to run on every
+`torirsserver-scripts` build — `check-crystal-set-contract`, `check-agility-xp`
+and `check-wintertodt-rewards`. Each re-derives a settled verdict from content
+that no longer moves, so they now run in `test-content` and on demand rather
+than gating every launch that recompiles a script.
+
+`check-crystal-set-contract` still runs automatically before `torirsserver-cache`,
+which packs the clientscript half. It exists because `::crystal_set` once failed on both sides
 at once — CS2 prefix-matched it as the local `cry` emote, and content had two
 global debugprocs with the same name. Incident:
 [`docs/CRYSTAL_SET_COMMAND.md`](docs/CRYSTAL_SET_COMMAND.md).

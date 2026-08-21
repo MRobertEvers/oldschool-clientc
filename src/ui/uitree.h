@@ -898,6 +898,13 @@ struct UITree
     struct UITreeNodeSet resize_hooks;
     struct UITreeNodeSet sub_change_hooks;
     struct UITreeNodeSet scroll_layers;
+    /** Debug-overlay nodes. Not a singleton: a tree may carry more than one
+     *  (see UITree_DebugOverlaySetFontIds), and the emit pass has to reach all
+     *  of them. A set rather than a bare count because the count would only let
+     *  the pass skip when there are none, and every lane's manifest declares one
+     *  — switched off, drawing nothing, and still costing a whole-tree descent
+     *  per frame to be found again. */
+    struct UITreeNodeSet debug_overlays;
     /** Singleton builtins; -1 when absent. Maintained on Push / reclaim. */
     int32_t world_index;
     int32_t worldmap_index;

@@ -137,7 +137,7 @@ obstacles —
 |---|---|
 | A1 lap tracker + success curve | **done** — `agility_lap.rs2`; the curve is the engine's own 256-outcome interpolation, and the Canifis gap's published pair (176/300) reproduces every figure that page states |
 | A2 marks of grace | **done** — `agility_marks.rs2` + `agility_marks.enum`; per-lap roll, per-course rates, 3-minute cooldown, over-level penalty with the documented Canifis exemption, one mark, owner-only, 10 minutes, 82 published spawn tiles across the 8 rooftops |
-| A3 XP reconciliation | **done** — Al Kharid, Varrock, Falador, Ardougne and Gnome corrected; all now match their published lap totals, guarded by `tools/agility_xp_audit.py` in the script build |
+| A3 XP reconciliation | **done** — Al Kharid, Varrock, Falador, Ardougne and Gnome corrected; all now match their published lap totals, guarded by `tools/agility_xp_audit.py`, run by `make -C src check-content-audits` |
 | A5 run energy | **done** for the formulas (era feature flag, §1.6); the graceful/ring modifiers remain |
 | A8 Barbarian Outpost | **done** — `barbarian_course.rs2`, 153.3 Agility + 41.3 Strength, three failable obstacles stopping at exactly 93 |
 | A9 Wilderness course | **done** for the course — `wilderness_course.rs2`, 571.4 per lap, level-52 gate over the door category, lap ticket. The 150k dispenser, its loot and the lap counter are not implemented |

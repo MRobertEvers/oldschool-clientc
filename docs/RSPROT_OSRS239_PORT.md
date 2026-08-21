@@ -242,7 +242,7 @@ checks that they agree:
 
 ```sh
 src/build/torirsserver 43596 --rev osrs239 &
-src/torirs --manifest manifests/manifest_osrs239_net.ini --user testc --pass test
+./launch run osrs239-net
 ```
 
 ```

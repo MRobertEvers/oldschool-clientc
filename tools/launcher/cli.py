@@ -247,8 +247,21 @@ def build_plan(profile, client_override=None, flavor_override=None,
             (service.port for service in service_list
              if service.name == "io_server"),
             services_mod.DEFAULT_WEB_PORT)
-        query = urllib.parse.urlencode({"args": ",".join(args)})
-        url = "http://localhost:%s/?%s" % (web_port, query)
+        query = {"args": ",".join(args)}
+        # Point the page at the js5_server this profile declared. Without this
+        # the host page falls back to its own default of 43594 — which is the
+        # GAME port, because ToriRSServer serves game and JS5 on one socket —
+        # and the IndexedDB lane tries to prime its cache from a server that
+        # answers by closing the connection. Starting the right service is only
+        # half of owning it; the client has to be told where it is.
+        js5 = next(
+            (service for service in service_list
+             if service.name == "js5_server"), None)
+        if js5:
+            query["js5_host"] = "localhost"
+            query["js5_port"] = js5.port
+        url = "http://localhost:%s/?%s" % (
+            web_port, urllib.parse.urlencode(query))
         target = "web-idb" if client == "web-idb" else "web"
         make_args = []
 
@@ -574,9 +587,33 @@ def cmd_logs(args):
     return subprocess.run(["tail", "-n", str(args.lines)] + paths).returncode
 
 
+def cmd_completion(args):
+    """Print the shell glue, so installing it is one line of copy-paste."""
+    from . import completion
+
+    shell = args.shell
+    if not shell:
+        shell = os.path.basename(os.environ.get("SHELL", "")) or "bash"
+    if shell not in completion.SHELLS:
+        raise LaunchError("no completion script for '%s' (have: %s)"
+                          % (shell, ", ".join(sorted(completion.SHELLS))))
+    body = completion.script(shell)
+    if body is None:
+        raise LaunchError("completion script for '%s' is missing from %s"
+                          % (shell, os.path.join("tools", "launcher",
+                                                 "completions")))
+    sys.stdout.write(body)
+    if sys.stdout.isatty():
+        # Only when a human is looking: piping this into a file or eval must
+        # get the script and nothing else.
+        say("install with:  eval \"$(./launch completion %s)\"" % shell)
+    return 0
+
+
 def cmd_doctor(args):
     problems = []
     checks = []
+    notes = []
 
     submodule = os.path.join(REPO_ROOT, "OSRS-Content", "osrs239-content")
     if os.path.isdir(submodule):
@@ -593,6 +630,45 @@ def cmd_doctor(args):
 
     profiles = [load_profile(REPO_ROOT, args.profile)] if args.profile \
         else list_profiles(REPO_ROOT)
+
+    # Ports first, across every profile at once: two profiles that both want
+    # 43594 cannot run together, and finding that out as "port already in use"
+    # halfway through a start is a worse way to learn it.
+    claims = {}
+    for profile in profiles:
+        for name in profile.services:
+            port = profile.service_config(name).get("port")
+            if port:
+                claims.setdefault(port, []).append("%s/%s" % (profile.name, name))
+    for port, owners in sorted(claims.items()):
+        if len(owners) > 1:
+            notes.append("port %s is claimed by %s — those profiles cannot run "
+                         "at the same time" % (port, ", ".join(owners)))
+        if supervisor.port_listening(port):
+            notes.append("port %s is in use right now (wanted by %s)"
+                         % (port, ", ".join(owners)))
+
+    needs_web = any(profile.client in ("web", "web-idb") for profile in profiles)
+    if needs_web:
+        module = os.path.join(REPO_ROOT, "build-web", "torirs.js")
+        if os.path.isfile(module):
+            checks.append(("web module", "build-web/torirs.js present"))
+        else:
+            problems.append(
+                "a web profile exists but build-web/torirs.js is missing — "
+                "make -C src web")
+
+    if any(profile.client == "runelite" for profile in profiles):
+        toolchain = os.path.join(REPO_ROOT, "toolchains", "unpacked")
+        vendored = os.path.join(
+            REPO_ROOT, "toolchains", "java-toolchain-osrs239.zip")
+        if os.path.isdir(toolchain) or os.path.isfile(vendored):
+            checks.append(("java toolchain", "available for the runelite lane"))
+        else:
+            problems.append(
+                "a runelite profile exists but neither toolchains/unpacked nor "
+                "toolchains/java-toolchain-osrs239.zip is present")
+
     for profile in profiles:
         try:
             manifest = profile.manifest()
@@ -609,18 +685,46 @@ def cmd_doctor(args):
             problems.append(
                 "%s: script pack '%s' not built"
                 % (profile.name, os.path.relpath(scripts, REPO_ROOT)))
+        for gap, where in staleness.coverage_gaps(manifest):
+            problems.append(
+                "%s: declares [derived:*] but nothing for '%s' — %s is named "
+                "and will not be staleness-checked at all"
+                % (profile.name, gap, where))
 
     for name, detail in checks:
         print("  ok    %-22s %s" % (name, detail))
+    for note in notes:
+        print("  note  %s" % note)
     for problem in problems:
         print("  FAULT %s" % problem)
     if not problems:
-        print("\nno problems found")
+        print("\nno problems found%s"
+              % (" (%d note%s above)" % (len(notes), "" if len(notes) == 1 else "s")
+                 if notes else ""))
     return 1 if problems else 0
 
 
 # ------------------------------------------------------------------ entry
 def main(argv=None):
+    if argv is None:
+        argv = sys.argv[1:]
+    if argv and argv[0] == "complete":
+        # The shell's own question, answered before argparse can object to a
+        # half-typed word. Not a user-facing subcommand, so it is not declared
+        # below; see tools/launcher/completions/ for the callers.
+        from . import completion
+
+        words = argv[1:]
+        if words and words[0] == "--":
+            words = words[1:]
+        try:
+            completion.emit(REPO_ROOT, words, sys.stdout)
+        except Exception:
+            # A completer that prints a traceback into the command line is
+            # worse than one that offers nothing.
+            return 1
+        return 0
+
     parser = argparse.ArgumentParser(
         prog="launch",
         description="Run a named configuration of this tree.")
@@ -668,6 +772,10 @@ def main(argv=None):
     doctor = sub.add_parser("doctor", help="preflight this checkout")
     doctor.add_argument("profile", nargs="?")
 
+    shell = sub.add_parser("completion",
+                           help="print the shell tab-completion script")
+    shell.add_argument("shell", nargs="?", help="bash or zsh ($SHELL by default)")
+
     args = parser.parse_args(argv)
     if not args.command:
         parser.print_help()
@@ -676,7 +784,7 @@ def main(argv=None):
     handlers = {
         "list": cmd_list, "show": cmd_show, "run": cmd_run,
         "status": cmd_status, "stop": cmd_stop, "logs": cmd_logs,
-        "doctor": cmd_doctor,
+        "doctor": cmd_doctor, "completion": cmd_completion,
     }
     try:
         return handlers[args.command](args)

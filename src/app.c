@@ -9672,6 +9672,178 @@ app_xpdrop_debug_tick(struct App* app)
         stderr, "xpdrop: t=%d clock=%d %s\n", (int)app->logic_cycle, app->host.client_clock, line);
 }
 
+/* Settle the serial game-action pipeline, then pop the next packet.  Wire
+ * order is preserved because a packet and all of the mount/CS2 work it
+ * awaits finish before its successor starts.  Ready cooperative yields
+ * are not spread over visual frames; only real external IO can pause the
+ * transaction, and that pause is covered by exec_runner_had_work.
+ *
+ * Called from two places, and the second is a frame-rate matter. Every 20ms
+ * logic tick runs it as the tick's packet phase. But when the pipeline parks
+ * mid-tick on an asynchronous read — on web every post-READY cache read is
+ * one — its response lands between animation frames, long before the next
+ * logic tick. Waiting for that tick meant each parked read held the visual
+ * latch (exec_runner_had_work / server_tick_open) for a full 20ms, and a
+ * hitsplat whose sprite+sound chain was three reads deep froze the world for
+ * three ticks every server cycle. App_RunOnce therefore also resumes a parked
+ * pipeline once per frame; with nothing parked and nothing queued the call
+ * settles an idle runner and pops nothing, so the extra call is free. */
+static int
+app_pump_net_packets(struct App* app)
+{
+    int redraw = 0;
+
+    int drained = 0;
+    int fence_queued = 0;
+    int last_exec_packet_type = -1;
+
+    for( ;; )
+    {
+        enum TaskRunnerStat stat;
+
+        /* A root remount (IF_OPENTOP) tears the tree down and rebuilds it
+         * on app->runner. Every packet behind it targets components that
+         * do not exist yet, so hold the whole pipeline rather than feed it
+         * a tree mid-rebuild. App_RunOnce's own boot check cannot cover
+         * this: it runs at the top of the frame, and the rebuild starts
+         * here, below it — including on a later catch-up tick in the same
+         * App_RunOnce. */
+        if( app->app_state == APP_STATE_BOOTING )
+        {
+            app->exec_runner_had_work = 1;
+            break;
+        }
+
+        {
+            /* TORIRS_PKT_SLOW_MS=<n>: name the packet whose handler blew a
+             * frame. The pipeline is serial, so this settle is the packet
+             * queued by the previous iteration and nothing else. */
+            static int slow_ms = -1;
+            uint64_t t0;
+            extern uint64_t PlatformSDL2_TicksUs(void);
+
+            if( slow_ms < 0 )
+            {
+                char const* v = getenv("TORIRS_PKT_SLOW_MS");
+                slow_ms = (v && v[0]) ? atoi(v) : 0;
+            }
+            t0 = slow_ms > 0 ? PlatformSDL2_TicksUs() : 0;
+            stat = TaskRunner_SettleFrame(&app->exec_runner);
+            if( slow_ms > 0 && last_exec_packet_type >= 0 )
+            {
+                uint64_t dt = PlatformSDL2_TicksUs() - t0;
+                if( dt >= (uint64_t)slow_ms * 1000u )
+                    fprintf(
+                        stderr,
+                        "pkt_slow: type=%d %.2f ms cycle=%llu\n",
+                        last_exec_packet_type,
+                        dt / 1000.0,
+                        (unsigned long long)app->logic_cycle);
+            }
+        }
+
+        if( stat != TASK_RUNNER_IDLE )
+        {
+            if( getenv("TORIRS_FRAME_LATCH") )
+            {
+                struct ToriRS_Task* head = app->exec_runner.queue->head;
+                fprintf(
+                    stderr,
+                    "frame_latch: exec parked stat=%d head=%s blocked=%d io_pending=%d cycle=%d\n",
+                    (int)stat,
+                    head ? head->name : "(none)",
+                    head ? head->blocked : -1,
+                    PlatformX_IO_Pending(app->exec_runner.px, app->exec_runner.io),
+                    (int)app->logic_cycle);
+            }
+            app->exec_runner_had_work = 1;
+            break;
+        }
+        app->exec_runner_had_work = 0;
+
+        /* Do not cross a server-tick fence before that tick's newly
+         * dispatched client scripts have settled against its final state. */
+        if( fence_queued )
+            break;
+
+        {
+            struct RevPacket packet;
+
+            if( !app->net || !ToriRS_Network_PopPacket(app->net, &packet) )
+            {
+                drained = 1;
+                break;
+            }
+            /* Liveness, for app_net_link_watch's 15s bound. Stamped on the
+             * packet rather than on the byte read: a socket that delivers
+             * bytes the framer never completes is not a live session. */
+            app->net_last_recv_ms = app->last_frame_ms;
+            if( !app->net_first_recv_ms )
+                app->net_first_recv_ms = app->last_frame_ms;
+            /* Once a revision has demonstrated explicit tick fences,
+             * retain only packets that participate in an atomic UI/CS2
+             * transaction. World feedback is valid between those ticks.
+             * SERVER_TICK_END clears this after its exec task has run. */
+            if( app->server_tick_fence_seen && app_packet_may_mutate_ui(packet.packet_type) &&
+                packet.packet_type != PKT_NAME_SERVER_TICK_END )
+            {
+                if( !app->server_tick_open )
+                {
+                    app->server_tick_open_cycle = app->logic_cycle;
+                    if( getenv("TORIRS_FRAME_LATCH") )
+                        fprintf(
+                            stderr,
+                            "frame_latch: tick opened by packet %d at cycle %d\n",
+                            (int)packet.packet_type,
+                            (int)app->logic_cycle);
+                }
+                app->server_tick_open = 1;
+            }
+            if( packet.packet_type == PKT_NAME_SERVER_TICK_END )
+                fence_queued = 1;
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PROTO_PACKETS, 1);
+            last_exec_packet_type = packet.packet_type;
+            ToriRS_TaskQueue_Add(
+                app->exec_runner.queue, CreateTask_GameProtoExec(app, &packet));
+            redraw = 1;
+        }
+    }
+    /*
+     * The fence for revisions that send none, plus a bounded backstop.
+     *
+     * A dry pipeline is NOT a tick boundary on a revision that has one: a
+     * tick's packets arrive over several reads, so the queue runs dry mid-
+     * tick and flushing there is the early dispatch this whole mechanism
+     * exists to prevent. Once a SERVER_TICK_END has been seen, only that
+     * fence dispatches — except after APP_CLIENTSCRIPT_FENCE_MAX_CYCLES,
+     * so a tick cut short by a disconnect cannot strand a script forever.
+     */
+    if( drained && app->pending_clientscript_count &&
+        (!app->server_tick_fence_seen || app->logic_cycle - app->pending_clientscript_cycle >=
+                                             APP_CLIENTSCRIPT_FENCE_MAX_CYCLES) )
+    {
+        App_FlushPendingClientScripts(app);
+        /* Same recovery fence for a connection whose tick was cut short:
+         * once we intentionally fall back to the held scripts, allow the
+         * resulting fully-settled state to publish too. */
+        app->server_tick_open = 0;
+        redraw = 1;
+    }
+    else if(
+        drained && app->server_tick_open &&
+        app->logic_cycle - app->server_tick_open_cycle >= APP_CLIENTSCRIPT_FENCE_MAX_CYCLES )
+    {
+        /* A fence can be lost without a RUNCLIENTSCRIPT in the tick.  The
+         * same bounded disconnect recovery must release the visual latch
+         * or the last committed frame would be retained forever. */
+        app->server_tick_open = 0;
+        redraw = 1;
+    }
+
+
+    return redraw;
+}
+
 /* One 20ms client tick: clock, widget timers, animation loads + advance. */
 static int
 app_logic_tick(struct App* app)
@@ -9680,139 +9852,10 @@ app_logic_tick(struct App* app)
 
     app->logic_cycle++;
 
-    /* Settle the serial game-action pipeline, then pop the next packet.  Wire
-     * order is preserved because a packet and all of the mount/CS2 work it
-     * awaits finish before its successor starts.  Ready cooperative yields
-     * are not spread over visual frames; only real external IO can pause the
-     * transaction, and that pause is covered by exec_runner_had_work below. */
     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TICK_PACKETS)
     {
-        int drained = 0;
-        int fence_queued = 0;
-        int last_exec_packet_type = -1;
-
-        for( ;; )
-        {
-            enum TaskRunnerStat stat;
-
-            /* A root remount (IF_OPENTOP) tears the tree down and rebuilds it
-             * on app->runner. Every packet behind it targets components that
-             * do not exist yet, so hold the whole pipeline rather than feed it
-             * a tree mid-rebuild. App_RunOnce's own boot check cannot cover
-             * this: it runs at the top of the frame, and the rebuild starts
-             * here, below it — including on a later catch-up tick in the same
-             * App_RunOnce. */
-            if( app->app_state == APP_STATE_BOOTING )
-            {
-                app->exec_runner_had_work = 1;
-                break;
-            }
-
-            {
-                /* TORIRS_PKT_SLOW_MS=<n>: name the packet whose handler blew a
-                 * frame. The pipeline is serial, so this settle is the packet
-                 * queued by the previous iteration and nothing else. */
-                static int slow_ms = -1;
-                uint64_t t0;
-                extern uint64_t PlatformSDL2_TicksUs(void);
-
-                if( slow_ms < 0 )
-                {
-                    char const* v = getenv("TORIRS_PKT_SLOW_MS");
-                    slow_ms = (v && v[0]) ? atoi(v) : 0;
-                }
-                t0 = slow_ms > 0 ? PlatformSDL2_TicksUs() : 0;
-                stat = TaskRunner_SettleFrame(&app->exec_runner);
-                if( slow_ms > 0 && last_exec_packet_type >= 0 )
-                {
-                    uint64_t dt = PlatformSDL2_TicksUs() - t0;
-                    if( dt >= (uint64_t)slow_ms * 1000u )
-                        fprintf(
-                            stderr,
-                            "pkt_slow: type=%d %.2f ms cycle=%llu\n",
-                            last_exec_packet_type,
-                            dt / 1000.0,
-                            (unsigned long long)app->logic_cycle);
-                }
-            }
-
-            if( stat != TASK_RUNNER_IDLE )
-            {
-                app->exec_runner_had_work = 1;
-                break;
-            }
-            app->exec_runner_had_work = 0;
-
-            /* Do not cross a server-tick fence before that tick's newly
-             * dispatched client scripts have settled against its final state. */
-            if( fence_queued )
-                break;
-
-            {
-                struct RevPacket packet;
-
-                if( !app->net || !ToriRS_Network_PopPacket(app->net, &packet) )
-                {
-                    drained = 1;
-                    break;
-                }
-                /* Liveness, for app_net_link_watch's 15s bound. Stamped on the
-                 * packet rather than on the byte read: a socket that delivers
-                 * bytes the framer never completes is not a live session. */
-                app->net_last_recv_ms = app->last_frame_ms;
-                if( !app->net_first_recv_ms )
-                    app->net_first_recv_ms = app->last_frame_ms;
-                /* Once a revision has demonstrated explicit tick fences,
-                 * retain only packets that participate in an atomic UI/CS2
-                 * transaction. World feedback is valid between those ticks.
-                 * SERVER_TICK_END clears this after its exec task has run. */
-                if( app->server_tick_fence_seen && app_packet_may_mutate_ui(packet.packet_type) &&
-                    packet.packet_type != PKT_NAME_SERVER_TICK_END )
-                {
-                    if( !app->server_tick_open )
-                        app->server_tick_open_cycle = app->logic_cycle;
-                    app->server_tick_open = 1;
-                }
-                if( packet.packet_type == PKT_NAME_SERVER_TICK_END )
-                    fence_queued = 1;
-                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_PROTO_PACKETS, 1);
-                last_exec_packet_type = packet.packet_type;
-                ToriRS_TaskQueue_Add(
-                    app->exec_runner.queue, CreateTask_GameProtoExec(app, &packet));
-                redraw = 1;
-            }
-        }
-        /*
-         * The fence for revisions that send none, plus a bounded backstop.
-         *
-         * A dry pipeline is NOT a tick boundary on a revision that has one: a
-         * tick's packets arrive over several reads, so the queue runs dry mid-
-         * tick and flushing there is the early dispatch this whole mechanism
-         * exists to prevent. Once a SERVER_TICK_END has been seen, only that
-         * fence dispatches — except after APP_CLIENTSCRIPT_FENCE_MAX_CYCLES,
-         * so a tick cut short by a disconnect cannot strand a script forever.
-         */
-        if( drained && app->pending_clientscript_count &&
-            (!app->server_tick_fence_seen || app->logic_cycle - app->pending_clientscript_cycle >=
-                                                 APP_CLIENTSCRIPT_FENCE_MAX_CYCLES) )
-        {
-            App_FlushPendingClientScripts(app);
-            /* Same recovery fence for a connection whose tick was cut short:
-             * once we intentionally fall back to the held scripts, allow the
-             * resulting fully-settled state to publish too. */
-            app->server_tick_open = 0;
+        if( app_pump_net_packets(app) )
             redraw = 1;
-        }
-        else if(
-            drained && app->server_tick_open &&
-            app->logic_cycle - app->server_tick_open_cycle >= APP_CLIENTSCRIPT_FENCE_MAX_CYCLES )
-        {
-            /* A fence can be lost without a RUNCLIENTSCRIPT in the tick.  The
-             * same bounded disconnect recovery must release the visual latch
-             * or the last committed frame would be retained forever. */
-            app->server_tick_open = 0;
-            redraw = 1;
-        }
     }
 
     /* No widget hook may observe a half-applied packet/interface transaction.
@@ -19268,6 +19311,73 @@ App_DrainCommands(
     }
 }
 
+/*
+ * TORIRS_FRAME_LATCH=1 -- report the visual latch, one line per episode.
+ *
+ * App_RunOnce withholds a frame (returns 0) whenever a server-tick UI
+ * transaction is mid-flight, and the shell then re-presents the last committed
+ * frame. One or two frames of that is the mechanism working; a run of them is a
+ * visible freeze, and the trace alone cannot say which of the three exits held
+ * it. This counts the run and names the exits that made it up.
+ */
+static void
+app_frame_latch_note(struct App* app, char const* reason)
+{
+    static int enabled = -1;
+    static int frames;
+    static int logic_at_open;
+    static char const* reasons[8];
+    static int counts[8];
+    static int nreasons;
+
+    if( enabled < 0 )
+    {
+        char const* v = getenv("TORIRS_FRAME_LATCH");
+        enabled = (v && v[0] && v[0] != '0') ? 1 : 0;
+    }
+    if( !enabled )
+        return;
+
+    if( reason )
+    {
+        int i;
+
+        if( !frames )
+        {
+            nreasons = 0;
+            logic_at_open = (int)app->logic_cycle;
+        }
+        frames++;
+        for( i = 0; i < nreasons; i++ )
+            if( reasons[i] == reason )
+                break;
+        if( i == nreasons && nreasons < (int)(sizeof reasons / sizeof reasons[0]) )
+        {
+            reasons[nreasons] = reason;
+            counts[nreasons] = 0;
+            nreasons++;
+        }
+        if( i < (int)(sizeof counts / sizeof counts[0]) )
+            counts[i]++;
+        return;
+    }
+
+    if( frames )
+    {
+        char line[256];
+        int n = snprintf(
+            line,
+            sizeof line,
+            "frame_latch: held %d frames, %d logic ticks:",
+            frames,
+            (int)app->logic_cycle - logic_at_open);
+        for( int i = 0; i < nreasons && n < (int)sizeof line; i++ )
+            n += snprintf(line + n, sizeof line - n, " %s=%d", reasons[i], counts[i]);
+        fprintf(stderr, "%s\n", line);
+        frames = 0;
+    }
+}
+
 int
 App_RunOnce(
     struct App* app,
@@ -19377,7 +19487,10 @@ App_RunOnce(
      * transaction.  Do not run input against the partially-mutated tree, and
      * do not rebuild the emit list from it. */
     if( app->runner_had_work )
+    {
+        app_frame_latch_note(app, "runner_had_work");
         return 0;
+    }
 
     /* Async completions: world load finish, texture publish, deferred seq
      * binds, and any queued tree refresh (relayout + CS1 + redraw). */
@@ -19471,6 +19584,24 @@ App_RunOnce(
         }
     }
 
+    /* Resume a parked packet pipeline at frame rate, not tick rate. A packet
+     * task that yielded for an asynchronous cache read (the norm on web past
+     * READY) has its response delivered by the platform pump at the top of
+     * the very next frame; leaving the resume to the next 20ms logic tick
+     * held the visual latch a full tick per read, and a hitsplat whose
+     * sprite+sound chain was several reads deep froze the world for that
+     * many ticks — every server cycle, in combat. When nothing is parked
+     * this does not run at all, so tick cadence is otherwise untouched. */
+    if( app->exec_runner_had_work || app->server_tick_open ||
+        app->pending_clientscript_count > 0 )
+    {
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TICK_PACKETS)
+        {
+            if( app_pump_net_packets(app) )
+                app->need_redraw = 1;
+        }
+    }
+
     /* Timer hooks, packet-fence RUNCLIENTSCRIPTs, and other tick work enqueue
      * CS2 before interaction.  Settle them now so hit testing sees one coherent
      * tree rather than the intermediate state of a yielding script. */
@@ -19486,6 +19617,8 @@ App_RunOnce(
         if( stat != TASK_RUNNER_IDLE )
         {
             app->runner_had_work = 1;
+            app_frame_latch_note(
+                app, stat == TASK_RUNNER_BLOCKED ? "cs2_blocked" : "cs2_pending");
             return 0;
         }
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LAYOUT)
@@ -19500,7 +19633,17 @@ App_RunOnce(
      * packets may already have mutated the live tree; retain the prior frame
      * until the script has actually been dispatched and settled. */
     if( !App_FrameSettled(app) )
+    {
+        app_frame_latch_note(
+            app,
+            app->runner_had_work              ? "settled:runner_had_work"
+            : app->runner.frame_settle_pending ? "settled:frame_settle_pending"
+            : app->exec_runner_had_work        ? "settled:exec_runner_had_work"
+            : app->server_tick_open            ? "settled:server_tick_open"
+                                               : "settled:pending_clientscripts");
         return 0;
+    }
+    app_frame_latch_note(app, NULL);
 
     app->input_frame_consumed = 1;
 

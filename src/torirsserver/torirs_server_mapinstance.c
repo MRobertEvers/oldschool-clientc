@@ -74,6 +74,15 @@ struct ToriRSServerMapInstance
     int built;
     /** Bumped on every build (see ToriRSServer_MapInstanceGeneration). */
     int generation;
+    /** Ticks the linger group may stay empty before the engine tears this
+     *  down; 0 = content owns the lifetime. */
+    int linger_ticks;
+    /** Content-chosen group tag; 0 = alone. See the header on SetLingerGroup. */
+    int linger_group;
+    /** A player has stood inside at least once — arming condition for expiry. */
+    int occupied_ever;
+    /** Consecutive ticks the group has been empty since it was last occupied. */
+    int empty_ticks;
     struct ToriRSServerMapInstanceZone
         zones[TORIRSSERVER_MAPINSTANCE_LEVELS][TORIRSSERVER_MAPINSTANCE_ZONES][TORIRSSERVER_MAPINSTANCE_ZONES];
 };
@@ -388,6 +397,9 @@ ToriRSServer_MapInstanceAlloc(
             inst->base_z = z * 64;
             inst->zone_w = zone_w;
             inst->zone_h = zone_h;
+            /* Every reservation lingers by default; content opts out with
+             * SetLinger(handle, 0) when it owns the lifetime itself. */
+            inst->linger_ticks = TORIRSSERVER_MAPINSTANCE_LINGER_DEFAULT;
             if( getenv("TORIRSSERVER_VERBOSE") )
                 fprintf(stderr,
                         "torirsserver: map instance %d reserved %dx%d zones at %d,%d "
@@ -543,6 +555,69 @@ ToriRSServer_MapInstanceClearOwner(int player_uid)
         }
     }
     return cleared;
+}
+
+int
+ToriRSServer_MapInstanceSetLinger(
+    int handle,
+    int ticks)
+{
+    struct ToriRSServerMapInstance* inst = mapinstance_get(handle);
+
+    if( !inst || ticks < 0 )
+        return 0;
+    inst->linger_ticks = ticks;
+    return 1;
+}
+
+int
+ToriRSServer_MapInstanceLinger(int handle)
+{
+    struct ToriRSServerMapInstance* inst = mapinstance_get(handle);
+
+    return inst ? inst->linger_ticks : 0;
+}
+
+int
+ToriRSServer_MapInstanceSetLingerGroup(
+    int handle,
+    int group)
+{
+    struct ToriRSServerMapInstance* inst = mapinstance_get(handle);
+
+    if( !inst || group < 0 )
+        return 0;
+    inst->linger_group = group;
+    return 1;
+}
+
+int
+ToriRSServer_MapInstanceLingerGroup(int handle)
+{
+    struct ToriRSServerMapInstance* inst = mapinstance_get(handle);
+
+    return inst ? inst->linger_group : 0;
+}
+
+int
+ToriRSServer_MapInstanceLingerTick(
+    int handle,
+    int group_occupied)
+{
+    struct ToriRSServerMapInstance* inst = mapinstance_get(handle);
+
+    if( !inst )
+        return 0;
+    if( group_occupied )
+    {
+        inst->occupied_ever = 1;
+        inst->empty_ticks = 0;
+        return 0;
+    }
+    if( !inst->occupied_ever || inst->linger_ticks <= 0 )
+        return 0;
+    inst->empty_ticks++;
+    return inst->empty_ticks >= inst->linger_ticks;
 }
 
 int

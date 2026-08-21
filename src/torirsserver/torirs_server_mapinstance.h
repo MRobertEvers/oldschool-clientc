@@ -106,6 +106,22 @@
  *  therefore the allocator's reservations, come in. */
 #define TORIRSSERVER_MAPINSTANCE_SQUARE_ZONES 8
 
+/**
+ * How long an abandoned instance survives, in ticks (100 x 600ms = 60s).
+ *
+ * Every reservation starts with this linger: once a player has stood inside it
+ * and its whole linger group (below) has then been empty of players for this
+ * many consecutive ticks, the world tick tears it down with the full
+ * `ToriRSServer_WorldMapInstanceFree` teardown — npcs, floor objects, loc changes
+ * and the reservation itself. Until then the instance is intact, which is what
+ * lets a session that dropped mid-encounter log back in *inside* it and lets
+ * content restart the fight instead of stranding the character on void.
+ *
+ * `ToriRSServer_MapInstanceSetLinger(handle, 0)` opts an instance out — content
+ * then owns the lifetime completely, as everything did before linger existed.
+ */
+#define TORIRSSERVER_MAPINSTANCE_LINGER_DEFAULT 100
+
 /** One destination zone's source. `set == 0` means void. */
 struct ToriRSServerMapInstanceZone
 {
@@ -230,6 +246,52 @@ ToriRSServer_MapInstanceVarSet(
 /** Clear every live reservation owned by this uid; returns the number cleared. */
 int
 ToriRSServer_MapInstanceClearOwner(int player_uid);
+
+/**
+ * How many ticks this instance survives once its linger group is empty.
+ *
+ * 0 disables the engine teardown entirely — content owns the lifetime, which
+ * is what every instance had before linger existed. Reads return the setting
+ * (0 for a dead handle); writes reject a dead handle or a negative count.
+ */
+int
+ToriRSServer_MapInstanceSetLinger(
+    int handle,
+    int ticks);
+int
+ToriRSServer_MapInstanceLinger(int handle);
+
+/**
+ * Bind this instance into a linger group.
+ *
+ * Emptiness is judged per GROUP, not per reservation: a raid whose lobby and
+ * fight room are two reservations has a lobby that is legitimately empty for
+ * the whole fight (ToA's Nexus), and a satellite map nobody stands in between
+ * visits (Sotetseg's shadow realm). Any nonzero content-chosen tag; instances
+ * sharing a tag count each other's occupants and expire together. 0 (the
+ * default) means the instance is its own group.
+ */
+int
+ToriRSServer_MapInstanceSetLingerGroup(
+    int handle,
+    int group);
+int
+ToriRSServer_MapInstanceLingerGroup(int handle);
+
+/**
+ * One linger clock advance for one instance; called once per world tick.
+ *
+ * `group_occupied` is whether any player is standing anywhere in the
+ * instance's linger group this tick (the caller computes it — occupancy is the
+ * world's knowledge, not the registry's). Returns 1 when the instance has just
+ * expired — occupied once, then empty past its linger — and the caller must
+ * tear it down; 0 otherwise. An instance that was never entered never expires,
+ * so a map built ahead of the teleport into it is safe at any build latency.
+ */
+int
+ToriRSServer_MapInstanceLingerTick(
+    int handle,
+    int group_occupied);
 
 /**
  * Point one zone of the instance at one zone of the cache.

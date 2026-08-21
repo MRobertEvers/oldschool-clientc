@@ -822,7 +822,7 @@ make -C src torirsserver-cache          # cachepack pack --base cache.osrs239 \
 
 Two traps to write into the runbook:
 - **`CACHEPACK_CS2_NAMES` is a hard, undeclared dependency.** Without it, `script_393.cs2` fails on `unknown constant '^iftype_graphic'` (measured), `cachepack` prints one stderr line and **ships the base cache's bytes**. `src/makefile:1675` hard-codes `$(HOME)/Documents/git_repos/cs2/...`.
-- **`manifests/manifest_osrs239.ini` boots the pristine `cache.osrs239` and will never show an edit.** Use `manifest_osrs230*.ini` / `manifests/manifest_osrs239_net.ini`, which point at `cache.osrs239.baked`.
+- **`manifests/manifest_osrs239.ini` boots the pristine `cache.osrs239` and will never show an edit.** Use `manifest_osrs230*.ini` / `the osrs239-net profile (profiles/osrs239-net.ini)`, which point at `cache.osrs239.baked`.
 
 `stat_24` is a **legal CS2 spelling with no names-table entry** — `3rd/rscache/src/cs2/cs2_names.c:630-677` falls back to `<literal>_<id>` for `RSCACHE_CS2_TYPE_STAT` and the compiler reads it back. The cache itself already does this: `script_1003.cs2` spells Sailing `stat_xp(stat_23)`. **Do not depend on editing the external RuneStar `stat-names.tsv`** — that would make the build non-hermetic.
 

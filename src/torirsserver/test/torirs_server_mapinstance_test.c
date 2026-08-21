@@ -54,7 +54,27 @@ main(int argc, char** argv)
              "past-end slot rejected");
     CHECK_EQ(ToriRSServer_MapInstanceVarGet(handle, -1), 0, "invalid read is zero");
 
+    /* The linger clock. Default on, per-group emptiness, armed only by real
+     * occupancy — the invariants world_mapinstance_linger leans on. */
+    CHECK_EQ(ToriRSServer_MapInstanceLinger(handle), TORIRSSERVER_MAPINSTANCE_LINGER_DEFAULT,
+             "linger defaults on");
+    CHECK_EQ(ToriRSServer_MapInstanceLingerTick(handle, 0), 0,
+             "never-entered instance never expires");
+    CHECK_EQ(ToriRSServer_MapInstanceSetLinger(handle, 2), 1, "linger writes");
+    CHECK_EQ(ToriRSServer_MapInstanceLingerTick(handle, 1), 0, "occupied tick arms");
+    CHECK_EQ(ToriRSServer_MapInstanceLingerTick(handle, 0), 0, "first empty tick holds");
+    CHECK_EQ(ToriRSServer_MapInstanceLingerTick(handle, 1), 0, "reoccupation resets the clock");
+    CHECK_EQ(ToriRSServer_MapInstanceLingerTick(handle, 0), 0, "empty tick 1 of 2 holds");
+    CHECK_EQ(ToriRSServer_MapInstanceLingerTick(handle, 0), 1, "empty tick 2 of 2 expires");
+    CHECK_EQ(ToriRSServer_MapInstanceSetLinger(handle, 0), 1, "linger opt-out writes");
+    CHECK_EQ(ToriRSServer_MapInstanceLingerTick(handle, 0), 0,
+             "opted-out instance never expires");
+    CHECK_EQ(ToriRSServer_MapInstanceSetLingerGroup(handle, 9), 1, "linger group writes");
+    CHECK_EQ(ToriRSServer_MapInstanceLingerGroup(handle), 9, "linger group reads");
+
     CHECK_EQ(ToriRSServer_MapInstanceFree(handle), 1, "instance freed");
+    CHECK_EQ(ToriRSServer_MapInstanceLinger(handle), 0, "dead handle lingers zero");
+    CHECK_EQ(ToriRSServer_MapInstanceLingerGroup(handle), 0, "dead handle has no group");
     CHECK_EQ(ToriRSServer_MapInstanceVarGet(handle, 0), 0, "dead instance reads zero");
     recycled = ToriRSServer_MapInstanceAlloc(cache_dir, 8, 8);
     CHECK_EQ(recycled, handle, "allocator recycled handle");
@@ -62,6 +82,10 @@ main(int argc, char** argv)
              "recycled instance erased first register");
     CHECK_EQ(ToriRSServer_MapInstanceVarGet(recycled, TORIRSSERVER_MAPINSTANCE_VARS - 1), 0,
              "recycled instance erased last register");
+    CHECK_EQ(ToriRSServer_MapInstanceLinger(recycled), TORIRSSERVER_MAPINSTANCE_LINGER_DEFAULT,
+             "recycled instance re-arms the default linger");
+    CHECK_EQ(ToriRSServer_MapInstanceLingerGroup(recycled), 0,
+             "recycled instance left the old tenant's group");
     ToriRSServer_MapInstanceReset();
 
     if( g_fail )

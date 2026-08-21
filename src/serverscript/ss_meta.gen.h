@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11084] = {
+static const char* const g_ss_opcode_names[11087] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -495,6 +495,9 @@ static const char* const g_ss_opcode_names[11084] = {
     [11081] = "P_STUN",
     [11082] = "P_STUNNED",
     [11083] = "MAP_CANSTEP",
+    [11084] = "MAP_INSTANCE_SETLINGER",
+    [11085] = "MAP_INSTANCE_LINGER",
+    [11086] = "MAP_INSTANCE_SETLINGERGROUP",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -504,7 +507,7 @@ static const char* const g_ss_opcode_names[11084] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11084] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11087] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -993,6 +996,9 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11084] = {
     [11081] = { 1, 0, 0, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* P_STUN */
     [11082] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x001, 0x000 }, /* P_STUNNED */
     [11083] = { 3, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_CANSTEP */
+    [11084] = { 2, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_INSTANCE_SETLINGER */
+    [11085] = { 1, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_INSTANCE_LINGER */
+    [11086] = { 2, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_INSTANCE_SETLINGERGROUP */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */

@@ -54,7 +54,12 @@ LANE_FORBID_win64  := -march=i686 -mfpmath=387 console:5.01 -dead_strip \
 # property of the design rather than an accident worth re-deciding.
 LANE_REQUIRE_web := -sMIN_WEBGL_VERSION=1 -sMAX_WEBGL_VERSION=1 \
                     GL_SUPPORT_AUTOMATIC_ENABLE_EXTENSIONS=0
-LANE_FORBID_web  := ASYNCIFY -dead_strip
+# -O0 is forbidden here at any OPT level, which is the one lane where that is
+# true. wasm at -O0 is several times larger and slow enough that the client
+# stops reproducing what you are trying to look at, so the debug flavor is -Og
+# (PLATFORM_DEBUG_O_LEVEL in platform.mk) rather than the -O0 every other lane
+# gets. Check it with: make -C src lane-check PLATFORM=web OPT=0
+LANE_FORBID_web  := ASYNCIFY -dead_strip -O0
 
 # Everything a lane actually compiles and links with. GPU object names are in
 # here so "no WebGL in the win32 link" is checkable as a flag would be.

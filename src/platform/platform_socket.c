@@ -241,8 +241,17 @@ PlatformSocket_Poll(
         if( n > 0 )
         {
             CmdBus_Push(bus, TORIRS_CMD_NET_RECV, payload, (uint16_t)n);
-            if( n < TORIRS_CMD_MAX_PAYLOAD )
-                break;
+            /* A short read is NOT "the socket is drained" — keep reading
+             * until would-block says so. Emscripten's socket shim returns at
+             * most one WebSocket message per recv(), so every read of the
+             * server's small game packets is short; breaking here fed the
+             * client ONE message per frame while a server tick's burst is a
+             * dozen, and SERVER_TICK_END — the fence the UI-transaction
+             * latch waits for — arrived last. Measured: the whole burst in
+             * the browser inside 1ms, the client popping it over ~90ms of
+             * withheld frames, a world freeze every server cycle (worst in
+             * combat, where the burst is longest). On native the extra
+             * recv() costs one EWOULDBLOCK syscall per poll. */
         }
         else if( n == 0 || n == SOCKSTREAM_ERROR_CLOSED )
         {

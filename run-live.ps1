@@ -662,7 +662,7 @@ function Build-CacheOverlay {
             }
             break
         }
-        # The ordinary bake itself (manifests/manifest_osrs239_net.ini). It had no arm at
+        # The ordinary bake itself (the osrs239-net profile (profiles/osrs239-net.ini)). It had no arm at
         # all, so the one cache every non-lane profile runs on was the only one
         # nothing ever checked.
         '*cache.osrs239.baked' {

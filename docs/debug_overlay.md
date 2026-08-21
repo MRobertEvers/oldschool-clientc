@@ -239,7 +239,7 @@ committed manifests, 8 frames, `SDL_VIDEODRIVER=dummy`, `cmp` on the exit BMP:
 The `+1` is exactly the `rs_iface` owner node.
 
 **Not measured, for want of a local cache:** `manifests/manifest_osrs230.ini`, `_alt`,
-`_bank`, `_dev`, `_embed` and `manifests/manifest_osrs239_net.ini` (need
+`_bank`, `_dev`, `_embed` and `the osrs239-net profile (profiles/osrs239-net.ini)` (need
 `cache.osrs239.baked`); `manifests/manifest_rs254.ini` (`cache.rs254_zuk`);
 `manifests/manifest_rs377.ini` (`cache.rs377`); `manifests/manifest_void634.ini` (`cache.void634`);
 `manifests/manifest_xrsps.ini` (an absolute macOS path). rs254 and rs377 are the two with

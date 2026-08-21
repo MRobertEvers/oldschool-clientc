@@ -142,6 +142,7 @@ uitree_all_sets_ensure_pos(
     UITreeNodeSet_EnsurePosCap(&tree->resize_hooks, need_cap);
     UITreeNodeSet_EnsurePosCap(&tree->sub_change_hooks, need_cap);
     UITreeNodeSet_EnsurePosCap(&tree->scroll_layers, need_cap);
+    UITreeNodeSet_EnsurePosCap(&tree->debug_overlays, need_cap);
     if( tree->group_map )
     {
         for( i = 0; i < tree->group_map_cap; i++ )
@@ -166,6 +167,7 @@ uitree_all_sets_free(struct UITree* tree)
     UITreeNodeSet_Free(&tree->resize_hooks);
     UITreeNodeSet_Free(&tree->sub_change_hooks);
     UITreeNodeSet_Free(&tree->scroll_layers);
+    UITreeNodeSet_Free(&tree->debug_overlays);
     if( tree->group_map )
     {
         for( i = 0; i < tree->group_map_cap; i++ )
@@ -190,6 +192,7 @@ uitree_all_sets_clear(struct UITree* tree)
     UITreeNodeSet_Clear(&tree->resize_hooks);
     UITreeNodeSet_Clear(&tree->sub_change_hooks);
     UITreeNodeSet_Clear(&tree->scroll_layers);
+    UITreeNodeSet_Clear(&tree->debug_overlays);
     if( tree->group_map )
     {
         for( i = 0; i < tree->group_map_cap; i++ )
@@ -373,6 +376,7 @@ uitree_live_unregister(
     UITreeNodeSet_Remove(&tree->resize_hooks, idx);
     UITreeNodeSet_Remove(&tree->sub_change_hooks, idx);
     UITreeNodeSet_Remove(&tree->scroll_layers, idx);
+    UITreeNodeSet_Remove(&tree->debug_overlays, idx);
     if( c->component_id >= 0 )
         uitree_group_remove(tree, (c->component_id >> 16) & 0xffff, idx);
     if( tree->world_index == idx )
@@ -394,6 +398,8 @@ uitree_live_register(
         UITreeNodeSet_Add(&tree->models, idx);
     if( c->type == UIELEM_RS_LAYER )
         UITreeNodeSet_Add(&tree->scroll_layers, idx);
+    if( c->type == UIELEM_BUILTIN_DEBUG_OVERLAY )
+        UITreeNodeSet_Add(&tree->debug_overlays, idx);
     if( c->behavior.client_code > 0 )
         UITreeNodeSet_Add(&tree->client_code, idx);
     if( UITree_OpKeys(c)->has_bindings )
@@ -488,6 +494,8 @@ UITree_VerifyLiveSets(struct UITree const* tree)
         assert(!!UITreeNodeSet_Contains(&tree->models, (int32_t)i) == !!expect);
         expect = c->type == UIELEM_RS_LAYER;
         assert(!!UITreeNodeSet_Contains(&tree->scroll_layers, (int32_t)i) == !!expect);
+        expect = c->type == UIELEM_BUILTIN_DEBUG_OVERLAY;
+        assert(!!UITreeNodeSet_Contains(&tree->debug_overlays, (int32_t)i) == !!expect);
         expect = c->behavior.client_code > 0;
         assert(!!UITreeNodeSet_Contains(&tree->client_code, (int32_t)i) == !!expect);
         expect = c->op_keys.has_bindings != 0;
@@ -1602,12 +1610,12 @@ UITree_DebugOverlaySetFontIds(
     assert(tree);
     /* Every overlay component, not the first: a tree may carry more than one,
      * and a scale change that reached only one of them would put two chromes
-     * at two sizes on one screen. */
-    for( uint32_t i = 0; i < tree->component_count; i++ )
+     * at two sizes on one screen. The live set holds exactly those nodes, so
+     * this asks the question without a scan. */
+    for( int32_t s = 0; s < tree->debug_overlays.count; s++ )
     {
-        struct UITreeComponent* c = &tree->components[i];
-        if( c->type != UIELEM_BUILTIN_DEBUG_OVERLAY )
-            continue;
+        struct UITreeComponent* c = &tree->components[tree->debug_overlays.slots[s]];
+        assert(c->type == UIELEM_BUILTIN_DEBUG_OVERLAY);
         c->u.debug_overlay.font_id_small = font_id_small;
         c->u.debug_overlay.font_id_menu = font_id_menu;
         c->u.debug_overlay.font_id_body = font_id_body;

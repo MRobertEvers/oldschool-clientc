@@ -707,7 +707,7 @@ build_cache_overlay() {
                 tools/stage_rs2012_overlay.py torirsserver-cache-rs2012
             cache_base_warn "$CACHE_DIR"
             ;;
-        # A manifest that boots the ordinary bake itself (manifests/manifest_osrs239_net.ini).
+        # A manifest that boots the ordinary bake itself (the osrs239-net profile (profiles/osrs239-net.ini)).
         # It had no arm at all, so the one cache every non-lane profile runs on was
         # the only one nothing ever checked.
         *cache.osrs239.baked)

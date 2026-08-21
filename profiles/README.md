@@ -14,6 +14,25 @@ in shell history or in a copied manifest.
 ./launch doctor                   preflight this checkout
 ```
 
+## Tab completion
+
+```
+eval "$(./launch completion zsh)"      # or bash — add it to your rc file
+```
+
+zsh users who prefer a real completion file:
+
+```
+./launch completion zsh > ~/.zfunc/_launch     # with ~/.zfunc in $fpath
+```
+
+Completing a profile name lists the registry with each description; completing
+`stop`, `status`, or `logs` lists the runs that have state on disk and marks the
+ones still running; `logs <run> <TAB>` lists the log files that run actually
+has. The shell asks `launch complete` for the candidates, so a new subcommand,
+flag, or profile is completable without touching the shell scripts — see
+[tools/launcher/completion.py](../tools/launcher/completion.py).
+
 ## The split: worlds vs profiles
 
 A **manifest** (`manifests/*.ini`) is a WORLD — a cache lineage, a revision,

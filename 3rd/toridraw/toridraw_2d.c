@@ -416,6 +416,30 @@ ToriDraw2D_BlitArgbScaledAlpha(
     if( alpha > 255 )
         alpha = 255;
 
+    /*
+     * A destination box the size of the source is not a scale.
+     *
+     * The stepping below is exact at every ratio, and at 1:1 it is exactly the
+     * unscaled loop plus an add, a compare and a branch per pixel — and it
+     * reads the source through `srow[sx]`, which the compiler cannot prove is
+     * sequential, so the whole inner loop stays scalar. Taking the unscaled
+     * path is bit-identical there and not a fast approximation of it: with
+     * dst == src, sx_step is 1, x_rem_step is 0, and `sx` walks first_x + x —
+     * the same address BlitArgbAlpha computes directly. Same for the rows.
+     *
+     * It matters because an if3 sprite goes through this call whether or not
+     * its component box differs from the image (see the soft3d renderer's
+     * sprite path), and most of them do not: an authored interface sizes the
+     * component to the sprite. This was 940.7 ms of a 23.5 s browser trace,
+     * 10.1% of all non-idle main-thread time.
+     */
+    if( dst_w == src_w && dst_h == src_h )
+    {
+        ToriDraw2D_BlitArgbAlpha(
+            view_port, dst_x, dst_y, src, src_w, src_h, alpha, pixel_buffer);
+        return;
+    }
+
     int64_t x0 = dst_x;
     int64_t y0 = dst_y;
     int64_t x1 = (int64_t)dst_x + dst_w;

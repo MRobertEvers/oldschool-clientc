@@ -510,10 +510,13 @@
 #define SS_OP_P_STUN 11081
 #define SS_OP_P_STUNNED 11082
 #define SS_OP_MAP_CANSTEP 11083
+#define SS_OP_MAP_INSTANCE_SETLINGER 11084
+#define SS_OP_MAP_INSTANCE_LINGER 11085
+#define SS_OP_MAP_INSTANCE_SETLINGERGROUP 11086
 
 /** One past the highest opcode id; the size of any opcode-indexed table. */
-#define SS_OPCODE_MAX 11084
+#define SS_OPCODE_MAX 11087
 /** Opcodes the reference actually defines (the table is sparse). */
-#define SS_OPCODE_COUNT 485
+#define SS_OPCODE_COUNT 491
 
 #endif

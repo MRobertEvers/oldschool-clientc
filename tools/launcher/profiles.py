@@ -267,9 +267,8 @@ def generate_resolved_manifest(profile, out_dir):
     generated file useless to read. Two things are done to the copy:
 
       * an overridden key is replaced in place, inside its own section;
-      * the six manifest-relative keys are made ABSOLUTE, because the copy
-        lives at a different depth than the original and `../cache.osrs239`
-        would otherwise resolve somewhere else entirely.
+      * the six manifest-relative keys are re-expressed relative to the copy,
+        which lives at a different depth than the original — see reframe().
     """
     override_blocks = profile.overrides()
     base_path = profile.world_path
@@ -277,6 +276,23 @@ def generate_resolved_manifest(profile, out_dir):
         return base_path
 
     manifest = Manifest.load(base_path)
+
+    def reframe(value):
+        """Rewrite a manifest-relative path for the copy's new location.
+
+        The copy lives in build/manifests/, one level deeper than the original,
+        so `../cache.osrs239` would resolve somewhere else entirely if carried
+        over untouched. It is re-expressed RELATIVE TO THE COPY rather than
+        made absolute, because an absolute path breaks the web lane: the page
+        sends its cache directory to io_server, which refuses absolute paths
+        outright as untrusted input. A relative one survives both — the native
+        client resolves it against the copy's directory, and io_server
+        normalises the `..` segments away.
+        """
+        if not value or os.path.isabs(value):
+            return value
+        return os.path.relpath(manifest.resolve_path(value), out_dir)
+
     pending = {}
     for section, items in override_blocks:
         for key, value in items:
@@ -306,13 +322,13 @@ def generate_resolved_manifest(profile, out_dir):
                 # build/manifests/ where the copy lands — resolving it here is
                 # what keeps those two frames from disagreeing.
                 if key in MANIFEST_RELATIVE_KEYS:
-                    value = manifest.resolve_path(value)
+                    value = reframe(value)
                 out_lines.append("%s=%s" % (key, value))
                 applied.add((section, key))
                 continue
             if key in MANIFEST_RELATIVE_KEYS:
                 value = stripped.split("=", 1)[1].strip()
-                out_lines.append("%s=%s" % (key, manifest.resolve_path(value)))
+                out_lines.append("%s=%s" % (key, reframe(value)))
                 continue
         out_lines.append(raw)
 
@@ -331,7 +347,7 @@ def generate_resolved_manifest(profile, out_dir):
             for key in keys:
                 value = pending[(section_name, key)]
                 if key in MANIFEST_RELATIVE_KEYS:
-                    value = manifest.resolve_path(value)
+                    value = reframe(value)
                 out_lines.append("%s=%s" % (key, value))
 
     os.makedirs(out_dir, exist_ok=True)

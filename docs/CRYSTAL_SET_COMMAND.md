@@ -132,10 +132,12 @@ The incident is now protected at every boundary that failed:
 | actual result | self-test asserts worn helm/body/legs/bow and Ranged/Agility 99, not merely a successful return | `ToriRSServer --selftest` |
 | documentation | this file is required by the contract checker | contract checker |
 
-The contract gate is a prerequisite of **both** `torirsserver-scripts` and
-`torirsserver-cache`. This is deliberate: one builds the server half while the other
-packs the clientscript half. Either workflow must stop before publishing an
-incomplete fix.
+The contract gate is a prerequisite of `torirsserver-cache`, which packs the
+clientscript half, and of `check-content-audits` / `test-content`. It was also a
+prerequisite of `torirsserver-scripts` — the server half — until that repeat was
+dropped: with the contract settled, it re-proved the same verdict on every launch
+that recompiled a script. Run `check-content-audits` before publishing a change
+to either half.
 
 Run the focused gates from the repository root:
 

@@ -2329,61 +2329,57 @@ emit_walk_pass(
  * overlay unconditionally topmost, drag ghosts included, which is the whole
  * point of a debug overlay.
  *
- * It does descend the tree rather than scanning root siblings: the boot
+ * The nodes come from `tree->debug_overlays`, not from a descent. The boot
  * manifest's RevConfig can park the overlay under any container it likes
- * (`p=<some_panel>` in the layout record), and a nested overlay that silently
- * stopped drawing would be a miserable thing to debug with.
+ * (`p=<some_panel>` in the layout record), so finding it used to mean walking
+ * the whole tree — and every lane's manifest declares an overlay that is
+ * switched off until the P key, so the walk ran on every frame of every
+ * session to arrive at a node that draws nothing. Measured in the browser at
+ * 512.4 ms across a 23.5 s trace, 5.5% of all non-idle main-thread time: not
+ * the visiting, but ~3600 cache misses a frame reading four fields out of a
+ * 1.7 KB component each. The live set answers the same question in O(overlays).
  *
  * One desc for the entire display list. The render layer walks the prims
  * itself (torirs_frame's sb_steps expansion), so nothing here copies per-prim
  * state into the emit buffer.
  */
 static void
-emit_debug_overlay_in(
+emit_debug_overlay_node(
     struct UITree const* tree,
     struct UITreeHost const* host,
     struct UITreeEmitBuffer* out,
-    int32_t first)
+    int32_t idx)
 {
-    for( int32_t i = first; i >= 0; i = tree->components[i].next_sibling )
-    {
-        struct UITreeComponent const* c = &tree->components[i];
-        struct UITreeEmitDesc desc;
-        struct UITreeHostRequest req;
+    struct UITreeComponent const* c = &tree->components[idx];
+    struct UITreeEmitDesc desc;
+    struct UITreeHostRequest req;
 
-        if( c->freed )
-            continue;
+    assert(!c->freed);
+    assert(c->type == UIELEM_BUILTIN_DEBUG_OVERLAY);
 
-        if( c->type != UIELEM_BUILTIN_DEBUG_OVERLAY )
-        {
-            emit_debug_overlay_in(tree, host, out, c->first_child);
-            continue;
-        }
+    memset(&desc, 0, sizeof(desc));
+    req.kind = UITREE_HOST_GET_DEBUG_OVERLAY;
+    req.u.get_debug_overlay.out_prims = &desc.debug_prims;
+    desc.debug_prim_count = UITree_Host(host, &req);
+    if( desc.debug_prim_count <= 0 || !desc.debug_prims )
+        return;
 
-        memset(&desc, 0, sizeof(desc));
-        req.kind = UITREE_HOST_GET_DEBUG_OVERLAY;
-        req.u.get_debug_overlay.out_prims = &desc.debug_prims;
-        desc.debug_prim_count = UITree_Host(host, &req);
-        if( desc.debug_prim_count <= 0 || !desc.debug_prims )
-            continue;
-
-        desc.kind = UITREE_EMIT_DEBUG_OVERLAY;
-        desc.node_index = i;
-        desc.component_id = c->component_id;
-        desc.debug_font_id[TORIDBG_FONT_SMALL] = c->u.debug_overlay.font_id_small;
-        desc.debug_font_id[TORIDBG_FONT_MENU] = c->u.debug_overlay.font_id_menu;
-        desc.debug_font_id[TORIDBG_FONT_BODY] = c->u.debug_overlay.font_id_body;
-        desc.debug_skin_scene_id = c->u.debug_overlay.skin_scene_id;
-        for( int i = 0; i < TORIDBG_SKIN_SLOT_COUNT; i++ )
-            desc.debug_skin_atlas[i] = c->u.debug_overlay.skin_atlas[i];
-        /* Screen-space, not laid out: every prim already carries absolute
-         * pixels and its own scissor box. The desc clip is the canvas. */
-        desc.clip.x = 0;
-        desc.clip.y = 0;
-        desc.clip.w = UITREE_LAYOUT_ROOT_W;
-        desc.clip.h = UITREE_LAYOUT_ROOT_H;
-        emit_buffer_append(out, &desc);
-    }
+    desc.kind = UITREE_EMIT_DEBUG_OVERLAY;
+    desc.node_index = idx;
+    desc.component_id = c->component_id;
+    desc.debug_font_id[TORIDBG_FONT_SMALL] = c->u.debug_overlay.font_id_small;
+    desc.debug_font_id[TORIDBG_FONT_MENU] = c->u.debug_overlay.font_id_menu;
+    desc.debug_font_id[TORIDBG_FONT_BODY] = c->u.debug_overlay.font_id_body;
+    desc.debug_skin_scene_id = c->u.debug_overlay.skin_scene_id;
+    for( int i = 0; i < TORIDBG_SKIN_SLOT_COUNT; i++ )
+        desc.debug_skin_atlas[i] = c->u.debug_overlay.skin_atlas[i];
+    /* Screen-space, not laid out: every prim already carries absolute
+     * pixels and its own scissor box. The desc clip is the canvas. */
+    desc.clip.x = 0;
+    desc.clip.y = 0;
+    desc.clip.w = UITREE_LAYOUT_ROOT_W;
+    desc.clip.h = UITREE_LAYOUT_ROOT_H;
+    emit_buffer_append(out, &desc);
 }
 
 static void
@@ -2392,7 +2388,10 @@ emit_debug_overlay_pass(
     struct UITreeHost const* host,
     struct UITreeEmitBuffer* out)
 {
-    emit_debug_overlay_in(tree, host, out, tree->root_index);
+    struct UITreeNodeSet const* set = &tree->debug_overlays;
+
+    for( int32_t s = 0; s < set->count; s++ )
+        emit_debug_overlay_node(tree, host, out, set->slots[s]);
 }
 
 /*

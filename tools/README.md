@@ -84,10 +84,14 @@ debugproc, required equipment semantics, runtime diagnostics, and semantic
 self-test coverage. Its negative controls prove that the original Cry prefix
 match and a duplicate command fail the gate.
 
-It runs automatically before both `torirsserver-scripts` and `torirsserver-cache`:
+It runs automatically before `torirsserver-cache`, and as part of
+`check-content-audits` and `test-content`. It no longer gates
+`torirsserver-scripts`: with the contract settled, the server half re-proved the
+same verdict on every launch that recompiled a script.
 
 ```bash
 make -C src check-crystal-set-contract
+make -C src check-content-audits          # with the Agility and Wintertodt audits
 ```
 
 Full incident: [`../docs/CRYSTAL_SET_COMMAND.md`](../docs/CRYSTAL_SET_COMMAND.md).

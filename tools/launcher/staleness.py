@@ -106,6 +106,12 @@ def prepare_derived(manifest, repo_root, force=False, verbose=False):
     """
     results = []
     for name, fields in manifest.derived():
+        if _is_pristine(fields):
+            # Shipped, not built. Declared so that "nothing builds this" is a
+            # stated fact rather than an omission indistinguishable from one.
+            results.append(DerivedResult(
+                name, "skipped", fields.get("note") or "shipped, not derived"))
+            continue
         if force:
             should, detail = True, "forced"
         else:
@@ -121,6 +127,17 @@ def prepare_derived(manifest, repo_root, force=False, verbose=False):
             return results, False
         results.append(DerivedResult(name, "rebuilt", detail))
     return results, True
+
+
+def _is_pristine(fields):
+    """Does this block declare an artifact that is shipped rather than built?
+
+    `cache.osrs239` is downloaded, not baked; `cache.rs254_zuk` belongs to
+    another project. Saying so explicitly is worth a block of its own, because
+    "no [derived:cache] here" otherwise reads identically to "somebody forgot
+    one" — and the coverage check cannot tell those apart without being told.
+    """
+    return (fields.get("pristine") or "").strip().lower() in ("1", "yes", "true")
 
 
 def coverage_gaps(manifest):

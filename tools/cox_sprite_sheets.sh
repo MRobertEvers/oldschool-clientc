@@ -26,7 +26,7 @@ cd "$ROOT"
 
 OUT=build/cox_sprites
 WORK=build/cox_sprites/frames
-# The EMBEDDED manifest, not the TCP one. `manifests/manifest_osrs239_net.ini` expects a
+# The EMBEDDED manifest, not the TCP one. `the osrs239-net profile (profiles/osrs239-net.ini)` expects a
 # separately-launched ToriRSServer on port 43596 and fails with "Connection refused"
 # -- and the client then renders a perfectly good empty world, so the sheets come
 # out looking like a raid with no monsters in it rather than like an error.

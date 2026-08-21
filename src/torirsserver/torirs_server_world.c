@@ -9565,10 +9565,10 @@ ToriRSServer_WorldRemovePlayer(
      * The instance this session was standing in, released by default.
      *
      * This runs AFTER `[logout]` so content still gets first refusal: a script
-     * that wants the square kept — a raid whose party is still inside, a future
-     * "hold it open for N ticks" rule — moves the player out of it, and this
-     * then finds nobody there and does nothing. What it will not do is leave a
-     * reservation alive because nobody remembered to free it.
+     * that wants the square kept — a raid whose party is still inside — moves
+     * the player out of it, and this then finds nobody there and does nothing.
+     * What it will not do is leave a reservation alive because nobody
+     * remembered to free it.
      *
      * Engine rather than content on purpose: which square is reserved, and for
      * how long, is bookkeeping about the simulation (PORTING_GUIDE §2.3's short
@@ -9576,16 +9576,39 @@ ToriRSServer_WorldRemovePlayer(
      * open, and for how long — stays content's, and this is the floor beneath
      * it, not a decision instead of it.
      *
-     * Npcs inside go with it. `map_instance_free` deliberately leaves them and
-     * only counts them, because a content teardown knows whose they are; a
-     * logout does not, and the pool re-issues a released square immediately, so
-     * leaving them is how the next session finds somebody else's boss already
-     * in the arena.
+     * A LINGERING instance is deliberately left whole, npcs included. The
+     * linger clock (`world_mapinstance_linger`) owns its lifetime now: for the
+     * linger window the character's saved coord is real map they can log back
+     * into, content restarts the encounter from `[login]`, and the window
+     * closing hands everything back through the same
+     * `ToriRSServer_WorldMapInstanceFree` this used to call immediately. Only an
+     * instance content opted OUT of linger (`map_instance_setlinger(h, 0)`)
+     * still gets the immediate release, because for that one nothing else ever
+     * will.
+     *
+     * In the immediate-release case npcs go with it. `map_instance_free`
+     * deliberately leaves them and only counts them, because a content
+     * teardown knows whose they are; a logout does not, and the pool re-issues
+     * a released square immediately, so leaving them is how the next session
+     * finds somebody else's boss already in the arena.
      */
     {
         int handle = ToriRSServer_MapInstanceFind(player->x, player->z);
 
-        if( handle )
+        if( handle && ToriRSServer_MapInstanceLinger(handle) > 0 )
+        {
+            /* The leaving player IS proof of occupancy. The linger clock only
+             * observes players once per tick, so a session that entered and
+             * dropped inside one tick would otherwise leave `occupied_ever`
+             * unset and the reservation unreclaimable forever. */
+            ToriRSServer_MapInstanceLingerTick(handle, 1);
+            if( getenv("TORIRSSERVER_VERBOSE") )
+                fprintf(stderr,
+                        "torirsserver: %s logged out inside map instance %d; leaving it "
+                        "to linger\n",
+                        display_name, handle);
+        }
+        else if( handle )
         {
             int others = 0;
 
@@ -10747,12 +10770,73 @@ tick_bd_now_us(void)
         }                                                                                          \
     } while( 0 )
 
+/*
+ * The linger clock: reclaim instances whose whole linger group has been empty
+ * of players for their linger count (60s by default — see
+ * TORIRSSERVER_MAPINSTANCE_LINGER_DEFAULT).
+ *
+ * This is what stands where the immediate release in
+ * `ToriRSServer_WorldRemovePlayer` used to be: an abandoned encounter keeps its
+ * map, its npcs and its instance registers for the linger window, so a session
+ * that dropped mid-fight can log back in *inside* it and content can restart
+ * the encounter ([login] finds the player standing in a live instance). Only
+ * after the window does the engine take it all back, with the same
+ * `ToriRSServer_WorldMapInstanceFree` teardown every other release uses.
+ *
+ * Occupancy is computed here rather than in the registry because who is
+ * standing where is the world's knowledge. It is judged per linger GROUP: a
+ * raid lobby that is empty for the whole fight (ToA's Nexus) and a satellite
+ * map nobody stands in between visits (Sotetseg's shadow realm) must live as
+ * long as the room their party is actually in.
+ */
+static void
+world_mapinstance_linger(struct ToriRSServer* srv)
+{
+    int occupied[TORIRSSERVER_MAPINSTANCE_MAX + 1] = { 0 };
+
+    for( int i = 0; i < srv->player_count; i++ )
+    {
+        const struct ToriRSServerPlayer* player = &srv->players[i];
+        int handle;
+
+        if( !player->active )
+            continue;
+        handle = ToriRSServer_MapInstanceFind(player->x, player->z);
+        if( handle )
+            occupied[handle] = 1;
+    }
+    for( int handle = 1; handle <= TORIRSSERVER_MAPINSTANCE_MAX; handle++ )
+    {
+        int group = ToriRSServer_MapInstanceLingerGroup(handle);
+        int group_occupied = occupied[handle];
+
+        if( group )
+        {
+            for( int other = 1; other <= TORIRSSERVER_MAPINSTANCE_MAX && !group_occupied;
+                 other++ )
+            {
+                if( occupied[other] && ToriRSServer_MapInstanceLingerGroup(other) == group )
+                    group_occupied = 1;
+            }
+        }
+        if( ToriRSServer_MapInstanceLingerTick(handle, group_occupied) )
+        {
+            if( getenv("TORIRSSERVER_VERBOSE") )
+                fprintf(stderr,
+                        "torirsserver: map instance %d empty past its linger; released\n",
+                        handle);
+            ToriRSServer_WorldMapInstanceFree(srv, handle);
+        }
+    }
+}
+
 /** 1. World script queue (world_delay), delayed obj spawns, npc hunt. */
 static void
 phase_world(struct ToriRSServer* srv)
 {
     ToriRSServer_ScriptsResumeWorld(srv);
     ToriRSServer_CombatRespawnTick(srv);
+    world_mapinstance_linger(srv);
 }
 
 /**
@@ -32372,6 +32456,88 @@ ToriRSServer_WorldSelftest(void)
         ToriRSServer_GameframeOpentop(player, ids->iface_gameframe);
     }
 
+    fprintf(stderr, "ToriRSServer selftest: a layout switch keeps a server-driven HUD\n");
+    {
+        /*
+         * The Theatre's HUD lives in the toplevel's `overlay_atmosphere` slot
+         * (~tob_hud_mount), and `gameframe.enum` — the login set — does not name
+         * that slot. IF_OPENTOP clears the whole mount table, so a Display-panel
+         * layout change taken mid-raid used to take the HUD off the screen for
+         * good: the record went with the old root and nothing re-sent it.
+         *
+         * Asserted from the wire AND from server authority, because the two
+         * halves fail separately — a mount that is re-registered but never
+         * encoded leaves the client blank, and one encoded against the OLD
+         * root's slot addresses a group the client has just destroyed.
+         */
+        static struct ToriRSServerCapture capture;
+        int tob_hud = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_INTERFACE, "tob_hud");
+        int fixed_atmos = ToriRSServer_ContentSymbol(
+            TORIRSSERVER_PACK_COMPONENT, "toplevel:overlay_atmosphere");
+        int modern_atmos = ToriRSServer_ContentSymbol(
+            TORIRSSERVER_PACK_COMPONENT, "toplevel_pre_eoc:overlay_atmosphere");
+        struct RSAreaBuf mount;
+        int carried = 0;
+        int registered = 0;
+        int stale = 0;
+
+        SELFTEST_CHECK(tob_hud > 0 && fixed_atmos > 0 && modern_atmos > 0,
+                       "tob_hud and both atmosphere slots must resolve by name "
+                       "(iface=%d fixed=%d modern=%d)",
+                       tob_hud, fixed_atmos, modern_atmos);
+
+        ToriRSServer_GameframeOpentop(player, ids->iface_toplevel);
+        ToriRSServer_SendIfOpensub(
+            player,
+            TORIRSSERVER_COM_GROUP(fixed_atmos),
+            TORIRSSERVER_COM_CHILD(fixed_atmos),
+            tob_hud,
+            1);
+
+        ToriRSServer_CaptureBegin(srv, &capture);
+        ToriRSServer_GameframeOpentop(player, ids->iface_toplevel_pre_eoc);
+        ToriRSServer_CaptureEnd(srv);
+
+        for( int at = 0; (at = ToriRSServer_CaptureFind(&capture, 6 /* IF_OPENSUB */, at)) >= 0;
+             at++ )
+        {
+            int target;
+
+            rsab_wrap(&mount, capture.packets[at].data, (size_t)capture.packets[at].len);
+            (void)rsab_g1(&mount);
+            if( rsab_g2_alt2(&mount) != tob_hud )
+                continue;
+            target = rsab_g4_alt3(&mount);
+            if( target == modern_atmos )
+                carried = 1;
+            else
+                stale = target;
+        }
+        SELFTEST_CHECK(carried,
+                       "a root switch must re-mount the raid HUD into the new root's "
+                       "atmosphere slot (%d)",
+                       modern_atmos);
+        SELFTEST_CHECK(!stale,
+                       "the re-mount must not address the replaced root's slot "
+                       "(got 0x%08x, wanted 0x%08x)",
+                       (unsigned)stale, (unsigned)modern_atmos);
+
+        for( int m = 0; m < player->interfaces.mount_count; m++ )
+            if( player->interfaces.mounts[m].target_uid == modern_atmos &&
+                player->interfaces.mounts[m].interface_id == tob_hud )
+                registered = 1;
+        SELFTEST_CHECK(registered,
+                       "the carried HUD must be in the mount table the next "
+                       "IF_RESYNC_V2 is built from");
+
+        ToriRSServer_SendIfClosesub(player, modern_atmos);
+        player->client_layout_mode = 1;
+        ToriRSServer_GameframeOpentop(player, ids->iface_gameframe);
+        for( int m = 0; m < player->interfaces.mount_count; m++ )
+            SELFTEST_CHECK(player->interfaces.mounts[m].interface_id != tob_hud,
+                           "a HUD closed before the switch must not come back");
+    }
+
     /*
      * Ranged reach, and the shot that has to cross it.
      *
@@ -44013,6 +44179,48 @@ ToriRSServer_WorldSelftest(void)
                     SELFTEST_CHECK(flinching == 0,
                                    "%d Maiden blood spawn(s) have a defend animation",
                                    flinching);
+                }
+
+                /*
+                 * And nothing in the room can park one of Maiden's adds.
+                 *
+                 * `blockwalk=none` buys them the npc half — they stamp no
+                 * occupancy and read none of each other's — but PLAYER_OCC is a
+                 * separate flag that `npc_travel_extra` keeps adding unless the
+                 * record says `moverestrict=passthru`. The stepper is a greedy
+                 * single step, so an add that meets a player on the tile it
+                 * wants stops there for good: the crab three tiles short of her
+                 * footprint that never arrives, and the blood spawn that lays
+                 * its whole trail on one tile instead of drawing it across the
+                 * arena.
+                 *
+                 * Ten people stand at the front of her room, which is where the
+                 * crabs converge and where the pools that make slugs land, so
+                 * both fire constantly. Body-blocking Maiden's adds is not a
+                 * mechanic, and a team that could do it would never need to
+                 * freeze one.
+                 */
+                {
+                    static const char* const k_adds[] = {
+                        "maiden_elemental", "maiden_elemental_hard", "maiden_elemental_story",
+                        "maiden_blood_slug", "maiden_blood_slug_hard", "maiden_blood_slug_story",
+                    };
+
+                    for( size_t i = 0; i < sizeof(k_adds) / sizeof(k_adds[0]); i++ )
+                    {
+                        int id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, k_adds[i]);
+                        const struct ToriRSServerNpcDef* def =
+                            id >= 0 ? ToriRSServer_ContentNpc(id) : NULL;
+
+                        if( !def )
+                            continue;
+                        SELFTEST_CHECK(def->moverestrict == 6 /* passthru */,
+                                       "%s must walk through players, moverestrict is %d",
+                                       k_adds[i], def->moverestrict);
+                        SELFTEST_CHECK(def->blockwalk == 0 /* none */,
+                                       "%s must walk through npcs, blockwalk is %d",
+                                       k_adds[i], def->blockwalk);
+                    }
                 }
 
                 /*
@@ -58296,7 +58504,7 @@ ToriRSServer_WorldSelftest(void)
                         button[2] = (uint8_t)(rows_uid >> 8);
                         button[3] = (uint8_t)rows_uid;
                         button[5] = 1; /* Aquarius -- wrong */
-                        ToriRSServer_WorldHandle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+                        ToriRSServer_WorldHandle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, button, sizeof(button));
 
                         SELFTEST_CHECK(player->varps[varp_itgronigen] == 6,
                                        "a wrong constellation guess must not complete the quest, "
@@ -58322,19 +58530,88 @@ ToriRSServer_WorldSelftest(void)
                         SELFTEST_CHECK(player->active_script != NULL,
                                        "p_choice5 (page 1, second visit) should park again");
 
-                        /* page 1 -> page 2 -> page 3 -> page 4 via "~ next ~" (slot 5). */
-                        for( int page = 0; page < 3; page++ )
+                        /*
+                         * page 1 -> page 2 -> page 3 -> page 4 via
+                         * "~ next ~" (slot 5). Page 4's own RUNCLIENTSCRIPT
+                         * payload is checked for "Aries"/"Pisces" -- proof
+                         * the ladder actually paged forward three times
+                         * rather than re-arming page 1 three times (which
+                         * would look identical on every "should park"
+                         * check above, since p_choice_open clears
+                         * last_slot to -1 either way).
+                         */
                         {
-                            button[5] = 5;
-                            ToriRSServer_WorldHandle(
-                                player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
-                            SELFTEST_CHECK(player->active_script != NULL,
-                                           "~ next ~ should page to the next choice menu (page %d)",
-                                           page + 2);
+                            static struct ToriRSServerCapture page_capture;
+                            int run_opcode =
+                                ToriRSServer_WireOpcode(srv->wire, PKT_NAME_RUNCLIENTSCRIPT);
+                            int page4_idx = -1;
+
+                            for( int page = 0; page < 3; page++ )
+                            {
+                                button[5] = 5;
+                                ToriRSServer_CaptureBegin(srv, &page_capture);
+                                ToriRSServer_WorldHandle(
+                                    player, PKTOUT_NAME_RESUME_PAUSEBUTTON, button, sizeof(button));
+                                ToriRSServer_CaptureEnd(srv);
+                                SELFTEST_CHECK(
+                                    player->active_script != NULL,
+                                    "~ next ~ should page to the next choice menu (page %d)",
+                                    page + 2);
+                                if( page == 2 )
+                                    page4_idx = ToriRSServer_CaptureFind(&page_capture, run_opcode, 0);
+                            }
+                            SELFTEST_CHECK(page4_idx >= 0,
+                                           "the third \"~ next ~\" should draw page 4's chatmenu");
+                            if( page4_idx >= 0 )
+                            {
+                                const struct ToriRSServerCapturedPacket* pkt =
+                                    &page_capture.packets[page4_idx];
+                                const char* text = (const char*)pkt->data;
+                                int has_aries = 0;
+                                int has_pisces = 0;
+
+                                for( int i = 0; i + 5 <= pkt->len; i++ )
+                                {
+                                    if( memcmp(text + i, "Aries", 5) == 0 )
+                                        has_aries = 1;
+                                    if( i + 6 <= pkt->len && memcmp(text + i, "Pisces", 6) == 0 )
+                                        has_pisces = 1;
+                                }
+                                SELFTEST_CHECK(has_aries && has_pisces,
+                                               "page 4 should read \"~ previous ~|Aries|Pisces\", "
+                                               "not a re-armed page 1 (has_aries=%d has_pisces=%d)",
+                                               has_aries,
+                                               has_pisces);
+                            }
                         }
-                        /* page 4 is a p_choice3: "~ previous ~", "Aries", "Pisces". */
+                        /*
+                         * page 4 is a p_choice3: "~ previous ~", "Aries",
+                         * "Pisces". A correct guess's own reply
+                         * (`~chatplayer_anim(happy, "Yes! Woo hoo!")` in
+                         * observatory_constellation_answer) registers
+                         * chat_right:continue and parks BEFORE the reward
+                         * is granted -- one more resume is needed past it,
+                         * same shape as the wrong-guess's chat_left box.
+                         */
                         button[5] = 3; /* Pisces -- correct */
-                        ToriRSServer_WorldHandle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
+                        ToriRSServer_WorldHandle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, button, sizeof(button));
+                        {
+                            int chat_right_continue = ToriRSServer_ContentSymbol(
+                                TORIRSSERVER_PACK_COMPONENT, "chat_right:continue");
+                            uint8_t right_resume[4];
+
+                            SELFTEST_CHECK(chat_right_continue > 0,
+                                           "chat_right:continue should resolve in the component pack");
+                            if( chat_right_continue > 0 )
+                            {
+                                right_resume[0] = (uint8_t)(chat_right_continue >> 24);
+                                right_resume[1] = (uint8_t)(chat_right_continue >> 16);
+                                right_resume[2] = (uint8_t)(chat_right_continue >> 8);
+                                right_resume[3] = (uint8_t)chat_right_continue;
+                                ToriRSServer_WorldHandle(
+                                    player, PKTOUT_NAME_RESUME_PAUSEBUTTON, right_resume, 4);
+                            }
+                        }
 
                         SELFTEST_CHECK(player->varps[varp_itgronigen] == 7 /* itgronigen_complete */,
                                        "the correct constellation guess should complete the quest, "
@@ -62384,18 +62661,18 @@ ToriRSServer_WorldSelftest(void)
                         player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                         ToriRSServer_ScriptsRunScript(srv, k->id);
                         SELFTEST_CHECK(
-                            player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 2,
-                            "spawning and killing a ghoul and a kalphite queen "
-                            "should reach step 2, got %d",
+                            player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 9,
+                            "spawning and killing the nine diary npcs should "
+                            "reach step 9, got %d",
                             player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
                         for( int t = 0; t < 4; t++ )
                             ToriRSServer_WorldTick(srv);
                         player->varps[SELFTEST_VARP_QUEST_PROGRESS] = -1;
                         ToriRSServer_ScriptsRunScript(srv, c->id);
                         SELFTEST_CHECK(
-                            player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 4,
-                            "real ghoul and kalphite queen deaths must reach "
-                            "their diary hooks, got %d",
+                            player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 10,
+                            "nine real npc deaths must each reach their diary "
+                            "hook, got %d",
                             player->varps[SELFTEST_VARP_QUEST_PROGRESS]);
                     }
                 }

@@ -37,13 +37,24 @@ adding a host means adding one block there plus its `platform/*.c` backends.
 make -C src all              # native, debug      -> src/torirs
 make -C src release          # native, optimized  -> src/torirs
 make -C src web              # emscripten, -O3    -> build-web/torirs.js
-make -C src web-debug        # emscripten, -O0 + assertions
+make -C src web-debug        # emscripten, -Og + assertions
 make -C src web-idb          # emscripten, cache in IndexedDB (see below)
 make -C src win64            # modern Windows x64 -> src/torirs_win64.exe
 make -C src winxp            # Windows XP i686    -> src/torirs.exe
 make -C src io-server        # the web build's cache backend (always native)
 make -C src PLATFORM=web <target>   # any target, web flavor
 ```
+
+The web debug lane is `-Og`, not the `-O0` every other `OPT=0` build gets
+(`PLATFORM_DEBUG_O_LEVEL` in `platform.mk`, and `-Og` on the link line too --
+emcc picks its binaryen passes from the *link* `-O` level, so leaving it off
+there hands back the unoptimized wasm regardless of how the objects were
+compiled). At `-O0` clang gives every source temporary its own wasm local and
+every access its own load/store; the module comes out several times larger, the
+browser takes that much longer to compile it, and the client runs too slowly to
+still be showing you the bug you opened it for. `-Og` keeps locals inspectable
+and does not reorder code, so stepping still works. `make -C src lane-check
+PLATFORM=web OPT=0` asserts `-O0` stays out.
 
 ### Two web lanes, two places the cache lives
 

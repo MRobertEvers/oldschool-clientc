@@ -1099,7 +1099,15 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
             section = bm_section_of(element._section.name);
             if( section == BM_SECTION_REVCONFIG )
                 snprintf(bm->revconfig_inline, sizeof(bm->revconfig_inline), "%s", path);
-            else if( section == BM_SECTION_NONE )
+            else if( section == BM_SECTION_NONE
+                     && strncmp(element._section.name, "derived:", 8) != 0 )
+                /* `[derived:*]` is addressed to the LAUNCHER, not to this
+                 * loader: it states what the world's cache and script pack are
+                 * built from, so a stale one is rebuilt before the client
+                 * starts. The client neither reads it nor needs to, but it is
+                 * a known section rather than a typo — warning about it would
+                 * print two lines of noise on every boot of every migrated
+                 * manifest, which is how a warning stops being read at all. */
                 fprintf(
                     stderr,
                     "bootmanifest: ignoring unknown section '[%s]'\n",

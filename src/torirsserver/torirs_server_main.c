@@ -54,6 +54,7 @@
 #else
 #include <arpa/inet.h>
 #include <netinet/in.h>
+#include <netinet/tcp.h>
 #include <sys/select.h>
 #include <sys/socket.h>
 #include <sys/time.h>
@@ -242,7 +243,23 @@ serve(
      * bank; the shutdown below is the rest of the pool, which is empty here and
      * would not be in a multi-connection host.
      */
-    ToriRSServer_WorldRemovePlayer(srv, session.player);
+    /*
+     * A session that never logged in has no player to remove, and reaching
+     * here without one is ordinary rather than exceptional: a JS5 connection
+     * shares this loop and never logs in at all, and a client can also drop
+     * during the handshake or fail it. `session.player` is set only once
+     * SessionTakeLogin has succeeded, so all three arrive here NULL.
+     *
+     * The test belongs at this call site and not inside the callee, which
+     * keeps its assert: whether this session ever had a player is knowledge
+     * this function has and WorldRemovePlayer cannot recover. The embedded
+     * host already guards the same call for the same reason.
+     *
+     * Unguarded, a browser priming its cache over JS5 aborted the whole
+     * server on the assert as its connection closed.
+     */
+    if( session.player )
+        ToriRSServer_WorldRemovePlayer(srv, session.player);
     ToriRSServer_BankShutdown(srv);
     ToriRSServer_ContainerShutdown(srv);
     ToriRSServer_ScriptsFree(srv);
@@ -469,9 +486,21 @@ main(
     for( ;; )
     {
         uint8_t first = 0;
+        int nodelay = 1;
         int fd = (int)accept(listener, NULL, NULL);
         if( fd < 0 )
             continue;
+
+        /*
+         * Every game packet is its own send(), and a tick's output is a run of
+         * small ones ending in SERVER_TICK_END. With Nagle on, everything after
+         * the first unacknowledged segment waits for the peer's delayed ACK, so
+         * the fence could land tens of milliseconds after the packet that
+         * opened the tick — and the client's UI transaction latch (correctly)
+         * withholds frames until the fence. Measured as a 2-4 logic tick frame
+         * freeze every server cycle in the browser client.
+         */
+        setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, (char*)&nodelay, sizeof(nodelay));
 
         /*
          * JS5 and the game are two SEPARATE, CONCURRENT connections.

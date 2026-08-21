@@ -39,6 +39,10 @@ struct PlatformSDL2
     int resizable_w;
     int resizable_h;
     int interface_scale_mode;
+    /* Last title handed to SDL, so a per-frame caller does not repeat itself.
+     * See PlatformSDL2_SetTitle. Sized to hold main.c's readout whole: a title
+     * that overflows would compare equal on its tail and stop updating. */
+    char title[256];
     /* Drawable pixels per window point, from SDL: 1 on an ordinary display, 2
      * on a Retina/200% one. The framebuffer is sized in DRAWABLE pixels, so
      * this is not a scale anything multiplies by at draw time -- it is what the
@@ -697,6 +701,17 @@ PlatformSDL2_QuitRequested(struct PlatformSDL2* platform)
     return platform->quit;
 }
 
+/*
+ * The window title, set only when it actually changed.
+ *
+ * The caller is a per-frame debug readout (main.c's update_window_title), so
+ * this runs 120 times a second with the same string in it. On a desktop that
+ * is a cheap strdup inside SDL; in the browser SDL_SetWindowTitle is
+ * `document.title = ...`, which notifies the browser process every time and
+ * measured 449.8 ms of main-thread time across a 23.5 s trace -- 4.8% of all
+ * non-idle time, spent telling the page something it already said. Comparing
+ * first costs a strcmp of a string that is already in cache.
+ */
 void
 PlatformSDL2_SetTitle(
     struct PlatformSDL2* platform,
@@ -705,6 +720,9 @@ PlatformSDL2_SetTitle(
     assert(platform);
     assert(platform->window);
     assert(title);
+    if( strncmp(platform->title, title, sizeof(platform->title) - 1) == 0 )
+        return;
+    snprintf(platform->title, sizeof(platform->title), "%s", title);
     SDL_SetWindowTitle(platform->window, title);
 }
 
