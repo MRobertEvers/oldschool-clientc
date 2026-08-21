@@ -481,6 +481,7 @@ SS_SRCS = serverscript/ss_meta.c serverscript/ssvm_script.c \
 	$(RSAREABUF_DIR)/rsareabuf.c
 
 TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
+	torirsserver/torirs_server_world_selftest.c \
 	torirsserver/torirs_server_cox_sim.c \
 	torirsserver/torirs_server_encode.c torirsserver/torirs_server_wire.c js5/server/js5_server_cache.c \
 	torirsserver/torirs_server_interface_state.c \
@@ -2194,9 +2195,9 @@ mock-js5: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 # line. Without it this target depends only on the third-party .o files, which
 # almost never change -- so editing the server's own C left `make torirsserver`
 # reporting "up to date" and the old binary in place. That is worse than a slow
-# build: a selftest row added to torirs_server_world.c was silently absent from
-# the binary that ran, and an absent row cannot fail, so it reads exactly like
-# a passing one. Found after a mutation refused to bite twice.
+# build: a selftest row added to torirs_server_world_selftest.c was silently
+# absent from the binary that ran, and an absent row cannot fail, so it reads
+# exactly like a passing one. Found after a mutation refused to bite twice.
 torirsserver: $(OBJ_DIR) $(TORIRSSERVER_SRCS) $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/tommath.o \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o \
 		$(OBJ_DIR)/rsprot_buf.o

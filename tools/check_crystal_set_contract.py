@@ -27,7 +27,11 @@ CHAT_ENTER = Path("scripts/script_73.cs2")
 SCRIPTS = Path("server/scripts")
 CRYSTAL_PROC = SCRIPTS / "skill_combat/scripts/player/crystal_set.rs2"
 PACKET_TABLE = Path("src/net/rev/osrs239/packetout.h")
+# The cheat dispatch lives in the world, the ::~crystal_set assertions in the
+# self-test that was split out of it. Both halves are read as one text, world
+# first, so the ordering check below still means what it did.
 WORLD = Path("src/torirsserver/torirs_server_world.c")
+WORLD_SELFTEST = Path("src/torirsserver/torirs_server_world_selftest.c")
 INCIDENT_DOC = Path("docs/CRYSTAL_SET_COMMAND.md")
 
 DEFAULT_CONTENT = Path("OSRS-Content/osrs239-content")
@@ -135,7 +139,8 @@ def check(root: Path, content: Path) -> list[str]:
     if not re.search(r"PKTOUT_NAME_CLIENT_CHEAT\s*,\s*34\s*,", packet):
         errors.append(f"{PACKET_TABLE}: revision-239 CLIENT_CHEAT is no longer opcode 34")
 
-    world = (root / WORLD).read_text(encoding="utf-8")
+    world = ((root / WORLD).read_text(encoding="utf-8")
+             + (root / WORLD_SELFTEST).read_text(encoding="utf-8"))
     for fragment in (
         "if( text[0] == '~' )",
         'static const uint8_t command[] = "~crystal_set\\n";',
@@ -146,7 +151,9 @@ def check(root: Path, content: Path) -> list[str]:
         '"::~crystal_set raises its own equip requirements"',
     ):
         if fragment not in world:
-            errors.append(f"{WORLD}: missing diagnostic/self-test guard: {fragment}")
+            errors.append(
+                f"{WORLD}/{WORLD_SELFTEST.name}: "
+                f"missing diagnostic/self-test guard: {fragment}")
 
     normalize = world.find("if( text[0] == '~' )")
     dispatch = world.find("ToriRSServer_ScriptsRunDebugproc(srv, text)", normalize)

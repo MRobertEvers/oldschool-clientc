@@ -171,6 +171,15 @@ non-water bases [Coconut milk](https://oldschool.runescape.wiki/w/Coconut_milk),
 
 ## C. Potions
 
+> **Stale as of the potion-effect pass (2026-08-20).** The ✅/B/D split below
+> was accurate when written and is not any more: every drinkable potion in the
+> cache now has a Drink handler, including the six vial families this section
+> never listed (extended antifire, extended super antifire, Castlewars brew,
+> moonlight potion, haemostatic dressing, the Deadman starter combat potion)
+> and the mixes, raid supplies and minigame potions outside its scope entirely.
+> `docs/POTION_EFFECTS.md` is the current inventory and says how to re-derive
+> it; the tables here are kept for the brew-side status they also carry.
+
 ### ✅ Both brewable and drinkable
 
 attack · super attack · strength · super strength · defence · super defence ·

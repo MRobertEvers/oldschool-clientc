@@ -4,7 +4,7 @@
 Written after a false pass that cost real confidence: `selftest_corp_core`
 reported green on its first run and then SURVIVED a mutation that should have
 failed it. The stanza was not in the binary at all -- the edit registering it in
-`torirs_server_world.c`'s table had been clobbered between the write and the build.
+the self-test's table had been clobbered between the write and the build.
 
 An unregistered stanza cannot fail, so it reads exactly like a passing one.
 Neither existing guard catches it:
@@ -187,7 +187,7 @@ def main():
             print("    %-52s %s" % (name, os.path.relpath(path, ROOT)))
         print("\nA stanza that never runs cannot fail, so it reads exactly "
               "like a passing one.\nRegister it in a k_* table in "
-              "src/torirsserver/torirs_server_world.c, or delete it.")
+              "src/torirsserver/torirs_server_world_selftest.c, or delete it.")
 
     if dead:
         print("\n%d stanza(s) known dead and recorded:" % len(dead))

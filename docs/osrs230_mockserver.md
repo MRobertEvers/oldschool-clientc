@@ -73,7 +73,9 @@ Layout:
 | --- | --- |
 | `src/torirsserver/torirs_server_main.c` | socket, RSA/ISAAC handshake, the 600 ms tick loop, inbound framing |
 | `src/torirsserver/torirs_server_ws.c` | the byte stream: raw TCP or WebSocket, decided per client |
-| `src/torirsserver/torirs_server_world.c` | player, npcs, containers, equipment, the tick, the self-test |
+| `src/torirsserver/torirs_server_world.c` | player, npcs, containers, equipment, the tick |
+| `src/torirsserver/torirs_server_world_selftest.c` | `--selftest`: the whole game logic driven with no socket |
+| `src/torirsserver/torirs_server_world_internal.h` | the seam between those two, and nothing else's business |
 | `src/torirsserver/torirs_server_encode.c` | every server→client packet |
 | `src/torirsserver/torirs_server_objinfo.c` | obj name / wearpos / ops / combat params, from the cache |
 | `src/torirsserver/torirs_server_npcinfo.c` | npc name / level / ops / combat params, from the cache |

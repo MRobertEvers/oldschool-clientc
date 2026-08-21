@@ -605,9 +605,16 @@ row, listed with what each actually needs.
     Mausoleum bridge (69 Agility + 59 Construction to build), Meiyerditch
     advanced cave (93 Agility + 78 Mining), Rogues' Den maze (50 + 50
     Thieving).
-13. **Stiles** — mid-era LostCity content
-    (`shortcuts.rs2`), not in the OSRS harvest at all; keep deferred and say
-    so, rather than inventing placements.
+13. **Stiles** — **done** (`skill_agility/scripts/stiles.rs2`). Ported from
+    mid-era LostCity `shortcuts.rs2` `[oploc1,fullstyle]`. Not in the OSRS
+    harvest at all, so no placements were invented: the seven `name=Stile`
+    records are exactly cache category 211, named `stile` in
+    `server/pack/category.pack`, and one `[oploc1,_stile]` binds all of them.
+    The crossing arithmetic is checked against the placements in
+    `OSRS-Content/osrs239-content/maps` and the landing pairs published in
+    `tools/data/shortest_path/transports/transports.tsv` (`::agilityrun`);
+    the dispatch is checked at Fred's farm by the `stile Climb-over` selftest
+    leg. No level and no XP — a stile is a way through a fence.
 
 ### 5.3 The full harvested inventory
 

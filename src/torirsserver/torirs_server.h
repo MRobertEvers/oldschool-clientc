@@ -347,9 +347,10 @@ enum
      *     footprint reaches past the margin, and it was never the real one.
      *     `window_holds` clips the client's zone window to the build area, so
      *     the candidate set cannot contain an npc the client has no scene for
-     *     however far this reaches. The NPC_INFO selftest in torirs_server_world.c
-     *     builds that edge rather than walking to it precisely because the
-     *     margin coincidence used to hide the structural clip.
+     *     however far this reaches. The NPC_INFO selftest in
+     *     torirs_server_world_selftest.c builds that edge rather than walking
+     *     to it precisely because the margin coincidence used to hide the
+     *     structural clip.
      */
     TORIRSSERVER_NPC_VIEW_TILES = 15,
 
@@ -1581,9 +1582,9 @@ struct SSVM_State;
  * A boolean server flag that is ON unless the environment turns it off —
  * `0`/`no`/`off`/`false` disable; anything else, including unset, leaves it
  * on. Shared by every server-construction site (torirs_server_main.c's two serve
- * loops, torirs_server_embed.c, the selftest's world in torirs_server_world.c) so a flag
- * like `members_world` defaults the same way regardless of which host built
- * the struct.
+ * loops, torirs_server_embed.c, the selftest's world in
+ * torirs_server_world_selftest.c) so a flag like `members_world` defaults the
+ * same way regardless of which host built the struct.
  */
 int
 ToriRSServer_FlagDefaultOn(const char* name);

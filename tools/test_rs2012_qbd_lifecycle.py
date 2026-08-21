@@ -21,6 +21,9 @@ MANIFEST = ROOT / "manifests/manifest_osrs239_rs2012.ini"
 LOGOUT = ROOT / "OSRS-Content/osrs239-content/server/scripts/player/logout.rs2"
 DEATH = ROOT / "OSRS-Content/osrs239-content/server/scripts/player/death.rs2"
 WORLD = ROOT / "src/torirsserver/torirs_server_world.c"
+# The coffer fixture below is a self-test stanza, and the self-test is its own
+# translation unit since it outgrew the world. Read both as one text.
+WORLD_SELFTEST = ROOT / "src/torirsserver/torirs_server_world_selftest.c"
 
 
 def block(text: str, header: str) -> str:
@@ -164,7 +167,8 @@ def main() -> None:
     # The composed-cache host fixture must observe work performed on both
     # sides of inv_transmit.  Merely seeing the modal is insufficient because
     # rs2012_qbd_coffer_open mounts it immediately before transmitting ID 2000.
-    world = WORLD.read_text(encoding="utf-8")
+    world = (WORLD.read_text(encoding="utf-8")
+             + WORLD_SELFTEST.read_text(encoding="utf-8"))
     for fragment in (
         "ToriRSServer_BankInvSize(qbd_reward_inv) == 10",
         "contents_listeners == 1",

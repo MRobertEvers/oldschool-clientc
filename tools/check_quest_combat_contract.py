@@ -283,6 +283,9 @@ PARAM_ALLOC = ROOT / "OSRS-Content/osrs239-content/pack/param.alloc"
 SPAWN_GENERATOR = ROOT / "tools/gen_spawns.py"
 MOCK_HEADER = ROOT / "src/torirsserver/torirs_server.h"
 MOCK_WORLD = ROOT / "src/torirsserver/torirs_server_world.c"
+# The self-test was split out of the world; its assertions are still part of
+# what this contract reads, so the two are read as one text.
+MOCK_WORLD_SELFTEST = ROOT / "src/torirsserver/torirs_server_world_selftest.c"
 MOCK_ENCODE = ROOT / "src/torirsserver/torirs_server_encode.c"
 MOCK_SCRIPTS = ROOT / "src/torirsserver/torirs_server_scripts.c"
 MOCK_NPC_OPS = ROOT / "src/torirsserver/torirs_server_ops_npc.c"
@@ -657,7 +660,7 @@ def check_delrith() -> None:
 
 def check_owned_npc_runtime() -> None:
     header = MOCK_HEADER.read_text()
-    world = MOCK_WORLD.read_text()
+    world = MOCK_WORLD.read_text() + MOCK_WORLD_SELFTEST.read_text()
     encode = MOCK_ENCODE.read_text()
     scripts = MOCK_SCRIPTS.read_text()
     npc_ops = MOCK_NPC_OPS.read_text()

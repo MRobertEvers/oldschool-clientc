@@ -253,7 +253,7 @@ unblocked row per tick.
 | 93 | Wilderness Agility course | LC | pending | Same ownership as #92; not in tree |
 | 94 | Mid-era courses (Pyramid/Brimhaven/Ape/Werewolf) | LC/2009 | pending | Wiki classic courses absent; Agility Pyramid ≠ Pyramid Plunder (SCAPE2009 §7) |
 | 95 | Pollnivneach rooftop | wiki+cache | pending | 8 rooftops live (Draynor→Ardougne); Pollnivneach (70) missing |
-| 96 | Shortcuts remainder (grapple/stiles/mid-era) | LC | pending | agility_shortcuts_osrs grapple/stiles deferred; mid-era → CONTENT/SCAPE2009 |
+| 96 | Shortcuts remainder (grapple/mid-era) | LC | pending | Stiles done (stiles.rs2, `[oploc1,_stile]`); grapple still deferred; mid-era → CONTENT/SCAPE2009 |
 | 97 | Agility cape / graceful outfit | wiki+cache | pending | Cape perk + graceful energy restore absent |
 | 98 | Modern courses (Sepulchre/Prif/Shayzien/Wyrm) | wiki → Kronos | blocked | Post-2009 courses stay KRONOS lane |
 | 99 | Agility pet | wiki+cache | pending | Rooftop headers defer agility pet |
