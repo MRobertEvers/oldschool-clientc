@@ -474,6 +474,39 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
         return 0;
 
     case TORIRS_CHROME_INTENT_CLOSE:
+        /*
+         * A panel this model does not have is a message from a presentation
+         * that has drifted -- a page holding a handle from before a rebuild,
+         * or one that never learned which panel its window was showing. It is
+         * dropped rather than asserted on, exactly as a widget intent naming
+         * an unknown handle is: the far side is versioned separately and a
+         * stale tab must not be able to abort the client.
+         *
+         * But it is answered with 0, not the 1 this used to give unasked.
+         * `Pump` returns how many intents CHANGED something, and a close that
+         * hid nothing while reporting success is precisely how the web
+         * window's close mark stayed dead: every layer said it had worked.
+         */
+        if( intent->panel < 0 || intent->panel >= ui->panel_count )
+            return 0;
+        ToriRSChrome_PanelSetVisible(ui, intent->panel, 0);
+        return 1;
+
+    case TORIRS_CHROME_INTENT_CONFIRM:
+        /* Ok: fire the panel's confirm row on the way out, then dismiss --
+         * exactly what a click on the in-canvas title bar's tick does, through
+         * the same two steps, so the two presentations cannot disagree about
+         * what Ok means. */
+        if( intent->panel < 0 || intent->panel >= ui->panel_count )
+            return 0; /* the same drift, and the same answer. */
+        {
+            int const confirm = ui->panels[intent->panel].confirm_widget;
+            if( confirm >= 0 && confirm < ui->widget_count )
+            {
+                ui->activated = confirm;
+                ui->activated_action = 0;
+            }
+        }
         ToriRSChrome_PanelSetVisible(ui, intent->panel, 0);
         return 1;
 
@@ -504,6 +537,52 @@ ToriRSChromeSync_Pump(struct ToriRSChromeSync* sync, struct ToriRSChrome* ui)
     } while( got == (int)(sizeof(batch) / sizeof(batch[0])) );
 
     return applied;
+}
+
+int
+ToriRSChromeSync_FillSurface(struct ToriRSChromeSync* sync, struct ToriRSChrome* ui, int panel)
+{
+    int w = 0;
+    int h = 0;
+
+    assert(sync);
+    assert(ui);
+    /* Not asserted: an executor with no window of its own is the COMMON case
+     * -- the in-canvas one is every lane's default -- and "there is no window
+     * to fill" is an answer, not a caller's mistake. Same for a window that
+     * has not come up yet, or one the user has since closed. */
+    if( !sync->live || !sync->exec.surface_size )
+        return 0;
+    if( !sync->exec.surface_size(sync->exec.user, &w, &h) )
+        return 0;
+    if( w <= 0 || h <= 0 )
+        return 0;
+    ToriRSChrome_PanelFill(ui, panel, w, h);
+    return 1;
+}
+
+int
+ToriRSChromeSync_PublishDragRegion(
+    struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui, int panel)
+{
+    struct ToriRSChromeDragRegion region;
+
+    assert(sync);
+    assert(ui);
+    /* Not asserted, for FillSurface's reason: an executor whose window keeps
+     * its OS frame has nowhere to put a handle, and that is most of them. */
+    if( !sync->live || !sync->exec.set_drag_region )
+        return 0;
+    /*
+     * Published whether or not there IS a region, which is why the return of
+     * WindowDragRegion is dropped: it clears `region` on the way to answering
+     * 0, and an executor that stopped hearing about handles would go on
+     * offering the last set it was told about -- a band of the window that
+     * eats presses because a tab strip used to be there.
+     */
+    ToriRSChrome_WindowDragRegion(ui, panel, &region);
+    sync->exec.set_drag_region(sync->exec.user, &region);
+    return 1;
 }
 
 /* ---- the buffer executor ------------------------------------------------- */
@@ -637,6 +716,39 @@ recorder_poll(void* user, struct ToriRSChromeIntent* out, int max)
     return n;
 }
 
+/* A window only when a test asked for one: the recorder stands in for both
+ * kinds of surface, and an unset size is the executor that shares somebody
+ * else's. */
+static int
+recorder_surface_size(void* user, int* out_w, int* out_h)
+{
+    struct ToriRSChromeRecorder* rec = user;
+
+    assert(rec);
+    assert(out_w);
+    assert(out_h);
+    if( rec->surface_w <= 0 || rec->surface_h <= 0 )
+        return 0;
+    *out_w = rec->surface_w;
+    *out_h = rec->surface_h;
+    return 1;
+}
+
+/* Kept whole rather than diffed: the region is a dozen ints and the count
+ * beside it is what a test asserts on to prove an EMPTY one was published too
+ * -- which is the case a "publish only when it changed" recorder could not tell
+ * apart from never publishing at all. */
+static void
+recorder_set_drag_region(void* user, struct ToriRSChromeDragRegion const* region)
+{
+    struct ToriRSChromeRecorder* rec = user;
+
+    assert(rec);
+    assert(region);
+    rec->drag = *region;
+    rec->drag_publishes++;
+}
+
 void
 ToriRSChromeRecorder_Init(struct ToriRSChromeRecorder* rec)
 {
@@ -655,6 +767,8 @@ ToriRSChromeExec_Recorder(struct ToriRSChromeRecorder* rec)
     exec.apply = recorder_apply;
     exec.end = recorder_end;
     exec.poll = recorder_poll;
+    exec.surface_size = recorder_surface_size;
+    exec.set_drag_region = recorder_set_drag_region;
     return exec;
 }
 

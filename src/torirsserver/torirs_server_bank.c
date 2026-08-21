@@ -706,6 +706,84 @@ cert(int obj_id)
 }
 
 /*
+ * The bank-placeholder form of an obj, or -1 when it has none.
+ *
+ * The note pair above in shape — obj opcodes 148/149 against 97/98 — read
+ * forward: an *item* states `placeholder_id` and no template, a *placeholder*
+ * states both. Most objs state neither, because the cache only mints
+ * placeholders for things a bank can hold; -1 is that, and it is the answer for
+ * a placeholder handed back in too.
+ */
+static int
+placeholder_of(int obj_id)
+{
+    const struct ToriRSServerObjInfo* info = ToriRSServer_ObjInfo(obj_id);
+
+    return info->placeholder_template < 0 && info->placeholder_id >= 0 ? info->placeholder_id : -1;
+}
+
+/**
+ * Empty `bank_slot`, whose obj was `obj_id`: leave a placeholder behind, or
+ * close the gap.
+ *
+ * This is one decision and it has to be made here, in the same breath as the
+ * emptying, because the gap-closing shift destroys the evidence. Content used
+ * to own the placeholder half (`~bank_leave_placeholder`, called from
+ * `~bank_withdraw_request`) and it ran *after* this function returned, so it
+ * looked at a slot the shift had already refilled with the next row, decided
+ * the withdraw had not emptied anything, and returned. The feature therefore
+ * worked for exactly one obj in the bank — the last occupied row, where the
+ * shift is a no-op — and for nothing else. Content keeps the button and the
+ * varbit; the slot mechanics are the engine's, the same as tabs and note mode.
+ *
+ * Not gated on the bank being open: a script can withdraw from a closed bank,
+ * and the setting is the player's either way.
+ */
+static void
+bank_slot_emptied(
+    struct ToriRSServer* srv,
+    int bank_slot,
+    int obj_id)
+{
+    struct ToriRSServerBank* bank = &srv->active_player->bank;
+    int placeholder = -1;
+
+    if( ToriRSServer_BankGetVarbit(srv, ToriRSServer_Ids()->varbit_bank_leaveplaceholders) )
+        placeholder = placeholder_of(obj_id);
+
+    if( placeholder >= 0 )
+    {
+        /* A real obj at a count of zero, which is what a placeholder *is* on
+         * the wire — `bankmain_drawitem` reads the pair back as
+         * `oc_unplaceholder($obj) ! $obj` and draws the cell at trans 120 with
+         * op 8 "Release". The slot stays occupied, so the tab it belongs to
+         * keeps its size and nothing shifts. */
+        bank->slots[bank_slot].obj_id = placeholder;
+        bank->slots[bank_slot].count = 0;
+        /* A different obj is in the cell now, so whatever the withdrawn item
+         * had charged, dosed or degraded to does not follow it — the same rule
+         * `ToriRSServer_ContainerSet` applies when an obj changes under a slot. */
+        memset(bank->slots[bank_slot].var_key, 0, sizeof(bank->slots[bank_slot].var_key));
+        memset(bank->slots[bank_slot].var_val, 0, sizeof(bank->slots[bank_slot].var_val));
+        bank->dirty = 1;
+        return;
+    }
+
+    /* Emptying a tab slot closes the gap so the contiguous prefix stays true. */
+    {
+        int tab = bank_tab_for_slot(bank, bank_slot);
+
+        bank_shift_left(bank, bank_slot);
+        if( tab >= 1 )
+        {
+            bank->tab_size[tab - 1]--;
+            if( bank->open )
+                bank_push_tab_settings(srv);
+        }
+    }
+}
+
+/*
  * `out_fresh_slot`, when non-NULL, receives the bank slot a deposit landed in
  * when — and only when — it opened a *new* bank row (`count == 1` and no
  * existing stack to merge onto). Merging onto an existing stack is left at
@@ -1001,19 +1079,8 @@ ToriRSServer_BankWithdraw(
             ToriRSServer_ItemVarsCopy(&player->inv[fresh_slot], &saved);
     }
     bank_write(bank, bank_slot, obj_id, bank->slots[bank_slot].count - moved);
-    /* Emptying a tab slot closes the gap so the contiguous prefix stays true. */
     if( bank->slots[bank_slot].obj_id < 0 )
-    {
-        int tab = bank_tab_for_slot(bank, bank_slot);
-
-        bank_shift_left(bank, bank_slot);
-        if( tab >= 1 )
-        {
-            bank->tab_size[tab - 1]--;
-            if( bank->open )
-                bank_push_tab_settings(srv);
-        }
-    }
+        bank_slot_emptied(srv, bank_slot, obj_id);
     return moved;
 }
 

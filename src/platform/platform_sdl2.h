@@ -148,6 +148,79 @@ PlatformSDL2_AuxPresent(struct PlatformSDL2* platform);
 bool
 PlatformSDL2_AuxTakeCloseRequest(struct PlatformSDL2* platform);
 
+/* ---- borderless windows, dragged by what is drawn in them -----------------
+ *
+ * Taking the OS frame off a window takes four things with it: the title bar
+ * that moved it, the border that resized it, the buttons that minimised and
+ * closed it, and the double-click that zoomed it. A window that hides its frame
+ * has to answer for all of them, and the one this API covers is the first two:
+ * the WM is told, per point, whether that pixel moves the window or resizes it
+ * from an edge.
+ *
+ * Answering is a callback rather than a rectangle handed over once, because the
+ * chrome that provides the handle is laid out every frame and moves whenever
+ * the window is resized or a panel rebuilt. Answering is a callback into
+ * PUBLISHED GEOMETRY rather than into a live model, because of when it runs:
+ * SDL asks while it is deciding what a mouse press even is, from inside the
+ * event pump, so the provider must be a cheap point test against a snapshot and
+ * must not walk anything the frame thread mutates.
+ *
+ * The cost of a draggable region is that it SWALLOWS the press that begins the
+ * drag -- the application is never told about a mouse-down there. Whatever
+ * draws the handle therefore has to exclude every control inside it, or those
+ * controls silently stop being clickable. @see ToriRSChrome_WindowDragRegion,
+ * which is the one implementation of that rule in this tree.
+ */
+
+/**
+ * Does this point drag the window? Asked in the window's own CONTENT
+ * coordinates -- canvas pixels for the game window (the letterbox is already
+ * undone), surface pixels for the aux one.
+ *
+ * @return non-zero to move the window, zero to let the press through.
+ */
+typedef int (*PlatformSDL2_DragHandleFn)(void* user, int x, int y);
+
+/**
+ * Where the game window may be grabbed. NULL clears it, which is a legitimate
+ * state: a borderless window whose chrome has no handle this frame is dragged
+ * from nowhere but its resize edges.
+ */
+void
+PlatformSDL2_SetDragHandleProvider(
+    struct PlatformSDL2* platform, PlatformSDL2_DragHandleFn fn, void* user);
+
+/** The same, for the aux window. Survives the window itself being closed and
+ *  reopened, so a caller sets it once. */
+void
+PlatformSDL2_AuxSetDragHandleProvider(
+    struct PlatformSDL2* platform, PlatformSDL2_DragHandleFn fn, void* user);
+
+/**
+ * Take the OS frame off the game window, or give it back.
+ * @return true when the window ended up in the state asked for.
+ *
+ * REFUSES to go borderless on a video driver with no hit test, and says so on
+ * stderr. Every way a user has of moving or resizing a window goes through
+ * either the frame or the hit test; a driver with neither leaves a window
+ * pinned where it opened, at the size it opened, for the rest of the session --
+ * which is a worse answer than the frame it was asked to hide.
+ */
+bool
+PlatformSDL2_SetBorderless(struct PlatformSDL2* platform, bool borderless);
+
+/** The same, for the aux window. Call it after PlatformSDL2_AuxOpen: the wish
+ *  is not remembered across the window it applies to. */
+bool
+PlatformSDL2_AuxSetBorderless(struct PlatformSDL2* platform, bool borderless);
+
+/** Is the frame currently off? */
+bool
+PlatformSDL2_IsBorderless(struct PlatformSDL2 const* platform);
+
+bool
+PlatformSDL2_AuxIsBorderless(struct PlatformSDL2 const* platform);
+
 void
 PlatformSDL2_Free(struct PlatformSDL2* platform);
 

@@ -354,6 +354,115 @@
     }
   };
 
+  // ----------------------------------------------------------- plugin files
+  //
+  // The plugin manifest and the Lua scripts it names.
+  //
+  // NOT boot files, and they must not become any: those are staged into MEMFS,
+  // which forgets everything when the tab closes and holds nothing a second
+  // run can revalidate against. These go into the RECORD DATABASE beside the
+  // player's saved options, and the client reads them back through the IO
+  // queue -- TORIRS_IOK_SCRIPT, answered by platform_x_io.c out of the store
+  // (see read_script_item there). Nothing is baked into the module and nothing
+  // is opened with fopen.
+  //
+  // Fetched only on a miss. A script the database already holds is used as it
+  // stands, so a second run installs nothing and a page whose file server is
+  // gone still starts every plugin it ran last time.
+  //
+  // WHY THIS EXISTS: the wire build never needed it -- a script request
+  // crosses to io_server, which reads them off real disk -- but the IndexedDB
+  // build links the DESKTOP io backend (platform.mk: "the same
+  // platform_x_io.c the desktop does"), so the same request was an fopen
+  // against an empty MEMFS. It failed, and a missing manifest is deliberately
+  // silent in task_plugin_io.c ("absent is the ordinary case -- a client with
+  // no scripts installed"). The roster showed the two statically linked C
+  // plugins and nothing said why the other five were gone.
+
+  /* Mirrors of two C constants, because they are what the CLIENT will ask for
+   * and this side only has to agree with it: SCRIPT_DIR in main.c, and
+   * PLUGIN_MANIFEST_DEFAULT_PATH in plugin/task_plugin_io.h. Both are
+   * overridable by env var on the desktop; a browser has no environment to
+   * override them from. */
+  var SCRIPT_ROOT = 'script';
+  var PLUGIN_MANIFEST_PATH = 'plugins/plugins.ini';
+
+  var plugins = {
+    stored: 0,
+    fetched: 0,
+    missing: [],
+
+    /*
+     * `source=` paths out of a plugin manifest, in section order.
+     *
+     * The one key plugin_manifest_parse reads that names a FILE, and
+     * deliberately nothing else: this has to know what the client will ask
+     * for, not what any of it means. `enabled=0` entries are taken too --
+     * the switch is the user's, and a disabled plugin has to be able to come
+     * back without a reload.
+     */
+    sources: function (bytes) {
+      var text = new TextDecoder('utf-8', { fatal: false }).decode(bytes);
+      var out = [];
+      text.split('\n').forEach(function (raw) {
+        var line = raw.replace(/\r$/, '').replace(/^[ \t]+/, '');
+        if (line.charAt(0) === ';' || line.charAt(0) === '#') { return; }
+        var eq = line.indexOf('=');
+        if (eq < 0) { return; }
+        if (line.substring(0, eq).trim() !== 'source') { return; }
+        out.push(line.substring(eq + 1).trim());
+      });
+      return out;
+    },
+
+    /* One file into the store, at the path the client will name it by. The
+     * stored copy wins: it is durable, it costs no request, and it is what
+     * makes the page work with its file server switched off. */
+    take: function (path) {
+      var held = store.fileGet(path);
+      if (held) { this.stored++; return held; }
+
+      var result = xhrSync('GET', bootUrl + '/' + path, null, null);
+      if (result.status !== 200) { result = xhrSync('GET', '/' + path, null, null); }
+      if (result.status !== 200) { this.missing.push(path); return null; }
+      store.filePut(path, result.bytes);
+      this.fetched++;
+      return result.bytes;
+    },
+
+    /*
+     * The manifest, then every script it names.
+     *
+     * The manifest is re-fetched rather than taken from the store, because it
+     * is the LIST: a script added to it between runs would otherwise never be
+     * asked for, and the page would keep running last week's plugin set with
+     * no way to notice. Its scripts are then taken normally, so adding one
+     * costs one request and the rest stay put.
+     */
+    load: function () {
+      var manifestPath = SCRIPT_ROOT + '/' + PLUGIN_MANIFEST_PATH;
+      var result = xhrSync('GET', bootUrl + '/' + manifestPath, null, null);
+      var manifest;
+
+      if (result.status !== 200) { result = xhrSync('GET', '/' + manifestPath, null, null); }
+      if (result.status === 200) {
+        store.filePut(manifestPath, result.bytes);
+        manifest = result.bytes;
+      } else {
+        /* No server, or no manifest on it. The stored copy is the honest
+         * answer -- a page that ran plugins yesterday should run them today
+         * with its file server switched off. */
+        manifest = store.fileGet(manifestPath);
+        if (!manifest) { this.missing.push(manifestPath); return; }
+      }
+
+      var self = this;
+      this.sources(manifest).forEach(function (rel) {
+        self.take(SCRIPT_ROOT + '/' + rel);
+      });
+    }
+  };
+
   // --------------------------------------------------------------- store
   //
   // The browser's cache, for the `make -C src web-idb` build. Absent from the
@@ -567,8 +676,10 @@
 
     // --- client-owned files ----------------------------------------------
     //
-    // The player's saved options. MEMFS would forget them when the tab closes,
-    // which is the same defect rs_prefs.c exists to fix one layer up.
+    // The player's saved options, and the plugin manifest and scripts. MEMFS
+    // would forget them when the tab closes -- for the options that is the
+    // same defect rs_prefs.c exists to fix one layer up, and for the plugins
+    // it is why the roster came up holding only the C ones.
 
     fileGet: function (path) {
       var bytes = this.files.get(path);
@@ -971,6 +1082,27 @@
           }
           if (boot.missing.length) {
             log('torirs: boot files NOT available: ' + boot.missing.join(' '), true);
+          }
+          /*
+           * After the boot files and before main(), for the same reason the
+           * cache records are hydrated before it: the client reads a script
+           * through the IO queue, the store answers that read synchronously,
+           * and the store can only answer what it already holds.
+           *
+           * The wire lane skips it -- there a script request crosses to
+           * io_server, which reads the real directory, and staging a second
+           * copy here would be a second thing to keep in step.
+           */
+          if (self.wanted()) {
+            plugins.load();
+            if (plugins.stored || plugins.fetched) {
+              log('torirs: plugins — ' + plugins.stored + ' stored, ' +
+                  plugins.fetched + ' fetched');
+            }
+            if (plugins.missing.length) {
+              log('torirs: plugin files NOT available: ' +
+                  plugins.missing.join(' '), true);
+            }
           }
           if (!self.wanted()) { self.finish(); return null; }
           return self.beginCache();

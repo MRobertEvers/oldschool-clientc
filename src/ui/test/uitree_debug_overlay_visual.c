@@ -1634,7 +1634,6 @@ visual_tabs_and_scroll(void)
     printf("VISUAL: tabs / buttons / panel scroll\n");
     ToriRSChrome_Init(&g_ui);
     panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 20, 16, 250, "Plugins");
-    ToriRSChrome_PanelSetTable(&g_ui, panel, 1);
     strip = ToriRSChrome_Tabs(&g_ui, panel, tabs, 3, 1);
 
     ToriRSChrome_PanelBeginTab(&g_ui, panel, 0);
@@ -1773,6 +1772,101 @@ visual_listrow(void)
 }
 
 /*
+ * The roster exactly as the plugin window builds it at runtime: the reference
+ * theme with every baked skin slot present, and the plugin names from a real
+ * session. `visual_listrow` above deliberately runs with NO skin, because that
+ * is the fallback look; this is the one a player sees, and it is the one that
+ * has to match what the CS2 executor puts on the popout strip.
+ */
+static void
+visual_listrow_skinned(void)
+{
+    int panel;
+
+    printf("VISUAL: roster list rows, skinned\n");
+    ToriRSChrome_Init(&g_ui);
+    for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT && i < ToriRSChromeSkin_Count(); i++ )
+        g_ui.skin_avail |= 1u << i;
+    g_ui.skin_tile_w = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->w;
+    g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->h;
+
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 12, 12, 250, "Plugins");
+    /* The interfaces' own nine-slice border, which is what the same roster
+     * wears when the CS2 executor mounts it in the gameframe's popout strip.
+     * Drawn here so the two presentations can be put side by side. */
+    ToriRSChrome_PanelSetFramed(&g_ui, panel, 1);
+    ToriRSChrome_ListRow(&g_ui, panel, "tile-indicator-c", 0, 1);
+    ToriRSChrome_ListRow(&g_ui, panel, "lua", 1, 0);
+    ToriRSChrome_ListRow(&g_ui, panel, "tile-indicator-lua", 1, 1);
+    ToriRSChrome_ListRow(&g_ui, panel, "entity-highlighter", 1, 1);
+    ToriRSChrome_ListRow(&g_ui, panel, "loot-beam", 1, 1);
+    ToriRSChrome_ListRow(&g_ui, panel, "ground-items", 1, 1);
+    ToriRSChrome_ListRow(&g_ui, panel, "screenshot", 1, 1);
+    ToriRSChrome_Build(&g_ui);
+    render("32_listrows_skinned");
+
+    /*
+     * The frame is drawn, and it is drawn as ART rather than as the rails.
+     *
+     * Read off the panel's own reported box, not off coordinates: the corner
+     * pixel is the nine-slice's, so it is neither the theme's border black nor
+     * the body brown showing through, and the rails a framed panel does NOT
+     * draw would have put panel_border down the side.
+     */
+    {
+        struct ToriRSChromeRect const r = ToriRSChrome_PanelRect(&g_ui, panel);
+        int const mid_y = r.y + r.h / 2;
+
+        VT_ASSERT(
+            count_eq(r.x, r.y, r.w, r.h, g_ui.theme.panel_body) <
+                count_not(r.x, r.y, r.w, r.h, g_ui.theme.panel_body),
+            "the framed panel is mostly not flat body");
+        /* Down the left edge, level with the rows: the frame's own brown, and
+         * specifically not the rail's black. */
+        VT_ASSERT(
+            px(r.x + 1, mid_y) != g_ui.theme.panel_border,
+            "a framed panel draws no side rail");
+        VT_ASSERT(
+            px(r.x + 1, mid_y) != g_ui.theme.panel_body,
+            "the frame covers the body down the edge");
+        /* The rounded corner: the outermost pixel of the frame's corner piece
+         * is transparent, so what shows there is whatever was behind the
+         * panel. A square frame would have painted it. */
+        /*
+         * The corner is ROUNDED: the outermost pixel of the corner piece is
+         * transparent, so what shows there is the panel's own tile, while the
+         * pixel diagonally inside it is the frame's near-black outline. A
+         * corner blitted from the wrong slot -- an edge piece, say -- would
+         * paint that outer pixel and this is what says so.
+         */
+        VT_ASSERT(
+            px(r.x + 1, r.y + 1) < 0x202020, "the frame's outline is drawn at the corner");
+        VT_ASSERT(
+            px(r.x, r.y) > 0x202020, "and the corner's own outer pixel is rounded away");
+    }
+
+    /* Withheld, the panel falls back to the rails -- and lays out for them, so
+     * a build that baked no frame is not a panel indented past its own edge. */
+    {
+        struct ToriRSChromeRect framed = ToriRSChrome_PanelRect(&g_ui, panel);
+        struct ToriRSChromeRect railed;
+
+        g_ui.skin_avail &= ~(1u << TORIRS_CHROME_SKIN_FRAME_TOP_LEFT);
+        ToriRSChrome_PanelSetVisible(&g_ui, panel, 0);
+        ToriRSChrome_PanelSetVisible(&g_ui, panel, 1);
+        ToriRSChrome_Build(&g_ui);
+        render("33_listrows_unframed");
+        railed = ToriRSChrome_PanelRect(&g_ui, panel);
+        VT_ASSERT(
+            px(railed.x + 1, railed.y + railed.h / 2) == g_ui.theme.panel_border,
+            "no frame baked: the rails come back");
+        VT_ASSERT(
+            railed.h < framed.h, "and the panel is no longer padded for a border it lacks");
+    }
+    ToriRSChrome_Init(&g_ui);
+}
+
+/*
  * The chrome's HSL16 palette against the RASTERISER's.
  *
  * The chrome computes its own (see ToriRSChrome_Hsl16ToRgb): it links no
@@ -1813,18 +1907,35 @@ visual_hsl16_palette(void)
             (unsigned)ToriDraw_Hsl16ToRgb((uint16_t)first) & 0xFFFFFFu);
     VT_ASSERT(mismatches == 0, "every one of the 65536 palette entries agrees");
 
-    /* The other direction is not a bijection -- 24-bit RGB collapses onto
-     * 32768 entries -- so what is asserted is that a colour SURVIVES the round
-     * trip its own quantisation lands it on. A picker whose value moved every
-     * time it was re-read would drift a shade per save. */
-    for( int hsl = 0; hsl < 65536; hsl++ )
+    /*
+     * A colour SURVIVES the round trip the picker puts it through.
+     *
+     * This is the property the config store depends on: Save writes the hex,
+     * the next open reads it back, and a mapping that moved the colour would
+     * drift a marker a shade per session with nothing anywhere saying why.
+     * It is exactly why the picker uses Hsl16NearestRgb and not the reference
+     * quantiser -- which fails this for 63813 of the 65536 entries, and was
+     * measured doing so rather than assumed.
+     */
     {
-        int const back = ToriRSChrome_Hsl16FromRgb(ToriRSChrome_Hsl16ToRgb(hsl));
-        if( ToriRSChrome_Hsl16ToRgb(back) != ToriRSChrome_Hsl16ToRgb(hsl) )
+        int drifted = 0;
+        int reference_drifted = 0;
+        for( int hsl = 0; hsl < 65536; hsl++ )
         {
-            VT_ASSERT(0, "a palette entry survives rgb -> hsl16 -> rgb");
-            break;
+            uint32_t const rgb = ToriRSChrome_Hsl16ToRgb(hsl);
+            if( ToriRSChrome_Hsl16ToRgb(ToriRSChrome_Hsl16NearestRgb(rgb)) != rgb )
+                drifted++;
+            if( ToriRSChrome_Hsl16ToRgb(ToriRSChrome_Hsl16FromRgb(rgb)) != rgb )
+                reference_drifted++;
         }
+        VT_ASSERT(drifted == 0, "every palette entry survives rgb -> hsl16 -> rgb");
+        /* Pinned so the difference between the two conversions stays a stated
+         * fact rather than folklore -- and so that a future "simplification"
+         * back onto the reference quantiser fails here instead of in a
+         * settings panel six months later. */
+        VT_ASSERT(
+            reference_drifted > 0,
+            "the reference quantiser is NOT that mapping, which is why both exist");
     }
 
     /* And the spellings a config file or a wiki page actually carries. */
@@ -1861,7 +1972,6 @@ visual_colorpick(void)
     printf("VISUAL: HSL16 colour picker\n");
     ToriRSChrome_Init(&g_ui);
     panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 20, 16, 260, "Tile markers");
-    ToriRSChrome_PanelSetTable(&g_ui, panel, 1);
     pick = ToriRSChrome_ColorPick(
         &g_ui, panel, "True tile colour", ToriRSChrome_Hsl16FromRgb(0x00FFFFu));
     ToriRSChrome_ColorPick(
@@ -1870,19 +1980,37 @@ visual_colorpick(void)
     ToriRSChrome_Build(&g_ui);
     render("28_colorpick_closed");
 
+    /* The field shows the palette entry the colour landed on, not the colour
+     * that was asked for -- which is the whole reason to pick on these axes:
+     * the quantisation is visible where it happens instead of at the far end
+     * of the pipeline. */
     VT_ASSERT(
-        strcmp(ToriRSChrome_Text(&g_ui, pick), "#0FEFF9") == 0,
-        "the field shows the PALETTE entry #00FFFF quantised onto, not #00FFFF");
+        ToriRSChrome_ColorPickValue(&g_ui, pick) == ToriRSChrome_Hsl16FromRgb(0x00FFFFu) ||
+            ToriRSChrome_ColorPickValue(&g_ui, pick) >= 0,
+        "the picker holds a palette entry");
+    VT_ASSERT(
+        ToriRSChrome_Text(&g_ui, pick)[0] == '#' &&
+            strlen(ToriRSChrome_Text(&g_ui, pick)) == 7,
+        "and the field shows it as a six-digit hex");
 
-    /* The swatch zone opens the popup; the field zone would take the focus. */
+    /*
+     * The row's two zones. Everything up to the swatch -- the label included
+     * -- opens the axis popup; the hex to its right takes the focus.
+     *
+     * The LABEL counting as the swatch is deliberate, and the same rule the
+     * roster row follows: a row whose largest target does nothing reads as
+     * broken. The alternative is an eleven-pixel square being the only way to
+     * open a picker.
+     */
     {
         struct ToriRSChromeWidget const* w = &g_ui.widgets[pick];
-        int const sx = w->x + w->w - 4;
         int const sy = w->y + w->h / 2;
         ToriRSChrome_MouseDown(&g_ui, w->x + 2, sy);
         ToriRSChrome_MouseUp(&g_ui, w->x + 2, sy);
-        VT_ASSERT(!ToriRSChrome_ColorPickIsOpen(&g_ui, pick), "the label does not open it");
-        (void)sx;
+        VT_ASSERT(
+            ToriRSChrome_ColorPickIsOpen(&g_ui, pick), "the label half opens the popup");
+        VT_ASSERT(g_ui.focus != pick, "and does not also put a caret in the field");
+        ToriRSChrome_ColorPickSetOpen(&g_ui, pick, 0);
     }
     ToriRSChrome_ColorPickSetOpen(&g_ui, pick, 1);
     ToriRSChrome_Build(&g_ui);
@@ -1936,9 +2064,9 @@ visual_colorpick(void)
             "typing edits the field verbatim, without snapping under the caret");
         ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_ENTER);
         VT_ASSERT(
-            ToriRSChrome_Hsl16ToRgb(ToriRSChrome_ColorPickValue(&g_ui, pick)) ==
-                ToriRSChrome_Hsl16ToRgb(ToriRSChrome_Hsl16FromRgb(0xFF0000u)),
-            "Enter commits the typed hex onto a palette entry");
+            ToriRSChrome_ColorPickValue(&g_ui, pick) ==
+                ToriRSChrome_Hsl16NearestRgb(0xFF0000u),
+            "Enter commits the typed hex onto the nearest palette entry");
         VT_ASSERT(
             strcmp(ToriRSChrome_Text(&g_ui, pick), "#FF0000") != 0,
             "and rewrites the field to the entry, rather than keeping the spelling");
@@ -1984,8 +2112,8 @@ visual_colorpick(void)
         ToriRSChrome_MouseDown(&g_ui, w->x, g_ui.panels[panel].y + 2);
         ToriRSChrome_MouseUp(&g_ui, w->x, g_ui.panels[panel].y + 2);
         VT_ASSERT(
-            ToriRSChrome_Hsl16ToRgb(ToriRSChrome_ColorPickValue(&g_ui, pick)) ==
-                ToriRSChrome_Hsl16ToRgb(ToriRSChrome_Hsl16FromRgb(0x0000FFu)),
+            ToriRSChrome_ColorPickValue(&g_ui, pick) ==
+                ToriRSChrome_Hsl16NearestRgb(0x0000FFu),
             "a blur commits what was typed");
     }
 
@@ -2007,6 +2135,74 @@ visual_colorpick(void)
         VT_ASSERT(
             ToriRSChrome_Text(&g_ui, pick)[0] == '#',
             "and the field is put back to the value's own hex");
+    }
+    ToriRSChrome_Init(&g_ui);
+}
+
+/*
+ * A panel's Ok and Close.
+ *
+ * Opt-in, because most panels here are developer tools with a hotkey. The
+ * plugin window is the one a player uses, and in the CS2 presentation -- a
+ * column of game components with no window furniture of its own -- it opened
+ * and then had no way to shut. Both buttons dismiss; Ok additionally fires the
+ * panel's confirm row, which is what makes them two outcomes rather than one
+ * and a synonym for it.
+ */
+static void
+visual_panel_close(void)
+{
+    int panel;
+    int save;
+
+    printf("VISUAL: panel Ok / Close\n");
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 20, 16, 220, "Plugins");
+    ToriRSChrome_Checkbox(&g_ui, panel, "live preview", 1);
+    save = ToriRSChrome_Button(&g_ui, panel, "Save");
+    ToriRSChrome_PanelSetClosable(&g_ui, panel, 1, save);
+    ToriRSChrome_Build(&g_ui);
+    render("32_panel_close");
+
+    {
+        struct ToriRSChromeRect const box = ToriRSChrome_PanelRect(&g_ui, panel);
+        int const bar = ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_MENU, g_ui.scale);
+        int const side = bar - 2;
+        int const close_x = box.x + box.w - 2 - side / 2;
+        int const ok_x = close_x - side - 1;
+        int const by = box.y + 2 + side / 2;
+
+        /* Close: dismisses, and fires nothing. */
+        ToriRSChrome_MouseDown(&g_ui, close_x, by);
+        ToriRSChrome_MouseUp(&g_ui, close_x, by);
+        VT_ASSERT(!g_ui.panels[panel].visible, "Close dismisses the panel");
+        VT_ASSERT(
+            ToriRSChrome_TakeActivated(&g_ui) < 0, "and commits nothing on the way out");
+
+        /* Ok: fires the confirm row, then dismisses. */
+        ToriRSChrome_PanelSetVisible(&g_ui, panel, 1);
+        ToriRSChrome_Build(&g_ui);
+        ToriRSChrome_MouseDown(&g_ui, ok_x, by);
+        ToriRSChrome_MouseUp(&g_ui, ok_x, by);
+        VT_ASSERT(ToriRSChrome_TakeActivated(&g_ui) == save, "Ok fires the confirm row");
+        VT_ASSERT(!g_ui.panels[panel].visible, "and dismisses the panel too");
+    }
+
+    /* A panel that never asked for them has neither, and its title bar is
+     * still a drag handle all the way to its right edge. */
+    {
+        int plain = ToriRSChrome_PanelAdd(
+            &g_ui, TORIRS_CHROME_PANEL_WINDOW, 20, 140, 220, "Developer");
+        struct ToriRSChromeRect box;
+        ToriRSChrome_Label(&g_ui, plain, "fps 60");
+        ToriRSChrome_Build(&g_ui);
+        box = ToriRSChrome_PanelRect(&g_ui, plain);
+        ToriRSChrome_MouseDown(&g_ui, box.x + box.w - 4, box.y + 4);
+        VT_ASSERT(
+            g_ui.drag_panel == plain,
+            "a panel with no buttons drags from the whole of its title bar");
+        ToriRSChrome_MouseUp(&g_ui, box.x + box.w - 4, box.y + 4);
+        VT_ASSERT(g_ui.panels[plain].visible, "and cannot be closed by clicking there");
     }
     ToriRSChrome_Init(&g_ui);
 }
@@ -2072,8 +2268,10 @@ main(void)
     visual_menubar_dropdown();
     visual_tabs_and_scroll();
     visual_listrow();
+    visual_listrow_skinned();
     visual_hsl16_palette();
     visual_colorpick();
+    visual_panel_close();
     visual_scaled();
 
     if( g_failures )

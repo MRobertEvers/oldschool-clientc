@@ -319,6 +319,70 @@ test_chrome_exec_intents(void)
  * so the caller's fallback is a plain "did Init succeed" rather than a state it
  * has to unwind.
  */
+/*
+ * A window that closed, and the one signal a host has to watch.
+ *
+ * A presentation that owns a window -- an OS window, a page's container -- can
+ * lose it from EITHER side: the panel's own close box, or the window's title
+ * bar. Both end in the model, at PanelSetVisible(0), and that is deliberate:
+ * the model is the only thing every presentation shares, so it is the only
+ * place the answer can be agreed on.
+ *
+ * Which makes "the panel is no longer visible" the host's cue to take the
+ * executor down. It was not, once: Close hid the panel and left the plugin
+ * window standing empty, with the client insisting it was closed and its
+ * toggle spending a press re-closing it. Nothing below the seam can notice
+ * that -- the executor was still being driven, correctly, for a panel with
+ * nothing in it -- so what is pinned here is the signal, at the point the host
+ * reads it.
+ */
+static void
+test_chrome_exec_close_reported(void)
+{
+    struct ToriRSChromeIntent intent;
+    int panel;
+
+    exec_reset();
+    /* A window of its own, so this is the case that has one to lose. */
+    g_rec.surface_w = 360;
+    g_rec.surface_h = 420;
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 72, 160, "Plugins");
+    ToriRSChrome_Checkbox(&g_ui, panel, "enabled", 1);
+    ToriRSChrome_Build(&g_ui);
+    exec_settle();
+    TEST_ASSERT(g_ui.panels[panel].visible == 1, "the window starts open");
+
+    memset(&intent, 0, sizeof(intent));
+    intent.kind = TORIRS_CHROME_INTENT_CLOSE;
+    intent.panel = panel;
+    intent.widget = -1;
+    ToriRSChromeRecorder_PushIntent(&g_rec, &intent);
+
+    TEST_ASSERT(ToriRSChromeSync_Pump(&g_sync, &g_ui) == 1, "a reported close applies");
+    TEST_ASSERT(
+        g_ui.panels[panel].visible == 0,
+        "and lands in the MODEL, where the host reads it");
+
+    /* Idempotent like every other intent: a transport that delivers the close
+     * twice must not leave the host with two answers. */
+    TEST_ASSERT(
+        ToriRSChromeIntent_Apply(&g_ui, &intent) == 1 && g_ui.panels[panel].visible == 0,
+        "a duplicated close is still closed");
+
+    /* An executor still bound is told, once, and the rows go with it. */
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChromeSync_Run(&g_sync, &g_ui);
+    TEST_ASSERT(
+        ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_PANEL_CLOSE) == 1,
+        "the presentation hears the panel close");
+    TEST_ASSERT(
+        ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_WIDGET_REMOVE) == 0,
+        "without a REMOVE per row");
+
+    g_rec.surface_w = 0;
+    g_rec.surface_h = 0;
+}
+
 static void
 test_chrome_exec_refused(void)
 {
@@ -473,6 +537,375 @@ test_chrome_exec_lost(void)
     }
 }
 
+/*
+ * A colour row across the seam.
+ *
+ * It carries no command of its own -- the value rides WIDGET_SELECTED, the hex
+ * rides WIDGET_TEXT, and "the axis popup is open" rides WIDGET_CHECKED -- so
+ * what this pins is that a native executor can rebuild the whole control from
+ * commands that already existed, and that the intents it sends back land where
+ * a click on the in-canvas row would.
+ */
+static void
+test_chrome_exec_colorpick(void)
+{
+    int panel;
+    int pick;
+    struct ToriRSChromeIntent intent;
+
+    exec_reset();
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 4, 4, 200, "Markers");
+    pick = ToriRSChrome_ColorPick(
+        &g_ui, panel, "True tile", ToriRSChrome_Hsl16NearestRgb(0x00FFFFu));
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChromeSync_Run(&g_sync, &g_ui);
+
+    {
+        struct ToriRSChromeCmd const* add =
+            ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_WIDGET_ADD, pick);
+        struct ToriRSChromeCmd const* sel =
+            ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_WIDGET_SELECTED, pick);
+        TEST_ASSERT(add && add->value == TORIRS_CHROME_W_COLORPICK, "the kind crosses");
+        TEST_ASSERT(add && add->text[0] == '#', "and the hex rides the add");
+        TEST_ASSERT(
+            sel && sel->value == ToriRSChrome_ColorPickValue(&g_ui, pick),
+            "the packed HSL16 crosses as the SELECTION -- no command of its own");
+    }
+
+    /* A PICK is how a presentation says "the user swept a bar". */
+    exec_settle();
+    memset(&intent, 0, sizeof(intent));
+    intent.kind = TORIRS_CHROME_INTENT_PICK;
+    intent.panel = panel;
+    intent.widget = pick;
+    intent.value = ToriRSChrome_Hsl16Pack(20, 5, 90);
+    ToriRSChromeRecorder_PushIntent(&g_rec, &intent);
+    TEST_ASSERT(ToriRSChromeSync_Pump(&g_sync, &g_ui) == 1, "the pick applies");
+    TEST_ASSERT(
+        ToriRSChrome_ColorPickValue(&g_ui, pick) == ToriRSChrome_Hsl16Pack(20, 5, 90),
+        "and lands as the value, not as a dropdown index");
+    TEST_ASSERT(
+        ToriRSChrome_TakeActivated(&g_ui) == pick,
+        "and reports through the ordinary activation latch");
+
+    /* A TEXT is how one says "the user typed a hex", and the model quantises
+     * it -- which is what makes a browser's 24-bit colour input honest. */
+    ToriRSChrome_Build(&g_ui);
+    exec_settle();
+    memset(&intent, 0, sizeof(intent));
+    intent.kind = TORIRS_CHROME_INTENT_TEXT;
+    intent.panel = panel;
+    intent.widget = pick;
+    snprintf(intent.text, sizeof(intent.text), "%s", "#123456");
+    ToriRSChromeRecorder_PushIntent(&g_rec, &intent);
+    TEST_ASSERT(ToriRSChromeSync_Pump(&g_sync, &g_ui) == 1, "the edit applies");
+    TEST_ASSERT(
+        ToriRSChrome_ColorPickValue(&g_ui, pick) == ToriRSChrome_Hsl16NearestRgb(0x123456u),
+        "an un-quantised colour from a presentation snaps onto a palette entry");
+    TEST_ASSERT(
+        strcmp(ToriRSChrome_Text(&g_ui, pick), "#123456") != 0,
+        "and the field is rewritten to the entry, so the snap is visible");
+
+    /* ACTIVATE is the swatch, ACTION is the field: the two zones, told apart by
+     * WHICH intent arrives rather than by a coordinate every executor would
+     * otherwise have to carry. */
+    ToriRSChrome_Build(&g_ui);
+    exec_settle();
+    memset(&intent, 0, sizeof(intent));
+    intent.kind = TORIRS_CHROME_INTENT_ACTIVATE;
+    intent.panel = panel;
+    intent.widget = pick;
+    ToriRSChromeRecorder_PushIntent(&g_rec, &intent);
+    ToriRSChromeSync_Pump(&g_sync, &g_ui);
+    TEST_ASSERT(ToriRSChrome_ColorPickIsOpen(&g_ui, pick), "ACTIVATE opens the axis popup");
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChromeSync_Run(&g_sync, &g_ui);
+    {
+        struct ToriRSChromeCmd const* checked =
+            ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_WIDGET_CHECKED, pick);
+        TEST_ASSERT(
+            checked && checked->value == 1,
+            "and says so as WIDGET_CHECKED, which is how a native executor knows to "
+            "draw its own bars");
+    }
+
+    exec_settle();
+    memset(&intent, 0, sizeof(intent));
+    intent.kind = TORIRS_CHROME_INTENT_ACTION;
+    intent.panel = panel;
+    intent.widget = pick;
+    ToriRSChromeRecorder_PushIntent(&g_rec, &intent);
+    ToriRSChromeSync_Pump(&g_sync, &g_ui);
+    TEST_ASSERT(g_ui.focus == pick, "ACTION puts the keyboard in the hex field");
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChromeSync_Run(&g_sync, &g_ui);
+    {
+        struct ToriRSChromeCmd const* focus =
+            ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_WIDGET_FOCUS, pick);
+        /* The command a presentation with no focus of its own needs: without
+         * it the CS2 window drew every field identically and a click on one
+         * looked like it had done nothing. */
+        TEST_ASSERT(focus && focus->value == 1, "and the focus crosses the seam");
+    }
+}
+
+/*
+ * A presentation with a window of its own fills it.
+ *
+ * The panel's authored geometry -- (8,72), 320 wide -- is a box that floats
+ * over the GAME CANVAS. Put the same box in a window that holds nothing else
+ * and it is a window inside a window: bands of empty background on three
+ * sides, and dragging the frame wider grows the background rather than the
+ * settings. Driven through the recorder rather than through SDL so it runs on
+ * a machine with no display, which is every machine this suite runs on.
+ */
+static void
+test_chrome_exec_fill_surface(void)
+{
+    struct ToriRSChromeExec exec;
+    struct ToriRSChromeRect rect;
+    int panel;
+    int title_h;
+
+    ToriRSChrome_Init(&g_ui);
+    ToriRSChromeRecorder_Init(&g_rec);
+    g_rec.surface_w = 300;
+    g_rec.surface_h = 200;
+    exec = ToriRSChromeExec_Recorder(&g_rec);
+    TEST_ASSERT(ToriRSChromeSync_Init(&g_sync, &exec) == 1, "the windowed recorder comes up");
+
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 72, 160, "Plugins");
+    ToriRSChrome_PanelSetResizable(&g_ui, panel, 1);
+    ToriRSChrome_PanelSetScrollable(&g_ui, panel, 1);
+    ToriRSChrome_Checkbox(&g_ui, panel, "enabled", 1);
+
+    TEST_ASSERT(
+        ToriRSChromeSync_FillSurface(&g_sync, &g_ui, panel) == 1,
+        "an executor with a window of its own fills it");
+    ToriRSChrome_Build(&g_ui);
+    rect = ToriRSChrome_PanelRect(&g_ui, panel);
+    TEST_ASSERT(rect.x == 0 && rect.y == 0, "the panel sits at the window's origin");
+    TEST_ASSERT(rect.w == 300 && rect.h == 200, "and is exactly the window's size");
+
+    /* Run every frame, so a repeat has to cost nothing: a rebuild per frame
+     * would re-emit the whole window to a native executor 50 times a second,
+     * which is the one thing the shadow exists to prevent. */
+    exec_settle();
+    TEST_ASSERT(
+        ToriRSChromeSync_FillSurface(&g_sync, &g_ui, panel) == 1, "filling again still answers");
+    TEST_ASSERT(ToriRSChrome_Build(&g_ui) == 0, "but rebuilds nothing");
+    TEST_ASSERT(ToriRSChromeSync_Run(&g_sync, &g_ui) == 0, "and tells the executor nothing");
+
+    /* The window grew: the panel grows with it, on the frame the size changed
+     * rather than on the next one. */
+    g_rec.surface_w = 420;
+    g_rec.surface_h = 260;
+    ToriRSChromeSync_FillSurface(&g_sync, &g_ui, panel);
+    ToriRSChrome_Build(&g_ui);
+    rect = ToriRSChrome_PanelRect(&g_ui, panel);
+    TEST_ASSERT(rect.w == 420 && rect.h == 260, "a resized window resizes the panel");
+    {
+        struct ToriRSChromeCmd const* r;
+        ToriRSChromeSync_Run(&g_sync, &g_ui);
+        r = ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_PANEL_RECT, -1);
+        TEST_ASSERT(
+            r && r->w == 420 && r->h == 260, "and the new box crosses the seam");
+    }
+
+    /*
+     * The drag and the grip are gone with it. Both write geometry the next
+     * fill overwrites, so leaving them is a title bar that takes the cursor
+     * and gives nothing back, and a corner that snaps.
+     */
+    title_h = ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_MENU, ToriRSChrome_Scale(&g_ui));
+    ToriRSChrome_MouseDown(&g_ui, 100, 1 + title_h / 2);
+    ToriRSChrome_MouseMove(&g_ui, 160, 60);
+    ToriRSChrome_MouseUp(&g_ui, 160, 60);
+    ToriRSChrome_Build(&g_ui);
+    rect = ToriRSChrome_PanelRect(&g_ui, panel);
+    TEST_ASSERT(rect.x == 0 && rect.y == 0, "a filled panel cannot be dragged off its origin");
+
+    ToriRSChrome_MouseDown(&g_ui, 420 - 3, 260 - 3);
+    ToriRSChrome_MouseMove(&g_ui, 200, 120);
+    ToriRSChrome_MouseUp(&g_ui, 200, 120);
+    ToriRSChrome_Build(&g_ui);
+    rect = ToriRSChrome_PanelRect(&g_ui, panel);
+    TEST_ASSERT(rect.w == 420 && rect.h == 260, "nor resized from the inside");
+
+    /*
+     * The other half, and the reason this is a property of the EXECUTOR rather
+     * than of the panel: in-canvas chrome floats, because there it has a game
+     * to float over.
+     */
+    ToriRSChrome_Init(&g_ui);
+    ToriRSChromeRecorder_Init(&g_rec);
+    exec = ToriRSChromeExec_Recorder(&g_rec);
+    ToriRSChromeSync_Init(&g_sync, &exec);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 72, 160, "Plugins");
+    ToriRSChrome_Checkbox(&g_ui, panel, "enabled", 1);
+    TEST_ASSERT(
+        ToriRSChromeSync_FillSurface(&g_sync, &g_ui, panel) == 0,
+        "an executor with no window of its own does not fill");
+    ToriRSChrome_Build(&g_ui);
+    rect = ToriRSChrome_PanelRect(&g_ui, panel);
+    TEST_ASSERT(rect.x == 8 && rect.y == 72, "and the panel keeps the box it was authored with");
+}
+
+/* Titles borrowed by the strips below; they have to outlive the widget. */
+static char const* const g_drag_tabs[] = { "One", "Two" };
+static char const* const g_drag_many_tabs[] = { "Alpha",   "Bravo", "Charlie",
+                                                "Delta",   "Echo",  "Foxtrot" };
+
+/** Centre of a rect, which is the point a user aims at. */
+static int
+drag_mid_x(struct ToriRSChromeRect r)
+{
+    return r.x + r.w / 2;
+}
+
+static int
+drag_mid_y(struct ToriRSChromeRect r)
+{
+    return r.y + r.h / 2;
+}
+
+/*
+ * The handles a frameless window is moved by, and -- the half that actually
+ * breaks -- the controls that have to be punched back out of them.
+ *
+ * A draggable region SWALLOWS the press that begins a drag: the application is
+ * never told about a mouse-down inside one. So every one of these assertions is
+ * really the same assertion twice over -- this box drags the window, and that
+ * box still reaches the control it is drawn on. A screenshot cannot tell the
+ * two apart, and neither can the window until someone tries to click a tab.
+ *
+ * Driven through the recorder, so it runs on a machine with no display.
+ */
+static void
+test_chrome_exec_drag_region(void)
+{
+    struct ToriRSChromeExec exec;
+    struct ToriRSChromeDragRegion region;
+    struct ToriRSChromeRect title;
+    struct ToriRSChromeRect strip;
+    int panel;
+    int tabs;
+
+    ToriRSChrome_Init(&g_ui);
+    ToriRSChromeRecorder_Init(&g_rec);
+    g_rec.surface_w = 300;
+    g_rec.surface_h = 220;
+    exec = ToriRSChromeExec_Recorder(&g_rec);
+    TEST_ASSERT(ToriRSChromeSync_Init(&g_sync, &exec) == 1, "the windowed recorder comes up");
+
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 72, 160, "Plugins");
+    tabs = ToriRSChrome_Tabs(&g_ui, panel, g_drag_tabs, 2, 0);
+    ToriRSChrome_Checkbox(&g_ui, panel, "enabled", 1);
+
+    /*
+     * FLOATING first, because this is the case that must NOT have a handle. In
+     * the canvas the same title bar already moves the panel inside the frame,
+     * and a bar that did both would drag the game out from under the pointer.
+     */
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(
+        ToriRSChrome_WindowDragRegion(&g_ui, panel, &region) == 0,
+        "a floating panel offers the OS window no handle");
+    TEST_ASSERT(region.handle_count == 0, "and the region it cleared is empty");
+
+    /* Filled: the panel IS the window, so its chrome is the window's chrome. */
+    TEST_ASSERT(
+        ToriRSChromeSync_FillSurface(&g_sync, &g_ui, panel) == 1, "the window fills with the panel");
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(
+        ToriRSChrome_WindowDragRegion(&g_ui, panel, &region) == 1,
+        "a filled panel has a drag region");
+    TEST_ASSERT(region.handle_count == 2, "the title bar and the tab strip, both");
+    title = region.handles[0];
+    strip = region.handles[1];
+    TEST_ASSERT(title.w > 0 && title.h > 0, "the title bar is a real box");
+    TEST_ASSERT(strip.y > title.y, "and the strip is below it");
+
+    TEST_ASSERT(
+        ToriRSChromeDragRegion_Contains(&region, drag_mid_x(title), drag_mid_y(title)),
+        "the title bar drags the window");
+    TEST_ASSERT(
+        ToriRSChromeDragRegion_Contains(&region, strip.x + strip.w - 2, drag_mid_y(strip)),
+        "and so does the empty tail of the tab strip");
+
+    /*
+     * The tabs themselves do not -- and the proof that the point tested is a
+     * tab is that pressing it selects one. Asserting "not draggable" against a
+     * coordinate nothing is drawn at would pass on an empty strip.
+     */
+    TEST_ASSERT(
+        !ToriRSChromeDragRegion_Contains(&region, strip.x + 2, drag_mid_y(strip)),
+        "a tab is not a drag handle");
+    ToriRSChrome_MouseDown(&g_ui, strip.x + 2, drag_mid_y(strip));
+    ToriRSChrome_MouseUp(&g_ui, strip.x + 2, drag_mid_y(strip));
+    TEST_ASSERT(ToriRSChrome_PanelActiveTab(&g_ui, panel) == 0, "because the press picks tab 0");
+    TEST_ASSERT(ToriRSChrome_HitTest(&g_ui, strip.x + 2, drag_mid_y(strip)) == tabs,
+                "on the strip the region claims");
+
+    /*
+     * Ok and Close live IN the title bar. Unpunched they would be unreachable
+     * rather than merely awkward: the press that should activate one would
+     * start a window drag and the button would never see a click at all.
+     */
+    ToriRSChrome_PanelSetClosable(&g_ui, panel, 1, -1);
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChrome_WindowDragRegion(&g_ui, panel, &region);
+    TEST_ASSERT(
+        ToriRSChromeDragRegion_Contains(&region, region.handles[0].x + 2, drag_mid_y(title)),
+        "the left of the title bar still drags");
+    TEST_ASSERT(
+        !ToriRSChromeDragRegion_Contains(
+            &region, region.handles[0].x + region.handles[0].w - 3, drag_mid_y(title)),
+        "but its buttons are punched out of the handle");
+
+    /*
+     * A strip whose tabs have been compressed to fill its width has no tail,
+     * and correctly offers nothing: every pixel of it is a tab. This is why the
+     * title bar is the handle that has to always be there.
+     */
+    ToriRSChrome_Init(&g_ui);
+    ToriRSChromeRecorder_Init(&g_rec);
+    g_rec.surface_w = 120;
+    g_rec.surface_h = 200;
+    exec = ToriRSChromeExec_Recorder(&g_rec);
+    ToriRSChromeSync_Init(&g_sync, &exec);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 120, "Plugins");
+    ToriRSChrome_Tabs(&g_ui, panel, g_drag_many_tabs, 6, 0);
+    ToriRSChromeSync_FillSurface(&g_sync, &g_ui, panel);
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChrome_WindowDragRegion(&g_ui, panel, &region);
+    strip = region.handles[region.handle_count - 1];
+    TEST_ASSERT(
+        !ToriRSChromeDragRegion_Contains(&region, strip.x + strip.w - 2, drag_mid_y(strip)),
+        "a strip packed edge to edge with tabs has no tail to grab");
+    TEST_ASSERT(
+        ToriRSChromeDragRegion_Contains(
+            &region, drag_mid_x(region.handles[0]), drag_mid_y(region.handles[0])),
+        "and the title bar is what is left to drag it by");
+
+    /*
+     * The region is published on EVERY frame, including a frame that has none.
+     * An executor that simply stopped hearing about handles would go on
+     * offering the last set it was told -- a band of the window that eats
+     * presses because a strip used to be there.
+     */
+    ToriRSChrome_PanelSetVisible(&g_ui, panel, 0);
+    ToriRSChrome_Build(&g_ui);
+    g_rec.drag_publishes = 0;
+    TEST_ASSERT(
+        ToriRSChromeSync_PublishDragRegion(&g_sync, &g_ui, panel) == 1,
+        "a hidden panel is still published for");
+    TEST_ASSERT(g_rec.drag_publishes == 1, "exactly once");
+    TEST_ASSERT(
+        g_rec.drag.handle_count == 0 && g_rec.drag.hole_count == 0,
+        "and what crosses is an empty region, not a stale one");
+}
+
 void
 test_chrome_exec(void)
 {
@@ -484,7 +917,11 @@ test_chrome_exec(void)
     test_chrome_exec_panel_close();
     test_chrome_exec_options();
     test_chrome_exec_intents();
+    test_chrome_exec_close_reported();
     test_chrome_exec_refused();
     test_chrome_exec_row_order();
     test_chrome_exec_lost();
+    test_chrome_exec_colorpick();
+    test_chrome_exec_fill_surface();
+    test_chrome_exec_drag_region();
 }

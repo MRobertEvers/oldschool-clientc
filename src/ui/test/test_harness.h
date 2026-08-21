@@ -52,6 +52,9 @@ struct TestHostState
     int entity_overlay_clip_y;
     int entity_overlay_clip_w;
     int entity_overlay_clip_h;
+    /** When >= 0, GET_OBJ_NAME answers for that obj id and reports it as a bank
+     *  placeholder — the one fact that suppresses an item cell's count text. */
+    int placeholder_obj_id;
     /* Optional stub slots for UITREE_HOST_GET_INV_SOURCE_SLOT (tests). */
     int inv_source_id;
     struct UIInvSlotData inv_slots[UI_INV_SLOT_OFFSET_MAX];
@@ -113,6 +116,20 @@ UITree_TestHostRequest(void* user, struct UITreeHostRequest* req)
     case UITREE_HOST_SET_SELECTED_TAB:
         st->selected_tab = req->u.set_selected_tab.tabno;
         return 0;
+    case UITREE_HOST_GET_OBJ_NAME:
+        /* Only the placeholder fixture answers; every other test leaves
+         * placeholder_obj_id at 0 from the memset and gets the unknown-obj
+         * answer this host gave before. */
+        if( st->placeholder_obj_id <= 0 ||
+            req->u.get_obj_name.obj_id != st->placeholder_obj_id )
+            return 0;
+        if( req->u.get_obj_name.out && req->u.get_obj_name.cap > 0 )
+            req->u.get_obj_name.out[0] = '\0';
+        if( req->u.get_obj_name.out_stackable )
+            *req->u.get_obj_name.out_stackable = 0;
+        if( req->u.get_obj_name.out_placeholder )
+            *req->u.get_obj_name.out_placeholder = 1;
+        return 1;
     case UITREE_HOST_GET_INV_SOURCE_SLOT:
     {
         int slot = req->u.get_inv_source_slot.slot;
@@ -192,6 +209,7 @@ void test_wheel_stops_at_interface(void);
 void test_drag_scrolled(void);
 void test_emit_icons(void);
 void test_emit_stack_count_zero(void);
+void test_emit_stack_count_placeholder(void);
 void test_emit_golden(void);
 void test_minimenu(void);
 void test_key_dispatch(void);

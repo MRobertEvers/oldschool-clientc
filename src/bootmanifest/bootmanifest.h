@@ -337,6 +337,16 @@ struct BootManifest
     int chrome_executor_set;
     /** Set when the key named something that is not an executor at all. */
     int chrome_executor_error;
+    /**
+     * `[chrome] borderless=` -- open the plugin window with no OS frame, so
+     * the panel's own title bar and tab strip are what move it.
+     *
+     * Only the `sdl` executor has a frame to hide; every other presentation
+     * either has no window of its own or builds one out of the host's widgets.
+     * Off by default: a frameless window is a look, and one a lane has to ask
+     * for. TORIRS_CHROME_BORDERLESS overrides it.
+     */
+    int chrome_borderless;
     /** Set when `panel=` named something unknown; the load fails on it. */
     int editor_panel_error;
 

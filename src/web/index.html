@@ -88,12 +88,15 @@
   body.fullcanvas header {
     position: fixed;
     top: 0;
-    right: 0;
+    /* Clear of the plugin window docked beside the canvas, whose width
+       torirs_chrome.js publishes here — 0px whenever nothing is docked. A
+       corner pinned to the viewport instead lands on that window's title bar,
+       which is the one row of it the user needs to reach. */
+    right: var(--torirs-dock-width, 0px);
     z-index: 10;
     padding: 0.25rem 0.4rem;
     border: 1px solid #3a2f22;
     border-top: 0;
-    border-right: 0;
     background: rgba(20, 16, 12, 0.85);
     opacity: 0.2;
     transition: opacity 0.12s ease-out;

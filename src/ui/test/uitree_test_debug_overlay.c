@@ -818,34 +818,50 @@ test_debug_overlay_table(void)
                 two_x = prims[i].x;
         }
         TEST_ASSERT(one_x >= 0 && two_x >= 0, "both input contents drew");
-        TEST_ASSERT(one_x != two_x, "no table: each box starts after its own label");
+        /*
+         * ONE column, always -- "X" and "Longer label" put their boxes at the
+         * same x.
+         *
+         * This used to be opt-in (PanelSetTable) and off by default, so a box
+         * started right after its own label and a panel of rows read as a
+         * ragged pile. Worse, the column moved whenever a label's text
+         * changed, which slid every field in the panel sideways under the
+         * cursor. It is now the only behaviour, and it is what the CS2
+         * executor lays out too -- see TORIRS_CHROME_M_LABEL_W.
+         */
+        TEST_ASSERT(one_x == two_x, "every labelled box shares one column");
+    }
 
-        ToriRSChrome_PanelSetTable(&g_ui, panel, 1);
+    /*
+     * An UNLABELLED row gets no column: there is nothing to line it up with,
+     * and holding 104 pixels open for a caption that is never drawn is how a
+     * lone control in a narrow panel ends up half the panel's width.
+     */
+    {
+        int bare;
+        int bare_x = -1;
+        int labelled_x = -1;
+        int count;
+        struct ToriRSChromePrim const* prims;
+
+        bare = ToriRSChrome_TextInput(&g_ui, panel, "", "three");
         ToriRSChrome_Build(&g_ui);
-        one_x = -1;
-        two_x = -1;
         prims = ToriRSChrome_Prims(&g_ui, &count);
         for( int i = 0; i < count; i++ )
         {
             if( prims[i].kind != TORIRS_CHROME_PRIM_TEXT || !prims[i].text )
                 continue;
+            if( strcmp(prims[i].text, "three") == 0 )
+                bare_x = prims[i].x;
             if( strcmp(prims[i].text, "one") == 0 )
-                one_x = prims[i].x;
-            if( strcmp(prims[i].text, "two") == 0 )
-                two_x = prims[i].x;
+                labelled_x = prims[i].x;
         }
-        TEST_ASSERT(one_x >= 0 && two_x >= 0, "both contents drew in table mode");
-        TEST_ASSERT(one_x == two_x, "table: both boxes share the label column");
+        TEST_ASSERT(bare_x >= 0 && labelled_x >= 0, "both contents drew");
+        TEST_ASSERT(bare_x < labelled_x, "an unlabelled row reserves no label column");
+        (void)bare;
     }
-
-    /* A hidden wide-label row stops voting: the column snaps back. */
-    ToriRSChrome_SetHidden(&g_ui, b, 1);
-    ToriRSChrome_Build(&g_ui);
-    TEST_ASSERT(
-        g_ui.panels[panel].label_col ==
-            ToriRSChrome_MeasureText(g_ui.theme.font_row, g_ui.scale, "X"),
-        "hidden rows do not hold the column open");
     (void)a;
+    (void)b;
 }
 
 /*

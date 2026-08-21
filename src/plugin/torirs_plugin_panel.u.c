@@ -215,7 +215,10 @@ app_plugin_color_hsl(char const* text)
 {
     uint32_t rgb = 0xFFFFFFu;
     (void)ToriRSChrome_ParseHexRgb(text, &rgb);
-    return ToriRSChrome_Hsl16FromRgb(rgb);
+    /* NEAREST, so a key written by Save and read back on the next open comes
+     * back as the same colour. The reference quantiser moves it a hue step
+     * every trip, which is a marker that drifts a shade per session. */
+    return ToriRSChrome_Hsl16NearestRgb(rgb);
 }
 
 static void
@@ -287,6 +290,9 @@ app_plugin_panel_sync(struct App* app)
 {
     int count;
     int rev;
+    /** What the window's Ok button stands for on the page being built, or -1
+     *  when this page stages nothing. @see ToriRSChromePanel::confirm_widget. */
+    int confirm_widget = -1;
 
     assert(app);
     if( !app->plugins )
@@ -323,7 +329,12 @@ app_plugin_panel_sync(struct App* app)
          * and rows below the fold used to be simply dropped. */
         app->plugin_ui.panels[app->plugin_panel].fixed_h = 260 * scale;
         ToriRSChrome_PanelSetScrollable(&app->plugin_ui, app->plugin_panel, 1);
-        ToriRSChrome_PanelSetTable(&app->plugin_ui, app->plugin_panel, 1);
+        /* The interfaces' own nine-slice border rather than the minimenu's
+         * rails. This is the one panel a PLAYER sees, and in the strip the CS2
+         * executor mounts it in it already wears one -- so drawn in canvas it
+         * has to wear the same, or the window changes shape with the executor
+         * bound to it. */
+        ToriRSChrome_PanelSetFramed(&app->plugin_ui, app->plugin_panel, 1);
         ToriRSChrome_PanelSetVisible(
             &app->plugin_ui, app->plugin_panel, app->plugin_panel_visible);
     }
@@ -368,6 +379,26 @@ app_plugin_panel_sync(struct App* app)
         {
             char label[TORIRS_CHROME_INPUT_MAX];
             char const* err = PluginHost_Error(app->plugins, p);
+
+            /*
+             * An ADAPTER is machinery, and a working one has no row.
+             *
+             * The Lua adapter is registered beside the scripts it runs -- that
+             * uniformity is the whole design -- so it also appeared in the
+             * roster, called "lua", sitting among them and looking like a peer
+             * with nothing a user does to it. Its scripts are the rows; they
+             * speak for it.
+             *
+             * It comes back the moment it has something to say, and the two
+             * conditions below are the two states you cannot get out of
+             * otherwise: a fault has to be visible somewhere or a broken Lua
+             * layer is a client with no plugins and no explanation, and a
+             * switched-off adapter has to have a switch or it can never come
+             * back on.
+             */
+            if( PluginHost_IsAdapter(app->plugins, p) && !err &&
+                PluginHost_IsEnabled(app->plugins, p) )
+                continue;
 
             snprintf(label, sizeof(label), "%s", PluginHost_Name(app->plugins, p));
             app_plugin_panel_track(
@@ -559,10 +590,18 @@ app_plugin_panel_sync(struct App* app)
         /* Save and Revert, only where there is something staged to commit. */
         if( has_settings )
         {
+            int save_widget;
             ToriRSChrome_Separator(&app->plugin_ui, app->plugin_panel);
+            save_widget = ToriRSChrome_Button(&app->plugin_ui, app->plugin_panel, "Save");
+            /* The window's Ok stands for THIS row, so closing with Ok commits
+             * the page the way the button does and closing with the cross
+             * abandons it -- which is what those two words mean on a form.
+             * Re-pointed on every rebuild because the handle is a new one each
+             * time; a stale handle would make Ok fire whatever recycled it. */
+            confirm_widget = save_widget;
             app_plugin_panel_track(
                 app,
-                ToriRSChrome_Button(&app->plugin_ui, app->plugin_panel, "Save"),
+                save_widget,
                 p,
                 APP_PLUGIN_ROW_SAVE,
                 -1,
@@ -576,6 +615,17 @@ app_plugin_panel_sync(struct App* app)
                 NULL);
         }
     }
+
+    /*
+     * The window's own way out.
+     *
+     * Declared here rather than at PanelAdd because what Ok STANDS FOR moves
+     * with the page: a plugin's settings page has a Save row and the roster
+     * has nothing to commit, so on the roster Ok is a plain dismiss. Opt-in
+     * per panel -- the developer tools beside this one are toggled by hotkeys
+     * and do not want a close box.
+     */
+    ToriRSChrome_PanelSetClosable(&app->plugin_ui, app->plugin_panel, 1, confirm_widget);
 
     app->plugin_panel_built_for = count;
     app->plugin_panel_built_rev = rev;
@@ -1022,6 +1072,26 @@ app_plugin_window_set_open(struct App* app, int open)
      */
     if( app->plugin_panel_visible )
         app_plugin_exec_bind(app);
+    else
+        /*
+         * The other half of that bind, and the reason it can be lazy.
+         *
+         * A presentation is not merely where the panel is drawn: for every
+         * executor but the strip's it is a WINDOW -- an OS window, a page's
+         * container -- and hiding the panel inside one leaves the window
+         * itself standing, empty, while the client insists it is closed. That
+         * was exactly the report: Close dismissed the panel and left the
+         * plugin window on screen.
+         *
+         * So the window closes the way it opened: through the executor's own
+         * end(). Which one is bound decides what that means -- SDL destroys
+         * its aux window, GDI its HWND, the web one calls the page's close
+         * hook, the strip one clears the nodes it built -- and the host needs
+         * to know none of it. The next open re-binds from scratch, which is
+         * also what makes a window taken down by ITS side (a title-bar X)
+         * openable again: `live` is the guard the bind reads.
+         */
+        ToriRSChromeSync_Shutdown(&app->plugin_exec);
 
     if( !app->tree )
         return;
@@ -1167,14 +1237,20 @@ app_plugin_exec_bind(struct App* app)
      * a dozen exits and a line reached by only some of them reports the
      * absence of a decision as the absence of a bind.
      *
-     * Once per run -- the guard above makes this the frame the window first
-     * opens.
+     * Once per ANSWER, not once per open: closing the window takes the
+     * executor down with it, so every show re-binds, and a line per bind would
+     * make a session that toggles the window a session that logs the same
+     * sentence twenty times.
      */
-    fprintf(
-        stderr,
-        "chrome: plugin window executor = %s (%s)\n",
-        ToriRSChromeExec_KindName(app->plugin_exec_kind),
-        app->plugin_exec_explicit ? "configured" : "default");
+    if( app->plugin_exec_kind != app->plugin_exec_logged_kind )
+    {
+        app->plugin_exec_logged_kind = app->plugin_exec_kind;
+        fprintf(
+            stderr,
+            "chrome: plugin window executor = %s (%s)\n",
+            ToriRSChromeExec_KindName(app->plugin_exec_kind),
+            app->plugin_exec_explicit ? "configured" : "default");
+    }
 }
 
 /*
@@ -1335,6 +1411,21 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
             app_chrome_route_keys(app, &app->plugin_ui, input);
     }
 
+    /*
+     * A presentation with a window of its own gets the panel STRETCHED over
+     * it: there is nothing else in that window for a floating box to float
+     * over, so its margins would just be background, and the window growing
+     * would grow the background rather than the settings.
+     *
+     * After the input above, not before it: a resize is applied to the surface
+     * as it is drained, so asking here reports the size the user just dragged
+     * to instead of the one from before it. In-canvas -- and every native
+     * executor, which lays its own controls out -- this is a no-op and the
+     * panel keeps the floating geometry it was built with.
+     */
+    if( app->plugin_panel >= 0 )
+        ToriRSChromeSync_FillSurface(&app->plugin_exec, &app->plugin_ui, app->plugin_panel);
+
     /* Intents from a native-widget executor land on the model the same way a
      * click would, so the drain below sees both without knowing which. */
     ToriRSChromeSync_Pump(&app->plugin_exec, &app->plugin_ui);
@@ -1344,6 +1435,21 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
         if( activated >= 0 )
             app_plugin_panel_apply(app, activated);
     }
+
+    /*
+     * The window's own Ok or Close hid the panel; the host has to hear about
+     * it.
+     *
+     * The MODEL is what a close acts on -- CLOSE and CONFIRM both end in
+     * PanelSetVisible(0), which is what keeps every presentation agreeing --
+     * and this flag is the host's separate idea of whether the window is up.
+     * Left unreconciled they disagree, and the sidebar button's next press
+     * "closes" an already-closed window instead of reopening it. Read after
+     * the drain so an Ok commits its page before the window is torn down.
+     */
+    if( app->plugin_panel_visible && app->plugin_panel >= 0 &&
+        !app->plugin_ui.panels[app->plugin_panel].visible )
+        app_plugin_window_set_open(app, 0);
 
     /*
      * Build our own display list, exactly as the developer overlay and the loc
@@ -1361,6 +1467,26 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
         app->need_redraw = 1;
         ToriRSChrome_DamageClear(&app->plugin_ui);
     }
+
+    /*
+     * Where the window may be grabbed, for a presentation that took its OS
+     * frame off and now has to answer for what the title bar used to do.
+     *
+     * AFTER the build, unlike the fill above, and the order is the whole point:
+     * these are laid-out boxes. Publishing them before the build that produced
+     * them is a frame of lag on every resize -- a drag band sitting where the
+     * panel was a moment ago, which on a window the user is actively dragging
+     * wider is a band that is never where it looks.
+     *
+     * Every frame and unconditionally: an executor whose window kept its frame
+     * has no set_drag_region and this costs a null test, and one that HAS a
+     * frameless window must hear about an empty region as clearly as a full
+     * one -- a panel that lost its strip has to stop swallowing presses over
+     * where the strip used to be.
+     */
+    if( app->plugin_panel >= 0 )
+        ToriRSChromeSync_PublishDragRegion(
+            &app->plugin_exec, &app->plugin_ui, app->plugin_panel);
 
     /*
      * Hand the frame to the executor, whichever kind it is.

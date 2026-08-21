@@ -182,8 +182,10 @@ enum UITreeHostRequestKind
     /** Writes the flattened chat draw model to u.get_chat_state.out. */
     UITREE_HOST_GET_CHAT_STATE,
     /**
-     * Writes an obj's display name to u.get_obj_name.out (cap bytes) and its
-     * stackable flag to *out_stackable. Returns 1 when the obj is known.
+     * Writes an obj's display name to u.get_obj_name.out (cap bytes), its
+     * stackable flag to *out_stackable and whether it is a bank *placeholder*
+     * (the obj record carries a placeholder template) to *out_placeholder.
+     * Returns 1 when the obj is known.
      */
     UITREE_HOST_GET_OBJ_NAME,
     /**
@@ -428,6 +430,7 @@ struct UITreeHostRequest
             char* out;
             int cap;
             int* out_stackable;
+            int* out_placeholder;
         } get_obj_name;
         struct
         {

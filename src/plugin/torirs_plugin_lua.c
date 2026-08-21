@@ -2047,14 +2047,21 @@ PluginLua_Bind(struct ToriRS_PluginHost* host)
 
 /*
  * The adapter is itself a plugin so that the whole scripting layer has one
- * enable flag, one panel row and one place to report a load failure. It
- * subscribes to nothing -- the scripts it hosts do that for themselves.
+ * enable flag and one place to report a load failure. It subscribes to nothing
+ * -- the scripts it hosts do that for themselves.
+ *
+ * `adapter` keeps it out of the settings roster while it is working. It used
+ * to have a row there too, and that row was noise: it sat among the scripts it
+ * runs, looking like a peer of them, with nothing a user does to it. The flag
+ * is a PRESENTATION fact and nothing else -- to the host this is a plugin like
+ * any other, which is the property the whole design rests on.
  */
 struct ToriRS_PluginDef const TORIRS_PLUGIN_LUA = {
     .name = "lua",
     .version = "1.0.0",
     .priority = 0,
     .config = NULL,
+    .adapter = true,
     .init = lua_adapter_init,
     .shutdown = lua_adapter_shutdown,
 };

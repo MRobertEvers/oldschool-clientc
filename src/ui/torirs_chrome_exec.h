@@ -181,6 +181,19 @@ enum ToriRSChromeIntentKind
     /** The presentation was dismissed by its own chrome (a window's close box,
      *  a tab being shut). `widget` is -1; `panel` says which. */
     TORIRS_CHROME_INTENT_CLOSE,
+    /**
+     * The presentation's CONFIRM affordance was used -- an Ok button beside
+     * the close box. `widget` is -1; `panel` says which.
+     *
+     * Distinct from CLOSE because the two are a panel's two ways out and a
+     * presentation that could only report one of them would have a window you
+     * can abandon but not commit. What "confirm" means is the MODEL's to
+     * decide (ToriRSChromePanel::confirm_widget), so an executor sending this
+     * needs to know nothing about what the panel is for -- which is the whole
+     * reason it is one intent rather than "activate the Save row", a thing
+     * only the host can identify.
+     */
+    TORIRS_CHROME_INTENT_CONFIRM,
 };
 
 /**
@@ -274,8 +287,16 @@ struct ToriRSChromeExec
     void (*end)(void* user);
 
     /**
-     * NATIVE-WIDGET executors: drain what the user did into `out`, at most
-     * `max`. @return how many were written. 0 is the common case.
+     * Drain what the user did into `out`, at most `max`. @return how many were
+     * written. 0 is the common case.
+     *
+     * NATIVE-WIDGET executors report everything here: their controls are
+     * foreign, so a click on one is only ever an intent. A SURFACE executor
+     * normally has nothing to say -- its gestures go back raw through
+     * `surface_input` for the chrome to hit test itself -- but it still owns
+     * the WINDOW those gestures arrive in, and a window closing happens to the
+     * presentation rather than inside it. That has no coordinates to report,
+     * so it comes back here, as CLOSE, like every other executor's.
      */
     int (*poll)(void* user, struct ToriRSChromeIntent* out, int max);
 
@@ -298,6 +319,43 @@ struct ToriRSChromeExec
      * out in that space and has no idea a window moved.
      */
     int (*surface_input)(void* user, struct ToriRSChromeSurfaceInput* out);
+
+    /**
+     * SURFACE executors whose surface is a WINDOW OF THEIR OWN: how big it is
+     * now, in its own pixels. @return 1 when out_w/out_h were filled; 0 when
+     * there is no window up.
+     *
+     * Its PRESENCE is the declaration that the chrome owns the surface
+     * outright -- nothing else draws into that window, so the panel is
+     * stretched to fill it rather than left floating at the coordinates it
+     * would use over a game canvas. @see ToriRSChromeSync_FillSurface.
+     *
+     * One entry rather than a flag beside a getter, because two things that
+     * say the same thing are two things that can disagree -- and this is the
+     * table where "which entries an implementation fills says which kind it
+     * is" is already the rule. The buffer executor SHARES the canvas with the
+     * game, so it has neither and its panel goes on floating.
+     */
+    int (*surface_size)(void* user, int* out_w, int* out_h);
+
+    /**
+     * SURFACE executors whose window has no native frame: where this frame's
+     * window-move handles are, in the surface's own pixels.
+     *
+     * Optional, and its absence is the ordinary case -- a window wearing its OS
+     * frame is moved by that frame and has nothing to be told. An executor that
+     * hid its frame implements this and hands the region to whatever asks the
+     * window manager's questions.
+     *
+     * Called EVERY frame, including with an empty region. A panel that stopped
+     * having a strip -- or a window whose panel went away -- has to take its
+     * handles down with it, or the pump goes on swallowing presses over chrome
+     * that is not there any more.
+     *
+     * @see ToriRSChrome_WindowDragRegion for what a handle is and why the
+     * controls inside one have to be punched back out.
+     */
+    void (*set_drag_region)(void* user, struct ToriRSChromeDragRegion const* region);
 
     /** Non-zero for a surface executor, so a host can tell without inspecting
      *  which function pointers happen to be set. */
@@ -399,6 +457,45 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
  */
 int
 ToriRSChromeSync_Pump(struct ToriRSChromeSync* sync, struct ToriRSChrome* ui);
+
+/**
+ * Stretch `panel` over this executor's surface, when the surface is a window
+ * of its own. @return 1 when the panel was filled.
+ *
+ * The rule, in one place, for every presentation that owns its window: a panel
+ * floating at (8,72) is right over the game canvas, where the canvas is what
+ * it floats over, and wrong in a window that holds nothing else -- three bands
+ * of empty background around it, and no growth when the window is dragged
+ * wider. Which executors those are is not enumerated here; an executor answers
+ * for itself by having a `surface_size` at all, so an executor added later
+ * inherits this by implementing one.
+ *
+ * Called every frame, deliberately: the window's size is the user's to change
+ * at any moment and there is no event this side can rely on. A repeat of the
+ * size the panel already fills is compared away by ToriRSChrome_PanelFill and
+ * costs a rebuild of nothing.
+ *
+ * @return 0 -- and leaves the panel alone -- for an executor with no window,
+ * one that has not come up, and one whose window has since closed. The panel
+ * keeps the geometry it had, which for the in-canvas case is the floating box
+ * it was authored with.
+ */
+int
+ToriRSChromeSync_FillSurface(struct ToriRSChromeSync* sync, struct ToriRSChrome* ui, int panel);
+
+/**
+ * Hand `panel`'s window-move handles to an executor that asked for them.
+ * @return 1 when a region was published, 0 for an executor that has no
+ * `set_drag_region` -- which is every executor whose window keeps its frame.
+ *
+ * Called AFTER Build, unlike FillSurface, and the order is the point: the
+ * handles are laid-out geometry, and publishing them before the build that
+ * produced them is a frame of lag on every resize -- a window whose drag band
+ * is where the panel used to be.
+ */
+int
+ToriRSChromeSync_PublishDragRegion(
+    struct ToriRSChromeSync* sync, struct ToriRSChrome const* ui, int panel);
 
 /**
  * Apply one intent to the model, as if the in-canvas chrome had been used.
@@ -585,6 +682,26 @@ ToriRSChromeExec_Sdl(void* platform, ToriRSChromeRasteriseFn rasterise, void* ra
 /** Is the aux window up? */
 int
 ToriRSChromeExecSdl_IsOpen(void);
+
+/**
+ * Ask the plugin window to open without an OS frame, so the panel's own title
+ * bar and tab strip are what move it.
+ *
+ * A WISH, set before the window opens rather than an instruction to a live one:
+ * the shell knows what the manifest said long before anyone presses the button
+ * that opens the window, and the frame comes off at open. Held outside the
+ * executor's own state, which is reset every time one is built.
+ *
+ * TORIRS_CHROME_BORDERLESS overrides it, matching TORIRS_CHROME_EXECUTOR and
+ * TORIRS_CHROME_THEME beside it.
+ */
+void
+ToriRSChromeExecSdl_SetBorderless(int borderless);
+
+/** Did the window actually come up without one? False when the wish was never
+ *  made, and when the video driver refused the hit test it needs. */
+int
+ToriRSChromeExecSdl_IsBorderless(void);
 #endif
 
 /**
@@ -610,6 +727,28 @@ struct ToriRSChromeRecorder
     int pending_count;
     /** Made to fail begin(), to exercise the fallback path. */
     int refuse;
+    /**
+     * Non-zero makes the recorder a presentation with a WINDOW of its own,
+     * this big -- so the fill rule can be exercised, and its interaction with
+     * the drag and the grip pinned, on a machine with no display at all.
+     *
+     * Zero (the default) is the other half of the same test: an executor with
+     * no window of its own must leave the panel's authored geometry alone.
+     */
+    int surface_w;
+    int surface_h;
+    /**
+     * The last region published to it, and how many times one was.
+     *
+     * The recorder always accepts a region, even at `surface_w` 0. What is
+     * being pinned is the CHROME's answer -- which boxes drag and which are
+     * punched out of them -- and that is a property of the model, not of
+     * whether a real window happened to open. A test that needed a window for
+     * it could only run where there is a display, which is nowhere this suite
+     * runs.
+     */
+    struct ToriRSChromeDragRegion drag;
+    int drag_publishes;
 };
 
 void

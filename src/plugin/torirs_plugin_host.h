@@ -200,6 +200,10 @@ int PluginHost_Count(struct ToriRS_PluginHost const* host);
 char const* PluginHost_Name(struct ToriRS_PluginHost const* host, int plugin_index);
 /** Last error text for a plugin, or NULL. Shown in the settings panel. */
 char const* PluginHost_Error(struct ToriRS_PluginHost const* host, int plugin_index);
+/** Does this plugin exist to host others? @see ToriRS_PluginDef::adapter --
+ *  the settings roster is the only caller, and it reads it to decide whether
+ *  the row is worth showing. */
+bool PluginHost_IsAdapter(struct ToriRS_PluginHost const* host, int plugin_index);
 void PluginHost_SetError(struct ToriRS_PluginHost* host, int plugin_index, char const* text);
 int PluginHost_IndexOf(struct ToriRS_PluginHost const* host, char const* name);
 

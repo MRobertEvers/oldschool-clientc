@@ -27,6 +27,7 @@
  */
 
 #include "torirs_chrome_exec.h"
+#include "torirs_chrome_metrics.h"
 #include "torirs_chrome_mirror.h"
 #include "uitree.h"
 #include "uitree_build.h"
@@ -36,20 +37,28 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Layout, in interface pixels. The gameframe's own scale applies on top. */
-#define CS2_PAD 6
-#define CS2_ROW_H 18
-#define CS2_ROW_GAP 3
-#define CS2_LABEL_W 104
-#define CS2_TAB_H 20
+/*
+ * Layout, in interface pixels. The gameframe's own scale applies on top.
+ *
+ * From torirs_chrome_metrics.h, NOT from numbers of this file's own: the
+ * in-canvas chrome draws the same panel from the same table, and the two
+ * presentations agreeing is the whole point of that header. A number that
+ * belongs only to this executor -- the tab caption's approximated advance,
+ * the component-id blocks -- still lives here.
+ */
+#define CS2_PAD TORIRS_CHROME_M_PAD
+#define CS2_ROW_H TORIRS_CHROME_M_ROW_H
+#define CS2_ROW_GAP TORIRS_CHROME_M_ROW_GAP
+#define CS2_LABEL_W TORIRS_CHROME_M_LABEL_W
+#define CS2_TAB_H TORIRS_CHROME_M_TAB_H
 /** Air either side of a tab caption, and the caption-width approximation the
  *  strip lays out with: this executor cannot measure text (advances live in
  *  the scene's font), so a p12-ish average per character serves both the
  *  proportional widths and the truncation. */
-#define CS2_TAB_PAD_X 5
+#define CS2_TAB_PAD_X TORIRS_CHROME_M_TAB_PAD_X
 #define CS2_TAB_CHAR_W 7
 /** Checkbox edge -- the baked on/off pair's own 17x17, so it draws unscaled. */
-#define CS2_BOX 17
+#define CS2_BOX TORIRS_CHROME_M_BOX
 #define CS2_PANEL_W 280
 #define CS2_PANEL_H 240
 
@@ -58,24 +67,30 @@
  * as one system. The frame pair and the orange are script_3850 verbatim: a
  * settings field is graphic_297 tiled, framed in 0x0e0e0c with a 0x474745
  * inset, its label and value set in 0xff981f. */
-#define CS2_COL_BODY 0x5D5447
-#define CS2_COL_CHROME 0x000000
-#define CS2_COL_TEXT 0xFFFFFF
+#define CS2_COL_BODY TORIRS_CHROME_C_BODY
+#define CS2_COL_CHROME TORIRS_CHROME_C_CHROME
+#define CS2_COL_TEXT TORIRS_CHROME_C_TEXT
 #define CS2_COL_DIM 0xC8C8C8
-#define CS2_COL_LABEL 0xFF981F
-#define CS2_COL_ACCENT 0xFFFF00
-#define CS2_COL_ON 0x00FF00
-#define CS2_COL_FIELD_BG 0x000000
-#define CS2_COL_FRAME 0x0E0E0C
-#define CS2_COL_FRAME_INSET 0x474745
+#define CS2_COL_LABEL TORIRS_CHROME_C_LABEL
+#define CS2_COL_ACCENT TORIRS_CHROME_C_ACCENT
+#define CS2_COL_ON TORIRS_CHROME_C_ON
+#define CS2_COL_FIELD_BG TORIRS_CHROME_C_FIELD_BG
+#define CS2_COL_FRAME TORIRS_CHROME_C_FRAME
+#define CS2_COL_FRAME_INSET TORIRS_CHROME_C_FRAME_INSET
 /* Flat scrollbar fallback: torirs_frame.c's translate_scrollbar_v_step colours. */
-#define CS2_COL_SCROLL_TRACK 0x23201B
-#define CS2_COL_SCROLL_GRIP 0x4D4233
-#define CS2_COL_SCROLL_GRIP_HI 0x766654
-#define CS2_COL_SCROLL_GRIP_LO 0x332D25
+#define CS2_COL_SCROLL_TRACK TORIRS_CHROME_C_SCROLL_TRACK
+#define CS2_COL_SCROLL_GRIP TORIRS_CHROME_C_SCROLL_GRIP
+#define CS2_COL_SCROLL_GRIP_HI TORIRS_CHROME_C_SCROLL_GRIP_HI
+#define CS2_COL_SCROLL_GRIP_LO TORIRS_CHROME_C_SCROLL_GRIP_LO
 /* script_9114's band veil: an unselected tab is the body seen through a
  * translucent black rect at client transparency 220 (0 opaque, 255 invisible). */
 #define CS2_TRANS_TAB 220
+/* The same veil down the open list's rows, alternating between script_9114's
+ * own two values so a long list reads as rows. Both are lifted from the
+ * `cc_settrans` calls in the script that draws the real list, which is where
+ * the in-canvas chrome's theme takes them from too. */
+#define CS2_TRANS_DROP_BAND 220
+#define CS2_TRANS_DROP_BAND_ALT 200
 
 /*
  * The furniture comes from the BAKED skin, not from the cache.
@@ -95,6 +110,9 @@
  * it; `skin_scene_id` is the sprite and these are the frames.
  */
 #define CS2_SPR_FIELD_TILE TORIRS_CHROME_SKIN_PANEL_BODY
+/** The open dropdown list's own tile -- graphic_1040, a lighter parchment than
+ *  the tradebacking a panel and a closed button wear. */
+#define CS2_SPR_LIST_TILE TORIRS_CHROME_SKIN_DROPDOWN_BODY
 #define CS2_SPR_SCROLL_UP TORIRS_CHROME_SKIN_SCROLL_UP
 #define CS2_SPR_SCROLL_DOWN TORIRS_CHROME_SKIN_SCROLL_DOWN
 #define CS2_SPR_SCROLL_TRACK TORIRS_CHROME_SKIN_SCROLL_TRACK
@@ -102,13 +120,37 @@
 #define CS2_SPR_GRIP_MID TORIRS_CHROME_SKIN_SCROLL_GRIP_MID
 #define CS2_SPR_GRIP_BOTTOM TORIRS_CHROME_SKIN_SCROLL_GRIP_BOTTOM
 /** The grip caps' baked height. */
-#define CS2_SCROLL_CAP_H 5
+#define CS2_SCROLL_CAP_H TORIRS_CHROME_M_SCROLL_CAP_H
 /** Shortest grip ~script31 draws. */
-#define CS2_SCROLL_GRIP_MIN 10
+#define CS2_SCROLL_GRIP_MIN TORIRS_CHROME_M_SCROLL_GRIP_MIN
 
 /* The two scroll arrows' component ids, in the executor's own range. */
 #define CS2_ID_SCROLL_UP (TORIRS_CHROME_CS2_ID_BASE + 0x20)
 #define CS2_ID_SCROLL_DOWN (TORIRS_CHROME_CS2_ID_BASE + 0x21)
+
+/* ---- the open dropdown list ----------------------------------------------
+ *
+ * The geometry is the shared table's, so this list and the in-canvas one are
+ * the same list: as wide as the button it hangs off, starting at its bottom
+ * edge, its rows a little taller than a settings row.
+ */
+#define CS2_DROP_LIST_PAD TORIRS_CHROME_M_DROP_LIST_PAD
+#define CS2_DROP_ROW_H TORIRS_CHROME_M_DROP_LIST_ROW_H
+#define CS2_DROP_ROWS TORIRS_CHROME_M_DROP_LIST_ROWS
+/** The list's two scroll arrows. Separate ids from the panel's own bar: both
+ *  can be on screen at once, and one pair serving both would scroll whichever
+ *  the handler guessed. */
+#define CS2_ID_DROP_UP (TORIRS_CHROME_CS2_ID_BASE + 0x24)
+#define CS2_ID_DROP_DOWN (TORIRS_CHROME_CS2_ID_BASE + 0x25)
+/**
+ * One id per VISIBLE row of the open list, not per option.
+ *
+ * The same trade the colour picker's cells make: only one list is open at a
+ * time and it shows at most CS2_DROP_ROWS rows, so the block is indexed by
+ * screen row and the option it names is `drop_scroll + row`. A block per
+ * widget would be one per option -- a search palette can hold thousands.
+ */
+#define CS2_ID_DROP_ROW_BASE (TORIRS_CHROME_CS2_ID_BASE + 0x2000)
 /**
  * Widget ids, and the parallel block a LISTROW's ACTION zone uses.
  *
@@ -128,6 +170,21 @@
  * time, so the block is indexed by cell number and the handler recovers which
  * picker from `colorpick_open`.
  */
+/**
+ * Ok and Close, at the top of the panel.
+ *
+ * This presentation has no window furniture of its own -- it is a column of
+ * components inside the gameframe's popout strip -- so there was nothing to
+ * shut it with: the window opened and stayed open. The in-canvas chrome grew
+ * the same pair in its title bar (ToriRSChrome_PanelSetClosable); here they
+ * are two components at the top right, and the intents they send are the
+ * model's, so both presentations mean the same thing by them.
+ */
+#define CS2_ID_OK (TORIRS_CHROME_CS2_ID_BASE + 0x22)
+#define CS2_ID_CLOSE (TORIRS_CHROME_CS2_ID_BASE + 0x23)
+/** Side of those two buttons. */
+#define CS2_BTN 14
+
 #define CS2_ID_SWATCH_BASE (TORIRS_CHROME_CS2_ID_BASE + 0x800)
 #define CS2_ID_CELL_BASE (TORIRS_CHROME_CS2_ID_BASE + 0x1000)
 /** Cells one bar is cut into. Not the axis's own step count: hue has 64 values
@@ -138,13 +195,13 @@
 #define CS2_COLOR_CELLS 32
 /** Bars, in enum ToriRSChromeColorBar order. */
 #define CS2_COLOR_BARS 3
-#define CS2_COLORBAR_H 12
-#define CS2_COLORBAR_GAP 2
+#define CS2_COLORBAR_H TORIRS_CHROME_M_COLORBAR_H
+#define CS2_COLORBAR_GAP TORIRS_CHROME_M_COLORBAR_GAP
 /** Width of the swatch inside a colour field. */
-#define CS2_SWATCH 11
+#define CS2_SWATCH TORIRS_CHROME_M_SWATCH
 /** Width of the scroll column: the sprite's own width, and the width
  *  ~script31 gives the column. Always reserved -- see cs2_rebuild. */
-#define CS2_SCROLL_W 16
+#define CS2_SCROLL_W TORIRS_CHROME_M_SCROLL_W
 
 struct ChromeCs2
 {
@@ -214,13 +271,46 @@ struct ChromeCs2
     /** 0xRRGGBB per widget, 0 meaning "the palette's" -- how a faulted
      *  plugin's note stays red here too. */
     uint32_t wcolor[TORIRS_CHROME_MAX_WIDGETS];
-    /** A dropdown's selection and how many options it has -- what a click
-     *  needs to CYCLE it. This toolkit has no popup list (a popup is an open
-     *  state held across frames plus its own hit test); a click that steps to
-     *  the next option is the whole affordance a small enum needs, and every
-     *  plugin enum is a small one. */
+    /** A dropdown's selection, and how many options it has. */
     int selected[TORIRS_CHROME_MAX_WIDGETS];
     int option_count[TORIRS_CHROME_MAX_WIDGETS];
+    /**
+     * The option strings themselves, owned -- `option_count` pointers, each
+     * strdup'd from the WIDGET_OPTION that announced it, or NULL while the
+     * list has not been stated.
+     *
+     * This executor used to hold only the count, because a click CYCLED the
+     * selection and the shown value arrived with the WIDGET_SELECTED that
+     * answered it. A list that opens has to draw the options it is offering,
+     * and the tree BORROWS the text it is handed (see cs2_text_box), so they
+     * have to live somewhere that outlives the build -- which is here.
+     *
+     * Allocated rather than an array of fixed rows: a palette dropdown is
+     * every loc name in the cache, and 384 widgets' worth of that reserved up
+     * front would be megabytes for a window that mostly holds checkboxes.
+     */
+    char** options[TORIRS_CHROME_MAX_WIDGETS];
+    /**
+     * Which dropdown's list is open, or -1, and how far down it is scrolled.
+     *
+     * Held HERE and not mirrored from the model, unlike the colour picker's
+     * popup: the model's own open list is prims at the in-canvas window's
+     * floating position, and this presentation is neither. What the model has
+     * to hear is the PICK a row makes, which is the same intent the cycling
+     * click sent before.
+     */
+    int drop_open;
+    int drop_scroll;
+    /**
+     * The box the last build put the open dropdown's BUTTON in, so the list
+     * can be built after every row rather than inside the row loop -- a list
+     * built where the row is would be drawn under the rows that follow it.
+     * Zero width means the row was not drawn at all this build (scrolled out
+     * of the panel, or its tab is not up), which closes the list.
+     */
+    int drop_x;
+    int drop_y;
+    int drop_w;
     /** LISTROW: whether the row carries a settings affordance. Arrives on the
      *  ADD as `w`, the one command that carries a widget's shape. */
     int wrow_action[TORIRS_CHROME_MAX_WIDGETS];
@@ -241,6 +331,104 @@ struct ChromeCs2
 };
 
 static struct ChromeCs2 g_chrome_cs2;
+
+/* ---- a dropdown's option list --------------------------------------------
+ *
+ * Owned strings, because the tree borrows the text it is handed and a build
+ * outlives the command that carried it. Three calls, so the free-then-allocate
+ * order is written once: a restate that allocated first and freed after would
+ * leak the old list on the path where the new one is empty.
+ */
+
+/** Drop `widget`'s options. Idempotent -- a widget that never had a list is
+ *  the common case, and its slot is already NULL. */
+static void
+cs2_options_clear(struct ChromeCs2* s, int widget)
+{
+    assert(s);
+    assert(widget >= 0);
+    assert(widget < TORIRS_CHROME_MAX_WIDGETS);
+
+    if( s->options[widget] )
+    {
+        for( int i = 0; i < s->option_count[widget]; i++ )
+            free(s->options[widget][i]);
+        free(s->options[widget]);
+        s->options[widget] = NULL;
+    }
+    s->option_count[widget] = 0;
+}
+
+/** Make room for a restated list of `count`. The entries arrive one command
+ *  each and are NULL until they do, which is what a build has to tolerate. */
+static void
+cs2_options_reset(struct ChromeCs2* s, int widget, int count)
+{
+    assert(s);
+    assert(widget >= 0);
+    assert(widget < TORIRS_CHROME_MAX_WIDGETS);
+
+    cs2_options_clear(s, widget);
+    if( count <= 0 )
+        return;
+    s->options[widget] = calloc((size_t)count, sizeof(*s->options[widget]));
+    assert(s->options[widget]);
+    s->option_count[widget] = count;
+}
+
+/** One entry of the list just announced. An index outside the announced count
+ *  is dropped: the two commands are a pair and a stray entry means the pair
+ *  was torn, not that the list should grow under the build. */
+static void
+cs2_options_set(struct ChromeCs2* s, int widget, int index, char const* text)
+{
+    assert(s);
+    assert(widget >= 0);
+    assert(widget < TORIRS_CHROME_MAX_WIDGETS);
+    assert(text);
+
+    if( !s->options[widget] || index < 0 || index >= s->option_count[widget] )
+        return;
+    free(s->options[widget][index]);
+    s->options[widget][index] = strdup(text);
+    assert(s->options[widget][index]);
+}
+
+/** Option `index` of `widget`, or "" for one that has not arrived -- an empty
+ *  row draws as an empty row, where a NULL through the builder is a crash. */
+static char const*
+cs2_option_text(struct ChromeCs2 const* s, int widget, int index)
+{
+    assert(s);
+    assert(widget >= 0);
+    assert(widget < TORIRS_CHROME_MAX_WIDGETS);
+
+    if( !s->options[widget] || index < 0 || index >= s->option_count[widget] )
+        return "";
+    return s->options[widget][index] ? s->options[widget][index] : "";
+}
+
+/** Every list this executor holds, on the way out. */
+static void
+cs2_options_free_all(struct ChromeCs2* s)
+{
+    assert(s);
+    for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
+        cs2_options_clear(s, i);
+}
+
+/** Shut the open list, if one is open. @return 1 when something changed, so
+ *  the caller can decide whether that is worth a rebuild. */
+static int
+cs2_dropdown_close(struct ChromeCs2* s)
+{
+    assert(s);
+    if( s->drop_open < 0 )
+        return 0;
+    s->drop_open = -1;
+    s->drop_scroll = 0;
+    return 1;
+}
 
 int
 ToriRSChrome_TreeAcceptsChrome(struct UITree const* tree)
@@ -517,6 +705,59 @@ cs2_field_chrome(
     cs2_rect(s, panel, -1, x + 1, y + 1, w - 2, h - 2, CS2_COL_FRAME_INSET, 0);
 }
 
+/*
+ * The interfaces' nine-slice panel frame, built as components.
+ *
+ * The in-canvas chrome's dbg_push_frame, in this presentation's vocabulary --
+ * corners at their baked 3x3, edges stretched along their runs, and the baked
+ * centre deliberately left out because the panel's tile is already under it.
+ *
+ * Only the STANDALONE panel draws one. Mounted in the popout strip we are
+ * inside a frame the gameframe already drew, and a second one inside the first
+ * is the box-in-a-box the fill-parent modes exist to avoid.
+ */
+static void
+cs2_push_frame(struct ChromeCs2* s, int32_t panel, int32_t* com, int w, int h)
+{
+    int const t = TORIRS_CHROME_M_FRAME;
+    int const mid_w = w - 2 * t;
+    int const mid_h = h - 2 * t;
+    int const right = w - t;
+    int const bottom = h - t;
+
+    if( !cs2_sprite_ok(s, TORIRS_CHROME_SKIN_FRAME_TOP_LEFT) )
+        return;
+    cs2_graphic(s, panel, (*com)++, 0, 0, t, t, TORIRS_CHROME_SKIN_FRAME_TOP_LEFT, 0);
+    cs2_graphic(s, panel, (*com)++, right, 0, t, t, TORIRS_CHROME_SKIN_FRAME_TOP_RIGHT, 0);
+    cs2_graphic(s, panel, (*com)++, 0, bottom, t, t, TORIRS_CHROME_SKIN_FRAME_BOTTOM_LEFT, 0);
+    cs2_graphic(s, panel, (*com)++, right, bottom, t, t, TORIRS_CHROME_SKIN_FRAME_BOTTOM_RIGHT, 0);
+    if( mid_w > 0 )
+    {
+        cs2_graphic(s, panel, (*com)++, t, 0, mid_w, t, TORIRS_CHROME_SKIN_FRAME_TOP, 0);
+        cs2_graphic(s, panel, (*com)++, t, bottom, mid_w, t, TORIRS_CHROME_SKIN_FRAME_BOTTOM, 0);
+    }
+    if( mid_h > 0 )
+    {
+        cs2_graphic(s, panel, (*com)++, 0, t, t, mid_h, TORIRS_CHROME_SKIN_FRAME_LEFT, 0);
+        cs2_graphic(s, panel, (*com)++, right, t, t, mid_h, TORIRS_CHROME_SKIN_FRAME_RIGHT, 0);
+    }
+}
+
+/**
+ * Where a labelled row's field box starts, measured from the panel's left pad.
+ *
+ * The fixed label column -- and NO column at all when the row carries no
+ * label. Reserving one unconditionally was the first version, and it makes a
+ * lone unlabelled dropdown in a narrow panel half the width of the panel
+ * holding it for the sake of a caption that is never drawn. The in-canvas
+ * chrome's dbg_row_box_offset answers the same question the same way.
+ */
+static int
+cs2_row_box_offset(char const* label)
+{
+    return label && label[0] ? CS2_LABEL_W : 0;
+}
+
 /**
  * The scrollbar, assembled the way ~script31 assembles it: track stretched
  * between two arrow buttons, the grip's middle stretched over its whole run
@@ -531,7 +772,7 @@ cs2_field_chrome(
 static void
 cs2_push_scrollbar(
     struct ChromeCs2* s, int32_t panel, int x, int top, int bottom, int visible,
-    int drawn, int scroll_row)
+    int drawn, int scroll_row, int id_up, int id_down)
 {
     int const track_y = top + CS2_SCROLL_W;
     int const track_h = bottom - top - 2 * CS2_SCROLL_W;
@@ -579,38 +820,216 @@ cs2_push_scrollbar(
     }
 
     /* The arrows are the affordance that scrolls (this toolkit has no drag),
-     * so they carry the component ids whatever form the rest of the bar took. */
+     * so they carry the component ids whatever form the rest of the bar took.
+     * WHICH ids is the caller's: the panel's own bar and an open dropdown's
+     * can be on screen together, and one pair serving both would scroll
+     * whichever the click handler guessed. */
     if( cs2_sprite_ok(s, CS2_SPR_SCROLL_UP) )
         box = cs2_graphic(
-            s, panel, CS2_ID_SCROLL_UP, x, top, CS2_SCROLL_W, CS2_SCROLL_W,
+            s, panel, id_up, x, top, CS2_SCROLL_W, CS2_SCROLL_W,
             CS2_SPR_SCROLL_UP, 0);
     else
     {
         box = cs2_rect(
-            s, panel, CS2_ID_SCROLL_UP, x, top, CS2_SCROLL_W, CS2_SCROLL_W,
+            s, panel, id_up, x, top, CS2_SCROLL_W, CS2_SCROLL_W,
             CS2_COL_SCROLL_GRIP, 1);
         cs2_text_box(
             s, panel, -1, x, top, CS2_SCROLL_W, CS2_SCROLL_W, "^",
             scroll_row > 0 ? CS2_COL_ACCENT : CS2_COL_DIM, 1);
     }
     if( box >= 0 )
-        UITree_ApplyClickMask(s->tree, CS2_ID_SCROLL_UP, 1);
+        UITree_ApplyClickMask(s->tree, id_up, 1);
 
     if( cs2_sprite_ok(s, CS2_SPR_SCROLL_DOWN) )
         box = cs2_graphic(
-            s, panel, CS2_ID_SCROLL_DOWN, x, bottom - CS2_SCROLL_W, CS2_SCROLL_W,
+            s, panel, id_down, x, bottom - CS2_SCROLL_W, CS2_SCROLL_W,
             CS2_SCROLL_W, CS2_SPR_SCROLL_DOWN, 0);
     else
     {
         box = cs2_rect(
-            s, panel, CS2_ID_SCROLL_DOWN, x, bottom - CS2_SCROLL_W, CS2_SCROLL_W,
+            s, panel, id_down, x, bottom - CS2_SCROLL_W, CS2_SCROLL_W,
             CS2_SCROLL_W, CS2_COL_SCROLL_GRIP, 1);
         cs2_text_box(
             s, panel, -1, x, bottom - CS2_SCROLL_W, CS2_SCROLL_W, CS2_SCROLL_W, "v",
             scroll_row + drawn < visible ? CS2_COL_ACCENT : CS2_COL_DIM, 1);
     }
     if( box >= 0 )
-        UITree_ApplyClickMask(s->tree, CS2_ID_SCROLL_DOWN, 1);
+        UITree_ApplyClickMask(s->tree, id_down, 1);
+}
+
+/**
+ * One row of the open list: the band, which is also the row's hit box.
+ *
+ * script_9114's row is the list's own tile seen through a translucent black
+ * rect, and the rects alternate between two transparencies so a long list
+ * reads as rows rather than as one field of text. The band is the CLICKABLE
+ * component -- a transparent hit rect over it would be a second component per
+ * row for nothing, since the band already covers exactly the row.
+ *
+ * `over_color` is what gives the row a cursor: the same rect drawn in white
+ * while the pointer is on it, at its own transparency, which lightens the row
+ * the way the reference's thinner veil does. There is no hover state in this
+ * executor to hold, and none is wanted -- the tree does it per frame.
+ */
+static void
+cs2_push_drop_band(
+    struct ChromeCs2* s, int32_t panel, int com_id, int x, int y, int w, int h, int trans)
+{
+    struct UIBuildComponent comp;
+
+    memset(&comp, 0, sizeof(comp));
+    comp.id = com_id;
+    comp.type = UIBUILD_RECT;
+    comp.parent_id = -1;
+    comp.base_x = x;
+    comp.base_y = y;
+    comp.base_width = w;
+    comp.base_height = h;
+    comp.if3 = 1;
+    comp.graphic = -1;
+    comp.graphic_active = -1;
+    comp.model_active_id = -1;
+    comp.model_seq_id = -1;
+    comp.color = CS2_COL_CHROME;
+    comp.over_color = CS2_COL_TEXT;
+    comp.filled = 1;
+    comp.transparency = trans;
+    if( UITree_PushBuildComponent(s->tree, panel, &comp, NULL, cs2_resolve_font, s) >= 0 &&
+        com_id >= 0 )
+        UITree_ApplyClickMask(s->tree, com_id, 1);
+}
+
+/*
+ * The open dropdown's list.
+ *
+ * Built AFTER every row, not inside the row loop, for the one reason a popup
+ * exists at all: children draw in the order they are pushed, so a list built
+ * where its row is would be painted over by every row below it.
+ *
+ * It is the in-canvas chrome's list, in this presentation's vocabulary -- the
+ * shared table's width (the button's), its 2px pad, its 20px rows -- so the
+ * two presentations open the same list. What is NOT shared is the hover: there
+ * it is a thinner veil drawn from the model's own hover row, here it is the
+ * band's `over_color` and the tree finds the row itself.
+ *
+ * OPENS UPWARD when there is more room above than below. A list clipped to
+ * three of its ten rows at the bottom of the strip is a control that stops
+ * working the further down the panel it is, which is what a fixed downward
+ * list would be here: the strip is short and a settings tab fills it.
+ */
+static void
+cs2_push_dropdown_list(struct ChromeCs2* s, int32_t panel, int panel_h)
+{
+    int const handle = s->drop_open;
+    int const pad = CS2_DROP_LIST_PAD;
+    int count;
+    int rows;
+    int fits;
+    int upward = 0;
+    int room;
+    int list_h;
+    int list_y;
+    int row_x;
+    int row_w;
+    int bar_w = 0;
+
+    if( handle < 0 )
+        return;
+    /* The row is not on screen this build -- scrolled out of the panel, or on
+     * a tab that is no longer up. A list hanging off a button that is not
+     * there is a menu floating in the middle of the window. */
+    if( s->drop_w <= 0 )
+    {
+        cs2_dropdown_close(s);
+        return;
+    }
+    count = s->option_count[handle];
+    if( count <= 0 )
+    {
+        cs2_dropdown_close(s);
+        return;
+    }
+
+    rows = count < CS2_DROP_ROWS ? count : CS2_DROP_ROWS;
+    {
+        int const below = panel_h - CS2_PAD - (s->drop_y + CS2_ROW_H);
+        int const above = s->drop_y - CS2_PAD;
+        int const want = rows * CS2_DROP_ROW_H + 2 * pad;
+
+        room = below;
+        if( want > below && above > below )
+        {
+            upward = 1;
+            room = above;
+        }
+    }
+    fits = (room - 2 * pad) / CS2_DROP_ROW_H;
+    if( fits < rows )
+        rows = fits;
+    /* Not one row's worth of room in either direction. Nothing is drawn and
+     * the list shuts, rather than leaving an open state with no list under it
+     * -- which would swallow the next click on the button. */
+    if( rows < 1 )
+    {
+        cs2_dropdown_close(s);
+        return;
+    }
+
+    /* Clamped here rather than at the arrows, for the same reason the panel's
+     * own offset is: the list can be restated shorter under a scrolled one. */
+    if( s->drop_scroll > count - rows )
+        s->drop_scroll = count - rows;
+    if( s->drop_scroll < 0 )
+        s->drop_scroll = 0;
+
+    list_h = rows * CS2_DROP_ROW_H + 2 * pad;
+    list_y = upward ? s->drop_y - list_h : s->drop_y + CS2_ROW_H;
+
+    /* The body: the list's own lighter tile over the flat brown the tile's
+     * transparent edges would otherwise show the panel through, edged in the
+     * same frame the button wears -- the two are one control seen open. */
+    cs2_rect(s, panel, -1, s->drop_x, list_y, s->drop_w, list_h, CS2_COL_BODY, 1);
+    if( cs2_sprite_ok(s, CS2_SPR_LIST_TILE) )
+        cs2_graphic(s, panel, -1, s->drop_x, list_y, s->drop_w, list_h, CS2_SPR_LIST_TILE, 1);
+    cs2_rect(s, panel, -1, s->drop_x, list_y, s->drop_w, list_h, CS2_COL_FRAME, 0);
+    cs2_rect(
+        s, panel, -1, s->drop_x + 1, list_y + 1, s->drop_w - 2, list_h - 2,
+        CS2_COL_FRAME_INSET, 0);
+
+    /* The bar goes INSIDE the list, as the cache puts it: the rows lose the
+     * width it takes rather than running under it. */
+    if( count > rows && s->drop_w > 2 * pad + CS2_SCROLL_W )
+        bar_w = CS2_SCROLL_W;
+    row_x = s->drop_x + pad;
+    row_w = s->drop_w - 2 * pad - bar_w;
+
+    for( int row = 0; row < rows; row++ )
+    {
+        int const index = s->drop_scroll + row;
+        int const y = list_y + pad + row * CS2_DROP_ROW_H;
+        /* The bands alternate on the OPTION index, not on the screen row, so
+         * scrolling slides the stripes with the text instead of leaving them
+         * pinned to the window and strobing under it. */
+        int const trans = (index & 1) ? CS2_TRANS_DROP_BAND_ALT : CS2_TRANS_DROP_BAND;
+
+        if( index >= count )
+            break;
+        cs2_push_drop_band(
+            s, panel, CS2_ID_DROP_ROW_BASE + row, row_x, y, row_w, CS2_DROP_ROW_H, trans);
+        /* Every row in the same orange, the chosen one included: the row the
+         * pointer is on is the only one the reference picks out, and it picks
+         * it out by its band. The chosen option is already stated by the
+         * button above the list. */
+        cs2_text_box(
+            s, panel, -1, row_x, y, row_w, CS2_DROP_ROW_H, cs2_option_text(s, handle, index),
+            CS2_COL_LABEL, 1);
+    }
+
+    if( bar_w > 0 )
+        cs2_push_scrollbar(
+            s, panel, s->drop_x + s->drop_w - pad - bar_w, list_y + pad,
+            list_y + list_h - pad, count, rows, s->drop_scroll, CS2_ID_DROP_UP,
+            CS2_ID_DROP_DOWN);
 }
 
 /*
@@ -747,13 +1166,21 @@ cs2_rebuild(struct ChromeCs2* s)
         panel_w = CS2_PANEL_W;
         panel_h = CS2_PANEL_H;
         /* The window panel the in-canvas chrome draws: body brown under the
-         * tiled tradebacking, edged in black like every interface edge the
-         * game draws. The flat brown stays under the tile for the same reason
-         * the field box keeps its fill -- the tile's edges are transparent. */
+         * tiled tradebacking, edged in the interfaces' own nine-slice frame --
+         * the same border ToriRSChrome_PanelSetFramed puts on the in-canvas
+         * one, so the standalone window is the same window either way. The
+         * flat brown stays under the tile for the same reason the field box
+         * keeps its fill: the tile's edges are transparent.
+         *
+         * A build that baked no frame falls back to the plain black outline,
+         * which is what every interface edge in this game is anyway. */
         cs2_rect(s, panel, com++, 0, 0, panel_w, panel_h, CS2_COL_BODY, 1);
         if( cs2_sprite_ok(s, CS2_SPR_FIELD_TILE) )
             cs2_graphic(s, panel, com++, 0, 0, panel_w, panel_h, CS2_SPR_FIELD_TILE, 1);
-        cs2_rect(s, panel, com++, 0, 0, panel_w, panel_h, CS2_COL_CHROME, 0);
+        if( cs2_sprite_ok(s, TORIRS_CHROME_SKIN_FRAME_TOP_LEFT) )
+            cs2_push_frame(s, panel, &com, panel_w, panel_h);
+        else
+            cs2_rect(s, panel, com++, 0, 0, panel_w, panel_h, CS2_COL_CHROME, 0);
     }
     s->built_w = panel_w;
     s->built_h = panel_h;
@@ -769,6 +1196,51 @@ cs2_rebuild(struct ChromeCs2* s)
      * content below -- which is the whole of what makes a strip read as tabs
      * rather than as a row of buttons. */
     y = CS2_PAD;
+
+    /*
+     * The two ways out, before anything else claims the top row.
+     *
+     * The interfaces' own tick and cross -- the same pair the checkboxes wear,
+     * and for the same reason: there is no drawn button in this cache to
+     * imitate, and every accept/dismiss in the game is these two sprites. Ok
+     * fires the panel's confirm row on the way out and Close does not, which
+     * is the model's distinction (see TORIRS_CHROME_INTENT_CONFIRM) rather
+     * than one this file invents.
+     */
+    {
+        int const btn_y = y;
+        int const close_x = panel_w - CS2_PAD - CS2_BTN;
+        int const ok_x = close_x - CS2_BTN - 3;
+        int const ids[2] = { CS2_ID_OK, CS2_ID_CLOSE };
+        int const xs[2] = { ok_x, close_x };
+        int const slots[2] = { TORIRS_CHROME_SKIN_CHECK_ON, TORIRS_CHROME_SKIN_CHECK_OFF };
+
+        for( int i = 0; i < 2; i++ )
+        {
+            int32_t hit;
+            if( s->skin_scene_id > 0 )
+                cs2_graphic(s, panel, -1, xs[i], btn_y, CS2_BTN, CS2_BTN, slots[i], 0);
+            else
+            {
+                cs2_rect(
+                    s, panel, -1, xs[i], btn_y, CS2_BTN, CS2_BTN, CS2_COL_FIELD_BG, 1);
+                cs2_rect(
+                    s, panel, -1, xs[i] + 2, btn_y + 2, CS2_BTN - 4, CS2_BTN - 4,
+                    i == 0 ? CS2_COL_ON : CS2_COL_ACCENT, 1);
+            }
+            /* The click target over the art, not the art itself: a graphic
+             * component sized to the hit box would stretch the sprite -- the
+             * same trade the checkboxes make. */
+            hit = cs2_rect_trans(
+                s, panel, ids[i], xs[i], btn_y, CS2_BTN, CS2_BTN, CS2_COL_FIELD_BG, 1, 255);
+            if( hit >= 0 )
+                UITree_ApplyClickMask(s->tree, ids[i], 1);
+        }
+        /* The rows start below them, so the strip and the first row cannot be
+         * drawn under the buttons. */
+        y += CS2_BTN + CS2_ROW_GAP;
+    }
+
     if( s->tab_count > 1 )
     {
         int const base_y = y + CS2_TAB_H - 1;
@@ -881,6 +1353,11 @@ cs2_rebuild(struct ChromeCs2* s)
     int skipped = 0;
     int extra = 0;
 
+    /* Zeroed before the walk, so a list whose button is NOT drawn this build
+     * sees a zero-width box and shuts itself rather than hanging off wherever
+     * the button was last time. */
+    s->drop_w = 0;
+
     for( int oi = 0; oi < shown_count; oi++ )
     {
         int const i = order[oi];
@@ -966,7 +1443,8 @@ cs2_rebuild(struct ChromeCs2* s)
             if( box >= 0 )
                 UITree_ApplyClickMask(s->tree, id, 1);
             cs2_text(
-                s, panel, -1, CS2_PAD + CS2_BOX + 6, y, row_w - CS2_BOX - 6, s->label[i],
+                s, panel, -1, CS2_PAD + CS2_BOX + TORIRS_CHROME_M_CHECK_GAP, y,
+                row_w - CS2_BOX - TORIRS_CHROME_M_CHECK_GAP, s->label[i],
                 s->wcolor[i] ? (int)s->wcolor[i] : CS2_COL_TEXT);
             break;
         }
@@ -976,14 +1454,15 @@ cs2_rebuild(struct ChromeCs2* s)
             /* The roster row, in game chrome: the name at the left, a settings
              * affordance and a switch pinned to the right so a column of them
              * lines up. Two component ids -- see CS2_ID_ACTION_BASE. */
-            int const tog_w = 24;
-            int const tog_h = 12;
-            int const icon = 14;
+            int const tog_w = TORIRS_CHROME_M_TOGGLE_W;
+            int const tog_h = TORIRS_CHROME_M_TOGGLE_H;
+            int const icon = TORIRS_CHROME_M_ROW_ICON;
             int const tog_x = CS2_PAD + row_w - tog_w;
             int const tog_y = y + (CS2_ROW_H - tog_h) / 2;
-            int const icon_x = tog_x - 5 - icon;
+            int const icon_x = tog_x - TORIRS_CHROME_M_ROW_ICON_GAP - icon;
             int const icon_y = y + (CS2_ROW_H - icon) / 2;
-            int const name_w = (s->wrow_action[i] ? icon_x : tog_x) - CS2_PAD - 4;
+            int const name_w =
+                (s->wrow_action[i] ? icon_x : tog_x) - CS2_PAD - TORIRS_CHROME_M_ROW_NAME_GAP;
             int32_t box;
 
             cs2_text(
@@ -996,7 +1475,9 @@ cs2_rebuild(struct ChromeCs2* s)
                 cs2_field_chrome(s, panel, aid, icon_x, icon_y, icon, icon);
                 for( int d = 0; d < 3; d++ )
                     cs2_rect(
-                        s, panel, -1, icon_x + 3 + d * 3, icon_y + icon / 2 - 1, 2, 2,
+                        s, panel, -1,
+                        icon_x + TORIRS_CHROME_M_DOT_INSET + d * TORIRS_CHROME_M_DOT_PITCH,
+                        icon_y + icon / 2 - 1, TORIRS_CHROME_M_DOT, TORIRS_CHROME_M_DOT,
                         CS2_COL_LABEL, 1);
             }
 
@@ -1031,7 +1512,7 @@ cs2_rebuild(struct ChromeCs2* s)
         case TORIRS_CHROME_W_TEXTINPUT:
         case TORIRS_CHROME_W_DROPDOWN:
         {
-            int const bx = CS2_PAD + CS2_LABEL_W;
+            int const bx = CS2_PAD + cs2_row_box_offset(s->label[i]);
             int const bw = CS2_PAD + row_w - bx;
 
             /* script_3850's row: the label in the settings orange, the value
@@ -1046,22 +1527,39 @@ cs2_rebuild(struct ChromeCs2* s)
                  * the label. script_3850 places it with x-mode 2, which
                  * measures from the far edge -- see the note on the in-canvas
                  * chrome's dbg_push_dropdown_button. */
-                int const arrow = CS2_ROW_H - 4;
-                int text_x = bx + 2;
-                int text_w = bw - 4;
-                if( cs2_sprite_ok(s, CS2_SPR_SCROLL_DOWN) )
+                int const arrow = TORIRS_CHROME_M_DROP_ARROW;
+                int const open_here = s->drop_open == i;
+                /* Down while the list is shut, up while it is open -- which in
+                 * the reference is literally the same two sprites the
+                 * scrollbar's ends wear, so the skin carries one pair. */
+                int const slot = open_here ? CS2_SPR_SCROLL_UP : CS2_SPR_SCROLL_DOWN;
+                int text_x = bx + TORIRS_CHROME_M_FIELD_INSET;
+                int text_w = bw - 2 * TORIRS_CHROME_M_FIELD_INSET;
+                if( cs2_sprite_ok(s, slot) )
                 {
                     cs2_graphic(
-                        s, panel, -1, bx + bw - 2 - arrow, y + 2, arrow, arrow,
-                        CS2_SPR_SCROLL_DOWN, 0);
-                    text_w = bw - 4 - arrow;
+                        s, panel, -1, bx + bw - TORIRS_CHROME_M_FIELD_INSET - arrow,
+                        y + TORIRS_CHROME_M_FIELD_INSET, arrow, arrow, slot, 0);
+                    text_w -= arrow;
+                }
+                /* Where the list hangs from, for the pass that builds it after
+                 * every row. Recorded rather than rebuilt from the widget
+                 * later, because `y` here is the scroll's answer and nothing
+                 * outside this loop can work it out again. */
+                if( open_here )
+                {
+                    s->drop_x = bx;
+                    s->drop_y = y;
+                    s->drop_w = bw;
                 }
                 cs2_text_box(
                     s, panel, -1, text_x, y, text_w, CS2_ROW_H, s->text[i],
                     CS2_COL_LABEL, 1);
             }
             else
-                cs2_text(s, panel, -1, bx + 4, y, bw - 8, s->text[i], CS2_COL_TEXT);
+                cs2_text(
+                    s, panel, -1, bx + TORIRS_CHROME_M_FIELD_PAD_X, y,
+                    bw - 2 * TORIRS_CHROME_M_FIELD_PAD_X, s->text[i], CS2_COL_TEXT);
             if( s->focused[i] )
                 cs2_rect(s, panel, -1, bx + 1, y + 1, bw - 2, CS2_ROW_H - 2, CS2_COL_ACCENT, 0);
             break;
@@ -1080,7 +1578,7 @@ cs2_rebuild(struct ChromeCs2* s)
              * crosses the seam is the fact that it is open (WIDGET_CHECKED),
              * which is all a presentation needs to draw its own.
              */
-            int const bx = CS2_PAD + CS2_LABEL_W;
+            int const bx = CS2_PAD + cs2_row_box_offset(s->label[i]);
             int const bw = CS2_PAD + row_w - bx;
             int const sw_x = bx + 3;
             int const sw_y = y + (CS2_ROW_H - CS2_SWATCH) / 2;
@@ -1089,8 +1587,10 @@ cs2_rebuild(struct ChromeCs2* s)
             cs2_text(s, panel, -1, CS2_PAD, y, CS2_LABEL_W, s->label[i], CS2_COL_LABEL);
             cs2_field_chrome(s, panel, id, bx, y, bw, CS2_ROW_H);
             cs2_text(
-                s, panel, -1, sw_x + CS2_SWATCH + 4, y, bw - CS2_SWATCH - 11, s->text[i],
-                CS2_COL_TEXT);
+                s, panel, -1, sw_x + CS2_SWATCH + TORIRS_CHROME_M_SWATCH_GAP, y,
+                bx + bw - TORIRS_CHROME_M_FIELD_PAD_X -
+                    (sw_x + CS2_SWATCH + TORIRS_CHROME_M_SWATCH_GAP),
+                s->text[i], CS2_COL_TEXT);
             if( s->focused[i] )
                 cs2_rect(s, panel, -1, bx + 1, y + 1, bw - 2, CS2_ROW_H - 2, CS2_COL_ACCENT, 0);
 
@@ -1112,8 +1612,8 @@ cs2_rebuild(struct ChromeCs2* s)
 
             if( s->checked[i] )
             {
-                int const bar_x = bx + 2;
-                int const bar_w = bw - 4;
+                int const bar_x = bx + TORIRS_CHROME_M_COLORBAR_INSET;
+                int const bar_w = bw - 2 * TORIRS_CHROME_M_COLORBAR_INSET;
                 int by = y + CS2_ROW_H + CS2_ROW_GAP;
 
                 for( int bar = 0; bar < CS2_COLOR_BARS; bar++ )
@@ -1168,7 +1668,8 @@ cs2_rebuild(struct ChromeCs2* s)
             int const bw = CS2_LABEL_W;
             cs2_field_chrome(s, panel, id, CS2_PAD, y, bw, CS2_ROW_H);
             cs2_text_box(
-                s, panel, -1, CS2_PAD + 2, y, bw - 4, CS2_ROW_H, caption, CS2_COL_TEXT, 1);
+                s, panel, -1, CS2_PAD + TORIRS_CHROME_M_FIELD_INSET, y,
+                bw - 2 * TORIRS_CHROME_M_FIELD_INSET, CS2_ROW_H, caption, CS2_COL_TEXT, 1);
             break;
         }
 
@@ -1203,7 +1704,13 @@ cs2_rebuild(struct ChromeCs2* s)
             panel_h - CS2_PAD,
             visible,
             drawn,
-            s->scroll_row);
+            s->scroll_row,
+            CS2_ID_SCROLL_UP,
+            CS2_ID_SCROLL_DOWN);
+
+    /* Last, so it is over every row and over the panel's own bar: this is the
+     * whole of what makes a popup a popup here. */
+    cs2_push_dropdown_list(s, panel, panel_h);
     }
 
     UITree_MarkAllDirty(s->tree);
@@ -1224,6 +1731,7 @@ chrome_cs2_begin(void* user)
     }
     ToriRSChromeMirror_Init(&s->mirror);
     s->panel_node = -1;
+    cs2_dropdown_close(s);
     s->tab_panel = -1;
     s->tab_strip_widget = -1;
     s->tab_count = 0;
@@ -1245,6 +1753,11 @@ chrome_cs2_end(void* user)
         UITree_MarkAllDirty(s->tree);
     }
     s->panel_node = -1;
+    cs2_dropdown_close(s);
+    /* The strings were held only so a list could draw them; the window closing
+     * is the end of that, and a palette's worth of them is not memory to sit
+     * on until the next open restates it. */
+    cs2_options_free_all(s);
     s->open = 0;
 }
 
@@ -1299,7 +1812,11 @@ chrome_cs2_apply(void* user, struct ToriRSChromeCmd const* cmd)
             s->checked[cmd->widget] = 0;
             s->wcolor[cmd->widget] = cmd->color;
             s->selected[cmd->widget] = -1;
-            s->option_count[cmd->widget] = 0;
+            /* Handles come off a free list, so this slot may be a widget that
+             * has just gone away -- its options with it. */
+            cs2_options_clear(s, cmd->widget);
+            if( s->drop_open == cmd->widget )
+                cs2_dropdown_close(s);
             /* The ADD is the one command carrying a widget's shape; `w` is a
              * LISTROW's action affordance. */
             s->wrow_action[cmd->widget] = cmd->w;
@@ -1404,6 +1921,15 @@ chrome_cs2_apply(void* user, struct ToriRSChromeCmd const* cmd)
                 s->tab_count = cmd->value + 1;
             s->dirty = 1;
         }
+        else if( cmd->widget >= 0 && cmd->widget < TORIRS_CHROME_MAX_WIDGETS )
+        {
+            cs2_options_set(s, cmd->widget, cmd->value, cmd->text);
+            /* Only the OPEN list is on screen, so only that one is worth a
+             * rebuild -- a palette restating two thousand rows behind a shut
+             * button would otherwise ask for two thousand of them. */
+            if( s->drop_open == cmd->widget )
+                s->dirty = 1;
+        }
         break;
 
     case TORIRS_CHROME_CMD_WIDGET_OPTIONS:
@@ -1414,7 +1940,35 @@ chrome_cs2_apply(void* user, struct ToriRSChromeCmd const* cmd)
             s->dirty = 1;
         }
         else if( cmd->widget >= 0 && cmd->widget < TORIRS_CHROME_MAX_WIDGETS )
-            s->option_count[cmd->widget] = cmd->value;
+        {
+            cs2_options_reset(s, cmd->widget, cmd->value);
+            /* A list that is being restated is not the list the open popup is
+             * showing rows out of, and an offset into the old one means
+             * nothing against the new. */
+            if( s->drop_open == cmd->widget )
+            {
+                cs2_dropdown_close(s);
+                s->dirty = 1;
+            }
+        }
+        break;
+
+    case TORIRS_CHROME_CMD_WIDGET_REMOVE:
+        if( cmd->widget >= 0 && cmd->widget < TORIRS_CHROME_MAX_WIDGETS )
+        {
+            cs2_options_clear(s, cmd->widget);
+            if( s->drop_open == cmd->widget )
+                cs2_dropdown_close(s);
+        }
+        break;
+
+    case TORIRS_CHROME_CMD_WIDGET_HIDDEN:
+        /* A hidden dropdown takes its list with it. The build would shut it
+         * anyway (the button is not drawn, so the box comes back zero-width),
+         * but a list left open over the rows for the frame in between is
+         * exactly the flicker this is cheap to avoid. */
+        if( cmd->widget == s->drop_open && cmd->value )
+            cs2_dropdown_close(s);
         break;
 
     default:
@@ -1447,6 +2001,62 @@ ToriRSChromeExecCs2_Click(int component_id)
 
     if( !s->open || component_id < TORIRS_CHROME_CS2_ID_BASE )
         return 0;
+
+    /*
+     * Anything that is not the open list dismisses it, before that anything is
+     * acted on.
+     *
+     * A dropdown list is modal in every client that has one: it shuts on the
+     * next click whatever the click was for. Without this the only way to shut
+     * one is to choose a row or press the button again, so a list opened by
+     * mistake sits over the rows underneath and takes their clicks.
+     *
+     * Its own BUTTON is excluded, or the toggle below would find it already
+     * closed and open it straight back up.
+     */
+    if( s->drop_open >= 0 )
+    {
+        int const own_button = CS2_ID_WIDGET_BASE + s->drop_open;
+        int const in_list = component_id >= CS2_ID_DROP_ROW_BASE &&
+                            component_id < CS2_ID_DROP_ROW_BASE + CS2_DROP_ROWS;
+        int const on_bar = component_id == CS2_ID_DROP_UP || component_id == CS2_ID_DROP_DOWN;
+
+        if( !in_list && !on_bar && component_id != own_button )
+        {
+            cs2_dropdown_close(s);
+            s->dirty = 1;
+        }
+    }
+
+    if( component_id == CS2_ID_OK || component_id == CS2_ID_CLOSE )
+    {
+        struct ToriRSChromeIntent intent;
+        memset(&intent, 0, sizeof(intent));
+        intent.kind = component_id == CS2_ID_OK ? TORIRS_CHROME_INTENT_CONFIRM
+                                                : TORIRS_CHROME_INTENT_CLOSE;
+        /* The panel the window IS. Taken from the tab strip's owner where
+         * there is one and from any live widget otherwise, because this
+         * executor presents exactly one panel and only needs to name it. */
+        intent.panel = s->tab_panel;
+        intent.widget = -1;
+        if( intent.panel < 0 )
+        {
+            for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
+            {
+                struct ToriRSChromeMirrorWidget const* w =
+                    ToriRSChromeMirror_Widget(&s->mirror, i);
+                if( w )
+                {
+                    intent.panel = w->panel;
+                    break;
+                }
+            }
+        }
+        if( intent.panel < 0 )
+            return 0;
+        ToriRSChromeMirror_PushIntent(&s->mirror, &intent);
+        return 1;
+    }
 
     if( component_id == CS2_ID_SCROLL_UP || component_id == CS2_ID_SCROLL_DOWN )
     {
@@ -1531,6 +2141,51 @@ ToriRSChromeExecCs2_Click(int component_id)
         return 1;
     }
 
+    /*
+     * A row of the open list.
+     *
+     * The block is indexed by SCREEN ROW, so which option it names comes from
+     * the executor's own scroll offset -- the same trade the picker's cells
+     * make, and for the same reason: only one list is open at a time.
+     */
+    if( component_id >= CS2_ID_DROP_ROW_BASE &&
+        component_id < CS2_ID_DROP_ROW_BASE + CS2_DROP_ROWS )
+    {
+        int const handle = s->drop_open;
+        int const index = s->drop_scroll + (component_id - CS2_ID_DROP_ROW_BASE);
+        struct ToriRSChromeMirrorWidget* w =
+            handle >= 0 ? ToriRSChromeMirror_Widget(&s->mirror, handle) : NULL;
+        struct ToriRSChromeIntent intent;
+
+        if( !w || index < 0 || index >= s->option_count[handle] )
+            return 0;
+        memset(&intent, 0, sizeof(intent));
+        intent.kind = TORIRS_CHROME_INTENT_PICK;
+        intent.panel = w->panel;
+        intent.widget = handle;
+        intent.value = index;
+        ToriRSChromeMirror_PushIntent(&s->mirror, &intent);
+        /* Shut on the way out, as every dropdown in the game does: the model
+         * answers with WIDGET_SELECTED and the button shows the new value. */
+        cs2_dropdown_close(s);
+        s->dirty = 1;
+        return 1;
+    }
+
+    /* The open list's own scroll arrows -- its offset, not the panel's. */
+    if( component_id == CS2_ID_DROP_UP || component_id == CS2_ID_DROP_DOWN )
+    {
+        int const before = s->drop_scroll;
+        s->drop_scroll += component_id == CS2_ID_DROP_DOWN ? 1 : -1;
+        if( s->drop_scroll < 0 )
+            s->drop_scroll = 0;
+        /* The upper bound is the build's job -- it is the only place that
+         * knows how many rows the list ended up showing. */
+        if( s->drop_scroll != before )
+            s->dirty = 1;
+        return 1;
+    }
+
     /* A LISTROW's settings affordance: the same handle, in the action block. */
     if( component_id >= CS2_ID_ACTION_BASE &&
         component_id < CS2_ID_ACTION_BASE + TORIRS_CHROME_MAX_WIDGETS )
@@ -1572,18 +2227,31 @@ ToriRSChromeExecCs2_Click(int component_id)
             return 1;
 
         case TORIRS_CHROME_W_DROPDOWN:
-            /* A click STEPS the selection -- see the cycling note on the
-             * selected/option_count fields. PICK carries the new index; the
-             * model answers with WIDGET_SELECTED and the new value's text. */
+            /*
+             * The button OPENS the list, and closes it again -- it does not
+             * step the selection.
+             *
+             * Stepping was what this did while the executor had no popup, and
+             * it is wrong on its own terms once the list exists: a click that
+             * changes the setting on the way to reading the options commits a
+             * value nobody chose, and on a palette of two thousand loc names
+             * it is not an affordance at all.
+             *
+             * The list is a rebuild, so it costs the same frame either way.
+             */
             if( s->option_count[handle] > 0 )
             {
-                struct ToriRSChromeIntent intent;
-                memset(&intent, 0, sizeof(intent));
-                intent.kind = TORIRS_CHROME_INTENT_PICK;
-                intent.panel = w->panel;
-                intent.widget = handle;
-                intent.value = (s->selected[handle] + 1) % s->option_count[handle];
-                ToriRSChromeMirror_PushIntent(&s->mirror, &intent);
+                if( s->drop_open == handle )
+                    cs2_dropdown_close(s);
+                else
+                {
+                    s->drop_open = handle;
+                    /* Opened at the top, not where it was last time: an offset
+                     * measured against a list that has since been restated is
+                     * a list that opens already scrolled. */
+                    s->drop_scroll = 0;
+                }
+                s->dirty = 1;
                 return 1;
             }
             ToriRSChromeMirror_PushActivate(&s->mirror, w->panel, handle);
@@ -1634,6 +2302,9 @@ ToriRSChromeExec_Cs2(
     struct ToriRSChromeExec exec;
 
     memset(&exec, 0, sizeof(exec));
+    /* Before the zeroing, not after: the option lists are owned, and a memset
+     * over their pointers is the leak rather than the release. */
+    cs2_options_free_all(&g_chrome_cs2);
     memset(&g_chrome_cs2, 0, sizeof(g_chrome_cs2));
     g_chrome_cs2.tree = tree;
     g_chrome_cs2.mount = mount_node;
@@ -1648,6 +2319,7 @@ ToriRSChromeExec_Cs2(
     g_chrome_cs2.resolve_cb_ud = resolve_ud;
     g_chrome_cs2.panel_node = -1;
     g_chrome_cs2.colorpick_open = -1;
+    g_chrome_cs2.drop_open = -1;
 
     exec.user = &g_chrome_cs2;
     exec.begin = chrome_cs2_begin;

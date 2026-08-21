@@ -1933,6 +1933,19 @@ check-gdi-syntax:
 		ui/torirs_chrome_exec_gdi.c
 	@echo "check-gdi-syntax: ok"
 
+# The web executor's half of the skin: the real base64 encoder over the real
+# bake, decoded back and checked for what the pixels MEAN. See the file comment
+# on why a byte-order slip is invisible to every other test.
+#
+# ui/torirs_chrome_exec_web.c is a web-lane source, and it compiles natively
+# because it stubs EM_JS itself -- which is what lets this run on the host.
+.PHONY: test-chrome-web-skin
+test-chrome-web-skin: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -Wno-unused-parameter -o $(OBJ_DIR)/chrome_web_skin_test \
+		ui/test/uitree_test_chrome_web_skin.c \
+		ui/torirs_chrome_mirror.c engine/torirs_chrome_skin_baked.c
+	./$(OBJ_DIR)/chrome_web_skin_test
+
 # The web panel channel: the wire codec, and a two-tab handshake driven through
 # the real torirs_channel.js with two fake windows. Node only -- no browser, no
 # wasm, no build step, because the channel deliberately has none of those.
@@ -1940,7 +1953,9 @@ check-gdi-syntax:
 test-web-channel:
 	node web/test/channel_codec_test.js
 	node web/test/channel_handshake_test.js
+	node web/test/chrome_enum_sync_test.js
 	node web/test/chrome_dom_test.js
+	$(MAKE) test-chrome-web-skin
 
 test-debug-overlay-visual: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o \
 		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/toridraw_model_sprite.o

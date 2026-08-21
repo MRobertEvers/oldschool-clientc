@@ -4063,6 +4063,21 @@ main(
             int got = TORIRS_CHROME_EXEC_BUFFER;
             struct ToriRSChromeExec chrome_exec;
 
+#if defined(TORIRS_CHROME_EXEC_SDL_AVAILABLE)
+            /*
+             * Whether that window should wear an OS frame, carried across now
+             * rather than acted on: the window is not opened until someone
+             * presses the button, and this is the last place the manifest is
+             * in scope. TORIRS_CHROME_BORDERLESS overrides it at the executor,
+             * beside the env vars above.
+             *
+             * Set whichever executor was asked for. A lane that says
+             * `borderless=1` with `executor=cs2` is describing the sdl window
+             * it does not use, and a wish nobody reads costs an int.
+             */
+            ToriRSChromeExecSdl_SetBorderless(boot_manifest.chrome_borderless);
+#endif
+
             if( want && want[0] )
             {
                 int const from_env = ToriRSChromeExec_KindFromName(want);

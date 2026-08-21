@@ -902,6 +902,26 @@ struct ToriRS_PluginDef
      *  client that marks up the screen on first launch without being asked
      *  reads as broken, not as featureful. */
     bool disabled_by_default;
+    /**
+     * This plugin exists to HOST other plugins; it is machinery, not a
+     * feature.
+     *
+     * Only the settings roster reads it, and only to decide whether to list a
+     * row. The Lua adapter registers one plugin per script and is itself
+     * registered beside them, which is what makes "a script" and "a C plugin"
+     * the same kind of thing everywhere else in the system -- and that
+     * uniformity is worth keeping. But it also put a row called "lua" in the
+     * roster, sitting among the scripts it runs and looking like a peer of
+     * them, and there is nothing a user does with it.
+     *
+     * So the roster hides an adapter that is working: its scripts are the
+     * rows, and they speak for it. It reappears the moment it has something to
+     * say -- a load fault to report, or its own switch turned off -- because
+     * both are states you have to be able to see to get out of. Hiding it
+     * unconditionally would make a broken Lua layer a client with no plugins
+     * and no explanation, and a disabled one impossible to switch back on.
+     */
+    bool adapter;
     /** Both may be NULL. `init` is where subscriptions are made. */
     void (*init)(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api);
     void (*shutdown)(struct ToriRS_PluginCtx* ctx);

@@ -23,12 +23,31 @@
  * one-file artifact contract (WINXP-ABI-001) is what makes that trade worth
  * taking.
  *
+ * THE CONTROLS ARE THE GAME'S, NOT THE SHELL'S. Every one of them is drawn
+ * with the same baked cache art the CS2 executor builds its panel out of:
+ * tradebacking behind the window and every field, the interfaces' 17x17 tick
+ * and cross for a boolean, the scrollbar's own arrow on a dropdown, and the
+ * nine-slice panel frame. They are still USER32 controls -- an EDIT is an
+ * EDIT, with its caret and its selection and its keyboard -- they are simply
+ * BS_OWNERDRAW and WM_CTLCOLOR* the whole way down. That is what a native
+ * executor is for: the platform's own controls, wearing the application's
+ * look, rather than a second rasteriser.
+ *
+ * GDI32 ONLY, no msimg32. AlphaBlend and TransparentBlt live in msimg32, which
+ * would be another import on a lane whose whole contract is a one-file
+ * artifact -- so the sprites are composited in SOFTWARE into a scratch DIB
+ * (chrome_gdi_blit) and blitted back opaque. That is forty lines against a new
+ * dependency, and it also makes the nearest-neighbour scaling ours rather than
+ * the driver's, which is what keeps a 2x checkbox crisp instead of smeared.
+ *
  * Compiled only in the Windows lanes; TORIRS_CHROME_EXEC_GDI_AVAILABLE tells
  * the chooser it is here.
  */
 
 #include "torirs_chrome_exec.h"
+#include "torirs_chrome_metrics.h"
 #include "torirs_chrome_mirror.h"
+#include "torirs_chrome_skin.h"
 
 #include "../platform/platform_sdl2.h"
 
@@ -40,27 +59,74 @@
 
 static char const CHROME_GDI_WNDCLASS[] = "TorirsChromeToolWindow";
 
-/** Opening size. The window is resizable; this is only where it starts. */
-#define CHROME_GDI_W 380
-#define CHROME_GDI_H 460
+/**
+ * Chrome pixels to window pixels.
+ *
+ * TWO, like the web executor's, and for the same reason: the authored geometry
+ * is the game's at 1x, and an 18-pixel row with a 17-pixel checkbox is
+ * unreadably small in a desktop window beside the shell's own UI font. Every
+ * sprite is scaled nearest-neighbour by chrome_gdi_blit, so doubling is the
+ * blow-up the game does at interface scale 2 rather than a blur.
+ */
+#define CHROME_GDI_K 2
 
-/* Layout, in the tool window's own pixels. Not the chrome's metrics: these are
- * Windows controls at the system font, and matching them to a baked bitmap
- * font's line box would size them for the wrong glyphs. */
-#define CHROME_GDI_PAD 8
-#define CHROME_GDI_ROW_H 22
-#define CHROME_GDI_ROW_GAP 4
-#define CHROME_GDI_LABEL_W 110
-#define CHROME_GDI_TAB_H 24
-#define CHROME_GDI_TAB_W 96
+/*
+ * Layout: the shared chrome metrics, scaled.
+ *
+ * These USED to be numbers of this file's own -- 22-pixel rows, a 110-pixel
+ * label column -- on the grounds that Windows controls at the system font want
+ * their own geometry. That was true while the controls looked like Windows.
+ * They are drawn with the game's art now, so they get the game's grid, out of
+ * the same torirs_chrome_metrics.h the in-canvas chrome and the CS2 executor
+ * lay out from. The one thing that stays the system's is the FONT: a bitmap
+ * face cannot be given to an EDIT, and mixing a baked p12 in the owner-drawn
+ * halves with the shell's font in the typed ones would read worse than one
+ * font throughout.
+ */
+#define CHROME_GDI_PX(px) ((px) * CHROME_GDI_K)
+#define CHROME_GDI_PAD CHROME_GDI_PX(TORIRS_CHROME_M_PAD)
+#define CHROME_GDI_ROW_H CHROME_GDI_PX(TORIRS_CHROME_M_ROW_H)
+#define CHROME_GDI_ROW_GAP CHROME_GDI_PX(TORIRS_CHROME_M_ROW_GAP)
+#define CHROME_GDI_LABEL_W CHROME_GDI_PX(TORIRS_CHROME_M_LABEL_W)
+#define CHROME_GDI_TAB_H CHROME_GDI_PX(TORIRS_CHROME_M_TAB_H)
+#define CHROME_GDI_TAB_W CHROME_GDI_PX(48)
+#define CHROME_GDI_BOX CHROME_GDI_PX(TORIRS_CHROME_M_BOX)
+#define CHROME_GDI_CHECK_GAP CHROME_GDI_PX(TORIRS_CHROME_M_CHECK_GAP)
+#define CHROME_GDI_TOGGLE_W CHROME_GDI_PX(TORIRS_CHROME_M_TOGGLE_W)
+#define CHROME_GDI_ROW_ICON CHROME_GDI_PX(TORIRS_CHROME_M_ROW_ICON)
+#define CHROME_GDI_ROW_ICON_GAP CHROME_GDI_PX(TORIRS_CHROME_M_ROW_ICON_GAP)
+#define CHROME_GDI_ROW_NAME_GAP CHROME_GDI_PX(TORIRS_CHROME_M_ROW_NAME_GAP)
+#define CHROME_GDI_DOT CHROME_GDI_PX(TORIRS_CHROME_M_DOT)
+#define CHROME_GDI_DOT_PITCH CHROME_GDI_PX(TORIRS_CHROME_M_DOT_PITCH)
+#define CHROME_GDI_DOT_INSET CHROME_GDI_PX(TORIRS_CHROME_M_DOT_INSET)
+#define CHROME_GDI_SWATCH CHROME_GDI_PX(TORIRS_CHROME_M_SWATCH)
+#define CHROME_GDI_SWATCH_GAP CHROME_GDI_PX(TORIRS_CHROME_M_SWATCH_GAP)
+#define CHROME_GDI_FRAME CHROME_GDI_PX(TORIRS_CHROME_M_FRAME)
+#define CHROME_GDI_FIELD_PAD_X CHROME_GDI_PX(TORIRS_CHROME_M_FIELD_PAD_X)
+#define CHROME_GDI_FIELD_INSET CHROME_GDI_PX(TORIRS_CHROME_M_FIELD_INSET)
+#define CHROME_GDI_RULE CHROME_GDI_PX(1)
+
+/** Opening size: the label column, a field beside it, and the pads. The window
+ *  is resizable; this is only where it starts. */
+#define CHROME_GDI_W (2 * CHROME_GDI_PAD + 2 * CHROME_GDI_LABEL_W + 40)
+#define CHROME_GDI_H CHROME_GDI_PX(240)
+
+/** The palette, from torirs_chrome_metrics.h, as COLORREFs. */
+#define CHROME_GDI_RGB(x) RGB(((x) >> 16) & 0xFF, ((x) >> 8) & 0xFF, (x) & 0xFF)
 
 /**
  * Control ids. Chrome handles are small and dense, so the id IS the handle
  * plus a base -- which makes the WM_COMMAND route a subtraction rather than a
  * search, and makes an id collision impossible by construction.
+ *
+ * A LISTROW owns TWO controls -- its switch and its settings affordance -- and
+ * they report different intents, so the second gets a parallel block at the
+ * same offset. Exactly what CS2_ID_ACTION_BASE does in the CS2 executor, and
+ * for the same reason: the handle stays the index into both.
  */
 #define CHROME_GDI_ID_BASE 0x4000
 #define CHROME_GDI_ID_TAB_BASE 0x5000
+#define CHROME_GDI_ID_ACTION_BASE 0x6000
 
 struct ChromeGdi
 {
@@ -98,9 +164,278 @@ struct ChromeGdi
      * executor compiles on Windows and is exercised nowhere else.
      */
     HWND label[TORIRS_CHROME_MAX_WIDGETS];
+    /**
+     * A LISTROW's settings affordance -- the three-dot well.
+     *
+     * A second control, not a zone of the first: the row has two outcomes and
+     * a BS_OWNERDRAW BUTTON reports a click without saying WHERE, so one
+     * control could never tell "open the page" from "flip the switch". The CS2
+     * executor splits it the same way and for the same reason.
+     */
+    HWND action[TORIRS_CHROME_MAX_WIDGETS];
+    /**
+     * State the CONTROLS no longer hold, now that they are owner-drawn.
+     *
+     * BS_AUTOCHECKBOX kept its own tick and answered BM_GETCHECK; BS_OWNERDRAW
+     * draws whatever we say and knows nothing, so the checked bit lives here
+     * and the click toggles it. `row_action` is a LISTROW's shape and rides
+     * the ADD, exactly as it does in the CS2 executor.
+     */
+    unsigned char checked[TORIRS_CHROME_MAX_WIDGETS];
+    unsigned char row_action[TORIRS_CHROME_MAX_WIDGETS];
+    /**
+     * The skin, once.
+     *
+     * `tile_brush` is a pattern brush over the tradebacking, which is the only
+     * way to give a CONTROL a textured background in Win32 -- WM_CTLCOLOR*
+     * returns a brush, not a paint callback. `scratch` is the compositing
+     * buffer chrome_gdi_blit works in; it grows to the largest box asked for
+     * and is never shrunk, because the largest is the window and the window is
+     * repainted constantly.
+     */
+    int skin_ok;
+    HBITMAP tile_bitmap;
+    HBRUSH tile_brush;
+    HDC scratch_dc;
+    HBITMAP scratch_bitmap;
+    uint32_t* scratch_pixels;
+    int scratch_w;
+    int scratch_h;
 };
 
 static struct ChromeGdi g_chrome_gdi;
+
+/* ---- the baked skin -------------------------------------------------------
+ *
+ * The window's whole appearance, and the only reason any of these controls is
+ * owner-drawn. See the note at the top of the file on why the compositing is
+ * done in software rather than with msimg32's AlphaBlend.
+ */
+
+/** 0xRRGGBB -> a COLORREF, which is 0x00BBGGRR. The one place the two byte
+ *  orders meet; getting it wrong swaps red and blue in every swatch. */
+static COLORREF
+chrome_gdi_colorref(uint32_t rgb)
+{
+    return RGB((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+}
+
+/**
+ * A top-down 32-bit DIB and a DC selecting it, at least `w` x `h`.
+ *
+ * Top-down (a NEGATIVE biHeight) so row 0 is the top one and the compositing
+ * loop below can index it the way every other raster in this tree is indexed.
+ * A bottom-up DIB would composite upside down and blit back upside down, which
+ * cancels out for a solid fill and does not for a tick.
+ */
+static int
+chrome_gdi_scratch(struct ChromeGdi* s, int w, int h)
+{
+    BITMAPINFO bi;
+    HBITMAP made;
+    void* bits = NULL;
+
+    if( w <= 0 || h <= 0 )
+        return 0;
+    if( s->scratch_bitmap && s->scratch_w >= w && s->scratch_h >= h )
+        return 1;
+    if( !s->scratch_dc )
+        s->scratch_dc = CreateCompatibleDC(NULL);
+    if( !s->scratch_dc )
+        return 0;
+
+    if( w < s->scratch_w )
+        w = s->scratch_w;
+    if( h < s->scratch_h )
+        h = s->scratch_h;
+
+    memset(&bi, 0, sizeof(bi));
+    bi.bmiHeader.biSize = sizeof(bi.bmiHeader);
+    bi.bmiHeader.biWidth = w;
+    bi.bmiHeader.biHeight = -h;
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    made = CreateDIBSection(NULL, &bi, DIB_RGB_COLORS, &bits, NULL, 0);
+    if( !made || !bits )
+        return 0;
+
+    SelectObject(s->scratch_dc, made);
+    if( s->scratch_bitmap )
+        DeleteObject(s->scratch_bitmap);
+    s->scratch_bitmap = made;
+    s->scratch_pixels = bits;
+    s->scratch_w = w;
+    s->scratch_h = h;
+    return 1;
+}
+
+/**
+ * One baked sprite, scaled into a box and composited over what is already
+ * there.
+ *
+ * The destination is READ BACK first (a BitBlt into the scratch) rather than
+ * assumed: these sprites have soft edges and rounded corners, and a tick
+ * composited against a guess at the background gets a halo of that guess
+ * around it wherever the guess was wrong -- over the tradebacking, which is
+ * noise, that is every pixel.
+ *
+ * Nearest neighbour, deliberately. The art is baked at 1x with its outline
+ * already in the pixels (see the note on DBG_CHECK_SIZE), so a smooth scale
+ * produces the speckled edge that outline was drawn to avoid.
+ */
+static void
+chrome_gdi_blit(struct ChromeGdi* s, HDC dc, int x, int y, int w, int h, int slot)
+{
+    struct ToriRSChromeSkin_Sprite const* spr = ToriRSChromeSkin_ForSlot(slot);
+
+    if( !spr || spr->w <= 0 || spr->h <= 0 || w <= 0 || h <= 0 )
+        return;
+    if( !chrome_gdi_scratch(s, w, h) )
+        return;
+
+    BitBlt(s->scratch_dc, 0, 0, w, h, dc, x, y, SRCCOPY);
+    for( int j = 0; j < h; j++ )
+    {
+        uint32_t* dst = s->scratch_pixels + (size_t)j * (size_t)s->scratch_w;
+        int const sy = (int)((long)j * spr->h / h);
+        for( int i = 0; i < w; i++ )
+        {
+            uint32_t const src = spr->argb[(size_t)sy * (size_t)spr->w + (size_t)((long)i * spr->w / w)];
+            unsigned const a = (src >> 24) & 0xFF;
+            unsigned dr;
+            unsigned dg;
+            unsigned db;
+
+            if( a == 0 )
+                continue;
+            if( a == 255 )
+            {
+                dst[i] = src & 0xFFFFFFu;
+                continue;
+            }
+            dr = (dst[i] >> 16) & 0xFF;
+            dg = (dst[i] >> 8) & 0xFF;
+            db = dst[i] & 0xFF;
+            dr = (((src >> 16) & 0xFF) * a + dr * (255 - a)) / 255;
+            dg = (((src >> 8) & 0xFF) * a + dg * (255 - a)) / 255;
+            db = ((src & 0xFF) * a + db * (255 - a)) / 255;
+            dst[i] = (dr << 16) | (dg << 8) | db;
+        }
+    }
+    BitBlt(dc, x, y, w, h, s->scratch_dc, 0, 0, SRCCOPY);
+}
+
+/** A flat rectangle, filled or outlined, in a 0xRRGGBB the chrome palette
+ *  names. The one primitive that never needs the skin. */
+static void
+chrome_gdi_rect(HDC dc, int x, int y, int w, int h, uint32_t rgb)
+{
+    RECT r;
+    HBRUSH brush;
+
+    if( w <= 0 || h <= 0 )
+        return;
+    r.left = x;
+    r.top = y;
+    r.right = x + w;
+    r.bottom = y + h;
+    brush = CreateSolidBrush(chrome_gdi_colorref(rgb));
+    if( !brush )
+        return;
+    FillRect(dc, &r, brush);
+    DeleteObject(brush);
+}
+
+static void
+chrome_gdi_outline(HDC dc, int x, int y, int w, int h, uint32_t rgb)
+{
+    if( w <= 0 || h <= 0 )
+        return;
+    chrome_gdi_rect(dc, x, y, w, CHROME_GDI_RULE, rgb);
+    chrome_gdi_rect(dc, x, y + h - CHROME_GDI_RULE, w, CHROME_GDI_RULE, rgb);
+    chrome_gdi_rect(dc, x, y, CHROME_GDI_RULE, h, rgb);
+    chrome_gdi_rect(dc, x + w - CHROME_GDI_RULE, y, CHROME_GDI_RULE, h, rgb);
+}
+
+/** The tradebacking, repeated across a box. The panel body, and the inside of
+ *  every field box -- the reference tiles graphic_297 in both. */
+static void
+chrome_gdi_tile(struct ChromeGdi* s, HDC dc, int x, int y, int w, int h)
+{
+    struct ToriRSChromeSkin_Sprite const* tile =
+        ToriRSChromeSkin_ForSlot(TORIRS_CHROME_SKIN_PANEL_BODY);
+    int const tw = tile ? tile->w * CHROME_GDI_K : 0;
+    int const th = tile ? tile->h * CHROME_GDI_K : 0;
+
+    /* The flat brown first either way: the tile carries transparent pixels at
+     * its edges, so tiling it onto bare window would show through them. */
+    chrome_gdi_rect(dc, x, y, w, h, TORIRS_CHROME_C_BODY);
+    if( tw <= 0 || th <= 0 )
+        return;
+    for( int j = y; j < y + h; j += th )
+        for( int i = x; i < x + w; i += tw )
+        {
+            int const cw = i + tw > x + w ? x + w - i : tw;
+            int const ch = j + th > y + h ? y + h - j : th;
+            chrome_gdi_blit(s, dc, i, j, cw, ch, TORIRS_CHROME_SKIN_PANEL_BODY);
+        }
+}
+
+/**
+ * The interfaces' nine-slice panel border.
+ *
+ * dbg_push_frame, in GDI. The corners blit at their baked size and the edges
+ * stretch along their runs; the baked centre is never drawn, because the
+ * window's own tile is already under it.
+ */
+static void
+chrome_gdi_frame(struct ChromeGdi* s, HDC dc, int w, int h)
+{
+    int const t = CHROME_GDI_FRAME;
+    int const mid_w = w - 2 * t;
+    int const mid_h = h - 2 * t;
+    int const right = w - t;
+    int const bottom = h - t;
+
+    if( !ToriRSChromeSkin_ForSlot(TORIRS_CHROME_SKIN_FRAME_TOP_LEFT) )
+    {
+        /* No frame baked: the black edge every interface in this game has. */
+        chrome_gdi_outline(dc, 0, 0, w, h, TORIRS_CHROME_C_CHROME);
+        return;
+    }
+    chrome_gdi_blit(s, dc, 0, 0, t, t, TORIRS_CHROME_SKIN_FRAME_TOP_LEFT);
+    chrome_gdi_blit(s, dc, right, 0, t, t, TORIRS_CHROME_SKIN_FRAME_TOP_RIGHT);
+    chrome_gdi_blit(s, dc, 0, bottom, t, t, TORIRS_CHROME_SKIN_FRAME_BOTTOM_LEFT);
+    chrome_gdi_blit(s, dc, right, bottom, t, t, TORIRS_CHROME_SKIN_FRAME_BOTTOM_RIGHT);
+    if( mid_w > 0 )
+    {
+        chrome_gdi_blit(s, dc, t, 0, mid_w, t, TORIRS_CHROME_SKIN_FRAME_TOP);
+        chrome_gdi_blit(s, dc, t, bottom, mid_w, t, TORIRS_CHROME_SKIN_FRAME_BOTTOM);
+    }
+    if( mid_h > 0 )
+    {
+        chrome_gdi_blit(s, dc, 0, t, t, mid_h, TORIRS_CHROME_SKIN_FRAME_LEFT);
+        chrome_gdi_blit(s, dc, right, t, t, mid_h, TORIRS_CHROME_SKIN_FRAME_RIGHT);
+    }
+}
+
+/**
+ * The chrome a settings field wears -- script_3850's box.
+ *
+ * Tiled tradebacking under a near-black frame with a grey inset one pixel
+ * inside it, shared by a text input, a dropdown, a button and a roster row's
+ * settings well, because the reference shares it exactly that way.
+ */
+static void
+chrome_gdi_field(struct ChromeGdi* s, HDC dc, int x, int y, int w, int h)
+{
+    chrome_gdi_tile(s, dc, x, y, w, h);
+    chrome_gdi_outline(dc, x, y, w, h, TORIRS_CHROME_C_FRAME);
+    chrome_gdi_outline(
+        dc, x + CHROME_GDI_RULE, y + CHROME_GDI_RULE, w - 2 * CHROME_GDI_RULE,
+        h - 2 * CHROME_GDI_RULE, TORIRS_CHROME_C_FRAME_INSET);
+}
 
 /* ---- layout --------------------------------------------------------------- */
 
@@ -134,7 +469,10 @@ chrome_gdi_layout(struct ChromeGdi* s)
         if( ToriRSChromeMirror_Widget(&s->mirror, i) )
             live++;
 
-    dwp = BeginDeferWindowPos(live + s->tab_count + 1);
+    /* Three per row at the worst -- a roster row is a name, a well and a
+     * switch -- plus the strip. Over-reserving costs nothing; under-reserving
+     * makes DeferWindowPos reallocate mid-batch. */
+    dwp = BeginDeferWindowPos(3 * live + s->tab_count + 1);
     if( !dwp )
         return;
 
@@ -147,13 +485,14 @@ chrome_gdi_layout(struct ChromeGdi* s)
                 dwp,
                 s->tab_buttons[t],
                 NULL,
-                CHROME_GDI_PAD + t * (CHROME_GDI_TAB_W + 2),
-                CHROME_GDI_PAD,
+                CHROME_GDI_FRAME + CHROME_GDI_PAD + t * (CHROME_GDI_TAB_W + CHROME_GDI_RULE),
+                CHROME_GDI_FRAME + CHROME_GDI_PAD,
                 CHROME_GDI_TAB_W,
                 CHROME_GDI_TAB_H,
                 SWP_NOZORDER | SWP_SHOWWINDOW);
 
     y = CHROME_GDI_PAD + (s->tab_count > 1 ? CHROME_GDI_TAB_H + CHROME_GDI_ROW_GAP : 0);
+    width -= 2 * CHROME_GDI_FRAME;
 
     /* In ROW order, not handle order -- see ToriRSChromeMirrorWidget::order.
      * A free-list-recycled handle walked by index lays the window out in an
@@ -165,8 +504,8 @@ chrome_gdi_layout(struct ChromeGdi* s)
         int const i = order[oi];
         struct ToriRSChromeMirrorWidget* w = ToriRSChromeMirror_Widget(&s->mirror, i);
         HWND control;
-        int row_h = CHROME_GDI_ROW_H;
-        int x = CHROME_GDI_PAD;
+        int const row_h = CHROME_GDI_ROW_H;
+        int x = CHROME_GDI_FRAME + CHROME_GDI_PAD;
         int row_w = width - 2 * CHROME_GDI_PAD;
 
         if( !w || !w->native )
@@ -177,49 +516,404 @@ chrome_gdi_layout(struct ChromeGdi* s)
         {
             /* Hidden, not destroyed: the control keeps its text and its
              * selection, so switching back to a tab restores what was on it
-             * rather than a rebuilt blank. */
+             * rather than a rebuilt blank. The row's OTHER controls have to go
+             * with it -- a roster row whose switch hid and whose name did not
+             * is a caption floating over the row below. */
             dwp = DeferWindowPos(dwp, control, NULL, 0, 0, 0, 0,
                                  SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW);
+            if( s->label[i] )
+                dwp = DeferWindowPos(dwp, s->label[i], NULL, 0, 0, 0, 0,
+                                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW);
+            if( s->action[i] )
+                dwp = DeferWindowPos(dwp, s->action[i], NULL, 0, 0, 0, 0,
+                                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW);
+            if( s->swatch[i] )
+                dwp = DeferWindowPos(dwp, s->swatch[i], NULL, 0, 0, 0, 0,
+                                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW);
             continue;
         }
 
-        /* A separator is a thin etched STATIC, so it needs a row of its own
-         * height rather than a control-sized one. */
-        if( w->kind == TORIRS_CHROME_W_SEPARATOR )
-            row_h = 2;
+        /*
+         * A roster row: the name at the left, a settings well and a switch
+         * pinned to the right so a column of them lines up however long the
+         * names are. Right to left, exactly as the in-canvas chrome and the
+         * CS2 executor both place it.
+         */
+        if( w->kind == TORIRS_CHROME_W_LISTROW )
+        {
+            int const tog_x = x + row_w - CHROME_GDI_TOGGLE_W;
+            int const icon_x = tog_x - CHROME_GDI_ROW_ICON_GAP - CHROME_GDI_ROW_ICON;
+            int const name_w =
+                (s->action[i] ? icon_x : tog_x) - CHROME_GDI_ROW_NAME_GAP - x;
 
-        /* Labelled controls start at the shared label column, matching the
-         * in-canvas chrome's table mode; the caption STATIC created by the ADD
-         * is placed in the column beside them. */
+            if( s->label[i] )
+                dwp = DeferWindowPos(
+                    dwp, s->label[i], NULL, x, y, name_w > 0 ? name_w : 1, row_h,
+                    SWP_NOZORDER | SWP_SHOWWINDOW);
+            if( s->action[i] )
+                dwp = DeferWindowPos(
+                    dwp, s->action[i], NULL, icon_x,
+                    y + (row_h - CHROME_GDI_ROW_ICON) / 2, CHROME_GDI_ROW_ICON,
+                    CHROME_GDI_ROW_ICON, SWP_NOZORDER | SWP_SHOWWINDOW);
+            dwp = DeferWindowPos(
+                dwp, control, NULL, tog_x, y, CHROME_GDI_TOGGLE_W, row_h,
+                SWP_NOZORDER | SWP_SHOWWINDOW);
+            y += row_h + CHROME_GDI_ROW_GAP;
+            continue;
+        }
+
+        /* Labelled controls start at the shared label column; the caption
+         * STATIC created by the ADD is placed in the column beside them. */
         if( w->kind == TORIRS_CHROME_W_TEXTINPUT || w->kind == TORIRS_CHROME_W_DROPDOWN ||
             w->kind == TORIRS_CHROME_W_COLORPICK )
         {
             if( s->label[i] )
                 dwp = DeferWindowPos(
-                    dwp, s->label[i], NULL, x, y + 2, CHROME_GDI_LABEL_W - 4, row_h,
+                    dwp, s->label[i], NULL, x, y, CHROME_GDI_LABEL_W, row_h,
                     SWP_NOZORDER | SWP_SHOWWINDOW);
             x += CHROME_GDI_LABEL_W;
             row_w -= CHROME_GDI_LABEL_W;
         }
-        /* The sample sits between the caption and the field, at the row's own
-         * height so it reads as a swatch rather than as a thin rule. */
+        /* The sample sits inside the field box at its left, so a colour row is
+         * a text row with a swatch in front of it rather than a second box. */
         if( w->kind == TORIRS_CHROME_W_COLORPICK && s->swatch[i] )
         {
             dwp = DeferWindowPos(
-                dwp, s->swatch[i], NULL, x, y, row_h, row_h,
-                SWP_NOZORDER | SWP_SHOWWINDOW);
-            x += row_h + 4;
-            row_w -= row_h + 4;
+                dwp, s->swatch[i], NULL, x + CHROME_GDI_FIELD_INSET,
+                y + (row_h - CHROME_GDI_SWATCH) / 2, CHROME_GDI_SWATCH,
+                CHROME_GDI_SWATCH, SWP_NOZORDER | SWP_SHOWWINDOW);
+            x += CHROME_GDI_FIELD_INSET + CHROME_GDI_SWATCH + CHROME_GDI_SWATCH_GAP;
+            row_w -= CHROME_GDI_FIELD_INSET + CHROME_GDI_SWATCH + CHROME_GDI_SWATCH_GAP;
         }
-        if( row_w < 16 )
-            row_w = 16;
+        if( row_w < CHROME_GDI_PX(16) )
+            row_w = CHROME_GDI_PX(16);
 
-        dwp = DeferWindowPos(dwp, control, NULL, x, y, row_w, row_h,
-                             SWP_NOZORDER | SWP_SHOWWINDOW);
+        /*
+         * A typed control is INSET inside its field box.
+         *
+         * The box is script_3850's two-colour frame, and the parent draws it in
+         * WM_ERASEBKGND from this control's own rect grown by the inset. The
+         * control sitting exactly on the box would cover the frame it is
+         * supposed to be wearing.
+         */
+        if( w->kind == TORIRS_CHROME_W_TEXTINPUT || w->kind == TORIRS_CHROME_W_COLORPICK )
+            dwp = DeferWindowPos(
+                dwp, control, NULL, x + CHROME_GDI_FIELD_PAD_X,
+                y + CHROME_GDI_FIELD_INSET, row_w - 2 * CHROME_GDI_FIELD_PAD_X,
+                row_h - 2 * CHROME_GDI_FIELD_INSET, SWP_NOZORDER | SWP_SHOWWINDOW);
+        else
+            dwp = DeferWindowPos(dwp, control, NULL, x, y, row_w, row_h,
+                                 SWP_NOZORDER | SWP_SHOWWINDOW);
         y += row_h + CHROME_GDI_ROW_GAP;
     }
 
     EndDeferWindowPos(dwp);
+
+    /*
+     * Repaint the window and everything in it, every time rows move.
+     *
+     * The background is drawn against the CONTROLS' boxes -- the field frame
+     * under every EDIT is placed from that control's rect in WM_ERASEBKGND --
+     * so a row that moved leaves its old frame painted where it was and its
+     * new one unpainted. The symptom is an empty box floating beside every
+     * field, and it survives until something else happens to invalidate the
+     * window. Here rather than at each of the half-dozen callers, so a new one
+     * cannot forget.
+     */
+    RedrawWindow(s->hwnd, NULL, NULL, RDW_INVALIDATE | RDW_ALLCHILDREN);
+}
+
+/* ---- drawing the controls -------------------------------------------------
+ *
+ * One WM_DRAWITEM handler for every owner-drawn control in the window. Which
+ * one it is comes from the control ID's block -- a tab, a row's settings
+ * affordance, or a widget -- and then from the widget's kind, which is what
+ * the mirror is for.
+ */
+
+/** The caption a control is carrying. Read from the CONTROL rather than
+ *  shadowed: SetWindowTextA already put it there, and a second copy here would
+ *  be a second thing for WIDGET_LABEL to have to update. */
+static void
+chrome_gdi_caption(HWND control, char* out, int cap)
+{
+    out[0] = '\0';
+    if( control )
+        GetWindowTextA(control, out, cap);
+}
+
+/** A caption drawn into a box, in one of the palette's colours. */
+static void
+chrome_gdi_text(HDC dc, RECT box, char const* text, uint32_t rgb, UINT align)
+{
+    if( !text || !text[0] )
+        return;
+    SetBkMode(dc, TRANSPARENT);
+    SetTextColor(dc, chrome_gdi_colorref(rgb));
+    DrawTextA(
+        dc, text, -1, &box,
+        align | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
+}
+
+/**
+ * The interfaces' on/off pair, right-aligned in whatever box it is given.
+ *
+ * Right-aligned rather than centred because a LISTROW's switch is a 24-wide
+ * hit box around 17-wide art and the slack belongs on the left, between the
+ * sprite and the settings well -- the same placement the in-canvas chrome and
+ * the CS2 executor both use. A checkbox's box is exactly the art, so for that
+ * one the two are the same thing.
+ */
+static void
+chrome_gdi_draw_mark(struct ChromeGdi* s, HDC dc, RECT box, int on)
+{
+    int const slot = on ? TORIRS_CHROME_SKIN_CHECK_ON : TORIRS_CHROME_SKIN_CHECK_OFF;
+    int const h = box.bottom - box.top;
+    int const side = h < CHROME_GDI_BOX ? h : CHROME_GDI_BOX;
+    int const x = box.right - side;
+    int const y = box.top + (h - side) / 2;
+
+    if( ToriRSChromeSkin_ForSlot(slot) )
+    {
+        chrome_gdi_blit(s, dc, x, y, side, side, slot);
+        return;
+    }
+    /* No skin: the flat box-and-blob every other presentation falls back to. */
+    chrome_gdi_rect(dc, x, y, side, side, TORIRS_CHROME_C_FIELD_BG);
+    chrome_gdi_outline(dc, x, y, side, side, TORIRS_CHROME_C_FRAME_INSET);
+    if( on )
+        chrome_gdi_rect(
+            dc, x + CHROME_GDI_PX(3), y + CHROME_GDI_PX(3), side - CHROME_GDI_PX(6),
+            side - CHROME_GDI_PX(6), TORIRS_CHROME_C_ON);
+}
+
+/** A roster row's settings affordance: three dots in a field-chrome well. */
+static void
+chrome_gdi_draw_dots(struct ChromeGdi* s, HDC dc, RECT box, int hot)
+{
+    int const w = box.right - box.left;
+    int const h = box.bottom - box.top;
+
+    chrome_gdi_field(s, dc, box.left, box.top, w, h);
+    if( hot )
+        chrome_gdi_outline(dc, box.left, box.top, w, h, TORIRS_CHROME_C_ACCENT);
+    for( int d = 0; d < 3; d++ )
+        chrome_gdi_rect(
+            dc,
+            box.left + CHROME_GDI_DOT_INSET + d * CHROME_GDI_DOT_PITCH,
+            box.top + h / 2 - CHROME_GDI_RULE,
+            CHROME_GDI_DOT,
+            CHROME_GDI_DOT,
+            TORIRS_CHROME_C_LABEL);
+}
+
+/** A pressable box: the settings field with a caption centred in it, which is
+ *  how the reference draws a button (script_3850's own Save is this shape). */
+static void
+chrome_gdi_draw_button(
+    struct ChromeGdi* s, HDC dc, RECT box, char const* caption, int pressed, uint32_t rgb)
+{
+    int const nudge = pressed ? CHROME_GDI_RULE : 0;
+
+    chrome_gdi_field(
+        s, dc, box.left, box.top, box.right - box.left, box.bottom - box.top);
+    if( pressed )
+        chrome_gdi_outline(
+            dc, box.left, box.top, box.right - box.left, box.bottom - box.top,
+            TORIRS_CHROME_C_ACCENT);
+    box.left += CHROME_GDI_FIELD_INSET + nudge;
+    box.right -= CHROME_GDI_FIELD_INSET;
+    box.top += nudge;
+    chrome_gdi_text(dc, box, caption, rgb, DT_CENTER);
+}
+
+/**
+ * A tab, as the in-canvas strip draws one.
+ *
+ * The selected tab is the panel body itself; an unselected one is that body
+ * under a veil, which here is a flat darkening rather than a translucent rect
+ * because GDI has no per-primitive alpha without msimg32. The rules around it
+ * are what make a strip read as tabs rather than as a row of buttons.
+ */
+static void
+chrome_gdi_draw_tab(struct ChromeGdi* s, HDC dc, RECT box, char const* caption, int on)
+{
+    int const w = box.right - box.left;
+    int const h = box.bottom - box.top;
+
+    if( on )
+        chrome_gdi_tile(s, dc, box.left, box.top, w, h);
+    else
+        chrome_gdi_rect(dc, box.left, box.top, w, h, 0x1B1813);
+    chrome_gdi_rect(dc, box.left, box.top, w, CHROME_GDI_RULE, TORIRS_CHROME_C_CHROME);
+    chrome_gdi_rect(dc, box.left, box.top, CHROME_GDI_RULE, h, TORIRS_CHROME_C_CHROME);
+    chrome_gdi_rect(
+        dc, box.right - CHROME_GDI_RULE, box.top, CHROME_GDI_RULE, h,
+        TORIRS_CHROME_C_CHROME);
+    /* No bottom rule on the selected tab: the gap is the joint to the content
+     * below, and it is the whole of what makes this a strip. */
+    if( !on )
+        chrome_gdi_rect(
+            dc, box.left, box.bottom - CHROME_GDI_RULE, w, CHROME_GDI_RULE,
+            TORIRS_CHROME_C_CHROME);
+    box.left += CHROME_GDI_PX(TORIRS_CHROME_M_TAB_PAD_X);
+    box.right -= CHROME_GDI_PX(TORIRS_CHROME_M_TAB_PAD_X);
+    chrome_gdi_text(
+        dc, box, caption, on ? TORIRS_CHROME_C_TEXT : TORIRS_CHROME_C_LABEL, DT_CENTER);
+}
+
+/**
+ * The closed dropdown, and one row of its open list.
+ *
+ * A COMBOBOX raises WM_DRAWITEM for both, told apart by ODS_COMBOBOXEDIT. The
+ * closed button gets the field box with the scrollbar's own down arrow at the
+ * right and the value centred in the settings orange -- script_3850's layout,
+ * arrow included, because the reference literally reuses that sprite. A list
+ * row gets the cache's own lighter list tile.
+ */
+static void
+chrome_gdi_draw_combo(struct ChromeGdi* s, DRAWITEMSTRUCT const* di)
+{
+    RECT box = di->rcItem;
+    int const w = box.right - box.left;
+    int const h = box.bottom - box.top;
+    char caption[TORIRS_CHROME_TEXT_MAX];
+
+    caption[0] = '\0';
+    if( (int)di->itemID >= 0 )
+        SendMessageA(di->hwndItem, CB_GETLBTEXT, (WPARAM)di->itemID, (LPARAM)caption);
+
+    if( di->itemState & ODS_COMBOBOXEDIT )
+    {
+        /*
+         * The closed button, and the ONE place this window cannot match the
+         * CS2 panel.
+         *
+         * A CBS_DROPDOWNLIST combo draws its own drop-down arrow, in the
+         * shell's 3D style, in a strip to the right that is NOT part of the
+         * owner-draw rect -- Windows keeps that button for itself and there is
+         * no style that takes it away. So the scrollbar's own down-arrow
+         * sprite (which is what script_3850 puts there, and what every other
+         * presentation of this window draws) is deliberately NOT blitted: two
+         * arrows side by side reads worse than one that is the wrong shape.
+         *
+         * The alternative was to drop the COMBOBOX for a button that CYCLES
+         * its options -- which is what the CS2 executor does, having no popup
+         * at all. Not taken: a real list is what a Windows user reaches for,
+         * and the point of a native executor is the platform's own controls.
+         */
+        chrome_gdi_field(s, di->hDC, box.left, box.top, w, h);
+        box.left += CHROME_GDI_FIELD_INSET;
+        box.right -= CHROME_GDI_FIELD_INSET;
+        chrome_gdi_text(di->hDC, box, caption, TORIRS_CHROME_C_LABEL, DT_CENTER);
+        return;
+    }
+
+    /* An open row. The cache backs the floating list with its OWN, lighter
+     * tile -- a different image from the panel body, which is why the bake
+     * carries both. */
+    if( ToriRSChromeSkin_ForSlot(TORIRS_CHROME_SKIN_DROPDOWN_BODY) )
+        chrome_gdi_blit(
+            s, di->hDC, box.left, box.top, w, h, TORIRS_CHROME_SKIN_DROPDOWN_BODY);
+    else
+        chrome_gdi_rect(di->hDC, box.left, box.top, w, h, TORIRS_CHROME_C_BODY);
+    /* The hovered row is a veil lifted rather than a colour painted on, which
+     * is how script_9114 highlights one. Flat here, for the same reason the
+     * tab veil is. */
+    if( di->itemState & ODS_SELECTED )
+        chrome_gdi_outline(di->hDC, box.left, box.top, w, h, TORIRS_CHROME_C_ACCENT);
+    box.left += CHROME_GDI_FIELD_PAD_X;
+    chrome_gdi_text(di->hDC, box, caption, TORIRS_CHROME_C_TEXT, DT_LEFT);
+}
+
+/**
+ * The colour a STATIC's text is set in.
+ *
+ * script_3850 sets an ENABLED setting's caption in 0xff981f, so a labelled
+ * row's caption is orange and everything else -- a roster row's name, a bare
+ * LABEL -- is body white. Answered from which widget the HWND belongs to,
+ * because both are the same control class and there is nothing else to ask.
+ */
+static uint32_t
+chrome_gdi_static_color(struct ChromeGdi const* s, HWND control)
+{
+    for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
+        if( s->label[i] == control )
+            return TORIRS_CHROME_C_LABEL;
+    return TORIRS_CHROME_C_TEXT;
+}
+
+/** Dispatch one owner-draw. */
+static void
+chrome_gdi_drawitem(struct ChromeGdi* s, DRAWITEMSTRUCT const* di)
+{
+    char caption[TORIRS_CHROME_TEXT_MAX];
+    int const pressed = (di->itemState & ODS_SELECTED) != 0;
+    int handle;
+
+    if( di->CtlType == ODT_COMBOBOX )
+    {
+        chrome_gdi_draw_combo(s, di);
+        return;
+    }
+
+    if( (int)di->CtlID >= CHROME_GDI_ID_TAB_BASE &&
+        (int)di->CtlID < CHROME_GDI_ID_TAB_BASE + 16 )
+    {
+        int const t = (int)di->CtlID - CHROME_GDI_ID_TAB_BASE;
+        struct ToriRSChromeMirrorPanel* panel =
+            s->tab_panel >= 0 ? &s->mirror.panels[s->tab_panel] : NULL;
+        chrome_gdi_draw_tab(
+            s, di->hDC, di->rcItem, s->tabs[t], panel && panel->active_tab == t);
+        return;
+    }
+
+    if( (int)di->CtlID >= CHROME_GDI_ID_ACTION_BASE &&
+        (int)di->CtlID < CHROME_GDI_ID_ACTION_BASE + TORIRS_CHROME_MAX_WIDGETS )
+    {
+        chrome_gdi_draw_dots(s, di->hDC, di->rcItem, pressed);
+        return;
+    }
+
+    handle = (int)di->CtlID - CHROME_GDI_ID_BASE;
+    if( handle < 0 || handle >= TORIRS_CHROME_MAX_WIDGETS )
+        return;
+    {
+        struct ToriRSChromeMirrorWidget* w = ToriRSChromeMirror_Widget(&s->mirror, handle);
+        RECT box = di->rcItem;
+
+        if( !w )
+            return;
+        chrome_gdi_caption(di->hwndItem, caption, (int)sizeof(caption));
+        switch( w->kind )
+        {
+        case TORIRS_CHROME_W_CHECKBOX:
+        {
+            RECT mark = box;
+            mark.right = mark.left + CHROME_GDI_BOX;
+            chrome_gdi_draw_mark(s, di->hDC, mark, s->checked[handle]);
+            box.left += CHROME_GDI_BOX + CHROME_GDI_CHECK_GAP;
+            chrome_gdi_text(di->hDC, box, caption, TORIRS_CHROME_C_TEXT, DT_LEFT);
+            break;
+        }
+
+        case TORIRS_CHROME_W_LISTROW:
+            /* Only the SWITCH: a roster row's name is a STATIC of its own and
+             * its settings well is the parallel control, so this box is just
+             * the toggle's hit area. */
+            chrome_gdi_draw_mark(s, di->hDC, box, s->checked[handle]);
+            break;
+
+        case TORIRS_CHROME_W_BUTTON:
+        case TORIRS_CHROME_W_MENUITEM:
+            chrome_gdi_draw_button(
+                s, di->hDC, box, caption, pressed, TORIRS_CHROME_C_TEXT);
+            break;
+
+        default:
+            break;
+        }
+    }
 }
 
 /* ---- the window ----------------------------------------------------------- */
@@ -252,6 +946,28 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             return 0;
         }
 
+        /* A roster row's settings affordance. Its own id block, because the
+         * row's two zones report DIFFERENT intents -- ACTION opens the entry's
+         * page, TOGGLE flips it -- and one owner-drawn BUTTON reports a click
+         * without saying where in itself it landed. */
+        if( id >= CHROME_GDI_ID_ACTION_BASE &&
+            id < CHROME_GDI_ID_ACTION_BASE + TORIRS_CHROME_MAX_WIDGETS )
+        {
+            int const handle = id - CHROME_GDI_ID_ACTION_BASE;
+            struct ToriRSChromeMirrorWidget* w =
+                ToriRSChromeMirror_Widget(&s->mirror, handle);
+            struct ToriRSChromeIntent intent;
+
+            if( !w || notify != BN_CLICKED )
+                return 0;
+            memset(&intent, 0, sizeof(intent));
+            intent.kind = TORIRS_CHROME_INTENT_ACTION;
+            intent.panel = w->panel;
+            intent.widget = handle;
+            ToriRSChromeMirror_PushIntent(&s->mirror, &intent);
+            return 0;
+        }
+
         if( id >= CHROME_GDI_ID_BASE && id < CHROME_GDI_ID_BASE + TORIRS_CHROME_MAX_WIDGETS )
         {
             int const handle = id - CHROME_GDI_ID_BASE;
@@ -265,10 +981,24 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             switch( w->kind )
             {
             case TORIRS_CHROME_W_CHECKBOX:
-                if( notify == BN_CLICKED )
-                    ToriRSChromeMirror_PushToggle(
-                        &s->mirror, w->panel, handle,
-                        SendMessageA(control, BM_GETCHECK, 0, 0) == BST_CHECKED);
+            case TORIRS_CHROME_W_LISTROW:
+                /*
+                 * The state is OURS now, not the control's.
+                 *
+                 * BS_AUTOCHECKBOX kept its own tick and answered BM_GETCHECK;
+                 * a BS_OWNERDRAW button draws what it is told and knows
+                 * nothing, so the click flips the shadow bit and the redraw
+                 * shows it. Reported either way, and the MODEL is still what
+                 * decides -- a WIDGET_CHECKED that disagrees overwrites this
+                 * on the next command, which is how a refused toggle snaps
+                 * back.
+                 */
+                if( notify != BN_CLICKED )
+                    break;
+                s->checked[handle] = s->checked[handle] ? 0 : 1;
+                InvalidateRect(control, NULL, TRUE);
+                ToriRSChromeMirror_PushToggle(
+                    &s->mirror, w->panel, handle, s->checked[handle]);
                 break;
 
             case TORIRS_CHROME_W_TEXTINPUT:
@@ -312,7 +1042,74 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
     case WM_SIZE:
         chrome_gdi_layout(s);
+        /* Everything is painted against the window's own box -- the tiling, the
+         * frame, the field boxes under the EDITs -- so a resize invalidates all
+         * of it rather than the newly exposed strip Windows would repaint. */
+        RedrawWindow(hwnd, NULL, NULL, RDW_INVALIDATE | RDW_ALLCHILDREN);
         return 0;
+
+    case WM_DRAWITEM:
+        chrome_gdi_drawitem(s, (DRAWITEMSTRUCT const*)lp);
+        return 1;
+
+    case WM_MEASUREITEM:
+        /* An owner-drawn list keeps the FONT's item height unless it is told
+         * otherwise, so without this the rows of an open dropdown are a
+         * different pitch from the rows of the panel behind it. */
+        ((MEASUREITEMSTRUCT*)lp)->itemHeight = CHROME_GDI_ROW_H;
+        return 1;
+
+    /*
+     * The whole background, in one pass: tradebacking, the nine-slice border,
+     * and the field box behind every EDIT.
+     *
+     * An EDIT cannot be owner-drawn -- it is the one control here whose
+     * painting Windows keeps -- so its frame is drawn by the PARENT, under it,
+     * and the control is placed inset by the frame's thickness so it covers
+     * only the middle. That is also why this is WM_ERASEBKGND and not
+     * WM_PAINT: erase runs before the children paint, so their own pixels land
+     * on top of ours instead of being wiped by them.
+     */
+    case WM_ERASEBKGND:
+    {
+        HDC dc = (HDC)wp;
+        RECT client;
+        int order[TORIRS_CHROME_MAX_WIDGETS];
+        int ordered;
+
+        GetClientRect(hwnd, &client);
+        chrome_gdi_tile(s, dc, 0, 0, client.right, client.bottom);
+        chrome_gdi_frame(s, dc, client.right, client.bottom);
+
+        ordered = ToriRSChromeMirror_Order(&s->mirror, order, TORIRS_CHROME_MAX_WIDGETS);
+        for( int oi = 0; oi < ordered; oi++ )
+        {
+            int const i = order[oi];
+            struct ToriRSChromeMirrorWidget* w = ToriRSChromeMirror_Widget(&s->mirror, i);
+            RECT box;
+
+            if( !w || !w->native || !ToriRSChromeMirror_Shown(&s->mirror, i) )
+                continue;
+            if( w->kind != TORIRS_CHROME_W_TEXTINPUT && w->kind != TORIRS_CHROME_W_COLORPICK )
+                continue;
+            if( !GetWindowRect((HWND)w->native, &box) )
+                continue;
+            {
+                POINT tl;
+                tl.x = box.left;
+                tl.y = box.top;
+                ScreenToClient(hwnd, &tl);
+                chrome_gdi_field(
+                    s,
+                    dc,
+                    (int)tl.x - CHROME_GDI_FIELD_INSET,
+                    (int)tl.y - CHROME_GDI_FIELD_INSET,
+                    (int)(box.right - box.left) + 2 * CHROME_GDI_FIELD_INSET,
+                    (int)(box.bottom - box.top) + 2 * CHROME_GDI_FIELD_INSET);
+            }
+        }
+        return 1;
+    }
 
     case WM_CLOSE:
     {
@@ -335,17 +1132,115 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
             if( s->swatch[i] && s->swatch[i] == (HWND)lp && s->swatch_brush[i] )
                 return (LRESULT)s->swatch_brush[i];
-        /* fall through */
-    case WM_CTLCOLORBTN:
-        /* The dialog face, so STATIC labels do not sit on a white patch over a
-         * grey window -- the default for a STATIC on a non-dialog parent. */
+        /*
+         * Every other STATIC is a caption over the tradebacking.
+         *
+         * A labelled row's caption is the settings orange script_3850 sets it
+         * in; a roster row's name is body white. Told apart by the widget the
+         * HWND belongs to, because the two are the same control class.
+         *
+         * The brush is the TILE, not the hollow one. Hollow was the first
+         * answer -- the parent has already tiled this area, so why paint it
+         * again -- and it is wrong for one reason: a STATIC erases with this
+         * brush when its caption changes, and a brush that paints nothing
+         * leaves the OLD caption on screen under the new one. A plugin renamed
+         * by a reload came back as two names overprinted.
+         *
+         * The pattern's origin will not line up with the parent's tiling. It
+         * does not matter: the tradebacking is noise, and a seam in noise is
+         * invisible.
+         */
         SetBkMode((HDC)wp, TRANSPARENT);
-        return (LRESULT)GetSysColorBrush(COLOR_BTNFACE);
+        SetTextColor((HDC)wp, chrome_gdi_colorref(chrome_gdi_static_color(s, (HWND)lp)));
+        if( s->tile_brush )
+            return (LRESULT)s->tile_brush;
+        return (LRESULT)GetStockObject(NULL_BRUSH);
+
+    case WM_CTLCOLORBTN:
+        /* Owner-drawn buttons paint themselves; this only stops Windows
+         * erasing the parchment under them first. */
+        SetBkMode((HDC)wp, TRANSPARENT);
+        return (LRESULT)GetStockObject(NULL_BRUSH);
+
+    /*
+     * The typed controls: white on the tradebacking.
+     *
+     * An EDIT and a COMBOBOX's list keep their own painting, so the most this
+     * can do is choose the ink and the ground. The ground is a PATTERN brush
+     * over the tile, which is the only way to get a texture behind a control
+     * in Win32 -- there is nowhere to put a paint callback, only somewhere to
+     * return a brush from. Its origin will not line up with the parent's
+     * tiling, and it does not matter: the tradebacking is noise, and a seam in
+     * noise is invisible.
+     */
+    case WM_CTLCOLOREDIT:
+    case WM_CTLCOLORLISTBOX:
+        SetBkMode((HDC)wp, TRANSPARENT);
+        SetTextColor((HDC)wp, chrome_gdi_colorref(TORIRS_CHROME_C_TEXT));
+        if( s->tile_brush )
+            return (LRESULT)s->tile_brush;
+        return (LRESULT)GetStockObject(NULL_BRUSH);
 
     default:
         break;
     }
     return DefWindowProcA(hwnd, msg, wp, lp);
+}
+
+/**
+ * A pattern brush over the tradebacking, at the window's scale.
+ *
+ * The ONLY way to put a texture behind a Win32 control: WM_CTLCOLOR* returns a
+ * brush, and there is nowhere to hand it a paint callback. So the tile is
+ * blown up to CHROME_GDI_K, composited flat against the body brown (a brush
+ * has no alpha either), and handed to CreatePatternBrush.
+ *
+ * Flattened against the brown rather than left transparent because the tile's
+ * edges carry transparent pixels -- as a brush those would come out black.
+ */
+static void
+chrome_gdi_make_tile_brush(struct ChromeGdi* s)
+{
+    struct ToriRSChromeSkin_Sprite const* tile =
+        ToriRSChromeSkin_ForSlot(TORIRS_CHROME_SKIN_PANEL_BODY);
+    int const w = tile ? tile->w * CHROME_GDI_K : 0;
+    int const h = tile ? tile->h * CHROME_GDI_K : 0;
+    BITMAPINFO bi;
+    uint32_t* pixels = NULL;
+    HBITMAP bitmap;
+
+    if( !tile || w <= 0 || h <= 0 )
+        return;
+
+    memset(&bi, 0, sizeof(bi));
+    bi.bmiHeader.biSize = sizeof(bi.bmiHeader);
+    bi.bmiHeader.biWidth = w;
+    bi.bmiHeader.biHeight = -h;
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    bitmap = CreateDIBSection(NULL, &bi, DIB_RGB_COLORS, (void**)&pixels, NULL, 0);
+    if( !bitmap || !pixels )
+        return;
+
+    for( int j = 0; j < h; j++ )
+        for( int i = 0; i < w; i++ )
+        {
+            uint32_t const src =
+                tile->argb[(size_t)(j / CHROME_GDI_K) * (size_t)tile->w +
+                           (size_t)(i / CHROME_GDI_K)];
+            unsigned const a = (src >> 24) & 0xFF;
+            unsigned const br = (TORIRS_CHROME_C_BODY >> 16) & 0xFF;
+            unsigned const bg = (TORIRS_CHROME_C_BODY >> 8) & 0xFF;
+            unsigned const bb = TORIRS_CHROME_C_BODY & 0xFF;
+            unsigned const r = (((src >> 16) & 0xFF) * a + br * (255 - a)) / 255;
+            unsigned const g = (((src >> 8) & 0xFF) * a + bg * (255 - a)) / 255;
+            unsigned const b = ((src & 0xFF) * a + bb * (255 - a)) / 255;
+            pixels[(size_t)j * (size_t)w + (size_t)i] = (r << 16) | (g << 8) | b;
+        }
+
+    s->tile_bitmap = bitmap;
+    s->tile_brush = CreatePatternBrush(bitmap);
 }
 
 static int
@@ -363,7 +1258,9 @@ chrome_gdi_begin(void* user)
     wc.lpfnWndProc = chrome_gdi_wndproc;
     wc.hInstance = GetModuleHandleA(NULL);
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    wc.hbrBackground = (HBRUSH)(COLOR_BTNFACE + 1);
+    /* NO class brush: WM_ERASEBKGND tiles the whole client area itself, and a
+     * class brush would flash the dialog face under it on every repaint. */
+    wc.hbrBackground = NULL;
     wc.lpszClassName = CHROME_GDI_WNDCLASS;
     /* A duplicate class is not an error: begin() can run again after the model
      * closed the window, and the class outlives the window. */
@@ -393,6 +1290,8 @@ chrome_gdi_begin(void* user)
     if( SystemParametersInfoA(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0) )
         s->font = CreateFontIndirectA(&ncm.lfMessageFont);
 
+    chrome_gdi_make_tile_brush(s);
+
     ToriRSChromeMirror_Init(&s->mirror);
     s->tab_panel = -1;
     s->tab_strip_widget = -1;
@@ -416,11 +1315,39 @@ chrome_gdi_end(void* user)
         DestroyWindow(s->hwnd);
     if( s->font )
         DeleteObject(s->font);
+    /* Every GDI object this window made. A tool window opened and closed a
+     * dozen times a session leaks a bitmap, a brush and a DC each time
+     * otherwise -- and GDI handles are a per-process quota, not merely
+     * memory. */
+    if( s->tile_brush )
+        DeleteObject(s->tile_brush);
+    if( s->tile_bitmap )
+        DeleteObject(s->tile_bitmap);
+    if( s->scratch_bitmap )
+        DeleteObject(s->scratch_bitmap);
+    if( s->scratch_dc )
+        DeleteDC(s->scratch_dc);
+    for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
+        if( s->swatch_brush[i] )
+        {
+            DeleteObject(s->swatch_brush[i]);
+            s->swatch_brush[i] = NULL;
+        }
     s->hwnd = NULL;
     s->font = NULL;
+    s->tile_brush = NULL;
+    s->tile_bitmap = NULL;
+    s->scratch_bitmap = NULL;
+    s->scratch_dc = NULL;
+    s->scratch_pixels = NULL;
+    s->scratch_w = 0;
+    s->scratch_h = 0;
     s->open = 0;
     s->tab_count = 0;
     memset(s->tab_buttons, 0, sizeof(s->tab_buttons));
+    memset(s->label, 0, sizeof(s->label));
+    memset(s->action, 0, sizeof(s->action));
+    memset(s->swatch, 0, sizeof(s->swatch));
 }
 
 /* ---- creating controls ---------------------------------------------------- */
@@ -457,14 +1384,6 @@ chrome_gdi_child(
  * memory: it is a caption and a coloured square still sitting where a removed
  * row used to be, over whatever now occupies that space.
  */
-/** 0xRRGGBB -> a COLORREF, which is 0x00BBGGRR. The one place the two byte
- *  orders meet; getting it wrong swaps red and blue in every swatch. */
-static COLORREF
-chrome_gdi_colorref(uint32_t rgb)
-{
-    return RGB((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
-}
-
 static void
 chrome_gdi_drop_extras(struct ChromeGdi* s, int widget)
 {
@@ -473,6 +1392,9 @@ chrome_gdi_drop_extras(struct ChromeGdi* s, int widget)
     if( s->label[widget] )
         DestroyWindow(s->label[widget]);
     s->label[widget] = NULL;
+    if( s->action[widget] )
+        DestroyWindow(s->action[widget]);
+    s->action[widget] = NULL;
     if( s->swatch[widget] )
         DestroyWindow(s->swatch[widget]);
     s->swatch[widget] = NULL;
@@ -492,18 +1414,54 @@ chrome_gdi_add(struct ChromeGdi* s, struct ToriRSChromeCmd const* cmd)
     if( !w )
         return;
 
+    s->checked[cmd->widget] = 0;
+    /* The ADD is the one command carrying a widget's SHAPE, and `w` is a
+     * LISTROW's settings affordance -- the same field the CS2 executor reads
+     * it out of. A row that gained or lost one is re-added, not updated. */
+    s->row_action[cmd->widget] = cmd->w ? 1 : 0;
+
     switch( cmd->value )
     {
     case TORIRS_CHROME_W_CHECKBOX:
-        control = chrome_gdi_child(s, "BUTTON", BS_AUTOCHECKBOX, cmd->label, id);
+        /* BS_OWNERDRAW, not BS_AUTOCHECKBOX: the mark is the interfaces' own
+         * 17x17 tick/cross sprite, and there is no drawn checkbox anywhere in
+         * this game to let Windows imitate. The auto-check behaviour goes with
+         * it -- see the WM_COMMAND handler, which now owns the state. */
+        control = chrome_gdi_child(s, "BUTTON", BS_OWNERDRAW, cmd->label, id);
+        break;
+
+    case TORIRS_CHROME_W_LISTROW:
+        /*
+         * A roster row is THREE controls, not one: the name, the settings
+         * well, and the switch.
+         *
+         * Split because the row has two OUTCOMES and a single owner-drawn
+         * button reports a click without saying where in itself it landed --
+         * so one control could never tell "open this plugin's page" from "turn
+         * it off". The CS2 executor splits it the same way and for the same
+         * reason, and the ids line up: the switch takes the handle's own slot,
+         * the well takes the parallel ACTION block.
+         *
+         * Before this, a LISTROW fell through to the default branch and became
+         * a STATIC -- a row of plugin names with no switch and no way in.
+         */
+        s->label[cmd->widget] = chrome_gdi_child(s, "STATIC", SS_LEFT, cmd->label, -1);
+        if( cmd->w )
+            s->action[cmd->widget] = chrome_gdi_child(
+                s, "BUTTON", BS_OWNERDRAW, "", CHROME_GDI_ID_ACTION_BASE + cmd->widget);
+        control = chrome_gdi_child(s, "BUTTON", BS_OWNERDRAW, "", id);
         break;
 
     case TORIRS_CHROME_W_TEXTINPUT:
         /* The label is a STATIC of its own, placed by the layout's label
          * column. It carries no id: nothing routes to it, and giving it one
-         * would put a second control in the handle's id slot. */
+         * would put a second control in the handle's id slot.
+         *
+         * No WS_BORDER: the field box around it is script_3850's two-colour
+         * frame, drawn by the PARENT in WM_ERASEBKGND, and Windows' own etched
+         * border inside that would be a third edge. */
         s->label[cmd->widget] = chrome_gdi_child(s, "STATIC", SS_LEFT, cmd->label, -1);
-        control = chrome_gdi_child(s, "EDIT", WS_BORDER | ES_AUTOHSCROLL, cmd->text, id);
+        control = chrome_gdi_child(s, "EDIT", ES_AUTOHSCROLL, cmd->text, id);
         break;
 
     case TORIRS_CHROME_W_COLORPICK:
@@ -524,19 +1482,25 @@ chrome_gdi_add(struct ChromeGdi* s, struct ToriRSChromeCmd const* cmd)
          */
         s->label[cmd->widget] = chrome_gdi_child(s, "STATIC", SS_LEFT, cmd->label, -1);
         s->swatch[cmd->widget] = chrome_gdi_child(s, "STATIC", SS_LEFT | SS_NOTIFY, "", -1);
-        control = chrome_gdi_child(s, "EDIT", WS_BORDER | ES_AUTOHSCROLL, cmd->text, id);
+        control = chrome_gdi_child(s, "EDIT", ES_AUTOHSCROLL, cmd->text, id);
         break;
 
     case TORIRS_CHROME_W_DROPDOWN:
+        /* CBS_OWNERDRAWFIXED so both halves are ours -- the closed button gets
+         * the field box with the scrollbar's own down arrow, an open row gets
+         * the cache's lighter list tile. CBS_HASSTRINGS keeps CB_ADDSTRING and
+         * CB_GETLBTEXT working, which is what an owner-drawn combo otherwise
+         * gives up and what every command below still uses. */
         s->label[cmd->widget] = chrome_gdi_child(s, "STATIC", SS_LEFT, cmd->label, -1);
         control = chrome_gdi_child(
-            s, "COMBOBOX", CBS_DROPDOWNLIST | WS_VSCROLL, NULL, id);
+            s, "COMBOBOX",
+            CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS | WS_VSCROLL, NULL, id);
         break;
 
     case TORIRS_CHROME_W_BUTTON:
     case TORIRS_CHROME_W_MENUITEM:
         control = chrome_gdi_child(
-            s, "BUTTON", BS_PUSHBUTTON, cmd->text[0] ? cmd->text : cmd->label, id);
+            s, "BUTTON", BS_OWNERDRAW, cmd->text[0] ? cmd->text : cmd->label, id);
         break;
 
     case TORIRS_CHROME_W_SEPARATOR:
@@ -573,7 +1537,7 @@ chrome_gdi_rebuild_tabs(struct ChromeGdi* s)
         return;
     for( int i = 0; i < s->tab_count && i < 16; i++ )
         s->tab_buttons[i] = chrome_gdi_child(
-            s, "BUTTON", BS_PUSHBUTTON, s->tabs[i], CHROME_GDI_ID_TAB_BASE + i);
+            s, "BUTTON", BS_OWNERDRAW, s->tabs[i], CHROME_GDI_ID_TAB_BASE + i);
 }
 
 static void
@@ -694,13 +1658,27 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
         break;
 
     case TORIRS_CHROME_CMD_WIDGET_LABEL:
+        /* A checkbox carries its own caption; a roster row's name is the
+         * STATIC beside it. Both are the label, and only one of them was
+         * being updated -- a plugin renamed by a reload kept its old name. */
         if( w->kind == TORIRS_CHROME_W_CHECKBOX )
             SetWindowTextA((HWND)w->native, cmd->label);
+        else if( s->label[cmd->widget] )
+            SetWindowTextA(s->label[cmd->widget], cmd->label);
+        InvalidateRect((HWND)w->native, NULL, TRUE);
         break;
 
     case TORIRS_CHROME_CMD_WIDGET_CHECKED:
-        SendMessageA(
-            (HWND)w->native, BM_SETCHECK, cmd->value ? BST_CHECKED : BST_UNCHECKED, 0);
+        /*
+         * The MODEL is what decides, and this is where it says so.
+         *
+         * The control has no check state of its own any more (BS_OWNERDRAW),
+         * so the bit lives here and the repaint is what shows it. This also
+         * covers a toggle the model REFUSED: the click flipped the shadow
+         * optimistically, and a WIDGET_CHECKED that disagrees puts it back.
+         */
+        s->checked[cmd->widget] = cmd->value ? 1 : 0;
+        InvalidateRect((HWND)w->native, NULL, TRUE);
         break;
 
     case TORIRS_CHROME_CMD_WIDGET_OPTIONS:
@@ -708,9 +1686,6 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
         break;
 
     case TORIRS_CHROME_CMD_WIDGET_OPTION:
-        SendMessageA((HWND)w->native, CB_ADDSTRING, 0, (LPARAM)cmd->text);
-        break;
-
     case TORIRS_CHROME_CMD_WIDGET_SELECTED:
         if( w->kind == TORIRS_CHROME_W_COLORPICK )
         {
@@ -726,7 +1701,10 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
                 InvalidateRect(s->swatch[cmd->widget], NULL, TRUE);
             break;
         }
-        SendMessageA((HWND)w->native, CB_SETCURSEL, (WPARAM)cmd->value, 0);
+        if( cmd->kind == TORIRS_CHROME_CMD_WIDGET_OPTION )
+            SendMessageA((HWND)w->native, CB_ADDSTRING, 0, (LPARAM)cmd->text);
+        else
+            SendMessageA((HWND)w->native, CB_SETCURSEL, (WPARAM)cmd->value, 0);
         break;
 
     case TORIRS_CHROME_CMD_WIDGET_FOCUS:

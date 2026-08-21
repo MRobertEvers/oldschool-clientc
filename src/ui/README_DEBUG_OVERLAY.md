@@ -490,6 +490,52 @@ the cache to imitate, so the flat box-with-a-mark is the *fallback* and the
 tick/cross pair is the control. Same for a roster row's on/off, which was a
 sliding switch until it was pointed out that this game has no such thing.
 
+### 8.0 One table of metrics, two presentations
+
+The geometry and the palette live in `ui/torirs_chrome_metrics.h`, and neither
+this module nor the CS2 executor owns them. The plugin window is drawn twice —
+here as prims, and in `ui/torirs_chrome_exec_cs2.c` as real interface
+components — and for as long as each carried its own numbers the two slowly
+stopped agreeing: a row 20 tall beside one 18 tall, a 12px settings well beside
+a 14px one, a toggle at 22×11 beside one at 24×12. None of that is a bug either
+file can see; it shows up only as "the panel looks different depending on which
+executor is bound".
+
+Everything in that header is a **1x chrome pixel**: this module multiplies by
+`ui->scale` (`DBG_PX`), the CS2 executor uses them raw because the gameframe's
+interface scaling applies over the top.
+
+Two consequences worth knowing, because both were behaviour changes:
+
+- **Every row is one height** (`TORIRS_CHROME_M_ROW_H`), whatever it holds.
+  Widgets used to measure themselves, which gave a column whose controls did
+  not line up with each other. Contents are centred inside the grid instead —
+  `dbg_row_text_baseline` is ToriDraw's own `y_align == 1` arithmetic, which is
+  what every CS2 `TEXT` component uses, and the two land on the same pixel row
+  because the baked faces have `line_box == max_ascent + max_descent` exactly.
+- **The label column is fixed** (`TORIRS_CHROME_M_LABEL_W`) rather than
+  measured from the panel's widest label. Measured meant a plugin renaming a
+  setting slid every field in the panel sideways. An *unlabelled* row still
+  reserves nothing — there is nothing to line it up with.
+
+### 8.0.1 The optional panel frame
+
+`ToriRSChrome_PanelSetFramed` swaps the minimenu's rails for the interfaces'
+own nine-slice border — the one the gameframe's popout strip draws around the
+panels mounted in it, which is why the plugin window wore one under the CS2
+executor and not in canvas.
+
+Opt-in rather than implied by the window style, because both alternatives are
+live in this tree at once: a floating developer panel wants the rails so it
+reads as a menu beside a real minimenu, and a panel mounted inside something
+that already draws a frame must not draw a second one inside the first.
+
+The corners are **rounded** — the outer pixel of each 3×3 corner is
+transparent — so the pieces are blitted rather than one sprite stretched over
+the box, and the baked centre is never drawn: the panel's own tile is already
+under it. `dbg_panel_is_framed` gates the LAYOUT as well as the draw, so a
+build that baked no frame is not a panel indented past an edge it never paints.
+
 The two `skin_*` switches are what a theme uses to ask for the baked cache art
 (§8.1) instead of flat boxes. Off is the flat look *and* the automatic
 fallback: each draw checks the slot it is about to use against `skin_avail`,
@@ -517,6 +563,7 @@ different cache — or no bake at all — needs no change here.
 | `SCROLL_GRIP_TOP/MID/BOTTOM` | 789 / 790 / 791 | the grip: middle stretched, then a cap on each end |
 | `PLUGIN_ICON` | `sideicons_interface_11` (785) | the wrench that opens the plugin window from the gameframe's strip |
 | `CHECK_ON` / `CHECK_OFF` | 8380 / 8379 | every on/off state: a checkbox, and a roster row's switch |
+| `FRAME_TOP_LEFT` … `FRAME_BOTTOM_RIGHT` | 5814–5822 | the nine-slice border a framed panel wears |
 
 **`CHECK_ON` is 8380, not 8379**, which is the opposite of what the ids
 suggest. `script3422` sets 8379 alongside `if_setop(1, "Show", ..)` -- the op is

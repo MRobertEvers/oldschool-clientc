@@ -525,8 +525,6 @@ Editor_PanelInit(
     panel->cb_flag_roof = ToriRSChrome_Checkbox(ui, panel->panel, "remove roof", 0);
     panel->cb_flag_below = ToriRSChrome_Checkbox(ui, panel->panel, "vis below", 0);
 
-    ToriRSChrome_PanelSetTable(ui, panel->panel, 1);
-
     /* Resizable: the rows here are dropdowns over cache names -- "Coffin
      * (mahogany)" is not a width the panel can guess at build time and not one
      * worth hard-coding, so the grip is how the user makes room for whatever

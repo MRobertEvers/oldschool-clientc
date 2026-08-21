@@ -33657,7 +33657,7 @@ ToriRSServer_WorldSelftest(void)
              * 14 such gamevals in the roster. His spawn tile carries
              * REMOVE_ROOF, which is the bit `apply_terrain_column` stamps
              * COLL_FLAG_ROOF from and the bit `gen_npc_movement.py` reads out of
-             * `maps/*.jm2` to decide the field. And nothing had ever written it
+             * the `*.jm2` maps to decide the field. And nothing had ever written it
              * down: one npc in the whole tree stated `moverestrict` as anything
              * but `nomove` before this.
              *
@@ -35441,6 +35441,48 @@ ToriRSServer_WorldSelftest(void)
         SELFTEST_CHECK(bank->slots[0].obj_id < 0,
                        "Release should empty the slot, got %d", bank->slots[0].obj_id);
 
+        /*
+         * The same withdraw with a row *after* it — which is the shape every
+         * real bank is in, and the shape none of the fixtures above had.
+         *
+         * Everything they emptied was the last occupied row, so the gap-closing
+         * shift in ToriRSServer_BankWithdraw was a no-op and could not be seen.
+         * With a row behind it the shift runs, and content's
+         * `~bank_leave_placeholder` — which looks at the slot *after* the
+         * engine has already closed it — finds the next item sitting there and
+         * returns. That is the whole of "placeholders do nothing": one was left
+         * for the last item in the bank and for no other.
+         */
+        for( int i = 0; i < TORIRSSERVER_INV_SLOTS; i++ )
+        {
+            player->inv[i].obj_id = -1;
+            player->inv[i].count = 0;
+        }
+        for( int i = 0; i < bank->size; i++ )
+        {
+            bank->slots[i].obj_id = -1;
+            bank->slots[i].count = 0;
+        }
+        bank->slots[0].obj_id = 1277;
+        bank->slots[0].count = 1;
+        bank->slots[1].obj_id = 995;
+        bank->slots[1].count = 10;
+        SELFTEST_CHECK(
+            ToriRSServer_BankGetVarbit(srv, ids->varbit_bank_leaveplaceholders) == 1,
+            "the setting is still on from the button above");
+        player->last_slot = 0;
+        ToriRSServer_ScriptsRunIfButton(srv, ids->com_bankmain_items, 1);
+        SELFTEST_CHECK(bank->slots[0].obj_id == placeholder && bank->slots[0].count == 0,
+                       "a withdraw with a row behind it must still leave the placeholder, "
+                       "got %d x%d",
+                       bank->slots[0].obj_id, bank->slots[0].count);
+        SELFTEST_CHECK(bank->slots[1].obj_id == 995,
+                       "and must not pull that row up into the slot, got %d",
+                       bank->slots[1].obj_id);
+
+        /* Off again: this player is shared with every stanza below, and the
+         * setting is a varp that outlives the section. */
+        ToriRSServer_BankSetVarbit(srv, ids->varbit_bank_leaveplaceholders, 0);
         ToriRSServer_BankClose(srv);
     bank_placeholder_done:;
     }
@@ -44304,8 +44346,8 @@ ToriRSServer_WorldSelftest(void)
     fprintf(stderr, "ToriRSServer selftest: ::grandtreerun\n");
     {
         /*
-         * The Grand Tree (2026-08-20 audit). Every `[opnpc*]` handler in
-         * quests/quest_grandtree/scripts/*.rs2 blocks on ~chatnpc_anim/
+         * The Grand Tree (2026-08-20 audit). Every `[opnpc*]` handler under
+         * quests/quest_grandtree/scripts/ blocks on ~chatnpc_anim/
          * ~mesbox/~p_choice* (a real client resume) or a multi-tick npc-walk
          * `p_delay`, so the %grandtree ladder itself is mirrored the same
          * way every other quest audit in this loop mirrors a dialogue-gated

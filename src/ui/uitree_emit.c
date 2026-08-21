@@ -1484,6 +1484,7 @@ emit_obj_stack_count(
     int obj_count;
     int font_id;
     int stackable = 0;
+    int is_placeholder = 0;
     char namebuf[4] = { 0 };
     struct UITreeEmitDesc count_desc;
 
@@ -1521,9 +1522,23 @@ emit_obj_stack_count(
             .u.get_obj_name.out = namebuf,
             .u.get_obj_name.cap = (int)sizeof(namebuf),
             .u.get_obj_name.out_stackable = &stackable,
+            .u.get_obj_name.out_placeholder = &is_placeholder,
         };
         UITree_Host(host, &req);
     }
+    /*
+     * A bank placeholder never carries a number, and the obj record is the only
+     * thing that can say so. `bankmain_drawitem` (clientscript 278) draws one
+     * with the *plain* opcode at a count of zero — `cc_setobject($obj, 0)` —
+     * which is byte for byte what a shop's out-of-stock line does
+     * (clientscript 1076, `cc_setobject($obj, inv_getnum(...))`). Same opcode,
+     * same count, and the shop must print its "0"; so the difference cannot
+     * come from the call, only from the obj, and a placeholder is the record
+     * that carries a template. Without this every placeholder in the bank wore
+     * a yellow "0".
+     */
+    if( is_placeholder )
+        return;
     /* _ALWAYS_NUM (mode 1) numbers even a lone unstackable; the plain opcode
      * numbers stacks only. */
     if( c->item_num_mode != 1 && !stackable && obj_count == 1 )

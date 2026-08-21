@@ -10,6 +10,42 @@
 #include <stdlib.h>
 #include <string.h>
 
+/**
+ * One borderless window's state, and what SDL's hit test is handed as its
+ * userdata.
+ *
+ * Per WINDOW rather than per platform, because the two windows differ in the
+ * one thing the trampoline has to know: the game window letterboxes a fixed
+ * canvas into itself and the aux window's surface IS the window, so a point
+ * has to be mapped for one and not the other. A single callback with a flag
+ * beats two near-identical ones -- the resize bands, the ordering and the
+ * refusal are the same on both, and the only thing that would diverge is the
+ * bug where one of the copies got fixed.
+ */
+struct SdlHitState
+{
+    struct PlatformSDL2* platform;
+    PlatformSDL2_DragHandleFn fn;
+    void* user;
+    /** Skip the letterbox: this window's content is its own size. */
+    int is_aux;
+    /** The frame is off AND the hit test is installed. Both, or neither: the
+     *  callback is what makes a frameless window movable. */
+    int borderless;
+};
+
+/**
+ * How far in from a borderless window's edge still resizes it, in window
+ * points.
+ *
+ * Deliberately not scaled by the display density. This is a pointer target,
+ * and a pointer target is a physical distance -- window points already are one
+ * on every backend SDL reports them from, and multiplying by the density would
+ * make the grab band twice as deep on a Retina display than on the panel
+ * beside it.
+ */
+#define SDL_BORDERLESS_RESIZE 6
+
 struct PlatformSDL2
 {
     SDL_Window* window;
@@ -73,6 +109,10 @@ struct PlatformSDL2
      * this is not a scale anything multiplies by at draw time -- it is what the
      * chrome reads to choose which baked font size to lay out with. */
     int pixel_density;
+
+    /* Borderless state, one per window. @see struct SdlHitState. */
+    struct SdlHitState hit_main;
+    struct SdlHitState hit_aux;
 };
 
 /*
@@ -680,6 +720,10 @@ PlatformSDL2_Free(struct PlatformSDL2* platform)
     }
     if( platform->window )
     {
+        /* Off before the window goes, as the aux teardown does: SDL holds the
+         * callback and a pointer into `platform` on the window, and this is
+         * the frame that is about to free `platform`. */
+        SDL_SetWindowHitTest(platform->window, NULL, NULL);
         SDL_DestroyWindow(platform->window);
         platform->window = NULL;
     }
@@ -934,6 +978,13 @@ PlatformSDL2_AuxOpen(struct PlatformSDL2* platform, int width, int height, char 
 
     platform->aux_window_id = SDL_GetWindowID(platform->aux_window);
     platform->aux_close_requested = false;
+    /* A fresh window wears its frame until someone asks otherwise. The wish
+     * belongs to the window, not to the platform: a caller that opened one
+     * borderless and closed it must ask again for the next, so a frame is
+     * never taken off a window nobody looked at. The PROVIDER above outlives
+     * the window on purpose -- it is set once and answers for every window the
+     * same chrome draws into. */
+    platform->hit_aux.borderless = 0;
     return true;
 }
 
@@ -954,9 +1005,14 @@ PlatformSDL2_AuxClose(struct PlatformSDL2* platform)
     }
     if( platform->aux_window )
     {
+        /* Off before the window goes: SDL holds the callback and our userdata
+         * on the window, and a hit test left installed on a window being
+         * destroyed is a call into `hit_aux` from inside the teardown. */
+        SDL_SetWindowHitTest(platform->aux_window, NULL, NULL);
         SDL_DestroyWindow(platform->aux_window);
         platform->aux_window = NULL;
     }
+    platform->hit_aux.borderless = 0;
     free(platform->aux_pixels);
     platform->aux_pixels = NULL;
     platform->aux_width = 0;
@@ -1043,6 +1099,200 @@ PlatformSDL2_AuxTakeCloseRequest(struct PlatformSDL2* platform)
     assert(platform);
     platform->aux_close_requested = false;
     return asked;
+}
+
+/* ---- borderless windows -------------------------------------------------- */
+
+/*
+ * What one point of a frameless window is, to the window manager.
+ *
+ * Called from inside SDL's event pump while it decides what a press is, so
+ * everything here is a handful of comparisons and one call into a point test
+ * over published rectangles. Nothing in this path may take a lock, allocate, or
+ * read anything the frame thread writes.
+ */
+static SDL_HitTestResult SDLCALL
+sdl_hit_test(SDL_Window* window, SDL_Point const* area, void* data)
+{
+    struct SdlHitState* st = data;
+    int win_w = 0;
+    int win_h = 0;
+    int cx = 0;
+    int cy = 0;
+
+    /* Not asserts: SDL owns this call. A hit test still installed on a window
+     * being torn down is SDL's business, and aborting inside the WM's own
+     * press handling would be a crash with no frame of ours on the stack. */
+    if( !st || !area || !st->borderless )
+        return SDL_HITTEST_NORMAL;
+
+    SDL_GetWindowSize(window, &win_w, &win_h);
+
+    /*
+     * The resize bands FIRST, and it has to be first.
+     *
+     * A frameless window has no border of its own to pull, and the chrome that
+     * provides the drag handle runs right up to the top edge -- a tab strip
+     * pinned under the title bar, in the case this was built for. Testing the
+     * handle first takes that edge, and a window whose top edge drags instead
+     * of resizing can never be made shorter from the top again.
+     */
+    if( win_w > 0 && win_h > 0 && (SDL_GetWindowFlags(window) & SDL_WINDOW_RESIZABLE) != 0 )
+    {
+        int const left = area->x < SDL_BORDERLESS_RESIZE;
+        int const right = area->x >= win_w - SDL_BORDERLESS_RESIZE;
+        int const top = area->y < SDL_BORDERLESS_RESIZE;
+        int const bottom = area->y >= win_h - SDL_BORDERLESS_RESIZE;
+
+        /* Corners before edges: a corner point is in two bands at once, and
+         * the diagonal is the one the user aimed at. */
+        if( top && left )
+            return SDL_HITTEST_RESIZE_TOPLEFT;
+        if( top && right )
+            return SDL_HITTEST_RESIZE_TOPRIGHT;
+        if( bottom && left )
+            return SDL_HITTEST_RESIZE_BOTTOMLEFT;
+        if( bottom && right )
+            return SDL_HITTEST_RESIZE_BOTTOMRIGHT;
+        if( top )
+            return SDL_HITTEST_RESIZE_TOP;
+        if( bottom )
+            return SDL_HITTEST_RESIZE_BOTTOM;
+        if( left )
+            return SDL_HITTEST_RESIZE_LEFT;
+        if( right )
+            return SDL_HITTEST_RESIZE_RIGHT;
+    }
+
+    if( !st->fn )
+        return SDL_HITTEST_NORMAL;
+
+    /*
+     * Into the coordinates whatever drew the handle laid them out in.
+     *
+     * SDL reports the point in window POINTS. The aux window's surface is the
+     * window, so its chrome is already in that space; the game window
+     * letterboxes a fixed canvas into whatever the user dragged the frame to,
+     * and a handle compared against raw window points there is out by the bars
+     * and by the HighDPI factor at once.
+     */
+    if( st->is_aux )
+    {
+        cx = area->x;
+        cy = area->y;
+    }
+    else
+    {
+        /* MapMouse clamps into the canvas, so a point in a letterbox bar
+         * arrives as the edge pixel beside it. Deliberately left that way: on
+         * a frameless window the bars are bare background with nothing else to
+         * do, and dragging one is the behaviour a user expects of them. */
+        PlatformSDL2_MapMouse(st->platform, area->x, area->y, &cx, &cy);
+    }
+    return st->fn(st->user, cx, cy) ? SDL_HITTEST_DRAGGABLE : SDL_HITTEST_NORMAL;
+}
+
+/** Put one window into (or out of) the frameless state. @return true on the
+ *  state asked for. */
+static bool
+sdl_set_borderless(
+    struct PlatformSDL2* platform,
+    struct SdlHitState* st,
+    SDL_Window* window,
+    int is_aux,
+    bool borderless)
+{
+    assert(platform);
+    assert(st);
+
+    if( !window )
+        return false;
+
+    st->platform = platform;
+    st->is_aux = is_aux;
+
+    if( !borderless )
+    {
+        SDL_SetWindowHitTest(window, NULL, NULL);
+        st->borderless = 0;
+        SDL_SetWindowBordered(window, SDL_TRUE);
+        return true;
+    }
+
+    if( st->borderless )
+        return true;
+
+    /*
+     * The hit test goes on BEFORE the frame comes off, and a driver that has
+     * no hit test keeps its frame.
+     *
+     * Every way a user has of moving or resizing a window runs through one of
+     * the two. Taking the frame off a window the WM will not ask us about
+     * leaves it pinned where it opened, at the size it opened, with no drawn
+     * affordance able to help -- for the rest of the session. Refusing is the
+     * better failure, and saying so is what stops it reading as a chrome bug.
+     */
+    if( SDL_SetWindowHitTest(window, sdl_hit_test, st) != 0 )
+    {
+        fprintf(
+            stderr,
+            "borderless: this video driver has no window hit test (%s); keeping the frame\n",
+            SDL_GetError());
+        return false;
+    }
+    st->borderless = 1;
+    SDL_SetWindowBordered(window, SDL_FALSE);
+    return true;
+}
+
+void
+PlatformSDL2_SetDragHandleProvider(
+    struct PlatformSDL2* platform, PlatformSDL2_DragHandleFn fn, void* user)
+{
+    assert(platform);
+    platform->hit_main.platform = platform;
+    platform->hit_main.is_aux = 0;
+    platform->hit_main.fn = fn;
+    platform->hit_main.user = user;
+}
+
+void
+PlatformSDL2_AuxSetDragHandleProvider(
+    struct PlatformSDL2* platform, PlatformSDL2_DragHandleFn fn, void* user)
+{
+    assert(platform);
+    platform->hit_aux.platform = platform;
+    platform->hit_aux.is_aux = 1;
+    platform->hit_aux.fn = fn;
+    platform->hit_aux.user = user;
+}
+
+bool
+PlatformSDL2_SetBorderless(struct PlatformSDL2* platform, bool borderless)
+{
+    assert(platform);
+    return sdl_set_borderless(platform, &platform->hit_main, platform->window, 0, borderless);
+}
+
+bool
+PlatformSDL2_AuxSetBorderless(struct PlatformSDL2* platform, bool borderless)
+{
+    assert(platform);
+    return sdl_set_borderless(platform, &platform->hit_aux, platform->aux_window, 1, borderless);
+}
+
+bool
+PlatformSDL2_IsBorderless(struct PlatformSDL2 const* platform)
+{
+    assert(platform);
+    return platform->hit_main.borderless != 0;
+}
+
+bool
+PlatformSDL2_AuxIsBorderless(struct PlatformSDL2 const* platform)
+{
+    assert(platform);
+    return platform->hit_aux.borderless != 0;
 }
 
 int

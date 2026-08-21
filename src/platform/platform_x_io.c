@@ -449,6 +449,54 @@ load_file_item(
 }
 
 /*
+ * A plugin script, or the manifest that names them.
+ *
+ * Same split as read_client_file_item, and for the same reason: on the browser
+ * lane the "filesystem" is MEMFS, which starts empty and forgets everything
+ * when the tab closes. A script read against it fails, task_plugin_io.c
+ * deliberately treats a missing manifest as the ordinary case, and the plugin
+ * roster quietly shows only the statically linked C plugins -- which is
+ * exactly how this was found.
+ *
+ * So the durable store answers instead. The page puts the manifest and every
+ * script it names there before main() (torirs_host.js: `plugins.load`), keyed
+ * by the SAME joined path this builds, so the two cannot disagree about where
+ * a script lives. Nothing is baked into the module and nothing is opened by
+ * name; the request still arrives through the IO queue exactly as it does on
+ * the desktop.
+ */
+static int
+read_script_item(struct PlatformX_IO* px, struct ToriRS_IOItem* item)
+{
+#if defined(TORIRS_WEB_CACHE_IDB)
+    char path[TORIRS_IOITEM_MAX_PATH * 2];
+    uint8_t* bytes = NULL;
+    int size = 0;
+
+    /* The store is keyed by the whole path, not by (dir, name): a key that
+     * dropped the root would collide the moment two roots held a file of the
+     * same name, and the page has to be able to spell the key too. */
+    if( px->script_dir && px->script_dir[0] )
+        snprintf(path, sizeof(path), "%s/%s", px->script_dir, item->u.script.path);
+    else
+        snprintf(path, sizeof(path), "%s", item->u.script.path);
+
+    if( Dat2WebStore_FileRead(path, &bytes, &size) != 1 )
+    {
+        item->error_code = -1;
+        return -1;
+    }
+    item->data = bytes;
+    item->data_size = size;
+    item->error_code = 0;
+    return 0;
+#else
+    return load_file_item(item, px->script_dir, item->u.script.path);
+#endif
+}
+
+
+/*
  * Turn the logical table a caller queued into the on-disk id THIS cache uses.
  *
  * Queued dat2 items name a table by role (RSCACHE_DAT2_TABLE_*), not by number, and the
@@ -800,7 +848,7 @@ PlatformX_IO_LoadItem(
     case TORIRS_IOK_CONFIG_FILE:
         return load_file_item(item, px->config_dir, item->u.config_file.path);
     case TORIRS_IOK_SCRIPT:
-        return load_file_item(item, px->script_dir, item->u.script.path);
+        return read_script_item(px, item);
     case TORIRS_IOK_REFERENCE_TABLE:
         return load_reference_table_item(px, item);
     case TORIRS_IOK_FILE_READ:

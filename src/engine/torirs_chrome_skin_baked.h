@@ -33,7 +33,16 @@ enum ToriRSChromeSkin_Slot
     ToriRSChromeSkin_SLOT_PluginIcon = 8,
     ToriRSChromeSkin_SLOT_CheckOn = 9,
     ToriRSChromeSkin_SLOT_CheckOff = 10,
-    ToriRSChromeSkin_SLOT_COUNT = 11
+    ToriRSChromeSkin_SLOT_FrameTopLeft = 11,
+    ToriRSChromeSkin_SLOT_FrameTop = 12,
+    ToriRSChromeSkin_SLOT_FrameTopRight = 13,
+    ToriRSChromeSkin_SLOT_FrameLeft = 14,
+    ToriRSChromeSkin_SLOT_FrameCentre = 15,
+    ToriRSChromeSkin_SLOT_FrameRight = 16,
+    ToriRSChromeSkin_SLOT_FrameBottomLeft = 17,
+    ToriRSChromeSkin_SLOT_FrameBottom = 18,
+    ToriRSChromeSkin_SLOT_FrameBottomRight = 19,
+    ToriRSChromeSkin_SLOT_COUNT = 20
 };
 
 /** The baked image for `slot`, or NULL when the slot is out of range. */

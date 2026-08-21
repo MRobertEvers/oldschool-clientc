@@ -23,10 +23,13 @@
  */
 
 #include "torirs_chrome_exec.h"
+#include "torirs_chrome_metrics.h"
 #include "torirs_chrome_mirror.h"
+#include "torirs_chrome_skin.h"
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 #if defined(__EMSCRIPTEN__)
@@ -115,6 +118,47 @@ EM_JS(char*, web_chrome_take_intent, (void), {
     return stringToNewUTF8(s);
 });
 
+/* ---- the skin ------------------------------------------------------------
+ *
+ * The page draws the same chrome the game does, out of the same baked images:
+ * the tradebacking behind the panel and every field, the interfaces' 17x17
+ * tick and cross for a boolean, the scrollbar's own arrows and grip, and the
+ * nine-slice panel frame. It is the CS2 executor's look, rebuilt out of DOM
+ * nodes instead of interface components.
+ *
+ * WHY THE PIXELS CROSS AT ALL. Every other way for the page to get them is
+ * worse. Shipping the images beside index.html means a second copy of the bake
+ * that can go stale, and a lane that changed cache would serve last cache's
+ * art; asking the cache at runtime is the exact failure the bake exists to
+ * remove (see the note in torirs_chrome_exec_cs2.c). The wasm already holds
+ * them in .rdata, so it hands them over.
+ *
+ * RAW RGBA, NOT PNG. The page turns the bytes into an ImageData, puts them on
+ * a canvas and takes a data: URL back out -- three lines of platform API
+ * against a PNG encoder in C that would exist for this alone. It costs about
+ * 70KB of base64 ONCE, at the frame the window is first opened, and nothing
+ * per frame after.
+ *
+ * The metrics ride the same crossing, so the page lays its rows out on the
+ * numbers in torirs_chrome_metrics.h rather than on a second set spelled in
+ * CSS -- which is what the header exists to prevent.
+ */
+
+EM_JS(void, web_chrome_skin_metrics, (char const* json), {
+    if( typeof window.torirsChromeSkinMetrics === 'function' )
+        window.torirsChromeSkinMetrics(JSON.parse(UTF8ToString(json)));
+});
+
+EM_JS(void, web_chrome_skin_sprite, (int slot, int w, int h, char const* b64), {
+    if( typeof window.torirsChromeSkinSprite === 'function' )
+        window.torirsChromeSkinSprite(slot, w, h, UTF8ToString(b64));
+});
+
+EM_JS(void, web_chrome_skin_done, (void), {
+    if( typeof window.torirsChromeSkinDone === 'function' )
+        window.torirsChromeSkinDone();
+});
+
 /* ---- the executor -------------------------------------------------------- */
 
 struct ChromeWeb
@@ -127,6 +171,169 @@ struct ChromeWeb
 };
 
 static struct ChromeWeb g_chrome_web;
+
+/* ---- handing the skin over ------------------------------------------------ */
+
+/**
+ * The slots the PAGE draws with.
+ *
+ * Not every baked slot: the wrench is the sidebar launcher's, which the game
+ * canvas draws and this window never does, and the frame's centre piece is
+ * baked but deliberately never drawn (the tile is already under it -- see
+ * dbg_push_frame). Sending them would be two more base64 blobs across the wall
+ * for images nothing asks for.
+ */
+static int const k_web_skin_slots[] = {
+    TORIRS_CHROME_SKIN_PANEL_BODY,
+    TORIRS_CHROME_SKIN_DROPDOWN_BODY,
+    TORIRS_CHROME_SKIN_CHECK_ON,
+    TORIRS_CHROME_SKIN_CHECK_OFF,
+    TORIRS_CHROME_SKIN_SCROLL_UP,
+    TORIRS_CHROME_SKIN_SCROLL_DOWN,
+    TORIRS_CHROME_SKIN_SCROLL_TRACK,
+    TORIRS_CHROME_SKIN_SCROLL_GRIP_TOP,
+    TORIRS_CHROME_SKIN_SCROLL_GRIP_MID,
+    TORIRS_CHROME_SKIN_SCROLL_GRIP_BOTTOM,
+    TORIRS_CHROME_SKIN_FRAME_TOP_LEFT,
+    TORIRS_CHROME_SKIN_FRAME_TOP,
+    TORIRS_CHROME_SKIN_FRAME_TOP_RIGHT,
+    TORIRS_CHROME_SKIN_FRAME_LEFT,
+    TORIRS_CHROME_SKIN_FRAME_RIGHT,
+    TORIRS_CHROME_SKIN_FRAME_BOTTOM_LEFT,
+    TORIRS_CHROME_SKIN_FRAME_BOTTOM,
+    TORIRS_CHROME_SKIN_FRAME_BOTTOM_RIGHT,
+};
+
+/**
+ * One sprite as base64 RGBA, in the byte order ImageData wants.
+ *
+ * The bake is 0xAARRGGBB host-endian words; a canvas wants R,G,B,A bytes. The
+ * shuffle is here rather than in the page because it is a property of the
+ * BAKE's format, and a page reading the words directly would be right only on
+ * a little-endian machine that happened to agree.
+ */
+static char*
+chrome_web_sprite_b64(struct ToriRSChromeSkin_Sprite const* spr)
+{
+    static char const* const k_alphabet =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+    long const bytes = (long)spr->w * (long)spr->h * 4;
+    char* out = malloc((size_t)((bytes + 2) / 3) * 4 + 1);
+    unsigned char triple[3];
+    long o = 0;
+    int t = 0;
+
+    assert(out);
+    /* Three bytes to four, no line breaks: a data: URL takes none and the page
+     * never reads this as text. `bytes` is a whole number of pixels times
+     * four, so the tail is always empty -- the padding branches are still
+     * written, because a decoder is entitled to a well-formed string and a
+     * sprite with an odd byte count would otherwise produce a silent one. */
+    for( long i = 0; i < bytes; i++ )
+    {
+        uint32_t const p = spr->argb[i / 4];
+        switch( i % 4 )
+        {
+        case 0:
+            triple[t++] = (unsigned char)((p >> 16) & 0xFF); /* R */
+            break;
+        case 1:
+            triple[t++] = (unsigned char)((p >> 8) & 0xFF); /* G */
+            break;
+        case 2:
+            triple[t++] = (unsigned char)(p & 0xFF); /* B */
+            break;
+        default:
+            triple[t++] = (unsigned char)((p >> 24) & 0xFF); /* A */
+            break;
+        }
+        if( t < 3 )
+            continue;
+        out[o++] = k_alphabet[triple[0] >> 2];
+        out[o++] = k_alphabet[((triple[0] & 0x03) << 4) | (triple[1] >> 4)];
+        out[o++] = k_alphabet[((triple[1] & 0x0F) << 2) | (triple[2] >> 6)];
+        out[o++] = k_alphabet[triple[2] & 0x3F];
+        t = 0;
+    }
+    if( t == 1 )
+    {
+        out[o++] = k_alphabet[triple[0] >> 2];
+        out[o++] = k_alphabet[(triple[0] & 0x03) << 4];
+        out[o++] = '=';
+        out[o++] = '=';
+    }
+    else if( t == 2 )
+    {
+        out[o++] = k_alphabet[triple[0] >> 2];
+        out[o++] = k_alphabet[((triple[0] & 0x03) << 4) | (triple[1] >> 4)];
+        out[o++] = k_alphabet[(triple[1] & 0x0F) << 2];
+        out[o++] = '=';
+    }
+    out[o] = '\0';
+    return out;
+}
+
+/**
+ * Hand the page the metrics and the images, once, at open.
+ *
+ * A build with no baked skin sends the metrics and no sprites, and the page
+ * keeps its flat fallback stylesheet -- the same degradation every other
+ * consumer of the skin already has, and the reason the page's base sheet is
+ * complete on its own rather than assuming the overrides arrive.
+ */
+static void
+chrome_web_push_skin(void)
+{
+    char json[512];
+
+    snprintf(
+        json,
+        sizeof(json),
+        "{\"pad\":%d,\"rowH\":%d,\"rowGap\":%d,\"labelW\":%d,\"box\":%d,"
+        "\"checkGap\":%d,\"toggleW\":%d,\"toggleH\":%d,\"rowIcon\":%d,"
+        "\"rowIconGap\":%d,\"rowNameGap\":%d,\"dot\":%d,\"dotPitch\":%d,"
+        "\"dotInset\":%d,\"scrollW\":%d,\"swatch\":%d,\"swatchGap\":%d,"
+        "\"frame\":%d,\"tabH\":%d,\"tabPadX\":%d,\"fieldPadX\":%d,"
+        "\"fieldInset\":%d,\"dropArrow\":%d}",
+        TORIRS_CHROME_M_PAD,
+        TORIRS_CHROME_M_ROW_H,
+        TORIRS_CHROME_M_ROW_GAP,
+        TORIRS_CHROME_M_LABEL_W,
+        TORIRS_CHROME_M_BOX,
+        TORIRS_CHROME_M_CHECK_GAP,
+        TORIRS_CHROME_M_TOGGLE_W,
+        TORIRS_CHROME_M_TOGGLE_H,
+        TORIRS_CHROME_M_ROW_ICON,
+        TORIRS_CHROME_M_ROW_ICON_GAP,
+        TORIRS_CHROME_M_ROW_NAME_GAP,
+        TORIRS_CHROME_M_DOT,
+        TORIRS_CHROME_M_DOT_PITCH,
+        TORIRS_CHROME_M_DOT_INSET,
+        TORIRS_CHROME_M_SCROLL_W,
+        TORIRS_CHROME_M_SWATCH,
+        TORIRS_CHROME_M_SWATCH_GAP,
+        TORIRS_CHROME_M_FRAME,
+        TORIRS_CHROME_M_TAB_H,
+        TORIRS_CHROME_M_TAB_PAD_X,
+        TORIRS_CHROME_M_FIELD_PAD_X,
+        TORIRS_CHROME_M_FIELD_INSET,
+        TORIRS_CHROME_M_DROP_ARROW);
+    web_chrome_skin_metrics(json);
+
+    for( int i = 0; i < (int)(sizeof(k_web_skin_slots) / sizeof(k_web_skin_slots[0])); i++ )
+    {
+        int const slot = k_web_skin_slots[i];
+        struct ToriRSChromeSkin_Sprite const* spr = ToriRSChromeSkin_ForSlot(slot);
+        char* b64;
+
+        if( !spr || spr->w <= 0 || spr->h <= 0 )
+            continue;
+        b64 = chrome_web_sprite_b64(spr);
+        web_chrome_skin_sprite(slot, spr->w, spr->h, b64);
+        free(b64);
+    }
+    web_chrome_skin_done();
+}
 
 static int
 chrome_web_begin(void* user)
@@ -141,6 +348,11 @@ chrome_web_begin(void* user)
     }
     if( !web_chrome_open() )
         return 0;
+    /* After open(), because the page builds its root there and the stylesheet
+     * these produce is scoped to it -- and before any command, so the first
+     * row that arrives is already laid out on the real metrics rather than
+     * reflowed a frame later. */
+    chrome_web_push_skin();
     ToriRSChromeMirror_Init(&s->mirror);
     s->open = 1;
     return 1;

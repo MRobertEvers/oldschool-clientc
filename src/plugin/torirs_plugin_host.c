@@ -1812,6 +1812,15 @@ PluginHost_Name(struct ToriRS_PluginHost const* host, int plugin_index)
     return host->plugins[plugin_index].name;
 }
 
+bool
+PluginHost_IsAdapter(struct ToriRS_PluginHost const* host, int plugin_index)
+{
+    assert(host);
+    assert(plugin_index >= 0);
+    assert(plugin_index < host->plugin_count);
+    return host->plugins[plugin_index].def->adapter;
+}
+
 char const*
 PluginHost_Error(struct ToriRS_PluginHost const* host, int plugin_index)
 {

@@ -24,6 +24,7 @@ main(void)
     test_drag_scrolled();
     test_emit_icons();
     test_emit_stack_count_zero();
+    test_emit_stack_count_placeholder();
     test_emit_golden();
     test_key_dispatch();
     test_minimenu();

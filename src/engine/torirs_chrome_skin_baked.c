@@ -15,6 +15,15 @@
  *   PluginIcon           archive   785 frame 0  33x36
  *   CheckOn              archive  8380 frame 0  17x17
  *   CheckOff             archive  8379 frame 0  17x17
+ *   FrameTopLeft         archive  5814 frame 0  3x3
+ *   FrameTop             archive  5815 frame 0  3x3
+ *   FrameTopRight        archive  5816 frame 0  3x3
+ *   FrameLeft            archive  5817 frame 0  3x3
+ *   FrameCentre          archive  5818 frame 0  3x3
+ *   FrameRight           archive  5819 frame 0  3x3
+ *   FrameBottomLeft      archive  5820 frame 0  3x3
+ *   FrameBottom          archive  5821 frame 0  3x3
+ *   FrameBottomRight     archive  5822 frame 0  3x3
  *
  * Regenerate with:
  *   3rd/rscache/tools/spritebake/spritebake --rev osrs239 <cache> \
@@ -29,6 +38,15 @@
  *       --sprite 785.0=PluginIcon \
  *       --sprite 8380.0=CheckOn \
  *       --sprite 8379.0=CheckOff \
+ *       --sprite 5814.0=FrameTopLeft \
+ *       --sprite 5815.0=FrameTop \
+ *       --sprite 5816.0=FrameTopRight \
+ *       --sprite 5817.0=FrameLeft \
+ *       --sprite 5818.0=FrameCentre \
+ *       --sprite 5819.0=FrameRight \
+ *       --sprite 5820.0=FrameBottomLeft \
+ *       --sprite 5821.0=FrameBottom \
+ *       --sprite 5822.0=FrameBottomRight \
  *       --out <this file> --header <its header>
  */
 #include "torirs_chrome_skin_baked.h"
@@ -1713,7 +1731,52 @@ static const uint32_t ToriRSChromeSkin_CheckOff_argb[289] = {
     0x00000000,
 };
 
-static const struct ToriRSChromeSkin_Sprite ToriRSChromeSkin_table[11] = {
+static const uint32_t ToriRSChromeSkin_FrameTopLeft_argb[9] = {
+    0x00000000, 0x00000000, 0xFF000001, 0x00000000, 0xFF000001, 0xFF241F19, 0xFF000001, 0xFF241F19,
+    0xFF241F19,
+};
+
+static const uint32_t ToriRSChromeSkin_FrameTop_argb[9] = {
+    0xFF000001, 0xFF000001, 0xFF000001, 0xFF241F19, 0xFF241F19, 0xFF241F19, 0xFF241F19, 0xFF241F19,
+    0xFF241F19,
+};
+
+static const uint32_t ToriRSChromeSkin_FrameTopRight_argb[9] = {
+    0xFF000001, 0x00000000, 0x00000000, 0xFF241F19, 0xFF000001, 0x00000000, 0xFF241F19, 0xFF241F19,
+    0xFF000001,
+};
+
+static const uint32_t ToriRSChromeSkin_FrameLeft_argb[9] = {
+    0xFF000001, 0xFF241F19, 0xFF241F19, 0xFF000001, 0xFF241F19, 0xFF241F19, 0xFF000001, 0xFF241F19,
+    0xFF241F19,
+};
+
+static const uint32_t ToriRSChromeSkin_FrameCentre_argb[9] = {
+    0xFF241F19, 0xFF241F19, 0xFF241F19, 0xFF241F19, 0xFF241F19, 0xFF241F19, 0xFF241F19, 0xFF241F19,
+    0xFF241F19,
+};
+
+static const uint32_t ToriRSChromeSkin_FrameRight_argb[9] = {
+    0xFF241F19, 0xFF241F19, 0xFF000001, 0xFF241F19, 0xFF241F19, 0xFF000001, 0xFF241F19, 0xFF241F19,
+    0xFF000001,
+};
+
+static const uint32_t ToriRSChromeSkin_FrameBottomLeft_argb[9] = {
+    0xFF000001, 0xFF241F19, 0xFF241F19, 0x00000000, 0xFF000001, 0xFF241F19, 0x00000000, 0x00000000,
+    0xFF000001,
+};
+
+static const uint32_t ToriRSChromeSkin_FrameBottom_argb[9] = {
+    0xFF241F19, 0xFF241F19, 0xFF241F19, 0xFF241F19, 0xFF241F19, 0xFF241F19, 0xFF000001, 0xFF000001,
+    0xFF000001,
+};
+
+static const uint32_t ToriRSChromeSkin_FrameBottomRight_argb[9] = {
+    0xFF241F19, 0xFF241F19, 0xFF000001, 0xFF241F19, 0xFF000001, 0x00000000, 0xFF000001, 0x00000000,
+    0x00000000,
+};
+
+static const struct ToriRSChromeSkin_Sprite ToriRSChromeSkin_table[20] = {
     { 88, 60, ToriRSChromeSkin_PanelBody_argb },
     { 16, 16, ToriRSChromeSkin_ScrollUp_argb },
     { 16, 16, ToriRSChromeSkin_ScrollDown_argb },
@@ -1725,12 +1788,21 @@ static const struct ToriRSChromeSkin_Sprite ToriRSChromeSkin_table[11] = {
     { 33, 36, ToriRSChromeSkin_PluginIcon_argb },
     { 17, 17, ToriRSChromeSkin_CheckOn_argb },
     { 17, 17, ToriRSChromeSkin_CheckOff_argb },
+    { 3, 3, ToriRSChromeSkin_FrameTopLeft_argb },
+    { 3, 3, ToriRSChromeSkin_FrameTop_argb },
+    { 3, 3, ToriRSChromeSkin_FrameTopRight_argb },
+    { 3, 3, ToriRSChromeSkin_FrameLeft_argb },
+    { 3, 3, ToriRSChromeSkin_FrameCentre_argb },
+    { 3, 3, ToriRSChromeSkin_FrameRight_argb },
+    { 3, 3, ToriRSChromeSkin_FrameBottomLeft_argb },
+    { 3, 3, ToriRSChromeSkin_FrameBottom_argb },
+    { 3, 3, ToriRSChromeSkin_FrameBottomRight_argb },
 };
 
 const struct ToriRSChromeSkin_Sprite*
 ToriRSChromeSkin_Get(int slot)
 {
-    if( slot < 0 || slot >= 11 )
+    if( slot < 0 || slot >= 20 )
         return 0;
     return &ToriRSChromeSkin_table[slot];
 }
@@ -1738,5 +1810,5 @@ ToriRSChromeSkin_Get(int slot)
 int
 ToriRSChromeSkin_Count(void)
 {
-    return 11;
+    return 20;
 }

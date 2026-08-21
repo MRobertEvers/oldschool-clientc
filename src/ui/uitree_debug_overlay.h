@@ -203,6 +203,32 @@ enum ToriRSChromeSkinSlot
      */
     TORIRS_CHROME_SKIN_CHECK_ON,
     TORIRS_CHROME_SKIN_CHECK_OFF,
+    /**
+     * The interfaces' own panel frame, as a NINE-SLICE: four 3x3 corners, four
+     * 3px edges stretched along their sides, and a centre.
+     *
+     * This is the border the gameframe's popout strip draws around the panels
+     * that mount in it -- which is why a plugin window built by the CS2
+     * executor wears one and the same window drawn in canvas did not. A panel
+     * asks for it with ToriRSChrome_PanelSetFramed; see the note there on why
+     * it is opt-in rather than the window style's own chrome.
+     *
+     * The corners are ROUNDED -- their outer pixel is transparent -- so the
+     * pieces have to be blitted at their baked size rather than stretched
+     * through one box, and the order below is the order dbg_push_frame draws
+     * them in. The centre is baked but never drawn: the panel body's own tile
+     * is already under it, and painting a flat brown over the parchment would
+     * be the frame erasing the surface it frames.
+     */
+    TORIRS_CHROME_SKIN_FRAME_TOP_LEFT,
+    TORIRS_CHROME_SKIN_FRAME_TOP,
+    TORIRS_CHROME_SKIN_FRAME_TOP_RIGHT,
+    TORIRS_CHROME_SKIN_FRAME_LEFT,
+    TORIRS_CHROME_SKIN_FRAME_CENTRE,
+    TORIRS_CHROME_SKIN_FRAME_RIGHT,
+    TORIRS_CHROME_SKIN_FRAME_BOTTOM_LEFT,
+    TORIRS_CHROME_SKIN_FRAME_BOTTOM,
+    TORIRS_CHROME_SKIN_FRAME_BOTTOM_RIGHT,
     TORIRS_CHROME_SKIN_SLOT_COUNT
 };
 
@@ -618,6 +644,29 @@ struct ToriRSChromePanel
     int style;
     int visible;
     /**
+     * The panel carries its own Ok and Close buttons in its title bar.
+     *
+     * OPT-IN, and that is the point. Most panels here are developer tools
+     * toggled by a hotkey, and a close box on one is chrome that duplicates a
+     * key nobody has trouble finding. The plugin window is the opposite case:
+     * it is the one panel a PLAYER uses, it is reached by a sidebar button
+     * rather than a key, and in the CS2 presentation -- where it is a column
+     * of game components with no window furniture of its own -- there was no
+     * way to shut it at all. It opened and stayed open.
+     */
+    int closable;
+    /**
+     * Which widget the Ok button stands for, or -1 for "Ok just closes".
+     *
+     * The MODEL resolves it, so a presentation's confirm affordance needs to
+     * know nothing about what this panel is for: it sends CONFIRM, and the
+     * model latches this handle as activated exactly as a click on it would.
+     * The plugin window points it at the page's Save row, which is what makes
+     * Ok mean what it says on a page that stages its edits -- and what makes
+     * it a plain dismiss on the roster, which stages nothing.
+     */
+    int confirm_widget;
+    /**
      * Draw a resize grip in the bottom-right corner and let it be dragged.
      *
      * Both axes. The origin stays put and the dragged corner follows the
@@ -630,6 +679,41 @@ struct ToriRSChromePanel
      * for the other answer.
      */
     int resizable;
+    /**
+     * Wear the interfaces' nine-slice border instead of the minimenu's rails.
+     *
+     * The frame the gameframe's popout strip draws around the panels mounted
+     * in it (TORIRS_CHROME_SKIN_FRAME_TOP_LEFT and its eight siblings). A
+     * framed panel keeps its title bar -- inset by the frame -- and drops the
+     * bottom rule and the two side rails, because those ARE the border it now
+     * has one of.
+     *
+     * Opt-in rather than a property of the window style, and both of the
+     * reasons are live in this tree at once: a floating developer panel wants
+     * the minimenu's rails so it reads as a menu beside a real minimenu, and a
+     * panel mounted inside something that already draws a frame (the strip)
+     * must not draw a second one inside the first.
+     *
+     * Ignored on a build whose skin carries no frame -- see
+     * dbg_panel_is_framed, which is what keeps the LAYOUT honest too: a panel
+     * that reserved three pixels for a border it cannot draw would sit its
+     * content in from an edge that is not there.
+     */
+    int framed;
+    /**
+     * The panel IS its surface: origin 0,0, exactly the surface's size.
+     *
+     * For a presentation that owns a WINDOW OF ITS OWN there is nothing behind
+     * the panel for it to float over, so a box parked at (8,72) leaves three
+     * bands of empty background around it and reads as a window inside a
+     * window -- and one that never grows when the OS window is dragged wider.
+     * @see ToriRSChromeSync_FillSurface, which is what sets this.
+     *
+     * Filling takes the drag and the grip away with it. Both write geometry
+     * that the next fill overwrites, so leaving them is an affordance that
+     * lies; the OS window's own frame is what moves and resizes this now.
+     */
+    int filled;
     /**
      * Rows past the bottom scroll into view instead of being dropped.
      *
@@ -675,17 +759,6 @@ struct ToriRSChromePanel
      * be rebuilt from the top.
      */
     int build_tab;
-    /**
-     * Table layout: every labelled control in this panel starts its box at one
-     * shared column, sized to the panel's widest label. Off, each row's box
-     * starts right after its own label, which reads as a ragged pile the
-     * moment two labels differ in width -- "Tool" and "LocRot" gave every
-     * dropdown its own left edge.
-     */
-    int table;
-    /** Resolved by Build: the shared label column width, 0 when not a table
-     *  or no row carries a label. */
-    int label_col;
     int x;
     int y;
     /** 0 = size to content. A grip drag writes the width it lands on here. */
@@ -934,6 +1007,32 @@ void
 ToriRSChrome_PanelSetResizable(struct ToriRSChrome* ui, int panel, int resizable);
 
 /**
+ * Give a panel the interfaces' nine-slice border.
+ *
+ * @see ToriRSChromePanel::framed for what it replaces and why it is asked for
+ * rather than implied by the panel's style. A build with no frame in its baked
+ * skin keeps the rails, layout included.
+ */
+void
+ToriRSChrome_PanelSetFramed(struct ToriRSChrome* ui, int panel, int framed);
+
+/**
+ * Give a panel an Ok and a Close button in its title bar.
+ *
+ * @param confirm_widget the handle Ok stands for, or -1 to make Ok a plain
+ *        dismiss. @see ToriRSChromePanel::confirm_widget.
+ *
+ * Both dismiss the panel; Ok additionally fires `confirm_widget`, so a page
+ * that stages its edits commits them on the way out and one that does not is
+ * unaffected. Discarding is what CLOSE has always meant here -- staged rows
+ * live in the chrome and nothing writes them but their own Save -- so the two
+ * buttons are the two honest outcomes rather than one of them plus a synonym.
+ */
+void
+ToriRSChrome_PanelSetClosable(
+    struct ToriRSChrome* ui, int panel, int closable, int confirm_widget);
+
+/**
  * Set a panel's hand-picked width, or 0 to go back to sizing from content.
  *
  * The counterpart to the `fixed_w` PanelAdd takes: a width authored in chrome
@@ -943,6 +1042,20 @@ ToriRSChrome_PanelSetResizable(struct ToriRSChrome* ui, int panel, int resizable
  */
 void
 ToriRSChrome_PanelSetFixedWidth(struct ToriRSChrome* ui, int panel, int width);
+
+/**
+ * Stretch a panel over a whole surface: origin 0,0, exactly `w` x `h`.
+ *
+ * @see ToriRSChromePanel::filled for what it costs the panel, and
+ * ToriRSChromeSync_FillSurface for the caller that knows the size -- a host
+ * asks the executor how big its window is rather than deciding here, because
+ * ui/ has no idea what a window is.
+ *
+ * Idempotent, which is what lets it run every frame: a repeat of the size the
+ * panel already fills marks nothing dirty and rebuilds nothing.
+ */
+void
+ToriRSChrome_PanelFill(struct ToriRSChrome* ui, int panel, int w, int h);
 
 /** Resolved bounds of a panel as of the last Build. 0 when unknown. */
 struct ToriRSChromeRect
@@ -1028,11 +1141,41 @@ ToriRSChrome_DropdownSetSelected(struct ToriRSChrome* ui, int widget, int select
 uint32_t
 ToriRSChrome_Hsl16ToRgb(int hsl16);
 
-/** 0xRRGGBB -> the nearest packed HSL16, quantised exactly as the reference's
- *  rgbToHSL does -- ceilings and all, because landing on the same palette
- *  entry the game's own art does is the point of the conversion. */
+/**
+ * 0xRRGGBB -> a packed HSL16, quantised exactly as the reference's rgbToHSL
+ * does -- ceilings, `% 63` and all.
+ *
+ * This is what the game's own toolchain used to turn authored art into palette
+ * indices, so it is what makes a chosen colour land on the entry the cache's
+ * models already use, and it is what the plugin api exposes as `hsl_from_rgb`.
+ *
+ * It is NOT an inverse of ToRgb and cannot be made into one: the palette puts
+ * hue h at (h + 0.5) / 64 and this recovers it with `ceil(hue * 64) % 63`, so
+ * a round trip moves the hue by one and the saturation by more. Use
+ * ToriRSChrome_Hsl16NearestRgb wherever the round trip has to hold still.
+ */
 int
 ToriRSChrome_Hsl16FromRgb(uint32_t rgb);
+
+/**
+ * 0xRRGGBB -> the palette entry that is actually CLOSEST to it.
+ *
+ * The conversion a picker needs, and a different question from the one above.
+ * A colour row's value is a palette entry and the config store holds its hex,
+ * so every open reads a colour back through this -- and with the reference
+ * quantiser that read moved the colour, by one hue step and two saturation
+ * steps, EVERY TIME. Sixty-three thousand of the sixty-five thousand entries
+ * failed to survive one round trip, so a saved marker colour drifted a shade
+ * per session and nothing anywhere said why.
+ *
+ * Exact, by search: an entry whose RGB matches is at distance zero, so
+ * `Nearest(ToRgb(h))` always yields an entry with ToRgb(h)'s exact colour and
+ * the round trip is stable by construction. The search is the full 32768-entry
+ * palette in the sum-of-squares sense; it costs about a millisecond, and it
+ * runs when a panel is BUILT rather than when it is drawn.
+ */
+int
+ToriRSChrome_Hsl16NearestRgb(uint32_t rgb);
 
 /** Split a packed HSL16 into its three axes. Any of the outs may be NULL. */
 void
@@ -1209,10 +1352,6 @@ ToriRSChrome_PanelClearWidgets(struct ToriRSChrome* ui, int panel);
 void
 ToriRSChrome_SetHidden(struct ToriRSChrome* ui, int widget, int hidden);
 
-/** Turn table layout on or off for a panel; see ToriRSChromePanel::table. */
-void
-ToriRSChrome_PanelSetTable(struct ToriRSChrome* ui, int panel, int table);
-
 /** A model-view box of w x h chrome pixels. Draws nothing until the host
  *  hands it a rendered sprite via ToriRSChrome_ModelViewSet. */
 int
@@ -1280,6 +1419,67 @@ ToriRSChrome_HasVisiblePanel(struct ToriRSChrome const* ui);
 /** @return widget handle under (x,y), or -1. Only hits visible panels. */
 int
 ToriRSChrome_HitTest(struct ToriRSChrome const* ui, int x, int y);
+
+/* ---- moving the OS window by chrome that is drawn in it ------------------- */
+
+/**
+ * Boxes that drag the WINDOW, and boxes inside them that do not.
+ *
+ * WHY A PUBLISHED REGION AND NOT A QUERY. The point test this feeds runs inside
+ * the platform's event pump -- the window manager asks while it is deciding
+ * what a mouse press even IS -- and this model is the frame thread's, laid out
+ * and mutated there. A callback that walked panels and widgets would be reading
+ * a tree the frame it interrupted is halfway through rebuilding. A dozen
+ * rectangles copied out once a frame is a snapshot the pump can test against
+ * for nothing, and it is also the whole of what the pump needs.
+ *
+ * WHY HOLES. A draggable region SWALLOWS the press that starts the drag: the
+ * application is never told about a mouse-down there. So every control inside a
+ * handle has to be punched back out of it, or it silently stops being
+ * clickable -- and "the tabs of the tab strip I am dragging the window by" is
+ * exactly that case.
+ *
+ * The tab run is ONE hole rather than one per tab because tabs are laid out
+ * contiguously from the strip's left edge: their union is the run, and what is
+ * left draggable is the empty tail behind it. A strip whose tabs have been
+ * compressed to fill its width therefore offers no handle at all, correctly --
+ * there is no pixel of it that is not a tab. The panel's title bar is the
+ * handle that is always there.
+ */
+#define TORIRS_CHROME_DRAG_HANDLES_MAX 2
+#define TORIRS_CHROME_DRAG_HOLES_MAX 6
+
+struct ToriRSChromeDragRegion
+{
+    struct ToriRSChromeRect handles[TORIRS_CHROME_DRAG_HANDLES_MAX];
+    int handle_count;
+    struct ToriRSChromeRect holes[TORIRS_CHROME_DRAG_HOLES_MAX];
+    int hole_count;
+};
+
+/**
+ * This frame's window-move handles for `panel`, in the surface's own pixels.
+ * @return 1 when there is a region; 0 -- with `out` cleared -- when there is
+ * none, which a caller must still publish rather than skip.
+ *
+ * Only a FILLED window panel has one. A floating panel is dragged INSIDE the
+ * canvas by its own header (dbg_panel_header_at), and moving the OS window from
+ * that header would take the game out from under the pointer; a filled panel is
+ * the whole of its window, so its title bar and the tail of its tab strip are
+ * the only chrome in it with no other job.
+ */
+int
+ToriRSChrome_WindowDragRegion(
+    struct ToriRSChrome const* ui, int panel, struct ToriRSChromeDragRegion* out);
+
+/**
+ * Is (x,y) on a handle and in no hole?
+ *
+ * Pure, and takes no model: this is the half that runs in the event pump,
+ * against the copy that was published to it.
+ */
+int
+ToriRSChromeDragRegion_Contains(struct ToriRSChromeDragRegion const* region, int x, int y);
 
 /** @return 1 when the overlay consumed the event (pointer was over a panel). */
 int

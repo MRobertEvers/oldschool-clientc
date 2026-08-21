@@ -119,10 +119,19 @@ static struct ToriRS_PluginConfigItem const TILEIND_CONFIG[] = {
     { NULL,         TORIRS_PLUGIN_CFG_BOOL,  NULL,                 NULL,      0, 0,   NULL },
 };
 
-/* Off by default, and for two reasons: a marker under the player is a
- * debugging aid nobody asked for on first launch, and this is the parity twin
- * of the Lua script -- running both at once draws every tile twice. Switch it
- * on to compare the two implementations. */
+/*
+ * On by default, like everything else that ships.
+ *
+ * It was off, for two reasons that are worth keeping written down. A marker
+ * under the player is a debugging aid nobody asked for on first launch; and
+ * this is the PARITY TWIN of `plugins/tile_indicator.lua`, so with both
+ * running every tile is drawn twice, by two implementations that exist to be
+ * compared against each other. Neither reason has gone away -- the default
+ * changed, not the situation. If the doubled marker is unwanted, the fix is to
+ * drop one of the two from `script/plugins/plugins.ini`, not to put this back
+ * to off: which twin runs is a question about the list, and the list is where
+ * it can be answered per lane.
+ */
 struct ToriRS_PluginDef const TORIRS_PLUGIN_TILEIND = {
     /* Not "tile-indicator": that name belongs to the Lua script this is the
      * twin of, and a name is what keys the settings section -- two plugins
@@ -131,7 +140,6 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_TILEIND = {
     .version = "1.0.0",
     .priority = 0,
     .config = TILEIND_CONFIG,
-    .disabled_by_default = true,
     .init = tileind_init,
     .shutdown = NULL,
 };

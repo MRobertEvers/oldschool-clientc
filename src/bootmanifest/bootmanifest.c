@@ -388,6 +388,21 @@ bm_set_kv(
             }
             return;
         }
+        /*
+         * No frame on the plugin window; the panel's own title bar and the
+         * tail of its tab strip move it instead.
+         *
+         * No `_set` flag beside it, unlike `executor`: off is not a default
+         * that something else might want to override, it is the state every
+         * window is in until a lane asks otherwise. There is nothing for
+         * "explicitly off" to mean that "unset" does not already.
+         */
+        if( strcmp(key, "borderless") == 0 )
+        {
+            bm->chrome_borderless =
+                strcmp(value, "true") == 0 || strcmp(value, "yes") == 0 || atoi(value) != 0;
+            return;
+        }
         break;
 
     case BM_SECTION_CACHE:

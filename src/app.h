@@ -1047,6 +1047,9 @@ struct App
     /** enum ToriRSChromeExecKind actually bound -- which is not always the one
      *  asked for: an executor that will not start falls back to buffer. */
     int plugin_exec_kind;
+    /** The kind the boot line last named, so re-binding the window on every
+     *  open does not restate it. -1 until the first bind. */
+    int plugin_exec_logged_kind;
     /**
      * Someone NAMED that executor, rather than getting it by default.
      *

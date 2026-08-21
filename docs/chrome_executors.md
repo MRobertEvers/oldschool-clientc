@@ -150,6 +150,16 @@ them a choice would be four more consumers to keep working for nobody.
 
 ### What each native-widget executor does
 
+**All three wear the same art.** `web`, `gdi` and `cs2` draw their controls out
+of one bake -- `engine/torirs_chrome_skin_baked.c` -- on one set of metrics,
+`ui/torirs_chrome_metrics.h`. What differs is only how a platform is *told*: the
+CS2 executor is handed a scene id, the page is handed base64 RGBA it turns into
+data: URLs, and Windows gets a DIB it composites in software. The semantic slot
+enum and the bake's own order are the same numbers, which all of them rely on
+and none of them used to check; `ui/torirs_chrome_skin.h` is the static
+assertion that they agree, and the page's copy of the same table is pinned by
+`web/test/chrome_enum_sync_test.js`.
+
 - **web** (`src/ui/torirs_chrome_exec_web.c` + `src/web/torirs_chrome.js`) --
   every crossing is an `EM_JS` call onto a `window.torirsChrome*` hook,
   following the existing `web_editor_open_panel_tab` pattern: C asks, the page
@@ -160,6 +170,79 @@ them a choice would be four more consumers to keep working for nobody.
   way. The hooks' *presence* is the availability test, so a cached `index.html`
   without them degrades to in-canvas chrome instead of a window that silently
   does nothing.
+
+  **The art crosses too, once, at open.** `torirsChromeSkinMetrics` carries the
+  numbers out of `torirs_chrome_metrics.h`; `torirsChromeSkinSprite` carries
+  each baked image as base64 RGBA, which the page turns into a data: URL
+  through an ImageData and a canvas. Raw pixels rather than PNG, because a PNG
+  encoder in C would exist for this alone and the platform already has a
+  decoder. About 70KB, once, and nothing per frame.
+
+  The page builds the panel out of it: tradebacking behind the window and every
+  field, the interfaces' tick and cross as an `appearance:none` checkbox's
+  background, the scrollbar's own down arrow on a `<select>`,
+  `::-webkit-scrollbar` wearing the bar's track and grip, and the nine-slice
+  frame as a `border-image` -- composed from the eight pieces into one 9x9,
+  because `border-image` takes a single source. Every rule is an OVERRIDE of a
+  flat one, scoped to `.skinned`, and the class goes on only when every sprite
+  the sheet names has arrived: a nine-slice frame around a flat black panel
+  reads as a fault, where a complete flat window reads as a theme.
+
+  The shuffle from the bake's `0xAARRGGBB` words to ImageData's R,G,B,A bytes
+  happens in C, and `make -C src test-chrome-web-skin` is what keeps it honest
+  -- it decodes the real bake back and asserts the ON slot is a *green* tick and
+  the OFF slot a *red* cross. A red/blue swap decodes, blits and looks
+  deliberate; the hue is the only thing that catches it.
+
+  **It sits in an iframe beside the canvas, exactly as tall.** Not a corner
+  overlay -- which is what it was, and it covered the part of the frame the
+  player was looking at. The plugin window is read *while* the game is played,
+  so it belongs next to the picture; every executor with a real window of its
+  own had already answered this the other way. An `<iframe>` rather than a
+  `<div>` for the same reason those get a window: the chrome is then in a
+  document of its own, so the host page's stylesheet cannot reach its controls
+  and typing into a settings field cannot reach the canvas's key listeners and
+  walk the player. The iframe is created with **no `src`** -- an iframe left
+  without one keeps the about:blank document it is born with, and writing into
+  that is synchronous, where `src="about:blank"` navigates it and replaces
+  what you built a tick later. The height is the canvas's, tracked with a
+  `ResizeObserver`, so the page's scaled modes, the browser window and the
+  game's own Display setting all move it. So is the **top edge**: the scaled
+  modes centre the letterboxed canvas inside its stage, so the picture starts
+  below the row the window is in, and matching only the height left the window
+  hanging above it. It is corrected as a delta off where the frame currently
+  measures, which keeps the parent's padding and alignment out of the sum, and
+  the canvas's *container* is observed as well -- growing the stage in the
+  dimension the fit is not limited by moves the canvas without resizing it.
+  The frame's width is published to the page as `--torirs-dock-width` (`0px`
+  when nothing is docked), which is how `index.html` keeps its full-canvas
+  corner toggles off the window's title bar without knowing anything else
+  about it. A page with no `#canvas` falls back to the old corner overlay.
+
+  **A pop-out mark moves it into a tab of its own**, and moves it back. The
+  tab is about:blank built by this same page, not a URL with a script of its
+  own: the widget state lives in the client and the intent queue lives in the
+  page's host object, both one same-origin property access from the popped-out
+  document, where a second page would need the channel, a HELLO and a second
+  copy of every branch in `makeWidget`. The nodes are **adopted, not rebuilt**
+  (`adoptNode`), because the seam emits deltas -- a rebuilt page would sit
+  empty until something in the model happened to change -- and adopting keeps
+  the listeners, values and caret. Where a presentation puts its pixels is its
+  own business, so none of this reaches the model, exactly as the SDL window's
+  position never does. Closing the popped-out tab is reported as a `CLOSE`,
+  like the SDL window's X.
+
+  **Its close mark was dead for a release**, and the cause is worth keeping:
+  Ok and Close name a panel, and the page latched which panel that was when a
+  `TABSTRIP` arrived. The plugin window is *paged*, not tabbed, so no strip
+  ever arrives: both buttons addressed panel `-1`, `PanelSetVisible` validated
+  that away, and every layer reported success. It is latched on `PANEL_OPEN`
+  now -- the one command every window gets -- and `ToriRSChromeIntent_Apply`
+  answers a close naming a panel the model does not have with **0** rather
+  than the 1 it used to give unasked, so a drain that changed nothing can no
+  longer read as one that worked. The page's own test grew a window with no
+  tab strip to catch it; the fixture that hid it was one that always built a
+  strip first.
 
 - **gdi** (`src/ui/torirs_chrome_exec_gdi.c`) -- an owned
   `WS_EX_TOOLWINDOW` whose children are USER32 controls: `BUTTON` with
@@ -197,10 +280,11 @@ them a choice would be four more consumers to keep working for nobody.
      `u.rs_text.text` afterwards is a heap corruption on the next rebuild, not
      a leak. Hand strings to the *builder*.
   4. **Its art is baked in, not loaded.** The furniture -- tradebacking behind
-     panels and fields, and the six pieces `~script31` builds a scrollbar out
-     of -- comes from `engine/torirs_chrome_skin_baked.c`, the same bake the
-     in-canvas chrome draws, handed over as one multi-frame scene sprite whose
-     frames are `enum ToriRSChromeSkinSlot`. So does the wrench on the strip button.
+     panels and fields, the six pieces `~script31` builds a scrollbar out of,
+     and the nine-slice panel frame -- comes from
+     `engine/torirs_chrome_skin_baked.c`, the same bake the in-canvas chrome
+     draws, handed over as one multi-frame scene sprite whose frames are
+     `enum ToriRSChromeSkinSlot`. So does the wrench on the strip button.
      Components reach it through `UIBuildComponent::graphic_scene_id` +
      `graphic_atlas_index`, which bypass the sprite resolver entirely.
 
@@ -212,6 +296,21 @@ them a choice would be four more consumers to keep working for nobody.
      picture; and the launcher button could not be built at all until its icon
      resolved. None of those failure modes exist now -- the images are `.rdata`
      and the only question left is whether this *build* baked a skin.
+
+  **Its metrics are not its own either.** The row grid, the label column, the
+  control sizes and the palette all come from `ui/torirs_chrome_metrics.h`,
+  which the in-canvas chrome reads too -- see §8.0 of
+  `src/ui/README_DEBUG_OVERLAY.md`. Two files implementing one picture from two
+  sets of numbers is exactly how the panel came to look different depending on
+  which executor was bound to it, so there is now one set. A number that
+  belongs only to this presentation (the tab caption's approximated advance,
+  the component-id blocks) still lives here.
+
+  **The frame is the strip's, or its own.** Mounted in `popout:container` the
+  panel draws no border at all -- `popout:frame` already drew one, and a second
+  inside the first is a box in a box. Standalone it draws the nine-slice itself,
+  which is the same border `ToriRSChrome_PanelSetFramed` puts on the in-canvas
+  window, so the two presentations are the same window either way.
 
   The scrollbar is drawn the way `~script31` assembles one -- track, grip,
   arrow sprites -- but only the ARROWS take a click, because a grip drag is a
@@ -232,6 +331,17 @@ them a choice would be four more consumers to keep working for nobody.
   Dropdowns **cycle** on click rather than opening a list: a popup is an open
   state held across frames plus its own hit test, and stepping to the next
   option is the whole affordance a declared enum needs.
+
+  The focused field is **outlined** in the accent, from `WIDGET_FOCUS`. Before
+  that command existed the rows took typing perfectly well and gave no sign of
+  it, so they read as read-only -- which is exactly how they were reported.
+
+  A colour row builds its **axis bars as components** when the model says its
+  picker is open: three rows of 32 cells each, in a block of ids of their own.
+  Thirty-two rather than one per value, because 64 hues plus 128 lightnesses
+  would be two hundred nodes in the interface tree for one open popup; the cell
+  a click lands in maps back onto the axis's full range, so every value is
+  still reachable and only the pointer is coarser.
 
 ## 5. The SDL executor
 
@@ -256,6 +366,92 @@ Input is routed by SDL **window id**, not by "is the pointer over it": a drag
 that started in one window keeps delivering to that window, which is what makes
 a grip drag work when the cursor leaves the frame -- and what would otherwise
 let a click in the plugin window also walk the player.
+
+### A window of its own is filled, not floated in
+
+A panel's authored box -- (8,72), 320 wide -- is a box that floats over the
+**game canvas**, which is what it has to float over. Put the same box in a
+window that holds nothing else and it is a window inside a window: three bands
+of empty background around it, and dragging the frame wider grows the
+background rather than the settings.
+
+So a presentation whose surface is a window of its own gets the panel stretched
+over the whole of it, every frame, tracking the OS window as the user drags it.
+The rule is `ToriRSChromeSync_FillSurface`'s, in the seam -- not the SDL
+executor's -- and an executor opts into it by answering `surface_size`. That
+answer *is* the declaration: a flag beside a getter would be two things that
+can disagree, and this is the table where which entries an implementation fills
+already says which kind it is. The buffer executor shares the canvas with the
+game and has neither, so in-canvas chrome goes on floating; a native-widget
+executor lays its own controls out and never sees this at all.
+
+Filling takes the panel's **drag and grip** with it (`ToriRSChromePanel::filled`).
+Both write geometry that the next fill overwrites, so leaving them is a title
+bar that takes the cursor and gives nothing back, and a corner that snaps.
+The OS window's own frame is what moves and resizes it now.
+
+`test-uitree` pins it through the recorder, which grows a window when a test
+sets `surface_w`/`surface_h` -- so the fill, the resize, the two dead
+affordances and the in-canvas panel that must NOT be touched are all checked on
+a machine with no display.
+
+### No OS frame: dragging the window by the chrome in it
+
+`[chrome] borderless = 1` (or `TORIRS_CHROME_BORDERLESS=1`) opens the window
+with no OS frame at all, and the panel's own title bar and the empty tail of its
+tab strip move it instead. Off by default: a frameless window is a look, and one
+a lane has to ask for.
+
+Taking the frame off takes four things with it -- the title bar that moved the
+window, the border that resized it, the buttons that closed and minimised it,
+and the double-click that zoomed it. Two of those come back through SDL's window
+hit test (`SDL_SetWindowHitTest`), which asks us, per point, what that pixel is:
+
+- a band `SDL_BORDERLESS_RESIZE` points deep along each edge resizes, corners
+  first. **Tested before the drag handles, and it has to be:** the strip runs to
+  the top edge, and a window whose top edge drags instead of resizing can never
+  be made shorter from the top again;
+- anything the chrome published as a handle drags;
+- everything else is an ordinary press.
+
+Closing comes back through the panel's own Close button, which it already had.
+
+**A draggable region swallows the press that starts the drag.** The application
+is never told about a mouse-down inside one, so every control drawn inside a
+handle has to be punched back out of it or it silently stops being clickable.
+That is what `struct ToriRSChromeDragRegion` is: handles, minus holes. The holes
+are the tab run, a closable panel's Ok and Close, and any dropdown list or
+colour picker floating over the strip while it is open.
+
+The tab run is **one** hole rather than one per tab, because tabs are laid out
+contiguously from the strip's left edge -- their union is the run, and the tail
+behind it is the only part of the strip that is not already a control. A strip
+whose tabs have been compressed to fill its width therefore offers no handle at
+all, correctly. The title bar is the handle that is always there.
+
+Why a **published region** rather than a callback into the model: SDL calls the
+hit test from inside its event pump, while the window manager is deciding what a
+press even is, and the model is the frame thread's. A callback that walked
+panels and widgets would be reading a tree the frame it interrupted is halfway
+through rebuilding. So the host publishes a dozen rectangles once a frame --
+`ToriRSChromeSync_PublishDragRegion`, **after** Build, unlike `FillSurface`
+before it, because these are laid-out boxes and publishing them a frame early is
+a drag band sitting where the panel used to be. An empty region is published
+too: an executor that simply stopped hearing about handles would go on offering
+the last set it was told.
+
+If the video driver has no hit test, `PlatformSDL2_AuxSetBorderless` **refuses
+and keeps the frame**, with a line on stderr saying why. Every way a user has of
+moving or resizing a window runs through the frame or the hit test; a window
+with neither is pinned where it opened, at the size it opened, for the rest of
+the session -- a worse answer than the frame it was asked to hide. `dummy`
+refuses; Cocoa, Windows and X11 do not.
+
+The same platform calls exist for the **game** window
+(`PlatformSDL2_SetBorderless`, `PlatformSDL2_SetDragHandleProvider`, which takes
+canvas coordinates with the letterbox already undone). Nothing wires them: the
+game window has no drawn top bar to grab, and hiding its frame without one would
+leave it movable only from its resize edges.
 
 ## 5a. Opening it: the sidebar Plugin button
 
@@ -285,6 +481,50 @@ Two things about its placement were bugs first:
 - **Position comes from the canvas, not the layout root.** They are different
   spaces: on this lane the layout root is 1224 wide while the canvas is 765, so
   a button placed from the root sits four hundred pixels off the right edge.
+
+### Closing it takes the presentation down with it
+
+Opening the window **binds** an executor and closing it **unbinds** one. The
+two are the same lever, and for a while only one end of it was wired: Close hid
+the panel, the executor went on being driven for a panel with nothing in it,
+and the plugin window stayed on screen -- empty -- while the client insisted it
+was closed. The next press of the toggle then spent itself re-closing something
+the user had already closed.
+
+The chain is worth stating because no link in it is obviously the owner:
+
+1. A close arrives. From the panel's own close box (any presentation), from
+   the window's title bar (SDL, GDI), from a popped-out tab being closed
+   (web), or from the toggle.
+2. It lands on the **model**: `CLOSE` and `CONFIRM` both end at
+   `PanelSetVisible(0)`, which is what keeps five presentations of one panel
+   from disagreeing about whether it is up.
+3. The host reconciles its own flag against the model each frame -- the model
+   is the only thing every presentation shares, so it is the only place the
+   answer can be read -- and calls `app_plugin_window_set_open(app, 0)`.
+4. That calls `ToriRSChromeSync_Shutdown`, and the executor's own `end()`
+   decides what closing means: SDL destroys its aux window, GDI its HWND, the
+   web one calls the page's close hook, the CS2 one clears the nodes it built.
+
+The host knows none of those four things, which is the point. The next open
+re-binds from scratch, so nothing carries a shadow of a window nobody can see
+-- and a window taken down by *its* side is openable again, because `live` is
+the guard the bind reads.
+
+A presentation can also lose its window from its own side, and each says so in
+the model's vocabulary rather than going quiet: the web page reports a
+`CLOSE` when the popped-out tab is gone (polled in `takeIntent`, because the
+client already calls that once a frame and `unload` fires on a reload too), and
+the SDL executor reports its title-bar X.
+
+The SDL one **also drops the window at once**.
+That is a deliberate departure from the GDI rule ("report it, and let the model
+decide"): a Win32 window is still there to wait in, an aux window whose
+`SDL_Window` is gone is not, and presenting into it would be drawing into a
+window that no longer exists. It is the only intent a surface executor sends --
+every other gesture goes back raw through `surface_input` for the chrome to hit
+test itself -- and it needs the panel handle, which is the one thing that file
+reads out of the command stream (`PANEL_OPEN`).
 
 ## 6. The plugin window
 
@@ -357,6 +597,58 @@ waiting to be saved.
 Save reads a dropdown's chosen **option**, not its text field; a dropdown's text
 is empty, and reading it wrote every enum key blank.
 
+### Colours are picked on the game's own axes
+
+A declared `CFG_COLOR` key is an **HSL16 picker** -- a swatch, a typeable hex,
+and a popup of three bars that are the palette's own axes: 64 hues, 8
+saturations, 128 lightnesses.
+
+Those axes rather than RGB, because a model face is not RGB. It is a 6-bit
+hue / 3-bit saturation / 7-bit lightness index into the revision's palette
+(which is why the plugin api has `hsl_from_rgb` at all), so a 24-bit picker
+would be lying about its own precision: two hexes the user can tell apart in
+the field land on one entry on screen. Picking on the axes makes every
+reachable value one the renderer can produce, and puts the quantisation where
+the user can see it -- the field shows the entry the colour landed on, not the
+colour that was asked for.
+
+The hex stays editable, because a colour usually arrives as a hex out of a wiki
+page or another client. Typing one commits on Enter or on blur, never per
+keystroke: half a hex is not a colour, and a swatch flickering through six
+wrong ones while the right one is typed reads as a fault.
+
+**The store round trip has to hold still, and with the reference quantiser it
+did not.** `hsl_from_rgb` is the function Jagex's toolchain used to turn
+authored art into palette indices; it is not an inverse of the palette and
+cannot be made into one (the palette puts hue *h* at `(h + 0.5) / 64` and it
+recovers hue with `ceil(hue * 64) % 63`). Measured: 63813 of the 65536 entries
+fail to survive one `hsl -> rgb -> hsl` trip. Since Save writes the hex and the
+next open reads it back, a marker colour drifted a shade per session. The
+picker therefore uses `ToriRSChrome_Hsl16NearestRgb`, an exact nearest-entry
+search -- an entry matching at distance zero always exists, so the trip is
+stable by construction. Both conversions are kept, and
+`test-debug-overlay-visual` pins the difference so a future simplification back
+onto one of them fails there rather than in a settings panel months later.
+
+Each executor maps the widget onto its own idiom, the way it already does for
+dropdowns:
+
+| | How a colour row appears |
+|---|---|
+| `buffer` / `sdl` | The swatch, the hex, and the three bars; a press-sweep-release along a bar moves that axis, and the wheel steps it one value |
+| `cs2` | The swatch, the hex, and the bars as components -- see §4 |
+| `web` | `<input type="color">` beside the hex. The browser's picker is 24-bit; what comes back is a TEXT intent the MODEL quantises, so the swatch visibly snaps to a palette entry |
+| `gdi` | A coloured `STATIC` beside the `EDIT`. Not `ChooseColor`: it is modal, and an executor may not block the frame loop |
+
+The seam carries no new command for any of it. The value rides
+`WIDGET_SELECTED` (a colour *is* a selection out of a palette), the hex rides
+`WIDGET_TEXT`, and "the axis popup is open" rides `WIDGET_CHECKED` -- which is
+what lets a native-widget executor draw its own bars without being told in a
+vocabulary of its own. The two zones of the row are told apart by *which*
+intent arrives: `ACTIVATE` is the swatch, `ACTION` is the field. A coordinate
+would have made every executor carry the row's geometry, which is the thing the
+seam exists to avoid.
+
 ### The plugin API (ABI 5)
 
 ```lua
@@ -385,6 +677,33 @@ from a reload with a blank one.
 `PluginHost_WinBuild` is called for **every** plugin, not only those that
 already have a tab. "Already has a tab" is a deadlock: claiming the tab is the
 first thing a plugin does inside the build handler.
+
+### Chrome is not game content, and the game had to be told
+
+Two ways the CS2 window leaked into machinery that has no business seeing it,
+both reported as "the inputs just say Continue and cannot be edited":
+
+- **The minimenu and the mouseover text.** The window's rows are real interface
+  components, armed for clicks so the executor hears about them -- and that
+  arming is exactly what `RS_Minimenu_Build` reads. So every field grew a
+  right-click menu offering "Continue" (the generic verb the reference gives a
+  component a script enabled), and the mouseover text said "Continue" with the
+  pointer anywhere over the panel. `add_component_rows` now returns nothing for
+  the chrome group, which covers the right-click menu, the left-click default
+  row and the mouseover text in one test, because all three are that one build.
+
+- **The keyboard.** A chrome field under the caret is the model's, and the host
+  routes keys into it long before the game's own key handling runs -- but
+  nothing downstream knew. So typing a colour into a plugin's field ALSO ran
+  every armed `onKey` script and typed the same characters into the chat line,
+  and an Enter meant to commit the field sent whatever was in the chat box.
+  `app_text_input_focused` had the same hole: it named `dbg_ui` and not
+  `plugin_ui`, so a plugin field's keystrokes fired debug hotkeys too. Both now
+  go through `app_chrome_holds_keyboard`, which names both instances.
+
+The second of these is why the fields *looked* uneditable: they were not. They
+took typing and showed it, with no caret, no focus ring, and the same
+keystrokes going into the chat line underneath. See `WIDGET_FOCUS` in §4.
 
 ## 7. Save and reload
 
@@ -443,6 +762,22 @@ TORIRS_EXIT_BMP=/tmp/win.bmp TORIRS_MAX_FRAMES=280 \
 ./src/torirs --soft3d --manifest manifests/manifest_osrs239_torirs.ini
 ```
 
+Add `TORIRS_CHROME_EXECUTOR=sdl TORIRS_CHROME_DEBUG=1` and
+`TORIRS_SIM_HOTKEY="150,p;220,p;280,p"` to watch the window open, close and
+open again: the debug line reports each `set_open`, and the aux window's own
+lifetime has to follow it. That toggle is the same host path a click on Close
+takes, which is why it is the one worth simulating -- an aux window's own
+pointer cannot be simulated at all.
+
+Add `TORIRS_CHROME_BORDERLESS=1` to open that window with no OS frame. Under
+`SDL_VIDEODRIVER=dummy` it prints the refusal (`no window hit test`) and keeps
+the frame, which is the branch worth having in a headless run; on a real driver
+it prints `plugin window has no OS frame`. What cannot be simulated either way
+is the pointer inside that window, so the handles and holes themselves are
+pinned in `test-uitree` against the model instead --
+`test_chrome_exec_drag_region`, which asserts both halves of every box: this one
+drags the window, and that one still reaches the control drawn on it.
+
 `script/plugins/_windemo.lua` is a probe plugin that exists only to exercise the
 window API -- it draws nothing and touches no world state, so what it proves is
 the surface the executors have to carry and nothing else.
@@ -464,7 +799,7 @@ the verification COMMON-CHROME-001 asks for.
 | `src/web/torirs_chrome.js` | The web executor's DOM half |
 | `src/ui/torirs_chrome_exec_gdi.c` | The Win32 executor |
 | `src/ui/torirs_chrome_exec_cs2.c` | The CS2 executor |
-| `src/platform/platform_sdl2.{h,c}` | `PlatformSDL2_Aux*` -- the auxiliary window |
+| `src/platform/platform_sdl2.{h,c}` | `PlatformSDL2_Aux*` -- the auxiliary window; `*_SetBorderless` / `*_SetDragHandleProvider` -- the frameless one |
 | `src/plugin/torirs_plugin.h` | The plugin contract, ABI 5: `win_*`, `EV_UI`, `EV_UI_BUILD` |
 | `src/plugin/torirs_plugin_host.{h,c}` | The window registry, dispatch, `PluginHost_Reload` |
 | `src/plugin/torirs_plugin_lua.c` | `api.window.*`, `on_ui` / `on_ui_build`, rebuild-from-source |

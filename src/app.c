@@ -4002,6 +4002,10 @@ app_host_request(
         req->u.get_obj_name.out[req->u.get_obj_name.cap - 1] = '\0';
         if( req->u.get_obj_name.out_stackable )
             *req->u.get_obj_name.out_stackable = obj->stackable ? 1 : 0;
+        /* Same two fields `oc_placeholder` reads (rs_cs2_host.c): a bank
+         * placeholder is the record that carries a template. */
+        if( req->u.get_obj_name.out_placeholder )
+            *req->u.get_obj_name.out_placeholder = obj->placeholder_template >= 0 ? 1 : 0;
         return 1;
     }
     case UITREE_HOST_GET_INV_DRAG:
@@ -5260,6 +5264,8 @@ app_debug_overlay_init(struct App* app)
     app->plugin_button_node = -1;
     app->plugin_panel_built_for = -1;
     app->plugin_panel_built_rev = -1;
+    /* No executor has been reported yet, and BUFFER is a real answer. */
+    app->plugin_exec_logged_kind = -1;
 
     app->dbg_visible = 0;
     app->dbg_frame_head = 0;
