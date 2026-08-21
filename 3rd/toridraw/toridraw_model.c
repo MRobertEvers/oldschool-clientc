@@ -119,7 +119,12 @@ ToriDraw_AnimApplyTransform(
          * means the frame data, a wild centroid means the bone group (a label
          * naming vertices this model does not have).
          */
-        if( getenv("TORIRS_ORIGIN_PROBE") )
+        /* Probed once: this runs for every ORIGIN op of every posed frame,
+         * the same reason TORIRS_ANIM_RECAPTURE is cached below. */
+        static int origin_probe = -1;
+        if( origin_probe < 0 )
+            origin_probe = getenv("TORIRS_ORIGIN_PROBE") != NULL;
+        if( origin_probe )
         {
             int const ox = transform->origin_x;
             int const oy = transform->origin_y;

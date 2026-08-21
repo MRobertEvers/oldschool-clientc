@@ -162,6 +162,24 @@ toridraw_raster_debug_level(void)
     return level;
 }
 
+/*
+ * TORIRS_RASTER_TEX_MODE_DEBUG, resolved once.
+ *
+ * Both of its call sites sit on the per-FACE path -- the non-plane gate and
+ * the affine dispatch below -- so a per-call getenv() walks environ with a
+ * strncmp per entry for every textured triangle in the frame. That measured
+ * two million calls in four hundred frames of an idle scene, which is the same
+ * reason TORIRS_RASTER_TEX_DEBUG is cached a few hundred lines down.
+ */
+static inline int
+toridraw_raster_tex_mode_debug(void)
+{
+    static int enabled = -1;
+    if( enabled < 0 )
+        enabled = getenv("TORIRS_RASTER_TEX_MODE_DEBUG") ? 1 : 0;
+    return enabled;
+}
+
 static inline bool
 toridraw_raster_debug_enabled(void)
 {
@@ -339,7 +357,7 @@ toridraw_raster_coord_is_plane_mapped(
      * branch's print: a complex coord that arrives on the flat-shade path is
      * otherwise invisible, and "which model still carries one" is the question
      * that decides whether a backport actually stripped them. */
-    if( getenv("TORIRS_RASTER_TEX_MODE_DEBUG") )
+    if( toridraw_raster_tex_mode_debug() )
     {
         static int noted;
         if( noted++ < 24 )
@@ -795,7 +813,7 @@ ToriDraw_RasterModelFace(
                 ctx->texture_render_types_nullable && texture_face >= 0 &&
                 texture_face < ctx->num_textured_faces &&
                 ctx->texture_render_types_nullable[texture_face] != 0;
-            if( getenv("TORIRS_RASTER_TEX_MODE_DEBUG") && complex_texture )
+            if( complex_texture && toridraw_raster_tex_mode_debug() )
             {
                 static int complex_debug_count;
                 if( complex_debug_count++ < 32 )

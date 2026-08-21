@@ -1676,6 +1676,39 @@ World_CycleRegisterPainterDynamics(struct World* world)
             1,
             (world->scene ? ToriDraw_SceneElementOcclusionHeight(world->scene, s->element_id) : 0));
     }
+
+    /* Plugin-owned objects, last, so a plugin's marker sits in front of a
+     * graphic sharing its tile rather than behind one -- the same reason
+     * spotanims are registered after projectiles. They are ordinary scenery to
+     * the painter, which is the whole point of putting them here instead of on
+     * the overlay: they sort against the world and are hidden by what stands
+     * in front of them.
+     *
+     * Level-gated like every other dynamic: the reference draws nothing from a
+     * plane the camera is not on. */
+    pool = &world->entities.plugin_object;
+    for( int pi = World_EntityPoolHead(pool); pi != WORLD_ENTITY_NIL;
+         pi = World_EntityPoolNext(pool, pi) )
+    {
+        struct WorldEntity_PluginObject* obj = World_EntityPoolGet(pool, pi);
+        if( !obj || obj->element_id < 0 || !obj->active || obj->level != local_level )
+            continue;
+        int grid_x = (int)(obj->draw_position.x >> 7);
+        int grid_z = (int)(obj->draw_position.z >> 7);
+        if( grid_x < 0 || grid_z < 0 || grid_x >= world->_scene_size ||
+            grid_z >= world->_scene_size )
+            continue;
+        painter_add_normal_scenery(
+            world->painter,
+            grid_x,
+            grid_z,
+            local_level,
+            obj->element_id,
+            obj->size_x > 0 ? obj->size_x : 1,
+            obj->size_z > 0 ? obj->size_z : 1,
+            (world->scene ? ToriDraw_SceneElementOcclusionHeight(world->scene, obj->element_id)
+                          : 0));
+    }
 }
 
 /*

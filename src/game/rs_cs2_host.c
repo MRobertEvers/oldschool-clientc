@@ -420,7 +420,10 @@ rs_cs2_apply_op(
     /* TORIRS_OPS_DEBUG=1: which script wrote which verb onto which component.
      * The rev-230 inventory's rows are entirely script-assigned, so a wrong or
      * missing verb there is invisible until the menu is opened. */
-    if( getenv("TORIRS_OPS_DEBUG") )
+    static int ops_debug = -1;
+    if( ops_debug < 0 )
+        ops_debug = getenv("TORIRS_OPS_DEBUG") != NULL;
+    if( ops_debug )
         fprintf(
             stderr,
             "cs2 setop com=0x%08x (%d|%d) op%d=\"%s\"\n",
@@ -3338,7 +3341,10 @@ exec_set_graphic(
     struct UITree* tree = rs_cs2_tree(host);
     (void)thread;
 
-    if( getenv("TORIRS_OBJICON_DEBUG") )
+    static int objicon_debug = -1;
+    if( objicon_debug < 0 )
+        objicon_debug = getenv("TORIRS_OBJICON_DEBUG") != NULL;
+    if( objicon_debug )
         fprintf(
             stderr,
             "GFXDBG: com=0x%08x gfx=%d\n",
@@ -6808,7 +6814,10 @@ rs_cs2_host_exec_dispatch(
          * (IF_OPENSUB target). The InterfaceParent map records exactly that. */
         int cid = request->u.if_get_width.component_id;
         int has = tree && UITree_InterfaceParentFind(tree, cid) >= 0;
-        if( getenv("TORIRS_HASSUB_DEBUG") )
+        static int hassub_debug = -1;
+        if( hassub_debug < 0 )
+            hassub_debug = getenv("TORIRS_HASSUB_DEBUG") != NULL;
+        if( hassub_debug )
             fprintf(
                 stderr,
                 "hassub: query 0x%08x (%d|%d) -> %d  (parent_count=%d)\n",
@@ -6872,7 +6881,10 @@ rs_cs2_host_exec_dispatch(
                 request->u.if_set_hide.component_id,
                 request->u.if_set_hide.hidden ? 1 : 0);
 #endif
-            if( getenv("TORIRS_SETHIDE_DEBUG") )
+            static int sethide_debug = -1;
+            if( sethide_debug < 0 )
+                sethide_debug = getenv("TORIRS_SETHIDE_DEBUG") != NULL;
+            if( sethide_debug )
             {
                 int g = (request->u.if_set_hide.component_id >> 16) & 0xffff;
                 if( g == 149 || g == 320 || g == 218 ||
@@ -6921,9 +6933,15 @@ rs_cs2_host_exec_dispatch(
              * that interface, in order. The BOUNDS dump only shows where the
              * layout ended up; when a panel resolves to a few pixels this is
              * the only way to see which call did it and what it asked for. */
-            if( getenv("TORIRS_DUMP_SETSIZE") )
+            static int setsize_want = -2;
+            if( setsize_want == -2 )
             {
-                int want = (int)strtol(getenv("TORIRS_DUMP_SETSIZE"), NULL, 0);
+                char const* env = getenv("TORIRS_DUMP_SETSIZE");
+                setsize_want = env ? (int)strtol(env, NULL, 0) : -1;
+            }
+            if( setsize_want >= 0 )
+            {
+                int want = setsize_want;
                 int group = (request->u.cc_set_size.component_id >> 16) & 0xffff;
                 if( group == want )
                     fprintf(

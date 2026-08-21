@@ -127,9 +127,16 @@ ToriRSServer_SeqInfoLoad(const char* cache_dir)
 
         if( !seq )
             continue;
-        if( getenv("TORIRSSERVER_SEQ_DUMP") )
+        /* Probed once, not once per sequence in the archive. */
+        static int seq_dump_want = -1;
+        if( seq_dump_want < 0 )
         {
-            int want = atoi(getenv("TORIRSSERVER_SEQ_DUMP"));
+            char const* env = getenv("TORIRSSERVER_SEQ_DUMP");
+            seq_dump_want = env ? atoi(env) : 0;
+        }
+        if( seq_dump_want > 0 )
+        {
+            int want = seq_dump_want;
             int id = archive->file_ids[i];
 
             if( want > 0 && id >= want && id <= want + 9 )

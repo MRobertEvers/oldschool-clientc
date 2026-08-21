@@ -1426,6 +1426,15 @@ EDITOR_CACHE_DIR   ?= $(REPO_ROOT)/cache.osrs239
 # Document and command layer: undo restoring an authored *absence*, strokes
 # undoing as one step, edits at a square edge reaching the neighbour. Pure
 # data â no cache, no window, runs in milliseconds.
+# The plugin host against a FAKE engine -- no client, no cache, no window.
+# That standalone link is the whole reason the engine is a vtable, so keeping
+# this target buildable is what keeps the seam honest.
+test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/test/torirs_plugin_host_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_host_test \
+		plugin/torirs_plugin_host.c ui/uitree_minimenu.c \
+		plugin/test/torirs_plugin_host_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/plugin_host_test
+
 test-editor-cmd: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
 		editor/test/editor_cmd_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/editor_cmd_test \

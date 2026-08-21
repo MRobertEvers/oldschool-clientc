@@ -18,6 +18,37 @@
  *     handed back to app_world_project, which expects exactly that.
  */
 
+/*
+ * Assets and world objects are declared here and defined far below, beside the
+ * spawn machinery they are built out of: materialising a plugin's model needs
+ * the model builder, the scene element allocator and the async spawn task, all
+ * of which live down with the client's own graphics. Only the vtable is
+ * assembled here.
+ */
+static int app_plugin_asset_read(void* user, char const* plugin, char const* name);
+static int
+app_plugin_asset_write(void* user, char const* plugin, char const* name, void const* data, int size);
+static int app_plugin_object_create(void* user);
+static void app_plugin_object_destroy(void* user, int handle);
+static void app_plugin_object_set_model(void* user, int handle, int source, int id);
+static void app_plugin_object_recolor(void* user, int handle, int hsl_from, int hsl_to);
+static void app_plugin_object_clear_recolors(void* user, int handle);
+static void app_plugin_object_set_anim(void* user, int handle, int seq_id, int loop);
+static void app_plugin_object_set_light(void* user, int handle, int ambient, int contrast);
+static void app_plugin_object_set_position(
+    void* user,
+    int handle,
+    int tile_x,
+    int tile_z,
+    int level,
+    int height,
+    int yaw);
+static void app_plugin_object_set_active(void* user, int handle, int active);
+static int app_plugin_object_ready(void* user, int handle);
+/* Re-place every plugin object after a scene rebuild. Called from the
+ * world-loaded seam, which runs long before the definition. */
+static void app_plugin_objects_rebuild(struct App* app);
+
 /* Reference the local player's route[0], not the draw position: the draw
  * position is interpolated between tiles every frame, and the server thinks in
  * whole tiles. route[0] is the authoritative one (entity_facets.h). */
@@ -112,6 +143,69 @@ app_plugin_fill_npc(
     /* The name was copied onto the entity at spawn/retype; there is no cache
      * fetch here, the same way the minimenu builder does not do one. */
     snprintf(out->name, sizeof(out->name), "%s", npc->name);
+}
+
+static void
+app_plugin_fill_obj(
+    struct App* app,
+    struct WorldEntity_ObjStack const* stack,
+    struct ToriRS_PluginObjSnap* out)
+{
+    assert(app);
+    assert(stack);
+    assert(out);
+
+    memset(out, 0, sizeof(*out));
+    out->obj_id = stack->obj_id;
+    out->count = stack->count;
+    out->tile_x = app->world->_base_tile_x + stack->grid_position.x;
+    out->tile_z = app->world->_base_tile_z + stack->grid_position.z;
+    out->level = stack->grid_position.level;
+    out->element_id = stack->element_id;
+    /* The name was snapshotted onto the stack at add time, the same way the
+     * npc's was -- no cache fetch on this path. */
+    snprintf(out->name, sizeof(out->name), "%s", stack->name);
+
+    /*
+     * `cost` is not on the stack entity, so it does come from the provider --
+     * but only ever as a HIT. The objtype was loaded to build the stack's
+     * model, and the cache is not consulted for one that is not there: a miss
+     * leaves 0 rather than queuing a load, because this runs inside a snapshot
+     * a plugin asked for and a snapshot must not start IO.
+     */
+    {
+        struct ToriRS_Objtype* type =
+            stack->obj_id >= 0 ? CacheProvider_ObjtypeGet(app->provider, stack->obj_id) : NULL;
+        out->cost = type ? type->cost : 0;
+    }
+}
+
+static int
+app_plugin_obj_next(void* user, int iter, struct ToriRS_PluginObjSnap* out)
+{
+    struct App* app = (struct App*)user;
+    struct World_EntityPool* pool;
+    int at;
+
+    assert(app);
+    assert(out);
+
+    if( !app->world )
+        return -1;
+    pool = &app->world->entities.obj_stack;
+
+    at = iter < 0 ? World_EntityPoolHead(pool) : World_EntityPoolNext(pool, iter);
+    while( at != WORLD_ENTITY_NIL )
+    {
+        struct WorldEntity_ObjStack* stack = World_EntityPoolGet(pool, at);
+        if( stack )
+        {
+            app_plugin_fill_obj(app, stack, out);
+            return at;
+        }
+        at = World_EntityPoolNext(pool, at);
+    }
+    return -1;
 }
 
 /*
@@ -439,6 +533,96 @@ app_plugin_draw_rect(
     return app->entity_overlay_count - before;
 }
 
+/* ----------------------------------------------------------------- colour */
+
+/*
+ * 0xRRGGBB -> the packed HSL a model face is actually coloured with
+ * (6-bit hue << 10 | 3-bit saturation << 7 | 7-bit luminance).
+ *
+ * A port of the reference's rgbToHSL with brightness 1.0, which is what makes
+ * `pow(channel, 1/brightness)` an identity and lets the whole gamma step drop
+ * out. Written out rather than approximated because the quantisation is the
+ * point: the ceilings and the `% 63` are what make a chosen colour land on the
+ * same palette entry the client's own art does, and a "close enough"
+ * conversion produces a beam that is visibly the wrong hue.
+ */
+static int
+app_plugin_hsl_from_rgb(void* user, uint32_t rgb)
+{
+    double r = (double)((rgb >> 16) & 0xff) / 255.0;
+    double g = (double)((rgb >> 8) & 0xff) / 255.0;
+    double b = (double)(rgb & 0xff) / 255.0;
+    double max = r > g ? r : g;
+    double min = r < g ? r : g;
+    double hue = 0.0;
+    double sat;
+    double lum;
+    double span;
+
+    (void)user;
+
+    if( b > max )
+        max = b;
+    if( b < min )
+        min = b;
+    span = max - min;
+
+    /* Hue, as Color.RGBtoHSB computes it: 0 on a grey, where the sector is
+     * undefined rather than zero-by-accident. */
+    if( span > 0.0 )
+    {
+        double const rc = (max - r) / span;
+        double const gc = (max - g) / span;
+        double const bc = (max - b) / span;
+        if( r >= max )
+            hue = bc - gc;
+        else if( g >= max )
+            hue = 2.0 + rc - bc;
+        else
+            hue = 4.0 + gc - rc;
+        hue /= 6.0;
+        if( hue < 0.0 )
+            hue += 1.0;
+    }
+
+    /* HSB -> HSL. `max` is the brightness and `span / max` the HSB saturation;
+     * the reference recovers luminance from them and then re-derives an HSL
+     * saturation against it. */
+    {
+        double const brightness = max;
+        double const hsb_sat = max > 0.0 ? span / max : 0.0;
+        double const other = 1.0 - (brightness - (brightness * hsb_sat) / 2.0);
+        lum = brightness - (brightness * hsb_sat) / 2.0;
+        sat = (lum > 0.0 && lum < 1.0) ? (brightness - lum) / (lum < other ? lum : other) : 0.0;
+    }
+
+    {
+        int h = (int)(ceil(hue * 64.0)) % 63;
+        int s = (int)ceil(sat * 7.0);
+        int l = (int)ceil(lum * 127.0);
+        if( h < 0 )
+            h = 0;
+        if( s < 0 )
+            s = 0;
+        if( s > 7 )
+            s = 7;
+        if( l < 0 )
+            l = 0;
+        if( l > 127 )
+            l = 127;
+        return ((h & 63) << 10) | ((s & 7) << 7) | (l & 127);
+    }
+}
+
+static uint32_t
+app_plugin_hsl_to_rgb(void* user, int hsl)
+{
+    (void)user;
+    /* Through the rasteriser's own table, so the round trip agrees with what
+     * is on screen rather than with a second conversion of our own. */
+    return (uint32_t)ToriDraw_Hsl16ToRgb((uint16_t)(hsl & 0xffff)) & 0xffffffu;
+}
+
 /* ------------------------------------------------------------------- menu */
 
 static int
@@ -545,6 +729,7 @@ app_plugin_engine(struct App* app)
     engine.npc_next = app_plugin_npc_next;
     engine.npc_by_slot = app_plugin_npc_by_slot;
     engine.player_next = app_plugin_player_next;
+    engine.obj_next = app_plugin_obj_next;
     engine.key_held = app_plugin_key_held;
     engine.project = app_plugin_project;
     engine.draw_tile = app_plugin_draw_tile;
@@ -553,5 +738,19 @@ app_plugin_engine(struct App* app)
     engine.draw_text = app_plugin_draw_text;
     engine.draw_rect = app_plugin_draw_rect;
     engine.menu_add = app_plugin_menu_add;
+    engine.asset_read = app_plugin_asset_read;
+    engine.asset_write = app_plugin_asset_write;
+    engine.object_create = app_plugin_object_create;
+    engine.object_destroy = app_plugin_object_destroy;
+    engine.object_set_model = app_plugin_object_set_model;
+    engine.object_recolor = app_plugin_object_recolor;
+    engine.object_clear_recolors = app_plugin_object_clear_recolors;
+    engine.object_set_anim = app_plugin_object_set_anim;
+    engine.object_set_light = app_plugin_object_set_light;
+    engine.object_set_position = app_plugin_object_set_position;
+    engine.object_set_active = app_plugin_object_set_active;
+    engine.object_ready = app_plugin_object_ready;
+    engine.hsl_from_rgb = app_plugin_hsl_from_rgb;
+    engine.hsl_to_rgb = app_plugin_hsl_to_rgb;
     return engine;
 }

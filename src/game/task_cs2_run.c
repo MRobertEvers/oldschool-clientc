@@ -1015,7 +1015,13 @@ Task_CS2Run_Run(
          * onSubChange). */
         {
             static int s_dumped = 0;
-            char const* want = getenv("TORIRS_CS2_DUMP_SCRIPT");
+            static char const* want = NULL;
+            static int want_probed = 0;
+            if( !want_probed )
+            {
+                want_probed = 1;
+                want = getenv("TORIRS_CS2_DUMP_SCRIPT");
+            }
             if( want && !s_dumped )
             {
                 struct CS2VM2_Script* d =
@@ -1416,7 +1422,11 @@ task_cs2_run_new(
             host->client_layout_dirty = true;
         }
     }
-    if( getenv("TORIRS_CC_DEBUG") )
+    /* Once per script start; resolved once rather than per call. */
+    static int cc_debug = -1;
+    if( cc_debug < 0 )
+        cc_debug = getenv("TORIRS_CC_DEBUG") != NULL;
+    if( cc_debug )
         fprintf(
             stderr,
             "CS2RUN script=%d com=%d|%d\n",
@@ -1706,6 +1716,16 @@ RS_CS2_VarTransmitTriggersMatch(
     return 0;
 }
 
+/* One line per registered hook per dispatch, so the env is probed once. */
+static int
+var_hook_debug_on(void)
+{
+    static int on = -1;
+    if( on < 0 )
+        on = getenv("TORIRS_VAR_HOOK_DEBUG") != NULL;
+    return on;
+}
+
 static int
 Task_CS2VarTransmitDispatch_Run(
     struct ToriRS_Task* task,
@@ -1726,7 +1746,7 @@ Task_CS2VarTransmitDispatch_Run(
          * with its trigger list and the varps that actually changed. A hook
          * that never fires and a hook that fires and paints nothing look
          * identical from outside, and this is the line that separates them. */
-        if( getenv("TORIRS_VAR_HOOK_DEBUG") )
+        if( var_hook_debug_on() )
         {
             int t;
             fprintf(

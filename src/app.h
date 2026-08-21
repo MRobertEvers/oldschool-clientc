@@ -131,6 +131,54 @@ enum AppDebugHotkey
 /* Enable checkbox plus config rows, across every plugin the panel shows. */
 #define APP_PLUGIN_PANEL_ROWS_MAX 192
 
+/* World objects across every plugin at once. Per-plugin budgeting is the
+ * host's (TORIRS_PLUGIN_OBJECT_BUDGET); this is the ceiling on the table those
+ * handles index into. */
+#define APP_PLUGIN_OBJECTS_MAX 256
+
+/*
+ * One plugin-owned model in the world.
+ *
+ * The plugin names an ABSOLUTE tile and a model id; everything between that
+ * and a drawn element lives here. It is kept on the App side rather than in
+ * World for one reason: only this layer knows the absolute tile, and only the
+ * absolute tile survives a scene rebuild. A rebuild despawns every world
+ * entity and its scene element, and this record is what puts them back.
+ */
+struct AppPluginObject
+{
+    int in_use;
+    /* -- what the plugin asked for -- */
+    int source; /* enum ToriRS_PluginModelSource */
+    int model_id;
+    int seq_id;
+    int loop;
+    /** Lighting offsets against the actor profile (ToriDraw_LightModelActor). */
+    int ambient;
+    int contrast;
+    int tile_x; /* ABSOLUTE */
+    int tile_z;
+    int level;
+    int height;
+    int yaw;
+    int active;
+    int recolor_from[TORIRS_PLUGIN_OBJECT_RECOLORS_MAX];
+    int recolor_to[TORIRS_PLUGIN_OBJECT_RECOLORS_MAX];
+    int recolor_count;
+    /* -- what has been built from it -- */
+    int element_id;
+    int world_index;
+    /** The (source, model, recolour) the live element was built from, so a
+     *  set_model or a recolour that changes nothing does not churn the model
+     *  cache every frame a plugin re-states its intent. */
+    int built_source;
+    int built_model_id;
+    int built_recolor_stamp;
+    /** A load task is in flight. Without this a plugin polling a not-yet-
+     *  resident model on every frame would queue a task per frame. */
+    int load_pending;
+};
+
 #define APP_DEBUG_HOTKEY_MAX 64
 #define APP_DEBUG_HOTKEY_ARGS_CAP 512
 
@@ -954,6 +1002,8 @@ struct App
      * duration of the frame that owns it.
      */
     struct LibToriRS_Input* plugin_input;
+    /** Plugin-owned world objects, indexed by the handle the plugin holds. */
+    struct AppPluginObject plugin_objects[APP_PLUGIN_OBJECTS_MAX];
     /** Where plugin settings are written; NULL turns persistence off. */
     char const* plugin_prefs_path;
     /** logic_cycle at which the plugin config store last moved, or 0 when it
@@ -1847,6 +1897,27 @@ App_WorldObjStackDel(
     int scene_z,
     int level,
     int obj_id);
+
+/** OBJ_COUNT: retarget a stack's count in place. Goes through App rather than
+ *  straight to World so the plugins hear about it -- every edge of a ground
+ *  item's life is announced, and one that slipped past would leave a plugin
+ *  drawing against a count that no longer exists. */
+void
+App_WorldObjStackSetCount(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int obj_id,
+    int count);
+
+/** Zone clear: remove every stack on one tile, announcing each. */
+void
+App_WorldObjStackClearTile(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level);
 
 /**
  * REBUILD_NORMAL relocation, run right after the server-driven world load

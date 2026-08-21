@@ -408,11 +408,8 @@ exec_zone_sub_packet_at(
     case PKT_NAME_OBJ_COUNT:
     {
         struct PktObjCount const* pkt = payload;
-        int idx;
         zone_tile_at(at, pkt->pos, &tile_x, &tile_z, &level);
-        idx = World_ObjStackFind(app->world, tile_x, tile_z, level, pkt->obj_id);
-        if( idx >= 0 )
-            World_ObjStackSetCount(app->world, idx, pkt->new_count);
+        App_WorldObjStackSetCount(app, tile_x, tile_z, level, pkt->obj_id, pkt->new_count);
         break;
     }
     case PKT_NAME_OBJ_REVEAL:
@@ -1020,16 +1017,8 @@ RS_GameProto_Exec(
             {
                 for( int dz = 0; dz < 8; dz++ )
                     for( int dx = 0; dx < 8; dx++ )
-                    {
-                        int idx;
-                        while( (idx = World_ObjStackFind(
-                                    app->world,
-                                    app->zone_base_x + dx,
-                                    app->zone_base_z + dz,
-                                    app->zone_level,
-                                    -1)) >= 0 )
-                            World_ObjStackDel(app->world, idx);
-                    }
+                        App_WorldObjStackClearTile(
+                            app, app->zone_base_x + dx, app->zone_base_z + dz, app->zone_level);
             }
         }
         break;

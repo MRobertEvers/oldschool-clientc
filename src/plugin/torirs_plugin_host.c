@@ -51,6 +51,13 @@ struct ToriRS_PluginCtx
     struct PluginConfigSlot config[TORIRS_PLUGIN_CONFIG_MAX];
     int config_count;
     int schema_count;
+    /* Engine object handles this plugin holds. Tracked here and not only in
+     * the engine because a stopped plugin must take its geometry out of the
+     * world with it -- an abandoned beam would burn until the client exited,
+     * with nothing left that knows to remove it. */
+    int objects[TORIRS_PLUGIN_OBJECT_BUDGET];
+    int object_count;
+    bool object_clipped;
 };
 
 struct PluginMenuRoute
@@ -58,6 +65,25 @@ struct PluginMenuRoute
     int action;
     int plugin;
     uint32_t tag;
+};
+
+/*
+ * One resident asset.
+ *
+ * Keyed on (plugin, name) rather than name alone: the namespaces are per
+ * plugin on disk, and collapsing them here would let two plugins that both
+ * ship a `prices.txt` read each other's.
+ */
+struct PluginAsset
+{
+    int plugin;
+    char name[TORIRS_PLUGIN_ASSET_NAME_MAX];
+    void* data;
+    int size;
+    /* A read is in flight. The slot is claimed before the IO starts so a
+     * second asset_load of the same name joins the first rather than queuing
+     * a duplicate read. */
+    bool pending;
 };
 
 struct ToriRS_PluginHost
@@ -84,6 +110,9 @@ struct ToriRS_PluginHost
     void* draw_surface;
     /* Non-NULL only during an EV_MENU_BUILD dispatch. */
     void* menu_cursor;
+
+    struct PluginAsset assets[TORIRS_PLUGIN_ASSETS_MAX];
+    int asset_count;
 
     bool config_dirty;
 };
@@ -511,6 +540,437 @@ api_menu_add(
     return 1;
 }
 
+/* -- ground items -- */
+
+static int
+api_obj_next(struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginObjSnap* out)
+{
+    assert(ctx);
+    assert(out);
+    return ctx->host->engine.obj_next(ctx->host->engine.user, iter, out);
+}
+
+/* -- assets -- */
+
+/*
+ * An asset name is a bare filename in the plugin's own namespace.
+ *
+ * The check is a refusal and not an assert, unlike every other bad argument
+ * here, because this one does not come from a programmer: it comes from a
+ * script, at runtime, possibly from a string the user typed into a config
+ * field. Aborting the client over a typo in someone's Lua is a worse outcome
+ * than saying no and logging why -- and the api already models "no", because
+ * a missing file has to be reportable anyway.
+ */
+static bool
+plugin_asset_name_ok(struct ToriRS_PluginCtx* ctx, char const* name)
+{
+    assert(ctx);
+    assert(name);
+
+    size_t const len = strlen(name);
+    bool ok = len > 0 && len < TORIRS_PLUGIN_ASSET_NAME_MAX;
+
+    for( size_t i = 0; ok && i < len; i++ )
+    {
+        char const c = name[i];
+        ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+             c == '.' || c == '_' || c == '-';
+    }
+    /* Rejected by the character set above, but named separately so the log
+     * says what was actually wrong with it. */
+    if( ok && strstr(name, "..") )
+        ok = false;
+
+    if( !ok )
+        fprintf(
+            stderr,
+            "plugin: %s asked for asset '%s'; asset names are bare filenames of "
+            "[A-Za-z0-9._-] with no '..', so that one is refused\n",
+            ctx->name,
+            name);
+    return ok;
+}
+
+static struct PluginAsset*
+plugin_asset_find(struct ToriRS_PluginHost* host, int plugin, char const* name)
+{
+    assert(host);
+    assert(name);
+    for( int i = 0; i < host->asset_count; i++ )
+    {
+        if( host->assets[i].plugin == plugin && strcmp(host->assets[i].name, name) == 0 )
+            return &host->assets[i];
+    }
+    return NULL;
+}
+
+/* Free one slot's bytes and compact the table over it. */
+static void
+plugin_asset_drop(struct ToriRS_PluginHost* host, struct PluginAsset* slot)
+{
+    assert(host);
+    assert(slot);
+
+    free(slot->data);
+    int const at = (int)(slot - host->assets);
+    for( int i = at; i < host->asset_count - 1; i++ )
+        host->assets[i] = host->assets[i + 1];
+    host->asset_count--;
+    memset(&host->assets[host->asset_count], 0, sizeof(host->assets[0]));
+}
+
+static struct PluginAsset*
+plugin_asset_claim(struct ToriRS_PluginHost* host, int plugin, char const* name)
+{
+    assert(host);
+    assert(name);
+
+    struct PluginAsset* slot = plugin_asset_find(host, plugin, name);
+    if( slot )
+        return slot;
+    if( host->asset_count >= TORIRS_PLUGIN_ASSETS_MAX )
+        return NULL;
+
+    slot = &host->assets[host->asset_count++];
+    memset(slot, 0, sizeof(*slot));
+    slot->plugin = plugin;
+    snprintf(slot->name, sizeof(slot->name), "%s", name);
+    return slot;
+}
+
+static void
+plugin_assets_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
+{
+    assert(host);
+    for( int i = host->asset_count - 1; i >= 0; i-- )
+    {
+        if( host->assets[i].plugin == plugin )
+            plugin_asset_drop(host, &host->assets[i]);
+    }
+}
+
+static int
+api_asset_load(struct ToriRS_PluginCtx* ctx, char const* name)
+{
+    assert(ctx);
+    assert(name);
+
+    struct ToriRS_PluginHost* host = ctx->host;
+    if( !plugin_asset_name_ok(ctx, name) )
+        return 0;
+
+    struct PluginAsset* slot = plugin_asset_find(host, ctx->index, name);
+    if( slot && slot->data )
+        return 1;
+    /* A second load of an in-flight name joins the first: one read, one event,
+     * and both callers see the bytes. */
+    if( slot && slot->pending )
+        return 0;
+
+    slot = plugin_asset_claim(host, ctx->index, name);
+    if( !slot )
+    {
+        fprintf(
+            stderr,
+            "plugin: %s asset '%s' not loaded, the resident asset table is full (%d)\n",
+            ctx->name,
+            name,
+            TORIRS_PLUGIN_ASSETS_MAX);
+        return 0;
+    }
+
+    slot->pending = true;
+    if( !host->engine.asset_read(host->engine.user, ctx->name, name) )
+    {
+        slot->pending = false;
+        plugin_asset_drop(host, slot);
+        return 0;
+    }
+    return 0;
+}
+
+static void const*
+api_asset_data(struct ToriRS_PluginCtx* ctx, char const* name, int* out_size)
+{
+    assert(ctx);
+    assert(name);
+
+    struct PluginAsset const* slot = plugin_asset_find(ctx->host, ctx->index, name);
+    if( out_size )
+        *out_size = slot ? slot->size : 0;
+    return slot ? slot->data : NULL;
+}
+
+static int
+api_asset_save(struct ToriRS_PluginCtx* ctx, char const* name, void const* data, int size)
+{
+    assert(ctx);
+    assert(name);
+    assert(data || size == 0);
+
+    struct ToriRS_PluginHost* host = ctx->host;
+    if( !plugin_asset_name_ok(ctx, name) )
+        return 0;
+    if( size < 0 )
+        return 0;
+
+    struct PluginAsset* slot = plugin_asset_claim(host, ctx->index, name);
+    if( !slot )
+    {
+        fprintf(
+            stderr,
+            "plugin: %s asset '%s' not saved, the resident asset table is full (%d)\n",
+            ctx->name,
+            name,
+            TORIRS_PLUGIN_ASSETS_MAX);
+        return 0;
+    }
+
+    /* The resident copy is replaced before the write is queued, so a plugin
+     * that saves and immediately reads back sees what it wrote rather than
+     * what was there before the IO finished. */
+    void* copy = NULL;
+    if( size > 0 )
+    {
+        copy = malloc((size_t)size);
+        assert(copy);
+        memcpy(copy, data, (size_t)size);
+    }
+    free(slot->data);
+    slot->data = copy;
+    slot->size = size;
+    slot->pending = false;
+
+    return host->engine.asset_write(host->engine.user, ctx->name, name, data, size);
+}
+
+static void
+api_asset_release(struct ToriRS_PluginCtx* ctx, char const* name)
+{
+    assert(ctx);
+    assert(name);
+
+    struct PluginAsset* slot = plugin_asset_find(ctx->host, ctx->index, name);
+    /* A read still in flight keeps its slot: dropping it here would leave the
+     * delivery with nowhere to land and the plugin with an event it cannot
+     * explain. */
+    if( slot && !slot->pending )
+        plugin_asset_drop(ctx->host, slot);
+}
+
+void
+PluginHost_AssetDeliver(
+    struct ToriRS_PluginHost* host,
+    char const* plugin_name,
+    char const* asset_name,
+    void* data,
+    int size)
+{
+    assert(host);
+    assert(plugin_name);
+    assert(asset_name);
+
+    int const plugin = PluginHost_IndexOf(host, plugin_name);
+    if( plugin < 0 )
+    {
+        /* The plugin was unregistered while its read was in flight. */
+        free(data);
+        return;
+    }
+
+    struct PluginAsset* slot = plugin_asset_find(host, plugin, asset_name);
+    if( !slot )
+    {
+        free(data);
+        return;
+    }
+
+    slot->pending = false;
+    if( data )
+    {
+        free(slot->data);
+        slot->data = data;
+        slot->size = size;
+    }
+
+    struct ToriRS_PluginCtx* ctx = &host->plugins[plugin];
+    if( !ctx->enabled || !ctx->running )
+        return;
+
+    struct ToriRS_PluginEvAsset ev = { asset_name, data ? size : 0, data != NULL };
+    int const prev = host->dispatching;
+    host->dispatching = plugin;
+    /* Only the plugin that asked. An asset is not a broadcast: the name means
+     * nothing outside its own namespace. */
+    for( int i = 0; i < host->sub_count[TORIRS_PLUGIN_EV_ASSET]; i++ )
+    {
+        struct PluginSub const* sub = &host->subs[TORIRS_PLUGIN_EV_ASSET][i];
+        if( sub->plugin != plugin )
+            continue;
+        if( sub->handler(ctx, &ev, sub->userdata) == TORIRS_PLUGIN_CONSUME )
+            break;
+    }
+    host->dispatching = prev;
+}
+
+/* -- world objects -- */
+
+/* Every object entry point past create takes a handle the plugin was given,
+ * so a handle it does not own is a contract violation and asserts. The one
+ * thing that is NOT a violation is the budget: create returns -1 there,
+ * because how many beams a floor needs is a runtime fact. */
+static void
+plugin_object_assert_owned(struct ToriRS_PluginCtx* ctx, int object)
+{
+    assert(ctx);
+    for( int i = 0; i < ctx->object_count; i++ )
+    {
+        if( ctx->objects[i] == object )
+            return;
+    }
+    assert(!"plugin object handle is not owned by this plugin");
+}
+
+static int
+api_object_create(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+
+    struct ToriRS_PluginHost* host = ctx->host;
+    if( ctx->object_count >= TORIRS_PLUGIN_OBJECT_BUDGET )
+    {
+        if( !ctx->object_clipped )
+        {
+            ctx->object_clipped = true;
+            fprintf(
+                stderr,
+                "plugin: %s is at its %d world-object budget; further "
+                "object_create calls are refused\n",
+                ctx->name,
+                TORIRS_PLUGIN_OBJECT_BUDGET);
+        }
+        return -1;
+    }
+
+    int const object = host->engine.object_create(host->engine.user);
+    if( object < 0 )
+        return -1;
+    ctx->objects[ctx->object_count++] = object;
+    return object;
+}
+
+static void
+api_object_destroy(struct ToriRS_PluginCtx* ctx, int object)
+{
+    plugin_object_assert_owned(ctx, object);
+
+    for( int i = 0; i < ctx->object_count; i++ )
+    {
+        if( ctx->objects[i] != object )
+            continue;
+        ctx->objects[i] = ctx->objects[ctx->object_count - 1];
+        ctx->object_count--;
+        break;
+    }
+    ctx->host->engine.object_destroy(ctx->host->engine.user, object);
+}
+
+static void
+plugin_objects_destroy_all(struct ToriRS_PluginHost* host, struct ToriRS_PluginCtx* ctx)
+{
+    assert(host);
+    assert(ctx);
+    for( int i = 0; i < ctx->object_count; i++ )
+        host->engine.object_destroy(host->engine.user, ctx->objects[i]);
+    ctx->object_count = 0;
+    ctx->object_clipped = false;
+}
+
+static void
+api_object_set_model(
+    struct ToriRS_PluginCtx* ctx,
+    int object,
+    enum ToriRS_PluginModelSource source,
+    int id)
+{
+    plugin_object_assert_owned(ctx, object);
+    ctx->host->engine.object_set_model(ctx->host->engine.user, object, (int)source, id);
+}
+
+static void
+api_object_recolor(struct ToriRS_PluginCtx* ctx, int object, int hsl_from, int hsl_to)
+{
+    plugin_object_assert_owned(ctx, object);
+    ctx->host->engine.object_recolor(ctx->host->engine.user, object, hsl_from, hsl_to);
+}
+
+static void
+api_object_clear_recolors(struct ToriRS_PluginCtx* ctx, int object)
+{
+    plugin_object_assert_owned(ctx, object);
+    ctx->host->engine.object_clear_recolors(ctx->host->engine.user, object);
+}
+
+static void
+api_object_set_anim(struct ToriRS_PluginCtx* ctx, int object, int seq_id, int loop)
+{
+    plugin_object_assert_owned(ctx, object);
+    ctx->host->engine.object_set_anim(ctx->host->engine.user, object, seq_id, loop);
+}
+
+static void
+api_object_set_light(struct ToriRS_PluginCtx* ctx, int object, int ambient, int contrast)
+{
+    plugin_object_assert_owned(ctx, object);
+    ctx->host->engine.object_set_light(ctx->host->engine.user, object, ambient, contrast);
+}
+
+static void
+api_object_set_position(
+    struct ToriRS_PluginCtx* ctx,
+    int object,
+    int tile_x,
+    int tile_z,
+    int level,
+    int height,
+    int yaw)
+{
+    plugin_object_assert_owned(ctx, object);
+    ctx->host->engine.object_set_position(
+        ctx->host->engine.user, object, tile_x, tile_z, level, height, yaw);
+}
+
+static void
+api_object_set_active(struct ToriRS_PluginCtx* ctx, int object, int active)
+{
+    plugin_object_assert_owned(ctx, object);
+    ctx->host->engine.object_set_active(ctx->host->engine.user, object, active);
+}
+
+static int
+api_object_ready(struct ToriRS_PluginCtx* ctx, int object)
+{
+    plugin_object_assert_owned(ctx, object);
+    return ctx->host->engine.object_ready(ctx->host->engine.user, object);
+}
+
+/* -- colour -- */
+
+static int
+api_hsl_from_rgb(struct ToriRS_PluginCtx* ctx, uint32_t rgb)
+{
+    assert(ctx);
+    return ctx->host->engine.hsl_from_rgb(ctx->host->engine.user, rgb);
+}
+
+static uint32_t
+api_hsl_to_rgb(struct ToriRS_PluginCtx* ctx, int hsl)
+{
+    assert(ctx);
+    return ctx->host->engine.hsl_to_rgb(ctx->host->engine.user, hsl);
+}
+
 /* -- drawing -- */
 
 /* One gate for every draw call: the window must be open, and the plugin must
@@ -632,6 +1092,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->npc_next);
     assert(engine->npc_by_slot);
     assert(engine->player_next);
+    assert(engine->obj_next);
     assert(engine->key_held);
     assert(engine->project);
     assert(engine->draw_tile);
@@ -640,6 +1101,20 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->draw_text);
     assert(engine->draw_rect);
     assert(engine->menu_add);
+    assert(engine->asset_read);
+    assert(engine->asset_write);
+    assert(engine->object_create);
+    assert(engine->object_destroy);
+    assert(engine->object_set_model);
+    assert(engine->object_recolor);
+    assert(engine->object_clear_recolors);
+    assert(engine->object_set_anim);
+    assert(engine->object_set_light);
+    assert(engine->object_set_position);
+    assert(engine->object_set_active);
+    assert(engine->object_ready);
+    assert(engine->hsl_from_rgb);
+    assert(engine->hsl_to_rgb);
 
     struct ToriRS_PluginHost* host = calloc(1, sizeof(*host));
     assert(host);
@@ -657,6 +1132,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .npc_next = api_npc_next,
         .npc_by_slot = api_npc_by_slot,
         .player_next = api_player_next,
+        .obj_next = api_obj_next,
         .key_held = api_key_held,
         .project = api_project,
         .cfg_bool = api_cfg_bool,
@@ -670,6 +1146,22 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .draw_line = api_draw_line,
         .draw_text = api_draw_text,
         .draw_rect = api_draw_rect,
+        .asset_load = api_asset_load,
+        .asset_data = api_asset_data,
+        .asset_save = api_asset_save,
+        .asset_release = api_asset_release,
+        .object_create = api_object_create,
+        .object_destroy = api_object_destroy,
+        .object_set_model = api_object_set_model,
+        .object_recolor = api_object_recolor,
+        .object_clear_recolors = api_object_clear_recolors,
+        .object_set_anim = api_object_set_anim,
+        .object_set_light = api_object_set_light,
+        .object_set_position = api_object_set_position,
+        .object_set_active = api_object_set_active,
+        .object_ready = api_object_ready,
+        .hsl_from_rgb = api_hsl_from_rgb,
+        .hsl_to_rgb = api_hsl_to_rgb,
     };
     host->api = api;
     return host;
@@ -698,7 +1190,10 @@ PluginHost_Free(struct ToriRS_PluginHost* host)
         if( ctx->def->shutdown )
             ctx->def->shutdown(ctx);
         ctx->running = false;
+        plugin_objects_destroy_all(host, ctx);
     }
+    for( int i = host->asset_count - 1; i >= 0; i-- )
+        plugin_asset_drop(host, &host->assets[i]);
     free(host);
 }
 
@@ -795,6 +1290,10 @@ PluginHost_SetEnabled(struct ToriRS_PluginHost* host, int plugin_index, bool ena
     if( ctx->enabled == enabled )
         return;
 
+    /* Enable state is saved state: without this a panel toggle would hold for
+     * the session and be forgotten at the next launch. */
+    host->config_dirty = true;
+
     if( !enabled )
     {
         if( ctx->running )
@@ -812,6 +1311,10 @@ PluginHost_SetEnabled(struct ToriRS_PluginHost* host, int plugin_index, bool ena
                 ctx->def->shutdown(ctx);
         }
         plugin_drop_subs(host, plugin_index);
+        /* Geometry and bytes go out with the subscriptions, and for the same
+         * reason: nothing is left running that could remove them later. */
+        plugin_objects_destroy_all(host, ctx);
+        plugin_assets_drop_plugin(host, plugin_index);
         ctx->running = false;
         ctx->enabled = false;
         return;
@@ -979,6 +1482,38 @@ void
 PluginHost_NpcDespawn(struct ToriRS_PluginHost* host, struct ToriRS_PluginNpcSnap const* npc)
 {
     plugin_npc_event(host, TORIRS_PLUGIN_EV_NPC_DESPAWN, npc);
+}
+
+static void
+plugin_obj_event(
+    struct ToriRS_PluginHost* host,
+    enum ToriRS_PluginEvent which,
+    struct ToriRS_PluginObjSnap const* obj)
+{
+    if( !host || host->sub_count[which] == 0 )
+        return;
+    assert(obj);
+    struct ToriRS_PluginEvObj ev;
+    ev.obj = *obj;
+    plugin_dispatch(host, which, &ev);
+}
+
+void
+PluginHost_ObjSpawn(struct ToriRS_PluginHost* host, struct ToriRS_PluginObjSnap const* obj)
+{
+    plugin_obj_event(host, TORIRS_PLUGIN_EV_OBJ_SPAWN, obj);
+}
+
+void
+PluginHost_ObjCount(struct ToriRS_PluginHost* host, struct ToriRS_PluginObjSnap const* obj)
+{
+    plugin_obj_event(host, TORIRS_PLUGIN_EV_OBJ_COUNT, obj);
+}
+
+void
+PluginHost_ObjDespawn(struct ToriRS_PluginHost* host, struct ToriRS_PluginObjSnap const* obj)
+{
+    plugin_obj_event(host, TORIRS_PLUGIN_EV_OBJ_DESPAWN, obj);
 }
 
 int

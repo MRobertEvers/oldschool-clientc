@@ -26,6 +26,11 @@
 /* Overlay items one plugin may push per frame, before the host clips it and
  * says so. The pool it draws from is shared with health bars and chat. */
 #define TORIRS_PLUGIN_DRAW_BUDGET 512
+/** World objects one plugin may hold at once. A loot beam per lit tile is the
+ *  shape this is sized for; past it object_create refuses and says so. */
+#define TORIRS_PLUGIN_OBJECT_BUDGET 64
+/** Resident assets, across every plugin. */
+#define TORIRS_PLUGIN_ASSETS_MAX 32
 
 struct ToriRS_PluginHost;
 
@@ -45,6 +50,7 @@ struct ToriRS_PluginEngine
     int (*npc_next)(void* user, int iter, struct ToriRS_PluginNpcSnap* out);
     int (*npc_by_slot)(void* user, int server_slot, struct ToriRS_PluginNpcSnap* out);
     int (*player_next)(void* user, int iter, struct ToriRS_PluginPlayerSnap* out);
+    int (*obj_next)(void* user, int iter, struct ToriRS_PluginObjSnap* out);
 
     int (*key_held)(void* user, int keycode);
 
@@ -80,6 +86,42 @@ struct ToriRS_PluginEngine
     /** Append a row carrying `action_id` to the menu build in progress.
      *  Returns 1 on success, 0 when the menu is full. */
     int (*menu_add)(void* user, void* cursor, char const* text, int action_id);
+
+    /* Assets. The engine owns the paths and the IO queue; the host owns the
+     * resident bytes and who is allowed to see them, which is why `plugin` is
+     * a name and not an index -- it is a directory component. */
+
+    /** Queue a read. The engine calls PluginHost_AssetDeliver when it lands,
+     *  with the bytes or with NULL. Returns 1 when the read was queued. */
+    int (*asset_read)(void* user, char const* plugin, char const* name);
+    /** Queue a write. `data` is COPIED by the engine: the host's resident copy
+     *  is replaced the moment asset_save returns and cannot be borrowed for
+     *  the lifetime of an async write. */
+    int (*asset_write)(void* user, char const* plugin, char const* name, void const* data, int size);
+
+    /* World objects. Handles are the engine's; the host records who owns each
+     * one so a stopped plugin's objects leave the scene with it. */
+
+    int (*object_create)(void* user);
+    void (*object_destroy)(void* user, int object);
+    void (*object_set_model)(void* user, int object, int source, int id);
+    void (*object_recolor)(void* user, int object, int hsl_from, int hsl_to);
+    void (*object_clear_recolors)(void* user, int object);
+    void (*object_set_anim)(void* user, int object, int seq_id, int loop);
+    void (*object_set_light)(void* user, int object, int ambient, int contrast);
+    void (*object_set_position)(
+        void* user,
+        int object,
+        int tile_x,
+        int tile_z,
+        int level,
+        int height,
+        int yaw);
+    void (*object_set_active)(void* user, int object, int active);
+    int (*object_ready)(void* user, int object);
+
+    int (*hsl_from_rgb)(void* user, uint32_t rgb);
+    uint32_t (*hsl_to_rgb)(void* user, int hsl);
 };
 
 /* ------------------------------------------------------------------------ */
@@ -137,6 +179,20 @@ void PluginHost_WorldLoaded(struct ToriRS_PluginHost* host, int base_tile_x, int
 void PluginHost_NpcSpawn(struct ToriRS_PluginHost* host, struct ToriRS_PluginNpcSnap const* npc);
 void PluginHost_NpcRetype(struct ToriRS_PluginHost* host, struct ToriRS_PluginNpcSnap const* npc);
 void PluginHost_NpcDespawn(struct ToriRS_PluginHost* host, struct ToriRS_PluginNpcSnap const* npc);
+
+void PluginHost_ObjSpawn(struct ToriRS_PluginHost* host, struct ToriRS_PluginObjSnap const* obj);
+void PluginHost_ObjCount(struct ToriRS_PluginHost* host, struct ToriRS_PluginObjSnap const* obj);
+void PluginHost_ObjDespawn(struct ToriRS_PluginHost* host, struct ToriRS_PluginObjSnap const* obj);
+
+/** An engine-side asset read finished. `data` is HANDED OVER on success (the
+ *  host frees it); NULL means the read failed, and the plugin is told so. Both
+ *  outcomes raise EV_ASSET, so a plugin never has to time a load out. */
+void PluginHost_AssetDeliver(
+    struct ToriRS_PluginHost* host,
+    char const* plugin_name,
+    char const* asset_name,
+    void* data,
+    int size);
 
 /** Returns 1 when a plugin asked for the packet to be dropped. */
 int PluginHost_PacketIn(struct ToriRS_PluginHost* host, int packet_name, int size);

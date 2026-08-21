@@ -658,6 +658,41 @@ World_SpotanimDespawn(
     struct World* world,
     int idx);
 
+/* ---- plugin-owned world objects (entity_pluginobj.h) ---- */
+
+/** Takes ownership of an already-created DYNAMIC scene element. `scene_x` /
+ * `scene_z` / `y` are fine coords (128 per tile), like a spotanim's. Spawns
+ * ACTIVE. Returns the pool index. */
+int
+World_PluginObjectSpawn(
+    struct World* world,
+    int element_id,
+    int level,
+    int scene_x,
+    int scene_z,
+    int y,
+    int orientation,
+    int size_x,
+    int size_z);
+
+/** Emits EntityRemoved for the element, so the app frees it on the next drain. */
+void
+World_PluginObjectDespawn(
+    struct World* world,
+    int idx);
+
+void
+World_PluginObjectSetActive(
+    struct World* world,
+    int idx,
+    bool active);
+
+/** Despawn every one of them. The scene rebuild path: a plugin object is
+ * anchored to an ABSOLUTE tile that only the app knows, so the world side
+ * cannot shift one -- the app re-materialises them against the new origin. */
+void
+World_PluginObjectClear(struct World* world);
+
 int
 World_SceneryRegister(
     struct World* world,

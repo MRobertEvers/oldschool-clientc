@@ -1,5 +1,6 @@
 -- Draw-path probe: marks fixed tiles near the loaded map square, so the
 -- overlay primitives can be verified without a server-synced player.
+---@type torirs.Plugin
 local plugin = { name = "drawprobe" }
 local said = false
 

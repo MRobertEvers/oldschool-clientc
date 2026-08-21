@@ -18,6 +18,7 @@
 -- the host refuses the second one outright.
 --
 
+---@type torirs.Plugin
 local plugin = {
     name    = "tile-indicator-lua",
     version = "1.0.0",

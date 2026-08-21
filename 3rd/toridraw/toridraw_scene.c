@@ -1637,7 +1637,19 @@ ToriDraw_SceneElementApplyAnimation(
          * the keyframe above composes with the previous frame's output forever.
          * The model does not animate, it accumulates.
          */
-        if( getenv("TORIRS_ANIM_STACK") && !model->original_vertices_x &&
+        /* All three of these run once per posed element per frame, so the
+         * env probes are resolved once rather than per call. */
+        static int anim_stack = -1;
+        static int anim_blowup = -1;
+        static int anim_debug = -1;
+        if( anim_stack < 0 )
+        {
+            anim_stack = getenv("TORIRS_ANIM_STACK") != NULL;
+            anim_blowup = getenv("TORIRS_ANIM_BLOWUP") != NULL;
+            anim_debug = getenv("TORIRS_ANIM_DEBUG") != NULL;
+        }
+
+        if( anim_stack && !model->original_vertices_x &&
             model->vertex_count > 0 )
             fprintf(
                 stderr,
@@ -1647,7 +1659,7 @@ ToriDraw_SceneElementApplyAnimation(
                 element_id, element->anim_seq_id, frame, (void*)model,
                 model->vertex_count);
 
-        if( getenv("TORIRS_ANIM_STACK") && model->original_vertices_x &&
+        if( anim_stack && model->original_vertices_x &&
             model->original_vertices_y && model->original_vertices_z &&
             model->vertex_count > 0 )
         {
@@ -1712,7 +1724,7 @@ ToriDraw_SceneElementApplyAnimation(
          * whole session produces a handful of lines instead of one per pose --
          * TORIRS_ANIM_DEBUG's per-frame firehose is why this was never legible.
          */
-        if( model->bounds_cylinder && getenv("TORIRS_ANIM_BLOWUP") )
+        if( anim_blowup && model->bounds_cylinder )
         {
             /* Per ELEMENT. A single shared `last` compares one model's radius
              * against whatever was posed immediately before it, which fires on
@@ -1741,7 +1753,7 @@ ToriDraw_SceneElementApplyAnimation(
          * bounds cylinder, to catch a keyframe whose decoded transforms blow
          * the model's geometry out to a radius the camera/culling can't
          * handle. See docs/rs2012_qbd_wakeup. */
-        if( getenv("TORIRS_ANIM_DEBUG") && model->bounds_cylinder )
+        if( anim_debug && model->bounds_cylinder )
             fprintf(
                 stderr,
                 "anim: element=%d primary=%d seq=%d frame=%d verts=%d radius=%d min_y=%d "

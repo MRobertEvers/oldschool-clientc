@@ -24,10 +24,14 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 1
+#define TORIRS_PLUGIN_ABI 2
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 #define TORIRS_PLUGIN_MENU_ROWS_MAX 16
+/** Longest asset name a plugin may ask for, including its extension. */
+#define TORIRS_PLUGIN_ASSET_NAME_MAX 64
+/** Recolour pairs one world object may carry, matching a spotanimtype's six. */
+#define TORIRS_PLUGIN_OBJECT_RECOLORS_MAX 6
 
 /* Opaque per-plugin instance handle. The host defines it. */
 struct ToriRS_PluginCtx;
@@ -73,6 +77,16 @@ enum ToriRS_PluginEvent
     TORIRS_PLUGIN_EV_DRAW_WORLD,
     /** One of this plugin's config keys changed. Payload: EvConfig. */
     TORIRS_PLUGIN_EV_CONFIG_CHANGED,
+    /** A ground-item stack appeared on a tile. Payload: EvObj. */
+    TORIRS_PLUGIN_EV_OBJ_SPAWN,
+    /** A ground-item stack's count changed in place. Payload: EvObj, carrying
+     *  the NEW count. */
+    TORIRS_PLUGIN_EV_OBJ_COUNT,
+    /** A ground-item stack was taken or timed out. Payload: EvObj, holding the
+     *  last known state. */
+    TORIRS_PLUGIN_EV_OBJ_DESPAWN,
+    /** An api->asset_load finished, either way. Payload: EvAsset. */
+    TORIRS_PLUGIN_EV_ASSET,
 
     TORIRS_PLUGIN_EV_COUNT
 };
@@ -143,6 +157,33 @@ struct ToriRS_PluginNpcSnap
     int element_id;
     /** Bit i set = op i is offered on this npc. */
     uint8_t visible_ops;
+};
+
+struct ToriRS_PluginObjSnap
+{
+    /** The obj id of the item on TOP of the stack -- the one the tile draws
+     *  and the one the server's ops belong to. */
+    int obj_id;
+    int count;
+    /**
+     * ObjType.cost (cache opcode 12) for one of them: the same number CS2
+     * reads through OC_COST, and the only value the client has. It is a base
+     * price, not a live Grand Exchange quote -- nothing in the client knows
+     * one -- so a plugin that wants market prices ships its own table as an
+     * asset and looks `obj_id` up in it.
+     *
+     * 0 when the objtype is not resident. Not -1: 0 is also what a valueless
+     * item costs, and a plugin thresholding on value treats both the same way.
+     */
+    int cost;
+    /** Name as the right-click builder sees it, colour tags and all. */
+    char name[64];
+    /** ABSOLUTE tile, like every other snapshot here. */
+    int tile_x;
+    int tile_z;
+    int level;
+    /** ToriDraw scene element, for api->draw_hull. -1 when not drawn. */
+    int element_id;
 };
 
 /* ------------------------------------------------------------------------ */
@@ -270,6 +311,24 @@ struct ToriRS_PluginEvConfig
     char const* key;
 };
 
+struct ToriRS_PluginEvObj
+{
+    struct ToriRS_PluginObjSnap obj;
+};
+
+struct ToriRS_PluginEvAsset
+{
+    /** The name passed to api->asset_load. Valid for this dispatch only. */
+    char const* name;
+    /** Bytes now resident; 0 when the read failed. */
+    int size;
+    /** False when the asset does not exist or could not be read. The plugin is
+     *  told either way: a load that simply never fires is indistinguishable
+     *  from one still in flight, and a plugin waiting on a file that will
+     *  never arrive would wait forever. */
+    bool ok;
+};
+
 /* ------------------------------------------------------------------------ */
 /* Config schema                                                             */
 /* ------------------------------------------------------------------------ */
@@ -302,6 +361,30 @@ struct ToriRS_PluginConfigItem
     int max;
     /** CFG_ENUM only: "a|b|c". */
     char const* choices;
+};
+
+/* ------------------------------------------------------------------------ */
+/* World objects                                                             */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * Where a plugin object's geometry comes from.
+ *
+ * Both are cache ids rather than bytes a plugin supplies, because a model is
+ * not a file the plugin can meaningfully own: it is decoded against the
+ * revision's own model codec, lit with the client's light source, and its face
+ * colours are indices into the palette the running cache defines. A plugin
+ * ships DATA as an asset and names GEOMETRY by id.
+ */
+enum ToriRS_PluginModelSource
+{
+    /** A model id from the cache's model table, lit as an actor and drawn as
+     *  it decodes. */
+    TORIRS_PLUGIN_MODEL_CACHE = 0,
+    /** A spotanimtype id: its model with that type's own recolours, retextures,
+     *  resize, angle and lighting -- the graphic exactly as the server would
+     *  draw it -- and its `seq` bound unless the plugin names another. */
+    TORIRS_PLUGIN_MODEL_SPOTANIM
 };
 
 /* ------------------------------------------------------------------------ */
@@ -342,6 +425,9 @@ struct ToriRS_PluginApi
         struct ToriRS_PluginCtx* ctx,
         int iter,
         struct ToriRS_PluginPlayerSnap* out);
+    /** Ground-item stacks, iterated like npc_next. One entry per (tile, obj)
+     *  pair -- a tile holding three different items yields three. */
+    int (*obj_next)(struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginObjSnap* out);
 
     /* -- input -- */
 
@@ -431,6 +517,114 @@ struct ToriRS_PluginApi
         int h,
         uint32_t rgb,
         int fill_alpha);
+
+    /* -- assets --
+     *
+     * A plugin's own files, in a namespace of its own: `name` is a bare
+     * filename and never a path, so one plugin can neither read nor overwrite
+     * another's, nor anything outside them. A name carrying a separator or a
+     * `..` is refused and logged rather than asserted, because it arrives from
+     * a script and a client that aborts on a typo in someone's Lua is worse
+     * than one that says no.
+     *
+     * Reads resolve the SAVED copy first and the SHIPPED copy second, so a
+     * plugin can ship a default table and later write over it without the two
+     * being different names. Writes only ever land on the saved copy: the
+     * shipped one sits under the script directory, which the browser lane
+     * cannot write to at all.
+     *
+     * Everything crosses the IO queue, never fopen -- same reason the scripts
+     * themselves do.
+     */
+
+    /** Begin loading `name`. Returns 1 when it is already resident (asset_data
+     *  answers immediately and no event follows), 0 when a read was queued --
+     *  EV_ASSET fires when it lands, whether it succeeded or not. */
+    int (*asset_load)(struct ToriRS_PluginCtx* ctx, char const* name);
+    /** Resident bytes, or NULL while pending / after a failure. `out_size` may
+     *  be NULL. The buffer belongs to the host and lives until asset_release,
+     *  another asset_save of the same name, or the plugin stopping. */
+    void const* (*asset_data)(struct ToriRS_PluginCtx* ctx, char const* name, int* out_size);
+    /** Replace `name` with `size` bytes and queue the write. The resident copy
+     *  is updated before returning, so asset_data answers with the new bytes at
+     *  once. Returns 1 when accepted. */
+    int (*asset_save)(
+        struct ToriRS_PluginCtx* ctx,
+        char const* name,
+        void const* data,
+        int size);
+    /** Drop the resident copy. The file is untouched. */
+    void (*asset_release)(struct ToriRS_PluginCtx* ctx, char const* name);
+
+    /* -- world objects --
+     *
+     * A model the plugin owns, drawn in the scene among the locs and the
+     * entities rather than painted over them the way the draw api is. That
+     * difference is the whole point: an overlay is always in front, so it
+     * cannot stand behind a wall, sink into a slope or sort against an npc,
+     * and a beam of light that ignores the building in front of it does not
+     * read as being in the world.
+     *
+     * Handles are per-plugin and are destroyed for it when it stops. Position
+     * is an ABSOLUTE tile, so an object survives a scene rebuild: the host
+     * re-places it on the new origin rather than the plugin having to notice.
+     *
+     * Model and sequence loads are asynchronous, exactly as they are for the
+     * client's own graphics. An object is simply not drawn until its assets
+     * land; object_ready is how a plugin can tell the difference.
+     */
+
+    /** A new object, owned by this plugin, inactive and with no model yet.
+     *  Returns a handle, or -1 when the plugin is at its object budget. */
+    int (*object_create)(struct ToriRS_PluginCtx* ctx);
+    void (*object_destroy)(struct ToriRS_PluginCtx* ctx, int object);
+    /** Setting a model the object does not already have re-queues its load. */
+    void (*object_set_model)(
+        struct ToriRS_PluginCtx* ctx,
+        int object,
+        enum ToriRS_PluginModelSource source,
+        int id);
+    /** Append one recolour pair, in packed HSL -- the unit the model's face
+     *  colours are actually in (see hsl_from_rgb). Applied when the model is
+     *  built, so pairs added after it is already drawn take effect on the next
+     *  rebuild; clear-then-set is what forces one. */
+    void (*object_recolor)(struct ToriRS_PluginCtx* ctx, int object, int hsl_from, int hsl_to);
+    /** Drop every recolour pair and rebuild the model from the cache copy. */
+    void (*object_clear_recolors)(struct ToriRS_PluginCtx* ctx, int object);
+    /** Bind a sequence. -1 leaves the model in its bind pose; a SPOTANIM-source
+     *  object that is never given one plays the spotanimtype's own seq. */
+    void (*object_set_anim)(struct ToriRS_PluginCtx* ctx, int object, int seq_id, int loop);
+    /** Lighting OFFSETS against the actor profile, exactly as a spotanimtype's
+     *  own ambient/contrast are applied: 0, 0 is the client's default and a
+     *  positive ambient brightens. Not absolute values -- a light source that
+     *  ignored the profile would not match the models beside it. */
+    void (*object_set_light)(struct ToriRS_PluginCtx* ctx, int object, int ambient, int contrast);
+    /** ABSOLUTE tile and level, `height` in the projector's 1/128-of-a-tile
+     *  units above the ground (positive raises), `yaw` 0..2047. */
+    void (*object_set_position)(
+        struct ToriRS_PluginCtx* ctx,
+        int object,
+        int tile_x,
+        int tile_z,
+        int level,
+        int height,
+        int yaw);
+    void (*object_set_active)(struct ToriRS_PluginCtx* ctx, int object, int active);
+    /** 1 once the model is built and the object is in the scene. */
+    int (*object_ready)(struct ToriRS_PluginCtx* ctx, int object);
+
+    /* -- colour --
+     *
+     * Model faces are not RGB. They are 6-bit hue / 3-bit saturation / 7-bit
+     * luminance indices into the revision's palette, which is why a recolour
+     * takes packed HSL and why "make this beam #FF0000" needs a conversion
+     * rather than a cast.
+     */
+
+    /** 0xRRGGBB -> packed HSL. */
+    int (*hsl_from_rgb)(struct ToriRS_PluginCtx* ctx, uint32_t rgb);
+    /** Packed HSL -> 0xRRGGBB, through the same palette the rasteriser uses. */
+    uint32_t (*hsl_to_rgb)(struct ToriRS_PluginCtx* ctx, int hsl);
 };
 
 /* ------------------------------------------------------------------------ */

@@ -411,6 +411,17 @@ ToriRS_TaskQueue_Remove(
     task_free(task);
 }
 
+/* Task tracing is a boot-time decision, and the queue drains many tasks per
+ * frame -- resolve the env once instead of walking environ per completion. */
+static inline int
+torirs_task_log_enabled(void)
+{
+    static int enabled = -1;
+    if( enabled < 0 )
+        enabled = getenv("TORIRS_TASK_LOG") != NULL;
+    return enabled;
+}
+
 static inline int
 ToriRS_TaskQueue_Run(
     struct ToriRS_TaskQueue* queue,
@@ -446,7 +457,7 @@ ToriRS_TaskQueue_Run(
              * (set TORIRS_TASK_LOG) so the console is not spammed. A task that
              * failed prints its own diagnostic before exiting. Keep running —
              * DONE means the whole queue drained, not just one task. */
-            if( getenv("TORIRS_TASK_LOG") )
+            if( torirs_task_log_enabled() )
                 fprintf(stderr, "Task %s completed\n", task->name);
             ToriRS_TaskQueue_Remove(queue, task);
             break;

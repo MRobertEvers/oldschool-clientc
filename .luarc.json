@@ -1,0 +1,42 @@
+{
+  "$schema": "https://raw.githubusercontent.com/LuaLS/vscode-lua/master/setting/schema.json",
+  "runtime": {
+    "version": "Lua 5.4",
+    "builtin": {
+      "io": "disable",
+      "os": "disable",
+      "package": "disable",
+      "debug": "disable",
+      "coroutine": "disable"
+    }
+  },
+  "workspace": {
+    "ignoreDir": [
+      "3rd",
+      "build*",
+      "Client-TS",
+      "OSRS-Content",
+      "android",
+      "scripts",
+      "v0",
+      "v1",
+      ".venv"
+    ]
+  },
+  "diagnostics": {
+    "globals": [],
+    "disable": ["lowercase-global"],
+    "unusedLocalExclude": ["_*"]
+  },
+  "hint": {
+    "enable": true,
+    "paramName": "Literal"
+  },
+  "format": {
+    "defaultConfig": {
+      "indent_style": "space",
+      "indent_size": "4",
+      "max_line_length": "96"
+    }
+  }
+}

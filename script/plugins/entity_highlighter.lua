@@ -12,6 +12,7 @@
 -- when it binds triggers.
 --
 
+---@type torirs.Plugin
 local plugin = {
     name    = "entity-highlighter",
     version = "1.0.0",

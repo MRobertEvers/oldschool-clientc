@@ -39,17 +39,16 @@ app_plugin_panel_track(struct App* app, int widget, int plugin, int cfg_index)
 }
 
 /*
- * Build (or rebuild) the rows.
+ * Add rows for plugins that do not have any yet.
  *
- * Rebuilt wholesale rather than patched because the plugin list only settles
- * once the script boot task has run: a panel built at App_Init would show the
- * C plugins and the adapter, and never the scripts. ToriRSChrome has no
- * remove-widget call, so a rebuild is a Reset of the whole chrome -- which is
- * why the other panels are re-added here too, and why this runs only when the
- * plugin count actually changes.
+ * Append rather than rebuild, because ToriRSChrome has no remove-widget call:
+ * the only way to "rebuild" is Reset, which would take the developer overlay
+ * and both editor panels down with it. Appending works because the plugin list
+ * only ever grows -- scripts register asynchronously as their boot task reads
+ * them, and nothing is ever unregistered (disabling is a flag, not a removal).
  */
 static void
-app_plugin_panel_build(struct App* app)
+app_plugin_panel_sync(struct App* app)
 {
     int count;
 
@@ -58,13 +57,21 @@ app_plugin_panel_build(struct App* app)
         return;
 
     count = PluginHost_Count(app->plugins);
-    app->plugin_panel_row_count = 0;
-    app->plugin_panel = ToriRSChrome_PanelAdd(
-        &app->dbg_ui, TORIDBG_PANEL_WINDOW, 8, 72, 0, "Plugins");
-    if( app->plugin_panel < 0 )
+    if( app->plugin_panel_built_for == count )
         return;
 
-    for( int p = 0; p < count; p++ )
+    if( app->plugin_panel < 0 )
+    {
+        app->plugin_panel = ToriRSChrome_PanelAdd(
+            &app->dbg_ui, TORIDBG_PANEL_WINDOW, 8, 72, 0, "Plugins");
+        if( app->plugin_panel < 0 )
+            return;
+        ToriRSChrome_PanelSetResizable(&app->dbg_ui, app->plugin_panel, 1);
+        ToriRSChrome_PanelSetVisible(
+            &app->dbg_ui, app->plugin_panel, app->plugin_panel_visible);
+    }
+
+    for( int p = app->plugin_panel_built_for; p < count; p++ )
     {
         int const cfg_count = PluginHost_ConfigCount(app->plugins, p);
         char label[TORIDBG_INPUT_MAX];
@@ -103,43 +110,34 @@ app_plugin_panel_build(struct App* app)
             if( !item || !item->label )
                 continue;
 
-            switch( item->type )
+            if( item->type == TORIRS_PLUGIN_CFG_BOOL )
             {
-            case TORIRS_PLUGIN_CFG_BOOL:
                 widget = ToriRSChrome_Checkbox(
                     &app->dbg_ui,
                     app->plugin_panel,
                     item->label,
                     atoi(app_plugin_panel_value(app, p, item->key)) != 0);
-                break;
-            default:
-                /* Ints, colours, strings and enums all edit as text. The store
-                 * is textual to begin with, so this is the value itself rather
-                 * than a rendering of it -- and an enum's choices show up in
-                 * the label so the field is not a guess. */
+            }
+            else
+            {
+                /* Ints, colours, strings and enums all edit as text, because
+                 * the store is textual to begin with -- the field shows the
+                 * value that would be written, not a rendering of it. An
+                 * enum's choices ride in the label so the field is not a
+                 * guessing game. */
                 if( item->type == TORIRS_PLUGIN_CFG_ENUM && item->choices )
-                {
                     snprintf(label, sizeof(label), "%s (%s)", item->label, item->choices);
-                    widget = ToriRSChrome_TextInput(
-                        &app->dbg_ui,
-                        app->plugin_panel,
-                        label,
-                        app_plugin_panel_value(app, p, item->key));
-                }
                 else
-                    widget = ToriRSChrome_TextInput(
-                        &app->dbg_ui,
-                        app->plugin_panel,
-                        item->label,
-                        app_plugin_panel_value(app, p, item->key));
-                break;
+                    snprintf(label, sizeof(label), "%s", item->label);
+                widget = ToriRSChrome_TextInput(
+                    &app->dbg_ui,
+                    app->plugin_panel,
+                    label,
+                    app_plugin_panel_value(app, p, item->key));
             }
             app_plugin_panel_track(app, widget, p, c);
         }
     }
-
-    ToriRSChrome_PanelSetResizable(&app->dbg_ui, app->plugin_panel, 1);
-    ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->plugin_panel, app->plugin_panel_visible);
     app->plugin_panel_built_for = count;
 }
 
@@ -161,7 +159,6 @@ app_plugin_panel_apply(struct App* app, int widget)
              * the run that just ended. */
             if( on )
                 PluginHost_SetError(app->plugins, row->plugin, NULL);
-            app->plugin_prefs_dirty = 1;
             return;
         }
 
@@ -197,7 +194,6 @@ app_plugin_panel_apply(struct App* app, int widget)
             else
                 PluginHost_ConfigSet(app->plugins, row->plugin, item->key, text);
         }
-        app->plugin_prefs_dirty = 1;
         return;
     }
 }
@@ -232,8 +228,47 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
     if( !app->plugin_panel_visible )
         return;
 
-    /* Scripts register asynchronously, so the list the panel was built from
-     * can still be growing the first few frames it is open. */
-    if( app->plugin_panel_built_for != PluginHost_Count(app->plugins) )
-        app_plugin_panel_build(app);
+    /* Scripts register asynchronously, so the list can still be growing the
+     * first few frames the panel is open. */
+    app_plugin_panel_sync(app);
+
+    /*
+     * Peek the activation latch before taking it.
+     *
+     * The latch is shared by every panel in this chrome, and taking one that
+     * belongs to someone else swallows their click -- the exact bug the loc
+     * editor's drain carries a comment about, where the map editor's dropdown
+     * showed a new value while its tool never changed. Checking ownership
+     * first means two open panels cannot eat each other's input.
+     */
+    {
+        int const pending = app->dbg_ui.activated;
+        if( pending >= 0 )
+        {
+            for( int i = 0; i < app->plugin_panel_row_count; i++ )
+            {
+                if( app->plugin_panel_rows[i].widget != pending )
+                    continue;
+                app_plugin_panel_apply(app, ToriRSChrome_TakeActivated(&app->dbg_ui));
+                break;
+            }
+        }
+    }
+
+    /*
+     * Build our own display list, exactly as the developer overlay and the loc
+     * editor do at the end of their ticks.
+     *
+     * Not optional and not someone else's job: Build only rebuilds when
+     * something changed, and it is the caller that saw it change who must turn
+     * that into need_redraw. Leaving it to the next tick's Build means the
+     * frame this panel first appears on is never marked dirty, the shell
+     * re-presents the previous framebuffer, and the panel is invisible until
+     * something unrelated happens to request a repaint.
+     */
+    if( ToriRSChrome_Build(&app->dbg_ui) )
+    {
+        app->need_redraw = 1;
+        ToriRSChrome_DamageClear(&app->dbg_ui);
+    }
 }

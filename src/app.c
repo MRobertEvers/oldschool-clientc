@@ -2973,6 +2973,7 @@ app_overlay_build_editor_selection(struct App* app)
  * rather than compiled separately so those helpers stay static -- the same
  * arrangement world_builder.c uses for world_terrain.u.c. */
 #include "plugin/torirs_plugin_bridge.u.c"
+#include "plugin/torirs_plugin_panel.u.c"
 
 /**
  * Pixel size of a sprite already resident in the scene.
@@ -5861,6 +5862,8 @@ App_Init(
         if( !plugins_env || atoi(plugins_env) != 0 )
         {
             struct ToriRS_PluginEngine engine = app_plugin_engine(app);
+            app->plugin_panel = -1;
+            app->plugin_panel_built_for = 0;
             app->plugins = PluginHost_New(&engine);
             app->plugin_prefs_path = PluginPrefs_Path();
             PluginLua_Bind(app->plugins);
@@ -7827,6 +7830,10 @@ App_WorldLoadFinish(struct App* app)
          * world_active so a handler that queries the world finds it live. */
         PluginHost_WorldLoaded(
             app->plugins, app->world->_base_tile_x, app->world->_base_tile_z);
+        /* AFTER the event, so an object a handler placed in response to the
+         * rebuild is materialised by its own set_position rather than being
+         * swept up by a pass that already ran. */
+        app_plugin_objects_rebuild(app);
         World_SetHeightFn(app->world, app_world_height, app);
         {
             struct World_SeqSource seq_source = {
@@ -10815,6 +10822,11 @@ app_world_sync_positions(struct App* app)
 {
     struct World* world = app->world;
     struct World_EntityPool* pool;
+    /* Probed once: the two prints below run for every player and every npc in
+     * the scene, every frame. */
+    static int npcpos_debug = -1;
+    if( npcpos_debug < 0 )
+        npcpos_debug = getenv("TORIRS_NPCPOS_DEBUG") != NULL;
     /* Reference getAvH(minusedlevel, …) — all movers sit on the local plane. */
     int local_level = app_cinema_level(app);
 
@@ -10834,7 +10846,7 @@ app_world_sync_positions(struct App* app)
         int wx = (int)player->draw_position.x;
         int wz = (int)player->draw_position.z;
         int wy = app_world_height(app, wx, wz, local_level);
-        if( getenv("TORIRS_NPCPOS_DEBUG") )
+        if( npcpos_debug )
             fprintf(
                 stderr, "plrpos: tile=%d,%d lvl=%d(local %d) w=%d,%d y=%d\n",
                 player->grid_position.x, player->grid_position.z,
@@ -10857,7 +10869,7 @@ app_world_sync_positions(struct App* app)
         int wx = (int)npc->draw_position.x;
         int wz = (int)npc->draw_position.z;
         int wy = app_world_height(app, wx, wz, local_level);
-        if( getenv("TORIRS_NPCPOS_DEBUG") )
+        if( npcpos_debug )
             fprintf(
                 stderr,
                 "npcpos: id=%d tile=%d,%d lvl=%d(local %d) w=%d,%d y=%d size=%d "
@@ -14629,6 +14641,293 @@ app_world_spawn_spotanim_now(
     app->need_redraw = 1;
 }
 
+/* ----------------------------------------------- plugin-owned world objects */
+
+/*
+ * A plugin's model, standing in the scene.
+ *
+ * Three things have to agree for one of these to draw, and they arrive at
+ * different times: the plugin's intent (a model id, a tile, a colour), the
+ * cache assets that intent names, and a scene element to hang them on. The
+ * record in app->plugin_objects is the intent; everything below is the
+ * machinery that keeps the other two chasing it.
+ *
+ * The rule that makes it tractable: intent is never applied in place. A change
+ * to anything the MODEL is built from tears the element down and rebuilds it;
+ * a change to where it stands or whether it is drawn is applied to the live
+ * entity. Deciding which is which is `built_*` versus what the plugin now
+ * says, which is also what stops a plugin that re-states the same intent every
+ * frame from rebuilding a model every frame.
+ */
+
+static struct AppPluginObject*
+app_plugin_object_at(struct App* app, int handle)
+{
+    assert(app);
+    if( handle < 0 || handle >= APP_PLUGIN_OBJECTS_MAX )
+        return NULL;
+    if( !app->plugin_objects[handle].in_use )
+        return NULL;
+    return &app->plugin_objects[handle];
+}
+
+/* A cheap identity for the recolour list, so "did the colours change?" does not
+ * mean comparing two arrays on every call. Order-sensitive on purpose: recolour
+ * is applied in order and two lists that differ only in order can genuinely
+ * produce different models. */
+static int
+app_plugin_object_recolor_stamp(struct AppPluginObject const* obj)
+{
+    int stamp = 17;
+    assert(obj);
+    for( int i = 0; i < obj->recolor_count; i++ )
+        stamp = stamp * 31 + (obj->recolor_from[i] * 65599 + obj->recolor_to[i]);
+    return stamp * 31 + obj->recolor_count;
+}
+
+/* The model ids this object's source needs resident before it can be built:
+ * a CACHE object names its model directly, a SPOTANIM object names it through
+ * the spotanimtype. Returns -1 when it is not knowable yet. */
+static int
+app_plugin_object_model_id(struct App* app, struct AppPluginObject const* obj)
+{
+    assert(app);
+    assert(obj);
+
+    if( obj->source == TORIRS_PLUGIN_MODEL_SPOTANIM )
+    {
+        struct ToriRS_Spotanimtype* spot =
+            obj->model_id >= 0 ? CacheProvider_SpotanimtypeGet(app->provider, obj->model_id) : NULL;
+        return spot ? spot->model : -1;
+    }
+    return obj->model_id;
+}
+
+/* The sequence the object should play: the plugin's if it named one, else the
+ * spotanimtype's own. -1 = no animation. */
+static int
+app_plugin_object_seq_id(struct App* app, struct AppPluginObject const* obj)
+{
+    assert(app);
+    assert(obj);
+
+    if( obj->seq_id >= 0 )
+        return obj->seq_id;
+    if( obj->source == TORIRS_PLUGIN_MODEL_SPOTANIM )
+    {
+        struct ToriRS_Spotanimtype* spot =
+            obj->model_id >= 0 ? CacheProvider_SpotanimtypeGet(app->provider, obj->model_id) : NULL;
+        return spot ? spot->seq : -1;
+    }
+    return -1;
+}
+
+/*
+ * Build the drawable model. SYNCHRONOUS -- everything it reads must already be
+ * resident (the spawn task awaits it). Returns an owned model or NULL.
+ *
+ * Not routed through app_world_build_spotanim_model even for a SPOTANIM
+ * object, and not through the instance cache either, for one reason: the
+ * plugin's recolours have to be applied BEFORE lighting. Lighting bakes the
+ * face colours into the per-vertex a/b/c triples the rasteriser reads, and a
+ * recolour after that point rewrites a table nothing looks at again -- the
+ * model comes out exactly the colour it started. That is a silent failure, so
+ * this path is written out rather than layered on one that cannot express it.
+ */
+static struct ToriDraw_Model*
+app_plugin_object_build_model(struct App* app, struct AppPluginObject const* obj)
+{
+    struct ToriRS_Spotanimtype const* spot = NULL;
+    struct ToriDraw_Model* model;
+    int model_id;
+    int retextured = 0;
+
+    assert(app);
+    assert(obj);
+
+    if( obj->source == TORIRS_PLUGIN_MODEL_SPOTANIM )
+        spot = obj->model_id >= 0 ? CacheProvider_SpotanimtypeGet(app->provider, obj->model_id)
+                                  : NULL;
+    model_id = app_plugin_object_model_id(app, obj);
+    if( model_id < 0 )
+        return NULL;
+
+    {
+        struct ToriRS_Model* rs = CacheProvider_ModelGet(app->provider, model_id);
+        model = rs ? ToriDraw_ModelFromToriRS(rs) : NULL;
+    }
+    if( !model )
+        return NULL;
+
+    /* The spotanimtype's own recolours first, so the plugin's pairs are stated
+     * against the colours it can actually see on the finished graphic. */
+    if( spot )
+    {
+        if( spot->recol_s[0] != 0 )
+        {
+            for( int i = 0; i < 6; i++ )
+                ToriDraw_ModelRecolor(model, spot->recol_s[i], spot->recol_d[i]);
+        }
+        for( int i = 0; i < 6; i++ )
+        {
+            if( spot->retex_s[i] != 0 )
+            {
+                ToriDraw_ModelRetexture(model, spot->retex_s[i], spot->retex_d[i]);
+                retextured = 1;
+            }
+        }
+    }
+    for( int i = 0; i < obj->recolor_count; i++ )
+        ToriDraw_ModelRecolor(model, obj->recolor_from[i], obj->recolor_to[i]);
+
+    if( retextured )
+        ToriDraw_ModelNoteTextureWants(model);
+
+    /* Recorded, not applied: the resize belongs after every animation frame,
+     * for the reason app_world_build_spotanim_model gives. */
+    if( spot )
+    {
+        ToriDraw_ModelSetPostResize(model, spot->resizeh, spot->resizeh, spot->resizev);
+        if( spot->angle != 0 )
+            ToriDraw_ModelOrient(model, spot->angle / 90);
+    }
+
+    ToriDraw_ModelDropNonSdTextures(app->provider, model);
+    ToriDraw_ModelNoteTextureWants(model);
+
+    {
+        struct ToriDraw_ModelHandle hnd;
+        memset(&hnd, 0, sizeof(hnd));
+        hnd.kind = TORIDRAWMK_MODEL;
+        hnd.u.model.model = model;
+        /* The plugin's offsets ON TOP of the type's, so a SPOTANIM object with
+         * no light of its own looks exactly like the server-drawn graphic. */
+        ToriDraw_LightModelActor(
+            hnd,
+            (spot ? spot->contrast : 0) + obj->contrast,
+            (spot ? spot->ambient : 0) + obj->ambient);
+    }
+    ToriDraw_ModelCaptureOriginalVertices(model);
+    ToriDraw_ModelApplyPostTransforms(model);
+    ToriDraw_ModelSetBoundsCylinder(model);
+    return model;
+}
+
+/* Drop the live element and world entity, leaving the intent alone. The
+ * EntityRemoved event frees the scene element on the next drain, which is the
+ * same path every other despawn takes. */
+static void
+app_plugin_object_teardown(struct App* app, struct AppPluginObject* obj)
+{
+    assert(app);
+    assert(obj);
+
+    if( obj->world_index >= 0 && app->world )
+        World_PluginObjectDespawn(app->world, obj->world_index);
+    obj->world_index = -1;
+    obj->element_id = -1;
+    obj->built_source = -1;
+    obj->built_model_id = -1;
+    obj->built_recolor_stamp = 0;
+}
+
+/* Scene-local placement for an object's absolute tile, or 0 when it is off the
+ * current scene. */
+static int
+app_plugin_object_scene_pos(
+    struct App* app,
+    struct AppPluginObject const* obj,
+    int* out_world_x,
+    int* out_world_z,
+    int* out_world_y)
+{
+    int scene_x;
+    int scene_z;
+
+    assert(app);
+    assert(obj);
+    assert(out_world_x);
+    assert(out_world_z);
+    assert(out_world_y);
+
+    if( !app->world )
+        return 0;
+    scene_x = obj->tile_x - app->world->_base_tile_x;
+    scene_z = obj->tile_z - app->world->_base_tile_z;
+    if( scene_x < 0 || scene_z < 0 || scene_x >= app->world->_scene_size ||
+        scene_z >= app->world->_scene_size )
+        return 0;
+
+    *out_world_x = scene_x * 128 + 64;
+    *out_world_z = scene_z * 128 + 64;
+    /* World y is negative-up, so subtracting `height` raises the model off the
+     * ground -- the same arithmetic a map spotanim's height uses. */
+    *out_world_y =
+        app_world_height(app, *out_world_x, *out_world_z, obj->level) - obj->height;
+    return 1;
+}
+
+/* Build the element and hand it to World. SYNCHRONOUS -- the model and seq
+ * must be resident. */
+static void
+app_plugin_object_materialize_now(struct App* app, int handle)
+{
+    struct AppPluginObject* obj = app_plugin_object_at(app, handle);
+    struct ToriDraw_Model* model;
+    int world_x;
+    int world_z;
+    int world_y;
+    int element_id;
+    int seq_id;
+
+    assert(app);
+    if( !obj )
+        return; /* destroyed while its load was in flight */
+    obj->load_pending = 0;
+    if( obj->element_id >= 0 )
+        return; /* a second task raced ahead of this one */
+    if( !app_plugin_object_scene_pos(app, obj, &world_x, &world_z, &world_y) )
+        return;
+
+    model = app_plugin_object_build_model(app, obj);
+    if( !model )
+        return;
+
+    element_id = app_world_scene_element_create(app, model, world_x, world_y, world_z);
+    if( element_id < 0 )
+        return;
+
+    obj->element_id = element_id;
+    obj->built_source = obj->source;
+    obj->built_model_id = obj->model_id;
+    obj->built_recolor_stamp = app_plugin_object_recolor_stamp(obj);
+    obj->world_index = World_PluginObjectSpawn(
+        app->world,
+        element_id,
+        obj->level,
+        world_x,
+        world_z,
+        world_y,
+        obj->yaw,
+        /*size_x=*/1,
+        /*size_z=*/1);
+    World_PluginObjectSetActive(app->world, obj->world_index, obj->active != 0);
+
+    seq_id = app_plugin_object_seq_id(app, obj);
+    if( seq_id >= 0 )
+    {
+        /* Before the bind, not after: the flag is read by the per-element tick
+         * from the first cycle the sequence advances, and a beam that plays
+         * once and freezes on its terminal frame is the whole difference
+         * between an idle loop and a one-shot graphic. */
+        ToriDraw_SceneElementSetAnimLoop(app->scene, element_id, obj->loop != 0);
+        app_world_apply_seq(app, element_id, seq_id);
+    }
+
+    app_sync_textures(app);
+    app->need_redraw = 1;
+}
+
 /* Async spawn driver for the three debug hotkeys: awaits the cache loads the
  * synchronous spawn bodies assume, then runs them. Enqueued on the serial
  * exec pipeline so spawns interleave cleanly with packet exec + mounts. */
@@ -14654,6 +14953,7 @@ enum AppSpawnKind
     APP_SPAWN_ENTITY_SPOTANIM,
     APP_SPAWN_LOC_CHANGE,
     APP_SPAWN_LOC_ANIM,
+    APP_SPAWN_PLUGIN_OBJECT,
 };
 
 struct Task_AppSpawn
@@ -14704,6 +15004,11 @@ struct Task_AppSpawn
     int loc_shape;
     int loc_angle;
     int loc_model_j;
+    /* APP_SPAWN_PLUGIN_OBJECT: the plugin object handle whose assets this task
+     * is waiting on. Not a pointer -- the record can be destroyed while the
+     * task is parked, and the handle re-resolves to NULL rather than to freed
+     * memory. */
+    int plugin_object;
 };
 
 /*
@@ -14888,6 +15193,32 @@ Task_AppSpawn_Run(
             self->proj_peak,
             self->proj_arc,
             self->proj_target);
+    }
+    else if( self->kind == APP_SPAWN_PLUGIN_OBJECT )
+    {
+        /*
+         * Same asset chain as a spotanim, resolved through whichever source
+         * the object named. Every step re-reads the record through its handle
+         * rather than caching a pointer across the awaits: a plugin may have
+         * destroyed the object, or restated its model, while this was parked.
+         */
+        {
+            struct AppPluginObject* obj = app_plugin_object_at(app, self->plugin_object);
+            self->spotanim_id =
+                (obj && obj->source == TORIRS_PLUGIN_MODEL_SPOTANIM) ? obj->model_id : -1;
+        }
+        if( self->spotanim_id >= 0 )
+            PT_TASK_AWAITSELF_IF(CreateTask_SpotanimLoad(app->provider, self->spotanim_id));
+        {
+            struct AppPluginObject* obj = app_plugin_object_at(app, self->plugin_object);
+            self->model_id = obj ? app_plugin_object_model_id(app, obj) : -1;
+            self->seq_id = obj ? app_plugin_object_seq_id(app, obj) : -1;
+        }
+        if( self->model_id >= 0 )
+            PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
+        if( self->seq_id >= 0 )
+            PT_TASK_AWAITSELF_IF(CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
+        app_plugin_object_materialize_now(app, self->plugin_object);
     }
     else if( self->kind == APP_SPAWN_LOC_ANIM )
     {
@@ -15915,6 +16246,413 @@ app_spawn_task_new(
     task->level = level;
     PT_INIT(&task->pt);
     return task;
+}
+
+/*
+ * Reconcile one plugin object's live element with its intent.
+ *
+ * Called after every mutation and after a scene rebuild, and cheap when
+ * nothing moved -- which matters, because the natural way to write a plugin is
+ * to restate the whole intent every tick.
+ */
+static void
+app_plugin_object_sync(struct App* app, int handle)
+{
+    struct AppPluginObject* obj = app_plugin_object_at(app, handle);
+    int world_x;
+    int world_z;
+    int world_y;
+
+    assert(app);
+    if( !obj )
+        return;
+
+    /* A change to what the MODEL is made of cannot be applied in place. */
+    if( obj->element_id >= 0 &&
+        (obj->built_source != obj->source || obj->built_model_id != obj->model_id ||
+         obj->built_recolor_stamp != app_plugin_object_recolor_stamp(obj)) )
+        app_plugin_object_teardown(app, obj);
+
+    /* Nothing to draw yet, or nothing to draw at all. */
+    if( obj->model_id < 0 || !app->world )
+        return;
+
+    if( !app_plugin_object_scene_pos(app, obj, &world_x, &world_z, &world_y) )
+    {
+        /* Walked off the scene. The intent survives -- the absolute tile is
+         * still meaningful and the object comes back when the scene does. */
+        if( obj->element_id >= 0 )
+            app_plugin_object_teardown(app, obj);
+        return;
+    }
+
+    if( obj->element_id < 0 )
+    {
+        if( obj->load_pending )
+            return;
+        /* One task per object per attempt. Without the latch a plugin polling
+         * an object whose model is still loading would queue a task every
+         * frame, and the exec pipeline is serial. */
+        obj->load_pending = 1;
+        struct Task_AppSpawn* task =
+            app_spawn_task_new(app, APP_SPAWN_PLUGIN_OBJECT, 0, 0, 0);
+        task->plugin_object = handle;
+        ToriRS_TaskQueue_Add(app->exec_runner.queue, &task->task);
+        return;
+    }
+
+    /* Live: position, level and visibility are applied to the entity. */
+    ToriDraw_SceneElementSetPosition(app->scene, obj->element_id, world_x, world_y, world_z, 0);
+    if( obj->world_index >= 0 )
+    {
+        struct WorldEntity_PluginObject* we =
+            World_EntityPoolGet(&app->world->entities.plugin_object, obj->world_index);
+        if( we )
+        {
+            we->level = obj->level;
+            we->orientation.yaw = (uint16_t)obj->yaw;
+            we->orientation.dst_yaw = (uint16_t)obj->yaw;
+            World_DrawPositionSet(&we->draw_position, world_x, world_z);
+            we->draw_position.y = (uint32_t)world_y;
+        }
+        World_PluginObjectSetActive(app->world, obj->world_index, obj->active != 0);
+    }
+    app->need_redraw = 1;
+}
+
+/*
+ * Every plugin object, re-placed against a scene that has just been rebuilt.
+ *
+ * A rebuild frees every dynamic scene element, so the live half of each record
+ * is already gone by the time this runs; what is left is the intent, keyed on
+ * an ABSOLUTE tile, which is exactly the thing a rebuild does not invalidate.
+ * That is the whole reason the plugin contract speaks in absolute tiles.
+ */
+static void
+app_plugin_objects_rebuild(struct App* app)
+{
+    assert(app);
+    for( int i = 0; i < APP_PLUGIN_OBJECTS_MAX; i++ )
+    {
+        struct AppPluginObject* obj = &app->plugin_objects[i];
+        if( !obj->in_use )
+            continue;
+        obj->element_id = -1;
+        obj->world_index = -1;
+        obj->built_source = -1;
+        obj->built_model_id = -1;
+        obj->built_recolor_stamp = 0;
+        obj->load_pending = 0;
+        app_plugin_object_sync(app, i);
+    }
+}
+
+/* -------------------------------------------------------- plugin assets */
+
+/*
+ * Where a plugin's SAVED asset lives: beside plugin_prefs.ini, under a
+ * directory of the plugin's own.
+ *
+ * Derived from the prefs path rather than declared separately so that the two
+ * cannot drift: TORIRS_PLUGIN_PREFS moves the client's plugin state somewhere
+ * else, and a plugin's saved files are part of that state. An empty prefs path
+ * means persistence is off for this run (a headless test), and the empty
+ * result it produces is what makes a read fall straight through to the shipped
+ * copy and a write refuse -- neither of which should leave a file behind.
+ */
+static void
+app_plugin_asset_saved_path(
+    struct App* app,
+    char const* plugin,
+    char const* name,
+    char* out,
+    size_t out_size)
+{
+    char const* prefs;
+    char const* slash;
+
+    assert(app);
+    assert(plugin);
+    assert(name);
+    assert(out);
+    assert(out_size > 0);
+
+    out[0] = '\0';
+    prefs = app->plugin_prefs_path;
+    if( !prefs || !*prefs )
+        return;
+
+    slash = strrchr(prefs, '/');
+    if( slash )
+        snprintf(
+            out,
+            out_size,
+            "%.*s/%s/%s/%s",
+            (int)(slash - prefs),
+            prefs,
+            PLUGIN_ASSET_SAVED_DIR,
+            plugin,
+            name);
+    else
+        snprintf(out, out_size, "%s/%s/%s", PLUGIN_ASSET_SAVED_DIR, plugin, name);
+}
+
+static int
+app_plugin_asset_read(void* user, char const* plugin, char const* name)
+{
+    struct App* app = (struct App*)user;
+    char saved[TORIRS_IOITEM_MAX_PATH];
+
+    assert(app);
+    assert(plugin);
+    assert(name);
+
+    if( !app->plugins )
+        return 0;
+    app_plugin_asset_saved_path(app, plugin, name, saved, sizeof(saved));
+    ToriRS_TaskQueue_Add(
+        app->runner.queue, CreateTask_PluginAssetRead(app->plugins, plugin, name, saved));
+    return 1;
+}
+
+static int
+app_plugin_asset_write(void* user, char const* plugin, char const* name, void const* data, int size)
+{
+    struct App* app = (struct App*)user;
+    char saved[TORIRS_IOITEM_MAX_PATH];
+
+    assert(app);
+    assert(plugin);
+    assert(name);
+    assert(data || size == 0);
+
+    app_plugin_asset_saved_path(app, plugin, name, saved, sizeof(saved));
+    if( !saved[0] )
+    {
+        /* Persistence is switched off for this run. Refusing loudly rather
+         * than inventing a path: a client told not to write files must not
+         * start writing them because a plugin asked. */
+        fprintf(
+            stderr,
+            "plugin: %s cannot save asset '%s'; plugin persistence is off for "
+            "this run (TORIRS_PLUGIN_PREFS is empty)\n",
+            plugin,
+            name);
+        return 0;
+    }
+    ToriRS_TaskQueue_Add(app->runner.queue, CreateTask_PluginAssetWrite(saved, data, size));
+    return 1;
+}
+
+/* ---- the engine seam the plugin host holds (declared in the bridge) ---- */
+
+static int
+app_plugin_object_create(void* user)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+
+    for( int i = 0; i < APP_PLUGIN_OBJECTS_MAX; i++ )
+    {
+        struct AppPluginObject* obj = &app->plugin_objects[i];
+        if( obj->in_use )
+            continue;
+        memset(obj, 0, sizeof(*obj));
+        obj->in_use = 1;
+        obj->source = TORIRS_PLUGIN_MODEL_CACHE;
+        obj->model_id = -1;
+        obj->seq_id = -1;
+        obj->loop = 1;
+        obj->level = -1;
+        obj->element_id = -1;
+        obj->world_index = -1;
+        obj->built_source = -1;
+        obj->built_model_id = -1;
+        return i;
+    }
+    fprintf(
+        stderr,
+        "plugin: world-object table full (%d); object_create refused\n",
+        APP_PLUGIN_OBJECTS_MAX);
+    return -1;
+}
+
+static void
+app_plugin_object_destroy(void* user, int handle)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginObject* obj;
+
+    assert(app);
+    obj = app_plugin_object_at(app, handle);
+    if( !obj )
+        return;
+    app_plugin_object_teardown(app, obj);
+    memset(obj, 0, sizeof(*obj));
+    app->need_redraw = 1;
+}
+
+static void
+app_plugin_object_set_model(void* user, int handle, int source, int id)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginObject* obj;
+
+    assert(app);
+    obj = app_plugin_object_at(app, handle);
+    if( !obj )
+        return;
+    if( obj->source == source && obj->model_id == id )
+        return;
+    obj->source = source;
+    obj->model_id = id;
+    app_plugin_object_sync(app, handle);
+}
+
+static void
+app_plugin_object_recolor(void* user, int handle, int hsl_from, int hsl_to)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginObject* obj;
+
+    assert(app);
+    obj = app_plugin_object_at(app, handle);
+    if( !obj )
+        return;
+    if( obj->recolor_count >= TORIRS_PLUGIN_OBJECT_RECOLORS_MAX )
+    {
+        fprintf(
+            stderr,
+            "plugin: world object %d already carries %d recolour pairs; "
+            "the extra one is dropped\n",
+            handle,
+            TORIRS_PLUGIN_OBJECT_RECOLORS_MAX);
+        return;
+    }
+    obj->recolor_from[obj->recolor_count] = hsl_from;
+    obj->recolor_to[obj->recolor_count] = hsl_to;
+    obj->recolor_count++;
+    app_plugin_object_sync(app, handle);
+}
+
+static void
+app_plugin_object_clear_recolors(void* user, int handle)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginObject* obj;
+
+    assert(app);
+    obj = app_plugin_object_at(app, handle);
+    if( !obj )
+        return;
+    obj->recolor_count = 0;
+    app_plugin_object_sync(app, handle);
+}
+
+static void
+app_plugin_object_set_anim(void* user, int handle, int seq_id, int loop)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginObject* obj;
+
+    assert(app);
+    obj = app_plugin_object_at(app, handle);
+    if( !obj )
+        return;
+    if( obj->seq_id == seq_id && obj->loop == (loop != 0) )
+        return;
+    obj->seq_id = seq_id;
+    obj->loop = loop != 0;
+    /* The sequence is bound onto the element, so a live object takes the new
+     * one without the model being rebuilt. */
+    if( obj->element_id >= 0 )
+    {
+        int const bound = app_plugin_object_seq_id(app, obj);
+        ToriDraw_SceneElementSetAnimLoop(app->scene, obj->element_id, obj->loop != 0);
+        if( bound >= 0 )
+            app_world_apply_seq(app, obj->element_id, bound);
+        else
+            ToriDraw_SceneElementSetAnimation(app->scene, obj->element_id, NULL, true);
+        app->need_redraw = 1;
+    }
+    else
+        app_plugin_object_sync(app, handle);
+}
+
+static void
+app_plugin_object_set_light(void* user, int handle, int ambient, int contrast)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginObject* obj;
+
+    assert(app);
+    obj = app_plugin_object_at(app, handle);
+    if( !obj )
+        return;
+    if( obj->ambient == ambient && obj->contrast == contrast )
+        return;
+    obj->ambient = ambient;
+    obj->contrast = contrast;
+    /* Lighting is baked into the face colours, so this is a model change --
+     * tear down explicitly, because the built_* stamps do not cover it. */
+    if( obj->element_id >= 0 )
+        app_plugin_object_teardown(app, obj);
+    app_plugin_object_sync(app, handle);
+}
+
+static void
+app_plugin_object_set_position(
+    void* user,
+    int handle,
+    int tile_x,
+    int tile_z,
+    int level,
+    int height,
+    int yaw)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginObject* obj;
+
+    assert(app);
+    obj = app_plugin_object_at(app, handle);
+    if( !obj )
+        return;
+    if( obj->tile_x == tile_x && obj->tile_z == tile_z && obj->level == level &&
+        obj->height == height && obj->yaw == yaw )
+        return;
+    obj->tile_x = tile_x;
+    obj->tile_z = tile_z;
+    obj->level = level;
+    obj->height = height;
+    obj->yaw = yaw;
+    app_plugin_object_sync(app, handle);
+}
+
+static void
+app_plugin_object_set_active(void* user, int handle, int active)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginObject* obj;
+
+    assert(app);
+    obj = app_plugin_object_at(app, handle);
+    if( !obj )
+        return;
+    if( obj->active == (active != 0) )
+        return;
+    obj->active = active != 0;
+    app_plugin_object_sync(app, handle);
+}
+
+static int
+app_plugin_object_ready(void* user, int handle)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginObject* obj;
+
+    assert(app);
+    obj = app_plugin_object_at(app, handle);
+    return (obj && obj->element_id >= 0) ? 1 : 0;
 }
 
 static void
@@ -19651,6 +20389,11 @@ App_RunOnce(
     /* Developer overlay first: its toggle key has to latch during a boot too,
      * and its readout has to be current before this frame's emit rebuild. */
     app_debug_overlay_tick(app, input);
+    /* Plugin settings beside the other developer chrome, and before the loc
+     * editor for the same reason it runs before the map editor: whoever is
+     * open drains the shared activation latch, so order decides who sees a
+     * click first. This one only takes activations it owns. */
+    app_plugin_panel_tick(app, input);
     /* Loc editor next, same reasoning -- and it has to run before anything
      * downstream reads input_frame_consumed for click-to-walk. */
     app_loc_editor_tick(app, input);
@@ -21622,6 +22365,38 @@ App_NpctypeResolveMultiId(
     return npc_id;
 }
 
+/* Tell the plugins about a ground-item stack, by pool index. One helper for
+ * all three edges so the snapshot is filled the same way every time -- and so
+ * a despawn can be announced BEFORE the entity is released, while there is
+ * still something whole to describe. */
+static void
+app_plugin_obj_notify(struct App* app, int idx, enum ToriRS_PluginEvent which)
+{
+    struct WorldEntity_ObjStack* stack;
+    struct ToriRS_PluginObjSnap snap;
+
+    assert(app);
+    if( !app->plugins || !app->world || idx < 0 )
+        return;
+    stack = World_EntityPoolGet(&app->world->entities.obj_stack, idx);
+    if( !stack )
+        return;
+
+    app_plugin_fill_obj(app, stack, &snap);
+    switch( which )
+    {
+    case TORIRS_PLUGIN_EV_OBJ_SPAWN:
+        PluginHost_ObjSpawn(app->plugins, &snap);
+        break;
+    case TORIRS_PLUGIN_EV_OBJ_COUNT:
+        PluginHost_ObjCount(app->plugins, &snap);
+        break;
+    default:
+        PluginHost_ObjDespawn(app->plugins, &snap);
+        break;
+    }
+}
+
 /* Ground item stacks (zone OBJ_* packets). The objtype + its inventory
  * model must already be cached (the packet task awaits the loads). */
 int
@@ -21647,6 +22422,7 @@ App_WorldObjStackAdd(
     if( existing >= 0 )
     {
         World_ObjStackSetCount(app->world, existing, count);
+        app_plugin_obj_notify(app, existing, TORIRS_PLUGIN_EV_OBJ_COUNT);
         app->need_redraw = 1;
         return existing;
     }
@@ -21692,8 +22468,10 @@ App_WorldObjStackAdd(
         char actions32[5][32];
         for( int a = 0; a < 5; a++ )
             snprintf(actions32[a], sizeof(actions32[a]), "%s", obj->ground_actions[a]);
-        return World_ObjStackAdd(
+        int const idx = World_ObjStackAdd(
             app->world, element_id, scene_x, scene_z, level, obj_id, count, obj->name, actions32);
+        app_plugin_obj_notify(app, idx, TORIRS_PLUGIN_EV_OBJ_SPAWN);
+        return idx;
     }
 }
 
@@ -21713,6 +22491,12 @@ App_WorldRebuildShift(
 
     World_ShiftEntities(world, base_dx, base_dz);
     World_ClearProjectilesAndSpotanims(world);
+    /* Plugin objects are anchored to ABSOLUTE tiles, which the shift does not
+     * move -- so they are torn down here and re-placed against the new origin
+     * once the scene is up (app_plugin_objects_rebuild, from the world-loaded
+     * seam). Shifting them instead would be the wrong operation: an object
+     * whose tile is off the new scene has to stop drawing, not slide. */
+    World_PluginObjectClear(world);
 
     /* Obj stacks: Client-TS shifts the groundObj grid and nulls entries that
      * fall off it; here the surviving stacks' elements also need their world
@@ -21729,7 +22513,12 @@ App_WorldRebuildShift(
             int scene_z = stack->grid_position.z;
             if( scene_x < 0 || scene_z < 0 || scene_x >= world->_scene_size ||
                 scene_z >= world->_scene_size )
+            {
+                /* Off the new scene: the client stops tracking it, and a
+                 * plugin drawing against it has to hear so. */
+                app_plugin_obj_notify(app, i, TORIRS_PLUGIN_EV_OBJ_DESPAWN);
                 World_ObjStackDel(world, i);
+            }
             else if( stack->element_id >= 0 )
             {
                 int world_x = scene_x * 128 + 64;
@@ -21827,6 +22616,46 @@ App_WorldObjStackDel(
     idx = World_ObjStackFind(app->world, scene_x, scene_z, level, obj_id);
     if( idx >= 0 )
     {
+        /* Ahead of the release, so a plugin's last look at the stack is a
+         * whole one -- the same ordering the npc despawn path uses. */
+        app_plugin_obj_notify(app, idx, TORIRS_PLUGIN_EV_OBJ_DESPAWN);
+        World_ObjStackDel(app->world, idx);
+        app->need_redraw = 1;
+    }
+}
+
+void
+App_WorldObjStackSetCount(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level,
+    int obj_id,
+    int count)
+{
+    int idx;
+    assert(app);
+    idx = World_ObjStackFind(app->world, scene_x, scene_z, level, obj_id);
+    if( idx < 0 )
+        return;
+    World_ObjStackSetCount(app->world, idx, count);
+    app_plugin_obj_notify(app, idx, TORIRS_PLUGIN_EV_OBJ_COUNT);
+    app->need_redraw = 1;
+}
+
+void
+App_WorldObjStackClearTile(
+    struct App* app,
+    int scene_x,
+    int scene_z,
+    int level)
+{
+    int idx;
+    assert(app);
+    /* obj_id -1 = any, so this drains the tile one stack at a time. */
+    while( (idx = World_ObjStackFind(app->world, scene_x, scene_z, level, -1)) >= 0 )
+    {
+        app_plugin_obj_notify(app, idx, TORIRS_PLUGIN_EV_OBJ_DESPAWN);
         World_ObjStackDel(app->world, idx);
         app->need_redraw = 1;
     }

@@ -80,6 +80,10 @@ struct LuaScript
     int api_ref;
     /* The persistent `draw` table, valid only during EV_DRAW_WORLD. */
     int draw_ref;
+    /* The persistent `menu` table. Built once, reused every dispatch: the
+     * hover pass rebuilds the minimenu on EVERY frame, so anything allocated
+     * per dispatch here is allocated fifty times a second. */
+    int menu_ref;
 
     struct LuaBinding bindings[TORIRS_PLUGIN_EV_COUNT];
 
@@ -249,6 +253,32 @@ lua_push_npc(lua_State* L, struct ToriRS_PluginNpcSnap const* n)
     SETI("visible_ops", n->visible_ops);
 #undef SETI
     lua_pushstring(L, n->name);
+    lua_setfield(L, -2, "name");
+}
+
+static void
+lua_push_obj(lua_State* L, struct ToriRS_PluginObjSnap const* o)
+{
+    lua_createtable(L, 0, 8);
+#define SETI(k, v)                                                                            \
+    do                                                                                        \
+    {                                                                                         \
+        lua_pushinteger(L, (lua_Integer)(v));                                                 \
+        lua_setfield(L, -2, (k));                                                             \
+    } while( 0 )
+    SETI("obj_id", o->obj_id);
+    SETI("count", o->count);
+    SETI("cost", o->cost);
+    SETI("tile_x", o->tile_x);
+    SETI("tile_z", o->tile_z);
+    SETI("level", o->level);
+    SETI("element_id", o->element_id);
+    /* Convenience, because every consumer computes it: a stack of 200 arrows
+     * is worth 200x the arrow's cost, and getting that product wrong is the
+     * one arithmetic mistake a value-thresholding plugin can make. */
+    SETI("value", (int64_t)o->cost * (int64_t)o->count);
+#undef SETI
+    lua_pushstring(L, o->name);
     lua_setfield(L, -2, "name");
 }
 
@@ -598,6 +628,249 @@ lua_menu_add(lua_State* L)
     return 1;
 }
 
+/* `for obj in api.objs() do`; see lua_npc_iter for the upvalue cursor. */
+static int
+lua_obj_iter(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    struct ToriRS_PluginObjSnap snap;
+    int const prev = (int)lua_tointeger(L, lua_upvalueindex(2));
+    int const next = g_api->obj_next(script->cur_ctx, prev, &snap);
+
+    if( next < 0 )
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_pushinteger(L, next);
+    lua_replace(L, lua_upvalueindex(2));
+    lua_push_obj(L, &snap);
+    return 1;
+}
+
+static int
+lua_api_objs(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    lua_pushlightuserdata(L, script);
+    lua_pushinteger(L, -1);
+    lua_pushcclosure(L, lua_obj_iter, 2);
+    return 1;
+}
+
+/* -- assets --
+ *
+ * Bytes cross as Lua STRINGS, which is the right carrier and not a shortcut: a
+ * Lua string is a counted byte array that may contain NULs, so a binary asset
+ * survives the round trip, and string.byte / string.sub are already the tools
+ * for reading one. */
+
+static int
+lua_api_asset_load(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    lua_pushboolean(L, g_api->asset_load(script->cur_ctx, luaL_checkstring(L, 1)));
+    return 1;
+}
+
+static int
+lua_api_asset_data(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    int size = 0;
+    void const* data = g_api->asset_data(script->cur_ctx, luaL_checkstring(L, 1), &size);
+
+    if( !data )
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_pushlstring(L, (char const*)data, (size_t)size);
+    return 1;
+}
+
+static int
+lua_api_asset_save(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* name = luaL_checkstring(L, 1);
+    size_t size = 0;
+    char const* data = luaL_checklstring(L, 2, &size);
+
+    lua_pushboolean(L, g_api->asset_save(script->cur_ctx, name, data, (int)size));
+    return 1;
+}
+
+static int
+lua_api_asset_release(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    g_api->asset_release(script->cur_ctx, luaL_checkstring(L, 1));
+    return 0;
+}
+
+/* -- world objects -- */
+
+static int
+lua_api_object_create(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    int const handle = g_api->object_create(script->cur_ctx);
+
+    /* nil rather than -1 on refusal: a budget that has run out is something a
+     * script has to notice, and `if not obj then` is the shape it will already
+     * be writing for every other allocation here. */
+    if( handle < 0 )
+        lua_pushnil(L);
+    else
+        lua_pushinteger(L, handle);
+    return 1;
+}
+
+static int
+lua_api_object_destroy(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    g_api->object_destroy(script->cur_ctx, (int)luaL_checkinteger(L, 1));
+    return 0;
+}
+
+static int
+lua_api_object_model(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    int const handle = (int)luaL_checkinteger(L, 1);
+    int const id = (int)luaL_checkinteger(L, 2);
+    char const* kind = luaL_optstring(L, 3, "model");
+    enum ToriRS_PluginModelSource source =
+        strcmp(kind, "spotanim") == 0 ? TORIRS_PLUGIN_MODEL_SPOTANIM : TORIRS_PLUGIN_MODEL_CACHE;
+
+    if( strcmp(kind, "spotanim") != 0 && strcmp(kind, "model") != 0 )
+        return luaL_error(L, "object_model: kind must be \"model\" or \"spotanim\", got \"%s\"", kind);
+
+    g_api->object_set_model(script->cur_ctx, handle, source, id);
+    return 0;
+}
+
+static int
+lua_api_object_recolor(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    g_api->object_recolor(
+        script->cur_ctx,
+        (int)luaL_checkinteger(L, 1),
+        (int)luaL_checkinteger(L, 2),
+        (int)luaL_checkinteger(L, 3));
+    return 0;
+}
+
+static int
+lua_api_object_clear_recolors(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    g_api->object_clear_recolors(script->cur_ctx, (int)luaL_checkinteger(L, 1));
+    return 0;
+}
+
+static int
+lua_api_object_anim(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    g_api->object_set_anim(
+        script->cur_ctx,
+        (int)luaL_checkinteger(L, 1),
+        (int)luaL_checkinteger(L, 2),
+        lua_isnoneornil(L, 3) ? 1 : lua_toboolean(L, 3));
+    return 0;
+}
+
+static int
+lua_api_object_light(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    g_api->object_set_light(
+        script->cur_ctx,
+        (int)luaL_checkinteger(L, 1),
+        (int)luaL_checkinteger(L, 2),
+        (int)luaL_checkinteger(L, 3));
+    return 0;
+}
+
+static int
+lua_api_object_position(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    g_api->object_set_position(
+        script->cur_ctx,
+        (int)luaL_checkinteger(L, 1),
+        (int)luaL_checkinteger(L, 2),
+        (int)luaL_checkinteger(L, 3),
+        (int)luaL_checkinteger(L, 4),
+        (int)luaL_optinteger(L, 5, 0),
+        (int)luaL_optinteger(L, 6, 0));
+    return 0;
+}
+
+static int
+lua_api_object_active(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    g_api->object_set_active(
+        script->cur_ctx, (int)luaL_checkinteger(L, 1), lua_toboolean(L, 2));
+    return 0;
+}
+
+static int
+lua_api_object_ready(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    lua_pushboolean(L, g_api->object_ready(script->cur_ctx, (int)luaL_checkinteger(L, 1)));
+    return 1;
+}
+
+/* -- colour -- */
+
+static int
+lua_api_hsl(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    lua_pushinteger(L, g_api->hsl_from_rgb(script->cur_ctx, (uint32_t)luaL_checkinteger(L, 1)));
+    return 1;
+}
+
+static int
+lua_api_rgb(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    lua_pushinteger(
+        L, (lua_Integer)g_api->hsl_to_rgb(script->cur_ctx, (int)luaL_checkinteger(L, 1)));
+    return 1;
+}
+
+/* Pack / unpack a packed HSL, so a script can shift a colour's luminance the
+ * way the reference's own beam does without re-deriving the bit layout. */
+static int
+lua_api_hsl_pack(lua_State* L)
+{
+    int const h = (int)luaL_checkinteger(L, 1);
+    int const s = (int)luaL_checkinteger(L, 2);
+    int const l = (int)luaL_checkinteger(L, 3);
+    (void)lua_upvalue_script(L);
+    lua_pushinteger(L, ((h & 63) << 10) | ((s & 7) << 7) | (l & 127));
+    return 1;
+}
+
+static int
+lua_api_hsl_unpack(lua_State* L)
+{
+    int const hsl = (int)luaL_checkinteger(L, 1);
+    (void)lua_upvalue_script(L);
+    lua_pushinteger(L, (hsl >> 10) & 63);
+    lua_pushinteger(L, (hsl >> 7) & 7);
+    lua_pushinteger(L, hsl & 127);
+    return 3;
+}
+
 /* -------------------------------------------------------------- sandboxing */
 
 /*
@@ -660,9 +933,28 @@ lua_build_api_table(struct LuaScript* script)
         { "npcs", lua_api_npcs },
         { "players", lua_api_players },
         { "npc_by_slot", lua_api_npc_by_slot },
+        { "objs", lua_api_objs },
         { "key_held", lua_api_key_held },
         { "project", lua_api_project },
         { "cfg_set", lua_api_cfg_set },
+        { "asset_load", lua_api_asset_load },
+        { "asset_data", lua_api_asset_data },
+        { "asset_save", lua_api_asset_save },
+        { "asset_release", lua_api_asset_release },
+        { "object_create", lua_api_object_create },
+        { "object_destroy", lua_api_object_destroy },
+        { "object_model", lua_api_object_model },
+        { "object_recolor", lua_api_object_recolor },
+        { "object_clear_recolors", lua_api_object_clear_recolors },
+        { "object_anim", lua_api_object_anim },
+        { "object_light", lua_api_object_light },
+        { "object_position", lua_api_object_position },
+        { "object_active", lua_api_object_active },
+        { "object_ready", lua_api_object_ready },
+        { "hsl", lua_api_hsl },
+        { "rgb", lua_api_rgb },
+        { "hsl_pack", lua_api_hsl_pack },
+        { "hsl_unpack", lua_api_hsl_unpack },
     };
 
     lua_createtable(L, 0, (int)(sizeof(FNS) / sizeof(FNS[0])) + 1);
@@ -708,6 +1000,82 @@ lua_build_api_table(struct LuaScript* script)
     script->draw_ref = luaL_ref(L, LUA_REGISTRYINDEX);
 }
 
+/*
+ * `menu.rows`, built on first read rather than on dispatch.
+ *
+ * The minimenu is rebuilt every frame to compose the mouseover line, so
+ * EV_MENU_BUILD fires ~50 times a second whether or not anything wants it.
+ * Materialising the rows eagerly cost one table per row per frame per
+ * subscribed script -- measured at ~61us a frame on app_run's p50 with a
+ * single script whose handler does nothing but `if menu.hover_pass then
+ * return end`. The early-out saved nothing, because the work had already
+ * happened before the handler was called.
+ *
+ * Lazily, that same handler pays one boolean read. A handler that does want
+ * the rows pays exactly what it did before, and only once: the array is
+ * rawset into the table, so the metamethod does not fire again for the rest
+ * of this dispatch.
+ */
+static int
+lua_menu_rows_index(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    struct ToriRS_PluginEvMenuBuild const* ev = script->cur_menu;
+    char const* key = lua_type(L, 2) == LUA_TSTRING ? lua_tostring(L, 2) : NULL;
+
+    if( !key || strcmp(key, "rows") != 0 || !ev )
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+
+    lua_createtable(L, ev->row_count, 0);
+    for( int i = 0; i < ev->row_count; i++ )
+    {
+        lua_createtable(L, 0, 6);
+        lua_pushstring(L, ev->rows[i].text ? ev->rows[i].text : "");
+        lua_setfield(L, -2, "text");
+        lua_pushinteger(L, ev->rows[i].action);
+        lua_setfield(L, -2, "action");
+        lua_pushinteger(L, ev->rows[i].pick_kind);
+        lua_setfield(L, -2, "pick_kind");
+        lua_pushinteger(L, ev->rows[i].npc_slot);
+        lua_setfield(L, -2, "npc_slot");
+        lua_pushinteger(L, ev->rows[i].player_pid);
+        lua_setfield(L, -2, "player_pid");
+        lua_pushinteger(L, ev->rows[i].target_id);
+        lua_setfield(L, -2, "target_id");
+        lua_rawseti(L, -2, i + 1);
+    }
+
+    /* Cache it on the table itself, so __index is not consulted again. The
+     * dispatch clears it before the next handler runs. */
+    lua_pushvalue(L, -1);
+    lua_setfield(L, 1, "rows");
+    return 1;
+}
+
+/* The `menu` table handed to on_menu_build: `add` and the metatable are built
+ * once here; only `hover_pass` is rewritten per dispatch. */
+static void
+lua_build_menu(struct LuaScript* script)
+{
+    lua_State* L = script->L;
+
+    lua_createtable(L, 0, 3);
+    lua_pushlightuserdata(L, script);
+    lua_pushcclosure(L, lua_menu_add, 1);
+    lua_setfield(L, -2, "add");
+
+    lua_createtable(L, 0, 1);
+    lua_pushlightuserdata(L, script);
+    lua_pushcclosure(L, lua_menu_rows_index, 1);
+    lua_setfield(L, -2, "__index");
+    lua_setmetatable(L, -2);
+
+    script->menu_ref = luaL_ref(L, LUA_REGISTRYINDEX);
+}
+
 /* ------------------------------------------------------------- dispatch */
 
 /* The handler names the adapter looks for. Absent names are simply not
@@ -730,6 +1098,10 @@ static char const* const LUA_HANDLER_NAME[TORIRS_PLUGIN_EV_COUNT] = {
     [TORIRS_PLUGIN_EV_MENU_SELECT] = "on_menu_select",
     [TORIRS_PLUGIN_EV_DRAW_WORLD] = "on_draw_world",
     [TORIRS_PLUGIN_EV_CONFIG_CHANGED] = "on_config_changed",
+    [TORIRS_PLUGIN_EV_OBJ_SPAWN] = "on_obj_spawn",
+    [TORIRS_PLUGIN_EV_OBJ_COUNT] = "on_obj_count",
+    [TORIRS_PLUGIN_EV_OBJ_DESPAWN] = "on_obj_despawn",
+    [TORIRS_PLUGIN_EV_ASSET] = "on_asset",
 };
 
 /* Push the event's second argument. Returns the number of arguments pushed. */
@@ -779,6 +1151,26 @@ lua_push_event_arg(struct LuaScript* script, int event, void* payload)
         lua_push_npc(L, &ev->npc);
         return 1;
     }
+    case TORIRS_PLUGIN_EV_OBJ_SPAWN:
+    case TORIRS_PLUGIN_EV_OBJ_COUNT:
+    case TORIRS_PLUGIN_EV_OBJ_DESPAWN:
+    {
+        struct ToriRS_PluginEvObj const* ev = payload;
+        lua_push_obj(L, &ev->obj);
+        return 1;
+    }
+    case TORIRS_PLUGIN_EV_ASSET:
+    {
+        struct ToriRS_PluginEvAsset const* ev = payload;
+        lua_createtable(L, 0, 3);
+        lua_pushstring(L, ev->name ? ev->name : "");
+        lua_setfield(L, -2, "name");
+        lua_pushinteger(L, ev->size);
+        lua_setfield(L, -2, "size");
+        lua_pushboolean(L, ev->ok);
+        lua_setfield(L, -2, "ok");
+        return 1;
+    }
     case TORIRS_PLUGIN_EV_PACKET_IN:
     {
         struct ToriRS_PluginEvPacketIn const* ev = payload;
@@ -812,31 +1204,14 @@ lua_push_event_arg(struct LuaScript* script, int event, void* payload)
     case TORIRS_PLUGIN_EV_MENU_BUILD:
     {
         struct ToriRS_PluginEvMenuBuild* ev = payload;
-        lua_createtable(L, 0, 3);
+
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script->menu_ref);
         lua_pushboolean(L, ev->hover_pass);
         lua_setfield(L, -2, "hover_pass");
-        lua_createtable(L, ev->row_count, 0);
-        for( int i = 0; i < ev->row_count; i++ )
-        {
-            lua_createtable(L, 0, 6);
-            lua_pushstring(L, ev->rows[i].text ? ev->rows[i].text : "");
-            lua_setfield(L, -2, "text");
-            lua_pushinteger(L, ev->rows[i].action);
-            lua_setfield(L, -2, "action");
-            lua_pushinteger(L, ev->rows[i].pick_kind);
-            lua_setfield(L, -2, "pick_kind");
-            lua_pushinteger(L, ev->rows[i].npc_slot);
-            lua_setfield(L, -2, "npc_slot");
-            lua_pushinteger(L, ev->rows[i].player_pid);
-            lua_setfield(L, -2, "player_pid");
-            lua_pushinteger(L, ev->rows[i].target_id);
-            lua_setfield(L, -2, "target_id");
-            lua_rawseti(L, -2, i + 1);
-        }
+        /* Drop last dispatch's cached rows so __index rebuilds them -- but
+         * only if this handler actually reads them. See lua_menu_rows_index. */
+        lua_pushnil(L);
         lua_setfield(L, -2, "rows");
-        lua_pushlightuserdata(L, script);
-        lua_pushcclosure(L, lua_menu_add, 1);
-        lua_setfield(L, -2, "add");
         return 1;
     }
     case TORIRS_PLUGIN_EV_MENU_SELECT:
@@ -1101,6 +1476,7 @@ PluginLua_AddScript(
     script->table_ref = LUA_NOREF;
     script->api_ref = LUA_NOREF;
     script->draw_ref = LUA_NOREF;
+    script->menu_ref = LUA_NOREF;
     for( int i = 0; i < TORIRS_PLUGIN_EV_COUNT; i++ )
         script->handler_ref[i] = LUA_NOREF;
     snprintf(script->name, sizeof(script->name), "%s", name);
@@ -1184,6 +1560,7 @@ PluginLua_AddScript(
 
     script->table_ref = luaL_ref(L, LUA_REGISTRYINDEX);
     lua_build_api_table(script);
+    lua_build_menu(script);
 
     script->def.name = script->name;
     script->def.version = script->version;

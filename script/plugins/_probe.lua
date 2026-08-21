@@ -1,5 +1,6 @@
 -- Development probe: exercises every api surface and prints what it sees.
 -- Not shipped in plugins.ini; loaded on demand via TORIRS_PLUGIN_MANIFEST.
+---@type torirs.Plugin
 local plugin = {
     name = "probe",
     config = {

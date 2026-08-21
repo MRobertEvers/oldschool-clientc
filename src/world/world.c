@@ -979,6 +979,97 @@ World_SpotanimDespawn(
     World_EntityPoolRelease(pool, idx);
 }
 
+/* ---------------------------------------------- plugin-owned world objects */
+
+int
+World_PluginObjectSpawn(
+    struct World* world,
+    int element_id,
+    int level,
+    int scene_x,
+    int scene_z,
+    int y,
+    int orientation,
+    int size_x,
+    int size_z)
+{
+    assert(world);
+    assert(element_id >= 0);
+    assert(size_x > 0);
+    assert(size_z > 0);
+
+    struct World_EntityPool* pool = &world->entities.plugin_object;
+    int idx = World_EntityPoolAlloc(pool);
+    assert(idx >= 0);
+
+    struct WorldEntity_PluginObject* obj = World_EntityPoolGet(pool, idx);
+    assert(obj);
+    *obj = (struct WorldEntity_PluginObject){
+        .element_id = element_id,
+        .level = level,
+        .draw_position = { .x = (uint32_t)scene_x,
+                           .z = (uint32_t)scene_z,
+                           .y = (uint32_t)y,
+                           .fx = (float)scene_x,
+                           .fz = (float)scene_z },
+        .orientation = { .yaw = (uint16_t)orientation, .dst_yaw = (uint16_t)orientation },
+        .size_x = size_x,
+        .size_z = size_z,
+        .active = true,
+    };
+    return idx;
+}
+
+void
+World_PluginObjectDespawn(
+    struct World* world,
+    int idx)
+{
+    assert(world);
+
+    struct World_EntityPool* pool = &world->entities.plugin_object;
+    if( !World_EntityPoolIsActive(pool, idx) )
+        return;
+
+    struct WorldEntity_PluginObject* obj = World_EntityPoolGet(pool, idx);
+    assert(obj);
+    World_EmitEntityRemoved(world, obj->element_id);
+    World_EntityPoolRelease(pool, idx);
+}
+
+void
+World_PluginObjectSetActive(
+    struct World* world,
+    int idx,
+    bool active)
+{
+    assert(world);
+
+    struct World_EntityPool* pool = &world->entities.plugin_object;
+    if( !World_EntityPoolIsActive(pool, idx) )
+        return;
+
+    struct WorldEntity_PluginObject* obj = World_EntityPoolGet(pool, idx);
+    assert(obj);
+    obj->active = active;
+}
+
+void
+World_PluginObjectClear(struct World* world)
+{
+    struct World_EntityPool* pool;
+    int next;
+
+    assert(world);
+
+    pool = &world->entities.plugin_object;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL; i = next )
+    {
+        next = World_EntityPoolNext(pool, i);
+        World_PluginObjectDespawn(world, i);
+    }
+}
+
 /* --- REBUILD_NORMAL scene-base relocation (Client-TS rebuild handler) ---
  *
  * The new scene origin moved by (dx, dz) tiles, so every kept entity's

@@ -2922,7 +2922,10 @@ npc_spawn(
              * footprint and still has to obey its turnspeed. */
             const struct ToriRSServerNpcInfo* info = ToriRSServer_NpcInfoRecord(type);
             npc->size = (info && info->size > 0) ? info->size : 1;
-            if( getenv("DBG_ZUK_SIZE") )
+            static int dbg_zuk_size = -1;
+            if( dbg_zuk_size < 0 )
+                dbg_zuk_size = getenv("DBG_ZUK_SIZE") != NULL;
+            if( dbg_zuk_size )
                 fprintf(stderr, "DBG spawn type=%d x=%d z=%d info=%p info_size=%d npc_size=%d\n",
                         type, x, z, (void*)info, info ? info->size : -1, npc->size);
             /*
@@ -3086,7 +3089,10 @@ ToriRSServer_WorldNpcFree(
      * animation (`death_seq < 0`) and a room teardown removing living npcs
      * (`hitpoints > 0`) are both excluded rather than excused.
      */
-    if( getenv("TORIRSSERVER_ANIM_LOST") )
+    static int anim_lost = -1;
+    if( anim_lost < 0 )
+        anim_lost = getenv("TORIRSSERVER_ANIM_LOST") != NULL;
+    if( anim_lost )
         fprintf(stderr,
                 "torirsserver: npc_free type=%d slot=%d tick=%d hp=%d death_tick=%d "
                 "stage=%d death_seq=%d sent=%d\n",
