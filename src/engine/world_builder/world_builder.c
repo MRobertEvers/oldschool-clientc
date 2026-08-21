@@ -5,6 +5,7 @@
 #include "contour_ground_queue.u.c"
 #include "decor_buildmap.h"
 #include "engine/cache_provider.h"
+#include "engine/torirs_model_inst_cache.h"
 #include "painters/painters.h"
 #include "painters/scene_occluders.h"
 #include "flag_map.h"
@@ -52,6 +53,27 @@ static double g_wb_t_model_convert_ms; /* ModelFromToriRS + merge */
 static double g_wb_t_model_transform_ms; /* apply_transforms + SD strip + bounds */
 static int g_wb_n_model_builds;
 static int g_wb_n_model_srcs;
+
+/* Cached env-flag probes for the per-model / per-tile debug hooks below.
+ * getenv() in those loops was the single hottest symbol of a whole rebuild
+ * (__findenv_locked walks the environment list on every call — ~8k models and
+ * ~43k tiles per scene paid it each time). The debug knobs stay usable; they
+ * are simply read once per process like TORIRS_ZBUFFER_LOCS already was. */
+static int
+wb_env_on(
+    const char* name,
+    int* cache)
+{
+    if( *cache < 0 )
+        *cache = getenv(name) != NULL;
+    return *cache;
+}
+
+static int g_wb_env_scenery_dbg = -1;
+static int g_wb_env_strip_tex = -1;
+
+#define WB_ENV_SCENERY_DEBUG() wb_env_on("TORIRS_SCENERY_DEBUG", &g_wb_env_scenery_dbg)
+#define WB_ENV_STRIP_TEXTURES() wb_env_on("TORIRS_STRIP_TEXTURES", &g_wb_env_strip_tex)
 
 // clang-format off
 #include "world_terrain.u.c"
@@ -265,6 +287,13 @@ WorldBuilder_New(
                               sizeof(builder->scenery_dbg_element[0]));
          i++ )
         builder->scenery_dbg_element[i] = -1;
+    builder->scenery_model_cache = calloc(1, sizeof(*builder->scenery_model_cache));
+    assert(builder->scenery_model_cache);
+    {
+        bool inited = TorirsModelInstCache_Init(builder->scenery_model_cache);
+        assert(inited && "WorldBuilder_New: scenery model cache init");
+        (void)inited;
+    }
     return builder;
 }
 
@@ -273,6 +302,11 @@ WorldBuilder_Free(struct WorldBuilder* builder)
 {
     if( !builder )
         return;
+    if( builder->scenery_model_cache )
+    {
+        TorirsModelInstCache_Free(builder->scenery_model_cache);
+        free(builder->scenery_model_cache);
+    }
     world_builder_free_transient_maps(builder);
     free(builder);
 }
@@ -291,6 +325,11 @@ WorldBuilder_RebuildCenterzoneBegin(
     g_wb_t_model_transform_ms = 0.0;
     g_wb_n_model_builds = 0;
     g_wb_n_model_srcs = 0;
+
+    /* Loc configs may have been reloaded (varbit morphs re-resolve per place;
+     * the map editor re-seeds the provider) — a prototype baked from the old
+     * config must not survive into this build. */
+    TorirsModelInstCache_Clear(builder->scenery_model_cache);
 
     world_builder_free_transient_maps(builder);
     World_ResetScene(world, zone_center_x, zone_center_z, scene_size);
@@ -398,7 +437,7 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
         scenery_add(builder, map_loc, config_loc, scene_x, scene_z);
     }
 
-    if( getenv("TORIRS_SCENERY_DEBUG") )
+    if( WB_ENV_SCENERY_DEBUG() )
         fprintf(
             stderr,
             "scenery: map=%d,%d instances=%d no_config=%d no_resolve=%d oob=%d added=%d "
@@ -412,7 +451,7 @@ WorldBuilder_RebuildCenterzoneChunkScenery(
             dbg_added,
             g_scenery_dbg_elements);
 
-    if( getenv("TORIRS_SCENERY_DEBUG") )
+    if( WB_ENV_SCENERY_DEBUG() )
     {
         fprintf(stderr, "  levels:");
         for( int lv = 0; lv < 4; lv++ )
@@ -866,6 +905,13 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
         builder->lightmap = NULL;
     }
 
+    /* The prototype cache's whole value is within the build that just ran —
+     * every instance of a repeated loc after the first copies its lit model.
+     * Dropping it here keeps zero prototypes resident during play (a scene's
+     * worth is several MB); a runtime loc spawn simply rebuilds its one model,
+     * which is what it always did. */
+    TorirsModelInstCache_Clear(builder->scenery_model_cache);
+
     if( wb_timing_on() )
     {
         double te1 = wb_now_ms();
@@ -962,6 +1008,8 @@ WorldBuilder_RebuildChunklistBegin(
 {
     struct World* world = builder->world;
     assert(world && "WorldBuilder_RebuildChunklistBegin: world is NULL");
+
+    TorirsModelInstCache_Clear(builder->scenery_model_cache);
 
     world_builder_free_transient_maps(builder);
     World_ResetSceneChunkList(world, chunks_xz, count);

@@ -595,8 +595,14 @@ ToriDraw_ModelCaptureOriginalVertices(struct ToriDraw_Model* model)
      *
      * Comparing against the EXISTING originals is what makes it specific: a
      * re-capture of an unposed model is a harmless no-op and stays silent.
+     *
+     * The env is probed once per process: this runs for every scene element a
+     * map rebuild creates, and per-call getenv was hot in a rebuild profile.
      */
-    if( getenv("TORIRS_ANIM_RECAPTURE") && model->original_vertices_x &&
+    static int recapture_env = -1;
+    if( recapture_env < 0 )
+        recapture_env = getenv("TORIRS_ANIM_RECAPTURE") != NULL;
+    if( recapture_env && model->original_vertices_x &&
         model->original_vertices_y && model->original_vertices_z && vc > 0 )
     {
         size_t differ = 0;

@@ -8,14 +8,18 @@
 #include <stdlib.h>
 #include <string.h>
 
-/* Capacities match Client-TS LruCache sizes. */
+/* Capacities match Client-TS LruCache sizes — except loc base: the world
+ * builder's scenery prototype cache keys it by (loc, shape, rotation), and a
+ * 104x104 scene holds a few thousand distinct keys. At Client-TS's 500 the LRU
+ * thrashed (8% hit rate over a Lumbridge build); the builder clears the kind
+ * at every rebuild boundary, so the larger cap costs memory only mid-build. */
 static uint32_t const g_kind_keep[TORIRS_MODEL_INST_KIND_COUNT] = {
-    30,  /* spot */
-    30,  /* npc */
-    500, /* loc base */
-    30,  /* loc shape */
-    50,  /* obj */
-    200, /* player */
+    30,   /* spot */
+    30,   /* npc */
+    4096, /* loc base */
+    30,   /* loc shape */
+    50,   /* obj */
+    200,  /* player */
 };
 
 bool

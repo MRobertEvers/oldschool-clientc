@@ -98,7 +98,7 @@ world_builder_resolve_loc_for_place(
     if( !resolved )
         return NULL;
 
-    if( getenv("TORIRS_SCENERY_DEBUG") &&
+    if( WB_ENV_SCENERY_DEBUG() &&
         (resolved->size_x != base_loc->size_x || resolved->size_z != base_loc->size_z) )
         fprintf(
             stderr,
@@ -361,6 +361,29 @@ scenery_minimap_wall_flags(
     return flags;
 }
 
+/*
+ * True when a loc's built model is identical for every placement of the same
+ * (resolved id, shape, rotation) — the set the scenery model prototype cache
+ * may serve (scenery_load_model). Three placement-dependent effects disqualify:
+ * contour ground deforms the vertices to the tile heights under each instance,
+ * sharelight merges vertex normals with whatever happens to stand next door,
+ * and a seq animates the instance's own copy every frame.
+ *
+ * Both scenery_load_model (build + pre-light + cache) and
+ * scenery_register_sharelight (skip the End-batch lighting for pre-lit models)
+ * key off this one predicate; if they ever disagree a model is lit twice or
+ * not at all.
+ */
+static bool
+scenery_loc_model_shareable(const struct ToriRS_Location* loc)
+{
+    assert(loc);
+    /* seq test spelled as the shape helpers spell theirs
+     * (`seq_id != -1 ? orientation : 0`), so "has a deferred draw-time angle"
+     * and "not shareable" can never disagree on an odd negative id. */
+    return loc->contour_ground_type == 0 && loc->sharelight == 0 && loc->seq_id == -1;
+}
+
 static void
 scenery_register_sharelight(
     struct WorldBuilder* builder,
@@ -373,6 +396,12 @@ scenery_register_sharelight(
     int size_z)
 {
     struct World* world = builder->world;
+
+    /* Prototype-cacheable locs were lit when their model was built
+     * (scenery_load_model) — the End-batch defaultlight pass would only
+     * recompute the identical colours. */
+    if( scenery_loc_model_shareable(config_loc) )
+        return;
 
     /* Runtime loc spawn (zone LOC_ADD_CHANGE): the sharelight accumulator is
      * build-only (already freed), so the batch defaultlight_build pass will
@@ -646,19 +675,17 @@ scenery_debug_note_position(
     }
 }
 
-static int
-scenery_load_model(
+/* Convert + merge + transform one loc model, exactly as scenery_load_model
+ * always has — split out so the prototype-cache hit path can skip it whole.
+ * NULL: shape absent, model not loaded, or empty geometry (the instance is
+ * silently dropped, as before). */
+static struct ToriDraw_Model*
+scenery_build_loc_model(
     struct WorldBuilder* builder,
-    struct ToriRS_MapLoc* map_tile,
     struct ToriRS_Location* config_loc,
     int shape_select,
-    int rotation,
-    int scene_x,
-    int scene_z,
-    int size_x,
-    int size_z)
+    int rotation)
 {
-    struct World* world = builder->world;
     int model_ids[10] = { 0 };
     int models_count = 0;
 
@@ -690,27 +717,27 @@ scenery_load_model(
         if( !found )
         {
             /* Shape not present on this loc config — skip (common for mismatched map/loc data). */
-            if( getenv("TORIRS_SCENERY_DEBUG") )
+            if( WB_ENV_SCENERY_DEBUG() )
                 fprintf(
                     stderr,
                     "  scenery_load_model: loc %d shape %d NOT in config (groups=%d)\n",
                     builder->scenery_base_loc_id,
                     shape_select,
                     config_loc->shapes_and_model_count);
-            return -1;
+            return NULL;
         }
     }
 
     if( models_count <= 0 )
     {
-        if( getenv("TORIRS_SCENERY_DEBUG") )
+        if( WB_ENV_SCENERY_DEBUG() )
             fprintf(
                 stderr,
                 "  scenery_load_model: loc %d shape %d NO MODEL IDS (shapes=%s)\n",
                 builder->scenery_base_loc_id,
                 shape_select,
                 config_loc->shapes ? "yes" : "no");
-        return -1;
+        return NULL;
     }
 
     double t_convert0 = wb_timing_on() ? wb_now_ms() : 0.0;
@@ -722,7 +749,7 @@ scenery_load_model(
         if( !rs_model )
         {
             /* Model not preloaded into the cache: skip this scenery loc. */
-            if( getenv("TORIRS_SCENERY_DEBUG") )
+            if( WB_ENV_SCENERY_DEBUG() )
                 fprintf(
                     stderr,
                     "  scenery_load_model: loc %d shape %d model %d NOT LOADED\n",
@@ -731,7 +758,7 @@ scenery_load_model(
                     model_ids[i]);
             for( int j = 0; j < i; j++ )
                 ToriDraw_ModelFree(models[j]);
-            return -1;
+            return NULL;
         }
         models[i] = ToriDraw_ModelFromToriRS(rs_model);
         assert(models[i] && "scenery_load_model: failed to convert model instance");
@@ -740,7 +767,7 @@ scenery_load_model(
          * texture map; the raster skips faces whose texture is absent.
          * TORIRS_STRIP_TEXTURES=1 restores the old stripped behavior (A/B
          * debugging aid for texture regressions). */
-        if( getenv("TORIRS_STRIP_TEXTURES") )
+        if( WB_ENV_STRIP_TEXTURES() )
         {
             if( models[i]->face_textures )
                 for( int f = 0; f < models[i]->face_count; f++ )
@@ -792,7 +819,7 @@ scenery_load_model(
 
     if( model->vertex_count <= 0 || model->face_count <= 0 )
     {
-        if( getenv("TORIRS_SCENERY_DEBUG") )
+        if( WB_ENV_SCENERY_DEBUG() )
             fprintf(
                 stderr,
                 "  scenery_load_model: loc %d shape %d model EMPTY (v=%d f=%d)\n",
@@ -801,7 +828,7 @@ scenery_load_model(
                 model->vertex_count,
                 model->face_count);
         ToriDraw_ModelFree(model);
-        return -1;
+        return NULL;
     }
 
     /* TORIRS_SCENERY_DEBUG: geometry extent of the first few scenery models. A
@@ -811,7 +838,7 @@ scenery_load_model(
     static int dbg_seen_locs[1024];
     static int dbg_seen_count;
     bool dbg_fresh_loc = false;
-    if( getenv("TORIRS_SCENERY_DEBUG") && dbg_seen_count < 1024 )
+    if( WB_ENV_SCENERY_DEBUG() && dbg_seen_count < 1024 )
     {
         dbg_fresh_loc = true;
         for( int s = 0; s < dbg_seen_count; s++ )
@@ -900,6 +927,85 @@ scenery_load_model(
     if( wb_timing_on() )
         g_wb_t_model_transform_ms += wb_now_ms() - t_transform0;
 
+    return model;
+}
+
+static int
+scenery_load_model(
+    struct WorldBuilder* builder,
+    struct ToriRS_MapLoc* map_tile,
+    struct ToriRS_Location* config_loc,
+    int shape_select,
+    int rotation,
+    int scene_x,
+    int scene_z,
+    int size_x,
+    int size_z)
+{
+    struct World* world = builder->world;
+    struct ToriDraw_Model* model = NULL;
+    int64_t proto_key = 0;
+    bool const proto_shareable = scenery_loc_model_shareable(config_loc);
+
+    /*
+     * Prototype cache: within one build a scene places the same tree, fence or
+     * rock hundreds of times, and each instance used to redo the whole
+     * convert-merge-transform-light chain. For placement-independent locs
+     * (scenery_loc_model_shareable) the finished, LIT model is cached once per
+     * (resolved id, shape, rotation) — Client-TS keeps LocType model caches at
+     * the same seam — and every later instance is a plain copy. Elements still
+     * own their copy (runtime removal frees it; sharing would double-free).
+     *
+     * Pre-lighting is what makes the cache worth having, so a shareable model
+     * is lit HERE rather than in the End-batch defaultlight pass;
+     * scenery_register_sharelight skips these by the same predicate. The
+     * colours are identical either way: default lighting reads only the
+     * model's own geometry and the loc's ambient/contrast, and the vertices
+     * never change between here and End for a non-contoured, non-animated loc.
+     */
+    if( proto_shareable )
+    {
+        proto_key = ((int64_t)config_loc->id << 9) | ((int64_t)(shape_select & 0x1F) << 4) |
+                    (int64_t)(rotation & 0xF);
+        model = TorirsModelInstCache_CopyGet(
+            builder->scenery_model_cache, TORIRS_MODEL_INST_LOC_BASE, proto_key);
+    }
+
+    if( model )
+    {
+        /* Deferred draw-time rotation is an animated-loc mechanism, and
+         * animated locs are never shareable — a non-zero value here means the
+         * predicate and the shape helpers disagree about this loc. */
+        assert(builder->scenery_deferred_angle == 0);
+        /* The wants registry outlives any one model; re-report from the copy
+         * exactly as a fresh build reports from its final face_textures. */
+        ToriDraw_ModelNoteTextureWants(model);
+    }
+    else
+    {
+        model = scenery_build_loc_model(builder, config_loc, shape_select, rotation);
+        if( !model )
+            return -1;
+
+        if( proto_shareable )
+        {
+            if( ToriDraw_ModelIsLightable(model) )
+            {
+                struct ToriDraw_ModelHandle light_hnd = {
+                    .kind = TORIDRAWMK_MODEL,
+                    .u.model.model = model,
+                };
+                ToriDraw_LightModelScene(light_hnd, config_loc->contrast, config_loc->ambient);
+                ToriDraw_ModelFreeNormals(model);
+            }
+            TorirsModelInstCache_Put(
+                builder->scenery_model_cache,
+                TORIRS_MODEL_INST_LOC_BASE,
+                proto_key,
+                ToriDraw_ModelCopy(model));
+        }
+    }
+
     int element_id = ToriDraw_SceneElementAdd(builder->scene);
     assert(element_id >= 0 && "world_load_scenery_model: invalid element_id");
 
@@ -935,8 +1041,13 @@ scenery_load_model(
             force_approach =
                 ((force_approach << angle) & 0xf) + (force_approach >> (4 - angle));
 
+        /* Plain bounded copy: snprintf("%s") ran the printf engine five times
+         * per model, which showed in a whole-rebuild profile. */
         for( int a = 0; a < 5; a++ )
-            snprintf(actions32[a], sizeof(actions32[a]), "%s", config_loc->actions[a]);
+        {
+            strncpy(actions32[a], config_loc->actions[a], sizeof(actions32[a]) - 1);
+            actions32[a][sizeof(actions32[a]) - 1] = '\0';
+        }
         /* Register the MAP orientation (0-3), not the render rotation: the
          * reference typecode2 stores angle<<6 with the map angle, and both
          * consumers of this field want that — the tryMove wall approach

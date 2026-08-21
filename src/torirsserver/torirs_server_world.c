@@ -47001,66 +47001,6 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
-    fprintf(stderr, "ToriRSServer selftest: Sheep Shearer wool hand-in\n");
-    {
-        int loaded = ToriRSServer_ScriptsLoad(srv, "OSRS-Content/osrs239-content/server/scripts/build");
-
-        if( !loaded )
-            loaded =
-                ToriRSServer_ScriptsLoad(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
-        if( !loaded )
-        {
-            fprintf(stderr, "  SKIP  no compiled script pack\n");
-        }
-        else
-        {
-            int fred_type = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, "fred_the_farmer");
-            int ball = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "ball_of_wool");
-            int sheep_varp = ToriRSServer_WorldVarp("sheep");
-            int fred = fred_type > 0 ? selftest_find_npc(srv, fred_type) : -1;
-
-            fprintf(stderr, "  SHEEPDBG fred_type=%d ball=%d varp=%d slot=%d\n", fred_type, ball,
-                    sheep_varp, fred);
-            if( fred >= 0 && ball > 0 && sheep_varp >= 0 )
-            {
-                struct ToriRSServerNpc* npc = &srv->npcs[fred];
-
-                selftest_park_player(srv, npc->x + 1, npc->z);
-                selftest_clear_inv(player);
-                for( int i = 0; i < 20; i++ )
-                    selftest_give(player, ball, 1);
-                ToriRSServer_WorldSetVarp(srv, sheep_varp, 1);
-
-                {
-                    uint8_t opnpc[2];
-
-                    selftest_npc_payload(player, fred, opnpc);
-                    ToriRSServer_WorldHandle(player, PKTOUT_NAME_OPNPC1, opnpc, sizeof(opnpc));
-                }
-                for( int round = 0; round < 200; round++ )
-                {
-                    if( player->active_script &&
-                        player->active_script->execution == SSVM_PAUSEBUTTON )
-                    {
-                        if( selftest_click_through(srv, 1) == 0 )
-                            break;
-                        continue;
-                    }
-                    ToriRSServer_WorldTick(srv);
-                    fprintf(stderr, "  SHEEPDBG t=%d balls=%d sheep=%d script=%s exec=%d\n",
-                            round, selftest_count(player, ball), player->varps[sheep_varp],
-                            player->active_script && player->active_script->script
-                                ? player->active_script->script->name
-                                : "-",
-                            player->active_script ? (int)player->active_script->execution : -1);
-                }
-                fprintf(stderr, "  SHEEPDBG after: balls=%d sheep=%d script=%p\n",
-                        selftest_count(player, ball), player->varps[sheep_varp],
-                        (void*)player->active_script);
-            }
-        }
-    }
-
     fprintf(stderr, "ToriRSServer selftest: selling to a shop\n");
     {
         int loaded = ToriRSServer_ScriptsLoad(srv, "OSRS-Content/osrs239-content/server/scripts/build");
@@ -62432,6 +62372,90 @@ ToriRSServer_WorldSelftest(void)
 
             SELFTEST_CHECK(!said_fail, "::sheeprunbought should report no failures");
             SELFTEST_CHECK(said_ok, "::sheeprunbought should reach its OK line");
+            ToriRSServer_ScriptsFree(srv);
+        }
+    }
+
+    fprintf(stderr, "ToriRSServer selftest: stile Climb-over\n");
+    {
+        /*
+         * The other half of `~stile_crossing`, which ::agilityrun checks as
+         * arithmetic: that the op reaches a script at all. Nothing binds a
+         * stile by name -- `[oploc1,_stile]` binds cache category 211, named
+         * `stile` in server/pack/category.pack -- so this is where a category
+         * that stopped resolving, or a cache whose loc records stopped
+         * carrying it, would show up. The arithmetic can be perfect and the
+         * fence still impassable, and ::agilityrun would stay green.
+         *
+         * Fred's farm sheep pen is the placement: `qip_sheep_shearer_fullstyle`
+         * at (3197,3276,0), laid north-south, with both of its own tiles
+         * blocked (walkable_probe reads flags=0x100 LOC on each) so climbing
+         * is the only way from 3275 to 3278.
+         */
+        int loaded = ToriRSServer_ScriptsLoad(srv, "OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+            loaded = ToriRSServer_ScriptsLoad(srv, "../OSRS-Content/osrs239-content/server/scripts/build");
+
+        if( !loaded )
+        {
+            fprintf(stderr, "  SKIP  no compiled script pack\n");
+        }
+        else
+        {
+            int loc_stile = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC,
+                                                       "qip_sheep_shearer_fullstyle");
+            int cat_stile = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_CATEGORY, "stile");
+
+            SELFTEST_CHECK(loc_stile >= 0,
+                           "qip_sheep_shearer_fullstyle should resolve, got %d", loc_stile);
+            SELFTEST_CHECK(cat_stile >= 0,
+                           "the `stile` category should resolve, got %d", cat_stile);
+            if( loc_stile >= 0 )
+            {
+                struct ToriRSServerPlayer* player = srv->active_player;
+                int stile_slot;
+
+                SELFTEST_CHECK(ToriRSServer_LocCategory(loc_stile) == cat_stile,
+                               "the stile's cache category should be the one "
+                               "[oploc1,_stile] binds (%d), got %d",
+                               cat_stile, ToriRSServer_LocCategory(loc_stile));
+
+                ToriRSServer_WorldTeleport(srv, 0, 3197, 3275);
+                ToriRSServer_WorldTick(srv);
+                stile_slot = ToriRSServer_SceneFindLocId(3197, 3276, 0, loc_stile);
+                SELFTEST_CHECK(stile_slot >= 0,
+                               "the Fred's farm stile should be placed at (3197,3276,0), "
+                               "got slot %d", stile_slot);
+                if( stile_slot >= 0 )
+                {
+                    /* The crossing is an exact move behind a p_delay(2) and
+                     * then the landing p_teleport, so it needs ticks to run
+                     * itself out -- one click, not one tick. */
+                    ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_stile,
+                                                        ToriRSServer_LocCategory(loc_stile),
+                                                        stile_slot);
+                    for( int t = 0; t < 4; t++ )
+                        ToriRSServer_WorldTick(srv);
+                    SELFTEST_CHECK(player->x == 3197 && player->z == 3278 && player->level == 0,
+                                   "climbing the stile from the south should land the player "
+                                   "at (3197,3278,0), got (%d,%d,%d)",
+                                   player->x, player->z, player->level);
+
+                    /* And back over it, which is the branch the sign lives
+                     * in: a crossing that always ran one way would leave the
+                     * player where the first click put them. */
+                    ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_stile,
+                                                        ToriRSServer_LocCategory(loc_stile),
+                                                        stile_slot);
+                    for( int t = 0; t < 4; t++ )
+                        ToriRSServer_WorldTick(srv);
+                    SELFTEST_CHECK(player->x == 3197 && player->z == 3275 && player->level == 0,
+                                   "climbing it again from the north should land the player "
+                                   "back at (3197,3275,0), got (%d,%d,%d)",
+                                   player->x, player->z, player->level);
+                }
+            }
             ToriRSServer_ScriptsFree(srv);
         }
     }

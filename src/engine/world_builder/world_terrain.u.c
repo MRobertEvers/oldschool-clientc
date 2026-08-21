@@ -236,9 +236,18 @@ world_terrain_apply_tile(
 
                 /* TORIRS_TILEDATA=x,z: the raw floor record at one column, every
                  * level. Answers "does this tile state any floor of its own"
-                 * without guessing from what did or did not get drawn. */
+                 * without guessing from what did or did not get drawn.
+                 * Probed once per process: this sits inside the per-tile loop,
+                 * where a getenv+sscanf pair per tile was hot enough to show in
+                 * a whole-rebuild profile. */
                 {
-                    const char* env = getenv("TORIRS_TILEDATA");
+                    static const char* env;
+                    static int env_probed;
+                    if( !env_probed )
+                    {
+                        env_probed = 1;
+                        env = getenv("TORIRS_TILEDATA");
+                    }
                     int qx = -1, qz = -1;
                     if( env && sscanf(env, "%d,%d", &qx, &qz) == 2 && offset_x == qx && offset_z == qz )
                         fprintf(stderr,
