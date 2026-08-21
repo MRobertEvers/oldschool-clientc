@@ -24917,6 +24917,48 @@ ToriRSServer_WorldSelftest(void)
                        "and dropped both of the groups it claims");
 
         /*
+         * Cross-style exclusivity. The offensive lanes are exclusive across
+         * styles -- a ranged boost drops a magic or melee one, attack and
+         * strength being the one offensive pair that stacks -- while defence
+         * stacks with any single style, and the combination prayers stack with
+         * nothing. All of it is the `group` lists in prayers.dbrow driving the
+         * same ~prayer_shares_group walk as the checks above.
+         */
+        selftest_prayer_toggle(srv, "prayer_sharpeye");
+        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_sharpeye") &&
+                           !selftest_prayer_on(srv, "prayer_piety"),
+                       "a ranged boost drops piety right back");
+        selftest_prayer_toggle(srv, "prayer_steelskin");
+        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_sharpeye") &&
+                           selftest_prayer_on(srv, "prayer_steelskin"),
+                       "ranged and defence prayers stack");
+        selftest_prayer_toggle(srv, "prayer_clarityofthought");
+        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_clarityofthought") &&
+                           !selftest_prayer_on(srv, "prayer_sharpeye") &&
+                           selftest_prayer_on(srv, "prayer_steelskin"),
+                       "an attack boost drops the ranged one, not the defence one");
+        selftest_prayer_toggle(srv, "prayer_ultimatestrength");
+        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_clarityofthought") &&
+                           selftest_prayer_on(srv, "prayer_ultimatestrength") &&
+                           selftest_prayer_on(srv, "prayer_steelskin"),
+                       "attack, strength and defence all stack");
+        selftest_prayer_toggle(srv, "prayer_mysticwill");
+        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_mysticwill") &&
+                           !selftest_prayer_on(srv, "prayer_clarityofthought") &&
+                           !selftest_prayer_on(srv, "prayer_ultimatestrength") &&
+                           selftest_prayer_on(srv, "prayer_steelskin"),
+                       "a magic boost drops both melee boosts, not the defence one");
+        selftest_prayer_toggle(srv, "prayer_rigour");
+        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_rigour") &&
+                           !selftest_prayer_on(srv, "prayer_mysticwill") &&
+                           !selftest_prayer_on(srv, "prayer_steelskin"),
+                       "rigour stands alone -- it drops the defence prayer too");
+        selftest_prayer_toggle(srv, "prayer_augury");
+        SELFTEST_CHECK(selftest_prayer_on(srv, "prayer_augury") &&
+                           !selftest_prayer_on(srv, "prayer_rigour"),
+                       "the combination prayers are exclusive with each other");
+
+        /*
          * The cheat, through the path a client's `::pray 18` takes: the engine
          * hands the line to `[debugproc,pray]` and the content does the rest.
          * Asserting it here is what keeps the headless harness honest — the
