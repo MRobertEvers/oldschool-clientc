@@ -15,6 +15,7 @@
 ---@type torirs.Plugin
 local plugin = {
     name    = "entity-highlighter",
+    title   = "Entity Highlighter",
     version = "1.0.0",
     config  = {
         {

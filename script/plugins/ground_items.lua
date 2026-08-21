@@ -64,6 +64,7 @@
 ---@type torirs.Plugin
 local plugin = {
     name    = "ground-items",
+    title   = "Ground Items",
     version = "1.0.0",
     config  = {
         -- Reference GroundItemsConfig, key for key. The hidden list default is

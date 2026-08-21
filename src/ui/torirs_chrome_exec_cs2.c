@@ -708,8 +708,8 @@ cs2_field_chrome(
  * The interfaces' nine-slice panel frame, built as components.
  *
  * The in-canvas chrome's dbg_push_frame, in this presentation's vocabulary --
- * corners at their baked 3x3, edges stretched along their runs, and the baked
- * centre deliberately left out because the panel's tile is already under it.
+ * corners at their baked 32x32, edges stretched along their runs at the rail's
+ * 6, and no centre because the panel's tile is already under it.
  *
  * Only the STANDALONE panel draws one. Mounted in the popout strip we are
  * inside a frame the gameframe already drew, and a second one inside the first
@@ -718,27 +718,33 @@ cs2_field_chrome(
 static void
 cs2_push_frame(struct ChromeCs2* s, int32_t panel, int32_t* com, int w, int h)
 {
-    int const t = TORIRS_CHROME_M_FRAME;
-    int const mid_w = w - 2 * t;
-    int const mid_h = h - 2 * t;
-    int const right = w - t;
-    int const bottom = h - t;
+    int const rail = TORIRS_CHROME_M_FRAME;
+    int const c = TORIRS_CHROME_M_FRAME_CORNER;
+    int const mid_w = w - 2 * c;
+    int const mid_h = h - 2 * c;
+    int const corner_r = w - c;
+    int const corner_b = h - c;
+    int const rail_r = w - rail;
+    int const rail_b = h - rail;
 
     if( !cs2_sprite_ok(s, TORIRS_CHROME_SKIN_FRAME_TOP_LEFT) )
         return;
-    cs2_graphic(s, panel, (*com)++, 0, 0, t, t, TORIRS_CHROME_SKIN_FRAME_TOP_LEFT, 0);
-    cs2_graphic(s, panel, (*com)++, right, 0, t, t, TORIRS_CHROME_SKIN_FRAME_TOP_RIGHT, 0);
-    cs2_graphic(s, panel, (*com)++, 0, bottom, t, t, TORIRS_CHROME_SKIN_FRAME_BOTTOM_LEFT, 0);
-    cs2_graphic(s, panel, (*com)++, right, bottom, t, t, TORIRS_CHROME_SKIN_FRAME_BOTTOM_RIGHT, 0);
+    cs2_graphic(s, panel, (*com)++, 0, 0, c, c, TORIRS_CHROME_SKIN_FRAME_TOP_LEFT, 0);
+    cs2_graphic(s, panel, (*com)++, corner_r, 0, c, c, TORIRS_CHROME_SKIN_FRAME_TOP_RIGHT, 0);
+    cs2_graphic(s, panel, (*com)++, 0, corner_b, c, c, TORIRS_CHROME_SKIN_FRAME_BOTTOM_LEFT, 0);
+    cs2_graphic(
+        s, panel, (*com)++, corner_r, corner_b, c, c, TORIRS_CHROME_SKIN_FRAME_BOTTOM_RIGHT, 0);
     if( mid_w > 0 )
     {
-        cs2_graphic(s, panel, (*com)++, t, 0, mid_w, t, TORIRS_CHROME_SKIN_FRAME_TOP, 0);
-        cs2_graphic(s, panel, (*com)++, t, bottom, mid_w, t, TORIRS_CHROME_SKIN_FRAME_BOTTOM, 0);
+        cs2_graphic(s, panel, (*com)++, c, 0, mid_w, rail, TORIRS_CHROME_SKIN_FRAME_TOP, 0);
+        cs2_graphic(
+            s, panel, (*com)++, c, rail_b, mid_w, rail, TORIRS_CHROME_SKIN_FRAME_BOTTOM, 0);
     }
     if( mid_h > 0 )
     {
-        cs2_graphic(s, panel, (*com)++, 0, t, t, mid_h, TORIRS_CHROME_SKIN_FRAME_LEFT, 0);
-        cs2_graphic(s, panel, (*com)++, right, t, t, mid_h, TORIRS_CHROME_SKIN_FRAME_RIGHT, 0);
+        cs2_graphic(s, panel, (*com)++, 0, c, rail, mid_h, TORIRS_CHROME_SKIN_FRAME_LEFT, 0);
+        cs2_graphic(
+            s, panel, (*com)++, rail_r, c, rail, mid_h, TORIRS_CHROME_SKIN_FRAME_RIGHT, 0);
     }
 }
 

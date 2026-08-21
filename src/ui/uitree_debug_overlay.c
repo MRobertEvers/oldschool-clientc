@@ -172,8 +172,14 @@ _Static_assert(
 /** A tab's own height, so a strip is the same 20 the CS2 executor builds
  *  rather than whatever the row face happens to measure. */
 #define DBG_TAB_H DBG_PX(TORIRS_CHROME_M_TAB_H)
-/** Thickness of the optional nine-slice panel frame; see dbg_push_frame. */
+/** Thickness of the optional nine-slice panel frame's RAIL -- what the content
+ *  column is inset by. See dbg_push_frame; the corners are wider. */
 #define DBG_FRAME DBG_PX(TORIRS_CHROME_M_FRAME)
+/** Side of one frame corner tile. It carries this much rail along each of its
+ *  two outer edges, so it is blitted square rather than at the rail's width. */
+#define DBG_FRAME_CORNER DBG_PX(TORIRS_CHROME_M_FRAME_CORNER)
+/** Air between the close button and the panel's inner edge. */
+#define DBG_CLOSE_PAD DBG_PX(TORIRS_CHROME_M_CLOSE_PAD)
 /** Narrowest a compressed tab may get before its caption is simply clipped. */
 #define DBG_TAB_MIN_W DBG_PX(12)
 /** Narrowest a panel may be, before borders. */
@@ -1088,19 +1094,34 @@ ToriRSChrome_PanelSetClosable(struct ToriRSChrome* ui, int panel, int closable)
  * so it sits where a window's close box sits and cannot land on the title text
  * -- which is left-aligned and, on this window, says which page is up.
  */
+static int
+dbg_panel_is_framed(struct ToriRSChrome const* ui, struct ToriRSChromePanel const* p);
+
 static struct ToriRSChromeRect
-dbg_panel_close_box(struct ToriRSChrome const* ui, struct ToriRSChromeRect box)
+dbg_panel_close_box(
+    struct ToriRSChrome const* ui,
+    struct ToriRSChromePanel const* p,
+    struct ToriRSChromeRect box)
 {
     struct ToriRSChromeRect out = { 0, 0, 0, 0 };
-    int const side =
-        ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_MENU, ui->scale) - 2 * DBG_RULE;
+    /* The title bar is one menu line box tall and starts at the panel's INNER
+     * edge -- dbg_menu_layout's header_bar_h, and dbg_build_window's `edge`.
+     * Both are read here rather than assumed, because they are what the button
+     * has to be centred in: placed at a fixed 2px from the panel's outer edge
+     * it sat ABOVE the bar the moment the panel wore a frame thicker than a
+     * pixel, which is every framed panel now that the rail is 6. */
+    int const bar_h = ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_MENU, ui->scale);
+    int const side = bar_h - 2 * DBG_RULE;
+    int const edge = dbg_panel_is_framed(ui, p) ? DBG_FRAME : DBG_RULE;
 
+    assert(ui);
+    assert(p);
     if( box.w <= 0 || side <= 0 )
         return out;
     out.w = side;
     out.h = side;
-    out.y = box.y + 2 * DBG_RULE;
-    out.x = box.x + box.w - 2 * DBG_RULE - side;
+    out.y = box.y + edge + (bar_h - side) / 2;
+    out.x = box.x + box.w - edge - DBG_CLOSE_PAD - side;
     return out;
 }
 
@@ -1118,7 +1139,7 @@ dbg_panel_close_rect(struct ToriRSChrome const* ui, int panel)
     /* Hit off LAST_RECT, not the live x/y -- the same rule the header drag and
      * the resize grip follow. Mid-drag the panel's own fields have already
      * moved, and the button that was clicked is the one that was drawn. */
-    return dbg_panel_close_box(ui, p->last_rect);
+    return dbg_panel_close_box(ui, p, p->last_rect);
 }
 
 /** Panel whose Close button is under the point, or -1. */
@@ -2660,7 +2681,7 @@ dbg_push_tabstrip(
  * Nine pieces and not one stretched box, because the corners are ROUNDED: the
  * outer pixel of each 3x3 corner is transparent, so a single sprite stretched
  * over the panel would smear that transparency down both edges. Corners blit
- * at DBG_FRAME square, edges stretch along their runs, and the baked centre is
+ * at DBG_FRAME_CORNER square, edges stretch along their runs at DBG_FRAME, and no centre is
  * deliberately not drawn -- the panel's own tile is already under it, and a
  * flat brown painted over the parchment is the frame erasing the surface it
  * frames.
@@ -2673,33 +2694,40 @@ dbg_push_tabstrip(
 static void
 dbg_push_frame(struct ToriRSChrome* ui, struct ToriRSChromeRect box, struct ToriRSChromeRect clip)
 {
-    int const t = DBG_FRAME;
-    int const mid_w = box.w - 2 * t;
-    int const mid_h = box.h - 2 * t;
-    int const right = box.x + box.w - t;
-    int const bottom = box.y + box.h - t;
+    int const rail = DBG_FRAME;
+    int const c = DBG_FRAME_CORNER;
+    int const mid_w = box.w - 2 * c;
+    int const mid_h = box.h - 2 * c;
+    /* The far corners' origins, and the far rails'. Two different insets,
+     * because a corner is a 32-wide tile and a rail is 6 thick. */
+    int const corner_r = box.x + box.w - c;
+    int const corner_b = box.y + box.h - c;
+    int const rail_r = box.x + box.w - rail;
+    int const rail_b = box.y + box.h - rail;
 
     if( !dbg_skin_has(ui, TORIRS_CHROME_SKIN_FRAME_TOP_LEFT) )
         return;
-    /* A panel narrower or shorter than its own corners has no edges to
-     * stretch; the corners alone still read as a frame. */
-    dbg_push_sprite_box(ui, box.x, box.y, t, t, TORIRS_CHROME_SKIN_FRAME_TOP_LEFT, clip);
-    dbg_push_sprite_box(ui, right, box.y, t, t, TORIRS_CHROME_SKIN_FRAME_TOP_RIGHT, clip);
-    dbg_push_sprite_box(ui, box.x, bottom, t, t, TORIRS_CHROME_SKIN_FRAME_BOTTOM_LEFT, clip);
-    dbg_push_sprite_box(ui, right, bottom, t, t, TORIRS_CHROME_SKIN_FRAME_BOTTOM_RIGHT, clip);
+    /* A panel narrower or shorter than two of its own corners has no edge run
+     * to stretch, and the corners OVERLAP -- which is not a degenerate case to
+     * guard against but what the 42px-wide popout strip does with this very
+     * art. They still read as a frame; the run is simply gone. */
+    dbg_push_sprite_box(ui, box.x, box.y, c, c, TORIRS_CHROME_SKIN_FRAME_TOP_LEFT, clip);
+    dbg_push_sprite_box(ui, corner_r, box.y, c, c, TORIRS_CHROME_SKIN_FRAME_TOP_RIGHT, clip);
+    dbg_push_sprite_box(ui, box.x, corner_b, c, c, TORIRS_CHROME_SKIN_FRAME_BOTTOM_LEFT, clip);
+    dbg_push_sprite_box(ui, corner_r, corner_b, c, c, TORIRS_CHROME_SKIN_FRAME_BOTTOM_RIGHT, clip);
     if( mid_w > 0 )
     {
         dbg_push_sprite_box(
-            ui, box.x + t, box.y, mid_w, t, TORIRS_CHROME_SKIN_FRAME_TOP, clip);
+            ui, box.x + c, box.y, mid_w, rail, TORIRS_CHROME_SKIN_FRAME_TOP, clip);
         dbg_push_sprite_box(
-            ui, box.x + t, bottom, mid_w, t, TORIRS_CHROME_SKIN_FRAME_BOTTOM, clip);
+            ui, box.x + c, rail_b, mid_w, rail, TORIRS_CHROME_SKIN_FRAME_BOTTOM, clip);
     }
     if( mid_h > 0 )
     {
         dbg_push_sprite_box(
-            ui, box.x, box.y + t, t, mid_h, TORIRS_CHROME_SKIN_FRAME_LEFT, clip);
+            ui, box.x, box.y + c, rail, mid_h, TORIRS_CHROME_SKIN_FRAME_LEFT, clip);
         dbg_push_sprite_box(
-            ui, right, box.y + t, t, mid_h, TORIRS_CHROME_SKIN_FRAME_RIGHT, clip);
+            ui, rail_r, box.y + c, rail, mid_h, TORIRS_CHROME_SKIN_FRAME_RIGHT, clip);
     }
 }
 
@@ -3129,7 +3157,7 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             live.y = p->y;
             live.w = p->w;
             live.h = p->h;
-            box = dbg_panel_close_box(ui, live);
+            box = dbg_panel_close_box(ui, p, live);
             if( box.w > 0 )
             {
                 /*

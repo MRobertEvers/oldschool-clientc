@@ -274,7 +274,8 @@ dofile = nil
 --- as plain functions, so declare them with a dot (`function plugin.on_frame`)
 --- and not a colon.
 ---@class torirs.Plugin
----@field name? string Falls back to the file name. It is the ini section and the panel row, and two plugins cannot share it.
+---@field name? string Falls back to the file name. It is the ini section and the plugin's identity, and two plugins cannot share it.
+---@field title? string What the settings roster shows: "Ground Items", not "ground-items". Falls back to the name with separators spaced and words capitalised.
 ---@field version? string
 ---@field config? torirs.ConfigItem[]
 ---@field on_start? fun(api: torirs.Api): torirs.Verdict

@@ -158,6 +158,9 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_TILEIND = {
      * twin of, and a name is what keys the settings section -- two plugins
      * sharing one would overwrite each other's saved colours. */
     .name = "tile-indicator-c",
+    /* Says which twin this is, because both are in the roster and "Tile
+     * Indicator" twice would leave the reader to guess which switch is which. */
+    .title = "Tile Indicator (C)",
     .version = "1.0.0",
     .priority = 0,
     .config = TILEIND_CONFIG,

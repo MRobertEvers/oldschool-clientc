@@ -103,25 +103,59 @@
 
 /* ---- the panel frame -----------------------------------------------------
  *
- * The interfaces' own nine-slice border, the one the gameframe's popout strip
- * draws around the panels that mount in it. Every piece is 3x3: the corners are
- * blitted at that size and the four edges are stretched along their runs.
+ * The interfaces' own nine-slice border -- the one the gameframe's popout strip
+ * (interface 728) draws around the panels that mount in it, which is the frame
+ * this window wears when the CS2 executor puts it there. Sprites 846/820/847,
+ * 821/841, 848/828/849.
  *
- * A panel asks for it (ToriRSChrome_PanelSetFramed) rather than getting it from
- * its style, because the two things a frame competes with are both legitimate:
- * a floating developer panel wants the minimenu's rails so it reads as a menu,
- * and a panel mounted inside a surface that already draws a frame must not draw
- * a second one inside it.
+ * TWO numbers, not one, and that is what this art needs. The RAIL is a 6px bar;
+ * the CORNERS are 32x32 tiles carrying an L of that bar along their two outer
+ * edges. So a corner is blitted at 32 and an edge is stretched along its run at
+ * a thickness of 6 -- and it is the RAIL, not the corner, that the content
+ * column has to be inset by.
+ *
+ * The four EDGE pieces are baked CROPPED. In the cache they are 32x32 tiles
+ * with the 6px bar floating in the middle, placed by the component's own
+ * negative offset; spritebake's `@X,Y,W,H` takes the bar out at bake time, so
+ * neither rasteriser has to know about a tile it draws none of. @see the crop
+ * arguments in the generated bake's header comment.
+ *
+ * There is no CENTRE piece. The cache authors one and the strip never shows it:
+ * the panel's own tradebacking is already under the frame, and painting a flat
+ * brown over the parchment would be the frame erasing the surface it frames.
+ *
+ * A panel asks for the frame (ToriRSChrome_PanelSetFramed) rather than getting
+ * it from its style, because the two things it competes with are both
+ * legitimate: a floating developer panel wants the minimenu's rails so it reads
+ * as a menu, and a panel mounted inside a surface that already draws a frame
+ * must not draw a second one inside it.
  */
 
-/** Thickness of one frame piece, all four sides. */
-#define TORIRS_CHROME_M_FRAME 3
+/** Thickness of the frame's rail: what the content column is inset by. */
+#define TORIRS_CHROME_M_FRAME 6
+/** Side of one corner tile, which carries 32px of rail along each of its two
+ *  outer edges. A panel narrower than two of these has no edge run left and
+ *  wears overlapping corners -- which is what the 42px-wide strip itself does. */
+#define TORIRS_CHROME_M_FRAME_CORNER 32
 
 /* ---- the tab strip ------------------------------------------------------- */
 
 /** Height of a tab, and the padding either side of its caption. */
 #define TORIRS_CHROME_M_TAB_H 20
 #define TORIRS_CHROME_M_TAB_PAD_X 5
+
+/* ---- the title bar's close button ---------------------------------------- */
+
+/**
+ * Air between the close button and the panel's inner edge.
+ *
+ * ON TOP of the border, not instead of it: the button is placed from the inner
+ * edge (the frame's rail, or the 1px rail on an unframed panel), and this is
+ * the gap the reference leaves between window furniture and the frame it sits
+ * inside. Without it the button touches the rail, which reads as part of the
+ * border rather than as a control.
+ */
+#define TORIRS_CHROME_M_CLOSE_PAD 3
 
 /* ---- field internals ----------------------------------------------------- */
 

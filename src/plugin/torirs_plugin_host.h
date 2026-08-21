@@ -198,7 +198,20 @@ void PluginHost_SetEnabled(struct ToriRS_PluginHost* host, int plugin_index, boo
 void PluginHost_Reload(struct ToriRS_PluginHost* host, int plugin_index);
 bool PluginHost_IsEnabled(struct ToriRS_PluginHost const* host, int plugin_index);
 int PluginHost_Count(struct ToriRS_PluginHost const* host);
+/** The plugin's identity: the ini section, the manifest entry, the key
+ *  PluginHost_IndexOf answers to. Never what a person is shown -- use
+ *  PluginHost_Title for that. */
 char const* PluginHost_Name(struct ToriRS_PluginHost const* host, int plugin_index);
+/**
+ * The plugin's human name: "Entity Highlighter", for the roster and the page
+ * header.
+ *
+ * Never empty and never NULL: a def that declared no title gets one derived
+ * from its name, so no caller has to carry a fallback of its own and no panel
+ * can end up printing a slug. It is a LABEL -- nothing may key off it, and it
+ * may change between two runs of the same plugin.
+ */
+char const* PluginHost_Title(struct ToriRS_PluginHost const* host, int plugin_index);
 /** Last error text for a plugin, or NULL. Shown in the settings panel. */
 char const* PluginHost_Error(struct ToriRS_PluginHost const* host, int plugin_index);
 /** Does this plugin exist to host others? @see ToriRS_PluginDef::adapter --

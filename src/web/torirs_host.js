@@ -366,9 +366,20 @@
   // (see read_script_item there). Nothing is baked into the module and nothing
   // is opened with fopen.
   //
-  // Fetched only on a miss. A script the database already holds is used as it
-  // stands, so a second run installs nothing and a page whose file server is
-  // gone still starts every plugin it ran last time.
+  // REVALIDATED, not fetched-once. A script the database already holds is
+  // offered back to the server as a validator: a 304 costs a header and the
+  // stored copy stands, a 200 replaces it, and a server that answers nothing
+  // leaves the page starting every plugin it ran last time.
+  //
+  // Held-until-missing was the first shape and it was wrong, because the
+  // stored script outlives the BINARY it was stored against. tile_indicator
+  // grew a fill-colour argument, its draw.tile call went from five arguments
+  // to six, and the module was rebuilt -- but the store still held the
+  // five-argument script, so every frame died in the new binding with
+  // "bad argument #6 to 'tile'" and the roster showed a plugin that had been
+  // correct on disk for as long as it had been broken in the browser. A plugin
+  // script and the api it calls are one version, and only the server knows
+  // which one that is.
   //
   // WHY THIS EXISTS: the wire build never needed it -- a script request
   // crosses to io_server, which reads them off real disk -- but the IndexedDB
@@ -415,19 +426,38 @@
       return out;
     },
 
-    /* One file into the store, at the path the client will name it by. The
-     * stored copy wins: it is durable, it costs no request, and it is what
-     * makes the page work with its file server switched off. */
+    /*
+     * One file into the store, at the path the client will name it by, asked
+     * for conditionally -- the same three outcomes as boot.fetch above, for
+     * the same reason and against the same routes:
+     *
+     *   200  changed (or never held) -- take it and remember the validator
+     *   304  unchanged -- the stored copy stands, no body transferred
+     *   else nothing answered -- the stored copy is the honest answer, and
+     *        only a path with no stored copy at all counts as missing
+     */
     take: function (path) {
       var held = store.fileGet(path);
-      if (held) { this.stored++; return held; }
+      var tag = held ? store.fileEtag(path) : null;
+      var result = xhrSync('GET', bootUrl + '/' + path, null, tag);
 
-      var result = xhrSync('GET', bootUrl + '/' + path, null, null);
-      if (result.status !== 200) { result = xhrSync('GET', '/' + path, null, null); }
-      if (result.status !== 200) { this.missing.push(path); return null; }
-      store.filePut(path, result.bytes);
-      this.fetched++;
-      return result.bytes;
+      if (result.status === 404 || result.status === 0) {
+        var direct = xhrSync('GET', '/' + path, null, tag);
+        if (direct.status === 200 || direct.status === 304) {
+          result = direct;
+        } else if (result.status === 0 && direct.status !== 0) {
+          result = direct;
+        }
+      }
+
+      if (result.status === 200) {
+        store.filePut(path, result.bytes, result.etag);
+        this.fetched++;
+        return result.bytes;
+      }
+      if (held) { this.stored++; return held; }
+      this.missing.push(path);
+      return null;
     },
 
     /*
@@ -436,8 +466,8 @@
      * The manifest is re-fetched rather than taken from the store, because it
      * is the LIST: a script added to it between runs would otherwise never be
      * asked for, and the page would keep running last week's plugin set with
-     * no way to notice. Its scripts are then taken normally, so adding one
-     * costs one request and the rest stay put.
+     * no way to notice. Its scripts are then taken normally -- one conditional
+     * request each, which for an unchanged script is a 304 and no body.
      */
     load: function () {
       var manifestPath = SCRIPT_ROOT + '/' + PLUGIN_MANIFEST_PATH;
@@ -446,7 +476,7 @@
 
       if (result.status !== 200) { result = xhrSync('GET', '/' + manifestPath, null, null); }
       if (result.status === 200) {
-        store.filePut(manifestPath, result.bytes);
+        store.filePut(manifestPath, result.bytes, result.etag);
         manifest = result.bytes;
       } else {
         /* No server, or no manifest on it. The stored copy is the honest
@@ -505,6 +535,7 @@
     tables: new Map(),    // table -> record count
     bytes: 0,
     files: new Map(),     // client-owned file path -> Uint8Array
+    fileEtags: new Map(), // ...and the server validator the fetched ones came with
     bootFiles: new Map(), // boot config path -> {bytes, etag}
     pendingGroups: [],
     pendingFiles: [],
@@ -580,6 +611,11 @@
           var cursor = ev.target.result;
           if (!cursor) { return; }
           self.files.set(cursor.value.k, new Uint8Array(cursor.value.d));
+          /* Rows written before files carried a validator have no `e`. That
+           * reads as "no validator", which sends the next request out
+           * unconditional -- which is what replaces a copy stored back when
+           * nothing revalidated it. */
+          self.fileEtags.set(cursor.value.k, cursor.value.e || null);
           cursor.continue();
         };
         tx.objectStore('boot').openCursor().onsuccess = function (ev) {
@@ -686,9 +722,17 @@
       return bytes === undefined ? null : bytes;
     },
 
-    filePut: function (path, bytes) {
+    /* The validator the stored bytes were fetched with, or null when there is
+     * none -- a file the CLIENT wrote has no server copy to be still-current
+     * against, and neither has one fetched before this was recorded. */
+    fileEtag: function (path) {
+      return this.fileEtags.get(path) || null;
+    },
+
+    filePut: function (path, bytes, etag) {
       this.files.set(path, bytes);
-      this.pendingFiles.push({ k: path, d: bytes });
+      this.fileEtags.set(path, etag || null);
+      this.pendingFiles.push({ k: path, d: bytes, e: etag || null });
       this.scheduleFlush();
       return true;
     },
@@ -737,7 +781,7 @@
           groupStore.put({ k: row.k, c: row.c, t: row.t, a: row.a, d: row.d.slice().buffer });
         });
         files.forEach(function (row) {
-          fileStore.put({ k: row.k, d: row.d.slice().buffer });
+          fileStore.put({ k: row.k, d: row.d.slice().buffer, e: row.e });
         });
         bootRows.forEach(function (row) {
           bootStore.put({ k: row.k, d: row.d.slice().buffer, e: row.e });

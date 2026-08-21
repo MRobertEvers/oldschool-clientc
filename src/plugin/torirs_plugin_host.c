@@ -48,6 +48,11 @@ struct ToriRS_PluginCtx
     int draw_used;
     bool draw_clipped;
     char name[TORIRS_PLUGIN_NAME_MAX];
+    /* What the panel shows. Derived once per (re)load rather than at every
+     * draw, and held here rather than read through the def, because a def may
+     * carry no title at all and the derived one needs somewhere to live that
+     * outlives the call that built it. */
+    char title[TORIRS_PLUGIN_TITLE_MAX];
     char error[160];
     struct PluginConfigSlot config[TORIRS_PLUGIN_CONFIG_MAX];
     int config_count;
@@ -1541,6 +1546,53 @@ PluginHost_Free(struct ToriRS_PluginHost* host)
     free(host);
 }
 
+/*
+ * Fill in ctx->title from the def: the declared one, or one derived from the
+ * name when the def carries none.
+ *
+ * Deriving rather than falling back to the raw name is the point. A roster of
+ * `entity-highlighter` and `tile-indicator-lua` reads as a config file that
+ * escaped onto the screen, and the reader who most needs the panel -- someone
+ * who has never seen the source -- is exactly the one the slug tells nothing.
+ * Separators become spaces and each word takes a capital, which turns every
+ * id this tree uses into something sayable.
+ *
+ * Called again from PluginHost_Reload: a scripted plugin rewrites its def in
+ * place, so a script that gained or changed a `title` comes back with it.
+ */
+static void
+plugin_title_refresh(struct ToriRS_PluginCtx* ctx)
+{
+    char const* at;
+    size_t out = 0;
+    bool word_start = true;
+
+    assert(ctx);
+    assert(ctx->def);
+
+    if( ctx->def->title && ctx->def->title[0] )
+    {
+        plugin_copy_str(ctx->title, sizeof(ctx->title), ctx->def->title);
+        return;
+    }
+
+    for( at = ctx->name; *at && out + 1 < sizeof(ctx->title); at++ )
+    {
+        char c = *at;
+        if( c == '-' || c == '_' )
+        {
+            ctx->title[out++] = ' ';
+            word_start = true;
+            continue;
+        }
+        if( word_start && c >= 'a' && c <= 'z' )
+            c = (char)(c - 'a' + 'A');
+        ctx->title[out++] = c;
+        word_start = false;
+    }
+    ctx->title[out] = '\0';
+}
+
 int
 PluginHost_Register(struct ToriRS_PluginHost* host, struct ToriRS_PluginDef const* def)
 {
@@ -1629,6 +1681,7 @@ PluginHost_Register(struct ToriRS_PluginHost* host, struct ToriRS_PluginDef cons
     ctx->enabled = !def->disabled_by_default;
     ctx->running = false;
     snprintf(ctx->name, sizeof(ctx->name), "%s", def->name);
+    plugin_title_refresh(ctx);
     plugin_config_seed(ctx);
     return index;
 }
@@ -1749,6 +1802,9 @@ PluginHost_Reload(struct ToriRS_PluginHost* host, int plugin_index)
     if( ctx->def->reload )
         ctx->def->reload(ctx);
 
+    /* Reread through the new def, for the same reason as the schema below. */
+    plugin_title_refresh(ctx);
+
     /*
      * Re-seed the schema, PRESERVING values that already have one.
      *
@@ -1811,6 +1867,15 @@ PluginHost_Name(struct ToriRS_PluginHost const* host, int plugin_index)
     assert(plugin_index >= 0);
     assert(plugin_index < host->plugin_count);
     return host->plugins[plugin_index].name;
+}
+
+char const*
+PluginHost_Title(struct ToriRS_PluginHost const* host, int plugin_index)
+{
+    assert(host);
+    assert(plugin_index >= 0);
+    assert(plugin_index < host->plugin_count);
+    return host->plugins[plugin_index].title;
 }
 
 bool

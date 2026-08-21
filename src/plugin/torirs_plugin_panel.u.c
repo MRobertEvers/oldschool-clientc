@@ -359,7 +359,7 @@ app_plugin_panel_sync(struct App* app)
      * is no tab strip to say it any more. */
     ToriRSChrome_PanelSetTitle(
         &app->plugin_ui, app->plugin_panel,
-        g_plugin_page < 0 ? "Plugins" : PluginHost_Name(app->plugins, g_plugin_page));
+        g_plugin_page < 0 ? "Plugins" : PluginHost_Title(app->plugins, g_plugin_page));
 
     ToriRSChrome_PanelClearWidgets(&app->plugin_ui, app->plugin_panel);
     g_plugin_back_widget = -1;
@@ -397,7 +397,11 @@ app_plugin_panel_sync(struct App* app)
                 PluginHost_IsEnabled(app->plugins, p) )
                 continue;
 
-            snprintf(label, sizeof(label), "%s", PluginHost_Name(app->plugins, p));
+            /* The TITLE, not the name: the name is the ini key, and a roster
+             * of kebab-case ids reads as a config file that got onto the
+             * screen. Nothing here keys off the string -- the row carries the
+             * plugin index. */
+            snprintf(label, sizeof(label), "%s", PluginHost_Title(app->plugins, p));
             app_plugin_panel_track(
                 app,
                 ToriRSChrome_ListRow(

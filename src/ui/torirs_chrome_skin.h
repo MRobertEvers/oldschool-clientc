@@ -83,9 +83,6 @@ _Static_assert(
     (int)TORIRS_CHROME_SKIN_FRAME_LEFT == (int)ToriRSChromeSkin_SLOT_FrameLeft,
     "chrome skin: FRAME_LEFT is not the baked FrameLeft");
 _Static_assert(
-    (int)TORIRS_CHROME_SKIN_FRAME_CENTRE == (int)ToriRSChromeSkin_SLOT_FrameCentre,
-    "chrome skin: FRAME_CENTRE is not the baked FrameCentre");
-_Static_assert(
     (int)TORIRS_CHROME_SKIN_FRAME_RIGHT == (int)ToriRSChromeSkin_SLOT_FrameRight,
     "chrome skin: FRAME_RIGHT is not the baked FrameRight");
 _Static_assert(

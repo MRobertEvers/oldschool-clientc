@@ -27,6 +27,7 @@
 ---@type torirs.Plugin
 local plugin           = {
     name    = "loot-beam",
+    title   = "Loot Beams",
     version = "1.0.0",
     config  = {
         {

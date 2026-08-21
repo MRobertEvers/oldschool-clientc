@@ -104,6 +104,9 @@ struct LuaScript
     struct LuaBinding bindings[TORIRS_PLUGIN_EV_COUNT];
 
     char name[TORIRS_PLUGIN_NAME_MAX];
+    /* Empty when the script declared none, which the host reads as "derive one
+     * from the name" -- so this is not seeded with the name here. */
+    char title[TORIRS_PLUGIN_TITLE_MAX];
     char version[24];
     struct ToriRS_PluginDef def;
     struct ToriRS_PluginConfigItem config[PLUGIN_LUA_MAX_CONFIG + 1];
@@ -1793,6 +1796,7 @@ lua_script_build(struct LuaScript* script, char const* name, char const* source,
     script->config_count = 0;
     script->mem_used = 0;
     snprintf(script->name, sizeof(script->name), "%s", name);
+    script->title[0] = '\0';
 
     L = lua_newstate(lua_script_alloc, script, 0);
     if( !L )
@@ -1834,6 +1838,15 @@ lua_script_build(struct LuaScript* script, char const* name, char const* source,
     lua_getfield(L, -1, "name");
     if( lua_type(L, -1) == LUA_TSTRING )
         snprintf(script->name, sizeof(script->name), "%s", lua_tostring(L, -1));
+    lua_pop(L, 1);
+
+    /* `title` is what the settings roster shows. A script that declares none
+     * gets one derived from its name by the host, so the panel never prints a
+     * bare id -- but the script is the only thing that knows whether "Ground
+     * Items" or something else is the right words for it. */
+    lua_getfield(L, -1, "title");
+    if( lua_type(L, -1) == LUA_TSTRING )
+        snprintf(script->title, sizeof(script->title), "%s", lua_tostring(L, -1));
     lua_pop(L, 1);
 
     lua_getfield(L, -1, "version");
@@ -1897,6 +1910,7 @@ lua_script_build(struct LuaScript* script, char const* name, char const* source,
      * gained or lost config keys, and the host rereads the def through the same
      * pointer after calling `reload`. */
     script->def.name = script->name;
+    script->def.title = script->title[0] ? script->title : NULL;
     script->def.version = script->version;
     script->def.priority = 0;
     script->def.config = script->config_count > 0 ? script->config : NULL;
@@ -2069,6 +2083,10 @@ PluginLua_Bind(struct ToriRS_PluginHost* host)
  */
 struct ToriRS_PluginDef const TORIRS_PLUGIN_LUA = {
     .name = "lua",
+    /* Only ever seen when this adapter is broken or switched off, which is
+     * exactly when the reader needs to be told it is the scripting layer they
+     * are looking at rather than a plugin called "lua". */
+    .title = "Lua Scripting",
     .version = "1.0.0",
     .priority = 0,
     .config = NULL,

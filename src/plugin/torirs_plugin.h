@@ -24,9 +24,12 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 6
+#define TORIRS_PLUGIN_ABI 7
 
 #define TORIRS_PLUGIN_NAME_MAX 48
+/** Bytes of a plugin's human title, terminator included. Longer than the name
+ *  because a title carries spaces and words the kebab-case id compresses. */
+#define TORIRS_PLUGIN_TITLE_MAX 64
 #define TORIRS_PLUGIN_MENU_ROWS_MAX 16
 /** Controls one plugin may put on its tab. A budget, not a limit on what a
  *  window can hold: sixteen plugins sharing one window need the SHARE bounded,
@@ -902,6 +905,21 @@ struct ToriRS_PluginDef
 {
     /** kebab-case id; also the ini section suffix. */
     char const* name;
+    /**
+     * What a PERSON is shown: "Entity Highlighter", not "entity-highlighter".
+     *
+     * Separate from `name` because the two answer to different readers. The
+     * name is an identity -- it keys the ini section, PluginHost_IndexOf and
+     * the manifest entry -- so it cannot be changed to read better without
+     * orphaning everyone's saved settings. The title has no such duty and can
+     * say whatever is clearest, including words the id has no room for.
+     *
+     * NULL is allowed and means "derive one from the name", which is what a
+     * plugin that has not thought about it gets: separators become spaces and
+     * words are capitalised. That fallback exists so no roster row can ever
+     * show a raw slug -- not so titles can be skipped. Write one.
+     */
+    char const* title;
     char const* version;
     /** Higher runs earlier within an event. Ties break on registration order. */
     int priority;

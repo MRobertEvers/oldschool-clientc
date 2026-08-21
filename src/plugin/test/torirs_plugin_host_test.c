@@ -504,6 +504,7 @@ static struct ToriRS_PluginConfigItem const ALPHA_CONFIG[] = {
 
 static struct ToriRS_PluginDef const ALPHA = {
     .name = "alpha",
+    .title = "Alpha The Plugin",
     .version = "1",
     .priority = 0,
     .config = ALPHA_CONFIG,
@@ -767,6 +768,13 @@ static struct ToriRS_PluginDef const OFF_BY_DEFAULT = {
     .disabled_by_default = true,
 };
 
+/* Declares no title, so the host must make one: the roster is not allowed to
+ * fall back to printing the id at anybody. */
+static struct ToriRS_PluginDef const TITLELESS = {
+    .name = "ground-items_2",
+    .version = "1",
+};
+
 /* ------------------------------------------------------------------ tests */
 
 int
@@ -785,6 +793,21 @@ main(void)
 
     CHECK(!PluginHost_IsEnabled(host, z), "disabled_by_default starts off");
     CHECK(PluginHost_IsEnabled(host, a), "everything else starts on");
+
+    /* Title is a LABEL and name is an IDENTITY: the panel reads one, the ini
+     * section the other, and a plugin that declares no title still has to be
+     * showable as words. */
+    {
+        int const t = PluginHost_Register(host, &TITLELESS);
+        CHECK(strcmp(PluginHost_Title(host, a), "Alpha The Plugin") == 0,
+              "a declared title is what the panel gets");
+        CHECK(strcmp(PluginHost_Name(host, a), "alpha") == 0,
+              "and the name is untouched by it");
+        CHECK(strcmp(PluginHost_Title(host, t), "Ground Items 2") == 0,
+              "a title-less plugin gets one derived from its id");
+        CHECK(strcmp(PluginHost_Name(host, t), "ground-items_2") == 0,
+              "which is not the id the ini section uses");
+    }
 
     PluginHost_Start(host);
 

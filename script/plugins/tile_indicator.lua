@@ -22,6 +22,7 @@
 ---@type torirs.Plugin
 local plugin = {
   name    = "tile-indicator-lua",
+  title   = "Tile Indicator (Lua)",
   version = "1.0.0",
   config  = {
     -- Every marker is an outline colour, a fill colour and the fill's

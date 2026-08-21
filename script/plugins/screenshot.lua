@@ -45,6 +45,7 @@
 ---@type torirs.Plugin
 local plugin = {
     name    = "screenshot",
+    title   = "Screenshots",
     version = "1.0.0",
     config  = {
         {

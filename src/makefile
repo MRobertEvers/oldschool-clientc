@@ -1956,6 +1956,7 @@ test-web-channel:
 	node web/test/channel_handshake_test.js
 	node web/test/chrome_enum_sync_test.js
 	node web/test/chrome_dom_test.js
+	node web/test/host_plugin_files_test.js
 	$(MAKE) test-chrome-web-skin
 
 test-debug-overlay-visual: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o \

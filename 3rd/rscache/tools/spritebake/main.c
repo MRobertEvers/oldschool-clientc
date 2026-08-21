@@ -16,10 +16,19 @@
  *   spritebake --rev NAME <cache_dir> --sprite SPEC [--sprite ...]
  *              --out out.c [--header out.h] [--sheet sheet.bmp] [--prefix Prefix]
  *
- * SPEC is `ARCHIVE[.FRAME]=Symbol`, or `name:NAME[.FRAME]=Symbol` to resolve
- * the archive by its dat2 name hash instead of by number. Both forms are
- * recorded in the generated file's header comment, so a regenerated bake is a
+ * SPEC is `ARCHIVE[.FRAME]=Symbol[@X,Y,W,H]`, or `name:NAME[.FRAME]=Symbol[@…]`
+ * to resolve the archive by its dat2 name hash instead of by number. Every form
+ * is recorded in the generated file's header comment, so a regenerated bake is a
  * reviewable diff rather than a silent one.
+ *
+ * `@X,Y,W,H` bakes a SUB-RECTANGLE of the frame. Interface art is commonly
+ * authored as a fixed tile with the artwork floating inside it -- the popout
+ * strip's frame rails are 6px bars centred in 32x32 tiles, positioned by the
+ * component's own offset -- and a consumer that cannot place a tile at a
+ * negative offset needs the bar, not the tile. Cropping at BAKE time rather
+ * than at draw time keeps that a property of the recipe, where the numbers can
+ * be read beside the archive id they came from, instead of a magic offset
+ * buried in a renderer.
  *
  * --list prints every archive in the sprites table with its frame count and
  * first-frame geometry. `--probe` hashes each comma-separated name with the
@@ -38,6 +47,7 @@
 
 #include "bmp.h"
 
+#include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -52,6 +62,11 @@ struct BakeSprite
     /** The `name:` spelling this was requested by, or "" when asked by id. */
     char by_name[64];
     char symbol[64];
+    /** `@X,Y,W,H` sub-rectangle, or w/h 0 for the whole frame. */
+    int crop_x;
+    int crop_y;
+    int crop_w;
+    int crop_h;
     int w;
     int h;
     /** w*h ARGB, premultiplied by nothing — straight 0xAARRGGBB. */
@@ -148,6 +163,44 @@ frame_to_argb(
     *out_w = s->width;
     *out_h = s->height;
     return argb;
+}
+
+/**
+ * Shrink a decoded frame to its `@X,Y,W,H` sub-rectangle, in place.
+ * @return 0 when the rectangle is not inside the frame, having said so.
+ *
+ * Rejected rather than clamped: a crop that runs off the edge means the recipe
+ * and the cache disagree about the art, and silently baking the part that fits
+ * turns that into a frame missing a row -- which looks like a rendering bug at
+ * the far end and is nothing of the kind.
+ */
+static int
+crop_in_place(struct BakeSprite* s)
+{
+    unsigned int* out;
+
+    if( s->crop_x < 0 || s->crop_y < 0 || s->crop_x + s->crop_w > s->w ||
+        s->crop_y + s->crop_h > s->h )
+    {
+        fprintf(
+            stderr,
+            "crop @%d,%d,%d,%d does not fit archive %d frame %d (%dx%d)\n",
+            s->crop_x, s->crop_y, s->crop_w, s->crop_h, s->archive_id, s->frame, s->w, s->h);
+        return 0;
+    }
+
+    out = malloc((size_t)s->crop_w * (size_t)s->crop_h * sizeof(*out));
+    assert(out);
+    for( int y = 0; y < s->crop_h; y++ )
+        memcpy(
+            out + (size_t)y * (size_t)s->crop_w,
+            s->argb + (size_t)(s->crop_y + y) * (size_t)s->w + (size_t)s->crop_x,
+            (size_t)s->crop_w * sizeof(*out));
+    free(s->argb);
+    s->argb = out;
+    s->w = s->crop_w;
+    s->h = s->crop_h;
+    return 1;
 }
 
 /* ---- list ---------------------------------------------------------------- */
@@ -265,12 +318,13 @@ emit_source(
     for( int i = 0; i < count; i++ )
         fprintf(
             out,
-            " *   %-20s archive %5d frame %d  %dx%d%s%s\n",
+            " *   %-20s archive %5d frame %d  %dx%d%s%s%s\n",
             sprites[i].symbol,
             sprites[i].archive_id,
             sprites[i].frame,
             sprites[i].w,
             sprites[i].h,
+            sprites[i].crop_w > 0 ? "  cropped" : "",
             sprites[i].by_name[0] ? "  name " : "",
             sprites[i].by_name);
     fprintf(
@@ -281,14 +335,23 @@ emit_source(
         rev);
     for( int i = 0; i < count; i++ )
     {
+        /* The crop belongs in the recipe line, not only in the table above:
+         * this line is what someone pastes to regenerate, and one that dropped
+         * the sub-rectangle would silently bake whole tiles. */
+        char crop[48];
+        crop[0] = '\0';
+        if( sprites[i].crop_w > 0 )
+            snprintf(
+                crop, sizeof(crop), "@%d,%d,%d,%d", sprites[i].crop_x, sprites[i].crop_y,
+                sprites[i].crop_w, sprites[i].crop_h);
         if( sprites[i].by_name[0] )
             fprintf(
-                out, " *       --sprite name:%s.%d=%s \\\n", sprites[i].by_name, sprites[i].frame,
-                sprites[i].symbol);
+                out, " *       --sprite name:%s.%d=%s%s \\\n", sprites[i].by_name,
+                sprites[i].frame, sprites[i].symbol, crop);
         else
             fprintf(
-                out, " *       --sprite %d.%d=%s \\\n", sprites[i].archive_id, sprites[i].frame,
-                sprites[i].symbol);
+                out, " *       --sprite %d.%d=%s%s \\\n", sprites[i].archive_id,
+                sprites[i].frame, sprites[i].symbol, crop);
     }
     fprintf(out, " *       --out <this file> --header <its header>\n */\n");
 
@@ -482,10 +545,11 @@ main(int argc, char** argv)
             do_list = 1;
         else if( strcmp(argv[i], "--sprite") == 0 && i + 1 < argc )
         {
-            /* ARCHIVE[.FRAME]=Symbol, or name:NAME[.FRAME]=Symbol. */
+            /* ARCHIVE[.FRAME]=Symbol[@X,Y,W,H], or the name: form of the same. */
             char spec[192];
             char* eq;
             char* dot;
+            char* at;
             struct BakeSprite* s;
 
             if( sprite_count >= BAKE_MAX_SPRITES )
@@ -503,6 +567,21 @@ main(int argc, char** argv)
             *eq = '\0';
             s = &sprites[sprite_count++];
             snprintf(s->symbol, sizeof(s->symbol), "%s", eq + 1);
+
+            /* The crop rides on the SYMBOL half, so an archive spelled by name
+             * can carry one too -- `name:foo.0=Sym@0,14,32,6`. */
+            at = strchr(s->symbol, '@');
+            if( at )
+            {
+                *at = '\0';
+                if( sscanf(at + 1, "%d,%d,%d,%d", &s->crop_x, &s->crop_y, &s->crop_w,
+                           &s->crop_h) != 4 ||
+                    s->crop_w <= 0 || s->crop_h <= 0 )
+                {
+                    fprintf(stderr, "bad crop in --sprite %s (want @X,Y,W,H)\n", argv[i]);
+                    return 1;
+                }
+            }
 
             dot = strrchr(spec, '.');
             if( dot )
@@ -597,9 +676,12 @@ main(int argc, char** argv)
                 sprites[i].frame);
             return 1;
         }
+        if( sprites[i].crop_w > 0 && !crop_in_place(&sprites[i]) )
+            return 1;
         printf(
-            "baked %-20s from archive %5d frame %d: %dx%d\n", sprites[i].symbol,
-            sprites[i].archive_id, sprites[i].frame, sprites[i].w, sprites[i].h);
+            "baked %-20s from archive %5d frame %d: %dx%d%s\n", sprites[i].symbol,
+            sprites[i].archive_id, sprites[i].frame, sprites[i].w, sprites[i].h,
+            sprites[i].crop_w > 0 ? " (cropped)" : "");
     }
 
     {

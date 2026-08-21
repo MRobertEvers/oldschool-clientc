@@ -70,9 +70,9 @@
     SCROLL_GRIP_TOP: 4, SCROLL_GRIP_MID: 5, SCROLL_GRIP_BOTTOM: 6,
     DROPDOWN_BODY: 7, PLUGIN_ICON: 8, CHECK_ON: 9, CHECK_OFF: 10,
     FRAME_TOP_LEFT: 11, FRAME_TOP: 12, FRAME_TOP_RIGHT: 13,
-    FRAME_LEFT: 14, FRAME_CENTRE: 15, FRAME_RIGHT: 16,
-    FRAME_BOTTOM_LEFT: 17, FRAME_BOTTOM: 18, FRAME_BOTTOM_RIGHT: 19,
-    CLOSE: 20, CLOSE_OVER: 21
+    FRAME_LEFT: 14, FRAME_RIGHT: 15,
+    FRAME_BOTTOM_LEFT: 16, FRAME_BOTTOM: 17, FRAME_BOTTOM_RIGHT: 18,
+    CLOSE: 19, CLOSE_OVER: 20
   };
 
   /*
@@ -353,7 +353,25 @@
     var m = METRICS;
     function px(n) { return (n * K) + 'px'; }
     var tile = 'url(' + url.tile + ')';
+    /*
+     * The title bar's X: the interfaces' own, not the font's.
+     *
+     * Square and sized to the BAR rather than to the sprite -- 16x16 of art in
+     * a 10-chrome-pixel box, the same slight downscale dbg_panel_close_box
+     * asks for when it sizes the button to the title's line box less a rule
+     * each side. The glyph underneath is not removed, only made transparent:
+     * it is what a build with no baked art still shows, and what a screen
+     * reader still reads.
+     */
+    var closeCss = !url.close ? '' : [
+      '.torirs-chrome.skinned .torirs-chrome-title button.close{width:', px(10), ';',
+      'height:', px(10), ';padding:0;color:transparent;text-shadow:none;',
+      'background:url(', url.close, ') no-repeat center/100% 100%}',
+      '.torirs-chrome.skinned .torirs-chrome-title button.close:hover{color:transparent;',
+      'background-image:url(', url.closeOver, ')}'
+    ].join('');
     return [
+      closeCss,
       /* Tradebacking behind the panel, and the nine-slice border around it.
        * The frame's own centre piece is never drawn -- `fill` is deliberately
        * absent -- because the tile is already under it and a flat brown
@@ -957,6 +975,20 @@
     }
     url.frame = this.composeFrame();
     if (!url.frame) { this.applySkinClass(); return; }
+
+    /*
+     * The window X is OPTIONAL, and deliberately not in the loop above.
+     *
+     * A client too old to send it must still get the rest of the skin -- the
+     * page and the wasm are versioned separately, which is the same reason the
+     * hooks' presence is the availability test. Without it the title bar keeps
+     * its text glyph, which is what every build had until the art crossed.
+     */
+    url.close = this.skin[SKIN.CLOSE] || '';
+    /* One button lit from opposite corners: the hover is IN THE ART, exactly
+     * as the in-canvas chrome uses it. A build with only the base sprite gets
+     * no hover rather than a second, different indication. */
+    url.closeOver = this.skin[SKIN.CLOSE_OVER] || url.close;
 
     this.skinCss = skinStyle(url);
     this.applySkinClass();

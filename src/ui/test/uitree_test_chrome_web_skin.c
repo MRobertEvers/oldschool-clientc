@@ -150,6 +150,31 @@ main(void)
     }
 
     /*
+     * The window X is SENT, not merely named.
+     *
+     * The page has had a `SKIN.CLOSE` entry in its slot table for as long as
+     * the enum has, and the client did not send it -- so the title bar wore a
+     * system-font glyph beside a window of baked art, and nothing anywhere
+     * failed. A slot the page knows and the client never sends is exactly the
+     * shape of that: the enum-sync test sees the two tables agree, the loop
+     * above sees every slot it IS sent, and neither can see the gap between.
+     */
+    {
+        int sends_close = 0;
+        int sends_over = 0;
+
+        for( int i = 0; i < (int)(sizeof(k_web_skin_slots) / sizeof(k_web_skin_slots[0])); i++ )
+        {
+            if( k_web_skin_slots[i] == TORIRS_CHROME_SKIN_CLOSE )
+                sends_close = 1;
+            if( k_web_skin_slots[i] == TORIRS_CHROME_SKIN_CLOSE_OVER )
+                sends_over = 1;
+        }
+        CHECK(sends_close, "the page is sent the window X the other presentations wear");
+        CHECK(sends_over, "and the hover half of it, which is a second sprite not a filter");
+    }
+
+    /*
      * The byte order, stated as what the pixels MEAN.
      *
      * R and B swapped would turn the green tick blue and the red cross cyan --

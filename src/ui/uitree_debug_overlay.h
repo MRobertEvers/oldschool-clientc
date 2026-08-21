@@ -204,27 +204,35 @@ enum ToriRSChromeSkinSlot
     TORIRS_CHROME_SKIN_CHECK_ON,
     TORIRS_CHROME_SKIN_CHECK_OFF,
     /**
-     * The interfaces' own panel frame, as a NINE-SLICE: four 3x3 corners, four
-     * 3px edges stretched along their sides, and a centre.
+     * The interfaces' own panel frame, as an EIGHT-piece nine-slice: four 32x32
+     * corners carrying an L of rail along their outer edges, and four 6px edges
+     * stretched along their runs.
      *
-     * This is the border the gameframe's popout strip draws around the panels
-     * that mount in it -- which is why a plugin window built by the CS2
-     * executor wears one and the same window drawn in canvas did not. A panel
-     * asks for it with ToriRSChrome_PanelSetFramed; see the note there on why
-     * it is opt-in rather than the window style's own chrome.
+     * This is the border the gameframe's popout strip (interface 728) draws
+     * around the panels that mount in it -- literally the same sprites, read
+     * off the live strip rather than guessed at. An earlier bake took the thin
+     * black nine-slice sitting beside them in the cache (5814-5822); those
+     * components are `hidden=1` on every frame the strip draws, which is
+     * exactly the kind of thing a screenshot cannot tell you and a component
+     * dump can.
      *
      * The corners are ROUNDED -- their outer pixel is transparent -- so the
-     * pieces have to be blitted at their baked size rather than stretched
-     * through one box, and the order below is the order dbg_push_frame draws
-     * them in. The centre is baked but never drawn: the panel body's own tile
-     * is already under it, and painting a flat brown over the parchment would
-     * be the frame erasing the surface it frames.
+     * pieces are blitted at their baked size rather than stretched through one
+     * box, and the order below is the order dbg_push_frame draws them in.
+     *
+     * NO CENTRE. The cache authors one and the strip never shows it: the
+     * panel's own tradebacking is already under the frame, and painting a flat
+     * brown over the parchment would be the frame erasing the surface it
+     * frames. A slot for an image nothing draws is a slot every consumer has to
+     * carry, so it is not baked at all.
+     *
+     * @see TORIRS_CHROME_M_FRAME / _M_FRAME_CORNER for the two thicknesses, and
+     * why an edge is baked cropped out of its 32x32 tile.
      */
     TORIRS_CHROME_SKIN_FRAME_TOP_LEFT,
     TORIRS_CHROME_SKIN_FRAME_TOP,
     TORIRS_CHROME_SKIN_FRAME_TOP_RIGHT,
     TORIRS_CHROME_SKIN_FRAME_LEFT,
-    TORIRS_CHROME_SKIN_FRAME_CENTRE,
     TORIRS_CHROME_SKIN_FRAME_RIGHT,
     TORIRS_CHROME_SKIN_FRAME_BOTTOM_LEFT,
     TORIRS_CHROME_SKIN_FRAME_BOTTOM,

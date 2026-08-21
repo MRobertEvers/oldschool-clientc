@@ -202,6 +202,12 @@ static int const k_web_skin_slots[] = {
     TORIRS_CHROME_SKIN_FRAME_BOTTOM_LEFT,
     TORIRS_CHROME_SKIN_FRAME_BOTTOM,
     TORIRS_CHROME_SKIN_FRAME_BOTTOM_RIGHT,
+    /* The window X, and the same button lit from the other corner for hover.
+     * The page wears the interfaces' own close mark rather than a '\u2715'
+     * out of the system font, for the same reason its checkboxes wear the
+     * game's tick: this is the game's window, in a browser. */
+    TORIRS_CHROME_SKIN_CLOSE,
+    TORIRS_CHROME_SKIN_CLOSE_OVER,
 };
 
 /**
