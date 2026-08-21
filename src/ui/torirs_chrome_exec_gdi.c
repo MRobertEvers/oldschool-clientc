@@ -272,9 +272,12 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                 break;
 
             case TORIRS_CHROME_W_TEXTINPUT:
+            case TORIRS_CHROME_W_COLORPICK:
                 /* EN_KILLFOCUS, not EN_CHANGE: an intent per keystroke would
                  * send the model a value for every half-typed state, and the
-                 * chrome's own input commits the same way. */
+                 * chrome's own input commits the same way. A colour row's EDIT
+                 * commits by the same route -- the model is what turns the hex
+                 * into a palette entry, so there is nothing extra to do here. */
                 if( notify == EN_KILLFOCUS )
                 {
                     char buf[TORIRS_CHROME_TEXT_MAX];
@@ -326,6 +329,13 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     }
 
     case WM_CTLCOLORSTATIC:
+        /* A colour row's sample: the ONLY way to give a control a colour in
+         * Win32 is to hand back a brush from here, so the swatches are found
+         * by HWND and painted with the brush the last WIDGET_SELECTED made. */
+        for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
+            if( s->swatch[i] && s->swatch[i] == (HWND)lp && s->swatch_brush[i] )
+                return (LRESULT)s->swatch_brush[i];
+        /* fall through */
     case WM_CTLCOLORBTN:
         /* The dialog face, so STATIC labels do not sit on a white patch over a
          * grey window -- the default for a STATIC on a non-dialog parent. */
@@ -435,6 +445,40 @@ chrome_gdi_child(
     if( h && s->font )
         SendMessageA(h, WM_SETFONT, (WPARAM)s->font, TRUE);
     return h;
+}
+
+/**
+ * Destroy the controls a row owns BESIDE the one the mirror knows about.
+ *
+ * The mirror holds exactly one native per widget (see its header: it knows
+ * what a widget is, not what it currently says), and a labelled row here owns
+ * two more -- its caption STATIC and, on a colour row, its sample and the
+ * brush that paints it. Leaving them behind is not a leak that shows up as
+ * memory: it is a caption and a coloured square still sitting where a removed
+ * row used to be, over whatever now occupies that space.
+ */
+/** 0xRRGGBB -> a COLORREF, which is 0x00BBGGRR. The one place the two byte
+ *  orders meet; getting it wrong swaps red and blue in every swatch. */
+static COLORREF
+chrome_gdi_colorref(uint32_t rgb)
+{
+    return RGB((rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+}
+
+static void
+chrome_gdi_drop_extras(struct ChromeGdi* s, int widget)
+{
+    if( widget < 0 || widget >= TORIRS_CHROME_MAX_WIDGETS )
+        return;
+    if( s->label[widget] )
+        DestroyWindow(s->label[widget]);
+    s->label[widget] = NULL;
+    if( s->swatch[widget] )
+        DestroyWindow(s->swatch[widget]);
+    s->swatch[widget] = NULL;
+    if( s->swatch_brush[widget] )
+        DeleteObject(s->swatch_brush[widget]);
+    s->swatch_brush[widget] = NULL;
 }
 
 static void
@@ -559,6 +603,7 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
             ToriRSChromeMirror_Widget(&s->mirror, cmd->widget);
         if( gone && gone->native )
             DestroyWindow((HWND)gone->native);
+        chrome_gdi_drop_extras(s, cmd->widget);
     }
     else if( cmd->kind == TORIRS_CHROME_CMD_PANEL_CLOSE )
     {
@@ -568,6 +613,8 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
                 ToriRSChromeMirror_Widget(&s->mirror, i);
             if( gone && gone->panel == cmd->panel && gone->native )
                 DestroyWindow((HWND)gone->native);
+            if( gone && gone->panel == cmd->panel )
+                chrome_gdi_drop_extras(s, i);
         }
     }
 
@@ -640,7 +687,9 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
         /* Never while it has focus: the model is echoing a value the user is
          * still editing, and writing it back would move the caret and undo
          * whatever they typed since the last commit. */
-        if( w->kind != TORIRS_CHROME_W_TEXTINPUT || GetFocus() != (HWND)w->native )
+        if( (w->kind != TORIRS_CHROME_W_TEXTINPUT &&
+             w->kind != TORIRS_CHROME_W_COLORPICK) ||
+            GetFocus() != (HWND)w->native )
             SetWindowTextA((HWND)w->native, cmd->text);
         break;
 
@@ -663,7 +712,30 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
         break;
 
     case TORIRS_CHROME_CMD_WIDGET_SELECTED:
+        if( w->kind == TORIRS_CHROME_W_COLORPICK )
+        {
+            /* The selection IS the colour (packed HSL16), so the sample's
+             * brush is rebuilt around it. Rebuilt rather than recoloured
+             * because a brush has no colour to set -- it is the object. */
+            HBRUSH replacement = CreateSolidBrush(
+                chrome_gdi_colorref(ToriRSChrome_Hsl16ToRgb(cmd->value)));
+            if( s->swatch_brush[cmd->widget] )
+                DeleteObject(s->swatch_brush[cmd->widget]);
+            s->swatch_brush[cmd->widget] = replacement;
+            if( s->swatch[cmd->widget] )
+                InvalidateRect(s->swatch[cmd->widget], NULL, TRUE);
+            break;
+        }
         SendMessageA((HWND)w->native, CB_SETCURSEL, (WPARAM)cmd->value, 0);
+        break;
+
+    case TORIRS_CHROME_CMD_WIDGET_FOCUS:
+        /* An EDIT owns its own focus, and this window's is set by the user
+         * clicking in it -- the model's copy is downstream of that. Acted on
+         * only in the direction that cannot loop: taking the focus when the
+         * model says a row has it and Windows disagrees. */
+        if( cmd->value && GetFocus() != (HWND)w->native )
+            SetFocus((HWND)w->native);
         break;
 
     default:

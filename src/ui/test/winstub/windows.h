@@ -35,6 +35,7 @@ typedef struct {
 #define ES_AUTOHSCROLL 4
 #define SS_LEFT 8
 #define SS_ETCHEDHORZ 16
+#define SS_NOTIFY 256
 #define CBS_DROPDOWNLIST 32
 #define CW_USEDEFAULT 0
 #define SW_SHOWNOACTIVATE 1
@@ -78,4 +79,9 @@ BOOL SetWindowTextA(HWND,const char*); int GetWindowTextA(HWND,char*,int);
 HWND GetFocus(void); HFONT CreateFontIndirectA(const LOGFONTA*); BOOL DeleteObject(void*);
 BOOL SystemParametersInfoA(UINT,UINT,void*,UINT); int SetBkMode(HDC,int);
 HBRUSH GetSysColorBrush(int);
+typedef DWORD COLORREF;
+#define RGB(r, g, b) ((COLORREF)(((DWORD)(r)) | (((DWORD)(g)) << 8) | (((DWORD)(b)) << 16)))
+HBRUSH CreateSolidBrush(COLORREF);
+BOOL InvalidateRect(HWND, const RECT*, BOOL);
+HWND SetFocus(HWND);
 #endif

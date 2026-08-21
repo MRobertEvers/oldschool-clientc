@@ -311,20 +311,40 @@ static int
 app_modelview_focused(struct App const* app);
 
 static int
+app_chrome_holds_keyboard(struct App const* app);
+
+static int
 app_text_input_focused(struct App const* app)
 {
     assert(app);
-    /* dbg_ui.focus: the ToriRSChrome text input under caret, if any -- set
-     * only for TORIRS_CHROME_W_TEXTINPUT widgets (ToriRSChrome_MouseDown) and
-     * cleared by a click elsewhere, so this is exactly "the editor/loc
-     * editor panel has a field being typed into" (e.g. the map editor's
-     * Height field). Without it, typing a height value like "8" both edited
-     * the field AND fired the map-editor-toggle hotkey on the same
-     * keystroke -- one more instance of the bug this function exists to
-     * kill everywhere at once. */
+    /* A ToriRSChrome text field under the caret, in EITHER instance -- set by
+     * ToriRSChrome_MouseDown and cleared by a click elsewhere, so this is
+     * exactly "a chrome panel has a field being typed into" (the map editor's
+     * Height field; a plugin's colour or note field). Without it, typing a
+     * height value like "8" both edited the field AND fired the
+     * map-editor-toggle hotkey on the same keystroke -- one more instance of
+     * the bug this function exists to kill everywhere at once. */
     return app->chat_input_active || app->chat.social_input_open ||
            app->chat.dialog_input_open || app_iface_text_input_focused(app) ||
-           app->dbg_ui.focus >= 0;
+           app_chrome_holds_keyboard(app);
+}
+
+/*
+ * Is a ToriRSChrome field being typed into?
+ *
+ * BOTH instances, which is the whole point of it being a function. dbg_ui is
+ * the developer chrome (the map editor's Height field and its neighbours);
+ * plugin_ui is the plugin window, and it was missing -- so a keystroke aimed
+ * at a plugin's colour or note field also fired whatever debug hotkey shares
+ * that letter, and was typed into the chat line underneath. Both are the same
+ * bug app_text_input_focused exists to kill, and naming only one instance is
+ * how it came back.
+ */
+static int
+app_chrome_holds_keyboard(struct App const* app)
+{
+    assert(app);
+    return app->dbg_ui.focus >= 0 || app->plugin_ui.focus >= 0;
 }
 
 /*
@@ -21852,6 +21872,19 @@ App_RunOnce(
      * silently eating a keystroke the chat box was waiting for is a worse
      * failure than not being able to intercept it.
      */
+    /*
+     * A chrome field under the caret takes the keyboard from the game.
+     *
+     * The plugin window's text fields are the MODEL's -- the host routes keys
+     * into them (app_chrome_route_keys) long before this point -- and nothing
+     * downstream knew it. So typing a colour into a plugin's field also ran
+     * every armed onKey script and typed the same characters into the chat
+     * line, and an Enter meant to commit the field sent whatever was in the
+     * chat box. Folded in beside the plugin-consume flag because it means the
+     * same thing to everything below: these keys are already spoken for.
+     */
+    int const chrome_ate_keys = app_chrome_holds_keyboard(app);
+
     int plugin_ate_keys = 0;
     if( app->plugins )
     {
@@ -21871,7 +21904,7 @@ App_RunOnce(
      * in one frame, and an earlier one can CC_CREATE (realloc components[]) or
      * CC_DELETEALL (reclaim the slot), so a target collected during the scan may
      * be gone by its turn. Same reasoning as the on_timer loop. */
-    for( int e = 0; e < out.key_event_count && !plugin_ate_keys; e++ )
+    for( int e = 0; e < out.key_event_count && !plugin_ate_keys && !chrome_ate_keys; e++ )
     {
         for( int t = 0; t < out.key_target_count; t++ )
         {
@@ -21990,8 +22023,9 @@ App_RunOnce(
             }
             /* A suppressed frame is one whose keys were focus commands (the
              * Enter that took focus, the Escape that dropped it); the line must
-             * not type them as well. */
-            if( chat_keys_suppressed || !chat_captures )
+             * not type them as well. Nor may it type what a chrome field is
+             * already taking. */
+            if( chat_keys_suppressed || chrome_ate_keys || !chat_captures )
                 continue;
 
             int had_input = app->chat.input[0] != '\0';

@@ -31,6 +31,7 @@
 #include "platform/platform_sdl2_renderer_soft3d.h"
 #include "render/torirs_frame.h"
 
+#include "toridraw_hsl16.h"
 #include "toridraw_scene.h"
 #include "world/world_pickset.h"
 
@@ -1771,6 +1772,245 @@ visual_listrow(void)
     ToriRSChrome_Init(&g_ui);
 }
 
+/*
+ * The chrome's HSL16 palette against the RASTERISER's.
+ *
+ * The chrome computes its own (see ToriRSChrome_Hsl16ToRgb): it links no
+ * renderer, so it cannot read g_hsl16_to_rgb_table, and a swatch that could
+ * only be drawn once something else had initialised a palette would be blank
+ * in every test and on every frame before the first cache opened.
+ *
+ * A second implementation of a conversion is a liability unless something
+ * checks it, and this is the check. It is also the alarm for a change nobody
+ * would otherwise connect to the chrome: if the client ever builds its palette
+ * at a brightness other than 0.8, every swatch and every axis bar quietly
+ * becomes a shade off, and THIS is what says so.
+ */
+static void
+visual_hsl16_palette(void)
+{
+    int mismatches = 0;
+    int first = -1;
+
+    printf("VISUAL: HSL16 palette agrees with the rasteriser\n");
+    ToriDraw_InitHsl16();
+    for( int hsl = 0; hsl < 65536; hsl++ )
+    {
+        uint32_t const ours = ToriRSChrome_Hsl16ToRgb(hsl);
+        uint32_t const theirs = (uint32_t)ToriDraw_Hsl16ToRgb((uint16_t)hsl) & 0xFFFFFFu;
+        if( ours == theirs )
+            continue;
+        if( first < 0 )
+            first = hsl;
+        mismatches++;
+    }
+    if( mismatches )
+        fprintf(
+            stderr,
+            "  first mismatch at hsl16 %d: chrome 0x%06X, rasteriser 0x%06X\n",
+            first,
+            ToriRSChrome_Hsl16ToRgb(first),
+            (unsigned)ToriDraw_Hsl16ToRgb((uint16_t)first) & 0xFFFFFFu);
+    VT_ASSERT(mismatches == 0, "every one of the 65536 palette entries agrees");
+
+    /* The other direction is not a bijection -- 24-bit RGB collapses onto
+     * 32768 entries -- so what is asserted is that a colour SURVIVES the round
+     * trip its own quantisation lands it on. A picker whose value moved every
+     * time it was re-read would drift a shade per save. */
+    for( int hsl = 0; hsl < 65536; hsl++ )
+    {
+        int const back = ToriRSChrome_Hsl16FromRgb(ToriRSChrome_Hsl16ToRgb(hsl));
+        if( ToriRSChrome_Hsl16ToRgb(back) != ToriRSChrome_Hsl16ToRgb(hsl) )
+        {
+            VT_ASSERT(0, "a palette entry survives rgb -> hsl16 -> rgb");
+            break;
+        }
+    }
+
+    /* And the spellings a config file or a wiki page actually carries. */
+    {
+        uint32_t rgb = 0;
+        VT_ASSERT(ToriRSChrome_ParseHexRgb("#00FFFF", &rgb) && rgb == 0x00FFFFu, "#RRGGBB");
+        VT_ASSERT(ToriRSChrome_ParseHexRgb("00ffff", &rgb) && rgb == 0x00FFFFu, "bare RRGGBB");
+        VT_ASSERT(ToriRSChrome_ParseHexRgb("0xFF0000", &rgb) && rgb == 0xFF0000u, "0x prefix");
+        rgb = 0x123456u;
+        VT_ASSERT(!ToriRSChrome_ParseHexRgb("#00FF", &rgb), "a half-typed hex is not a colour");
+        VT_ASSERT(rgb == 0x123456u, "and a rejected parse leaves the out alone");
+        VT_ASSERT(
+            !ToriRSChrome_ParseHexRgb("#00FFFFF", &rgb), "seven digits is not six digits");
+    }
+}
+
+/*
+ * The colour row and its axis popup, in the in-canvas presentation.
+ *
+ * The three bars ARE the HSL16 axes -- 64 hues, 8 saturations, 128
+ * lightnesses -- so what this checks is that a sweep along one moves that axis
+ * and leaves the other two where they were. A picker that quietly renormalised
+ * the whole colour on every drag would look identical in the shot.
+ */
+static void
+visual_colorpick(void)
+{
+    int panel;
+    int pick;
+    int hue;
+    int sat;
+    int lum;
+
+    printf("VISUAL: HSL16 colour picker\n");
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 20, 16, 260, "Tile markers");
+    ToriRSChrome_PanelSetTable(&g_ui, panel, 1);
+    pick = ToriRSChrome_ColorPick(
+        &g_ui, panel, "True tile colour", ToriRSChrome_Hsl16FromRgb(0x00FFFFu));
+    ToriRSChrome_ColorPick(
+        &g_ui, panel, "Destination colour", ToriRSChrome_Hsl16FromRgb(0xFFFF00u));
+    ToriRSChrome_TextInput(&g_ui, panel, "True tile fill", "40");
+    ToriRSChrome_Build(&g_ui);
+    render("28_colorpick_closed");
+
+    VT_ASSERT(
+        strcmp(ToriRSChrome_Text(&g_ui, pick), "#0FEFF9") == 0,
+        "the field shows the PALETTE entry #00FFFF quantised onto, not #00FFFF");
+
+    /* The swatch zone opens the popup; the field zone would take the focus. */
+    {
+        struct ToriRSChromeWidget const* w = &g_ui.widgets[pick];
+        int const sx = w->x + w->w - 4;
+        int const sy = w->y + w->h / 2;
+        ToriRSChrome_MouseDown(&g_ui, w->x + 2, sy);
+        ToriRSChrome_MouseUp(&g_ui, w->x + 2, sy);
+        VT_ASSERT(!ToriRSChrome_ColorPickIsOpen(&g_ui, pick), "the label does not open it");
+        (void)sx;
+    }
+    ToriRSChrome_ColorPickSetOpen(&g_ui, pick, 1);
+    ToriRSChrome_Build(&g_ui);
+    render("29_colorpick_open");
+    VT_ASSERT(ToriRSChrome_ColorPickIsOpen(&g_ui, pick), "the popup is up");
+    VT_ASSERT(
+        ToriRSChrome_Checked(&g_ui, pick),
+        "and says so through `checked`, which is what crosses the executor seam");
+
+    /* A sweep along the HUE bar. The bars sit under the field box, in order. */
+    ToriRSChrome_Hsl16Split(ToriRSChrome_ColorPickValue(&g_ui, pick), &hue, &sat, &lum);
+    {
+        struct ToriRSChromeWidget const* w = &g_ui.widgets[pick];
+        int const bar_y = w->y + w->h + 2 + 6;
+        int const x0 = w->x + w->w / 2;
+        int after_hue;
+        int after_sat;
+        int after_lum;
+
+        ToriRSChrome_MouseDown(&g_ui, x0, bar_y);
+        ToriRSChrome_MouseMove(&g_ui, x0 + 20, bar_y);
+        ToriRSChrome_MouseUp(&g_ui, x0 + 20, bar_y);
+        ToriRSChrome_Hsl16Split(
+            ToriRSChrome_ColorPickValue(&g_ui, pick), &after_hue, &after_sat, &after_lum);
+        VT_ASSERT(after_hue != hue, "a sweep along the hue bar moved the hue");
+        VT_ASSERT(after_sat == sat, "and left the saturation alone");
+        VT_ASSERT(after_lum == lum, "and the lightness");
+        VT_ASSERT(
+            ToriRSChrome_TakeActivated(&g_ui) == pick,
+            "the sweep reports through the ordinary activation latch");
+    }
+    ToriRSChrome_Build(&g_ui);
+    render("30_colorpick_swept");
+
+    /* A typed hex commits on Enter, and comes back as the entry it landed on. */
+    ToriRSChrome_ColorPickSetOpen(&g_ui, pick, 0);
+    {
+        struct ToriRSChromeWidget const* w = &g_ui.widgets[pick];
+        int const fx = w->x + w->w - 6;
+        int const fy = w->y + w->h / 2;
+        ToriRSChrome_MouseDown(&g_ui, fx, fy);
+        ToriRSChrome_MouseUp(&g_ui, fx, fy);
+        VT_ASSERT(g_ui.focus == pick, "a click in the field half takes the focus");
+
+        for( int i = 0; i < 8; i++ )
+            ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_BACKSPACE);
+        for( char const* c = "#FF0000"; *c; c++ )
+            ToriRSChrome_KeyChar(&g_ui, *c);
+        VT_ASSERT(
+            strcmp(ToriRSChrome_Text(&g_ui, pick), "#FF0000") == 0,
+            "typing edits the field verbatim, without snapping under the caret");
+        ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_ENTER);
+        VT_ASSERT(
+            ToriRSChrome_Hsl16ToRgb(ToriRSChrome_ColorPickValue(&g_ui, pick)) ==
+                ToriRSChrome_Hsl16ToRgb(ToriRSChrome_Hsl16FromRgb(0xFF0000u)),
+            "Enter commits the typed hex onto a palette entry");
+        VT_ASSERT(
+            strcmp(ToriRSChrome_Text(&g_ui, pick), "#FF0000") != 0,
+            "and rewrites the field to the entry, rather than keeping the spelling");
+    }
+    ToriRSChrome_Build(&g_ui);
+    render("31_colorpick_typed");
+
+    /* Escape abandons instead of committing -- the one difference between the
+     * two ways out of an edit. */
+    {
+        struct ToriRSChromeWidget const* w = &g_ui.widgets[pick];
+        int const before = ToriRSChrome_ColorPickValue(&g_ui, pick);
+        char kept[TORIRS_CHROME_INPUT_MAX];
+
+        snprintf(kept, sizeof(kept), "%s", ToriRSChrome_Text(&g_ui, pick));
+        ToriRSChrome_MouseDown(&g_ui, w->x + w->w - 6, w->y + w->h / 2);
+        ToriRSChrome_MouseUp(&g_ui, w->x + w->w - 6, w->y + w->h / 2);
+        for( int i = 0; i < 8; i++ )
+            ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_BACKSPACE);
+        for( char const* c = "#00FF00"; *c; c++ )
+            ToriRSChrome_KeyChar(&g_ui, *c);
+        ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_ESCAPE);
+        VT_ASSERT(
+            ToriRSChrome_ColorPickValue(&g_ui, pick) == before,
+            "Escape leaves the value where it was");
+        VT_ASSERT(
+            strcmp(ToriRSChrome_Text(&g_ui, pick), kept) == 0,
+            "and puts the field back to it");
+    }
+
+    /* A blur COMMITS, which is the other half of the same rule: a hex typed
+     * and then abandoned by clicking elsewhere must not leave the field
+     * disagreeing with its own swatch. */
+    {
+        struct ToriRSChromeWidget const* w = &g_ui.widgets[pick];
+        ToriRSChrome_MouseDown(&g_ui, w->x + w->w - 6, w->y + w->h / 2);
+        ToriRSChrome_MouseUp(&g_ui, w->x + w->w - 6, w->y + w->h / 2);
+        for( int i = 0; i < 8; i++ )
+            ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_BACKSPACE);
+        for( char const* c = "#0000FF"; *c; c++ )
+            ToriRSChrome_KeyChar(&g_ui, *c);
+        /* Somewhere with no widget: the panel's own header strip. */
+        ToriRSChrome_MouseDown(&g_ui, w->x, g_ui.panels[panel].y + 2);
+        ToriRSChrome_MouseUp(&g_ui, w->x, g_ui.panels[panel].y + 2);
+        VT_ASSERT(
+            ToriRSChrome_Hsl16ToRgb(ToriRSChrome_ColorPickValue(&g_ui, pick)) ==
+                ToriRSChrome_Hsl16ToRgb(ToriRSChrome_Hsl16FromRgb(0x0000FFu)),
+            "a blur commits what was typed");
+    }
+
+    /* Garbage in the field is refused and the field put back, rather than
+     * being written into the config the next Save reads. */
+    {
+        struct ToriRSChromeWidget const* w = &g_ui.widgets[pick];
+        int const before = ToriRSChrome_ColorPickValue(&g_ui, pick);
+        ToriRSChrome_MouseDown(&g_ui, w->x + w->w - 6, w->y + w->h / 2);
+        ToriRSChrome_MouseUp(&g_ui, w->x + w->w - 6, w->y + w->h / 2);
+        for( int i = 0; i < 8; i++ )
+            ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_BACKSPACE);
+        for( char const* c = "nonsense"; *c; c++ )
+            ToriRSChrome_KeyChar(&g_ui, *c);
+        ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_ENTER);
+        VT_ASSERT(
+            ToriRSChrome_ColorPickValue(&g_ui, pick) == before,
+            "an unparseable field does not move the value");
+        VT_ASSERT(
+            ToriRSChrome_Text(&g_ui, pick)[0] == '#',
+            "and the field is put back to the value's own hex");
+    }
+    ToriRSChrome_Init(&g_ui);
+}
+
 int
 main(void)
 {
@@ -1832,6 +2072,8 @@ main(void)
     visual_menubar_dropdown();
     visual_tabs_and_scroll();
     visual_listrow();
+    visual_hsl16_palette();
+    visual_colorpick();
     visual_scaled();
 
     if( g_failures )

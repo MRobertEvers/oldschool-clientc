@@ -640,79 +640,20 @@ app_plugin_draw_rect(
  * 0xRRGGBB -> the packed HSL a model face is actually coloured with
  * (6-bit hue << 10 | 3-bit saturation << 7 | 7-bit luminance).
  *
- * A port of the reference's rgbToHSL with brightness 1.0, which is what makes
- * `pow(channel, 1/brightness)` an identity and lets the whole gamma step drop
- * out. Written out rather than approximated because the quantisation is the
- * point: the ceilings and the `% 63` are what make a chosen colour land on the
- * same palette entry the client's own art does, and a "close enough"
- * conversion produces a beam that is visibly the wrong hue.
+ * Delegated to the chrome's copy, which is the ONLY one now. It used to be
+ * written out here as well, and two ports of rgbToHSL is one more than the
+ * number that can be verified: the quantisation is the whole point -- the
+ * ceilings and the `% 63` are what make a chosen colour land on the same
+ * palette entry the client's own art does -- and a second copy is a second
+ * place for a beam to come out visibly the wrong hue. The chrome's is the one
+ * that has a test behind it (test-debug-overlay-visual walks all 32768 entries
+ * against the rasteriser's table), so the chrome's is the one that survives.
  */
 static int
 app_plugin_hsl_from_rgb(void* user, uint32_t rgb)
 {
-    double r = (double)((rgb >> 16) & 0xff) / 255.0;
-    double g = (double)((rgb >> 8) & 0xff) / 255.0;
-    double b = (double)(rgb & 0xff) / 255.0;
-    double max = r > g ? r : g;
-    double min = r < g ? r : g;
-    double hue = 0.0;
-    double sat;
-    double lum;
-    double span;
-
     (void)user;
-
-    if( b > max )
-        max = b;
-    if( b < min )
-        min = b;
-    span = max - min;
-
-    /* Hue, as Color.RGBtoHSB computes it: 0 on a grey, where the sector is
-     * undefined rather than zero-by-accident. */
-    if( span > 0.0 )
-    {
-        double const rc = (max - r) / span;
-        double const gc = (max - g) / span;
-        double const bc = (max - b) / span;
-        if( r >= max )
-            hue = bc - gc;
-        else if( g >= max )
-            hue = 2.0 + rc - bc;
-        else
-            hue = 4.0 + gc - rc;
-        hue /= 6.0;
-        if( hue < 0.0 )
-            hue += 1.0;
-    }
-
-    /* HSB -> HSL. `max` is the brightness and `span / max` the HSB saturation;
-     * the reference recovers luminance from them and then re-derives an HSL
-     * saturation against it. */
-    {
-        double const brightness = max;
-        double const hsb_sat = max > 0.0 ? span / max : 0.0;
-        double const other = 1.0 - (brightness - (brightness * hsb_sat) / 2.0);
-        lum = brightness - (brightness * hsb_sat) / 2.0;
-        sat = (lum > 0.0 && lum < 1.0) ? (brightness - lum) / (lum < other ? lum : other) : 0.0;
-    }
-
-    {
-        int h = (int)(ceil(hue * 64.0)) % 63;
-        int s = (int)ceil(sat * 7.0);
-        int l = (int)ceil(lum * 127.0);
-        if( h < 0 )
-            h = 0;
-        if( s < 0 )
-            s = 0;
-        if( s > 7 )
-            s = 7;
-        if( l < 0 )
-            l = 0;
-        if( l > 127 )
-            l = 127;
-        return ((h & 63) << 10) | ((s & 7) << 7) | (l & 127);
-    }
+    return ToriRSChrome_Hsl16FromRgb(rgb);
 }
 
 static uint32_t

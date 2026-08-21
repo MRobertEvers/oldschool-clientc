@@ -202,6 +202,22 @@ app_plugin_panel_track(
 }
 
 /** Put one config key's stored value into the widget showing it. */
+/**
+ * The packed HSL16 a stored colour value names.
+ *
+ * The store is textual and the picker's unit is a palette index, so this is
+ * the one conversion between them. An unparseable value falls back to WHITE
+ * rather than to black: a key whose text is broken should look wrong, and
+ * black is what a legitimately-black colour also looks like.
+ */
+static int
+app_plugin_color_hsl(char const* text)
+{
+    uint32_t rgb = 0xFFFFFFu;
+    (void)ToriRSChrome_ParseHexRgb(text, &rgb);
+    return ToriRSChrome_Hsl16FromRgb(rgb);
+}
+
 static void
 app_plugin_panel_load_row(struct App* app, struct AppPluginPanelRow const* row)
 {
@@ -232,6 +248,16 @@ app_plugin_panel_load_row(struct App* app, struct AppPluginPanelRow const* row)
             app_plugin_choice_index(
                 w->options, w->option_count,
                 app_plugin_panel_value(app, row->plugin, item->key)));
+    }
+    else if( item->type == TORIRS_PLUGIN_CFG_COLOR )
+    {
+        /* By VALUE, for the same reason a dropdown reverts by selection: the
+         * hex a colour row shows is a rendering of its palette entry, so
+         * writing the text alone would leave the swatch on the old colour. */
+        ToriRSChrome_ColorPickSet(
+            &app->plugin_ui,
+            row->widget,
+            app_plugin_color_hsl(app_plugin_panel_value(app, row->plugin, item->key)));
     }
     else
     {
@@ -426,11 +452,37 @@ app_plugin_panel_sync(struct App* app)
                     widget = ToriRSChrome_TextInput(
                         &app->plugin_ui, app->plugin_panel, item->label, value);
             }
+            else if( item->type == TORIRS_PLUGIN_CFG_COLOR )
+            {
+                /*
+                 * A declared colour is a real picker, for the same reason a
+                 * declared enum is a real dropdown: the schema already says
+                 * what kind of value this is, and a field that accepts
+                 * anything for a key that accepts colours is a typo waiting to
+                 * be saved.
+                 *
+                 * It picks in HSL16 rather than RGB because that is what a
+                 * model face is actually coloured in -- the plugin api's own
+                 * hsl_from_rgb exists because every colour handed to the
+                 * engine is quantised onto that palette. Choosing on those
+                 * axes means the value in the field is the value that will be
+                 * drawn, instead of one that quietly becomes a neighbour of
+                 * itself somewhere downstream.
+                 *
+                 * The hex stays typeable, so a colour out of a wiki page or
+                 * another client still arrives the way it always did.
+                 */
+                widget = ToriRSChrome_ColorPick(
+                    &app->plugin_ui,
+                    app->plugin_panel,
+                    item->label,
+                    app_plugin_color_hsl(app_plugin_panel_value(app, p, item->key)));
+            }
             else
             {
-                /* Ints, colours and strings edit as text, because the store is
-                 * textual to begin with -- the field shows the value that would
-                 * be written, not a rendering of it. */
+                /* Ints and strings edit as text, because the store is textual
+                 * to begin with -- the field shows the value that would be
+                 * written, not a rendering of it. */
                 widget = ToriRSChrome_TextInput(
                     &app->plugin_ui,
                     app->plugin_panel,
