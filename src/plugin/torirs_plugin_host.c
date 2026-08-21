@@ -158,7 +158,20 @@ plugin_config_slot(struct ToriRS_PluginCtx* ctx, char const* key, bool create)
     if( !create )
         return NULL;
     if( ctx->config_count >= TORIRS_PLUGIN_CONFIG_MAX )
+    {
+        /* A declared schema cannot reach this -- PluginHost_Register refuses
+         * one that does not fit. What can is an ini carrying more unclaimed
+         * keys than the headroom above the schema, which is a settings file
+         * that has outlived several renames. Said out loud because the
+         * alternative is a setting that will not stick and no reason given. */
+        fprintf(
+            stderr,
+            "plugin: '%s' config store is full (%d); '%s' is not kept\n",
+            ctx->name,
+            TORIRS_PLUGIN_CONFIG_MAX,
+            key);
         return NULL;
+    }
 
     struct PluginConfigSlot* slot = &ctx->config[ctx->config_count++];
     memset(slot, 0, sizeof(*slot));
@@ -774,6 +787,61 @@ api_asset_release(struct ToriRS_PluginCtx* ctx, char const* name)
         plugin_asset_drop(ctx->host, slot);
 }
 
+/* -- screenshots -- */
+
+/*
+ * A destination the USER named.
+ *
+ * Looser than plugin_asset_name_ok on purpose: separators are allowed, because
+ * "screenshots/levels" is the kind of thing someone types into a settings
+ * field and a directory with one component would not be a destination worth
+ * configuring. `..` is still refused, so the plugin cannot climb out of
+ * whatever the user pointed it at, and a refusal is logged rather than
+ * asserted for the same reason it is for asset names -- the string arrives
+ * from a config field, not from a programmer.
+ */
+static bool
+plugin_screenshot_dir_ok(struct ToriRS_PluginCtx* ctx, char const* dir)
+{
+    assert(ctx);
+    assert(dir);
+
+    size_t const len = strlen(dir);
+    bool ok = len < TORIRS_PLUGIN_SCREENSHOT_DIR_MAX;
+
+    for( size_t i = 0; ok && i < len; i++ )
+    {
+        char const c = dir[i];
+        ok = (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') ||
+             c == '.' || c == '_' || c == '-' || c == '/' || c == ':' || c == ' ';
+    }
+    if( ok && strstr(dir, "..") )
+        ok = false;
+
+    if( !ok )
+        fprintf(
+            stderr,
+            "plugin: %s asked to write a screenshot to '%s'; a destination is a path of "
+            "[A-Za-z0-9._- /:] with no '..'\n",
+            ctx->name,
+            dir);
+    return ok;
+}
+
+static int
+api_screenshot(struct ToriRS_PluginCtx* ctx, char const* dir, char const* name)
+{
+    assert(ctx);
+    assert(name);
+
+    if( !plugin_asset_name_ok(ctx, name) )
+        return 0;
+    if( dir && *dir && !plugin_screenshot_dir_ok(ctx, dir) )
+        return 0;
+
+    return ctx->host->engine.screenshot(ctx->host->engine.user, ctx->name, dir, name);
+}
+
 void
 PluginHost_AssetDeliver(
     struct ToriRS_PluginHost* host,
@@ -1040,12 +1108,14 @@ api_draw_hull(
     void* surface,
     int element_id,
     uint32_t rgb,
-    int fill_alpha)
+    int fill_alpha,
+    int shape)
 {
+    assert(shape == TORIRS_PLUGIN_HULL_BOUNDS || shape == TORIRS_PLUGIN_HULL_MESH);
     if( !plugin_draw_allow(ctx, surface) )
         return;
     ctx->draw_used +=
-        ctx->host->engine.draw_hull(ctx->host->engine.user, element_id, rgb, fill_alpha);
+        ctx->host->engine.draw_hull(ctx->host->engine.user, element_id, rgb, fill_alpha, shape);
 }
 
 static void
@@ -1119,6 +1189,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->menu_add);
     assert(engine->asset_read);
     assert(engine->asset_write);
+    assert(engine->screenshot);
     assert(engine->object_create);
     assert(engine->object_destroy);
     assert(engine->object_set_model);
@@ -1167,6 +1238,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .asset_data = api_asset_data,
         .asset_save = api_asset_save,
         .asset_release = api_asset_release,
+        .screenshot = api_screenshot,
         .object_create = api_object_create,
         .object_destroy = api_object_destroy,
         .object_set_model = api_object_set_model,
@@ -1261,6 +1333,36 @@ PluginHost_Register(struct ToriRS_PluginHost* host, struct ToriRS_PluginDef cons
             "panel row. Rename one.\n",
             def->name);
         return -1;
+    }
+
+    /*
+     * A schema the store cannot hold is refused, not truncated.
+     *
+     * plugin_config_seed below skips the items that do not fit, and every
+     * symptom of that is remote from the cause: the panel still lists the
+     * dropped rows (they are counted off the schema, not the store), and the
+     * plugin runs until the first read of one, which for a Lua script is a
+     * "config key was never declared" error thrown out of whichever handler
+     * happened to touch it first. Refusing here names the plugin and both
+     * numbers instead.
+     */
+    {
+        int schema_count = 0;
+        if( def->config )
+            while( def->config[schema_count].key )
+                schema_count++;
+        if( schema_count > TORIRS_PLUGIN_CONFIG_MAX )
+        {
+            fprintf(
+                stderr,
+                "plugin: '%s' declares %d config items; the store holds %d. "
+                "Refusing it rather than dropping the last %d in silence.\n",
+                def->name,
+                schema_count,
+                TORIRS_PLUGIN_CONFIG_MAX,
+                schema_count - TORIRS_PLUGIN_CONFIG_MAX);
+            return -1;
+        }
     }
 
     int const index = host->plugin_count++;
@@ -1531,6 +1633,54 @@ void
 PluginHost_ObjDespawn(struct ToriRS_PluginHost* host, struct ToriRS_PluginObjSnap const* obj)
 {
     plugin_obj_event(host, TORIRS_PLUGIN_EV_OBJ_DESPAWN, obj);
+}
+
+void
+PluginHost_ChatMessage(
+    struct ToriRS_PluginHost* host,
+    int type,
+    char const* sender,
+    char const* text)
+{
+    if( !host || host->sub_count[TORIRS_PLUGIN_EV_CHAT_MESSAGE] == 0 )
+        return;
+
+    struct ToriRS_PluginEvChat ev;
+    memset(&ev, 0, sizeof(ev));
+    ev.type = type;
+    /* Both are absent on ordinary lines -- a system message has no sender, and
+     * IF_SETTEXT blanks a row by writing nothing -- so they are guards, not
+     * asserts, and a plugin always reads a string rather than a NULL. */
+    if( sender )
+        snprintf(ev.sender, sizeof(ev.sender), "%s", sender);
+    if( text )
+        snprintf(ev.text, sizeof(ev.text), "%s", text);
+    plugin_dispatch(host, TORIRS_PLUGIN_EV_CHAT_MESSAGE, &ev);
+}
+
+void
+PluginHost_GameEvent(
+    struct ToriRS_PluginHost* host,
+    char const* kind,
+    char const* subject,
+    int value,
+    char const* text)
+{
+    if( !host || host->sub_count[TORIRS_PLUGIN_EV_GAME_EVENT] == 0 )
+        return;
+    /* The kind is the whole event -- a plugin switches on it -- so an absent
+     * one is a caller bug rather than a moment with nothing to say. */
+    assert(kind);
+
+    struct ToriRS_PluginEvGameEvent ev;
+    memset(&ev, 0, sizeof(ev));
+    ev.kind = kind;
+    ev.value = value;
+    if( subject )
+        snprintf(ev.subject, sizeof(ev.subject), "%s", subject);
+    if( text )
+        snprintf(ev.text, sizeof(ev.text), "%s", text);
+    plugin_dispatch(host, TORIRS_PLUGIN_EV_GAME_EVENT, &ev);
 }
 
 int

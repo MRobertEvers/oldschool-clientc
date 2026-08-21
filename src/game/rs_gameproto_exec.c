@@ -591,6 +591,14 @@ RS_GameProto_Exec(
         {
             RS_PlayerStats_SetXp(ctx->stats, packet->_update_stat.stat, packet->_update_stat.xp);
             ctx->stats->current_level[packet->_update_stat.stat] = packet->_update_stat.level;
+            /* A level-up is read from the BASE level SetXp just derived, not
+             * from the boosted one on the wire: a potion raises that and a
+             * drain lowers it, and neither is an advance. */
+            if( ctx->app )
+                App_NotifyStatLevel(
+                    ctx->app,
+                    packet->_update_stat.stat,
+                    ctx->stats->base_level[packet->_update_stat.stat]);
             /* The reactive half. Without it the skills tab paints once at
              * build time — against the zeroes the client starts with — and
              * nothing ever asks it to paint again, which is the same shape as
@@ -636,7 +644,13 @@ RS_GameProto_Exec(
         /* Persist through the app store when available: journal/bonus texts
          * arrive before their interface mounts (tests exec without an app). */
         if( ctx->app )
+        {
             App_IfTextSet(ctx->app, packet->_if_settext.component_id, packet->_if_settext.text);
+            /* A quest completion is painted onto the scroll and never said
+             * aloud (content: questscroll.rs2), so this is the only place the
+             * client can see one happen. */
+            App_NotifyInterfaceText(ctx->app, packet->_if_settext.text);
+        }
         else
             UITree_ApplyText(ctx->tree, packet->_if_settext.component_id, packet->_if_settext.text);
         break;
@@ -945,6 +959,11 @@ RS_GameProto_Exec(
     case PKT_NAME_MESSAGE_GAME:
         if( ctx->chat )
             RS_Chat_AddMessage(ctx->chat, RS_CHAT_TYPE_GAME, NULL, packet->_message_game.text);
+        /* Independent of the chatbox: a headless run has no chat model, and a
+         * plugin watching for a boss kill has to work there too. */
+        if( ctx->app )
+            App_NotifyChatMessage(
+                ctx->app, RS_CHAT_TYPE_GAME, NULL, packet->_message_game.text);
         /*
          * Printed by default, and that is a deliberate inversion.
          *

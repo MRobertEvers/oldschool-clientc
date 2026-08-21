@@ -34,10 +34,10 @@
  * That is what baking the fonts bought: layout needs glyph advances, and
  * advances that are compiled in need no cache, no decoder and no init.
  *
- * No allocation either: struct ToriRSChrome is a fixed-size POD (54272 bytes on
- * the i686 lane — heap or static, not a stack local). Nothing here calls
- * malloc, so it is safe to bring up before any cache is open and cheap to tear
- * down.
+ * No allocation either: struct ToriRSChrome is a fixed-size POD — a couple of
+ * hundred KB at the capacities above, so heap or static, never a stack local.
+ * Nothing here calls malloc, so it is safe to bring up before any cache is open
+ * and cheap to tear down.
  *
  * The one thing it does not do is rasterise. Primitives name a font *slot*,
  * not a font; whoever draws them maps the two slots onto the baked
@@ -48,12 +48,26 @@
 
 #include <stdint.h>
 
+/*
+ * Capacities.
+ *
+ * Sized for the widest consumer rather than the average one: a plugin window
+ * hosting a tab per plugin, each with its own settings rows, is a different
+ * order of magnitude from the four-row developer readout this started as. They
+ * are per-INSTANCE and the instance is a POD, so the cost is one fixed block
+ * per chrome rather than growth over a session -- which is the property worth
+ * keeping, not the smallness of any particular number.
+ *
+ * Scrolling is what lets MAX_PRIMS stay far below MAX_WIDGETS: a panel only
+ * ever emits the rows inside its own view, so a 40-row tab costs the same
+ * display list as the 12 rows of it you can see.
+ */
 /** Panels the overlay can hold at once. */
-#define TORIDBG_MAX_PANELS 16
+#define TORIDBG_MAX_PANELS 24
 /** Widgets across all panels. */
-#define TORIDBG_MAX_WIDGETS 128
+#define TORIDBG_MAX_WIDGETS 384
 /** Primitives in the display list. Build stops early and sets `overflow`. */
-#define TORIDBG_MAX_PRIMS 512
+#define TORIDBG_MAX_PRIMS 1536
 /** Label / title bytes, including the terminator. */
 #define TORIDBG_LABEL_MAX 64
 /** Text-input content bytes, including the terminator. */
@@ -397,6 +411,38 @@ enum ToriDbgWidgetKind
      * which pixels that handle holds is the host's business.
      */
     TORIDBG_W_MODELVIEW,
+    /**
+     * A pressable box with a centred caption. Activates on release inside it,
+     * like every other clickable row.
+     *
+     * Distinct from MENUITEM, which is a line of text that happens to be
+     * clickable: a button LOOKS pressable when nothing else on the row says so.
+     * A settings panel needs that -- "Save" as a bare text row beside a column
+     * of labels reads as another label, and the one control that commits the
+     * user's edits is the last one that should have to be discovered.
+     */
+    TORIDBG_W_BUTTON,
+    /**
+     * A strip of tab titles across one row; the selected one names which of the
+     * panel's other widgets lay out at all (see ToriDbgWidget::tab).
+     *
+     * ONE widget holding N titles rather than one widget per tab, because the
+     * layout engine stacks rows vertically: N sibling widgets would be N rows,
+     * and a horizontal strip would need a second layout mode to exist. Titles
+     * are BORROWED exactly as a dropdown's options are, and for the same
+     * reason -- the caller already holds them.
+     */
+    TORIDBG_W_TABSTRIP,
+    /**
+     * A removed widget's slot, waiting on the free list.
+     *
+     * A kind rather than a flag so a stale handle is inert everywhere at once:
+     * layout, drawing and hit testing all switch on kind already, and
+     * dbg_valid_widget rejects it, so a caller that kept a handle across a
+     * ToriRSChrome_PanelClearWidgets addresses nothing instead of addressing
+     * whatever was recycled into the slot.
+     */
+    TORIDBG_W_FREE,
 };
 
 /** Rows the open dropdown list shows at once; longer lists scroll. Chosen so a
@@ -464,6 +510,19 @@ struct ToriDbgWidget
      *  inputs -- so the alternative to this flag is rebuilding the panel's
      *  widgets every switch, which invalidates every held handle. */
     int hidden;
+    /**
+     * Which tab of the owning panel this row belongs to, or -1 for "every tab".
+     *
+     * Separate from `hidden` rather than folded into it because the two answer
+     * to different owners: `hidden` is the CALLER's decision about one widget,
+     * `tab` is the panel's decision about a whole group. A row that is on an
+     * inactive tab AND hidden by its owner must come back hidden when its tab
+     * is selected again, which a single flag cannot express.
+     *
+     * -1 (the "every tab" case) is also what a panel with no tab strip gives
+     * every row, so the untabbed panel needs no special case anywhere.
+     */
+    int tab;
     /** First visible row while the list is open. */
     int scroll;
 };
@@ -478,15 +537,51 @@ struct ToriDbgPanel
      * Both axes. The origin stays put and the dragged corner follows the
      * cursor, so a resize never moves the panel.
      *
-     * A hand-set height overrides content sizing, and there is no scrolling
-     * here: rows that fall past the bottom are DROPPED -- not drawn, and not
+     * A hand-set height overrides content sizing. Rows that fall past the
+     * bottom are DROPPED unless the panel is scrollable -- not drawn, and not
      * clickable either (dbg_build_window zeroes their hit boxes, so a panel
-     * cannot take clicks on rows nobody can see). Shrinking a panel therefore
-     * hides controls until it is grown back, which is the honest behaviour
-     * available without a scroll offset, and the thing to revisit if these
-     * panels ever get one.
+     * cannot take clicks on rows nobody can see). @see ToriDbgPanel::scrollable
+     * for the other answer.
      */
     int resizable;
+    /**
+     * Rows past the bottom scroll into view instead of being dropped.
+     *
+     * The panel grows a bar down its right edge whenever its content is taller
+     * than its view, and the wheel over the panel moves it. Off is still the
+     * default and still drops: a menu popup sized to its own rows has no
+     * overflow to scroll, and a bar on it would be chrome that can never do
+     * anything.
+     *
+     * Only meaningful with a hand-set or dragged height -- a content-sized
+     * panel is exactly as tall as its rows, so there is never anything below
+     * the fold to reach.
+     */
+    int scrollable;
+    /** Rows scrolled past, in pixels. Clamped by Build to the content that
+     *  actually overflows, so shrinking a panel can never strand it. */
+    int scroll_y;
+    /** Resolved by Build: total row height, and the height of the window onto
+     *  it. Held because the bar's geometry, its hit test and its drag all have
+     *  to agree, and a value computed three times is a grip that jumps. */
+    int content_h;
+    int view_h;
+    /**
+     * Which tab of this panel's strip is showing. 0 until something selects
+     * another, which is also the right answer for a panel with no strip.
+     */
+    int active_tab;
+    /**
+     * Tab that ToriRSChrome_PanelBeginTab stamps onto every widget added next,
+     * or -1 for "every tab".
+     *
+     * Builder state rather than an argument on all nine widget constructors:
+     * a tab's contents are added as a run, and threading the same constant
+     * through every call in that run is where the one typo puts a row on the
+     * wrong tab. Reset by PanelClearWidgets, since a cleared panel is about to
+     * be rebuilt from the top.
+     */
+    int build_tab;
     /**
      * Table layout: every labelled control in this panel starts its box at one
      * shared column, sized to the panel's widest label. Off, each row's box
@@ -524,7 +619,20 @@ struct ToriRSChrome
     struct ToriDbgPanel panels[TORIDBG_MAX_PANELS];
     int panel_count;
     struct ToriDbgWidget widgets[TORIDBG_MAX_WIDGETS];
+    /** High-water mark of the widget array, NOT the number of live widgets:
+     *  removed slots below it are on the free list. */
     int widget_count;
+    /**
+     * Head of the removed-slot list, chained through ToriDbgWidget::next, or -1.
+     *
+     * A free list rather than compaction because handles are the caller's
+     * addresses: compacting would renumber every widget above the hole and
+     * silently repoint every handle anyone still holds. Recycling a slot can
+     * only ever surprise a caller that kept a handle to something it removed,
+     * and TORIDBG_W_FREE plus dbg_valid_widget catch that case until the slot
+     * is actually reused.
+     */
+    int free_widget;
     struct ToriDbgPrim prims[TORIDBG_MAX_PRIMS];
     int prim_count;
 
@@ -574,6 +682,16 @@ struct ToriRSChrome
     int focus;
     int hover;
     int press;
+    /**
+     * Last pointer position seen by MouseMove.
+     *
+     * Kept because `hover` names a WIDGET, and a tab strip is one widget made
+     * of several targets: "which tab is under the cursor" cannot be answered
+     * from a handle. Build reads it rather than taking a position argument, so
+     * the hover highlight survives a rebuild triggered by anything else.
+     */
+    int hover_x;
+    int hover_y;
     /** Latched by input, drained by ToriRSChrome_TakeActivated. -1 = none. */
     int activated;
     /**
@@ -600,6 +718,17 @@ struct ToriRSChrome
      */
     int dropdown_scroll_drag;
     int dropdown_scroll_grab;
+    /**
+     * Panel whose own scrollbar grip is being dragged, or -1.
+     *
+     * Its own state and not the dropdown's, because the two bars can be live in
+     * the same instance -- a dropdown inside a scrolled panel -- and sharing one
+     * drag latch would have a grip release cancel the other bar's drag. The grab
+     * offset is held for the reason every other drag here holds one: recomputing
+     * it snaps the grip's top to the cursor on the first move.
+     */
+    int scroll_panel;
+    int scroll_grab;
     /** Set by Build when a capacity limit truncated the display list. */
     int overflow;
     /** Union of what changed since the last DamageClear. w/h 0 = nothing. */
@@ -746,6 +875,76 @@ ToriRSChrome_MenuDrop(
     char const* title,
     char const* const* options,
     int option_count);
+
+/** A pressable box captioned `text`. @see TORIDBG_W_BUTTON. */
+int
+ToriRSChrome_Button(struct ToriRSChrome* ui, int panel, char const* text);
+
+/**
+ * A tab strip over `titles`, which is BORROWED and must outlive the widget.
+ *
+ * One per panel. Selecting a tab shows the widgets stamped with its index and
+ * hides the rest; @see ToriRSChrome_PanelBeginTab for how rows get stamped.
+ * Activation fires on every change, so a caller can react to the switch.
+ *
+ * @return widget handle, or -1 when full / panel invalid.
+ */
+int
+ToriRSChrome_Tabs(
+    struct ToriRSChrome* ui,
+    int panel,
+    char const* const* titles,
+    int title_count,
+    int selected);
+
+/** Point a tab strip at a different list of titles, clamping the selection.
+ *  Widgets stamped past the new end become unreachable, so a caller that
+ *  shortens a strip normally clears the panel and rebuilds it. */
+void
+ToriRSChrome_TabsSetTitles(
+    struct ToriRSChrome* ui,
+    int widget,
+    char const* const* titles,
+    int title_count);
+
+/** Which tab of `panel` is showing. 0 for a panel with no strip. */
+int
+ToriRSChrome_PanelActiveTab(struct ToriRSChrome const* ui, int panel);
+
+void
+ToriRSChrome_PanelSetActiveTab(struct ToriRSChrome* ui, int panel, int tab);
+
+/**
+ * Stamp every widget added to `panel` from here on with `tab`; -1 for rows that
+ * belong to every tab. @see ToriDbgPanel::build_tab.
+ */
+void
+ToriRSChrome_PanelBeginTab(struct ToriRSChrome* ui, int panel, int tab);
+
+/** Let rows past the bottom scroll into view. @see ToriDbgPanel::scrollable. */
+void
+ToriRSChrome_PanelSetScrollable(struct ToriRSChrome* ui, int panel, int scrollable);
+
+/**
+ * Remove one widget, returning its slot to the free list.
+ *
+ * The handle is dead afterwards and every latch that pointed at it (focus,
+ * hover, press, the pending activation, an open dropdown list) is cleared, so a
+ * removal can never leave the chrome holding a widget that is no longer there.
+ */
+void
+ToriRSChrome_WidgetRemove(struct ToriRSChrome* ui, int widget);
+
+/**
+ * Remove every widget of one panel, leaving the panel itself in place.
+ *
+ * This is what makes a panel rebuildable. The alternative before it existed was
+ * ToriRSChrome_Reset, which takes down every OTHER panel too -- so a consumer
+ * that shared an instance could only ever append, and a plugin whose settings
+ * changed could not have its rows replaced at all.
+ */
+void
+ToriRSChrome_PanelClearWidgets(struct ToriRSChrome* ui, int panel);
 
 /** Show or hide one widget. Hidden widgets take no space, draw nothing and hit
  *  nothing; the handle stays valid throughout. */

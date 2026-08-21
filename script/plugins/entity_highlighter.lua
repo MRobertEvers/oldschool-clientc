@@ -17,12 +17,29 @@ local plugin = {
     name    = "entity-highlighter",
     version = "1.0.0",
     config  = {
-        { key = "color", type = "color",  default = "#FF00FF",
-          label = "Highlight colour" },
-        { key = "fill",  type = "int",    default = "48", min = 0, max = 255,
-          label = "Hull fill" },
+        {
+            key = "color",
+            type = "color",
+            default = "#FF00FF",
+            label = "Highlight colour"
+        },
+        {
+            key = "fill",
+            type = "int",
+            default = "48",
+            min = 0,
+            max = 255,
+            label = "Hull fill"
+        },
+        {
+            key = "shape",
+            type = "enum",
+            choices = "bounds|mesh",
+            default = "mesh",
+            label = "Hull shape"
+        },
         -- No label: persisted state, not something to hand-edit in the panel.
-        { key = "tags",  type = "string", default = "" },
+        { key = "tags", type = "string", default = "" },
     },
 }
 
@@ -55,9 +72,13 @@ end
 
 function plugin.on_draw_world(api, draw)
     local colour, fill = api.config.color, api.config.fill
+    -- "mesh" by default: a tag marks a handful of npcs, which is where paying
+    -- a projection per vertex buys an outline that follows the npc instead of
+    -- the box around it. Switch to "bounds" when tagging a whole species.
+    local shape = api.config.shape
     for npc in api.npcs() do
         if tagged[npc.base_npc_id] then
-            draw.hull(npc.element_id, colour, fill)
+            draw.hull(npc.element_id, colour, fill, shape)
         end
     end
 end

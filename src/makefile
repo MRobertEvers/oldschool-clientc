@@ -348,6 +348,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) \
 	game/rs_ui_slots.c game/rs_social.c game/rs_loot_store.c game/rs_clientcode.c game/rs_if1_buttons.c \
 	game/rs_idk_design.c \
 	game/rs_chat.c game/rs_chat_widgets.c game/rs_gameproto_exec.c \
+	game/rs_game_events.c \
 	game/rs_worldmap.c \
 	game/rs_worldmap_render.c \
 	cs2vm2/cs2_opcode_meta.c engine/cache_provider.c engine/proctex/proctex_generator.c engine/cs2vm2_script_from_rscache.c \
@@ -1557,6 +1558,13 @@ test-varc: $(OBJ_DIR) varc/varc_manager.c varc/varc_manager_test.c
 test-loot-store: $(OBJ_DIR) game/rs_loot_store.c game/test/rs_loot_store_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_loot_store_test game/rs_loot_store.c game/test/rs_loot_store_test.c
 	./$(OBJ_DIR)/rs_loot_store_test
+
+# Notable-moment recognition: the text patterns behind the plugin layer's
+# game events. Pure text in, struct out -- no cache, no server, no window.
+test-game-events: $(OBJ_DIR) game/rs_game_events.c game/test/rs_game_events_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_game_events_test \
+		game/rs_game_events.c game/test/rs_game_events_test.c
+	./$(OBJ_DIR)/rs_game_events_test
 
 # ---------------------------------------------------------------------------
 # ServerScript (LostCity RuneScript) reader / compiler / VM.

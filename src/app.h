@@ -137,6 +137,16 @@ enum AppDebugHotkey
 #define APP_PLUGIN_OBJECTS_MAX 256
 
 /*
+ * Frame captures a plugin has asked for and the client has not taken yet.
+ *
+ * Small on purpose. A capture is a rare, deliberate act -- a level-up, a boss
+ * kill -- and a plugin that asks for more than a handful in one frame is
+ * looping by mistake; the queue tells it so rather than rendering four
+ * identical frames of the same instant.
+ */
+#define APP_PLUGIN_SCREENSHOTS_MAX 4
+
+/*
  * One plugin-owned model in the world.
  *
  * The plugin names an ABSOLUTE tile and a model id; everything between that
@@ -1004,6 +1014,23 @@ struct App
     struct LibToriRS_Input* plugin_input;
     /** Plugin-owned world objects, indexed by the handle the plugin holds. */
     struct AppPluginObject plugin_objects[APP_PLUGIN_OBJECTS_MAX];
+    /**
+     * Deferred frame captures (api->screenshot), taken at the top of the NEXT
+     * App_RunOnce.
+     *
+     * Deferred because every caller is upstream of the frame it wants: a
+     * plugin recognises a level-up while the packet is being executed, which
+     * is before the interface that announces it has been laid out, let alone
+     * drawn. Taking the shot a frame later is the difference between a
+     * screenshot of the moment and a screenshot of the moment before it.
+     */
+    struct AppPluginScreenshot
+    {
+        int in_use;
+        char plugin[TORIRS_PLUGIN_NAME_MAX];
+        char dir[TORIRS_PLUGIN_SCREENSHOT_DIR_MAX];
+        char name[TORIRS_PLUGIN_ASSET_NAME_MAX + 8];
+    } plugin_screenshots[APP_PLUGIN_SCREENSHOTS_MAX];
     /** Where plugin settings are written; NULL turns persistence off. */
     char const* plugin_prefs_path;
     /** logic_cycle at which the plugin config store last moved, or 0 when it
@@ -2284,6 +2311,43 @@ App_InputFrameConsumed(struct App const* app);
  */
 void
 App_RefreshAfterTreeMutation(struct App* app);
+
+/* ------------------------------------------------------------------------ */
+/* Notable moments                                                           */
+/* ------------------------------------------------------------------------ */
+
+/*
+ * What the client noticed, on its way to the plugin layer.
+ *
+ * Called from the packet exec, which is why they are App entry points rather
+ * than something the exec reaches into the plugin host with: the exec has an
+ * App and knows nothing about plugins, and the recogniser these run
+ * (game/rs_game_events.h) is a client concept rather than a plugin one.
+ * Each is a no-op when no host is running.
+ */
+
+/** A line reached the chatbox. `sender` may be NULL for a system message. */
+void
+App_NotifyChatMessage(
+    struct App* app,
+    int type,
+    char const* sender,
+    char const* text);
+
+/** Text was written onto an interface. Only the quest-completion scroll's
+ *  title is recognised off this; nothing else is forwarded anywhere. */
+void
+App_NotifyInterfaceText(
+    struct App* app,
+    char const* text);
+
+/** The server stated a skill's BASE level. Announces a level-up when it rose
+ *  above the last level the client was told, and records it either way. */
+void
+App_NotifyStatLevel(
+    struct App* app,
+    int skill,
+    int base_level);
 
 /** Rasterize the current emit buffer into pixels (width x height ARGB). */
 void

@@ -76,6 +76,17 @@
 #define DBG_DROP_ROW_H (ToriRSChrome_FontLineBox(ui->theme.font_row, ui->scale) + DBG_PX(4))
 /** Height of a separator row: a rule with air above and below. */
 #define DBG_SEP_H DBG_PX(5)
+/** Air around a button's caption, inside its border. Wider than it is tall, so
+ *  a one-word button still reads as a box rather than as a framed glyph. */
+#define DBG_BUTTON_PAD_X DBG_PX(8)
+#define DBG_BUTTON_PAD_Y DBG_PX(3)
+/** Air around a tab's caption. The vertical pad is the tab's whole height over
+ *  the line box; there is no bottom border on the selected tab, which is what
+ *  joins it to the content below (see dbg_push_tabstrip). */
+#define DBG_TAB_PAD_X DBG_PX(7)
+#define DBG_TAB_PAD_Y DBG_PX(3)
+/** Narrowest a compressed tab may get before its caption is simply clipped. */
+#define DBG_TAB_MIN_W DBG_PX(12)
 /** Narrowest a panel may be, before borders. */
 #define DBG_MIN_CONTENT_W DBG_PX(16)
 /** Edge of one dot in a resize grip's caret. */
@@ -389,6 +400,13 @@ dbg_max(int a, int b)
     return a > b ? a : b;
 }
 
+/** Is (x, y) inside `r`? The rect-taking form; dbg_point_in takes four ints. */
+static int
+dbg_point_in_rect(int x, int y, struct ToriDbgRect r)
+{
+    return x >= r.x && x < r.x + r.w && y >= r.y && y < r.y + r.h;
+}
+
 static int
 dbg_valid_panel(struct ToriRSChrome const* ui, int panel)
 {
@@ -398,7 +416,30 @@ dbg_valid_panel(struct ToriRSChrome const* ui, int panel)
 static int
 dbg_valid_widget(struct ToriRSChrome const* ui, int widget)
 {
-    return ui && widget >= 0 && widget < ui->widget_count;
+    return ui && widget >= 0 && widget < ui->widget_count &&
+           ui->widgets[widget].kind != TORIDBG_W_FREE;
+}
+
+/**
+ * Does this row take part in layout, drawing and hit testing?
+ *
+ * The one answer, asked by the measuring pass, the drawing pass and the hit
+ * test alike. Skipping in only one of them is the bug this exists to prevent:
+ * a row measured but not drawn leaves a hole, and a row drawn but not measured
+ * runs off the bottom border -- both of which this file has had before, which
+ * is why the comment at the drawing site says so.
+ */
+static int
+dbg_widget_shown(struct ToriRSChrome const* ui, struct ToriDbgWidget const* w)
+{
+    if( w->hidden || w->kind == TORIDBG_W_FREE )
+        return 0;
+    /* A row belonging to no tab in particular shows on all of them; one with a
+     * tab shows only on its own. The strip itself carries -1, so it survives
+     * every switch -- a strip that hid itself could not be clicked back. */
+    if( w->tab >= 0 && w->tab != ui->panels[w->panel].active_tab )
+        return 0;
+    return 1;
 }
 
 static void
@@ -489,6 +530,8 @@ ToriRSChrome_Init(struct ToriRSChrome* ui)
     ui->dropdown_open = -1;
     ui->drag_panel = -1;
     ui->resize_panel = -1;
+    ui->free_widget = -1;
+    ui->scroll_panel = -1;
     ui->caret_visible = 1;
 }
 
@@ -504,6 +547,9 @@ ToriRSChrome_Reset(struct ToriRSChrome* ui)
     ui->dropdown_hover_row = -1;
     ui->dropdown_scroll_drag = 0;
     ui->widget_count = 0;
+    /* The whole array is gone, so the free list that indexed into it is too --
+     * leaving it would hand out slots above the new high-water mark. */
+    ui->free_widget = -1;
     ui->prim_count = 0;
     ui->focus = -1;
     ui->hover = -1;
@@ -511,6 +557,7 @@ ToriRSChrome_Reset(struct ToriRSChrome* ui)
     ui->activated = -1;
     ui->drag_panel = -1;
     ui->resize_panel = -1;
+    ui->scroll_panel = -1;
     ui->overflow = 0;
     ui->dirty = 1;
 }
@@ -576,6 +623,9 @@ ToriRSChrome_PanelAdd(struct ToriRSChrome* ui, int style, int x, int y, int fixe
     p->fixed_w = fixed_w;
     p->first_widget = -1;
     p->last_widget = -1;
+    /* -1 is "every tab": a panel with no strip must not have its rows stamped
+     * onto tab 0, or adding a strip later would hide all of them at once. */
+    p->build_tab = -1;
     p->dirty = 1;
     dbg_copy(p->title, TORIDBG_LABEL_MAX, title);
     ui->panel_count++;
@@ -652,18 +702,30 @@ dbg_widget_add(struct ToriRSChrome* ui, int panel, int kind)
     struct ToriDbgWidget* w;
     int handle;
 
-    if( !dbg_valid_panel(ui, panel) || ui->widget_count >= TORIDBG_MAX_WIDGETS )
+    if( !dbg_valid_panel(ui, panel) )
+        return -1;
+    /* A recycled slot before a fresh one, so a panel rebuilt every frame stays
+     * inside the array instead of walking the high-water mark up to the cap. */
+    if( ui->free_widget >= 0 )
     {
-        if( ui )
-            ui->overflow = 1;
+        handle = ui->free_widget;
+        ui->free_widget = ui->widgets[handle].next;
+    }
+    else if( ui->widget_count < TORIDBG_MAX_WIDGETS )
+    {
+        handle = ui->widget_count++;
+    }
+    else
+    {
+        ui->overflow = 1;
         return -1;
     }
-    handle = ui->widget_count++;
     w = &ui->widgets[handle];
     memset(w, 0, sizeof(*w));
     w->kind = kind;
     w->panel = panel;
     w->next = -1;
+    w->tab = ui->panels[panel].build_tab;
 
     if( ui->panels[panel].first_widget < 0 )
         ui->panels[panel].first_widget = handle;
@@ -673,6 +735,99 @@ dbg_widget_add(struct ToriRSChrome* ui, int panel, int kind)
 
     dbg_dirty_panel(ui, panel);
     return handle;
+}
+
+/** Drop every latch that names `widget`, so nothing outlives its target. */
+static void
+dbg_widget_forget(struct ToriRSChrome* ui, int widget)
+{
+    if( ui->focus == widget )
+        ui->focus = -1;
+    if( ui->hover == widget )
+        ui->hover = -1;
+    if( ui->press == widget )
+        ui->press = -1;
+    if( ui->activated == widget )
+        ui->activated = -1;
+    if( ui->dropdown_open == widget )
+    {
+        ui->dropdown_open = -1;
+        ui->dropdown_hover_row = -1;
+        ui->dropdown_scroll_drag = 0;
+    }
+}
+
+void
+ToriRSChrome_WidgetRemove(struct ToriRSChrome* ui, int widget)
+{
+    struct ToriDbgPanel* p;
+    int prev;
+
+    assert(ui);
+    if( !dbg_valid_widget(ui, widget) )
+        return;
+    p = &ui->panels[ui->widgets[widget].panel];
+
+    /* Unlink from the panel's singly-linked row list. A walk rather than a back
+     * pointer: rebuilds clear whole panels at a time (which never walks), and a
+     * second link to keep in step is a second link to get wrong. */
+    if( p->first_widget == widget )
+    {
+        p->first_widget = ui->widgets[widget].next;
+    }
+    else
+    {
+        for( prev = p->first_widget; prev >= 0; prev = ui->widgets[prev].next )
+            if( ui->widgets[prev].next == widget )
+            {
+                ui->widgets[prev].next = ui->widgets[widget].next;
+                break;
+            }
+    }
+    if( p->last_widget == widget )
+    {
+        int last = -1;
+        for( prev = p->first_widget; prev >= 0; prev = ui->widgets[prev].next )
+            last = prev;
+        p->last_widget = last;
+    }
+
+    dbg_widget_forget(ui, widget);
+    dbg_dirty_panel(ui, ui->widgets[widget].panel);
+
+    memset(&ui->widgets[widget], 0, sizeof(ui->widgets[widget]));
+    ui->widgets[widget].kind = TORIDBG_W_FREE;
+    ui->widgets[widget].next = ui->free_widget;
+    ui->free_widget = widget;
+}
+
+void
+ToriRSChrome_PanelClearWidgets(struct ToriRSChrome* ui, int panel)
+{
+    int widget;
+
+    assert(ui);
+    if( !dbg_valid_panel(ui, panel) )
+        return;
+
+    widget = ui->panels[panel].first_widget;
+    while( widget >= 0 )
+    {
+        int const next = ui->widgets[widget].next;
+        dbg_widget_forget(ui, widget);
+        memset(&ui->widgets[widget], 0, sizeof(ui->widgets[widget]));
+        ui->widgets[widget].kind = TORIDBG_W_FREE;
+        ui->widgets[widget].next = ui->free_widget;
+        ui->free_widget = widget;
+        widget = next;
+    }
+    ui->panels[panel].first_widget = -1;
+    ui->panels[panel].last_widget = -1;
+    /* The panel is about to be rebuilt from the top, so the builder's tab
+     * stamp goes back to "every tab" rather than whatever the last run left. */
+    ui->panels[panel].build_tab = -1;
+    ui->panels[panel].scroll_y = 0;
+    dbg_dirty_panel(ui, panel);
 }
 
 int
@@ -882,6 +1037,131 @@ ToriRSChrome_MenuItem(struct ToriRSChrome* ui, int panel, char const* text)
     return h;
 }
 
+int
+ToriRSChrome_Button(struct ToriRSChrome* ui, int panel, char const* text)
+{
+    int const h = dbg_widget_add(ui, panel, TORIDBG_W_BUTTON);
+    if( h < 0 )
+        return -1;
+    dbg_copy(ui->widgets[h].text, TORIDBG_INPUT_MAX, text);
+    return h;
+}
+
+/* ---- tabs ---------------------------------------------------------------- */
+
+int
+ToriRSChrome_Tabs(
+    struct ToriRSChrome* ui,
+    int panel,
+    char const* const* titles,
+    int title_count,
+    int selected)
+{
+    int h;
+
+    assert(ui);
+    assert(titles || title_count == 0);
+    h = dbg_widget_add(ui, panel, TORIDBG_W_TABSTRIP);
+    if( h < 0 )
+        return -1;
+    ui->widgets[h].options = titles;
+    ui->widgets[h].option_count = title_count;
+    /* The strip belongs to no tab: one that stamped itself with tab 0 would
+     * vanish the moment tab 1 was chosen, taking the only way back with it. */
+    ui->widgets[h].tab = -1;
+    if( selected < 0 || selected >= title_count )
+        selected = 0;
+    ui->widgets[h].selected = selected;
+    ui->panels[panel].active_tab = selected;
+    return h;
+}
+
+void
+ToriRSChrome_TabsSetTitles(
+    struct ToriRSChrome* ui,
+    int widget,
+    char const* const* titles,
+    int title_count)
+{
+    struct ToriDbgWidget* w;
+
+    assert(ui);
+    assert(titles || title_count == 0);
+    if( !dbg_valid_widget(ui, widget) )
+        return;
+    w = &ui->widgets[widget];
+    if( w->options == titles && w->option_count == title_count )
+        return;
+    w->options = titles;
+    w->option_count = title_count;
+    if( w->selected >= title_count )
+        w->selected = title_count > 0 ? title_count - 1 : 0;
+    ui->panels[w->panel].active_tab = w->selected;
+    dbg_dirty_widget(ui, widget);
+}
+
+int
+ToriRSChrome_PanelActiveTab(struct ToriRSChrome const* ui, int panel)
+{
+    if( !dbg_valid_panel(ui, panel) )
+        return 0;
+    return ui->panels[panel].active_tab;
+}
+
+void
+ToriRSChrome_PanelSetActiveTab(struct ToriRSChrome* ui, int panel, int tab)
+{
+    assert(ui);
+    if( !dbg_valid_panel(ui, panel) )
+        return;
+    if( tab < 0 )
+        tab = 0;
+    if( ui->panels[panel].active_tab == tab )
+        return;
+    ui->panels[panel].active_tab = tab;
+    /* The rows about to appear are a different set from the ones going away, so
+     * a scroll offset measured against the old tab means nothing on the new
+     * one -- and a tab that opened already scrolled reads as a broken panel. */
+    ui->panels[panel].scroll_y = 0;
+    /* Whatever was focused or hovered may be on the tab that just left. */
+    if( ui->focus >= 0 && ui->widgets[ui->focus].panel == panel )
+        ui->focus = -1;
+    if( ui->hover >= 0 && ui->widgets[ui->hover].panel == panel )
+        ui->hover = -1;
+    if( ui->dropdown_open >= 0 && ui->widgets[ui->dropdown_open].panel == panel )
+        dbg_dropdown_close(ui);
+    for( int w = ui->panels[panel].first_widget; w >= 0; w = ui->widgets[w].next )
+        if( ui->widgets[w].kind == TORIDBG_W_TABSTRIP )
+        {
+            ui->widgets[w].selected = tab;
+            break;
+        }
+    dbg_dirty_panel(ui, panel);
+}
+
+void
+ToriRSChrome_PanelBeginTab(struct ToriRSChrome* ui, int panel, int tab)
+{
+    assert(ui);
+    if( !dbg_valid_panel(ui, panel) )
+        return;
+    ui->panels[panel].build_tab = tab < 0 ? -1 : tab;
+}
+
+void
+ToriRSChrome_PanelSetScrollable(struct ToriRSChrome* ui, int panel, int scrollable)
+{
+    assert(ui);
+    if( !dbg_valid_panel(ui, panel) )
+        return;
+    if( ui->panels[panel].scrollable == (scrollable ? 1 : 0) )
+        return;
+    ui->panels[panel].scrollable = scrollable ? 1 : 0;
+    if( !ui->panels[panel].scrollable )
+        ui->panels[panel].scroll_y = 0;
+    dbg_dirty_panel(ui, panel);
+}
+
 /* ---- mutation ------------------------------------------------------------ */
 
 void
@@ -1006,6 +1286,21 @@ dbg_widget_width(struct ToriRSChrome const* ui, struct ToriDbgWidget const* w)
     }
     case TORIDBG_W_MODELVIEW:
         return w->view_w + 2 * DBG_RULE;
+    case TORIDBG_W_BUTTON:
+        return ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->text) +
+               2 * DBG_BUTTON_PAD_X + 2 * DBG_RULE;
+    case TORIDBG_W_TABSTRIP:
+    {
+        /* The natural width is every tab at its own caption width. A strip
+         * wider than the panel is not clipped away, it is COMPRESSED at draw
+         * time -- see dbg_tab_rect -- so this is the width that avoids that,
+         * not a width the strip is guaranteed. */
+        int total = 0;
+        for( int i = 0; i < w->option_count; i++ )
+            total += ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->options[i]) +
+                     2 * DBG_TAB_PAD_X;
+        return total;
+    }
     case TORIDBG_W_SEPARATOR:
     default:
         return 0;
@@ -1028,8 +1323,14 @@ dbg_widget_height(struct ToriRSChrome const* ui, struct ToriDbgWidget const* w)
         return line + 2 * DBG_INPUT_PAD_Y + 2 * DBG_RULE;
     case TORIDBG_W_MODELVIEW:
         return w->view_h + 2 * DBG_RULE;
+    case TORIDBG_W_BUTTON:
+        return line + 2 * DBG_BUTTON_PAD_Y + 2 * DBG_RULE;
+    case TORIDBG_W_TABSTRIP:
+        return line + 2 * DBG_TAB_PAD_Y + DBG_RULE;
     case TORIDBG_W_SEPARATOR:
         return DBG_SEP_H;
+    case TORIDBG_W_FREE:
+        return 0;
     case TORIDBG_W_LABEL:
     default:
         return line;
@@ -1407,6 +1708,157 @@ dbg_push_scrollbar(
         ui, bar.x, bar.y + bar.h - arrow, arrow, TORIDBG_SKIN_SCROLL_DOWN, 1, inner);
 }
 
+/* ---- tab strips ----------------------------------------------------------
+ *
+ * Tabs are laid out by PREFIX SUM rather than by width-per-tab: the left edge
+ * of tab i is the scaled prefix of the captions before it, and its width is the
+ * next edge minus that one. Widths computed independently and then scaled
+ * accumulate one rounding error per tab, which shows up as a strip that stops a
+ * few pixels short of its panel; edges from a common prefix always meet, and
+ * the last one lands exactly on the end.
+ *
+ * Compression rather than clipping when the captions do not fit, because a tab
+ * strip is a set of destinations: a tab scrolled off the end of its own strip
+ * cannot be reached, where a tab squeezed to its first few letters still can.
+ */
+
+/** Natural width of one tab: its caption plus the air either side. */
+static int
+dbg_tab_natural(struct ToriRSChrome const* ui, struct ToriDbgWidget const* w, int index)
+{
+    return ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->options[index]) +
+           2 * DBG_TAB_PAD_X;
+}
+
+/** Sum of the natural widths of the tabs before `count`. */
+static int
+dbg_tab_prefix(struct ToriRSChrome const* ui, struct ToriDbgWidget const* w, int count)
+{
+    int sum = 0;
+    for( int i = 0; i < count && i < w->option_count; i++ )
+        sum += dbg_tab_natural(ui, w, i);
+    return sum;
+}
+
+/**
+ * Box of one tab, in absolute screen pixels. Empty (w 0) for an out-of-range
+ * index or a strip with no room.
+ *
+ * THE one answer to "where is tab i", asked by the draw and by the hit test.
+ */
+static struct ToriDbgRect
+dbg_tab_rect(struct ToriRSChrome const* ui, struct ToriDbgWidget const* w, int index)
+{
+    struct ToriDbgRect r = { 0, 0, 0, 0 };
+    int total;
+    int x0;
+    int x1;
+
+    if( index < 0 || index >= w->option_count || w->w <= 0 )
+        return r;
+    total = dbg_tab_prefix(ui, w, w->option_count);
+    if( total <= 0 )
+        return r;
+
+    if( total <= w->w )
+    {
+        x0 = dbg_tab_prefix(ui, w, index);
+        x1 = x0 + dbg_tab_natural(ui, w, index);
+    }
+    else
+    {
+        x0 = dbg_tab_prefix(ui, w, index) * w->w / total;
+        x1 = dbg_tab_prefix(ui, w, index + 1) * w->w / total;
+        if( x1 - x0 < DBG_TAB_MIN_W )
+            x1 = x0 + DBG_TAB_MIN_W;
+    }
+    r.x = w->x + x0;
+    r.y = w->y;
+    r.w = x1 - x0;
+    r.h = w->h;
+    return r;
+}
+
+/** Tab under a point, or -1. */
+static int
+dbg_tab_at(struct ToriRSChrome const* ui, struct ToriDbgWidget const* w, int x, int y)
+{
+    for( int i = 0; i < w->option_count; i++ )
+    {
+        struct ToriDbgRect const r = dbg_tab_rect(ui, w, i);
+        if( r.w > 0 && dbg_point_in_rect(x, y, r) )
+            return i;
+    }
+    return -1;
+}
+
+/**
+ * The strip: a rule along the bottom, and a raised box per tab.
+ *
+ * The SELECTED tab has no bottom rule -- that gap is what joins it to the
+ * content beneath, and it is the whole of what makes a tab strip read as tabs
+ * rather than as a row of buttons.
+ */
+static void
+dbg_push_tabstrip(
+    struct ToriRSChrome* ui,
+    struct ToriDbgWidget const* w,
+    int active,
+    int hover_tab,
+    struct ToriDbgRect clip)
+{
+    struct ToriDbgTheme const* th = &ui->theme;
+    int const base_y = w->y + w->h - DBG_RULE;
+    int const text_y = w->y + DBG_TAB_PAD_Y +
+                       ToriRSChrome_FontLineHeight(ui->theme.font_row, ui->scale);
+
+    dbg_push_rect(ui, w->x, base_y, w->w, DBG_RULE, th->panel_border, 1, clip);
+
+    for( int i = 0; i < w->option_count; i++ )
+    {
+        struct ToriDbgRect const r = dbg_tab_rect(ui, w, i);
+        int const on = (i == active);
+        struct ToriDbgRect tab_clip;
+        int caption_w;
+        int text_x;
+
+        if( r.w <= 0 )
+            continue;
+
+        /* An unselected tab is a veil over the panel body, so the tabs read as
+         * part of the same surface; the selected one is the body itself,
+         * unveiled, continuing into the content below. */
+        if( !on )
+            dbg_push_rect_trans(
+                ui, r.x, r.y, r.w, r.h, th->dropdown_veil, 1,
+                i == hover_tab ? th->dropdown_row_trans_hover : th->dropdown_band_trans, clip);
+
+        dbg_push_rect(ui, r.x, r.y, DBG_RULE, r.h, th->panel_border, 1, clip);
+        dbg_push_rect(ui, r.x, r.y, r.w, DBG_RULE, th->panel_border, 1, clip);
+        if( i == w->option_count - 1 )
+            dbg_push_rect(ui, r.x + r.w - DBG_RULE, r.y, DBG_RULE, r.h, th->panel_border, 1, clip);
+        /* Erase the base rule under the selected tab -- see the note above. */
+        if( on )
+            dbg_push_rect(
+                ui, r.x + DBG_RULE, base_y, r.w - 2 * DBG_RULE, DBG_RULE, th->panel_body, 1, clip);
+
+        /* Captions are clipped to their own tab so a compressed strip cuts the
+         * text at the tab's edge instead of running it under its neighbour. */
+        tab_clip = dbg_rect_clip(clip, r);
+        caption_w = ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->options[i]);
+        text_x = r.w > caption_w ? r.x + (r.w - caption_w) / 2 : r.x + DBG_RULE;
+        dbg_push_text(
+            ui,
+            text_x,
+            text_y,
+            w->options[i],
+            on ? th->text : (i == hover_tab ? th->accent : th->text_dim),
+            ui->theme.font_row,
+            0,
+            tab_clip);
+    }
+}
+
 /*
  * The closed dropdown button, as script_3850 builds it.
  *
@@ -1588,6 +2040,10 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriDbgPanel* p)
     struct ToriDbgRect clip;
     int content_w = 0;
     int content_h = 0;
+    int content_top;
+    int content_bot;
+    int overflow;
+    int bar_w;
     int row_y;
     int widget;
 
@@ -1600,7 +2056,7 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriDbgPanel* p)
         {
             struct ToriDbgWidget const* lw = &ui->widgets[widget];
             int label_w;
-            if( lw->hidden || !lw->label[0] )
+            if( !dbg_widget_shown(ui, lw) || !lw->label[0] )
                 continue;
             if( lw->kind != TORIDBG_W_TEXTINPUT && lw->kind != TORIDBG_W_DROPDOWN )
                 continue;
@@ -1612,7 +2068,7 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriDbgPanel* p)
     for( widget = p->first_widget; widget >= 0; widget = ui->widgets[widget].next )
     {
         int w;
-        if( ui->widgets[widget].hidden )
+        if( !dbg_widget_shown(ui, &ui->widgets[widget]) )
             continue;
         w = dbg_widget_width(ui, &ui->widgets[widget]);
         if( w > content_w )
@@ -1634,6 +2090,37 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriDbgPanel* p)
     /* content_h is 0 for an empty panel, so this is also the empty case: the
      * header block, the pads and the bottom border. */
     p->h = p->fixed_h > 0 ? p->fixed_h : head_h + DBG_PAD_Y + content_h + foot_h + DBG_RULE;
+
+    /*
+     * The scroll window, and whether there is anything to scroll.
+     *
+     * Held on the panel because the bar's draw, its hit test and its drag all
+     * read them, and a view height recomputed per caller is a grip that lands
+     * somewhere different depending on who asked. A content-sized panel is
+     * exactly as tall as its rows, so `overflow` there is always false --
+     * scrolling only ever engages under a hand-set or dragged height.
+     */
+    p->content_h = content_h;
+    p->view_h = p->h - head_h - DBG_PAD_Y - foot_h - DBG_RULE;
+    if( p->view_h < 0 )
+        p->view_h = 0;
+    overflow = p->scrollable && content_h > p->view_h;
+    if( !overflow )
+    {
+        p->scroll_y = 0;
+    }
+    else
+    {
+        /* Clamped here rather than at the wheel, so a panel that SHRANK -- by a
+         * grip drag, a tab switch, a row being removed -- cannot be left
+         * scrolled past content that is no longer there. */
+        int const max_scroll = content_h - p->view_h;
+        if( p->scroll_y > max_scroll )
+            p->scroll_y = max_scroll;
+        if( p->scroll_y < 0 )
+            p->scroll_y = 0;
+    }
+    bar_w = overflow ? DBG_SCROLL_W : 0;
 
     clip.x = p->x;
     clip.y = p->y;
@@ -1728,18 +2215,36 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriDbgPanel* p)
     if( p->resizable )
         dbg_push_grip(ui, p, clip);
 
+    content_top = p->y + head_h + DBG_PAD_Y;
+    content_bot = p->y + p->h - foot_h - DBG_RULE;
+
+    /* The bar sits in the content column's right-hand edge, above the footer,
+     * and is drawn before the rows so a row's clip can exclude its column. */
+    if( overflow )
+    {
+        struct ToriDbgRect bar;
+        bar.x = p->x + p->w - DBG_RULE - DBG_PAD_X - bar_w;
+        bar.y = content_top;
+        bar.w = bar_w;
+        bar.h = content_bot - content_top;
+        if( bar.h > 0 )
+            dbg_push_scrollbar(ui, bar, p->content_h, p->view_h, p->scroll_y, clip);
+    }
+
     /* Rows are clipped to the content column, so an over-long label is cut at
-     * the border instead of painting over it. */
+     * the border instead of painting over it. A scrolling panel tightens that
+     * to the scroll window itself: a row half off the top would otherwise paint
+     * up into the header's padding, and one half off the bottom over the grip. */
     clip.x = p->x + DBG_RULE + DBG_PAD_X;
-    clip.y = p->y + head_h;
-    clip.w = p->w - 2 * DBG_RULE - 2 * DBG_PAD_X;
-    clip.h = p->h - head_h - DBG_RULE;
+    clip.y = overflow ? content_top : p->y + head_h;
+    clip.w = p->w - 2 * DBG_RULE - 2 * DBG_PAD_X - bar_w;
+    clip.h = overflow ? content_bot - content_top : p->h - head_h - DBG_RULE;
     if( clip.w < 0 )
         clip.w = 0;
     if( clip.h < 0 )
         clip.h = 0;
 
-    row_y = p->y + head_h + DBG_PAD_Y;
+    row_y = content_top - p->scroll_y;
     for( widget = p->first_widget; widget >= 0; widget = ui->widgets[widget].next )
     {
         struct ToriDbgWidget* w = &ui->widgets[widget];
@@ -1747,11 +2252,11 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriDbgPanel* p)
         int row_x;
         int hovered;
 
-        /* Hidden: no space, no draw -- and no stale hit box, or the widget
+        /* Not shown: no space, no draw -- and no stale hit box, or the widget
          * would keep taking clicks meant for the row drawn where it was. The
          * measuring loop above skipped it too; skipping in only one of the
          * two draws every later row across the bottom border. */
-        if( w->hidden )
+        if( !dbg_widget_shown(ui, w) )
         {
             w->x = 0;
             w->y = 0;
@@ -1765,8 +2270,24 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriDbgPanel* p)
 
         w->x = row_x;
         w->y = row_y;
-        w->w = p->w - 2 * DBG_RULE - 2 * DBG_PAD_X;
+        w->w = p->w - 2 * DBG_RULE - 2 * DBG_PAD_X - bar_w;
         w->h = row_h;
+
+        /*
+         * A scrolled panel steps PAST rows outside the window rather than
+         * stopping at them: the rows below one that is off the top are the
+         * ones the user scrolled down to see, so `break` would empty the panel.
+         * The hit box is zeroed for the same reason the dropped-row case
+         * zeroes it -- an invisible row must not take clicks -- and the loop
+         * still advances row_y so the rows that ARE in view land correctly.
+         */
+        if( overflow && (row_y + row_h <= content_top || row_y >= content_bot) )
+        {
+            w->w = 0;
+            w->h = 0;
+            row_y += row_h + DBG_ROW_GAP;
+            continue;
+        }
 
         /*
          * A row past the bottom of a hand-sized panel is GONE, not merely
@@ -1784,7 +2305,7 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriDbgPanel* p)
          * ends exactly on this line, so nothing is ever dropped there -- it is
          * only a hand-sized height that can cut rows off.
          */
-        if( row_y + row_h > p->y + p->h - foot_h - DBG_RULE )
+        if( !overflow && row_y + row_h > content_bot )
         {
             for( ; widget >= 0; widget = ui->widgets[widget].next )
             {
@@ -1901,6 +2422,45 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriDbgPanel* p)
                 clip);
             break;
 
+        case TORIDBG_W_BUTTON:
+        {
+            int const caption_w =
+                ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->text);
+            /* Sized to its caption and left-aligned in the row, not stretched
+             * across it: a full-width button in a column of labelled rows reads
+             * as a banner, and two of them side by side (Save / Revert) is the
+             * shape this exists for. */
+            int const box_w = caption_w + 2 * DBG_BUTTON_PAD_X + 2 * DBG_RULE;
+            int const pressed = ui->press == widget && hovered;
+
+            dbg_push_rect(ui, row_x, row_y, box_w, row_h, th->input_bg, 1, clip);
+            dbg_push_rect(
+                ui, row_x, row_y, box_w, row_h,
+                hovered ? th->accent : th->input_border, 0, clip);
+            dbg_push_text(
+                ui,
+                /* A pressed button shifts its caption a pixel down and right --
+                 * the whole of what makes the press read as a press. */
+                row_x + DBG_RULE + DBG_BUTTON_PAD_X + (pressed ? DBG_RULE : 0),
+                row_y + DBG_RULE + DBG_BUTTON_PAD_Y + (pressed ? DBG_RULE : 0) +
+                    ToriRSChrome_FontLineHeight(ui->theme.font_row, ui->scale),
+                w->text,
+                hovered ? th->accent : (w->color ? w->color : th->text),
+                ui->theme.font_row,
+                0,
+                clip);
+            /* The hit box is the drawn box, not the whole row: the empty strip
+             * beside a button must not press it. */
+            w->w = box_w;
+            break;
+        }
+
+        case TORIDBG_W_TABSTRIP:
+            dbg_push_tabstrip(
+                ui, w, p->active_tab, hovered ? dbg_tab_at(ui, w, ui->hover_x, ui->hover_y) : -1,
+                clip);
+            break;
+
         case TORIDBG_W_DROPDOWN:
         {
             int const label_w = ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->label);
@@ -2008,6 +2568,22 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriDbgPanel* p)
 
         default:
             break;
+        }
+
+        /*
+         * Trim a straddling row's hit box to the part of it you can see.
+         *
+         * Only the scrolling case can produce one: the row is drawn clipped, so
+         * without this its clickable area would extend past the fold and a
+         * click on the footer strip -- or on the resize grip -- would land on
+         * the half-row above or below it.
+         */
+        if( overflow )
+        {
+            int const top = w->y < content_top ? content_top : w->y;
+            int const bot = w->y + w->h > content_bot ? content_bot : w->y + w->h;
+            w->y = top;
+            w->h = bot - top > 0 ? bot - top : 0;
         }
         row_y += row_h + DBG_ROW_GAP;
     }
@@ -2656,6 +3232,131 @@ dbg_panel_move_to(struct ToriRSChrome* ui, int panel, int x, int y)
     dbg_dirty_panel(ui, panel);
 }
 
+/* ---- panel scrolling ------------------------------------------------------
+ *
+ * The bar is geometry, not a widget: it belongs to the panel the way the resize
+ * grip does, so it is hit off `last_rect` for the same reason the grip is --
+ * mid-drag the panel's live fields may already have moved, and what was grabbed
+ * is what was drawn.
+ */
+
+/** Does this panel currently have a bar? Answered from the last Build. */
+static int
+dbg_panel_scrolls(struct ToriDbgPanel const* p)
+{
+    return p->scrollable && p->view_h > 0 && p->content_h > p->view_h;
+}
+
+/** The panel's scrollbar box, or an empty rect when it has none. */
+static struct ToriDbgRect
+dbg_panel_scrollbar_rect(struct ToriRSChrome const* ui, int panel)
+{
+    struct ToriDbgRect r = { 0, 0, 0, 0 };
+    struct ToriDbgPanel const* p = &ui->panels[panel];
+    struct DbgMenuLayout const l =
+        dbg_menu_layout(ToriRSChrome_FontLineBox(TORIDBG_FONT_MENU, ui->scale), ui->scale);
+    int const head_h = p->title[0] ? l.separator_y + DBG_RULE : DBG_RULE;
+    int const foot_h = p->resizable ? DBG_GRIP_HIT : DBG_PAD_Y;
+
+    if( !p->visible || p->last_rect.w <= 0 || !dbg_panel_scrolls(p) )
+        return r;
+    r.x = p->last_rect.x + p->last_rect.w - DBG_RULE - DBG_PAD_X - DBG_SCROLL_W;
+    r.y = p->last_rect.y + head_h + DBG_PAD_Y;
+    r.w = DBG_SCROLL_W;
+    r.h = p->last_rect.y + p->last_rect.h - foot_h - DBG_RULE - r.y;
+    if( r.h < 0 )
+        r.h = 0;
+    return r;
+}
+
+/** Move a panel's scroll to `scroll` px, clamped. @return 1 if it moved. */
+static int
+dbg_panel_scroll_to(struct ToriRSChrome* ui, int panel, int scroll)
+{
+    struct ToriDbgPanel* p = &ui->panels[panel];
+    int const max_scroll = p->content_h - p->view_h;
+
+    if( scroll > max_scroll )
+        scroll = max_scroll;
+    if( scroll < 0 )
+        scroll = 0;
+    if( p->scroll_y == scroll )
+        return 0;
+    p->scroll_y = scroll;
+    dbg_dirty_panel(ui, panel);
+    return 1;
+}
+
+/**
+ * Press on a panel's bar: an arrow steps, the track pages, the grip starts a
+ * drag. @return 1 when the press belonged to a bar.
+ */
+static int
+dbg_panel_scroll_press(struct ToriRSChrome* ui, int x, int y)
+{
+    for( int i = ui->panel_count - 1; i >= 0; i-- )
+    {
+        struct ToriDbgRect const bar = dbg_panel_scrollbar_rect(ui, i);
+        struct ToriDbgPanel* p = &ui->panels[i];
+        struct DbgScrollGeom g;
+        int const step = ToriRSChrome_FontLineBox(ui->theme.font_row, ui->scale);
+
+        if( bar.w <= 0 || !dbg_point_in_rect(x, y, bar) )
+            continue;
+
+        if( y < bar.y + DBG_SCROLL_W )
+        {
+            dbg_panel_scroll_to(ui, i, p->scroll_y - step);
+            return 1;
+        }
+        if( y >= bar.y + bar.h - DBG_SCROLL_W )
+        {
+            dbg_panel_scroll_to(ui, i, p->scroll_y + step);
+            return 1;
+        }
+        if( !dbg_scroll_geom(
+                bar, p->content_h, p->view_h, p->scroll_y, DBG_SCROLL_W, DBG_SCROLL_GRIP_MIN, &g) )
+            return 1;
+        if( y >= g.grip_y && y < g.grip_y + g.grip_h )
+        {
+            ui->scroll_panel = i;
+            ui->scroll_grab = y - g.grip_y;
+            return 1;
+        }
+        /* Above or below the grip: page by a viewful, the desktop convention. */
+        dbg_panel_scroll_to(
+            ui, i, y < g.grip_y ? p->scroll_y - p->view_h : p->scroll_y + p->view_h);
+        return 1;
+    }
+    return 0;
+}
+
+/** Continue a panel grip drag: put the grip's top under the held grab point. */
+static void
+dbg_panel_scroll_drag_to(struct ToriRSChrome* ui, int y)
+{
+    int const panel = ui->scroll_panel;
+    struct ToriDbgPanel* p;
+    struct ToriDbgRect bar;
+    struct DbgScrollGeom g;
+    int travel;
+
+    if( !dbg_valid_panel(ui, panel) )
+        return;
+    p = &ui->panels[panel];
+    bar = dbg_panel_scrollbar_rect(ui, panel);
+    if( bar.w <= 0 )
+        return;
+    if( !dbg_scroll_geom(
+            bar, p->content_h, p->view_h, p->scroll_y, DBG_SCROLL_W, DBG_SCROLL_GRIP_MIN, &g) )
+        return;
+    travel = g.track_h - g.grip_h;
+    if( travel <= 0 )
+        return;
+    dbg_panel_scroll_to(
+        ui, panel, (y - ui->scroll_grab - g.track_y) * (p->content_h - p->view_h) / travel);
+}
+
 int
 ToriRSChrome_HitTest(struct ToriRSChrome const* ui, int x, int y)
 {
@@ -2668,7 +3369,8 @@ ToriRSChrome_HitTest(struct ToriRSChrome const* ui, int x, int y)
     for( int w = ui->panels[panel].first_widget; w >= 0; w = ui->widgets[w].next )
     {
         struct ToriDbgWidget const* wd = &ui->widgets[w];
-        if( wd->hidden || wd->kind == TORIDBG_W_SEPARATOR || wd->kind == TORIDBG_W_LABEL )
+        if( !dbg_widget_shown(ui, wd) || wd->kind == TORIDBG_W_SEPARATOR ||
+            wd->kind == TORIDBG_W_LABEL )
             continue;
         if( dbg_point_in(x, y, wd->x, wd->y, wd->w, wd->h) )
             return w;
@@ -2839,6 +3541,24 @@ ToriRSChrome_MouseMove(struct ToriRSChrome* ui, int x, int y)
 
     assert(ui);
 
+    /* Recorded before any early return: a strip's hovered TAB is resolved from
+     * the position at draw time, and a move that a drag consumes still moved
+     * the cursor. */
+    ui->hover_x = x;
+    ui->hover_y = y;
+
+    /* A panel's own grip, held for as long as the button is: same rule as the
+     * dropdown's below it, and checked first for the same reason. */
+    if( ui->scroll_panel >= 0 )
+    {
+        if( dbg_valid_panel(ui, ui->scroll_panel) )
+        {
+            dbg_panel_scroll_drag_to(ui, y);
+            return 1;
+        }
+        ui->scroll_panel = -1;
+    }
+
     /* Ahead of every other claim on the pointer, including the panel drags
      * below: a scrollbar grip is held until it is let go, and the cursor
      * leaving the bar (or the list) does not release it. */
@@ -2899,6 +3619,13 @@ ToriRSChrome_MouseMove(struct ToriRSChrome* ui, int x, int y)
         ui->hover = hit;
         dbg_dirty_widget(ui, hit);
     }
+    else if( hit >= 0 && ui->widgets[hit].kind == TORIDBG_W_TABSTRIP )
+    {
+        /* Moving between two tabs of one strip does not change the hovered
+         * WIDGET, so the highlight would stick to the tab first entered. The
+         * strip is the one widget whose hover lives below handle granularity. */
+        dbg_dirty_widget(ui, hit);
+    }
     return dbg_panel_at(ui, x, y) >= 0;
 }
 
@@ -2927,6 +3654,15 @@ ToriRSChrome_MouseDown(struct ToriRSChrome* ui, int x, int y)
             return 1;
         }
         dbg_dropdown_close(ui);
+    }
+
+    /* A panel's own bar, before its rows: the bar's column is inside the
+     * content area, so a press there would otherwise land on whatever row it
+     * happens to sit beside. */
+    if( dbg_panel_scroll_press(ui, x, y) )
+    {
+        ui->press = -1;
+        return 1;
     }
 
     /* The grip is tested before the widgets, not after them as the header is.
@@ -3020,6 +3756,17 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y)
 
     assert(ui);
 
+    /* The release that ends a panel's grip drag, ahead of the row logic for the
+     * same reason the dropdown's is: letting go over a row must not click it. */
+    if( ui->scroll_panel >= 0 )
+    {
+        if( dbg_valid_panel(ui, ui->scroll_panel) )
+            dbg_panel_scroll_drag_to(ui, y);
+        ui->scroll_panel = -1;
+        ui->press = -1;
+        return 1;
+    }
+
     /* The release that ends a grip drag. It reports consumed and returns
      * before the row logic below, so letting go of the grip over a row does
      * not also choose that row. */
@@ -3086,9 +3833,25 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y)
             ui->activated = hit;
             dbg_dirty_widget(ui, hit);
         }
-        else if( w->kind == TORIDBG_W_MENUITEM )
+        else if( w->kind == TORIDBG_W_MENUITEM || w->kind == TORIDBG_W_BUTTON )
         {
             ui->activated = hit;
+            /* The button repaints because its pressed state just ended. */
+            if( w->kind == TORIDBG_W_BUTTON )
+                dbg_dirty_widget(ui, hit);
+        }
+        else if( w->kind == TORIDBG_W_TABSTRIP )
+        {
+            int const tab = dbg_tab_at(ui, w, x, y);
+            /* A click on the tab already showing is not a no-op to report: the
+             * caller may be using the strip to re-run a page's build. It just
+             * does not need the switch work, which PanelSetActiveTab skips on
+             * its own. */
+            if( tab >= 0 )
+            {
+                ToriRSChrome_PanelSetActiveTab(ui, w->panel, tab);
+                ui->activated = hit;
+            }
         }
         else if( w->kind == TORIDBG_W_DROPDOWN )
         {
@@ -3153,7 +3916,23 @@ ToriRSChrome_MouseWheel(struct ToriRSChrome* ui, int x, int y, int delta)
             }
             return 1;
         }
-        return dbg_panel_at(ui, x, y) >= 0;
+        /* Otherwise the panel under the pointer scrolls, if it can. Tested
+         * after the closed-dropdown case so a wheel over a picker still steps
+         * the picker rather than scrolling the page out from under it. */
+        {
+            int const panel = dbg_panel_at(ui, x, y);
+            if( panel >= 0 )
+            {
+                if( dbg_panel_scrolls(&ui->panels[panel]) )
+                {
+                    int const step = ToriRSChrome_FontLineBox(ui->theme.font_row, ui->scale);
+                    /* Wheel down (negative delta) moves the content UP. */
+                    dbg_panel_scroll_to(ui, panel, ui->panels[panel].scroll_y - delta * step);
+                }
+                return 1;
+            }
+            return 0;
+        }
     }
 
     {

@@ -6,6 +6,9 @@
 #endif
 
 #include "bmp.h"
+/* Screenshot encoding. Already linked for the cache codecs; the PNG writer
+ * rides along, so a plugin capture costs no new dependency. */
+#include "miniz.h"
 #include "bootmanifest/bootmanifest.h"
 #include "cmd/cmdbus.h"
 #include "cs2vm2/cs2vm2.h"
@@ -60,6 +63,7 @@ EM_JS(void, web_editor_open_panel_tab, (void), {
 #include "game/rs_attack_option.h"
 #include "game/rs_clientcode.h"
 #include "game/rs_cs2_dispatch.h"
+#include "game/rs_game_events.h"
 #include "game/rs_gameproto_exec.h"
 #include "game/rs_minimenu_build.h"
 #include "plugin/torirs_plugin_lua.h"
@@ -2671,6 +2675,247 @@ app_overlay_outline_element_model_trans(
     /* Fill first, outline over it: the wash says "this one" at a glance and the
      * outline gives it a definite edge, which a translucent fill alone does not
      * have against busy ground. */
+    if( fill_trans >= 0 )
+        app_overlay_push_polygon_filled(app, hull_x, hull_y, hull_size, color, fill_trans);
+    app_overlay_push_polygon(app, hull_x, hull_y, hull_size, color);
+    return 1;
+}
+
+/**
+ * Directions sampled around a projected mesh when reducing it to a hull.
+ *
+ * The reduction is what makes a mesh outline affordable. The exact hull of a
+ * few thousand screen points costs an angular sort over all of them; the
+ * extreme point along a FIXED direction is one multiply-add and one compare
+ * per vertex. Every such extreme is a vertex of the true hull, so the polygon
+ * built from them is inscribed in it — tighter than the real silhouette by at
+ * most the sagitta of a 360/(2*N) degree arc, never looser — and it is capped
+ * at 2*N points, which is what keeps a highlight's cost to the overlay budget
+ * bounded no matter how detailed the model is.
+ *
+ * 16 directions is an 11.25 degree gap between samples: under half a percent
+ * of the silhouette's radius, which is sub-pixel on anything short of a boss
+ * filling the viewport.
+ */
+#define APP_OUTLINE_HULL_MESH_DIRECTIONS 16
+
+/**
+ * Outline the MESH of a scene element: the model's own posed vertices, rather
+ * than the box that contains them.
+ *
+ * The bounds outline above is the cylinder — `radius` in every horizontal
+ * direction — so an npc is wrapped at the radius of whatever sticks out
+ * furthest: a halberd, a cape, a wing. That reads on screen as a square around
+ * every npc regardless of its shape, which is exactly what this is for. Here
+ * the geometry that is actually drawn is what gets hulled, so a thin thing
+ * outlines thin and a turning thing narrows as it turns.
+ *
+ * The vertices read are the LIVE ones (`vertices_*`, never
+ * `original_vertices_*`): the animation frame, the post-transform placement
+ * and any merged spot graphic are already applied to them, which is what keeps
+ * the outline on the pose being rendered instead of the bind pose.
+ *
+ * Placement is re-derived here the way the projector derives it — roll, then
+ * pitch, then yaw about the model's own origin, then the element's world
+ * position — because a model's vertices are stored in its own frame and only
+ * the projector has ever combined them with the element's angles.
+ *
+ * Cost is one projection per vertex per frame against the bounds outline's
+ * eight, which is why the shape is the caller's choice and not the only mode.
+ *
+ * @param fill_trans 0 opaque .. 255 invisible, or -1 for no fill at all.
+ * @return 1 when an outline was emitted.
+ */
+static int
+app_overlay_outline_element_mesh_trans(
+    struct App* app,
+    int element_id,
+    uint32_t color,
+    int fill_trans)
+{
+    enum
+    {
+        DIRECTIONS = APP_OUTLINE_HULL_MESH_DIRECTIONS,
+        CANDIDATES = DIRECTIONS * 2
+    };
+    struct ToriDraw_SceneElement* element;
+    vertexint_t const* vertices_x;
+    vertexint_t const* vertices_y;
+    vertexint_t const* vertices_z;
+    int vertex_count;
+    int sin_dir[DIRECTIONS];
+    int cos_dir[DIRECTIONS];
+    long long extreme[CANDIDATES];
+    int extreme_x[CANDIDATES];
+    int extreme_y[CANDIDATES];
+    int extreme_seen[CANDIDATES];
+    int px[CANDIDATES];
+    int py[CANDIDATES];
+    int hull_x[CANDIDATES];
+    int hull_y[CANDIDATES];
+    int count = 0;
+    int hull_size;
+    int ox;
+    int oy;
+    int oz;
+    int yaw;
+    int pitch;
+    int roll;
+    int sin_yaw;
+    int cos_yaw;
+    int sin_pitch;
+    int cos_pitch;
+    int sin_roll;
+    int cos_roll;
+
+    assert(app);
+
+    if( !app->scene || element_id < 0 )
+        return 0;
+    if( !ToriDraw_SceneElementIsLive(app->scene, element_id) )
+        return 0;
+
+    element = ToriDraw_SceneElementGet(app->scene, element_id);
+    if( !element )
+        return 0;
+
+    vertex_count = ToriDraw_ModelGetVertexCount(element->model);
+    vertices_x = ToriDraw_ModelGetVerticesX(element->model);
+    vertices_y = ToriDraw_ModelGetVerticesY(element->model);
+    vertices_z = ToriDraw_ModelGetVerticesZ(element->model);
+    /* No mesh is not a failure, for the same reason no bounds cylinder is not:
+     * a handle that is not a full model (a sprite billboard, an empty slot)
+     * has no vertices and there is nothing to outline. */
+    if( vertex_count <= 0 || !vertices_x || !vertices_y || !vertices_z )
+        return 0;
+
+    for( int d = 0; d < DIRECTIONS; d++ )
+    {
+        /* Half a turn of directions, not a whole one: the minimum along a
+         * direction IS the maximum along its opposite, so the other half would
+         * ask every vertex the same question a second time. */
+        int const angle = d * (2048 / (DIRECTIONS * 2));
+        sin_dir[d] = ToriDraw_Sin(angle);
+        cos_dir[d] = ToriDraw_Cos(angle);
+        extreme_seen[d * 2] = 0;
+        extreme_seen[d * 2 + 1] = 0;
+    }
+
+    ox = element->world_position.x;
+    oy = element->world_position.y;
+    oz = element->world_position.z;
+    yaw = element->world_position.yaw;
+    pitch = element->world_position.pitch;
+    roll = element->world_position.roll;
+    sin_yaw = ToriDraw_Sin(yaw);
+    cos_yaw = ToriDraw_Cos(yaw);
+    sin_pitch = ToriDraw_Sin(pitch);
+    cos_pitch = ToriDraw_Cos(pitch);
+    sin_roll = ToriDraw_Sin(roll);
+    cos_roll = ToriDraw_Cos(roll);
+
+    for( int v = 0; v < vertex_count; v++ )
+    {
+        /* 64-bit intermediates. A vertex coordinate is a signed 16-bit
+         * quantity and the trig tables are 16.16, so one product alone reaches
+         * 2^31 and the sum of two passes it -- the same shape the projection
+         * kernels carry, but they are fed a model that has already been culled
+         * against the scene's capacity while this runs on whatever the
+         * element holds. The >>16 result is identical wherever int would not
+         * have overflowed. */
+        long long vx = vertices_x[v];
+        long long vy = vertices_y[v];
+        long long vz = vertices_z[v];
+        int screen_x;
+        int screen_y;
+        long long tmp;
+
+        /* graphics/projection.u.c project_orthographic order: roll (Z), pitch
+         * (X), yaw (Y). Any other order puts the outline somewhere the model
+         * is not the moment two of the three are non-zero. */
+        if( roll != 0 )
+        {
+            tmp = (vy * sin_roll + vx * cos_roll) >> 16;
+            vy = (vy * cos_roll - vx * sin_roll) >> 16;
+            vx = tmp;
+        }
+        if( pitch != 0 )
+        {
+            tmp = (vy * cos_pitch - vz * sin_pitch) >> 16;
+            vz = (vy * sin_pitch + vz * cos_pitch) >> 16;
+            vy = tmp;
+        }
+        if( yaw != 0 )
+        {
+            tmp = (vz * sin_yaw + vx * cos_yaw) >> 16;
+            vz = (vz * cos_yaw - vx * sin_yaw) >> 16;
+            vx = tmp;
+        }
+
+        /* A vertex behind the near plane is dropped rather than clamped: the
+         * hull of what IS on screen is a smaller mark, while a clamped one is
+         * a wrong mark. */
+        if( !app_world_project_at(
+                app, ox + (int)vx, oz + (int)vz, oy + (int)vy, &screen_x, &screen_y) )
+            continue;
+
+        for( int d = 0; d < DIRECTIONS; d++ )
+        {
+            /* 64-bit: screen coordinates run to six figures once a model is
+             * close to the camera, and a 16.16 direction multiplies that past
+             * 2^32. A wrapped dot product picks the wrong vertex and the
+             * outline folds through itself. */
+            long long const dot =
+                (long long)screen_x * cos_dir[d] + (long long)screen_y * sin_dir[d];
+            int const hi = d * 2;
+            int const lo = d * 2 + 1;
+
+            if( !extreme_seen[hi] || dot > extreme[hi] )
+            {
+                extreme_seen[hi] = 1;
+                extreme[hi] = dot;
+                extreme_x[hi] = screen_x;
+                extreme_y[hi] = screen_y;
+            }
+            if( !extreme_seen[lo] || dot < extreme[lo] )
+            {
+                extreme_seen[lo] = 1;
+                extreme[lo] = dot;
+                extreme_x[lo] = screen_x;
+                extreme_y[lo] = screen_y;
+            }
+        }
+    }
+
+    /* Distinct points only. One vertex is the extreme in many directions at
+     * once — on a small model, in nearly all of them — and repeated points
+     * make the scan's collinear tie-break decide a turn between two copies of
+     * the same coordinate. */
+    for( int i = 0; i < CANDIDATES; i++ )
+    {
+        int duplicate = 0;
+
+        if( !extreme_seen[i] )
+            continue;
+        for( int j = 0; j < count; j++ )
+        {
+            if( px[j] == extreme_x[i] && py[j] == extreme_y[i] )
+            {
+                duplicate = 1;
+                break;
+            }
+        }
+        if( duplicate )
+            continue;
+        px[count] = extreme_x[i];
+        py[count] = extreme_y[i];
+        count++;
+    }
+
+    if( count < 2 )
+        return 0;
+
+    hull_size = ToriDraw_ConvexHull(px, py, count, hull_x, hull_y);
     if( fill_trans >= 0 )
         app_overlay_push_polygon_filled(app, hull_x, hull_y, hull_size, color, fill_trans);
     app_overlay_push_polygon(app, hull_x, hull_y, hull_size, color);
@@ -16444,6 +16689,250 @@ app_plugin_asset_write(void* user, char const* plugin, char const* name, void co
     return 1;
 }
 
+/* ---------------------------------------------------------- screenshots */
+
+/*
+ * A plugin asked for a frame. Record it; App_RunOnce takes it.
+ *
+ * Nothing is rendered here, and that is the point -- see the queue's own
+ * comment in app.h. Refusing loudly when the queue is full rather than
+ * silently dropping the request: a plugin that fills it is asking for four
+ * pictures of one instant, and the only way it finds that out is being told.
+ */
+static int
+app_plugin_screenshot(void* user, char const* plugin, char const* dir, char const* name)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    assert(plugin);
+    assert(name);
+
+    for( int i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
+    {
+        struct AppPluginScreenshot* shot = &app->plugin_screenshots[i];
+        size_t len;
+
+        if( shot->in_use )
+            continue;
+
+        shot->in_use = 1;
+        snprintf(shot->plugin, sizeof(shot->plugin), "%s", plugin);
+        snprintf(shot->dir, sizeof(shot->dir), "%s", dir ? dir : "");
+        snprintf(shot->name, sizeof(shot->name), "%s", name);
+        /* The format is not the plugin's choice -- this writes PNG -- so a
+         * name that does not say so is completed rather than trusted. A name
+         * that already carries an extension is left alone, because a plugin
+         * that wrote "kill-42.png" meant that file and not "kill-42.png.png". */
+        len = strlen(shot->name);
+        if( !strchr(shot->name, '.') && len + 4 < sizeof(shot->name) )
+            snprintf(shot->name + len, sizeof(shot->name) - len, ".png");
+        return 1;
+    }
+
+    fprintf(
+        stderr,
+        "plugin: %s asked for more than %d screenshots in one frame; '%s' was dropped\n",
+        plugin,
+        APP_PLUGIN_SCREENSHOTS_MAX,
+        name);
+    return 0;
+}
+
+/*
+ * Take every queued capture, as one render.
+ *
+ * Rendered here rather than lifted out of whatever the window is showing,
+ * because the window is not always readable: three of the four renderer lanes
+ * (GL3, WebGL1, D3D9) never fill a client-side pixel buffer at all, and the
+ * browser lane is one of them. App_Render is the one path that exists
+ * everywhere, headless included, so a screenshot means the same thing on every
+ * platform -- the scene through the client's own rasteriser -- rather than
+ * meaning "a GPU readback" on the lanes that happen to support one.
+ *
+ * The cost is one extra software frame per capture, which is the right trade
+ * for something that happens when a skill goes up.
+ */
+static void
+app_plugin_screenshots_take(struct App* app)
+{
+    int const width = UITREE_LAYOUT_ROOT_W;
+    int const height = UITREE_LAYOUT_ROOT_H;
+    int pending = 0;
+    int saved_pick;
+    int* pixels;
+    unsigned char* rgb;
+    void* png;
+    size_t png_size = 0;
+
+    assert(app);
+
+    for( int i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
+        pending += app->plugin_screenshots[i].in_use;
+    if( pending == 0 )
+        return;
+
+    /* A capture of the loading bar is not a capture of anything. Requests
+     * survive the wait; a plugin cannot ask for one before it has started
+     * anyway, so this only covers a boot that re-enters. */
+    if( App_IsBooting(app, NULL) )
+        return;
+
+    /*
+     * Disarm the world pick for the duration.
+     *
+     * App_Render arms it from the live mouse position and hands the hits to
+     * App_PickFinish, which is how the click paths learn what is under the
+     * pointer. This render is not the one they are reading, and letting it
+     * publish a second pickset for the same frame would make a screenshot a
+     * thing that can affect what a click does.
+     */
+    saved_pick = app->world_mouse_in_viewport;
+    app->world_mouse_in_viewport = 0;
+
+    pixels = malloc((size_t)width * (size_t)height * sizeof(int));
+    assert(pixels);
+    App_Render(app, pixels, width, height);
+
+    app->world_mouse_in_viewport = saved_pick;
+
+    /* Three channels, not four: the client's canvas has no alpha to carry
+     * (the high byte is padding), and a PNG that claimed one would be half
+     * again as large for nothing. */
+    rgb = malloc((size_t)width * (size_t)height * 3);
+    assert(rgb);
+    for( int i = 0; i < width * height; i++ )
+    {
+        rgb[i * 3 + 0] = (unsigned char)((pixels[i] >> 16) & 0xFF);
+        rgb[i * 3 + 1] = (unsigned char)((pixels[i] >> 8) & 0xFF);
+        rgb[i * 3 + 2] = (unsigned char)(pixels[i] & 0xFF);
+    }
+    free(pixels);
+
+    png = tdefl_write_image_to_png_file_in_memory_ex(rgb, width, height, 3, &png_size, 6, MZ_FALSE);
+    free(rgb);
+    assert(png);
+
+    for( int i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
+    {
+        struct AppPluginScreenshot* shot = &app->plugin_screenshots[i];
+        char path[TORIRS_IOITEM_MAX_PATH];
+
+        if( !shot->in_use )
+            continue;
+        shot->in_use = 0;
+
+        if( shot->dir[0] )
+            snprintf(path, sizeof(path), "%s/%s", shot->dir, shot->name);
+        else
+            app_plugin_asset_saved_path(app, shot->plugin, shot->name, path, sizeof(path));
+
+        if( !path[0] )
+        {
+            /* Same refusal as app_plugin_asset_write, for the same reason: a
+             * client told not to write files must not start writing them
+             * because a plugin asked. */
+            fprintf(
+                stderr,
+                "plugin: %s cannot save screenshot '%s'; plugin persistence is off for "
+                "this run (TORIRS_PLUGIN_PREFS is empty) and no destination was set\n",
+                shot->plugin,
+                shot->name);
+            continue;
+        }
+        ToriRS_TaskQueue_Add(
+            app->runner.queue, CreateTask_PluginAssetWrite(path, png, (int)png_size));
+    }
+
+    mz_free(png);
+}
+
+/* ------------------------------------------------- notable moments */
+
+/*
+ * The plugin layer's window onto "something worth reacting to happened".
+ *
+ * Three entry points because the game genuinely announces things three ways --
+ * in the chatbox, on an interface, and as a number in UPDATE_STAT -- and one
+ * recogniser behind them, so every plugin agrees about what a boss kill is.
+ * See game/rs_game_events.c for why a level-up is NOT read out of prose.
+ */
+static void
+app_dispatch_game_event(struct App* app, struct RS_GameEvent const* ev)
+{
+    char const* kind;
+
+    assert(app);
+    assert(ev);
+
+    kind = RS_GameEvent_KindName(ev->kind);
+    /* A recognised event with no name would be a recogniser that grew a kind
+     * without naming it -- the one thing a plugin cannot work around. */
+    assert(kind);
+    PluginHost_GameEvent(app->plugins, kind, ev->subject, ev->value, ev->text);
+}
+
+void
+App_NotifyChatMessage(
+    struct App* app,
+    int type,
+    char const* sender,
+    char const* text)
+{
+    struct RS_GameEvent ev;
+
+    assert(app);
+    if( !app->plugins )
+        return;
+
+    PluginHost_ChatMessage(app->plugins, type, sender, text);
+    if( RS_GameEvent_FromText(RS_GAME_EVENT_SRC_CHAT, text, &ev) )
+        app_dispatch_game_event(app, &ev);
+}
+
+void
+App_NotifyInterfaceText(
+    struct App* app,
+    char const* text)
+{
+    struct RS_GameEvent ev;
+
+    assert(app);
+    if( !app->plugins )
+        return;
+
+    /* Not forwarded as a chat message: this is every journal line and every
+     * button caption in the game, and a plugin reading "chat" must not have to
+     * filter the interface out of it. Only the recogniser sees it, and it
+     * matches exactly one pattern here. */
+    if( RS_GameEvent_FromText(RS_GAME_EVENT_SRC_INTERFACE, text, &ev) )
+        app_dispatch_game_event(app, &ev);
+}
+
+void
+App_NotifyStatLevel(
+    struct App* app,
+    int skill,
+    int base_level)
+{
+    struct RS_GameEvent ev;
+    int previous;
+
+    assert(app);
+    if( skill < 0 || skill >= RS_PLAYER_STATS_SKILL_COUNT )
+        return;
+
+    /* Recorded whether or not anyone is listening: a plugin enabled halfway
+     * through a session must not see its first stat update as a level-up. */
+    previous = app->stats.last_seen_level[skill];
+    app->stats.last_seen_level[skill] = base_level;
+
+    if( !app->plugins )
+        return;
+    if( RS_GameEvent_FromStat(skill, previous, base_level, &ev) )
+        app_dispatch_game_event(app, &ev);
+}
+
 /* ---- the engine seam the plugin host holds (declared in the bridge) ---- */
 
 static int
@@ -20380,6 +20869,12 @@ App_RunOnce(
      * owns the pointer. Cleared at the end of the frame, so a plugin can never
      * read a stale one. */
     app->plugin_input = input;
+
+    /* Anything a plugin asked to photograph last frame, before this frame
+     * touches the emit buffer: the committed frame still standing here is the
+     * one the request was made against, and the one the player just saw. */
+    if( app->plugins )
+        app_plugin_screenshots_take(app);
 
     /* Plugins before the built-in developer tools, for the same reason those
      * run first: a plugin panel's toggle has to latch during a boot, and

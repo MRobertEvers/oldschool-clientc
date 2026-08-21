@@ -152,12 +152,23 @@ dofile = nil
 ---| '"tab"'
 ---| '"escape"'
 
+--- What draw.hull() wraps. "bounds" (the default) is the model's bounds
+--- cylinder as a box: it never disappears, never cuts into the model, and
+--- costs the same however dense the model is -- but anything with a part that
+--- sticks out (a halberd, a cape, a wing) is wrapped at that reach on every
+--- side, which reads as a square around the entity. "mesh" hulls the posed
+--- geometry itself, so the outline is the entity's own edge, at one projection
+--- per vertex. Prefer it for a few marked entities, "bounds" for a crowd.
+---@alias torirs.HullShape
+---| '"bounds"'
+---| '"mesh"'
+
 --- Handed to on_draw_world as its second argument, and legal only there --
 --- every call checks the open surface and raises otherwise. `fill` is 0..255
 --- and 0 means outline only.
 ---@class torirs.Draw
 ---@field tile fun(tile_x: integer, tile_z: integer, level: integer, colour: torirs.Colour, fill?: integer)
----@field hull fun(element_id: integer, colour: torirs.Colour, fill?: integer) Convex hull of a scene element -- the element_id off a snapshot.
+---@field hull fun(element_id: integer, colour: torirs.Colour, fill?: integer, shape?: torirs.HullShape) Convex hull of a scene element -- the element_id off a snapshot.
 ---@field line fun(x0: integer, y0: integer, x1: integer, y1: integer, colour: torirs.Colour) Screen space; see api.project().
 ---@field text fun(x: integer, y: integer, text: string, colour: torirs.Colour)
 ---@field rect fun(x: integer, y: integer, w: integer, h: integer, colour: torirs.Colour, fill?: integer)
@@ -219,6 +230,11 @@ dofile = nil
 
 --- One entry in a plugin's config schema. It drives the settings panel and
 --- the type api.config reads back.
+---
+--- A script may declare at most PLUGIN_LUA_MAX_CONFIG (32) of them, and the
+--- host's value store holds TORIRS_PLUGIN_CONFIG_MAX (40) -- the schema plus
+--- room for keys an older ini left behind. Past either, the script is REFUSED
+--- with a message naming both numbers; neither silently truncates.
 ---@class torirs.ConfigItem
 ---@field key string
 ---@field type? '"bool"'|'"int"'|'"color"'|'"colour"'|'"enum"'|'"string"' Defaults to "string".

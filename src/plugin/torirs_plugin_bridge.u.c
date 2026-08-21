@@ -28,6 +28,8 @@
 static int app_plugin_asset_read(void* user, char const* plugin, char const* name);
 static int
 app_plugin_asset_write(void* user, char const* plugin, char const* name, void const* data, int size);
+static int
+app_plugin_screenshot(void* user, char const* plugin, char const* dir, char const* name);
 static int app_plugin_object_create(void* user);
 static void app_plugin_object_destroy(void* user, int handle);
 static void app_plugin_object_set_model(void* user, int handle, int source, int id);
@@ -357,6 +359,15 @@ app_plugin_key_held(void* user, int keycode)
  * world viewport, so "no hover" and "hovering tile 0,0 of the scene" are never
  * confused -- and a plugin drawing a cursor highlight stops drawing it the
  * frame the mouse moves onto the inventory.
+ *
+ * The level is converted to the WALKED plane on the way out. The pick latch
+ * holds the MESH level -- the plane the floor was authored on, which the map
+ * editor wants because it edits the cache -- but every level a plugin is ever
+ * handed is a walked one (a player snap's, an npc snap's), and draw_tile's
+ * height sample assumes the same. Handing a raw mesh level across meant a
+ * bridge deck's marker was drawn at level 1, app_world_height added the
+ * bridge's own +1 on top, and the tile-indicator's hover quad floated 240
+ * units above the bridge it was marking.
  */
 static int
 app_plugin_hover_tile(void* user, int* out_tile_x, int* out_tile_z, int* out_level)
@@ -375,7 +386,11 @@ app_plugin_hover_tile(void* user, int* out_tile_x, int* out_tile_z, int* out_lev
 
     *out_tile_x = app->world->_base_tile_x + app->world_hover_tile_x;
     *out_tile_z = app->world->_base_tile_z + app->world_hover_tile_z;
-    *out_level = app->world_hover_tile_level;
+    *out_level = World_TerrainWalkLevel(
+        app->world,
+        app->world_hover_tile_x,
+        app->world_hover_tile_z,
+        app->world_hover_tile_level);
     return 1;
 }
 
@@ -390,6 +405,25 @@ app_plugin_project(void* user, int fine_x, int fine_z, int height, int* out_x, i
 }
 
 /* ---------------------------------------------------------------- drawing */
+
+/*
+ * The plugin contract says a colour is 0xRRGGBB and that alpha is never part
+ * of it -- fill strength is the separate 0..255 argument. The overlay
+ * primitives underneath disagree: ToriDraw2D_FillRect, which every LINE and
+ * FILL_RECT lands in, reads the top byte as alpha and returns immediately on
+ * zero. So a plugin outline drawn in the colour the plugin actually named is
+ * dropped without a mark on screen -- which is what every one of the client's
+ * own callers avoids by spelling its constant 0xFFFF0000 rather than 0xFF0000.
+ *
+ * Opaque is what the contract already promises, so it is supplied here, at the
+ * one boundary where a plugin colour becomes an overlay ARGB, rather than
+ * asked of every plugin author.
+ */
+static uint32_t
+app_plugin_overlay_argb(uint32_t rgb)
+{
+    return rgb | 0xFF000000u;
+}
 
 /*
  * Every draw entry point reports how many overlay items it pushed, by
@@ -464,24 +498,41 @@ app_plugin_draw_tile(
     hull_size = ToriDraw_ConvexHull(px, py, count, hull_x, hull_y);
     if( fill_alpha > 0 )
         app_overlay_push_polygon_filled(
-            app, hull_x, hull_y, hull_size, rgb, 255 - (fill_alpha > 255 ? 255 : fill_alpha));
-    app_overlay_push_polygon(app, hull_x, hull_y, hull_size, rgb);
+            app,
+            hull_x,
+            hull_y,
+            hull_size,
+            app_plugin_overlay_argb(rgb),
+            255 - (fill_alpha > 255 ? 255 : fill_alpha));
+    app_overlay_push_polygon(app, hull_x, hull_y, hull_size, app_plugin_overlay_argb(rgb));
     return app->entity_overlay_count - before;
 }
 
 static int
-app_plugin_draw_hull(void* user, int element_id, uint32_t rgb, int fill_alpha)
+app_plugin_draw_hull(void* user, int element_id, uint32_t rgb, int fill_alpha, int shape)
 {
     struct App* app = (struct App*)user;
     int before;
 
     assert(app);
+    assert(shape == TORIRS_PLUGIN_HULL_BOUNDS || shape == TORIRS_PLUGIN_HULL_MESH);
     before = app->entity_overlay_count;
-    /* The bounds-cylinder silhouette the hover footprint already draws. Its
-     * fill transparency is fixed at APP_OUTLINE_FILL_TRANS there; here the
-     * plugin chooses, so an outline-only highlight is possible. */
-    app_overlay_outline_element_model_trans(
-        app, element_id, rgb, fill_alpha > 0 ? 255 - (fill_alpha > 255 ? 255 : fill_alpha) : -1);
+    /* Either silhouette the client already knows how to draw. Their fill
+     * transparency is fixed at APP_OUTLINE_FILL_TRANS for the hover and editor
+     * marks; here the plugin chooses, so an outline-only highlight is
+     * possible. */
+    if( shape == TORIRS_PLUGIN_HULL_MESH )
+        app_overlay_outline_element_mesh_trans(
+            app,
+            element_id,
+            app_plugin_overlay_argb(rgb),
+            fill_alpha > 0 ? 255 - (fill_alpha > 255 ? 255 : fill_alpha) : -1);
+    else
+        app_overlay_outline_element_model_trans(
+            app,
+            element_id,
+            app_plugin_overlay_argb(rgb),
+            fill_alpha > 0 ? 255 - (fill_alpha > 255 ? 255 : fill_alpha) : -1);
     return app->entity_overlay_count - before;
 }
 
@@ -493,7 +544,7 @@ app_plugin_draw_line(void* user, int x0, int y0, int x1, int y1, uint32_t rgb)
 
     assert(app);
     before = app->entity_overlay_count;
-    app_overlay_push_segment(app, x0, y0, x1, y1, rgb);
+    app_overlay_push_segment(app, x0, y0, x1, y1, app_plugin_overlay_argb(rgb));
     return app->entity_overlay_count - before;
 }
 
@@ -547,7 +598,7 @@ app_plugin_draw_rect(
         item.y = y;
         item.w = w;
         item.h = h;
-        item.color = rgb;
+        item.color = app_plugin_overlay_argb(rgb);
         item.trans = 255 - (fill_alpha > 255 ? 255 : fill_alpha);
         app_overlay_push(app, &item);
     }
@@ -555,10 +606,11 @@ app_plugin_draw_rect(
     {
         /* The overlay layer has no rectangle OUTLINE primitive, only a filled
          * box and a box-diagonal, so an unfilled rect is four segments. */
-        app_overlay_push_segment(app, x, y, x + w, y, rgb);
-        app_overlay_push_segment(app, x + w, y, x + w, y + h, rgb);
-        app_overlay_push_segment(app, x + w, y + h, x, y + h, rgb);
-        app_overlay_push_segment(app, x, y + h, x, y, rgb);
+        uint32_t const argb = app_plugin_overlay_argb(rgb);
+        app_overlay_push_segment(app, x, y, x + w, y, argb);
+        app_overlay_push_segment(app, x + w, y, x + w, y + h, argb);
+        app_overlay_push_segment(app, x + w, y + h, x, y + h, argb);
+        app_overlay_push_segment(app, x, y + h, x, y, argb);
     }
     return app->entity_overlay_count - before;
 }
@@ -771,6 +823,7 @@ app_plugin_engine(struct App* app)
     engine.menu_add = app_plugin_menu_add;
     engine.asset_read = app_plugin_asset_read;
     engine.asset_write = app_plugin_asset_write;
+    engine.screenshot = app_plugin_screenshot;
     engine.object_create = app_plugin_object_create;
     engine.object_destroy = app_plugin_object_destroy;
     engine.object_set_model = app_plugin_object_set_model;

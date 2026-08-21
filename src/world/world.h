@@ -406,6 +406,21 @@ World_TerrainDrawLevel(
     int z,
     int mesh_level);
 
+/** The level a terrain mesh authored on `mesh_level` is WALKED from: the exact
+ *  inverse of World_LocCacheLevel, so a value that came out of a terrain pick
+ *  can be handed to anything that speaks the wire (entity positions, heights,
+ *  the plugin api) without a second shift.
+ *
+ *  Deliberately NOT World_TerrainDrawLevel: VIS_BELOW lowers where a mesh is
+ *  culled and picked, it does not move the floor, so a VIS_BELOW tile is still
+ *  walked from its own plane and answering 0 would drop the player a storey. */
+int
+World_TerrainWalkLevel(
+    struct World const* world,
+    int x,
+    int z,
+    int mesh_level);
+
 /** `[L0|L1|L2|L3]` land-settings decode of a column, for debug readouts:
  *  B block, L link-below, R remove-roof, V vis-below, H force-high-detail,
  *  `-` for none. Always NUL-terminates; truncates rather than overflowing.

@@ -836,6 +836,243 @@ test_debug_overlay_table(void)
     (void)a;
 }
 
+/*
+ * Removal, and the free list under it.
+ *
+ * The property that matters is not "the slot comes back" but that nothing keeps
+ * pointing at a widget that is gone: a stale `focus` or `hover` is a click
+ * delivered to whatever gets recycled into the hole.
+ */
+static void
+test_debug_overlay_remove(void)
+{
+    int panel;
+    int a;
+    int b;
+    int c;
+    int reused;
+
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 10, 10, 0, "P");
+    a = ToriRSChrome_Label(&g_ui, panel, "a");
+    b = ToriRSChrome_Checkbox(&g_ui, panel, "b", 0);
+    c = ToriRSChrome_Label(&g_ui, panel, "c");
+    ToriRSChrome_Build(&g_ui);
+
+    /* Latch the middle row, then remove it out from under the latches. */
+    g_ui.focus = b;
+    g_ui.hover = b;
+    g_ui.press = b;
+    ToriRSChrome_WidgetRemove(&g_ui, b);
+    TEST_ASSERT(g_ui.focus == -1, "removal clears focus");
+    TEST_ASSERT(g_ui.hover == -1, "removal clears hover");
+    TEST_ASSERT(g_ui.press == -1, "removal clears press");
+    TEST_ASSERT(g_ui.widgets[b].kind == TORIDBG_W_FREE, "removed slot is marked free");
+
+    /* The list closed over the hole, in order, and skipped the dead slot. */
+    {
+        int seen = 0;
+        for( int w = g_ui.panels[panel].first_widget; w >= 0; w = g_ui.widgets[w].next )
+        {
+            TEST_ASSERT(w != b, "removed widget is off the panel's row list");
+            seen++;
+        }
+        TEST_ASSERT(seen == 2, "two rows survive the removal");
+        TEST_ASSERT(g_ui.panels[panel].last_widget == c, "tail still points at the last row");
+    }
+
+    /* The next add lands in the vacated slot rather than growing the array. */
+    reused = ToriRSChrome_Label(&g_ui, panel, "d");
+    TEST_ASSERT(reused == b, "the free slot is recycled");
+    TEST_ASSERT(g_ui.free_widget == -1, "free list empties as it is drained");
+
+    /* Removing the tail moves the tail; removing the head moves the head. */
+    ToriRSChrome_WidgetRemove(&g_ui, reused);
+    TEST_ASSERT(g_ui.panels[panel].last_widget == c, "tail follows a tail removal");
+    ToriRSChrome_WidgetRemove(&g_ui, a);
+    TEST_ASSERT(g_ui.panels[panel].first_widget == c, "head follows a head removal");
+
+    /* Clearing a panel frees the rest and leaves the panel itself standing. */
+    ToriRSChrome_PanelClearWidgets(&g_ui, panel);
+    TEST_ASSERT(g_ui.panels[panel].first_widget == -1, "cleared panel has no rows");
+    TEST_ASSERT(g_ui.panels[panel].last_widget == -1, "cleared panel has no tail");
+    TEST_ASSERT(g_ui.panel_count == 1, "clearing rows does not remove the panel");
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(g_ui.panels[panel].last_rect.w > 0, "an emptied panel still draws");
+
+    /* And a rebuild after a clear stays inside the array: this is the property
+     * the append-only version could not offer, and the reason a plugin panel
+     * could only ever grow. */
+    {
+        int const before = g_ui.widget_count;
+        for( int i = 0; i < 8; i++ )
+            ToriRSChrome_Label(&g_ui, panel, "row");
+        ToriRSChrome_PanelClearWidgets(&g_ui, panel);
+        for( int i = 0; i < 8; i++ )
+            ToriRSChrome_Label(&g_ui, panel, "row");
+        TEST_ASSERT(g_ui.widget_count <= before + 8, "rebuilds recycle instead of growing");
+    }
+}
+
+/* Tabs: which rows lay out, and the strip surviving its own switch. */
+static void
+test_debug_overlay_tabs(void)
+{
+    static char const* const titles[] = { "One", "Two", "Three" };
+    int panel;
+    int strip;
+    int on_one;
+    int on_two;
+    int everywhere;
+
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 10, 10, 200, "Tabbed");
+    strip = ToriRSChrome_Tabs(&g_ui, panel, titles, 3, 0);
+    TEST_ASSERT(strip >= 0, "tab strip is created");
+    TEST_ASSERT(g_ui.widgets[strip].tab == -1, "the strip belongs to no single tab");
+
+    everywhere = ToriRSChrome_Label(&g_ui, panel, "always");
+    ToriRSChrome_PanelBeginTab(&g_ui, panel, 0);
+    on_one = ToriRSChrome_Label(&g_ui, panel, "first");
+    ToriRSChrome_PanelBeginTab(&g_ui, panel, 1);
+    on_two = ToriRSChrome_Label(&g_ui, panel, "second");
+    ToriRSChrome_PanelBeginTab(&g_ui, panel, -1);
+
+    TEST_ASSERT(g_ui.widgets[on_one].tab == 0, "BeginTab stamps the rows after it");
+    TEST_ASSERT(g_ui.widgets[on_two].tab == 1, "and the stamp follows the last BeginTab");
+    TEST_ASSERT(g_ui.widgets[everywhere].tab == -1, "rows added before any BeginTab are global");
+
+    /* Tab 0 showing: its row is laid out, the other tab's is not. */
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(g_ui.widgets[on_one].h > 0, "the active tab's row lays out");
+    TEST_ASSERT(g_ui.widgets[on_two].h == 0, "an inactive tab's row does not");
+    TEST_ASSERT(g_ui.widgets[everywhere].h > 0, "a global row lays out on every tab");
+    TEST_ASSERT(g_ui.widgets[strip].h > 0, "the strip lays out");
+
+    ToriRSChrome_PanelSetActiveTab(&g_ui, panel, 1);
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(g_ui.widgets[on_one].h == 0, "switching hides the old tab's row");
+    TEST_ASSERT(g_ui.widgets[on_two].h > 0, "switching shows the new tab's row");
+    TEST_ASSERT(g_ui.widgets[everywhere].h > 0, "a global row survives the switch");
+    TEST_ASSERT(g_ui.widgets[strip].h > 0, "the strip survives the switch");
+    TEST_ASSERT(
+        ToriRSChrome_PanelActiveTab(&g_ui, panel) == 1, "the panel reports its active tab");
+    TEST_ASSERT(g_ui.widgets[strip].selected == 1, "the strip's own selection follows");
+
+    /* A hidden row on the active tab stays hidden: the two flags are AND-ed,
+     * which is the reason `tab` is not folded into `hidden`. */
+    ToriRSChrome_SetHidden(&g_ui, on_two, 1);
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(g_ui.widgets[on_two].h == 0, "hidden beats active-tab");
+    ToriRSChrome_SetHidden(&g_ui, on_two, 0);
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(g_ui.widgets[on_two].h > 0, "unhiding on the active tab brings it back");
+
+    /* Clicking a tab switches it, through the real input path. */
+    {
+        struct ToriDbgWidget const* s = &g_ui.widgets[strip];
+        int const x = s->x + 2;
+        int const y = s->y + s->h / 2;
+        ToriRSChrome_MouseMove(&g_ui, x, y);
+        ToriRSChrome_MouseDown(&g_ui, x, y);
+        ToriRSChrome_MouseUp(&g_ui, x, y);
+        TEST_ASSERT(ToriRSChrome_PanelActiveTab(&g_ui, panel) == 0, "clicking tab 0 selects it");
+        TEST_ASSERT(ToriRSChrome_TakeActivated(&g_ui) == strip, "the switch is reported");
+    }
+}
+
+/* Buttons: a box that presses, and a hit area that is the box and not the row. */
+static void
+test_debug_overlay_button(void)
+{
+    int panel;
+    int button;
+
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 10, 10, 240, "P");
+    button = ToriRSChrome_Button(&g_ui, panel, "Save");
+    ToriRSChrome_Build(&g_ui);
+
+    TEST_ASSERT(g_ui.widgets[button].h > 0, "a button lays out");
+    TEST_ASSERT(
+        g_ui.widgets[button].w < 240 - 2, "a button is sized to its caption, not to the row");
+
+    /* Press and release inside activates. */
+    {
+        int const x = g_ui.widgets[button].x + g_ui.widgets[button].w / 2;
+        int const y = g_ui.widgets[button].y + g_ui.widgets[button].h / 2;
+        ToriRSChrome_MouseMove(&g_ui, x, y);
+        ToriRSChrome_MouseDown(&g_ui, x, y);
+        ToriRSChrome_MouseUp(&g_ui, x, y);
+        TEST_ASSERT(ToriRSChrome_TakeActivated(&g_ui) == button, "a click activates the button");
+    }
+
+    /* The strip to the right of the caption is not the button. */
+    {
+        int const x = g_ui.widgets[button].x + g_ui.widgets[button].w + 8;
+        int const y = g_ui.widgets[button].y + g_ui.widgets[button].h / 2;
+        TEST_ASSERT(ToriRSChrome_HitTest(&g_ui, x, y) != button, "past the box is not the button");
+    }
+}
+
+/*
+ * Panel scrolling: rows below the fold become reachable rather than dropped,
+ * and a row scrolled out of view stops taking clicks.
+ */
+static void
+test_debug_overlay_panel_scroll(void)
+{
+    int panel;
+    int rows[24];
+    int line;
+
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 10, 10, 160, "Scroller");
+    for( int i = 0; i < 24; i++ )
+        rows[i] = ToriRSChrome_Checkbox(&g_ui, panel, "row", 0);
+    line = ToriRSChrome_FontLineBox(g_ui.theme.font_row, g_ui.scale);
+
+    /* Hand-set short, and NOT scrollable yet: the old behaviour, rows dropped. */
+    ToriRSChrome_PanelSetFixedWidth(&g_ui, panel, 160);
+    g_ui.panels[panel].fixed_h = 6 * line;
+    g_ui.panels[panel].dirty = 1;
+    g_ui.dirty = 1;
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(g_ui.widgets[rows[23]].h == 0, "unscrollable: the last row is dropped");
+
+    /* Scrollable: the same panel can now reach it. */
+    ToriRSChrome_PanelSetScrollable(&g_ui, panel, 1);
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(g_ui.panels[panel].content_h > g_ui.panels[panel].view_h, "content overflows");
+    TEST_ASSERT(g_ui.widgets[rows[0]].h > 0, "the first row is in view at rest");
+    TEST_ASSERT(g_ui.widgets[rows[23]].h == 0, "the last row is still below the fold at rest");
+
+    /* Wheel down brings later rows into view and takes the first out of it. */
+    {
+        int const x = g_ui.panels[panel].last_rect.x + 4;
+        int const y = g_ui.panels[panel].last_rect.y + g_ui.panels[panel].last_rect.h / 2;
+        for( int i = 0; i < 40; i++ )
+            ToriRSChrome_MouseWheel(&g_ui, x, y, -1);
+        ToriRSChrome_Build(&g_ui);
+        TEST_ASSERT(g_ui.panels[panel].scroll_y > 0, "the wheel scrolled the panel");
+        TEST_ASSERT(g_ui.widgets[rows[23]].h > 0, "the last row scrolls into view");
+        TEST_ASSERT(g_ui.widgets[rows[0]].h == 0, "the first row scrolls out of the hit test");
+
+        /* Clamped at the end: scrolling forever does not run off. */
+        TEST_ASSERT(
+            g_ui.panels[panel].scroll_y == g_ui.panels[panel].content_h - g_ui.panels[panel].view_h,
+            "scroll clamps to the end of the content");
+    }
+
+    /* Growing the panel past its content retires the scroll entirely. */
+    g_ui.panels[panel].fixed_h = 0;
+    g_ui.panels[panel].dirty = 1;
+    g_ui.dirty = 1;
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(g_ui.panels[panel].scroll_y == 0, "a panel that fits its content is not scrolled");
+    TEST_ASSERT(g_ui.widgets[rows[0]].h > 0, "and every row is back");
+}
+
 void
 test_debug_overlay(void)
 {
@@ -855,4 +1092,8 @@ test_debug_overlay(void)
     test_debug_overlay_emit_pass();
     test_debug_overlay_hidden();
     test_debug_overlay_table();
+    test_debug_overlay_remove();
+    test_debug_overlay_tabs();
+    test_debug_overlay_button();
+    test_debug_overlay_panel_scroll();
 }

@@ -49,7 +49,23 @@
  */
 
 #define PLUGIN_LUA_MAX_SCRIPTS 16
-#define PLUGIN_LUA_MAX_CONFIG 16
+/*
+ * Config items one script may declare. The schema has to live in C for the
+ * life of the plugin -- the host holds it by pointer -- so it is copied into
+ * the fixed arrays below rather than left on the Lua heap, and this is what
+ * sizes them: 32 * 4 * PLUGIN_LUA_STR_MAX is ~12 KB of strings per script,
+ * ~196 KB across PLUGIN_LUA_MAX_SCRIPTS.
+ *
+ * Sized against a real port: RuneLite's Ground Items plugin, which
+ * script/plugins/ground_items.lua follows, carries 33 settings. At the 16 this
+ * used to be, that port silently lost ten of them and then failed at the first
+ * read of one, from inside a draw handler, several files from the declaration
+ * that was dropped. A script that declares more than this is now refused
+ * outright (PluginLua_AddScript), and must stay under TORIRS_PLUGIN_CONFIG_MAX
+ * as well -- the store the host keeps the VALUES in, which also has to hold
+ * whatever stray keys an older ini left behind.
+ */
+#define PLUGIN_LUA_MAX_CONFIG 32
 #define PLUGIN_LUA_STR_MAX 96
 /* Re-armed before every dispatch. Generous for real handlers -- the entity
  * highlighter's draw pass is a few hundred -- and fatal to a runaway loop. */
@@ -567,6 +583,31 @@ lua_draw_tile(lua_State* L)
     return 0;
 }
 
+/*
+ * Hull shape by name.
+ *
+ * A name rather than the enum's number because the number would have to be
+ * exported into every script's globals to be usable, and a script that got it
+ * wrong would silently draw the other shape. An unknown name raises instead,
+ * which is what makes a typo a message naming the shapes rather than a
+ * highlight that quietly stays square.
+ */
+static int
+lua_check_hull_shape(lua_State* L, int idx)
+{
+    char const* name;
+
+    if( lua_isnoneornil(L, idx) )
+        return TORIRS_PLUGIN_HULL_BOUNDS;
+
+    name = luaL_checkstring(L, idx);
+    if( strcmp(name, "bounds") == 0 )
+        return TORIRS_PLUGIN_HULL_BOUNDS;
+    if( strcmp(name, "mesh") == 0 )
+        return TORIRS_PLUGIN_HULL_MESH;
+    return luaL_error(L, "unknown hull shape '%s' (want \"bounds\" or \"mesh\")", name);
+}
+
 static int
 lua_draw_hull(lua_State* L)
 {
@@ -574,10 +615,11 @@ lua_draw_hull(lua_State* L)
     int const element_id = (int)luaL_checkinteger(L, 1);
     uint32_t const rgb = lua_check_color(L, 2);
     int const fill = (int)luaL_optinteger(L, 3, 0);
+    int const shape = lua_check_hull_shape(L, 4);
 
     if( !script->cur_surface )
         return luaL_error(L, "draw calls are only legal inside on_draw_world");
-    g_api->draw_hull(script->cur_ctx, script->cur_surface, element_id, rgb, fill);
+    g_api->draw_hull(script->cur_ctx, script->cur_surface, element_id, rgb, fill, shape);
     return 0;
 }
 
@@ -729,6 +771,25 @@ lua_api_asset_release(lua_State* L)
     struct LuaScript* script = lua_upvalue_script(L);
     g_api->asset_release(script->cur_ctx, luaL_checkstring(L, 1));
     return 0;
+}
+
+/* -- screenshots --
+ *
+ * api.screenshot(name [, dir]). The destination is the SECOND argument and
+ * optional, because the common call is `api.screenshot(filename)` and the
+ * directory is a config value a plugin passes through unchanged when it has
+ * one -- `api.screenshot(name, api.config.destination)` reads correctly even
+ * when the key is empty, which is what the default has to be for the browser
+ * lane. */
+static int
+lua_api_screenshot(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* name = luaL_checkstring(L, 1);
+    char const* dir = luaL_optstring(L, 2, NULL);
+
+    lua_pushboolean(L, g_api->screenshot(script->cur_ctx, dir, name));
+    return 1;
 }
 
 /* -- world objects -- */
@@ -964,6 +1025,7 @@ lua_build_api_table(struct LuaScript* script)
         { "asset_data", lua_api_asset_data },
         { "asset_save", lua_api_asset_save },
         { "asset_release", lua_api_asset_release },
+        { "screenshot", lua_api_screenshot },
         { "object_create", lua_api_object_create },
         { "object_destroy", lua_api_object_destroy },
         { "object_model", lua_api_object_model },
@@ -1125,6 +1187,8 @@ static char const* const LUA_HANDLER_NAME[TORIRS_PLUGIN_EV_COUNT] = {
     [TORIRS_PLUGIN_EV_OBJ_COUNT] = "on_obj_count",
     [TORIRS_PLUGIN_EV_OBJ_DESPAWN] = "on_obj_despawn",
     [TORIRS_PLUGIN_EV_ASSET] = "on_asset",
+    [TORIRS_PLUGIN_EV_CHAT_MESSAGE] = "on_chat_message",
+    [TORIRS_PLUGIN_EV_GAME_EVENT] = "on_game_event",
 };
 
 /* Push the event's second argument. Returns the number of arguments pushed. */
@@ -1192,6 +1256,32 @@ lua_push_event_arg(struct LuaScript* script, int event, void* payload)
         lua_setfield(L, -2, "size");
         lua_pushboolean(L, ev->ok);
         lua_setfield(L, -2, "ok");
+        return 1;
+    }
+    case TORIRS_PLUGIN_EV_CHAT_MESSAGE:
+    {
+        struct ToriRS_PluginEvChat const* ev = payload;
+        lua_createtable(L, 0, 3);
+        lua_pushinteger(L, ev->type);
+        lua_setfield(L, -2, "type");
+        lua_pushstring(L, ev->sender);
+        lua_setfield(L, -2, "sender");
+        lua_pushstring(L, ev->text);
+        lua_setfield(L, -2, "text");
+        return 1;
+    }
+    case TORIRS_PLUGIN_EV_GAME_EVENT:
+    {
+        struct ToriRS_PluginEvGameEvent const* ev = payload;
+        lua_createtable(L, 0, 4);
+        lua_pushstring(L, ev->kind ? ev->kind : "");
+        lua_setfield(L, -2, "kind");
+        lua_pushstring(L, ev->subject);
+        lua_setfield(L, -2, "subject");
+        lua_pushinteger(L, ev->value);
+        lua_setfield(L, -2, "value");
+        lua_pushstring(L, ev->text);
+        lua_setfield(L, -2, "text");
         return 1;
     }
     case TORIRS_PLUGIN_EV_PACKET_IN:
@@ -1558,6 +1648,24 @@ PluginLua_AddScript(
     if( lua_istable(L, -1) )
     {
         lua_Integer const n = luaL_len(L, -1);
+        /* Refused rather than truncated, for the reason PLUGIN_LUA_MAX_CONFIG
+         * gives: the seventeenth item used to vanish here and surface as a
+         * "was never declared" error thrown out of a handler much later, with
+         * nothing connecting the two. */
+        if( n > PLUGIN_LUA_MAX_CONFIG )
+        {
+            fprintf(
+                stderr,
+                "plugin: lua script '%s' declares %d config items; the limit "
+                "is %d. Refusing it rather than dropping the last %d in "
+                "silence.\n",
+                name,
+                (int)n,
+                PLUGIN_LUA_MAX_CONFIG,
+                (int)n - PLUGIN_LUA_MAX_CONFIG);
+            lua_script_release(script);
+            return -1;
+        }
         for( lua_Integer i = 1; i <= n && script->config_count < PLUGIN_LUA_MAX_CONFIG; i++ )
         {
             lua_rawgeti(L, -1, i);

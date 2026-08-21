@@ -18,7 +18,26 @@
 #include <stdint.h>
 
 #define TORIRS_PLUGIN_MAX 32
-#define TORIRS_PLUGIN_CONFIG_MAX 24
+/**
+ * Config slots one plugin's store may hold: its whole declared schema, PLUS
+ * any key an ini carried that the schema does not claim (a setting renamed
+ * between versions, or a section whose plugin has not loaded yet -- see
+ * PluginConfigSlot.schema_index). So this is deliberately LARGER than the
+ * schema ceiling a plugin is held to, and the difference is the headroom for
+ * those strays.
+ *
+ * The schema half of that pair is PLUGIN_LUA_MAX_CONFIG (32) for a script;
+ * PluginHost_Register refuses any def, C or Lua, whose schema does not fit
+ * here. Sized against the plugin this tree ports from -- RuneLite's Ground
+ * Items carries 33 settings -- rather than against the plugins that exist
+ * today, since it was the smaller of these two numbers that a real port hit
+ * first.
+ *
+ * The cost is fixed and paid whether or not a plugin uses it:
+ * sizeof(struct PluginConfigSlot) is 260, so the store is 40 * 260 = ~10 KB
+ * per plugin and ~333 KB across TORIRS_PLUGIN_MAX.
+ */
+#define TORIRS_PLUGIN_CONFIG_MAX 40
 #define TORIRS_PLUGIN_CONFIG_VALUE_MAX 192
 #define TORIRS_PLUGIN_SUBS_MAX 32
 /* Rows one menu build may carry routes for. Bounded by the menu itself. */
@@ -31,6 +50,8 @@
 #define TORIRS_PLUGIN_OBJECT_BUDGET 64
 /** Resident assets, across every plugin. */
 #define TORIRS_PLUGIN_ASSETS_MAX 32
+/** Longest screenshot destination a plugin may name, including separators. */
+#define TORIRS_PLUGIN_SCREENSHOT_DIR_MAX 192
 
 struct ToriRS_PluginHost;
 
@@ -72,7 +93,7 @@ struct ToriRS_PluginEngine
         int level,
         uint32_t rgb,
         int fill_alpha);
-    int (*draw_hull)(void* user, int element_id, uint32_t rgb, int fill_alpha);
+    int (*draw_hull)(void* user, int element_id, uint32_t rgb, int fill_alpha, int shape);
     int (*draw_line)(void* user, int x0, int y0, int x1, int y1, uint32_t rgb);
     int (*draw_text)(void* user, int x, int y, char const* text, uint32_t rgb);
     int (*draw_rect)(
@@ -99,6 +120,11 @@ struct ToriRS_PluginEngine
      *  is replaced the moment asset_save returns and cannot be borrowed for
      *  the lifetime of an async write. */
     int (*asset_write)(void* user, char const* plugin, char const* name, void const* data, int size);
+
+    /** Record a deferred frame capture. `dir` is NULL or "" for the plugin's
+     *  own saved-asset directory. Returns 1 when the request was accepted; the
+     *  engine takes it at the end of the frame and writes the PNG itself. */
+    int (*screenshot)(void* user, char const* plugin, char const* dir, char const* name);
 
     /* World objects. Handles are the engine's; the host records who owns each
      * one so a stopped plugin's objects leave the scene with it. */
@@ -180,6 +206,22 @@ void PluginHost_WorldLoaded(struct ToriRS_PluginHost* host, int base_tile_x, int
 void PluginHost_NpcSpawn(struct ToriRS_PluginHost* host, struct ToriRS_PluginNpcSnap const* npc);
 void PluginHost_NpcRetype(struct ToriRS_PluginHost* host, struct ToriRS_PluginNpcSnap const* npc);
 void PluginHost_NpcDespawn(struct ToriRS_PluginHost* host, struct ToriRS_PluginNpcSnap const* npc);
+
+/** A chat line landed. `sender` may be NULL for a system message. */
+void PluginHost_ChatMessage(
+    struct ToriRS_PluginHost* host,
+    int type,
+    char const* sender,
+    char const* text);
+
+/** A recognised notable moment. `kind` is the recogniser's stable name and
+ *  must not be NULL; `subject` and `text` may be. */
+void PluginHost_GameEvent(
+    struct ToriRS_PluginHost* host,
+    char const* kind,
+    char const* subject,
+    int value,
+    char const* text);
 
 void PluginHost_ObjSpawn(struct ToriRS_PluginHost* host, struct ToriRS_PluginObjSnap const* obj);
 void PluginHost_ObjCount(struct ToriRS_PluginHost* host, struct ToriRS_PluginObjSnap const* obj);

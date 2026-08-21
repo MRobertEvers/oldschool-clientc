@@ -56,6 +56,11 @@ struct FakeEngine
     char last_asset_name[64];
     char last_written[128];
     int last_written_size;
+    /* Screenshots: the host validates the name and the destination, so the
+     * engine only has to record what got through. */
+    int screenshots;
+    char last_shot_dir[192];
+    char last_shot_name[64];
     struct FakeObject objects[FAKE_OBJECTS_MAX];
     int objects_live;
 };
@@ -146,13 +151,18 @@ fake_draw_tile(void* u, int a, int b, int c, uint32_t d, int e)
     g_engine.draw_items += 5;
     return 5;
 }
+/* The shape a plugin asked for, so the test can prove it survives the trip
+ * through the api rather than being dropped on the way to the engine -- which
+ * is silent otherwise: the wrong shape still draws an outline. */
+static int g_hull_shape;
 static int
-fake_draw_hull(void* u, int a, uint32_t b, int c)
+fake_draw_hull(void* u, int a, uint32_t b, int c, int d)
 {
     (void)u;
     (void)a;
     (void)b;
     (void)c;
+    g_hull_shape = d;
     g_engine.draw_items += 3;
     return 3;
 }
@@ -234,6 +244,17 @@ fake_asset_write(void* u, char const* plugin, char const* name, void const* data
         "%.*s",
         size < (int)sizeof(e->last_written) - 1 ? size : (int)sizeof(e->last_written) - 1,
         (char const*)data);
+    return 1;
+}
+
+static int
+fake_screenshot(void* u, char const* plugin, char const* dir, char const* name)
+{
+    struct FakeEngine* e = u;
+    (void)plugin;
+    e->screenshots++;
+    snprintf(e->last_shot_dir, sizeof(e->last_shot_dir), "%s", dir ? dir : "");
+    snprintf(e->last_shot_name, sizeof(e->last_shot_name), "%s", name);
     return 1;
 }
 
@@ -381,6 +402,7 @@ fake_engine(void)
     e.obj_next = fake_obj_next;
     e.asset_read = fake_asset_read;
     e.asset_write = fake_asset_write;
+    e.screenshot = fake_screenshot;
     e.object_create = fake_object_create;
     e.object_destroy = fake_object_destroy;
     e.object_set_model = fake_object_set_model;
@@ -453,6 +475,7 @@ alpha_draw(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
 {
     (void)ud;
     struct ToriRS_PluginEvDraw* d = ev;
+    g_api->draw_hull(ctx, d->surface, 3, 0xff0000u, 0, TORIRS_PLUGIN_HULL_MESH);
     /* Well past the budget, to prove the host stops handing calls through. */
     for( int i = 0; i < 400; i++ )
         g_api->draw_tile(ctx, d->surface, 1, 1, 0, 0xffffffu, 0);
@@ -665,6 +688,9 @@ main(void)
         PluginHost_FrameStart(host, 1);
         PluginHost_DrawWorld(host);
         CHECK(g_engine.draw_items > 0, "draw calls reach the engine");
+        CHECK(
+            g_hull_shape == TORIRS_PLUGIN_HULL_MESH,
+            "the hull shape a plugin asked for reaches the engine");
         CHECK(
             g_engine.draw_items <= TORIRS_PLUGIN_DRAW_BUDGET + 8,
             "the per-frame draw budget is enforced");

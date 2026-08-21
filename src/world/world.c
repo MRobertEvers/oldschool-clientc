@@ -222,6 +222,36 @@ World_TerrainDrawLevel(
 }
 
 /*
+ * Mesh level -> the level that mesh is walked from.
+ *
+ * A terrain pick hands back the plane the floor was AUTHORED on, and on a
+ * LinkBelow column that is one above the plane the player standing on it walks:
+ * the deck is cache level 1, the player is level 0. Anything that takes that
+ * hit and speaks the wire — an entity position, a height sample, the tile a
+ * plugin draws a marker on — has to come back down first, or it lands a storey
+ * out. Feeding a raw mesh level to app_world_height is the loud case: that
+ * function adds the bridge's +1 itself, so the double shift samples level 2 and
+ * the marker floats 240 units over the deck.
+ *
+ * VIS_BELOW is not part of this and must not be: it lowers the level a mesh is
+ * culled and picked against (World_TerrainDrawLevel) and leaves the geometry —
+ * and the player — on their own plane.
+ */
+int
+World_TerrainWalkLevel(
+    struct World const* world,
+    int x,
+    int z,
+    int mesh_level)
+{
+    if( mesh_level <= 0 || mesh_level >= WORLD_MAP_TERRAIN_LEVELS )
+        return mesh_level;
+    if( !world_column_link_below(world, x, z) )
+        return mesh_level;
+    return mesh_level - 1;
+}
+
+/*
  * Debug readouts of a column, shared so the minimenu row and the loc editor
  * panel cannot describe the same tile differently.
  *

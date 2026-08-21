@@ -711,12 +711,31 @@ test_bridge_levels(void)
     TEST_ASSERT(World_LocPaintLevel(world, bx, bz, World_LocCacheLevel(world, bx, bz, 0)) == 0,
                 "a walked-level-0 loc paints back on level 0");
 
+    /* Pick: a terrain hit carries the mesh level, and coming back down is what
+     * lets it be handed to anything that speaks the wire. The deck's mesh is
+     * cache 1 and the player standing on it is level 0 — get this backwards and
+     * app_world_height adds the bridge's +1 to an already-shifted level and
+     * samples cache 2, a whole storey of air above the deck. */
+    TEST_ASSERT(World_TerrainWalkLevel(world, bx, bz, 1) == 0, "the deck mesh is walked from 0");
+    TEST_ASSERT(World_TerrainWalkLevel(world, bx, bz, 3) == 2, "bridge mesh 3 is walked from 2");
+    TEST_ASSERT(World_TerrainWalkLevel(world, bx, bz, World_LocCacheLevel(world, bx, bz, 0)) == 0,
+                "walk level -> cache level -> walk level is the identity");
+
+    /* VIS_BELOW draws a mesh from level 0 and walks it from its own plane, so
+     * the walk conversion must not borrow the draw level's answer. */
+    world->tile_flags[flat_x + flat_z * 64 + 2 * 64 * 64] = 0x08;
+    TEST_ASSERT(World_TerrainDrawLevel(world, flat_x, flat_z, 2) == 0, "vis-below draws at 0");
+    TEST_ASSERT(World_TerrainWalkLevel(world, flat_x, flat_z, 2) == 2, "vis-below is walked at 2");
+    world->tile_flags[flat_x + flat_z * 64 + 2 * 64 * 64] = 0;
+
     for( int level = 0; level < WORLD_MAP_TERRAIN_LEVELS; level++ )
     {
         TEST_ASSERT(World_LocPaintLevel(world, flat_x, flat_z, level) == level,
                     "no bridge, no paint shift");
         TEST_ASSERT(World_LocCacheLevel(world, flat_x, flat_z, level) == level,
                     "no bridge, no wire shift");
+        TEST_ASSERT(World_TerrainWalkLevel(world, flat_x, flat_z, level) == level,
+                    "no bridge, no walk shift");
     }
 
     World_Free(world);

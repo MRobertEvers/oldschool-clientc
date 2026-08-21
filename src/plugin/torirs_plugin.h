@@ -24,7 +24,7 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 3
+#define TORIRS_PLUGIN_ABI 4
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 #define TORIRS_PLUGIN_MENU_ROWS_MAX 16
@@ -87,6 +87,11 @@ enum ToriRS_PluginEvent
     TORIRS_PLUGIN_EV_OBJ_DESPAWN,
     /** An api->asset_load finished, either way. Payload: EvAsset. */
     TORIRS_PLUGIN_EV_ASSET,
+    /** A line reached the chatbox. Payload: EvChat. */
+    TORIRS_PLUGIN_EV_CHAT_MESSAGE,
+    /** A notable moment the client recognised -- a level-up, a quest
+     *  completion, a valuable drop, a boss kill. Payload: EvGameEvent. */
+    TORIRS_PLUGIN_EV_GAME_EVENT,
 
     TORIRS_PLUGIN_EV_COUNT
 };
@@ -316,6 +321,45 @@ struct ToriRS_PluginEvObj
     struct ToriRS_PluginObjSnap obj;
 };
 
+struct ToriRS_PluginEvChat
+{
+    /** enum RS_ChatMessageType, as it arrived on the wire: 0 game, 2 public,
+     *  3 private-from, and so on. */
+    int type;
+    /** Who said it, or "" for a system line. */
+    char sender[64];
+    /** The line, exactly as the chatbox holds it -- colour tags included. The
+     *  recognised events below arrive with those stripped; this one does not,
+     *  because a plugin reading raw chat may well care about them. */
+    char text[200];
+};
+
+/*
+ * One notable moment.
+ *
+ * `kind` is a STRING rather than an enum, and that is deliberate: the
+ * recogniser (game/rs_game_events.c) already owns the list, a second copy in
+ * this header would be a second thing to keep in step, and a plugin's config
+ * lists these by name anyway ("screenshot on: level_up, boss_kill"). A kind
+ * added to the recogniser reaches every plugin without touching the ABI.
+ */
+struct ToriRS_PluginEvGameEvent
+{
+    /** Stable lowercase name: "level_up", "quest_complete", "valuable_drop",
+     *  "untradeable_drop", "boss_kill", "pet", "collection_log",
+     *  "combat_achievement", "death", "treasure_trail", "duel_end". Never
+     *  NULL, and valid for this dispatch only. */
+    char const* kind;
+    /** The skill, boss, quest or item this is about; "" when the moment names
+     *  nothing (a pet drop never says which pet). */
+    char subject[64];
+    /** New level / kill count / coin value, or -1 when the kind carries none. */
+    int value;
+    /** The line it was recognised from, markup stripped. Empty for a level-up,
+     *  which comes from UPDATE_STAT and has no sentence behind it. */
+    char text[200];
+};
+
 struct ToriRS_PluginEvAsset
 {
     /** The name passed to api->asset_load. Valid for this dispatch only. */
@@ -387,6 +431,31 @@ enum ToriRS_PluginModelSource
     TORIRS_PLUGIN_MODEL_SPOTANIM
 };
 
+/**
+ * What draw_hull wraps.
+ *
+ * The two differ in what they measure, not in how carefully they draw. BOUNDS
+ * is the model's bounds cylinder, which has one radius for every horizontal
+ * direction: a thing with anything sticking out -- a halberd, a cape, a wing
+ * -- is wrapped at that reach on all four sides, so on screen it is a box
+ * around the entity rather than an outline of it. That is the right shape when
+ * what is being marked is the entity's PRESENCE (it never disappears, it never
+ * cuts into the model, and it costs eight projections however dense the mesh),
+ * and the wrong one when the outline is meant to read as the entity's own
+ * edge.
+ *
+ * MESH hulls the posed vertices themselves, which is that edge, at one
+ * projection per vertex per frame. Prefer it for a few marked entities;
+ * BOUNDS stays the default and the sane choice for marking a crowd.
+ */
+enum ToriRS_PluginHullShape
+{
+    /** The bounds cylinder as an eight-corner box. Fixed cost. */
+    TORIRS_PLUGIN_HULL_BOUNDS = 0,
+    /** The model's own posed geometry: tight, and linear in the mesh. */
+    TORIRS_PLUGIN_HULL_MESH = 1
+};
+
 /* ------------------------------------------------------------------------ */
 /* The api table                                                             */
 /* ------------------------------------------------------------------------ */
@@ -437,7 +506,11 @@ struct ToriRS_PluginApi
     /** The tile under the mouse pointer, ABSOLUTE, as the last rendered frame
      *  picked it -- the same tile the client's own click paths would act on.
      *  Returns 0, leaving the outputs untouched, when the pointer is outside
-     *  the world viewport or over no terrain at all. */
+     *  the world viewport or over no terrain at all.
+     *
+     *  `*out_level` is the WALKED level, the one every other level in this api
+     *  is: on a bridge deck it is the plane the player standing there is on,
+     *  not the plane the map authored the floor on. */
     int (*hover_tile)(
         struct ToriRS_PluginCtx* ctx,
         int* out_tile_x,
@@ -492,14 +565,16 @@ struct ToriRS_PluginApi
         int level,
         uint32_t rgb,
         int fill_alpha);
-    /** Convex hull of a scene element's bounds cylinder: the silhouette that
-     *  wraps the model in three dimensions. */
+    /** Convex hull of a scene element: the silhouette that wraps the model in
+     *  three dimensions. `shape` picks what is hulled -- see
+     *  ToriRS_PluginHullShape. */
     void (*draw_hull)(
         struct ToriRS_PluginCtx* ctx,
         void* surface,
         int element_id,
         uint32_t rgb,
-        int fill_alpha);
+        int fill_alpha,
+        int shape);
     void (*draw_line)(
         struct ToriRS_PluginCtx* ctx,
         void* surface,
@@ -565,6 +640,31 @@ struct ToriRS_PluginApi
         int size);
     /** Drop the resident copy. The file is untouched. */
     void (*asset_release)(struct ToriRS_PluginCtx* ctx, char const* name);
+
+    /* -- screenshots --
+     *
+     * Capture the client's own frame and write it out as a PNG.
+     *
+     * DEFERRED, not immediate: the request is recorded and taken at the end of
+     * the frame that asked for it, once the interface has been laid out again.
+     * Every caller is inside a handler that runs BEFORE that -- a game event
+     * is recognised while the packet is being executed -- so capturing on the
+     * spot would photograph the frame before the level-up box, the quest
+     * scroll or the drop existed. A plugin that wants the moment to settle
+     * further counts ticks of its own and calls this later.
+     *
+     * `dir` is the one place the asset sandbox does not apply, and the reason
+     * is that a screenshot is the user's, not the plugin's: it is write-only,
+     * of pixels they are already looking at, and the destination comes from a
+     * config key THEY typed. `..` is still refused, so a plugin cannot climb
+     * out of a directory the user named. NULL or "" means the plugin's own
+     * saved-asset directory, which is the only destination the browser lane
+     * can write to and therefore the only sane default.
+     *
+     * `name` is a bare filename; the host appends ".png" when it has no
+     * extension. Returns 1 when the capture was queued.
+     */
+    int (*screenshot)(struct ToriRS_PluginCtx* ctx, char const* dir, char const* name);
 
     /* -- world objects --
      *
