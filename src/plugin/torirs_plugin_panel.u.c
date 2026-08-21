@@ -1,11 +1,18 @@
 /*
  * The plugin window.
  *
- * One window, tabbed: the first tab is the roster -- every plugin, its switch
- * and its last fault -- and every plugin that asked for one gets a tab of its
- * own holding its settings and whatever controls it declared. That is the
- * sandbox rule in the plan made concrete: plugins share ONE extra window, and
- * api->win_request claims a tab in it rather than a window of its own.
+ * One window, PAGED: the roster lists every plugin as a row carrying its
+ * switch, its last fault and a way into its own page, and that page holds its
+ * settings and whatever controls it declared. That is the sandbox rule in the
+ * plan made concrete: plugins share ONE extra window, and api->win_request
+ * claims a page in it rather than a window of its own.
+ *
+ * Pages rather than a tab per plugin, which is what this was first: a strip
+ * lays its destinations out across one row, so eight plugins already compress
+ * their captions past reading and the ninth has nowhere to go. A list scrolls
+ * to any length, and a row has room for the switch as well as the name --
+ * which is how RuneLite's plugin panel answers the same problem, and why this
+ * borrows its navigation while drawing in the game's own chrome.
  *
  * Two kinds of row live on a plugin's tab and they behave differently on
  * purpose:
@@ -39,6 +46,32 @@
  * The pool is reset once per panel rebuild, so the slices live exactly as long
  * as the widgets pointing into them.
  */
+/** Debug clock for TORIRS_CHROME_DEBUG traces: counts panel ticks. */
+static int g_plugin_panel_ticks;
+
+/*
+ * Which page the window is showing: -1 is the roster, otherwise the plugin
+ * whose settings are open.
+ *
+ * PAGES, not tabs. A tab strip is a fixed set of destinations laid out across
+ * one row, which is the wrong shape for a roster that grows with every plugin
+ * installed: eight of them already compress their captions past reading, and
+ * the strip has nowhere to put the ninth. RuneLite's plugin panel answers the
+ * same problem the same way -- a scrolling list of rows, each with its switch,
+ * and a drill-down into the one you asked about -- so that is the navigation
+ * this uses, drawn in the game's own chrome.
+ *
+ * File-static rather than App state because it is this window's own view
+ * state: nothing outside these functions can act on it, and the plugin host
+ * has no opinion about which page is up.
+ */
+static int g_plugin_page = -1;
+/** The page the widgets on screen were built for; a mismatch rebuilds. */
+static int g_plugin_page_built = -1;
+/** Handle of the page's Back button, or -1 on the roster. It belongs to no
+ *  plugin, so it is remembered here rather than tracked as a row. */
+static int g_plugin_back_widget = -1;
+
 static char const* const*
 app_plugin_choices_add(struct App* app, char const* choices, int* out_count)
 {
@@ -88,13 +121,13 @@ app_plugin_choices_add(struct App* app, char const* choices, int* out_count)
 static char const*
 app_plugin_dropdown_value(struct App* app, int widget)
 {
-    struct ToriDbgWidget const* w;
+    struct ToriRSChromeWidget const* w;
     int sel;
 
     if( widget < 0 || widget >= app->plugin_ui.widget_count )
         return NULL;
     w = &app->plugin_ui.widgets[widget];
-    if( w->kind != TORIDBG_W_DROPDOWN || !w->options )
+    if( w->kind != TORIRS_CHROME_W_DROPDOWN || !w->options )
         return NULL;
     sel = ToriRSChrome_DropdownSelected(&app->plugin_ui, widget);
     if( sel < 0 || sel >= w->option_count )
@@ -112,6 +145,32 @@ app_plugin_choice_index(char const* const* choices, int count, char const* value
         if( strcmp(choices[i], value) == 0 )
             return i;
     return -1;
+}
+
+/**
+ * Does this plugin have a page worth opening -- settings to edit, or controls
+ * it declared itself?
+ *
+ * A key with NO LABEL does not count: those are state the plugin persists for
+ * itself (the highlighter's tag list), not something to hand-edit, and a row
+ * offering a page that turns out to be empty is worse than one that offers
+ * nothing.
+ */
+static int
+app_plugin_has_page(struct App* app, int plugin)
+{
+    int const cfg_count = PluginHost_ConfigCount(app->plugins, plugin);
+
+    if( PluginHost_WinWidgetCount(app->plugins, plugin) > 0 )
+        return 1;
+    for( int c = 0; c < cfg_count; c++ )
+    {
+        struct ToriRS_PluginConfigItem const* item =
+            PluginHost_ConfigItem(app->plugins, plugin, c);
+        if( item && item->label )
+            return 1;
+    }
+    return 0;
 }
 
 /* Value shown for a config key: the store's own string, so what the panel
@@ -162,11 +221,11 @@ app_plugin_panel_load_row(struct App* app, struct AppPluginPanelRow const* row)
     }
     else if( item->type == TORIRS_PLUGIN_CFG_ENUM &&
              row->widget < app->plugin_ui.widget_count &&
-             app->plugin_ui.widgets[row->widget].kind == TORIDBG_W_DROPDOWN )
+             app->plugin_ui.widgets[row->widget].kind == TORIRS_CHROME_W_DROPDOWN )
     {
         /* A dropdown reverts by SELECTION, not by text: setting its text would
          * write a field it does not draw and leave the visible choice alone. */
-        struct ToriDbgWidget const* w = &app->plugin_ui.widgets[row->widget];
+        struct ToriRSChromeWidget const* w = &app->plugin_ui.widgets[row->widget];
         ToriRSChrome_DropdownSetSelected(
             &app->plugin_ui,
             row->widget,
@@ -202,7 +261,6 @@ app_plugin_panel_sync(struct App* app)
 {
     int count;
     int rev;
-    int tab;
 
     assert(app);
     if( !app->plugins )
@@ -210,7 +268,8 @@ app_plugin_panel_sync(struct App* app)
 
     count = PluginHost_Count(app->plugins);
     rev = PluginHost_WinRevision(app->plugins);
-    if( app->plugin_panel_built_for == count && app->plugin_panel_built_rev == rev )
+    if( app->plugin_panel_built_for == count && app->plugin_panel_built_rev == rev &&
+        g_plugin_page_built == g_plugin_page )
         return;
 
     if( app->plugin_panel < 0 )
@@ -228,7 +287,7 @@ app_plugin_panel_sync(struct App* app)
          */
         int const scale = ToriRSChrome_Scale(&app->plugin_ui);
         app->plugin_panel = ToriRSChrome_PanelAdd(
-            &app->plugin_ui, TORIDBG_PANEL_WINDOW, 8 * scale, 72 * scale, 320 * scale,
+            &app->plugin_ui, TORIRS_CHROME_PANEL_WINDOW, 8 * scale, 72 * scale, 320 * scale,
             "Plugins");
         if( app->plugin_panel < 0 )
             return;
@@ -257,83 +316,71 @@ app_plugin_panel_sync(struct App* app)
     for( int p = 0; p < count; p++ )
         PluginHost_WinBuild(app->plugins, p);
 
+    /* A page that named a plugin the host no longer has is a page with nothing
+     * to build; the roster is the honest answer to that. */
+    if( g_plugin_page >= count )
+        g_plugin_page = -1;
+
+    /* The title says where you are, the way a page's own header would -- there
+     * is no tab strip to say it any more. */
+    ToriRSChrome_PanelSetTitle(
+        &app->plugin_ui, app->plugin_panel,
+        g_plugin_page < 0 ? "Plugins" : PluginHost_Name(app->plugins, g_plugin_page));
+
     ToriRSChrome_PanelClearWidgets(&app->plugin_ui, app->plugin_panel);
+    g_plugin_back_widget = -1;
     app->plugin_panel_row_count = 0;
     /* Reset with the widgets that point into it -- the slices handed out below
      * must live exactly as long as the row set they belong to. */
     app->plugin_choice_count = 0;
 
-    /* The tab strip: the roster, then one per plugin that asked for a tab. The
-     * titles are borrowed by the strip, so they live in App state. */
-    app->plugin_tab_count = 0;
-    snprintf(app->plugin_tab_titles[0], sizeof(app->plugin_tab_titles[0]), "Plugins");
-    app->plugin_tab_owner[0] = -1;
-    app->plugin_tab_count = 1;
-    for( int p = 0; p < count && app->plugin_tab_count < TORIRS_PLUGIN_MAX; p++ )
+    /* ---- the roster page -------------------------------------------------- */
+
+    if( g_plugin_page < 0 )
     {
-        char const* title;
-        if( !PluginHost_WinHasTab(app->plugins, p) )
-            continue;
-        title = PluginHost_WinTabTitle(app->plugins, p);
-        snprintf(
-            app->plugin_tab_titles[app->plugin_tab_count],
-            sizeof(app->plugin_tab_titles[0]),
-            "%s",
-            title[0] ? title : PluginHost_Name(app->plugins, p));
-        app->plugin_tab_owner[app->plugin_tab_count] = p;
-        app->plugin_tab_count++;
-    }
-    for( int i = 0; i < app->plugin_tab_count; i++ )
-        app->plugin_tab_title_ptrs[i] = app->plugin_tab_titles[i];
-
-    app->plugin_panel_tabs = ToriRSChrome_Tabs(
-        &app->plugin_ui,
-        app->plugin_panel,
-        app->plugin_tab_title_ptrs,
-        app->plugin_tab_count,
-        ToriRSChrome_PanelActiveTab(&app->plugin_ui, app->plugin_panel));
-
-    /* ---- tab 0: the roster ------------------------------------------------ */
-
-    ToriRSChrome_PanelBeginTab(&app->plugin_ui, app->plugin_panel, 0);
-    for( int p = 0; p < count; p++ )
-    {
-        char label[TORIDBG_INPUT_MAX];
-        char const* err = PluginHost_Error(app->plugins, p);
-
-        snprintf(label, sizeof(label), "%s", PluginHost_Name(app->plugins, p));
-        app_plugin_panel_track(
-            app,
-            ToriRSChrome_Checkbox(
-                &app->plugin_ui,
-                app->plugin_panel,
-                label,
-                PluginHost_IsEnabled(app->plugins, p) ? 1 : 0),
-            p,
-            APP_PLUGIN_ROW_ENABLE,
-            -1,
-            NULL);
-
-        /* A script that faulted says so where its switch is, rather than only
-         * in a log nobody has open. */
-        if( err )
+        for( int p = 0; p < count; p++ )
         {
-            snprintf(label, sizeof(label), "  ! %s", err);
-            ToriRSChrome_LabelColored(
-                &app->plugin_ui, app->plugin_panel, label, 0xFFCC5555u);
+            char label[TORIRS_CHROME_INPUT_MAX];
+            char const* err = PluginHost_Error(app->plugins, p);
+
+            snprintf(label, sizeof(label), "%s", PluginHost_Name(app->plugins, p));
+            app_plugin_panel_track(
+                app,
+                ToriRSChrome_ListRow(
+                    &app->plugin_ui,
+                    app->plugin_panel,
+                    label,
+                    PluginHost_IsEnabled(app->plugins, p) ? 1 : 0,
+                    app_plugin_has_page(app, p)),
+                p,
+                APP_PLUGIN_ROW_ENABLE,
+                -1,
+                NULL);
+
+            /* A script that faulted says so where its switch is, rather than
+             * only in a log nobody has open. */
+            if( err )
+            {
+                snprintf(label, sizeof(label), "  ! %s", err);
+                ToriRSChrome_LabelColored(
+                    &app->plugin_ui, app->plugin_panel, label, 0xFFCC5555u);
+            }
         }
     }
-
-    /* ---- one tab per plugin ----------------------------------------------- */
-
-    for( tab = 1; tab < app->plugin_tab_count; tab++ )
+    /* ---- one plugin's page ------------------------------------------------ */
+    else
     {
-        int const p = app->plugin_tab_owner[tab];
+        int const p = g_plugin_page;
         int const cfg_count = PluginHost_ConfigCount(app->plugins, p);
         int const win_count = PluginHost_WinWidgetCount(app->plugins, p);
         int has_settings = 0;
 
-        ToriRSChrome_PanelBeginTab(&app->plugin_ui, app->plugin_panel, tab);
+        /* Back first, so the way out is the first thing on the page and in the
+         * same place on every page. Its handle is remembered rather than
+         * tracked as a row: it belongs to no plugin. */
+        g_plugin_back_widget =
+            ToriRSChrome_Button(&app->plugin_ui, app->plugin_panel, "< Plugins");
+        ToriRSChrome_Separator(&app->plugin_ui, app->plugin_panel);
 
         for( int c = 0; c < cfg_count; c++ )
         {
@@ -478,9 +525,9 @@ app_plugin_panel_sync(struct App* app)
         }
     }
 
-    ToriRSChrome_PanelBeginTab(&app->plugin_ui, app->plugin_panel, -1);
     app->plugin_panel_built_for = count;
     app->plugin_panel_built_rev = rev;
+    g_plugin_page_built = g_plugin_page;
 }
 
 /*
@@ -570,6 +617,14 @@ app_plugin_panel_revert(struct App* app, int plugin)
 static void
 app_plugin_panel_apply(struct App* app, int widget)
 {
+    /* The page's own navigation first: Back belongs to no plugin, so it is not
+     * in the row table the loop below walks. */
+    if( widget >= 0 && widget == g_plugin_back_widget )
+    {
+        g_plugin_page = -1;
+        return;
+    }
+
     for( int i = 0; i < app->plugin_panel_row_count; i++ )
     {
         struct AppPluginPanelRow const* row = &app->plugin_panel_rows[i];
@@ -581,6 +636,19 @@ app_plugin_panel_apply(struct App* app, int widget)
         case APP_PLUGIN_ROW_ENABLE:
         {
             int const on = ToriRSChrome_Checked(&app->plugin_ui, widget);
+
+            /*
+             * A roster row has two outcomes and the chrome says which one
+             * fired: the ACTION zone opens this plugin's page, the switch
+             * enables it. Asked of the model rather than inferred from the
+             * checked state, because "open" must not depend on whether the
+             * plugin happens to be on.
+             */
+            if( ToriRSChrome_ActivationWasAction(&app->plugin_ui) )
+            {
+                g_plugin_page = row->plugin;
+                return;
+            }
             PluginHost_SetEnabled(app->plugins, row->plugin, on != 0);
             /* Re-enabling clears the fault note: whatever it said was about
              * the run that just ended. */
@@ -694,57 +762,47 @@ app_plugin_panel_apply(struct App* app, int widget)
 /** Geometry read off the live strip: 30x30 icons on a 36px pitch. */
 #define APP_POPOUT_BTN 30
 #define APP_POPOUT_PITCH 36
-/**
- * `sideicons_interface_11` -- the wrench the game already uses for settings.
+/*
+ * The icon is TORIRS_CHROME_SKIN_PLUGIN_ICON, baked from `sideicons_interface_11` --
+ * the wrench the game already uses for settings.
  *
- * 19x28, so it sits in the strip's 30x30 slot at native size. That matters:
- * a UI sprite downscaled at draw time speckles, because the outline is baked
- * before the scale -- which is why `icon_tools` (3031), crossed hammer and axe
- * and the better metaphor, is the wrong answer at 62x54.
+ * Recorded here because the bake recipe cannot explain itself. It sits in the
+ * strip's 30x30 slot at close to native size, which matters: a UI sprite
+ * downscaled at draw time speckles, because the outline is baked before the
+ * scale -- which is why `icon_tools` (3031), crossed hammer and axe and the
+ * better metaphor, is the wrong answer at 62x54.
  *
  * The strip's own unused icons are branding letters (a red R, a blue B) and
  * say nothing; `sideicons_interface_22` is a cog but has a person in it and
  * reads as "account". A bare wrench is what this game already means by
  * "settings", so it needs no explaining.
  */
-#define APP_POPOUT_ICON 785
 /** `^clientscript_popout_layout` -- the strip's layout owner. */
 #define APP_POPOUT_LAYOUT_SCRIPT 5354
 
 /**
- * Scene sprite for a cache graphic id, REQUESTING the load if it is not here.
- *
- * UITreeSceneBridge_EnsureSprite only serves sprites the provider already
- * holds, and a provider only holds what something asked for. Every sprite on
- * screen was pulled in by the interface that references it, so an icon this
- * client picked out of the cache on its own has never been requested by
- * anybody: the first call returns -1 and the button draws nothing at all.
- *
- * So: ask, and let the next frame try again. That is the same
- * request-then-retry the world's own sprite path uses; the alternative is a
- * button that is silently blank on every cache whose interfaces happen not to
- * use this icon.
+ * Scene font for a cache font id, REQUESTING the load if it is not here --
+ * the same request-then-retry the sprite path above uses, for the same
+ * reason: the face the CS2 presentation sets its rows in (the interfaces' own
+ * p12) is usually resident by the time the window opens, but "usually" is a
+ * blank panel on the frame it is not.
  */
 static int
-app_plugin_button_sprite(void* ud, int graphic_id)
+app_plugin_chrome_font(void* ud, int cache_font_id)
 {
     struct App* app = ud;
-    struct ToriRS_Sprite* sprite;
     int scene_id;
 
-    if( graphic_id <= 0 )
+    if( cache_font_id < 0 )
         return -1;
-
-    sprite = CacheProvider_SpriteGet(app->provider, graphic_id);
-    if( !sprite || sprite->frame_count <= 0 )
+    scene_id = UITreeSceneBridge_EnsureFont(&app->bridge, cache_font_id);
+    if( scene_id < 0 )
     {
-        struct ToriRS_Task* task = CreateTask_SpriteLoad(app->provider, graphic_id);
+        struct ToriRS_Task* task = CreateTask_FontLoad(app->provider, cache_font_id);
         if( task )
             ToriRS_TaskQueue_Add(app->runner.queue, task);
-        return -1;
     }
-    scene_id = UITreeSceneBridge_EnsureSprite(&app->bridge, graphic_id);
-    return scene_id > 0 ? scene_id : -1;
+    return scene_id;
 }
 
 /** Is the button we added still in the tree? A gameframe rebuild takes it, and
@@ -766,36 +824,53 @@ app_plugin_button_sync(struct App* app)
     struct UIBuildComponent comp;
     int32_t buttons;
     int32_t node;
+    int icon;
 
     if( !app->tree || !ToriRSChrome_TreeAcceptsChrome(app->tree) )
         return;
     if( app_plugin_button_alive(app) )
         return;
 
-    /* Only once the gameframe has mounted the strip. Nothing offline can say
+    /*
+     * Only once the gameframe has mounted the strip. Nothing offline can say
      * when that is -- the server mounts 728 under the toplevel at login -- so
-     * the presence of the component IS the readiness test. */
+     * the presence of the component IS the readiness test.
+     *
+     * A gameframe with no strip therefore gets no button, and opens the window
+     * from the `plugin_panel_toggle` action a lane binds itself (see
+     * `manifest_osrs239_torirs.ini`). Floating a root here instead was tried
+     * and does not work: a root in the chrome group lays out at 0x0, so the
+     * button exists and is unclickable, which is worse than absent.
+     */
     buttons = UITree_FindByComponentId(app->tree, APP_POPOUT_BUTTONS);
     if( buttons < 0 )
         return;
 
-    /* Not until the icon is resolvable. Building the component first and
-     * letting the sprite arrive later would need the graphic patched in after
-     * the fact; the load is requested by the probe below, so this is one
-     * frame's wait and no extra machinery. */
-    if( app_plugin_button_sprite(app, APP_POPOUT_ICON) < 0 )
+    /*
+     * The wrench comes from the BAKED skin, so there is nothing to wait for
+     * and nothing to get wrong.
+     *
+     * It used to be cache graphic 785, which meant the button could not be
+     * built until that archive landed, and meant it drew whatever 785 happens
+     * to be on a cache that is not the OSRS one it was chosen from.
+     */
+    icon = UITreeSceneBridge_EnsureChromeSkin(&app->bridge);
+    if( icon <= 0 )
         return;
 
     memset(&comp, 0, sizeof(comp));
     comp.id = TORIRS_CHROME_PLUGIN_BUTTON_ID;
     comp.type = UIBUILD_GRAPHIC;
     comp.parent_id = -1;
-    comp.base_x = 0;
-    comp.base_y = APP_POPOUT_SLOT_PLUGINS * APP_POPOUT_PITCH;
     comp.base_width = APP_POPOUT_BTN;
     comp.base_height = APP_POPOUT_BTN;
+    /* A slot in the column: x is the parent's, y is the pitch. */
+    comp.base_x = 0;
+    comp.base_y = APP_POPOUT_SLOT_PLUGINS * APP_POPOUT_PITCH;
     comp.if3 = 1;
-    comp.graphic = APP_POPOUT_ICON;
+    comp.graphic = -1;
+    comp.graphic_scene_id = icon;
+    comp.graphic_atlas_index = TORIRS_CHROME_SKIN_PLUGIN_ICON;
     comp.graphic_active = -1;
     comp.model_active_id = -1;
     comp.model_seq_id = -1;
@@ -803,8 +878,7 @@ app_plugin_button_sync(struct App* app)
      * "Open"/"Close" the same way (script5356's cc_setop) and a launcher that
      * says nothing on hover is the one thing in the column that does not. */
     snprintf(comp.ops[0], sizeof(comp.ops[0]), "Show Plugin Settings");
-    node = UITree_PushBuildComponent(
-        app->tree, buttons, &comp, app_plugin_button_sprite, NULL, app);
+    node = UITree_PushBuildComponent(app->tree, buttons, &comp, NULL, NULL, app);
     if( node < 0 )
         return;
 
@@ -855,23 +929,60 @@ app_plugin_popout_relayout(struct App* app)
  *
  * @return 1 when the click was the Plugin button, so the caller stops.
  */
+/**
+ * Does the bound presentation live IN the gameframe's strip?
+ *
+ * Only the interface-tree one does. Every other executor has a surface of its
+ * own -- its own OS window, the page's DOM, the canvas -- so expanding the
+ * strip for it widens the game to make room for a panel that nothing will ever
+ * draw into, and leaves an empty brown column beside the real window.
+ */
+static int
+app_plugin_window_in_strip(struct App const* app)
+{
+    return app->plugin_exec_kind == TORIRS_CHROME_EXEC_CS2;
+}
+
+static void
+app_plugin_exec_bind(struct App* app);
+
 static void
 app_plugin_window_set_open(struct App* app, int open)
 {
+    if( getenv("TORIRS_CHROME_DEBUG") )
+        fprintf(
+            stderr, "chrome: plugin window set_open(%d) tick=%d\n", open ? 1 : 0,
+            g_plugin_panel_ticks);
     app->plugin_panel_visible = open ? 1 : 0;
     if( app->plugin_panel >= 0 )
         ToriRSChrome_PanelSetVisible(
             &app->plugin_ui, app->plugin_panel, app->plugin_panel_visible);
+
+    /*
+     * Bound here, not left to the tick below, because the answer decides
+     * whether the next few lines run at all -- and until an executor is bound
+     * `plugin_exec_kind` is only what was ASKED for, which for an unconfigured
+     * client is buffer right up until the strip default is applied.
+     *
+     * Still lazy in the way that matters: this runs on the frame the window
+     * opens, so a session that never opens it never binds and never opens a
+     * second OS window.
+     */
+    if( app->plugin_panel_visible )
+        app_plugin_exec_bind(app);
 
     if( !app->tree )
         return;
     if( UITree_FindByComponentId(app->tree, APP_POPOUT_CONTAINER) < 0 )
         return;
 
-    if( app->plugin_panel_visible )
+    if( app->plugin_panel_visible && app_plugin_window_in_strip(app) )
         UITree_InterfaceParentSet(
             app->tree, APP_POPOUT_CONTAINER, TORIRS_CHROME_CS2_GROUP, 1);
     else
+        /* Unconditional on the way down, including for an executor that never
+         * expanded it: an executor can change between opens, and a stranded
+         * registration is a strip stuck open around nothing. */
         UITree_InterfaceParentClear(app->tree, APP_POPOUT_CONTAINER);
     app_plugin_popout_relayout(app);
 }
@@ -900,10 +1011,8 @@ app_plugin_button_click(struct App* app, int component_id)
  * native executor all end at in-canvas chrome rather than at no chrome.
  */
 static void
-app_plugin_exec_bind(struct App* app)
+app_plugin_exec_bind_inner(struct App* app)
 {
-    if( app->plugin_exec.live )
-        return;
 
     /*
      * The CS2 executor is bound here rather than by the shell, because it is
@@ -911,54 +1020,32 @@ app_plugin_exec_bind(struct App* app)
      * a node to mount under, and both are the App's. The shell has neither,
      * which is why ToriRSChromeExec_ForKind answers "cs2" with the buffer
      * executor and leaves this to the only place that can.
-     *
-     * The main overlay slot is the mount: it is where the gameframe puts
-     * things that float over the world without taking the modal, which is
-     * exactly what a window a player opened beside the game is.
      */
     /*
-     * CS2 is the plugin window's presentation, not one option among five.
+     * The popout strip is the DEFAULT, not a lock.
      *
-     * The window belongs in the gameframe's popout strip beside XP Tracker and
-     * the rest, which means it has to BE interface components -- chrome drawn
-     * over the game would be a floating panel wherever the strip happened to
-     * expand to. So the strip's presence, not a config key, is what selects
-     * this: where there is a container to mount into, that is where the window
-     * goes. `[chrome] executor=` still picks among the others for a lane whose
-     * gameframe has no strip.
+     * The window belongs beside XP Tracker and the rest where a gameframe has
+     * a strip, so that is what an unconfigured client gets. But an earlier
+     * version of this line selected the strip whenever one existed, full stop,
+     * which made `[chrome] executor=` inert on every gameframe that has one --
+     * the setting was read, validated, and then thrown away. A default that
+     * cannot be overridden is not a default.
      */
-    if( app->tree && UITree_FindByComponentId(app->tree, APP_POPOUT_CONTAINER) >= 0 )
+    if( !app->plugin_exec_explicit && app->tree &&
+        UITree_FindByComponentId(app->tree, APP_POPOUT_CONTAINER) >= 0 )
         app->plugin_exec_kind = TORIRS_CHROME_EXEC_CS2;
 
     if( app->plugin_exec_kind == TORIRS_CHROME_EXEC_CS2 && app->tree )
     {
-        /*
-         * The main overlay slot if the layout declares one, the tree root if
-         * not.
-         *
-         * Not every gameframe has an overlay slot -- the rev-239 layout
-         * declares chat, main_modal and side_modal and no more -- and falling
-         * back to the root is honest rather than lucky: the root is what a
-         * floating window with no slot of its own belongs to, and it is the
-         * one node every tree has.
-         */
-        /*
-         * Mounted as its own ROOT (-1), not inside a slot.
-         *
-         * A slot was the obvious choice and is wrong twice over: not every
-         * gameframe declares an overlay slot (the rev-239 layout has chat,
-         * main_modal and side_modal and no more), and a panel inside the first
-         * root draws UNDER every later root -- so the gameframe covers it.
-         *
-         * A -1 parent appends a root after the existing ones and the emit walk
-         * takes roots in order, so the window lands on top of the game and
-         * under nothing. That is the same answer the in-canvas chrome gets from
-         * running its pass last, reached the interface tree's own way.
-         */
-        /* The game's own p12 body face, the one interface text is set in --
-         * asked of the bridge that uploaded it, because a scene font id is
-         * what a TEXT component needs and only the bridge knows it. */
-        int const font = UITreeSceneBridge_EnsureDebugFont(&app->bridge, TORIDBG_FONT_BODY);
+        /* The baked debug face is only the FALLBACK for the frames before the
+         * cache face lands: it is baked at the chrome scale, so on a HighDPI
+         * display it draws double-sized into interface pixels that the
+         * gameframe then scales again -- the giant-text look. The rows are set
+         * in the game's own p12 (below), resolved per build. */
+        int const font = UITreeSceneBridge_EnsureDebugFont(&app->bridge, TORIRS_CHROME_FONT_BODY);
+        /* The p12 body face, the one interface text is set in. */
+        int const p12 = app->cfg.cache_kind == APP_CACHE_DAT1 ? APP_FONT_P12_DAT1_SLOT
+                                                              : APP_FONT_P12_CACHE_ID;
         /*
          * Mounted INTO the strip's panel slot, not as a root of its own.
          *
@@ -970,7 +1057,12 @@ app_plugin_exec_bind(struct App* app)
          * window floating over the game.
          */
         int32_t const mount = UITree_FindByComponentId(app->tree, APP_POPOUT_CONTAINER);
-        struct ToriRSChromeExec cs2 = ToriRSChromeExec_Cs2(app->tree, mount, font);
+        /* Uploaded here rather than inside the executor: the skin is .rdata
+         * that has to become a scene sprite, and the bridge that owns the
+         * scene is the App's. Idempotent and cache-free. */
+        int const skin = UITreeSceneBridge_EnsureChromeSkin(&app->bridge);
+        struct ToriRSChromeExec cs2 =
+            ToriRSChromeExec_Cs2(app->tree, mount, font, p12, skin, app_plugin_chrome_font, app);
         if( mount < 0 )
         {
             /* No strip on this gameframe -- stay in the canvas rather than
@@ -1010,6 +1102,29 @@ app_plugin_exec_bind(struct App* app)
     }
 }
 
+static void
+app_plugin_exec_bind(struct App* app)
+{
+    if( app->plugin_exec.live )
+        return;
+    app_plugin_exec_bind_inner(app);
+    /*
+     * What actually got bound, which is not always what was asked for: an
+     * executor can refuse to start, and the strip's default can be stepped
+     * past. Wrapped rather than printed inside, because the selection has half
+     * a dozen exits and a line reached by only some of them reports the
+     * absence of a decision as the absence of a bind.
+     *
+     * Once per run -- the guard above makes this the frame the window first
+     * opens.
+     */
+    fprintf(
+        stderr,
+        "chrome: plugin window executor = %s (%s)\n",
+        ToriRSChromeExec_KindName(app->plugin_exec_kind),
+        app->plugin_exec_explicit ? "configured" : "default");
+}
+
 /*
  * Per-frame: the toggle, the lazy build, input, and one activation.
  *
@@ -1023,6 +1138,7 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
     assert(app);
     assert(input);
 
+    g_plugin_panel_ticks++;
     if( !app->plugins )
         return;
 
@@ -1031,20 +1147,90 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
     app_plugin_button_sync(app);
 
     /* Same suppression as every other chrome toggle: a focused chat line must
-     * not flip windows. */
-    if( !app_text_input_focused(app) &&
-        app_debug_key_down(app, input, APP_DEBUG_HOTKEY_PLUGIN_PANEL) )
+     * not flip windows.
+     *
+     * Latched on the key's own down/held STATE, not on the per-frame edge the
+     * other debug hotkeys use. This tick runs before App_RunOnce's early-outs
+     * -- deliberately, so the window works while a cache loads -- which means
+     * a frame withheld by the UI-transaction latch re-runs it against the SAME
+     * input frame, edge included. An edge-triggered toggle then fires once per
+     * re-run, and since each toggle queues the strip relayout that holds the
+     * latch, the window flaps open/shut for as long as the turbulence lasts --
+     * which is exactly what opening it causes, because the widened strip grows
+     * the canvas. */
     {
-        /* The same path the strip's button takes. Two entry points that opened
-         * the window two different ways is how one of them ends up not
-         * expanding the strip. */
-        app_plugin_window_set_open(app, !app->plugin_panel_visible);
+        static int toggle_was_down = 0;
+        int const down =
+            !app_text_input_focused(app) &&
+            (app_debug_key_down(app, input, APP_DEBUG_HOTKEY_PLUGIN_PANEL) ||
+             app_debug_key_held(app, input, APP_DEBUG_HOTKEY_PLUGIN_PANEL));
+        if( down && !toggle_was_down )
+        {
+            /* The same path the strip's button takes. Two entry points that
+             * opened the window two different ways is how one of them ends up
+             * not expanding the strip. */
+            app_plugin_window_set_open(app, !app->plugin_panel_visible);
+        }
+        toggle_was_down = down;
     }
 
     if( !app->plugin_panel_visible )
         return;
 
     app_plugin_exec_bind(app);
+
+    /*
+     * Keep the strip mount alive under an open window.
+     *
+     * A gameframe rebuild (a resize, a revconfig re-bake -- and opening this
+     * window CAUSES one, because the widened strip grows the canvas) can take
+     * either half of what set_open established: the InterfaceParent
+     * registration is wiped with the tree, and a relayout still queued at the
+     * tick fence is simply dropped. Both halves have the same symptom -- a
+     * collapsed strip around a window that is still open -- and either alone
+     * produces it, so the invariant watched here is the OUTCOME: registered
+     * and actually expanded. Notice-and-redeclare, exactly as the panel and
+     * the button do for their own nodes.
+     *
+     * The relayout is rate-limited: clientscript 5354 is ~145k opcodes, and
+     * the strip legitimately spends a frame or two at width 0 between the ask
+     * and the layout pass that answers it.
+     */
+    if( app->tree && app_plugin_window_in_strip(app) )
+    {
+        static int relayout_cooldown = 0;
+        int32_t const container =
+            UITree_FindByComponentId(app->tree, APP_POPOUT_CONTAINER);
+
+        if( relayout_cooldown > 0 )
+            relayout_cooldown--;
+        if( container >= 0 )
+        {
+            int const registered =
+                UITree_InterfaceParentFind(app->tree, APP_POPOUT_CONTAINER) >= 0;
+            /* Expanded is judged by the strip's measured on-screen width --
+             * the same measurement the fixed-mode canvas grows by -- not by
+             * the container's own box, which keeps a size while hidden. The
+             * collapsed strip is its 42px icon column. */
+            int const strip_w = App_MeasureRightChromeStripWidth(app);
+            int const expanded = strip_w > 2 * APP_POPOUT_BTN;
+
+            if( !registered )
+                UITree_InterfaceParentSet(
+                    app->tree, APP_POPOUT_CONTAINER, TORIRS_CHROME_CS2_GROUP, 1);
+            if( (!registered || !expanded) && relayout_cooldown == 0 )
+            {
+                if( getenv("TORIRS_CHROME_DEBUG") )
+                    fprintf(
+                        stderr,
+                        "chrome: strip %s (w=%d); re-running layout\n",
+                        registered ? "collapsed" : "lost to a tree rebuild",
+                        strip_w);
+                app_plugin_popout_relayout(app);
+                relayout_cooldown = 30;
+            }
+        }
+    }
 
     /* Scripts register asynchronously, so the list can still be growing the
      * first few frames the window is open. */
@@ -1074,7 +1260,7 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
                     &app->plugin_ui, gesture.mouse_x, gesture.mouse_y, gesture.wheel);
             for( int i = 0; gesture.text[i]; i++ )
                 ToriRSChrome_KeyChar(&app->plugin_ui, (unsigned char)gesture.text[i]);
-            if( gesture.edit_key != TORIDBG_KEY_NONE )
+            if( gesture.edit_key != TORIRS_CHROME_KEY_NONE )
                 ToriRSChrome_KeyEdit(&app->plugin_ui, gesture.edit_key);
         }
     }
@@ -1083,8 +1269,18 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
         /* Its own instance, so its own routing -- and no ownership dance with
          * the developer chrome's activation latch, because it no longer shares
          * one. That shared latch is what made the old panel peek before taking,
-         * and two panels could still eat each other's clicks. */
-        app_chrome_route_input(app, &app->plugin_ui, input);
+         * and two panels could still eat each other's clicks.
+         *
+         * A native-widget executor (cs2) gets the KEYBOARD only: its clicks
+         * arrive as component clicks through the interface tree, and routing
+         * the mouse here as well would hand them to the in-canvas window's
+         * ghost -- laid out and hit-testable at its floating position even
+         * though nothing draws it. The keyboard must still flow, because the
+         * text fields being typed into are the model's. */
+        if( app->plugin_exec_kind == TORIRS_CHROME_EXEC_BUFFER )
+            app_chrome_route_input(app, &app->plugin_ui, input);
+        else
+            app_chrome_route_keys(app, &app->plugin_ui, input);
     }
 
     /* Intents from a native-widget executor land on the model the same way a
@@ -1128,7 +1324,7 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
     if( app->plugin_exec.exec.is_surface && app->plugin_exec.exec.present )
     {
         int count = 0;
-        struct ToriDbgPrim const* prims = ToriRSChrome_Prims(&app->plugin_ui, &count);
+        struct ToriRSChromePrim const* prims = ToriRSChrome_Prims(&app->plugin_ui, &count);
         app->plugin_exec.exec.present(app->plugin_exec.exec.user, prims, count);
     }
 }

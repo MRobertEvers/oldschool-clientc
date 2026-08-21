@@ -555,23 +555,23 @@ push_builtin_op(
         spec.u.debug_overlay.font_id_menu = -1;
         spec.u.debug_overlay.font_id_body = -1;
         spec.u.debug_overlay.skin_scene_id = -1;
-        for( int i = 0; i < TORIDBG_SKIN_SLOT_COUNT; i++ )
+        for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT; i++ )
             spec.u.debug_overlay.skin_atlas[i] = -1;
         if( builder->bridge )
         {
             spec.u.debug_overlay.font_id_small =
-                UITreeSceneBridge_EnsureDebugFont(builder->bridge, TORIDBG_FONT_SMALL);
+                UITreeSceneBridge_EnsureDebugFont(builder->bridge, TORIRS_CHROME_FONT_SMALL);
             spec.u.debug_overlay.font_id_menu =
-                UITreeSceneBridge_EnsureDebugFont(builder->bridge, TORIDBG_FONT_MENU);
+                UITreeSceneBridge_EnsureDebugFont(builder->bridge, TORIRS_CHROME_FONT_MENU);
             spec.u.debug_overlay.font_id_body =
-                UITreeSceneBridge_EnsureDebugFont(builder->bridge, TORIDBG_FONT_BODY);
+                UITreeSceneBridge_EnsureDebugFont(builder->bridge, TORIRS_CHROME_FONT_BODY);
             /* The bake emits the skin slots in enum order, so slot i is atlas
              * i. Stated rather than assumed: spritebake's --sprite order is
              * the build recipe's, and this is where the two agree. */
             spec.u.debug_overlay.skin_scene_id =
                 UITreeSceneBridge_EnsureChromeSkin(builder->bridge);
             if( spec.u.debug_overlay.skin_scene_id >= 0 )
-                for( int i = 0; i < TORIDBG_SKIN_SLOT_COUNT; i++ )
+                for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT; i++ )
                     spec.u.debug_overlay.skin_atlas[i] = i;
         }
         break;

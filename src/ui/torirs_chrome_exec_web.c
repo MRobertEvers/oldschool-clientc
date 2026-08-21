@@ -180,7 +180,7 @@ static void
 chrome_web_apply(void* user, struct ToriRSChromeCmd const* cmd)
 {
     struct ChromeWeb* s = user;
-    char label[TORIDBG_LABEL_MAX * 2];
+    char label[TORIRS_CHROME_LABEL_MAX * 2];
     char text[TORIRS_CHROME_TEXT_MAX * 2];
 
     assert(s);

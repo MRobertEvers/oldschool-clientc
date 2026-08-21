@@ -155,7 +155,7 @@ enum AppPluginRowKind
 /** Choice strings across every dropdown in the plugin window at once. */
 #define APP_PLUGIN_CHOICES_MAX 128
 /** Room for both chrome instances' display lists at once. */
-#define APP_CHROME_PRIMS_MAX (2 * TORIDBG_MAX_PRIMS)
+#define APP_CHROME_PRIMS_MAX (2 * TORIRS_CHROME_MAX_PRIMS)
 
 /* World objects across every plugin at once. Per-plugin budgeting is the
  * host's (TORIRS_PLUGIN_OBJECT_BUDGET); this is the ceiling on the table those
@@ -1048,6 +1048,16 @@ struct App
      *  asked for: an executor that will not start falls back to buffer. */
     int plugin_exec_kind;
     /**
+     * Someone NAMED that executor, rather than getting it by default.
+     *
+     * What stops the gameframe's own preference from being a lock. The plugin
+     * window belongs in the popout strip where there is one, so that is the
+     * default -- but a manifest or an env var that asks for a second OS window
+     * has to win, or the setting is unusable on every gameframe that has a
+     * strip, which is all of them that matter.
+     */
+    int plugin_exec_explicit;
+    /**
      * The two chrome instances' display lists, concatenated for the emit layer
      * -- which takes one pointer and one count for the whole overlay.
      *
@@ -1055,7 +1065,7 @@ struct App
      * pointer copy the retained chrome promises. Sized for both instances at
      * once because that is the worst case it has to hold.
      */
-    struct ToriDbgPrim chrome_merged[APP_CHROME_PRIMS_MAX];
+    struct ToriRSChromePrim chrome_merged[APP_CHROME_PRIMS_MAX];
     int chrome_merged_count;
     /** The build serials the merge was made from. */
     int chrome_merged_dbg;
@@ -1066,16 +1076,6 @@ struct App
     /** The window's panel handle in plugin_ui, or -1 before it is built. */
     int plugin_panel;
     int plugin_panel_visible;
-    /** The tab strip, and the titles it borrows. The strip borrows rather than
-     *  copies, so the array has to outlive it -- hence App state and not a
-     *  local. Slot 0 is the roster; the rest are one per tabbed plugin. */
-    int plugin_panel_tabs;
-    char plugin_tab_titles[TORIRS_PLUGIN_MAX + 1][64];
-    char const* plugin_tab_title_ptrs[TORIRS_PLUGIN_MAX + 1];
-    int plugin_tab_count;
-    /** Which plugin each tab past the roster shows; -1 for unused slots. */
-    int plugin_tab_owner[TORIRS_PLUGIN_MAX + 1];
-
     /**
      * Split-out choice strings for every dropdown in the plugin window, and
      * the pointer array the chrome borrows.
@@ -1088,8 +1088,8 @@ struct App
      * neither an array nor guaranteed to outlive a reload.
      *
      * So the window splits them into this pool at build time. It lives on App
-     * for the same reason plugin_tab_titles does: the widgets point into it
-     * until the panel is rebuilt, and a local would be freed first. That is
+     * because the widgets point into it until the panel is rebuilt, and a
+     * local would be freed first. That is
      * what turns an enum row from a text field with the choices printed in its
      * label into an actual dropdown.
      */
@@ -1159,7 +1159,7 @@ struct App
     int dbg_frame_head;
     /** Samples written so far, capped at APP_DEBUG_FRAME_SAMPLES. */
     int dbg_frame_count;
-    /** Loc editor: a TORIDBG_PANEL_MENU in the same dbg_ui instance (so it
+    /** Loc editor: a TORIRS_CHROME_PANEL_MENU in the same dbg_ui instance (so it
      * shares Build/Prims/emit plumbing with the frame-time panel for free).
      * Opened at the loc under the cursor; "Move"/"Rotate" rows re-place it
      * client-side only via App_WorldLocChange, so the readout gives exact
@@ -1602,7 +1602,7 @@ App_ChromeRasterise(
     int* pixels,
     int width,
     int height,
-    struct ToriDbgPrim const* prims,
+    struct ToriRSChromePrim const* prims,
     int count);
 
 /**
@@ -1618,7 +1618,8 @@ App_ChromeRasterise(
  * what every lane with no native executor does anyway.
  */
 void
-App_SetPluginChromeExec(struct App* app, struct ToriRSChromeExec const* exec, int kind);
+App_SetPluginChromeExec(
+    struct App* app, struct ToriRSChromeExec const* exec, int kind, int explicit_choice);
 
 /** Device pixels per chrome pixel. */
 int

@@ -769,7 +769,7 @@ static int input_frame_pending;
  * else about it.
  *
  * No upper clamp: App_SetChromeScale holds it to what the bake carries
- * (TORIDBG_SCALE_MAX), which is the one place that knows.
+ * (TORIRS_CHROME_SCALE_MAX), which is the one place that knows.
  */
 static int
 main_dynamic_chrome_scale(int canvas_h, int density)
@@ -4059,6 +4059,7 @@ main(
              * without editing it. */
             char const* want = getenv("TORIRS_CHROME_EXECUTOR");
             int wanted = boot_manifest.chrome_executor;
+            int chosen = boot_manifest.chrome_executor_set;
             int got = TORIRS_CHROME_EXEC_BUFFER;
             struct ToriRSChromeExec chrome_exec;
 
@@ -4072,10 +4073,16 @@ main(
                         "using buffer\n",
                         want);
                 else
+                {
                     wanted = from_env;
+                    chosen = 1;
+                }
             }
-                chrome_exec = ToriRSChromeExec_ForKind(
-                wanted < 0 ? TORIRS_CHROME_EXEC_BUFFER : wanted, sdl, App_ChromeRasterise, &app,
+            chrome_exec = ToriRSChromeExec_ForKind(
+                wanted < 0 ? TORIRS_CHROME_EXEC_BUFFER : wanted,
+                sdl,
+                App_ChromeRasterise,
+                &app,
                 &got);
             if( wanted > TORIRS_CHROME_EXEC_BUFFER && got != wanted &&
                 wanted != TORIRS_CHROME_EXEC_CS2 )
@@ -4089,7 +4096,7 @@ main(
              * the shell does not have -- so the shell's job is to carry the
              * request rather than to satisfy it. */
             App_SetPluginChromeExec(
-                &app, &chrome_exec, wanted == TORIRS_CHROME_EXEC_CS2 ? wanted : got);
+                &app, &chrome_exec, wanted == TORIRS_CHROME_EXEC_CS2 ? wanted : got, chosen);
         }
 
 #if defined(TORIRS_HAVE_D3D9)

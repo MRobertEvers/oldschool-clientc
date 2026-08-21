@@ -1940,7 +1940,7 @@ UITree_Push(
         component->u.debug_overlay.font_id_small = spec->u.debug_overlay.font_id_small;
         component->u.debug_overlay.font_id_body = spec->u.debug_overlay.font_id_body;
         component->u.debug_overlay.skin_scene_id = spec->u.debug_overlay.skin_scene_id;
-        for( int i = 0; i < TORIDBG_SKIN_SLOT_COUNT; i++ )
+        for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT; i++ )
             component->u.debug_overlay.skin_atlas[i] = spec->u.debug_overlay.skin_atlas[i];
         component->u.debug_overlay.font_id_menu = spec->u.debug_overlay.font_id_menu;
         break;

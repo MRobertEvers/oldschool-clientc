@@ -233,7 +233,7 @@ static struct ToriDraw_Font Small_font = {
 };
 
 struct ToriDraw_Font*
-ToriDbgFont_Small(void)
+ToriRSChromeFont_Small(void)
 {
     return &Small_font;
 }
@@ -510,7 +510,7 @@ static struct ToriDraw_Font Body_font = {
 };
 
 struct ToriDraw_Font*
-ToriDbgFont_Body(void)
+ToriRSChromeFont_Body(void)
 {
     return &Body_font;
 }
@@ -821,7 +821,7 @@ static struct ToriDraw_Font Menu_font = {
 };
 
 struct ToriDraw_Font*
-ToriDbgFont_Menu(void)
+ToriRSChromeFont_Menu(void)
 {
     return &Menu_font;
 }
@@ -1376,7 +1376,7 @@ static struct ToriDraw_Font Small2x_font = {
 };
 
 struct ToriDraw_Font*
-ToriDbgFont_Small2x(void)
+ToriRSChromeFont_Small2x(void)
 {
     return &Small2x_font;
 }
@@ -2183,7 +2183,7 @@ static struct ToriDraw_Font Body2x_font = {
 };
 
 struct ToriDraw_Font*
-ToriDbgFont_Body2x(void)
+ToriRSChromeFont_Body2x(void)
 {
     return &Body2x_font;
 }
@@ -3124,7 +3124,7 @@ static struct ToriDraw_Font Menu2x_font = {
 };
 
 struct ToriDraw_Font*
-ToriDbgFont_Menu2x(void)
+ToriRSChromeFont_Menu2x(void)
 {
     return &Menu2x_font;
 }
@@ -4246,7 +4246,7 @@ static struct ToriDraw_Font Small3x_font = {
 };
 
 struct ToriDraw_Font*
-ToriDbgFont_Small3x(void)
+ToriRSChromeFont_Small3x(void)
 {
     return &Small3x_font;
 }
@@ -5935,7 +5935,7 @@ static struct ToriDraw_Font Body3x_font = {
 };
 
 struct ToriDraw_Font*
-ToriDbgFont_Body3x(void)
+ToriRSChromeFont_Body3x(void)
 {
     return &Body3x_font;
 }
@@ -7927,7 +7927,7 @@ static struct ToriDraw_Font Menu3x_font = {
 };
 
 struct ToriDraw_Font*
-ToriDbgFont_Menu3x(void)
+ToriRSChromeFont_Menu3x(void)
 {
     return &Menu3x_font;
 }

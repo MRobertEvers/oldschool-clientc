@@ -114,7 +114,7 @@ sdl_drawable_size(
  * Refresh the cached drawable-pixels-per-point ratio.
  *
  * Rounded to an integer, because it selects a BAKED chrome size and there is
- * no such thing as a 1.5x baked font here (see TORIDBG_SCALE_MAX). A 1.5x
+ * no such thing as a 1.5x baked font here (see TORIRS_CHROME_SCALE_MAX). A 1.5x
  * display therefore lands on 2x chrome in a 1.5x-pixel framebuffer, which is
  * chrome slightly larger than nominal drawn at native resolution -- the
  * failure this whole path exists to avoid is the other one, chrome drawn at

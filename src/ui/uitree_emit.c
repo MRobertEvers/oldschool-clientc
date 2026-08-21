@@ -2367,11 +2367,11 @@ emit_debug_overlay_node(
     desc.kind = UITREE_EMIT_DEBUG_OVERLAY;
     desc.node_index = idx;
     desc.component_id = c->component_id;
-    desc.debug_font_id[TORIDBG_FONT_SMALL] = c->u.debug_overlay.font_id_small;
-    desc.debug_font_id[TORIDBG_FONT_MENU] = c->u.debug_overlay.font_id_menu;
-    desc.debug_font_id[TORIDBG_FONT_BODY] = c->u.debug_overlay.font_id_body;
+    desc.debug_font_id[TORIRS_CHROME_FONT_SMALL] = c->u.debug_overlay.font_id_small;
+    desc.debug_font_id[TORIRS_CHROME_FONT_MENU] = c->u.debug_overlay.font_id_menu;
+    desc.debug_font_id[TORIRS_CHROME_FONT_BODY] = c->u.debug_overlay.font_id_body;
     desc.debug_skin_scene_id = c->u.debug_overlay.skin_scene_id;
-    for( int i = 0; i < TORIDBG_SKIN_SLOT_COUNT; i++ )
+    for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT; i++ )
         desc.debug_skin_atlas[i] = c->u.debug_overlay.skin_atlas[i];
     /* Screen-space, not laid out: every prim already carries absolute
      * pixels and its own scissor box. The desc clip is the canvas. */

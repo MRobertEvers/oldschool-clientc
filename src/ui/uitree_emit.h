@@ -89,17 +89,17 @@ struct UITreeEmitDesc
     /** DEBUG_OVERLAY: the retained display list, handed on by pointer — it is
      * rebuilt only when a widget changed, so a steady overlay costs one pointer
      * copy per frame. Owned by the host's ToriRSChrome. */
-    struct ToriDbgPrim const* debug_prims;
+    struct ToriRSChromePrim const* debug_prims;
     int debug_prim_count;
-    /** DEBUG_OVERLAY: scene font per enum ToriDbgFontSlot. A prim names a slot,
+    /** DEBUG_OVERLAY: scene font per enum ToriRSChromeFontSlot. A prim names a slot,
      * not a font, so the desc carries the mapping the host set up. */
-    int debug_font_id[TORIDBG_FONT_SLOT_COUNT];
+    int debug_font_id[TORIRS_CHROME_FONT_SLOT_COUNT];
     /** DEBUG_OVERLAY: the scene the baked chrome skin was uploaded under, and
-     * the atlas index within it per enum ToriDbgSkinSlot. Same slot-not-id
+     * the atlas index within it per enum ToriRSChromeSkinSlot. Same slot-not-id
      * indirection as the fonts above; -1 in either means "no skin", and the
      * chrome has already fallen back to its flat form. */
     int debug_skin_scene_id;
-    int debug_skin_atlas[TORIDBG_SKIN_SLOT_COUNT];
+    int debug_skin_atlas[TORIRS_CHROME_SKIN_SLOT_COUNT];
     int model_id;
     int model_zoom;
     int model_xan;

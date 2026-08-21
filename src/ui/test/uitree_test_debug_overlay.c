@@ -48,13 +48,14 @@ test_debug_overlay_menu_geometry(void)
     /* The overlay's own menu panel, measured against the reference formulas at
      * the menu font's real line box. */
     {
-        struct UIMinimenuLayout const l = UIMinimenu_LayoutFromLineBox(ToriDbgFont_Menu_LINE_BOX);
+        struct UIMinimenuLayout const l =
+            UIMinimenu_LayoutFromLineBox(ToriRSChromeFont_Menu_LINE_BOX);
         int panel;
         int rows[3];
-        struct ToriDbgRect rect;
+        struct ToriRSChromeRect rect;
 
         ToriRSChrome_Init(&g_ui);
-        panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_MENU, 40, 60, 0, "Choose Option");
+        panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_MENU, 40, 60, 0, "Choose Option");
         rows[0] = ToriRSChrome_MenuItem(&g_ui, panel, "Walk here");
         rows[1] = ToriRSChrome_MenuItem(&g_ui, panel, "Examine Guard");
         rows[2] = ToriRSChrome_MenuItem(&g_ui, panel, "Cancel");
@@ -63,7 +64,8 @@ test_debug_overlay_menu_geometry(void)
         rect = ToriRSChrome_PanelRect(&g_ui, panel);
         TEST_ASSERT(rect.h == 3 * l.row_stride + l.chrome_h, "menu height == UIMinimenu_Height");
         TEST_ASSERT(
-            rect.w == ToriRSChrome_MeasureText(TORIDBG_FONT_MENU, 1, "Examine Guard") + l.width_pad,
+            rect.w ==
+                ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_MENU, 1, "Examine Guard") + l.width_pad,
             "menu width == widest row + width_pad");
 
         for( int i = 0; i < 3; i++ )
@@ -89,7 +91,8 @@ test_debug_overlay_menu_geometry(void)
          * drift apart on the seam. */
         {
             int const mid = rect.y + 1 * l.row_stride + l.option_base_y;
-            TEST_ASSERT(ToriRSChrome_HitTest(&g_ui, rect.x + 4, mid) == rows[1], "menu hit picks row");
+            TEST_ASSERT(
+                ToriRSChrome_HitTest(&g_ui, rect.x + 4, mid) == rows[1], "menu hit picks row");
             TEST_ASSERT(
                 ToriRSChrome_HitTest(&g_ui, rect.x + 4, mid - l.hover_above) == rows[0],
                 "menu band seam goes to the row above");
@@ -119,22 +122,27 @@ test_debug_overlay_measure(void)
         int menu = 0;
         for( unsigned char const* p = (unsigned char const*)cases[i]; *p; p++ )
         {
-            small += ToriDbgFont_Small_advance_px[*p];
-            menu += ToriDbgFont_Menu_advance_px[*p];
+            small += ToriRSChromeFont_Small_advance_px[*p];
+            menu += ToriRSChromeFont_Menu_advance_px[*p];
         }
-        TEST_ASSERT(ToriRSChrome_MeasureText(TORIDBG_FONT_SMALL, 1, cases[i]) == small, "measure small");
-        TEST_ASSERT(ToriRSChrome_MeasureText(TORIDBG_FONT_MENU, 1, cases[i]) == menu, "measure menu");
+        TEST_ASSERT(
+            ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_SMALL, 1, cases[i]) == small,
+            "measure small");
+        TEST_ASSERT(
+            ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_MENU, 1, cases[i]) == menu, "measure menu");
     }
 
     TEST_ASSERT(
-        ToriRSChrome_FontLineHeight(TORIDBG_FONT_SMALL, 1) == ToriDbgFont_Small_LINE_HEIGHT,
+        ToriRSChrome_FontLineHeight(TORIRS_CHROME_FONT_SMALL, 1) ==
+            ToriRSChromeFont_Small_LINE_HEIGHT,
         "small ascent");
     TEST_ASSERT(
-        ToriRSChrome_FontLineBox(TORIDBG_FONT_MENU, 1) == ToriDbgFont_Menu_LINE_BOX, "menu line box");
+        ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_MENU, 1) == ToriRSChromeFont_Menu_LINE_BOX,
+        "menu line box");
     /* A wider face has to measure wider, or the two tables got swapped. */
     TEST_ASSERT(
-        ToriRSChrome_MeasureText(TORIDBG_FONT_MENU, 1, "Choose Option") >
-            ToriRSChrome_MeasureText(TORIDBG_FONT_SMALL, 1, "Choose Option"),
+        ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_MENU, 1, "Choose Option") >
+            ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_SMALL, 1, "Choose Option"),
         "menu face is the wider one");
 }
 
@@ -154,12 +162,14 @@ test_debug_overlay_scaled_metrics(void)
     static char const* const cases[] = {
         "", "i", "W", "Choose Option", "fps 60  tris 128394", "0123456789",
     };
-    static int const slots[] = { TORIDBG_FONT_SMALL, TORIDBG_FONT_BODY, TORIDBG_FONT_MENU };
+    static int const slots[] = { TORIRS_CHROME_FONT_SMALL,
+                                 TORIRS_CHROME_FONT_BODY,
+                                 TORIRS_CHROME_FONT_MENU };
 
     for( int si = 0; si < 3; si++ )
     {
         int const slot = slots[si];
-        for( int scale = TORIDBG_SCALE_MIN; scale <= TORIDBG_SCALE_MAX; scale++ )
+        for( int scale = TORIRS_CHROME_SCALE_MIN; scale <= TORIRS_CHROME_SCALE_MAX; scale++ )
         {
             TEST_ASSERT(
                 ToriRSChrome_FontLineHeight(slot, scale) ==
@@ -190,16 +200,16 @@ test_debug_overlay_scaled_metrics(void)
 static void
 test_debug_overlay_scaled_layout(void)
 {
-    struct ToriDbgRect base = { 0, 0, 0, 0 };
+    struct ToriRSChromeRect base = { 0, 0, 0, 0 };
 
-    for( int scale = TORIDBG_SCALE_MIN; scale <= TORIDBG_SCALE_MAX; scale++ )
+    for( int scale = TORIRS_CHROME_SCALE_MIN; scale <= TORIRS_CHROME_SCALE_MAX; scale++ )
     {
-        struct ToriDbgRect rect;
+        struct ToriRSChromeRect rect;
         int panel;
 
         ToriRSChrome_Init(&g_ui);
         ToriRSChrome_SetScale(&g_ui, scale);
-        panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 0, 0, 0, "Map Editor");
+        panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 0, "Map Editor");
         ToriRSChrome_Label(&g_ui, panel, "a considerably longer row");
         ToriRSChrome_Checkbox(&g_ui, panel, "block", 1);
         ToriRSChrome_TextInput(&g_ui, panel, "Height", "30");
@@ -228,7 +238,7 @@ test_debug_overlay_retained(void)
     int first_count;
 
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 10, 10, 0, "Debug");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 10, 10, 0, "Debug");
     label = ToriRSChrome_Label(&g_ui, panel, "fps 60");
 
     TEST_ASSERT(ToriRSChrome_Build(&g_ui) == 1, "first build rebuilds");
@@ -262,12 +272,12 @@ static void
 test_debug_overlay_damage(void)
 {
     int panel;
-    struct ToriDbgRect d;
-    struct ToriDbgRect before;
-    struct ToriDbgRect after;
+    struct ToriRSChromeRect d;
+    struct ToriRSChromeRect before;
+    struct ToriRSChromeRect after;
 
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 100, 100, 0, "Stats");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 100, 100, 0, "Stats");
     ToriRSChrome_Label(&g_ui, panel, "tris 128394");
     ToriRSChrome_Build(&g_ui);
 
@@ -309,8 +319,8 @@ test_debug_overlay_damage(void)
         int a;
         int b;
         ToriRSChrome_Init(&g_ui);
-        a = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 0, 0, 40, "A");
-        b = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 300, 200, 40, "B");
+        a = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 40, "A");
+        b = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 300, 200, 40, "B");
         ToriRSChrome_Label(&g_ui, a, "a");
         ToriRSChrome_Label(&g_ui, b, "b");
         ToriRSChrome_Build(&g_ui);
@@ -332,9 +342,9 @@ test_debug_overlay_damage(void)
 static void
 test_debug_overlay_border(void)
 {
-    struct UIMinimenuLayout const l = UIMinimenu_LayoutFromLineBox(ToriDbgFont_Menu_LINE_BOX);
+    struct UIMinimenuLayout const l = UIMinimenu_LayoutFromLineBox(ToriRSChromeFont_Menu_LINE_BOX);
     int panel;
-    struct ToriDbgPrim const* prims;
+    struct ToriRSChromePrim const* prims;
     int count = 0;
     int outlines = 0;
     int fills = 0;
@@ -342,10 +352,10 @@ test_debug_overlay_border(void)
     int separator = 0;
     int bottom = 0;
     int rails = 0;
-    struct ToriDbgRect rect;
+    struct ToriRSChromeRect rect;
 
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 20, 20, 120, "Border");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 20, 20, 120, "Border");
     ToriRSChrome_Label(&g_ui, panel, "body");
     ToriRSChrome_Build(&g_ui);
     rect = ToriRSChrome_PanelRect(&g_ui, panel);
@@ -354,8 +364,8 @@ test_debug_overlay_border(void)
     prims = ToriRSChrome_Prims(&g_ui, &count);
     for( int i = 0; i < count; i++ )
     {
-        struct ToriDbgPrim const* q = &prims[i];
-        if( q->kind != TORIDBG_PRIM_RECT )
+        struct ToriRSChromePrim const* q = &prims[i];
+        if( q->kind != TORIRS_CHROME_PRIM_RECT )
             continue;
         if( q->x == rect.x && q->y == rect.y && q->w == rect.w && q->h == rect.h )
         {
@@ -389,8 +399,8 @@ test_debug_overlay_border(void)
         int chrome_at = -1;
         for( int i = 0; i < count; i++ )
         {
-            struct ToriDbgPrim const* q = &prims[i];
-            if( q->kind != TORIDBG_PRIM_RECT )
+            struct ToriRSChromePrim const* q = &prims[i];
+            if( q->kind != TORIRS_CHROME_PRIM_RECT )
                 continue;
             if( body_at < 0 && q->x == rect.x && q->y == rect.y && q->w == rect.w &&
                 q->h == rect.h )
@@ -406,7 +416,7 @@ test_debug_overlay_border(void)
      * cut at the border instead of painting across it. */
     for( int i = 0; i < count; i++ )
     {
-        if( prims[i].kind != TORIDBG_PRIM_TEXT )
+        if( prims[i].kind != TORIRS_CHROME_PRIM_TEXT )
             continue;
         TEST_ASSERT(prims[i].clip.x >= rect.x, "text clip inside the panel");
         TEST_ASSERT(
@@ -424,7 +434,7 @@ test_debug_overlay_checkbox(void)
     int cy;
 
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 30, 30, 0, "Toggles");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 30, 30, 0, "Toggles");
     box = ToriRSChrome_Checkbox(&g_ui, panel, "wireframe", 0);
     ToriRSChrome_Build(&g_ui);
 
@@ -472,7 +482,7 @@ test_debug_overlay_textinput(void)
     int cy;
 
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 8, 8, 0, "Console");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 8, 0, "Console");
     input = ToriRSChrome_TextInput(&g_ui, panel, "cmd", "ab");
     box = ToriRSChrome_Checkbox(&g_ui, panel, "echo", 0);
     ToriRSChrome_Build(&g_ui);
@@ -490,37 +500,38 @@ test_debug_overlay_textinput(void)
     TEST_ASSERT(ToriRSChrome_KeyChar(&g_ui, 'c'), "typing consumed");
     TEST_ASSERT(strcmp(ToriRSChrome_Text(&g_ui, input), "abc") == 0, "append at the caret");
 
-    ToriRSChrome_KeyEdit(&g_ui, TORIDBG_KEY_LEFT);
+    ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_LEFT);
     ToriRSChrome_KeyChar(&g_ui, 'X');
     TEST_ASSERT(strcmp(ToriRSChrome_Text(&g_ui, input), "abXc") == 0, "insert mid-string");
 
-    ToriRSChrome_KeyEdit(&g_ui, TORIDBG_KEY_BACKSPACE);
+    ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_BACKSPACE);
     TEST_ASSERT(strcmp(ToriRSChrome_Text(&g_ui, input), "abc") == 0, "backspace deletes left");
 
-    ToriRSChrome_KeyEdit(&g_ui, TORIDBG_KEY_HOME);
+    ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_HOME);
     TEST_ASSERT(g_ui.widgets[input].caret == 0, "home");
-    ToriRSChrome_KeyEdit(&g_ui, TORIDBG_KEY_DELETE);
+    ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_DELETE);
     TEST_ASSERT(strcmp(ToriRSChrome_Text(&g_ui, input), "bc") == 0, "delete removes right");
-    ToriRSChrome_KeyEdit(&g_ui, TORIDBG_KEY_BACKSPACE);
+    ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_BACKSPACE);
     TEST_ASSERT(strcmp(ToriRSChrome_Text(&g_ui, input), "bc") == 0, "backspace at 0 is a no-op");
 
-    ToriRSChrome_KeyEdit(&g_ui, TORIDBG_KEY_END);
+    ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_END);
     TEST_ASSERT(g_ui.widgets[input].caret == 2, "end");
-    ToriRSChrome_KeyEdit(&g_ui, TORIDBG_KEY_RIGHT);
+    ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_RIGHT);
     TEST_ASSERT(g_ui.widgets[input].caret == 2, "right at the end is a no-op");
 
     TEST_ASSERT(!ToriRSChrome_KeyChar(&g_ui, '\n'), "control bytes are not inserted");
     TEST_ASSERT(!ToriRSChrome_KeyChar(&g_ui, 0x1B), "escape byte is not inserted");
     TEST_ASSERT(strcmp(ToriRSChrome_Text(&g_ui, input), "bc") == 0, "text survives control bytes");
 
-    ToriRSChrome_KeyEdit(&g_ui, TORIDBG_KEY_ENTER);
+    ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_ENTER);
     TEST_ASSERT(ToriRSChrome_TakeActivated(&g_ui) == input, "enter commits");
 
     /* The buffer is fixed; typing past it must stop, not run off the end. */
-    for( int i = 0; i < TORIDBG_INPUT_MAX * 2; i++ )
+    for( int i = 0; i < TORIRS_CHROME_INPUT_MAX * 2; i++ )
         ToriRSChrome_KeyChar(&g_ui, 'z');
     TEST_ASSERT(
-        (int)strlen(ToriRSChrome_Text(&g_ui, input)) == TORIDBG_INPUT_MAX - 1, "input is bounded");
+        (int)strlen(ToriRSChrome_Text(&g_ui, input)) == TORIRS_CHROME_INPUT_MAX - 1,
+        "input is bounded");
 
     /* Clicking a non-input widget drops focus, so keys stop being swallowed. */
     ToriRSChrome_MouseDown(&g_ui, g_ui.widgets[box].x + 2, g_ui.widgets[box].y + 2);
@@ -530,7 +541,7 @@ test_debug_overlay_textinput(void)
     /* Escape releases focus too. */
     ToriRSChrome_MouseDown(&g_ui, cx, cy);
     TEST_ASSERT(g_ui.focus == input, "refocus");
-    ToriRSChrome_KeyEdit(&g_ui, TORIDBG_KEY_ESCAPE);
+    ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_ESCAPE);
     TEST_ASSERT(g_ui.focus == -1, "escape releases focus");
 
     /* The caret blink repaints, but only while something is focused. */
@@ -551,12 +562,12 @@ test_debug_overlay_layout(void)
     int panel;
     int a;
     int b;
-    struct ToriDbgRect rect;
-    struct ToriDbgPrim const* prims;
+    struct ToriRSChromeRect rect;
+    struct ToriRSChromePrim const* prims;
     int count = 0;
 
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 0, 0, 0, NULL);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 0, NULL);
     a = ToriRSChrome_Label(&g_ui, panel, "short");
     ToriRSChrome_Separator(&g_ui, panel);
     b = ToriRSChrome_Label(&g_ui, panel, "a considerably longer row");
@@ -571,17 +582,18 @@ test_debug_overlay_layout(void)
         g_ui.widgets[b].y + g_ui.widgets[b].h <= rect.y + rect.h, "last row fits inside the panel");
     /* No title given, so no title bar and no menu-face text. Asserted against
      * the MENU face rather than for the row face: which face rows use is the
-     * theme's choice (ToriDbgTheme::font_row), and the claim here is only that
+     * theme's choice (ToriRSChromeTheme::font_row), and the claim here is only that
      * the bold title face went unused. */
     prims = ToriRSChrome_Prims(&g_ui, &count);
     for( int i = 0; i < count; i++ )
         TEST_ASSERT(
-            prims[i].kind != TORIDBG_PRIM_TEXT || prims[i].font_slot != TORIDBG_FONT_MENU,
+            prims[i].kind != TORIRS_CHROME_PRIM_TEXT ||
+                prims[i].font_slot != TORIRS_CHROME_FONT_MENU,
             "untitled window panel draws no menu-face text");
 
     for( int i = 0; i < count; i++ )
     {
-        if( prims[i].kind != TORIDBG_PRIM_TEXT )
+        if( prims[i].kind != TORIRS_CHROME_PRIM_TEXT )
             continue;
         TEST_ASSERT(prims[i].baseline == 1, "overlay text is baseline-positioned");
         /* The glyph line box is [y - line_height, y - line_height + line_box).
@@ -605,32 +617,32 @@ test_debug_overlay_capacity(void)
     int panel;
 
     ToriRSChrome_Init(&g_ui);
-    for( int i = 0; i < TORIDBG_MAX_PANELS; i++ )
-        TEST_ASSERT(ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 0, 0, 20, "p") >= 0,
+    for( int i = 0; i < TORIRS_CHROME_MAX_PANELS; i++ )
+        TEST_ASSERT(ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 20, "p") >= 0,
                     "panels up to the cap");
     TEST_ASSERT(
-        ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 0, 0, 20, "p") == -1,
+        ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 20, "p") == -1,
         "one panel past the cap fails");
     TEST_ASSERT(g_ui.overflow == 1, "panel overflow is reported");
 
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 0, 0, 20, "p");
-    for( int i = 0; i < TORIDBG_MAX_WIDGETS; i++ )
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 20, "p");
+    for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
         TEST_ASSERT(ToriRSChrome_Label(&g_ui, panel, "x") >= 0, "widgets up to the cap");
     TEST_ASSERT(ToriRSChrome_Label(&g_ui, panel, "x") == -1, "one widget past the cap fails");
 
     /* Over-long strings truncate into the fixed buffers, terminator included. */
     ToriRSChrome_Init(&g_ui);
     {
-        static char long_text[TORIDBG_INPUT_MAX * 3];
+        static char long_text[TORIRS_CHROME_INPUT_MAX * 3];
         int w;
         memset(long_text, 'A', sizeof(long_text) - 1);
         long_text[sizeof(long_text) - 1] = '\0';
-        panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 0, 0, 0, long_text);
+        panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 0, long_text);
         w = ToriRSChrome_Label(&g_ui, panel, long_text);
-        TEST_ASSERT((int)strlen(ToriRSChrome_Text(&g_ui, w)) == TORIDBG_INPUT_MAX - 1,
+        TEST_ASSERT((int)strlen(ToriRSChrome_Text(&g_ui, w)) == TORIRS_CHROME_INPUT_MAX - 1,
                     "label text truncates");
-        TEST_ASSERT((int)strlen(g_ui.panels[panel].title) == TORIDBG_LABEL_MAX - 1,
+        TEST_ASSERT((int)strlen(g_ui.panels[panel].title) == TORIRS_CHROME_LABEL_MAX - 1,
                     "panel title truncates");
     }
 
@@ -651,13 +663,13 @@ test_debug_overlay_capacity(void)
 
     /* Reset clears the model but leaves the vacated pixels marked. */
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 50, 50, 60, "gone");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 50, 50, 60, "gone");
     ToriRSChrome_Label(&g_ui, panel, "x");
     ToriRSChrome_Build(&g_ui);
     ToriRSChrome_DamageClear(&g_ui);
     ToriRSChrome_Reset(&g_ui);
     {
-        struct ToriDbgRect d;
+        struct ToriRSChromeRect d;
         int n = -1;
         TEST_ASSERT(ToriRSChrome_Damage(&g_ui, &d), "reset damages the old bounds");
         TEST_ASSERT(d.x == 50 && d.y == 50, "reset damage is where the panel was");
@@ -708,7 +720,7 @@ test_debug_overlay_emit_pass(void)
         TEST_ASSERT(buf.cmds[i].kind != UITREE_EMIT_DEBUG_OVERLAY, "no overlay, no desc");
 
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 4, 4, 0, "Debug");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 4, 4, 0, "Debug");
     ToriRSChrome_Checkbox(&g_ui, panel, "wireframe", 1);
     ToriRSChrome_Label(&g_ui, panel, "fps 60");
     ToriRSChrome_Build(&g_ui);
@@ -729,8 +741,8 @@ test_debug_overlay_emit_pass(void)
             "desc carries the host's list by pointer, not a copy");
         TEST_ASSERT(buf.cmds[i].component_id == 501, "desc carries the node's component id");
         TEST_ASSERT(
-            buf.cmds[i].debug_font_id[TORIDBG_FONT_SMALL] == 494 &&
-                buf.cmds[i].debug_font_id[TORIDBG_FONT_MENU] == 496,
+            buf.cmds[i].debug_font_id[TORIRS_CHROME_FONT_SMALL] == 494 &&
+                buf.cmds[i].debug_font_id[TORIRS_CHROME_FONT_MENU] == 496,
             "desc carries the slot -> scene font mapping");
     }
     TEST_ASSERT(overlay_descs == 1, "the whole display list is one desc");
@@ -745,14 +757,14 @@ test_debug_overlay_emit_pass(void)
 static void
 test_debug_overlay_hidden(void)
 {
-    struct ToriDbgRect full;
-    struct ToriDbgRect less;
+    struct ToriRSChromeRect full;
+    struct ToriRSChromeRect less;
     int panel;
     int a;
     int b;
 
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 10, 10, 0, "T");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 10, 10, 0, "T");
     a = ToriRSChrome_Label(&g_ui, panel, "row a");
     b = ToriRSChrome_Checkbox(&g_ui, panel, "row b", 0);
     ToriRSChrome_Build(&g_ui);
@@ -779,7 +791,7 @@ test_debug_overlay_table(void)
     int b;
 
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 10, 10, 0, "T");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 10, 10, 0, "T");
     a = ToriRSChrome_TextInput(&g_ui, panel, "X", "one");
     b = ToriRSChrome_TextInput(&g_ui, panel, "Longer label", "two");
 
@@ -792,13 +804,13 @@ test_debug_overlay_table(void)
         int one_x = -1;
         int two_x = -1;
         int count;
-        struct ToriDbgPrim const* prims;
+        struct ToriRSChromePrim const* prims;
 
         ToriRSChrome_Build(&g_ui);
         prims = ToriRSChrome_Prims(&g_ui, &count);
         for( int i = 0; i < count; i++ )
         {
-            if( prims[i].kind != TORIDBG_PRIM_TEXT || !prims[i].text )
+            if( prims[i].kind != TORIRS_CHROME_PRIM_TEXT || !prims[i].text )
                 continue;
             if( strcmp(prims[i].text, "one") == 0 )
                 one_x = prims[i].x;
@@ -815,7 +827,7 @@ test_debug_overlay_table(void)
         prims = ToriRSChrome_Prims(&g_ui, &count);
         for( int i = 0; i < count; i++ )
         {
-            if( prims[i].kind != TORIDBG_PRIM_TEXT || !prims[i].text )
+            if( prims[i].kind != TORIRS_CHROME_PRIM_TEXT || !prims[i].text )
                 continue;
             if( strcmp(prims[i].text, "one") == 0 )
                 one_x = prims[i].x;
@@ -853,7 +865,7 @@ test_debug_overlay_remove(void)
     int reused;
 
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 10, 10, 0, "P");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 10, 10, 0, "P");
     a = ToriRSChrome_Label(&g_ui, panel, "a");
     b = ToriRSChrome_Checkbox(&g_ui, panel, "b", 0);
     c = ToriRSChrome_Label(&g_ui, panel, "c");
@@ -867,7 +879,7 @@ test_debug_overlay_remove(void)
     TEST_ASSERT(g_ui.focus == -1, "removal clears focus");
     TEST_ASSERT(g_ui.hover == -1, "removal clears hover");
     TEST_ASSERT(g_ui.press == -1, "removal clears press");
-    TEST_ASSERT(g_ui.widgets[b].kind == TORIDBG_W_FREE, "removed slot is marked free");
+    TEST_ASSERT(g_ui.widgets[b].kind == TORIRS_CHROME_W_FREE, "removed slot is marked free");
 
     /* The list closed over the hole, in order, and skipped the dead slot. */
     {
@@ -926,7 +938,7 @@ test_debug_overlay_tabs(void)
     int everywhere;
 
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 10, 10, 200, "Tabbed");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 10, 10, 200, "Tabbed");
     strip = ToriRSChrome_Tabs(&g_ui, panel, titles, 3, 0);
     TEST_ASSERT(strip >= 0, "tab strip is created");
     TEST_ASSERT(g_ui.widgets[strip].tab == -1, "the strip belongs to no single tab");
@@ -970,7 +982,7 @@ test_debug_overlay_tabs(void)
 
     /* Clicking a tab switches it, through the real input path. */
     {
-        struct ToriDbgWidget const* s = &g_ui.widgets[strip];
+        struct ToriRSChromeWidget const* s = &g_ui.widgets[strip];
         int const x = s->x + 2;
         int const y = s->y + s->h / 2;
         ToriRSChrome_MouseMove(&g_ui, x, y);
@@ -989,7 +1001,7 @@ test_debug_overlay_button(void)
     int button;
 
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 10, 10, 240, "P");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 10, 10, 240, "P");
     button = ToriRSChrome_Button(&g_ui, panel, "Save");
     ToriRSChrome_Build(&g_ui);
 
@@ -1027,7 +1039,7 @@ test_debug_overlay_panel_scroll(void)
     int line;
 
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 10, 10, 160, "Scroller");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 10, 10, 160, "Scroller");
     for( int i = 0; i < 24; i++ )
         rows[i] = ToriRSChrome_Checkbox(&g_ui, panel, "row", 0);
     line = ToriRSChrome_FontLineBox(g_ui.theme.font_row, g_ui.scale);

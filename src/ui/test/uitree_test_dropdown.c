@@ -68,7 +68,7 @@ main(void)
     int box_y;
 
     ToriRSChrome_Init(&ui);
-    panel = ToriRSChrome_PanelAdd(&ui, TORIDBG_PANEL_WINDOW, 10, 10, 0, "Test");
+    panel = ToriRSChrome_PanelAdd(&ui, TORIRS_CHROME_PANEL_WINDOW, 10, 10, 0, "Test");
     dd = ToriRSChrome_Dropdown(&ui, panel, "Pick", options, OPTION_COUNT, 0);
     check(dd >= 0, "dropdown was created");
     ToriRSChrome_Build(&ui);
@@ -87,9 +87,9 @@ main(void)
     {
         int count = 0;
         int found = 0;
-        struct ToriDbgPrim const* prims = ToriRSChrome_Prims(&ui, &count);
+        struct ToriRSChromePrim const* prims = ToriRSChrome_Prims(&ui, &count);
         for( int i = 0; i < count; i++ )
-            if( prims[i].kind == TORIDBG_PRIM_TEXT && prims[i].text &&
+            if( prims[i].kind == TORIRS_CHROME_PRIM_TEXT && prims[i].text &&
                 strcmp(prims[i].text, "charlie") == 0 )
                 found = 1;
         check(found, "an unselected option is drawn while the list is open");
@@ -122,7 +122,8 @@ main(void)
     ToriRSChrome_Build(&ui);
     click(&ui, 700, 700);
     check(ui.dropdown_open == -1, "clicking away closes the list");
-    check(ToriRSChrome_DropdownSelected(&ui, dd) == 2, "clicking away did not change the selection");
+    check(
+        ToriRSChrome_DropdownSelected(&ui, dd) == 2, "clicking away did not change the selection");
 
     /* The wheel scrolls the open list and is consumed, so the camera behind it
      * does not also zoom. */
@@ -135,14 +136,15 @@ main(void)
         /* One row at a time: 12 options over a 10-row window leaves only two
          * scroll positions, so a larger delta would land on the clamp instead
          * of proving the wheel moved anything. */
-        check(ToriRSChrome_MouseWheel(&ui, box_x, list_y, 1) == 1, "wheel over the list is consumed");
+        check(
+            ToriRSChrome_MouseWheel(&ui, box_x, list_y, 1) == 1, "wheel over the list is consumed");
         check(ui.widgets[dd].scroll == before + 1, "wheel scrolled the list");
         /* Past the end it must clamp, and still be consumed. */
         check(
             ToriRSChrome_MouseWheel(&ui, box_x, list_y, 999) == 1,
             "wheel past the end is still consumed");
         check(
-            ui.widgets[dd].scroll == OPTION_COUNT - TORIDBG_DROPDOWN_ROWS,
+            ui.widgets[dd].scroll == OPTION_COUNT - TORIRS_CHROME_DROPDOWN_ROWS,
             "scroll clamps to the last full page");
         check(
             ToriRSChrome_MouseWheel(&ui, 700, 700, 3) == 0,
@@ -202,7 +204,7 @@ main(void)
 
     /* Over panel body (no widget): consumed into nothing. Off panel: not. */
     {
-        struct ToriDbgRect const r = ToriRSChrome_PanelRect(&ui, panel);
+        struct ToriRSChromeRect const r = ToriRSChrome_PanelRect(&ui, panel);
         check(
             ToriRSChrome_MouseWheel(&ui, r.x + 2, r.y + 2, -1),
             "wheel over the panel body is consumed");

@@ -25,38 +25,38 @@
 
 /** Cache font archive 494 at 1x. Ascent 10, glyph line box 12. */
 struct ToriDraw_Font*
-ToriDbgFont_Small(void);
+ToriRSChromeFont_Small(void);
 
 /** Cache font archive 495 at 1x. Ascent 12, glyph line box 16. */
 struct ToriDraw_Font*
-ToriDbgFont_Body(void);
+ToriRSChromeFont_Body(void);
 
 /** Cache font archive 496 at 1x. Ascent 12, glyph line box 16. */
 struct ToriDraw_Font*
-ToriDbgFont_Menu(void);
+ToriRSChromeFont_Menu(void);
 
 /** Cache font archive 494 at 2x. Ascent 20, glyph line box 24. */
 struct ToriDraw_Font*
-ToriDbgFont_Small2x(void);
+ToriRSChromeFont_Small2x(void);
 
 /** Cache font archive 495 at 2x. Ascent 24, glyph line box 32. */
 struct ToriDraw_Font*
-ToriDbgFont_Body2x(void);
+ToriRSChromeFont_Body2x(void);
 
 /** Cache font archive 496 at 2x. Ascent 24, glyph line box 32. */
 struct ToriDraw_Font*
-ToriDbgFont_Menu2x(void);
+ToriRSChromeFont_Menu2x(void);
 
 /** Cache font archive 494 at 3x. Ascent 30, glyph line box 36. */
 struct ToriDraw_Font*
-ToriDbgFont_Small3x(void);
+ToriRSChromeFont_Small3x(void);
 
 /** Cache font archive 495 at 3x. Ascent 36, glyph line box 48. */
 struct ToriDraw_Font*
-ToriDbgFont_Body3x(void);
+ToriRSChromeFont_Body3x(void);
 
 /** Cache font archive 496 at 3x. Ascent 36, glyph line box 48. */
 struct ToriDraw_Font*
-ToriDbgFont_Menu3x(void);
+ToriRSChromeFont_Menu3x(void);
 
 #endif

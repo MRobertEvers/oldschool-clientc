@@ -13,13 +13,13 @@ ToriRSChromeMirror_Init(struct ToriRSChromeMirror* mirror)
 static int
 mirror_valid_widget(struct ToriRSChromeMirror const* mirror, int handle)
 {
-    return handle >= 0 && handle < TORIDBG_MAX_WIDGETS && mirror->widgets[handle].live;
+    return handle >= 0 && handle < TORIRS_CHROME_MAX_WIDGETS && mirror->widgets[handle].live;
 }
 
 static int
 mirror_valid_panel(struct ToriRSChromeMirror const* mirror, int handle)
 {
-    return handle >= 0 && handle < TORIDBG_MAX_PANELS && mirror->panels[handle].live;
+    return handle >= 0 && handle < TORIRS_CHROME_MAX_PANELS && mirror->panels[handle].live;
 }
 
 int
@@ -29,7 +29,7 @@ ToriRSChromeMirror_Order(struct ToriRSChromeMirror const* mirror, int* out, int 
 
     assert(mirror);
     assert(out);
-    for( int i = 0; i < TORIDBG_MAX_WIDGETS && n < max; i++ )
+    for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS && n < max; i++ )
         if( mirror->widgets[i].live )
             out[n++] = i;
 
@@ -78,7 +78,7 @@ ToriRSChromeMirror_HandleOfNative(struct ToriRSChromeMirror const* mirror, intpt
      * would return the first unassigned slot. */
     if( native == 0 )
         return -1;
-    for( int i = 0; i < TORIDBG_MAX_WIDGETS; i++ )
+    for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
         if( mirror->widgets[i].live && mirror->widgets[i].native == native )
             return i;
     return -1;
@@ -111,7 +111,7 @@ ToriRSChromeMirror_Apply(struct ToriRSChromeMirror* mirror, struct ToriRSChromeC
     switch( cmd->kind )
     {
     case TORIRS_CHROME_CMD_PANEL_OPEN:
-        if( cmd->panel < 0 || cmd->panel >= TORIDBG_MAX_PANELS )
+        if( cmd->panel < 0 || cmd->panel >= TORIRS_CHROME_MAX_PANELS )
             return 0;
         memset(&mirror->panels[cmd->panel], 0, sizeof(mirror->panels[cmd->panel]));
         mirror->panels[cmd->panel].live = 1;
@@ -119,7 +119,7 @@ ToriRSChromeMirror_Apply(struct ToriRSChromeMirror* mirror, struct ToriRSChromeC
         return 1;
 
     case TORIRS_CHROME_CMD_PANEL_CLOSE:
-        if( cmd->panel < 0 || cmd->panel >= TORIDBG_MAX_PANELS )
+        if( cmd->panel < 0 || cmd->panel >= TORIRS_CHROME_MAX_PANELS )
             return 0;
         memset(&mirror->panels[cmd->panel], 0, sizeof(mirror->panels[cmd->panel]));
         /*
@@ -128,7 +128,7 @@ ToriRSChromeMirror_Apply(struct ToriRSChromeMirror* mirror, struct ToriRSChromeC
          * A mirror that kept them would hand out native ids for controls the
          * executor has already destroyed.
          */
-        for( int i = 0; i < TORIDBG_MAX_WIDGETS; i++ )
+        for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
             if( mirror->widgets[i].live && mirror->widgets[i].panel == cmd->panel )
                 memset(&mirror->widgets[i], 0, sizeof(mirror->widgets[i]));
         return 1;
@@ -142,7 +142,7 @@ ToriRSChromeMirror_Apply(struct ToriRSChromeMirror* mirror, struct ToriRSChromeC
         return 1;
 
     case TORIRS_CHROME_CMD_WIDGET_ADD:
-        if( cmd->widget < 0 || cmd->widget >= TORIDBG_MAX_WIDGETS )
+        if( cmd->widget < 0 || cmd->widget >= TORIRS_CHROME_MAX_WIDGETS )
             return 0;
         memset(&mirror->widgets[cmd->widget], 0, sizeof(mirror->widgets[cmd->widget]));
         mirror->widgets[cmd->widget].live = 1;
@@ -153,7 +153,7 @@ ToriRSChromeMirror_Apply(struct ToriRSChromeMirror* mirror, struct ToriRSChromeC
         return 1;
 
     case TORIRS_CHROME_CMD_WIDGET_REMOVE:
-        if( cmd->widget < 0 || cmd->widget >= TORIDBG_MAX_WIDGETS )
+        if( cmd->widget < 0 || cmd->widget >= TORIRS_CHROME_MAX_WIDGETS )
             return 0;
         /* Cleared rather than flagged: the handle can be recycled by an ADD in
          * the very next command, and a stale native id surviving into it is

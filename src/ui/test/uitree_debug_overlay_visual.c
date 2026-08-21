@@ -246,11 +246,11 @@ render(char const* name)
      * resolves it. Drawing a 2x layout with the 1x faces is the specific bug
      * this mapping exists to make impossible, and it would still render -- as
      * small text rattling around in big boxes. */
-    desc.debug_font_id[TORIDBG_FONT_SMALL] = FONT_ID_AT(FONT_ID_SMALL, g_ui.scale);
-    desc.debug_font_id[TORIDBG_FONT_MENU] = FONT_ID_AT(FONT_ID_MENU, g_ui.scale);
-    desc.debug_font_id[TORIDBG_FONT_BODY] = FONT_ID_AT(FONT_ID_BODY, g_ui.scale);
+    desc.debug_font_id[TORIRS_CHROME_FONT_SMALL] = FONT_ID_AT(FONT_ID_SMALL, g_ui.scale);
+    desc.debug_font_id[TORIRS_CHROME_FONT_MENU] = FONT_ID_AT(FONT_ID_MENU, g_ui.scale);
+    desc.debug_font_id[TORIRS_CHROME_FONT_BODY] = FONT_ID_AT(FONT_ID_BODY, g_ui.scale);
     desc.debug_skin_scene_id = SKIN_SCENE_ID;
-    for( int i = 0; i < TORIDBG_SKIN_SLOT_COUNT; i++ )
+    for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT; i++ )
         desc.debug_skin_atlas[i] = i;
     desc.clip.x = 0;
     desc.clip.y = 0;
@@ -273,7 +273,7 @@ render(char const* name)
 /** Paint a 1px outline straight into the framebuffer, after rendering. Used to
  *  mark the damage rect — it is metadata about the frame, not part of it. */
 static void
-mark_rect(struct ToriDbgRect r, uint32_t color)
+mark_rect(struct ToriRSChromeRect r, uint32_t color)
 {
     for( int i = r.x; i < r.x + r.w; i++ )
     {
@@ -306,13 +306,13 @@ mark_rect(struct ToriDbgRect r, uint32_t color)
 static void
 visual_bordered_background(void)
 {
-    struct ToriDbgTheme const* t = &g_ui.theme;
-    struct ToriDbgRect r;
+    struct ToriRSChromeTheme const* t = &g_ui.theme;
+    struct ToriRSChromeRect r;
     int panel;
 
     printf("VISUAL: bordered background\n");
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 24, 20, 0, "Renderer");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 24, 20, 0, "Renderer");
     ToriRSChrome_Label(&g_ui, panel, "backend  soft3d");
     ToriRSChrome_Label(&g_ui, panel, "canvas   400x260");
     ToriRSChrome_Separator(&g_ui, panel);
@@ -356,8 +356,8 @@ visual_bordered_background(void)
 static void
 visual_menu(void)
 {
-    struct ToriDbgTheme const* t = &g_ui.theme;
-    struct ToriDbgRect r;
+    struct ToriRSChromeTheme const* t = &g_ui.theme;
+    struct ToriRSChromeRect r;
     int panel;
     int rows[4];
     int hovered_band;
@@ -365,7 +365,7 @@ visual_menu(void)
 
     printf("VISUAL: menu-like interface\n");
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_MENU, 40, 30, 0, "Choose Option");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_MENU, 40, 30, 0, "Choose Option");
     rows[0] = ToriRSChrome_MenuItem(&g_ui, panel, "Toggle wireframe");
     rows[1] = ToriRSChrome_MenuItem(&g_ui, panel, "Dump emit buffer");
     rows[2] = ToriRSChrome_MenuItem(&g_ui, panel, "Reload interface");
@@ -438,16 +438,16 @@ visual_menu(void)
 static void
 visual_checkbox(void)
 {
-    struct ToriDbgTheme const* t = &g_ui.theme;
-    struct ToriDbgWidget const* on;
-    struct ToriDbgWidget const* off;
+    struct ToriRSChromeTheme const* t = &g_ui.theme;
+    struct ToriRSChromeWidget const* on;
+    struct ToriRSChromeWidget const* off;
     int panel;
     int w_on;
     int w_off;
 
     printf("VISUAL: checkboxes\n");
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 30, 30, 170, "Toggles");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 30, 30, 170, "Toggles");
     w_on = ToriRSChrome_Checkbox(&g_ui, panel, "show fps", 1);
     w_off = ToriRSChrome_Checkbox(&g_ui, panel, "show tile grid", 0);
     ToriRSChrome_Checkbox(&g_ui, panel, "freeze camera", 0);
@@ -484,6 +484,133 @@ visual_checkbox(void)
     VT_ASSERT(ToriRSChrome_TakeActivated(&g_ui) == w_off, "the toggle latched an activation");
 }
 
+/*
+ * With the skin present a checkbox is the interfaces' own 17x17 pair -- green
+ * tick for on, red cross for off -- and not a box with a mark in it.
+ *
+ * Asserted by comparing the framebuffer against the baked array pixel for
+ * pixel, because the weaker "some green appeared" would pass for any green
+ * thing drawn anywhere in the box. Transparent source pixels are skipped: the
+ * circle does not fill its square, and what shows through them is the panel.
+ *
+ * Both halves again, for the reason visual_skin gives: the flat fallback is
+ * what a build with no baked skin renders, and a test that only looked at the
+ * skinned half would pass with that fallback broken.
+ */
+/** Does this baked slot's art read green rather than red? */
+static int
+skin_hue_is_green(int slot)
+{
+    struct ToriRSChromeSkin_Sprite const* spr = ToriRSChromeSkin_Get(slot);
+    long greener = 0;
+    long redder = 0;
+
+    if( !spr )
+        return 0;
+    for( int i = 0; i < spr->w * spr->h; i++ )
+    {
+        uint32_t const argb = spr->argb[i];
+        int const r = (int)((argb >> 16) & 0xFF);
+        int const g = (int)((argb >> 8) & 0xFF);
+
+        if( (argb >> 24) != 0xFFu )
+            continue;
+        if( g > r + 24 )
+            greener++;
+        else if( r > g + 24 )
+            redder++;
+    }
+    return greener > redder;
+}
+
+static int
+skinned_check_pixels(struct ToriRSChromeWidget const* w, int slot)
+{
+    struct ToriRSChromeSkin_Sprite const* spr = ToriRSChromeSkin_Get(slot);
+    int bx;
+    int by;
+    int matched = 0;
+
+    if( !spr )
+        return 0;
+    bx = w->x;
+    by = w->y + (w->h - spr->h) / 2;
+    for( int yy = 0; yy < spr->h; yy++ )
+    {
+        for( int xx = 0; xx < spr->w; xx++ )
+        {
+            uint32_t const argb = spr->argb[yy * spr->w + xx];
+            if( (argb >> 24) != 0xFFu )
+                continue;
+            if( px(bx + xx, by + yy) != (argb & 0x00FFFFFFu) )
+                return -1;
+            matched++;
+        }
+    }
+    return matched;
+}
+
+static void
+visual_checkbox_skinned(void)
+{
+    struct ToriRSChromeTheme const* t = &g_ui.theme;
+    struct ToriRSChromeWidget const* on;
+    struct ToriRSChromeWidget const* off;
+    int panel;
+    int w_on;
+    int w_off;
+
+    printf("VISUAL: checkboxes, skinned\n");
+    ToriRSChrome_Init(&g_ui);
+    g_ui.skin_avail = (1u << TORIRS_CHROME_SKIN_CHECK_ON) | (1u << TORIRS_CHROME_SKIN_CHECK_OFF);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 30, 30, 200, "Toggles");
+    w_on = ToriRSChrome_Checkbox(&g_ui, panel, "'Bank tutorial' button", 1);
+    w_off = ToriRSChrome_Checkbox(&g_ui, panel, "Incinerator", 0);
+    ToriRSChrome_Build(&g_ui);
+    render("28_checkbox_skinned");
+
+    on = &g_ui.widgets[w_on];
+    off = &g_ui.widgets[w_off];
+
+    VT_ASSERT(
+        skinned_check_pixels(on, TORIRS_CHROME_SKIN_CHECK_ON) > 100,
+        "checked box is the baked green tick, pixel for pixel");
+    VT_ASSERT(
+        skinned_check_pixels(off, TORIRS_CHROME_SKIN_CHECK_OFF) > 100,
+        "unchecked box is the baked red cross, pixel for pixel");
+    /* The flat furniture is gone, not merely covered: nothing draws it.
+     * Only the MARK is asserted absent -- `check_box` is 0x000000 under this
+     * theme and the sprites have a near-black ring, so "no outline colour
+     * anywhere in the box" is a claim about the art, not about the code. */
+    VT_ASSERT(
+        count_eq(on->x, on->y, on->w, on->h, t->check_mark) == 0,
+        "the skinned checkbox draws no flat mark");
+
+    /*
+     * ON is the GREEN one and OFF the RED one.
+     *
+     * Worth its own assertion because the pixel comparisons above cannot see
+     * this: they check that slot N was blitted faithfully, and a mapping with
+     * the two archives swapped satisfies them exactly as well. It was in fact
+     * swapped first time round -- `graphic_8379` looks like the "on" id and is
+     * the cross; `script3422` gives it op "Show", which is what you click when
+     * the thing is OFF.
+     */
+    VT_ASSERT(
+        skin_hue_is_green(TORIRS_CHROME_SKIN_CHECK_ON), "the ON slot is the green tick");
+    VT_ASSERT(
+        !skin_hue_is_green(TORIRS_CHROME_SKIN_CHECK_OFF), "the OFF slot is the red cross");
+
+    /* A click still toggles, and the sprite swaps with it. */
+    ToriRSChrome_MouseDown(&g_ui, off->x + 2, off->y + off->h / 2);
+    ToriRSChrome_MouseUp(&g_ui, off->x + 2, off->y + off->h / 2);
+    ToriRSChrome_Build(&g_ui);
+    render("29_checkbox_skinned_toggled");
+    VT_ASSERT(
+        skinned_check_pixels(off, TORIRS_CHROME_SKIN_CHECK_ON) > 100,
+        "toggling swaps the cross for the tick");
+}
+
 /* ---- 4. text input ------------------------------------------------------- */
 
 /*
@@ -495,9 +622,9 @@ visual_checkbox(void)
 static void
 visual_textinput(void)
 {
-    struct ToriDbgTheme const* t = &g_ui.theme;
-    struct ToriDbgWidget const* focused;
-    struct ToriDbgWidget const* plain;
+    struct ToriRSChromeTheme const* t = &g_ui.theme;
+    struct ToriRSChromeWidget const* focused;
+    struct ToriRSChromeWidget const* plain;
     int panel;
     int w_focus;
     int w_plain;
@@ -506,7 +633,7 @@ visual_textinput(void)
 
     printf("VISUAL: text input\n");
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 30, 30, 260, "Console");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 30, 30, 260, "Console");
     w_focus = ToriRSChrome_TextInput(&g_ui, panel, "cmd", "");
     w_plain = ToriRSChrome_TextInput(&g_ui, panel, "arg", "1024");
     ToriRSChrome_Build(&g_ui);
@@ -575,14 +702,14 @@ visual_textinput(void)
 static void
 visual_damage(void)
 {
-    struct ToriDbgRect before;
-    struct ToriDbgRect after;
-    struct ToriDbgRect dmg;
+    struct ToriRSChromeRect before;
+    struct ToriRSChromeRect after;
+    struct ToriRSChromeRect dmg;
     int panel;
 
     printf("VISUAL: damage rectangles\n");
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 40, 40, 150, "Moves");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 40, 40, 150, "Moves");
     ToriRSChrome_Label(&g_ui, panel, "drag me");
     ToriRSChrome_Build(&g_ui);
     before = ToriRSChrome_PanelRect(&g_ui, panel);
@@ -631,12 +758,12 @@ visual_damage(void)
 static void
 visual_clipping(void)
 {
-    struct ToriDbgRect r;
+    struct ToriRSChromeRect r;
     int panel;
 
     printf("VISUAL: content clipped to the panel\n");
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 30, 40, 90, "Narrow");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 30, 40, 90, "Narrow");
     ToriRSChrome_Label(&g_ui, panel, "this label is far wider than ninety pixels");
     ToriRSChrome_Build(&g_ui);
     r = ToriRSChrome_PanelRect(&g_ui, panel);
@@ -666,25 +793,25 @@ visual_kitchen_sink(void)
     int menu;
     int input;
     int rows[3];
-    struct ToriDbgRect r_menu;
+    struct ToriRSChromeRect r_menu;
 
     printf("VISUAL: kitchen sink\n");
     ToriRSChrome_Init(&g_ui);
 
-    stats = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 8, 8, 150, "Stats");
+    stats = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 8, 150, "Stats");
     ToriRSChrome_Label(&g_ui, stats, "fps      60");
     ToriRSChrome_Label(&g_ui, stats, "prims    128");
     ToriRSChrome_LabelColored(&g_ui, stats, "draws    41", g_ui.theme.accent);
     ToriRSChrome_Separator(&g_ui, stats);
     ToriRSChrome_Label(&g_ui, stats, "cache    osrs239");
 
-    toggles = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 8, 120, 190, "Debug");
+    toggles = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 120, 190, "Debug");
     ToriRSChrome_Checkbox(&g_ui, toggles, "wireframe", 0);
     ToriRSChrome_Checkbox(&g_ui, toggles, "show hitboxes", 1);
     ToriRSChrome_Separator(&g_ui, toggles);
     input = ToriRSChrome_TextInput(&g_ui, toggles, "goto", "3222 3218");
 
-    menu = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_MENU, 215, 60, 0, "Choose Option");
+    menu = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_MENU, 215, 60, 0, "Choose Option");
     rows[0] = ToriRSChrome_MenuItem(&g_ui, menu, "Teleport here");
     rows[1] = ToriRSChrome_MenuItem(&g_ui, menu, "Copy coordinates");
     rows[2] = ToriRSChrome_MenuItem(&g_ui, menu, "Cancel");
@@ -713,7 +840,7 @@ visual_kitchen_sink(void)
 /* ---- 10. the baked OSRS skin --------------------------------------------- */
 
 /*
- * The skin path end to end: TORIDBG_PRIM_SPRITE out of the chrome, through the
+ * The skin path end to end: TORIRS_CHROME_PRIM_SPRITE out of the chrome, through the
  * frame translator's sprite case, into a real Soft3D blit of the baked
  * parchment.
  *
@@ -725,7 +852,7 @@ visual_kitchen_sink(void)
 static void
 visual_skin(void)
 {
-    struct ToriDbgRect r;
+    struct ToriRSChromeRect r;
     int panel;
     int flat_body_px;
     int skinned_body_px;
@@ -735,7 +862,7 @@ visual_skin(void)
     /* No skin available: the body is the theme's flat fill. */
     ToriRSChrome_Init(&g_ui);
     g_ui.skin_avail = 0;
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 24, 20, 160, "Map Editor");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 24, 20, 160, "Map Editor");
     ToriRSChrome_Label(&g_ui, panel, "m50_50  tile 12,40");
     ToriRSChrome_Label(&g_ui, panel, "u50 o10;1;3 f4");
     ToriRSChrome_Build(&g_ui);
@@ -746,10 +873,10 @@ visual_skin(void)
 
     /* Same panel, skin available: the parchment covers the flat fill. */
     ToriRSChrome_Init(&g_ui);
-    g_ui.skin_avail = 1u << TORIDBG_SKIN_PANEL_BODY;
-    g_ui.skin_tile_w = ToriRSChromeSkin_Get(TORIDBG_SKIN_PANEL_BODY)->w;
-    g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIDBG_SKIN_PANEL_BODY)->h;
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 24, 20, 160, "Map Editor");
+    g_ui.skin_avail = 1u << TORIRS_CHROME_SKIN_PANEL_BODY;
+    g_ui.skin_tile_w = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->w;
+    g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->h;
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 24, 20, 160, "Map Editor");
     ToriRSChrome_Label(&g_ui, panel, "m50_50  tile 12,40");
     ToriRSChrome_Label(&g_ui, panel, "u50 o10;1;3 f4");
     ToriRSChrome_Build(&g_ui);
@@ -785,14 +912,14 @@ visual_skin(void)
 static void
 visual_panel_drag(void)
 {
-    struct ToriDbgRect before;
-    struct ToriDbgRect after;
+    struct ToriRSChromeRect before;
+    struct ToriRSChromeRect after;
     int panel;
     int consumed;
 
     printf("VISUAL: minimenu chrome + header drag\n");
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 40, 30, 150, "Map Editor");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 40, 30, 150, "Map Editor");
     ToriRSChrome_Label(&g_ui, panel, "m50_50  tile 12,40");
     ToriRSChrome_Checkbox(&g_ui, panel, "block", 1);
     ToriRSChrome_Build(&g_ui);
@@ -855,16 +982,16 @@ visual_panel_drag(void)
 static void
 visual_panel_resize(void)
 {
-    struct ToriDbgRect before;
-    struct ToriDbgRect after;
-    struct ToriDbgRect grip;
+    struct ToriRSChromeRect before;
+    struct ToriRSChromeRect after;
+    struct ToriRSChromeRect grip;
     int panel;
     int rows;
     int consumed;
 
     printf("VISUAL: resize grip\n");
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 60, 30, 160, "Catalog");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 60, 30, 160, "Catalog");
     ToriRSChrome_Label(&g_ui, panel, "m50_50  tile 12,40");
     ToriRSChrome_Label(&g_ui, panel, "u50 o10;1;3 f4");
     ToriRSChrome_Checkbox(&g_ui, panel, "block", 1);
@@ -944,7 +1071,7 @@ visual_panel_resize(void)
         int live = 0;
         for( int i = 0; i < g_ui.widget_count; i++ )
         {
-            struct ToriDbgWidget const* w = &g_ui.widgets[i];
+            struct ToriRSChromeWidget const* w = &g_ui.widgets[i];
             if( w->w <= 0 || w->h <= 0 )
                 continue;
             live++;
@@ -1005,10 +1132,10 @@ dd_row_h(void)
 }
 
 /** The laid-out box of a widget, read back off the chrome's own state. */
-static struct ToriDbgRect
+static struct ToriRSChromeRect
 dbg_widget_box(int widget)
 {
-    struct ToriDbgRect r;
+    struct ToriRSChromeRect r;
     r.x = g_ui.widgets[widget].x;
     r.y = g_ui.widgets[widget].y;
     r.w = g_ui.widgets[widget].w;
@@ -1018,13 +1145,14 @@ dbg_widget_box(int widget)
 
 /** Where the open list lands under `widget`: the box below it, as wide as the
  *  box for a value dropdown and as wide as its widest row for a menu. */
-static struct ToriDbgRect
+static struct ToriRSChromeRect
 dbg_dropdown_list_rect(int widget)
 {
-    struct ToriDbgRect const box = dbg_widget_box(widget);
-    struct ToriDbgWidget const* w = &g_ui.widgets[widget];
-    struct ToriDbgRect r;
-    int rows = w->option_count < TORIDBG_DROPDOWN_ROWS ? w->option_count : TORIDBG_DROPDOWN_ROWS;
+    struct ToriRSChromeRect const box = dbg_widget_box(widget);
+    struct ToriRSChromeWidget const* w = &g_ui.widgets[widget];
+    struct ToriRSChromeRect r;
+    int rows = w->option_count < TORIRS_CHROME_DROPDOWN_ROWS ? w->option_count
+                                                             : TORIRS_CHROME_DROPDOWN_ROWS;
     int label_w = ToriRSChrome_MeasureText(g_ui.theme.font_row, g_ui.scale, w->label);
 
     r.x = box.x + label_w + (label_w > 0 ? 5 : 0);
@@ -1060,7 +1188,7 @@ dd_click(int x, int y)
 static void
 dd_open(int widget)
 {
-    struct ToriDbgRect const box = dbg_widget_box(widget);
+    struct ToriRSChromeRect const box = dbg_widget_box(widget);
     dd_click(box.x + box.w / 2, box.y + box.h / 2);
 }
 
@@ -1070,20 +1198,20 @@ visual_dropdown(void)
     int panel;
     int dd_kind;
     int dd_list;
-    struct ToriDbgRect box;
-    struct ToriDbgRect list;
-    struct ToriDbgRect bar;
+    struct ToriRSChromeRect box;
+    struct ToriRSChromeRect list;
+    struct ToriRSChromeRect bar;
 
     printf("VISUAL: dropdowns\n");
 
     ToriRSChrome_Init(&g_ui);
-    g_ui.theme = toridbg_theme_osrs;
-    g_ui.skin_avail = (1u << TORIDBG_SKIN_PANEL_BODY) | (1u << TORIDBG_SKIN_SCROLL_UP) |
-                      (1u << TORIDBG_SKIN_SCROLL_DOWN);
-    g_ui.skin_tile_w = ToriRSChromeSkin_Get(TORIDBG_SKIN_PANEL_BODY)->w;
-    g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIDBG_SKIN_PANEL_BODY)->h;
+    g_ui.theme = torirs_chrome_theme_osrs;
+    g_ui.skin_avail = (1u << TORIRS_CHROME_SKIN_PANEL_BODY) | (1u << TORIRS_CHROME_SKIN_SCROLL_UP) |
+                      (1u << TORIRS_CHROME_SKIN_SCROLL_DOWN);
+    g_ui.skin_tile_w = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->w;
+    g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->h;
 
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 20, 8, 210, "Catalog");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 20, 8, 210, "Catalog");
     dd_kind = ToriRSChrome_Dropdown(&g_ui, panel, "Kind", dd_short, 4, 1);
     dd_list = ToriRSChrome_Dropdown(
         &g_ui, panel, "", dd_long, (int)(sizeof(dd_long) / sizeof(dd_long[0])), 0);
@@ -1177,8 +1305,8 @@ visual_dropdown_scrollbar_drag(void)
 {
     int panel;
     int dd;
-    struct ToriDbgRect list;
-    struct ToriDbgRect bar;
+    struct ToriRSChromeRect list;
+    struct ToriRSChromeRect bar;
     int const count = (int)(sizeof(dd_long) / sizeof(dd_long[0]));
     int rows;
     int before;
@@ -1186,13 +1314,13 @@ visual_dropdown_scrollbar_drag(void)
     printf("VISUAL: dropdown scrollbar\n");
 
     ToriRSChrome_Init(&g_ui);
-    g_ui.theme = toridbg_theme_osrs;
-    for( int i = 0; i < TORIDBG_SKIN_SLOT_COUNT && i < ToriRSChromeSkin_Count(); i++ )
+    g_ui.theme = torirs_chrome_theme_osrs;
+    for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT && i < ToriRSChromeSkin_Count(); i++ )
         g_ui.skin_avail |= 1u << i;
-    g_ui.skin_tile_w = ToriRSChromeSkin_Get(TORIDBG_SKIN_PANEL_BODY)->w;
-    g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIDBG_SKIN_PANEL_BODY)->h;
+    g_ui.skin_tile_w = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->w;
+    g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->h;
 
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 20, 8, 210, "Catalog");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 20, 8, 210, "Catalog");
     dd = ToriRSChrome_Dropdown(&g_ui, panel, "", dd_long, count, 0);
     ToriRSChrome_Build(&g_ui);
     dd_open(dd);
@@ -1269,17 +1397,17 @@ visual_dropdown_fallbacks(void)
 {
     int panel;
     int dd;
-    struct ToriDbgRect list;
-    struct ToriDbgRect bar;
+    struct ToriRSChromeRect list;
+    struct ToriRSChromeRect bar;
     int const count = (int)(sizeof(dd_long) / sizeof(dd_long[0]));
 
     printf("VISUAL: dropdown fallbacks\n");
 
     /* No skin at all: the flat developer look, flat bar included. */
     ToriRSChrome_Init(&g_ui);
-    ToriRSChrome_SetTheme(&g_ui, &toridbg_theme_default);
+    ToriRSChrome_SetTheme(&g_ui, &torirs_chrome_theme_default);
     g_ui.skin_avail = 0;
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 20, 8, 210, "Catalog");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 20, 8, 210, "Catalog");
     dd = ToriRSChrome_Dropdown(&g_ui, panel, "", dd_long, count, 0);
     ToriRSChrome_Build(&g_ui);
     dd_open(dd);
@@ -1301,13 +1429,13 @@ visual_dropdown_fallbacks(void)
 
     /* 3x with the skin: every sprite is blown up to the column it fills. */
     ToriRSChrome_Init(&g_ui);
-    g_ui.theme = toridbg_theme_osrs;
+    g_ui.theme = torirs_chrome_theme_osrs;
     ToriRSChrome_SetScale(&g_ui, 3);
-    for( int i = 0; i < TORIDBG_SKIN_SLOT_COUNT && i < ToriRSChromeSkin_Count(); i++ )
+    for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT && i < ToriRSChromeSkin_Count(); i++ )
         g_ui.skin_avail |= 1u << i;
-    g_ui.skin_tile_w = ToriRSChromeSkin_Get(TORIDBG_SKIN_PANEL_BODY)->w;
-    g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIDBG_SKIN_PANEL_BODY)->h;
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 8, 4, 0, "Catalog");
+    g_ui.skin_tile_w = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->w;
+    g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->h;
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 4, 0, "Catalog");
     dd = ToriRSChrome_Dropdown(&g_ui, panel, "", dd_short, 4, 1);
     ToriRSChrome_Build(&g_ui);
     dd_open(dd);
@@ -1325,8 +1453,11 @@ visual_dropdown_fallbacks(void)
      * anything the tile has.
      */
     {
-        struct ToriDbgRect const box = dbg_widget_box(dd);
-        int const arrow_x = box.x + 2 * 3;
+        struct ToriRSChromeRect const box = dbg_widget_box(dd);
+        /* Right-aligned, two rules in from the frame's edge -- script_3850's
+         * `cc_setposition(12, .., 2, 0)`, where x-mode 2 measures from the far
+         * side. One rule is 3px at this scale. */
+        int const arrow_x = box.x + box.w - 2 * 3 - 48;
         int const arrow_y = box.y + (box.h - 48) / 2;
         int dark_near = 0;
         int dark_far = 0;
@@ -1366,19 +1497,19 @@ visual_menubar_dropdown(void)
 {
     int bar_panel;
     int menu;
-    struct ToriDbgRect box;
-    struct ToriDbgRect list;
+    struct ToriRSChromeRect box;
+    struct ToriRSChromeRect list;
 
     printf("VISUAL: menubar dropdown\n");
 
     ToriRSChrome_Init(&g_ui);
-    g_ui.theme = toridbg_theme_osrs;
-    for( int i = 0; i < TORIDBG_SKIN_SLOT_COUNT && i < ToriRSChromeSkin_Count(); i++ )
+    g_ui.theme = torirs_chrome_theme_osrs;
+    for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT && i < ToriRSChromeSkin_Count(); i++ )
         g_ui.skin_avail |= 1u << i;
-    g_ui.skin_tile_w = ToriRSChromeSkin_Get(TORIDBG_SKIN_PANEL_BODY)->w;
-    g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIDBG_SKIN_PANEL_BODY)->h;
+    g_ui.skin_tile_w = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->w;
+    g_ui.skin_tile_h = ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY)->h;
 
-    bar_panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_MENUBAR, 0, 0, CANVAS_W, "");
+    bar_panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_MENUBAR, 0, 0, CANVAS_W, "");
     menu = ToriRSChrome_MenuDrop(&g_ui, bar_panel, "File", dd_menu, 4);
     ToriRSChrome_Build(&g_ui);
 
@@ -1428,21 +1559,21 @@ visual_menubar_dropdown(void)
 static void
 visual_scaled(void)
 {
-    int ink[TORIDBG_SCALE_MAX + 1];
-    struct ToriDbgRect rect[TORIDBG_SCALE_MAX + 1];
+    int ink[TORIRS_CHROME_SCALE_MAX + 1];
+    struct ToriRSChromeRect rect[TORIRS_CHROME_SCALE_MAX + 1];
 
     memset(ink, 0, sizeof(ink));
     memset(rect, 0, sizeof(rect));
 
-    for( int scale = TORIDBG_SCALE_MIN; scale <= TORIDBG_SCALE_MAX; scale++ )
+    for( int scale = TORIRS_CHROME_SCALE_MIN; scale <= TORIRS_CHROME_SCALE_MAX; scale++ )
     {
         char name[32];
         int panel;
 
         ToriRSChrome_Init(&g_ui);
-        ToriRSChrome_SetTheme(&g_ui, &toridbg_theme_default);
+        ToriRSChrome_SetTheme(&g_ui, &torirs_chrome_theme_default);
         ToriRSChrome_SetScale(&g_ui, scale);
-        panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 4, 4, 0, "Map Editor");
+        panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 4, 4, 0, "Map Editor");
         ToriRSChrome_Label(&g_ui, panel, "m50_50 (1,2)");
         ToriRSChrome_Checkbox(&g_ui, panel, "block", 1);
         ToriRSChrome_Build(&g_ui);
@@ -1458,17 +1589,17 @@ visual_scaled(void)
             for( int x = rect[scale].x; x < rect[scale].x + rect[scale].w && x < CANVAS_W; x++ )
             {
                 uint32_t const c = px(x, y);
-                if( c != BG_RGB && c != toridbg_theme_default.panel_body )
+                if( c != BG_RGB && c != torirs_chrome_theme_default.panel_body )
                     ink[scale]++;
             }
     }
 
-    for( int scale = TORIDBG_SCALE_MIN; scale <= TORIDBG_SCALE_MAX; scale++ )
+    for( int scale = TORIRS_CHROME_SCALE_MIN; scale <= TORIRS_CHROME_SCALE_MAX; scale++ )
         printf(
             "  scale %dx: panel %dx%d, ink %d px\n", scale, rect[scale].w, rect[scale].h,
             ink[scale]);
 
-    for( int scale = TORIDBG_SCALE_MIN + 1; scale <= TORIDBG_SCALE_MAX; scale++ )
+    for( int scale = TORIRS_CHROME_SCALE_MIN + 1; scale <= TORIRS_CHROME_SCALE_MAX; scale++ )
     {
         VT_ASSERT(
             rect[scale].w == rect[1].w * scale && rect[scale].h == rect[1].h * scale,
@@ -1492,8 +1623,8 @@ static void
 visual_tabs_and_scroll(void)
 {
     static char const* const tabs[] = { "Plugins", "tile_indicator", "lootbeam" };
-    struct ToriDbgTheme const* t = &g_ui.theme;
-    struct ToriDbgRect r;
+    struct ToriRSChromeTheme const* t = &g_ui.theme;
+    struct ToriRSChromeRect r;
     int panel;
     int strip;
     int save;
@@ -1501,7 +1632,7 @@ visual_tabs_and_scroll(void)
 
     printf("VISUAL: tabs / buttons / panel scroll\n");
     ToriRSChrome_Init(&g_ui);
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 20, 16, 250, "Plugins");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 20, 16, 250, "Plugins");
     ToriRSChrome_PanelSetTable(&g_ui, panel, 1);
     strip = ToriRSChrome_Tabs(&g_ui, panel, tabs, 3, 1);
 
@@ -1529,7 +1660,7 @@ visual_tabs_and_scroll(void)
     /* Tab 0 is not the selected one, so it keeps the rule along its bottom --
      * the pixel row the selected tab erases to join itself to the content. */
     {
-        struct ToriDbgWidget const* s = &g_ui.widgets[strip];
+        struct ToriRSChromeWidget const* s = &g_ui.widgets[strip];
         VT_ASSERT(
             px(s->x + 2, s->y + s->h - 1) == t->panel_border,
             "an unselected tab keeps its base rule");
@@ -1563,6 +1694,83 @@ visual_tabs_and_scroll(void)
     ToriRSChrome_Init(&g_ui);
 }
 
+/*
+ * The roster list: a name, a settings affordance and a switch per row, and the
+ * two outcomes a row has.
+ *
+ * The zones are asserted by CLICKING them rather than by reading pixels,
+ * because what makes this a list rather than a column of checkboxes is that
+ * one row answers two different questions depending on where it was hit.
+ */
+static void
+visual_listrow(void)
+{
+    int panel;
+    int on;
+    int off;
+    int plain;
+
+    printf("VISUAL: roster list rows\n");
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 20, 16, 250, "Plugins");
+    on = ToriRSChrome_ListRow(&g_ui, panel, "entity-highlighter", 1, 1);
+    off = ToriRSChrome_ListRow(&g_ui, panel, "tile-indicator-c", 0, 1);
+    plain = ToriRSChrome_ListRow(&g_ui, panel, "lua", 1, 0);
+    ToriRSChrome_Build(&g_ui);
+    render("27_listrows");
+
+    VT_ASSERT(g_ui.widgets[on].h > 0, "a list row lays out");
+    /* Uniform height whether or not a row carries an action: the switches have
+     * to line up down the column, which is what makes the list scannable. */
+    VT_ASSERT(
+        g_ui.widgets[on].h == g_ui.widgets[plain].h,
+        "an action changes nothing about a row's height");
+    VT_ASSERT(
+        g_ui.widgets[on].w == g_ui.widgets[plain].w,
+        "every row in a table panel is the same width");
+
+    /* The switch zone toggles and reports an ordinary activation. */
+    {
+        struct ToriRSChromeWidget const* w = &g_ui.widgets[off];
+        int const tx = w->x + w->w - 4;
+        int const ty = w->y + w->h / 2;
+        ToriRSChrome_MouseDown(&g_ui, tx, ty);
+        ToriRSChrome_MouseUp(&g_ui, tx, ty);
+        VT_ASSERT(ToriRSChrome_TakeActivated(&g_ui) == off, "the switch activates its row");
+        VT_ASSERT(
+            !ToriRSChrome_ActivationWasAction(&g_ui), "the switch is not the action zone");
+        VT_ASSERT(ToriRSChrome_Checked(&g_ui, off), "the switch toggled the row on");
+    }
+
+    /* The action zone opens the row instead, and leaves the switch alone. */
+    {
+        struct ToriRSChromeWidget const* w = &g_ui.widgets[on];
+        int const ax = w->x + 4;
+        int const ay = w->y + w->h / 2;
+        ToriRSChrome_MouseDown(&g_ui, ax, ay);
+        ToriRSChrome_MouseUp(&g_ui, ax, ay);
+        VT_ASSERT(ToriRSChrome_TakeActivated(&g_ui) == on, "the action zone activates its row");
+        VT_ASSERT(
+            ToriRSChrome_ActivationWasAction(&g_ui), "the action zone reports as an action");
+        VT_ASSERT(ToriRSChrome_Checked(&g_ui, on), "the action zone left the switch alone");
+    }
+
+    /* A row with no action has no dead zone: its whole width is the switch. */
+    {
+        struct ToriRSChromeWidget const* w = &g_ui.widgets[plain];
+        int const ax = w->x + 4;
+        int const ay = w->y + w->h / 2;
+        ToriRSChrome_MouseDown(&g_ui, ax, ay);
+        ToriRSChrome_MouseUp(&g_ui, ax, ay);
+        VT_ASSERT(ToriRSChrome_TakeActivated(&g_ui) == plain, "an actionless row still fires");
+        VT_ASSERT(
+            !ToriRSChrome_ActivationWasAction(&g_ui),
+            "an actionless row never reports an action");
+        VT_ASSERT(!ToriRSChrome_Checked(&g_ui, plain), "an actionless row toggles anywhere");
+    }
+    ToriRSChrome_Init(&g_ui);
+}
+
 int
 main(void)
 {
@@ -1576,15 +1784,15 @@ main(void)
     /* Soft3D never sees TORIRSRC_FONT_LOAD (it is a no-op there), so the baked
      * faces are registered here. They are statically allocated and must never
      * reach ToriDraw_FontFree, so the scene is deliberately not freed. */
-    ToriDraw_SceneFontAdd(g_scene, FONT_ID_SMALL, ToriDbgFont_Small());
-    ToriDraw_SceneFontAdd(g_scene, FONT_ID_MENU, ToriDbgFont_Menu());
-    ToriDraw_SceneFontAdd(g_scene, FONT_ID_BODY, ToriDbgFont_Body());
-    ToriDraw_SceneFontAdd(g_scene, FONT_ID_AT(FONT_ID_SMALL, 2), ToriDbgFont_Small2x());
-    ToriDraw_SceneFontAdd(g_scene, FONT_ID_AT(FONT_ID_MENU, 2), ToriDbgFont_Menu2x());
-    ToriDraw_SceneFontAdd(g_scene, FONT_ID_AT(FONT_ID_BODY, 2), ToriDbgFont_Body2x());
-    ToriDraw_SceneFontAdd(g_scene, FONT_ID_AT(FONT_ID_SMALL, 3), ToriDbgFont_Small3x());
-    ToriDraw_SceneFontAdd(g_scene, FONT_ID_AT(FONT_ID_MENU, 3), ToriDbgFont_Menu3x());
-    ToriDraw_SceneFontAdd(g_scene, FONT_ID_AT(FONT_ID_BODY, 3), ToriDbgFont_Body3x());
+    ToriDraw_SceneFontAdd(g_scene, FONT_ID_SMALL, ToriRSChromeFont_Small());
+    ToriDraw_SceneFontAdd(g_scene, FONT_ID_MENU, ToriRSChromeFont_Menu());
+    ToriDraw_SceneFontAdd(g_scene, FONT_ID_BODY, ToriRSChromeFont_Body());
+    ToriDraw_SceneFontAdd(g_scene, FONT_ID_AT(FONT_ID_SMALL, 2), ToriRSChromeFont_Small2x());
+    ToriDraw_SceneFontAdd(g_scene, FONT_ID_AT(FONT_ID_MENU, 2), ToriRSChromeFont_Menu2x());
+    ToriDraw_SceneFontAdd(g_scene, FONT_ID_AT(FONT_ID_BODY, 2), ToriRSChromeFont_Body2x());
+    ToriDraw_SceneFontAdd(g_scene, FONT_ID_AT(FONT_ID_SMALL, 3), ToriRSChromeFont_Small3x());
+    ToriDraw_SceneFontAdd(g_scene, FONT_ID_AT(FONT_ID_MENU, 3), ToriRSChromeFont_Menu3x());
+    ToriDraw_SceneFontAdd(g_scene, FONT_ID_AT(FONT_ID_BODY, 3), ToriRSChromeFont_Body3x());
 
     /* The baked skin, uploaded the same way the scene bridge uploads it in the
      * real client: one multi-frame entry, atlas index == skin slot. Pointing
@@ -1610,6 +1818,7 @@ main(void)
     visual_bordered_background();
     visual_menu();
     visual_checkbox();
+    visual_checkbox_skinned();
     visual_textinput();
     visual_damage();
     visual_clipping();
@@ -1622,6 +1831,7 @@ main(void)
     visual_dropdown_fallbacks();
     visual_menubar_dropdown();
     visual_tabs_and_scroll();
+    visual_listrow();
     visual_scaled();
 
     if( g_failures )

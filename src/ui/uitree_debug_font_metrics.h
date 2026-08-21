@@ -16,11 +16,11 @@
 
 /* Small: cache font archive 494 at 1x. */
 /** Baseline offset from the top of a line box (font ascent). */
-#define ToriDbgFont_Small_LINE_HEIGHT 10
+#define ToriRSChromeFont_Small_LINE_HEIGHT 10
 /** Row pitch: the tallest glyph's bottom edge. */
-#define ToriDbgFont_Small_LINE_BOX 12
+#define ToriRSChromeFont_Small_LINE_BOX 12
 
-static const int ToriDbgFont_Small_advance_px[256] = {
+static const int ToriRSChromeFont_Small_advance_px[256] = {
       3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,
       3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,
       3,  3,  5,  9,  7, 11,  7,  4,  3,  3,  7,  7,  4,  5,  3,  4,
@@ -41,11 +41,11 @@ static const int ToriDbgFont_Small_advance_px[256] = {
 
 /* Body: cache font archive 495 at 1x. */
 /** Baseline offset from the top of a line box (font ascent). */
-#define ToriDbgFont_Body_LINE_HEIGHT 12
+#define ToriRSChromeFont_Body_LINE_HEIGHT 12
 /** Row pitch: the tallest glyph's bottom edge. */
-#define ToriDbgFont_Body_LINE_BOX 16
+#define ToriRSChromeFont_Body_LINE_BOX 16
 
-static const int ToriDbgFont_Body_advance_px[256] = {
+static const int ToriRSChromeFont_Body_advance_px[256] = {
       3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,
       3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,  3,
       3,  3,  5, 13,  8, 11, 11,  4,  4,  4,  9,  7,  4,  6,  3,  6,
@@ -66,11 +66,11 @@ static const int ToriDbgFont_Body_advance_px[256] = {
 
 /* Menu: cache font archive 496 at 1x. */
 /** Baseline offset from the top of a line box (font ascent). */
-#define ToriDbgFont_Menu_LINE_HEIGHT 12
+#define ToriRSChromeFont_Menu_LINE_HEIGHT 12
 /** Row pitch: the tallest glyph's bottom edge. */
-#define ToriDbgFont_Menu_LINE_BOX 16
+#define ToriRSChromeFont_Menu_LINE_BOX 16
 
-static const int ToriDbgFont_Menu_advance_px[256] = {
+static const int ToriRSChromeFont_Menu_advance_px[256] = {
       4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,
       4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,  4,
       4,  4,  7, 14,  9, 12, 12,  4,  5,  5, 10,  8,  4,  8,  4,  7,
@@ -91,11 +91,11 @@ static const int ToriDbgFont_Menu_advance_px[256] = {
 
 /* Small2x: cache font archive 494 at 2x. */
 /** Baseline offset from the top of a line box (font ascent). */
-#define ToriDbgFont_Small2x_LINE_HEIGHT 20
+#define ToriRSChromeFont_Small2x_LINE_HEIGHT 20
 /** Row pitch: the tallest glyph's bottom edge. */
-#define ToriDbgFont_Small2x_LINE_BOX 24
+#define ToriRSChromeFont_Small2x_LINE_BOX 24
 
-static const int ToriDbgFont_Small2x_advance_px[256] = {
+static const int ToriRSChromeFont_Small2x_advance_px[256] = {
       6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,
       6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,
       6,  6, 10, 18, 14, 22, 14,  8,  6,  6, 14, 14,  8, 10,  6,  8,
@@ -116,11 +116,11 @@ static const int ToriDbgFont_Small2x_advance_px[256] = {
 
 /* Body2x: cache font archive 495 at 2x. */
 /** Baseline offset from the top of a line box (font ascent). */
-#define ToriDbgFont_Body2x_LINE_HEIGHT 24
+#define ToriRSChromeFont_Body2x_LINE_HEIGHT 24
 /** Row pitch: the tallest glyph's bottom edge. */
-#define ToriDbgFont_Body2x_LINE_BOX 32
+#define ToriRSChromeFont_Body2x_LINE_BOX 32
 
-static const int ToriDbgFont_Body2x_advance_px[256] = {
+static const int ToriRSChromeFont_Body2x_advance_px[256] = {
       6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,
       6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,  6,
       6,  6, 10, 26, 16, 22, 22,  8,  8,  8, 18, 14,  8, 12,  6, 12,
@@ -141,11 +141,11 @@ static const int ToriDbgFont_Body2x_advance_px[256] = {
 
 /* Menu2x: cache font archive 496 at 2x. */
 /** Baseline offset from the top of a line box (font ascent). */
-#define ToriDbgFont_Menu2x_LINE_HEIGHT 24
+#define ToriRSChromeFont_Menu2x_LINE_HEIGHT 24
 /** Row pitch: the tallest glyph's bottom edge. */
-#define ToriDbgFont_Menu2x_LINE_BOX 32
+#define ToriRSChromeFont_Menu2x_LINE_BOX 32
 
-static const int ToriDbgFont_Menu2x_advance_px[256] = {
+static const int ToriRSChromeFont_Menu2x_advance_px[256] = {
       8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
       8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,  8,
       8,  8, 14, 28, 18, 24, 24,  8, 10, 10, 20, 16,  8, 16,  8, 14,
@@ -166,11 +166,11 @@ static const int ToriDbgFont_Menu2x_advance_px[256] = {
 
 /* Small3x: cache font archive 494 at 3x. */
 /** Baseline offset from the top of a line box (font ascent). */
-#define ToriDbgFont_Small3x_LINE_HEIGHT 30
+#define ToriRSChromeFont_Small3x_LINE_HEIGHT 30
 /** Row pitch: the tallest glyph's bottom edge. */
-#define ToriDbgFont_Small3x_LINE_BOX 36
+#define ToriRSChromeFont_Small3x_LINE_BOX 36
 
-static const int ToriDbgFont_Small3x_advance_px[256] = {
+static const int ToriRSChromeFont_Small3x_advance_px[256] = {
       9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,
       9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,
       9,  9, 15, 27, 21, 33, 21, 12,  9,  9, 21, 21, 12, 15,  9, 12,
@@ -191,11 +191,11 @@ static const int ToriDbgFont_Small3x_advance_px[256] = {
 
 /* Body3x: cache font archive 495 at 3x. */
 /** Baseline offset from the top of a line box (font ascent). */
-#define ToriDbgFont_Body3x_LINE_HEIGHT 36
+#define ToriRSChromeFont_Body3x_LINE_HEIGHT 36
 /** Row pitch: the tallest glyph's bottom edge. */
-#define ToriDbgFont_Body3x_LINE_BOX 48
+#define ToriRSChromeFont_Body3x_LINE_BOX 48
 
-static const int ToriDbgFont_Body3x_advance_px[256] = {
+static const int ToriRSChromeFont_Body3x_advance_px[256] = {
       9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,
       9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,  9,
       9,  9, 15, 39, 24, 33, 33, 12, 12, 12, 27, 21, 12, 18,  9, 18,
@@ -216,11 +216,11 @@ static const int ToriDbgFont_Body3x_advance_px[256] = {
 
 /* Menu3x: cache font archive 496 at 3x. */
 /** Baseline offset from the top of a line box (font ascent). */
-#define ToriDbgFont_Menu3x_LINE_HEIGHT 36
+#define ToriRSChromeFont_Menu3x_LINE_HEIGHT 36
 /** Row pitch: the tallest glyph's bottom edge. */
-#define ToriDbgFont_Menu3x_LINE_BOX 48
+#define ToriRSChromeFont_Menu3x_LINE_BOX 48
 
-static const int ToriDbgFont_Menu3x_advance_px[256] = {
+static const int ToriRSChromeFont_Menu3x_advance_px[256] = {
      12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12,
      12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12, 12,
      12, 12, 21, 42, 27, 36, 36, 12, 15, 15, 30, 24, 12, 24, 12, 21,

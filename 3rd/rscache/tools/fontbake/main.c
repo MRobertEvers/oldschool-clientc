@@ -737,7 +737,7 @@ main(int argc, char** argv)
     const char* out_path = NULL;
     const char* header_path = NULL;
     const char* metrics_path = NULL;
-    const char* prefix = "ToriDbgFont";
+    const char* prefix = "ToriRSChromeFont";
     const char* probe = NULL;
     int do_list = 0;
     struct RSCache profile;

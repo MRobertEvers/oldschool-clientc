@@ -50,7 +50,7 @@ test_chrome_exec_catchup(void)
     struct ToriRSChromeCmd const* add;
 
     exec_reset();
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 12, 20, 160, "Settings");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 12, 20, 160, "Settings");
     check = ToriRSChrome_Checkbox(&g_ui, panel, "enabled", 1);
     ToriRSChrome_Build(&g_ui);
 
@@ -67,7 +67,7 @@ test_chrome_exec_catchup(void)
 
     add = ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_WIDGET_ADD, check);
     TEST_ASSERT(add != NULL, "the checkbox is added");
-    TEST_ASSERT(add->value == TORIDBG_W_CHECKBOX, "the add carries the widget's kind");
+    TEST_ASSERT(add->value == TORIRS_CHROME_W_CHECKBOX, "the add carries the widget's kind");
     TEST_ASSERT(strcmp(add->label, "enabled") == 0, "the add carries the label, copied");
     TEST_ASSERT(
         ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_WIDGET_CHECKED, check) != NULL,
@@ -86,7 +86,7 @@ test_chrome_exec_quiet_frame(void)
     int input;
 
     exec_reset();
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 12, 20, 160, "Settings");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 12, 20, 160, "Settings");
     input = ToriRSChrome_TextInput(&g_ui, panel, "colour", "#FFCC00");
     ToriRSChrome_Build(&g_ui);
     exec_settle();
@@ -122,7 +122,7 @@ test_chrome_exec_remove(void)
     int b;
 
     exec_reset();
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 0, 0, 160, "P");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 160, "P");
     a = ToriRSChrome_Label(&g_ui, panel, "a");
     b = ToriRSChrome_Checkbox(&g_ui, panel, "b", 0);
     ToriRSChrome_Build(&g_ui);
@@ -180,7 +180,7 @@ test_chrome_exec_panel_close(void)
     int panel;
 
     exec_reset();
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 0, 0, 160, "P");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 160, "P");
     for( int i = 0; i < 5; i++ )
         ToriRSChrome_Label(&g_ui, panel, "row");
     ToriRSChrome_Build(&g_ui);
@@ -219,7 +219,7 @@ test_chrome_exec_options(void)
     int drop;
 
     exec_reset();
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 0, 0, 200, "P");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 200, "P");
     drop = ToriRSChrome_Dropdown(&g_ui, panel, "mode", first, 2, 0);
     ToriRSChrome_Build(&g_ui);
     ToriRSChromeSync_Run(&g_sync, &g_ui);
@@ -257,7 +257,7 @@ test_chrome_exec_intents(void)
     struct ToriRSChromeIntent intent;
 
     exec_reset();
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 0, 0, 200, "P");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 200, "P");
     strip = ToriRSChrome_Tabs(&g_ui, panel, tabs, 2, 0);
     check = ToriRSChrome_Checkbox(&g_ui, panel, "enabled", 0);
     input = ToriRSChrome_TextInput(&g_ui, panel, "colour", "#000000");
@@ -331,7 +331,7 @@ test_chrome_exec_refused(void)
     exec = ToriRSChromeExec_Recorder(&g_rec);
 
     TEST_ASSERT(ToriRSChromeSync_Init(&g_sync, &exec) == 0, "a refusing executor reports it");
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 0, 0, 160, "P");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 160, "P");
     ToriRSChrome_Label(&g_ui, panel, "row");
     ToriRSChrome_Build(&g_ui);
     TEST_ASSERT(ToriRSChromeSync_Run(&g_sync, &g_ui) == 0, "and is never driven");
@@ -364,7 +364,7 @@ test_chrome_exec_row_order(void)
     int second;
 
     exec_reset();
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 0, 0, 200, "P");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 200, "P");
     /* Three rows, then a rebuild that puts them back in the SAME order. The
      * handles come back off the free list reversed, which is the whole point. */
     ToriRSChrome_Label(&g_ui, panel, "one");
@@ -427,7 +427,7 @@ test_chrome_exec_lost(void)
     int panel;
 
     exec_reset();
-    panel = ToriRSChrome_PanelAdd(&g_ui, TORIDBG_PANEL_WINDOW, 0, 0, 200, "P");
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 200, "P");
     ToriRSChrome_Checkbox(&g_ui, panel, "enabled", 1);
     ToriRSChrome_TextInput(&g_ui, panel, "colour", "#FFCC00");
     ToriRSChrome_Build(&g_ui);

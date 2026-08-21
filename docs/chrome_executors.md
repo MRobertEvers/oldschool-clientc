@@ -17,7 +17,7 @@ RECT, TEXT, SPRITE -- which the existing pipeline carries to whichever backend
 is live:
 
 ```
-ToriRSChrome_Build  →  ToriDbgPrim[]  →  UITree emit  →  ToriRS_Frame  →  Soft3D / GL3 / WebGL1 / D3D9
+ToriRSChrome_Build  →  ToriRSChromePrim[]  →  UITree emit  →  ToriRS_Frame  →  Soft3D / GL3 / WebGL1 / D3D9
 ```
 
 That list is the right altitude for a rasteriser and the wrong one for anything
@@ -75,7 +75,7 @@ Three orderings are load-bearing and all three are tested:
 
 ### A handle is not an identity
 
-`ToriDbgWidget::serial` is. Handles come off a free list, so handle 5 removed
+`ToriRSChromeWidget::serial` is. Handles come off a free list, so handle 5 removed
 and handle 5 added are two different widgets wearing one number, and a shadow
 that diffed on `(handle, kind, panel)` concluded "nothing changed" for a row
 that had in fact been replaced. The serial is monotonic, never reused, and never
@@ -93,7 +93,25 @@ or written to a recording. Every string entering a command is copied into it.
 `[chrome] executor=buffer|sdl|web|gdi|cs2` in the boot manifest, overridden by
 `TORIRS_CHROME_EXECUTOR` -- the same precedence `TORIRS_CHROME_THEME` has over
 the theme beside it, so a lane can ship a default a developer steps past without
-editing it. Default is `buffer`.
+editing it.
+
+**With no key and no env var**, the gameframe picks: a gameframe that mounts the
+popout strip (interface 728, the column with XP Tracker and Loot Tracker) gets
+`cs2`, so the plugin window arrives as a fourth tracker rather than as a panel
+floating over the game; every other gameframe gets `buffer`.
+
+That is a default and nothing more. Naming an executor -- in the manifest or in
+the environment -- wins over it, including when the name is what would have been
+chosen anyway. This needs the *presence* of the key tracked separately from its
+value (`BootManifest::chrome_executor_set`), because `buffer` is both the zero
+value and a legitimate answer; without that flag the strip's preference read as
+unconditional and `[chrome] executor=` was inert on every lane that has a strip.
+The client prints what it bound and why on the frame the window first opens:
+
+```
+chrome: plugin window executor = sdl (configured)
+chrome: plugin window executor = cs2 (default)
+```
 
 A manifest naming something that is not an executor at all is a **load-time
 error**, next to the line that asked. A name this *build* has no executor for is
@@ -167,22 +185,53 @@ them a choice would be four more consumers to keep working for nobody.
      auto-mounting an interface for property access cannot cover the gameframe
      -- so ids picked for being far away render *nothing*. `0x7FFE` is the
      tree's own "app-overlay chrome" group.
-  2. **It mounts as its own root (`-1`), not in a slot.** Not every gameframe
-     declares an overlay slot, and a panel inside the first root draws *under*
-     every later root. A `-1` parent appends a root after the existing ones and
-     the emit walk takes roots in order.
+  2. **It mounts into the gameframe's popout strip**, `popout:container`
+     (728:9) -- the slot XP Tracker, Loot Tools and Hiscores mount into. Those
+     panels are authored pure fill-parent with no chrome of their own (the
+     nine-slice frame is a sibling under `popout:frame`), so building there
+     inherits the strip's frame, sizing and collapse behaviour and reads as a
+     fourth tracker. Mounting as its own root (`-1`) was the first attempt and
+     is what a gameframe with no strip would need; it is not what this does.
   3. **The tree owns its text.** `UITree_PushBuildComponent` strdups the
      string and node teardown frees it, so assigning a pointer of your own into
      `u.rs_text.text` afterwards is a heap corruption on the next rebuild, not
      a leak. Hand strings to the *builder*.
+  4. **Its art is baked in, not loaded.** The furniture -- tradebacking behind
+     panels and fields, and the six pieces `~script31` builds a scrollbar out
+     of -- comes from `engine/torirs_chrome_skin_baked.c`, the same bake the
+     in-canvas chrome draws, handed over as one multi-frame scene sprite whose
+     frames are `enum ToriRSChromeSkinSlot`. So does the wrench on the strip button.
+     Components reach it through `UIBuildComponent::graphic_scene_id` +
+     `graphic_atlas_index`, which bypass the sprite resolver entirely.
 
-  Scrolls with two arrow buttons rather than a draggable bar: a bar means a
-  grip sized from the content, a track to hit-test and a drag held across
-  frames -- three things the in-canvas chrome already implements and that this
-  would be a second copy of, in a toolkit with no drag.
+     It used to ask the cache for archives 297/773/788/792/789/790/791 and 785,
+     and that was wrong three ways: nothing could be drawn until the loads
+     landed, so the panel opened as flat boxes and rebuilt when each piece
+     arrived; those ids name unrelated images on any cache but the OSRS one
+     they were chosen from, so a different lane got a confidently wrong
+     picture; and the launcher button could not be built at all until its icon
+     resolved. None of those failure modes exist now -- the images are `.rdata`
+     and the only question left is whether this *build* baked a skin.
 
-  Not done: editable text fields. Clicking one reports an activation; making it
-  type needs the chat-input keyboard handoff the client already has one of.
+  The scrollbar is drawn the way `~script31` assembles one -- track, grip,
+  arrow sprites -- but only the ARROWS take a click, because a grip drag is a
+  press held across frames and this toolkit has no drag. The grip is still
+  positioned from the scroll offset, so the bar reads and moves like the
+  game's.
+
+  **Editing works, by routing the keyboard and nothing else.** A click on a
+  field arrives as a component click and becomes an ACTIVATE intent, which the
+  intent layer turns into FOCUS on the model's own text input; the host then
+  routes key events (and only key events) into that model, so typing lands in
+  the focused field and mirrors back per keystroke. The MOUSE is deliberately
+  not routed there: the in-canvas window still lays out and hit-tests at its
+  floating position even though nothing draws it, so mouse routing would
+  deliver every click to that ghost as well. The field shows no caret -- the
+  text component has none -- but it takes and shows typing.
+
+  Dropdowns **cycle** on click rather than opening a list: a popup is an open
+  state held across frames plus its own hit test, and stepping to the next
+  option is the whole affordance a declared enum needs.
 
 ## 5. The SDL executor
 
@@ -239,15 +288,41 @@ Two things about its placement were bugs first:
 
 ## 6. The plugin window
 
-One window, tabbed. The first tab is the roster -- every plugin, its switch and
-its last fault -- and every plugin that asked for one gets a tab of its own.
-That is the sandbox rule made concrete: plugins share ONE extra window, and
-`api->win_request` claims a **tab** in it rather than a window of its own.
+One window, **paged**. The roster lists every plugin as a row carrying its
+name, its last fault, a switch and -- when it has anything to configure -- a
+way into its own page; that page holds its settings and whatever controls it
+declared, under a Back button. That is the sandbox rule made concrete: plugins
+share ONE extra window, and `api->win_request` claims a **page** in it rather
+than a window of its own.
+
+### Pages, not a tab per plugin
+
+This was a tab strip first, and a strip is the wrong shape for a roster: it
+lays its destinations out across one row, so eight plugins already compress
+their captions past reading and the ninth has nowhere to go. RuneLite's plugin
+panel answers the same problem with a scrolling list of rows -- each with its
+own switch -- and a drill-down into the one you asked about, so that is the
+navigation this borrows. What it does **not** borrow is the look: the rows are
+drawn in the game's own chrome by whichever executor is live.
+
+The row is its own widget kind (`TORIRS_CHROME_W_LISTROW`) rather than a checkbox
+with extras, because it has three zones and **two** outcomes -- flip the
+switch, or open the page -- and the model has to be able to say which one
+fired. It does that with `ToriRSChrome_ActivationWasAction` beside the ordinary
+activation latch, and `TORIRS_CHROME_INTENT_ACTION` carries the same
+distinction back from a native-widget executor. Putting the row in the MODEL is
+what gets every executor the same list, and the page state is the host's, so
+nothing below the seam knows a page changed.
+
+A row whose plugin has nothing to configure gets no affordance, and then its
+whole width toggles -- no zone is ever inert. "Nothing to configure" means no
+LABELLED config key and no declared control; an unlabelled key is state the
+plugin persists for itself, not something to hand-edit.
 
 It is its own `ToriRSChrome` instance rather than a panel in the developer
 chrome, because it is the one piece of chrome a *player* uses: it must be
 openable beside the game without the editors' claim on the keyboard, it needs
-capacity for a tab per plugin, and it is the surface an executor is bound to
+capacity for every plugin's rows at once, and it is the surface an executor is bound to
 while the developer chrome stays in-canvas. The old objection -- "a second
 chrome is a second of all the focus, damage and scale handling" -- stopped
 applying once input routing became one shared call taking the instance

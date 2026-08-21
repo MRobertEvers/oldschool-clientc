@@ -92,7 +92,7 @@ UITree_TestHostRequest(void* user, struct UITreeHostRequest* req)
     case UITREE_HOST_GET_DEBUG_OVERLAY:
     {
         int count = 0;
-        struct ToriDbgPrim const* prims;
+        struct ToriRSChromePrim const* prims;
         if( !st->debug_overlay || !req->u.get_debug_overlay.out_prims )
             return 0;
         prims = ToriRSChrome_Prims(st->debug_overlay, &count);

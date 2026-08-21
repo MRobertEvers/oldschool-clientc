@@ -315,7 +315,7 @@ app_text_input_focused(struct App const* app)
 {
     assert(app);
     /* dbg_ui.focus: the ToriRSChrome text input under caret, if any -- set
-     * only for TORIDBG_W_TEXTINPUT widgets (ToriRSChrome_MouseDown) and
+     * only for TORIRS_CHROME_W_TEXTINPUT widgets (ToriRSChrome_MouseDown) and
      * cleared by a click elsewhere, so this is exactly "the editor/loc
      * editor panel has a field being typed into" (e.g. the map editor's
      * Height field). Without it, typing a height value like "8" both edited
@@ -3226,6 +3226,34 @@ app_chrome_route_input(
     struct ToriRSChrome* ui,
     struct LibToriRS_Input* input);
 
+/* Its keyboard half alone -- what a native-widget executor's window needs. */
+static void
+app_chrome_route_keys(
+    struct App* app,
+    struct ToriRSChrome* ui,
+    struct LibToriRS_Input* input);
+
+/* Scene font id for the minimenu (reference uses bold-12; dat2 fonts-table
+ * archive 496 in this cache era, e.g. bank title font). Dat1 has no fonts
+ * table: its fonts live in the title jagfile and are pinned at cache-font
+ * slots 0-3 by RevConfig, where b12 is slot 2. Falls back to any text node's
+ * already-resolved scene font when b12 cannot load. Declared above the plugin
+ * includes because the plugin window's CS2 presentation sets its rows in the
+ * same p12 the interfaces use. */
+enum
+{
+    APP_FONT_B12_CACHE_ID = 496,
+    APP_FONT_B12_DAT1_SLOT = 2,
+    /* Hitsplat numbers use p11 (reference `this.p11.centreString`). RevConfig
+     * orders the dat1 title jagfile fonts p11/p12/b12/q8 as slots 0-3; the
+     * dat2 fonts table keeps them adjacent with b12 at 496. */
+    APP_FONT_P11_CACHE_ID = 494,
+    APP_FONT_P11_DAT1_SLOT = 0,
+    /* Rebuild loading overlay (deob / Client-TS `p12.centreString`). */
+    APP_FONT_P12_CACHE_ID = 495,
+    APP_FONT_P12_DAT1_SLOT = 1,
+};
+
 #include "plugin/torirs_plugin_bridge.u.c"
 #include "plugin/torirs_plugin_panel.u.c"
 
@@ -3747,13 +3775,13 @@ app_inv_drag_ghosting(struct App const* app);
  * the one a player opened, and a frame-time counter on top of it would be a
  * developer tool covering a user's window.
  */
-static struct ToriDbgPrim const*
+static struct ToriRSChromePrim const*
 app_chrome_merged_prims(struct App* app, int* out_count)
 {
     int dbg_count = 0;
     int win_count = 0;
-    struct ToriDbgPrim const* dbg = ToriRSChrome_Prims(&app->dbg_ui, &dbg_count);
-    struct ToriDbgPrim const* win = ToriRSChrome_Prims(&app->plugin_ui, &win_count);
+    struct ToriRSChromePrim const* dbg = ToriRSChrome_Prims(&app->dbg_ui, &dbg_count);
+    struct ToriRSChromePrim const* win = ToriRSChrome_Prims(&app->plugin_ui, &win_count);
     int total;
 
     assert(out_count);
@@ -5066,9 +5094,9 @@ app_chrome_fonts_resolve(struct App* app)
      * ahead of the first build. */
     if( !app->tree )
         return;
-    small = UITreeSceneBridge_EnsureDebugFont(&app->bridge, TORIDBG_FONT_SMALL);
-    menu = UITreeSceneBridge_EnsureDebugFont(&app->bridge, TORIDBG_FONT_MENU);
-    body = UITreeSceneBridge_EnsureDebugFont(&app->bridge, TORIDBG_FONT_BODY);
+    small = UITreeSceneBridge_EnsureDebugFont(&app->bridge, TORIRS_CHROME_FONT_SMALL);
+    menu = UITreeSceneBridge_EnsureDebugFont(&app->bridge, TORIRS_CHROME_FONT_MENU);
+    body = UITreeSceneBridge_EnsureDebugFont(&app->bridge, TORIRS_CHROME_FONT_BODY);
     UITree_DebugOverlaySetFontIds(app->tree, small, menu, body);
 }
 
@@ -5091,7 +5119,7 @@ App_ChromeRasterise(
     int* pixels,
     int width,
     int height,
-    struct ToriDbgPrim const* prims,
+    struct ToriRSChromePrim const* prims,
     int count)
 {
     struct App* app = user;
@@ -5108,10 +5136,10 @@ App_ChromeRasterise(
     desc.kind = UITREE_EMIT_DEBUG_OVERLAY;
     desc.debug_prims = prims;
     desc.debug_prim_count = count;
-    for( int i = 0; i < TORIDBG_FONT_SLOT_COUNT; i++ )
+    for( int i = 0; i < TORIRS_CHROME_FONT_SLOT_COUNT; i++ )
         desc.debug_font_id[i] = UITreeSceneBridge_EnsureDebugFont(&app->bridge, i);
     desc.debug_skin_scene_id = UITreeSceneBridge_EnsureChromeSkin(&app->bridge);
-    for( int i = 0; i < TORIDBG_SKIN_SLOT_COUNT; i++ )
+    for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT; i++ )
         desc.debug_skin_atlas[i] = i;
     desc.clip.x = 0;
     desc.clip.y = 0;
@@ -5135,14 +5163,14 @@ int
 App_SetChromeScale(struct App* app, int scale)
 {
     assert(app);
-    if( scale < TORIDBG_SCALE_MIN )
-        scale = TORIDBG_SCALE_MIN;
+    if( scale < TORIRS_CHROME_SCALE_MIN )
+        scale = TORIRS_CHROME_SCALE_MIN;
     /* Clamped, not asserted: this number comes from the DISPLAY, and a 4x
      * monitor is a fact about the world rather than a caller's bug. Chrome one
      * baked size below the display's density is a little small; an assert here
      * would be a crash on a machine nobody tested on. */
-    if( scale > TORIDBG_SCALE_MAX )
-        scale = TORIDBG_SCALE_MAX;
+    if( scale > TORIRS_CHROME_SCALE_MAX )
+        scale = TORIRS_CHROME_SCALE_MAX;
     if( ToriRSChrome_Scale(&app->dbg_ui) == scale )
         return 0;
 
@@ -5186,14 +5214,14 @@ app_debug_overlay_init(struct App* app)
     {
         char const* theme = getenv("TORIRS_CHROME_THEME");
         if( theme && strcmp(theme, "flat") == 0 )
-            app->dbg_ui.theme = toridbg_theme_default;
+            app->dbg_ui.theme = torirs_chrome_theme_default;
 
-        for( int i = 0; i < TORIDBG_SKIN_SLOT_COUNT && i < ToriRSChromeSkin_Count(); i++ )
+        for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT && i < ToriRSChromeSkin_Count(); i++ )
             app->dbg_ui.skin_avail |= 1u << i;
-        if( app->dbg_ui.skin_avail & (1u << TORIDBG_SKIN_PANEL_BODY) )
+        if( app->dbg_ui.skin_avail & (1u << TORIRS_CHROME_SKIN_PANEL_BODY) )
         {
             struct ToriRSChromeSkin_Sprite const* body =
-                ToriRSChromeSkin_Get(TORIDBG_SKIN_PANEL_BODY);
+                ToriRSChromeSkin_Get(TORIRS_CHROME_SKIN_PANEL_BODY);
             app->dbg_ui.skin_tile_w = body->w;
             app->dbg_ui.skin_tile_h = body->h;
         }
@@ -5210,20 +5238,19 @@ app_debug_overlay_init(struct App* app)
     app->plugin_ui = app->dbg_ui;
     app->plugin_panel = -1;
     app->plugin_button_node = -1;
-    app->plugin_panel_tabs = -1;
     app->plugin_panel_built_for = -1;
     app->plugin_panel_built_rev = -1;
 
     app->dbg_visible = 0;
     app->dbg_frame_head = 0;
     app->dbg_frame_count = 0;
-    app->dbg_panel =
-        ToriRSChrome_PanelAdd(&app->dbg_ui, TORIDBG_PANEL_MENU, 8, 8, 0, k_app_debug_overlay_title);
+    app->dbg_panel = ToriRSChrome_PanelAdd(
+        &app->dbg_ui, TORIRS_CHROME_PANEL_MENU, 8, 8, 0, k_app_debug_overlay_title);
     app->dbg_frame_row = ToriRSChrome_MenuItem(&app->dbg_ui, app->dbg_panel, "--");
     ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->dbg_panel, 0);
 
     app->locedit_panel =
-        ToriRSChrome_PanelAdd(&app->dbg_ui, TORIDBG_PANEL_MENU, 8, 40, 0, "Loc Editor");
+        ToriRSChrome_PanelAdd(&app->dbg_ui, TORIRS_CHROME_PANEL_MENU, 8, 40, 0, "Loc Editor");
     app->locedit_row_target =
         ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "nothing selected");
     app->locedit_row_pos = ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "");
@@ -5234,13 +5261,16 @@ app_debug_overlay_init(struct App* app)
      * panel is open (below), so these letters are always free to use without
      * a message box eating them. Still clickable too -- the key is the fast
      * path, the click is the discoverable one. */
-    app->locedit_item_xplus = ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Move X+1  [D]");
+    app->locedit_item_xplus =
+        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Move X+1  [D]");
     app->locedit_item_xminus =
         ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Move X-1  [A]");
-    app->locedit_item_zplus = ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Move Z+1  [W]");
+    app->locedit_item_zplus =
+        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Move Z+1  [W]");
     app->locedit_item_zminus =
         ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Move Z-1  [S]");
-    app->locedit_item_rotate = ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Rotate  [R]");
+    app->locedit_item_rotate =
+        ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Rotate  [R]");
     app->locedit_item_reselect =
         ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Reselect (under cursor)  [Space]");
     app->locedit_item_deselect =
@@ -5354,7 +5384,7 @@ app_debug_overlay_tick(
     if( app->dbg_visible )
     {
         uint32_t const mean_us = app_debug_frame_mean_us(app);
-        char text[TORIDBG_INPUT_MAX];
+        char text[TORIRS_CHROME_INPUT_MAX];
 
         /* Two decimals: the samples are microseconds, and rounding a 3.4 ms
          * frame to "3 ms" throws away the part that moves. */
@@ -5400,7 +5430,7 @@ app_debug_overlay_tick(
 static void
 app_loc_editor_refresh_labels(struct App* app)
 {
-    char text[TORIDBG_INPUT_MAX];
+    char text[TORIRS_CHROME_INPUT_MAX];
 
     /*
      * A selected TILE, which answers a different set of questions than a loc.
@@ -5700,7 +5730,7 @@ app_loc_editor_rotate(struct App* app)
 
 
 /**
- * OSRS key code -> the overlay's editing key, or TORIDBG_KEY_NONE.
+ * OSRS key code -> the overlay's editing key, or TORIRS_CHROME_KEY_NONE.
  *
  * The overlay deliberately owns no keymap (see uitree_debug_overlay.h), so the
  * translation lives here, where the client's own key codes already are.
@@ -5715,25 +5745,25 @@ app_dbgui_key_edit_from_osrs(int osrs_key)
     switch( osrs_key )
     {
     case TORIRS_OSRSKEY_BACKSPACE:
-        return TORIDBG_KEY_BACKSPACE;
+        return TORIRS_CHROME_KEY_BACKSPACE;
     case TORIRS_OSRSKEY_DELETE:
-        return TORIDBG_KEY_DELETE;
+        return TORIRS_CHROME_KEY_DELETE;
     case TORIRS_OSRSKEY_ENTER:
-        return TORIDBG_KEY_ENTER;
+        return TORIRS_CHROME_KEY_ENTER;
     case TORIRS_OSRSKEY_ESCAPE:
-        return TORIDBG_KEY_ESCAPE;
+        return TORIRS_CHROME_KEY_ESCAPE;
     /* Arrows and home/end have no named constants; the keymap table spells
      * them (src/input/torirs_keymap.c: 96 left, 97 right, 102 home, 103 end). */
     case 96:
-        return TORIDBG_KEY_LEFT;
+        return TORIRS_CHROME_KEY_LEFT;
     case 97:
-        return TORIDBG_KEY_RIGHT;
+        return TORIRS_CHROME_KEY_RIGHT;
     case 102:
-        return TORIDBG_KEY_HOME;
+        return TORIRS_CHROME_KEY_HOME;
     case 103:
-        return TORIDBG_KEY_END;
+        return TORIRS_CHROME_KEY_END;
     default:
-        return TORIDBG_KEY_NONE;
+        return TORIRS_CHROME_KEY_NONE;
     }
 }
 
@@ -5775,17 +5805,35 @@ app_chrome_route_input(
             ui, input->curr.mouse_x, input->curr.mouse_y, input->curr.mouse_wheel_y) )
         app->input_frame_consumed = 1;
 
-    /*
-     * Typing, so text inputs work at all.
-     *
-     * `key_typed` carries the OSRS key code and `key_pressed` the typed
-     * character (see torirs_input.h), so editing keys and printable bytes come
-     * off different fields of the same event.
-     *
-     * Safe to run for any visible panel: with nothing focused the chrome
-     * consumes neither, so a panel that is merely on screen -- the developer
-     * readout, say -- never swallows a keystroke meant for the game.
-     */
+    app_chrome_route_keys(app, ui, input);
+}
+
+/*
+ * The keyboard half of the routing above, on its own because a NATIVE-WIDGET
+ * executor needs exactly this half: its clicks arrive as component clicks on
+ * the interface tree, but its text fields are the model's, so typing still has
+ * to reach the model. Routing the MOUSE too would hand clicks to the in-canvas
+ * window's ghost -- laid out and hit-testable at its floating position even
+ * though nothing draws it there.
+ *
+ * `key_typed` carries the OSRS key code and `key_pressed` the typed character
+ * (see torirs_input.h), so editing keys and printable bytes come off different
+ * fields of the same event.
+ *
+ * Safe to run for any visible panel: with nothing focused the chrome consumes
+ * neither, so a panel that is merely on screen -- the developer readout, say
+ * -- never swallows a keystroke meant for the game.
+ */
+static void
+app_chrome_route_keys(
+    struct App* app,
+    struct ToriRSChrome* ui,
+    struct LibToriRS_Input* input)
+{
+    assert(app);
+    assert(ui);
+    assert(input);
+
     for( int i = 0; i < input->key_event_count; i++ )
     {
         struct LibToriRS_KeyEvent const* ev = &input->key_events[i];
@@ -5796,7 +5844,7 @@ app_chrome_route_input(
         else
         {
             int const edit = app_dbgui_key_edit_from_osrs(ev->key_typed);
-            if( edit != TORIDBG_KEY_NONE )
+            if( edit != TORIRS_CHROME_KEY_NONE )
                 consumed = ToriRSChrome_KeyEdit(ui, edit);
         }
         if( consumed )
@@ -6882,25 +6930,6 @@ App_Shutdown(struct App* app)
     free(app->if_hides);
 }
 
-/* Scene font id for the minimenu (reference uses bold-12; dat2 fonts-table
- * archive 496 in this cache era, e.g. bank title font). Dat1 has no fonts
- * table: its fonts live in the title jagfile and are pinned at cache-font
- * slots 0-3 by RevConfig, where b12 is slot 2. Falls back to any text node's
- * already-resolved scene font when b12 cannot load. */
-enum
-{
-    APP_FONT_B12_CACHE_ID = 496,
-    APP_FONT_B12_DAT1_SLOT = 2,
-    /* Hitsplat numbers use p11 (reference `this.p11.centreString`). RevConfig
-     * orders the dat1 title jagfile fonts p11/p12/b12/q8 as slots 0-3; the
-     * dat2 fonts table keeps them adjacent with b12 at 496. */
-    APP_FONT_P11_CACHE_ID = 494,
-    APP_FONT_P11_DAT1_SLOT = 0,
-    /* Rebuild loading overlay (deob / Client-TS `p12.centreString`). */
-    APP_FONT_P12_CACHE_ID = 495,
-    APP_FONT_P12_DAT1_SLOT = 1,
-};
-
 static int
 app_font_b12_cache_id(struct App const* app)
 {
@@ -7475,7 +7504,7 @@ app_modelview_focused(struct App const* app)
 {
     int const f = app->dbg_ui.focus;
     return f >= 0 && f < app->dbg_ui.widget_count &&
-           app->dbg_ui.widgets[f].kind == TORIDBG_W_MODELVIEW;
+           app->dbg_ui.widgets[f].kind == TORIRS_CHROME_W_MODELVIEW;
 }
 
 
@@ -24023,11 +24052,13 @@ App_WriteBmp(
 }
 
 void
-App_SetPluginChromeExec(struct App* app, struct ToriRSChromeExec const* exec, int kind)
+App_SetPluginChromeExec(
+    struct App* app, struct ToriRSChromeExec const* exec, int kind, int explicit_choice)
 {
     assert(app);
     assert(exec);
     app->plugin_exec_pending = *exec;
+    app->plugin_exec_explicit = explicit_choice ? 1 : 0;
     /* Carried so a refusal can name what refused. Without it the fallback
      * message said "the 'buffer' executor would not start", which is both
      * impossible and unhelpful. */

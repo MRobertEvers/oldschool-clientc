@@ -122,7 +122,7 @@ struct UITreeSceneBridge
  * keeps its historic ids so nothing that already resolved one has to change.
  */
 #define UITREE_SCENE_DEBUG_FONT_SCALED_BASE 0x40001000
-/** @param slot enum ToriDbgFontSlot. @param scale >= 2. */
+/** @param slot enum ToriRSChromeFontSlot. @param scale >= 2. */
 #define UITREE_SCENE_DEBUG_FONT_SCALED_ID(slot, scale)                                        \
     (UITREE_SCENE_DEBUG_FONT_SCALED_BASE + ((scale) - 2) * 16 + (slot))
 /** The baked chrome skin: one scene entry, one atlas index per skin slot. */
@@ -183,7 +183,7 @@ UITreeSceneBridge_EnsureFont(
     int cache_font_id);
 
 /**
- * Register one of the two baked debug faces (enum ToriDbgFontSlot) in the scene
+ * Register one of the two baked debug faces (enum ToriRSChromeFontSlot) in the scene
  * and return its reserved scene font id.
  *
  * Needs no cache and no provider: the faces are compiled in. They are also

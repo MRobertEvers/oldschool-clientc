@@ -325,6 +325,16 @@ struct BootManifest
      * overrides the theme beside it.
      */
     int chrome_executor;
+    /**
+     * The key was present.
+     *
+     * Distinct from the value, because "unset" and "explicitly buffer" are
+     * different instructions: unset means "pick something sensible for this
+     * gameframe", and an explicit value means "use this one" -- including when
+     * what it names is what would have been picked anyway. Without the flag the
+     * default cannot be a default, only a lock.
+     */
+    int chrome_executor_set;
     /** Set when the key named something that is not an executor at all. */
     int chrome_executor_error;
     /** Set when `panel=` named something unknown; the load fails on it. */

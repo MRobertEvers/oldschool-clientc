@@ -81,7 +81,7 @@ struct PlatformSDL2_AuxInput
 
 /**
  * Editing keys the aux window reports, spelled here so ui/ and platform/ can
- * agree without either including the other. Values match enum ToriDbgKey,
+ * agree without either including the other. Values match enum ToriRSChromeKey,
  * which a _Static_assert in the executor pins.
  */
 enum PlatformSDL2_AuxEditKey

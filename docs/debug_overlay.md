@@ -2,7 +2,7 @@
 
 Two things landed together, because the second is what makes the first usable.
 
-1. **`ToriDbgUI`** — a dependency-free retained overlay module with baked fonts.
+1. **`ToriRSChrome`** — a dependency-free retained overlay module with baked fonts.
    Its API, features, damage-rectangle model and tests are documented in
    [`src/ui/README_DEBUG_OVERLAY.md`](../src/ui/README_DEBUG_OVERLAY.md). This
    file does not repeat any of it.
@@ -85,7 +85,7 @@ purpose.
 | `type=` | Element | What it is |
 | --- | --- | --- |
 | `rs_iface` | `UIELEM_RS_LAYER` (18), `component_id = -1` | Mount point for a cache interface pack. With `componentno=`, that group; without, the root interface. |
-| `debug_overlay` | `UIELEM_BUILTIN_DEBUG_OVERLAY` (27) | The `ToriDbgUI` display list. |
+| `debug_overlay` | `UIELEM_BUILTIN_DEBUG_OVERLAY` (27) | The `ToriRSChrome` display list. |
 
 `debug_overlay` takes no config. The bake
 (`uitree_builder_bake.c`, `UIELEM_BUILTIN_DEBUG_OVERLAY`) marks it
@@ -167,7 +167,7 @@ The declared pair is still at slots 0 and 1, in declared order. Kept out of
 
 Every manifest that declares a root layout at all — the block above is in each
 of them, verbatim. That is affordable because a switched-off overlay is not a
-cheap drawing, it is *no* drawing: the panel is hidden, `ToriDbgUI_Build`
+cheap drawing, it is *no* drawing: the panel is hidden, `ToriRSChrome_Build`
 produces an empty display list, `UITREE_HOST_GET_DEBUG_OVERLAY` returns 0 and
 the emit pass appends nothing. One host call a frame, no pixels. Measured on
 `manifests/manifest_osrs230.ini`, 30 frames, `SDL_VIDEODRIVER=dummy`: `tree_components`
@@ -213,7 +213,7 @@ Three details that are deliberate:
   `APP_STATE_BOOTING` early-out, so the key still latches during a boot, and
   before the emit rebuild, so a changed readout reaches this frame's display
   list rather than the next one's. It marks `need_redraw` only when
-  `ToriDbgUI_Build` actually rebuilt, which on a steady readout is never.
+  `ToriRSChrome_Build` actually rebuilt, which on a steady readout is never.
 
 Verified on `manifests/manifest_osrs230_dev.ini`, 60 frames, headless: the overlay
 reports 19.30 ms against the perf harness's `frame_ns p50 = 18.3 ms` for the

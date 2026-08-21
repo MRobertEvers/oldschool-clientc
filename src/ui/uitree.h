@@ -636,15 +636,15 @@ struct UITreeComponent
         struct
         {
             /** Scene font ids the host registered the baked debug faces
-             * under, indexed by enum ToriDbgFontSlot. ui/ stays leaf, so they
+             * under, indexed by enum ToriRSChromeFontSlot. ui/ stays leaf, so they
              * travel as plain ints the same way minimenu.font_id does. */
             int font_id_small;
             int font_id_menu;
             int font_id_body;
             /** Scene id the host uploaded the baked chrome skin under, and the
-             * atlas index per enum ToriDbgSkinSlot. -1 = no skin. */
+             * atlas index per enum ToriRSChromeSkinSlot. -1 = no skin. */
             int skin_scene_id;
-            int skin_atlas[TORIDBG_SKIN_SLOT_COUNT];
+            int skin_atlas[TORIRS_CHROME_SKIN_SLOT_COUNT];
         } debug_overlay;
         struct
         {
@@ -1084,15 +1084,15 @@ struct UITreeNodeSpec
         struct
         {
             /** Scene font ids the host registered the baked debug faces
-             * under, indexed by enum ToriDbgFontSlot. ui/ stays leaf, so they
+             * under, indexed by enum ToriRSChromeFontSlot. ui/ stays leaf, so they
              * travel as plain ints the same way minimenu.font_id does. */
             int font_id_small;
             int font_id_menu;
             int font_id_body;
             /** Scene id the host uploaded the baked chrome skin under, and the
-             * atlas index per enum ToriDbgSkinSlot. -1 = no skin. */
+             * atlas index per enum ToriRSChromeSkinSlot. -1 = no skin. */
             int skin_scene_id;
-            int skin_atlas[TORIDBG_SKIN_SLOT_COUNT];
+            int skin_atlas[TORIRS_CHROME_SKIN_SLOT_COUNT];
         } debug_overlay;
         struct
         {

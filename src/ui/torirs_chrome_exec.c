@@ -54,7 +54,7 @@ sync_emit_value(struct ToriRSChromeSync* sync, int kind, int panel, int widget, 
  */
 static void
 sync_emit_options(
-    struct ToriRSChromeSync* sync, struct ToriDbgWidget const* w, int panel, int widget)
+    struct ToriRSChromeSync* sync, struct ToriRSChromeWidget const* w, int panel, int widget)
 {
     struct ToriRSChromeCmd cmd;
 
@@ -110,8 +110,8 @@ ToriRSChromeSync_Shutdown(struct ToriRSChromeSync* sync)
 static int
 sync_widget_relevant(struct ToriRSChrome const* ui, int widget)
 {
-    struct ToriDbgWidget const* w = &ui->widgets[widget];
-    if( w->kind == TORIDBG_W_FREE )
+    struct ToriRSChromeWidget const* w = &ui->widgets[widget];
+    if( w->kind == TORIRS_CHROME_W_FREE )
         return 0;
     if( w->panel < 0 || w->panel >= ui->panel_count )
         return 0;
@@ -140,7 +140,7 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
      * Doing the closes in their own pass is what makes that true even when a
      * panel is hidden in the same frame another is shown.
      */
-    for( int i = 0; i < TORIDBG_MAX_PANELS; i++ )
+    for( int i = 0; i < TORIRS_CHROME_MAX_PANELS; i++ )
     {
         struct ToriRSChromeShadowPanel* sp = &sync->panels[i];
         int const alive = i < ui->panel_count && ui->panels[i].visible;
@@ -153,7 +153,7 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
             /* Every row of it went with it, so the shadow must forget them or
              * the next Run would emit a REMOVE for each one on a panel the
              * executor no longer has. */
-            for( int j = 0; j < TORIDBG_MAX_WIDGETS; j++ )
+            for( int j = 0; j < TORIRS_CHROME_MAX_WIDGETS; j++ )
                 if( sync->widgets[j].live && sync->widgets[j].panel == i )
                     memset(&sync->widgets[j], 0, sizeof(sync->widgets[j]));
         }
@@ -161,7 +161,7 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
 
     for( int i = 0; i < ui->panel_count; i++ )
     {
-        struct ToriDbgPanel const* p = &ui->panels[i];
+        struct ToriRSChromePanel const* p = &ui->panels[i];
         struct ToriRSChromeShadowPanel* sp = &sync->panels[i];
 
         if( !p->visible )
@@ -175,7 +175,7 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
             sync_emit(sync, &cmd);
             sp->live = 1;
             sp->style = p->style;
-            chrome_copy(sp->title, TORIDBG_LABEL_MAX, p->title);
+            chrome_copy(sp->title, TORIRS_CHROME_LABEL_MAX, p->title);
             /* Force the rect and tab below to be sent for a new panel. */
             sp->x = sp->y = sp->w = sp->h = -1;
             sp->active_tab = -1;
@@ -185,7 +185,7 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
             cmd_init(&cmd, TORIRS_CHROME_CMD_PANEL_TITLE, i, -1);
             chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, p->title);
             sync_emit(sync, &cmd);
-            chrome_copy(sp->title, TORIDBG_LABEL_MAX, p->title);
+            chrome_copy(sp->title, TORIRS_CHROME_LABEL_MAX, p->title);
         }
 
         if( sp->x != p->x || sp->y != p->y || sp->w != p->w || sp->h != p->h )
@@ -211,7 +211,7 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
     /* Removals before additions, for the same reason panel closes come first:
      * a handle freed this frame can be reused by an add in the same frame, and
      * an executor told "add 7" before "remove 7" would end up with neither. */
-    for( int i = 0; i < TORIDBG_MAX_WIDGETS; i++ )
+    for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
     {
         struct ToriRSChromeShadowWidget* sw = &sync->widgets[i];
         if( !sw->live )
@@ -240,7 +240,7 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
             continue;
     for( int i = ui->panels[p].first_widget; i >= 0; i = ui->widgets[i].next )
     {
-        struct ToriDbgWidget const* w = &ui->widgets[i];
+        struct ToriRSChromeWidget const* w = &ui->widgets[i];
         struct ToriRSChromeShadowWidget* sw = &sync->widgets[i];
 
         if( !sync_widget_relevant(ui, i) )
@@ -252,7 +252,13 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
             cmd.value = w->kind;
             cmd.tab = w->tab;
             cmd.color = w->color;
-            chrome_copy(cmd.label, TORIDBG_LABEL_MAX, w->label);
+            /* A LISTROW's action affordance is part of its SHAPE, so it rides
+             * the one command that states a widget's shape. A row that gained
+             * or lost one is a different row: the panel rebuild that changed it
+             * gives it a new serial, and the shadow answers that with a
+             * remove-then-add rather than an update. */
+            cmd.w = w->row_action;
+            chrome_copy(cmd.label, TORIRS_CHROME_LABEL_MAX, w->label);
             chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, w->text);
             sync_emit(sync, &cmd);
 
@@ -262,8 +268,8 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
             sw->panel = w->panel;
             sw->tab = w->tab;
             sw->color = w->color;
-            chrome_copy(sw->label, TORIDBG_LABEL_MAX, w->label);
-            chrome_copy(sw->text, TORIDBG_INPUT_MAX, w->text);
+            chrome_copy(sw->label, TORIRS_CHROME_LABEL_MAX, w->label);
+            chrome_copy(sw->text, TORIRS_CHROME_INPUT_MAX, w->text);
             /* Everything below is compared against a value the ADD did not
              * carry, so seed the shadow with an impossible one to force the
              * first statement of each. */
@@ -272,22 +278,23 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
             sw->selected = -2;
             sw->option_count = -1;
             sw->options = NULL;
+            sw->focused = -1;
         }
         else
         {
             if( strcmp(sw->label, w->label) != 0 )
             {
                 cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_LABEL, w->panel, i);
-                chrome_copy(cmd.label, TORIDBG_LABEL_MAX, w->label);
+                chrome_copy(cmd.label, TORIRS_CHROME_LABEL_MAX, w->label);
                 sync_emit(sync, &cmd);
-                chrome_copy(sw->label, TORIDBG_LABEL_MAX, w->label);
+                chrome_copy(sw->label, TORIRS_CHROME_LABEL_MAX, w->label);
             }
             if( strcmp(sw->text, w->text) != 0 )
             {
                 cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_TEXT, w->panel, i);
                 chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, w->text);
                 sync_emit(sync, &cmd);
-                chrome_copy(sw->text, TORIDBG_INPUT_MAX, w->text);
+                chrome_copy(sw->text, TORIRS_CHROME_INPUT_MAX, w->text);
             }
             if( sw->color != w->color )
             {
@@ -308,6 +315,14 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
             sync_emit_value(sync, TORIRS_CHROME_CMD_WIDGET_CHECKED, w->panel, i, w->checked);
             sw->checked = w->checked;
         }
+        {
+            int const focused = ui->focus == i ? 1 : 0;
+            if( sw->focused != focused )
+            {
+                sync_emit_value(sync, TORIRS_CHROME_CMD_WIDGET_FOCUS, w->panel, i, focused);
+                sw->focused = focused;
+            }
+        }
         /* The list before the selection into it: an executor that resizes a
          * native combo box on OPTIONS would otherwise clamp a selection it
          * has not been told how to hold. */
@@ -322,7 +337,17 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
         }
         if( sw->selected != w->selected )
         {
-            sync_emit_value(sync, TORIRS_CHROME_CMD_WIDGET_SELECTED, w->panel, i, w->selected);
+            /* The chosen option's own string rides along with its index, for
+             * the same reason INTENT_PICK carries both: an executor that shows
+             * the value as TEXT (the CS2 window's closed dropdown) would
+             * otherwise need its own copy of the whole list just to turn the
+             * index back into a word. Executors holding a native combo box
+             * ignore it. */
+            cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_SELECTED, w->panel, i);
+            cmd.value = w->selected;
+            if( w->options && w->selected >= 0 && w->selected < w->option_count )
+                chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, w->options[w->selected]);
+            sync_emit(sync, &cmd);
             sw->selected = w->selected;
         }
     }
@@ -353,10 +378,33 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
 
     case TORIRS_CHROME_INTENT_TEXT:
         ToriRSChrome_SetText(ui, intent->widget, intent->text);
+        /* A colour field's text is a RENDERING of its value, so an edit that
+         * arrives from a presentation has to be resolved into one -- and the
+         * commit rewrites the field to the palette entry it landed on, which is
+         * how a native executor's un-quantised "#12ff34" comes back snapped to
+         * something the renderer can actually produce. */
+        if( intent->widget >= 0 && intent->widget < ui->widget_count &&
+            ui->widgets[intent->widget].kind == TORIRS_CHROME_W_COLORPICK )
+            ToriRSChrome_ColorPickCommitText(ui, intent->widget);
         return 1;
 
     case TORIRS_CHROME_INTENT_PICK:
+        /* A colour's "index" is its packed HSL16 -- the same field, a different
+         * palette. @see TORIRS_CHROME_W_COLORPICK. */
+        if( intent->widget >= 0 && intent->widget < ui->widget_count &&
+            ui->widgets[intent->widget].kind == TORIRS_CHROME_W_COLORPICK )
+        {
+            ToriRSChrome_ColorPickSet(ui, intent->widget, intent->value);
+            ui->activated = intent->widget;
+            return 1;
+        }
         ToriRSChrome_DropdownSetSelected(ui, intent->widget, intent->value);
+        /* Latched as activated too, exactly as choosing a row in the
+         * in-canvas list does: a plugin-owned dropdown dispatches to its
+         * plugin off that latch, and a pick that skipped it worked for
+         * staged settings while silently dropping plugin controls. */
+        if( intent->widget >= 0 && intent->widget < ui->widget_count )
+            ui->activated = intent->widget;
         return 1;
 
     case TORIRS_CHROME_INTENT_TAB:
@@ -373,7 +421,54 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
          */
         if( intent->widget >= 0 && intent->widget < ui->widget_count )
         {
+            /* A text input's activation is a click on the field, and what the
+             * model does with a click on a field is take the FOCUS -- the same
+             * focus the in-canvas MouseDown sets -- so the host's keyboard
+             * routing lands typing in it. Latching it as `activated` instead
+             * would be a no-op: the staged-settings drain ignores config rows. */
+            if( ui->widgets[intent->widget].kind == TORIRS_CHROME_W_TEXTINPUT )
+            {
+                ui->focus = intent->widget;
+                ui->widgets[intent->widget].caret =
+                    (int)strlen(ui->widgets[intent->widget].text);
+                return 1;
+            }
+            /* A colour row has two zones and the executor says which fired by
+             * WHICH INTENT it sends: ACTIVATE is the swatch, so it toggles the
+             * axis popup, and ACTION is the field, so it takes the focus. The
+             * alternative -- one intent plus a coordinate -- would make every
+             * executor carry the row's geometry, which is precisely what the
+             * seam exists to avoid. */
+            if( ui->widgets[intent->widget].kind == TORIRS_CHROME_W_COLORPICK )
+            {
+                ToriRSChrome_ColorPickSetOpen(
+                    ui, intent->widget, !ToriRSChrome_ColorPickIsOpen(ui, intent->widget));
+                return 1;
+            }
             ui->activated = intent->widget;
+            return 1;
+        }
+        return 0;
+
+    case TORIRS_CHROME_INTENT_ACTION:
+        /* The same latch, with the flag that says which zone fired it -- so a
+         * host draining TakeActivated + ActivationWasAction reads a gear click
+         * from a native executor exactly as it reads one from the canvas. */
+        if( intent->widget >= 0 && intent->widget < ui->widget_count )
+        {
+            /* A colour row's second zone is its HEX FIELD, and what a click on
+             * a field does is take the focus -- exactly as ACTIVATE on a text
+             * input does, and latching it as `activated` instead would be the
+             * same no-op it would be there. */
+            if( ui->widgets[intent->widget].kind == TORIRS_CHROME_W_COLORPICK )
+            {
+                ui->focus = intent->widget;
+                ui->widgets[intent->widget].caret =
+                    (int)strlen(ui->widgets[intent->widget].text);
+                return 1;
+            }
+            ui->activated = intent->widget;
+            ui->activated_action = 1;
             return 1;
         }
         return 0;
@@ -432,31 +527,6 @@ ToriRSChromeExec_Buffer(void)
 }
 
 /* ---- choosing one -------------------------------------------------------- */
-
-static char const* const CHROME_EXEC_NAME[TORIRS_CHROME_EXEC_COUNT] = {
-    [TORIRS_CHROME_EXEC_BUFFER] = "buffer", [TORIRS_CHROME_EXEC_SDL] = "sdl",
-    [TORIRS_CHROME_EXEC_WEB] = "web",       [TORIRS_CHROME_EXEC_GDI] = "gdi",
-    [TORIRS_CHROME_EXEC_CS2] = "cs2",
-};
-
-char const*
-ToriRSChromeExec_KindName(int kind)
-{
-    if( kind < 0 || kind >= TORIRS_CHROME_EXEC_COUNT || !CHROME_EXEC_NAME[kind] )
-        return "buffer";
-    return CHROME_EXEC_NAME[kind];
-}
-
-int
-ToriRSChromeExec_KindFromName(char const* name)
-{
-    if( !name || !name[0] )
-        return -1;
-    for( int i = 0; i < TORIRS_CHROME_EXEC_COUNT; i++ )
-        if( CHROME_EXEC_NAME[i] && strcmp(CHROME_EXEC_NAME[i], name) == 0 )
-            return i;
-    return -1;
-}
 
 struct ToriRSChromeExec
 ToriRSChromeExec_ForKind(

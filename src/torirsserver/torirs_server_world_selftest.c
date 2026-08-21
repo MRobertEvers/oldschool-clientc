@@ -28566,10 +28566,25 @@ ToriRSServer_WorldSelftest(void)
                      * entry-level Kephri was carrying 3934 shield points instead
                      * of 150.
                      */
-                    SELFTEST_CHECK(shield_hp_at_start < srv->npcs[kephri].max_hitpoints,
+                    /*
+                     * The ceiling is the CONFIG's, not `max_hitpoints`. Those
+                     * were the same number while an npc's pool could not move;
+                     * `npc_setmaxhp` is how a raid now states the pool it
+                     * actually built, so `max_hitpoints` holds 150 here and
+                     * comparing against it would ask whether 150 is below
+                     * itself. `def->hitpoints` is what toa.npc authored, which
+                     * is the eight-man ceiling this check has always meant.
+                     */
+                    int const kephri_ceiling = srv->npcs[kephri].def
+                                                   ? srv->npcs[kephri].def->hitpoints
+                                                   : 0;
+
+                    SELFTEST_CHECK(kephri_ceiling > 0,
+                                   "Kephri's record must author a ceiling to scale down from");
+                    SELFTEST_CHECK(shield_hp_at_start < kephri_ceiling,
                                    "a solo entry-level Kephri must be scaled below her "
                                    "authored ceiling, got %d of %d",
-                                   shield_hp_at_start, srv->npcs[kephri].max_hitpoints);
+                                   shield_hp_at_start, kephri_ceiling);
 
                     for( int shield = 1; shield <= 3; shield++ )
                     {

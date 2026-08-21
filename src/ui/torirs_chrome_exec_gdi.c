@@ -76,6 +76,28 @@ struct ChromeGdi
     char tabs[16][64];
     int tab_count;
     HWND tab_buttons[16];
+    /**
+     * A COLORPICK's sample: the STATIC in front of its EDIT, and the brush
+     * WM_CTLCOLORSTATIC hands back for it.
+     *
+     * The brush is OWNED here and recreated whenever the value changes,
+     * because a control colour in Win32 is a GDI object rather than a
+     * property: there is nowhere to put an RGB, only somewhere to return a
+     * brush from. Held per widget so the window's paint can find the right one
+     * from the HWND the message names.
+     */
+    HWND swatch[TORIRS_CHROME_MAX_WIDGETS];
+    HBRUSH swatch_brush[TORIRS_CHROME_MAX_WIDGETS];
+    /**
+     * The STATIC carrying a labelled control's caption.
+     *
+     * Held because the layout has to PLACE it. It was created and then never
+     * positioned, so every label in this window sat at 0,0 in the 10x10 box
+     * CreateWindowEx was given -- three captions stacked in the top-left
+     * corner and nothing beside the fields they name. Nobody had seen it: this
+     * executor compiles on Windows and is exercised nowhere else.
+     */
+    HWND label[TORIRS_CHROME_MAX_WIDGETS];
 };
 
 static struct ChromeGdi g_chrome_gdi;
@@ -108,7 +130,7 @@ chrome_gdi_layout(struct ChromeGdi* s)
     GetClientRect(s->hwnd, &client);
     width = client.right - client.left;
 
-    for( int i = 0; i < TORIDBG_MAX_WIDGETS; i++ )
+    for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
         if( ToriRSChromeMirror_Widget(&s->mirror, i) )
             live++;
 
@@ -136,8 +158,8 @@ chrome_gdi_layout(struct ChromeGdi* s)
     /* In ROW order, not handle order -- see ToriRSChromeMirrorWidget::order.
      * A free-list-recycled handle walked by index lays the window out in an
      * order the model never had. */
-    int order[TORIDBG_MAX_WIDGETS];
-    int const ordered = ToriRSChromeMirror_Order(&s->mirror, order, TORIDBG_MAX_WIDGETS);
+    int order[TORIRS_CHROME_MAX_WIDGETS];
+    int const ordered = ToriRSChromeMirror_Order(&s->mirror, order, TORIRS_CHROME_MAX_WIDGETS);
     for( int oi = 0; oi < ordered; oi++ )
     {
         int const i = order[oi];
@@ -163,16 +185,31 @@ chrome_gdi_layout(struct ChromeGdi* s)
 
         /* A separator is a thin etched STATIC, so it needs a row of its own
          * height rather than a control-sized one. */
-        if( w->kind == TORIDBG_W_SEPARATOR )
+        if( w->kind == TORIRS_CHROME_W_SEPARATOR )
             row_h = 2;
 
         /* Labelled controls start at the shared label column, matching the
-         * in-canvas chrome's table mode -- the label is a second STATIC placed
-         * by the ADD, and this only has to leave room for it. */
-        if( w->kind == TORIDBG_W_TEXTINPUT || w->kind == TORIDBG_W_DROPDOWN )
+         * in-canvas chrome's table mode; the caption STATIC created by the ADD
+         * is placed in the column beside them. */
+        if( w->kind == TORIRS_CHROME_W_TEXTINPUT || w->kind == TORIRS_CHROME_W_DROPDOWN ||
+            w->kind == TORIRS_CHROME_W_COLORPICK )
         {
+            if( s->label[i] )
+                dwp = DeferWindowPos(
+                    dwp, s->label[i], NULL, x, y + 2, CHROME_GDI_LABEL_W - 4, row_h,
+                    SWP_NOZORDER | SWP_SHOWWINDOW);
             x += CHROME_GDI_LABEL_W;
             row_w -= CHROME_GDI_LABEL_W;
+        }
+        /* The sample sits between the caption and the field, at the row's own
+         * height so it reads as a swatch rather than as a thin rule. */
+        if( w->kind == TORIRS_CHROME_W_COLORPICK && s->swatch[i] )
+        {
+            dwp = DeferWindowPos(
+                dwp, s->swatch[i], NULL, x, y, row_h, row_h,
+                SWP_NOZORDER | SWP_SHOWWINDOW);
+            x += row_h + 4;
+            row_w -= row_h + 4;
         }
         if( row_w < 16 )
             row_w = 16;
@@ -215,7 +252,7 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             return 0;
         }
 
-        if( id >= CHROME_GDI_ID_BASE && id < CHROME_GDI_ID_BASE + TORIDBG_MAX_WIDGETS )
+        if( id >= CHROME_GDI_ID_BASE && id < CHROME_GDI_ID_BASE + TORIRS_CHROME_MAX_WIDGETS )
         {
             int const handle = id - CHROME_GDI_ID_BASE;
             struct ToriRSChromeMirrorWidget* w =
@@ -227,14 +264,14 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
             switch( w->kind )
             {
-            case TORIDBG_W_CHECKBOX:
+            case TORIRS_CHROME_W_CHECKBOX:
                 if( notify == BN_CLICKED )
                     ToriRSChromeMirror_PushToggle(
                         &s->mirror, w->panel, handle,
                         SendMessageA(control, BM_GETCHECK, 0, 0) == BST_CHECKED);
                 break;
 
-            case TORIDBG_W_TEXTINPUT:
+            case TORIRS_CHROME_W_TEXTINPUT:
                 /* EN_KILLFOCUS, not EN_CHANGE: an intent per keystroke would
                  * send the model a value for every half-typed state, and the
                  * chrome's own input commits the same way. */
@@ -246,7 +283,7 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                 }
                 break;
 
-            case TORIDBG_W_DROPDOWN:
+            case TORIRS_CHROME_W_DROPDOWN:
                 if( notify == CBN_SELCHANGE )
                 {
                     struct ToriRSChromeIntent intent;
@@ -413,42 +450,63 @@ chrome_gdi_add(struct ChromeGdi* s, struct ToriRSChromeCmd const* cmd)
 
     switch( cmd->value )
     {
-    case TORIDBG_W_CHECKBOX:
+    case TORIRS_CHROME_W_CHECKBOX:
         control = chrome_gdi_child(s, "BUTTON", BS_AUTOCHECKBOX, cmd->label, id);
         break;
 
-    case TORIDBG_W_TEXTINPUT:
+    case TORIRS_CHROME_W_TEXTINPUT:
         /* The label is a STATIC of its own, placed by the layout's label
          * column. It carries no id: nothing routes to it, and giving it one
          * would put a second control in the handle's id slot. */
-        chrome_gdi_child(s, "STATIC", SS_LEFT, cmd->label, -1);
+        s->label[cmd->widget] = chrome_gdi_child(s, "STATIC", SS_LEFT, cmd->label, -1);
         control = chrome_gdi_child(s, "EDIT", WS_BORDER | ES_AUTOHSCROLL, cmd->text, id);
         break;
 
-    case TORIDBG_W_DROPDOWN:
-        chrome_gdi_child(s, "STATIC", SS_LEFT, cmd->label, -1);
+    case TORIRS_CHROME_W_COLORPICK:
+        /*
+         * A coloured sample and the hex beside it.
+         *
+         * NOT the model's three axis bars, and not comdlg32's ChooseColor
+         * either. The bars are prims this executor cannot draw; ChooseColor is
+         * a MODAL dialog, and an executor is forbidden to block -- the client's
+         * frame loop runs these, so a window that waits on a dialog stalls the
+         * game. What is left is the same trade every other control here makes:
+         * the platform's own idiom for the job, which for a value you can also
+         * type is a field with a sample in front of it.
+         *
+         * Typing a hex is therefore how a colour is CHOSEN here, and the model
+         * quantises it onto the palette and echoes back the entry it landed on
+         * -- so the sample is always a colour the renderer can produce.
+         */
+        s->label[cmd->widget] = chrome_gdi_child(s, "STATIC", SS_LEFT, cmd->label, -1);
+        s->swatch[cmd->widget] = chrome_gdi_child(s, "STATIC", SS_LEFT | SS_NOTIFY, "", -1);
+        control = chrome_gdi_child(s, "EDIT", WS_BORDER | ES_AUTOHSCROLL, cmd->text, id);
+        break;
+
+    case TORIRS_CHROME_W_DROPDOWN:
+        s->label[cmd->widget] = chrome_gdi_child(s, "STATIC", SS_LEFT, cmd->label, -1);
         control = chrome_gdi_child(
             s, "COMBOBOX", CBS_DROPDOWNLIST | WS_VSCROLL, NULL, id);
         break;
 
-    case TORIDBG_W_BUTTON:
-    case TORIDBG_W_MENUITEM:
+    case TORIRS_CHROME_W_BUTTON:
+    case TORIRS_CHROME_W_MENUITEM:
         control = chrome_gdi_child(
             s, "BUTTON", BS_PUSHBUTTON, cmd->text[0] ? cmd->text : cmd->label, id);
         break;
 
-    case TORIDBG_W_SEPARATOR:
+    case TORIRS_CHROME_W_SEPARATOR:
         control = chrome_gdi_child(s, "STATIC", SS_ETCHEDHORZ, NULL, -1);
         break;
 
-    case TORIDBG_W_TABSTRIP:
+    case TORIRS_CHROME_W_TABSTRIP:
         /* No control of its own: the strip is a row of buttons the OPTION
          * commands below build, and this only records who owns it. */
         s->tab_panel = cmd->panel;
         s->tab_strip_widget = cmd->widget;
         return;
 
-    case TORIDBG_W_LABEL:
+    case TORIRS_CHROME_W_LABEL:
     default:
         control = chrome_gdi_child(
             s, "STATIC", SS_LEFT, cmd->text[0] ? cmd->text : cmd->label, -1);
@@ -504,7 +562,7 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
     }
     else if( cmd->kind == TORIRS_CHROME_CMD_PANEL_CLOSE )
     {
-        for( int i = 0; i < TORIDBG_MAX_WIDGETS; i++ )
+        for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
         {
             struct ToriRSChromeMirrorWidget* gone =
                 ToriRSChromeMirror_Widget(&s->mirror, i);
@@ -582,12 +640,12 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
         /* Never while it has focus: the model is echoing a value the user is
          * still editing, and writing it back would move the caret and undo
          * whatever they typed since the last commit. */
-        if( w->kind != TORIDBG_W_TEXTINPUT || GetFocus() != (HWND)w->native )
+        if( w->kind != TORIRS_CHROME_W_TEXTINPUT || GetFocus() != (HWND)w->native )
             SetWindowTextA((HWND)w->native, cmd->text);
         break;
 
     case TORIRS_CHROME_CMD_WIDGET_LABEL:
-        if( w->kind == TORIDBG_W_CHECKBOX )
+        if( w->kind == TORIRS_CHROME_W_CHECKBOX )
             SetWindowTextA((HWND)w->native, cmd->label);
         break;
 

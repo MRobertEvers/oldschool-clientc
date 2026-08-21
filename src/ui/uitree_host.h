@@ -440,7 +440,7 @@ struct UITreeHostRequest
         } get_if_events;
         struct
         {
-            struct ToriDbgPrim const** out_prims;
+            struct ToriRSChromePrim const** out_prims;
         } get_debug_overlay;
     } u;
 };

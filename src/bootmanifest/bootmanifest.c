@@ -1,4 +1,4 @@
-#include "ui/torirs_chrome_exec.h"
+#include "ui/torirs_chrome_exec_kind.h"
 
 #include "bootmanifest.h"
 
@@ -382,7 +382,10 @@ bm_set_kv(
                 bm->chrome_executor_error = 1;
             }
             else
+            {
                 bm->chrome_executor = kind;
+                bm->chrome_executor_set = 1;
+            }
             return;
         }
         break;

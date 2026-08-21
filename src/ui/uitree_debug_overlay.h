@@ -14,7 +14,7 @@
  * measurement and layout, and both change only when the app changes a widget
  * — not once per frame. So the model persists, mutators compare-then-set, and
  * ToriRSChrome_Build is a no-op on a frame where nothing moved. The display list
- * it produces is a flat array of ToriDbgPrim that the emit layer hands to the
+ * it produces is a flat array of ToriRSChromePrim that the emit layer hands to the
  * renderer by pointer: on a clean frame the whole overlay costs one pointer
  * copy. An immediate-mode overlay would re-measure every label every frame,
  * which is exactly the work this avoids. See src/ui/README_DEBUG_OVERLAY.md.
@@ -31,6 +31,10 @@
  * else, no includes of its own. It measures its own text from those tables, so
  * it does not link a font implementation, a renderer, a scene, or the rest of
  * ui/. Outside the C library (<string.h>, <stdint.h>) it depends on nothing.
+ * The colour picker keeps that true the same way the fonts do: the HSL16
+ * palette is arithmetic over a baked gamma ramp rather than a call into the
+ * rasteriser's table, so a swatch is drawable before anything has initialised
+ * a renderer. See ToriRSChrome_Hsl16ToRgb.
  * That is what baking the fonts bought: layout needs glyph advances, and
  * advances that are compiled in need no cache, no decoder and no init.
  *
@@ -63,27 +67,27 @@
  * display list as the 12 rows of it you can see.
  */
 /** Panels the overlay can hold at once. */
-#define TORIDBG_MAX_PANELS 24
+#define TORIRS_CHROME_MAX_PANELS 24
 /** Widgets across all panels. */
-#define TORIDBG_MAX_WIDGETS 384
+#define TORIRS_CHROME_MAX_WIDGETS 384
 /** Primitives in the display list. Build stops early and sets `overflow`. */
-#define TORIDBG_MAX_PRIMS 1536
+#define TORIRS_CHROME_MAX_PRIMS 1536
 /** Label / title bytes, including the terminator. */
-#define TORIDBG_LABEL_MAX 64
+#define TORIRS_CHROME_LABEL_MAX 64
 /** Text-input content bytes, including the terminator. */
-#define TORIDBG_INPUT_MAX 64
+#define TORIRS_CHROME_INPUT_MAX 64
 
 /**
  * Which baked font a primitive draws in. The overlay never names a font id:
  * whoever draws the display list maps these two slots onto whatever scene ids
  * it registered the baked fonts under (src/engine/torirs_debug_font_baked.h).
  */
-enum ToriDbgFontSlot
+enum ToriRSChromeFontSlot
 {
     /** The small debug face: body text, labels, input contents. */
-    TORIDBG_FONT_SMALL = 0,
+    TORIRS_CHROME_FONT_SMALL = 0,
     /** The menu face: panel titles and menu rows, matching the minimenu. */
-    TORIDBG_FONT_MENU = 1,
+    TORIRS_CHROME_FONT_MENU = 1,
     /**
      * The game's plain body face (p12), the bold menu face's twin.
      *
@@ -91,8 +95,8 @@ enum ToriDbgFontSlot
      * nothing -- which is the point: it lets a skin choose plain-vs-bold per
      * row without the layout moving underneath it.
      */
-    TORIDBG_FONT_BODY = 2,
-    TORIDBG_FONT_SLOT_COUNT = 3
+    TORIRS_CHROME_FONT_BODY = 2,
+    TORIRS_CHROME_FONT_SLOT_COUNT = 3
 };
 
 /**
@@ -111,8 +115,8 @@ enum ToriDbgFontSlot
  * resample onto. A display at 1.5x picks the nearer baked size; nothing is
  * ever stretched, which is the whole point of authoring the sizes.
  */
-#define TORIDBG_SCALE_MIN 1
-#define TORIDBG_SCALE_MAX 3
+#define TORIRS_CHROME_SCALE_MIN 1
+#define TORIRS_CHROME_SCALE_MAX 3
 
 /** Pixel width of a NUL-terminated string in `font_slot` at `scale`, from the
  *  baked advance tables. Plain bytes only — no markup tokens. */
@@ -127,10 +131,10 @@ ToriRSChrome_FontLineHeight(int font_slot, int scale);
 int
 ToriRSChrome_FontLineBox(int font_slot, int scale);
 
-enum ToriDbgPrimKind
+enum ToriRSChromePrimKind
 {
-    TORIDBG_PRIM_RECT = 0,
-    TORIDBG_PRIM_TEXT,
+    TORIRS_CHROME_PRIM_RECT = 0,
+    TORIRS_CHROME_PRIM_TEXT,
     /**
      * One blit of a baked skin image, into `w` x `h` or at its native size
      * when those are 0.
@@ -142,7 +146,7 @@ enum ToriDbgPrimKind
      * whose middle piece is one 16x5 image stretched over the run between its
      * two caps exactly as ~script31 stretches it.
      */
-    TORIDBG_PRIM_SPRITE,
+    TORIRS_CHROME_PRIM_SPRITE,
 };
 
 /**
@@ -154,10 +158,10 @@ enum ToriDbgPrimKind
  * re-baked from a different cache, or be absent entirely, without this module
  * knowing.
  */
-enum ToriDbgSkinSlot
+enum ToriRSChromeSkinSlot
 {
     /** Tiled behind a window panel's content. */
-    TORIDBG_SKIN_PANEL_BODY = 0,
+    TORIRS_CHROME_SKIN_PANEL_BODY = 0,
     /**
      * The six pieces of the reference scrollbar, in the order ~script31 builds
      * them: two 16x16 arrow buttons, a track, and a three-part grip whose
@@ -168,19 +172,41 @@ enum ToriDbgSkinSlot
      * images at exactly these sizes, so a bar assembled from them is the same
      * bar rather than a drawing of one.
      */
-    TORIDBG_SKIN_SCROLL_UP,
-    TORIDBG_SKIN_SCROLL_DOWN,
-    TORIDBG_SKIN_SCROLL_TRACK,
-    TORIDBG_SKIN_SCROLL_GRIP_TOP,
-    TORIDBG_SKIN_SCROLL_GRIP_MID,
-    TORIDBG_SKIN_SCROLL_GRIP_BOTTOM,
+    TORIRS_CHROME_SKIN_SCROLL_UP,
+    TORIRS_CHROME_SKIN_SCROLL_DOWN,
+    TORIRS_CHROME_SKIN_SCROLL_TRACK,
+    TORIRS_CHROME_SKIN_SCROLL_GRIP_TOP,
+    TORIRS_CHROME_SKIN_SCROLL_GRIP_MID,
+    TORIRS_CHROME_SKIN_SCROLL_GRIP_BOTTOM,
     /** Tiled behind an open dropdown list. A *different* tile from the panel
      *  body -- the cache backs the floating list with its own, lighter one. */
-    TORIDBG_SKIN_DROPDOWN_BODY,
-    TORIDBG_SKIN_SLOT_COUNT
+    TORIRS_CHROME_SKIN_DROPDOWN_BODY,
+    /**
+     * The wrench that launches the plugin window from the gameframe's strip.
+     *
+     * Not chrome the model draws -- nothing here emits it -- but baked
+     * alongside the rest because it is the same kind of thing and wants the
+     * same guarantee: the launcher must not depend on a cache archive id.
+     * Sprite 785 is the OSRS wrench; on any other cache that id is some
+     * unrelated image, so resolving it at runtime gives the wrong picture
+     * rather than no picture.
+     */
+    TORIRS_CHROME_SKIN_PLUGIN_ICON,
+    /**
+     * The on/off pair the interfaces use for every boolean setting: a green
+     * tick in a circle, a red cross in a circle, both 17x17.
+     *
+     * A checkbox is a SPRITE in this game, not a drawn box -- open any
+     * settings panel and there is no square with a mark in it anywhere. The
+     * flat box-and-blob is still here as the fallback for a build with no
+     * skin, but where the skin is present these are what a checkbox is.
+     */
+    TORIRS_CHROME_SKIN_CHECK_ON,
+    TORIRS_CHROME_SKIN_CHECK_OFF,
+    TORIRS_CHROME_SKIN_SLOT_COUNT
 };
 
-struct ToriDbgRect
+struct ToriRSChromeRect
 {
     int x;
     int y;
@@ -194,9 +220,9 @@ struct ToriDbgRect
  * at a time, so nothing here may own memory. `text` points into the widget
  * that produced it, which lives as long as the ToriRSChrome does.
  */
-struct ToriDbgPrim
+struct ToriRSChromePrim
 {
-    /** enum ToriDbgPrimKind. */
+    /** enum ToriRSChromePrimKind. */
     int kind;
     int x;
     int y;
@@ -206,7 +232,7 @@ struct ToriDbgPrim
     uint32_t color;
     /** RECT: 1 = filled, 0 = a 1px outline of the same box. */
     int filled;
-    /** enum ToriDbgFontSlot. TEXT only. */
+    /** enum ToriRSChromeFontSlot. TEXT only. */
     int font_slot;
     /** TEXT: `y` is the baseline (reference PixFont.drawString), not a box top. */
     int baseline;
@@ -214,7 +240,7 @@ struct ToriDbgPrim
     int shadowed;
     /** TEXT: NUL-terminated, owned by the widget that produced this prim. */
     char const* text;
-    /** enum ToriDbgSkinSlot. SPRITE only. */
+    /** enum ToriRSChromeSkinSlot. SPRITE only. */
     int sprite_slot;
     /** SPRITE: a scene sprite id to draw INSTEAD of the skin slot -- the
      *  model-view widget's rendered preview. 0 = use the skin mapping. */
@@ -229,11 +255,11 @@ struct ToriDbgPrim
      */
     int trans;
     /** Scissor box. Panel content is clipped to the panel's inner rect. */
-    struct ToriDbgRect clip;
+    struct ToriRSChromeRect clip;
 };
 
-/** Chrome colours. All 0xRRGGBB; see toridbg_theme_default. */
-struct ToriDbgTheme
+/** Chrome colours. All 0xRRGGBB; see torirs_chrome_theme_default. */
+struct ToriRSChromeTheme
 {
     uint32_t panel_body;
     uint32_t panel_border;
@@ -318,7 +344,7 @@ struct ToriDbgTheme
     int text_shadowed;
 
     /**
-     * enum ToriDbgFontSlot: the face window-panel rows lay out and draw in.
+     * enum ToriRSChromeFontSlot: the face window-panel rows lay out and draw in.
      *
      * Layout follows it, not just colour -- row height and every measured
      * width come from this slot -- so a skin that picks the game's p12 body
@@ -353,7 +379,7 @@ struct ToriDbgTheme
 };
 
 /** The flat developer look: grey chrome, no shadows, no sprites. */
-extern struct ToriDbgTheme const toridbg_theme_default;
+extern struct ToriRSChromeTheme const torirs_chrome_theme_default;
 
 /**
  * The reference interface palette.
@@ -362,16 +388,16 @@ extern struct ToriDbgTheme const toridbg_theme_default;
  * brown, its black chrome strips, its yellow hover and the brown-on-black it
  * titles with -- so a panel drawn in this theme and a real game widget on
  * screen together read as one system rather than two. Paired
- * with a baked skin (struct ToriDbgSkin) it gets the sprite art as well; on its
+ * with a baked skin (struct ToriRSChromeSkin) it gets the sprite art as well; on its
  * own it is already the right colours in the right places, which is most of
  * what makes chrome look like it belongs.
  */
-extern struct ToriDbgTheme const toridbg_theme_osrs;
+extern struct ToriRSChromeTheme const torirs_chrome_theme_osrs;
 
-enum ToriDbgPanelStyle
+enum ToriRSChromePanelStyle
 {
     /** Bordered background with a title bar. */
-    TORIDBG_PANEL_WINDOW = 0,
+    TORIRS_CHROME_PANEL_WINDOW = 0,
     /**
      * A horizontal strip of menu titles across the top of the screen -- the
      * File/Edit bar. Its widgets lay out left to right in one row instead of
@@ -379,7 +405,7 @@ enum ToriDbgPanelStyle
      * (ToriRSChrome_MenuDrop): the title is the whole closed state, and the
      * option list opens beneath it as the menu.
      */
-    TORIDBG_PANEL_MENUBAR = 2,
+    TORIRS_CHROME_PANEL_MENUBAR = 2,
     /**
      * The minimenu's chrome: body fill, black title bar, black separator and
      * side/bottom border strips, shadowed rows that go accent-coloured on
@@ -388,29 +414,29 @@ enum ToriDbgPanelStyle
      * draws bottom-to-top because its option list is built in reverse; a
      * debug menu is authored in the order it is read).
      */
-    TORIDBG_PANEL_MENU = 1,
+    TORIRS_CHROME_PANEL_MENU = 1,
 };
 
-enum ToriDbgWidgetKind
+enum ToriRSChromeWidgetKind
 {
-    TORIDBG_W_LABEL = 0,
-    TORIDBG_W_CHECKBOX,
-    TORIDBG_W_TEXTINPUT,
-    TORIDBG_W_SEPARATOR,
-    TORIDBG_W_MENUITEM,
+    TORIRS_CHROME_W_LABEL = 0,
+    TORIRS_CHROME_W_CHECKBOX,
+    TORIRS_CHROME_W_TEXTINPUT,
+    TORIRS_CHROME_W_SEPARATOR,
+    TORIRS_CHROME_W_MENUITEM,
     /**
      * A closed row showing the current choice; clicking it opens the shared
      * popup list. See `dropdown_open` on struct ToriRSChrome for why the list is
      * shared rather than per-widget.
      */
-    TORIDBG_W_DROPDOWN,
+    TORIRS_CHROME_W_DROPDOWN,
     /**
      * A rendered model preview: draws one scene sprite the HOST rendered and
      * registered (a model rasterised through the same pipeline as inventory
      * icons). The chrome stays a non-rasteriser -- it draws a handle, and
      * which pixels that handle holds is the host's business.
      */
-    TORIDBG_W_MODELVIEW,
+    TORIRS_CHROME_W_MODELVIEW,
     /**
      * A pressable box with a centred caption. Activates on release inside it,
      * like every other clickable row.
@@ -421,10 +447,10 @@ enum ToriDbgWidgetKind
      * of labels reads as another label, and the one control that commits the
      * user's edits is the last one that should have to be discovered.
      */
-    TORIDBG_W_BUTTON,
+    TORIRS_CHROME_W_BUTTON,
     /**
      * A strip of tab titles across one row; the selected one names which of the
-     * panel's other widgets lay out at all (see ToriDbgWidget::tab).
+     * panel's other widgets lay out at all (see ToriRSChromeWidget::tab).
      *
      * ONE widget holding N titles rather than one widget per tab, because the
      * layout engine stacks rows vertically: N sibling widgets would be N rows,
@@ -432,7 +458,46 @@ enum ToriDbgWidgetKind
      * are BORROWED exactly as a dropdown's options are, and for the same
      * reason -- the caller already holds them.
      */
-    TORIDBG_W_TABSTRIP,
+    TORIRS_CHROME_W_TABSTRIP,
+    /**
+     * A roster row: a name, an optional settings affordance, and a switch --
+     * the shape RuneLite's plugin list uses, and the reason this is a kind of
+     * its own rather than a checkbox with extras.
+     *
+     * A CHECKBOX is one control: box, label, one hit zone. This is a row of
+     * THREE zones with two different outcomes -- flip the switch, or open this
+     * entry's own page -- and a list of them is a NAVIGATION surface rather
+     * than a form. Tabs were the alternative and they do not scale: one tab
+     * per plugin fits four titles across a panel and then starts compressing
+     * captions to initials, where a list scrolls to any length.
+     *
+     * The action zone reports through `ToriRSChrome_ActivationWasAction`
+     * beside the ordinary activation latch, so a host drains both from the one
+     * loop it already has.
+     */
+    TORIRS_CHROME_W_LISTROW,
+    /**
+     * An HSL16 colour field: a swatch, an editable "#RRGGBB", and a popup of
+     * three bars -- hue, saturation, lightness -- that are the game's own
+     * colour axes rather than a rendering of RGB.
+     *
+     * A MODEL FACE IS NOT RGB. It is a 6-bit hue / 3-bit saturation / 7-bit
+     * lightness index into the revision's palette (ToriRSChrome_Hsl16ToRgb),
+     * and every colour a plugin hands the engine is quantised onto one of
+     * those 32768 entries whether it asked to be or not. A picker that offered
+     * 24-bit RGB would therefore be lying about its own precision: two hexes
+     * the user can tell apart in the field land on one palette entry on
+     * screen. Picking ON the axes makes every reachable value a value the
+     * renderer can actually produce, and makes the quantisation visible where
+     * it happens instead of at the far end of the pipeline.
+     *
+     * The value lives in `selected` (packed HSL16) and `text` mirrors it as
+     * "#RRGGBB" -- editable, because a hex out of a wiki or another client is
+     * how a colour usually arrives, and because the config store this feeds is
+     * textual. `checked` says whether the popup is open, which is what lets a
+     * NATIVE-WIDGET executor draw its own bars without a command of its own.
+     */
+    TORIRS_CHROME_W_COLORPICK,
     /**
      * A removed widget's slot, waiting on the free list.
      *
@@ -442,29 +507,29 @@ enum ToriDbgWidgetKind
      * ToriRSChrome_PanelClearWidgets addresses nothing instead of addressing
      * whatever was recycled into the slot.
      */
-    TORIDBG_W_FREE,
+    TORIRS_CHROME_W_FREE,
 };
 
 /** Rows the open dropdown list shows at once; longer lists scroll. Chosen so a
- *  palette of several hundred entries stays inside TORIDBG_MAX_PRIMS. */
-#define TORIDBG_DROPDOWN_ROWS 10
+ *  palette of several hundred entries stays inside TORIRS_CHROME_MAX_PRIMS. */
+#define TORIRS_CHROME_DROPDOWN_ROWS 10
 
 /** Editing keys ToriRSChrome_KeyEdit understands. Printable input goes through
  *  ToriRSChrome_KeyChar so ui/ never has to own a keymap. */
-enum ToriDbgKey
+enum ToriRSChromeKey
 {
-    TORIDBG_KEY_NONE = 0,
-    TORIDBG_KEY_BACKSPACE,
-    TORIDBG_KEY_DELETE,
-    TORIDBG_KEY_LEFT,
-    TORIDBG_KEY_RIGHT,
-    TORIDBG_KEY_HOME,
-    TORIDBG_KEY_END,
-    TORIDBG_KEY_ENTER,
-    TORIDBG_KEY_ESCAPE,
+    TORIRS_CHROME_KEY_NONE = 0,
+    TORIRS_CHROME_KEY_BACKSPACE,
+    TORIRS_CHROME_KEY_DELETE,
+    TORIRS_CHROME_KEY_LEFT,
+    TORIRS_CHROME_KEY_RIGHT,
+    TORIRS_CHROME_KEY_HOME,
+    TORIRS_CHROME_KEY_END,
+    TORIRS_CHROME_KEY_ENTER,
+    TORIRS_CHROME_KEY_ESCAPE,
 };
 
-struct ToriDbgWidget
+struct ToriRSChromeWidget
 {
     int kind;
     int panel;
@@ -473,13 +538,16 @@ struct ToriDbgWidget
     uint32_t color;
     int checked;
     int caret;
+    /** LISTROW: draw and hit-test the settings affordance. A row without one
+     *  is a name and a switch, and its whole width toggles. */
+    int row_action;
     /** Resolved by Build; absolute screen pixels. */
     int x;
     int y;
     int w;
     int h;
-    char label[TORIDBG_LABEL_MAX];
-    char text[TORIDBG_INPUT_MAX];
+    char label[TORIRS_CHROME_LABEL_MAX];
+    char text[TORIRS_CHROME_INPUT_MAX];
 
     /**
      * DROPDOWN options. BORROWED, not copied — the array and the strings it
@@ -493,7 +561,10 @@ struct ToriDbgWidget
      */
     char const* const* options;
     int option_count;
-    /** Index into `options`, or -1 for "nothing chosen". */
+    /** Index into `options`, or -1 for "nothing chosen". COLORPICK: the packed
+     *  HSL16 value instead -- a colour IS a selection out of the revision's
+     *  palette, so it rides the field the seam already diffs and announces
+     *  (WIDGET_SELECTED / INTENT_PICK) rather than adding a second one. */
     int selected;
     /** MODELVIEW: the box size and the host-rendered scene sprite (0 none). */
     int view_w;
@@ -542,7 +613,7 @@ struct ToriDbgWidget
     int scroll;
 };
 
-struct ToriDbgPanel
+struct ToriRSChromePanel
 {
     int style;
     int visible;
@@ -555,7 +626,7 @@ struct ToriDbgPanel
      * A hand-set height overrides content sizing. Rows that fall past the
      * bottom are DROPPED unless the panel is scrollable -- not drawn, and not
      * clickable either (dbg_build_window zeroes their hit boxes, so a panel
-     * cannot take clicks on rows nobody can see). @see ToriDbgPanel::scrollable
+     * cannot take clicks on rows nobody can see). @see ToriRSChromePanel::scrollable
      * for the other answer.
      */
     int resizable;
@@ -626,42 +697,42 @@ struct ToriDbgPanel
     int h;
     int dirty;
     /** Bounds as of the last Build, for the damage union. */
-    struct ToriDbgRect last_rect;
+    struct ToriRSChromeRect last_rect;
     int first_widget;
     int last_widget;
-    char title[TORIDBG_LABEL_MAX];
+    char title[TORIRS_CHROME_LABEL_MAX];
 };
 
 struct ToriRSChrome
 {
-    struct ToriDbgTheme theme;
-    /** Integer chrome zoom, TORIDBG_SCALE_MIN..MAX. Every layout metric and
+    struct ToriRSChromeTheme theme;
+    /** Integer chrome zoom, TORIRS_CHROME_SCALE_MIN..MAX. Every layout metric and
      *  glyph multiplies by it; Init sets 1. */
     int scale;
-    struct ToriDbgPanel panels[TORIDBG_MAX_PANELS];
+    struct ToriRSChromePanel panels[TORIRS_CHROME_MAX_PANELS];
     int panel_count;
-    struct ToriDbgWidget widgets[TORIDBG_MAX_WIDGETS];
+    struct ToriRSChromeWidget widgets[TORIRS_CHROME_MAX_WIDGETS];
     /** High-water mark of the widget array, NOT the number of live widgets:
      *  removed slots below it are on the free list. */
     int widget_count;
-    /** Next ToriDbgWidget::serial to hand out. */
+    /** Next ToriRSChromeWidget::serial to hand out. */
     int next_serial;
     /**
-     * Head of the removed-slot list, chained through ToriDbgWidget::next, or -1.
+     * Head of the removed-slot list, chained through ToriRSChromeWidget::next, or -1.
      *
      * A free list rather than compaction because handles are the caller's
      * addresses: compacting would renumber every widget above the hole and
      * silently repoint every handle anyone still holds. Recycling a slot can
      * only ever surprise a caller that kept a handle to something it removed,
-     * and TORIDBG_W_FREE plus dbg_valid_widget catch that case until the slot
+     * and TORIRS_CHROME_W_FREE plus dbg_valid_widget catch that case until the slot
      * is actually reused.
      */
     int free_widget;
-    struct ToriDbgPrim prims[TORIDBG_MAX_PRIMS];
+    struct ToriRSChromePrim prims[TORIRS_CHROME_MAX_PRIMS];
     int prim_count;
 
     /**
-     * Bit per enum ToriDbgSkinSlot the drawer actually has an image for.
+     * Bit per enum ToriRSChromeSkinSlot the drawer actually has an image for.
      *
      * The host sets this after it uploads the baked skin; 0 (the Init default)
      * means "no skin", and every skinned draw falls back to its flat form. So
@@ -718,6 +789,13 @@ struct ToriRSChrome
     int hover_y;
     /** Latched by input, drained by ToriRSChrome_TakeActivated. -1 = none. */
     int activated;
+    /** Set beside `activated` when a LISTROW's ACTION zone was what fired it,
+     *  rather than its switch. */
+    int activated_action;
+    /** `activated_action` as it stood at the last TakeActivated, so a host can
+     *  ask which kind of activation it just drained -- the drain clears the
+     *  live flag, and asking after the drain is the only order a caller has. */
+    int taken_action;
     /**
      * The dropdown whose list is open, or -1.
      *
@@ -743,6 +821,27 @@ struct ToriRSChrome
     int dropdown_scroll_drag;
     int dropdown_scroll_grab;
     /**
+     * The COLORPICK whose bar popup is open, or -1.
+     *
+     * Its own latch and not `dropdown_open`, even though only one popup can be
+     * up at a time and sharing one would enforce that for free: the two popups
+     * are different shapes with different hit tests, and a single latch would
+     * make every `dropdown_open >= 0` site -- the scroll drag, the row hover,
+     * the wheel, the dismiss-on-press -- have to ask which kind it was holding
+     * first. Opening either closes the other, which is the part that actually
+     * had to be true.
+     */
+    int colorpick_open;
+    /**
+     * Which bar of the open picker the pointer is dragging, or -1.
+     *
+     * A colour is picked by SWEEPING, not by clicking a cell: the whole point
+     * of laying the three axes out as bars is that the preview follows the
+     * pointer, and a press-move-release that only reported its endpoints would
+     * make the bars a row of 128 tiny buttons instead. @see enum ToriRSChromeColorBar.
+     */
+    int colorpick_drag_bar;
+    /**
      * Panel whose own scrollbar grip is being dragged, or -1.
      *
      * Its own state and not the dropdown's, because the two bars can be live in
@@ -767,7 +866,7 @@ struct ToriRSChrome
     /** Set by Build when a capacity limit truncated the display list. */
     int overflow;
     /** Union of what changed since the last DamageClear. w/h 0 = nothing. */
-    struct ToriDbgRect damage;
+    struct ToriRSChromeRect damage;
 };
 
 /* ---- lifecycle ---------------------------------------------------------- */
@@ -777,7 +876,7 @@ void
 ToriRSChrome_Init(struct ToriRSChrome* ui);
 
 /**
- * Set the device pixels per chrome pixel: TORIDBG_SCALE_MIN..TORIDBG_SCALE_MAX.
+ * Set the device pixels per chrome pixel: TORIRS_CHROME_SCALE_MIN..TORIRS_CHROME_SCALE_MAX.
  *
  * A relayout, not a transform: every panel is remeasured against the fonts
  * baked at that size, so rows grow with the text in them instead of text
@@ -801,7 +900,7 @@ void
 ToriRSChrome_Reset(struct ToriRSChrome* ui);
 
 void
-ToriRSChrome_SetTheme(struct ToriRSChrome* ui, struct ToriDbgTheme const* theme);
+ToriRSChrome_SetTheme(struct ToriRSChrome* ui, struct ToriRSChromeTheme const* theme);
 
 /* ---- building ----------------------------------------------------------- */
 
@@ -810,7 +909,13 @@ ToriRSChrome_SetTheme(struct ToriRSChrome* ui, struct ToriDbgTheme const* theme)
  * @return panel handle, or -1 when full.
  */
 int
-ToriRSChrome_PanelAdd(struct ToriRSChrome* ui, int style, int x, int y, int fixed_w, char const* title);
+ToriRSChrome_PanelAdd(
+    struct ToriRSChrome* ui,
+    int style,
+    int x,
+    int y,
+    int fixed_w,
+    char const* title);
 
 void
 ToriRSChrome_PanelMove(struct ToriRSChrome* ui, int panel, int x, int y);
@@ -822,7 +927,7 @@ ToriRSChrome_PanelSetVisible(struct ToriRSChrome* ui, int panel, int visible);
  * Give a window panel a resize grip in its bottom-right corner.
  *
  * Window panels only -- a menu panel is a popup sized to its rows, with
- * nothing a hand-set size would mean. @see ToriDbgPanel::resizable for what
+ * nothing a hand-set size would mean. @see ToriRSChromePanel::resizable for what
  * happens to rows a shrunk panel no longer has room for.
  */
 void
@@ -840,7 +945,7 @@ void
 ToriRSChrome_PanelSetFixedWidth(struct ToriRSChrome* ui, int panel, int width);
 
 /** Resolved bounds of a panel as of the last Build. 0 when unknown. */
-struct ToriDbgRect
+struct ToriRSChromeRect
 ToriRSChrome_PanelRect(struct ToriRSChrome const* ui, int panel);
 
 /** @return widget handle, or -1 when full / panel invalid. */
@@ -853,6 +958,17 @@ ToriRSChrome_LabelColored(struct ToriRSChrome* ui, int panel, char const* text, 
 
 int
 ToriRSChrome_Checkbox(struct ToriRSChrome* ui, int panel, char const* label, int checked);
+
+/**
+ * A roster row: `label`, a switch showing `checked`, and -- when `has_action`
+ * -- a settings affordance that reports through
+ * ToriRSChrome_ActivationWasAction instead of flipping the switch.
+ *
+ * @see TORIRS_CHROME_W_LISTROW for why this is not a checkbox.
+ */
+int
+ToriRSChrome_ListRow(
+    struct ToriRSChrome* ui, int panel, char const* label, int checked, int has_action);
 
 int
 ToriRSChrome_TextInput(struct ToriRSChrome* ui, int panel, char const* label, char const* text);
@@ -889,6 +1005,108 @@ ToriRSChrome_DropdownSelected(struct ToriRSChrome const* ui, int widget);
 void
 ToriRSChrome_DropdownSetSelected(struct ToriRSChrome* ui, int widget, int selected);
 
+/* ---- HSL16 colour ------------------------------------------------------
+ *
+ * The unit a model face is actually coloured in: 6-bit hue, 3-bit saturation,
+ * 7-bit lightness, packed `(h << 10) | (s << 7) | l`. Everything a plugin
+ * hands the engine as a colour ends up here, so a picker that works in this
+ * space is a picker whose every value survives the trip.
+ *
+ * Computed rather than pulled from the rasteriser's g_hsl16_to_rgb_table, and
+ * that is the module's no-dependency rule (see the header note) rather than a
+ * preference: ui/ links no renderer, so the chrome would draw grey swatches in
+ * every test and in any build whose palette had not been initialised yet. It
+ * is a PORT of pix3d_init_palette at brightness 0.8 -- the same arithmetic on
+ * the same constants -- with the one pow() replaced by a baked 256-entry gamma
+ * ramp. That the two agree for all 32768 entries is asserted by
+ * test-debug-overlay-visual, which links both; if the client ever changes its
+ * palette brightness, that test is what says so.
+ */
+
+/** Packed HSL16 -> 0xRRGGBB. Out-of-range input is masked, never rejected:
+ *  the low 16 bits are the whole domain. */
+uint32_t
+ToriRSChrome_Hsl16ToRgb(int hsl16);
+
+/** 0xRRGGBB -> the nearest packed HSL16, quantised exactly as the reference's
+ *  rgbToHSL does -- ceilings and all, because landing on the same palette
+ *  entry the game's own art does is the point of the conversion. */
+int
+ToriRSChrome_Hsl16FromRgb(uint32_t rgb);
+
+/** Split a packed HSL16 into its three axes. Any of the outs may be NULL. */
+void
+ToriRSChrome_Hsl16Split(int hsl16, int* hue, int* sat, int* lum);
+
+/** Repack three axes, each clamped to its own field width. */
+int
+ToriRSChrome_Hsl16Pack(int hue, int sat, int lum);
+
+/**
+ * "#RRGGBB" (or "RRGGBB", or "0xRRGGBB") -> 0xRRGGBB.
+ * @return 0 when `text` is not a colour, leaving `*out` alone.
+ *
+ * Tolerant of the spellings a config file and a wiki page actually carry,
+ * strict about the digit count: a half-typed "#00FF" is a value the user is
+ * still in the middle of, and guessing at it would snap the swatch to a colour
+ * they never asked for while they are still typing.
+ */
+int
+ToriRSChrome_ParseHexRgb(char const* text, uint32_t* out);
+
+/** Which bar of the open picker popup a gesture is on. */
+enum ToriRSChromeColorBar
+{
+    TORIRS_CHROME_COLORBAR_NONE = -1,
+    TORIRS_CHROME_COLORBAR_HUE = 0,
+    TORIRS_CHROME_COLORBAR_SAT,
+    TORIRS_CHROME_COLORBAR_LUM,
+    TORIRS_CHROME_COLORBAR_COUNT
+};
+
+/** How many distinct values each bar spans -- the field widths of HSL16. */
+#define TORIRS_CHROME_COLOR_HUE_STEPS 64
+#define TORIRS_CHROME_COLOR_SAT_STEPS 8
+#define TORIRS_CHROME_COLOR_LUM_STEPS 128
+
+/**
+ * An HSL16 colour row: `label`, a swatch, an editable hex, and a popup of the
+ * three axes behind the swatch.
+ *
+ * @param hsl16 the initial value; see ToriRSChrome_Hsl16FromRgb to come from
+ *        an RGB. @return widget handle, or -1 when full / panel invalid.
+ */
+int
+ToriRSChrome_ColorPick(struct ToriRSChrome* ui, int panel, char const* label, int hsl16);
+
+/** The packed HSL16 a picker is showing, or -1 when `widget` is not one. */
+int
+ToriRSChrome_ColorPickValue(struct ToriRSChrome const* ui, int widget);
+
+/** Set a picker's value and re-derive the hex it shows. Masks to 16 bits. */
+void
+ToriRSChrome_ColorPickSet(struct ToriRSChrome* ui, int widget, int hsl16);
+
+/**
+ * Take the hex currently in the field as the value, quantising it.
+ *
+ * Called when an edit is committed rather than on every keystroke: half a hex
+ * is not a colour, and a swatch that jumped through six wrong colours while
+ * the user typed the right one would read as a fault. @return 1 when the text
+ * parsed and the value moved.
+ */
+int
+ToriRSChrome_ColorPickCommitText(struct ToriRSChrome* ui, int widget);
+
+/** Is the picker's bar popup open? */
+int
+ToriRSChrome_ColorPickIsOpen(struct ToriRSChrome const* ui, int widget);
+
+/** Open or close it. Opening closes any other popup, including a dropdown's
+ *  list -- only one thing floats over the chrome at a time. */
+void
+ToriRSChrome_ColorPickSetOpen(struct ToriRSChrome* ui, int widget, int open);
+
 int
 ToriRSChrome_Separator(struct ToriRSChrome* ui, int panel);
 
@@ -911,7 +1129,7 @@ ToriRSChrome_MenuDrop(
     char const* const* options,
     int option_count);
 
-/** A pressable box captioned `text`. @see TORIDBG_W_BUTTON. */
+/** A pressable box captioned `text`. @see TORIRS_CHROME_W_BUTTON. */
 int
 ToriRSChrome_Button(struct ToriRSChrome* ui, int panel, char const* text);
 
@@ -951,14 +1169,19 @@ ToriRSChrome_PanelSetActiveTab(struct ToriRSChrome* ui, int panel, int tab);
 
 /**
  * Stamp every widget added to `panel` from here on with `tab`; -1 for rows that
- * belong to every tab. @see ToriDbgPanel::build_tab.
+ * belong to every tab. @see ToriRSChromePanel::build_tab.
  */
 void
 ToriRSChrome_PanelBeginTab(struct ToriRSChrome* ui, int panel, int tab);
 
-/** Let rows past the bottom scroll into view. @see ToriDbgPanel::scrollable. */
+/** Let rows past the bottom scroll into view. @see ToriRSChromePanel::scrollable. */
 void
 ToriRSChrome_PanelSetScrollable(struct ToriRSChrome* ui, int panel, int scrollable);
+
+/** Retitle a panel. The title is where a paged window says which page is up,
+ *  so it changes at runtime rather than only at PanelAdd. */
+void
+ToriRSChrome_PanelSetTitle(struct ToriRSChrome* ui, int panel, char const* title);
 
 /**
  * Remove one widget, returning its slot to the free list.
@@ -986,7 +1209,7 @@ ToriRSChrome_PanelClearWidgets(struct ToriRSChrome* ui, int panel);
 void
 ToriRSChrome_SetHidden(struct ToriRSChrome* ui, int widget, int hidden);
 
-/** Turn table layout on or off for a panel; see ToriDbgPanel::table. */
+/** Turn table layout on or off for a panel; see ToriRSChromePanel::table. */
 void
 ToriRSChrome_PanelSetTable(struct ToriRSChrome* ui, int panel, int table);
 
@@ -1081,7 +1304,7 @@ ToriRSChrome_MouseWheel(struct ToriRSChrome* ui, int x, int y, int delta);
 int
 ToriRSChrome_KeyChar(struct ToriRSChrome* ui, int ch);
 
-/** @param key enum ToriDbgKey. @return 1 if consumed. */
+/** @param key enum ToriRSChromeKey. @return 1 if consumed. */
 int
 ToriRSChrome_KeyEdit(struct ToriRSChrome* ui, int key);
 
@@ -1091,6 +1314,14 @@ ToriRSChrome_KeyEdit(struct ToriRSChrome* ui, int key);
  */
 int
 ToriRSChrome_TakeActivated(struct ToriRSChrome* ui);
+
+/**
+ * Was the activation just drained a LISTROW's ACTION -- its settings
+ * affordance -- rather than its switch? Valid immediately after
+ * ToriRSChrome_TakeActivated, and 0 for every other widget kind.
+ */
+int
+ToriRSChrome_ActivationWasAction(struct ToriRSChrome const* ui);
 
 /* ---- display list ------------------------------------------------------- */
 
@@ -1102,12 +1333,12 @@ int
 ToriRSChrome_Build(struct ToriRSChrome* ui);
 
 /** The display list. Valid until the next Build. */
-struct ToriDbgPrim const*
+struct ToriRSChromePrim const*
 ToriRSChrome_Prims(struct ToriRSChrome const* ui, int* out_count);
 
 /** @return 1 and writes the invalid region when there is one. */
 int
-ToriRSChrome_Damage(struct ToriRSChrome const* ui, struct ToriDbgRect* out);
+ToriRSChrome_Damage(struct ToriRSChrome const* ui, struct ToriRSChromeRect* out);
 
 void
 ToriRSChrome_DamageClear(struct ToriRSChrome* ui);

@@ -431,7 +431,8 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
 	ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
-	ui/torirs_chrome_exec.c ui/torirs_chrome_mirror.c ui/torirs_chrome_exec_cs2.c \
+	ui/torirs_chrome_exec.c ui/torirs_chrome_exec_kind.c \
+	ui/torirs_chrome_mirror.c ui/torirs_chrome_exec_cs2.c \
 	engine/torirs_debug_font_baked.c engine/torirs_chrome_skin_baked.c \
 	ui/uitree_interact.c ui/uitree_iface_stats.c \
 	varp/varp_manager.c \
@@ -785,9 +786,13 @@ IO_SERVER_FLAVOR = PLATFORM=native OPT=0 MEMTRACE=0 ENABLE_ASAN=0 ENABLE_UBSAN=0
 # features/features.c: BootManifest_LoadFile resolves `[features:boot]` names
 # through it, so a server that reads a manifest needs it too â without it the
 # link fails on ToriRS_Features_ByName.
+# ui/torirs_chrome_exec_kind.c: `[chrome] executor` is resolved by name the same
+# way, and the kind table is split out of ui/torirs_chrome_exec.c precisely so
+# that naming an executor does not drag the whole ui/ layer in here.
 IO_SERVER_SRCS = ioserver/io_server_main.c ioserver/http_server.c \
 	platform/io_wire.c platform/platform_x_io.c \
-	bootmanifest/bootmanifest.c features/features.c $(INI_SRC)
+	bootmanifest/bootmanifest.c features/features.c \
+	ui/torirs_chrome_exec_kind.c $(INI_SRC)
 # http_server.c talks Winsock directly (see JS5_SOCKET_LIBS below for the same
 # split on sockstream.c's side) -- closesocket/WSAStartup/select/etc live in
 # ws2_32, not the CRT, so a native Windows link needs it named explicitly.
@@ -1889,6 +1894,7 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_open_close.c ui/test/uitree_test_live_sets.c \
 		ui/test/uitree_test_debug_overlay.c \
 		ui/test/uitree_test_chrome_exec.c ui/torirs_chrome_exec.c \
+		ui/torirs_chrome_exec_kind.c \
 		ui/torirs_chrome_mirror.c \
 		$(CHROME_EXEC_TEST_CFLAGS) \
 		ui/test/uitree_test_entity_overlay_order.c
@@ -3709,7 +3715,8 @@ test-ws-frame: $(OBJ_DIR)
 # joining + CLI-override composition against a stub AppConfig.
 test-bootmanifest: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/bootmanifest -o $(OBJ_DIR)/bootmanifest_test \
-		bootmanifest/bootmanifest.c executor_config.c features/features.c $(INI_SRC) \
+		bootmanifest/bootmanifest.c executor_config.c features/features.c \
+		ui/torirs_chrome_exec_kind.c $(INI_SRC) \
 		bootmanifest/test/bootmanifest_test.c \
 		$(RSCACHE_DIR)/build/rscache_unity.o $(RSCACHE_DIR)/build/bzip.o \
 		$(RSCACHE_DIR)/build/bzip_encode.o $(RSCACHE_DIR)/build/miniz.o \

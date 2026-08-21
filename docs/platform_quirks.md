@@ -99,7 +99,7 @@ one lane only.
 - **Behavior:** A chrome SURFACE executor may open exactly ONE auxiliary
   window, and only when the user opens the chrome it presents. The game's
   renderer -- Soft3D, GL3, WebGL1, D3D9 -- is never bound to it: the aux
-  surface holds a `ToriDbgPrim` display list rasterised through the same
+  surface holds a `ToriRSChromePrim` display list rasterised through the same
   `ToriRS_Frame` translator the canvas uses, and nothing else. The window is
   opened lazily by `begin()`, not at boot, and a backend that cannot provide
   one returns `false` so the surface falls back to in-canvas chrome.

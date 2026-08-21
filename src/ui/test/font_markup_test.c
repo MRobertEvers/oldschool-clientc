@@ -205,7 +205,7 @@ visit_glyph_count(
 int
 main(void)
 {
-    struct ToriDraw_Font* font = ToriDbgFont_Small();
+    struct ToriDraw_Font* font = ToriRSChromeFont_Small();
     struct Canvas* canvas = malloc(sizeof(*canvas));
     assert(font && canvas);
 

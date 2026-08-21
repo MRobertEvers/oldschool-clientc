@@ -753,7 +753,7 @@ of the confusion:
 
 - **ToriRSChrome** — editor panels, debug overlay, minimenu. Scales by picking
   a **baked** face, never by stretching. `fontbake` writes Small/Body/Menu at
-  @1/@2/@3 (`TORIDBG_SCALE_MAX` is what the bake carries, not a taste), and
+  @1/@2/@3 (`TORIRS_CHROME_SCALE_MAX` is what the bake carries, not a taste), and
   every metric in `uitree_debug_overlay.c` goes through `DBG_PX()`, so the
   layout reflows rather than blurs.
 - **The UITree / IF3 game layer**, and the world's 2D overlays (click cross,

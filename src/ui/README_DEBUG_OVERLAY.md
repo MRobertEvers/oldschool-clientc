@@ -74,7 +74,7 @@ bounds are kept: moving a panel invalidates where it *was* as much as where it
 *is*.
 
 ```c
-struct ToriDbgRect dirty;
+struct ToriRSChromeRect dirty;
 
 ToriRSChrome_PanelMove(&ui, panel, 40, 40);   /* was at 8,8 */
 ToriRSChrome_Build(&ui);
@@ -103,8 +103,8 @@ answer one host request per frame.
 int const font_id_small = 494; /* any free local scene handle */
 int const font_id_menu  = 496;
 
-ToriDraw_SceneFontAdd(scene, font_id_small, ToriDbgFont_Small());
-ToriDraw_SceneFontAdd(scene, font_id_menu,  ToriDbgFont_Menu());
+ToriDraw_SceneFontAdd(scene, font_id_small, ToriRSChromeFont_Small());
+ToriDraw_SceneFontAdd(scene, font_id_menu,  ToriRSChromeFont_Menu());
 ```
 
 These are **local host handles, not cache ids** — the overlay never names a font
@@ -130,7 +130,7 @@ debug_ui_init(void)
 
     ToriRSChrome_Init(&g_dbg);
 
-    panel = ToriRSChrome_PanelAdd(&g_dbg, TORIDBG_PANEL_WINDOW, 8, 8, 0, "Debug");
+    panel = ToriRSChrome_PanelAdd(&g_dbg, TORIRS_CHROME_PANEL_WINDOW, 8, 8, 0, "Debug");
     ToriRSChrome_Label(&g_dbg, panel, "fps 60");
     ToriRSChrome_Separator(&g_dbg, panel);
     g_wireframe = ToriRSChrome_Checkbox(&g_dbg, panel, "wireframe", 0);
@@ -191,7 +191,7 @@ siblings, so an overlay parented under a container with `p=` still draws.
 case UITREE_HOST_GET_DEBUG_OVERLAY:
 {
     int count = 0;
-    struct ToriDbgPrim const* prims;
+    struct ToriRSChromePrim const* prims;
     if( !req->u.get_debug_overlay.out_prims )
         return 0;
     prims = ToriRSChrome_Prims(&g_dbg, &count);
@@ -218,14 +218,14 @@ owns no keymap (see §6).
 
 ## 5. Features
 
-### 5.1 Bordered backgrounds — `TORIDBG_PANEL_WINDOW`
+### 5.1 Bordered backgrounds — `TORIRS_CHROME_PANEL_WINDOW`
 
 A body fill, the **minimenu's chrome**, and a title bar in the menu face.
 Content is clipped to the panel's inner rect, so an over-long label is cut at
 the border rather than spilling onto the scene.
 
 ```c
-int p = ToriRSChrome_PanelAdd(&ui, TORIDBG_PANEL_WINDOW, 8, 8, 120, "Stats");
+int p = ToriRSChrome_PanelAdd(&ui, TORIRS_CHROME_PANEL_WINDOW, 8, 8, 120, "Stats");
 ToriRSChrome_Label(&ui, p, "fps 60");
 ToriRSChrome_LabelColored(&ui, p, "draws 812", 0x50FF50);
 ```
@@ -264,13 +264,13 @@ Visual: `build/debug_overlay_01_bordered_background.bmp`,
 `build/debug_overlay_08_clipping.bmp`, `build/debug_overlay_14_grip.bmp`,
 `build/debug_overlay_16_grip_clamped.bmp`.
 
-### 5.2 Menus — `TORIDBG_PANEL_MENU`
+### 5.2 Menus — `TORIRS_CHROME_PANEL_MENU`
 
 The minimenu's chrome: body fill, black title bar, black separator and
 side/bottom border strips, shadowed rows that go accent-coloured on hover.
 
 ```c
-int m = ToriRSChrome_PanelAdd(&ui, TORIDBG_PANEL_MENU, 100, 40, 0, "Choose Option");
+int m = ToriRSChrome_PanelAdd(&ui, TORIRS_CHROME_PANEL_MENU, 100, 40, 0, "Choose Option");
 ToriRSChrome_MenuItem(&ui, m, "Teleport");
 ToriRSChrome_MenuItem(&ui, m, "Toggle roofs");
 ToriRSChrome_MenuItem(&ui, m, "Cancel");
@@ -349,7 +349,7 @@ into the other, so the split is in the code rather than in the theme:
 | | Value dropdown | Menu (`MenuDrop`) |
 | --- | --- | --- |
 | Closed state | tiled button, framed and inset, arrow on the **left** | the bare title |
-| List body | the list's own tile (`TORIDBG_SKIN_DROPDOWN_BODY`) | flat `menu_body` |
+| List body | the list's own tile (`TORIRS_CHROME_SKIN_DROPDOWN_BODY`) | flat `menu_body` |
 | Rows | centred, `dropdown_text`, alternating black bands | left-aligned, `menu_text` |
 | Hover | the row's band thins out, lightening it | the row's **text** goes `menu_hover_text` |
 
@@ -360,7 +360,7 @@ the cursor (240). The arrow is the cache's own sprite, and it is the *same*
 sprite the scrollbar's ends wear: down while the list is shut, up while it is
 open.
 
-**The scrollbar** appears on a list that overflows (`TORIDBG_DROPDOWN_ROWS`
+**The scrollbar** appears on a list that overflows (`TORIRS_CHROME_DROPDOWN_ROWS`
 rows are shown at once), 16 chrome pixels wide, *inside* the list — so the rows
 lose that width rather than running under the bar. It is the client's bar in
 both of the forms the client draws it:
@@ -401,7 +401,7 @@ if( ToriRSChrome_MouseMove(&ui, mx, my) )  return; /* consumed: pointer over a p
 if( ToriRSChrome_MouseDown(&ui, mx, my) )  return;
 if( ToriRSChrome_MouseUp(&ui, mx, my) )    return;
 
-if( ToriRSChrome_KeyEdit(&ui, TORIDBG_KEY_BACKSPACE) ) return;
+if( ToriRSChrome_KeyEdit(&ui, TORIRS_CHROME_KEY_BACKSPACE) ) return;
 if( ToriRSChrome_KeyChar(&ui, ch) )                    return;   /* printable byte */
 
 {
@@ -431,7 +431,7 @@ and puts the caret at the end; mouse-down anywhere else drops focus.
 ToriRSChrome (retained model)
   |  ToriRSChrome_Build            relayout + rebuild the prim array, only when dirty
   v
-struct ToriDbgPrim[]            flat POD display list, absolute pixels, per-prim clip
+struct ToriRSChromePrim[]            flat POD display list, absolute pixels, per-prim clip
   |  UITREE_HOST_GET_DEBUG_OVERLAY     host hands back the pointer + count
   v
 emit_debug_overlay_pass         ONE UITreeEmitDesc for the whole list
@@ -455,7 +455,7 @@ convention the UITree colour fields use; `torirs_frame.c` supplies alpha with
 `emit_color_argb(color, 0)`. A raw copy draws nothing at all —
 `ToriDraw2D_FillRect` early-returns on alpha 0.
 
-**`y` is a baseline, not a box top,** for `TORIDBG_PRIM_TEXT`. That is the
+**`y` is a baseline, not a box top,** for `TORIRS_CHROME_PRIM_TEXT`. That is the
 reference `PixFont.drawString` convention, which `ToriDraw2D_DrawString`
 follows (`y -= font->line_height`).
 
@@ -464,7 +464,7 @@ follows (`y -= font->line_height`).
 ## 8. Theme
 
 `0xRRGGBB` colours plus a handful of non-colour switches.
-`ToriRSChrome_Init` installs `toridbg_theme_default`; `ToriRSChrome_SetTheme`
+`ToriRSChrome_Init` installs `torirs_chrome_theme_default`; `ToriRSChrome_SetTheme`
 swaps it wholesale.
 
 | Group | Fields |
@@ -485,6 +485,11 @@ are lifted straight from the `cc_settrans` calls in the scripts that draw the
 real widget, and a field that read the other way would have every one of them
 inverted at the call site.
 
+A checkbox is a SPRITE in this game -- there is no drawn checkbox anywhere in
+the cache to imitate, so the flat box-with-a-mark is the *fallback* and the
+tick/cross pair is the control. Same for a roster row's on/off, which was a
+sliding switch until it was pointed out that this game has no such thing.
+
 The two `skin_*` switches are what a theme uses to ask for the baked cache art
 (§8.1) instead of flat boxes. Off is the flat look *and* the automatic
 fallback: each draw checks the slot it is about to use against `skin_avail`,
@@ -492,7 +497,7 @@ so a build with the skin module stubbed out still renders.
 
 The menu group defaults to the minimenu's own palette, so a debug menu and a
 game minimenu on screen at the same time read as the same widget. Under
-`toridbg_theme_osrs` the window group points at those same values —
+`torirs_chrome_theme_osrs` the window group points at those same values —
 `panel_title_text` is the minimenu's brown-on-black, not the interfaces'
 heading orange — so a window panel matches too.
 
@@ -500,7 +505,7 @@ heading orange — so a window panel matches too.
 
 `engine/torirs_chrome_skin_baked.c` is a `spritebake` run over the cache: a
 handful of cache sprites as compiled-in ARGB arrays, addressed by *semantic
-slot* (`enum ToriDbgSkinSlot`) rather than by archive id, so a re-bake from a
+slot* (`enum ToriRSChromeSkinSlot`) rather than by archive id, so a re-bake from a
 different cache — or no bake at all — needs no change here.
 
 | Slot | Cache sprite | Drawn as |
@@ -510,12 +515,35 @@ different cache — or no bake at all — needs no change here.
 | `SCROLL_UP` / `SCROLL_DOWN` | 773 / 788 | the bar's two arrow buttons, and the dropdown button's arrow |
 | `SCROLL_TRACK` | 792 | stretched down the bar between the arrows |
 | `SCROLL_GRIP_TOP/MID/BOTTOM` | 789 / 790 / 791 | the grip: middle stretched, then a cap on each end |
+| `PLUGIN_ICON` | `sideicons_interface_11` (785) | the wrench that opens the plugin window from the gameframe's strip |
+| `CHECK_ON` / `CHECK_OFF` | 8380 / 8379 | every on/off state: a checkbox, and a roster row's switch |
+
+**`CHECK_ON` is 8380, not 8379**, which is the opposite of what the ids
+suggest. `script3422` sets 8379 alongside `if_setop(1, "Show", ..)` -- the op is
+what a click *will do*, so a row offering "Show" is currently hidden, and 8379
+is the red cross. Baking them the other way round renders cleanly and is simply
+backwards, so `visual_checkbox_skinned` asserts the hue directly: the pixel
+comparisons cannot catch a swap, since a swapped pair blits just as faithfully.
 
 The host uploads them as one multi-frame scene entry and sets one `skin_avail`
 bit per slot it actually got; `skin_tile_w/h` carry the tile's size so the
 tiling loop up here can step by it without holding any pixels.
 
 Regenerate with the command in the generated file's header comment.
+
+**The bake has a second consumer, and it does not draw prims.** The interface-
+tree presentation of the plugin window (`ui/torirs_chrome_exec_cs2.c`) builds
+real components, so it reaches these images through the scene rather than
+through the display list: the host hands it the multi-frame sprite's scene id,
+and a component names a slot with `UIBuildComponent::graphic_atlas_index`
+beside `graphic_scene_id`. `PLUGIN_ICON` is baked for that consumer alone --
+nothing up here emits it.
+
+That is also why it is baked rather than resolved. Archive 785 is the wrench
+only on the OSRS cache it was chosen from; asking a different cache for 785
+gets a confidently wrong picture rather than a missing one, and asking any
+cache for it costs a load round-trip during which the button cannot be built at
+all.
 
 ---
 
@@ -529,9 +557,9 @@ Three faces, each baked at three sizes:
 
 | Slot | Archive | Ascent | Line box | Glyph bytes |
 | --- | --- | --- | --- | --- |
-| `TORIDBG_FONT_SMALL` | 494 | 10 / 20 / 30 | 12 / 24 / 36 | 2725 / 10900 / 24525 |
-| `TORIDBG_FONT_BODY` | 495 | 12 / 24 / 36 | 16 / 32 / 48 | 4237 / 16948 / 38133 |
-| `TORIDBG_FONT_MENU` | 496 | 12 / 24 / 36 | 16 / 32 / 48 | 5045 / 20180 / 45405 |
+| `TORIRS_CHROME_FONT_SMALL` | 494 | 10 / 20 / 30 | 12 / 24 / 36 | 2725 / 10900 / 24525 |
+| `TORIRS_CHROME_FONT_BODY` | 495 | 12 / 24 / 36 | 16 / 32 / 48 | 4237 / 16948 / 38133 |
+| `TORIRS_CHROME_FONT_MENU` | 496 | 12 / 24 / 36 | 16 / 32 / 48 | 5045 / 20180 / 45405 |
 
 In a dat2 cache the metrics blob lives in the **fonts** table and the glyph
 bitmaps live in the **sprites** table at the same archive id; `fontbake` reads
@@ -557,7 +585,7 @@ visual test asserts that as an equality on drawn pixel COUNT (4x at 2x, 9x at
 1px.
 
 Integer only, for the same reason: a 1.5x glyph would land stems on half
-pixels and the mask test would round them to uneven widths. `TORIDBG_SCALE_MAX`
+pixels and the mask test would round them to uneven widths. `TORIRS_CHROME_SCALE_MAX`
 is 3 because three sizes are baked — raising it means baking the size first, in
 the one `fontbake` run that writes both generated files.
 
@@ -582,7 +610,7 @@ make -C 3rd/rscache/tools fontbake
     --font 494=Small   --font 495=Body   --font 496=Menu \
     --font 494=Small2x@2 --font 495=Body2x@2 --font 496=Menu2x@2 \
     --font 494=Small3x@3 --font 495=Body3x@3 --font 496=Menu3x@3 \
-    --prefix ToriDbgFont \
+    --prefix ToriRSChromeFont \
     --out     src/engine/torirs_debug_font_baked.c \
     --header  src/engine/torirs_debug_font_baked.h \
     --metrics src/ui/uitree_debug_font_metrics.h
@@ -655,11 +683,11 @@ the test registers the baked fonts with `ToriDraw_SceneFontAdd` directly.
 
 | | |
 | --- | --- |
-| `TORIDBG_MAX_PANELS` | 16 |
-| `TORIDBG_MAX_WIDGETS` | 128 (across all panels) |
-| `TORIDBG_MAX_PRIMS` | 512 |
-| `TORIDBG_LABEL_MAX` | 64 bytes, with the terminator |
-| `TORIDBG_INPUT_MAX` | 64 bytes, with the terminator |
+| `TORIRS_CHROME_MAX_PANELS` | 16 |
+| `TORIRS_CHROME_MAX_WIDGETS` | 128 (across all panels) |
+| `TORIRS_CHROME_MAX_PRIMS` | 512 |
+| `TORIRS_CHROME_LABEL_MAX` | 64 bytes, with the terminator |
+| `TORIRS_CHROME_INPUT_MAX` | 64 bytes, with the terminator |
 
 `PanelAdd` and the widget constructors return `-1` when full. `Build` stops
 early and sets `ui->overflow` rather than writing past the prim array — check it

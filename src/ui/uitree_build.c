@@ -98,12 +98,14 @@ UITree_PushBuildComponent(
 
     case UIBUILD_GRAPHIC:
         spec.type = UIELEM_RS_GRAPHIC;
-        if( resolve_sprite && comp->graphic > 0 )
+        if( comp->graphic_scene_id > 0 )
+            scene_id = comp->graphic_scene_id;
+        else if( resolve_sprite && comp->graphic > 0 )
             scene_id = resolve_sprite(resolve_ud, comp->graphic);
         if( resolve_sprite && comp->graphic_active > 0 )
             scene_id_active = resolve_sprite(resolve_ud, comp->graphic_active);
         spec.u.rs_graphic.scene_id = scene_id;
-        spec.u.rs_graphic.atlas_index = 0;
+        spec.u.rs_graphic.atlas_index = comp->graphic_atlas_index;
         spec.u.rs_graphic.scene_id_active = scene_id_active;
         spec.u.rs_graphic.atlas_index_active = 0;
         spec.u.rs_graphic.graphic_hitbox_only = comp->graphic_hitbox_only;

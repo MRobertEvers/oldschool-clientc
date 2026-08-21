@@ -1215,18 +1215,18 @@ translate_ui_cmd(
         /* One display-list primitive per multi-step. The prims are already in
          * absolute screen pixels and carry their own scissor box, so this is a
          * straight field copy — no layout, no measurement, no allocation. */
-        struct ToriDbgPrim const* prim;
+        struct ToriRSChromePrim const* prim;
         int font_id;
 
         if( !desc->debug_prims || frame->scrollbar_step >= desc->debug_prim_count )
             return false;
         prim = &desc->debug_prims[frame->scrollbar_step];
 
-        if( prim->kind == TORIDBG_PRIM_TEXT )
+        if( prim->kind == TORIRS_CHROME_PRIM_TEXT )
         {
             if( !prim->text || prim->text[0] == '\0' )
                 return false;
-            if( prim->font_slot < 0 || prim->font_slot >= TORIDBG_FONT_SLOT_COUNT )
+            if( prim->font_slot < 0 || prim->font_slot >= TORIRS_CHROME_FONT_SLOT_COUNT )
                 return false;
             font_id = desc->debug_font_id[prim->font_slot];
             /* >= 0: scene font ids are cache ids, and 0 is a real one. A
@@ -1250,7 +1250,7 @@ translate_ui_cmd(
             return true;
         }
 
-        if( prim->kind == TORIDBG_PRIM_SPRITE )
+        if( prim->kind == TORIRS_CHROME_PRIM_SPRITE )
         {
             int atlas;
 
@@ -1273,7 +1273,7 @@ translate_ui_cmd(
                 return true;
             }
 
-            if( prim->sprite_slot < 0 || prim->sprite_slot >= TORIDBG_SKIN_SLOT_COUNT )
+            if( prim->sprite_slot < 0 || prim->sprite_slot >= TORIRS_CHROME_SKIN_SLOT_COUNT )
                 return false;
             atlas = desc->debug_skin_atlas[prim->sprite_slot];
             /* No skin uploaded for this slot. The chrome only emits these once

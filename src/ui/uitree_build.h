@@ -40,6 +40,22 @@ struct UIBuildComponent
     int aspect_h;
     int graphic;
     int graphic_active;
+    /**
+     * A sprite ALREADY in the scene, and which of its frames -- the escape
+     * hatch for images that never came from a cache archive.
+     *
+     * Set (> 0) it and `graphic` is not consulted and the resolver is not
+     * called: there is nothing to look up, because the caller is holding the
+     * scene id. This is how the baked chrome skin reaches a component; the
+     * skin is one multi-frame scene sprite, so a slot is `graphic_atlas_index`
+     * into it.
+     *
+     * Zero means unset, matching the `graphic > 0` test beside it. That is a
+     * sentinel and not a scene id, so a caller that memsets the struct and
+     * fills nothing in gets the cache path it expects.
+     */
+    int graphic_scene_id;
+    int graphic_atlas_index;
     int outline;
     int graphic_shadow;
     /** dat2 spriteAngle: 65536 = one full turn (IF/CC_SET2DANGLE's scale). */

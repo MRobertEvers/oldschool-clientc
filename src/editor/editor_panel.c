@@ -332,7 +332,7 @@ editor_loc_rows_fill(
     struct ToriRS_Location const* cfg,
     int loc_id)
 {
-    char line[TORIDBG_LABEL_MAX];
+    char line[TORIRS_CHROME_LABEL_MAX];
 
     assert(ui);
     assert(rows);
@@ -484,7 +484,7 @@ Editor_PanelInit(
      * do not open on top of each other. Both are draggable by their headers, so
      * this is only where they start. */
     panel->panel = ToriRSChrome_PanelAdd(
-        ui, TORIDBG_PANEL_WINDOW, editor_px(ui, EDITOR_PANEL_TOOL_X),
+        ui, TORIRS_CHROME_PANEL_WINDOW, editor_px(ui, EDITOR_PANEL_TOOL_X),
         editor_px(ui, EDITOR_PANEL_TOOL_Y), 0, "Map Editor");
     if( panel->panel < 0 )
         return;
@@ -498,14 +498,15 @@ Editor_PanelInit(
     panel->row_authored = ToriRSChrome_Label(ui, panel->panel, "");
     ToriRSChrome_Separator(ui, panel->panel);
 
-    panel->dd_tool =
-        ToriRSChrome_Dropdown(ui, panel->panel, "Tool", editor_tool_names, EDITOR_TOOL_ROW_COUNT, 0);
+    panel->dd_tool = ToriRSChrome_Dropdown(
+        ui, panel->panel, "Tool", editor_tool_names, EDITOR_TOOL_ROW_COUNT, 0);
     panel->in_height = ToriRSChrome_TextInput(ui, panel->panel, "Height", "0");
     panel->dd_underlay = ToriRSChrome_Dropdown(ui, panel->panel, "Under", NULL, 0, -1);
     panel->dd_overlay = ToriRSChrome_Dropdown(ui, panel->panel, "Over", NULL, 0, -1);
     panel->dd_shape = ToriRSChrome_Dropdown(
         ui, panel->panel, "Shape", editor_shape_names, EDITOR_SHAPE_COUNT, 0);
-    panel->dd_rotation = ToriRSChrome_Dropdown(ui, panel->panel, "Rot", editor_rotation_names, 4, 0);
+    panel->dd_rotation =
+        ToriRSChrome_Dropdown(ui, panel->panel, "Rot", editor_rotation_names, 4, 0);
     panel->dd_level =
         ToriRSChrome_Dropdown(ui, panel->panel, "Level", editor_level_names, EDITOR_LEVEL_COUNT, 0);
     /* A VIEW row, not an edit one: it changes which planes are painted and
@@ -544,7 +545,7 @@ Editor_PanelInit(
      * needing a widget kind of its own.
      */
     panel->catalog_panel = ToriRSChrome_PanelAdd(
-        ui, TORIDBG_PANEL_WINDOW, editor_px(ui, EDITOR_PANEL_COL_X),
+        ui, TORIRS_CHROME_PANEL_WINDOW, editor_px(ui, EDITOR_PANEL_COL_X),
         editor_px(ui, EDITOR_PANEL_CATALOG_Y), editor_px(ui, EDITOR_PANEL_COL_W), "Catalog");
     if( panel->catalog_panel >= 0 )
     {
@@ -584,7 +585,7 @@ Editor_PanelInit(
     }
     /* The square browser, under the catalog in the left column. */
     panel->square_panel = ToriRSChrome_PanelAdd(
-        ui, TORIDBG_PANEL_WINDOW, editor_px(ui, EDITOR_PANEL_COL_X),
+        ui, TORIRS_CHROME_PANEL_WINDOW, editor_px(ui, EDITOR_PANEL_COL_X),
         editor_px(ui, EDITOR_PANEL_SQUARE_Y), editor_px(ui, EDITOR_PANEL_COL_W), "Squares");
     if( panel->square_panel >= 0 )
     {
@@ -601,7 +602,7 @@ Editor_PanelInit(
     /* The Loc panel: what the selected loc IS. Shown only while a loc is
      * selected; sits under the tool panel's default spot. */
     panel->loc_panel = ToriRSChrome_PanelAdd(
-        ui, TORIDBG_PANEL_WINDOW, editor_px(ui, EDITOR_PANEL_TOOL_X),
+        ui, TORIRS_CHROME_PANEL_WINDOW, editor_px(ui, EDITOR_PANEL_TOOL_X),
         editor_px(ui, EDITOR_PANEL_LOC_Y), 0, "Loc");
     if( panel->loc_panel >= 0 )
     {
@@ -624,7 +625,7 @@ Editor_PanelInit(
      * which is exactly the complaint that moved them.
      */
     panel->menubar_panel =
-        ToriRSChrome_PanelAdd(ui, TORIDBG_PANEL_MENUBAR, 0, 0, UITREE_LAYOUT_ROOT_W, "");
+        ToriRSChrome_PanelAdd(ui, TORIRS_CHROME_PANEL_MENUBAR, 0, 0, UITREE_LAYOUT_ROOT_W, "");
     if( panel->menubar_panel >= 0 )
     {
         panel->menu_file = ToriRSChrome_MenuDrop(
@@ -898,7 +899,7 @@ editor_variant_rebuild(
 {
     struct ToriRSChrome* ui = &app->dbg_ui;
     struct ToriRS_Location* cfg = NULL;
-    char line[TORIDBG_LABEL_MAX];
+    char line[TORIRS_CHROME_LABEL_MAX];
 
     assert(panel);
     assert(app);
@@ -1041,7 +1042,7 @@ panel_refresh(
 {
     struct ToriRSChrome* ui = &app->dbg_ui;
     struct Editor* editor = app->editor;
-    char line[TORIDBG_LABEL_MAX];
+    char line[TORIRS_CHROME_LABEL_MAX];
     int map_x;
     int map_z;
     int tile_x;
@@ -1072,7 +1073,8 @@ panel_refresh(
 
     if( probe_x < 0 || !scene_to_square(app, probe_x, probe_z, &map_x, &map_z, &tile_x, &tile_z) )
     {
-        ToriRSChrome_SetText(ui, panel->row_square, latched ? "latched tile is off-map" : "no tile under cursor");
+        ToriRSChrome_SetText(
+            ui, panel->row_square, latched ? "latched tile is off-map" : "no tile under cursor");
         ToriRSChrome_SetText(ui, panel->row_tile, "");
         ToriRSChrome_SetText(ui, panel->row_authored, "");
         return;
@@ -1534,7 +1536,7 @@ Editor_PanelSelectLoc(
         panel->cat_picked_name, sizeof(panel->cat_picked_name), "%s (%d)",
         scenery->name[0] ? scenery->name : "<unnamed>", scenery->loc_id);
     {
-        char line[TORIDBG_LABEL_MAX];
+        char line[TORIRS_CHROME_LABEL_MAX];
         snprintf(line, sizeof(line), "Locs %s", panel->cat_picked_name);
         ToriRSChrome_SetText(&app->dbg_ui, panel->cat_row_picked, line);
         for( int i = 0; i < panel->cat_count; i++ )
@@ -1572,7 +1574,7 @@ editor_loc_panel_refresh(
 {
     struct ToriRSChrome* ui = &app->dbg_ui;
     struct ToriRS_Location* cfg;
-    char line[TORIDBG_LABEL_MAX];
+    char line[TORIRS_CHROME_LABEL_MAX];
 
     if( panel->loc_panel < 0 || panel->sel_kind != EDITOR_SELECTION_LOC )
         return;
@@ -2315,7 +2317,7 @@ editor_square_panel_stack(
     struct Editor_Panel* panel,
     struct ToriRSChrome* ui)
 {
-    struct ToriDbgRect cat;
+    struct ToriRSChromeRect cat;
     int want;
 
     assert(panel);
@@ -2485,7 +2487,7 @@ Editor_PanelTick(
         }
 
         {
-            char line[TORIDBG_LABEL_MAX];
+            char line[TORIRS_CHROME_LABEL_MAX];
             snprintf(
                 line, sizeof(line), "%d of %d %s", panel->cat_count, loaded,
                 editor_catalog_kind_names[panel->cat_kind]);
@@ -2528,7 +2530,7 @@ Editor_PanelTick(
         char const* search = ToriRSChrome_Text(ui, panel->sq_in_search);
         if( strcmp(panel->sq_shown_search, search ? search : "") != 0 )
         {
-            char line[TORIDBG_LABEL_MAX];
+            char line[TORIRS_CHROME_LABEL_MAX];
             int shown = 0;
 
             for( int i = 0; i < panel->sq_total && shown < EDITOR_SQUARE_ROWS; i++ )
@@ -2582,7 +2584,7 @@ Editor_PanelTick(
              * square happened to sit at that position in the unfiltered list. */
             int const at = panel->sq_row_index[row];
             int const chunks[2] = { panel->sq_coords[at * 2], panel->sq_coords[at * 2 + 1] };
-            char line[TORIDBG_LABEL_MAX];
+            char line[TORIRS_CHROME_LABEL_MAX];
             snprintf(line, sizeof(line), "opening %s", panel->sq_labels[row]);
             ToriRSChrome_SetText(ui, panel->sq_row_current, line);
             /* Requested, not called: app_world_load_begin is app.c's own, and
@@ -2782,7 +2784,7 @@ Editor_PanelTick(
     else if( activated == panel->cat_dd_list )
     {
         int const choice = ToriRSChrome_DropdownSelected(ui, panel->cat_dd_list);
-        char line[TORIDBG_LABEL_MAX];
+        char line[TORIRS_CHROME_LABEL_MAX];
 
         if( choice >= 0 && choice < panel->cat_count )
         {

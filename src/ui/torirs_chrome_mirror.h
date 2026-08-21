@@ -34,7 +34,7 @@
 struct ToriRSChromeMirrorWidget
 {
     int live;
-    /** enum ToriDbgWidgetKind, as the ADD carried it. */
+    /** enum ToriRSChromeWidgetKind, as the ADD carried it. */
     int kind;
     int panel;
     /** Which tab owns it; -1 = every tab. */
@@ -72,13 +72,13 @@ struct ToriRSChromeMirrorPanel
 
 struct ToriRSChromeMirror
 {
-    struct ToriRSChromeMirrorPanel panels[TORIDBG_MAX_PANELS];
+    struct ToriRSChromeMirrorPanel panels[TORIRS_CHROME_MAX_PANELS];
     /** Indexed BY chrome handle, so the lookup a command needs is an array
      *  index rather than a search. The cost is one slot per possible handle,
      *  which is what makes removal-then-reuse safe: the slot is cleared on
      *  REMOVE, so a stale native id cannot survive into the widget that
      *  recycles the handle. */
-    struct ToriRSChromeMirrorWidget widgets[TORIDBG_MAX_WIDGETS];
+    struct ToriRSChromeMirrorWidget widgets[TORIRS_CHROME_MAX_WIDGETS];
 
     /** Next `order` to hand out. Monotonic within a panel's lifetime; a panel
      *  close resets nothing, because order only ever has to be comparable. */

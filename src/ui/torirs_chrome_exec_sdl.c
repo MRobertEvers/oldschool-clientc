@@ -102,7 +102,7 @@ chrome_sdl_apply(void* user, struct ToriRSChromeCmd const* cmd)
  * be almost right.
  */
 static void
-chrome_sdl_present(void* user, struct ToriDbgPrim const* prims, int count)
+chrome_sdl_present(void* user, struct ToriRSChromePrim const* prims, int count)
 {
     struct ChromeSdl* s = user;
     int* pixels;
@@ -140,15 +140,17 @@ chrome_sdl_present(void* user, struct ToriDbgPrim const* prims, int count)
  * enum and not the other fails to COMPILE rather than silently mapping Home to
  * Delete.
  */
-_Static_assert((int)PLATFORM_AUX_KEY_NONE == (int)TORIDBG_KEY_NONE, "aux key: none");
-_Static_assert((int)PLATFORM_AUX_KEY_BACKSPACE == (int)TORIDBG_KEY_BACKSPACE, "aux key: bksp");
-_Static_assert((int)PLATFORM_AUX_KEY_DELETE == (int)TORIDBG_KEY_DELETE, "aux key: del");
-_Static_assert((int)PLATFORM_AUX_KEY_LEFT == (int)TORIDBG_KEY_LEFT, "aux key: left");
-_Static_assert((int)PLATFORM_AUX_KEY_RIGHT == (int)TORIDBG_KEY_RIGHT, "aux key: right");
-_Static_assert((int)PLATFORM_AUX_KEY_HOME == (int)TORIDBG_KEY_HOME, "aux key: home");
-_Static_assert((int)PLATFORM_AUX_KEY_END == (int)TORIDBG_KEY_END, "aux key: end");
-_Static_assert((int)PLATFORM_AUX_KEY_ENTER == (int)TORIDBG_KEY_ENTER, "aux key: enter");
-_Static_assert((int)PLATFORM_AUX_KEY_ESCAPE == (int)TORIDBG_KEY_ESCAPE, "aux key: esc");
+_Static_assert((int)PLATFORM_AUX_KEY_NONE == (int)TORIRS_CHROME_KEY_NONE, "aux key: none");
+_Static_assert(
+    (int)PLATFORM_AUX_KEY_BACKSPACE == (int)TORIRS_CHROME_KEY_BACKSPACE,
+    "aux key: bksp");
+_Static_assert((int)PLATFORM_AUX_KEY_DELETE == (int)TORIRS_CHROME_KEY_DELETE, "aux key: del");
+_Static_assert((int)PLATFORM_AUX_KEY_LEFT == (int)TORIRS_CHROME_KEY_LEFT, "aux key: left");
+_Static_assert((int)PLATFORM_AUX_KEY_RIGHT == (int)TORIRS_CHROME_KEY_RIGHT, "aux key: right");
+_Static_assert((int)PLATFORM_AUX_KEY_HOME == (int)TORIRS_CHROME_KEY_HOME, "aux key: home");
+_Static_assert((int)PLATFORM_AUX_KEY_END == (int)TORIRS_CHROME_KEY_END, "aux key: end");
+_Static_assert((int)PLATFORM_AUX_KEY_ENTER == (int)TORIRS_CHROME_KEY_ENTER, "aux key: enter");
+_Static_assert((int)PLATFORM_AUX_KEY_ESCAPE == (int)TORIRS_CHROME_KEY_ESCAPE, "aux key: esc");
 
 static int
 chrome_sdl_surface_input(void* user, struct ToriRSChromeSurfaceInput* out)

@@ -37,12 +37,13 @@
  * or dies with a platform, but the seam has to build everywhere.
  */
 
+#include "torirs_chrome_exec_kind.h"
 #include "uitree_debug_overlay.h"
 
 #include <stdint.h>
 
 /** Bytes of one command's string payload, terminator included. */
-#define TORIRS_CHROME_TEXT_MAX TORIDBG_INPUT_MAX
+#define TORIRS_CHROME_TEXT_MAX TORIRS_CHROME_INPUT_MAX
 
 /**
  * What one command says.
@@ -60,7 +61,7 @@ enum ToriRSChromeCmdKind
     /** ...and ends. An executor that batches commits here. */
     TORIRS_CHROME_CMD_SYNC_END,
 
-    /** A panel appeared: `panel`, `value` = enum ToriDbgPanelStyle, `text` =
+    /** A panel appeared: `panel`, `value` = enum ToriRSChromePanelStyle, `text` =
      *  its title. Always the first command about that panel. */
     TORIRS_CHROME_CMD_PANEL_OPEN,
     /** A panel went away, or was hidden. Every widget of it is implicitly
@@ -83,7 +84,7 @@ enum ToriRSChromeCmdKind
      */
     TORIRS_CHROME_CMD_PANEL_TAB,
 
-    /** A widget appeared: `widget`, `value` = enum ToriDbgWidgetKind, `tab` =
+    /** A widget appeared: `widget`, `value` = enum ToriRSChromeWidgetKind, `tab` =
      *  which tab owns it (-1 = all), `label`/`text` = its initial strings.
      *  Always the first command about that widget. */
     TORIRS_CHROME_CMD_WIDGET_ADD,
@@ -97,8 +98,25 @@ enum ToriRSChromeCmdKind
     TORIRS_CHROME_CMD_WIDGET_HIDDEN,
     /** `color` = 0xRRGGBB, 0 meaning "the theme's". */
     TORIRS_CHROME_CMD_WIDGET_COLOR,
-    /** `value` = the selected index, or -1. */
+    /** `value` = the selected index, or -1. A COLORPICK's selection is its
+     *  packed HSL16 instead -- see TORIRS_CHROME_W_COLORPICK for why a colour rides
+     *  the selection rather than a channel of its own. */
     TORIRS_CHROME_CMD_WIDGET_SELECTED,
+    /**
+     * `value` = 1 when this widget now holds the keyboard, 0 when it lost it.
+     *
+     * The MODEL owns focus even where the presentation has its own -- a CS2
+     * window's rows are drawn components with no focus concept at all, and the
+     * host routes keys at the model's focused widget. So an executor that
+     * cannot see the model needs telling, or it draws every field identically
+     * and a click on one reads as having done nothing. That symptom is exactly
+     * what this was added for.
+     *
+     * An executor whose controls own their own focus (a DOM input, an EDIT)
+     * may act on it to keep the two in step, or ignore it. Sent for every
+     * widget kind, because MODELVIEW takes the focus too.
+     */
+    TORIRS_CHROME_CMD_WIDGET_FOCUS,
 
     /**
      * The option list of a dropdown, or the titles of a tab strip, is about to
@@ -136,7 +154,7 @@ struct ToriRSChromeCmd
     int y;
     int w;
     int h;
-    char label[TORIDBG_LABEL_MAX];
+    char label[TORIRS_CHROME_LABEL_MAX];
     char text[TORIRS_CHROME_TEXT_MAX];
 };
 
@@ -145,6 +163,13 @@ enum ToriRSChromeIntentKind
 {
     /** A button, menu row or tab was clicked; a dropdown row was chosen. */
     TORIRS_CHROME_INTENT_ACTIVATE = 1,
+    /**
+     * A LISTROW's ACTION zone was used -- its settings affordance, not its
+     * switch. Distinct from ACTIVATE because the two are the row's two
+     * different outcomes, and an executor that could only report one of them
+     * would have a list you can toggle but cannot open.
+     */
+    TORIRS_CHROME_INTENT_ACTION,
     /** A checkbox was toggled: `value` = its new state. */
     TORIRS_CHROME_INTENT_TOGGLE,
     /** A text field was edited: `text` = its whole new contents. */
@@ -193,7 +218,7 @@ struct ToriRSChromeSurfaceInput
     int wheel;
     /** Printable bytes typed this frame, NUL-terminated. */
     char text[32];
-    /** enum ToriDbgKey, or TORIDBG_KEY_NONE. One per frame is enough: these
+    /** enum ToriRSChromeKey, or TORIRS_CHROME_KEY_NONE. One per frame is enough: these
      *  are editing keys on a settings form, not a game's movement input. */
     int edit_key;
     /** The surface was resized; w/h are its new size. */
@@ -262,7 +287,7 @@ struct ToriRSChromeExec
      * renderer, different destination -- which is what makes a second window
      * pixel-identical to the panel it replaced rather than a second look.
      */
-    void (*present)(void* user, struct ToriDbgPrim const* prims, int count);
+    void (*present)(void* user, struct ToriRSChromePrim const* prims, int count);
 
     /**
      * SURFACE executors: this frame's gesture, in the surface's coordinates.
@@ -289,7 +314,7 @@ struct ToriRSChromeExec
 struct ToriRSChromeShadowWidget
 {
     int live;
-    /** ToriDbgWidget::serial, so a RECYCLED handle is seen as a different
+    /** ToriRSChromeWidget::serial, so a RECYCLED handle is seen as a different
      *  widget rather than as the same one unchanged. Comparing kind and panel
      *  is not enough: a rebuilt panel commonly puts the same kind back on the
      *  same panel under the same handle, in a different row. */
@@ -301,9 +326,12 @@ struct ToriRSChromeShadowWidget
     int checked;
     int selected;
     int option_count;
+    /** Does the model's focus rest here? Shadowed like any other property so
+     *  a focus change is one command rather than a re-declaration. */
+    int focused;
     uint32_t color;
-    char label[TORIDBG_LABEL_MAX];
-    char text[TORIDBG_INPUT_MAX];
+    char label[TORIRS_CHROME_LABEL_MAX];
+    char text[TORIRS_CHROME_INPUT_MAX];
     /**
      * The option array the widget pointed at last time, and how long it was.
      *
@@ -326,7 +354,7 @@ struct ToriRSChromeShadowPanel
     int w;
     int h;
     int active_tab;
-    char title[TORIDBG_LABEL_MAX];
+    char title[TORIRS_CHROME_LABEL_MAX];
 };
 
 struct ToriRSChromeSync
@@ -339,8 +367,8 @@ struct ToriRSChromeSync
     /** Commands emitted since Init, for tests and for a "did anything move"
      *  probe that costs nothing to keep. */
     int cmd_count;
-    struct ToriRSChromeShadowPanel panels[TORIDBG_MAX_PANELS];
-    struct ToriRSChromeShadowWidget widgets[TORIDBG_MAX_WIDGETS];
+    struct ToriRSChromeShadowPanel panels[TORIRS_CHROME_MAX_PANELS];
+    struct ToriRSChromeShadowWidget widgets[TORIRS_CHROME_MAX_WIDGETS];
 };
 
 /* ---- driving an executor ------------------------------------------------- */
@@ -399,27 +427,6 @@ struct ToriRSChromeExec
 ToriRSChromeExec_Buffer(void);
 
 /**
- * Which executor a surface is bound to.
- *
- * Ordered so BUFFER is 0: it is the default, the fallback, and what a zeroed
- * config means, and all three of those should be the same value rather than
- * three places that have to agree on a name.
- */
-enum ToriRSChromeExecKind
-{
-    TORIRS_CHROME_EXEC_BUFFER = 0,
-    /** A second OS window, chrome prims blitted into its own surface. */
-    TORIRS_CHROME_EXEC_SDL,
-    /** Real DOM controls, driven from wasm through the page's channel. */
-    TORIRS_CHROME_EXEC_WEB,
-    /** An owned Win32 tool window of common controls. */
-    TORIRS_CHROME_EXEC_GDI,
-    /** A game-native interface behind a sidebar button. */
-    TORIRS_CHROME_EXEC_CS2,
-    TORIRS_CHROME_EXEC_COUNT
-};
-
-/**
  * Turn a display list into pixels in `pixels` (w * h ARGB).
  *
  * Supplied by the host to a surface executor, because rasterising needs the
@@ -434,16 +441,8 @@ typedef void (*ToriRSChromeRasteriseFn)(
     int* pixels,
     int width,
     int height,
-    struct ToriDbgPrim const* prims,
+    struct ToriRSChromePrim const* prims,
     int count);
-
-/** The name a config or an env var spells, e.g. "buffer". Never NULL. */
-char const*
-ToriRSChromeExec_KindName(int kind);
-
-/** @return enum ToriRSChromeExecKind, or -1 when `name` names none. */
-int
-ToriRSChromeExec_KindFromName(char const* name);
 
 /**
  * Build the vtable for `kind`, or the buffer one when this build cannot.
@@ -518,16 +517,35 @@ ToriRSChrome_TreeAcceptsChrome(struct UITree const* tree);
 /**
  * @param tree the interface tree to build in.
  * @param mount_node the node index everything mounts under; -1 for its own root.
- * @param font_id the SCENE font id text is drawn in.
+ * @param font_id the SCENE font id text falls back to.
+ * @param cache_font_id the CACHE font id text should be set in -- the
+ *        gameframe's own body face -- resolved through resolve_font at build
+ *        time; -1 draws everything in font_id.
+ * @param skin_scene_id the BAKED chrome skin, already uploaded, as one
+ *        multi-frame scene sprite -- every piece of furniture this draws is a
+ *        frame of it (enum ToriRSChromeSkinSlot is the frame index). Pass -1 and
+ *        the panel draws its flat fallbacks throughout. Baked rather than
+ *        pulled from the cache so this presentation needs no cache at all;
+ *        see the note above the CS2_SPR_* slots.
+ * @param resolve_font cache font id -> scene font id, requesting the load on a
+ *        miss; NULL or a -1 answer sets the rows in font_id instead.
+ * @param resolve_ud handed to the resolver.
  *
- * All three injected rather than reached for: ui/ owns the tree type but not
- * the App that holds one, which slot a panel belongs in is a gameframe
- * question, and a scene font id comes from the bridge that uploaded the face.
- * A font_id of 0 draws no text at all -- the id has to be a real one, and only
- * the host knows which.
+ * All injected rather than reached for: ui/ owns the tree type but not the App
+ * that holds one, which slot a panel belongs in is a gameframe question, and
+ * scene ids come from the bridge that uploaded the assets. A font_id of 0
+ * draws no text at all -- the id has to be a real one, and only the host
+ * knows which.
  */
 struct ToriRSChromeExec
-ToriRSChromeExec_Cs2(struct UITree* tree, int32_t mount_node, int font_id);
+ToriRSChromeExec_Cs2(
+    struct UITree* tree,
+    int32_t mount_node,
+    int font_id,
+    int cache_font_id,
+    int skin_scene_id,
+    int (*resolve_font)(void*, int),
+    void* resolve_ud);
 
 /**
  * Offer one clicked component id to the executor.
