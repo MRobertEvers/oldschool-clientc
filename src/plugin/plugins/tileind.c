@@ -4,7 +4,8 @@
 #include <stddef.h>
 
 /*
- * Tile indicator: the local player's TRUE tile, and where they are walking to.
+ * Tile indicator: the local player's TRUE tile, where they are walking to, and
+ * the tile under the mouse pointer.
  *
  * The distinction is the whole point. The draw position is interpolated
  * between tiles every frame, but the server only ever knows the entity as
@@ -32,9 +33,30 @@ tileind_draw(
     struct ToriRS_PluginPlayerSnap me;
     int dest_x;
     int dest_z;
+    int hover_x;
+    int hover_z;
+    int hover_level;
 
     assert(ctx);
     assert(ev);
+
+    /*
+     * The pointer's tile first, because it is the one marker that does not
+     * depend on a local player being resident: it is the tile a click would
+     * act on, drawn at the level the pick landed on rather than the player's
+     * -- on a bridge deck those are different meshes, and using the player's
+     * would drop the marker to the ground underneath.
+     */
+    if( g_api->cfg_bool(ctx, "show_hover") &&
+        g_api->hover_tile(ctx, &hover_x, &hover_z, &hover_level) )
+        g_api->draw_tile(
+            ctx,
+            ev->surface,
+            hover_x,
+            hover_z,
+            hover_level,
+            g_api->cfg_color(ctx, "hover_color"),
+            g_api->cfg_int(ctx, "hover_fill"));
 
     if( !g_api->local_player(ctx, &me) )
         return TORIRS_PLUGIN_PASS;
@@ -91,6 +113,9 @@ static struct ToriRS_PluginConfigItem const TILEIND_CONFIG[] = {
     { "true_fill",  TORIRS_PLUGIN_CFG_INT,   "True tile fill",     "40",      0, 255, NULL },
     { "dest_color", TORIRS_PLUGIN_CFG_COLOR, "Destination colour", "#FFFF00", 0, 0,   NULL },
     { "show_dest",  TORIRS_PLUGIN_CFG_BOOL,  "Show destination",   "1",       0, 0,   NULL },
+    { "hover_color", TORIRS_PLUGIN_CFG_COLOR, "Hover tile colour", "#FFFFFF", 0, 0,   NULL },
+    { "hover_fill", TORIRS_PLUGIN_CFG_INT,   "Hover tile fill",    "0",       0, 255, NULL },
+    { "show_hover", TORIRS_PLUGIN_CFG_BOOL,  "Show hover tile",    "1",       0, 0,   NULL },
     { NULL,         TORIRS_PLUGIN_CFG_BOOL,  NULL,                 NULL,      0, 0,   NULL },
 };
 

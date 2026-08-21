@@ -438,6 +438,28 @@ lua_api_key_held(lua_State* L)
     return 1;
 }
 
+/* Three returns or one nil, the same shape as project(): a script that says
+ * `local x, z, level = api.hover_tile()` reads a miss as x == nil, and never
+ * as tile 0. */
+static int
+lua_api_hover_tile(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    int tile_x = 0;
+    int tile_z = 0;
+    int level = 0;
+
+    if( !g_api->hover_tile(script->cur_ctx, &tile_x, &tile_z, &level) )
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_pushinteger(L, tile_x);
+    lua_pushinteger(L, tile_z);
+    lua_pushinteger(L, level);
+    return 3;
+}
+
 static int
 lua_api_project(lua_State* L)
 {
@@ -935,6 +957,7 @@ lua_build_api_table(struct LuaScript* script)
         { "npc_by_slot", lua_api_npc_by_slot },
         { "objs", lua_api_objs },
         { "key_held", lua_api_key_held },
+        { "hover_tile", lua_api_hover_tile },
         { "project", lua_api_project },
         { "cfg_set", lua_api_cfg_set },
         { "asset_load", lua_api_asset_load },

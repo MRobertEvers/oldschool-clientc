@@ -2,7 +2,8 @@
 -- Tile Indicator
 --
 -- Marks the local player's TRUE tile -- the one the server believes they are
--- standing on -- and the tile they are walking toward.
+-- standing on -- the tile they are walking toward, and the tile under the
+-- mouse pointer.
 --
 -- The distinction is the entire point. What the model draws is an interpolated
 -- position that slides between tiles every frame; the server only ever knows
@@ -31,10 +32,16 @@ local plugin = {
           label = "Destination colour" },
         { key = "show_dest",  type = "bool",  default = "1",
           label = "Show destination" },
+        { key = "hover_color", type = "color", default = "#FFFFFF",
+          label = "Hover tile colour" },
+        { key = "hover_fill",  type = "int",   default = "0", min = 0, max = 255,
+          label = "Hover tile fill" },
+        { key = "show_hover",  type = "bool",  default = "1",
+          label = "Show hover tile" },
     },
 }
 
-function plugin.on_draw_world(api, draw)
+local function plugin_draw_player(api, draw)
     local me = api.local_player()
     if not me then return end
 
@@ -57,6 +64,24 @@ function plugin.on_draw_world(api, draw)
     if dx ~= me.true_x or dz ~= me.true_z then
         draw.tile(dx, dz, me.level, api.config.dest_color, 0)
     end
+end
+
+function plugin.on_draw_world(api, draw)
+    plugin_draw_player(api, draw)
+
+    if not api.config.show_hover then return end
+
+    -- The tile the pointer is over, which is the tile a click would act on --
+    -- so it answers the question the true-tile marker cannot: not "where does
+    -- the server think I am" but "where am I about to send myself".
+    --
+    -- Its own level, not the player's: on a bridge deck or an upper floor the
+    -- pick reports the mesh the pointer actually landed on, and drawing it at
+    -- the player's level would put the marker on the ground below.
+    local hx, hz, hlevel = api.hover_tile()
+    if not hx then return end
+
+    draw.tile(hx, hz, hlevel, api.config.hover_color, api.config.hover_fill)
 end
 
 return plugin

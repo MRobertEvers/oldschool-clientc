@@ -24,7 +24,7 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 2
+#define TORIRS_PLUGIN_ABI 3
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 #define TORIRS_PLUGIN_MENU_ROWS_MAX 16
@@ -433,6 +433,16 @@ struct ToriRS_PluginApi
 
     /** enum LibToriRS_KeyCode. */
     int (*key_held)(struct ToriRS_PluginCtx* ctx, int keycode);
+
+    /** The tile under the mouse pointer, ABSOLUTE, as the last rendered frame
+     *  picked it -- the same tile the client's own click paths would act on.
+     *  Returns 0, leaving the outputs untouched, when the pointer is outside
+     *  the world viewport or over no terrain at all. */
+    int (*hover_tile)(
+        struct ToriRS_PluginCtx* ctx,
+        int* out_tile_x,
+        int* out_tile_z,
+        int* out_level);
 
     /* -- projection: scene-relative fine position -> canvas x/y.
      *    Returns 0 when the point is behind the near plane or off-map. -- */

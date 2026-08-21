@@ -120,6 +120,7 @@ dofile = nil
 ---@field npc_by_slot fun(server_slot: integer): torirs.NpcSnap?
 ---@field objs fun(): fun(): torirs.ObjSnap? `for obj in api.objs() do`
 ---@field key_held fun(key: torirs.KeyName|integer): boolean
+---@field hover_tile fun(): integer?, integer?, integer? Absolute tile under the mouse pointer, as x, z, level. nil when the pointer is outside the world viewport or over no terrain. One frame stale at most -- it comes from the pick that rides the render.
 ---@field project fun(fine_x: integer, fine_z: integer, height?: integer): integer?, integer? Fine world position to screen x, y. nil when it is off-screen or behind the camera.
 ---@field cfg_set fun(key: string, value: string|number|boolean) The only way to write config; the table itself is read-only.
 ---@field config table<string, any> Live view of this plugin's settings, typed by the schema: a `color` reads back as an integer, a `bool` as a boolean. Reading a key the plugin never declared is an error, not nil.

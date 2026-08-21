@@ -385,6 +385,21 @@ api_key_held(struct ToriRS_PluginCtx* ctx, int keycode)
 }
 
 static int
+api_hover_tile(
+    struct ToriRS_PluginCtx* ctx,
+    int* out_tile_x,
+    int* out_tile_z,
+    int* out_level)
+{
+    assert(ctx);
+    assert(out_tile_x);
+    assert(out_tile_z);
+    assert(out_level);
+    return ctx->host->engine.hover_tile(
+        ctx->host->engine.user, out_tile_x, out_tile_z, out_level);
+}
+
+static int
 api_project(
     struct ToriRS_PluginCtx* ctx,
     int fine_x,
@@ -1094,6 +1109,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->player_next);
     assert(engine->obj_next);
     assert(engine->key_held);
+    assert(engine->hover_tile);
     assert(engine->project);
     assert(engine->draw_tile);
     assert(engine->draw_hull);
@@ -1134,6 +1150,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .player_next = api_player_next,
         .obj_next = api_obj_next,
         .key_held = api_key_held,
+        .hover_tile = api_hover_tile,
         .project = api_project,
         .cfg_bool = api_cfg_bool,
         .cfg_int = api_cfg_int,

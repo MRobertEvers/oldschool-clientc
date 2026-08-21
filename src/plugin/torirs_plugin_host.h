@@ -53,6 +53,7 @@ struct ToriRS_PluginEngine
     int (*obj_next)(void* user, int iter, struct ToriRS_PluginObjSnap* out);
 
     int (*key_held)(void* user, int keycode);
+    int (*hover_tile)(void* user, int* out_tile_x, int* out_tile_z, int* out_level);
 
     int (*project)(
         void* user,

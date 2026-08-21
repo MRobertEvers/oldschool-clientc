@@ -349,6 +349,36 @@ app_plugin_key_held(void* user, int keycode)
     return LibToriRS_Input_IsKeyHeld(app->plugin_input, (enum LibToriRS_KeyCode)keycode) ? 1 : 0;
 }
 
+/*
+ * The tile the pointer is over, from the pick that rode the last rendered
+ * frame. Absolute, like every other tile a plugin sees.
+ *
+ * app.c clears the scene-local latch to -1 the moment the pointer leaves the
+ * world viewport, so "no hover" and "hovering tile 0,0 of the scene" are never
+ * confused -- and a plugin drawing a cursor highlight stops drawing it the
+ * frame the mouse moves onto the inventory.
+ */
+static int
+app_plugin_hover_tile(void* user, int* out_tile_x, int* out_tile_z, int* out_level)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    assert(out_tile_x);
+    assert(out_tile_z);
+    assert(out_level);
+
+    if( !app->world )
+        return 0;
+    if( app->world_hover_tile_x < 0 || app->world_hover_tile_z < 0 )
+        return 0;
+
+    *out_tile_x = app->world->_base_tile_x + app->world_hover_tile_x;
+    *out_tile_z = app->world->_base_tile_z + app->world_hover_tile_z;
+    *out_level = app->world_hover_tile_level;
+    return 1;
+}
+
 static int
 app_plugin_project(void* user, int fine_x, int fine_z, int height, int* out_x, int* out_y)
 {
@@ -731,6 +761,7 @@ app_plugin_engine(struct App* app)
     engine.player_next = app_plugin_player_next;
     engine.obj_next = app_plugin_obj_next;
     engine.key_held = app_plugin_key_held;
+    engine.hover_tile = app_plugin_hover_tile;
     engine.project = app_plugin_project;
     engine.draw_tile = app_plugin_draw_tile;
     engine.draw_hull = app_plugin_draw_hull;

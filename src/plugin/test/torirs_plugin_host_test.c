@@ -117,6 +117,15 @@ fake_key_held(void* u, int key)
     return key == 42;
 }
 static int
+fake_hover_tile(void* u, int* ox, int* oz, int* olevel)
+{
+    (void)u;
+    *ox = 3200;
+    *oz = 3200;
+    *olevel = 0;
+    return 1;
+}
+static int
 fake_project(void* u, int fx, int fz, int h, int* ox, int* oy)
 {
     (void)u;
@@ -361,6 +370,7 @@ fake_engine(void)
     e.npc_by_slot = fake_npc_by_slot;
     e.player_next = fake_player_next;
     e.key_held = fake_key_held;
+    e.hover_tile = fake_hover_tile;
     e.project = fake_project;
     e.draw_tile = fake_draw_tile;
     e.draw_hull = fake_draw_hull;

@@ -143,6 +143,9 @@ local prices           = {}
 local dirty            = true
 -- One complaint per model id, not one per tick.
 local warned_model     = nil
+-- Beams standing after the last rebuild, so the count is only reported when it
+-- moves.
+local live = 0
 -- Ticks a beam has existed without its model landing. A load is asynchronous,
 -- so "not ready" is the normal state for a tick or two; only a run of them
 -- means the id is not in this cache.
@@ -225,9 +228,11 @@ end
 local function rebuild(api)
     local style = api.config.style
     local want = {}
+    local tally = 0
 
     for obj in api.objs() do
         local value = value_of(obj)
+        tally = tally + 1
         local rgb = tier_colour(api, value)
         if rgb then
             -- One beam per TILE, coloured by the best thing on it: a tile with
@@ -254,6 +259,7 @@ local function rebuild(api)
         end
     end
 
+    local before = live
     for key, w in pairs(want) do
         local beam = beams[key]
         if not beam then
@@ -270,6 +276,16 @@ local function rebuild(api)
             api.object_position(beam.handle, w.x, w.z, w.level)
             api.object_active(beam.handle, true)
         end
+    end
+
+    -- Only when the count moves. "No beams appear" is the report this plugin
+    -- will get, and it has two very different causes -- nothing on the floor
+    -- clears the threshold, or beams exist and their model does not draw. One
+    -- line separates them; a line per tick would bury both.
+    live = 0
+    for _ in pairs(beams) do live = live + 1 end
+    if live ~= before then
+        api.log(live .. " beam(s) over " .. tally .. " ground stack(s)")
     end
 end
 
