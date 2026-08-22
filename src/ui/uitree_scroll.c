@@ -16,16 +16,6 @@ UITree_ComponentClipsChildren(struct UITreeComponent const* component)
     case UIELEM_BUILTIN_CHAT:
     case UIELEM_RS_INV:
         return true;
-    /* The scripted entity overlays parented here are world content: the
-     * reference draws them inside the scene pass, under the same
-     * `Pix2D::SetClipping` the health bars get. Without this a 60x60 marker on
-     * a loc at the edge of the viewport paints over the inventory.
-     *
-     * The box it clips to is the world rect, which the App writes onto this
-     * node each frame -- there is no other source for it, and a tree whose App
-     * never does draws no overlays rather than unclipped ones. */
-    case UIELEM_BUILTIN_ENTITY_OVERLAY:
-        return true;
     default:
         return false;
     }

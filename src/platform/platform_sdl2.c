@@ -969,6 +969,16 @@ sdl_aux_event(struct PlatformSDL2* platform, SDL_Event const* event)
         case SDLK_ESCAPE:
             platform->aux_input.edit_key = PLATFORM_AUX_KEY_ESCAPE;
             break;
+        /* Up and down a LINE, which only a multiline field has any of. Sent
+         * unconditionally rather than gated on what has the focus: the window
+         * does not know what the model's focused widget is, and the model
+         * ignores the key on every other kind. */
+        case SDLK_UP:
+            platform->aux_input.edit_key = PLATFORM_AUX_KEY_UP;
+            break;
+        case SDLK_DOWN:
+            platform->aux_input.edit_key = PLATFORM_AUX_KEY_DOWN;
+            break;
         default:
             return true;
         }

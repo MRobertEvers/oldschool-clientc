@@ -80,6 +80,9 @@ ToriRSChromeSync_Init(struct ToriRSChromeSync* sync, struct ToriRSChromeExec con
 
     memset(sync, 0, sizeof(*sync));
     sync->exec = *exec;
+    /* Not a style any model can hold, so the first Run states the real one --
+     * @see ToriRSChromeSync::check_style. */
+    sync->check_style = -1;
     /* No begin at all is a valid executor -- the buffer one has nothing to
      * bring up -- and counts as having come up. */
     if( sync->exec.begin && !sync->exec.begin(sync->exec.user) )
@@ -131,6 +134,22 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
 
     cmd_init(&cmd, TORIRS_CHROME_CMD_SYNC_BEGIN, -1, -1);
     sync_emit(sync, &cmd);
+
+    /*
+     * The checkbox style, before any panel.
+     *
+     * First because it is a property of the whole chrome and an executor that
+     * hears it after the rows have been declared has already placed and sized
+     * every checkbox against the wrong art. Ahead of the panel CLOSE pass too,
+     * which costs nothing: closes carry no geometry.
+     */
+    if( sync->check_style != ui->check_style )
+    {
+        cmd_init(&cmd, TORIRS_CHROME_CMD_CHECK_STYLE, -1, -1);
+        cmd.value = ui->check_style;
+        sync_emit(sync, &cmd);
+        sync->check_style = ui->check_style;
+    }
 
     /*
      * Panels first, and closes before opens.
@@ -258,6 +277,10 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
              * gives it a new serial, and the shadow answers that with a
              * remove-then-add rather than an update. */
             cmd.w = w->row_action;
+            /* ...and a TEXTAREA's line count, the other half of the same
+             * rule. An executor that never heard it would build every
+             * multiline field one line tall. */
+            cmd.h = w->rows;
             chrome_copy(cmd.label, TORIRS_CHROME_LABEL_MAX, w->label);
             chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, w->text);
             sync_emit(sync, &cmd);
@@ -335,20 +358,29 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
              * whether or not its index happens to be the same number. */
             sw->selected = -2;
         }
-        if( sw->selected != w->selected )
         {
-            /* The chosen option's own string rides along with its index, for
-             * the same reason INTENT_PICK carries both: an executor that shows
-             * the value as TEXT (the CS2 window's closed dropdown) would
-             * otherwise need its own copy of the whole list just to turn the
-             * index back into a word. Executors holding a native combo box
-             * ignore it. */
-            cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_SELECTED, w->panel, i);
-            cmd.value = w->selected;
-            if( w->options && w->selected >= 0 && w->selected < w->option_count )
-                chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, w->options[w->selected]);
-            sync_emit(sync, &cmd);
-            sw->selected = w->selected;
+            /* What "selected" means, per kind -- see the command's own note.
+             * A TEXTAREA's is WHICH LINE IS AT THE TOP of its box, which is the
+             * one thing a presentation that cannot scroll a control of its own
+             * (the CS2 window, whose rows are drawn components) needs in order
+             * to show the same window of a long list the model is showing. */
+            int const sel =
+                w->kind == TORIRS_CHROME_W_TEXTAREA ? w->scroll : w->selected;
+            if( sw->selected != sel )
+            {
+                /* The chosen option's own string rides along with its index,
+                 * for the same reason INTENT_PICK carries both: an executor
+                 * that shows the value as TEXT (the CS2 window's closed
+                 * dropdown) would otherwise need its own copy of the whole
+                 * list just to turn the index back into a word. Executors
+                 * holding a native combo box ignore it. */
+                cmd_init(&cmd, TORIRS_CHROME_CMD_WIDGET_SELECTED, w->panel, i);
+                cmd.value = sel;
+                if( w->options && sel >= 0 && sel < w->option_count )
+                    chrome_copy(cmd.text, TORIRS_CHROME_TEXT_MAX, w->options[sel]);
+                sync_emit(sync, &cmd);
+                sw->selected = sel;
+            }
         }
     }
     }
@@ -426,7 +458,8 @@ ToriRSChromeIntent_Apply(struct ToriRSChrome* ui, struct ToriRSChromeIntent cons
              * focus the in-canvas MouseDown sets -- so the host's keyboard
              * routing lands typing in it. Latching it as `activated` instead
              * would be a no-op: the staged-settings drain ignores config rows. */
-            if( ui->widgets[intent->widget].kind == TORIRS_CHROME_W_TEXTINPUT )
+            if( ui->widgets[intent->widget].kind == TORIRS_CHROME_W_TEXTINPUT ||
+                ui->widgets[intent->widget].kind == TORIRS_CHROME_W_TEXTAREA )
             {
                 ui->focus = intent->widget;
                 ui->widgets[intent->widget].caret =

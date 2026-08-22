@@ -126,18 +126,18 @@ tileind_init(
  * are an offer rather than a change of appearance.
  */
 static struct ToriRS_PluginConfigItem const TILEIND_CONFIG[] = {
-    { "true_color",       TORIRS_PLUGIN_CFG_COLOR, "True tile colour",         "#00FFFF", 0, 0,   NULL },
-    { "true_fill_color",  TORIRS_PLUGIN_CFG_COLOR, "True tile fill",           "#00FFFF", 0, 0,   NULL },
-    { "true_fill_alpha",  TORIRS_PLUGIN_CFG_INT,   "True tile fill opacity",   "40",      0, 255, NULL },
-    { "dest_color",       TORIRS_PLUGIN_CFG_COLOR, "Destination colour",       "#FFFF00", 0, 0,   NULL },
-    { "dest_fill_color",  TORIRS_PLUGIN_CFG_COLOR, "Destination fill",         "#FFFF00", 0, 0,   NULL },
-    { "dest_fill_alpha",  TORIRS_PLUGIN_CFG_INT,   "Destination fill opacity", "0",       0, 255, NULL },
-    { "show_dest",        TORIRS_PLUGIN_CFG_BOOL,  "Show destination",         "1",       0, 0,   NULL },
-    { "hover_color",      TORIRS_PLUGIN_CFG_COLOR, "Hover tile colour",        "#FFFFFF", 0, 0,   NULL },
-    { "hover_fill_color", TORIRS_PLUGIN_CFG_COLOR, "Hover tile fill",          "#FFFFFF", 0, 0,   NULL },
-    { "hover_fill_alpha", TORIRS_PLUGIN_CFG_INT,   "Hover tile fill opacity",  "0",       0, 255, NULL },
-    { "show_hover",       TORIRS_PLUGIN_CFG_BOOL,  "Show hover tile",          "1",       0, 0,   NULL },
-    { NULL,               TORIRS_PLUGIN_CFG_BOOL,  NULL,                       NULL,      0, 0,   NULL },
+    { "true_color",       TORIRS_PLUGIN_CFG_COLOR, "True tile colour",         "#00FFFF", 0, 0,   NULL, 0 },
+    { "true_fill_color",  TORIRS_PLUGIN_CFG_COLOR, "True tile fill",           "#00FFFF", 0, 0,   NULL, 0 },
+    { "true_fill_alpha",  TORIRS_PLUGIN_CFG_INT,   "True tile fill opacity",   "40",      0, 255, NULL, 0 },
+    { "dest_color",       TORIRS_PLUGIN_CFG_COLOR, "Destination colour",       "#FFFF00", 0, 0,   NULL, 0 },
+    { "dest_fill_color",  TORIRS_PLUGIN_CFG_COLOR, "Destination fill",         "#FFFF00", 0, 0,   NULL, 0 },
+    { "dest_fill_alpha",  TORIRS_PLUGIN_CFG_INT,   "Destination fill opacity", "0",       0, 255, NULL, 0 },
+    { "show_dest",        TORIRS_PLUGIN_CFG_BOOL,  "Show destination",         "1",       0, 0,   NULL, 0 },
+    { "hover_color",      TORIRS_PLUGIN_CFG_COLOR, "Hover tile colour",        "#FFFFFF", 0, 0,   NULL, 0 },
+    { "hover_fill_color", TORIRS_PLUGIN_CFG_COLOR, "Hover tile fill",          "#FFFFFF", 0, 0,   NULL, 0 },
+    { "hover_fill_alpha", TORIRS_PLUGIN_CFG_INT,   "Hover tile fill opacity",  "0",       0, 255, NULL, 0 },
+    { "show_hover",       TORIRS_PLUGIN_CFG_BOOL,  "Show hover tile",          "1",       0, 0,   NULL, 0 },
+    { NULL,               TORIRS_PLUGIN_CFG_BOOL,  NULL,                       NULL,      0, 0,   NULL, 0 },
 };
 
 /*

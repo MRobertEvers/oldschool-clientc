@@ -61,7 +61,7 @@ To re-derive any of it:
 | id | setting | by |
 |---:|---------|----|
 | 112 | Tile highlighting | cache |
-| 113 | Tile highlight colour | cache |
+| 113 | Tile highlight colour | cache + client (picker) |
 | 117 | Clear your highlighted tiles | client (button) |
 | 172 | Highlight hovered tile | cache |
 | 174 | Highlight hovered tile - Colour | cache |
@@ -95,6 +95,10 @@ To re-derive any of it:
 | 416 | NPC highlight - Tagging | cache |
 | 451 | STASH units take equipped items | server (trail lane) |
 | 453 | Highlight poll booths | `nxt-poll-booths` |
+
+Every **colour** row above -- 113, 174, 177, 180, 262, 263, 266 -- is "cache"
+only for the READ. The cache has no apply for one; the picker that writes it is
+this client's, and is the same one for all of them. See "The third half".
 
 ### Partial
 
@@ -382,6 +386,67 @@ read it. That is exact here: a client op's script is named by nothing else in
 the cache.
 
 `TORIRS_CLIENTOP_DEBUG=1` prints every install and every dispatch.
+
+### The third half: a COLOUR row has no apply anywhere in the cache
+
+Reading a colour row was always the easy half -- `~script5329(<setting id>)`
+falls through to `settings_get_colour` (script_4181), a switch from setting id
+to `calc(%var<n> - 1)`. WRITING one is not in the cache at all. The op the row
+hangs off its swatch is two lines long:
+
+```
+[clientscript,settings_colour_input_click](int $int0, int $int1)
+if (~settings_op_checker($int0, $int1) = 0) {
+    return;
+}
+```
+
+`~settings_op_checker` plays the panel's click sound and, for a row the player
+may not change, prints that row's own refusal message. There is no third
+statement. Nothing else in `cache.osrs239` writes `%var3108` -- or any of the
+other 48 colour varps -- and interface 288 `colour_pallet` is an empty shell no
+clientscript names. In the reference the picker is the ENGINE's, opened from
+this op and writing the varp itself.
+
+So "Tile highlight colour" showed the green default swatch, described what it
+was for, and did nothing whatever when clicked. Same for every other colour row
+on the page. What landed:
+
+- **`RS_CS2Host_ScriptStarted`** (rs_cs2_host.c), called from
+  `Task_CS2Run` with the script's arguments already in its locals and no
+  opcode run yet. It is the only seam this client has on a script's
+  ARGUMENTS, and arguments are the whole of what this one says: which row was
+  clicked, and whether the row is enabled. It claims one script id and ignores
+  every other.
+- **The setting -> varp map, LEARNED rather than tabulated.** A varp read
+  performed inside a frame of `settings_get_colour` names that setting's varp,
+  and the row builder (clientscript 4182) calls the hub twice while laying the
+  row out -- so every row on screen has answered the question before its swatch
+  exists to be clicked. Nothing here carries a fifty-line table to keep in step
+  with the cache by hand.
+- **`app_settings_colour_tick`** in app.c: the picker itself, a
+  `TORIRS_CHROME_W_COLORPICK` in the in-canvas chrome, opened beside the swatch
+  that asked for it.
+
+Committing to the varp is the whole apply -- the cache does everything after
+that, exactly as it always did. Writing `%var3108` fires the var-transmit hooks
+the row installed itself, so `settings_colour_input_update` re-fills the swatch
+and clientscript 4763 re-runs `_7035(6, <colour>, 2, 50, 90)`. Nothing in the
+client knows that the row it just wrote is about tile markers.
+
+Two details are worth keeping:
+
+**`colour + 1`.** The varp holds the colour plus one so that zero can mean
+"never chosen", which is what makes the panel fall back to `param_1230`.
+Storing the colour raw makes black indistinguishable from unset, and every
+value one shade wrong.
+
+**Default is committed verbatim; a pick is quantised.** The chrome's picker
+works on the HSL16 axes the renderer draws in, so a picked colour is one of the
+palette's 32768 entries -- deliberately, and visibly, since the hex field shows
+the entry rather than what was asked for. `param_1230` is not: it is a colour
+the cache authored, and "Default" that restored an approximation of it would
+never quite get back to where the row started.
 
 ### The initialiser is the SERVER's, and it was not being sent
 

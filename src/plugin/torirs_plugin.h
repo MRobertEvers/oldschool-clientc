@@ -650,7 +650,21 @@ enum ToriRS_PluginConfigType
     /** Also the carrier for lists, as comma-separated text. */
     TORIRS_PLUGIN_CFG_STRING,
     /** `choices` is a '|'-separated set, rendered as a dropdown. */
-    TORIRS_PLUGIN_CFG_ENUM
+    TORIRS_PLUGIN_CFG_ENUM,
+    /**
+     * A STRING the panel gives a multiline box instead of a one-line field.
+     *
+     * The same value, stored the same way -- the difference is entirely about
+     * editing it. A CFG_STRING holding "Vial, Ashes, Coins, Bones, Bucket,
+     * Jug, Seaweed" in a 60px field shows about a word and a half of it, so
+     * changing one entry means arrowing sideways through the rest; the
+     * reference client gives exactly these lists a box several lines tall
+     * (interface 650's "Highlighted items" and "Filtered items"), and this is
+     * the schema saying which lists those are.
+     *
+     * `rows` is optional and defaults to the chrome's own.
+     */
+    TORIRS_PLUGIN_CFG_TEXT
 };
 
 struct ToriRS_PluginConfigItem
@@ -668,6 +682,15 @@ struct ToriRS_PluginConfigItem
     int max;
     /** CFG_ENUM only: "a|b|c". */
     char const* choices;
+    /**
+     * CFG_TEXT only: visible lines of the box, 0 for the chrome's default.
+     *
+     * LAST, and that is not taste: every builtin plugin's schema is a table of
+     * POSITIONAL initialisers (`{ "show_dest", TORIRS_PLUGIN_CFG_BOOL, "Show
+     * destination", "1", 0, 0, NULL }`), so a field inserted anywhere above
+     * `choices` silently shifts what each of those braces means.
+     */
+    int rows;
 };
 
 /* ------------------------------------------------------------------------ */

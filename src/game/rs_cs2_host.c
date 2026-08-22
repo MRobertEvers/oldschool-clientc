@@ -1307,7 +1307,8 @@ RS_CS2Host_ScriptStarted(
     int value;
 
     assert(host);
-    if( host->script_settings_colour_click <= 0 || !thread || thread->frame_sp <= 0 )
+    assert(thread);
+    if( host->script_settings_colour_click <= 0 || thread->frame_sp <= 0 )
         return;
     frame = thread->frames[thread->frame_sp - 1];
     if( !frame || !frame->script )
@@ -1343,10 +1344,12 @@ RS_CS2Host_ScriptStarted(
     req = &host->settings_colour_request;
     memset(req, 0, sizeof(*req));
     req->component_id = component_id;
-    req->setting_id = -1;
-    req->default_colour = 0;
-    (void)rs_cs2_struct_param_lookup(
-        setting, RS_CS2_PARAM_SETTING_ID, NULL, &req->setting_id, NULL);
+    if( !rs_cs2_struct_param_lookup(
+            setting, RS_CS2_PARAM_SETTING_ID, NULL, &req->setting_id, NULL) )
+    {
+        fprintf(stderr, "settings: colour row struct %d carries no setting id\n", struct_id);
+        return;
+    }
     (void)rs_cs2_struct_param_lookup(
         setting, RS_CS2_PARAM_SETTING_COLOUR_DEFAULT, NULL, &req->default_colour, NULL);
     (void)rs_cs2_struct_param_lookup(
@@ -1367,11 +1370,14 @@ RS_CS2Host_ScriptStarted(
     if( torirs_cc_debug() )
         fprintf(
             stderr,
-            "SETTINGS_COLOUR click setting=%d varp=%d colour=%06X default=%06X \"%s\"\n",
+            "SETTINGS_COLOUR click setting=%d varp=%d colour=%06X default=%06X "
+            "com=%d group=%d \"%s\"\n",
             req->setting_id,
             req->varp_id,
             (unsigned)req->colour,
             (unsigned)req->default_colour,
+            req->component_id,
+            req->component_id >> 16,
             req->label);
 
     host->settings_colour_pending = true;
@@ -2020,7 +2026,10 @@ rs_cs2_settings_note_colour_varp(
     int i;
 
     assert(host);
-    if( host->script_settings_colour_get <= 0 || !vm || vm->frame_sp <= 0 )
+    assert(vm);
+    /* An id of 0 is the feature switched off, and an empty frame stack is a VM
+     * that could not push one -- neither is a caller's mistake. */
+    if( host->script_settings_colour_get <= 0 || vm->frame_sp <= 0 )
         return;
     frame = vm->frames[vm->frame_sp - 1];
     if( !frame || !frame->script )

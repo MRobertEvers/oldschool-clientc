@@ -53,9 +53,17 @@ static char const* const g_tab_display[] = {
 static char const* g_long[40];
 static char g_long_text[40][16];
 
-/** A tree with one mount the panel fills, and the executor bound to it. */
+/**
+ * A tree with one mount the panel fills, and the executor bound to it.
+ *
+ * @param skin_scene_id the scene entry the baked skin was uploaded into, or -1
+ *        for a build that baked none. Most of these tests do not care and pass
+ *        -1 -- the flat fallback draws the same rows -- but anything about the
+ *        ART has to bind with one, because the sprite path is exactly what
+ *        `skin_scene_id > 0` switches on.
+ */
 static int32_t
-cs2_bind(void)
+cs2_bind_skin(int skin_scene_id)
 {
     struct ToriRSChromeExec exec;
     int32_t mount;
@@ -68,9 +76,16 @@ cs2_bind(void)
     UITree_TestResolve(g_tree);
 
     ToriRSChrome_Init(&g_ui);
-    exec = ToriRSChromeExec_Cs2(g_tree, mount, 1, -1, -1, NULL, NULL);
+    exec = ToriRSChromeExec_Cs2(g_tree, mount, 1, -1, skin_scene_id, NULL, NULL);
     TEST_ASSERT(ToriRSChromeSync_Init(&g_sync, &exec) == 1, "the CS2 executor comes up");
     return mount;
+}
+
+/** The common case: no baked skin, so every piece of furniture is flat. */
+static int32_t
+cs2_bind(void)
+{
+    return cs2_bind_skin(-1);
 }
 
 static void
@@ -127,6 +142,26 @@ cs2_has_text(char const* text)
             continue;
         if( strcmp(c->u.rs_text.text, text) == 0 )
             return 1;
+    }
+    return 0;
+}
+
+/**
+ * The edge of the skin GRAPHIC drawn from `slot`, or 0 when none is.
+ *
+ * Square by construction -- every boolean sprite in this chrome is -- so one
+ * number answers both "which art" and "at what size", which is the pair that
+ * has to move together when the style changes.
+ */
+static int
+cs2_graphic_side(int slot)
+{
+    for( uint32_t i = 0; i < g_tree->component_count; i++ )
+    {
+        struct UITreeComponent const* c = &g_tree->components[i];
+        if( c->type != UIELEM_RS_GRAPHIC || c->u.rs_graphic.atlas_index != slot )
+            continue;
+        return c->position.width;
     }
     return 0;
 }
@@ -423,6 +458,105 @@ test_chrome_cs2_row_lights_up(void)
     cs2_unbind();
 }
 
+/*
+ * The checkbox style reaches THIS presentation, art and box together.
+ *
+ * The seam test proves the command is emitted; this proves the executor acts
+ * on it, which is a different failure: a native executor that stored the style
+ * and went on placing 17px boxes would draw the 18px well scaled, and the
+ * speckled edge that produces is the exact thing the bake exists to avoid.
+ */
+static void
+test_chrome_cs2_check_style(void)
+{
+    int panel;
+    int check;
+
+    /* Bound WITH a skin: the styles differ in their art, and the flat
+     * fallback draws neither. */
+    cs2_bind_skin(7);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 200, "Settings");
+    check = ToriRSChrome_Checkbox(&g_ui, panel, "enabled", 1);
+    cs2_frame();
+
+    TEST_ASSERT(
+        cs2_graphic_side(TORIRS_CHROME_SKIN_CHECK_ON) == TORIRS_CHROME_M_BOX,
+        "the default style draws the tick, at the tick's own 17");
+    TEST_ASSERT(
+        cs2_graphic_side(TORIRS_CHROME_SKIN_CHECK_BOX_ON) == 0,
+        "and nothing else");
+
+    ToriRSChrome_SetCheckStyle(&g_ui, TORIRS_CHROME_CHECK_STYLE_BOX);
+    cs2_frame();
+
+    TEST_ASSERT(
+        cs2_graphic_side(TORIRS_CHROME_SKIN_CHECK_BOX_ON) == TORIRS_CHROME_M_BOX_SQUARE,
+        "the box style draws the well, at the well's own 18");
+    TEST_ASSERT(
+        cs2_graphic_side(TORIRS_CHROME_SKIN_CHECK_ON) == 0,
+        "and the tick is gone rather than drawn under it");
+
+    ToriRSChrome_SetChecked(&g_ui, check, 0);
+    cs2_frame();
+    TEST_ASSERT(
+        cs2_graphic_side(TORIRS_CHROME_SKIN_CHECK_BOX_OFF) == TORIRS_CHROME_M_BOX_SQUARE,
+        "unchecking it draws the empty well, not the red cross");
+
+    cs2_unbind();
+}
+
+/*
+ * A multiline field, drawn as interface components.
+ *
+ * This is the presentation with no multiline control to reach for -- the cache
+ * builds these boxes out of a type-12 input and no client here has one -- so
+ * the value is wrapped and each line becomes a TEXT component of its own. What
+ * has to hold is that the lines land where the model would put them (the same
+ * ToriRSChrome_WrapText breaks both), that the row RESERVES its full height so
+ * the row under it is not drawn through it, and that the box takes a click.
+ */
+static void
+test_chrome_cs2_textarea(void)
+{
+    int panel;
+    int area;
+    int below;
+
+    cs2_bind();
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 0, "Ground Items");
+    ToriRSChrome_PanelFill(&g_ui, panel, 280, 320);
+    area = ToriRSChrome_TextArea(&g_ui, panel, "Highlighted items", "whip\ntbow", 3);
+    below = ToriRSChrome_Checkbox(&g_ui, panel, "Show highlighted only", 0);
+    cs2_frame();
+
+    TEST_ASSERT(cs2_has_text("Highlighted items"), "the caption is drawn");
+    TEST_ASSERT(cs2_has_text("whip"), "the first line is drawn on its own");
+    TEST_ASSERT(cs2_has_text("tbow"), "and so is the second");
+    TEST_ASSERT(
+        !cs2_has_text("whip\ntbow"),
+        "never as one component -- a TEXT component draws one line");
+    TEST_ASSERT(
+        cs2_has_id(CS2_T_WIDGET_BASE + area), "the box carries the widget's own id, so it clicks");
+
+    /* The row below has to start UNDER the box, not under the caption: a
+     * multiline row measured as one CS2_ROW_H draws the next row through it. */
+    {
+        int const box = UITree_FindByComponentId(g_tree, CS2_T_WIDGET_BASE + area);
+        int const chk = UITree_FindByComponentId(g_tree, CS2_T_WIDGET_BASE + below);
+        TEST_ASSERT(box >= 0 && chk >= 0, "both rows are in the tree");
+        TEST_ASSERT(
+            g_tree->components[chk].position.y >=
+                g_tree->components[box].position.y + g_tree->components[box].position.height,
+            "the next row clears the whole box");
+        TEST_ASSERT(
+            g_tree->components[box].position.height >=
+                3 * TORIRS_CHROME_M_TEXTAREA_LINE,
+            "and the box is as tall as the three lines it was asked for");
+    }
+
+    cs2_unbind();
+}
+
 void
 test_chrome_cs2(void)
 {
@@ -433,4 +567,6 @@ test_chrome_cs2(void)
     test_chrome_cs2_dropdown_scrolls();
     test_chrome_cs2_no_window_x();
     test_chrome_cs2_row_lights_up();
+    test_chrome_cs2_check_style();
+    test_chrome_cs2_textarea();
 }

@@ -428,6 +428,10 @@ struct AppConfig
     /** Manifest-pinned chrome zoom; 0 follows the display density. The env
      *  TORIRS_CHROME_SCALE outranks both. */
     int chrome_scale;
+    /** `[ui:boot] chrome_checkbox` -- enum ToriRSChromeCheckStyle: which of the
+     *  interfaces' two booleans the chrome's checkboxes wear. 0 (the default)
+     *  is the settings page's tick/cross. TORIRS_CHROME_CHECKBOX outranks it. */
+    int chrome_checkbox;
     /** `[ui:boot] hidpi` — 1 renders into a device-pixel drawable, -1 declines
      *  it, 0 is unset and leaves the platform default standing (on, except on
      *  the web lane). TORIRS_HIDPI outranks all three. */
@@ -1639,6 +1643,17 @@ struct App
  * that merely moves with a recentered mount does not receive onResize. Returns
  * 1 if the canvas changed, 0 if it was already current.
  */
+/**
+ * Raise the cache's NPC_ADD client trigger for a freshly synced npc.
+ *
+ * Called from the entity-sync path rather than from the spawn helper, because
+ * the npc's `server_slot` -- the uid every context op and every scripted
+ * overlay keys on -- is written after the helper returns. See
+ * game/rs_client_trigger.h.
+ */
+void
+App_ClientTriggerNpcAdd(struct App* app, int npc_pool_index);
+
 int
 App_SetCanvasSize(
     struct App* app,
@@ -1660,6 +1675,26 @@ App_SetCanvasSize(
  */
 int
 App_SetChromeScale(struct App* app, int scale);
+
+/**
+ * Choose which of the interfaces' two booleans the chrome's checkboxes wear:
+ * enum ToriRSChromeCheckStyle.
+ *
+ * One call for the same reason SetChromeScale is one: the developer overlay
+ * and the plugin window are two instances of one model, and a client whose two
+ * panels disagree about what a checkbox looks like is a client with a bug
+ * nobody can point at. Whatever executor the plugin window is bound to hears
+ * about it through the seam (TORIRS_CHROME_CMD_CHECK_STYLE) on the next sync,
+ * so a native window changes with the in-canvas one.
+ *
+ * @return 1 if the style changed.
+ */
+int
+App_SetChromeCheckStyle(struct App* app, int style);
+
+/** enum ToriRSChromeCheckStyle, as App_SetChromeCheckStyle left it. */
+int
+App_ChromeCheckStyle(struct App const* app);
 
 /**
  * Draw a chrome display list into a buffer of `width` x `height` ARGB pixels.

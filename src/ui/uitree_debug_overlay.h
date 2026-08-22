@@ -72,10 +72,33 @@
 #define TORIRS_CHROME_MAX_WIDGETS 384
 /** Primitives in the display list. Build stops early and sets `overflow`. */
 #define TORIRS_CHROME_MAX_PRIMS 1536
+/**
+ * Bytes of wrapped-line scratch one build may hand out. @see
+ * ToriRSChrome::wrap_pool.
+ *
+ * A multiline field costs at most its whole value plus one terminator per
+ * visible line -- about 208 bytes at TORIRS_CHROME_INPUT_MAX -- and only for
+ * the lines actually on screen, so this is room for ten of them at once on one
+ * page. A settings page with more than that draws the first ten and raises
+ * `overflow`, which is the same answer running out of prims gives.
+ */
+#define TORIRS_CHROME_WRAP_POOL 2048
 /** Label / title bytes, including the terminator. */
 #define TORIRS_CHROME_LABEL_MAX 64
-/** Text-input content bytes, including the terminator. */
-#define TORIRS_CHROME_INPUT_MAX 64
+/**
+ * Text-input content bytes, including the terminator.
+ *
+ * 192, which is TORIRS_PLUGIN_CONFIG_VALUE_MAX -- the store these fields edit.
+ * It was 64, and a plugin key longer than 63 bytes was silently truncated on
+ * its way INTO the panel, so opening the settings page and pressing Save
+ * shortened the value. A multiline field makes that unmissable rather than
+ * merely wrong: the ground-items highlight list the reference ships is a
+ * comma-separated run of item names, and 63 bytes is about four of them.
+ *
+ * The cost is one flat block per widget slot, in the model and in the sync's
+ * shadow -- the same trade every other fixed-size field here makes.
+ */
+#define TORIRS_CHROME_INPUT_MAX 192
 
 /**
  * Which baked font a primitive draws in. The overlay never names a font id:
@@ -286,8 +309,73 @@ enum ToriRSChromeSkinSlot
     TORIRS_CHROME_SKIN_POPOUT_OVER,
     TORIRS_CHROME_SKIN_DOCK,
     TORIRS_CHROME_SKIN_DOCK_OVER,
+    /**
+     * The OTHER boolean the interfaces draw: a bordered 18x18 well with a
+     * green tick in it, and the same well empty.
+     *
+     * Archives 2847/2848, and the second answer to "what is a checkbox in this
+     * game". The tick/cross pair above is the settings page's; this one is the
+     * bordered box a quest journal, a make-x list or a slayer task filter puts
+     * beside a row, and it is what most people picture when they hear
+     * checkbox. Which of the two a chrome wears is a choice rather than a
+     * fallback -- @see enum ToriRSChromeCheckStyle -- so BOTH are baked and
+     * nothing here decides.
+     *
+     * 18x18 and not 17x17, which is the whole reason the box size is a
+     * function of the style rather than one constant: the art is drawn at its
+     * baked size or it speckles. @see TORIRS_CHROME_M_BOX_SQUARE.
+     *
+     * OFF IS AN EMPTY WELL, not a red cross -- the pair is one control in two
+     * states rather than two answers, which is exactly the difference between
+     * this style and the other one.
+     */
+    TORIRS_CHROME_SKIN_CHECK_BOX_ON,
+    TORIRS_CHROME_SKIN_CHECK_BOX_OFF,
     TORIRS_CHROME_SKIN_SLOT_COUNT
 };
+
+/**
+ * Which of the interfaces' two booleans a checkbox wears.
+ *
+ * Both are the cache's own art, so this is a preference and not a quality
+ * ladder: TICK is the settings page's green tick / red cross, BOX is the
+ * bordered well with a tick in it that the journals and filter lists use.
+ * Default TICK, because that is what every panel in this chrome was built
+ * against and a default that silently redraws every existing panel is not a
+ * default.
+ *
+ * It rides on the MODEL rather than on the theme, beside `scale`: a theme is
+ * a palette that a host swaps wholesale (TORIRS_CHROME_THEME=flat), and a
+ * user's choice of checkbox has no business being reset by one.
+ */
+enum ToriRSChromeCheckStyle
+{
+    /** 8380/8379: a green tick, and a red cross for off. */
+    TORIRS_CHROME_CHECK_STYLE_TICK = 0,
+    /** 2848/2847: a tick in a bordered well, and the empty well for off. */
+    TORIRS_CHROME_CHECK_STYLE_BOX = 1,
+};
+
+/**
+ * The skin slot one style's on/off state is drawn from.
+ *
+ * Inline and shared rather than a ternary at each draw, because there are five
+ * presentations of this chrome and the pairing is the one thing all of them
+ * have to agree on: a checkbox showing the tick while its neighbour in another
+ * window shows the well is the failure the executor seam exists to prevent.
+ *
+ * An unknown style draws the TICK pair. That is not a contract violation being
+ * swallowed: the value crosses a command stream from a client that may be
+ * newer than the executor reading it, and an executor that met a style it does
+ * not know is entitled to draw the one it does.
+ */
+static inline int
+ToriRSChrome_CheckSlot(int style, int on)
+{
+    if( style == TORIRS_CHROME_CHECK_STYLE_BOX )
+        return on ? TORIRS_CHROME_SKIN_CHECK_BOX_ON : TORIRS_CHROME_SKIN_CHECK_BOX_OFF;
+    return on ? TORIRS_CHROME_SKIN_CHECK_ON : TORIRS_CHROME_SKIN_CHECK_OFF;
+}
 
 struct ToriRSChromeRect
 {
@@ -355,6 +443,16 @@ struct ToriRSChromeTheme
     uint32_t input_border;
     uint32_t input_border_focus;
     uint32_t input_text;
+    /**
+     * Body fill of a MULTILINE field (TORIRS_CHROME_W_TEXTAREA).
+     *
+     * A key of its own rather than `input_bg`, because the reference gives the
+     * two different colours and the reason is visual rather than arbitrary: a
+     * one-line field is mostly full and reads fine at black, and a four-line
+     * box mostly is not -- at `input_bg` it reads as a hole cut in the panel.
+     * `~script7210` fills it 0x372e22, a shade off the body brown.
+     */
+    uint32_t textarea_bg;
     uint32_t check_box;
     uint32_t check_mark;
     uint32_t menu_body;
@@ -582,6 +680,32 @@ enum ToriRSChromeWidgetKind
      */
     TORIRS_CHROME_W_COLORPICK,
     /**
+     * A multiline text field: a header line, then a box `rows` lines tall that
+     * the value word-wraps down.
+     *
+     * NOT a TEXTINPUT that happens to be taller. The two differ in what they
+     * are FOR, and every difference below follows from it:
+     *
+     *   - The caption sits ABOVE the box, full width, instead of in the
+     *     104px label column. That column is what makes a page of one-line
+     *     settings line up; against a four-line list it is a third of the
+     *     width taken from the one control that needs it.
+     *   - Enter INSERTS a newline instead of committing, and Home/End address
+     *     the LINE rather than the value -- which is what makes it editable at
+     *     all once there is more than one line to be on.
+     *   - The value wraps. A single-line field scrolls its content sideways
+     *     under a fixed caret; this one reflows, so where the caret is depends
+     *     on the box's width and has to be recomputed from it.
+     *
+     * The shape is the cache's own. `~script7213` (interface 650, the
+     * ground-items settings page) builds the highlight and filter lists as a
+     * 0x372e22 rect under a type-12 input with the settings frame around it;
+     * see the note in torirs_chrome_metrics.h for the transcript. Both of
+     * those hold a comma-separated list of item names, which is exactly the
+     * kind of value a one-line field cannot show enough of to edit.
+     */
+    TORIRS_CHROME_W_TEXTAREA,
+    /**
      * A removed widget's slot, waiting on the free list.
      *
      * A kind rather than a flag so a stale handle is inert everywhere at once:
@@ -610,6 +734,18 @@ enum ToriRSChromeKey
     TORIRS_CHROME_KEY_END,
     TORIRS_CHROME_KEY_ENTER,
     TORIRS_CHROME_KEY_ESCAPE,
+    /**
+     * Up and down a line. Meaningful only in a TEXTAREA -- a one-line field
+     * has nowhere to go -- but reported unconditionally by the platform, so
+     * the two kinds do not need separate key routing.
+     *
+     * Appended rather than slotted beside LEFT/RIGHT: enum ToriRSChromeAuxKey's
+     * twin in platform/platform_sdl2.h is pinned to this one value for value
+     * (see the _Static_asserts in torirs_chrome_exec_sdl.c), and inserting in
+     * the middle would renumber every key the platform already reports.
+     */
+    TORIRS_CHROME_KEY_UP,
+    TORIRS_CHROME_KEY_DOWN,
 };
 
 struct ToriRSChromeWidget
@@ -624,6 +760,9 @@ struct ToriRSChromeWidget
     /** LISTROW: draw and hit-test the settings affordance. A row without one
      *  is a name and a switch, and its whole width toggles. */
     int row_action;
+    /** TEXTAREA: visible lines of the box, before it scrolls. Part of the
+     *  widget's SHAPE, so it rides the ADD command and never changes after. */
+    int rows;
     /** Resolved by Build; absolute screen pixels. */
     int x;
     int y;
@@ -835,6 +974,14 @@ struct ToriRSChrome
     /** Integer chrome zoom, TORIRS_CHROME_SCALE_MIN..MAX. Every layout metric and
      *  glyph multiplies by it; Init sets 1. */
     int scale;
+    /**
+     * enum ToriRSChromeCheckStyle: which boolean art every checkbox and roster
+     * switch in this instance wears. Init sets TICK.
+     *
+     * A LAYOUT input and not only a palette one -- the two arts are 17 and 18
+     * wide -- so changing it dirties every panel, the same way SetScale does.
+     */
+    int check_style;
     struct ToriRSChromePanel panels[TORIRS_CHROME_MAX_PANELS];
     int panel_count;
     struct ToriRSChromeWidget widgets[TORIRS_CHROME_MAX_WIDGETS];
@@ -856,6 +1003,24 @@ struct ToriRSChrome
     int free_widget;
     struct ToriRSChromePrim prims[TORIRS_CHROME_MAX_PRIMS];
     int prim_count;
+
+    /**
+     * Where a multiline field's wrapped lines live for the life of a build.
+     *
+     * A TEXT prim BORROWS its string (dbg_push_text stores the pointer), and a
+     * wrapped line is not a string that exists anywhere: it is a SLICE of the
+     * widget's value with no terminator of its own, and the byte after it
+     * belongs to the next line. So each visible line is copied here,
+     * NUL-terminated, and the prim points at the copy.
+     *
+     * A bump arena reset by Build rather than a buffer per widget, because
+     * only the lines actually ON SCREEN are ever copied -- a 40-line list in a
+     * four-line box costs four lines of scratch, the same way scrolling keeps
+     * TORIRS_CHROME_MAX_PRIMS far below MAX_WIDGETS. Exhausting it stops the
+     * copying and raises `overflow`, exactly as running out of prims does.
+     */
+    char wrap_pool[TORIRS_CHROME_WRAP_POOL];
+    int wrap_used;
 
     /**
      * Bit per enum ToriRSChromeSkinSlot the drawer actually has an image for.
@@ -1032,6 +1197,29 @@ ToriRSChrome_SetScale(struct ToriRSChrome* ui, int scale);
 int
 ToriRSChrome_Scale(struct ToriRSChrome const* ui);
 
+/**
+ * Choose which of the interfaces' two booleans every checkbox wears.
+ *
+ * A relayout, like SetScale and for the same reason: the two arts are
+ * different sizes, so the row a checkbox sits in is a different width
+ * afterwards. Every panel is dirtied and the whole chrome damaged.
+ *
+ * @param style enum ToriRSChromeCheckStyle. An unknown value is kept as it
+ *        arrived and drawn as TICK -- see ToriRSChrome_CheckSlot for why the
+ *        drawers are lenient about a style they have not heard of.
+ */
+void
+ToriRSChrome_SetCheckStyle(struct ToriRSChrome* ui, int style);
+
+/** enum ToriRSChromeCheckStyle, as SetCheckStyle left it. */
+int
+ToriRSChrome_CheckStyle(struct ToriRSChrome const* ui);
+
+/** Edge of the box a checkbox reserves for its art, at 1x -- the size of the
+ *  sprite this style wears. @see TORIRS_CHROME_M_BOX_SQUARE. */
+int
+ToriRSChrome_CheckBoxMetric(int style);
+
 /** Drop every panel and widget. The theme survives; the vacated area is damaged. */
 void
 ToriRSChrome_Reset(struct ToriRSChrome* ui);
@@ -1145,6 +1333,45 @@ ToriRSChrome_ListRow(
 
 int
 ToriRSChrome_TextInput(struct ToriRSChrome* ui, int panel, char const* label, char const* text);
+
+/**
+ * A multiline field: `label` on its own line, then a box `rows` lines tall.
+ *
+ * `rows` <= 0 asks for TORIRS_CHROME_M_TEXTAREA_ROWS; anything past
+ * TORIRS_CHROME_M_TEXTAREA_ROWS_MAX is clamped to it, because the number comes
+ * from a plugin manifest and a box taller than the panel is a page with no way
+ * to reach the rows under it.
+ *
+ * @see TORIRS_CHROME_W_TEXTAREA for why this is a kind of its own.
+ */
+int
+ToriRSChrome_TextArea(
+    struct ToriRSChrome* ui, int panel, char const* label, char const* text, int rows);
+
+/**
+ * Break `text` into display lines that fit `width` pixels, at `font_slot`.
+ *
+ * Writes each line's byte OFFSET into `out_start` and its length into
+ * `out_len` (both optional), and returns how many lines there are -- at least
+ * one, even for an empty string, because an empty box still has a caret on a
+ * first line. A line ends at a '\n' (which is not part of it) or where the
+ * next word would not fit; a single word longer than the box is broken mid-word
+ * rather than run off the edge.
+ *
+ * Public because the CS2 executor wraps the same string for the same box and
+ * the two presentations have to break it in the same places. It measures with
+ * the baked advance tables, which are a pure function of the slot -- no chrome
+ * instance, no cache, nothing to be uninitialised.
+ */
+int
+ToriRSChrome_WrapText(
+    int font_slot,
+    int scale,
+    char const* text,
+    int width,
+    int* out_start,
+    int* out_len,
+    int max_lines);
 
 /**
  * A dropdown over `options`, which is BORROWED and must outlive the widget.

@@ -924,6 +924,167 @@ test_chrome_exec_drag_region(void)
         "and what crosses is an empty region, not a stale one");
 }
 
+/*
+ * The checkbox style crosses the seam, once, before anything it applies to.
+ *
+ * A native executor sizes and places its own controls, so hearing which art a
+ * checkbox wears AFTER the rows have been declared means every one of them was
+ * laid out against the wrong width -- 17 where the art is 18. And an executor
+ * that is never told at all draws the tick pair while the in-canvas chrome
+ * beside it draws the well, which is precisely the disagreement this seam
+ * exists to prevent.
+ */
+static void
+test_chrome_exec_check_style(void)
+{
+    int panel;
+    struct ToriRSChromeCmd const* said;
+    int style_at = -1;
+    int open_at = -1;
+
+    exec_reset();
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 12, 20, 160, "Settings");
+    ToriRSChrome_Checkbox(&g_ui, panel, "enabled", 1);
+    ToriRSChrome_Build(&g_ui);
+
+    TEST_ASSERT(ToriRSChromeSync_Run(&g_sync, &g_ui) > 0, "the first sync says something");
+    TEST_ASSERT(
+        ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_CHECK_STYLE) == 1,
+        "an executor is told the checkbox style even at the default");
+    said = ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_CHECK_STYLE, -1);
+    TEST_ASSERT(said != NULL, "the style command names no widget");
+    TEST_ASSERT(
+        said->value == TORIRS_CHROME_CHECK_STYLE_TICK, "and carries the style it is at");
+
+    for( int i = 0; i < g_rec.count; i++ )
+    {
+        if( g_rec.cmds[i].kind == TORIRS_CHROME_CMD_CHECK_STYLE && style_at < 0 )
+            style_at = i;
+        if( g_rec.cmds[i].kind == TORIRS_CHROME_CMD_PANEL_OPEN && open_at < 0 )
+            open_at = i;
+    }
+    TEST_ASSERT(style_at >= 0 && open_at >= 0, "both were said (else this proves nothing)");
+    TEST_ASSERT(style_at < open_at, "the style is said before the panel it applies to");
+
+    /* A frame that changes nothing does not restate it -- the whole point of
+     * the shadow. */
+    TEST_ASSERT(exec_settle() == 0, "a clean frame says nothing about the style");
+
+    ToriRSChrome_SetCheckStyle(&g_ui, TORIRS_CHROME_CHECK_STYLE_BOX);
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(ToriRSChromeSync_Run(&g_sync, &g_ui) > 0, "a style change is said");
+    said = ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_CHECK_STYLE, -1);
+    TEST_ASSERT(said != NULL, "as its own command");
+    TEST_ASSERT(said->value == TORIRS_CHROME_CHECK_STYLE_BOX, "carrying the new style");
+
+    g_rec.count = 0;
+    ToriRSChrome_SetCheckStyle(&g_ui, TORIRS_CHROME_CHECK_STYLE_BOX);
+    ToriRSChrome_Build(&g_ui);
+    TEST_ASSERT(
+        ToriRSChromeRecorder_CountKind(&g_rec, TORIRS_CHROME_CMD_CHECK_STYLE) == 0,
+        "and setting it to what it already is says nothing at all");
+
+    /*
+     * The two arts are different sizes, so the style is a LAYOUT input: a row
+     * that did not re-measure would draw the 18px well in a box reserved for
+     * the 17px tick, which is the speckled edge every other blit here avoids.
+     */
+    TEST_ASSERT(
+        ToriRSChrome_CheckBoxMetric(TORIRS_CHROME_CHECK_STYLE_BOX) >
+            ToriRSChrome_CheckBoxMetric(TORIRS_CHROME_CHECK_STYLE_TICK),
+        "the well is the wider of the two boxes");
+    TEST_ASSERT(
+        ToriRSChrome_CheckSlot(TORIRS_CHROME_CHECK_STYLE_BOX, 1) ==
+            TORIRS_CHROME_SKIN_CHECK_BOX_ON,
+        "the box style draws the boxed tick when on");
+    TEST_ASSERT(
+        ToriRSChrome_CheckSlot(TORIRS_CHROME_CHECK_STYLE_BOX, 0) ==
+            TORIRS_CHROME_SKIN_CHECK_BOX_OFF,
+        "and the empty well when off");
+    TEST_ASSERT(
+        ToriRSChrome_CheckSlot(TORIRS_CHROME_CHECK_STYLE_TICK, 1) ==
+            TORIRS_CHROME_SKIN_CHECK_ON,
+        "the tick style is untouched by any of this");
+}
+
+/*
+ * A multiline field across the seam.
+ *
+ * Two things a native executor is broken by and nothing on screen would show:
+ * the line count only ever rides the ADD (so an executor that missed it builds
+ * every box one line tall), and a TEXTAREA's "selection" is its scroll offset
+ * rather than an option index -- which is how a presentation that draws its own
+ * lines shows the window of a long list the model is showing.
+ */
+static void
+test_chrome_exec_textarea(void)
+{
+    int panel;
+    int area;
+    struct ToriRSChromeIntent intent;
+
+    exec_reset();
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 4, 4, 200, "Ground Items");
+    area = ToriRSChrome_TextArea(&g_ui, panel, "Highlighted items", "abyssal whip", 5);
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChromeSync_Run(&g_sync, &g_ui);
+
+    {
+        struct ToriRSChromeCmd const* add =
+            ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_WIDGET_ADD, area);
+        TEST_ASSERT(add && add->value == TORIRS_CHROME_W_TEXTAREA, "the kind crosses");
+        TEST_ASSERT(add && add->h == 5, "and the line count rides the ADD, as its shape");
+        TEST_ASSERT(
+            add && strcmp(add->text, "abyssal whip") == 0, "with the value it opens on");
+    }
+
+    /* Scrolling the box is a SELECTED, because that is the field the seam
+     * already diffs -- and it must not be mistaken for a dropdown's index. */
+    exec_settle();
+    ToriRSChrome_SetText(&g_ui, area, "a\nb\nc\nd\ne\nf\ng");
+    g_ui.widgets[area].caret = (int)strlen(ToriRSChrome_Text(&g_ui, area));
+    ToriRSChrome_Build(&g_ui);
+    ToriRSChromeSync_Run(&g_sync, &g_ui);
+    {
+        struct ToriRSChromeCmd const* sel =
+            ToriRSChromeRecorder_Find(&g_rec, TORIRS_CHROME_CMD_WIDGET_SELECTED, area);
+        TEST_ASSERT(g_ui.widgets[area].scroll > 0, "seven lines do not fit a five-line box");
+        TEST_ASSERT(
+            sel && sel->value == g_ui.widgets[area].scroll,
+            "the top visible line crosses as the SELECTION");
+    }
+
+    /* A TEXT intent carrying newlines lands whole -- the shape a DOM textarea
+     * and a multiline EDIT both commit. */
+    exec_settle();
+    memset(&intent, 0, sizeof(intent));
+    intent.kind = TORIRS_CHROME_INTENT_TEXT;
+    intent.panel = panel;
+    intent.widget = area;
+    snprintf(intent.text, sizeof(intent.text), "%s", "whip\ntbow");
+    ToriRSChromeRecorder_PushIntent(&g_rec, &intent);
+    TEST_ASSERT(ToriRSChromeSync_Pump(&g_sync, &g_ui) == 1, "the edit applies");
+    TEST_ASSERT(
+        strcmp(ToriRSChrome_Text(&g_ui, area), "whip\ntbow") == 0,
+        "and the newline survives the crossing");
+
+    /* ACTIVATE is a click on the box, and what a click on a field does is take
+     * the focus -- the same answer a one-line field gives, so the host's
+     * keyboard routing lands typing in it. */
+    ToriRSChrome_Build(&g_ui);
+    exec_settle();
+    memset(&intent, 0, sizeof(intent));
+    intent.kind = TORIRS_CHROME_INTENT_ACTIVATE;
+    intent.panel = panel;
+    intent.widget = area;
+    ToriRSChromeRecorder_PushIntent(&g_rec, &intent);
+    ToriRSChromeSync_Pump(&g_sync, &g_ui);
+    TEST_ASSERT(g_ui.focus == area, "a click on the box focuses it");
+    TEST_ASSERT(
+        ToriRSChrome_TakeActivated(&g_ui) == -1,
+        "and does not also fire the activation latch");
+}
+
 void
 test_chrome_exec(void)
 {
@@ -942,4 +1103,6 @@ test_chrome_exec(void)
     test_chrome_exec_colorpick();
     test_chrome_exec_fill_surface();
     test_chrome_exec_drag_region();
+    test_chrome_exec_check_style();
+    test_chrome_exec_textarea();
 }

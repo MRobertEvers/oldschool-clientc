@@ -1558,6 +1558,55 @@ frame_loop_step(void)
             }
         }
 
+        /*
+         * TORIRS_SIM_VARBIT="<frame>,<id>,<value>[;<frame>,<id>,<value>...]":
+         * write a client varbit at a frame.
+         *
+         * The All Settings rows are varbits, and nothing in the cache writes
+         * one -- the panel's own row does, through a path that needs a real
+         * click on a real mounted panel. That makes every one of the seventy-four
+         * Activities rows unverifiable from a headless run without either a
+         * click script per row or this. See NXT_CLIENT_PLUGINS.md.
+         *
+         * Optimistic, i.e. exactly what the panel's write is: the value stands
+         * until the server says otherwise, which offline it never does.
+         */
+        {
+            static char const* vb_cursor = NULL;
+            static int vb_init = 0;
+            static long vb_frame = -1;
+            static long vb_id = 0;
+            static long vb_value = 0;
+            if( !vb_init )
+            {
+                vb_init = 1;
+                vb_cursor = getenv("TORIRS_SIM_VARBIT");
+            }
+            if( vb_frame < 0 && vb_cursor && *vb_cursor )
+            {
+                char* end = NULL;
+                vb_frame = strtol(vb_cursor, &end, 0);
+                if( end && *end == ',' )
+                {
+                    vb_id = strtol(end + 1, &end, 0);
+                    vb_value = (end && *end == ',') ? strtol(end + 1, &end, 0) : 0;
+                    vb_cursor = (end && *end == ';') ? end + 1 : NULL;
+                }
+                else
+                {
+                    vb_cursor = NULL;
+                    vb_frame = -1;
+                }
+            }
+            if( vb_frame >= 0 && frame_count >= vb_frame )
+            {
+                fprintf(stderr, "sim_varbit: %ld = %ld\n", vb_id, vb_value);
+                VarPManager_SetVarbitOptimistic(&app.varps, (int)vb_id, (int)vb_value);
+                RS_CS2Host_NotifyVarChanged(&app.host, -1);
+                vb_frame = -1;
+            }
+        }
+
         /* TORIRS_SIM_TYPE="frame,c97,c108,k84": push key events at consecutive
          * main-loop frames starting at `frame`. Same grammar as the pre-loop
          * TORIRS_SIM_KEYS (c<character>, k<OSRS key code>), in-loop for the

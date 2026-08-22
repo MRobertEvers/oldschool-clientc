@@ -34,7 +34,7 @@
     PANEL_OPEN: 3, PANEL_CLOSE: 4, PANEL_TITLE: 5, PANEL_RECT: 6, PANEL_TAB: 7,
     WIDGET_ADD: 8, WIDGET_REMOVE: 9, WIDGET_LABEL: 10, WIDGET_TEXT: 11,
     WIDGET_CHECKED: 12, WIDGET_HIDDEN: 13, WIDGET_COLOR: 14, WIDGET_SELECTED: 15,
-    WIDGET_FOCUS: 16, WIDGET_OPTIONS: 17, WIDGET_OPTION: 18
+    WIDGET_FOCUS: 16, WIDGET_OPTIONS: 17, WIDGET_OPTION: 18, CHECK_STYLE: 19
   };
 
   /*
@@ -51,7 +51,7 @@
   const W = {
     LABEL: 0, CHECKBOX: 1, TEXTINPUT: 2, SEPARATOR: 3, MENUITEM: 4,
     DROPDOWN: 5, MODELVIEW: 6, BUTTON: 7, TABSTRIP: 8, LISTROW: 9,
-    COLORPICK: 10, FREE: 11
+    COLORPICK: 10, TEXTAREA: 11, FREE: 12
   };
 
   /* Intent kinds — enum ToriRSChromeIntentKind. */
@@ -93,7 +93,8 @@
     FRAME_LEFT: 14, FRAME_RIGHT: 15,
     FRAME_BOTTOM_LEFT: 16, FRAME_BOTTOM: 17, FRAME_BOTTOM_RIGHT: 18,
     CLOSE: 19, CLOSE_OVER: 20,
-    POPOUT: 21, POPOUT_OVER: 22, DOCK: 23, DOCK_OVER: 24
+    POPOUT: 21, POPOUT_OVER: 22, DOCK: 23, DOCK_OVER: 24,
+    CHECK_BOX_ON: 25, CHECK_BOX_OFF: 26
   };
 
   /*
@@ -120,12 +121,12 @@
    * these and the header ever disagree, the header is right.
    */
   const METRICS = {
-    pad: 6, rowH: 18, rowGap: 3, labelW: 104, box: 17, checkGap: 6,
+    pad: 6, rowH: 18, rowGap: 3, labelW: 104, box: 17, boxSquare: 18, checkGap: 6,
     toggleW: 24, toggleH: 12, rowIcon: 14, rowIconGap: 5, rowNameGap: 4,
     dot: 2, dotPitch: 3, dotInset: 3, scrollW: 16, swatch: 11, swatchGap: 4,
     frame: 6, frameCorner: 32, tabH: 20, tabPadX: 5, fieldPadX: 4,
     fieldInset: 2, dropArrow: 14, dropListPad: 2, dropListRowH: 20,
-    dropListRows: 10
+    dropListRows: 10, textareaRows: 4, textareaLine: 16, textareaPadY: 3
   };
 
   /*
@@ -149,7 +150,11 @@
   const C = {
     body: '#5D5447', chrome: '#000000', text: '#FFFFFF', label: '#FF981F',
     accent: '#FFFF00', on: '#00FF00', fieldBg: '#000000',
-    frame: '#0E0E0C', frameInset: '#474745'
+    frame: '#0E0E0C', frameInset: '#474745',
+    /* ~script7210's own fill for a multiline field. Lighter than fieldBg for
+     * the reason the C theme gives: a mostly-empty box at black reads as a
+     * hole cut in the panel rather than as a field. */
+    textareaBg: '#372E22'
   };
 
   /*
@@ -315,6 +320,15 @@
       'border:', px(1), ' solid ', C.frameInset, ';cursor:pointer}',
       '.torirs-chrome input[type=checkbox]:checked{background:', C.on, ';',
       'box-shadow:inset 0 0 0 ', px(2), ' ', C.fieldBg, '}',
+      /* The other style -- the bordered well (TORIRS_CHROME_CMD_CHECK_STYLE) --
+       * is one pixel wider, and a control sized to the wrong art draws it
+       * scaled. Sized HERE, in the flat sheet, so the box is right even on a
+       * build with no skin: the class says which art the row means, not
+       * whether any art arrived. */
+      '.torirs-chrome.checkbox-square input[type=checkbox]{flex-basis:', px(m.boxSquare), ';',
+      'width:', px(m.boxSquare), ';height:', px(m.boxSquare), '}',
+      '.torirs-chrome.checkbox-square .torirs-chrome-row input.rowsw{',
+      'background-size:', px(m.boxSquare), ' ', px(m.boxSquare), '}',
 
       /* The roster row: the name takes the slack, the two controls are pinned
        * right so a column of them lines up however long the names are. */
@@ -347,6 +361,23 @@
       'align-items:center;box-sizing:border-box;height:', px(m.rowH), ';',
       'background:', C.fieldBg, ';border:', px(1), ' solid ', C.frame, ';',
       'box-shadow:inset 0 0 0 ', px(1), ' ', C.frameInset, ';padding:0 ', px(m.fieldInset), '}',
+      /*
+       * A multiline row is the one row that is NOT one rowH tall and not a
+       * flex line: its caption sits above its box, full width, because a 104px
+       * label column beside a four-line list takes the width the list is for.
+       * @see TORIRS_CHROME_W_TEXTAREA.
+       */
+      '.torirs-chrome-row.textarea{display:block;height:auto}',
+      '.torirs-chrome-row.textarea>span.lbl{display:block;flex:none;height:',
+      px(m.rowH), ';line-height:', px(m.rowH), '}',
+      '.torirs-chrome-row textarea{box-sizing:border-box;display:block;width:100%;',
+      'background:', C.textareaBg, ';border:', px(1), ' solid ', C.frame, ';',
+      'box-shadow:inset 0 0 0 ', px(1), ' ', C.frameInset, ';color:', C.text, ';',
+      'font:inherit;text-shadow:inherit;outline:0;border-radius:0;resize:vertical;',
+      'padding:', px(m.textareaPadY), ' ', px(m.fieldPadX), ';',
+      'line-height:', px(m.textareaLine), '}',
+      '.torirs-chrome-row textarea:focus{box-shadow:inset 0 0 0 ', px(1), ' ', C.accent, '}',
+
       '.torirs-chrome-row span.colorpick input[type=color]{flex:0 0 ', px(m.swatch), ';',
       'width:', px(m.swatch), ';height:', px(m.swatch), ';padding:0;',
       'background:', C.fieldBg, ';border:', px(1), ' solid ', C.frameInset, ';cursor:pointer}',
@@ -489,6 +520,22 @@
       '.torirs-chrome.skinned .torirs-chrome-row input.rowsw:checked{',
       'background:url(', url.checkOn, ') no-repeat right center/', px(m.box), ' ', px(m.box), '}',
 
+      /* The same four rules again for the OTHER boolean the interfaces draw:
+       * the bordered well, at its own 18x18. Both pairs are in the sheet and
+       * the class picks -- a style change is then a className toggle rather
+       * than a stylesheet rebuild, which matters because the command can
+       * arrive at any frame and the sheet is built once. */
+      '.torirs-chrome.skinned.checkbox-square input[type=checkbox]{',
+      'background:url(', url.checkBoxOff, ') no-repeat center/100% 100%}',
+      '.torirs-chrome.skinned.checkbox-square input[type=checkbox]:checked{',
+      'background:url(', url.checkBoxOn, ') no-repeat center/100% 100%}',
+      '.torirs-chrome.skinned.checkbox-square .torirs-chrome-row input.rowsw{',
+      'background:url(', url.checkBoxOff, ') no-repeat right center/',
+      px(m.boxSquare), ' ', px(m.boxSquare), '}',
+      '.torirs-chrome.skinned.checkbox-square .torirs-chrome-row input.rowsw:checked{',
+      'background:url(', url.checkBoxOn, ') no-repeat right center/',
+      px(m.boxSquare), ' ', px(m.boxSquare), '}',
+
       /* The open list wears the cache's own lighter parchment -- graphic_1040,
        * not the tradebacking behind the panel -- which is the one thing that
        * says the list is in front of the window rather than part of it. It is
@@ -605,6 +652,10 @@
        * window on baseStyle -- see skinDone. */
       this.skin = {};
       this.skinCss = '';
+      /* enum ToriRSChromeCheckStyle, as CHECK_STYLE last said: 0 tick/cross,
+       * 1 the bordered well. Zero is the model's own default, so a client too
+       * old to send the command leaves the window exactly as it was. */
+      this.checkStyle = 0;
       /* The dropdown whose list is up, or -1, and the list's node. One window,
        * one open list -- the same rule the model and the CS2 executor keep. */
       this.dropOpen = -1;
@@ -1036,6 +1087,12 @@
       /* One button lit from opposite corners: the hover is IN THE ART, exactly
        * as the in-canvas chrome uses it. A build with only the base sprite gets
        * no hover rather than a second, different indication. */
+      /* The bordered-well pair, optional for the same reason: a client that
+       * predates it sends neither, and a page told to wear the square style by
+       * a client that cannot send the art falls back to the tick -- one art
+       * everywhere beats a checked box that draws nothing. */
+      url.checkBoxOn = this.skin[SKIN.CHECK_BOX_ON] || url.checkOn;
+      url.checkBoxOff = this.skin[SKIN.CHECK_BOX_OFF] || url.checkOff;
       url.closeOver = this.skin[SKIN.CLOSE_OVER] || url.close;
       url.popoutOver = this.skin[SKIN.POPOUT_OVER] || url.popout;
       url.dockOver = this.skin[SKIN.DOCK_OVER] || url.dock;
@@ -1048,7 +1105,14 @@
      *  a pop-out, which restyles a NEW document, goes through one path. */
     applySkinClass() {
       if (this.doc) this.style(this.doc);
-      if (this.root) this.root.classList.toggle('skinned', !!this.skinCss);
+      if (this.root) {
+        this.root.classList.toggle('skinned', !!this.skinCss);
+        /* Through the SAME path as the skin decision, so a pop-out -- which
+         * builds a new root in a new document -- comes up wearing the style
+         * this window was told about rather than the default. That is exactly
+         * the bug the skin class had before it was pulled out here. */
+        this.root.classList.toggle('checkbox-square', this.checkStyle === 1);
+      }
     }
 
     buildRoot(doc) {
@@ -1461,6 +1525,13 @@
         case W.TEXTINPUT: {
           const input = doc.createElement('input');
           input.type = 'text';
+          /* The ADD carries a widget's INITIAL strings, and this dropped the
+           * value half of them: the sync seeds its shadow from the same
+           * command, so no WIDGET_TEXT follows and the field stayed blank
+           * until the model changed it. Every other executor already read it
+           * off the add (the CS2 one into its own row text, the Win32 one
+           * straight into CreateWindowEx). */
+          input.value = cmd.text || '';
           /* On change, not on input: an intent per keystroke would send the
            * model a value for every half-typed state, and the chrome's own
            * in-canvas input commits the same way. */
@@ -1469,6 +1540,34 @@
           });
           labelled(input);
           entry.control = input;
+          break;
+        }
+        case W.TEXTAREA: {
+          /*
+           * A real <textarea>, which is the platform's idiom for this exactly
+           * as <input type=color> is for a colour.
+           *
+           * It brings its own wrapping, caret, selection and scrollbar, so
+           * none of the model's line arithmetic crosses the wall -- and the
+           * WIDGET_SELECTED that carries the model's top line for the CS2
+           * window is ignored here for the same reason. What the page DOES
+           * need from C is the line count, which rides the ADD as `ch`
+           * (TORIRS_CHROME_CMD_WIDGET_ADD's `h`).
+           */
+          const area = doc.createElement('textarea');
+          area.rows = cmd.ch > 0 ? cmd.ch : METRICS.textareaRows;
+          area.value = cmd.text || '';
+          /* A list of item names is not prose; a red underline under every
+           * one of them is noise. */
+          area.spellcheck = false;
+          /* On change, not on input -- the same commit-on-blur every other
+           * field here uses, and the same one the in-canvas chrome uses. */
+          area.addEventListener('change', () => {
+            this.push({ k: INTENT.TEXT, p: cmd.p, w: cmd.w, v: 0, text: area.value });
+          });
+          row.classList.add('textarea');
+          labelled(area);
+          entry.control = area;
           break;
         }
         case W.COLORPICK: {
@@ -1489,6 +1588,9 @@
           swatch.type = 'color';
           swatch.className = 'swatch';
           hex.type = 'text';
+          /* The add's initial value, for the reason the text input's is. */
+          hex.value = cmd.text || '';
+          if (cmd.text) swatch.value = cmd.text;
           /* Both commit as a TEXT intent, so there is one path into the model
            * and one quantiser -- in C, where the palette is. A second conversion
            * here would be a second place for a colour to land on a different
@@ -1658,6 +1760,15 @@
       let panel;
 
       switch (cmd.k) {
+        case CMD.CHECK_STYLE:
+          /* Chrome-wide: it names no panel and no widget. A class toggle and
+           * nothing else -- both styles are already in the sheet, at their own
+           * sizes, so every checkbox and every roster switch in the window
+           * changes art and box in one repaint. */
+          this.checkStyle = cmd.v;
+          this.applySkinClass();
+          break;
+
         case CMD.PANEL_OPEN:
           this.panels[cmd.p] = { tabs: [], activeTab: 0, strip: -1 };
           /*
@@ -1767,7 +1878,7 @@
              * whenever it has the caret, for the same reason a text input is. */
             if (w.swatch) w.swatch.value = cmd.text;
             if (doc.activeElement !== w.control) w.control.value = cmd.text;
-          } else if (w.kind === W.TEXTINPUT) {
+          } else if (w.kind === W.TEXTINPUT || w.kind === W.TEXTAREA) {
             /* Never while it has focus: the model is echoing a value the user is
              * still editing, and writing it back would move the caret and undo
              * whatever they typed since the last commit. */

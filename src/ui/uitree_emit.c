@@ -2073,6 +2073,31 @@ emit_walk_node(
             child_clip = &layer_clip;
             child_surface = &layer_surface;
         }
+        /*
+         * The entity overlay clips its CHILDREN to the world rect, and only
+         * them.
+         *
+         * Its children are the scripted entity overlays
+         * (game/rs_entity_overlay.h) -- world content, which the reference
+         * draws inside the scene pass under the same clip the health bars get.
+         * A 60x60 marker on a loc at the edge of the viewport paints over the
+         * inventory without this.
+         *
+         * It is NOT in UITree_ComponentClipsChildren, because that predicate
+         * carries a second meaning this node cannot accept: a clipping layer
+         * with a degenerate box prunes its whole subtree AND skips its own
+         * draw (UITree_LayerCullsChildren). This node's own content is the
+         * host's health bars and hitsplats, which carry their own clip and
+         * must still draw on a tree whose App never wrote a world rect here.
+         */
+        if( c->type == UIELEM_BUILTIN_ENTITY_OVERLAY && w > 0 && h > 0 )
+        {
+            struct UITreeScrollClip cc2 = surf;
+            UITree_ScrollIntersectClip(&cc2, clip_x, clip_y, w, h);
+            layer_clip = (struct UITreeEmitClip){ cc2.clip_x, cc2.clip_y, cc2.clip_w, cc2.clip_h };
+            child_clip = &layer_clip;
+            child_surface = &layer_clip;
+        }
     }
 
     if( !if1_bar && c->type == UIELEM_RS_INV )
@@ -2427,12 +2452,31 @@ emit_debug_overlay_pass(
  * leaves the interfaces, drag ghosts and screen chrome (cross, hovertext,
  * minimenu) above them, exactly as the reference orders them.
  */
+static int
+emit_is_in_entity_overlay(struct UITree const* tree, int32_t idx)
+{
+    int32_t const owner = tree->entity_overlay_index;
+
+    if( owner < 0 || idx < 0 )
+        return 0;
+    for( int guard = 0; idx >= 0 && guard < 64; guard++ )
+    {
+        if( idx == owner )
+            return 1;
+        if( (uint32_t)idx >= tree->component_count )
+            return 0;
+        idx = tree->components[idx].parent;
+    }
+    return 0;
+}
+
 static void
-emit_hoist_entity_overlays(struct UITreeEmitBuffer* out)
+emit_hoist_entity_overlays(struct UITree const* tree, struct UITreeEmitBuffer* out)
 {
     int world = -1;
     int write;
 
+    assert(tree);
     assert(out);
     /* The last one: a tree can only draw one world, and the app latches the
      * last WORLD desc as the viewport for the same reason. */
@@ -2446,7 +2490,14 @@ emit_hoist_entity_overlays(struct UITreeEmitBuffer* out)
     for( int i = write; i < out->count; i++ )
     {
         struct UITreeEmitDesc moved;
-        if( out->cmds[i].kind != UITREE_EMIT_ENTITY_OVERLAY )
+        /*
+         * The host-drawn items are one desc; the SCRIPTED overlays
+         * (game/rs_entity_overlay.h) are ordinary components under the same
+         * builtin, emitting ordinary sprites and text. Both have to move, or a
+         * fishing-spot marker draws over the inventory instead of in the world.
+         */
+        if( out->cmds[i].kind != UITREE_EMIT_ENTITY_OVERLAY &&
+            !emit_is_in_entity_overlay(tree, out->cmds[i].node_index) )
             continue;
         if( i != write )
         {
@@ -2499,7 +2550,7 @@ UITree_EmitWalk(
         emit_walk_pass(
             tree, host, out, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 1);
     }
-    emit_hoist_entity_overlays(out);
+    emit_hoist_entity_overlays(tree, out);
     /* Last, so developer chrome is over everything including drag ghosts. */
     emit_debug_overlay_pass(tree, host, out);
 }

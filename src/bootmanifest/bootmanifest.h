@@ -441,6 +441,12 @@ struct BootManifest
     /** `[ui:boot] chrome_scale=`: pin the ToriRSChrome zoom (1..4). 0 = unset,
      *  the chrome follows the display's pixel density. */
     int chrome_scale;
+    /** `[ui:boot] chrome_checkbox=`: which of the interfaces' two booleans the
+     *  chrome's checkboxes wear. 0 = unset, 1 = `tick` (the settings page's
+     *  tick/cross), 2 = `box` (the bordered well). One past
+     *  enum ToriRSChromeCheckStyle so unset is distinguishable from the
+     *  default; BootManifest_Apply subtracts the one. */
+    int chrome_checkbox;
     /** `[ui:boot] hidpi=`: render into a device-pixel drawable. 0 = unset, 1 =
      *  on, -1 = explicitly off. Unset keeps the platform default, which is ON
      *  everywhere but the web lane -- so this key exists to DECLINE HighDPI on

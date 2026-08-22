@@ -57,10 +57,12 @@
  *  proportional widths and the truncation. */
 #define CS2_TAB_PAD_X TORIRS_CHROME_M_TAB_PAD_X
 #define CS2_TAB_CHAR_W 7
-/** Checkbox edge -- the baked on/off pair's own 17x17, so it draws unscaled. */
-#define CS2_BOX TORIRS_CHROME_M_BOX
 #define CS2_PANEL_W 280
 #define CS2_PANEL_H 240
+/** Lines one multiline field's value can wrap to. A value of nothing but
+ *  newlines is one line per byte plus the empty one after the last, and a wrap
+ *  handed a smaller ceiling than its input can reach silently drops the tail. */
+#define CS2_TEXTAREA_LINES_MAX (TORIRS_CHROME_TEXT_MAX + 1)
 
 /* The reference interface palette, the same values torirs_chrome_theme_osrs carries:
  * a window built here and a cache-authored one on screen together have to read
@@ -259,6 +261,15 @@ struct ChromeCs2
      * model view, a separator and a text input are three different heights.
      */
     int scroll_row;
+    /**
+     * enum ToriRSChromeCheckStyle, as TORIRS_CHROME_CMD_CHECK_STYLE last said.
+     *
+     * Held rather than read off a model, because this executor cannot see one
+     * -- the command stream is the whole contract. Zero is TICK, which is also
+     * what the model defaults to, so a build that never hears the command
+     * draws the same window it always did.
+     */
+    int check_style;
     /** Which panel owns the strip, and its titles. One window, one strip. */
     int tab_panel;
     int tab_strip_widget;
@@ -318,6 +329,9 @@ struct ChromeCs2
     /** LISTROW: whether the row carries a settings affordance. Arrives on the
      *  ADD as `w`, the one command that carries a widget's shape. */
     int wrow_action[TORIRS_CHROME_MAX_WIDGETS];
+    /** TEXTAREA: how many lines tall its box is. The ADD's `h`, the other half
+     *  of the same rule. */
+    int wrows[TORIRS_CHROME_MAX_WIDGETS];
     /**
      * Does the model's keyboard focus rest on this row?
      *
@@ -476,6 +490,51 @@ static int
 cs2_row_font(struct ChromeCs2 const* s)
 {
     return s->cache_font_id >= 0 ? s->cache_font_id : s->font_id;
+}
+
+/* ---- a multiline row's geometry -------------------------------------------
+ *
+ * The in-canvas chrome's arithmetic, restated against the shared metrics -- the
+ * same relationship every other control in this file has with
+ * dbg_* in uitree_debug_overlay.c. The line PITCH is the authored
+ * TORIRS_CHROME_M_TEXTAREA_LINE rather than a measured line box, because this
+ * executor cannot measure the scene's font; it is the number the p12 the
+ * in-canvas chrome uses comes out at, which is what keeps the two boxes the
+ * same size.
+ */
+
+/** Visible lines of one multiline row. @see ToriRSChrome_TextArea. */
+static int
+cs2_textarea_rows(struct ChromeCs2 const* s, int widget)
+{
+    int rows = s->wrows[widget] > 0 ? s->wrows[widget] : TORIRS_CHROME_M_TEXTAREA_ROWS;
+    if( rows > TORIRS_CHROME_M_TEXTAREA_ROWS_MAX )
+        rows = TORIRS_CHROME_M_TEXTAREA_ROWS_MAX;
+    return rows;
+}
+
+/** Height of its field box, the caption above it excluded. */
+static int
+cs2_textarea_box_h(struct ChromeCs2 const* s, int widget)
+{
+    return cs2_textarea_rows(s, widget) * TORIRS_CHROME_M_TEXTAREA_LINE +
+           2 * TORIRS_CHROME_M_TEXTAREA_PAD_Y + 2;
+}
+
+/**
+ * Total height of one row.
+ *
+ * CS2_ROW_H for every kind but one, which is why the scroll below still counts
+ * in rows -- and why this exists at all rather than being inlined: the fit test
+ * and the advance have to agree, and a multiline row measured as CS2_ROW_H by
+ * one of them draws off the bottom of the panel.
+ */
+static int
+cs2_row_height(struct ChromeCs2 const* s, int kind, int widget)
+{
+    if( kind != TORIRS_CHROME_W_TEXTAREA )
+        return CS2_ROW_H;
+    return (s->label[widget][0] ? CS2_ROW_H : 0) + cs2_textarea_box_h(s, widget);
 }
 
 /** Is the furniture drawable? One question for all seven pieces now: they
@@ -807,6 +866,15 @@ static int
 cs2_row_box_offset(char const* label)
 {
     return label && label[0] ? CS2_LABEL_W : 0;
+}
+
+/** Edge of the box a checkbox reserves, for the art this window was told to
+ *  wear. Sized to the sprite, never the sprite to the box: a graphic component
+ *  stretched off its baked size speckles. */
+static int
+cs2_box(struct ChromeCs2 const* s)
+{
+    return ToriRSChrome_CheckBoxMetric(s->check_style);
 }
 
 /**
@@ -1428,59 +1496,62 @@ cs2_rebuild(struct ChromeCs2* s)
         /* Out of room. The break comes BEFORE the count, so the row that did
          * not fit is not counted as one that did -- counting it made
          * `placed + skipped == visible` and the arrows never appeared. */
-        if( y + CS2_ROW_H > panel_h - CS2_PAD )
+        if( y + cs2_row_height(s, w->kind, i) > panel_h - CS2_PAD )
             break;
         drawn++;
 
-        /* Rows are one CS2_ROW_H tall except when one grows its own furniture
-         * -- an open colour picker's axis bars. Carried as an addend rather
-         * than by making the popup a row of its own, because the model has no
-         * such row: it is the same widget, taller while it is open. */
-        extra = 0;
+        /* Rows are one CS2_ROW_H tall except when one is taller by
+         * construction (a multiline field) or grows its own furniture (an open
+         * colour picker's axis bars). Carried as an addend rather than by
+         * making the popup a row of its own, because the model has no such
+         * row: it is the same widget, taller while it is open. */
+        extra = cs2_row_height(s, w->kind, i) - CS2_ROW_H;
 
         switch( w->kind )
         {
         case TORIRS_CHROME_W_CHECKBOX:
         {
             /*
-             * The interfaces' own on/off pair: green tick, red cross, 17x17.
+             * The interfaces' own on/off pair -- the settings page's green
+             * tick and red cross at 17x17, or the journals' bordered well at
+             * 18x18, whichever TORIRS_CHROME_CMD_CHECK_STYLE named.
              *
-             * There is no drawn checkbox anywhere in this game to imitate --
-             * every boolean setting in every panel is one of these two
-             * sprites, so a box with a mark in it reads as foreign no matter
-             * how carefully it is coloured. Baked, so it costs no load.
+             * There is no DRAWN checkbox anywhere in this game to imitate --
+             * every boolean setting in every panel is one of these sprites, so
+             * a box with a mark in it reads as foreign no matter how carefully
+             * it is coloured. Baked, so it costs no load.
              *
              * The clickable component is a transparent rect over the sprite
              * rather than the sprite itself: the hit box wants the row's
              * height, and a graphic component sized to the row would stretch
              * the art to match.
              */
-            int const box_y = y + (CS2_ROW_H - CS2_BOX) / 2;
-            int const mark =
-                s->checked[i] ? TORIRS_CHROME_SKIN_CHECK_ON : TORIRS_CHROME_SKIN_CHECK_OFF;
+            int const side = cs2_box(s);
+            int const box_y = y + (CS2_ROW_H - side) / 2;
+            int const mark = ToriRSChrome_CheckSlot(s->check_style, s->checked[i]);
             int32_t box;
 
             if( s->skin_scene_id > 0 )
-                cs2_graphic(s, panel, -1, CS2_PAD, box_y, CS2_BOX, CS2_BOX, mark, 0);
+                cs2_graphic(s, panel, -1, CS2_PAD, box_y, side, side, mark, 0);
             else
             {
                 cs2_rect(
-                    s, panel, -1, CS2_PAD, box_y, CS2_BOX, CS2_BOX, CS2_COL_FIELD_BG, 1);
+                    s, panel, -1, CS2_PAD, box_y, side, side, CS2_COL_FIELD_BG, 1);
                 cs2_rect(
-                    s, panel, -1, CS2_PAD, box_y, CS2_BOX, CS2_BOX, CS2_COL_FRAME_INSET, 0);
+                    s, panel, -1, CS2_PAD, box_y, side, side, CS2_COL_FRAME_INSET, 0);
                 if( s->checked[i] )
                     cs2_rect(
-                        s, panel, -1, CS2_PAD + 3, box_y + 3, CS2_BOX - 6, CS2_BOX - 6,
+                        s, panel, -1, CS2_PAD + 3, box_y + 3, side - 6, side - 6,
                         CS2_COL_ON, 1);
             }
             box = cs2_rect_trans(
-                s, panel, id, CS2_PAD, box_y, CS2_BOX, CS2_BOX, CS2_COL_FIELD_BG, 1, 255);
+                s, panel, id, CS2_PAD, box_y, side, side, CS2_COL_FIELD_BG, 1, 255);
             if( box >= 0 )
                 UITree_ApplyClickMask(s->tree, id, 1);
             cs2_text_hot(
                 s, panel, CS2_ID_LABEL_BASE + i,
-                CS2_PAD + CS2_BOX + TORIRS_CHROME_M_CHECK_GAP, y,
-                row_w - CS2_BOX - TORIRS_CHROME_M_CHECK_GAP, s->label[i],
+                CS2_PAD + side + TORIRS_CHROME_M_CHECK_GAP, y,
+                row_w - side - TORIRS_CHROME_M_CHECK_GAP, s->label[i],
                 s->wcolor[i] ? (int)s->wcolor[i] : CS2_COL_TEXT);
             break;
         }
@@ -1522,11 +1593,11 @@ cs2_rebuild(struct ChromeCs2* s)
              * sliding switch is an idiom this game does not have. */
             if( s->skin_scene_id > 0 )
             {
-                int const tog_mark =
-                    s->checked[i] ? TORIRS_CHROME_SKIN_CHECK_ON : TORIRS_CHROME_SKIN_CHECK_OFF;
+                int const side = cs2_box(s);
+                int const tog_mark = ToriRSChrome_CheckSlot(s->check_style, s->checked[i]);
                 cs2_graphic(
-                    s, panel, -1, tog_x + tog_w - CS2_BOX, y + (CS2_ROW_H - CS2_BOX) / 2,
-                    CS2_BOX, CS2_BOX, tog_mark, 0);
+                    s, panel, -1, tog_x + tog_w - side, y + (CS2_ROW_H - side) / 2,
+                    side, side, tog_mark, 0);
             }
             else
             {
@@ -1599,6 +1670,75 @@ cs2_rebuild(struct ChromeCs2* s)
                     bw - 2 * TORIRS_CHROME_M_FIELD_PAD_X, s->text[i], CS2_COL_TEXT);
             if( s->focused[i] )
                 cs2_rect(s, panel, -1, bx + 1, y + 1, bw - 2, CS2_ROW_H - 2, CS2_COL_ACCENT, 0);
+            break;
+        }
+
+        case TORIRS_CHROME_W_TEXTAREA:
+        {
+            /*
+             * The cache's own multiline field, in game chrome: ~script7210's
+             * flat 0x372e22 body inside ~script715's two-colour frame, with
+             * the caption on a line of its own above it in the settings
+             * orange -- which is exactly how interface 650 lays out
+             * "Highlighted items" and "Filtered items".
+             *
+             * The lines are separate TEXT components rather than one component
+             * with newlines in it, because a TEXT component draws one line;
+             * the cache reaches a real type-12 input for this and no client
+             * here has one. ToriRSChrome_WrapText breaks the value at the same
+             * places the in-canvas chrome breaks it, so the two presentations
+             * of one field agree about which words are on which line.
+             */
+            int const box_y = y + (s->label[i][0] ? CS2_ROW_H : 0);
+            int const box_h = cs2_textarea_box_h(s, i);
+            int const in_x = CS2_PAD + 1 + TORIRS_CHROME_M_FIELD_PAD_X;
+            int const in_y = box_y + 1 + TORIRS_CHROME_M_TEXTAREA_PAD_Y;
+            int const in_w = row_w - 2 * (1 + TORIRS_CHROME_M_FIELD_PAD_X);
+            int const shown = cs2_textarea_rows(s, i);
+            int const top = s->selected[i] > 0 ? s->selected[i] : 0;
+            int starts[CS2_TEXTAREA_LINES_MAX];
+            int lens[CS2_TEXTAREA_LINES_MAX];
+            int count;
+            int32_t box;
+
+            if( s->label[i][0] )
+                cs2_text(s, panel, -1, CS2_PAD, y, row_w, s->label[i], CS2_COL_LABEL);
+            if( in_w <= 0 )
+                break;
+
+            cs2_rect(
+                s, panel, -1, CS2_PAD, box_y, row_w, box_h,
+                TORIRS_CHROME_C_TEXTAREA_BG, 1);
+            cs2_rect(s, panel, -1, CS2_PAD, box_y, row_w, box_h, CS2_COL_FRAME, 0);
+            cs2_rect(
+                s, panel, -1, CS2_PAD + 1, box_y + 1, row_w - 2, box_h - 2,
+                s->focused[i] ? CS2_COL_ACCENT : CS2_COL_FRAME_INSET, 0);
+
+            count = ToriRSChrome_WrapText(
+                TORIRS_CHROME_FONT_BODY, 1, s->text[i], in_w, starts, lens,
+                CS2_TEXTAREA_LINES_MAX);
+            for( int li = top; li < count && li - top < shown; li++ )
+            {
+                char line[TORIRS_CHROME_TEXT_MAX];
+                int len = lens[li];
+
+                if( len > (int)sizeof(line) - 1 )
+                    len = (int)sizeof(line) - 1;
+                memcpy(line, s->text[i] + starts[li], (size_t)len);
+                line[len] = '\0';
+                cs2_text_box(
+                    s, panel, -1, in_x,
+                    in_y + (li - top) * TORIRS_CHROME_M_TEXTAREA_LINE, in_w,
+                    TORIRS_CHROME_M_TEXTAREA_LINE, line, CS2_COL_TEXT, 0);
+            }
+
+            /* The click target LAST, over the lines: a transparent rect is how
+             * every other two-layer control in this file takes its clicks, and
+             * a component under the text would not be found by the hit walk. */
+            box = cs2_rect_trans(
+                s, panel, id, CS2_PAD, box_y, row_w, box_h, CS2_COL_FIELD_BG, 1, 255);
+            if( box >= 0 )
+                UITree_ApplyClickMask(s->tree, id, 1);
             break;
         }
 
@@ -1859,8 +1999,9 @@ chrome_cs2_apply(void* user, struct ToriRSChromeCmd const* cmd)
             if( s->drop_open == cmd->widget )
                 cs2_dropdown_close(s);
             /* The ADD is the one command carrying a widget's shape; `w` is a
-             * LISTROW's action affordance. */
+             * LISTROW's action affordance and `h` a TEXTAREA's line count. */
             s->wrow_action[cmd->widget] = cmd->w;
+            s->wrows[cmd->widget] = cmd->h;
         }
         if( cmd->value == TORIRS_CHROME_W_TABSTRIP )
         {
@@ -1882,6 +2023,18 @@ chrome_cs2_apply(void* user, struct ToriRSChromeCmd const* cmd)
         if( cmd->widget >= 0 && cmd->widget < TORIRS_CHROME_MAX_WIDGETS )
             snprintf(s->text[cmd->widget], sizeof(s->text[0]), "%s", cmd->text);
         s->dirty = 1;
+        break;
+
+    case TORIRS_CHROME_CMD_CHECK_STYLE:
+        /* Every checkbox and every roster switch changes sprite AND size, and
+         * the label beside each one moves with it -- so this is a rebuild, not
+         * a repaint. Rare enough (a boot, or a settings change) that the cost
+         * is the honest one. */
+        if( s->check_style != cmd->value )
+        {
+            s->check_style = cmd->value;
+            s->dirty = 1;
+        }
         break;
 
     case TORIRS_CHROME_CMD_WIDGET_CHECKED:
@@ -1939,6 +2092,15 @@ chrome_cs2_apply(void* user, struct ToriRSChromeCmd const* cmd)
              * alone, which the WIDGET_TEXT beside it already carries as the
              * hex the field shows. */
             else if( mw && mw->kind == TORIRS_CHROME_W_COLORPICK )
+            {
+                s->selected[cmd->widget] = cmd->value;
+                s->dirty = 1;
+            }
+            /* ...and a TEXTAREA's is the first line of it that is on screen.
+             * This presentation draws its own lines, so without it a long list
+             * shows its opening four lines while the user types on the
+             * twelfth. @see the command's own note. */
+            else if( mw && mw->kind == TORIRS_CHROME_W_TEXTAREA )
             {
                 s->selected[cmd->widget] = cmd->value;
                 s->dirty = 1;
@@ -2268,6 +2430,7 @@ ToriRSChromeExecCs2_Click(int component_id)
             ToriRSChromeMirror_PushActivate(&s->mirror, w->panel, handle);
             return 1;
 
+        case TORIRS_CHROME_W_TEXTAREA:
         case TORIRS_CHROME_W_TEXTINPUT:
             /*
              * An activation, which the intent layer turns into FOCUS on the

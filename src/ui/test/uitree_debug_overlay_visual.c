@@ -23,6 +23,7 @@
  * Run: make -C src test-debug-overlay-visual
  */
 
+#include "ui/torirs_chrome_metrics.h"
 #include "ui/uitree_debug_overlay.h"
 #include "ui/uitree_emit.h"
 
@@ -712,6 +713,85 @@ visual_checkbox_skinned(void)
         "toggling swaps the cross for the tick");
 }
 
+/*
+ * The OTHER boolean: the bordered well, at its own size.
+ *
+ * Two claims, and the second is the one a screenshot would not settle. The art
+ * has to be the boxed pair rather than the tick pair -- pixel for pixel, so a
+ * slot mapping that came out one off fails here rather than in a browser. And
+ * the CONTROL has to be the size of that art: the well is 18 where the tick is
+ * 17, and a box left at 17 draws the well scaled, which is the speckled edge
+ * the whole bake exists to avoid.
+ */
+/** The box the display list reserved for `slot`, or 0 when it drew none. */
+static int
+check_prim_side(int slot)
+{
+    for( int i = 0; i < g_ui.prim_count; i++ )
+    {
+        struct ToriRSChromePrim const* p = &g_ui.prims[i];
+        if( p->kind == TORIRS_CHROME_PRIM_SPRITE && p->sprite_slot == slot )
+            return p->w;
+    }
+    return 0;
+}
+
+static void
+visual_checkbox_style_box(void)
+{
+    struct ToriRSChromeWidget const* on;
+    struct ToriRSChromeWidget const* off;
+    int panel;
+    int w_on;
+    int w_off;
+    int tick_side;
+
+    printf("VISUAL: checkboxes, the bordered-well style\n");
+    ToriRSChrome_Init(&g_ui);
+    g_ui.skin_avail = (1u << TORIRS_CHROME_SKIN_CHECK_ON) |
+                      (1u << TORIRS_CHROME_SKIN_CHECK_OFF) |
+                      (1u << TORIRS_CHROME_SKIN_CHECK_BOX_ON) |
+                      (1u << TORIRS_CHROME_SKIN_CHECK_BOX_OFF);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 30, 30, 200, "Toggles");
+    w_on = ToriRSChrome_Checkbox(&g_ui, panel, "'Bank tutorial' button", 1);
+    w_off = ToriRSChrome_Checkbox(&g_ui, panel, "Incinerator", 0);
+    ToriRSChrome_Build(&g_ui);
+    tick_side = check_prim_side(TORIRS_CHROME_SKIN_CHECK_ON);
+    VT_ASSERT(tick_side == TORIRS_CHROME_M_BOX, "the tick style reserves the tick's 17");
+
+    ToriRSChrome_SetCheckStyle(&g_ui, TORIRS_CHROME_CHECK_STYLE_BOX);
+    ToriRSChrome_Build(&g_ui);
+    render("28b_checkbox_style_box");
+
+    on = &g_ui.widgets[w_on];
+    off = &g_ui.widgets[w_off];
+
+    VT_ASSERT(
+        skinned_check_pixels(on, TORIRS_CHROME_SKIN_CHECK_BOX_ON) > 100,
+        "checked box is the baked tick-in-a-well, pixel for pixel");
+    VT_ASSERT(
+        skinned_check_pixels(off, TORIRS_CHROME_SKIN_CHECK_BOX_OFF) > 100,
+        "unchecked box is the baked empty well, pixel for pixel");
+    VT_ASSERT(
+        skinned_check_pixels(on, TORIRS_CHROME_SKIN_CHECK_ON) != 0,
+        "and it is NOT the tick pair (which would match at the same place)");
+    VT_ASSERT(
+        check_prim_side(TORIRS_CHROME_SKIN_CHECK_BOX_ON) == tick_side + 1,
+        "and the box grew with the art: 18 where the tick was 17");
+
+    /* Back again, because a style is a choice and not a one-way upgrade: the
+     * damage-and-dirty path has to run in both directions. */
+    ToriRSChrome_SetCheckStyle(&g_ui, TORIRS_CHROME_CHECK_STYLE_TICK);
+    ToriRSChrome_Build(&g_ui);
+    render("28c_checkbox_style_tick_again");
+    VT_ASSERT(
+        skinned_check_pixels(&g_ui.widgets[w_on], TORIRS_CHROME_SKIN_CHECK_ON) > 100,
+        "and switching back is the tick again, at the tick's own size");
+    VT_ASSERT(
+        check_prim_side(TORIRS_CHROME_SKIN_CHECK_ON) == tick_side,
+        "with the box back to where it was");
+}
+
 /* ---- 4. text input ------------------------------------------------------- */
 
 /*
@@ -790,6 +870,84 @@ visual_textinput(void)
     VT_ASSERT(
         count_eq(focused->x, focused->y, focused->w, focused->h, t->input_border_focus) > 0,
         "the focus border survives the off phase");
+}
+
+/*
+ * The multiline field, as the ground-items settings page uses two of them.
+ *
+ * Three things only pixels can settle: the body is the reference's flat
+ * 0x372e22 rather than the black a one-line field wears (a box this size at
+ * input_bg reads as a hole cut in the panel), the value is broken across
+ * SEVERAL lines instead of running off the right edge, and the caption sits
+ * above the box rather than in the label column.
+ */
+static void
+visual_textarea(void)
+{
+    struct ToriRSChromeTheme const* t = &g_ui.theme;
+    struct ToriRSChromeWidget const* area;
+    struct ToriRSChromeWidget const* quiet;
+    int panel;
+    int w_area;
+    int w_quiet;
+
+    printf("VISUAL: multiline text input\n");
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 30, 30, 240, "Ground Items");
+    ToriRSChrome_Checkbox(&g_ui, panel, "Ground Items Overlay", 1);
+    w_area = ToriRSChrome_TextArea(
+        &g_ui,
+        panel,
+        "Highlighted items",
+        "Abyssal whip, Dragon bones, Rune platebody, Twisted bow",
+        4);
+    w_quiet = ToriRSChrome_TextArea(
+        &g_ui, panel, "Filtered items", "Vial, Ashes, Coins, Bones, Bucket, Jug, Seaweed", 4);
+    ToriRSChrome_Build(&g_ui);
+
+    area = &g_ui.widgets[w_area];
+    quiet = &g_ui.widgets[w_quiet];
+    ToriRSChrome_MouseDown(&g_ui, area->x + 4, area->y + area->h - 4);
+    ToriRSChrome_MouseUp(&g_ui, area->x + 4, area->y + area->h - 4);
+    ToriRSChrome_SetCaretVisible(&g_ui, 1);
+    ToriRSChrome_Build(&g_ui);
+    render("05b_textarea");
+
+    VT_ASSERT(g_ui.focus == w_area, "clicking the box focuses it");
+    VT_ASSERT(
+        count_eq(area->x, area->y, area->w, area->h, t->textarea_bg) > 0,
+        "the box wears the reference's own body colour, not a one-line field's");
+    VT_ASSERT(
+        count_eq(area->x, area->y, area->w, area->h, t->dropdown_border) > 0,
+        "inside the settings frame");
+    VT_ASSERT(
+        count_eq(area->x, area->y, area->w, area->h, t->input_border_focus) > 0,
+        "and the focus ring says which box has the keyboard");
+
+    /*
+     * The value is on more than one LINE, checked band by band: a field that
+     * did not wrap would draw everything in the first line's band and clip the
+     * rest at the box edge, which is exactly what a one-line field does and
+     * exactly what this control exists not to do.
+     */
+    {
+        /*
+         * Measured on the UNFOCUSED box, and that is not incidental: the caret
+         * is a bar in the same colour as the text, a whole line box tall, and
+         * on the focused field it lights the second band on its own -- so this
+         * assertion passed there even with every line drawn on top of the
+         * first. The quiet box has no caret and nothing else white in it.
+         */
+        int const line_h = ToriRSChrome_FontLineBox(g_ui.theme.font_row, g_ui.scale);
+        int const first =
+            quiet->y + TORIRS_CHROME_M_ROW_H + 1 + TORIRS_CHROME_M_TEXTAREA_PAD_Y;
+        VT_ASSERT(
+            count_eq(quiet->x, first, quiet->w, line_h, t->input_text) > 0,
+            "the first line of the value is drawn");
+        VT_ASSERT(
+            count_eq(quiet->x, first + line_h, quiet->w, line_h, t->input_text) > 0,
+            "and it wraps onto a second rather than running off the edge");
+    }
 }
 
 /* ---- 5. damage rectangles ------------------------------------------------ */
@@ -2462,7 +2620,9 @@ main(void)
     visual_menu();
     visual_checkbox();
     visual_checkbox_skinned();
+    visual_checkbox_style_box();
     visual_textinput();
+    visual_textarea();
     visual_damage();
     visual_clipping();
     visual_kitchen_sink();

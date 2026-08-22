@@ -165,9 +165,10 @@ struct ChromeWeb
 {
     int open;
     struct ToriRSChromeMirror mirror;
-    /** One command's JSON, reused. Sized for the longest command: two 64-byte
-     *  strings plus the fixed fields and their escaping. */
-    char json[512];
+    /** One command's JSON, reused. Sized for the longest command: a label and
+     *  a value, each of which can double under escaping, plus the fixed fields
+     *  and their punctuation. */
+    char json[2 * (TORIRS_CHROME_LABEL_MAX + TORIRS_CHROME_TEXT_MAX) + 256];
 };
 
 static struct ChromeWeb g_chrome_web;
@@ -187,6 +188,13 @@ static int const k_web_skin_slots[] = {
     TORIRS_CHROME_SKIN_DROPDOWN_BODY,
     TORIRS_CHROME_SKIN_CHECK_ON,
     TORIRS_CHROME_SKIN_CHECK_OFF,
+    /* BOTH boolean pairs, always -- the page is told which to wear by a
+     * command that can arrive at any time (TORIRS_CHROME_CMD_CHECK_STYLE), and
+     * a style change that had to wait for a base64 blob to cross the wall
+     * would repaint the window in two steps. Two 18x18 sprites is a kilobyte
+     * of base64, once, at open. */
+    TORIRS_CHROME_SKIN_CHECK_BOX_ON,
+    TORIRS_CHROME_SKIN_CHECK_BOX_OFF,
     TORIRS_CHROME_SKIN_SCROLL_UP,
     TORIRS_CHROME_SKIN_SCROLL_DOWN,
     TORIRS_CHROME_SKIN_SCROLL_TRACK,
@@ -297,22 +305,29 @@ chrome_web_sprite_b64(struct ToriRSChromeSkin_Sprite const* spr)
 static void
 chrome_web_push_skin(void)
 {
-    char json[512];
+    /* One JSON object of two dozen small integers. Generous, because a
+     * truncated snprintf here is not a short message -- it is malformed JSON,
+     * which the page's JSON.parse throws on, so the metrics never arrive at
+     * all and every row lays out on the fallback stylesheet. */
+    char json[768];
 
     snprintf(
         json,
         sizeof(json),
         "{\"pad\":%d,\"rowH\":%d,\"rowGap\":%d,\"labelW\":%d,\"box\":%d,"
+        "\"boxSquare\":%d,"
         "\"checkGap\":%d,\"toggleW\":%d,\"toggleH\":%d,\"rowIcon\":%d,"
         "\"rowIconGap\":%d,\"rowNameGap\":%d,\"dot\":%d,\"dotPitch\":%d,"
         "\"dotInset\":%d,\"scrollW\":%d,\"swatch\":%d,\"swatchGap\":%d,"
         "\"frame\":%d,\"frameCorner\":%d,\"tabH\":%d,\"tabPadX\":%d,\"fieldPadX\":%d,"
-        "\"fieldInset\":%d,\"dropArrow\":%d}",
+        "\"fieldInset\":%d,\"dropArrow\":%d,\"textareaRows\":%d,"
+        "\"textareaLine\":%d,\"textareaPadY\":%d}",
         TORIRS_CHROME_M_PAD,
         TORIRS_CHROME_M_ROW_H,
         TORIRS_CHROME_M_ROW_GAP,
         TORIRS_CHROME_M_LABEL_W,
         TORIRS_CHROME_M_BOX,
+        TORIRS_CHROME_M_BOX_SQUARE,
         TORIRS_CHROME_M_CHECK_GAP,
         TORIRS_CHROME_M_TOGGLE_W,
         TORIRS_CHROME_M_TOGGLE_H,
@@ -331,7 +346,10 @@ chrome_web_push_skin(void)
         TORIRS_CHROME_M_TAB_PAD_X,
         TORIRS_CHROME_M_FIELD_PAD_X,
         TORIRS_CHROME_M_FIELD_INSET,
-        TORIRS_CHROME_M_DROP_ARROW);
+        TORIRS_CHROME_M_DROP_ARROW,
+        TORIRS_CHROME_M_TEXTAREA_ROWS,
+        TORIRS_CHROME_M_TEXTAREA_LINE,
+        TORIRS_CHROME_M_TEXTAREA_PAD_Y);
     web_chrome_skin_metrics(json);
 
     for( int i = 0; i < (int)(sizeof(k_web_skin_slots) / sizeof(k_web_skin_slots[0])); i++ )
@@ -384,9 +402,20 @@ chrome_web_end(void* user)
     s->open = 0;
 }
 
-/** JSON-escape into `dst`; only the two characters a chrome string can carry
- *  that JSON cannot. Labels and values are plain bytes from a config store or
- *  a plugin, so there is no wider grammar to defend against here. */
+/**
+ * JSON-escape into `dst`.
+ *
+ * The quote and the backslash, and the CONTROL BYTES -- which JSON forbids
+ * inside a string literal outright, so one of them does not corrupt a value on
+ * the far side, it makes JSON.parse throw and the whole command vanish. A
+ * multiline field's value is full of '\n', which is exactly how that was
+ * found: every panel holding one went silent the moment a line was typed.
+ *
+ * A control byte with no short escape is DROPPED rather than written as \u00XX.
+ * Nothing this seam carries has a use for one -- the model's own KeyChar
+ * refuses everything below 0x20 -- and a six-character escape is a length this
+ * fixed buffer would have to budget for on every byte.
+ */
 static void
 chrome_web_escape(char* dst, int cap, char const* src)
 {
@@ -395,8 +424,33 @@ chrome_web_escape(char* dst, int cap, char const* src)
         src = "";
     for( int i = 0; src[i] && o < cap - 2; i++ )
     {
-        if( src[i] == '"' || src[i] == '\\' )
+        char esc = 0;
+        switch( src[i] )
+        {
+        case '"':
+        case '\\':
+            esc = src[i];
+            break;
+        case '\n':
+            esc = 'n';
+            break;
+        case '\r':
+            esc = 'r';
+            break;
+        case '\t':
+            esc = 't';
+            break;
+        default:
+            break;
+        }
+        if( esc )
+        {
             dst[o++] = '\\';
+            dst[o++] = esc;
+            continue;
+        }
+        if( (unsigned char)src[i] < 0x20 )
+            continue;
         dst[o++] = src[i];
     }
     dst[o] = '\0';
@@ -406,8 +460,10 @@ static void
 chrome_web_apply(void* user, struct ToriRSChromeCmd const* cmd)
 {
     struct ChromeWeb* s = user;
-    char label[TORIRS_CHROME_LABEL_MAX * 2];
-    char text[TORIRS_CHROME_TEXT_MAX * 2];
+    /* Every byte can double under escaping, so the room is 2n -- plus the
+     * terminator, which the doubling alone does not leave. */
+    char label[TORIRS_CHROME_LABEL_MAX * 2 + 1];
+    char text[TORIRS_CHROME_TEXT_MAX * 2 + 1];
 
     assert(s);
     assert(cmd);
@@ -484,9 +540,32 @@ chrome_web_str(char const* json, char const* key, char* out, int cap)
     at += strlen(pattern);
     while( *at && *at != '"' && o < cap - 1 )
     {
-        if( *at == '\\' && at[1] )
-            at++;
-        out[o++] = *at++;
+        if( *at != '\\' || !at[1] )
+        {
+            out[o++] = *at++;
+            continue;
+        }
+        /* The escapes chrome_web_escape writes, read back. Turning "\\n" into a
+         * literal 'n' -- which skipping the backslash and copying the next byte
+         * does -- silently rewrites every line break in a multiline field into
+         * the letter n, and the value still looks plausible. */
+        at++;
+        switch( *at )
+        {
+        case 'n':
+            out[o++] = '\n';
+            break;
+        case 'r':
+            out[o++] = '\r';
+            break;
+        case 't':
+            out[o++] = '\t';
+            break;
+        default:
+            out[o++] = *at;
+            break;
+        }
+        at++;
     }
     out[o] = '\0';
 }

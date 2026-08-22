@@ -521,6 +521,29 @@ app_plugin_panel_sync(struct App* app)
                     item->label,
                     app_plugin_color_hsl(app_plugin_panel_value(app, p, item->key)));
             }
+            else if( item->type == TORIRS_PLUGIN_CFG_TEXT )
+            {
+                /*
+                 * A declared LIST is a multiline box, for the same reason a
+                 * declared enum is a real dropdown: the schema already says
+                 * what shape this value has.
+                 *
+                 * The one that made this necessary is the ground-items
+                 * highlight and hide lists -- comma-separated runs of item
+                 * names that the user is expected to maintain. In a 60px
+                 * one-line field about a word and a half of that is on screen
+                 * at a time, so changing one entry means arrowing sideways
+                 * through the rest. The reference client gives exactly these
+                 * two lists a box several lines tall (interface 650), and this
+                 * is the schema saying so.
+                 */
+                widget = ToriRSChrome_TextArea(
+                    &app->plugin_ui,
+                    app->plugin_panel,
+                    item->label,
+                    app_plugin_panel_value(app, p, item->key),
+                    item->rows);
+            }
             else
             {
                 /* Ints and strings edit as text, because the store is textual

@@ -11,6 +11,7 @@
  */
 #include "test_harness.h"
 
+#include "torirs_chrome_metrics.h"
 #include "uitree_debug_font_metrics.h"
 #include "uitree_debug_overlay.h"
 
@@ -552,6 +553,131 @@ test_debug_overlay_textinput(void)
     ToriRSChrome_Build(&g_ui);
     ToriRSChrome_SetCaretVisible(&g_ui, 1);
     TEST_ASSERT(ToriRSChrome_Build(&g_ui) == 1, "blink with focus repaints");
+}
+
+
+/*
+ * The multiline field: wrapping, the four keys that differ from a one-line
+ * field's, the caret a click places, and the box that follows it.
+ *
+ * WHY THE WRAP IS TESTED FROM THE OUTSIDE. ToriRSChrome_WrapText is public
+ * because the CS2 executor breaks the same string for the same box and the two
+ * have to agree about where the breaks are; a wrap that only the draw could see
+ * would let them drift with nothing failing.
+ */
+static void
+test_debug_overlay_textarea(void)
+{
+    int panel;
+    int area;
+    int one;
+    int starts[8];
+    int lens[8];
+    int n;
+    int line_h;
+
+    /* ---- the wrap, on its own ---- */
+    n = ToriRSChrome_WrapText(TORIRS_CHROME_FONT_SMALL, 1, "", 100, starts, lens, 8);
+    TEST_ASSERT(n == 1 && lens[0] == 0, "an empty value is one empty line");
+
+    n = ToriRSChrome_WrapText(TORIRS_CHROME_FONT_SMALL, 1, "a\nb", 1000, starts, lens, 8);
+    TEST_ASSERT(n == 2, "a hard newline breaks a line");
+    TEST_ASSERT(starts[0] == 0 && lens[0] == 1, "and is not part of the line before it");
+    TEST_ASSERT(starts[1] == 2 && lens[1] == 1, "nor of the one after");
+
+    n = ToriRSChrome_WrapText(TORIRS_CHROME_FONT_SMALL, 1, "a\n", 1000, starts, lens, 8);
+    TEST_ASSERT(n == 2 && lens[1] == 0, "a trailing newline still opens a line");
+
+    /* Narrow enough that "aaa bbb" cannot be one line: the break goes after the
+     * space, so the slices stay contiguous and a caret offset is still on
+     * exactly one of them. */
+    {
+        int const w = ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_SMALL, 1, "aaa b");
+        n = ToriRSChrome_WrapText(TORIRS_CHROME_FONT_SMALL, 1, "aaa bbb", w, starts, lens, 8);
+        TEST_ASSERT(n == 2, "a line too long for the box wraps");
+        TEST_ASSERT(starts[1] == starts[0] + lens[0], "wrapped slices are contiguous");
+        TEST_ASSERT(lens[0] == 4, "the break goes after the space, not through the word");
+    }
+
+    /* A single word wider than the box has nowhere to break BETWEEN words, and
+     * must break inside it rather than loop or run off the edge. */
+    {
+        int const w = ToriRSChrome_MeasureText(TORIRS_CHROME_FONT_SMALL, 1, "aa");
+        n = ToriRSChrome_WrapText(TORIRS_CHROME_FONT_SMALL, 1, "aaaaaa", w, starts, lens, 8);
+        TEST_ASSERT(n > 1, "an unbreakable word still wraps");
+        TEST_ASSERT(lens[0] > 0, "and every line consumes at least one byte");
+    }
+
+    /* ---- the widget ---- */
+    ToriRSChrome_Init(&g_ui);
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 8, 0, "Ground Items");
+    area = ToriRSChrome_TextArea(&g_ui, panel, "Highlighted items", "ab", 3);
+    one = ToriRSChrome_TextInput(&g_ui, panel, "cmd", "");
+    ToriRSChrome_Build(&g_ui);
+    line_h = ToriRSChrome_FontLineBox(g_ui.theme.font_row, g_ui.scale);
+
+    TEST_ASSERT(
+        g_ui.widgets[area].h > g_ui.widgets[one].h,
+        "a multiline row is taller than a one-line one");
+    TEST_ASSERT(
+        g_ui.widgets[area].h == TORIRS_CHROME_M_ROW_H + 3 * line_h +
+                                    2 * TORIRS_CHROME_M_TEXTAREA_PAD_Y + 2,
+        "and exactly its caption band plus its own three lines");
+
+    /* A click inside the box focuses it and puts the caret WHERE IT LANDED --
+     * the one thing a one-line field does differently, because a list long
+     * enough to need this control is one the user is reaching into. */
+    ToriRSChrome_MouseDown(
+        &g_ui, g_ui.widgets[area].x + 2, g_ui.widgets[area].y + TORIRS_CHROME_M_ROW_H + 4);
+    TEST_ASSERT(g_ui.focus == area, "click focuses the box");
+    TEST_ASSERT(g_ui.widgets[area].caret == 0, "a click at the left edge lands at column 0");
+
+    ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_END);
+    TEST_ASSERT(g_ui.widgets[area].caret == 2, "end goes to the end of the LINE");
+
+    /* Enter INSERTS. A one-line field commits on it, and a multiline field that
+     * did the same would have no way to type a second line at all. */
+    ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_ENTER);
+    TEST_ASSERT(strcmp(ToriRSChrome_Text(&g_ui, area), "ab\n") == 0, "enter inserts a newline");
+    TEST_ASSERT(ToriRSChrome_TakeActivated(&g_ui) == -1, "and does not commit");
+
+    ToriRSChrome_KeyChar(&g_ui, 'c');
+    TEST_ASSERT(strcmp(ToriRSChrome_Text(&g_ui, area), "ab\nc") == 0, "typing on the new line");
+
+    ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_HOME);
+    TEST_ASSERT(g_ui.widgets[area].caret == 3, "home goes to the start of the LINE");
+
+    ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_UP);
+    TEST_ASSERT(g_ui.widgets[area].caret == 0, "up moves a line, keeping the column");
+    ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_UP);
+    TEST_ASSERT(g_ui.widgets[area].caret == 0, "up from the first line is a no-op");
+    ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_DOWN);
+    TEST_ASSERT(g_ui.widgets[area].caret == 3, "down moves back");
+
+    /* A column past the end of the target line clamps to it rather than
+     * landing in the middle of the line after. */
+    ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_END);
+    ToriRSChrome_SetText(&g_ui, area, "abcdef\ng");
+    g_ui.widgets[area].caret = 6;
+    ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_DOWN);
+    TEST_ASSERT(g_ui.widgets[area].caret == 8, "a short line clamps the column");
+
+    /* The box follows the caret: more lines than it shows scrolls it, and a
+     * value that shrinks scrolls it back rather than leaving it past the end. */
+    ToriRSChrome_SetText(&g_ui, area, "1\n2\n3\n4\n5");
+    g_ui.widgets[area].caret = (int)strlen(ToriRSChrome_Text(&g_ui, area));
+    ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_END);
+    TEST_ASSERT(g_ui.widgets[area].scroll == 2, "the last line of five is in a three-line box");
+    ToriRSChrome_SetText(&g_ui, area, "1");
+    TEST_ASSERT(g_ui.widgets[area].scroll == 0, "a shorter value scrolls back into view");
+
+    /* Up and down mean nothing to a one-line field, and must not be swallowed
+     * there -- the host has other uses for an arrow key. */
+    ToriRSChrome_MouseDown(&g_ui, g_ui.widgets[one].x + 2, g_ui.widgets[one].y + 2);
+    TEST_ASSERT(g_ui.focus == one, "focus the one-line field");
+    TEST_ASSERT(
+        !ToriRSChrome_KeyEdit(&g_ui, TORIRS_CHROME_KEY_UP),
+        "a one-line field does not consume up");
 }
 
 /* Layout: rows stack in insertion order, the panel sizes to its widest row, and
@@ -1115,6 +1241,7 @@ test_debug_overlay(void)
     test_debug_overlay_border();
     test_debug_overlay_checkbox();
     test_debug_overlay_textinput();
+    test_debug_overlay_textarea();
     test_debug_overlay_layout();
     test_debug_overlay_capacity();
     test_debug_overlay_emit_pass();

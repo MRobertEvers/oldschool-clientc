@@ -1155,6 +1155,9 @@ npc_spawn_now(struct Task_ExecNpcInfo* self)
             npc->server_slot = self->cur_slot;
             element_id = npc->element_id;
             RS_EntitySync_RegisterNpc(&app->esync, self->cur_slot, element_id, idx);
+            /* The cache's own "an npc appeared" script, now that the npc
+             * carries the uid every op keys on. See game/rs_client_trigger.h. */
+            App_ClientTriggerNpcAdd(app, idx);
         }
         npc_trace(
             app, self->pending_npc_type, self->cur_slot, -1, idx, element_id, "SPAWNED", 1);

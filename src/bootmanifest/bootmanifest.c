@@ -668,6 +668,23 @@ bm_set_kv(
             bm->chrome_scale = scale;
             return;
         }
+        if( strcmp(key, "chrome_checkbox") == 0 )
+        {
+            /* Which of the interfaces' two booleans the chrome's checkboxes
+             * wear -- enum ToriRSChromeCheckStyle. Named rather than numbered
+             * because the file is read by people: `box` is the bordered well,
+             * `tick` the settings page's green tick and red cross. */
+            if( strcmp(value, "tick") == 0 )
+                bm->chrome_checkbox = 1;
+            else if( strcmp(value, "box") == 0 )
+                bm->chrome_checkbox = 2;
+            else
+                fprintf(
+                    stderr,
+                    "bootmanifest: [ui] chrome_checkbox must be tick|box, got '%s'\n",
+                    value);
+            return;
+        }
         if( strcmp(key, "hidpi") == 0 )
         {
             /* Tri-state, so "the manifest said no" is distinguishable from
@@ -1427,6 +1444,12 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->window_mode = bm->window_mode;
     if( bm->chrome_scale )
         cfg->chrome_scale = bm->chrome_scale;
+    /* Stored one past the enum so "the manifest said tick" is distinguishable
+     * from "the manifest said nothing" -- the same tri-state shape hidpi uses,
+     * and for the same reason: a key that can only turn the non-default ON is
+     * a key nobody can use to turn it off again. */
+    if( bm->chrome_checkbox )
+        cfg->chrome_checkbox = bm->chrome_checkbox - 1;
     if( bm->hidpi )
         cfg->hidpi = bm->hidpi;
     if( bm->window_w > 0 && bm->window_h > 0 )

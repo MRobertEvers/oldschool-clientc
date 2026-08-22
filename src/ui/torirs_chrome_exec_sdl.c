@@ -316,6 +316,8 @@ _Static_assert((int)PLATFORM_AUX_KEY_HOME == (int)TORIRS_CHROME_KEY_HOME, "aux k
 _Static_assert((int)PLATFORM_AUX_KEY_END == (int)TORIRS_CHROME_KEY_END, "aux key: end");
 _Static_assert((int)PLATFORM_AUX_KEY_ENTER == (int)TORIRS_CHROME_KEY_ENTER, "aux key: enter");
 _Static_assert((int)PLATFORM_AUX_KEY_ESCAPE == (int)TORIRS_CHROME_KEY_ESCAPE, "aux key: esc");
+_Static_assert((int)PLATFORM_AUX_KEY_UP == (int)TORIRS_CHROME_KEY_UP, "aux key: up");
+_Static_assert((int)PLATFORM_AUX_KEY_DOWN == (int)TORIRS_CHROME_KEY_DOWN, "aux key: down");
 
 static int
 chrome_sdl_surface_input(void* user, struct ToriRSChromeSurfaceInput* out)

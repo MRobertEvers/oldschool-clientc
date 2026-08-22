@@ -51,6 +51,12 @@ typedef struct {
 #define BS_AUTOCHECKBOX 1
 #define BS_PUSHBUTTON 2
 #define ES_AUTOHSCROLL 4
+/* The multiline EDIT's three, for the chrome's TEXTAREA row. Values are
+ * arbitrary here -- this stub proves the C parses and that our calls match our
+ * own declarations, never that a Win32 constant is the right number. */
+#define ES_MULTILINE 1024
+#define ES_AUTOVSCROLL 2048
+#define ES_WANTRETURN 4096
 #define SS_LEFT 8
 #define SS_ETCHEDHORZ 16
 #define SS_NOTIFY 256

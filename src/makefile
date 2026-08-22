@@ -473,7 +473,6 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	plugin/torirs_plugin_host.c plugin/torirs_plugin_registry.c \
 	plugin/torirs_plugin_lua.c plugin/task_plugin_io.c \
 	plugin/plugins/tileind.c \
-	plugin/plugins/nxt_npc_names.c \
 	plugin/plugins/nxt_poll_booths.c plugin/plugins/nxt_highlight.c \
 	plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
 	painters/painters.c \
@@ -1463,6 +1462,14 @@ test-highlight: $(OBJ_DIR) game/rs_highlight.c game/test/rs_highlight_test.c
 # because the two things most likely to be wrong -- which KIND an opcode
 # belongs to, and whether a context getter answers when it should not -- both
 # show up only as "the row does nothing".
+# Client triggers + the scripted-overlay store. Both are pure state modules, so
+# this needs no cache and no renderer -- but the trigger hashes ARE checked
+# against real cache.osrs239 group identifiers (see the file).
+test-client-trigger: $(OBJ_DIR) game/rs_client_trigger.c game/rs_entity_overlay.c game/test/rs_client_trigger_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_client_trigger_test \
+		game/rs_client_trigger.c game/rs_entity_overlay.c game/test/rs_client_trigger_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_client_trigger_test
+
 test-clientop: $(OBJ_DIR) game/rs_clientop.c game/test/rs_clientop_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_clientop_test \
 		game/rs_clientop.c game/test/rs_clientop_test.c $(LDFLAGS)
@@ -1475,7 +1482,6 @@ test-clientop: $(OBJ_DIR) game/rs_clientop.c game/test/rs_clientop_test.c
 test-nxt-plugins: $(OBJ_DIR) plugin/test/nxt_activities_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/nxt_activities_test \
 		plugin/torirs_plugin_host.c ui/uitree_minimenu.c \
-			plugin/plugins/nxt_npc_names.c \
 		plugin/plugins/nxt_poll_booths.c plugin/plugins/nxt_highlight.c \
 		plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
 		plugin/test/nxt_activities_test.c $(LDFLAGS)
@@ -1942,7 +1948,8 @@ test-uitree: $(OBJ_DIR)
 		ui/torirs_chrome_mirror.c \
 		ui/test/uitree_test_chrome_cs2.c ui/torirs_chrome_exec_cs2.c \
 		$(CHROME_EXEC_TEST_CFLAGS) \
-		ui/test/uitree_test_entity_overlay_order.c
+		ui/test/uitree_test_entity_overlay_order.c \
+		ui/test/uitree_test_scripted_overlay.c
 	./$(OBJ_DIR)/uitree_test
 
 # Font markup grammar + the rules it strokes (<str>, <u>), rasterised into a

@@ -266,6 +266,42 @@ main(void)
         CHECK(opaque > 100, "the OFF slot has a mark on it");
         CHECK(red > 20, "the OFF slot decodes to a RED cross");
         CHECK(red > green, "and the red outweighs the green");
+
+        /*
+         * The other boolean the page can be told to wear.
+         *
+         * Its OFF is an EMPTY well rather than a second mark, so the pair is
+         * asserted the other way round from the one above: what says the two
+         * slots are not each other is that one has a green tick in it and the
+         * other has no green at all. A bake with them swapped satisfies "both
+         * are 18x18 wells" and nothing else here.
+         */
+        mark_hues(TORIRS_CHROME_SKIN_CHECK_BOX_ON, &green, &red, &opaque);
+        CHECK(opaque > 100, "the boxed ON slot is a filled well");
+        CHECK(green > 20, "with a GREEN tick in it");
+        CHECK(green > red, "and the green outweighs the red");
+
+        mark_hues(TORIRS_CHROME_SKIN_CHECK_BOX_OFF, &green, &red, &opaque);
+        CHECK(opaque > 100, "the boxed OFF slot is a well of the same weight");
+        CHECK(green < 5, "and it is EMPTY -- no tick, and no cross either");
+
+        {
+            int sends_on = 0;
+            int sends_off = 0;
+            for( int i = 0;
+                 i < (int)(sizeof(k_web_skin_slots) / sizeof(k_web_skin_slots[0])); i++ )
+            {
+                if( k_web_skin_slots[i] == TORIRS_CHROME_SKIN_CHECK_BOX_ON )
+                    sends_on = 1;
+                if( k_web_skin_slots[i] == TORIRS_CHROME_SKIN_CHECK_BOX_OFF )
+                    sends_off = 1;
+            }
+            /* BOTH pairs cross at open, always: the style command can arrive on
+             * any frame and a page that had to wait for a base64 blob would
+             * repaint the window in two steps. */
+            CHECK(sends_on, "the page is sent the boxed tick");
+            CHECK(sends_off, "and the empty well beside it");
+        }
     }
 
     if( g_failures )

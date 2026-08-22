@@ -1856,6 +1856,11 @@ lua_read_config_item(struct LuaScript* script, lua_State* L, int idx, int slot)
         item->type = TORIRS_PLUGIN_CFG_COLOR;
     else if( strcmp(type, "enum") == 0 )
         item->type = TORIRS_PLUGIN_CFG_ENUM;
+    /* The same value a "string" holds, edited in a multiline box: a list a
+     * plugin expects the user to actually maintain. @see
+     * TORIRS_PLUGIN_CFG_TEXT. */
+    else if( strcmp(type, "text") == 0 )
+        item->type = TORIRS_PLUGIN_CFG_TEXT;
     else
         item->type = TORIRS_PLUGIN_CFG_STRING;
     lua_pop(L, 1);
@@ -1891,6 +1896,12 @@ lua_read_config_item(struct LuaScript* script, lua_State* L, int idx, int slot)
         snprintf(choices, PLUGIN_LUA_STR_MAX, "%s", lua_tostring(L, -1));
         item->choices = choices;
     }
+    lua_pop(L, 1);
+
+    /* CFG_TEXT's box height. 0 means the chrome's own default, which is what a
+     * declaration with no opinion gets; the chrome clamps whatever arrives. */
+    lua_getfield(L, idx, "rows");
+    item->rows = (int)luaL_optinteger(L, -1, 0);
     lua_pop(L, 1);
     return true;
 }

@@ -90,7 +90,10 @@ static char const CHROME_GDI_WNDCLASS[] = "TorirsChromeToolWindow";
 #define CHROME_GDI_LABEL_W CHROME_GDI_PX(TORIRS_CHROME_M_LABEL_W)
 #define CHROME_GDI_TAB_H CHROME_GDI_PX(TORIRS_CHROME_M_TAB_H)
 #define CHROME_GDI_TAB_W CHROME_GDI_PX(48)
-#define CHROME_GDI_BOX CHROME_GDI_PX(TORIRS_CHROME_M_BOX)
+/** Checkbox edge at 1x, for the art this window was told to wear -- @see
+ *  chrome_gdi_box. A macro would have to name a style it cannot see. */
+#define CHROME_GDI_BOX_TICK CHROME_GDI_PX(TORIRS_CHROME_M_BOX)
+#define CHROME_GDI_BOX_SQUARE CHROME_GDI_PX(TORIRS_CHROME_M_BOX_SQUARE)
 #define CHROME_GDI_CHECK_GAP CHROME_GDI_PX(TORIRS_CHROME_M_CHECK_GAP)
 #define CHROME_GDI_TOGGLE_W CHROME_GDI_PX(TORIRS_CHROME_M_TOGGLE_W)
 #define CHROME_GDI_ROW_ICON CHROME_GDI_PX(TORIRS_CHROME_M_ROW_ICON)
@@ -109,6 +112,11 @@ static char const CHROME_GDI_WNDCLASS[] = "TorirsChromeToolWindow";
 #define CHROME_GDI_FIELD_PAD_X CHROME_GDI_PX(TORIRS_CHROME_M_FIELD_PAD_X)
 #define CHROME_GDI_FIELD_INSET CHROME_GDI_PX(TORIRS_CHROME_M_FIELD_INSET)
 #define CHROME_GDI_RULE CHROME_GDI_PX(1)
+/** A multiline field's own two numbers. @see TORIRS_CHROME_M_TEXTAREA_LINE --
+ *  the pitch is authored rather than measured because this window lays out in
+ *  the shared metrics and asks the EDIT nothing. */
+#define CHROME_GDI_TEXTAREA_LINE CHROME_GDI_PX(TORIRS_CHROME_M_TEXTAREA_LINE)
+#define CHROME_GDI_TEXTAREA_PAD_Y CHROME_GDI_PX(TORIRS_CHROME_M_TEXTAREA_PAD_Y)
 
 /** Opening size: the label column, a field beside it, and the pads. The window
  *  is resizable; this is only where it starts. */
@@ -158,6 +166,13 @@ struct ChromeGdi
     int tab_count;
     HWND tab_buttons[16];
     /**
+     * enum ToriRSChromeCheckStyle, as TORIRS_CHROME_CMD_CHECK_STYLE last said.
+     *
+     * Held rather than read off a model: this executor cannot see one. Zero is
+     * TICK, so a client too old to send the command draws what it always drew.
+     */
+    int check_style;
+    /**
      * A COLORPICK's sample: the STATIC in front of its EDIT, and the brush
      * WM_CTLCOLORSTATIC hands back for it.
      *
@@ -198,6 +213,10 @@ struct ChromeGdi
      */
     unsigned char checked[TORIRS_CHROME_MAX_WIDGETS];
     unsigned char row_action[TORIRS_CHROME_MAX_WIDGETS];
+    /** A TEXTAREA's line count -- the other half of the ADD's shape fields.
+     *  The layout needs it, because a multiline row is the one row here that is
+     *  not CHROME_GDI_ROW_H tall. */
+    unsigned char rows[TORIRS_CHROME_MAX_WIDGETS];
     /**
      * The skin, once.
      *
@@ -484,6 +503,74 @@ chrome_gdi_field(struct ChromeGdi* s, HDC dc, int x, int y, int w, int h)
         h - 2 * CHROME_GDI_RULE, TORIRS_CHROME_C_FRAME_INSET);
 }
 
+/**
+ * A multiline field's box, and the whole row it makes.
+ *
+ * The field itself is `rows` lines plus its padding; the ROW is that with the
+ * caption band above it, because a multiline row wears its caption on a line of
+ * its own rather than in the label column. @see TORIRS_CHROME_W_TEXTAREA.
+ */
+static int
+chrome_gdi_textarea_h(struct ChromeGdi const* s, int widget)
+{
+    int const rows = s->rows[widget] > 0 ? s->rows[widget] : TORIRS_CHROME_M_TEXTAREA_ROWS;
+    return rows * CHROME_GDI_TEXTAREA_LINE + 2 * CHROME_GDI_TEXTAREA_PAD_Y +
+           2 * CHROME_GDI_RULE;
+}
+
+/** Total height of one row. CHROME_GDI_ROW_H for every kind but one -- and the
+ *  fit is why this exists: the placement and the advance have to agree. */
+static int
+chrome_gdi_row_h(struct ChromeGdi const* s, int kind, int widget)
+{
+    if( kind != TORIRS_CHROME_W_TEXTAREA )
+        return CHROME_GDI_ROW_H;
+    return (s->label[widget] ? CHROME_GDI_ROW_H : 0) + chrome_gdi_textarea_h(s, widget);
+}
+
+/* ---- line endings ---------------------------------------------------------
+ *
+ * The model's newline is '\n' and an EDIT control's is "\r\n", and neither
+ * side may see the other's. Text written into the control without the '\r'
+ * draws as one run with a box glyph where the break should be; text read back
+ * WITH it puts a stray '\r' into every plugin config value -- which is then
+ * written to the ini and read back by whatever the plugin does with it.
+ *
+ * Truncation is a plain clamp rather than an assert: a value grown past the
+ * cap by its own line endings is the control's doing, not a caller's contract
+ * violation, and the model's cap is what decides how much of it survives.
+ */
+
+/** '\n' -> "\r\n", for text going INTO a control. */
+static void
+chrome_gdi_to_crlf(char* dst, int cap, char const* src)
+{
+    int o = 0;
+
+    if( !src )
+        src = "";
+    for( int i = 0; src[i] && o < cap - 1; i++ )
+    {
+        if( src[i] == '\n' && o < cap - 2 )
+            dst[o++] = '\r';
+        dst[o++] = src[i];
+    }
+    dst[o] = '\0';
+}
+
+/** "\r\n" -> '\n', for text coming back OUT of one. A lone '\r' goes too:
+ *  the model has no use for one and the store it feeds has less. */
+static void
+chrome_gdi_to_lf(char* dst, int cap, char const* src)
+{
+    int o = 0;
+
+    for( int i = 0; src[i] && o < cap - 1; i++ )
+        if( src[i] != '\r' )
+            dst[o++] = src[i];
+    dst[o] = '\0';
+}
+
 /* ---- layout --------------------------------------------------------------- */
 
 /**
@@ -583,12 +670,13 @@ chrome_gdi_layout(struct ChromeGdi* s)
         int const i = order[oi];
         struct ToriRSChromeMirrorWidget* w = ToriRSChromeMirror_Widget(&s->mirror, i);
         HWND control;
-        int const row_h = CHROME_GDI_ROW_H;
+        int row_h;
         int x = CHROME_GDI_FRAME + CHROME_GDI_PAD;
         int row_w = width - 2 * CHROME_GDI_PAD;
 
         if( !w || !w->native )
             continue;
+        row_h = chrome_gdi_row_h(s, w->kind, i);
         control = (HWND)w->native;
 
         if( !ToriRSChromeMirror_Shown(&s->mirror, i) )
@@ -636,6 +724,36 @@ chrome_gdi_layout(struct ChromeGdi* s)
                     CHROME_GDI_ROW_ICON, SWP_NOZORDER | SWP_SHOWWINDOW);
             dwp = DeferWindowPos(
                 dwp, control, NULL, tog_x, y, CHROME_GDI_TOGGLE_W, row_h,
+                SWP_NOZORDER | SWP_SHOWWINDOW);
+            y += row_h + CHROME_GDI_ROW_GAP;
+            continue;
+        }
+
+        /*
+         * A multiline row: the caption on a line of its own, the box under it
+         * across the whole column.
+         *
+         * Before the label-column branch below, not inside it, because this
+         * row does not use that column at all -- 104 pixels of caption beside
+         * a four-line list takes the width the list is for. @see
+         * TORIRS_CHROME_W_TEXTAREA.
+         */
+        if( w->kind == TORIRS_CHROME_W_TEXTAREA )
+        {
+            int const cap_h = s->label[i] ? CHROME_GDI_ROW_H : 0;
+
+            if( s->label[i] )
+                dwp = DeferWindowPos(
+                    dwp, s->label[i], NULL, x, y, row_w, CHROME_GDI_ROW_H,
+                    SWP_NOZORDER | SWP_SHOWWINDOW);
+            /* Inset inside its field box for the same reason a one-line EDIT
+             * is: the parent draws the frame under it in WM_ERASEBKGND, and a
+             * control sitting exactly on the box covers it. */
+            dwp = DeferWindowPos(
+                dwp, control, NULL, x + CHROME_GDI_FIELD_PAD_X,
+                y + cap_h + CHROME_GDI_TEXTAREA_PAD_Y,
+                row_w - 2 * CHROME_GDI_FIELD_PAD_X,
+                chrome_gdi_textarea_h(s, i) - 2 * CHROME_GDI_TEXTAREA_PAD_Y,
                 SWP_NOZORDER | SWP_SHOWWINDOW);
             y += row_h + CHROME_GDI_ROW_GAP;
             continue;
@@ -734,6 +852,16 @@ chrome_gdi_text(HDC dc, RECT box, char const* text, uint32_t rgb, UINT align)
         align | DT_VCENTER | DT_SINGLELINE | DT_END_ELLIPSIS);
 }
 
+/** Edge of the box a checkbox reserves, for the art this window was told to
+ *  wear -- sized to the sprite, because these blit at 1:1 or nearest-neighbour
+ *  and an off-size one speckles. */
+static int
+chrome_gdi_box(struct ChromeGdi const* s)
+{
+    return s->check_style == TORIRS_CHROME_CHECK_STYLE_BOX ? CHROME_GDI_BOX_SQUARE
+                                                           : CHROME_GDI_BOX_TICK;
+}
+
 /**
  * The interfaces' on/off pair, right-aligned in whatever box it is given.
  *
@@ -746,9 +874,10 @@ chrome_gdi_text(HDC dc, RECT box, char const* text, uint32_t rgb, UINT align)
 static void
 chrome_gdi_draw_mark(struct ChromeGdi* s, HDC dc, RECT box, int on)
 {
-    int const slot = on ? TORIRS_CHROME_SKIN_CHECK_ON : TORIRS_CHROME_SKIN_CHECK_OFF;
+    int const slot = ToriRSChrome_CheckSlot(s->check_style, on);
     int const h = box.bottom - box.top;
-    int const side = h < CHROME_GDI_BOX ? h : CHROME_GDI_BOX;
+    int const art = chrome_gdi_box(s);
+    int const side = h < art ? h : art;
     int const x = box.right - side;
     int const y = box.top + (h - side) / 2;
 
@@ -1004,9 +1133,10 @@ chrome_gdi_drawitem(struct ChromeGdi* s, DRAWITEMSTRUCT const* di)
         case TORIRS_CHROME_W_CHECKBOX:
         {
             RECT mark = box;
-            mark.right = mark.left + CHROME_GDI_BOX;
+            int const side = chrome_gdi_box(s);
+            mark.right = mark.left + side;
             chrome_gdi_draw_mark(s, di->hDC, mark, s->checked[handle]);
-            box.left += CHROME_GDI_BOX + CHROME_GDI_CHECK_GAP;
+            box.left += side + CHROME_GDI_CHECK_GAP;
             chrome_gdi_text(di->hDC, box, caption, TORIRS_CHROME_C_TEXT, DT_LEFT);
             break;
         }
@@ -1136,6 +1266,7 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                 break;
 
             case TORIRS_CHROME_W_TEXTINPUT:
+            case TORIRS_CHROME_W_TEXTAREA:
             case TORIRS_CHROME_W_COLORPICK:
                 /* EN_KILLFOCUS, not EN_CHANGE: an intent per keystroke would
                  * send the model a value for every half-typed state, and the
@@ -1144,8 +1275,13 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                  * into a palette entry, so there is nothing extra to do here. */
                 if( notify == EN_KILLFOCUS )
                 {
+                    /* Read at the CONTROL's size and normalised down to the
+                     * model's: a multiline value carries a '\r' per line that
+                     * the model has no room and no use for. */
+                    char raw[TORIRS_CHROME_TEXT_MAX * 2];
                     char buf[TORIRS_CHROME_TEXT_MAX];
-                    GetWindowTextA(control, buf, (int)sizeof(buf));
+                    GetWindowTextA(control, raw, (int)sizeof(raw));
+                    chrome_gdi_to_lf(buf, (int)sizeof(buf), raw);
                     ToriRSChromeMirror_PushText(&s->mirror, w->panel, handle, buf);
                 }
                 break;
@@ -1224,7 +1360,9 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
             if( !w || !w->native || !ToriRSChromeMirror_Shown(&s->mirror, i) )
                 continue;
-            if( w->kind != TORIRS_CHROME_W_TEXTINPUT && w->kind != TORIRS_CHROME_W_COLORPICK )
+            if( w->kind != TORIRS_CHROME_W_TEXTINPUT &&
+                w->kind != TORIRS_CHROME_W_TEXTAREA &&
+                w->kind != TORIRS_CHROME_W_COLORPICK )
                 continue;
             if( !GetWindowRect((HWND)w->native, &box) )
                 continue;
@@ -1569,6 +1707,14 @@ chrome_gdi_add(struct ChromeGdi* s, struct ToriRSChromeCmd const* cmd)
      * LISTROW's settings affordance -- the same field the CS2 executor reads
      * it out of. A row that gained or lost one is re-added, not updated. */
     s->row_action[cmd->widget] = cmd->w ? 1 : 0;
+    /* ...and `h` is a TEXTAREA's line count. Clamped on the way in, because
+     * the number reaches the seam from a plugin manifest. */
+    s->rows[cmd->widget] =
+        (unsigned char)(cmd->h > 0
+                            ? (cmd->h < TORIRS_CHROME_M_TEXTAREA_ROWS_MAX
+                                   ? cmd->h
+                                   : TORIRS_CHROME_M_TEXTAREA_ROWS_MAX)
+                            : TORIRS_CHROME_M_TEXTAREA_ROWS);
 
     switch( cmd->value )
     {
@@ -1613,6 +1759,33 @@ chrome_gdi_add(struct ChromeGdi* s, struct ToriRSChromeCmd const* cmd)
         s->label[cmd->widget] = chrome_gdi_child(s, "STATIC", SS_LEFT, cmd->label, -1);
         control = chrome_gdi_child(s, "EDIT", ES_AUTOHSCROLL, cmd->text, id);
         break;
+
+    case TORIRS_CHROME_W_TEXTAREA:
+    {
+        /*
+         * The same EDIT, multiline -- which is what Windows has been offering
+         * for this since 1985, and the whole reason a native-widget executor
+         * exists. It brings its own wrapping, its own caret, its own selection
+         * and its own scrollbar; none of the model's line arithmetic reaches
+         * here, and none of it has to.
+         *
+         * ES_WANTRETURN, and it is the one flag that is easy to miss: without
+         * it a multiline EDIT in a dialog-style parent hands Return to the
+         * default button instead of inserting a line, so the control looks
+         * multiline and cannot be typed into on more than one line.
+         *
+         * The caption is placed ABOVE it rather than in the label column --
+         * see TORIRS_CHROME_W_TEXTAREA -- but it is still an ordinary STATIC
+         * with no id, exactly as a one-line row's is.
+         */
+        char text[TORIRS_CHROME_TEXT_MAX * 2];
+        s->label[cmd->widget] = chrome_gdi_child(s, "STATIC", SS_LEFT, cmd->label, -1);
+        chrome_gdi_to_crlf(text, (int)sizeof(text), cmd->text);
+        control = chrome_gdi_child(
+            s, "EDIT",
+            ES_MULTILINE | ES_AUTOVSCROLL | ES_WANTRETURN | WS_VSCROLL, text, id);
+        break;
+    }
 
     case TORIRS_CHROME_W_COLORPICK:
         /*
@@ -1756,6 +1929,22 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
         chrome_gdi_layout(s);
         return;
 
+    case TORIRS_CHROME_CMD_CHECK_STYLE:
+        /* Chrome-wide, so it is handled HERE, in the pass that runs before a
+         * widget handle is resolved -- the command names no widget, and the
+         * switch below it never sees a command that names none.
+         *
+         * Every owner-drawn boolean in the window repaints, and the checkbox
+         * rows re-lay-out with it: the mark's box is a different width, so the
+         * caption beside it starts somewhere else. chrome_gdi_layout ends in a
+         * RedrawWindow over every child, which is the repaint. */
+        if( s->check_style != cmd->value )
+        {
+            s->check_style = cmd->value;
+            chrome_gdi_layout(s);
+        }
+        return;
+
     case TORIRS_CHROME_CMD_WIDGET_ADD:
         chrome_gdi_add(s, cmd);
         chrome_gdi_layout(s);
@@ -1802,9 +1991,19 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
          * still editing, and writing it back would move the caret and undo
          * whatever they typed since the last commit. */
         if( (w->kind != TORIRS_CHROME_W_TEXTINPUT &&
+             w->kind != TORIRS_CHROME_W_TEXTAREA &&
              w->kind != TORIRS_CHROME_W_COLORPICK) ||
             GetFocus() != (HWND)w->native )
-            SetWindowTextA((HWND)w->native, cmd->text);
+        {
+            if( w->kind == TORIRS_CHROME_W_TEXTAREA )
+            {
+                char text[TORIRS_CHROME_TEXT_MAX * 2];
+                chrome_gdi_to_crlf(text, (int)sizeof(text), cmd->text);
+                SetWindowTextA((HWND)w->native, text);
+            }
+            else
+                SetWindowTextA((HWND)w->native, cmd->text);
+        }
         break;
 
     case TORIRS_CHROME_CMD_WIDGET_LABEL:

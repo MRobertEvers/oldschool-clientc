@@ -474,6 +474,58 @@ assertion that they agree, and the page's copy of the same table is pinned by
   a click lands in maps back onto the axis's full range, so every value is
   still reachable and only the pointer is coarser.
 
+### Two checkboxes, and an option that picks one
+
+This game has no *drawn* checkbox. Every boolean in its interfaces is a pair of
+sprites, and there are **two** such pairs:
+
+| Style | Archives | Size | On | Off |
+|---|---|---|---|---|
+| `tick` (default) | 8380 / 8379 | 17x17 | a green tick | a **red cross** |
+| `box` | 2848 / 2847 | 18x18 | a green tick in a bordered well | the **empty well** |
+
+They say different things. The settings page's cross is an answer -- *off*,
+where an empty box would read as "nothing here yet" -- and the journals' well is
+one control in two states. Neither is a fallback for the other, so both are
+baked and the choice is an option:
+
+- `[ui] chrome_checkbox = tick|box` in the boot manifest, `TORIRS_CHROME_CHECKBOX`
+  over the top of it (the same order `chrome_scale` is resolved in), and
+  `App_SetChromeCheckStyle` at runtime;
+- it is a property of the MODEL (`ToriRSChrome_SetCheckStyle`), beside `scale`
+  rather than in the theme -- a theme is a palette a host swaps wholesale
+  (`TORIRS_CHROME_THEME=flat`), and a user's choice of checkbox has no business
+  being reset by one;
+- both chrome instances are set together, because the developer overlay and the
+  plugin window are commonly on screen at once.
+
+**It is a layout input, not a palette one.** The two arts are 17 and 18 wide
+(`TORIRS_CHROME_M_BOX` / `_M_BOX_SQUARE`), and a UI sprite drawn at anything but
+its baked size speckles -- the outline is baked before the scale. So the control
+is sized to the art it is wearing, everywhere: `dbg_check_size` in the in-canvas
+chrome, `cs2_box` in the CS2 executor, `chrome_gdi_box` in the Win32 one, and a
+`.checkbox-square` class in the page's stylesheet that carries its own width.
+Changing the style dirties every panel exactly as `SetScale` does.
+
+**It crosses the seam as its own command.** `TORIRS_CHROME_CMD_CHECK_STYLE`
+names no panel and no widget -- it is chrome-wide -- and is emitted **before any
+panel**, on the first sync and again whenever it changes. A native executor that
+heard it after the rows were declared would have placed every checkbox against
+the wrong width; one that was never told would draw the tick pair beside an
+in-canvas panel drawing the well, which is precisely the disagreement this seam
+exists to prevent. The shadow starts at `-1`, not at `TICK`, so the first sync
+states the style even when the model is sitting at the default.
+
+The page is sent **both** pairs at open and switches with a `classList.toggle`:
+the stylesheet is built once and the command can arrive on any frame, so a style
+change that had to wait for a base64 blob would repaint the window in two steps.
+
+Pinned by `make -C src test-uitree` (the command's content and its order, and
+the CS2 executor's art and box size), `make -C src test-debug-overlay-visual`
+(the in-canvas pixels, against the bake, both ways round), and
+`make -C src test-web-channel` (the page's class, its sheet, and that the boxed
+pair decodes to a green tick and an empty well rather than to each other).
+
 ## 5. The SDL executor
 
 A *surface* executor: the widgets are still ToriRSChrome's, laid out by

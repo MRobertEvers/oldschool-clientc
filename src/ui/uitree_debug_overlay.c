@@ -66,15 +66,17 @@ _Static_assert(
 /** The label column of a labelled row. Fixed -- see TORIRS_CHROME_M_LABEL_W. */
 #define DBG_LABEL_W DBG_PX(TORIRS_CHROME_M_LABEL_W)
 /**
- * Checkbox edge -- 17, because that is the size of the thing.
+ * Checkbox edge -- the size of the art it is wearing, and nothing else.
  *
  * The interfaces' on/off pair is a 17x17 sprite (`~script7859` sizes its
- * graphic `cc_setsize(17, 17)`), and a UI sprite drawn at anything but its
- * baked size speckles, since the outline is baked before the scale. So the
- * control is sized to the art rather than the art squeezed into a control.
- * The flat fallback box just inherits the number.
+ * graphic `cc_setsize(17, 17)`) and the bordered well is an 18x18 one, and a
+ * UI sprite drawn at anything but its baked size speckles, since the outline
+ * is baked before the scale. So the control is sized to the art rather than
+ * the art squeezed into a control -- which is why this reads the instance's
+ * style instead of being one constant. The flat fallback box just inherits
+ * whichever number came out.
  */
-#define DBG_CHECK_SIZE DBG_PX(TORIRS_CHROME_M_BOX)
+#define DBG_CHECK_SIZE DBG_PX(ToriRSChrome_CheckBoxMetric(ui->check_style))
 /** Gap between a checkbox's mark and its label. */
 #define DBG_CHECK_GAP DBG_PX(TORIRS_CHROME_M_CHECK_GAP)
 /**
@@ -101,6 +103,14 @@ _Static_assert(
 #define DBG_FIELD_INSET DBG_PX(TORIRS_CHROME_M_FIELD_INSET)
 /** A text input never lays out narrower than this, even when empty. */
 #define DBG_INPUT_MIN_W DBG_PX(60)
+/** A multiline field's own two numbers -- the air above the first line inside
+ *  its box, and the default line count. @see TORIRS_CHROME_M_TEXTAREA_ROWS. */
+#define DBG_TEXTAREA_PAD_Y DBG_PX(TORIRS_CHROME_M_TEXTAREA_PAD_Y)
+/** Lines one wrap may produce. A value of TORIRS_CHROME_INPUT_MAX newlines is
+ *  that many lines plus the empty one after the last of them, and the wrap must
+ *  never be handed a smaller ceiling than its input can reach -- a truncated
+ *  wrap puts the caret on a line that is not where the glyphs are. */
+#define DBG_TEXTAREA_LINES_MAX (TORIRS_CHROME_INPUT_MAX + 1)
 /**
  * Edge of the arrow button on a closed dropdown, and the width of a scrollbar.
  *
@@ -217,6 +227,9 @@ struct ToriRSChromeTheme const torirs_chrome_theme_default = {
     .input_border = 0x5A5A50,
     .input_border_focus = 0xFFFF00,
     .input_text = 0xFFFFFF,
+    /* A shade off the flat panel body, for the same reason the osrs theme's is
+     * a shade off the brown: a multiline box at input_bg reads as a hole. */
+    .textarea_bg = 0x1A1A1A,
     .check_box = 0x9A9A8C,
     .check_mark = 0x50FF50,
     /* The minimenu's own palette (UITREE_MINIMENU_COLOR_BODY and the black
@@ -281,6 +294,8 @@ struct ToriRSChromeTheme const torirs_chrome_theme_osrs = {
     .input_border = 0x3E3529,
     .input_border_focus = TORIRS_CHROME_C_ACCENT,
     .input_text = TORIRS_CHROME_C_TEXT,
+    /* ~script7210's own fill for the ground-items lists. */
+    .textarea_bg = TORIRS_CHROME_C_TEXTAREA_BG,
     .check_box = TORIRS_CHROME_C_CHROME,
     /* The green/red pair the interfaces use for on/off state. */
     .check_mark = TORIRS_CHROME_C_ON,
@@ -756,6 +771,75 @@ dbg_measure_prefix(int font_slot, int scale, char const* text, int len)
     return w;
 }
 
+int
+ToriRSChrome_WrapText(
+    int font_slot,
+    int scale,
+    char const* text,
+    int width,
+    int* out_start,
+    int* out_len,
+    int max_lines)
+{
+    int const* adv = dbg_advance_table(font_slot, scale);
+    int lines = 0;
+    int i = 0;
+    int done = 0;
+
+    assert(text);
+    assert(max_lines > 0);
+
+    while( !done && lines < max_lines )
+    {
+        int const start = i;
+        /* Byte after the last space that still fit, so a break lands BETWEEN
+         * words. -1 while the line has held no space yet, which is what makes
+         * a single word wider than the box break where it runs out instead of
+         * backing up to the start of the line and never advancing. */
+        int space = -1;
+        int wrapped = 0;
+        int px = 0;
+        int end;
+
+        while( text[i] && text[i] != '\n' )
+        {
+            int const a = adv[(unsigned char)text[i]];
+            /* `i > start` so a box narrower than one glyph still consumes
+             * one per line rather than looping forever on the same byte. */
+            if( width > 0 && px + a > width && i > start )
+            {
+                wrapped = 1;
+                break;
+            }
+            px += a;
+            if( text[i] == ' ' )
+                space = i + 1;
+            i++;
+        }
+        end = i;
+        if( wrapped && space > start && space < i )
+        {
+            /* The trailing space stays on the line it ended -- it is invisible
+             * where it is drawn, and keeping the slices CONTIGUOUS is what
+             * lets a caret offset be turned back into a line and a column. */
+            end = space;
+            i = space;
+        }
+        if( out_start )
+            out_start[lines] = start;
+        if( out_len )
+            out_len[lines] = end - start;
+        lines++;
+        if( wrapped )
+            continue;
+        if( text[i] == '\n' )
+            i++; /* ...and the empty line after a trailing one still counts. */
+        else
+            done = 1;
+    }
+    return lines;
+}
+
 /* ---- small helpers ------------------------------------------------------- */
 
 /* Defined with the dropdown machinery below; needed earlier by SetHidden. */
@@ -788,6 +872,165 @@ dbg_row_box_offset(struct ToriRSChrome const* ui, struct ToriRSChromeWidget cons
      * up half the width of the panel holding it.
      */
     return w->label[0] ? DBG_LABEL_W : 0;
+}
+
+/* ---- a multiline field's geometry ----------------------------------------
+ *
+ * ONE arithmetic for the box, the strip the glyphs go in, and where a byte
+ * offset lands among them -- asked by the layout, the draw, the hit test and
+ * the key handler alike. Two of those computing it separately is a caret drawn
+ * where the user did not click, which is the failure a shared helper prevents
+ * here for the same reason dbg_row_box_offset prevents it for a one-line row.
+ */
+
+/** Visible lines of a multiline field, clamped. @see ToriRSChrome_TextArea. */
+static int
+dbg_textarea_rows(struct ToriRSChromeWidget const* w)
+{
+    int rows = w->rows > 0 ? w->rows : TORIRS_CHROME_M_TEXTAREA_ROWS;
+    if( rows > TORIRS_CHROME_M_TEXTAREA_ROWS_MAX )
+        rows = TORIRS_CHROME_M_TEXTAREA_ROWS_MAX;
+    return rows;
+}
+
+/** Pitch of one wrapped line: the row face's own line box, so a re-bake at
+ *  another size reflows instead of overlapping. */
+static int
+dbg_textarea_line_h(struct ToriRSChrome const* ui)
+{
+    return ToriRSChrome_FontLineBox(ui->theme.font_row, ui->scale);
+}
+
+/** Height of the field box alone, without the caption line above it. */
+static int
+dbg_textarea_box_h(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
+{
+    return dbg_textarea_rows(w) * dbg_textarea_line_h(ui) + 2 * DBG_TEXTAREA_PAD_Y +
+           2 * DBG_RULE;
+}
+
+/** The field box, from the row box the layout resolved onto the widget. */
+static struct ToriRSChromeRect
+dbg_textarea_box(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
+{
+    struct ToriRSChromeRect box;
+    /* The caption is a line of its own ABOVE the box -- the reference's own
+     * shape, and the reason a multiline row is not laid out in the label
+     * column. @see TORIRS_CHROME_W_TEXTAREA. */
+    box.x = w->x;
+    box.y = w->y + (w->label[0] ? DBG_ROW_H : 0);
+    box.w = w->w;
+    box.h = dbg_textarea_box_h(ui, w);
+    return box;
+}
+
+/** Where the glyphs go inside that box: inside the frame, inside the padding. */
+static struct ToriRSChromeRect
+dbg_textarea_inner(struct ToriRSChrome const* ui, struct ToriRSChromeRect box)
+{
+    struct ToriRSChromeRect in;
+    in.x = box.x + DBG_RULE + DBG_INPUT_PAD_X;
+    in.y = box.y + DBG_RULE + DBG_TEXTAREA_PAD_Y;
+    in.w = box.w - 2 * (DBG_RULE + DBG_INPUT_PAD_X);
+    in.h = box.h - 2 * (DBG_RULE + DBG_TEXTAREA_PAD_Y);
+    if( in.w < 0 )
+        in.w = 0;
+    if( in.h < 0 )
+        in.h = 0;
+    return in;
+}
+
+/** Break this widget's value at its own box width. @return the line count. */
+static int
+dbg_textarea_wrap(
+    struct ToriRSChrome const* ui,
+    struct ToriRSChromeWidget const* w,
+    int* starts,
+    int* lens)
+{
+    struct ToriRSChromeRect const in = dbg_textarea_inner(ui, dbg_textarea_box(ui, w));
+    return ToriRSChrome_WrapText(
+        ui->theme.font_row, ui->scale, w->text, in.w, starts, lens,
+        DBG_TEXTAREA_LINES_MAX);
+}
+
+/**
+ * Which display line a byte offset is on.
+ *
+ * The LAST line that contains it, and that is the interesting half: a soft
+ * wrap leaves one offset on two lines -- the end of the line it broke and the
+ * start of the next -- and putting the caret on the later of them is what makes
+ * typing at a wrap appear where the glyph will land. A HARD newline has no such
+ * ambiguity, because the '\n' itself takes an offset that belongs to neither.
+ */
+static int
+dbg_textarea_line_of(int const* starts, int const* lens, int count, int caret)
+{
+    int line = 0;
+    for( int i = 0; i < count; i++ )
+        if( caret >= starts[i] && caret <= starts[i] + lens[i] )
+            line = i;
+    return line;
+}
+
+/** Pixel width of `line`'s first `col` bytes -- where the caret is drawn. */
+static int
+dbg_textarea_col_px(
+    struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w, int start, int col)
+{
+    return dbg_measure_prefix(ui->theme.font_row, ui->scale, w->text + start, col);
+}
+
+/** The column a click at `x_off` pixels into a line lands on. Rounds to the
+ *  NEAREST gap between glyphs, which is where a caret is expected to go. */
+static int
+dbg_textarea_col_at(
+    struct ToriRSChrome const* ui,
+    struct ToriRSChromeWidget const* w,
+    int start,
+    int len,
+    int x_off)
+{
+    int const* adv = dbg_advance_table(ui->theme.font_row, ui->scale);
+    int px = 0;
+    int col = 0;
+
+    while( col < len )
+    {
+        int const a = adv[(unsigned char)w->text[start + col]];
+        if( px + a / 2 > x_off )
+            break;
+        px += a;
+        col++;
+    }
+    return col;
+}
+
+/**
+ * Bring the caret's line into view, and clamp the offset to the content.
+ *
+ * Run after every edit rather than at the draw, because the HIT TEST reads
+ * `scroll` too: a click that lands on the line the draw showed has to address
+ * the line the model thinks is there, and a scroll fixed up at draw time is one
+ * frame behind every click.
+ */
+static void
+dbg_textarea_scroll_to_caret(struct ToriRSChrome const* ui, struct ToriRSChromeWidget* w)
+{
+    int starts[DBG_TEXTAREA_LINES_MAX];
+    int lens[DBG_TEXTAREA_LINES_MAX];
+    int const count = dbg_textarea_wrap(ui, w, starts, lens);
+    int const rows = dbg_textarea_rows(w);
+    int const line = dbg_textarea_line_of(starts, lens, count, w->caret);
+
+    if( w->scroll > line )
+        w->scroll = line;
+    if( w->scroll < line - rows + 1 )
+        w->scroll = line - rows + 1;
+    if( w->scroll > count - rows )
+        w->scroll = count - rows;
+    if( w->scroll < 0 )
+        w->scroll = 0;
 }
 
 
@@ -902,6 +1145,11 @@ ToriRSChrome_Init(struct ToriRSChrome* ui)
     /* Native size. Zero (the memset) would multiply every metric to nothing,
      * which draws an empty chrome that looks like a failed boot. */
     ui->scale = 1;
+    /* TICK, the settings page's tick/cross: the style every panel in this
+     * chrome was authored against. @see enum ToriRSChromeCheckStyle. It is
+     * also the memset's value, spelled out because a default nobody can find
+     * in the code is a default nobody can change. */
+    ui->check_style = TORIRS_CHROME_CHECK_STYLE_TICK;
     ui->focus = -1;
     ui->hover = -1;
     ui->press = -1;
@@ -971,6 +1219,37 @@ ToriRSChrome_Scale(struct ToriRSChrome const* ui)
 {
     assert(ui);
     return ui->scale;
+}
+
+int
+ToriRSChrome_CheckBoxMetric(int style)
+{
+    return style == TORIRS_CHROME_CHECK_STYLE_BOX ? TORIRS_CHROME_M_BOX_SQUARE
+                                                  : TORIRS_CHROME_M_BOX;
+}
+
+void
+ToriRSChrome_SetCheckStyle(struct ToriRSChrome* ui, int style)
+{
+    assert(ui);
+    if( ui->check_style == style )
+        return;
+    /* The same damage-then-dirty order SetScale uses, and for the same reason:
+     * the two arts are different widths, so the row a checkbox sits in is a
+     * different size afterwards and the box it occupied NOW is stale too. */
+    for( int i = 0; i < ui->panel_count; i++ )
+        dbg_damage_add(ui, ui->panels[i].last_rect);
+    ui->check_style = style;
+    for( int i = 0; i < ui->panel_count; i++ )
+        dbg_dirty_panel(ui, i);
+    ui->dirty = 1;
+}
+
+int
+ToriRSChrome_CheckStyle(struct ToriRSChrome const* ui)
+{
+    assert(ui);
+    return ui->check_style;
 }
 
 void
@@ -1424,6 +1703,29 @@ ToriRSChrome_TextInput(struct ToriRSChrome* ui, int panel, char const* label, ch
         return -1;
     dbg_copy(ui->widgets[h].label, TORIRS_CHROME_LABEL_MAX, label);
     dbg_copy(ui->widgets[h].text, TORIRS_CHROME_INPUT_MAX, text);
+    ui->widgets[h].caret = (int)strlen(ui->widgets[h].text);
+    return h;
+}
+
+int
+ToriRSChrome_TextArea(
+    struct ToriRSChrome* ui, int panel, char const* label, char const* text, int rows)
+{
+    int const h = dbg_widget_add(ui, panel, TORIRS_CHROME_W_TEXTAREA);
+    if( h < 0 )
+        return -1;
+    dbg_copy(ui->widgets[h].label, TORIRS_CHROME_LABEL_MAX, label);
+    dbg_copy(ui->widgets[h].text, TORIRS_CHROME_INPUT_MAX, text);
+    /* Clamped rather than asserted: `rows` reaches here from a plugin
+     * manifest, and a manifest asking for eighty lines is a value to bound,
+     * not a contract this module wrote. 0 means "the authored default", which
+     * is what a caller with no opinion passes. */
+    if( rows > TORIRS_CHROME_M_TEXTAREA_ROWS_MAX )
+        rows = TORIRS_CHROME_M_TEXTAREA_ROWS_MAX;
+    ui->widgets[h].rows = rows > 0 ? rows : TORIRS_CHROME_M_TEXTAREA_ROWS;
+    /* At the END, as a text input opens: an edit continues a value rather than
+     * replacing it, and a caret parked at 0 means the first keystroke goes in
+     * front of everything already there. */
     ui->widgets[h].caret = (int)strlen(ui->widgets[h].text);
     return h;
 }
@@ -1904,6 +2206,11 @@ ToriRSChrome_SetText(struct ToriRSChrome* ui, int widget, char const* text)
     memcpy(w->text, buf, sizeof(buf));
     if( w->caret > (int)strlen(w->text) )
         w->caret = (int)strlen(w->text);
+    /* A shorter value has fewer lines, and an offset measured against the old
+     * one leaves a multiline box scrolled past everything it now holds --
+     * which draws as an empty field that the user cannot scroll back up. */
+    if( w->kind == TORIRS_CHROME_W_TEXTAREA )
+        dbg_textarea_scroll_to_caret(ui, w);
     dbg_dirty_widget(ui, widget);
 }
 
@@ -2000,6 +2307,15 @@ dbg_widget_width(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const*
             box_w = DBG_INPUT_MIN_W;
         return dbg_row_box_offset(ui, w) + box_w;
     }
+    case TORIRS_CHROME_W_TEXTAREA:
+        /*
+         * A minimum, not a fit. The value is WRAPPED, so there is no width at
+         * which it stops needing one -- measuring the string would ask for a
+         * panel as wide as the longest list anyone ever pastes in. What the
+         * box does want is enough room to be worth wrapping into, which is the
+         * one-line field's minimum plus the caption column it does not use.
+         */
+        return DBG_LABEL_W + DBG_INPUT_MIN_W;
     case TORIRS_CHROME_W_COLORPICK:
     {
         /* The hex is a fixed seven characters, so the box is measured from the
@@ -2083,6 +2399,11 @@ dbg_widget_height(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const
         return w->view_h + 2 * DBG_RULE;
     case TORIRS_CHROME_W_TABSTRIP:
         return DBG_TAB_H;
+    case TORIRS_CHROME_W_TEXTAREA:
+        /* The third kind that cannot live in the grid, and for the plainest
+         * reason of the three: it is `rows` lines tall by construction, with
+         * its caption on a row of its own above. */
+        return (w->label[0] ? DBG_ROW_H : 0) + dbg_textarea_box_h(ui, w);
     case TORIRS_CHROME_W_FREE:
         return 0;
     default:
@@ -2122,6 +2443,35 @@ dbg_prim_push(struct ToriRSChrome* ui)
     p = &ui->prims[ui->prim_count++];
     memset(p, 0, sizeof(*p));
     return p;
+}
+
+/**
+ * One wrapped line, copied into the build's scratch and NUL-terminated.
+ *
+ * A TEXT prim BORROWS its string, and a wrapped line is a SLICE of a widget's
+ * value rather than a string of its own -- the byte after it belongs to the
+ * next line, so there is nowhere to put a terminator without destroying it.
+ * @return NULL when the pool is exhausted, which raises `overflow` exactly as
+ * running out of prims does.
+ */
+static char const*
+dbg_wrap_line(struct ToriRSChrome* ui, char const* src, int len)
+{
+    char* out;
+
+    assert(src);
+    if( len < 0 )
+        len = 0;
+    if( ui->wrap_used + len + 1 > TORIRS_CHROME_WRAP_POOL )
+    {
+        ui->overflow = 1;
+        return NULL;
+    }
+    out = ui->wrap_pool + ui->wrap_used;
+    memcpy(out, src, (size_t)len);
+    out[len] = '\0';
+    ui->wrap_used += len + 1;
+    return out;
 }
 
 /** @param trans 0 opaque .. 255 invisible, the client's sense. */
@@ -3406,16 +3756,19 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
         case TORIRS_CHROME_W_CHECKBOX:
         {
             int const box_y = row_y + (row_h - DBG_CHECK_SIZE) / 2;
-            int const mark =
-                w->checked ? TORIRS_CHROME_SKIN_CHECK_ON : TORIRS_CHROME_SKIN_CHECK_OFF;
+            int const mark = ToriRSChrome_CheckSlot(ui->check_style, w->checked);
             /*
-             * The game's own tick/cross, not a box with a blob in it.
+             * The game's own art, not a box with a blob in it.
              *
-             * Every boolean in this client's interfaces is this pair of
-             * sprites -- there is no drawn checkbox anywhere in the cache to
-             * imitate. Note that OFF is a red cross and not an ABSENCE: an
-             * unticked box says "nothing here yet", a red cross says "off",
-             * and the second is what these settings mean.
+             * Every boolean in this client's interfaces is a pair of sprites
+             * -- there is no DRAWN checkbox anywhere in the cache to imitate.
+             * There are two such pairs, and which one this instance wears is
+             * ToriRSChrome_SetCheckStyle's answer: the settings page's tick
+             * and cross, or the journals' bordered well. Note that the tick
+             * style's OFF is a red cross and not an ABSENCE -- an unticked box
+             * says "nothing here yet", a red cross says "off", and the second
+             * is what a settings row means. The well style says it the other
+             * way, which is why the two are a choice and not a fallback.
              */
             if( th->skin_dropdown && dbg_skin_has(ui, mark) )
             {
@@ -3522,17 +3875,16 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
 
             /* The switch: a well with the knob at the end its state names, lit
              * in the interfaces' own on/off green when it is on. */
-            int const tog_mark =
-                w->checked ? TORIRS_CHROME_SKIN_CHECK_ON : TORIRS_CHROME_SKIN_CHECK_OFF;
+            int const tog_mark = ToriRSChrome_CheckSlot(ui->check_style, w->checked);
             /*
              * The same tick/cross a checkbox wears, not a sliding switch.
              *
              * A slider is a foreign idiom here -- this game has no such
              * control anywhere -- and the row is asking the same on/off
              * question a settings checkbox asks, so it should look like one.
-             * The 24x12 hit box is kept and the 17x17 art right-aligned inside
-             * it: the slack falls between the sprite and the row's settings
-             * affordance, where nothing is drawn anyway.
+             * The 24x12 hit box is kept and the art right-aligned inside it at
+             * whatever size its style is: the slack falls between the sprite
+             * and the row's settings affordance, where nothing is drawn anyway.
              */
             if( th->skin_dropdown && dbg_skin_has(ui, tog_mark) )
             {
@@ -3731,6 +4083,85 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
                     th->input_text,
                     1,
                     inner);
+            break;
+        }
+
+        case TORIRS_CHROME_W_TEXTAREA:
+        {
+            /*
+             * The cache's own multiline field, as ~script7210 builds one: a
+             * flat 0x372e22 body -- NOT the tradebacking a one-line field
+             * wears, because a mostly-empty tiled box reads as a hole in the
+             * panel -- inside ~script715's two-colour frame, with the caption
+             * on a line of its own above rather than in the label column.
+             */
+            struct ToriRSChromeRect const box = dbg_textarea_box(ui, w);
+            struct ToriRSChromeRect const inner = dbg_textarea_inner(ui, box);
+            struct ToriRSChromeRect const text_clip = dbg_rect_clip(clip, inner);
+            int const focused = ui->focus == widget;
+            int const rows = dbg_textarea_rows(w);
+            int const line_h = dbg_textarea_line_h(ui);
+            int const ascent = ToriRSChrome_FontLineHeight(ui->theme.font_row, ui->scale);
+            int starts[DBG_TEXTAREA_LINES_MAX];
+            int lens[DBG_TEXTAREA_LINES_MAX];
+            int count;
+
+            if( w->label[0] )
+                dbg_push_text(
+                    ui,
+                    row_x,
+                    dbg_row_text_baseline(ui, row_y, DBG_ROW_H),
+                    w->label,
+                    w->color ? w->color : th->text_dim,
+                    ui->theme.font_row,
+                    0,
+                    clip);
+            if( box.w <= 0 || inner.w <= 0 )
+                break;
+
+            dbg_push_rect(ui, box.x, box.y, box.w, box.h, th->textarea_bg, 1, clip);
+            dbg_push_rect(ui, box.x, box.y, box.w, box.h, th->dropdown_border, 0, clip);
+            dbg_push_rect(
+                ui,
+                box.x + DBG_RULE,
+                box.y + DBG_RULE,
+                box.w - 2 * DBG_RULE,
+                box.h - 2 * DBG_RULE,
+                focused ? th->input_border_focus : th->dropdown_border_inner,
+                0,
+                clip);
+
+            count = dbg_textarea_wrap(ui, w, starts, lens);
+            for( int li = w->scroll; li < count && li - w->scroll < rows; li++ )
+            {
+                char const* line = dbg_wrap_line(ui, w->text + starts[li], lens[li]);
+                if( !line )
+                    break;
+                dbg_push_text(
+                    ui,
+                    inner.x,
+                    inner.y + (li - w->scroll) * line_h + ascent,
+                    line,
+                    th->input_text,
+                    ui->theme.font_row,
+                    0,
+                    text_clip);
+            }
+            if( focused && ui->caret_visible )
+            {
+                int const cl = dbg_textarea_line_of(starts, lens, count, w->caret);
+                if( cl >= w->scroll && cl - w->scroll < rows )
+                    dbg_push_rect(
+                        ui,
+                        inner.x +
+                            dbg_textarea_col_px(ui, w, starts[cl], w->caret - starts[cl]),
+                        inner.y + (cl - w->scroll) * line_h,
+                        DBG_RULE,
+                        line_h,
+                        th->input_text,
+                        1,
+                        text_clip);
+            }
             break;
         }
 
@@ -4067,6 +4498,10 @@ ToriRSChrome_Build(struct ToriRSChrome* ui)
 
     ui->prim_count = 0;
     ui->overflow = 0;
+    /* With the prims, not after them: every string in the pool is pointed at by
+     * a prim of the list being thrown away, and a pool that outlived one build
+     * would hand the next one's lines to prims still holding the last one's. */
+    ui->wrap_used = 0;
     /* Bumped here rather than at the end, so it moves even on a build that
      * ends up emitting nothing -- a panel being hidden is a change a host
      * copying this list has to see. */
@@ -5586,6 +6021,43 @@ ToriRSChrome_MouseDown(struct ToriRSChrome* ui, int x, int y)
         w->caret = (int)strlen(w->text);
         return 1;
     }
+    if( hit >= 0 && ui->widgets[hit].kind == TORIRS_CHROME_W_TEXTAREA )
+    {
+        /*
+         * The caret goes WHERE THE CLICK WAS, unlike a one-line field's, which
+         * parks it at the end.
+         *
+         * Not a refinement: a multiline box holds a list long enough that the
+         * user is reaching for a particular item in the middle of it, and a
+         * click that always jumped to the end would make every edit start by
+         * arrowing back through the whole value.
+         */
+        struct ToriRSChromeWidget* w = &ui->widgets[hit];
+        struct ToriRSChromeRect const inner = dbg_textarea_inner(ui, dbg_textarea_box(ui, w));
+        int starts[DBG_TEXTAREA_LINES_MAX];
+        int lens[DBG_TEXTAREA_LINES_MAX];
+        int const count = dbg_textarea_wrap(ui, w, starts, lens);
+        int const line_h = dbg_textarea_line_h(ui);
+        int line;
+
+        if( ui->focus != hit )
+        {
+            dbg_dirty_widget(ui, ui->focus);
+            ui->focus = hit;
+        }
+        /* The caption band is inside the row's hit box, so a press up there
+         * has to land on the first VISIBLE line rather than on a negative one. */
+        line = y <= inner.y ? w->scroll : w->scroll + (y - inner.y) / line_h;
+        if( line >= count )
+            line = count - 1;
+        if( line < 0 )
+            line = 0;
+        w->caret =
+            starts[line] + dbg_textarea_col_at(ui, w, starts[line], lens[line], x - inner.x);
+        dbg_textarea_scroll_to_caret(ui, w);
+        dbg_dirty_widget(ui, hit);
+        return 1;
+    }
     if( hit >= 0 && ui->widgets[hit].kind == TORIRS_CHROME_W_TEXTINPUT )
     {
         if( ui->focus != hit )
@@ -5915,13 +6387,19 @@ ToriRSChrome_KeyChar(struct ToriRSChrome* ui, int ch)
     assert(ui);
     if( ui->focus < 0 )
         return 0;
-    /* Typing edits TEXT FIELDS only -- a text input, or a colour picker's hex.
-     * A model view holds focus so the HOST can route its own keys at it;
-     * characters falling through into its unused text field would be silent
-     * state nobody can see. */
+    /* Typing edits TEXT FIELDS only -- a text input, a multiline field, or a
+     * colour picker's hex. A model view holds focus so the HOST can route its
+     * own keys at it; characters falling through into its unused text field
+     * would be silent state nobody can see. */
     if( ui->widgets[ui->focus].kind != TORIRS_CHROME_W_TEXTINPUT &&
+        ui->widgets[ui->focus].kind != TORIRS_CHROME_W_TEXTAREA &&
         ui->widgets[ui->focus].kind != TORIRS_CHROME_W_COLORPICK )
         return 0;
+    /* Still no control bytes, a multiline field included: a newline arrives as
+     * TORIRS_CHROME_KEY_ENTER, which is where the decision to insert one or to
+     * commit belongs. A '\n' typed as a CHARACTER is a paste or a stray
+     * keymap, and letting it through would put a line break in a one-line
+     * field that has no way to show it. */
     if( ch < 0x20 || ch > 0x7E )
         return 0;
     w = &ui->widgets[ui->focus];
@@ -5935,6 +6413,78 @@ ToriRSChrome_KeyChar(struct ToriRSChrome* ui, int ch)
     memmove(w->text + w->caret + 1, w->text + w->caret, (size_t)(len - w->caret) + 1);
     w->text[w->caret] = (char)ch;
     w->caret++;
+    if( w->kind == TORIRS_CHROME_W_TEXTAREA )
+        dbg_textarea_scroll_to_caret(ui, w);
+    dbg_dirty_widget(ui, ui->focus);
+    return 1;
+}
+
+/**
+ * The four editing keys a MULTILINE field answers differently from a one-line
+ * one. @return 1 when it was one of them and it has been handled.
+ *
+ * Split out rather than folded into the switch below because the difference is
+ * not a special case of the same behaviour: Home means the start of the LINE
+ * where a one-line field has only a value to go to the start of, Up and Down
+ * mean nothing at all without lines to move between, and Enter INSERTS instead
+ * of committing -- which is the one that makes the control usable, since a
+ * multiline field with no way to type a line break is a wide one-line field.
+ */
+static int
+dbg_textarea_key(struct ToriRSChrome* ui, struct ToriRSChromeWidget* w, int key, int len)
+{
+    int starts[DBG_TEXTAREA_LINES_MAX];
+    int lens[DBG_TEXTAREA_LINES_MAX];
+    int count;
+    int line;
+
+    switch( key )
+    {
+    case TORIRS_CHROME_KEY_HOME:
+    case TORIRS_CHROME_KEY_END:
+    case TORIRS_CHROME_KEY_UP:
+    case TORIRS_CHROME_KEY_DOWN:
+        break;
+    case TORIRS_CHROME_KEY_ENTER:
+        /* The value has room or it does not; either way the key was ours, so
+         * Enter never falls through to the commit a one-line field does. */
+        if( len < TORIRS_CHROME_INPUT_MAX - 1 )
+        {
+            memmove(
+                w->text + w->caret + 1, w->text + w->caret,
+                (size_t)(len - w->caret) + 1);
+            w->text[w->caret] = '\n';
+            w->caret++;
+            dbg_textarea_scroll_to_caret(ui, w);
+            dbg_dirty_widget(ui, ui->focus);
+        }
+        return 1;
+    default:
+        return 0;
+    }
+
+    count = dbg_textarea_wrap(ui, w, starts, lens);
+    line = dbg_textarea_line_of(starts, lens, count, w->caret);
+    if( key == TORIRS_CHROME_KEY_HOME )
+        w->caret = starts[line];
+    else if( key == TORIRS_CHROME_KEY_END )
+        w->caret = starts[line] + lens[line];
+    else
+    {
+        int const target = line + (key == TORIRS_CHROME_KEY_UP ? -1 : 1);
+        int col;
+
+        /* Off the top or the bottom is a no-op that still CONSUMES the key:
+         * letting it through would step the game's own camera the moment a
+         * caret reached the first line of a field the user is typing in. */
+        if( target < 0 || target >= count )
+            return 1;
+        col = w->caret - starts[line];
+        if( col > lens[target] )
+            col = lens[target];
+        w->caret = starts[target] + col;
+    }
+    dbg_textarea_scroll_to_caret(ui, w);
     dbg_dirty_widget(ui, ui->focus);
     return 1;
 }
@@ -5942,22 +6492,28 @@ ToriRSChrome_KeyChar(struct ToriRSChrome* ui, int ch)
 int
 ToriRSChrome_KeyEdit(struct ToriRSChrome* ui, int key)
 {
-    /* Same rule as KeyChar: editing keys belong to text fields alone. */
-    if( ui && ui->focus >= 0 && ui->widgets[ui->focus].kind != TORIRS_CHROME_W_TEXTINPUT &&
-        ui->widgets[ui->focus].kind != TORIRS_CHROME_W_COLORPICK )
-        return 0;
     struct ToriRSChromeWidget* w;
     int len;
+    int area;
 
     assert(ui);
     if( ui->focus < 0 )
         return 0;
+    /* Same rule as KeyChar: editing keys belong to text fields alone. */
+    if( ui->widgets[ui->focus].kind != TORIRS_CHROME_W_TEXTINPUT &&
+        ui->widgets[ui->focus].kind != TORIRS_CHROME_W_TEXTAREA &&
+        ui->widgets[ui->focus].kind != TORIRS_CHROME_W_COLORPICK )
+        return 0;
     w = &ui->widgets[ui->focus];
+    area = w->kind == TORIRS_CHROME_W_TEXTAREA;
     len = (int)strlen(w->text);
     if( w->caret < 0 )
         w->caret = 0;
     if( w->caret > len )
         w->caret = len;
+
+    if( area && dbg_textarea_key(ui, w, key, len) )
+        return 1;
 
     switch( key )
     {
@@ -5966,47 +6522,48 @@ ToriRSChrome_KeyEdit(struct ToriRSChrome* ui, int key)
         {
             memmove(w->text + w->caret - 1, w->text + w->caret, (size_t)(len - w->caret) + 1);
             w->caret--;
-            dbg_dirty_widget(ui, ui->focus);
+            break;
         }
         return 1;
     case TORIRS_CHROME_KEY_DELETE:
         if( w->caret < len )
         {
             memmove(w->text + w->caret, w->text + w->caret + 1, (size_t)(len - w->caret));
-            dbg_dirty_widget(ui, ui->focus);
+            break;
         }
         return 1;
     case TORIRS_CHROME_KEY_LEFT:
         if( w->caret > 0 )
         {
             w->caret--;
-            dbg_dirty_widget(ui, ui->focus);
+            break;
         }
         return 1;
     case TORIRS_CHROME_KEY_RIGHT:
         if( w->caret < len )
         {
             w->caret++;
-            dbg_dirty_widget(ui, ui->focus);
+            break;
         }
         return 1;
     case TORIRS_CHROME_KEY_HOME:
         if( w->caret != 0 )
         {
             w->caret = 0;
-            dbg_dirty_widget(ui, ui->focus);
+            break;
         }
         return 1;
     case TORIRS_CHROME_KEY_END:
         if( w->caret != len )
         {
             w->caret = len;
-            dbg_dirty_widget(ui, ui->focus);
+            break;
         }
         return 1;
     case TORIRS_CHROME_KEY_ENTER:
         /* Enter COMMITS, which for a colour is where the typed hex becomes a
-         * palette entry and the swatch catches up. */
+         * palette entry and the swatch catches up. A multiline field never
+         * reaches this -- see dbg_textarea_key, where Enter inserts. */
         if( w->kind == TORIRS_CHROME_W_COLORPICK )
             ToriRSChrome_ColorPickCommitText(ui, ui->focus);
         ui->activated = ui->focus;
@@ -6024,6 +6581,13 @@ ToriRSChrome_KeyEdit(struct ToriRSChrome* ui, int key)
     default:
         return 0;
     }
+
+    /* The tail every key that MOVED or ERASED something shares. A multiline
+     * field has to follow its caret; a one-line one scrolls at the draw. */
+    if( area )
+        dbg_textarea_scroll_to_caret(ui, w);
+    dbg_dirty_widget(ui, ui->focus);
+    return 1;
 }
 
 int

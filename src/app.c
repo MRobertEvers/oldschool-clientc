@@ -3637,6 +3637,7 @@ app_overlay_build_entity(
 struct Task_ClientTriggerSubject
 {
     struct ToriRS_Task task;
+    struct pt pt;
     struct RS_CS2Host* host;
     int kind;
     struct RS_ClientOpContext ctx;
@@ -3650,8 +3651,9 @@ Task_ClientTriggerSubject_Run(
     struct Task_ClientTriggerSubject* task = (struct Task_ClientTriggerSubject*)task_base;
 
     (void)io;
+    PT_BEGIN(&task->pt);
     RS_ClientOpActiveSet(&task->host->clientop, (enum RS_ClientOpKind)task->kind, &task->ctx);
-    return 1;
+    PT_END(&task->pt);
 }
 
 static void
@@ -3683,6 +3685,7 @@ app_client_trigger_queue(
     task->host = &app->host;
     task->kind = ctx->kind;
     task->ctx = *ctx;
+    PT_INIT(&task->pt);
     ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
 
     RS_CS2_RunScript(&app->host, &app->runner, script_id, NULL, 0, 0, NULL, 0);
@@ -3805,6 +3808,28 @@ app_client_trigger_loc(struct App* app, struct WorldEntity_Scenery* loc, int tri
     ctx.layer = World_LocShapeToLayer(loc->shape);
     snprintf(ctx.name, sizeof(ctx.name), "%s", loc->name);
     app_client_trigger_queue(app, &ctx, script_id);
+}
+
+/**
+ * The npc's NPC_ADD trigger, from the entity-sync path.
+ *
+ * Not from the spawn helper, which is where it started: `server_slot` is
+ * written by the caller AFTER the helper returns, so the trigger read -1 for
+ * every npc, every overlay keyed on the same absent subject, and the per-frame
+ * anchor pass reaped them all a frame later. From here the npc is finished.
+ */
+void
+App_ClientTriggerNpcAdd(struct App* app, int npc_pool_index)
+{
+    struct WorldEntity_NPC* npc;
+
+    assert(app);
+
+    if( !app->world )
+        return;
+    npc = World_EntityPoolGet(&app->world->entities.npc, npc_pool_index);
+    if( npc )
+        app_client_trigger_npc(app, npc, RS_TRIGGER_NPC_ADD);
 }
 
 /**
@@ -4077,6 +4102,15 @@ app_entity_overlay_layout(struct App* app)
              * walked out of the scene is never coming back under the same uid,
              * and the script that made the overlay gets no event to tell it so.
              */
+            if( getenv("TORIRS_OVERLAY_SCRIPT_DEBUG") )
+                fprintf(
+                    stderr,
+                    "overlay: reap #%d anchor=%d uid=%d coord=%d slot=%d\n",
+                    i,
+                    item->anchor,
+                    item->uid,
+                    item->coord,
+                    item->slot);
             RS_CS2Host_OverlayReap(&app->host, i);
             continue;
         }
@@ -4115,6 +4149,27 @@ app_entity_overlay_layout(struct App* app)
             c->position.y = y;
             c->is_dirty = 1;
             UITree_LayoutInvalidateBoxes(app->tree);
+        }
+
+        if( getenv("TORIRS_OVERLAY_SCRIPT_DEBUG") )
+        {
+            int kids = 0;
+            for( int32_t k = c->first_child; k >= 0; k = app->tree->components[k].next_sibling )
+                kids++;
+            fprintf(
+                stderr,
+                "overlay: #%d anchor=%d slot=%d band=%d com=0x%08x box=%d,%d %dx%d kids=%d hide=%d\n",
+                i,
+                item->anchor,
+                item->slot,
+                item->band,
+                (unsigned)item->component_id,
+                x,
+                y,
+                w,
+                h,
+                kids,
+                (int)c->behavior.hide);
         }
     }
 }
@@ -5729,6 +5784,27 @@ App_ChromeScale(struct App const* app)
     return ToriRSChrome_Scale(&app->dbg_ui);
 }
 
+int
+App_SetChromeCheckStyle(struct App* app, int style)
+{
+    assert(app);
+    if( ToriRSChrome_CheckStyle(&app->dbg_ui) == style )
+        return 0;
+    /* Both instances, because there is one answer to "what does a checkbox
+     * look like here" -- the same rule App_SetChromeScale keeps, and for a
+     * sharper reason: the two panels are commonly on screen together. */
+    ToriRSChrome_SetCheckStyle(&app->dbg_ui, style);
+    ToriRSChrome_SetCheckStyle(&app->plugin_ui, style);
+    return 1;
+}
+
+int
+App_ChromeCheckStyle(struct App const* app)
+{
+    assert(app);
+    return ToriRSChrome_CheckStyle(&app->dbg_ui);
+}
+
 static void
 app_debug_overlay_init(struct App* app)
 {
@@ -5752,6 +5828,30 @@ app_debug_overlay_init(struct App* app)
         char const* theme = getenv("TORIRS_CHROME_THEME");
         if( theme && strcmp(theme, "flat") == 0 )
             app->dbg_ui.theme = torirs_chrome_theme_default;
+
+        /*
+         * Which boolean art the checkboxes wear: the manifest's answer, and
+         * TORIRS_CHROME_CHECKBOX over the top of it -- the same order every
+         * other chrome option here is resolved in.
+         *
+         * Set on dbg_ui alone because plugin_ui is COPIED from it a few lines
+         * below; going through App_SetChromeCheckStyle would be a call on an
+         * instance that does not exist yet.
+         */
+        {
+            char const* pick = getenv("TORIRS_CHROME_CHECKBOX");
+            int style = app->cfg.chrome_checkbox;
+            if( pick && strcmp(pick, "box") == 0 )
+                style = TORIRS_CHROME_CHECK_STYLE_BOX;
+            else if( pick && strcmp(pick, "tick") == 0 )
+                style = TORIRS_CHROME_CHECK_STYLE_TICK;
+            else if( pick )
+                fprintf(
+                    stderr,
+                    "chrome: TORIRS_CHROME_CHECKBOX must be tick|box, got '%s'\n",
+                    pick);
+            ToriRSChrome_SetCheckStyle(&app->dbg_ui, style);
+        }
 
         for( int i = 0; i < TORIRS_CHROME_SKIN_SLOT_COUNT && i < ToriRSChromeSkin_Count(); i++ )
             app->dbg_ui.skin_avail |= 1u << i;
@@ -6306,11 +6406,18 @@ app_dbgui_key_edit_from_osrs(int osrs_key)
     case TORIRS_OSRSKEY_ESCAPE:
         return TORIRS_CHROME_KEY_ESCAPE;
     /* Arrows and home/end have no named constants; the keymap table spells
-     * them (src/input/torirs_keymap.c: 96 left, 97 right, 102 home, 103 end). */
+     * them (src/input/torirs_keymap.c: 96 left, 97 right, 98 up, 99 down,
+     * 102 home, 103 end). */
     case 96:
         return TORIRS_CHROME_KEY_LEFT;
     case 97:
         return TORIRS_CHROME_KEY_RIGHT;
+    /* Up and down a LINE, for a multiline field. The model ignores them on
+     * every other kind, so routing them costs nothing where there is none. */
+    case 98:
+        return TORIRS_CHROME_KEY_UP;
+    case 99:
+        return TORIRS_CHROME_KEY_DOWN;
     case 102:
         return TORIRS_CHROME_KEY_HOME;
     case 103:
@@ -6715,8 +6822,10 @@ static void
 app_settings_colour_commit(struct App* app, uint32_t rgb)
 {
     assert(app);
-    if( app->settings_colour_req.varp_id < 0 )
-        return;
+    /* A picker is only ever opened for a row whose varp is known, so this is a
+     * contract and not a state to tolerate: a commit with nowhere to go would
+     * be a picker the user is dragging that changes nothing. */
+    assert(app->settings_colour_req.varp_id >= 0);
     RS_CS2Host_ScriptWriteVarp(
         &app->host, app->settings_colour_req.varp_id, (int)(rgb & 0xFFFFFFu) + 1);
     app->need_redraw = 1;
@@ -6726,13 +6835,17 @@ app_settings_colour_commit(struct App* app, uint32_t rgb)
 static void
 app_settings_colour_place(struct App* app, int component_id)
 {
-    int const scale = ToriRSChrome_Scale(&app->dbg_ui);
-    int const width = 230 * scale;
-    int x = (UITREE_LAYOUT_ROOT_W - width) / 2;
-    int y = UITREE_LAYOUT_ROOT_H / 4;
+    int scale;
+    int width;
+    int x;
+    int y;
     int32_t idx;
 
     assert(app);
+    scale = ToriRSChrome_Scale(&app->dbg_ui);
+    width = 230 * scale;
+    x = (UITREE_LAYOUT_ROOT_W - width) / 2;
+    y = UITREE_LAYOUT_ROOT_H / 4;
     idx = app->tree && component_id >= 0 ? UITree_FindByComponentId(app->tree, component_id) : -1;
     if( idx >= 0 )
     {
@@ -6815,13 +6928,12 @@ app_settings_colour_open(struct App* app, struct RS_CS2SettingsColourRequest con
  * changed. Peeking costs nothing and cannot do that to anyone.
  */
 static void
-app_settings_colour_tick(struct App* app, struct LibToriRS_Input* input)
+app_settings_colour_tick(struct App* app)
 {
     struct RS_CS2SettingsColourRequest req;
     int activated;
 
     assert(app);
-    (void)input;
 
     if( RS_CS2Host_TakeSettingsColourRequest(&app->host, &req) )
         app_settings_colour_open(app, &req);
@@ -6842,16 +6954,22 @@ app_settings_colour_tick(struct App* app, struct LibToriRS_Input* input)
     }
 
     /*
-     * Follow the row out of existence.
+     * Follow the panel out of existence.
      *
-     * All Settings is built and torn down by clientscripts, so closing the
-     * panel -- or switching to another category, which rebuilds every row --
-     * takes the swatch with it. A picker still floating over the game after
-     * its row is gone has nothing to point at and no way to be dismissed
-     * except its own button.
+     * All Settings is opened and closed by the interface stack, and a picker
+     * still floating over the game after the panel it belongs to is gone has
+     * nothing to point at.
+     *
+     * Asked of the GROUP -- the interface the swatch's component id names in
+     * its high half -- and not of the component. A colour row's swatch is a
+     * DYNAMIC child, created by `cc_create` on a container with a component id
+     * of its own, so looking that id up finds the CONTAINER: it is present for
+     * as long as any of the interface is, which made the test true forever and
+     * left the picker over the world after the panel had gone. The group is
+     * the question actually being asked -- is the panel still open.
      */
     if( app->settings_colour_req.component_id >= 0 && app->tree &&
-        UITree_FindByComponentId(app->tree, app->settings_colour_req.component_id) < 0 )
+        !UITree_GroupPresent(app->tree, app->settings_colour_req.component_id >> 16) )
     {
         app_settings_colour_close(app);
         return;
@@ -6870,11 +6988,18 @@ app_settings_colour_tick(struct App* app, struct LibToriRS_Input* input)
     }
     else if( activated == app->settings_colour_default_btn )
     {
-        int const hsl =
-            ToriRSChrome_Hsl16NearestRgb((uint32_t)app->settings_colour_req.default_colour);
+        /* The DEFAULT is committed verbatim, not as the palette entry nearest
+         * to it. `param_1230` is a colour the cache authored and the row draws
+         * its swatch in before anyone picks; restoring it as an approximation
+         * would mean "Default" never quite got back to where the row started.
+         * The picker still shows the nearest entry, because that is the only
+         * thing its axes can hold -- and what it shows is honestly what the
+         * next pick would produce. */
+        uint32_t const rgb = (uint32_t)app->settings_colour_req.default_colour & 0xFFFFFFu;
         (void)ToriRSChrome_TakeActivated(&app->dbg_ui);
-        ToriRSChrome_ColorPickSet(&app->dbg_ui, app->settings_colour_pick, hsl);
-        app_settings_colour_commit(app, ToriRSChrome_Hsl16ToRgb(hsl));
+        ToriRSChrome_ColorPickSet(
+            &app->dbg_ui, app->settings_colour_pick, ToriRSChrome_Hsl16NearestRgb(rgb));
+        app_settings_colour_commit(app, rgb);
     }
     else if( activated == app->settings_colour_close_btn )
     {
@@ -15804,12 +15929,6 @@ app_world_spawn_npc_now(
             PluginHost_NpcSpawn(app->plugins, &snap);
         }
     }
-    if( idx != WORLD_ENTITY_NIL )
-    {
-        struct WorldEntity_NPC* spawned = World_EntityPoolGet(&app->world->entities.npc, idx);
-        if( spawned )
-            app_client_trigger_npc(app, spawned, RS_TRIGGER_NPC_ADD);
-    }
     return idx;
 }
 
@@ -22534,7 +22653,7 @@ App_RunOnce(
     /* Right after the developer overlay, because it shares that instance: the
      * tick above is what routed this frame's mouse into dbg_ui, and the
      * picker's own drain has to run against the activation that produced. */
-    app_settings_colour_tick(app, input);
+    app_settings_colour_tick(app);
     /* Plugin settings beside the other developer chrome, and before the loc
      * editor for the same reason it runs before the map editor: whoever is
      * open drains the shared activation latch, so order decides who sees a

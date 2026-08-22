@@ -70,15 +70,22 @@ local plugin = {
         -- Reference GroundItemsConfig, key for key. The hidden list default is
         -- the reference's own, which is why coins and bones are invisible out
         -- of the box: hold the reveal key to see them.
+        -- The two LISTS are multiline boxes, not one-line fields. That is the
+        -- reference's own shape: interface 650's ground-items page gives
+        -- "Highlighted items" and "Filtered items" a box several lines tall
+        -- each, because a comma-separated run of item names shows about a word
+        -- and a half of itself in a one-line field.
         {
             key = "highlighted_items",
-            type = "string",
+            type = "text",
+            rows = 5,
             default = "",
             label = "Highlighted items"
         },
         {
             key = "hidden_items",
-            type = "string",
+            type = "text",
+            rows = 5,
             default = "Vial, Ashes, Coins, Bones, Bucket, Jug, Seaweed",
             label = "Hidden items"
         },

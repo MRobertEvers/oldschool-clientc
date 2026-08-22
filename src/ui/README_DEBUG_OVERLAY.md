@@ -574,8 +574,20 @@ different cache — or no bake at all — needs no change here.
 | `SCROLL_TRACK` | 792 | stretched down the bar between the arrows |
 | `SCROLL_GRIP_TOP/MID/BOTTOM` | 789 / 790 / 791 | the grip: middle stretched, then a cap on each end |
 | `PLUGIN_ICON` | `sideicons_interface_11` (785) | the wrench that opens the plugin window from the gameframe's strip |
-| `CHECK_ON` / `CHECK_OFF` | 8380 / 8379 | every on/off state: a checkbox, and a roster row's switch |
+| `CHECK_ON` / `CHECK_OFF` | 8380 / 8379 | the `tick` style's on/off: a green tick, a red cross |
+| `CHECK_BOX_ON` / `CHECK_BOX_OFF` | 2848 / 2847 | the `box` style's: a tick in a bordered well, and the empty well |
 | `FRAME_TOP_LEFT` … `FRAME_BOTTOM_RIGHT` | 846/820/847, 821/841, 848/828/849 | the nine-slice border a framed panel wears |
+
+**Two checkboxes, because the game has two.** The settings page's tick/cross and
+the journals' bordered well are both what a boolean looks like here, and they
+say different things -- a red cross is the answer *off*, where an empty well is
+one control in its other state. So both are baked and
+`ToriRSChrome_SetCheckStyle` picks (`[ui] chrome_checkbox=tick|box`, env
+`TORIRS_CHROME_CHECKBOX`, default `tick`). It is a LAYOUT choice, not a palette
+one: the arts are 17 and 18 wide, `DBG_CHECK_SIZE` follows the style, and
+setting it dirties every panel the way `SetScale` does. Every other presentation
+of this chrome hears about it through `TORIRS_CHROME_CMD_CHECK_STYLE` -- see
+`docs/chrome_executors.md`, "Two checkboxes, and an option that picks one".
 
 **The frame is the popout strip's own, and finding it needed a component dump.**
 An earlier bake used 5814–5822, a thin near-black nine-slice sitting beside the

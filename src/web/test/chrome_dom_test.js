@@ -457,6 +457,41 @@ got = intents();
 check(got.length === 1 && got[0].k === INTENT.TEXT, 'editing the hex reports a TEXT intent');
 check(got[0].text === '#102030', 'carrying the new value');
 
+/*
+ * TEXTAREA: a real <textarea>, its caption on a line of its own above it, and
+ * a line count that arrives on the ADD as `ch`.
+ *
+ * The row class matters as much as the element: without it the row is still a
+ * flex line one rowH tall, so a five-line box is clipped to eighteen pixels and
+ * the control looks like a broken text input.
+ */
+apply(cmd(CMD.WIDGET_ADD, {
+  w: 24, v: W.TEXTAREA, tab: -1, label: 'Highlighted items', text: 'whip, tbow', ch: 5
+}));
+const areaRow = addedRow(24);
+const area = areaRow.children.filter(c => c.tagName === 'TEXTAREA')[0];
+check(areaRow.classList.contains('textarea'), 'a multiline row is marked as one');
+check(area !== undefined, 'and holds a real textarea');
+check(area.rows === 5, "the ADD's line count reaches the control");
+check(area.value === 'whip, tbow', 'the value it opens on rides the add');
+check(
+  areaRow.children.filter(c => c.classList.contains('lbl')).length === 1,
+  'the caption is a label of its own, above the box');
+area.value = 'whip\ntbow';
+area.fire('change');
+got = intents();
+check(got.length === 1 && got[0].k === INTENT.TEXT, 'editing it reports a TEXT intent');
+check(got[0].text === 'whip\ntbow', 'carrying the newline the box was typed with');
+/* The model echoes every value back; writing over the box the user is still in
+ * would move their caret, which is why this is gated on focus exactly as a
+ * one-line field is. */
+apply(cmd(CMD.WIDGET_TEXT, { w: 24, text: 'bones' }));
+check(area.value === 'bones', 'an unfocused box follows the model');
+document.activeElement = area;
+apply(cmd(CMD.WIDGET_TEXT, { w: 24, text: 'ashes' }));
+check(area.value === 'bones', 'a focused one is left alone');
+document.activeElement = null;
+
 /* MODELVIEW: a placeholder, but a real element -- it takes the focus. */
 apply(cmd(CMD.WIDGET_ADD, { w: 23, v: W.MODELVIEW, tab: -1, label: 'preview' }));
 check(
@@ -696,6 +731,7 @@ function fakeSprite(w, h) {
 const SKIN = moduleShim.exports.SKIN;
 const SKIN_NEEDED = [
   SKIN.PANEL_BODY, SKIN.DROPDOWN_BODY, SKIN.CHECK_ON, SKIN.CHECK_OFF,
+  SKIN.CHECK_BOX_ON, SKIN.CHECK_BOX_OFF,
   SKIN.SCROLL_UP, SKIN.SCROLL_DOWN, SKIN.SCROLL_TRACK, SKIN.SCROLL_GRIP_MID,
   SKIN.FRAME_TOP_LEFT, SKIN.FRAME_TOP, SKIN.FRAME_TOP_RIGHT,
   SKIN.FRAME_LEFT, SKIN.FRAME_RIGHT,
@@ -741,6 +777,26 @@ check(sheet().includes('.torirs-chrome.skinned'), 'the skin sheet was written');
  * loads the way it loads every other sprite in this sheet. Nothing here can be
  * undecoded at the moment it is used, because nothing here is read back.
  */
+/*
+ * The OTHER boolean: a class the page is TOLD to wear, not a second stylesheet.
+ *
+ * The sheet is built once, at skinDone, and CHECK_STYLE can arrive on any
+ * frame afterwards -- so both pairs have to be in it, each at its own size,
+ * and the switch has to be a className toggle. A page that rebuilt the sheet
+ * instead would work here and drop every other override on a real browser the
+ * moment the style changed.
+ */
+check(sheet().includes('.torirs-chrome.skinned.checkbox-square'),
+  'the sheet carries the bordered-well style beside the tick one');
+check(!chromeRoot.classList.contains('checkbox-square'),
+  'and the window starts on the tick, which is the model default');
+apply(cmd(CMD.CHECK_STYLE, { p: -1, w: -1, v: 1 }));
+check(chromeRoot.classList.contains('checkbox-square'),
+  'CHECK_STYLE 1 puts the whole window on the bordered well');
+apply(cmd(CMD.CHECK_STYLE, { p: -1, w: -1, v: 0 }));
+check(!chromeRoot.classList.contains('checkbox-square'),
+  'and it goes back, because a style is a choice and not an upgrade');
+
 check(!sheet().includes('border-image'),
   'the frame is not composed through a canvas the page has to read back');
 check((sheet().match(/no-repeat/g) || []).length >= 8,

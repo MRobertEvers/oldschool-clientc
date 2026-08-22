@@ -492,7 +492,6 @@ fake_engine(void)
 
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_POLL_BOOTHS;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_HIGHLIGHT;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_NPC_NAMES;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_BIRD_NEST;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_CANNON_AMMO;
 
@@ -507,21 +506,6 @@ draw_reset(void)
     g_engine.last_menu_text[0] = '\0';
 }
 
-/** Build a right-click menu carrying one npc row, the way app.c's bridge does
- *  for a click on an npc. */
-static void
-menu_with_npc(struct ToriRS_PluginEvMenuBuild* ev, int slot)
-{
-    memset(ev, 0, sizeof(*ev));
-    ev->row_count = 1;
-    ev->rows[0].text = "Attack Goblin";
-    ev->rows[0].action = 9;
-    ev->rows[0].npc_slot = slot;
-    ev->rows[0].player_pid = -1;
-    ev->rows[0].target_id = -1;
-    ev->hover_pass = false;
-}
-
 int
 main(void)
 {
@@ -529,7 +513,6 @@ main(void)
     struct ToriRS_PluginHost* host = PluginHost_New(&engine);
     int p_booth;
     int p_hl;
-    int p_names;
     int p_nest;
     int p_cannon;
 
@@ -540,19 +523,17 @@ main(void)
 
     p_booth = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_POLL_BOOTHS);
     p_hl = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_HIGHLIGHT);
-    p_names = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_NPC_NAMES);
     p_nest = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_BIRD_NEST);
     p_cannon = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_CANNON_AMMO);
     CHECK(
-        p_booth >= 0 && p_hl >= 0 && p_names >= 0 && p_nest >= 0 && p_cannon >= 0,
-        "all five register");
+        p_booth >= 0 && p_hl >= 0 && p_nest >= 0 && p_cannon >= 0,
+        "all four register");
     PluginHost_Start(host);
 
     /* ---- the roster must not show any of them --------------------------- */
     {
         CHECK(PluginHost_IsHidden(host, p_booth), "poll booths are hidden");
         CHECK(PluginHost_IsHidden(host, p_hl), "the cache-highlight renderer is hidden");
-        CHECK(PluginHost_IsHidden(host, p_names), "npc names are hidden");
         CHECK(PluginHost_IsHidden(host, p_nest), "the bird nest notice is hidden");
         CHECK(PluginHost_IsHidden(host, p_cannon), "the cannon notices are hidden");
         /* Hidden is not disabled: the feature is always running and the varbit
@@ -709,62 +690,22 @@ main(void)
 
     /* ---- 258 / 263 / 264 / 266: the npc name rows ------------------------
      *
-     * 258 names the TAGGED npcs, and "tagged" is the cache's highlight group --
-     * read back through highlight_next, not from a list of the plugin's own.
-     * 264 names every npc. Both are three-way (off / normal / bold).
+     * Not tested here any more, because they are not drawn here any more.
+     *
+     * There used to be an `nxt-npc-names` builtin faking these four in the
+     * hitsplat font, because the cache draws them through the `_7200` family
+     * and this client implemented none of it. It does now
+     * (game/rs_entity_overlay.h), and the cache's own clientscript 6698 builds
+     * a real text component in the row's own colour and the row's own font
+     * (495 normal / 496 bold) -- which the faux-bold second pass could only
+     * approximate. The builtin is deleted rather than left switched off: two
+     * things reading one varbit and both drawing is a doubled name, not a
+     * fallback.
+     *
+     * What replaced these checks: ui/test/uitree_test_scripted_overlay.c pins
+     * that an overlay's children reach the screen, are hoisted under the
+     * panels and are clipped to the world.
      */
-    {
-        g_engine.npc_count = 2;
-        memset(g_engine.npcs, 0, sizeof(g_engine.npcs));
-        g_engine.npcs[0].server_slot = 11;
-        g_engine.npcs[0].element_id = 21;
-        snprintf(g_engine.npcs[0].name, sizeof(g_engine.npcs[0].name), "Goblin");
-        g_engine.npcs[1].server_slot = 12;
-        g_engine.npcs[1].element_id = 22;
-        snprintf(g_engine.npcs[1].name, sizeof(g_engine.npcs[1].name), "Duck");
-
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.texts == 0, "both rows off names nothing");
-
-        g_engine.varbit[NXT_VARBIT_NPC_NAMES_ALL] = NXT_NAME_NORMAL;
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.texts == 2, "264 names every npc");
-
-        g_engine.varbit[NXT_VARBIT_NPC_NAMES_ALL] = NXT_NAME_BOLD;
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.texts == 4, "bold is the same name struck twice");
-
-        /* 258 draws over the cache's tagged set, which arrives as highlight
-         * items -- so a tagged npc is named again, in the tagged colour. */
-        g_engine.varbit[NXT_VARBIT_NPC_NAMES_ALL] = NXT_NAME_OFF;
-        g_engine.varbit[NXT_VARBIT_NPC_NAME] = NXT_NAME_NORMAL;
-        g_engine.highlight_count = 1;
-        memset(&g_engine.highlights[0], 0, sizeof(g_engine.highlights[0]));
-        g_engine.highlights[0].kind = TORIRS_PLUGIN_HL_NPC;
-        g_engine.highlights[0].element_id = 21;
-        g_engine.highlights[0].overhead_height = 200;
-        snprintf(
-            g_engine.highlights[0].name, sizeof(g_engine.highlights[0].name), "Goblin");
-
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.texts == 1, "258 names the tagged npc and only it");
-        CHECK(strcmp(g_engine.last_text, "Goblin") == 0, "with its name");
-
-        /* A highlight item that is not an npc must not be named: a marked TILE
-         * has no name, and a highlighted loc is not what 258 is about. */
-        g_engine.highlights[0].kind = TORIRS_PLUGIN_HL_TILE;
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.texts == 0, "a non-npc highlight item is not named");
-
-        g_engine.varbit[NXT_VARBIT_NPC_NAME] = NXT_NAME_OFF;
-        g_engine.highlight_count = 0;
-        g_engine.npc_count = 0;
-    }
 
     /* ---- 189: the bird nest notification ---------------------------------
      *

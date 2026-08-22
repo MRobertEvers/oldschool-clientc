@@ -113,6 +113,12 @@ _Static_assert(
     (int)TORIRS_CHROME_SKIN_DOCK_OVER == (int)ToriRSChromeSkin_SLOT_DockButtonOver,
     "chrome skin: DOCK_OVER is not the baked DockButtonOver");
 _Static_assert(
+    (int)TORIRS_CHROME_SKIN_CHECK_BOX_ON == (int)ToriRSChromeSkin_SLOT_CheckBoxOn,
+    "chrome skin: CHECK_BOX_ON is not the baked CheckBoxOn");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_CHECK_BOX_OFF == (int)ToriRSChromeSkin_SLOT_CheckBoxOff,
+    "chrome skin: CHECK_BOX_OFF is not the baked CheckBoxOff");
+_Static_assert(
     (int)TORIRS_CHROME_SKIN_SLOT_COUNT == (int)ToriRSChromeSkin_SLOT_COUNT,
     "chrome skin: the semantic slots and the bake disagree on how many there are");
 

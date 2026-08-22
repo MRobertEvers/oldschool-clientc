@@ -63,6 +63,17 @@
 
 /** The interfaces' own on/off art, and the box a checkbox reserves for it. */
 #define TORIRS_CHROME_M_BOX 17
+/**
+ * The same box for the OTHER boolean the interfaces draw: the bordered well
+ * with a tick in it (archives 2847/2848), which is one pixel wider.
+ *
+ * A second number rather than a shared 17 or a shared 18, because a UI sprite
+ * drawn at anything but its baked size speckles -- the outline is baked before
+ * the scale -- so the control is sized to whichever art it is wearing. Which
+ * one that is comes from enum ToriRSChromeCheckStyle, and every presentation
+ * of the chrome branches on it at the one place it lays a checkbox out.
+ */
+#define TORIRS_CHROME_M_BOX_SQUARE 18
 /** Gap between a checkbox's mark and its label. */
 #define TORIRS_CHROME_M_CHECK_GAP 6
 
@@ -172,6 +183,57 @@
  */
 #define TORIRS_CHROME_M_DROP_ARROW                                                                 \
     (TORIRS_CHROME_M_ROW_H - 2 * TORIRS_CHROME_M_FIELD_INSET)
+
+/* ---- the multiline field, as the cache's own builds one -------------------
+ *
+ * The ground-items settings page (`loottools`, interface 650) is where this
+ * game authors a multi-line text box, and `~script7210` -- the proc
+ * `~script7213` calls to build both the highlight list and the filter list --
+ * is the whole recipe:
+ *
+ *     cc_create(.., 3, ..)              a RECT, filled 0x372e22
+ *     cc_create(.., 12, ..)             the INPUT, inset 2 on every side
+ *     cc_input_setlinewrappingwidth(cc_getwidth - 2)
+ *     cc_settextfont(fontmetrics_495)   the plain body face
+ *     cc_setcolour(^white)  cc_settextshadow(true)  cc_settextalign(0, 0, 0)
+ *
+ * and the frame around it is `~script715`, which is the SAME two-colour pair a
+ * settings field wears (TORIRS_CHROME_C_FRAME over TORIRS_CHROME_C_FRAME_INSET).
+ * So a multiline field needs no art of its own -- one authored fill colour and
+ * the frame the chrome already draws. Nothing was added to the bake for it.
+ *
+ * The header above the box ("Highlighted items", "Filtered items") is a plain
+ * TEXT component in the settings orange, one row tall -- which is why the label
+ * of a multiline row sits ABOVE its box rather than in the label column a
+ * one-line field uses. A 104px caption column beside a four-line list would
+ * take the width the list is for.
+ */
+
+/** Body fill of a multiline field: `~script7210`'s own `cc_setcolour`. Lighter
+ *  than a one-line field's black, because this box is mostly empty and reads as
+ *  a hole in the panel at TORIRS_CHROME_C_FIELD_BG. */
+#define TORIRS_CHROME_C_TEXTAREA_BG 0x372E22
+
+/** Visible lines a multiline field shows before it scrolls, when its caller
+ *  names no other number. Four is what the reference's own two lists come out
+ *  at in the popout strip's width. */
+#define TORIRS_CHROME_M_TEXTAREA_ROWS 4
+/** Ceiling on that, so a row cannot ask for a box taller than the panel. */
+#define TORIRS_CHROME_M_TEXTAREA_ROWS_MAX 16
+/**
+ * Pitch of one wrapped line inside the box.
+ *
+ * AUTHORED, for the same reason TORIRS_CHROME_M_DROP_LIST_ROW_H is: the
+ * presentations that read this cannot measure text at all -- the CS2 executor's
+ * advances live in the scene's font and the DOM's in the browser -- so they get
+ * the number the p12 line box comes out at (12 ascent + 4 descent). The
+ * in-canvas chrome measures its own face and uses that, and the two agree
+ * because the face is the same one.
+ */
+#define TORIRS_CHROME_M_TEXTAREA_LINE 16
+/** Air between the box's frame and the first glyph, top and bottom.
+ *  `~script7210` insets its input by 2 and offsets it by another 3. */
+#define TORIRS_CHROME_M_TEXTAREA_PAD_Y 3
 
 /* ---- the open dropdown list ----------------------------------------------
  *

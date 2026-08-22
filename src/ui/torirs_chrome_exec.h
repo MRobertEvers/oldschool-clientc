@@ -84,9 +84,20 @@ enum ToriRSChromeCmdKind
      */
     TORIRS_CHROME_CMD_PANEL_TAB,
 
-    /** A widget appeared: `widget`, `value` = enum ToriRSChromeWidgetKind, `tab` =
-     *  which tab owns it (-1 = all), `label`/`text` = its initial strings.
-     *  Always the first command about that widget. */
+    /**
+     * A widget appeared: `widget`, `value` = enum ToriRSChromeWidgetKind, `tab` =
+     * which tab owns it (-1 = all), `label`/`text` = its initial strings.
+     * Always the first command about that widget.
+     *
+     * Two fields of the rect ride this one command because they are the
+     * widget's SHAPE rather than its state, and shape never changes after an
+     * add -- a row that gained or lost one is a different row, and the panel
+     * rebuild that changed it gives it a new serial, which the shadow answers
+     * with a remove-then-add:
+     *
+     *   `w` -- a LISTROW carries its settings affordance.
+     *   `h` -- a TEXTAREA is this many lines tall.
+     */
     TORIRS_CHROME_CMD_WIDGET_ADD,
     /** A widget went away. Its handle may be reused by a later ADD. */
     TORIRS_CHROME_CMD_WIDGET_REMOVE,
@@ -98,9 +109,20 @@ enum ToriRSChromeCmdKind
     TORIRS_CHROME_CMD_WIDGET_HIDDEN,
     /** `color` = 0xRRGGBB, 0 meaning "the theme's". */
     TORIRS_CHROME_CMD_WIDGET_COLOR,
-    /** `value` = the selected index, or -1. A COLORPICK's selection is its
-     *  packed HSL16 instead -- see TORIRS_CHROME_W_COLORPICK for why a colour rides
-     *  the selection rather than a channel of its own. */
+    /**
+     * `value` = the selected index, or -1.
+     *
+     * Two kinds put something else in it, both because the thing they have one
+     * of IS a selection out of an ordered set, and a channel of its own would
+     * be a command every executor has to switch on for one widget kind:
+     *
+     *   COLORPICK -- the packed HSL16 value. @see TORIRS_CHROME_W_COLORPICK.
+     *   TEXTAREA  -- the first VISIBLE LINE of the box. A presentation whose
+     *                control scrolls itself (a DOM textarea, a multiline EDIT)
+     *                ignores it; one that draws its own lines (the CS2 window)
+     *                needs it, or a long list always shows its first four
+     *                lines while the user types on the twelfth.
+     */
     TORIRS_CHROME_CMD_WIDGET_SELECTED,
     /**
      * `value` = 1 when this widget now holds the keyboard, 0 when it lost it.
@@ -131,6 +153,26 @@ enum ToriRSChromeCmdKind
     TORIRS_CHROME_CMD_WIDGET_OPTIONS,
     /** One entry of the list just announced: `value` = its index, `text` = it. */
     TORIRS_CHROME_CMD_WIDGET_OPTION,
+
+    /**
+     * Which boolean art every checkbox and roster switch is to wear:
+     * `value` = enum ToriRSChromeCheckStyle. `panel` and `widget` are -1.
+     *
+     * CHROME-WIDE, unlike everything else here, because the choice is: one
+     * window whose rows disagreed about what a checkbox looks like would be a
+     * worse bug than any this seam already prevents.
+     *
+     * Sent before any panel on the first Run, and again whenever it changes --
+     * so an executor may store it and use it for every row it draws afterwards
+     * rather than looking it up per widget. An executor that came up later is
+     * told it as part of being caught up from nothing, which is why the shadow
+     * carries it beside the panels.
+     *
+     * It is also a LAYOUT input, not only a palette one: the two arts are 17
+     * and 18 wide (TORIRS_CHROME_M_BOX / _M_BOX_SQUARE), so an executor that
+     * places its own controls has to re-place them when this arrives.
+     */
+    TORIRS_CHROME_CMD_CHECK_STYLE,
 };
 
 /**
@@ -418,6 +460,15 @@ struct ToriRSChromeSync
     int live;
     /** Sync has never run against this executor, so everything is new. */
     int primed;
+    /**
+     * The checkbox style this executor was last told about.
+     *
+     * Seeded to -1 by Init rather than to TICK, so the first Run states the
+     * style even when the model is sitting at the default: an executor that
+     * was never told cannot know, and "it happens to match the value the
+     * shadow was zeroed to" is not being told.
+     */
+    int check_style;
     /** Commands emitted since Init, for tests and for a "did anything move"
      *  probe that costs nothing to keep. */
     int cmd_count;

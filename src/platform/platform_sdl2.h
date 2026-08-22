@@ -104,7 +104,12 @@ enum PlatformSDL2_AuxEditKey
     PLATFORM_AUX_KEY_HOME,
     PLATFORM_AUX_KEY_END,
     PLATFORM_AUX_KEY_ENTER,
-    PLATFORM_AUX_KEY_ESCAPE
+    PLATFORM_AUX_KEY_ESCAPE,
+    /* Appended, and appended in ui/'s order: the two enums are pinned value
+     * for value, so inserting either of these beside LEFT/RIGHT -- where they
+     * belong by meaning -- would renumber every key after it on both sides. */
+    PLATFORM_AUX_KEY_UP,
+    PLATFORM_AUX_KEY_DOWN
 };
 
 /**
