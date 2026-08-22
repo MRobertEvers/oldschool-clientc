@@ -28,7 +28,16 @@
 #endif
 
 #define TASK_CS2_RUN_INT_ARGS_MAX 64
-#define TASK_CS2_RUN_STR_ARGS_MAX 4
+/* Script 149 consumes five operation labels and script 150 consumes nine.
+ * Leave room beyond both rather than turning their valid signatures into a
+ * truncation boundary again. The matching VM request and UI-hook caps are 16
+ * as well, because these arguments must survive both initial dispatch and a
+ * repaint hook installed by the script. */
+#define TASK_CS2_RUN_STR_ARGS_MAX 16
+_Static_assert(TASK_CS2_RUN_STR_ARGS_MAX == CS2VM_SETON_STR_ARG_MAX,
+               "CS2 dispatch and set-on requests must keep the same strings");
+_Static_assert(TASK_CS2_RUN_STR_ARGS_MAX == UITREE_HOOK_STR_ARG_MAX,
+               "CS2 dispatch and stored hooks must keep the same strings");
 /*
  * A clientscript string argument is not a label — it can be a payload.
  *

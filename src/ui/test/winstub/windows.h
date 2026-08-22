@@ -13,8 +13,11 @@ typedef uintptr_t WPARAM; typedef intptr_t LPARAM; typedef intptr_t LRESULT;
 typedef intptr_t INT_PTR; typedef uintptr_t ULONG_PTR; typedef int BOOL; typedef char CHAR; typedef long LONG;
 #define CALLBACK
 #define TRUE 1
+#define FALSE 0
 typedef struct { LONG left, top, right, bottom; } RECT;
 typedef struct { LONG x, y; } POINT;
+typedef struct { HDC hdc; BOOL fErase; RECT rcPaint; BOOL fRestore, fIncUpdate; unsigned char rgbReserved[32]; }
+  PAINTSTRUCT;
 typedef struct {
   UINT cbSize, fMask; int nMin, nMax; UINT nPage; int nPos, nTrackPos;
 } SCROLLINFO;
@@ -91,11 +94,16 @@ typedef struct {
 #define EN_SETFOCUS 4
 #define STN_CLICKED 0
 #define CBN_SELCHANGE 3
+#define CBN_DROPDOWN 7
+#define CBN_CLOSEUP 8
 #define CB_RESETCONTENT 10
 #define CB_ADDSTRING 11
 #define CB_SETCURSEL 12
 #define CB_GETCURSEL 13
 #define CB_GETLBTEXT 14
+#define CB_SHOWDROPDOWN 15
+#define CB_SETITEMHEIGHT 16
+#define CB_GETITEMHEIGHT 17
 #define COLOR_BTNFACE 15
 #define TRANSPARENT 1
 #define IDC_ARROW ((const char*)32512)
@@ -116,6 +124,8 @@ typedef struct {
 #define WM_LBUTTONUP 30
 #define WM_MOUSEMOVE 31
 #define WM_CAPTURECHANGED 32
+#define WM_PAINT 33
+#define WM_SETREDRAW 34
 #define HTCLIENT 1
 #define HTCAPTION 2
 #define ODS_SELECTED 0x0001
@@ -147,8 +157,6 @@ typedef struct {
 #define DT_END_ELLIPSIS 0x8000
 #define NULL_BRUSH 5
 #define RDW_INVALIDATE 1
-#define RDW_ERASE 4
-#define RDW_UPDATENOW 8
 #define RDW_ALLCHILDREN 0x80
 HWND CreateWindowExA(DWORD,const char*,const char*,DWORD,int,int,int,int,HWND,HMENU,HINSTANCE,void*);
 BOOL DestroyWindow(HWND); BOOL ShowWindow(HWND,int);
@@ -170,6 +178,8 @@ HWND SetFocus(HWND);
 /* GDI32, for the owner-drawn half. No msimg32: the alpha compositing is done
  * in software, which is why AlphaBlend is absent from this list. */
 HDC CreateCompatibleDC(HDC);
+HDC BeginPaint(HWND, PAINTSTRUCT*);
+BOOL EndPaint(HWND, const PAINTSTRUCT*);
 HBITMAP CreateDIBSection(HDC, const BITMAPINFO*, UINT, void**, void*, DWORD);
 HGDIOBJ SelectObject(HDC, HGDIOBJ);
 BOOL BitBlt(HDC, int, int, int, int, HDC, int, int, DWORD);

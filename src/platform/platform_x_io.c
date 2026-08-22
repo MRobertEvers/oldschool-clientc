@@ -21,6 +21,10 @@
 
 #ifdef _WIN32
 #include <direct.h>
+#ifndef WIN32_LEAN_AND_MEAN
+#define WIN32_LEAN_AND_MEAN
+#endif
+#include <windows.h>
 #endif
 
 /*
@@ -413,7 +417,17 @@ write_client_file_item(struct ToriRS_IOItem* item)
         return -1;
     }
     fclose(fp);
+#ifdef _WIN32
+    /* ISO C rename() is allowed to reject an existing destination, and the
+     * Windows CRT does. MoveFileEx supplies the replace-existing semantics
+     * this write-then-rename path requires while keeping the swap atomic. */
+    if( !MoveFileExA(
+            temp,
+            item->u.file.path,
+            MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH) )
+#else
     if( rename(temp, item->u.file.path) != 0 )
+#endif
     {
         fprintf(stderr, "io: cannot replace %s\n", item->u.file.path);
         remove(temp);

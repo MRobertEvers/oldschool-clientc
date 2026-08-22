@@ -840,7 +840,9 @@ struct CS2VM_HostRequest_IF_SetOutline
 /* Hook string args ('s'/'W'/'X' signature chars). str_arg_mask bit i marks
  * signature position i as a string; strings fill str_args[] in position order
  * (k-th set bit -> str_args[k]). int_args[i] is unused at string positions. */
-#define CS2VM_SETON_STR_ARG_MAX 4
+/* The generic inventory-grid builders install repaint hooks carrying five
+ * (script 149) or nine (script 150) operation labels. */
+#define CS2VM_SETON_STR_ARG_MAX 16
 /*
  * 256, not 80. A hook's string argument is frequently a whole line of UI copy —
  * `if_setonmouserepeat("tooltip_mouserepeat(…, ~prayer_gettooltiptext($obj1),

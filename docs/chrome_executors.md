@@ -297,7 +297,7 @@ assertion that they agree, and the page's copy of the same table is pinned by
 
   **They are still USER32 controls; they just wear the game's art.** Every
   button, checkbox, tab and dropdown is `BS_OWNERDRAW` / `CBS_OWNERDRAWFIXED`
-  and painted from the bake; `WM_ERASEBKGND` tiles the tradebacking and draws
+  and painted from the bake; a double-buffered `WM_PAINT` tiles the tradebacking and draws
   the nine-slice frame -- corners SQUARE at their baked 32, rails stretched
   along the run between them, the two numbers `dbg_push_frame` uses, because a
   corner blitted at the rail's 6 squashes 32px of tile into 6 and takes the
@@ -333,24 +333,33 @@ assertion that they agree, and the page's copy of the same table is pinned by
      has already tiled that area -- until a caption changes: a `STATIC` erases
      with the brush this hands back, and one that paints nothing leaves the old
      caption on screen under the new one. It gets the tile brush.
-  3. **A relayout repaints one completed frame.** The
+  3. **A sync and relayout repaint one completed frame.** The
      background is drawn from the *controls'* boxes -- the field frame under
      each `EDIT` is placed from that control's rect -- so the parent still has
-     to be invalidated after a batch move. Every child is moved with
-     `SWP_NOREDRAW`, then one synchronous parent-and-children redraw happens
-     after the layout is stable. `WS_CLIPCHILDREN` plus the composited tool
-     window presents that batch as one frame, instead of flashing the
-     tradebacking between each child's erase and paint while scrolling or
-     switching pages. Transparent owner-drawn checks tile their own box so a
-     move does not leave old captions behind.
+     to be invalidated after a batch move. `SYNC_BEGIN` freezes the parent and
+     every native child with `WM_SETREDRAW`; commands may then remove, create,
+     label and populate controls without exposing an intermediate page.
+     `SYNC_END` rebuilds tabs and lays out once. Every child move uses
+     `SWP_NOREDRAW`, then queues one parent-and-children redraw after the layout
+     is stable. It deliberately does not force an immediate update, so a burst
+     of wheel or mouse-move messages coalesces into one paint. The parent
+     suppresses background erase and composes its chrome into an off-screen DIB
+     before one blit. `WS_CLIPCHILDREN` plus the
+     composited tool window presents that batch as one frame while navigating
+     or scrolling. Transparent owner-drawn checks tile their own box so a move
+     does not leave old captions behind.
 
-  One thing it cannot match: a `CBS_DROPDOWNLIST` combo draws its own drop-down
-  arrow, in the shell's 3D style, in a strip that is not part of the owner-draw
-  rect and that no style takes away. So the scrollbar arrow every other
-  presentation puts there is deliberately *not* drawn -- two arrows side by side
-  reads worse than one of the wrong shape. Its open list is the shell's too,
-  which is the same gap the DOM executor had with `<select>` and closed by
-  building the list itself; whether this one follows is open.
+  A `CBS_DROPDOWNLIST` still owns the popup, selection, keyboard navigation and
+  accessibility, but no longer owns the visible closed face. USER32 withholds
+  its shell-style arrow strip from `WM_DRAWITEM`, so an owner-drawn `BUTTON`
+  sibling sits over the complete combo and draws the same field, centred orange
+  value and scrollbar up/down sprite as the other executors. Its explicit
+  top-of-sibling z-order is important: creation order alone left the white
+  shell arrow visible. `CB_SETITEMHEIGHT` also contracts the native selection
+  to the authored row height; otherwise USER32's font-derived combo edge peeks
+  out below the overlay. The native popup rows are owner-drawn at the shared
+  dropdown-list pitch, though the popup frame and long-list scrollbar remain
+  USER32's.
 
   **Its whole frame is the game's.** The HWND is a borderless `WS_POPUP`: the
   title is a black client-area band, its `BS_OWNERDRAW` X wears `CloseButton`,
