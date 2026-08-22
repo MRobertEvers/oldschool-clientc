@@ -99,11 +99,13 @@ pick_inv_slot(int component_id, int slot, int obj_id, int obj_count)
     return pick;
 }
 
-/** "<verb> @lre@ <name>" — reference inv-item row formatting (orange name). */
+/** "<verb> @lre@<name>" — reference inv-item row formatting (orange name).
+ * The colour tag has zero rendered width, so a space on both sides would draw
+ * as two spaces between the verb and name. */
 static void
 format_inv_item_option(char* out, size_t out_size, char const* verb, char const* obj_name)
 {
-    snprintf(out, out_size, "%s @lre@ %s", verb, obj_name);
+    snprintf(out, out_size, "%s @lre@%s", verb, obj_name);
 }
 
 /* ObjType's revision-defined fifth inventory action. The cache omits this
@@ -273,7 +275,7 @@ add_inv_slot_select_row(
         snprintf(
             text,
             sizeof(text),
-            "Use %s with @lre@ %s",
+            "Use %s with @lre@%s",
             sel->obj_name[0] ? sel->obj_name : "item",
             obj_name);
         UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_USEHELD_ONHELD, 0, pick);
@@ -285,7 +287,7 @@ add_inv_slot_select_row(
                                                            : TORIRS_TARGET_MASK_HELD_CLASSIC;
         if( (sel->target_mask & held_bit) == 0 )
             return true; /* spell does not target held items */
-        snprintf(text, sizeof(text), "%s @lre@ %s", sel->target_op, obj_name);
+        snprintf(text, sizeof(text), "%s @lre@%s", sel->target_op, obj_name);
         UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_TGT_HELD, 0, pick);
         return true;
     }
@@ -398,7 +400,7 @@ add_obj_cell_rows(
          * Since insertion order is drawn bottom-to-top, this puts Use directly
          * below that operation on screen. method12079 still gates the row on a
          * non-empty verb and nonzero target mask (flags bits 11..16). */
-        snprintf(suffix, sizeof(suffix), "@lre@ %s", obj_name);
+        snprintf(suffix, sizeof(suffix), "@lre@%s", obj_name);
         for( int i = UITREE_MENU_OPTION_SLOTS - 1; i >= 0; i-- )
         {
             if( i == target_priority && target_verb[0] != '\0' &&
@@ -433,7 +435,7 @@ add_obj_cell_rows(
         obj,
         cell->obj_ops != 0,
         cell->obj_use != 0);
-    snprintf(suffix, sizeof(suffix), "@lre@ %s", obj_name);
+    snprintf(suffix, sizeof(suffix), "@lre@%s", obj_name);
     /* Container's own iop buttons (a shop's Value/Sell 1/5/10, the worn tab's
      * Remove), then the always-present Examine — trailing order per reference
      * (Client.ts: 9993-10020). */

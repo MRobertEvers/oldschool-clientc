@@ -120,6 +120,10 @@ static char const CHROME_GDI_WNDCLASS[] = "TorirsChromeToolWindow";
 /** One wheel/scrollbar line. The ordinary row including its gap is the least
  * surprising distance: a notch always reveals another complete setting. */
 #define CHROME_GDI_SCROLL_LINE (CHROME_GDI_ROW_H + CHROME_GDI_ROW_GAP)
+#define CHROME_GDI_SCROLL_W CHROME_GDI_PX(TORIRS_CHROME_M_SCROLL_W)
+#define CHROME_GDI_SCROLL_CAP_H CHROME_GDI_PX(TORIRS_CHROME_M_SCROLL_CAP_H)
+#define CHROME_GDI_SCROLL_GRIP_MIN CHROME_GDI_PX(TORIRS_CHROME_M_SCROLL_GRIP_MIN)
+#define CHROME_GDI_SCROLL_GAP CHROME_GDI_PX(2)
 /** The drawn title uses the minimenu face's authored 16px line box. The block
  * also includes the body gap and separator under that black bar, verbatim from
  * dbg_menu_layout. */
@@ -241,6 +245,9 @@ struct ChromeGdi
     unsigned char presented[TORIRS_CHROME_MAX_WIDGETS];
     int scroll_y;
     int content_h;
+    unsigned char scrollbar_visible;
+    unsigned char scrollbar_dragging;
+    int scrollbar_drag_offset;
     /**
      * The skin, once.
      *
@@ -251,16 +258,7 @@ struct ChromeGdi
      * and is never shrunk, because the largest is the window and the window is
      * repainted constantly.
      */
-    /**
-     * The window's own X, in the CLIENT area.
-     *
-     * The caption already has one -- this is an overlapped window with a
-     * sysmenu, and WM_CLOSE is answered below. This is a second way out, and
-     * it exists because the other presentations all wear the interfaces' own
-     * close button and this one wore whatever the current Windows theme draws.
-     * A window skinned in the game's art down to its scrollbar grips, closed
-     * by a button from the shell, is two programs in one frame.
-     */
+    /** The window's own X, inside the drawn title band. */
     HWND close_button;
     int skin_ok;
     HBITMAP tile_bitmap;
@@ -597,6 +595,8 @@ chrome_gdi_to_lf(char* dst, int cap, char const* src)
 
 /* ---- layout --------------------------------------------------------------- */
 
+static void chrome_gdi_layout(struct ChromeGdi* s);
+
 /** Top of the scrolling row viewport. Tabs and the close button stay above
  * it, fixed, while the settings move underneath. */
 static int
@@ -610,8 +610,7 @@ chrome_gdi_rows_top(struct ChromeGdi const* s)
 
 /** Natural client height of the visible rows, before scrolling. Native
  * executors do not receive the model's pixel scroll state, so this window owns
- * a conventional Win32 scrollbar and derives its range from the mirrored
- * rows. */
+ * its scroll position and derives its range from the mirrored rows. */
 static int
 chrome_gdi_measure_content(struct ChromeGdi* s)
 {
@@ -635,6 +634,83 @@ chrome_gdi_measure_content(struct ChromeGdi* s)
     if( rows > 0 )
         y -= CHROME_GDI_ROW_GAP;
     return y + CHROME_GDI_FRAME + CHROME_GDI_PAD;
+}
+
+struct ChromeGdiScrollbar
+{
+    int x;
+    int top;
+    int bottom;
+    int track_y;
+    int track_h;
+    int grip_y;
+    int grip_h;
+    int max_scroll;
+};
+
+/** The client-area scrollbar assembled from ~script31's six skin pieces. */
+static int
+chrome_gdi_scrollbar_geometry(
+    struct ChromeGdi const* s, RECT const* client, struct ChromeGdiScrollbar* bar)
+{
+    int viewport;
+
+    assert(s);
+    assert(client);
+    assert(bar);
+    memset(bar, 0, sizeof(*bar));
+    bar->x = client->right - CHROME_GDI_FRAME - CHROME_GDI_PAD - CHROME_GDI_SCROLL_W;
+    bar->top = chrome_gdi_rows_top(s);
+    bar->bottom = client->bottom - CHROME_GDI_FRAME - CHROME_GDI_PAD;
+    bar->track_y = bar->top + CHROME_GDI_SCROLL_W;
+    bar->track_h = bar->bottom - bar->top - 2 * CHROME_GDI_SCROLL_W;
+    bar->max_scroll = s->content_h - client->bottom;
+    if( bar->max_scroll < 0 )
+        bar->max_scroll = 0;
+    viewport = bar->bottom - bar->top;
+    if( bar->max_scroll <= 0 || viewport <= 0 || bar->track_h <= 0 )
+        return 0;
+
+    bar->grip_h = bar->track_h * viewport / (viewport + bar->max_scroll);
+    if( bar->grip_h < CHROME_GDI_SCROLL_GRIP_MIN )
+        bar->grip_h = CHROME_GDI_SCROLL_GRIP_MIN;
+    if( bar->grip_h > bar->track_h )
+        bar->grip_h = bar->track_h;
+    bar->grip_y = bar->track_y;
+    if( bar->track_h > bar->grip_h )
+        bar->grip_y +=
+            (bar->track_h - bar->grip_h) * s->scroll_y / bar->max_scroll;
+    return 1;
+}
+
+static int
+chrome_gdi_clamp_scroll(struct ChromeGdi* s, int requested)
+{
+    RECT client;
+    int maximum;
+
+    assert(s);
+    if( !s->hwnd || !GetClientRect(s->hwnd, &client) )
+        return 0;
+    maximum = s->content_h - client.bottom;
+    if( maximum < 0 )
+        maximum = 0;
+    if( requested < 0 )
+        requested = 0;
+    if( requested > maximum )
+        requested = maximum;
+    return requested;
+}
+
+static void
+chrome_gdi_scroll_to(struct ChromeGdi* s, int requested)
+{
+    int const clamped = chrome_gdi_clamp_scroll(s, requested);
+
+    if( clamped == s->scroll_y )
+        return;
+    s->scroll_y = clamped;
+    chrome_gdi_layout(s);
 }
 
 /** Hide every HWND belonging to a row. They are retained so focus, text and
@@ -683,23 +759,14 @@ chrome_gdi_layout(struct ChromeGdi* s)
         return;
     GetClientRect(s->hwnd, &client);
 
-    /* Set the range BEFORE measuring the usable width: showing or hiding a
-     * window scrollbar changes the client rectangle. SetScrollInfo performs
-     * that transition, then the second GetClientRect gives layout the width
-     * the controls actually have. */
+    /* The scrollbar is part of this client-area skin, never non-client chrome.
+     * Compute its need before the row widths so the content column reserves
+     * exactly the baked bar's width when it is present. */
     s->content_h = chrome_gdi_measure_content(s);
-    {
-        SCROLLINFO si;
-        memset(&si, 0, sizeof(si));
-        si.cbSize = sizeof(si);
-        si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
-        si.nMin = 0;
-        si.nMax = s->content_h > 0 ? s->content_h - 1 : 0;
-        si.nPage = (UINT)(client.bottom - client.top);
-        si.nPos = s->scroll_y;
-        s->scroll_y = SetScrollInfo(s->hwnd, SB_VERT, &si, TRUE);
-    }
-    GetClientRect(s->hwnd, &client);
+    s->scroll_y = chrome_gdi_clamp_scroll(s, s->scroll_y);
+    s->scrollbar_visible = s->content_h > client.bottom;
+    if( !s->scrollbar_visible )
+        s->scrollbar_dragging = 0;
     width = client.right - client.left;
     rows_top = chrome_gdi_rows_top(s);
     rows_bottom = client.bottom - CHROME_GDI_FRAME - CHROME_GDI_PAD;
@@ -770,7 +837,8 @@ chrome_gdi_layout(struct ChromeGdi* s)
         HWND control;
         int row_h;
         int x = CHROME_GDI_FRAME + CHROME_GDI_PAD;
-        int row_w = width - 2 * CHROME_GDI_PAD;
+        int row_w = width - 2 * CHROME_GDI_PAD -
+                    (s->scrollbar_visible ? CHROME_GDI_SCROLL_W + CHROME_GDI_SCROLL_GAP : 0);
 
         if( !w || !w->native )
             continue;
@@ -917,7 +985,10 @@ chrome_gdi_layout(struct ChromeGdi* s)
      * window. Here rather than at each of the half-dozen callers, so a new one
      * cannot forget.
      */
-    RedrawWindow(s->hwnd, NULL, NULL, RDW_INVALIDATE | RDW_ALLCHILDREN);
+    /* Child moves/shows already invalidate the controls that need repainting.
+     * Invalidating them all a second time exposes the textured parent between
+     * their erase and paint passes, which is the page-switch flicker. */
+    RedrawWindow(s->hwnd, NULL, NULL, RDW_INVALIDATE);
 }
 
 /* ---- drawing the controls -------------------------------------------------
@@ -1048,6 +1119,85 @@ chrome_gdi_draw_title(struct ChromeGdi* s, HDC dc, int width)
     text.right = x + w - CHROME_GDI_CLOSE_PAD - CHROME_GDI_CLOSE_SIDE;
     text.bottom = y + CHROME_GDI_TITLE_H;
     chrome_gdi_text(dc, text, caption, TORIRS_CHROME_C_BODY, DT_LEFT);
+}
+
+/** ~script31's scrollbar: arrow buttons, tiled track, and three-piece grip. */
+static void
+chrome_gdi_draw_scrollbar(struct ChromeGdi* s, HDC dc, RECT const* client)
+{
+    struct ChromeGdiScrollbar bar;
+
+    if( !s->scrollbar_visible || !chrome_gdi_scrollbar_geometry(s, client, &bar) )
+        return;
+
+    if( ToriRSChromeSkin_ForSlot(TORIRS_CHROME_SKIN_SCROLL_TRACK) )
+        chrome_gdi_blit(
+            s, dc, bar.x, bar.track_y, CHROME_GDI_SCROLL_W, bar.track_h,
+            TORIRS_CHROME_SKIN_SCROLL_TRACK);
+    else
+        chrome_gdi_rect(
+            dc, bar.x, bar.track_y, CHROME_GDI_SCROLL_W, bar.track_h,
+            TORIRS_CHROME_C_SCROLL_TRACK);
+
+    if( ToriRSChromeSkin_ForSlot(TORIRS_CHROME_SKIN_SCROLL_GRIP_MID) )
+    {
+        chrome_gdi_blit(
+            s, dc, bar.x, bar.grip_y, CHROME_GDI_SCROLL_W, bar.grip_h,
+            TORIRS_CHROME_SKIN_SCROLL_GRIP_MID);
+        chrome_gdi_blit(
+            s, dc, bar.x, bar.grip_y, CHROME_GDI_SCROLL_W,
+            CHROME_GDI_SCROLL_CAP_H, TORIRS_CHROME_SKIN_SCROLL_GRIP_TOP);
+        chrome_gdi_blit(
+            s, dc, bar.x, bar.grip_y + bar.grip_h - CHROME_GDI_SCROLL_CAP_H,
+            CHROME_GDI_SCROLL_W, CHROME_GDI_SCROLL_CAP_H,
+            TORIRS_CHROME_SKIN_SCROLL_GRIP_BOTTOM);
+    }
+    else
+    {
+        chrome_gdi_rect(
+            dc, bar.x, bar.grip_y, CHROME_GDI_SCROLL_W, bar.grip_h,
+            TORIRS_CHROME_C_SCROLL_GRIP);
+        chrome_gdi_rect(
+            dc, bar.x, bar.grip_y, CHROME_GDI_RULE, bar.grip_h,
+            TORIRS_CHROME_C_SCROLL_GRIP_HI);
+        chrome_gdi_rect(
+            dc, bar.x, bar.grip_y, CHROME_GDI_SCROLL_W, CHROME_GDI_RULE,
+            TORIRS_CHROME_C_SCROLL_GRIP_HI);
+        chrome_gdi_rect(
+            dc, bar.x + CHROME_GDI_SCROLL_W - CHROME_GDI_RULE, bar.grip_y,
+            CHROME_GDI_RULE, bar.grip_h, TORIRS_CHROME_C_SCROLL_GRIP_LO);
+        chrome_gdi_rect(
+            dc, bar.x, bar.grip_y + bar.grip_h - CHROME_GDI_RULE,
+            CHROME_GDI_SCROLL_W, CHROME_GDI_RULE, TORIRS_CHROME_C_SCROLL_GRIP_LO);
+    }
+
+    if( ToriRSChromeSkin_ForSlot(TORIRS_CHROME_SKIN_SCROLL_UP) )
+        chrome_gdi_blit(
+            s, dc, bar.x, bar.top, CHROME_GDI_SCROLL_W, CHROME_GDI_SCROLL_W,
+            TORIRS_CHROME_SKIN_SCROLL_UP);
+    else
+    {
+        RECT box = { bar.x, bar.top, bar.x + CHROME_GDI_SCROLL_W,
+                     bar.top + CHROME_GDI_SCROLL_W };
+        chrome_gdi_rect(
+            dc, bar.x, bar.top, CHROME_GDI_SCROLL_W, CHROME_GDI_SCROLL_W,
+            TORIRS_CHROME_C_SCROLL_GRIP);
+        chrome_gdi_text(dc, box, "^", TORIRS_CHROME_C_ACCENT, DT_CENTER);
+    }
+    if( ToriRSChromeSkin_ForSlot(TORIRS_CHROME_SKIN_SCROLL_DOWN) )
+        chrome_gdi_blit(
+            s, dc, bar.x, bar.bottom - CHROME_GDI_SCROLL_W,
+            CHROME_GDI_SCROLL_W, CHROME_GDI_SCROLL_W,
+            TORIRS_CHROME_SKIN_SCROLL_DOWN);
+    else
+    {
+        RECT box = { bar.x, bar.bottom - CHROME_GDI_SCROLL_W,
+                     bar.x + CHROME_GDI_SCROLL_W, bar.bottom };
+        chrome_gdi_rect(
+            dc, box.left, box.top, CHROME_GDI_SCROLL_W, CHROME_GDI_SCROLL_W,
+            TORIRS_CHROME_C_SCROLL_GRIP);
+        chrome_gdi_text(dc, box, "v", TORIRS_CHROME_C_ACCENT, DT_CENTER);
+    }
 }
 
 /** A roster row's settings affordance: three dots in a field-chrome well. */
@@ -1270,6 +1420,12 @@ chrome_gdi_drawitem(struct ChromeGdi* s, DRAWITEMSTRUCT const* di)
         {
             RECT mark = box;
             int const side = chrome_gdi_box(s);
+            /* WS_CLIPCHILDREN prevents the parent from erasing through this
+             * control. Paint the tile here before transparent mark/text, or a
+             * moved checkbox leaves every prior caption underneath it. */
+            chrome_gdi_tile(
+                s, di->hDC, box.left, box.top, box.right - box.left,
+                box.bottom - box.top);
             mark.right = mark.left + side;
             chrome_gdi_draw_mark(s, di->hDC, mark, s->checked[handle]);
             box.left += side + CHROME_GDI_CHECK_GAP;
@@ -1283,6 +1439,9 @@ chrome_gdi_drawitem(struct ChromeGdi* s, DRAWITEMSTRUCT const* di)
             /* Only the SWITCH: a roster row's name is a STATIC of its own and
              * its settings well is the parallel control, so this box is just
              * the toggle's hit area. */
+            chrome_gdi_tile(
+                s, di->hDC, box.left, box.top, box.right - box.left,
+                box.bottom - box.top);
             chrome_gdi_draw_mark(s, di->hDC, box, s->checked[handle]);
             break;
 
@@ -1294,6 +1453,9 @@ chrome_gdi_drawitem(struct ChromeGdi* s, DRAWITEMSTRUCT const* di)
             break;
 
         case TORIRS_CHROME_W_SEPARATOR:
+            chrome_gdi_tile(
+                s, di->hDC, box.left, box.top, box.right - box.left,
+                box.bottom - box.top);
             chrome_gdi_rect(
                 di->hDC, box.left, box.top + (box.bottom - box.top) / 2,
                 box.right - box.left, CHROME_GDI_RULE, TORIRS_CHROME_C_CHROME);
@@ -1484,7 +1646,7 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         /* Everything is painted against the window's own box -- the tiling, the
          * frame, the field boxes under the EDITs -- so a resize invalidates all
          * of it rather than the newly exposed strip Windows would repaint. */
-        RedrawWindow(hwnd, NULL, NULL, RDW_INVALIDATE | RDW_ALLCHILDREN);
+        RedrawWindow(hwnd, NULL, NULL, RDW_INVALIDATE);
         return 0;
 
     case WM_NCHITTEST:
@@ -1492,13 +1654,20 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         /* The window has no operating-system frame. Its black title band is
          * the non-client area now: returning HTCAPTION lets USER32 perform the
          * move loop, including capture, monitor transitions and snapping,
-         * without reimplementing any of those from mouse messages. Child
-         * controls (especially Close) are hit-tested before their parent and
-         * remain holes in this handle automatically. */
+         * without reimplementing any of those from mouse messages. Explicitly
+         * leave Close as a client-area hole: WM_NCHITTEST reaches the parent
+         * before USER32 decides which child owns the point. */
         POINT point;
+        POINT screen;
         RECT client;
-        point.x = (LONG)(short)LOWORD(lp);
-        point.y = (LONG)(short)HIWORD(lp);
+        RECT close;
+        screen.x = (LONG)(short)LOWORD(lp);
+        screen.y = (LONG)(short)HIWORD(lp);
+        if( s->close_button && GetWindowRect(s->close_button, &close) &&
+            screen.x >= close.left && screen.x < close.right &&
+            screen.y >= close.top && screen.y < close.bottom )
+            return HTCLIENT;
+        point = screen;
         ScreenToClient(hwnd, &point);
         GetClientRect(hwnd, &client);
         if( point.x >= CHROME_GDI_FRAME && point.x < client.right - CHROME_GDI_FRAME &&
@@ -1508,51 +1677,75 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         return HTCLIENT;
     }
 
-    case WM_VSCROLL:
+    case WM_LBUTTONDOWN:
     {
-        SCROLLINFO si;
-        int pos;
+        RECT client;
+        struct ChromeGdiScrollbar bar;
+        int const x = (LONG)(short)LOWORD(lp);
+        int const y = (LONG)(short)HIWORD(lp);
 
-        /* A multiline EDIT owns its own vertical scrollbar and sends a
-         * non-NULL control HWND in lp. Leave that scroll to the control. */
-        if( lp )
+        GetClientRect(hwnd, &client);
+        if( !s->scrollbar_visible || !chrome_gdi_scrollbar_geometry(s, &client, &bar) ||
+            x < bar.x || x >= bar.x + CHROME_GDI_SCROLL_W ||
+            y < bar.top || y >= bar.bottom )
             break;
-        memset(&si, 0, sizeof(si));
-        si.cbSize = sizeof(si);
-        si.fMask = SIF_ALL;
-        GetScrollInfo(hwnd, SB_VERT, &si);
-        pos = si.nPos;
-        switch( LOWORD(wp) )
+        if( y < bar.track_y )
+            chrome_gdi_scroll_to(s, s->scroll_y - CHROME_GDI_SCROLL_LINE);
+        else if( y >= bar.bottom - CHROME_GDI_SCROLL_W )
+            chrome_gdi_scroll_to(s, s->scroll_y + CHROME_GDI_SCROLL_LINE);
+        else if( y >= bar.grip_y && y < bar.grip_y + bar.grip_h )
         {
-        case SB_TOP: pos = si.nMin; break;
-        case SB_BOTTOM: pos = si.nMax; break;
-        case SB_LINEUP: pos -= CHROME_GDI_SCROLL_LINE; break;
-        case SB_LINEDOWN: pos += CHROME_GDI_SCROLL_LINE; break;
-        case SB_PAGEUP: pos -= (int)si.nPage; break;
-        case SB_PAGEDOWN: pos += (int)si.nPage; break;
-        case SB_THUMBPOSITION:
-        case SB_THUMBTRACK: pos = si.nTrackPos; break;
-        default: return 0;
+            s->scrollbar_dragging = 1;
+            s->scrollbar_drag_offset = y - bar.grip_y;
+            SetCapture(hwnd);
         }
-        si.fMask = SIF_POS;
-        si.nPos = pos;
-        s->scroll_y = SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
-        chrome_gdi_layout(s);
+        else
+            chrome_gdi_scroll_to(
+                s, s->scroll_y + (y < bar.grip_y ? -1 : 1) * (bar.bottom - bar.top));
         return 0;
     }
 
+    case WM_MOUSEMOVE:
+        if( s->scrollbar_dragging )
+        {
+            RECT client;
+            struct ChromeGdiScrollbar bar;
+            int const y = (LONG)(short)HIWORD(lp);
+            int travel;
+            int grip_top;
+
+            GetClientRect(hwnd, &client);
+            if( chrome_gdi_scrollbar_geometry(s, &client, &bar) )
+            {
+                travel = bar.track_h - bar.grip_h;
+                grip_top = y - s->scrollbar_drag_offset;
+                if( travel > 0 )
+                    chrome_gdi_scroll_to(
+                        s, (grip_top - bar.track_y) * bar.max_scroll / travel);
+            }
+            return 0;
+        }
+        break;
+
+    case WM_LBUTTONUP:
+        if( s->scrollbar_dragging )
+        {
+            s->scrollbar_dragging = 0;
+            if( GetCapture() == hwnd )
+                ReleaseCapture();
+            return 0;
+        }
+        break;
+
+    case WM_CAPTURECHANGED:
+        s->scrollbar_dragging = 0;
+        break;
+
     case WM_MOUSEWHEEL:
     {
-        SCROLLINFO si;
         int const notches = GET_WHEEL_DELTA_WPARAM(wp) / WHEEL_DELTA;
 
-        memset(&si, 0, sizeof(si));
-        si.cbSize = sizeof(si);
-        si.fMask = SIF_POS;
-        GetScrollInfo(hwnd, SB_VERT, &si);
-        si.nPos -= notches * CHROME_GDI_SCROLL_LINE;
-        s->scroll_y = SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
-        chrome_gdi_layout(s);
+        chrome_gdi_scroll_to(s, s->scroll_y - notches * CHROME_GDI_SCROLL_LINE);
         return 0;
     }
 
@@ -1588,6 +1781,7 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         GetClientRect(hwnd, &client);
         chrome_gdi_tile(s, dc, 0, 0, client.right, client.bottom);
         chrome_gdi_draw_title(s, dc, client.right);
+        chrome_gdi_draw_scrollbar(s, dc, &client);
         chrome_gdi_frame(s, dc, client.right, client.bottom);
 
         ordered = ToriRSChromeMirror_Order(&s->mirror, order, TORIRS_CHROME_MAX_WIDGETS);
@@ -1779,13 +1973,13 @@ chrome_gdi_begin(void* user)
         return 0;
 
     s->hwnd = CreateWindowExA(
-        WS_EX_TOOLWINDOW,
+        WS_EX_TOOLWINDOW | WS_EX_COMPOSITED,
         CHROME_GDI_WNDCLASS,
         "Plugins",
         /* Borderless by construction. WM_NCHITTEST turns the title we draw in
          * the client into USER32's drag handle; a native caption or resize
          * rail here would be a second, platform-themed chrome around it. */
-        WS_POPUP | WS_VSCROLL,
+        WS_POPUP | WS_CLIPCHILDREN,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         CHROME_GDI_W,
@@ -1883,6 +2077,9 @@ chrome_gdi_end(void* user)
     s->window_panel = -1;
     s->scroll_y = 0;
     s->content_h = 0;
+    s->scrollbar_visible = 0;
+    s->scrollbar_dragging = 0;
+    s->scrollbar_drag_offset = 0;
     s->tab_count = 0;
     memset(s->tab_buttons, 0, sizeof(s->tab_buttons));
     memset(s->label, 0, sizeof(s->label));
@@ -2186,6 +2383,7 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
          * strip leaves both X buttons addressing panel -1. */
         s->window_panel = cmd->panel;
         s->scroll_y = 0;
+        s->scrollbar_dragging = 0;
         if( cmd->text[0] )
             SetWindowTextA(s->hwnd, cmd->text);
         chrome_gdi_layout(s);
@@ -2201,6 +2399,7 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
         if( s->window_panel == cmd->panel )
             s->window_panel = -1;
         s->scroll_y = 0;
+        s->scrollbar_dragging = 0;
         chrome_gdi_layout(s);
         return;
 
@@ -2211,8 +2410,8 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
          *
          * Every owner-drawn boolean in the window repaints, and the checkbox
          * rows re-lay-out with it: the mark's box is a different width, so the
-         * caption beside it starts somewhere else. chrome_gdi_layout ends in a
-         * RedrawWindow over every child, which is the repaint. */
+         * caption beside it starts somewhere else. chrome_gdi_layout batches
+         * the moves and invalidates the finished parent once. */
         if( s->check_style != cmd->value )
         {
             s->check_style = cmd->value;

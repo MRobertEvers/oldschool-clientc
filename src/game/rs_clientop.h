@@ -188,7 +188,7 @@ struct RS_ClientOpState
      * under the pointer") and can name an entity no row is about.
      *
      * The op carries the WHOLE row, target included, and the target is empty.
-     * This port composes a row as one string ("<op> @col@ <target>", built in
+     * This port composes a row as one string ("<op> @col@<target>", built in
      * rs_minimenu_world.c) and keeps no boundary between the halves, so there
      * is nothing to split on that would not be a guess. Every consumer joins
      * them straight back up -- clientscript 4726 builds "<option> <target>" and

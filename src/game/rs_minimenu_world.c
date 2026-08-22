@@ -185,7 +185,7 @@ add_npc_rows(
         snprintf(tooltip, sizeof(tooltip), "%s", npc->name[0] ? npc->name : "NPC");
 
     if( add_world_select_row(
-            menu, sel, pick, "@yel@ ", tooltip, 0x2, REVCONFIG_MINIMENU_USEHELD_ONNPC,
+            menu, sel, pick, "@yel@", tooltip, 0x2, REVCONFIG_MINIMENU_USEHELD_ONNPC,
             REVCONFIG_MINIMENU_TGT_NPC) )
         return;
 
@@ -204,7 +204,7 @@ add_npc_rows(
         action = opnpc_action_for_slot(i);
         if( npc_option_deprioritizes(attack_option, npc, viewer_combat_level) )
             action = UIMinimenu_ActionDeprioritize(action);
-        snprintf(text, sizeof(text), "%s @yel@ %s", npc->actions[i].name, tooltip);
+        snprintf(text, sizeof(text), "%s @yel@%s", npc->actions[i].name, tooltip);
         UIMinimenu_AddOption(menu, text, action, i, pick);
     }
     /* "Hidden" drops the whole attack pass; the reference `continue`s before
@@ -225,12 +225,12 @@ add_npc_rows(
             if( attack_option == RS_ATTACK_OPTION_RIGHTCLICK ||
                 npc_option_deprioritizes(attack_option, npc, viewer_combat_level) )
                 action = UIMinimenu_ActionDeprioritize(action);
-            snprintf(text, sizeof(text), "%s @yel@ %s", npc->actions[i].name, tooltip);
+            snprintf(text, sizeof(text), "%s @yel@%s", npc->actions[i].name, tooltip);
             UIMinimenu_AddOption(menu, text, action, i, pick);
         }
     }
 
-    snprintf(text, sizeof(text), "Examine @yel@ %s", tooltip);
+    snprintf(text, sizeof(text), "Examine @yel@%s", tooltip);
     UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPNPC6, 0, pick);
 }
 
@@ -559,11 +559,11 @@ add_scenery_rows(
     {
         if( scenery->actions[i].name[0] == '\0' )
             continue;
-        snprintf(text, sizeof(text), "%s @cya@ %s", scenery->actions[i].name, name);
+        snprintf(text, sizeof(text), "%s @cya@%s", scenery->actions[i].name, name);
         UIMinimenu_AddOption(menu, text, oploc_action_for_slot(i), i, pick);
     }
 
-    snprintf(text, sizeof(text), "Examine @cya@ %s", name);
+    snprintf(text, sizeof(text), "Examine @cya@%s", name);
     UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPLOC6, 0, pick);
 
     /* Loc editor dev tool (src/app.c): every loc that earns an Examine row
@@ -574,7 +574,7 @@ add_scenery_rows(
      * can reach the real OPLOC dispatch; never sent to a server. */
     if( locedit_active )
     {
-        snprintf(text, sizeof(text), "Select @cya@ %s", name);
+        snprintf(text, sizeof(text), "Select @cya@%s", name);
         UIMinimenu_AddOption(menu, text, RS_MINIMENU_ACTION_LOCEDIT_SELECT, 0, pick);
     }
 
@@ -585,7 +585,7 @@ add_scenery_rows(
     if( mapedit_select_active )
     {
         snprintf(
-            text, sizeof(text), "Select %s @cya@ %s", mapedit_select_category(scenery->shape),
+            text, sizeof(text), "Select %s @cya@%s", mapedit_select_category(scenery->shape),
             name);
         UIMinimenu_AddOption(menu, text, RS_MINIMENU_ACTION_MAPEDIT_SELECT, 0, pick);
     }
@@ -613,7 +613,7 @@ add_obj_rows(
     };
 
     if( add_world_select_row(
-            menu, sel, pick, "@lre@ ", name, 0x1, REVCONFIG_MINIMENU_USEHELD_ONOBJ,
+            menu, sel, pick, "@lre@", name, 0x1, REVCONFIG_MINIMENU_USEHELD_ONOBJ,
             REVCONFIG_MINIMENU_TGT_OBJ) )
         return;
 
@@ -621,17 +621,17 @@ add_obj_rows(
     {
         if( stack->actions[i].name[0] != '\0' )
         {
-            snprintf(text, sizeof(text), "%s @lre@ %s", stack->actions[i].name, name);
+            snprintf(text, sizeof(text), "%s @lre@%s", stack->actions[i].name, name);
             UIMinimenu_AddOption(menu, text, opobj_action_for_slot(i), i, pick);
         }
         else if( i == 2 )
         {
-            snprintf(text, sizeof(text), "Take @lre@ %s", name);
+            snprintf(text, sizeof(text), "Take @lre@%s", name);
             UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPOBJ3, 2, pick);
         }
     }
 
-    snprintf(text, sizeof(text), "Examine @lre@ %s", name);
+    snprintf(text, sizeof(text), "Examine @lre@%s", name);
     UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_OPOBJ6, 0, pick);
 }
 
@@ -820,7 +820,7 @@ add_player_rows(
         snprintf(tooltip, sizeof(tooltip), "%s", player->name[0] ? player->name : "Player");
 
     if( add_world_select_row(
-            menu, sel, pick, "@whi@ ", tooltip, 0x8, REVCONFIG_MINIMENU_USEHELD_ONPLAYER,
+            menu, sel, pick, "@whi@", tooltip, 0x8, REVCONFIG_MINIMENU_USEHELD_ONPLAYER,
             REVCONFIG_MINIMENU_TGT_PLAYER) )
         return;
 
@@ -869,7 +869,7 @@ add_player_rows(
         }
         if( deprioritize )
             action = UIMinimenu_ActionDeprioritize(action);
-        snprintf(text, sizeof(text), "%s @whi@ %s", op, tooltip);
+        snprintf(text, sizeof(text), "%s @whi@%s", op, tooltip);
         UIMinimenu_AddOption(menu, text, action, i, pick);
     }
 
@@ -881,7 +881,7 @@ add_player_rows(
             snprintf(
                 menu->options[i].text,
                 sizeof(menu->options[i].text),
-                "Walk here @whi@ %s",
+                "Walk here @whi@%s",
                 tooltip);
             break;
         }

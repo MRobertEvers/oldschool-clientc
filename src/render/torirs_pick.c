@@ -47,7 +47,7 @@ pick_classify_element(
          * typecode, and Model.draw only records hits for `typecode > 0`
          * (Model.ts:1758) — so walls, gravel and floor decor never produce a
          * menu row. Without this every unnamed loc surfaced as
-         * "Examine @cya@ Scenery".
+         * "Examine @cya@Scenery".
          *
          * The loc-inspection tools lift the gate, because the locs worth
          * inspecting for a placement bug are overwhelmingly the inactive ones —

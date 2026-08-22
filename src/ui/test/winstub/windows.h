@@ -51,7 +51,9 @@ typedef struct {
 #define WS_SYSMENU 32
 #define WS_THICKFRAME 64
 #define WS_EX_TOOLWINDOW 128
+#define WS_EX_COMPOSITED 256
 #define WS_POPUP 256
+#define WS_CLIPCHILDREN 512
 #define BS_AUTOCHECKBOX 1
 #define BS_PUSHBUTTON 2
 #define ES_AUTOHSCROLL 4
@@ -108,6 +110,10 @@ typedef struct {
 #define WM_NCHITTEST 26
 #define WM_VSCROLL 27
 #define WM_MOUSEWHEEL 28
+#define WM_LBUTTONDOWN 29
+#define WM_LBUTTONUP 30
+#define WM_MOUSEMOVE 31
+#define WM_CAPTURECHANGED 32
 #define HTCLIENT 1
 #define HTCAPTION 2
 #define ODS_SELECTED 0x0001
@@ -174,4 +180,7 @@ BOOL ScreenToClient(HWND, POINT*);
 BOOL RedrawWindow(HWND, const RECT*, void*, UINT);
 int SetScrollInfo(HWND, int, const SCROLLINFO*, BOOL);
 BOOL GetScrollInfo(HWND, int, SCROLLINFO*);
+HWND SetCapture(HWND);
+BOOL ReleaseCapture(void);
+HWND GetCapture(void);
 #endif

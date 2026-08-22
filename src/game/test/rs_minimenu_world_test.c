@@ -227,18 +227,18 @@ test_if3_item_onop_and_target_rows_match_rev239(void)
 
     UITree_LayoutResolve(tree, 0, 0, 200, 100);
     RS_Minimenu_Build(&ctx, 10, 10, &menu);
-    TEST_ASSERT(menu_has_substr(&menu, "Use @lre@ Fixture"), "target verb builds Use row");
-    TEST_ASSERT(menu_has_substr(&menu, "Wear @lre@ Fixture"), "on_op bypasses absent op bit");
-    TEST_ASSERT(menu_has_substr(&menu, "Drop @lre@ Fixture"), "default Drop occupies op 7");
-    TEST_ASSERT(menu_has_substr(&menu, "Examine @lre@ Fixture"), "on_op exposes terminal op");
+    TEST_ASSERT(menu_has_substr(&menu, "Use @lre@Fixture"), "target verb builds Use row");
+    TEST_ASSERT(menu_has_substr(&menu, "Wear @lre@Fixture"), "on_op bypasses absent op bit");
+    TEST_ASSERT(menu_has_substr(&menu, "Drop @lre@Fixture"), "default Drop occupies op 7");
+    TEST_ASSERT(menu_has_substr(&menu, "Examine @lre@Fixture"), "on_op exposes terminal op");
     TEST_ASSERT(
         menu_action_count(&menu, REVCONFIG_MINIMENU_OPHELDT_START) == 1,
         "item target verb arms held-item selection");
     {
-        int const examine = menu_index_of(&menu, "Examine @lre@ Fixture");
-        int const use = menu_index_of(&menu, "Use @lre@ Fixture");
-        int const drop = menu_index_of(&menu, "Drop @lre@ Fixture");
-        int const wear = menu_index_of(&menu, "Wear @lre@ Fixture");
+        int const examine = menu_index_of(&menu, "Examine @lre@Fixture");
+        int const use = menu_index_of(&menu, "Use @lre@Fixture");
+        int const drop = menu_index_of(&menu, "Drop @lre@Fixture");
+        int const wear = menu_index_of(&menu, "Wear @lre@Fixture");
         /* Options draw in reverse insertion order. Official method5229 inserts
          * the target before slot 6 while walking 9 -> 0, yielding the visible
          * order Wear, Drop, Use, Examine. */
@@ -366,6 +366,9 @@ test_local_player_pick_expands_stacked_npcs(void)
 
     TEST_ASSERT(menu_has_substr(&menu, "GoblinA"), "stacked GoblinA options present");
     TEST_ASSERT(menu_has_substr(&menu, "GoblinB"), "stacked GoblinB options present");
+    TEST_ASSERT(
+        menu_has_substr(&menu, "Talk-to @yel@GoblinA"),
+        "NPC colour markup does not add a second visible space");
     TEST_ASSERT(!menu_has_substr(&menu, "QuestGhost"), "hidden multiNpc has no menu rows");
     TEST_ASSERT(menu_npc_row_count(&menu) >= 2, "at least one row per stacked NPC");
     TEST_ASSERT(menu_player_row_count(&menu) == 0, "local player emits no OPPLAYER rows");
@@ -419,6 +422,9 @@ test_other_player_stack_rows(void)
 
     TEST_ASSERT(menu_has_substr(&menu, "Bob"), "other player Bob listed");
     TEST_ASSERT(menu_has_substr(&menu, "Follow"), "Follow for Bob");
+    TEST_ASSERT(
+        menu_has_substr(&menu, "Follow @whi@Bob"),
+        "player colour markup does not add a second visible space");
     TEST_ASSERT(menu_player_row_count(&menu) >= 1, "at least one player row for Bob");
     for( int i = 0; i < menu.option_count; i++ )
     {
@@ -475,6 +481,9 @@ test_local_player_pick_expands_ground_items(void)
     TEST_ASSERT(menu_has_substr(&menu, "Coins"), "Coins on tile appear");
     TEST_ASSERT(menu_has_substr(&menu, "Bones"), "Bones on tile appear");
     TEST_ASSERT(menu_has_substr(&menu, "Take"), "Take default for empty op2");
+    TEST_ASSERT(
+        menu_has_substr(&menu, "Take @lre@Coins"),
+        "ground-item colour markup does not add a second visible space");
     TEST_ASSERT(menu_obj_row_count(&menu) >= 2, "at least one row family per item");
 
     World_Free(world);
