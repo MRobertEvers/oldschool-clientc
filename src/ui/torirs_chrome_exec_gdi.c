@@ -117,6 +117,18 @@ static char const CHROME_GDI_WNDCLASS[] = "TorirsChromeToolWindow";
  *  the shared metrics and asks the EDIT nothing. */
 #define CHROME_GDI_TEXTAREA_LINE CHROME_GDI_PX(TORIRS_CHROME_M_TEXTAREA_LINE)
 #define CHROME_GDI_TEXTAREA_PAD_Y CHROME_GDI_PX(TORIRS_CHROME_M_TEXTAREA_PAD_Y)
+/** One wheel/scrollbar line. The ordinary row including its gap is the least
+ * surprising distance: a notch always reveals another complete setting. */
+#define CHROME_GDI_SCROLL_LINE (CHROME_GDI_ROW_H + CHROME_GDI_ROW_GAP)
+/** The drawn title uses the minimenu face's authored 16px line box. The block
+ * also includes the body gap and separator under that black bar, verbatim from
+ * dbg_menu_layout. */
+#define CHROME_GDI_TITLE_H CHROME_GDI_PX(16)
+#define CHROME_GDI_TITLE_GAP CHROME_GDI_PX(2)
+#define CHROME_GDI_HEADER_H                                                                    \
+    (CHROME_GDI_FRAME - CHROME_GDI_RULE + CHROME_GDI_TITLE_H + CHROME_GDI_TITLE_GAP +       \
+     CHROME_GDI_RULE)
+#define CHROME_GDI_CLOSE_PAD CHROME_GDI_PX(TORIRS_CHROME_M_CLOSE_PAD)
 
 /** Opening size: the label column, a field beside it, and the pads. The window
  *  is resizable; this is only where it starts. */
@@ -157,6 +169,10 @@ struct ChromeGdi
     HWND hwnd;
     HFONT font;
     int open;
+    /** The panel this one-window executor is presenting. Unlike `tab_panel`,
+     * this is also set for a paged window with no TABSTRIP, so either close X
+     * can address a real panel. */
+    int window_panel;
     struct ToriRSChromeMirror mirror;
     /** The panel whose tabs the strip shows, and its titles. One window, so
      *  one strip; a list would be a list with one entry. */
@@ -217,6 +233,14 @@ struct ChromeGdi
      *  The layout needs it, because a multiline row is the one row here that is
      *  not CHROME_GDI_ROW_H tall. */
     unsigned char rows[TORIRS_CHROME_MAX_WIDGETS];
+    /** Resolved widget colour, 0 meaning the kind's palette default. */
+    uint32_t color[TORIRS_CHROME_MAX_WIDGETS];
+    /** Set by the last layout only for rows actually inside the scroll
+     * viewport. WM_ERASEBKGND uses it so a clipped EDIT cannot leave a field
+     * frame painted at its old position. */
+    unsigned char presented[TORIRS_CHROME_MAX_WIDGETS];
+    int scroll_y;
+    int content_h;
     /**
      * The skin, once.
      *
@@ -573,6 +597,65 @@ chrome_gdi_to_lf(char* dst, int cap, char const* src)
 
 /* ---- layout --------------------------------------------------------------- */
 
+/** Top of the scrolling row viewport. Tabs and the close button stay above
+ * it, fixed, while the settings move underneath. */
+static int
+chrome_gdi_rows_top(struct ChromeGdi const* s)
+{
+    int const strip_h = s->tab_count > 1 ? CHROME_GDI_TAB_H : 0;
+
+    return CHROME_GDI_HEADER_H + CHROME_GDI_PAD +
+           (strip_h > 0 ? strip_h + CHROME_GDI_ROW_GAP : 0);
+}
+
+/** Natural client height of the visible rows, before scrolling. Native
+ * executors do not receive the model's pixel scroll state, so this window owns
+ * a conventional Win32 scrollbar and derives its range from the mirrored
+ * rows. */
+static int
+chrome_gdi_measure_content(struct ChromeGdi* s)
+{
+    int order[TORIRS_CHROME_MAX_WIDGETS];
+    int const ordered =
+        ToriRSChromeMirror_Order(&s->mirror, order, TORIRS_CHROME_MAX_WIDGETS);
+    int y = chrome_gdi_rows_top(s);
+    int rows = 0;
+
+    for( int oi = 0; oi < ordered; oi++ )
+    {
+        int const i = order[oi];
+        struct ToriRSChromeMirrorWidget const* w =
+            ToriRSChromeMirror_Widget(&s->mirror, i);
+
+        if( !w || !w->native || !ToriRSChromeMirror_Shown(&s->mirror, i) )
+            continue;
+        y += chrome_gdi_row_h(s, w->kind, i) + CHROME_GDI_ROW_GAP;
+        rows++;
+    }
+    if( rows > 0 )
+        y -= CHROME_GDI_ROW_GAP;
+    return y + CHROME_GDI_FRAME + CHROME_GDI_PAD;
+}
+
+/** Hide every HWND belonging to a row. They are retained so focus, text and
+ * selection survive a tab switch or a trip outside the scroll viewport. */
+static HDWP
+chrome_gdi_hide_row(struct ChromeGdi* s, HDWP dwp, int widget, HWND control)
+{
+    dwp = DeferWindowPos(dwp, control, NULL, 0, 0, 0, 0,
+                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW);
+    if( s->label[widget] )
+        dwp = DeferWindowPos(dwp, s->label[widget], NULL, 0, 0, 0, 0,
+                             SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW);
+    if( s->action[widget] )
+        dwp = DeferWindowPos(dwp, s->action[widget], NULL, 0, 0, 0, 0,
+                             SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW);
+    if( s->swatch[widget] )
+        dwp = DeferWindowPos(dwp, s->swatch[widget], NULL, 0, 0, 0, 0,
+                             SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW);
+    return dwp;
+}
+
 /**
  * Place every visible control down the window, in handle order.
  *
@@ -592,12 +675,35 @@ chrome_gdi_layout(struct ChromeGdi* s)
     HDWP dwp;
     int y;
     int width;
+    int rows_top;
+    int rows_bottom;
     int live = 0;
 
     if( !s->hwnd )
         return;
     GetClientRect(s->hwnd, &client);
+
+    /* Set the range BEFORE measuring the usable width: showing or hiding a
+     * window scrollbar changes the client rectangle. SetScrollInfo performs
+     * that transition, then the second GetClientRect gives layout the width
+     * the controls actually have. */
+    s->content_h = chrome_gdi_measure_content(s);
+    {
+        SCROLLINFO si;
+        memset(&si, 0, sizeof(si));
+        si.cbSize = sizeof(si);
+        si.fMask = SIF_RANGE | SIF_PAGE | SIF_POS;
+        si.nMin = 0;
+        si.nMax = s->content_h > 0 ? s->content_h - 1 : 0;
+        si.nPage = (UINT)(client.bottom - client.top);
+        si.nPos = s->scroll_y;
+        s->scroll_y = SetScrollInfo(s->hwnd, SB_VERT, &si, TRUE);
+    }
+    GetClientRect(s->hwnd, &client);
     width = client.right - client.left;
+    rows_top = chrome_gdi_rows_top(s);
+    rows_bottom = client.bottom - CHROME_GDI_FRAME - CHROME_GDI_PAD;
+    memset(s->presented, 0, sizeof(s->presented));
 
     for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
         if( ToriRSChromeMirror_Widget(&s->mirror, i) )
@@ -620,7 +726,7 @@ chrome_gdi_layout(struct ChromeGdi* s)
                 s->tab_buttons[t],
                 NULL,
                 CHROME_GDI_FRAME + CHROME_GDI_PAD + t * (CHROME_GDI_TAB_W + CHROME_GDI_RULE),
-                CHROME_GDI_FRAME + CHROME_GDI_PAD,
+                CHROME_GDI_HEADER_H + CHROME_GDI_PAD,
                 CHROME_GDI_TAB_W,
                 CHROME_GDI_TAB_H,
                 SWP_NOZORDER | SWP_SHOWWINDOW);
@@ -638,26 +744,18 @@ chrome_gdi_layout(struct ChromeGdi* s)
             dwp,
             s->close_button,
             NULL,
-            width - CHROME_GDI_FRAME - CHROME_GDI_PAD - CHROME_GDI_CLOSE_SIDE,
-            CHROME_GDI_FRAME + CHROME_GDI_PAD,
+            width - CHROME_GDI_FRAME - CHROME_GDI_CLOSE_PAD - CHROME_GDI_CLOSE_SIDE,
+            CHROME_GDI_FRAME + (CHROME_GDI_TITLE_H - CHROME_GDI_CLOSE_SIDE) / 2,
             CHROME_GDI_CLOSE_SIDE,
             CHROME_GDI_CLOSE_SIDE,
             SWP_NOZORDER | SWP_SHOWWINDOW);
 
     /*
-     * The rows start below whichever piece of furniture is up there.
-     *
-     * The strip and the close button share the band: the strip is left-aligned
-     * and the button is right-aligned, so they do not collide, and reserving
-     * the taller of the two is what keeps the first row from being laid out
-     * underneath the button and taking its clicks.
+     * The rows start below the drawn title block and the optional tab strip.
+     * The close button lives IN the title and therefore reserves no second,
+     * empty band of its own.
      */
-    {
-        int const strip_h = s->tab_count > 1 ? CHROME_GDI_TAB_H : 0;
-        int const close_h = s->close_button ? CHROME_GDI_CLOSE_SIDE : 0;
-        int const band = strip_h > close_h ? strip_h : close_h;
-        y = CHROME_GDI_PAD + (band > 0 ? band + CHROME_GDI_ROW_GAP : 0);
-    }
+    y = rows_top - s->scroll_y;
     width -= 2 * CHROME_GDI_FRAME;
 
     /* In ROW order, not handle order -- see ToriRSChromeMirrorWidget::order.
@@ -686,19 +784,21 @@ chrome_gdi_layout(struct ChromeGdi* s)
              * rather than a rebuilt blank. The row's OTHER controls have to go
              * with it -- a roster row whose switch hid and whose name did not
              * is a caption floating over the row below. */
-            dwp = DeferWindowPos(dwp, control, NULL, 0, 0, 0, 0,
-                                 SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW);
-            if( s->label[i] )
-                dwp = DeferWindowPos(dwp, s->label[i], NULL, 0, 0, 0, 0,
-                                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW);
-            if( s->action[i] )
-                dwp = DeferWindowPos(dwp, s->action[i], NULL, 0, 0, 0, 0,
-                                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW);
-            if( s->swatch[i] )
-                dwp = DeferWindowPos(dwp, s->swatch[i], NULL, 0, 0, 0, 0,
-                                     SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW);
+            dwp = chrome_gdi_hide_row(s, dwp, i, control);
             continue;
         }
+
+        /* Keep scrolling rows out of the fixed close/tab band and the bottom
+         * frame. Hiding a partially visible row is preferable to letting a
+         * child HWND paint over the window furniture; at either scroll end
+         * the range aligns the first/last row exactly with the viewport. */
+        if( y < rows_top || y + row_h > rows_bottom )
+        {
+            dwp = chrome_gdi_hide_row(s, dwp, i, control);
+            y += row_h + CHROME_GDI_ROW_GAP;
+            continue;
+        }
+        s->presented[i] = 1;
 
         /*
          * A roster row: the name at the left, a settings well and a switch
@@ -924,6 +1024,32 @@ chrome_gdi_draw_close(struct ChromeGdi* s, HDC dc, RECT box, int hot)
     chrome_gdi_text(dc, box, "X", TORIRS_CHROME_C_TEXT, DT_CENTER);
 }
 
+/** The borderless window's non-client chrome, drawn in its client area.
+ * Geometry matches the minimenu header used by the in-canvas presentation:
+ * black title bar, body-coloured title, a short body gap, then a black rule. */
+static void
+chrome_gdi_draw_title(struct ChromeGdi* s, HDC dc, int width)
+{
+    RECT text;
+    char caption[TORIRS_CHROME_TEXT_MAX];
+    int const x = CHROME_GDI_FRAME;
+    int const y = CHROME_GDI_FRAME;
+    int const w = width - 2 * CHROME_GDI_FRAME;
+
+    if( w <= 0 )
+        return;
+    chrome_gdi_rect(dc, x, y, w, CHROME_GDI_TITLE_H, TORIRS_CHROME_C_CHROME);
+    chrome_gdi_rect(
+        dc, x, y + CHROME_GDI_TITLE_H + CHROME_GDI_TITLE_GAP, w,
+        CHROME_GDI_RULE, TORIRS_CHROME_C_CHROME);
+    chrome_gdi_caption(s->hwnd, caption, (int)sizeof(caption));
+    text.left = x + CHROME_GDI_FIELD_PAD_X;
+    text.top = y;
+    text.right = x + w - CHROME_GDI_CLOSE_PAD - CHROME_GDI_CLOSE_SIDE;
+    text.bottom = y + CHROME_GDI_TITLE_H;
+    chrome_gdi_text(dc, text, caption, TORIRS_CHROME_C_BODY, DT_LEFT);
+}
+
 /** A roster row's settings affordance: three dots in a field-chrome well. */
 static void
 chrome_gdi_draw_dots(struct ChromeGdi* s, HDC dc, RECT box, int hot)
@@ -1075,8 +1201,18 @@ static uint32_t
 chrome_gdi_static_color(struct ChromeGdi const* s, HWND control)
 {
     for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
+    {
         if( s->label[i] == control )
-            return TORIRS_CHROME_C_LABEL;
+        {
+            struct ToriRSChromeMirrorWidget const* w = &s->mirror.widgets[i];
+            if( s->color[i] )
+                return s->color[i];
+            return w->kind == TORIRS_CHROME_W_LISTROW ? TORIRS_CHROME_C_TEXT
+                                                       : TORIRS_CHROME_C_LABEL;
+        }
+        if( s->mirror.widgets[i].native == (intptr_t)control )
+            return s->color[i] ? s->color[i] : TORIRS_CHROME_C_TEXT;
+    }
     return TORIRS_CHROME_C_TEXT;
 }
 
@@ -1137,7 +1273,9 @@ chrome_gdi_drawitem(struct ChromeGdi* s, DRAWITEMSTRUCT const* di)
             mark.right = mark.left + side;
             chrome_gdi_draw_mark(s, di->hDC, mark, s->checked[handle]);
             box.left += side + CHROME_GDI_CHECK_GAP;
-            chrome_gdi_text(di->hDC, box, caption, TORIRS_CHROME_C_TEXT, DT_LEFT);
+            chrome_gdi_text(
+                di->hDC, box, caption,
+                s->color[handle] ? s->color[handle] : TORIRS_CHROME_C_TEXT, DT_LEFT);
             break;
         }
 
@@ -1151,7 +1289,27 @@ chrome_gdi_drawitem(struct ChromeGdi* s, DRAWITEMSTRUCT const* di)
         case TORIRS_CHROME_W_BUTTON:
         case TORIRS_CHROME_W_MENUITEM:
             chrome_gdi_draw_button(
-                s, di->hDC, box, caption, pressed, TORIRS_CHROME_C_TEXT);
+                s, di->hDC, box, caption, pressed,
+                s->color[handle] ? s->color[handle] : TORIRS_CHROME_C_TEXT);
+            break;
+
+        case TORIRS_CHROME_W_SEPARATOR:
+            chrome_gdi_rect(
+                di->hDC, box.left, box.top + (box.bottom - box.top) / 2,
+                box.right - box.left, CHROME_GDI_RULE, TORIRS_CHROME_C_CHROME);
+            break;
+
+        case TORIRS_CHROME_W_MODELVIEW:
+            /* A native executor has no scene or model pixels. Preserve the
+             * component as an explicit framed preview placeholder, like the
+             * DOM executor, instead of silently turning it into a bare label. */
+            chrome_gdi_field(
+                s, di->hDC, box.left, box.top, box.right - box.left,
+                box.bottom - box.top);
+            chrome_gdi_text(
+                di->hDC, box, caption[0] ? caption : "model preview",
+                s->color[handle] ? s->color[handle] : TORIRS_CHROME_C_LABEL,
+                DT_CENTER);
             break;
 
         default:
@@ -1188,7 +1346,7 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                 return 0;
             memset(&intent, 0, sizeof(intent));
             intent.kind = TORIRS_CHROME_INTENT_CLOSE;
-            intent.panel = s->tab_panel;
+            intent.panel = s->window_panel;
             intent.widget = -1;
             ToriRSChromeMirror_PushIntent(&s->mirror, &intent);
             return 0;
@@ -1273,7 +1431,18 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                  * chrome's own input commits the same way. A colour row's EDIT
                  * commits by the same route -- the model is what turns the hex
                  * into a palette entry, so there is nothing extra to do here. */
-                if( notify == EN_KILLFOCUS )
+                if( notify == EN_SETFOCUS )
+                {
+                    struct ToriRSChromeIntent intent;
+                    memset(&intent, 0, sizeof(intent));
+                    intent.kind = w->kind == TORIRS_CHROME_W_COLORPICK
+                                      ? TORIRS_CHROME_INTENT_ACTION
+                                      : TORIRS_CHROME_INTENT_ACTIVATE;
+                    intent.panel = w->panel;
+                    intent.widget = handle;
+                    ToriRSChromeMirror_PushIntent(&s->mirror, &intent);
+                }
+                else if( notify == EN_KILLFOCUS )
                 {
                     /* Read at the CONTROL's size and normalised down to the
                      * model's: a multiline value carries a '\r' per line that
@@ -1318,6 +1487,75 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         RedrawWindow(hwnd, NULL, NULL, RDW_INVALIDATE | RDW_ALLCHILDREN);
         return 0;
 
+    case WM_NCHITTEST:
+    {
+        /* The window has no operating-system frame. Its black title band is
+         * the non-client area now: returning HTCAPTION lets USER32 perform the
+         * move loop, including capture, monitor transitions and snapping,
+         * without reimplementing any of those from mouse messages. Child
+         * controls (especially Close) are hit-tested before their parent and
+         * remain holes in this handle automatically. */
+        POINT point;
+        RECT client;
+        point.x = (LONG)(short)LOWORD(lp);
+        point.y = (LONG)(short)HIWORD(lp);
+        ScreenToClient(hwnd, &point);
+        GetClientRect(hwnd, &client);
+        if( point.x >= CHROME_GDI_FRAME && point.x < client.right - CHROME_GDI_FRAME &&
+            point.y >= CHROME_GDI_FRAME &&
+            point.y < CHROME_GDI_FRAME + CHROME_GDI_TITLE_H )
+            return HTCAPTION;
+        return HTCLIENT;
+    }
+
+    case WM_VSCROLL:
+    {
+        SCROLLINFO si;
+        int pos;
+
+        /* A multiline EDIT owns its own vertical scrollbar and sends a
+         * non-NULL control HWND in lp. Leave that scroll to the control. */
+        if( lp )
+            break;
+        memset(&si, 0, sizeof(si));
+        si.cbSize = sizeof(si);
+        si.fMask = SIF_ALL;
+        GetScrollInfo(hwnd, SB_VERT, &si);
+        pos = si.nPos;
+        switch( LOWORD(wp) )
+        {
+        case SB_TOP: pos = si.nMin; break;
+        case SB_BOTTOM: pos = si.nMax; break;
+        case SB_LINEUP: pos -= CHROME_GDI_SCROLL_LINE; break;
+        case SB_LINEDOWN: pos += CHROME_GDI_SCROLL_LINE; break;
+        case SB_PAGEUP: pos -= (int)si.nPage; break;
+        case SB_PAGEDOWN: pos += (int)si.nPage; break;
+        case SB_THUMBPOSITION:
+        case SB_THUMBTRACK: pos = si.nTrackPos; break;
+        default: return 0;
+        }
+        si.fMask = SIF_POS;
+        si.nPos = pos;
+        s->scroll_y = SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
+        chrome_gdi_layout(s);
+        return 0;
+    }
+
+    case WM_MOUSEWHEEL:
+    {
+        SCROLLINFO si;
+        int const notches = GET_WHEEL_DELTA_WPARAM(wp) / WHEEL_DELTA;
+
+        memset(&si, 0, sizeof(si));
+        si.cbSize = sizeof(si);
+        si.fMask = SIF_POS;
+        GetScrollInfo(hwnd, SB_VERT, &si);
+        si.nPos -= notches * CHROME_GDI_SCROLL_LINE;
+        s->scroll_y = SetScrollInfo(hwnd, SB_VERT, &si, TRUE);
+        chrome_gdi_layout(s);
+        return 0;
+    }
+
     case WM_DRAWITEM:
         chrome_gdi_drawitem(s, (DRAWITEMSTRUCT const*)lp);
         return 1;
@@ -1349,6 +1587,7 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
 
         GetClientRect(hwnd, &client);
         chrome_gdi_tile(s, dc, 0, 0, client.right, client.bottom);
+        chrome_gdi_draw_title(s, dc, client.right);
         chrome_gdi_frame(s, dc, client.right, client.bottom);
 
         ordered = ToriRSChromeMirror_Order(&s->mirror, order, TORIRS_CHROME_MAX_WIDGETS);
@@ -1358,7 +1597,7 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             struct ToriRSChromeMirrorWidget* w = ToriRSChromeMirror_Widget(&s->mirror, i);
             RECT box;
 
-            if( !w || !w->native || !ToriRSChromeMirror_Shown(&s->mirror, i) )
+            if( !w || !w->native || !s->presented[i] )
                 continue;
             if( w->kind != TORIRS_CHROME_W_TEXTINPUT &&
                 w->kind != TORIRS_CHROME_W_TEXTAREA &&
@@ -1391,7 +1630,7 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         struct ToriRSChromeIntent intent;
         memset(&intent, 0, sizeof(intent));
         intent.kind = TORIRS_CHROME_INTENT_CLOSE;
-        intent.panel = s->tab_panel;
+        intent.panel = s->window_panel;
         intent.widget = -1;
         ToriRSChromeMirror_PushIntent(&s->mirror, &intent);
         return 0;
@@ -1543,7 +1782,10 @@ chrome_gdi_begin(void* user)
         WS_EX_TOOLWINDOW,
         CHROME_GDI_WNDCLASS,
         "Plugins",
-        WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_THICKFRAME,
+        /* Borderless by construction. WM_NCHITTEST turns the title we draw in
+         * the client into USER32's drag handle; a native caption or resize
+         * rail here would be a second, platform-themed chrome around it. */
+        WS_POPUP | WS_VSCROLL,
         CW_USEDEFAULT,
         CW_USEDEFAULT,
         CHROME_GDI_W,
@@ -1560,7 +1802,13 @@ chrome_gdi_begin(void* user)
     memset(&ncm, 0, sizeof(ncm));
     ncm.cbSize = sizeof(ncm);
     if( SystemParametersInfoA(SPI_GETNONCLIENTMETRICS, sizeof(ncm), &ncm, 0) )
+    {
+        /* Geometry is deliberately 2x chrome. The unscaled message font was
+         * the reason the screenshot had 36px fields around 11px captions.
+         * Match the other native executor's 8px authored face at K=2. */
+        ncm.lfMessageFont.lfHeight = -CHROME_GDI_PX(8);
         s->font = CreateFontIndirectA(&ncm.lfMessageFont);
+    }
 
     chrome_gdi_make_tile_brush(s);
 
@@ -1580,6 +1828,7 @@ chrome_gdi_begin(void* user)
         GetModuleHandleA(NULL), NULL);
 
     ToriRSChromeMirror_Init(&s->mirror);
+    s->window_panel = -1;
     s->tab_panel = -1;
     s->tab_strip_widget = -1;
     s->tab_count = 0;
@@ -1631,6 +1880,9 @@ chrome_gdi_end(void* user)
     s->scratch_w = 0;
     s->scratch_h = 0;
     s->open = 0;
+    s->window_panel = -1;
+    s->scroll_y = 0;
+    s->content_h = 0;
     s->tab_count = 0;
     memset(s->tab_buttons, 0, sizeof(s->tab_buttons));
     memset(s->label, 0, sizeof(s->label));
@@ -1703,6 +1955,8 @@ chrome_gdi_add(struct ChromeGdi* s, struct ToriRSChromeCmd const* cmd)
         return;
 
     s->checked[cmd->widget] = 0;
+    s->color[cmd->widget] = cmd->color;
+    s->presented[cmd->widget] = 0;
     /* The ADD is the one command carrying a widget's SHAPE, and `w` is a
      * LISTROW's settings affordance -- the same field the CS2 executor reads
      * it out of. A row that gained or lost one is re-added, not updated. */
@@ -1827,7 +2081,13 @@ chrome_gdi_add(struct ChromeGdi* s, struct ToriRSChromeCmd const* cmd)
         break;
 
     case TORIRS_CHROME_W_SEPARATOR:
-        control = chrome_gdi_child(s, "STATIC", SS_ETCHEDHORZ, NULL, -1);
+        control = chrome_gdi_child(s, "STATIC", SS_OWNERDRAW, NULL, id);
+        break;
+
+    case TORIRS_CHROME_W_MODELVIEW:
+        control = chrome_gdi_child(
+            s, "STATIC", SS_OWNERDRAW,
+            cmd->label[0] ? cmd->label : "model preview", id);
         break;
 
     case TORIRS_CHROME_W_TABSTRIP:
@@ -1920,12 +2180,27 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
         }
         return;
 
+    case TORIRS_CHROME_CMD_PANEL_OPEN:
+        /* PANEL_OPEN is the one command every presentation gets. A paged
+         * plugin window has no TABSTRIP, so deriving the close target from the
+         * strip leaves both X buttons addressing panel -1. */
+        s->window_panel = cmd->panel;
+        s->scroll_y = 0;
+        if( cmd->text[0] )
+            SetWindowTextA(s->hwnd, cmd->text);
+        chrome_gdi_layout(s);
+        return;
+
     case TORIRS_CHROME_CMD_PANEL_TITLE:
         SetWindowTextA(s->hwnd, cmd->text);
+        InvalidateRect(s->hwnd, NULL, TRUE);
         return;
 
     case TORIRS_CHROME_CMD_PANEL_CLOSE:
         /* The windows were destroyed above, before the mirror forgot them. */
+        if( s->window_panel == cmd->panel )
+            s->window_panel = -1;
+        s->scroll_y = 0;
         chrome_gdi_layout(s);
         return;
 
@@ -2006,6 +2281,13 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
         }
         break;
 
+    case TORIRS_CHROME_CMD_WIDGET_COLOR:
+        s->color[cmd->widget] = cmd->color;
+        InvalidateRect((HWND)w->native, NULL, TRUE);
+        if( s->label[cmd->widget] )
+            InvalidateRect(s->label[cmd->widget], NULL, TRUE);
+        break;
+
     case TORIRS_CHROME_CMD_WIDGET_LABEL:
         /* A checkbox carries its own caption; a roster row's name is the
          * STATIC beside it. Both are the label, and only one of them was
@@ -2050,10 +2332,17 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
                 InvalidateRect(s->swatch[cmd->widget], NULL, TRUE);
             break;
         }
-        if( cmd->kind == TORIRS_CHROME_CMD_WIDGET_OPTION )
-            SendMessageA((HWND)w->native, CB_ADDSTRING, 0, (LPARAM)cmd->text);
-        else
-            SendMessageA((HWND)w->native, CB_SETCURSEL, (WPARAM)cmd->value, 0);
+        /* TEXTAREA also uses SELECTED, for its first visible model line. A
+         * native multiline EDIT scrolls itself; sending a COMBOBOX message to
+         * it is not an ignore -- that numeric message means something else to
+         * the EDIT class. */
+        if( w->kind == TORIRS_CHROME_W_DROPDOWN )
+        {
+            if( cmd->kind == TORIRS_CHROME_CMD_WIDGET_OPTION )
+                SendMessageA((HWND)w->native, CB_ADDSTRING, 0, (LPARAM)cmd->text);
+            else
+                SendMessageA((HWND)w->native, CB_SETCURSEL, (WPARAM)cmd->value, 0);
+        }
         break;
 
     case TORIRS_CHROME_CMD_WIDGET_FOCUS:

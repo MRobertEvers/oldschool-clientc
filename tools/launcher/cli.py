@@ -17,7 +17,7 @@ import sys
 import time
 import urllib.parse
 
-from . import services as services_mod
+from . import host, services as services_mod
 from . import staleness, supervisor
 from .profiles import (LaunchError, generate_resolved_manifest, list_profiles,
                        load_profile)
@@ -162,6 +162,7 @@ class Plan:
     def to_json(self):
         return {
             "profile": self.profile.name,
+            "platform": self.profile.platform,
             "description": self.profile.description,
             "world": os.path.relpath(self.base_manifest_path, REPO_ROOT),
             "manifest_used": os.path.relpath(self.manifest_path, REPO_ROOT),
@@ -190,6 +191,14 @@ def build_plan(profile, client_override=None, flavor_override=None,
         from .profiles import Manifest
         manifest = Manifest.load(manifest_path)
 
+    # bootmanifest.c deliberately uses '/' as its portable manifest path
+    # separator.  os.path.relpath emits '\\' on Windows; passing that spelling
+    # makes the C loader see a bare filename, so manifest-relative values such
+    # as ../cache.osrs239 are left relative to the process working directory.
+    # Forward slashes are accepted by Windows file APIs and preserve the
+    # manifest's own directory as the path-resolution base.
+    manifest_rel = os.path.relpath(manifest_path, REPO_ROOT).replace("\\", "/")
+
     client = client_override or profile.client
     flavors = (
         [part.strip() for part in flavor_override.split(",") if part.strip()]
@@ -198,6 +207,13 @@ def build_plan(profile, client_override=None, flavor_override=None,
     transport = (manifest.transport or "").strip()
     embed = transport == "embed" and client in ("native", "headless")
     make_args, binary, target = flavor_make_args(flavors, embed)
+
+    # Native Windows uses the repository's explicit modern-Windows lane and
+    # produces a PE executable with a different name from the Unix SDL build.
+    if host.IS_WINDOWS and client in ("native", "headless"):
+        binary = "src/torirs_win64.exe"
+        target = "win64-debug" if "debug" in flavors else "win64"
+        make_args = [arg for arg in make_args if arg != "OPT=0"]
 
     service_list = []
     delegate = None
@@ -213,15 +229,13 @@ def build_plan(profile, client_override=None, flavor_override=None,
         # makes io_server's GET /boot/<path> serve the page the very file the
         # native client would have opened.
         service_list = services_mod.build_services(
-            profile, manifest, os.path.relpath(manifest_path, REPO_ROOT),
-            REPO_ROOT)
+            profile, manifest, manifest_rel, REPO_ROOT)
         _check_declared_services(profile, manifest, service_list)
 
     session = profile.session
     user = session.get("user") or manifest.user or "asdf"
     password = session.get("pass") or manifest.password or "a"
 
-    manifest_rel = os.path.relpath(manifest_path, REPO_ROOT)
     client_argv = []
     url = None
     env = dict(profile.env)
@@ -297,6 +311,7 @@ def cmd_show(args):
     profile = load_profile(REPO_ROOT, args.profile)
     plan = build_plan(profile, args.client, args.flavor, args.args)
     print("profile     %s" % profile.name)
+    print("platform    %s" % profile.platform)
     print("description %s" % profile.description)
     print("world       %s" % os.path.relpath(plan.base_manifest_path, REPO_ROOT))
     if plan.manifest_path != profile.world_path:
@@ -305,6 +320,7 @@ def cmd_show(args):
     print("client      %s" % plan.client)
     print("flavor      %s" % (",".join(plan.flavors) or "(default)"))
     print("transport   %s" % (plan.manifest.transport or "(none)"))
+    print("chrome      %s" % (plan.manifest.chrome_executor or "(default)"))
     print("cache       %s" % (plan.manifest.cache_dir or "(none)"))
     lanes = plan.manifest.lanes
     print("lanes       %s" % (", ".join(lanes) if lanes else "(tree defaults)"))
@@ -323,8 +339,9 @@ def cmd_show(args):
               % (service.name, service.port or "-", service.description))
         print("        %s" % " ".join(service.argv))
     if plan.make_args or plan.target:
-        print("build       make -C src %s %s"
-              % (" ".join(plan.make_args), plan.target))
+        _, display = host.make_command(
+            REPO_ROOT, plan.target, plan.make_args, parallel=True)
+        print("build       %s" % display)
     if plan.client_argv:
         print("client      %s" % " ".join(plan.client_argv))
     if plan.url:
@@ -336,8 +353,9 @@ def cmd_show(args):
 
 
 def _run_make(target, make_args, extra_env=None):
-    argv = ["make", "-C", "src"] + list(make_args) + [target]
-    say(" ".join(argv))
+    argv, display = host.make_command(
+        REPO_ROOT, target, make_args, parallel=True)
+    say(display)
     env = dict(os.environ)
     if extra_env:
         env.update({str(k): str(v) for k, v in extra_env.items()})

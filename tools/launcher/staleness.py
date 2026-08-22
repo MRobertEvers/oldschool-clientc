@@ -37,6 +37,8 @@ import os
 import shlex
 import subprocess
 
+from . import host
+
 
 class DerivedResult:
     def __init__(self, name, action, detail=""):
@@ -62,9 +64,12 @@ def check_derived(manifest, block_name, fields, repo_root, verbose=False):
         return True, "no check= declared"
 
     out_abs = manifest.resolve_path(out) if out else ""
-    argv = shlex.split(_expand(check, {"out": out_abs}))
+    # Split the manifest-authored command before substituting host paths.
+    # POSIX shlex treats backslashes as escapes; expanding C:\\... first made
+    # every Windows separator disappear before the checker received --out.
+    argv = [_expand(arg, {"out": out_abs}) for arg in shlex.split(check)]
     if argv and argv[0].endswith(".py"):
-        argv = ["python3"] + argv
+        argv = host.python_command(argv)
 
     proc = subprocess.run(
         argv, cwd=repo_root,
@@ -86,16 +91,25 @@ def rebuild_derived(manifest, block_name, fields, repo_root, verbose=True):
         return False, "block declares no target= to rebuild with"
 
     out_abs = manifest.resolve_path(fields.get("out") or "")
-    argv = ["make", "-C", "src", target]
     make_args = fields.get("make_args")
+    expanded_args = []
     if make_args:
-        argv += shlex.split(_expand(make_args, {"out": out_abs}))
+        expanded_args = [
+            _expand(arg, {"out": out_abs}) for arg in shlex.split(make_args)
+        ]
 
-    print("launch: %s is stale — %s" % (block_name, " ".join(argv)))
+    # Cache bakes share and rebuild cachepack prerequisites, which this tree
+    # documents as unsafe to race. Everything else gets the launcher's normal
+    # parallel build policy.
+    parallel = not target.startswith("torirsserver-cache")
+    argv, display = host.make_command(
+        repo_root, target, expanded_args, parallel=parallel)
+
+    print("launch: %s is stale — %s" % (block_name, display))
     proc = subprocess.run(argv, cwd=repo_root)
     if proc.returncode != 0:
         return False, "make exited %d" % proc.returncode
-    return True, " ".join(argv)
+    return True, display
 
 
 def prepare_derived(manifest, repo_root, force=False, verbose=False):

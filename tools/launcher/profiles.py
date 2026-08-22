@@ -10,6 +10,7 @@ of its fields to work out what a run needs; it never reinterprets them.
 
 import os
 
+from . import host
 from .iniparse import Ini
 
 # The six keys bootmanifest.c resolves through bm_join_path(), i.e. relative to
@@ -134,6 +135,10 @@ class Manifest:
     def interface_id(self):
         return self.ini.get("ui:boot", "interface_id")
 
+    @property
+    def chrome_executor(self):
+        return self.ini.get("chrome", "executor")
+
     # -- derived artifacts (staleness) ----------------------------------
     def derived(self):
         """The `[derived:*]` blocks, as (name, {key: value}) in file order.
@@ -151,13 +156,32 @@ class Manifest:
 
 
 class Profile:
-    """A named launch configuration."""
+    """A named launch configuration with optional host-specific sections.
 
-    def __init__(self, name, path, ini, repo_root):
+    Any section may be suffixed with ``@windows``, ``@macos`` or ``@linux``.
+    The matching section overlays its unsuffixed twin before properties read
+    it, including nested names such as ``[service:io_server@windows]`` and
+    ``[override:net:boot@windows]``.
+    """
+
+    def __init__(self, name, path, ini, repo_root, platform=None):
         self.name = name
         self.path = path
-        self.ini = ini
         self.repo_root = repo_root
+        self.platform = platform or host.platform_name()
+        if self.platform not in host.PLATFORM_NAMES:
+            raise LaunchError(
+                "profile '%s': unknown platform '%s' (want one of %s)"
+                % (self.name, self.platform, ", ".join(host.PLATFORM_NAMES)))
+        for section in ini.sections():
+            _base, marker, candidate = section.rpartition("@")
+            if marker and candidate not in host.PLATFORM_NAMES:
+                raise LaunchError(
+                    "profile '%s': section [%s] names unknown platform '%s' "
+                    "(want one of %s)"
+                    % (self.name, section, candidate,
+                       ", ".join(host.PLATFORM_NAMES)))
+        self.ini = ini.platform_overlay(self.platform, host.PLATFORM_NAMES)
 
     @property
     def description(self):

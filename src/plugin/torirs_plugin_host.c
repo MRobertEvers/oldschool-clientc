@@ -974,7 +974,11 @@ api_datestamp(struct ToriRS_PluginCtx* ctx, char* out, int out_size)
     now = time(NULL);
     /* The reentrant form: a plugin handler runs mid-frame and localtime()'s
      * shared buffer is not something to hand around. */
+#ifdef _WIN32
+    if( localtime_s(&local, &now) != 0 )
+#else
     if( !localtime_r(&now, &local) )
+#endif
         return 0;
     if( strftime(out, (size_t)out_size, "%Y-%m-%d_%H-%M-%S", &local) == 0 )
         return 0;

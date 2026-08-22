@@ -97,3 +97,32 @@ class Ini:
         """Section names starting with `prefix` — how `[derived:*]` and
         `[override:*]` blocks are discovered without naming each one."""
         return [name for name in self.sections() if name.startswith(prefix)]
+
+    def platform_overlay(self, platform, known_platforms):
+        """Apply matching ``[section@platform]`` entries key by key.
+
+        Every key stated by the active overlay replaces all values of that key
+        in the unsuffixed section. Omitted keys remain inherited. Repeated keys
+        in the overlay become the complete replacement list.
+        """
+        active = []
+        platform_sections = set()
+
+        for section in self.sections():
+            base, marker, candidate = section.rpartition("@")
+            if marker and candidate in known_platforms:
+                platform_sections.add(section)
+                if candidate == platform:
+                    active.extend(
+                        (base, key, value)
+                        for key, value in self.items(section)
+                    )
+
+        replaced = {(section, key) for section, key, _ in active}
+        entries = [
+            entry for entry in self.entries
+            if entry[0] not in platform_sections
+            and (entry[0], entry[1]) not in replaced
+        ]
+        entries.extend(active)
+        return Ini(self.path, entries)
