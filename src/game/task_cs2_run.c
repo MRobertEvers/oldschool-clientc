@@ -847,7 +847,7 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     case CS2VM_HOST_REQUEST_CC_SETON_DISCARD:
     case CS2VM_HOST_REQUEST_CC_SETSCROLLPOS:
     case CS2VM_HOST_REQUEST_CC_SETSCROLLSIZE:
-    case CS2VM_HOST_REQUEST_CC_FINDROOT:
+    case CS2VM_HOST_REQUEST_ENTITY_OVERLAY:
     case CS2VM_HOST_REQUEST_CC_RESOLVE_PARENT:
     case CS2VM_HOST_REQUEST_IF_GETWIDTH:
     case CS2VM_HOST_REQUEST_IF_GETHEIGHT:
@@ -1019,6 +1019,12 @@ Task_CS2Run_Run(
         CS2VM2_SetActiveAndDotComponentId(thread, self->active_component_id);
         if( self->dot_component_id != self->active_component_id )
             thread->dot_component_id = self->dot_component_id;
+
+        /* Here and nowhere else: the arguments are in the locals and the first
+         * opcode has not run. The All Settings colour rows are the case that
+         * needs it -- their op script says everything it has to say in its
+         * parameters and then executes nothing worth hooking. */
+        RS_CS2Host_ScriptStarted(self->host, thread, self->active_component_id);
 
         self->started = 1;
 

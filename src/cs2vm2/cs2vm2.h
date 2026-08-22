@@ -130,8 +130,6 @@ struct CS2VM2_Array
 /* Opcodes missing from cs2_opcode.h but used by gameframe scripts. */
 #define CS2_OP_CC_CREATECHILD 106
 #define CS2_OP_CC_CREATESIBLING 107
-#define CS2_OP_CC_FINDROOT 202
-#define CS2_OP_CC_CHILDREN_FIND 203
 #define CS2_OP_CC_CHILDREN_FINDNEXTID 204
 #define CS2_OP_IF_CHILDREN_FIND 205
 #define CS2_OP_IF_CHILDREN_FINDNEXTID 206

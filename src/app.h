@@ -1221,6 +1221,25 @@ struct App
      * Opened at the loc under the cursor; "Move"/"Rotate" rows re-place it
      * client-side only via App_WorldLocChange, so the readout gives exact
      * scene coords to hand-copy into a script without a server round trip. */
+    /**
+     * The All Settings colour picker: a window panel in the same dbg_ui
+     * instance, opened when a colour row's swatch is clicked.
+     *
+     * A panel here rather than a chrome instance of its own for the same
+     * reason the loc editor is one: it is in-canvas, short-lived and shares
+     * the frame-time panel's Build/Prims/emit plumbing for free. The cache
+     * has no picker to open -- its op script for that swatch plays a click and
+     * returns -- so this IS the row's apply, and the value it commits goes
+     * straight into the row's varp. See RS_CS2SettingsColourRequest.
+     */
+    int settings_colour_panel;
+    int settings_colour_pick;
+    int settings_colour_default_btn;
+    int settings_colour_close_btn;
+    int settings_colour_visible;
+    /** The row the open picker belongs to, so a commit knows which varp to
+     *  write and a closed All Settings knows to take the picker with it. */
+    struct RS_CS2SettingsColourRequest settings_colour_req;
     int locedit_panel;
     int locedit_visible;
     int locedit_row_target; /* "loc <id> shape <n>" or "no loc selected" */

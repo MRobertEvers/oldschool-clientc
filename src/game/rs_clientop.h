@@ -106,6 +106,16 @@ struct RS_ClientOpContext
     int uid;
     /** npc type / loc type / obj id. -1 for a tile and a player. */
     int type;
+    /**
+     * A loc's LAYER (0 wall / 1 wall decor / 2 ground / 3 ground decor); -1 for
+     * every other kind.
+     *
+     * A tile can hold one loc per layer, so this is half of a loc's identity
+     * and not a detail: the scripted-entity-overlay store keys on
+     * (coord, layer), and a door and the ground decor under it would otherwise
+     * be the same subject. See World_LocShapeToLayer.
+     */
+    int layer;
     /** Packed absolute coord, `plane << 28 | x << 14 | z`. -1 when absent. */
     int coord;
     /** The npc's, loc's, obj's or player's name; "" when absent. */
@@ -144,6 +154,23 @@ struct RS_ClientOpState
      * pointer is over nothing.
      */
     struct RS_ClientOpContext mouseover;
+    /**
+     * The subject an opcode NAMED, per kind.
+     *
+     * The reference keeps one "active npc / loc / obj / tile / player" register
+     * on its ScriptRunner, written both by a client-op dispatch and by ops that
+     * go looking -- `LOC_FIND` (6803) is the one this cache leans on: every
+     * static-overlay script opens with it, and the OVERLAY_LOC_* ops that
+     * follow are about whatever it found.
+     *
+     * Kept beside the dispatch context rather than merged into it because the
+     * two are scoped differently: a dispatch is gated on which script is
+     * asking (see RS_ClientOpContext::script_id), and this is not gated at all
+     * -- a script that just called LOC_FIND is entitled to the answer.
+     *
+     * `kind` is -1 for a register nothing has written.
+     */
+    struct RS_ClientOpContext active[RS_CLIENTOP_KIND_COUNT];
     /** RS_MINIMENU_TYPE_*, as `_7100` reports it. */
     int mouseover_type;
     /** The mouseover row's op text and target text, as `_7101` yields them,
@@ -181,6 +208,25 @@ bool RS_ClientOpApply(
     int slot,
     char const* label,
     int script_id);
+
+/**
+ * Write the active-subject register for one kind, or clear it with a NULL
+ * `ctx`. `ctx->kind` must be `kind`.
+ */
+void RS_ClientOpActiveSet(
+    struct RS_ClientOpState* state,
+    enum RS_ClientOpKind kind,
+    struct RS_ClientOpContext const* ctx);
+
+/**
+ * Which subject the getters for `kind` should answer about right now: the
+ * dispatch when one is running in `running_script_id`, else the register an
+ * opcode set, else the mouseover. NULL when there is none of the three.
+ */
+struct RS_ClientOpContext const* RS_ClientOpSubject(
+    struct RS_ClientOpState const* state,
+    enum RS_ClientOpKind kind,
+    int running_script_id);
 
 /** Replace the mouseover snapshot. `ctx` may have kind -1 for "nothing". */
 void RS_ClientOpMouseoverSet(

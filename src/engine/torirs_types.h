@@ -319,6 +319,17 @@ struct ToriRS_Location
      * is over to decide which highlight group it belongs in. A key the content
      * never sets costs nothing; only records that carry params allocate.
      */
+    /**
+     * The record's `category` (loc opcode 61 / npc opcode 18).
+     *
+     * Carried for the client TRIGGER lookup: a trigger script can be bound to
+     * a whole category rather than to one id, and the fishing spot indicators
+     * are bound that way -- seventeen npc categories, one script each. Without
+     * it the category form of the hash cannot be formed and those scripts stay
+     * unreachable, which is indistinguishable from a cache that has none.
+     * See game/rs_client_trigger.h. 0 is "no category".
+     */
+    int category;
     struct ToriRS_Param* params;
     int param_count;
 };
@@ -522,6 +533,17 @@ struct ToriRS_Npctype
      * is over to decide which highlight group it belongs in. A key the content
      * never sets costs nothing; only records that carry params allocate.
      */
+    /**
+     * The record's `category` (loc opcode 61 / npc opcode 18).
+     *
+     * Carried for the client TRIGGER lookup: a trigger script can be bound to
+     * a whole category rather than to one id, and the fishing spot indicators
+     * are bound that way -- seventeen npc categories, one script each. Without
+     * it the category form of the hash cannot be formed and those scripts stay
+     * unreachable, which is indistinguishable from a cache that has none.
+     * See game/rs_client_trigger.h. 0 is "no category".
+     */
+    int category;
     struct ToriRS_Param* params;
     int param_count;
 };

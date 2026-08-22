@@ -94,7 +94,65 @@ RS_ClientOpReset(struct RS_ClientOpState* state)
     state->mouseover.uid = -1;
     state->mouseover.type = -1;
     state->mouseover.coord = -1;
+    state->mouseover.layer = -1;
     state->mouseover_type = RS_MINIMENU_TYPE_NONE;
+    for( int i = 0; i < RS_CLIENTOP_KIND_COUNT; i++ )
+        RS_ClientOpActiveSet(state, (enum RS_ClientOpKind)i, NULL);
+}
+
+void
+RS_ClientOpActiveSet(
+    struct RS_ClientOpState* state,
+    enum RS_ClientOpKind kind,
+    struct RS_ClientOpContext const* ctx)
+{
+    assert(state);
+    assert(kind >= 0);
+    assert(kind < RS_CLIENTOP_KIND_COUNT);
+
+    struct RS_ClientOpContext* reg = &state->active[kind];
+
+    if( !ctx )
+    {
+        memset(reg, 0, sizeof(*reg));
+        reg->kind = -1;
+        reg->uid = -1;
+        reg->type = -1;
+        reg->coord = -1;
+        reg->layer = -1;
+        return;
+    }
+    assert(ctx->kind == (int)kind);
+    *reg = *ctx;
+}
+
+struct RS_ClientOpContext const*
+RS_ClientOpSubject(
+    struct RS_ClientOpState const* state,
+    enum RS_ClientOpKind kind,
+    int running_script_id)
+{
+    assert(state);
+    assert(kind >= 0);
+    assert(kind < RS_CLIENTOP_KIND_COUNT);
+
+    /*
+     * Three sources, narrowest first.
+     *
+     * A dispatch is about the thing that was clicked and is gated on the script
+     * that was named for it. The active register is about the thing an opcode
+     * just went and found, and is gated on nothing -- LOC_FIND's whole purpose
+     * is to answer the ops that follow it. The mouseover is the standing
+     * answer for a script that asked without either.
+     */
+    if( state->ctx.kind == (int)kind && state->ctx.script_id > 0 &&
+        state->ctx.script_id == running_script_id )
+        return &state->ctx;
+    if( state->active[kind].kind == (int)kind )
+        return &state->active[kind];
+    if( state->mouseover.kind == (int)kind )
+        return &state->mouseover;
+    return NULL;
 }
 
 static bool
@@ -224,6 +282,7 @@ RS_ClientOpContextEnd(struct RS_ClientOpState* state)
     state->ctx.uid = -1;
     state->ctx.type = -1;
     state->ctx.coord = -1;
+    state->ctx.layer = -1;
     /* The mouseover is deliberately NOT cleared here: this ends one client op's
      * dispatch, and what the pointer is on has not changed because a script
      * finished. RS_ClientOpReset clears both. */
@@ -263,13 +322,8 @@ RS_ClientOpContextRead(
          * what makes one set of getters serve both: during a client op the
          * subject IS the op's, and outside one it is the mouseover.
          */
-        struct RS_ClientOpContext const* from = NULL;
-
-        if( state->ctx.kind == (int)op->kind && state->ctx.script_id > 0 &&
-            state->ctx.script_id == running_script_id )
-            from = &state->ctx;
-        else if( state->mouseover.kind == (int)op->kind )
-            from = &state->mouseover;
+        struct RS_ClientOpContext const* from =
+            RS_ClientOpSubject(state, op->kind, running_script_id);
 
         bool const live = from != NULL;
 

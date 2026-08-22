@@ -53,7 +53,7 @@ with screenshots under `tmp_panel_shots/after_*.png`, not a reading. See
 |---|---|---|---|---|
 | `xptracker` | 729 | **mounted in `popout:container`** | **right-docked 264×491 inside widened strip (312px); overview keeps `Total XP/Hr` / `Total XP Gained`**. Exit 0. Screenshots: `tmp_panel_shots/after_xptracker.png`. | Set Goal dead (§1.1). Skill rows still empty after `::xp attack N` in the same cheat batch — baseline/transmit timing, not mount. |
 | `hiscores` | 894 | **honest failure path, framed** | **right-docked; 7809 status 3; cache text `In-world lookup: Disabled` draws inside the nine-slice frame**. Exit 0. `after_hiscores.png`. | Real HTTP lookup stays out of band; do not fabricate ranks. |
-| `loottools` | 650 | **mounted + framed; kill drops populate** | **right-docked 264×491**. Combat kill → `RUNCLIENTSCRIPT` 7192 → native 7628. Headless `fight;loottools` shows non-zero totals (`after_kill_loot.png`). | Settings gear / ignore chrome; undeclared `loottools_varp1` 3798 if chrome wants it. |
+| `loottools` | 650 | **mounted + framed; kill drops populate; settings gear opens** | **right-docked 264×491**. Combat kill → `RUNCLIENTSCRIPT` 7192 → native 7628. Headless `fight;loottools` shows non-zero totals (`after_kill_loot.png`). Gear → `IF_BUTTON1 650:28` → All Settings on the Popout tab, Loot Tracker section (§3.3). | Ignore chrome (the in-panel item/source ignore lists); undeclared `loottools_varp1` 3798 if chrome wants it. |
 | `xpdrops_setup` | 137 | **opener armed** | `orbs:xp_drops` op2 "Setup" → `if_opensub(…:mainmodal, xpdrops_setup, 0)`. Op1 Show/Hide arms with Setup (`^xpdrops_orb_events`), toggles `%xpdrops_enabled`, and `~xpdrops_sync_mount` opens/closes interface `xp_drops` (not in `gameframe.enum` — default off). | Per-varbit Configure writes are content's job (`%varbitN`, never whole-varp). |
 
 ---
@@ -232,6 +232,50 @@ from any server gap.
 > queried by begin→count / index→id / id→name. **No new game packet is
 > needed.** What still blocks the panel is that 7601 and friends have no arity
 > in *either* signature table, so the bridge cannot reach them: see §7.6.
+
+### 3.3 The settings gear, as fixed (2026-08-22)
+
+`loottools:settings_button` (650:28) is authored `clickmask=2 op1=Settings` in
+the cache, so op1 is armed for the server by the interface record itself — no
+`if_setevents` anywhere. Its only client-side hook is the one `~script5996`
+stamps on every panel gear, `if_setonop("script3944")`, and script3944 is one
+gosub to script3945, which is one `sound_synth(synth_2266, 1, 0)`. A verb whose
+whole local handler is an opsound is a server op (PORTING_GUIDE §5.4 finding 1),
+and the click was already arriving — `torirsserver: <- IF_BUTTON1 650:28 sub=-1`
+under `TORIRSSERVER_VERBOSE`, falling through `ToriRSServer_ScriptsRunIfButton`
+with nothing bound. The gear played its sound and did nothing else.
+
+There is no loot-tracker settings sub-panel to open. Every one of its options is
+a row of **All Settings (134), Popout tab**: `enum_422` idx 8 is that tab
+(`param_743` = 8, the value `settings_category` varbit 9656 holds), `enum_4967`
+is its row list, and struct_4500 "Loot Tracker" sits in it with struct_4506 /
+4507 / 4508 / 4505 under it — Track loot, Track consumed Loot, Item ignore list,
+Clear all tracked loot.
+
+Content: `[if_button1,loottools:settings_button]` →
+`~settings_panel_open_tab(^settings_category_popout)`, a new proc beside
+`~settings_panel_arm` that writes the tab and *then* opens, because the panel's
+onload reads `%varbit9656` at mount (`script_3826` → 3827 → 3837/3840).
+
+**Two things this cost, worth writing down.**
+
+1. **`settings_tracking` (varp 2855) was undeclared**, so every server write to
+   `settings_category` / `floater_is_searching` /
+   `floater_search_listen_for_keyboard` was server-only. The panel kept opening
+   on Activities with the write "done". It also means
+   `~settings_search_release`'s clears — documented as transmitting — never
+   did. Declared `transmit=yes scope=temp` in
+   `interface_settings_side/configs/settings_side.varp`.
+2. **A pushed clientscript cannot prepare an interface opened in the same
+   tick.** The obvious first design was the panel's *search*: script_3841
+   filters rows on the `param_1088` keyword blob, and script_5968 is a one-line
+   `[clientscript](string) %varcstring417 = $string0` with no caller in the
+   cache's 9,724 scripts — written for a server to push. But this client holds
+   every RUNCLIENTSCRIPT until SERVER_TICK_END (`pending_clientscripts`,
+   `src/app.h`, so a pushed repaint cannot draw a half-applied tick), so the
+   search string lands *after* the interface has already built itself. Measured:
+   panel opened on Activities, search box showing a bare `*`. A var write has no
+   such fence, which is why the tab is the mechanism and the search is not.
 
 ### 3.1 Server obligations — loot-tracker-specific vs. pre-existing
 

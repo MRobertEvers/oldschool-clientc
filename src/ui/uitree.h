@@ -908,6 +908,12 @@ struct UITree
     /** Singleton builtins; -1 when absent. Maintained on Push / reclaim. */
     int32_t world_index;
     int32_t worldmap_index;
+    /** The `entity_overlay` builtin, which is both the host-drawn health-bar /
+     *  hitsplat layer and the PARENT of every scripted entity overlay
+     *  (game/rs_entity_overlay.h). A singleton for the same reason the world is:
+     *  the overlay ops reach for it on every create, and a whole-tree scan per
+     *  create is what the fishing-spot scripts would pay sixteen times a tick. */
+    int32_t entity_overlay_index;
     /** Open-addressed group_id -> nodes with that component_id high half. */
     struct UITreeGroupBucket* group_map;
     uint32_t group_map_cap;
@@ -1140,6 +1146,22 @@ UITree_Clear(struct UITree* tree);
 
 void
 UITree_MarkAllDirty(struct UITree* tree);
+
+/**
+ * Make a detached LAYER under the `entity_overlay` builtin, for one scripted
+ * entity overlay (game/rs_entity_overlay.h).
+ *
+ * `sub_id` is the overlay's index, which is what makes the node findable again
+ * and what a rebuild replaces in place. The box is set absolute and at (0,0);
+ * the App moves it to the projected anchor each frame, because where it belongs
+ * is a fact about the camera and not about the tree.
+ *
+ * Returns the node index, or -1 when the tree has no `entity_overlay` builtin
+ * -- a pack that declares none draws no overlays, which is a manifest decision
+ * rather than an error.
+ */
+int32_t
+UITree_EntityOverlayCreateLayer(struct UITree* tree, int sub_id, int width, int height);
 
 void
 UITree_MarkNodeDirty(

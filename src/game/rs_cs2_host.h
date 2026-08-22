@@ -3,6 +3,7 @@
 
 #include "cs2vm2/cs2vm2_host.h"
 #include "game/rs_clientop.h"
+#include "game/rs_entity_overlay.h"
 #include "game/rs_highlight.h"
 #include "input/torirs_keymap.h"
 
@@ -88,6 +89,12 @@ enum RS_CS2SocialSendKind
  *  not for a burst. */
 #define RS_CS2_HOST_SETTINGS_ACTIONS_MAX 8
 
+/** Colour rows the panel is expected to hold at once. The rev-239 cache's read
+ *  hub (script_4181) switches on 49 setting ids across every category; this is
+ *  that with headroom, and a row past it is refused and logged rather than
+ *  evicting one that is on screen. */
+#define RS_CS2_HOST_SETTINGS_COLOURS_MAX 96
+
 /* Cache script option ids used by interface 116's audio panel, plus the one
  * game option that is not audio: "hide roofs", which GETREMOVEROOFS /
  * SETREMOVEROOFS (3111/3112) name directly and which the world render reads. */
@@ -119,6 +126,44 @@ enum RS_CS2SocialSendKind
 #define RS_CS2_DEVICEOPTION_UI_SCALE 27
 #define RS_CS2_UI_SCALE_MIN 100
 #define RS_CS2_UI_SCALE_MAX 400
+
+/* Setting-struct params the panel itself reads, and this client reads with it.
+ * `param_1078` is the row KIND -- 9 is the colour row -- and 1077 / 1086 / 1230
+ * are that row's setting id, its title and the swatch it shows before anyone
+ * has picked one. */
+#define RS_CS2_PARAM_SETTING_ID 1077
+#define RS_CS2_PARAM_SETTING_KIND 1078
+#define RS_CS2_PARAM_SETTING_LABEL 1086
+#define RS_CS2_PARAM_SETTING_COLOUR_DEFAULT 1230
+#define RS_CS2_SETTING_KIND_COLOUR 9
+
+/**
+ * A colour row's swatch, clicked.
+ *
+ * Everything the App needs to put a picker on screen and write the answer
+ * back, resolved here because this is the side that can see the cache: the
+ * struct behind the row is loaded (the panel read its title out of it to draw
+ * the row) and the varp behind it was learned when the row was built.
+ */
+struct RS_CS2SettingsColourRequest
+{
+    /** `param_1077`, the id every settings hub switches on. */
+    int setting_id;
+    /** The varp holding `colour + 1`, or -1 when the read hub never named one
+     *  -- which is a row this client cannot write, and is said so out loud
+     *  rather than written to varp -1. */
+    int varp_id;
+    /** Current value as 0xRRGGBB: the varp less one, or `default_colour` when
+     *  the varp is 0, which is what "never chosen" is stored as. */
+    int colour;
+    /** `param_1230`, the swatch the panel draws before anyone picks. */
+    int default_colour;
+    /** The component the op was dispatched on, so a picker can open beside the
+     *  swatch instead of in the middle of the screen. -1 when unknown. */
+    int component_id;
+    /** `param_1086`, the row's own title ("Tile highlight colour"). */
+    char label[64];
+};
 
 /* Settings-panel setting ids (struct param_1077), as switched on by the cache's
  * settings hubs script_3962 (read) and script_3967 (apply). Only the ones this
@@ -368,6 +413,30 @@ struct RS_CS2Host
     int (*events_override_for_component)(void* user, int com_id, int* out_events);
     void* events_user;
 
+    /*
+     * The scene, for the two ops that ask about it: LOC_FIND (6803) and
+     * COORD_INSCENE (6951).
+     *
+     * Callbacks for the same reason the one above is one -- the scene lives on
+     * the App and this header stays clear of the world layer. Both NULL is a
+     * host with no world, where LOC_FIND finds nothing and COORD_INSCENE says
+     * no; every static-overlay script then declines to draw, which is the
+     * truthful answer for a client that has not loaded a map.
+     *
+     * `loc_at_coord` returns nonzero when a loc of `loc_type` stands on
+     * `coord`, filling `*out_layer` (World_LocShapeToLayer) and up to
+     * `name_cap` bytes of its name.
+     */
+    int (*loc_at_coord)(
+        void* user,
+        int coord,
+        int loc_type,
+        int* out_layer,
+        char* out_name,
+        int name_cap);
+    int (*coord_in_scene)(void* user, int coord);
+    void* world_user;
+
     bool has_pending;
     struct CS2VM_HostRequest pending;
 
@@ -506,9 +575,59 @@ struct RS_CS2Host
      */
     struct RS_ClientOpState clientop;
 
+    /**
+     * Interface components the cache hung off things in the world.
+     *
+     * The other half of the Activities category: what is not a highlight is one
+     * of these. The layer each overlay names by `component_id` lives in the
+     * UITree under the `entity_overlay` builtin, so `cc_*` reaches it the same
+     * way it reaches a panel; the App projects the anchor and moves it each
+     * frame. See rs_entity_overlay.h.
+     */
+    struct RS_OverlayState overlay;
+
     int settings_action_id[RS_CS2_HOST_SETTINGS_ACTIONS_MAX];
     int settings_action_value[RS_CS2_HOST_SETTINGS_ACTIONS_MAX];
     int settings_action_count;
+
+    /**
+     * The All Settings panel's COLOUR rows, and the one the player just
+     * clicked.
+     *
+     * A colour row (`param_1078 = 9`, built by clientscript 4182) hangs
+     * `settings_colour_input_click` off its swatch, and that script's whole
+     * body is `~settings_op_checker` -- a click sound and, on a blocked row,
+     * the "you cannot change this" message. There is no apply in the cache
+     * because there is none to write: the reference opens a picker of its own
+     * from here and writes the row's varp itself. So does this client; see
+     * RS_CS2Host_ScriptStarted.
+     *
+     * `settings_colour_varp` is LEARNED rather than tabulated. The read hub
+     * `settings_get_colour` (script_4181) is a switch from setting id to
+     * `calc(%var<n> - 1)`, so the varp behind a row is stated only inside that
+     * script -- and the row builder calls it while laying the row out, which
+     * is necessarily before anyone can click the swatch. Watching the varp
+     * read it performs therefore answers "which varp is this row" from the
+     * cache itself, for every colour row and every revision, instead of from
+     * a fifty-line table this file would have to keep in step by hand.
+     *
+     * To check one by hand:
+     *     3rd/rscache/tools/cs2/cs2 decompile --cache cache.osrs239 \
+     *         --rev osrs239 --out /tmp/cs2 4181
+     */
+    int settings_colour_setting[RS_CS2_HOST_SETTINGS_COLOURS_MAX];
+    int settings_colour_varp[RS_CS2_HOST_SETTINGS_COLOURS_MAX];
+    int settings_colour_count;
+    /** Cache ids of the two scripts above -- the op script whose run IS the
+     *  click, and the read hub whose varp read names the row's varp. */
+    int script_settings_colour_click;
+    int script_settings_colour_get;
+    /** The click waiting for the App to open a picker for it. One slot and not
+     *  a queue: a second click before the first is drained is the same person
+     *  changing their mind about which row they meant, and the newer one is
+     *  the one they are looking at. */
+    struct RS_CS2SettingsColourRequest settings_colour_request;
+    bool settings_colour_pending;
     /** Follow-camera trailing height, backing CAM_SET/GETFOLLOWHEIGHT. The
      *  orbit-camera render path in app.c does not consume this yet; it is stored
      *  so a script that sets it can read the same value back. */
@@ -883,6 +1002,61 @@ RS_CS2Host_TakeSettingsAction(
     struct RS_CS2Host* host,
     int* out_setting_id,
     int* out_value);
+
+/**
+ * A clientscript is about to run, with its arguments already in its locals.
+ *
+ * The one seam this client has on a script's ARGUMENTS. A hook that fires from
+ * inside an opcode (the way the client-layout apply does, off the varbit write
+ * that opens its hub) can only see scripts that execute an opcode worth
+ * watching, and `settings_colour_input_click` executes none: it plays the
+ * panel's click sound and returns. Its arguments -- which row was clicked, and
+ * whether the row is enabled -- are the whole of what it says, and they exist
+ * only here.
+ *
+ * @param component_id the component the op was dispatched on, or -1.
+ *
+ * Deliberately narrow: it claims one script id and ignores every other, so the
+ * per-script cost is one integer compare on a path that runs for every hook in
+ * the cache.
+ */
+void
+RS_CS2Host_ScriptStarted(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    int component_id);
+
+/**
+ * Take the colour row waiting for a picker, if any.
+ *
+ * One shot: the App opens its picker on the request and owns the row from
+ * there, so a second frame with nothing new to report answers false rather
+ * than re-opening what is already up.
+ */
+bool
+RS_CS2Host_TakeSettingsColourRequest(
+    struct RS_CS2Host* host,
+    struct RS_CS2SettingsColourRequest* out);
+
+/** The varp a colour row writes, or -1 when the read hub has not named one
+ *  yet. See `settings_colour_varp` for where the answer comes from. */
+int
+RS_CS2Host_SettingsColourVarp(
+    struct RS_CS2Host const* host,
+    int setting_id);
+
+/**
+ * Drop one scripted entity overlay and the UITree layer it owns.
+ *
+ * For the App, which is the only thing that can tell that an overlay's subject
+ * has left the world -- the script that made it gets no event for that, and an
+ * overlay whose npc despawned would otherwise sit in the table forever holding
+ * a layer that projects nowhere.
+ *
+ * A free index is a no-op, matching RS_OverlayDestroy.
+ */
+void
+RS_CS2Host_OverlayReap(struct RS_CS2Host* host, int index);
 
 /** Pop the oldest queued script sound. False when the queue is empty. */
 bool

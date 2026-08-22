@@ -363,8 +363,8 @@ CS2VM2_IsTargetingOpcode(int opcode)
     {
     case CS2_OP_IF_FIND:
     case CS2_OP_CC_FIND:
-    case CS2_OP_CC_FINDROOT:
-    case CS2_OP_CC_CHILDREN_FIND:
+    case CS2_OP_OVERLAY_FIND:
+    case CS2_OP_OVERLAY_CC_FIND:
     case CS2_OP_CC_CHILDREN_FIND_COUNT:
     case CS2_OP_CC_CHILDREN_FINDNEXTID:
     case CS2_OP__213:
@@ -7695,18 +7695,6 @@ CS2VM2_Op_CC_GetText(
     int operand);
 
 int
-CS2VM2_Op_CC_FindRoot(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM2_Frame* frame,
-    int operand);
-
-int
-CS2VM2_Op_CC_ChildrenFind(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM2_Frame* frame,
-    int operand);
-
-int
 CS2VM2_Op_CC_ChildrenFindNextId(
     struct CS2VM2_Thread* vm,
     struct CS2VM2_Frame* frame,
@@ -7968,6 +7956,67 @@ CS2VM2_Op_Highlight(struct CS2VM2_Thread* vm, int opcode)
     for( int i = meta.int_in - 1; i >= 0; i-- )
     {
         if( CS2VM2_PopInt(vm, &request.u.highlight.args[i]) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
+    return vm->vm->host_exec(vm, &request);
+}
+
+/* LOC_FIND (6803) / COORD_INSCENE (6951). Both take a coord; LOC_FIND takes a
+ * loc type on top of it and leaves the loc it found as the active loc. */
+static int
+CS2VM2_Op_SubjectFind(struct CS2VM2_Thread* vm, int opcode)
+{
+    assert(vm);
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_SUBJECT_FIND;
+    request.u.subject_find.opcode = opcode;
+    request.u.subject_find.loc_type = -1;
+
+    if( opcode == CS2_OP_LOC_FIND &&
+        CS2VM2_PopInt(vm, &request.u.subject_find.loc_type) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &request.u.subject_find.coord) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    return vm->vm->host_exec(vm, &request);
+}
+
+/*
+ * Scripted entity overlays: the 7200..7214 family, plus the four ops that
+ * address an overlay's LAYER where the panel forms address a component id
+ * (OVERLAY_FIND / OVERLAY_CC_FIND / OVERLAY_CC_CREATE / OVERLAY_CC_DELETEALL).
+ *
+ * Arities come from the generated table for the same reason the highlight
+ * family's do: the pop count is the thing a mistake here corrupts silently, and
+ * it is already written down once. `operand` carries the `.` form for the ops
+ * that leave an active component behind. See game/rs_entity_overlay.h.
+ */
+static int
+CS2VM2_Op_EntityOverlay(struct CS2VM2_Thread* vm, int opcode, int operand)
+{
+    assert(vm);
+    assert(opcode >= 0);
+    assert(opcode < CS2VM2_OPCODE_STACK_MAX);
+
+    struct CS2VM2OpcodeStack const meta = g_cs2vm2_opcode_stack[opcode];
+
+    assert(meta.known != 0);
+    assert(meta.int_in <= CS2VM_OVERLAY_ARG_MAX);
+    assert(meta.str_in == 0);
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_ENTITY_OVERLAY;
+    request.u.entity_overlay.opcode = opcode;
+    request.u.entity_overlay.arg_count = meta.int_in;
+    request.u.entity_overlay.query = meta.int_out != 0;
+    request.u.entity_overlay.dot_operand = operand;
+
+    /* Pop into push order: args[0] is the first int the script pushed. */
+    for( int i = meta.int_in - 1; i >= 0; i-- )
+    {
+        if( CS2VM2_PopInt(vm, &request.u.entity_overlay.args[i]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
     return vm->vm->host_exec(vm, &request);
@@ -8236,7 +8285,8 @@ struct CS2VM2OpcodeStackRs2
 
 static struct CS2VM2OpcodeStackRs2 const g_cs2vm2_opcode_stack_rs2[] = {
     /* 202/203: remove a widget from its group array (Class66.method714/702).
-     * Canonical 202 is CC_FINDROOT, which pushes instead of popping. */
+     * Canonical 202 is OVERLAY_FIND, which answers a bool the RS2 form has no
+     * value for -- so RS2 diverts to the stub rather than running it. */
     { 202, { 1, 0, 0, 0, 1 } },
     /* 1122 / 2122: CC_/IF_ set of the type-5 flag bit 1 (Class46.aBoolean745).
      * The IF_ form pops the component id first (Class66:2731 `i -= 1000`). */
@@ -9897,6 +9947,23 @@ CS2VM2_RunOp(
         return CS2VM2_Op_InvTotal(vm, frame, operand);
     case CS2_OP_CC_DELETEALL:
         return CS2VM2_Op_CC_DeleteAll(vm, frame);
+    case CS2_OP_OVERLAY_CC_CREATE:
+    case CS2_OP_OVERLAY_CC_DELETEALL:
+    case CS2_OP_OVERLAY_FIND:
+    case CS2_OP_OVERLAY_CC_FIND:
+    case CS2_OP_OVERLAY_NPC_CREATE:
+    case CS2_OP_OVERLAY_LOC_CREATE:
+    case CS2_OP_OVERLAY_PLAYER_CREATE:
+    case CS2_OP_OVERLAY_COORD_CREATE:
+    case CS2_OP_OVERLAY_NPC_GET:
+    case CS2_OP_OVERLAY_LOC_GET:
+    case CS2_OP_OVERLAY_PLAYER_GET:
+    case CS2_OP_OVERLAY_COORD_GET:
+    case CS2_OP_OVERLAY_NPC_DESTROY:
+    case CS2_OP_OVERLAY_LOC_DESTROY:
+    case CS2_OP_OVERLAY_PLAYER_DESTROY:
+    case CS2_OP_OVERLAY_COORD_DESTROY:
+        return CS2VM2_Op_EntityOverlay(vm, opcode, operand);
     case CS2_OP_CC_DELETE:
         return CS2VM2_Op_CC_Delete(vm, frame, operand);
     case CS2_OP_CC_CREATE:
@@ -9909,10 +9976,6 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_CreateChild(vm, frame, operand);
     case CS2_OP_CC_CREATESIBLING:
         return CS2VM2_Op_CC_CreateSibling(vm, frame, operand);
-    case CS2_OP_CC_FINDROOT:
-        return CS2VM2_Op_CC_FindRoot(vm, frame, operand);
-    case CS2_OP_CC_CHILDREN_FIND:
-        return CS2VM2_Op_CC_ChildrenFind(vm, frame, operand);
     case CS2_OP_CC_CHILDREN_FINDNEXTID:
         return CS2VM2_Op_CC_ChildrenFindNextId(vm, frame, operand);
     case CS2_OP_CC_CHILDREN_FINDNEXT:
@@ -10809,6 +10872,9 @@ CS2VM2_RunOp(
     case CS2_OP__6902: /* player coord */
     case CS2_OP__6950: /* tile coord */
         return CS2VM2_Op_ClientOpContext(vm, opcode);
+    case CS2_OP_LOC_FIND:
+    case CS2_OP_COORD_INSCENE:
+        return CS2VM2_Op_SubjectFind(vm, opcode);
     /* HIGHLIGHT_* (7000..7044). Nine groups of five, listed in full rather
      * than as a range so that a group nothing in the cache calls is still
      * visibly routed: half of this family used to fall through to
@@ -11064,9 +11130,6 @@ CS2VM2_OpArgCounts(
     case CS2_OP_CC_CREATECHILD:
     case CS2_OP_CC_CREATESIBLING:
         *int_args = 2;
-        return 0;
-    case CS2_OP_CC_CHILDREN_FIND:
-        *int_args = 1;
         return 0;
     case CS2_OP_IF_CHILDREN_FIND:
         *int_args = 2;
@@ -11447,46 +11510,6 @@ CS2VM2_Op_CC_CreateUnderParent(
     request.u.cc_create.child_index = child_index;
     request.u.cc_create.is_nested = 0;
     request.u.cc_create.dot_operand = operand;
-
-    return vm->vm->host_exec(vm, &request);
-}
-
-int
-CS2VM2_Op_CC_FindRoot(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM2_Frame* frame,
-    int operand)
-{
-    assert(vm);
-    assert(frame);
-
-    struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
-    request.kind = CS2VM_HOST_REQUEST_CC_FINDROOT;
-    request.u.cc_findroot.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
-    request.u.cc_findroot.dot_operand = operand;
-
-    return vm->vm->host_exec(vm, &request);
-}
-
-int
-CS2VM2_Op_CC_ChildrenFind(
-    struct CS2VM2_Thread* vm,
-    struct CS2VM2_Frame* frame,
-    int operand)
-{
-    assert(vm);
-    assert(frame);
-
-    int start_index;
-    if( CS2VM2_PopInt(vm, &start_index) != CS2VM_EXECNO_OK )
-        return CS2VM_EXECNO_ERROR;
-
-    struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
-    request.kind = CS2VM_HOST_REQUEST_CC_CHILDREN_FIND;
-    request.u.cc_children_find.parent_id = CS2VM2_DotOrActiveComponentId(vm, operand);
-    request.u.cc_children_find.start_index = start_index;
 
     return vm->vm->host_exec(vm, &request);
 }

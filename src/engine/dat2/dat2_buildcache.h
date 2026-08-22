@@ -27,6 +27,11 @@ struct Dat2BuildCache
     struct HMap* clientscripts_hmap;
     /** Indexed by enum RSCache_Dat2Table — see dat2_buildcache_reference_table_add. */
     struct RSCache_ReferenceTable* reference_tables[RSCACHE_DAT2_TABLE_COUNT];
+    /** (name hash, group id) pairs from the clientscript reference table,
+     *  sorted by hash. Built lazily by dat2_clientscript_id_by_name_hash; see
+     *  game/rs_client_trigger.h for what names them. */
+    int* clientscript_names;
+    int clientscript_name_count;
     size_t map_buffer_bytes;
 
     /** Foreign rev-727 index-14 setup copied at archive 16000. It must remain

@@ -125,6 +125,9 @@ ToriRS_LocationFromRSCacheDat2(
     assert(loc);
 
     loc->id = loc_id;
+    /* Opcode 61. The client trigger lookup's category form is keyed on it —
+     * see game/rs_client_trigger.h. */
+    loc->category = src->category;
     if( src->name )
     {
         strncpy(loc->name, src->name, TORIRS_NAME_MAX - 1);

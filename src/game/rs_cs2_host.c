@@ -931,6 +931,12 @@ RS_CS2Host_Init(
     host->script_settings_client_mode = 3998;
     host->script_settings_client_apply = 3967;
     host->varbit_settings_last_changed = 9657;
+    /* 4183=settings_colour_input_click (the swatch's op), 4181=settings_get_colour
+     * (the read hub whose varp read names a row's varp). */
+    host->script_settings_colour_click = 4183;
+    host->script_settings_colour_get = 4181;
+    host->settings_colour_count = 0;
+    host->settings_colour_pending = false;
     RS_HighlightReset(&host->highlight);
     RS_ClientOpReset(&host->clientop);
     host->bridge = NULL;
@@ -1269,6 +1275,119 @@ RS_CS2Host_TakeSettingsAction(
         host->settings_action_id[i] = host->settings_action_id[i + 1];
         host->settings_action_value[i] = host->settings_action_value[i + 1];
     }
+    return true;
+}
+
+int
+RS_CS2Host_SettingsColourVarp(
+    struct RS_CS2Host const* host,
+    int setting_id)
+{
+    assert(host);
+    for( int i = 0; i < host->settings_colour_count; i++ )
+    {
+        if( host->settings_colour_setting[i] == setting_id )
+            return host->settings_colour_varp[i];
+    }
+    return -1;
+}
+
+void
+RS_CS2Host_ScriptStarted(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    int component_id)
+{
+    struct CS2VM2_Frame* frame;
+    struct CacheProvider* provider;
+    struct ToriRS_Struct* setting;
+    struct RS_CS2SettingsColourRequest* req;
+    char const* label = NULL;
+    int struct_id;
+    int value;
+
+    assert(host);
+    if( host->script_settings_colour_click <= 0 || !thread || thread->frame_sp <= 0 )
+        return;
+    frame = thread->frames[thread->frame_sp - 1];
+    if( !frame || !frame->script )
+        return;
+    if( frame->script->script_id != host->script_settings_colour_click )
+        return;
+    /* `settings_colour_input_click(struct, int)`. A frame with the wrong arity
+     * is not this script however its id reads, and int_locals[1] on a
+     * one-parameter frame is whatever was left in the slot. */
+    if( frame->script->int_argument_count < 2 )
+        return;
+
+    /* The row's own gate, and the reason the script's first statement is
+     * `if (~settings_op_checker($struct, $int) = 0) return`: a row blocked by
+     * a requirement has already said so with a chat message, and opening a
+     * picker over the top of that would be this client disagreeing with the
+     * cache about whether the row can be used. */
+    if( frame->int_locals[1] == 0 )
+        return;
+
+    struct_id = frame->int_locals[0];
+    provider = rs_cs2_provider(host);
+    setting = provider && struct_id >= 0 ? CacheProvider_StructGet(provider, struct_id) : NULL;
+    if( !setting )
+    {
+        /* Never awaited, unlike STRUCT_PARAM's own handler: the panel read this
+         * struct's title and description out of the cache to draw the row that
+         * was just clicked, so a miss here is not a cold cache. */
+        fprintf(stderr, "settings: colour row struct %d is not loaded\n", struct_id);
+        return;
+    }
+
+    req = &host->settings_colour_request;
+    memset(req, 0, sizeof(*req));
+    req->component_id = component_id;
+    req->setting_id = -1;
+    req->default_colour = 0;
+    (void)rs_cs2_struct_param_lookup(
+        setting, RS_CS2_PARAM_SETTING_ID, NULL, &req->setting_id, NULL);
+    (void)rs_cs2_struct_param_lookup(
+        setting, RS_CS2_PARAM_SETTING_COLOUR_DEFAULT, NULL, &req->default_colour, NULL);
+    (void)rs_cs2_struct_param_lookup(
+        setting, RS_CS2_PARAM_SETTING_LABEL, NULL, NULL, &label);
+    if( label )
+    {
+        strncpy(req->label, label, sizeof(req->label) - 1);
+        req->label[sizeof(req->label) - 1] = '\0';
+    }
+
+    req->varp_id = RS_CS2Host_SettingsColourVarp(host, req->setting_id);
+    /* The varp stores `colour + 1` so that zero can mean "never chosen", which
+     * is what the row's own `~settings_get_colour(id) ! null` test is reading
+     * for -- and what makes the panel fall back to param_1230. */
+    value = req->varp_id >= 0 && host->varps ? VarPManager_GetVarp(host->varps, req->varp_id) : 0;
+    req->colour = value > 0 ? value - 1 : req->default_colour;
+
+    if( torirs_cc_debug() )
+        fprintf(
+            stderr,
+            "SETTINGS_COLOUR click setting=%d varp=%d colour=%06X default=%06X \"%s\"\n",
+            req->setting_id,
+            req->varp_id,
+            (unsigned)req->colour,
+            (unsigned)req->default_colour,
+            req->label);
+
+    host->settings_colour_pending = true;
+}
+
+bool
+RS_CS2Host_TakeSettingsColourRequest(
+    struct RS_CS2Host* host,
+    struct RS_CS2SettingsColourRequest* out)
+{
+    assert(host);
+    if( !host->settings_colour_pending )
+        return false;
+    assert(out);
+    *out = host->settings_colour_request;
+    host->settings_colour_pending = false;
     return true;
 }
 
@@ -1873,6 +1992,73 @@ exec_para_height(
     return CS2VM2_PushInt(thread, result);
 }
 
+/*
+ * Learn which varp a colour row is about, from the read hub reading it.
+ *
+ * `settings_get_colour` (script_4181) is a switch from setting id to
+ * `calc(%var<n> - 1)` and is the ONLY statement of that mapping anywhere --
+ * the setting struct does not carry the varp, and the row builder never names
+ * it. So the mapping is taken from the hub doing its job: the read that runs
+ * inside a frame of that script, with the setting id still sitting in its
+ * first local, IS the answer for that id.
+ *
+ * The timing works out on its own. Clientscript 4182 -- the colour row's own
+ * builder -- calls the hub twice while laying the row out, so every row on
+ * screen has taught this table before its swatch exists to be clicked.
+ *
+ * Cheap by construction: a script id compare, and only after the frame is in
+ * hand for the common case of an ordinary varp read somewhere else.
+ */
+static void
+rs_cs2_settings_note_colour_varp(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    int varp_id)
+{
+    struct CS2VM2_Frame* frame;
+    int setting_id;
+    int i;
+
+    assert(host);
+    if( host->script_settings_colour_get <= 0 || !vm || vm->frame_sp <= 0 )
+        return;
+    frame = vm->frames[vm->frame_sp - 1];
+    if( !frame || !frame->script )
+        return;
+    if( frame->script->script_id != host->script_settings_colour_get )
+        return;
+    if( frame->script->int_argument_count < 1 )
+        return;
+
+    setting_id = frame->int_locals[0];
+    for( i = 0; i < host->settings_colour_count; i++ )
+    {
+        if( host->settings_colour_setting[i] != setting_id )
+            continue;
+        host->settings_colour_varp[i] = varp_id;
+        return;
+    }
+    if( host->settings_colour_count >= RS_CS2_HOST_SETTINGS_COLOURS_MAX )
+    {
+        /* Once: the hub is called per row per rebuild, so a full table would
+         * otherwise say so several hundred times a panel open. */
+        static int reported = 0;
+        if( !reported )
+        {
+            reported = 1;
+            fprintf(
+                stderr,
+                "settings: colour-row table full at %d; setting %d cannot be picked\n",
+                RS_CS2_HOST_SETTINGS_COLOURS_MAX,
+                setting_id);
+        }
+        return;
+    }
+    i = host->settings_colour_count++;
+    host->settings_colour_setting[i] = setting_id;
+    host->settings_colour_varp[i] = varp_id;
+}
+
 static int
 exec_vars_read_varp(
     struct RS_CS2Host* host,
@@ -1880,6 +2066,7 @@ exec_vars_read_varp(
     int varp_id)
 {
     int value = 0;
+    rs_cs2_settings_note_colour_varp(host, thread, varp_id);
     if( host->varps )
         value = VarPManager_GetVarp(host->varps, varp_id);
     return CS2VM2_PushInt(thread, value);
@@ -3811,6 +3998,339 @@ exec_cc_copy(
 
     rs_cs2_set_cc_target(vm, request.dot_operand, tree->components[child_idx].component_id);
     return CS2VM_EXECNO_OK;
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * Scripted entity overlays (game/rs_entity_overlay.h).
+ * ---------------------------------------------------------------------------
+ *
+ * An overlay is a UITree LAYER parented to the `entity_overlay` builtin, plus a
+ * record saying what in the world it hangs off. The CS2 ops address it by
+ * INDEX; everything that decorates it (`_103` create, `_104` deleteall, `_203`
+ * find) turns the index into that layer's component id and then does exactly
+ * what the panel-facing op of the same name does.
+ *
+ * Where it goes on screen is not decided here: the App projects the anchor and
+ * writes the layer's box each frame, because the answer depends on the camera.
+ */
+
+/** Which subject the overlay ops for `kind` are about — the same resolution the
+ *  `_67xx/_68xx/_69xx` getters use, so an op and the getters beside it in a
+ *  script cannot disagree about what "the active loc" is. */
+static struct RS_ClientOpContext const*
+rs_cs2_overlay_subject(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    enum RS_ClientOpKind kind)
+{
+    int running = -1;
+
+    assert(host);
+
+    if( vm && vm->frame_sp > 0 && vm->frames[0] && vm->frames[0]->script )
+        running = vm->frames[0]->script->script_id;
+    return RS_ClientOpSubject(&host->clientop, kind, running);
+}
+
+/** The layer's component id for an overlay index, or -1. */
+static int
+rs_cs2_overlay_component_id(struct RS_CS2Host* host, int index)
+{
+    struct RS_Overlay const* item;
+
+    assert(host);
+
+    item = RS_OverlayGet(&host->overlay, index);
+    return item ? item->component_id : -1;
+}
+
+/** Drop an overlay and the layer it owns together. Splitting the two is what
+ *  would leave a node drawing for an overlay nothing points at any more. */
+static void
+rs_cs2_overlay_free(struct RS_CS2Host* host, int index)
+{
+    struct UITree* tree = rs_cs2_tree(host);
+    int component_id;
+
+    assert(host);
+
+    component_id = rs_cs2_overlay_component_id(host, index);
+    if( tree && component_id >= 0 )
+    {
+        int32_t const node = UITree_FindByComponentId(tree, component_id);
+        if( node >= 0 )
+            UITree_CcDelete(tree, node);
+    }
+    RS_OverlayDestroy(&host->overlay, index);
+}
+
+/** Give a freshly-taken overlay its layer. Returns the index, or -1 (having
+ *  released the record) when the tree cannot hold one. */
+static int
+rs_cs2_overlay_attach_layer(struct RS_CS2Host* host, int index)
+{
+    struct UITree* tree = rs_cs2_tree(host);
+    struct RS_Overlay* item;
+    int32_t node;
+
+    assert(host);
+
+    item = RS_OverlayGetMut(&host->overlay, index);
+    if( !item )
+        return -1;
+    if( !tree )
+    {
+        /* No tree at all — a headless run. The record stands so the GET ops
+         * still answer; nothing draws, which is what "no tree" means. */
+        return index;
+    }
+    node = UITree_EntityOverlayCreateLayer(tree, index, item->width, item->height);
+    if( node < 0 )
+    {
+        RS_OverlayDestroy(&host->overlay, index);
+        return -1;
+    }
+    item->component_id = tree->components[node].component_id;
+    return index;
+}
+
+void
+RS_CS2Host_OverlayReap(struct RS_CS2Host* host, int index)
+{
+    assert(host);
+    rs_cs2_overlay_free(host, index);
+}
+
+static int
+exec_entity_overlay(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest_EntityOverlay request)
+{
+    struct UITree* tree = rs_cs2_tree(host);
+    int const* a = request.args;
+    struct RS_ClientOpContext const* subject;
+    int index = -1;
+
+    assert(host);
+
+    if( getenv("TORIRS_OVERLAY_SCRIPT_DEBUG") )
+    {
+        fprintf(stderr, "overlay: op %d args", request.opcode);
+        for( int i = 0; i < request.arg_count; i++ )
+            fprintf(stderr, " %d", a[i]);
+        fprintf(stderr, "\n");
+    }
+
+    switch( request.opcode )
+    {
+    /* ---- create ------------------------------------------------------- */
+    case CS2_OP_OVERLAY_NPC_CREATE:
+    case CS2_OP_OVERLAY_PLAYER_CREATE:
+    {
+        bool const is_npc = request.opcode == CS2_OP_OVERLAY_NPC_CREATE;
+        subject = rs_cs2_overlay_subject(
+            host, vm, is_npc ? RS_CLIENTOP_NPC : RS_CLIENTOP_PLAYER);
+        if( subject )
+            index = RS_OverlayCreateEntity(
+                &host->overlay,
+                is_npc ? RS_OVERLAY_ANCHOR_NPC : RS_OVERLAY_ANCHOR_PLAYER,
+                subject->uid,
+                a[0],
+                a[1],
+                a[2],
+                a[3]);
+        index = index >= 0 ? rs_cs2_overlay_attach_layer(host, index) : -1;
+        return CS2VM2_PushInt(vm, index);
+    }
+    case CS2_OP_OVERLAY_LOC_CREATE:
+    {
+        subject = rs_cs2_overlay_subject(host, vm, RS_CLIENTOP_LOC);
+        /* The loc's LAYER, not its type, is what makes two locs on one tile
+         * separable — the reference keys its static store on (coord, LocLayer)
+         * and OverlayTypeFromLocLayer is the identity. */
+        if( subject && RS_OverlayTypeValid(subject->layer) )
+            index = RS_OverlayCreateStatic(
+                &host->overlay, subject->coord, subject->layer, a[0], a[1], a[2], a[3]);
+        index = index >= 0 ? rs_cs2_overlay_attach_layer(host, index) : -1;
+        return CS2VM2_PushInt(vm, index);
+    }
+    case CS2_OP_OVERLAY_COORD_CREATE:
+        index = RS_OverlayCreateStatic(
+            &host->overlay, a[0], RS_OVERLAY_TYPE_COORD, a[1], a[2], a[3], a[4]);
+        index = index >= 0 ? rs_cs2_overlay_attach_layer(host, index) : -1;
+        return CS2VM2_PushInt(vm, index);
+
+    /* ---- look up ------------------------------------------------------ */
+    case CS2_OP_OVERLAY_NPC_GET:
+    case CS2_OP_OVERLAY_PLAYER_GET:
+    {
+        bool const is_npc = request.opcode == CS2_OP_OVERLAY_NPC_GET;
+        subject = rs_cs2_overlay_subject(
+            host, vm, is_npc ? RS_CLIENTOP_NPC : RS_CLIENTOP_PLAYER);
+        if( subject )
+            index = RS_OverlayFindEntity(
+                &host->overlay,
+                is_npc ? RS_OVERLAY_ANCHOR_NPC : RS_OVERLAY_ANCHOR_PLAYER,
+                subject->uid,
+                a[0]);
+        return CS2VM2_PushInt(vm, index);
+    }
+    case CS2_OP_OVERLAY_LOC_GET:
+        subject = rs_cs2_overlay_subject(host, vm, RS_CLIENTOP_LOC);
+        if( subject )
+            index =
+                RS_OverlayFindStatic(&host->overlay, subject->coord, subject->layer, a[0]);
+        return CS2VM2_PushInt(vm, index);
+    case CS2_OP_OVERLAY_COORD_GET:
+        index = RS_OverlayFindStatic(&host->overlay, a[0], RS_OVERLAY_TYPE_COORD, a[1]);
+        return CS2VM2_PushInt(vm, index);
+
+    /* ---- destroy ------------------------------------------------------ */
+    case CS2_OP_OVERLAY_NPC_DESTROY:
+    case CS2_OP_OVERLAY_PLAYER_DESTROY:
+    {
+        bool const is_npc = request.opcode == CS2_OP_OVERLAY_NPC_DESTROY;
+        subject = rs_cs2_overlay_subject(
+            host, vm, is_npc ? RS_CLIENTOP_NPC : RS_CLIENTOP_PLAYER);
+        if( subject )
+            rs_cs2_overlay_free(
+                host,
+                RS_OverlayFindEntity(
+                    &host->overlay,
+                    is_npc ? RS_OVERLAY_ANCHOR_NPC : RS_OVERLAY_ANCHOR_PLAYER,
+                    subject->uid,
+                    a[0]));
+        return CS2VM_EXECNO_OK;
+    }
+    case CS2_OP_OVERLAY_LOC_DESTROY:
+        subject = rs_cs2_overlay_subject(host, vm, RS_CLIENTOP_LOC);
+        if( subject )
+            rs_cs2_overlay_free(
+                host,
+                RS_OverlayFindStatic(&host->overlay, subject->coord, subject->layer, a[0]));
+        return CS2VM_EXECNO_OK;
+    case CS2_OP_OVERLAY_COORD_DESTROY:
+        rs_cs2_overlay_free(
+            host, RS_OverlayFindStatic(&host->overlay, a[0], RS_OVERLAY_TYPE_COORD, a[1]));
+        return CS2VM_EXECNO_OK;
+
+    /* ---- decorate ------------------------------------------------------ */
+    case CS2_OP_OVERLAY_FIND:
+    {
+        int const component_id = rs_cs2_overlay_component_id(host, a[0]);
+        int found = 0;
+        if( tree && component_id >= 0 && UITree_FindByComponentId(tree, component_id) >= 0 )
+        {
+            rs_cs2_set_cc_target(vm, request.dot_operand, component_id);
+            found = 1;
+        }
+        return CS2VM2_PushInt(vm, found);
+    }
+    case CS2_OP_OVERLAY_CC_FIND:
+    {
+        int const component_id = rs_cs2_overlay_component_id(host, a[0]);
+        int32_t parent = tree && component_id >= 0
+                             ? UITree_FindByComponentId(tree, component_id)
+                             : -1;
+        int32_t child =
+            parent >= 0 ? UITree_FindChildBySubid(tree, parent, component_id, a[1]) : -1;
+        if( child >= 0 )
+            rs_cs2_set_cc_target(vm, request.dot_operand, tree->components[child].component_id);
+        return CS2VM2_PushInt(vm, child >= 0 ? 1 : 0);
+    }
+    case CS2_OP_OVERLAY_CC_CREATE:
+    {
+        int const component_id = rs_cs2_overlay_component_id(host, a[0]);
+        int32_t parent = tree && component_id >= 0
+                             ? UITree_FindByComponentId(tree, component_id)
+                             : -1;
+        int32_t child;
+        /* "Dynamic layers aren't allowed" — the reference aborts on type 0
+         * here, because a layer inside an overlay would need an overlay of its
+         * own to be positioned. No script in this cache asks for one. */
+        assert(a[1] != 0);
+        if( parent < 0 )
+            return CS2VM_EXECNO_OK;
+        child = UITree_CcCreate(tree, parent, component_id, a[1], a[2]);
+        if( child < 0 )
+            return CS2VM_EXECNO_ERROR;
+        rs_cs2_set_cc_target(vm, request.dot_operand, tree->components[child].component_id);
+        return CS2VM_EXECNO_OK;
+    }
+    case CS2_OP_OVERLAY_CC_DELETEALL:
+    {
+        int const component_id = rs_cs2_overlay_component_id(host, a[0]);
+        int32_t parent = tree && component_id >= 0
+                             ? UITree_FindByComponentId(tree, component_id)
+                             : -1;
+        if( parent >= 0 )
+            UITree_CcDeleteAll(tree, parent);
+        return CS2VM_EXECNO_OK;
+    }
+    default:
+        break;
+    }
+
+    fprintf(stderr, "cs2: opcode %d is not a scripted-entity-overlay op\n", request.opcode);
+    return CS2VM_EXECNO_ERROR;
+}
+
+/* LOC_FIND (6803) and COORD_INSCENE (6951). Both need the SCENE, which this
+ * host has no pointer to — the App answers through the callbacks below for the
+ * same reason it answers events_override_for_component. */
+static int
+exec_subject_find(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest_SubjectFind request)
+{
+    assert(host);
+
+    if( request.opcode == CS2_OP_COORD_INSCENE )
+    {
+        int const inside =
+            host->coord_in_scene ? host->coord_in_scene(host->world_user, request.coord) : 0;
+        return CS2VM2_PushInt(vm, inside ? 1 : 0);
+    }
+
+    assert(request.opcode == CS2_OP_LOC_FIND);
+    {
+        struct RS_ClientOpContext found;
+        int layer = -1;
+        char name[RS_CLIENTOP_NAME_MAX] = { 0 };
+        int const hit = host->loc_at_coord ? host->loc_at_coord(
+                                                 host->world_user,
+                                                 request.coord,
+                                                 request.loc_type,
+                                                 &layer,
+                                                 name,
+                                                 (int)sizeof(name))
+                                           : 0;
+        if( !hit )
+        {
+            /*
+             * Clear the register rather than leaving the last loc in it.
+             *
+             * The scripts that call this call it in a loop over candidate
+             * tiles; a stale answer would put the next tile's overlay on the
+             * previous tile's loc, which is exactly the class of silent wrong
+             * answer the register exists to avoid.
+             */
+            RS_ClientOpActiveSet(&host->clientop, RS_CLIENTOP_LOC, NULL);
+            return CS2VM2_PushInt(vm, 0);
+        }
+        memset(&found, 0, sizeof(found));
+        found.kind = RS_CLIENTOP_LOC;
+        found.uid = -1;
+        found.type = request.loc_type;
+        found.coord = request.coord;
+        found.layer = layer;
+        snprintf(found.name, sizeof(found.name), "%s", name);
+        RS_ClientOpActiveSet(&host->clientop, RS_CLIENTOP_LOC, &found);
+        return CS2VM2_PushInt(vm, 1);
+    }
 }
 
 static int
@@ -7600,18 +8120,11 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_IF_FIND:
         return exec_if_find(host, vm, request->u.if_find);
 
-    case CS2VM_HOST_REQUEST_CC_FINDROOT:
-    {
-        int found = 0;
-        int parent =
-            tree ? rs_cs2_parent_component_id(tree, request->u.cc_findroot.component_id) : -1;
-        if( parent >= 0 )
-        {
-            rs_cs2_set_cc_target(vm, request->u.cc_findroot.dot_operand, parent);
-            found = 1;
-        }
-        return CS2VM2_PushInt(vm, found);
-    }
+    case CS2VM_HOST_REQUEST_ENTITY_OVERLAY:
+        return exec_entity_overlay(host, vm, request->u.entity_overlay);
+
+    case CS2VM_HOST_REQUEST_SUBJECT_FIND:
+        return exec_subject_find(host, vm, request->u.subject_find);
 
     case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND:
         return exec_children_find(

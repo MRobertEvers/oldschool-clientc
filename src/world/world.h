@@ -1165,6 +1165,25 @@ World_SceneryFindAt(
     int level,
     int loc_shape);
 
+/**
+ * Find a scenery entity by tile and LOC ID, whatever layer it sits on.
+ *
+ * The identity a cache script names: `LOC_FIND` (6803) asks "is loc type N
+ * still on this tile", because the scripted overlays and highlights it puts
+ * there are per loc type. `World_SceneryFindAt` keys on the layer instead,
+ * which is the right key for a zone mutation and the wrong one here -- two
+ * fishing spots on adjacent tiles share a layer and differ only by id.
+ *
+ * Returns NULL when the tile is outside the scene or holds no such loc.
+ */
+struct WorldEntity_Scenery*
+World_SceneryFindByLocId(
+    struct World* world,
+    int scene_x,
+    int scene_z,
+    int level,
+    int loc_id);
+
 /** LOC_DEL: remove the scenery entity + its scene element (event emitted). */
 void
 World_SceneryRemove(

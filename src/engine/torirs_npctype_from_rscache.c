@@ -229,6 +229,9 @@ ToriRS_NpctypeFromRSCacheDat2(
     assert(npctype);
 
     npctype->id = npc_id;
+    /* Opcode 18. The client trigger lookup's category form is keyed on it —
+     * see game/rs_client_trigger.h. */
+    npctype->category = src->category;
     if( src->name )
     {
         strncpy(npctype->name, src->name, TORIRS_NAME_MAX - 1);

@@ -203,6 +203,7 @@ uitree_all_sets_clear(struct UITree* tree)
     }
     tree->world_index = -1;
     tree->worldmap_index = -1;
+    tree->entity_overlay_index = -1;
 }
 
 static uint32_t
@@ -383,6 +384,8 @@ uitree_live_unregister(
         tree->world_index = -1;
     if( tree->worldmap_index == idx )
         tree->worldmap_index = -1;
+    if( tree->entity_overlay_index == idx )
+        tree->entity_overlay_index = -1;
 }
 
 static void
@@ -410,6 +413,8 @@ uitree_live_register(
         tree->world_index = idx;
     if( c->type == UIELEM_BUILTIN_WORLDMAP )
         tree->worldmap_index = idx;
+    if( c->type == UIELEM_BUILTIN_ENTITY_OVERLAY )
+        tree->entity_overlay_index = idx;
     uitree_sync_hook_sets(tree, idx);
 }
 
@@ -520,6 +525,8 @@ UITree_VerifyLiveSets(struct UITree const* tree)
             assert(tree->world_index == (int32_t)i);
         if( c->type == UIELEM_BUILTIN_WORLDMAP )
             assert(tree->worldmap_index == (int32_t)i);
+        if( c->type == UIELEM_BUILTIN_ENTITY_OVERLAY )
+            assert(tree->entity_overlay_index == (int32_t)i);
     }
 }
 #endif
@@ -1224,6 +1231,7 @@ UITree_New(uint32_t hint)
     tree->free_head = -1;
     tree->world_index = -1;
     tree->worldmap_index = -1;
+    tree->entity_overlay_index = -1;
     return tree;
 }
 
@@ -2348,6 +2356,49 @@ UITree_CcCreate(
     /* Soft3D stretches IF3 graphics to layout size; CC_CREATE children must
      * inherit the parent's if3 flag (interfacex forces if3=1 on create). */
     tree->components[idx].if3 = tree->components[parent_index].if3;
+    return idx;
+}
+
+int32_t
+UITree_EntityOverlayCreateLayer(struct UITree* tree, int sub_id, int width, int height)
+{
+    assert(tree);
+
+    int32_t const parent = tree->entity_overlay_index;
+    if( parent < 0 )
+        return -1;
+
+    int const parent_component_id = tree->components[parent].component_id;
+    int const iface_id = parent_component_id >= 0 ? (parent_component_id >> 16) : 0;
+
+    /* Replace in slot, like CC_CREATE: a script that rebuilds its overlay every
+     * tick must cost one node, not one per tick. */
+    int32_t existing = UITree_FindChildBySubid(tree, parent, parent_component_id, sub_id);
+    if( existing >= 0 && tree->components[existing].dynamic )
+    {
+        UITree_UnlinkChild(tree, parent, existing);
+        uitree_reclaim_subtree(tree, existing);
+    }
+
+    struct UITreeNodeSpec spec;
+    memset(&spec, 0, sizeof(spec));
+    spec.type = UIELEM_RS_LAYER;
+    spec.component_id = UITree_AllocateDynamicComponentId(tree, iface_id);
+    spec.dynamic = 1;
+    spec.dynamic_child_index = sub_id;
+    spec.always_dirty = 1;
+    spec.has_position = 1;
+    spec.position.kind = UIPOS_XY;
+    spec.position.width = width;
+    spec.position.height = height;
+
+    int32_t const idx = UITree_Push(tree, parent, &spec);
+    if( idx < 0 )
+        return -1;
+    /* The children the script creates inherit this, and every overlay this
+     * cache builds is IF3 -- an if3=0 layer lays its graphics out at native
+     * sprite size and ignores the cc_setsize the script just made. */
+    tree->components[idx].if3 = 1;
     return idx;
 }
 

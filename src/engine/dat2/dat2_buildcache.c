@@ -246,6 +246,8 @@ static struct CacheProviderVTable dat2_vtable = {
     .Task_ModelLoad = CreateTask_Dat2ModelLoad,
     .Task_ComponentPackLoad = CreateTask_Dat2ComponentPackLoad,
     .Task_ClientScriptLoad = CreateTask_Dat2ClientScriptLoad,
+    .Task_ClientScriptTableLoad = CreateTask_Dat2ClientScriptTableLoad,
+    .ClientScriptIdByNameHash = dat2_clientscript_id_by_name_hash,
     .Task_ObjLoad = CreateTask_Dat2ObjLoad,
     .Task_ObjLoadAll = CreateTask_Dat2ObjLoadAll,
     .Task_NpcLoad = CreateTask_Dat2NpcLoad,
@@ -772,6 +774,10 @@ void
 dat2_buildcache_reference_tables_cleanup(struct Dat2BuildCache* dat2_buildcache)
 {
     int table_id;
+
+    free(dat2_buildcache->clientscript_names);
+    dat2_buildcache->clientscript_names = NULL;
+    dat2_buildcache->clientscript_name_count = 0;
 
     assert(dat2_buildcache);
 

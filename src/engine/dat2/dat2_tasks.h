@@ -14,6 +14,14 @@ CreateTask_Dat2ComponentPackLoad(
     int iface_id);
 
 struct ToriRS_Task*
+CreateTask_Dat2ClientScriptTableLoad(struct CacheProvider* provider);
+
+/** The clientscript group whose name hashes to `name_hash`, or -1 (which also
+ *  covers "the reference table has not landed yet"). */
+int
+dat2_clientscript_id_by_name_hash(struct CacheProvider* provider, int name_hash);
+
+struct ToriRS_Task*
 CreateTask_Dat2ClientScriptLoad(
     struct CacheProvider* provider,
     int script_id);

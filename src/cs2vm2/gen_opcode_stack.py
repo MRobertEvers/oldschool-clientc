@@ -69,8 +69,9 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     6910: (0, 0, 1, 0),  # LOGIN_INT24 -> Class24.anInt359 (stub: 0)
     106: (2, 0, 0, 0),  # CC_CREATECHILD
     107: (2, 0, 0, 0),  # CC_CREATESIBLING
-    202: (0, 0, 1, 0),  # CC_FINDROOT
-    203: (1, 0, 0, 0),  # CC_CHILDREN_FIND
+    # 202/203 used to be guessed here as CC_FINDROOT / CC_CHILDREN_FIND. They
+    # are the scripted-entity-overlay find pair; their signatures now come
+    # from the stack doc comments on CS2_OP_OVERLAY_FIND / OVERLAY_CC_FIND.
     204: (0, 0, 1, 0),  # CC_CHILDREN_FINDNEXTID
     205: (2, 0, 0, 0),  # IF_CHILDREN_FIND
     # OC_* obj-config getters (4201/4202/4208/4210-4213/4217/4218/4222). Most
@@ -521,7 +522,13 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
 #      blind; each needs its own witness before it moves.
 BRIDGE_CONFLICTS_OK: dict[int, tuple[int, int, int, int]] = {
     102: (1, 0, 0, 0),   # cc_deleteall
-    202: (1, 0, 1, 0),   # _203 (id 202 in that table's naming)
+    # (d) rows the reference decompile settles against the vendored table.
+    #     `ScriptRunnerImpl_7200To7299.cpp` pops the slot in both
+    #     GetScriptedOverlayIndex forms; the vendored (0 in) would read
+    #     whatever the script left below it and answer about the wrong slot.
+    203: (1, 0, 0, 0),  # OVERLAY_CC_FIND -- reference pops overlay AND sub
+    7205: (0, 0, 1, 0),  # OVERLAY_NPC_GET -- pops the slot
+    7208: (0, 0, 1, 0),  # OVERLAY_PLAYER_GET -- pops the slot
     1006: (1, 0, 0, 0),  # cc_setnoscrollthrough
     1100: (2, 0, 0, 0),  # cc_setscrollpos
     1104: (1, 0, 0, 0),  # cc_setlinewid

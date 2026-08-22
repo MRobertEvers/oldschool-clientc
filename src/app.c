@@ -61,6 +61,7 @@ EM_JS(void, web_editor_open_panel_tab, (void), {
 #include "engine/world_builder/task_world_load.h"
 #include "engine/world_builder/world_builder.h"
 #include "game/rs_attack_option.h"
+#include "game/rs_client_trigger.h"
 #include "game/rs_clientcode.h"
 #include "game/rs_cs2_dispatch.h"
 #include "game/rs_game_events.h"
@@ -3606,6 +3607,518 @@ app_overlay_build_entity(
     }
 }
 
+/*
+ * ---------------------------------------------------------------------------
+ * Client triggers (game/rs_client_trigger.h).
+ * ---------------------------------------------------------------------------
+ *
+ * The scripts the cache expects the CLIENT to find and run: one per npc type
+ * (or category) when it walks on screen, one per loc type when the scene
+ * builder places it. Nothing calls them; they are addressed by the hash of a
+ * group name, and until now this client had no way to reach a single one.
+ */
+
+/*
+ * The subject, queued.
+ *
+ * RS_CS2_RunScript does not run a script -- it queues one, because a script
+ * may have to be read off disk first. So writing the active-subject register
+ * beside the queue call is writing it for whichever npc happens to be last:
+ * one region load queues twenty-six copies of the global npc-add script, they
+ * all run during the same settle, and every one of them sees npc twenty-six.
+ * Measured before this existed -- all twenty-six npcs shared one overlay pair,
+ * indices 0 and 1.
+ *
+ * The fix is to make the write part of the queue rather than of the caller: a
+ * one-shot task that carries its own snapshot, queued immediately in front of
+ * the script. The queue is a strict serial FIFO, so "immediately in front"
+ * survives every IO yield the script itself takes.
+ */
+struct Task_ClientTriggerSubject
+{
+    struct ToriRS_Task task;
+    struct RS_CS2Host* host;
+    int kind;
+    struct RS_ClientOpContext ctx;
+};
+
+static int
+Task_ClientTriggerSubject_Run(
+    struct ToriRS_Task* task_base,
+    struct ToriRS_IO* io)
+{
+    struct Task_ClientTriggerSubject* task = (struct Task_ClientTriggerSubject*)task_base;
+
+    (void)io;
+    RS_ClientOpActiveSet(&task->host->clientop, (enum RS_ClientOpKind)task->kind, &task->ctx);
+    return 1;
+}
+
+static void
+Task_ClientTriggerSubject_Free(struct ToriRS_Task* task_base)
+{
+    free(task_base);
+}
+
+static struct ToriRS_TaskVTable Task_ClientTriggerSubject_VTable = {
+    .run = Task_ClientTriggerSubject_Run,
+    .free = Task_ClientTriggerSubject_Free,
+};
+
+static void
+app_client_trigger_queue(
+    struct App* app,
+    struct RS_ClientOpContext const* ctx,
+    int script_id)
+{
+    struct Task_ClientTriggerSubject* task;
+
+    assert(app);
+    assert(ctx);
+
+    task = calloc(1, sizeof(*task));
+    assert(task);
+    task->task.vtable = &Task_ClientTriggerSubject_VTable;
+    strcpy(task->task.name, "ClientTriggerSubject");
+    task->host = &app->host;
+    task->kind = ctx->kind;
+    task->ctx = *ctx;
+    ToriRS_TaskQueue_Add(app->runner.queue, &task->task);
+
+    RS_CS2_RunScript(&app->host, &app->runner, script_id, NULL, 0, 0, NULL, 0);
+}
+
+/** The clientscript bound to `trigger` for this subject, or -1. Narrowest form
+ *  first, exactly as `ClientScript::Get` walks them. */
+static int
+app_client_trigger_script(struct App* app, int trigger, int subject, int category)
+{
+    int id;
+
+    assert(app);
+
+    if( !app->provider )
+        return -1;
+    id = CacheProvider_ClientScriptIdByNameHash(
+        app->provider, RS_ClientTriggerNameHash(RS_ClientTriggerHashSubject(trigger, subject)));
+    if( id < 0 && category > 0 )
+        id = CacheProvider_ClientScriptIdByNameHash(
+            app->provider,
+            RS_ClientTriggerNameHash(RS_ClientTriggerHashCategory(trigger, category)));
+    if( id < 0 )
+        id = CacheProvider_ClientScriptIdByNameHash(
+            app->provider, RS_ClientTriggerNameHash(RS_ClientTriggerHashGlobal(trigger)));
+    return id;
+}
+
+static void
+app_client_trigger_debug(
+    char const* what,
+    int trigger,
+    int subject,
+    int category,
+    int script_id)
+{
+    if( !getenv("TORIRS_TRIGGER_DEBUG") )
+        return;
+    fprintf(
+        stderr,
+        "trigger: %s %d (subject=%d category=%d) -> script %d\n",
+        what,
+        trigger,
+        subject,
+        category,
+        script_id);
+}
+
+/** Fire an npc trigger with the npc as the active subject. */
+static void
+app_client_trigger_npc(struct App* app, struct WorldEntity_NPC* npc, int trigger)
+{
+    struct ToriRS_Npctype* type;
+    struct RS_ClientOpContext ctx;
+    int script_id;
+
+    assert(app);
+    assert(npc);
+
+    if( !app->world )
+        return;
+    type = CacheProvider_NpctypeGet(app->provider, npc->npc_id);
+    script_id =
+        app_client_trigger_script(app, trigger, npc->npc_id, type ? type->category : 0);
+    app_client_trigger_debug(
+        "npc", trigger, npc->npc_id, type ? type->category : 0, script_id);
+    if( script_id < 0 )
+        return;
+
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.kind = RS_CLIENTOP_NPC;
+    ctx.layer = -1;
+    ctx.uid = npc->server_slot;
+    ctx.type = npc->npc_id;
+    ctx.coord = RS_CLIENTOP_COORD(
+        npc->grid_position.level,
+        app->world->_base_tile_x + npc->grid_position.x,
+        app->world->_base_tile_z + npc->grid_position.z);
+    snprintf(ctx.name, sizeof(ctx.name), "%s", npc->name);
+    /*
+     * The ACTIVE register, not a client-op dispatch context.
+     *
+     * A dispatch is gated on the script id that was named for it, which is
+     * right for a right-click row and wrong here: a trigger script calls procs
+     * and installs hooks that read the subject back later, and the reference
+     * models exactly that with a register that simply stands until something
+     * else writes it. See rs_clientop.h.
+     */
+    app_client_trigger_queue(app, &ctx, script_id);
+}
+
+/** Fire a loc trigger with the loc as the active subject. */
+static void
+app_client_trigger_loc(struct App* app, struct WorldEntity_Scenery* loc, int trigger)
+{
+    struct ToriRS_Location* type;
+    struct RS_ClientOpContext ctx;
+    int script_id;
+
+    assert(app);
+    assert(loc);
+
+    if( !app->world )
+        return;
+    type = CacheProvider_LocationGet(app->provider, loc->loc_id);
+    script_id = app_client_trigger_script(app, trigger, loc->loc_id, type ? type->category : 0);
+    app_client_trigger_debug(
+        "loc", trigger, loc->loc_id, type ? type->category : 0, script_id);
+    if( script_id < 0 )
+        return;
+
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.kind = RS_CLIENTOP_LOC;
+    ctx.uid = -1;
+    ctx.type = loc->loc_id;
+    ctx.coord = RS_CLIENTOP_COORD(
+        loc->grid_position.level,
+        app->world->_base_tile_x + loc->grid_position.x,
+        app->world->_base_tile_z + loc->grid_position.z);
+    ctx.layer = World_LocShapeToLayer(loc->shape);
+    snprintf(ctx.name, sizeof(ctx.name), "%s", loc->name);
+    app_client_trigger_queue(app, &ctx, script_id);
+}
+
+/**
+ * Fire LOC_ADD for every loc in the freshly built scene.
+ *
+ * Once per world build rather than per frame: scenery only changes when the
+ * scene is rebuilt or a zone packet mutates one loc, so a per-frame
+ * reconciliation would walk tens of thousands of entries to find nothing.
+ *
+ * The reference fires this from `Client::OnLoadLocation`, one loc at a time as
+ * the builder places it. This client's builder does not have a seam there, and
+ * the observable difference is only WHEN inside one build the script runs --
+ * every loc in the scene still gets exactly one.
+ */
+static void
+app_client_triggers_world_loaded(struct App* app)
+{
+    struct World_EntityPool* pool;
+
+    assert(app);
+
+    if( !app->world || !app->provider )
+        return;
+    pool = &app->world->entities.scenery;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Scenery* loc = World_EntityPoolGet(pool, i);
+        if( loc )
+            app_client_trigger_loc(app, loc, RS_TRIGGER_LOC_ADD);
+    }
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * Scripted entity overlays (game/rs_entity_overlay.h).
+ * ---------------------------------------------------------------------------
+ *
+ * The host owns the records and the UITree owns the layers; what is left is
+ * the part that needs a camera and a scene, and that is here.
+ */
+
+/** Split a packed CS2 coord into SCENE tiles. False when the world has no
+ *  scene or the tile is outside the loaded window. */
+static bool
+app_overlay_coord_to_scene(
+    struct App const* app,
+    int coord,
+    int* out_x,
+    int* out_z,
+    int* out_level)
+{
+    assert(app);
+    assert(out_x);
+    assert(out_z);
+    assert(out_level);
+
+    if( !app->world || coord < 0 )
+        return false;
+
+    int const level = (coord >> 28) & 0x3;
+    int const abs_x = (coord >> 14) & 0x3fff;
+    int const abs_z = coord & 0x3fff;
+    int const x = abs_x - app->world->_base_tile_x;
+    int const z = abs_z - app->world->_base_tile_z;
+
+    if( x < 0 || z < 0 || x >= app->world->_scene_size || z >= app->world->_scene_size )
+        return false;
+    *out_x = x;
+    *out_z = z;
+    *out_level = level;
+    return true;
+}
+
+/* LOC_FIND (6803): is a loc of this type on this tile, and on which layer.
+ * Also the answer to "is that fishing spot still there" -- the scripts call it
+ * before every rebuild of the overlay they put on one. */
+static int
+app_cs2_loc_at_coord(
+    void* user,
+    int coord,
+    int loc_type,
+    int* out_layer,
+    char* out_name,
+    int name_cap)
+{
+    struct App* app = (struct App*)user;
+    struct WorldEntity_Scenery* scenery;
+    int x;
+    int z;
+    int level;
+
+    assert(app);
+    assert(out_layer);
+    assert(out_name);
+
+    if( !app_overlay_coord_to_scene(app, coord, &x, &z, &level) )
+        return 0;
+    scenery = World_SceneryFindByLocId(app->world, x, z, level, loc_type);
+    if( !scenery )
+        return 0;
+    *out_layer = World_LocShapeToLayer(scenery->shape);
+    snprintf(out_name, (size_t)name_cap, "%s", scenery->name);
+    return 1;
+}
+
+/* COORD_INSCENE (6951). */
+static int
+app_cs2_coord_in_scene(void* user, int coord)
+{
+    struct App* app = (struct App*)user;
+    int x;
+    int z;
+    int level;
+
+    assert(app);
+    return app_overlay_coord_to_scene(app, coord, &x, &z, &level) ? 1 : 0;
+}
+
+/**
+ * The three anchor points an overlay's band chooses between
+ * (`Client::GetAllOverlayPositions`): the top of the subject, its middle, and
+ * its feet. Screen pixels.
+ *
+ * `subject_live` and `ok` are deliberately two answers, not one. An npc that
+ * is merely behind the camera does not project, and treating that as "the
+ * subject has gone" reaped every overlay the moment its npc left the view --
+ * which, with the global npc-add trigger giving every npc a name plate, meant
+ * the whole table churned back to index 0 every frame.
+ */
+struct AppOverlayPos
+{
+    bool subject_live;
+    bool ok;
+    int top_x;
+    int top_y;
+    int mid_x;
+    int mid_y;
+    int foot_x;
+    int foot_y;
+};
+
+/** Where one overlay's subject is this frame, or `ok = false` when the subject
+ *  has gone -- which is the signal to reap the overlay, not to hide it. */
+static struct AppOverlayPos
+app_overlay_anchor(struct App* app, struct RS_Overlay const* item)
+{
+    struct AppOverlayPos out;
+    int fine_x = 0;
+    int fine_z = 0;
+    int height = 0;
+
+    assert(app);
+    assert(item);
+
+    memset(&out, 0, sizeof(out));
+    if( !app->world )
+        return out;
+
+    if( item->anchor == RS_OVERLAY_ANCHOR_NPC )
+    {
+        struct WorldEntity_NPC* npc = World_NpcGetByServerSlot(app->world, item->uid);
+        if( !npc )
+            return out;
+        fine_x = (int)npc->draw_position.x;
+        fine_z = (int)npc->draw_position.z;
+        height = app_entity_overlay_height(app, npc->element_id, -1);
+        out.subject_live = true;
+    }
+    else if( item->anchor == RS_OVERLAY_ANCHOR_PLAYER )
+    {
+        struct WorldEntity_Player* pl = World_PlayerGetByServerPid(app->world, item->uid);
+        if( !pl )
+            return out;
+        fine_x = (int)pl->draw_position.x;
+        fine_z = (int)pl->draw_position.z;
+        height = app_entity_overlay_height(app, pl->element_id, -1);
+        out.subject_live = true;
+    }
+    else
+    {
+        int x;
+        int z;
+        int level;
+        if( !app_overlay_coord_to_scene(app, item->coord, &x, &z, &level) )
+            return out;
+        /*
+         * A tile has no model, so all three anchors are the tile centre at
+         * ground height: an "above" overlay stacks up from the floor and a
+         * "below" one stacks down from it. The reference measures the loc's own
+         * model here; a loc whose overlay wants to clear it says so with its
+         * band and its height, which is what every static overlay in this cache
+         * does (60x60 above, at the tile).
+         */
+        fine_x = x * 128 + 64;
+        fine_z = z * 128 + 64;
+        height = 0;
+        out.subject_live = true;
+    }
+
+    if( !app_world_project(app, fine_x, fine_z, height, &out.top_x, &out.top_y) )
+        return out;
+    if( !app_world_project(app, fine_x, fine_z, height / 2, &out.mid_x, &out.mid_y) )
+        return out;
+    if( !app_world_project(app, fine_x, fine_z, -15, &out.foot_x, &out.foot_y) )
+        return out;
+    out.ok = true;
+    return out;
+}
+
+/**
+ * Move every scripted overlay's layer to where its subject is, and reap the
+ * ones whose subject has gone.
+ *
+ * Runs immediately before the emit walk, off the PREVIOUS frame's world
+ * viewport -- the same rect `app_world_project` reads, so an overlay and the
+ * health bar over the same npc cannot disagree by a frame.
+ */
+static void
+app_entity_overlay_layout(struct App* app)
+{
+    assert(app);
+
+    if( !app->tree )
+        return;
+
+    int32_t const parent = app->tree->entity_overlay_index;
+    if( parent < 0 )
+        return;
+
+    /* The parent IS the world rect: it is what clips the overlays (see
+     * UITree_ComponentClipsChildren), and the App is the only thing that knows
+     * the rect. A tree whose world has not been emitted yet has no rect and so
+     * no overlays -- which is right, because there is nothing to anchor to. */
+    {
+        struct UITreeElemPosition* pos = &app->tree->components[parent].position;
+        int const w = app->world_view_valid ? app->world_emit_desc.w : 0;
+        int const h = app->world_view_valid ? app->world_emit_desc.h : 0;
+        int const x = app->world_view_valid ? app->world_emit_desc.x : 0;
+        int const y = app->world_view_valid ? app->world_emit_desc.y : 0;
+        if( pos->kind != UIPOS_XY || pos->x != x || pos->y != y || pos->width != w ||
+            pos->height != h )
+        {
+            pos->kind = UIPOS_XY;
+            pos->x = x;
+            pos->y = y;
+            pos->width = w;
+            pos->height = h;
+            UITree_LayoutInvalidateBoxes(app->tree);
+        }
+    }
+
+    /* Band 1 stacks upward and band 2 downward, per subject -- two overlays on
+     * one npc must not overprint. The cursors are keyed by the subject the
+     * overlay names, so a second pass over the same npc continues the stack. */
+    for( int i = 0; i < RS_OVERLAY_MAX; i++ )
+    {
+        struct RS_Overlay const* item = RS_OverlayGet(&app->host.overlay, i);
+        if( !item )
+            continue;
+
+        struct AppOverlayPos anchor = app_overlay_anchor(app, item);
+        if( !anchor.subject_live )
+        {
+            /*
+             * The subject is GONE -- the npc despawned, or the tile fell out of
+             * the rebuilt scene.
+             *
+             * Reaped rather than hidden, because nothing else will: an npc that
+             * walked out of the scene is never coming back under the same uid,
+             * and the script that made the overlay gets no event to tell it so.
+             */
+            RS_CS2Host_OverlayReap(&app->host, i);
+            continue;
+        }
+        if( !anchor.ok )
+            continue; /* live, just not on screen this frame. */
+
+        int32_t const node = UITree_FindByComponentId(app->tree, item->component_id);
+        if( node < 0 )
+            continue;
+
+        struct UITreeComponent* c = &app->tree->components[node];
+        int const w = c->position.width;
+        int const h = c->position.height;
+        int x = anchor.mid_x - w / 2;
+        int y = anchor.mid_y - h / 2;
+
+        if( item->band == RS_OVERLAY_BAND_ABOVE )
+        {
+            x = anchor.top_x - w / 2;
+            y = anchor.top_y - h;
+        }
+        else if( item->band == RS_OVERLAY_BAND_BELOW )
+        {
+            x = anchor.foot_x - w / 2;
+            y = anchor.foot_y;
+        }
+
+        /* The box is the parent's, so subtract the world rect the parent sits
+         * at -- the projection is in screen pixels and the layout is not. */
+        x -= app->tree->components[parent].position.x;
+        y -= app->tree->components[parent].position.y;
+
+        if( c->position.x != x || c->position.y != y )
+        {
+            c->position.x = x;
+            c->position.y = y;
+            c->is_dirty = 1;
+            UITree_LayoutInvalidateBoxes(app->tree);
+        }
+    }
+}
+
 static int
 app_build_entity_overlays(
     struct App* app,
@@ -5305,6 +5818,20 @@ app_debug_overlay_init(struct App* app)
         ToriRSChrome_MenuItem(&app->dbg_ui, app->locedit_panel, "Close  [9 / Esc]");
     ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->locedit_panel, 0);
     app->locedit_visible = 0;
+
+    /* The All Settings colour picker. Built empty and hidden: its rows are the
+     * ROW's -- title, default swatch -- and are only known once a swatch has
+     * been clicked, so every open clears and rebuilds them. Declared here all
+     * the same, so the handle is valid from the first frame and no path has to
+     * test for a panel that does not exist yet. */
+    app->settings_colour_panel = ToriRSChrome_PanelAdd(
+        &app->dbg_ui, TORIRS_CHROME_PANEL_WINDOW, 8, 40, 0, "Colour");
+    ToriRSChrome_PanelSetFramed(&app->dbg_ui, app->settings_colour_panel, 1);
+    ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->settings_colour_panel, 0);
+    app->settings_colour_visible = 0;
+    app->settings_colour_pick = -1;
+    app->settings_colour_default_btn = -1;
+    app->settings_colour_close_btn = -1;
     app->locedit_loc_id = -1;
     app->locedit_shape = -1;
     app->locedit_angle = 0;
@@ -6132,6 +6659,236 @@ app_loc_editor_tick(
     }
 }
 
+/* =========================================================================
+ * All Settings: the colour rows
+ *
+ * A colour row in the All Settings panel (interface 134) is a title, a
+ * description and a swatch with a "Select" op on it, and that op's script --
+ * `settings_colour_input_click`, cache script 4183 -- is two lines long:
+ *
+ *     [clientscript,settings_colour_input_click](int $int0, int $int1)
+ *     if (~settings_op_checker($int0, $int1) = 0) {
+ *         return;
+ *     }
+ *
+ * That is the whole body. `~settings_op_checker` plays the panel's click sound
+ * and, for a row the player is not allowed to change, prints the row's own
+ * refusal message. Nothing writes a colour, because in the reference the
+ * picker is the ENGINE's: it opens its own, and it writes the row's varp
+ * itself. Read one way that makes every colour row in the panel inert here --
+ * "Tile highlight colour" showed the default green swatch, said what it was
+ * for, and did nothing at all when clicked. Read the other way it is the same
+ * arrangement as the two Activities buttons and the client layout dropdown:
+ * the cache has stated everything except the part only a client can do.
+ *
+ * So this is that part. RS_CS2Host_ScriptStarted catches the click with its
+ * arguments intact and resolves the row -- setting id, title, default swatch,
+ * and the varp the read hub was seen reading for it. Here that becomes a
+ * picker on the HSL16 axes the renderer actually draws in, and its value goes
+ * back into the varp the way the row stores it: `colour + 1`, so that zero
+ * keeps meaning "never chosen".
+ *
+ * Committing to the varp is the whole apply. The cache does the rest of the
+ * work it always did -- writing the varp fires the var-transmit hooks the row
+ * itself installed, so `settings_colour_input_update` re-fills the swatch and,
+ * for the tile markers, clientscript 4763 re-runs HIGHLIGHT_TILE_SETUP on
+ * group 6 in the new colour. Nothing here knows what a tile marker is.
+ * ========================================================================= */
+
+static void
+app_settings_colour_close(struct App* app)
+{
+    assert(app);
+    app->settings_colour_visible = 0;
+    if( app->settings_colour_panel >= 0 )
+        ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->settings_colour_panel, 0);
+}
+
+/**
+ * Write `rgb` to the open row's varp, in the row's own encoding.
+ *
+ * `colour + 1`, which is what `settings_get_colour` reads back with
+ * `calc(%var<n> - 1)` and what makes a varp of 0 mean "never chosen" rather
+ * than "black".
+ */
+static void
+app_settings_colour_commit(struct App* app, uint32_t rgb)
+{
+    assert(app);
+    if( app->settings_colour_req.varp_id < 0 )
+        return;
+    RS_CS2Host_ScriptWriteVarp(
+        &app->host, app->settings_colour_req.varp_id, (int)(rgb & 0xFFFFFFu) + 1);
+    app->need_redraw = 1;
+}
+
+/** Put the picker beside the swatch that opened it, clamped onto the canvas. */
+static void
+app_settings_colour_place(struct App* app, int component_id)
+{
+    int const scale = ToriRSChrome_Scale(&app->dbg_ui);
+    int const width = 230 * scale;
+    int x = (UITREE_LAYOUT_ROOT_W - width) / 2;
+    int y = UITREE_LAYOUT_ROOT_H / 4;
+    int32_t idx;
+
+    assert(app);
+    idx = app->tree && component_id >= 0 ? UITree_FindByComponentId(app->tree, component_id) : -1;
+    if( idx >= 0 )
+    {
+        struct UITreeComponent const* c = &app->tree->components[idx];
+        /* LEFT of the swatch: a colour row's swatch is docked on the panel's
+         * right edge, and a picker that covered it would hide the one thing
+         * the player is watching change. */
+        x = c->position.abs_x - width - 8 * scale;
+        y = c->position.abs_y - 8 * scale;
+    }
+
+    if( x < 0 )
+        x = 0;
+    if( y < 0 )
+        y = 0;
+    if( x + width > UITREE_LAYOUT_ROOT_W )
+        x = UITREE_LAYOUT_ROOT_W - width;
+    /* The axis popup drops BELOW the row, so the panel needs room under it as
+     * well as for itself; two thirds down is as low as it may sit. */
+    if( y > UITREE_LAYOUT_ROOT_H * 2 / 3 )
+        y = UITREE_LAYOUT_ROOT_H * 2 / 3;
+
+    ToriRSChrome_PanelSetFixedWidth(&app->dbg_ui, app->settings_colour_panel, width);
+    ToriRSChrome_PanelMove(&app->dbg_ui, app->settings_colour_panel, x, y);
+}
+
+static void
+app_settings_colour_open(struct App* app, struct RS_CS2SettingsColourRequest const* req)
+{
+    assert(app);
+    assert(req);
+
+    if( app->settings_colour_panel < 0 )
+        return;
+    if( req->varp_id < 0 )
+    {
+        /* The read hub never named a varp for this row, so there is nowhere to
+         * put an answer. Said out loud rather than opening a picker whose
+         * every move would be discarded. */
+        fprintf(
+            stderr,
+            "settings: colour row %d (%s) has no varp; not opening a picker\n",
+            req->setting_id,
+            req->label[0] ? req->label : "unnamed");
+        return;
+    }
+
+    app->settings_colour_req = *req;
+    ToriRSChrome_PanelClearWidgets(&app->dbg_ui, app->settings_colour_panel);
+    ToriRSChrome_PanelSetTitle(
+        &app->dbg_ui, app->settings_colour_panel, req->label[0] ? req->label : "Colour");
+    /* Seeded through NearestRgb, not the reference quantiser: this value is
+     * read back and re-shown every time the row is opened, and the reference
+     * round trip moves nearly every entry by a shade each pass. */
+    app->settings_colour_pick = ToriRSChrome_ColorPick(
+        &app->dbg_ui,
+        app->settings_colour_panel,
+        "Colour",
+        ToriRSChrome_Hsl16NearestRgb((uint32_t)req->colour & 0xFFFFFFu));
+    app->settings_colour_default_btn =
+        ToriRSChrome_Button(&app->dbg_ui, app->settings_colour_panel, "Default");
+    app->settings_colour_close_btn =
+        ToriRSChrome_Button(&app->dbg_ui, app->settings_colour_panel, "Done");
+    ToriRSChrome_PanelSetClosable(&app->dbg_ui, app->settings_colour_panel, 1);
+
+    app_settings_colour_place(app, req->component_id);
+    ToriRSChrome_PanelSetVisible(&app->dbg_ui, app->settings_colour_panel, 1);
+    app->settings_colour_visible = 1;
+    app->need_redraw = 1;
+}
+
+/*
+ * Open, drive and commit the picker. Called once a frame, after the developer
+ * overlay's tick has already routed this frame's input into dbg_ui.
+ *
+ * The activation is PEEKED and only taken when it belongs to this panel.
+ * dbg_ui's activation latch is shared with the loc editor and the map editor,
+ * and draining it unconditionally is how the loc editor once swallowed the map
+ * editor's clicks -- a dropdown that showed the new value while nothing
+ * changed. Peeking costs nothing and cannot do that to anyone.
+ */
+static void
+app_settings_colour_tick(struct App* app, struct LibToriRS_Input* input)
+{
+    struct RS_CS2SettingsColourRequest req;
+    int activated;
+
+    assert(app);
+    (void)input;
+
+    if( RS_CS2Host_TakeSettingsColourRequest(&app->host, &req) )
+        app_settings_colour_open(app, &req);
+
+    if( !app->settings_colour_visible )
+        return;
+
+    /*
+     * The panel's own Close button hid it; the flag above is this side's idea
+     * of whether the picker is up, and left unreconciled the next click on the
+     * same swatch would "reopen" something that is already open.
+     */
+    if( app->settings_colour_panel >= 0 &&
+        !app->dbg_ui.panels[app->settings_colour_panel].visible )
+    {
+        app->settings_colour_visible = 0;
+        return;
+    }
+
+    /*
+     * Follow the row out of existence.
+     *
+     * All Settings is built and torn down by clientscripts, so closing the
+     * panel -- or switching to another category, which rebuilds every row --
+     * takes the swatch with it. A picker still floating over the game after
+     * its row is gone has nothing to point at and no way to be dismissed
+     * except its own button.
+     */
+    if( app->settings_colour_req.component_id >= 0 && app->tree &&
+        UITree_FindByComponentId(app->tree, app->settings_colour_req.component_id) < 0 )
+    {
+        app_settings_colour_close(app);
+        return;
+    }
+
+    activated = app->dbg_ui.activated;
+    if( activated < 0 )
+        return;
+    if( activated == app->settings_colour_pick )
+    {
+        (void)ToriRSChrome_TakeActivated(&app->dbg_ui);
+        app_settings_colour_commit(
+            app,
+            ToriRSChrome_Hsl16ToRgb(
+                ToriRSChrome_ColorPickValue(&app->dbg_ui, app->settings_colour_pick)));
+    }
+    else if( activated == app->settings_colour_default_btn )
+    {
+        int const hsl =
+            ToriRSChrome_Hsl16NearestRgb((uint32_t)app->settings_colour_req.default_colour);
+        (void)ToriRSChrome_TakeActivated(&app->dbg_ui);
+        ToriRSChrome_ColorPickSet(&app->dbg_ui, app->settings_colour_pick, hsl);
+        app_settings_colour_commit(app, ToriRSChrome_Hsl16ToRgb(hsl));
+    }
+    else if( activated == app->settings_colour_close_btn )
+    {
+        (void)ToriRSChrome_TakeActivated(&app->dbg_ui);
+        app_settings_colour_close(app);
+    }
+
+    if( ToriRSChrome_Build(&app->dbg_ui) )
+    {
+        app->need_redraw = 1;
+        ToriRSChrome_DamageClear(&app->dbg_ui);
+    }
+}
+
 void
 App_SetWorldRenderMode(
     struct App* app,
@@ -6416,6 +7173,9 @@ App_Init(
     app->host.loot = &app->loot;
     app->host.events_override_for_component = app_cs2_events_override_for_component;
     app->host.events_user = app;
+    app->host.loc_at_coord = app_cs2_loc_at_coord;
+    app->host.coord_in_scene = app_cs2_coord_in_scene;
+    app->host.world_user = app;
     /*
      * State the starting gain once, so a backend is never left guessing at a
      * volume the game already has an opinion about -- the mixer's own buses
@@ -8331,6 +9091,10 @@ App_WorldLoadFinish(struct App* app)
          * rebuild is materialised by its own set_position rather than being
          * swept up by a pass that already ran. */
         app_plugin_objects_rebuild(app);
+        /* Every loc in the new scene gets its LOC_ADD trigger. After the
+         * plugin seam because a trigger script can create overlays, and the
+         * object rebuild sweeps anything placed before it. */
+        app_client_triggers_world_loaded(app);
         World_SetHeightFn(app->world, app_world_height, app);
         {
             struct World_SeqSource seq_source = {
@@ -8966,6 +9730,17 @@ Task_AppBoot_Run(
      */
     if( !app->boot_config_ready && app->cfg.cache_kind != APP_CACHE_DAT1 )
         PT_TASK_AWAITSELF_IF(CreateTask_Dat2VarpLoad(app->provider, &app->varps));
+
+    /*
+     * The clientscript index's reference table.
+     *
+     * Loaded once, for its group IDENTIFIERS: the cache binds a script to
+     * "this npc appeared" / "this loc was placed" through the group NAME and
+     * nothing else, so without this table 218 loc scripts and 23 npc scripts
+     * in cache.osrs239 are unreachable. See game/rs_client_trigger.h.
+     */
+    if( !app->boot_config_ready )
+        PT_TASK_AWAITSELF_IF(CreateTask_ClientScriptTableLoad(app->provider));
 
     if( !app->boot_config_ready && app->cfg.cache_kind == APP_CACHE_DAT1 )
         PT_TASK_AWAITSELF_IF(CreateTask_Dat1VarbitLoad(app->provider, &app->varps));
@@ -10823,6 +11598,7 @@ app_logic_tick(struct App* app)
             mo.uid = -1;
             mo.type = -1;
             mo.coord = -1;
+            mo.layer = -1;
 
             if( app->world )
             {
@@ -10857,6 +11633,9 @@ app_logic_tick(struct App* app)
                         mo.kind = RS_CLIENTOP_LOC;
                         minimenu_type = RS_MINIMENU_TYPE_LOC;
                         mo.type = loc->loc_id;
+                        /* Half of a loc's identity: a tile holds one loc per
+                         * layer, and the scripted-overlay store keys on it. */
+                        mo.layer = World_LocShapeToLayer(loc->shape);
                         mo.coord = RS_CLIENTOP_COORD(
                             loc->grid_position.level,
                             base_x + loc->grid_position.x,
@@ -15024,6 +15803,12 @@ app_world_spawn_npc_now(
             app_plugin_fill_npc(app, spawned, &snap);
             PluginHost_NpcSpawn(app->plugins, &snap);
         }
+    }
+    if( idx != WORLD_ENTITY_NIL )
+    {
+        struct WorldEntity_NPC* spawned = World_EntityPoolGet(&app->world->entities.npc, idx);
+        if( spawned )
+            app_client_trigger_npc(app, spawned, RS_TRIGGER_NPC_ADD);
     }
     return idx;
 }
@@ -21746,6 +22531,10 @@ App_RunOnce(
     /* Developer overlay first: its toggle key has to latch during a boot too,
      * and its readout has to be current before this frame's emit rebuild. */
     app_debug_overlay_tick(app, input);
+    /* Right after the developer overlay, because it shares that instance: the
+     * tick above is what routed this frame's mouse into dbg_ui, and the
+     * picker's own drain has to run against the activation that produced. */
+    app_settings_colour_tick(app, input);
     /* Plugin settings beside the other developer chrome, and before the loc
      * editor for the same reason it runs before the map editor: whoever is
      * open drains the shared activation latch, so order decides who sees a
@@ -22958,6 +23747,7 @@ App_RunOnce(
         /* Publication invariant: an emit list is a frame commit, not a view of
          * whatever intermediate state the cooperative schedulers reached. */
         assert(App_FrameSettled(app));
+        app_entity_overlay_layout(app);
         app->emit.count = 0;
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_EMIT)
         {

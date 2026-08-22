@@ -319,8 +319,25 @@
  * str stack out:  -
  */
 #define CS2_OP_CC_DELETEALL 102
-#define CS2_OP__103 103
-#define CS2_OP__104 104
+/* OVERLAY_CC_CREATE — CC_CREATE, but into a scripted entity overlay's layer.
+ * int stack in:   overlay, type, child_index      (child_index = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: the parent is named by OVERLAY INDEX, not by component id — an
+ *        overlay layer is not reachable through IF_FIND. Sets active to the
+ *        new child. Reference asserts `type != 0` ("Dynamic layers aren't
+ *        allowed") and that the slot does not leave a gap. See
+ *        game/rs_entity_overlay.h.
+ */
+#define CS2_OP_OVERLAY_CC_CREATE 103
+/* OVERLAY_CC_DELETEALL — empty a scripted entity overlay's layer.
+ * int stack in:   overlay
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_OVERLAY_CC_DELETEALL 104
 /* CC_COPY — Clone a dynamic child into another slot under the same parent.
  * int stack in:   parent, src_sub, dst_sub  (dst_sub = top)
  * str stack in:   -
@@ -343,8 +360,27 @@
  * str stack out:  -
  */
 #define CS2_OP_IF_FIND 201
-#define CS2_OP__202 202
-#define CS2_OP__203 202
+/* OVERLAY_FIND — make a scripted entity overlay's LAYER the active component.
+ * int stack in:   overlay
+ * str stack in:   -
+ * int stack out:  1 if the overlay exists (active set) else 0
+ * str stack out:  -
+ * notes: this is what the decompiled scripts print as `_203(...)`, and it is
+ *        opcode 202 — the vendored decompiler table names 202 and 203 alike.
+ *        It replaces the guessed CC_FINDROOT, which popped nothing: 57 call
+ *        sites in this cache pass one argument, so the guess also leaked an
+ *        int per call. See game/rs_entity_overlay.h.
+ */
+#define CS2_OP_OVERLAY_FIND 202
+/* OVERLAY_CC_FIND — CC_FIND within a scripted entity overlay's layer.
+ * int stack in:   overlay, sub                    (sub = top)
+ * str stack in:   -
+ * int stack out:  1 if found (active set) else 0
+ * str stack out:  -
+ * notes: no script in this cache calls it; implemented because the reference
+ *        has it and the family is otherwise complete.
+ */
+#define CS2_OP_OVERLAY_CC_FIND 203
 /* CC_SETPOSITION — Set position modes.
  * int stack in:   x, y, x_mode, y_mode  (y_mode = top)
  * str stack in:   -
@@ -2707,6 +2743,19 @@
 #define CS2_OP__6800 6800
 #define CS2_OP__6801 6801
 #define CS2_OP__6802 6802
+/* LOC_FIND — is there a loc of this type on this tile, and if so make it the
+ *            ACTIVE LOC.
+ * int stack in:   coord, loc_type                 (loc_type = top)
+ * str stack in:   -
+ * int stack out:  1 when found (active loc set) else 0
+ * str stack out:  -
+ * notes: the gate every static-overlay script opens with — script 6498 will
+ *        not draw a fishing spot until this says the spot is still there.
+ *        Reference builds a LocInfo from the world's loc layer at the coord
+ *        and assigns it to ScriptRunner's active loc, which is what makes the
+ *        following _6800/_6801/_6802 and OVERLAY_LOC_* answer about it.
+ */
+#define CS2_OP_LOC_FIND 6803
 #define CS2_OP__6850 6850
 #define CS2_OP__6851 6851
 #define CS2_OP__6852 6852
@@ -2727,6 +2776,16 @@
  *        (0x7FFFFD). Offline/unlogged stub pushes 0 (static default). */
 #define CS2_OP_LOGIN_INT24 6910
 #define CS2_OP__6950 6950
+/* COORD_INSCENE — is this coord inside the loaded scene.
+ * int stack in:   coord
+ * str stack in:   -
+ * int stack out:  1 when the tile is in the build area else 0
+ * str stack out:  -
+ * notes: the coord-anchored twin of LOC_FIND: a script that put an overlay on
+ *        a tile re-checks with this before drawing, because the scene window
+ *        moves and an overlay outside it has nowhere to project to.
+ */
+#define CS2_OP_COORD_INSCENE 6951
 /* HIGHLIGHT_NPC_SETUP — Define what highlight group N looks like.
  * int stack in:   group, colour, style, opacity, flags  (flags = top)
  * str stack in:   -
@@ -3056,21 +3115,109 @@
 #define CS2_OP__7120 7120
 #define CS2_OP__7121 7121
 #define CS2_OP__7122 7122
-#define CS2_OP__7200 7200
-#define CS2_OP__7201 7201
+/*
+ * Scripted entity overlays (7200..7214) — jag::oldscape::EntityOverlays.
+ *
+ * Every CREATE takes the same tail: (slot, band, width, height, source_coord),
+ * where `slot` is the script's own id for this overlay on this subject, `band`
+ * is IfType::OverlayTypes (0 middle / 1 above / 2 below) and the last argument
+ * is the boolean `WorldCoordToSourceCoord` flag the highlight ops also carry.
+ * The four families differ only in what the overlay hangs off. The GET forms
+ * take just the slot and answer -1 when there is none; the DESTROY forms take
+ * the slot and answer nothing. See game/rs_entity_overlay.h.
+ */
+/* OVERLAY_NPC_CREATE — hang an overlay off the active npc.
+ * int stack in:   slot, band, width, height, source_coord
+ * str stack in:   -
+ * int stack out:  overlay index (-1 when none)
+ * str stack out:  -
+ */
+#define CS2_OP_OVERLAY_NPC_CREATE 7200
+/* OVERLAY_LOC_CREATE — hang an overlay off the active loc.
+ * int stack in:   slot, band, width, height, source_coord
+ * str stack in:   -
+ * int stack out:  overlay index (-1 when none)
+ * str stack out:  -
+ * notes: anchored at the loc's coord with the loc's LAYER as the static type,
+ *        so two locs on one tile each get their own.
+ */
+#define CS2_OP_OVERLAY_LOC_CREATE 7201
 #define CS2_OP__7202 7202
-#define CS2_OP__7203 7203
-#define CS2_OP__7204 7204
-#define CS2_OP__7205 7205
-#define CS2_OP__7206 7206
+/* OVERLAY_PLAYER_CREATE — hang an overlay off the active player.
+ * int stack in:   slot, band, width, height, source_coord
+ * str stack in:   -
+ * int stack out:  overlay index (-1 when none)
+ * str stack out:  -
+ */
+#define CS2_OP_OVERLAY_PLAYER_CREATE 7203
+/* OVERLAY_COORD_CREATE — hang an overlay off a bare tile.
+ * int stack in:   coord, slot, band, width, height, source_coord
+ * str stack in:   -
+ * int stack out:  overlay index (-1 when none)
+ * str stack out:  -
+ */
+#define CS2_OP_OVERLAY_COORD_CREATE 7204
+/* OVERLAY_NPC_GET — the active npc's overlay in this slot.
+ * int stack in:   slot
+ * str stack in:   -
+ * int stack out:  overlay index (-1 when none)
+ * str stack out:  -
+ * notes: the vendored table had this as (0 in, 1 out). It pops the slot; a
+ *        script that asked for one slot and got the answer for whatever was
+ *        left on the stack is the failure that hid behind the missing pop.
+ */
+#define CS2_OP_OVERLAY_NPC_GET 7205
+/* OVERLAY_LOC_GET — the active loc's overlay in this slot.
+ * int stack in:   slot
+ * str stack in:   -
+ * int stack out:  overlay index (-1 when none)
+ * str stack out:  -
+ */
+#define CS2_OP_OVERLAY_LOC_GET 7206
 #define CS2_OP__7207 7207
-#define CS2_OP__7208 7208
-#define CS2_OP__7209 7209
-#define CS2_OP__7210 7210
-#define CS2_OP__7211 7211
+/* OVERLAY_PLAYER_GET — the active player's overlay in this slot.
+ * int stack in:   slot
+ * str stack in:   -
+ * int stack out:  overlay index (-1 when none)
+ * str stack out:  -
+ */
+#define CS2_OP_OVERLAY_PLAYER_GET 7208
+/* OVERLAY_COORD_GET — a tile's overlay in this slot.
+ * int stack in:   coord, slot
+ * str stack in:   -
+ * int stack out:  overlay index (-1 when none)
+ * str stack out:  -
+ */
+#define CS2_OP_OVERLAY_COORD_GET 7209
+/* OVERLAY_NPC_DESTROY — drop the active npc's overlay in this slot.
+ * int stack in:   slot
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_OVERLAY_NPC_DESTROY 7210
+/* OVERLAY_LOC_DESTROY — drop the active loc's overlay in this slot.
+ * int stack in:   slot
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_OVERLAY_LOC_DESTROY 7211
 #define CS2_OP__7212 7212
-#define CS2_OP__7213 7213
-#define CS2_OP__7214 7214
+/* OVERLAY_PLAYER_DESTROY — drop the active player's overlay in this slot.
+ * int stack in:   slot
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_OVERLAY_PLAYER_DESTROY 7213
+/* OVERLAY_COORD_DESTROY — drop a tile's overlay in this slot.
+ * int stack in:   coord, slot
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_OVERLAY_COORD_DESTROY 7214
 #define CS2_OP_MINIMAP_SETZOOMABLE 7250
 #define CS2_OP_MINIMAP_SETZOOM 7252
 /* Client database family. Read DBROW config (kind 38) and the DBTABLEINDEX

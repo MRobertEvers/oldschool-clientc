@@ -161,6 +161,104 @@ looking at what it CALLS -- measured, not guessed.
 | 280 | Max hit hitsplats threshold |
 
 
+## The reference client settles it
+
+`~/Documents/git_repos/osclient_decompile/osclient-216-mac.c` is a Ghidra
+decompilation of the OldSchool **C++** client -- the NXT engine, namespace
+`jag::oldscape` -- with mangled symbol names intact. It still carries the
+original source paths in its assert and log strings, so the opcode handlers are
+findable by name:
+
+```
+projects/osclient/ScriptRunnerImpl_7200To7299.cpp
+projects/osclient/highlighting/HighlightManager.cpp
+```
+
+The opcode switch is a plain `switch` on the opcode number, so a handler is one
+grep away -- 7035 is `case 0x1b7b:`, 7200 is `case 0x1c20:`.
+
+Everything below was guessed here first and is now read off that. Two of the
+guesses were wrong, and both were wrong in a way nothing on screen would have
+called out.
+
+### HIGHLIGHT_*_SETUP, exactly
+
+`HighlightManager::ConfigureChannel(category, channel, colour, thickness,
+opacity, flags)`:
+
+| CS2 arg | what it really is |
+|---------|-------------------|
+| group | channel, asserted `0..31` -- *"Highlight channel ID must be between 0 and %d (inclusive)"* |
+| colour | RGB, run through `RunetekColour::RGBToHSL` on the way in |
+| **style** | **outline THICKNESS in pixels** (0, 1 or 2) -- not a style enum |
+| **opacity** | **fill alpha 0..255**, `jag::math::Clamp(v, 0, 255)` -- not a percent |
+| flags | `EntityHighlightBitFlags` |
+
+**`IsEnabled` is four predicates, not one:**
+
+```
+HasModelOutline = (flags & 1) && thickness != 0
+HasTileOutline  = (flags & 2) && thickness != 0
+HasModelFill    = (flags & 4) && opacity   != 0
+HasTileFill     = (flags & 8) && opacity   != 0
+IsEnabled       = any of the four
+```
+
+That is what makes the cache's two odd-looking families work, and testing
+either field alone silently drops one of them: the six mouseover groups run at
+**opacity 0** (an outline has no wash to be opaque) and clientscript 5198's
+hovered tile runs at **thickness 0** (a wash with no border). This client had
+guessed "any flag, and a colour", which called a group live on the strength of
+bits 16 and 64 alone -- flags that say HOW to draw, not WHAT.
+
+The opacity error was the visible one: treating 0..255 as a percent and scaling
+by 255/100 made every wash in the game 2.55x too opaque.
+
+### The membership ops
+
+`highlight_tile_on(coord, group, flags)` -- the last argument is **not** flags.
+It is a BOOLEAN, and the handler passes it as `param_4` to
+`AddTileHighlight(coord, channel, bool, bool)`, where true means *convert this
+world coord to a SOURCE coord first* (`Client::WorldCoordToSourceCoord`). The
+tile markers pass 1 and the hovered tile passes 0, which is why a marker
+survives an instance and a mouseover mark does not need to.
+
+The `group` argument really is an INDEX, not a mask, even though the manager
+stores masks: `AddNPCTypeHighlight` does `*slot = 1 << (channel & 0x1f)` after
+asserting `channel < 0x20`.
+
+### `_7200..7211` is `jag::oldscape::EntityOverlays`
+
+The bucket-A family, and it is not a mystery any more:
+
+| op | reference call | anchor |
+|----|----------------|--------|
+| 7200 | `CreateOverlay()` + `ClientEntity::SetScriptedOverlay(slot, idx)` | the ACTIVE NPC |
+| 7201 | `CreateStaticOverlay(slot, coord, LocLayer)` | the ACTIVE LOC |
+| 7204 | `CreateStaticOverlay(slot, coord, type=4)` | a COORD argument |
+| 7205 | `ClientEntity::GetScriptedOverlayIndex(slot)` | the ACTIVE NPC |
+| 7209 | `GetStaticOverlayIndex(slot, coord, type)` | a COORD argument |
+
+The common argument shape is `(slot, X, width, height, Y)`, with the coord
+prepended for the 7204/7209 forms. `EntityOverlays::GetLayer(index)` hands back
+a `shared_ptr<IfType>` -- **an ordinary interface component** -- and the handler
+writes width to `+0x38`, height to `+0x3c` and X to `+0x70` before the script
+decorates it with the usual `cc_*` ops. `StaticEntityOverlayType` is bounded by
+`IsTypeValid(t) { return t < 5; }`, and `OverlayTypeFromLocLayer` is the
+identity, so 0..3 are the four loc layers and 4 is "a bare coord".
+
+`ScriptRunner::SetActiveNPC / SetActiveLoc / SetActiveObj / SetActiveTile /
+SetActivePlayer` is the backing state for the `_67xx / _68xx / _69xx` getters,
+which confirms the shape this client already implements: one "active subject",
+set by a client-op dispatch and by the mouseover.
+
+### One arity error in this repo's own table
+
+`cs2vm2_opcode_stack.gen.h` has 7205 as `0 in, 1 out`. The handler pops one int
+(the slot) and pushes one. The generated table inherited that row from the
+decompiler's vendored signatures, which is exactly the class of row its `known`
+field flags as unverified.
+
 ## Most of it is implemented in the cache, not here
 
 Found after the four plugins below were written, and it changes the shape of

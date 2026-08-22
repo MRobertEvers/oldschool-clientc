@@ -382,6 +382,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	engine/dat2/dat2_buildcache.c engine/dat2/dat2_group_cache.c \
 	engine/dat2/task_dat2_model_load.c \
 	engine/dat2/task_dat2_component_pack_load.c engine/dat2/task_dat2_clientscript_load.c \
+	engine/dat2/task_dat2_clientscript_table_load.c \
 	engine/dat2/task_dat2_obj_load.c engine/dat2/task_dat2_npc_load.c \
 	engine/dat2/task_dat2_spotanim_load.c engine/dat2/task_dat2_sound_load.c \
 	engine/dat2/task_dat2_idk_load.c \
@@ -467,7 +468,8 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	torirsmaped/torirs_maped.c torirsmaped/torirs_maped_buf.c \
 	torirsmaped/torirs_maped_cmdwire.c torirsmaped/torirs_maped_embed.c \
 	render/torirs_polygon.c \
-	game/rs_highlight.c game/rs_clientop.c \
+	game/rs_highlight.c game/rs_clientop.c game/rs_entity_overlay.c \
+	game/rs_client_trigger.c \
 	plugin/torirs_plugin_host.c plugin/torirs_plugin_registry.c \
 	plugin/torirs_plugin_lua.c plugin/task_plugin_io.c \
 	plugin/plugins/tileind.c \

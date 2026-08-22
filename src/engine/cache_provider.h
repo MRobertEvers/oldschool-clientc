@@ -157,6 +157,28 @@ struct CacheProviderVTable
     struct ToriRS_Task* (*Task_ClientScriptLoad)(
         struct CacheProvider* provider,
         int script_id);
+    /**
+     * Load the clientscript index's reference table, so the trigger lookup
+     * below can answer. NULL on providers with no such table (dat1 has no
+     * named clientscript groups and so no client triggers at all).
+     */
+    struct ToriRS_Task* (*Task_ClientScriptTableLoad)(
+        struct CacheProvider* provider);
+    /**
+     * The clientscript whose GROUP NAME hashes to `name_hash`, or -1.
+     *
+     * The cache addresses trigger scripts by name, not by id: a script bound to
+     * "npc 3317 spawned" lives in the group NAMED "849187" -- the decimal
+     * string of `3317 * 256 + 35`. See game/rs_client_trigger.h for the three
+     * hash forms and what they mean.
+     *
+     * -1 also covers "the table is not loaded yet", which is why the caller
+     * must not treat it as "this cache has no such script": a trigger that
+     * fired during boot is one the App re-fires once the table arrives.
+     */
+    int (*ClientScriptIdByNameHash)(
+        struct CacheProvider* provider,
+        int name_hash);
     struct ToriRS_Task* (*Task_ObjLoad)(
         struct CacheProvider* provider,
         int obj_id);
@@ -948,6 +970,25 @@ CreateTask_ClientScriptLoad(
     if( !provider->vtable->Task_ClientScriptLoad )
         return NULL;
     return provider->vtable->Task_ClientScriptLoad(provider, script_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_ClientScriptTableLoad(struct CacheProvider* provider)
+{
+    if( !provider->vtable->Task_ClientScriptTableLoad )
+        return NULL;
+    return provider->vtable->Task_ClientScriptTableLoad(provider);
+}
+
+/** See the vtable slot. -1 for "no such script" AND for "not loaded yet". */
+static inline int
+CacheProvider_ClientScriptIdByNameHash(
+    struct CacheProvider* provider,
+    int name_hash)
+{
+    if( !provider->vtable->ClientScriptIdByNameHash )
+        return -1;
+    return provider->vtable->ClientScriptIdByNameHash(provider, name_hash);
 }
 
 static inline struct ToriRS_Task*

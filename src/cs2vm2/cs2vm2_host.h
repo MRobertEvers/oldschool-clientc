@@ -312,7 +312,8 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND,
     CS2VM_HOST_REQUEST_WIDGET_INPUT_INT,
 
-    CS2VM_HOST_REQUEST_CC_FINDROOT,
+    CS2VM_HOST_REQUEST_ENTITY_OVERLAY,
+    CS2VM_HOST_REQUEST_SUBJECT_FIND,
     CS2VM_HOST_REQUEST_CC_CHILDREN_FIND,
     CS2VM_HOST_REQUEST_IF_CHILDREN_FIND,
     CS2VM_HOST_REQUEST_CC_RESOLVE_PARENT,
@@ -1430,6 +1431,43 @@ struct CS2VM_HostRequest_Highlight
     bool query;
 };
 
+/**
+ * LOC_FIND (6803) and COORD_INSCENE (6951): the two "is this still there"
+ * gates every static-overlay script opens with.
+ *
+ * LOC_FIND also has a side effect -- it makes the loc it found the ACTIVE LOC,
+ * which is what the OVERLAY_LOC_* ops and the `_6800/_6801/_6802` getters then
+ * answer about. `loc_type` is unused by COORD_INSCENE.
+ */
+struct CS2VM_HostRequest_SubjectFind
+{
+    int opcode;
+    int coord;
+    int loc_type;
+};
+
+/** Widest scripted-entity-overlay op: OVERLAY_COORD_CREATE takes six ints. */
+#define CS2VM_OVERLAY_ARG_MAX 6
+
+/**
+ * Any scripted-entity-overlay opcode: the 7200..7214 family plus the four that
+ * address an overlay's layer where the panel forms address a component id
+ * (OVERLAY_FIND / OVERLAY_CC_FIND / OVERLAY_CC_CREATE / OVERLAY_CC_DELETEALL).
+ *
+ * Shaped like the highlight request for the same reason: the arity comes from
+ * the generated table, so the VM half never has to be edited again when a
+ * member of the family is implemented. `dot_operand` carries the `.` form for
+ * the ops that set the active component. See game/rs_entity_overlay.h.
+ */
+struct CS2VM_HostRequest_EntityOverlay
+{
+    int opcode;
+    int args[CS2VM_OVERLAY_ARG_MAX];
+    int arg_count;
+    bool query;
+    int dot_operand;
+};
+
 /** Any MINIMENU_* opcode (7100..7110); they take no args, so only the opcode
  *  distinguishes them. The host pushes the result. */
 struct CS2VM_HostRequest_Minimenu
@@ -1651,7 +1689,6 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_WidgetSetModel widget_set_model;
         struct CS2VM_HostRequest_WidgetSetModelKind widget_set_model_kind;
         struct CS2VM_HostRequest_WidgetInputInt widget_input_int;
-        struct CS2VM_HostRequest_TargetFind cc_findroot;
         struct CS2VM_HostRequest_CC_ChildrenFind cc_children_find;
         struct CS2VM_HostRequest_IF_ChildrenFind if_children_find;
         struct CS2VM_HostRequest_CC_GetId cc_resolve_parent;
@@ -1670,6 +1707,8 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_Stat stat;
         struct CS2VM_HostRequest_CamForceAngle cam_force_angle;
         struct CS2VM_HostRequest_Highlight highlight;
+        struct CS2VM_HostRequest_EntityOverlay entity_overlay;
+        struct CS2VM_HostRequest_SubjectFind subject_find;
         struct CS2VM_HostRequest_Minimenu minimenu;
         struct CS2VM_HostRequest_ClientOption client_option;
         struct CS2VM_HostRequest_Minimap minimap;

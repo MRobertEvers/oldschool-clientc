@@ -2641,6 +2641,34 @@ World_SceneryFindAt(
     return -1;
 }
 
+struct WorldEntity_Scenery*
+World_SceneryFindByLocId(
+    struct World* world,
+    int scene_x,
+    int scene_z,
+    int level,
+    int loc_id)
+{
+    struct World_EntityPool* pool;
+
+    assert(world);
+    pool = &world->entities.scenery;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_Scenery* scenery = World_EntityPoolGet(pool, i);
+        if( !scenery )
+            continue;
+        if( scenery->loc_id != loc_id )
+            continue;
+        if( scenery->grid_position.x != scene_x || scenery->grid_position.z != scene_z ||
+            scenery->grid_position.level != level )
+            continue;
+        return scenery;
+    }
+    return NULL;
+}
+
 void
 World_SceneryRemove(
     struct World* world,
