@@ -440,6 +440,24 @@ struct RS_CS2Host
         char* out_name,
         int name_cap);
     int (*coord_in_scene)(void* user, int coord);
+    /**
+     * One player's queued ROUTE, for `_6902` and `_6903`.
+     *
+     * A route is the tiles the server has put a player on that the client has
+     * not walked through yet -- the reference's `ClientPlayer::m_routeLength`
+     * and its two `array<int,10>` companions, which this client mirrors as
+     * WorldEntityFacet_Pathing. Index 0 is the NEWEST entry, so it is the
+     * player's server-side tile and runs AHEAD of the rendered position while
+     * they walk; that is the whole point of the current-tile indicator, which
+     * marks `_6903(0)` when there is a route and `coord` when there is not.
+     *
+     * Returns the route length, or -1 when no player in the world has that
+     * uid. `*out_coord` is filled with the packed absolute coord of entry
+     * `index` when that index is inside the route, and left alone otherwise.
+     * NULL here (a host with no world) is a client where every player has no
+     * route, which is what a client with no players truthfully has.
+     */
+    int (*player_route)(void* user, int player_uid, int index, int* out_coord);
     void* world_user;
 
     bool has_pending;
@@ -456,6 +474,19 @@ struct RS_CS2Host
      * has no local player yet", which reads as no tile rather than as tile
      * zero. See CS2VM2_Op_Coord. */
     int local_coord;
+    /**
+     * The local player's uid, as `_6905` reports it, or -1 before login.
+     *
+     * This client's player uid IS the server player slot (pid), the same
+     * choice RS_ClientOpContext::uid makes for an npc and for the same reason:
+     * the value never leaves the client, so the only requirement is that
+     * whoever reports it and whoever resolves it agree.
+     *
+     * Read beside `_6904` (the ACTIVE player's uid) and never on its own: the
+     * pair is how a per-player trigger script asks "is this me", which is what
+     * clientscript 5203 opens with.
+     */
+    int local_pid;
     /**
      * Where the local player is WALKING to, packed the same way, or -1.
      *
@@ -479,14 +510,31 @@ struct RS_CS2Host
     int hover_coord;
 
     /**
-     * The three tile-highlight refresh scripts, by cache id.
+     * The three tile-highlight TRIGGER scripts, by cache id.
      *
-     * They take no arguments and read their subject from a var or an opcode --
-     * 5204 reads `coord`, 5210 reads `_3330`, 5197 reads `_6950` -- so the
-     * client's whole job is to RE-RUN each one when its subject changes.
-     * Nothing in the cache calls them; the reference client does, on the same
-     * three edges. Two of the three do not empty their group on the way in,
-     * and the caller does it for them -- see APP_HIGHLIGHT_GROUP_CURRENT_TILE.
+     * Each is a `[trigger_4x]` with no arguments that clears its highlight
+     * group and re-adds one tile, reading the tile from the context the client
+     * set before firing it:
+     *
+     *     5197  [trigger_48]  hovered tile      _7039(5); tile_on(_6950, 5, 0)
+     *     5203  [trigger_49]  current tile      _7039(3); tile_on(_6903(0) or coord, 3, 0)
+     *     5209  [trigger_47]  destination tile  _7039(4); tile_on(_6950, 4, 0)
+     *
+     * Nothing in the CACHE calls them -- a trigger script is the client's to
+     * fire -- and the reference fires each on one edge: the mouseover ground
+     * tile changing (`Client::GlUpdateMouseOverTile`), a player's route being
+     * updated (`ReceivePlayerPositions` and `Client::GlMovePlayers`), and the
+     * minimap flag moving (`Client::SetPlayerDestination`). It sets the ACTIVE
+     * PLAYER and, for the two tile-context ones, the ACTIVE TILE first; see
+     * app_logic_tick, which is the half of this that lives on the App.
+     *
+     * Their `[clientscript]` siblings -- 5198, 5204 and 5210 -- are the
+     * settings-panel APPLY forms of the same three rows: they restate the
+     * group's colour and style and are called by the cache (5199/5205/5211
+     * write the varbit and call one; the login settings pass runs all three).
+     * Running one of THOSE on a coord edge is what this client used to do, and
+     * an apply script adds a tile without clearing the group first, so every
+     * tile the player stood on and every flag they dropped stayed marked.
      *
      * Held here beside `script_settings_client_mode` for the same reason: a
      * cache id this client has to know by number belongs in one place where it

@@ -14,8 +14,9 @@
  * canonical GameProtoPktName / GameProtoPktOutName values.
  *
  * lc245_2 is the Lost City rev 245_2 build the v0 client targets; lc254 is
- * the authoritative LostCity_Server (Engine-TS branch 254) build — payload
- * sizes carry over between them, wire opcodes do not.
+ * the authoritative LostCity_Server (Engine-TS branch 254) build; lc289 is its
+ * January-2005 branch — payload sizes carry over between all three, wire
+ * opcodes do not.
  */
 
 #ifndef PKTIN_LENGTH_VARU8
@@ -31,6 +32,7 @@ enum GameProtoRevision
     GAMEPROTO_REVISION_XRSPS233 = 3,
     GAMEPROTO_REVISION_OSRS230 = 4,
     GAMEPROTO_REVISION_OSRS239 = 5,
+    GAMEPROTO_REVISION_LC289 = 6,
 };
 
 /** Wire transport a revision speaks. TCP is the classic raw stream; WS is a
@@ -166,8 +168,11 @@ GameProtoRev_OSRS230(void);
 struct GameProtoRevTable const*
 GameProtoRev_OSRS239(void);
 
-/** Resolve a revision by name ("lc254", "lc245_2", "xrsps233", "osrs230",
- *  "osrs239"); NULL when unknown. */
+struct GameProtoRevTable const*
+GameProtoRev_LC289(void);
+
+/** Resolve a revision by name ("lc254", "lc289", "lc245_2", "xrsps233",
+ *  "osrs230", "osrs239"); NULL when unknown. */
 struct GameProtoRevTable const*
 GameProtoRev_ByName(char const* name);
 

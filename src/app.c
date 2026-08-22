@@ -10,6 +10,12 @@
  * rides along, so a plugin capture costs no new dependency. */
 #include "miniz.h"
 #include "bootmanifest/bootmanifest.h"
+#if !defined(TORIRS_PLATFORM_WEB)
+/* The dat1 cache source that is a LostCity server rather than a directory.
+ * Native only: a browser build has no host cache to replace, and its reads
+ * already leave the process (platform_x_io_web.c). */
+#include "platform/platform_x_io_ondemand.h"
+#endif
 #include "cmd/cmdbus.h"
 #include "cs2vm2/cs2vm2.h"
 #include "editor/editor.h"
@@ -4162,6 +4168,135 @@ app_cs2_loc_at_coord(
     return 1;
 }
 
+/*
+ * `_6902` / `_6903`: one player's queued route.
+ *
+ * The route is WorldEntityFacet_Pathing, which is the reference's
+ * `ClientPlayer::m_routeLength` + its two `array<int,10>`s tile for tile --
+ * index 0 is the newest entry, so it is the tile the server last put the
+ * player on and the one that runs ahead of the rendered position while they
+ * walk. The entries are scene-local, so the base tile makes them absolute.
+ *
+ * The LEVEL is the local player's, not the subject's: the reference builds the
+ * coord with `client->m_plane` (the plane the scene is being rendered at) and
+ * the two are the same number for every player the client can see.
+ */
+static int
+app_cs2_player_route(void* user, int player_uid, int index, int* out_coord)
+{
+    struct App* app = (struct App*)user;
+    struct WorldEntity_Player* player;
+    struct WorldEntity_Player* self;
+    int level;
+
+    assert(app);
+    assert(out_coord);
+
+    if( !app->world )
+        return -1;
+    player = World_PlayerGetByServerPid(app->world, player_uid);
+    if( !player )
+        return -1;
+
+    self = World_PlayerGetByServerPid(app->world, app->world->local_pid);
+    level = self ? (self->grid_position.level & 3) : (player->grid_position.level & 3);
+
+    if( index >= 0 && index < (int)player->pathing.route_length )
+        *out_coord = RS_CLIENTOP_COORD(
+            level,
+            app->world->_base_tile_x + player->pathing.route_x[index],
+            app->world->_base_tile_z + player->pathing.route_z[index]);
+    return (int)player->pathing.route_length;
+}
+
+/*
+ * The reference's `ScriptRunner::SetActivePlayer` and `SetActiveTile`, which
+ * every trigger dispatch calls before firing the script.
+ *
+ * A trigger script takes no arguments, so the context IS its argument list:
+ * 5203 reads the active player's route through `_6902` / `_6903` and compares
+ * `_6904` with `_6905`; 5197 and 5209 read the active tile through `_6950`.
+ * Both registers are the persistent kind -- the reference's are two fields on
+ * its ScriptRunner and are left set after the script returns -- which is safe
+ * because every script that reads one is fired right after it is written, and
+ * the scripts that go looking for their own subject (clientscript 5350 calls
+ * MINIMENU_FINDPLAYER first) overwrite it before reading.
+ */
+static void
+app_cs2_set_active_player(struct App* app, int pid)
+{
+    struct RS_ClientOpContext ctx;
+    struct WorldEntity_Player* player;
+
+    assert(app);
+
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.kind = RS_CLIENTOP_PLAYER;
+    ctx.script_id = -1;
+    ctx.uid = pid;
+    ctx.type = -1;
+    ctx.layer = -1;
+    ctx.coord = -1;
+
+    player = app->world ? World_PlayerGetByServerPid(app->world, pid) : NULL;
+    if( player )
+    {
+        ctx.coord = RS_CLIENTOP_COORD(
+            player->grid_position.level,
+            app->world->_base_tile_x + player->grid_position.x,
+            app->world->_base_tile_z + player->grid_position.z);
+        snprintf(ctx.name, sizeof(ctx.name), "%s", player->name);
+    }
+    RS_ClientOpActiveSet(&app->host.clientop, RS_CLIENTOP_PLAYER, &ctx);
+}
+
+static void
+app_cs2_set_active_tile(struct App* app, int coord)
+{
+    struct RS_ClientOpContext ctx;
+
+    assert(app);
+    /* A trigger is fired ABOUT a tile. No caller has one to give when the
+     * answer would be "nowhere", and `_6950` already has a standing answer for
+     * that case (the mouseover fallback in rs_cs2_host.c). */
+    assert(coord >= 0);
+
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.kind = RS_CLIENTOP_TILE;
+    ctx.script_id = -1;
+    ctx.uid = -1;
+    ctx.type = -1;
+    ctx.layer = -1;
+    ctx.coord = coord;
+    RS_ClientOpActiveSet(&app->host.clientop, RS_CLIENTOP_TILE, &ctx);
+}
+
+/*
+ * What trigger_49 fires on: the local player's ROUTE, folded to one int.
+ *
+ * The length alone is not the edge -- a step consumed and a step added in the
+ * same cycle leaves it unchanged while the true tile moves -- and the newest
+ * tile alone is not either, since arriving empties the queue without moving
+ * it. The reference watches both halves in its two dispatch sites (the packet
+ * that rewrites the route, and the mover that consumes a step), so this
+ * carries both. -1 when there is no local player.
+ */
+static int
+app_cs2_local_route_signature(struct App* app)
+{
+    struct WorldEntity_Player* self;
+
+    assert(app);
+
+    if( !app->world || !app->world->load_complete )
+        return -1;
+    self = World_PlayerGetByServerPid(app->world, app->world->local_pid);
+    if( !self )
+        return -1;
+    return ((int)self->pathing.route_length << 28) | ((int)self->pathing.route_x[0] << 14) |
+           (int)self->pathing.route_z[0];
+}
+
 /* COORD_INSCENE (6951). */
 static int
 app_cs2_coord_in_scene(void* user, int coord)
@@ -7350,7 +7485,28 @@ App_Init(
      * answer from an empty cache. */
     (void)cfg->cache_dir;
 #else
-    if( cfg->cache_kind == APP_CACHE_DAT1 )
+    if( cfg->cache_kind == APP_CACHE_DAT1 && cfg->cache_on_demand )
+    {
+        /* The cache is the server's. Nothing local is opened, so a missing or
+         * stale main_file_cache.* on this machine cannot affect this boot --
+         * which is the whole reason to run this way against LostCity. The IO
+         * owns the client, the same way it owns the JS5 one. */
+        char const* host = cfg->connect_target && cfg->connect_target[0] ? cfg->connect_target
+                                                                        : "localhost";
+        int enabled = PlatformXIO_Dat1OnDemandEnable(
+            app->runner.px, host, cfg->connect_port, cfg->web_port);
+        if( enabled != 0 )
+            fprintf(
+                stderr,
+                "app: [cache:boot] source=ondemand, but %s is not serving a cache "
+                "(game port %d, web port %d)\n",
+                host,
+                cfg->connect_port > 0 ? cfg->connect_port : 43594,
+                cfg->web_port > 0 ? cfg->web_port : 80);
+        assert(enabled == 0);
+        app->cache_on_demand = 1;
+    }
+    else if( cfg->cache_kind == APP_CACHE_DAT1 )
     {
         app->dat1_disk = RSCache_Dat1DiskNewFromDirectory(cfg->cache_dir);
         if( !app->dat1_disk )
@@ -7482,7 +7638,7 @@ App_Init(
     /* -2, not -1: -1 is "no tile", a state the refreshers must still be run
      * for once, and seeding them equal to it would skip that first run. */
     app->highlight_last_hover_coord = -2;
-    app->highlight_last_local_coord = -2;
+    app->highlight_last_route = -2;
     app->highlight_last_dest_coord = -2;
     app->highlight_last_mouseover = -2;
     app->world_map_scene_id = -1;
@@ -7546,6 +7702,7 @@ App_Init(
     app->host.events_user = app;
     app->host.loc_at_coord = app_cs2_loc_at_coord;
     app->host.coord_in_scene = app_cs2_coord_in_scene;
+    app->host.player_route = app_cs2_player_route;
     app->host.world_user = app;
     /*
      * State the starting gain once, so a backend is never left guessing at a
@@ -7955,6 +8112,24 @@ App_Init(
          * (the lazy TORIRS_JAG_CRC parse in the rev getter already ran). */
         if( cfg->jag_crc_set && !getenv("TORIRS_JAG_CRC") )
             GameProtoRev_SetJagChecksums(rev, cfg->jag_crc);
+#if !defined(TORIRS_PLATFORM_WEB)
+        /* An on-demand boot can do better than any stated value: the cache and
+         * the checksums come from the same server, in the same second, so they
+         * cannot disagree. A manifest `jag_crc=` (or the env) is a deliberate
+         * override and still wins -- that is the seam for pointing a client at
+         * one server while claiming another's cache. */
+        if( app->cache_on_demand && !cfg->jag_crc_set && !getenv("TORIRS_JAG_CRC") )
+        {
+            int32_t crc[9];
+            if( PlatformXIO_Dat1OnDemandJagChecksums(app->runner.px, crc) == 0 )
+                GameProtoRev_SetJagChecksums(rev, crc);
+            else
+                fprintf(
+                    stderr,
+                    "app: could not read /crc from the cache server; login will be "
+                    "refused as out of date\n");
+        }
+#endif
         if( cfg->client_version > 0 )
             GameProtoRev_SetClientVersion(rev, cfg->client_version);
 
@@ -11918,28 +12093,46 @@ app_logic_tick(struct App* app)
             }
         }
         app->host.local_coord = coord;
+        /* `_6905`, and the other half of every `_6904 = _6905` a per-player
+         * trigger script opens with. Published here beside the coord because
+         * it is the same fact about the same player and neither belongs to a
+         * script's call. */
+        app->host.local_pid =
+            (app->world && app->world->load_complete) ? app->world->local_pid : -1;
     }
 
     /*
-     * The two other coords the highlight refreshers read, and the three edges
-     * that re-run them.
+     * The three tile-highlight TRIGGERS, and the edges that fire them.
      *
-     * Clientscripts 5197 / 5204 / 5210 mark the hovered, current and
-     * destination tile. Each takes no arguments and reads its subject from an
-     * opcode -- `_6950`, `coord`, `_3330` -- so the client's whole job is to
-     * run each one again when its subject changes. Nothing in the cache calls
-     * them; the reference client does, on exactly these edges.
+     * Clientscripts 5197 / 5203 / 5209 mark the hovered, current and
+     * destination tile. Each is a `[trigger_4x]` that clears its own group and
+     * re-adds one tile, reading that tile from the context the client sets
+     * first -- so the client's whole job is (a) to notice the edge, (b) to set
+     * the active player and the active tile, and (c) to fire the script. The
+     * cache calls none of them; the reference fires each from one place:
      *
-     * Edge-triggered and not per-frame. Each script re-adds one tile, so
-     * running them every frame would be three script dispatches and six
-     * highlight ops a frame to say what has not changed -- and they are also
-     * what CLEARS the group when the setting is switched off, so they must run
-     * at least once after any change either way.
+     *     trigger_48 / 5197  Client::GlUpdateMouseOverTile   the ground tile
+     *                                                        under the pointer
+     *                                                        changed
+     *     trigger_49 / 5203  ReceivePlayerPositions and
+     *                        Client::GlMovePlayers           a player's ROUTE
+     *                                                        changed
+     *     trigger_47 / 5209  Client::SetPlayerDestination    the minimap flag
+     *                                                        moved
      *
-     * Emptying the group first is the CLIENT's job for two of the three: 5197
-     * opens with `_7039(5)` and 5204 / 5210 do not, because in the cache the
-     * per-tile driver for those two is a trigger script and the clear lives
-     * there. See APP_HIGHLIGHT_GROUP_CURRENT_TILE.
+     * Edge-triggered and not per-frame, which is the reference's shape too:
+     * three dispatches and six highlight ops a frame to restate what has not
+     * moved is not free, and both the pointer and the player sit still for
+     * most frames.
+     *
+     * What this client does NOT do is fan trigger_49 out over every player.
+     * The reference fires it for each player whose route the packet updated
+     * and each one that consumed a step this cycle; 5203, the only script in
+     * this cache that is a trigger_49, opens by comparing `_6904` with
+     * `_6905` and returns for anyone but the local player. A fan-out would be
+     * a script dispatch per moving player per cycle to reach that same early
+     * return. The opcodes it would need are all here, so a cache that starts
+     * marking other players' true tiles needs the loop and nothing else.
      */
     {
         int dest_coord = -1;
@@ -12055,6 +12248,10 @@ app_logic_tick(struct App* app)
                             continue;
                         mo.kind = RS_CLIENTOP_PLAYER;
                         minimenu_type = RS_MINIMENU_TYPE_PLAYER;
+                        /* The server slot, which is what a player uid is here
+                         * -- `_6904` reports it and app_cs2_player_route
+                         * resolves it back. Same choice as an npc's. */
+                        mo.uid = pl->server_pid;
                         mo.coord = RS_CLIENTOP_COORD(
                             pl->grid_position.level,
                             base_x + pl->grid_position.x,
@@ -12114,35 +12311,82 @@ app_logic_tick(struct App* app)
             }
         }
 
-        /* Only once the world is up: before that the scripts would clear a
+        /*
+         * Only once the world is up: before that the scripts would clear a
          * group and re-add a tile from a scene that is about to be replaced,
-         * and the group is rebuilt by the login initialiser anyway. */
-        if( app->world && app->world->load_complete )
+         * and the group is rebuilt by the login initialiser anyway.
+         *
+         * And only where those clientscripts exist. The three refreshers are
+         * CS2 ids out of a dat2 cache; a dat1 boot has no clientscript table at
+         * all, and asking its provider for one is a contract violation that
+         * aborts (task_dat1_clientscript_load.c). The highlighter simply does
+         * not apply to a CS1 world -- the cache that would drive it is not the
+         * cache being read.
+         */
+        if( app->world && app->world->load_complete && App_UiLogic(app) == APP_UI_LOGIC_CS2 )
         {
+            int const route = app_cs2_local_route_signature(app);
+
+            /*
+             * The hovered tile. Fired only for a REAL tile, which is the
+             * reference's own rule -- GlUpdateMouseOverTile returns before the
+             * dispatch when the pointer is not over ground, leaving the last
+             * hovered tile marked while the pointer is over the interface.
+             * Firing it with no tile would run 5197's `tile_on(_6950, 5, 0)`
+             * on a coord of -1 and put tile (3, 16383, 16383) in the group.
+             */
             if( hover_coord != app->highlight_last_hover_coord )
             {
                 app->highlight_last_hover_coord = hover_coord;
-                RS_CS2_RunScript(
-                    &app->host, &app->runner, app->host.script_highlight_hover_tile,
-                    NULL, 0, 0, NULL, 0);
+                if( hover_coord >= 0 )
+                {
+                    app_cs2_set_active_player(app, app->world->local_pid);
+                    app_cs2_set_active_tile(app, hover_coord);
+                    RS_CS2_RunScript(
+                        &app->host, &app->runner, app->host.script_highlight_hover_tile,
+                        NULL, 0, 0, NULL, 0);
+                }
             }
-            if( app->host.local_coord != app->highlight_last_local_coord )
+            /* The current tile: the local player's route changed, which is
+             * both of the reference's trigger_49 edges. 5203 reads the route
+             * itself -- `_6903(0)` while walking, `coord` while still -- so
+             * the active player is the whole of what it needs. */
+            if( route != app->highlight_last_route )
             {
-                app->highlight_last_local_coord = app->host.local_coord;
-                RS_HighlightClear(
-                    &app->host.highlight, RS_HIGHLIGHT_TILE, APP_HIGHLIGHT_GROUP_CURRENT_TILE);
+                app->highlight_last_route = route;
+                app_cs2_set_active_player(app, app->world->local_pid);
                 RS_CS2_RunScript(
                     &app->host, &app->runner, app->host.script_highlight_current_tile,
                     NULL, 0, 0, NULL, 0);
             }
+            /*
+             * The destination tile: the minimap flag moved.
+             *
+             * When it moves to NOWHERE -- arrival, or a teleport out from
+             * under it -- the tile fired with is the player's own, which is
+             * the truth (the walk ended where they are standing) and is the
+             * case 5209 answers by clearing group 4 and adding nothing:
+             * `if (... | _6950 = coord) return` sits after its `_7039(4)`.
+             *
+             * The reference gets there by clearing the flag to scene tile
+             * (0, 0) and firing with THAT, which marks the corner of the map
+             * square -- always ~50 tiles from a player who is always near the
+             * middle of their own scene, so never a tile anyone sees. Firing
+             * with the player's tile reaches the same cleared group without
+             * putting a member nobody asked for in it.
+             */
             if( dest_coord != app->highlight_last_dest_coord )
             {
+                int const fire_coord = dest_coord >= 0 ? dest_coord : app->host.local_coord;
                 app->highlight_last_dest_coord = dest_coord;
-                RS_HighlightClear(
-                    &app->host.highlight, RS_HIGHLIGHT_TILE, APP_HIGHLIGHT_GROUP_DEST_TILE);
-                RS_CS2_RunScript(
-                    &app->host, &app->runner, app->host.script_highlight_dest_tile,
-                    NULL, 0, 0, NULL, 0);
+                if( fire_coord >= 0 )
+                {
+                    app_cs2_set_active_player(app, app->world->local_pid);
+                    app_cs2_set_active_tile(app, fire_coord);
+                    RS_CS2_RunScript(
+                        &app->host, &app->runner, app->host.script_highlight_dest_tile,
+                        NULL, 0, 0, NULL, 0);
+                }
             }
         }
     }
@@ -20569,6 +20813,7 @@ app_clientop_run(struct App* app, struct UIMinimenuOption const* opt)
             World_PlayerGetByElementId(app->world, opt->pick.id);
         if( !player )
             return 1;
+        ctx.uid = player->server_pid;
         ctx.coord = RS_CLIENTOP_COORD(
             player->grid_position.level,
             base_x + player->grid_position.x,

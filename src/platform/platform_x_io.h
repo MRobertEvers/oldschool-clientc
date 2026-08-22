@@ -12,6 +12,13 @@ PlatformX_IO_InitDat2Disk(
     struct PlatformX_IO* px,
     struct RSCache_Dat2Disk* disk);
 
+/*
+ * The local dat1 cache. Its remote alternative -- a LostCity server answering
+ * the same reads over the 2004 on-demand protocol -- is enabled through
+ * platform_x_io_ondemand.h rather than from here, for the same reason the JS5
+ * attachment lives in platform_x_io_js5.h: App and TaskRunner see one IO
+ * interface, and where the bytes come from is the executor's business.
+ */
 void
 PlatformX_IO_InitDat1Disk(
     struct PlatformX_IO* px,

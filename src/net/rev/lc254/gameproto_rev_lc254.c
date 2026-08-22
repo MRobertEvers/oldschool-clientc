@@ -82,6 +82,8 @@ GameProtoRev_ByName(char const* name)
     assert(name);
     if( strcmp(name, "lc254") == 0 )
         return GameProtoRev_LC254();
+    if( strcmp(name, "lc289") == 0 )
+        return GameProtoRev_LC289();
     if( strcmp(name, "lc245_2") == 0 )
         return GameProtoRev_LC245_2();
     if( strcmp(name, "xrsps233") == 0 )

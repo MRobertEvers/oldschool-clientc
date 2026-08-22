@@ -2778,9 +2778,45 @@
 #define CS2_OP__6852 6852
 #define CS2_OP__6853 6853
 #define CS2_OP__6900 6900
+/* _6902 — Active player's route length.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  m_routeLength (0..9)
+ * str stack out:  -
+ * notes: The queue of tiles the server has put the player on that the
+ *        client has not walked through yet. 0 means standing still, and
+ *        clientscript 5203 reads it exactly that way: with a route it marks
+ *        _6903(0), without one it marks `coord`.
+ */
 #define CS2_OP__6902 6902
+/* _6903 — Active player's route coord at an index.
+ * int stack in:   index
+ * str stack in:   -
+ * int stack out:  packed coord, or -1
+ * str stack out:  -
+ * notes: Index 0 is the NEWEST entry -- ClientPlayer::AddRoutePoint
+ *        shifts the queue up and writes the new tile at 0 -- so it is the
+ *        player's server-side tile, ahead of the rendered position while
+ *        walking. The reference packs it as plane << 28 | x << 14 | z after
+ *        WorldCoordFromBuildCoord, and asserts index < m_routeLength.
+ */
 #define CS2_OP__6903 6903
+/* _6904 — Active player's uid.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  uid, or -1
+ * str stack out:  -
+ */
 #define CS2_OP__6904 6904
+/* _6905 — Local player's uid.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  uid, or -1
+ * str stack out:  -
+ * notes: `_6904 = _6905` is how a per-player trigger script asks whether
+ *        the player it fired for is this client's own -- clientscript 5203
+ *        (the current-tile indicator) is the cache's only user of either.
+ */
 #define CS2_OP__6905 6905
 /* LOGIN_INT24 — rev 634 login/account int getter (Class24.anInt359).
  * operand: unused

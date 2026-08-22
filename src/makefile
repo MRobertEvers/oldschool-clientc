@@ -447,6 +447,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	net/rev/packets/pkt_rebuild_region.c \
 	net/rev/gameproto_rev_params.c net/rev/rsprot_bridge.c \
 	net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c \
+	net/rev/lc289/gameproto_rev_lc289.c net/rev/lc289/lc289_entity_info.c \
 	bootmanifest/bootmanifest.c features/features.c \
 	platform/sockstream.c platform/platform_socket.c \
 	platform/net_transport_tcp.c platform/net_transport_ws.c \
@@ -879,6 +880,7 @@ $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1) | $(OBJ_DIR)
 endef
 
 NET_REV_SRCS = net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c \
+	net/rev/lc289/gameproto_rev_lc289.c \
 	net/rev/xrsps233/gameproto_rev_xrsps233.c net/rev/osrs230/gameproto_rev_osrs230.c \
 	net/rev/osrs239/gameproto_rev_osrs239.c
 
@@ -895,6 +897,8 @@ $(OBJ_DIR)/gameproto_rev_lc245_2.o: net/rev/lc245_2/gameproto_rev_lc245_2.c | $(
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -c $< -o $@
 $(OBJ_DIR)/gameproto_rev_lc254.o: net/rev/lc254/gameproto_rev_lc254.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc254 -c $< -o $@
+$(OBJ_DIR)/gameproto_rev_lc289.o: net/rev/lc289/gameproto_rev_lc289.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc289 -c $< -o $@
 $(OBJ_DIR)/gameproto_rev_xrsps233.o: net/rev/xrsps233/gameproto_rev_xrsps233.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/xrsps233 -c $< -o $@
 $(OBJ_DIR)/gameproto_rev_osrs230.o: net/rev/osrs230/gameproto_rev_osrs230.c | $(OBJ_DIR)
@@ -1763,7 +1767,9 @@ NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
 	$(OBJ_DIR)/jbase37.o $(OBJ_DIR)/wordpack.o $(OBJ_DIR)/loginproto.o \
 	$(OBJ_DIR)/loginproto_xrsps.o $(OBJ_DIR)/loginproto_osrs230.o \
 	$(OBJ_DIR)/packetbuffer.o $(OBJ_DIR)/gameproto_rev_lc245_2.o \
-	$(OBJ_DIR)/gameproto_rev_lc254.o $(OBJ_DIR)/gameproto_rev_xrsps233.o \
+	$(OBJ_DIR)/gameproto_rev_lc254.o $(OBJ_DIR)/gameproto_rev_lc289.o \
+	$(OBJ_DIR)/lc289_entity_info.o $(OBJ_DIR)/pkt_player_info.o $(OBJ_DIR)/pkt_npc_info.o \
+	$(OBJ_DIR)/gameproto_rev_xrsps233.o \
 	$(OBJ_DIR)/gameproto_rev_osrs230.o $(OBJ_DIR)/osrs230_parse.o \
 	$(OBJ_DIR)/gameproto_rev_osrs239.o $(OBJ_DIR)/osrs239_parse.o \
 	$(OBJ_DIR)/osrs239_entity_info.o $(OBJ_DIR)/pkt_player_appearance.o \

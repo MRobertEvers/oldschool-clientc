@@ -854,11 +854,16 @@ RS_CS2Host_Init(
     host->local_coord = 0;
     host->dest_coord = -1;
     host->hover_coord = -1;
-    /* pack/12_clientscripts.pack: the three tile-highlight refreshers. Each is
-     * a [clientscript] with no caller in the cache -- see the header. */
+    /* pack/12_clientscripts.pack: the three tile-highlight TRIGGER scripts.
+     * trigger_48, trigger_49 and trigger_47 -- see the header for what fires
+     * each and why the [clientscript] apply forms beside them (5198 / 5204 /
+     * 5210) are the cache's to run and not this client's. */
     host->script_highlight_hover_tile = 5197;
-    host->script_highlight_current_tile = 5204;
-    host->script_highlight_dest_tile = 5210;
+    host->script_highlight_current_tile = 5203;
+    host->script_highlight_dest_tile = 5209;
+    /* -1, not 0: 0 is a real player slot, so a zero here would make `_6905`
+     * name whichever player the server put in slot 0 before login. */
+    host->local_pid = -1;
     host->top_interface_id = -1;
     host->mouse_x = -1;
     host->mouse_y = -1;
@@ -7784,6 +7789,69 @@ rs_cs2_host_exec_dispatch(
         if( text )
             return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, text));
         return CS2VM2_PushInt(vm, value);
+    }
+
+    case CS2VM_HOST_REQUEST_ACTIVE_PLAYER:
+    {
+        /*
+         * The ACTIVE PLAYER's route (`_6902` / `_6903`) and the two uids
+         * (`_6904` / `_6905`).
+         *
+         * Who the active player is comes from the same register the client-op
+         * context getters read -- a dispatch, else what an opcode named, else
+         * the mouseover -- which is this port's spelling of the reference's
+         * `ScriptRunner::m_activePlayer`. The client sets it before firing a
+         * per-player trigger, exactly as the reference's SetActivePlayer does.
+         *
+         * The reference asserts `m_activePlayer != -1` on all but `_6905`.
+         * Here a missing active player answers 0 steps and -1 coords instead:
+         * the value comes from a cache script's context and not from a caller
+         * of this function, which is the same reason a highlight group id out
+         * of range is refused rather than fatal (see rs_highlight.c). Every
+         * consumer reads "no route" as standing still, which is the truthful
+         * reading of "no player is active".
+         */
+        int const opcode = request->u.active_player.opcode;
+        int running = -1;
+        struct RS_ClientOpContext const* subject;
+        int uid = -1;
+        int answer = -1;
+
+        if( vm && vm->frame_sp > 0 && vm->frames[0] && vm->frames[0]->script )
+            running = vm->frames[0]->script->script_id;
+        subject = RS_ClientOpSubject(&host->clientop, RS_CLIENTOP_PLAYER, running);
+        if( subject )
+            uid = subject->uid;
+
+        switch( opcode )
+        {
+        case CS2_OP__6904:
+            answer = uid;
+            break;
+        case CS2_OP__6905:
+            answer = host->local_pid;
+            break;
+        case CS2_OP__6902:
+        case CS2_OP__6903:
+        {
+            int coord = -1;
+            int length = -1;
+
+            if( uid >= 0 && host->player_route )
+                length = host->player_route(
+                    host->world_user, uid, request->u.active_player.index, &coord);
+            /* A uid the world has no player for is a player who has left the
+             * scene since the register was written. No route, not a fatal. */
+            if( length < 0 )
+                length = 0;
+            answer = opcode == CS2_OP__6902 ? length : coord;
+            break;
+        }
+        default:
+            fprintf(stderr, "cs2: opcode %d is not an active-player getter\n", opcode);
+            return CS2VM_EXECNO_ERROR;
+        }
+        return CS2VM2_PushInt(vm, answer);
     }
 
     case CS2VM_HOST_REQUEST_DB:

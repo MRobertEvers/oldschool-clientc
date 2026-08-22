@@ -55,7 +55,7 @@ lib/python*
 out/
 
 # Generated painters cullmap blobs (see tools/gen_painters_cullmap)
-src/osrs/revconfig/configs/cullmaps/*.bin
+revconfig/cullmaps/*.bin
 
 # Browser (Emscripten) intermediate build output
 src2/programs/browser/browser_build/

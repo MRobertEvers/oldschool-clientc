@@ -8139,7 +8139,7 @@ CS2VM2_Op_ClientOp(
 
 /*
  * The client op's SUBJECT: `_6750..6753`, `_6800..6802`, `_6850..6852`,
- * `_6900 / _6902`, `_6950`.
+ * `_6900`, `_6950`.
  *
  * No arguments to pop -- they are bare reads of the op being dispatched -- so
  * this only tags the opcode and lets the host push the answer, exactly like
@@ -8154,6 +8154,37 @@ CS2VM2_Op_ClientOpContext(struct CS2VM2_Thread* vm, int opcode)
     memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CLIENTOP_CONTEXT;
     request.u.clientop_context.opcode = opcode;
+    return vm->vm->host_exec(vm, &request);
+}
+
+/*
+ * The ACTIVE PLAYER's route and the two uids: `_6902`, `_6903`, `_6904`,
+ * `_6905`.
+ *
+ * Only `_6903` takes an argument -- the route index -- so it is the only one
+ * that pops. The other three are bare reads the host pushes the answer to,
+ * like the context getters above.
+ *
+ * `_6902` sits in the same numeric block as the client-op context getters and
+ * is NOT one: the reference's ScriptRunnerImpl_6900To6999.cpp answers it with
+ * `player->m_routeLength`, having first asserted `m_activePlayer != -1`. It
+ * was routed as "the active player's COORD" here on the strength of the block
+ * it sits in, which made clientscript 5203 read a coord where it wanted a
+ * count.
+ */
+static int
+CS2VM2_Op_ActivePlayer(struct CS2VM2_Thread* vm, int opcode)
+{
+    assert(vm);
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_ACTIVE_PLAYER;
+    request.u.active_player.opcode = opcode;
+    request.u.active_player.index = -1;
+    if( opcode == CS2_OP__6903 &&
+        CS2VM2_PopInt(vm, &request.u.active_player.index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
     return vm->vm->host_exec(vm, &request);
 }
 
@@ -10970,9 +11001,16 @@ CS2VM2_RunOp(
     case CS2_OP__6851: /* obj coord  */
     case CS2_OP__6852: /* obj id     */
     case CS2_OP__6900: /* player name  */
-    case CS2_OP__6902: /* player coord */
     case CS2_OP__6950: /* tile coord */
         return CS2VM2_Op_ClientOpContext(vm, opcode);
+    /* The active player's route (6902/6903) and the two player uids
+     * (6904/6905). Numerically inside the player block above, but a different
+     * question -- see CS2VM2_Op_ActivePlayer. */
+    case CS2_OP__6902: /* route length            */
+    case CS2_OP__6903: /* route coord at an index */
+    case CS2_OP__6904: /* active player uid       */
+    case CS2_OP__6905: /* local player uid        */
+        return CS2VM2_Op_ActivePlayer(vm, opcode);
     case CS2_OP_LOC_FIND:
     case CS2_OP_COORD_INSCENE:
         return CS2VM2_Op_SubjectFind(vm, opcode);

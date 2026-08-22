@@ -52,6 +52,13 @@ static struct RS_ClientOpOp const CLIENTOP_OPS[] = {
  * the only complete one -- name, uid, coord and type -- and the others are
  * subsets, which is why this is a table of opcodes rather than four parallel
  * blocks of arithmetic.
+ *
+ * The player block is a subset in a way that matters: `_6900` is its ONLY
+ * context getter. The reference has no "active player coord" op at all --
+ * `_6902` and `_6903` are that player's ROUTE and `_6904` / `_6905` are two
+ * uids (see CS2VM2_Op_ActivePlayer). `_6902` was listed here as the coord on
+ * the strength of the block it sits in, which handed clientscript 5203 a coord
+ * where its `if (_6902 > 0)` wanted a step count.
  */
 enum
 {
@@ -80,7 +87,6 @@ static struct RS_ClientOpCtxOp const CONTEXT_OPS[] = {
     { CS2_OP__6851, RS_CLIENTOP_OBJ, CTX_COORD },
     { CS2_OP__6852, RS_CLIENTOP_OBJ, CTX_TYPE },
     { CS2_OP__6900, RS_CLIENTOP_PLAYER, CTX_NAME },
-    { CS2_OP__6902, RS_CLIENTOP_PLAYER, CTX_COORD },
     { CS2_OP__6950, RS_CLIENTOP_TILE, CTX_COORD },
 };
 

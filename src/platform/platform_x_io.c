@@ -2,6 +2,7 @@
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
 #include "platform_x_io_js5.h"
 #include "platform_x_io_js5_cache.h"
+#include "platform_x_io_ondemand.h"
 #include "platform_sdl2.h"
 #endif
 
@@ -69,6 +70,10 @@ struct PlatformX_IO
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
     struct PlatformXIOJs5Cache* js5;
     struct Js5PendingItem js5_pending[JS5_PENDING_SLOTS];
+    /* The dat1 counterpart of dat2's js5 client: the cache lives on a LostCity
+     * server rather than on this machine. Set instead of dat1_disk, never
+     * beside it. */
+    struct PlatformXIOOnDemand* dat1_on_demand;
 #endif
 };
 
@@ -110,6 +115,11 @@ PlatformX_IO_InitDat1Disk(
 {
     assert(px);
     assert(disk);
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+    /* One dat1 source. The remote one refuses an open disk from its side;
+     * this is the same rule read the other way round. */
+    assert(!px->dat1_on_demand);
+#endif
     px->dat1_disk = disk;
 }
 
@@ -159,6 +169,7 @@ PlatformX_IO_Free(struct PlatformX_IO* px)
 
 #if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
     PlatformXIOJs5Cache_Free(px->js5);
+    PlatformXIOOnDemand_Free(px->dat1_on_demand);
 #endif
     for( int i = 0; i < DAT2_ARCHIVE_CACHE_SLOTS; i++ )
         RSCache_Dat2DiskArchiveFree(px->archive_cache[i].archive);
@@ -728,6 +739,13 @@ dat1_map_archive_id(
 {
     struct RSCache_MapSquares* squares = px->dat1_disk ? px->dat1_disk->map_squares : NULL;
 
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+    /* Same table, other source: the server's versionlist, decoded when the
+     * on-demand handle opened. */
+    if( !squares && px->dat1_on_demand )
+        squares = PlatformXIOOnDemand_MapSquares(px->dat1_on_demand);
+#endif
+
     if( !squares )
         return -1;
     for( int i = 0; i < squares->squares_count; i++ )
@@ -750,7 +768,13 @@ load_cache_item_dat1(
     int flags = item->u.cache.flags;
     struct RSCache_Dat1DiskArchive* archive = NULL;
 
+    /* Exactly one dat1 source is configured; InitDat1OnDemand asserts the
+     * other is absent. Reading through a NULL disk is what this catches. */
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+    assert(px->dat1_disk || px->dat1_on_demand);
+#else
     assert(px->dat1_disk);
+#endif
 
     if( flags == TORIRS_IO_CACHE_DAT1_MAP_TERRAIN || flags == TORIRS_IO_CACHE_DAT1_MAP_SCENERY )
     {
@@ -771,7 +795,12 @@ load_cache_item_dat1(
         return -1;
     }
 
-    archive = RSCache_Dat1DiskArchiveNewLoad(px->dat1_disk, table_id, archive_id);
+#if !defined(TORIRS_PLATFORM_X_IO_NO_JS5)
+    if( px->dat1_on_demand )
+        archive = PlatformXIOOnDemand_ArchiveLoad(px->dat1_on_demand, table_id, archive_id);
+    else
+#endif
+        archive = RSCache_Dat1DiskArchiveNewLoad(px->dat1_disk, table_id, archive_id);
     if( !archive )
     {
         item->error_code = -1;
@@ -950,6 +979,33 @@ PlatformXIO_Js5Enable(
     assert(config);
     px->js5 = PlatformXIOJs5Cache_New(px->dat2_disk, config);
     return px->js5 ? 0 : -1;
+}
+
+int
+PlatformXIO_Dat1OnDemandEnable(
+    struct PlatformX_IO* px,
+    const char* host,
+    int game_port,
+    int web_port)
+{
+    assert(px);
+    assert(host);
+    if( px->dat1_disk || px->dat1_on_demand )
+        return -1;
+    px->dat1_on_demand = PlatformXIOOnDemand_New(host, game_port, web_port);
+    return px->dat1_on_demand ? 0 : -1;
+}
+
+int
+PlatformXIO_Dat1OnDemandJagChecksums(
+    struct PlatformX_IO* px,
+    int32_t out[9])
+{
+    assert(px);
+    assert(out);
+    if( !px->dat1_on_demand )
+        return -1;
+    return PlatformXIOOnDemand_JagChecksums(px->dat1_on_demand, out);
 }
 
 int

@@ -112,6 +112,17 @@ enum GameProtoPktName
     PKT_NAME_P_COUNTDIALOG,
     PKT_NAME_SET_MULTIWAY,
     PKT_NAME_SET_PLAYER_OP,
+    /**
+     * Turn the minimap off, or to the "hidden but still clickable" middle
+     * state (LostCity 274+; one byte, 0/1/2).
+     *
+     * Named here without a parser behind it, which is the point: a name in
+     * this list is what gives the packet a LENGTH in a revision's table, and a
+     * server packet with no length in the table consumes zero bytes and
+     * misframes everything after it. An unhandled packet must still be a
+     * correctly skipped one.
+     */
+    PKT_NAME_MINIMAP_TOGGLE,
     /** Run the current root's CS2 onDialogAbort listeners before teardown. */
     PKT_NAME_TRIGGER_ONDIALOGABORT,
     /** End of a server tick's packet group. The client uses it to know a tick's

@@ -28,6 +28,19 @@
 #define PKT_PLAYER_MASK_EXACT_MOVE 0x200
 #define PKT_PLAYER_MASK_DAMAGE2 0x400
 
+/*
+ * 2047, twice over, meaning two unrelated things:
+ *
+ *  - as an extended-info queue entry it is "the local player", a slot no
+ *    tracked player can occupy;
+ *  - as a new-player pid it is the end of the new-player section.
+ *
+ * They collide only because 11 bits is 11 bits. Naming them apart is what
+ * keeps a reader from looking like it compares the two.
+ */
+#define PKT_PLAYER_INFO_LOCAL_PLAYER_IDX 2047
+#define PKT_PLAYER_INFO_NEW_TERMINATOR 2047
+
 enum PktPlayerInfoOpKind
 {
     PKT_PLAYER_INFO_OP_NONE = 0,

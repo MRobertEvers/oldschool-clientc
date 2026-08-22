@@ -1569,6 +1569,40 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Define what highlight group N looks like",
         int_in=("group", "colour", "style", "opacity", "flags",),
     ),
+    # The player block's four route/uid getters, read out of the reference's
+    # ScriptRunnerImpl_6900To6999.cpp (its own LogAssert strings name the
+    # fields). They are NOT client-op context getters despite sitting beside
+    # _6900: they are about the ACTIVE PLAYER, which the client sets before
+    # firing a per-player trigger and MINIMENU_FINDPLAYER sets from the menu.
+    "_6902": OpcodeDoc(
+        summary="Active player's route length",
+        int_out=("m_routeLength (0..9)",),
+        notes="The queue of tiles the server has put the player on that the\n"
+        "client has not walked through yet. 0 means standing still, and\n"
+        "clientscript 5203 reads it exactly that way: with a route it marks\n"
+        "_6903(0), without one it marks `coord`.",
+    ),
+    "_6903": OpcodeDoc(
+        summary="Active player's route coord at an index",
+        int_in=("index",),
+        int_out=("packed coord, or -1",),
+        notes="Index 0 is the NEWEST entry -- ClientPlayer::AddRoutePoint\n"
+        "shifts the queue up and writes the new tile at 0 -- so it is the\n"
+        "player's server-side tile, ahead of the rendered position while\n"
+        "walking. The reference packs it as plane << 28 | x << 14 | z after\n"
+        "WorldCoordFromBuildCoord, and asserts index < m_routeLength.",
+    ),
+    "_6904": OpcodeDoc(
+        summary="Active player's uid",
+        int_out=("uid, or -1",),
+    ),
+    "_6905": OpcodeDoc(
+        summary="Local player's uid",
+        int_out=("uid, or -1",),
+        notes="`_6904 = _6905` is how a per-player trigger script asks whether\n"
+        "the player it fired for is this client's own -- clientscript 5203\n"
+        "(the current-tile indicator) is the cache's only user of either.",
+    ),
     "HIGHLIGHT_TILE_ON": OpcodeDoc(
         summary="Put one tile into a highlight group",
         int_in=("coord", "group", "flags",),

@@ -12,6 +12,7 @@
  * Schema (house style [type:name] sections, lowercase key=value, ; / # comments):
  *
  *   [cache:boot]  epoch=dat1|dat2  game=rs2|oldschool  revision=<n>
+ *                 source=disk|ondemand
  *                 quirks=none|kronos|void_rs634_no_xteas  dir=<path>  spawn=<x>,<z>
  *   [net:boot]    rev=<name>  transport=tcp|ws|embed  host=<h>  port=<n>
  *                 scripts=<embedded-server compiled script directory>
@@ -240,6 +241,9 @@ struct BootManifest
     int cache_quirks_set; /* 1 when quirks= was present */
     int cache_kind;      /* enum AppCacheKind derived from epoch; -1 = unset */
     char cache_dir[512]; /* resolved against manifest dir */
+    /* [cache:boot] source — 0 = disk (the default), 1 = ondemand: read the
+     * cache off the LostCity server named by [net:boot] instead. */
+    int cache_on_demand;
     /* Map square to spawn on, "x,z". Both -1 = unset (client default 50,50).
      * Needed because the default is not universally loadable: a keyed cache
      * ships XTEA keys only for the squares it was dumped with, and cache.643

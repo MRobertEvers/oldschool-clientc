@@ -14,6 +14,7 @@
 #include "toridraw_scene.h"
 #include "varp/varp_manager.h"
 #include "world_builder.h"
+#include "world_scenery_mapfuncs.h"
 #include <rscache.h>
 
 // clang-format off
@@ -1210,6 +1211,16 @@ scenery_load_animation(
     if( element_id < 0 || seq_id < 0 )
         return;
     anim = ToriDraw_SceneAnimationGet(builder->scene, seq_id);
+    /* Under TORIRS_SCENERY_DEBUG, say whether the bind took. "The loc does not
+     * animate" has two halves -- the seq never reached the element, or it did
+     * and the tick is not advancing it -- and only this line separates them. */
+    if( WB_ENV_SCENERY_DEBUG() )
+        fprintf(
+            stderr,
+            "  loc anim: element=%d seq=%d frames=%d\n",
+            element_id,
+            seq_id,
+            anim ? anim->frame_count : -1);
     if( !anim || anim->frame_count <= 0 || ((!anim->frames || !anim->base) && !anim->skeletal) )
         return;
     element = ToriDraw_SceneElementGet(builder->scene, element_id);
@@ -2114,12 +2125,17 @@ world_builder_minimap_add_chunk_mapfunctions(
 }
 
 /* Post-build pass: nudge icons off their loc tile with the reference's
- * 10-step collision-respecting random walk (bounded ±3 tiles; a fixed set of
- * funcs stays put). Runs once per rebuild, after collision maps are final. */
+ * 10-step collision-respecting random walk (bounded ±3 tiles; on dat1 a fixed
+ * set of atlas frames stays put — see world_scenery_mapfuncs.h). Runs once per
+ * rebuild, after collision maps are final. */
 void
 world_builder_minimap_spread_mapfunctions(struct WorldBuilder* builder)
 {
     struct World* world = builder->world;
+    /* The exemption list is dat1 atlas frame indices; a dat2 `func` is a
+     * mapelement id from an unrelated numbering, so it cannot be tested
+     * against them. */
+    bool const dat1 = RSCache_IsDat1(CacheProvider_Profile(builder->cache));
 
     for( int i = 0; i < world->mapfunc_count; i++ )
     {
@@ -2128,8 +2144,7 @@ world_builder_minimap_spread_mapfunctions(struct WorldBuilder* builder)
         int func = icon->func;
         if( !cm )
             continue;
-        if( func == 22 || func == 29 || func == 34 || func == 36 || func == 46 || func == 47 ||
-            func == 48 )
+        if( dat1 && World_MapFunctionDat1StaysPut(func) )
             continue;
 
         int x = icon->x;

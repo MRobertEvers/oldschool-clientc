@@ -181,37 +181,6 @@ enum AppPluginRowKind
 #define APP_SETTING_CLEAR_NPC_TAGS 267
 
 /*
- * The TILE highlight groups the current-tile and destination-tile indicators
- * live in, as their clientscripts number them.
- *
- * Needed because this client stands in for the reference's per-tile TRIGGERS
- * and the scripts it runs in their place are not those triggers. The cache has
- * two scripts per indicator: a `[trigger_4x]` that clears the group and re-adds
- * one tile, and a `[clientscript]` that the settings panel calls to restate the
- * group's colour and style. Only the hovered tile's pair splits the work the
- * way the names suggest --
- *
- *     5197  [trigger_48]  _7039(5); highlight_tile_on(_6950, 5, 0)
- *     5203  [trigger_49]  _7039(3); highlight_tile_on(coord, 3, 0)
- *     5209  [trigger_47]  _7039(4); highlight_tile_on(_6950, 4, 0)
- *     5204  [clientscript]  _7035(3, ...); highlight_tile_on(coord, 3, 0)
- *     5210  [clientscript]  _7035(4, ...); highlight_tile_on(_3330, 4, 0)
- *
- * -- so 5204 and 5210, which are what App_RunOnce re-runs on a coord edge, ADD
- * a tile and never take one away. Uncleared, every tile the player stood on and
- * every flag they ever dropped stayed marked for the session. The two triggers
- * are not run in their place because their subjects come from opcodes this
- * client has no reading for (`_6902`/`_6903`, the queued-step list, and
- * `_6904`/`_6905`), and a trigger whose guard is faked is a worse driver than
- * an honest clear.
- *
- * Group ids are per KIND, which is why these two and the tile markers' 6 are
- * separate groups that never disturb each other.
- */
-#define APP_HIGHLIGHT_GROUP_CURRENT_TILE 3
-#define APP_HIGHLIGHT_GROUP_DEST_TILE 4
-
-/*
  * HINT_ARROW's `type` byte: what the packet's `id`/`z` fields mean.
  *
  * The reference's own values. 255 means "clear" and is normalised to 0 by
@@ -336,6 +305,27 @@ struct AppConfig
     int cache_revision;
     uint32_t cache_quirks;
     int cache_identity_set;
+    /**
+     * `[cache:boot] source=ondemand` — dat1 archives come off the LostCity
+     * server named by `[net:boot]` instead of out of cache_dir, over the
+     * 2004-era on-demand protocol (src/platform/platform_x_io_ondemand.h).
+     *
+     * There is then no local cache at all: cache_dir is a label, and nothing
+     * opens it. That is the point — a server repacks its cache whenever its
+     * content changes, and a copy on this machine is stale from the moment it
+     * is made, which surfaces as a login refused for "client out of date"
+     * rather than as anything about the cache.
+     */
+    int cache_on_demand;
+    /**
+     * The same server's HTTP port, which is where the nine jag archives and
+     * the login checksums live (`[net:boot] ws_port`; 0 = 80).
+     *
+     * It is spelled ws_port in the manifest because that is where a browser
+     * reaches the world, and for LostCity the two are one port. Only the
+     * on-demand cache source reads it natively.
+     */
+    int web_port;
     /** Map square to spawn on when nothing else selects one. Both -1 = use the client
      *  default (50,50). Set from the manifest `[cache:boot] spawn`; TORIRS_WORLD_MAP still
      *  overrides it, and a server REBUILD_NORMAL overrides both.
@@ -563,6 +553,11 @@ struct App
     struct TaskRunner exec_runner;
     struct RSCache_Dat2Disk* dat2_disk;
     struct RSCache_Dat1Disk* dat1_disk;
+    /** 1 when dat1 reads go to a LostCity server instead of dat1_disk. The
+     *  client itself belongs to the IO (platform_x_io_ondemand.h); this is only
+     *  the record that it was enabled, which the login block needs to know to
+     *  ask that server for its checksums. */
+    int cache_on_demand;
 
     /* Phase 2: asset pipeline. The build cache matching the live disk backs
      * `provider`; everything downstream sees only the provider. */
@@ -1201,23 +1196,25 @@ struct App
      * api documents.
      */
     /**
-     * What the three tile-highlight refreshers were last run for.
+     * What the three tile-highlight triggers were last fired for.
      *
-     * Each of clientscripts 5197 / 5204 / 5210 re-adds one tile to its
-     * highlight group, so they are run on the EDGE of their subject changing
+     * Clientscripts 5197 / 5203 / 5209 each clear their highlight group and
+     * re-add one tile, so they are fired on the EDGE of their subject changing
      * rather than every frame -- three dispatches and six highlight ops a
-     * frame to restate what has not moved is not free, and the pointer sits
-     * still for most of them.
+     * frame to restate what has not moved is not free, and both the pointer
+     * and the player sit still for most of them.
      *
-     * Only 5197 empties its group first; the other two are cleared by the
-     * caller (APP_HIGHLIGHT_GROUP_CURRENT_TILE says why).
+     * The current-tile one watches the local player's ROUTE and not `coord`,
+     * because the tile 5203 marks is the route's newest entry while walking:
+     * the server-side tile, which is ahead of the rendered one. See
+     * app_cs2_local_route_signature for what is folded into it.
      *
-     * Seeded to a value no coord can take, so the first frame after login runs
-     * all three: a group that starts empty has to be filled once, and the
-     * "switched off" branch has to run once too.
+     * Seeded to a value none of the three can take, so the first frame after
+     * login fires all three: a group that starts empty has to be filled once,
+     * and the "switched off" branch has to run once too.
      */
     int highlight_last_hover_coord;
-    int highlight_last_local_coord;
+    int highlight_last_route;
     int highlight_last_dest_coord;
     /** The mouseover subject the highlighter was last run for, folded to one
      *  int. Same edge rule as the three above. */

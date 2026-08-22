@@ -23405,6 +23405,45 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(log_cell >= 0, "canoeing:log should resolve as a component");
             SELFTEST_CHECK(dest_guild >= 0, "canoe_map_lum:destination_2 should resolve");
 
+            /*
+             * The station state has to reach the CLIENT, not just the server.
+             *
+             * A canoe station is one placed multiloc whose child the client
+             * picks from `canoestation_state_<name>`, and the travel map greys
+             * its destinations from `canoe_startfrom`. Both are varbits, and a
+             * varbit only goes out inside the varp that carries it -- which
+             * `ToriRSServer_WorldMarkVarp` will not send unless the varp's
+             * config says `transmit=yes`.
+             *
+             * Everything below this line passed for a build in which five of
+             * the six were undeclared: the varbits were written, read back and
+             * agreed with at every step, while the tree stood at the bank
+             * through the whole chop/shape/float/paddle chain because no VARP
+             * packet ever left. Reading the state back is not evidence that it
+             * was sent, so the sending is checked here, by name.
+             */
+            {
+                static const char* const carriers[] = {
+                    "canoeing_river_lum",      /* stations 1-4  */
+                    "canoeing_river_lum_2",    /* Ferox Enclave */
+                    "canoeing_river_dougne",   /* stations 6, 8, 9, 10 */
+                    "canoeing_river_dougne_2", /* Tree Gnome Village   */
+                    "canoeing_menu",           /* canoe_type      */
+                    "canoeing_menu_2",         /* canoe_startfrom, canoe_river */
+                };
+                for( size_t ci = 0; ci < sizeof(carriers) / sizeof(carriers[0]); ci++ )
+                {
+                    int varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, carriers[ci]);
+                    const struct ToriRSServerVarpDef* def =
+                        varp >= 0 ? ToriRSServer_ContentVarp(varp) : NULL;
+                    SELFTEST_CHECK(
+                        def && def->transmit,
+                        "%s carries a canoe varbit the client reads, so it must be declared "
+                        "transmit=yes (see canoes/configs/canoes.varp)",
+                        carriers[ci]);
+                }
+            }
+
             if( station_loc >= 0 && state_bit >= 0 && type_bit >= 0 && from_bit >= 0 &&
                 log_cell >= 0 && dest_guild >= 0 && dest_edge >= 0 && axe >= 0 && woodcutting >= 0 )
             {

@@ -87,8 +87,8 @@ harness_shot(void* user, char const* path)
     free(pixels);
 }
 
-#define DEFAULT_REVCONFIG_UI "v0/osrs/revconfig/configs/rev_245_2/rev_245_2_dat1_ui.ini"
-#define DEFAULT_REVCONFIG_CACHE "v0/osrs/revconfig/configs/rev_245_2/rev_245_2_dat1_cache.ini"
+#define DEFAULT_REVCONFIG_UI "revconfig/rev_245_2/rev_245_2_dat1_ui.ini"
+#define DEFAULT_REVCONFIG_CACHE "revconfig/rev_245_2/rev_245_2_dat1_cache.ini"
 #define CONFIG_DIR "config"
 #define SCRIPT_DIR "script"
 #define DEFAULT_INTERFACE_ID 84
