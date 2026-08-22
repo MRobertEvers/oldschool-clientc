@@ -50,6 +50,7 @@ lib/python*
 *.out
 *.dSYM
 *.o
+.last_build
 .tmp
 out/
 

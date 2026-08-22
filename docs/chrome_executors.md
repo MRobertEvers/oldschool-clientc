@@ -333,10 +333,14 @@ assertion that they agree, and the page's copy of the same table is pinned by
      has already tiled that area -- until a caption changes: a `STATIC` erases
      with the brush this hands back, and one that paints nothing leaves the old
      caption on screen under the new one. It gets the tile brush.
-  3. **A relayout must repaint the whole window.** The background is drawn from
-     the *controls'* boxes -- the field frame under each `EDIT` is placed from
-     that control's rect -- so a row that moved leaves its old frame behind and
-     its new one unpainted until something else invalidates the window.
+  3. **A relayout repaints the parent once, with its children clipped.** The
+     background is drawn from the *controls'* boxes -- the field frame under
+     each `EDIT` is placed from that control's rect -- so the parent still has
+     to be invalidated after a batch move. Repainting every child again made a
+     page switch flash the tradebacking between each child's erase and paint;
+     `WS_CLIPCHILDREN` plus the composited tool window presents the batch as one
+     frame. Transparent owner-drawn checks tile their own box so scrolling does
+     not leave old captions behind.
 
   One thing it cannot match: a `CBS_DROPDOWNLIST` combo draws its own drop-down
   arrow, in the shell's 3D style, in a strip that is not part of the owner-draw
@@ -346,18 +350,17 @@ assertion that they agree, and the page's copy of the same table is pinned by
   which is the same gap the DOM executor had with `<select>` and closed by
   building the list itself; whether this one follows is open.
 
-  **Still written, not run.** Everything above compiles under
-  `make -C src check-gdi-syntax` and nothing here has been on a screen.
+  **Its whole frame is the game's.** The HWND is a borderless `WS_POPUP`: the
+  title is a black client-area band, its `BS_OWNERDRAW` X wears `CloseButton`,
+  and `WM_NCHITTEST` turns the rest of the band into `HTCAPTION` so USER32 still
+  supplies movement, snapping and capture. No Windows caption or resize rail
+  surrounds the nine-slice frame.
 
-  **It closes with the game's X, not the shell's.** The caption still has its
-  own, and `WM_CLOSE` still reports the same intent -- but a window skinned in
-  the cache's art down to its scrollbar grips, closed by a button from whatever
-  Windows theme is current, is two programs in one frame. So there is a
-  `BS_OWNERDRAW` button pinned to the top-right of the CLIENT area wearing
-  `CloseButton`, sharing its band with the tab strip (strip left, button
-  right), and reserving that band is what keeps the first row from being laid
-  out underneath it and eating its clicks. Verified by `check-gdi-syntax`
-  only: this file compiles on Windows and is exercised nowhere else.
+  Its panel scrollbar is client-area chrome too, assembled the same way
+  `~script31` does it: `ScrollUp`, `ScrollDown`, a stretched `ScrollTrack`, and
+  the top/middle/bottom grip sprites. Arrow clicks, track paging, wheel input
+  and captured grip dragging all update one pixel scroll position. A standard
+  `WS_VSCROLL` would put platform chrome straight back on the borderless skin.
 
 - **cs2** (`src/ui/torirs_chrome_exec_cs2.c`) -- the window as real interface
   components, built through the same `UITree_PushBuildComponent` any
