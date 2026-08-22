@@ -60,6 +60,42 @@
  */
 #define RS_HIGHLIGHT_MEMBERS_MAX 512
 
+/**
+ * Bytes of a name-keyed subject. A player display name, so the same 32 the
+ * world's own player entities carry.
+ */
+#define RS_HIGHLIGHT_NAME_MAX 32
+
+/**
+ * Name-keyed subjects across all of the PLAYER kind's groups.
+ *
+ * The player family is the only one keyed by a NAME, and the reference keeps
+ * it in its own container for that reason -- a hash map on the highlight
+ * manager, separate from the int-keyed lists. 64 because the cache's own user
+ * is the mouse-over highlighter (clientscript 5954), which holds one name at a
+ * time, and the developer client-ops (4643..4645), which hold one more.
+ */
+#define RS_HIGHLIGHT_NAMED_MAX 64
+
+/*
+ * The two groups the client itself has to know by number.
+ *
+ * Both belong to the "Clear your highlighted ..." BUTTON rows in All Settings,
+ * which reach clientscript 3969 and find no case there: a button row has no
+ * varbit, so the cache's only trace of it is the setting id, and the clearing
+ * is the client's. That makes the group id a cache fact this client has to
+ * spell out, so it is spelled once, here, with what says so:
+ *
+ *   TILE 6  clientscript 4763 sets it up (`_7035(6, colour, 2, 50, 90)`), the
+ *           "Mark tile" client op (4762) adds to it, and 6686 clears it.
+ *   NPC  6  clientscript 6688 -- the "Tag" client op -- adds to it.
+ *
+ * Group ids are per KIND, which is why these two are different groups and
+ * clearing one cannot touch the other.
+ */
+#define RS_HIGHLIGHT_GROUP_TILE_MARKERS 6
+#define RS_HIGHLIGHT_GROUP_NPC_TAGS 6
+
 /** What a highlight group applies to. Each has its own SETUP opcode, and its
  *  own group numbering. */
 enum RS_HighlightKind
@@ -185,11 +221,33 @@ struct RS_HighlightMember
     int flags;
 };
 
+/**
+ * One name-keyed subject in one group -- a PLAYER, and nothing else.
+ *
+ * Separate from RS_HighlightMember because the key is a different kind of
+ * thing, not a different value: `highlight_player_on` takes a display name off
+ * the STRING stack (`highlight_player_on(_6900, 5)`), and a name is what it
+ * stays until something matches it against the players in the scene. The
+ * reference does the same and for the same reason -- its player channel is a
+ * name-hashed map while every other kind is keyed by an int.
+ *
+ * No `flags`: every call site passes the group's own, and the reference's ON
+ * hands its manager a flag word of 0.
+ */
+struct RS_HighlightNamedMember
+{
+    int group;
+    char name[RS_HIGHLIGHT_NAME_MAX];
+};
+
 struct RS_HighlightState
 {
     struct RS_HighlightStyle style[RS_HIGHLIGHT_KIND_COUNT][RS_HIGHLIGHT_GROUP_MAX];
     struct RS_HighlightMember member[RS_HIGHLIGHT_KIND_COUNT][RS_HIGHLIGHT_MEMBERS_MAX];
     int member_count[RS_HIGHLIGHT_KIND_COUNT];
+    /** The PLAYER kind's subjects. See RS_HighlightNamedMember. */
+    struct RS_HighlightNamedMember named[RS_HIGHLIGHT_NAMED_MAX];
+    int named_count;
     /** Bumped by every change, so a consumer can skip a frame's work when
      *  nothing has been said since the last one. */
     int revision;
@@ -238,6 +296,29 @@ bool RS_HighlightGet(
     int key,
     int coord);
 
+/**
+ * The PLAYER kind's ON / OFF / GET, keyed by display name.
+ *
+ * `name` is compared exactly, which is what the reference's name hash does and
+ * what makes the round trip work: the only name the cache ever puts in one of
+ * these is `_6900`, this client's own report of a player's name, so the string
+ * that goes in is the string that comes back. A name longer than
+ * RS_HIGHLIGHT_NAME_MAX-1 is refused rather than truncated -- a truncated key
+ * would silently mark a different player.
+ *
+ * ON is idempotent and OFF tolerates a name that is not there, for the same
+ * reason the int-keyed forms do: the cache's mouse-over highlighter calls OFF
+ * on five groups every tick on its way to a rebuild.
+ */
+bool RS_HighlightNameOn(struct RS_HighlightState* state, int group, char const* name);
+void RS_HighlightNameOff(struct RS_HighlightState* state, int group, char const* name);
+bool RS_HighlightNameGet(
+    struct RS_HighlightState const* state,
+    int group,
+    char const* name);
+
+/** Empties `group` of the kind's subjects. For RS_HIGHLIGHT_PLAYER that is the
+ *  name-keyed list, which is where that kind's subjects live. */
 void RS_HighlightClear(
     struct RS_HighlightState* state,
     enum RS_HighlightKind kind,
@@ -264,8 +345,11 @@ bool RS_HighlightGroupLive(
  * Apply one HIGHLIGHT_* opcode.
  *
  * `args` is in PUSH order, as CS2VM2_Op_Highlight pops them: args[0] is the
- * first int the script pushed. `*out_query` is filled for the GET forms and
- * untouched otherwise; the caller pushes it.
+ * first int the script pushed. `name` is the subject the PLAYER family's ON /
+ * OFF / GET take off the string stack, and NULL for every other form; passing
+ * NULL to one that needs it refuses the op rather than acting on an empty
+ * name, which would be a highlight on the player called "". `*out_query` is
+ * filled for the GET forms and untouched otherwise; the caller pushes it.
  *
  * Returns false for an opcode this does not own, or one whose argument count
  * does not match its form -- a mismatch means the opcode table and this
@@ -277,6 +361,7 @@ bool RS_HighlightApply(
     int opcode,
     int const* args,
     int arg_count,
+    char const* name,
     int* out_query);
 
 /** The kind and group an opcode names, for a caller that wants to log one.

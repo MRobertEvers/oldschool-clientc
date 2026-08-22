@@ -1585,7 +1585,7 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     "_6903": OpcodeDoc(
         summary="Active player's route coord at an index",
         int_in=("index",),
-        int_out=("packed coord, or -1",),
+        int_out=("coord or -1",),
         notes="Index 0 is the NEWEST entry -- ClientPlayer::AddRoutePoint\n"
         "shifts the queue up and writes the new tile at 0 -- so it is the\n"
         "player's server-side tile, ahead of the rendered position while\n"
@@ -1594,11 +1594,11 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     ),
     "_6904": OpcodeDoc(
         summary="Active player's uid",
-        int_out=("uid, or -1",),
+        int_out=("uid or -1",),
     ),
     "_6905": OpcodeDoc(
         summary="Local player's uid",
-        int_out=("uid, or -1",),
+        int_out=("uid or -1",),
         notes="`_6904 = _6905` is how a per-player trigger script asks whether\n"
         "the player it fired for is this client's own -- clientscript 5203\n"
         "(the current-tile indicator) is the cache's only user of either.",

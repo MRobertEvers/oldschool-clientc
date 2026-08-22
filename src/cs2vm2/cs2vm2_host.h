@@ -1462,6 +1462,17 @@ struct CS2VM_HostRequest_Highlight
     int args[CS2VM_HIGHLIGHT_ARG_MAX];
     int arg_count;
     bool query;
+    /**
+     * The subject the PLAYER family's ON / OFF / GET take off the STRING
+     * stack, and NULL for every other form.
+     *
+     * Borrowed from the VM's string pool, like CS2VM_HostRequest_Loot::name:
+     * the pool entry dies with the frame, so a host that keeps it must copy
+     * it. This used to be popped and dropped on the floor, which left
+     * `highlight_player_on(_6900, 5)` -- the mouse-over player highlight --
+     * with no subject to record.
+     */
+    char* name;
 };
 
 /**

@@ -493,7 +493,9 @@ app_chat_build_view(struct App* app)
         &filters,
         &app->ui_host,
         font_id,
-        app->slots.chat_com_id != -1,
+        /* Not chat_com_id: the tutorial-progress component shares this region
+         * and suppresses the log the same way a dialogue does. */
+        RS_UISlots_ChatRegionIface(&app->slots) != -1,
         app->chat_input_active || app->chat.social_input_open || app->chat.dialog_input_open,
         &app->chat_view);
 }
@@ -4919,9 +4921,20 @@ app_host_request(
             app->slots.side_tab = req->u.set_selected_tab.tabno;
             app->need_redraw = 1;
         }
+        /* Opening the tab the tutorial was pointing at is the instruction being
+         * followed, so the blink stops. The reference notices this while
+         * drawing the sidebar; noticing it at the selection itself is the same
+         * rule asked once instead of every frame. */
+        if( app->slots.flash_tab == req->u.set_selected_tab.tabno )
+            app->slots.flash_tab = -1;
         return 1;
     case UITREE_HOST_GET_TAB_ENABLED:
         return RS_UISlots_TabEnabled(&app->slots, req->u.tab_enabled.tabno);
+    case UITREE_HOST_GET_TAB_FLASH_HIDDEN:
+        /* logic_cycle is the reference loopCycle, and the 20/10 split is its
+         * own: visible for ten client ticks, hidden for ten. */
+        return RS_UISlots_TabFlashHidden(
+            &app->slots, req->u.tab_enabled.tabno, app->logic_cycle);
     case UITREE_HOST_GET_CHAT_FILTER_MODE:
         if( req->u.chat_filter.filter < 0 || req->u.chat_filter.filter >= RS_UI_CHAT_FILTER_COUNT )
             return 0;
@@ -12295,17 +12308,22 @@ app_logic_tick(struct App* app)
              */
             if( getenv("TORIRS_CLIENTOP_DEBUG") )
             {
-                int const subject = mo.kind < 0 ? -1 : (mo.kind * 4096) ^ mo.uid ^ mo.type;
+                /* The COMPONENT is part of what the pointer is on, so a UI
+                 * hover is a change of subject even when the world pick is
+                 * empty -- `_7109` reads that half. */
+                int const subject = (mo.kind < 0 ? -1 : (mo.kind * 4096) ^ mo.uid ^ mo.type) ^
+                                    (app->host.clientop.mouseover_component * 8192);
                 if( subject != app->highlight_last_mouseover )
                 {
                     app->highlight_last_mouseover = subject;
                     fprintf(
                         stderr,
-                        "mouseover: type=%d kind=%d uid=%d id=%d '%s'\n",
+                        "mouseover: type=%d kind=%d uid=%d id=%d com=%d '%s'\n",
                         minimenu_type,
                         mo.kind,
                         mo.uid,
                         mo.type,
+                        app->host.clientop.mouseover_component,
                         mo.name);
                 }
             }
@@ -20441,12 +20459,20 @@ app_minimenu_entry_publish(
     clientop->mouseover_op[0] = '\0';
     clientop->mouseover_target[0] = '\0';
     clientop->mouseover_opcount = num_ops > 0 ? num_ops : 0;
+    clientop->mouseover_component = -1;
     if( num_ops > 0 )
+    {
+        struct UIMinimenuOption const* acting = &menu->options[menu->option_count - 1];
         snprintf(
-            clientop->mouseover_op,
-            sizeof(clientop->mouseover_op),
-            "%s",
-            menu->options[menu->option_count - 1].text);
+            clientop->mouseover_op, sizeof(clientop->mouseover_op), "%s", acting->text);
+        /* `_7109`'s subject: the component the acting row is about, for the
+         * two row kinds that have one. The reference reads the same field off
+         * its own entry and gates on the entry TYPE being one of the two
+         * interface kinds, which is what these two are. */
+        if( acting->pick.kind == UI_MINIMENU_PICK_UI ||
+            acting->pick.kind == UI_MINIMENU_PICK_INV_SLOT )
+            clientop->mouseover_component = acting->pick.id;
+    }
 }
 
 /*
@@ -23220,16 +23246,19 @@ App_RunOnce(
              * setting id to varbit 9657, which is how they get here at all.
              * The reference clears the group natively; so does this.
              *
-             * Group 6 for both, and they are different groups: the tile
-             * markers live in the TILE kind's 6 (clientscript 4763 sets it up)
-             * and the tagged npcs in the NPC kind's (6688 adds to it). Group
-             * ids are per kind, which is exactly why clearing one does not
-             * touch the other.
+             * Which group each is, and why they are different groups even
+             * though both are 6, is stated once in rs_highlight.h beside the
+             * two constants -- a cache id this client has to know by number
+             * belongs where it can be checked against the cache.
              */
             if( setting_id == APP_SETTING_CLEAR_TILE_MARKERS )
-                RS_HighlightClear(&app->host.highlight, RS_HIGHLIGHT_TILE, 6);
+                RS_HighlightClear(
+                    &app->host.highlight,
+                    RS_HIGHLIGHT_TILE,
+                    RS_HIGHLIGHT_GROUP_TILE_MARKERS);
             else if( setting_id == APP_SETTING_CLEAR_NPC_TAGS )
-                RS_HighlightClear(&app->host.highlight, RS_HIGHLIGHT_NPC, 6);
+                RS_HighlightClear(
+                    &app->host.highlight, RS_HIGHLIGHT_NPC, RS_HIGHLIGHT_GROUP_NPC_TAGS);
             PluginHost_Setting(app->plugins, setting_id, setting_value);
         }
     }

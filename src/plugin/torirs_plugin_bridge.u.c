@@ -449,6 +449,44 @@ app_plugin_highlights_rebuild(struct App* app)
         }
     }
 
+    /* ---- players: by NAME.
+     *
+     * The only kind whose subject is a string (see RS_HighlightNamedMember).
+     * The name the cache put in the group came from `_6900`, this client's own
+     * report of a player's name, so the compare is exact -- and the local
+     * player is in this pool too, which is what makes the developer op's
+     * "highlight yourself" work. ---- */
+    {
+        struct World_EntityPool* pool = &app->world->entities.player;
+        for( int at = World_EntityPoolHead(pool); at != WORLD_ENTITY_NIL;
+             at = World_EntityPoolNext(pool, at) )
+        {
+            struct WorldEntity_Player* player = World_EntityPoolGet(pool, at);
+            if( !player || player->element_id < 0 )
+                continue;
+
+            for( int i = 0; i < hl->named_count; i++ )
+            {
+                struct RS_HighlightNamedMember const* m = &hl->named[i];
+                if( strcmp(m->name, player->name) != 0 )
+                    continue;
+                if( !app_plugin_highlight_begin(app, RS_HIGHLIGHT_PLAYER, m->group, &proto) )
+                    continue;
+                proto.kind = TORIRS_PLUGIN_HL_PLAYER;
+                proto.element_id = player->element_id;
+                proto.overhead_height = app_plugin_element_height(app, player->element_id);
+                proto.fine_x = (int)player->draw_position.x;
+                proto.fine_z = (int)player->draw_position.z;
+                snprintf(proto.name, sizeof(proto.name), "%s", player->name);
+                proto.tile_x = app->world->_base_tile_x + player->grid_position.x;
+                proto.tile_z = app->world->_base_tile_z + player->grid_position.z;
+                proto.level = player->grid_position.level;
+                if( !app_plugin_highlight_push(app, &proto) )
+                    return;
+            }
+        }
+    }
+
     /* ---- locs: by type anywhere, or by type at one coord. ---- */
     {
         struct World_EntityPool* pool = &app->world->entities.scenery;
@@ -548,6 +586,49 @@ app_plugin_highlights_rebuild(struct App* app)
     }
 }
 
+/*
+ * What the groups RESOLVED to, on TORIRS_HIGHLIGHT_DEBUG.
+ *
+ * The op trace says what the cache asked for and the member counts say what
+ * was recorded; neither says whether a recorded subject was FOUND in the
+ * scene. A player highlight keyed on a name nobody in the pool answers to, or
+ * a loctype that is not in this map square, is recorded and drawn as nothing,
+ * and the two look identical from the opcode side. Printed only when the tally
+ * changes -- the walk runs every frame.
+ */
+static void
+app_plugin_highlights_report(struct App* app)
+{
+    static int last_signature = -1;
+    int tally[5] = { 0, 0, 0, 0, 0 };
+    int signature = 0;
+
+    assert(app);
+    if( !getenv("TORIRS_HIGHLIGHT_DEBUG") )
+        return;
+
+    for( int i = 0; i < app->plugin_highlight_count; i++ )
+    {
+        int const kind = (int)app->plugin_highlights[i].kind;
+        if( kind >= 0 && kind < (int)(sizeof(tally) / sizeof(tally[0])) )
+            tally[kind]++;
+    }
+    for( int i = 0; i < (int)(sizeof(tally) / sizeof(tally[0])); i++ )
+        signature = signature * 251 + tally[i];
+    if( signature == last_signature )
+        return;
+    last_signature = signature;
+    fprintf(
+        stderr,
+        "highlight-resolve: %d drawn (tile %d, npc %d, loc %d, obj %d, player %d)\n",
+        app->plugin_highlight_count,
+        tally[TORIRS_PLUGIN_HL_TILE],
+        tally[TORIRS_PLUGIN_HL_NPC],
+        tally[TORIRS_PLUGIN_HL_LOC],
+        tally[TORIRS_PLUGIN_HL_OBJ],
+        tally[TORIRS_PLUGIN_HL_PLAYER]);
+}
+
 static int
 app_plugin_highlight_next(void* user, int iter, struct ToriRS_PluginHighlightItem* out)
 {
@@ -561,7 +642,10 @@ app_plugin_highlight_next(void* user, int iter, struct ToriRS_PluginHighlightIte
      * declaration. A cursor into a list that moved underneath it would skip or
      * repeat, so the rebuild must not happen mid-walk. */
     if( iter < 0 )
+    {
         app_plugin_highlights_rebuild(app);
+        app_plugin_highlights_report(app);
+    }
 
     next = iter + 1;
     if( next >= app->plugin_highlight_count )

@@ -2778,6 +2778,18 @@
 #define CS2_OP__6852 6852
 #define CS2_OP__6853 6853
 #define CS2_OP__6900 6900
+/* _6901 — Make the local player the active player.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  1 when there is a local player else -1
+ * str stack out:  -
+ * notes: the only WRITE in the _6900.._6905 block. The reference sets
+ *        its ScriptRunner's active player to m_localPlayerIndex and
+ *        pushes 1 or -1; the four getters beside it are about whichever
+ *        player is active. Absent from the vendored table -- added by
+ *        tools/cs2_gen_opcodes/local_opcodes.py.
+ */
+#define CS2_OP__6901 6901
 /* _6902 — Active player's route length.
  * int stack in:   -
  * str stack in:   -
@@ -2792,7 +2804,7 @@
 /* _6903 — Active player's route coord at an index.
  * int stack in:   index
  * str stack in:   -
- * int stack out:  packed coord, or -1
+ * int stack out:  coord or -1
  * str stack out:  -
  * notes: Index 0 is the NEWEST entry -- ClientPlayer::AddRoutePoint
  *        shifts the queue up and writes the new tile at 0 -- so it is the
@@ -2804,14 +2816,14 @@
 /* _6904 — Active player's uid.
  * int stack in:   -
  * str stack in:   -
- * int stack out:  uid, or -1
+ * int stack out:  uid or -1
  * str stack out:  -
  */
 #define CS2_OP__6904 6904
 /* _6905 — Local player's uid.
  * int stack in:   -
  * str stack in:   -
- * int stack out:  uid, or -1
+ * int stack out:  uid or -1
  * str stack out:  -
  * notes: `_6904 = _6905` is how a per-player trigger script asks whether
  *        the player it fired for is this client's own -- clientscript 5203

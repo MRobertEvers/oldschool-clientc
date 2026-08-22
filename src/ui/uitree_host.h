@@ -174,6 +174,20 @@ enum UITreeHostRequestKind
      * (reference sideOverlayId[n] != -1) — gates tab icon draw + tab clicks.
      */
     UITREE_HOST_GET_TAB_ENABLED,
+    /**
+     * Returns nonzero when u.tab_enabled.tabno is the tab the server asked to
+     * FLASH and the blink is currently in its dark half — i.e. "hide this
+     * icon on this frame".
+     *
+     * Separate from GET_TAB_ENABLED rather than folded into it, though the
+     * reference writes the two as one expression
+     * (`sideIcon[n] !== -1 && (tutFlashIcon !== n || loopCycle % 20 < 10)`).
+     * They answer different questions: one is whether the tab HAS a panel, the
+     * other is where a blink is in its cycle this frame, and a single "enabled"
+     * that silently means both is the kind of answer that later gets reused
+     * for the wrong one.
+     */
+    UITREE_HOST_GET_TAB_FLASH_HIDDEN,
     /** Returns the current mode (0..3) of u.chat_filter.filter
      *  (enum UITreeChatButtonFilter). */
     UITREE_HOST_GET_CHAT_FILTER_MODE,

@@ -1478,7 +1478,19 @@ RS_GameProto_Exec(
     /* ---- tutorial ---- */
     case PKT_NAME_TUT_FLASH:
         if( ctx->app )
+        {
             ctx->app->slots.flash_tab = packet->_tut_flash.tab;
+            /* Asked to flash the tab the player is already looking at, the
+             * reference moves them OFF it -- an open panel covers its own icon,
+             * so a blink nobody can see is no instruction at all. 3 is the
+             * inventory, which is where it sends you unless that IS the tab. */
+            if( packet->_tut_flash.tab >= 0 &&
+                packet->_tut_flash.tab == ctx->app->slots.side_tab )
+            {
+                ctx->app->slots.side_tab = packet->_tut_flash.tab == 3 ? 1 : 3;
+                ctx->app->need_redraw = 1;
+            }
+        }
         break;
     case PKT_NAME_TUT_OPEN:
         if( ctx->app )

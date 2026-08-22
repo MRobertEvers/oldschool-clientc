@@ -7979,13 +7979,19 @@ CS2VM2_Op_Highlight(struct CS2VM2_Thread* vm, int opcode)
     request.u.highlight.arg_count = meta.int_in;
     request.u.highlight.query = meta.int_out != 0;
 
-    /* Strings first: they sit above the ints on their own stack, and the only
-     * string any of these takes is the PLAYER family's name, which nothing here
-     * can act on. Popped to keep the pool balanced, then dropped. */
+    /*
+     * Strings first: they sit above the ints on their own stack.
+     *
+     * The only string any of these takes is a SUBJECT NAME -- the PLAYER
+     * family's, and the unnamed 7041..7043 block's -- and it is carried to the
+     * host rather than dropped. Popping more than one would mean a form this
+     * does not know; the last one popped is the subject either way, and the
+     * rest are popped to keep the pool balanced.
+     */
+    request.u.highlight.name = NULL;
     for( int i = 0; i < meta.str_in; i++ )
     {
-        char* discard;
-        if( CS2VM2_PopStr(vm, &discard) != CS2VM_EXECNO_OK )
+        if( CS2VM2_PopStr(vm, &request.u.highlight.name) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
 
@@ -8158,12 +8164,14 @@ CS2VM2_Op_ClientOpContext(struct CS2VM2_Thread* vm, int opcode)
 }
 
 /*
- * The ACTIVE PLAYER's route and the two uids: `_6902`, `_6903`, `_6904`,
- * `_6905`.
+ * The ACTIVE PLAYER: `_6901`, `_6902`, `_6903`, `_6904`, `_6905`.
  *
- * Only `_6903` takes an argument -- the route index -- so it is the only one
- * that pops. The other three are bare reads the host pushes the answer to,
- * like the context getters above.
+ * `_6901` is the one that WRITES -- it makes the local player the active one
+ * and pushes whether there was one to make active, which is how a script that
+ * was not entered from a per-player trigger gets a subject for the other four.
+ * Only `_6903` takes an argument (the route index), so it is the only one that
+ * pops. The rest are bare reads the host pushes the answer to, like the
+ * context getters above.
  *
  * `_6902` sits in the same numeric block as the client-op context getters and
  * is NOT one: the reference's ScriptRunnerImpl_6900To6999.cpp answers it with
@@ -8185,6 +8193,7 @@ CS2VM2_Op_ActivePlayer(struct CS2VM2_Thread* vm, int opcode)
     if( opcode == CS2_OP__6903 &&
         CS2VM2_PopInt(vm, &request.u.active_player.index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
+
     return vm->vm->host_exec(vm, &request);
 }
 
@@ -11006,6 +11015,7 @@ CS2VM2_RunOp(
     /* The active player's route (6902/6903) and the two player uids
      * (6904/6905). Numerically inside the player block above, but a different
      * question -- see CS2VM2_Op_ActivePlayer. */
+    case CS2_OP__6901: /* make the local player active */
     case CS2_OP__6902: /* route length            */
     case CS2_OP__6903: /* route coord at an index */
     case CS2_OP__6904: /* active player uid       */

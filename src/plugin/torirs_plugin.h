@@ -298,7 +298,10 @@ enum ToriRS_PluginHighlightKind
     TORIRS_PLUGIN_HL_TILE = 0,
     TORIRS_PLUGIN_HL_NPC,
     TORIRS_PLUGIN_HL_LOC,
-    TORIRS_PLUGIN_HL_OBJ
+    TORIRS_PLUGIN_HL_OBJ,
+    /** A player, named by DISPLAY NAME -- `highlight_player_on` is the one
+     *  form of the family whose subject is a string. */
+    TORIRS_PLUGIN_HL_PLAYER
 };
 
 /**

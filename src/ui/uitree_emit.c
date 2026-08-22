@@ -705,6 +705,14 @@ UITree_EmitFill(
         };
         if( host && !UITree_Host(host, &req) )
             return false;
+        /* TUT_FLASH: the tutorial points at a tab by blinking its icon, which
+         * is drawn as NOT DRAWING it for half of each cycle -- there is no
+         * highlight sprite, the gap is the signal (reference drawSidebarIcons).
+         * It belongs here rather than in whatever handled the packet: the icon
+         * is this component, and a blink is a property of drawing it. */
+        req.kind = UITREE_HOST_GET_TAB_FLASH_HIDDEN;
+        if( host && UITree_Host(host, &req) )
+            return false;
         out->kind = UITREE_EMIT_SPRITE;
         out->scene_id = component->u.tab_icon.scene_id;
         out->atlas_index = component->u.tab_icon.atlas_index;

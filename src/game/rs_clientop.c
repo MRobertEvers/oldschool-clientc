@@ -53,6 +53,13 @@ static struct RS_ClientOpOp const CLIENTOP_OPS[] = {
  * subsets, which is why this is a table of opcodes rather than four parallel
  * blocks of arithmetic.
  *
+ * `_6853` is absent on purpose. The reference answers it with the active obj's
+ * SECOND int field -- `_6852` is the first (`ObjType::List(obj->0x18)` is how
+ * its own menu builder reads the id) -- and the field after an obj's id is
+ * almost certainly its stack count, which is exactly the kind of "almost
+ * certainly" that put `_6902` in this table as a coord. Nothing in this cache
+ * calls it, so the honest state is unrouted with the evidence written down.
+ *
  * The player block is a subset in a way that matters: `_6900` is its ONLY
  * context getter. The reference has no "active player coord" op at all --
  * `_6902` and `_6903` are that player's ROUTE and `_6904` / `_6905` are two
@@ -102,6 +109,7 @@ RS_ClientOpReset(struct RS_ClientOpState* state)
     state->mouseover.coord = -1;
     state->mouseover.layer = -1;
     state->mouseover_type = RS_MINIMENU_TYPE_NONE;
+    state->mouseover_component = -1;
     for( int i = 0; i < RS_CLIENTOP_KIND_COUNT; i++ )
         RS_ClientOpActiveSet(state, (enum RS_ClientOpKind)i, NULL);
 }

@@ -3380,7 +3380,27 @@ main(
     TorirsPerf_Init(0);
     /* Before anything can read it: App_Init has already run RS_CS2Host_Init,
      * whose default the manifest is entitled to override, and the root
-     * interface's own scripts (opened on the next line) call getwindowmode. */
+     * interface's own scripts (opened on the next line) call getwindowmode.
+     *
+     * An unstated windowmode is DERIVED from the interface logic rather than
+     * left at the host's default, because that default (resizable) is a CS2
+     * assumption: a CS2 gameframe relayouts to whatever canvas it is given, and
+     * a CS1 one cannot -- it is a baked 765x503 layout, and the only thing a
+     * bigger canvas does to it is leave the rest of the canvas black.
+     *
+     * That was visible two ways at once on a HighDPI display, where the canvas
+     * follows a drawable twice the window points: the frame drew at 1x in the
+     * top-left quarter, and every click landed at double its coordinate,
+     * because MapMouse scales window points into the canvas by exactly the
+     * ratio the frame was not drawn at. Fixed pins the canvas at 765x503 and
+     * letterboxes it into the drawable, which on a 2x display is an exact
+     * doubling -- and MapMouse undoes the same letterbox, so clicks land where
+     * they are drawn.
+     *
+     * A manifest that states `[ui:boot] windowmode=` still wins: this only
+     * fills in the case nobody answered. */
+    if( !cfg.window_mode && App_UiLogic(&app) == APP_UI_LOGIC_CS1 )
+        cfg.window_mode = CS2VM_WINDOW_MODE_FIXED;
     App_SetBootWindowMode(&app, cfg.window_mode);
     App_OpenRootInterface(&app, cfg.interface_id);
 

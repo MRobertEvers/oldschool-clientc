@@ -23,6 +23,12 @@ LOCAL_NAMES: dict[int, str] = {
     # Rev 634 Class66.method704: push Class24.anInt359 (signed 24-bit login /
     # packet-54 field, updated with membership). No authoritative English name;
     # scripts compare against 8388605 (0x7FFFFD). Offline default is 0.
+    # The local-player setter of the _6900.._6905 block. The vendored table
+    # skips the id entirely; the reference implements it
+    # (ScriptRunnerImpl_6900To6999.cpp) and this client does too, so it needs
+    # a define to be routed by name. Kept in the placeholder spelling because
+    # that is what the cache's own decompiled corpus calls it.
+    6901: "_6901",
     6910: "LOGIN_INT24",
     # RS2-era (rev 634) widget param read: pop a param id, push the ParamType's
     # value for the active widget. A version -1 widget carries no param table

@@ -2468,6 +2468,38 @@ exec_mec(
  * the subject into a highlight group. While TYPE answered 0 the script
  * returned on its first branch and the setting did nothing at all.
  */
+/*
+ * One FIND op: latch the acting row's subject into the kind's active register,
+ * and report whether there was one of that kind.
+ *
+ * A miss CLEARS the register rather than leaving it, which is the reference's
+ * behaviour too (its setter writes -1 to both halves when the entry does not
+ * resolve): a script that asked "is this a player" and was told no must not
+ * then be able to read the player it asked about three rows ago.
+ */
+static int
+minimenu_find(struct RS_CS2Host* host, enum RS_ClientOpKind kind, int menu_type)
+{
+    assert(host);
+
+    if( host->clientop.mouseover_type != menu_type ||
+        host->clientop.mouseover.kind != (int)kind )
+    {
+        RS_ClientOpActiveSet(&host->clientop, kind, NULL);
+        return 0;
+    }
+    RS_ClientOpActiveSet(&host->clientop, kind, &host->clientop.mouseover);
+    if( getenv("TORIRS_CLIENTOP_DEBUG") )
+        fprintf(
+            stderr,
+            "minimenu_find: %s latched uid=%d type=%d '%s'\n",
+            RS_ClientOpKindName(kind),
+            host->clientop.mouseover.uid,
+            host->clientop.mouseover.type,
+            host->clientop.mouseover.name);
+    return 1;
+}
+
 static int
 exec_minimenu(
     struct RS_CS2Host* host,
@@ -2487,36 +2519,72 @@ exec_minimenu(
             thread, CS2VM2_StrDup(thread, host->clientop.mouseover_target));
     }
     case CS2_OP_MINIMENU_TYPE:
+        /*
+         * The acting row's type. A world pick answers for itself; a row about
+         * an INTERFACE component is type 7, and that is a row the world pick
+         * never sees -- the two publishers are the pick set and the menu the
+         * hover line is composed from, and only the second one knows about
+         * widgets. Derived here rather than stored so neither publisher has to
+         * run after the other. See RS_MINIMENU_TYPE_COMPONENT.
+         */
+        if( host->clientop.mouseover_type == RS_MINIMENU_TYPE_NONE &&
+            host->clientop.mouseover_component >= 0 )
+            return CS2VM2_PushInt(thread, RS_MINIMENU_TYPE_COMPONENT);
         return CS2VM2_PushInt(thread, host->clientop.mouseover_type);
     /*
-     * The FIND ops confirm that the target really is of that kind.
+     * The FIND ops LATCH the acting row's subject, then say whether it was of
+     * the kind asked for.
      *
-     * In the reference they also LATCH it for the getters that follow; here
-     * the App has already published every field of the one target there is, so
-     * confirming is all there is left to do. Answering 1 for a kind the
-     * pointer is not on would send 5350 to read an npc uid off a loc.
+     * Latching is the load-bearing half, and it is the reference's own
+     * behaviour: `ScriptRunnerImpl::ExecuteCommand7100To7199` takes the menu's
+     * selected entry (or the LAST one -- the default left-click row -- when
+     * nothing is selected), sets the active npc / loc / obj / player from it,
+     * and pushes whether that worked. Clientscript 5350 depends on the order:
+     *
+     *     if ($int0 = 2 & _7102 = 1) { ~script5951(nc_param(_6753, ...)); }
+     *
+     * -- `_6753` is read AFTER `_7102`, and it is the entry `_7102` latched
+     * that it is about. Answering without latching left that reading whatever
+     * the mouseover fallback happened to hold, which is usually the same
+     * subject and silently is not when a row outlives the pick that made it.
+     *
+     * The acting row here is the mouseover the App publishes each frame, which
+     * is this client's spelling of "the entry the menu would act on".
      */
     case CS2_OP_MINIMENU_FINDNPC:
         return CS2VM2_PushInt(
-            thread, host->clientop.mouseover_type == RS_MINIMENU_TYPE_NPC);
+            thread, minimenu_find(host, RS_CLIENTOP_NPC, RS_MINIMENU_TYPE_NPC));
     case CS2_OP_MINIMENU_FINDLOC:
         return CS2VM2_PushInt(
-            thread, host->clientop.mouseover_type == RS_MINIMENU_TYPE_LOC);
+            thread, minimenu_find(host, RS_CLIENTOP_LOC, RS_MINIMENU_TYPE_LOC));
     case CS2_OP_MINIMENU_FINDOBJ:
         return CS2VM2_PushInt(
-            thread, host->clientop.mouseover_type == RS_MINIMENU_TYPE_OBJ);
+            thread, minimenu_find(host, RS_CLIENTOP_OBJ, RS_MINIMENU_TYPE_OBJ));
     case CS2_OP_MINIMENU_FINDPLAYER:
         return CS2VM2_PushInt(
-            thread, host->clientop.mouseover_type == RS_MINIMENU_TYPE_PLAYER);
+            thread, minimenu_find(host, RS_CLIENTOP_PLAYER, RS_MINIMENU_TYPE_PLAYER));
     case CS2_OP_MINIMENU_ISOPEN:
         return CS2VM2_PushInt(thread, host->clientop.menu_open ? 1 : 0);
     case CS2_OP_MINIMENU_NUMOPS:
         return CS2VM2_PushInt(thread, host->clientop.mouseover_opcount);
-    /* FINDCOMPONENT is the one this cannot answer: it wants the interface
-     * component under the pointer, which is the UITree's business and not the
-     * world pick set's. Nothing in the Activities category reads it. */
+    /*
+     * FINDCOMPONENT is the same latch for an INTERFACE row, and what it
+     * latches is the VM's active component -- the reference's
+     * `ScriptRunnerImpl::SetActiveComponent` from the entry, which is why
+     * proc 4728 reads `cc_getlayer` immediately after `_7109 = 1` and expects
+     * the hovered widget. It answered a flat 0 here, so the tooltip proc's
+     * whole component branch never ran.
+     */
     case CS2_OP_MINIMENU_FINDCOMPONENT:
-        return CS2VM2_PushInt(thread, 0);
+        if( host->clientop.mouseover_component < 0 )
+            return CS2VM2_PushInt(thread, 0);
+        CS2VM2_SetActiveAndDotComponentId(thread, host->clientop.mouseover_component);
+        if( getenv("TORIRS_CLIENTOP_DEBUG") )
+            fprintf(
+                stderr,
+                "minimenu_find: component latched %d\n",
+                host->clientop.mouseover_component);
+        return CS2VM2_PushInt(thread, 1);
     default:
         fprintf(stderr, "exec_minimenu: unhandled opcode %d\n", opcode);
         return CS2VM_EXECNO_ERROR;
@@ -7655,6 +7723,8 @@ rs_cs2_host_exec_dispatch(
                     known ? RS_HighlightKindName(kind) : "?");
                 for( int i = 0; i < request->u.highlight.arg_count; i++ )
                     fprintf(stderr, " %d", request->u.highlight.args[i]);
+                if( request->u.highlight.name )
+                    fprintf(stderr, " '%s'", request->u.highlight.name);
             }
 
             handled = RS_HighlightApply(
@@ -7662,6 +7732,7 @@ rs_cs2_host_exec_dispatch(
                 request->u.highlight.opcode,
                 request->u.highlight.args,
                 request->u.highlight.arg_count,
+                request->u.highlight.name,
                 &answer);
 
             /* The kind's subject count AFTER the op, on the same line.
@@ -7673,31 +7744,33 @@ rs_cs2_host_exec_dispatch(
              * shows up here as a count that only ever climbs. */
             if( debug )
             {
+                /* The PLAYER kind counts its own list -- its subjects are
+                 * names, and reporting the int-keyed count for it would print
+                 * a flat 0 while names were going in and out. */
                 if( known )
                     fprintf(
                         stderr,
                         " -> %d %s",
-                        host->highlight.member_count[kind],
+                        kind == RS_HIGHLIGHT_PLAYER ? host->highlight.named_count
+                                                    : host->highlight.member_count[kind],
                         RS_HighlightKindName(kind));
                 fprintf(stderr, "\n");
             }
 
             if( !handled )
             {
-                /* The two forms this cannot own: the PLAYER family's ON/OFF/GET
-                 * and the unnamed 7041..7043, which key on a NAME that
-                 * CS2VM2_Op_Highlight has already discarded off the string
-                 * stack. Said once, because a highlight nobody can key is a
-                 * real gap rather than a quiet one. */
+                /* The one block this cannot own: the unnamed 7041..7043, whose
+                 * string subject nothing in the cache ever names -- see the
+                 * table in rs_highlight.c. Said once, because a highlight
+                 * nobody can key is a real gap rather than a quiet one. */
                 static bool announced = false;
                 if( !announced )
                 {
                     announced = true;
                     fprintf(
                         stderr,
-                        "cs2: HIGHLIGHT opcode %d is not recorded -- its subject is a "
-                        "name, and the string stack is discarded before the host sees "
-                        "it\n",
+                        "cs2: HIGHLIGHT opcode %d is not recorded -- nothing in this "
+                        "cache names a subject for its family\n",
                         request->u.highlight.opcode);
                 }
             }
@@ -7825,6 +7898,36 @@ rs_cs2_host_exec_dispatch(
 
         switch( opcode )
         {
+        case CS2_OP__6901:
+        {
+            /*
+             * Make the LOCAL player the active one, and say whether there was
+             * one to make active.
+             *
+             * The reference pushes 1 on success and -1 -- not 0 -- when the
+             * local player index is out of range or its slot is empty, which
+             * is the state before login. Nothing in this cache calls it; it is
+             * here because it is the only WRITE in the block and the four
+             * getters beside it are useless to a script that was not entered
+             * from a per-player trigger without it.
+             */
+            struct RS_ClientOpContext ctx;
+            if( host->local_pid < 0 )
+            {
+                answer = -1;
+                break;
+            }
+            memset(&ctx, 0, sizeof(ctx));
+            ctx.kind = RS_CLIENTOP_PLAYER;
+            ctx.script_id = -1;
+            ctx.uid = host->local_pid;
+            ctx.type = -1;
+            ctx.layer = -1;
+            ctx.coord = host->local_coord;
+            RS_ClientOpActiveSet(&host->clientop, RS_CLIENTOP_PLAYER, &ctx);
+            answer = 1;
+            break;
+        }
         case CS2_OP__6904:
             answer = uid;
             break;

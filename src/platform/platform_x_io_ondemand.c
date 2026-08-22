@@ -379,16 +379,13 @@ od_open_files(struct PlatformXIOOnDemand* od)
 }
 
 /**
- * One file off the on-demand wire, still compressed.
- *
- * `archive` is 0..3 (models, anims, midi, maps). Returns NULL both for "the
- * server does not have it" (a zero-length header, which is a legitimate answer
- * at the edges of a built world) and for a transport failure; the two are
- * distinguished by `*out_size`, which is 0 for the former and -1 for the
- * latter, so a caller that wants to retry can.
+ * One attempt at one file. Returns NULL both for "the server does not have it"
+ * (a zero-length header, a legitimate answer at the edges of a built world) and
+ * for a transport failure; `*out_size` distinguishes them -- 0 for the former,
+ * -1 for the latter -- which is what lets od_fetch_file retry only the second.
  */
 static char*
-od_fetch_file(
+od_fetch_file_once(
     struct PlatformXIOOnDemand* od,
     int archive,
     int file,
@@ -491,6 +488,42 @@ failed:
     sockstream_free(od->files);
     od->files = NULL;
     return NULL;
+}
+
+/**
+ * One file off the on-demand wire, still compressed.
+ *
+ * Retries once through a fresh connection, because the socket dying is a
+ * ROUTINE state here rather than an error: LostCity puts a 30-second idle
+ * timeout on it (`s.setTimeout(30000)` in TcpServer.ts, and the handler
+ * destroys the socket), and a client that has everything it needs for half a
+ * minute -- standing still in a loaded scene -- gets hung up on. Nothing tells
+ * it: `sockstream_is_connected` still says yes, so od_open_files sees no reason
+ * to redial, the request goes into a dead socket, and the read fails.
+ *
+ * Without the retry that first fetch after any idle spell is simply lost, and
+ * nothing above asks again -- the model, map square or animation frame it was
+ * for never arrives. That is what "Failed to decode dat1 model 63" was, on
+ * bytes the server sends perfectly well.
+ *
+ * Only a TRANSPORT failure is retried. A zero-length answer means the server
+ * looked and has no such file; asking a second time would just be a slower way
+ * to hear the same thing.
+ */
+static char*
+od_fetch_file(
+    struct PlatformXIOOnDemand* od,
+    int archive,
+    int file,
+    int* out_size)
+{
+    char* data = od_fetch_file_once(od, archive, file, out_size);
+
+    if( data || *out_size == 0 )
+        return data;
+
+    /* od_fetch_file_once has already dropped the socket, so this reconnects. */
+    return od_fetch_file_once(od, archive, file, out_size);
 }
 
 /* ------------------------------------------------------------ versionlist */
