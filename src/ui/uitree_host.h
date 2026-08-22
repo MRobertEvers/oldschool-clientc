@@ -144,6 +144,28 @@ enum UITreeHostRequestKind
      */
     UITREE_HOST_GET_MINIMAP_STATE,
     /**
+     * Nonzero when the server has taken the minimap away (MINIMAP_TOGGLE).
+     *
+     * Deliberately not folded into GET_MINIMAP_STATE's return, which already
+     * answers "-1 = no baked map yet": that is the map not being READY, this
+     * is the map being WITHHELD, and a caller that cannot tell them apart
+     * will eventually treat one as the other.
+     */
+    UITREE_HOST_GET_MINIMAP_HIDDEN,
+    /**
+     * Nonzero when the player is in a multi-combat zone (SET_MULTIWAY) and the
+     * indicator should draw. The sprite and its place are the widget's, from
+     * revconfig; only the answer to "now?" is the host's.
+     */
+    UITREE_HOST_GET_MULTIWAY,
+    /**
+     * System-update countdown (UPDATE_REBOOT_TIMER). Returns nonzero when an
+     * update is pending and writes the formatted line -- a pointer with
+     * frame lifetime, like the hovertext model -- to
+     * u.get_reboot_timer.out_text.
+     */
+    UITREE_HOST_GET_REBOOT_TIMER,
+    /**
      * Writes a pointer to the host-computed minimap overlay dots (valid only
      * for the current frame) to u.get_minimap_dots.out_dots; returns the
      * count (0 = no overlay).
@@ -393,6 +415,10 @@ struct UITreeHostRequest
             int* out_src_anchor_x;
             int* out_src_anchor_y;
         } get_minimap_state;
+        struct
+        {
+            char const** out_text;
+        } get_reboot_timer;
         struct
         {
             struct UITreeMinimapDot const** out_dots;

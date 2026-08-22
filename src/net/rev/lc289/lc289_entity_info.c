@@ -36,10 +36,18 @@
  * The op vocabulary (PktPlayerInfoOp / PktNpcInfoOp) is deliberately NOT
  * duplicated. That is the interface to the consumer, not part of the wire, and
  * it is the same question answered for both builds.
+ *
+ * ## The appearance block
+ *
+ * A third 289 delta, and it lives with the other appearance encodings rather
+ * than here: the block gained a two-byte SKILL LEVEL after the combat level
+ * (APPEARANCE_ENC_CLASSIC_LC289). It is only reachable through the rev table's
+ * `appearance_decode` hook, which is what lc289_appearance_decode below is.
  */
 
 #include "net/bitbuffer.h"
 #include "net/rev/packets/pkt_npc_info.h"
+#include "net/rev/packets/pkt_player_appearance.h"
 #include "net/rev/packets/pkt_player_info.h"
 
 #include <assert.h>
@@ -446,6 +454,20 @@ lc289_player_info_read(
     lc289_read_player_extended(
         &dec, data, length, Net_BitBufferBytePos(&buf), ops, ops_capacity);
     return dec.current_op;
+}
+
+/* ------------------------------------------------------------- APPEARANCE */
+
+int
+lc289_appearance_decode(
+    uint8_t const* data,
+    int length,
+    struct PktPlayerAppearance* out)
+{
+    assert(data);
+    assert(out);
+    return PktPlayerAppearance_DecodeAs(
+        out, APPEARANCE_ENC_CLASSIC_LC289, data, length);
 }
 
 /* --------------------------------------------------------------- NPC_INFO */

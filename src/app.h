@@ -517,14 +517,36 @@ enum ToriRS_WorldRenderMode
 #define APP_PENDING_CLIENTSCRIPT_MAX 64
 
 /**
+ * Logic cycles in one server tick: 600ms of server against a 20ms client
+ * cycle. The client has two clocks and this is the only ratio between them,
+ * so anything converting a server-tick duration into cycles says it here
+ * (UPDATE_REBOOT_TIMER's countdown, the clientscript fence below).
+ */
+#define APP_SERVER_TICK_LOGIC_CYCLES 30
+
+/** 20ms logic cycles in one second — the client's own clock read as wall time. */
+#define APP_LOGIC_CYCLES_PER_SECOND 50
+
+/**
+ * MINIMAP_TOGGLE states. 1 and 2 are not degrees of the same thing: the map is
+ * equally invisible in both, and what separates them is whether clicking where
+ * it used to be still walks. See struct PktMinimapToggle.
+ */
+enum AppMinimapState
+{
+    APP_MINIMAP_STATE_NORMAL = 0,
+    APP_MINIMAP_STATE_HIDDEN = 1,
+    APP_MINIMAP_STATE_HIDDEN_UNCLICKABLE = 2,
+};
+
+/**
  * Logic cycles a held clientscript may wait for a fence that never comes.
  *
- * A server tick is 600ms against a 20ms logic cycle, so 30 cycles is one whole
- * tick — long enough that a healthy connection never reaches it, short enough
- * that a tick truncated by a disconnect costs one tick of delay rather than the
- * script.
+ * One whole server tick — long enough that a healthy connection never reaches
+ * it, short enough that a tick truncated by a disconnect costs one tick of
+ * delay rather than the script.
  */
-#define APP_CLIENTSCRIPT_FENCE_MAX_CYCLES 30
+#define APP_CLIENTSCRIPT_FENCE_MAX_CYCLES APP_SERVER_TICK_LOGIC_CYCLES
 
 /**
  * Logic cycles a settings change waits before it is written to disk.
@@ -1519,16 +1541,38 @@ struct App
      */
     int player_attack_option;
     int npc_attack_option;
-    int multiway; /* SET_MULTIWAY */
+    int multiway; /* SET_MULTIWAY: 1 = in a multi-combat zone */
+    /** MINIMAP_TOGGLE state; see enum AppMinimapState. */
+    int minimap_state;
     /** LAST_LOGIN_INFO for the welcome screen clientcode rows. */
     struct
     {
         int last_ip;
         int days_since_login;
+        /**
+         * Days since the recovery questions were last changed, with two
+         * values that are not day counts at all: 200 = never set any, 201 =
+         * the server is not telling (which is also the only state in which
+         * `member_warning` has anything to say). Reference
+         * daysSinceRecoveriesChanged.
+         */
         int days_since_recovery;
         int unread_messages;
+        /** 1 = a member logged into a non-members world; the recovery rows
+         *  carry that warning instead of recovery text. */
+        int member_warning;
     } welcome;
-    int reboot_ticks; /* UPDATE_REBOOT_TIMER countdown; 0 = none */
+    /**
+     * UPDATE_REBOOT_TIMER countdown in 20ms client cycles (reference
+     * rebootTimer), NOT in the server ticks the packet carries -- exec
+     * multiplies on the way in. 0 = no update pending, and the countdown
+     * stops at 1 rather than reaching 0 so "nearly here" never reads as
+     * "cancelled".
+     */
+    int reboot_timer;
+    /** Formatted countdown line handed to the reboot_timer widget; rebuilt on
+     *  every read, so it is only valid until the next one. */
+    char reboot_timer_text[48];
     /** MESSAGE_PRIVATE dedupe (reference messageIds ring). */
     int pm_message_ids[100];
     int pm_message_head;

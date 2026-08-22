@@ -33,6 +33,10 @@ type_from_string(char const* type)
         return UIELEM_BUILTIN_ENTITY_OVERLAY;
     if( strcmp(type, "hovertext") == 0 )
         return UIELEM_BUILTIN_HOVERTEXT;
+    if( strcmp(type, "multiway") == 0 )
+        return UIELEM_BUILTIN_MULTIWAY;
+    if( strcmp(type, "reboot_timer") == 0 )
+        return UIELEM_BUILTIN_REBOOT_TIMER;
     if( strcmp(type, "minimenu") == 0 )
         return UIELEM_BUILTIN_MINIMENU;
     if( strcmp(type, "minimap") == 0 )
@@ -511,6 +515,28 @@ push_builtin_op(
         spec.always_dirty = 1;
         spec.u.sprite.scene_id = sprite_id;
         spec.u.sprite.atlas_index = 0;
+        break;
+    /* Unlike the cross, the frame matters: `sprite=headicons[1]` is how the
+     * indicator picks its icon out of a 20-frame pack, so the atlas index the
+     * ref resolved has to survive. */
+    case UIELEM_BUILTIN_MULTIWAY:
+        spec.always_dirty = 1;
+        spec.u.sprite.scene_id = sprite_id;
+        spec.u.sprite.atlas_index = atlas_index;
+        break;
+    case UIELEM_BUILTIN_REBOOT_TIMER:
+        spec.always_dirty = 1;
+        spec.u.reboot_timer.color = op->color;
+        if( op->has_font_ref && op->font_ref[0] )
+        {
+            int font_id = UITreeBuilder_ResolveFontName(builder, op->font_ref);
+            assert(font_id >= 0 && "reboot_timer font missing");
+            spec.u.reboot_timer.font_id = font_id;
+        }
+        else if( op->font >= 0 )
+        {
+            spec.u.reboot_timer.font_id = UITreeBuilder_ResolveFontArchive(builder, op->font);
+        }
         break;
     case UIELEM_BUILTIN_ENTITY_OVERLAY:
         spec.always_dirty = 1;

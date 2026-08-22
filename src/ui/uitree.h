@@ -70,6 +70,20 @@ enum UITreeComponentType
      *  it gets its own emit pass, after the drag pass, so it draws over
      *  everything. Skipped entirely when the host has no overlay. */
     UIELEM_BUILTIN_DEBUG_OVERLAY = 27,
+    /**
+     * Multi-combat indicator (SET_MULTIWAY): one sprite frame, drawn only
+     * while the server says the player is in a multi-combat zone. A builtin
+     * because no interface owns it -- the reference plots it straight onto the
+     * viewport -- but its sprite and its place are revconfig's, not C's.
+     */
+    UIELEM_BUILTIN_MULTIWAY = 28,
+    /**
+     * System-update countdown (UPDATE_REBOOT_TIMER): one line of text over the
+     * viewport while an update is pending. Same deal as MULTIWAY -- font,
+     * colour and position come from revconfig, the host supplies the string
+     * and whether there is one.
+     */
+    UIELEM_BUILTIN_REBOOT_TIMER = 29,
     UIELEM_RS_TEXT = 14,     /* TYPE_TEXT */
     UIELEM_RS_GRAPHIC = 15,  /* TYPE_GRAPHIC */
     UIELEM_RS_MODEL = 16,    /* TYPE_MODEL */
@@ -646,6 +660,12 @@ struct UITreeComponent
         } hovertext;
         struct
         {
+            int font_id;
+            /** revconfig color=; text colour of the countdown line. */
+            int color;
+        } reboot_timer;
+        struct
+        {
             /** Scene font ids the host registered the baked debug faces
              * under, indexed by enum ToriRSChromeFontSlot. ui/ stays leaf, so they
              * travel as plain ints the same way minimenu.font_id does. */
@@ -1110,6 +1130,12 @@ struct UITreeNodeSpec
         {
             int font_id;
         } hovertext;
+        struct
+        {
+            int font_id;
+            /** revconfig color=; text colour of the countdown line. */
+            int color;
+        } reboot_timer;
         struct
         {
             /** Scene font ids the host registered the baked debug faces

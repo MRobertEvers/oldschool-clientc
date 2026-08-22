@@ -53,7 +53,27 @@ Task_Dat1IdkLoad_Run(
     rscache_idk = dat1_buildcache_idk_get(task->bc, task->idk_id);
     if( !rscache_idk )
     {
-        fprintf(stderr, "Failed to load dat1 idk %d\n", task->idk_id);
+        /*
+         * "Past the end" is not "failed", and saying so matters here because
+         * the design screen's kit scan FINDS the end by walking ids until one
+         * is missing (player_appearance.c). That last, expected miss is not a
+         * defect and must not read like one -- a boot that prints "Failed to
+         * load dat1 idk 82" against a cache with exactly 82 kits sends the
+         * next person looking for a broken record that does not exist.
+         *
+         * dat1 decodes the whole idk table in one go and the ids are
+         * contiguous from 0, so the loaded count IS the table size and the two
+         * cases are cleanly separable.
+         */
+        int const table_size = (int)task->bc->idk_hmap->size;
+        if( task->idk_id >= table_size )
+            fprintf(
+                stderr,
+                "dat1 idk %d: past the end of the table (%d kits)\n",
+                task->idk_id,
+                table_size);
+        else
+            fprintf(stderr, "Failed to load dat1 idk %d\n", task->idk_id);
         PT_EXIT(&task->pt);
     }
 

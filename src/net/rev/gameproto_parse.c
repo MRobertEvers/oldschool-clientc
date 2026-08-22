@@ -657,6 +657,12 @@ gameproto_parse(
         assert(buffer.position == data_size);
         return 1;
     }
+    case PKT_NAME_MINIMAP_TOGGLE:
+    {
+        packet->_minimap_toggle.state = g1(&buffer);
+        assert(buffer.position == data_size);
+        return 1;
+    }
     case PKT_NAME_UPDATE_IGNORELIST:
     {
         struct PktUpdateIgnoreList* ig = &packet->_update_ignorelist;

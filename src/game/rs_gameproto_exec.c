@@ -1395,11 +1395,21 @@ RS_GameProto_Exec(
             ctx->app->welcome.days_since_login = packet->_last_login_info.days_since_login;
             ctx->app->welcome.days_since_recovery = packet->_last_login_info.days_since_recovery;
             ctx->app->welcome.unread_messages = packet->_last_login_info.unread_messages;
+            ctx->app->welcome.member_warning = packet->_last_login_info.member_warning;
+            /* The welcome rows are clientCode components refreshed by
+             * RS_ClientCode_Tick; they read this struct, so a repaint is the
+             * whole of "apply" here. */
+            ctx->app->need_redraw = 1;
         }
         break;
     case PKT_NAME_UPDATE_REBOOT_TIMER:
+        /* The wire carries SERVER ticks; the countdown runs on the 20ms client
+         * cycle, so it is converted once here rather than at every read
+         * (reference `rebootTimer = g2() * 30`, where 30 is the same ratio
+         * spelled as a literal). */
         if( ctx->app )
-            ctx->app->reboot_ticks = packet->_update_reboot_timer.ticks;
+            ctx->app->reboot_timer =
+                packet->_update_reboot_timer.ticks * APP_SERVER_TICK_LOGIC_CYCLES;
         break;
     case PKT_NAME_P_COUNTDIALOG:
         if( ctx->chat )
@@ -1434,8 +1444,18 @@ RS_GameProto_Exec(
         }
         break;
     case PKT_NAME_SET_MULTIWAY:
-        if( ctx->app )
+        if( ctx->app && ctx->app->multiway != packet->_set_multiway.multiway )
+        {
             ctx->app->multiway = packet->_set_multiway.multiway;
+            ctx->app->need_redraw = 1;
+        }
+        break;
+    case PKT_NAME_MINIMAP_TOGGLE:
+        if( ctx->app && ctx->app->minimap_state != packet->_minimap_toggle.state )
+        {
+            ctx->app->minimap_state = packet->_minimap_toggle.state;
+            ctx->app->need_redraw = 1;
+        }
         break;
     case PKT_NAME_HINT_ARROW:
         if( ctx->app )

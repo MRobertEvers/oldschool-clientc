@@ -1170,6 +1170,10 @@ UITree_ComponentTypeStr(enum UITreeComponentType type)
         return "minimenu";
     case UIELEM_BUILTIN_HOVERTEXT:
         return "hovertext";
+    case UIELEM_BUILTIN_MULTIWAY:
+        return "multiway";
+    case UIELEM_BUILTIN_REBOOT_TIMER:
+        return "reboot_timer";
     case UIELEM_BUILTIN_ENTITY_OVERLAY:
         return "entity_overlay";
     case UIELEM_BUILTIN_DEBUG_OVERLAY:
@@ -1431,7 +1435,8 @@ UITree_TypeIsAlwaysDirtyFrame(enum UITreeComponentType type)
 {
     return type == UIELEM_BUILTIN_WORLD || type == UIELEM_BUILTIN_MINIMAP ||
            type == UIELEM_BUILTIN_COMPASS || type == UIELEM_BUILTIN_CROSS ||
-           type == UIELEM_BUILTIN_MINIMENU || type == UIELEM_BUILTIN_HOVERTEXT;
+           type == UIELEM_BUILTIN_MINIMENU || type == UIELEM_BUILTIN_HOVERTEXT ||
+           type == UIELEM_BUILTIN_MULTIWAY || type == UIELEM_BUILTIN_REBOOT_TIMER;
 }
 
 void
@@ -1932,6 +1937,7 @@ UITree_Push(
     case UIELEM_BUILTIN_SPRITE:
     case UIELEM_BUILTIN_COMPASS:
     case UIELEM_BUILTIN_CROSS:
+    case UIELEM_BUILTIN_MULTIWAY:
         component->u.sprite.scene_id = spec->u.sprite.scene_id;
         component->u.sprite.atlas_index = spec->u.sprite.atlas_index;
         component->u.sprite.mask_scene_id = spec->u.sprite.mask_scene_id;
@@ -1944,6 +1950,11 @@ UITree_Push(
 
     case UIELEM_BUILTIN_HOVERTEXT:
         component->u.hovertext.font_id = spec->u.hovertext.font_id;
+        break;
+
+    case UIELEM_BUILTIN_REBOOT_TIMER:
+        component->u.reboot_timer.font_id = spec->u.reboot_timer.font_id;
+        component->u.reboot_timer.color = spec->u.reboot_timer.color;
         break;
 
     case UIELEM_BUILTIN_DEBUG_OVERLAY:

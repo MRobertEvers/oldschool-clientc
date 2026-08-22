@@ -114,13 +114,14 @@ enum GameProtoPktName
     PKT_NAME_SET_PLAYER_OP,
     /**
      * Turn the minimap off, or to the "hidden but still clickable" middle
-     * state (LostCity 274+; one byte, 0/1/2).
+     * state (LostCity 274+; one byte, 0/1/2 -- see struct PktMinimapToggle).
      *
-     * Named here without a parser behind it, which is the point: a name in
-     * this list is what gives the packet a LENGTH in a revision's table, and a
-     * server packet with no length in the table consumes zero bytes and
-     * misframes everything after it. An unhandled packet must still be a
-     * correctly skipped one.
+     * A name in this list is also what gives the packet a LENGTH in a
+     * revision's table: a server packet with no length there consumes zero
+     * bytes and misframes everything after it, so a name has to exist here
+     * before a decoder does. This one carried its length alone for a while,
+     * which is the correct half-measure -- an unhandled packet must still be
+     * a correctly skipped one.
      */
     PKT_NAME_MINIMAP_TOGGLE,
     /** Run the current root's CS2 onDialogAbort listeners before teardown. */

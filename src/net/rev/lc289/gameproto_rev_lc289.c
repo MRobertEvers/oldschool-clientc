@@ -16,6 +16,9 @@ lc289_player_info_read(uint8_t const* data, int len, struct PktPlayerInfoOp* ops
 int
 lc289_npc_info_read(uint8_t const* data, int len, struct PktNpcInfoOp* ops, int cap);
 
+int
+lc289_appearance_decode(uint8_t const* data, int len, struct PktPlayerAppearance* out);
+
 static int
 rev_packetin_size(int wire_opcode)
 {
@@ -71,6 +74,10 @@ static struct GameProtoRevTable k_rev_lc289 = {
      * partial compatibility: the layout is the unit, so the reader is too. */
     .player_info_read = lc289_player_info_read,
     .npc_info_read = lc289_npc_info_read,
+    /* 289's appearance block is 254's plus a trailing two-byte skill level.
+     * Length-prefixed, so the 254 decoder read it without complaint and simply
+     * never saw the field. */
+    .appearance_decode = lc289_appearance_decode,
 };
 
 struct GameProtoRevTable const*

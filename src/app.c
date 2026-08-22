@@ -4800,6 +4800,39 @@ app_chrome_merged_prims(struct App* app, int* out_count)
     return app->chrome_merged;
 }
 
+/*
+ * The system-update line, or NULL when no update is pending.
+ *
+ * Reference drawScene: seconds = rebootTimer / 50 (fifty 20ms cycles to the
+ * second), then minutes:seconds zero-padded. The 50 is spelled here as the
+ * cycles-per-second it is, so the one place the client turns its own clock
+ * into a wall-clock reading says which clock it means.
+ *
+ * The returned pointer is App-owned and lives until the next call, which is
+ * the same frame lifetime the hovertext model has.
+ */
+static char const*
+app_reboot_timer_text(struct App* app)
+{
+    int seconds;
+    int minutes;
+
+    assert(app);
+    if( app->reboot_timer == 0 )
+        return NULL;
+
+    seconds = app->reboot_timer / APP_LOGIC_CYCLES_PER_SECOND;
+    minutes = seconds / 60;
+    seconds %= 60;
+    snprintf(
+        app->reboot_timer_text,
+        sizeof(app->reboot_timer_text),
+        "System update in: %d:%02d",
+        minutes,
+        seconds);
+    return app->reboot_timer_text;
+}
+
 static int
 app_host_request(
     void* user,
@@ -4878,6 +4911,14 @@ app_host_request(
             req->u.get_minimap_state.out_src_anchor_y);
         return app->world_map_scene_id;
     }
+    case UITREE_HOST_GET_MINIMAP_HIDDEN:
+        return app->minimap_state != APP_MINIMAP_STATE_NORMAL;
+    case UITREE_HOST_GET_MULTIWAY:
+        return app->multiway == 1;
+    case UITREE_HOST_GET_REBOOT_TIMER:
+        assert(req->u.get_reboot_timer.out_text);
+        *req->u.get_reboot_timer.out_text = app_reboot_timer_text(app);
+        return *req->u.get_reboot_timer.out_text != NULL;
     case UITREE_HOST_GET_MINIMAP_DOTS:
         return App_MinimapBuildDots(app, req->u.get_minimap_dots.out_dots);
     case UITREE_HOST_GET_WORLDMAP_TILES:
@@ -5059,45 +5100,6 @@ app_host_request(
     default:
         return 0;
     }
-}
-
-/* Demo content until real state sync exists: seed the worn/backpack/bank
- * containers so item-bearing interfaces have something to show. */
-static void
-seed_inv_defaults(struct InvManager* invs)
-{
-    static int const k_worn_items[] = { 1153, 1007, 1725, 1333, 1115, 1201,
-                                        1189, 1063, 1067, 2564, 882 };
-    static int const k_backpack_items[] = { 1333 };
-    /* Bank contents so interface 12 renders its item grid + tab row. */
-    static int const k_bank_items[] = { 995,  1333, 1153, 1007, 1725, 1115, 1201, 1189, 1063,
-                                        1067, 2564, 882,  4151, 1305, 1319, 1215, 1231, 1147,
-                                        1163, 1079, 1093, 861,  1163, 1704, 2550, 6585, 1725,
-                                        3105, 1387, 1275, 1291, 4587, 1215, 1333, 995,  1038 };
-
-    assert(invs);
-    assert(InvManager_ResolveSource(invs, INV_MANAGER_SOURCE_NAME_WORN) >= 0);
-    assert(InvManager_ResolveSource(invs, INV_MANAGER_SOURCE_NAME_BACKPACK) >= 0);
-
-    assert(InvManager_ApplyFull(
-        invs,
-        INV_MANAGER_CONTAINER_WORN,
-        k_worn_items,
-        NULL,
-        (int)(sizeof(k_worn_items) / sizeof(k_worn_items[0]))));
-    assert(InvManager_ApplyFull(
-        invs,
-        INV_MANAGER_CONTAINER_BACKPACK,
-        k_backpack_items,
-        NULL,
-        (int)(sizeof(k_backpack_items) / sizeof(k_backpack_items[0]))));
-    assert(InvManager_EnsureContainer(invs, INV_MANAGER_CONTAINER_BANK, 800, "bank") >= 0);
-    assert(InvManager_ApplyFull(
-        invs,
-        INV_MANAGER_CONTAINER_BANK,
-        k_bank_items,
-        NULL,
-        (int)(sizeof(k_bank_items) / sizeof(k_bank_items[0]))));
 }
 
 /* ---- Inventory obj-icon reconcile ------------------------------------- *
@@ -7694,12 +7696,14 @@ App_Init(
     for( size_t i = 0; i < sizeof(app->entity_spotanims) / sizeof(app->entity_spotanims[0]); i++ )
         app->entity_spotanims[i].body_element_id = -1;
 
-    seed_inv_defaults(&app->invs);
     RS_EntitySync_Init(&app->esync);
     RS_Audio_Init(&app->audio);
     ToriRS_AudioQueue_Reset(&app->audio_out);
     app->inv_drag_com_id = -1;
-    app->reboot_ticks = 0;
+    app->reboot_timer = 0;
+    app->multiway = 0;
+    app->minimap_state = 0;
+    memset(&app->welcome, 0, sizeof(app->welcome));
     RS_Social_Init(&app->social);
     /* Reference reset path: idkDesignGender = male, then validateIdkDesign().
      * The kit scan itself waits for the idk configs, so the clientCode tick
@@ -11826,6 +11830,19 @@ app_logic_tick(struct App* app)
 
     app->logic_cycle++;
 
+    /*
+     * System-update countdown (reference gameLoop: `if (rebootTimer > 1)
+     * rebootTimer--`). Stops at 1, never 0 — 0 is "no update pending", and
+     * counting into it would erase the warning at the moment it matters most.
+     * Ahead of the early return below, because a busy exec runner must not be
+     * able to stall a clock the server started.
+     */
+    if( app->reboot_timer > 1 )
+    {
+        app->reboot_timer--;
+        redraw = 1;
+    }
+
     /* Before the packet pump, so a handler that samples world state sees the
      * cycle it was told about rather than one already half-advanced by this
      * tick's packets. The 600ms server cadence is a different event
@@ -14834,6 +14851,11 @@ app_minimap_click(
     int tile_x, tile_z;
 
     if( !app->minimap_view_valid || !app->world || !app->world->load_complete )
+        return 0;
+    /* MINIMAP_TOGGLE state 2 takes the clicks as well as the picture; state 1
+     * takes only the picture, and walking by memory across a map you cannot
+     * see is the point of that state existing. */
+    if( app->minimap_state == APP_MINIMAP_STATE_HIDDEN_UNCLICKABLE )
         return 0;
     if( mouse_x < desc->x || mouse_x >= desc->x + desc->w || mouse_y < desc->y ||
         mouse_y >= desc->y + desc->h )

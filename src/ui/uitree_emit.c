@@ -539,6 +539,14 @@ UITree_EmitFill(
             .u.get_minimap_state.out_src_anchor_x = &out->src_anchor_x,
             .u.get_minimap_state.out_src_anchor_y = &out->src_anchor_y,
         };
+        /* MINIMAP_TOGGLE: the server can take the map away. Nothing is
+         * drawn in its place -- the hole in the mapback frame art is what
+         * shows through, which is the reference's "hidden" too. */
+        {
+            struct UITreeHostRequest hidden_req = { .kind = UITREE_HOST_GET_MINIMAP_HIDDEN };
+            if( UITree_Host(host, &hidden_req) )
+                return false;
+        }
         out->kind = UITREE_EMIT_MINIMAP;
         out->scene_id = UITree_Host(host, &req);
         if( out->scene_id <= 0 )
@@ -692,6 +700,49 @@ UITree_EmitFill(
         out->y = cy - 8;
         out->w = 16;
         out->h = 16;
+        return true;
+    }
+
+    case UIELEM_BUILTIN_MULTIWAY:
+    {
+        /* Reference drawScene tail: `if (inMultizone === 1) headicons[1]
+         * .plotSprite(472, 296)`. Both of those numbers are revconfig's here
+         * -- the frame through `sprite=headicons[1]`, the place through the
+         * layout row -- so this is only the gate and the blit. */
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_MULTIWAY };
+        if( !UITree_Host(host, &req) )
+            return false;
+        if( component->u.sprite.scene_id <= 0 )
+            return false;
+        out->kind = UITREE_EMIT_SPRITE;
+        out->scene_id = component->u.sprite.scene_id;
+        out->atlas_index = component->u.sprite.atlas_index;
+        return true;
+    }
+
+    case UIELEM_BUILTIN_REBOOT_TIMER:
+    {
+        /* Reference drawScene tail: 'System update in: M:SS' at (4, 329) in
+         * yellow. The host owns the string because it owns the clock; the
+         * font, the colour and the place are the widget's. */
+        char const* text = NULL;
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_REBOOT_TIMER,
+            .u.get_reboot_timer.out_text = &text,
+        };
+        if( !UITree_Host(host, &req) || !text || !text[0] )
+            return false;
+        if( component->u.reboot_timer.font_id <= 0 )
+            return false;
+        out->kind = UITREE_EMIT_TEXT;
+        out->font_id = component->u.reboot_timer.font_id;
+        out->color = component->u.reboot_timer.color;
+        out->text = text;
+        /* The reference expresses this as font.drawString(s, x, y), so the
+         * layout's y is the baseline and the box does not align it. That is
+         * what lets the revconfig row carry the reference's own coordinates
+         * rather than a guess at where the top of the line would be. */
+        out->text_baseline = 1;
         return true;
     }
 
