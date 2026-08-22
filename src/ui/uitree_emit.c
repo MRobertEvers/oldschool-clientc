@@ -2504,6 +2504,52 @@ emit_debug_overlay_pass(
 }
 
 /*
+ * The plugin CANVAS overlay: one desc, in canvas space, above everything the
+ * tree drew.
+ *
+ * No node behind it, unlike the entity overlay and the debug overlay, and that
+ * is deliberate. Both of those are components a profile has to author, and a
+ * profile that forgot one is a lane where the feature silently does not exist
+ * -- which is exactly what a plugin must not depend on. A plugin runs on every
+ * lane this client boots, including the ones whose gameframe comes out of a
+ * 2004 cache and knows nothing about any of this, so its surface is the
+ * canvas itself and the pass that emits it is unconditional.
+ *
+ * It costs one host call per frame when no plugin drew, and that call answers
+ * zero -- the same shape as the entity overlay's, which also asks every frame.
+ *
+ * Placed BEFORE the debug overlay pass: developer chrome stays on top of
+ * everything, plugin chrome sits over the game.
+ */
+static void
+emit_plugin_canvas_pass(
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* out)
+{
+    struct UITreeEmitDesc desc;
+    struct UITreeHostRequest req;
+
+    memset(&desc, 0, sizeof(desc));
+    memset(&req, 0, sizeof(req));
+    req.kind = UITREE_HOST_GET_CANVAS_OVERLAYS;
+    req.u.get_entity_overlays.out_items = &desc.entity_overlays;
+    req.u.get_entity_overlays.out_clip_x = &desc.clip.x;
+    req.u.get_entity_overlays.out_clip_y = &desc.clip.y;
+    req.u.get_entity_overlays.out_clip_w = &desc.clip.w;
+    req.u.get_entity_overlays.out_clip_h = &desc.clip.h;
+    desc.entity_overlay_count = UITree_Host(host, &req);
+    if( desc.entity_overlay_count <= 0 || !desc.entity_overlays )
+        return;
+
+    /* The same emit kind, because the item vocabulary and the renderer's
+     * expansion of it are the same; only the clip the host reported differs. */
+    desc.kind = UITREE_EMIT_ENTITY_OVERLAY;
+    desc.node_index = -1;
+    desc.component_id = -1;
+    emit_buffer_append(out, &desc);
+}
+
+/*
  * Entity overlays belong to the SCENE pass, not to their place in the tree.
  *
  * The reference draws health bars and hitsplats inside drawEntities, which is
@@ -2620,6 +2666,8 @@ UITree_EmitWalk(
             tree, host, out, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 1);
     }
     emit_hoist_entity_overlays(tree, out);
+    /* Plugin chrome: over the interfaces, under the developer overlay. */
+    emit_plugin_canvas_pass(host, out);
     /* Last, so developer chrome is over everything including drag ghosts. */
     emit_debug_overlay_pass(tree, host, out);
 }

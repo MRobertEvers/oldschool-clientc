@@ -24,7 +24,7 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 8
+#define TORIRS_PLUGIN_ABI 9
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 /** Bytes of a plugin's human title, terminator included. Longer than the name
@@ -104,6 +104,24 @@ enum ToriRS_PluginEvent
     /** The world overlay surface is open. The draw api is legal only here.
      *  Payload: EvDraw. */
     TORIRS_PLUGIN_EV_DRAW_WORLD,
+    /**
+     * The CANVAS surface is open: the whole client window, above the
+     * interfaces. Payload: EvDrawCanvas.
+     *
+     * The other draw event, and the difference is what each is CLIPPED to. An
+     * EV_DRAW_WORLD mark is cut to the world viewport and hoisted to just
+     * above the 3D scene, so it sits under the inventory and the chatbox the
+     * way the reference draws a scene overlay -- which is right for anything
+     * that marks a thing in the world, and wrong for anything that belongs to
+     * the chrome. In a FIXED gameframe the minimap is not inside the world
+     * viewport at all, so an orb drawn beside it through the world surface is
+     * clipped away entirely.
+     *
+     * `draw_tile` and `draw_hull` are not legal here: both name something in
+     * the scene, and the scene is what this surface is not about. Everything
+     * else -- rect, line, text, image -- is.
+     */
+    TORIRS_PLUGIN_EV_DRAW_CANVAS,
     /** One of this plugin's config keys changed. Payload: EvConfig. */
     TORIRS_PLUGIN_EV_CONFIG_CHANGED,
     /** A ground-item stack appeared on a tile. Payload: EvObj. */
@@ -482,6 +500,17 @@ struct ToriRS_PluginEvDraw
     void* surface;
 };
 
+struct ToriRS_PluginEvDrawCanvas
+{
+    /** Opaque surface token; hand back to the draw api. Never the same token
+     *  as EV_DRAW_WORLD's, so a handler that kept one from the wrong event is
+     *  caught rather than drawing into the other list. */
+    void* surface;
+    /** The canvas, in the coordinates every draw call on this surface uses. */
+    int width;
+    int height;
+};
+
 struct ToriRS_PluginEvConfig
 {
     char const* key;
@@ -842,6 +871,52 @@ struct ToriRS_PluginApi
      *  those apart asks hover_tile too. */
     int (*hover_entity)(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginHoverEntity* out);
 
+    /* -- the chrome's own geometry --
+     *
+     * Where the client PUT something, as this frame's layout resolved it. A
+     * plugin drawing chrome has to be able to anchor to the chrome, and the
+     * numbers are not knowable any other way: the minimap is at 550,4 in a
+     * 2004 fixed frame, top-right of a resizable canvas in a modern one, and
+     * somewhere else again the moment a window is resized.
+     */
+
+    /**
+     * The minimap's box on the canvas. Returns 0, leaving the outputs
+     * untouched, when this gameframe has no minimap or has not laid one out
+     * yet -- which a caller answers by drawing nothing, not by guessing.
+     *
+     * The box is the map's own square, not the frame art around it: it is what
+     * a click on the minimap hit-tests against, and it is where the player dot
+     * is centred.
+     */
+    int (*minimap_rect)(
+        struct ToriRS_PluginCtx* ctx, int* out_x, int* out_y, int* out_w, int* out_h);
+
+    /* -- the player's numbers --
+     *
+     * Not varps. A skill level and the run meter arrive in packets of their
+     * own (UPDATE_STAT, UPDATE_RUNENERGY) on every revision this client
+     * speaks, and a plugin that went looking for them in a var would find
+     * nothing at all.
+     */
+
+    /**
+     * One skill: the BOOSTED level into `out_current` and the earned one into
+     * `out_base`. Either out may be NULL.
+     *
+     * `skill` is the revision's own index -- 0 attack, 1 defence, 2 strength,
+     * 3 hitpoints, and so on -- which has not moved since 2001 and is the same
+     * number CS2's `stat` opcode takes.
+     *
+     * @return 1 when the index is in range, 0 otherwise, and 0 leaves the outs
+     * untouched. A stat nothing has reported yet reads as 0/0, which is what a
+     * logged-out client legitimately knows.
+     */
+    int (*stat)(struct ToriRS_PluginCtx* ctx, int skill, int* out_current, int* out_base);
+
+    /** Run energy as the wire carries it: a percent, 0..100. */
+    int (*run_energy)(struct ToriRS_PluginCtx* ctx);
+
     /**
      * How high an OVERHEAD hangs above a scene element, in the projector's
      * units -- feed it to api->project as `height_above_ground`.
@@ -939,7 +1014,13 @@ struct ToriRS_PluginApi
         char const* text,
         uint32_t tag);
 
-    /* -- drawing; legal only inside EV_DRAW_WORLD (asserted).
+    /* -- drawing; legal only inside EV_DRAW_WORLD / EV_DRAW_CANVAS, and only
+     *    on the surface that event handed over (asserted).
+     *
+     *    draw_tile and draw_hull are WORLD ONLY: both name something in the
+     *    scene, which the canvas surface has no relationship to. The rest work
+     *    on either, in that surface's own coordinates.
+     *
      *    Colours are 0xRRGGBB. `fill_alpha` is 0..255 where 0 means outline
      *    only; it is the wash's opacity, not the reference's inverted
      *    transparency. -- */
@@ -1001,6 +1082,71 @@ struct ToriRS_PluginApi
         int h,
         uint32_t rgb,
         int fill_alpha);
+
+    /* -- images --
+     *
+     * A plugin's OWN art, from its own asset file, drawn at its own pixels.
+     *
+     * The other half of the answer the model source enum gives for geometry
+     * (see ToriRS_PluginModelSource): a MODEL is named by cache id because it
+     * cannot mean anything outside the revision that decodes it, and a flat
+     * image is the opposite -- it is a picture, it has no palette to be wrong
+     * about, and a plugin that ships one works the same on every cache this
+     * client boots. That is the whole reason this exists: the client's own
+     * orbs, bars and icons are interface art, so a plugin reaching for them by
+     * cache id would work on the one revision that has them and silently draw
+     * something else on the rest.
+     *
+     * PNG, 8-bit, colour type 2 or 6, no interlace -- what any paint program
+     * writes and what the cache's own world-map images already are. The alpha
+     * channel is kept, because a cut-out is what interface art is.
+     */
+
+    /**
+     * Begin loading `name` as an image, through the ordinary asset sandbox --
+     * so a bare filename, resolved saved-copy-first, exactly as asset_load
+     * resolves one.
+     *
+     * @return an image handle, or -1 when the plugin is at its image budget.
+     *
+     * The handle is live at once and the PIXELS are not: the read crosses the
+     * IO queue like every other asset, so image_size answers 0x0 and
+     * draw_image draws nothing until they land. A plugin lays out against
+     * image_size and skips a frame or two on first run rather than blocking,
+     * the same way the client's own graphics do.
+     */
+    int (*image_load)(struct ToriRS_PluginCtx* ctx, char const* name);
+    /** The image's pixels. Both outs may be NULL. @return 1 once it is
+     *  resident, 0 while it is pending or if the file would not decode. */
+    int (*image_size)(struct ToriRS_PluginCtx* ctx, int image, int* out_w, int* out_h);
+    /** Drop the image and its scene entry. The file is untouched. */
+    void (*image_release)(struct ToriRS_PluginCtx* ctx, int image);
+    /**
+     * Blit an image with its top-left at `x`, `y`, at its own size.
+     *
+     * `clip_*` is an extra rectangle to cut it to, in the surface's
+     * coordinates, and a zero `clip_w` or `clip_h` means no extra cut. It is
+     * an argument rather than a second entry point because a partly-drawn
+     * image is what a METER is: the client's own orbs are a full-size dark
+     * disc drawn over a full-size coloured one, clipped to the unfilled part,
+     * and a caller that has to fake that by scaling gets a squashed disc
+     * instead of a covered one.
+     *
+     * `trans` is the reference's sense, not the fill_alpha above it: 0 is
+     * opaque and 255 is invisible, matching every other sprite blit in the
+     * client.
+     */
+    void (*draw_image)(
+        struct ToriRS_PluginCtx* ctx,
+        void* surface,
+        int image,
+        int x,
+        int y,
+        int clip_x,
+        int clip_y,
+        int clip_w,
+        int clip_h,
+        int trans);
 
     /* -- assets --
      *

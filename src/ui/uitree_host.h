@@ -178,6 +178,22 @@ enum UITreeHostRequestKind
      */
     UITREE_HOST_GET_ENTITY_OVERLAYS,
     /**
+     * The PLUGIN CANVAS overlay: the same item vocabulary as the entity
+     * overlays above, drawn in canvas space instead of world space. Writes the
+     * host-owned array (same-frame lifetime) to u.get_entity_overlays.out_items
+     * and the clip to the same outs; returns the item count.
+     *
+     * A second list rather than a flag on the first, because the two are
+     * clipped and LAYERED differently and a plugin has to be able to ask for
+     * either. An entity overlay is hoisted to just above the 3D world and cut
+     * to the world viewport, which is what makes a tile marker sit under the
+     * inventory the way the reference draws it; an orb beside the minimap is
+     * chrome, and in a fixed gameframe the minimap is not inside the world
+     * viewport at all -- a marker drawn there through the world list is
+     * clipped away entirely.
+     */
+    UITREE_HOST_GET_CANVAS_OVERLAYS,
+    /**
      * Writes the host-owned world map tile array (the baked regions covering
      * the map surface this frame, same-frame lifetime) to
      * u.get_worldmap_tiles.out_items; returns the item count. The host also

@@ -495,6 +495,72 @@ UITreeSceneBridge_EnsureChromeSkin(struct UITreeSceneBridge* bridge)
     return UITREE_SCENE_CHROME_SKIN_ID;
 }
 
+/** Slots in the plugin-image range. One per resident image across every
+ *  plugin; the host is what holds a plugin to a share of them. */
+#define BRIDGE_PLUGIN_IMAGE_SLOTS 64
+
+int
+UITreeSceneBridge_PublishPluginImage(
+    struct UITreeSceneBridge* bridge,
+    int slot,
+    int width,
+    int height,
+    uint32_t const* argb)
+{
+    struct ToriDraw_Sprite** sprites;
+    struct ToriDraw_Sprite* sprite;
+    size_t bytes;
+    int scene_id;
+
+    assert(bridge);
+    assert(bridge->scene);
+    assert(argb);
+
+    if( slot < 0 || slot >= BRIDGE_PLUGIN_IMAGE_SLOTS )
+        return -1;
+    /* Geometry comes off a decoded FILE, so a wrong one is bad input rather
+     * than a caller's bug: refuse it and let the plugin hear that its asset
+     * did not become an image. */
+    if( width <= 0 || height <= 0 || width > 4096 || height > 4096 )
+        return -1;
+
+    scene_id = UITREE_SCENE_PLUGIN_IMAGE_BASE + slot;
+    bytes = (size_t)width * (size_t)height * sizeof(uint32_t);
+
+    sprite = calloc(1, sizeof(*sprite));
+    assert(sprite);
+    sprite->width = width;
+    sprite->height = height;
+    sprite->crop_width = width;
+    sprite->crop_height = height;
+    /* Deep copy, for the reason the skin path above deep-copies: the scene
+     * frees every sprite it holds, and these pixels belong to the decode the
+     * caller is about to free. */
+    sprite->pixels_argb = malloc(bytes);
+    assert(sprite->pixels_argb);
+    memcpy(sprite->pixels_argb, argb, bytes);
+
+    sprites = calloc(1, sizeof(*sprites));
+    assert(sprites);
+    sprites[0] = sprite;
+
+    /* Add over an occupied id frees what was there, which is what a re-saved
+     * asset wants. */
+    ToriDraw_SceneSpriteAdd(bridge->scene, scene_id, sprites, 1);
+    return scene_id;
+}
+
+void
+UITreeSceneBridge_ReleasePluginImage(struct UITreeSceneBridge* bridge, int slot)
+{
+    assert(bridge);
+    assert(bridge->scene);
+
+    if( slot < 0 || slot >= BRIDGE_PLUGIN_IMAGE_SLOTS )
+        return;
+    ToriDraw_SceneSpriteRemove(bridge->scene, UITREE_SCENE_PLUGIN_IMAGE_BASE + slot);
+}
+
 int
 UITreeSceneBridge_EnsureModel(
     struct UITreeSceneBridge* bridge,

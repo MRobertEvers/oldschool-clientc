@@ -50,6 +50,10 @@
 #define TORIRS_PLUGIN_OBJECT_BUDGET 64
 /** Resident assets, across every plugin. */
 #define TORIRS_PLUGIN_ASSETS_MAX 32
+/** Resident IMAGES, across every plugin. Each holds a decoded ARGB sprite in
+ *  the scene, so the ceiling is what keeps a plugin from filling the scene's
+ *  sprite table with art nothing draws. */
+#define TORIRS_PLUGIN_IMAGES_MAX 64
 /** Longest screenshot destination a plugin may name, including separators. */
 #define TORIRS_PLUGIN_SCREENSHOT_DIR_MAX 192
 
@@ -83,6 +87,13 @@ struct ToriRS_PluginEngine
     int (*hover_entity)(void* user, struct ToriRS_PluginHoverEntity* out);
     int (*element_height)(void* user, int element_id);
 
+    /** The minimap's box this frame. @see ToriRS_PluginApi::minimap_rect. */
+    int (*minimap_rect)(void* user, int* out_x, int* out_y, int* out_w, int* out_h);
+    /** One skill's boosted and base level. @see ToriRS_PluginApi::stat. */
+    int (*stat)(void* user, int skill, int* out_current, int* out_base);
+    /** Run energy, 0..100. */
+    int (*run_energy)(void* user);
+
     /** The client's live var state, read-only. @see ToriRS_PluginApi::varbit. */
     int (*varbit)(void* user, int varbit_id);
     int (*varp)(void* user, int varp_id);
@@ -100,6 +111,46 @@ struct ToriRS_PluginEngine
 
     /* Drawing. Each returns the number of overlay items it pushed, so the host
      * can hold a plugin to its per-frame budget. */
+
+    /**
+     * Which list the draw calls below append to: 0 the world overlay, 1 the
+     * canvas overlay. Set by the host around each draw dispatch and never by a
+     * plugin.
+     *
+     * A mode rather than a second set of draw entry points, because a rect is
+     * a rect: only the list it lands in and the clip that list carries differ,
+     * and duplicating five builders to say so would leave five chances for the
+     * two to drift apart.
+     */
+    void (*draw_select_canvas)(void* user, int canvas);
+
+    /**
+     * Decode `data` as an image and publish it at `slot`, returning 1 on
+     * success. The engine owns the decode and the scene entry; the host owns
+     * which plugin may see which slot.
+     */
+    int (*image_publish)(
+        void* user,
+        int slot,
+        void const* data,
+        int size,
+        int* out_w,
+        int* out_h);
+    /** Drop a published image. Idempotent. */
+    void (*image_release)(void* user, int slot);
+    /** Blit a published image. @see ToriRS_PluginApi::draw_image. */
+    int (*draw_image)(
+        void* user,
+        int slot,
+        int x,
+        int y,
+        int w,
+        int h,
+        int clip_x,
+        int clip_y,
+        int clip_w,
+        int clip_h,
+        int trans);
     int (*draw_tile)(
         void* user,
         int tile_x,
@@ -310,6 +361,10 @@ int PluginHost_Key(struct ToriRS_PluginHost* host, int key, int ch, bool down);
 
 /** Opens the draw window, dispatches EV_DRAW_WORLD, closes it. */
 void PluginHost_DrawWorld(struct ToriRS_PluginHost* host);
+
+/** The same, for EV_DRAW_CANVAS: a different surface token, a different
+ *  overlay list, and the canvas rather than the world viewport as the clip. */
+void PluginHost_DrawCanvas(struct ToriRS_PluginHost* host, int width, int height);
 
 /** Dispatches EV_MENU_BUILD. `cursor` is handed to engine->menu_add. */
 void PluginHost_MenuBuild(

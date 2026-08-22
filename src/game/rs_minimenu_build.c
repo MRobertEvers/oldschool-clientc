@@ -864,10 +864,29 @@ add_component_rows(
 
     if( label )
     {
-        int action = opts->option_action != 0
-                         ? opts->option_action
-                         : if_button_action_for_type(node->behavior.button_type);
-        UIMinimenu_AddOption(menu, label, action, 0, pick);
+        /*
+         * A row's action_index is WHICH NUMBERED OP it is, and it is the thing
+         * the dispatcher uses to decide the click is an IF3 `IF_BUTTON<n>` for
+         * the server (app.c, `opt.action_index >= 0 && < 10`). A row built from
+         * the cache's BUTTON TYPE is not a numbered op at all -- it is an IF1
+         * button, applied locally by RS_IF1_ApplyButtonClick, which is what
+         * turns buttonType 6 into RESUME_PAUSEBUTTON and buttonType 3 into a
+         * close.
+         *
+         * Passing 0 here said "this is op 1". A dialogue's "Click here to
+         * continue" therefore went out as IF_BUTTON1 on a component the server
+         * had armed no op on, `if_button_sent` suppressed the local apply, and
+         * the prompt did nothing at all -- no continue, no error. -1 is the
+         * same "no numbered op" the Cancel and social rows already use.
+         *
+         * An explicit `option_action` from a revconfig IS an op-0 row and keeps
+         * its index; only the button-type fallback is not one.
+         */
+        int const from_button_type = opts->option_action == 0;
+        int const action = from_button_type
+                               ? if_button_action_for_type(node->behavior.button_type)
+                               : opts->option_action;
+        UIMinimenu_AddOption(menu, label, action, from_button_type ? -1 : 0, pick);
         return menu->option_count - before;
     }
 

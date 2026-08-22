@@ -1,3 +1,5 @@
+#include <stdio.h>
+#include <stdlib.h>
 #include "uitree_input.h"
 
 #include "perf/torirs_perf.h"
@@ -289,6 +291,18 @@ hit_test_interactive_recursive(
 
     bool const point_in_self =
         UITree_PointInScrolledBounds(px, py, bx, by, bw, bh, scroll_off_x, scroll_off_y);
+
+    if( getenv("TORIRS_HIT_TRACE") && component->component_id > 0 )
+        fprintf(
+            stderr,
+            "hit: idx=%d com=%d type=%d box=%d,%d %dx%d in_self=%d passthru=%d vis=%d\n",
+            node_index,
+            component->component_id,
+            (int)component->type,
+            bx, by, bw, bh,
+            (int)point_in_self,
+            (int)UITree_ComponentIsPassThrough(component, host),
+            (int)UITree_ComponentHitTestVisibleHost(component, -1, host));
 
     int32_t hit = -1;
     if( point_in_self && !UITree_ComponentIsPassThrough(component, host) &&

@@ -2373,34 +2373,6 @@ frame_loop_teardown(void)
                         c->position.abs_x,
                         c->position.abs_y);
             }
-            fprintf(
-                stderr,
-                "exit: chat_index=%d chat_com=%d tut_com=%d\n",
-                app.slots.chat_index,
-                app.slots.chat_com_id,
-                app.slots.tut_com_id);
-            for( uint32_t i = 0; i < app.tree->component_count; i++ )
-            {
-                struct UITreeComponent const* c = &app.tree->components[i];
-                if( c->position.abs_y < 350 || c->position.abs_y > 460 ||
-                    c->position.abs_x > 500 || c->freed )
-                    continue;
-                fprintf(
-                    stderr,
-                    "exit: chatnode idx=%u com=%d type=%d btn=%d clickmask=%d "
-                    "op0='%s' xy=%d,%d %dx%d passthru=%d\n",
-                    i,
-                    c->component_id,
-                    (int)c->type,
-                    c->behavior.button_type,
-                    c->behavior.click_mask,
-                    UITree_MenuOptions(c)->option,
-                    c->position.abs_x,
-                    c->position.abs_y,
-                    c->position.width,
-                    c->position.height,
-                    (int)UITree_ComponentIsPassThrough(c, &app.ui_host));
-            }
             for( int t = 0; t < 14; t++ )
                 fprintf(
                     stderr,

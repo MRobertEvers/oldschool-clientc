@@ -3,6 +3,8 @@
 
 #include "engine/static_sprites.h"
 
+#include <stdint.h>
+
 struct ToriDraw_Scene;
 struct CacheProvider;
 struct HMap;
@@ -141,6 +143,19 @@ struct UITreeSceneBridge
 /** The editor catalog's model preview: one slot, re-rendered per pick. */
 #define UITREE_SCENE_EDITOR_PREVIEW_ID 0x4000000A
 
+/**
+ * Base of the reserved scene-sprite range for PLUGIN IMAGES: art a plugin
+ * shipped as its own asset file and decoded at runtime (scene id = base +
+ * slot, one slot per resident image).
+ *
+ * A range rather than one multi-frame entry like the chrome skin's, because
+ * these arrive one at a time and at sizes nothing knows in advance: a skin is
+ * baked as a set and can be uploaded as a set, while a plugin loads an asset,
+ * gets an answer some frames later, and loads another. Re-uploading a growing
+ * atlas on each arrival would rebuild every sprite already in the scene.
+ */
+#define UITREE_SCENE_PLUGIN_IMAGE_BASE 0x48000000
+
 void
 UITreeSceneBridge_Init(
     struct UITreeSceneBridge* bridge,
@@ -210,6 +225,28 @@ UITreeSceneBridge_EnsureFont(
  */
 int
 UITreeSceneBridge_EnsureChromeSkin(struct UITreeSceneBridge* bridge);
+
+/**
+ * Publish one plugin image at `slot` and return its scene id.
+ *
+ * `argb` is COPIED: the scene frees every sprite it holds, and the caller's
+ * buffer is a decoded asset it goes on to free itself. A slot already holding
+ * an image is replaced, which is what lets a plugin re-save an asset and see
+ * the new pixels without a restart.
+ *
+ * @return the scene id, or -1 when the slot or the geometry is out of range.
+ */
+int
+UITreeSceneBridge_PublishPluginImage(
+    struct UITreeSceneBridge* bridge,
+    int slot,
+    int width,
+    int height,
+    uint32_t const* argb);
+
+/** Drop a published plugin image, freeing its scene entry. */
+void
+UITreeSceneBridge_ReleasePluginImage(struct UITreeSceneBridge* bridge, int slot);
 
 /**
  * Which chrome scale the debug-overlay faces resolve at: 1, 2 or 3.

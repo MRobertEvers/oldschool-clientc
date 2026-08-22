@@ -58,6 +58,7 @@ EM_JS(void, web_editor_open_panel_tab, (void), {
 #include "engine/dat2/dat2_tasks.h"
 #include "engine/entity_model_build.h"
 #include "engine/player_appearance.h"
+#include "engine/png_decode.h"
 #include "engine/task_obj_model_load.h"
 #include "engine/toridraw_model_from_torirs.h"
 #include "engine/torirs_model_inst_cache.h"
@@ -2252,10 +2253,37 @@ app_overlay_push(
     struct App* app,
     struct UITreeEntityOverlay const* item)
 {
+    /*
+     * Which list depends on the draw window that is open, and nothing above
+     * this has to know which one that is.
+     *
+     * Every built-in overlay -- health bars, hitsplats, overhead chat, the
+     * editor marks -- is built with no window open at all, so `canvas` is 0
+     * for all of them and they land in the world list exactly as before. Only
+     * a plugin drawing inside EV_DRAW_CANVAS flips it.
+     */
+    if( app->plugin_draw_canvas )
+    {
+        int cap = (int)(sizeof(app->canvas_overlays) / sizeof(app->canvas_overlays[0]));
+        if( app->canvas_overlay_count >= cap )
+            return;
+        app->canvas_overlays[app->canvas_overlay_count++] = *item;
+        return;
+    }
+
     int cap = (int)(sizeof(app->entity_overlays) / sizeof(app->entity_overlays[0]));
     if( app->entity_overlay_count >= cap )
         return;
     app->entity_overlays[app->entity_overlay_count++] = *item;
+}
+
+/** How many items the open draw window has pushed, so a draw verb can report
+ *  its own cost without knowing which list it landed in. */
+static int
+app_overlay_count(struct App const* app)
+{
+    assert(app);
+    return app->plugin_draw_canvas ? app->canvas_overlay_count : app->entity_overlay_count;
 }
 
 /* One entity's overlay set. combat/damage state lives on the shared facet, so
@@ -4569,6 +4597,32 @@ app_entity_overlay_layout(struct App* app)
     }
 }
 
+/*
+ * The plugin canvas overlay, built on demand.
+ *
+ * A whole function for four lines because the shape has to match the world
+ * list's exactly: reset, let the pushers fill it, hand the array over. What is
+ * NOT here is any of the client's own drawing -- nothing but a plugin ever
+ * writes to this list, which is why the pass that asks for it can be
+ * unconditional and still cost nothing on a client with no plugins.
+ */
+static int
+app_build_canvas_overlays(
+    struct App* app,
+    struct UITreeEntityOverlay const** out_items)
+{
+    assert(app);
+    assert(out_items);
+
+    app->canvas_overlay_count = 0;
+    *out_items = app->canvas_overlays;
+    if( !app->plugins )
+        return 0;
+
+    PluginHost_DrawCanvas(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    return app->canvas_overlay_count;
+}
+
 static int
 app_build_entity_overlays(
     struct App* app,
@@ -4871,6 +4925,16 @@ app_host_request(
         *req->u.get_entity_overlays.out_clip_w = app->world_emit_desc.w;
         *req->u.get_entity_overlays.out_clip_h = app->world_emit_desc.h;
         return app_build_entity_overlays(app, req->u.get_entity_overlays.out_items);
+    case UITREE_HOST_GET_CANVAS_OVERLAYS:
+        /* The canvas, not the world viewport -- that difference IS this
+         * surface. Built here rather than beside the world list because the
+         * two are asked for at different points of the emit walk, and the
+         * plugin drawing into either has to see the same frame's state. */
+        *req->u.get_entity_overlays.out_clip_x = 0;
+        *req->u.get_entity_overlays.out_clip_y = 0;
+        *req->u.get_entity_overlays.out_clip_w = UITREE_LAYOUT_ROOT_W;
+        *req->u.get_entity_overlays.out_clip_h = UITREE_LAYOUT_ROOT_H;
+        return app_build_canvas_overlays(app, req->u.get_entity_overlays.out_items);
     case UITREE_HOST_GET_CROSS_ACTIVE:
         return UICross_IsActive(&app->cross) ? 1 : 0;
     case UITREE_HOST_GET_CROSS_ATLAS_FRAME:

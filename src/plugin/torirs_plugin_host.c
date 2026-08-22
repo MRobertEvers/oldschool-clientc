@@ -114,11 +114,39 @@ struct ToriRS_PluginHost
     int dispatching;
     /* Non-NULL only between the open and close of a draw window. */
     void* draw_surface;
+    /* Which surface that is: 0 the world overlay, 1 the canvas. Read by the
+     * two world-only draw verbs, which have nothing to mean on the canvas. */
+    int draw_canvas;
     /* Non-NULL only during an EV_MENU_BUILD dispatch. */
     void* menu_cursor;
 
     struct PluginAsset assets[TORIRS_PLUGIN_ASSETS_MAX];
     int asset_count;
+
+    /*
+     * Resident images: one decoded sprite in the scene per slot.
+     *
+     * A table of its own rather than a flag on the asset above, because the
+     * two have different lifetimes and different owners. The asset is BYTES,
+     * which the host frees when the plugin stops; an image is a scene entry,
+     * which the engine owns and has to be told to drop. A plugin can also
+     * legitimately hold an asset it never draws (a price table), and an image
+     * of a file it has since re-saved.
+     *
+     * The slot index IS the handle a plugin holds, and it is stable for the
+     * life of the image: nothing compacts this table, because a compaction
+     * would silently renumber every handle already handed out.
+     */
+    struct PluginImage
+    {
+        /** Owning plugin, or -1 for a free slot. */
+        int plugin;
+        char asset[TORIRS_PLUGIN_ASSET_NAME_MAX];
+        int width;
+        int height;
+        /** The engine has a scene entry for this slot. */
+        bool published;
+    } images[TORIRS_PLUGIN_IMAGES_MAX];
 
     /*
      * The shared plugin window.
@@ -488,6 +516,32 @@ api_element_height(struct ToriRS_PluginCtx* ctx, int element_id)
 }
 
 static int
+api_minimap_rect(
+    struct ToriRS_PluginCtx* ctx, int* out_x, int* out_y, int* out_w, int* out_h)
+{
+    assert(ctx);
+    return ctx->host->engine.minimap_rect(
+        ctx->host->engine.user, out_x, out_y, out_w, out_h);
+}
+
+static int
+api_stat(struct ToriRS_PluginCtx* ctx, int skill, int* out_current, int* out_base)
+{
+    assert(ctx);
+    /* `skill` is a NUMBER a plugin computed or read out of its own config, so
+     * an out-of-range one is bad input rather than a broken contract: the
+     * engine answers 0 and leaves the outs alone. */
+    return ctx->host->engine.stat(ctx->host->engine.user, skill, out_current, out_base);
+}
+
+static int
+api_run_energy(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+    return ctx->host->engine.run_energy(ctx->host->engine.user);
+}
+
+static int
 api_project(
     struct ToriRS_PluginCtx* ctx,
     int fine_x,
@@ -797,6 +851,98 @@ plugin_assets_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
     }
 }
 
+/* -- images -------------------------------------------------------------- */
+
+/**
+ * The slot `image` names, if this plugin owns it.
+ *
+ * A handle is an index into a table every plugin shares, so "is this mine" is
+ * a question that has to be asked on every use -- a plugin holding a stale
+ * handle across a reload would otherwise be drawing, releasing and resizing
+ * another plugin's art. Complained about rather than asserted for the same
+ * reason an asset name is: a handle can arrive from a script.
+ *
+ * @return NULL when the handle is out of range or belongs to someone else.
+ */
+static struct PluginImage*
+plugin_image_owned(struct ToriRS_PluginCtx* ctx, int image)
+{
+    assert(ctx);
+
+    if( image < 0 || image >= TORIRS_PLUGIN_IMAGES_MAX )
+        return NULL;
+    if( ctx->host->images[image].plugin != ctx->index )
+    {
+        fprintf(
+            stderr,
+            "plugin: %s used image handle %d, which it does not own\n",
+            ctx->name,
+            image);
+        return NULL;
+    }
+    return &ctx->host->images[image];
+}
+
+/** Free a slot's scene entry and mark it free. Idempotent. */
+static void
+plugin_image_drop(struct ToriRS_PluginHost* host, int image)
+{
+    assert(host);
+    assert(image >= 0 && image < TORIRS_PLUGIN_IMAGES_MAX);
+
+    if( host->images[image].published )
+        host->engine.image_release(host->engine.user, image);
+    memset(&host->images[image], 0, sizeof(host->images[image]));
+    host->images[image].plugin = -1;
+}
+
+static void
+plugin_images_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
+{
+    assert(host);
+    for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
+        if( host->images[i].plugin == plugin )
+            plugin_image_drop(host, i);
+}
+
+/**
+ * Hand a slot's bytes to the engine to decode and publish.
+ *
+ * A file that will not decode is reported and left unpublished, not asserted:
+ * it is a file, the plugin named it, and "that is not a PNG this client reads"
+ * is an answer the plugin has to be able to get. The handle stays valid and
+ * image_size keeps answering 0, which is the same state a pending load is in
+ * -- and deliberately so, because for a caller laying out against it there is
+ * nothing to do differently.
+ */
+static void
+plugin_image_publish(
+    struct ToriRS_PluginHost* host, int image, void const* data, int size)
+{
+    struct PluginImage* slot;
+    int w = 0;
+    int h = 0;
+
+    assert(host);
+    assert(image >= 0 && image < TORIRS_PLUGIN_IMAGES_MAX);
+    assert(data);
+
+    slot = &host->images[image];
+    if( !host->engine.image_publish(host->engine.user, image, data, size, &w, &h) )
+    {
+        fprintf(
+            stderr,
+            "plugin: %s image '%s' would not decode (%d bytes); it draws nothing\n",
+            host->plugins[slot->plugin].name,
+            slot->asset,
+            size);
+        return;
+    }
+    slot->width = w;
+    slot->height = h;
+    slot->published = true;
+}
+
 static int
 api_asset_load(struct ToriRS_PluginCtx* ctx, char const* name)
 {
@@ -1029,6 +1175,17 @@ PluginHost_AssetDeliver(
         free(slot->data);
         slot->data = data;
         slot->size = size;
+    }
+
+    /* An image waiting on this file becomes a scene sprite here, before the
+     * event goes out -- so a plugin told its asset landed can lay out against
+     * image_size in the same handler rather than waiting another frame. */
+    if( data )
+    {
+        for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
+            if( host->images[i].plugin == plugin &&
+                strcmp(host->images[i].asset, asset_name) == 0 )
+                plugin_image_publish(host, i, slot->data, slot->size);
     }
 
     struct ToriRS_PluginCtx* ctx = &host->plugins[plugin];
@@ -1426,6 +1583,24 @@ plugin_draw_allow(struct ToriRS_PluginCtx* ctx, void* surface)
     return true;
 }
 
+/*
+ * The extra gate on the two WORLD-only verbs.
+ *
+ * A tile and a hull are both named in scene terms -- an absolute tile, a scene
+ * element -- and the canvas surface has no scene behind it. Drawing one there
+ * is not a thing that comes out slightly wrong; it is a call whose arguments
+ * cannot be resolved at all, which makes it a contract violation and not a
+ * runtime state.
+ */
+static void
+plugin_draw_require_world(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+    assert(
+        ctx->host->draw_canvas == 0 &&
+        "draw_tile/draw_hull name something in the scene; the canvas surface has none");
+}
+
 static void
 api_draw_tile(
     struct ToriRS_PluginCtx* ctx,
@@ -1437,6 +1612,7 @@ api_draw_tile(
     uint32_t fill_rgb,
     int fill_alpha)
 {
+    plugin_draw_require_world(ctx);
     if( !plugin_draw_allow(ctx, surface) )
         return;
     ctx->draw_used += ctx->host->engine.draw_tile(
@@ -1453,6 +1629,7 @@ api_draw_hull(
     int shape)
 {
     assert(shape == TORIRS_PLUGIN_HULL_BOUNDS || shape == TORIRS_PLUGIN_HULL_MESH);
+    plugin_draw_require_world(ctx);
     if( !plugin_draw_allow(ctx, surface) )
         return;
     ctx->draw_used +=
@@ -1506,6 +1683,128 @@ api_draw_rect(
         ctx->host->engine.draw_rect(ctx->host->engine.user, x, y, w, h, rgb, fill_alpha);
 }
 
+/* -- images -- */
+
+static int
+api_image_load(struct ToriRS_PluginCtx* ctx, char const* name)
+{
+    assert(ctx);
+    assert(name);
+
+    struct ToriRS_PluginHost* host = ctx->host;
+    int free_slot = -1;
+
+    if( !plugin_asset_name_ok(ctx, name) )
+        return -1;
+
+    for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
+    {
+        /* Already asked for. One image per (plugin, file), so a plugin that
+         * calls this from on_start and again from a config change gets the
+         * handle it already has rather than a second copy in the scene. */
+        if( host->images[i].plugin == ctx->index &&
+            strcmp(host->images[i].asset, name) == 0 )
+            return i;
+        if( host->images[i].plugin < 0 && free_slot < 0 )
+            free_slot = i;
+    }
+
+    if( free_slot < 0 )
+    {
+        fprintf(
+            stderr,
+            "plugin: %s image '%s' not loaded, the resident image table is full (%d)\n",
+            ctx->name,
+            name,
+            TORIRS_PLUGIN_IMAGES_MAX);
+        return -1;
+    }
+
+    host->images[free_slot].plugin = ctx->index;
+    snprintf(
+        host->images[free_slot].asset, sizeof(host->images[free_slot].asset), "%s", name);
+    host->images[free_slot].width = 0;
+    host->images[free_slot].height = 0;
+    host->images[free_slot].published = false;
+
+    /*
+     * The bytes come through the ordinary asset path, so an image is a file in
+     * the same sandbox as any other and the arrival is delivered to the same
+     * place. What is different is only what happens to the bytes when they
+     * land -- see PluginHost_AssetDeliver, which publishes any image waiting
+     * on that name.
+     *
+     * A load already resident answers immediately; the publish is done here so
+     * that an image of a file the plugin had already loaded as raw bytes does
+     * not wait for a read that will never be queued.
+     */
+    if( api_asset_load(ctx, name) )
+    {
+        int size = 0;
+        void const* data = api_asset_data(ctx, name, &size);
+        if( data )
+            plugin_image_publish(host, free_slot, data, size);
+    }
+    return free_slot;
+}
+
+static int
+api_image_size(struct ToriRS_PluginCtx* ctx, int image, int* out_w, int* out_h)
+{
+    struct PluginImage const* slot = plugin_image_owned(ctx, image);
+
+    if( out_w )
+        *out_w = slot ? slot->width : 0;
+    if( out_h )
+        *out_h = slot ? slot->height : 0;
+    return slot && slot->published ? 1 : 0;
+}
+
+static void
+api_image_release(struct ToriRS_PluginCtx* ctx, int image)
+{
+    if( !plugin_image_owned(ctx, image) )
+        return;
+    plugin_image_drop(ctx->host, image);
+}
+
+static void
+api_draw_image(
+    struct ToriRS_PluginCtx* ctx,
+    void* surface,
+    int image,
+    int x,
+    int y,
+    int clip_x,
+    int clip_y,
+    int clip_w,
+    int clip_h,
+    int trans)
+{
+    struct PluginImage const* slot = plugin_image_owned(ctx, image);
+
+    if( !plugin_draw_allow(ctx, surface) )
+        return;
+    /* Not resident yet is the ORDINARY state for the first frames after a
+     * load, so it draws nothing rather than asserting. A handle this plugin
+     * does not own is the other thing plugin_image_owned answers with NULL,
+     * and that one it has already complained about. */
+    if( !slot || !slot->published )
+        return;
+    ctx->draw_used += ctx->host->engine.draw_image(
+        ctx->host->engine.user,
+        image,
+        x,
+        y,
+        slot->width,
+        slot->height,
+        clip_x,
+        clip_y,
+        clip_w,
+        clip_h,
+        trans);
+}
+
 /* --------------------------------------------------------------- lifecycle */
 
 struct ToriRS_PluginHost*
@@ -1550,12 +1849,23 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->object_ready);
     assert(engine->hsl_from_rgb);
     assert(engine->hsl_to_rgb);
+    assert(engine->minimap_rect);
+    assert(engine->stat);
+    assert(engine->run_energy);
+    assert(engine->draw_select_canvas);
+    assert(engine->image_publish);
+    assert(engine->image_release);
+    assert(engine->draw_image);
 
     struct ToriRS_PluginHost* host = calloc(1, sizeof(*host));
     assert(host);
 
     host->engine = *engine;
     host->dispatching = -1;
+    /* -1 is the free marker and 0 is plugin index zero, so the calloc above
+     * would have handed every image slot to the first plugin registered. */
+    for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
+        host->images[i].plugin = -1;
 
     struct ToriRS_PluginApi api = {
         .abi_version = TORIRS_PLUGIN_ABI,
@@ -1575,6 +1885,9 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .hover_tile = api_hover_tile,
         .hover_entity = api_hover_entity,
         .element_height = api_element_height,
+        .minimap_rect = api_minimap_rect,
+        .stat = api_stat,
+        .run_energy = api_run_energy,
         .project = api_project,
         .cfg_bool = api_cfg_bool,
         .cfg_int = api_cfg_int,
@@ -1591,6 +1904,10 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .draw_line = api_draw_line,
         .draw_text = api_draw_text,
         .draw_rect = api_draw_rect,
+        .image_load = api_image_load,
+        .image_size = api_image_size,
+        .image_release = api_image_release,
+        .draw_image = api_draw_image,
         .asset_load = api_asset_load,
         .asset_data = api_asset_data,
         .asset_save = api_asset_save,
@@ -1647,6 +1964,8 @@ PluginHost_Free(struct ToriRS_PluginHost* host)
     }
     for( int i = host->asset_count - 1; i >= 0; i-- )
         plugin_asset_drop(host, &host->assets[i]);
+    for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
+        plugin_image_drop(host, i);
     free(host);
 }
 
@@ -1845,6 +2164,7 @@ plugin_teardown(struct ToriRS_PluginHost* host, int plugin_index)
      * reason: nothing is left running that could remove them later. */
     plugin_objects_destroy_all(host, ctx);
     plugin_assets_drop_plugin(host, plugin_index);
+    plugin_images_drop_plugin(host, plugin_index);
     /* The tab goes with them: a stopped plugin's controls would otherwise sit
      * in the window still taking clicks, dispatching to a plugin that is not
      * running and silently doing nothing. */
@@ -2290,9 +2610,36 @@ PluginHost_DrawWorld(struct ToriRS_PluginHost* host)
      * the same assert that catches drawing outside the window. */
     struct ToriRS_PluginEvDraw ev;
     host->draw_surface = host;
+    host->draw_canvas = 0;
     ev.surface = host;
+    host->engine.draw_select_canvas(host->engine.user, 0);
     plugin_dispatch(host, TORIRS_PLUGIN_EV_DRAW_WORLD, &ev);
     host->draw_surface = NULL;
+}
+
+void
+PluginHost_DrawCanvas(struct ToriRS_PluginHost* host, int width, int height)
+{
+    if( !host || host->sub_count[TORIRS_PLUGIN_EV_DRAW_CANVAS] == 0 )
+        return;
+
+    /*
+     * A DIFFERENT token from the world surface's, and that is the point: the
+     * token is compared, never dereferenced, so `&host->api` here and `host`
+     * there is all it takes for a handler that kept the wrong event's surface
+     * to be caught by the same assert that catches drawing outside a window.
+     */
+    struct ToriRS_PluginEvDrawCanvas ev;
+    host->draw_surface = &host->api;
+    host->draw_canvas = 1;
+    ev.surface = &host->api;
+    ev.width = width;
+    ev.height = height;
+    host->engine.draw_select_canvas(host->engine.user, 1);
+    plugin_dispatch(host, TORIRS_PLUGIN_EV_DRAW_CANVAS, &ev);
+    host->draw_surface = NULL;
+    host->draw_canvas = 0;
+    host->engine.draw_select_canvas(host->engine.user, 0);
 }
 
 void

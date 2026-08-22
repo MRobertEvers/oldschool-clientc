@@ -1110,7 +1110,7 @@ app_plugin_draw_tile(
     int scene_x;
     int scene_z;
     int plane_y;
-    int const before = app ? app->entity_overlay_count : 0;
+    int const before = app ? app_overlay_count(app) : 0;
 
     assert(app);
 
@@ -1164,7 +1164,7 @@ app_plugin_draw_tile(
             app_plugin_overlay_argb(fill_rgb),
             255 - (fill_alpha > 255 ? 255 : fill_alpha));
     app_overlay_push_polygon(app, hull_x, hull_y, hull_size, app_plugin_overlay_argb(rgb));
-    return app->entity_overlay_count - before;
+    return app_overlay_count(app) - before;
 }
 
 static int
@@ -1175,7 +1175,7 @@ app_plugin_draw_hull(void* user, int element_id, uint32_t rgb, int fill_alpha, i
 
     assert(app);
     assert(shape == TORIRS_PLUGIN_HULL_BOUNDS || shape == TORIRS_PLUGIN_HULL_MESH);
-    before = app->entity_overlay_count;
+    before = app_overlay_count(app);
     /* Either silhouette the client already knows how to draw. Their fill
      * transparency is fixed at APP_OUTLINE_FILL_TRANS for the hover and editor
      * marks; here the plugin chooses, so an outline-only highlight is
@@ -1192,7 +1192,7 @@ app_plugin_draw_hull(void* user, int element_id, uint32_t rgb, int fill_alpha, i
             element_id,
             app_plugin_overlay_argb(rgb),
             fill_alpha > 0 ? 255 - (fill_alpha > 255 ? 255 : fill_alpha) : -1);
-    return app->entity_overlay_count - before;
+    return app_overlay_count(app) - before;
 }
 
 static int
@@ -1202,9 +1202,9 @@ app_plugin_draw_line(void* user, int x0, int y0, int x1, int y1, uint32_t rgb)
     int before;
 
     assert(app);
-    before = app->entity_overlay_count;
+    before = app_overlay_count(app);
     app_overlay_push_segment(app, x0, y0, x1, y1, app_plugin_overlay_argb(rgb));
-    return app->entity_overlay_count - before;
+    return app_overlay_count(app) - before;
 }
 
 /* Centred on x with y as the baseline: that is what the layer's TEXT primitive
@@ -1220,7 +1220,7 @@ app_plugin_draw_text(void* user, int x, int y, char const* text, uint32_t rgb)
     assert(app);
     assert(text);
 
-    before = app->entity_overlay_count;
+    before = app_overlay_count(app);
     memset(&item, 0, sizeof(item));
     item.kind = UITREE_ENTITY_OVERLAY_TEXT;
     item.x = x;
@@ -1229,7 +1229,7 @@ app_plugin_draw_text(void* user, int x, int y, char const* text, uint32_t rgb)
     item.font_id = app_hitsplat_font_scene_id(app);
     snprintf(item.text, sizeof(item.text), "%s", text);
     app_overlay_push(app, &item);
-    return app->entity_overlay_count - before;
+    return app_overlay_count(app) - before;
 }
 
 static int
@@ -1247,7 +1247,7 @@ app_plugin_draw_rect(
     int before;
 
     assert(app);
-    before = app->entity_overlay_count;
+    before = app_overlay_count(app);
 
     if( fill_alpha > 0 )
     {
@@ -1271,7 +1271,159 @@ app_plugin_draw_rect(
         app_overlay_push_segment(app, x + w, y + h, x, y + h, argb);
         app_overlay_push_segment(app, x, y + h, x, y, argb);
     }
-    return app->entity_overlay_count - before;
+    return app_overlay_count(app) - before;
+}
+
+/* ------------------------------------------------------------------ images */
+
+/*
+ * A plugin image, decoded once and published as a scene sprite.
+ *
+ * The decode lives here rather than in the host for the same reason the draw
+ * verbs do: it needs the ToriDraw scene the sprite has to be registered in,
+ * and the scene is the App's. What crosses the seam is a slot number and a
+ * geometry, which is all the host needs to answer image_size with.
+ */
+static int
+app_plugin_image_publish(
+    void* user,
+    int slot,
+    void const* data,
+    int size,
+    int* out_w,
+    int* out_h)
+{
+    struct App* app = (struct App*)user;
+    uint32_t* pixels = NULL;
+    int w = 0;
+    int h = 0;
+    int scene_id;
+
+    assert(app);
+    assert(data);
+    assert(out_w);
+    assert(out_h);
+
+    /* ARGB, not RGB: interface art is a cut-out, and an orb whose alpha was
+     * dropped arrives as a black square with a disc drawn on it. */
+    if( !PngDecode_Argb(data, size, &w, &h, &pixels) )
+        return 0;
+
+    scene_id = UITreeSceneBridge_PublishPluginImage(&app->bridge, slot, w, h, pixels);
+    free(pixels);
+    if( scene_id < 0 )
+        return 0;
+
+    *out_w = w;
+    *out_h = h;
+    return 1;
+}
+
+static void
+app_plugin_image_release(void* user, int slot)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    UITreeSceneBridge_ReleasePluginImage(&app->bridge, slot);
+}
+
+static int
+app_plugin_draw_image(
+    void* user,
+    int slot,
+    int x,
+    int y,
+    int w,
+    int h,
+    int clip_x,
+    int clip_y,
+    int clip_w,
+    int clip_h,
+    int trans)
+{
+    struct App* app = (struct App*)user;
+    struct UITreeEntityOverlay item;
+    int before;
+
+    assert(app);
+    before = app_overlay_count(app);
+
+    memset(&item, 0, sizeof(item));
+    item.kind = UITREE_ENTITY_OVERLAY_SPRITE;
+    item.scene_id = UITREE_SCENE_PLUGIN_IMAGE_BASE + slot;
+    item.atlas_index = 0;
+    item.x = x;
+    item.y = y;
+    item.w = w;
+    item.h = h;
+    item.trans = trans < 0 ? 0 : (trans > 255 ? 255 : trans);
+    /* A zero w or h in the item means "no extra clip", which is exactly what
+     * the contract says a zero clip_w/clip_h means, so it travels unchanged. */
+    item.clip_x = clip_x;
+    item.clip_y = clip_y;
+    item.clip_w = clip_w;
+    item.clip_h = clip_h;
+    app_overlay_push(app, &item);
+    return app_overlay_count(app) - before;
+}
+
+/* Which overlay list the draw verbs above append to. @see app_overlay_push. */
+static void
+app_plugin_draw_select_canvas(void* user, int canvas)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    app->plugin_draw_canvas = canvas ? 1 : 0;
+}
+
+/* ------------------------------------------------------- chrome + the player */
+
+static int
+app_plugin_minimap_rect(void* user, int* out_x, int* out_y, int* out_w, int* out_h)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    /* The same test the click path makes before doing tile math on this box:
+     * the desc is last frame's layout, and before the first one it holds
+     * nothing. A gameframe with no minimap component never sets it at all. */
+    if( !app->minimap_view_valid )
+        return 0;
+    if( app->minimap_emit_desc.w <= 0 || app->minimap_emit_desc.h <= 0 )
+        return 0;
+
+    if( out_x )
+        *out_x = app->minimap_emit_desc.x;
+    if( out_y )
+        *out_y = app->minimap_emit_desc.y;
+    if( out_w )
+        *out_w = app->minimap_emit_desc.w;
+    if( out_h )
+        *out_h = app->minimap_emit_desc.h;
+    return 1;
+}
+
+static int
+app_plugin_stat(void* user, int skill, int* out_current, int* out_base)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    if( skill < 0 || skill >= RS_PLAYER_STATS_SKILL_COUNT )
+        return 0;
+    if( out_current )
+        *out_current = app->stats.current_level[skill];
+    if( out_base )
+        *out_base = app->stats.base_level[skill];
+    return 1;
+}
+
+static int
+app_plugin_run_energy(void* user)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    return app->stats.run_energy;
 }
 
 /* ----------------------------------------------------------------- colour */
@@ -1428,6 +1580,13 @@ app_plugin_engine(struct App* app)
     engine.draw_line = app_plugin_draw_line;
     engine.draw_text = app_plugin_draw_text;
     engine.draw_rect = app_plugin_draw_rect;
+    engine.draw_select_canvas = app_plugin_draw_select_canvas;
+    engine.image_publish = app_plugin_image_publish;
+    engine.image_release = app_plugin_image_release;
+    engine.draw_image = app_plugin_draw_image;
+    engine.minimap_rect = app_plugin_minimap_rect;
+    engine.stat = app_plugin_stat;
+    engine.run_energy = app_plugin_run_energy;
     engine.menu_add = app_plugin_menu_add;
     engine.asset_read = app_plugin_asset_read;
     engine.asset_write = app_plugin_asset_write;

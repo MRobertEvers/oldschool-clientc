@@ -796,6 +796,22 @@ struct App
      * rather than a full buffer. */
     struct UITreeEntityOverlay entity_overlays[2048];
     int entity_overlay_count;
+    /*
+     * The plugin CANVAS overlay: the same primitives, in canvas space, drawn
+     * above the interfaces (UITREE_HOST_GET_CANVAS_OVERLAYS).
+     *
+     * A list of its own rather than a flag per item, because the two are cut
+     * to different boxes and the clip travels on the DESC rather than on the
+     * item -- one desc carries one clip, so two clips need two descs and two
+     * descs need two lists. Far smaller than the world list: nothing here is
+     * per-entity, it is a handful of orbs and bars, and a plugin is held to
+     * TORIRS_PLUGIN_DRAW_BUDGET on top of that.
+     */
+    struct UITreeEntityOverlay canvas_overlays[512];
+    int canvas_overlay_count;
+    /** Which of the two lists the plugin draw verbs append to this dispatch:
+     *  0 world, 1 canvas. Set by the host around each draw window. */
+    int plugin_draw_canvas;
     /* Per-frame world map blits, filled by the GET_WORLDMAP_TILES host request
      * and consumed by the same frame's draw: the visible regions first, then
      * every map element icon over them. A full-screen surface spans ~30 regions

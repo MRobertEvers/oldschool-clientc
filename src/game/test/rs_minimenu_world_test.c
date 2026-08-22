@@ -78,6 +78,56 @@ menu_index_of(struct UIMinimenu const* menu, char const* needle)
     return -1;
 }
 
+/*
+ * The dat1 half of the case above: a 2004 cache states the continue prompt as
+ * `buttontype=pause` and carries no armed events at all (there is no
+ * IF_SETEVENTS before rev 230). The row must still be built -- and, critically,
+ * must NOT claim a numbered op slot.
+ *
+ * action_index is what the click dispatcher reads to decide a row is an IF3
+ * `IF_BUTTON<n>` for the server. Tagging this row op 0 sent "Click here to
+ * continue" out as IF_BUTTON1 on a component the server had armed nothing on,
+ * and suppressed the local apply that turns it into RESUME_PAUSEBUTTON -- so
+ * every npc dialogue was unclickable while looking perfectly correct.
+ */
+static void
+test_dat1_continue_is_not_a_numbered_op(void)
+{
+    struct UITree* tree = UITree_New(4);
+    struct UITreeNodeSpec spec = { 0 };
+    struct UITreeBehavior behavior = { .button_type = REVCONFIG_BUTTON_TYPE_CONTINUE };
+    struct RS_MinimenuBuildCtx ctx = { .tree = tree };
+    struct UIMinimenu menu;
+    int found = 0;
+
+    spec.type = UIELEM_RS_TEXT;
+    spec.component_id = 4886;
+    spec.width = 350;
+    spec.height = 17;
+    spec.behavior = &behavior;
+    spec.u.rs_text.text = "Click here to continue";
+    /* What the dat1 decoder leaves for an empty `option=` on a pause button. */
+    snprintf(spec.menu_options.option, sizeof(spec.menu_options.option), "Continue");
+    TEST_ASSERT(UITree_Push(tree, -1, &spec) >= 0, "dat1 continue fixture pushed");
+    UITree_LayoutResolve(tree, 0, 0, 400, 100);
+    RS_Minimenu_Build(&ctx, 10, 10, &menu);
+
+    TEST_ASSERT(
+        menu_action_count(&menu, REVCONFIG_MINIMENU_RESUME_PAUSEBUTTON) == 1,
+        "a cache buttontype=pause builds one RESUME_PAUSEBUTTON row");
+    for( int i = 0; i < menu.option_count; i++ )
+    {
+        if( menu.options[i].action != REVCONFIG_MINIMENU_RESUME_PAUSEBUTTON )
+            continue;
+        found = 1;
+        TEST_ASSERT(
+            menu.options[i].action_index < 0,
+            "a button-type row carries no numbered op index");
+    }
+    TEST_ASSERT(found, "the RESUME_PAUSEBUTTON row was found");
+    UITree_Free(tree);
+}
+
 static void
 test_if3_continue_uses_resume(void)
 {
@@ -940,6 +990,7 @@ main(void)
     test_widget_target_priority_default();
     test_dat2_stacking_behaviour_is_not_boolean();
     test_if3_continue_uses_resume();
+    test_dat1_continue_is_not_a_numbered_op();
     test_if3_item_uses_only_scripted_ops();
     test_if3_item_onop_and_target_rows_match_rev239();
     test_player_get_by_element_id();
