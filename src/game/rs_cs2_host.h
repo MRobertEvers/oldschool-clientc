@@ -2,6 +2,7 @@
 #define RS_CS2_HOST_H
 
 #include "cs2vm2/cs2vm2_host.h"
+#include "game/rs_highlight.h"
 #include "input/torirs_keymap.h"
 
 #include <stdbool.h>
@@ -80,6 +81,11 @@ enum RS_CS2SocialSendKind
  * queue is that the common case never reaches the limit.
  */
 #define RS_CS2_HOST_SOUND_MAX 64
+
+/** Settings-panel row uses buffered for the App between two frames. A person
+ *  cannot click eight rows in one frame; the depth is for a frame that stalls,
+ *  not for a burst. */
+#define RS_CS2_HOST_SETTINGS_ACTIONS_MAX 8
 
 /* Cache script option ids used by interface 116's audio panel, plus the one
  * game option that is not audio: "hide roofs", which GETREMOVEROOFS /
@@ -416,6 +422,43 @@ struct RS_CS2Host
      *  all. See RS_CS2Host_Exec's varbit case. */
     int script_settings_client_apply;
     int varbit_settings_last_changed;
+    /**
+     * Setting ids the All Settings panel has named since the App last looked.
+     *
+     * Every one of the four apply hubs (3965 toggle, 3966 slider, 3967
+     * dropdown, 3969 button) opens by writing the setting id to
+     * `varbit_settings_last_changed`, so that write IS the panel telling the
+     * client which row was used -- and it is the ONLY trace a button row
+     * leaves, because 3969's switch has no case for either of the two buttons
+     * in the Activities category.
+     *
+     * Queued rather than latched in the varbit, because the varbit cannot say
+     * "pressed twice": a second press writes the same value and the change
+     * gate in the var layer drops it. A queue also keeps the reader out of the
+     * running script, which is the same rule every other host request here
+     * follows.
+     *
+     * `value` is the hub's chosen value where it has one and -1 where it does
+     * not. Overflow drops the OLDEST, since a settings action nobody drained
+     * for eight rows is a stalled frame and the newest press is the one the
+     * user is waiting on.
+     */
+    /**
+     * What the cache asked this client to highlight.
+     *
+     * The HIGHLIGHT_* family (7000..7044) is how the settings panel's
+     * Activities category actually reaches the client: 125 clientscripts read
+     * a varbit and a colour row and describe a group here. See rs_highlight.h.
+     *
+     * Held on the host and not in the App, for the same reason every other
+     * script-written state is: it is written from inside a running script,
+     * through the host request path, and the App reads it afterwards.
+     */
+    struct RS_HighlightState highlight;
+
+    int settings_action_id[RS_CS2_HOST_SETTINGS_ACTIONS_MAX];
+    int settings_action_value[RS_CS2_HOST_SETTINGS_ACTIONS_MAX];
+    int settings_action_count;
     /** Follow-camera trailing height, backing CAM_SET/GETFOLLOWHEIGHT. The
      *  orbit-camera render path in app.c does not consume this yet; it is stored
      *  so a script that sets it can read the same value back. */
@@ -777,6 +820,20 @@ RS_CS2Host_TakeCallOnResize(
  *  queue is empty. The App drains this once per tick and runs each
  *  component's on_op listener with event_opindex set to op_index; nothing
  *  else may consume it. */
+/**
+ * Pop the oldest All Settings row use, FIFO. False when the queue is empty.
+ *
+ * `*out_value` is the row's chosen value, or -1 for a row whose apply hub
+ * carries none (every toggle, and both of the Activities buttons). The App
+ * drains this once per frame and hands it to the plugin layer, which is where
+ * the builtins that implement those rows live.
+ */
+bool
+RS_CS2Host_TakeSettingsAction(
+    struct RS_CS2Host* host,
+    int* out_setting_id,
+    int* out_value);
+
 /** Pop the oldest queued script sound. False when the queue is empty. */
 bool
 RS_CS2Host_TakeSound(

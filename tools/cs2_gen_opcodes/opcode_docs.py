@@ -1388,4 +1388,220 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     "WORLDMAP_STOPCURRENTFLASHES": OpcodeDoc(
         summary="Clear every active flash",
     ),
+    # --- Entity highlight (7000..7044) ---
+    #
+    # Eight subjects, five opcodes each, always in the same order: SETUP, ON,
+    # OFF, GET, CLEAR. A `group` is one highlight style: SETUP says what group N
+    # looks like, ON/OFF put a subject into or out of it, GET asks whether one is
+    # in it, CLEAR empties the group. Only the ON/OFF pair of each group is named
+    # in the vendored Opcodes.kt -- that pair is what identifies the subject, and
+    # the other three follow from the fixed order and are confirmed by their
+    # arity in the decompiler table.
+    #
+    # The SETUP arguments past the colour are read off the call sites, not off a
+    # client: script 4763 turns mouse-over entity highlight on with
+    # (6, colour, 2, 50, 90) and off with (6, -1, 0, 0, 64); script 5198 uses
+    # (5, colour, 0, 70, 10) and ORs 16 into the last for its second toggle. So a
+    # colour of -1 disables, and the last argument is a bit set rather than a
+    # count. `flags` on ON/OFF/GET is likewise only ever a small constant (0 or 1)
+    # at every call site in the rev-239 cache.
+    "HIGHLIGHT_NPC_SETUP": OpcodeDoc(
+        summary="Define what highlight group N looks like",
+        int_in=("group", "colour", "style", "opacity", "flags",),
+    ),
+    "HIGHLIGHT_NPC_ON": OpcodeDoc(
+        summary="Put one npc into a highlight group",
+        int_in=("npc_uid", "coord", "group",),
+    ),
+    "HIGHLIGHT_NPC_OFF": OpcodeDoc(
+        summary="Take one npc out of a highlight group",
+        int_in=("npc_uid", "coord", "group",),
+    ),
+    "HIGHLIGHT_NPC_GET": OpcodeDoc(
+        summary="Is this npc in the highlight group",
+        int_in=("npc_uid", "coord", "group",),
+        int_out=("highlighted",),
+    ),
+    "HIGHLIGHT_NPC_CLEAR": OpcodeDoc(
+        summary="Empty a whole highlight group",
+        int_in=("group",),
+    ),
+    "HIGHLIGHT_NPCTYPE_SETUP": OpcodeDoc(
+        summary="Define what highlight group N looks like",
+        int_in=("group", "colour", "style", "opacity", "flags",),
+    ),
+    "HIGHLIGHT_NPCTYPE_ON": OpcodeDoc(
+        summary="Put one npc type into a highlight group",
+        int_in=("npc_type", "group",),
+    ),
+    "HIGHLIGHT_NPCTYPE_OFF": OpcodeDoc(
+        summary="Take one npc type out of a highlight group",
+        int_in=("npc_type", "group",),
+    ),
+    "HIGHLIGHT_NPCTYPE_GET": OpcodeDoc(
+        summary="Is this npc type in the highlight group",
+        int_in=("npc_type", "group",),
+        int_out=("highlighted",),
+    ),
+    "HIGHLIGHT_NPCTYPE_CLEAR": OpcodeDoc(
+        summary="Empty a whole highlight group",
+        int_in=("group",),
+    ),
+    "HIGHLIGHT_LOC_SETUP": OpcodeDoc(
+        summary="Define what highlight group N looks like",
+        int_in=("group", "colour", "style", "opacity", "flags",),
+    ),
+    "HIGHLIGHT_LOC_ON": OpcodeDoc(
+        summary="Put one loc into a highlight group",
+        int_in=("loc_type", "coord", "group", "flags",),
+    ),
+    "HIGHLIGHT_LOC_OFF": OpcodeDoc(
+        summary="Take one loc out of a highlight group",
+        int_in=("loc_type", "coord", "group", "flags",),
+    ),
+    "HIGHLIGHT_LOC_GET": OpcodeDoc(
+        summary="Is this loc in the highlight group",
+        int_in=("loc_type", "coord", "group", "flags",),
+        int_out=("highlighted",),
+    ),
+    "HIGHLIGHT_LOC_CLEAR": OpcodeDoc(
+        summary="Empty a whole highlight group",
+        int_in=("group",),
+    ),
+    "HIGHLIGHT_LOCTYPE_SETUP": OpcodeDoc(
+        summary="Define what highlight group N looks like",
+        int_in=("group", "colour", "style", "opacity", "flags",),
+    ),
+    "HIGHLIGHT_LOCTYPE_ON": OpcodeDoc(
+        summary="Put one loc type into a highlight group",
+        int_in=("loc_type", "group",),
+    ),
+    "HIGHLIGHT_LOCTYPE_OFF": OpcodeDoc(
+        summary="Take one loc type out of a highlight group",
+        int_in=("loc_type", "group",),
+    ),
+    "HIGHLIGHT_LOCTYPE_GET": OpcodeDoc(
+        summary="Is this loc type in the highlight group",
+        int_in=("loc_type", "group",),
+        int_out=("highlighted",),
+    ),
+    "HIGHLIGHT_LOCTYPE_CLEAR": OpcodeDoc(
+        summary="Empty a whole highlight group",
+        int_in=("group",),
+    ),
+    "HIGHLIGHT_OBJ_SETUP": OpcodeDoc(
+        summary="Define what highlight group N looks like",
+        int_in=("group", "colour", "style", "opacity", "flags",),
+    ),
+    "HIGHLIGHT_OBJ_ON": OpcodeDoc(
+        summary="Put one obj into a highlight group",
+        int_in=("obj_type", "coord", "group", "flags",),
+    ),
+    "HIGHLIGHT_OBJ_OFF": OpcodeDoc(
+        summary="Take one obj out of a highlight group",
+        int_in=("obj_type", "coord", "group", "flags",),
+    ),
+    "HIGHLIGHT_OBJ_GET": OpcodeDoc(
+        summary="Is this obj in the highlight group",
+        int_in=("obj_type", "coord", "group", "flags",),
+        int_out=("highlighted",),
+    ),
+    "HIGHLIGHT_OBJ_CLEAR": OpcodeDoc(
+        summary="Empty a whole highlight group",
+        int_in=("group",),
+    ),
+    "HIGHLIGHT_OBJTYPE_SETUP": OpcodeDoc(
+        summary="Define what highlight group N looks like",
+        int_in=("group", "colour", "style", "opacity", "flags",),
+    ),
+    "HIGHLIGHT_OBJTYPE_ON": OpcodeDoc(
+        summary="Put one obj type into a highlight group",
+        int_in=("obj_type", "group",),
+    ),
+    "HIGHLIGHT_OBJTYPE_OFF": OpcodeDoc(
+        summary="Take one obj type out of a highlight group",
+        int_in=("obj_type", "group",),
+    ),
+    "HIGHLIGHT_OBJTYPE_GET": OpcodeDoc(
+        summary="Is this obj type in the highlight group",
+        int_in=("obj_type", "group",),
+        int_out=("highlighted",),
+    ),
+    "HIGHLIGHT_OBJTYPE_CLEAR": OpcodeDoc(
+        summary="Empty a whole highlight group",
+        int_in=("group",),
+    ),
+    "HIGHLIGHT_PLAYER_SETUP": OpcodeDoc(
+        summary="Define what highlight group N looks like",
+        int_in=("group", "colour", "style", "opacity", "flags",),
+    ),
+    "HIGHLIGHT_PLAYER_ON": OpcodeDoc(
+        summary="Put one player into a highlight group",
+        int_in=("group",),
+        str_in=("name",),
+    ),
+    "HIGHLIGHT_PLAYER_OFF": OpcodeDoc(
+        summary="Take one player out of a highlight group",
+        int_in=("group",),
+        str_in=("name",),
+    ),
+    "HIGHLIGHT_PLAYER_GET": OpcodeDoc(
+        summary="Is this player in the highlight group",
+        int_in=("group",),
+        str_in=("name",),
+        int_out=("highlighted",),
+    ),
+    "HIGHLIGHT_PLAYER_CLEAR": OpcodeDoc(
+        summary="Empty a whole highlight group",
+        int_in=("group",),
+    ),
+    "HIGHLIGHT_TILE_SETUP": OpcodeDoc(
+        summary="Define what highlight group N looks like",
+        int_in=("group", "colour", "style", "opacity", "flags",),
+    ),
+    "HIGHLIGHT_TILE_ON": OpcodeDoc(
+        summary="Put one tile into a highlight group",
+        int_in=("coord", "group", "flags",),
+    ),
+    "HIGHLIGHT_TILE_OFF": OpcodeDoc(
+        summary="Take one tile out of a highlight group",
+        int_in=("coord", "group", "flags",),
+    ),
+    "HIGHLIGHT_TILE_GET": OpcodeDoc(
+        summary="Is this tile in the highlight group",
+        int_in=("coord", "group", "flags",),
+        int_out=("highlighted",),
+    ),
+    "HIGHLIGHT_TILE_CLEAR": OpcodeDoc(
+        summary="Empty a whole highlight group",
+        int_in=("group",),
+    ),
+    # 7040..7044: the ninth highlight group, shaped exactly like the PLAYER one
+    # (SETUP, then a name-keyed ON/OFF/GET, then CLEAR) but postdating the
+    # vendored Opcodes.kt, so its subject has no name here. Arities are from the
+    # cache's own call sites and match the decompiler's table.
+    "_7040": OpcodeDoc(
+        summary="Define what highlight group N looks like",
+        int_in=("group", "colour", "style", "opacity", "flags"),
+    ),
+    "_7041": OpcodeDoc(
+        summary="Put one named subject into a highlight group",
+        int_in=("group",),
+        str_in=("name",),
+    ),
+    "_7042": OpcodeDoc(
+        summary="Take one named subject out of a highlight group",
+        int_in=("group",),
+        str_in=("name",),
+    ),
+    "_7043": OpcodeDoc(
+        summary="Is this named subject in the highlight group",
+        int_in=("group",),
+        str_in=("name",),
+        int_out=("highlighted",),
+    ),
+    "_7044": OpcodeDoc(
+        summary="Empty a whole highlight group",
+        int_in=("group",),
+    ),
 }

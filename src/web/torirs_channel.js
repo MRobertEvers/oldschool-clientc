@@ -23,7 +23,7 @@
  *
  *   Canvas tab                                  Panel tab
  *   ----------                                  ---------
- *   var host = ToriRSChannel.createHost({        var panel = ToriRSChannel.createPanel({
+ *   const host = ToriRSChannel.createHost({      const panel = ToriRSChannel.createPanel({
  *     onIntent: applyIntent,                       onFact: render
  *     buildSnapshot: snapshotState                });
  *   });                                          panel.sendIntent(
@@ -34,7 +34,7 @@
  * No build step, no imports: a plain script tag in both pages. It runs in the
  * page, not the wasm module, so a panel tab needs no second wasm instance.
  */
-(function (global) {
+(global => {
   'use strict';
 
   /* ---- wire ------------------------------------------------------------- *
@@ -45,12 +45,12 @@
    * postMessage rather than one per frame.
    */
 
-  var HEADER_BYTES = 6;
+  const HEADER_BYTES = 6;
   /** cmdring.h's TORIRS_CMD_MAX_PAYLOAD. A frame over this is a caller bug. */
-  var MAX_PAYLOAD = 8192;
+  const MAX_PAYLOAD = 8192;
 
   /** Panel -> renderer. The panel asks; it never asserts. */
-  var INTENT = {
+  const INTENT = {
     /** Attach, or re-attach after a reload: answered with a full SNAPSHOT. */
     HELLO: 1,
     /** Set a piece of tool state ahead of the click that uses it. */
@@ -64,7 +64,7 @@
   };
 
   /** Renderer -> panel. The renderer states; it never asks. */
-  var FACT = {
+  const FACT = {
     /** Everything the panel mirrors, in one frame, stamped with its seq. */
     SNAPSHOT: 129,
     /** What changed since `seq - 1`. Applied in order or discarded. */
@@ -76,12 +76,12 @@
   };
 
   function writeFrame(type, payload) {
-    var body = payload ? new Uint8Array(payload) : new Uint8Array(0);
+    const body = payload ? new Uint8Array(payload) : new Uint8Array(0);
     if (body.length > MAX_PAYLOAD) {
-      throw new Error('torirs_channel: payload ' + body.length + ' exceeds ' + MAX_PAYLOAD);
+      throw new Error(`torirs_channel: payload ${body.length} exceeds ${MAX_PAYLOAD}`);
     }
-    var out = new Uint8Array(HEADER_BYTES + body.length);
-    var view = new DataView(out.buffer);
+    const out = new Uint8Array(HEADER_BYTES + body.length);
+    const view = new DataView(out.buffer);
     /* Little-endian: the bus is memcpy'd into structs on the C side, and every
      * platform this ships to is little-endian. Stated rather than assumed --
      * a big-endian host would need a swap here, not a different protocol. */
@@ -93,18 +93,18 @@
 
   /** Split a received batch back into frames. Truncation ends the walk. */
   function readFrames(buffer) {
-    var bytes = new Uint8Array(buffer);
-    var view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-    var frames = [];
-    var at = 0;
+    const bytes = new Uint8Array(buffer);
+    const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+    const frames = [];
+    let at = 0;
     while (at + HEADER_BYTES <= bytes.length) {
-      var type = view.getUint32(at, true);
-      var len = view.getUint16(at + 4, true);
+      const type = view.getUint32(at, true);
+      const len = view.getUint16(at + 4, true);
       if (at + HEADER_BYTES + len > bytes.length) {
         break; /* a torn batch: keep what parsed, drop the tail */
       }
       frames.push({
-        type: type,
+        type,
         payload: bytes.subarray(at + HEADER_BYTES, at + HEADER_BYTES + len)
       });
       at += HEADER_BYTES + len;
@@ -113,14 +113,13 @@
   }
 
   function concat(chunks) {
-    var total = 0;
-    var i;
-    for (i = 0; i < chunks.length; i++) { total += chunks[i].length; }
-    var out = new Uint8Array(total);
-    var at = 0;
-    for (i = 0; i < chunks.length; i++) {
-      out.set(chunks[i], at);
-      at += chunks[i].length;
+    let total = 0;
+    for (const chunk of chunks) { total += chunk.length; }
+    const out = new Uint8Array(total);
+    let at = 0;
+    for (const chunk of chunks) {
+      out.set(chunk, at);
+      at += chunk.length;
     }
     return out;
   }
@@ -132,102 +131,103 @@
    * and what they do on receipt.
    */
 
-  function Endpoint(opts) {
-    this.origin = opts.origin || global.location.origin;
-    this.target = opts.target || null;
-    this.onFrame = opts.onFrame || function () {};
-    this.label = opts.label || 'channel';
-    this.pending = [];
-    /* Coalescible kinds keep only their newest frame in `pending`. The hover
-     * readout changes on every tile crossing and only the last one matters;
-     * without this a backgrounded tab (whose rAF is throttled to ~1Hz) builds
-     * an unbounded queue of stale readouts. */
-    this.coalesced = {};
-    /*
-     * Per-connection sequence, assigned at FLUSH rather than at queue time.
+  class Endpoint {
+    constructor(opts) {
+      this.origin = opts.origin || global.location.origin;
+      this.target = opts.target || null;
+      this.onFrame = opts.onFrame || (() => {});
+      this.label = opts.label || 'channel';
+      this.pending = [];
+      /* Coalescible kinds keep only their newest frame in `pending`. The hover
+       * readout changes on every tile crossing and only the last one matters;
+       * without this a backgrounded tab (whose rAF is throttled to ~1Hz) builds
+       * an unbounded queue of stale readouts. */
+      this.coalesced = {};
+      /*
+       * Per-connection sequence, assigned at FLUSH rather than at queue time.
+       *
+       * This is the subtle half of coalescing. Stamping when a delta is queued
+       * puts a hole in the sequence every time a later delta replaces an earlier
+       * one -- and a hole is exactly what the panel's gap detector treats as a
+       * dropped message, so it would throw its mirror away and resync on every
+       * tick that coalesced anything. Numbering what is actually sent keeps the
+       * stream dense, which is the property the detector needs.
+       *
+       * Per connection, not global: each attached tab has its own mirror and its
+       * own snapshot baseline, so a tab that attaches late does not inherit a
+       * sequence it never saw the start of.
+       */
+      this.seq = 0;
+      this.closed = false;
+      this.sent = 0;
+      this.received = 0;
+    }
+
+    /**
+     * Queue a frame.
      *
-     * This is the subtle half of coalescing. Stamping when a delta is queued
-     * puts a hole in the sequence every time a later delta replaces an earlier
-     * one -- and a hole is exactly what the panel's gap detector treats as a
-     * dropped message, so it would throw its mirror away and resync on every
-     * tick that coalesced anything. Numbering what is actually sent keeps the
-     * stream dense, which is the property the detector needs.
-     *
-     * Per connection, not global: each attached tab has its own mirror and its
-     * own snapshot baseline, so a tab that attaches late does not inherit a
-     * sequence it never saw the start of.
+     * `stamped` frames get a sequence number at flush; unstamped ones (an
+     * intent, a progress line) carry no ordering claim and so consume no number.
      */
-    this.seq = 0;
-    this.closed = false;
-    this.sent = 0;
-    this.received = 0;
-  }
-
-  /**
-   * Queue a frame.
-   *
-   * `stamped` frames get a sequence number at flush; unstamped ones (an
-   * intent, a progress line) carry no ordering claim and so consume no number.
-   */
-  Endpoint.prototype.push = function (type, payload, coalesceKey, stamped) {
-    if (this.closed) { return; }
-    var entry = { type: type, payload: payload, stamped: !!stamped };
-    if (coalesceKey !== undefined && coalesceKey !== null) {
-      var key = String(type) + ':' + String(coalesceKey);
-      if (this.coalesced[key] !== undefined) {
-        this.pending[this.coalesced[key]] = entry; /* newest wins in place */
-        return;
+    push(type, payload, coalesceKey, stamped) {
+      if (this.closed) { return; }
+      const entry = { type, payload, stamped: !!stamped };
+      if (coalesceKey !== undefined && coalesceKey !== null) {
+        const key = `${type}:${coalesceKey}`;
+        if (this.coalesced[key] !== undefined) {
+          this.pending[this.coalesced[key]] = entry; /* newest wins in place */
+          return;
+        }
+        this.coalesced[key] = this.pending.length;
       }
-      this.coalesced[key] = this.pending.length;
+      this.pending.push(entry);
     }
-    this.pending.push(entry);
-  };
 
-  /**
-   * Post everything queued since the last flush as one transferable batch.
-   *
-   * Call once per tick, not per frame pushed. Returns the byte count sent, or
-   * 0 when there was nothing to send -- a quiet tick costs no postMessage.
-   */
-  Endpoint.prototype.flush = function () {
-    if (this.closed || !this.target || this.pending.length === 0) { return 0; }
-    var frames = [];
-    for (var i = 0; i < this.pending.length; i++) {
-      var e = this.pending[i];
-      frames.push(writeFrame(e.type, e.stamped ? withSeq(++this.seq, e.payload) : e.payload));
+    /**
+     * Post everything queued since the last flush as one transferable batch.
+     *
+     * Call once per tick, not per frame pushed. Returns the byte count sent, or
+     * 0 when there was nothing to send -- a quiet tick costs no postMessage.
+     */
+    flush() {
+      if (this.closed || !this.target || this.pending.length === 0) { return 0; }
+      const frames = [];
+      for (const e of this.pending) {
+        frames.push(writeFrame(e.type, e.stamped ? withSeq(++this.seq, e.payload) : e.payload));
+      }
+      const batch = concat(frames);
+      this.pending = [];
+      this.coalesced = {};
+      try {
+        /* Transfer, not copy: the buffer is neutered here and adopted there. */
+        this.target.postMessage(
+          { type: 'torirs-frames', buffer: batch.buffer },
+          this.origin,
+          [batch.buffer]);
+      } catch {
+        /* The far side went away between the check and the post (tab closed
+         * mid-tick). Not an error condition: the endpoint is simply detached,
+         * and a HELLO from a fresh tab re-attaches it. */
+        return 0;
+      }
+      this.sent += batch.length;
+      return batch.length;
     }
-    var batch = concat(frames);
-    this.pending = [];
-    this.coalesced = {};
-    try {
-      /* Transfer, not copy: the buffer is neutered here and adopted there. */
-      this.target.postMessage(
-        { type: 'torirs-frames', buffer: batch.buffer },
-        this.origin,
-        [batch.buffer]);
-    } catch (e) {
-      /* The far side went away between the check and the post (tab closed
-       * mid-tick). Not an error condition: the endpoint is simply detached,
-       * and a HELLO from a fresh tab re-attaches it. */
-      return 0;
-    }
-    this.sent += batch.length;
-    return batch.length;
-  };
 
-  Endpoint.prototype.deliver = function (buffer) {
-    var frames = readFrames(buffer);
-    this.received += buffer.byteLength;
-    for (var i = 0; i < frames.length; i++) {
-      this.onFrame(frames[i]);
+    deliver(buffer) {
+      const frames = readFrames(buffer);
+      this.received += buffer.byteLength;
+      for (const frame of frames) {
+        this.onFrame(frame);
+      }
     }
-  };
 
-  Endpoint.prototype.close = function () {
-    this.closed = true;
-    this.pending = [];
-    this.coalesced = {};
-  };
+    close() {
+      this.closed = true;
+      this.pending = [];
+      this.coalesced = {};
+    }
+  }
 
   /* ---- host (the canvas tab) -------------------------------------------- */
 
@@ -240,21 +240,17 @@
    * opts.buildSnapshot() — return the bytes of a full SNAPSHOT payload. Called
    *   on every HELLO, including a panel tab's reload.
    */
-  function createHost(opts) {
-    opts = opts || {};
-    var origin = opts.origin || global.location.origin;
-    var conns = [];
+  function createHost(opts = {}) {
+    const origin = opts.origin || global.location.origin;
+    const conns = [];
 
     function connFor(source) {
-      for (var i = 0; i < conns.length; i++) {
-        if (conns[i].endpoint.target === source) { return conns[i]; }
-      }
-      return null;
+      return conns.find((conn) => conn.endpoint.target === source) || null;
     }
 
     function onMessage(ev) {
       if (ev.origin !== origin || !ev.data) { return; }
-      var conn = connFor(ev.source);
+      const conn = connFor(ev.source);
       if (!conn) { return; }
       if (ev.data.type === 'torirs-ready') {
         conn.ready = true;
@@ -268,22 +264,22 @@
     global.addEventListener('message', onMessage);
 
     function attach(win, kind) {
-      var conn = {
-        kind: kind,
+      const conn = {
+        kind,
         window: win,
         ready: false,
         endpoint: null
       };
       conn.endpoint = new Endpoint({
-        origin: origin,
+        origin,
         target: win,
         label: kind,
-        onFrame: function (frame) {
+        onFrame: (frame) => {
           if (frame.type === INTENT.HELLO) {
             /* Resync from scratch. This is the only place a snapshot is
              * built, so a first attach and a panel reload take the identical
              * path -- there is no "reconnect" case to get wrong. */
-            var snap = opts.buildSnapshot ? opts.buildSnapshot() : new Uint8Array(0);
+            const snap = opts.buildSnapshot ? opts.buildSnapshot() : new Uint8Array(0);
             /* The snapshot re-bases this connection's stream: anything still
              * queued for it describes the state the snapshot just replaced. */
             conn.endpoint.pending = [];
@@ -305,14 +301,13 @@
 
     function detach(conn) {
       conn.endpoint.close();
-      for (var i = 0; i < conns.length; i++) {
-        if (conns[i] === conn) { conns.splice(i, 1); break; }
-      }
+      const at = conns.indexOf(conn);
+      if (at >= 0) { conns.splice(at, 1); }
     }
 
     return {
-      INTENT: INTENT,
-      FACT: FACT,
+      INTENT,
+      FACT,
 
       /**
        * Open a command-panel tab and attach it.
@@ -322,8 +317,8 @@
        * unlike a one-shot payload handoff, this channel's first move belongs
        * to the side that just finished loading.
        */
-      openPanelTab: function (url) {
-        var win = global.open(url || './panel.html', 'torirs-panel');
+      openPanelTab(url) {
+        const win = global.open(url || './panel.html', 'torirs-panel');
         if (!win) { return null; }
         return attach(win, 'panel');
       },
@@ -339,18 +334,18 @@
        * and can send the same intents, so "the camera in view 2" is an intent
        * like any other rather than a second protocol.
        */
-      openCanvasTab: function (url, name) {
-        var win = global.open(url || './index.html', name || 'torirs-canvas-2');
+      openCanvasTab(url, name) {
+        const win = global.open(url || './index.html', name || 'torirs-canvas-2');
         if (!win) { return null; }
         return attach(win, 'canvas');
       },
 
       /** Attach a window opened elsewhere (an iframe, a popup you own). */
-      attach: attach,
-      detach: detach,
+      attach,
+      detach,
 
       /** Every attached tab, for a caller that wants to fan out by hand. */
-      connections: function () { return conns.slice(); },
+      connections: () => conns.slice(),
 
       /**
        * Queue a delta for every attached tab.
@@ -361,34 +356,34 @@
        * it out for anything an operation produced (an ack, a dirty-square
        * list), where dropping one loses information.
        */
-      sendDelta: function (payload, coalesceKey) {
-        for (var i = 0; i < conns.length; i++) {
-          conns[i].endpoint.push(FACT.DELTA, payload, coalesceKey, true);
+      sendDelta(payload, coalesceKey) {
+        for (const conn of conns) {
+          conn.endpoint.push(FACT.DELTA, payload, coalesceKey, true);
         }
       },
 
-      send: function (factType, payload, coalesceKey) {
-        for (var i = 0; i < conns.length; i++) {
-          conns[i].endpoint.push(factType, payload, coalesceKey);
+      send(factType, payload, coalesceKey) {
+        for (const conn of conns) {
+          conn.endpoint.push(factType, payload, coalesceKey);
         }
       },
 
       /** Post this tick's batch to every attached tab. Call once per frame. */
-      flush: function () {
-        var total = 0;
-        for (var i = 0; i < conns.length; i++) {
-          total += conns[i].endpoint.flush();
+      flush() {
+        let total = 0;
+        for (const conn of conns) {
+          total += conn.endpoint.flush();
         }
         return total;
       },
 
       /** The highest seq sent to `conn`, or to the first tab when omitted. */
-      seq: function (conn) {
-        var c = conn || conns[0];
+      seq(conn) {
+        const c = conn || conns[0];
         return c ? c.endpoint.seq : 0;
       },
 
-      dispose: function () {
+      dispose() {
         global.removeEventListener('message', onMessage);
         while (conns.length) { detach(conns[0]); }
       }
@@ -397,8 +392,8 @@
 
   /** Prefix a payload with its u32 sequence number. */
   function withSeq(seq, payload) {
-    var body = payload ? new Uint8Array(payload) : new Uint8Array(0);
-    var out = new Uint8Array(4 + body.length);
+    const body = payload ? new Uint8Array(payload) : new Uint8Array(0);
+    const out = new Uint8Array(4 + body.length);
     new DataView(out.buffer).setUint32(0, seq >>> 0, true);
     out.set(body, 4);
     return out;
@@ -414,25 +409,24 @@
    * opts.onDesync() — optional; called when a gap was detected and a fresh
    *   HELLO was sent. The mirror is stale until the snapshot lands.
    */
-  function createPanel(opts) {
-    opts = opts || {};
-    var origin = opts.origin || global.location.origin;
-    var host = global.opener || global.parent;
-    var lastSeq = 0;
-    var synced = false;
+  function createPanel(opts = {}) {
+    const origin = opts.origin || global.location.origin;
+    const host = global.opener || global.parent;
+    let lastSeq = 0;
+    let synced = false;
 
-    var endpoint = new Endpoint({
-      origin: origin,
+    const endpoint = new Endpoint({
+      origin,
       target: host,
       label: 'panel',
-      onFrame: function (frame) {
-        var seq = frame.payload.length >= 4
+      onFrame: (frame) => {
+        const seq = frame.payload.length >= 4
           ? new DataView(
               frame.payload.buffer,
               frame.payload.byteOffset,
               frame.payload.byteLength).getUint32(0, true)
           : 0;
-        var body = frame.payload.subarray(Math.min(4, frame.payload.length));
+        const body = frame.payload.subarray(Math.min(4, frame.payload.length));
 
         if (frame.type === FACT.SNAPSHOT) {
           lastSeq = seq;
@@ -474,29 +468,29 @@
     if (host) {
       try {
         host.postMessage({ type: 'torirs-ready' }, origin);
-      } catch (e) { /* opener gone; HELLO below will no-op too */ }
+      } catch { /* opener gone; HELLO below will no-op too */ }
       sendIntent(INTENT.HELLO, null);
       endpoint.flush();
     }
 
-    global.addEventListener('pagehide', function () {
+    global.addEventListener('pagehide', () => {
       sendIntent(INTENT.BYE, null);
       endpoint.flush();
     });
 
     return {
-      INTENT: INTENT,
-      FACT: FACT,
-      sendIntent: sendIntent,
+      INTENT,
+      FACT,
+      sendIntent,
       /** Queue an intent and post immediately -- what a click handler wants. */
-      send: function (type, payload) {
+      send(type, payload) {
         sendIntent(type, payload);
         return endpoint.flush();
       },
-      flush: function () { return endpoint.flush(); },
-      synced: function () { return synced; },
-      seq: function () { return lastSeq; },
-      dispose: function () {
+      flush: () => endpoint.flush(),
+      synced: () => synced,
+      seq: () => lastSeq,
+      dispose() {
         global.removeEventListener('message', onMessage);
         endpoint.close();
       }
@@ -504,14 +498,14 @@
   }
 
   global.ToriRSChannel = {
-    INTENT: INTENT,
-    FACT: FACT,
-    HEADER_BYTES: HEADER_BYTES,
-    MAX_PAYLOAD: MAX_PAYLOAD,
-    createHost: createHost,
-    createPanel: createPanel,
+    INTENT,
+    FACT,
+    HEADER_BYTES,
+    MAX_PAYLOAD,
+    createHost,
+    createPanel,
     /* Exposed for tests and for callers hand-rolling a payload. */
-    writeFrame: writeFrame,
-    readFrames: readFrames
+    writeFrame,
+    readFrames
   };
-})(typeof window !== 'undefined' ? window : this);
+})(typeof window !== 'undefined' ? window : globalThis);

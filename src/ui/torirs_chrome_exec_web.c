@@ -178,10 +178,9 @@ static struct ChromeWeb g_chrome_web;
  * The slots the PAGE draws with.
  *
  * Not every baked slot: the wrench is the sidebar launcher's, which the game
- * canvas draws and this window never does, and the frame's centre piece is
- * baked but deliberately never drawn (the tile is already under it -- see
- * dbg_push_frame). Sending them would be two more base64 blobs across the wall
- * for images nothing asks for.
+ * canvas draws and this window never does, and the close button is a real DOM
+ * <button> here wearing the browser's own hover. Sending them would be base64
+ * blobs across the wall for images nothing asks for.
  */
 static int const k_web_skin_slots[] = {
     TORIRS_CHROME_SKIN_PANEL_BODY,
@@ -208,6 +207,14 @@ static int const k_web_skin_slots[] = {
      * game's tick: this is the game's window, in a browser. */
     TORIRS_CHROME_SKIN_CLOSE,
     TORIRS_CHROME_SKIN_CLOSE_OVER,
+    /* The pop-out pair, and the pair for putting it back. Sent only to this
+     * presentation because it is the only one with a tab to pop into -- but
+     * sent from the same shared bake, so the arrow wears the close button's
+     * plate rather than the system font's weight. */
+    TORIRS_CHROME_SKIN_POPOUT,
+    TORIRS_CHROME_SKIN_POPOUT_OVER,
+    TORIRS_CHROME_SKIN_DOCK,
+    TORIRS_CHROME_SKIN_DOCK_OVER,
 };
 
 /**

@@ -28,20 +28,11 @@ int PluginLua_AddScript(
 /** Closes every script state. Called from the adapter's own shutdown. */
 void PluginLua_Shutdown(void);
 
-/*
- * Key codes a script may name as a string, mirroring enum LibToriRS_KeyCode.
- *
- * Restated here rather than including the input header so the adapter -- and
- * anything else built on the plugin contract -- stays free of engine headers.
- * The static asserts in torirs_plugin_bridge.u.c are what keep the two in
- * step: if the enum ever moves, the client stops compiling rather than
- * silently gating on the wrong key.
- */
-#define TORIRS_PLUGIN_KEY_ESCAPE 37
-#define TORIRS_PLUGIN_KEY_SHIFT 42
-#define TORIRS_PLUGIN_KEY_CTRL 43
-#define TORIRS_PLUGIN_KEY_TAB 44
-#define TORIRS_PLUGIN_KEY_SPACE 45
+/* The key codes moved to torirs_plugin.h (TORIRS_PLUGIN_KEY_*) when the first
+ * C plugin needed one. They are part of the contract, not of this adapter --
+ * the comment they carried always said so -- and a C plugin including the Lua
+ * adapter's header to ask what shift is would have been the wrong shape. */
+#include "plugin/torirs_plugin.h"
 
 /** Resolve a key name ("shift", "ctrl", ...) to a code, or -1. */
 int PluginLua_KeyCodeFromName(char const* name);

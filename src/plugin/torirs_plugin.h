@@ -24,7 +24,7 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 7
+#define TORIRS_PLUGIN_ABI 8
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 /** Bytes of a plugin's human title, terminator included. Longer than the name
@@ -41,6 +41,26 @@
 #define TORIRS_PLUGIN_ASSET_NAME_MAX 64
 /** Recolour pairs one world object may carry, matching a spotanimtype's six. */
 #define TORIRS_PLUGIN_OBJECT_RECOLORS_MAX 6
+
+/*
+ * Key codes for api->key_held, mirroring enum LibToriRS_KeyCode.
+ *
+ * Restated here rather than including the input header, so that anything built
+ * on this contract -- a C plugin, the Lua adapter, whatever comes after it --
+ * stays free of engine headers. The static asserts in
+ * torirs_plugin_bridge.u.c are what keep the two in step: if the enum ever
+ * moves, the client stops compiling rather than silently gating on the wrong
+ * key.
+ *
+ * Only the modifiers are here. They are the ones a plugin gates on -- "hold
+ * shift and right-click" is the shape half the client's own settings describe
+ * -- and a full mirror of the enum would be a second copy of it to keep true.
+ */
+#define TORIRS_PLUGIN_KEY_ESCAPE 37
+#define TORIRS_PLUGIN_KEY_SHIFT 42
+#define TORIRS_PLUGIN_KEY_CTRL 43
+#define TORIRS_PLUGIN_KEY_TAB 44
+#define TORIRS_PLUGIN_KEY_SPACE 45
 
 /* Opaque per-plugin instance handle. The host defines it. */
 struct ToriRS_PluginCtx;
@@ -119,6 +139,18 @@ enum ToriRS_PluginEvent
      * a reload with a blank tab.
      */
     TORIRS_PLUGIN_EV_UI_BUILD,
+    /**
+     * A row in the cache's own All Settings panel was used. Payload:
+     * EvSetting.
+     *
+     * Every builtin reads its switch out of a varbit and needs no event for
+     * it. This is for the rows that HAVE no varbit: a BUTTON row ("Clear your
+     * highlighted tiles") is momentary, and the only trace the panel leaves of
+     * it is `%varbit9657 = <setting id>`, which the four apply hubs all write
+     * before they switch. Polling that varbit cannot see the same button
+     * pressed twice; this can.
+     */
+    TORIRS_PLUGIN_EV_SETTING,
 
     TORIRS_PLUGIN_EV_COUNT
 };
@@ -193,6 +225,43 @@ struct ToriRS_PluginNpcSnap
     int fine_z;
     int element_id;
     /** Bit i set = op i is offered on this npc. */
+    uint8_t visible_ops;
+};
+
+/**
+ * One loc (scenery) standing in the scene.
+ *
+ * "Loc", not "object": `obj` is a ground ITEM everywhere in this tree, and the
+ * two are the pair that get confused. This is the door, the tree, the rock,
+ * the poll booth -- a thing the map placed.
+ *
+ * SCENE-SCOPED, unlike an npc or a ground item: a loc outside the loaded scene
+ * simply is not in the list, and the list is rebuilt from nothing on every
+ * scene load. A plugin that needs to remember one across a rebuild remembers
+ * its absolute tile and finds it again, the way the client's own loc ops do.
+ */
+struct ToriRS_PluginLocSnap
+{
+    int loc_id;
+    /** As the minimenu shows it, colour tags and all. */
+    char name[64];
+    /** ABSOLUTE tile of the SW corner, and the walked level. */
+    int tile_x;
+    int tile_z;
+    int level;
+    /** ROUTE footprint: the loc's config size, angle-swapped. Ground decor
+     *  routes as its full config size but draws on one tile, so this is not
+     *  what the model covers. */
+    int size_x;
+    int size_z;
+    /** Placed shape (RSCACHE_LOC_SHAPE_*) and rotation, 0..3 = W/N/E/S. */
+    int shape;
+    int angle;
+    int element_id;
+    /** LocType.active: 0 for a wall, gravel or floor decor that nothing can
+     *  click. A highlighter that ignores this lights up the pavement. */
+    int interactive;
+    /** Bit i set = op i is offered on this loc. */
     uint8_t visible_ops;
 };
 
@@ -392,6 +461,51 @@ struct ToriRS_PluginEvGameEvent
     char text[200];
 };
 
+/**
+ * One use of an All Settings row.
+ *
+ * `setting_id` is the cache's `param_1077`, the number every settings hub
+ * switches on -- 117 is "Clear your highlighted tiles", 112 is "Tile
+ * highlighting". `value` is the row's new value where the hub carries one
+ * (a dropdown, a slider) and -1 where it does not (a toggle, whose hub is
+ * handed the id alone, and a button, which has no value at all).
+ */
+struct ToriRS_PluginEvSetting
+{
+    int setting_id;
+    int value;
+};
+
+/** What the pointer is over. @see ToriRS_PluginApi::hover_entity. */
+enum ToriRS_PluginHoverKind
+{
+    TORIRS_PLUGIN_HOVER_NONE = 0,
+    TORIRS_PLUGIN_HOVER_SCENERY,
+    TORIRS_PLUGIN_HOVER_NPC,
+    TORIRS_PLUGIN_HOVER_PLAYER,
+    TORIRS_PLUGIN_HOVER_OBJ
+};
+
+/**
+ * The nearest entity under the pointer, as the last rendered frame picked it.
+ *
+ * Not the same question as hover_tile, which answers with the GROUND under the
+ * pointer and is filled even when the cursor is over open grass. This one is
+ * about a thing: the first scenery/npc/player/objstack in the frame's pickset,
+ * which is the one the client's own left-click would act on.
+ */
+struct ToriRS_PluginHoverEntity
+{
+    /** enum ToriRS_PluginHoverKind. NONE when nothing is under the pointer. */
+    int kind;
+    /** ToriDraw scene element, for api->draw_hull. */
+    int element_id;
+    /** ABSOLUTE tile the pick landed on, and the level it was picked at. */
+    int tile_x;
+    int tile_z;
+    int level;
+};
+
 /* ------------------------------------------------------------------------ */
 /* Plugin windows                                                            */
 /* ------------------------------------------------------------------------ */
@@ -579,6 +693,10 @@ struct ToriRS_PluginApi
     /** Ground-item stacks, iterated like npc_next. One entry per (tile, obj)
      *  pair -- a tile holding three different items yields three. */
     int (*obj_next)(struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginObjSnap* out);
+    /** Locs in the loaded scene, iterated like npc_next. A busy city scene
+     *  holds thousands of them, so a caller that wants one kind tests
+     *  `loc_id` inside the walk rather than collecting the list first. */
+    int (*loc_next)(struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginLocSnap* out);
 
     /* -- input -- */
 
@@ -599,6 +717,30 @@ struct ToriRS_PluginApi
         int* out_tile_z,
         int* out_level);
 
+    /** The nearest entity under the pointer. Returns 0, leaving `out`
+     *  untouched, when the pointer is over no entity at all -- which is not
+     *  the same as being outside the viewport, and a caller that needs to tell
+     *  those apart asks hover_tile too. */
+    int (*hover_entity)(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginHoverEntity* out);
+
+    /**
+     * How high an OVERHEAD hangs above a scene element, in the projector's
+     * units -- feed it to api->project as `height_above_ground`.
+     *
+     * This is the anchor the client's own health bars, hitsplats and chat
+     * heads use, so a plugin drawing a name over an npc puts it where the game
+     * would have. It is the model's bounds rather than a guess from the
+     * footprint: a 1x1 imp and a 1x1 chicken are different heights, and a
+     * marker npc with no model at all has to sit somewhere sensible rather
+     * than on the floor.
+     *
+     * 200 for an element with no model yet -- the reference's own
+     * `logicalHeight` default, and the reason a model-less npc reads as
+     * floating slightly above its tile there too. 0 for an element that is not
+     * in the scene at all.
+     */
+    int (*element_height)(struct ToriRS_PluginCtx* ctx, int element_id);
+
     /* -- projection: scene-relative fine position -> canvas x/y.
      *    Returns 0 when the point is behind the near plane or off-map. -- */
 
@@ -618,6 +760,36 @@ struct ToriRS_PluginApi
     char const* (*cfg_str)(struct ToriRS_PluginCtx* ctx, char const* key);
     /** Marks the store dirty and raises EV_CONFIG_CHANGED. */
     void (*cfg_set)(struct ToriRS_PluginCtx* ctx, char const* key, char const* value);
+
+    /* -- the client's own variables --
+     *
+     * READ ONLY, and deliberately: a varp is the server's, and a plugin that
+     * wrote one would be telling the client something the server never said.
+     * What this is for is the other direction -- a BUILTIN reading the switch
+     * the user already has, in the cache's All Settings panel, rather than
+     * growing a second one of its own in the plugin roster.
+     *
+     * Ids are the cache's. 0 for an id this revision does not define, which is
+     * the same answer an unset var gives: a plugin that needs to tell those
+     * apart is reading a var it should not be reading.
+     */
+
+    int (*varbit)(struct ToriRS_PluginCtx* ctx, int varbit_id);
+    int (*varp)(struct ToriRS_PluginCtx* ctx, int varp_id);
+    /**
+     * A colour-row setting, as 0xRRGGBB.
+     *
+     * The All Settings colour rows do not store a colour: they store
+     * `colour + 1`, so that zero can mean "never chosen" for a palette whose
+     * every entry -- black included -- is a legal answer. Reading one with
+     * api->varp and forgetting the offset gives a colour one unit off, which
+     * is invisible, so the arithmetic lives here rather than in each caller.
+     *
+     * `fallback` is returned for the unset case, and is where the row's own
+     * default (the struct's `param_1230`) belongs.
+     */
+    uint32_t (*setting_color)(
+        struct ToriRS_PluginCtx* ctx, int varp_id, uint32_t fallback);
 
     /* -- minimenu; legal only inside EV_MENU_BUILD (asserted) -- */
 
@@ -950,6 +1122,26 @@ struct ToriRS_PluginDef
      * and no explanation, and a disabled one impossible to switch back on.
      */
     bool adapter;
+    /**
+     * Not listed in the Plugin settings roster.
+     *
+     * For a BUILTIN: a feature of the client that happens to be written as a
+     * plugin, whose switch is somewhere the user already looks -- the cache's
+     * own All Settings panel -- rather than in the roster.
+     *
+     * The roster row is not merely redundant for those, it is wrong. It would
+     * be a second switch over one feature, and the two would disagree the
+     * first time either was used: All Settings would say the tile markers are
+     * on while the roster had stopped the plugin that draws them, with nothing
+     * on either screen to explain the other. One feature, one switch, and for
+     * these the switch is the cache's.
+     *
+     * Different from `adapter`, which hides machinery that has no feature at
+     * all and REAPPEARS when it faults or is switched off. A hidden builtin
+     * has no such escape hatch and needs none: it is always enabled, and what
+     * it does is decided by the varbit it reads.
+     */
+    bool hidden;
     /** Both may be NULL. `init` is where subscriptions are made. */
     void (*init)(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api);
     void (*shutdown)(struct ToriRS_PluginCtx* ctx);

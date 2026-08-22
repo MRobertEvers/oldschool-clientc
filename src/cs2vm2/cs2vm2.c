@@ -7915,42 +7915,57 @@ CS2VM2_ReportUnimplementedOpcode(
     }
 }
 
-/* HIGHLIGHT_* family (7000..7037): the modern OSRS entity-highlight system
+/* HIGHLIGHT_* family (7000..7044): the modern OSRS entity-highlight system
  * (flag an NPC / loc / obj / player / tile so it draws with an outline overlay
- * on a given highlight slot). The port has no highlight system yet, so these
+ * in a given highlight group). The port has no highlight system yet, so these
  * hand off to the host as a single stubbed request kind (CS2VM_HOST_REQUEST_
  * HIGHLIGHT) that the host will eventually back with real highlight state — the
- * VM's job is only to pop the OSRS args and forward them. The pop counts differ
- * per subject (an NPC is one slot; a loc/obj is keyed by typeId+coord+slot+group;
- * the SETUP variants pop 5), so the caller passes pop_count explicitly. `query`
- * marks the GET variants, whose bool result the host pushes.
+ * VM's job is only to pop the OSRS args and forward them.
  *
- *   NPC:  7000 SETUP pop 5   7001 ON pop 3   7002 OFF pop 3
- *         7003 GET   pop 3, push bool        7004 CLEAR pop 1
- *   LOC:  7011 ON    pop 4   7012 OFF pop 4
- *         7013 GET   pop 4, push bool        7014 CLEAR pop 1
- *   OBJ:  7021 ON    pop 4   7022 OFF pop 4
- *         7023 GET   pop 4, push bool        7025 OBJTYPE_SETUP pop 5
+ * Eight of the nine groups are five opcodes in a fixed order — SETUP, ON, OFF,
+ * GET, CLEAR — and every group keys its subject differently (an NPC is
+ * uid+coord+group, a loc or obj adds a flags word, a player is a name string,
+ * a type is just the type id), so the arities differ per opcode rather than per
+ * family. They are read from the generated stack table instead of being written
+ * out again here: that table is where both the doc comments in cs2_opcode.h and
+ * the decompiler's own signatures land, the two agree on all 40, and a hand
+ * copy is one more place for them to drift apart. `query` follows from the same
+ * row — the GET variants are exactly the ones with an int result.
  */
 static int
-CS2VM2_Op_Highlight(
-    struct CS2VM2_Thread* vm,
-    int opcode,
-    int pop_count,
-    bool query)
+CS2VM2_Op_Highlight(struct CS2VM2_Thread* vm, int opcode)
 {
     assert(vm);
-    assert(pop_count <= CS2VM_HIGHLIGHT_ARG_MAX);
+    assert(opcode >= 0);
+    assert(opcode < CS2VM2_OPCODE_STACK_MAX);
+
+    struct CS2VM2OpcodeStack const meta = g_cs2vm2_opcode_stack[opcode];
+
+    /* A highlight opcode with no signature would pop nothing and desynchronise
+     * the stack several opcodes later, which is the failure this whole table
+     * exists to prevent — so it is a build-time mistake, not a runtime case. */
+    assert(meta.known != 0);
+    assert(meta.int_in <= CS2VM_HIGHLIGHT_ARG_MAX);
 
     struct CS2VM_HostRequest request;
     memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_HIGHLIGHT;
     request.u.highlight.opcode = opcode;
-    request.u.highlight.arg_count = pop_count;
-    request.u.highlight.query = query;
+    request.u.highlight.arg_count = meta.int_in;
+    request.u.highlight.query = meta.int_out != 0;
+
+    /* Strings first: they sit above the ints on their own stack, and the only
+     * string any of these takes is the PLAYER family's name, which nothing here
+     * can act on. Popped to keep the pool balanced, then dropped. */
+    for( int i = 0; i < meta.str_in; i++ )
+    {
+        char* discard;
+        if( CS2VM2_PopStr(vm, &discard) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+    }
 
     /* Pop into push order: args[0] is the first int the script pushed. */
-    for( int i = pop_count - 1; i >= 0; i-- )
+    for( int i = meta.int_in - 1; i >= 0; i-- )
     {
         if( CS2VM2_PopInt(vm, &request.u.highlight.args[i]) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
@@ -10708,35 +10723,66 @@ CS2VM2_RunOp(
     case CS2_OP_CLIENTOP_PLAYER_DEL:
     case CS2_OP_CLIENTOP_TILE_DEL:
         return CS2VM2_Op_ClientOp(vm, opcode, false);
+    /* HIGHLIGHT_* (7000..7044). Nine groups of five, listed in full rather
+     * than as a range so that a group nothing in the cache calls is still
+     * visibly routed: half of this family used to fall through to
+     * CS2VM2_Op_StackMetaStub, which balanced the stack from the same table
+     * this reads but printed a "results faked" line for each — the settings
+     * panel alone tripped two of them (HIGHLIGHT_TILE_SETUP from clientscript
+     * 4763, HIGHLIGHT_TILE_CLEAR from 5198).
+     *
+     * 7040..7044 are a ninth group of the same shape, keyed by a name string
+     * like the PLAYER one, that postdates the vendored Opcodes.kt — no ON/OFF
+     * name pins its subject, so they keep their _70xx spelling. The cache does
+     * call them (clientscript 6689 toggles 7041/7042 behind 7043; 6698 reads
+     * 7043 beside HIGHLIGHT_NPC_GET on the same group), and they are the same
+     * kind of highlight state, so they route here too. */
     case CS2_OP_HIGHLIGHT_NPC_SETUP:
-        return CS2VM2_Op_Highlight(vm, opcode, 5, false);
     case CS2_OP_HIGHLIGHT_NPC_ON:
     case CS2_OP_HIGHLIGHT_NPC_OFF:
-        return CS2VM2_Op_Highlight(vm, opcode, 3, false);
     case CS2_OP_HIGHLIGHT_NPC_GET:
-        return CS2VM2_Op_Highlight(vm, opcode, 3, true);
     case CS2_OP_HIGHLIGHT_NPC_CLEAR:
-        return CS2VM2_Op_Highlight(vm, opcode, 1, false);
-    /* HIGHLIGHT_LOC_* (7011..7014): highlight a scene loc keyed by
-     * (locTypeId, coordPacked, slot, group) — four ints — so ON/OFF/GET pop 4;
-     * CLEAR pops the group only. GET pushes "not highlighted" (0). */
+    case CS2_OP_HIGHLIGHT_NPCTYPE_SETUP:
+    case CS2_OP_HIGHLIGHT_NPCTYPE_ON:
+    case CS2_OP_HIGHLIGHT_NPCTYPE_OFF:
+    case CS2_OP_HIGHLIGHT_NPCTYPE_GET:
+    case CS2_OP_HIGHLIGHT_NPCTYPE_CLEAR:
+    case CS2_OP_HIGHLIGHT_LOC_SETUP:
     case CS2_OP_HIGHLIGHT_LOC_ON:
     case CS2_OP_HIGHLIGHT_LOC_OFF:
-        return CS2VM2_Op_Highlight(vm, opcode, 4, false);
     case CS2_OP_HIGHLIGHT_LOC_GET:
-        return CS2VM2_Op_Highlight(vm, opcode, 4, true);
     case CS2_OP_HIGHLIGHT_LOC_CLEAR:
-        return CS2VM2_Op_Highlight(vm, opcode, 1, false);
-    /* HIGHLIGHT_OBJ_* (7021..7025): ground-item highlight, same (typeId, coord,
-     * slot, group) key as LOC — ON/OFF/GET pop 4, GET pushes a bool; 7025 is the
-     * OBJTYPE setup (pop 5). */
+    case CS2_OP_HIGHLIGHT_LOCTYPE_SETUP:
+    case CS2_OP_HIGHLIGHT_LOCTYPE_ON:
+    case CS2_OP_HIGHLIGHT_LOCTYPE_OFF:
+    case CS2_OP_HIGHLIGHT_LOCTYPE_GET:
+    case CS2_OP_HIGHLIGHT_LOCTYPE_CLEAR:
+    case CS2_OP_HIGHLIGHT_OBJ_SETUP:
     case CS2_OP_HIGHLIGHT_OBJ_ON:
     case CS2_OP_HIGHLIGHT_OBJ_OFF:
-        return CS2VM2_Op_Highlight(vm, opcode, 4, false);
     case CS2_OP_HIGHLIGHT_OBJ_GET:
-        return CS2VM2_Op_Highlight(vm, opcode, 4, true);
+    case CS2_OP_HIGHLIGHT_OBJ_CLEAR:
     case CS2_OP_HIGHLIGHT_OBJTYPE_SETUP:
-        return CS2VM2_Op_Highlight(vm, opcode, 5, false);
+    case CS2_OP_HIGHLIGHT_OBJTYPE_ON:
+    case CS2_OP_HIGHLIGHT_OBJTYPE_OFF:
+    case CS2_OP_HIGHLIGHT_OBJTYPE_GET:
+    case CS2_OP_HIGHLIGHT_OBJTYPE_CLEAR:
+    case CS2_OP_HIGHLIGHT_PLAYER_SETUP:
+    case CS2_OP_HIGHLIGHT_PLAYER_ON:
+    case CS2_OP_HIGHLIGHT_PLAYER_OFF:
+    case CS2_OP_HIGHLIGHT_PLAYER_GET:
+    case CS2_OP_HIGHLIGHT_PLAYER_CLEAR:
+    case CS2_OP_HIGHLIGHT_TILE_SETUP:
+    case CS2_OP_HIGHLIGHT_TILE_ON:
+    case CS2_OP_HIGHLIGHT_TILE_OFF:
+    case CS2_OP_HIGHLIGHT_TILE_GET:
+    case CS2_OP_HIGHLIGHT_TILE_CLEAR:
+    case CS2_OP__7040:
+    case CS2_OP__7041:
+    case CS2_OP__7042:
+    case CS2_OP__7043:
+    case CS2_OP__7044:
+        return CS2VM2_Op_Highlight(vm, opcode);
     /* MINIMENU_* (7100..7110): no-arg mouseover / right-click-menu getters; the
      * host answers each with the current hover/menu state. */
     case CS2_OP_MINIMENU_TYPE:

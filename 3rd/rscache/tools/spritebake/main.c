@@ -14,6 +14,7 @@
  * Usage:
  *   spritebake --rev NAME <cache_dir> --list [--probe name,name,...]
  *   spritebake --rev NAME <cache_dir> --sprite SPEC [--sprite ...]
+ *              [--stamp STAMP ...]
  *              --out out.c [--header out.h] [--sheet sheet.bmp] [--prefix Prefix]
  *
  * SPEC is `ARCHIVE[.FRAME]=Symbol[@X,Y,W,H]`, or `name:NAME[.FRAME]=Symbol[@…]`
@@ -29,6 +30,23 @@
  * than at draw time keeps that a property of the recipe, where the numbers can
  * be read beside the archive id they came from, instead of a magic offset
  * buried in a renderer.
+ *
+ * --stamp SYNTHESIZES a sprite the cache does not contain, out of one it does:
+ * `Source=Symbol:glyph` borrows Source's PLATE -- its frame, bevel and face --
+ * erases the mark sitting on it and stamps `glyph` in the mark's own colour.
+ *
+ * It exists because the chrome grew a button the game never had. The plugin
+ * window's pop-out has no counterpart in any interface, so there is no archive
+ * to name; drawing it as a text glyph beside the interfaces' own close button
+ * is what it looked like before this, and the two read as furniture from two
+ * different programs. Deriving it from CloseButton means the plate, the bevel,
+ * the hover treatment and the mark colour are the CACHE's, and only the eight
+ * by eight pixels in the middle are ours -- so a re-bake against a different
+ * revision moves the synthesized buttons with the real ones instead of leaving
+ * them behind at last year's palette.
+ *
+ * Glyphs: `arrow_ne` (out, to a window of its own) and `arrow_sw` (back where
+ * it came from), the second being the first turned around.
  *
  * --list prints every archive in the sprites table with its frame count and
  * first-frame geometry. `--probe` hashes each comma-separated name with the
@@ -62,6 +80,13 @@ struct BakeSprite
     /** The `name:` spelling this was requested by, or "" when asked by id. */
     char by_name[64];
     char symbol[64];
+    /**
+     * A SYNTHESIZED sprite: `from` names an earlier symbol whose plate is
+     * borrowed, and `glyph` the mark stamped into it. `archive_id` stays -1,
+     * because there is no archive -- see the --stamp note in the usage above.
+     */
+    char from[64];
+    char glyph[24];
     /** `@X,Y,W,H` sub-rectangle, or w/h 0 for the whole frame. */
     int crop_x;
     int crop_y;
@@ -203,6 +228,194 @@ crop_in_place(struct BakeSprite* s)
     return 1;
 }
 
+/* ---- synthesis ------------------------------------------------------------
+ *
+ * A button the cache does not have, made out of one it does. See --stamp in
+ * the usage note above for why this is a bake-time operation rather than a
+ * renderer drawing an arrow over a sprite.
+ */
+
+/**
+ * The one mark this knows how to draw: an arrow leaving the top-right corner.
+ *
+ * '#' is mark, anything else is plate. Eight by eight, and strokes rather than
+ * outlines, because that is what the plates it sits on carry -- the close X is
+ * two-pixel strokes in the same ink, and a hairline arrow beside it would read
+ * as a different set.
+ */
+static const char* const k_arrow_ne[8] = {
+    "..######",
+    "......##",
+    ".....###",
+    "....##.#",
+    "...##..#",
+    "..##....",
+    ".##.....",
+    "##......",
+};
+
+struct BakeGlyph
+{
+    const char* name;
+    /** The same arrow, turned around: out becomes back. */
+    int rot180;
+};
+
+static const struct BakeGlyph k_glyphs[] = {
+    { "arrow_ne", 0 },
+    { "arrow_sw", 1 },
+};
+
+static const struct BakeGlyph*
+glyph_named(const char* name)
+{
+    for( int i = 0; i < (int)(sizeof(k_glyphs) / sizeof(k_glyphs[0])); i++ )
+        if( strcmp(k_glyphs[i].name, name) == 0 )
+            return &k_glyphs[i];
+    return NULL;
+}
+
+/**
+ * The plate's FACE: the commonest colour in the RING around the mark box.
+ *
+ * Neither of the two obvious readings works, and both were tried:
+ *
+ *  - "the commonest colour in the middle of the button" is the INK. The close
+ *    X covers more than half of its own 8x8 box, so that reading stamps every
+ *    glyph inside out -- and the result still looks like a button, which is
+ *    why this is worth the paragraph.
+ *  - "the commonest colour outside it" is the BORDER, which is drawn in the
+ *    same near-black the mark is; the plate's face does not outnumber it.
+ *
+ * The ring immediately around the mark box is neither: it is plate, all of it,
+ * on both the lit and the pressed variant, and it is where the glyph's own
+ * edges land. So it is what the cleared box is filled with.
+ */
+static unsigned int
+plate_face(const unsigned int* px, int w, int h, int inset, int side)
+{
+    unsigned int ring[64];
+    int n = 0;
+    unsigned int best = 0;
+    int best_n = -1;
+
+    for( int y = inset - 1; y <= inset + side && n < (int)(sizeof(ring) / sizeof(ring[0])); y++ )
+        for( int x = inset - 1; x <= inset + side && n < (int)(sizeof(ring) / sizeof(ring[0]));
+             x++ )
+        {
+            int const edge = (x == inset - 1 || x == inset + side || y == inset - 1 ||
+                              y == inset + side);
+            if( !edge || x < 0 || y < 0 || x >= w || y >= h )
+                continue;
+            ring[n++] = px[y * w + x];
+        }
+
+    for( int i = 0; i < n; i++ )
+    {
+        int count = 0;
+        for( int j = 0; j < n; j++ )
+            if( ring[j] == ring[i] )
+                count++;
+        if( count > best_n )
+        {
+            best_n = count;
+            best = ring[i];
+        }
+    }
+    return best;
+}
+
+/**
+ * Borrow `src`'s plate and stamp `glyph` where its own mark was.
+ *
+ * The mark box is the middle half of the plate -- a 16x16 button carries its
+ * mark in the middle 8x8, which is where the close X sits and what the glyph
+ * table is drawn for. Anything outside it (the border, the bevel, the shading)
+ * is the plate and is copied through untouched, which is the whole point:
+ * the hover state, the palette and the lighting stay the cache's.
+ *
+ * @return 0 having said why, when the plate is not a shape this can stamp.
+ */
+static int
+stamp_in_place(struct BakeSprite* s, const struct BakeSprite* src, const char* glyph_name)
+{
+    const struct BakeGlyph* glyph = glyph_named(glyph_name);
+    unsigned int* out;
+    unsigned int face;
+    unsigned int mark = 0;
+    int mark_n = 0;
+    int inset;
+    int side;
+
+    if( !glyph )
+    {
+        fprintf(stderr, "unknown --stamp glyph '%s'\n", glyph_name);
+        return 0;
+    }
+    if( src->w != src->h || src->w != 16 )
+    {
+        /* Not clamped or scaled: a plate of another size means the recipe is
+         * pointing at art this was never drawn for, and quietly stamping a
+         * misplaced arrow into it is worse than stopping. */
+        fprintf(
+            stderr, "--stamp source %s is %dx%d; the glyphs are drawn for 16x16\n",
+            src->symbol, src->w, src->h);
+        return 0;
+    }
+    inset = src->w / 4;
+    side = src->w - 2 * inset;
+
+    out = malloc((size_t)src->w * (size_t)src->h * sizeof(*out));
+    if( !out )
+        return 0;
+    memcpy(out, src->argb, (size_t)src->w * (size_t)src->h * sizeof(*out));
+
+    face = plate_face(src->argb, src->w, src->h, inset, side);
+    /* The MARK is whatever else is in that box, and there is only ever one
+     * other thing: the plate's face and the stroke drawn on it. Taken from the
+     * art rather than named in the recipe, so a re-bake against a revision
+     * that draws its buttons in a different ink follows it. */
+    for( int y = inset; y < inset + side; y++ )
+        for( int x = inset; x < inset + side; x++ )
+        {
+            unsigned int const c = src->argb[y * src->w + x];
+            int n = 0;
+            if( c == face )
+                continue;
+            for( int j = inset; j < inset + side; j++ )
+                for( int i = inset; i < inset + side; i++ )
+                    if( src->argb[j * src->w + i] == c )
+                        n++;
+            if( n > mark_n )
+            {
+                mark_n = n;
+                mark = c;
+            }
+        }
+    if( mark_n <= 0 )
+    {
+        fprintf(stderr, "--stamp source %s has no mark to replace\n", src->symbol);
+        free(out);
+        return 0;
+    }
+
+    for( int y = 0; y < side; y++ )
+        for( int x = 0; x < side; x++ )
+        {
+            int const gx = glyph->rot180 ? side - 1 - x : x;
+            int const gy = glyph->rot180 ? side - 1 - y : y;
+            int const on = k_arrow_ne[gy][gx] == '#';
+            out[(inset + y) * src->w + (inset + x)] = on ? mark : face;
+        }
+
+    s->argb = out;
+    s->w = src->w;
+    s->h = src->h;
+    s->archive_id = src->archive_id;
+    s->frame = src->frame;
+    return 1;
+}
+
 /* ---- list ---------------------------------------------------------------- */
 
 static void
@@ -316,6 +529,15 @@ emit_source(
         cache_dir,
         rev);
     for( int i = 0; i < count; i++ )
+    {
+        if( sprites[i].from[0] )
+        {
+            fprintf(
+                out, " *   %-20s synthesized from %s, marked %s  %dx%d\n",
+                sprites[i].symbol, sprites[i].from, sprites[i].glyph, sprites[i].w,
+                sprites[i].h);
+            continue;
+        }
         fprintf(
             out,
             " *   %-20s archive %5d frame %d  %dx%d%s%s%s\n",
@@ -327,6 +549,7 @@ emit_source(
             sprites[i].crop_w > 0 ? "  cropped" : "",
             sprites[i].by_name[0] ? "  name " : "",
             sprites[i].by_name);
+    }
     fprintf(
         out,
         " *\n"
@@ -344,7 +567,11 @@ emit_source(
             snprintf(
                 crop, sizeof(crop), "@%d,%d,%d,%d", sprites[i].crop_x, sprites[i].crop_y,
                 sprites[i].crop_w, sprites[i].crop_h);
-        if( sprites[i].by_name[0] )
+        if( sprites[i].from[0] )
+            fprintf(
+                out, " *       --stamp %s=%s:%s \\\n", sprites[i].from, sprites[i].symbol,
+                sprites[i].glyph);
+        else if( sprites[i].by_name[0] )
             fprintf(
                 out, " *       --sprite name:%s.%d=%s%s \\\n", sprites[i].by_name,
                 sprites[i].frame, sprites[i].symbol, crop);
@@ -597,6 +824,37 @@ main(int argc, char** argv)
             else
                 s->archive_id = atoi(spec);
         }
+        else if( strcmp(argv[i], "--stamp") == 0 && i + 1 < argc )
+        {
+            /* Source=Symbol:glyph -- the source must already have been named
+             * by a --sprite to its left, because it is that sprite's decoded
+             * plate this borrows. */
+            char spec[192];
+            char* eq;
+            char* colon;
+            struct BakeSprite* s;
+
+            if( sprite_count >= BAKE_MAX_SPRITES )
+            {
+                fprintf(stderr, "too many sprites (max %d)\n", BAKE_MAX_SPRITES);
+                return 1;
+            }
+            snprintf(spec, sizeof(spec), "%s", argv[++i]);
+            eq = strchr(spec, '=');
+            colon = eq ? strchr(eq + 1, ':') : NULL;
+            if( !eq || !colon )
+            {
+                fprintf(stderr, "bad --stamp %s (want Source=Symbol:glyph)\n", argv[i]);
+                return 1;
+            }
+            *eq = '\0';
+            *colon = '\0';
+            s = &sprites[sprite_count++];
+            s->archive_id = -1;
+            snprintf(s->from, sizeof(s->from), "%s", spec);
+            snprintf(s->symbol, sizeof(s->symbol), "%s", eq + 1);
+            snprintf(s->glyph, sizeof(s->glyph), "%s", colon + 1);
+        }
         else if( !cache_dir )
             cache_dir = argv[i];
         else
@@ -642,6 +900,31 @@ main(int argc, char** argv)
     for( int i = 0; i < sprite_count; i++ )
     {
         struct RSCache_Dat2SpritePack* pack;
+
+        if( sprites[i].from[0] )
+        {
+            /* Synthesized, not decoded. Its source is an earlier entry, which
+             * is why this runs inside the same ordered pass rather than in a
+             * second one: by the time a --stamp is reached its plate has been
+             * decoded, cropped and printed. */
+            int src = -1;
+            for( int j = 0; j < i; j++ )
+                if( strcmp(sprites[j].symbol, sprites[i].from) == 0 )
+                    src = j;
+            if( src < 0 )
+            {
+                fprintf(
+                    stderr, "--stamp %s: no sprite named '%s' was baked before it\n",
+                    sprites[i].symbol, sprites[i].from);
+                return 1;
+            }
+            if( !stamp_in_place(&sprites[i], &sprites[src], sprites[i].glyph) )
+                return 1;
+            printf(
+                "stamped %-19s from %s with %s: %dx%d\n", sprites[i].symbol,
+                sprites[i].from, sprites[i].glyph, sprites[i].w, sprites[i].h);
+            continue;
+        }
 
         if( sprites[i].by_name[0] )
         {

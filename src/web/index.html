@@ -209,28 +209,28 @@
   so a scaled canvas reports backbuffer pixels either way.
 -->
 <script>
-(function () {
+(() => {
   'use strict';
 
-  var body = document.body;
-  var canvas = document.getElementById('canvas');
-  var stage = document.getElementById('stage');
-  var btnCanvas = document.getElementById('btn-fullcanvas');
-  var btnFull = document.getElementById('btn-fullscreen');
-  var STORE_KEY = 'torirs.fullcanvas';
+  const body = document.body;
+  const canvas = document.getElementById('canvas');
+  const stage = document.getElementById('stage');
+  const btnCanvas = document.getElementById('btn-fullcanvas');
+  const btnFull = document.getElementById('btn-fullscreen');
+  const STORE_KEY = 'torirs.fullcanvas';
 
   function fullscreenElement() {
     return document.fullscreenElement || document.webkitFullscreenElement || null;
   }
 
   function requestFullscreen(el) {
-    var fn = el.requestFullscreen || el.webkitRequestFullscreen;
+    const fn = el.requestFullscreen || el.webkitRequestFullscreen;
     if (fn) { return fn.call(el); }
     return null;
   }
 
   function exitFullscreen() {
-    var fn = document.exitFullscreen || document.webkitExitFullscreen;
+    const fn = document.exitFullscreen || document.webkitExitFullscreen;
     if (fn) { return fn.call(document); }
     return null;
   }
@@ -239,22 +239,22 @@
   // Cleared, not recomputed, outside fit mode: the stylesheet's 1:1 size is
   // then the one that applies.
   function fit() {
-    var fullCanvas = body.classList.contains('fullcanvas');
-    var fitting = fullCanvas || !!fullscreenElement();
+    const fullCanvas = body.classList.contains('fullcanvas');
+    const fitting = fullCanvas || !!fullscreenElement();
     body.classList.toggle('fit', fitting);
     if (!fitting) {
       canvas.style.width = '';
       canvas.style.height = '';
       return;
     }
-    var availW = stage.clientWidth;
-    var availH = stage.clientHeight;
-    var srcW = canvas.width || 1;
-    var srcH = canvas.height || 1;
+    const availW = stage.clientWidth;
+    const availH = stage.clientHeight;
+    const srcW = canvas.width || 1;
+    const srcH = canvas.height || 1;
     if (availW <= 0 || availH <= 0) { return; }
-    var scale = Math.min(availW / srcW, availH / srcH);
-    canvas.style.width = Math.max(1, Math.floor(srcW * scale)) + 'px';
-    canvas.style.height = Math.max(1, Math.floor(srcH * scale)) + 'px';
+    const scale = Math.min(availW / srcW, availH / srcH);
+    canvas.style.width = `${Math.max(1, Math.floor(srcW * scale))}px`;
+    canvas.style.height = `${Math.max(1, Math.floor(srcH * scale))}px`;
   }
 
   function setFullCanvas(on) {
@@ -264,16 +264,16 @@
     fit();
   }
 
-  btnCanvas.onclick = function () {
+  btnCanvas.onclick = () => {
     setFullCanvas(!body.classList.contains('fullcanvas'));
   };
 
-  btnFull.onclick = function () {
+  btnFull.onclick = () => {
     // The page, not the canvas: fullscreening the canvas element alone would
     // take the header — and with it the way back out of full canvas — off
     // screen, and hand sizing to the browser's own letterbox.
-    var p = fullscreenElement() ? exitFullscreen() : requestFullscreen(document.documentElement);
-    if (p && p.catch) { p.catch(function () { /* denied or unsupported */ }); }
+    const p = fullscreenElement() ? exitFullscreen() : requestFullscreen(document.documentElement);
+    if (p && p.catch) { p.catch(() => { /* denied or unsupported */ }); }
   };
 
   function syncFullscreenButton() {
@@ -299,9 +299,9 @@
       canvas, { attributes: true, attributeFilter: ['width', 'height'] });
   }
 
-  var stored = null;
+  let stored = null;
   try { stored = window.localStorage.getItem(STORE_KEY); } catch (e) { /* private mode */ }
-  var forced = new URLSearchParams(window.location.search).get('fullcanvas');
+  const forced = new URLSearchParams(window.location.search).get('fullcanvas');
   setFullCanvas(forced !== null ? forced !== '0' : stored === '1');
 })();
 </script>
@@ -327,11 +327,11 @@
  * empty mirror, which is the honest picture of what is wired.
  */
 window.torirsChannelHost = ToriRSChannel.createHost({
-  buildSnapshot: function () {
-    var state = (window.torirsEditorState && window.torirsEditorState()) || {};
+  buildSnapshot() {
+    const state = (window.torirsEditorState && window.torirsEditorState()) || {};
     return new TextEncoder().encode(JSON.stringify(state));
   },
-  onIntent: function (type, payload) {
+  onIntent(type, payload) {
     /* Intents are handed to the wasm side verbatim. Nothing is interpreted
      * here: the renderer owns the state, and a page that started making
      * decisions about intents would be a second writer of it. */
@@ -342,8 +342,8 @@ window.torirsChannelHost = ToriRSChannel.createHost({
 });
 
 /** Called from C (web_editor_open_panel_tab) when the manifest asked for a tab. */
-window.torirsOpenPanelTab = function () {
-  var conn = window.torirsChannelHost.openPanelTab('./panel.html');
+window.torirsOpenPanelTab = () => {
+  const conn = window.torirsChannelHost.openPanelTab('./panel.html');
   if (!conn) {
     console.warn('[torirs] the panel tab was blocked \u2014 allow popups for this site');
   }
@@ -351,9 +351,7 @@ window.torirsOpenPanelTab = function () {
 };
 
 /** A second view of the world, in its own tab and its own wasm instance. */
-window.torirsOpenCanvasTab = function () {
-  return !!window.torirsChannelHost.openCanvasTab('./index.html', 'torirs-canvas-2');
-};
+window.torirsOpenCanvasTab = () => !!window.torirsChannelHost.openCanvasTab('./index.html', 'torirs-canvas-2');
 </script>
 <script src="torirs_host.js"></script>
 <script src="torirs.js"></script>

@@ -21204,6 +21204,20 @@ App_RunOnce(
      * anything it changes has to be visible to this frame's emit rebuild. */
     PluginHost_FrameStart(app->plugins, now_ms);
 
+    /*
+     * All Settings rows, drained here and not inside the VM.
+     *
+     * The builtins that implement the Activities category read their own
+     * varbits and need nothing from this; what needs it is the pair of BUTTON
+     * rows, which have no varbit to read. See RS_CS2Host_TakeSettingsAction.
+     */
+    {
+        int setting_id;
+        int setting_value;
+        while( RS_CS2Host_TakeSettingsAction(&app->host, &setting_id, &setting_value) )
+            PluginHost_Setting(app->plugins, setting_id, setting_value);
+    }
+
     /* Developer overlay first: its toggle key has to latch during a boot too,
      * and its readout has to be current before this frame's emit rebuild. */
     app_debug_overlay_tick(app, input);

@@ -10,14 +10,14 @@
  * The fake document is the smallest one the host actually uses. Growing it past
  * that would be testing the fake.
  */
-var assert = require('assert');
-var fs = require('fs');
-var path = require('path');
+const assert = require('assert');
+const fs = require('fs');
+const path = require('path');
 
 /* ---- a document, in about forty lines ------------------------------------ */
 
 function makeNode(tag) {
-  var node = {
+  const node = {
     tagName: String(tag).toUpperCase(),
     children: [],
     parentNode: null,
@@ -32,43 +32,43 @@ function makeNode(tag) {
     title: ''
   };
   node.classList = {
-    add: function (c) { if (node._class.indexOf(c) < 0) node._class = (node._class + ' ' + c).trim(); },
-    remove: function (c) {
-      node._class = node._class.split(/\s+/).filter(function (x) { return x && x !== c; }).join(' ');
+    add(c) { if (!node._class.includes(c)) node._class = (`${node._class} ${c}`).trim(); },
+    remove(c) {
+      node._class = node._class.split(/\s+/).filter(x => x && x !== c).join(' ');
     },
-    contains: function (c) { return node._class.split(/\s+/).indexOf(c) >= 0; },
-    toggle: function (c, on) { if (on) node.classList.add(c); else node.classList.remove(c); }
+    contains(c) { return node._class.split(/\s+/).includes(c); },
+    toggle(c, on) { if (on) node.classList.add(c); else node.classList.remove(c); }
   };
   Object.defineProperty(node, 'className', {
-    get: function () { return node._class; },
-    set: function (v) { node._class = v || ''; }
+    get() { return node._class; },
+    set(v) { node._class = v || ''; }
   });
   Object.defineProperty(node, 'textContent', {
-    get: function () { return node._text; },
-    set: function (v) { node._text = v == null ? '' : String(v); node.children = []; }
+    get() { return node._text; },
+    set(v) { node._text = v == null ? '' : String(v); node.children = []; }
   });
   Object.defineProperty(node, 'firstChild', {
-    get: function () { return node.children[0] || null; }
+    get() { return node.children[0] || null; }
   });
-  node.appendChild = function (c) { c.parentNode = node; node.children.push(c); return c; };
-  node.removeChild = function (c) {
-    var i = node.children.indexOf(c);
+  node.appendChild = c => { c.parentNode = node; node.children.push(c); return c; };
+  node.removeChild = c => {
+    const i = node.children.indexOf(c);
     if (i >= 0) { node.children.splice(i, 1); c.parentNode = null; }
     return c;
   };
   /* The window is inserted NEXT TO the stage rather than appended to the end
    * of the page, so the fake has to be able to say where "next to" is. */
-  node.insertBefore = function (c, ref) {
-    var i = ref ? node.children.indexOf(ref) : -1;
+  node.insertBefore = (c, ref) => {
+    const i = ref ? node.children.indexOf(ref) : -1;
     c.parentNode = node;
     if (i < 0) node.children.push(c);
     else node.children.splice(i, 0, c);
     return c;
   };
   Object.defineProperty(node, 'nextSibling', {
-    get: function () {
+    get() {
       if (!node.parentNode) return null;
-      var i = node.parentNode.children.indexOf(node);
+      const i = node.parentNode.children.indexOf(node);
       return (i >= 0 && node.parentNode.children[i + 1]) || null;
     }
   });
@@ -91,109 +91,114 @@ function makeNode(tag) {
     node.height = 0;
     node._puts = [];
     node._draws = [];
-    node.getContext = function () {
-      return {
-        putImageData: function (img) { node._puts.push(img); },
-        drawImage: function (img, x, y) { node._draws.push({ src: img.src, x: x, y: y }); }
-      };
-    };
-    node.toDataURL = function () {
-      return 'data:image/png;base64,#' + node.width + 'x' + node.height +
-        '/' + node._puts.length + '+' + node._draws.length;
-    };
+    node.getContext = () => ({
+      putImageData(img) { node._puts.push(img); },
+
+      /* Both arities: the 3-arg form blits a whole image, the 9-arg one a
+       * sub-rectangle of it into a sub-rectangle of the canvas. The frame
+       * composition needs the second -- what it samples out of a 32px corner
+       * tile is only that tile's own corner -- so the fake has to record the
+       * DESTINATION rather than assume the first two numbers are it. */
+      drawImage(img, a, b, c, d, e, f, g, h) {
+        if (arguments.length >= 9)
+          node._draws.push({ src: img.src, x: e, y: f, w: g, h });
+        else
+          node._draws.push({ src: img.src, x: a, y: b });
+      }
+    });
+    node.toDataURL = () => `data:image/png;base64,#${node.width}x${node.height}/${node._puts.length}+${node._draws.length}`;
   }
   /* The canvas is measured for its box, and the frame for where the row put
    * it -- the window lines up with the picture rather than with the row, so
    * both a size and a top have to be answerable here. */
-  node.getBoundingClientRect = function () {
+  node.getBoundingClientRect = () => {
     /* A top margin moves the box down -- the one layout rule the host
      * depends on, because it lines the window up by measuring the gap that
      * is left and correcting it. A fake that ignored the margin would let a
      * correction that never converges pass. */
-    var top = (node._rectT || 0) + (parseFloat(node.style.marginTop) || 0);
-    var w = node._rectW || 0;
-    var h = node._rectH || 0;
+    const top = (node._rectT || 0) + (parseFloat(node.style.marginTop) || 0);
+    const w = node._rectW || 0;
+    const h = node._rectH || 0;
     /* `bottom` and `right` are the far edges a real DOMRect carries, and the
      * open dropdown's placement is written against them: it hangs the list off
      * the button's BOTTOM and flips it above when that would leave the root. */
-    return { width: w, height: h, left: 0, top: top, bottom: top + h, right: w };
+    return { width: w, height: h, left: 0, top, bottom: top + h, right: w };
   };
   /* Scrolling a row into view is a no-op here: what it does is browser
    * behaviour, and what matters is that the host may call it. */
-  node.scrollIntoView = function () {};
+  node.scrollIntoView = () => {};
   /* Attributes are recorded rather than modelled: the host sets `role` and
    * `aria-expanded` on the dropdown so a screen reader can follow it, and a
    * fake with no setAttribute would make that a crash instead of a feature. */
   node._attrs = {};
-  node.setAttribute = function (k, v) { node._attrs[k] = String(v); };
-  node.getAttribute = function (k) {
-    return Object.prototype.hasOwnProperty.call(node._attrs, k) ? node._attrs[k] : null;
-  };
+  node.setAttribute = (k, v) => { node._attrs[k] = String(v); };
+  node.getAttribute = k => Object.prototype.hasOwnProperty.call(node._attrs, k) ? node._attrs[k] : null;
   /* The chrome publishes its docked width as a CSS variable on the page, which
    * is the one style write that does not go through a named property. */
-  node.style.setProperty = function (k, v) { node.style[k] = v; };
-  node.style.removeProperty = function (k) { delete node.style[k]; };
-  node.addEventListener = function (t, f) { (node._listeners[t] = node._listeners[t] || []).push(f); };
+  node.style.setProperty = (k, v) => { node.style[k] = v; };
+  node.style.removeProperty = k => { delete node.style[k]; };
+  node.addEventListener = (t, f) => { (node._listeners[t] = node._listeners[t] || []).push(f); };
   /* Taken off again, because a control that opens a list adds listeners for as
    * long as the list is up -- a fake with no removal would let a leak of them
    * pass, and the symptom of that one is a dismisser firing at a list that is
    * no longer there. */
-  node.removeEventListener = function (t, f) {
-    node._listeners[t] = (node._listeners[t] || []).filter(function (x) { return x !== f; });
+  node.removeEventListener = (t, f) => {
+    node._listeners[t] = (node._listeners[t] || []).filter(x => x !== f);
   };
   /* Listeners get an event, because in a browser they always do -- a handler
    * that calls ev.stopPropagation() should not be the thing that discovers the
    * fake was passing undefined. `over` carries the fields a particular event
    * has (a key, say), which is how the keyboard paths are driven. */
-  node.fire = function (t, over) {
-    var ev = { type: t, target: node, stopPropagation: function () {}, preventDefault: function () {} };
-    for (var k in (over || {})) ev[k] = over[k];
-    (node._listeners[t] || []).forEach(function (f) { f(ev); });
+  node.fire = (t, over) => {
+    const ev = { type: t, target: node, stopPropagation() {}, preventDefault() {} };
+    for (const k in (over || {})) ev[k] = over[k];
+    (node._listeners[t] || []).forEach(f => { f(ev); });
   };
-  node.querySelector = function (sel) {
+  node.querySelector = sel => {
     /* Only the one selector the host uses. */
-    var want = sel.replace('span.', '');
-    for (var i = 0; i < node.children.length; i++) {
-      var c = node.children[i];
+    const want = sel.replace('span.', '');
+
+    for (const c of node.children) {
       if (c.tagName === want.toUpperCase() && c.classList.contains('lbl')) return c;
       if (c.classList.contains('lbl')) return c;
     }
+
     return null;
   };
   return node;
 }
 
 function makeDocument(byId) {
-  var listeners = {};
-  var doc = {
+  const listeners = {};
+  const doc = {
     documentElement: makeNode('html'),
     head: makeNode('head'),
     body: makeNode('body'),
     activeElement: null,
     title: '',
     createElement: makeNode,
-    getElementById: function (id) { return (byId && byId[id]) || null; },
+    getElementById(id) { return (byId && byId[id]) || null; },
     /* The DOCUMENT takes listeners too, which is where an open dropdown puts
      * the press that dismisses it -- the one listener in this host that is not
      * on a node it made. */
-    addEventListener: function (t, f) { (listeners[t] = listeners[t] || []).push(f); },
-    removeEventListener: function (t, f) {
-      listeners[t] = (listeners[t] || []).filter(function (x) { return x !== f; });
+    addEventListener(t, f) { (listeners[t] = listeners[t] || []).push(f); },
+    removeEventListener(t, f) {
+      listeners[t] = (listeners[t] || []).filter(x => x !== f);
     },
-    fire: function (t, over) {
-      var ev = {
+    fire(t, over) {
+      const ev = {
         type: t, target: null,
-        stopPropagation: function () {}, preventDefault: function () {}
+        stopPropagation() {}, preventDefault() {}
       };
-      for (var k in (over || {})) ev[k] = over[k];
-      (listeners[t] || []).slice().forEach(function (f) { f(ev); });
+      for (const k in (over || {})) ev[k] = over[k];
+      (listeners[t] || []).slice().forEach(f => { f(ev); });
     },
-    listenerCount: function (t) { return (listeners[t] || []).length; }
+    listenerCount(t) { return (listeners[t] || []).length; }
   };
   return doc;
 }
 
-var document = makeDocument();
+const document = makeDocument();
 
 /*
  * The page's globals the host reaches for, and no more.
@@ -204,66 +209,84 @@ var document = makeDocument();
  * fallback instead of the path that ships -- which is the trap this fake is
  * meant to avoid, not set.
  */
-var popups = [];
-var observers = [];
-var global_ = {
-  document: document,
+const popups = [];
+let observers = [];
+/*
+ * The three the host `new`s. Classes rather than object-literal methods on
+ * purpose: a shorthand method has no [[Construct]], so `new global.ImageData()`
+ * throws on one -- which is a fake that is broken in a way the real browser
+ * object is not.
+ */
+class FakeImageData {
+  constructor(data, w, h) { this.data = data; this.width = w; this.height = h; }
+}
+
+class FakeImage {
+  constructor() { this.src = ''; }
+}
+
+class FakeResizeObserver {
+  constructor(fn) {
+    this.observe = target => { observers.push({ fn, target }); };
+    this.disconnect = () => {
+      observers = observers.filter(o => o.fn !== fn);
+    };
+  }
+}
+
+const global_ = {
+  document,
   /* The three the skin decode reaches for. Node has the last two already; they
    * are named here because the host reads them off `global`, which in a browser
    * is `window` and here is this object. */
-  atob: function (b64) { return Buffer.from(b64, 'base64').toString('binary'); },
-  Uint8ClampedArray: Uint8ClampedArray,
-  ImageData: function (data, w, h) { this.data = data; this.width = w; this.height = h; },
-  Image: function () { this.src = ''; },
-  open: function () {
-    var win = {
+  atob(b64) { return Buffer.from(b64, 'base64').toString('binary'); },
+  Uint8ClampedArray,
+  ImageData: FakeImageData,
+  Image: FakeImage,
+  open() {
+    const win = {
       document: makeDocument(),
       closed: false,
-      close: function () { this.closed = true; }
+      close() { this.closed = true; }
     };
     popups.push(win);
     return win;
   },
-  ResizeObserver: function (fn) {
-    this.observe = function (target) { observers.push({ fn: fn, target: target }); };
-    this.disconnect = function () {
-      observers = observers.filter(function (o) { return o.fn !== fn; });
-    };
-  }
+  ResizeObserver: FakeResizeObserver
 };
 global_.window = global_;
 
-var src = fs.readFileSync(path.join(__dirname, '..', 'torirs_chrome.js'), 'utf8');
-var moduleShim = { exports: {} };
+const src = fs.readFileSync(path.join(__dirname, '..', 'torirs_chrome.js'), 'utf8');
+const moduleShim = { exports: {} };
 new Function('window', 'globalThis', 'document', 'module', 'console', src)(
   global_, global_, document, moduleShim, console);
 
-var ChromeHost = moduleShim.exports.ChromeHost;
-var CMD = moduleShim.exports.CMD;
-var W = moduleShim.exports.W;
-var INTENT = moduleShim.exports.INTENT;
+const ChromeHost = moduleShim.exports.ChromeHost;
+const CMD = moduleShim.exports.CMD;
+const W = moduleShim.exports.W;
+const INTENT = moduleShim.exports.INTENT;
 
 /* ---- helpers -------------------------------------------------------------- */
 
-var checks = 0;
-var failures = 0;
+let checks = 0;
+let failures = 0;
 function check(cond, what) {
   checks++;
   if (cond) return;
   failures++;
-  console.error('FAIL: ' + what);
+  console.error(`FAIL: ${what}`);
 }
 
 function cmd(k, over) {
-  var base = { k: k, p: 0, w: -1, tab: -1, v: 0, c: 0, x: 0, y: 0, cw: 0, ch: 0, label: '', text: '' };
-  for (var key in (over || {})) base[key] = over[key];
+  const base = { k, p: 0, w: -1, tab: -1, v: 0, c: 0, x: 0, y: 0, cw: 0, ch: 0, label: '', text: '' };
+  for (const key in (over || {})) base[key] = over[key];
   return base;
 }
 function apply(c) { global_.torirsChromeApply(c); }
 function intents() {
-  var out = [];
+  const out = [];
   for (;;) {
-    var s = global_.torirsChromeTakeIntent();
+    const s = global_.torirsChromeTakeIntent();
     if (!s) break;
     out.push(JSON.parse(s));
   }
@@ -290,7 +313,7 @@ apply(cmd(CMD.WIDGET_OPTIONS, { w: 1, v: 2 }));
 apply(cmd(CMD.WIDGET_OPTION, { w: 1, v: 0, text: 'Plugins' }));
 apply(cmd(CMD.WIDGET_OPTION, { w: 1, v: 1, text: 'Beam Demo' }));
 
-var tabsEl = tabStrip();
+const tabsEl = tabStrip();
 check(tabsEl.children.length === 2, 'the strip renders one button per tab');
 check(tabsEl.children[0].classList.contains('on'), 'tab 0 starts selected');
 
@@ -304,10 +327,10 @@ check(rows().length === 5, 'every widget got a row, strip included');
 
 /* Rows are appended in ADD order, so a handle's row is its position in the
  * order the adds above used. */
-var ADD_ORDER = [1, 2, 3, 4, 5];
+const ADD_ORDER = [1, 2, 3, 4, 5];
 function rowFor(handle) {
-  var at = ADD_ORDER.indexOf(handle);
-  if (at < 0) throw new Error('handle ' + handle + ' was never added');
+  const at = ADD_ORDER.indexOf(handle);
+  if (at < 0) throw new Error(`handle ${handle} was never added`);
   return rows()[at];
 }
 /* Later sections add more; kept as one list so a row's position stays the
@@ -334,13 +357,13 @@ check(!rowFor(3).classList.contains('hidden'), 'unhiding on the active tab resto
 intents(); /* drain anything the setup queued */
 
 rowFor(4).children[0].fire('click');
-var got = intents();
+let got = intents();
 check(got.length === 1, 'a button click queues one intent');
 check(got[0].k === INTENT.ACTIVATE && got[0].w === 4, 'naming the chrome handle it came from');
 
 apply(cmd(CMD.PANEL_TAB, { p: 0, v: 0 }));
 intents();
-var box = rowFor(2).children[0];
+const box = rowFor(2).children[0];
 box.checked = true;
 box.fire('change');
 got = intents();
@@ -349,7 +372,7 @@ check(got[0].v === 1, 'carrying its new state');
 
 apply(cmd(CMD.PANEL_TAB, { p: 0, v: 1 }));
 intents();
-var input = rowFor(3).children[1];
+const input = rowFor(3).children[1];
 input.value = '#00FF00';
 input.fire('change');
 got = intents();
@@ -400,11 +423,11 @@ check(root().style.width === '240px', 'clamped at the bottom too');
 apply(cmd(CMD.WIDGET_ADD, { w: 20, v: W.LISTROW, tab: -1, label: 'windemo', cw: 1 }));
 apply(cmd(CMD.WIDGET_CHECKED, { w: 20, v: 1 }));
 
-var listRow = addedRow(20);
+const listRow = addedRow(20);
 check(listRow !== null, 'a roster row gets a row');
-var rowName = listRow.children.filter(function (c) { return c.classList.contains('rowname'); });
-var rowAct = listRow.children.filter(function (c) { return c.classList.contains('rowact'); });
-var rowSw = listRow.children.filter(function (c) { return c.classList.contains('rowsw'); });
+const rowName = listRow.children.filter(c => c.classList.contains('rowname'));
+const rowAct = listRow.children.filter(c => c.classList.contains('rowact'));
+const rowSw = listRow.children.filter(c => c.classList.contains('rowsw'));
 check(rowName.length === 1 && rowName[0].textContent === 'windemo', 'carrying its name');
 check(rowAct.length === 1, 'and its settings affordance, because cw said it has one');
 check(rowSw.length === 1, 'and its switch');
@@ -425,17 +448,17 @@ check(got[0].w === 20, 'for the same row');
 /* A row with no action must not grow one: the flag is part of its shape. */
 apply(cmd(CMD.WIDGET_ADD, { w: 21, v: W.LISTROW, tab: -1, label: 'lua', cw: 0 }));
 check(
-  addedRow(21).children.filter(function (c) { return c.classList.contains('rowact'); }).length === 0,
+  addedRow(21).children.filter(c => c.classList.contains('rowact')).length === 0,
   'a row without an action gets no affordance');
 
 /* COLORPICK: the hex field is the control, and the swatch follows it. */
 apply(cmd(CMD.WIDGET_ADD, { w: 22, v: W.COLORPICK, tab: -1, label: 'beam colour' }));
 apply(cmd(CMD.WIDGET_TEXT, { w: 22, text: '#FFCC00' }));
-var pick = addedRow(22);
-var wrap = pick.children.filter(function (c) { return c.classList.contains('colorpick'); })[0];
+const pick = addedRow(22);
+const wrap = pick.children.filter(c => c.classList.contains('colorpick'))[0];
 check(wrap !== undefined, 'a colour field gets its own group');
-var swatch = wrap.children.filter(function (c) { return c.classList.contains('swatch'); })[0];
-var hexField = wrap.children.filter(function (c) { return c.type === 'text'; })[0];
+const swatch = wrap.children.filter(c => c.classList.contains('swatch'))[0];
+const hexField = wrap.children.filter(c => c.type === 'text')[0];
 check(swatch && swatch.type === 'color', "the swatch is the platform's picker");
 check(hexField && hexField.value === '#FFCC00', 'the hex field shows the value');
 check(swatch && swatch.value === '#FFCC00', 'and the swatch follows it');
@@ -448,14 +471,14 @@ check(got[0].text === '#102030', 'carrying the new value');
 /* MODELVIEW: a placeholder, but a real element -- it takes the focus. */
 apply(cmd(CMD.WIDGET_ADD, { w: 23, v: W.MODELVIEW, tab: -1, label: 'preview' }));
 check(
-  addedRow(23).children.filter(function (c) { return c.classList.contains('modelview'); }).length === 1,
+  addedRow(23).children.filter(c => c.classList.contains('modelview')).length === 1,
   'a model view gets a placeholder rather than an empty row');
 
 /* WIDGET_COLOR was not handled at all: the roster greys a plugin that failed
  * to load, and dropping the command loses that signal entirely. */
 apply(cmd(CMD.WIDGET_COLOR, { w: 21, c: 0x9F9F9F }));
 check(
-  rowFor(21).children.filter(function (c) { return c.classList.contains('rowname'); })[0]
+  rowFor(21).children.filter(c => c.classList.contains('rowname'))[0]
     .style.color === '#9f9f9f',
   'a widget colour reaches the page');
 
@@ -471,8 +494,8 @@ check(
  * colour to land on a different entry than the one the game draws.
  */
 apply(cmd(CMD.WIDGET_ADD, { w: 30, v: W.COLORPICK, tab: -1, label: 'True tile', text: '#0feff9' }));
-var colorRow = addedRow(30);
-var colorWrap = colorRow.children.filter(function (c) { return c.classList.contains('colorpick'); })[0];
+const colorRow = addedRow(30);
+const colorWrap = colorRow.children.filter(c => c.classList.contains('colorpick'))[0];
 check(!!colorWrap, 'a colour row gets a swatch/hex pair rather than the generic branch');
 check(colorWrap.children[0].type === 'color', 'the swatch is the platform colour input');
 check(colorWrap.children[1].type === 'text', 'and the hex stays typeable');
@@ -483,13 +506,13 @@ check(colorWrap.children[1].value === '#123456', 'and the hex field');
 
 colorWrap.children[0].value = '#ff0000';
 colorWrap.children[0].fire('change');
-var picked = intents();
+const picked = intents();
 check(picked.length === 1 && picked[0].k === INTENT.TEXT, 'the swatch commits as a TEXT intent');
 check(picked[0].w === 30 && picked[0].text === '#ff0000', 'carrying what the user chose');
 
 colorWrap.children[1].value = '#00ff00';
 colorWrap.children[1].fire('change');
-var typed = intents();
+const typed = intents();
 check(typed.length === 1 && typed[0].k === INTENT.TEXT, 'and so does the hex field');
 check(typed[0].text === '#00ff00', 'carrying what was typed');
 
@@ -510,18 +533,18 @@ check(intents().length === 0, 'a focus command is inert on the page');
  * option that was chosen, it shuts on the next press anywhere else, and it
  * still takes the keyboard.
  */
-var DD_OPTS = ['First item in tab', 'Digit (1, 2, 3)', 'Roman numeral (I, II, III)', 'Hide tab bar'];
+const DD_OPTS = ['First item in tab', 'Digit (1, 2, 3)', 'Roman numeral (I, II, III)', 'Hide tab bar'];
 
 apply(cmd(CMD.WIDGET_ADD, { w: 40, v: W.DROPDOWN, tab: -1, label: 'Tab display' }));
 apply(cmd(CMD.WIDGET_OPTIONS, { w: 40, v: DD_OPTS.length }));
-DD_OPTS.forEach(function (text, i) {
-  apply(cmd(CMD.WIDGET_OPTION, { w: 40, v: i, text: text }));
+DD_OPTS.forEach((text, i) => {
+  apply(cmd(CMD.WIDGET_OPTION, { w: 40, v: i, text }));
 });
 apply(cmd(CMD.WIDGET_SELECTED, { w: 40, v: 0, text: DD_OPTS[0] }));
 apply(cmd(CMD.WIDGET_TEXT, { w: 40, text: DD_OPTS[0] }));
 
-var ddRow = addedRow(40);
-var ddBtn = ddRow.children.filter(function (c) { return c.classList.contains('dd'); })[0];
+const ddRow = addedRow(40);
+const ddBtn = ddRow.children.filter(c => c.classList.contains('dd'))[0];
 check(!!ddBtn, 'a dropdown gets the shared field box, not a <select>');
 check(ddBtn.tagName === 'SPAN', 'which is a span, because a select cannot be styled open');
 check(ddBtn.children[0].textContent === DD_OPTS[0], 'showing the model\'s value');
@@ -544,16 +567,14 @@ function press(node) {
 /** The list, if one is up. It is placed against the window ROOT rather than
  *  the row, so that is where to look for it. */
 function ddList() {
-  return root().children.filter(function (c) {
-    return c.classList.contains('torirs-chrome-ddlist');
-  })[0];
+  return root().children.filter(c => c.classList.contains('torirs-chrome-ddlist'))[0];
 }
 
 check(!ddList(), 'and no list until it is asked for');
 
 intents();
 press(ddBtn);
-var list = ddList();
+const list = ddList();
 check(!!list, 'pressing the button opens a list');
 check(list.children.length === DD_OPTS.length, 'with one row per option');
 check(list.children[2].textContent === DD_OPTS[2], 'each carrying its own text');
@@ -595,13 +616,13 @@ check(!ddList(), 'the button toggles');
 /* The keyboard, which the <select> had for free. */
 ddBtn.fire('keydown', { key: 'ArrowDown' });
 check(!!ddList(), 'an arrow key opens the list');
-ddList().children.forEach(function (r) { r.classList.remove('cursor'); });
+ddList().children.forEach(r => { r.classList.remove('cursor'); });
 ddBtn.fire('keydown', { key: 'ArrowDown' });
 check(ddList().children[3].classList.contains('cursor'), 'and the arrows move a cursor row');
 ddBtn.fire('keydown', { key: 'ArrowUp' });
 check(ddList().children[2].classList.contains('cursor'), 'both ways');
 check(
-  ddList().children.filter(function (r) { return r.classList.contains('cursor'); }).length === 1,
+  ddList().children.filter(r => r.classList.contains('cursor')).length === 1,
   'one row at a time');
 intents();
 ddBtn.fire('keydown', { key: 'Enter' });
@@ -648,9 +669,9 @@ ADD_ORDER.pop();
  * twice. There was an Ok beside it that committed the page's Save row; it is
  * gone from every presentation, so the page must not offer one either.
  */
-var titleBar = root().children[0];
-var okBtn = titleBar.children.filter(function (c) { return c.classList.contains('ok'); })[0];
-var closeBtn = titleBar.children.filter(function (c) { return c.classList.contains('close'); })[0];
+const titleBar = root().children[0];
+const okBtn = titleBar.children.filter(c => c.classList.contains('ok'))[0];
+const closeBtn = titleBar.children.filter(c => c.classList.contains('close'))[0];
 check(okBtn === undefined, 'the title bar offers no Ok');
 check(closeBtn !== undefined, 'only Close');
 
@@ -672,19 +693,19 @@ check(document.body.children.length === 1, 'and does not take the window down it
 
 /** The live stylesheet: the last <style> the host wrote into this document. */
 function sheet() {
-  var styles = document.head.children.filter(function (c) { return c.tagName === 'STYLE'; });
+  const styles = document.head.children.filter(c => c.tagName === 'STYLE');
   return styles.length ? styles[styles.length - 1].textContent : '';
 }
 
 /** A solid-colour sprite as base64 RGBA, the shape C sends. */
 function fakeSprite(w, h) {
-  var bytes = Buffer.alloc(w * h * 4, 0x7F);
+  const bytes = Buffer.alloc(w * h * 4, 0x7F);
   return bytes.toString('base64');
 }
 
 /* Every slot the sheet names, plus the eight frame pieces it composes. */
-var SKIN = moduleShim.exports.SKIN;
-var SKIN_NEEDED = [
+const SKIN = moduleShim.exports.SKIN;
+const SKIN_NEEDED = [
   SKIN.PANEL_BODY, SKIN.DROPDOWN_BODY, SKIN.CHECK_ON, SKIN.CHECK_OFF,
   SKIN.SCROLL_UP, SKIN.SCROLL_DOWN, SKIN.SCROLL_TRACK, SKIN.SCROLL_GRIP_MID,
   SKIN.FRAME_TOP_LEFT, SKIN.FRAME_TOP, SKIN.FRAME_TOP_RIGHT,
@@ -693,15 +714,15 @@ var SKIN_NEEDED = [
 ];
 
 function sendSkin(skip) {
-  global_.torirsChromeSkinMetrics({ rowH: 18, labelW: 104, box: 17, frame: 3 });
-  SKIN_NEEDED.forEach(function (slot) {
+  global_.torirsChromeSkinMetrics({ rowH: 18, labelW: 104, box: 17, frame: 6 });
+  SKIN_NEEDED.forEach(slot => {
     if (slot === skip) return;
     global_.torirsChromeSkinSprite(slot, 4, 4, fakeSprite(4, 4));
   });
   global_.torirsChromeSkinDone();
 }
 
-var chromeRoot = document.body.children[0].contentDocument
+const chromeRoot = document.body.children[0].contentDocument
   ? document.body.children[0].contentDocument.body.children[0]
   : document.body.children[0];
 
@@ -713,11 +734,22 @@ check(!chromeRoot.classList.contains('skinned'), 'one sprite short leaves the wi
 /* The whole set: skinned, and the sheet names the images. */
 sendSkin(-1);
 check(chromeRoot.classList.contains('skinned'), 'the full set skins the window');
-check(sheet().indexOf('.torirs-chrome.skinned') >= 0, 'the skin sheet was written');
-check(sheet().indexOf('border-image:url(data:image/png') >= 0,
+check(sheet().includes('.torirs-chrome.skinned'), 'the skin sheet was written');
+check(sheet().includes('border-image:url(data:image/png'),
   'the panel wears the nine-slice frame');
-check(sheet().indexOf('data:image/png;base64,#9x9/0+8') >= 0,
-  'the frame is composed from EIGHT pieces on a 9x9 canvas -- the centre is left empty');
+/*
+ * The composition, sized from the RAIL rather than from a constant.
+ *
+ * `border-image` slices its source at the border's own width, so the grid is
+ * rail | 1 | rail on each axis -- 13x13 at the 6px rail this cache's frame
+ * uses. Eight draws, one per piece, and the centre cell is never written:
+ * `fill` is deliberately absent, and a colour parked there would be one
+ * waiting to cover the panel's tile the day somebody adds it.
+ */
+check(sheet().includes('data:image/png;base64,#13x13/0+8'),
+  'the frame is composed from EIGHT pieces on a rail-sized grid, centre empty');
+check(sheet().includes('border-image:url(data:image/png;base64,#13x13/0+8) 6 / 12px'),
+  'and it is sliced at the rail, not at a number of the page\'s own');
 
 /*
  * The metrics reach the layout.
@@ -730,13 +762,13 @@ check(sheet().indexOf('data:image/png;base64,#9x9/0+8') >= 0,
  */
 global_.torirsChromeSkinMetrics({ rowH: 40 });
 global_.torirsChromeSkinDone();
-check(sheet().indexOf('height:80px') >= 0, 'a metric from C lands in the stylesheet');
+check(sheet().includes('height:80px'), 'a metric from C lands in the stylesheet');
 global_.torirsChromeSkinMetrics({ rowH: 18 });
 global_.torirsChromeSkinDone();
 
 /* ---- removal and close ---------------------------------------------------- */
 
-var before = rows().length;
+const before = rows().length;
 apply(cmd(CMD.WIDGET_REMOVE, { w: 4 }));
 check(rows().length === before - 1, 'a removed widget loses its row');
 
@@ -757,25 +789,25 @@ check(document.body.children.length === 0, 'closing the window removes its root'
  *
  * So this runs the same two buttons on a window that never sees a strip.
  */
-(function () {
-  var h = new ChromeHost();
+(() => {
+  const h = new ChromeHost();
   check(h.open() === true, 'a window with no tab strip opens');
   h.apply(cmd(CMD.PANEL_OPEN, { p: 4, text: 'Plugins' }));
   h.apply(cmd(CMD.WIDGET_ADD, { w: 1, v: W.LISTROW, tab: -1, label: 'windemo' }));
 
-  var bar = h.root.children[0];
+  const bar = h.root.children[0];
   function button(cls) {
-    return bar.children.filter(function (c) { return c.classList.contains(cls); })[0];
+    return bar.children.filter(c => c.classList.contains(cls))[0];
   }
   function queued() {
-    var out = [];
-    for (;;) { var j = h.takeIntent(); if (!j) break; out.push(JSON.parse(j)); }
+    const out = [];
+    for (;;) { const j = h.takeIntent(); if (!j) break; out.push(JSON.parse(j)); }
     return out;
   }
 
   queued();
   button('close').fire('click');
-  var one = queued();
+  const one = queued();
   check(one.length === 1 && one[0].k === INTENT.CLOSE, 'Close reports a CLOSE');
   check(one[0].p === 4, 'naming the panel the window is showing, with no strip to say so');
 
@@ -794,12 +826,12 @@ check(document.body.children.length === 0, 'closing the window removes its root'
  * against one that does not, which is the floating fallback and is checked by
  * their passing at all.
  */
-(function () {
-  var stage = makeNode('div');
-  var canvas = makeNode('canvas');
-  var main = makeNode('main');
-  var log = makeNode('section');
-  var page = makeDocument({ canvas: canvas });
+(() => {
+  const stage = makeNode('div');
+  const canvas = makeNode('canvas');
+  const main = makeNode('main');
+  const log = makeNode('section');
+  const page = makeDocument({ canvas });
 
   canvas._rectW = 765;
   canvas._rectH = 503;
@@ -811,11 +843,11 @@ check(document.body.children.length === 0, 'closing the window removes its root'
   page.body.appendChild(main);
   global_.document = page;
 
-  var h = new ChromeHost();
+  const h = new ChromeHost();
   check(h.open() === true, 'the window opens against a page with a canvas');
   check(page.body.children[0] === main, 'and does not go in the page body');
 
-  var frame = main.children.filter(function (c) { return c.tagName === 'IFRAME'; })[0];
+  const frame = main.children.filter(c => c.tagName === 'IFRAME')[0];
   check(frame !== undefined, 'it mounts in an iframe');
   check(main.children.indexOf(frame) === 1, 'inserted next to the stage, not at the end');
   check(frame.contentDocument.body.children[0] === h.root, 'the chrome is built inside it');
@@ -826,7 +858,7 @@ check(document.body.children.length === 0, 'closing the window removes its root'
    * window and the game's own Display setting. All three end in the canvas's
    * box changing, which is why the observer watches the box. */
   canvas._rectH = 720;
-  observers.forEach(function (o) { o.fn(); });
+  observers.forEach(o => { o.fn(); });
   check(frame.style.height === '720px', 'and follows it when the canvas is rescaled');
 
   /*
@@ -836,9 +868,9 @@ check(document.body.children.length === 0, 'closing the window removes its root'
    * is meant to read as one object with.
    */
   canvas._rectT = 108;
-  observers.forEach(function (o) { o.fn(); });
+  observers.forEach(o => { o.fn(); });
   check(frame.style.marginTop === '108px', 'the frame begins on the canvas top edge');
-  observers.forEach(function (o) { o.fn(); });
+  observers.forEach(o => { o.fn(); });
   check(frame.style.marginTop === '108px', 'and holds there once nothing is moving');
 
   /* The page pins its own corner chrome clear of the docked window by this. */
@@ -857,17 +889,20 @@ check(document.body.children.length === 0, 'closing the window removes its root'
   /* ---- popped out into a tab of its own ------------------------------------ */
 
   h.apply(cmd(CMD.WIDGET_ADD, { w: 7, v: W.BUTTON, tab: -1, text: 'Save' }));
-  var savedRow = h.body.children[0];
-  var popBtn = h.root.children[0].children.filter(function (c) {
-    return c.classList.contains('popout');
-  })[0];
+  const savedRow = h.body.children[0];
+  const popBtn = h.root.children[0].children.filter(c => c.classList.contains('popout'))[0];
   check(popBtn !== undefined, 'the title bar offers a pop-out');
 
+  check(!popBtn.classList.contains('back'), 'which points OUT while the window is docked');
+
   popBtn.fire('click');
-  var popup = popups[popups.length - 1];
+  const popup = popups[popups.length - 1];
   check(popup !== undefined, 'clicking it opens a tab');
+  /* The state class the skin keys its second pair of sprites off. A toggle
+   * that looked the same in both positions would not be saying anything. */
+  check(popBtn.classList.contains('back'), 'and the button now points home');
   check(popup.document.body.children[0] === h.root, 'and the window moves into it');
-  check(main.children.indexOf(frame) < 0, 'the frame beside the canvas goes away');
+  check(!main.children.includes(frame), 'the frame beside the canvas goes away');
   check(page.documentElement.style['--torirs-dock-width'] === '0px',
     'and the page stops reserving room beside the picture');
   check(h.body.children[0] === savedRow, 'the SAME row nodes moved, rather than being rebuilt');
@@ -875,15 +910,16 @@ check(document.body.children.length === 0, 'closing the window removes its root'
   /* Which matters because a rebuilt page would be an empty one: the seam
    * emits deltas, so nothing would re-announce a widget that had not changed.
    * The listener riding along is the visible half of that. */
-  (function () {
-    var before = h.intents.length;
+  (() => {
+    const before = h.intents.length;
     savedRow.children[0].fire('click');
     check(h.intents.length === before + 1, 'and their listeners came with them');
   })();
 
   popBtn.fire('click');
   check(popup.closed === true, 'putting it back closes the tab');
-  var back = main.children.filter(function (c) { return c.tagName === 'IFRAME'; })[0];
+  check(!popBtn.classList.contains('back'), 'and the button points out again');
+  const back = main.children.filter(c => c.tagName === 'IFRAME')[0];
   check(back !== undefined, 'and it docks beside the canvas again');
   check(back.contentDocument.body.children[0] === h.root, 'with the same window in it');
   check(back.style.height === '720px', 'matching the canvas it came back to');
@@ -900,11 +936,11 @@ check(document.body.children.length === 0, 'closing the window removes its root'
    * the answer.
    */
   popBtn.fire('click');
-  var second = popups[popups.length - 1];
+  const second = popups[popups.length - 1];
   check(second.closed === false, 'popped out again');
   while (h.takeIntent()) { /* drain */ }
   second.closed = true;
-  var reported = JSON.parse(h.takeIntent() || '{}');
+  const reported = JSON.parse(h.takeIntent() || '{}');
   check(reported.k === INTENT.CLOSE, 'closing the tab reports a CLOSE');
   check(reported.p === 0, 'naming the panel that was in it');
   check(h.root === null, 'and the window is let go with the document it was in');
@@ -914,7 +950,7 @@ check(document.body.children.length === 0, 'closing the window removes its root'
 })();
 
 if (failures) {
-  console.error(checks + ' checks, ' + failures + ' failure(s)');
+  console.error(`${checks} checks, ${failures} failure(s)`);
   process.exit(1);
 }
-console.log(checks + ' checks, 0 failures');
+console.log(`${checks} checks, 0 failures`);

@@ -175,6 +175,77 @@ main(void)
     }
 
     /*
+     * The SYNTHESIZED buttons: the same plate, a different mark.
+     *
+     * These four have no archive behind them -- spritebake stamps an arrow
+     * into the close button's plate (`--stamp`), because the game has no
+     * pop-out button to lift. That makes two things worth asserting, and
+     * neither is visible from the page:
+     *
+     *  - the PLATE is untouched. If the stamp wandered outside the middle 8x8
+     *    it would eat the bevel, and the button would still look like a
+     *    button -- just not like the one beside it.
+     *  - the MARK actually changed. A stamp that silently did nothing gives
+     *    you a pop-out button wearing an X, which reads as a bug in the page.
+     *
+     * The rotation is checked the same way: `arrow_sw` is `arrow_ne` turned
+     * around, so DockButton's mark must be PopoutButton's, backwards.
+     */
+    {
+        struct ToriRSChromeSkin_Sprite const* plate =
+            ToriRSChromeSkin_ForSlot(TORIRS_CHROME_SKIN_CLOSE);
+        struct ToriRSChromeSkin_Sprite const* pop =
+            ToriRSChromeSkin_ForSlot(TORIRS_CHROME_SKIN_POPOUT);
+        struct ToriRSChromeSkin_Sprite const* dock =
+            ToriRSChromeSkin_ForSlot(TORIRS_CHROME_SKIN_DOCK);
+
+        CHECK(pop && dock, "the synthesized buttons are in the bake");
+        if( plate && pop && dock && plate->w == 16 && pop->w == 16 && dock->w == 16 )
+        {
+            int const inset = 4;
+            int outside_same = 1;
+            int inside_diff = 0;
+            int rotated = 1;
+
+            for( int y = 0; y < 16; y++ )
+                for( int x = 0; x < 16; x++ )
+                {
+                    int const in_box = x >= inset && x < 16 - inset && y >= inset &&
+                                       y < 16 - inset;
+                    if( in_box )
+                    {
+                        if( pop->argb[y * 16 + x] != plate->argb[y * 16 + x] )
+                            inside_diff = 1;
+                        if( dock->argb[y * 16 + x] !=
+                            pop->argb[(15 - y) * 16 + (15 - x)] )
+                            rotated = 0;
+                    }
+                    else if( pop->argb[y * 16 + x] != plate->argb[y * 16 + x] )
+                        outside_same = 0;
+                }
+
+            CHECK(outside_same, "the stamp left the plate -- frame, bevel and face -- alone");
+            CHECK(inside_diff, "and actually replaced the mark in the middle of it");
+            CHECK(rotated, "putting it back is the same arrow, turned around");
+        }
+
+        {
+            int sends_pop = 0;
+            int sends_dock = 0;
+            for( int i = 0;
+                 i < (int)(sizeof(k_web_skin_slots) / sizeof(k_web_skin_slots[0])); i++ )
+            {
+                if( k_web_skin_slots[i] == TORIRS_CHROME_SKIN_POPOUT )
+                    sends_pop = 1;
+                if( k_web_skin_slots[i] == TORIRS_CHROME_SKIN_DOCK )
+                    sends_dock = 1;
+            }
+            CHECK(sends_pop, "and the page is sent the pop-out button");
+            CHECK(sends_dock, "and the one that puts it back");
+        }
+    }
+
+    /*
      * The byte order, stated as what the pixels MEAN.
      *
      * R and B swapped would turn the green tick blue and the red cross cyan --

@@ -171,22 +171,10 @@ struct CS2VM2_Array
 #define CS2_OP_IF_SETCLICKMASK 2308
 #define CS2_OP_IF_SETPINCH 2004
 #define CS2_OP_IF_SETMODEL_PLAYERCHATHEAD 2203
-/* HIGHLIGHT_NPC_* entity-highlight family (7000..7004); 7001/7002 are named in
- * the generated meta, the rest are placeholders there. */
-#define CS2_OP_HIGHLIGHT_NPC_SETUP 7000
-#define CS2_OP_HIGHLIGHT_NPC_GET 7003
-#define CS2_OP_HIGHLIGHT_NPC_CLEAR 7004
-/* HIGHLIGHT_LOC_* scene-object-highlight family (7011..7014); ON/OFF are named
- * in cs2_opcode.h, GET/CLEAR are placeholders there. Same shape as the NPC
- * family but keyed on (locTypeId, coordPacked, slot, group) instead of an NPC
- * slot, so ON/OFF/GET pop 4 (NPC pops 3). */
-#define CS2_OP_HIGHLIGHT_LOC_GET 7013
-#define CS2_OP_HIGHLIGHT_LOC_CLEAR 7014
-/* HIGHLIGHT_OBJ_* ground-item-highlight family (7021..7025); ON/OFF are named in
- * cs2_opcode.h, GET/SETUP are placeholders there. OBJ ON/OFF/GET pop 4 like the
- * LOC family; 7025 is the OBJTYPE setup (pop 5). */
-#define CS2_OP_HIGHLIGHT_OBJ_GET 7023
-#define CS2_OP_HIGHLIGHT_OBJTYPE_SETUP 7025
+/* The HIGHLIGHT_* family (7000..7044) is named in cs2_opcode.h now, every
+ * member of it -- the SETUP/GET/CLEAR spellings used to live here because the
+ * generated header only had the vendor's ON/OFF pairs and left the rest as
+ * _70xx. tools/cs2_gen_opcodes/local_opcodes.py owns those names instead. */
 /* MINIMENU_* mouseover / right-click-menu queries (7100..7110). All are no-arg
  * getters reading the current hovered target + open menu state; the host answers
  * them (CS2VM_HOST_REQUEST_MINIMENU). cs2_opcode.h has these as _71xx. */

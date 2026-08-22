@@ -127,6 +127,17 @@ static char const CHROME_GDI_WNDCLASS[] = "TorirsChromeToolWindow";
 #define CHROME_GDI_ID_BASE 0x4000
 #define CHROME_GDI_ID_TAB_BASE 0x5000
 #define CHROME_GDI_ID_ACTION_BASE 0x6000
+/** The window's own close button. One control, so one id rather than a block. */
+#define CHROME_GDI_ID_CLOSE 0x7000
+/**
+ * The close button's box: the sprite, doubled.
+ *
+ * Sized to the ART rather than to a row, because it is the one control here
+ * whose art is a fixed 16x16 with no scale variants in the cache -- so the
+ * only size that stays crisp is an integer multiple, and CHROME_GDI_K is
+ * already that multiple everywhere else in this window.
+ */
+#define CHROME_GDI_CLOSE_SIDE CHROME_GDI_PX(16)
 
 struct ChromeGdi
 {
@@ -193,6 +204,17 @@ struct ChromeGdi
      * and is never shrunk, because the largest is the window and the window is
      * repainted constantly.
      */
+    /**
+     * The window's own X, in the CLIENT area.
+     *
+     * The caption already has one -- this is an overlapped window with a
+     * sysmenu, and WM_CLOSE is answered below. This is a second way out, and
+     * it exists because the other presentations all wear the interfaces' own
+     * close button and this one wore whatever the current Windows theme draws.
+     * A window skinned in the game's art down to its scrollbar grips, closed
+     * by a button from the shell, is two programs in one frame.
+     */
+    HWND close_button;
     int skin_ok;
     HBITMAP tile_bitmap;
     HBRUSH tile_brush;
@@ -491,7 +513,39 @@ chrome_gdi_layout(struct ChromeGdi* s)
                 CHROME_GDI_TAB_H,
                 SWP_NOZORDER | SWP_SHOWWINDOW);
 
-    y = CHROME_GDI_PAD + (s->tab_count > 1 ? CHROME_GDI_TAB_H + CHROME_GDI_ROW_GAP : 0);
+    /*
+     * The close button, pinned to the top-right corner of the client area --
+     * where a window's close box goes, and where dbg_panel_close_box puts the
+     * in-canvas one.
+     *
+     * Placed BEFORE `width` loses its frame inset below, because this is
+     * measured from the client edge rather than from the content column.
+     */
+    if( s->close_button )
+        dwp = DeferWindowPos(
+            dwp,
+            s->close_button,
+            NULL,
+            width - CHROME_GDI_FRAME - CHROME_GDI_PAD - CHROME_GDI_CLOSE_SIDE,
+            CHROME_GDI_FRAME + CHROME_GDI_PAD,
+            CHROME_GDI_CLOSE_SIDE,
+            CHROME_GDI_CLOSE_SIDE,
+            SWP_NOZORDER | SWP_SHOWWINDOW);
+
+    /*
+     * The rows start below whichever piece of furniture is up there.
+     *
+     * The strip and the close button share the band: the strip is left-aligned
+     * and the button is right-aligned, so they do not collide, and reserving
+     * the taller of the two is what keeps the first row from being laid out
+     * underneath the button and taking its clicks.
+     */
+    {
+        int const strip_h = s->tab_count > 1 ? CHROME_GDI_TAB_H : 0;
+        int const close_h = s->close_button ? CHROME_GDI_CLOSE_SIDE : 0;
+        int const band = strip_h > close_h ? strip_h : close_h;
+        y = CHROME_GDI_PAD + (band > 0 ? band + CHROME_GDI_ROW_GAP : 0);
+    }
     width -= 2 * CHROME_GDI_FRAME;
 
     /* In ROW order, not handle order -- see ToriRSChromeMirrorWidget::order.
@@ -687,6 +741,35 @@ chrome_gdi_draw_mark(struct ChromeGdi* s, HDC dc, RECT box, int on)
             side - CHROME_GDI_PX(6), TORIRS_CHROME_C_ON);
 }
 
+/**
+ * The window's X: the interfaces' own button, or a flat one when nothing baked.
+ *
+ * The hover is IN THE ART -- the pair is one button lit from opposite corners
+ * -- so the pressed state swaps the sprite and draws no outline over it. A
+ * control carrying two hover indications reads as selected rather than as
+ * under the cursor, which is the same rule the in-canvas chrome follows.
+ */
+static void
+chrome_gdi_draw_close(struct ChromeGdi* s, HDC dc, RECT box, int hot)
+{
+    int const slot = hot ? TORIRS_CHROME_SKIN_CLOSE_OVER : TORIRS_CHROME_SKIN_CLOSE;
+    int const w = box.right - box.left;
+    int const h = box.bottom - box.top;
+
+    if( ToriRSChromeSkin_ForSlot(slot) )
+    {
+        chrome_gdi_blit(s, dc, box.left, box.top, w, h, slot);
+        return;
+    }
+    /* No skin: a framed box in the dismiss colour, so the way out still exists
+     * on a build that baked no art. The outline comes back with it -- a flat
+     * box has no bevel to invert. */
+    chrome_gdi_field(s, dc, box.left, box.top, w, h);
+    if( hot )
+        chrome_gdi_outline(dc, box.left, box.top, w, h, TORIRS_CHROME_C_ACCENT);
+    chrome_gdi_text(dc, box, "X", TORIRS_CHROME_C_TEXT, DT_CENTER);
+}
+
 /** A roster row's settings affordance: three dots in a field-chrome well. */
 static void
 chrome_gdi_draw_dots(struct ChromeGdi* s, HDC dc, RECT box, int hot)
@@ -868,6 +951,12 @@ chrome_gdi_drawitem(struct ChromeGdi* s, DRAWITEMSTRUCT const* di)
         return;
     }
 
+    if( (int)di->CtlID == CHROME_GDI_ID_CLOSE )
+    {
+        chrome_gdi_draw_close(s, di->hDC, di->rcItem, pressed);
+        return;
+    }
+
     if( (int)di->CtlID >= CHROME_GDI_ID_ACTION_BASE &&
         (int)di->CtlID < CHROME_GDI_ID_ACTION_BASE + TORIRS_CHROME_MAX_WIDGETS )
     {
@@ -929,6 +1018,26 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     {
         int const id = LOWORD(wp);
         int const notify = HIWORD(wp);
+
+        /*
+         * The client-area X. Reported exactly as the caption's X is (WM_CLOSE,
+         * below) and through the same intent, so the two ways out of this
+         * window cannot come to mean different things -- and neither destroys
+         * anything here: the MODEL decides whether the window is up.
+         */
+        if( id == CHROME_GDI_ID_CLOSE )
+        {
+            struct ToriRSChromeIntent intent;
+
+            if( notify != BN_CLICKED )
+                return 0;
+            memset(&intent, 0, sizeof(intent));
+            intent.kind = TORIRS_CHROME_INTENT_CLOSE;
+            intent.panel = s->tab_panel;
+            intent.widget = -1;
+            ToriRSChromeMirror_PushIntent(&s->mirror, &intent);
+            return 0;
+        }
 
         /* A tab button: reported, not acted on. The MODEL decides which tab is
          * up -- it answers with a PANEL_TAB command -- and switching here as
@@ -1292,6 +1401,21 @@ chrome_gdi_begin(void* user)
 
     chrome_gdi_make_tile_brush(s);
 
+    /*
+     * The close button, made once with the window rather than per relayout:
+     * it is furniture, not a row, so nothing in the command stream creates or
+     * destroys it. BS_OWNERDRAW for the same reason every other control here
+     * is -- the art is the cache's and Windows cannot draw it.
+     *
+     * Created hidden, like every other control here: the layout pass is what
+     * shows a control (SWP_SHOWWINDOW), and one that arrived visible would
+     * flash at 0,0 in the corner until the first relayout moved it.
+     */
+    s->close_button = CreateWindowExA(
+        0, "BUTTON", "", WS_CHILD | BS_OWNERDRAW, 0, 0,
+        CHROME_GDI_CLOSE_SIDE, CHROME_GDI_CLOSE_SIDE, s->hwnd, (HMENU)(INT_PTR)CHROME_GDI_ID_CLOSE,
+        GetModuleHandleA(NULL), NULL);
+
     ToriRSChromeMirror_Init(&s->mirror);
     s->tab_panel = -1;
     s->tab_strip_widget = -1;
@@ -1334,6 +1458,7 @@ chrome_gdi_end(void* user)
             s->swatch_brush[i] = NULL;
         }
     s->hwnd = NULL;
+    s->close_button = NULL; /* a child: destroyed with the parent above. */
     s->font = NULL;
     s->tile_brush = NULL;
     s->tile_bitmap = NULL;

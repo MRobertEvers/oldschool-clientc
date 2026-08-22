@@ -107,6 +107,28 @@ dofile = nil
 ---@field level integer
 ---@field element_id integer Scene element id, for draw.hull().
 
+--- One loc (scenery) in the loaded scene: the door, the tree, the rock. Not
+--- an "obj" -- that is a ground ITEM everywhere in this tree, and the two are
+--- the pair that get confused.
+---
+--- Scene-scoped, unlike an npc or a ground item: a loc outside the loaded
+--- scene is simply not in the list, and the list is rebuilt from nothing on
+--- every scene load. A script that wants to remember one remembers its
+--- absolute tile and finds it again.
+---@class torirs.LocSnap
+---@field name string As the minimenu shows it, colour tags and all.
+---@field loc_id integer
+---@field tile_x integer Absolute tile of the SW corner.
+---@field tile_z integer
+---@field level integer
+---@field size_x integer Route footprint -- the config size, angle-swapped. Ground decor routes as its full size but draws on one tile, so this is not what the model covers.
+---@field size_z integer
+---@field shape integer Placed loc shape.
+---@field angle integer Rotation, 0..3 = W/N/E/S.
+---@field element_id integer Scene element id, for draw.hull().
+---@field interactive boolean False for a wall, gravel or floor decor that nothing can click. A highlighter that ignores this lights up the pavement.
+---@field visible_ops integer Bitmask of the ops the minimenu would show.
+
 ------------------------------------------------------------------ the apis --
 
 --- Handed to every handler as its first argument.
@@ -119,8 +141,14 @@ dofile = nil
 ---@field players fun(): fun(): torirs.PlayerSnap? `for player in api.players() do`
 ---@field npc_by_slot fun(server_slot: integer): torirs.NpcSnap?
 ---@field objs fun(): fun(): torirs.ObjSnap? `for obj in api.objs() do`
+---@field locs fun(): fun(): torirs.LocSnap? `for loc in api.locs() do`. A busy city scene holds thousands, so test loc_id or name inside the walk rather than collecting the list first.
 ---@field key_held fun(key: torirs.KeyName|integer): boolean
 ---@field hover_tile fun(): integer?, integer?, integer? Absolute tile under the mouse pointer, as x, z, level. nil when the pointer is outside the world viewport or over no terrain. One frame stale at most -- it comes from the pick that rides the render.
+---@field hover_entity fun(): torirs.HoverEntity? The nearest ENTITY under the pointer -- the one a left click would act on. nil over open ground, which hover_tile still answers for.
+---@field element_height fun(element_id: integer): integer Where an overhead hangs above an element, in the projector's units -- the anchor the client's own health bars and chat heads use. Feed it to project() as `height`. 200 for an element whose model is not built yet, 0 for one not in the scene.
+---@field varbit fun(varbit_id: integer): integer The client's live varbit. READ ONLY -- a varp is the server's, and writing one would tell the client something the server never said. 0 for an id this revision does not define.
+---@field varp fun(varp_id: integer): integer
+---@field setting_color fun(varp_id: integer, fallback?: integer): integer An All Settings colour row, as 0xRRGGBB. Those rows store `colour + 1` so that zero can mean "never chosen"; this drops the offset and answers `fallback` for the unset case.
 ---@field project fun(fine_x: integer, fine_z: integer, height?: integer): integer?, integer? Fine world position to screen x, y. nil when it is off-screen or behind the camera.
 ---@field cfg_set fun(key: string, value: string|number|boolean) The only way to write config; the table itself is read-only.
 ---@field config table<string, any> Live view of this plugin's settings, typed by the schema: a `color` reads back as an integer, a `bool` as a boolean. Reading a key the plugin never declared is an error, not nil.
@@ -225,6 +253,20 @@ dofile = nil
 ---@field row torirs.MenuRow
 
 --- One line that reached the chatbox.
+--- What the pointer is over: the nearest scenery / npc / player / ground-item
+--- stack of the frame, which is the one a left click would act on.
+---@class torirs.HoverEntity
+---@field kind integer 1 scenery, 2 npc, 3 player, 4 ground-item stack.
+---@field element_id integer Scene element id, for draw.hull().
+---@field tile_x integer Absolute tile the pick landed on.
+---@field tile_z integer
+---@field level integer
+
+--- One use of a row in the cache's own All Settings panel.
+---@class torirs.EvSetting
+---@field id integer The setting id -- struct param_1077, the number every settings hub switches on.
+---@field value integer The row's new value, or -1 for a row whose hub carries none (every toggle, and the buttons this event exists for).
+
 ---@class torirs.EvChat
 ---@field type integer Protocol message type: 0 game, 2 public, 3 private-from, and so on.
 ---@field sender string Empty for a system line.
@@ -300,3 +342,4 @@ dofile = nil
 ---@field on_asset? fun(api: torirs.Api, ev: torirs.EvAsset): torirs.Verdict
 ---@field on_chat_message? fun(api: torirs.Api, ev: torirs.EvChat): torirs.Verdict Every chat line, raw. Use on_game_event for the moments the client already recognises.
 ---@field on_game_event? fun(api: torirs.Api, ev: torirs.EvGameEvent): torirs.Verdict A level-up, quest completion, drop, boss kill or other notable moment.
+---@field on_setting? fun(api: torirs.Api, ev: torirs.EvSetting): torirs.Verdict A row in the cache's All Settings panel was used. Only needed for the rows that have no var to read -- a BUTTON row is momentary, and this is the only trace of it.

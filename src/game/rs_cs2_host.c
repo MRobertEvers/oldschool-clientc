@@ -924,6 +924,7 @@ RS_CS2Host_Init(
     host->script_settings_client_mode = 3998;
     host->script_settings_client_apply = 3967;
     host->varbit_settings_last_changed = 9657;
+    RS_HighlightReset(&host->highlight);
     host->bridge = NULL;
     /* Serials start at 1 so fresh hooks (last_seen_serial=0) fire once on the
      * first dispatch after registration (widget-loaded parity). */
@@ -1239,6 +1240,28 @@ rs_cs2_sound_push(
     host->sound[slot].fade_in_delay = sound->fade_in_delay;
     host->sound[slot].fade_in_speed = sound->fade_in_speed;
     host->sound_count++;
+}
+
+bool
+RS_CS2Host_TakeSettingsAction(
+    struct RS_CS2Host* host,
+    int* out_setting_id,
+    int* out_value)
+{
+    assert(host);
+    if( host->settings_action_count <= 0 )
+        return false;
+    assert(out_setting_id);
+    assert(out_value);
+    *out_setting_id = host->settings_action_id[0];
+    *out_value = host->settings_action_value[0];
+    host->settings_action_count--;
+    for( int i = 0; i < host->settings_action_count; i++ )
+    {
+        host->settings_action_id[i] = host->settings_action_id[i + 1];
+        host->settings_action_value[i] = host->settings_action_value[i + 1];
+    }
+    return true;
 }
 
 bool
@@ -2643,6 +2666,60 @@ exec_uizoom(
         fprintf(stderr, "exec_uizoom: unhandled opcode %d\n", request.opcode);
         return CS2VM_EXECNO_ERROR;
     }
+}
+
+/*
+ * Record that the All Settings panel just named a setting.
+ *
+ * Every one of the panel's four apply hubs opens with
+ * `%varbit9657 = <setting id>`, so this write is the panel announcing which
+ * row was used, ahead of whatever the hub then does about it -- including the
+ * rows it does nothing about, which is every one this client has to implement
+ * itself.
+ *
+ * The chosen value is taken from the hub's own frame rather than guessed. A
+ * dropdown/slider hub is `(setting id, value, secondary)` and its second local
+ * is the choice; a toggle or button hub takes the id alone and there is no
+ * value to report, which is what -1 means here. Reading int_locals[1] off a
+ * one-parameter frame would report whatever that script happened to leave in
+ * the slot, so the arity is checked and not assumed.
+ */
+static void
+rs_cs2_settings_record_action(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    int varbit_id,
+    int setting_id)
+{
+    struct CS2VM2_Frame* frame;
+    int value = -1;
+    int slot;
+
+    assert(host);
+    if( host->varbit_settings_last_changed <= 0 ||
+        varbit_id != host->varbit_settings_last_changed )
+        return;
+
+    if( vm && vm->frame_sp > 0 )
+    {
+        frame = vm->frames[vm->frame_sp - 1];
+        if( frame && frame->script && frame->script->int_argument_count >= 2 )
+            value = frame->int_locals[1];
+    }
+
+    if( host->settings_action_count >= RS_CS2_HOST_SETTINGS_ACTIONS_MAX )
+    {
+        /* Drop the oldest: see the queue's declaration. */
+        for( int i = 1; i < host->settings_action_count; i++ )
+        {
+            host->settings_action_id[i - 1] = host->settings_action_id[i];
+            host->settings_action_value[i - 1] = host->settings_action_value[i];
+        }
+        host->settings_action_count--;
+    }
+    slot = host->settings_action_count++;
+    host->settings_action_id[slot] = setting_id;
+    host->settings_action_value[slot] = value;
 }
 
 /*
@@ -6365,6 +6442,9 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_VARS_WRITE_VARBIT:
+        rs_cs2_settings_record_action(
+            host, vm, request->u.vars_write_varbit.varbit_id,
+            request->u.vars_write_varbit.value);
         rs_cs2_settings_apply_client_layout(
             host, vm, request->u.vars_write_varbit.varbit_id,
             request->u.vars_write_varbit.value);
@@ -6564,12 +6644,46 @@ rs_cs2_host_exec_dispatch(
         return CS2VM2_PushInt(vm, host->cam_follow_height);
 
     case CS2VM_HOST_REQUEST_HIGHLIGHT:
-        /* HIGHLIGHT_* (7000..7037): no highlight-overlay system in this port yet.
-         * The request carries the opcode and its popped args (request->u.highlight)
-         * for when the host grows real entity/loc/obj highlight state; for now the
-         * GET queries answer "not highlighted" (0) and the rest are no-ops. */
-        if( request->u.highlight.query )
-            return CS2VM2_PushInt(vm, 0);
+        /*
+         * HIGHLIGHT_* (7000..7044): recorded, and drawn by the `nxt-highlight`
+         * builtin through the plugin layer. See rs_highlight.h for what the
+         * family is and why the cache is the one driving it.
+         *
+         * A GET is answered from the recorded state and is therefore true --
+         * it used to answer 0 unconditionally, which WAS true while nothing
+         * ever joined a group and became a lie the moment something did.
+         */
+        {
+            int answer = 0;
+            bool const handled = RS_HighlightApply(
+                &host->highlight,
+                request->u.highlight.opcode,
+                request->u.highlight.args,
+                request->u.highlight.arg_count,
+                &answer);
+
+            if( !handled )
+            {
+                /* The two forms this cannot own: the PLAYER family's ON/OFF/GET
+                 * and the unnamed 7041..7043, which key on a NAME that
+                 * CS2VM2_Op_Highlight has already discarded off the string
+                 * stack. Said once, because a highlight nobody can key is a
+                 * real gap rather than a quiet one. */
+                static bool announced = false;
+                if( !announced )
+                {
+                    announced = true;
+                    fprintf(
+                        stderr,
+                        "cs2: HIGHLIGHT opcode %d is not recorded -- its subject is a "
+                        "name, and the string stack is discarded before the host sees "
+                        "it\n",
+                        request->u.highlight.opcode);
+                }
+            }
+            if( request->u.highlight.query )
+                return CS2VM2_PushInt(vm, answer);
+        }
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CLIENTOP:

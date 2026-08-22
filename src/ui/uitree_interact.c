@@ -21,6 +21,63 @@ torirs_trace_drag(void)
     return cached;
 }
 
+/*
+ * TORIRS_SCROLLBAR_DEBUG=1: one line per left-press that the IF1 scrollbar path
+ * claims, naming the layer that claimed it and the strip it claimed it with.
+ *
+ * This path runs before the generic hit/drag/click machinery and, when it
+ * answers, zeroes it (UITree_InteractFrame's `sb_owns_mouse` branch) — so a
+ * layer answering for a point that is not visibly its scrollbar makes the
+ * widget actually under the cursor dead, with no menu, no hook and no hover to
+ * show for it. UITree_FindScrollbarAt deliberately applies no clip and no
+ * ancestor-visibility test, so the claimant can be a layer that is scrolled
+ * out, clipped away or behind whatever the player is looking at, which is
+ * exactly the case this line is here to name.
+ */
+static int
+torirs_trace_scrollbar(void)
+{
+    static int cached = -1;
+    if( cached < 0 )
+    {
+        char const* e = getenv("TORIRS_SCROLLBAR_DEBUG");
+        cached = (e && e[0] && e[0] != '0') ? 1 : 0;
+    }
+    return cached;
+}
+
+static void
+scrollbar_trace_claim(
+    struct UITree const* tree,
+    struct UITreeScrollbarHitInfo const* hit,
+    int mx,
+    int my)
+{
+    struct UITreeComponent const* layer;
+
+    assert(tree);
+    assert(hit);
+    if( hit->layer_index < 0 || (uint32_t)hit->layer_index >= tree->component_count )
+        return;
+    layer = &tree->components[hit->layer_index];
+    fprintf(
+        stderr,
+        "scrollbardbg: press %d,%d claimed by com=0x%08x (%d|%d) kind=%d "
+        "layer=%d,%d %dx%d scroll=%dx%d\n",
+        mx,
+        my,
+        (unsigned)layer->component_id,
+        (layer->component_id >> 16) & 0xFFFF,
+        layer->component_id & 0xFFFF,
+        (int)hit->kind,
+        hit->layer_x,
+        hit->layer_y,
+        hit->layer_w,
+        hit->layer_h,
+        hit->scroll_width,
+        hit->scroll_height);
+}
+
 void
 UIInteraction_Init(struct UIInteraction* interact)
 {
@@ -404,6 +461,8 @@ interact_scrollbars(
         struct UITreeScrollbarHitInfo hit;
         if( UITree_FindScrollbarAt(tree, ui_host, mx, my, &hit) )
         {
+            if( left_down && torirs_trace_scrollbar() )
+                scrollbar_trace_claim(tree, &hit, mx, my);
             /* Never let this press become an object-drag source. */
             interact->input_state.drag_source_idx = -1;
             interact->input_state.drag_source_id = -1;

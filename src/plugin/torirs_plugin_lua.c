@@ -313,6 +313,33 @@ lua_push_obj(lua_State* L, struct ToriRS_PluginObjSnap const* o)
     lua_setfield(L, -2, "name");
 }
 
+static void
+lua_push_loc(lua_State* L, struct ToriRS_PluginLocSnap const* l)
+{
+    lua_createtable(L, 0, 11);
+#define SETI(k, v)                                                                            \
+    do                                                                                        \
+    {                                                                                         \
+        lua_pushinteger(L, (lua_Integer)(v));                                                 \
+        lua_setfield(L, -2, (k));                                                             \
+    } while( 0 )
+    SETI("loc_id", l->loc_id);
+    SETI("tile_x", l->tile_x);
+    SETI("tile_z", l->tile_z);
+    SETI("level", l->level);
+    SETI("size_x", l->size_x);
+    SETI("size_z", l->size_z);
+    SETI("shape", l->shape);
+    SETI("angle", l->angle);
+    SETI("element_id", l->element_id);
+    SETI("visible_ops", l->visible_ops);
+#undef SETI
+    lua_pushboolean(L, l->interactive != 0);
+    lua_setfield(L, -2, "interactive");
+    lua_pushstring(L, l->name);
+    lua_setfield(L, -2, "name");
+}
+
 /* ------------------------------------------------------------- api tables */
 
 static struct LuaScript*
@@ -489,6 +516,58 @@ lua_api_hover_tile(lua_State* L)
     lua_pushinteger(L, tile_z);
     lua_pushinteger(L, level);
     return 3;
+}
+
+/* A table or nil, so `if api.hover_entity() then` reads the miss. */
+static int
+lua_api_hover_entity(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    struct ToriRS_PluginHoverEntity hit;
+
+    if( !g_api->hover_entity(script->cur_ctx, &hit) )
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_createtable(L, 0, 5);
+    lua_pushinteger(L, hit.kind);
+    lua_setfield(L, -2, "kind");
+    lua_pushinteger(L, hit.element_id);
+    lua_setfield(L, -2, "element_id");
+    lua_pushinteger(L, hit.tile_x);
+    lua_setfield(L, -2, "tile_x");
+    lua_pushinteger(L, hit.tile_z);
+    lua_setfield(L, -2, "tile_z");
+    lua_pushinteger(L, hit.level);
+    lua_setfield(L, -2, "level");
+    return 1;
+}
+
+static int
+lua_api_varbit(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    lua_pushinteger(L, g_api->varbit(script->cur_ctx, (int)luaL_checkinteger(L, 1)));
+    return 1;
+}
+
+static int
+lua_api_varp(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    lua_pushinteger(L, g_api->varp(script->cur_ctx, (int)luaL_checkinteger(L, 1)));
+    return 1;
+}
+
+static int
+lua_api_setting_color(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    int const varp_id = (int)luaL_checkinteger(L, 1);
+    uint32_t const fallback = (uint32_t)luaL_optinteger(L, 2, 0);
+    lua_pushinteger(L, (lua_Integer)g_api->setting_color(script->cur_ctx, varp_id, fallback));
+    return 1;
 }
 
 static int
@@ -846,6 +925,36 @@ lua_api_objs(lua_State* L)
     return 1;
 }
 
+/* `for loc in api.locs() do`; same cursor shape as the other two. */
+static int
+lua_loc_iter(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    struct ToriRS_PluginLocSnap snap;
+    int const prev = (int)lua_tointeger(L, lua_upvalueindex(2));
+    int const next = g_api->loc_next(script->cur_ctx, prev, &snap);
+
+    if( next < 0 )
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_pushinteger(L, next);
+    lua_replace(L, lua_upvalueindex(2));
+    lua_push_loc(L, &snap);
+    return 1;
+}
+
+static int
+lua_api_locs(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    lua_pushlightuserdata(L, script);
+    lua_pushinteger(L, -1);
+    lua_pushcclosure(L, lua_loc_iter, 2);
+    return 1;
+}
+
 /* -- assets --
  *
  * Bytes cross as Lua STRINGS, which is the right carrier and not a shortcut: a
@@ -1156,8 +1265,13 @@ lua_build_api_table(struct LuaScript* script)
         { "players", lua_api_players },
         { "npc_by_slot", lua_api_npc_by_slot },
         { "objs", lua_api_objs },
+        { "locs", lua_api_locs },
         { "key_held", lua_api_key_held },
         { "hover_tile", lua_api_hover_tile },
+        { "hover_entity", lua_api_hover_entity },
+        { "varbit", lua_api_varbit },
+        { "varp", lua_api_varp },
+        { "setting_color", lua_api_setting_color },
         { "project", lua_api_project },
         { "cfg_set", lua_api_cfg_set },
         { "asset_load", lua_api_asset_load },
@@ -1357,6 +1471,7 @@ static char const* const LUA_HANDLER_NAME[TORIRS_PLUGIN_EV_COUNT] = {
     [TORIRS_PLUGIN_EV_GAME_EVENT] = "on_game_event",
     [TORIRS_PLUGIN_EV_UI] = "on_ui",
     [TORIRS_PLUGIN_EV_UI_BUILD] = "on_ui_build",
+    [TORIRS_PLUGIN_EV_SETTING] = "on_setting",
 };
 
 /* Push the event's second argument. Returns the number of arguments pushed. */
@@ -1483,6 +1598,16 @@ lua_push_event_arg(struct LuaScript* script, int event, void* payload)
         /* No payload worth pushing: "build your tab" carries nothing but the
          * instruction, and the api the handler needs is its first argument. */
         return 0;
+    case TORIRS_PLUGIN_EV_SETTING:
+    {
+        struct ToriRS_PluginEvSetting const* ev = payload;
+        lua_createtable(L, 0, 2);
+        lua_pushinteger(L, ev->setting_id);
+        lua_setfield(L, -2, "id");
+        lua_pushinteger(L, ev->value);
+        lua_setfield(L, -2, "value");
+        return 1;
+    }
     case TORIRS_PLUGIN_EV_PACKET_IN:
     {
         struct ToriRS_PluginEvPacketIn const* ev = payload;

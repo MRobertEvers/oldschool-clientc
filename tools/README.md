@@ -176,6 +176,28 @@ See [`entity_viewer/README.md`](entity_viewer/README.md).
 make -C tools/entity_viewer   # -> ev_catalog, ev_server
 ```
 
+## `chrome_button_stamp.py` — a new chrome button out of an old one
+
+Borrows the interfaces' close button (the baked `CloseButton` plate: frame,
+bevel, face, ink, and its hover twin), wipes the X off it, and puts your sprite
+there. That is how the plugin window's pop-out button exists at all — the game
+has no art for a window that leaves its frame, so the button is the cache's
+plate with an arrow stamped in the middle.
+
+```bash
+tools/chrome_button_stamp.py arrow.png              # -> arrow-button.png + -over.png
+tools/chrome_button_stamp.py arrow.png --ink        # recoloured to the plate's own ink
+tools/chrome_button_stamp.py arrow.png --rows       # as a spritebake glyph table
+tools/chrome_button_stamp.py --selftest             # must reproduce the shipped bake
+```
+
+A PNG is a preview, not a button the client can draw: shipping one means
+`--rows` into `3rd/rscache/tools/spritebake`'s glyph table and a `--stamp` line
+in the bake recipe. `--selftest` rebuilds the baked `PopoutButton` from the
+baked `CloseButton` and fails on a single differing pixel, which is what keeps
+this script and the C tool agreeing about where the mark box is and which
+colour the face is.
+
 ## Cache porting (`3rd/rscache/tools/`)
 
 Asset discovery and cross-revision NPC porting live next to the cache library,

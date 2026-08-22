@@ -121,21 +121,21 @@
 
 <script src="./torirs_channel.js"></script>
 <script>
-(function () {
+(() => {
   'use strict';
 
-  var enc = new TextEncoder();
-  var dec = new TextDecoder();
-  var $ = function (id) { return document.getElementById(id); };
+  const enc = new TextEncoder();
+  const dec = new TextDecoder();
+  const $ = id => document.getElementById(id);
 
   function log(msg) {
-    var el = $('log');
-    el.textContent += msg + '\n';
+    const el = $('log');
+    el.textContent += `${msg}\n`;
     el.scrollTop = el.scrollHeight;
   }
 
   function setState(text, bad) {
-    var el = $('state');
+    const el = $('state');
     el.textContent = text;
     el.className = bad ? 'state bad' : 'state';
   }
@@ -148,28 +148,28 @@
    * business. JSON keeps the panel readable and costs nothing at this rate --
    * a readout per tile crossing. The intents below do the same in reverse.
    */
-  var panel = ToriRSChannel.createPanel({
-    onFact: function (type, payload, seq) {
-      var body = payload.length ? JSON.parse(dec.decode(payload)) : {};
+  const panel = ToriRSChannel.createPanel({
+    onFact(type, payload, seq) {
+      const body = payload.length ? JSON.parse(dec.decode(payload)) : {};
       if (type === ToriRSChannel.FACT.SNAPSHOT) {
-        setState('synced (seq ' + seq + ')');
-        log('SNAPSHOT seq=' + seq);
+        setState(`synced (seq ${seq})`);
+        log(`SNAPSHOT seq=${seq}`);
         if (body.tool !== undefined) { $('tool').value = String(body.tool); }
       } else if (type === ToriRSChannel.FACT.DELTA) {
-        setState('synced (seq ' + seq + ')');
+        setState(`synced (seq ${seq})`);
       } else if (type === ToriRSChannel.FACT.PROGRESS) {
         log(body.line || '');
         return;
       } else if (type === ToriRSChannel.FACT.NACK) {
-        log('refused: ' + (body.why || '?'));
+        log(`refused: ${body.why || '?'}`);
         return;
       }
       if (body.square !== undefined) { $('r-square').textContent = body.square; }
       if (body.tile !== undefined) { $('r-tile').textContent = body.tile; }
     },
-    onDesync: function (had, got) {
-      setState('resyncing (gap ' + had + '→' + got + ')', true);
-      log('desync: seq jumped ' + had + ' -> ' + got + ', asked for a snapshot');
+    onDesync(had, got) {
+      setState(`resyncing (gap ${had}→${got})`, true);
+      log(`desync: seq jumped ${had} -> ${got}, asked for a snapshot`);
     }
   });
 
@@ -177,23 +177,25 @@
     panel.send(type, enc.encode(JSON.stringify(obj || {})));
   }
 
-  $('tool').addEventListener('change', function () {
-    intent(ToriRSChannel.INTENT.SET, { tool: parseInt(this.value, 10) });
+  const tool = $('tool');
+  tool.addEventListener('change', () => {
+    intent(ToriRSChannel.INTENT.SET, { tool: parseInt(tool.value, 10) });
   });
-  $('height').addEventListener('change', function () {
-    intent(ToriRSChannel.INTENT.SET, { height: this.value });
+  const height = $('height');
+  height.addEventListener('change', () => {
+    intent(ToriRSChannel.INTENT.SET, { height: height.value });
   });
-  $('undo').addEventListener('click', function () {
+  $('undo').addEventListener('click', () => {
     intent(ToriRSChannel.INTENT.OP, { op: 'undo' });
   });
-  $('redo').addEventListener('click', function () {
+  $('redo').addEventListener('click', () => {
     intent(ToriRSChannel.INTENT.OP, { op: 'redo' });
   });
-  $('save').addEventListener('click', function () {
+  $('save').addEventListener('click', () => {
     intent(ToriRSChannel.INTENT.SAVE, {});
     log('save requested');
   });
-  $('bake').addEventListener('click', function () {
+  $('bake').addEventListener('click', () => {
     /* The one and only producer of a bake request in this page, matching the
      * native rule: baking is never a side effect of anything else. */
     intent(ToriRSChannel.INTENT.BAKE, { scope: 'dirty' });

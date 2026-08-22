@@ -386,7 +386,7 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_CAM_SETFOLLOWHEIGHT,
     CS2VM_HOST_REQUEST_CAM_GETFOLLOWHEIGHT,
 
-    /* The whole HIGHLIGHT_* family (7000..7037: NPC / LOC / OBJ / PLAYER / TILE
+    /* The whole HIGHLIGHT_* family (7000..7044: NPC / LOC / OBJ / PLAYER / TILE
      * entity-outline highlighting) goes through one kind, like WORLDMAP/MEC —
      * they share one highlight-state object the host will eventually own, so per
      * subject kinds would only spread one switch across files. The payload
@@ -1386,8 +1386,10 @@ struct CS2VM_HostRequest_CamForceAngle
 };
 
 /** Any HIGHLIGHT_* opcode. `args` holds its popped int args in push order
- *  (args[0] pushed first); the widest variant (NPC_SETUP / OBJTYPE_SETUP) pops
- *  5. `query` marks the GET variants, which must push a bool result. */
+ *  (args[0] pushed first); the widest variant is any group's SETUP, which pops
+ *  5. `query` marks the GET variants, which must push a bool result. The one
+ *  string argument in the family -- the PLAYER group's name -- is popped and
+ *  dropped by the VM rather than carried here: no host state keys on it. */
 #define CS2VM_HIGHLIGHT_ARG_MAX 5
 struct CS2VM_HostRequest_Highlight
 {

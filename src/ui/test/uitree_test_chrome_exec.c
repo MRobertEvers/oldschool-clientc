@@ -848,20 +848,38 @@ test_chrome_exec_drag_region(void)
                 "on the strip the region claims");
 
     /*
-     * Ok and Close live IN the title bar. Unpunched they would be unreachable
-     * rather than merely awkward: the press that should activate one would
-     * start a window drag and the button would never see a click at all.
+     * Close lives IN the title bar. Unpunched it would be unreachable rather
+     * than merely awkward: the press that should shut the window would start a
+     * drag of it, and the button would never see a click at all.
+     *
+     * Probed at the HOLE's own centre rather than at a measured offset from the
+     * bar's right edge. The button is placed with padding inside the frame's
+     * rail, and both of those have changed with the art -- a coordinate guessed
+     * from the outside stops landing on the button and the assertion then
+     * passes for the wrong reason.
      */
-    ToriRSChrome_PanelSetClosable(&g_ui, panel, 1);
-    ToriRSChrome_Build(&g_ui);
-    ToriRSChrome_WindowDragRegion(&g_ui, panel, &region);
-    TEST_ASSERT(
-        ToriRSChromeDragRegion_Contains(&region, region.handles[0].x + 2, drag_mid_y(title)),
-        "the left of the title bar still drags");
-    TEST_ASSERT(
-        !ToriRSChromeDragRegion_Contains(
-            &region, region.handles[0].x + region.handles[0].w - 3, drag_mid_y(title)),
-        "but its buttons are punched out of the handle");
+    {
+        int hole = -1;
+
+        ToriRSChrome_PanelSetClosable(&g_ui, panel, 1);
+        ToriRSChrome_Build(&g_ui);
+        ToriRSChrome_WindowDragRegion(&g_ui, panel, &region);
+        title = region.handles[0];
+        TEST_ASSERT(
+            ToriRSChromeDragRegion_Contains(&region, title.x + 2, drag_mid_y(title)),
+            "the left of the title bar still drags");
+        for( int i = 0; i < region.hole_count; i++ )
+        {
+            struct ToriRSChromeRect const h = region.holes[i];
+            if( h.w > 0 && h.y >= title.y && h.y + h.h <= title.y + title.h )
+                hole = i;
+        }
+        TEST_ASSERT(hole >= 0, "and a hole was punched inside it");
+        TEST_ASSERT(
+            !ToriRSChromeDragRegion_Contains(
+                &region, drag_mid_x(region.holes[hole]), drag_mid_y(region.holes[hole])),
+            "which is the Close button, and does not drag");
+    }
 
     /*
      * A strip whose tabs have been compressed to fill its width has no tail,

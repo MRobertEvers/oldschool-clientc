@@ -261,6 +261,31 @@ enum ToriRSChromeSkinSlot
      */
     TORIRS_CHROME_SKIN_CLOSE,
     TORIRS_CHROME_SKIN_CLOSE_OVER,
+    /**
+     * Pop out into a window of its own, and put it back -- each with the same
+     * hover half the close button has.
+     *
+     * SYNTHESIZED, and the only art here that is. There is no pop-out button
+     * anywhere in the cache: the game has no window that leaves its frame, so
+     * there is no archive to name. What the bake does instead is borrow the
+     * close button's PLATE -- its frame, bevel, face, ink and hover treatment,
+     * all of it the cache's -- and stamp an arrow where the X was
+     * (spritebake's `--stamp`). Only the eight by eight pixels in the middle
+     * are ours, so a re-bake against another revision carries these along with
+     * the real buttons rather than leaving them at last year's palette.
+     *
+     * A text glyph beside them was the alternative, and what shipped first: an
+     * arrow from the system font, at the system font's weight, next to a
+     * button drawn in 2005. The two read as furniture from two programs.
+     *
+     * Only the web presentation puts a window in a tab, so only it draws
+     * these. They are in the shared enum anyway because the bake is shared --
+     * a slot the page can ask for has to exist on the client that answers.
+     */
+    TORIRS_CHROME_SKIN_POPOUT,
+    TORIRS_CHROME_SKIN_POPOUT_OVER,
+    TORIRS_CHROME_SKIN_DOCK,
+    TORIRS_CHROME_SKIN_DOCK_OVER,
     TORIRS_CHROME_SKIN_SLOT_COUNT
 };
 

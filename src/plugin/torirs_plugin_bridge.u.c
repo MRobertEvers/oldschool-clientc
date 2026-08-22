@@ -229,6 +229,75 @@ app_plugin_obj_next(void* user, int iter, struct ToriRS_PluginObjSnap* out)
     return -1;
 }
 
+static void
+app_plugin_fill_loc(
+    struct App* app,
+    struct WorldEntity_Scenery const* scenery,
+    struct ToriRS_PluginLocSnap* out)
+{
+    assert(app);
+    assert(scenery);
+    assert(out);
+
+    memset(out, 0, sizeof(*out));
+    out->loc_id = scenery->loc_id;
+    out->tile_x = app->world->_base_tile_x + scenery->grid_position.x;
+    out->tile_z = app->world->_base_tile_z + scenery->grid_position.z;
+    out->level = scenery->grid_position.level;
+    out->size_x = scenery->size_x > 0 ? scenery->size_x : 1;
+    out->size_z = scenery->size_z > 0 ? scenery->size_z : 1;
+    out->shape = scenery->shape;
+    out->angle = scenery->angle;
+    out->element_id = scenery->element_id;
+    out->interactive = scenery->interactive;
+    snprintf(out->name, sizeof(out->name), "%s", scenery->name);
+
+    /* The ops are a facet array with a per-slot name; a slot with no name is
+     * an op the loc does not offer. Packed to a bitmask here because that is
+     * the only question a plugin asks of them -- the TEXT of an op is the
+     * minimenu's business, and a plugin that wants it reads the menu build. */
+    for( int i = 0; i < 5; i++ )
+        if( scenery->actions[i].name[0] != '\0' )
+            out->visible_ops |= (uint8_t)(1u << i);
+}
+
+/*
+ * Every loc in the loaded scene.
+ *
+ * SCENE-SCOPED, and the snapshot says so: the pool is rebuilt from nothing on
+ * each scene load, so there is no iterator that survives one. That is not a
+ * limitation to work around -- a loc has no server-side identity a client can
+ * hold on to, unlike an npc's slot, so its tile IS its identity and a plugin
+ * that wants to remember one remembers that.
+ */
+static int
+app_plugin_loc_next(void* user, int iter, struct ToriRS_PluginLocSnap* out)
+{
+    struct App* app = (struct App*)user;
+    struct World_EntityPool* pool;
+    int at;
+
+    assert(app);
+    assert(out);
+
+    if( !app->world )
+        return -1;
+    pool = &app->world->entities.scenery;
+
+    at = iter < 0 ? World_EntityPoolHead(pool) : World_EntityPoolNext(pool, iter);
+    while( at != WORLD_ENTITY_NIL )
+    {
+        struct WorldEntity_Scenery* scenery = World_EntityPoolGet(pool, at);
+        if( scenery )
+        {
+            app_plugin_fill_loc(app, scenery, out);
+            return at;
+        }
+        at = World_EntityPoolNext(pool, at);
+    }
+    return -1;
+}
+
 /*
  * The plugin contract restates a few key codes so that nothing built on it has
  * to include an engine header. This is the seam where both definitions are in
@@ -411,6 +480,116 @@ app_plugin_hover_tile(void* user, int* out_tile_x, int* out_tile_z, int* out_lev
         app->world_hover_tile_z,
         app->world_hover_tile_level);
     return 1;
+}
+
+/*
+ * The nearest thing under the pointer, out of the frame's pickset.
+ *
+ * The pickset is already ordered nearest-first -- it is the same list the
+ * minimenu consumes, in the same order -- so "the entity the cursor is on" is
+ * the first entry that is not terrain. Terrain is skipped rather than reported
+ * as a kind of its own: the ground under the pointer is hover_tile's question,
+ * it is answered even over open grass, and a caller asking this one wants to
+ * know whether there is a THING there.
+ *
+ * Projectiles are skipped too. They are picked (they are scene elements like
+ * any other) but nothing can be done with one, so offering it as the hovered
+ * entity would make an arrow in flight steal the highlight off the npc it is
+ * flying at.
+ */
+static int
+app_plugin_hover_entity(void* user, struct ToriRS_PluginHoverEntity* out)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    assert(out);
+
+    if( !app->world )
+        return 0;
+
+    for( int i = 0; i < app->world_pickset.count; i++ )
+    {
+        struct World_Picked const* hit = &app->world_pickset.items[i];
+        int kind;
+
+        switch( hit->type )
+        {
+        case WORLD_PICK_SCENERY:
+            kind = TORIRS_PLUGIN_HOVER_SCENERY;
+            break;
+        case WORLD_PICK_NPC:
+            kind = TORIRS_PLUGIN_HOVER_NPC;
+            break;
+        case WORLD_PICK_PLAYER:
+            kind = TORIRS_PLUGIN_HOVER_PLAYER;
+            break;
+        case WORLD_PICK_OBJSTACK:
+            kind = TORIRS_PLUGIN_HOVER_OBJ;
+            break;
+        default:
+            continue;
+        }
+
+        memset(out, 0, sizeof(*out));
+        out->kind = kind;
+        out->element_id = hit->element_id;
+        out->tile_x = app->world->_base_tile_x + hit->tile_x;
+        out->tile_z = app->world->_base_tile_z + hit->tile_z;
+        out->level =
+            World_TerrainWalkLevel(app->world, hit->tile_x, hit->tile_z, hit->tile_level);
+        return 1;
+    }
+    return 0;
+}
+
+/*
+ * The overhead anchor, shared with the client's own health bars and chat
+ * heads: app_entity_model_height is the same call they make.
+ *
+ * The reference's `logicalHeight` default is applied here rather than left to
+ * the caller, for the reason it exists there: an entity whose model has not
+ * been built yet reports no bounds, and a name that collapsed to the floor for
+ * the first few frames of every spawn would be worse than one that starts
+ * slightly high and settles. A type's own `height` (npc opcode 124) is not
+ * consulted, because a plugin names an ELEMENT and not an npc; the two differ
+ * only for the handful of records that state one.
+ */
+static int
+app_plugin_element_height(void* user, int element_id)
+{
+    struct App* app = (struct App*)user;
+    int height;
+
+    assert(app);
+
+    if( element_id < 0 || !app->scene || !ToriDraw_SceneElementIsLive(app->scene, element_id) )
+        return 0;
+    height = app_entity_model_height(app, element_id);
+    return height > 0 ? height : APP_OVERLAY_DEFAULT_LOGICAL_HEIGHT;
+}
+
+/*
+ * The client's var state, read-only.
+ *
+ * VarPManager_GetVarbit / _GetVarp already answer 0 for an id this revision
+ * does not define, which is the contract this api states -- so there is no
+ * range test here to duplicate and get subtly different.
+ */
+static int
+app_plugin_varbit(void* user, int varbit_id)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    return VarPManager_GetVarbit(&app->varps, varbit_id);
+}
+
+static int
+app_plugin_varp(void* user, int varp_id)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    return VarPManager_GetVarp(&app->varps, varp_id);
 }
 
 static int
@@ -775,8 +954,13 @@ app_plugin_engine(struct App* app)
     engine.npc_by_slot = app_plugin_npc_by_slot;
     engine.player_next = app_plugin_player_next;
     engine.obj_next = app_plugin_obj_next;
+    engine.loc_next = app_plugin_loc_next;
     engine.key_held = app_plugin_key_held;
     engine.hover_tile = app_plugin_hover_tile;
+    engine.hover_entity = app_plugin_hover_entity;
+    engine.element_height = app_plugin_element_height;
+    engine.varbit = app_plugin_varbit;
+    engine.varp = app_plugin_varp;
     engine.project = app_plugin_project;
     engine.draw_tile = app_plugin_draw_tile;
     engine.draw_hull = app_plugin_draw_hull;

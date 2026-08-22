@@ -251,6 +251,17 @@ assertion that they agree, and the page's copy of the same table is pinned by
   position never does. Closing the popped-out tab is reported as a `CLOSE`,
   like the SDL window's X.
 
+  **Its title-bar buttons wear the game's own art.** The close mark is
+  `CloseButton`/`CloseButtonOver` (archives 831/832) -- the button the
+  interfaces themselves put in a title bar -- and the hover is *in the art*,
+  the same plate lit from the opposite corner, so no accent outline goes over
+  it. The pop-out mark is that same plate with an arrow stamped where the X
+  was, because the game has no pop-out button to lift: see **A button the cache
+  does not have** below. Both are optional -- a client too old to send the
+  sprites leaves the text glyphs, which is what every build had until the art
+  crossed the wall -- and both are sized to the title bar rather than to the
+  sprite, the same slight downscale `dbg_panel_close_box` asks for.
+
   **Its close mark was dead for a release**, and the cause is worth keeping:
   a close names a panel, and the page latched which panel that was when a
   `TABSTRIP` arrived. The plugin window is *paged*, not tabbed, so no strip
@@ -321,6 +332,16 @@ assertion that they agree, and the page's copy of the same table is pinned by
 
   **Still written, not run.** Everything above compiles under
   `make -C src check-gdi-syntax` and nothing here has been on a screen.
+
+  **It closes with the game's X, not the shell's.** The caption still has its
+  own, and `WM_CLOSE` still reports the same intent -- but a window skinned in
+  the cache's art down to its scrollbar grips, closed by a button from whatever
+  Windows theme is current, is two programs in one frame. So there is a
+  `BS_OWNERDRAW` button pinned to the top-right of the CLIENT area wearing
+  `CloseButton`, sharing its band with the tab strip (strip left, button
+  right), and reserving that band is what keeps the first row from being laid
+  out underneath it and eating its clicks. Verified by `check-gdi-syntax`
+  only: this file compiles on Windows and is exercised nowhere else.
 
 - **cs2** (`src/ui/torirs_chrome_exec_cs2.c`) -- the window as real interface
   components, built through the same `UITree_PushBuildComponent` any
@@ -546,6 +567,42 @@ The same platform calls exist for the **game** window
 canvas coordinates with the letterbox already undone). Nothing wires them: the
 game window has no drawn top bar to grab, and hiding its frame without one would
 leave it movable only from its resize edges.
+
+### A button the cache does not have
+
+The plugin window's pop-out has no counterpart anywhere in the interfaces --
+the game has no window that leaves its frame -- so there is no archive to name
+in the bake recipe. It shipped first as a text arrow from the system font,
+which sat beside a close button drawn in 2005 and read as furniture from two
+different programs.
+
+So `spritebake` grew a `--stamp`: `Source=Symbol:glyph` borrows an already-baked
+sprite's **plate** -- its frame, bevel, face, ink and hover treatment, all of it
+the cache's -- erases the mark sitting on it, and stamps an 8x8 glyph in the
+mark's own colour. `CloseButton` gives four synthesized siblings that way:
+`PopoutButton`, `PopoutButtonOver`, and the same arrow turned around for putting
+the window back (`DockButton`, `DockButtonOver`). Only the eight by eight pixels
+in the middle are ours, so a re-bake against another revision carries them along
+with the real buttons instead of leaving them at last year's palette.
+
+Two things in that were bugs first, both of them in deciding which colour is
+the plate's **face**:
+
+- *the commonest colour in the middle of the button* is the **ink**. The close
+  X covers more than half of its own 8x8 box, so that reading stamps every
+  glyph inside out -- and the result still looks like a button, which is what
+  makes it worth writing down.
+- *the commonest colour outside it* is the **border**, drawn in the same
+  near-black the mark is; the face does not outnumber it.
+
+It is the one-pixel ring around the mark box: plate on both the lit and the
+pressed variant, and where the glyph's own edges land.
+
+`make -C src test-web-channel` pins the result from the C side -- that the plate
+outside the box is byte-identical to its source, that the middle actually
+changed, and that the dock arrow is the pop-out arrow rotated 180. None of those
+is visible from the page, and a stamp that silently did nothing would give you a
+pop-out button wearing an X.
 
 ## 5a. Opening it: the sidebar Plugin button
 

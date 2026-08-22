@@ -397,6 +397,17 @@ app_plugin_panel_sync(struct App* app)
                 PluginHost_IsEnabled(app->plugins, p) )
                 continue;
 
+            /*
+             * A HIDDEN builtin has no row at all, faulting or not.
+             *
+             * Unlike an adapter, there is nothing here for the user to do
+             * about it: it is a feature of the client whose switch is in the
+             * cache's own All Settings panel, and a row here would be a second
+             * switch over the same thing. See ToriRS_PluginDef::hidden.
+             */
+            if( PluginHost_IsHidden(app->plugins, p) )
+                continue;
+
             /* The TITLE, not the name: the name is the ini key, and a roster
              * of kebab-case ids reads as a config file that got onto the
              * screen. Nothing here keys off the string -- the row carries the

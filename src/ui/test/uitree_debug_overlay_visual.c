@@ -594,6 +594,36 @@ box_checksum(struct ToriRSChromeRect r)
     return h;
 }
 
+/**
+ * Is the baked slot blitted 1:1 at (bx,by)? @return matched opaque pixels, or
+ * -1 at the first pixel that differs.
+ *
+ * skinned_check_pixels' sibling for art that is not a widget's -- the frame's
+ * corners, which are panel chrome. Comparing against the BAKE rather than
+ * against a colour constant is what makes the assertion survive a re-bake from
+ * different art: it asks "is this the piece we baked", not "is this brown".
+ */
+static int
+skinned_slot_pixels(int bx, int by, int slot)
+{
+    struct ToriRSChromeSkin_Sprite const* spr = ToriRSChromeSkin_Get(slot);
+    int matched = 0;
+
+    if( !spr )
+        return 0;
+    for( int yy = 0; yy < spr->h; yy++ )
+        for( int xx = 0; xx < spr->w; xx++ )
+        {
+            uint32_t const argb = spr->argb[yy * spr->w + xx];
+            if( (argb >> 24) != 0xFFu )
+                continue;
+            if( px(bx + xx, by + yy) != (argb & 0x00FFFFFFu) )
+                return -1;
+            matched++;
+        }
+    return matched;
+}
+
 static int
 skinned_check_pixels(struct ToriRSChromeWidget const* w, int slot)
 {
@@ -1899,20 +1929,29 @@ visual_listrow_skinned(void)
         VT_ASSERT(
             px(r.x + 1, mid_y) != g_ui.theme.panel_body,
             "the frame covers the body down the edge");
-        /* The rounded corner: the outermost pixel of the frame's corner piece
-         * is transparent, so what shows there is whatever was behind the
-         * panel. A square frame would have painted it. */
         /*
-         * The corner is ROUNDED: the outermost pixel of the corner piece is
-         * transparent, so what shows there is the panel's own tile, while the
-         * pixel diagonally inside it is the frame's near-black outline. A
-         * corner blitted from the wrong slot -- an edge piece, say -- would
-         * paint that outer pixel and this is what says so.
+         * The corner, against the BAKE rather than against a colour.
+         *
+         * This assertion used to say "the corner pixel is near-black", which
+         * was true of the thin nine-slice baked before it and is not true of
+         * the strip's own frame: its rail is lit from outside, so the outermost
+         * row is the HIGHLIGHT and the near-black is the inner edge. A test
+         * that pins a colour pins the art it was written against; one that
+         * pins the blit catches the thing that actually goes wrong, which is a
+         * corner drawn from the wrong slot or at the wrong size.
          */
         VT_ASSERT(
-            px(r.x + 1, r.y + 1) < 0x202020, "the frame's outline is drawn at the corner");
+            skinned_slot_pixels(r.x, r.y, TORIRS_CHROME_SKIN_FRAME_TOP_LEFT) > 200,
+            "the corner is the baked frame piece, blitted 1:1");
+        /*
+         * And it is ROUNDED: the corner piece's own outermost pixel is
+         * transparent, so what shows at (r.x, r.y) is the panel's tile. A
+         * square frame -- or an edge piece blitted into the corner -- would
+         * have painted it the rail's colour.
+         */
         VT_ASSERT(
-            px(r.x, r.y) > 0x202020, "and the corner's own outer pixel is rounded away");
+            px(r.x, r.y) != px(r.x + 1, r.y + 1),
+            "and the corner's own outer pixel is rounded away");
     }
 
     /* Withheld, the panel falls back to the rails -- and lays out for them, so

@@ -43,7 +43,11 @@ enum ToriRSChromeSkin_Slot
     ToriRSChromeSkin_SLOT_FrameBottomRight = 18,
     ToriRSChromeSkin_SLOT_CloseButton = 19,
     ToriRSChromeSkin_SLOT_CloseButtonOver = 20,
-    ToriRSChromeSkin_SLOT_COUNT = 21
+    ToriRSChromeSkin_SLOT_PopoutButton = 21,
+    ToriRSChromeSkin_SLOT_PopoutButtonOver = 22,
+    ToriRSChromeSkin_SLOT_DockButton = 23,
+    ToriRSChromeSkin_SLOT_DockButtonOver = 24,
+    ToriRSChromeSkin_SLOT_COUNT = 25
 };
 
 /** The baked image for `slot`, or NULL when the slot is out of range. */

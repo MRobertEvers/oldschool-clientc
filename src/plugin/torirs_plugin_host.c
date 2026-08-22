@@ -426,6 +426,14 @@ api_player_next(struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginPlay
 }
 
 static int
+api_loc_next(struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginLocSnap* out)
+{
+    assert(ctx);
+    assert(out);
+    return ctx->host->engine.loc_next(ctx->host->engine.user, iter, out);
+}
+
+static int
 api_key_held(struct ToriRS_PluginCtx* ctx, int keycode)
 {
     assert(ctx);
@@ -445,6 +453,21 @@ api_hover_tile(
     assert(out_level);
     return ctx->host->engine.hover_tile(
         ctx->host->engine.user, out_tile_x, out_tile_z, out_level);
+}
+
+static int
+api_hover_entity(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginHoverEntity* out)
+{
+    assert(ctx);
+    assert(out);
+    return ctx->host->engine.hover_entity(ctx->host->engine.user, out);
+}
+
+static int
+api_element_height(struct ToriRS_PluginCtx* ctx, int element_id)
+{
+    assert(ctx);
+    return ctx->host->engine.element_height(ctx->host->engine.user, element_id);
 }
 
 static int
@@ -569,6 +592,39 @@ api_cfg_set(struct ToriRS_PluginCtx* ctx, char const* key, char const* value)
     assert(key);
     assert(value);
     PluginHost_ConfigSet(ctx->host, ctx->index, key, value);
+}
+
+/* -- the client's own variables -- */
+
+static int
+api_varbit(struct ToriRS_PluginCtx* ctx, int varbit_id)
+{
+    assert(ctx);
+    return ctx->host->engine.varbit(ctx->host->engine.user, varbit_id);
+}
+
+static int
+api_varp(struct ToriRS_PluginCtx* ctx, int varp_id)
+{
+    assert(ctx);
+    return ctx->host->engine.varp(ctx->host->engine.user, varp_id);
+}
+
+static uint32_t
+api_setting_color(struct ToriRS_PluginCtx* ctx, int varp_id, uint32_t fallback)
+{
+    int stored;
+
+    assert(ctx);
+    /* `varp - 1`, and zero means nobody has chosen: see the api declaration
+     * for why the cache stores it offset. A value that survives the offset but
+     * is not a colour cannot happen -- the picker writes 24 bits -- so the
+     * mask is belt and braces against a var this client mis-decoded rather
+     * than against the panel. */
+    stored = ctx->host->engine.varp(ctx->host->engine.user, varp_id);
+    if( stored <= 0 )
+        return fallback;
+    return (uint32_t)(stored - 1) & 0x00FFFFFFu;
 }
 
 /* -- menu -- */
@@ -1432,7 +1488,12 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->player_next);
     assert(engine->obj_next);
     assert(engine->key_held);
+    assert(engine->loc_next);
     assert(engine->hover_tile);
+    assert(engine->hover_entity);
+    assert(engine->element_height);
+    assert(engine->varbit);
+    assert(engine->varp);
     assert(engine->project);
     assert(engine->draw_tile);
     assert(engine->draw_hull);
@@ -1474,13 +1535,19 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .player_next = api_player_next,
         .obj_next = api_obj_next,
         .key_held = api_key_held,
+        .loc_next = api_loc_next,
         .hover_tile = api_hover_tile,
+        .hover_entity = api_hover_entity,
+        .element_height = api_element_height,
         .project = api_project,
         .cfg_bool = api_cfg_bool,
         .cfg_int = api_cfg_int,
         .cfg_color = api_cfg_color,
         .cfg_str = api_cfg_str,
         .cfg_set = api_cfg_set,
+        .varbit = api_varbit,
+        .varp = api_varp,
+        .setting_color = api_setting_color,
         .menu_add = api_menu_add,
         .draw_tile = api_draw_tile,
         .draw_hull = api_draw_hull,
@@ -1887,6 +1954,15 @@ PluginHost_IsAdapter(struct ToriRS_PluginHost const* host, int plugin_index)
     return host->plugins[plugin_index].def->adapter;
 }
 
+bool
+PluginHost_IsHidden(struct ToriRS_PluginHost const* host, int plugin_index)
+{
+    assert(host);
+    assert(plugin_index >= 0);
+    assert(plugin_index < host->plugin_count);
+    return host->plugins[plugin_index].def->hidden;
+}
+
 char const*
 PluginHost_Error(struct ToriRS_PluginHost const* host, int plugin_index)
 {
@@ -2075,6 +2151,19 @@ PluginHost_ChatMessage(
     if( text )
         snprintf(ev.text, sizeof(ev.text), "%s", text);
     plugin_dispatch(host, TORIRS_PLUGIN_EV_CHAT_MESSAGE, &ev);
+}
+
+void
+PluginHost_Setting(struct ToriRS_PluginHost* host, int setting_id, int value)
+{
+    if( !host || host->sub_count[TORIRS_PLUGIN_EV_SETTING] == 0 )
+        return;
+
+    struct ToriRS_PluginEvSetting ev;
+    memset(&ev, 0, sizeof(ev));
+    ev.setting_id = setting_id;
+    ev.value = value;
+    plugin_dispatch(host, TORIRS_PLUGIN_EV_SETTING, &ev);
 }
 
 void

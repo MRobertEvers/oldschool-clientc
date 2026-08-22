@@ -2727,46 +2727,321 @@
  *        (0x7FFFFD). Offline/unlogged stub pushes 0 (static default). */
 #define CS2_OP_LOGIN_INT24 6910
 #define CS2_OP__6950 6950
-#define CS2_OP__7000 7000
+/* HIGHLIGHT_NPC_SETUP — Define what highlight group N looks like.
+ * int stack in:   group, colour, style, opacity, flags  (flags = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_HIGHLIGHT_NPC_SETUP 7000
+/* HIGHLIGHT_NPC_ON — Put one npc into a highlight group.
+ * int stack in:   npc_uid, coord, group  (group = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_HIGHLIGHT_NPC_ON 7001
+/* HIGHLIGHT_NPC_OFF — Take one npc out of a highlight group.
+ * int stack in:   npc_uid, coord, group  (group = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_HIGHLIGHT_NPC_OFF 7002
-#define CS2_OP__7003 7003
-#define CS2_OP__7004 7004
-#define CS2_OP__7005 7005
+/* HIGHLIGHT_NPC_GET — Is this npc in the highlight group.
+ * int stack in:   npc_uid, coord, group  (group = top)
+ * str stack in:   -
+ * int stack out:  highlighted
+ * str stack out:  -
+ */
+#define CS2_OP_HIGHLIGHT_NPC_GET 7003
+/* HIGHLIGHT_NPC_CLEAR — Empty a whole highlight group.
+ * int stack in:   group
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_HIGHLIGHT_NPC_CLEAR 7004
+/* HIGHLIGHT_NPCTYPE_SETUP — Define what highlight group N looks like.
+ * int stack in:   group, colour, style, opacity, flags  (flags = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_HIGHLIGHT_NPCTYPE_SETUP 7005
+/* HIGHLIGHT_NPCTYPE_ON — Put one npc type into a highlight group.
+ * int stack in:   npc_type, group  (group = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_HIGHLIGHT_NPCTYPE_ON 7006
+/* HIGHLIGHT_NPCTYPE_OFF — Take one npc type out of a highlight group.
+ * int stack in:   npc_type, group  (group = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_HIGHLIGHT_NPCTYPE_OFF 7007
-#define CS2_OP__7008 7008
-#define CS2_OP__7009 7009
-#define CS2_OP__7010 7010
+/* HIGHLIGHT_NPCTYPE_GET — Is this npc type in the highlight group.
+ * int stack in:   npc_type, group  (group = top)
+ * str stack in:   -
+ * int stack out:  highlighted
+ * str stack out:  -
+ */
+#define CS2_OP_HIGHLIGHT_NPCTYPE_GET 7008
+/* HIGHLIGHT_NPCTYPE_CLEAR — Empty a whole highlight group.
+ * int stack in:   group
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_HIGHLIGHT_NPCTYPE_CLEAR 7009
+/* HIGHLIGHT_LOC_SETUP — Define what highlight group N looks like.
+ * int stack in:   group, colour, style, opacity, flags  (flags = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_HIGHLIGHT_LOC_SETUP 7010
+/* HIGHLIGHT_LOC_ON — Put one loc into a highlight group.
+ * int stack in:   loc_type, coord, group, flags  (flags = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_HIGHLIGHT_LOC_ON 7011
+/* HIGHLIGHT_LOC_OFF — Take one loc out of a highlight group.
+ * int stack in:   loc_type, coord, group, flags  (flags = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_HIGHLIGHT_LOC_OFF 7012
+/* HIGHLIGHT_LOC_GET — Is this loc in the highlight group.
+ * int stack in:   loc_type, coord, group, flags  (flags = top)
+ * str stack in:   -
+ * int stack out:  highlighted
+ * str stack out:  -
+ */
 #define CS2_OP_HIGHLIGHT_LOC_GET 7013
+/* HIGHLIGHT_LOC_CLEAR — Empty a whole highlight group.
+ * int stack in:   group
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_HIGHLIGHT_LOC_CLEAR 7014
-#define CS2_OP__7015 7015
+/* HIGHLIGHT_LOCTYPE_SETUP — Define what highlight group N looks like.
+ * int stack in:   group, colour, style, opacity, flags  (flags = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_HIGHLIGHT_LOCTYPE_SETUP 7015
+/* HIGHLIGHT_LOCTYPE_ON — Put one loc type into a highlight group.
+ * int stack in:   loc_type, group  (group = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_HIGHLIGHT_LOCTYPE_ON 7016
+/* HIGHLIGHT_LOCTYPE_OFF — Take one loc type out of a highlight group.
+ * int stack in:   loc_type, group  (group = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_HIGHLIGHT_LOCTYPE_OFF 7017
-#define CS2_OP__7018 7018
-#define CS2_OP__7019 7019
-#define CS2_OP__7020 7020
+/* HIGHLIGHT_LOCTYPE_GET — Is this loc type in the highlight group.
+ * int stack in:   loc_type, group  (group = top)
+ * str stack in:   -
+ * int stack out:  highlighted
+ * str stack out:  -
+ */
+#define CS2_OP_HIGHLIGHT_LOCTYPE_GET 7018
+/* HIGHLIGHT_LOCTYPE_CLEAR — Empty a whole highlight group.
+ * int stack in:   group
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_HIGHLIGHT_LOCTYPE_CLEAR 7019
+/* HIGHLIGHT_OBJ_SETUP — Define what highlight group N looks like.
+ * int stack in:   group, colour, style, opacity, flags  (flags = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_HIGHLIGHT_OBJ_SETUP 7020
+/* HIGHLIGHT_OBJ_ON — Put one obj into a highlight group.
+ * int stack in:   obj_type, coord, group, flags  (flags = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_HIGHLIGHT_OBJ_ON 7021
+/* HIGHLIGHT_OBJ_OFF — Take one obj out of a highlight group.
+ * int stack in:   obj_type, coord, group, flags  (flags = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_HIGHLIGHT_OBJ_OFF 7022
+/* HIGHLIGHT_OBJ_GET — Is this obj in the highlight group.
+ * int stack in:   obj_type, coord, group, flags  (flags = top)
+ * str stack in:   -
+ * int stack out:  highlighted
+ * str stack out:  -
+ */
 #define CS2_OP_HIGHLIGHT_OBJ_GET 7023
-#define CS2_OP__7024 7024
+/* HIGHLIGHT_OBJ_CLEAR — Empty a whole highlight group.
+ * int stack in:   group
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_HIGHLIGHT_OBJ_CLEAR 7024
+/* HIGHLIGHT_OBJTYPE_SETUP — Define what highlight group N looks like.
+ * int stack in:   group, colour, style, opacity, flags  (flags = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_HIGHLIGHT_OBJTYPE_SETUP 7025
+/* HIGHLIGHT_OBJTYPE_ON — Put one obj type into a highlight group.
+ * int stack in:   obj_type, group  (group = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_HIGHLIGHT_OBJTYPE_ON 7026
+/* HIGHLIGHT_OBJTYPE_OFF — Take one obj type out of a highlight group.
+ * int stack in:   obj_type, group  (group = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_HIGHLIGHT_OBJTYPE_OFF 7027
-#define CS2_OP__7028 7028
-#define CS2_OP__7029 7029
-#define CS2_OP__7030 7030
+/* HIGHLIGHT_OBJTYPE_GET — Is this obj type in the highlight group.
+ * int stack in:   obj_type, group  (group = top)
+ * str stack in:   -
+ * int stack out:  highlighted
+ * str stack out:  -
+ */
+#define CS2_OP_HIGHLIGHT_OBJTYPE_GET 7028
+/* HIGHLIGHT_OBJTYPE_CLEAR — Empty a whole highlight group.
+ * int stack in:   group
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_HIGHLIGHT_OBJTYPE_CLEAR 7029
+/* HIGHLIGHT_PLAYER_SETUP — Define what highlight group N looks like.
+ * int stack in:   group, colour, style, opacity, flags  (flags = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_HIGHLIGHT_PLAYER_SETUP 7030
+/* HIGHLIGHT_PLAYER_ON — Put one player into a highlight group.
+ * int stack in:   group
+ * str stack in:   name
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_HIGHLIGHT_PLAYER_ON 7031
+/* HIGHLIGHT_PLAYER_OFF — Take one player out of a highlight group.
+ * int stack in:   group
+ * str stack in:   name
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_HIGHLIGHT_PLAYER_OFF 7032
-#define CS2_OP__7033 7033
-#define CS2_OP__7034 7034
-#define CS2_OP__7035 7035
+/* HIGHLIGHT_PLAYER_GET — Is this player in the highlight group.
+ * int stack in:   group
+ * str stack in:   name
+ * int stack out:  highlighted
+ * str stack out:  -
+ */
+#define CS2_OP_HIGHLIGHT_PLAYER_GET 7033
+/* HIGHLIGHT_PLAYER_CLEAR — Empty a whole highlight group.
+ * int stack in:   group
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_HIGHLIGHT_PLAYER_CLEAR 7034
+/* HIGHLIGHT_TILE_SETUP — Define what highlight group N looks like.
+ * int stack in:   group, colour, style, opacity, flags  (flags = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_HIGHLIGHT_TILE_SETUP 7035
+/* HIGHLIGHT_TILE_ON — Put one tile into a highlight group.
+ * int stack in:   coord, group, flags  (flags = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_HIGHLIGHT_TILE_ON 7036
+/* HIGHLIGHT_TILE_OFF — Take one tile out of a highlight group.
+ * int stack in:   coord, group, flags  (flags = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
 #define CS2_OP_HIGHLIGHT_TILE_OFF 7037
-#define CS2_OP__7038 7038
-#define CS2_OP__7039 7039
+/* HIGHLIGHT_TILE_GET — Is this tile in the highlight group.
+ * int stack in:   coord, group, flags  (flags = top)
+ * str stack in:   -
+ * int stack out:  highlighted
+ * str stack out:  -
+ */
+#define CS2_OP_HIGHLIGHT_TILE_GET 7038
+/* HIGHLIGHT_TILE_CLEAR — Empty a whole highlight group.
+ * int stack in:   group
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_HIGHLIGHT_TILE_CLEAR 7039
+/* _7040 — Define what highlight group N looks like.
+ * int stack in:   group, colour, style, opacity, flags  (flags = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP__7040 7040
+/* _7041 — Put one named subject into a highlight group.
+ * int stack in:   group
+ * str stack in:   name
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP__7041 7041
+/* _7042 — Take one named subject out of a highlight group.
+ * int stack in:   group
+ * str stack in:   name
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP__7042 7042
+/* _7043 — Is this named subject in the highlight group.
+ * int stack in:   group
+ * str stack in:   name
+ * int stack out:  highlighted
+ * str stack out:  -
+ */
+#define CS2_OP__7043 7043
+/* _7044 — Empty a whole highlight group.
+ * int stack in:   group
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP__7044 7044
 #define CS2_OP_MINIMENU_TYPE 7100
 #define CS2_OP_MINIMENU_ENTRY 7101
 #define CS2_OP_MINIMENU_FINDNPC 7102

@@ -24,7 +24,7 @@ let failures = 0;
 
 function check(cond, what) {
   if (cond) return;
-  console.log('FAIL: ' + what);
+  console.log(`FAIL: ${what}`);
   failures++;
 }
 
@@ -38,11 +38,11 @@ function check(cond, what) {
  */
 function readEnum(file, tag) {
   const src = fs.readFileSync(path.join(ROOT, file), 'utf8');
-  const at = src.indexOf('enum ' + tag);
-  if (at < 0) throw new Error('no enum ' + tag + ' in ' + file);
+  const at = src.indexOf(`enum ${tag}`);
+  if (at < 0) throw new Error(`no enum ${tag} in ${file}`);
   const open = src.indexOf('{', at);
   const close = src.indexOf('};', open);
-  if (open < 0 || close < 0) throw new Error('unterminated enum ' + tag);
+  if (open < 0 || close < 0) throw new Error(`unterminated enum ${tag}`);
 
   const body = src
     .slice(open + 1, close)
@@ -56,7 +56,7 @@ function readEnum(file, tag) {
     const item = raw.trim();
     if (!item) continue;
     const m = /^([A-Za-z_][A-Za-z0-9_]*)\s*(?:=\s*(-?\d+)\s*)?$/.exec(item);
-    if (!m) throw new Error('unparsed enumerator in ' + tag + ': ' + item);
+    if (!m) throw new Error(`unparsed enumerator in ${tag}: ${item}`);
     if (m[2] !== undefined) next = parseInt(m[2], 10);
     out[m[1]] = next;
     next++;
@@ -67,8 +67,8 @@ function readEnum(file, tag) {
 /** The JS table object literals, read as data rather than executed. */
 function readJsTable(name) {
   const src = fs.readFileSync(path.join(ROOT, 'web', 'torirs_chrome.js'), 'utf8');
-  const at = src.indexOf('var ' + name + ' = {');
-  if (at < 0) throw new Error('no table ' + name + ' in torirs_chrome.js');
+  const at = src.indexOf(`const ${name} = {`);
+  if (at < 0) throw new Error(`no table ${name} in torirs_chrome.js`);
   const open = src.indexOf('{', at);
   const close = src.indexOf('}', open);
   const out = {};
@@ -76,7 +76,7 @@ function readJsTable(name) {
     const item = raw.trim();
     if (!item) continue;
     const m = /^([A-Za-z_][A-Za-z0-9_]*)\s*:\s*(-?\d+)$/.exec(item);
-    if (!m) throw new Error('unparsed entry in ' + name + ': ' + item);
+    if (!m) throw new Error(`unparsed entry in ${name}: ${item}`);
     out[m[1]] = parseInt(m[2], 10);
   }
   return out;
@@ -100,18 +100,17 @@ function compare(label, cEnum, prefix, jsTable) {
   for (const key of Object.keys(expect)) {
     check(
       Object.prototype.hasOwnProperty.call(jsTable, key),
-      label + ': the page is missing ' + key + ' (C says ' + expect[key] + ')');
+      `${label}: the page is missing ${key} (C says ${expect[key]})`);
     if (Object.prototype.hasOwnProperty.call(jsTable, key)) {
       check(
         jsTable[key] === expect[key],
-        label + ': ' + key + ' is ' + jsTable[key] + ' on the page, ' +
-          expect[key] + ' in C');
+        `${label}: ${key} is ${jsTable[key]} on the page, ${expect[key]} in C`);
     }
   }
   for (const key of Object.keys(jsTable)) {
     check(
       Object.prototype.hasOwnProperty.call(expect, key),
-      label + ': the page has ' + key + ', which C no longer declares');
+      `${label}: the page has ${key}, which C no longer declares`);
   }
 }
 
@@ -153,7 +152,7 @@ compare(
 }
 
 if (failures > 0) {
-  console.log(failures + ' failure(s)');
+  console.log(`${failures} failure(s)`);
   process.exit(1);
 }
 console.log('chrome enum sync: the page agrees with the headers.');

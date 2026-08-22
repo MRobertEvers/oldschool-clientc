@@ -16,11 +16,11 @@
  * same values panel.html already spells in CSS. One extraction, three
  * renderers now.
  */
-(function (global) {
+(global => {
   'use strict';
 
   /* Command kinds — enum ToriRSChromeCmdKind, in order. */
-  var CMD = {
+  const CMD = {
     SYNC_BEGIN: 1, SYNC_END: 2,
     PANEL_OPEN: 3, PANEL_CLOSE: 4, PANEL_TITLE: 5, PANEL_RECT: 6, PANEL_TAB: 7,
     WIDGET_ADD: 8, WIDGET_REMOVE: 9, WIDGET_LABEL: 10, WIDGET_TEXT: 11,
@@ -39,14 +39,14 @@
    * edit as a TOGGLE. `web/test/chrome_enum_sync_test.js` now reads the
    * headers and fails if they diverge again.
    */
-  var W = {
+  const W = {
     LABEL: 0, CHECKBOX: 1, TEXTINPUT: 2, SEPARATOR: 3, MENUITEM: 4,
     DROPDOWN: 5, MODELVIEW: 6, BUTTON: 7, TABSTRIP: 8, LISTROW: 9,
     COLORPICK: 10, FREE: 11
   };
 
   /* Intent kinds — enum ToriRSChromeIntentKind. */
-  var INTENT = {
+  const INTENT = {
     ACTIVATE: 1, ACTION: 2, TOGGLE: 3, TEXT: 4, PICK: 5, TAB: 6, CLOSE: 7
   };
 
@@ -64,7 +64,18 @@
    * browser's own hover, which is the whole point of a native-widget executor.
    * @see k_web_skin_slots in ui/torirs_chrome_exec_web.c for what ships.
    */
-  var SKIN = {
+  /*
+   * The last four are SYNTHESIZED by the bake rather than lifted from the
+   * cache: the close button's own plate with an arrow stamped where the X was
+   * (spritebake's --stamp; see TORIRS_CHROME_SKIN_POPOUT). Only this
+   * presentation draws them, because only this one has a tab to pop a window
+   * into -- but they are slots like any other, and the client sends them the
+   * same way.
+   *
+   * No comments inside the literal below: chrome_enum_sync_test.js reads it as
+   * text, and an entry it cannot parse is an error rather than a skip.
+   */
+  const SKIN = {
     PANEL_BODY: 0,
     SCROLL_UP: 1, SCROLL_DOWN: 2, SCROLL_TRACK: 3,
     SCROLL_GRIP_TOP: 4, SCROLL_GRIP_MID: 5, SCROLL_GRIP_BOTTOM: 6,
@@ -72,7 +83,8 @@
     FRAME_TOP_LEFT: 11, FRAME_TOP: 12, FRAME_TOP_RIGHT: 13,
     FRAME_LEFT: 14, FRAME_RIGHT: 15,
     FRAME_BOTTOM_LEFT: 16, FRAME_BOTTOM: 17, FRAME_BOTTOM_RIGHT: 18,
-    CLOSE: 19, CLOSE_OVER: 20
+    CLOSE: 19, CLOSE_OVER: 20,
+    POPOUT: 21, POPOUT_OVER: 22, DOCK: 23, DOCK_OVER: 24
   };
 
   /*
@@ -84,7 +96,7 @@
    * at for the same reason: margins around a panel are what the page behind it
    * shows through, and there is no page behind this one.
    */
-  var FRAME_RESET = [
+  const FRAME_RESET = [
     'html,body{margin:0;padding:0;height:100%;overflow:hidden;background:#5D5447}'
   ].join('');
 
@@ -98,11 +110,11 @@
    * them still renders something the right shape, and for no other reason: if
    * these and the header ever disagree, the header is right.
    */
-  var METRICS = {
+  const METRICS = {
     pad: 6, rowH: 18, rowGap: 3, labelW: 104, box: 17, checkGap: 6,
     toggleW: 24, toggleH: 12, rowIcon: 14, rowIconGap: 5, rowNameGap: 4,
     dot: 2, dotPitch: 3, dotInset: 3, scrollW: 16, swatch: 11, swatchGap: 4,
-    frame: 3, tabH: 20, tabPadX: 5, fieldPadX: 4, fieldInset: 2, dropArrow: 14,
+    frame: 6, tabH: 20, tabPadX: 5, fieldPadX: 4, fieldInset: 2, dropArrow: 14,
     dropListPad: 2, dropListRowH: 20, dropListRows: 10
   };
 
@@ -115,16 +127,16 @@
    * pixelated`, so doubling is the same nearest-neighbour blow-up the game
    * does at interface scale 2 rather than a blur.
    */
-  var K = 2;
+  const K = 2;
 
   /* The CSS variable the docked window's width is published on -- see
    * ChromeHost.publishDockWidth. */
-  var DOCK_WIDTH_VAR = '--torirs-dock-width';
+  const DOCK_WIDTH_VAR = '--torirs-dock-width';
 
   /* The palette, from torirs_chrome_metrics.h. Spelled rather than sent: they
    * are colours in a stylesheet, they have never changed, and a CSS file whose
    * every colour is a custom property set from elsewhere cannot be read. */
-  var C = {
+  const C = {
     body: '#5D5447', chrome: '#000000', text: '#FFFFFF', label: '#FF981F',
     accent: '#FFFF00', on: '#00FF00', fieldBg: '#000000',
     frame: '#0E0E0C', frameInset: '#474745'
@@ -139,8 +151,8 @@
    * palette at the right size rather than an unstyled form.
    */
   function baseStyle() {
-    var m = METRICS;
-    function px(n) { return (n * K) + 'px'; }
+    const m = METRICS;
+    function px(n) { return `${n * K}px`; }
     return [
       /*
        * The window's LOOK. Where it goes is `framed` or `floating` below --
@@ -350,9 +362,9 @@
    * as a theme.
    */
   function skinStyle(url) {
-    var m = METRICS;
-    function px(n) { return (n * K) + 'px'; }
-    var tile = 'url(' + url.tile + ')';
+    const m = METRICS;
+    function px(n) { return `${n * K}px`; }
+    const tile = `url(${url.tile})`;
     /*
      * The title bar's X: the interfaces' own, not the font's.
      *
@@ -363,7 +375,26 @@
      * it is what a build with no baked art still shows, and what a screen
      * reader still reads.
      */
-    var closeCss = !url.close ? '' : [
+    /*
+     * Pop out, and put back: one button, two states, four sprites.
+     *
+     * `.back` is set while the window IS popped out, when the button's job is
+     * to bring it home -- so the art it wears then is the arrow pointing the
+     * other way. A button that looked the same in both states would be a
+     * toggle with no position.
+     */
+    const popCss = !url.popout ? '' : [
+      '.torirs-chrome.skinned .torirs-chrome-title button.popout{width:', px(10), ';',
+      'height:', px(10), ';padding:0;margin-right:', px(2), ';color:transparent;',
+      'text-shadow:none;background:url(', url.popout, ') no-repeat center/100% 100%}',
+      '.torirs-chrome.skinned .torirs-chrome-title button.popout:hover{color:transparent;',
+      'background-image:url(', url.popoutOver, ')}',
+      '.torirs-chrome.skinned .torirs-chrome-title button.popout.back{',
+      'background-image:url(', url.dock, ')}',
+      '.torirs-chrome.skinned .torirs-chrome-title button.popout.back:hover{',
+      'background-image:url(', url.dockOver, ')}'
+    ].join('');
+    const closeCss = !url.close ? '' : [
       '.torirs-chrome.skinned .torirs-chrome-title button.close{width:', px(10), ';',
       'height:', px(10), ';padding:0;color:transparent;text-shadow:none;',
       'background:url(', url.close, ') no-repeat center/100% 100%}',
@@ -372,13 +403,15 @@
     ].join('');
     return [
       closeCss,
+      popCss,
       /* Tradebacking behind the panel, and the nine-slice border around it.
-       * The frame's own centre piece is never drawn -- `fill` is deliberately
-       * absent -- because the tile is already under it and a flat brown
-       * painted over the parchment is the frame erasing what it frames. */
+       * `fill` is deliberately absent, so nothing samples the composed image's
+       * middle cell: the tile is already under the frame, and a colour painted
+       * over the parchment is the frame erasing what it frames. Sliced at the
+       * RAIL rather than at a constant -- @see composeFrame. */
       '.torirs-chrome.skinned{background:', tile, ' repeat;border:0;',
       'border-style:solid;border-width:', px(m.frame), ';',
-      'border-image:url(', url.frame, ') 3 / ', px(m.frame), ' stretch}',
+      'border-image:url(', url.frame, ') ', m.frame, ' / ', px(m.frame), ' stretch}',
 
       /* Every field box gets the tile too: the reference tiles graphic_297
        * inside the frame, and a flat black box beside a tiled panel is the one
@@ -441,56 +474,6 @@
     ].join('');
   }
 
-  function ChromeHost() {
-    this.root = null;
-    this.body = null;
-    this.tabsEl = null;
-    this.titleEl = null;
-    /*
-     * The document the chrome is BUILT IN, which is not always the page's.
-     *
-     * Every DOM call below goes through this rather than the global
-     * `document`, because the window can live in three places -- an iframe
-     * beside the canvas, a popped-out tab, or the page itself -- and two of
-     * those have a document of their own. A stray global `document` is then
-     * not a style slip but a node made in the wrong window, which appends
-     * nowhere and takes no clicks.
-     */
-    this.doc = null;
-    /** The iframe when docked beside the canvas, else null. */
-    this.frame = null;
-    /** The popped-out window when there is one, else null. */
-    this.popup = null;
-    /** The canvas the docked frame matches the height of. */
-    this.canvas = null;
-    this.observer = null;
-    this.onResize = null;
-    /* Panels and widgets by chrome HANDLE, matching the C mirror: a command
-     * names a handle, so the lookup should be a property access rather than a
-     * search. */
-    this.panels = {};
-    this.widgets = {};
-    this.intents = [];
-    /* The panel whose tabs the strip is showing. There is one window, so this
-     * is which panel owns it -- not a list. */
-    this.tabPanel = -1;
-    /* Baked sprites as data: URLs, by slot, and the skin sheet built from
-     * them. Both empty on a build that baked none, which is what leaves the
-     * window on baseStyle -- see skinDone. */
-    this.skin = {};
-    this.skinCss = '';
-    /* The dropdown whose list is up, or -1, and the list's node. One window,
-     * one open list -- the same rule the model and the CS2 executor keep. */
-    this.dropOpen = -1;
-    this.dropList = null;
-    /* The cursor row while the list is being driven from the keyboard; -1
-     * means the pointer is the only thing choosing. */
-    this.dropCursor = -1;
-    /* The listeners an open list owns, so shutting it can take them off
-     * again: a dismisser left on the document outlives the list it was for. */
-    this.dropOff = null;
-  }
-
   /*
    * Where the window goes, in order of preference.
    *
@@ -517,8 +500,8 @@
 
   /** The canvas, and the element the window is inserted next to. */
   function stageAnchor(page) {
-    var canvas = page.getElementById ? page.getElementById('canvas') : null;
-    var anchor;
+    const canvas = page.getElementById ? page.getElementById('canvas') : null;
+    let anchor;
     if (!canvas || !canvas.parentNode) return null;
     /*
      * Beside the STAGE, not beside the canvas inside it: the page's scaled
@@ -528,1324 +511,1423 @@
     anchor = canvas;
     if (anchor.parentNode !== page.body && anchor.parentNode.parentNode)
       anchor = anchor.parentNode;
-    return { canvas: canvas, anchor: anchor, parent: anchor.parentNode };
+    return { canvas, anchor, parent: anchor.parentNode };
   }
 
   /** Make a document of our own inside `frame`, or null if we cannot. */
   function frameDocument(frame) {
-    var doc = frame.contentDocument || null;
+    const doc = frame.contentDocument || null;
     if (!doc || !doc.body || !doc.head) return null;
     return doc;
   }
 
-  ChromeHost.prototype.mountFrame = function (page) {
-    var at = stageAnchor(page);
-    var frame;
-    var doc;
+  class ChromeHost {
+    constructor() {
+      this.root = null;
+      this.body = null;
+      this.tabsEl = null;
+      this.titleEl = null;
+      /*
+       * The document the chrome is BUILT IN, which is not always the page's.
+       *
+       * Every DOM call below goes through this rather than the global
+       * `document`, because the window can live in three places -- an iframe
+       * beside the canvas, a popped-out tab, or the page itself -- and two of
+       * those have a document of their own. A stray global `document` is then
+       * not a style slip but a node made in the wrong window, which appends
+       * nowhere and takes no clicks.
+       */
+      this.doc = null;
+      /** The iframe when docked beside the canvas, else null. */
+      this.frame = null;
+      /** The popped-out window when there is one, else null. */
+      this.popup = null;
+      /** The canvas the docked frame matches the height of. */
+      this.canvas = null;
+      this.observer = null;
+      this.onResize = null;
+      /* Panels and widgets by chrome HANDLE, matching the C mirror: a command
+       * names a handle, so the lookup should be a property access rather than a
+       * search. */
+      this.panels = {};
+      this.widgets = {};
+      this.intents = [];
+      /* The panel whose tabs the strip is showing. There is one window, so this
+       * is which panel owns it -- not a list. */
+      this.tabPanel = -1;
+      /* Baked sprites as data: URLs, by slot, and the skin sheet built from
+       * them. Both empty on a build that baked none, which is what leaves the
+       * window on baseStyle -- see skinDone. */
+      this.skin = {};
+      /* Each one's baked size, beside its URL. composeFrame samples a corner
+       * tile's own far corner and cannot find it without this. */
+      this.skinSize = {};
+      this.skinCss = '';
+      /* The dropdown whose list is up, or -1, and the list's node. One window,
+       * one open list -- the same rule the model and the CS2 executor keep. */
+      this.dropOpen = -1;
+      this.dropList = null;
+      /* The cursor row while the list is being driven from the keyboard; -1
+       * means the pointer is the only thing choosing. */
+      this.dropCursor = -1;
+      /* The listeners an open list owns, so shutting it can take them off
+       * again: a dismisser left on the document outlives the list it was for. */
+      this.dropOff = null;
+    }
 
-    if (!at || !page.createElement) return null;
+    mountFrame(page) {
+      const at = stageAnchor(page);
+      let frame;
+      let doc;
 
-    frame = page.createElement('iframe');
-    frame.className = 'torirs-chrome-frame';
-    frame.title = 'Plugins';
+      if (!at || !page.createElement) return null;
+
+      frame = page.createElement('iframe');
+      frame.className = 'torirs-chrome-frame';
+      frame.title = 'Plugins';
+      /*
+       * No `src`, deliberately.
+       *
+       * An iframe created without one keeps the initial about:blank document it
+       * is born with, and writing into that is synchronous. Setting
+       * src="about:blank" instead NAVIGATES it, and the document we built into
+       * would be replaced a tick later -- the classic way to lose everything an
+       * iframe was filled with.
+       */
+      frame.style.border = '0';
+      frame.style.width = '340px';
+      frame.style.flex = '0 0 auto';
+      frame.style.alignSelf = 'flex-start';
+      frame.style.background = '#5D5447';
+      if (at.parent.insertBefore) at.parent.insertBefore(frame, at.anchor.nextSibling || null);
+      else at.parent.appendChild(frame);
+
+      doc = frameDocument(frame);
+      if (!doc) {
+        /* A document we cannot reach is not a window: back out cleanly and let
+         * the caller fall through to the floating overlay. */
+        if (frame.parentNode) frame.parentNode.removeChild(frame);
+        return null;
+      }
+
+      this.frame = frame;
+      this.canvas = at.canvas;
+      this.followCanvas();
+      this.publishDockWidth();
+      return doc;
+    }
+
     /*
-     * No `src`, deliberately.
+     * A tab of its own, opened on demand.
      *
-     * An iframe created without one keeps the initial about:blank document it
-     * is born with, and writing into that is synchronous. Setting
-     * src="about:blank" instead NAVIGATES it, and the document we built into
-     * would be replaced a tick later -- the classic way to lose everything an
-     * iframe was filled with.
+     * about:blank and built by THIS page, not a URL with a script of its own:
+     * the widget state lives in the client, the intent queue lives in this
+     * host object, and both are one same-origin property access away from the
+     * popped-out document. A second page would need the channel, a HELLO, and a
+     * second copy of everything below -- for a window whose entire content this
+     * file already knows how to build.
      */
-    frame.style.border = '0';
-    frame.style.width = '340px';
-    frame.style.flex = '0 0 auto';
-    frame.style.alignSelf = 'flex-start';
-    frame.style.background = '#5D5447';
-    if (at.parent.insertBefore) at.parent.insertBefore(frame, at.anchor.nextSibling || null);
-    else at.parent.appendChild(frame);
+    mountPopup() {
+      let win;
+      let doc;
 
-    doc = frameDocument(frame);
-    if (!doc) {
-      /* A document we cannot reach is not a window: back out cleanly and let
-       * the caller fall through to the floating overlay. */
-      if (frame.parentNode) frame.parentNode.removeChild(frame);
-      return null;
+      if (typeof global.open !== 'function') return null;
+      win = global.open('', 'torirs-chrome-plugins', 'width=380,height=620');
+      if (!win) return null; /* blocked; the caller keeps what it has */
+      doc = win.document;
+      if (!doc || !doc.body || !doc.head) { win.close(); return null; }
+      doc.title = 'Plugins';
+      this.popup = win;
+      return doc;
     }
 
-    this.frame = frame;
-    this.canvas = at.canvas;
-    this.followCanvas();
-    this.publishDockWidth();
-    return doc;
-  };
-
-  /*
-   * A tab of its own, opened on demand.
-   *
-   * about:blank and built by THIS page, not a URL with a script of its own:
-   * the widget state lives in the client, the intent queue lives in this
-   * host object, and both are one same-origin property access away from the
-   * popped-out document. A second page would need the channel, a HELLO, and a
-   * second copy of everything below -- for a window whose entire content this
-   * file already knows how to build.
-   */
-  ChromeHost.prototype.mountPopup = function () {
-    var win;
-    var doc;
-
-    if (typeof global.open !== 'function') return null;
-    win = global.open('', 'torirs-chrome-plugins', 'width=380,height=620');
-    if (!win) return null; /* blocked; the caller keeps what it has */
-    doc = win.document;
-    if (!doc || !doc.body || !doc.head) { win.close(); return null; }
-    doc.title = 'Plugins';
-    this.popup = win;
-    return doc;
-  };
-
-  /** The page itself, the fallback with no window of its own. */
-  ChromeHost.prototype.mountFloating = function (page) {
-    return page.body ? page : null;
-  };
-
-  /*
-   * The frame occupies exactly the canvas's rows, tracked.
-   *
-   * Not set once: the picture's box changes with the page's scaled modes, with
-   * the browser window, and with the game's own Display setting (which
-   * rewrites the canvas's width/height attributes). A ResizeObserver sees all
-   * three because all three end in the canvas's box changing; the resize
-   * listener is the fallback for a browser without one, and catches the two
-   * that come from the window.
-   *
-   * The canvas's CONTAINER is watched as well, because the top edge is
-   * tracked too and one shape change moves the canvas without resizing it: a
-   * page in a scaled mode centres the letterboxed picture inside the stage, so
-   * a stage that grows in the dimension the fit is not limited by leaves the
-   * canvas the same size lower down the page.
-   */
-  ChromeHost.prototype.followCanvas = function () {
-    var self = this;
-    this.matchCanvasBox();
-    if (typeof global.ResizeObserver === 'function' && this.canvas) {
-      this.observer = new global.ResizeObserver(function () { self.matchCanvasBox(); });
-      this.observer.observe(this.canvas);
-      /* Never the frame's OWN row, though: our margin is inside that box, so
-       * watching it would be watching ourselves. */
-      if (this.canvas.parentNode && this.frame &&
-          this.canvas.parentNode !== this.frame.parentNode)
-        this.observer.observe(this.canvas.parentNode);
-    } else if (typeof global.addEventListener === 'function') {
-      this.onResize = function () { self.matchCanvasBox(); };
-      global.addEventListener('resize', this.onResize);
+    /** The page itself, the fallback with no window of its own. */
+    mountFloating(page) {
+      return page.body ? page : null;
     }
-  };
 
-  ChromeHost.prototype.matchCanvasBox = function () {
-    var h = 0;
-    if (!this.frame || !this.canvas) return;
-    if (this.canvas.getBoundingClientRect)
-      h = Math.round(this.canvas.getBoundingClientRect().height || 0);
-    /* The backbuffer's height is the honest fallback: it is what the canvas
-     * is showing when the page has not scaled it. */
-    if (!h) h = this.canvas.height || 0;
-    if (h > 0) this.frame.style.height = h + 'px';
-    this.matchCanvasTop();
-  };
+    /*
+     * The frame occupies exactly the canvas's rows, tracked.
+     *
+     * Not set once: the picture's box changes with the page's scaled modes, with
+     * the browser window, and with the game's own Display setting (which
+     * rewrites the canvas's width/height attributes). A ResizeObserver sees all
+     * three because all three end in the canvas's box changing; the resize
+     * listener is the fallback for a browser without one, and catches the two
+     * that come from the window.
+     *
+     * The canvas's CONTAINER is watched as well, because the top edge is
+     * tracked too and one shape change moves the canvas without resizing it: a
+     * page in a scaled mode centres the letterboxed picture inside the stage, so
+     * a stage that grows in the dimension the fit is not limited by leaves the
+     * canvas the same size lower down the page.
+     */
+    followCanvas() {
+      this.matchCanvasBox();
+      if (typeof global.ResizeObserver === 'function' && this.canvas) {
+        this.observer = new global.ResizeObserver(() => { this.matchCanvasBox(); });
+        this.observer.observe(this.canvas);
+        /* Never the frame's OWN row, though: our margin is inside that box, so
+         * watching it would be watching ourselves. */
+        if (this.canvas.parentNode && this.frame &&
+            this.canvas.parentNode !== this.frame.parentNode)
+          this.observer.observe(this.canvas.parentNode);
+      } else if (typeof global.addEventListener === 'function') {
+        this.onResize = () => { this.matchCanvasBox(); };
+        global.addEventListener('resize', this.onResize);
+      }
+    }
 
-  /*
-   * ...and starts on the canvas's top edge, not the row's.
-   *
-   * The frame is a flex sibling of the STAGE the canvas sits in, so left alone
-   * it begins where that row begins. The canvas does not, once the page scales
-   * it: it is centred inside the stage and letterboxed, so the picture starts
-   * some way down. Matching the height without matching the top is what left
-   * the window hanging above the picture it is meant to read as part of.
-   *
-   * Measured as a DELTA off where the frame is now rather than computed from
-   * the parent's box, so the parent's padding, the row's alignment and any
-   * border are already in the number, whatever the host page's stylesheet
-   * does with them.
-   */
-  ChromeHost.prototype.matchCanvasTop = function () {
-    var mine;
-    var theirs;
-    var top;
+    matchCanvasBox() {
+      let h = 0;
+      if (!this.frame || !this.canvas) return;
+      if (this.canvas.getBoundingClientRect)
+        h = Math.round(this.canvas.getBoundingClientRect().height || 0);
+      /* The backbuffer's height is the honest fallback: it is what the canvas
+       * is showing when the page has not scaled it. */
+      if (!h) h = this.canvas.height || 0;
+      if (h > 0) this.frame.style.height = `${h}px`;
+      this.matchCanvasTop();
+    }
 
-    if (!this.frame || !this.canvas) return;
-    if (!this.frame.getBoundingClientRect || !this.canvas.getBoundingClientRect) return;
-    mine = this.frame.getBoundingClientRect();
-    theirs = this.canvas.getBoundingClientRect();
-    /* A picture the page is not showing at all measures as a zero box, and
-     * lining up with that would move the window somewhere arbitrary. */
-    if (!theirs.height) return;
-    top = (parseFloat(this.frame.style.marginTop) || 0) + (theirs.top - mine.top);
-    this.frame.style.marginTop = Math.max(0, Math.round(top)) + 'px';
-  };
+    /*
+     * ...and starts on the canvas's top edge, not the row's.
+     *
+     * The frame is a flex sibling of the STAGE the canvas sits in, so left alone
+     * it begins where that row begins. The canvas does not, once the page scales
+     * it: it is centred inside the stage and letterboxed, so the picture starts
+     * some way down. Matching the height without matching the top is what left
+     * the window hanging above the picture it is meant to read as part of.
+     *
+     * Measured as a DELTA off where the frame is now rather than computed from
+     * the parent's box, so the parent's padding, the row's alignment and any
+     * border are already in the number, whatever the host page's stylesheet
+     * does with them.
+     */
+    matchCanvasTop() {
+      let mine;
+      let theirs;
+      let top;
 
-  /*
-   * How wide the docked window is, published to the page as a CSS variable.
-   *
-   * The window sits BESIDE the picture rather than over it -- but the host
-   * page has chrome of its own, and index.html pins its view toggles to the
-   * top-right corner in full-canvas mode. A corner pinned to the VIEWPORT is
-   * this window's title bar. The page cannot ask how wide we are without
-   * knowing about this file, so we tell it, and the variable reads 0px
-   * whenever nothing is docked -- so a rule that offsets by it needs no other
-   * state and no other page needs to care.
-   */
-  ChromeHost.prototype.publishDockWidth = function () {
-    var page = global.document;
-    var root = page && (page.documentElement || page.body);
-    if (!root || !root.style || !root.style.setProperty) return;
-    root.style.setProperty(DOCK_WIDTH_VAR, (this.frame && this.frame.style.width) || '0px');
-  };
+      if (!this.frame || !this.canvas) return;
+      if (!this.frame.getBoundingClientRect || !this.canvas.getBoundingClientRect) return;
+      mine = this.frame.getBoundingClientRect();
+      theirs = this.canvas.getBoundingClientRect();
+      /* A picture the page is not showing at all measures as a zero box, and
+       * lining up with that would move the window somewhere arbitrary. */
+      if (!theirs.height) return;
+      top = (parseFloat(this.frame.style.marginTop) || 0) + (theirs.top - mine.top);
+      this.frame.style.marginTop = `${Math.max(0, Math.round(top))}px`;
+    }
 
-  ChromeHost.prototype.unfollowCanvas = function () {
-    if (this.observer && this.observer.disconnect) this.observer.disconnect();
-    if (this.onResize && typeof global.removeEventListener === 'function')
-      global.removeEventListener('resize', this.onResize);
-    this.observer = null;
-    this.onResize = null;
-    this.canvas = null;
-  };
+    /*
+     * How wide the docked window is, published to the page as a CSS variable.
+     *
+     * The window sits BESIDE the picture rather than over it -- but the host
+     * page has chrome of its own, and index.html pins its view toggles to the
+     * top-right corner in full-canvas mode. A corner pinned to the VIEWPORT is
+     * this window's title bar. The page cannot ask how wide we are without
+     * knowing about this file, so we tell it, and the variable reads 0px
+     * whenever nothing is docked -- so a rule that offsets by it needs no other
+     * state and no other page needs to care.
+     */
+    publishDockWidth() {
+      const page = global.document;
+      const root = page && (page.documentElement || page.body);
+      if (!root || !root.style || !root.style.setProperty) return;
+      root.style.setProperty(DOCK_WIDTH_VAR, (this.frame && this.frame.style.width) || '0px');
+    }
 
-  /** Take down whichever container is up, leaving `this.root` alone. */
-  ChromeHost.prototype.unmount = function () {
-    if (this.root && this.root.parentNode) this.root.parentNode.removeChild(this.root);
-    this.unfollowCanvas();
-    if (this.frame && this.frame.parentNode) this.frame.parentNode.removeChild(this.frame);
-    if (this.popup && !this.popup.closed && this.popup.close) this.popup.close();
-    this.frame = null;
-    this.popup = null;
-    this.doc = null;
-    this.publishDockWidth();
-  };
+    unfollowCanvas() {
+      if (this.observer && this.observer.disconnect) this.observer.disconnect();
+      if (this.onResize && typeof global.removeEventListener === 'function')
+        global.removeEventListener('resize', this.onResize);
+      this.observer = null;
+      this.onResize = null;
+      this.canvas = null;
+    }
 
-  ChromeHost.prototype.open = function () {
-    var page = global.document;
-    if (this.root) return true;
-    if (!page) return false;
-
-    this.doc = this.mountFrame(page) || this.mountFloating(page);
-    if (!this.doc) return false;
-    this.style(this.doc);
-    this.root = this.buildRoot(this.doc);
-    this.doc.body.appendChild(this.root);
-    this.applySkinClass();
-    return true;
-  };
-
-  /*
-   * Move the window between docked and popped out, keeping the DOM.
-   *
-   * The nodes are ADOPTED, not rebuilt. Every widget in there was made from a
-   * command the client has already sent and will not send again -- the seam
-   * emits deltas, so a rebuilt page would sit empty until something in the
-   * model happened to change. adoptNode moves the same node objects into the
-   * new document, so their listeners, values and caret survive the trip.
-   *
-   * The new container is made BEFORE the old one comes down: a popup the
-   * browser blocks must leave the user with the window they had, not with no
-   * window and no way back.
-   */
-  ChromeHost.prototype.setPoppedOut = function (want) {
-    var page = global.document;
-    var root = this.root;
-    var doc;
-
-    if (!root || !page) return false;
-    if (!!this.popup === !!want) return true;
-
-    doc = want ? this.mountPopup() : this.mountFrame(page) || this.mountFloating(page);
-    if (!doc) return false;
-
-    if (root.parentNode) root.parentNode.removeChild(root);
-    /* Down goes the old one -- but not the popup we may have just made, and
-     * not the frame we may have just made, so this is done by hand rather
-     * than through unmount(). */
-    if (want) {
+    /** Take down whichever container is up, leaving `this.root` alone. */
+    unmount() {
+      if (this.root && this.root.parentNode) this.root.parentNode.removeChild(this.root);
       this.unfollowCanvas();
       if (this.frame && this.frame.parentNode) this.frame.parentNode.removeChild(this.frame);
+      if (this.popup && !this.popup.closed && this.popup.close) this.popup.close();
       this.frame = null;
-      this.publishDockWidth();
-    } else if (this.popup) {
-      if (!this.popup.closed && this.popup.close) this.popup.close();
       this.popup = null;
+      this.doc = null;
+      this.publishDockWidth();
     }
 
-    this.doc = doc;
-    this.style(doc);
-    if (doc.adoptNode) doc.adoptNode(root);
-    doc.body.appendChild(root);
-    this.retagRoot();
-    /* The new document needs the skin CLASS as well as the sheet: the root was
-     * adopted, so it kept whatever classes it had, but a document that never
-     * saw skinDone would otherwise be styled by a sheet naming a class nothing
-     * sets. */
-    this.applySkinClass();
-    return true;
-  };
+    open() {
+      const page = global.document;
+      if (this.root) return true;
+      if (!page) return false;
 
-  /** Which of the three places it is in, as the root's class. */
-  ChromeHost.prototype.retagRoot = function () {
-    var own = !!(this.frame || this.popup);
-    if (!this.root) return;
-    this.root.classList.toggle('framed', own);
-    this.root.classList.toggle('floating', !own);
-    if (this.popOutBtn) {
-      this.popOutBtn.textContent = this.popup ? '\u2913' : '\u2197';
-      this.popOutBtn.title = this.popup ? 'Put it back beside the game' : 'Pop out into a tab';
+      this.doc = this.mountFrame(page) || this.mountFloating(page);
+      if (!this.doc) return false;
+      this.style(this.doc);
+      this.root = this.buildRoot(this.doc);
+      this.doc.body.appendChild(this.root);
+      this.applySkinClass();
+      return true;
     }
-  };
 
-  /**
-   * The stylesheet, in whichever document is holding the chrome.
-   *
-   * Written rather than written-once: the sheet's contents change under it
-   * when the skin lands (the metrics arrive with the sprites, so even the base
-   * sheet is rebuilt), and a popped-out document needs its own copy of
-   * whatever the docked one had.
-   */
-  ChromeHost.prototype.style = function (doc) {
-    var style = doc.getElementById && doc.getElementById('torirs-chrome-style');
-    if (!style) {
-      style = doc.createElement('style');
-      style.id = 'torirs-chrome-style';
-      doc.head.appendChild(style);
+    /*
+     * Move the window between docked and popped out, keeping the DOM.
+     *
+     * The nodes are ADOPTED, not rebuilt. Every widget in there was made from a
+     * command the client has already sent and will not send again -- the seam
+     * emits deltas, so a rebuilt page would sit empty until something in the
+     * model happened to change. adoptNode moves the same node objects into the
+     * new document, so their listeners, values and caret survive the trip.
+     *
+     * The new container is made BEFORE the old one comes down: a popup the
+     * browser blocks must leave the user with the window they had, not with no
+     * window and no way back.
+     */
+    setPoppedOut(want) {
+      const page = global.document;
+      const root = this.root;
+      let doc;
+
+      if (!root || !page) return false;
+      if (!!this.popup === !!want) return true;
+
+      doc = want ? this.mountPopup() : this.mountFrame(page) || this.mountFloating(page);
+      if (!doc) return false;
+
+      if (root.parentNode) root.parentNode.removeChild(root);
+      /* Down goes the old one -- but not the popup we may have just made, and
+       * not the frame we may have just made, so this is done by hand rather
+       * than through unmount(). */
+      if (want) {
+        this.unfollowCanvas();
+        if (this.frame && this.frame.parentNode) this.frame.parentNode.removeChild(this.frame);
+        this.frame = null;
+        this.publishDockWidth();
+      } else if (this.popup) {
+        if (!this.popup.closed && this.popup.close) this.popup.close();
+        this.popup = null;
+      }
+
+      this.doc = doc;
+      this.style(doc);
+      if (doc.adoptNode) doc.adoptNode(root);
+      doc.body.appendChild(root);
+      this.retagRoot();
+      /* The new document needs the skin CLASS as well as the sheet: the root was
+       * adopted, so it kept whatever classes it had, but a document that never
+       * saw skinDone would otherwise be styled by a sheet naming a class nothing
+       * sets. */
+      this.applySkinClass();
+      return true;
     }
-    /* The reset goes only to a document we made. In the page's own document
-     * it would restyle the client's html/body. */
-    style.textContent =
-      (doc === global.document ? '' : FRAME_RESET) + baseStyle() + this.skinCss;
-  };
 
-  /* ---- the baked skin -------------------------------------------------------
-   *
-   * The window wears the game's own art: tradebacking behind the panel and
-   * every field, the interfaces' 17x17 tick and cross for a boolean, the
-   * scrollbar's arrows and grip, and the nine-slice panel frame. It is the CS2
-   * executor's look rebuilt out of DOM nodes, from the same bake, so the two
-   * presentations of one window agree.
-   *
-   * The pixels come across the seam from C (see the note in
-   * ui/torirs_chrome_exec_web.c on why they are not shipped beside index.html
-   * and not fetched from the cache). Nothing here is required: a client too
-   * old to send them, or one built with no bake, never calls skinDone and the
-   * flat base sheet is what stays up.
-   */
-
-  /**
-   * The metrics, from src/ui/torirs_chrome_metrics.h.
-   *
-   * Overwritten in place rather than replaced, so a client sending a subset --
-   * an older one, or a newer key this page does not know -- keeps this file's
-   * default for everything it did not name instead of laying out on zeroes.
-   */
-  ChromeHost.prototype.skinMetrics = function (m) {
-    if (!m) return;
-    for (var key in METRICS) {
-      if (!Object.prototype.hasOwnProperty.call(METRICS, key)) continue;
-      if (typeof m[key] === 'number' && m[key] > 0) METRICS[key] = m[key];
+    /** Which of the three places it is in, as the root's class. */
+    retagRoot() {
+      const own = !!(this.frame || this.popup);
+      if (!this.root) return;
+      this.root.classList.toggle('framed', own);
+      this.root.classList.toggle('floating', !own);
+      if (this.popOutBtn) {
+        /* The glyph is the unskinned fallback; `back` is what the skin keys its
+         * two sprites off. Both move together, so a build with art and one
+         * without say the same thing about which way the button now goes. */
+        this.popOutBtn.textContent = this.popup ? '\u2913' : '\u2197';
+        this.popOutBtn.title = this.popup ? 'Put it back beside the game' : 'Pop out into a tab';
+        this.popOutBtn.classList.toggle('back', !!this.popup);
+      }
     }
-  };
 
-  /**
-   * One baked sprite, as base64 RGBA, turned into a data: URL.
-   *
-   * Raw pixels rather than a PNG, because encoding one in C would be a codec
-   * that exists for this alone -- and the platform already has a decoder: an
-   * ImageData onto a canvas, and toDataURL back off it. The bytes arrive
-   * R,G,B,A per pixel, which is ImageData's own order; the shuffle out of the
-   * bake's 0xAARRGGBB words happens in C, where the word format is known.
-   *
-   * A document with no canvas -- the node tests' fake one -- simply gets no
-   * skin, which is the same path a build with no bake takes.
-   */
-  ChromeHost.prototype.skinSprite = function (slot, w, h, b64) {
-    var url = this.decodeSprite(w, h, b64);
-    if (url) this.skin[slot] = url;
-  };
-
-  ChromeHost.prototype.decodeSprite = function (w, h, b64) {
-    var doc = this.doc || global.document;
-    var need = w * h * 4;
-    var canvas;
-    var ctx;
-    var bin;
-    var bytes;
-
-    if (!doc || !doc.createElement || !global.atob || !global.ImageData) return null;
-    if (!(w > 0) || !(h > 0)) return null;
-    canvas = doc.createElement('canvas');
-    if (!canvas || typeof canvas.getContext !== 'function') return null;
-    ctx = canvas.getContext('2d');
-    if (!ctx || typeof ctx.putImageData !== 'function') return null;
-
-    try {
-      bin = global.atob(b64);
-    } catch (e) {
-      return null;
+    /**
+     * The stylesheet, in whichever document is holding the chrome.
+     *
+     * Written rather than written-once: the sheet's contents change under it
+     * when the skin lands (the metrics arrive with the sprites, so even the base
+     * sheet is rebuilt), and a popped-out document needs its own copy of
+     * whatever the docked one had.
+     */
+    style(doc) {
+      let style = doc.getElementById && doc.getElementById('torirs-chrome-style');
+      if (!style) {
+        style = doc.createElement('style');
+        style.id = 'torirs-chrome-style';
+        doc.head.appendChild(style);
+      }
+      /* The reset goes only to a document we made. In the page's own document
+       * it would restyle the client's html/body. */
+      style.textContent =
+        (doc === global.document ? '' : FRAME_RESET) + baseStyle() + this.skinCss;
     }
-    if (bin.length < need) return null;
-    bytes = new global.Uint8ClampedArray(need);
-    for (var i = 0; i < need; i++) bytes[i] = bin.charCodeAt(i);
 
-    canvas.width = w;
-    canvas.height = h;
-    ctx.putImageData(new global.ImageData(bytes, w, h), 0, 0);
-    return canvas.toDataURL();
-  };
+    /* ---- the baked skin -------------------------------------------------------
+     *
+     * The window wears the game's own art: tradebacking behind the panel and
+     * every field, the interfaces' 17x17 tick and cross for a boolean, the
+     * scrollbar's arrows and grip, and the nine-slice panel frame. It is the CS2
+     * executor's look rebuilt out of DOM nodes, from the same bake, so the two
+     * presentations of one window agree.
+     *
+     * The pixels come across the seam from C (see the note in
+     * ui/torirs_chrome_exec_web.c on why they are not shipped beside index.html
+     * and not fetched from the cache). Nothing here is required: a client too
+     * old to send them, or one built with no bake, never calls skinDone and the
+     * flat base sheet is what stays up.
+     */
 
-  /**
-   * The nine frame pieces, composed into ONE 9x9 image.
-   *
-   * `border-image` takes a single source and slices it, so nine separate 3x3
-   * sprites cannot drive it directly. Composed here rather than baked as a
-   * tenth sheet, so the bake stays one sprite per cache archive -- which is
-   * what makes it a diff a human can check against the cache.
-   *
-   * The CENTRE cell is left EMPTY on purpose. `border-image` is used without
-   * `fill`, so nothing samples the middle; drawing the baked flat brown there
-   * would be a flat colour waiting to cover the panel's tile the day somebody
-   * adds `fill`, where an empty cell fails visibly instead.
-   */
-  ChromeHost.prototype.composeFrame = function () {
-    var doc = this.doc || global.document;
-    var order = [
-      SKIN.FRAME_TOP_LEFT, SKIN.FRAME_TOP, SKIN.FRAME_TOP_RIGHT,
-      SKIN.FRAME_LEFT, -1, SKIN.FRAME_RIGHT,
-      SKIN.FRAME_BOTTOM_LEFT, SKIN.FRAME_BOTTOM, SKIN.FRAME_BOTTOM_RIGHT
-    ];
-    var canvas;
-    var ctx;
+    /**
+     * The metrics, from src/ui/torirs_chrome_metrics.h.
+     *
+     * Overwritten in place rather than replaced, so a client sending a subset --
+     * an older one, or a newer key this page does not know -- keeps this file's
+     * default for everything it did not name instead of laying out on zeroes.
+     */
+    skinMetrics(m) {
+      if (!m) return;
+      for (const key in METRICS) {
+        if (!Object.prototype.hasOwnProperty.call(METRICS, key)) continue;
+        if (typeof m[key] === 'number' && m[key] > 0) METRICS[key] = m[key];
+      }
+    }
 
-    for (var i = 0; i < order.length; i++)
-      if (order[i] >= 0 && !this.skin[order[i]]) return null;
-    if (!doc || !doc.createElement || typeof global.Image !== 'function') return null;
-    canvas = doc.createElement('canvas');
-    if (!canvas || typeof canvas.getContext !== 'function') return null;
-    ctx = canvas.getContext('2d');
-    if (!ctx || typeof ctx.drawImage !== 'function') return null;
-    canvas.width = 9;
-    canvas.height = 9;
+    /**
+     * One baked sprite, as base64 RGBA, turned into a data: URL.
+     *
+     * Raw pixels rather than a PNG, because encoding one in C would be a codec
+     * that exists for this alone -- and the platform already has a decoder: an
+     * ImageData onto a canvas, and toDataURL back off it. The bytes arrive
+     * R,G,B,A per pixel, which is ImageData's own order; the shuffle out of the
+     * bake's 0xAARRGGBB words happens in C, where the word format is known.
+     *
+     * A document with no canvas -- the node tests' fake one -- simply gets no
+     * skin, which is the same path a build with no bake takes.
+     */
+    skinSprite(slot, w, h, b64) {
+      const url = this.decodeSprite(w, h, b64);
+      if (url) {
+        this.skin[slot] = url;
+        /* The SIZE, kept beside the URL: composeFrame samples a corner tile's
+         * own corner, and cannot find it without knowing how big the tile is. */
+        this.skinSize[slot] = { w, h };
+      }
+    }
 
-    /* Synchronous by construction: every source is a data: URL this page just
-     * produced from a canvas of its own, so it is already decoded and
-     * drawImage does not have to wait for a load event. */
-    for (var c = 0; c < order.length; c++) {
-      if (order[c] < 0) continue;
+    decodeSprite(w, h, b64) {
+      const doc = this.doc || global.document;
+      const need = w * h * 4;
+      let canvas;
+      let ctx;
+      let bin;
+      let bytes;
+
+      if (!doc || !doc.createElement || !global.atob || !global.ImageData) return null;
+      if (!(w > 0) || !(h > 0)) return null;
+      canvas = doc.createElement('canvas');
+      if (!canvas || typeof canvas.getContext !== 'function') return null;
+      ctx = canvas.getContext('2d');
+      if (!ctx || typeof ctx.putImageData !== 'function') return null;
+
       try {
-        var img = new global.Image();
-        img.src = this.skin[order[c]];
-        ctx.drawImage(img, (c % 3) * 3, ((c / 3) | 0) * 3);
+        bin = global.atob(b64);
       } catch (e) {
         return null;
       }
+      if (bin.length < need) return null;
+      bytes = new global.Uint8ClampedArray(need);
+      for (let i = 0; i < need; i++) bytes[i] = bin.charCodeAt(i);
+
+      canvas.width = w;
+      canvas.height = h;
+      ctx.putImageData(new global.ImageData(bytes, w, h), 0, 0);
+      return canvas.toDataURL();
     }
-    return canvas.toDataURL();
-  };
 
-  /**
-   * Every sprite has arrived: build the skin sheet, or stay flat.
-   *
-   * ALL OR NOTHING. `skinned` goes on only once every URL the sheet names is
-   * present, because a half-skinned window -- a nine-slice frame around a flat
-   * black panel -- reads as a rendering fault, where the complete flat one
-   * reads as a theme.
-   */
-  ChromeHost.prototype.skinDone = function () {
-    var url = {
-      tile: this.skin[SKIN.PANEL_BODY],
-      listTile: this.skin[SKIN.DROPDOWN_BODY],
-      checkOn: this.skin[SKIN.CHECK_ON],
-      checkOff: this.skin[SKIN.CHECK_OFF],
-      arrowUp: this.skin[SKIN.SCROLL_UP],
-      arrowDown: this.skin[SKIN.SCROLL_DOWN],
-      scrollTrack: this.skin[SKIN.SCROLL_TRACK],
-      gripMid: this.skin[SKIN.SCROLL_GRIP_MID]
-    };
-    var key;
-
-    this.skinCss = '';
-    for (key in url) {
-      if (!Object.prototype.hasOwnProperty.call(url, key)) continue;
-      if (!url[key]) { this.applySkinClass(); return; }
-    }
-    url.frame = this.composeFrame();
-    if (!url.frame) { this.applySkinClass(); return; }
-
-    /*
-     * The window X is OPTIONAL, and deliberately not in the loop above.
+    /**
+     * The nine frame pieces, composed into ONE 9x9 image.
      *
-     * A client too old to send it must still get the rest of the skin -- the
-     * page and the wasm are versioned separately, which is the same reason the
-     * hooks' presence is the availability test. Without it the title bar keeps
-     * its text glyph, which is what every build had until the art crossed.
+     * `border-image` takes a single source and slices it, so eight separate
+     * sprites cannot drive it directly. Composed here rather than baked as a
+     * ninth sheet, so the bake stays one sprite per cache archive -- which is
+     * what makes it a diff a human can check against the cache.
+     *
+     * THE PIECES ARE NOT ALL ONE SIZE, and that is what this has to solve. The
+     * corners are 32x32 tiles carrying an L of 6px rail along their outer edges;
+     * the edges are bare 6px rails. `border-image` wants a 3x3 grid whose slices
+     * are the border's own width, so what is sampled out of a corner is only its
+     * own corner -- the mitred junction, rounded outer pixel included -- and what
+     * is sampled out of an edge is a single row or column of rail. Blitting the
+     * whole 32px corner into a 6px slice instead would squash the junction and
+     * take the rounding with it.
+     *
+     * The CENTRE cell is left EMPTY on purpose. `border-image` is used without
+     * `fill`, so nothing samples the middle; drawing a colour there would be one
+     * waiting to cover the panel's tile the day somebody adds `fill`, where an
+     * empty cell fails visibly instead.
      */
-    url.close = this.skin[SKIN.CLOSE] || '';
-    /* One button lit from opposite corners: the hover is IN THE ART, exactly
-     * as the in-canvas chrome uses it. A build with only the base sprite gets
-     * no hover rather than a second, different indication. */
-    url.closeOver = this.skin[SKIN.CLOSE_OVER] || url.close;
+    composeFrame() {
+      const doc = this.doc || global.document;
+      const rail = METRICS.frame;
+      /* [slot, sx, sy, sw, sh, dx, dy] per cell, with the source offsets given as
+       * functions of the piece's own size so a re-bake at another size still
+       * samples the right corner of it. */
+      const far = slot => {
+        const size = this.skinSize[slot];
+        return size ? size.w - rail : 0;
+      };
+      const farY = slot => {
+        const size = this.skinSize[slot];
+        return size ? size.h - rail : 0;
+      };
+      let cells;
+      let canvas;
+      let ctx;
+      const need = [
+        SKIN.FRAME_TOP_LEFT, SKIN.FRAME_TOP, SKIN.FRAME_TOP_RIGHT,
+        SKIN.FRAME_LEFT, SKIN.FRAME_RIGHT,
+        SKIN.FRAME_BOTTOM_LEFT, SKIN.FRAME_BOTTOM, SKIN.FRAME_BOTTOM_RIGHT
+      ];
 
-    this.skinCss = skinStyle(url);
-    this.applySkinClass();
-  };
+      for (let i = 0; i < need.length; i++)
+        if (!this.skin[need[i]] || !this.skinSize[need[i]]) return null;
+      if (!doc || !doc.createElement || typeof global.Image !== 'function') return null;
+      canvas = doc.createElement('canvas');
+      if (!canvas || typeof canvas.getContext !== 'function') return null;
+      ctx = canvas.getContext('2d');
+      if (!ctx || typeof ctx.drawImage !== 'function') return null;
+      canvas.width = rail * 2 + 1;
+      canvas.height = rail * 2 + 1;
 
-  /** Push the skin decision into the live document. Separate from skinDone so
-   *  a pop-out, which restyles a NEW document, goes through one path. */
-  ChromeHost.prototype.applySkinClass = function () {
-    if (this.doc) this.style(this.doc);
-    if (this.root) this.root.classList.toggle('skinned', !!this.skinCss);
-  };
+      cells = [
+        [SKIN.FRAME_TOP_LEFT, 0, 0, rail, rail, 0, 0, rail, rail],
+        [SKIN.FRAME_TOP_RIGHT, far(SKIN.FRAME_TOP_RIGHT), 0, rail, rail, rail + 1, 0, rail, rail],
+        [SKIN.FRAME_BOTTOM_LEFT, 0, farY(SKIN.FRAME_BOTTOM_LEFT), rail, rail, 0, rail + 1, rail, rail],
+        [SKIN.FRAME_BOTTOM_RIGHT, far(SKIN.FRAME_BOTTOM_RIGHT), farY(SKIN.FRAME_BOTTOM_RIGHT),
+         rail, rail, rail + 1, rail + 1, rail, rail],
+        /* One column of the top/bottom rail, one row of the left/right one:
+         * `stretch` repeats it along the run. */
+        [SKIN.FRAME_TOP, 0, 0, 1, rail, rail, 0, 1, rail],
+        [SKIN.FRAME_BOTTOM, 0, 0, 1, rail, rail, rail + 1, 1, rail],
+        [SKIN.FRAME_LEFT, 0, 0, rail, 1, 0, rail, rail, 1],
+        [SKIN.FRAME_RIGHT, 0, 0, rail, 1, rail + 1, rail, rail, 1]
+      ];
 
-  ChromeHost.prototype.buildRoot = function (doc) {
-    var self = this;
-    var root = doc.createElement('div');
-    var name = doc.createElement('span');
-    var pop = doc.createElement('button');
-    var close = doc.createElement('button');
-
-    root.className = 'torirs-chrome';
-
-    this.titleEl = doc.createElement('div');
-    this.titleEl.className = 'torirs-chrome-title';
-    name.className = 'name';
-    name.textContent = 'Plugins';
-
-    /*
-     * Pop out, and put back.
-     *
-     * Page-side only: it moves the DOM between containers and the client is
-     * never told, because there is nothing here for the model to know. Where a
-     * presentation puts its pixels is the presentation's business -- the same
-     * reason the SDL window's position and size never reach the model either.
-     */
-    pop.type = 'button';
-    pop.className = 'popout';
-    pop.addEventListener('click', function () {
-      if (!self.setPoppedOut(!self.popup))
-        console.warn('[torirs] the plugin window could not be popped out \u2014 allow popups for this site');
-    });
-    this.popOutBtn = pop;
-
-    /*
-     * The panel's way out, matching what the other presentations offer.
-     *
-     * ONE button. There was an Ok beside it that committed the page's Save row
-     * on the way out; it is gone from every presentation, along with the
-     * CONFIRM intent behind it. A page that stages edits carries Save and
-     * Revert as labelled rows, which is where a user looks for them.
-     *
-     * Reported rather than acted on: the MODEL decides whether the window is
-     * up, and it hides the panel when it receives this. Taking the DOM down
-     * here as well would close it twice and leave the model thinking it is
-     * still open.
-     */
-    close.type = 'button';
-    close.className = 'close';
-    close.textContent = '\u2715';
-    close.title = 'Close';
-    close.addEventListener('click', function () {
-      self.push({ k: INTENT.CLOSE, p: self.tabPanel, w: -1, v: 0, text: '' });
-    });
-    this.titleEl.appendChild(name);
-    this.titleEl.appendChild(pop);
-    this.titleEl.appendChild(close);
-
-    this.tabsEl = doc.createElement('div');
-    this.tabsEl.className = 'torirs-chrome-tabs';
-
-    this.body = doc.createElement('div');
-    this.body.className = 'torirs-chrome-body';
-
-    root.appendChild(this.titleEl);
-    root.appendChild(this.tabsEl);
-    root.appendChild(this.body);
-    this.root = root;
-    this.retagRoot();
-    return root;
-  };
-
-  ChromeHost.prototype.close = function () {
-    /* First, so its listeners come off the document that is about to go. */
-    this.closeDropdown();
-    this.unmount();
-    this.root = null;
-    this.body = null;
-    this.tabsEl = null;
-    this.titleEl = null;
-    this.popOutBtn = null;
-    this.panels = {};
-    this.widgets = {};
-    this.tabPanel = -1;
-  };
-
-  ChromeHost.prototype.push = function (intent) {
-    /* Bounded: a page left open behind a client that stopped draining must not
-     * grow a queue forever. The oldest go first, because the newest are what
-     * the user last did and therefore what they are waiting to see. */
-    if (this.intents.length >= 64) this.intents.shift();
-    this.intents.push(intent);
-  };
-
-  ChromeHost.prototype.takeIntent = function () {
-    this.checkPopup();
-    if (!this.intents.length) return '';
-    return JSON.stringify(this.intents.shift());
-  };
-
-  /*
-   * The popped-out tab, closed from its own title bar.
-   *
-   * There is no event for it worth trusting -- `unload` in the popup fires
-   * during a reload too -- so it is polled, here, because the client already
-   * calls this once a frame and a timer would be a second clock for one bit.
-   *
-   * Reported as a CLOSE, exactly as the SDL executor reports its window's X:
-   * the presentation is gone, the model is what decides whether the window is
-   * up, and the host takes the executor down on the answer. The DOM went with
-   * the tab, so `root` is dropped here rather than removed -- there is nothing
-   * left to remove it from.
-   */
-  ChromeHost.prototype.checkPopup = function () {
-    if (!this.popup || !this.popup.closed) return;
-    /* The tab took the list's document with it, so there is nothing to remove
-     * the node from -- but the state has to be dropped or the next open finds
-     * a `dropOpen` naming a widget that no longer exists. */
-    this.dropList = null;
-    this.dropOff = null;
-    this.closeDropdown();
-    this.popup = null;
-    this.root = null;
-    this.body = null;
-    this.tabsEl = null;
-    this.titleEl = null;
-    this.popOutBtn = null;
-    this.widgets = {};
-    this.doc = null;
-    this.push({ k: INTENT.CLOSE, p: this.tabPanel, w: -1, v: 0, text: '' });
-    this.panels = {};
-    this.tabPanel = -1;
-  };
-
-  /* Which rows are on screen: not hidden, and on the active tab. The one place
-   * the two tests are combined, matching ToriRSChromeMirror_Shown. */
-  ChromeHost.prototype.reflow = function () {
-    var panel = this.panels[this.tabPanel];
-    var active = panel ? panel.activeTab : 0;
-    for (var handle in this.widgets) {
-      if (!Object.prototype.hasOwnProperty.call(this.widgets, handle)) continue;
-      var w = this.widgets[handle];
-      var shown = !w.hidden && (w.tab < 0 || w.tab === active);
-      w.row.classList.toggle('hidden', !shown);
-    }
-  };
-
-  ChromeHost.prototype.renderTabs = function () {
-    var panel = this.panels[this.tabPanel];
-    var self = this;
-    var doc = this.doc;
-    this.tabsEl.textContent = '';
-    if (!panel || !panel.tabs || panel.tabs.length < 2) return;
-    panel.tabs.forEach(function (title, index) {
-      var b = doc.createElement('button');
-      b.type = 'button';
-      b.textContent = title;
-      if (index === panel.activeTab) b.className = 'on';
-      b.addEventListener('click', function () {
-        self.push({ k: INTENT.TAB, p: self.tabPanel, w: panel.strip, v: index, text: '' });
-      });
-      self.tabsEl.appendChild(b);
-    });
-  };
-
-  /* ---- the open dropdown list ---------------------------------------------
-   *
-   * script_9114's list, built in the document, because the list a <select>
-   * opens is the operating system's and no page may style it. Everything below
-   * exists to make that list behave the way the one it replaced did: it shuts
-   * on the next click anywhere else, it takes the keyboard, and it tracks the
-   * button it hangs off when the window moves under it.
-   */
-
-  ChromeHost.prototype.toggleDropdown = function (handle) {
-    if (this.dropOpen === handle) this.closeDropdown();
-    else this.openDropdown(handle);
-  };
-
-  ChromeHost.prototype.openDropdown = function (handle) {
-    var self = this;
-    var w = this.widgets[handle];
-    var doc = this.doc;
-    var list;
-
-    this.closeDropdown();
-    if (!w || w.kind !== W.DROPDOWN || !this.root || !doc) return;
-    if (!w.options || !w.options.length) return;
-
-    list = doc.createElement('div');
-    list.className = 'torirs-chrome-ddlist';
-    w.options.forEach(function (text, index) {
-      var row = doc.createElement('div');
-      row.className = 'ddrow';
-      row.textContent = text === undefined ? '' : text;
-      if (index === w.selected) row.setAttribute('aria-selected', 'true');
-      row.addEventListener('mousedown', function (ev) {
-        ev.preventDefault();
-        ev.stopPropagation();
-        self.pickDropdown(index);
-      });
-      list.appendChild(row);
-    });
-
-    this.root.appendChild(list);
-    this.dropList = list;
-    this.dropOpen = handle;
-    this.dropCursor = w.selected;
-    w.control.classList.add('open');
-    w.control.setAttribute('aria-expanded', 'true');
-    this.placeDropdown();
-
-    /* Open at the chosen row rather than at the top: a list of two thousand
-     * loc names that opens on the first of them does not show the user where
-     * they already are. */
-    if (w.selected >= 0 && list.children[w.selected])
-      list.children[w.selected].scrollIntoView({ block: 'nearest' });
-
-    /*
-     * What shuts it. A press anywhere else, the rows scrolling under it, the
-     * window being resized -- all of them leave the list pointing at nothing,
-     * and the press one is what makes the control modal the way every other
-     * dropdown in the game is.
-     *
-     * The press listener is on the DOCUMENT in the CAPTURE phase, and it
-     * therefore runs BEFORE the row or the button the press landed on: a
-     * `stopPropagation` down there cannot hold it off, and one that tried
-     * would shut the list out from under the very click that was choosing a
-     * row. So it asks where the press was instead, and lets anything inside
-     * this list or on its own button through untouched.
-     */
-    var dismiss = function (ev) {
-      var node = ev && ev.target;
-      while (node) {
-        if (node === list || node === w.control) return;
-        node = node.parentNode;
+      /* Synchronous by construction: every source is a data: URL this page just
+       * produced from a canvas of its own, so it is already decoded and
+       * drawImage does not have to wait for a load event. */
+      for (const cell of cells) {
+        try {
+          const img = new global.Image();
+          img.src = this.skin[cell[0]];
+          ctx.drawImage(img, cell[1], cell[2], cell[3], cell[4], cell[5], cell[6], cell[7], cell[8]);
+        } catch (e) {
+          return null;
+        }
       }
-      self.closeDropdown();
-    };
-    doc.addEventListener('mousedown', dismiss, true);
-    if (this.body) this.body.addEventListener('scroll', dismiss);
-    if (doc.defaultView) doc.defaultView.addEventListener('resize', dismiss);
-    this.dropOff = function () {
-      doc.removeEventListener('mousedown', dismiss, true);
-      if (self.body) self.body.removeEventListener('scroll', dismiss);
-      if (doc.defaultView) doc.defaultView.removeEventListener('resize', dismiss);
-    };
-  };
 
-  ChromeHost.prototype.closeDropdown = function () {
-    var w = this.widgets[this.dropOpen];
-
-    if (this.dropOff) { this.dropOff(); this.dropOff = null; }
-    if (this.dropList && this.dropList.parentNode)
-      this.dropList.parentNode.removeChild(this.dropList);
-    if (w && w.control) {
-      w.control.classList.remove('open');
-      w.control.setAttribute('aria-expanded', 'false');
+      return canvas.toDataURL();
     }
-    this.dropList = null;
-    this.dropOpen = -1;
-    this.dropCursor = -1;
-  };
 
-  /**
-   * Put the list under its button, or above it when there is no room below.
-   *
-   * Measured against the window ROOT, which is what the list is positioned
-   * in -- the button's own offsetTop is inside a scrolling body and would put
-   * the list a scroll's distance away from it.
-   */
-  ChromeHost.prototype.placeDropdown = function () {
-    var m = METRICS;
-    var w = this.widgets[this.dropOpen];
-    var list = this.dropList;
-    var root;
-    var here;
-    var height;
-    var below;
-    var above;
-
-    if (!w || !list || !this.root) return;
-    root = this.root.getBoundingClientRect();
-    here = w.control.getBoundingClientRect();
-    list.style.left = (here.left - root.left) + 'px';
-    list.style.width = here.width + 'px';
-    list.style.top = (here.bottom - root.top) + 'px';
-    /* Measured after the width lands: the height depends on how the rows wrap
-     * into it, and reading it before is a height for the wrong box. */
-    height = list.getBoundingClientRect().height;
-
-    /*
-     * Above when there is more room there, and never taller than the room it
-     * ends up in.
+    /**
+     * Every sprite has arrived: build the skin sheet, or stay flat.
      *
-     * The window is a docked iframe as often as not, and a list that ran past
-     * its bottom edge would simply be CUT there -- the rows below the cut are
-     * unreachable and there is nothing on screen to say so. Capped instead, so
-     * what does not fit scrolls, which is what the bar inside the list is for.
+     * ALL OR NOTHING. `skinned` goes on only once every URL the sheet names is
+     * present, because a half-skinned window -- a nine-slice frame around a flat
+     * black panel -- reads as a rendering fault, where the complete flat one
+     * reads as a theme.
      */
-    below = root.bottom - here.bottom;
-    above = here.top - root.top;
-    if (height > below && above > below) {
-      list.style.maxHeight = Math.max(above, 2 * m.dropListRowH * K) + 'px';
-      height = list.getBoundingClientRect().height;
-      list.style.top = (here.top - root.top - height) + 'px';
-    } else if (height > below) {
-      list.style.maxHeight = Math.max(below, 2 * m.dropListRowH * K) + 'px';
+    skinDone() {
+      const url = {
+        tile: this.skin[SKIN.PANEL_BODY],
+        listTile: this.skin[SKIN.DROPDOWN_BODY],
+        checkOn: this.skin[SKIN.CHECK_ON],
+        checkOff: this.skin[SKIN.CHECK_OFF],
+        arrowUp: this.skin[SKIN.SCROLL_UP],
+        arrowDown: this.skin[SKIN.SCROLL_DOWN],
+        scrollTrack: this.skin[SKIN.SCROLL_TRACK],
+        gripMid: this.skin[SKIN.SCROLL_GRIP_MID]
+      };
+      let key;
+
+      this.skinCss = '';
+      for (key in url) {
+        if (!Object.prototype.hasOwnProperty.call(url, key)) continue;
+        if (!url[key]) { this.applySkinClass(); return; }
+      }
+      url.frame = this.composeFrame();
+      if (!url.frame) { this.applySkinClass(); return; }
+
+      /*
+       * The window X is OPTIONAL, and deliberately not in the loop above.
+       *
+       * A client too old to send it must still get the rest of the skin -- the
+       * page and the wasm are versioned separately, which is the same reason the
+       * hooks' presence is the availability test. Without it the title bar keeps
+       * its text glyph, which is what every build had until the art crossed.
+       */
+      url.close = this.skin[SKIN.CLOSE] || '';
+      /* The pop-out pair, and the pair that puts it back. Optional for the same
+       * reason the X is: a client that predates the stamp sends neither, and the
+       * title bar keeps its text arrows. */
+      url.popout = this.skin[SKIN.POPOUT] || '';
+      url.dock = this.skin[SKIN.DOCK] || url.popout;
+      /* One button lit from opposite corners: the hover is IN THE ART, exactly
+       * as the in-canvas chrome uses it. A build with only the base sprite gets
+       * no hover rather than a second, different indication. */
+      url.closeOver = this.skin[SKIN.CLOSE_OVER] || url.close;
+      url.popoutOver = this.skin[SKIN.POPOUT_OVER] || url.popout;
+      url.dockOver = this.skin[SKIN.DOCK_OVER] || url.dock;
+
+      this.skinCss = skinStyle(url);
+      this.applySkinClass();
     }
-  };
 
-  ChromeHost.prototype.pickDropdown = function (index) {
-    var handle = this.dropOpen;
-    var w = this.widgets[handle];
+    /** Push the skin decision into the live document. Separate from skinDone so
+     *  a pop-out, which restyles a NEW document, goes through one path. */
+    applySkinClass() {
+      if (this.doc) this.style(this.doc);
+      if (this.root) this.root.classList.toggle('skinned', !!this.skinCss);
+    }
 
-    if (!w || index < 0 || index >= w.options.length) return;
-    this.push({
-      k: INTENT.PICK, p: w.panel, w: handle, v: index,
-      text: w.options[index] === undefined ? '' : w.options[index]
-    });
-    /* Shut on the way out, as every dropdown in the game does. The value the
-     * button shows is the MODEL's answer (WIDGET_SELECTED), not this index --
-     * one place decides what the setting became. */
-    this.closeDropdown();
-  };
+    buildRoot(doc) {
+      const root = doc.createElement('div');
+      const name = doc.createElement('span');
+      const pop = doc.createElement('button');
+      const close = doc.createElement('button');
 
-  /**
-   * The keyboard, which a <select> had for free.
-   *
-   * Enter and Space open a shut list and choose from an open one; the arrows
-   * move a cursor row; Escape shuts it and leaves the setting alone. Losing
-   * all of that with the <select> would have been a real regression for
-   * anyone who does not reach for the mouse.
-   */
-  ChromeHost.prototype.dropdownKey = function (handle, ev) {
-    var w = this.widgets[handle];
-    var open = this.dropOpen === handle;
-    var step = 0;
+      root.className = 'torirs-chrome';
 
-    if (!w) return;
-    if (ev.key === 'Escape') {
-      if (!open) return;
+      this.titleEl = doc.createElement('div');
+      this.titleEl.className = 'torirs-chrome-title';
+      name.className = 'name';
+      name.textContent = 'Plugins';
+
+      /*
+       * Pop out, and put back.
+       *
+       * Page-side only: it moves the DOM between containers and the client is
+       * never told, because there is nothing here for the model to know. Where a
+       * presentation puts its pixels is the presentation's business -- the same
+       * reason the SDL window's position and size never reach the model either.
+       */
+      pop.type = 'button';
+      pop.className = 'popout';
+      pop.addEventListener('click', () => {
+        if (!this.setPoppedOut(!this.popup))
+          console.warn('[torirs] the plugin window could not be popped out \u2014 allow popups for this site');
+      });
+      this.popOutBtn = pop;
+
+      /*
+       * The panel's way out, matching what the other presentations offer.
+       *
+       * ONE button. There was an Ok beside it that committed the page's Save row
+       * on the way out; it is gone from every presentation, along with the
+       * CONFIRM intent behind it. A page that stages edits carries Save and
+       * Revert as labelled rows, which is where a user looks for them.
+       *
+       * Reported rather than acted on: the MODEL decides whether the window is
+       * up, and it hides the panel when it receives this. Taking the DOM down
+       * here as well would close it twice and leave the model thinking it is
+       * still open.
+       */
+      close.type = 'button';
+      close.className = 'close';
+      close.textContent = '\u2715';
+      close.title = 'Close';
+      close.addEventListener('click', () => {
+        this.push({ k: INTENT.CLOSE, p: this.tabPanel, w: -1, v: 0, text: '' });
+      });
+      this.titleEl.appendChild(name);
+      this.titleEl.appendChild(pop);
+      this.titleEl.appendChild(close);
+
+      this.tabsEl = doc.createElement('div');
+      this.tabsEl.className = 'torirs-chrome-tabs';
+
+      this.body = doc.createElement('div');
+      this.body.className = 'torirs-chrome-body';
+
+      root.appendChild(this.titleEl);
+      root.appendChild(this.tabsEl);
+      root.appendChild(this.body);
+      this.root = root;
+      this.retagRoot();
+      return root;
+    }
+
+    close() {
+      /* First, so its listeners come off the document that is about to go. */
       this.closeDropdown();
-      ev.preventDefault();
-      return;
+      this.unmount();
+      this.root = null;
+      this.body = null;
+      this.tabsEl = null;
+      this.titleEl = null;
+      this.popOutBtn = null;
+      this.panels = {};
+      this.widgets = {};
+      this.tabPanel = -1;
     }
-    if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Spacebar') {
-      if (open && this.dropCursor >= 0) this.pickDropdown(this.dropCursor);
-      else if (open) this.closeDropdown();
+
+    push(intent) {
+      /* Bounded: a page left open behind a client that stopped draining must not
+       * grow a queue forever. The oldest go first, because the newest are what
+       * the user last did and therefore what they are waiting to see. */
+      if (this.intents.length >= 64) this.intents.shift();
+      this.intents.push(intent);
+    }
+
+    takeIntent() {
+      this.checkPopup();
+      if (!this.intents.length) return '';
+      return JSON.stringify(this.intents.shift());
+    }
+
+    /*
+     * The popped-out tab, closed from its own title bar.
+     *
+     * There is no event for it worth trusting -- `unload` in the popup fires
+     * during a reload too -- so it is polled, here, because the client already
+     * calls this once a frame and a timer would be a second clock for one bit.
+     *
+     * Reported as a CLOSE, exactly as the SDL executor reports its window's X:
+     * the presentation is gone, the model is what decides whether the window is
+     * up, and the host takes the executor down on the answer. The DOM went with
+     * the tab, so `root` is dropped here rather than removed -- there is nothing
+     * left to remove it from.
+     */
+    checkPopup() {
+      if (!this.popup || !this.popup.closed) return;
+      /* The tab took the list's document with it, so there is nothing to remove
+       * the node from -- but the state has to be dropped or the next open finds
+       * a `dropOpen` naming a widget that no longer exists. */
+      this.dropList = null;
+      this.dropOff = null;
+      this.closeDropdown();
+      this.popup = null;
+      this.root = null;
+      this.body = null;
+      this.tabsEl = null;
+      this.titleEl = null;
+      this.popOutBtn = null;
+      this.widgets = {};
+      this.doc = null;
+      this.push({ k: INTENT.CLOSE, p: this.tabPanel, w: -1, v: 0, text: '' });
+      this.panels = {};
+      this.tabPanel = -1;
+    }
+
+    /* Which rows are on screen: not hidden, and on the active tab. The one place
+     * the two tests are combined, matching ToriRSChromeMirror_Shown. */
+    reflow() {
+      const panel = this.panels[this.tabPanel];
+      const active = panel ? panel.activeTab : 0;
+      for (const handle in this.widgets) {
+        if (!Object.prototype.hasOwnProperty.call(this.widgets, handle)) continue;
+        const w = this.widgets[handle];
+        const shown = !w.hidden && (w.tab < 0 || w.tab === active);
+        w.row.classList.toggle('hidden', !shown);
+      }
+    }
+
+    renderTabs() {
+      const panel = this.panels[this.tabPanel];
+      const doc = this.doc;
+      this.tabsEl.textContent = '';
+      if (!panel || !panel.tabs || panel.tabs.length < 2) return;
+      panel.tabs.forEach((title, index) => {
+        const b = doc.createElement('button');
+        b.type = 'button';
+        b.textContent = title;
+        if (index === panel.activeTab) b.className = 'on';
+        b.addEventListener('click', () => {
+          this.push({ k: INTENT.TAB, p: this.tabPanel, w: panel.strip, v: index, text: '' });
+        });
+        this.tabsEl.appendChild(b);
+      });
+    }
+
+    /* ---- the open dropdown list ---------------------------------------------
+     *
+     * script_9114's list, built in the document, because the list a <select>
+     * opens is the operating system's and no page may style it. Everything below
+     * exists to make that list behave the way the one it replaced did: it shuts
+     * on the next click anywhere else, it takes the keyboard, and it tracks the
+     * button it hangs off when the window moves under it.
+     */
+
+    toggleDropdown(handle) {
+      if (this.dropOpen === handle) this.closeDropdown();
       else this.openDropdown(handle);
-      ev.preventDefault();
-      return;
-    }
-    if (ev.key === 'ArrowDown') step = 1;
-    else if (ev.key === 'ArrowUp') step = -1;
-    else return;
-
-    ev.preventDefault();
-    if (!open) { this.openDropdown(handle); return; }
-    this.moveDropdownCursor(step);
-  };
-
-  ChromeHost.prototype.moveDropdownCursor = function (step) {
-    var w = this.widgets[this.dropOpen];
-    var list = this.dropList;
-    var next;
-
-    if (!w || !list || !list.children.length) return;
-    next = this.dropCursor + step;
-    if (next < 0) next = 0;
-    if (next > list.children.length - 1) next = list.children.length - 1;
-    for (var i = 0; i < list.children.length; i++)
-      list.children[i].classList.toggle('cursor', i === next);
-    this.dropCursor = next;
-    list.children[next].scrollIntoView({ block: 'nearest' });
-  };
-
-  ChromeHost.prototype.makeWidget = function (cmd) {
-    var self = this;
-    /* Everything below is made in the document the chrome is IN -- the
-     * iframe's, the popped-out tab's, or the page's. See ChromeHost::doc. */
-    var doc = this.doc;
-    var row = doc.createElement('div');
-    row.className = 'torirs-chrome-row';
-
-    var entry = {
-      row: row, kind: cmd.v, panel: cmd.p, tab: cmd.tab,
-      hidden: false, control: null, options: []
-    };
-
-    function labelled(control) {
-      if (cmd.label) {
-        var lbl = doc.createElement('span');
-        lbl.className = 'lbl';
-        lbl.textContent = cmd.label;
-        row.appendChild(lbl);
-      }
-      row.appendChild(control);
     }
 
-    switch (cmd.v) {
-      case W.CHECKBOX: {
-        var box = doc.createElement('input');
-        box.type = 'checkbox';
-        var text = doc.createElement('span');
-        text.textContent = cmd.label || '';
-        box.addEventListener('change', function () {
-          self.push({ k: INTENT.TOGGLE, p: cmd.p, w: cmd.w, v: box.checked ? 1 : 0, text: '' });
-        });
-        row.appendChild(box);
-        row.appendChild(text);
-        entry.control = box;
-        entry.labelNode = text;
-        break;
-      }
-      case W.TEXTINPUT: {
-        var input = doc.createElement('input');
-        input.type = 'text';
-        /* On change, not on input: an intent per keystroke would send the
-         * model a value for every half-typed state, and the chrome's own
-         * in-canvas input commits the same way. */
-        input.addEventListener('change', function () {
-          self.push({ k: INTENT.TEXT, p: cmd.p, w: cmd.w, v: 0, text: input.value });
-        });
-        labelled(input);
-        entry.control = input;
-        break;
-      }
-      case W.COLORPICK: {
-        /*
-         * The browser's own colour picker, plus the hex beside it.
-         *
-         * The MODEL's picker is three HSL16 axis bars, and this page cannot
-         * draw them -- but it does not have to: an <input type=color> is the
-         * platform's idiom for exactly this control, the way <select> is the
-         * platform's idiom for a dropdown. What it gives back is 24-bit RGB,
-         * which the model quantises onto a palette entry and echoes back as
-         * text -- so the swatch VISIBLY snaps to the colour the renderer can
-         * actually produce, which is the honest thing for it to do.
-         */
-        var swatch = doc.createElement('input');
-        var hex = doc.createElement('input');
-        var wrap = doc.createElement('span');
-        swatch.type = 'color';
-        swatch.className = 'swatch';
-        hex.type = 'text';
-        /* Both commit as a TEXT intent, so there is one path into the model
-         * and one quantiser -- in C, where the palette is. A second conversion
-         * here would be a second place for a colour to land on a different
-         * entry than the one the game draws. */
-        swatch.addEventListener('change', function () {
-          self.push({ k: INTENT.TEXT, p: cmd.p, w: cmd.w, v: 0, text: swatch.value });
-        });
-        hex.addEventListener('change', function () {
-          self.push({ k: INTENT.TEXT, p: cmd.p, w: cmd.w, v: 0, text: hex.value });
-        });
-        wrap.className = 'colorpick';
-        wrap.appendChild(swatch);
-        wrap.appendChild(hex);
-        labelled(wrap);
-        entry.control = hex;
-        entry.swatch = swatch;
-        break;
-      }
-      case W.DROPDOWN: {
-        /*
-         * The button. The LIST is not made here -- it is built when the button
-         * is pressed and thrown away when it shuts (see openDropdown), because
-         * a panel of twenty dropdowns would otherwise carry twenty lists of
-         * every option in each, and a palette dropdown's options run to
-         * thousands.
-         */
-        var dd = doc.createElement('span');
-        var val = doc.createElement('span');
-        dd.className = 'dd';
-        dd.tabIndex = 0;
-        dd.setAttribute('role', 'combobox');
-        dd.setAttribute('aria-expanded', 'false');
-        val.className = 'ddval';
-        dd.appendChild(val);
-        dd.addEventListener('mousedown', function (ev) {
-          /* On mousedown, and the event stops here: the document-level
-           * dismisser below runs on the same event, and a press that opened
-           * the list and then dismissed it is a button that does nothing. */
+    openDropdown(handle) {
+      const w = this.widgets[handle];
+      const doc = this.doc;
+      let list;
+
+      this.closeDropdown();
+      if (!w || w.kind !== W.DROPDOWN || !this.root || !doc) return;
+      if (!w.options || !w.options.length) return;
+
+      list = doc.createElement('div');
+      list.className = 'torirs-chrome-ddlist';
+      w.options.forEach((text, index) => {
+        const row = doc.createElement('div');
+        row.className = 'ddrow';
+        row.textContent = text === undefined ? '' : text;
+        if (index === w.selected) row.setAttribute('aria-selected', 'true');
+        row.addEventListener('mousedown', ev => {
           ev.preventDefault();
           ev.stopPropagation();
-          self.toggleDropdown(cmd.w);
+          this.pickDropdown(index);
         });
-        dd.addEventListener('keydown', function (ev) {
-          self.dropdownKey(cmd.w, ev);
-        });
-        labelled(dd);
-        entry.control = dd;
-        entry.valueNode = val;
-        entry.selected = -1;
-        break;
-      }
-      case W.BUTTON:
-      case W.MENUITEM: {
-        var button = doc.createElement('button');
-        button.type = 'button';
-        button.className = 'act';
-        button.textContent = cmd.text || cmd.label || '';
-        button.addEventListener('click', function () {
-          self.push({ k: INTENT.ACTIVATE, p: cmd.p, w: cmd.w, v: 0, text: '' });
-        });
-        row.appendChild(button);
-        entry.control = button;
-        break;
-      }
-      case W.SEPARATOR: {
-        row.className = 'torirs-chrome-sep';
-        break;
-      }
-      case W.LISTROW: {
-        /*
-         * Three zones with two outcomes: the name, an optional settings
-         * affordance, and a switch. The affordance and the switch report
-         * DIFFERENT intents -- ACTION opens the entry's own page, TOGGLE flips
-         * it -- which is the whole reason a roster row is not a checkbox.
-         *
-         * `cmd.cw` carries the row's `row_action` flag: it rides WIDGET_ADD
-         * because whether a row has an action is part of its shape, and a row
-         * that gained or lost one is re-added rather than updated.
-         */
-        var name = doc.createElement('span');
-        name.className = 'rowname';
-        name.textContent = cmd.label || '';
-        row.appendChild(name);
+        list.appendChild(row);
+      });
 
-        if (cmd.cw) {
-          var action = doc.createElement('button');
-          action.type = 'button';
-          action.className = 'rowact';
-          action.textContent = '\u2026';
-          action.title = 'Settings';
-          action.addEventListener('click', function (ev) {
-            ev.stopPropagation();
-            self.push({ k: INTENT.ACTION, p: cmd.p, w: cmd.w, v: 0, text: '' });
+      this.root.appendChild(list);
+      this.dropList = list;
+      this.dropOpen = handle;
+      this.dropCursor = w.selected;
+      w.control.classList.add('open');
+      w.control.setAttribute('aria-expanded', 'true');
+      this.placeDropdown();
+
+      /* Open at the chosen row rather than at the top: a list of two thousand
+       * loc names that opens on the first of them does not show the user where
+       * they already are. */
+      if (w.selected >= 0 && list.children[w.selected])
+        list.children[w.selected].scrollIntoView({ block: 'nearest' });
+
+      /*
+       * What shuts it. A press anywhere else, the rows scrolling under it, the
+       * window being resized -- all of them leave the list pointing at nothing,
+       * and the press one is what makes the control modal the way every other
+       * dropdown in the game is.
+       *
+       * The press listener is on the DOCUMENT in the CAPTURE phase, and it
+       * therefore runs BEFORE the row or the button the press landed on: a
+       * `stopPropagation` down there cannot hold it off, and one that tried
+       * would shut the list out from under the very click that was choosing a
+       * row. So it asks where the press was instead, and lets anything inside
+       * this list or on its own button through untouched.
+       */
+      const dismiss = ev => {
+        let node = ev && ev.target;
+        while (node) {
+          if (node === list || node === w.control) return;
+          node = node.parentNode;
+        }
+        this.closeDropdown();
+      };
+      doc.addEventListener('mousedown', dismiss, true);
+      if (this.body) this.body.addEventListener('scroll', dismiss);
+      if (doc.defaultView) doc.defaultView.addEventListener('resize', dismiss);
+      this.dropOff = () => {
+        doc.removeEventListener('mousedown', dismiss, true);
+        if (this.body) this.body.removeEventListener('scroll', dismiss);
+        if (doc.defaultView) doc.defaultView.removeEventListener('resize', dismiss);
+      };
+    }
+
+    closeDropdown() {
+      const w = this.widgets[this.dropOpen];
+
+      if (this.dropOff) { this.dropOff(); this.dropOff = null; }
+      if (this.dropList && this.dropList.parentNode)
+        this.dropList.parentNode.removeChild(this.dropList);
+      if (w && w.control) {
+        w.control.classList.remove('open');
+        w.control.setAttribute('aria-expanded', 'false');
+      }
+      this.dropList = null;
+      this.dropOpen = -1;
+      this.dropCursor = -1;
+    }
+
+    /**
+     * Put the list under its button, or above it when there is no room below.
+     *
+     * Measured against the window ROOT, which is what the list is positioned
+     * in -- the button's own offsetTop is inside a scrolling body and would put
+     * the list a scroll's distance away from it.
+     */
+    placeDropdown() {
+      const m = METRICS;
+      const w = this.widgets[this.dropOpen];
+      const list = this.dropList;
+      let root;
+      let here;
+      let height;
+      let below;
+      let above;
+
+      if (!w || !list || !this.root) return;
+      root = this.root.getBoundingClientRect();
+      here = w.control.getBoundingClientRect();
+      list.style.left = `${here.left - root.left}px`;
+      list.style.width = `${here.width}px`;
+      list.style.top = `${here.bottom - root.top}px`;
+      /* Measured after the width lands: the height depends on how the rows wrap
+       * into it, and reading it before is a height for the wrong box. */
+      height = list.getBoundingClientRect().height;
+
+      /*
+       * Above when there is more room there, and never taller than the room it
+       * ends up in.
+       *
+       * The window is a docked iframe as often as not, and a list that ran past
+       * its bottom edge would simply be CUT there -- the rows below the cut are
+       * unreachable and there is nothing on screen to say so. Capped instead, so
+       * what does not fit scrolls, which is what the bar inside the list is for.
+       */
+      below = root.bottom - here.bottom;
+      above = here.top - root.top;
+      if (height > below && above > below) {
+        list.style.maxHeight = `${Math.max(above, 2 * m.dropListRowH * K)}px`;
+        height = list.getBoundingClientRect().height;
+        list.style.top = `${here.top - root.top - height}px`;
+      } else if (height > below) {
+        list.style.maxHeight = `${Math.max(below, 2 * m.dropListRowH * K)}px`;
+      }
+    }
+
+    pickDropdown(index) {
+      const handle = this.dropOpen;
+      const w = this.widgets[handle];
+
+      if (!w || index < 0 || index >= w.options.length) return;
+      this.push({
+        k: INTENT.PICK, p: w.panel, w: handle, v: index,
+        text: w.options[index] === undefined ? '' : w.options[index]
+      });
+      /* Shut on the way out, as every dropdown in the game does. The value the
+       * button shows is the MODEL's answer (WIDGET_SELECTED), not this index --
+       * one place decides what the setting became. */
+      this.closeDropdown();
+    }
+
+    /**
+     * The keyboard, which a <select> had for free.
+     *
+     * Enter and Space open a shut list and choose from an open one; the arrows
+     * move a cursor row; Escape shuts it and leaves the setting alone. Losing
+     * all of that with the <select> would have been a real regression for
+     * anyone who does not reach for the mouse.
+     */
+    dropdownKey(handle, ev) {
+      const w = this.widgets[handle];
+      const open = this.dropOpen === handle;
+      let step = 0;
+
+      if (!w) return;
+      if (ev.key === 'Escape') {
+        if (!open) return;
+        this.closeDropdown();
+        ev.preventDefault();
+        return;
+      }
+      if (ev.key === 'Enter' || ev.key === ' ' || ev.key === 'Spacebar') {
+        if (open && this.dropCursor >= 0) this.pickDropdown(this.dropCursor);
+        else if (open) this.closeDropdown();
+        else this.openDropdown(handle);
+        ev.preventDefault();
+        return;
+      }
+      if (ev.key === 'ArrowDown') step = 1;
+      else if (ev.key === 'ArrowUp') step = -1;
+      else return;
+
+      ev.preventDefault();
+      if (!open) { this.openDropdown(handle); return; }
+      this.moveDropdownCursor(step);
+    }
+
+    moveDropdownCursor(step) {
+      const w = this.widgets[this.dropOpen];
+      const list = this.dropList;
+      let next;
+
+      if (!w || !list || !list.children.length) return;
+      next = this.dropCursor + step;
+      if (next < 0) next = 0;
+      if (next > list.children.length - 1) next = list.children.length - 1;
+      for (let i = 0; i < list.children.length; i++)
+        list.children[i].classList.toggle('cursor', i === next);
+      this.dropCursor = next;
+      list.children[next].scrollIntoView({ block: 'nearest' });
+    }
+
+    makeWidget(cmd) {
+      /* Everything below is made in the document the chrome is IN -- the
+       * iframe's, the popped-out tab's, or the page's. See ChromeHost::doc. */
+      const doc = this.doc;
+      const row = doc.createElement('div');
+      row.className = 'torirs-chrome-row';
+
+      const entry = {
+        row, kind: cmd.v, panel: cmd.p, tab: cmd.tab,
+        hidden: false, control: null, options: []
+      };
+
+      function labelled(control) {
+        if (cmd.label) {
+          const lbl = doc.createElement('span');
+          lbl.className = 'lbl';
+          lbl.textContent = cmd.label;
+          row.appendChild(lbl);
+        }
+        row.appendChild(control);
+      }
+
+      switch (cmd.v) {
+        case W.CHECKBOX: {
+          const box = doc.createElement('input');
+          box.type = 'checkbox';
+          const text = doc.createElement('span');
+          text.textContent = cmd.label || '';
+          box.addEventListener('change', () => {
+            this.push({ k: INTENT.TOGGLE, p: cmd.p, w: cmd.w, v: box.checked ? 1 : 0, text: '' });
           });
-          row.appendChild(action);
+          row.appendChild(box);
+          row.appendChild(text);
+          entry.control = box;
+          entry.labelNode = text;
+          break;
         }
-
-        var sw = doc.createElement('input');
-        sw.type = 'checkbox';
-        sw.className = 'rowsw';
-        sw.addEventListener('change', function () {
-          self.push({ k: INTENT.TOGGLE, p: cmd.p, w: cmd.w, v: sw.checked ? 1 : 0, text: '' });
-        });
-        row.appendChild(sw);
-
-        entry.control = sw;
-        entry.labelNode = name;
-        break;
-      }
-      case W.MODELVIEW: {
-        /*
-         * There is no model here to draw.
-         *
-         * A MODELVIEW is a 3D preview rendered by the client's own scene, and
-         * the page has neither the scene nor the geometry -- the command
-         * stream carries a widget's shape and text, not its meshes. So this is
-         * an honest placeholder that keeps the row's place and says what it
-         * would hold, rather than an empty box that reads as a rendering bug.
-         *
-         * It still takes the focus, which is why it is a real element and not
-         * a skipped row: WIDGET_FOCUS is sent for every kind.
-         */
-        var view = doc.createElement('div');
-        view.className = 'modelview';
-        view.textContent = cmd.label || 'model preview';
-        view.title = 'Model previews are drawn by the client, not the page';
-        row.appendChild(view);
-        entry.control = view;
-        break;
-      }
-      case W.FREE: {
-        /* A recycled slot. It has no appearance and takes no input; the row
-         * exists only so the handle still has a node to be removed by. */
-        row.classList.add('hidden');
-        break;
-      }
-      case W.TABSTRIP: {
-        /* The strip is chrome, not a row: it lives in the header, and its
-         * titles arrive as this widget's OPTIONS. The row stays empty and
-         * hidden so the handle still has a node to be removed by.
-         *
-         * Which panel owns the WINDOW is not decided here -- PANEL_OPEN says
-         * that, for tabbed and paged panels alike. All this records is which
-         * widget the strip's clicks come from. */
-        row.classList.add('hidden');
-        var panel = this.panels[cmd.p];
-        if (panel) panel.strip = cmd.w;
-        break;
-      }
-      default: {
-        var span = doc.createElement('span');
-        span.textContent = cmd.text || cmd.label || '';
-        row.appendChild(span);
-        entry.control = span;
-        break;
-      }
-    }
-
-    this.body.appendChild(row);
-    this.widgets[cmd.w] = entry;
-  };
-
-  ChromeHost.prototype.apply = function (cmd) {
-    if (!this.root) return;
-    var w = this.widgets[cmd.w];
-    var doc = this.doc;
-    var panel;
-
-    switch (cmd.k) {
-      case CMD.PANEL_OPEN:
-        this.panels[cmd.p] = { tabs: [], activeTab: 0, strip: -1 };
-        /*
-         * The panel this window is SHOWING, which is what Ok and Close name.
-         *
-         * Latched here because PANEL_OPEN is the only command that carries it
-         * and every window has one. It used to be latched when a TABSTRIP was
-         * added instead -- true of a tabbed panel, and the plugin window is
-         * PAGED, not tabbed, so no strip ever arrived: the handle stayed -1,
-         * both title-bar buttons addressed panel -1, and the model quietly
-         * validated them away. The window could be closed from anywhere except
-         * its own close mark.
-         */
-        this.tabPanel = cmd.p;
-        if (cmd.text && this.titleEl) this.titleEl.firstChild.textContent = cmd.text;
-        break;
-
-      case CMD.PANEL_CLOSE:
-        delete this.panels[cmd.p];
-        this.closeDropdown();
-        /* Its rows go with it: the seam says so once and means all of them,
-         * so a DOM node left behind would be a control with no model. */
-        for (var handle in this.widgets) {
-          if (!Object.prototype.hasOwnProperty.call(this.widgets, handle)) continue;
-          if (this.widgets[handle].panel !== cmd.p) continue;
-          var node = this.widgets[handle].row;
-          if (node.parentNode) node.parentNode.removeChild(node);
-          delete this.widgets[handle];
+        case W.TEXTINPUT: {
+          const input = doc.createElement('input');
+          input.type = 'text';
+          /* On change, not on input: an intent per keystroke would send the
+           * model a value for every half-typed state, and the chrome's own
+           * in-canvas input commits the same way. */
+          input.addEventListener('change', () => {
+            this.push({ k: INTENT.TEXT, p: cmd.p, w: cmd.w, v: 0, text: input.value });
+          });
+          labelled(input);
+          entry.control = input;
+          break;
         }
-        if (this.tabPanel === cmd.p) { this.tabPanel = -1; this.renderTabs(); }
-        break;
+        case W.COLORPICK: {
+          /*
+           * The browser's own colour picker, plus the hex beside it.
+           *
+           * The MODEL's picker is three HSL16 axis bars, and this page cannot
+           * draw them -- but it does not have to: an <input type=color> is the
+           * platform's idiom for exactly this control, the way <select> is the
+           * platform's idiom for a dropdown. What it gives back is 24-bit RGB,
+           * which the model quantises onto a palette entry and echoes back as
+           * text -- so the swatch VISIBLY snaps to the colour the renderer can
+           * actually produce, which is the honest thing for it to do.
+           */
+          const swatch = doc.createElement('input');
+          const hex = doc.createElement('input');
+          const wrap = doc.createElement('span');
+          swatch.type = 'color';
+          swatch.className = 'swatch';
+          hex.type = 'text';
+          /* Both commit as a TEXT intent, so there is one path into the model
+           * and one quantiser -- in C, where the palette is. A second conversion
+           * here would be a second place for a colour to land on a different
+           * entry than the one the game draws. */
+          swatch.addEventListener('change', () => {
+            this.push({ k: INTENT.TEXT, p: cmd.p, w: cmd.w, v: 0, text: swatch.value });
+          });
+          hex.addEventListener('change', () => {
+            this.push({ k: INTENT.TEXT, p: cmd.p, w: cmd.w, v: 0, text: hex.value });
+          });
+          wrap.className = 'colorpick';
+          wrap.appendChild(swatch);
+          wrap.appendChild(hex);
+          labelled(wrap);
+          entry.control = hex;
+          entry.swatch = swatch;
+          break;
+        }
+        case W.DROPDOWN: {
+          /*
+           * The button. The LIST is not made here -- it is built when the button
+           * is pressed and thrown away when it shuts (see openDropdown), because
+           * a panel of twenty dropdowns would otherwise carry twenty lists of
+           * every option in each, and a palette dropdown's options run to
+           * thousands.
+           */
+          const dd = doc.createElement('span');
+          const val = doc.createElement('span');
+          dd.className = 'dd';
+          dd.tabIndex = 0;
+          dd.setAttribute('role', 'combobox');
+          dd.setAttribute('aria-expanded', 'false');
+          val.className = 'ddval';
+          dd.appendChild(val);
+          dd.addEventListener('mousedown', ev => {
+            /* On mousedown, and the event stops here: the document-level
+             * dismisser below runs on the same event, and a press that opened
+             * the list and then dismissed it is a button that does nothing. */
+            ev.preventDefault();
+            ev.stopPropagation();
+            this.toggleDropdown(cmd.w);
+          });
+          dd.addEventListener('keydown', ev => {
+            this.dropdownKey(cmd.w, ev);
+          });
+          labelled(dd);
+          entry.control = dd;
+          entry.valueNode = val;
+          entry.selected = -1;
+          break;
+        }
+        case W.BUTTON:
+        case W.MENUITEM: {
+          const button = doc.createElement('button');
+          button.type = 'button';
+          button.className = 'act';
+          button.textContent = cmd.text || cmd.label || '';
+          button.addEventListener('click', () => {
+            this.push({ k: INTENT.ACTIVATE, p: cmd.p, w: cmd.w, v: 0, text: '' });
+          });
+          row.appendChild(button);
+          entry.control = button;
+          break;
+        }
+        case W.SEPARATOR: {
+          row.className = 'torirs-chrome-sep';
+          break;
+        }
+        case W.LISTROW: {
+          /*
+           * Three zones with two outcomes: the name, an optional settings
+           * affordance, and a switch. The affordance and the switch report
+           * DIFFERENT intents -- ACTION opens the entry's own page, TOGGLE flips
+           * it -- which is the whole reason a roster row is not a checkbox.
+           *
+           * `cmd.cw` carries the row's `row_action` flag: it rides WIDGET_ADD
+           * because whether a row has an action is part of its shape, and a row
+           * that gained or lost one is re-added rather than updated.
+           */
+          const name = doc.createElement('span');
+          name.className = 'rowname';
+          name.textContent = cmd.label || '';
+          row.appendChild(name);
 
-      case CMD.PANEL_TITLE:
-        if (this.titleEl) this.titleEl.firstChild.textContent = cmd.text;
-        break;
-
-      case CMD.PANEL_RECT:
-        /*
-         * The model's box, of which the page honours the WIDTH only.
-         *
-         * Position is deliberately ignored: the model lays its panels out in
-         * canvas coordinates, and this window is not in the canvas at all --
-         * it is a frame beside it, a tab of its own, or an overlay pinned to a
-         * corner. Height is ignored for a sharper reason now: docked, it is
-         * the CANVAS's, because the two are meant to read as one object;
-         * popped out it is the tab's; floating it scrolls under a 70vh cap.
-         * None of those is the model's idea of how tall its rows came out.
-         *
-         * Width is different: it is the one dimension the model sizes to its
-         * CONTENT (the widest row it laid out), so ignoring it is what made a
-         * panel of long plugin names sit in a 340px column and ellipsise.
-         * Clamped, because a model that wants 1200px still may not have it.
-         *
-         * It lands on whatever owns the width. Docked that is the IFRAME --
-         * the root fills it, so widening the root inside a 340px frame would
-         * do nothing but clip. Popped out nothing does: the tab is the user's
-         * to size, and a window that resized itself under them every rebuild
-         * would be a window fighting the drag.
-         */
-        panel = this.panels[cmd.p];
-        if (panel && cmd.cw > 0 && !this.popup) {
-          var want = Math.max(240, Math.min(cmd.cw + 24, 560));
-          if (this.frame) {
-            this.frame.style.width = want + 'px';
-            this.publishDockWidth();
-          } else if (this.root) {
-            this.root.style.width = want + 'px';
+          if (cmd.cw) {
+            const action = doc.createElement('button');
+            action.type = 'button';
+            action.className = 'rowact';
+            action.textContent = '\u2026';
+            action.title = 'Settings';
+            action.addEventListener('click', ev => {
+              ev.stopPropagation();
+              this.push({ k: INTENT.ACTION, p: cmd.p, w: cmd.w, v: 0, text: '' });
+            });
+            row.appendChild(action);
           }
+
+          const sw = doc.createElement('input');
+          sw.type = 'checkbox';
+          sw.className = 'rowsw';
+          sw.addEventListener('change', () => {
+            this.push({ k: INTENT.TOGGLE, p: cmd.p, w: cmd.w, v: sw.checked ? 1 : 0, text: '' });
+          });
+          row.appendChild(sw);
+
+          entry.control = sw;
+          entry.labelNode = name;
+          break;
         }
-        break;
-
-      case CMD.PANEL_TAB:
-        panel = this.panels[cmd.p];
-        /* The rows under the list are about to be a different set of rows. */
-        this.closeDropdown();
-        if (panel) { panel.activeTab = cmd.v; this.renderTabs(); this.reflow(); }
-        break;
-
-      case CMD.WIDGET_ADD:
-        this.makeWidget(cmd);
-        this.reflow();
-        break;
-
-      case CMD.WIDGET_REMOVE:
-        if (w) {
-          /* Before the node goes: a list left up would be hanging off a button
-           * that no longer exists, and its rows would still take clicks. */
-          if (this.dropOpen === cmd.w) this.closeDropdown();
-          if (w.row.parentNode) w.row.parentNode.removeChild(w.row);
-          delete this.widgets[cmd.w];
+        case W.MODELVIEW: {
+          /*
+           * There is no model here to draw.
+           *
+           * A MODELVIEW is a 3D preview rendered by the client's own scene, and
+           * the page has neither the scene nor the geometry -- the command
+           * stream carries a widget's shape and text, not its meshes. So this is
+           * an honest placeholder that keeps the row's place and says what it
+           * would hold, rather than an empty box that reads as a rendering bug.
+           *
+           * It still takes the focus, which is why it is a real element and not
+           * a skipped row: WIDGET_FOCUS is sent for every kind.
+           */
+          const view = doc.createElement('div');
+          view.className = 'modelview';
+          view.textContent = cmd.label || 'model preview';
+          view.title = 'Model previews are drawn by the client, not the page';
+          row.appendChild(view);
+          entry.control = view;
+          break;
         }
-        break;
-
-      case CMD.WIDGET_LABEL:
-        if (w && w.labelNode) w.labelNode.textContent = cmd.label;
-        else if (w) {
-          var lbl = w.row.querySelector('span.lbl');
-          if (lbl) lbl.textContent = cmd.label;
+        case W.FREE: {
+          /* A recycled slot. It has no appearance and takes no input; the row
+           * exists only so the handle still has a node to be removed by. */
+          row.classList.add('hidden');
+          break;
         }
-        break;
-
-      case CMD.WIDGET_TEXT:
-        if (!w) break;
-        if (w.kind === W.COLORPICK) {
-          /* The swatch always follows the model -- it holds no caret, so
-           * there is nothing to interrupt -- while the hex field is left alone
-           * whenever it has the caret, for the same reason a text input is. */
-          if (w.swatch) w.swatch.value = cmd.text;
-          if (doc.activeElement !== w.control) w.control.value = cmd.text;
-        } else if (w.kind === W.TEXTINPUT) {
-          /* Never while it has focus: the model is echoing a value the user is
-           * still editing, and writing it back would move the caret and undo
-           * whatever they typed since the last commit. */
-          if (doc.activeElement !== w.control) w.control.value = cmd.text;
-        } else if (w.kind === W.DROPDOWN && w.valueNode) {
-          w.valueNode.textContent = cmd.text;
-        } else if (w.control) {
-          w.control.textContent = cmd.text;
+        case W.TABSTRIP: {
+          /* The strip is chrome, not a row: it lives in the header, and its
+           * titles arrive as this widget's OPTIONS. The row stays empty and
+           * hidden so the handle still has a node to be removed by.
+           *
+           * Which panel owns the WINDOW is not decided here -- PANEL_OPEN says
+           * that, for tabbed and paged panels alike. All this records is which
+           * widget the strip's clicks come from. */
+          row.classList.add('hidden');
+          const panel = this.panels[cmd.p];
+          if (panel) panel.strip = cmd.w;
+          break;
         }
-        break;
-
-      case CMD.WIDGET_CHECKED:
-        /* LISTROW as well as CHECKBOX: a roster row's switch is a checkbox
-         * control and answers the same command. Leaving it out is why the
-         * roster rendered every plugin in the same state. */
-        if (w && (w.kind === W.CHECKBOX || w.kind === W.LISTROW) && w.control)
-          w.control.checked = !!cmd.v;
-        break;
-
-      case CMD.WIDGET_HIDDEN:
-        if (w) {
-          if (cmd.v && this.dropOpen === cmd.w) this.closeDropdown();
-          w.hidden = !!cmd.v;
-          this.reflow();
+        default: {
+          const span = doc.createElement('span');
+          span.textContent = cmd.text || cmd.label || '';
+          row.appendChild(span);
+          entry.control = span;
+          break;
         }
-        break;
+      }
 
-      case CMD.WIDGET_COLOR:
-        /*
-         * A per-widget text colour override; 0 means "use the theme's".
-         *
-         * The roster uses it to grey a plugin that failed to load, so dropping
-         * it -- which this did -- loses the one signal that a row is not
-         * merely switched off.
-         */
-        if (!w) break;
-        var tint = w.labelNode || w.control;
-        if (tint && tint.style)
-          tint.style.color = cmd.c ? '#' + (cmd.c & 0xFFFFFF).toString(16).padStart(6, '0') : '';
-        break;
-
-      case CMD.WIDGET_FOCUS:
-        /*
-         * The model says which field it considers focused.
-         *
-         * A DOM control owns its own focus, so this is only worth acting on
-         * when the two have drifted -- the model focusing a field the user did
-         * not click, which is how a panel rebuild restores an in-progress
-         * edit. Calling focus() on the already-focused element would be
-         * harmless; calling it on every widget every frame would not, so it is
-         * gated on the mismatch.
-         */
-        if (!w || !cmd.v || !w.control || !w.control.focus) break;
-        if (doc.activeElement !== w.control) w.control.focus();
-        break;
-
-      case CMD.WIDGET_OPTIONS:
-        if (!w) break;
-        w.options = [];
-        w.optionsWanted = cmd.v;
-        /* A list being restated is not the list the open one is showing, and
-         * a row index into the old one means nothing against the new. */
-        if (w.kind === W.DROPDOWN && this.dropOpen === cmd.w) this.closeDropdown();
-        break;
-
-      case CMD.WIDGET_OPTION:
-        if (!w) break;
-        w.options[cmd.v] = cmd.text;
-        if (w.kind === W.TABSTRIP) {
-          panel = this.panels[w.panel];
-          if (panel) { panel.tabs[cmd.v] = cmd.text; this.renderTabs(); }
-        }
-        /* A DROPDOWN's options are held and nothing else: the rows are built
-         * when the list opens, out of exactly this array. */
-        break;
-
-      case CMD.WIDGET_SELECTED:
-        if (!w) break;
-        /* The chosen index is remembered so the next open can put the cursor
-         * on it; the VALUE the button shows arrives as WIDGET_TEXT, which is
-         * the model's own string for it. */
-        if (w.kind === W.DROPDOWN) w.selected = cmd.v;
-        /* A COLORPICK's selection is its packed HSL16, and the page has no
-         * palette to turn that into pixels. It does not need one: the same
-         * change also restates the hex, which is what both controls show. */
-        break;
-
-      case CMD.WIDGET_FOCUS:
-        /* Deliberately ignored. In the DOM the BROWSER owns focus and the
-         * model's copy of it is downstream of what the user clicked here;
-         * calling .focus() on the way back would fight the caret the user just
-         * placed. The command exists for presentations that have no focus of
-         * their own -- see the CS2 executor. */
-        break;
-
-      default:
-        break;
+      this.body.appendChild(row);
+      this.widgets[cmd.w] = entry;
     }
-  };
 
-  var host = new ChromeHost();
+    apply(cmd) {
+      if (!this.root) return;
+      const w = this.widgets[cmd.w];
+      const doc = this.doc;
+      let panel;
+
+      switch (cmd.k) {
+        case CMD.PANEL_OPEN:
+          this.panels[cmd.p] = { tabs: [], activeTab: 0, strip: -1 };
+          /*
+           * The panel this window is SHOWING, which is what Ok and Close name.
+           *
+           * Latched here because PANEL_OPEN is the only command that carries it
+           * and every window has one. It used to be latched when a TABSTRIP was
+           * added instead -- true of a tabbed panel, and the plugin window is
+           * PAGED, not tabbed, so no strip ever arrived: the handle stayed -1,
+           * both title-bar buttons addressed panel -1, and the model quietly
+           * validated them away. The window could be closed from anywhere except
+           * its own close mark.
+           */
+          this.tabPanel = cmd.p;
+          if (cmd.text && this.titleEl) this.titleEl.firstChild.textContent = cmd.text;
+          break;
+
+        case CMD.PANEL_CLOSE:
+          delete this.panels[cmd.p];
+          this.closeDropdown();
+          /* Its rows go with it: the seam says so once and means all of them,
+           * so a DOM node left behind would be a control with no model. */
+          for (const handle in this.widgets) {
+            if (!Object.prototype.hasOwnProperty.call(this.widgets, handle)) continue;
+            if (this.widgets[handle].panel !== cmd.p) continue;
+            const node = this.widgets[handle].row;
+            if (node.parentNode) node.parentNode.removeChild(node);
+            delete this.widgets[handle];
+          }
+          if (this.tabPanel === cmd.p) { this.tabPanel = -1; this.renderTabs(); }
+          break;
+
+        case CMD.PANEL_TITLE:
+          if (this.titleEl) this.titleEl.firstChild.textContent = cmd.text;
+          break;
+
+        case CMD.PANEL_RECT:
+          /*
+           * The model's box, of which the page honours the WIDTH only.
+           *
+           * Position is deliberately ignored: the model lays its panels out in
+           * canvas coordinates, and this window is not in the canvas at all --
+           * it is a frame beside it, a tab of its own, or an overlay pinned to a
+           * corner. Height is ignored for a sharper reason now: docked, it is
+           * the CANVAS's, because the two are meant to read as one object;
+           * popped out it is the tab's; floating it scrolls under a 70vh cap.
+           * None of those is the model's idea of how tall its rows came out.
+           *
+           * Width is different: it is the one dimension the model sizes to its
+           * CONTENT (the widest row it laid out), so ignoring it is what made a
+           * panel of long plugin names sit in a 340px column and ellipsise.
+           * Clamped, because a model that wants 1200px still may not have it.
+           *
+           * It lands on whatever owns the width. Docked that is the IFRAME --
+           * the root fills it, so widening the root inside a 340px frame would
+           * do nothing but clip. Popped out nothing does: the tab is the user's
+           * to size, and a window that resized itself under them every rebuild
+           * would be a window fighting the drag.
+           */
+          panel = this.panels[cmd.p];
+          if (panel && cmd.cw > 0 && !this.popup) {
+            const want = Math.max(240, Math.min(cmd.cw + 24, 560));
+            if (this.frame) {
+              this.frame.style.width = `${want}px`;
+              this.publishDockWidth();
+            } else if (this.root) {
+              this.root.style.width = `${want}px`;
+            }
+          }
+          break;
+
+        case CMD.PANEL_TAB:
+          panel = this.panels[cmd.p];
+          /* The rows under the list are about to be a different set of rows. */
+          this.closeDropdown();
+          if (panel) { panel.activeTab = cmd.v; this.renderTabs(); this.reflow(); }
+          break;
+
+        case CMD.WIDGET_ADD:
+          this.makeWidget(cmd);
+          this.reflow();
+          break;
+
+        case CMD.WIDGET_REMOVE:
+          if (w) {
+            /* Before the node goes: a list left up would be hanging off a button
+             * that no longer exists, and its rows would still take clicks. */
+            if (this.dropOpen === cmd.w) this.closeDropdown();
+            if (w.row.parentNode) w.row.parentNode.removeChild(w.row);
+            delete this.widgets[cmd.w];
+          }
+          break;
+
+        case CMD.WIDGET_LABEL:
+          if (w && w.labelNode) w.labelNode.textContent = cmd.label;
+          else if (w) {
+            const lbl = w.row.querySelector('span.lbl');
+            if (lbl) lbl.textContent = cmd.label;
+          }
+          break;
+
+        case CMD.WIDGET_TEXT:
+          if (!w) break;
+          if (w.kind === W.COLORPICK) {
+            /* The swatch always follows the model -- it holds no caret, so
+             * there is nothing to interrupt -- while the hex field is left alone
+             * whenever it has the caret, for the same reason a text input is. */
+            if (w.swatch) w.swatch.value = cmd.text;
+            if (doc.activeElement !== w.control) w.control.value = cmd.text;
+          } else if (w.kind === W.TEXTINPUT) {
+            /* Never while it has focus: the model is echoing a value the user is
+             * still editing, and writing it back would move the caret and undo
+             * whatever they typed since the last commit. */
+            if (doc.activeElement !== w.control) w.control.value = cmd.text;
+          } else if (w.kind === W.DROPDOWN && w.valueNode) {
+            w.valueNode.textContent = cmd.text;
+          } else if (w.control) {
+            w.control.textContent = cmd.text;
+          }
+          break;
+
+        case CMD.WIDGET_CHECKED:
+          /* LISTROW as well as CHECKBOX: a roster row's switch is a checkbox
+           * control and answers the same command. Leaving it out is why the
+           * roster rendered every plugin in the same state. */
+          if (w && (w.kind === W.CHECKBOX || w.kind === W.LISTROW) && w.control)
+            w.control.checked = !!cmd.v;
+          break;
+
+        case CMD.WIDGET_HIDDEN:
+          if (w) {
+            if (cmd.v && this.dropOpen === cmd.w) this.closeDropdown();
+            w.hidden = !!cmd.v;
+            this.reflow();
+          }
+          break;
+
+        case CMD.WIDGET_COLOR:
+          /*
+           * A per-widget text colour override; 0 means "use the theme's".
+           *
+           * The roster uses it to grey a plugin that failed to load, so dropping
+           * it -- which this did -- loses the one signal that a row is not
+           * merely switched off.
+           */
+          if (!w) break;
+          const tint = w.labelNode || w.control;
+          if (tint && tint.style)
+            tint.style.color = cmd.c ? `#${(cmd.c & 0xFFFFFF).toString(16).padStart(6, '0')}` : '';
+          break;
+
+        case CMD.WIDGET_FOCUS:
+          /*
+           * The model says which field it considers focused.
+           *
+           * A DOM control owns its own focus, so this is only worth acting on
+           * when the two have drifted -- the model focusing a field the user did
+           * not click, which is how a panel rebuild restores an in-progress
+           * edit. Calling focus() on the already-focused element would be
+           * harmless; calling it on every widget every frame would not, so it is
+           * gated on the mismatch.
+           */
+          if (!w || !cmd.v || !w.control || !w.control.focus) break;
+          if (doc.activeElement !== w.control) w.control.focus();
+          break;
+
+        case CMD.WIDGET_OPTIONS:
+          if (!w) break;
+          w.options = [];
+          w.optionsWanted = cmd.v;
+          /* A list being restated is not the list the open one is showing, and
+           * a row index into the old one means nothing against the new. */
+          if (w.kind === W.DROPDOWN && this.dropOpen === cmd.w) this.closeDropdown();
+          break;
+
+        case CMD.WIDGET_OPTION:
+          if (!w) break;
+          w.options[cmd.v] = cmd.text;
+          if (w.kind === W.TABSTRIP) {
+            panel = this.panels[w.panel];
+            if (panel) { panel.tabs[cmd.v] = cmd.text; this.renderTabs(); }
+          }
+          /* A DROPDOWN's options are held and nothing else: the rows are built
+           * when the list opens, out of exactly this array. */
+          break;
+
+        case CMD.WIDGET_SELECTED:
+          if (!w) break;
+          /* The chosen index is remembered so the next open can put the cursor
+           * on it; the VALUE the button shows arrives as WIDGET_TEXT, which is
+           * the model's own string for it. */
+          if (w.kind === W.DROPDOWN) w.selected = cmd.v;
+          /* A COLORPICK's selection is its packed HSL16, and the page has no
+           * palette to turn that into pixels. It does not need one: the same
+           * change also restates the hex, which is what both controls show. */
+          break;
+
+        case CMD.WIDGET_FOCUS:
+          /* Deliberately ignored. In the DOM the BROWSER owns focus and the
+           * model's copy of it is downstream of what the user clicked here;
+           * calling .focus() on the way back would fight the caret the user just
+           * placed. The command exists for presentations that have no focus of
+           * their own -- see the CS2 executor. */
+          break;
+
+        default:
+          break;
+      }
+    }
+  }
+
+  const host = new ChromeHost();
 
   /* The hooks C looks for. Their PRESENCE is the availability test -- the
    * client asks before it binds, so a cached page without them degrades to
    * in-canvas chrome instead of a window that silently does nothing. */
-  global.torirsChromeOpen = function () { return host.open(); };
-  global.torirsChromeClose = function () { host.close(); };
-  global.torirsChromeApply = function (cmd) { host.apply(cmd); };
-  global.torirsChromeTakeIntent = function () { return host.takeIntent(); };
+  global.torirsChromeOpen = () => host.open();
+  global.torirsChromeClose = () => { host.close(); };
+  global.torirsChromeApply = cmd => { host.apply(cmd); };
+  global.torirsChromeTakeIntent = () => host.takeIntent();
   /* The skin's three, called between open() and the first command. Their
    * absence is not an error on either side: a client that does not send them
    * leaves the window on its flat sheet, and a page that does not define them
    * is simply never called. */
-  global.torirsChromeSkinMetrics = function (m) { host.skinMetrics(m); };
-  global.torirsChromeSkinSprite = function (slot, w, h, b64) {
+  global.torirsChromeSkinMetrics = m => { host.skinMetrics(m); };
+  global.torirsChromeSkinSprite = (slot, w, h, b64) => {
     host.skinSprite(slot, w, h, b64);
   };
-  global.torirsChromeSkinDone = function () { host.skinDone(); };
+  global.torirsChromeSkinDone = () => { host.skinDone(); };
 
   /* Exported for the node tests, which drive the same host against a fake
    * document -- no browser, no wasm, matching web/test/channel_*.js. */
   if (typeof module !== 'undefined' && module.exports)
-    module.exports = {
-      ChromeHost: ChromeHost, CMD: CMD, W: W, INTENT: INTENT, SKIN: SKIN,
-      METRICS: METRICS
-    };
+    module.exports = { ChromeHost, CMD, W, INTENT, SKIN, METRICS };
 })(typeof window !== 'undefined' ? window : globalThis);

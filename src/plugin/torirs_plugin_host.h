@@ -72,9 +72,16 @@ struct ToriRS_PluginEngine
     int (*npc_by_slot)(void* user, int server_slot, struct ToriRS_PluginNpcSnap* out);
     int (*player_next)(void* user, int iter, struct ToriRS_PluginPlayerSnap* out);
     int (*obj_next)(void* user, int iter, struct ToriRS_PluginObjSnap* out);
+    int (*loc_next)(void* user, int iter, struct ToriRS_PluginLocSnap* out);
 
     int (*key_held)(void* user, int keycode);
     int (*hover_tile)(void* user, int* out_tile_x, int* out_tile_z, int* out_level);
+    int (*hover_entity)(void* user, struct ToriRS_PluginHoverEntity* out);
+    int (*element_height)(void* user, int element_id);
+
+    /** The client's live var state, read-only. @see ToriRS_PluginApi::varbit. */
+    int (*varbit)(void* user, int varbit_id);
+    int (*varp)(void* user, int varp_id);
 
     int (*project)(
         void* user,
@@ -218,6 +225,9 @@ char const* PluginHost_Error(struct ToriRS_PluginHost const* host, int plugin_in
  *  the settings roster is the only caller, and it reads it to decide whether
  *  the row is worth showing. */
 bool PluginHost_IsAdapter(struct ToriRS_PluginHost const* host, int plugin_index);
+/** Is this a builtin, whose switch lives in the cache's All Settings panel?
+ *  @see ToriRS_PluginDef::hidden. The roster is the only caller. */
+bool PluginHost_IsHidden(struct ToriRS_PluginHost const* host, int plugin_index);
 void PluginHost_SetError(struct ToriRS_PluginHost* host, int plugin_index, char const* text);
 int PluginHost_IndexOf(struct ToriRS_PluginHost const* host, char const* name);
 
@@ -242,6 +252,14 @@ void PluginHost_WorldLoaded(struct ToriRS_PluginHost* host, int base_tile_x, int
 void PluginHost_NpcSpawn(struct ToriRS_PluginHost* host, struct ToriRS_PluginNpcSnap const* npc);
 void PluginHost_NpcRetype(struct ToriRS_PluginHost* host, struct ToriRS_PluginNpcSnap const* npc);
 void PluginHost_NpcDespawn(struct ToriRS_PluginHost* host, struct ToriRS_PluginNpcSnap const* npc);
+
+/**
+ * An All Settings row was used: the panel's apply hub just named `setting_id`.
+ *
+ * `value` is -1 for the rows whose hub carries none -- every toggle, and the
+ * buttons this exists for.
+ */
+void PluginHost_Setting(struct ToriRS_PluginHost* host, int setting_id, int value);
 
 /** A chat line landed. `sender` may be NULL for a system message. */
 void PluginHost_ChatMessage(

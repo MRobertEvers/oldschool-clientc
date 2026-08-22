@@ -156,10 +156,52 @@ LOCAL_NAMES: dict[int, str] = {
     6707: "CLIENTOP_PLAYER_DEL",  # vendor: _6707
     6708: "CLIENTOP_TILE_SET",  # vendor: _6708
     6709: "CLIENTOP_TILE_DEL",  # vendor: _6709
+    # HIGHLIGHT_* runs in groups of five per subject -- SETUP, ON, OFF, GET,
+    # CLEAR, in that order -- and the vendor table names only the ON/OFF pair of
+    # each. The pair fixes which subject the group is, and the other three fall
+    # out of the fixed order; every one of them is confirmed by the arity in
+    # 3rd/rscache/src/cs2/cs2_command.gen.h (SETUP pops 5, GET pushes a bool,
+    # CLEAR pops the group alone, and ON/OFF/GET all share the subject's key).
+    #
+    # 7040..7044 are a NINTH group of the same shape -- (5), (int,str), (int,str),
+    # (int,str)->int, (int) -- and are used by the cache (script 6689 toggles
+    # 7041/7042 behind 7043, script 6698 reads 7043 beside HIGHLIGHT_NPC_GET on
+    # the same group). They are newer than the vendored Opcodes.kt, so no ON/OFF
+    # name pins their subject; they stay _70xx rather than being given an
+    # invented one.
+    7000: "HIGHLIGHT_NPC_SETUP",  # vendor: _7000
+    7003: "HIGHLIGHT_NPC_GET",  # vendor: _7003
+    7004: "HIGHLIGHT_NPC_CLEAR",  # vendor: _7004
+    7005: "HIGHLIGHT_NPCTYPE_SETUP",  # vendor: _7005
+    7008: "HIGHLIGHT_NPCTYPE_GET",  # vendor: _7008
+    7009: "HIGHLIGHT_NPCTYPE_CLEAR",  # vendor: _7009
+    7010: "HIGHLIGHT_LOC_SETUP",  # vendor: _7010
     7013: "HIGHLIGHT_LOC_GET",  # vendor: _7013
     7014: "HIGHLIGHT_LOC_CLEAR",  # vendor: _7014
+    7015: "HIGHLIGHT_LOCTYPE_SETUP",  # vendor: _7015
+    7018: "HIGHLIGHT_LOCTYPE_GET",  # vendor: _7018
+    7019: "HIGHLIGHT_LOCTYPE_CLEAR",  # vendor: _7019
+    7020: "HIGHLIGHT_OBJ_SETUP",  # vendor: _7020
     7023: "HIGHLIGHT_OBJ_GET",  # vendor: _7023
+    7024: "HIGHLIGHT_OBJ_CLEAR",  # vendor: _7024
     7025: "HIGHLIGHT_OBJTYPE_SETUP",  # vendor: _7025
+    7028: "HIGHLIGHT_OBJTYPE_GET",  # vendor: _7028
+    7029: "HIGHLIGHT_OBJTYPE_CLEAR",  # vendor: _7029
+    7030: "HIGHLIGHT_PLAYER_SETUP",  # vendor: _7030
+    7033: "HIGHLIGHT_PLAYER_GET",  # vendor: _7033
+    7034: "HIGHLIGHT_PLAYER_CLEAR",  # vendor: _7034
+    7035: "HIGHLIGHT_TILE_SETUP",  # vendor: _7035
+    7038: "HIGHLIGHT_TILE_GET",  # vendor: _7038
+    7039: "HIGHLIGHT_TILE_CLEAR",  # vendor: _7039
+    # The ninth group. Named after their ids on purpose: the shape is the
+    # PLAYER group's, but nothing names the subject, and a #define is the wrong
+    # place to guess one. They are listed here only so the ids get a define and
+    # a signature at all -- without an entry the vendor table simply has no 7040.
+    7040: "_7040",  # not in vendor
+    7041: "_7041",  # not in vendor
+    7042: "_7042",  # not in vendor
+    7043: "_7043",  # not in vendor
+    7044: "_7044",  # not in vendor
     7100: "MINIMENU_TYPE",  # vendor: _7100
     7101: "MINIMENU_ENTRY",  # vendor: _7101
     7102: "MINIMENU_FINDNPC",  # vendor: _7102

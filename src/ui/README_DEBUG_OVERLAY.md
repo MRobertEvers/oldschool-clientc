@@ -575,7 +575,32 @@ different cache — or no bake at all — needs no change here.
 | `SCROLL_GRIP_TOP/MID/BOTTOM` | 789 / 790 / 791 | the grip: middle stretched, then a cap on each end |
 | `PLUGIN_ICON` | `sideicons_interface_11` (785) | the wrench that opens the plugin window from the gameframe's strip |
 | `CHECK_ON` / `CHECK_OFF` | 8380 / 8379 | every on/off state: a checkbox, and a roster row's switch |
-| `FRAME_TOP_LEFT` … `FRAME_BOTTOM_RIGHT` | 5814–5822 | the nine-slice border a framed panel wears |
+| `FRAME_TOP_LEFT` … `FRAME_BOTTOM_RIGHT` | 846/820/847, 821/841, 848/828/849 | the nine-slice border a framed panel wears |
+
+**The frame is the popout strip's own, and finding it needed a component dump.**
+An earlier bake used 5814–5822, a thin near-black nine-slice sitting beside the
+real one in the cache. Those components are `hidden=1` on every frame interface
+728 draws — which a screenshot cannot tell you and
+`TORIRS_DUMP_BOUNDS=728` can, because it prints each component's resolved sprite
+id beside its box. The visible pieces are the chunky olive rail the strip wears.
+
+Two thicknesses, not one. The **rail** is 6px — that is what the content column
+is inset by (`TORIRS_CHROME_M_FRAME`). The **corners** are 32×32 tiles carrying
+an L of that rail along their two outer edges (`_M_FRAME_CORNER`), blitted
+square rather than at the rail's width; their outermost pixel is transparent, so
+the corner reads as rounded. A panel narrower than two corners has no edge run
+and wears overlapping ones — which is exactly what the 42px-wide strip does with
+this art, not a case to guard against.
+
+The four **edge** pieces are baked **cropped**. In the cache they are 32×32 tiles
+with the 6px bar floating in the middle, positioned by the component's own
+negative offset (`820` sits at y −14 so its bar lands on the strip's top edge).
+`spritebake`'s `@X,Y,W,H` takes the bar out at bake time, so neither rasteriser
+has to know about a tile it draws none of, and the crop windows are readable in
+the generated file's own regenerate line.
+
+There is **no `FRAME_CENTRE`**. The cache authors one and the strip never draws
+it; a slot for an image nothing draws is a slot every consumer has to carry.
 | `CLOSE` / `CLOSE_OVER` | 831 / 832 | a closable panel's window X, resting and under the cursor |
 
 **A closable panel has ONE title-bar button.** There was an Ok beside the close

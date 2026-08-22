@@ -116,6 +116,14 @@ fake_player_next(void* u, int iter, struct ToriRS_PluginPlayerSnap* out)
     return -1;
 }
 static int
+fake_loc_next(void* u, int iter, struct ToriRS_PluginLocSnap* out)
+{
+    (void)u;
+    (void)iter;
+    (void)out;
+    return -1;
+}
+static int
 fake_key_held(void* u, int key)
 {
     (void)u;
@@ -129,6 +137,39 @@ fake_hover_tile(void* u, int* ox, int* oz, int* olevel)
     *oz = 3200;
     *olevel = 0;
     return 1;
+}
+static int
+fake_hover_entity(void* u, struct ToriRS_PluginHoverEntity* out)
+{
+    (void)u;
+    out->kind = TORIRS_PLUGIN_HOVER_NPC;
+    out->element_id = 7;
+    out->tile_x = 3200;
+    out->tile_z = 3200;
+    out->level = 0;
+    return 1;
+}
+/* Two ids with values, so a test can tell a read from a zeroed struct; every
+ * other id answers 0, which is what the api promises for one this revision
+ * does not define. */
+static int
+fake_element_height(void* u, int element_id)
+{
+    (void)u;
+    return element_id >= 0 ? 200 : 0;
+}
+static int
+fake_varbit(void* u, int id)
+{
+    (void)u;
+    return id == 12977 ? 1 : 0;
+}
+static int
+fake_varp(void* u, int id)
+{
+    (void)u;
+    /* The colour rows store `colour + 1`; 0x00FF00 + 1 here. */
+    return id == 3108 ? 0x00FF01 : 0;
 }
 static int
 fake_project(void* u, int fx, int fz, int h, int* ox, int* oy)
@@ -391,8 +432,13 @@ fake_engine(void)
     e.npc_next = fake_npc_next;
     e.npc_by_slot = fake_npc_by_slot;
     e.player_next = fake_player_next;
+    e.loc_next = fake_loc_next;
     e.key_held = fake_key_held;
     e.hover_tile = fake_hover_tile;
+    e.hover_entity = fake_hover_entity;
+    e.element_height = fake_element_height;
+    e.varbit = fake_varbit;
+    e.varp = fake_varp;
     e.project = fake_project;
     e.draw_tile = fake_draw_tile;
     e.draw_hull = fake_draw_hull;
