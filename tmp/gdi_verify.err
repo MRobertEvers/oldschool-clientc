@@ -1,0 +1,162 @@
+torirs: dat2 cache=manifests/../cache.osrs239 iface=161
+audio: no device; running silent
+torirsserver: features era=osrs approach=rect op_nearest=10 ground_nearest=box10_rect unbounded=0 under_routes_out=1 run_energy=osrs2025
+torirsserver: obj metadata loaded (33971 records from manifests/../cache.osrs239, 53926 params in 1263 KB)
+torirsserver: npc metadata loaded (16338 records from manifests/../cache.osrs239, 30103 params in 705 KB)
+torirsserver: sequence debug names loaded (0 named — falling back to pack/seq.pack, 14475 priorities)
+torirsserver: loc configs loaded (62400 records from manifests/../cache.osrs239; 1733 param rows in 41592 bytes, 30109 names in 567075 bytes, 17412 footprints in 139296 bytes, 8434 categories in 67472 bytes)
+torirsserver: struct params loaded (3990 records from manifests/../cache.osrs239, 20768 rows in 878 KB)
+torirsserver: 2886 varp(s) carry varbits (highest basevar 5724)
+torirsserver: varbit table loaded (19086 records from manifests/../cache.osrs239)
+torirsserver: client varp capacity 5725 from manifests/../cache.osrs239
+torirsserver: 1117 param types from configs/all.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/areas/area_mage_arena/configs/mage_arena.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/doors/configs/doors.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/interface_bank/configs/bank.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/minigames/game_mortton/configs/mortton_shades.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/npc/configs/npc.param
+torirsserver: 7 server param type(s) from OSRS-Content/osrs239-content/server/scripts/player/configs/bas.param
+torirsserver: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/player/configs/consumption/consume.param
+torirsserver: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/player/configs/death.param
+torirsserver: 3 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_fluffs/configs/quest_fluffs.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_haunted/configs/quest_haunted.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_hazeelcult/configs/quest_hazeelcult.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_legends/configs/quest_legends.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_mm/configs/quest_mm.param
+torirsserver: 22 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_mortton/configs/quest_mortton.param
+torirsserver: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_murder/configs/quest_murder.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_tbwt/configs/quest_tbwt.param
+torirsserver: 3 server param type(s) from OSRS-Content/osrs239-content/server/scripts/quests/quest_upass/configs/quest_upass.param
+torirsserver: 8 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_agility/configs/agility.param
+torirsserver: 48 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/combat.param
+torirsserver: 13 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/npc_combat.param
+torirsserver: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_combat/configs/weapon_poison.param
+torirsserver: 10 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_cooking/configs/gnome_cooking/gnome_cooking.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_fishing/configs/fishing.param
+torirsserver: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_magic/configs/magic.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_mining/configs/mining.param
+torirsserver: 2 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_mining/configs/pickaxes.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_prayer/configs/bones.param
+torirsserver: 1 server param type(s) from OSRS-Content/osrs239-content/server/scripts/skill_runecraft/configs/runecraft.param
+torirsserver: 5862 enums from configs/all.enum
+torirsserver: 288 shop definitions from server/scripts/**/*.inv
+torirsserver: content loaded (239088 symbols, 12762 constants, 9431 npc defs, 4139 loc defs, 2066 varp defs, 1515 equip reqs (677 from the cache), 23158 npc spawns, 2256 obj spawns)
+torirsserver: 218 config line(s) restate a field the client's own record carries — the cache already says it, so the overlay is inert
+torirsserver: server band: npc [poh_giantspider] 134: `attack_anim` is 143 in the band but 5327 from the text overlays
+torirsserver: server band: npc [poh_giantspider] 134: `death_anim` is 146 in the band but 5329 from the text overlays
+torirsserver: server band: npc [chicken] 1173: `attack_anim` is 55 in the band but 5387 from the text overlays
+torirsserver: server band: npc [chicken] 1173: `death_anim` is 57 in the band but 5389 from the text overlays
+torirsserver: server band: npc [ramunsheeredshaggy] 1265: `attack_anim` is 3842 in the band but 5338 from the text overlays
+torirsserver: server band: npc [ramunsheeredshaggy] 1265: `defend_anim` is 3841 in the band but 5337 from the text overlays
+torirsserver: server band: npc [ramunsheeredshaggy] 1265: `death_anim` is 253 in the band but 5336 from the text overlays
+torirsserver: server band: npc [godwars_goblin2] 2246: `attack_anim` is 309 in the band but 6184 from the text overlays
+torirsserver: server band: npc [godwars_goblin2] 2246: `defend_anim` is 312 in the band but 6183 from the text overlays
+torirsserver: server band: npc [godwars_goblin2] 2246: `death_anim` is 313 in the band but 6182 from the text overlays
+torirsserver: server band: npc [godwars_goblin4] 2248: `attack_anim` is 309 in the band but 6184 from the text overlays
+torirsserver: server band: npc [godwars_goblin4] 2248: `defend_anim` is 312 in the band but 6183 from the text overlays
+torirsserver: server band: npc [godwars_goblin4] 2248: `death_anim` is 313 in the band but 6182 from the text overlays
+torirsserver: server band: npc [sos_pest_giantspider1] 2477: `attack_anim` is 143 in the band but 5327 from the text overlays
+torirsserver: server band: npc [sos_pest_giantspider1] 2477: `death_anim` is 146 in the band but 5329 from the text overlays
+torirsserver: server band: npc [cow] 2790: `attack_anim` is 59 in the band but 5849 from the text overlays
+torirsserver: server band: npc [cow] 2790: `death_anim` is 62 in the band but 5851 from the text overlays
+torirsserver: server band: npc [rat] 2854: `attack_anim` is 240 in the band but 2705 from the text overlays
+torirsserver: server band: npc [rat] 2854: `death_anim` is 243 in the band but 2707 from the text overlays
+torirsserver: server band: npc [giantspider1] 3017: `attack_anim` is 143 in the band but 5327 from the text overlays
+torirsserver: server band: npc [giantspider1] 3017: `death_anim` is 146 in the band but 5329 from the text overlays
+torirsserver: server band: npc [giantspider2] 3018: `attack_anim` is 143 in the band but 5327 from the text overlays
+torirsserver: server band: npc [giantspider2] 3018: `death_anim` is 146 in the band but 5329 from the text overlays
+torirsserver: server band: npc [goblin] 3028: `attack_anim` is 309 in the band but 6184 from the text overlays
+torirsserver: server band: npc [goblin] 3028: `defend_anim` is 312 in the band but 6183 from the text overlays
+torirsserver: server band: npc [goblin] 3028: `death_anim` is 313 in the band but 6182 from the text overlays
+torirsserver: server band: npc [goblin_unarmed_melee_in_3] 3039: `attack_anim` is 309 in the band but 6184 from the text overlays
+torirsserver: server band: npc [goblin_unarmed_melee_in_3] 3039: `defend_anim` is 312 in the band but 6183 from the text overlays
+torirsserver: server band: npc [goblin_unarmed_melee_in_3] 3039: `death_anim` is 313 in the band but 6182 from the text overlays
+torirsserver: server band: npc [goblin_armed] 3045: `attack_anim` is 309 in the band but 6188 from the text overlays
+torirsserver: server band: npc [goblin_armed] 3045: `defend_anim` is 312 in the band but 6189 from the text overlays
+torirsserver: server band: npc [goblin_armed] 3045: `death_anim` is 313 in the band but 6190 from the text overlays
+torirsserver: server band: npc [goblin_armed_melee_4] 3054: `attack_anim` is 309 in the band but 6185 from the text overlays
+torirsserver: server band: npc [goblin_armed_melee_4] 3054: `defend_anim` is 312 in the band but 6183 from the text overlays
+torirsserver: server band: npc [goblin_armed_melee_4] 3054: `death_anim` is 313 in the band but 6182 from the text overlays
+torirsserver: server band: npc [dragonslayer_giantrat_1_key] 3969: `attack` is 3 in the band but 2 from the text overlays
+torirsserver: server band: npc [dragonslayer_giantrat_1_key] 3969: `defence` is 3 in the band but 2 from the text overlays
+torirsserver: server band: npc [dragonslayer_giantrat_1_key] 3969: `hitpoints` is 8 in the band but 5 from the text overlays
+torirsserver: server band: npc [dragonslayer_giantrat_1_key] 3969: `attack_anim` is 240 in the band but 4933 from the text overlays
+torirsserver: server band: npc [dragonslayer_giantrat_1_key] 3969: `death_anim` is 243 in the band but 4935 from the text overlays
+torirsserver: server band: npc [dragonslayer_giantrat_2] 3970: `attack_anim` is 240 in the band but 4933 from the text overlays
+torirsserver: server band: npc [dragonslayer_giantrat_2] 3970: `death_anim` is 243 in the band but 4935 from the text overlays
+torirsserver: server band: npc.attack stays text-loaded on 1439 record(s) — the band has no wire for it
+torirsserver: server band: npc.defence stays text-loaded on 1486 record(s) — the band has no wire for it
+torirsserver: server band: npc.strength stays text-loaded on 1428 record(s) — the band has no wire for it
+torirsserver: server band: npc.hitpoints stays text-loaded on 1674 record(s) — the band has no wire for it
+torirsserver: server band: npc.ranged stays text-loaded on 1478 record(s) — the band has no wire for it
+torirsserver: server band: npc.magic stays text-loaded on 1537 record(s) — the band has no wire for it
+torirsserver: server band: npc.attackrate stays text-loaded on 26 record(s) — the band has no wire for it
+torirsserver: server band: npc.death_drop stays text-loaded on 871 record(s) — the band has no wire for it
+torirsserver: server band: npc.attack_anim stays text-loaded on 7624 record(s) — the band has no wire for it
+torirsserver: server band: npc.defend_anim stays text-loaded on 7653 record(s) — the band has no wire for it
+torirsserver: server band: npc.death_anim stays text-loaded on 7571 record(s) — the band has no wire for it
+torirsserver: server band: npc.blockwalk stays text-loaded on 7 record(s) — the band has no wire for it
+torirsserver: server band: npc.retaliate stays text-loaded on 158 record(s) — the band has no wire for it
+torirsserver: server band: npc.healthbar stays text-loaded on 14 record(s) — the band has no wire for it
+torirsserver: server band: npc.hitsplat stays text-loaded on 3 record(s) — the band has no wire for it
+torirsserver: server band: npc.attack_sound stays text-loaded on 540 record(s) — the band has no wire for it
+torirsserver: server band: npc.defend_sound stays text-loaded on 557 record(s) — the band has no wire for it
+torirsserver: server band: npc.death_sound stays text-loaded on 574 record(s) — the band has no wire for it
+torirsserver: server band: npc.wanderrange stays text-loaded on 1200 record(s) — the band has no wire for it
+torirsserver: server band: npc.maxrange stays text-loaded on 139 record(s) — the band has no wire for it
+torirsserver: server band: npc.huntrange stays text-loaded on 918 record(s) — the band has no wire for it
+torirsserver: server band: npc.timer stays text-loaded on 5 record(s) — the band has no wire for it
+torirsserver: server band: npc.respawnrate stays text-loaded on 1055 record(s) — the band has no wire for it
+torirsserver: server band: npc.moverestrict stays text-loaded on 1447 record(s) — the band has no wire for it
+torirsserver: server band: npc.nomove stays text-loaded on 228 record(s) — the band has no wire for it
+torirsserver: server band: npc.huntmode stays text-loaded on 840 record(s) — the band has no wire for it
+torirsserver: server band: npc.givechase stays text-loaded on 12 record(s) — the band has no wire for it
+torirsserver: server band: loc.next_loc_stage stays text-loaded on 240 record(s) — the band has no wire for it
+torirsserver: server band is STALE (0 unreadable, 42 mismatched archive(s)) — text overlays kept; re-run `make -C src torirsserver-servpack`
+torirsserver: db schemas loaded (248 schema(s) installed from manifests/../cache.osrs239; 248 archive table(s))
+torirsserver: db tables loaded (330 tables, 21990 rows from manifests/../cache.osrs239; 15495 row(s) filled; 16790 archive row(s))
+torirsserver: bank tables loaded (19086 varbits, bank=1410 slots)
+torirsserver: shop inv 2069 has a definition but no cache size; not seeded
+torirsserver: shop inv 2070 has a definition but no cache size; not seeded
+torirsserver: seeded 273 shared shop(s) from baseline stock
+torirsserver: embedded wire osrs239
+sim_hotkey: 'p' -> osrs_key=41 at frame 180
+plugin: 10 of 11 enabled -- tile-indicator-c (off), nxt-highlight, nxt-poll-booths, nxt-bird-nest, nxt-cannon-ammo, lua, tile-indicator-lua, entity-highlighter, loot-beam, ground-items, screenshot
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+[loot-beam] prices.txt: 10 price overrides
+[ground-items] prices.txt: 10 price overrides
+torirsserver: login user='testc' session=ok
+torirsserver: 29520 scripts loaded from OSRS-Content/osrs239-content/server/scripts/build
+torirsserver: stated gap HINT_NPC             (first wanted by [proc,ahoy_spawn_lobster])
+torirsserver: stated gap HINT_STOP            (first wanted by [label,troll_dad_surrender])
+torirsserver: 3 engine fallback(s) still answer triggers content does not bind
+torirsserver: content binds a trigger over a verb the engine answers itself:
+  [opnpc5,chompybird]                takes "Attack" without re-issuing it (P_OPNPC)
+  [opnpc1,doti_backupactor]          takes "Attack" without re-issuing it (P_OPNPC)
+torirsserver: 2 script(s) shadow an engine verb — check each does the engine's job or means not to; this is a review list, not an error
+torirsserver: scene built at zone 402,402 (base 3168,3168 — 8426 locs)
+torirsserver: npc roster 23158 spawn(s), 993 standing, slot_max=993
+torirsserver: scene built at zone 381,406 (base 3000,3200 — 9365 locs)
+osrs239 login: OK, local player index 1
+textures: sprite-backed system (no materials table)
+world_load: 6 chunks, 16 underlays, 31 overlays, 29 textures, 1473 locs, 897 models, 20 seqs
+sharelight: map element footprint 1x8 needs 41 adjacency slots (buffer 1222)
+torirsserver: osrs239 has no UPDATE_PID -- dropping it (reported once)
+torirsserver: osrs239 has no AMBIENTSOUND_START -- dropping it (reported once)
+torirsserver: osrs239 has no OBJ_ADD -- dropping it (reported once)
+Failed to load dat2 idk 307
+spawn_player: element=21413 tile=52,52 level=0
+if-opentop: switching root 161 -> 548
+cs2: HIGHLIGHT opcode 7040 is not recorded -- its subject is a name, and the string stack is discarded before the host sees it
+windowmode: fixed
+client_layout: mode=0
+message_game: Welcome to the mock 230 world.
+message_game: Click to walk. Right-click an npc to talk.
+message_game: Welcome to Lumbridge.
+message_game: Goblins east of the river. Guards on the Al Kharid road.
+message_game: Try ::style 1 for aggressive, or ::setlevel 2 40 for some strength.
+message_game: A crop circle is active near Doric's Hut.
+message_game: <col=ff0000>You have unlocked a new music track: Sea Shanty 2
+io: cannot replace preferences.ini
+prefs: could not write preferences.ini
+torirsserver: cannot replace saves/testc.ini

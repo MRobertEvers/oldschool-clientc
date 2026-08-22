@@ -104,6 +104,12 @@ def read_or_none(path):
 UNREADABLE = []
 
 
+def in_disabled_lane(path):
+    """True when path is inside a lane excluded from the stock script pack."""
+    return any(part in DISABLED_LANE_DIRS
+               for part in os.path.normpath(path).split(os.sep))
+
+
 def main():
     defined = {}
     called = set()
@@ -149,7 +155,7 @@ def main():
         procs = set(re.findall(r"^\[debugproc,([a-z0-9_]+)\]", text, re.M))
         if not procs or (procs & driven):
             continue
-        if any(("/%s/" % lane) in path for lane in DISABLED_LANE_DIRS):
+        if in_disabled_lane(path):
             continue
         undriven.append((len(re.findall("FAIL", text)), path, sorted(procs)))
     undriven.sort(reverse=True)
@@ -158,7 +164,7 @@ def main():
     for name, path in sorted(defined.items()):
         if name in registered or name in called:
             continue
-        if any(("/%s/" % lane) in path for lane in DISABLED_LANE_DIRS):
+        if in_disabled_lane(path):
             continue
         dead.append((name, path))
 

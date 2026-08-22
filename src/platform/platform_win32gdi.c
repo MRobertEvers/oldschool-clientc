@@ -704,6 +704,15 @@ PlatformSDL2_PixelDensity(struct PlatformSDL2* p)
     return 1;
 }
 
+void
+PlatformSDL2_SetWantHighDPI(bool want)
+{
+    /* Win32 GDI exposes one pixel coordinate space to this backend.  A future
+     * per-monitor-DPI implementation belongs with PixelDensity above; until
+     * then the cross-platform pre-init preference is intentionally a no-op. */
+    (void)want;
+}
+
 bool
 PlatformSDL2_QuitRequested(struct PlatformSDL2* p)
 {

@@ -789,31 +789,57 @@ d3d9_ui_upload_sprite_pixels(
 {
     struct TRSPK_AtlasTile tile;
     uint32_t* argb;
-    size_t count;
-    size_t i;
+    uint32_t padded_width;
+    uint32_t padded_height;
+    int x;
+    int y;
     bool inserted;
-    if( width <= 0 || height <= 0 )
+    if( width <= 0 || height <= 0 ||
+        !trspk_atlas_is_initialized(&renderer->ui_sprite_atlas) ||
+        renderer->ui_sprite_atlas.width < 3u ||
+        renderer->ui_sprite_atlas.height < 3u ||
+        (uint32_t)width > renderer->ui_sprite_atlas.width - 2u ||
+        (uint32_t)height > renderer->ui_sprite_atlas.height - 2u )
         return false;
     assert(source);
-    count = (size_t)width * (size_t)height;
-    argb = (uint32_t*)malloc(count * sizeof(*argb));
+    padded_width = (uint32_t)width + 2u;
+    padded_height = (uint32_t)height + 2u;
+    argb = (uint32_t*)malloc(
+        (size_t)padded_width * (size_t)padded_height * sizeof(*argb));
     assert(argb);
-    for( i = 0u; i < count; i++ )
-        argb[i] = d3d9_ui_normalize_argb(source[i]);
+    /* Linear filtering reaches half a texel beyond an enlarged quad's first
+     * and last source pixels.  Keep that footprint inside this sprite rather
+     * than letting it sample the next tightly packed atlas entry.  Repeating
+     * the edge matches a dedicated texture using CLAMP_TO_EDGE. */
+    for( y = 0; y < (int)padded_height; y++ )
+    {
+        int source_y = d3d9_clampi(y - 1, 0, height - 1);
+        for( x = 0; x < (int)padded_width; x++ )
+        {
+            int source_x = d3d9_clampi(x - 1, 0, width - 1);
+            argb[(size_t)y * padded_width + (uint32_t)x] =
+                d3d9_ui_normalize_argb(
+                    source[(size_t)source_y * (size_t)width + (size_t)source_x]);
+        }
+    }
     inserted = trspk_atlas_binpack_insert(
         &renderer->ui_sprite_atlas,
         (const uint8_t*)argb,
-        (uint32_t)width * 4u,
-        (uint32_t)width,
-        (uint32_t)height,
+        padded_width * 4u,
+        padded_width,
+        padded_height,
         &tile);
     free(argb);
     if( !inserted )
         return false;
-    out_uv[0] = tile.u_start;
-    out_uv[1] = tile.v_start;
-    out_uv[2] = tile.u_end;
-    out_uv[3] = tile.v_end;
+    out_uv[0] = (float)(tile.x + 1u) / (float)renderer->ui_sprite_atlas.width;
+    out_uv[1] = (float)(tile.y + 1u) / (float)renderer->ui_sprite_atlas.height;
+    out_uv[2] =
+        (float)(tile.x + 1u + (uint32_t)width) /
+        (float)renderer->ui_sprite_atlas.width;
+    out_uv[3] =
+        (float)(tile.y + 1u + (uint32_t)height) /
+        (float)renderer->ui_sprite_atlas.height;
     return true;
 }
 
@@ -1990,11 +2016,13 @@ d3d9_ui_bake_font(
     {
         if( font->glyph_width[i] > atlas_width )
             atlas_width = font->glyph_width[i];
-        if( font->glyph_height[i] > 0 )
-            atlas_height += font->glyph_height[i];
+        if( font->glyph_width[i] > 0 && font->glyph_height[i] > 0 &&
+            font->glyph_alpha[i] )
+            atlas_height += font->glyph_height[i] + 2;
     }
     if( atlas_width <= 0 || atlas_height <= 0 )
         return false;
+    atlas_width += 2;
     texture_width = d3d9_next_pow2((UINT)atlas_width);
     texture_height = d3d9_next_pow2((UINT)atlas_height);
     if( texture_width > renderer->caps.MaxTextureWidth ||
@@ -2012,18 +2040,35 @@ d3d9_ui_bake_font(
         int glyph_height = font->glyph_height[i];
         const uint8_t* alpha = font->glyph_alpha[i];
         int x;
-        if( alpha && glyph_width > 0 && glyph_height > 0 )
-            for( y = 0; y < glyph_height; y++ )
-                for( x = 0; x < glyph_width; x++ )
-                    pixels[(size_t)(atlas_y + y) * texture_width + x] =
-                        ((uint32_t)alpha[(size_t)y * glyph_width + x] << 24) |
-                        0x00ffffffu;
-        slot->glyph_uv[i * 4 + 0] = 0.0f;
-        slot->glyph_uv[i * 4 + 1] = (float)atlas_y / (float)texture_height;
-        slot->glyph_uv[i * 4 + 2] = (float)glyph_width / (float)texture_width;
+        if( !alpha || glyph_width <= 0 || glyph_height <= 0 )
+        {
+            memset(&slot->glyph_uv[i * 4], 0, 4u * sizeof(float));
+            continue;
+        }
+        /* Give every glyph its own CLAMP_TO_EDGE footprint.  Without these
+         * extruded rows, linear UI scaling blends the glyph above or below
+         * across the entire quad and produces the visible horizontal streaks. */
+        for( y = -1; y <= glyph_height; y++ )
+        {
+            int source_y = d3d9_clampi(y, 0, glyph_height - 1);
+            for( x = -1; x <= glyph_width; x++ )
+            {
+                int source_x = d3d9_clampi(x, 0, glyph_width - 1);
+                pixels[(size_t)(atlas_y + y + 1) * texture_width + (size_t)(x + 1)] =
+                    ((uint32_t)alpha[
+                         (size_t)source_y * (size_t)glyph_width + (size_t)source_x]
+                        << 24) |
+                    0x00ffffffu;
+            }
+        }
+        slot->glyph_uv[i * 4 + 0] = 1.0f / (float)texture_width;
+        slot->glyph_uv[i * 4 + 1] =
+            (float)(atlas_y + 1) / (float)texture_height;
+        slot->glyph_uv[i * 4 + 2] =
+            (float)(glyph_width + 1) / (float)texture_width;
         slot->glyph_uv[i * 4 + 3] =
-            (float)(atlas_y + glyph_height) / (float)texture_height;
-        atlas_y += glyph_height;
+            (float)(atlas_y + glyph_height + 1) / (float)texture_height;
+        atlas_y += glyph_height + 2;
     }
     hr = IDirect3DDevice9_CreateTexture(
         renderer->device,
@@ -6250,7 +6295,6 @@ ToriRS_D3D9_RenderFrame(struct ToriRS_D3D9* renderer, struct ToriRS_Frame* frame
     d3d9_end_frame_scene(renderer);
 }
 
-void
 /*
  * The finished frame, sampled back onto the canvas grid.
  *

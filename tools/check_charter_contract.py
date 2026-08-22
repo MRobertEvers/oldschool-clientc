@@ -60,7 +60,12 @@ ROOT = Path(__file__).resolve().parents[1]
 BASE = ROOT / "OSRS-Content/osrs239-content"
 FEATURE = BASE / "server/scripts/transport_charter"
 
-ALL_DBROW = (BASE / "configs/all.dbrow").read_bytes().decode("utf-8", "replace")
+# TextIO performs universal-newline conversion.  That matters on Windows:
+# parsing decoded bytes directly leaves CRLF in place, while the cache-row
+# grammar below deliberately matches LF-delimited section headers.
+with (BASE / "configs/all.dbrow").open(
+        encoding="utf-8", errors="replace") as handle:
+    ALL_DBROW = handle.read()
 PORT_DBROW = (FEATURE / "configs/charter_port.dbrow").read_text()
 FARE_DBROW = (FEATURE / "configs/charter_fare.dbrow").read_text()
 PORT_DBTABLE = (FEATURE / "configs/charter_port.dbtable").read_text()

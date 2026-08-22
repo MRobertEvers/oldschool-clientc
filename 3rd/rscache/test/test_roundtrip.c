@@ -1474,8 +1474,8 @@ visit_hitsplat(
         first.has_opcode_13 == second.has_opcode_13 && first.opcode_13 == second.opcode_13 &&
         first.has_colour == second.has_colour && first.colour == second.colour &&
         first.variant_opcode == second.variant_opcode &&
-        first.variant_a == second.variant_a && first.variant_b == second.variant_b &&
-        first.variant_c == second.variant_c &&
+        first.variant_varbit == second.variant_varbit && first.variant_varp == second.variant_varp &&
+        first.variant_fallback == second.variant_fallback &&
         first.variant_count == second.variant_count &&
         memcmp(
             first.variants,

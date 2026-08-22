@@ -13,6 +13,12 @@ Tab completion:  eval "$(./launch completion zsh)"   (or bash)
 import os
 import sys
 
+if os.name == "nt":
+    # Repository tools are UTF-8.  Windows otherwise gives child Python
+    # processes the active ANSI code page, which cannot decode several source
+    # characters used by the content-contract checks.
+    os.environ.setdefault("PYTHONUTF8", "1")
+
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), "tools"))
 
 from launcher.cli import main  # noqa: E402

@@ -16,6 +16,9 @@ typedef intptr_t INT_PTR; typedef uintptr_t ULONG_PTR; typedef int BOOL; typedef
 typedef struct { LONG left, top, right, bottom; } RECT;
 typedef struct { LONG x, y; } POINT;
 typedef struct {
+  UINT cbSize, fMask; int nMin, nMax; UINT nPage; int nPos, nTrackPos;
+} SCROLLINFO;
+typedef struct {
   DWORD biSize; LONG biWidth, biHeight; WORD biPlanes, biBitCount;
   DWORD biCompression, biSizeImage; LONG biXPelsPerMeter, biYPelsPerMeter;
   DWORD biClrUsed, biClrImportant;
@@ -48,6 +51,7 @@ typedef struct {
 #define WS_SYSMENU 32
 #define WS_THICKFRAME 64
 #define WS_EX_TOOLWINDOW 128
+#define WS_POPUP 256
 #define BS_AUTOCHECKBOX 1
 #define BS_PUSHBUTTON 2
 #define ES_AUTOHSCROLL 4
@@ -60,6 +64,7 @@ typedef struct {
 #define SS_LEFT 8
 #define SS_ETCHEDHORZ 16
 #define SS_NOTIFY 256
+#define SS_OWNERDRAW 512
 #define CBS_DROPDOWNLIST 32
 #define CW_USEDEFAULT 0
 #define SW_SHOWNOACTIVATE 1
@@ -80,6 +85,7 @@ typedef struct {
 #define BST_UNCHECKED 0
 #define BN_CLICKED 1
 #define EN_KILLFOCUS 2
+#define EN_SETFOCUS 4
 #define CBN_SELCHANGE 3
 #define CB_RESETCONTENT 10
 #define CB_ADDSTRING 11
@@ -99,9 +105,30 @@ typedef struct {
 #define WM_ERASEBKGND 22
 #define WM_CTLCOLOREDIT 24
 #define WM_CTLCOLORLISTBOX 25
+#define WM_NCHITTEST 26
+#define WM_VSCROLL 27
+#define WM_MOUSEWHEEL 28
+#define HTCLIENT 1
+#define HTCAPTION 2
 #define ODS_SELECTED 0x0001
 #define ODS_COMBOBOXEDIT 0x1000
 #define ODT_COMBOBOX 3
+#define SB_VERT 1
+#define SB_LINEUP 0
+#define SB_LINEDOWN 1
+#define SB_PAGEUP 2
+#define SB_PAGEDOWN 3
+#define SB_THUMBPOSITION 4
+#define SB_THUMBTRACK 5
+#define SB_TOP 6
+#define SB_BOTTOM 7
+#define SIF_RANGE 1
+#define SIF_PAGE 2
+#define SIF_POS 4
+#define SIF_TRACKPOS 16
+#define SIF_ALL (SIF_RANGE | SIF_PAGE | SIF_POS | SIF_TRACKPOS)
+#define WHEEL_DELTA 120
+#define GET_WHEEL_DELTA_WPARAM(wp) ((short)HIWORD(wp))
 #define SRCCOPY 0x00CC0020
 #define BI_RGB 0
 #define DIB_RGB_COLORS 0
@@ -145,4 +172,6 @@ int DrawTextA(HDC, const char*, int, RECT*, UINT);
 BOOL GetWindowRect(HWND, RECT*);
 BOOL ScreenToClient(HWND, POINT*);
 BOOL RedrawWindow(HWND, const RECT*, void*, UINT);
+int SetScrollInfo(HWND, int, const SCROLLINFO*, BOOL);
+BOOL GetScrollInfo(HWND, int, SCROLLINFO*);
 #endif

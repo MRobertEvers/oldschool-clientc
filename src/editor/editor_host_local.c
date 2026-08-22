@@ -18,6 +18,13 @@
 #include <string.h>
 #include <unistd.h>
 
+#ifdef _WIN32
+#include <direct.h>
+#define editor_mkdir(path) _mkdir(path)
+#else
+#define editor_mkdir(path) mkdir(path, 0755)
+#endif
+
 struct local_host
 {
     char content_dir[1024];
@@ -393,7 +400,7 @@ local_spawn_save(
         for( size_t i = 0; i < sizeof(legs) / sizeof(legs[0]); i++ )
         {
             snprintf(dir, sizeof(dir), "%s/%s", host->content_dir, legs[i]);
-            if( mkdir(dir, 0755) != 0 && errno != EEXIST )
+            if( editor_mkdir(dir) != 0 && errno != EEXIST )
             {
                 fprintf(stderr, "editor: cannot create %s\n", dir);
                 return EDITOR_HOST_IO_ERROR;
