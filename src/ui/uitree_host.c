@@ -54,6 +54,9 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     case UITREE_HOST_GET_SELECTED_TAB:
     case UITREE_HOST_GET_CAMERA_YAW:
     case UITREE_HOST_GET_TAB_ENABLED:
+    /* 0 = "not hidden", which is the right answer for a tree with no host:
+     * nothing is flashing, so nothing is blinked out. */
+    case UITREE_HOST_GET_TAB_FLASH_HIDDEN:
     case UITREE_HOST_GET_CHAT_FILTER_MODE:
     case UITREE_HOST_CYCLE_CHAT_FILTER_MODE:
     case UITREE_HOST_GET_CHAT_STATE:

@@ -2563,6 +2563,27 @@ exec_minimenu(
     case CS2_OP_MINIMENU_FINDPLAYER:
         return CS2VM2_PushInt(
             thread, minimenu_find(host, RS_CLIENTOP_PLAYER, RS_MINIMENU_TYPE_PLAYER));
+    /*
+     * The acting row's TILE (`_7106`) and its OBJ id (`_7107`).
+     *
+     * The reference reads both off the entry: the coord from the entry's own
+     * packed x/z when it has one and from the mouseover ground tile when it
+     * does not, and the obj id from the entry field its FINDOBJ matches an obj
+     * against. Nothing in this cache calls either -- they are routed because
+     * the alternative is the stack stub answering a confident zero, which for
+     * a COORD is the corner of the map square.
+     */
+    case CS2_OP__7106:
+        return CS2VM2_PushInt(
+            thread,
+            host->clientop.mouseover.coord >= 0 ? host->clientop.mouseover.coord
+                                                : host->hover_coord);
+    case CS2_OP__7107:
+        return CS2VM2_PushInt(
+            thread,
+            host->clientop.mouseover_type == RS_MINIMENU_TYPE_OBJ
+                ? host->clientop.mouseover.type
+                : 0);
     case CS2_OP_MINIMENU_ISOPEN:
         return CS2VM2_PushInt(thread, host->clientop.menu_open ? 1 : 0);
     case CS2_OP_MINIMENU_NUMOPS:

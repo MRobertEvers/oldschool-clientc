@@ -112,6 +112,16 @@ struct RS_ClientOpContext
     /** npc type / loc type / obj id. -1 for a tile and a player. */
     int type;
     /**
+     * A ground stack's COUNT, as `_6853` reports it; -1 for every other kind.
+     *
+     * Half of a ground obj's identity and not a detail: two stacks of the same
+     * item with different counts are two rows on one tile, and the reference's
+     * own FINDOBJ matches an entry to an obj on BOTH fields --
+     * `obj->id == entry->id && obj->count == entry->count` -- which is what
+     * says this field is the count and not some second id.
+     */
+    int count;
+    /**
      * A loc's LAYER (0 wall / 1 wall decor / 2 ground / 3 ground decor); -1 for
      * every other kind.
      *

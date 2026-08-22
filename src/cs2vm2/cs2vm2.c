@@ -10994,10 +10994,10 @@ CS2VM2_RunOp(
         return CS2VM2_Op_ClientOp(vm, opcode, false);
     /*
      * The client op's subject, read from inside the script it just ran. Listed
-     * one by one rather than as ranges: each block has a hole in it (`_6901`
-     * carries no signature at all, and the obj block's name getter is called by
-     * nothing), and a range would have routed those too and answered them with
-     * a confident zero.
+     * one by one rather than as ranges: the blocks are not uniform -- `_6901`
+     * is a SETTER and belongs with the active-player group below, and the
+     * player block's `_6902`.. are about a route -- and a range would have
+     * routed those here too and answered them with a confident zero.
      */
     case CS2_OP__6750: /* npc name   */
     case CS2_OP__6751: /* npc uid    */
@@ -11009,6 +11009,7 @@ CS2VM2_RunOp(
     case CS2_OP__6850: /* obj name   */
     case CS2_OP__6851: /* obj coord  */
     case CS2_OP__6852: /* obj id     */
+    case CS2_OP__6853: /* obj count  */
     case CS2_OP__6900: /* player name  */
     case CS2_OP__6950: /* tile coord */
         return CS2VM2_Op_ClientOpContext(vm, opcode);
@@ -11095,6 +11096,11 @@ CS2VM2_RunOp(
     case CS2_OP_MINIMENU_ISOPEN:
     case CS2_OP_MINIMENU_FINDCOMPONENT:
     case CS2_OP_MINIMENU_NUMOPS:
+    /* The acting row's TILE and its OBJ id. Numbered inside the minimenu block
+     * and answered from the same acting row; nothing in this cache calls
+     * either, which is why they sat unrouted and faked a zero. */
+    case CS2_OP__7106:
+    case CS2_OP__7107:
         return CS2VM2_Op_Minimenu(vm, opcode);
     /* Audio volumes (3203..3208): direct setters take just a value, getters take
      * nothing; the host owns the value and pushes it back. */

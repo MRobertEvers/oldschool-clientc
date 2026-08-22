@@ -16,15 +16,17 @@
  * in the middle would shift every later block by one and the formula would go
  * on returning a plausible answer for the wrong kind.
  *
- * 7040..7044 -- "_7040 .. _7044", a ninth SETUP/ON/OFF/GET/CLEAR block keyed by
- * a STRING like the player family -- is deliberately absent. The cache only
- * ever SETS IT UP: script 5486's teardown walks `_7040(group, -1, 0, 0, 0)`
- * over twenty groups and 6686 calls `_7044(6)`, and nothing anywhere calls its
- * ON, OFF or GET. What its names refer to is therefore unstated -- the
- * reference hands them to a different manager container than the player
- * family's -- and a kind whose subjects nobody names is one this cannot
- * resolve. Falling through as "not ours" is the honest result, and the caller
- * logs it.
+ * 7040..7044 -- "_7040 .. _7044" -- is a ninth block of the same shape, keyed
+ * by a STRING like the player family. It is the OP GROUP kind: the reference
+ * answers it with `HighlightManager::AddOpGroupHighlight` and friends, taking
+ * an `OpGroup` that `OpGroup::Create` builds from a subject's NAME and its op
+ * list -- so a scripted `_7041("Cow", 9)` marks everything the right-click
+ * menu would call a Cow, whatever pool it lives in. This cache only ever sets
+ * it up and clears it (script 5486's teardown walks `_7040(group, -1, 0, 0, 0)`
+ * over twenty groups; 6686 calls `_7044(6)`), so its ON/OFF/GET have no caller
+ * here -- they are recorded anyway, because the state is what makes them true
+ * if one ever appears, and because half a family is how `_7031` came to be a
+ * no-op.
  */
 struct RS_HighlightOp
 {
@@ -115,11 +117,19 @@ static struct RS_HighlightOp const HIGHLIGHT_OPS[] = {
     { CS2_OP_HIGHLIGHT_TILE_OFF,        RS_HIGHLIGHT_TILE,      OP_OFF,    3,  1, -1,  0,  2, false },
     { CS2_OP_HIGHLIGHT_TILE_GET,        RS_HIGHLIGHT_TILE,      OP_GET,    3,  1, -1,  0,  2, false },
     { CS2_OP_HIGHLIGHT_TILE_CLEAR,      RS_HIGHLIGHT_TILE,      OP_CLEAR,  1,  0, -1, -1, -1, false },
+
+    /* The OP GROUP block, whose subject is a menu name -- same shape as the
+     * player family's, one int and one string. See the header. */
+    { CS2_OP__7040,                     RS_HIGHLIGHT_OPGROUP,   OP_SETUP,  5,  0, -1, -1, -1, false },
+    { CS2_OP__7041,                     RS_HIGHLIGHT_OPGROUP,   OP_ON,     1,  0, -1, -1, -1, true  },
+    { CS2_OP__7042,                     RS_HIGHLIGHT_OPGROUP,   OP_OFF,    1,  0, -1, -1, -1, true  },
+    { CS2_OP__7043,                     RS_HIGHLIGHT_OPGROUP,   OP_GET,    1,  0, -1, -1, -1, true  },
+    { CS2_OP__7044,                     RS_HIGHLIGHT_OPGROUP,   OP_CLEAR,  1,  0, -1, -1, -1, false },
 };
 /* clang-format on */
 
 static char const* const KIND_NAME[RS_HIGHLIGHT_KIND_COUNT] = {
-    "npc", "npctype", "loc", "loctype", "obj", "objtype", "player", "tile"
+    "npc", "npctype", "loc", "loctype", "obj", "objtype", "player", "tile", "opgroup"
 };
 
 char const*
@@ -311,23 +321,33 @@ RS_HighlightOff(
  * sized for a whole friends list; nothing in this cache fills one.
  */
 static int
-highlight_named_find(struct RS_HighlightState const* state, int group, char const* name)
+highlight_named_find(
+    struct RS_HighlightState const* state,
+    enum RS_HighlightKind kind,
+    int group,
+    char const* name)
 {
     for( int i = 0; i < state->named_count; i++ )
-        if( state->named[i].group == group && strcmp(state->named[i].name, name) == 0 )
+        if( state->named[i].kind == (int)kind && state->named[i].group == group &&
+            strcmp(state->named[i].name, name) == 0 )
             return i;
     return -1;
 }
 
 bool
-RS_HighlightNameOn(struct RS_HighlightState* state, int group, char const* name)
+RS_HighlightNameOn(
+    struct RS_HighlightState* state,
+    enum RS_HighlightKind kind,
+    int group,
+    char const* name)
 {
     int at;
 
     assert(state);
     assert(name);
+    assert(kind == RS_HIGHLIGHT_PLAYER || kind == RS_HIGHLIGHT_OPGROUP);
 
-    if( !highlight_group_ok(state, group, "player on") )
+    if( !highlight_group_ok(state, group, "named on") )
         return false;
     if( name[0] == '\0' )
         return false;
@@ -343,7 +363,7 @@ RS_HighlightNameOn(struct RS_HighlightState* state, int group, char const* name)
         return false;
     }
 
-    at = highlight_named_find(state, group, name);
+    at = highlight_named_find(state, kind, group, name);
     if( at >= 0 )
         return true; /* Already in: a name carries nothing a repeat can change. */
 
@@ -354,7 +374,7 @@ RS_HighlightNameOn(struct RS_HighlightState* state, int group, char const* name)
             state->overflowed = true;
             fprintf(
                 stderr,
-                "highlight: the player list is full at %d names; further ones are "
+                "highlight: the named list is full at %d names; further ones are "
                 "refused (they would otherwise be silently unmarked)\n",
                 RS_HIGHLIGHT_NAMED_MAX);
         }
@@ -362,6 +382,7 @@ RS_HighlightNameOn(struct RS_HighlightState* state, int group, char const* name)
     }
 
     at = state->named_count++;
+    state->named[at].kind = (int)kind;
     state->named[at].group = group;
     snprintf(state->named[at].name, sizeof(state->named[at].name), "%s", name);
     state->revision++;
@@ -369,16 +390,21 @@ RS_HighlightNameOn(struct RS_HighlightState* state, int group, char const* name)
 }
 
 void
-RS_HighlightNameOff(struct RS_HighlightState* state, int group, char const* name)
+RS_HighlightNameOff(
+    struct RS_HighlightState* state,
+    enum RS_HighlightKind kind,
+    int group,
+    char const* name)
 {
     int at;
 
     assert(state);
     assert(name);
+    assert(kind == RS_HIGHLIGHT_PLAYER || kind == RS_HIGHLIGHT_OPGROUP);
 
-    if( !highlight_group_ok(state, group, "player off") )
+    if( !highlight_group_ok(state, group, "named off") )
         return;
-    at = highlight_named_find(state, group, name);
+    at = highlight_named_find(state, kind, group, name);
     if( at < 0 )
         return;
     state->named[at] = state->named[--state->named_count];
@@ -386,14 +412,19 @@ RS_HighlightNameOff(struct RS_HighlightState* state, int group, char const* name
 }
 
 bool
-RS_HighlightNameGet(struct RS_HighlightState const* state, int group, char const* name)
+RS_HighlightNameGet(
+    struct RS_HighlightState const* state,
+    enum RS_HighlightKind kind,
+    int group,
+    char const* name)
 {
     assert(state);
     assert(name);
+    assert(kind == RS_HIGHLIGHT_PLAYER || kind == RS_HIGHLIGHT_OPGROUP);
 
     if( group < 0 || group >= RS_HIGHLIGHT_GROUP_MAX )
         return false;
-    return highlight_named_find(state, group, name) >= 0;
+    return highlight_named_find(state, kind, group, name) >= 0;
 }
 
 bool
@@ -425,13 +456,14 @@ RS_HighlightClear(struct RS_HighlightState* state, enum RS_HighlightKind kind, i
     if( !highlight_group_ok(state, group, "clear") )
         return;
 
-    /* The PLAYER kind's subjects are in the named list, not the int-keyed one.
-     * Clearing the wrong list is a clear that reports success and empties
-     * nothing, which is how a stale hover highlight would outlive its group. */
-    if( kind == RS_HIGHLIGHT_PLAYER )
+    /* The two name-keyed kinds' subjects are in the named list, not the
+     * int-keyed one. Clearing the wrong list is a clear that reports success
+     * and empties nothing, which is how a stale hover highlight would outlive
+     * its group. */
+    if( kind == RS_HIGHLIGHT_PLAYER || kind == RS_HIGHLIGHT_OPGROUP )
     {
         for( int i = 0; i < state->named_count; i++ )
-            if( state->named[i].group != group )
+            if( state->named[i].kind != (int)kind || state->named[i].group != group )
                 state->named[kept++] = state->named[i];
         if( kept != state->named_count )
             state->revision++;
@@ -539,14 +571,14 @@ RS_HighlightApply(
         switch( op->action )
         {
         case OP_ON:
-            RS_HighlightNameOn(state, group, name);
+            RS_HighlightNameOn(state, op->kind, group, name);
             return true;
         case OP_OFF:
-            RS_HighlightNameOff(state, group, name);
+            RS_HighlightNameOff(state, op->kind, group, name);
             return true;
         case OP_GET:
             assert(out_query);
-            *out_query = RS_HighlightNameGet(state, group, name) ? 1 : 0;
+            *out_query = RS_HighlightNameGet(state, op->kind, group, name) ? 1 : 0;
             return true;
         default:
             return false;

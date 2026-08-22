@@ -4237,6 +4237,7 @@ app_cs2_set_active_player(struct App* app, int pid)
     ctx.script_id = -1;
     ctx.uid = pid;
     ctx.type = -1;
+    ctx.count = -1;
     ctx.layer = -1;
     ctx.coord = -1;
 
@@ -4268,6 +4269,7 @@ app_cs2_set_active_tile(struct App* app, int coord)
     ctx.script_id = -1;
     ctx.uid = -1;
     ctx.type = -1;
+    ctx.count = -1;
     ctx.layer = -1;
     ctx.coord = coord;
     RS_ClientOpActiveSet(&app->host.clientop, RS_CLIENTOP_TILE, &ctx);
@@ -12193,6 +12195,7 @@ app_logic_tick(struct App* app)
             mo.kind = -1;
             mo.uid = -1;
             mo.type = -1;
+            mo.count = -1;
             mo.coord = -1;
             mo.layer = -1;
 
@@ -12247,6 +12250,9 @@ app_logic_tick(struct App* app)
                         mo.kind = RS_CLIENTOP_OBJ;
                         minimenu_type = RS_MINIMENU_TYPE_OBJ;
                         mo.type = stack->obj_id;
+                        /* `_6853`, and the other half of a ground stack's
+                         * identity -- see RS_ClientOpContext::count. */
+                        mo.count = stack->count;
                         mo.coord = RS_CLIENTOP_COORD(
                             stack->grid_position.level,
                             base_x + stack->grid_position.x,
@@ -20786,6 +20792,7 @@ app_clientop_run(struct App* app, struct UIMinimenuOption const* opt)
     ctx.kind = kind;
     ctx.uid = -1;
     ctx.type = -1;
+    ctx.count = -1;
     ctx.coord = -1;
 
     switch( (enum RS_ClientOpKind)kind )
@@ -20826,6 +20833,7 @@ app_clientop_run(struct App* app, struct UIMinimenuOption const* opt)
         if( !stack )
             return 1;
         ctx.type = stack->obj_id;
+        ctx.count = stack->count;
         ctx.coord = RS_CLIENTOP_COORD(
             stack->grid_position.level,
             base_x + stack->grid_position.x,

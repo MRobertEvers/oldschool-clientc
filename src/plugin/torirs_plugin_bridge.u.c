@@ -352,6 +352,27 @@ app_plugin_highlight_push(struct App* app, struct ToriRS_PluginHighlightItem con
 }
 
 /*
+ * Does an OP GROUP name this thing?
+ *
+ * The 7040 family's subject is a right-click NAME and applies across the pools
+ * -- `_7041("Cow", 9)` is about every Cow, npc or not -- so every entity pass
+ * asks this in addition to its own kind's members. Returns the group, or -1.
+ *
+ * Nothing in this cache calls the family's ON, so this walk is over an empty
+ * list in practice; it is here because the state it reads is real and the
+ * alternative is a kind that records subjects nobody draws.
+ */
+static int
+app_plugin_opgroup_group(struct RS_HighlightState const* hl, char const* name)
+{
+    for( int i = 0; i < hl->named_count; i++ )
+        if( hl->named[i].kind == RS_HIGHLIGHT_OPGROUP &&
+            strcmp(hl->named[i].name, name) == 0 )
+            return hl->named[i].group;
+    return -1;
+}
+
+/*
  * Rebuild the resolved list.
  *
  * One pass per kind, and each pass walks the pool it needs at most once: a
@@ -446,6 +467,28 @@ app_plugin_highlights_rebuild(struct App* app)
                         return;
                 }
             }
+
+            /* ...and by right-click NAME, which is the OP GROUP kind. */
+            {
+                int const group = app_plugin_opgroup_group(hl, npc->name);
+                if( group >= 0 &&
+                    app_plugin_highlight_begin(app, RS_HIGHLIGHT_OPGROUP, group, &proto) )
+                {
+                    proto.kind = TORIRS_PLUGIN_HL_NPC;
+                    proto.element_id = npc->element_id;
+                    proto.overhead_height = app_plugin_element_height(app, npc->element_id);
+                    proto.fine_x = (int)npc->draw_position.x;
+                    proto.fine_z = (int)npc->draw_position.z;
+                    snprintf(proto.name, sizeof(proto.name), "%s", npc->name);
+                    proto.tile_x = tile_x;
+                    proto.tile_z = tile_z;
+                    proto.level = npc->grid_position.level;
+                    proto.size_x = npc->size > 0 ? npc->size : 1;
+                    proto.size_z = proto.size_x;
+                    if( !app_plugin_highlight_push(app, &proto) )
+                        return;
+                }
+            }
         }
     }
 
@@ -468,7 +511,7 @@ app_plugin_highlights_rebuild(struct App* app)
             for( int i = 0; i < hl->named_count; i++ )
             {
                 struct RS_HighlightNamedMember const* m = &hl->named[i];
-                if( strcmp(m->name, player->name) != 0 )
+                if( m->kind != RS_HIGHLIGHT_PLAYER || strcmp(m->name, player->name) != 0 )
                     continue;
                 if( !app_plugin_highlight_begin(app, RS_HIGHLIGHT_PLAYER, m->group, &proto) )
                     continue;
@@ -535,6 +578,27 @@ app_plugin_highlights_rebuild(struct App* app)
                         return;
                 }
             }
+
+            {
+                int const group = app_plugin_opgroup_group(hl, loc->name);
+                if( group >= 0 &&
+                    app_plugin_highlight_begin(app, RS_HIGHLIGHT_OPGROUP, group, &proto) )
+                {
+                    proto.kind = TORIRS_PLUGIN_HL_LOC;
+                    proto.element_id = loc->element_id;
+                    proto.overhead_height = app_plugin_element_height(app, loc->element_id);
+                    proto.fine_x = (loc->grid_position.x * 128) + 64;
+                    proto.fine_z = (loc->grid_position.z * 128) + 64;
+                    snprintf(proto.name, sizeof(proto.name), "%s", loc->name);
+                    proto.tile_x = tile_x;
+                    proto.tile_z = tile_z;
+                    proto.level = loc->grid_position.level;
+                    proto.size_x = loc->size_x > 0 ? loc->size_x : 1;
+                    proto.size_z = loc->size_z > 0 ? loc->size_z : 1;
+                    if( !app_plugin_highlight_push(app, &proto) )
+                        return;
+                }
+            }
         }
     }
 
@@ -578,6 +642,25 @@ app_plugin_highlights_rebuild(struct App* app)
                     proto.tile_z = tile_z;
                     proto.level = stack->grid_position.level;
                     proto.flags |= m->flags;
+                    if( !app_plugin_highlight_push(app, &proto) )
+                        return;
+                }
+            }
+
+            {
+                int const group = app_plugin_opgroup_group(hl, stack->name);
+                if( group >= 0 &&
+                    app_plugin_highlight_begin(app, RS_HIGHLIGHT_OPGROUP, group, &proto) )
+                {
+                    proto.kind = TORIRS_PLUGIN_HL_OBJ;
+                    proto.element_id = stack->element_id;
+                    proto.overhead_height = app_plugin_element_height(app, stack->element_id);
+                    proto.fine_x = (stack->grid_position.x * 128) + 64;
+                    proto.fine_z = (stack->grid_position.z * 128) + 64;
+                    snprintf(proto.name, sizeof(proto.name), "%s", stack->name);
+                    proto.tile_x = tile_x;
+                    proto.tile_z = tile_z;
+                    proto.level = stack->grid_position.level;
                     if( !app_plugin_highlight_push(app, &proto) )
                         return;
                 }

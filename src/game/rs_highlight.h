@@ -67,13 +67,13 @@
 #define RS_HIGHLIGHT_NAME_MAX 32
 
 /**
- * Name-keyed subjects across all of the PLAYER kind's groups.
+ * Name-keyed subjects, across every group of the two kinds that have them.
  *
- * The player family is the only one keyed by a NAME, and the reference keeps
- * it in its own container for that reason -- a hash map on the highlight
- * manager, separate from the int-keyed lists. 64 because the cache's own user
- * is the mouse-over highlighter (clientscript 5954), which holds one name at a
- * time, and the developer client-ops (4643..4645), which hold one more.
+ * PLAYER and OPGROUP are the only kinds keyed by a NAME, and the reference
+ * keeps each in its own hash map on the highlight manager rather than in the
+ * int-keyed lists. 64 because the cache's own users are the mouse-over
+ * highlighter (clientscript 5954), which holds one name at a time, and the
+ * developer client-ops (4643..4645), which hold one more.
  */
 #define RS_HIGHLIGHT_NAMED_MAX 64
 
@@ -108,6 +108,20 @@ enum RS_HighlightKind
     RS_HIGHLIGHT_OBJTYPE,
     RS_HIGHLIGHT_PLAYER,
     RS_HIGHLIGHT_TILE,
+    /**
+     * The 7040..7044 block: everything whose right-click NAME matches.
+     *
+     * The reference's own word for it -- `HighlightManager::AddOpGroupHighlight`
+     * / `RemoveOpGroupHighlight` / `IsOpGroupHighlighted`, taking an `OpGroup`,
+     * which `OpGroup::Create` builds from a subject's name and its op list. The
+     * scripted form can only ever hand it the NAME (its ON pops one string and
+     * a group), so a name is the whole key, and it applies across the npc, loc
+     * and obj pools rather than to one kind of thing.
+     *
+     * Appended after TILE so the eight kinds the 7000..7039 blocks number keep
+     * the ids their opcodes imply.
+     */
+    RS_HIGHLIGHT_OPGROUP,
     RS_HIGHLIGHT_KIND_COUNT
 };
 
@@ -236,6 +250,9 @@ struct RS_HighlightMember
  */
 struct RS_HighlightNamedMember
 {
+    /** RS_HIGHLIGHT_PLAYER or RS_HIGHLIGHT_OPGROUP. One list for both, because
+     *  a name is a name; the kind is what says which pool to match it in. */
+    int kind;
     int group;
     char name[RS_HIGHLIGHT_NAME_MAX];
 };
@@ -297,12 +314,13 @@ bool RS_HighlightGet(
     int coord);
 
 /**
- * The PLAYER kind's ON / OFF / GET, keyed by display name.
+ * The two name-keyed kinds' ON / OFF / GET.
  *
  * `name` is compared exactly, which is what the reference's name hash does and
  * what makes the round trip work: the only name the cache ever puts in one of
  * these is `_6900`, this client's own report of a player's name, so the string
- * that goes in is the string that comes back. A name longer than
+ * that goes in is the string that comes back. An OPGROUP name is matched
+ * against an entity's own name for the same reason. A name longer than
  * RS_HIGHLIGHT_NAME_MAX-1 is refused rather than truncated -- a truncated key
  * would silently mark a different player.
  *
@@ -310,15 +328,24 @@ bool RS_HighlightGet(
  * reason the int-keyed forms do: the cache's mouse-over highlighter calls OFF
  * on five groups every tick on its way to a rebuild.
  */
-bool RS_HighlightNameOn(struct RS_HighlightState* state, int group, char const* name);
-void RS_HighlightNameOff(struct RS_HighlightState* state, int group, char const* name);
+bool RS_HighlightNameOn(
+    struct RS_HighlightState* state,
+    enum RS_HighlightKind kind,
+    int group,
+    char const* name);
+void RS_HighlightNameOff(
+    struct RS_HighlightState* state,
+    enum RS_HighlightKind kind,
+    int group,
+    char const* name);
 bool RS_HighlightNameGet(
     struct RS_HighlightState const* state,
+    enum RS_HighlightKind kind,
     int group,
     char const* name);
 
-/** Empties `group` of the kind's subjects. For RS_HIGHLIGHT_PLAYER that is the
- *  name-keyed list, which is where that kind's subjects live. */
+/** Empties `group` of the kind's subjects. For the two name-keyed kinds that
+ *  is the named list, which is where their subjects live. */
 void RS_HighlightClear(
     struct RS_HighlightState* state,
     enum RS_HighlightKind kind,
