@@ -241,7 +241,7 @@ def required_services(profile, manifest):
 
     A game server is NOT on this list even when the manifest states
     transport=tcp, because dialling a server somebody else runs is an ordinary
-    setup here — LostCity for rs254, an external checkout for xrsps. Requiring
+    setup here — LostCity for rs254lc, an external checkout for osrs233xrsps. Requiring
     one would refuse to launch a configuration that works. That case is an
     advisory instead; see advisory_services().
     """
