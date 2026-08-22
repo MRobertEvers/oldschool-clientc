@@ -97,6 +97,12 @@ struct UITreeRuntimeHooks
     /** CC/IF_SETONFRIENDTRANSMIT. Like on_misc_transmit it carries no trigger
      *  list: every registered hook re-runs when the friend store changes. */
     struct UITreeRuntimeScriptHook on_friend_transmit;
+    /** CC/IF_SETONCHATTRANSMIT. No trigger list either: the reference bumps
+     *  one chat stamp per message and every registered hook re-runs against
+     *  it. The chatbox's own hook (`chat_onchattransmit`, registered by
+     *  `[clientscript,chatbox_init]`) is what redraws the 500 line
+     *  components -- the client writes none of them itself. */
+    struct UITreeRuntimeScriptHook on_chat_transmit;
     struct UITreeRuntimeScriptHook on_dialog_abort;
     struct UITreeRuntimeScriptHook on_resize;
     struct UITreeRuntimeScriptHook on_sub_change;

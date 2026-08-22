@@ -57,6 +57,11 @@ enum RS_ClientOpKind
 /** Bytes of a subject's name, matching the entity snapshots it comes from. */
 #define RS_CLIENTOP_NAME_MAX 64
 
+/** Bytes of a MINIMENU_ENTRY string. A menu row, not a name: it carries the op
+ *  and the coloured target together (see mouseover_op), so it is sized like the
+ *  menu model it is copied from (UITREE_MINIMENU_OPTION_LEN). */
+#define RS_CLIENTOP_MENU_TEXT_MAX 128
+
 struct RS_ClientOpSlot
 {
     bool set;
@@ -173,10 +178,31 @@ struct RS_ClientOpState
     struct RS_ClientOpContext active[RS_CLIENTOP_KIND_COUNT];
     /** RS_MINIMENU_TYPE_*, as `_7100` reports it. */
     int mouseover_type;
-    /** The mouseover row's op text and target text, as `_7101` yields them,
-     *  and how many ops the target offers (`_7110`). */
-    char mouseover_op[RS_CLIENTOP_NAME_MAX];
-    char mouseover_target[RS_CLIENTOP_NAME_MAX];
+    /**
+     * The mouseover row's op text and target text, as `_7101` yields them, and
+     * how many ops the target offers (`_7110`).
+     *
+     * Both come from the ACTING ROW of the menu the pointer would open -- the
+     * same scratch menu the hover line is composed from (app_hover_text_update)
+     * -- and not from the pickset, which answers a different question ("what is
+     * under the pointer") and can name an entity no row is about.
+     *
+     * The op carries the WHOLE row, target included, and the target is empty.
+     * This port composes a row as one string ("<op> @col@ <target>", built in
+     * rs_minimenu_world.c) and keeps no boundary between the halves, so there
+     * is nothing to split on that would not be a guess. Every consumer joins
+     * them straight back up -- clientscript 4726 builds "<option> <target>" and
+     * hands that to 4728, which sizes its tooltip box from it -- so one string
+     * in the first slot reaches the script exactly as the reference's two do.
+     *
+     * Leaving the op empty was not a missing verb only, it was a WIDTH bug: the
+     * tooltip string arrived as " Willow tree", and parawidth measures words, so
+     * it never counts a leading space -- while the draw path of a one-line box
+     * does not auto-wrap and advances over it. The box came out one space
+     * narrower than the text inside it, with the padding all on the left.
+     */
+    char mouseover_op[RS_CLIENTOP_MENU_TEXT_MAX];
+    char mouseover_target[RS_CLIENTOP_MENU_TEXT_MAX];
     int mouseover_opcount;
     /** Is the right-click menu open (`_7108`)? */
     bool menu_open;

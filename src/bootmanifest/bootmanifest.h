@@ -458,25 +458,6 @@ struct BootManifest
     int window_w;
     int window_h;
 
-    /*
-     * [ui:chatbox] — where the chat lines live, for revisions whose chatbox is
-     * widgets rather than a surface the client paints (see rs_chat_widgets.h).
-     *
-     * Declared rather than derived. The alternative was recognising the chatbox
-     * by shape — "a scrolling layer with a few hundred identical text children"
-     * — which would be a heuristic sitting between the player and every message
-     * the server sends. `interface = 0` means this revision has no widget
-     * chatbox, which is the correct answer for every dat1 tree.
-     */
-    int chatbox_interface;
-    int chatbox_messages;   /* scrolling layer child */
-    int chatbox_first_line; /* first line component child */
-    int chatbox_line_count;
-    int chatbox_input;        /* typed-input line child; -1 = none */
-    int chatbox_prompt;       /* line the unfocused prompt paints over; -1 = none */
-    int chatbox_input_script; /* clientscript that recomposes it; 0 = none */
-    int chatbox_line_height;  /* 0 = the 14px the components declare */
-
     /* [ui:gameframe] — component slot -> interface id, in file order. */
     struct BootManifestGameframeMount gameframe[BOOTMANIFEST_GAMEFRAME_MAX];
     int gameframe_count;

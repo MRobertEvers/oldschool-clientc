@@ -782,18 +782,16 @@ osrs239_parse(
     case PKT_NAME_MESSAGE_GAME:
     {
         struct PktMessageGame* p = &out->_message_game;
-        char* name = NULL;
 
-        (void)RSProt_BufferGSmart1or2(&c); /* type -- the chat filter tab, unused here */
+        p->type = RSProt_BufferGSmart1or2(&c);
         if( RSProt_BufferG1(&c) != 0 )
-        {
-            name = gjstr_nul(&c);
-            free(name); /* carried by no field in the canonical struct yet */
-        }
+            p->name = gjstr_nul(&c);
         p->text = gjstr_nul(&c);
         if( c.err || !p->text )
         {
+            free(p->name);
             free(p->text);
+            p->name = NULL;
             p->text = NULL;
             return 0;
         }

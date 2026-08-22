@@ -2414,6 +2414,12 @@ friend_transmit_slot(struct UITreeComponent const* node)
     return &UITree_Hooks(node)->on_friend_transmit;
 }
 
+static struct UITreeRuntimeScriptHook const*
+chat_transmit_slot(struct UITreeComponent const* node)
+{
+    return &UITree_Hooks(node)->on_chat_transmit;
+}
+
 struct ToriRS_Task*
 CreateTask_CS2MiscTransmitDispatch(struct RS_CS2Host* host)
 {
@@ -2436,4 +2442,22 @@ CreateTask_CS2FriendTransmitDispatch(struct RS_CS2Host* host)
 {
     return create_no_trigger_transmit_dispatch(
         host, "CS2FriendTransmitDispatch", friend_transmit_slot);
+}
+
+/*
+ * Chat-transmit dispatch — the chatbox scrollback.
+ *
+ * Third instance of the same walker, and the one the chatbox is built out of.
+ * `[clientscript,chatbox_init]` registers `chat_onchattransmit` on the chatbox
+ * root; the hook calls `[proc,rebuildchatbox]`, which walks the message history
+ * by uid and writes the line components. Like misc and friend the registration
+ * carries no trigger list, so one flag re-runs every hook — and like friend,
+ * the hook cc_creates and rewrites a whole subtree, which is why the snapshot
+ * is taken before the first one runs.
+ */
+struct ToriRS_Task*
+CreateTask_CS2ChatTransmitDispatch(struct RS_CS2Host* host)
+{
+    return create_no_trigger_transmit_dispatch(
+        host, "CS2ChatTransmitDispatch", chat_transmit_slot);
 }

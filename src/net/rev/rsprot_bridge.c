@@ -211,14 +211,15 @@ static int
 bridge_message_game(int revision, uint8_t const* data, int len, struct RevPacket* out)
 {
     BRIDGE_RUN(rsprot_message_game_out, MsgMessageGame)
-    /*
-     * `type` (the chat filter tab) and `name` (the speaker, present only when
-     * name_present is set) are DROPPED: struct PktMessageGame carries only
-     * `text`. That is the same loss the hand-written osrs239_parse.c already
-     * takes — it reads the name and frees it on the spot — so this is not a
-     * regression, but it is a real gap and belongs in the canonical struct
-     * rather than being read and discarded twice.
-     */
+    out->_message_game.type = msg.type;
+    /* `name` rides on its own present flag: a game message has no speaker, and
+     * a zero-length name is not the same thing as no name. */
+    if( msg.name_present && msg.name )
+    {
+        out->_message_game.name = dup_borrowed(msg.name);
+        if( !out->_message_game.name )
+            return 0;
+    }
     out->_message_game.text = dup_borrowed(msg.message);
     if( !out->_message_game.text )
         return 0;

@@ -6,6 +6,7 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <strings.h>
 
@@ -33,14 +34,78 @@ RS_Chat_Init(struct RS_Chat* chat, char const* username)
     snprintf(chat->username, sizeof(chat->username), "%s", username ? username : "Player");
 }
 
+/*
+ * Push one node onto its type's ring and onto the global order.
+ *
+ * The ring recycles rather than allocates once it is full, which is the
+ * reference's own shape (class55.method1052 takes line 99 back and shifts):
+ * a client that runs for an hour reaches steady state and stops touching the
+ * allocator entirely.
+ */
+static struct RS_ChatNode*
+chat_ring_push(
+    struct RS_Chat* chat,
+    int type)
+{
+    struct RS_ChatTypeRing* ring;
+    struct RS_ChatNode* node;
+    int i;
+
+    assert(chat);
+    assert(type >= 0 && type < RS_CHAT_TYPE_MAX);
+
+    if( !chat->rings[type] )
+    {
+        chat->rings[type] = calloc(1, sizeof(*chat->rings[type]));
+        assert(chat->rings[type]);
+    }
+    ring = chat->rings[type];
+
+    if( ring->count == RS_CHAT_TYPE_LINES )
+    {
+        /* Recycle the oldest of this type: unlink it from the global order
+         * first, or the list keeps a node the ring is about to overwrite. */
+        node = ring->lines[RS_CHAT_TYPE_LINES - 1];
+        assert(node);
+        if( chat->uid_memo == node )
+            chat->uid_memo = NULL;
+    }
+    else
+    {
+        node = calloc(1, sizeof(*node));
+        assert(node);
+        ring->count++;
+    }
+
+    for( i = ring->count - 1; i > 0; i-- )
+        ring->lines[i] = ring->lines[i - 1];
+    ring->lines[0] = node;
+
+    memset(node, 0, sizeof(*node));
+    node->older = chat->newest;
+    if( chat->newest )
+        chat->newest->newer = node;
+    else
+        chat->oldest = node;
+    chat->newest = node;
+    return node;
+}
+
 void
 RS_Chat_AddMessage(
     struct RS_Chat* chat,
     int type,
+    char const* name,
     char const* sender,
-    char const* text)
+    char const* text,
+    int clock)
 {
+    struct RS_ChatNode* node;
+
     assert(chat);
+    assert(type >= 0);
+    assert(type < RS_CHAT_TYPE_MAX);
+
     if( chat->message_count < RS_CHAT_MESSAGE_MAX )
         chat->message_count++;
     memmove(
@@ -49,10 +114,151 @@ RS_Chat_AddMessage(
         (size_t)(chat->message_count - 1) * sizeof(struct RS_ChatMessage));
     memset(&chat->messages[0], 0, sizeof(chat->messages[0]));
     chat->messages[0].type = type;
-    if( sender )
-        snprintf(chat->messages[0].sender, sizeof(chat->messages[0].sender), "%s", sender);
+    if( name )
+        snprintf(chat->messages[0].sender, sizeof(chat->messages[0].sender), "%s", name);
     if( text )
         snprintf(chat->messages[0].text, sizeof(chat->messages[0].text), "%s", text);
+
+    node = chat_ring_push(chat, type);
+    node->uid = chat->next_uid++;
+    node->clock = clock;
+    node->type = type;
+    if( name )
+        snprintf(node->name, sizeof(node->name), "%s", name);
+    if( sender )
+        snprintf(node->sender, sizeof(node->sender), "%s", sender);
+    if( text )
+        snprintf(node->text, sizeof(node->text), "%s", text);
+}
+
+void
+RS_Chat_Free(struct RS_Chat* chat)
+{
+    int t;
+    int i;
+
+    if( !chat )
+        return;
+    for( t = 0; t < RS_CHAT_TYPE_MAX; t++ )
+    {
+        struct RS_ChatTypeRing* ring = chat->rings[t];
+        if( !ring )
+            continue;
+        for( i = 0; i < ring->count; i++ )
+            free(ring->lines[i]);
+        free(ring);
+        chat->rings[t] = NULL;
+    }
+    chat->newest = NULL;
+    chat->oldest = NULL;
+    chat->uid_memo = NULL;
+}
+
+int
+RS_Chat_TypeCount(
+    struct RS_Chat const* chat,
+    int type)
+{
+    assert(chat);
+    /* A type outside the table is not a caller bug here: the opcode's argument
+     * comes from a cache script sweeping a range, and script553 sweeps 0..118
+     * whether or not this client has ever seen those types. */
+    if( type < 0 || type >= RS_CHAT_TYPE_MAX || !chat->rings[type] )
+        return 0;
+    return chat->rings[type]->count;
+}
+
+struct RS_ChatNode const*
+RS_Chat_NodeByTypeAndLine(
+    struct RS_Chat const* chat,
+    int type,
+    int line)
+{
+    assert(chat);
+    if( type < 0 || type >= RS_CHAT_TYPE_MAX || !chat->rings[type] )
+        return NULL;
+    if( line < 0 || line >= chat->rings[type]->count )
+        return NULL;
+    return chat->rings[type]->lines[line];
+}
+
+/* Find by uid, newest first, remembering the answer.
+ *
+ * The memo is not an optimisation looking for a problem: rebuildchatbox reads
+ * a node by uid and then immediately asks for that node's previous uid, once
+ * per line it draws, so without it every line pays a walk from the head and a
+ * full chatbox is quadratic in the history length. */
+static struct RS_ChatNode*
+chat_find_uid(
+    struct RS_Chat* chat,
+    int uid)
+{
+    struct RS_ChatNode* n;
+
+    assert(chat);
+    if( uid < 0 )
+        return NULL;
+    if( chat->uid_memo && chat->uid_memo->uid == uid )
+        return chat->uid_memo;
+    for( n = chat->newest; n; n = n->older )
+    {
+        if( n->uid == uid )
+        {
+            chat->uid_memo = n;
+            return n;
+        }
+        /* Ordered by uid, so once we are past it the message is gone. */
+        if( n->uid < uid )
+            break;
+    }
+    return NULL;
+}
+
+struct RS_ChatNode const*
+RS_Chat_NodeByUid(
+    struct RS_Chat* chat,
+    int uid)
+{
+    return chat_find_uid(chat, uid);
+}
+
+int
+RS_Chat_PrevUid(
+    struct RS_Chat* chat,
+    int uid)
+{
+    struct RS_ChatNode* n = chat_find_uid(chat, uid);
+    if( !n || !n->older )
+        return -1;
+    chat->uid_memo = n->older;
+    return n->older->uid;
+}
+
+int
+RS_Chat_NextUid(
+    struct RS_Chat* chat,
+    int uid)
+{
+    struct RS_ChatNode* n = chat_find_uid(chat, uid);
+    if( !n || !n->newer )
+        return -1;
+    chat->uid_memo = n->newer;
+    return n->newer->uid;
+}
+
+int
+RS_Chat_NodeFriendState(
+    struct RS_ChatNode const* node,
+    struct RS_Social const* social)
+{
+    assert(node);
+    if( !social || !node->sender[0] )
+        return 0;
+    if( RS_Social_IsFriend(social, node->sender) )
+        return 1;
+    if( RS_Social_IsIgnored(social, node->sender) )
+        return 2;
+    return 0;
 }
 
 static int
@@ -74,9 +280,9 @@ is_friend(
 /* Does this message occupy a chat line under the current filters?
  * (The reference only advances `line` for messages that pass.)
  *
- * Exported as RS_Chat_MessagePasses because the rev-230 widget chatbox needs the
- * same answer — see rs_chat_widgets.c. `message_passes` stays as the local
- * spelling so the call sites below read unchanged. */
+ * Exported as RS_Chat_MessagePasses because the layout and the scrollbar are
+ * two readers of one rule; `message_passes` stays as the local spelling so the
+ * call sites below read unchanged. */
 int
 RS_Chat_MessagePasses(
     struct RS_ChatFilters const* filters,
@@ -488,8 +694,12 @@ chat_submit(
     }
     if( chat->input[0] )
     {
-        /* Local echo; the send hook (MESSAGE_PUBLIC) attaches with net. */
-        RS_Chat_AddMessage(chat, RS_CHAT_TYPE_PUBLIC, chat->username, chat->input);
+        /* Local echo; the send hook (MESSAGE_PUBLIC) attaches with net.
+         * This path is the dat1 surface chatbox, which has no CS2 host and so
+         * no client clock to stamp -- the clock is only ever read back by the
+         * cache's scripts, and a dat1 boot runs none. */
+        RS_Chat_AddMessage(
+            chat, RS_CHAT_TYPE_PUBLIC, chat->username, chat->username, chat->input, 0);
         chat->input[0] = '\0';
         chat->scroll_pos = 0;
         return 1;

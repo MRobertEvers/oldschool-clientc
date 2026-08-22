@@ -710,51 +710,6 @@ bm_set_kv(
             }
             return;
         }
-        /* [ui:chatbox] — see BootManifest.chatbox_* for why these are declared
-         * rather than discovered. They share BM_SECTION_UI because every
-         * `[ui:…]` header that is not gameframe or varc lands there; the key
-         * names are distinct, so the sections stay readable in the file without
-         * needing a parser branch each. */
-        if( strcmp(key, "chatbox_interface") == 0 )
-        {
-            bm->chatbox_interface = atoi(value);
-            return;
-        }
-        if( strcmp(key, "chatbox_messages") == 0 )
-        {
-            bm->chatbox_messages = atoi(value);
-            return;
-        }
-        if( strcmp(key, "chatbox_first_line") == 0 )
-        {
-            bm->chatbox_first_line = atoi(value);
-            return;
-        }
-        if( strcmp(key, "chatbox_line_count") == 0 )
-        {
-            bm->chatbox_line_count = atoi(value);
-            return;
-        }
-        if( strcmp(key, "chatbox_input") == 0 )
-        {
-            bm->chatbox_input = atoi(value);
-            return;
-        }
-        if( strcmp(key, "chatbox_prompt") == 0 )
-        {
-            bm->chatbox_prompt = atoi(value);
-            return;
-        }
-        if( strcmp(key, "chatbox_input_script") == 0 )
-        {
-            bm->chatbox_input_script = atoi(value);
-            return;
-        }
-        if( strcmp(key, "chatbox_line_height") == 0 )
-        {
-            bm->chatbox_line_height = atoi(value);
-            return;
-        }
         break;
 
     case BM_SECTION_UI_GAMEFRAME:
@@ -1117,11 +1072,6 @@ BootManifest_LoadFile(struct BootManifest* bm, char const* path)
     bm->features_ground_click_offmap = -1;
     bm->spawn_x = -1;
     bm->spawn_z = -1;
-    /* -1 rather than 0: a chatbox may legitimately have no input line or no
-     * scroll layer, and 0 is a real component child id. */
-    bm->chatbox_messages = -1;
-    bm->chatbox_input = -1;
-    bm->chatbox_prompt = -1;
 
     FILE* f = fopen(path, "rb");
     if( !f )
@@ -1466,17 +1416,6 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
     {
         cfg->varc_seeds = bm->varc;
         cfg->varc_seed_count = bm->varc_count;
-    }
-    if( bm->chatbox_interface > 0 )
-    {
-        cfg->chatbox.interface_id = bm->chatbox_interface;
-        cfg->chatbox.messages_child = bm->chatbox_messages;
-        cfg->chatbox.first_line = bm->chatbox_first_line;
-        cfg->chatbox.line_count = bm->chatbox_line_count;
-        cfg->chatbox.input_child = bm->chatbox_input;
-        cfg->chatbox.prompt_child = bm->chatbox_prompt;
-        cfg->chatbox.input_script = bm->chatbox_input_script;
-        cfg->chatbox.line_height = bm->chatbox_line_height;
     }
     if( bm->spawn_x >= 0 && bm->spawn_z >= 0 )
     {

@@ -128,6 +128,7 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_CC_SETONRELEASE,
     CS2VM_HOST_REQUEST_CC_SETONDIALOGABORT,
     CS2VM_HOST_REQUEST_CC_SETONFRIENDTRANSMIT,
+    CS2VM_HOST_REQUEST_CC_SETONCHATTRANSMIT,
     CS2VM_HOST_REQUEST_CC_SETONTARGETENTER,
     CS2VM_HOST_REQUEST_CC_SETONTARGETLEAVE,
     CS2VM_HOST_REQUEST_CC_SETONDRAG,
@@ -545,6 +546,13 @@ enum CS2VM_HostRequestKind
      * registered hook. */
     CS2VM_HOST_REQUEST_IF_SETONFRIENDTRANSMIT,
 
+    /* IF_SETONCHATTRANSMIT (2418). Same shape again, and the one that matters
+     * most: at a cache revision the chatbox is 500 text components the cache's
+     * own scripts fill, and this registration is how they learn a message
+     * arrived. Discarding it (which is what happened before) left a chatbox
+     * that rendered perfectly and stayed empty forever. */
+    CS2VM_HOST_REQUEST_IF_SETONCHATTRANSMIT,
+
     /* Loot-tracker native store (7400/7600-family), one kind carrying the
      * opcode and its popped args — same shape as SOCIAL/WORLDMAP. The host
      * forwards to LootStore_* on host->loot. */
@@ -587,6 +595,15 @@ struct CS2VM_HostRequest_Chat
     int public_mode;
     int private_mode;
     int trade_mode;
+    /** CHAT_GETHISTORYLENGTH / GETHISTORY*_BYTYPEANDLINE: which chat type. */
+    int type;
+    /** GETHISTORY*_BYTYPEANDLINE: line 0 is the newest message of that type. */
+    int line;
+    /** GETHISTORY*_BYUID / GETNEXTUID / GETPREVUID: the message handle the
+     *  cache's scripts walk the history with. */
+    int uid;
+    /** CHAT_SETTIMESTAMPS. */
+    int timestamps;
     /** CHAT_SENDPUBLIC's second argument: the packed colour/effect the line is
      *  spoken in — high byte colour, low byte effect, the same pairing the
      *  inbound PLAYER_INFO chat block carries (`colour_effect`). */

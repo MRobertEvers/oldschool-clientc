@@ -347,7 +347,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	game/rs_soundscape.c engine/dat2/task_dat2_soundscape_load.c \
 	game/rs_ui_slots.c game/rs_social.c game/rs_loot_store.c game/rs_clientcode.c game/rs_if1_buttons.c \
 	game/rs_idk_design.c \
-	game/rs_chat.c game/rs_chat_widgets.c game/rs_gameproto_exec.c \
+	game/rs_chat.c game/rs_gameproto_exec.c \
 	game/rs_game_events.c \
 	game/rs_worldmap.c \
 	game/rs_worldmap_render.c \
@@ -2025,14 +2025,15 @@ test-debug-overlay-visual: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o \
 		$(OBJ_DIR)/toridraw_model_sprite.o -lm
 	./$(OBJ_DIR)/debug_overlay_visual
 
-# The rev-230 widget chatbox: line order, bottom anchoring, scroll overflow.
-test-chat-widgets: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -I$(SRC_DIR)/ui -o $(OBJ_DIR)/chat_widgets_test \
-		game/rs_chat.c game/rs_chat_widgets.c game/rs_social.c net/jbase37.c \
+# The message store the cache's chatbox scripts read: per-type rings, the uid
+# walk rebuildchatbox drives, ring recycling, friend/ignore state.
+test-chat-store: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/chat_store_test \
+		game/rs_chat.c game/rs_social.c net/jbase37.c \
 		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_scroll.c ui/uitree_host.c \
 		perf/torirs_perf.c \
-		game/test/rs_chat_widgets_test.c -lm
-	./$(OBJ_DIR)/chat_widgets_test
+		game/test/rs_chat_store_test.c -lm
+	./$(OBJ_DIR)/chat_store_test
 
 # Widget-rebuild burst benchmark (cc_deleteall + a run of cc_create). Always
 # optimized â the point is the algorithm, not -O0 call overhead. Override the

@@ -23,6 +23,36 @@
 #include <stdlib.h>
 #include <string.h>
 
+/*
+ * Put a line in the chatbox.
+ *
+ * Through the CS2 host when there is one, because a message is two things and
+ * both have to happen: it goes in the store, and the chat-transmit channel
+ * has to say so, or the cache's `[proc,rebuildchatbox]` never runs and the
+ * line sits in a store nothing draws. The host also owns the client clock the
+ * node is stamped with.
+ *
+ * The app-less form is the unit tests and the headless packet harness, which
+ * have a store and no host; they get the store write and a zero clock, which
+ * is all a run with no chatbox can use.
+ */
+static void
+exec_chat_add(
+    struct RS_GameProtoCtx const* ctx,
+    int type,
+    char const* name,
+    char const* sender,
+    char const* text)
+{
+    assert(ctx);
+    if( !ctx->chat )
+        return;
+    if( ctx->app )
+        RS_CS2Host_ChatAdd(&ctx->app->host, type, name, sender, text);
+    else
+        RS_Chat_AddMessage(ctx->chat, type, name, sender, text, 0);
+}
+
 /* 15-bit RS colour (r<<10|g<<5|b, 5 bits each) to RGB888. */
 static int
 rs15_to_rgb(int c)
@@ -957,13 +987,22 @@ RS_GameProto_Exec(
 
     /* ---- chat ---- */
     case PKT_NAME_MESSAGE_GAME:
-        if( ctx->chat )
-            RS_Chat_AddMessage(ctx->chat, RS_CHAT_TYPE_GAME, NULL, packet->_message_game.text);
+        /* The TYPE is the server's, not a constant: it picks the filter tab,
+         * the colour and the prefix the chatbox script draws the line with. */
+        exec_chat_add(
+            ctx,
+            packet->_message_game.type,
+            packet->_message_game.name,
+            packet->_message_game.name,
+            packet->_message_game.text);
         /* Independent of the chatbox: a headless run has no chat model, and a
          * plugin watching for a boss kill has to work there too. */
         if( ctx->app )
             App_NotifyChatMessage(
-                ctx->app, RS_CHAT_TYPE_GAME, NULL, packet->_message_game.text);
+                ctx->app,
+                packet->_message_game.type,
+                packet->_message_game.name,
+                packet->_message_game.text);
         /*
          * Printed by default, and that is a deliberate inversion.
          *
@@ -1255,10 +1294,11 @@ RS_GameProto_Exec(
             app->pm_message_ids[app->pm_message_head] = packet->_message_private.message_id;
             app->pm_message_head = (app->pm_message_head + 1) % 100;
             base37tostr((uint64_t)packet->_message_private.from, name, sizeof(name));
-            RS_Chat_AddMessage(
-                ctx->chat,
+            exec_chat_add(
+                ctx,
                 packet->_message_private.staff_mod ? RS_CHAT_TYPE_PRIVATE_FROM_MOD
                                                    : RS_CHAT_TYPE_PRIVATE_FROM,
+                name,
                 name,
                 packet->_message_private.text);
             if( ctx->app )
@@ -1328,8 +1368,7 @@ RS_GameProto_Exec(
             /* Shared with the connection-lost path in app.c: a session that
              * ends is a session that ends, however it was told to. */
             App_NetSessionReset(app);
-            if( ctx->chat )
-                RS_Chat_AddMessage(ctx->chat, RS_CHAT_TYPE_GAME, NULL, "You have been logged out.");
+            exec_chat_add(ctx, RS_CHAT_TYPE_GAME, NULL, NULL, "You have been logged out.");
             if( app->net )
                 ToriRS_Network_Logout(app->net);
             app->need_redraw = 1;
