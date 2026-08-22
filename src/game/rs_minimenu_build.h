@@ -170,6 +170,24 @@ struct RS_MinimenuBuildCtx
 #define RS_MINIMENU_ACTION_MAPEDIT_SELECT (UITREE_MINIMENU_ACTION_CLIENT_BASE + 2)
 #define RS_MINIMENU_ACTION_MAPEDIT_SELECT_TERRAIN (UITREE_MINIMENU_ACTION_CLIENT_BASE + 3)
 
+/*
+ * A CLIENTOP_* row -- one the cache installed with 6700..6709 ("Mark tile",
+ * "Tag"), run client-side and never sent to a server.
+ *
+ * ONE action id for the whole family, with the kind and slot carried in the
+ * option's `action_index`: a per-(kind, slot) id would be thirty of them, and
+ * the dispatcher does the same thing for every one -- look the slot up and run
+ * its script. See RS_MINIMENU_CLIENTOP_INDEX.
+ */
+#define RS_MINIMENU_ACTION_CLIENTOP (UITREE_MINIMENU_ACTION_CLIENT_BASE + 4)
+
+/** Pack a client op's (kind, slot) into a minimenu option's action_index, and
+ *  read it back. `action_index` is otherwise the config op slot 0..4, which a
+ *  client-op row does not have. */
+#define RS_MINIMENU_CLIENTOP_INDEX(kind, slot) ((kind) * 16 + (slot))
+#define RS_MINIMENU_CLIENTOP_KIND(index) ((index) / 16)
+#define RS_MINIMENU_CLIENTOP_SLOT(index) ((index) % 16)
+
 /** Build the full menu for a right click at (click_x, click_y): Cancel row,
  * per-hit-node rows (top-most component first), priority-sorted. */
 void

@@ -6351,6 +6351,12 @@ App_Init(
     app->world_hover_tile_x = -1;
     app->world_hover_tile_z = -1;
     app->world_hover_tile_level = 0;
+    /* -2, not -1: -1 is "no tile", a state the refreshers must still be run
+     * for once, and seeding them equal to it would skip that first run. */
+    app->highlight_last_hover_coord = -2;
+    app->highlight_last_local_coord = -2;
+    app->highlight_last_dest_coord = -2;
+    app->highlight_last_mouseover = -2;
     app->world_map_scene_id = -1;
     app->worldmap_render = RS_WorldMapRender_New();
     app->worldmap_overview_scene_id = 0;
@@ -10752,6 +10758,212 @@ app_logic_tick(struct App* app)
             }
         }
         app->host.local_coord = coord;
+    }
+
+    /*
+     * The two other coords the highlight refreshers read, and the three edges
+     * that re-run them.
+     *
+     * Clientscripts 5197 / 5204 / 5210 mark the hovered, current and
+     * destination tile. Each takes no arguments and reads its subject from an
+     * opcode -- `_6950`, `coord`, `_3330` -- so the client's whole job is to
+     * run each one again when its subject changes. Nothing in the cache calls
+     * them; the reference client does, on exactly these edges.
+     *
+     * Edge-triggered and not per-frame. Each script clears its group and
+     * re-adds one tile, so running them every frame would be three script
+     * dispatches and six highlight ops a frame to say what has not changed --
+     * and they are also what CLEARS the group when the setting is switched
+     * off, so they must run at least once after any change either way.
+     */
+    {
+        int dest_coord = -1;
+        int hover_coord = -1;
+
+        if( app->world && app->world->load_complete && app->minimap_flag_x >= 0 )
+        {
+            int const x = app->world->_base_tile_x + app->minimap_flag_x;
+            int const z = app->world->_base_tile_z + app->minimap_flag_z;
+            struct WorldEntity_Player* self =
+                World_PlayerGetByServerPid(app->world, app->world->local_pid);
+            int const level = self ? (self->grid_position.level & 3) : 0;
+            dest_coord = (level << 28) | ((x & 0x3fff) << 14) | (z & 0x3fff);
+        }
+        if( app->world && app->world_hover_tile_x >= 0 && app->world_hover_tile_z >= 0 )
+        {
+            int const x = app->world->_base_tile_x + app->world_hover_tile_x;
+            int const z = app->world->_base_tile_z + app->world_hover_tile_z;
+            int const level = World_TerrainWalkLevel(
+                                  app->world,
+                                  app->world_hover_tile_x,
+                                  app->world_hover_tile_z,
+                                  app->world_hover_tile_level) &
+                              3;
+            hover_coord = (level << 28) | ((x & 0x3fff) << 14) | (z & 0x3fff);
+        }
+
+        app->host.dest_coord = dest_coord;
+        app->host.hover_coord = hover_coord;
+
+        /*
+         * What the pointer is on, for MINIMENU_TYPE and the target getters.
+         *
+         * The nearest non-terrain pick of the frame -- the same one the
+         * client's own left click would act on, and the same rule
+         * app_plugin_hover_entity follows. Terrain is skipped: over open
+         * ground the answer is "nothing", which is what clientscript 5350
+         * bails on.
+         */
+        {
+            struct RS_ClientOpContext mo;
+            int minimenu_type = RS_MINIMENU_TYPE_NONE;
+
+            memset(&mo, 0, sizeof(mo));
+            mo.kind = -1;
+            mo.uid = -1;
+            mo.type = -1;
+            mo.coord = -1;
+
+            if( app->world )
+            {
+                for( int i = 0; i < app->world_pickset.count; i++ )
+                {
+                    struct World_Picked const* hit = &app->world_pickset.items[i];
+                    int const base_x = app->world->_base_tile_x;
+                    int const base_z = app->world->_base_tile_z;
+
+                    if( hit->type == WORLD_PICK_NPC )
+                    {
+                        struct WorldEntity_NPC* npc =
+                            World_NpcGetByElementId(app->world, hit->element_id, NULL);
+                        if( !npc )
+                            continue;
+                        mo.kind = RS_CLIENTOP_NPC;
+                        minimenu_type = RS_MINIMENU_TYPE_NPC;
+                        mo.uid = npc->server_slot;
+                        mo.type = npc->npc_id;
+                        mo.coord = RS_CLIENTOP_COORD(
+                            npc->grid_position.level,
+                            base_x + npc->grid_position.x,
+                            base_z + npc->grid_position.z);
+                        snprintf(mo.name, sizeof(mo.name), "%s", npc->name);
+                    }
+                    else if( hit->type == WORLD_PICK_SCENERY )
+                    {
+                        struct WorldEntity_Scenery* loc =
+                            World_SceneryGetByElementId(app->world, hit->element_id);
+                        if( !loc )
+                            continue;
+                        mo.kind = RS_CLIENTOP_LOC;
+                        minimenu_type = RS_MINIMENU_TYPE_LOC;
+                        mo.type = loc->loc_id;
+                        mo.coord = RS_CLIENTOP_COORD(
+                            loc->grid_position.level,
+                            base_x + loc->grid_position.x,
+                            base_z + loc->grid_position.z);
+                        snprintf(mo.name, sizeof(mo.name), "%s", loc->name);
+                    }
+                    else if( hit->type == WORLD_PICK_OBJSTACK )
+                    {
+                        struct WorldEntity_ObjStack* stack =
+                            World_ObjStackGetByElementId(app->world, hit->element_id);
+                        if( !stack )
+                            continue;
+                        mo.kind = RS_CLIENTOP_OBJ;
+                        minimenu_type = RS_MINIMENU_TYPE_OBJ;
+                        mo.type = stack->obj_id;
+                        mo.coord = RS_CLIENTOP_COORD(
+                            stack->grid_position.level,
+                            base_x + stack->grid_position.x,
+                            base_z + stack->grid_position.z);
+                        snprintf(mo.name, sizeof(mo.name), "%s", stack->name);
+                    }
+                    else if( hit->type == WORLD_PICK_PLAYER )
+                    {
+                        struct WorldEntity_Player* pl =
+                            World_PlayerGetByElementId(app->world, hit->element_id);
+                        if( !pl )
+                            continue;
+                        mo.kind = RS_CLIENTOP_PLAYER;
+                        minimenu_type = RS_MINIMENU_TYPE_PLAYER;
+                        mo.coord = RS_CLIENTOP_COORD(
+                            pl->grid_position.level,
+                            base_x + pl->grid_position.x,
+                            base_z + pl->grid_position.z);
+                        snprintf(mo.name, sizeof(mo.name), "%s", pl->name);
+                    }
+                    else
+                        continue;
+                    break;
+                }
+            }
+
+            snprintf(
+                app->host.clientop.mouseover_target,
+                sizeof(app->host.clientop.mouseover_target),
+                "%s",
+                mo.name);
+            app->host.clientop.menu_open = app->interact.minimenu.visible;
+            RS_ClientOpMouseoverSet(&app->host.clientop, &mo, minimenu_type);
+
+            /*
+             * Publishing is ALL the client does here.
+             *
+             * The cache drives the mouseover highlighter itself: clientscript
+             * 4726 is re-armed on a gameframe component timer and calls 5350
+             * every tick. Measured -- with the client's own edge-triggered call
+             * removed, 5350 still ran 89 times over the same window. Adding one
+             * would be a second driver for an idempotent script, which is only
+             * waste.
+             *
+             * The three TILE refreshers are different and are driven below:
+             * nothing in the cache calls those at all.
+             */
+            if( getenv("TORIRS_CLIENTOP_DEBUG") )
+            {
+                int const subject = mo.kind < 0 ? -1 : (mo.kind * 4096) ^ mo.uid ^ mo.type;
+                if( subject != app->highlight_last_mouseover )
+                {
+                    app->highlight_last_mouseover = subject;
+                    fprintf(
+                        stderr,
+                        "mouseover: type=%d kind=%d uid=%d id=%d '%s'\n",
+                        minimenu_type,
+                        mo.kind,
+                        mo.uid,
+                        mo.type,
+                        mo.name);
+                }
+            }
+        }
+
+        /* Only once the world is up: before that the scripts would clear a
+         * group and re-add a tile from a scene that is about to be replaced,
+         * and the group is rebuilt by the login initialiser anyway. */
+        if( app->world && app->world->load_complete )
+        {
+            if( hover_coord != app->highlight_last_hover_coord )
+            {
+                app->highlight_last_hover_coord = hover_coord;
+                RS_CS2_RunScript(
+                    &app->host, &app->runner, app->host.script_highlight_hover_tile,
+                    NULL, 0, 0, NULL, 0);
+            }
+            if( app->host.local_coord != app->highlight_last_local_coord )
+            {
+                app->highlight_last_local_coord = app->host.local_coord;
+                RS_CS2_RunScript(
+                    &app->host, &app->runner, app->host.script_highlight_current_tile,
+                    NULL, 0, 0, NULL, 0);
+            }
+            if( dest_coord != app->highlight_last_dest_coord )
+            {
+                app->highlight_last_dest_coord = dest_coord;
+                RS_CS2_RunScript(
+                    &app->host, &app->runner, app->host.script_highlight_dest_tile,
+                    NULL, 0, 0, NULL, 0);
+            }
+        }
     }
 
     RS_CS2Host_Tick(&app->host);
@@ -18867,6 +19079,288 @@ app_minimenu_ctx_ground_fallback(
     mctx->ground_fallback_level = level;
 }
 
+/* ------------------------------------------------------------- client ops --
+ *
+ * The rows the CACHE installed with CLIENTOP_* (6700..6709): "Mark tile" on a
+ * tile, "Tag" and "Tag-All" on an npc, "Lookup" on a player. Client-side rows
+ * that run a clientscript and are never sent to a server. See rs_clientop.h.
+ */
+
+/*
+ * Held SHIFT is what makes them appear, and the cache says so rather than this
+ * client deciding it: setting 112's own description is "When enabled, hold
+ * shift and right-click the ground to place highlights". Nothing in the
+ * installing scripts tests a key, so the gate is the client's to apply — and
+ * without it every right click on the ground would carry a "Mark tile" row
+ * above "Walk here".
+ */
+static bool
+app_clientop_armed(struct App const* app)
+{
+    assert(app);
+    if( !app->plugin_input )
+        return false;
+    return LibToriRS_Input_IsKeyHeld(app->plugin_input, TORIRSK_SHIFT);
+}
+
+/** Append every installed op of `kind`, labelled against `subject` (which may
+ *  be NULL or empty for a tile, which names nothing). */
+static void
+app_clientop_add_rows(
+    struct App* app,
+    struct UIMinimenu* menu,
+    enum RS_ClientOpKind kind,
+    char const* subject,
+    struct UIMinimenuPick pick)
+{
+    char text[UITREE_MINIMENU_OPTION_LEN];
+
+    assert(app);
+    assert(menu);
+
+    for( int slot = 0; slot < RS_CLIENTOP_SLOT_MAX; slot++ )
+    {
+        struct RS_ClientOpSlot const* op = RS_ClientOpGet(&app->host.clientop, kind, slot);
+        if( !op )
+            continue;
+
+        /* "Tag @whi@Goblin", the shape every other targeted row uses; a tile
+         * names nothing, so its row is the bare label. */
+        if( subject && subject[0] )
+            snprintf(text, sizeof(text), "%s @whi@%s", op->label, subject);
+        else
+            snprintf(text, sizeof(text), "%s", op->label);
+
+        UIMinimenu_AddOption(
+            menu, text, RS_MINIMENU_ACTION_CLIENTOP,
+            RS_MINIMENU_CLIENTOP_INDEX(kind, slot), pick);
+    }
+}
+
+/*
+ * Add the client-op rows to a freshly built menu.
+ *
+ * Driven off the ROWS the builder produced rather than off the pickset, for
+ * the same reason the npc-highlight plugin is: the rows are what the menu is
+ * about, and a pick the builder decided not to offer (a non-interactive wall,
+ * an npc filtered out by the attack setting) is not something the user can act
+ * on and must not grow an op either.
+ *
+ * The tile row is the exception -- it hangs off the TERRAIN pick, which is the
+ * "Walk here" row, and that row is offered even when it is inert.
+ */
+static void
+app_clientop_menu_build(struct App* app, struct UIMinimenu* menu, int hover_pass)
+{
+    bool seen[RS_CLIENTOP_KIND_COUNT] = { false, false, false, false, false };
+    int const count = menu->option_count;
+
+    assert(app);
+    assert(menu);
+
+    /* The hover pass runs every frame to compose the top-left readout; a row
+     * added there would be offered as the LEFT-click action. */
+    if( hover_pass || !app->world || !app_clientop_armed(app) )
+        return;
+
+    for( int i = 0; i < count; i++ )
+    {
+        struct UIMinimenuOption const* opt = &menu->options[i];
+        enum RS_ClientOpKind kind;
+        char const* subject = NULL;
+
+        switch( opt->pick.kind )
+        {
+        case UI_MINIMENU_PICK_NPC:
+        {
+            struct WorldEntity_NPC* npc =
+                World_NpcGetByElementId(app->world, opt->pick.id, NULL);
+            if( !npc )
+                continue;
+            kind = RS_CLIENTOP_NPC;
+            subject = npc->name;
+            break;
+        }
+        case UI_MINIMENU_PICK_SCENERY:
+        {
+            struct WorldEntity_Scenery* loc =
+                World_SceneryGetByElementId(app->world, opt->pick.id);
+            if( !loc )
+                continue;
+            kind = RS_CLIENTOP_LOC;
+            subject = loc->name;
+            break;
+        }
+        case UI_MINIMENU_PICK_OBJ:
+        {
+            struct WorldEntity_ObjStack* stack =
+                World_ObjStackGetByElementId(app->world, opt->pick.id);
+            if( !stack )
+                continue;
+            kind = RS_CLIENTOP_OBJ;
+            subject = stack->name;
+            break;
+        }
+        case UI_MINIMENU_PICK_PLAYER:
+        {
+            struct WorldEntity_Player* player =
+                World_PlayerGetByElementId(app->world, opt->pick.id);
+            if( !player )
+                continue;
+            kind = RS_CLIENTOP_PLAYER;
+            subject = player->name;
+            break;
+        }
+        case UI_MINIMENU_PICK_TERRAIN:
+            /* An inert Walk here row (a click on the sky) carries no tile, and
+             * a "Mark tile" over nothing would mark the corner of the map. */
+            if( opt->pick.secondary_id < 0 )
+                continue;
+            kind = RS_CLIENTOP_TILE;
+            break;
+        default:
+            continue;
+        }
+
+        /* One set of rows per KIND, not per row: an npc with five ops already
+         * has five rows in this menu, and adding "Tag" beside each of them
+         * would offer the same op five times. */
+        if( seen[kind] )
+            continue;
+        seen[kind] = true;
+        app_clientop_add_rows(app, menu, kind, subject, opt->pick);
+    }
+}
+
+/*
+ * Run a client op: record what it is about, then queue its script.
+ *
+ * NOT a begin/run/clear bracket. RS_CS2_RunScript queues a task; the script
+ * runs during the frame's settle, well below this call, so clearing on the way
+ * out would land before it ever started and every context op would read -1 --
+ * which is exactly what the first version of this did.
+ *
+ * The context is scoped by the script's IDENTITY instead, and left standing
+ * afterwards: only a root frame of `op->script_id` can read it. See
+ * RS_ClientOpContext::script_id.
+ */
+static int
+app_clientop_run(struct App* app, struct UIMinimenuOption const* opt)
+{
+    struct RS_ClientOpContext ctx;
+    struct RS_ClientOpSlot const* op;
+    int const kind = RS_MINIMENU_CLIENTOP_KIND(opt->action_index);
+    int const slot = RS_MINIMENU_CLIENTOP_SLOT(opt->action_index);
+    int base_x;
+    int base_z;
+
+    assert(app);
+    assert(opt);
+
+    if( !app->world )
+        return 1;
+    op = RS_ClientOpGet(&app->host.clientop, (enum RS_ClientOpKind)kind, slot);
+    if( !op )
+        return 1;
+
+    base_x = app->world->_base_tile_x;
+    base_z = app->world->_base_tile_z;
+
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.kind = kind;
+    ctx.uid = -1;
+    ctx.type = -1;
+    ctx.coord = -1;
+
+    switch( (enum RS_ClientOpKind)kind )
+    {
+    case RS_CLIENTOP_NPC:
+    {
+        struct WorldEntity_NPC* npc = World_NpcGetByElementId(app->world, opt->pick.id, NULL);
+        if( !npc )
+            return 1;
+        /* The uid IS the server slot here -- see RS_ClientOpContext::uid for
+         * why that is allowed to differ from the reference's. */
+        ctx.uid = npc->server_slot;
+        ctx.type = npc->npc_id;
+        ctx.coord = RS_CLIENTOP_COORD(
+            npc->grid_position.level,
+            base_x + npc->grid_position.x,
+            base_z + npc->grid_position.z);
+        snprintf(ctx.name, sizeof(ctx.name), "%s", npc->name);
+        break;
+    }
+    case RS_CLIENTOP_LOC:
+    {
+        struct WorldEntity_Scenery* loc = World_SceneryGetByElementId(app->world, opt->pick.id);
+        if( !loc )
+            return 1;
+        ctx.type = loc->loc_id;
+        ctx.coord = RS_CLIENTOP_COORD(
+            loc->grid_position.level,
+            base_x + loc->grid_position.x,
+            base_z + loc->grid_position.z);
+        snprintf(ctx.name, sizeof(ctx.name), "%s", loc->name);
+        break;
+    }
+    case RS_CLIENTOP_OBJ:
+    {
+        struct WorldEntity_ObjStack* stack =
+            World_ObjStackGetByElementId(app->world, opt->pick.id);
+        if( !stack )
+            return 1;
+        ctx.type = stack->obj_id;
+        ctx.coord = RS_CLIENTOP_COORD(
+            stack->grid_position.level,
+            base_x + stack->grid_position.x,
+            base_z + stack->grid_position.z);
+        snprintf(ctx.name, sizeof(ctx.name), "%s", stack->name);
+        break;
+    }
+    case RS_CLIENTOP_PLAYER:
+    {
+        struct WorldEntity_Player* player =
+            World_PlayerGetByElementId(app->world, opt->pick.id);
+        if( !player )
+            return 1;
+        ctx.coord = RS_CLIENTOP_COORD(
+            player->grid_position.level,
+            base_x + player->grid_position.x,
+            base_z + player->grid_position.z);
+        snprintf(ctx.name, sizeof(ctx.name), "%s", player->name);
+        break;
+    }
+    case RS_CLIENTOP_TILE:
+        /* A TERRAIN pick carries scene tile x/z and the level, in
+         * secondary/tertiary/quaternary -- see the Walk here row. */
+        ctx.coord = RS_CLIENTOP_COORD(
+            opt->pick.quaternary_id,
+            base_x + opt->pick.secondary_id,
+            base_z + opt->pick.tertiary_id);
+        break;
+    default:
+        return 1;
+    }
+
+    if( getenv("TORIRS_CLIENTOP_DEBUG") )
+        fprintf(
+            stderr,
+            "clientop: %s slot %d '%s' -> script %d (uid=%d type=%d coord=%d '%s')\n",
+            RS_ClientOpKindName((enum RS_ClientOpKind)kind),
+            slot,
+            op->label,
+            op->script_id,
+            ctx.uid,
+            ctx.type,
+            ctx.coord,
+            ctx.name);
+
+    ctx.script_id = op->script_id;
+    RS_ClientOpContextBegin(&app->host.clientop, &ctx);
+    RS_CS2_RunScript(&app->host, &app->runner, op->script_id, NULL, 0, 0, NULL, 0);
+    return 1;
+}
+
 /* Build + show the minimenu for a right click (reference openMenu: width from
  * the widest row, centered on the click, clamped to the canvas). The tree
  * node stays unpositioned — emit and the interact gesture read the model. */
@@ -18904,6 +19398,10 @@ app_minimenu_open(
 
     app_minimenu_ctx_ground_fallback(app, &mctx, click_x, click_y);
     RS_Minimenu_Build(&mctx, click_x, click_y, menu);
+    /* Before the plugins, so their re-sort covers these rows too -- the client
+     * ops are the cache's, and a plugin adding a row after them must not leave
+     * the menu half-sorted. */
+    app_clientop_menu_build(app, menu, 0);
     app_plugin_menu_build(app, menu, 0);
 
     /* TORIRS_MINIMENU_DEBUG=1: the world pickset that fed the rows plus every
@@ -19912,6 +20410,12 @@ app_minimenu_run_option(
         if( PluginHost_MenuSelect(app->plugins, &row, click_x, click_y) )
             return 1;
     }
+
+    /* A cache-installed client op. After the plugins, so a plugin may still
+     * veto one; before every engine branch, because there is no engine
+     * behaviour behind this action id to fall through to. */
+    if( opt.action == RS_MINIMENU_ACTION_CLIENTOP )
+        return app_clientop_run(app, &opt);
 
     /*
      * Examine (OPLOC6/OPNPC6/OPOBJ6): resolved locally from the config desc, no
@@ -21215,7 +21719,28 @@ App_RunOnce(
         int setting_id;
         int setting_value;
         while( RS_CS2Host_TakeSettingsAction(&app->host, &setting_id, &setting_value) )
+        {
+            /*
+             * The two BUTTON rows, which the cache does not act on itself.
+             *
+             * "Clear your highlighted tiles" (117) and "Clear your highlighted
+             * NPCs" (267) both reach clientscript 3969, whose switch has no
+             * case for either -- the only thing it does for them is write the
+             * setting id to varbit 9657, which is how they get here at all.
+             * The reference clears the group natively; so does this.
+             *
+             * Group 6 for both, and they are different groups: the tile
+             * markers live in the TILE kind's 6 (clientscript 4763 sets it up)
+             * and the tagged npcs in the NPC kind's (6688 adds to it). Group
+             * ids are per kind, which is exactly why clearing one does not
+             * touch the other.
+             */
+            if( setting_id == APP_SETTING_CLEAR_TILE_MARKERS )
+                RS_HighlightClear(&app->host.highlight, RS_HIGHLIGHT_TILE, 6);
+            else if( setting_id == APP_SETTING_CLEAR_NPC_TAGS )
+                RS_HighlightClear(&app->host.highlight, RS_HIGHLIGHT_NPC, 6);
             PluginHost_Setting(app->plugins, setting_id, setting_value);
+        }
     }
 
     /* Developer overlay first: its toggle key has to latch during a boot too,

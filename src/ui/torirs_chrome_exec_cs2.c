@@ -162,6 +162,25 @@
 #define CS2_ID_WIDGET_BASE (TORIRS_CHROME_CS2_ID_BASE + 0x100)
 #define CS2_ID_ACTION_BASE (TORIRS_CHROME_CS2_ID_BASE + 0x400)
 /**
+ * A row's LABEL, which takes an id for one reason only: to be hoverable.
+ *
+ * The hover walk reports a component as hovered only if it has an id AND
+ * something that changes under the pointer (uitree_hover.c: an over-layer, an
+ * `over_color`, or a mouse hook), and the emit walk then draws the text in
+ * that colour. So a label with no id can never light up, however it is
+ * coloured -- which is why every one of these used to be pushed with -1 and
+ * why the row names stayed white under the cursor while the in-canvas chrome's
+ * went yellow.
+ *
+ * It does NOT make the label clickable: a TEXT with no click mask and no ops
+ * is decorative pass-through to the hit test (UITree_ComponentIsPassThrough),
+ * so the click still belongs to the switch, the field or the gear beside it.
+ */
+#define CS2_ID_LABEL_BASE (TORIRS_CHROME_CS2_ID_BASE + 0x2800)
+/** A tab's CAPTION, hoverable for the same reason and by the same means. Its
+ *  own block, clear of the label block's one-per-widget span. */
+#define CS2_ID_TAB_LABEL_BASE (TORIRS_CHROME_CS2_ID_BASE + 0x2A00)
+/**
  * A COLORPICK's swatch, and the cells of its open axis popup.
  *
  * The swatch gets a block of its own for the same reason a LISTROW's action
@@ -170,20 +189,6 @@
  * time, so the block is indexed by cell number and the handler recovers which
  * picker from `colorpick_open`.
  */
-/**
- * Close, at the top of the panel.
- *
- * This presentation has no window furniture of its own -- it is a column of
- * components inside the gameframe's popout strip -- so there was nothing to
- * shut it with: the window opened and stayed open. The in-canvas chrome grew
- * the same button in its title bar (ToriRSChrome_PanelSetClosable); here it is
- * a component at the top right, and the intent it sends is the model's, so both
- * presentations mean the same thing by it.
- */
-#define CS2_ID_CLOSE (TORIRS_CHROME_CS2_ID_BASE + 0x23)
-/** Side of that button. */
-#define CS2_BTN 14
-
 #define CS2_ID_SWATCH_BASE (TORIRS_CHROME_CS2_ID_BASE + 0x800)
 #define CS2_ID_CELL_BASE (TORIRS_CHROME_CS2_ID_BASE + 0x1000)
 /** Cells one bar is cut into. Not the axis's own step count: hue has 64 values
@@ -507,8 +512,18 @@ cs2_assets_avail(struct ChromeCs2* s)
     return n;
 }
 
-/** A filled or outlined rectangle, optionally translucent (client convention:
- *  0 opaque, 255 invisible). */
+/*
+ * A filled or outlined rectangle, optionally translucent (client convention:
+ * 0 opaque, 255 invisible).
+ *
+ * Note `over_layer_id = -1`, which every builder below repeats: the TREE
+ * defaults that field to -1, but UITree_PushBuildComponent copies the build
+ * struct's own value over it, and a memset leaves 0 there. Zero is a component
+ * id, not a sentinel -- so the hover walk read every one of these components as
+ * "when hovered, report component 0 instead" and no chrome component could ever
+ * be found under the pointer. That is what kept the open dropdown's rows from
+ * lighting up despite their `over_color`.
+ */
 static int32_t
 cs2_rect_trans(
     struct ChromeCs2* s, int32_t parent, int com_id, int x, int y, int w, int h,
@@ -527,6 +542,7 @@ cs2_rect_trans(
     comp.if3 = 1;
     comp.graphic = -1;
     comp.graphic_active = -1;
+    comp.over_layer_id = -1;
     comp.model_active_id = -1;
     comp.model_seq_id = -1;
     comp.color = color;
@@ -566,6 +582,7 @@ cs2_graphic(
     comp.graphic_scene_id = s->skin_scene_id;
     comp.graphic_atlas_index = slot;
     comp.graphic_active = -1;
+    comp.over_layer_id = -1;
     comp.model_active_id = -1;
     comp.model_seq_id = -1;
     comp.tiled = tiled;
@@ -584,14 +601,15 @@ cs2_graphic(
  * what the first version of this did.
  */
 static int32_t
-cs2_text_box(
+cs2_text_box_over(
     struct ChromeCs2* s, int32_t parent, int com_id, int x, int y, int w, int h,
-    char const* str, int color, int centred)
+    char const* str, int color, int centred, int over_color)
 {
     struct UIBuildComponent comp;
 
     memset(&comp, 0, sizeof(comp));
     comp.id = com_id;
+    comp.over_color = over_color;
     comp.type = UIBUILD_TEXT;
     comp.parent_id = -1;
     comp.base_x = x;
@@ -601,6 +619,7 @@ cs2_text_box(
     comp.if3 = 1;
     comp.graphic = -1;
     comp.graphic_active = -1;
+    comp.over_layer_id = -1;
     comp.model_active_id = -1;
     comp.model_seq_id = -1;
     comp.text = str;
@@ -617,12 +636,39 @@ cs2_text_box(
         s->tree, parent, &comp, NULL, cs2_resolve_font, s);
 }
 
+/** A line of text that never changes under the pointer. */
+static int32_t
+cs2_text_box(
+    struct ChromeCs2* s, int32_t parent, int com_id, int x, int y, int w, int h,
+    char const* str, int color, int centred)
+{
+    return cs2_text_box_over(s, parent, com_id, x, y, w, h, str, color, centred, 0);
+}
+
 static int32_t
 cs2_text(
     struct ChromeCs2* s, int32_t parent, int com_id, int x, int y, int w,
     char const* str, int color)
 {
     return cs2_text_box(s, parent, com_id, x, y, w, CS2_ROW_H, str, color, 0);
+}
+
+/**
+ * A row's own caption: the same line of text, lit in the interfaces' hover
+ * yellow while the pointer is on it.
+ *
+ * The colour change is the TREE's, per frame, not a rebuild of the panel --
+ * the same trade the open dropdown's rows already make (cs2_push_drop_band).
+ * A hover latched in this executor would mean a rebuild on every crossing,
+ * and the display list is rebuilt only when the model changes.
+ */
+static int32_t
+cs2_text_hot(
+    struct ChromeCs2* s, int32_t parent, int com_id, int x, int y, int w,
+    char const* str, int color)
+{
+    return cs2_text_box_over(
+        s, parent, com_id, x, y, w, CS2_ROW_H, str, color, 0, CS2_COL_ACCENT);
 }
 
 /* ---- the colour picker's three axes ---------------------------------------
@@ -893,6 +939,7 @@ cs2_push_drop_band(
     comp.if3 = 1;
     comp.graphic = -1;
     comp.graphic_active = -1;
+    comp.over_layer_id = -1;
     comp.model_active_id = -1;
     comp.model_seq_id = -1;
     comp.color = CS2_COL_CHROME;
@@ -1125,6 +1172,7 @@ cs2_rebuild(struct ChromeCs2* s)
         layer.graphic_active = -1;
         layer.model_active_id = -1;
         layer.model_seq_id = -1;
+        layer.over_layer_id = -1;
         if( s->mount >= 0 )
         {
             /*
@@ -1208,47 +1256,22 @@ cs2_rebuild(struct ChromeCs2* s)
     y = CS2_PAD;
 
     /*
-     * The way out, before anything else claims the top row.
+     * NO WINDOW X.
      *
-     * The interfaces' own window X -- the same slot the in-canvas chrome draws,
-     * because this is the same window by another means (see dbg_build_window,
-     * and torirs_chrome_metrics.h on why the two presentations may not each
-     * carry their own answer).
+     * This presentation has no window furniture, and that is not an omission
+     * it has to make up for: it is a column of components inside the
+     * gameframe's popout strip, and the strip's own Plugin button is what
+     * opens it and what shuts it again. A close mark drawn inside the content
+     * is a second way out of a window that already has one, and it reads as
+     * belonging to the panel underneath it rather than to the strip -- which
+     * is why no cache-authored panel in that strip carries one either.
      *
-     * ONE button. There was an Ok beside it wearing the checkbox tick, which
-     * committed the page's Save row on the way out; both it and the confirm
-     * intent behind it are gone. A green tick is the game's answer to a
-     * question, not a way out of a window, and this presentation already draws
-     * Save as a labelled row a few pixels below.
+     * The intent still exists (TORIRS_CHROME_INTENT_CLOSE) and the in-canvas
+     * chrome still draws its own title-bar X, because THAT presentation is a
+     * floating window with a title bar to put one in. The two are the same
+     * window by different means, and window furniture is exactly the part
+     * that does not cross the seam.
      */
-    {
-        int const btn_y = y;
-        int const close_x = panel_w - CS2_PAD - CS2_BTN;
-        int32_t hit;
-
-        if( s->skin_scene_id > 0 )
-            cs2_graphic(
-                s, panel, -1, close_x, btn_y, CS2_BTN, CS2_BTN, TORIRS_CHROME_SKIN_CLOSE, 0);
-        else
-        {
-            cs2_rect(s, panel, -1, close_x, btn_y, CS2_BTN, CS2_BTN, CS2_COL_FIELD_BG, 1);
-            cs2_rect(
-                s, panel, -1, close_x + 2, btn_y + 2, CS2_BTN - 4, CS2_BTN - 4,
-                CS2_COL_ACCENT, 1);
-        }
-        /* The click target over the art, not the art itself: a graphic
-         * component sized to the hit box would stretch the sprite -- the
-         * same trade the checkboxes make. */
-        hit = cs2_rect_trans(
-            s, panel, CS2_ID_CLOSE, close_x, btn_y, CS2_BTN, CS2_BTN, CS2_COL_FIELD_BG, 1,
-            255);
-        if( hit >= 0 )
-            UITree_ApplyClickMask(s->tree, CS2_ID_CLOSE, 1);
-
-        /* The rows start below it, so the strip and the first row cannot be
-         * drawn under the button. */
-        y += CS2_BTN + CS2_ROW_GAP;
-    }
 
     if( s->tab_count > 1 )
     {
@@ -1333,9 +1356,12 @@ cs2_rebuild(struct ChromeCs2* s)
                 max_chars = 1;
             if( max_chars < (int)strlen(cap) )
                 cap[max_chars] = '\0';
-            cs2_text_box(
-                s, panel, -1, x + 1, y, tab_w - 2, CS2_TAB_H, cap,
-                on ? CS2_COL_TEXT : CS2_COL_LABEL, 1);
+            /* The SELECTED tab's caption does not light up -- the in-canvas
+             * strip's rule: the tab the panel is already showing has nothing
+             * to offer the pointer. */
+            cs2_text_box_over(
+                s, panel, CS2_ID_TAB_LABEL_BASE + t, x + 1, y, tab_w - 2, CS2_TAB_H, cap,
+                on ? CS2_COL_TEXT : CS2_COL_LABEL, 1, on ? 0 : CS2_COL_ACCENT);
         }
         /* The rule continues to the panel's edge past the last tab. */
         if( total < avail )
@@ -1451,8 +1477,9 @@ cs2_rebuild(struct ChromeCs2* s)
                 s, panel, id, CS2_PAD, box_y, CS2_BOX, CS2_BOX, CS2_COL_FIELD_BG, 1, 255);
             if( box >= 0 )
                 UITree_ApplyClickMask(s->tree, id, 1);
-            cs2_text(
-                s, panel, -1, CS2_PAD + CS2_BOX + TORIRS_CHROME_M_CHECK_GAP, y,
+            cs2_text_hot(
+                s, panel, CS2_ID_LABEL_BASE + i,
+                CS2_PAD + CS2_BOX + TORIRS_CHROME_M_CHECK_GAP, y,
                 row_w - CS2_BOX - TORIRS_CHROME_M_CHECK_GAP, s->label[i],
                 s->wcolor[i] ? (int)s->wcolor[i] : CS2_COL_TEXT);
             break;
@@ -1474,8 +1501,9 @@ cs2_rebuild(struct ChromeCs2* s)
                 (s->wrow_action[i] ? icon_x : tog_x) - CS2_PAD - TORIRS_CHROME_M_ROW_NAME_GAP;
             int32_t box;
 
-            cs2_text(
-                s, panel, -1, CS2_PAD, y, name_w > 0 ? name_w : 1, s->label[i],
+            cs2_text_hot(
+                s, panel, CS2_ID_LABEL_BASE + i, CS2_PAD, y,
+                name_w > 0 ? name_w : 1, s->label[i],
                 s->wcolor[i] ? (int)s->wcolor[i] : CS2_COL_TEXT);
 
             if( s->wrow_action[i] )
@@ -1676,9 +1704,10 @@ cs2_rebuild(struct ChromeCs2* s)
             char const* caption = s->text[i][0] ? s->text[i] : s->label[i];
             int const bw = CS2_LABEL_W;
             cs2_field_chrome(s, panel, id, CS2_PAD, y, bw, CS2_ROW_H);
-            cs2_text_box(
-                s, panel, -1, CS2_PAD + TORIRS_CHROME_M_FIELD_INSET, y,
-                bw - 2 * TORIRS_CHROME_M_FIELD_INSET, CS2_ROW_H, caption, CS2_COL_TEXT, 1);
+            cs2_text_box_over(
+                s, panel, CS2_ID_LABEL_BASE + i, CS2_PAD + TORIRS_CHROME_M_FIELD_INSET, y,
+                bw - 2 * TORIRS_CHROME_M_FIELD_INSET, CS2_ROW_H, caption, CS2_COL_TEXT, 1,
+                CS2_COL_ACCENT);
             break;
         }
 
@@ -1689,6 +1718,9 @@ cs2_rebuild(struct ChromeCs2* s)
 
         case TORIRS_CHROME_W_LABEL:
         default:
+            /* No hover colour here, and that is the in-canvas chrome's rule
+             * rather than an oversight: a LABEL is not pressable, so lighting
+             * it under the cursor would promise a row that does nothing. */
             cs2_text(
                 s, panel, -1, CS2_PAD, y, row_w,
                 s->text[i][0] ? s->text[i] : s->label[i],
@@ -2035,35 +2067,6 @@ ToriRSChromeExecCs2_Click(int component_id)
             cs2_dropdown_close(s);
             s->dirty = 1;
         }
-    }
-
-    if( component_id == CS2_ID_CLOSE )
-    {
-        struct ToriRSChromeIntent intent;
-        memset(&intent, 0, sizeof(intent));
-        intent.kind = TORIRS_CHROME_INTENT_CLOSE;
-        /* The panel the window IS. Taken from the tab strip's owner where
-         * there is one and from any live widget otherwise, because this
-         * executor presents exactly one panel and only needs to name it. */
-        intent.panel = s->tab_panel;
-        intent.widget = -1;
-        if( intent.panel < 0 )
-        {
-            for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
-            {
-                struct ToriRSChromeMirrorWidget const* w =
-                    ToriRSChromeMirror_Widget(&s->mirror, i);
-                if( w )
-                {
-                    intent.panel = w->panel;
-                    break;
-                }
-            }
-        }
-        if( intent.panel < 0 )
-            return 0;
-        ToriRSChromeMirror_PushIntent(&s->mirror, &intent);
-        return 1;
     }
 
     if( component_id == CS2_ID_SCROLL_UP || component_id == CS2_ID_SCROLL_DOWN )

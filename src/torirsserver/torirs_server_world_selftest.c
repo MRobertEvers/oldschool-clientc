@@ -39772,9 +39772,10 @@ ToriRSServer_WorldSelftest(void)
                 { "[proc,selftest_trail_kill_challenge]", 3,
                   "a challenge row yields its question AND its answer, and a "
                   "kill target is a list" },
-                { "[proc,selftest_trail_clue_drops]", 8,
-                  "656 npcs can drop a clue, every rate is a real 1-in-N, and the "
-                  "holding cap is per tier" },
+                { "[proc,selftest_trail_clue_drops]", 11,
+                  "656 npcs can drop a clue, every rate is a real 1-in-N, the "
+                  "holding cap is per tier, and the per-tier reminder setting "
+                  "is read INVERTED" },
                 { "[proc,selftest_trail_device]", 9,
                   "the strange device reads the wiki's temperature bands at their "
                   "boundaries, and is inactive without a clue" },
@@ -39783,7 +39784,7 @@ ToriRSServer_WorldSelftest(void)
                   "protection fires once rather than always" },
                 { "[proc,selftest_trail_key]", 6,
                   "a key-target loc is not claimable without the key" },
-                { "[proc,selftest_trail_stash]", 8,
+                { "[proc,selftest_trail_stash]", 14,
                   "every unbuilt STASH pairs with a different built one and both "
                   "report the same tier" },
             };

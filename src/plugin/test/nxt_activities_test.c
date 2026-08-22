@@ -39,7 +39,7 @@ static int g_checks;
 
 #define FAKE_VARS_MAX 20000
 #define FAKE_NPCS_MAX 4
-#define FAKE_LOCS_MAX 4
+#define FAKE_LOCS_MAX 8
 #define FAKE_ASSET_MAX 4096
 
 struct FakeEngine
@@ -60,6 +60,14 @@ struct FakeEngine
     struct ToriRS_PluginLocSnap locs[FAKE_LOCS_MAX];
     int loc_count;
 
+    /* What the engine says the CACHE asked to be marked. In the client these
+     * come from the HIGHLIGHT_* opcodes; here they are set by hand, because
+     * what is under test is the drawing and not the recording (that is
+     * `make -C src test-highlight`). */
+    struct ToriRS_PluginHighlightItem highlights[FAKE_LOCS_MAX];
+    int highlight_count;
+    int highlight_walks;
+
     /* What the plugins drew this pass, by primitive, so a test can say which
      * row produced it rather than only that something happened. */
     int tiles;
@@ -69,6 +77,9 @@ struct FakeEngine
     int last_tile_fill_alpha;
     char last_text[64];
 
+    /* api->notify: what the player was told, and how often. */
+    char last_notify[200];
+    int notifies;
     int menu_rows;
     char last_menu_text[128];
     int last_menu_action;
@@ -158,6 +169,25 @@ fake_loc_next(void* u, int iter, struct ToriRS_PluginLocSnap* out)
         return -1;
     *out = g_engine.locs[next];
     return next;
+}
+static int
+fake_highlight_next(void* u, int iter, struct ToriRS_PluginHighlightItem* out)
+{
+    (void)u;
+    if( iter < 0 )
+        g_engine.highlight_walks++;
+    int const next = iter + 1;
+    if( next >= g_engine.highlight_count )
+        return -1;
+    *out = g_engine.highlights[next];
+    return next;
+}
+static void
+fake_notify(void* u, char const* text)
+{
+    (void)u;
+    snprintf(g_engine.last_notify, sizeof(g_engine.last_notify), "%s", text);
+    g_engine.notifies++;
 }
 static int
 fake_key_held(void* u, int key)
@@ -425,6 +455,8 @@ fake_engine(void)
     e.player_next = fake_player_next;
     e.obj_next = fake_obj_next;
     e.loc_next = fake_loc_next;
+    e.highlight_next = fake_highlight_next;
+    e.notify = fake_notify;
     e.key_held = fake_key_held;
     e.hover_tile = fake_hover_tile;
     e.hover_entity = fake_hover_entity;
@@ -458,11 +490,11 @@ fake_engine(void)
 
 /* ------------------------------------------------------------ the plugins */
 
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_TILE_INDICATOR;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_TILE_MARKERS;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_ENTITY_HOVER;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_NPC_HIGHLIGHT;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_POLL_BOOTHS;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_HIGHLIGHT;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_NPC_NAMES;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_BIRD_NEST;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_CANNON_AMMO;
 
 static void
 draw_reset(void)
@@ -495,285 +527,37 @@ main(void)
 {
     struct ToriRS_PluginEngine engine = fake_engine();
     struct ToriRS_PluginHost* host = PluginHost_New(&engine);
-    int p_tile;
-    int p_mark;
-    int p_hover;
-    int p_npc;
     int p_booth;
+    int p_hl;
+    int p_names;
+    int p_nest;
+    int p_cannon;
 
     memset(&g_engine, 0, sizeof(g_engine));
     g_engine.hover_ok = 1;
     g_engine.hover_x = 3210;
     g_engine.hover_z = 3220;
 
-    p_tile = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_TILE_INDICATOR);
-    p_mark = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_TILE_MARKERS);
-    p_hover = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_ENTITY_HOVER);
-    p_npc = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_NPC_HIGHLIGHT);
     p_booth = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_POLL_BOOTHS);
+    p_hl = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_HIGHLIGHT);
+    p_names = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_NPC_NAMES);
+    p_nest = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_BIRD_NEST);
+    p_cannon = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_CANNON_AMMO);
     CHECK(
-        p_tile >= 0 && p_mark >= 0 && p_hover >= 0 && p_npc >= 0 && p_booth >= 0,
+        p_booth >= 0 && p_hl >= 0 && p_names >= 0 && p_nest >= 0 && p_cannon >= 0,
         "all five register");
     PluginHost_Start(host);
 
     /* ---- the roster must not show any of them --------------------------- */
     {
-        CHECK(PluginHost_IsHidden(host, p_tile), "tile indicator is hidden");
-        CHECK(PluginHost_IsHidden(host, p_mark), "tile markers are hidden");
-        CHECK(PluginHost_IsHidden(host, p_hover), "entity hover is hidden");
-        CHECK(PluginHost_IsHidden(host, p_npc), "npc highlight is hidden");
         CHECK(PluginHost_IsHidden(host, p_booth), "poll booths are hidden");
+        CHECK(PluginHost_IsHidden(host, p_hl), "the cache-highlight renderer is hidden");
+        CHECK(PluginHost_IsHidden(host, p_names), "npc names are hidden");
+        CHECK(PluginHost_IsHidden(host, p_nest), "the bird nest notice is hidden");
+        CHECK(PluginHost_IsHidden(host, p_cannon), "the cannon notices are hidden");
         /* Hidden is not disabled: the feature is always running and the varbit
          * is what decides whether it does anything. A builtin that shipped
          * switched off would need a switch to turn it on, and there is none. */
-        CHECK(PluginHost_IsEnabled(host, p_tile), "and still enabled");
-        CHECK(PluginHost_IsEnabled(host, p_npc), "and still enabled");
-    }
-
-    /* ---- 172 / 175 / 178: nothing is drawn until the varbit says so ----- */
-    {
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.tiles == 0, "every setting off draws no tile");
-
-        g_engine.varbit[NXT_VARBIT_HOVER_TILE] = 1;
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.tiles == 1, "the hovered tile alone draws one");
-        CHECK(
-            g_engine.last_tile_rgb == NXT_COL_HOVER_TILE,
-            "and in the row's own default colour, not white");
-        CHECK(g_engine.last_tile_fill_alpha == 0, "outline only");
-
-        g_engine.varbit[NXT_VARBIT_CURRENT_TILE] = 1;
-        g_engine.varbit[NXT_VARBIT_DEST_TILE] = 1;
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.tiles == 3, "hovered + current + destination");
-
-        /* A colour the user picked, stored as `colour + 1`. Reading it without
-         * the offset gives a colour one unit out, which nothing on a screen
-         * can show -- so it is checked here or nowhere. */
-        g_engine.varp[NXT_VARP_HOVER_TILE_COLOR] = 0xFF0000 + 1;
-        g_engine.varbit[NXT_VARBIT_CURRENT_TILE] = 0;
-        g_engine.varbit[NXT_VARBIT_DEST_TILE] = 0;
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.last_tile_rgb == 0xFF0000u, "a chosen colour drops the +1 offset");
-
-        g_engine.varbit[NXT_VARBIT_HOVER_TILE] = 0;
-        g_engine.varp[NXT_VARP_HOVER_TILE_COLOR] = 0;
-    }
-
-    /* ---- 190: the hover highlight ---------------------------------------- */
-    {
-        g_engine.hover_entity_ok = 1;
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.hulls == 0, "no hull while setting 190 is off");
-
-        g_engine.varbit[NXT_VARBIT_HOVER_ENTITY] = 1;
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.hulls == 1, "setting 190 on outlines the hovered entity");
-
-        g_engine.hover_entity_ok = 0;
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.hulls == 0, "and nothing when the pointer is on open ground");
-        g_engine.varbit[NXT_VARBIT_HOVER_ENTITY] = 0;
-    }
-
-    /* ---- 112 / 113 / 117: the tile markers ------------------------------- */
-    {
-        struct ToriRS_PluginEvMenuBuild menu;
-        struct ToriRS_PluginMenuRow row;
-
-        memset(&menu, 0, sizeof(menu));
-        menu.hover_pass = false;
-
-        /* The row is gated on BOTH the setting and shift. Either one alone
-         * putting "Mark tile" on every right-click would be the bug. */
-        draw_reset();
-        PluginHost_MenuBuild(host, &g_engine, &menu, false);
-        CHECK(g_engine.menu_rows == 0, "no Mark tile with the setting off");
-
-        g_engine.varbit[NXT_VARBIT_TILE_MARKERS] = 1;
-        draw_reset();
-        PluginHost_MenuBuild(host, &g_engine, &menu, false);
-        CHECK(g_engine.menu_rows == 0, "no Mark tile without shift");
-
-        g_engine.shift_held = 1;
-        draw_reset();
-        PluginHost_MenuBuild(host, &g_engine, &menu, false);
-        CHECK(g_engine.menu_rows == 1, "shift + the setting offers the row");
-        CHECK(strcmp(g_engine.last_menu_text, "Mark tile") == 0, "an unmarked tile says Mark");
-
-        /* Choosing it marks the tile the pointer is on. */
-        memset(&row, 0, sizeof(row));
-        row.action = g_engine.last_menu_action;
-        row.text = g_engine.last_menu_text;
-        row.npc_slot = -1;
-        row.player_pid = -1;
-        row.target_id = -1;
-        PluginHost_MenuSelect(host, &row, 0, 0);
-
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.tiles == 1, "the marked tile is drawn");
-        CHECK(
-            g_engine.last_tile_rgb == NXT_COL_TILE_MARKER,
-            "in setting 113's default green");
-
-        draw_reset();
-        PluginHost_MenuBuild(host, &g_engine, &menu, false);
-        CHECK(
-            strcmp(g_engine.last_menu_text, "Unmark tile") == 0,
-            "and the row now offers to take it away");
-
-        /* Saved, and saved as a list a later run can read back. */
-        g_engine.asset_writes = 0;
-        PluginHost_FrameStart(host, 2000);
-        CHECK(g_engine.asset_writes == 1, "the list is written once, not every frame");
-        CHECK(strcmp(g_engine.asset_name, "tiles.txt") == 0, "under its own name");
-        CHECK(strncmp(g_engine.asset_bytes, "3210 3220 0", 11) == 0, "holding the tile");
-        PluginHost_FrameStart(host, 2020);
-        CHECK(g_engine.asset_writes == 1, "and not again while nothing has changed");
-
-        /* 117, the button. It has no varbit at all -- EV_SETTING is the only
-         * way this can hear it. */
-        PluginHost_Setting(host, NXT_SETTING_CLEAR_TILE_MARKERS, -1);
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.tiles == 0, "\"Clear your highlighted tiles\" clears them");
-        PluginHost_FrameStart(host, 2040);
-        CHECK(g_engine.asset_size == 0, "and the saved list with them");
-
-        /* A setting id this plugin does not own must not clear anything. */
-        PluginHost_MenuBuild(host, &g_engine, &menu, false);
-        PluginHost_MenuSelect(host, &row, 0, 0);
-        PluginHost_Setting(host, 999, -1);
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.tiles == 1, "another row's button leaves the markers alone");
-
-        PluginHost_Setting(host, NXT_SETTING_CLEAR_TILE_MARKERS, -1);
-        g_engine.shift_held = 0;
-        g_engine.varbit[NXT_VARBIT_TILE_MARKERS] = 0;
-        PluginHost_FrameStart(host, 2060);
-    }
-
-    /* ---- 261 and its qualifiers ----------------------------------------- */
-    {
-        struct ToriRS_PluginEvMenuBuild menu;
-        struct ToriRS_PluginMenuRow row;
-
-        g_engine.npc_count = 2;
-        g_engine.npcs[0].server_slot = 11;
-        g_engine.npcs[0].npc_id = 3029;
-        g_engine.npcs[0].base_npc_id = 3029;
-        g_engine.npcs[0].size = 1;
-        g_engine.npcs[0].element_id = 21;
-        g_engine.npcs[0].true_x = 3202;
-        g_engine.npcs[0].true_z = 3202;
-        snprintf(g_engine.npcs[0].name, sizeof(g_engine.npcs[0].name), "Goblin");
-        g_engine.npcs[1].server_slot = 12;
-        g_engine.npcs[1].npc_id = 2042;
-        g_engine.npcs[1].base_npc_id = 2042;
-        g_engine.npcs[1].size = 2;
-        g_engine.npcs[1].element_id = 22;
-        g_engine.npcs[1].true_x = 3210;
-        g_engine.npcs[1].true_z = 3210;
-        snprintf(g_engine.npcs[1].name, sizeof(g_engine.npcs[1].name), "Zulrah");
-
-        /* Tagging is its own row (416), separate from the highlight itself. */
-        menu_with_npc(&menu, 11);
-        g_engine.shift_held = 1;
-        draw_reset();
-        PluginHost_MenuBuild(host, &g_engine, &menu, false);
-        CHECK(g_engine.menu_rows == 0, "no Tag row while setting 416 is off");
-
-        g_engine.varbit[NXT_VARBIT_NPC_TAGGING] = 1;
-        menu_with_npc(&menu, 11);
-        draw_reset();
-        PluginHost_MenuBuild(host, &g_engine, &menu, false);
-        CHECK(g_engine.menu_rows == 1, "setting 416 offers it");
-        CHECK(strcmp(g_engine.last_menu_text, "Tag Goblin") == 0, "named after the npc");
-
-        memset(&row, 0, sizeof(row));
-        row.action = g_engine.last_menu_action;
-        row.text = g_engine.last_menu_text;
-        row.npc_slot = 11;
-        row.player_pid = -1;
-        row.target_id = -1;
-        PluginHost_MenuSelect(host, &row, 0, 0);
-
-        /* Tagged, but 261 is still off, so nothing is drawn. The two rows are
-         * genuinely independent: tagging while the highlight is off is how a
-         * list is built before it is switched on. */
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.hulls == 0 && g_engine.tiles == 0, "a tag alone draws nothing");
-
-        g_engine.varbit[NXT_VARBIT_NPC_HIGHLIGHT] = 1;
-        g_engine.varbit[NXT_VARBIT_NPC_OUTLINE] = 1;
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.hulls == 1, "261 + 260 outline the tagged npc and only it");
-
-        g_engine.varbit[NXT_VARBIT_NPC_TILE] = NXT_TILE_OUTLINE;
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.tiles == 1, "259 marks its one tile");
-        CHECK(g_engine.last_tile_fill_alpha == 0, "\"outline only\" has no wash");
-
-        g_engine.varbit[NXT_VARBIT_NPC_TILE] = NXT_TILE_OUTLINE_FILL;
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.last_tile_fill_alpha > 0, "\"outline and fill\" has one");
-
-        g_engine.varbit[NXT_VARBIT_NPC_NAME] = NXT_NAME_NORMAL;
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.texts == 1, "258 names it once");
-        CHECK(strcmp(g_engine.last_text, "Goblin") == 0, "with its name");
-
-        g_engine.varbit[NXT_VARBIT_NPC_NAME] = NXT_NAME_BOLD;
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.texts == 2, "bold is the same name struck twice");
-
-        /* 264 names everything -- but must not double up on the npc 258 has
-         * already named, in a second colour. */
-        g_engine.varbit[NXT_VARBIT_NPC_NAMES_ALL] = NXT_NAME_NORMAL;
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.texts == 3, "264 adds the untagged npc and no more");
-
-        g_engine.varbit[NXT_VARBIT_NPC_NAME] = NXT_NAME_OFF;
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.texts == 2, "with 258 off, 264 names both");
-
-        /* A 2x2 npc owns four tiles, and true_x/true_z is the SW corner. */
-        g_engine.varbit[NXT_VARBIT_NPC_NAMES_ALL] = NXT_NAME_OFF;
-        menu_with_npc(&menu, 12);
-        draw_reset();
-        PluginHost_MenuBuild(host, &g_engine, &menu, false);
-        row.npc_slot = 12;
-        row.action = g_engine.last_menu_action;
-        PluginHost_MenuSelect(host, &row, 0, 0);
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.tiles == 1 + 4, "a 2x2 npc is marked over its whole footprint");
-
-        /* 267, the other button. */
-        PluginHost_Setting(host, NXT_SETTING_CLEAR_NPC_TAGS, -1);
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(
-            g_engine.hulls == 0 && g_engine.tiles == 0,
-            "\"Clear your highlighted NPCs\" clears them");
     }
 
     /* ---- 453: the poll booths ------------------------------------------- */
@@ -795,22 +579,309 @@ main(void)
         g_engine.locs[2].interactive = 1;
         snprintf(g_engine.locs[2].name, sizeof(g_engine.locs[2].name), "Bank booth");
 
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.hulls == 0, "no booth is marked while setting 453 is off");
-
+        /*
+         * 453 is an INVERTED row: `param_1084` is set on struct_6316, so the
+         * checkbox draws `1 - varbit` and the feature is ON at 0.
+         * Clientscript 8319 lights the booths on exactly that test.
+         *
+         * The sense is asserted in both directions on purpose. Read the plain
+         * way -- which is how this was first written -- the plugin highlighted
+         * every booth in the game for anyone who had switched the setting off,
+         * and nothing about that looks wrong until you switch it off.
+         */
         g_engine.varbit[NXT_VARBIT_POLL_BOOTHS] = 1;
         draw_reset();
         PluginHost_DrawWorld(host);
-        CHECK(g_engine.hulls == 2, "both poll booths, and not the bank booth");
+        CHECK(g_engine.hulls == 0, "varbit 1 is the OFF state for setting 453");
+
+        g_engine.varbit[NXT_VARBIT_POLL_BOOTHS] = 0;
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        CHECK(g_engine.hulls == 2, "varbit 0 marks both poll booths, not the bank booth");
 
         /* A loc nothing can click must not be marked, however it is named. */
         g_engine.locs[1].interactive = 0;
         draw_reset();
         PluginHost_DrawWorld(host);
         CHECK(g_engine.hulls == 1, "a non-interactive loc is left alone");
-        g_engine.varbit[NXT_VARBIT_POLL_BOOTHS] = 0;
+        g_engine.varbit[NXT_VARBIT_POLL_BOOTHS] = 1;
         g_engine.loc_count = 0;
+    }
+
+    /* ---- the cache's own highlights, drawn as the group described them --
+     *
+     * Everything below was decided by a clientscript: the colour came from the
+     * user's colour row, the flags from the setting's varbit. The renderer's
+     * whole job is to turn each flag into the draw call it names, and its
+     * whole failure mode is having an opinion of its own.
+     */
+    {
+        /* An Agility obstacle, as clientscript 1854 sets one up:
+         * `_7015(11, 65280, 1, 30, 5)` -- flags 5 = model outline + model
+         * fill, opacity 30%. */
+        g_engine.highlight_count = 1;
+        memset(&g_engine.highlights[0], 0, sizeof(g_engine.highlights[0]));
+        g_engine.highlights[0].kind = TORIRS_PLUGIN_HL_LOC;
+        g_engine.highlights[0].element_id = 41;
+        g_engine.highlights[0].tile_x = 3200;
+        g_engine.highlights[0].tile_z = 3200;
+        g_engine.highlights[0].size_x = 1;
+        g_engine.highlights[0].size_z = 1;
+        g_engine.highlights[0].rgb = 0x00FF00;
+        g_engine.highlights[0].opacity = 30;
+        g_engine.highlights[0].outline_width = 1;
+        g_engine.highlights[0].flags = 1 | 4;
+
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        CHECK(g_engine.hulls == 1, "a model-flagged item is outlined");
+        CHECK(g_engine.tiles == 0, "and its tile is not marked -- no tile flag");
+
+        /* A hovered tile, as clientscript 5198 sets one up:
+         * `_7035(5, colour, 0, 70, 10)` -- flags 10 = tile outline + tile
+         * fill, and element_id -1, because a tile is a place and not a thing. */
+        g_engine.highlights[0].kind = TORIRS_PLUGIN_HL_TILE;
+        g_engine.highlights[0].element_id = -1;
+        g_engine.highlights[0].rgb = 0xBEBA6E;
+        g_engine.highlights[0].opacity = 70;
+        g_engine.highlights[0].outline_width = 1;
+        g_engine.highlights[0].flags = 2 | 8;
+
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        CHECK(g_engine.hulls == 0, "a tile item has no model to outline");
+        CHECK(g_engine.tiles == 1, "its tile is marked");
+        CHECK(g_engine.last_tile_rgb == 0xBEBA6E, "in the colour the script chose");
+        CHECK(
+            g_engine.last_tile_fill_alpha == 70,
+            "and the opacity is passed straight through -- it is already 0..255");
+
+        /* Thickness 0 with the outline flag set draws no outline: the
+         * reference's predicate is `(flags & bit) && thickness != 0`, and this
+         * is clientscript 5198's hovered tile exactly. */
+        g_engine.highlights[0].outline_width = 0;
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        CHECK(g_engine.tiles == 1, "a fill with no border still draws its tile");
+        CHECK(
+            g_engine.last_tile_fill_alpha == 70,
+            "as a wash -- the fill half is what makes it live");
+        g_engine.highlights[0].outline_width = 1;
+
+        /* Outline without fill: the wash is the fill flag's, not the
+         * opacity's. A renderer that keyed the wash off opacity alone would
+         * fill every outline-only group in the cache. */
+        g_engine.highlights[0].flags = 2;
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        CHECK(g_engine.last_tile_fill_alpha == 0, "no tile-fill flag means no wash");
+
+        /* ...and an outline flag whose thickness is zero draws nothing at all,
+         * so the item stops producing a tile. */
+        g_engine.highlights[0].outline_width = 0;
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        CHECK(g_engine.tiles == 0, "an outline flag with no thickness draws nothing");
+        g_engine.highlights[0].outline_width = 1;
+
+        /* A 2x2 subject is marked over its whole footprint. */
+        g_engine.highlights[0].size_x = 2;
+        g_engine.highlights[0].size_z = 2;
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        CHECK(g_engine.tiles == 4, "a 2x2 footprint is four tiles, not one");
+
+        /* The walk restarts each frame, which is what makes the engine
+         * re-resolve; a renderer that cached the cursor would draw one frame
+         * and then nothing. */
+        g_engine.highlight_walks = 0;
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        CHECK(g_engine.highlight_walks == 2, "the list is walked from the top each frame");
+
+        g_engine.highlight_count = 0;
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        CHECK(g_engine.tiles == 0 && g_engine.hulls == 0, "an empty list draws nothing");
+    }
+
+    /* ---- 258 / 263 / 264 / 266: the npc name rows ------------------------
+     *
+     * 258 names the TAGGED npcs, and "tagged" is the cache's highlight group --
+     * read back through highlight_next, not from a list of the plugin's own.
+     * 264 names every npc. Both are three-way (off / normal / bold).
+     */
+    {
+        g_engine.npc_count = 2;
+        memset(g_engine.npcs, 0, sizeof(g_engine.npcs));
+        g_engine.npcs[0].server_slot = 11;
+        g_engine.npcs[0].element_id = 21;
+        snprintf(g_engine.npcs[0].name, sizeof(g_engine.npcs[0].name), "Goblin");
+        g_engine.npcs[1].server_slot = 12;
+        g_engine.npcs[1].element_id = 22;
+        snprintf(g_engine.npcs[1].name, sizeof(g_engine.npcs[1].name), "Duck");
+
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        CHECK(g_engine.texts == 0, "both rows off names nothing");
+
+        g_engine.varbit[NXT_VARBIT_NPC_NAMES_ALL] = NXT_NAME_NORMAL;
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        CHECK(g_engine.texts == 2, "264 names every npc");
+
+        g_engine.varbit[NXT_VARBIT_NPC_NAMES_ALL] = NXT_NAME_BOLD;
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        CHECK(g_engine.texts == 4, "bold is the same name struck twice");
+
+        /* 258 draws over the cache's tagged set, which arrives as highlight
+         * items -- so a tagged npc is named again, in the tagged colour. */
+        g_engine.varbit[NXT_VARBIT_NPC_NAMES_ALL] = NXT_NAME_OFF;
+        g_engine.varbit[NXT_VARBIT_NPC_NAME] = NXT_NAME_NORMAL;
+        g_engine.highlight_count = 1;
+        memset(&g_engine.highlights[0], 0, sizeof(g_engine.highlights[0]));
+        g_engine.highlights[0].kind = TORIRS_PLUGIN_HL_NPC;
+        g_engine.highlights[0].element_id = 21;
+        g_engine.highlights[0].overhead_height = 200;
+        snprintf(
+            g_engine.highlights[0].name, sizeof(g_engine.highlights[0].name), "Goblin");
+
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        CHECK(g_engine.texts == 1, "258 names the tagged npc and only it");
+        CHECK(strcmp(g_engine.last_text, "Goblin") == 0, "with its name");
+
+        /* A highlight item that is not an npc must not be named: a marked TILE
+         * has no name, and a highlighted loc is not what 258 is about. */
+        g_engine.highlights[0].kind = TORIRS_PLUGIN_HL_TILE;
+        draw_reset();
+        PluginHost_DrawWorld(host);
+        CHECK(g_engine.texts == 0, "a non-npc highlight item is not named");
+
+        g_engine.varbit[NXT_VARBIT_NPC_NAME] = NXT_NAME_OFF;
+        g_engine.highlight_count = 0;
+        g_engine.npc_count = 0;
+    }
+
+    /* ---- 189: the bird nest notification ---------------------------------
+     *
+     * INVERTED, like most of the Skills section: the feature is ON at 0.
+     */
+    {
+        struct ToriRS_PluginObjSnap obj;
+
+        memset(&obj, 0, sizeof(obj));
+        obj.obj_id = 5073; /* bird_nest_seeds */
+        obj.tile_x = 3200;
+        obj.tile_z = 3200;
+        obj.level = 0;
+
+        g_engine.varbit[NXT_VARBIT_BIRD_NEST] = 1; /* inverted: 1 is OFF */
+        g_engine.notifies = 0;
+        PluginHost_ObjSpawn(host, &obj);
+        CHECK(g_engine.notifies == 0, "varbit 1 is the OFF state for setting 189");
+
+        g_engine.varbit[NXT_VARBIT_BIRD_NEST] = 0;
+        PluginHost_ObjSpawn(host, &obj);
+        CHECK(g_engine.notifies == 1, "a nest under the player is announced");
+        CHECK(
+            strstr(g_engine.last_notify, "nest") != NULL,
+            "and the line says what happened");
+
+        /* Somebody else's nest, across the clearing. A notification for that
+         * is noise every time a crowd chops. */
+        g_engine.notifies = 0;
+        obj.tile_x = 3210;
+        PluginHost_ObjSpawn(host, &obj);
+        CHECK(g_engine.notifies == 0, "a nest on another tile is not yours");
+
+        /* And an ordinary drop on your own tile is not a nest. */
+        obj.tile_x = 3200;
+        obj.obj_id = 1511; /* logs */
+        PluginHost_ObjSpawn(host, &obj);
+        CHECK(g_engine.notifies == 0, "logs under the player are not a nest");
+
+        g_engine.varbit[NXT_VARBIT_BIRD_NEST] = 1;
+    }
+
+    /* ---- 248 / 249 / 250: the cannon ammunition rows ---------------------
+     *
+     * varp 3 is the count (`rockthrower`) and varp 3551 your cannon's coord
+     * (`ownedmcannon_temp`). Everything below is an EDGE -- a count that is
+     * already low when you look at it is a state, not an event.
+     */
+    {
+        int tick = 0;
+        g_engine.varbit[NXT_VARBIT_CANNON_LOW_NOTIFY] = 1;
+        g_engine.varbit[NXT_VARBIT_CANNON_NO_AMMO_NOTIFY] = 1;
+        g_engine.varbit[NXT_VARBIT_CANNON_LOW_AMOUNT] = 10;
+        g_engine.varp[3551] = 0; /* no cannon */
+        g_engine.varp[3] = 30;
+        g_engine.notifies = 0;
+
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 0, "no cannon, nothing to say");
+
+        /* Place one. Its starting load is a state, not a drop. */
+        g_engine.varp[3551] = 0x0C800C80;
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 0, "the first tick with a cannon announces nothing");
+
+        /* Firing down towards the line, but not across it. */
+        g_engine.varp[3] = 12;
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 0, "above the threshold is not low");
+
+        g_engine.varp[3] = 9;
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 1, "crossing the threshold says so once");
+        CHECK(strstr(g_engine.last_notify, "low") != NULL, "and says what happened");
+
+        /* Still below it, and silent -- a line every tick would bury the
+         * chatbox, which is the failure this check exists for. */
+        g_engine.varp[3] = 8;
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 1, "staying below the line is not a second event");
+
+        g_engine.varp[3] = 0;
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 2, "empty says so");
+        CHECK(strstr(g_engine.last_notify, "run out") != NULL, "as running out");
+
+        /* Reloading is not news, and it re-arms the low notice. */
+        g_engine.varp[3] = 30;
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 2, "loading it says nothing");
+        g_engine.varp[3] = 5;
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 3, "and the threshold arms again");
+
+        /* Threshold 0 is "the user has not chosen an amount": no low notice,
+         * but empty still reports. */
+        g_engine.varbit[NXT_VARBIT_CANNON_LOW_AMOUNT] = 0;
+        g_engine.varp[3] = 30;
+        PluginHost_ServerTick(host, ++tick);
+        g_engine.varp[3] = 3;
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 3, "threshold 0 never calls anything low");
+        g_engine.varp[3] = 0;
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 4, "but empty is still empty");
+
+        /* Both rows off. */
+        g_engine.varbit[NXT_VARBIT_CANNON_NO_AMMO_NOTIFY] = 0;
+        g_engine.varp[3] = 30;
+        PluginHost_ServerTick(host, ++tick);
+        g_engine.varp[3] = 0;
+        PluginHost_ServerTick(host, ++tick);
+        CHECK(g_engine.notifies == 4, "setting 250 off is silent at empty");
+
+        g_engine.varp[3551] = 0;
+        g_engine.varp[3] = 0;
+        g_engine.varbit[NXT_VARBIT_CANNON_LOW_NOTIFY] = 0;
     }
 
     PluginHost_Free(host);

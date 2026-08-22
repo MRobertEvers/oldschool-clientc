@@ -21,7 +21,7 @@ order the panel lays them out. Each entry is a setting struct:
 | `param_1078` | row kind: 0 toggle, 2 dropdown, 4 slider, 5 section header, 6 button, 7 spacer, 9 colour |
 | `param_1086` / `param_1087` | title (desktop / mobile) |
 | `param_1096` / `param_1097` | description (desktop / mobile) |
-| `param_1084` | default value |
+| `param_1084` | **display INVERSION, not a default** — see below |
 | `param_1230` | default colour |
 | `param_1091` | the choice enum, for a dropdown |
 | `param_1080` / `param_1081` | the setting this row depends on |
@@ -48,7 +48,120 @@ To re-derive any of it:
 3rd/rscache/tools/cs2/cs2 decompile --cache cache.osrs239 --rev osrs239 --out /tmp/cs2 6716 3965 3962 4181
 ```
 
-## READ THIS FIRST: half the category is already implemented, in the cache
+## Status: 35 of 74
+
+| | rows | |
+|---|---:|---|
+| **working** | 35 | 19 driven by the cache, 9 by builtins, 7 by the server |
+| **partial** | 4 | 164, and 173 / 176 / 179 |
+| **not started** | 35 | classified below -- not 35 separate problems |
+
+### Working
+
+| id | setting | by |
+|---:|---------|----|
+| 112 | Tile highlighting | cache |
+| 113 | Tile highlight colour | cache |
+| 117 | Clear your highlighted tiles | client (button) |
+| 172 | Highlight hovered tile | cache |
+| 174 | Highlight hovered tile - Colour | cache |
+| 175 | Highlight current tile | cache |
+| 177 | Highlight current tile - Colour | cache |
+| 178 | Highlight destination tile | cache |
+| 180 | Highlight destination tile - Colour | cache |
+| 189 | Bird nest notification | `nxt-bird-nest` |
+| 190 | Highlight entities on mouse-over | cache |
+| 248 | Cannon low on ammo notification | `nxt-cannon-ammo` |
+| 249 | Cannon low on ammo amount | `nxt-cannon-ammo` |
+| 250 | Cannon out of ammo notification | `nxt-cannon-ammo` |
+| 258 | NPC highlight - Display name | `nxt-npc-names` |
+| 259 | NPC highlight - Highlight tile | cache |
+| 260 | NPC highlight - Highlight outline | cache |
+| 261 | NPC highlight | cache |
+| 262 | NPC highlight - Highlighting colour | cache |
+| 263 | NPC highlight - Text colour | `nxt-npc-names` |
+| 264 | Display all NPC names above their body | `nxt-npc-names` |
+| 266 | NPC names text colour | `nxt-npc-names` |
+| 267 | Clear your highlighted NPCs | client (button) |
+| 269 | Blast Furnace highlights | cache |
+| 367 | Highlight quest start points | cache |
+| 368 | Filter quest start highlights based on requirements | cache |
+| 374 | Beginner clue scroll warning | server (trail lane) |
+| 375 | Easy clue scroll warning | server (trail lane) |
+| 376 | Medium clue scroll warning | server (trail lane) |
+| 377 | Hard clue scroll warning | server (trail lane) |
+| 378 | Elite clue scroll warning | server (trail lane) |
+| 379 | Master clue scroll warning | server (trail lane) |
+| 416 | NPC highlight - Tagging | cache |
+| 451 | STASH units take equipped items | server (trail lane) |
+| 453 | Highlight poll booths | `nxt-poll-booths` |
+
+### Partial
+
+| id | setting | what is missing |
+|---:|---------|-----------------|
+| 164 | Highlight Agility obstacles | the objtype half populates; the obstacles need a per-course script |
+| 173 | Highlight hovered tile - Always on top | flag reaches the renderer; needs a depth-tested ground primitive |
+| 176 | Highlight current tile - Always on top | flag reaches the renderer; needs a depth-tested ground primitive |
+| 179 | Highlight destination tile - Always on top | flag reaches the renderer; needs a depth-tested ground primitive |
+
+### Not started, by what each needs
+
+Derived by grepping every clientscript that reads each row's var and
+looking at what it CALLS -- measured, not guessed.
+
+**A. needs `_7200..7211`, the world-anchored component family** -- 8 rows
+
+| id | setting |
+|---:|---------|
+| 120 | Fishing spot indicators |
+| 121 | Fishing spot indicators - Tools only |
+| 122 | Fishing spot indicators - Mouse over tooltip |
+| 165 | Highlight Agility shortcuts |
+| 247 | Cannon hud |
+| 270 | Clue scroll helper - Overlay |
+| 271 | Clue scroll helper |
+| 277 | Clue scroll helper - Entity highlights |
+
+**B. needs an interface the cache builds, mounted and driven** -- 9 rows
+
+| id | setting |
+|---:|---------|
+| 81 | Last Man Standing fog colour |
+| 111 | Show normal health overlay |
+| 116 | Data orbs - Regeneration indicators |
+| 118 | Chambers of Xeric helper |
+| 210 | Highlight Agility shortcuts - Shortcut Requirements |
+| 274 | Clue scroll helper - Menu highlights |
+| 299 | Show enemy name on health overlay |
+| 300 | Compact boss health overlay |
+| 301 | Health overlay display type |
+
+**C. no cache reader at all -- the client or the server implements it whole** -- 18 rows
+
+| id | setting |
+|---:|---------|
+| 5 | Hitsplat tinting |
+| 10 | Show boss health overlay |
+| 163 | Agility helper |
+| 182 | Iron loot restriction indicator |
+| 183 | Iron loot restriction messages |
+| 184 | Slayer helper |
+| 187 | Ore respawn timer |
+| 188 | Woodcutting respawn timer |
+| 242 | Tears of Guthix timers |
+| 243 | Hunter trap timers |
+| 245 | Herbiboar helper |
+| 268 | Blast Furnace helper |
+| 272 | Clue scroll helper - Worldmap marker |
+| 273 | Clue scroll helper - World arrows |
+| 275 | Clue scroll helper - Infobox |
+| 276 | Clue scroll helper - Clue text |
+| 279 | Max hit hitsplats |
+| 280 | Max hit hitsplats threshold |
+
+
+## Most of it is implemented in the cache, not here
 
 Found after the four plugins below were written, and it changes the shape of
 the rest.
@@ -75,26 +188,196 @@ if (%varbit12977 = 1) {                    //   ... its own varbit
 with any of them. That is the real reason the category is dead: not that the
 varbits are unread, but that the client throws away what the cache tells it.
 
-**24 of the 72 rows are driven this way**, and the seven colour rows feed the
-same scripts through `~script5329(<setting id>)`, so those come with them --
-about 31 rows, including several that would otherwise need a content table this
-client does not have (Agility obstacles, quest start points, fishing spots,
-Blast Furnace, the clue scroll helper's overlay and entity highlights). The
-cache knows which locs those are; we would have had to look them up.
+**24 of the 74 rows name a `HIGHLIGHT_*` script**, and the seven colour rows
+feed those same scripts through `~script5329(<setting id>)`. That is where the
+Agility obstacles, quest start points, fishing spots, Blast Furnace and clue
+scroll helper live -- the cache knows which locs and npcs those are, and this
+client has no table for any of them.
 
-The consequence for what is below: for those rows the right implementation is
-to **honour the opcodes** -- keep the groups host-side and draw them -- not to
-read the varbits again client-side. A plugin that reads the varbit itself draws
-a second highlight beside the cache's, in whatever colour it guessed.
+Naming a script is not the same as that script doing anything, though: see
+"What still does not populate" for what actually fires.
 
-`nxt-entity-hover` (190) is unaffected: no script calls a highlight op for it,
-so that row genuinely is the client's own.
+### What landed for it
 
-The four other plugins below WORK and are tested, but three of them
-(`nxt-tile-indicator`, `nxt-tile-markers`, `nxt-npc-highlight`,
-`nxt-poll-booths`) sit at the wrong layer and would double-draw the moment the
-opcode family is honoured. They are kept here as a working implementation and
-as the drawing half of the eventual answer, not as the final shape.
+`CS2VM2_Op_Highlight` already popped every argument correctly; only the host
+end was missing. It now has one:
+
+- **`src/game/rs_highlight.{h,c}`** -- the groups, as state. Eight kinds
+  (npc / npctype / loc / loctype / obj / objtype / player / tile), each with
+  its own 32 groups, each group a (colour, style, opacity, flags) and a
+  membership list. It records what the scripts said and answers `GET`
+  truthfully; it decides nothing about appearance and draws nothing.
+- **`RS_CS2Host::highlight`** -- where it lives, because it is written from
+  inside a running script.
+- **`api->highlight_next`** -- the groups RESOLVED against live world state,
+  one item per thing to draw. The resolution walks the npc, loc and
+  ground-item pools, which is the engine's job and not a plugin's.
+- **`nxt-highlight`** -- a hidden builtin, ~40 lines, that turns each item's
+  flags into draw calls. It has no settings and no opinions: every appearance
+  decision was made by a clientscript that read the user's own setting and
+  colour, and the moment this plugin starts choosing a colour, All Settings has
+  stopped being where that question is answered.
+
+`TORIRS_HIGHLIGHT_DEBUG=1` prints every call with its arguments. When a
+highlight does not appear the first question is always "did the script ask for
+it", and from outside the VM there is no other way to answer it.
+
+Measured against the real panel rather than reasoned about. Driving a live
+headless client to All Settings > Activities and clicking "Highlight hovered
+tile":
+
+```sh
+SDL_VIDEODRIVER=dummy TORIRS_HIGHLIGHT_DEBUG=1 \
+  TORIRS_SIM_CLICK_AT="700,683,482;740,641,448;790,473,317" \
+  TORIRS_MAX_FRAMES=860 ./run-live.sh manifests/manifest_osrs239.ini testc test
+```
+
+```
+highlight: op 7035 (tile) 6 65280 2 50 90        <- on open: the tile MARKERS
+highlight: op 7035 (tile) 5 12499566 0 70 10     <- the click: hovered tile
+```
+
+`65280` is `#00FF00`, setting 113's default; flags 90 is 2+8+16+64, the marker
+group with its minimap bit. `12499566` is `#BEBA6E`, setting 174's default;
+flags 10 is 2+8, tile outline and fill. Every constant in the table above, and
+every argument slot in `rs_highlight.c`, is confirmed by those two lines.
+
+### The other half: CLIENTOP_* (6700..6709)
+
+Setting up a highlight group is not the same as putting anything in one. The
+groups were being set up all along, off their varbits; the scripts that name
+SUBJECTS get them from the client-op context, and that was a stub too:
+
+```
+[clientscript,script4762]                  // "Mark tile"
+if (_7038(_6950, 6, 1) = true) {           //   _6950 = the clicked tile's coord
+    highlight_tile_off(_6950, 6, 1);
+} else {
+    highlight_tile_on(_6950, 6, 1);
+}
+```
+
+A cache script installs a right-click row with a slot, a label and a script —
+`_6708(1, "Mark tile", 4762)`, `_6700(1, "Tag", 6688)` — and removes it with
+the DEL form when the setting behind it is switched off. That has landed too:
+
+- **`src/game/rs_clientop.{h,c}`** — the registry (five kinds × eight slots)
+  and the dispatch context.
+- **`CS2VM2_Op_ClientOpContext`** — the thirteen context getters, routed
+  instead of falling to the stack stub.
+- **`app_clientop_menu_build` / `app_clientop_run`** in app.c — the rows go on
+  the minimenu for their subject kind, and picking one runs its script.
+
+Two things are worth knowing about the dispatch:
+
+**Shift is the client's gate, and the cache asked for it.** Nothing in the
+installing scripts tests a key; setting 112's own description does —
+"hold shift and right-click the ground to place highlights". Without the gate
+every right click on open ground carries a "Mark tile" row above "Walk here".
+
+**The context is scoped by script identity, not by a bracket.**
+`RS_CS2_RunScript` queues a task, so the script runs during the frame's settle,
+well below the click — a begin/run/clear around the call clears before the
+script ever starts, and every context op reads -1. (It did, first time.) So the
+context records which script it belongs to and only a root frame of that id may
+read it. That is exact here: a client op's script is named by nothing else in
+the cache.
+
+`TORIRS_CLIENTOP_DEBUG=1` prints every install and every dispatch.
+
+### The initialiser is the SERVER's, and it was not being sent
+
+With all of that in place the category was still inert, and the reason was not
+in the client at all. Clientscript **4743** is the cache's own initialiser for
+the whole layer — it installs the client-op rows and sets up every highlight
+group from its varbit. Nothing in the cache calls it. Its two entry points are
+clientscript 876, which the reference server runs at login, and 5487, which
+takes no arguments; this server sent neither, so a login ran no RUNCLIENTSCRIPT
+at all.
+
+`ToriRSServer` now sends **5487** at login, beside the camera-limit script 605
+it already sent for the same kind of reason. 5487 rather than 876 because
+5488's body is a strict subset of 876's, while 876 additionally wants the login
+message's four arguments — a welcome line and a last-login stamp — that this
+server does not have. Sending 876 with invented arguments would arm the same
+layer and print a wrong welcome message beside it.
+
+### End to end
+
+```sh
+SDL_VIDEODRIVER=dummy TORIRS_SIM_KEYHOLD=42 \
+  TORIRS_SIM_CLICK_AT="700,250,250,1;720,232,281" \
+  TORIRS_MAX_FRAMES=800 TORIRS_EXIT_BMP=/tmp/marked.bmp \
+  ./run-live.sh manifests/manifest_osrs239.ini testc test
+```
+
+```
+clientop: op 6708 set slot 1 script 4762 'Mark tile'      <- login: installed
+clientop: tile slot 1 'Mark tile' -> script 4762 (coord=53054608)
+highlight: op 7038 (tile) 53054608 6 1                    <- the script's GET
+highlight: op 7036 (tile) 53054608 6 1                    <- ... and its ON
+```
+
+and the shot has a green tile on the ground, in setting 113's own colour, with
+the wash group 6's flags call for. Shift + right-click offers "Mark tile";
+picking it marks the tile; picking it again unmarks it.
+
+`TORIRS_SIM_KEYHOLD="<keycode>[,...]"` is new, and exists for exactly this: the
+click sims had no way to say "with shift down", and shift is not a decoration
+on a right click — it is what makes a whole class of rows appear.
+
+### What the client had to supply
+
+The opcode layer alone drew almost nothing, because a group being SET UP is not
+the same as anything being IN it. Five things were missing, and all five have
+landed:
+
+- **`CLIENTOP_*` (6700..6709)** and its thirteen context getters -- see above.
+  Without them "Mark tile" and "Tag" did not exist and nothing could be put in
+  a group by clicking.
+- **`MINIMENU_*` (7100..7110)** -- clientscript 5350 is the cache's own
+  "Highlight entities on mouse-over": it asks `_7100` what kind of thing the
+  pointer is on, confirms with the matching FIND op, and highlights it. While
+  TYPE answered 0 the script returned on its first branch. The App publishes a
+  per-frame mouseover snapshot into `host->clientop`, and the same snapshot is
+  what the `_67xx / _68xx / _69xx` getters fall back to outside a client op --
+  those ops are the CURRENT TARGET, not only a client op's subject.
+- **`NC_PARAM` (6513) and `LC_PARAM` (6514)** -- 5350 picks which highlight
+  group a subject belongs in by reading `param_2312` off its type. Neither
+  opcode existed, and neither could: the loc and npc converters dropped the
+  param table on the reasoning that "the client is not a script host". It is
+  one. Both types now carry the whole table, as objtypes always did.
+- **`_3330`** -- the walk destination, `coord`'s sibling. Unrouted it answered
+  0, which is a real tile, so clientscript 5210's `if (_3330 ! null)` was always
+  true and the destination-tile highlight marked the corner of the map.
+- **The three tile refreshers.** 5197 / 5204 / 5210 mark the hovered, current
+  and destination tile. Each takes no arguments and reads its subject from an
+  opcode (`_6950`, `coord`, `_3330`), and nothing in the cache calls them --
+  the reference client re-runs each one when its subject changes, and so does
+  this one now, on the edge.
+
+The mouseover highlighter is deliberately NOT driven that way: the cache
+re-arms clientscript 4726 on a gameframe component timer and calls 5350 itself.
+Measured -- with the client's own edge-triggered call removed, 5350 still ran
+89 times over the same window. A second driver for an idempotent script is only
+waste.
+
+### What is still not populated, and why
+
+Three separate reasons, all measured rather than assumed:
+
+- **A per-instance hook this client does not raise.** Clientscript 8320 puts a
+  poll booth in its group and is called by the reference when a loc comes into
+  view; nothing in the cache calls it. `nxt-poll-booths` is the implementation
+  until that hook exists.
+- **In-game context.** The Agility obstacle list fills from a per-course
+  script, the clue-helper groups from holding a clue. Those are unverified
+  rather than broken -- a fresh Lumbridge login does not reach them. What can
+  be reached from one was checked: turning setting 367 on adds quest-start npcs
+  to npctype group 13, and setting 164 adds its two ground-item types to
+  objtype group 9.
+- **A server fact.** 453 is gated on `%varbit4337` ("there is an active poll"),
+  which this server never writes.
 
 ## The shape: hidden builtin plugins
 
@@ -175,116 +458,132 @@ reach is not the contract this layer claims to have.
 
 ## The list
 
-`var` is what the client actually reads. `default` is `param_1084` /
-`param_1230` -- what the row shows before anyone touches it, which is NOT the
-same as what our client does before the feature exists.
+`var` is what the client actually reads.
+
+**`sense` is the trap.** `param_1084` looks like a default and is not: the row
+builder (clientscript 3846) reads it into a boolean and, when it is set, draws
+the checkbox as `1 - varbit`. So a row marked **inverted** below is ON when its
+varbit reads **0**, and the driving scripts agree — clientscript 6681 installs
+the tile-marker client op when `%varbit12342 = 0`, and 8319 lights the poll
+booths when `%varbit9538 = 0`.
+
+30 of the 54 desktop toggles are inverted and 24 are not, with no pattern to
+them. Reading an inverted row the plain way gives a feature that is on exactly
+when the user asked for it to be off, which looks like it works until someone
+switches it off — this document said "default" here for a while and one plugin
+was written against it. `nxt_activities.h` carries `NXT_ON()` and
+`NXT_ON_INVERTED()` so no plugin has to decide again.
+
+For a colour row `sense` is `param_1230`, the swatch the panel shows before
+anyone picks one.
 
 Mobile-only rows (`param_740`: 410, 409, 212) are omitted: this client is
 `clienttype` 10 and never builds them.
 
+
 ### General
 
-| id | row | var | default / choices | setting | what it has to do |
-|---:|-----|-----|-------------------|---------|-------------------|
-| 112 | toggle | `%varbit12342` | on | **Tile highlighting** | When enabled, hold shift and right-click the ground to place highlights. |
+| id | row | var | sense / choices | setting | what it has to do |
+|---:|-----|-----|-----------------|---------|-------------------|
+| 112 | toggle | `%varbit12342` | **inverted** | **Tile highlighting** | When enabled, hold shift and right-click the ground to place highlights. |
 | 113 | colour | `%var3108` | #00FF00 | **Tile highlight colour** | What colour your marked tiles will show up as. |
 | 117 | button | — | — | **Clear your highlighted tiles** |  |
-| 190 | toggle | `%varbit13088` | off | **Highlight entities on mouse-over** | Adds a highlight to entities when you hover the mouse cursor over them. |
-| 172 | toggle | `%varbit12977` | off | **Highlight hovered tile** | When enabled, highlights the tile under the mouse. |
-| 173 | toggle | `%varbit12980` | off | **Highlight hovered tile - Always on top** | When enabled, shows the hovered tile highlight over objects in the world. |
+| 190 | toggle | `%varbit13088` | plain | **Highlight entities on mouse-over** | Adds a highlight to entities when you hover the mouse cursor over them. |
+| 172 | toggle | `%varbit12977` | plain | **Highlight hovered tile** | When enabled, highlights the tile under the mouse. |
+| 173 | toggle | `%varbit12980` | plain | **Highlight hovered tile - Always on top** | When enabled, shows the hovered tile highlight over objects in the world. |
 | 174 | colour | `%var3155` | #BEBA6E | **Highlight hovered tile - Colour** | Colour to highlight the tile under the mouse. |
-| 175 | toggle | `%varbit12978` | off | **Highlight current tile** | When enabled, highlights the tile you are currently on. |
-| 176 | toggle | `%varbit12981` | off | **Highlight current tile - Always on top** | When enabled, shows the current tile highlight over objects in the world. |
+| 175 | toggle | `%varbit12978` | plain | **Highlight current tile** | When enabled, highlights the tile you are currently on. |
+| 176 | toggle | `%varbit12981` | plain | **Highlight current tile - Always on top** | When enabled, shows the current tile highlight over objects in the world. |
 | 177 | colour | `%var3156` | #9A9733 | **Highlight current tile - Colour** | Colour to highlight the tile you are currently on. |
-| 178 | toggle | `%varbit12979` | off | **Highlight destination tile** | When enabled, highlights the tile you are moving to. |
-| 179 | toggle | `%varbit12982` | off | **Highlight destination tile - Always on top** | When enabled, shows the destination tile highlight over objects in the world. |
+| 178 | toggle | `%varbit12979` | plain | **Highlight destination tile** | When enabled, highlights the tile you are moving to. |
+| 179 | toggle | `%varbit12982` | plain | **Highlight destination tile - Always on top** | When enabled, shows the destination tile highlight over objects in the world. |
 | 180 | colour | `%var3157` | #A9A753 | **Highlight destination tile - Colour** | Colour to highlight the tile you are moving to. |
-| 261 | toggle | `%varbit14168` | off | **NPC highlight** | When enabled, tagged NPCs will be highlighted. |
+| 261 | toggle | `%varbit14168` | plain | **NPC highlight** | When enabled, tagged NPCs will be highlighted. |
 | 258 | dropdown | `%varbit14169` | Off / On - Normal / On - Bold | **NPC highlight - Display name** | When enabled, display the NPC's name above its body. |
 | 259 | dropdown | `%varbit14171` | Off / Outline only / Outline and fill | **NPC highlight - Highlight tile** | When enabled, highlight the tiles the NPC is on. |
-| 260 | toggle | `%varbit14170` | off | **NPC highlight - Highlight outline** | When enabled, highlight the NPC. |
+| 260 | toggle | `%varbit14170` | plain | **NPC highlight - Highlight outline** | When enabled, highlight the NPC. |
 | 262 | colour | `%var3540` | #05F8F8 | **NPC highlight - Highlighting colour** | Colour to highlight the NPC's. |
 | 263 | colour | `%var3541` | #05F8F8 | **NPC highlight - Text colour** | Colour of the text shown above the highlighted NPC. |
-| 416 | toggle | `%varbit11518` | off | **NPC highlight - Tagging** | When enabled, hold shift and right-click an NPC to tag it for highlighting. |
+| 416 | toggle | `%varbit11518` | plain | **NPC highlight - Tagging** | When enabled, hold shift and right-click an NPC to tag it for highlighting. |
 | 267 | button | — | — | **Clear your highlighted NPCs** |  |
 | 264 | dropdown | `%varbit14178` | Off / On - Normal / On - Bold | **Display all NPC names above their body** | When enabled, display the name of every NPC above its body. |
 | 266 | colour | `%var3542` | #05F8F8 | **NPC names text colour** | Colour of the text shown above all NPCs. |
-| 453 | toggle | `%varbit9538` | on | **Highlight poll booths** | When enabled, poll booths will be highlighted in the game world when the game is inviting you to vote. |
+| 453 | toggle | `%varbit9538` | **inverted** | **Highlight poll booths** | When enabled, poll booths will be highlighted in the game world when the game is inviting you to vote. |
 
 ### Skills
 
-| id | row | var | default / choices | setting | what it has to do |
-|---:|-----|-----|-------------------|---------|-------------------|
-| 163 | toggle | `%varbit12379` | on | **Agility helper** | When enabled, the Agility helper will be shown when on Agility courses. |
-| 164 | toggle | `%varbit12380` | off | **Highlight Agility obstacles** | When enabled, Agility obstacles will be highlighted in the game world, for the course that you are training on. |
+| id | row | var | sense / choices | setting | what it has to do |
+|---:|-----|-----|-----------------|---------|-------------------|
+| 163 | toggle | `%varbit12379` | **inverted** | **Agility helper** | When enabled, the Agility helper will be shown when on Agility courses. |
+| 164 | toggle | `%varbit12380` | plain | **Highlight Agility obstacles** | When enabled, Agility obstacles will be highlighted in the game world, for the course that you are training on. |
 | 165 | dropdown | `%varbit13135` | Off / On / On (Req based) | **Highlight Agility shortcuts** | When enabled, Agility shortcuts will be highlighted in the game world. |
-| 210 | toggle | `%varbit13136` | on | **Highlight Agility shortcuts - Shortcut Requirements** | When enabled on members' worlds, Agility shortcuts you can't use will have an overlay displaying the requirements to use them. |
-| 187 | dropdown | `%varbit13085` | On / On when carrying a pickaxe / Off | **Ore respawn timer** | When enabled, a respawn timer will be shown when you mine a rock for ore. You can set this to only be shown if you have a pickaxe. |
-| 188 | dropdown | `%varbit13086` | On / On when carrying an axe / Off | **Woodcutting respawn timer** | When enabled, a respawn timer will be shown when you chopdown a tree. You can set this to only be shown if you have an axe. |
-| 189 | toggle | `%varbit13087` | on | **Bird nest notification** | When enabled, a notification will be displayed if you obtain a bird nest drop while cutting down trees. |
-| 120 | toggle | `%varbit12349` | on | **Fishing spot indicators** | When enabled, fishing spots will be highlighted and the fish the spot gives will be shown above the fishing spot. You can hover over the fish shown to see every fish that can be caught at the spot. |
-| 121 | toggle | `%varbit12350` | on | **Fishing spot indicators - Tools only** | When enabled, fishing spot indicators will only be shown if you have a tool that can be used at the fishing spot. When disabled, show fishing spot indicators regardless of tools. |
-| 122 | toggle | `%varbit12351` | on | **Fishing spot indicators - Mouse over tooltip** | When enabled, hovering over a fishing spot indicator will show all the fish the spot has to offer. |
-| 184 | toggle | `%varbit13082` | on | **Slayer helper** | When enabled, the Slayer helper will be shown while training slayer. |
-| 243 | toggle | `%varbit14165` | on | **Hunter trap timers** | When enabled, shows the time until your trap will be dismantled. Also shows if your trap has caught something or not. |
-| 245 | toggle | `%varbit14172` | on | **Herbiboar helper** | When enabled, highlight starting locations, footprints and inspect locations for herbiboar hunting. |
+| 210 | toggle | `%varbit13136` | **inverted** | **Highlight Agility shortcuts - Shortcut Requirements** | When enabled on members' worlds, Agility shortcuts you can't use will have an overlay displaying the requirements to use them. |
+| 187 | dropdown | `%varbit13085` | On / On carrying a pickaxe / Off | **Ore respawn timer** | When enabled, a respawn timer will be shown when you mine a rock for ore. You can set this to only be shown if you have a pickaxe. |
+| 188 | dropdown | `%varbit13086` | On / On carrying an axe / Off | **Woodcutting respawn timer** | When enabled, a respawn timer will be shown when you chopdown a tree. You can set this to only be shown if you have an axe. |
+| 189 | toggle | `%varbit13087` | **inverted** | **Bird nest notification** | When enabled, a notification will be displayed if you obtain a bird nest drop while cutting down trees. |
+| 120 | toggle | `%varbit12349` | **inverted** | **Fishing spot indicators** | When enabled, fishing spots will be highlighted and the fish the spot gives will be shown above the fishing spot. You can hover over the fish shown to see every fish that can be caught at the spot. |
+| 121 | toggle | `%varbit12350` | **inverted** | **Fishing spot indicators - Tools only** | When enabled, fishing spot indicators will only be shown if you have a tool that can be used at the fishing spot. When disabled, show fishing spot indicators regardless of tools. |
+| 122 | toggle | `%varbit12351` | **inverted** | **Fishing spot indicators - Mouse over tooltip** | When enabled, hovering over a fishing spot indicator will show all the fish the spot has to offer. |
+| 184 | toggle | `%varbit13082` | **inverted** | **Slayer helper** | When enabled, the Slayer helper will be shown while training slayer. |
+| 243 | toggle | `%varbit14165` | **inverted** | **Hunter trap timers** | When enabled, shows the time until your trap will be dismantled. Also shows if your trap has caught something or not. |
+| 245 | toggle | `%varbit14172` | **inverted** | **Herbiboar helper** | When enabled, highlight starting locations, footprints and inspect locations for herbiboar hunting. |
 
 ### Combat
 
-| id | row | var | default / choices | setting | what it has to do |
-|---:|-----|-----|-------------------|---------|-------------------|
-| 116 | toggle | `%varbit12346` | on | **Data orbs - Regeneration indicators** | When enabled, adds a regeneration timer around your HP and special attack orbs on your minimap. |
-| 5 | toggle | `%varbit10236` | on | **Hitsplat tinting** | When enabled, hitsplats caused by damage that you did not deal are tinted. |
-| 279 | toggle | `%varbit14196` | on | **Max hit hitsplats** | When enabled, your max hit hitsplats will look different from non max hits. (Excludes fixed damage, damage from effects such as recoil, retribution, vengeance, corruption, poison and venom, as well as damage from thralls.) |
+| id | row | var | sense / choices | setting | what it has to do |
+|---:|-----|-----|-----------------|---------|-------------------|
+| 116 | toggle | `%varbit12346` | **inverted** | **Data orbs - Regeneration indicators** | When enabled, adds a regeneration timer around your HP and special attack orbs on your minimap. |
+| 5 | toggle | `%varbit10236` | **inverted** | **Hitsplat tinting** | When enabled, hitsplats caused by damage that you did not deal are tinted. |
+| 279 | toggle | `%varbit14196` | **inverted** | **Max hit hitsplats** | When enabled, your max hit hitsplats will look different from non max hits. (Excludes fixed damage, damage from effects such as recoil, retribution, vengeance, corruption, poison and venom, as well as damage from thralls.) |
 | 280 | slider | `%varbit14195` | — | **Max hit hitsplats threshold** | Max hits below this threshold will not show max hit hitsplats. |
-| 182 | toggle | `%varbit13039` | on | **Iron loot restriction indicator** | When enabled, Ironmen will occasionally see indicator icons to warn them if they're attacking a creature that's restricted from dropping loot to them. |
-| 183 | toggle | `%varbit13040` | on | **Iron loot restriction messages** | When enabled, Ironmen will occasionally see chatbox messages warning them if they're attacking a creature that's restricted from dropping loot to them. |
-| 10 | toggle | `%varbit12389` | on | **Show boss health overlay** | When enabled, fighting certain bosses will display a larger health overlay. |
-| 111 | toggle | `%varbit12390` | on | **Show normal health overlay** | When enabled, fighting any enemies will display a small health overlay. |
-| 299 | toggle | `%varbit14706` | on | **Show enemy name on health overlay** | When enabled, the enemy name will be displayed on the health overlay. |
+| 182 | toggle | `%varbit13039` | **inverted** | **Iron loot restriction indicator** | When enabled, Ironmen will occasionally see indicator icons to warn them if they're attacking a creature that's restricted from dropping loot to them. |
+| 183 | toggle | `%varbit13040` | **inverted** | **Iron loot restriction messages** | When enabled, Ironmen will occasionally see chatbox messages warning them if they're attacking a creature that's restricted from dropping loot to them. |
+| 10 | toggle | `%varbit12389` | **inverted** | **Show boss health overlay** | When enabled, fighting certain bosses will display a larger health overlay. |
+| 111 | toggle | `%varbit12390` | **inverted** | **Show normal health overlay** | When enabled, fighting any enemies will display a small health overlay. |
+| 299 | toggle | `%varbit14706` | **inverted** | **Show enemy name on health overlay** | When enabled, the enemy name will be displayed on the health overlay. |
 | 301 | dropdown | `%varbit14708` | Exact Value / Percentage | **Health overlay display type** | Determines how values are displayed on the health overlay. |
-| 300 | toggle | `%varbit14707` | off | **Compact boss health overlay** | When enabled, the boss health overlay will be more compact. |
-| 118 | toggle | `%varbit12347` | on | **Chambers of Xeric helper** | When enabled, the Chambers of Xeric helper will be shown when in a Chambers of Xeric raid. |
-| 247 | toggle | `%varbit14174` | on | **Cannon hud** | When enabled, shows how many cannonballs you have left in your cannon. |
-| 248 | toggle | `%varbit14175` | off | **Cannon low on ammo notification** | When enabled, a notification will be sent when you are low on cannonballs. |
+| 300 | toggle | `%varbit14707` | plain | **Compact boss health overlay** | When enabled, the boss health overlay will be more compact. |
+| 118 | toggle | `%varbit12347` | **inverted** | **Chambers of Xeric helper** | When enabled, the Chambers of Xeric helper will be shown when in a Chambers of Xeric raid. |
+| 247 | toggle | `%varbit14174` | **inverted** | **Cannon hud** | When enabled, shows how many cannonballs you have left in your cannon. |
+| 248 | toggle | `%varbit14175` | plain | **Cannon low on ammo notification** | When enabled, a notification will be sent when you are low on cannonballs. |
 | 249 | slider | `%varbit14176` | — | **Cannon low on ammo amount** | A notification is sent when your cannon reaches this quantity of remaining cannonballs. |
-| 250 | toggle | `%varbit14177` | off | **Cannon out of ammo notification** | When enabled, a notification will be sent when your cannon has run out ammo. |
+| 250 | toggle | `%varbit14177` | plain | **Cannon out of ammo notification** | When enabled, a notification will be sent when your cannon has run out ammo. |
 
 ### Quests
 
-| id | row | var | default / choices | setting | what it has to do |
-|---:|-----|-----|-------------------|---------|-------------------|
+| id | row | var | sense / choices | setting | what it has to do |
+|---:|-----|-----|-----------------|---------|-------------------|
 | 367 | dropdown | `%varbit9619` | Off / On for last quest viewed / On | **Highlight quest start points** | When enabled, quest start points for unstarted quests will be highlighted. Quest start points can be NPCs or scenery. |
-| 368 | toggle | `%varbit9622` | off | **Filter quest start highlights based on requirements** | When enabled, only quests that you meet all the requirements for will have their quest start point highlighted. |
+| 368 | toggle | `%varbit9622` | plain | **Filter quest start highlights based on requirements** | When enabled, only quests that you meet all the requirements for will have their quest start point highlighted. |
 
 ### Minigames
 
-| id | row | var | default / choices | setting | what it has to do |
-|---:|-----|-----|-------------------|---------|-------------------|
+| id | row | var | sense / choices | setting | what it has to do |
+|---:|-----|-----|-----------------|---------|-------------------|
 | 81 | dropdown | `%varbit11865` | Default / Green / Yellow / Red / Blue / White | **Last Man Standing fog colour** | Displays the chosen colour of the fog inside of Last Man Standing. |
-| 242 | toggle | `%varbit14167` | on | **Tears of Guthix timers** | When enabled, shows timers on the Weeping walls. |
-| 268 | toggle | `%varbit14180` | on | **Blast Furnace helper** | When enabled, the Blast Furnace helper will be shown when in the Blast Furnace. |
-| 269 | toggle | `%varbit14181` | on | **Blast Furnace highlights** | When enabled, certain pieces of scenery at the Blast Furnace will be highlighted in the game world. |
+| 242 | toggle | `%varbit14167` | **inverted** | **Tears of Guthix timers** | When enabled, shows timers on the Weeping walls. |
+| 268 | toggle | `%varbit14180` | **inverted** | **Blast Furnace helper** | When enabled, the Blast Furnace helper will be shown when in the Blast Furnace. |
+| 269 | toggle | `%varbit14181` | **inverted** | **Blast Furnace highlights** | When enabled, certain pieces of scenery at the Blast Furnace will be highlighted in the game world. |
 
 ### Treasure trails
 
-| id | row | var | default / choices | setting | what it has to do |
-|---:|-----|-----|-------------------|---------|-------------------|
-| 374 | toggle | `%varbit10693` | on | **Beginner clue scroll warning** | When enabled, you will get a message if you do not receive a clue as a drop because you already own one. |
-| 375 | toggle | `%varbit10694` | on | **Easy clue scroll warning** | When enabled, you will get a message if you do not receive a clue as a drop because you already own one. |
-| 376 | toggle | `%varbit10695` | on | **Medium clue scroll warning** | When enabled, you will get a message if you do not receive a clue as a drop because you already own one. |
-| 377 | toggle | `%varbit10723` | on | **Hard clue scroll warning** | When enabled, you will get a message if you do not receive a clue as a drop because you already own one. |
-| 378 | toggle | `%varbit10724` | on | **Elite clue scroll warning** | When enabled, you will get a message if you do not receive a clue as a drop because you already own one. |
-| 379 | toggle | `%varbit10725` | on | **Master clue scroll warning** | When enabled, you will get a message if you do not receive a clue as a drop because you already own one. |
-| 451 | toggle | `%varbit17938` | off | **STASH units take equipped items** | When active, when putting items back into a STASH UNIT, equipped items will be taken. Your inventory takes priority. |
-| 271 | toggle | `%varbit14182` | off | **Clue scroll helper** | When enabled, reading a clue scroll will display extra information to help solve it. |
-| 275 | toggle | `%varbit14187` | off | **Clue scroll helper - Infobox** | When enabled, information about a clue will be shown in an infobox. |
-| 276 | toggle | `%varbit14188` | off | **Clue scroll helper - Clue text** | When enabled, shows the clue text in the infobox. |
-| 270 | toggle | `%varbit14189` | off | **Clue scroll helper - Overlay** | When enabled, shows overlays above any relevant entities. |
-| 277 | toggle | `%varbit14184` | off | **Clue scroll helper - Entity highlights** | When enabled, highlights any relevant entities. |
-| 273 | toggle | `%varbit14185` | off | **Clue scroll helper - World arrows** | When enabled, an arrow will be shown in the world to indicate where the clue step is. |
-| 272 | toggle | `%varbit14183` | off | **Clue scroll helper - Worldmap marker** | When enabled, a marker will be shown on the world map to indicate where the clue step is. |
-| 274 | toggle | `%varbit14186` | off | **Clue scroll helper - Menu highlights** | When enabled, relevant buttons will be highlighted in interfaces. |
+| id | row | var | sense / choices | setting | what it has to do |
+|---:|-----|-----|-----------------|---------|-------------------|
+| 374 | toggle | `%varbit10693` | **inverted** | **Beginner clue scroll warning** | When enabled, you will get a message if you do not receive a clue as a drop because you already own one. |
+| 375 | toggle | `%varbit10694` | **inverted** | **Easy clue scroll warning** | When enabled, you will get a message if you do not receive a clue as a drop because you already own one. |
+| 376 | toggle | `%varbit10695` | **inverted** | **Medium clue scroll warning** | When enabled, you will get a message if you do not receive a clue as a drop because you already own one. |
+| 377 | toggle | `%varbit10723` | **inverted** | **Hard clue scroll warning** | When enabled, you will get a message if you do not receive a clue as a drop because you already own one. |
+| 378 | toggle | `%varbit10724` | **inverted** | **Elite clue scroll warning** | When enabled, you will get a message if you do not receive a clue as a drop because you already own one. |
+| 379 | toggle | `%varbit10725` | **inverted** | **Master clue scroll warning** | When enabled, you will get a message if you do not receive a clue as a drop because you already own one. |
+| 451 | toggle | `%varbit17938` | plain | **STASH units take equipped items** | When active, when putting items back into a STASH UNIT, equipped items will be taken. Your inventory takes priority. |
+| 271 | toggle | `%varbit14182` | plain | **Clue scroll helper** | When enabled, reading a clue scroll will display extra information to help solve it. |
+| 275 | toggle | `%varbit14187` | plain | **Clue scroll helper - Infobox** | When enabled, information about a clue will be shown in an infobox. |
+| 276 | toggle | `%varbit14188` | plain | **Clue scroll helper - Clue text** | When enabled, shows the clue text in the infobox. |
+| 270 | toggle | `%varbit14189` | plain | **Clue scroll helper - Overlay** | When enabled, shows overlays above any relevant entities. |
+| 277 | toggle | `%varbit14184` | plain | **Clue scroll helper - Entity highlights** | When enabled, highlights any relevant entities. |
+| 273 | toggle | `%varbit14185` | plain | **Clue scroll helper - World arrows** | When enabled, an arrow will be shown in the world to indicate where the clue step is. |
+| 272 | toggle | `%varbit14183` | plain | **Clue scroll helper - Worldmap marker** | When enabled, a marker will be shown on the world map to indicate where the clue step is. |
+| 274 | toggle | `%varbit14186` | plain | **Clue scroll helper - Menu highlights** | When enabled, relevant buttons will be highlighted in interfaces. |
 
 ## The plugins
 
@@ -299,34 +598,37 @@ switch. `src/plugin/plugins/nxt_*.c`, registered in
 
 | # | plugin | rows | status |
 |--:|--------|------|--------|
-|  1 | `nxt-tile-indicator` | 172 174 175 177 178 180 | done -- 173/176/179 below |
-|  2 | `nxt-tile-markers` | 112 113 117 | done |
-|  3 | `nxt-entity-hover` | 190 | done |
-|  4 | `nxt-npc-highlight` | 261 258 259 260 262 263 264 266 416 267 | done |
-|  5 | `nxt-poll-booths` | 453 | done -- see the note below |
-|  6 | `nxt-fishing-spots` | 120 121 122 | not started |
-|  7 | `nxt-agility` | 163 164 165 210 | not started |
-|  8 | `nxt-respawn-timers` | 187 188 | not started |
-|  9 | `nxt-bird-nest` | 189 | not started |
-| 10 | `nxt-slayer-helper` | 184 | not started |
-| 11 | `nxt-hunter-traps` | 243 | not started |
-| 12 | `nxt-herbiboar` | 245 | not started |
-| 13 | `nxt-regen-orbs` | 116 | not started |
-| 14 | `nxt-hitsplat-tint` | 5 | not started |
-| 15 | `nxt-max-hit-hitsplats` | 279 280 | not started |
-| 16 | `nxt-iron-loot` | 182 183 | not started |
-| 17 | `nxt-health-overlay` | 10 111 299 301 300 | not started |
-| 18 | `nxt-cox-helper` | 118 | not started |
-| 19 | `nxt-cannon` | 247 248 249 250 | not started |
-| 20 | `nxt-quest-start` | 367 368 | not started |
-| 21 | `nxt-lms-fog` | 81 | not started |
-| 22 | `nxt-tog-timers` | 242 | not started |
-| 23 | `nxt-blast-furnace` | 268 269 | not started |
-| 24 | `nxt-clue-warnings` | 374 375 376 377 378 379 | not started |
-| 25 | `nxt-stash-equipped` | 451 | not started |
-| 26 | `nxt-clue-helper` | 271 270 272 273 274 275 276 277 | not started |
+|  0 | `nxt-highlight` | every row the cache drives | done |
+|  1 | `nxt-npc-names` | 258 263 264 266 | done |
+|  2 | `nxt-poll-booths` | 453 | done -- see the note below |
+|  3 | `nxt-bird-nest` | 189 | done |
+|  4 | `nxt-cannon-ammo` | 248 249 250 | done |
+| .. | (the rest) | see "Status" above | not started |
 
-24 of the 72 rows, in the five plugins the current api can express.
+
+Plugin 0 is the renderer for everything the cache drives itself; 1 to 4 are
+per-setting builtins for rows the cache does not drive at all.
+
+Seven more rows are the SERVER's, in the treasure-trail content lane: the six
+clue-scroll warnings (374-379) and STASH's equipped-item rule (451). Those
+could not be the client's -- the drop it did not give you, and the item it took
+off your back, both happen there and the client never learns either happened.
+The cache names those varbits for us too: `option_trail_reminder_beginner` and
+its five siblings, and `option_hidey_holes_equipped`.
+
+**Four builtins have been deleted**, and that is the point rather than a
+retreat. `nxt-tile-markers` went when `CLIENTOP_*` landed and the cache started
+installing its own "Mark tile" row; `nxt-tile-indicator` when the three tile
+refreshers started running; `nxt-entity-hover` when `MINIMENU_*` let
+clientscript 5350 do its job; `nxt-npc-highlight` when the cache's own "Tag"
+client op appeared beside it in the menu -- there were briefly two "Tag Duck"
+rows, which is exactly the double-draw this was always going to become.
+
+Each was deleted in the change that replaced it. Not before, or those rows go
+dark; not after, or they draw twice. `nxt-npc-names` is the remainder of that
+last one: the name over a tagged npc is the only part the cache does NOT
+express as a highlight flag, because it builds a world-anchored component for
+it instead.
 
 ### "- Always on top" (173, 176, 179) is read and not honoured
 
@@ -347,12 +649,15 @@ entirely.
 ### 453's "you have not voted" half is the server's
 
 The row's full sentence is "poll booths will be highlighted when there is an
-active poll you have not voted in". Whether a poll is open, and whether this
-player has voted, are facts only the server holds; the client is told neither
-and no varbit in this cache carries them. So the highlight is unconditional
-while the setting is on, and the gate is written down as a server feature that
-does not exist rather than faked -- a booth that lit up forever would teach the
-user to ignore it.
+active poll you have not voted in". Clientscript 8319 reads `%varbit4337` for
+the first half; this server never writes it, and nothing carries the second at
+all. So the highlight is unconditional while the setting is on, and the gate is
+written down as a server feature that does not exist rather than faked -- a
+booth that lit up forever would teach the user to ignore it.
+
+453 is also an **inverted** row: the feature is on when `%varbit9538` reads 0.
+This plugin read it the plain way at first, which highlighted every booth in
+the game for anyone who had switched the setting off.
 
 The booths are found by NAME rather than by an id list, and that is worth
 knowing before the next loc-based plugin is written: this cache holds dozens of
@@ -360,12 +665,20 @@ separate poll booth locs, all called "Poll booth", and the set is not stable
 between revisions. An id table would be right for one cache and quietly
 incomplete for every other.
 
-### What each one still needs from the API
+### What each one still needs
 
 The five that are done needed `varbit`, `varp`, `setting_color`,
-`hover_entity`, `element_height`, `loc_next` and `EV_SETTING`; those have
-landed. The rest are blocked on api the layer does not have yet, and the gaps
-are worth naming before any of them is started, because several share one:
+`hover_entity`, `element_height`, `loc_next`, `highlight_next` and
+`EV_SETTING`; those have landed, as has the whole `CLIENTOP_*` layer.
+
+**The next unblock is still not an api.** It is the per-instance hooks named
+under "What still does not populate": a "the tile under the pointer changed"
+callback and a "this loc came into view" one. Each turns a group that is set up
+and empty into one the cache populates, and each retires a plugin below. Do
+those before writing another per-setting plugin.
+
+The rows the cache does NOT drive at all are blocked on api the layer does not
+have, and the gaps are worth naming because several share one:
 
 - **`inv_next` / `inv_count`** -- read a container. 6 ("Tools only" is "am I
   carrying a rod"), 19 (cannonballs), 24 (do I already hold this clue), 25.
@@ -379,6 +692,10 @@ are worth naming before any of them is started, because several share one:
   and optionally flash the window". `api->notify`.
 - **cache config reads** -- `objtype`/`loctype`/`npctype` params by id. 6, 7,
   20 and 26 all need to recognise things by more than a hardcoded id list.
+  Note that the highlight route sidesteps this entirely for the rows it
+  covers: the cache already knows which loc is an Agility obstacle and says
+  so, which is why honouring the opcodes is worth more than the same rows'
+  worth of hand-written plugins would be.
 
 ### Rows that are not the client's to implement
 
@@ -390,9 +707,21 @@ are worth naming before any of them is started, because several share one:
 ## Verifying
 
 ```sh
-make -C src test-nxt-plugins     # the five builtins against a fake engine
+make -C src test-clientop        # the CLIENTOP_* registry and its context ops
+make -C src test-highlight       # the cache's HIGHLIGHT_* family, as state
+make -C src test-nxt-plugins     # the three builtins against a fake engine
 make -C src test-plugin-host     # the host, including the hidden flag
 ```
+
+`test-clientop` and `test-highlight` drive real calls, copied out of the
+decompiled clientscripts with their arguments intact. The failure it guards is not the bookkeeping but
+which argument slot holds the group: three of the eight kinds put it somewhere
+different -- `highlight_tile_on(coord, group, flags)`,
+`highlight_loc_on(type, coord, group, flags)`,
+`highlight_npctype_on(type, group)` -- and reading the wrong one gives a
+plausible group number every time. A test written from the table it is testing
+would agree with any of those.
+
 
 `test-nxt-plugins` is where a broken builtin actually shows. These plugins have
 no roster row, no config page and no log line: a broken one draws nothing,
@@ -410,7 +739,23 @@ SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=60 \
     src/torirs --manifest manifests/manifest_osrs239.ini --offline
 ```
 
-The boot line names them -- `nxt-tile-indicator, nxt-tile-markers,
-nxt-entity-hover, nxt-npc-highlight, nxt-poll-booths` -- and the two "asset not
-found" lines beside it are the ordinary first run, before anything has been
-marked.
+The boot line names them -- `nxt-highlight, nxt-npc-names, nxt-poll-booths`.
+
+For the cache-driven half, the two debug channels are the tools:
+
+```sh
+SDL_VIDEODRIVER=dummy TORIRS_HIGHLIGHT_DEBUG=1 TORIRS_CLIENTOP_DEBUG=1 \
+  TORIRS_SIM_KEYHOLD=42 TORIRS_SIM_CLICK_AT="700,250,250,1;720,232,281" \
+  TORIRS_MAX_FRAMES=800 ./run-live.sh manifests/manifest_osrs239.ini testc test
+```
+
+`TORIRS_HIGHLIGHT_DEBUG` prints every highlight call with its arguments,
+`TORIRS_CLIENTOP_DEBUG` every client-op install and dispatch plus the mouseover
+target as it changes. When a highlight does not appear the first question is
+always "did the script ask for it", and from outside the VM there is no other
+way to answer it.
+
+`TORIRS_SIM_KEYHOLD="<keycode>[,...]"` holds keys for the whole run (42 is
+shift). The click sims had no way to say "with shift down", and shift is not a
+decoration on a right click -- it is what makes the client-op rows appear at
+all.

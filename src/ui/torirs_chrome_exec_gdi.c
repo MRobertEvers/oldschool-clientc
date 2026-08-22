@@ -102,6 +102,10 @@ static char const CHROME_GDI_WNDCLASS[] = "TorirsChromeToolWindow";
 #define CHROME_GDI_SWATCH CHROME_GDI_PX(TORIRS_CHROME_M_SWATCH)
 #define CHROME_GDI_SWATCH_GAP CHROME_GDI_PX(TORIRS_CHROME_M_SWATCH_GAP)
 #define CHROME_GDI_FRAME CHROME_GDI_PX(TORIRS_CHROME_M_FRAME)
+/** Side of one frame corner tile. It carries the rail along each of its two
+ *  outer edges, so it blits square at THIS rather than at the rail's width --
+ *  @see chrome_gdi_frame. */
+#define CHROME_GDI_FRAME_CORNER CHROME_GDI_PX(TORIRS_CHROME_M_FRAME_CORNER)
 #define CHROME_GDI_FIELD_PAD_X CHROME_GDI_PX(TORIRS_CHROME_M_FIELD_PAD_X)
 #define CHROME_GDI_FIELD_INSET CHROME_GDI_PX(TORIRS_CHROME_M_FIELD_INSET)
 #define CHROME_GDI_RULE CHROME_GDI_PX(1)
@@ -407,18 +411,35 @@ chrome_gdi_tile(struct ChromeGdi* s, HDC dc, int x, int y, int w, int h)
 /**
  * The interfaces' nine-slice panel border.
  *
- * dbg_push_frame, in GDI. The corners blit at their baked size and the edges
- * stretch along their runs; the baked centre is never drawn, because the
- * window's own tile is already under it.
+ * dbg_push_frame, in GDI, and it needs BOTH of the frame's numbers. A corner
+ * is a 32px tile carrying an L of 6px rail along its two outer edges, and an
+ * edge is a bare 6px rail: so a corner blits SQUARE AT ITS BAKED SIZE and an
+ * edge stretches along the run between two corners at the rail's thickness.
+ * Blitting the corners at the rail instead squashes 32px of tile into 6 and
+ * takes the mitred junction and its rounded outer pixel with it -- which is
+ * the whole of what makes this read as the interfaces' border rather than as
+ * a brown line.
+ *
+ * It is still the RAIL, not the corner, that the content column is inset by
+ * (chrome_gdi_layout): the corner's extra 26px lie along the edges, over the
+ * window's own tile, not over its rows.
+ *
+ * The baked centre is never drawn, because the window's tile is already under
+ * it.
  */
 static void
 chrome_gdi_frame(struct ChromeGdi* s, HDC dc, int w, int h)
 {
     int const t = CHROME_GDI_FRAME;
-    int const mid_w = w - 2 * t;
-    int const mid_h = h - 2 * t;
-    int const right = w - t;
-    int const bottom = h - t;
+    int const c = CHROME_GDI_FRAME_CORNER;
+    int const mid_w = w - 2 * c;
+    int const mid_h = h - 2 * c;
+    /* Two different insets, for the same reason there are two numbers: a
+     * corner hangs 32 in from its edge and a rail 6. */
+    int const corner_r = w - c;
+    int const corner_b = h - c;
+    int const rail_r = w - t;
+    int const rail_b = h - t;
 
     if( !ToriRSChromeSkin_ForSlot(TORIRS_CHROME_SKIN_FRAME_TOP_LEFT) )
     {
@@ -426,19 +447,23 @@ chrome_gdi_frame(struct ChromeGdi* s, HDC dc, int w, int h)
         chrome_gdi_outline(dc, 0, 0, w, h, TORIRS_CHROME_C_CHROME);
         return;
     }
-    chrome_gdi_blit(s, dc, 0, 0, t, t, TORIRS_CHROME_SKIN_FRAME_TOP_LEFT);
-    chrome_gdi_blit(s, dc, right, 0, t, t, TORIRS_CHROME_SKIN_FRAME_TOP_RIGHT);
-    chrome_gdi_blit(s, dc, 0, bottom, t, t, TORIRS_CHROME_SKIN_FRAME_BOTTOM_LEFT);
-    chrome_gdi_blit(s, dc, right, bottom, t, t, TORIRS_CHROME_SKIN_FRAME_BOTTOM_RIGHT);
+    /* A window narrower or shorter than two of its own corners has no run to
+     * stretch and the corners OVERLAP -- not a degenerate case to guard
+     * against but what the reference's own 42px popout strip does with this
+     * art. They still read as a frame; the run is simply gone. */
+    chrome_gdi_blit(s, dc, 0, 0, c, c, TORIRS_CHROME_SKIN_FRAME_TOP_LEFT);
+    chrome_gdi_blit(s, dc, corner_r, 0, c, c, TORIRS_CHROME_SKIN_FRAME_TOP_RIGHT);
+    chrome_gdi_blit(s, dc, 0, corner_b, c, c, TORIRS_CHROME_SKIN_FRAME_BOTTOM_LEFT);
+    chrome_gdi_blit(s, dc, corner_r, corner_b, c, c, TORIRS_CHROME_SKIN_FRAME_BOTTOM_RIGHT);
     if( mid_w > 0 )
     {
-        chrome_gdi_blit(s, dc, t, 0, mid_w, t, TORIRS_CHROME_SKIN_FRAME_TOP);
-        chrome_gdi_blit(s, dc, t, bottom, mid_w, t, TORIRS_CHROME_SKIN_FRAME_BOTTOM);
+        chrome_gdi_blit(s, dc, c, 0, mid_w, t, TORIRS_CHROME_SKIN_FRAME_TOP);
+        chrome_gdi_blit(s, dc, c, rail_b, mid_w, t, TORIRS_CHROME_SKIN_FRAME_BOTTOM);
     }
     if( mid_h > 0 )
     {
-        chrome_gdi_blit(s, dc, 0, t, t, mid_h, TORIRS_CHROME_SKIN_FRAME_LEFT);
-        chrome_gdi_blit(s, dc, right, t, t, mid_h, TORIRS_CHROME_SKIN_FRAME_RIGHT);
+        chrome_gdi_blit(s, dc, 0, c, t, mid_h, TORIRS_CHROME_SKIN_FRAME_LEFT);
+        chrome_gdi_blit(s, dc, rail_r, c, t, mid_h, TORIRS_CHROME_SKIN_FRAME_RIGHT);
     }
 }
 

@@ -89,8 +89,27 @@ struct PlatformSDL2
     SDL_Renderer* aux_renderer;
     SDL_Texture* aux_texture;
     int* aux_pixels;
+    /*
+     * The SURFACE, in PIXELS -- what the chrome lays out and rasterises into.
+     *
+     * Pixels, not points, and that is the whole of what this window used to get
+     * wrong. The chrome picks its baked font size from the display's density
+     * (App_SetChromeScale off PlatformSDL2_PixelDensity), so on a 2x display it
+     * lays out 36px rows and a 208px label column. Sized in POINTS this surface
+     * gave a 2x chrome half the room it was laid out for: labels ran under
+     * their fields, the fields were clipped against the scrollbar, and half of
+     * a plugin's settings page fell past the bottom edge -- where widgets get a
+     * zero box and stop being hit-testable at all. Then SDL stretched the
+     * half-resolution result over the drawable, so it was soft as well.
+     */
     int aux_width;
     int aux_height;
+    /* The same window in POINTS, which is the space SDL reports mouse events
+     * and window sizes in. The two differ by the display's density, and every
+     * point that crosses into surface space is scaled by the ratio of these
+     * to the pair above. @see aux_point_to_pixel. */
+    int aux_point_w;
+    int aux_point_h;
     /* SDL's id for aux_window, so the event pump can tell which window an
      * event came from without comparing pointers on every event. */
     uint32_t aux_window_id;
@@ -740,13 +759,105 @@ PlatformSDL2_Pixels(struct PlatformSDL2* platform)
 
 /* ---- the auxiliary window ------------------------------------------------ */
 
+/**
+ * The aux window's drawable size, in pixels.
+ *
+ * The renderer's output size rather than SDL_GetWindowSize, for the reason
+ * sdl_drawable_size gives for the game window: SDL reports window geometry in
+ * points and the drawable in pixels, and on a HighDPI display those differ.
+ */
+static void
+aux_drawable_size(struct PlatformSDL2* platform, int* out_w, int* out_h)
+{
+    int w = 0;
+    int h = 0;
+
+    assert(platform);
+    assert(platform->aux_window);
+    if( platform->aux_renderer )
+        SDL_GetRendererOutputSize(platform->aux_renderer, &w, &h);
+    if( w <= 0 || h <= 0 )
+        SDL_GetWindowSize(platform->aux_window, &w, &h);
+    if( out_w )
+        *out_w = w;
+    if( out_h )
+        *out_h = h;
+}
+
+/** Re-read the window's size in points, which is what every event arrives in. */
+static void
+aux_refresh_points(struct PlatformSDL2* platform)
+{
+    int w = 0;
+    int h = 0;
+
+    assert(platform);
+    assert(platform->aux_window);
+    SDL_GetWindowSize(platform->aux_window, &w, &h);
+    if( w > 0 && h > 0 )
+    {
+        platform->aux_point_w = w;
+        platform->aux_point_h = h;
+    }
+}
+
+/**
+ * One event coordinate, from SDL's points into the surface's pixels.
+ *
+ * PlatformSDL2_MapMouse's opposite number for this window: there is no
+ * letterbox here -- the surface IS the window -- so the whole of the mapping is
+ * the density. A window whose points have not been read yet (or a 1x display)
+ * scales by one, which is the identity this used to assume everywhere.
+ */
+static void
+aux_point_to_pixel(struct PlatformSDL2 const* platform, int x, int y, int* out_x, int* out_y)
+{
+    assert(platform);
+    assert(out_x);
+    assert(out_y);
+    *out_x = platform->aux_point_w > 0 ? x * platform->aux_width / platform->aux_point_w : x;
+    *out_y = platform->aux_point_h > 0 ? y * platform->aux_height / platform->aux_point_h : y;
+}
+
+/**
+ * Notice a drawable that changed without a resize, and report it as one.
+ *
+ * A window dragged from a 2x display to a 1x one keeps its size in POINTS and
+ * halves in PIXELS, and SDL does not have to send SIZE_CHANGED for that. The
+ * surface would stay at the old resolution -- stretched, and with every click
+ * scaled by a density the window no longer has. Watched rather than subscribed
+ * to, for the reason PlatformSDL2_PixelDensity re-reads instead of caching:
+ * two SDL getters on a path that runs once a frame.
+ */
+static void
+sdl_aux_sync_drawable(struct PlatformSDL2* platform)
+{
+    int pixel_w = 0;
+    int pixel_h = 0;
+
+    assert(platform);
+    if( !platform->aux_window )
+        return;
+    aux_drawable_size(platform, &pixel_w, &pixel_h);
+    if( pixel_w <= 0 || pixel_h <= 0 )
+        return;
+    if( pixel_w == platform->aux_width && pixel_h == platform->aux_height )
+        return;
+    aux_refresh_points(platform);
+    platform->aux_input.resized = 1;
+    platform->aux_input.width = pixel_w;
+    platform->aux_input.height = pixel_h;
+    platform->aux_have_input = true;
+}
+
 /*
  * Route one event to the aux window, or report that it was not ours.
  *
  * The gesture is coalesced into aux_input rather than queued, so a frame that
- * saw twenty motion events costs one position. Coordinates are the window's
- * own -- the chrome laid its panels out in that space, and there is no
- * letterbox to undo here because the aux surface IS the window.
+ * saw twenty motion events costs one position. Coordinates are reported in
+ * SDL's POINTS and handed on in the SURFACE's PIXELS -- the space the chrome
+ * laid its panels out in. There is no letterbox to undo, because the aux
+ * surface IS the window; the density is the whole of the mapping.
  */
 static bool
 sdl_aux_event(struct PlatformSDL2* platform, SDL_Event const* event)
@@ -762,9 +873,15 @@ sdl_aux_event(struct PlatformSDL2* platform, SDL_Event const* event)
             platform->aux_close_requested = true;
         else if( event->window.event == SDL_WINDOWEVENT_SIZE_CHANGED )
         {
+            /* data1/data2 are POINTS. What the caller resizes is the SURFACE,
+             * so the size reported is the drawable -- the same conversion the
+             * game window's SIZE_CHANGED does through sdl_drawable_size, and
+             * the points are latched here because every later event is scaled
+             * against them. */
+            platform->aux_point_w = event->window.data1;
+            platform->aux_point_h = event->window.data2;
+            aux_drawable_size(platform, &platform->aux_input.width, &platform->aux_input.height);
             platform->aux_input.resized = 1;
-            platform->aux_input.width = event->window.data1;
-            platform->aux_input.height = event->window.data2;
             platform->aux_have_input = true;
         }
         return true;
@@ -772,8 +889,9 @@ sdl_aux_event(struct PlatformSDL2* platform, SDL_Event const* event)
     case SDL_MOUSEBUTTONDOWN:
         if( event->button.windowID != id )
             return false;
-        platform->aux_input.mouse_x = event->button.x;
-        platform->aux_input.mouse_y = event->button.y;
+        aux_point_to_pixel(
+            platform, event->button.x, event->button.y, &platform->aux_input.mouse_x,
+            &platform->aux_input.mouse_y);
         if( event->button.button == SDL_BUTTON_LEFT )
             platform->aux_input.mouse_down = 1;
         platform->aux_have_input = true;
@@ -782,8 +900,9 @@ sdl_aux_event(struct PlatformSDL2* platform, SDL_Event const* event)
     case SDL_MOUSEBUTTONUP:
         if( event->button.windowID != id )
             return false;
-        platform->aux_input.mouse_x = event->button.x;
-        platform->aux_input.mouse_y = event->button.y;
+        aux_point_to_pixel(
+            platform, event->button.x, event->button.y, &platform->aux_input.mouse_x,
+            &platform->aux_input.mouse_y);
         if( event->button.button == SDL_BUTTON_LEFT )
             platform->aux_input.mouse_up = 1;
         platform->aux_have_input = true;
@@ -792,8 +911,9 @@ sdl_aux_event(struct PlatformSDL2* platform, SDL_Event const* event)
     case SDL_MOUSEMOTION:
         if( event->motion.windowID != id )
             return false;
-        platform->aux_input.mouse_x = event->motion.x;
-        platform->aux_input.mouse_y = event->motion.y;
+        aux_point_to_pixel(
+            platform, event->motion.x, event->motion.y, &platform->aux_input.mouse_x,
+            &platform->aux_input.mouse_y);
         platform->aux_have_input = true;
         return true;
 
@@ -967,13 +1087,27 @@ PlatformSDL2_AuxOpen(struct PlatformSDL2* platform, int width, int height, char 
         return false;
     }
 
-    if( !aux_make_surface(platform, width, height) )
+    /*
+     * The window is asked for in POINTS -- it is a physical size on a desk --
+     * and its surface is made at the DRAWABLE, which on a 2x display is twice
+     * that. Both, because they are two different measurements of one window:
+     * the chrome lays out in the surface's pixels at the scale the display's
+     * density chose, and every event it is driven by arrives in points.
+     */
+    aux_refresh_points(platform);
     {
-        SDL_DestroyRenderer(platform->aux_renderer);
-        SDL_DestroyWindow(platform->aux_window);
-        platform->aux_renderer = NULL;
-        platform->aux_window = NULL;
-        return false;
+        int pixel_w = 0;
+        int pixel_h = 0;
+
+        aux_drawable_size(platform, &pixel_w, &pixel_h);
+        if( !aux_make_surface(platform, pixel_w, pixel_h) )
+        {
+            SDL_DestroyRenderer(platform->aux_renderer);
+            SDL_DestroyWindow(platform->aux_window);
+            platform->aux_renderer = NULL;
+            platform->aux_window = NULL;
+            return false;
+        }
     }
 
     platform->aux_window_id = SDL_GetWindowID(platform->aux_window);
@@ -1017,6 +1151,8 @@ PlatformSDL2_AuxClose(struct PlatformSDL2* platform)
     platform->aux_pixels = NULL;
     platform->aux_width = 0;
     platform->aux_height = 0;
+    platform->aux_point_w = 0;
+    platform->aux_point_h = 0;
     platform->aux_window_id = 0;
     platform->aux_close_requested = false;
 }
@@ -1057,6 +1193,10 @@ PlatformSDL2_AuxResize(struct PlatformSDL2* platform, int width, int height)
         return false;
     if( width == platform->aux_width && height == platform->aux_height )
         return true;
+    /* The window's points move with its pixels, and they are what the next
+     * event is scaled against: a surface resized without them scales every
+     * click by the ratio the window had before the drag. */
+    aux_refresh_points(platform);
     return aux_make_surface(platform, width, height);
 }
 
@@ -1090,6 +1230,7 @@ PlatformSDL2_AuxPresent(struct PlatformSDL2* platform)
     SDL_RenderClear(platform->aux_renderer);
     SDL_RenderCopy(platform->aux_renderer, platform->aux_texture, NULL, NULL);
     SDL_RenderPresent(platform->aux_renderer);
+
 }
 
 bool
@@ -1178,8 +1319,17 @@ sdl_hit_test(SDL_Window* window, SDL_Point const* area, void* data)
      */
     if( st->is_aux )
     {
+        /* Points into the surface's pixels: the handles were published by a
+         * chrome that laid them out there, so a raw point compares a 2x
+         * window's title bar against half of one.
+         *
+         * The null test is not an assert, for this path's own reason: SDL owns
+         * the call, and a hit test still installed on a window being torn down
+         * must answer rather than abort inside the WM's press handling. */
         cx = area->x;
         cy = area->y;
+        if( st->platform )
+            aux_point_to_pixel(st->platform, area->x, area->y, &cx, &cy);
     }
     else
     {
@@ -1583,6 +1733,10 @@ PlatformSDL2_PollCommands(
 
     assert(platform);
     assert(bus);
+
+    /* Before the events, so a density change that arrived without one is
+     * reported on the same frame as anything else the window saw. */
+    sdl_aux_sync_drawable(platform);
 
     while( SDL_PollEvent(&event) )
     {

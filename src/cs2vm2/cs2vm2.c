@@ -8024,7 +8024,7 @@ CS2VM2_Op_ClientOption(
 
 /* CLIENTOP_* (6700..6709): install/remove transient client-owned context-menu
  * ops. SET pops string label, then scriptId, then slot (int stack top-first);
- * DEL pops slot only. The host stubs them until an enhanced-menu system exists. */
+ * DEL pops slot only. */
 static int
 CS2VM2_Op_ClientOp(
     struct CS2VM2_Thread* vm,
@@ -8048,6 +8048,26 @@ CS2VM2_Op_ClientOp(
     }
     if( CS2VM2_PopInt(vm, &request.u.clientop.slot) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
+    return vm->vm->host_exec(vm, &request);
+}
+
+/*
+ * The client op's SUBJECT: `_6750..6753`, `_6800..6802`, `_6850..6852`,
+ * `_6900 / _6902`, `_6950`.
+ *
+ * No arguments to pop -- they are bare reads of the op being dispatched -- so
+ * this only tags the opcode and lets the host push the answer, exactly like
+ * the MINIMENU_* getters beside them.
+ */
+static int
+CS2VM2_Op_ClientOpContext(struct CS2VM2_Thread* vm, int opcode)
+{
+    assert(vm);
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_CLIENTOP_CONTEXT;
+    request.u.clientop_context.opcode = opcode;
     return vm->vm->host_exec(vm, &request);
 }
 
@@ -8538,6 +8558,35 @@ CS2VM2_Op_OC_Param(
         return result;
 
     return CS2VM_EXECNO_OK;
+}
+
+/*
+ * NC_PARAM (6513) and LC_PARAM (6514): OC_PARAM's siblings.
+ *
+ * Same stack shape -- (type, param) with param on top -- and the same host
+ * answer, so one function serves both and the request kind is what says which
+ * record to look in.
+ */
+static int
+CS2VM2_Op_TypeParam(struct CS2VM2_Thread* vm, int opcode)
+{
+    int param_id;
+    int type_id;
+
+    assert(vm);
+
+    if( CS2VM2_PopInt(vm, &param_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+    if( CS2VM2_PopInt(vm, &type_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = opcode == CS2_OP_NC_PARAM ? CS2VM_HOST_REQUEST_NC_PARAM
+                                             : CS2VM_HOST_REQUEST_LC_PARAM;
+    request.u.nc_param.param_id = param_id;
+    request.u.nc_param.type_id = type_id;
+    return vm->vm->host_exec(vm, &request);
 }
 
 int
@@ -9805,6 +9854,19 @@ CS2VM2_RunOp(
         return CS2VM2_Op_ClientType(vm, frame, operand);
     case CS2_OP_COORD:
         return CS2VM2_Op_Coord(vm, frame, operand);
+    /* 3330: the walk destination, `coord`'s sibling. Unrouted it fell to the
+     * stack-meta stub and answered 0, which is a real tile -- so clientscript
+     * 5210's `if (_3330 ! null)` was always true and the destination-tile
+     * highlight marked the corner of the map. */
+    case CS2_OP__3330:
+    {
+        struct CS2VM_HostRequest request;
+        (void)frame;
+        (void)operand;
+        memset(&request, 0, sizeof(request));
+        request.kind = CS2VM_HOST_REQUEST_DEST_COORD;
+        return vm->vm->host_exec(vm, &request);
+    }
     case CS2_OP_COORDX:
         return CS2VM2_Op_CoordX(vm, frame, operand);
     case CS2_OP_COORDY:
@@ -10172,6 +10234,9 @@ CS2VM2_RunOp(
         return CS2VM2_Op_TestBit(vm, frame, operand);
     case CS2_OP_OC_PARAM:
         return CS2VM2_Op_OC_Param(vm, frame, operand);
+    case CS2_OP_NC_PARAM:
+    case CS2_OP_LC_PARAM:
+        return CS2VM2_Op_TypeParam(vm, opcode);
     case CS2_OP_OC_NAME:
         return CS2VM2_Op_OC_Name(vm, frame, operand);
     case CS2_OP_NC_NAME:
@@ -10723,6 +10788,27 @@ CS2VM2_RunOp(
     case CS2_OP_CLIENTOP_PLAYER_DEL:
     case CS2_OP_CLIENTOP_TILE_DEL:
         return CS2VM2_Op_ClientOp(vm, opcode, false);
+    /*
+     * The client op's subject, read from inside the script it just ran. Listed
+     * one by one rather than as ranges: each block has a hole in it (`_6901`
+     * carries no signature at all, and the obj block's name getter is called by
+     * nothing), and a range would have routed those too and answered them with
+     * a confident zero.
+     */
+    case CS2_OP__6750: /* npc name   */
+    case CS2_OP__6751: /* npc uid    */
+    case CS2_OP__6752: /* npc coord  */
+    case CS2_OP__6753: /* npc type   */
+    case CS2_OP__6800: /* loc name   */
+    case CS2_OP__6801: /* loc coord  */
+    case CS2_OP__6802: /* loc type   */
+    case CS2_OP__6850: /* obj name   */
+    case CS2_OP__6851: /* obj coord  */
+    case CS2_OP__6852: /* obj id     */
+    case CS2_OP__6900: /* player name  */
+    case CS2_OP__6902: /* player coord */
+    case CS2_OP__6950: /* tile coord */
+        return CS2VM2_Op_ClientOpContext(vm, opcode);
     /* HIGHLIGHT_* (7000..7044). Nine groups of five, listed in full rather
      * than as a range so that a group nothing in the cache calls is still
      * visibly routed: half of this family used to fall through to

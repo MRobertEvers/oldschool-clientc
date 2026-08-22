@@ -981,6 +981,10 @@ app_plugin_button_sync(struct App* app)
     comp.graphic_scene_id = icon;
     comp.graphic_atlas_index = TORIRS_CHROME_SKIN_PLUGIN_ICON;
     comp.graphic_active = -1;
+    /* -1, not the memset's 0: zero is a component id, so leaving it there
+     * makes the hover walk report component 0 as hovered whenever the pointer
+     * is on this button -- and the strip's own hover line goes with it. */
+    comp.over_layer_id = -1;
     comp.model_active_id = -1;
     comp.model_seq_id = -1;
     /* Op 1, so the strip's own hover line names it -- the shipped buttons set

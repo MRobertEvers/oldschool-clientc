@@ -160,6 +160,29 @@ enum AppPluginRowKind
 /* World objects across every plugin at once. Per-plugin budgeting is the
  * host's (TORIRS_PLUGIN_OBJECT_BUDGET); this is the ceiling on the table those
  * handles index into. */
+/**
+ * Resolved highlight items one frame may carry.
+ *
+ * A *TYPE group resolves to every matching thing in the scene, so one
+ * `highlight_loctype_on` can be a hundred items in a crowded map square --
+ * every Agility obstacle on a rooftop course, say. 256 is well past what the
+ * cache's own groups produce and still bounded; past it, resolution stops and
+ * says so, because a highlight that silently covered the first 256 of
+ * something would read as the feature half-working.
+ */
+/*
+ * The two All Settings BUTTON rows this client has to act on itself.
+ *
+ * Both are in the Activities category and both reach clientscript 3969, whose
+ * switch has no case for either -- a button row has no varbit, and the panel's
+ * only trace of it is `%varbit9657 = <setting id>`. See the drain in
+ * App_RunOnce.
+ */
+#define APP_SETTING_CLEAR_TILE_MARKERS 117
+#define APP_SETTING_CLEAR_NPC_TAGS 267
+
+#define APP_PLUGIN_HIGHLIGHTS_MAX 256
+
 #define APP_PLUGIN_OBJECTS_MAX 256
 
 /*
@@ -1128,6 +1151,37 @@ struct App
      * duration of the frame that owns it.
      */
     struct LibToriRS_Input* plugin_input;
+    /**
+     * The cache's highlight groups, resolved against this frame's world.
+     *
+     * Rebuilt at the start of each api->highlight_next walk rather than every
+     * frame: the groups are almost always empty (nothing has been switched on)
+     * and the resolution is a walk of the npc, loc and ground-item pools, so
+     * it is not work to do for nobody. One walk per frame is the shape the
+     * api documents.
+     */
+    /**
+     * What the three tile-highlight refreshers were last run for.
+     *
+     * Each of clientscripts 5197 / 5204 / 5210 clears its highlight group and
+     * re-adds one tile, so they are run on the EDGE of their subject changing
+     * rather than every frame -- three dispatches and six highlight ops a
+     * frame to restate what has not moved is not free, and the pointer sits
+     * still for most of them.
+     *
+     * Seeded to a value no coord can take, so the first frame after login runs
+     * all three: a group that starts empty has to be filled once, and the
+     * "switched off" branch has to run once too.
+     */
+    int highlight_last_hover_coord;
+    int highlight_last_local_coord;
+    int highlight_last_dest_coord;
+    /** The mouseover subject the highlighter was last run for, folded to one
+     *  int. Same edge rule as the three above. */
+    int highlight_last_mouseover;
+
+    struct ToriRS_PluginHighlightItem plugin_highlights[APP_PLUGIN_HIGHLIGHTS_MAX];
+    int plugin_highlight_count;
     /** Plugin-owned world objects, indexed by the handle the plugin holds. */
     struct AppPluginObject plugin_objects[APP_PLUGIN_OBJECTS_MAX];
     /**

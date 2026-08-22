@@ -72,6 +72,46 @@ torirs_location_copy_shapes_models(
     }
 }
 
+
+/*
+ * The record's params (opcode 249), carried whole for CS2's `lc_param`.
+ *
+ * The rscache decoder has always parsed these; this conversion simply did not
+ * bring them across, so `lc_param` had nothing to read and no implementation. The
+ * cache's own "Highlight entities on mouse-over" (clientscript 5350) is what
+ * needs them: it reads `param_2312` off the hovered record to decide which
+ * highlight group the thing belongs in.
+ */
+static void
+torirs_location_copy_params(struct ToriRS_Location* dst, struct RSCache_Params const* src)
+{
+    assert(dst);
+    assert(src);
+    if( src->count <= 0 )
+        return;
+
+    dst->param_count = src->count;
+    dst->params = calloc((size_t)src->count, sizeof(*dst->params));
+    assert(dst->params);
+    for( int i = 0; i < src->count; i++ )
+    {
+        dst->params[i].key = src->keys[i];
+        if( src->kinds && src->kinds[i] == RSCACHE_PARAM_STRING )
+        {
+            char const* str = (char const*)src->values[i];
+            dst->params[i].string_value = strdup(str ? str : "");
+            assert(dst->params[i].string_value);
+        }
+        else if( src->values[i] )
+        {
+            if( src->kinds && src->kinds[i] == RSCACHE_PARAM_LONG )
+                dst->params[i].int_value = (int)*(int64_t*)src->values[i];
+            else
+                dst->params[i].int_value = *(int*)src->values[i];
+        }
+    }
+}
+
 struct ToriRS_Location*
 ToriRS_LocationFromRSCacheDat2(
     int loc_id,
@@ -166,6 +206,7 @@ ToriRS_LocationFromRSCacheDat2(
 
     /* LocType.raiseobject (opcode 75). Finish has already defaulted -1. */
     loc->raiseobject = src->support_items;
+    torirs_location_copy_params(loc, &src->params);
 
     return loc;
 }

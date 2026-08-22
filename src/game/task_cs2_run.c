@@ -71,6 +71,9 @@ enum TaskCS2YieldPlan
     TASK_CS2_YIELD_MODEL,
     TASK_CS2_YIELD_NPC,
     TASK_CS2_YIELD_NPC_HEAD,
+    /* NC_PARAM / LC_PARAM: the record plus its ParamType, like YIELD_OBJ. */
+    TASK_CS2_YIELD_NPC_PARAM,
+    TASK_CS2_YIELD_LOC_PARAM,
     TASK_CS2_YIELD_SETOBJECT,
     TASK_CS2_YIELD_SPRITE,
     TASK_CS2_YIELD_FONT,
@@ -738,6 +741,15 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
         task_cs2_plan_npc_name(self);
         break;
 
+    case CS2VM_HOST_REQUEST_NC_PARAM:
+    case CS2VM_HOST_REQUEST_LC_PARAM:
+        self->await_id = self->pending.u.nc_param.type_id;
+        self->await_id2 = self->pending.u.nc_param.param_id;
+        self->yield_plan = self->pending.kind == CS2VM_HOST_REQUEST_NC_PARAM
+                               ? TASK_CS2_YIELD_NPC_PARAM
+                               : TASK_CS2_YIELD_LOC_PARAM;
+        break;
+
     case CS2VM_HOST_REQUEST_CC_CREATE:
     case CS2VM_HOST_REQUEST_CC_FIND:
     case CS2VM_HOST_REQUEST_IF_FIND:
@@ -1210,6 +1222,23 @@ Task_CS2Run_Run(
         else if( self->yield_plan == TASK_CS2_YIELD_NPC )
         {
             PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(self->provider, self->await_id));
+        }
+        /* NC_PARAM / LC_PARAM: the record AND the ParamType, the same pairing
+         * TASK_CS2_YIELD_OBJ makes for OC_PARAM -- the answer needs the key
+         * from one and the default from the other. */
+        else if( self->yield_plan == TASK_CS2_YIELD_NPC_PARAM )
+        {
+            if( self->await_id >= 0 )
+                PT_TASK_AWAITSELF_IF(CreateTask_NpcLoad(self->provider, self->await_id));
+            if( self->await_id2 >= 0 )
+                PT_TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id2));
+        }
+        else if( self->yield_plan == TASK_CS2_YIELD_LOC_PARAM )
+        {
+            if( self->await_id >= 0 )
+                PT_TASK_AWAITSELF_IF(CreateTask_LocLoad(self->provider, self->await_id));
+            if( self->await_id2 >= 0 )
+                PT_TASK_AWAITSELF_IF(CreateTask_ParamLoad(self->provider, self->await_id2));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_NPC_HEAD )
         {

@@ -97,6 +97,20 @@ enum RS_HighlightKind
  * 32 and 128 are named for completeness and are not acted on: only the
  * developer script sets them, and what it means by "snap to grid" is not
  * stated anywhere this client can read.
+ *
+ * 512 is the MOUSEOVER groups' bit and nothing else's -- clientscript 5949
+ * sets up all six of them as `1 + 512`, or `1 + 16 + 512` for group 4. It is
+ * carried and not acted on: bit 1 beside it already says "outline the model",
+ * which is what a hover highlight is, and no call site distinguishes them.
+ *
+ * Bits 1, 2, 4 and 8 are no longer read off call sites at all -- the reference
+ * client's four predicates state them outright:
+ *
+ *     HasModelOutline = (flags & 1) && outline_width != 0
+ *     HasTileOutline  = (flags & 2) && outline_width != 0
+ *     HasModelFill    = (flags & 4) && opacity != 0
+ *     HasTileFill     = (flags & 8) && opacity != 0
+ *     IsEnabled       = any of the four
  */
 #define RS_HIGHLIGHT_FLAG_MODEL_OUTLINE 1
 #define RS_HIGHLIGHT_FLAG_TILE_OUTLINE 2
@@ -106,18 +120,42 @@ enum RS_HighlightKind
 #define RS_HIGHLIGHT_FLAG_UNKNOWN_32 32
 #define RS_HIGHLIGHT_FLAG_MINIMAP 64
 #define RS_HIGHLIGHT_FLAG_SNAP_TO_GRID 128
+#define RS_HIGHLIGHT_FLAG_MOUSEOVER 512
 
-/** One group's appearance, exactly as a SETUP opcode stated it. */
+/**
+ * One group's appearance, exactly as a SETUP opcode stated it.
+ *
+ * Field meanings are the reference client's, read out of its own decompiled
+ * `HighlightManager::ConfigureChannel` and the four `EntityHighlight::Has*`
+ * predicates rather than inferred from call sites. Two of them were guessed
+ * wrong here before that: see `outline_width` and `opacity`.
+ */
 struct RS_HighlightStyle
 {
-    /** 0xRRGGBB, or -1 for "this group is off". Every disabling call in the
-     *  cache passes -1 here, and most pass opacity 0 as well. */
+    /** 0xRRGGBB, or -1 for "off". The reference converts this to packed HSL on
+     *  the way in (`RunetekColour::RGBToHSL`) because its own rasteriser is
+     *  palette-based; this client's draw api takes RGB, so it is kept as RGB. */
     int colour;
-    /** 0, 1 or 2 in this cache. What each means is not stated anywhere a
-     *  client can read, so it is carried and not interpreted. */
-    int style;
-    /** PERCENT, 0..100, not 0..255: the call sites are 30, 45, 50, 70 and 100.
-     *  0 is the other way a group says it is off. */
+    /**
+     * Outline THICKNESS in pixels. 0, 1 or 2 in this cache.
+     *
+     * Not a "style" enum, which is what this was called here until the
+     * reference settled it: both outline predicates are
+     * `(flags & bit) && thickness != 0`, so a group with an outline FLAG and a
+     * thickness of zero draws no outline at all. Clientscript 5198's hovered
+     * tile is exactly that -- flags 2|8, thickness 0 -- and is a fill with no
+     * border, which is what the reference draws and what this drew as a solid
+     * outline before.
+     */
+    int outline_width;
+    /**
+     * Fill alpha, 0..255, clamped by the opcode handler.
+     *
+     * NOT a percent, which is what this was called here until the reference
+     * settled it -- `jag::math::Clamp(value, 0, 255)`. The call sites (30, 45,
+     * 50, 70, 100) are therefore quite transparent washes, and scaling them by
+     * 255/100 the way this used to made every one of them 2.55x too opaque.
+     */
     int opacity;
     /** RS_HIGHLIGHT_FLAG_*. */
     int flags;
@@ -205,7 +243,18 @@ void RS_HighlightClear(
     enum RS_HighlightKind kind,
     int group);
 
-/** Is this group drawable at all -- a colour, and some opacity? */
+/**
+ * Is this group drawable at all?
+ *
+ * The reference's own `HighlightChannelProperties::IsEnabled` -- an outline
+ * flag with a non-zero thickness, or a fill flag with a non-zero opacity. See
+ * the flag block above for the four predicates it is made of.
+ *
+ * The two halves are what make the odd-looking groups work: the six mouseover
+ * groups run at opacity 0 (an outline has no wash to be opaque) and the
+ * hovered tile runs at thickness 0 (a wash with no border). Testing either one
+ * alone silently drops one of those families.
+ */
 bool RS_HighlightGroupLive(
     struct RS_HighlightState const* state,
     enum RS_HighlightKind kind,

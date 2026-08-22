@@ -851,6 +851,13 @@ RS_CS2Host_Init(
     host->varcs = varcs;
     host->client_clock = 100;
     host->local_coord = 0;
+    host->dest_coord = -1;
+    host->hover_coord = -1;
+    /* pack/12_clientscripts.pack: the three tile-highlight refreshers. Each is
+     * a [clientscript] with no caller in the cache -- see the header. */
+    host->script_highlight_hover_tile = 5197;
+    host->script_highlight_current_tile = 5204;
+    host->script_highlight_dest_tile = 5210;
     host->top_interface_id = -1;
     host->mouse_x = -1;
     host->mouse_y = -1;
@@ -925,6 +932,7 @@ RS_CS2Host_Init(
     host->script_settings_client_apply = 3967;
     host->varbit_settings_last_changed = 9657;
     RS_HighlightReset(&host->highlight);
+    RS_ClientOpReset(&host->clientop);
     host->bridge = NULL;
     /* Serials start at 1 so fresh hooks (last_seen_serial=0) fire once on the
      * first dispatch after registration (widget-loaded parity). */
@@ -2220,11 +2228,15 @@ exec_mec(
 /*
  * MINIMENU_* (7100..7110): mouseover / right-click-menu queries. The live model
  * lives in the app layer (app->interact.minimenu, plus the hover-text target)
- * behind the UITree host bus, which the CS2 host cannot reach. Until a per-frame
- * snapshot is plumbed into RS_CS2Host, answer with "nothing hovered / menu
- * closed" defaults so the polling toplevel scripts keep running: every int getter
- * is 0/false and MINIMENU_ENTRY yields two empty strings. Wire real values here
- * when the snapshot lands — the opcode already routes through this one seam.
+ * behind the UITree host bus, which the CS2 host cannot reach -- so the App
+ * publishes a per-frame snapshot into host->clientop instead, the same one the
+ * `_67xx / _68xx / _69xx` target getters read.
+ *
+ * This is not a tooltip nicety. Clientscript 5350 is the cache's own
+ * "Highlight entities on mouse-over" (setting 190): it asks `_7100` what kind
+ * of thing the pointer is on, confirms it with the matching FIND op, and puts
+ * the subject into a highlight group. While TYPE answered 0 the script
+ * returned on its first branch and the setting did nothing at all.
  */
 static int
 exec_minimenu(
@@ -2232,26 +2244,48 @@ exec_minimenu(
     struct CS2VM2_Thread* thread,
     int opcode)
 {
-    (void)host;
-
     switch( opcode )
     {
     case CS2_OP_MINIMENU_ENTRY:
     {
         /* Two strings, option then target (reference push order). */
-        int result = CS2VM2_PushStr(thread, CS2VM2_StrEmpty(thread));
+        int result = CS2VM2_PushStr(
+            thread, CS2VM2_StrDup(thread, host->clientop.mouseover_op));
         if( result != CS2VM_EXECNO_OK )
             return result;
-        return CS2VM2_PushStr(thread, CS2VM2_StrEmpty(thread));
+        return CS2VM2_PushStr(
+            thread, CS2VM2_StrDup(thread, host->clientop.mouseover_target));
     }
     case CS2_OP_MINIMENU_TYPE:
+        return CS2VM2_PushInt(thread, host->clientop.mouseover_type);
+    /*
+     * The FIND ops confirm that the target really is of that kind.
+     *
+     * In the reference they also LATCH it for the getters that follow; here
+     * the App has already published every field of the one target there is, so
+     * confirming is all there is left to do. Answering 1 for a kind the
+     * pointer is not on would send 5350 to read an npc uid off a loc.
+     */
     case CS2_OP_MINIMENU_FINDNPC:
+        return CS2VM2_PushInt(
+            thread, host->clientop.mouseover_type == RS_MINIMENU_TYPE_NPC);
     case CS2_OP_MINIMENU_FINDLOC:
+        return CS2VM2_PushInt(
+            thread, host->clientop.mouseover_type == RS_MINIMENU_TYPE_LOC);
     case CS2_OP_MINIMENU_FINDOBJ:
+        return CS2VM2_PushInt(
+            thread, host->clientop.mouseover_type == RS_MINIMENU_TYPE_OBJ);
     case CS2_OP_MINIMENU_FINDPLAYER:
+        return CS2VM2_PushInt(
+            thread, host->clientop.mouseover_type == RS_MINIMENU_TYPE_PLAYER);
     case CS2_OP_MINIMENU_ISOPEN:
-    case CS2_OP_MINIMENU_FINDCOMPONENT:
+        return CS2VM2_PushInt(thread, host->clientop.menu_open ? 1 : 0);
     case CS2_OP_MINIMENU_NUMOPS:
+        return CS2VM2_PushInt(thread, host->clientop.mouseover_opcount);
+    /* FINDCOMPONENT is the one this cannot answer: it wants the interface
+     * component under the pointer, which is the UITree's business and not the
+     * world pick set's. Nothing in the Activities category reads it. */
+    case CS2_OP_MINIMENU_FINDCOMPONENT:
         return CS2VM2_PushInt(thread, 0);
     default:
         fprintf(stderr, "exec_minimenu: unhandled opcode %d\n", opcode);
@@ -2983,6 +3017,82 @@ exec_oc_param(
     }
     if( found )
         return CS2VM2_PushInt(thread, intval);
+    return CS2VM2_PushInt(thread, param ? param->default_int : 0);
+}
+
+/*
+ * NC_PARAM / LC_PARAM: the same answer as exec_oc_param, over an npc or a loc.
+ *
+ * The yield-and-retry shape is copied from it deliberately -- both the record
+ * and the ParamType have to be resident before an answer is possible, and a
+ * miss on either is a load rather than a wrong value. A type id below zero is
+ * a legitimate script input (an empty target) and is never awaited; the
+ * param's own default answers it.
+ */
+static int
+exec_type_param(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest_TypeParam request,
+    bool is_npc)
+{
+    struct CacheProvider* provider = rs_cs2_provider(host);
+    struct ToriRS_Param const* params = NULL;
+    int param_count = 0;
+    bool have_record = false;
+    struct ToriRS_ParamType* param =
+        provider ? CacheProvider_ParamGet(provider, request.param_id) : NULL;
+
+    if( provider && request.type_id >= 0 )
+    {
+        if( is_npc )
+        {
+            struct ToriRS_Npctype* npc = CacheProvider_NpctypeGet(provider, request.type_id);
+            have_record = npc != NULL;
+            if( npc )
+            {
+                params = npc->params;
+                param_count = npc->param_count;
+            }
+        }
+        else
+        {
+            struct ToriRS_Location* loc = CacheProvider_LocationGet(provider, request.type_id);
+            have_record = loc != NULL;
+            if( loc )
+            {
+                params = loc->params;
+                param_count = loc->param_count;
+            }
+        }
+    }
+
+    if( (!have_record && request.type_id >= 0) || (!param && request.param_id >= 0) )
+    {
+        struct CS2VM_HostRequest req = { 0 };
+        req.kind = is_npc ? CS2VM_HOST_REQUEST_NC_PARAM : CS2VM_HOST_REQUEST_LC_PARAM;
+        req.u.nc_param = request;
+        if( !rs_cs2_await_spent(thread, req.kind, request.type_id, request.param_id) )
+            return rs_cs2_yield_load(host, thread, &req, request.type_id, request.param_id);
+        /* Still missing after the load: complete with whatever did arrive. */
+    }
+
+    for( int i = 0; i < param_count; i++ )
+    {
+        if( params[i].key != request.param_id )
+            continue;
+        if( param && param->is_string )
+            return CS2VM2_PushStr(
+                thread,
+                CS2VM2_StrDup(thread, params[i].string_value ? params[i].string_value : ""));
+        if( params[i].string_value )
+            continue; /* a string value where an int was asked for is not one. */
+        return CS2VM2_PushInt(thread, params[i].int_value);
+    }
+
+    if( param && param->is_string )
+        return CS2VM2_PushStr(
+            thread, CS2VM2_StrDup(thread, param->default_string ? param->default_string : ""));
     return CS2VM2_PushInt(thread, param ? param->default_int : 0);
 }
 
@@ -6570,6 +6680,11 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_OC_PARAM:
         return exec_oc_param(host, vm, request->u.oc_param);
 
+    case CS2VM_HOST_REQUEST_NC_PARAM:
+        return exec_type_param(host, vm, request->u.nc_param, true);
+    case CS2VM_HOST_REQUEST_LC_PARAM:
+        return exec_type_param(host, vm, request->u.lc_param, false);
+
     case CS2VM_HOST_REQUEST_PARAHEIGHT:
         return exec_para_height(host, vm, request->u.para_height, 0);
 
@@ -6586,6 +6701,9 @@ rs_cs2_host_exec_dispatch(
          * tile in the corner of the map and a script comparing against a box
          * cannot tell it from a position. */
         return CS2VM2_PushInt(vm, host->local_coord);
+
+    case CS2VM_HOST_REQUEST_DEST_COORD:
+        return CS2VM2_PushInt(vm, host->dest_coord);
 
     case CS2VM_HOST_REQUEST_STAT:
     case CS2VM_HOST_REQUEST_STAT_BASE:
@@ -6655,7 +6773,28 @@ rs_cs2_host_exec_dispatch(
          */
         {
             int answer = 0;
-            bool const handled = RS_HighlightApply(
+            bool handled;
+
+            /* Every call, on request. The family is written entirely by cache
+             * scripts, so when a highlight does not appear the first question
+             * is always "did the script ask for it" -- and that question has
+             * no other way to be answered from outside the VM. */
+            if( getenv("TORIRS_HIGHLIGHT_DEBUG") )
+            {
+                enum RS_HighlightKind kind;
+                fprintf(
+                    stderr,
+                    "highlight: op %d (%s)",
+                    request->u.highlight.opcode,
+                    RS_HighlightOpcodeKind(request->u.highlight.opcode, &kind)
+                        ? RS_HighlightKindName(kind)
+                        : "?");
+                for( int i = 0; i < request->u.highlight.arg_count; i++ )
+                    fprintf(stderr, " %d", request->u.highlight.args[i]);
+                fprintf(stderr, "\n");
+            }
+
+            handled = RS_HighlightApply(
                 &host->highlight,
                 request->u.highlight.opcode,
                 request->u.highlight.args,
@@ -6687,11 +6826,89 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CLIENTOP:
-        /* CLIENTOP_* (6700..6709): no enhanced client-owned context-menu system
-         * yet. Args are already popped into request->u.clientop (slot / script_id
-         * / label); discard and continue so scripts wiring interface state do not
-         * abort. */
+        /*
+         * CLIENTOP_* (6700..6709): a right-click row the cache owns.
+         *
+         * `label` is borrowed from the VM's string pool, so RS_ClientOpApply
+         * copies it -- the pool entry is freed when the frame unwinds, and a
+         * menu row holding the pointer would draw whatever landed there next.
+         */
+        if( getenv("TORIRS_CLIENTOP_DEBUG") )
+            fprintf(
+                stderr,
+                "clientop: op %d %s slot %d script %d '%s'\n",
+                request->u.clientop.opcode,
+                request->u.clientop.is_set ? "set" : "del",
+                request->u.clientop.slot,
+                request->u.clientop.script_id,
+                request->u.clientop.label ? request->u.clientop.label : "");
+        if( !RS_ClientOpApply(
+                &host->clientop,
+                request->u.clientop.opcode,
+                request->u.clientop.is_set,
+                request->u.clientop.slot,
+                request->u.clientop.label,
+                request->u.clientop.script_id) )
+            fprintf(
+                stderr,
+                "cs2: CLIENTOP opcode %d is not in the 6700..6709 family\n",
+                request->u.clientop.opcode);
         return CS2VM_EXECNO_OK;
+
+    case CS2VM_HOST_REQUEST_CLIENTOP_CONTEXT:
+    {
+        /*
+         * The subject of the client op being dispatched. Outside a dispatch
+         * these answer -1 / "", which is what "no client op is running" has to
+         * look like: answering with the last one would silently act on
+         * whatever was clicked before.
+         */
+        int value = -1;
+        char const* text = NULL;
+        int running = -1;
+
+        /*
+         * The ROOT frame's script, not the innermost one: a client op's script
+         * may call a proc, and the proc reading `_6950` on its behalf is still
+         * that op's dispatch. Frame 0 is the script the task started with.
+         */
+        if( vm && vm->frame_sp > 0 && vm->frames[0] && vm->frames[0]->script )
+            running = vm->frames[0]->script->script_id;
+
+        if( !RS_ClientOpContextRead(
+                &host->clientop, request->u.clientop_context.opcode, running, &value, &text) )
+        {
+            fprintf(
+                stderr,
+                "cs2: opcode %d is not a client-op context getter\n",
+                request->u.clientop_context.opcode);
+            return CS2VM_EXECNO_ERROR;
+        }
+
+        /*
+         * `_6950` is the current TILE TARGET, not only a client op's subject.
+         *
+         * Clientscript 5197 ("Highlight hovered tile") reads it with no client
+         * op anywhere in sight -- it is re-run whenever the tile under the
+         * pointer changes, and this is how it learns which tile that is. So
+         * outside a dispatch it falls back to the mouseover rather than
+         * answering "nothing", which is what it means when a client op IS
+         * running and the subject is that op's.
+         *
+         * Only the tile getter has a standing answer like this. An npc uid or
+         * a loc type outside a dispatch is genuinely nothing: no script reads
+         * one that way, and inventing a mouseover subject for them would put
+         * whatever the pointer grazed into a highlight group.
+         */
+        if( request->u.clientop_context.opcode == CS2_OP__6950 && value < 0 )
+            value = host->hover_coord;
+        /* A non-NULL `text` is what says this opcode is string-valued -- the
+         * reader knows which stack each one belongs on and says so, rather than
+         * the two sides both deciding and eventually disagreeing. */
+        if( text )
+            return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, text));
+        return CS2VM2_PushInt(vm, value);
+    }
 
     case CS2VM_HOST_REQUEST_DB:
         return exec_db(host, vm, request->u.db.opcode);

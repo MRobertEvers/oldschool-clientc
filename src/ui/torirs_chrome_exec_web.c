@@ -306,7 +306,7 @@ chrome_web_push_skin(void)
         "\"checkGap\":%d,\"toggleW\":%d,\"toggleH\":%d,\"rowIcon\":%d,"
         "\"rowIconGap\":%d,\"rowNameGap\":%d,\"dot\":%d,\"dotPitch\":%d,"
         "\"dotInset\":%d,\"scrollW\":%d,\"swatch\":%d,\"swatchGap\":%d,"
-        "\"frame\":%d,\"tabH\":%d,\"tabPadX\":%d,\"fieldPadX\":%d,"
+        "\"frame\":%d,\"frameCorner\":%d,\"tabH\":%d,\"tabPadX\":%d,\"fieldPadX\":%d,"
         "\"fieldInset\":%d,\"dropArrow\":%d}",
         TORIRS_CHROME_M_PAD,
         TORIRS_CHROME_M_ROW_H,
@@ -326,6 +326,7 @@ chrome_web_push_skin(void)
         TORIRS_CHROME_M_SWATCH,
         TORIRS_CHROME_M_SWATCH_GAP,
         TORIRS_CHROME_M_FRAME,
+        TORIRS_CHROME_M_FRAME_CORNER,
         TORIRS_CHROME_M_TAB_H,
         TORIRS_CHROME_M_TAB_PAD_X,
         TORIRS_CHROME_M_FIELD_PAD_X,

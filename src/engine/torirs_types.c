@@ -110,6 +110,12 @@ ToriRS_LocationFree(struct ToriRS_Location* loc)
     free(loc->recolors_to);
     free(loc->retextures_from);
     free(loc->retextures_to);
+    if( loc->params )
+    {
+        for( int i = 0; i < loc->param_count; i++ )
+            free(loc->params[i].string_value);
+        free(loc->params);
+    }
     free(loc->transforms);
     free(loc->ambient_sound_ids);
     free(loc);
@@ -126,6 +132,12 @@ ToriRS_NpctypeFree(struct ToriRS_Npctype* npctype)
     free(npctype->recolors_to);
     free(npctype->retextures_from);
     free(npctype->retextures_to);
+    if( npctype->params )
+    {
+        for( int i = 0; i < npctype->param_count; i++ )
+            free(npctype->params[i].string_value);
+        free(npctype->params);
+    }
     free(npctype->transforms);
     free(npctype);
 }

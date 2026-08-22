@@ -255,6 +255,11 @@ enum CS2VM_HostRequestKind
     CS2VM_HOST_REQUEST_IF_SETOBJECT,
     // OC Object config
     CS2VM_HOST_REQUEST_OC_PARAM,
+    /* NC_PARAM (6513) and LC_PARAM (6514), OC_PARAM's siblings over an npc and
+     * a loc type. Needed by the cache's mouseover highlighter, which reads
+     * `param_2312` off whatever the pointer is on to pick a highlight group. */
+    CS2VM_HOST_REQUEST_NC_PARAM,
+    CS2VM_HOST_REQUEST_LC_PARAM,
     CS2VM_HOST_REQUEST_OC_NAME,
     /* NC_NAME: npc type id → name string (clientscript 7192 loottracker). */
     CS2VM_HOST_REQUEST_NC_NAME,
@@ -360,6 +365,10 @@ enum CS2VM_HostRequestKind
     /* The local player's packed coord, for scripts that branch on where the
      * player is standing (the raid HUDs are the load-bearing case). */
     CS2VM_HOST_REQUEST_COORD,
+    /* Opcode 3330: where the local player is WALKING to, packed like `coord`,
+     * or -1. Clientscript 5210 guards it as `if (_3330 ! null)` before marking
+     * the destination tile, so the absent case must be -1 and not tile zero. */
+    CS2VM_HOST_REQUEST_DEST_COORD,
     /* STAT / STAT_BASE / STAT_XP (3305-3307): the skill a script is asking
      * about. `stat` is the protocol's skill index — the same one UPDATE_STAT
      * carries. */
@@ -482,8 +491,21 @@ enum CS2VM_HostRequestKind
 
     /* CLIENTOP_* (6700..6709): install/remove transient client-owned context-menu
      * ops on an NPC/LOC/OBJ/PLAYER/TILE slot. One kind carrying the opcode +
-     * popped args; the host stubs them until an enhanced-menu system exists. */
+     * popped args. */
     CS2VM_HOST_REQUEST_CLIENTOP,
+
+    /*
+     * The client op's SUBJECT, read from inside the script one just ran:
+     * `_6750..6753` (npc name / uid / coord / type), `_6800..6802` (loc),
+     * `_6850..6852` (obj), `_6900 / _6902` (player), `_6950` (tile).
+     *
+     * They take no arguments and answer about the op being dispatched RIGHT
+     * NOW -- there is no handle, because a client op's script is only ever run
+     * from the menu row that named its subject. Outside a dispatch they answer
+     * -1 / "", which is what "no client op is running" has to look like to a
+     * script that asks anyway.
+     */
+    CS2VM_HOST_REQUEST_CLIENTOP_CONTEXT,
 
     /* Client database family (DB_* opcodes 7500..7510), one kind carrying the
      * opcode and its popped args. Reads DBROW config (kind 38) and the
@@ -1166,6 +1188,15 @@ struct CS2VM_HostRequest_OC_Param
     int item_id;
 };
 
+/** NC_PARAM (6513) / LC_PARAM (6514): the same shape as OC_PARAM over an npc
+ *  or a loc type. `type_id` is the record; the answer is its param, or the
+ *  ParamType's default when the record does not carry that key. */
+struct CS2VM_HostRequest_TypeParam
+{
+    int param_id;
+    int type_id;
+};
+
 struct CS2VM_HostRequest_OC_Name
 {
     int item_id;
@@ -1471,6 +1502,13 @@ struct CS2VM_HostRequest_ClientOp
     char* label;
 };
 
+/** A client-op context getter. The opcode is the whole request: these take no
+ *  arguments and the host pushes the answer. */
+struct CS2VM_HostRequest_ClientOpContext
+{
+    int opcode;
+};
+
 /** Any loot-tracker opcode (7400-family + 7600-family). `name` is borrowed
  *  from the VM's string pool for the ops that pop a string; the host must
  *  copy it if kept. `int_args` hold remaining int arguments in pop order. */
@@ -1551,6 +1589,8 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_CC_GetId cc_get_id;
         struct CS2VM_HostRequest_CC_SetOnOp cc_set_on_op;
         struct CS2VM_HostRequest_OC_Param oc_param;
+        struct CS2VM_HostRequest_TypeParam nc_param;
+        struct CS2VM_HostRequest_TypeParam lc_param;
         struct CS2VM_HostRequest_OC_Name oc_name;
         struct CS2VM_HostRequest_NC_Name nc_name;
         struct CS2VM_HostRequest_OC_Unplaceholder oc_unplaceholder;
@@ -1638,6 +1678,7 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_UiZoom uizoom;
         struct CS2VM_HostRequest_SafeArea safearea;
         struct CS2VM_HostRequest_ClientOp clientop;
+        struct CS2VM_HostRequest_ClientOpContext clientop_context;
         struct CS2VM_HostRequest_Social social;
         struct CS2VM_HostRequest_Chat chat;
         struct CS2VM_HostRequest_ResumeCountDialog resume_countdialog;

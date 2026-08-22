@@ -121,6 +121,39 @@ one lane only.
   [`src/ui/torirs_chrome_exec_sdl.c`](../src/ui/torirs_chrome_exec_sdl.c),
   [`src/platform/platform_sdl2.c`](../src/platform/platform_sdl2.c)
 
+### COMMON-CHROME-002 - The aux window is asked for in points and drawn in pixels
+
+- **Status:** Contract
+- **Applies to:** Every lane with a chrome SURFACE executor in a window of its
+  own (`TORIRS_CHROME_EXECUTOR=sdl` today)
+- **Behavior:** The window is OPENED at a size in window points -- a physical
+  size on a desk. Its SURFACE is the DRAWABLE, in pixels, which on a HighDPI
+  display is a multiple of that; `PlatformSDL2_AuxWidth/Height` report the
+  surface, `PlatformSDL2_AuxResize` takes the surface, and every pointer
+  coordinate the platform hands the chrome has already been scaled from points
+  into it. A density that changes without a resize -- a window dragged to
+  another display -- is noticed per frame and reported as a resize.
+- **Reason:** The chrome picks its baked font size from the display's density
+  (`App_SetChromeScale` off `PlatformSDL2_PixelDensity`), so a 2x display lays
+  out 36px rows and a 208px label column. That layout needs a 2x surface. It is
+  the same rule the game window already keeps -- "everything this platform hands
+  the client is a PIXEL count" -- and the aux window was the one surface that
+  did not.
+- **Failure mode:** Sized in points, a 2x chrome gets half the room it was laid
+  out for: labels run under their fields, fields are clipped against the
+  scrollbar, and the rows past the bottom edge get a ZERO box -- which is not
+  merely invisible, it is unhittable, so most of a plugin's settings page
+  cannot be clicked at all. SDL then stretches the half-resolution result over
+  the drawable, so what is left is soft as well.
+- **Verification:** On a 2x display with `TORIRS_CHROME_EXECUTOR=sdl`, a 360x420
+  window reports a 720x840 surface, the roster rows are the panel's full width,
+  and a click at window point (x, y) reaches the chrome as (2x, 2y) -- open a
+  plugin's page from its `...` well and every row of it, Save and Revert
+  included, is on screen and clickable.
+- **Sources:** [`src/platform/platform_sdl2.h`](../src/platform/platform_sdl2.h),
+  [`src/platform/platform_sdl2.c`](../src/platform/platform_sdl2.c),
+  [`src/ui/torirs_chrome_exec_sdl.c`](../src/ui/torirs_chrome_exec_sdl.c)
+
 ### COMMON-INPUT-001 - Escape is an application key by default
 
 - **Status:** Contract

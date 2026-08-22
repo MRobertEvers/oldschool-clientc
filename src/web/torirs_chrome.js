@@ -16,7 +16,16 @@
  * same values panel.html already spells in CSS. One extraction, three
  * renderers now.
  */
-(global => {
+
+/*
+ * One function wrapped around the file, because these load as plain <script>
+ * tags and classic scripts share a single global lexical scope -- this file and
+ * torirs_channel.js both declare `INTENT`, which at top level is a SyntaxError
+ * that kills the page before the client boots. So the wrapper is the scope, and
+ * `global` is the window the exported hooks get hung on. Not a build artifact:
+ * there is no build step here, and nothing in this directory is minified.
+ */
+(function (global) {
   'use strict';
 
   /* Command kinds — enum ToriRSChromeCmdKind, in order. */
@@ -114,8 +123,9 @@
     pad: 6, rowH: 18, rowGap: 3, labelW: 104, box: 17, checkGap: 6,
     toggleW: 24, toggleH: 12, rowIcon: 14, rowIconGap: 5, rowNameGap: 4,
     dot: 2, dotPitch: 3, dotInset: 3, scrollW: 16, swatch: 11, swatchGap: 4,
-    frame: 6, tabH: 20, tabPadX: 5, fieldPadX: 4, fieldInset: 2, dropArrow: 14,
-    dropListPad: 2, dropListRowH: 20, dropListRows: 10
+    frame: 6, frameCorner: 32, tabH: 20, tabPadX: 5, fieldPadX: 4,
+    fieldInset: 2, dropArrow: 14, dropListPad: 2, dropListRowH: 20,
+    dropListRows: 10
   };
 
   /*
@@ -365,6 +375,10 @@
     const m = METRICS;
     function px(n) { return `${n * K}px`; }
     const tile = `url(${url.tile})`;
+    /* The frame's two numbers -- @see the eight-layer rule below -- and the
+     * run each rail is stretched along: the box less the corner at each end. */
+    const c = m.frameCorner;
+    const run = `calc(100% - ${c * 2 * K}px)`;
     /*
      * The title bar's X: the interfaces' own, not the font's.
      *
@@ -404,14 +418,45 @@
     return [
       closeCss,
       popCss,
-      /* Tradebacking behind the panel, and the nine-slice border around it.
-       * `fill` is deliberately absent, so nothing samples the composed image's
-       * middle cell: the tile is already under the frame, and a colour painted
-       * over the parchment is the frame erasing what it frames. Sliced at the
-       * RAIL rather than at a constant -- @see composeFrame. */
-      '.torirs-chrome.skinned{background:', tile, ' repeat;border:0;',
-      'border-style:solid;border-width:', px(m.frame), ';',
-      'border-image:url(', url.frame, ') ', m.frame, ' / ', px(m.frame), ' stretch}',
+      /*
+       * Tradebacking behind the panel, and the nine-slice border around it.
+       *
+       * NOT `border-image`, and that is the whole of this rule's difficulty.
+       * The pieces are two sizes -- 32x32 corners carrying an L of 6px rail
+       * along their outer edges, and bare 6px rails between them -- and
+       * `border-image` slices ONE source into a grid whose corner cells are
+       * the border's own width. At the 6px rail this frame is inset by, that
+       * samples 6x6 out of each corner and throws the other 26 away: the
+       * mitred junction survives, the corner does not. There is no
+       * border-image spelling of "32px corners on a 6px rail".
+       *
+       * So the frame is EIGHT BACKGROUND LAYERS, which is dbg_push_frame
+       * verbatim -- each corner at its baked 32, each edge stretched along the
+       * run BETWEEN the corners. Corners are listed first because CSS paints
+       * the first layer topmost, so an edge that runs under one is covered by
+       * it. A panel narrower than two corners clamps the run to zero and wears
+       * overlapping corners, which is what the 42px popout strip does with
+       * this same art.
+       *
+       * There is no CENTRE piece: the tile is already under the frame, and a
+       * colour painted over the parchment is the frame erasing what it frames.
+       *
+       * `border-color:transparent` rather than no border at all -- the rail is
+       * what the content column is inset by, and the layers are positioned
+       * against the BORDER box (background-origin), so the frame is drawn in
+       * the strip the border reserves.
+       */
+      '.torirs-chrome.skinned{border:', px(m.frame), ' solid transparent;background:',
+      'url(', url.frameTL, ') no-repeat left top/', px(c), ' ', px(c), ',',
+      'url(', url.frameTR, ') no-repeat right top/', px(c), ' ', px(c), ',',
+      'url(', url.frameBL, ') no-repeat left bottom/', px(c), ' ', px(c), ',',
+      'url(', url.frameBR, ') no-repeat right bottom/', px(c), ' ', px(c), ',',
+      'url(', url.frameTop, ') no-repeat ', px(c), ' top/', run, ' ', px(m.frame), ',',
+      'url(', url.frameBottom, ') no-repeat ', px(c), ' bottom/', run, ' ', px(m.frame), ',',
+      'url(', url.frameLeft, ') no-repeat left ', px(c), '/', px(m.frame), ' ', run, ',',
+      'url(', url.frameRight, ') no-repeat right ', px(c), '/', px(m.frame), ' ', run, ',',
+      tile, ' repeat;',
+      'background-origin:border-box;background-clip:border-box}',
 
       /* Every field box gets the tile too: the reference tiles graphic_297
        * inside the frame, and a flat black box beside a tiled panel is the one
@@ -559,9 +604,6 @@
        * them. Both empty on a build that baked none, which is what leaves the
        * window on baseStyle -- see skinDone. */
       this.skin = {};
-      /* Each one's baked size, beside its URL. composeFrame samples a corner
-       * tile's own far corner and cannot find it without this. */
-      this.skinSize = {};
       this.skinCss = '';
       /* The dropdown whose list is up, or -1, and the list's node. One window,
        * one open list -- the same rule the model and the CS2 executor keep. */
@@ -905,12 +947,7 @@
      */
     skinSprite(slot, w, h, b64) {
       const url = this.decodeSprite(w, h, b64);
-      if (url) {
-        this.skin[slot] = url;
-        /* The SIZE, kept beside the URL: composeFrame samples a corner tile's
-         * own corner, and cannot find it without knowing how big the tile is. */
-        this.skinSize[slot] = { w, h };
-      }
+      if (url) this.skin[slot] = url;
     }
 
     decodeSprite(w, h, b64) {
@@ -944,91 +981,6 @@
     }
 
     /**
-     * The nine frame pieces, composed into ONE 9x9 image.
-     *
-     * `border-image` takes a single source and slices it, so eight separate
-     * sprites cannot drive it directly. Composed here rather than baked as a
-     * ninth sheet, so the bake stays one sprite per cache archive -- which is
-     * what makes it a diff a human can check against the cache.
-     *
-     * THE PIECES ARE NOT ALL ONE SIZE, and that is what this has to solve. The
-     * corners are 32x32 tiles carrying an L of 6px rail along their outer edges;
-     * the edges are bare 6px rails. `border-image` wants a 3x3 grid whose slices
-     * are the border's own width, so what is sampled out of a corner is only its
-     * own corner -- the mitred junction, rounded outer pixel included -- and what
-     * is sampled out of an edge is a single row or column of rail. Blitting the
-     * whole 32px corner into a 6px slice instead would squash the junction and
-     * take the rounding with it.
-     *
-     * The CENTRE cell is left EMPTY on purpose. `border-image` is used without
-     * `fill`, so nothing samples the middle; drawing a colour there would be one
-     * waiting to cover the panel's tile the day somebody adds `fill`, where an
-     * empty cell fails visibly instead.
-     */
-    composeFrame() {
-      const doc = this.doc || global.document;
-      const rail = METRICS.frame;
-      /* [slot, sx, sy, sw, sh, dx, dy] per cell, with the source offsets given as
-       * functions of the piece's own size so a re-bake at another size still
-       * samples the right corner of it. */
-      const far = slot => {
-        const size = this.skinSize[slot];
-        return size ? size.w - rail : 0;
-      };
-      const farY = slot => {
-        const size = this.skinSize[slot];
-        return size ? size.h - rail : 0;
-      };
-      let cells;
-      let canvas;
-      let ctx;
-      const need = [
-        SKIN.FRAME_TOP_LEFT, SKIN.FRAME_TOP, SKIN.FRAME_TOP_RIGHT,
-        SKIN.FRAME_LEFT, SKIN.FRAME_RIGHT,
-        SKIN.FRAME_BOTTOM_LEFT, SKIN.FRAME_BOTTOM, SKIN.FRAME_BOTTOM_RIGHT
-      ];
-
-      for (let i = 0; i < need.length; i++)
-        if (!this.skin[need[i]] || !this.skinSize[need[i]]) return null;
-      if (!doc || !doc.createElement || typeof global.Image !== 'function') return null;
-      canvas = doc.createElement('canvas');
-      if (!canvas || typeof canvas.getContext !== 'function') return null;
-      ctx = canvas.getContext('2d');
-      if (!ctx || typeof ctx.drawImage !== 'function') return null;
-      canvas.width = rail * 2 + 1;
-      canvas.height = rail * 2 + 1;
-
-      cells = [
-        [SKIN.FRAME_TOP_LEFT, 0, 0, rail, rail, 0, 0, rail, rail],
-        [SKIN.FRAME_TOP_RIGHT, far(SKIN.FRAME_TOP_RIGHT), 0, rail, rail, rail + 1, 0, rail, rail],
-        [SKIN.FRAME_BOTTOM_LEFT, 0, farY(SKIN.FRAME_BOTTOM_LEFT), rail, rail, 0, rail + 1, rail, rail],
-        [SKIN.FRAME_BOTTOM_RIGHT, far(SKIN.FRAME_BOTTOM_RIGHT), farY(SKIN.FRAME_BOTTOM_RIGHT),
-         rail, rail, rail + 1, rail + 1, rail, rail],
-        /* One column of the top/bottom rail, one row of the left/right one:
-         * `stretch` repeats it along the run. */
-        [SKIN.FRAME_TOP, 0, 0, 1, rail, rail, 0, 1, rail],
-        [SKIN.FRAME_BOTTOM, 0, 0, 1, rail, rail, rail + 1, 1, rail],
-        [SKIN.FRAME_LEFT, 0, 0, rail, 1, 0, rail, rail, 1],
-        [SKIN.FRAME_RIGHT, 0, 0, rail, 1, rail + 1, rail, rail, 1]
-      ];
-
-      /* Synchronous by construction: every source is a data: URL this page just
-       * produced from a canvas of its own, so it is already decoded and
-       * drawImage does not have to wait for a load event. */
-      for (const cell of cells) {
-        try {
-          const img = new global.Image();
-          img.src = this.skin[cell[0]];
-          ctx.drawImage(img, cell[1], cell[2], cell[3], cell[4], cell[5], cell[6], cell[7], cell[8]);
-        } catch (e) {
-          return null;
-        }
-      }
-
-      return canvas.toDataURL();
-    }
-
-    /**
      * Every sprite has arrived: build the skin sheet, or stay flat.
      *
      * ALL OR NOTHING. `skinned` goes on only once every URL the sheet names is
@@ -1045,7 +997,20 @@
         arrowUp: this.skin[SKIN.SCROLL_UP],
         arrowDown: this.skin[SKIN.SCROLL_DOWN],
         scrollTrack: this.skin[SKIN.SCROLL_TRACK],
-        gripMid: this.skin[SKIN.SCROLL_GRIP_MID]
+        gripMid: this.skin[SKIN.SCROLL_GRIP_MID],
+        /* The eight frame pieces, each named by the layer that draws it. In
+         * the required set rather than optional: the frame is the one part of
+         * this window that is missed when it is not there, and seven pieces of
+         * a border reads as a rendering fault where a flat window reads as a
+         * theme. */
+        frameTL: this.skin[SKIN.FRAME_TOP_LEFT],
+        frameTop: this.skin[SKIN.FRAME_TOP],
+        frameTR: this.skin[SKIN.FRAME_TOP_RIGHT],
+        frameLeft: this.skin[SKIN.FRAME_LEFT],
+        frameRight: this.skin[SKIN.FRAME_RIGHT],
+        frameBL: this.skin[SKIN.FRAME_BOTTOM_LEFT],
+        frameBottom: this.skin[SKIN.FRAME_BOTTOM],
+        frameBR: this.skin[SKIN.FRAME_BOTTOM_RIGHT]
       };
       let key;
 
@@ -1054,9 +1019,6 @@
         if (!Object.prototype.hasOwnProperty.call(url, key)) continue;
         if (!url[key]) { this.applySkinClass(); return; }
       }
-      url.frame = this.composeFrame();
-      if (!url.frame) { this.applySkinClass(); return; }
-
       /*
        * The window X is OPTIONAL, and deliberately not in the loop above.
        *

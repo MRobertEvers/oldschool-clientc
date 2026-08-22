@@ -58,6 +58,9 @@ struct FakeEngine
     int last_written_size;
     /* Screenshots: the host validates the name and the destination, so the
      * engine only has to record what got through. */
+    /* api->notify: what the player was told, and how often. */
+    char last_notify[200];
+    int notifies;
     int screenshots;
     char last_shot_dir[192];
     char last_shot_name[64];
@@ -122,6 +125,21 @@ fake_loc_next(void* u, int iter, struct ToriRS_PluginLocSnap* out)
     (void)iter;
     (void)out;
     return -1;
+}
+static int
+fake_highlight_next(void* u, int iter, struct ToriRS_PluginHighlightItem* out)
+{
+    (void)u;
+    (void)iter;
+    (void)out;
+    return -1;
+}
+static void
+fake_notify(void* u, char const* text)
+{
+    (void)u;
+    snprintf(g_engine.last_notify, sizeof(g_engine.last_notify), "%s", text);
+    g_engine.notifies++;
 }
 static int
 fake_key_held(void* u, int key)
@@ -433,6 +451,8 @@ fake_engine(void)
     e.npc_by_slot = fake_npc_by_slot;
     e.player_next = fake_player_next;
     e.loc_next = fake_loc_next;
+    e.highlight_next = fake_highlight_next;
+    e.notify = fake_notify;
     e.key_held = fake_key_held;
     e.hover_tile = fake_hover_tile;
     e.hover_entity = fake_hover_entity;

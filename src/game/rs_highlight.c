@@ -189,7 +189,7 @@ RS_HighlightSetup(
         return;
 
     state->style[kind][group].colour = colour;
-    state->style[kind][group].style = style;
+    state->style[kind][group].outline_width = style;
     state->style[kind][group].opacity = opacity;
     state->style[kind][group].flags = flags;
     state->revision++;
@@ -339,10 +339,23 @@ RS_HighlightGroupLive(
 
     if( group < 0 || group >= RS_HIGHLIGHT_GROUP_MAX )
         return false;
-    /* Both are how the cache says "off", and it says it both ways at once
-     * everywhere except one call site -- clientscript 1854's teardown passes
-     * the colour it was using and opacity 0. So neither test alone is enough. */
-    return state->style[kind][group].colour >= 0 && state->style[kind][group].opacity > 0;
+    {
+        /* The reference's IsEnabled, made of its four predicates. See the
+         * header: an outline needs a THICKNESS and a fill needs an OPACITY,
+         * and a flag without its value draws nothing. */
+        struct RS_HighlightStyle const* st = &state->style[kind][group];
+        bool const outline =
+            (st->flags &
+             (RS_HIGHLIGHT_FLAG_MODEL_OUTLINE | RS_HIGHLIGHT_FLAG_TILE_OUTLINE)) != 0 &&
+            st->outline_width != 0;
+        bool const fill =
+            (st->flags & (RS_HIGHLIGHT_FLAG_MODEL_FILL | RS_HIGHLIGHT_FLAG_TILE_FILL)) != 0 &&
+            st->opacity != 0;
+        /* A colour of -1 is how every disabling call spells "off"; the
+         * reference gets there through its HSL conversion instead, but the
+         * intent is the same and this client's draw api takes RGB. */
+        return st->colour >= 0 && (outline || fill);
+    }
 }
 
 bool

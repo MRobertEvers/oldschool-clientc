@@ -83,30 +83,19 @@ function makeNode(tag) {
    * went unchecked, which is the exact trap this file exists to avoid.
    *
    * It records what it was handed rather than rasterising: what is being
-   * pinned is that the host decodes the right number of pixels and composes
-   * the frame out of the right nine, not that a canvas works.
+   * pinned is that the host decodes the right number of pixels, not that a
+   * canvas works. ONE image goes in and one URL comes out -- the frame is
+   * eight of these named side by side in the sheet, not a ninth composed out
+   * of them, so nothing here has to fake a `drawImage` the page never makes.
    */
   if (node.tagName === 'CANVAS') {
     node.width = 0;
     node.height = 0;
     node._puts = [];
-    node._draws = [];
     node.getContext = () => ({
-      putImageData(img) { node._puts.push(img); },
-
-      /* Both arities: the 3-arg form blits a whole image, the 9-arg one a
-       * sub-rectangle of it into a sub-rectangle of the canvas. The frame
-       * composition needs the second -- what it samples out of a 32px corner
-       * tile is only that tile's own corner -- so the fake has to record the
-       * DESTINATION rather than assume the first two numbers are it. */
-      drawImage(img, a, b, c, d, e, f, g, h) {
-        if (arguments.length >= 9)
-          node._draws.push({ src: img.src, x: e, y: f, w: g, h });
-        else
-          node._draws.push({ src: img.src, x: a, y: b });
-      }
+      putImageData(img) { node._puts.push(img); }
     });
-    node.toDataURL = () => `data:image/png;base64,#${node.width}x${node.height}/${node._puts.length}+${node._draws.length}`;
+    node.toDataURL = () => `data:image/png;base64,#${node.width}x${node.height}/${node._puts.length}`;
   }
   /* The canvas is measured for its box, and the frame for where the row put
    * it -- the window lines up with the picture rather than with the row, so
@@ -714,7 +703,7 @@ const SKIN_NEEDED = [
 ];
 
 function sendSkin(skip) {
-  global_.torirsChromeSkinMetrics({ rowH: 18, labelW: 104, box: 17, frame: 6 });
+  global_.torirsChromeSkinMetrics({ rowH: 18, labelW: 104, box: 17, frame: 6, frameCorner: 32 });
   SKIN_NEEDED.forEach(slot => {
     if (slot === skip) return;
     global_.torirsChromeSkinSprite(slot, 4, 4, fakeSprite(4, 4));
@@ -735,21 +724,45 @@ check(!chromeRoot.classList.contains('skinned'), 'one sprite short leaves the wi
 sendSkin(-1);
 check(chromeRoot.classList.contains('skinned'), 'the full set skins the window');
 check(sheet().includes('.torirs-chrome.skinned'), 'the skin sheet was written');
-check(sheet().includes('border-image:url(data:image/png'),
-  'the panel wears the nine-slice frame');
 /*
- * The composition, sized from the RAIL rather than from a constant.
+ * The nine-slice frame: EIGHT background layers over the tile.
  *
- * `border-image` slices its source at the border's own width, so the grid is
- * rail | 1 | rail on each axis -- 13x13 at the 6px rail this cache's frame
- * uses. Eight draws, one per piece, and the centre cell is never written:
- * `fill` is deliberately absent, and a colour parked there would be one
- * waiting to cover the panel's tile the day somebody adds it.
+ * WHY NOT `border-image`, which is what this used to be. That property slices
+ * one source into a grid whose corner cells are the border's own width, and
+ * this art's pieces are two sizes -- 32px corners carrying an L of 6px rail,
+ * and bare 6px rails between them. Sliced at the rail it sampled 6x6 out of
+ * each 32px corner and threw the rest away, and composing that source needed a
+ * canvas: `drawImage` of an <img> whose src was set the same turn draws
+ * NOTHING in a real browser (the data: URL has not decoded yet, `complete` is
+ * false, and the call is a silent no-op), so the shipping page wore a fully
+ * transparent border while this file's fake canvas reported eight draws.
+ *
+ * So: one layer per piece, each naming that piece's own URL, which the browser
+ * loads the way it loads every other sprite in this sheet. Nothing here can be
+ * undecoded at the moment it is used, because nothing here is read back.
  */
-check(sheet().includes('data:image/png;base64,#13x13/0+8'),
-  'the frame is composed from EIGHT pieces on a rail-sized grid, centre empty');
-check(sheet().includes('border-image:url(data:image/png;base64,#13x13/0+8) 6 / 12px'),
-  'and it is sliced at the rail, not at a number of the page\'s own');
+check(!sheet().includes('border-image'),
+  'the frame is not composed through a canvas the page has to read back');
+check((sheet().match(/no-repeat/g) || []).length >= 8,
+  'the panel wears the nine-slice frame, one layer per piece');
+/*
+ * The two numbers, both of them.
+ *
+ * A corner blits SQUARE at its baked 32 (64 CSS px at the page's 2x) and a
+ * rail stretches along the run BETWEEN the corners at the rail's 6. Corners
+ * sized at the rail instead is exactly the bug border-image could not avoid:
+ * the mitred junction squashed and its rounded outer pixel gone.
+ */
+check(sheet().includes('no-repeat left top/64px 64px'),
+  'a corner is drawn at its baked size, not at the rail');
+check(sheet().includes('no-repeat 64px top/calc(100% - 128px) 12px'),
+  'and a rail is stretched along the run between two corners');
+/* Positioned against the BORDER box, and inset by the rail: the corner's extra
+ * 26px lie along the edges, over the window's own tile, not over its rows. */
+check(sheet().includes('border:12px solid transparent'),
+  'the content column is inset by the rail');
+check(sheet().includes('background-origin:border-box'),
+  'and the frame is drawn in the strip that border reserves');
 
 /*
  * The metrics reach the layout.

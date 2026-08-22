@@ -29,7 +29,20 @@
 #include <stdlib.h>
 #include <string.h>
 
-/** Opening size. The window is resizable; this is only where it starts. */
+/*
+ * Opening size, in window POINTS -- a physical size on a desk, not a pixel
+ * count. The window is resizable; this is only where it starts.
+ *
+ * The SURFACE that comes up inside it is the DRAWABLE, which on a HighDPI
+ * display is a multiple of this, and it is the surface -- not this -- that the
+ * chrome lays out in (PlatformSDL2_AuxWidth/Height, handed over by
+ * chrome_sdl_surface_size). The chrome's scale is the display's density, so
+ * the two rise together: a 2x display gets 2x rows in a 2x buffer, at the same
+ * physical size as 1x rows in a 1x one. Sized in pixels here instead, a 2x
+ * chrome would be laid out in half the room it needs -- labels under their
+ * fields, and half of a settings page past the bottom edge where widgets get a
+ * zero box and stop being clickable at all.
+ */
 #define CHROME_SDL_W 360
 #define CHROME_SDL_H 420
 
@@ -356,7 +369,12 @@ chrome_sdl_surface_input(void* user, struct ToriRSChromeSurfaceInput* out)
 
     /* A resize is applied to the SURFACE here rather than left to the caller:
      * the next present writes into a buffer that must already be the window's
-     * size, and the chrome does not care -- it lays out where it was put. */
+     * size, and the chrome does not care -- it lays out where it was put.
+     *
+     * The platform reports the new size in PIXELS (the drawable), which is
+     * what the surface is measured in, so this is a straight handover -- and
+     * it also fires when only the DENSITY changed, which is a window dragged
+     * to a display of another kind. */
     if( out->resized )
         PlatformSDL2_AuxResize(s->platform, out->width, out->height);
     return 1;

@@ -73,6 +73,10 @@ struct ToriRS_PluginEngine
     int (*player_next)(void* user, int iter, struct ToriRS_PluginPlayerSnap* out);
     int (*obj_next)(void* user, int iter, struct ToriRS_PluginObjSnap* out);
     int (*loc_next)(void* user, int iter, struct ToriRS_PluginLocSnap* out);
+    int (*highlight_next)(void* user, int iter, struct ToriRS_PluginHighlightItem* out);
+
+    /** One game line into the chatbox. @see ToriRS_PluginApi::notify. */
+    void (*notify)(void* user, char const* text);
 
     int (*key_held)(void* user, int keycode);
     int (*hover_tile)(void* user, int* out_tile_x, int* out_tile_z, int* out_level);

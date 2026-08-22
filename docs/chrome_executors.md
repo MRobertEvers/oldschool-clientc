@@ -143,7 +143,7 @@ them a choice would be four more consumers to keep working for nobody.
 | Executor | Kind | Lanes | State |
 |---|---|---|---|
 | `buffer` | surface | every | **Done.** The in-canvas prim path; the default and the fallback everywhere. |
-| `sdl` | surface | macOS, Linux | **Done.** One auxiliary OS window. See COMMON-CHROME-001. |
+| `sdl` | surface | macOS, Linux | **Done.** One auxiliary OS window. See COMMON-CHROME-001 and COMMON-CHROME-002 (points in, pixels out). |
 | `web` | native-widget | web | **Done.** Real DOM controls, built by the page from the command stream. |
 | `gdi` | native-widget | win32, win64 | **Written, not run.** Compiles only on Windows; parsed here by `make -C src check-gdi-syntax`. |
 | `cs2` | native-widget | every | **Done.** The window as game interface components. |
@@ -182,11 +182,24 @@ assertion that they agree, and the page's copy of the same table is pinned by
   field, the interfaces' tick and cross as an `appearance:none` checkbox's
   background, the scrollbar's own arrow on the closed dropdown and its lighter
   parchment behind the open list, `::-webkit-scrollbar` wearing the bar's track
-  and grip, and the nine-slice frame as a `border-image` -- composed from the
-  eight pieces into one 9x9, because `border-image` takes a single source. Every rule is an OVERRIDE of a
+  and grip, and the nine-slice frame as EIGHT BACKGROUND LAYERS -- one per
+  piece, corners at their baked 32 and rails stretched along the run between
+  them, which is `dbg_push_frame` verbatim. Every rule is an OVERRIDE of a
   flat one, scoped to `.skinned`, and the class goes on only when every sprite
   the sheet names has arrived: a nine-slice frame around a flat black panel
   reads as a fault, where a complete flat window reads as a theme.
+
+  **Why not `border-image`, which this was.** That property slices ONE source
+  into a grid whose corner cells are the border's own width, and the frame's
+  pieces are two sizes: 32x32 corners carrying an L of 6px rail, and bare 6px
+  rails between them. Sliced at the 6px rail the content is inset by, it
+  sampled 6x6 out of each corner and threw the other 26 away. Worse, composing
+  that single source needed a canvas, and `drawImage` of an `<img>` whose `src`
+  was assigned the same turn draws NOTHING in a browser -- a data: URL has not
+  decoded yet, `complete` is false, and the call is a silent no-op. The
+  shipping page wore a fully transparent 6px border while the node test's fake
+  canvas dutifully reported eight draws. Background layers name each piece's
+  own URL and read nothing back, so there is nothing left to be undecoded.
 
   **The dropdown is not a `<select>`.** It was: a `<select>` is the platform's
   idiom for the control, and the CLOSED button could be made to look like the
@@ -285,8 +298,11 @@ assertion that they agree, and the page's copy of the same table is pinned by
   **They are still USER32 controls; they just wear the game's art.** Every
   button, checkbox, tab and dropdown is `BS_OWNERDRAW` / `CBS_OWNERDRAWFIXED`
   and painted from the bake; `WM_ERASEBKGND` tiles the tradebacking and draws
-  the nine-slice frame; `WM_CTLCOLOR*` puts a pattern brush over the tile behind
-  the ones that keep their own painting. An `EDIT` is still an `EDIT`, with its
+  the nine-slice frame -- corners SQUARE at their baked 32, rails stretched
+  along the run between them, the two numbers `dbg_push_frame` uses, because a
+  corner blitted at the rail's 6 squashes 32px of tile into 6 and takes the
+  mitred junction with it; `WM_CTLCOLOR*` puts a pattern brush over the tile
+  behind the ones that keep their own painting. An `EDIT` is still an `EDIT`, with its
   caret, its selection and its keyboard -- that is what a native executor is
   for, and skinning a control is not the same as replacing it.
 

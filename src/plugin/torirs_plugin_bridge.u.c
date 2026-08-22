@@ -298,6 +298,278 @@ app_plugin_loc_next(void* user, int iter, struct ToriRS_PluginLocSnap* out)
     return -1;
 }
 
+/* Defined below, beside the other overlay helpers; the highlight resolver
+ * above it wants the same anchor a name would hang off. */
+static int app_plugin_element_height(void* user, int element_id);
+
+/* ---------------------------------------------------------- highlights ---
+ *
+ * The cache's highlight groups, resolved to things on the screen.
+ *
+ * The groups name SUBJECTS -- "every loc of type 23138", "the tile at this
+ * coord", "the npc with this uid" -- and resolving one means finding what in
+ * the scene that is. That walk is here, not in the plugin, for the reason
+ * every other snapshot is: the entity pools are the engine's, and a plugin
+ * that had to walk them itself would need an api for each pool anyway and
+ * would get the coord packing wrong once per plugin instead of once.
+ */
+
+/** Nothing to resolve for a group that is off. */
+static bool
+app_plugin_highlight_begin(
+    struct App* app,
+    enum RS_HighlightKind kind,
+    int group,
+    struct ToriRS_PluginHighlightItem* proto)
+{
+    struct RS_HighlightStyle const* style;
+
+    if( !RS_HighlightGroupLive(&app->host.highlight, kind, group) )
+        return false;
+
+    style = &app->host.highlight.style[kind][group];
+    memset(proto, 0, sizeof(*proto));
+    proto->element_id = -1;
+    proto->size_x = 1;
+    proto->size_z = 1;
+    proto->rgb = (uint32_t)style->colour & 0x00FFFFFFu;
+    proto->opacity = style->opacity;
+    proto->outline_width = style->outline_width;
+    proto->flags = style->flags;
+    return true;
+}
+
+static struct ToriRS_PluginHighlightItem*
+app_plugin_highlight_push(struct App* app, struct ToriRS_PluginHighlightItem const* proto)
+{
+    struct ToriRS_PluginHighlightItem* item;
+
+    if( app->plugin_highlight_count >= APP_PLUGIN_HIGHLIGHTS_MAX )
+        return NULL;
+    item = &app->plugin_highlights[app->plugin_highlight_count++];
+    *item = *proto;
+    return item;
+}
+
+/*
+ * Rebuild the resolved list.
+ *
+ * One pass per kind, and each pass walks the pool it needs at most once: a
+ * member list is short (the largest real one is the 109 loctypes the cache
+ * marks) and the pools are long, so the inner test is against the members and
+ * the outer walk is the pool.
+ */
+static void
+app_plugin_highlights_rebuild(struct App* app)
+{
+    struct RS_HighlightState const* hl;
+    struct ToriRS_PluginHighlightItem proto;
+
+    assert(app);
+
+    app->plugin_highlight_count = 0;
+    if( !app->world )
+        return;
+    hl = &app->host.highlight;
+
+    /* ---- tiles: the member IS the thing, no pool to walk. ---- */
+    for( int i = 0; i < hl->member_count[RS_HIGHLIGHT_TILE]; i++ )
+    {
+        struct RS_HighlightMember const* m = &hl->member[RS_HIGHLIGHT_TILE][i];
+        if( !app_plugin_highlight_begin(app, RS_HIGHLIGHT_TILE, m->group, &proto) )
+            continue;
+        proto.kind = TORIRS_PLUGIN_HL_TILE;
+        proto.tile_x = RS_HIGHLIGHT_COORD_X(m->coord);
+        proto.tile_z = RS_HIGHLIGHT_COORD_Z(m->coord);
+        proto.level = RS_HIGHLIGHT_COORD_PLANE(m->coord);
+        proto.fine_x = ((proto.tile_x - app->world->_base_tile_x) * 128) + 64;
+        proto.fine_z = ((proto.tile_z - app->world->_base_tile_z) * 128) + 64;
+        proto.flags |= m->flags;
+        if( !app_plugin_highlight_push(app, &proto) )
+            return;
+    }
+
+    /* ---- npcs: by type, and by UID.
+     *
+     * `highlight_npc_on` names an npc uid, and the uid it names came from
+     * `_6751` -- the client-op context, which this client answers with the
+     * npc's SERVER SLOT (see RS_ClientOpContext::uid). The value never leaves
+     * the client, so the only requirement is that the two sides agree, and
+     * they are the only two sides there are.
+     *
+     * The member's coord is deliberately NOT part of the match. It is the tile
+     * the npc stood on when the op was picked, and matching on it would drop
+     * the highlight the moment the npc took a step -- which is the opposite of
+     * what tagging one is for. ---- */
+    {
+        struct World_EntityPool* pool = &app->world->entities.npc;
+        for( int at = World_EntityPoolHead(pool); at != WORLD_ENTITY_NIL;
+             at = World_EntityPoolNext(pool, at) )
+        {
+            struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, at);
+            int tile_x;
+            int tile_z;
+
+            if( !npc || npc->element_id < 0 )
+                continue;
+            tile_x = app->world->_base_tile_x + npc->grid_position.x;
+            tile_z = app->world->_base_tile_z + npc->grid_position.z;
+
+            for( int kind = 0; kind < 2; kind++ )
+            {
+                enum RS_HighlightKind const k =
+                    kind == 0 ? RS_HIGHLIGHT_NPCTYPE : RS_HIGHLIGHT_NPC;
+                for( int i = 0; i < hl->member_count[k]; i++ )
+                {
+                    struct RS_HighlightMember const* m = &hl->member[k][i];
+                    bool const hit = k == RS_HIGHLIGHT_NPCTYPE
+                                         ? (m->key == npc->npc_id ||
+                                            m->key == npc->base_npc_id)
+                                         : m->key == npc->server_slot;
+                    if( !hit )
+                        continue;
+                    if( !app_plugin_highlight_begin(app, k, m->group, &proto) )
+                        continue;
+                    proto.kind = TORIRS_PLUGIN_HL_NPC;
+                    proto.element_id = npc->element_id;
+                    proto.overhead_height = app_plugin_element_height(app, npc->element_id);
+                    proto.fine_x = (int)npc->draw_position.x;
+                    proto.fine_z = (int)npc->draw_position.z;
+                    snprintf(proto.name, sizeof(proto.name), "%s", npc->name);
+                    proto.tile_x = tile_x;
+                    proto.tile_z = tile_z;
+                    proto.level = npc->grid_position.level;
+                    proto.size_x = npc->size > 0 ? npc->size : 1;
+                    proto.size_z = proto.size_x;
+                    proto.flags |= m->flags;
+                    if( !app_plugin_highlight_push(app, &proto) )
+                        return;
+                }
+            }
+        }
+    }
+
+    /* ---- locs: by type anywhere, or by type at one coord. ---- */
+    {
+        struct World_EntityPool* pool = &app->world->entities.scenery;
+        for( int at = World_EntityPoolHead(pool); at != WORLD_ENTITY_NIL;
+             at = World_EntityPoolNext(pool, at) )
+        {
+            struct WorldEntity_Scenery* loc = World_EntityPoolGet(pool, at);
+            int tile_x;
+            int tile_z;
+            int coord;
+
+            if( !loc || loc->element_id < 0 )
+                continue;
+            tile_x = app->world->_base_tile_x + loc->grid_position.x;
+            tile_z = app->world->_base_tile_z + loc->grid_position.z;
+            coord = RS_HIGHLIGHT_COORD(loc->grid_position.level, tile_x, tile_z);
+
+            for( int kind = 0; kind < 2; kind++ )
+            {
+                enum RS_HighlightKind const k =
+                    kind == 0 ? RS_HIGHLIGHT_LOCTYPE : RS_HIGHLIGHT_LOC;
+                for( int i = 0; i < hl->member_count[k]; i++ )
+                {
+                    struct RS_HighlightMember const* m = &hl->member[k][i];
+                    if( m->key != loc->loc_id )
+                        continue;
+                    /* The placed form pins a coord as well as a type; the type
+                     * form marks every instance. */
+                    if( k == RS_HIGHLIGHT_LOC && m->coord != coord )
+                        continue;
+                    if( !app_plugin_highlight_begin(app, k, m->group, &proto) )
+                        continue;
+                    proto.kind = TORIRS_PLUGIN_HL_LOC;
+                    proto.element_id = loc->element_id;
+                    proto.overhead_height = app_plugin_element_height(app, loc->element_id);
+                    proto.fine_x = (loc->grid_position.x * 128) + 64;
+                    proto.fine_z = (loc->grid_position.z * 128) + 64;
+                    snprintf(proto.name, sizeof(proto.name), "%s", loc->name);
+                    proto.tile_x = tile_x;
+                    proto.tile_z = tile_z;
+                    proto.level = loc->grid_position.level;
+                    proto.size_x = loc->size_x > 0 ? loc->size_x : 1;
+                    proto.size_z = loc->size_z > 0 ? loc->size_z : 1;
+                    proto.flags |= m->flags;
+                    if( !app_plugin_highlight_push(app, &proto) )
+                        return;
+                }
+            }
+        }
+    }
+
+    /* ---- ground items ---- */
+    {
+        struct World_EntityPool* pool = &app->world->entities.obj_stack;
+        for( int at = World_EntityPoolHead(pool); at != WORLD_ENTITY_NIL;
+             at = World_EntityPoolNext(pool, at) )
+        {
+            struct WorldEntity_ObjStack* stack = World_EntityPoolGet(pool, at);
+            int tile_x;
+            int tile_z;
+            int coord;
+
+            if( !stack || stack->element_id < 0 )
+                continue;
+            tile_x = app->world->_base_tile_x + stack->grid_position.x;
+            tile_z = app->world->_base_tile_z + stack->grid_position.z;
+            coord = RS_HIGHLIGHT_COORD(stack->grid_position.level, tile_x, tile_z);
+
+            for( int kind = 0; kind < 2; kind++ )
+            {
+                enum RS_HighlightKind const k =
+                    kind == 0 ? RS_HIGHLIGHT_OBJTYPE : RS_HIGHLIGHT_OBJ;
+                for( int i = 0; i < hl->member_count[k]; i++ )
+                {
+                    struct RS_HighlightMember const* m = &hl->member[k][i];
+                    if( m->key != stack->obj_id )
+                        continue;
+                    if( k == RS_HIGHLIGHT_OBJ && m->coord != coord )
+                        continue;
+                    if( !app_plugin_highlight_begin(app, k, m->group, &proto) )
+                        continue;
+                    proto.kind = TORIRS_PLUGIN_HL_OBJ;
+                    proto.element_id = stack->element_id;
+                    proto.overhead_height = app_plugin_element_height(app, stack->element_id);
+                    proto.fine_x = (stack->grid_position.x * 128) + 64;
+                    proto.fine_z = (stack->grid_position.z * 128) + 64;
+                    snprintf(proto.name, sizeof(proto.name), "%s", stack->name);
+                    proto.tile_x = tile_x;
+                    proto.tile_z = tile_z;
+                    proto.level = stack->grid_position.level;
+                    proto.flags |= m->flags;
+                    if( !app_plugin_highlight_push(app, &proto) )
+                        return;
+                }
+            }
+        }
+    }
+}
+
+static int
+app_plugin_highlight_next(void* user, int iter, struct ToriRS_PluginHighlightItem* out)
+{
+    struct App* app = (struct App*)user;
+    int next;
+
+    assert(app);
+    assert(out);
+
+    /* The start of a walk is the only place the list is rebuilt: see the api
+     * declaration. A cursor into a list that moved underneath it would skip or
+     * repeat, so the rebuild must not happen mid-walk. */
+    if( iter < 0 )
+        app_plugin_highlights_rebuild(app);
+
+    next = iter + 1;
+    if( next >= app->plugin_highlight_count )
+        return -1;
+    *out = app->plugin_highlights[next];
+    return next;
+}
+
 /*
  * The plugin contract restates a few key codes so that nothing built on it has
  * to include an engine header. This is the seam where both definitions are in
@@ -422,6 +694,15 @@ app_plugin_player_next(void* user, int iter, struct ToriRS_PluginPlayerSnap* out
         at = World_EntityPoolNext(pool, at);
     }
     return -1;
+}
+
+static void
+app_plugin_notify(void* user, char const* text)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    assert(text);
+    RS_Chat_AddMessage(&app->chat, RS_CHAT_TYPE_GAME, NULL, text);
 }
 
 static int
@@ -955,6 +1236,8 @@ app_plugin_engine(struct App* app)
     engine.player_next = app_plugin_player_next;
     engine.obj_next = app_plugin_obj_next;
     engine.loc_next = app_plugin_loc_next;
+    engine.highlight_next = app_plugin_highlight_next;
+    engine.notify = app_plugin_notify;
     engine.key_held = app_plugin_key_held;
     engine.hover_tile = app_plugin_hover_tile;
     engine.hover_entity = app_plugin_hover_entity;

@@ -434,6 +434,23 @@ api_loc_next(struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginLocSnap
 }
 
 static int
+api_highlight_next(
+    struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginHighlightItem* out)
+{
+    assert(ctx);
+    assert(out);
+    return ctx->host->engine.highlight_next(ctx->host->engine.user, iter, out);
+}
+
+static void
+api_notify(struct ToriRS_PluginCtx* ctx, char const* text)
+{
+    assert(ctx);
+    assert(text);
+    ctx->host->engine.notify(ctx->host->engine.user, text);
+}
+
+static int
 api_key_held(struct ToriRS_PluginCtx* ctx, int keycode)
 {
     assert(ctx);
@@ -1489,6 +1506,8 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->obj_next);
     assert(engine->key_held);
     assert(engine->loc_next);
+    assert(engine->highlight_next);
+    assert(engine->notify);
     assert(engine->hover_tile);
     assert(engine->hover_entity);
     assert(engine->element_height);
@@ -1527,6 +1546,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .abi_version = TORIRS_PLUGIN_ABI,
         .subscribe = api_subscribe,
         .log = api_log,
+        .notify = api_notify,
         .world_cycle = api_world_cycle,
         .frame_ms = api_frame_ms,
         .local_player = api_local_player,
@@ -1536,6 +1556,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .obj_next = api_obj_next,
         .key_held = api_key_held,
         .loc_next = api_loc_next,
+        .highlight_next = api_highlight_next,
         .hover_tile = api_hover_tile,
         .hover_entity = api_hover_entity,
         .element_height = api_element_height,

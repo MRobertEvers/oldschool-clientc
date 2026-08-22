@@ -24,12 +24,17 @@
 #include "torirs_chrome_exec.h"
 #include "torirs_chrome_metrics.h"
 #include "uitree_debug_overlay.h"
+#include "uitree_emit.h"
+#include "uitree_hover.h"
 
 /* The private id blocks of ui/torirs_chrome_exec_cs2.c, as the contract. */
 #define CS2_T_WIDGET_BASE (TORIRS_CHROME_CS2_ID_BASE + 0x100)
 #define CS2_T_DROP_ROW_BASE (TORIRS_CHROME_CS2_ID_BASE + 0x2000)
 #define CS2_T_DROP_UP (TORIRS_CHROME_CS2_ID_BASE + 0x24)
 #define CS2_T_DROP_DOWN (TORIRS_CHROME_CS2_ID_BASE + 0x25)
+#define CS2_T_LABEL_BASE (TORIRS_CHROME_CS2_ID_BASE + 0x2800)
+/** The window X this presentation used to draw, and must not draw again. */
+#define CS2_T_CLOSE (TORIRS_CHROME_CS2_ID_BASE + 0x23)
 /** Rows the list shows at once (TORIRS_CHROME_DROPDOWN_ROWS). */
 #define CS2_T_DROP_ROWS 10
 
@@ -87,6 +92,13 @@ cs2_frame(void)
      * hear the answer -- exactly as the host's frame does it. */
     ToriRSChrome_Build(&g_ui);
     ToriRSChromeSync_Run(&g_sync, &g_ui);
+    /*
+     * And the layout pass the host runs after it, which is not decoration
+     * here: the panel is a FILL-PARENT layer, so until it is resolved its box
+     * is 0x0 -- and both the hover walk and the hit test stop at a parent the
+     * pointer is not inside, however well placed its children are.
+     */
+    UITree_TestResolve(g_tree);
 }
 
 /** How many of the list's row components are in the tree. */
@@ -298,12 +310,127 @@ test_chrome_cs2_dropdown_scrolls(void)
     cs2_unbind();
 }
 
+
+/*
+ * NO WINDOW X, and the first row is not pushed down to make room for one.
+ *
+ * This presentation is a column of components inside the gameframe's popout
+ * strip: the strip's own Plugin button opens the window and shuts it again, so
+ * a close mark drawn inside the content is a second way out of a window that
+ * already has one -- and it reads as belonging to the panel underneath rather
+ * than to the strip. The intent still exists for the in-canvas chrome, which
+ * IS a floating window with a title bar to put an X in.
+ */
+static void
+test_chrome_cs2_no_window_x(void)
+{
+    int panel;
+    int row;
+    int32_t node;
+    int bx = 0, by = 0, bw = 0, bh = 0;
+
+    cs2_bind();
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 260, "Plugins");
+    row = ToriRSChrome_ListRow(&g_ui, panel, "Tile Indicator", 1, 1);
+    cs2_frame();
+
+    TEST_ASSERT(!cs2_has_id(CS2_T_CLOSE), "no close button is built");
+
+    /* And the space it took is given back: the first row sits at the panel's
+     * own pad, not a button's height below it. */
+    node = UITree_FindByComponentId(g_tree, CS2_T_LABEL_BASE + row);
+    TEST_ASSERT(node >= 0, "the first row is in the tree");
+    UITree_LayoutGetBounds(&g_tree->components[node].position, &bx, &by, &bw, &bh);
+    TEST_ASSERT(by == TORIRS_CHROME_M_PAD, "and starts at the panel's top pad");
+    cs2_unbind();
+}
+
+/*
+ * A row's name goes YELLOW under the pointer, the way it does in every other
+ * presentation of this window.
+ *
+ * Pinned as the whole chain rather than as a field on a component, because
+ * each link failed independently while the rows stayed white: the hover walk
+ * reports a component only if it has an id AND something that changes under
+ * the pointer (uitree_hover.c), and the emit walk only swaps the colour for
+ * the id it is handed. A label pushed with -1 -- which is what every one of
+ * these was -- satisfies neither, however it is coloured.
+ */
+static void
+test_chrome_cs2_row_lights_up(void)
+{
+    int panel;
+    int row;
+    int32_t node;
+    int bx = 0, by = 0, bw = 0, bh = 0;
+    int hovered;
+    struct UITreeEmitBuffer buf;
+    int lit = 0;
+
+    cs2_bind();
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 260, "Plugins");
+    row = ToriRSChrome_ListRow(&g_ui, panel, "Tile Indicator", 1, 1);
+    cs2_frame();
+
+    node = UITree_FindByComponentId(g_tree, CS2_T_LABEL_BASE + row);
+    TEST_ASSERT(node >= 0, "the row's name carries an id of its own");
+    UITree_LayoutGetBounds(&g_tree->components[node].position, &bx, &by, &bw, &bh);
+    TEST_ASSERT(bw > 0 && bh > 0, "over a box the pointer can be inside");
+
+    hovered = UITree_FindHoveredComponentIdForRegion(
+        g_tree, NULL, -1, bx + bw / 2, by + bh / 2, 0, 0, UITREE_LAYOUT_ROOT_W,
+        UITREE_LAYOUT_ROOT_H);
+    TEST_ASSERT(
+        hovered == CS2_T_LABEL_BASE + row, "and the hover walk finds it under the pointer");
+
+    /* The colour the walk then draws it in. TORIRS_CHROME_C_ACCENT is the
+     * interfaces' own hover yellow, which is what the in-canvas chrome uses
+     * for the same row. */
+    UITree_EmitBufferInit(&buf);
+    UITree_EmitWalk(g_tree, NULL, &buf, hovered);
+    for( int i = 0; i < buf.count; i++ )
+    {
+        if( buf.cmds[i].kind != UITREE_EMIT_TEXT || !buf.cmds[i].text )
+            continue;
+        if( strcmp(buf.cmds[i].text, "Tile Indicator") != 0 )
+            continue;
+        lit = buf.cmds[i].color == TORIRS_CHROME_C_ACCENT;
+    }
+    TEST_ASSERT(lit, "so the name draws in the hover yellow");
+
+    /* And only while the pointer is on it -- a row that stayed lit would be a
+     * row that reads as selected. */
+    lit = 0;
+    buf.count = 0;
+    UITree_EmitWalk(g_tree, NULL, &buf, -1);
+    for( int i = 0; i < buf.count; i++ )
+    {
+        if( buf.cmds[i].kind != UITREE_EMIT_TEXT || !buf.cmds[i].text )
+            continue;
+        if( strcmp(buf.cmds[i].text, "Tile Indicator") != 0 )
+            continue;
+        lit = buf.cmds[i].color == TORIRS_CHROME_C_ACCENT;
+    }
+    TEST_ASSERT(!lit, "and goes back to its own colour when it is not");
+    UITree_EmitBufferFree(&buf);
+
+    /* The name is still not a click target: the switch beside it is. A TEXT
+     * with no click mask and no ops is decorative pass-through, so giving it
+     * an id bought a hover and nothing else. */
+    TEST_ASSERT(
+        ToriRSChromeExecCs2_Click(CS2_T_LABEL_BASE + row) == 0,
+        "the name takes no click of its own");
+    cs2_unbind();
+}
+
 void
 test_chrome_cs2(void)
 {
-    printf("TEST: CS2 chrome executor (the dropdown's popup list)\n");
+    printf("TEST: CS2 chrome executor (popup list / window chrome / hover)\n");
 
     test_chrome_cs2_dropdown_opens();
     test_chrome_cs2_dropdown_dismiss();
     test_chrome_cs2_dropdown_scrolls();
+    test_chrome_cs2_no_window_x();
+    test_chrome_cs2_row_lights_up();
 }

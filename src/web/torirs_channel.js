@@ -34,7 +34,16 @@
  * No build step, no imports: a plain script tag in both pages. It runs in the
  * page, not the wasm module, so a panel tab needs no second wasm instance.
  */
-(global => {
+
+/*
+ * One function wrapped around the file, because these load as plain <script>
+ * tags and classic scripts share a single global lexical scope -- this file and
+ * torirs_chrome.js both declare `INTENT`, which at top level is a SyntaxError
+ * that kills the page before the client boots. So the wrapper is the scope, and
+ * `global` is the window the exported hooks get hung on. Not a build artifact:
+ * there is no build step here, and nothing in this directory is minified.
+ */
+(function (global) {
   'use strict';
 
   /* ---- wire ------------------------------------------------------------- *

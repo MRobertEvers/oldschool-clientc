@@ -292,6 +292,73 @@ struct ToriRS_PluginObjSnap
     int element_id;
 };
 
+/** What a highlight item is attached to. @see ToriRS_PluginHighlightItem. */
+enum ToriRS_PluginHighlightKind
+{
+    TORIRS_PLUGIN_HL_TILE = 0,
+    TORIRS_PLUGIN_HL_NPC,
+    TORIRS_PLUGIN_HL_LOC,
+    TORIRS_PLUGIN_HL_OBJ
+};
+
+/**
+ * One thing the CACHE has asked to be marked, already resolved to something on
+ * the screen.
+ *
+ * The HIGHLIGHT_* opcode family (7000..7044) is how the settings panel's
+ * Activities category reaches this client: 125 clientscripts read a varbit and
+ * a colour row and describe a highlight GROUP, then name subjects for it --
+ * "every loc of type 23138", "the tile at this coord", "this npc". The engine
+ * keeps those groups and resolves them against live world state; what arrives
+ * here is the result, one item per thing to draw.
+ *
+ * A plugin reading this is implementing the client's own settings, not adding
+ * a feature: every appearance decision below was made by a cache script, and
+ * there is nothing here for a plugin to have an opinion about beyond how to
+ * put the pixels down.
+ */
+struct ToriRS_PluginHighlightItem
+{
+    /** enum ToriRS_PluginHighlightKind. */
+    int kind;
+    /** Scene element to outline, or -1 for a bare tile. */
+    int element_id;
+    /** ABSOLUTE tile of the SW corner, and the walked level. */
+    int tile_x;
+    int tile_z;
+    int level;
+    /** Footprint in tiles; 1x1 for a tile item. */
+    int size_x;
+    int size_z;
+    /** 0xRRGGBB, as the group's SETUP stated it. */
+    uint32_t rgb;
+    /** Fill alpha, 0..255 as the reference clamps it -- NOT a percent. The
+     *  call sites (30, 45, 50, 70, 100) are transparent washes. */
+    int opacity;
+    /** Outline thickness in pixels, 0/1/2. Zero means NO outline however the
+     *  outline flags read: the reference's predicates are
+     *  `(flags & bit) && thickness != 0`. */
+    int outline_width;
+    /** The group's flags OR'd with the subject's own. Bit 1 model outline,
+     *  2 tile outline, 4 model fill, 8 tile fill, 16 always on top,
+     *  64 minimap, 512 mouseover. */
+    int flags;
+    /** The subject's name, as the minimenu shows it; "" for a bare tile. */
+    char name[64];
+    /** SCENE-relative fine position, 128 per tile -- feed straight to
+     *  api->project. The tile above is absolute and the projector is not, and
+     *  a caller cannot convert between them without the scene base, which the
+     *  plugin layer deliberately does not expose. An npc's is its interpolated
+     *  draw position; everything else's is the centre of its anchor tile. */
+    int fine_x;
+    int fine_z;
+    /** Footprint anchor for an overhead: what api->element_height would answer
+     *  for `element_id`, or 0 when there is no element. Carried so a caller
+     *  drawing a label over a highlighted thing does not need a second call
+     *  per item. */
+    int overhead_height;
+};
+
 /* ------------------------------------------------------------------------ */
 /* Event payloads                                                            */
 /* ------------------------------------------------------------------------ */
@@ -669,6 +736,21 @@ struct ToriRS_PluginApi
         void* userdata);
     /** Prefixed with the plugin name; goes wherever the client's log goes. */
     void (*log)(struct ToriRS_PluginCtx* ctx, char const* fmt, ...);
+    /**
+     * Say something to the PLAYER, in the chatbox, as a game message.
+     *
+     * Not api->log, which goes to stderr and which nobody playing the game can
+     * see. Several of the client's own settings are worded as "a notification
+     * will be sent" -- the bird nest drop, the cannon running low, a trap
+     * finishing -- and a notification with nowhere to appear is the same as
+     * the setting doing nothing.
+     *
+     * A GAME message, the same type the server's own system lines use, so it
+     * filters and scrolls with them. There is deliberately no sender and no
+     * type argument: a plugin speaking as a player, or into the private-chat
+     * stream, would be putting words in someone's mouth.
+     */
+    void (*notify)(struct ToriRS_PluginCtx* ctx, char const* text);
 
     /* -- clocks -- */
 
@@ -697,6 +779,17 @@ struct ToriRS_PluginApi
      *  holds thousands of them, so a caller that wants one kind tests
      *  `loc_id` inside the walk rather than collecting the list first. */
     int (*loc_next)(struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginLocSnap* out);
+    /**
+     * What the cache has asked to be marked, resolved against live world
+     * state. Iterated like npc_next.
+     *
+     * The resolution is redone at the START of each walk -- pass -1 and the
+     * list is rebuilt -- so a walk is a consistent snapshot and two walks in
+     * one frame cost twice. One walk per frame, in EV_DRAW_WORLD, is the
+     * intended shape.
+     */
+    int (*highlight_next)(
+        struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginHighlightItem* out);
 
     /* -- input -- */
 

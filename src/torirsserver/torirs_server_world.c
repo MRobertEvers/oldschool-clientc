@@ -10535,6 +10535,32 @@ ToriRSServer_WorldLoginFinish(struct ToriRSServerPlayer* player)
     }
 
     /*
+     * Arm the client-side helpers the Activities settings are made of.
+     *
+     * Clientscript 4743 is the cache's own initialiser for that whole layer:
+     * it installs the CLIENTOP_* rows ("Mark tile", "Tag") and sets up every
+     * HIGHLIGHT_* group from its varbit -- the tile indicators, Agility
+     * obstacles, fishing spots, poll booths, the clue scroll helper. Nothing
+     * inside the cache calls it. Its two entry points are clientscript 876,
+     * which the reference server runs at login, and 5487, which takes no
+     * arguments and reaches it through 5488.
+     *
+     * 5487 is sent rather than 876 because 5488's body is a strict SUBSET of
+     * 876's -- 4743, 5325, 4560, all three of which 876 also calls -- while
+     * 876 additionally wants the login message's four arguments (a welcome
+     * line and a last-login stamp) that this server does not have. Sending
+     * 876 with invented arguments would arm the same layer and print a wrong
+     * welcome message beside it.
+     *
+     * Without this the whole Activities category is inert in a way that looks
+     * exactly like the client ignoring it: the panel's toggles write their
+     * varbits, and the scripts that read them never run. See
+     * NXT_CLIENT_PLUGINS.md.
+     */
+    if( srv->wire && srv->wire->revision >= 239 )
+        ToriRSServer_SendRunClientscript(player, 5487, NULL, 0);
+
+    /*
      * 3. What the item containers permit is content's.
      *
      * `~containers_login` and `~worn_tab_login` (player/containers.rs2) arm the

@@ -1731,6 +1731,39 @@ frame_loop_step(void)
             }
         }
 
+        /*
+         * TORIRS_SIM_KEYHOLD="<LibToriRS_KeyCode>[,<code>...]": press these
+         * keys once, on the first frame, and never release them.
+         *
+         * Exists for the click sims below, which have no way to say "with
+         * shift down" -- and shift is not a decoration on a right click, it is
+         * what makes a whole class of rows appear at all. The cache's own
+         * client ops ("Mark tile", "Tag") are shift-gated, and without this
+         * there is no headless way to reach one.
+         *
+         * Held rather than pulsed because `key_held` is sticky until a key-up
+         * (LibToriRS_Input_End): one press at the top of the run is the whole
+         * mechanism, and nothing here ever wants to let go.
+         */
+        {
+            static int keyhold_done = 0;
+            if( !keyhold_done && frame_count >= 1 )
+            {
+                char const* spec = getenv("TORIRS_SIM_KEYHOLD");
+                keyhold_done = 1;
+                while( spec && *spec )
+                {
+                    char* end = NULL;
+                    long code = strtol(spec, &end, 0);
+                    if( end == spec )
+                        break;
+                    CmdBus_PushKey(&bus, TORIRS_CMD_INPUT_KEY_DOWN, (uint8_t)code);
+                    fprintf(stderr, "sim_keyhold: holding key %ld\n", code);
+                    spec = (end && *end == ',') ? end + 1 : NULL;
+                }
+            }
+        }
+
         /* TORIRS_SIM_CLICK_AT="frame,x,y[,right][;frame,x,y...]":
          * inject a mouse click at the given main-loop frame — the
          * live-server harness (the pre-loop SIM_MOUSE_CLICK path runs

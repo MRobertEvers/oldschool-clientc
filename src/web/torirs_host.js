@@ -58,7 +58,15 @@
 // frame-gated fetch. The client supports both — PlatformX_IO_Pending is what
 // tells its scheduler whether a read is still outstanding.
 
-(() => {
+/*
+ * One function wrapped around the file, because these load as plain <script>
+ * tags and classic scripts share a single global lexical scope -- everything
+ * below would otherwise collide with the other two page scripts by name. Only
+ * `window.Module` leaves the wrapper, which is the whole interface torirs.js
+ * reads. Not a build artifact: there is no build step here, and nothing in this
+ * directory is minified.
+ */
+(function () {
   'use strict';
 
   const params = new URLSearchParams(window.location.search);

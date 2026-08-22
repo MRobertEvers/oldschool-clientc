@@ -2,6 +2,7 @@
 #define RS_CS2_HOST_H
 
 #include "cs2vm2/cs2vm2_host.h"
+#include "game/rs_clientop.h"
 #include "game/rs_highlight.h"
 #include "input/torirs_keymap.h"
 
@@ -381,6 +382,45 @@ struct RS_CS2Host
      * has no local player yet", which reads as no tile rather than as tile
      * zero. See CS2VM2_Op_Coord. */
     int local_coord;
+    /**
+     * Where the local player is WALKING to, packed the same way, or -1.
+     *
+     * Opcode 3330, and the destination-tile highlight's whole input:
+     * clientscript 5210 guards it as `if (_3330 ! null)` before marking the
+     * tile, so -1 has to mean "not walking anywhere" and not tile zero. The
+     * map flag is the source, exactly as it is for the plugin api's
+     * `dest_x`/`flag_x` -- the route queue trails behind the player and never
+     * holds the destination at all.
+     */
+    int dest_coord;
+
+    /**
+     * The tile the pointer is over, packed the same way, or -1.
+     *
+     * Backs `_6950` when no client op is being dispatched. That op is the
+     * "current tile target": during a client op it is the tile the row was
+     * built for, and outside one it is the mouseover -- clientscript 5197
+     * ("Highlight hovered tile") reads it with no client op in sight.
+     */
+    int hover_coord;
+
+    /**
+     * The three tile-highlight refresh scripts, by cache id.
+     *
+     * They take no arguments and read their subject from a var or an opcode --
+     * 5204 reads `coord`, 5210 reads `_3330`, 5197 reads `_6950` -- so the
+     * client's whole job is to RE-RUN each one when its subject changes.
+     * Nothing in the cache calls them; the reference client does, on the same
+     * three edges.
+     *
+     * Held here beside `script_settings_client_mode` for the same reason: a
+     * cache id this client has to know by number belongs in one place where it
+     * can be checked against the cache, not spelled inline at the call site.
+     */
+    int script_highlight_hover_tile;
+    int script_highlight_current_tile;
+    int script_highlight_dest_tile;
+
     /** The client canvas, and what GETCANVASSIZE / VIEWPORT_GETEFFECTIVESIZE
      *  return. One of three copies of the canvas size — write it through
      *  App_SetCanvasSize, never here, or the layout and the scripts that read it
@@ -455,6 +495,16 @@ struct RS_CS2Host
      * through the host request path, and the App reads it afterwards.
      */
     struct RS_HighlightState highlight;
+
+    /**
+     * The client-owned right-click rows the cache installed, and what the one
+     * being dispatched is about.
+     *
+     * The other half of the highlight story: the groups were being set up all
+     * along, and nothing was ever put in them because the scripts that do the
+     * putting read their subject out of here. See rs_clientop.h.
+     */
+    struct RS_ClientOpState clientop;
 
     int settings_action_id[RS_CS2_HOST_SETTINGS_ACTIONS_MAX];
     int settings_action_value[RS_CS2_HOST_SETTINGS_ACTIONS_MAX];

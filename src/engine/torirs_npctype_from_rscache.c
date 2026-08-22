@@ -83,6 +83,46 @@ torirs_npctype_copy_pairs_int(
     *dst_count = count;
 }
 
+
+/*
+ * The record's params (opcode 249), carried whole for CS2's `nc_param`.
+ *
+ * The rscache decoder has always parsed these; this conversion simply did not
+ * bring them across, so `nc_param` had nothing to read and no implementation. The
+ * cache's own "Highlight entities on mouse-over" (clientscript 5350) is what
+ * needs them: it reads `param_2312` off the hovered record to decide which
+ * highlight group the thing belongs in.
+ */
+static void
+torirs_npctype_copy_params(struct ToriRS_Npctype* dst, struct RSCache_Params const* src)
+{
+    assert(dst);
+    assert(src);
+    if( src->count <= 0 )
+        return;
+
+    dst->param_count = src->count;
+    dst->params = calloc((size_t)src->count, sizeof(*dst->params));
+    assert(dst->params);
+    for( int i = 0; i < src->count; i++ )
+    {
+        dst->params[i].key = src->keys[i];
+        if( src->kinds && src->kinds[i] == RSCACHE_PARAM_STRING )
+        {
+            char const* str = (char const*)src->values[i];
+            dst->params[i].string_value = strdup(str ? str : "");
+            assert(dst->params[i].string_value);
+        }
+        else if( src->values[i] )
+        {
+            if( src->kinds && src->kinds[i] == RSCACHE_PARAM_LONG )
+                dst->params[i].int_value = (int)*(int64_t*)src->values[i];
+            else
+                dst->params[i].int_value = *(int*)src->values[i];
+        }
+    }
+}
+
 struct ToriRS_Npctype*
 ToriRS_NpctypeFromRSCacheDat1(
     int npc_id,
@@ -335,10 +375,12 @@ ToriRS_NpctypeFromRSCacheDat2(
     /*
      * Client render hints ride the npc's params.
      *
-     * Only the keys the client actually reads are resolved here, into plain
-     * fields -- the whole table is not copied, because the client is not a
-     * script host and a param it does not know the meaning of is not data it
-     * can act on. A key the content never sets simply leaves its field at 0.
+     * The keys the client itself acts on are resolved here into plain fields,
+     * and the whole table is carried alongside for the SCRIPTS -- `nc_param`
+     * reads it by key. It used to be only the former, on the reasoning that
+     * "the client is not a script host"; it is one, and clientscript 5350 sorts
+     * hovered npcs into highlight groups by `param_2312`. A key the content
+     * never sets simply leaves its field at 0.
      */
     for( int i = 0; i < src->params.count; i++ )
     {
@@ -349,6 +391,8 @@ ToriRS_NpctypeFromRSCacheDat2(
         if( src->params.values[i] )
             npctype->zbuffer_model = *(int*)src->params.values[i];
     }
+    /* ... and the whole table, which the scripts read by key. */
+    torirs_npctype_copy_params(npctype, &src->params);
 
     /*
      * NpcType.multiNpc (opcode 106) -- a shell record with no model of its

@@ -308,6 +308,19 @@ struct ToriRS_Location
      *  ground item stacks on this loc's tile are drawn raised by the model
      *  height (Client-TS objRaise = minY). Defaulted in Dat2ConfigLocFinish. */
     int raiseobject;
+    /**
+     * The record's params (config opcode 249), as CS2's `%s` reads them.
+     *
+     * The WHOLE table, unlike the handful of keys this client resolves into
+     * plain fields. That distinction used to be the rule here -- "the client is
+     * not a script host, and a param it does not know the meaning of is not
+     * data it can act on" -- and it stopped being true: the client IS a script
+     * host, and clientscript 5350 reads `param_2312` off whatever the pointer
+     * is over to decide which highlight group it belongs in. A key the content
+     * never sets costs nothing; only records that carry params allocate.
+     */
+    struct ToriRS_Param* params;
+    int param_count;
 };
 
 /**
@@ -498,6 +511,19 @@ struct ToriRS_Npctype
     int transform_varp;
     int* transforms;
     int transform_count;
+    /**
+     * The record's params (config opcode 249), as CS2's `%s` reads them.
+     *
+     * The WHOLE table, unlike the handful of keys this client resolves into
+     * plain fields. That distinction used to be the rule here -- "the client is
+     * not a script host, and a param it does not know the meaning of is not
+     * data it can act on" -- and it stopped being true: the client IS a script
+     * host, and clientscript 5350 reads `param_2312` off whatever the pointer
+     * is over to decide which highlight group it belongs in. A key the content
+     * never sets costs nothing; only records that carry params allocate.
+     */
+    struct ToriRS_Param* params;
+    int param_count;
 };
 
 /* Spotanim (graphical effect) config — reference SpotType (config/SpotType.ts).

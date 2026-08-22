@@ -65,6 +65,14 @@ PlatformSDL2_NativeWindowHandle(struct PlatformSDL2* platform);
  */
 struct PlatformSDL2_AuxInput
 {
+    /*
+     * The pointer in the SURFACE's pixels, not in SDL's points.
+     *
+     * The chrome that reads this laid its panels out in the surface, at a scale
+     * the display's density chose, so that is the only space these can be in.
+     * The conversion happens in the pump, where the window's two sizes are
+     * known. @see aux_point_to_pixel.
+     */
     int mouse_x;
     int mouse_y;
     int mouse_down;
@@ -75,6 +83,8 @@ struct PlatformSDL2_AuxInput
     /** SDL scancode-derived editing key, or 0. @see PlatformSDL2_AuxEditKey. */
     int edit_key;
     int resized;
+    /** The new surface size, in PIXELS -- the drawable, not the points SDL's
+     *  own resize event carries. Feed it straight to PlatformSDL2_AuxResize. */
     int width;
     int height;
 };
@@ -108,7 +118,16 @@ enum PlatformSDL2_AuxEditKey
 bool
 PlatformSDL2_AuxTakeInput(struct PlatformSDL2* platform, struct PlatformSDL2_AuxInput* out);
 
-/** Open the aux window. @return false when this backend has none. */
+/**
+ * Open the aux window at `width` x `height` POINTS.
+ *
+ * Points, because the size asked for is a physical one -- how big the window
+ * should be on a desk. Its SURFACE comes up at the drawable, which on a
+ * HighDPI display is a multiple of that; ask PlatformSDL2_AuxWidth/Height for
+ * the size anything drawing into it must use.
+ *
+ * @return false when this backend has none.
+ */
 bool
 PlatformSDL2_AuxOpen(struct PlatformSDL2* platform, int width, int height, char const* title);
 
@@ -124,12 +143,16 @@ PlatformSDL2_AuxIsOpen(struct PlatformSDL2 const* platform);
 int*
 PlatformSDL2_AuxPixels(struct PlatformSDL2* platform);
 
+/** The SURFACE's size, in pixels -- the space its contents are laid out and
+ *  rasterised in, and the space every gesture above is reported in. Not the
+ *  window's size in points, which on a HighDPI display is smaller. */
 int
 PlatformSDL2_AuxWidth(struct PlatformSDL2 const* platform);
 int
 PlatformSDL2_AuxHeight(struct PlatformSDL2 const* platform);
 
-/** Resize the aux surface. @return false when it could not be resized. */
+/** Resize the aux surface, in PIXELS. @return false when it could not be
+ *  resized. */
 bool
 PlatformSDL2_AuxResize(struct PlatformSDL2* platform, int width, int height);
 

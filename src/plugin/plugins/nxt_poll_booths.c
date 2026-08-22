@@ -11,13 +11,25 @@
  *   "Highlight poll booths -- When enabled, poll booths will be highlighted
  *    when there is an active poll you have not voted in."
  *
- * The second half of that sentence is the SERVER's. Whether a poll is open and
- * whether this player has voted are facts only it holds; the client is told
- * neither, and there is no varbit in this cache that carries them. So the
+ * The varbit is INVERTED: `param_1084` is set on this row, so the checkbox
+ * shows `1 - varbit` and the feature is ON when `%varbit9538` reads 0.
+ * Clientscript 8319 agrees, and lights the booths on exactly that test.
+ *
+ * The second half of the sentence is the SERVER's. Whether a poll is open and
+ * whether this player has voted are facts only it holds -- 8319 reads
+ * `%varbit4337` for the first and this server never writes it -- so the
  * highlight here is unconditional while the setting is on, and the "you have
- * not voted" gate is a server feature that does not exist yet -- written down
- * rather than faked, because faking it would mean a booth that lights up
- * forever and a user who learns to ignore it.
+ * not voted" gate is a server feature that does not exist yet. Written down
+ * rather than faked: a booth that lights up forever teaches the user to
+ * ignore it.
+ *
+ * ---- why this is not the cache's job, yet ----
+ *
+ * The cache would do it: 8319 sets up loc highlight group 16 and 8320 puts
+ * each booth in it with `highlight_loc_on(_6802, _6801, 16, 1)`. But nothing
+ * in the cache CALLS 8320 -- it is invoked by the reference client when a loc
+ * comes into view, a per-loc hook this client does not raise -- so group 16 is
+ * set up and stays empty. Until that hook exists, this is the implementation.
  *
  * ---- found by NAME, not by an id list ----
  *
@@ -65,7 +77,9 @@ nxt_poll_booths_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     assert(ctx);
     assert(ev);
 
-    if( !g_api->varbit(ctx, NXT_VARBIT_POLL_BOOTHS) )
+    /* INVERTED -- see nxt_activities.h. Read the plain way this highlighted
+     * every booth in the game for anyone who had switched the setting OFF. */
+    if( !NXT_ON_INVERTED(g_api, ctx, NXT_VARBIT_POLL_BOOTHS) )
         return TORIRS_PLUGIN_PASS;
 
     for( ;; )

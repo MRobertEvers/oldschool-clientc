@@ -33,11 +33,35 @@
  * row's own default as its fallback. The NXT_COL_* values below ARE those
  * defaults (`param_1230`), so a colour never read as unset differs from the
  * panel's swatch.
+ *
+ * ---- HALF THESE VARBITS MEAN "OFF" ----
+ *
+ * `param_1084` is not a default. It is a DISPLAY INVERSION: the row builder
+ * (clientscript 3846) reads it into a boolean and, when it is set, draws the
+ * checkbox as `1 - varbit`. So for those rows a varbit of 0 is a TICKED box
+ * and a switched-ON feature, and the driving scripts agree --
+ * clientscript 6681 installs the tile-marker client op when `%varbit12342 = 0`,
+ * and 8319 lights the poll booths when `%varbit9538 = 0`.
+ *
+ * 30 of the 54 desktop toggles in this category are inverted and 24 are not,
+ * with no pattern to them, so every one below says which it is and is read
+ * through NXT_ON() or NXT_ON_INVERTED() rather than as a bare truth value.
+ * Reading an inverted row the plain way is a feature that is on exactly when
+ * the user asked for it to be off, which looks like it works until someone
+ * switches it off.
  */
+
+/** A PLAIN row: the varbit is the feature. */
+#define NXT_ON(api, ctx, varbit_id) ((api)->varbit((ctx), (varbit_id)) != 0)
+/** An INVERTED row (`param_1084 = 1`): the varbit is the feature's ABSENCE. */
+#define NXT_ON_INVERTED(api, ctx, varbit_id) ((api)->varbit((ctx), (varbit_id)) == 0)
 
 /* ---- General ----------------------------------------------------------- */
 
-/** "Tile highlighting": shift + right-click the ground to place a marker. */
+/** "Tile highlighting": shift + right-click the ground to place a marker.
+ *  INVERTED. Implemented entirely by the cache now -- clientscript 6681
+ *  installs the "Mark tile" client op and sets up highlight tile group 6 --
+ *  so nothing here reads it; it is listed to keep the table complete. */
 #define NXT_VARBIT_TILE_MARKERS 12342
 /** "Tile highlight colour". Default #00FF00. */
 #define NXT_VARP_TILE_MARKER_COLOR 3108
@@ -46,28 +70,28 @@
  *  Seen through EV_SETTING; see ToriRS_PluginEvSetting. */
 #define NXT_SETTING_CLEAR_TILE_MARKERS 117
 
-/** "Highlight entities on mouse-over". */
+/** "Highlight entities on mouse-over". PLAIN. No cache script drives it. */
 #define NXT_VARBIT_HOVER_ENTITY 13088
 
-/** "Highlight hovered tile" (+ always-on-top, + colour). Default #BEBA6E. */
+/** "Highlight hovered tile" (+ always-on-top, + colour). PLAIN. #BEBA6E. */
 #define NXT_VARBIT_HOVER_TILE 12977
 #define NXT_VARBIT_HOVER_TILE_ONTOP 12980
 #define NXT_VARP_HOVER_TILE_COLOR 3155
 #define NXT_COL_HOVER_TILE 0xBEBA6Eu
 
-/** "Highlight current tile". Default #9A9733. */
+/** "Highlight current tile". PLAIN. #9A9733. */
 #define NXT_VARBIT_CURRENT_TILE 12978
 #define NXT_VARBIT_CURRENT_TILE_ONTOP 12981
 #define NXT_VARP_CURRENT_TILE_COLOR 3156
 #define NXT_COL_CURRENT_TILE 0x9A9733u
 
-/** "Highlight destination tile". Default #A9A753. */
+/** "Highlight destination tile". PLAIN. #A9A753. */
 #define NXT_VARBIT_DEST_TILE 12979
 #define NXT_VARBIT_DEST_TILE_ONTOP 12982
 #define NXT_VARP_DEST_TILE_COLOR 3157
 #define NXT_COL_DEST_TILE 0xA9A753u
 
-/** "NPC highlight" and its seven qualifiers. */
+/** "NPC highlight" and its seven qualifiers. All PLAIN. */
 #define NXT_VARBIT_NPC_HIGHLIGHT 14168
 /** "- Display name": 0 off, 1 normal, 2 bold (enum_4604). */
 #define NXT_VARBIT_NPC_NAME 14169
@@ -88,7 +112,26 @@
 /** "NPC names text colour". Default #05F8F8. */
 #define NXT_VARP_NPC_NAMES_COLOR 3542
 
-/** "Highlight poll booths". */
+/* ---- Skills ------------------------------------------------------------ */
+
+/** "Bird nest notification". INVERTED -- struct_3737 carries `param_1084`. */
+#define NXT_VARBIT_BIRD_NEST 13087
+
+/* ---- Combat ------------------------------------------------------------ */
+
+/*
+ * The three cannon ammunition rows. The cache's own varbit names pin all of
+ * them: `cannon_low_notification_enabled`, `cannon_low_amount`,
+ * `cannon_no_ammo_notification_enabled`. Both toggles are PLAIN.
+ */
+#define NXT_VARBIT_CANNON_LOW_NOTIFY 14175
+#define NXT_VARBIT_CANNON_LOW_AMOUNT 14176
+#define NXT_VARBIT_CANNON_NO_AMMO_NOTIFY 14177
+
+/* ---- back to General --------------------------------------------------- */
+
+/** "Highlight poll booths". INVERTED -- clientscript 8319 lights them when
+ *  this reads 0, beside `%varbit4337` for "there is an active poll". */
 #define NXT_VARBIT_POLL_BOOTHS 9538
 
 /** The two three-way name/tile choices, which share their meaning across

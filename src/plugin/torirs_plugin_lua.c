@@ -545,6 +545,14 @@ lua_api_hover_entity(lua_State* L)
 }
 
 static int
+lua_api_notify(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    g_api->notify(script->cur_ctx, luaL_tolstring(L, 1, NULL));
+    return 0;
+}
+
+static int
 lua_api_varbit(lua_State* L)
 {
     struct LuaScript* script = lua_upvalue_script(L);
@@ -1269,6 +1277,7 @@ lua_build_api_table(struct LuaScript* script)
         { "key_held", lua_api_key_held },
         { "hover_tile", lua_api_hover_tile },
         { "hover_entity", lua_api_hover_entity },
+        { "notify", lua_api_notify },
         { "varbit", lua_api_varbit },
         { "varp", lua_api_varp },
         { "setting_color", lua_api_setting_color },

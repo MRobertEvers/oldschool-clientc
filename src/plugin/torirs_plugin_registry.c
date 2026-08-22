@@ -30,19 +30,19 @@ extern struct ToriRS_PluginDef const TORIRS_PLUGIN_LUA;
  * a builtin written against the same contract is proof the contract is wide
  * enough to write the client's own features in, rather than only the extras.
  */
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_TILE_INDICATOR;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_TILE_MARKERS;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_ENTITY_HOVER;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_NPC_HIGHLIGHT;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_HIGHLIGHT;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_NPC_NAMES;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_POLL_BOOTHS;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_BIRD_NEST;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_CANNON_AMMO;
 
 static struct ToriRS_PluginDef const* const PLUGIN_TABLE[] = {
     &TORIRS_PLUGIN_TILEIND,
-    &TORIRS_PLUGIN_NXT_TILE_INDICATOR,
-    &TORIRS_PLUGIN_NXT_TILE_MARKERS,
-    &TORIRS_PLUGIN_NXT_ENTITY_HOVER,
-    &TORIRS_PLUGIN_NXT_NPC_HIGHLIGHT,
+    &TORIRS_PLUGIN_NXT_HIGHLIGHT,
+    &TORIRS_PLUGIN_NXT_NPC_NAMES,
     &TORIRS_PLUGIN_NXT_POLL_BOOTHS,
+    &TORIRS_PLUGIN_NXT_BIRD_NEST,
+    &TORIRS_PLUGIN_NXT_CANNON_AMMO,
     &TORIRS_PLUGIN_LUA,
 };
 

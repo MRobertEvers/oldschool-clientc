@@ -467,13 +467,13 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	torirsmaped/torirs_maped.c torirsmaped/torirs_maped_buf.c \
 	torirsmaped/torirs_maped_cmdwire.c torirsmaped/torirs_maped_embed.c \
 	render/torirs_polygon.c \
-	game/rs_highlight.c \
+	game/rs_highlight.c game/rs_clientop.c \
 	plugin/torirs_plugin_host.c plugin/torirs_plugin_registry.c \
 	plugin/torirs_plugin_lua.c plugin/task_plugin_io.c \
 	plugin/plugins/tileind.c \
-	plugin/plugins/nxt_tile_indicator.c plugin/plugins/nxt_tile_markers.c \
-	plugin/plugins/nxt_entity_hover.c plugin/plugins/nxt_npc_highlight.c \
-	plugin/plugins/nxt_poll_booths.c \
+	plugin/plugins/nxt_npc_names.c \
+	plugin/plugins/nxt_poll_booths.c plugin/plugins/nxt_highlight.c \
+	plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
 	painters/painters.c \
 	painters/painters_cull_project.c \
 	painters/scene_occluders.c \
@@ -1446,6 +1446,26 @@ EDITOR_CACHE_DIR   ?= $(REPO_ROOT)/cache.osrs239
 # The plugin host against a FAKE engine -- no client, no cache, no window.
 # That standalone link is the whole reason the engine is a vtable, so keeping
 # this target buildable is what keeps the seam honest.
+# The cache's HIGHLIGHT_* family, as state. Pure data -- no VM, no client, no
+# cache. Every call in it is a real one lifted out of a decompiled clientscript,
+# because the failure this guards is not the bookkeeping but which argument slot
+# holds the group: three of the eight kinds put it somewhere different, and
+# reading the wrong one gives a plausible group number every time.
+test-highlight: $(OBJ_DIR) game/rs_highlight.c game/test/rs_highlight_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_highlight_test \
+		game/rs_highlight.c game/test/rs_highlight_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_highlight_test
+
+# The cache's CLIENTOP_* registry and its context getters. Pure data. Every
+# registration in it is a real one lifted out of a decompiled clientscript,
+# because the two things most likely to be wrong -- which KIND an opcode
+# belongs to, and whether a context getter answers when it should not -- both
+# show up only as "the row does nothing".
+test-clientop: $(OBJ_DIR) game/rs_clientop.c game/test/rs_clientop_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_clientop_test \
+		game/rs_clientop.c game/test/rs_clientop_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/rs_clientop_test
+
 # The Activities builtins, against the same fake engine. They are hidden
 # plugins with no roster row and no config page, so a broken one draws nothing
 # and looks exactly like a setting somebody left switched off -- which is what
@@ -1453,9 +1473,9 @@ EDITOR_CACHE_DIR   ?= $(REPO_ROOT)/cache.osrs239
 test-nxt-plugins: $(OBJ_DIR) plugin/test/nxt_activities_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/nxt_activities_test \
 		plugin/torirs_plugin_host.c ui/uitree_minimenu.c \
-		plugin/plugins/nxt_tile_indicator.c plugin/plugins/nxt_tile_markers.c \
-		plugin/plugins/nxt_entity_hover.c plugin/plugins/nxt_npc_highlight.c \
-		plugin/plugins/nxt_poll_booths.c \
+			plugin/plugins/nxt_npc_names.c \
+		plugin/plugins/nxt_poll_booths.c plugin/plugins/nxt_highlight.c \
+		plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
 		plugin/test/nxt_activities_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/nxt_activities_test
 
