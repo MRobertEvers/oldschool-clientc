@@ -362,6 +362,9 @@ osrs230_parse(
         if( len < 1 )
             return 0;
         text_len = len - 1;
+        /* The leading byte is the chat type. This revision's packet has no
+         * optional sender field, so `name` stays NULL. */
+        out->_message_game.type = data[0];
         out->_message_game.text = malloc((size_t)text_len + 1);
         assert(out->_message_game.text);
         memcpy(out->_message_game.text, data + 1, (size_t)text_len);

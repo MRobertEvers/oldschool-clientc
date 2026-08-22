@@ -804,7 +804,9 @@ gameproto_free(struct RevPacket* p)
         p->_if_settext.text = NULL;
         break;
     case PKT_NAME_MESSAGE_GAME:
+        free(p->_message_game.name);
         free(p->_message_game.text);
+        p->_message_game.name = NULL;
         p->_message_game.text = NULL;
         break;
     case PKT_NAME_MESSAGE_PRIVATE:

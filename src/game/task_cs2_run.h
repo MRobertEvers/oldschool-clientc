@@ -137,6 +137,17 @@ CreateTask_CS2MiscTransmitDispatch(struct RS_CS2Host* host);
 struct ToriRS_Task*
 CreateTask_CS2FriendTransmitDispatch(struct RS_CS2Host* host);
 
+/*
+ * Re-run every CC/IF_SETONCHATTRANSMIT hook: the chatbox scrollback.
+ *
+ * Same contract again — no trigger set — driven from RS_CS2_PumpTransmits when
+ * chat_transmit_dirty is set. This is the ONLY thing that draws a chat line at
+ * a cache revision: interface 162 ships 500 empty text components and the
+ * cache's own scripts fill them from the client's message store.
+ */
+struct ToriRS_Task*
+CreateTask_CS2ChatTransmitDispatch(struct RS_CS2Host* host);
+
 /** Re-run every stat-transmit hook whose trigger list names one of `stat_ids`
  *  (NULL/0 = every hook). The skill half of the var/inv reactive loop; the XP
  *  drop panel is its consumer. */

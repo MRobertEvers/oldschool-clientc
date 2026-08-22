@@ -1,5 +1,6 @@
 #include "game/rs_cs2_host.h"
 
+#include "game/rs_chat.h"
 #include "game/rs_loot_store.h"
 #include "game/rs_player_stats.h"
 #include "game/rs_social.h"
@@ -1109,6 +1110,30 @@ RS_CS2Host_NotifyFriendChanged(struct RS_CS2Host* host)
 {
     assert(host);
     host->friend_transmit_dirty = 1;
+}
+
+void
+RS_CS2Host_SetChat(
+    struct RS_CS2Host* host,
+    struct RS_Chat* chat)
+{
+    assert(host);
+    host->chat = chat;
+}
+
+void
+RS_CS2Host_ChatAdd(
+    struct RS_CS2Host* host,
+    int type,
+    char const* name,
+    char const* sender,
+    char const* text)
+{
+    assert(host);
+    if( !host->chat )
+        return;
+    RS_Chat_AddMessage(host->chat, type, name, sender, text, host->client_clock);
+    host->chat_transmit_dirty = 1;
 }
 
 /* Queue an outbound social request for the App to turn into a packet. */
@@ -5306,6 +5331,7 @@ rs_cs2_clear_reactive_hooks_at(
     UITree_HookClear(&hooks->on_inv_transmit);
     UITree_HookClear(&hooks->on_misc_transmit);
     UITree_HookClear(&hooks->on_friend_transmit);
+    UITree_HookClear(&hooks->on_chat_transmit);
     UITree_HookClear(&hooks->on_dialog_abort);
     UITree_HookClear(&hooks->on_resize);
     UITree_HookClear(&hooks->on_sub_change);
@@ -5755,6 +5781,9 @@ rs_cs2_runtime_hook_slot(
     case CS2VM_HOST_REQUEST_IF_SETONFRIENDTRANSMIT:
     case CS2VM_HOST_REQUEST_CC_SETONFRIENDTRANSMIT:
         return &hooks->on_friend_transmit;
+    case CS2VM_HOST_REQUEST_IF_SETONCHATTRANSMIT:
+    case CS2VM_HOST_REQUEST_CC_SETONCHATTRANSMIT:
+        return &hooks->on_chat_transmit;
     default:
         return NULL;
     }
@@ -6958,6 +6987,133 @@ exec_chat(
         rs_cs2_social_send_push(host, &send);
         return CS2VM_EXECNO_OK;
     }
+
+    /* ---- history ------------------------------------------------------
+     *
+     * The chatbox's whole data source. `[proc,rebuildchatbox]` asks
+     * `[proc,script553]` for the newest uid (sweeping every chat type with
+     * GETHISTORYLENGTH + GETHISTORYEX_BYTYPEANDLINE), then walks backwards
+     * with GETPREVUID, reading each node with GETHISTORYEX_BYUID and writing
+     * one line component per message that passes its own filters.
+     *
+     * A NULL store is a run with no chatbox (a headless harness), and the
+     * answers below are the same ones the reference gives for a message that
+     * has fallen out of its ring: an empty history rather than a refusal. */
+    case CS2_OP_CHAT_GETHISTORYLENGTH:
+        return CS2VM2_PushInt(vm, host->chat ? RS_Chat_TypeCount(host->chat, req->type) : 0);
+
+    case CS2_OP_CHAT_GETNEXTUID:
+        return CS2VM2_PushInt(vm, host->chat ? RS_Chat_NextUid(host->chat, req->uid) : -1);
+
+    case CS2_OP_CHAT_GETPREVUID:
+        return CS2VM2_PushInt(vm, host->chat ? RS_Chat_PrevUid(host->chat, req->uid) : -1);
+
+    case CS2_OP_CHAT_GETHISTORY_BYUID:
+    case CS2_OP_CHAT_GETHISTORY_BYTYPEANDLINE:
+    case CS2_OP_CHAT_GETHISTORYEX_BYUID:
+    case CS2_OP_CHAT_GETHISTORYEX_BYTYPEANDLINE:
+    {
+        int const by_uid = req->opcode == CS2_OP_CHAT_GETHISTORY_BYUID ||
+                           req->opcode == CS2_OP_CHAT_GETHISTORYEX_BYUID;
+        int const extended = req->opcode == CS2_OP_CHAT_GETHISTORYEX_BYUID ||
+                             req->opcode == CS2_OP_CHAT_GETHISTORYEX_BYTYPEANDLINE;
+        struct RS_ChatNode const* node = NULL;
+
+        if( host->chat )
+            node = by_uid ? RS_Chat_NodeByUid(host->chat, req->uid)
+                          : RS_Chat_NodeByTypeAndLine(host->chat, req->type, req->line);
+
+        /*
+         * Six values, or eight for the `ex` forms:
+         *
+         *   0  the OTHER handle -- the by-uid forms return the type, the
+         *      by-type-and-line forms return the uid. They are the same
+         *      tuple otherwise, and getting this one backwards puts a chat
+         *      type where a script expects a message handle.
+         *   1  clock          the client cycle the message arrived on
+         *   2  name           printable sender, "" for a system line
+         *   3  sender         the account friend/ignore is keyed on
+         *   4  text           the message
+         *   5  friend state   1 friend, 2 ignored, 0 neither  (ex only)
+         *   6  ""             reserved at this revision       (ex only)
+         *   7  0              reserved at this revision       (ex only)
+         *
+         * A missing message answers (-1, 0, "", "", "", 0, "", 0) rather than
+         * failing: the walk reads a uid it was handed one call earlier, and a
+         * message can fall out of its ring in between.
+         */
+        if( CS2VM2_PushInt(vm, node ? (by_uid ? node->type : node->uid) : -1) !=
+            CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PushInt(vm, node ? node->clock : 0) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, node ? node->name : "")) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, node ? node->sender : "")) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, node ? node->text : "")) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( !extended )
+            return CS2VM_EXECNO_OK;
+        if( CS2VM2_PushInt(vm, node ? RS_Chat_NodeFriendState(node, host->social) : 0) !=
+            CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm)) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        return CS2VM2_PushInt(vm, 0);
+    }
+
+    /* ---- client-side chat settings ------------------------------------ */
+
+    case CS2_OP_CHAT_SETMESSAGEFILTER:
+        /* The public-chat search box above the tabs. Client state: the
+         * chatbox script reads it back and drops lines that do not match. */
+        if( host->chat )
+        {
+            snprintf(
+                host->chat->message_filter,
+                sizeof(host->chat->message_filter),
+                "%s",
+                req->text ? req->text : "");
+            /* A filter change re-selects which lines are visible, so the
+             * scrollback has to be rebuilt -- the same channel a new message
+             * uses, because it is the same redraw. */
+            host->chat_transmit_dirty = 1;
+        }
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_CHAT_GETMESSAGEFILTER:
+        if( host->chat && host->chat->message_filter[0] )
+            return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, host->chat->message_filter));
+        return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
+
+    case CS2_OP_CHAT_SETTIMESTAMPS:
+        if( host->chat )
+        {
+            host->chat->timestamps = req->timestamps;
+            host->chat_transmit_dirty = 1;
+        }
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_CHAT_GETTIMESTAMPS:
+        return CS2VM2_PushInt(vm, host->chat ? host->chat->timestamps : 0);
+
+    case CS2_OP_CHAT_SENDCLAN:
+        /* No clan channel at this client. The arguments are popped by the VM
+         * so the stack stays balanced; there is nowhere to send them. */
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_MES:
+        /* A script's own line, on the game channel -- `mes` is how the
+         * cache's scripts talk to the player, and it lands in the same store
+         * as a server message and wakes the same rebuild. */
+        RS_CS2Host_ChatAdd(host, RS_CHAT_TYPE_GAME, NULL, NULL, req->text ? req->text : "");
+        return CS2VM_EXECNO_OK;
+
+    case CS2_OP_STAFFMODLEVEL:
+        /* No staff accounts here: the chatbox asks before offering the moderator
+         * options on a line, and 0 is "an ordinary player". */
+        return CS2VM2_PushInt(vm, 0);
 
     default:
         assert(0 && "exec_chat: unexpected opcode");
@@ -8416,6 +8572,10 @@ rs_cs2_host_exec_dispatch(
         /* The friends/ignore panels' only repaint trigger. Walked by
          * CreateTask_CS2FriendTransmitDispatch. */
         return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_friend_transmit);
+    case CS2VM_HOST_REQUEST_IF_SETONCHATTRANSMIT:
+        /* The chatbox's only repaint trigger -- the cache's own scripts own
+         * every line in it. Walked by CreateTask_CS2ChatTransmitDispatch. */
+        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_friend_transmit);
     case CS2VM_HOST_REQUEST_CC_SETONCLICK:
     case CS2VM_HOST_REQUEST_CC_SETONHOLD:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSEOVER:
@@ -8424,6 +8584,7 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_CC_SETONRELEASE:
     case CS2VM_HOST_REQUEST_CC_SETONDIALOGABORT:
     case CS2VM_HOST_REQUEST_CC_SETONFRIENDTRANSMIT:
+    case CS2VM_HOST_REQUEST_CC_SETONCHATTRANSMIT:
     case CS2VM_HOST_REQUEST_CC_SETONTARGETENTER:
     case CS2VM_HOST_REQUEST_CC_SETONTARGETLEAVE:
     case CS2VM_HOST_REQUEST_CC_SETONOP:

@@ -702,7 +702,7 @@ app_plugin_notify(void* user, char const* text)
     struct App* app = (struct App*)user;
     assert(app);
     assert(text);
-    RS_Chat_AddMessage(&app->chat, RS_CHAT_TYPE_GAME, NULL, text);
+    RS_CS2Host_ChatAdd(&app->host, RS_CHAT_TYPE_GAME, NULL, NULL, text);
 }
 
 static int

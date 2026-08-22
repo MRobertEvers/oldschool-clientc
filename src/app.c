@@ -109,12 +109,35 @@ EM_JS(void, web_editor_open_panel_tab, (void), {
 #include <stdlib.h>
 #include <string.h>
 
+/*
+ * Developer hotkeys hold CTRL.
+ *
+ * Because the game's own keys are not the client's to intercept. Every key
+ * event goes to every registered onKey hook and the cache's scripts decide
+ * what to do with it -- that is the reference client's dispatch, and it means
+ * a bare `p` is a letter somebody is typing into the chat line, not a request
+ * to open the debug overlay. The client used to know better by tracking chat
+ * focus itself, which took naming the chatbox's interface id.
+ *
+ * The modifier applies in every era rather than only where a cache chatbox
+ * exists: one rule the muscle memory can hold, and a dat1 boot has a chat line
+ * to type into as well.
+ */
+static int
+app_debug_modifier_held(struct LibToriRS_Input* input)
+{
+    assert(input);
+    return LibToriRS_Input_IsKeyHeld(input, TORIRSK_CTRL);
+}
+
 static struct AppDebugHotkeyBinding const*
 app_debug_binding_down(
     struct App const* app,
     struct LibToriRS_Input* input,
     enum AppDebugHotkey target)
 {
+    if( !app_debug_modifier_held(input) )
+        return NULL;
     for( int i = 0; i < app->cfg.debug_hotkey_count; i++ )
         if( app->cfg.debug_hotkeys[i].target == target &&
             LibToriRS_Input_IsKeyDown(input, app->cfg.debug_hotkeys[i].key) )
@@ -137,6 +160,8 @@ app_debug_key_held(
     struct LibToriRS_Input* input,
     enum AppDebugHotkey target)
 {
+    if( !app_debug_modifier_held(input) )
+        return 0;
     for( int i = 0; i < app->cfg.debug_hotkey_count; i++ )
         if( app->cfg.debug_hotkeys[i].target == target &&
             LibToriRS_Input_IsKeyHeld(input, app->cfg.debug_hotkeys[i].key) )
@@ -241,22 +266,13 @@ app_chat_region(
     return 1;
 }
 
-/* Component id of a chatbox child, for the revisions whose chatbox is widgets. */
-static int
-app_chatbox_uid(
-    struct App const* app,
-    int child)
-{
-    return (app->cfg.chatbox.interface_id << 16) | (child & 0xffff);
-}
-
 /* True when a canvas-space point lands inside the chat region's bounds. Used to
  * decide chat input focus on a left click.
  *
- * Both eras answer it, because focus is not a dat1 idea: a revconfig tree tags
- * its chat region with a slot (`slots.chat_index`), and a cache tree has the
- * chatbox interface's own root instead (rev 230: 162:0, the node whose onKey
- * hook is the typed line). Only one of the two exists in any given boot. */
+ * A revconfig (dat1) idea only: that tree tags its chat region with a slot, and
+ * paints the messages into it itself. A cache tree has no chat *region* at all
+ * -- its chatbox is an interface whose own onKey hook is the typed line, and
+ * which the client does not route keys for. */
 static int
 app_point_in_chat(
     struct App const* app,
@@ -267,8 +283,6 @@ app_point_in_chat(
     int32_t idx = app->slots.chat_index;
     int bx = 0, by = 0, bw = 0, bh = 0;
 
-    if( idx < 0 && RS_ChatWidgets_Enabled(&app->cfg.chatbox) )
-        idx = UITree_FindByComponentId(app->tree, app_chatbox_uid(app, 0));
     if( idx < 0 )
         return 0;
     node = &app->tree->components[idx];
@@ -349,51 +363,7 @@ app_chrome_holds_keyboard(struct App const* app)
 }
 
 /*
- * The unfocused chat line.
- *
- * The focused line ends in the reference's `*` caret; this one ends in an
- * ellipsis and says what to press, because "no caret" on its own is a
- * difference nobody reads — the symptom players report is that typing does
- * nothing, not that a character is missing. The colour is a muted grey against
- * the chatbox's tan, so the prompt reads as chrome rather than as a message
- * somebody sent.
- */
-#define APP_CHAT_PROMPT_TEXT "<col=4a443a>Press Enter to chat...</col>"
-
-/*
- * Paint the prompt over the script-owned input line while the chat is
- * unfocused (see RS_ChatWidgetLayout.prompt_child).
- *
- * Every frame rather than once on the focus edge: while unfocused the cache can
- * still rewrite that component for its own reasons — the filter tabs recompose
- * the line to change the mode icon — and a one-shot write would be silently
- * undone by the next one of those. The text is compared first, so the ordinary
- * case is a read and the tree is not marked dirty 50 times a second.
- */
-static void
-app_chat_prompt_apply(struct App* app)
-{
-    struct UITreeComponent const* node;
-    int32_t idx;
-    int uid;
-
-    assert(app);
-    if( app->cfg.chatbox.prompt_child < 0 || app->chat_input_active )
-        return;
-
-    uid = app_chatbox_uid(app, app->cfg.chatbox.prompt_child);
-    idx = UITree_FindByComponentId(app->tree, uid);
-    if( idx < 0 )
-        return;
-    node = &app->tree->components[idx];
-    if( node->type == UIELEM_RS_TEXT && node->u.rs_text.text &&
-        strcmp(node->u.rs_text.text, APP_CHAT_PROMPT_TEXT) == 0 )
-        return;
-    UITree_ApplyText(app->tree, uid, APP_CHAT_PROMPT_TEXT);
-}
-
-/*
- * Chat input focus, for the frame.
+ * Chat input focus, for the frame. A dat1/revconfig idea only.
  *
  * Runs ahead of the keyboard broadcast so the frame's keys are routed by a
  * focus state this frame's clicks and Enter have already been folded into,
@@ -403,6 +373,15 @@ app_chat_prompt_apply(struct App* app)
  * by clicking anywhere else, by Escape, and by sending the line. Which is the
  * whole point of the state: while it is off every key belongs to the hotkeys,
  * and while it is on none of them do.
+ *
+ * A CACHE revision has none of this, and that is the reference client's own
+ * answer rather than a gap: it has no press-enter-to-chat, no focused/unfocused
+ * chat line and no client-side routing of keys to the chatbox. Every key goes
+ * to every registered onKey hook and the cache's scripts decide -- script 73
+ * takes the typed line, script 905 takes the F-key tab switches, and a panel
+ * search box takes the keyboard by disarming the chatbox's hook. The gate is
+ * `slots.chat_index`, the revconfig-declared chat region, because a client that
+ * paints its own chatbox is exactly the client that has to own focus for it.
  *
  * @param pointer_consumed an open minimenu already claimed this frame's press.
  * @param out_submit set when Enter arrived with the line focused — the line
@@ -428,6 +407,8 @@ app_chat_focus_tick(
     assert(out_submit);
     *out_submit = 0;
 
+    if( app->slots.chat_index < 0 )
+        return 0;
     /* The loc editor took W/A/S/D/R/Space/Backspace for the frame and has
      * already forced the focus flags off; do not hand them back under it. */
     if( app->locedit_visible )
@@ -472,71 +453,29 @@ app_chat_focus_tick(
     }
 
     if( app->chat_input_active != was_focused )
-    {
         app->need_redraw = 1;
-        /* Focus regained: undo the prompt by asking the era's own script to
-         * recompose the line from the input state it keeps (rev 230: 223 out of
-         * %varcstring335). Enqueued like any other clientscript; the frame's
-         * pump runs it. */
-        if( app->chat_input_active && app->cfg.chatbox.input_script > 0 )
-            RS_CS2_RunScript(
-                &app->host, &app->runner, app->cfg.chatbox.input_script, NULL, 0, 0, NULL, 0);
-    }
     return suppress;
-}
-
-/*
- * May this component's onKey hook see the frame's typed keys?
- *
- * The chatbox's hook (script 73 at rev 230) is the typed line itself, so it
- * sees a key only while the line has focus — otherwise every keystroke lands in
- * a line the player is not looking at, which is what the chatbox used to do.
- * Everything else is the mirror image: while the line has focus no other onKey
- * runs, and the gameframe's key handler (script 905, the one that switches
- * tabs) is the reason that matters.
- *
- * Revisions with no widget chatbox have neither hook and gate nothing.
- */
-static int
-app_key_target_accepts(
-    struct App const* app,
-    int com_id,
-    int chat_keys_suppressed)
-{
-    assert(app);
-    if( !RS_ChatWidgets_Enabled(&app->cfg.chatbox) )
-        return 1;
-    if( ((com_id >> 16) & 0xffff) == app->cfg.chatbox.interface_id )
-        return app->chat_input_active && !chat_keys_suppressed;
-    return !app->chat_input_active;
 }
 
 /*
  * Rebuild the chat presentation (called before every emit).
  *
- * Two shapes, one per era, and only one of them is live in any given boot. A
- * revision whose chatbox is *widgets* (rev 230's interface 162, declared in the
- * manifest's `[ui:chatbox]`) has its 500 line components written; a revision
- * whose chatbox is a *surface* has the flattened draw view rebuilt for
- * `emit_chat`. See rs_chat_widgets.h for why they cannot be the same code.
+ * One shape, and it belongs to the eras whose chatbox is a *surface* the client
+ * paints: a revconfig tree reserves a region, tags it with a slot, and this
+ * flattens the message list into it for `emit_chat`.
  *
- * The widget path returns early rather than falling through: a dat2 tree has no
- * chat *region* either, so the surface path below would zero the view and, more
- * to the point, running both would draw the messages twice.
+ * A cache revision has no chat region and nothing here to do. Its chatbox is
+ * interface 162 -- 500 text components inside a scrolling layer -- and the
+ * cache's own `[proc,rebuildchatbox]` writes every one of them, off the
+ * chat-transmit hook, reading the same message store through the
+ * CHAT_GETHISTORY* opcodes. The client used to write those components itself
+ * from here, which meant it had to be told which components they were.
  */
 static void
 app_chat_build_view(struct App* app)
 {
     struct RS_ChatFilters filters = app_chat_filters(app);
     int font_id = 1;
-
-    if( RS_ChatWidgets_Enabled(&app->cfg.chatbox) )
-    {
-        RS_ChatWidgets_Apply(app->tree, &app->chat, &filters, &app->cfg.chatbox);
-        app_chat_prompt_apply(app);
-        memset(&app->chat_view, 0, sizeof(app->chat_view));
-        return;
-    }
 
     if( !app_chat_region(app, NULL, NULL, &font_id) )
     {
@@ -3863,6 +3802,42 @@ app_client_triggers_world_loaded(struct App* app)
     }
 }
 
+/**
+ * Re-fire every ADD trigger for everything already in the world.
+ *
+ * For a tree rebuild, which is the one event that destroys a scripted overlay
+ * without destroying its subject. See App::client_trigger_overlay_com.
+ *
+ * The overlay records go first: their `component_id`s name nodes that no
+ * longer exist, and a GET op answering "you already have one" would stop the
+ * script rebuilding it.
+ */
+static void
+app_client_triggers_refire(struct App* app)
+{
+    struct World_EntityPool* pool;
+
+    assert(app);
+
+    if( !app->world || !app->provider )
+        return;
+
+    RS_OverlayReset(&app->host.overlay);
+    app_client_triggers_world_loaded(app);
+
+    pool = &app->world->entities.npc;
+    for( int i = World_EntityPoolHead(pool); i != WORLD_ENTITY_NIL;
+         i = World_EntityPoolNext(pool, i) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, i);
+        /* An npc with no server slot has no uid for an overlay to key on --
+         * offline debug spawns, and npcs mid-sync. The next NPC_INFO gives it
+         * one and App_ClientTriggerNpcAdd fires there. */
+        if( npc && npc->server_slot >= 0 )
+            app_client_trigger_npc(app, npc, RS_TRIGGER_NPC_ADD);
+    }
+}
+
 /*
  * ---------------------------------------------------------------------------
  * Scripted entity overlays (game/rs_entity_overlay.h).
@@ -4060,6 +4035,16 @@ app_entity_overlay_layout(struct App* app)
     if( parent < 0 )
         return;
 
+    /* A rebuilt tree took every overlay layer with it (see
+     * App::client_trigger_refire_pending). The sweep below sets the flag when
+     * it finds an overlay whose layer is gone; it is acted on here, before the
+     * sweep, so the refire happens outside the walk it would invalidate. */
+    if( app->client_trigger_refire_pending )
+    {
+        app->client_trigger_refire_pending = 0;
+        app_client_triggers_refire(app);
+    }
+
     /* The parent IS the world rect: it is what clips the overlays (see
      * UITree_ComponentClipsChildren), and the App is the only thing that knows
      * the rect. A tree whose world has not been emitted yet has no rect and so
@@ -4119,7 +4104,13 @@ app_entity_overlay_layout(struct App* app)
 
         int32_t const node = UITree_FindByComponentId(app->tree, item->component_id);
         if( node < 0 )
+        {
+            /* The layer is gone but the record is not: a tree rebuild. Every
+             * overlay is in the same state, so this is raised once and acted
+             * on at the top of the next pass. */
+            app->client_trigger_refire_pending = 1;
             continue;
+        }
 
         struct UITreeComponent* c = &app->tree->components[node];
         int const w = c->position.width;
@@ -7338,6 +7329,10 @@ App_Init(
      * cycles, handed over by pointer so there is only ever one copy. */
     RS_CS2Host_SetSocial(
         &app->host, &app->social, app->slots.chat_filter_mode, app->social.node_id);
+    /* The chatbox at a cache revision is 500 text components the cache's own
+     * scripts fill, and they read every line back through the CHAT_GETHISTORY*
+     * opcodes. This is what those read. */
+    RS_CS2Host_SetChat(&app->host, &app->chat);
     RS_CS2Host_SetBridge(&app->host, &app->bridge);
     /* Close the reactive loop: a varp update from the *server* flags a
      * var-transmit re-dispatch on the host, so interfaces react to value changes
@@ -7797,6 +7792,8 @@ App_Shutdown(struct App* app)
     UITree_EmitBufferFree(&app->emit);
     RS_WorldMapRender_Free(app->worldmap_render);
     app->worldmap_render = NULL;
+    /* Before the host, which points at it. */
+    RS_Chat_Free(&app->chat);
     RS_CS2Host_Free(&app->host);
     if( app->painter_buffer )
     {
@@ -9960,8 +9957,15 @@ Task_AppBoot_Run(
      * and the first click on it is a genuine unmute.
      *
      * These are ordinary player varps, so a server that sends VARP_SMALL/LARGE
-     * for them overwrites this — which is the right precedence. It matters only
-     * where nothing does, which is every standalone boot and ToriRSServer today.
+     * for them overwrites this — which is the right precedence, and ToriRSServer
+     * now exercises it: [proc,settings_audio_login] seeds and transmits all four
+     * on every login, because a reference client has no seeding of its own and
+     * the gameframe root's onload (clientscript 876 -> 4618) applies the varps
+     * OVER the client's 127/127/127/100 defaults. An untransmitted zero there is
+     * silence, and the rev-239 MIDI_SONG handler drops the packet outright while
+     * the music volume is zero — the whole music path was unreachable in
+     * RuneLite for exactly that reason. So what is seeded here is the
+     * pre-login default and nothing more.
      *
      * Optimistic (not the server setter) so the ChangeFn runs and the host
      * snapshot stays in agreement with the varps; and before the tree is built,
@@ -10299,16 +10303,27 @@ Task_OpenSubRefresh_Run(
     }
     else
     {
-        /* IF_CLOSESUB: for most slots, hide the outgoing group the way a
-         * replacing mount does (hide + hide_unmounted on its roots —
-         * task_interface_open step 4, which the next mount of that group
-         * knows how to undo), then drop the mount record. chatbox:chatmodal
-         * is the exception — dialogue packs reclaim instead of hide so
-         * alternating chat_left/chat_right cannot leave shadowed text.
-         * Hiding the SLOT here was wrong: nothing ever un-hides a slot, so
-         * after one close every later mount into it — the same panel
-         * reopened, or a different one — laid out and never drew. The mount
-         * task asserts interface_id>0, so a close never routes through it. */
+        /* IF_CLOSESUB: reclaim the outgoing group, then drop the mount record.
+         *
+         * This is the reference client's rule, and it has no per-slot cases in
+         * it: `method9520` closes a sub-interface by unloading the whole widget
+         * group (class304.method7206 nulls every Widget and clears the loaded
+         * flag), and the single exemption lives on the OPEN side — a group
+         * being moved to another slot is not unloaded. So a close always
+         * reclaims here.
+         *
+         * The version before this hid the group instead (hide +
+         * hide_unmounted on its roots) so the next mount could reuse the bake,
+         * with `chatbox:chatmodal` carved out because alternating
+         * chat_left/chat_right left shadowed text that IF_SETTEXT then
+         * updated instead of the live copy. That carve-out was the
+         * optimisation admitting it was wrong; reclaiming everywhere is both
+         * the parity behaviour and one rule instead of two.
+         *
+         * Hiding the SLOT here was wrong in an earlier version still: nothing
+         * ever un-hides a slot, so after one close every later mount into it
+         * laid out and never drew. The mount task asserts interface_id>0, so
+         * a close never routes through it. */
         {
             struct timespec close_t0;
             struct timespec close_t1;
@@ -10319,41 +10334,11 @@ Task_OpenSubRefresh_Run(
             if( rec >= 0 )
             {
                 int old_group = app->tree->interface_parents[rec].group_id;
+                struct UITreeNodeSet const* gset = UITree_GroupNodes(app->tree, old_group);
                 UITreeIfaceStats_NoteClose(old_group);
-                if( self->target_uid == UITREE_CHATBOX_CHATMODAL_UID )
-                {
-                    /* Dialogue packs alternate in chatmodal (chat_left /
-                     * chat_right). Hide-reuse leaves baked strings that
-                     * shadow FindByComponentId / remount. Reclaim so the
-                     * next open fresh-bakes; App_IfTextSet reapplies. */
-                    UITree_ReclaimInterfaceGroup(app->tree, old_group);
-                }
-                else
-                {
-                    struct UITreeNodeSet const* gset = UITree_GroupNodes(app->tree, old_group);
-                    int gi;
-                    TORIRS_PERF_COUNT(
-                        TORIRS_PERF_CTR_IFACE_GROUP_SCAN_NODES, gset ? (int64_t)gset->count : 0);
-                    if( gset )
-                    {
-                        for( gi = 0; gi < gset->count; gi++ )
-                        {
-                            int32_t idx = gset->slots[gi];
-                            struct UITreeComponent* c;
-                            assert(idx >= 0 && (uint32_t)idx < app->tree->component_count);
-                            c = &app->tree->components[idx];
-                            if( c->freed || c->component_id < 0 )
-                                continue;
-                            if( c->parent >= 0 &&
-                                ((app->tree->components[c->parent].component_id >> 16) & 0xffff) ==
-                                    old_group )
-                                continue;
-                            if( !c->behavior.hide )
-                                c->behavior.hide_unmounted = 1;
-                            c->behavior.hide = 1;
-                        }
-                    }
-                }
+                TORIRS_PERF_COUNT(
+                    TORIRS_PERF_CTR_IFACE_GROUP_SCAN_NODES, gset ? (int64_t)gset->count : 0);
+                UITree_ReclaimInterfaceGroup(app->tree, old_group);
                 RS_CS2Host_ClearHooksForInterfaceGroup(&app->host, old_group);
             }
             UITree_InterfaceParentClear(app->tree, self->target_uid);
@@ -11802,11 +11787,19 @@ app_logic_tick(struct App* app)
                 }
             }
 
-            snprintf(
-                app->host.clientop.mouseover_target,
-                sizeof(app->host.clientop.mouseover_target),
-                "%s",
-                mo.name);
+            /*
+             * MINIMENU_ENTRY is deliberately NOT written here.
+             *
+             * This block answers "what is under the pointer" for the target
+             * getters and the highlighters, which is not the same question as
+             * "what would the menu act on": a pick can name an entity whose row
+             * lost the priority sort, or one left in a pickset the menu no
+             * longer builds a row for. Publishing the pick's name as the
+             * mouseover TARGET therefore put a subject in the tooltip that the
+             * hover line disagreed with -- measured, an idle pointer over open
+             * ground drew "Walk here" on the line and " Hans" in the tooltip.
+             * app_hover_text_update owns the entry, off the menu it composes.
+             */
             app->host.clientop.menu_open = app->interact.minimenu.visible;
             RS_ClientOpMouseoverSet(&app->host.clientop, &mo, minimenu_type);
 
@@ -12003,7 +11996,8 @@ app_logic_tick(struct App* app)
                     char shown[RS_SOCIAL_NAME_LEN];
 
                     RS_Social_DisplayName(send.name, shown, (int)sizeof(shown));
-                    RS_Chat_AddMessage(&app->chat, RS_CHAT_TYPE_PRIVATE_TO, shown, send.text);
+                    RS_CS2Host_ChatAdd(
+                        &app->host, RS_CHAT_TYPE_PRIVATE_TO, shown, send.name, send.text);
                 }
                 app->need_redraw = 1;
                 break;
@@ -19866,6 +19860,41 @@ app_minimenu_selection(struct App const* app)
 }
 
 /*
+ * MINIMENU_ENTRY (7101) and MINIMENU_NUMOPS (7110), from the menu the hover
+ * line was composed from.
+ *
+ * The acting row is the LAST one after the priority sort -- the same row
+ * UIHoverText_Compose draws -- and `option_count - 1` is the reference's
+ * numops, which excludes Cancel. `menu` NULL means the pointer is on nothing
+ * the menu speaks for (popup open, off canvas): entry empty, numops 0, which
+ * is what 4726 bails on.
+ *
+ * The whole row goes in the OP and the target is left empty. See
+ * RS_ClientOpState::mouseover_op for why the halves cannot be split back apart
+ * here, and for the tooltip-width bug an empty op caused.
+ */
+static void
+app_minimenu_entry_publish(
+    struct App* app,
+    struct UIMinimenu const* menu)
+{
+    struct RS_ClientOpState* clientop = &app->host.clientop;
+    int const num_ops = menu ? menu->option_count - 1 : 0;
+
+    assert(app);
+
+    clientop->mouseover_op[0] = '\0';
+    clientop->mouseover_target[0] = '\0';
+    clientop->mouseover_opcount = num_ops > 0 ? num_ops : 0;
+    if( num_ops > 0 )
+        snprintf(
+            clientop->mouseover_op,
+            sizeof(clientop->mouseover_op),
+            "%s",
+            menu->options[menu->option_count - 1].text);
+}
+
+/*
  * Mouseover text, rebuilt every frame from a scratch menu at the pointer.
  *
  * This is the client half of what the reference gets from the cache: script
@@ -19893,6 +19922,7 @@ app_hover_text_update(
     {
         app->hover_text.visible = false;
         app->hover_text.text[0] = '\0';
+        app_minimenu_entry_publish(app, NULL);
     }
     else
     {
@@ -19926,6 +19956,7 @@ app_hover_text_update(
             app_plugin_menu_build(app, &scratch, 1);
         }
         UIHoverText_Compose(&scratch, &app->hover_text);
+        app_minimenu_entry_publish(app, &scratch);
     }
 
     /* Anchor at the world viewport's top-left (4726's container origin), or
@@ -20686,7 +20717,7 @@ app_minimenu_inv_action(
             snprintf(line, sizeof(line), "%s", obj->desc);
         else
             snprintf(line, sizeof(line), "It's a %s.", name);
-        RS_Chat_AddMessage(&app->chat, RS_CHAT_TYPE_GAME, NULL, line);
+        RS_CS2Host_ChatAdd(&app->host, RS_CHAT_TYPE_GAME, NULL, NULL, line);
         app->need_redraw = 1;
         return 1;
     }
@@ -21389,7 +21420,7 @@ app_minimenu_run_option(
             snprintf(line, sizeof(line), "%s", desc);
         else
             snprintf(line, sizeof(line), "It's a %s.", name ? name : "mystery");
-        RS_Chat_AddMessage(&app->chat, RS_CHAT_TYPE_GAME, NULL, line);
+        RS_CS2Host_ChatAdd(&app->host, RS_CHAT_TYPE_GAME, NULL, NULL, line);
         app->need_redraw = 1;
         return 0; /* handled locally; no CS2 task was dispatched */
     }
@@ -23351,7 +23382,13 @@ App_RunOnce(
     }
 
     /* Keyboard broadcast: every event this frame times every visible onKey
-     * handler (reference OsrsClient key dispatch). Unlike the intent loop above
+     * handler, with nothing filtered out on the way -- which is the reference
+     * client's dispatch exactly. Every registered hook gets every key and each
+     * script decides for itself: the chatbox's takes the printable ones into
+     * the typed line, the gameframe's takes the F-keys and switches tabs, and
+     * a panel with a search box takes the keyboard by disarming the chatbox's
+     * hook rather than by anything the client does. There is no client-side
+     * chat focus at a cache revision to route them by. Unlike the intent loop above
      * this re-resolves each component id immediately before dispatching it
      * rather than snapshotting hooks up front -- a broadcast runs many scripts
      * in one frame, and an earlier one can CC_CREATE (realloc components[]) or
@@ -23363,8 +23400,6 @@ App_RunOnce(
         {
             struct UIKeyTarget const* target = &out.key_targets[t];
             int32_t idx;
-            if( !app_key_target_accepts(app, target->component_id, chat_keys_suppressed) )
-                continue;
             idx = UITree_FindByComponentId(app->tree, target->component_id);
             if( idx < 0 )
                 continue;

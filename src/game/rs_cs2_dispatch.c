@@ -385,6 +385,18 @@ RS_CS2_PumpTransmits(
         ToriRS_TaskQueue_Add(runner->queue, task);
     }
 
+    /* Chat transmits (the chatbox scrollback). No trigger set either, and no
+     * server repaint behind it: a message goes in the client's own store and
+     * this dispatch is what tells the cache's chatbox scripts to redraw from
+     * it. Gated on a real message rather than on the unhide flag because the
+     * hook rebuilds every visible line. */
+    if( host->chat_transmit_dirty )
+    {
+        task = CreateTask_CS2ChatTransmitDispatch(host);
+        assert(task);
+        ToriRS_TaskQueue_Add(runner->queue, task);
+    }
+
     host->widgets_loaded_dirty = 0;
     host->var_transmit_dirty = 0;
     host->var_changed_count = 0;
@@ -397,6 +409,7 @@ RS_CS2_PumpTransmits(
     host->stat_changed_all = 0;
     host->misc_transmit_dirty = 0;
     host->friend_transmit_dirty = 0;
+    host->chat_transmit_dirty = 0;
 
     /* The clear-down has to cover the whole table. A flag that is a guard key
      * but is not cleared here re-opens the guard on the very next tick and

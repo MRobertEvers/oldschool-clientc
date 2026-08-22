@@ -262,6 +262,17 @@ struct PktIfSetPlayerModel
 
 struct PktMessageGame
 {
+    /**
+     * The chat type -- which filter tab the line belongs to and which colour
+     * and prefix the cache's chatbox script gives it. Carried by the packet at
+     * every revision that has one (a p1 at 230, a smart at 239); the client
+     * used to read it and throw it away, which filed every server line under
+     * type 0 whatever the server said.
+     */
+    int type;
+    /** Optional sender, present only when the packet says so. NULL otherwise
+     *  -- a game message has no sender, and "" would be a sender named "". */
+    char* name;
     char* text; /* gjstr / newline-terminated */
 };
 

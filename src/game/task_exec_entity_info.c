@@ -680,10 +680,11 @@ player_apply_op(
         if( op->_say.text )
         {
             struct WorldEntity_Player* player = World_EntityPoolGet(&world->entities.player, idx);
-            RS_Chat_AddMessage(
-                &app->chat,
+            RS_CS2Host_ChatAdd(
+                &app->host,
                 RS_CHAT_TYPE_PUBLIC,
                 player && player->name[0] ? player->name : "Player",
+                player && player->name[0] ? player->name : NULL,
                 op->_say.text);
             App_NotifyChatMessage(
                 app,
@@ -705,10 +706,11 @@ player_apply_op(
             {
                 struct WorldEntity_Player* player =
                     World_EntityPoolGet(&world->entities.player, idx);
-                RS_Chat_AddMessage(
-                    &app->chat,
+                RS_CS2Host_ChatAdd(
+                    &app->host,
                     RS_CHAT_TYPE_PUBLIC,
                     player && player->name[0] ? player->name : "Player",
+                    player && player->name[0] ? player->name : NULL,
                     text);
                 App_NotifyChatMessage(
                     app,

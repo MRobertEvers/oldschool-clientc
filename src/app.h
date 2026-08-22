@@ -13,7 +13,6 @@
 #include "game/rs_audio.h"
 #include "game/rs_chat.h"
 #include "net/rev/revpacket.h"
-#include "game/rs_chat_widgets.h"
 #include "game/rs_cs1_host.h"
 #include "game/rs_cs2_host.h"
 #include "game/rs_entity_sync.h"
@@ -336,10 +335,6 @@ struct AppConfig
      *  the BootManifest. NULL/0 = none. */
     struct BootManifestVarcSeed const* varc_seeds;
     int varc_seed_count;
-    /** `[ui:chatbox]` — where this revision's chat lines live, when the chatbox
-     *  is widgets rather than a surface. See rs_chat_widgets.h. Zeroed (and so
-     *  disabled) for every revconfig-chrome revision. */
-    struct RS_ChatWidgetLayout chatbox;
     /** --connect target "host[:port]". NULL/"" = offline (no networking). */
     char const* connect_target;
     char const* connect_user;
@@ -1183,6 +1178,23 @@ struct App
     /** The mouseover subject the highlighter was last run for, folded to one
      *  int. Same edge rule as the three above. */
     int highlight_last_mouseover;
+    /**
+     * Set when a scripted overlay's layer has gone missing from the tree.
+     *
+     * A tree rebuild -- login's gameframe remount, a Fixed/Resizable switch --
+     * reclaims every node under the `entity_overlay` builtin, and the scripted
+     * overlays (game/rs_entity_overlay.h) go with them. What makes that
+     * unrecoverable on its own is where the rebuild instructions live: the
+     * `cc_setonvartransmit` hook that would rebuild an overlay is registered ON
+     * the layer, so it dies with it, and nothing in the cache re-fires a client
+     * trigger. The client has to notice and re-raise them.
+     *
+     * Noticing by watching the builtin's component id does NOT work, and was
+     * the first attempt: the builtin is a manifest node, so its id is the same
+     * before and after. A layer that no longer resolves is the direct
+     * observation.
+     */
+    int client_trigger_refire_pending;
 
     struct ToriRS_PluginHighlightItem plugin_highlights[APP_PLUGIN_HIGHLIGHTS_MAX];
     int plugin_highlight_count;

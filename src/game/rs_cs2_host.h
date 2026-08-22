@@ -20,6 +20,7 @@ struct CS2VM2_Thread;
 struct UITreeSceneBridge;
 struct RS_WorldMapState;
 struct RS_Social;
+struct RS_Chat;
 struct LootStore;
 struct ToriRS_Component;
 
@@ -375,6 +376,10 @@ struct RS_CS2Host
      *  panels draw their empty state — which is exactly what they did before
      *  those opcodes had handlers at all. */
     struct RS_Social* social;
+    /** The message store the CHAT_GETHISTORY* opcodes read and
+     *  RS_CS2Host_ChatAdd writes. May be NULL (a headless harness with no
+     *  chatbox), in which case the history opcodes answer empty. */
+    struct RS_Chat* chat;
     /** The three chat filter modes, borrowed from RS_UISlots — the same three
      *  ints the IF1 privacy bar cycles. A pointer rather than a copy because
      *  CHAT_SETFILTER and the privacy bar are two writers of one value and the
@@ -787,6 +792,13 @@ struct RS_CS2Host
      *  packets via RS_CS2Host_NotifyFriendChanged. Without it the friends panel
      *  paints once at mount and never again. */
     int friend_transmit_dirty;
+    /** Set when a message reached the chat store. Same shape as misc and
+     *  friend -- CC/IF_SETONCHATTRANSMIT carries no trigger list, so every
+     *  registered hook re-runs. This is the stamp the reference bumps in
+     *  `addChatMessage`, and it is what makes the cache's own
+     *  `[proc,rebuildchatbox]` run: the chatbox is 500 text components the
+     *  scripts fill, and without this dispatch nothing ever asks them to. */
+    int chat_transmit_dirty;
     /** Which container ids changed since the last dispatch, mirroring
      *  var_changed_ids. `inv_changed_all` means "re-run every inv hook". */
     int inv_changed_ids[RS_CS2_HOST_VAR_CHANGED_MAX];
@@ -968,6 +980,28 @@ RS_CS2Host_SetSocial(
  *  UPDATE_IGNORELIST, FRIENDLIST_LOADED and CHAT_FILTER_SETTINGS. */
 void
 RS_CS2Host_NotifyFriendChanged(struct RS_CS2Host* host);
+
+/** Point the CHAT_* history opcodes at the client's message store. */
+void
+RS_CS2Host_SetChat(
+    struct RS_CS2Host* host,
+    struct RS_Chat* chat);
+
+/**
+ * Add a message and tell the chatbox scripts about it.
+ *
+ * The one entry point for anything that has a host, because the two halves
+ * belong together: a message the store holds but the transmit channel never
+ * announced is a line the cache's chatbox will not draw until something else
+ * happens to repaint it. Stamps the client clock, which is the host's to know.
+ */
+void
+RS_CS2Host_ChatAdd(
+    struct RS_CS2Host* host,
+    int type,
+    char const* name,
+    char const* sender,
+    char const* text);
 
 /** Pop the oldest queued outbound social request, FIFO. Returns false when the
  *  queue is empty. The App drains this once per tick and turns each entry into

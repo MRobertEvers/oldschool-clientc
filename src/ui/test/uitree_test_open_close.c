@@ -428,10 +428,14 @@ count_live_with_component_id(
     return n;
 }
 
-/* chatmodal close/replace must reclaim dialogue packs so remount cannot
- * keep a hidden copy whose string shadows FindByComponentId / ApplyText. */
+/* Close and replace reclaim the outgoing group at EVERY mount slot (the
+ * reference client's rule: unload unless the same group is being remounted),
+ * so a remount cannot keep a hidden copy whose string shadows
+ * FindByComponentId / ApplyText. Dialogue packs alternating in the chatbox
+ * modal are where that shadowing was first seen; the slot below stands in for
+ * any of them. */
 void
-test_chatmodal_reclaim_no_shadow_text(void)
+test_mount_slot_reclaim_no_shadow_text(void)
 {
     struct UITree* tree = UITree_New(0);
     struct UITreeNodeSpec spec;
@@ -442,16 +446,18 @@ test_chatmodal_reclaim_no_shadow_text(void)
     int const group_a = 231;
     int const group_b = 217;
     int const text_cid = (group_a << 16) | 4;
+    /* Any mount slot: the rule no longer names one. */
+    int const mount_slot_uid = (162 << 16) | 567;
 
-    printf("TEST: chatmodal reclaim — no shadowed dialogue text\n");
+    printf("TEST: mount-slot reclaim — no shadowed pack text\n");
 
     memset(&spec, 0, sizeof(spec));
     spec.type = UIELEM_RS_LAYER;
-    spec.component_id = UITREE_CHATBOX_CHATMODAL_UID;
+    spec.component_id = mount_slot_uid;
     spec.width = 479;
     spec.height = 96;
     slot = UITree_Push(tree, -1, &spec);
-    TEST_ASSERT(slot >= 0, "chatmodal slot");
+    TEST_ASSERT(slot >= 0, "mount slot");
 
     memset(&spec, 0, sizeof(spec));
     spec.type = UIELEM_RS_LAYER;
@@ -477,7 +483,7 @@ test_chatmodal_reclaim_no_shadow_text(void)
         "stuck text applied");
     TEST_ASSERT(count_live_with_component_id(tree, text_cid) == 1, "one live A name");
 
-    /* Replace A with B under chatmodal — reclaim A (not hide). */
+    /* Replace A with B in the slot — reclaim A (not hide). */
     UITree_ReclaimInterfaceGroup(tree, group_a);
     TEST_ASSERT(!UITree_GroupPresent(tree, group_a), "group A gone after reclaim");
     TEST_ASSERT(count_live_with_component_id(tree, text_cid) == 0, "no live A name");

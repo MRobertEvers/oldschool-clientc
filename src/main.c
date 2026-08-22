@@ -1600,9 +1600,15 @@ frame_loop_step(void)
             }
             if( vb_frame >= 0 && frame_count >= vb_frame )
             {
-                fprintf(stderr, "sim_varbit: %ld = %ld\n", vb_id, vb_value);
                 VarPManager_SetVarbitOptimistic(&app.varps, (int)vb_id, (int)vb_value);
                 RS_CS2Host_NotifyVarChanged(&app.host, -1);
+                fprintf(
+                    stderr,
+                    "sim_varbit: %ld = %ld (base varp %d, reads back %d)\n",
+                    vb_id,
+                    vb_value,
+                    VarPManager_VarbitBaseVar(&app.varps, (int)vb_id),
+                    VarPManager_GetVarbit(&app.varps, (int)vb_id));
                 vb_frame = -1;
             }
         }
@@ -4367,7 +4373,7 @@ main(
                     sizeof(line),
                     "Seed chat line %ld — scroll container text check",
                     i + 1);
-                RS_Chat_AddMessage(&app.chat, RS_CHAT_TYPE_GAME, NULL, line);
+                RS_CS2Host_ChatAdd(&app.host, RS_CHAT_TYPE_GAME, NULL, NULL, line);
             }
         }
 

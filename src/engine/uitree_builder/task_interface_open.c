@@ -626,9 +626,20 @@ Task_InterfaceOpen_Run(
 
     if( self->target_uid >= 0 )
     {
-        /* Close existing mount at target, then reparent. The outgoing group's
-         * nodes are children of the mount target (that is what mounting did),
-         * so hiding only tree roots would leave them on screen. */
+        /* Close existing mount at target, then reparent.
+         *
+         * Reclaim the outgoing group rather than hide it, unless it IS the
+         * incoming one. That pair of clauses is the reference client's whole
+         * rule: its IF_OPENSUB handler calls `method9520(parent, unload)` with
+         * `unload = outgoing.group != incoming`, and the unload nulls every
+         * widget in the group (class304.method7206). A group being moved from
+         * one slot to another survives; anything else is rebuilt from the
+         * pack on its next mount, which mount_pack_under_target does anyway.
+         *
+         * Hiding instead — which this used to do, with `chatbox:chatmodal`
+         * carved out — kept the bake for reuse but left the group answering
+         * UITree_FindByComponentId, so an IF_SETTEXT could update a shadowed
+         * copy while the remount drew the previous pack's string. */
         {
             int old = UITree_InterfaceParentFind(self->tree, self->target_uid);
             if( old >= 0 )
@@ -638,30 +649,7 @@ Task_InterfaceOpen_Run(
                 {
                     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_CLOSE, 1);
                     UITreeIfaceStats_NoteClose(old_group);
-                    if( self->target_uid == UITREE_CHATBOX_CHATMODAL_UID )
-                    {
-                        /* Same reclaim path as IF_CLOSESUB for chatmodal:
-                         * dialogue packs have no cc_create kids to reuse. */
-                        UITree_ReclaimInterfaceGroup(self->tree, old_group);
-                    }
-                    else
-                    {
-                        for( uint32_t i = 0; i < self->tree->component_count; i++ )
-                        {
-                            struct UITreeComponent* c = &self->tree->components[i];
-                            if( c->freed || c->component_id < 0 )
-                                continue;
-                            if( ((c->component_id >> 16) & 0xffff) != old_group )
-                                continue;
-                            if( c->parent >= 0 &&
-                                ((self->tree->components[c->parent].component_id >> 16) &
-                                 0xffff) == old_group )
-                                continue;
-                            if( !c->behavior.hide )
-                                c->behavior.hide_unmounted = 1;
-                            c->behavior.hide = 1;
-                        }
-                    }
+                    UITree_ReclaimInterfaceGroup(self->tree, old_group);
                     RS_CS2Host_ClearHooksForInterfaceGroup(self->host, old_group);
                 }
                 UITree_InterfaceParentClear(self->tree, self->target_uid);

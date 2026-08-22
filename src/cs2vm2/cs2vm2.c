@@ -4347,6 +4347,17 @@ CS2VM2_Op_CC_SetOnFriendTransmit(
         vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONFRIENDTRANSMIT, &request);
 }
 
+static int
+CS2VM2_Op_CC_SetOnChatTransmit(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    struct CS2VM_HostRequest_CC_SetOnOp request;
+    return CS2VM2_Op_CC_SetOnEventHandler(
+        vm, frame, operand, CS2VM_HOST_REQUEST_CC_SETONCHATTRANSMIT, &request);
+}
+
 int
 CS2VM2_Op_CC_SetOnMouseRepeat(
     struct CS2VM2_Thread* vm,
@@ -5242,6 +5253,32 @@ CS2VM2_Op_IF_SetOnFriendTransmit(
     struct CS2VM_HostRequest_IF_SetOnOp request;
     return CS2VM2_Op_IF_SetOnEventHandler(
         vm, frame, CS2VM_HOST_REQUEST_IF_SETONFRIENDTRANSMIT, &request);
+}
+
+/*
+ * IF_SETONCHATTRANSMIT (2418). Same no-trigger-list shape as friend and misc.
+ *
+ * `[clientscript,chatbox_init]` (script 925) registers `chat_onchattransmit`
+ * here on the chatbox root, and that hook is the entire redraw path for the
+ * chat scrollback: it calls `[proc,rebuildchatbox]`, which walks the history
+ * by uid and writes the line components. Nothing else in the client writes
+ * them, which is why this registration going in the discard group produced a
+ * chatbox that drew its background, tabs, scrollbar and Report button
+ * perfectly and never showed a message.
+ */
+int
+CS2VM2_Op_IF_SetOnChatTransmit(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)operand;
+
+    struct CS2VM_HostRequest_IF_SetOnOp request;
+    return CS2VM2_Op_IF_SetOnEventHandler(
+        vm, frame, CS2VM_HOST_REQUEST_IF_SETONCHATTRANSMIT, &request);
 }
 
 int
@@ -9078,6 +9115,48 @@ CS2VM2_Op_Chat(
     case CS2_OP_CHAT_GETFILTER_PRIVATE:
     case CS2_OP_CHAT_GETFILTER_TRADE:
     case CS2_OP_CHAT_PLAYERNAME:
+    case CS2_OP_CHAT_GETMESSAGEFILTER:
+    case CS2_OP_CHAT_GETTIMESTAMPS:
+    case CS2_OP_STAFFMODLEVEL:
+        break;
+    case CS2_OP_CHAT_GETHISTORYLENGTH:
+        if( CS2VM2_PopInt(vm, &request.u.chat.type) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        break;
+    case CS2_OP_CHAT_GETNEXTUID:
+    case CS2_OP_CHAT_GETPREVUID:
+    case CS2_OP_CHAT_GETHISTORY_BYUID:
+    case CS2_OP_CHAT_GETHISTORYEX_BYUID:
+        if( CS2VM2_PopInt(vm, &request.u.chat.uid) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        break;
+    case CS2_OP_CHAT_GETHISTORY_BYTYPEANDLINE:
+    case CS2_OP_CHAT_GETHISTORYEX_BYTYPEANDLINE:
+        /* (chattype, line) in source order, so back to front here. */
+        if( CS2VM2_PopInt(vm, &request.u.chat.line) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopInt(vm, &request.u.chat.type) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        break;
+    case CS2_OP_CHAT_SETMESSAGEFILTER:
+    case CS2_OP_MES:
+        if( CS2VM2_PopStr(vm, &request.u.chat.text) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        break;
+    case CS2_OP_CHAT_SETTIMESTAMPS:
+        if( CS2VM2_PopInt(vm, &request.u.chat.timestamps) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        break;
+    case CS2_OP_CHAT_SENDCLAN:
+        /* (mes, int, int) in source order. No clan channel exists here, so the
+         * host drops it -- but the pops are not optional: an opcode that
+         * leaves its arguments on the stack corrupts every later one. */
+        if( CS2VM2_PopInt(vm, &request.u.chat.private_mode) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopInt(vm, &request.u.chat.public_mode) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
+        if( CS2VM2_PopStr(vm, &request.u.chat.text) != CS2VM_EXECNO_OK )
+            return CS2VM_EXECNO_ERROR;
         break;
     case CS2_OP_CHAT_SETFILTER:
         if( CS2VM2_PopInt(vm, &request.u.chat.trade_mode) != CS2VM_EXECNO_OK )
@@ -10229,6 +10308,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_SetOnKeyUp(vm, frame, operand);
     case CS2_OP_IF_SETONMISCTRANSMIT:
         return CS2VM2_Op_IF_SetOnMiscTransmit(vm, frame, operand);
+    case CS2_OP_IF_SETONCHATTRANSMIT:
+        return CS2VM2_Op_IF_SetOnChatTransmit(vm, frame, operand);
     case CS2_OP_IF_SETONFRIENDTRANSMIT:
         return CS2VM2_Op_IF_SetOnFriendTransmit(vm, frame, operand);
     case CS2_OP_IF_SETOP:
@@ -10539,11 +10620,12 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_SetOnInvTransmit(vm, frame, operand);
     case CS2_OP_CC_SETONSTATTRANSMIT:
         return CS2VM2_Op_CC_SetOnStatTransmit(vm, frame, operand);
+    case CS2_OP_CC_SETONCHATTRANSMIT:
+        return CS2VM2_Op_CC_SetOnChatTransmit(vm, frame, operand);
     /* No model for these events yet. They MUST still be parsed: the handler
      * signature string drives how many operands to pop, so the static stack
      * table cannot describe them and the StackMetaStub fallback would pop
      * nothing and desync the operand stack for every later opcode. */
-    case CS2_OP_CC_SETONCHATTRANSMIT:
     /* CC_SETONFRIENDTRANSMIT (1420) was the one member of this list nobody
      * added. Its IF twin was in the matching group, so the omission was
      * invisible until a script reached it — and then it did not no-op, it
@@ -10590,7 +10672,6 @@ CS2VM2_RunOp(
     case CS2_OP_IF_SETONCLANCHANNELTRANSMIT:
     /* Same reasoning as the CC_SETON* discard group above: signature-driven
      * operand counts, so they must be parsed rather than left to the stub. */
-    case CS2_OP_IF_SETONCHATTRANSMIT:
     case CS2_OP_IF_SETONSTOCKTRANSMIT:
     case CS2_OP_IF_SETONMAPPOST:
     case CS2_OP_IF_INPUT_SETONSUBMIT:
@@ -10779,6 +10860,26 @@ CS2VM2_RunOp(
     case CS2_OP_CHAT_SENDPUBLIC:
     case CS2_OP_CHAT_PLAYERNAME:
     case CS2_OP_DOCHEAT:
+    /* The history family, which is what the cache's chatbox is built out of:
+     * `[proc,rebuildchatbox]` starts at the newest uid and walks backwards
+     * with GETPREVUID, reading each node with GETHISTORYEX_BYUID. MES is here
+     * because a script's own message is a message like any other, and
+     * STAFFMODLEVEL because the chatbox asks it before drawing the report
+     * options on a line. */
+    case CS2_OP_CHAT_GETHISTORYLENGTH:
+    case CS2_OP_CHAT_GETNEXTUID:
+    case CS2_OP_CHAT_GETPREVUID:
+    case CS2_OP_CHAT_GETHISTORY_BYUID:
+    case CS2_OP_CHAT_GETHISTORY_BYTYPEANDLINE:
+    case CS2_OP_CHAT_GETHISTORYEX_BYUID:
+    case CS2_OP_CHAT_GETHISTORYEX_BYTYPEANDLINE:
+    case CS2_OP_CHAT_SETMESSAGEFILTER:
+    case CS2_OP_CHAT_GETMESSAGEFILTER:
+    case CS2_OP_CHAT_SETTIMESTAMPS:
+    case CS2_OP_CHAT_GETTIMESTAMPS:
+    case CS2_OP_CHAT_SENDCLAN:
+    case CS2_OP_MES:
+    case CS2_OP_STAFFMODLEVEL:
         return CS2VM2_Op_Chat(vm, opcode);
     case CS2_OP_MAP_WORLD:
     {
