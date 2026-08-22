@@ -3736,7 +3736,7 @@ seq_bind: element=9015 seq=10230 frames=120 skeletal=1
 
 Renders at 1 / 25 / 60 ticks differ — the tentacles move — and the model stays
 coherent. Classic sequences are untouched: npc 3106 in the same cache still
-binds seq 808 (`frames=12 skeletal=0`), and the dat1 `manifest_rs254` spawn
+binds seq 808 (`frames=12 skeletal=0`), and the dat1 `manifest_rs254lc` spawn
 still binds seq 1191 (`frames=70 skeletal=0`). `test-world`, `test-walkmerge`,
 `test-uitree`, `test-world-builder`, `test-entity-decode` and `test-task-order`
 all pass.
@@ -3927,7 +3927,7 @@ main-modal slot once the gameframe is up — the same `RS_UISlots_OpenMain` path
 
 ```
 SDL_VIDEODRIVER=dummy TORIRS_SIM_OPENMAIN=3559 TORIRS_MAX_FRAMES=250 \
-  TORIRS_EXIT_BMP=build/design.bmp ./src/torirs --manifest manifests/manifest_rs254.ini --offline
+  TORIRS_EXIT_BMP=build/design.bmp ./src/torirs --manifest manifests/manifest_rs254lc.ini --offline
 ```
 
 The default male composites and renders (bald head + goatee, olive top, green
@@ -4036,7 +4036,7 @@ effect once the gameframe is up:
 
 ```
 TORIRS_AUDIO_DEBUG=1 TORIRS_SIM_SOUND=41 TORIRS_MAX_FRAMES=200 \
-  ./src/torirs --manifest manifests/manifest_rs254.ini
+  ./src/torirs --manifest manifests/manifest_rs254lc.ini
 ```
 
 ```
@@ -4045,8 +4045,8 @@ rs_audio: play id=41 loops=1 samples=26680 (60 ticks)
 audio(sdl2): queued id=41 samples=26680 rate=22050 volume=64
 ```
 
-Confirmed on every shipped manifest: `manifest_rs254` (dat1),
-`manifest_osrs230`, `manifest_osrs239`, `manifest_xrsps` and `manifest_void634`.
+Confirmed on every shipped manifest: `manifest_rs254lc` (dat1),
+`manifest_osrs230`, `manifest_osrs239`, `manifest_osrs233xrsps` and `manifest_rs634void`.
 
 ### Still open
 
@@ -4059,7 +4059,7 @@ Confirmed on every shipped manifest: `manifest_rs254` (dat1),
   what plays; 3 sample-only, which are silent). Decoding BCV means a Vorbis
   implementation plus its shared codebook, and rt4's `VorbisSound` header layout
   does not match these bytes — no reference to port.
-- **`manifests/manifest_rs377.ini` states `revision=254`** while pointing at
+- **`manifests/manifest_rs377lc.ini` states `revision=254`** while pointing at
   `cache.rs377`. It is a copy of the 254 manifest with only `dir=` changed (its
   header comment still says "rev 254"), so the sound codec picks the pre-filter
   flavour and the stream mis-frames — the loader reports
@@ -4119,7 +4119,7 @@ frame and so reproduce exactly the pre-mount race:
 
 ```
 TORIRS_SIM_OPENCHAT=2459 TORIRS_SIM_SETHIDE=2468:0,2465:1 \
-TORIRS_SIM_SETTAB=0:3796 ./src/torirs --manifest manifests/manifest_rs254.ini --offline
+TORIRS_SIM_SETTAB=0:3796 ./src/torirs --manifest manifests/manifest_rs254lc.ini --offline
 ```
 
 `TORIRS_NET_DEBUG=1` prints `if_sethide: com=7624 hide=0 applied=0` — the
@@ -4182,7 +4182,7 @@ re-bake would otherwise clear them):
 
 ```
 TORIRS_SIM_SETTAB=0:3796 TORIRS_SIM_SETHIDE=7624:0 \
-TORIRS_SIM_SETVARP=300:500,301:0 ./src/torirs --manifest manifests/manifest_rs254.ini --offline
+TORIRS_SIM_SETVARP=300:500,301:0 ./src/torirs --manifest manifests/manifest_rs254lc.ini --offline
 ```
 
 Sampling one row across the bar shows the fill tracking varp 300 exactly —

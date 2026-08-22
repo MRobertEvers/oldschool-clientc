@@ -1,6 +1,6 @@
 # RS2 rev 634 — sources, and every place it disagrees with OldSchool
 
-Everything the client does differently for `manifests/manifest_void634.ini` traces back to one
+Everything the client does differently for `manifests/manifest_rs634void.ini` traces back to one
 of the sources below. This file is the register: what was read, where it lives, and
 what it settled. Nothing here is inferred from a rendered frame — a wrong field
 width and a right one both produce *an* image, so each entry names the artefact that
@@ -284,7 +284,7 @@ that is not a bug in the client.
 
 Two manifest sections state that burst instead of inventing a client-side default,
 so the values stay traceable to the server that actually sends them
-(`manifests/manifest_void634.ini`; both are skipped when networked, since a real server sends
+(`manifests/manifest_rs634void.ini`; both are skipped when networked, since a real server sends
 the real thing):
 
 - `[ui:gameframe]` — `component = interface`, or `parent_interface:component =

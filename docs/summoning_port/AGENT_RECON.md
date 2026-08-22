@@ -1779,7 +1779,7 @@ Extensions come from the payload magic, not the era (EXCEPTIONS H6, `cp_assets.h
 - `3rd/rscache/tools/common/transcode.c` — dat1↔dat2 framemap/model/frame transcode.
 - `3rd/rscache/tools/find_anims`, `find_named`, `anim_compare`, `poser-gl-c`.
 
-**Precedent**: `cache.rs254_steeltitan/` (7.6 MB dat1) in the repo root is a Summoning familiar (Steel Titan, npc 7343/7344, model 30469) already ported cross-revision by this toolchain (643→254). Referenced in `readme.md:1103`, `manifests/manifest_void634.ini:266`, `3rd/rscache/src/datatypes/dat2_config_bas.h:12`.
+**Precedent**: `cache.rs254_steeltitan/` (7.6 MB dat1) in the repo root is a Summoning familiar (Steel Titan, npc 7343/7344, model 30469) already ported cross-revision by this toolchain (643→254). Referenced in `readme.md:1103`, `manifests/manifest_rs634void.ini:266`, `3rd/rscache/src/datatypes/dat2_config_bas.h:12`.
 
 **Not relevant / red herrings:**
 - `tools/proctex_port/` — a TypeScript reference (`RasterizerOperation.ts`) + `gen_verify_rand.c` for procedural-texture *evaluation*. **Not an asset importer.**
@@ -2539,7 +2539,7 @@ How a flag would reach each consumer:
 ## 4. Boot manifest format + a real `[features:boot]`
 
 - Schema prose: `src/bootmanifest/bootmanifest.h:6-126`. House style `[type:name]`, lowercase `key=value`, `;`/`#` comments. Relative paths resolve against the manifest's directory.
-- Manifests live at the **repo root**, not `saves/`: `manifest_osrs230*.ini`, `manifest_osrs239*.ini`, `manifests/manifest_rs254.ini`, `manifests/manifest_rs377.ini`, `manifests/manifest_void634.ini`, `manifests/manifest_xrsps.ini`.
+- Manifests live at the **repo root**, not `saves/`: `manifest_osrs230*.ini`, `manifest_osrs239*.ini`, `manifests/manifest_rs254lc.ini`, `manifests/manifest_rs377lc.ini`, `manifests/manifest_rs634void.ini`, `manifests/manifest_osrs233xrsps.ini`.
 - **`saves/*.ini` are NOT manifests** — they are ToriRSServer player saves written by `torirs_server_save.c` (`saves/asdf.ini:1-3`: `; ToriRSServer player save. Written by torirs_server_save.c`).
 - **`src/.last_flavor` is NOT config** — it holds `build_es`, the objdir stamp used by `src/makefile:513-523` to force a relink when debug/release swap. Unrelated to features.
 
@@ -2551,7 +2551,7 @@ era=osrs
 ground_click_nearest=box10_rect
 ```
 
-Other live examples: `manifests/manifest_xrsps.ini:33-37` (`era=server_routed`, with the reason: xrsps paths server-side over a rev-233 cache so the era cannot be derived); `manifests/manifest_osrs230_zuk.ini:24-25` (`painter_draw_distance=90` only); test fixture `src/bootmanifest/test/fixture_manifest.ini:67-70` (all three keys).
+Other live examples: `manifests/manifest_osrs233xrsps.ini:33-37` (`era=server_routed`, with the reason: xrsps paths server-side over a rev-233 cache so the era cannot be derived); `manifests/manifest_osrs230_zuk.ini:24-25` (`painter_draw_distance=90` only); test fixture `src/bootmanifest/test/fixture_manifest.ini:67-70` (all three keys).
 
 Cache selection is a *separate* section and is the de-facto biggest content switch: `[cache:boot] dir=` — `manifests/manifest_osrs239.ini:16` `dir=cache.osrs239` (pristine) vs `manifest_osrs230*.ini` `dir=cache.osrs239.baked` vs `manifests/manifest_osrs239_packed.ini:20` `dir=cache.osrs239_packed`.
 

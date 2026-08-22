@@ -359,7 +359,7 @@ Resolution (`App_Init`), unconditional — an offline boot still clicks locs:
 `lostcity`; dat2+`oldschool` → `osrs`; dat2+`rs2` (the rev-634/643 caches) stays
 `lostcity`, because those are still the classic client. Nothing derivable
 selects `server_routed` — that is a property of the *server*, so
-`manifests/manifest_xrsps.ini` states it.
+`manifests/manifest_osrs233xrsps.ini` states it.
 
 ### 5.2 Server-authoritative mode
 

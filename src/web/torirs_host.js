@@ -19,8 +19,8 @@
 // Load this BEFORE torirs.js: it defines the Module object the runtime reads.
 //
 // Query string — the page's command line:
-//   ?arg=--manifest&arg=manifests/manifest_rs254.ini&arg=--offline   one arg per param
-//   ?args=--manifest,manifests/manifest_rs254.ini,--offline          same, comma-joined
+//   ?arg=--manifest&arg=manifests/manifest_rs254lc.ini&arg=--offline   one arg per param
+//   ?args=--manifest,manifests/manifest_rs254lc.ini,--offline          same, comma-joined
 //   ?env=TORIRS_TASK_LOG=1&env=TORIRS_NET_DEBUG=1          environment
 //   ?io=http://host:port/io                                IO endpoint (/io)
 //   ?io_sync=0                                             see "Pumping" below
@@ -71,7 +71,7 @@
 
   const params = new URLSearchParams(window.location.search);
 
-  const DEFAULT_ARGS = ['--manifest', 'manifests/manifest_rs254.ini', '--offline'];
+  const DEFAULT_ARGS = ['--manifest', 'manifests/manifest_rs254lc.ini', '--offline'];
 
   function readArgs() {
     const repeated = params.getAll('arg');

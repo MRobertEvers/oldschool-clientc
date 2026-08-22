@@ -237,7 +237,7 @@ the screen open the whole time.) The figure picks up each item as it is worn and
 the bonus rows follow; the trace shows exactly one rebuild per equip. A
 `TORIRS_BMP_SERIES` strip over the same window shows the figure swinging through
 its ±45°, and the offline dat1 design screen
-(`TORIRS_SIM_OPENMAIN=3559 --manifest manifests/manifest_rs254.ini --offline`) renders
+(`TORIRS_SIM_OPENMAIN=3559 --manifest manifests/manifest_rs254lc.ini --offline`) renders
 byte-identically to before the change.
 
 ---

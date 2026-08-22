@@ -443,7 +443,7 @@ ever matters.
   copyable implementation of it. No code changes yet.
 
 - **2026-07-23 — Phase 0 landed (boot-manifest system + offline rev-233 boot).**
-  - Boot-manifest INI: `manifests/manifest_rs254.ini` / `manifests/manifest_xrsps.ini` at repo root;
+  - Boot-manifest INI: `manifests/manifest_rs254lc.ini` / `manifests/manifest_osrs233xrsps.ini` at repo root;
     loader `src/bootmanifest/bootmanifest.{h,c}` (`struct BootManifest`,
     `BootManifest_LoadFile` / `_ApplyToConfig`) reuses the `3rd/ini` tokenizer.
     Sections `[cache:boot]` / `[net:boot]` / `[ui:boot]`; relative path values
@@ -464,8 +464,8 @@ ever matters.
     instead of `cache_kind == DAT1`.
   - Verified: `make` links clean; `test-bootmanifest` (new) + `test-revconfig`,
     `test-net-login`, `test-net-loopback`, `test-net-exec`, `test-entity-decode`
-    all green. `--manifest manifests/manifest_rs254.ini --offline` boots the dat1 world +
-    revconfig UI as before; `--manifest manifests/manifest_xrsps.ini --offline` boots the
+    all green. `--manifest manifests/manifest_rs254lc.ini --offline` boots the dat1 world +
+    revconfig UI as before; `--manifest manifests/manifest_osrs233xrsps.ini --offline` boots the
     rev-233 dat2 cache and opens interface 161 (1116 components, 6 CS2 onloads)
     — confirming the dat2 config/component/clientscript decoders handle rev 233.
   - Known follow-up (Phase 2): the map XTEA loader (app.c:1352) reads

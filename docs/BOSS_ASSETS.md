@@ -675,7 +675,7 @@ with only the ids you passed, which is how 69 locs once became 2.
   running server rewrites `data/pack`; a copy taken while it is up is torn. A
   torn cache reads as `bad read, dat length 0` in the client, and a short
   `main_file_cache.dat` (7.72MB against 7.96MB) is the tell.
-- The client cache and `manifests/manifest_rs254.ini`'s `jag_crc` have to be refreshed
+- The client cache and `manifests/manifest_rs254lc.ini`'s `jag_crc` have to be refreshed
   together after any content build, or login fails silently — the client
   connects and then never completes.
 - **The exporter overwrites the `.npc` config**, and that is where every

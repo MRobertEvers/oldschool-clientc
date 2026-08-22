@@ -21,7 +21,7 @@ a baseline binary built from `a8caf7fe`:
 
 - `make OPT=1 scanline-compare` + `TORIRS_SCANLINE_HEADLESS=16` on model 148
   (1004 faces, 48 textured, 420 alpha) across 16 yaw steps × 4 alpha modes.
-- `torirs --offline --manifest ../manifests/manifest_rs254.ini` with
+- `torirs --offline --manifest ../manifests/manifest_rs254lc.ini` with
   `TORIRS_WORLD_MAP=50,50 TORIRS_WORLD_BMP=1` — a full client frame, world plus
   the whole interface tree, which is what covers items 4–7.
 

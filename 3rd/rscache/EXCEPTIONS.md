@@ -1252,7 +1252,7 @@ deep inside CS2/CS1 with nowhere to yield to a load.
 | Boot | Source | Types |
 |---|---|---|
 | `manifest_osrs230` | dat2 config group 14, one file per id | 17,605 from 17,426 records (holes zeroed to `basevar = -1`) |
-| `manifest_rs254` | dat1 `varbit.dat` in the config jagfile | 6, consuming the blob exactly |
+| `manifest_rs254lc` | dat1 `varbit.dat` in the config jagfile | 6, consuming the blob exactly |
 
 That closes the B13 consequence: `GetVarbit` returns real values, so a script branching on
 a varbit takes the branch the server intended. Both eras mattered, not just dat2 — CS1's
