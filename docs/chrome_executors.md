@@ -333,14 +333,16 @@ assertion that they agree, and the page's copy of the same table is pinned by
      has already tiled that area -- until a caption changes: a `STATIC` erases
      with the brush this hands back, and one that paints nothing leaves the old
      caption on screen under the new one. It gets the tile brush.
-  3. **A relayout repaints the parent once, with its children clipped.** The
+  3. **A relayout repaints one completed frame.** The
      background is drawn from the *controls'* boxes -- the field frame under
      each `EDIT` is placed from that control's rect -- so the parent still has
-     to be invalidated after a batch move. Repainting every child again made a
-     page switch flash the tradebacking between each child's erase and paint;
-     `WS_CLIPCHILDREN` plus the composited tool window presents the batch as one
-     frame. Transparent owner-drawn checks tile their own box so scrolling does
-     not leave old captions behind.
+     to be invalidated after a batch move. Every child is moved with
+     `SWP_NOREDRAW`, then one synchronous parent-and-children redraw happens
+     after the layout is stable. `WS_CLIPCHILDREN` plus the composited tool
+     window presents that batch as one frame, instead of flashing the
+     tradebacking between each child's erase and paint while scrolling or
+     switching pages. Transparent owner-drawn checks tile their own box so a
+     move does not leave old captions behind.
 
   One thing it cannot match: a `CBS_DROPDOWNLIST` combo draws its own drop-down
   arrow, in the shell's 3D style, in a strip that is not part of the owner-draw
@@ -354,7 +356,10 @@ assertion that they agree, and the page's copy of the same table is pinned by
   title is a black client-area band, its `BS_OWNERDRAW` X wears `CloseButton`,
   and `WM_NCHITTEST` turns the rest of the band into `HTCAPTION` so USER32 still
   supplies movement, snapping and capture. No Windows caption or resize rail
-  surrounds the nine-slice frame.
+  surrounds the nine-slice frame. ToriRSChrome's six-dot, nested-caret resize
+  grip sits in the bottom-right and performs captured client-area resizing
+  with a minimum size, preserving resizability without restoring
+  `WS_THICKFRAME`.
 
   Its panel scrollbar is client-area chrome too, assembled the same way
   `~script31` does it: `ScrollUp`, `ScrollDown`, a stretched `ScrollTrack`, and
@@ -860,7 +865,7 @@ dropdowns:
 | `buffer` / `sdl` | The swatch, the hex, and the three bars; a press-sweep-release along a bar moves that axis, and the wheel steps it one value |
 | `cs2` | The swatch, the hex, and the bars as components -- see §4 |
 | `web` | `<input type="color">` beside the hex. The browser's picker is 24-bit; what comes back is a TEXT intent the MODEL quantises, so the swatch visibly snaps to a palette entry |
-| `gdi` | A coloured `STATIC` beside the `EDIT`. Not `ChooseColor`: it is modal, and an executor may not block the frame loop |
+| `gdi` | A clickable coloured `STATIC` beside the `EDIT`; it expands three ToriRS-styled H/S/L bars inline, with click-and-drag selection at the renderer's real HSL16 resolution |
 
 The seam carries no new command for any of it. The value rides
 `WIDGET_SELECTED` (a colour *is* a selection out of a palette), the hex rides

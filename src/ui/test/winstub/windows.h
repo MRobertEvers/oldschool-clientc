@@ -75,6 +75,7 @@ typedef struct {
 #define SWP_HIDEWINDOW 4
 #define SWP_NOMOVE 8
 #define SWP_NOSIZE 16
+#define SWP_NOREDRAW 32
 #define WM_COMMAND 1
 #define WM_SIZE 2
 #define WM_CLOSE 3
@@ -88,6 +89,7 @@ typedef struct {
 #define BN_CLICKED 1
 #define EN_KILLFOCUS 2
 #define EN_SETFOCUS 4
+#define STN_CLICKED 0
 #define CBN_SELCHANGE 3
 #define CB_RESETCONTENT 10
 #define CB_ADDSTRING 11
@@ -145,6 +147,8 @@ typedef struct {
 #define DT_END_ELLIPSIS 0x8000
 #define NULL_BRUSH 5
 #define RDW_INVALIDATE 1
+#define RDW_ERASE 4
+#define RDW_UPDATENOW 8
 #define RDW_ALLCHILDREN 0x80
 HWND CreateWindowExA(DWORD,const char*,const char*,DWORD,int,int,int,int,HWND,HMENU,HINSTANCE,void*);
 BOOL DestroyWindow(HWND); BOOL ShowWindow(HWND,int);
@@ -177,6 +181,8 @@ COLORREF SetTextColor(HDC, COLORREF);
 int DrawTextA(HDC, const char*, int, RECT*, UINT);
 BOOL GetWindowRect(HWND, RECT*);
 BOOL ScreenToClient(HWND, POINT*);
+BOOL GetCursorPos(POINT*);
+BOOL SetWindowPos(HWND, HWND, int, int, int, int, UINT);
 BOOL RedrawWindow(HWND, const RECT*, void*, UINT);
 int SetScrollInfo(HWND, int, const SCROLLINFO*, BOOL);
 BOOL GetScrollInfo(HWND, int, SCROLLINFO*);
