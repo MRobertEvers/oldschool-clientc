@@ -1447,12 +1447,6 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
         {
             int const holder = app_plugin_popout_holder(app);
             int const registered = holder >= 0;
-            /* Expanded is judged by the strip's measured on-screen width --
-             * the same measurement the fixed-mode canvas grows by -- not by
-             * the container's own box, which keeps a size while hidden. The
-             * collapsed strip is its 42px icon column. */
-            int const strip_w = App_MeasureRightChromeStripWidth(app);
-            int const expanded = strip_w > 2 * APP_POPOUT_BTN;
 
             /*
              * A SHIPPED PANEL TOOK THE SLOT, so this window is no longer in it.
@@ -1479,16 +1473,41 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
             if( !registered )
                 UITree_InterfaceParentSet(
                     app->tree, APP_POPOUT_CONTAINER, TORIRS_CHROME_CS2_GROUP, 1);
-            if( (!registered || !expanded) && relayout_cooldown == 0 )
+
+            /*
+             * The width is measured only on a tick that could act on it.
+             *
+             * App_MeasureRightChromeStripWidth walks every component in the
+             * tree and asks each one whether an ancestor hid it -- a scan of
+             * several thousand nodes with a walk to the root inside it, and in
+             * a `sample` profile of an open window it was the single hottest
+             * thing this window does per frame, above everything the panel
+             * itself draws. Its answer is read by exactly one thing, the
+             * rate-limited relayout below, so asking it on the twenty-nine
+             * ticks out of thirty that cannot act on it is measuring in order
+             * to throw the measurement away.
+             *
+             * Expanded is judged by that measured on-screen width -- the same
+             * measurement the fixed-mode canvas grows by -- not by the
+             * container's own box, which keeps a size while hidden. The
+             * collapsed strip is its 42px icon column.
+             */
+            if( relayout_cooldown == 0 )
             {
-                if( getenv("TORIRS_CHROME_DEBUG") )
-                    fprintf(
-                        stderr,
-                        "chrome: strip %s (w=%d); re-running layout\n",
-                        registered ? "collapsed" : "lost to a tree rebuild",
-                        strip_w);
-                app_plugin_popout_relayout(app);
-                relayout_cooldown = 30;
+                int const strip_w = App_MeasureRightChromeStripWidth(app);
+                int const expanded = strip_w > 2 * APP_POPOUT_BTN;
+
+                if( !registered || !expanded )
+                {
+                    if( getenv("TORIRS_CHROME_DEBUG") )
+                        fprintf(
+                            stderr,
+                            "chrome: strip %s (w=%d); re-running layout\n",
+                            registered ? "collapsed" : "lost to a tree rebuild",
+                            strip_w);
+                    app_plugin_popout_relayout(app);
+                    relayout_cooldown = 30;
+                }
             }
         }
     }

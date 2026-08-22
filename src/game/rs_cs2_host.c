@@ -932,6 +932,10 @@ RS_CS2Host_Init(
     host->script_settings_client_mode = 3998;
     host->script_settings_client_apply = 3967;
     host->varbit_settings_last_changed = 9657;
+    /* -1, not 0: script 0 is a real id, so zero would mirror every varbit write
+     * made by whatever script happens to be id 0 before the panel is ever used. */
+    host->settings_mirror_root_script = -1;
+    host->settings_mirror_count = 0;
     /* 4183=settings_colour_input_click (the swatch's op), 4181=settings_get_colour
      * (the read hub whose varp read names a row's varp). */
     host->script_settings_colour_click = 4183;
@@ -2975,6 +2979,129 @@ rs_cs2_settings_record_action(
     slot = host->settings_action_count++;
     host->settings_action_id[slot] = setting_id;
     host->settings_action_value[slot] = value;
+}
+
+/** The root frame's script id, or -1 when there is no frame. */
+static int
+rs_cs2_root_script_id(struct CS2VM2_Thread* vm)
+{
+    if( !vm || vm->frame_sp <= 0 || !vm->frames[0] || !vm->frames[0]->script )
+        return -1;
+    return vm->frames[0]->script->script_id;
+}
+
+/*
+ * Mirror an All Settings varbit write to the server.
+ *
+ * Ten rows of this category are decided server-side and every one of them reads
+ * a varbit the panel writes client-only, so without this they read whatever the
+ * server last set and the panel's checkbox means nothing. See
+ * `settings_mirror_varbit` in the header for why no packet in this revision
+ * carries it and what is sent instead.
+ *
+ * The hub identifies itself: `%varbit9657 = <setting id>` is the first
+ * statement of all four apply hubs, so the root frame at that moment IS a hub,
+ * and every varbit write under that same root afterwards is this row's own. A
+ * list of hub script ids would say the same thing and would have to be kept in
+ * step with the cache by hand.
+ *
+ * 9657 itself is not mirrored. It is the panel telling ITSELF which row is
+ * being applied -- `%varbit9657` is read back by nothing on the server, and
+ * sending it would spend a packet on a value with no server-side meaning.
+ */
+static void
+rs_cs2_settings_record_mirror(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    int varbit_id,
+    int value)
+{
+    int root;
+
+    assert(host);
+    root = rs_cs2_root_script_id(vm);
+
+    if( host->varbit_settings_last_changed > 0 &&
+        varbit_id == host->varbit_settings_last_changed )
+    {
+        host->settings_mirror_root_script = root;
+        return;
+    }
+
+    if( root < 0 || root != host->settings_mirror_root_script )
+        return;
+
+    RS_CS2Host_QueueSettingsMirror(host, varbit_id, value);
+}
+
+void
+RS_CS2Host_QueueSettingsMirror(
+    struct RS_CS2Host* host,
+    int varbit_id,
+    int value)
+{
+    int slot;
+
+    assert(host);
+    if( varbit_id < 0 )
+        return;
+
+    /*
+     * Coalesce on the varbit, rather than appending.
+     *
+     * A row toggled twice before the queue drains is one value to send, not
+     * two, and the LAST one is the answer -- the opposite of the settings
+     * ACTION queue beside this, where two presses of a button row are two
+     * events and collapsing them would lose one.
+     */
+    for( slot = 0; slot < host->settings_mirror_count; slot++ )
+    {
+        if( host->settings_mirror_varbit[slot] == varbit_id )
+        {
+            host->settings_mirror_value[slot] = value;
+            return;
+        }
+    }
+
+    if( host->settings_mirror_count >= RS_CS2_HOST_SETTINGS_ACTIONS_MAX )
+    {
+        /* Drop the oldest, as the action queue does. A dropped mirror is one
+         * setting the server keeps its old value for, which the next write of
+         * that row corrects; blocking the queue would strand every later one. */
+        for( int i = 1; i < host->settings_mirror_count; i++ )
+        {
+            host->settings_mirror_varbit[i - 1] = host->settings_mirror_varbit[i];
+            host->settings_mirror_value[i - 1] = host->settings_mirror_value[i];
+        }
+        host->settings_mirror_count--;
+    }
+    slot = host->settings_mirror_count++;
+    host->settings_mirror_varbit[slot] = varbit_id;
+    host->settings_mirror_value[slot] = value;
+}
+
+bool
+RS_CS2Host_TakeSettingsMirror(
+    struct RS_CS2Host* host,
+    int* out_varbit_id,
+    int* out_value)
+{
+    assert(host);
+    assert(out_varbit_id);
+    assert(out_value);
+
+    if( host->settings_mirror_count <= 0 )
+        return false;
+
+    *out_varbit_id = host->settings_mirror_varbit[0];
+    *out_value = host->settings_mirror_value[0];
+    host->settings_mirror_count--;
+    for( int i = 0; i < host->settings_mirror_count; i++ )
+    {
+        host->settings_mirror_varbit[i] = host->settings_mirror_varbit[i + 1];
+        host->settings_mirror_value[i] = host->settings_mirror_value[i + 1];
+    }
+    return true;
 }
 
 /*
@@ -7253,6 +7380,9 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_VARS_WRITE_VARBIT:
         rs_cs2_settings_record_action(
+            host, vm, request->u.vars_write_varbit.varbit_id,
+            request->u.vars_write_varbit.value);
+        rs_cs2_settings_record_mirror(
             host, vm, request->u.vars_write_varbit.varbit_id,
             request->u.vars_write_varbit.value);
         rs_cs2_settings_apply_client_layout(

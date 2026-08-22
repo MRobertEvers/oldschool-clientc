@@ -2334,6 +2334,132 @@ app_overlay_build_player_headicons(
 }
 
 /*
+ * The HINT ARROW -- the server pointing at something.
+ *
+ * `HINT_ARROW` (server prot 50) has been parsed into `app->hint_arrow` for as
+ * long as the packet existed and drawn nowhere, which `app.h` recorded as
+ * "drawing is a flagged follow-on". This is that follow-on.
+ *
+ * It is also the only mechanism this revision has for two All Settings rows:
+ *
+ *   272  Clue scroll helper - Worldmap marker
+ *   273  Clue scroll helper - World arrows
+ *
+ * Neither has a reader in the cache and neither has one in the NXT engine --
+ * the only marker family the reference carries is
+ * `GraphicsDefaults::GetSpriteHintMapMarkersID` / `...HintHeadIconsID` /
+ * `...HintMapEdgeID`, which is this. So the payload is one coord the server
+ * sends, and the two rows are the server's choice of whether to send it; the
+ * client's job is to draw the arrow it is given.
+ *
+ * ## The three subject kinds
+ *
+ * The wire's `type` byte selects what `id`/`z` mean, and the reference's own
+ * values are 1 = a COORD (id is x, z is z, and the height byte is how far above
+ * the tile the arrow floats), 2 = an NPC by slot, 10 = a PLAYER by pid. 255
+ * clears, which `rs_gameproto_exec.c` already normalises to 0.
+ *
+ * A subject that is out of view is not an error and not a clear: an npc can
+ * walk behind the camera and come back. It simply does not project this frame,
+ * which is the same distinction the scripted-overlay reaper had to learn.
+ */
+static void
+app_overlay_build_hint_arrow(struct App* app)
+{
+    int const type = app->hint_arrow.type;
+    int hint_scene;
+    int screen_x, screen_y;
+    int world_x, world_z, height;
+
+    if( type <= 0 || !app->world )
+        return;
+
+    hint_scene = UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_HEADICONS_HINT);
+    if( hint_scene <= 0 )
+        return;
+
+    switch( type )
+    {
+    case APP_HINT_ARROW_COORD:
+    {
+        /*
+         * A tile, in ABSOLUTE world coordinates, converted to the scene's own
+         * frame through the same origin `SET_MAP_FLAG`'s absolute form uses.
+         *
+         * Absolute rather than scene-local because the arrow's whole purpose is
+         * to point somewhere the player is not, and a scene-local coord cannot
+         * name a tile outside the loaded window. `ToriRSServer_SendHintArrowCoord`
+         * sends it that way; a third-party server that sends scene-local coords
+         * would put the arrow near the map corner, which is the symptom to look
+         * for.
+         *
+         * The packet's `height` is in the projector's units above the tile, not
+         * a pixel offset -- the reference floats a coord arrow clear of the
+         * ground so it stays readable over scenery.
+         */
+        int const base_x = (app->rebuild_zone_x - 6) * 8;
+        int const base_z = (app->rebuild_zone_z - 6) * 8;
+
+        world_x = ((app->hint_arrow.target - base_x) << 7) + 64;
+        world_z = ((app->hint_arrow.tile_z - base_z) << 7) + 64;
+        height = app->hint_arrow.height * 2;
+        break;
+    }
+    case APP_HINT_ARROW_NPC:
+    {
+        struct WorldEntity_NPC* npc = World_NpcGetByServerSlot(app->world, app->hint_arrow.target);
+
+        if( !npc || npc->element_id < 0 )
+            return;
+        world_x = (int)npc->draw_position.x;
+        world_z = (int)npc->draw_position.z;
+        height = app_entity_model_height(app, npc->element_id) + 15;
+        break;
+    }
+    case APP_HINT_ARROW_PLAYER:
+    {
+        struct WorldEntity_Player* player =
+            World_PlayerGetByServerPid(app->world, app->hint_arrow.target);
+
+        if( !player || player->element_id < 0 )
+            return;
+        world_x = (int)player->draw_position.x;
+        world_z = (int)player->draw_position.z;
+        height = app_entity_model_height(app, player->element_id) + 15;
+        break;
+    }
+    default:
+        /* An unknown subject kind, which is a server sending something this
+         * revision does not define. Silent: it is not this frame's business to
+         * decide, and a log line per frame would be the whole log. */
+        return;
+    }
+
+    if( !app_world_project(app, world_x, world_z, height, &screen_x, &screen_y) )
+        return;
+
+    {
+        /*
+         * Frame 0 is the downward arrow that sits over the subject. The pack's
+         * other frames are the screen-EDGE arrows the reference draws when the
+         * subject is off-view, which this does not do yet: the edge form needs
+         * the off-screen direction, and a wrong edge arrow points the player
+         * somewhere there is nothing.
+         */
+        struct UITreeEntityOverlay spr = {
+            .kind = UITREE_ENTITY_OVERLAY_SPRITE,
+            .x = screen_x - 12,
+            .y = screen_y - 48,
+            .w = 0,
+            .h = 0,
+            .scene_id = hint_scene,
+            .atlas_index = 0,
+        };
+        app_overlay_push(app, &spr);
+    }
+}
+
+/*
  * The sprite-group id of `headicons_prayer`.
  *
  * An npc's opcode-102 icon names its group as a NUMBER, and the client
@@ -3705,6 +3831,23 @@ app_client_trigger_debug(
         script_id);
 }
 
+/** The same line with the subject's coord, for the ops that compare against a
+ *  server-published one. Split out because most triggers have no coord to
+ *  print and the extra field would be -1 noise on every npc. */
+static void
+app_client_trigger_debug_coord(char const* what, int trigger, int subject, int coord)
+{
+    if( !getenv("TORIRS_TRIGGER_DEBUG") )
+        return;
+    fprintf(
+        stderr,
+        "trigger: %s %d subject=%d coord=%d\n",
+        what,
+        trigger,
+        subject,
+        coord);
+}
+
 /** Fire an npc trigger with the npc as the active subject. */
 static void
 app_client_trigger_npc(struct App* app, struct WorldEntity_NPC* npc, int trigger)
@@ -3778,6 +3921,7 @@ app_client_trigger_loc(struct App* app, struct WorldEntity_Scenery* loc, int tri
         app->world->_base_tile_z + loc->grid_position.z);
     ctx.layer = World_LocShapeToLayer(loc->shape);
     snprintf(ctx.name, sizeof(ctx.name), "%s", loc->name);
+    app_client_trigger_debug_coord("loc", trigger, loc->loc_id, ctx.coord);
     app_client_trigger_queue(app, &ctx, script_id);
 }
 
@@ -4276,6 +4420,10 @@ app_build_entity_overlays(
         app_overlay_build_player_headicons(
             app, player->element_id, player->headicon, &player->draw_position, headicons_scene);
     }
+
+    /* One arrow, after every entity, so it layers over the health bars and
+     * splats of whatever it is pointing at. */
+    app_overlay_build_hint_arrow(app);
 
     /* Overhead chat is a second pass so it layers above every entity's health
      * bar and hitsplats (reference draws chatX/chatY after the entity loop).
@@ -16976,6 +17124,33 @@ Task_AppSpawn_Run(
              * the loctype first and lets the placement win (deob class108).
              */
             app_loc_change_apply_ops(app, self);
+            /*
+             * The cache's own "a loc was placed" script, for a loc that arrived
+             * AFTER the scene was built.
+             *
+             * The world-loaded sweep covers the map's own locs; this covers a
+             * zone packet's, and the difference is not academic -- a Dwarf
+             * multicannon is placed by the server four ticks after you click,
+             * and clientscript 6672 is bound to `dwarf_multicannon1` by exactly
+             * this trigger. Without it the cannon hud (All Settings row 247)
+             * can never appear, because the cannon is never a loc the sweep
+             * saw. See game/rs_client_trigger.h.
+             *
+             * After the ops, for the same reason they are applied after the
+             * spawn: this is the first point at which the entity exists and is
+             * finished, and the script reads its type and its coord.
+             */
+            if( self->loc_id >= 0 )
+            {
+                int const placed_idx = World_SceneryFindAt(
+                    app->world, self->tile_x, self->tile_z, self->level, self->loc_shape);
+                struct WorldEntity_Scenery* placed =
+                    placed_idx >= 0
+                        ? World_EntityPoolGet(&app->world->entities.scenery, placed_idx)
+                        : NULL;
+                if( placed )
+                    app_client_trigger_loc(app, placed, RS_TRIGGER_LOC_ADD);
+            }
             app_sync_textures(app);
             app->need_redraw = 1;
         }
@@ -22727,6 +22902,42 @@ App_RunOnce(
             else if( setting_id == APP_SETTING_CLEAR_NPC_TAGS )
                 RS_HighlightClear(&app->host.highlight, RS_HIGHLIGHT_NPC, 6);
             PluginHost_Setting(app->plugins, setting_id, setting_value);
+        }
+    }
+
+    /*
+     * Settings varbit writes, mirrored to the SERVER.
+     *
+     * Ten Activities rows are decided server-side -- the Agility, Slayer and
+     * Blast Furnace helpers, the clue helper's worldmap marker, world arrow and
+     * infobox, the two iron loot warnings, the boss health overlay and the
+     * max-hit threshold -- and every one of them reads a varbit this panel
+     * writes into the client's copy alone. See `settings_mirror_varbit` in
+     * rs_cs2_host.h for why no packet in this revision carries it and why the
+     * mirror rides CLIENT_CHEAT.
+     *
+     * Retried rather than dropped when the send fails. `App_SendCommand`
+     * answers false until the connection reaches GAME, and the settings panel
+     * is reachable well before that on a slow login -- a mirror lost there
+     * would leave the server on the opposite value with no second chance,
+     * since a row already at the value the player wants is never written again.
+     */
+    {
+        int mirror_varbit;
+        int mirror_value;
+        while( RS_CS2Host_TakeSettingsMirror(&app->host, &mirror_varbit, &mirror_value) )
+        {
+            char cmd[64];
+
+            snprintf(cmd, sizeof(cmd), "setting %d %d", mirror_varbit, mirror_value);
+            if( !App_SendCommand(app, cmd) )
+            {
+                RS_CS2Host_QueueSettingsMirror(&app->host, mirror_varbit, mirror_value);
+                break;
+            }
+            if( getenv("TORIRS_SETTINGS_DEBUG") )
+                fprintf(stderr, "settings: mirror varbit %d = %d -> server\n", mirror_varbit,
+                        mirror_value);
         }
     }
 

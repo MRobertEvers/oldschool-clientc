@@ -596,6 +596,72 @@ struct RS_CS2Host
     int settings_action_count;
 
     /**
+     * Settings varbit writes, waiting to be mirrored to the SERVER.
+     *
+     * ## Why the server has to be told, and why nothing tells it
+     *
+     * Ten rows of the Activities category are decided server-side -- the
+     * Agility / Slayer / Blast Furnace helpers, the clue helper's marker, arrow
+     * and infobox, the iron loot warnings, the boss health overlay and the
+     * max-hit threshold. Every one of them reads a varbit whose base varp is an
+     * ORDINARY SERVER VARP (`ironman_var_1`, `options_varp`, `options_mobile`
+     * ...), and the panel writes it with `VarPManager_SetVarbitOptimistic` --
+     * the client's own copy only. `VarPManager_ApplySync` overwrites that copy
+     * from `var_serv` the moment the server speaks about the varp, so the write
+     * is not merely invisible to the server, it is not durable here either.
+     *
+     * Nothing in the revision closes that gap:
+     *
+     *   - rev239's client prot table (`3rd/rsprot/gen/rev239_prot.h`) carries no
+     *     varp, varbit or settings packet. `SET_CHATFILTERSETTINGS` is the only
+     *     settings-shaped entry and it is about chat filters.
+     *   - the reference client does not transmit either: NXT's
+     *     `ClientVarCache::SetVarbit` writes `m_var` and returns, and `m_varServ`
+     *     is written only by the inbound `VARP_*` handlers.
+     *   - the panel does not ask the server: there is no `if_triggerop` or
+     *     `cc_triggerop` anywhere in interface 134's script family, and the
+     *     cache's own server-applied row kind (`~script3968`) has an empty
+     *     switch, which none of these rows uses.
+     *
+     * So the reference server holds these varps by a path this revision's prot
+     * table does not show, and the client's write is a prediction of a value the
+     * server is expected to already agree with.
+     *
+     * ## What this client does instead, and why it is CLIENT_CHEAT
+     *
+     * The App drains this queue and sends `::setting <varbit> <value>` over
+     * `CLIENT_CHEAT`, which ToriRSServer applies to the player's varps.
+     *
+     * CLIENT_CHEAT rather than a new opcode, deliberately. Adding a client
+     * packet id that rev239 does not define would make this client unable to
+     * talk to a real rev239 server at all -- an unknown opcode is not ignored,
+     * it desynchronises the stream, because the reader takes the packet's LENGTH
+     * from the prot table. CLIENT_CHEAT is a real rev239 client packet with a
+     * var-u8 string payload, so a server that does not know the command answers
+     * "unknown command" or says nothing, and the connection survives. A wire
+     * extension that degrades to a no-op is the only kind worth having here.
+     *
+     * ## What is mirrored, and what is not
+     *
+     * Only writes made INSIDE an All Settings apply hub. The root script id of
+     * the frame that wrote `%varbit9657` is remembered, and a varbit write is
+     * mirrored only while that same script is the root -- so the 510
+     * clientscripts in this cache that write a varbit for some other reason
+     * (a quest stage, a panel's scroll position) say nothing to the server,
+     * which is right: those are the server's own state and it already knows.
+     *
+     * Learned rather than tabulated, the same way `settings_colour_varp` is: the
+     * hub announces itself by writing 9657 as its first statement, so nothing
+     * here has to carry a list of hub script ids to keep in step with the cache.
+     */
+    int settings_mirror_varbit[RS_CS2_HOST_SETTINGS_ACTIONS_MAX];
+    int settings_mirror_value[RS_CS2_HOST_SETTINGS_ACTIONS_MAX];
+    int settings_mirror_count;
+    /** The apply hub's own script id, learned from the frame that wrote 9657.
+     *  -1 before the panel has ever applied anything. */
+    int settings_mirror_root_script;
+
+    /**
      * The All Settings panel's COLOUR rows, and the one the player just
      * clicked.
      *
@@ -1036,6 +1102,34 @@ RS_CS2Host_TakeSettingsAction(
     struct RS_CS2Host* host,
     int* out_setting_id,
     int* out_value);
+
+/**
+ * Pop the oldest settings varbit write waiting to be mirrored to the server.
+ *
+ * FIFO, and false when the queue is empty. See `settings_mirror_varbit` for why
+ * a client-side settings write has to reach the server at all.
+ */
+bool
+RS_CS2Host_TakeSettingsMirror(
+    struct RS_CS2Host* host,
+    int* out_varbit_id,
+    int* out_value);
+
+/**
+ * Queue a settings varbit write for the server directly, bypassing the "was a
+ * hub on the stack" test.
+ *
+ * For the writers that are not the panel: `TORIRS_SIM_VARBIT`, which exists
+ * precisely because nothing in the cache writes these varbits and a headless
+ * run has no panel to click. A simulated write that the server never heard
+ * about would make every server-side row untestable from a headless run, which
+ * is the only way most of them can be tested at all.
+ */
+void
+RS_CS2Host_QueueSettingsMirror(
+    struct RS_CS2Host* host,
+    int varbit_id,
+    int value);
 
 /**
  * A clientscript is about to run, with its arguments already in its locals.

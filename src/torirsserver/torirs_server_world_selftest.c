@@ -54599,6 +54599,96 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+    /*
+     * The hitsplat promoter -- settings 5, 279 and 280.
+     *
+     * Driven directly rather than through a fight, because the branch that
+     * matters cannot be reached from one here: "somebody else's damage" needs a
+     * dealer who is not the viewer, and every fight this suite stages is one
+     * player against npcs. The promotion the fights DO exercise (leaf -> the
+     * viewer's own `_me` wrapper) is visible under TORIRSSERVER_SPLAT_DEBUG and
+     * is the case that cannot silently regress; this is the other three.
+     *
+     * A failure here is invisible in every other way. The leaf and the wrapper
+     * both draw a splat, so sending the wrong one produces a perfectly ordinary
+     * hit with the player's setting silently answered for them.
+     */
+    {
+        int const leaf_damage = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT,
+                                                       "hitsplat_damage");
+        int const me = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT,
+                                              "hitsplat_damage_me");
+        int const other = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT,
+                                                 "hitsplat_damage_other");
+        int const max_me = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT,
+                                                  "hitsplat_damage_max_me");
+        int const heal = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT, "hitsplat_heal");
+
+        SELFTEST_CHECK(leaf_damage >= 0 && me >= 0 && other >= 0 && max_me >= 0,
+                       "the hitsplat pack names the damage family's wrappers "
+                       "(leaf %d, me %d, other %d, max %d)",
+                       leaf_damage, me, other, max_me);
+
+        if( leaf_damage >= 0 && me >= 0 && other >= 0 && max_me >= 0 )
+        {
+            struct ToriRSServerPlayer* viewer = &srv->players[0];
+            struct ToriRSServerPlayer* dealer = &srv->players[1];
+            int const viewer_slot = 0;
+            int const dealer_slot = 1;
+            const struct ToriRSServerIds* hs_ids = ToriRSServer_Ids();
+
+            memset(viewer, 0, sizeof(*viewer));
+            memset(dealer, 0, sizeof(*dealer));
+            viewer->active = 1;
+            dealer->active = 1;
+            viewer->world = srv;
+            dealer->world = srv;
+
+            SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, viewer, leaf_damage, 3,
+                                                      viewer_slot) == me,
+                           "your own damage takes the untinted `_me` wrapper");
+            SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, viewer, leaf_damage, 3,
+                                                      dealer_slot) == other,
+                           "another player's damage takes the `_other` wrapper, "
+                           "which is the one setting 5 tints");
+            SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, viewer, leaf_damage, 3, -1) == me,
+                           "damage nobody dealt is NOT tinted as somebody else's");
+            SELFTEST_CHECK(heal < 0 ||
+                               ToriRSServer_HitsplatForViewer(srv, viewer, heal, 3, dealer_slot) ==
+                                   heal,
+                           "a family with no wrapper is left exactly as content asked");
+
+            if( hs_ids && hs_ids->varp_com_maxhit >= 0 &&
+                hs_ids->varp_com_maxhit < TORIRSSERVER_VARP_COUNT )
+            {
+                dealer->varps[hs_ids->varp_com_maxhit] = 9;
+                SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, dealer, leaf_damage, 9,
+                                                          dealer_slot) == max_me,
+                               "a hit equal to your own max hit takes the max-hit wrapper");
+                SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, dealer, leaf_damage, 8,
+                                                          dealer_slot) == me,
+                               "a hit below your max hit does not");
+                /* Setting 280: the floor. A max hit under the threshold is
+                 * still a max hit and still must not get the splat -- which is
+                 * the one part of these two rows a var selector cannot express,
+                 * because it is a comparison against the damage. */
+                if( hs_ids->varbit_hitsplat_threshold >= 0 )
+                {
+                    ToriRSServer_VarbitSetOn(srv, dealer, hs_ids->varbit_hitsplat_threshold, 20);
+                    SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, dealer, leaf_damage, 9,
+                                                              dealer_slot) == me,
+                                   "a max hit below setting 280's threshold gets no max splat");
+                    ToriRSServer_VarbitSetOn(srv, dealer, hs_ids->varbit_hitsplat_threshold, 0);
+                }
+                SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, viewer, leaf_damage, 9,
+                                                          dealer_slot) == other,
+                               "somebody ELSE's max hit is still just their damage to you");
+            }
+            memset(viewer, 0, sizeof(*viewer));
+            memset(dealer, 0, sizeof(*dealer));
+        }
+    }
+
     /* Across the WHOLE suite — see the two counters' fields. Asserted here
      * rather than inside one encounter's stanza because the next encounter to
      * make either mistake will not be the one that found it. */

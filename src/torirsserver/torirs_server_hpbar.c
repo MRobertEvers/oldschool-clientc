@@ -32,11 +32,22 @@
  *   %hpbar_hud_boss     (varbit)  draw the wide boss bar rather than the
  *                                 small one
  *
- * `hpbar_hud_boss` stays 0 here. Which npcs are "certain bosses" (setting 10's
- * wording) is a per-encounter decision the reference leaves to the boss's own
- * content, and this server has no such list -- inventing one would light the
- * wide bar for the wrong monsters, which is worse than not lighting it. A
- * boss script can raise the varbit itself and the panel follows.
+ * `hpbar_hud_boss` is never RAISED here. Which npcs are "certain bosses"
+ * (setting 10's wording) is a per-encounter decision the reference leaves to the
+ * boss's own content, and this server has no such list -- inventing one would
+ * light the wide bar for the wrong monsters, which is worse than not lighting
+ * it. A boss script can raise the varbit itself and the panel follows.
+ *
+ * It IS lowered here, and that is setting 10's whole implementation:
+ *
+ *   10   Show boss health overlay            %hpbar_hud_boss_disabled
+ *
+ * The row had no reader anywhere -- not in the cache (the panel's layout script
+ * 2101 branches on `%hpbar_hud_boss`, never on the setting), not in the NXT
+ * engine, and not here. So a player who switched it off still got the wide bar
+ * from any encounter that raised the varbit. Clearing it on the setting puts the
+ * decision back where the row says it is without this file having to know which
+ * npcs are bosses: content proposes, the player disposes.
  *
  * ---- the setting is INVERTED, and the cache says so in the name ----
  *
@@ -122,6 +133,26 @@ ToriRSServer_HpBarTick(
      */
     if( want_type >= 0 && ToriRSServer_VarbitGet(player, ids->varbit_hpbar_hud_standard_off) )
         want_type = -1;
+
+    /*
+     * Setting 10, and it is a VETO rather than a switch.
+     *
+     * Read every tick beside setting 111's, for the same reason: switching it
+     * off mid-fight has to narrow the bar on the next tick, not on the next
+     * encounter. An encounter that has raised `hpbar_hud_boss` keeps whatever it
+     * set for as long as the player wants boss bars; the moment they do not, the
+     * varbit goes to 0 and clientscript 2101 draws the small bar instead.
+     *
+     * Nothing here ever sets it to 1 -- see the header.
+     */
+    if( ids->varbit_hpbar_hud_boss >= 0 && ids->varbit_hpbar_hud_boss_off >= 0 &&
+        ToriRSServer_VarbitGet(player, ids->varbit_hpbar_hud_boss_off) &&
+        ToriRSServer_VarbitGet(player, ids->varbit_hpbar_hud_boss) )
+    {
+        if( getenv("TORIRS_HPBAR_DEBUG") )
+            fprintf(stderr, "hpbar: setting 10 is off — clearing the boss bar\n");
+        ToriRSServer_VarbitSetOn(srv, player, ids->varbit_hpbar_hud_boss, 0);
+    }
 
     if( want_type < 0 )
     {

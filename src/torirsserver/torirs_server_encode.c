@@ -3830,15 +3830,33 @@ ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
             memset(&ext, 0, sizeof(ext));
             if( player->masks & (TORIRSSERVER_PMASK_DAMAGE | TORIRSSERVER_PMASK_DAMAGE2) )
             {
+                /*
+                 * Promoted to the wrapper that carries THIS viewer's settings.
+                 *
+                 * Content names a family (`hitsplat_damage`); the cache carries
+                 * a me/other pair and a max-hit wrapper over it, both keyed on
+                 * All Settings varbits the client resolves at draw time. Sending
+                 * the family leaf answers settings 5 and 279 "off" for every
+                 * player, silently -- see ToriRSServer_HitsplatForViewer.
+                 *
+                 * The viewer here is the player being hit, which is the common
+                 * case where the two differ: another player's damage on you is
+                 * damage you did not deal, and that is exactly what setting 5
+                 * tints.
+                 */
                 ext.has_hit = 1;
-                ext.hit_type = player->damage_type;
+                ext.hit_type = ToriRSServer_HitsplatForViewer(
+                    srv, player, player->damage_type, player->damage,
+                    player->hitmark_count > 0 ? player->hitmarks[0].dealer_slot : -1);
                 ext.hit_value = player->damage;
                 /* Splats two and onward of the same tick. The mirrors above are
                  * hitmarks[0]; everything the player took alongside it goes in
                  * the list rather than being dropped (struct ToriRSServerHitmark). */
                 for( int i = 1; i < player->hitmark_count && i <= 3; i++ )
                 {
-                    ext.hit_extra[ext.hit_extra_count].type = player->hitmarks[i].type;
+                    ext.hit_extra[ext.hit_extra_count].type = ToriRSServer_HitsplatForViewer(
+                        srv, player, player->hitmarks[i].type, player->hitmarks[i].damage,
+                        player->hitmarks[i].dealer_slot);
                     ext.hit_extra[ext.hit_extra_count].value = player->hitmarks[i].damage;
                     ext.hit_extra_count++;
                 }
@@ -4559,8 +4577,16 @@ put_npc_extended_v5(
              * writer that set the mask by hand; fall back to the mirror so it
              * still says what it used to. */
             int const damage = npc->hitmark_count > 0 ? npc->hitmarks[i].damage : npc->damage;
-            int const damage_type =
+            int const stated =
                 npc->hitmark_count > 0 ? npc->hitmarks[i].type : npc->damage_type;
+            int const dealer =
+                npc->hitmark_count > 0 ? npc->hitmarks[i].dealer_slot : -1;
+            /* Per RECIPIENT, which is the whole reason this cannot be decided
+             * where the hit lands: one npc's splat list is encoded once per
+             * player watching, and "was this my damage" is a fact about the
+             * pair. See ToriRSServer_HitsplatForViewer. */
+            int const damage_type =
+                ToriRSServer_HitsplatForViewer(recipient->world, recipient, stated, damage, dealer);
 
             v5_psmart1or2(buf, damage_type);
             v5_psmart1or2(buf, damage);

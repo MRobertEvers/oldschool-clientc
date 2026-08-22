@@ -180,6 +180,16 @@ enum AppPluginRowKind
 #define APP_SETTING_CLEAR_TILE_MARKERS 117
 #define APP_SETTING_CLEAR_NPC_TAGS 267
 
+/*
+ * HINT_ARROW's `type` byte: what the packet's `id`/`z` fields mean.
+ *
+ * The reference's own values. 255 means "clear" and is normalised to 0 by
+ * `rs_gameproto_exec.c`, so 0 here is simply "no arrow" and needs no name.
+ */
+#define APP_HINT_ARROW_COORD 1
+#define APP_HINT_ARROW_NPC 2
+#define APP_HINT_ARROW_PLAYER 10
+
 #define APP_PLUGIN_HIGHLIGHTS_MAX 256
 
 #define APP_PLUGIN_OBJECTS_MAX 256
@@ -1446,11 +1456,22 @@ struct App
         int shake_speed[5];     /* sine rate, hundredths */
         int shake_cycle[5];
     } cam_script;
-    /** HINT_ARROW state (drawing is a flagged follow-on). type 0 = none. */
+    /**
+     * HINT_ARROW state -- the server pointing at something. type 0 = none.
+     *
+     * Drawn by `app_overlay_build_hint_arrow`, which is also the whole of what
+     * this client can do for All Settings rows 272 (worldmap marker) and 273
+     * (world arrows): neither has a reader in the cache or in the NXT engine,
+     * and the only marker family the reference carries is the hint arrow's own
+     * (`GraphicsDefaults::GetSpriteHintMapMarkersID` and its two siblings). So
+     * the server decides whether to point, and this decides how to draw it.
+     */
     struct
     {
+        /** APP_HINT_ARROW_COORD / _NPC / _PLAYER. 0 is none; the wire's 255 is
+         *  normalised to 0 on the way in. */
         int type;
-        int target; /* npc/player slot, or tile x */
+        int target; /* npc slot, player pid, or the absolute tile x */
         int tile_z;
         int height;
     } hint_arrow;

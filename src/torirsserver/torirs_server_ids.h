@@ -236,6 +236,22 @@ struct ToriRSServerIds
     int varbit_hpbar_hud_hp;
     int varbit_hpbar_hud_basehp;
     int varbit_hpbar_hud_standard_off;
+    /** Setting 10, "Show boss health overlay". `..._disabled`: 1 is OFF. */
+    int varbit_hpbar_hud_boss_off;
+    /** The wide-bar switch the panel's own layout script reads. Not a setting. */
+    int varbit_hpbar_hud_boss;
+
+    /*
+     * The player's max hit, computed by `[proc,player_combat_stat]`.
+     *
+     * Read by the hitsplat promoter, which needs "was that this attacker's
+     * maximum" for setting 279. It is a varp rather than a field because the max
+     * hit is a game-design calculation and lives in content -- see the note over
+     * `roll_hit` in torirs_server_combat.c.
+     */
+    int varp_com_maxhit;
+    /** Setting 280's floor: max hits below it do not get the max-hit splat. */
+    int varbit_hitsplat_threshold;
 
     int varbit_bank_withdrawnotes;
     int varbit_bank_insertmode;

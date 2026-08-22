@@ -844,8 +844,25 @@ enum
 struct ToriRSServerHitmark
 {
     int damage;
-    /** A hitsplat *config* id (group 32) — 28 damage, 26 block. Not a style. */
+    /**
+     * A hitsplat *config* id (group 32) — 28 damage, 26 block. Not a style.
+     *
+     * What content states, and NOT necessarily what goes on the wire: the
+     * encoder promotes a leaf to the wrapper that carries the viewer's own
+     * settings. See `ToriRSServer_HitsplatForViewer`.
+     */
     int type;
+    /**
+     * Which player slot dealt this, or -1 for damage nobody owns (poison, a
+     * trap, an npc hitting an npc).
+     *
+     * The splat list lives on the entity and is encoded once per VIEWER, and
+     * "was this my damage" is a fact about the pair, not about the hit. Without
+     * it every hitsplat in the game is somebody's own — which is precisely the
+     * state that made setting 5 ("hitsplats caused by damage that you did not
+     * deal are tinted") impossible to honour.
+     */
+    int dealer_slot;
 };
 
 /* The npc mask is a single byte — there is no widening bit. */
@@ -4107,6 +4124,39 @@ ToriRSServer_VarbitFree(void);
  */
 int
 ToriRSServer_VarpClientCount(void);
+
+/**
+ * The hitsplat id one VIEWER should be sent for a splat somebody dealt.
+ *
+ * Content names a family — `hitsplat_damage`, `hitsplat_block`,
+ * `hitsplat_poison`, `hitsplat_shield` — and this promotes it to the cache
+ * WRAPPER that asks the viewer's own All Settings rows:
+ *
+ *   setting 5   "Hitsplat tinting"    varbit 10236, the me/other pair
+ *   setting 279 "Max hit hitsplats"   varbit 14196, the max-hit wrapper
+ *   setting 280 "Max hit threshold"   varbit 14195, the floor under it
+ *
+ * The client resolves the wrapper against the viewer's varbits at draw time
+ * (`RS_Hitsplats_ResolveType`), so nothing here reads a setting except the
+ * max-hit threshold, which is a comparison against the damage and cannot be
+ * expressed as a var selector.
+ *
+ * A family with no wrapper in this cache — heal, venom, the coloured splats —
+ * comes back unchanged, which is the whole of "content decides, this only
+ * refines".
+ *
+ * @param viewer      who is being sent this splat.
+ * @param type        what content asked for.
+ * @param damage      the number on the splat, for the max-hit test.
+ * @param dealer_slot who dealt it, or -1.
+ */
+int
+ToriRSServer_HitsplatForViewer(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* viewer,
+    int type,
+    int damage,
+    int dealer_slot);
 
 /** Read a varbit out of the player's varps. 0 when the id is unknown. */
 int

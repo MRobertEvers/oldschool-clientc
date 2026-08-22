@@ -1602,6 +1602,17 @@ frame_loop_step(void)
             {
                 VarPManager_SetVarbitOptimistic(&app.varps, (int)vb_id, (int)vb_value);
                 RS_CS2Host_NotifyVarChanged(&app.host, -1);
+                /*
+                 * Mirror it to the server too, exactly as a panel click would.
+                 *
+                 * Ten Activities rows are decided server-side, and this
+                 * variable is the only way to reach any row from a headless
+                 * run -- nothing in the cache writes these varbits. A simulated
+                 * write the server never heard about would leave every one of
+                 * those rows untestable, which is the state that made them look
+                 * unimplementable in the first place.
+                 */
+                RS_CS2Host_QueueSettingsMirror(&app.host, (int)vb_id, (int)vb_value);
                 fprintf(
                     stderr,
                     "sim_varbit: %ld = %ld (base varp %d, reads back %d)\n",

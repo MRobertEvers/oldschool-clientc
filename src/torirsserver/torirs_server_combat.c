@@ -426,6 +426,179 @@ hitsplat_shield(void)
     return id >= 0 ? id : hitsplat_block();
 }
 
+/* ------------------------------------------------------------------ */
+/* Which splat a VIEWER is sent                                        */
+/* ------------------------------------------------------------------ */
+
+/*
+ * Content names a family; the cache carries a WRAPPER over each family that
+ * asks the viewer's own settings, and the wrapper is what has to go on the
+ * wire.
+ *
+ * `cache.osrs239`'s hitsplat table is 34 selector records over 49 appearance
+ * records. A selector carries opcode 17/18 -- a varbit, a varp and a fallback,
+ * then ids indexed by the var's value -- and every one of them is keyed on one
+ * of exactly two varbits, both All Settings rows:
+ *
+ *   10236 `hitsplat_tint_disabled`    setting 5   "Hitsplat tinting"
+ *   14196 `hitsplat_maxhit_disabled`  setting 279 "Max hit hitsplats"
+ *
+ * The tinting selectors come in me/other pairs. The "me" member resolves to the
+ * same leaf whichever way the setting is set (your own damage was never the
+ * thing being tinted); the "other" member resolves to the tinted leaf when
+ * tinting is on and to the plain one when it is off. So sending the LEAF --
+ * which is what this server did, for every hit in the game -- silently answers
+ * setting 5 "off" on the player's behalf, and there is no way for them to
+ * notice: the splat is a perfectly ordinary splat.
+ *
+ * Reading the setting is deliberately NOT done here. The client resolves the
+ * wrapper against its own varbits at draw time, which is where the reference
+ * resolves it, and it is why a player toggling the row re-skins the splats
+ * already on screen. The one thing this has to decide is which QUESTION to ask.
+ */
+struct hitsplat_family
+{
+    char const* leaf;
+    char const* me;
+    char const* other;
+    /** The max-hit wrapper for this family, or NULL where the cache has none. */
+    char const* max_me;
+};
+
+/*
+ * The four families content actually names. Every name is looked up in the
+ * content pack rather than written as an id, so a cache whose table is numbered
+ * differently needs no change here -- and a pack that has not named a wrapper
+ * yet leaves that family exactly as it was.
+ */
+static const struct hitsplat_family HITSPLAT_FAMILIES[] = {
+    { "hitsplat_damage", "hitsplat_damage_me", "hitsplat_damage_other",
+      "hitsplat_damage_max_me" },
+    { "hitsplat_block", "hitsplat_block_me", "hitsplat_block_other", NULL },
+    { "hitsplat_poison", "hitsplat_poison_me", "hitsplat_poison_other", NULL },
+    { "hitsplat_shield", "hitsplat_shield_me", "hitsplat_shield_other",
+      "hitsplat_shield_max_me" },
+};
+
+/** A pack symbol, or -1. Wrapped so the family walk reads as a lookup. */
+static int
+hitsplat_symbol(char const* name)
+{
+    return name ? ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT, name) : -1;
+}
+
+/**
+ * The family `type` belongs to, or NULL.
+ *
+ * Matches the leaf AND both wrappers, so a script that already states
+ * `hitsplat_damage_other` is understood rather than silently re-promoted to the
+ * viewer's own answer.
+ */
+static const struct hitsplat_family*
+hitsplat_family_of(int type)
+{
+    size_t const n = sizeof(HITSPLAT_FAMILIES) / sizeof(HITSPLAT_FAMILIES[0]);
+
+    for( size_t i = 0; i < n; i++ )
+    {
+        const struct hitsplat_family* f = &HITSPLAT_FAMILIES[i];
+
+        if( type == hitsplat_symbol(f->leaf) || type == hitsplat_symbol(f->me) ||
+            type == hitsplat_symbol(f->other) || type == hitsplat_symbol(f->max_me) )
+            return f;
+    }
+    return NULL;
+}
+
+/**
+ * Was this the dealer's own maximum, and does it clear their threshold?
+ *
+ * `%com_maxhit` is written by `[proc,player_combat_stat]` -- the max hit is a
+ * game-design calculation and lives in content, which is why this reads a varp
+ * instead of computing one. A dealer whose max hit has never been computed
+ * reads 0, and 0 can never equal a damage that got here, so a server with no
+ * combat scripts loaded simply never promotes.
+ *
+ * Setting 280's threshold (varbit 14195) is the other half, and it is the one
+ * thing about these two rows a var selector cannot express: it is a comparison
+ * against the damage, not a lookup. Nine bits, so 0..511.
+ */
+static int
+hitsplat_is_max_hit(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* dealer,
+    int damage)
+{
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+    int max_hit;
+    int threshold;
+
+    (void)srv;
+    if( !dealer || damage <= 0 || !ids )
+        return 0;
+    if( ids->varp_com_maxhit < 0 )
+        return 0;
+
+    if( ids->varp_com_maxhit >= TORIRSSERVER_VARP_COUNT )
+        return 0;
+    max_hit = dealer->varps[ids->varp_com_maxhit];
+    if( max_hit <= 0 || damage != max_hit )
+        return 0;
+
+    threshold = ids->varbit_hitsplat_threshold >= 0
+                    ? ToriRSServer_VarbitGet(dealer, ids->varbit_hitsplat_threshold)
+                    : 0;
+    return damage >= threshold;
+}
+
+int
+ToriRSServer_HitsplatForViewer(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* viewer,
+    int type,
+    int damage,
+    int dealer_slot)
+{
+    const struct hitsplat_family* family = hitsplat_family_of(type);
+    const struct ToriRSServerPlayer* dealer = NULL;
+    int viewer_is_dealer;
+    int promoted;
+
+    assert(srv);
+    assert(viewer);
+    if( !family )
+        return type;
+
+    if( dealer_slot >= 0 && dealer_slot < TORIRSSERVER_PLAYER_MAX &&
+        srv->players[dealer_slot].active )
+        dealer = &srv->players[dealer_slot];
+
+    /*
+     * Damage nobody owns is NOT "somebody else's".
+     *
+     * Poison ticking, a trap, an npc hitting another npc: the row's sentence is
+     * "damage that you did not deal", and tinting those would tint most of what
+     * a player sees while standing still. The reference leaves unowned damage on
+     * its own family's `me` member, which is the untinted one, and so does this.
+     */
+    viewer_is_dealer = (dealer == NULL) || (dealer == viewer);
+
+    if( viewer_is_dealer && family->max_me && hitsplat_is_max_hit(srv, dealer, damage) )
+    {
+        promoted = hitsplat_symbol(family->max_me);
+        if( promoted >= 0 )
+            return promoted;
+    }
+
+    promoted = hitsplat_symbol(viewer_is_dealer ? family->me : family->other);
+    if( getenv("TORIRSSERVER_SPLAT_DEBUG") )
+        fprintf(stderr, "  SPLAT viewer=%s stated=%d dealer=%d -> %d\n",
+                viewer->display_name, type, dealer_slot, promoted >= 0 ? promoted : type);
+    /* A pack that has not named this family's wrappers leaves the splat exactly
+     * as content asked for it, rather than dropping it. */
+    return promoted >= 0 ? promoted : type;
+}
+
 /**
  * Nightmare Zone absorption. The pool lives in the cache varbit the client
  * already carries (`nzone_absorb_potion_effects`, ten bits, so 0..1023 holds
@@ -810,13 +983,42 @@ ToriRSServer_HitmarkAdd(
     struct ToriRSServerHitmark* hitmarks,
     int* count,
     int damage,
-    int type)
+    int type,
+    int dealer_slot)
 {
     if( *count >= TORIRSSERVER_HITMARK_MAX )
         return;
     hitmarks[*count].damage = damage;
     hitmarks[*count].type = type;
+    hitmarks[*count].dealer_slot = dealer_slot;
     (*count)++;
+}
+
+/**
+ * Whose damage this is, for the splat each viewer eventually gets.
+ *
+ * **Only correct for damage aimed at an NPC**, and that asymmetry is the whole
+ * reason this is a named function rather than an inline expression.
+ * `srv->active_player` is the player the world is currently running on, and
+ * which end of the fight that is depends on the call:
+ *
+ *   - `CombatHitNpc` runs inside the ATTACKER's script, so the active player
+ *     dealt the hit. That is what this answers.
+ *   - `CombatHitPlayer` runs with the active player as the VICTIM -- the npc
+ *     attack scripts take the target as their active player. Using this there
+ *     would record every npc's hit on you as your own damage, which is not
+ *     merely wrong, it is wrong in the direction that makes setting 5 look
+ *     implemented while tinting nothing.
+ *
+ * So the player-victim paths pass -1 (unowned) explicitly instead of calling
+ * this, and say so at the call site.
+ */
+static int
+ToriRSServer_HitmarkDealerFromAttackerScript(const struct ToriRSServer* srv)
+{
+    if( !srv || !srv->active_player )
+        return -1;
+    return (int)(srv->active_player - &srv->players[0]);
 }
 
 void
@@ -887,7 +1089,8 @@ ToriRSServer_CombatHitNpc(
      * splat rather than nothing — the reference shows those, and without them a
      * miss is indistinguishable from the server having ignored the swing. */
     ToriRSServer_HitmarkAdd(npc->hitmarks, &npc->hitmark_count, amount,
-                        amount > 0 ? type : hitsplat_block());
+                        amount > 0 ? type : hitsplat_block(),
+                        ToriRSServer_HitmarkDealerFromAttackerScript(srv));
     npc->damage = npc->hitmarks[0].damage;
     npc->damage_type = npc->hitmarks[0].type;
     npc->hitpoints = npc->hitpoints < 0 ? 0 : npc->hitpoints;
@@ -1160,8 +1363,15 @@ ToriRSServer_CombatHitmarkPlayer(
     assert(player);
     if( amount < 0 )
         amount = 0;
+    /* Dealer -1, not the active player: this runs with the VICTIM active (an
+     * npc's attack script takes its target as the active player), so asking
+     * who is active here answers "you", and every npc hit in the game would be
+     * recorded as your own damage. -1 is also the right ANSWER for the only
+     * case this server currently produces -- an npc hitting a player is damage
+     * no player dealt. Player-versus-player would need the attacker threaded
+     * through from the script that called this. */
     ToriRSServer_HitmarkAdd(player->hitmarks, &player->hitmark_count, amount,
-                        amount > 0 ? type : hitsplat_block());
+                        amount > 0 ? type : hitsplat_block(), -1);
     player->damage = player->hitmarks[0].damage;
     player->damage_type = player->hitmarks[0].type;
     player->masks |= TORIRSSERVER_PMASK_DAMAGE;
@@ -1197,7 +1407,8 @@ ToriRSServer_CombatHitmarkNpc(
      * can put the overhead health bar over an npc whose health is moving
      * without anybody hitting it.
      */
-    ToriRSServer_HitmarkAdd(npc->hitmarks, &npc->hitmark_count, amount, type);
+    ToriRSServer_HitmarkAdd(npc->hitmarks, &npc->hitmark_count, amount, type,
+                        ToriRSServer_HitmarkDealerFromAttackerScript(srv));
     npc->damage = npc->hitmarks[0].damage;
     npc->damage_type = npc->hitmarks[0].type;
     npc->max_hitpoints = npc->max_hitpoints > 0 ? npc->max_hitpoints : 1;
@@ -1249,8 +1460,10 @@ ToriRSServer_CombatHitPlayer(
         amount = player->hitpoints;
     player->hitpoints -= amount;
 
+    /* Dealer -1 -- see the twin of this call in `CombatHitmarkPlayer`. */
     ToriRSServer_HitmarkAdd(player->hitmarks, &player->hitmark_count, amount,
-                        amount > 0 ? type : (absorbed_fully ? hitsplat_shield() : hitsplat_block()));
+                        amount > 0 ? type : (absorbed_fully ? hitsplat_shield() : hitsplat_block()),
+                        -1);
     player->damage = player->hitmarks[0].damage;
     player->damage_type = player->hitmarks[0].type;
     player->hitpoints = player->hitpoints < 0 ? 0 : player->hitpoints;

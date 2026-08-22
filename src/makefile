@@ -2581,15 +2581,15 @@ check-godwars-contract:
 # script build separate lets a God Wars evidence run diagnose its own lane even
 # when an unrelated content contract blocks the aggregate torirsserver-scripts gate.
 .PHONY: godwars-evidence check-godwars-evidence test-godwars-restart
-godwars-evidence: ToriRSServer check-godwars-manifest check-godwars-contract
+godwars-evidence: torirsserver check-godwars-manifest check-godwars-contract
 	@cd $(REPO_ROOT) && python3 tools/capture_godwars_evidence.py --skip-contracts \
 		--server src/$(OBJ_DIR)/torirsserver
 
-check-godwars-evidence: ToriRSServer check-godwars-manifest check-godwars-contract
+check-godwars-evidence: torirsserver check-godwars-manifest check-godwars-contract
 	@cd $(REPO_ROOT) && python3 tools/capture_godwars_evidence.py --check --skip-contracts \
 		--server src/$(OBJ_DIR)/torirsserver
 
-test-godwars-restart: ToriRSServer
+test-godwars-restart: torirsserver
 	@cd $(REPO_ROOT) && python3 tools/test_godwars_restart.py \
 		--server src/$(OBJ_DIR)/torirsserver \
 		--scripts OSRS-Content/osrs239-content/server/scripts/build
@@ -3366,7 +3366,24 @@ torirsserver-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
 	@echo "built $(OBJ_DIR)/ToriRSServer_Pack"
 
-# `torirsserver-scripts` and not just `ToriRSServer`: combat, prayer and the interface
+# `ToriRSServer` (capitalised) is DELIBERATELY not the prerequisite here any
+# more, and the reason is the same hazard this comment block is about.
+#
+# It is listed in .PHONY and has no rule anywhere in this file. On the
+# case-insensitive filesystem this tree is developed on it resolves to the
+# already-built `torirsserver`, so make answers "Nothing to be done" and moves
+# on -- which means `test-torirsserver` ran whatever binary happened to be on
+# disk, however old. That is the C-side twin of the stale-script hazard below,
+# and it is worse: the stale-script guard at least refuses to run. This one
+# reported green for a binary built before the change under test, which is a
+# negative control that cannot go red.
+#
+# Found by mutating a function the suite asserts on and watching the suite stay
+# green. The other three users of the empty phony (godwars-evidence,
+# check-godwars-evidence, test-godwars-restart) had the same hole and are fixed
+# the same way.
+#
+# `torirsserver-scripts` and not just `torirsserver`: combat, prayer and the interface
 # arming are content now, so an assertion about them is an assertion about
 # `script.dat`. Without this the selftest happily runs a binary built from
 # today's C against a script pack built days ago â which is not a stale-result
@@ -3374,7 +3391,7 @@ torirsserver-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 # `[proc,combat_effective_stat]` and re-running left the suite fully green,
 # because the .rs2 edit had never been compiled. A negative control that cannot
 # go red is worse than no negative control, since it reads as proof.
-test-torirsserver: ToriRSServer torirsserver-scripts torirsserver-servpack check-crystal-set-contract check-gauntlet-contract
+test-torirsserver: torirsserver torirsserver-scripts torirsserver-servpack check-crystal-set-contract check-gauntlet-contract
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/torirsserver --selftest
 
 # The opcode-coverage table is derived from the `case SS_OP_*:` labels in the VM
