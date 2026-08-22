@@ -1,5 +1,8 @@
 #include "cachepack.h"
 
+/* `cp_asset`, for naming the asset namespace a hitsplat sprite reference missed. */
+#include "cp_assets.h"
+
 #include "datatypes/dat2_config_healthbar.h"
 #include "datatypes/dat2_config_hitsplat.h"
 #include "datatypes/dat2_config_inv.h"
@@ -419,6 +422,195 @@ cp_pack_healthbar(
 
 /* ---- hitsplat ----------------------------------------------------------- */
 
+/*
+ * Every number in a hitsplat record names something else.
+ *
+ * This text used to be `opcode7=12`, `sprite=1358`, `variantvar=10236,-1,26` —
+ * three kinds of magic number in one record. The opcode number is not the
+ * field's meaning (the meaning is in the reference's renderer, and
+ * `dat2_config_hitsplat.h` now carries it); the sprite is `hitmark_0`, which
+ * `pack/8_sprites.pack` has always known; and 10236 is varbit
+ * `hitsplat_tint_disabled`, the All Settings row "Hitsplat tinting", which is
+ * the whole reason the record exists.
+ *
+ * So the keys are the field names and the values are spelled in the namespace
+ * they belong to — sprites through `pack/8_sprites.pack`, the selector's var
+ * through `all.varbit`/`all.varp`, and its variant ids through this same file's
+ * own `all.hitsplat.compack`, exactly as the `[section]` names already are. A
+ * bare number is still accepted everywhere, for an id no pack lists yet.
+ *
+ * `opcodeorder` is written in the same key names, because the packing order is
+ * the one place the opcode numbers would otherwise still show through.
+ */
+
+/** One text key and the opcode it stands for, in the order unpack emits them. */
+struct hitsplat_field
+{
+    const char* key;
+    int opcode;
+};
+
+static const struct hitsplat_field HITSPLAT_FIELDS[] = {
+    { "font", 1 },       { "textcolour", 2 }, { "iconsprite", 3 }, { "leftsprite", 4 },
+    { "sprite", 5 },     { "rightsprite", 6 }, { "driftx", 7 },    { "text", 8 },
+    { "duration", 9 },   { "driftup", 10 },   { "fade", 11 },      { "slotpolicy", 12 },
+    { "texty", 13 },     { "fadeafter", 14 }, { "variants", 18 },
+};
+
+/**
+ * The key `opcodeorder` spells `opcode` as, or NULL for an opcode with no key.
+ *
+ * 17 and 18 share `variants` — they are the same field, and which one a record
+ * carries is stated by whether it has a `variantdefault` line, not here.
+ */
+static const char*
+hitsplat_key_for_opcode(int opcode)
+{
+    if( opcode == 17 )
+        opcode = 18;
+    for( size_t i = 0; i < sizeof(HITSPLAT_FIELDS) / sizeof(HITSPLAT_FIELDS[0]); i++ )
+        if( HITSPLAT_FIELDS[i].opcode == opcode )
+            return HITSPLAT_FIELDS[i].key;
+    return NULL;
+}
+
+/** The opcode `key` stands for, or -1. `variants` answers 18; see above. */
+static int
+hitsplat_opcode_for_key(const char* key)
+{
+    for( size_t i = 0; i < sizeof(HITSPLAT_FIELDS) / sizeof(HITSPLAT_FIELDS[0]); i++ )
+        if( strcmp(HITSPLAT_FIELDS[i].key, key) == 0 )
+            return HITSPLAT_FIELDS[i].opcode;
+    return -1;
+}
+
+/** Opcode 12's three values, spelled as `enum World_HitmarkSlotPolicy` reads them. */
+static const struct
+{
+    const char* name;
+    int value;
+} HITSPLAT_SLOT_POLICIES[] = {
+    { "discard", -1 },
+    { "oldest", 0 },
+    { "smallest", 1 },
+};
+
+/*
+ * The spellings this file used before the fields had names.
+ *
+ * Refused rather than silently ignored, and for the reason `variantabc` was:
+ * a tree still carrying `opcode7=12` was written by a decoder that also emitted
+ * `opcode49`, and a warn-and-continue on an unknown key drops the field from
+ * every record that carries it — which is how a bake once lost every hitsplat's
+ * text and selector at once. The message names the replacement so the fix is
+ * mechanical.
+ */
+static const struct
+{
+    const char* retired;
+    const char* now;
+} HITSPLAT_RETIRED_KEYS[] = {
+    { "opcode1", "font" },
+    { "colour", "textcolour" },
+    { "opcode3", "iconsprite" },
+    { "opcode4", "leftsprite" },
+    { "opcode6", "rightsprite" },
+    { "opcode7", "driftx" },
+    { "opcode10", "driftup" },
+    { "opcode11", "fade" },
+    { "opcode13", "texty" },
+    { "opcode14", "fadeafter" },
+    { "variantop", "variantdefault (present = opcode 18, absent = opcode 17)" },
+    { "variantvar", "variantvarbit, variantvarp and variantdefault" },
+};
+
+/** Append `text` to a comma-separated list, or return 0 when it would not fit. */
+static int
+hitsplat_list_append(
+    char* list,
+    size_t capacity,
+    size_t* used,
+    const char* text)
+{
+    size_t length = strlen(text);
+
+    if( *used + length + (*used ? 1 : 0) + 1 > capacity )
+        return 0;
+    if( *used )
+        list[(*used)++] = ',';
+    memcpy(list + *used, text, length);
+    *used += length;
+    list[*used] = '\0';
+    return 1;
+}
+
+/** `key=<asset name>` unless `id` is absent. Falls back to the id, as refs do. */
+static void
+hitsplat_emit_asset(
+    struct CP_Ctx* ctx,
+    struct CP_Lines* out,
+    const char* key,
+    enum CP_AssetId asset,
+    int id)
+{
+    if( id < 0 )
+        return;
+    const char* name = cp_asset_name_ensure(ctx, asset, id);
+    if( name )
+        cp_lines_addf(out, "%s=%s", key, name);
+    else
+        cp_lines_addf(out, "%s=%d", key, id);
+}
+
+/** An asset reference: a name from the pack, `null`, or a bare id. */
+static int
+hitsplat_resolve_asset(
+    struct CP_Ctx* ctx,
+    enum CP_AssetId asset,
+    const char* text,
+    int* out_id)
+{
+    if( strcmp(text, "null") == 0 )
+    {
+        *out_id = -1;
+        return 1;
+    }
+    int id = cp_asset_name_find(ctx, asset, text);
+    if( id >= 0 )
+    {
+        *out_id = id;
+        return 1;
+    }
+    if( cp_parse_int(text, out_id) )
+        return 1;
+    cp_warn(ctx, &ctx->warn_unresolved_name, "unknown %s reference '%s'",
+            cp_asset(asset)->pack, text);
+    return 0;
+}
+
+/**
+ * `key=<name>`, spelling -1 as `null` rather than dropping the line.
+ *
+ * -1 is an answer in a selector and not an absence: an unset var slot says which
+ * of the two the record asks, and a -1 variant means "draw no splat at all". A
+ * dropped line would read as "this record does not have one".
+ */
+static void
+hitsplat_emit_ref_or_null(
+    struct CP_Ctx* ctx,
+    struct CP_Lines* out,
+    const char* key,
+    enum CP_TypeId type,
+    int id)
+{
+    if( id < 0 )
+    {
+        cp_lines_addf(out, "%s=null", key);
+        return;
+    }
+    cp_emit_ref(ctx, out, key, type, id, -1);
+}
+
 int
 cp_unpack_hitsplat(
     struct CP_Ctx* ctx,
@@ -436,20 +628,21 @@ cp_unpack_hitsplat(
         cp_warn(ctx, &ctx->warn_short_decode, "hitsplat %d: consumed %d of %d bytes", id,
                 entry._consumed, record_size);
 
-    if( entry.sprite_id >= 0 )
-        cp_lines_addf(out, "sprite=%d", entry.sprite_id);
-    if( entry.has_opcode_1 )
-        cp_lines_addf(out, "opcode1=%d", entry.opcode_1);
-    if( entry.has_colour )
-        cp_lines_addf(out, "colour=%d", entry.colour);
-    if( entry.has_opcode_3 )
-        cp_lines_addf(out, "opcode3=%d", entry.opcode_3);
-    if( entry.has_opcode_4 )
-        cp_lines_addf(out, "opcode4=%d", entry.opcode_4);
-    if( entry.has_opcode_6 )
-        cp_lines_addf(out, "opcode6=%d", entry.opcode_6);
-    if( entry.has_opcode_7 )
-        cp_lines_addf(out, "opcode7=%d", entry.opcode_7);
+    /* The four sprites in the order the renderer lays them out, left to right:
+     * icon, left cap, the tiled body, right cap. See `dat2_config_hitsplat.h`. */
+    hitsplat_emit_asset(ctx, out, "iconsprite", CP_ASSET_SPRITE,
+                        entry.has_icon_sprite ? entry.icon_sprite_id : -1);
+    hitsplat_emit_asset(ctx, out, "leftsprite", CP_ASSET_SPRITE,
+                        entry.has_left_sprite ? entry.left_sprite_id : -1);
+    hitsplat_emit_asset(ctx, out, "sprite", CP_ASSET_SPRITE, entry.sprite_id);
+    hitsplat_emit_asset(ctx, out, "rightsprite", CP_ASSET_SPRITE,
+                        entry.has_right_sprite ? entry.right_sprite_id : -1);
+
+    hitsplat_emit_asset(ctx, out, "font", CP_ASSET_FONT, entry.has_font ? entry.font_id : -1);
+    /* Hex because a colour read as 16711680 is a number and one read as 0xFF0000
+     * is a colour. `cp_parse_int` takes either. */
+    if( entry.has_text_colour )
+        cp_lines_addf(out, "textcolour=0x%06X", entry.text_colour & 0xFFFFFF);
     /* Opcode 8 is a string, not the u16 this tool used to emit — see
      * `dat2_config_hitsplat.h`. The marker byte rides with it because it is what
      * makes the repack byte-identical, and it is 0 on every record measured. */
@@ -459,46 +652,103 @@ cp_unpack_hitsplat(
         if( entry.text_marker != 0 )
             cp_lines_addf(out, "textmarker=%d", entry.text_marker);
     }
+    if( entry.has_text_offset_y )
+        cp_lines_addf(out, "texty=%d", entry.text_offset_y);
     if( entry.has_duration )
         cp_lines_addf(out, "duration=%d", entry.duration);
-    if( entry.has_opcode_10 )
-        cp_lines_addf(out, "opcode10=%d", entry.opcode_10);
-    if( entry.has_opcode_11_flag )
-        cp_lines_addf(out, "opcode11=yes");
+    if( entry.has_drift_x )
+        cp_lines_addf(out, "driftx=%d", entry.drift_x);
+    if( entry.has_drift_up )
+        cp_lines_addf(out, "driftup=%d", entry.drift_up);
+    /* Opcode 11 is `fadeafter=0` written as one byte; the two spellings are kept
+     * apart so the record re-encodes to the byte it carried. */
+    if( entry.has_fade_flag )
+        cp_lines_addf(out, "fade=yes");
+    if( entry.has_fade_after )
+        cp_lines_addf(out, "fadeafter=%d", entry.fade_after);
     if( entry.has_slot_policy )
-        cp_lines_addf(out, "slotpolicy=%d", entry.slot_policy);
-    if( entry.has_opcode_13 )
-        cp_lines_addf(out, "opcode13=%d", entry.opcode_13);
-    if( entry.has_opcode_14 )
-        cp_lines_addf(out, "opcode14=%d", entry.opcode_11_14);
+    {
+        const char* name = NULL;
+        for( size_t i = 0; i < sizeof(HITSPLAT_SLOT_POLICIES) / sizeof(HITSPLAT_SLOT_POLICIES[0]);
+             i++ )
+            if( HITSPLAT_SLOT_POLICIES[i].value == entry.slot_policy )
+                name = HITSPLAT_SLOT_POLICIES[i].name;
+        if( name )
+            cp_lines_addf(out, "slotpolicy=%s", name);
+        else
+            cp_lines_addf(out, "slotpolicy=%d", entry.slot_policy);
+    }
     if( entry.variant_opcode )
     {
         /* Opcode 17/18's payload IS structured — the reference reads
          * `u16, u16, [u16], u8 count, u16[count+1]`. It used to be emitted as
-         * eleven opaque hex bytes because that structure was only guessed at. */
-        char list[RSCACHE_HITSPLAT_MAX_VARIANTS * 7 + 1];
-        int w = 0;
+         * eleven opaque hex bytes because that structure was only guessed at, and
+         * then as three bare ids because nothing said what they were: a varbit,
+         * a varp and a fallback splat.
+         *
+         * `variantdefault` is the fallback AND the opcode: 18 reads one, 17 does
+         * not, so the line's presence is what states which opcode to write. Both
+         * var lines are always emitted, `null` included, so a selector record can
+         * be read without knowing which of the two carries the question. */
+        char list[RSCACHE_HITSPLAT_MAX_VARIANTS * 96];
+        size_t used = 0;
+        int ok = 1;
+
+        list[0] = '\0';
         for( int i = 0; i < entry.variant_count; i++ )
-            w += snprintf(list + w, sizeof(list) - (size_t)w, i ? ",%d" : "%d",
-                          entry.variants[i]);
-        cp_lines_addf(out, "variantop=%d", entry.variant_opcode);
-        cp_lines_addf(out, "variantvar=%d,%d,%d", entry.variant_varbit, entry.variant_varp,
-                      entry.variant_fallback);
+        {
+            const char* name =
+                entry.variants[i] < 0 ? "null"
+                                      : cp_name_ensure(ctx, CP_TYPE_HITSPLAT, entry.variants[i]);
+            char number[16];
+            if( !name )
+            {
+                snprintf(number, sizeof(number), "%d", entry.variants[i]);
+                name = number;
+            }
+            if( !hitsplat_list_append(list, sizeof(list), &used, name) )
+            {
+                ok = 0;
+                break;
+            }
+        }
+        if( !ok )
+            cp_warn(ctx, &ctx->warn_short_decode,
+                    "hitsplat %d: %d variant names do not fit one line", id,
+                    entry.variant_count);
+
+        hitsplat_emit_ref_or_null(ctx, out, "variantvarbit", CP_TYPE_VARBIT, entry.variant_varbit);
+        hitsplat_emit_ref_or_null(ctx, out, "variantvarp", CP_TYPE_VARP, entry.variant_varp);
+        if( entry.variant_opcode == 18 )
+            hitsplat_emit_ref_or_null(ctx, out, "variantdefault", CP_TYPE_HITSPLAT,
+                                      entry.variant_fallback);
         cp_lines_addf(out, "variants=%s", list);
     }
 
     /*
      * Records do not share a packing order and the encoder replays whatever it is
      * given, so the order is data. Without it a repack is still a valid hitsplat,
-     * just not the same bytes.
+     * just not the same bytes. Written in the field names rather than the opcode
+     * numbers, so the line says which fields the record carries.
      */
     if( entry.opcode_count > 0 )
     {
-        char order[RSCACHE_HITSPLAT_MAX_OPCODES * 4 + 1];
-        int w = 0;
+        char order[RSCACHE_HITSPLAT_MAX_OPCODES * 20];
+        size_t used = 0;
+
+        order[0] = '\0';
         for( int i = 0; i < entry.opcode_count; i++ )
-            w += snprintf(order + w, sizeof(order) - (size_t)w, i ? ",%d" : "%d",
-                          entry.opcodes[i]);
+        {
+            const char* key = hitsplat_key_for_opcode(entry.opcodes[i]);
+            char number[16];
+            if( !key )
+            {
+                snprintf(number, sizeof(number), "%d", entry.opcodes[i]);
+                key = number;
+            }
+            if( !hitsplat_list_append(order, sizeof(order), &used, key) )
+                break;
+        }
         cp_lines_addf(out, "opcodeorder=%s", order);
     }
     return 1;
@@ -525,36 +775,31 @@ cp_pack_hitsplat(
         const char* value = config->lines[i].value;
         int ok = 1;
         if( strcmp(key, "sprite") == 0 )
-            ok = cp_parse_int(value, &entry.sprite_id);
-        else if( strcmp(key, "opcode1") == 0 )
+            ok = hitsplat_resolve_asset(ctx, CP_ASSET_SPRITE, value, &entry.sprite_id);
+        else if( strcmp(key, "iconsprite") == 0 )
         {
-            ok = cp_parse_int(value, &entry.opcode_1);
-            entry.has_opcode_1 = true;
+            ok = hitsplat_resolve_asset(ctx, CP_ASSET_SPRITE, value, &entry.icon_sprite_id);
+            entry.has_icon_sprite = true;
         }
-        else if( strcmp(key, "colour") == 0 )
+        else if( strcmp(key, "leftsprite") == 0 )
         {
-            ok = cp_parse_int(value, &entry.colour);
-            entry.has_colour = true;
+            ok = hitsplat_resolve_asset(ctx, CP_ASSET_SPRITE, value, &entry.left_sprite_id);
+            entry.has_left_sprite = true;
         }
-        else if( strcmp(key, "opcode3") == 0 )
+        else if( strcmp(key, "rightsprite") == 0 )
         {
-            ok = cp_parse_int(value, &entry.opcode_3);
-            entry.has_opcode_3 = true;
+            ok = hitsplat_resolve_asset(ctx, CP_ASSET_SPRITE, value, &entry.right_sprite_id);
+            entry.has_right_sprite = true;
         }
-        else if( strcmp(key, "opcode4") == 0 )
+        else if( strcmp(key, "font") == 0 )
         {
-            ok = cp_parse_int(value, &entry.opcode_4);
-            entry.has_opcode_4 = true;
+            ok = hitsplat_resolve_asset(ctx, CP_ASSET_FONT, value, &entry.font_id);
+            entry.has_font = true;
         }
-        else if( strcmp(key, "opcode6") == 0 )
+        else if( strcmp(key, "textcolour") == 0 )
         {
-            ok = cp_parse_int(value, &entry.opcode_6);
-            entry.has_opcode_6 = true;
-        }
-        else if( strcmp(key, "opcode7") == 0 )
-        {
-            ok = cp_parse_int(value, &entry.opcode_7);
-            entry.has_opcode_7 = true;
+            ok = cp_parse_int(value, &entry.text_colour);
+            entry.has_text_colour = true;
         }
         else if( strcmp(key, "text") == 0 )
         {
@@ -572,62 +817,70 @@ cp_pack_hitsplat(
             ok = cp_parse_int(value, &marker);
             entry.text_marker = (uint8_t)marker;
         }
+        else if( strcmp(key, "texty") == 0 )
+        {
+            ok = cp_parse_int(value, &entry.text_offset_y);
+            entry.has_text_offset_y = true;
+        }
         else if( strcmp(key, "duration") == 0 )
         {
             ok = cp_parse_int(value, &entry.duration);
             entry.has_duration = true;
         }
-        else if( strcmp(key, "opcode10") == 0 )
+        else if( strcmp(key, "driftx") == 0 )
         {
-            ok = cp_parse_int(value, &entry.opcode_10);
-            entry.has_opcode_10 = true;
+            ok = cp_parse_int(value, &entry.drift_x);
+            entry.has_drift_x = true;
         }
-        else if( strcmp(key, "opcode11") == 0 )
+        else if( strcmp(key, "driftup") == 0 )
+        {
+            ok = cp_parse_int(value, &entry.drift_up);
+            entry.has_drift_up = true;
+        }
+        else if( strcmp(key, "fade") == 0 )
         {
             bool flag = false;
             ok = cp_parse_bool(value, &flag);
-            entry.has_opcode_11_flag = flag;
+            entry.has_fade_flag = flag;
             if( flag )
-                entry.opcode_11_14 = 0;
+                entry.fade_after = 0;
+        }
+        else if( strcmp(key, "fadeafter") == 0 )
+        {
+            ok = cp_parse_int(value, &entry.fade_after);
+            entry.has_fade_after = true;
         }
         else if( strcmp(key, "slotpolicy") == 0 )
         {
-            ok = cp_parse_int(value, &entry.slot_policy);
+            ok = 0;
+            for( size_t p = 0;
+                 p < sizeof(HITSPLAT_SLOT_POLICIES) / sizeof(HITSPLAT_SLOT_POLICIES[0]); p++ )
+            {
+                if( strcmp(HITSPLAT_SLOT_POLICIES[p].name, value) != 0 )
+                    continue;
+                entry.slot_policy = HITSPLAT_SLOT_POLICIES[p].value;
+                ok = 1;
+                break;
+            }
+            if( !ok )
+                ok = cp_parse_int(value, &entry.slot_policy);
             entry.has_slot_policy = true;
         }
-        else if( strcmp(key, "opcode13") == 0 )
+        else if( strcmp(key, "variantvarbit") == 0 )
+            ok = cp_resolve_ref_or_null(ctx, CP_TYPE_VARBIT, value, &entry.variant_varbit);
+        else if( strcmp(key, "variantvarp") == 0 )
+            ok = cp_resolve_ref_or_null(ctx, CP_TYPE_VARP, value, &entry.variant_varp);
+        /* The fallback is opcode 18's alone, so stating one is how a record says
+         * it is an 18. A 17 states no `variantdefault` line and keeps -1, which
+         * the reference reads as "draw no splat" — a real answer, not a gap. */
+        else if( strcmp(key, "variantdefault") == 0 )
         {
-            ok = cp_parse_int(value, &entry.opcode_13);
-            entry.has_opcode_13 = true;
-        }
-        else if( strcmp(key, "opcode14") == 0 )
-        {
-            ok = cp_parse_int(value, &entry.opcode_11_14);
-            entry.has_opcode_14 = true;
-        }
-        else if( strcmp(key, "variantop") == 0 )
-            ok = cp_parse_int(value, &entry.variant_opcode);
-        /* `variantvar` was `variantabc` for as long as nobody knew the three
-         * fields were a varbit, a varp and a fallback. The old spelling is not
-         * accepted: a file still carrying it was written by the decoder that
-         * also emitted `opcode49`, and silently half-reading such a file is how
-         * every hitsplat in the baked cache lost its text and its selector. */
-        else if( strcmp(key, "variantvar") == 0 )
-        {
-            char scratch[64];
-            char* fields[3];
-            if( strlen(value) >= sizeof(scratch) )
-                ok = 0;
-            else if( cp_split(value, scratch, fields, 3) != 3 )
-                ok = 0;
-            else
-                ok = cp_parse_int(fields[0], &entry.variant_varbit) &&
-                     cp_parse_int(fields[1], &entry.variant_varp) &&
-                     cp_parse_int(fields[2], &entry.variant_fallback);
+            ok = cp_resolve_ref_or_null(ctx, CP_TYPE_HITSPLAT, value, &entry.variant_fallback);
+            entry.variant_opcode = 18;
         }
         else if( strcmp(key, "variants") == 0 )
         {
-            char scratch[RSCACHE_HITSPLAT_MAX_VARIANTS * 8];
+            char scratch[RSCACHE_HITSPLAT_MAX_VARIANTS * 96];
             char* fields[RSCACHE_HITSPLAT_MAX_VARIANTS];
             if( strlen(value) >= sizeof(scratch) )
                 ok = 0;
@@ -636,12 +889,13 @@ cp_pack_hitsplat(
                 int n = cp_split(value, scratch, fields, RSCACHE_HITSPLAT_MAX_VARIANTS);
                 entry.variant_count = 0;
                 for( int f = 0; f < n && ok; f++ )
-                    ok = cp_parse_int(fields[f], &entry.variants[entry.variant_count++]);
+                    ok = cp_resolve_ref_or_null(ctx, CP_TYPE_HITSPLAT, fields[f],
+                                                &entry.variants[entry.variant_count++]);
             }
         }
         else if( strcmp(key, "opcodeorder") == 0 )
         {
-            char scratch[256];
+            char scratch[RSCACHE_HITSPLAT_MAX_OPCODES * 20];
             char* fields[RSCACHE_HITSPLAT_MAX_OPCODES];
             if( strlen(value) >= sizeof(scratch) )
             {
@@ -653,22 +907,49 @@ cp_pack_hitsplat(
                 entry.opcode_count = 0;
                 for( int f = 0; f < n && ok; f++ )
                 {
-                    int op = 0;
-                    ok = cp_parse_int(fields[f], &op);
-                    entry.opcodes[entry.opcode_count++] = (uint8_t)op;
+                    int op = hitsplat_opcode_for_key(fields[f]);
+                    if( op < 0 )
+                        ok = cp_parse_int(fields[f], &op);
+                    if( ok )
+                        entry.opcodes[entry.opcode_count++] = (uint8_t)op;
                 }
             }
         }
         else
+        {
+            const char* now = NULL;
+            for( size_t r = 0;
+                 r < sizeof(HITSPLAT_RETIRED_KEYS) / sizeof(HITSPLAT_RETIRED_KEYS[0]); r++ )
+                if( strcmp(HITSPLAT_RETIRED_KEYS[r].retired, key) == 0 )
+                    now = HITSPLAT_RETIRED_KEYS[r].now;
+            if( now )
+            {
+                fprintf(stderr,
+                        "cachepack: hitsplat [%s]: `%s` is the spelling from before the "
+                        "fields had names — write `%s`\n",
+                        config->debugname, key, now);
+                return 0;
+            }
             cp_warn(ctx, &ctx->warn_unknown_key, "hitsplat [%s]: unknown key %s",
                     config->debugname, key);
+        }
         if( !ok )
         {
-            fprintf(stderr, "cachepack: hitsplat [%s]: bad value for %s\n",
-                    config->debugname, key);
+            fprintf(stderr, "cachepack: hitsplat [%s]: bad value for %s\n", config->debugname, key);
             return 0;
         }
     }
+
+    /* A selector with no `variantdefault` is an opcode 17. Settled after the loop
+     * because the two lines that state it can arrive in either order, and so can
+     * `opcodeorder`, whose `variants` entry is written back here for the same
+     * reason: the key names one field and the record picks the opcode. */
+    if( entry.variant_count > 0 && entry.variant_opcode == 0 )
+        entry.variant_opcode = 17;
+    for( int i = 0; i < entry.opcode_count; i++ )
+        if( entry.opcodes[i] == 17 || entry.opcodes[i] == 18 )
+            entry.opcodes[i] = (uint8_t)(entry.variant_opcode ? entry.variant_opcode : 18);
+
     return RSCache_Dat2ConfigHitsplatEncode(&entry, out, out_capacity);
 }
 

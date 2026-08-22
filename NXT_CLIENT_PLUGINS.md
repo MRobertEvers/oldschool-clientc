@@ -1328,6 +1328,11 @@ have, and the gaps are worth naming because several share one:
   `variant_fallback`) instead of `variant_a/b/c`. cachepack's key follows
   (`variantvar`), and the old spelling is deliberately NOT accepted: a file still
   carrying it was written by the decoder that also emitted `opcode49`.
+  (Superseded since: the record's remaining `opcode<n>` keys were given the names
+  the reference's renderer gives them, so `variantvar` is now the three lines
+  `variantvarbit` / `variantvarp` / `variantdefault`, and sprite and variant
+  values are spelled as names. `cp_small.c`'s hitsplat block lists every retired
+  spelling and what replaced it.)
 - **`OSRS-Content/.../configs/all.hitsplat`** -- regenerated. See bucket C above
   for what the stale export had been doing to every baked cache.
 - **`ToriRSServer_HitsplatForViewer`** -- content names a family, this promotes it

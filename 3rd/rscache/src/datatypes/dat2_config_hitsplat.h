@@ -107,18 +107,54 @@ struct RSCache;
  * silently opted out of both settings; the wrapper is the id that carries the
  * question.
  *
- * ## The two fields the client actually acts on
+ * ## What the record draws, and therefore what each opcode is
+ *
+ * Every field below used to be called `opcode_<n>` here, and the number is not
+ * the meaning: the meaning is in `Statics.method10685` (`sf.al`), the reference's
+ * own splat renderer, which is the only place the fields are read. It lays four
+ * sprites out in a row and centres the text over the middle one:
+ *
+ *     [ icon_sprite ][ left_sprite ][ sprite ][ sprite ]...[ right_sprite ]
+ *                                   \___ tiled until it covers the text ___/
+ *
+ * `sprite` (opcode 5) is the one that repeats — `count = textwidth / width + 1`
+ * — so it is the body of the bar, and the other three are drawn once each, in
+ * that left-to-right order, at their own widths. A record that states only
+ * `sprite` is the ordinary splat; the icon and the two caps are how the
+ * decorated ones (poison, max hit) are built.
+ *
+ * The rest of the fields are what the renderer does with that row over the
+ * splat's lifetime, where `remaining` counts down from `duration` to 0:
  *
  * - `duration` (opcode 9, `field5309`, **default 70**) — how long the splat stays
- *   up. The reference computes `cycle = field5309 + now + delay`.
+ *   up, in client cycles. The reference computes `cycle = field5309 + now + delay`.
+ * - `drift_x` (opcode 7, `field5319`) — `x += drift_x - drift_x * remaining /
+ *   duration`, so the splat starts in place and has slid `drift_x` pixels right
+ *   by the time it expires.
+ * - `drift_up` (opcode 10, `field5320`) — the same ramp on y with the sign
+ *   flipped (`y += drift_up * remaining / duration - drift_up`), so a positive
+ *   value makes the splat *rise* by that many pixels. Named for the direction it
+ *   moves rather than for the axis, because the axis alone gets the sign wrong.
+ * - `text_offset_y` (opcode 13, `field5304`) — extra pixels down for the text
+ *   baseline, on top of the fixed `+15` the renderer applies to every splat.
+ * - `fade_after` (opcodes 11 and 14, `field5311`, **default -1** = never fades) —
+ *   `alpha = (remaining << 8) / (duration - fade_after)`, which is 255 or more
+ *   until `fade_after` cycles have elapsed and then ramps to 0 at expiry. Opcode
+ *   14 states the cycle count; **opcode 11 is the same field set to 0** with no
+ *   operand, i.e. fade across the whole lifetime, and the two are kept apart
+ *   (`has_fade_flag` vs `has_fade_after`) only so the encoder can reproduce the
+ *   byte the record carried.
+ * - `text_colour` (opcode 2, `field5313`, **default 0xFFFFFF**) and `font_id`
+ *   (opcode 1, `field5312`) — the colour the number is drawn in and the font it
+ *   is drawn with. A record with no font takes the client's default.
  * - `slot_policy` (opcode 12, `field5318`, **default -1**) — what to do when the
  *   actor's hitmark list is already full. -1 discards the incoming hit, 0
  *   overwrites the splat with the lowest remaining cycle, 1 overwrites the
  *   lowest-valued splat and discards the incoming hit when that value is already
  *   at least as large.
  *
- * Both defaults are the reference's own, set before its opcode loop runs, and
- * both are what `World_EntityAddHitmark` had hardcoded.
+ * Every default is the reference's own, set before its opcode loop runs, and
+ * `duration`/`slot_policy` are what `World_EntityAddHitmark` had hardcoded.
  *
  * ## Era gating
  *
@@ -133,27 +169,35 @@ struct RSCache_Dat2ConfigHitsplat
 {
     int id;
 
-    /** Opcode 5 (`field5316`). A sprite id — the splat graphic. -1 when absent. */
+    /** Opcode 5 (`field5316`). The sprite the bar is tiled from — the body of the
+     *  splat, repeated until it covers the text. -1 when absent. */
     int sprite_id;
 
-    /** Opcode 1 (`field5312`). -1 when absent. */
-    int opcode_1;
-    /** Opcode 2 (`field5313`). A colour; defaults to 0xFFFFFF. */
-    int colour;
-    /** Opcode 3 (`field5315`). -1 when absent. */
-    int opcode_3;
-    /** Opcode 4 (`field5323`). -1 when absent. */
-    int opcode_4;
-    /** Opcode 6 (`field5324`). -1 when absent. */
-    int opcode_6;
-    /** Opcode 7 (`field5319`). 0 when absent. */
-    int opcode_7;
-    /** Opcode 10 (`field5320`). 0 when absent. */
-    int opcode_10;
-    /** Opcodes 11 (sets 0, no operand) and 14 (u16), both `field5311`. -1 absent. */
-    int opcode_11_14;
-    /** Opcode 13 (`field5304`). 0 when absent. */
-    int opcode_13;
+    /** Opcode 3 (`field5315`). The sprite drawn first, left of everything else —
+     *  the poison drop, the max-hit star. -1 when absent. */
+    int icon_sprite_id;
+    /** Opcode 4 (`field5323`). Drawn between the icon and the tiled body. -1 absent. */
+    int left_sprite_id;
+    /** Opcode 6 (`field5324`). Drawn last, right of the tiled body. -1 absent. */
+    int right_sprite_id;
+
+    /** Opcode 1 (`field5312`). The font the number is drawn in. -1 = the client's
+     *  default font. */
+    int font_id;
+    /** Opcode 2 (`field5313`). The colour the number is drawn in; 0xFFFFFF absent. */
+    int text_colour;
+    /** Opcode 13 (`field5304`). Extra pixels down for the text baseline. 0 absent. */
+    int text_offset_y;
+
+    /** Opcode 7 (`field5319`). Pixels the splat slides right over its lifetime. 0
+     *  when absent. */
+    int drift_x;
+    /** Opcode 10 (`field5320`). Pixels the splat rises over its lifetime — the
+     *  renderer negates it, so positive is up. 0 when absent. */
+    int drift_up;
+    /** Opcodes 11 (sets 0, no operand) and 14 (u16), both `field5311`: the cycle
+     *  the fade to transparent starts at. -1 when absent, meaning never. */
+    int fade_after;
 
     /**
      * Opcode 9 (`field5309`): how long the splat stays up, in client cycles.
@@ -169,7 +213,9 @@ struct RSCache_Dat2ConfigHitsplat
      */
     int slot_policy;
 
-    /** Opcode 8 (`field5322`), NUL-terminated. Empty when absent. */
+    /** Opcode 8 (`field5322`), NUL-terminated. Empty when absent. The template the
+     *  splat prints: every `%1` in it is replaced with the damage (`method9601`),
+     *  which is why almost every record's is exactly `%1`. */
     char text[RSCACHE_HITSPLAT_MAX_TEXT];
     /** The version-marker byte that precedes the string; re-emitted verbatim. */
     uint8_t text_marker;
@@ -194,20 +240,21 @@ struct RSCache_Dat2ConfigHitsplat
     int variants[RSCACHE_HITSPLAT_MAX_VARIANTS];
     int variant_count;
 
-    bool has_opcode_1;
-    bool has_colour;
-    bool has_opcode_3;
-    bool has_opcode_4;
-    bool has_opcode_6;
-    bool has_opcode_7;
-    bool has_opcode_10;
-    bool has_opcode_13;
+    bool has_font;
+    bool has_text_colour;
+    bool has_icon_sprite;
+    bool has_left_sprite;
+    bool has_right_sprite;
+    bool has_drift_x;
+    bool has_drift_up;
+    bool has_text_offset_y;
     bool has_duration;
     bool has_slot_policy;
-    /** True for opcode 11 specifically (the bare flag), so the encoder can tell
-     *  it from opcode 14, which sets the same field with an operand. */
-    bool has_opcode_11_flag;
-    bool has_opcode_14;
+    /** True for opcode 11 specifically (the bare flag, `fade_after` = 0), so the
+     *  encoder can tell it from opcode 14, which sets the same field with an
+     *  operand. */
+    bool has_fade_flag;
+    bool has_fade_after;
 
     /**
      * The opcodes in the order the record carried them, which differs per record

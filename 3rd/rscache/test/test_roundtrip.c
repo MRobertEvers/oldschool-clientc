@@ -1468,11 +1468,12 @@ visit_hitsplat(
         first.has_duration == second.has_duration && first.duration == second.duration &&
         first.has_slot_policy == second.has_slot_policy &&
         first.slot_policy == second.slot_policy &&
-        first.has_opcode_11_flag == second.has_opcode_11_flag &&
-        first.has_opcode_14 == second.has_opcode_14 &&
-        first.opcode_11_14 == second.opcode_11_14 &&
-        first.has_opcode_13 == second.has_opcode_13 && first.opcode_13 == second.opcode_13 &&
-        first.has_colour == second.has_colour && first.colour == second.colour &&
+        first.has_fade_flag == second.has_fade_flag &&
+        first.has_fade_after == second.has_fade_after && first.fade_after == second.fade_after &&
+        first.has_text_offset_y == second.has_text_offset_y &&
+        first.text_offset_y == second.text_offset_y &&
+        first.has_text_colour == second.has_text_colour &&
+        first.text_colour == second.text_colour &&
         first.variant_opcode == second.variant_opcode &&
         first.variant_varbit == second.variant_varbit && first.variant_varp == second.variant_varp &&
         first.variant_fallback == second.variant_fallback &&

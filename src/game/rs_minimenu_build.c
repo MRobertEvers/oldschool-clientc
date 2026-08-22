@@ -500,9 +500,9 @@ add_social_rows(
         pick.secondary_id = slot;
 
         snprintf(text, sizeof(text), "Remove @whi@%s", label);
-        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_FRIENDLIST_DEL, slot, pick);
+        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_FRIENDLIST_DEL, -1, pick);
         snprintf(text, sizeof(text), "Message @whi@%s", label);
-        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_MESSAGE_PRIVATE, slot, pick);
+        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_MESSAGE_PRIVATE, -1, pick);
         return true;
     }
 
@@ -513,7 +513,7 @@ add_social_rows(
         pick.secondary_id = slot;
 
         snprintf(text, sizeof(text), "Remove @whi@%s", label);
-        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_IGNORELIST_DEL, slot, pick);
+        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_IGNORELIST_DEL, -1, pick);
         return true;
     }
 
@@ -663,7 +663,7 @@ add_target_button_row(
         verb[space - verb] = '\0';
 
     snprintf(text, sizeof(text), "%s @gre@%s", verb, opts->target_base);
-    UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_TGT_BUTTON, 0, pick);
+    UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_TGT_BUTTON, -1, pick);
     return true;
 }
 
@@ -725,7 +725,7 @@ add_if3_target_op_rows(
         if( i == priority )
         {
             snprintf(text, sizeof(text), "%s %s", opts->target_verb, base);
-            UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_TGT_BUTTON, 0, pick);
+            UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_TGT_BUTTON, -1, pick);
         }
         if( !rows || rows->ops[i][0] == '\0' )
             continue;
@@ -905,7 +905,7 @@ add_component_rows(
                                ? node->u.rs_text.text
                                : "Continue";
 
-        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_RESUME_PAUSEBUTTON, 0, pick);
+        UIMinimenu_AddOption(menu, text, REVCONFIG_MINIMENU_RESUME_PAUSEBUTTON, -1, pick);
     }
 
     return menu->option_count - before;
@@ -1000,7 +1000,7 @@ RS_Minimenu_DefaultOptionIndex(struct UIMinimenu const* menu)
                 walk = i;
             continue;
         }
-        if( action < 1000 )
+        if( RS_Minimenu_ActionIsDefaultable(action) )
             return i;
     }
     return walk;

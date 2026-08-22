@@ -572,6 +572,8 @@ revconfig_minimenu_action_from_symbol(char const* sym)
     MAP_ACTION(OPHELD4)
     MAP_ACTION(OPHELD5)
     MAP_ACTION(OPHELD6)
+    /* The client's own. @see REVCONFIG_MINIMENU_PLUGIN_PANEL. */
+    MAP_ACTION(PLUGIN_PANEL)
     /* Client.ts aliases */
     if( strcasecmp(sym, "CLOSE_BUTTON") == 0 )
         return REVCONFIG_MINIMENU_CLOSE_MODAL;

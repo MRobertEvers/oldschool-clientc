@@ -22205,6 +22205,27 @@ app_minimenu_run_option(
         return 0; /* handled locally; no CS2 task was dispatched */
     }
 
+    /*
+     * "Manage Plugins": open the plugin window.
+     *
+     * A profile authors this row -- `op0_action=PLUGIN_PANEL` on a component
+     * it placed in whatever tab it likes -- so the CLIENT never has to know
+     * which gameframe it is running on or where the button went. The
+     * gameframes that HAVE a popout strip get the launcher in it
+     * (app_plugin_button_sync); the ones that do not, which is every dat1
+     * frame, get whatever their profile put there instead, and this is where
+     * both arrive.
+     *
+     * Before the pick.kind switch, like the client rows below it: there is no
+     * engine behaviour behind this action id to fall through to, and a
+     * component-kind pick carrying it would otherwise be read as an IF_BUTTON.
+     */
+    if( opt.action == RS_MINIMENU_ACTION_PLUGIN_PANEL )
+    {
+        app_plugin_window_set_open(app, !app->plugin_panel_visible);
+        return 0; /* handled locally; no CS2 task was dispatched */
+    }
+
     /* Loc editor "Select" row (rs_minimenu_world.c add_scenery_rows, gated on
      * locedit_active): entirely client-side, same shape as the Examine
      * intercept above -- must also run before the pick.kind switch, or a

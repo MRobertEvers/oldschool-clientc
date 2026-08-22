@@ -181,6 +181,40 @@ struct RS_MinimenuBuildCtx
  */
 #define RS_MINIMENU_ACTION_CLIENTOP (UITREE_MINIMENU_ACTION_CLIENT_BASE + 4)
 
+/*
+ * "Manage Plugins": open the plugin window.
+ *
+ * Declared in revconfig.h rather than here, because unlike the four above it
+ * is AUTHORED -- a profile writes `op0_action=PLUGIN_PANEL` on a component and
+ * the parser has to turn that name into this number. The assertion is what
+ * keeps the leaf header's literal and this band from drifting apart; without
+ * it the id would land among the reference's, pick up the +2000 bias, and the
+ * dispatcher's equality test would quietly stop matching.
+ */
+#define RS_MINIMENU_ACTION_PLUGIN_PANEL (UITREE_MINIMENU_ACTION_CLIENT_BASE + 5)
+_Static_assert(
+    RS_MINIMENU_ACTION_PLUGIN_PANEL == REVCONFIG_MINIMENU_PLUGIN_PANEL,
+    "the profile's PLUGIN_PANEL id is not this client action");
+
+/**
+ * May this row be the LEFT-click default?
+ *
+ * The reference's rule is "an ordinary action sorts below 1000", and every
+ * client-band id is far above it -- deliberately, so that a developer tool's
+ * row can never become what a bare click does in the world. The plugin
+ * launcher is the one client row that is not a tool but a BUTTON: it is the
+ * only thing on the component it sits on, and a button that needs a
+ * right-click to find is a button most people never find.
+ *
+ * Named rather than folded into the scan so that adding a second one is a
+ * decision made here, once, next to the reason.
+ */
+static inline int
+RS_Minimenu_ActionIsDefaultable(int action)
+{
+    return action < 1000 || action == RS_MINIMENU_ACTION_PLUGIN_PANEL;
+}
+
 /** Pack a client op's (kind, slot) into a minimenu option's action_index, and
  *  read it back. `action_index` is otherwise the config op slot 0..4, which a
  *  client-op row does not have. */

@@ -88,6 +88,24 @@ enum RevConfigMiniMenuAction
     REVCONFIG_MINIMENU_TGT_OBJ = 370,
     REVCONFIG_MINIMENU_TGT_PLAYER = 131,
     REVCONFIG_MINIMENU_TGT_HELD = 563,
+
+    /*
+     * A row the CLIENT invents, in the client's own action band.
+     *
+     * Every id above is the reference's, and every one of them is a message to
+     * a server or a cache script. This one is neither: it opens the plugin
+     * window, which is this client's own furniture, and there is nothing at
+     * the other end of it to send.
+     *
+     * The band matters as much as the number. Ids below 1000 carry the
+     * reference's +2000 priority bias and get it stripped again at dispatch,
+     * so a client-invented id parked among them would arrive somewhere else;
+     * UITREE_MINIMENU_ACTION_CLIENT_BASE is the range that is exempt from
+     * both. Restated as a literal rather than derived because this header is
+     * the leaf that ui/ and game/ both build on -- the static assertion in
+     * game/rs_minimenu_build.h is what holds the two in step.
+     */
+    REVCONFIG_MINIMENU_PLUGIN_PANEL = 500005,
 };
 
 // Dat1 sprite cache section example:

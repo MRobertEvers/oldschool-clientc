@@ -474,6 +474,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	plugin/torirs_plugin_host.c plugin/torirs_plugin_registry.c \
 	plugin/torirs_plugin_lua.c plugin/task_plugin_io.c \
 	plugin/plugins/tileind.c \
+	plugin/plugins/minimap_orbs.c \
 	plugin/plugins/nxt_highlight.c \
 	plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
 	painters/painters.c \
