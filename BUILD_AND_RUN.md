@@ -1314,8 +1314,9 @@ already produce a single self-contained `.exe` — that is the package.
 
 The old `tools/ci/` tree (`package_build.py` plus the LAN WinXP CI split under
 `build_host/`, `runner/`, `client/`) drove **CMake**, the retired build path, and
-packed `src/osrs/scripts` + `src/osrs/revconfig/configs`, both of which moved to
-`v0/`. It is archived at
+packed `src/osrs/scripts` + `src/osrs/revconfig/configs`. The scripts moved to
+`v0/`; the revconfig INIs are now [`revconfig/`](revconfig/README.md) at the
+repository root. It is archived at
 [`tools/deprecated/ci/`](tools/deprecated/ci/README.md).
 
 ---

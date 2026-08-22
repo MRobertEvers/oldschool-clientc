@@ -3303,21 +3303,29 @@ main(
         }
     }
 
-    if( cfg.revconfig_ui_ini )
-        fprintf(
-            stderr,
-            "torirs: %s cache=%s revconfig=%s cache_ini=%s\n",
-            cfg.cache_kind == APP_CACHE_DAT1 ? "dat1" : "dat2",
-            cfg.cache_dir,
-            cfg.revconfig_ui_ini,
-            cfg.revconfig_cache_ini ? cfg.revconfig_cache_ini : "(none)");
-    else
-        fprintf(
-            stderr,
-            "torirs: %s cache=%s iface=%d\n",
-            cfg.cache_kind == APP_CACHE_DAT1 ? "dat1" : "dat2",
-            cfg.cache_dir,
-            cfg.interface_id);
+    {
+        /* An on-demand boot opens no directory, so naming one here would be a
+         * line of output pointing at a cache this run never reads -- the
+         * DEFAULT_CACHE_DIR fallback at that, which is somebody else's world.
+         * Say where the bytes actually come from instead. */
+        char const* cache_label = cfg.cache_on_demand ? "(on demand)" : cfg.cache_dir;
+
+        if( cfg.revconfig_ui_ini )
+            fprintf(
+                stderr,
+                "torirs: %s cache=%s revconfig=%s cache_ini=%s\n",
+                cfg.cache_kind == APP_CACHE_DAT1 ? "dat1" : "dat2",
+                cache_label,
+                cfg.revconfig_ui_ini,
+                cfg.revconfig_cache_ini ? cfg.revconfig_cache_ini : "(none)");
+        else
+            fprintf(
+                stderr,
+                "torirs: %s cache=%s iface=%d\n",
+                cfg.cache_kind == APP_CACHE_DAT1 ? "dat1" : "dat2",
+                cache_label,
+                cfg.interface_id);
+    }
 
     /* TORIRS_ROOT_SIZE=WxH: host the interface at the gameframe slot the client
      * would give it instead of the full canvas. Interfaces size themselves from

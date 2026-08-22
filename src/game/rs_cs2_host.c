@@ -7851,6 +7851,18 @@ rs_cs2_host_exec_dispatch(
             fprintf(stderr, "cs2: opcode %d is not an active-player getter\n", opcode);
             return CS2VM_EXECNO_ERROR;
         }
+        /* Same switch as the highlight trace, and for the same reason: when
+         * the current-tile marker sits on the wrong tile, the first question
+         * is whether 5203 took the ROUTE branch or fell back to `coord`, and
+         * that is decided entirely by what these four answered. */
+        if( getenv("TORIRS_HIGHLIGHT_DEBUG") )
+            fprintf(
+                stderr,
+                "activeplayer: op %d (uid %d, index %d) -> %d\n",
+                opcode,
+                uid,
+                request->u.active_player.index,
+                answer);
         return CS2VM2_PushInt(vm, answer);
     }
 

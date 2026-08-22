@@ -104,8 +104,8 @@ Two things stop a declaration from being a footgun:
 * **A likely omission is a note.** A manifest with `transport=tcp` and no
   `torirsserver` gets a one-line note, and only when nothing is already
   listening on the port. Dialling a server somebody else runs is an ordinary
-  setup here (LostCity for `rs254`, an external checkout for `xrsps`), so this
-  never blocks.
+  setup here (LostCity for `lc289` and `rs254`, an external checkout for
+  `xrsps`), so this never blocks.
 
 ## Process ownership
 
