@@ -122,6 +122,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UICOMPONENT_COLOR";
     case RCFIELD_UICOMPONENT_FILLED:
         return "RCFIELD_UICOMPONENT_FILLED";
+    case RCFIELD_UICOMPONENT_TILED:
+        return "RCFIELD_UICOMPONENT_TILED";
     case RCFIELD_UICOMPONENT_FONT:
         return "RCFIELD_UICOMPONENT_FONT";
     case RCFIELD_UICOMPONENT_CENTER:
@@ -727,6 +729,9 @@ revconfig_item_apply_uicomponent_field(
         break;
     case RCFIELD_UICOMPONENT_FILLED:
         comp->filled = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
+        break;
+    case RCFIELD_UICOMPONENT_TILED:
+        comp->tiled = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
         break;
     case RCFIELD_UICOMPONENT_FONT:
         if( revconfig_font_field_is_numeric(value) )

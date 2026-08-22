@@ -122,6 +122,17 @@ enum ToriRS_PluginEvent
      * else -- rect, line, text, image -- is.
      */
     TORIRS_PLUGIN_EV_DRAW_CANVAS,
+    /**
+     * One of this plugin's canvas hit regions was used. Payload:
+     * EvCanvasClick.
+     *
+     * Raised for the plugin that declared the region and no other, the same
+     * way EV_UI is. Both the left-click default and the region's row in the
+     * right-click menu arrive here, because to the plugin they are the same
+     * thing happening -- which of the two the player did is not a question an
+     * orb has an answer for.
+     */
+    TORIRS_PLUGIN_EV_CANVAS_CLICK,
     /** One of this plugin's config keys changed. Payload: EvConfig. */
     TORIRS_PLUGIN_EV_CONFIG_CHANGED,
     /** A ground-item stack appeared on a tile. Payload: EvObj. */
@@ -498,6 +509,15 @@ struct ToriRS_PluginEvDraw
 {
     /** Opaque surface token; hand back to the draw api. */
     void* surface;
+};
+
+struct ToriRS_PluginEvCanvasClick
+{
+    /** The `tag` the region was declared with. */
+    uint32_t tag;
+    /** Where the pointer was, in canvas coordinates. */
+    int x;
+    int y;
 };
 
 struct ToriRS_PluginEvDrawCanvas
@@ -1082,6 +1102,73 @@ struct ToriRS_PluginApi
         int h,
         uint32_t rgb,
         int fill_alpha);
+
+    /* -- canvas hit regions; legal only inside EV_DRAW_CANVAS (asserted) -- */
+
+    /**
+     * Claim a rectangle of the canvas, so that what the plugin drew there can
+     * be clicked.
+     *
+     * Declared with the drawing rather than once at start, and that is not
+     * laziness: an orb's box is derived from where the gameframe put the
+     * minimap THIS frame, and a region registered at start would be a
+     * rectangle over whatever used to be there after the first resize. The
+     * list is rebuilt every frame from nothing, exactly like the drawing it
+     * describes, so the two cannot disagree.
+     *
+     * `op` is the verb the player reads -- in the mouseover line, and as the
+     * region's row in the right-click menu. A LEFT click runs it, because a
+     * region is the plugin's own real estate with nothing of the game's
+     * underneath: this is the one place a plugin row may be the default,
+     * unlike api->menu_add, which appends to a menu the game owns and where a
+     * plugin taking the default click would be taking it from something else.
+     * NULL or "" claims the pointer without offering anything -- a region that
+     * only wants to stop a click falling through to the world behind it.
+     *
+     * `tag` comes back in EV_CANVAS_CLICK, and is the plugin's own; the host
+     * does not read it.
+     *
+     * Later regions win where two overlap, matching the draw order: the last
+     * thing drawn is the thing on top, so it is the thing clicked.
+     *
+     * @return 1 when the region was recorded, 0 when the frame's region table
+     * is full.
+     */
+    int (*hit_region)(
+        struct ToriRS_PluginCtx* ctx,
+        void* surface,
+        int x,
+        int y,
+        int w,
+        int h,
+        char const* op,
+        uint32_t tag);
+
+    /**
+     * Press an interface button, exactly as a click on it would.
+     *
+     * The one verb in this contract that makes the GAME do something, and it
+     * is deliberately shaped as "click that": it runs the same dispatch a real
+     * click runs -- the local button behaviour, the varp the button owns, the
+     * IF_BUTTON or IF_BUTTON<op> the server is waiting for -- rather than
+     * reaching past any of it. A plugin that could write a varp directly would
+     * be telling the client something the server never said (which is why
+     * api->varp is read-only); a plugin that presses the button the player
+     * would have pressed is not.
+     *
+     * `component_id` is `(interface << 16) | component`, the id the wire and
+     * the interface tree both use. `op` is the numbered operation, 1..10, or 0
+     * for the classic unnumbered button.
+     *
+     * Which id that is on a given cache is the CALLER's problem, and the
+     * config key is where the answer belongs: the run toggle is a different
+     * component in a 2004 gameframe than in a modern one, and there is no name
+     * in any profile for it. A plugin that has not been told one offers no
+     * verb rather than pressing something at random.
+     *
+     * @return 1 when a component with that id was found and dispatched.
+     */
+    int (*if_click)(struct ToriRS_PluginCtx* ctx, int component_id, int op);
 
     /* -- images --
      *

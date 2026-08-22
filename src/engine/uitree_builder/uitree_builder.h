@@ -56,6 +56,9 @@ struct UITreeBuilder
      * and uploads fonts (EnsureFont) so the tree renders directly. NULL keeps
      * raw provider/cache ids on the nodes. */
     struct UITreeSceneBridge* bridge;
+    /** Next synthetic id for an authored control that carries a menu row.
+     *  @see TORIRS_REVCONFIG_ID_BASE. */
+    int authored_id_next;
     char ini_path[512];
     /** Optional second RevConfig file (sprites/fonts). Empty = unused. */
     char cache_ini_path[512];

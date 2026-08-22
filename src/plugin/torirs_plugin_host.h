@@ -138,6 +138,21 @@ struct ToriRS_PluginEngine
         int* out_h);
     /** Drop a published image. Idempotent. */
     void (*image_release)(void* user, int slot);
+    /**
+     * Record a hit region for the plugin currently drawing.
+     * @see ToriRS_PluginApi::hit_region. Returns 1 when it was kept.
+     */
+    int (*hit_region)(
+        void* user,
+        int plugin,
+        int x,
+        int y,
+        int w,
+        int h,
+        char const* op,
+        uint32_t tag);
+    /** Press an interface button. @see ToriRS_PluginApi::if_click. */
+    int (*if_click)(void* user, int component_id, int op);
     /** Blit a published image. @see ToriRS_PluginApi::draw_image. */
     int (*draw_image)(
         void* user,
@@ -365,6 +380,16 @@ void PluginHost_DrawWorld(struct ToriRS_PluginHost* host);
 /** The same, for EV_DRAW_CANVAS: a different surface token, a different
  *  overlay list, and the canvas rather than the world viewport as the clip. */
 void PluginHost_DrawCanvas(struct ToriRS_PluginHost* host, int width, int height);
+
+/**
+ * Deliver a canvas hit region's use, raising EV_CANVAS_CLICK on the plugin
+ * that declared it and on no other.
+ *
+ * `plugin_index` is what the engine recorded beside the region, so a plugin
+ * can never be handed another's click even if the two overlap.
+ */
+void PluginHost_CanvasClick(
+    struct ToriRS_PluginHost* host, int plugin_index, uint32_t tag, int x, int y);
 
 /** Dispatches EV_MENU_BUILD. `cursor` is handed to engine->menu_add. */
 void PluginHost_MenuBuild(

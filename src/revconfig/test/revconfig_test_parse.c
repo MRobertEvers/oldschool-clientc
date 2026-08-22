@@ -32,4 +32,22 @@ test_parse(void)
         "ACCEPT_TRADEREQ alias");
     TEST_ASSERT(
         revconfig_parse_minimenu_action("737") == REVCONFIG_MINIMENU_CLOSE_MODAL, "numeric");
+
+    /*
+     * The client's own action, and the BAND it has to be in.
+     *
+     * The second assertion is the one worth having: every id in the reference's
+     * range picks up the +2000 priority bias and has it stripped again at
+     * dispatch, so a client-invented id parked among them arrives somewhere
+     * else and its handler -- an equality test against the constant -- quietly
+     * stops matching. Being >= the client base is what exempts it, and the
+     * profiles that author this row have no way to notice if it stops being
+     * true.
+     */
+    TEST_ASSERT(
+        revconfig_parse_minimenu_action("PLUGIN_PANEL") == REVCONFIG_MINIMENU_PLUGIN_PANEL,
+        "PLUGIN_PANEL");
+    TEST_ASSERT(
+        REVCONFIG_MINIMENU_PLUGIN_PANEL >= 500000,
+        "PLUGIN_PANEL is in the client action band");
 }

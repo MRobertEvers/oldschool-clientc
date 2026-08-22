@@ -163,6 +163,7 @@ enum RevConfigFieldKind
     RCFIELD_HOTKEY_EFFECT,
     RCFIELD_UICOMPONENT_COLOR,
     RCFIELD_UICOMPONENT_FILLED,
+    RCFIELD_UICOMPONENT_TILED,
     RCFIELD_UICOMPONENT_FONT,
     RCFIELD_UICOMPONENT_CENTER,
     RCFIELD_UICOMPONENT_SHADOWED,
@@ -554,6 +555,16 @@ struct RevConfigUIComponentItem
      * the layout builder (no dedicated INI key yet).
      */
     int filled;
+
+    /*
+     * INI: tiled= (true/1 or false/0)
+     * type=rs_graphic: repeat the sprite across the widget's box instead of
+     * blitting it once. The interfaces' own wide buttons are authored this way
+     * -- two fixed caps and a narrow tile stretched between them -- and a
+     * client-owned control drawn with that art needs the same, or it gets one
+     * tile and a gap.
+     */
+    int tiled;
 
     /* INI: font= — RS font id 0–3 for type=rs_text, or symbolic [font:…] name
      * for hovertext/minimenu. */

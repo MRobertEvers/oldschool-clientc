@@ -812,6 +812,30 @@ struct App
     /** Which of the two lists the plugin draw verbs append to this dispatch:
      *  0 world, 1 canvas. Set by the host around each draw window. */
     int plugin_draw_canvas;
+    /*
+     * Clickable rectangles a plugin claimed while drawing its canvas overlay.
+     *
+     * Rebuilt with the overlay list, from nothing, every frame -- they
+     * describe the same pixels and would be a lie the moment the two could
+     * differ. Read one frame LATER than they are written, because the overlay
+     * is built inside the emit walk and the click paths run before it; a
+     * region that has not moved (which is every orb, most frames) answers the
+     * same either way, and one that has just moved is wrong for one frame
+     * rather than wrong until the next click.
+     */
+    struct AppPluginRegion
+    {
+        /** Which plugin declared it, so a click reaches only its owner. */
+        int plugin;
+        int x;
+        int y;
+        int w;
+        int h;
+        uint32_t tag;
+        /** The verb the player reads; "" for a region that offers none. */
+        char op[40];
+    } plugin_regions[64];
+    int plugin_region_count;
     /* Per-frame world map blits, filled by the GET_WORLDMAP_TILES host request
      * and consumed by the same frame's draw: the visible regions first, then
      * every map element icon over them. A full-screen surface spans ~30 regions

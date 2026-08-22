@@ -2638,6 +2638,17 @@ UITree_EmitWalk(
 {
     assert(tree);
     assert(out);
+    /*
+     * Draw never reads a stale box (reference ensureLayout, run before the
+     * widget draw for exactly this reason). A layout input can be written from
+     * anywhere between two frames -- the CS1 clientCode tick resizes the
+     * friends/ignore list scroll extents, which invalidates every resolved box
+     * -- and UITree_LayoutGetBounds answers an unresolved node with its
+     * AUTHORED x/y/w/h. For a mounted IF1 subtree those are relative to the
+     * interface, so the sidebar's whole inventory drew at 16,8 under a clip of
+     * zero width: no item icons at all. No-op when nothing invalidated.
+     */
+    UITree_EnsureLayout(tree);
     {
         int free_len = 0;
         for( int32_t i = tree->free_head; i >= 0; i = tree->components[i].free_next )

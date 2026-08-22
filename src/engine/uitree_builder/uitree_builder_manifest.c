@@ -312,6 +312,7 @@ fill_tree_op_from_component(
         strncpy(op->hotkeys[i], comp->hotkeys[i], sizeof(op->hotkeys[i]) - 1);
     op->color = comp->color;
     op->filled = comp->filled;
+    op->tiled = comp->tiled;
     op->center = comp->center;
     op->shadowed = comp->shadowed;
     strncpy(op->text, comp->text, sizeof(op->text) - 1);

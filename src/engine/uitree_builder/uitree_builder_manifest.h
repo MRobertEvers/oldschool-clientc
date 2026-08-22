@@ -108,6 +108,8 @@ struct UIBuilderTreeOp
     int hotkey_count;
     int color;
     int filled;
+    /** type=rs_graphic: repeat the sprite across the box. @see RevConfig `tiled=`. */
+    int tiled;
     int center;
     int shadowed;
     char text[256];

@@ -119,6 +119,15 @@ _Static_assert(
     (int)TORIRS_CHROME_SKIN_CHECK_BOX_OFF == (int)ToriRSChromeSkin_SLOT_CheckBoxOff,
     "chrome skin: CHECK_BOX_OFF is not the baked CheckBoxOff");
 _Static_assert(
+    (int)TORIRS_CHROME_SKIN_BUTTON_LEFT == (int)ToriRSChromeSkin_SLOT_ButtonLeft,
+    "chrome skin: BUTTON_LEFT is not the baked ButtonLeft");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_BUTTON_MID == (int)ToriRSChromeSkin_SLOT_ButtonMid,
+    "chrome skin: BUTTON_MID is not the baked ButtonMid");
+_Static_assert(
+    (int)TORIRS_CHROME_SKIN_BUTTON_RIGHT == (int)ToriRSChromeSkin_SLOT_ButtonRight,
+    "chrome skin: BUTTON_RIGHT is not the baked ButtonRight");
+_Static_assert(
     (int)TORIRS_CHROME_SKIN_SLOT_COUNT == (int)ToriRSChromeSkin_SLOT_COUNT,
     "chrome skin: the semantic slots and the bake disagree on how many there are");
 

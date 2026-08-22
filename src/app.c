@@ -3465,6 +3465,15 @@ app_iface_com(
     char const* iface_name,
     int child);
 
+/*
+ * Forward-declared for the bridge below, which is included here and needs the
+ * dispatcher that lives 18,000 lines further down: api->if_click presses a
+ * button by running the row a real click would have built, and the row is run
+ * by exactly one function in this file.
+ */
+static int
+app_minimenu_run_option(struct App* app, int option_index, int click_x, int click_y);
+
 #include "plugin/torirs_plugin_bridge.u.c"
 #include "plugin/torirs_plugin_panel.u.c"
 
@@ -4615,6 +4624,11 @@ app_build_canvas_overlays(
     assert(out_items);
 
     app->canvas_overlay_count = 0;
+    /* The regions go with the pixels they describe: both are declared inside
+     * the one draw dispatch below, and a region kept from a frame whose
+     * drawing was replaced would answer clicks for something that is no
+     * longer on the screen. */
+    app->plugin_region_count = 0;
     *out_items = app->canvas_overlays;
     if( !app->plugins )
         return 0;
@@ -20730,7 +20744,7 @@ app_hover_text_update(
             UIMinimenu_Reset(&scratch);
             scratch.font_id = app->hover_text.font_id;
             RS_Minimenu_Build(&mctx, mouse_x, mouse_y, &scratch);
-            app_plugin_menu_build(app, &scratch, 1);
+            app_plugin_menu_build(app, &scratch, mouse_x, mouse_y, 1);
         }
         UIHoverText_Compose(&scratch, &app->hover_text);
         app_minimenu_entry_publish(app, &scratch);
@@ -21117,7 +21131,7 @@ app_minimenu_open(
      * ops are the cache's, and a plugin adding a row after them must not leave
      * the menu half-sorted. */
     app_clientop_menu_build(app, menu, 0);
-    app_plugin_menu_build(app, menu, 0);
+    app_plugin_menu_build(app, menu, click_x, click_y, 0);
 
     /* TORIRS_MINIMENU_DEBUG=1: the world pickset that fed the rows plus every
      * row built from it — the one place to see why a loc/obj came up bare. */
@@ -21589,7 +21603,7 @@ app_run_default_ui_row(
     UIMinimenu_Reset(&scratch);
     scratch.font_id = app->interact.minimenu.font_id;
     RS_Minimenu_Build(&mctx, click_x, click_y, &scratch);
-    app_plugin_menu_build(app, &scratch, 0);
+    app_plugin_menu_build(app, &scratch, click_x, click_y, 0);
     default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
     /*
      * TORIRS_CLICK_DEBUG=1: the same readout the generic left-click path
@@ -22223,6 +22237,27 @@ app_minimenu_run_option(
     if( opt.action == RS_MINIMENU_ACTION_PLUGIN_PANEL )
     {
         app_plugin_window_set_open(app, !app->plugin_panel_visible);
+        return 0; /* handled locally; no CS2 task was dispatched */
+    }
+
+    /*
+     * A plugin canvas region's row -- an orb, a bar, anything a plugin drew on
+     * the canvas and claimed.
+     *
+     * `action_index` is the region's index in this frame's list. Re-checked
+     * against the count rather than trusted, because the row outlives the
+     * build that made it by a click: a menu opened on one frame is chosen from
+     * on a later one, and in between a plugin can have been switched off and
+     * its regions cleared.
+     */
+    if( opt.action == RS_MINIMENU_ACTION_PLUGIN_REGION )
+    {
+        if( opt.action_index >= 0 && opt.action_index < app->plugin_region_count )
+        {
+            struct AppPluginRegion const* region = &app->plugin_regions[opt.action_index];
+            PluginHost_CanvasClick(
+                app->plugins, region->plugin, region->tag, click_x, click_y);
+        }
         return 0; /* handled locally; no CS2 task was dispatched */
     }
 
@@ -23834,6 +23869,51 @@ App_RunOnce(
      * every cycle from the same menu the click paths build. */
     app_hover_text_update(app, input->curr.mouse_x, input->curr.mouse_y);
 
+    /*
+     * A plugin's canvas region takes its own LEFT click, before anything else
+     * acts on this frame's gestures.
+     *
+     * First, and off the raw input rather than off `out`, because a left click
+     * reaches this function by three different routes depending on what is
+     * underneath the pointer -- a component id, a minimap gesture, or a
+     * left-click miss -- and a plugin orb drawn over the minimap would
+     * otherwise walk the player before its own row was ever considered. One
+     * test on the click edge covers all three.
+     *
+     * Right clicks are deliberately NOT intercepted: the region contributes a
+     * row to the menu the right click builds (app_plugin_menu_build), so it
+     * appears there beside whatever else is under the pointer, which is what a
+     * right click is for.
+     */
+    int plugin_region_took_click = 0;
+    if( LibToriRS_Input_IsClick(input, TORIRSM_LEFT) && out.minimenu_select < 0 &&
+        !out.minimenu_closed )
+    {
+        int const region = app_plugin_region_at(
+            app,
+            input->last_click_x[TORIRSM_LEFT],
+            input->last_click_y[TORIRSM_LEFT]);
+        if( region >= 0 && app->plugin_regions[region].op[0] != '\0' )
+        {
+            PluginHost_CanvasClick(
+                app->plugins,
+                app->plugin_regions[region].plugin,
+                app->plugin_regions[region].tag,
+                input->last_click_x[TORIRSM_LEFT],
+                input->last_click_y[TORIRSM_LEFT]);
+            plugin_region_took_click = 1;
+            /* Everything the click would otherwise have reached. Cleared
+             * rather than guarded at each of the three sites below, so a
+             * fourth route added later cannot quietly get the click too. */
+            out.clicked_com_id = -1;
+            out.minimap_click = 0;
+            out.left_click_miss = 0;
+            app->input_frame_consumed = 1;
+            app->need_redraw = 1;
+        }
+    }
+    (void)plugin_region_took_click;
+
     /* Minimenu gesture results (see interact_minimenu): option selected on
      * mousedown -> dispatch; right press with no menu open -> build + show. */
     if( out.minimenu_select >= 0 )
@@ -23936,7 +24016,7 @@ App_RunOnce(
         UIMinimenu_Reset(&scratch);
         scratch.font_id = app->interact.minimenu.font_id;
         RS_Minimenu_Build(&mctx, out.clicked_x, out.clicked_y, &scratch);
-        app_plugin_menu_build(app, &scratch, 0);
+        app_plugin_menu_build(app, &scratch, out.clicked_x, out.clicked_y, 0);
         default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
         /*
          * TORIRS_CLICK_DEBUG=1: what the left click resolved to.
@@ -24061,7 +24141,7 @@ App_RunOnce(
         scratch.font_id = app->interact.minimenu.font_id;
         app_minimenu_ctx_ground_fallback(app, &mctx, out.left_click_miss_x, out.left_click_miss_y);
         RS_Minimenu_Build(&mctx, out.left_click_miss_x, out.left_click_miss_y, &scratch);
-        app_plugin_menu_build(app, &scratch, 0);
+        app_plugin_menu_build(app, &scratch, out.left_click_miss_x, out.left_click_miss_y, 0);
         default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
         if( default_idx >= 0 )
         {

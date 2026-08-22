@@ -1805,6 +1805,48 @@ api_draw_image(
         trans);
 }
 
+/* -- canvas hit regions, and the one verb that acts -- */
+
+static int
+api_hit_region(
+    struct ToriRS_PluginCtx* ctx,
+    void* surface,
+    int x,
+    int y,
+    int w,
+    int h,
+    char const* op,
+    uint32_t tag)
+{
+    assert(ctx);
+    /* The same window test the draw verbs make, and for the same reason: a
+     * region declared outside the draw dispatch would go into a list the
+     * engine has already read and answer clicks for a frame that is gone. */
+    assert(ctx->host->draw_surface);
+    assert(surface == ctx->host->draw_surface);
+    assert(
+        ctx->host->draw_canvas == 1 &&
+        "a hit region is a rectangle of the CANVAS; the world surface has none");
+    (void)surface;
+
+    if( w <= 0 || h <= 0 )
+        return 0;
+    return ctx->host->engine.hit_region(
+        ctx->host->engine.user, ctx->index, x, y, w, h, op ? op : "", tag);
+}
+
+static int
+api_if_click(struct ToriRS_PluginCtx* ctx, int component_id, int op)
+{
+    assert(ctx);
+    /* Both are numbers a plugin read out of its own config, so both are bad
+     * INPUT rather than broken contracts -- and a config that names no button
+     * is the ordinary case, not a fault. */
+    if( component_id < 0 || op < 0 || op > 10 )
+        return 0;
+    return ctx->host->engine.if_click(ctx->host->engine.user, component_id, op);
+}
+
 /* --------------------------------------------------------------- lifecycle */
 
 struct ToriRS_PluginHost*
@@ -1856,6 +1898,8 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->image_publish);
     assert(engine->image_release);
     assert(engine->draw_image);
+    assert(engine->hit_region);
+    assert(engine->if_click);
 
     struct ToriRS_PluginHost* host = calloc(1, sizeof(*host));
     assert(host);
@@ -1908,6 +1952,8 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .image_size = api_image_size,
         .image_release = api_image_release,
         .draw_image = api_draw_image,
+        .hit_region = api_hit_region,
+        .if_click = api_if_click,
         .asset_load = api_asset_load,
         .asset_data = api_asset_data,
         .asset_save = api_asset_save,
@@ -2640,6 +2686,44 @@ PluginHost_DrawCanvas(struct ToriRS_PluginHost* host, int width, int height)
     host->draw_surface = NULL;
     host->draw_canvas = 0;
     host->engine.draw_select_canvas(host->engine.user, 0);
+}
+
+void
+PluginHost_CanvasClick(
+    struct ToriRS_PluginHost* host, int plugin_index, uint32_t tag, int x, int y)
+{
+    struct ToriRS_PluginCtx* ctx;
+    struct ToriRS_PluginEvCanvasClick ev;
+    int prev;
+
+    if( !host )
+        return;
+    if( plugin_index < 0 || plugin_index >= host->plugin_count )
+        return;
+
+    ctx = &host->plugins[plugin_index];
+    /* A region outlives the frame it was declared in by one -- the menu is
+     * built from the previous frame's list -- so a plugin disabled in between
+     * can still be named by a click. It hears nothing. */
+    if( !ctx->enabled || !ctx->running )
+        return;
+
+    ev.tag = tag;
+    ev.x = x;
+    ev.y = y;
+    prev = host->dispatching;
+    host->dispatching = plugin_index;
+    /* Only the plugin that declared the region, like EV_ASSET and EV_UI: a
+     * click on one plugin's orb is not news to another. */
+    for( int i = 0; i < host->sub_count[TORIRS_PLUGIN_EV_CANVAS_CLICK]; i++ )
+    {
+        struct PluginSub const* sub = &host->subs[TORIRS_PLUGIN_EV_CANVAS_CLICK][i];
+        if( sub->plugin != plugin_index )
+            continue;
+        if( sub->handler(ctx, &ev, sub->userdata) == TORIRS_PLUGIN_CONSUME )
+            break;
+    }
+    host->dispatching = prev;
 }
 
 void

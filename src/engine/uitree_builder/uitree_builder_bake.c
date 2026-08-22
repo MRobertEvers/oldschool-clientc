@@ -14,6 +14,7 @@
 #include "inv/inv_manager.h"
 #include "ui/uitree.h"
 #include "ui/uitree_build.h"
+#include "ui/torirs_chrome_exec.h"
 #include "ui/uitree_debug_overlay.h"
 
 #include <assert.h>
@@ -186,6 +187,74 @@ find_sprite_entry(
     return NULL;
 }
 
+/**
+ * `chrome:<slot>` -> the baked chrome skin, or -1 when `ref` is not one.
+ *
+ * The other sprite source, and the reason it exists: everything in the
+ * builder's own table is a CACHE sprite, declared by a `[sprite:...]` section
+ * that names an archive. Art the CLIENT owns has no archive to name -- it is
+ * compiled in (engine/torirs_chrome_skin_baked.h) precisely so that it draws
+ * on a revision whose cache does not contain it, on a cache that failed to
+ * open, and on a build shipped without one.
+ *
+ * A profile reaches it by SLOT NAME rather than by number, for the same reason
+ * every other revconfig binding is by name: the bake order is spritebake's
+ * argument order, and a re-bake that moved a slot would otherwise silently
+ * draw a scrollbar arrow where a button should be.
+ *
+ * The whole skin is ONE scene entry with a frame per slot, so the answer is
+ * that entry's id and the slot as the atlas index -- the same shape a
+ * multi-frame cache sprite already has.
+ */
+static int
+resolve_chrome_sprite(struct UITreeBuilder* builder, char const* ref, int* out_atlas)
+{
+    static char const* const SLOT_NAME[TORIRS_CHROME_SKIN_SLOT_COUNT] = {
+        [TORIRS_CHROME_SKIN_BUTTON_LEFT] = "button_left",
+        [TORIRS_CHROME_SKIN_BUTTON_MID] = "button_mid",
+        [TORIRS_CHROME_SKIN_BUTTON_RIGHT] = "button_right",
+        [TORIRS_CHROME_SKIN_CLOSE] = "close",
+        [TORIRS_CHROME_SKIN_CLOSE_OVER] = "close_over",
+        [TORIRS_CHROME_SKIN_PANEL_BODY] = "panel_body",
+        [TORIRS_CHROME_SKIN_PLUGIN_ICON] = "plugin_icon",
+    };
+    char const* slot_name;
+    int scene_id;
+
+    assert(builder);
+    assert(ref);
+
+    if( strncmp(ref, "chrome:", 7) != 0 )
+        return -1;
+    slot_name = ref + 7;
+
+    for( int slot = 0; slot < TORIRS_CHROME_SKIN_SLOT_COUNT; slot++ )
+    {
+        if( !SLOT_NAME[slot] || strcmp(SLOT_NAME[slot], slot_name) != 0 )
+            continue;
+        if( !builder->bridge )
+            return -1;
+        scene_id = UITreeSceneBridge_EnsureChromeSkin(builder->bridge);
+        /* -1 is a real answer: a lane can be built with the skin module
+         * stubbed out, and a component that asked for one draws nothing rather
+         * than the client refusing to boot. */
+        if( scene_id < 0 )
+            return -1;
+        if( out_atlas )
+            *out_atlas = slot;
+        return scene_id;
+    }
+
+    /*
+     * A name that is not a slot IS a mistake worth stopping on, unlike a
+     * missing skin: the profile spelled something, and the only outcomes are
+     * the right picture or a silently blank control.
+     */
+    fprintf(stderr, "uitree_builder_bake: no chrome skin slot named '%s'\n", slot_name);
+    assert(0 && "unknown chrome: sprite slot");
+    return -1;
+}
+
 static int
 resolve_sprite_required(
     struct UITreeBuilder* builder,
@@ -198,6 +267,8 @@ resolve_sprite_required(
             *out_atlas = 0;
         return -1;
     }
+    if( strncmp(ref, "chrome:", 7) == 0 )
+        return resolve_chrome_sprite(builder, ref, out_atlas);
     if( !find_sprite_entry(builder, ref) )
     {
         fprintf(
@@ -470,6 +541,17 @@ push_builtin_op(
      * unmounted-spillover sweep, which is what it is there for.
      */
     spec.component_id = is_iface_mount ? -1 : op->componentno;
+    /*
+     * A control the PROFILE invented gets an id of its own, so a click on it
+     * has something to travel as.
+     *
+     * Only one that offers a menu row: an id costs nothing but it also means
+     * nothing for the frame's stone sprites, and handing every decorative
+     * layer a component id would put thousands of them into the tree's
+     * by-id lookups for no reader.
+     */
+    if( spec.component_id < 0 && !is_iface_mount && op->option[0] != '\0' )
+        spec.component_id = TORIRS_REVCONFIG_ID_BASE + builder->authored_id_next++;
     apply_layout_position(op, &spec.position);
     spec.has_position = 1;
     spec.slot_tag = (uint8_t)slot_tag_from_string(op->slot);
@@ -708,6 +790,7 @@ push_builtin_op(
         spec.u.rs_graphic.atlas_index = atlas_index;
         spec.u.rs_graphic.scene_id_active = sprite_active_id;
         spec.u.rs_graphic.atlas_index_active = atlas_active;
+        spec.u.rs_graphic.tiled = op->tiled ? 1 : 0;
         break;
     case UIELEM_RS_TEXT:
         if( op->has_font_ref && op->font_ref[0] )

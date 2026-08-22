@@ -2,6 +2,7 @@
 
 #include <assert.h>
 #include <stddef.h>
+#include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -24,7 +25,7 @@
  *
  * ## The art is the plugin's, not the cache's
  *
- * `script/plugins/assets/minimap-orbs/*.png` are ten files shipped beside this
+ * The ten PNGs in `script/plugins/assets/minimap-orbs/` are shipped beside this
  * source. They were cut from the rev-239 sprites table once, at authoring
  * time, and they are the plugin's own files now -- so this draws the same orbs
  * on a 2004 cache, on a cache that failed to open, and on a client started
@@ -58,6 +59,22 @@
  * `[varp:special_attack_energy]`, and the id every revision from 2004 to
  * today has used -- and the orb switches itself off if none of them answer.
  * See orbs_varp.
+ *
+ * ## Clicking one
+ *
+ * An orb is a button in the reference and it is a button here. Each one claims
+ * its plate with api->hit_region, so the mouseover line names the verb, the
+ * right-click menu offers it and a left click runs it -- one declaration, all
+ * three -- and the click is answered with api->if_click, which presses the
+ * interface button the gameframe already has for that job.
+ *
+ * Pressing the real button rather than writing the var is what makes this
+ * work at all: the run toggle and the special attack are the SERVER's, and a
+ * client that flipped the varp locally would show a state the server never
+ * agreed to and lose it on the next sync. Which component that button is
+ * cannot be known from here -- it is a different one in every gameframe and no
+ * profile names it -- so it comes from config, and an orb told nothing offers
+ * no verb rather than pressing something at random.
  */
 
 /* The plate, and where interface 160 puts each piece inside it. */
@@ -117,6 +134,63 @@ static char const* const ORB_IMAGE_FILE[ORB_IMG_COUNT] = {
 
 /** Handles from api->image_load, or -1 while a load has not been asked for. */
 static int g_image[ORB_IMG_COUNT];
+
+/** What a click on each orb means. Handed to api->hit_region and read back in
+ *  EV_CANVAS_CLICK; the host does not look at these. */
+enum OrbTag
+{
+    ORB_TAG_HP = 1,
+    ORB_TAG_RUN,
+    ORB_TAG_SPEC
+};
+
+/**
+ * The interface button an orb presses, as `<interface>:<component>[:<op>]`.
+ *
+ * A string and not three int keys because the three are one ANSWER -- "the run
+ * toggle is this button" -- and splitting it across three rows of the settings
+ * panel invites two of them being right. The op defaults to 0, the classic
+ * unnumbered button, which is what a 2004 gameframe's toggles are.
+ *
+ * @return 1 when `spec` named a button, 0 when it is empty or malformed (and
+ * then nothing is written to the outputs).
+ */
+static int
+orbs_parse_button(char const* spec, int* out_component, int* out_op)
+{
+    int iface = -1;
+    int component = -1;
+    int op = 0;
+    int const fields = spec ? sscanf(spec, "%d:%d:%d", &iface, &component, &op) : 0;
+
+    assert(out_component);
+    assert(out_op);
+
+    if( fields < 2 )
+        return 0;
+    if( iface < 0 || iface > 0xFFFF || component < 0 || component > 0xFFFF )
+        return 0;
+    if( op < 0 || op > 10 )
+        return 0;
+
+    *out_component = (iface << 16) | component;
+    *out_op = op;
+    return 1;
+}
+
+/** The verb an orb offers, or NULL when its button is not configured. A region
+ *  with no verb still claims the pointer, which is what keeps a click on the
+ *  orb from falling through to the minimap behind it and walking. */
+static char const*
+orbs_verb(struct ToriRS_PluginCtx* ctx, char const* button_key, char const* verb)
+{
+    int component;
+    int op;
+
+    if( !orbs_parse_button(g_api->cfg_str(ctx, button_key), &component, &op) )
+        return NULL;
+    return verb;
+}
 
 static void
 orbs_load_images(struct ToriRS_PluginCtx* ctx)
@@ -184,13 +258,25 @@ orbs_draw_one(
     int icon_image,
     int value,
     int filled,
-    int total)
+    int total,
+    uint32_t tag,
+    char const* verb)
 {
     char text[16];
     int hidden;
 
     if( g_image[ORB_IMG_FRAME] < 0 )
         return;
+
+    /*
+     * The plate is the button, claimed before it is drawn.
+     *
+     * Claimed even when there is no verb -- `verb` is NULL for an orb whose
+     * button is not configured -- because the region's other job is to stop
+     * the click: an orb sits over the minimap on most gameframes, and without
+     * this a click on it walks the player to whatever tile is underneath.
+     */
+    g_api->hit_region(ctx, surface, x, y, ORB_W, ORB_H, verb, tag);
 
     g_api->draw_image(ctx, surface, g_image[ORB_IMG_FRAME], x, y, 0, 0, 0, 0, 0);
     g_api->draw_image(
@@ -284,7 +370,8 @@ orbs_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         {
             orbs_draw_one(
                 ctx, ev->surface, x, y, ORB_IMG_FILL_RED, ORB_IMG_ICON_HP,
-                current, current, base);
+                current, current, base, ORB_TAG_HP,
+                orbs_verb(ctx, "hp_button", "Cure"));
             y += pitch;
         }
     }
@@ -306,7 +393,9 @@ orbs_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
             running ? ORB_IMG_ICON_RUN : ORB_IMG_ICON_WALK,
             energy,
             energy,
-            100);
+            100,
+            ORB_TAG_RUN,
+            orbs_verb(ctx, "run_button", "Toggle Run"));
         y += pitch;
     }
 
@@ -333,11 +422,64 @@ orbs_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
                  * itself is in thousandths and only the fill uses them. */
                 energy * 100 / spec_max,
                 energy,
-                spec_max);
+                spec_max,
+                ORB_TAG_SPEC,
+                orbs_verb(ctx, "spec_button", "Use Special Attack"));
             y += pitch;
         }
     }
 
+    return TORIRS_PLUGIN_PASS;
+}
+
+/*
+ * An orb was used: press the button its config names.
+ *
+ * One handler for all three, because what differs between them is a config key
+ * and nothing else -- there is no orb-specific behaviour here, only a
+ * different button on the same interface.
+ */
+static enum ToriRS_PluginVerdict
+orbs_click(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+{
+    (void)userdata;
+
+    struct ToriRS_PluginEvCanvasClick* ev = (struct ToriRS_PluginEvCanvasClick*)event;
+    char const* key;
+    int component;
+    int op;
+
+    assert(ctx);
+    assert(ev);
+
+    switch( ev->tag )
+    {
+    case ORB_TAG_HP:
+        key = "hp_button";
+        break;
+    case ORB_TAG_RUN:
+        key = "run_button";
+        break;
+    case ORB_TAG_SPEC:
+        key = "spec_button";
+        break;
+    default:
+        return TORIRS_PLUGIN_PASS;
+    }
+
+    /* No button configured is the ordinary state on a lane nobody has told
+     * this plugin about, and the region offered no verb for it -- so the click
+     * that got here is a click on an orb that says it does nothing, and it
+     * does nothing. */
+    if( !orbs_parse_button(g_api->cfg_str(ctx, key), &component, &op) )
+        return TORIRS_PLUGIN_PASS;
+
+    if( !g_api->if_click(ctx, component, op) )
+        g_api->log(
+            ctx,
+            "%s names component 0x%x, which this gameframe does not hold",
+            key,
+            component);
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -380,6 +522,7 @@ orbs_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
     api->subscribe(ctx, TORIRS_PLUGIN_EV_START, orbs_start, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_STOP, orbs_stop, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_DRAW_CANVAS, orbs_draw, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_CANVAS_CLICK, orbs_click, NULL);
 }
 
 /*
@@ -398,6 +541,18 @@ static struct ToriRS_PluginConfigItem const ORBS_CONFIG[] = {
     { "run_varp",  TORIRS_PLUGIN_CFG_INT,  "Run mode varp (-1 auto)", "-1", -1, 65535, NULL, 0 },
     { "spec_varp", TORIRS_PLUGIN_CFG_INT,  "Special attack varp (-1 auto)", "-1", -1, 65535, NULL, 0 },
     { "spec_max",  TORIRS_PLUGIN_CFG_INT,  "Special attack bar maximum", "1000", 1, 100000, NULL, 0 },
+    /*
+     * The buttons each orb presses, `<interface>:<component>[:<op>]`, empty
+     * for none.
+     *
+     * Empty by DEFAULT, on every lane, and that is the safe answer rather than
+     * a missing one: a wrong id here is not an orb that does nothing, it is an
+     * IF_BUTTON sent to a server about a component the player never touched.
+     * Filling these in is a per-world job, which is what a config key is.
+     */
+    { "hp_button",   TORIRS_PLUGIN_CFG_STRING, "Hitpoints orb button",      "", 0, 0, NULL, 0 },
+    { "run_button",  TORIRS_PLUGIN_CFG_STRING, "Run orb button",            "", 0, 0, NULL, 0 },
+    { "spec_button", TORIRS_PLUGIN_CFG_STRING, "Special attack orb button", "", 0, 0, NULL, 0 },
     { NULL,        TORIRS_PLUGIN_CFG_BOOL, NULL,                      NULL, 0, 0,      NULL, 0 },
 };
 

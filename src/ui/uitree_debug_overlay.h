@@ -331,6 +331,22 @@ enum ToriRSChromeSkinSlot
      */
     TORIRS_CHROME_SKIN_CHECK_BOX_ON,
     TORIRS_CHROME_SKIN_CHECK_BOX_OFF,
+    /*
+     * The interfaces' own wide stone BUTTON, in three pieces: two 36x36 caps
+     * with the rounded corners on their outer edges, and a 20x36 tile that
+     * repeats to fill whatever is between them. It is the button the logout
+     * interface's "Logout" and "World Switcher" rows are drawn with.
+     *
+     * Baked here rather than named by cache id, because it is drawn by
+     * CHROME -- the client's own furniture, which has to look the same on a
+     * cache that does not contain it, on a cache that failed to open, and on
+     * the frames of 2004 that have no such art at all. That is the same reason
+     * every other slot above is baked, and the reason a `[component:]` can now
+     * ask for one by `sprite=chrome:<slot>`.
+     */
+    TORIRS_CHROME_SKIN_BUTTON_LEFT,
+    TORIRS_CHROME_SKIN_BUTTON_MID,
+    TORIRS_CHROME_SKIN_BUTTON_RIGHT,
     TORIRS_CHROME_SKIN_SLOT_COUNT
 };
 

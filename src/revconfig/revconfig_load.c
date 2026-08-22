@@ -178,6 +178,8 @@ push_field_from_ini_kv(
         kind = RCFIELD_UICOMPONENT_COLOR;
     else if( strcmp(key, "filled") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_FILLED;
+    else if( strcmp(key, "tiled") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TILED;
     else if( strcmp(key, "font") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_FONT;
     else if( strcmp(key, "center") == 0 && strcmp(s_ini_item_type, "component") == 0 )

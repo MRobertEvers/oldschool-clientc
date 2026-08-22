@@ -1367,6 +1367,121 @@ app_plugin_draw_image(
     return app_overlay_count(app) - before;
 }
 
+/* ------------------------------------------------------- canvas hit regions */
+
+/**
+ * The topmost region covering a canvas point, or -1.
+ *
+ * Walked backwards: regions are recorded in DRAW order, so the last one to
+ * cover the point is the one drawn on top, and the one a click belongs to.
+ */
+static int
+app_plugin_region_at(struct App const* app, int x, int y)
+{
+    assert(app);
+
+    for( int i = app->plugin_region_count - 1; i >= 0; i-- )
+    {
+        struct AppPluginRegion const* region = &app->plugin_regions[i];
+        if( x < region->x || x >= region->x + region->w )
+            continue;
+        if( y < region->y || y >= region->y + region->h )
+            continue;
+        return i;
+    }
+    return -1;
+}
+
+static int
+app_plugin_hit_region(
+    void* user,
+    int plugin,
+    int x,
+    int y,
+    int w,
+    int h,
+    char const* op,
+    uint32_t tag)
+{
+    struct App* app = (struct App*)user;
+    int const cap = (int)(sizeof(app->plugin_regions) / sizeof(app->plugin_regions[0]));
+    struct AppPluginRegion* region;
+
+    assert(app);
+    assert(op);
+
+    if( app->plugin_region_count >= cap )
+        return 0;
+
+    region = &app->plugin_regions[app->plugin_region_count++];
+    region->plugin = plugin;
+    region->x = x;
+    region->y = y;
+    region->w = w;
+    region->h = h;
+    region->tag = tag;
+    snprintf(region->op, sizeof(region->op), "%s", op);
+    return 1;
+}
+
+/*
+ * Press an interface button, by running the row a real click would have built.
+ *
+ * Not a packet send. Everything a click on a button does -- the local
+ * client_code, the varp a toggle owns, the plain IF_BUTTON, the numbered
+ * IF_BUTTON<op> and its events-mask gate -- lives in app_minimenu_run_option,
+ * and a second path that only sent the packet would be a click that works on
+ * some buttons and half-works on the rest. So the option is fabricated and the
+ * client's own dispatcher runs it, which is the literal meaning of "press
+ * that button".
+ *
+ * `action_index` is the op slot the dispatcher reads (`op_num = index + 1`);
+ * op 0, the classic unnumbered button, is slot 0, which is exactly what a
+ * cache-authored IF1 button's own row carries.
+ */
+static int
+app_plugin_if_click(void* user, int component_id, int op)
+{
+    struct App* app = (struct App*)user;
+    struct UIMinimenu scratch;
+    struct UIMinimenu saved;
+    struct UIMinimenuPick pick;
+
+    assert(app);
+
+    if( !app->tree )
+        return 0;
+    /* A component id this tree does not hold is bad input -- a config key
+     * naming a button that is not on this cache -- not a broken contract. */
+    if( UITree_FindByComponentId(app->tree, component_id) < 0 )
+        return 0;
+
+    memset(&pick, 0, sizeof(pick));
+    pick.kind = UI_MINIMENU_PICK_UI;
+    pick.id = component_id;
+
+    UIMinimenu_Reset(&scratch);
+    scratch.font_id = app->interact.minimenu.font_id;
+    if( !UIMinimenu_AddOption(
+            &scratch,
+            "",
+            REVCONFIG_MINIMENU_IF_BUTTON,
+            op >= 1 ? op - 1 : 0,
+            pick) )
+        return 0;
+
+    /* 0,0 as the click point, and it is never read: the cross is painted per
+     * ACTION (rs_minimenu_cross.h), and a UI button's is UI_CROSS_OFF -- the
+     * reference's doAction does not touch crossMode for one either. A
+     * synthesised press has no click point to give, and this is the reason it
+     * does not need one. */
+    saved = app->interact.minimenu;
+    app->interact.minimenu = scratch;
+    app_minimenu_run_option(app, 0, 0, 0);
+    app->interact.minimenu = saved;
+    return 1;
+}
+
 /* Which overlay list the draw verbs above append to. @see app_overlay_push. */
 static void
 app_plugin_draw_select_canvas(void* user, int canvas)
@@ -1495,7 +1610,8 @@ app_plugin_menu_add(void* user, void* cursor, char const* text, int action_id)
  * plugin rows in the wrong half of the menu.
  */
 static void
-app_plugin_menu_build(struct App* app, struct UIMinimenu* menu, int hover_pass)
+app_plugin_menu_build(
+    struct App* app, struct UIMinimenu* menu, int click_x, int click_y, int hover_pass)
 {
     struct ToriRS_PluginEvMenuBuild ev;
 
@@ -1504,6 +1620,40 @@ app_plugin_menu_build(struct App* app, struct UIMinimenu* menu, int hover_pass)
 
     if( !app->plugins )
         return;
+
+    /*
+     * A canvas region's own row, before the plugins are asked for theirs.
+     *
+     * The region list is the app's, not the host's, because the app is what
+     * hit-tests it -- and putting the row here rather than in a path of its
+     * own is what makes ONE thing true of it: the mouseover line, the
+     * right-click menu and the left-click default are all this same build, so
+     * an orb that says "Toggle Run" on hover is an orb that toggles run when
+     * clicked, with nothing to keep in step.
+     *
+     * Topmost first: regions are declared in draw order, so the last one
+     * covering the point is the one on top, and it is the one whose row is
+     * added.
+     */
+    for( int i = app->plugin_region_count - 1; i >= 0; i-- )
+    {
+        struct AppPluginRegion const* region = &app->plugin_regions[i];
+        struct UIMinimenuPick pick;
+
+        if( region->op[0] == '\0' )
+            continue;
+        if( click_x < region->x || click_x >= region->x + region->w )
+            continue;
+        if( click_y < region->y || click_y >= region->y + region->h )
+            continue;
+
+        memset(&pick, 0, sizeof(pick));
+        pick.kind = UI_MINIMENU_PICK_NONE;
+        /* The region INDEX, so the dispatcher can find the owner and the tag
+         * without a second lookup by coordinates. */
+        UIMinimenu_AddOption(menu, region->op, RS_MINIMENU_ACTION_PLUGIN_REGION, i, pick);
+        break;
+    }
 
     memset(&ev, 0, sizeof(ev));
     ev.row_count = menu->option_count < TORIRS_PLUGIN_MENU_ROWS_MAX
@@ -1584,6 +1734,8 @@ app_plugin_engine(struct App* app)
     engine.image_publish = app_plugin_image_publish;
     engine.image_release = app_plugin_image_release;
     engine.draw_image = app_plugin_draw_image;
+    engine.hit_region = app_plugin_hit_region;
+    engine.if_click = app_plugin_if_click;
     engine.minimap_rect = app_plugin_minimap_rect;
     engine.stat = app_plugin_stat;
     engine.run_energy = app_plugin_run_energy;
