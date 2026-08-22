@@ -211,6 +211,7 @@ rs_cs2_dirty_flags(
     out[n++] = &host->stat_transmit_dirty;
     out[n++] = &host->misc_transmit_dirty;
     out[n++] = &host->friend_transmit_dirty;
+    out[n++] = &host->chat_transmit_dirty;
     assert(n <= RS_CS2_DIRTY_FLAG_CAP);
     return n;
 }

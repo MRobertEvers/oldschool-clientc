@@ -19,6 +19,7 @@ extern int g_failures;
 void test_painters_smoke(void);
 void test_painters_tile_order(void);
 void test_minimap_push_down(void);
+void test_minimap_push_down_colourless_deck(void);
 void test_builder_lifecycle(void);
 void test_prerotate_placement(void);
 

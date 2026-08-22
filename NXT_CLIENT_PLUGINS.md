@@ -48,13 +48,19 @@ To re-derive any of it:
 3rd/rscache/tools/cs2/cs2 decompile --cache cache.osrs239 --rev osrs239 --out /tmp/cs2 6716 3965 3962 4181
 ```
 
-## Status: 35 of 74
+## Status: 37 of 74
 
 | | rows | |
 |---|---:|---|
-| **working** | 35 | 19 driven by the cache, 9 by builtins, 7 by the server |
+| **working** | 37 | 24 driven by the cache, 4 by builtins, 7 by the server, 2 by the client |
 | **partial** | 4 | 164, and 173 / 176 / 179 |
-| **not started** | 35 | classified below -- not 35 separate problems |
+| **not started** | 33 | classified below -- 7 + 15 + 12, and only 12 of those are open problems |
+
+The count moved by one. What moved underneath it is larger: **five rows that a
+builtin was faking are now driven by the cache's own scripts**, two builtins
+are deleted, and the two subsystems that were blocking the whole of bucket A
+are implemented.
+See "Client triggers" and "Scripted entity overlays" below.
 
 ### Working
 
@@ -74,14 +80,16 @@ To re-derive any of it:
 | 248 | Cannon low on ammo notification | `nxt-cannon-ammo` |
 | 249 | Cannon low on ammo amount | `nxt-cannon-ammo` |
 | 250 | Cannon out of ammo notification | `nxt-cannon-ammo` |
-| 258 | NPC highlight - Display name | `nxt-npc-names` |
+| 165 | Highlight Agility shortcuts | cache |
+| 210 | Highlight Agility shortcuts - Shortcut Requirements | cache |
+| 258 | NPC highlight - Display name | cache |
 | 259 | NPC highlight - Highlight tile | cache |
 | 260 | NPC highlight - Highlight outline | cache |
 | 261 | NPC highlight | cache |
 | 262 | NPC highlight - Highlighting colour | cache |
-| 263 | NPC highlight - Text colour | `nxt-npc-names` |
-| 264 | Display all NPC names above their body | `nxt-npc-names` |
-| 266 | NPC names text colour | `nxt-npc-names` |
+| 263 | NPC highlight - Text colour | cache |
+| 264 | Display all NPC names above their body | cache |
+| 266 | NPC names text colour | cache |
 | 267 | Clear your highlighted NPCs | client (button) |
 | 269 | Blast Furnace highlights | cache |
 | 367 | Highlight quest start points | cache |
@@ -94,7 +102,7 @@ To re-derive any of it:
 | 379 | Master clue scroll warning | server (trail lane) |
 | 416 | NPC highlight - Tagging | cache |
 | 451 | STASH units take equipped items | server (trail lane) |
-| 453 | Highlight poll booths | `nxt-poll-booths` |
+| 453 | Highlight poll booths | cache -- gated on an active poll, which this server never declares |
 
 Every **colour** row above -- 113, 174, 177, 180, 262, 263, 266 -- is "cache"
 only for the READ. The cache has no apply for one; the picker that writes it is
@@ -114,34 +122,63 @@ this client's, and is the same one for all of them. See "The third half".
 Derived by grepping every clientscript that reads each row's var and
 looking at what it CALLS -- measured, not guessed.
 
-**A. needs `_7200..7211`, the world-anchored component family** -- 8 rows
+**A. reachable now, not yet proven on screen** -- 7 rows
 
-| id | setting |
-|---:|---------|
-| 120 | Fishing spot indicators |
-| 121 | Fishing spot indicators - Tools only |
-| 122 | Fishing spot indicators - Mouse over tooltip |
-| 165 | Highlight Agility shortcuts |
-| 247 | Cannon hud |
-| 270 | Clue scroll helper - Overlay |
-| 271 | Clue scroll helper |
-| 277 | Clue scroll helper - Entity highlights |
+The two things that blocked these are implemented (see below): the cache's
+scripts for them are found and run, and the overlays they build are drawn. What
+is left per row is a scene that exercises it -- a fishing spot, a cannon, a clue
+in hand -- which the mock server does not currently place.
 
-**B. needs an interface the cache builds, mounted and driven** -- 9 rows
+| id | setting | what it needs to be seen |
+|---:|---------|--------------------------|
+| 120 | Fishing spot indicators | a fishing spot npc in the scene |
+| 121 | Fishing spot indicators - Tools only | ditto, plus the tool in the inventory |
+| 122 | Fishing spot indicators - Mouse over tooltip | ditto, plus a hover |
+| 247 | Cannon hud | a placed cannon (`%var3551`) |
+| 270 | Clue scroll helper - Overlay | a read clue (`%var3546`) |
+| 271 | Clue scroll helper | ditto |
+| 277 | Clue scroll helper - Entity highlights | ditto |
 
-| id | setting |
-|---:|---------|
-| 81 | Last Man Standing fog colour |
-| 111 | Show normal health overlay |
-| 116 | Data orbs - Regeneration indicators |
-| 118 | Chambers of Xeric helper |
-| 210 | Highlight Agility shortcuts - Shortcut Requirements |
-| 274 | Clue scroll helper - Menu highlights |
-| 299 | Show enemy name on health overlay |
-| 300 | Compact boss health overlay |
-| 301 | Health overlay display type |
+**B. the cache implements it; it needs the right context** -- 15 rows
 
-**C. no cache reader at all -- the client or the server implements it whole** -- 18 rows
+Reclassified by measurement rather than by eye. For every row, the scripts that
+READ its var were separated from the one that WRITES it and from the settings
+hubs (`6716`, `3962`, `3964`, `4181`, `3965`, `3967`). A row with a real reader
+is one the cache already implements; what it is missing is a situation.
+
+| id | setting | its readers | what it is waiting for |
+|---:|---------|-------------|------------------------|
+| 81 | Last Man Standing fog colour | 1346 | being in LMS |
+| 111 | Show normal health overlay | 4731 | interface 303, which only the server opens |
+| 116 | Data orbs - Regeneration indicators | 4718 4723 6052 6060 | the orbs' own layout pass |
+| 118 | Chambers of Xeric helper | 4663 | being in CoX |
+| 187 | Ore respawn timer | 5482 | a server `RUNCLIENTSCRIPT` 5475 |
+| 188 | Woodcutting respawn timer | 5483 | the same |
+| 242 | Tears of Guthix timers | 6679 | the same |
+| 243 | Hunter trap timers | 6680 | the same |
+| 245 | Herbiboar helper | 4743 6853 | being at a herbiboar |
+| 274 | Clue scroll helper - Menu highlights | 6477 6479 | a clue in hand |
+| 276 | Clue scroll helper - Clue text | 6634..6644 | a clue in hand |
+| 299 | Show enemy name on health overlay | 2103 | interface 303 |
+| 300 | Compact boss health overlay | 2101 | interface 303 |
+| 301 | Health overlay display type | 2103 | interface 303 |
+
+Three shapes, and none of them is a missing opcode:
+
+- **An interface only the server opens.** 111 / 299 / 300 / 301 all live on
+  interface 303 and read `%var1683`, the npc being fought. Nothing in the cache
+  opens 303; in the reference the server does, with `IF_OPENSUB`. Four rows,
+  one server feature.
+- **A server-driven timer.** 187 / 188 / 242 / 243 all end at
+  `[proc,script5482]`-shaped gates, and the overlay itself is 5471 (npc),
+  5475 (loc) or 5478 (coord) -- "run a countdown on this thing for N ticks",
+  which nothing in the cache calls because the SERVER calls it by
+  `RUNCLIENTSCRIPT`. Four rows, one server feature.
+- **A place or an item.** 81, 118, 245, 274, 276 are unverifiable rather than
+  unimplemented: a fresh Lumbridge login does not reach LMS, CoX, a herbiboar
+  or a clue scroll.
+
+**C. no reader anywhere -- the client or the server owns it whole** -- 12 rows
 
 | id | setting |
 |---:|---------|
@@ -151,19 +188,19 @@ looking at what it CALLS -- measured, not guessed.
 | 182 | Iron loot restriction indicator |
 | 183 | Iron loot restriction messages |
 | 184 | Slayer helper |
-| 187 | Ore respawn timer |
-| 188 | Woodcutting respawn timer |
-| 242 | Tears of Guthix timers |
-| 243 | Hunter trap timers |
-| 245 | Herbiboar helper |
 | 268 | Blast Furnace helper |
 | 272 | Clue scroll helper - Worldmap marker |
 | 273 | Clue scroll helper - World arrows |
 | 275 | Clue scroll helper - Infobox |
-| 276 | Clue scroll helper - Clue text |
 | 279 | Max hit hitsplats |
 | 280 | Max hit hitsplats threshold |
 
+These are the ones a builtin would have to implement from nothing, and most of
+them need a fact this client is not told. 5 wants "whose damage was that", 279
+wants "was that my maximum", 182/183 want the server's loot-ownership rule,
+and 163 / 184 / 268 want per-course, per-task and per-minigame tables that are
+game knowledge rather than cache data. Writing those from guesswork is how a
+helper becomes confidently wrong, so each is named here rather than filled in.
 
 ## The reference client settles it
 
@@ -231,7 +268,58 @@ The `group` argument really is an INDEX, not a mask, even though the manager
 stores masks: `AddNPCTypeHighlight` does `*slot = 1 << (channel & 0x1f)` after
 asserting `channel < 0x20`.
 
-### `_7200..7211` is `jag::oldscape::EntityOverlays`
+## Client triggers -- the scripts nothing calls
+
+The single largest thing this client was missing, and it is not an opcode.
+
+Most of what a cache script does, this client already ran: panels open, hooks
+fire, buttons work. What it could not reach at all was the family of scripts
+that **nobody calls** -- the ones the client is supposed to find and run itself
+when an npc walks on screen, when the scene builder places a loc, when the
+right-click menu opens. In `cache.osrs239` that is **218 loc scripts and 23 npc
+scripts**, and they are where the whole non-highlight half of this category
+lives: the fishing spot indicators, the Agility shortcut markers, the cannon
+hud, the clue scroll helper, the npc name plates.
+
+The binding is not in a table. It is in the clientscript index's **group
+names**:
+
+```
+hash       = subject * 256 + trigger          -- this npc type / this loc type
+           = trigger - category * 256 - 0x300 -- any subject of this category
+           = trigger - 0x200                  -- any subject at all
+group name = the decimal string of that hash
+name hash  = djb2 of that string
+```
+
+and the client walks the three narrowest-first (reference
+`ClientScript::Get(ClientTriggerType2::ID, int, int)` ->
+`ScriptTriggerHelpers::GetScriptHash` -> `FindTriggeredScript` ->
+`HashToJs5GroupString`). See `src/game/rs_client_trigger.h`.
+
+Verified against the cache before a line was written, by dumping the
+identifiers out of index 12's reference table and solving the three forms
+against them:
+
+| form | example | resolves to |
+|------|---------|-------------|
+| subject, trigger 37 (loc placed) | 218 loc types | scripts 5110..5720 -- the Agility shortcut handlers |
+| category, trigger 35 (npc appeared) | 17 npc categories | scripts 4528..4546 -- the fishing spot handlers |
+| global, trigger 35 | -- | script 6693 -- the npc name plate |
+
+The trigger ids come from the reference's own call sites: 35 npc appeared
+(`Client::GetNPCPosNewVis`), 36 npc gone (`DestroyNpc`), 37 loc placed
+(`OnLoadLocation`), 38 loc changed (`LocChangeUnchecked`), 41/42 player, 82
+minimenu opened (`Minimenu::Open`).
+
+**Why this is worth a test rather than a screenshot.** The failure mode is
+silence: a formula that hashes the integer instead of its decimal string, or
+uses 33 instead of 31, or gets the category bias wrong, answers -1 for every
+trigger in the cache -- which is exactly what "not implemented" looked like for
+as long as it was. `make -C src test-client-trigger` pins seven real
+(hash, group) pairs read straight out of the cache.
+
+### `_7200..7214` is `jag::oldscape::EntityOverlays` -- implemented
 
 The bucket-A family, and it is not a mystery any more:
 
@@ -256,12 +344,60 @@ SetActivePlayer` is the backing state for the `_67xx / _68xx / _69xx` getters,
 which confirms the shape this client already implements: one "active subject",
 set by a client-op dispatch and by the mouseover.
 
-### One arity error in this repo's own table
+The `+0x70` field is `IfType::OverlayTypes` -- the BAND, which decides both
+where the overlay sits and when it draws relative to the health bar. The scene
+pass runs three sweeps against a three-point anchor
+(`Client::GetAllOverlayPositions`):
 
-`cs2vm2_opcode_stack.gen.h` has 7205 as `0 in, 1 out`. The handler pops one int
-(the slot) and pushes one. The generated table inherited that row from the
-decompiler's vendored signatures, which is exactly the class of row its `known`
-field flags as unverified.
+| band | position | draw order |
+|-----:|----------|------------|
+| 0 | centred on the entity's mid-height point | under the bar |
+| 1 | stacked UPWARD from the head | over the bar |
+| 2 | stacked DOWNWARD from the feet | under the bar |
+
+Only bands 1 and 2 advance their cursor, which is what lets two overlays in one
+band stack instead of overprinting.
+
+**How it is built here.** An overlay is a UITree LAYER parented to the
+`entity_overlay` builtin plus a record saying what it hangs off
+(`src/game/rs_entity_overlay.h`); `202`/`103`/`104` turn an overlay index into
+that layer's component id and then do exactly what the panel-facing op of the
+same name does, so `cc_setobject_nonum`, `cc_settext`, `cc_setonvartransmit`
+and the rest need no special case. The App projects the anchor and moves the
+layer each frame, because where it belongs is a fact about the camera.
+
+Four things went wrong building it, all of them silent, and all four are now
+pinned by tests:
+
+- **The npc uid read -1.** `server_slot` is written by the caller *after* the
+  spawn helper returns, so the trigger fired too early and every npc's overlay
+  keyed on the same absent subject. The trigger moved to the entity-sync path.
+- **The subject was written beside the queue call, not into it.**
+  `RS_CS2_RunScript` queues; twenty-six npc-add scripts all ran during one
+  settle and all saw npc twenty-six. The subject now rides its own one-shot
+  task queued in front of the script.
+- **Off camera was treated as gone.** An npc that walked behind the camera does
+  not project, and reaping on that churned the whole table back to index 0
+  every frame. "The subject is gone" and "it does not project" are two answers
+  now.
+- **A tree rebuild killed every layer, permanently.** Login's gameframe remount
+  reclaims everything under the builtin -- including the `cc_setonvartransmit`
+  hooks that are the only thing that would ever rebuild an overlay. Nothing in
+  the cache re-fires a client trigger, so the client notices a layer that no
+  longer resolves and re-raises them.
+
+### Arity errors in this repo's own table
+
+Three, all of the same kind -- a row inherited from the decompiler's vendored
+signatures, which is exactly what the table's `known` field flags as unverified:
+
+- **7205 / 7208** were `0 in, 1 out`. Both pop the slot. A GET that did not pop
+  answered about whatever the script left below it.
+- **202** was guessed as `CC_FINDROOT`, which pushes without popping. It is
+  `OVERLAY_FIND`, and **57 call sites in this cache pass it one argument** -- so
+  the guess also leaked an int per call. `203` was guessed as
+  `CC_CHILDREN_FIND`; it is the overlay's `cc_find`, and nothing in either
+  osrs239 or osrs230 calls it.
 
 ## Most of it is implemented in the cache, not here
 
@@ -527,12 +663,15 @@ waste.
 
 ### What is still not populated, and why
 
-Three separate reasons, all measured rather than assumed:
+Two reasons now, both measured rather than assumed. There used to be a third,
+and it was the biggest:
 
-- **A per-instance hook this client does not raise.** Clientscript 8320 puts a
-  poll booth in its group and is called by the reference when a loc comes into
-  view; nothing in the cache calls it. `nxt-poll-booths` is the implementation
-  until that hook exists.
+- ~~**A per-instance hook this client does not raise.** Clientscript 8320 puts
+  a poll booth in its group and is called by the reference when a loc comes
+  into view; nothing in the cache calls it.~~ **Fixed.** It is not a hook this
+  repo had to invent -- it is the cache's own client trigger 37, and 8320 is
+  bound to it by group name. It runs now, and so do 240 others, and
+  `nxt-poll-booths` is deleted -- see the plugin roster.
 - **In-game context.** The Agility obstacle list fills from a per-course
   script, the clue-helper groups from holding a clue. Those are unverified
   rather than broken -- a fresh Lumbridge login does not reach them. What can
@@ -762,14 +901,12 @@ switch. `src/plugin/plugins/nxt_*.c`, registered in
 | # | plugin | rows | status |
 |--:|--------|------|--------|
 |  0 | `nxt-highlight` | every row the cache drives | done |
-|  1 | `nxt-npc-names` | 258 263 264 266 | done |
-|  2 | `nxt-poll-booths` | 453 | done -- see the note below |
-|  3 | `nxt-bird-nest` | 189 | done |
-|  4 | `nxt-cannon-ammo` | 248 249 250 | done |
+|  1 | `nxt-bird-nest` | 189 | done |
+|  2 | `nxt-cannon-ammo` | 248 249 250 | done |
 | .. | (the rest) | see "Status" above | not started |
 
 
-Plugin 0 is the renderer for everything the cache drives itself; 1 to 4 are
+Plugin 0 is the renderer for everything the cache drives itself; 1 and 2 are
 per-setting builtins for rows the cache does not drive at all.
 
 Seven more rows are the SERVER's, in the treasure-trail content lane: the six
@@ -779,7 +916,7 @@ off your back, both happen there and the client never learns either happened.
 The cache names those varbits for us too: `option_trail_reminder_beginner` and
 its five siblings, and `option_hidey_holes_equipped`.
 
-**Four builtins have been deleted**, and that is the point rather than a
+**Six builtins have been deleted**, and that is the point rather than a
 retreat. `nxt-tile-markers` went when `CLIENTOP_*` landed and the cache started
 installing its own "Mark tile" row; `nxt-tile-indicator` when the three tile
 refreshers started running; `nxt-entity-hover` when `MINIMENU_*` let
@@ -787,11 +924,31 @@ clientscript 5350 do its job; `nxt-npc-highlight` when the cache's own "Tag"
 client op appeared beside it in the menu -- there were briefly two "Tag Duck"
 rows, which is exactly the double-draw this was always going to become.
 
+`nxt-npc-names` and `nxt-poll-booths` went last, when the world-anchored
+component family and the client triggers landed together.
+
+The poll booths are the clearer of the two, because the cache's answer is
+strictly better than the builtin's. The builtin matched booths BY NAME, on the
+reasoning that no id list stays complete across revisions -- but the cache
+carries loc CATEGORY 761, which is exactly the thirty-four votable booths and
+nothing else. The two records it leaves out,
+`clanwars_tournament_pollbooth_blue` and `pollbooth_green_noop`, are a prop and
+a dead booth, and the name match highlighted both. One behaviour went with it,
+deliberately: the builtin lit booths unconditionally, and clientscript 8319
+gates on "there is an active poll", so the row is inert against a server that
+never declares one. That is the truthful state; a booth that lights up forever
+teaches the user to ignore it.
+
+
+It was the remainder of `nxt-npc-highlight`: the name over an npc is the one
+part the cache does not express as a highlight flag, because it builds a
+component for it instead (clientscript 6698). The cache's version is better in
+a way the fake could not be -- it uses the row's own font, `fontmetrics_495`
+for Normal and `496` for Bold, where the builtin had one font and struck the
+glyphs twice a pixel apart.
+
 Each was deleted in the change that replaced it. Not before, or those rows go
-dark; not after, or they draw twice. `nxt-npc-names` is the remainder of that
-last one: the name over a tagged npc is the only part the cache does NOT
-express as a highlight flag, because it builds a world-anchored component for
-it instead.
+dark; not after, or they draw twice.
 
 ### "- Always on top" (173, 176, 179) is read and not honoured
 
@@ -830,15 +987,20 @@ incomplete for every other.
 
 ### What each one still needs
 
-The five that are done needed `varbit`, `varp`, `setting_color`,
+The builtins that are done needed `varbit`, `varp`, `setting_color`,
 `hover_entity`, `element_height`, `loc_next`, `highlight_next` and
 `EV_SETTING`; those have landed, as has the whole `CLIENTOP_*` layer.
 
-**The next unblock is still not an api.** It is the per-instance hooks named
-under "What still does not populate": a "the tile under the pointer changed"
-callback and a "this loc came into view" one. Each turns a group that is set up
-and empty into one the cache populates, and each retires a plugin below. Do
-those before writing another per-setting plugin.
+**The unblock was never an api, and it is done.** It was the two things named
+under "What still does not populate" -- a "this loc came into view" hook and a
+"this npc appeared" one. They turned out not to be hooks this repo had to
+invent: they are the cache's own **client triggers**, and honouring them turned
+241 unreachable scripts into running ones in a single change. Every group that
+was set up and empty is now populated by the cache itself. See "Client
+triggers" above.
+
+What that leaves for the remaining rows is not plumbing but content: a fishing
+spot to stand next to, a cannon to place, a clue to read.
 
 The rows the cache does NOT drive at all are blocked on api the layer does not
 have, and the gaps are worth naming because several share one:
@@ -872,8 +1034,10 @@ have, and the gaps are worth naming because several share one:
 ```sh
 make -C src test-clientop        # the CLIENTOP_* registry and its context ops
 make -C src test-highlight       # the cache's HIGHLIGHT_* family, as state
-make -C src test-nxt-plugins     # the three builtins against a fake engine
+make -C src test-client-trigger  # trigger hashes vs real cache identifiers
+make -C src test-nxt-plugins     # the builtins against a fake engine
 make -C src test-plugin-host     # the host, including the hidden flag
+make -C src test-uitree          # includes the scripted-overlay draw path
 ```
 
 `test-clientop` and `test-highlight` drive real calls, copied out of the
@@ -885,6 +1049,14 @@ different -- `highlight_tile_on(coord, group, flags)`,
 plausible group number every time. A test written from the table it is testing
 would agree with any of those.
 
+
+`test-uitree`'s two scripted-overlay cases are the only proof that an overlay
+reaches the screen. A screenshot cannot be that proof: the cache builds these
+only when a setting is on, so "nothing there" is the same picture whether the
+feature is off, the trigger never fired, or the layer drew somewhere nobody can
+see. The cases pin all three separately -- the child reaches the emit list, it
+is hoisted with the world rather than left where the tree lists it (which is
+over the inventory), and it is clipped to the viewport.
 
 `test-nxt-plugins` is where a broken builtin actually shows. These plugins have
 no roster row, no config page and no log line: a broken one draws nothing,
@@ -902,7 +1074,7 @@ SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=60 \
     src/torirs --manifest manifests/manifest_osrs239.ini --offline
 ```
 
-The boot line names them -- `nxt-highlight, nxt-npc-names, nxt-poll-booths`.
+The boot line names them -- `nxt-highlight, nxt-bird-nest, nxt-cannon-ammo`.
 
 For the cache-driven half, the two debug channels are the tools:
 
@@ -922,3 +1094,64 @@ way to answer it.
 shift). The click sims had no way to say "with shift down", and shift is not a
 decoration on a right click -- it is what makes the client-op rows appear at
 all.
+
+`TORIRS_TRIGGER_DEBUG=1` prints every client trigger raised with its subject,
+its category and the script it resolved to (or -1). `TORIRS_OVERLAY_SCRIPT_DEBUG=1`
+prints every scripted-overlay op with its arguments, then one line per live
+overlay per frame with its anchor, band, box and child count, and a line
+whenever one is reaped.
+
+### Turning a setting on without the panel
+
+```sh
+TORIRS_SIM_VARBIT="<frame>,<id>,<value>[;...]"
+```
+
+Every row in this category is a varbit, and **nothing in the cache writes one**
+-- the panel's own row does, through a path that needs a real click on a real
+mounted panel. That made all seventy-four rows unverifiable from a headless run
+without a click script each. This writes one directly, the way the panel's write
+is written (optimistic), and prints the base varp and the value it reads back --
+so "the write did not land" and "the write landed and nothing acted on it" are
+distinguishable, which they were not.
+
+**Prefer the cache's own writer where there is one.** Most rows have a
+clientscript that flips the varbit, reachable through the settings hubs, and
+running that does the write AND the apply in one:
+
+```sh
+TORIRS_SIM_RUNSCRIPT="<frame>,3965,<setting id>"          # a toggle
+TORIRS_SIM_RUNSCRIPT="<frame>,3967,<setting id>,<value>,0"  # a dropdown
+```
+
+`3965`'s switch reaches e.g. `~script4578` for row 10 and `~script4579` for
+111; `3967`'s reaches `~script6471` for 264. A handful of dropdowns have no
+writer script at all -- row 165's `%varbit13135` is one -- because the panel's
+own widget writes them; those are what `TORIRS_SIM_VARBIT` is for.
+
+Two caveats, both learned the hard way:
+
+- **Not before the varbit config loads.** Too early and the write is a silent
+  no-op; the readback in the log line is what says so (`base varp -1`).
+- **The write is not the whole apply.** The panel writes the varbit *and* runs
+  the row's apply, and some rows need both. Setting 165 is the example: the
+  write alone re-runs the per-loc script and the shortcuts join highlight group
+  12, but group 12's *style* is set by clientscript 5325, which only the apply
+  path re-runs -- so the group stays inert and nothing outlines. Pair the write
+  with `TORIRS_SIM_RUNSCRIPT="<frame>,5488"`, the settings re-init, and the
+  outline appears.
+
+```sh
+SDL_VIDEODRIVER=dummy TORIRS_HIGHLIGHT_DEBUG=1 \
+  TORIRS_SIM_VARBIT="450,13135,1" TORIRS_SIM_RUNSCRIPT="470,5488" \
+  TORIRS_MAX_FRAMES=900 TORIRS_EXIT_BMP=/tmp/agility.bmp \
+  ./run-live.sh manifests/manifest_osrs239.ini testc test
+```
+
+Row 210 ("Shortcut Requirements") is the same run with `13135` set to 2, and
+its two branches were checked separately rather than assumed. Both shortcuts in
+range go into group 12 (green) with the test account's levels; adding
+`TORIRS_NET_CHEAT="setlevel 16 1"` drops Agility to 1 and 19032 and 19036 move
+to group 13 (red) while 7527 -- which has no Agility requirement -- stays green.
+A helper that colours everything the same colour is the failure this catches,
+and it looks correct in a screenshot.

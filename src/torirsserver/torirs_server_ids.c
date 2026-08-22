@@ -41,6 +41,7 @@ static const struct ToriRSServerSymbolRef k_refs[] = {
         { TORIRSSERVER_PACK_INTERFACE, "equipment_side", &g_ids.iface_equipment_stats_side },
         { TORIRSSERVER_PACK_INTERFACE, "prayerbook", &g_ids.iface_prayerbook },
         { TORIRSSERVER_PACK_INTERFACE, "worldmap", &g_ids.iface_worldmap },
+        { TORIRSSERVER_PACK_INTERFACE, "hpbar_hud", &g_ids.iface_hpbar_hud },
 
         { TORIRSSERVER_PACK_INV, "inv", &g_ids.inv_backpack },
         { TORIRSSERVER_PACK_INV, "worn", &g_ids.inv_worn },
@@ -121,6 +122,11 @@ static const struct ToriRSServerSymbolRef k_refs[] = {
         { TORIRSSERVER_PACK_COMPONENT, "equipment:attackspeedactual",
           &g_ids.com_equipment_stats_attackspeedactual },
 
+        { TORIRSSERVER_PACK_VARP, "hpbar_hud_npc", &g_ids.varp_hpbar_hud_npc },
+        { TORIRSSERVER_PACK_VARBIT, "hpbar_hud_hp", &g_ids.varbit_hpbar_hud_hp },
+        { TORIRSSERVER_PACK_VARBIT, "hpbar_hud_basehp", &g_ids.varbit_hpbar_hud_basehp },
+        { TORIRSSERVER_PACK_VARBIT, "hpbar_hud_standard_disabled",
+          &g_ids.varbit_hpbar_hud_standard_off },
         { TORIRSSERVER_PACK_VARBIT, "bank_withdrawnotes", &g_ids.varbit_bank_withdrawnotes },
         { TORIRSSERVER_PACK_VARBIT, "bank_insertmode", &g_ids.varbit_bank_insertmode },
         { TORIRSSERVER_PACK_VARBIT, "bank_requestedquantity",

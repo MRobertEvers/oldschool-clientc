@@ -11181,6 +11181,9 @@ phase_player(struct ToriRSServerPlayer* player)
     /* Before the swing: a prayer that ran out this tick must not protect the
      * hit that lands on it. */
     ToriRSServer_CombatPlayerTick(srv);
+    /* After the swing, so the bar shows the hitpoints this tick left behind
+     * rather than the ones it started with. */
+    ToriRSServer_HpBarTick(srv, player);
     PP_MARK(bd_on, bd_t, PP_TAIL);
 }
 

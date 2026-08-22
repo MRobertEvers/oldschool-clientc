@@ -157,6 +157,43 @@ test_minimap_push_down(void)
     minimap_free(mm);
 }
 
+/* Port Sarim's piers: the deck states no floor of its own (level 1 is the
+ * 0xFF00FF hole flo, the planks are locs), so the plain shift moves an empty
+ * tile onto the paint level and the sea underneath wraps out of sight — every
+ * pier baked as a black hole. The displaced colour is kept instead, the way the
+ * reference hangs it off the new square as `linkedSquare`. */
+void
+test_minimap_push_down_colourless_deck(void)
+{
+    struct Minimap* mm = minimap_new(4, 4);
+    TEST_ASSERT(mm != NULL, "minimap_new (colourless deck)");
+    if( !mm )
+        return;
+
+    const int sx = 1, sz = 2;
+    const uint32_t water = 0xFF687DAAu;
+
+    /* Level 0 is the sea; level 1 (the deck) states nothing at all. */
+    minimap_set_tile_color(mm, sx, sz, 0, water, MINIMAP_FOREGROUND);
+    minimap_set_tile_shape(mm, sx, sz, 0, MINIMAP_TILE_SHAPE_DIAGONAL, 0);
+    /* The railing wall the deck does carry must still come down with it. */
+    minimap_add_tile_wall(mm, sx, sz, 1, MINIMAP_WALL_NORTH);
+
+    minimap_push_down_tiles(mm, sx, sz);
+
+    TEST_ASSERT(
+        (uint32_t)minimap_tile_rgb(mm, sx, sz, 0, MINIMAP_FOREGROUND) == water,
+        "colourless deck: paint level keeps the underpass colour");
+    TEST_ASSERT(
+        minimap_tile_shape(mm, sx, sz, 0) == MINIMAP_TILE_SHAPE_DIAGONAL,
+        "colourless deck: the kept colour keeps its shape");
+    TEST_ASSERT(
+        (minimap_tile_wall(mm, sx, sz, 0) & MINIMAP_WALL_NORTH) != 0,
+        "colourless deck: the deck's own wall still shifted down");
+
+    minimap_free(mm);
+}
+
 void
 test_builder_lifecycle(void)
 {

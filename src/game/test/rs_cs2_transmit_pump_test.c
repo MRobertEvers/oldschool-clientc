@@ -44,8 +44,12 @@
  *      through RS_CS2Host_NotifyStatChanged rather than by poking the field, so
  *      that the notify -> flag -> guard -> task chain is covered end to end.
  *      This is the XP-drop channel.
- *   4. The flag count is pinned, so that adding a seventh dirty flag to the
- *      pump's table fails here until a case for it is added above.
+ *   4. The flag count is pinned, so that adding another dirty flag to the
+ *      pump's table fails here until a case for it is added above. It has
+ *      earned its keep once already: `chat_transmit_dirty` reached the pump's
+ *      drain and its dispatch without reaching the GUARD, so a chat message
+ *      arriving on an otherwise-quiet tick left the chatbox unredrawn until
+ *      some unrelated transmit happened to open the early return.
  *
  * No cache and no server: nothing on this path reads either, and a gate that
  * skips when a cache is missing is a gate that eventually only ever skips.
@@ -176,6 +180,7 @@ host_quiesce(struct RS_CS2Host* host)
     host->stat_changed_all = 0;
     host->misc_transmit_dirty = 0;
     host->friend_transmit_dirty = 0;
+    host->chat_transmit_dirty = 0;
 }
 
 /* ==========================================================================
@@ -283,8 +288,21 @@ get_friend(struct RS_CS2Host const* h)
     return h->friend_transmit_dirty;
 }
 
+static void
+set_chat(struct RS_CS2Host* h)
+{
+    h->chat_transmit_dirty = 1;
+}
+
+static int
+get_chat(struct RS_CS2Host const* h)
+{
+    return h->chat_transmit_dirty;
+}
+
 static struct FlagCase const g_flag_cases[] = {
     { "widgets_loaded_dirty", set_widgets, get_widgets },
+    { "chat_transmit_dirty", set_chat, get_chat },
     { "var_transmit_dirty", set_var, get_var },
     { "inv_transmit_dirty", set_inv, get_inv },
     { "stat_transmit_dirty", set_stat, get_stat },

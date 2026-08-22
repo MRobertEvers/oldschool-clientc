@@ -490,7 +490,6 @@ fake_engine(void)
 
 /* ------------------------------------------------------------ the plugins */
 
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_POLL_BOOTHS;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_HIGHLIGHT;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_BIRD_NEST;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_CANNON_AMMO;
@@ -511,7 +510,6 @@ main(void)
 {
     struct ToriRS_PluginEngine engine = fake_engine();
     struct ToriRS_PluginHost* host = PluginHost_New(&engine);
-    int p_booth;
     int p_hl;
     int p_nest;
     int p_cannon;
@@ -521,18 +519,16 @@ main(void)
     g_engine.hover_x = 3210;
     g_engine.hover_z = 3220;
 
-    p_booth = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_POLL_BOOTHS);
     p_hl = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_HIGHLIGHT);
     p_nest = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_BIRD_NEST);
     p_cannon = PluginHost_Register(host, &TORIRS_PLUGIN_NXT_CANNON_AMMO);
     CHECK(
-        p_booth >= 0 && p_hl >= 0 && p_nest >= 0 && p_cannon >= 0,
-        "all four register");
+        p_hl >= 0 && p_nest >= 0 && p_cannon >= 0,
+        "all three register");
     PluginHost_Start(host);
 
     /* ---- the roster must not show any of them --------------------------- */
     {
-        CHECK(PluginHost_IsHidden(host, p_booth), "poll booths are hidden");
         CHECK(PluginHost_IsHidden(host, p_hl), "the cache-highlight renderer is hidden");
         CHECK(PluginHost_IsHidden(host, p_nest), "the bird nest notice is hidden");
         CHECK(PluginHost_IsHidden(host, p_cannon), "the cannon notices are hidden");
@@ -541,53 +537,29 @@ main(void)
          * switched off would need a switch to turn it on, and there is none. */
     }
 
-    /* ---- 453: the poll booths ------------------------------------------- */
-    {
-        g_engine.loc_count = 3;
-        g_engine.locs[0].loc_id = 8720;
-        g_engine.locs[0].element_id = 31;
-        g_engine.locs[0].interactive = 1;
-        snprintf(g_engine.locs[0].name, sizeof(g_engine.locs[0].name), "Poll booth");
-        /* A different poll booth loc id, same name: this cache holds dozens of
-         * them and the whole reason the plugin matches on the name is that no
-         * id list stays complete. */
-        g_engine.locs[1].loc_id = 7817;
-        g_engine.locs[1].element_id = 32;
-        g_engine.locs[1].interactive = 1;
-        snprintf(g_engine.locs[1].name, sizeof(g_engine.locs[1].name), "Poll booth");
-        g_engine.locs[2].loc_id = 1234;
-        g_engine.locs[2].element_id = 33;
-        g_engine.locs[2].interactive = 1;
-        snprintf(g_engine.locs[2].name, sizeof(g_engine.locs[2].name), "Bank booth");
-
-        /*
-         * 453 is an INVERTED row: `param_1084` is set on struct_6316, so the
-         * checkbox draws `1 - varbit` and the feature is ON at 0.
-         * Clientscript 8319 lights the booths on exactly that test.
-         *
-         * The sense is asserted in both directions on purpose. Read the plain
-         * way -- which is how this was first written -- the plugin highlighted
-         * every booth in the game for anyone who had switched the setting off,
-         * and nothing about that looks wrong until you switch it off.
-         */
-        g_engine.varbit[NXT_VARBIT_POLL_BOOTHS] = 1;
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.hulls == 0, "varbit 1 is the OFF state for setting 453");
-
-        g_engine.varbit[NXT_VARBIT_POLL_BOOTHS] = 0;
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.hulls == 2, "varbit 0 marks both poll booths, not the bank booth");
-
-        /* A loc nothing can click must not be marked, however it is named. */
-        g_engine.locs[1].interactive = 0;
-        draw_reset();
-        PluginHost_DrawWorld(host);
-        CHECK(g_engine.hulls == 1, "a non-interactive loc is left alone");
-        g_engine.varbit[NXT_VARBIT_POLL_BOOTHS] = 1;
-        g_engine.loc_count = 0;
-    }
+    /* ---- 453: the poll booths -------------------------------------------
+     *
+     * Not tested here any more, because they are not drawn here any more.
+     *
+     * `nxt-poll-booths` matched booths BY NAME, on the reasoning that no id
+     * list stays complete across revisions. The cache had the answer all along
+     * and it is better than a name match: loc CATEGORY 761 is exactly the
+     * thirty-four votable booths and nothing else. The two records it leaves
+     * out are `clanwars_tournament_pollbooth_blue` and `pollbooth_green_noop`,
+     * which are a prop and a dead booth -- both of which the name match
+     * highlighted.
+     *
+     * What made it unreachable was not the data but the dispatch: clientscript
+     * 8320 is bound to that category by client trigger 37, and this client
+     * raised no triggers. It does now (game/rs_client_trigger.h), so the row is
+     * the cache's.
+     *
+     * One behaviour changed with it, deliberately. The builtin lit booths
+     * unconditionally; clientscript 8319 gates on `%varbit4337`, "there is an
+     * active poll", which this server never writes -- so the row is now inert
+     * here. That is the truthful state. A booth that lights up forever teaches
+     * the user to ignore it, and the missing half is a server feature.
+     */
 
     /* ---- the cache's own highlights, drawn as the group described them --
      *

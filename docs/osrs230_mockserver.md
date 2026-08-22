@@ -2619,11 +2619,21 @@ whole job is to fill in their text and move them. There is no chat *region* in a
 dat2 tree at all, so `app->slots.chat_index` stayed -1 and the surface path
 correctly drew nothing.
 
-`src/game/rs_chat_widgets.c` is the second answer. It writes the visible
-messages into the line components oldest-first, hides the rest, and sets the
+`src/game/rs_chat_widgets.c` was the second answer. It wrote the visible
+messages into the line components oldest-first, hid the rest, and set the
 scroll layer's content height and offset. Everything else — fonts, colours
 through `<col=…>` markup, the background, the tabs, the per-line right-click op
-— is already in the cache and already drawn by the ordinary widget pipeline.
+— was already in the cache and already drawn by the ordinary widget pipeline.
+
+> **Superseded (2026-08-22).** That file, and the `[ui:chatbox]` manifest
+> section it read, are gone. The client writes no chat line at all now: the
+> cache's own `[clientscript,chatbox_init]` (script 925) registers
+> `chat_onchattransmit`, and `[proc,rebuildchatbox]` (script 84) fills every
+> line component, reading the message store back through the
+> `CHAT_GETHISTORY*` opcodes — which is what the reference client does, and why
+> nothing in it names 162:59. The rest of this section is the history of the
+> version that wrote them from C; the ids it discusses are no longer declared
+> anywhere in this tree.
 
 `clientCode 1336` is *not* this. It is documented as `CONTENT_CHAT` and it is
 `161:19`, a 120×100 layer at 430,0 inside the viewport — the split private-chat

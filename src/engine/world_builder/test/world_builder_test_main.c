@@ -19,6 +19,7 @@ main(void)
     test_painters_smoke();
     test_painters_tile_order();
     test_minimap_push_down();
+    test_minimap_push_down_colourless_deck();
     test_builder_lifecycle();
     test_prerotate_placement();
 

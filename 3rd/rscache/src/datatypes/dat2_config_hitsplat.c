@@ -78,7 +78,7 @@ RSCache_Dat2ConfigHitsplatInit(struct RSCache_Dat2ConfigHitsplat* entry)
     entry->opcode_11_14 = -1;
     entry->duration = 70;
     entry->slot_policy = -1;
-    entry->variant_c = -1;
+    entry->variant_fallback = -1;
 }
 
 /** Opcode 8's operand: a marker byte, then a NUL-terminated string. The marker is
@@ -110,8 +110,9 @@ hitsplat_read_text(
     return true;
 }
 
-/** Opcodes 17 and 18: two (18: three) u16s with 65535 meaning -1, a count, then
- *  count+1 more of the same. */
+/** Opcodes 17 and 18: a varbit id and a varp id (18 adds a fallback id), each a
+ *  u16 with 65535 meaning -1, then a count and count+1 more of the same. See the
+ *  header — this is the multi-var selector, the same shape as multiloc. */
 static bool
 hitsplat_read_variants(
     struct RSCache_Dat2ConfigHitsplat* entry,
@@ -127,9 +128,9 @@ hitsplat_read_variants(
     int b = g2(buffer);
     int c = (opcode == 18) ? g2(buffer) : 65535;
 
-    entry->variant_a = (a == 65535) ? -1 : a;
-    entry->variant_b = (b == 65535) ? -1 : b;
-    entry->variant_c = (c == 65535) ? -1 : c;
+    entry->variant_varbit = (a == 65535) ? -1 : a;
+    entry->variant_varp = (b == 65535) ? -1 : b;
+    entry->variant_fallback = (c == 65535) ? -1 : c;
 
     if( buffer->position >= buffer->size )
         return false;
@@ -374,10 +375,10 @@ hitsplat_write_opcode(
         if( entry->variant_opcode != opcode || entry->variant_count <= 0 )
             return false;
         p1(buffer, opcode);
-        p2(buffer, entry->variant_a < 0 ? 65535 : entry->variant_a);
-        p2(buffer, entry->variant_b < 0 ? 65535 : entry->variant_b);
+        p2(buffer, entry->variant_varbit < 0 ? 65535 : entry->variant_varbit);
+        p2(buffer, entry->variant_varp < 0 ? 65535 : entry->variant_varp);
         if( opcode == 18 )
-            p2(buffer, entry->variant_c < 0 ? 65535 : entry->variant_c);
+            p2(buffer, entry->variant_fallback < 0 ? 65535 : entry->variant_fallback);
         p1(buffer, entry->variant_count - 1);
         for( int i = 0; i < entry->variant_count; i++ )
             p2(buffer, entry->variants[i] < 0 ? 65535 : entry->variants[i]);

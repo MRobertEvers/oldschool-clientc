@@ -94,6 +94,14 @@ input line is not.
 (the `input_child` field comment carries the reasoning),
 `src/game/rs_chat_widgets.c`.
 
+> **Superseded (2026-08-22).** The scrollback went the same way as the input
+> line: `rs_chat_widgets.{c,h}` and the whole `[ui:chatbox]` section are
+> deleted, and the cache's `[proc,rebuildchatbox]` writes all 500 line
+> components off an `onchattransmit` hook, reading the client's message store
+> through the `CHAT_GETHISTORY*` opcodes. "Two writers, and the wrong one won"
+> is now "one writer, and it is the cache's" — which is the ownership this
+> document was arguing towards.
+
 **And one thing that only became visible once the overlay was gone.** With
 script 223 finally reaching the screen the line read `: hello*` — no name. CS2
 opcode **5015 `chat_playername`** had a metadata row
