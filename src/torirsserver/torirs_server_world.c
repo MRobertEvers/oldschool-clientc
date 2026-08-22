@@ -11222,6 +11222,9 @@ phase_player(struct ToriRSServerPlayer* player)
     /* After the swing, so the bar shows the hitpoints this tick left behind
      * rather than the ones it started with. */
     ToriRSServer_HpBarTick(srv, player);
+    /* Beside it, and for the same reason: the helper panel reports on what the
+     * player is doing, so it reads the tick's outcome rather than its input. */
+    ToriRSServer_HelperTick(srv, player);
     PP_MARK(bd_on, bd_t, PP_TAIL);
 }
 

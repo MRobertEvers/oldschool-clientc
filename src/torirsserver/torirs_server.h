@@ -2561,6 +2561,26 @@ struct ToriRSServerNpc
      * what makes each `obj_add` name its earner to clientscript 7192.
      */
     unsigned char death_credit_players[TORIRSSERVER_PLAYER_MAX];
+    /**
+     * Who has damaged this npc AT ALL since it spawned, by pool slot.
+     *
+     * `death_credit_players` beside it is a different fact and cannot serve:
+     * that one is filled at the killing blow and answers "who earns the drop".
+     * This accumulates from the first hit and answers "has anybody else touched
+     * this", which is what the ironman loot restriction turns on -- a question
+     * that has to be answerable WHILE the fight is going on, since the whole
+     * point of settings 182 and 183 is to warn before the kill rather than
+     * after it.
+     *
+     * Cleared on spawn and on respawn, not on death: a corpse that another
+     * player damaged is still a corpse they damaged.
+     */
+    unsigned char damaged_by_players[TORIRSSERVER_PLAYER_MAX];
+    /** Who has already been told this npc's loot is restricted to them (setting
+     *  183). The row's word is "occasionally"; once per npc per player is what
+     *  that has to mean on a path that runs for every landed hit. Cleared with
+     *  `damaged_by_players`. */
+    unsigned char noloot_warned_players[TORIRSSERVER_PLAYER_MAX];
     /** Stable tracker identity for a death script that parks on npc_delay. */
     int loot_credit_event_id;
     int loot_credit_npc_type;
@@ -2996,6 +3016,11 @@ struct ToriRSServerPlayer
     int gameframe_mainmodal;
     int gameframe_sidemodal;
     int gameframe_floater;
+    /** `<top>:helper_content`, where the helper panel mounts. Bound beside the
+     *  three above because every gameframe in this cache carries the slot and
+     *  the child ids differ between them (12 on the stretch layouts, 39 on
+     *  `toplevel`). */
+    int gameframe_helper;
     /** Complete root/mount/event authority used to build IF_RESYNC_V2. The
      * gameframe_* fields above are cached aliases for legacy call sites; every
      * interface encoder mutates this registry before writing the packet. */
@@ -3566,6 +3591,19 @@ struct ToriRSServerPlayer
     int hpbar_last_max;
 
     /*
+     * The helper panel -- see torirs_server_helper.c.
+     *
+     * `helper_open` is which helper is mounted (a TORIRSSERVER_HELPER_* value,
+     * or _NONE), and `helper_arg` the argument its builder was run with. Both
+     * are needed rather than a bare open/closed flag: the builders draw once
+     * from a RUNCLIENTSCRIPT rather than re-reading a var, so a change of
+     * either has to re-run the builder, and only a remembered pair can tell a
+     * change from a steady state.
+     */
+    int helper_open;
+    int helper_arg;
+
+    /*
      * Skills. `level` is the base level, `boosted` what a potion or a drain
      * left it at, and `xp` is in tenths of a point — OldSchool's hitpoints
      * award is 4/3 of the damage dealt, which is not an integer, and rounding
@@ -3657,6 +3695,14 @@ ToriRSServer_PlayerFloater(struct ToriRSServerPlayer const* player)
     if( player && player->gameframe_floater > 0 )
         return player->gameframe_floater;
     return ToriRSServer_Ids()->com_gameframe_floater;
+}
+
+static inline int
+ToriRSServer_PlayerHelper(struct ToriRSServerPlayer const* player)
+{
+    if( player && player->gameframe_helper > 0 )
+        return player->gameframe_helper;
+    return ToriRSServer_Ids()->com_gameframe_helper;
 }
 
 /**
@@ -4157,6 +4203,30 @@ ToriRSServer_HitsplatForViewer(
     int type,
     int damage,
     int dealer_slot);
+
+/**
+ * Is this npc's loot restricted away from this player?
+ *
+ * The ironman rule, and the whole of what All Settings rows 182 and 183 warn
+ * about:
+ *
+ *   182  Iron loot restriction indicator   varbit 13039
+ *   183  Iron loot restriction messages    varbit 13040
+ *
+ * True when the player is on an ironman account AND somebody else has already
+ * damaged the npc. That is the rule this server's own drop model implies rather
+ * than one invented here: `death_credit_players` credits everybody still
+ * fighting at the killing blow, so an npc another player has engaged is one
+ * whose drop an ironman may not have to themselves.
+ *
+ * False for a non-ironman, always. The rows are Ironman-only by their own
+ * wording, and a warning shown to a main is a warning about nothing.
+ */
+int
+ToriRSServer_NpcLootRestrictedFor(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerNpc* npc,
+    const struct ToriRSServerPlayer* player);
 
 /** Read a varbit out of the player's varps. 0 when the id is unknown. */
 int
@@ -6572,6 +6642,42 @@ void
 ToriRSServer_HpBarTick(
     struct ToriRSServer* srv,
     struct ToriRSServerPlayer* player);
+
+/** No helper is wanted. Not a helper id -- see `ToriRSServer_HelperWantedFor`. */
+#define TORIRSSERVER_HELPER_NONE 0
+/** The clue-step infobox, All Settings row 275. Builder: clientscript 6631. */
+#define TORIRSSERVER_HELPER_CLUE 1
+/** The Agility helper, row 163. Builder: clientscript 5170. */
+#define TORIRSSERVER_HELPER_AGILITY 2
+/** The Slayer helper, row 184. Builder: clientscript 5317. */
+#define TORIRSSERVER_HELPER_SLAYER 3
+
+/**
+ * Which helper this player's state calls for, and with what argument.
+ *
+ * The whole decision, factored out of the tick so the selftest can ask it
+ * directly: an empty helper panel and a helper that never opened are the same
+ * picture, so the choice has to be observable without one.
+ *
+ * Returns a TORIRSSERVER_HELPER_* value, or TORIRSSERVER_HELPER_NONE. `*out_arg`
+ * is the builder's argument -- only the clue helper takes one -- and is written
+ * on every return.
+ */
+int
+ToriRSServer_HelperWantedFor(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player,
+    int* out_arg);
+
+/**
+ * Keep the helper panel (`helper_generic`) and the Blast Furnace coffer HUD in
+ * step with what this player is doing: open, build, close. Once per tick,
+ * beside the enemy health overlay. See torirs_server_helper.c.
+ */
+void
+ToriRSServer_HelperTick(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player);
 /** Record a mount into (or out of) the gameframe's modal slots. Called by the
  *  IF_OPENSUB / IF_CLOSESUB encoders, so no opener has to remember to; `group`
  *  is 0 for a close. CLOSE_MODAL is what reads it back. */
@@ -6692,6 +6798,33 @@ void
 ToriRSServer_SendMessage(
     struct ToriRSServerPlayer* player,
     const char* text);
+/*
+ * HINT_ARROW's `type` byte. The reference's own values; the client mirrors them
+ * as APP_HINT_ARROW_* in src/app.h.
+ */
+enum
+{
+    TORIRSSERVER_HINT_ARROW_COORD = 1,
+    TORIRSSERVER_HINT_ARROW_NPC = 2,
+    TORIRSSERVER_HINT_ARROW_PLAYER = 10,
+    TORIRSSERVER_HINT_ARROW_CLEAR = 255
+};
+
+/**
+ * HINT_ARROW: point the player at an npc, a player, or an absolute tile.
+ *
+ * `type` is the wire's own selector -- 1 coord, 2 npc, 10 player, 255 clear --
+ * and the remaining three fields mean different things per type. The four
+ * `hint_*` script opcodes are the intended callers; see the definition.
+ */
+void
+ToriRSServer_SendHintArrow(
+    struct ToriRSServerPlayer* player,
+    int type,
+    int id,
+    int z,
+    int height);
+
 void
 ToriRSServer_SendUnsetMapFlag(struct ToriRSServerPlayer* player);
 /** SET_MAP_FLAG with scene-local (x, z). Server-owned yellow cross. */

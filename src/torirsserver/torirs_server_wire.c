@@ -1185,6 +1185,13 @@ static const int k_transcribed_osrs239[] = {
     PKT_NAME_OBJ_REVEAL,       PKT_NAME_MESSAGE_GAME,    PKT_NAME_IF_SETTEXT,
     PKT_NAME_IF_SETNPCHEAD,    PKT_NAME_IF_SETANIM,      PKT_NAME_IF_SETPLAYERHEAD,
     PKT_NAME_UNSET_MAP_FLAG,   PKT_NAME_CHAT_FILTER_SETTINGS,
+    /* HINT_ARROW's six bytes are the same at every OldSchool revision that has
+     * it, so `ToriRSServer_SendHintArrow` writes them directly rather than
+     * through a `payload` hook -- listed here so the send is allowed, the same
+     * way PLAYER_INFO is below. Revision 230 deliberately does NOT list it: its
+     * prot table has no HINT_ARROW at all, and the drop is the truthful
+     * behaviour there. */
+    PKT_NAME_HINT_ARROW,
     PKT_NAME_SYNTH_SOUND,      PKT_NAME_MIDI_SONG,          PKT_NAME_MIDI_SONG_STOP,
     PKT_NAME_MIDI_JINGLE,
     PKT_NAME_FRIENDLIST_LOADED,

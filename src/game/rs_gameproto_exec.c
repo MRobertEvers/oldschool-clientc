@@ -943,27 +943,74 @@ RS_GameProto_Exec(
             struct PktIfResync const* sync = &packet->_if_resync;
             int root_changed = sync->root_interface_id > 0 &&
                                sync->root_interface_id != app->boot_interface_id;
+            struct UITreeInterfaceParent live[UITREE_INTERFACE_PARENT_MAX];
+            int live_count = 0;
 
             if( root_changed )
                 App_OpenRootInterface(app, sync->root_interface_id);
-            else if( app->tree )
+
+            /*
+             * RECONCILE against what is already mounted; do not close and
+             * reopen the lot.
+             *
+             * The snapshot is the server's mount registry, so a slot it
+             * restates with the same group and type is a slot the client
+             * already has right — and closing it is destructive, not neutral.
+             * A close reclaims the whole widget group (App_CloseSubInterface),
+             * which throws away everything the CS2 scripts built on top of the
+             * cache pack: hidden/shown layers, dynamic children, the lot. The
+             * reopen re-bakes from the pack and only re-runs that pack's OWN
+             * onload, so anything configured from outside it stays lost.
+             *
+             * Measured on the Display panel's layout switch, which is the only
+             * thing that sends this packet: `ToriRSServer_GameframeOpentop`
+             * remounts the frame and then commits the same registry here. The
+             * toplevel's onload had already picked the popout strip's
+             * collapsed variant (`popout` 728: layer 4 shown, layer 7 hidden)
+             * and created its three panel buttons as dynamic children of
+             * 728:6; the blanket close threw all of it away and the reopen
+             * came back at the cache defaults — a black strip with no buttons.
+             *
+             * Closing what the snapshot does NOT restate is still this
+             * packet's job, and that is what removes the stale mounts an
+             * interrupted layout switch leaves behind.
+             */
+            if( app->tree )
             {
-                int uids[UITREE_INTERFACE_PARENT_MAX];
-                int count = app->tree->interface_parent_count;
-                if( count > UITREE_INTERFACE_PARENT_MAX )
-                    count = UITREE_INTERFACE_PARENT_MAX;
-                for( int i = 0; i < count; i++ )
-                    uids[i] = app->tree->interface_parents[i].container_uid;
-                for( int i = 0; i < count; i++ )
-                    App_CloseSubInterface(app, uids[i]);
+                live_count = app->tree->interface_parent_count;
+                if( live_count > UITREE_INTERFACE_PARENT_MAX )
+                    live_count = UITREE_INTERFACE_PARENT_MAX;
+                memcpy(
+                    live,
+                    app->tree->interface_parents,
+                    (size_t)live_count * sizeof(live[0]));
+            }
+            for( int i = 0; i < live_count; i++ )
+            {
+                int keep = 0;
+                for( int j = 0; !keep && j < sync->mount_count; j++ )
+                    keep = sync->mounts[j].target_uid == live[i].container_uid &&
+                           sync->mounts[j].interface_id == live[i].group_id &&
+                           sync->mounts[j].type == live[i].type;
+                if( !keep )
+                    App_CloseSubInterface(app, live[i].container_uid);
             }
             App_IfEventsClear(app);
             for( int i = 0; i < sync->mount_count; i++ )
+            {
+                int mounted = 0;
+                for( int j = 0; !mounted && j < live_count; j++ )
+                    mounted = live[j].container_uid == sync->mounts[i].target_uid &&
+                              live[j].group_id == sync->mounts[i].interface_id &&
+                              live[j].type == sync->mounts[i].type;
+                if( mounted )
+                    continue;
                 App_OpenSubInterface(
                     app,
                     sync->mounts[i].target_uid,
                     sync->mounts[i].interface_id,
                     sync->mounts[i].type);
+            }
             for( int i = 0; i < sync->event_count; i++ )
             {
                 uint32_t mask = sync->events[i].events1 |

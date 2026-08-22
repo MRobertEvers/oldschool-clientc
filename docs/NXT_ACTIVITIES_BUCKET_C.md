@@ -1,4 +1,11 @@
-# Bucket C, re-measured
+# Bucket C, re-measured — and implemented
+
+> **Status.** Eight of the twelve rows are done, one is partial, and the
+> remaining four are a single server feature with its own handoff at
+> `docs/HANDOFF_HELPER_GENERIC.md`. The measurement below is what the
+> implementation was built from and is left standing; a closing section records
+> what it turned into and the three things the work found that this document did
+> not predict.
 
 `NXT_CLIENT_PLUGINS.md` closes with twelve rows it calls the only open problems,
 on the grounds that most of them "need a fact this client is not told":
@@ -377,3 +384,87 @@ grep -A2 variantop /tmp/hs/configs/all.hitsplat
 grep -n 'HitmarkType6Decode\|HitmarkType15GetMultiHitmark' \
     ~/Documents/git_repos/osclient_decompile/osclient-216-mac.c
 ```
+
+---
+
+# What it turned into
+
+## Done
+
+| id | row | where |
+|---:|-----|-------|
+| 5 | Hitsplat tinting | `RS_Hitsplats_ResolveType` + `ToriRSServer_HitsplatForViewer` |
+| 279 | Max hit hitsplats | the same pair |
+| 280 | Max hit hitsplats threshold | `hitsplat_is_max_hit`, server-side |
+| 10 | Show boss health overlay | `torirs_server_hpbar.c`, as a veto |
+| 183 | Iron loot restriction messages | `ToriRSServer_LootRestrictionWarn` |
+| 273 | Clue scroll helper - World arrows | `app_overlay_build_hint_arrow` + the four `hint_*` opcodes |
+| 272 | Clue scroll helper - Worldmap marker | client half (the same arrow); the worldmap's own marker is open |
+| — | the settings mirror | `settings_mirror_varbit`, which all ten server rows needed |
+
+**Partial: 182.** The rule works and its varbit is registered; there is nothing
+to draw. See the plan document's note — no sprite, spotanim, interface,
+clientscript or engine class in either the cache or the decompilation is
+loot-restriction shaped.
+
+**Open: 163, 184, 268, 275** — one feature, `helper_generic`, handed off
+separately.
+
+## Three things the measurement did not predict
+
+### 1. The content tree had been destroying the hitsplat table
+
+`OSRS-Content/.../configs/all.hitsplat` was an export from the *old, broken*
+decoder — `opcode8=37`, a phantom `opcode49`, `opcode18` as opaque hex. cachepack
+rejects those keys, so every `torirsserver-cache` bake wrote near-empty records:
+**83 records in 318 bytes**, every `text` and `duration` lost and **all 34
+selectors with them**.
+
+So the client resolver would have found nothing to resolve, and the failure would
+have looked exactly like the resolver being broken. Regenerated;
+`cachepack verify --types hitsplat` reports 83/83 byte-exact and the boot line
+now reads `83 types (83 records, 34 var selectors)`. That count is printed for
+this reason and no other.
+
+The general lesson is the one `exporter-owns-generated-configs` already states,
+with a sharper edge: a generated file that predates a decoder fix is not stale
+in the harmless sense. It is a rejected file, and cachepack's per-key warnings
+scroll past in a bake that reports success.
+
+### 2. `test-torirsserver` never rebuilt the server
+
+`ToriRSServer` (capitalised) is listed in `.PHONY` and **has no rule anywhere**.
+On a case-insensitive filesystem it resolves to the already-built
+`torirsserver`, make answers "Nothing to be done", and the suite runs whatever
+binary is on disk.
+
+Found by mutating a function the suite asserts on and watching the suite stay
+green — the same shape as the unregistered-stanza hazard
+`tools/check_selftest_registration.py` exists for, but on the C side, where
+nothing was checking. Four targets depended on it. Fixed.
+
+This is why the mutation step is not optional: the suite reported green for a
+binary built before the change under test, which is a negative control that
+cannot go red.
+
+### 3. Two settings share one varp, and it is load-bearing
+
+`ironman_var_1` (varp 1425) carries settings **5** (bit 16), **10** (bit 17) and
+**279** (bit 20). Any server write to that varp moves all three at once, which is
+the concrete reason an unmirrored client-side settings write is not merely
+invisible to the server but not durable on the client either. The hitsplat test
+asserts the two hitsplat rows do not move each other for exactly this reason.
+
+## What is still not done, precisely
+
+- **163 / 184 / 268 / 275** — `docs/HANDOFF_HELPER_GENERIC.md`.
+- **182's icon** — needs an identification, not an implementation.
+- **272's worldmap marker** — the arrow is drawn in the world; drawing the same
+  target on the open world map is a separate renderer change.
+- **Edge-of-screen hint arrows** — frames 1..4 of `headicons_hint` are the
+  reference's off-view forms. Not implemented: the edge form needs the
+  off-screen direction, and a wrong edge arrow points at nothing.
+- **Player-versus-player hitsplat attribution** — `CombatHitPlayer` records
+  dealer -1 because it runs with the victim active. Correct for every fight this
+  server currently stages (npc versus player); PvP would need the attacker
+  threaded through from the script.

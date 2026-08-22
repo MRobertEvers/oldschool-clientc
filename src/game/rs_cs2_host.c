@@ -8048,7 +8048,7 @@ rs_cs2_host_exec_dispatch(
             if( sethide_debug )
             {
                 int g = (request->u.if_set_hide.component_id >> 16) & 0xffff;
-                if( g == 149 || g == 320 || g == 218 ||
+                if( g == 728 || g == 149 || g == 320 || g == 218 ||
                     (g == 161 && (request->u.if_set_hide.component_id & 0xffff) >= 73) )
                     fprintf(
                         stderr,

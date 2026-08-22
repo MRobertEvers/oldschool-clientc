@@ -551,6 +551,82 @@ hitsplat_is_max_hit(
     return damage >= threshold;
 }
 
+/* ------------------------------------------------------------------ */
+/* The ironman loot restriction (settings 182 / 183)                   */
+/* ------------------------------------------------------------------ */
+
+int
+ToriRSServer_NpcLootRestrictedFor(
+    const struct ToriRSServer* srv,
+    const struct ToriRSServerNpc* npc,
+    const struct ToriRSServerPlayer* player)
+{
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+
+    assert(srv);
+    assert(npc);
+    assert(player);
+
+    if( !ids || ids->varbit_ironman < 0 )
+        return 0;
+    /* Not an iron account: both rows are Ironman-only by their own wording, and
+     * a warning shown to a main is a warning about nothing. */
+    if( ToriRSServer_VarbitGet(player, ids->varbit_ironman) == 0 )
+        return 0;
+
+    for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
+    {
+        if( !npc->damaged_by_players[i] )
+            continue;
+        if( player->pid >= 0 && i == player->pid )
+            continue;
+        return 1;
+    }
+    return 0;
+}
+
+/*
+ * Setting 183, "Iron loot restriction messages".
+ *
+ * The row's own word is "occasionally", and it is load-bearing rather than
+ * vague: this is called from the damage path, which runs every time a swing
+ * lands, and a line per hit would be a wall of text over a fight nobody could
+ * read past. One warning per npc per player is what "occasionally" has to mean
+ * here -- the player is told once about this creature and not again.
+ *
+ * Setting 182's indicator ICON is deliberately not implemented beside it. The
+ * cache carries no asset for it (no sprite, spotanim or interface names
+ * anything loot-restriction shaped), no clientscript reads varbit 13039, and the
+ * NXT decompilation has no class for it either -- so there is nothing to draw
+ * and no evidence about what it should look like. Its varbit is registered and
+ * this rule answers it; picking a sprite would be the kind of guess that makes
+ * a helper confidently wrong. See docs/NXT_ACTIVITIES_BUCKET_C.md.
+ */
+static void
+ToriRSServer_LootRestrictionWarn(
+    struct ToriRSServer* srv,
+    struct ToriRSServerNpc* npc,
+    struct ToriRSServerPlayer* player)
+{
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+
+    if( !ids || ids->varbit_iron_noloot_message_off < 0 )
+        return;
+    if( !player->active || player->pid < 0 || player->pid >= TORIRSSERVER_PLAYER_MAX )
+        return;
+    /* Inverted, as the gameval name says: 1 is OFF. */
+    if( ToriRSServer_VarbitGet(player, ids->varbit_iron_noloot_message_off) )
+        return;
+    if( npc->noloot_warned_players[player->pid] )
+        return;
+    if( !ToriRSServer_NpcLootRestrictedFor(srv, npc, player) )
+        return;
+
+    npc->noloot_warned_players[player->pid] = 1;
+    ToriRSServer_SendMessage(
+        player, "Another player has damaged this creature - you will not receive any loot.");
+}
+
 int
 ToriRSServer_HitsplatForViewer(
     const struct ToriRSServer* srv,
@@ -1088,9 +1164,33 @@ ToriRSServer_CombatHitNpc(
     /* One mask carries the splat and the bar. A zero-damage hit is a *block*
      * splat rather than nothing — the reference shows those, and without them a
      * miss is indistinguishable from the server having ignored the swing. */
+    /*
+     * Who has touched this npc, accumulated from the FIRST hit.
+     *
+     * Recorded here rather than at the killing blow, which is where
+     * `death_credit_players` is filled, because settings 182 and 183 warn
+     * *while the fight is going on* -- a restriction discovered at the drop is a
+     * restriction discovered too late to do anything about.
+     */
+    {
+        int const dealer = ToriRSServer_HitmarkDealerFromAttackerScript(srv);
+
+        if( dealer >= 0 && dealer < TORIRSSERVER_PLAYER_MAX )
+            npc->damaged_by_players[dealer] = 1;
+    }
+
     ToriRSServer_HitmarkAdd(npc->hitmarks, &npc->hitmark_count, amount,
                         amount > 0 ? type : hitsplat_block(),
                         ToriRSServer_HitmarkDealerFromAttackerScript(srv));
+
+    /* Warn every ironman fighting this npc, not just the one who swung: the
+     * player who is about to lose the drop is the one who got there FIRST, and
+     * they take no action of their own at the moment somebody else joins in. */
+    for( int i = 0; i < TORIRSSERVER_PLAYER_MAX; i++ )
+    {
+        if( srv->players[i].active && srv->players[i].combat_target == slot )
+            ToriRSServer_LootRestrictionWarn(srv, npc, &srv->players[i]);
+    }
     npc->damage = npc->hitmarks[0].damage;
     npc->damage_type = npc->hitmarks[0].type;
     npc->hitpoints = npc->hitpoints < 0 ? 0 : npc->hitpoints;
@@ -2480,6 +2580,14 @@ ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv)
         /* Runtime vars describe one life, not one pool slot. A type change
          * keeps them; a respawn is the boundary that clears them. */
         memset(npc->script_vars, 0, sizeof(npc->script_vars));
+        /*
+         * Damage attribution and its warning latch, for the same reason and at
+         * the same boundary: a respawned npc has been damaged by nobody, and an
+         * ironman who was warned about the LAST one must be warned about this
+         * one. Left alone at death on purpose -- a corpse another player damaged
+         * is still a corpse they damaged, and the drop table reads it. */
+        memset(npc->damaged_by_players, 0, sizeof(npc->damaged_by_players));
+        memset(npc->noloot_warned_players, 0, sizeof(npc->noloot_warned_players));
         /*
          * And the npc's own queue, which is where DAMAGE lives.
          *

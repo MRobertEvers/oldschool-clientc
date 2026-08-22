@@ -48,15 +48,20 @@ To re-derive any of it:
 3rd/rscache/tools/cs2/cs2 decompile --cache cache.osrs239 --rev osrs239 --out /tmp/cs2 6716 3965 3962 4181
 ```
 
-## Status: 37 of 74
+## Status: 46 of 74
 
 | | rows | |
 |---|---:|---|
-| **working** | 37 | 24 driven by the cache, 4 by builtins, 7 by the server, 2 by the client |
-| **partial** | 4 | 164, and 173 / 176 / 179 |
-| **not started** | 33 | classified below -- 7 + 14 + 12, and only 12 of those are open problems |
+| **working** | 46 | 27 driven by the cache, 4 by builtins, 13 by the server, 2 by the client |
+| **partial** | 5 | 164, 173 / 176 / 179, and 182 (the rule works; its icon has no known asset) |
+| **not started** | 23 | classified below -- 6 + 14 + 4 (163, 184, 268, 275), one server feature between them |
 
-The count moved by one. What moved underneath it is larger: **five rows that a
+The count moved by eight, and bucket C -- the twelve rows this document called
+"the only open problems" -- is down to four, all of them the same feature. The
+paragraph that justified calling them problems was wrong in a way worth reading
+before trusting any other classification here: see bucket C below.
+
+Earlier, the count moved by one. What moved underneath it is larger: **five rows that a
 builtin was faking are now driven by the cache's own scripts**, two builtins
 are deleted, and the two subsystems that were blocking the whole of bucket A
 are implemented.
@@ -77,6 +82,7 @@ See "Client triggers" and "Scripted entity overlays" below.
 | 180 | Highlight destination tile - Colour | cache |
 | 189 | Bird nest notification | `nxt-bird-nest` |
 | 190 | Highlight entities on mouse-over | cache |
+| 247 | Cannon hud | cache |
 | 248 | Cannon low on ammo notification | `nxt-cannon-ammo` |
 | 249 | Cannon low on ammo amount | `nxt-cannon-ammo` |
 | 250 | Cannon out of ammo notification | `nxt-cannon-ammo` |
@@ -122,7 +128,7 @@ this client's, and is the same one for all of them. See "The third half".
 Derived by grepping every clientscript that reads each row's var and
 looking at what it CALLS -- measured, not guessed.
 
-**A. reachable now, not yet proven on screen** -- 7 rows
+**A. reachable now, not yet proven on screen** -- 6 rows
 
 The two things that blocked these are implemented (see below): the cache's
 scripts for them are found and run, and the overlays they build are drawn. What
@@ -134,10 +140,43 @@ in hand -- which the mock server does not currently place.
 | 120 | Fishing spot indicators | a fishing spot npc in the scene |
 | 121 | Fishing spot indicators - Tools only | ditto, plus the tool in the inventory |
 | 122 | Fishing spot indicators - Mouse over tooltip | ditto, plus a hover |
-| 247 | Cannon hud | a placed cannon (`%var3551`) |
 | 270 | Clue scroll helper - Overlay | a read clue (`%var3546`) |
 | 271 | Clue scroll helper | ditto |
 | 277 | Clue scroll helper - Entity highlights | ditto |
+
+### 247 landed, and what it took
+
+Worth writing down because none of the four things in the way was a missing
+opcode, and three of them were silent.
+
+1. **The trigger never fired for it.** LOC_ADD was raised for the map's own
+   locs at world-load and for nothing else. A Dwarf multicannon is placed by a
+   zone packet four ticks after you click, so it was never a loc the sweep saw.
+   The runtime loc-change path raises it now, which covers every server-placed
+   loc rather than only this one.
+2. **`loc_find` answers a BOOLEAN, and the cannon content read it as a handle.**
+   `def_loc $here = loc_find(...); if ($here ! null) loc_del(1);` compiles and is
+   wrong in the worst way -- `0` is not `null` for a loc, so the guard passed on
+   a MISS and `loc_del` ran with no active loc. Placing the first stage aborted
+   the script every time. Pre-existing, and nothing to do with settings;
+   `star.rs2:50` still has the same shape.
+3. **Two sets of varps for one cannon.** This content keeps its state in varps
+   it allocated (`cannon_coord`, `cannon_balls`); the cache's hud reads the ones
+   Jagex named (`ownedmcannon_temp`, `rockthrower`). They are mirrored by one
+   proc, `~cannon_hud_publish`, called from every writer of either.
+4. **A varp with no declaration is server-only.** `ToriRSServer_WorldMarkVarp`
+   drops anything without `transmit=yes`, so the values were correct on the
+   server and the client never heard them -- which looks exactly like a hud that
+   does not work. Both are declared in `cannon.varp` now.
+
+Verified on screen: `overlay: op 7204 args 53185700 6 1 78 42 0` (the cannon's
+coord + (1,1), which is `~script6661(3, coord)`), a type-4 text child, and a red
+`0` over the barrel -- red because clientscript 6676 colours the count red at
+five or fewer.
+
+The same publish is what makes **248 / 249 / 250** fire: `nxt-cannon-ammo` reads
+`rockthrower` and `ownedmcannon_temp` too, and until now no cannon ever wrote
+either.
 
 **B. the cache implements it; it needs the right context** -- 14 rows
 
@@ -224,27 +263,97 @@ Three shapes, and none of them is a missing opcode:
 
 **C. no reader anywhere -- the client or the server owns it whole** -- 12 rows
 
-| id | setting |
-|---:|---------|
-| 5 | Hitsplat tinting |
-| 10 | Show boss health overlay |
-| 163 | Agility helper |
-| 182 | Iron loot restriction indicator |
-| 183 | Iron loot restriction messages |
-| 184 | Slayer helper |
-| 268 | Blast Furnace helper |
-| 272 | Clue scroll helper - Worldmap marker |
-| 273 | Clue scroll helper - World arrows |
-| 275 | Clue scroll helper - Infobox |
-| 279 | Max hit hitsplats |
-| 280 | Max hit hitsplats threshold |
-
-These are the ones a builtin would have to implement from nothing, and most of
+~~These are the ones a builtin would have to implement from nothing, and most of
 them need a fact this client is not told. 5 wants "whose damage was that", 279
-wants "was that my maximum", 182/183 want the server's loot-ownership rule,
-and 163 / 184 / 268 want per-course, per-task and per-minigame tables that are
-game knowledge rather than cache data. Writing those from guesswork is how a
-helper becomes confidently wrong, so each is named here rather than filled in.
+wants "was that my maximum", 182/183 want the server's loot-ownership rule, and
+163 / 184 / 268 want per-course, per-task and per-minigame tables that are game
+knowledge rather than cache data.~~
+
+**That paragraph was wrong on every count, and the way it was wrong is worth
+keeping.** The client IS told whose damage it was and whether it was a maximum;
+the per-course and per-task tables are in the cache. The mistake was stopping at
+"no clientscript reads this varbit" -- a setting with no cache reader has exactly
+two other possible homes, the NXT engine and the SERVER, and neither had been
+checked. Both are checkable, and doing so moves eleven of the twelve rows.
+
+The engine reads none of them: grepping the decompilation for all twelve ids
+finds three hits and all three are struct offsets, and `ClientVarCache::GetVarbit`
+has only four call sites in the whole binary (`Client::GetIfVar`, the CS2
+`GET_VARBIT` opcode, `LocType::GetMultiLoc`, `NpcType::IsMultiNpcVisible`).
+There is no `HighlightManager`-shaped class for any of these features -- no
+`Infobox`, `WorldmapMarker`, `HintArrow`, `BossHealth`, `Slayer`, `Agility`,
+`BlastFurnace` or `LootRestrict` symbol exists.
+
+So the reader is the cache after all for two of them, and the server for the
+rest. `docs/NXT_ACTIVITIES_BUCKET_C.md` is the full measurement.
+
+| id | setting | who reads it | state |
+|---:|---------|--------------|-------|
+| 5 | Hitsplat tinting | **the cache**, inside the `.hitmark` record | done |
+| 279 | Max hit hitsplats | **the cache**, same mechanism | done |
+| 280 | Max hit hitsplats threshold | the server (a comparison, not a lookup) | done |
+| 10 | Show boss health overlay | the server | done |
+| 182 | Iron loot restriction indicator | the server | rule done, icon unidentified |
+| 183 | Iron loot restriction messages | the server | done |
+| 272 | Clue scroll helper - Worldmap marker | the server, via HINT_ARROW | client half done |
+| 273 | Clue scroll helper - World arrows | the server, via HINT_ARROW | done |
+| 163 | Agility helper | the server, via `RUNCLIENTSCRIPT` 5170 | open |
+| 184 | Slayer helper | the server, via `RUNCLIENTSCRIPT` 5317 | open |
+| 275 | Clue scroll helper - Infobox | the server, via `RUNCLIENTSCRIPT` 6631 | open |
+| 268 | Blast Furnace helper | the server, interface 474 | open |
+
+### 5 and 279: the cache branches inside the hitsplat config
+
+`.hitmark` opcodes 17 and 18 are a **multi-var selector** -- a varbit, a varp, a
+fallback, then ids indexed by the var's value. It is `LocType::GetMultiLoc` with
+the names changed (`HitmarkType::GetMultiHitmark`), and this tree already had the
+resolver: `VarPManager_ResolveTransform`.
+
+34 of `cache.osrs239`'s 83 hitmark records are selectors, **25 keyed on varbit
+10236 (`hitsplat_tint_disabled`, setting 5) and 9 on 14196
+(`hitsplat_maxhit_disabled`, setting 279)**, and nothing in the table is keyed on
+anything else. They wrap leaf appearances and they pair: id 16 "damage you
+dealt" resolves to leaf 28 either way, id 17 "damage someone else dealt"
+resolves to the tinted leaf 29 when tinting is on and to 28 when it is off, and
+id 43 is the max-hit wrapper over the same family.
+
+So the fact the old paragraph said the client was not told is **which id the
+server sent**. Two halves had to move for it to work: the client resolves the
+selector at draw time (`RS_Hitsplats_ResolveType`), and the server sends the
+WRAPPER rather than the leaf (`ToriRSServer_HitsplatForViewer`), because a leaf
+has no selector and silently answers both settings "off" for every player.
+
+**A third thing had to move that nothing was looking at.** The content tree's
+`configs/all.hitsplat` had been exported by the *old, broken* hitsplat decoder --
+`opcode8=37`, a phantom `opcode49`, `opcode18` as opaque hex. cachepack rejects
+those keys, so every `torirsserver-cache` bake wrote near-empty records: **83
+records in 318 bytes, every `text` and `duration` gone and all 34 selectors with
+them**. Regenerated; `cachepack verify --types hitsplat` now reports 83/83
+byte-exact and the client's boot line reads `83 types (83 records, 34 var
+selectors)`. That count is printed for exactly this reason -- a cache whose
+selectors have been round-tripped away is not a crash and not a warning, it is
+two settings that quietly stop having anything to switch.
+
+### The other ten needed one thing, and it was not an opcode
+
+Every server-side row reads a varbit whose base is an ordinary server varp, and
+**the panel's write never reached the server**. `VarPManager_SetVarbitOptimistic`
+writes the client's copy only, and `VarPManager_ApplySync` overwrites it from
+`var_serv` the moment the server speaks about that varp -- so the write was
+neither visible to the server nor durable here. `ironman_var_1` alone carries
+settings 5, 10 and 279, so one server update to varp 1425 moved all three.
+
+Nothing in the revision closes it. Rev 239's client prot table carries no varp,
+varbit or settings packet; NXT's `ClientVarCache::SetVarbit` writes `m_var` and
+returns; and interface 134's script family contains no `if_triggerop`. So the
+client now mirrors settings writes over `CLIENT_CHEAT` as
+`::setting <varbit> <value>` -- see `settings_mirror_varbit` in
+`src/game/rs_cs2_host.h` for why that transport and not a new opcode. Scoped by
+LEARNING the apply hub from the frame that writes `%varbit9657`, so the 510
+clientscripts that write a varbit for some other reason stay silent.
+
+`TORIRS_SIM_VARBIT` mirrors too, which is what makes any of these rows testable
+from a headless run at all.
 
 ## The reference client settles it
 
@@ -1073,9 +1182,61 @@ have, and the gaps are worth naming because several share one:
   this side is done the moment the varbit round-trips.
 - **81 Last Man Standing fog colour** needs an LMS fog effect to exist first.
 
+## What landed for bucket C
+
+- **`src/game/rs_hitsplat.{h,c}`** -- `RS_HitsplatVariants` and
+  `RS_Hitsplats_ResolveType`, resolving the cache's own selector against the
+  player's varbits. Three details are the reference's rather than choices: one
+  hop, a resolved -1 means draw nothing, and resolution happens at DRAW time so
+  toggling the row re-skins the splats already on screen. `duration` and
+  `slot_policy` stay on the type the wire named.
+- **`3rd/rscache/.../dat2_config_hitsplat.{h,c}`** -- opcode 17/18's three
+  fields named for what they are (`variant_varbit`, `variant_varp`,
+  `variant_fallback`) instead of `variant_a/b/c`. cachepack's key follows
+  (`variantvar`), and the old spelling is deliberately NOT accepted: a file still
+  carrying it was written by the decoder that also emitted `opcode49`.
+- **`OSRS-Content/.../configs/all.hitsplat`** -- regenerated. See bucket C above
+  for what the stale export had been doing to every baked cache.
+- **`ToriRSServer_HitsplatForViewer`** -- content names a family, this promotes it
+  to the me/other/max wrapper for each VIEWER. Every name is looked up in the
+  content pack, so nothing here is an id. One asymmetry is spelled out at the
+  call sites because it is invisible otherwise: `srv->active_player` is the
+  ATTACKER in `CombatHitNpc` and the VICTIM in `CombatHitPlayer`, so inferring
+  the dealer uniformly would have recorded every npc hit as your own damage --
+  wrong in the direction that makes setting 5 look implemented while tinting
+  nothing.
+- **The settings mirror** -- `RS_CS2Host_TakeSettingsMirror` /
+  `QueueSettingsMirror`, drained in `App_RunOnce` onto `::setting`, applied by
+  `torirs_server_world.c`. This is the piece all ten server rows were waiting
+  for.
+- **`app_overlay_build_hint_arrow`** -- HINT_ARROW drawn, for coord, npc and
+  player subjects. It had been parsed into `app->hint_arrow` and drawn nowhere
+  since the packet existed.
+- **`hint_npc` / `hint_coord` / `hint_pl` / `hint_stop`** -- the four script
+  opcodes that were in `k_opcode_gap_allowed` with the note that they would
+  "delete themselves the day the client's hint-arrow render lane lands". It
+  landed; the rows are gone and **that table is now empty**.
+- **`ToriRSServer_NpcLootRestrictedFor`** and `damaged_by_players[]` -- the
+  ironman rule, accumulated from the first hit rather than at the killing blow,
+  because settings 182 and 183 warn while the fight is going on.
+- **Setting 10 as a veto** in `torirs_server_hpbar.c`: content proposes the wide
+  boss bar, the player's setting can lower it. Nothing raises it here -- which
+  npcs are bosses is still the encounter's decision.
+
+### 182's icon is the one thing genuinely not findable
+
+The rule behind it works and its varbit is registered; what is missing is what to
+DRAW. `cache.osrs239` names no sprite, spotanim or interface that is
+loot-restriction shaped, no clientscript reads varbit 13039, and the NXT
+decompilation has no class for it. So 183 (the chatbox message, which the row
+states unambiguously) is implemented and 182 is left as a rule with no
+appearance. Picking a sprite would be exactly the "confidently wrong helper"
+this document set out to avoid.
+
 ## Verifying
 
 ```sh
+make -C src test-hitsplat        # the cache's hitsplat selector -- settings 5, 279
 make -C src test-clientop        # the CLIENTOP_* registry and its context ops
 make -C src test-highlight       # the cache's HIGHLIGHT_* family, as state
 make -C src test-client-trigger  # trigger hashes vs real cache identifiers
@@ -1133,6 +1294,29 @@ SDL_VIDEODRIVER=dummy TORIRS_HIGHLIGHT_DEBUG=1 TORIRS_CLIENTOP_DEBUG=1 \
 target as it changes. When a highlight does not appear the first question is
 always "did the script ask for it", and from outside the VM there is no other
 way to answer it.
+
+### The settings mirror, end to end
+
+```sh
+SDL_VIDEODRIVER=dummy TORIRS_SETTINGS_DEBUG=1 TORIRSSERVER_SETTINGS_DEBUG=1 \
+  TORIRS_SIM_VARBIT="450,12379,0" TORIRS_MAX_FRAMES=700 \
+  ./run-live.sh manifests/manifest_osrs239.ini testc test
+```
+
+```
+sim_varbit: 12379 = 0 (base varp 3075, reads back 0)
+settings: mirror varbit 12379 = 0 -> server
+setting: varbit 12379 = 0 (player testc)
+```
+
+Three lines, three separate claims, and they are worth having separately: the
+write landed, the client decided to tell the server, and the server applied it.
+"the setting does nothing" used to be indistinguishable from any of the three
+failing.
+
+`TORIRSSERVER_SPLAT_DEBUG=1` prints every hitsplat promotion with the id content
+stated, the dealer and the id that went on the wire -- `stated=28 dealer=0 -> 16`
+is a leaf becoming the viewer's own wrapper.
 
 `TORIRS_SIM_KEYHOLD="<keycode>[,...]"` holds keys for the whole run (42 is
 shift). The click sims had no way to say "with shift down", and shift is not a

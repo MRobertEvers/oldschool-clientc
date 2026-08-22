@@ -54600,6 +54600,97 @@ ToriRSServer_WorldSelftest(void)
     }
 
     /*
+     * HINT_ARROW, on the wire.
+     *
+     * Four script opcodes (`hint_npc`, `hint_pl`, `hint_coord`, `hint_stop`)
+     * that sat in `k_opcode_gap_allowed` until the client's render lane landed,
+     * with the note that they would "delete themselves the day that lands". The
+     * rows are gone; this is what stops them coming back as a silent no-op,
+     * which is precisely what that table exists to prevent.
+     *
+     * Asserted on the BYTES rather than on "a packet went out". The type byte is
+     * the whole meaning of the payload -- the same three fields are an npc slot,
+     * a player pid or an absolute tile depending on it -- so a packet with the
+     * right length and the wrong type points the arrow somewhere real and wrong,
+     * which is the failure a length check cannot see.
+     */
+    {
+        struct ToriRSServerCapture capture;
+        /*
+         * Revision-gated, and the gate is the assertion.
+         *
+         * Revision 230 has no HINT_ARROW at all -- `net/rev/osrs230/packetin.h`
+         * maps it to `PKT_NAME_NONE` where 239 gives it opcode 50 -- so `flush`
+         * correctly drops the packet and the four opcodes are a no-op there.
+         * That is the truthful state and not a bug, so this skips rather than
+         * failing; running the suite at 230 and seeing three red lines about a
+         * packet the revision does not define would be a false alarm that
+         * teaches people to ignore the stanza.
+         */
+        int const hint_op = srv->wire ? ToriRSServer_WireOpcode(srv->wire, PKT_NAME_HINT_ARROW) : -1;
+        struct ToriRSServerPlayer* hint_player =
+            hint_op >= 0 ? ToriRSServer_WorldAddPlayer(srv, NULL) : NULL;
+
+        if( hint_op < 0 )
+            fprintf(stderr,
+                    "ToriRSServer selftest: HINT_ARROW skipped — revision %s has no opcode "
+                    "for it\n",
+                    srv->wire && srv->wire->name ? srv->wire->name : "?");
+        if( hint_player )
+        {
+            int at;
+
+            ToriRSServer_WorldSetActive(srv, hint_player);
+            ToriRSServer_CaptureBegin(srv, &capture);
+
+            ToriRSServer_SendHintArrow(hint_player, TORIRSSERVER_HINT_ARROW_NPC, 41, 0, 0);
+            at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_HINT_ARROW, 0);
+            SELFTEST_CHECK(at >= 0, "hint_npc puts a HINT_ARROW on the wire");
+            if( at >= 0 )
+            {
+                struct ToriRSServerCapturedPacket* pkt = &capture.packets[at];
+
+                SELFTEST_CHECK(pkt->len == 6,
+                               "HINT_ARROW is six fixed bytes at rev239, saw %d", pkt->len);
+                if( pkt->len == 6 )
+                {
+                    SELFTEST_CHECK(pkt->data[0] == TORIRSSERVER_HINT_ARROW_NPC,
+                                   "the npc form states type 2, saw %d", pkt->data[0]);
+                    SELFTEST_CHECK((pkt->data[1] << 8 | pkt->data[2]) == 41,
+                                   "... and carries the npc slot");
+                }
+            }
+
+            ToriRSServer_SendHintArrow(hint_player, TORIRSSERVER_HINT_ARROW_COORD, 3200, 3200, 60);
+            at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_HINT_ARROW, at + 1);
+            SELFTEST_CHECK(at >= 0, "hint_coord puts a second HINT_ARROW on the wire");
+            if( at >= 0 && capture.packets[at].len == 6 )
+            {
+                uint8_t* d = capture.packets[at].data;
+
+                SELFTEST_CHECK(d[0] == TORIRSSERVER_HINT_ARROW_COORD,
+                               "the coord form states type 1, saw %d", d[0]);
+                /* ABSOLUTE, not scene-local: the arrow's job is to point at
+                 * somewhere the player is not, and a scene-local coord cannot
+                 * name a tile outside the loaded window. The client converts
+                 * back with the same origin SET_MAP_FLAG's absolute form uses. */
+                SELFTEST_CHECK((d[1] << 8 | d[2]) == 3200 && (d[3] << 8 | d[4]) == 3200,
+                               "... and carries the ABSOLUTE tile, not a scene-local one");
+                SELFTEST_CHECK(d[5] == 60, "... and the height byte");
+            }
+
+            ToriRSServer_SendHintArrow(hint_player, TORIRSSERVER_HINT_ARROW_CLEAR, 0, 0, 0);
+            at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_HINT_ARROW, at + 1);
+            SELFTEST_CHECK(at >= 0 && capture.packets[at].len == 6 &&
+                               capture.packets[at].data[0] == TORIRSSERVER_HINT_ARROW_CLEAR,
+                           "hint_stop sends the 255 clear the client normalises to none");
+
+            ToriRSServer_CaptureEnd(srv);
+            ToriRSServer_WorldRemovePlayer(srv, hint_player);
+        }
+    }
+
+    /*
      * The hitsplat promoter -- settings 5, 279 and 280.
      *
      * Driven directly rather than through a fight, because the branch that
@@ -54686,6 +54777,148 @@ ToriRSServer_WorldSelftest(void)
             }
             memset(viewer, 0, sizeof(*viewer));
             memset(dealer, 0, sizeof(*dealer));
+        }
+    }
+
+    /*
+     * The helper panel's choice -- settings 163, 184 and 275.
+     *
+     * Driven directly, because a screenshot cannot tell these apart: an empty
+     * helper panel, a helper that never opened, and a helper drawn off-viewport
+     * are the same picture, and the wrong helper for the player's state is a
+     * perfectly ordinary-looking panel. What is actually being pinned is the
+     * decision -- which of three claimants gets the one frame, and that an
+     * inverted row switched off gives up its turn without taking anybody else's.
+     */
+    {
+        const struct ToriRSServerIds* hp_ids = ToriRSServer_Ids();
+
+        SELFTEST_CHECK(hp_ids->iface_helper_generic > 0,
+                       "the content tree should name `helper_generic`, got %d",
+                       hp_ids->iface_helper_generic);
+        SELFTEST_CHECK(hp_ids->com_gameframe_helper > 0,
+                       "the gameframe should name a `helper_content` slot, got %d",
+                       hp_ids->com_gameframe_helper);
+        SELFTEST_CHECK(hp_ids->varbit_agility_helper_off >= 0 &&
+                           hp_ids->varbit_slayer_helper_off >= 0 &&
+                           hp_ids->varbit_cluehelper_infobox_on >= 0,
+                       "the three helper settings should resolve (agility %d, "
+                       "slayer %d, clue %d)",
+                       hp_ids->varbit_agility_helper_off,
+                       hp_ids->varbit_slayer_helper_off,
+                       hp_ids->varbit_cluehelper_infobox_on);
+        SELFTEST_CHECK(hp_ids->varbit_helper_agility_course >= 0 &&
+                           hp_ids->varp_slayer_count >= 0 &&
+                           hp_ids->varp_cluehelper_infobox_clue >= 0,
+                       "the three helper INPUTS should resolve (course %d, "
+                       "slayer count %d, clue row %d)",
+                       hp_ids->varbit_helper_agility_course,
+                       hp_ids->varp_slayer_count,
+                       hp_ids->varp_cluehelper_infobox_clue);
+
+        if( hp_ids->iface_helper_generic > 0 && hp_ids->varbit_helper_agility_course >= 0 &&
+            hp_ids->varp_slayer_count >= 0 && hp_ids->varp_cluehelper_infobox_clue >= 0 &&
+            hp_ids->varbit_agility_helper_off >= 0 && hp_ids->varbit_slayer_helper_off >= 0 &&
+            hp_ids->varbit_cluehelper_infobox_on >= 0 )
+        {
+            struct ToriRSServerPlayer* who = &srv->players[0];
+            int arg = -1;
+            int const clue_row = 4321;
+
+            /* Doing nothing wants nothing. Stated first because every check
+             * below is a difference from it. */
+            memset(who, 0, sizeof(*who));
+            who->active = 1;
+            who->world = srv;
+            who->combat_target = -1;
+            SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
+                               TORIRSSERVER_HELPER_NONE,
+                           "a player doing nothing should want no helper, got %d",
+                           ToriRSServer_HelperWantedFor(srv, who, &arg));
+
+            /* Agility: the course varbit is both "which" and "whether". */
+            ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_helper_agility_course, 15);
+            SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
+                               TORIRSSERVER_HELPER_AGILITY,
+                           "a course in `helper_agility_current_course` should want "
+                           "the Agility helper, got %d",
+                           ToriRSServer_HelperWantedFor(srv, who, &arg));
+
+            /* Setting 163, and this is the check the whole inverted-row family
+             * exists for: `agility_helper_disabled` = 1 is OFF. Read the plain
+             * way it would still be AGILITY here. */
+            ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_agility_helper_off, 1);
+            SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
+                               TORIRSSERVER_HELPER_NONE,
+                           "switching row 163 OFF should stop the Agility helper, got %d",
+                           ToriRSServer_HelperWantedFor(srv, who, &arg));
+            ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_agility_helper_off, 0);
+
+            /* Slayer: an assignment ALONE is not enough, or the panel would be
+             * pinned open for days and the other two would never be seen. */
+            memset(who, 0, sizeof(*who));
+            who->active = 1;
+            who->world = srv;
+            who->combat_target = -1;
+            who->varps[hp_ids->varp_slayer_count] = 42;
+            SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
+                               TORIRSSERVER_HELPER_NONE,
+                           "merely HOLDING a Slayer task should not open the panel, got %d",
+                           ToriRSServer_HelperWantedFor(srv, who, &arg));
+            who->combat_target = 3;
+            SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
+                               TORIRSSERVER_HELPER_SLAYER,
+                           "a Slayer task being fought should want the Slayer helper, got %d",
+                           ToriRSServer_HelperWantedFor(srv, who, &arg));
+            ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_slayer_helper_off, 1);
+            SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
+                               TORIRSSERVER_HELPER_NONE,
+                           "switching row 184 OFF should stop the Slayer helper, got %d",
+                           ToriRSServer_HelperWantedFor(srv, who, &arg));
+            ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_slayer_helper_off, 0);
+
+            /* A course beats a task being fought: the lap is the shorter-lived
+             * of the two, and the one that would otherwise never get a turn. */
+            ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_helper_agility_course, 7);
+            SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
+                               TORIRSSERVER_HELPER_AGILITY,
+                           "a course should outrank a task being fought, got %d",
+                           ToriRSServer_HelperWantedFor(srv, who, &arg));
+
+            /* The clue step outranks both, and is the only one that carries an
+             * argument -- 6631 takes the step's dbrow. Row 275 is the one
+             * stated `..._enabled`, so it has to be RAISED to show. */
+            memset(who, 0, sizeof(*who));
+            who->active = 1;
+            who->world = srv;
+            who->combat_target = -1;
+            who->varps[hp_ids->varp_cluehelper_infobox_clue] = clue_row;
+            arg = -1;
+            SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
+                               TORIRSSERVER_HELPER_NONE,
+                           "row 275 is `..._enabled`: unset means no clue infobox, got %d",
+                           ToriRSServer_HelperWantedFor(srv, who, &arg));
+            ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_cluehelper_infobox_on, 1);
+            arg = -1;
+            SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
+                                   TORIRSSERVER_HELPER_CLUE &&
+                               arg == clue_row,
+                           "an active clue step should want the clue helper with its "
+                           "own row as the builder's argument, got helper %d arg %d",
+                           ToriRSServer_HelperWantedFor(srv, who, &arg), arg);
+
+            /* And the check that keeps "not that one" from becoming "not any":
+             * a player who turned the clue infobox off, mid-lap, gets the
+             * Agility helper rather than an empty slot. */
+            ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_helper_agility_course, 3);
+            ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_cluehelper_infobox_on, 0);
+            SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
+                               TORIRSSERVER_HELPER_AGILITY,
+                           "a switched-off row should yield the panel to the next "
+                           "claimant, not close it, got %d",
+                           ToriRSServer_HelperWantedFor(srv, who, &arg));
+
+            memset(who, 0, sizeof(*who));
         }
     }
 

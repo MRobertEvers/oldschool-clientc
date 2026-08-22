@@ -78,6 +78,7 @@ static int v5_face_from_classic(
 enum
 {
     OP_SET_MAP_FLAG = PKT_NAME_UNSET_MAP_FLAG,
+    OP_HINT_ARROW = PKT_NAME_HINT_ARROW,
     OP_CHAT_FILTER_SETTINGS = PKT_NAME_CHAT_FILTER_SETTINGS,
     OP_IF_OPENSUB = PKT_NAME_IF_OPENSUB,
     OP_FRIENDLIST_LOADED = PKT_NAME_FRIENDLIST_LOADED,
@@ -1185,6 +1186,12 @@ ToriRSServer_GameframeBindSlots(
     snprintf(name, sizeof(name), "%s:floater", top_name);
     uid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, name);
     player->gameframe_floater = uid;
+
+    /* `helper_content`, the innermost of the three helper layers -- see
+     * ToriRSServerIds.com_gameframe_helper for why not `helper`. */
+    snprintf(name, sizeof(name), "%s:helper_content", top_name);
+    uid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, name);
+    player->gameframe_helper = uid;
 }
 
 static int
@@ -2578,6 +2585,44 @@ ToriRSServer_SendUnsetMapFlag(struct ToriRSServerPlayer* player)
         }
     }
     flush(player, &buf, OP_SET_MAP_FLAG, 0);
+}
+
+/*
+ * HINT_ARROW -- point the player at something.
+ *
+ * Six fixed bytes at revision 239 (`3rd/rsprot/gen/rev239_prot.h`): a type byte,
+ * then `id` and `z` as u16 and a height byte. What the last three MEAN depends
+ * on the type, which is why this takes them raw and the four script opcodes
+ * above it name the shapes:
+ *
+ *   1  coord   id = absolute tile x, z = absolute tile z, height above it
+ *   2  npc     id = npc slot; z and height are padding
+ *   10 player  id = player pid; z and height are padding
+ *   255 clear
+ *
+ * Absolute coords for the coord form, deliberately. The arrow's whole purpose
+ * is to point at somewhere the player is not, and a scene-local coord cannot
+ * name a tile outside the loaded window -- see the matching note in
+ * `app_overlay_build_hint_arrow`, which converts with the same origin
+ * `SET_MAP_FLAG`'s absolute form uses.
+ */
+void
+ToriRSServer_SendHintArrow(
+    struct ToriRSServerPlayer* player,
+    int type,
+    int id,
+    int z,
+    int height)
+{
+    struct RSAreaBuf buf;
+
+    assert(player);
+    open_packet(&buf, 8);
+    rsab_p1(&buf, type & 0xff);
+    rsab_p2(&buf, id & 0xffff);
+    rsab_p2(&buf, z & 0xffff);
+    rsab_p1(&buf, height & 0xff);
+    flush(player, &buf, OP_HINT_ARROW, 0);
 }
 
 void

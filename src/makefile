@@ -510,6 +510,7 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_healthbarinfo.c \
 	torirsserver/torirs_server_npcinfo.c torirsserver/torirs_server_combat.c torirsserver/torirs_server_seqinfo.c \
 	torirsserver/torirs_server_hpbar.c \
+	torirsserver/torirs_server_helper.c \
 	torirsserver/torirs_server_scripts.c torirsserver/torirs_server_ws.c torirsserver/torirs_server_content.c \
 	torirsserver/torirs_server_servercodec.c torirsserver/torirs_server_servpack.c \
 	torirsserver/torirs_server_db.c \
