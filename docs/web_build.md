@@ -209,7 +209,7 @@ into the virtual filesystem before `main()` runs. Any manifest works against
 any build, and a new one needs no rebuild.
 
 ```
-torirs: boot files manifests/manifest_rs254.ini revconfig/rev_245_2/rev_245_2_dat1_ui.ini …
+torirs: boot files manifests/manifest_rs254.ini revconfig/rs245_2lc/rs245_2lc_dat1_ui.ini …
 ```
 
 `--boot-root` (default the working directory) is where the server reads those

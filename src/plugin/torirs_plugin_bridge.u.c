@@ -1041,6 +1041,16 @@ app_plugin_varp(void* user, int varp_id)
 }
 
 static int
+app_plugin_cache_id(void* user, char const* kind, char const* name)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+    assert(kind);
+    assert(name);
+    return RevConfigRefs_Get(&app->revconfig_refs, kind, name);
+}
+
+static int
 app_plugin_project(void* user, int fine_x, int fine_z, int height, int* out_x, int* out_y)
 {
     struct App* app = (struct App*)user;
@@ -1411,6 +1421,7 @@ app_plugin_engine(struct App* app)
     engine.element_height = app_plugin_element_height;
     engine.varbit = app_plugin_varbit;
     engine.varp = app_plugin_varp;
+    engine.cache_id = app_plugin_cache_id;
     engine.project = app_plugin_project;
     engine.draw_tile = app_plugin_draw_tile;
     engine.draw_hull = app_plugin_draw_hull;

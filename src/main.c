@@ -69,7 +69,7 @@ struct ToriRS_D3D9;
 
 /* Repo-relative defaults (run from the repo root); pass an explicit cache dir
  * as argv[1] from anywhere else. The default boot is the 254-era dat1 cache
- * driven by the rev_245_2 RevConfig; --dat2 switches to the js5 cache, where
+ * driven by the rs245_2lc RevConfig; --dat2 switches to the js5 cache, where
  * an interface id is opened directly instead. */
 #define DAT1_CACHE_DIR "cache254"
 #define DAT2_CACHE_DIR "cache.jan2026"
@@ -87,11 +87,21 @@ harness_shot(void* user, char const* path)
     free(pixels);
 }
 
-#define DEFAULT_REVCONFIG_UI "revconfig/rev_245_2/rev_245_2_dat1_ui.ini"
-#define DEFAULT_REVCONFIG_CACHE "revconfig/rev_245_2/rev_245_2_dat1_cache.ini"
+#define DEFAULT_REVCONFIG_UI "revconfig/rs245_2lc/rs245_2lc_dat1_ui.ini"
+#define DEFAULT_REVCONFIG_CACHE "revconfig/rs245_2lc/rs245_2lc_dat1_cache.ini"
 #define CONFIG_DIR "config"
 #define SCRIPT_DIR "script"
-#define DEFAULT_INTERFACE_ID 84
+
+/*
+ * "Nothing has said which interface to open yet."
+ *
+ * The boot group used to be the literal 84, which is the Lost City gameframe
+ * and nothing else's — every other cache opening it got whatever that id
+ * happens to be there. It now comes from the resolved profile's `[iface:boot]`,
+ * below, and this sentinel is only how the CLI parse records that neither a
+ * positional argument nor a manifest overrode it.
+ */
+#define INTERFACE_ID_UNSET 0
 
 /* TORIRS_DUMP_TREE=1: print the widget tree in the reference client's
  * widgetTreeDump.ts format (interface editor parity diffing). */
@@ -682,7 +692,7 @@ static struct AppConfig cfg = {
     .cache_dir = NULL, /* resolved from cache_kind below */
     .config_dir = CONFIG_DIR,
     .script_dir = SCRIPT_DIR,
-    .interface_id = DEFAULT_INTERFACE_ID,
+    .interface_id = INTERFACE_ID_UNSET,
     .cache_kind = APP_CACHE_DAT1,
     /* -1 = no manifest spawn; app_world_load_begin falls back to the client default. */
     .spawn_x = -1,
@@ -2363,6 +2373,14 @@ frame_loop_teardown(void)
                         c->position.abs_x,
                         c->position.abs_y);
             }
+            for( int t = 0; t < 14; t++ )
+                fprintf(
+                    stderr,
+                    "exit: tabgate %d enabled=%d flash_hidden=%d flash_tab=%d\n",
+                    t,
+                    RS_UISlots_TabEnabled(&app.slots, t),
+                    RS_UISlots_TabFlashHidden(&app.slots, t, app.logic_cycle),
+                    app.slots.flash_tab);
             for( int f = 0; f < 6; f++ )
                 fprintf(
                     stderr,
@@ -3301,6 +3319,33 @@ main(
                 cfg.revconfig_cache_ini = derived_cache_ini;
             }
         }
+    }
+
+    /*
+     * The boot interface, when neither a positional argument nor a manifest
+     * named one. It is a cache id like any other, so the resolved profile
+     * answers it: `[iface:boot]` in the *_ui.ini (or the cache half, or the
+     * manifest's own inline sections -- all three are read here, in load
+     * order).
+     *
+     * Left unset if the profile does not state one. A dat1 boot then has no
+     * gameframe to open and says so; a dat2 boot does not come through here at
+     * all, because its manifest states `interface_id` in `[ui:boot]`.
+     */
+    if( cfg.interface_id == INTERFACE_ID_UNSET )
+    {
+        struct RevConfigRefs boot_refs;
+        int declared;
+        RevConfigRefs_Init(&boot_refs);
+        RevConfigRefs_LoadSources(
+            &boot_refs,
+            cfg.revconfig_ui_ini,
+            cfg.revconfig_cache_ini,
+            cfg.revconfig_inline_ini);
+        declared = RevConfigRefs_Get(&boot_refs, "iface", "boot");
+        RevConfigRefs_Free(&boot_refs);
+        if( declared > 0 )
+            cfg.interface_id = declared;
     }
 
     {

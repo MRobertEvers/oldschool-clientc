@@ -8,6 +8,7 @@
 #include "rs_attack_option.h"
 #include "rs_audio.h"
 #include "rs_chat.h"
+#include "rs_clientcode.h"
 #include "rs_cs2_dispatch.h"
 #include "rs_cs2_host.h"
 #include "rs_entity_sync.h"
@@ -595,6 +596,61 @@ exec_zone_sub_packet_at(
     default:
         break;
     }
+}
+
+/*
+ * Open the welcome screen (reference tcpIn LAST_LOGIN_INFO).
+ *
+ * The reference picks WHICH interface by scanning every loaded IfType for a
+ * component whose clientCode is 650 or 655 and taking that component's layer.
+ * It can: its interface archive is one blob, decoded whole at startup. This
+ * client loads interfaces as per-id packs and has nothing to scan, so the two
+ * answers that scan would give are declared in the profile instead
+ * (`[iface:welcome_screen]` / `[iface:welcome_screen_notice]`).
+ *
+ * What stays here is the CHOICE between them, because that is a fact about the
+ * packet rather than about the cache: 201 is the "nothing to say about
+ * recovery questions" sentinel, so anything else -- or a members-on-a-free-
+ * world warning -- means there is a paragraph to show, and the paragraph rows
+ * only exist on the second screen.
+ */
+static void
+exec_open_welcome_screen(struct App* app)
+{
+    char const* iface_name;
+    int iface_id;
+
+    assert(app);
+
+    /* No address means the server is not offering a welcome screen at all.
+     * The reference gates on the same field, and it is also what keeps a
+     * zero-filled App from opening one before any packet has arrived. */
+    if( app->welcome.last_ip == 0 )
+        return;
+    /* Never in front of something already open. LAST_LOGIN_INFO is a login
+     * packet by convention, not by rule, and the reference makes the same
+     * check rather than trusting that. */
+    if( app->slots.main_modal_id != -1 )
+        return;
+
+    iface_name = (app->welcome.days_since_recovery != RS_CC_RECOVERY_DAYS_SILENT ||
+                  app->welcome.member_warning == 1)
+                     ? "welcome_screen_notice"
+                     : "welcome_screen";
+    iface_id = RevConfigRefs_Get(&app->revconfig_refs, "iface", iface_name);
+    /* -1 = this profile declares no such interface, which is the honest answer
+     * for a revision whose cache has no welcome screen. Not a fallback to the
+     * other name: the two hold different rows, and opening the wrong one shows
+     * a paragraph about recovery questions that the server never sent. */
+    if( iface_id < 0 )
+        return;
+
+    /* Clears a side modal or chat dialogue the way the reference's closeModal()
+     * does. It does NOT send CLOSE_MODAL: the reference's send is unconditional
+     * only because closeModal() is one function, and we have already
+     * established there is no viewport modal for the server to hear about. */
+    RS_UISlots_CloseModal(app);
+    RS_UISlots_OpenMain(app, iface_id);
 }
 
 void
@@ -1396,9 +1452,10 @@ RS_GameProto_Exec(
             ctx->app->welcome.days_since_recovery = packet->_last_login_info.days_since_recovery;
             ctx->app->welcome.unread_messages = packet->_last_login_info.unread_messages;
             ctx->app->welcome.member_warning = packet->_last_login_info.member_warning;
-            /* The welcome rows are clientCode components refreshed by
-             * RS_ClientCode_Tick; they read this struct, so a repaint is the
-             * whole of "apply" here. */
+            /* The rows themselves are clientCode components RS_ClientCode_Tick
+             * refreshes off this struct; this packet also OPENS the screen they
+             * sit on, which is the only thing that ever does. */
+            exec_open_welcome_screen(ctx->app);
             ctx->app->need_redraw = 1;
         }
         break;

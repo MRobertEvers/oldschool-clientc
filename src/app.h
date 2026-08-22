@@ -27,6 +27,7 @@
 #include "inv/inv_manager.h"
 #include "platform/platform_x_io.h"
 #include "plugin/torirs_plugin_host.h"
+#include "revconfig/revconfig_refs.h"
 #include "task_runner.h"
 #include "toridraw_scene.h"
 #include "toridraw_sprite.h"
@@ -170,15 +171,16 @@ enum AppPluginRowKind
  * something would read as the feature half-working.
  */
 /*
- * The two All Settings BUTTON rows this client has to act on itself.
+ * The two All Settings BUTTON rows this client has to act on itself, named the
+ * way the profile's `[setting:…]` sections name them.
  *
- * Both are in the Activities category and both reach clientscript 3969, whose
+ * Both are in the Activities category and both reach the same apply hub, whose
  * switch has no case for either -- a button row has no varbit, and the panel's
- * only trace of it is `%varbit9657 = <setting id>`. See the drain in
- * App_RunOnce.
+ * only trace of it is the settings-changed varbit carrying the row's id. See
+ * the drain in App_RunOnce.
  */
-#define APP_SETTING_CLEAR_TILE_MARKERS 117
-#define APP_SETTING_CLEAR_NPC_TAGS 267
+#define APP_SETTING_CLEAR_TILE_MARKERS "clear_tile_markers"
+#define APP_SETTING_CLEAR_NPC_TAGS "clear_npc_tags"
 
 /*
  * HINT_ARROW's `type` byte: what the packet's `id`/`z` fields mean.
@@ -562,6 +564,17 @@ enum AppMinimapState
 struct App
 {
     struct AppConfig cfg;
+
+    /*
+     * Every cache id this client knows by name rather than by literal: the
+     * settings panel's apply scripts, the XP counter's interface, the human
+     * ready animation, the fonts the overlays draw in. Parsed from the same
+     * RevConfig sources the UI tree is built from, but kept for the whole
+     * session because these are read long after Task_UITreeBuild has been
+     * freed. RevConfigRefs_Get returns -1 for anything this revision does not
+     * declare, and -1 means the feature is off here — never "use a default".
+     */
+    struct RevConfigRefs revconfig_refs;
 
     /* Phase 1: task runtime + disk (created first, freed last). Exactly one of
      * the two disks is live, per cfg.cache_kind. */

@@ -27,9 +27,6 @@
 #include <time.h>
 
 /* Standard human idle sequence for the player preview (clientCode 327/328). */
-#ifndef INTERFACE_PLAYER_IDLE_SEQ
-#define INTERFACE_PLAYER_IDLE_SEQ UITREE_BUILDER_PLAYER_IDLE_SEQ
-#endif
 
 #define INTERFACE_OPEN_ONLOAD_ARGV_MAX TORIRS_COMPONENT_HOOK_ARG_MAX
 #define INTERFACE_OPEN_ONLOAD_MAX 256
@@ -171,7 +168,7 @@ upload_model_nodes(
                      * Held at frame 0 — the reference poses the design composite
                      * once and only spins modelYAn after that. */
                     if( c->u.rs_model.anim_seq_id < 0 )
-                        c->u.rs_model.anim_seq_id = INTERFACE_PLAYER_IDLE_SEQ;
+                        c->u.rs_model.anim_seq_id = bridge->player_idle_seq;
                     c->u.rs_model.anim_frame = 0;
                     c->u.rs_model.anim_frame_cycle = 0;
                     c->u.rs_model.anim_hold = 1;
@@ -773,7 +770,7 @@ Task_InterfaceOpen_Run(
 
     /* 9b. Player-preview components idle with the player readyanim, not whatever
      * sequence an onLoad script set (TS parity — see uitree_builder_bake.h). */
-    uitree_builder_reassert_player_idle_anim(self->tree);
+    uitree_builder_reassert_player_idle_anim(self->tree, self->bridge);
 
     /* 10. Final layout. */
     layout_tree(self);

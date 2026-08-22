@@ -895,6 +895,22 @@ struct ToriRS_PluginApi
 
     int (*varbit)(struct ToriRS_PluginCtx* ctx, int varbit_id);
     int (*varp)(struct ToriRS_PluginCtx* ctx, int varp_id);
+
+    /**
+     * Which id `name` has on THIS cache, or -1.
+     *
+     * `kind` is a RevConfig section type -- "varbit", "varp", "setting",
+     * "script", "iface", "seq" -- and `name` is the section id, so
+     * `cache_id(ctx, "varbit", "npc_highlight")` answers what the profile's
+     * `[varbit:npc_highlight]` states.
+     *
+     * A plugin that hardcodes a number instead is pinned to one revision and
+     * fails SILENTLY on any other: an id that no longer exists reads as an
+     * unset var (0), which for an INVERTED row means the feature turns itself
+     * on. -1 here is the honest form of the same answer -- the row does not
+     * exist on this cache -- and a builtin that gets it should switch off.
+     */
+    int (*cache_id)(struct ToriRS_PluginCtx* ctx, char const* kind, char const* name);
     /**
      * A colour-row setting, as 0xRRGGBB.
      *

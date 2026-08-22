@@ -385,9 +385,12 @@ uitree_builder_bake_pack_under_owner(
                     scene_id = UITreeSceneBridge_EnsurePlayerModel(builder->bridge);
                     if( scene_id >= 0 )
                     {
+                        /* The human ready animation. Which seq that is belongs
+                         * to the profile: a preview posed at some other cache's
+                         * 808 is a bind-pose snap or a wrong pose, silently. */
                         node->u.rs_model.gamecache_model_id = scene_id;
                         if( node->u.rs_model.anim_seq_id < 0 )
-                            node->u.rs_model.anim_seq_id = 808; /* human readyanim */
+                            node->u.rs_model.anim_seq_id = builder->bridge->player_idle_seq;
                         node->u.rs_model.anim_frame = 0;
                         node->u.rs_model.anim_frame_cycle = 0;
                         node->u.rs_model.anim_hold = 1;
@@ -984,10 +987,13 @@ uitree_builder_hide_unmounted_spillover(
 }
 
 void
-uitree_builder_reassert_player_idle_anim(struct UITree* tree)
+uitree_builder_reassert_player_idle_anim(
+    struct UITree* tree,
+    struct UITreeSceneBridge const* bridge)
 {
     int mi;
     assert(tree);
+    assert(bridge);
     for( mi = 0; mi < tree->models.count; mi++ )
     {
         int32_t i = tree->models.slots[mi];
@@ -1000,7 +1006,7 @@ uitree_builder_reassert_player_idle_anim(struct UITree* tree)
             continue;
         if( c->u.rs_model.gamecache_model_id != UITREE_SCENE_PLAYER_MODEL_ID )
             continue;
-        c->u.rs_model.anim_seq_id = UITREE_BUILDER_PLAYER_IDLE_SEQ;
+        c->u.rs_model.anim_seq_id = bridge->player_idle_seq;
         c->u.rs_model.anim_frame = 0;
         c->u.rs_model.anim_frame_cycle = 0;
         c->u.rs_model.anim_hold = 1;

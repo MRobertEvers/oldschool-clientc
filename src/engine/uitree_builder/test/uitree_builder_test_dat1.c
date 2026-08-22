@@ -1,6 +1,6 @@
 /*
  * End-to-end dat1 RevConfig build: opens the dat1 cache (cache254), runs
- * CreateTask_UITreeBuild with the rev_245_2 dat1 INIs, then asserts the
+ * CreateTask_UITreeBuild with the rs245_2lc dat1 INIs, then asserts the
  * provider contents and dumps the baked chrome to a BMP.
  *
  * Run from src/: make test-uitree-builder-dat1 [DAT1_CACHE=../cache254]
@@ -79,8 +79,8 @@ main(
     char** argv)
 {
     char const* cache_dir = argc > 1 ? argv[1] : "../cache254";
-    char const* ui_ini = "engine/uitree_builder/test/rev_245_2_dat1_ui.ini";
-    char const* cache_ini = "engine/uitree_builder/test/rev_245_2_dat1_cache.ini";
+    char const* ui_ini = "engine/uitree_builder/test/rs245_2lc_dat1_ui.ini";
+    char const* cache_ini = "engine/uitree_builder/test/rs245_2lc_dat1_cache.ini";
 
     ToriDraw_Init();
 

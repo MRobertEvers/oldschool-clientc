@@ -15,6 +15,7 @@ struct CacheProvider;
 struct InvManager;
 struct VarPManager;
 struct VarCManager;
+struct RevConfigRefs;
 struct RS_PlayerStats;
 struct CS2VM2_Thread;
 struct UITreeSceneBridge;
@@ -1036,6 +1037,16 @@ struct RS_CS2Host
     int triggeroplocal_head;
 };
 
+/**
+ * Seed the host, including every cache id it drives a feature from.
+ *
+ * `refs` is the boot's RevConfig id table and may be NULL (tests, and any
+ * embedding with no profile). Each id it fails to supply is left at -1, and -1
+ * means the running revision has no such script or varbit: the settings-panel
+ * mirror and the tile-highlight bridge switch themselves off rather than
+ * running whatever script happens to carry rev-239's number on some other
+ * cache.
+ */
 void
 RS_CS2Host_Init(
     struct RS_CS2Host* host,
@@ -1043,7 +1054,8 @@ RS_CS2Host_Init(
     struct CacheProvider* provider,
     struct InvManager* invs,
     struct VarPManager* varps,
-    struct VarCManager* varcs);
+    struct VarCManager* varcs,
+    struct RevConfigRefs const* refs);
 
 /** Arm the var- and inv-transmit hooks a component record declares in the
  *  cache (`onVarpTransmit`/`varpTriggers`, `onInvTransmit`/`inventoryTriggers`).

@@ -2,17 +2,21 @@
 #define STATIC_SPRITES_H
 
 /*
- * Sprites the client knows by name rather than through interface data — the
- * reference client's "graphic defaults" set (compass, minimap chrome, hitsplats,
- * overhead icons, click cross, scrollbar arrows).
+ * Sprites the client draws itself rather than through interface data — the
+ * reference client's "graphic defaults" set (compass, minimap chrome,
+ * hitsplats, overhead icons, click cross, scrollbar arrows).
  *
  * These have no owning RevConfig [component:] node, so their scene ids cannot
  * live on a tree node. They are uploaded once into a bridge slot and fetched at
  * emit/draw time through UITREE_HOST_GET_STATIC_SPRITE_SCENE.
  *
- * Names per era: dat2/OSRS resolves an archive in the sprites table by name
- * (see xrsps GraphicsDefaults); dat1 unpacks the media jagfile by file stem
- * (see Client-TS Client.load "Unpacking media").
+ * What lives here is only the slot -> NAME binding: which picture the compass
+ * overlay wants, spelled the way the RevConfig profile spells it. Where that
+ * picture is — dat2 sprites-table archive, dat1 media-jagfile stem, pixel
+ * format, frame count — is the profile's business and is stated in a
+ * `[sprite:<name>]` section, exactly like every other UI sprite. A slot with no
+ * matching section stays unbound, which is the correct answer for an era that
+ * has no such pack (dat1 ships no mod_icons; rev 239 ships no mapfunction).
  */
 enum StaticSpriteSlot
 {
@@ -34,23 +38,7 @@ enum StaticSpriteSlot
     STATIC_SPRITE_COUNT
 };
 
-struct StaticSpriteDef
-{
-    /** Provider name-map key; matches the RevConfig [sprite:<name>] section. */
-    char const* name;
-    /** Dat2 sprites-table archive name; NULL when the era lacks this sprite. */
-    char const* dat2_name;
-    /** Dat1 media jagfile stem (no ".dat"); NULL when the era lacks it. */
-    char const* dat1_name;
-    /** Dat1 pixel format: "pix8" or "pix32". */
-    char const* dat1_format;
-    /** Dat1 frame count; 0 = single frame. */
-    int dat1_atlas_count;
-};
-
-struct StaticSpriteDef const*
-StaticSprite_Def(enum StaticSpriteSlot slot);
-
+/** The `[sprite:<name>]` section this slot is bound to. Never NULL. */
 char const*
 StaticSprite_SlotName(enum StaticSpriteSlot slot);
 

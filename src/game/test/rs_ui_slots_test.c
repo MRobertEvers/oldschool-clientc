@@ -1,6 +1,6 @@
 /*
  * Contract test for the runtime interface-slot API (RS_UISlots open/close and
- * SetTab) against a real dat1 cache + rev_245_2 RevConfig build — the surface
+ * SetTab) against a real dat1 cache + rs245_2lc RevConfig build — the surface
  * the network exec layer drives when IF_OPENMAIN/IF_OPENSIDE/IF_SETTAB arrive.
  */
 #include "app.h"
@@ -41,9 +41,9 @@ main(
     cfg.script_dir = "../script";
     cfg.interface_id = 84;
     cfg.revconfig_ui_ini =
-        argc > 2 ? argv[2] : "../revconfig/rev_245_2/rev_245_2_dat1_ui.ini";
+        argc > 2 ? argv[2] : "../revconfig/rs245_2lc/rs245_2lc_dat1_ui.ini";
     cfg.revconfig_cache_ini =
-        argc > 3 ? argv[3] : "../revconfig/rev_245_2/rev_245_2_dat1_cache.ini";
+        argc > 3 ? argv[3] : "../revconfig/rs245_2lc/rs245_2lc_dat1_cache.ini";
 
     App_Init(&app, &cfg);
     App_OpenRootInterface(&app, cfg.interface_id);

@@ -46,6 +46,17 @@ struct UITreeSceneBridge
      */
     int static_sprite_scene[STATIC_SPRITE_COUNT];
 
+    /*
+     * The human ready animation, from the profile's `[seq:human_readyanim]`.
+     *
+     * It lives beside the player composite because that is what it poses, and
+     * because both paths that build a clientCode 327/328 preview -- the boot
+     * bake and the runtime interface mount -- hold a bridge and neither holds
+     * the other's manifest. -1 until the App states it, and -1 leaves the
+     * preview at its bind pose rather than posing it with another cache's seq.
+     */
+    int player_idle_seq;
+
     /** Composited default player avatar model; -1 until first built. */
     int player_scene_id;
 

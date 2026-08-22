@@ -17,6 +17,7 @@
 #include "game/rs_worldmap.h"
 #include "inv/inv_manager.h"
 #include "perf/torirs_perf.h"
+#include "revconfig/revconfig_refs.h"
 #include "ui/uitree.h"
 #include "ui/uitree_layout.h"
 #include "ui/uitree_scroll.h"
@@ -830,6 +831,25 @@ rs_cs2_struct_param_lookup(
  * Init / Tick
  * ========================================================================= */
 
+/*
+ * A cache id the profile named, or -1.
+ *
+ * NULL refs is a table with nothing in it, not a reason to substitute a
+ * literal: an embedding with no profile gets a host whose id-driven features
+ * are all off, which is the only honest answer when nobody has said what
+ * cache this is.
+ */
+static int
+cs2_host_ref(
+    struct RevConfigRefs const* refs,
+    char const* kind,
+    char const* name)
+{
+    assert(kind);
+    assert(name);
+    return refs ? RevConfigRefs_Get(refs, kind, name) : -1;
+}
+
 void
 RS_CS2Host_Init(
     struct RS_CS2Host* host,
@@ -837,7 +857,8 @@ RS_CS2Host_Init(
     struct CacheProvider* provider,
     struct InvManager* invs,
     struct VarPManager* varps,
-    struct VarCManager* varcs)
+    struct VarCManager* varcs,
+    struct RevConfigRefs const* refs)
 {
     assert(host);
     assert(tree);
@@ -854,13 +875,15 @@ RS_CS2Host_Init(
     host->local_coord = 0;
     host->dest_coord = -1;
     host->hover_coord = -1;
-    /* pack/12_clientscripts.pack: the three tile-highlight TRIGGER scripts.
-     * trigger_48, trigger_49 and trigger_47 -- see the header for what fires
-     * each and why the [clientscript] apply forms beside them (5198 / 5204 /
-     * 5210) are the cache's to run and not this client's. */
-    host->script_highlight_hover_tile = 5197;
-    host->script_highlight_current_tile = 5203;
-    host->script_highlight_dest_tile = 5209;
+    /* The three tile-highlight TRIGGER scripts: trigger_48, trigger_49 and
+     * trigger_47 -- see the header for what fires each and why the
+     * [clientscript] apply forms beside them are the cache's to run and not
+     * this client's. Which ids those are is the profile's answer, because a
+     * cache that predates the feature has no such scripts and must not be
+     * told to run rev-239's numbers. */
+    host->script_highlight_hover_tile = cs2_host_ref(refs, "script", "highlight_hover_tile");
+    host->script_highlight_current_tile = cs2_host_ref(refs, "script", "highlight_current_tile");
+    host->script_highlight_dest_tile = cs2_host_ref(refs, "script", "highlight_dest_tile");
     /* -1, not 0: 0 is a real player slot, so a zero here would make `_6905`
      * name whichever player the server put in slot 0 before login. */
     host->local_pid = -1;
@@ -933,18 +956,20 @@ RS_CS2Host_Init(
     host->window_mode_dirty = false;
     host->client_layout_mode = 1; /* resizable classic — matches stretch boot */
     host->client_layout_dirty = false;
-    /* pack/12_clientscripts.pack: 3998=script_3998; decompile name settings_client_mode */
-    host->script_settings_client_mode = 3998;
-    host->script_settings_client_apply = 3967;
-    host->varbit_settings_last_changed = 9657;
+    /* The Display panel's mode/apply pair (decompile names
+     * settings_client_mode / settings_client_apply) and the varbit those apply
+     * hubs write the pressed setting id into. */
+    host->script_settings_client_mode = cs2_host_ref(refs, "script", "settings_client_mode");
+    host->script_settings_client_apply = cs2_host_ref(refs, "script", "settings_client_apply");
+    host->varbit_settings_last_changed = cs2_host_ref(refs, "varbit", "settings_last_changed");
     /* -1, not 0: script 0 is a real id, so zero would mirror every varbit write
      * made by whatever script happens to be id 0 before the panel is ever used. */
     host->settings_mirror_root_script = -1;
     host->settings_mirror_count = 0;
-    /* 4183=settings_colour_input_click (the swatch's op), 4181=settings_get_colour
+    /* settings_colour_input_click (the swatch's op) and settings_get_colour
      * (the read hub whose varp read names a row's varp). */
-    host->script_settings_colour_click = 4183;
-    host->script_settings_colour_get = 4181;
+    host->script_settings_colour_click = cs2_host_ref(refs, "script", "settings_colour_click");
+    host->script_settings_colour_get = cs2_host_ref(refs, "script", "settings_colour_get");
     host->settings_colour_count = 0;
     host->settings_colour_pending = false;
     RS_HighlightReset(&host->highlight);

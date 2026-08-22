@@ -126,6 +126,7 @@ enum RevConfigFieldKind
     RCFIELD_CACHE_CROP_HEIGHT,
     RCFIELD_CACHE_FONT_NAME,
     RCFIELD_CACHE_FONT_ID,
+    RCFIELD_CACHEREF_ID,
     RCFIELD_UICOMPONENT_TYPE,
     RCFIELD_UICOMPONENT_SPRITE,
     RCFIELD_UICOMPONENT_WIDTH,
@@ -227,6 +228,39 @@ enum RevConfigItemKind
     RCITEM_UILAYOUT,
     RCITEM_INV,
     RCITEM_HOTKEY,
+    RCITEM_CACHE_REF,
+};
+
+/** Section types that build an RCITEM_CACHE_REF, i.e. a bare name -> cache id. */
+#define REVCONFIG_CACHEREF_KINDS "script", "iface", "varbit", "varp", "seq", "setting"
+
+/*
+ * One `[<kind>:<name>] id=<n>` binding — a cache id the CLIENT has to know by
+ * number, given a name here instead of a literal in C.
+ *
+ * The client legitimately knows what a thing is FOR: that the settings panel
+ * has an apply script, that the XP counter lives on some interface, that an
+ * unrigged preview model needs the human ready animation. What it must not
+ * know is WHICH id that is, because the answer moves every revision and a
+ * literal in C is a silent wrong answer on every other cache.
+ *
+ * An undeclared name resolves to -1, and -1 means "this revision does not have
+ * that thing" — not "use the built-in default". There is no built-in default;
+ * a caller that gets -1 turns the feature off. That is why the rev-254 profile
+ * can omit the tile-highlight scripts (which did not exist yet) without
+ * pretending rev-239's ids apply to it.
+ */
+struct RevConfigCacheRefItem
+{
+    /* [<kind>:<name>] — the section type, one of REVCONFIG_CACHEREF_KINDS. */
+    char kind[16];
+
+    /* [<kind>:<name>] — the symbolic name C looks up. Unique within a kind. */
+    char name[64];
+
+    /* INI: id= — the cache id. -1 when the section opens, so a section that
+     * declares no id= is indistinguishable from an absent one. */
+    int id;
 };
 
 /*
@@ -659,6 +693,7 @@ struct RevConfigItem
         struct RevConfigUILayoutItem uilayout;
         struct RevConfigInvItem inv;
         struct RevConfigHotkeyItem hotkey;
+        struct RevConfigCacheRefItem cacheref;
     } u;
 };
 

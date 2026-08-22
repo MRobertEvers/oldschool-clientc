@@ -71,6 +71,21 @@ push_element_from_ini_header(
         push_field(revconfig_buffer, RCFIELD_ITEMNAME, item_name);
 }
 
+/* `id=` is scoped to the cache-ref section types so it can never be mistaken
+ * for a key of some future [component:…] or [sprite:…] spelling. */
+static int
+ini_type_is_cacheref(const char* item_type)
+{
+    static char const* const kinds[] = { REVCONFIG_CACHEREF_KINDS };
+    assert(item_type);
+    for( size_t i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++ )
+    {
+        if( strcmp(item_type, kinds[i]) == 0 )
+            return 1;
+    }
+    return 0;
+}
+
 static void
 push_field_from_ini_kv(
     struct RevConfigBuffer* vec,
@@ -299,6 +314,8 @@ push_field_from_ini_kv(
         kind = RCFIELD_CACHE_FONT_NAME;
     else if( strcmp(key, "cache_font_id") == 0 )
         kind = RCFIELD_CACHE_FONT_ID;
+    else if( strcmp(key, "id") == 0 && ini_type_is_cacheref(s_ini_item_type) )
+        kind = RCFIELD_CACHEREF_ID;
     else if(
         strcmp(key, "transform1") == 0 || strcmp(key, "transform2") == 0 ||
         strcmp(key, "transform3") == 0 || strcmp(key, "transform4") == 0 )

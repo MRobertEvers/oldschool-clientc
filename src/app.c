@@ -3409,19 +3409,33 @@ app_chrome_route_keys(
  * already-resolved scene font when b12 cannot load. Declared above the plugin
  * includes because the plugin window's CS2 presentation sets its rows in the
  * same p12 the interfaces use. */
-enum
-{
-    APP_FONT_B12_CACHE_ID = 496,
-    APP_FONT_B12_DAT1_SLOT = 2,
-    /* Hitsplat numbers use p11 (reference `this.p11.centreString`). RevConfig
-     * orders the dat1 title jagfile fonts p11/p12/b12/q8 as slots 0-3; the
-     * dat2 fonts table keeps them adjacent with b12 at 496. */
-    APP_FONT_P11_CACHE_ID = 494,
-    APP_FONT_P11_DAT1_SLOT = 0,
-    /* Rebuild loading overlay (deob / Client-TS `p12.centreString`). */
-    APP_FONT_P12_CACHE_ID = 495,
-    APP_FONT_P12_DAT1_SLOT = 1,
-};
+/*
+ * The three fonts the client draws with directly, named the way the RevConfig
+ * profile names them. `app_font_cache_id` turns one of these into the number
+ * this cache uses — a dat1 scene slot or a dat2 fonts-table archive id, which
+ * are different numbers for the same font.
+ *
+ * Minimenu and hovertext use bold-12; hitsplat numbers use p11 (reference
+ * `this.p11.centreString`); the rebuild overlay uses p12 (Client-TS
+ * `p12.centreString`).
+ */
+#define APP_FONT_B12 "b12"
+#define APP_FONT_P11 "p11"
+#define APP_FONT_P12 "p12"
+
+/* Defined below; declared here because the plugin panel included beneath this
+ * point sets its rows in the game's own p12 and mounts into a cache interface
+ * the profile names. */
+static int
+app_font_cache_id(
+    struct App const* app,
+    char const* font_name);
+
+static int
+app_iface_com(
+    struct App const* app,
+    char const* iface_name,
+    int child);
 
 #include "plugin/torirs_plugin_bridge.u.c"
 #include "plugin/torirs_plugin_panel.u.c"
@@ -7447,6 +7461,16 @@ App_Init(
     app->player_attack_option = RS_ATTACK_OPTION_DEFAULT;
     app->npc_attack_option = RS_ATTACK_OPTION_DEFAULT;
 
+    /* Before any subsystem: RS_CS2Host_Init wants its script ids, and the
+     * boot font loads want theirs. Local-file parse only — no cache IO, so it
+     * does not need the task runtime that phase 1 builds below. */
+    RevConfigRefs_Init(&app->revconfig_refs);
+    RevConfigRefs_LoadSources(
+        &app->revconfig_refs,
+        app->cfg.revconfig_ui_ini,
+        app->cfg.revconfig_cache_ini,
+        app->cfg.revconfig_inline_ini);
+
     ToriDraw_Init();
 
     /* Phase 1: task runtime + disk. The runner owns the async pipeline every
@@ -7608,6 +7632,12 @@ App_Init(
         TORIDRAW_SCRATCH_BUFFER_VERYHIGH_16K);
     assert(app->scene);
     UITreeSceneBridge_Init(&app->bridge, app->scene, app->provider);
+    /* The seq the design/local-player previews are posed at. Stated here, once,
+     * for both the boot bake and the runtime interface mount — they share the
+     * bridge and nothing else. -1 when the profile does not name one, which
+     * leaves the preview in its bind pose instead of another cache's animation. */
+    app->bridge.player_idle_seq =
+        RevConfigRefs_Get(&app->revconfig_refs, "seq", "human_readyanim");
 
     /* Phase 4: game state (host needs tree + provider + invs + varps, then
      * the bridge for icon rasterization). */
@@ -7715,7 +7745,14 @@ App_Init(
      * welcome message; its only "Welcome to RuneScape" is the login title). */
     app->chat_source.line_at = app_chat_line_at;
     app->chat_source.user = app;
-    RS_CS2Host_Init(&app->host, app->tree, app->provider, &app->invs, &app->varps, &app->varcs);
+    RS_CS2Host_Init(
+        &app->host,
+        app->tree,
+        app->provider,
+        &app->invs,
+        &app->varps,
+        &app->varcs,
+        &app->revconfig_refs);
     app->host.loot = &app->loot;
     app->host.events_override_for_component = app_cs2_events_override_for_component;
     app->host.events_user = app;
@@ -8099,7 +8136,7 @@ App_Init(
     editor_skipped:;
     }
 
-    /* Phase 6: networking (opt-in). The default RSA key is the rev_245_2 Lost
+    /* Phase 6: networking (opt-in). The default RSA key is the rs245_2lc Lost
      * City pair (v0 tori_rs_init); TORIRS_RSA_EXP/MOD override it. */
     if( cfg->connect_target && cfg->connect_target[0] )
     {
@@ -8291,12 +8328,67 @@ App_Shutdown(struct App* app)
     free(app->if_heads);
     free(app->if_player_models);
     free(app->if_hides);
+    RevConfigRefs_Free(&app->revconfig_refs);
+}
+
+/*
+ * Cache font id for a RevConfig `[font:<name>]` section on this cache.
+ *
+ * -1 when the profile does not declare it, which every caller already handles
+ * the same way it handles a font that has not finished loading: draw nothing,
+ * or fall back to whatever font a text node already resolved.
+ */
+static int
+app_font_cache_id(
+    struct App const* app,
+    char const* font_name)
+{
+    assert(app);
+    assert(font_name);
+    return RevConfigRefs_FontCacheId(
+        &app->revconfig_refs, font_name, app->cfg.cache_kind == APP_CACHE_DAT1);
 }
 
 static int
 app_font_b12_cache_id(struct App const* app)
 {
-    return app->cfg.cache_kind == APP_CACHE_DAT1 ? APP_FONT_B12_DAT1_SLOT : APP_FONT_B12_CACHE_ID;
+    return app_font_cache_id(app, APP_FONT_B12);
+}
+
+/*
+ * Packed component uid — `(iface << 16) | child` — for a RevConfig
+ * `[iface:<name>]` section, or -1 when this profile declares no such interface.
+ *
+ * The CHILD number stays in C: which component of the XP panel holds the stat
+ * listener is a fact about that interface's own layout, and it travels with the
+ * interface. Which id the interface HAS does not, so that half is the
+ * profile's.
+ */
+static int
+app_iface_com(
+    struct App const* app,
+    char const* iface_name,
+    int child)
+{
+    int iface;
+    assert(app);
+    assert(iface_name);
+    assert(child >= 0);
+    iface = RevConfigRefs_Get(&app->revconfig_refs, "iface", iface_name);
+    if( iface < 0 )
+        return -1;
+    return (iface << 16) | child;
+}
+
+/** Id of a `[setting:<name>]` row, or -1 when this profile has no such row. */
+static int
+app_setting_id(
+    struct App const* app,
+    char const* setting_name)
+{
+    assert(app);
+    assert(setting_name);
+    return RevConfigRefs_Get(&app->revconfig_refs, "setting", setting_name);
 }
 
 /* Scene font for hitsplat numbers; queues the load on a miss the same way
@@ -8307,9 +8399,11 @@ app_font_b12_cache_id(struct App const* app)
 static int
 app_hitsplat_font_scene_id(struct App* app)
 {
-    int font_cache_id =
-        app->cfg.cache_kind == APP_CACHE_DAT1 ? APP_FONT_P11_DAT1_SLOT : APP_FONT_P11_CACHE_ID;
-    int scene_id = UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id);
+    int font_cache_id = app_font_cache_id(app, APP_FONT_P11);
+    int scene_id;
+    if( font_cache_id < 0 )
+        return -1;
+    scene_id = UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id);
     if( scene_id < 0 )
     {
         struct ToriRS_Task* task = CreateTask_FontLoad(app->provider, font_cache_id);
@@ -8323,8 +8417,9 @@ static int
 app_minimenu_font_scene_id(struct App* app)
 {
     int font_cache_id = app_font_b12_cache_id(app);
-    int scene_id = UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id);
-    if( scene_id <= 0 )
+    int scene_id = font_cache_id >= 0 ? UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id)
+                                      : -1;
+    if( scene_id <= 0 && font_cache_id >= 0 )
     {
         /* Queue the load (no blocking drain — the boot task awaits this font
          * before binding the configured overlay models, so at runtime a miss
@@ -10520,8 +10615,15 @@ Task_AppBoot_Run(
 
     app->boot_progress = 60;
 
-    /* Shared b12 fallback before configured overlay models are bound. */
-    PT_TASK_AWAITSELF_IF(CreateTask_FontLoad(app->provider, app_font_b12_cache_id(app)));
+    /* Shared b12 fallback before configured overlay models are bound. Normally
+     * already resident — the RevConfig assets pass loads every declared
+     * [font:…] — so this only does work when the profile reaches b12 through a
+     * different section. A profile that declares no b12 at all skips it, and
+     * the minimenu falls back to a text node's font. */
+    PT_TASK_AWAITSELF_IF(
+        app_font_b12_cache_id(app) >= 0
+            ? CreateTask_FontLoad(app->provider, app_font_b12_cache_id(app))
+            : NULL);
 
     app->boot_progress = 75;
 
@@ -11521,14 +11623,14 @@ app_net_link_watch(
 /*
  * XP-drop panel probe (TORIRS_XPDROP_DEBUG=1).
  *
- * Interface 122 is entirely client-driven and its failure modes all present the
+ * The panel is entirely client-driven and its failure modes all present the
  * same way — no drops — so the probe prints the three states that separate them
- * and nothing else. Component ids are the cache's (122:2 statlistener holds the
- * stat-transmit hook, 122:17 drops_container, 122:18..24 the seven rows); they
- * are stable across rev 230 and 239.
+ * and nothing else. The interface is the profile's `[iface:xpdrop]`; the child
+ * numbers are that interface's own layout (child 2 statlistener holds the
+ * stat-transmit hook, 17 drops_container, 18..24 the seven rows) and travel
+ * with it, stable across rev 230 and 239.
  */
-#define APP_XPDROP_IFACE 122
-#define APP_XPDROP_COM(child) ((APP_XPDROP_IFACE << 16) | (child))
+#define APP_XPDROP_COM(child) app_iface_com(app, "xpdrop", (child))
 #define APP_XPDROP_ROW_COUNT 7
 
 static int
@@ -13394,14 +13496,16 @@ app_draw_viewport_message(
         }
     }
 
-    font_cache_id =
-        app->cfg.cache_kind == APP_CACHE_DAT1 ? APP_FONT_P12_DAT1_SLOT : APP_FONT_P12_CACHE_ID;
-    scene_id = UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id);
+    font_cache_id = app_font_cache_id(app, APP_FONT_P12);
+    scene_id = font_cache_id >= 0 ? UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id) : -1;
     if( scene_id < 0 )
     {
-        struct ToriRS_Task* task = CreateTask_FontLoad(app->provider, font_cache_id);
-        if( task )
-            ToriRS_TaskQueue_Add(app->runner.queue, task);
+        if( font_cache_id >= 0 )
+        {
+            struct ToriRS_Task* task = CreateTask_FontLoad(app->provider, font_cache_id);
+            if( task )
+                ToriRS_TaskQueue_Add(app->runner.queue, task);
+        }
         scene_id = app_minimenu_font_scene_id(app);
     }
     if( scene_id < 0 )
@@ -23270,23 +23374,29 @@ App_RunOnce(
             /*
              * The two BUTTON rows, which the cache does not act on itself.
              *
-             * "Clear your highlighted tiles" (117) and "Clear your highlighted
-             * NPCs" (267) both reach clientscript 3969, whose switch has no
+             * "Clear your highlighted tiles" and "Clear your highlighted
+             * NPCs" both reach the settings apply hub, whose switch has no
              * case for either -- the only thing it does for them is write the
-             * setting id to varbit 9657, which is how they get here at all.
-             * The reference clears the group natively; so does this.
+             * setting id to the settings-changed varbit, which is how they get
+             * here at all. The reference clears the group natively; so does
+             * this.
              *
              * Which group each is, and why they are different groups even
              * though both are 6, is stated once in rs_highlight.h beside the
              * two constants -- a cache id this client has to know by number
              * belongs where it can be checked against the cache.
              */
-            if( setting_id == APP_SETTING_CLEAR_TILE_MARKERS )
+            int const clear_tiles = app_setting_id(app, APP_SETTING_CLEAR_TILE_MARKERS);
+            int const clear_npcs = app_setting_id(app, APP_SETTING_CLEAR_NPC_TAGS);
+            /* Both tested for >= 0 first: an undeclared row is -1, and the id
+             * on the wire must never be allowed to match "there is no such
+             * row". */
+            if( clear_tiles >= 0 && setting_id == clear_tiles )
                 RS_HighlightClear(
                     &app->host.highlight,
                     RS_HIGHLIGHT_TILE,
                     RS_HIGHLIGHT_GROUP_TILE_MARKERS);
-            else if( setting_id == APP_SETTING_CLEAR_NPC_TAGS )
+            else if( clear_npcs >= 0 && setting_id == clear_npcs )
                 RS_HighlightClear(
                     &app->host.highlight, RS_HIGHLIGHT_NPC, RS_HIGHLIGHT_GROUP_NPC_TAGS);
             PluginHost_Setting(app->plugins, setting_id, setting_value);

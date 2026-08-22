@@ -84,6 +84,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_CACHE_FONT_NAME";
     case RCFIELD_CACHE_FONT_ID:
         return "RCFIELD_CACHE_FONT_ID";
+    case RCFIELD_CACHEREF_ID:
+        return "RCFIELD_CACHEREF_ID";
     case RCFIELD_UICOMPONENT_TYPE:
         return "RCFIELD_UICOMPONENT_TYPE";
     case RCFIELD_UICOMPONENT_SPRITE:
@@ -362,9 +364,26 @@ revconfig_item_set_name(
     case RCITEM_HOTKEY:
         strncpy(item->u.hotkey.name, value, sizeof(item->u.hotkey.name) - 1);
         break;
+    case RCITEM_CACHE_REF:
+        strncpy(item->u.cacheref.name, value, sizeof(item->u.cacheref.name) - 1);
+        break;
     default:
         break;
     }
+}
+
+/** True when `type_value` names one of REVCONFIG_CACHEREF_KINDS. */
+static int
+revconfig_type_is_cacheref(const char* type_value)
+{
+    static char const* const kinds[] = { REVCONFIG_CACHEREF_KINDS };
+    assert(type_value);
+    for( size_t i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++ )
+    {
+        if( strcmp(type_value, kinds[i]) == 0 )
+            return 1;
+    }
+    return 0;
 }
 
 static void
@@ -401,6 +420,15 @@ revconfig_item_begin(
         item->kind = RCITEM_INV;
     else if( strcmp(type_value, "hotkey") == 0 )
         item->kind = RCITEM_HOTKEY;
+    else if( revconfig_type_is_cacheref(type_value) )
+    {
+        item->kind = RCITEM_CACHE_REF;
+        /* -1, not 0: 0 is a real script/iface/seq/varbit id, so a section that
+         * forgot its id= would otherwise read as a binding to whatever thing
+         * happens to be numbered zero. */
+        item->u.cacheref.id = -1;
+        strncpy(item->u.cacheref.kind, type_value, sizeof(item->u.cacheref.kind) - 1);
+    }
     else
         item->kind = RCITEM_NONE;
 }
@@ -944,6 +972,10 @@ revconfig_item_apply_field(
                 sizeof(item->u.inv.items[item->u.inv.item_count]) - 1);
             item->u.inv.item_count++;
         }
+        break;
+    case RCITEM_CACHE_REF:
+        if( kind == RCFIELD_CACHEREF_ID )
+            item->u.cacheref.id = atoi(value);
         break;
     case RCITEM_HOTKEY:
         if( kind == RCFIELD_HOTKEY_COMPONENT )

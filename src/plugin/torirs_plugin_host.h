@@ -87,6 +87,9 @@ struct ToriRS_PluginEngine
     int (*varbit)(void* user, int varbit_id);
     int (*varp)(void* user, int varp_id);
 
+    /** The boot profile's `[<kind>:<name>] id=` table. @see ToriRS_PluginApi::cache_id. */
+    int (*cache_id)(void* user, char const* kind, char const* name);
+
     int (*project)(
         void* user,
         int fine_x,

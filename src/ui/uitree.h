@@ -76,14 +76,14 @@ enum UITreeComponentType
      * because no interface owns it -- the reference plots it straight onto the
      * viewport -- but its sprite and its place are revconfig's, not C's.
      */
-    UIELEM_BUILTIN_MULTIWAY = 28,
+    UIELEM_BUILTIN_MULTIWAY = 29,
     /**
      * System-update countdown (UPDATE_REBOOT_TIMER): one line of text over the
      * viewport while an update is pending. Same deal as MULTIWAY -- font,
      * colour and position come from revconfig, the host supplies the string
      * and whether there is one.
      */
-    UIELEM_BUILTIN_REBOOT_TIMER = 29,
+    UIELEM_BUILTIN_REBOOT_TIMER = 30,
     UIELEM_RS_TEXT = 14,     /* TYPE_TEXT */
     UIELEM_RS_GRAPHIC = 15,  /* TYPE_GRAPHIC */
     UIELEM_RS_MODEL = 16,    /* TYPE_MODEL */

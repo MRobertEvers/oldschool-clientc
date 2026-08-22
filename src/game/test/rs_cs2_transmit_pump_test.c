@@ -111,7 +111,7 @@ fixture_init(struct Fixture* fx)
     fx->bc = dat2_buildcache_new();
     provider = dat2_buildcache_as_provider(fx->bc);
     InvManager_Init(&fx->invs);
-    RS_CS2Host_Init(&fx->host, fx->tree, provider, &fx->invs, NULL, NULL);
+    RS_CS2Host_Init(&fx->host, fx->tree, provider, &fx->invs, NULL, NULL, NULL);
 
     /* The pump reads runner->queue and nothing else — it enqueues dispatch
      * tasks, it does not run them. Leaving io/px NULL keeps this test off the

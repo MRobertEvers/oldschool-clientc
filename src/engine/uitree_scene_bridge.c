@@ -166,6 +166,8 @@ UITreeSceneBridge_Init(
     bridge->obj_model_map = bridge_hmap_new(sizeof(struct MapEntry_BridgeId), BRIDGE_MODEL_MAP_CAP);
     for( int slot = 0; slot < STATIC_SPRITE_COUNT; slot++ )
         bridge->static_sprite_scene[slot] = -1;
+    /* 0 is a real seq id; -1 is "the profile has not said". */
+    bridge->player_idle_seq = -1;
     bridge->player_scene_id = -1;
     bridge->local_player_scene_id = -1;
     bridge->player_head_scene_id = -1;

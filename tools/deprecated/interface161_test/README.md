@@ -111,7 +111,7 @@ Decode-only (no BMP): omit `--sprites` and the output path. The tool still print
 ### In-archive parents vs runtime gameframe mounts
 
 - **In-archive**: `layer` points to another widget in the **same** archive (e.g. equipment files 9–25 parent to file 0 in archive **387**).
-- **Cross-archive**: gameframe **165** child **12** mounts archive **387** at runtime (`IF_SETTAB` / `rev_kronos_ui.ini` `componentno`); this relationship is **not** stored in archive 387's component data.
+- **Cross-archive**: gameframe **165** child **12** mounts archive **387** at runtime (`IF_SETTAB` / `osrs_kronos_ui.ini` `componentno`); this relationship is **not** stored in archive 387's component data.
 
 ### Equipment panel (archive 387): static vs CS2 chrome
 
@@ -186,11 +186,11 @@ In dat2, an “interface id” is an **archive id** in the interfaces table. Pac
 | **387**, **149**, … | Sidebar **tab panels**                        | 190×261 (`--panel`) | Equipment, inventory, etc.                                                       |
 
 
-The full in-game fixed HUD (invback, mapback, tab stones, world viewport) is assembled from **revconfig sprites + archive 165 + tab archives**. This tool renders **cache archives only**; it does not load `rev_kronos_ui.ini` chrome.
+The full in-game fixed HUD (invback, mapback, tab stones, world viewport) is assembled from **revconfig sprites + archive 165 + tab archives**. This tool renders **cache archives only**; it does not load `osrs_kronos_ui.ini` chrome.
 
 ### Fixed gameframe + one sidebar tab (equipment)
 
-Archive **165** is the gameframe root. Mount the equipment panel (**387**) on child **12** (tab 4 per `rev_kronos_ui.ini`).
+Archive **165** is the gameframe root. Mount the equipment panel (**387**) on child **12** (tab 4 per `osrs_kronos_ui.ini`).
 
 **Slot chrome** (no item icons):
 
@@ -270,7 +270,7 @@ To add worn item icons on top of slots, add `--fixture` (CS2 path; does not draw
 
 ## Equipment panel example (interface 387 + fixture)
 
-Interface **387** is the Kronos/OSRS **Equipment** sidebar panel (`componentno=387` in `rev_kronos_ui.ini` / `rev_osrs_ui.ini`).
+Interface **387** is the Kronos/OSRS **Equipment** sidebar panel (`componentno=387` in `osrs_kronos_ui.ini` / `osrs_static_ui.ini`).
 
 The bundled fixture seeds container **94** (worn) with sample items at equipment slot file indices **15**, **18**, **19**, **21**, **23**. The CS2 `onInvTransmit` script reads `inv_getobj` / `inv_size` and calls `cc_create` + `cc_setobject` to place icons (same path as the live client after `GameRunescape_DispatchInvTransmit`).
 

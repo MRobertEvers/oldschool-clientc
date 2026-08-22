@@ -627,6 +627,17 @@ api_varp(struct ToriRS_PluginCtx* ctx, int varp_id)
     return ctx->host->engine.varp(ctx->host->engine.user, varp_id);
 }
 
+static int
+api_cache_id(struct ToriRS_PluginCtx* ctx, char const* kind, char const* name)
+{
+    assert(ctx);
+    assert(kind);
+    assert(name);
+    if( !ctx->host->engine.cache_id )
+        return -1;
+    return ctx->host->engine.cache_id(ctx->host->engine.user, kind, name);
+}
+
 static uint32_t
 api_setting_color(struct ToriRS_PluginCtx* ctx, int varp_id, uint32_t fallback)
 {
@@ -1572,6 +1583,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .cfg_set = api_cfg_set,
         .varbit = api_varbit,
         .varp = api_varp,
+        .cache_id = api_cache_id,
         .setting_color = api_setting_color,
         .menu_add = api_menu_add,
         .draw_tile = api_draw_tile,

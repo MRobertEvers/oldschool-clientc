@@ -459,7 +459,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	net/rev/osrs230/gameproto_rev_osrs230.c net/rev/osrs230/osrs230_parse.c \
 	net/rev/osrs239/gameproto_rev_osrs239.c net/rev/osrs239/osrs239_parse.c \
 	net/rev/osrs239/osrs239_entity_info.c \
-	revconfig/revconfig.c revconfig/revconfig_load.c \
+	revconfig/revconfig.c revconfig/revconfig_load.c revconfig/revconfig_refs.c \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
 	engine/world_builder/task_world_load.c \
@@ -1969,6 +1969,7 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_chrome_cs2.c ui/torirs_chrome_exec_cs2.c \
 		$(CHROME_EXEC_TEST_CFLAGS) \
 		ui/test/uitree_test_entity_overlay_order.c \
+		ui/test/uitree_test_server_viewport.c \
 		ui/test/uitree_test_scripted_overlay.c render/torirs_arc.c -lm
 	./$(OBJ_DIR)/uitree_test
 
@@ -2271,7 +2272,7 @@ test-cs2-transmit-pump: $(OBJ_DIR) $(OBJS)
 	./$(OBJ_DIR)/rs_cs2_transmit_pump_test
 
 # Runtime interface-slot API contract test (IF_OPENMAIN/IF_OPENSIDE/IF_SETTAB
-# surface) against the real dat1 cache + rev_245_2 RevConfig build.
+# surface) against the real dat1 cache + rs245_2lc RevConfig build.
 test-ui-slots: $(OBJ_DIR) $(OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_ui_slots_test \
 		game/test/rs_ui_slots_test.c \
@@ -2289,7 +2290,7 @@ test-uitree-builder-dat1: $(OBJ_DIR) $(OBJS)
 
 test-revconfig: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/revconfig -I$(SRC_DIR)/revconfig/test -o $(OBJ_DIR)/revconfig_test \
-		revconfig/revconfig.c revconfig/revconfig_load.c $(INI_SRC) \
+		revconfig/revconfig.c revconfig/revconfig_load.c revconfig/revconfig_refs.c $(INI_SRC) \
 		revconfig/test/revconfig_test_main.c revconfig/test/revconfig_test_buffer.c \
 		revconfig/test/revconfig_test_items.c revconfig/test/revconfig_test_load.c \
 		revconfig/test/revconfig_test_parse.c

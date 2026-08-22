@@ -19,25 +19,6 @@ struct Task_StaticSpritesLoad
     int slot;
 };
 
-/* Resolve the slot's archive to a provider sprite id, or -1. Named RevConfig
- * loads (dat1 chrome INIs) already registered most of these. */
-static int
-static_sprite_lookup(
-    struct CacheProvider* provider,
-    struct StaticSpriteDef const* def)
-{
-    int sprite_id = CacheProvider_SpriteIdByName(provider, def->name);
-    if( sprite_id >= 0 && CacheProvider_SpriteHas(provider, sprite_id) )
-        return sprite_id;
-    if( def->dat2_name )
-    {
-        sprite_id = CacheProvider_SpriteIdByName(provider, def->dat2_name);
-        if( sprite_id >= 0 && CacheProvider_SpriteHas(provider, sprite_id) )
-            return sprite_id;
-    }
-    return -1;
-}
-
 static int
 Task_StaticSpritesLoad_Run(
     struct ToriRS_Task* base,
@@ -47,67 +28,45 @@ Task_StaticSpritesLoad_Run(
 
     assert(self->provider);
     assert(self->bridge);
+    (void)io;
 
     PT_BEGIN(&self->pt);
 
-    /* Locals never survive a yield: everything is re-derived from self->slot. */
+    /*
+     * Pure bind pass: Task_UIBuilderAssetsLoad has already decoded every
+     * `[sprite:…]` the profile declared and registered it under its section
+     * name, so all this does is point the host's slots at the ones it draws
+     * itself. Nothing here names an archive — a slot the profile did not
+     * declare simply stays unbound, and the overlay that wanted it draws
+     * nothing.
+     *
+     * Locals never survive a yield; there are none to survive here, and the
+     * loop body no longer yields at all.
+     */
     for( self->slot = 0; self->slot < STATIC_SPRITE_COUNT; self->slot++ )
     {
+        char const* name = StaticSprite_SlotName((enum StaticSpriteSlot)self->slot);
+        int sprite_id;
+        int scene_id;
+
         if( UITreeSceneBridge_StaticSpriteSceneId(
                 self->bridge, (enum StaticSpriteSlot)self->slot) > 0 )
             continue;
 
-        /* Dat2: resolve the sprites-table archive by name. No-op on dat1
-         * (vtable slot unset -> creator returns NULL). */
-        if( static_sprite_lookup(
-                self->provider, StaticSprite_Def((enum StaticSpriteSlot)self->slot)) < 0 &&
-            StaticSprite_Def((enum StaticSpriteSlot)self->slot)->dat2_name )
+        sprite_id = CacheProvider_SpriteIdByName(self->provider, name);
+        if( sprite_id < 0 || !CacheProvider_SpriteHas(self->provider, sprite_id) )
         {
-            PT_TASK_AWAITSELF_IF(CreateTask_SpriteLoadByName(
-                self->provider,
-                StaticSprite_Def((enum StaticSpriteSlot)self->slot)->dat2_name));
-        }
-
-        /* Dat1: decode the named media-jagfile sprite. No-op on dat2. */
-        if( static_sprite_lookup(
-                self->provider, StaticSprite_Def((enum StaticSpriteSlot)self->slot)) < 0 &&
-            StaticSprite_Def((enum StaticSpriteSlot)self->slot)->dat1_name )
-        {
-            struct StaticSpriteDef const* def =
-                StaticSprite_Def((enum StaticSpriteSlot)self->slot);
-            char data_filename[80];
-            struct CacheProviderSpriteSource src;
-
-            snprintf(data_filename, sizeof(data_filename), "%s.dat", def->dat1_name);
-            memset(&src, 0, sizeof(src));
-            src.name = def->name;
-            src.format = def->dat1_format;
-            src.data_filename = data_filename;
-            src.index_filename = "index.dat";
-            src.atlas_index = 0;
-            src.atlas_count = def->dat1_atlas_count;
-            PT_TASK_AWAITSELF_IF(CreateTask_SpriteLoadFromSource(self->provider, &src));
-        }
-
-        {
-            struct StaticSpriteDef const* def =
-                StaticSprite_Def((enum StaticSpriteSlot)self->slot);
-            int sprite_id = static_sprite_lookup(self->provider, def);
-            int scene_id;
-            if( sprite_id < 0 )
-            {
-                /* Era-absent or missing archive: leave the slot unbound. */
-                if( getenv("TORIRS_STATIC_SPRITE_DEBUG") )
-                    fprintf(stderr, "static_sprite: '%s' unresolved\n", def->name);
-                continue;
-            }
-            scene_id = UITreeSceneBridge_EnsureStaticSprite(
-                self->bridge, (enum StaticSpriteSlot)self->slot, sprite_id);
+            /* Era-absent or undeclared: leave the slot unbound. */
             if( getenv("TORIRS_STATIC_SPRITE_DEBUG") )
-                fprintf(
-                    stderr, "static_sprite: '%s' sprite=%d scene=%d\n", def->name, sprite_id,
-                    scene_id);
+                fprintf(stderr, "static_sprite: '%s' unresolved\n", name);
+            continue;
         }
+
+        scene_id = UITreeSceneBridge_EnsureStaticSprite(
+            self->bridge, (enum StaticSpriteSlot)self->slot, sprite_id);
+        if( getenv("TORIRS_STATIC_SPRITE_DEBUG") )
+            fprintf(
+                stderr, "static_sprite: '%s' sprite=%d scene=%d\n", name, sprite_id, scene_id);
     }
 
     PT_END(&self->pt);

@@ -886,9 +886,12 @@ app_plugin_panel_apply(struct App* app, int widget)
  */
 
 /** interface 728 `popout`, and the two components of it this uses. */
-#define APP_POPOUT_IFACE 728
-#define APP_POPOUT_BUTTONS ((APP_POPOUT_IFACE << 16) | 6)
-#define APP_POPOUT_CONTAINER ((APP_POPOUT_IFACE << 16) | 9)
+/* The popout strip the panel mounts into. Its id is the profile's
+ * `[iface:plugin_popout]`; children 6 (button row) and 9 (panel slot) are that
+ * interface's own layout. Both read -1 when the profile does not declare it,
+ * and every use below already treats "not found" as "no strip to mount in". */
+#define APP_POPOUT_BUTTONS app_iface_com(app, "plugin_popout", 6)
+#define APP_POPOUT_CONTAINER app_iface_com(app, "plugin_popout", 9)
 /** Slot 3: the strip ships 0..2 (XP Tracker, Loot Tools, Hiscores). */
 #define APP_POPOUT_SLOT_PLUGINS 3
 /** Geometry read off the live strip: 30x30 icons on a 36px pitch. */
@@ -1125,6 +1128,12 @@ app_plugin_popout_claim(struct App* app)
     assert(app);
     assert(app->tree);
 
+    /* No `[iface:plugin_popout]` in this profile: there is no strip and no slot
+     * to take. Not a contract violation — a rev with no popout strip is a real
+     * rev — so it returns rather than asserting. */
+    if( APP_POPOUT_CONTAINER < 0 )
+        return;
+
     held = app_plugin_popout_holder(app);
     if( held == TORIRS_CHROME_CS2_GROUP )
         return;
@@ -1277,8 +1286,7 @@ app_plugin_exec_bind_inner(struct App* app)
          * in the game's own p12 (below), resolved per build. */
         int const font = UITreeSceneBridge_EnsureDebugFont(&app->bridge, TORIRS_CHROME_FONT_BODY);
         /* The p12 body face, the one interface text is set in. */
-        int const p12 = app->cfg.cache_kind == APP_CACHE_DAT1 ? APP_FONT_P12_DAT1_SLOT
-                                                              : APP_FONT_P12_CACHE_ID;
+        int const p12 = app_font_cache_id(app, APP_FONT_P12);
         /*
          * Mounted INTO the strip's panel slot, not as a root of its own.
          *
