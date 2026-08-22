@@ -482,8 +482,8 @@ cp_unpack_hitsplat(
             w += snprintf(list + w, sizeof(list) - (size_t)w, i ? ",%d" : "%d",
                           entry.variants[i]);
         cp_lines_addf(out, "variantop=%d", entry.variant_opcode);
-        cp_lines_addf(out, "variantabc=%d,%d,%d", entry.variant_a, entry.variant_b,
-                      entry.variant_c);
+        cp_lines_addf(out, "variantvar=%d,%d,%d", entry.variant_varbit, entry.variant_varp,
+                      entry.variant_fallback);
         cp_lines_addf(out, "variants=%s", list);
     }
 
@@ -607,7 +607,12 @@ cp_pack_hitsplat(
         }
         else if( strcmp(key, "variantop") == 0 )
             ok = cp_parse_int(value, &entry.variant_opcode);
-        else if( strcmp(key, "variantabc") == 0 )
+        /* `variantvar` was `variantabc` for as long as nobody knew the three
+         * fields were a varbit, a varp and a fallback. The old spelling is not
+         * accepted: a file still carrying it was written by the decoder that
+         * also emitted `opcode49`, and silently half-reading such a file is how
+         * every hitsplat in the baked cache lost its text and its selector. */
+        else if( strcmp(key, "variantvar") == 0 )
         {
             char scratch[64];
             char* fields[3];
@@ -616,9 +621,9 @@ cp_pack_hitsplat(
             else if( cp_split(value, scratch, fields, 3) != 3 )
                 ok = 0;
             else
-                ok = cp_parse_int(fields[0], &entry.variant_a) &&
-                     cp_parse_int(fields[1], &entry.variant_b) &&
-                     cp_parse_int(fields[2], &entry.variant_c);
+                ok = cp_parse_int(fields[0], &entry.variant_varbit) &&
+                     cp_parse_int(fields[1], &entry.variant_varp) &&
+                     cp_parse_int(fields[2], &entry.variant_fallback);
         }
         else if( strcmp(key, "variants") == 0 )
         {

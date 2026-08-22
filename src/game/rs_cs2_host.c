@@ -6893,6 +6893,23 @@ exec_social(
     }
 }
 
+/* Push a string, through the pool's shared empty when there is nothing to say.
+ * The history opcodes run once per chat line drawn and most of their strings
+ * are empty (a server message has no sender), so this is the difference
+ * between a rebuild that touches the pool three times per line and one that
+ * does not touch it at all. Mirrors CHAT_PLAYERNAME below. */
+static int
+rs_cs2_push_text(
+    struct CS2VM2_Thread* vm,
+    char const* text)
+{
+    assert(vm);
+    assert(text);
+    if( text[0] )
+        return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, text));
+    return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
+}
+
 static int
 exec_chat(
     struct RS_CS2Host* host,
@@ -7047,11 +7064,11 @@ exec_chat(
             return CS2VM_EXECNO_ERROR;
         if( CS2VM2_PushInt(vm, node ? node->clock : 0) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, node ? node->name : "")) != CS2VM_EXECNO_OK )
+        if( rs_cs2_push_text(vm, node ? node->name : "") != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, node ? node->sender : "")) != CS2VM_EXECNO_OK )
+        if( rs_cs2_push_text(vm, node ? node->sender : "") != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        if( CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, node ? node->text : "")) != CS2VM_EXECNO_OK )
+        if( rs_cs2_push_text(vm, node ? node->text : "") != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
         if( !extended )
             return CS2VM_EXECNO_OK;
@@ -7083,9 +7100,7 @@ exec_chat(
         return CS2VM_EXECNO_OK;
 
     case CS2_OP_CHAT_GETMESSAGEFILTER:
-        if( host->chat && host->chat->message_filter[0] )
-            return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, host->chat->message_filter));
-        return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
+        return rs_cs2_push_text(vm, host->chat ? host->chat->message_filter : "");
 
     case CS2_OP_CHAT_SETTIMESTAMPS:
         if( host->chat )

@@ -3535,6 +3535,20 @@ struct ToriRSServerPlayer
     int attack_clock;
 
     /*
+     * The enemy health overlay's session state (torirs_server_hpbar.c).
+     *
+     * `linger` is what keeps the panel up across the gap between one npc dying
+     * and the next click; the last reading is held with it because by then the
+     * slot may belong to somebody else, and re-reading it would put a stranger's
+     * hitpoints on the bar.
+     */
+    int hpbar_open;
+    int hpbar_linger;
+    int hpbar_last_type;
+    int hpbar_last_hp;
+    int hpbar_last_max;
+
+    /*
      * Skills. `level` is the base level, `boosted` what a potion or a drain
      * left it at, and `xp` is in tenths of a point — OldSchool's hitpoints
      * award is 4/3 of the damage dealt, which is not an integer, and rounding
@@ -6498,6 +6512,16 @@ void
 ToriRSServer_SendIfClosesub(
     struct ToriRSServerPlayer* player,
     int uid);
+
+/**
+ * Keep the enemy health overlay (interface `hpbar_hud`) in step with what this
+ * player is fighting: open it, feed it, close it. Once per tick, after the
+ * combat tick has settled the target. See torirs_server_hpbar.c.
+ */
+void
+ToriRSServer_HpBarTick(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player);
 /** Record a mount into (or out of) the gameframe's modal slots. Called by the
  *  IF_OPENSUB / IF_CLOSESUB encoders, so no opener has to remember to; `group`
  *  is 0 for a close. CLOSE_MODAL is what reads it back. */

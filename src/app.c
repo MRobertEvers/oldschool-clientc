@@ -23712,9 +23712,10 @@ App_RunOnce(
 
     /* The line was sent this frame, so the focus goes with it: the next key
      * belongs to the hotkeys again until Enter asks for the line back. Applied
-     * here rather than in the focus tick because both submit paths -- the
-     * clientscript dispatched in the keyboard broadcast, and the dat1
-     * RS_Chat_HandleKey loop -- had to have the frame's Enter first. */
+     * here rather than in the focus tick because the dat1 RS_Chat_HandleKey
+     * loop had to have the frame's Enter first. Dead at a cache revision,
+     * where there is no client-owned focus and `chat_submit_pending` is never
+     * raised -- the chatbox's own onKey script owns submitting there. */
     if( chat_submit_pending && app->chat_input_active )
     {
         app->chat_input_active = 0;

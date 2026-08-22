@@ -473,7 +473,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	plugin/torirs_plugin_host.c plugin/torirs_plugin_registry.c \
 	plugin/torirs_plugin_lua.c plugin/task_plugin_io.c \
 	plugin/plugins/tileind.c \
-	plugin/plugins/nxt_poll_booths.c plugin/plugins/nxt_highlight.c \
+	plugin/plugins/nxt_highlight.c \
 	plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
 	painters/painters.c \
 	painters/painters_cull_project.c \
@@ -509,6 +509,7 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_runenergy.c \
 	torirsserver/torirs_server_healthbarinfo.c \
 	torirsserver/torirs_server_npcinfo.c torirsserver/torirs_server_combat.c torirsserver/torirs_server_seqinfo.c \
+	torirsserver/torirs_server_hpbar.c \
 	torirsserver/torirs_server_scripts.c torirsserver/torirs_server_ws.c torirsserver/torirs_server_content.c \
 	torirsserver/torirs_server_servercodec.c torirsserver/torirs_server_servpack.c \
 	torirsserver/torirs_server_db.c \
@@ -1482,7 +1483,7 @@ test-clientop: $(OBJ_DIR) game/rs_clientop.c game/test/rs_clientop_test.c
 test-nxt-plugins: $(OBJ_DIR) plugin/test/nxt_activities_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/nxt_activities_test \
 		plugin/torirs_plugin_host.c ui/uitree_minimenu.c \
-		plugin/plugins/nxt_poll_booths.c plugin/plugins/nxt_highlight.c \
+		plugin/plugins/nxt_highlight.c \
 		plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
 		plugin/test/nxt_activities_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/nxt_activities_test

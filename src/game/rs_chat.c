@@ -67,6 +67,14 @@ chat_ring_push(
          * first, or the list keeps a node the ring is about to overwrite. */
         node = ring->lines[RS_CHAT_TYPE_LINES - 1];
         assert(node);
+        if( node->newer )
+            node->newer->older = node->older;
+        else
+            chat->newest = node->older;
+        if( node->older )
+            node->older->newer = node->newer;
+        else
+            chat->oldest = node->newer;
         if( chat->uid_memo == node )
             chat->uid_memo = NULL;
     }

@@ -31,14 +31,12 @@ extern struct ToriRS_PluginDef const TORIRS_PLUGIN_LUA;
  * enough to write the client's own features in, rather than only the extras.
  */
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_HIGHLIGHT;
-extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_POLL_BOOTHS;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_BIRD_NEST;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_CANNON_AMMO;
 
 static struct ToriRS_PluginDef const* const PLUGIN_TABLE[] = {
     &TORIRS_PLUGIN_TILEIND,
     &TORIRS_PLUGIN_NXT_HIGHLIGHT,
-    &TORIRS_PLUGIN_NXT_POLL_BOOTHS,
     &TORIRS_PLUGIN_NXT_BIRD_NEST,
     &TORIRS_PLUGIN_NXT_CANNON_AMMO,
     &TORIRS_PLUGIN_LUA,

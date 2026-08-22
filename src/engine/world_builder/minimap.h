@@ -221,7 +221,11 @@ minimap_set_tile_shape(
  * the former cache level 1 (the deck), 1←2, 2←3, and the old level 0 (the
  * underpass floor) wraps to the top plane. The land-settings (tile_flags) are
  * intentionally NOT shifted — the bake's VisBelow composite reads raw mapl, so
- * once the deck tile sits at level 0 it draws on the player's map. */
+ * once the deck tile sits at level 0 it draws on the player's map.
+ *
+ * A deck that states no floor of its own (a pier whose planks are loc geometry
+ * over the 0xFF00FF hole flo) keeps the displaced underpass colour rather than
+ * blanking the column — the reference's `linkedSquare`, see the function. */
 void
 minimap_push_down_tiles(
     struct Minimap* minimap,

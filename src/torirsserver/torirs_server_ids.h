@@ -61,6 +61,14 @@ struct ToriRSServerIds
     /** The world map, which opens into the gameframe's floater slot rather
      *  than into the main modal. */
     int iface_worldmap;
+    /**
+     * The enemy health overlay, which opens into the floater slot too.
+     *
+     * Four All Settings rows configure it (111, 299, 300, 301) and the cache
+     * lays it out itself; nothing in the cache OPENS it. See
+     * torirs_server_hpbar.c.
+     */
+    int iface_hpbar_hud;
 
     /* --- Containers (pack/inv.pack) --- */
 
@@ -219,6 +227,16 @@ struct ToriRSServerIds
      * config group 14 at runtime — see ToriRSServer_BankVarbitResolve — because
      * that is the same table the client unpacks them with.
      */
+    /** The npc type the enemy health overlay is about; -1 for none. */
+    int varp_hpbar_hud_npc;
+
+    /* The enemy health overlay's inputs and its switch. The switch is named
+     * `..._disabled` in the cache, which is the inversion stated rather than
+     * inferred: 1 is OFF. */
+    int varbit_hpbar_hud_hp;
+    int varbit_hpbar_hud_basehp;
+    int varbit_hpbar_hud_standard_off;
+
     int varbit_bank_withdrawnotes;
     int varbit_bank_insertmode;
     int varbit_bank_requestedquantity;

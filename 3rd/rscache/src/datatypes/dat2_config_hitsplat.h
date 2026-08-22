@@ -72,13 +72,38 @@ struct RSCache;
  * other dat2 type; if a cache ever carries one, that is the assumption to check
  * first.
  *
- * ### Opcode 18's payload was structured all along
+ * ### Opcode 18's payload was structured all along, and it is a multi-var selector
  *
  * The old header carried its 11 bytes raw and guessed `u16, i16, u16, u8, u16,
  * u16`, calling it "suggestive but not established". The reference confirms it
  * exactly: `u16, u16, u16, u8 count, u16[count+1]`, with 65535 meaning -1 — which
  * is why bytes 2-3 read as `ff ff` on every record. Opcode 17 is the same minus
  * the third u16.
+ *
+ * What those three fields ARE is the whole of settings 5 ("Hitsplat tinting")
+ * and 279 ("Max hit hitsplats"), and it went unnamed here for as long as the
+ * fields were called `variant_a/b/c`. They are a **varbit id, a varp id and a
+ * fallback**, and the type resolves exactly like `LocType::GetMultiLoc`
+ * (`HitmarkType::GetMultiHitmark`, NXT):
+ *
+ *     if      (varbit != -1) v = GetVarbit(varbit);
+ *     else if (varp   != -1) v = varp[varp];
+ *     else                   v = -1;
+ *     id = (v >= 0 && v < size - 1) ? array[v] : array[size - 1];
+ *     return id == -1 ? nullptr : HitmarkType::List(id);
+ *
+ * where `array` is the `count + 1` ids read from the stream **followed by** the
+ * opcode-18 fallback — the reference's own `count + 2` layout. Opcode 17 has no
+ * fallback of its own, so its last stream id doubles as one.
+ *
+ * `cache.osrs239` uses nothing else: of its 34 selector records, 25 are keyed on
+ * varbit 10236 (`hitsplat_tint_disabled`) and 9 on 14196
+ * (`hitsplat_maxhit_disabled`). The records are wrappers over leaf appearances
+ * and they pair — 16 "damage you dealt" resolves to leaf 28 either way, 17
+ * "damage someone else dealt" resolves to the tinted leaf 29 when the setting is
+ * on and to 28 when it is off. So a client that sends or stores the LEAF id has
+ * silently opted out of both settings; the wrapper is the id that carries the
+ * question.
  *
  * ## The two fields the client actually acts on
  *
@@ -152,11 +177,17 @@ struct RSCache_Dat2ConfigHitsplat
 
     /** 17 or 18, or 0 when neither was present. */
     int variant_opcode;
-    /** 65535 decodes to -1. */
-    int variant_a;
-    int variant_b;
-    /** Opcode 18 only; -1 for opcode 17. */
-    int variant_c;
+    /** The varbit whose value indexes `variants`. -1 when absent (65535 on the
+     *  wire), in which case `variant_varp` is consulted instead. */
+    int variant_varbit;
+    /** The varp whose value indexes `variants`, used only when
+     *  `variant_varbit` is -1. -1 when absent. */
+    int variant_varp;
+    /** The id used when neither var is set or the value is out of range.
+     *  Opcode 18 only; -1 for opcode 17, whose last `variants` entry serves. */
+    int variant_fallback;
+    /** The ids read from the stream, in var-value order. -1 is a real entry and
+     *  means "draw no splat at all", not "absent". */
     int variants[RSCACHE_HITSPLAT_MAX_VARIANTS];
     int variant_count;
 
