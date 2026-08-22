@@ -305,8 +305,6 @@ fill_tree_op_from_component(
     op->selected = comp->selected;
     strncpy(op->slot, comp->slot, sizeof(op->slot) - 1);
     op->level_mask = parse_paint_levels_mask(comp->paint_levels);
-    op->mmb_rotate = comp->mmb_rotate;
-    op->wheel_zoom = comp->wheel_zoom;
     op->hotkey_count = comp->hotkey_count;
     for( int i = 0; i < comp->hotkey_count && i < REVCONFIG_COMPONENT_HOTKEY_MAX; i++ )
         strncpy(op->hotkeys[i], comp->hotkeys[i], sizeof(op->hotkeys[i]) - 1);

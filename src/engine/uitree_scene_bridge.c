@@ -383,14 +383,14 @@ UITreeSceneBridge_ChromeScale(struct UITreeSceneBridge const* bridge)
     return bridge->chrome_scale > 0 ? bridge->chrome_scale : 1;
 }
 
-int
-UITreeSceneBridge_EnsureDebugFont(
+static int
+bridge_ensure_debug_font_at(
     struct UITreeSceneBridge* bridge,
-    int font_slot)
+    int font_slot,
+    int scale)
 {
     struct ToriDraw_Font const* baked;
     struct ToriDraw_Font* copy;
-    int const scale = UITreeSceneBridge_ChromeScale(bridge);
     int scene_id;
 
     assert(bridge);
@@ -451,6 +451,23 @@ UITreeSceneBridge_EnsureDebugFont(
 
     ToriDraw_SceneFontAdd(bridge->scene, scene_id, copy);
     return scene_id;
+}
+
+int
+UITreeSceneBridge_EnsureDebugFont(
+    struct UITreeSceneBridge* bridge,
+    int font_slot)
+{
+    return bridge_ensure_debug_font_at(
+        bridge, font_slot, UITreeSceneBridge_ChromeScale(bridge));
+}
+
+int
+UITreeSceneBridge_EnsureDebugFont1x(
+    struct UITreeSceneBridge* bridge,
+    int font_slot)
+{
+    return bridge_ensure_debug_font_at(bridge, font_slot, 1);
 }
 
 int

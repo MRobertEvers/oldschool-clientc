@@ -12,6 +12,30 @@
 #define UI_INV_SLOT_OFFSET_MAX 20
 /* UITreeComponent::child_key_max sentinels (below any real sub-id key). */
 #define UITREE_CHILD_KEY_UNKNOWN INT32_MIN
+/**
+ * Component ids for controls a PROFILE authored, one group below the chrome's.
+ *
+ * A revconfig `[component:]` has no cache id -- there is no interface behind
+ * it -- so the builder used to leave its component_id at -1, and that is the
+ * whole reason such a control could be hovered but never clicked: the click
+ * path carries a component ID, and `-1` reads as "the click landed on
+ * nothing". The mouseover line worked, the right-click menu worked, and the
+ * left click silently did nothing, which is the least debuggable shape a bug
+ * can take.
+ *
+ * A synthetic id fixes that for every authored control at once, and a RANGE is
+ * what makes it safe: it cannot collide with a cache uid (no interface is
+ * numbered 0x7FFD) and it is one bounds test away from being recognised.
+ *
+ * A GROUP of its own rather than sharing the chrome's, because the chrome's
+ * group is intercepted before the game's dispatch ever sees it
+ * (add_component_rows returns 0 for it) -- these are the opposite: they are
+ * ordinary components with ordinary menu rows, and the only thing they need
+ * from the id is to have one.
+ */
+#define TORIRS_REVCONFIG_GROUP 0x7FFD
+#define TORIRS_REVCONFIG_ID_BASE (TORIRS_REVCONFIG_GROUP << 16)
+
 #define UITREE_CHILD_KEY_NONE (INT32_MIN + 1)
 #define UITREE_MENU_OPTION_SLOTS 10
 /* 64: option labels carry <col=...>name</col> tags well past 32 chars. */
@@ -524,11 +548,6 @@ struct UITreeComponent
         struct
         {
             uint8_t level_mask;
-            /** INI mmb_rotate= — middle-button drag inside the viewport
-             *  rotates the camera (yaw/pitch). */
-            uint8_t mmb_rotate;
-            /** INI wheel_zoom= — mouse wheel over the viewport zooms. */
-            uint8_t wheel_zoom;
         } world;
         struct
         {
@@ -1001,8 +1020,6 @@ struct UITreeNodeSpec
         struct
         {
             uint8_t level_mask;
-            uint8_t mmb_rotate; /* INI mmb_rotate= (see UITreeComponent) */
-            uint8_t wheel_zoom; /* INI wheel_zoom= (see UITreeComponent) */
         } world;
         struct
         {

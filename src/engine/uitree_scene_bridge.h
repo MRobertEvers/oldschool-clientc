@@ -267,6 +267,24 @@ UITreeSceneBridge_EnsureDebugFont(
     struct UITreeSceneBridge* bridge,
     int font_slot);
 
+/**
+ * The same baked faces, pinned at 1x whatever the chrome scale is.
+ *
+ * For text that lands in INTERFACE pixels rather than chrome pixels -- a
+ * `[component:] font=chrome:<slot>`, which the gameframe lays out at its own
+ * scale and the shell then scales again. EnsureDebugFont resolves at the
+ * chrome's scale on purpose (the overlay measures and paints at the display's
+ * density), and asking it for a component's face is the giant-text bug: a 2x
+ * face drawn into 1x interface coordinates, doubled a second time on the way
+ * to the window.
+ *
+ * @return the scene font id, or -1 for an unknown slot.
+ */
+int
+UITreeSceneBridge_EnsureDebugFont1x(
+    struct UITreeSceneBridge* bridge,
+    int font_slot);
+
 /** Ensure model in scene. Returns scene model id or -1. */
 int
 UITreeSceneBridge_EnsureModel(

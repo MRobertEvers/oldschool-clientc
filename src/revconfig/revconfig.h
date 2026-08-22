@@ -156,14 +156,14 @@ enum RevConfigFieldKind
     RCFIELD_UICOMPONENT_COMPONENTNO,
     RCFIELD_UICOMPONENT_INV,
     RCFIELD_UICOMPONENT_PAINT_LEVELS,
-    RCFIELD_UICOMPONENT_MMB_ROTATE,
-    RCFIELD_UICOMPONENT_WHEEL_ZOOM,
     RCFIELD_UICOMPONENT_HOTKEY,
     RCFIELD_HOTKEY_COMPONENT,
     RCFIELD_HOTKEY_EFFECT,
     RCFIELD_UICOMPONENT_COLOR,
     RCFIELD_UICOMPONENT_FILLED,
     RCFIELD_UICOMPONENT_TILED,
+    RCFIELD_UICOMPONENT_MMB_ROTATE,
+    RCFIELD_UICOMPONENT_WHEEL_ZOOM,
     RCFIELD_UICOMPONENT_FONT,
     RCFIELD_UICOMPONENT_CENTER,
     RCFIELD_UICOMPONENT_SHADOWED,
@@ -222,6 +222,14 @@ enum RevConfigFieldKind
     RCFIELD_UILAYOUT_PARENT,
     RCFIELD_UILAYOUT_NAME,
     RCFIELD_UILAYOUT_GROUP,
+    RCFIELD_FEATURES_ERA,
+    RCFIELD_FEATURES_GROUND_CLICK_NEAREST,
+    RCFIELD_FEATURES_GROUND_CLICK_UNBOUNDED,
+    RCFIELD_FEATURES_GROUND_CLICK_OFFMAP,
+    RCFIELD_FEATURES_MOVER,
+    RCFIELD_FEATURES_PAINTER_DRAW_DISTANCE,
+    RCFIELD_CAMERA_ZOOM,
+    RCFIELD_CAMERA_CONTROLS,
     RCFIELD_UILAYOUT_NULL,
 };
 
@@ -248,6 +256,8 @@ enum RevConfigItemKind
     RCITEM_INV,
     RCITEM_HOTKEY,
     RCITEM_CACHE_REF,
+    RCITEM_FEATURES,
+    RCITEM_CAMERA,
 };
 
 /** Section types that build an RCITEM_CACHE_REF, i.e. a bare name -> cache id. */
@@ -518,23 +528,6 @@ struct RevConfigUIComponentItem
     char paint_levels[64];
 
     /*
-     * INI: mmb_rotate= (true/1 or false/0; default true when the section opens)
-     * type=world: holding the MIDDLE mouse button inside the viewport and
-     * dragging rotates the camera (yaw from horizontal travel, pitch from
-     * vertical). Revisions that need the middle button for something else set
-     * this false.
-     */
-    int mmb_rotate;
-
-    /*
-     * INI: wheel_zoom= (true/1 or false/0; default true when the section opens)
-     * type=world: the mouse wheel over the viewport zooms the camera in/out
-     * (orbit distance when following the player, dolly along the view axis for
-     * the free camera).
-     */
-    int wheel_zoom;
-
-    /*
      * INI: hotkey=  (repeatable, up to REVCONFIG_COMPONENT_HOTKEY_MAX)
      * Names a hard-coded chrome effect this component accepts from a bound key
      * (see enum UITreeHotkeyEffect; "select_tab" is currently the only one).
@@ -711,6 +704,122 @@ struct RevConfigHotkeyItem
     char effect[64];
 };
 
+/*
+ * `[features]` — the per-era CLIENT BEHAVIOUR table, stated by the revision
+ * profile instead of by the boot manifest.
+ *
+ * Every value here is a name or a number as written in the INI, never a
+ * resolved enum: this module is a leaf and does not include
+ * src/features/features.h, so the spellings ("lostcity", "box10_rect",
+ * "frame") are handed on verbatim and resolved by the App, which already owns
+ * ToriRS_Features_ByName and its siblings. A typo therefore names itself at
+ * the one place that can say what the legal spellings are.
+ *
+ * Why the revconfig and not the manifest: which pathing model, which mover,
+ * which unreachable-click fallback a client runs is a fact about the REVISION,
+ * exactly like which id the settings script has — and a revision profile is
+ * shared by every world that boots it (rs245_2lc's file serves 254, 289 and
+ * 377), so stating it once here is what keeps three manifests from drifting.
+ *
+ * A manifest `[features:boot]` still wins, and has to: `era=server_routed` is
+ * a property of the SERVER, not the cache, so manifest_osrs233xrsps.ini states
+ * it over a rev-233 cache whose own profile would say `osrs`.
+ *
+ * Unstated is a real state, distinct from every value: the sentinels below are
+ * what the App tests before touching its copy of the era table.
+ */
+struct RevConfigFeaturesItem
+{
+    /* INI: era= — "lostcity" | "osrs" | "server_routed". "" = not stated, i.e.
+     * derive the era from the cache identity (ToriRS_Features_ForCache). */
+    char era[32];
+
+    /* INI: ground_click_nearest= — "ring3" | "box10_rect" | "none"
+     * (enum ToriRS_NearestModel). "" = not stated. */
+    char ground_click_nearest[32];
+
+    /* INI: mover= — "cycle" | "frame" (enum ToriRS_MoverModel). "" = not
+     * stated. */
+    char mover[32];
+
+    /* INI: ground_click_unbounded= / ground_click_offmap= — the two permissive
+     * ground-click extensions. 0/1; -1 = not stated. */
+    int ground_click_unbounded;
+    int ground_click_offmap;
+
+    /* INI: painter_draw_distance= — painter radius in tiles (the official
+     * 25..90 band). 0 = not stated. */
+    int painter_draw_distance;
+};
+
+/** enum for RevConfigCameraItem.zoom_mode. */
+enum RevConfigCameraZoomMode
+{
+    /**
+     * `zoom=clamped:[min,max]` — the eye height is a live value the wheel
+     * moves, bounded by min..max. This is the client's own gesture and no
+     * revision's behaviour; it is the default because it is what this tree
+     * already did everywhere.
+     */
+    REVCONFIG_CAMERA_ZOOM_CLAMPED = 0,
+    /**
+     * `zoom=fixed:<height>` — the eye height is that number and nothing moves
+     * it: no wheel, and no viewport-height interpolation either. `fixed:600`
+     * is Client-TS exactly (`camFollow(..., pitch * 3 + 600)`), which is why
+     * every pre-HD revision states it.
+     */
+    REVCONFIG_CAMERA_ZOOM_FIXED = 1,
+};
+
+/** Bits for RevConfigCameraItem.controls, from the `controls=` name list. */
+enum
+{
+    /** `arrow_keys` — the reference's keyHeld[1..4] orbit (Client-TS
+     *  updateOrbitCamera). Every revision has this; it is the default. */
+    REVCONFIG_CAMERA_CONTROL_ARROW_KEYS = 1 << 0,
+    /** `mmb` — middle-button drag rotates the camera. No revision has it;
+     *  it is this client's own gesture. */
+    REVCONFIG_CAMERA_CONTROL_MMB = 1 << 1,
+};
+
+/** `zoom=` when no `[camera]` section states one: the wheel band this tree
+ *  shipped with, expressed as eye heights around the reference's 600. */
+#define REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN 240
+#define REVCONFIG_CAMERA_ZOOM_DEFAULT_MAX 2160
+/** The reference eye height, and this client's zoom rest position. */
+#define REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT 600
+
+/*
+ * `[camera]` — what the world camera lets the player do.
+ *
+ * The follow camera places the eye `pitch * 3 + height` behind the player
+ * (Client-TS camFollow), and `height` is the whole of "zoom": the 2004 client
+ * has no way to change it, so its camera is `fixed:600` and the wheel does
+ * nothing. Later clients interpolate it over the viewport and this one adds a
+ * wheel, which is what `clamped:[min,max]` describes.
+ *
+ * Both keys replace what they state outright rather than merging, so a profile
+ * that says `controls=arrow_keys` has turned the middle button OFF — it has
+ * not merely declined to mention it.
+ */
+struct RevConfigCameraItem
+{
+    /* INI: zoom= — enum RevConfigCameraZoomMode. */
+    int zoom_mode;
+    /* INI: zoom=fixed:<height> — the pinned eye height. */
+    int zoom_height;
+    /* INI: zoom=clamped:[min,max] — the band the wheel may reach. */
+    int zoom_min;
+    int zoom_max;
+    /* INI: controls= — REVCONFIG_CAMERA_CONTROL_* bits. */
+    int controls;
+
+    /* Which keys this section actually carried, so a later source can override
+     * one of them without silently restoring the default for the other. */
+    uint8_t has_zoom;
+    uint8_t has_controls;
+};
+
 struct RevConfigItem
 {
     enum RevConfigItemKind kind;
@@ -723,6 +832,8 @@ struct RevConfigItem
         struct RevConfigInvItem inv;
         struct RevConfigHotkeyItem hotkey;
         struct RevConfigCacheRefItem cacheref;
+        struct RevConfigFeaturesItem features;
+        struct RevConfigCameraItem camera;
     } u;
 };
 
@@ -769,5 +880,26 @@ revconfig_parse_minimenu_action(char const* str);
 /** Parse button_type= string (ok/toggle/select/close/continue/target) or integer. */
 int
 revconfig_parse_button_type(char const* str);
+
+/**
+ * Parse a `[camera] zoom=` value into `out`: `fixed:<height>` or
+ * `clamped:[<min>,<max>]`. Whitespace inside the brackets is allowed.
+ *
+ * Returns 1 on success. Returns 0 and leaves `out` untouched otherwise, so a
+ * misspelling keeps the default camera rather than pinning the eye at 0 —
+ * the caller reports it.
+ */
+int
+revconfig_parse_camera_zoom(char const* str, struct RevConfigCameraItem* out);
+
+/**
+ * Parse a `[camera] controls=` comma-separated name list into a
+ * REVCONFIG_CAMERA_CONTROL_* bitmask. `-1` when a name is not one of them.
+ *
+ * The list is the whole truth, not an addition: an empty value is a camera
+ * with no player controls at all, which is a legal thing to want.
+ */
+int
+revconfig_parse_camera_controls(char const* str);
 
 #endif

@@ -438,6 +438,111 @@ fake_menu_add(void* u, void* cursor, char const* text, int action)
     return 1;
 }
 
+/* ---- the 2026-08-22 additions: the canvas surface, images and if_click ----
+ *
+ * Stubs, deliberately: what these tests exercise is the HOST -- the bus, the
+ * budget, the sandbox -- and none of that cares what the engine does with a
+ * blit. What they do have to do is EXIST, because PluginHost_New asserts every
+ * entry: a fake engine missing one is a fake that has fallen behind the
+ * contract, and the assert is what says so. */
+static int
+fake_minimap_rect(void* u, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    if( x )
+        *x = 550;
+    if( y )
+        *y = 4;
+    if( w )
+        *w = 146;
+    if( h )
+        *h = 151;
+    return 1;
+}
+static int
+fake_stat(void* u, int skill, int* cur, int* base)
+{
+    (void)u;
+    (void)skill;
+    if( cur )
+        *cur = 10;
+    if( base )
+        *base = 10;
+    return 1;
+}
+static int
+fake_run_energy(void* u)
+{
+    (void)u;
+    return 100;
+}
+static void
+fake_draw_select_canvas(void* u, int canvas)
+{
+    (void)u;
+    (void)canvas;
+}
+static int
+fake_image_publish(void* u, int slot, void const* data, int size, int* w, int* h)
+{
+    (void)u;
+    (void)slot;
+    (void)data;
+    (void)size;
+    if( w )
+        *w = 26;
+    if( h )
+        *h = 26;
+    return 1;
+}
+static void
+fake_image_release(void* u, int slot)
+{
+    (void)u;
+    (void)slot;
+}
+static int
+fake_draw_image(
+    void* u, int slot, int x, int y, int w, int h, int cx, int cy, int cw, int ch, int trans)
+{
+    (void)u;
+    (void)slot;
+    (void)x;
+    (void)y;
+    (void)w;
+    (void)h;
+    (void)cx;
+    (void)cy;
+    (void)cw;
+    (void)ch;
+    (void)trans;
+    g_engine.draw_items += 1;
+    return 1;
+}
+static int
+fake_hit_region(
+    void* u, int plugin, int x, int y, int w, int h, char const* op, uint32_t tag)
+{
+    (void)u;
+    (void)plugin;
+    (void)x;
+    (void)y;
+    (void)w;
+    (void)h;
+    (void)op;
+    (void)tag;
+    return 1;
+}
+static int
+fake_if_click(void* u, int component_id, int op)
+{
+    (void)u;
+    (void)component_id;
+    (void)op;
+    return 1;
+}
+
+
 static struct ToriRS_PluginEngine
 fake_engine(void)
 {
@@ -465,6 +570,15 @@ fake_engine(void)
     e.draw_line = fake_draw_line;
     e.draw_text = fake_draw_text;
     e.draw_rect = fake_draw_rect;
+    e.minimap_rect = fake_minimap_rect;
+    e.stat = fake_stat;
+    e.run_energy = fake_run_energy;
+    e.draw_select_canvas = fake_draw_select_canvas;
+    e.image_publish = fake_image_publish;
+    e.image_release = fake_image_release;
+    e.draw_image = fake_draw_image;
+    e.hit_region = fake_hit_region;
+    e.if_click = fake_if_click;
     e.menu_add = fake_menu_add;
     e.obj_next = fake_obj_next;
     e.asset_read = fake_asset_read;

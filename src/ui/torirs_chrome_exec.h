@@ -640,30 +640,6 @@ ToriRSChromeExec_ForKind(
  */
 #define TORIRS_CHROME_PLUGIN_BUTTON_ID (TORIRS_CHROME_CS2_ID_BASE + 0x8000)
 
-/**
- * Component ids for controls a PROFILE authored, one group below the chrome's.
- *
- * A revconfig `[component:]` has no cache id -- there is no interface behind
- * it -- so the builder used to leave its component_id at -1, and that is the
- * whole reason such a control could be hovered but never clicked: the click
- * path carries a component ID, and `-1` reads as "the click landed on
- * nothing". The mouseover line worked, the right-click menu worked, and the
- * left click silently did nothing, which is the least debuggable shape a bug
- * can take.
- *
- * A synthetic id fixes that for every authored control at once, and a RANGE is
- * what makes it safe: it cannot collide with a cache uid (no interface is
- * numbered 0x7FFD) and it is one bounds test away from being recognised.
- *
- * A GROUP of its own rather than sharing the chrome's, because the chrome's
- * group is intercepted before the game's dispatch ever sees it
- * (add_component_rows returns 0 for it) -- these are the opposite: they are
- * ordinary components with ordinary menu rows, and the only thing they need
- * from the id is to have one.
- */
-#define TORIRS_REVCONFIG_GROUP 0x7FFD
-#define TORIRS_REVCONFIG_ID_BASE (TORIRS_REVCONFIG_GROUP << 16)
-
 struct UITree;
 
 /**

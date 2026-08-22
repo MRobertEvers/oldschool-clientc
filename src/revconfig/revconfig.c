@@ -108,10 +108,6 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UICOMPONENT_INV";
     case RCFIELD_UICOMPONENT_PAINT_LEVELS:
         return "RCFIELD_UICOMPONENT_PAINT_LEVELS";
-    case RCFIELD_UICOMPONENT_MMB_ROTATE:
-        return "RCFIELD_UICOMPONENT_MMB_ROTATE";
-    case RCFIELD_UICOMPONENT_WHEEL_ZOOM:
-        return "RCFIELD_UICOMPONENT_WHEEL_ZOOM";
     case RCFIELD_UICOMPONENT_HOTKEY:
         return "RCFIELD_UICOMPONENT_HOTKEY";
     case RCFIELD_HOTKEY_COMPONENT:
@@ -234,6 +230,22 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UILAYOUT_PARENT";
     case RCFIELD_UILAYOUT_NAME:
         return "RCFIELD_UILAYOUT_NAME";
+    case RCFIELD_FEATURES_ERA:
+        return "RCFIELD_FEATURES_ERA";
+    case RCFIELD_FEATURES_GROUND_CLICK_NEAREST:
+        return "RCFIELD_FEATURES_GROUND_CLICK_NEAREST";
+    case RCFIELD_FEATURES_GROUND_CLICK_UNBOUNDED:
+        return "RCFIELD_FEATURES_GROUND_CLICK_UNBOUNDED";
+    case RCFIELD_FEATURES_GROUND_CLICK_OFFMAP:
+        return "RCFIELD_FEATURES_GROUND_CLICK_OFFMAP";
+    case RCFIELD_FEATURES_MOVER:
+        return "RCFIELD_FEATURES_MOVER";
+    case RCFIELD_FEATURES_PAINTER_DRAW_DISTANCE:
+        return "RCFIELD_FEATURES_PAINTER_DRAW_DISTANCE";
+    case RCFIELD_CAMERA_ZOOM:
+        return "RCFIELD_CAMERA_ZOOM";
+    case RCFIELD_CAMERA_CONTROLS:
+        return "RCFIELD_CAMERA_CONTROLS";
     default:
         return "UNKNOWN";
     }
@@ -410,11 +422,6 @@ revconfig_item_begin(
     {
         item->kind = RCITEM_UICOMPONENT;
         item->u.uicomponent.componentno = -1;
-        /* type=world camera gestures: on unless a revision opts out, so packs
-         * that predate the keys (and the cache-interface build path, which has
-         * no revconfig section at all) behave the same way. */
-        item->u.uicomponent.mmb_rotate = 1;
-        item->u.uicomponent.wheel_zoom = 1;
     }
     else if( strcmp(type_value, "layout") == 0 )
         item->kind = RCITEM_UILAYOUT;
@@ -422,6 +429,24 @@ revconfig_item_begin(
         item->kind = RCITEM_INV;
     else if( strcmp(type_value, "hotkey") == 0 )
         item->kind = RCITEM_HOTKEY;
+    else if( strcmp(type_value, "features") == 0 )
+    {
+        item->kind = RCITEM_FEATURES;
+        /* Unstated has to be distinguishable from every legal value: 0 is a
+         * real answer for both permissive extensions, and 25 (not 0) is the
+         * painter's smallest real radius. */
+        item->u.features.ground_click_unbounded = -1;
+        item->u.features.ground_click_offmap = -1;
+    }
+    else if( strcmp(type_value, "camera") == 0 )
+    {
+        item->kind = RCITEM_CAMERA;
+        /* Neither key is defaulted here. An item carries only what its section
+         * SAID -- has_zoom / has_controls -- so that a later source overriding
+         * `controls=` cannot silently reset `zoom=` back to a default the
+         * earlier source had deliberately moved. RevConfigProfile owns the
+         * defaults, once, for the whole boot. */
+    }
     else if( revconfig_type_is_cacheref(type_value) )
     {
         item->kind = RCITEM_CACHE_REF;
@@ -706,12 +731,6 @@ revconfig_item_apply_uicomponent_field(
         strncpy(comp->paint_levels, value, sizeof(comp->paint_levels) - 1);
         comp->paint_levels[sizeof(comp->paint_levels) - 1] = '\0';
         break;
-    case RCFIELD_UICOMPONENT_MMB_ROTATE:
-        comp->mmb_rotate = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
-        break;
-    case RCFIELD_UICOMPONENT_WHEEL_ZOOM:
-        comp->wheel_zoom = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
-        break;
     case RCFIELD_UICOMPONENT_HOTKEY:
         /* Repeatable, like transform= and inv item=: each line appends. */
         if( comp->hotkey_count < REVCONFIG_COMPONENT_HOTKEY_MAX )
@@ -947,6 +966,88 @@ revconfig_item_apply_uilayout_field(
 }
 
 static void
+revconfig_item_apply_features_field(
+    struct RevConfigFeaturesItem* features,
+    enum RevConfigFieldKind kind,
+    const char* value)
+{
+    assert(features);
+    assert(value);
+
+    switch( kind )
+    {
+    case RCFIELD_FEATURES_ERA:
+        strncpy(features->era, value, sizeof(features->era) - 1);
+        features->era[sizeof(features->era) - 1] = '\0';
+        break;
+    case RCFIELD_FEATURES_GROUND_CLICK_NEAREST:
+        strncpy(
+            features->ground_click_nearest,
+            value,
+            sizeof(features->ground_click_nearest) - 1);
+        features->ground_click_nearest[sizeof(features->ground_click_nearest) - 1] = '\0';
+        break;
+    case RCFIELD_FEATURES_MOVER:
+        strncpy(features->mover, value, sizeof(features->mover) - 1);
+        features->mover[sizeof(features->mover) - 1] = '\0';
+        break;
+    case RCFIELD_FEATURES_GROUND_CLICK_UNBOUNDED:
+        features->ground_click_unbounded = atoi(value) ? 1 : 0;
+        break;
+    case RCFIELD_FEATURES_GROUND_CLICK_OFFMAP:
+        features->ground_click_offmap = atoi(value) ? 1 : 0;
+        break;
+    case RCFIELD_FEATURES_PAINTER_DRAW_DISTANCE:
+        features->painter_draw_distance = atoi(value);
+        break;
+    default:
+        break;
+    }
+}
+
+static void
+revconfig_item_apply_camera_field(
+    struct RevConfigCameraItem* camera,
+    enum RevConfigFieldKind kind,
+    const char* value)
+{
+    assert(camera);
+    assert(value);
+
+    switch( kind )
+    {
+    case RCFIELD_CAMERA_ZOOM:
+        if( revconfig_parse_camera_zoom(value, camera) )
+            camera->has_zoom = 1;
+        else
+            fprintf(
+                stderr,
+                "revconfig: [camera] zoom must be fixed:<height> or "
+                "clamped:[<min>,<max>], got '%s'\n",
+                value);
+        break;
+    case RCFIELD_CAMERA_CONTROLS:
+    {
+        int controls = revconfig_parse_camera_controls(value);
+        if( controls >= 0 )
+        {
+            camera->controls = controls;
+            camera->has_controls = 1;
+        }
+        else
+            fprintf(
+                stderr,
+                "revconfig: [camera] controls must be a comma list of "
+                "mmb|arrow_keys, got '%s'\n",
+                value);
+        break;
+    }
+    default:
+        break;
+    }
+}
+
+static void
 revconfig_item_apply_field(
     struct RevConfigItem* item,
     enum RevConfigFieldKind kind,
@@ -983,6 +1084,12 @@ revconfig_item_apply_field(
     case RCITEM_CACHE_REF:
         if( kind == RCFIELD_CACHEREF_ID )
             item->u.cacheref.id = atoi(value);
+        break;
+    case RCITEM_FEATURES:
+        revconfig_item_apply_features_field(&item->u.features, kind, value);
+        break;
+    case RCITEM_CAMERA:
+        revconfig_item_apply_camera_field(&item->u.camera, kind, value);
         break;
     case RCITEM_HOTKEY:
         if( kind == RCFIELD_HOTKEY_COMPONENT )
@@ -1049,4 +1156,106 @@ revconfig_items_build(
             break;
         }
     }
+}
+
+/** Advance past spaces and tabs. */
+static char const*
+revconfig_skip_space(char const* p)
+{
+    assert(p);
+    while( *p == ' ' || *p == '\t' )
+        p++;
+    return p;
+}
+
+int
+revconfig_parse_camera_zoom(
+    char const* str,
+    struct RevConfigCameraItem* out)
+{
+    char const* p;
+
+    assert(str);
+    assert(out);
+
+    p = revconfig_skip_space(str);
+    if( strncmp(p, "fixed:", 6) == 0 )
+    {
+        int height = atoi(revconfig_skip_space(p + 6));
+        if( height <= 0 )
+            return 0;
+        out->zoom_mode = REVCONFIG_CAMERA_ZOOM_FIXED;
+        out->zoom_height = height;
+        /* Stated on the fixed branch too, so a reader of the resolved struct
+         * never has to know which branch filled it in: the band is the point. */
+        out->zoom_min = height;
+        out->zoom_max = height;
+        return 1;
+    }
+    if( strncmp(p, "clamped:", 8) == 0 )
+    {
+        int lo;
+        int hi;
+        char const* comma;
+
+        p = revconfig_skip_space(p + 8);
+        if( *p != '[' )
+            return 0;
+        p = revconfig_skip_space(p + 1);
+        comma = strchr(p, ',');
+        if( !comma )
+            return 0;
+        lo = atoi(p);
+        hi = atoi(revconfig_skip_space(comma + 1));
+        if( lo <= 0 || hi < lo )
+            return 0;
+        out->zoom_mode = REVCONFIG_CAMERA_ZOOM_CLAMPED;
+        out->zoom_min = lo;
+        out->zoom_max = hi;
+        /* Rest position: the reference height when the band contains it, and
+         * the nearest end when it does not. */
+        out->zoom_height = REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT;
+        if( out->zoom_height < lo )
+            out->zoom_height = lo;
+        if( out->zoom_height > hi )
+            out->zoom_height = hi;
+        return 1;
+    }
+    return 0;
+}
+
+int
+revconfig_parse_camera_controls(char const* str)
+{
+    int controls = 0;
+    char const* p;
+
+    assert(str);
+
+    p = revconfig_skip_space(str);
+    while( *p )
+    {
+        char name[32];
+        char const* end = strchr(p, ',');
+        size_t len = end ? (size_t)(end - p) : strlen(p);
+
+        while( len > 0 && (p[len - 1] == ' ' || p[len - 1] == '\t') )
+            len--;
+        if( len >= sizeof(name) )
+            return -1;
+        memcpy(name, p, len);
+        name[len] = '\0';
+
+        if( strcmp(name, "mmb") == 0 )
+            controls |= REVCONFIG_CAMERA_CONTROL_MMB;
+        else if( strcmp(name, "arrow_keys") == 0 )
+            controls |= REVCONFIG_CAMERA_CONTROL_ARROW_KEYS;
+        else if( name[0] != '\0' )
+            return -1;
+
+        if( !end )
+            break;
+        p = revconfig_skip_space(end + 1);
+    }
+    return controls;
 }

@@ -14,7 +14,6 @@
 #include "inv/inv_manager.h"
 #include "ui/uitree.h"
 #include "ui/uitree_build.h"
-#include "ui/torirs_chrome_exec.h"
 #include "ui/uitree_debug_overlay.h"
 
 #include <assert.h>
@@ -252,6 +251,59 @@ resolve_chrome_sprite(struct UITreeBuilder* builder, char const* ref, int* out_a
      */
     fprintf(stderr, "uitree_builder_bake: no chrome skin slot named '%s'\n", slot_name);
     assert(0 && "unknown chrome: sprite slot");
+    return -1;
+}
+
+/**
+ * `chrome:<slot>` -> a baked chrome face, or -1 when `ref` is not one.
+ *
+ * The font twin of resolve_chrome_sprite, and it exists for the same reason: a
+ * `[font:...]` section names a face in the CACHE, and a control the client
+ * owns has to be readable on a cache that does not carry one. The three faces
+ * are the ones the chrome already bakes -- 494, 495 and 496 in the OSRS fonts
+ * table -- and `bold` is 496, which is the face the interfaces' own buttons
+ * set their captions in.
+ *
+ * Pinned at 1x (EnsureDebugFont1x). These glyphs land in INTERFACE pixels,
+ * which the gameframe lays out and the shell scales afterwards; the
+ * chrome-scale accessor beside it would hand a 2x face to a 1x coordinate
+ * system on any HighDPI display and the caption would come out double-sized.
+ */
+static int
+resolve_chrome_font(struct UITreeBuilder* builder, char const* ref)
+{
+    static const struct
+    {
+        char const* name;
+        int slot;
+    } SLOT[] = {
+        { "small", TORIRS_CHROME_FONT_SMALL },
+        { "body", TORIRS_CHROME_FONT_BODY },
+        /* The bold one. Named for what an author is choosing rather than for
+         * the chrome's own use of it -- `menu` says where it is spent, `bold`
+         * says what it looks like, and a profile is picking a face. */
+        { "bold", TORIRS_CHROME_FONT_MENU },
+    };
+    char const* slot_name;
+
+    assert(builder);
+    assert(ref);
+
+    if( strncmp(ref, "chrome:", 7) != 0 )
+        return -1;
+    slot_name = ref + 7;
+
+    for( size_t i = 0; i < sizeof(SLOT) / sizeof(SLOT[0]); i++ )
+    {
+        if( strcmp(SLOT[i].name, slot_name) != 0 )
+            continue;
+        if( !builder->bridge )
+            return -1;
+        return UITreeSceneBridge_EnsureDebugFont1x(builder->bridge, SLOT[i].slot);
+    }
+
+    fprintf(stderr, "uitree_builder_bake: no chrome font named '%s'\n", slot_name);
+    assert(0 && "unknown chrome: font slot");
     return -1;
 }
 
@@ -759,8 +811,6 @@ push_builtin_op(
     }
     case UIELEM_BUILTIN_WORLD:
         spec.u.world.level_mask = (uint8_t)op->level_mask;
-        spec.u.world.mmb_rotate = op->mmb_rotate ? 1u : 0u;
-        spec.u.world.wheel_zoom = op->wheel_zoom ? 1u : 0u;
         break;
     case UIELEM_BUILTIN_REDSTONE_TAB:
         spec.u.redstone_tab.tabno = op->tabno;
@@ -795,7 +845,9 @@ push_builtin_op(
     case UIELEM_RS_TEXT:
         if( op->has_font_ref && op->font_ref[0] )
         {
-            int font_id = UITreeBuilder_ResolveFontName(builder, op->font_ref);
+            int font_id = resolve_chrome_font(builder, op->font_ref);
+            if( font_id < 0 && strncmp(op->font_ref, "chrome:", 7) != 0 )
+                font_id = UITreeBuilder_ResolveFontName(builder, op->font_ref);
             assert(font_id >= 0 && "rs_text font missing");
             spec.u.rs_text.font_id = font_id;
         }

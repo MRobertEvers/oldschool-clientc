@@ -108,18 +108,19 @@ test_items_build(void)
     }
     push(fields, RCFIELD_ITEMDONE, "");
 
-    /* World viewport: the camera-gesture keys default ON when the section
-     * omits them, so packs written before the keys existed keep the gestures. */
-    push(fields, RCFIELD_ITEMTYPE, "component");
-    push(fields, RCFIELD_ITEMNAME, "world_default");
-    push(fields, RCFIELD_UICOMPONENT_TYPE, "world");
+    /* [features]: names are carried verbatim, numbers keep a "not stated"
+     * sentinel that is distinct from every legal value. */
+    push(fields, RCFIELD_ITEMTYPE, "features");
+    push(fields, RCFIELD_FEATURES_ERA, "osrs");
+    push(fields, RCFIELD_FEATURES_GROUND_CLICK_NEAREST, "box10_rect");
+    push(fields, RCFIELD_FEATURES_MOVER, "frame");
+    push(fields, RCFIELD_FEATURES_GROUND_CLICK_OFFMAP, "1");
     push(fields, RCFIELD_ITEMDONE, "");
 
-    push(fields, RCFIELD_ITEMTYPE, "component");
-    push(fields, RCFIELD_ITEMNAME, "world_off");
-    push(fields, RCFIELD_UICOMPONENT_TYPE, "world");
-    push(fields, RCFIELD_UICOMPONENT_MMB_ROTATE, "false");
-    push(fields, RCFIELD_UICOMPONENT_WHEEL_ZOOM, "0");
+    /* [camera]: an item carries only the keys its section stated. */
+    push(fields, RCFIELD_ITEMTYPE, "camera");
+    push(fields, RCFIELD_CAMERA_ZOOM, "fixed:600");
+    push(fields, RCFIELD_CAMERA_CONTROLS, "arrow_keys");
     push(fields, RCFIELD_ITEMDONE, "");
 
     /* hotkey= repeats into a list; [hotkey:…] is its own item kind. */
@@ -197,13 +198,29 @@ test_items_build(void)
     TEST_ASSERT(backpack->u.inv.item_count == 3, "inv count");
     TEST_ASSERT(strcmp(backpack->u.inv.items[1], "item1") == 0, "inv item");
 
-    struct RevConfigItem const* world_default = &items->items[9];
-    TEST_ASSERT(world_default->u.uicomponent.mmb_rotate == 1, "mmb_rotate default on");
-    TEST_ASSERT(world_default->u.uicomponent.wheel_zoom == 1, "wheel_zoom default on");
+    struct RevConfigItem const* features = &items->items[9];
+    TEST_ASSERT(features->kind == RCITEM_FEATURES, "features item kind");
+    TEST_ASSERT(strcmp(features->u.features.era, "osrs") == 0, "features era");
+    TEST_ASSERT(
+        strcmp(features->u.features.ground_click_nearest, "box10_rect") == 0,
+        "features ground_click_nearest");
+    TEST_ASSERT(strcmp(features->u.features.mover, "frame") == 0, "features mover");
+    TEST_ASSERT(features->u.features.ground_click_offmap == 1, "features offmap stated");
+    TEST_ASSERT(
+        features->u.features.ground_click_unbounded == -1, "features unbounded unstated");
+    TEST_ASSERT(
+        features->u.features.painter_draw_distance == 0, "features draw distance unstated");
 
-    struct RevConfigItem const* world_off = &items->items[10];
-    TEST_ASSERT(world_off->u.uicomponent.mmb_rotate == 0, "mmb_rotate=false");
-    TEST_ASSERT(world_off->u.uicomponent.wheel_zoom == 0, "wheel_zoom=0");
+    struct RevConfigItem const* camera = &items->items[10];
+    TEST_ASSERT(camera->kind == RCITEM_CAMERA, "camera item kind");
+    TEST_ASSERT(camera->u.camera.has_zoom == 1, "camera zoom stated");
+    TEST_ASSERT(
+        camera->u.camera.zoom_mode == REVCONFIG_CAMERA_ZOOM_FIXED, "camera zoom fixed");
+    TEST_ASSERT(camera->u.camera.zoom_height == 600, "camera zoom height");
+    TEST_ASSERT(camera->u.camera.has_controls == 1, "camera controls stated");
+    TEST_ASSERT(
+        camera->u.camera.controls == REVCONFIG_CAMERA_CONTROL_ARROW_KEYS,
+        "camera controls arrow_keys only");
 
     struct RevConfigItem const* tab_icon = &items->items[11];
     TEST_ASSERT(tab_icon->u.uicomponent.hotkey_count == 2, "hotkey= repeats");

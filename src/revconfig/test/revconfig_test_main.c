@@ -10,6 +10,7 @@ main(void)
     test_load();
     test_parse();
     test_refs();
+    test_profile();
 
     if( g_failures )
     {

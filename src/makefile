@@ -460,6 +460,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	net/rev/osrs239/gameproto_rev_osrs239.c net/rev/osrs239/osrs239_parse.c \
 	net/rev/osrs239/osrs239_entity_info.c \
 	revconfig/revconfig.c revconfig/revconfig_load.c revconfig/revconfig_refs.c \
+	revconfig/revconfig_profile.c \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
 	engine/world_builder/task_world_load.c \
@@ -2291,10 +2292,12 @@ test-uitree-builder-dat1: $(OBJ_DIR) $(OBJS)
 
 test-revconfig: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/revconfig -I$(SRC_DIR)/revconfig/test -o $(OBJ_DIR)/revconfig_test \
-		revconfig/revconfig.c revconfig/revconfig_load.c revconfig/revconfig_refs.c $(INI_SRC) \
+		revconfig/revconfig.c revconfig/revconfig_load.c revconfig/revconfig_refs.c \
+		revconfig/revconfig_profile.c $(INI_SRC) \
 		revconfig/test/revconfig_test_main.c revconfig/test/revconfig_test_buffer.c \
 		revconfig/test/revconfig_test_items.c revconfig/test/revconfig_test_load.c \
-		revconfig/test/revconfig_test_parse.c revconfig/test/revconfig_test_refs.c
+		revconfig/test/revconfig_test_parse.c revconfig/test/revconfig_test_refs.c \
+		revconfig/test/revconfig_test_profile.c
 	./$(OBJ_DIR)/revconfig_test
 
 # Standalone TCP mock server for the OSRS rev-230 protocol: login handshake,

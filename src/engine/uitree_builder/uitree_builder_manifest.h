@@ -101,8 +101,6 @@ struct UIBuilderTreeOp
     char slot[24];
     int dirty;
     int level_mask;
-    int mmb_rotate;
-    int wheel_zoom;
     /** Effect names this component advertises (revconfig hotkey= lines). */
     char hotkeys[REVCONFIG_COMPONENT_HOTKEY_MAX][64];
     int hotkey_count;

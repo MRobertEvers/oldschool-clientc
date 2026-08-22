@@ -207,11 +207,6 @@ UITree_PushBuildComponent(
         spec.type = UIELEM_BUILTIN_WORLD;
         memset(&spec.u, 0, sizeof(spec.u));
         spec.u.world.level_mask = 0xF;
-        /* Cache-built viewports have no revconfig section to read mmb_rotate=
-         * / wheel_zoom= from, so they take the same default the RevConfig
-         * component path does (both on). */
-        spec.u.world.mmb_rotate = 1;
-        spec.u.world.wheel_zoom = 1;
         break;
     case UITREE_CLIENT_CODE_CONTENT_MINIMAP:
         spec.type = UIELEM_BUILTIN_MINIMAP;

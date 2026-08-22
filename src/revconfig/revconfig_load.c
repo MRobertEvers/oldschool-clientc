@@ -48,14 +48,29 @@ push_element_from_ini_header(
     }
 
     const char* space = strchr(section_header, ':');
-    if( !space )
-        return;
+    if( space )
+    {
+        strncpy(item_type, section_header, space - section_header);
+        item_type[space - section_header] = '\0';
 
-    strncpy(item_type, section_header, space - section_header);
-    item_type[space - section_header] = '\0';
-
-    strncpy(item_name, space + 1, sizeof(item_name) - 1);
-    item_name[sizeof(item_name) - 1] = '\0';
+        strncpy(item_name, space + 1, sizeof(item_name) - 1);
+        item_name[sizeof(item_name) - 1] = '\0';
+    }
+    else
+    {
+        /*
+         * A section with no `:` at all -- `[camera]`, `[features]`. There is
+         * exactly one of each per profile, so there is nothing to name it by,
+         * and the type IS the header.
+         *
+         * The old code returned here instead, which left s_ini_item_type
+         * pointing at whatever section came BEFORE: an unrecognised header's
+         * keys were silently applied to the previous item rather than dropped.
+         */
+        strncpy(item_type, section_header, sizeof(item_type) - 1);
+        item_type[sizeof(item_type) - 1] = '\0';
+        item_name[0] = '\0';
+    }
 
     strncpy(s_ini_item_type, item_type, sizeof(s_ini_item_type) - 1);
     s_ini_item_type[sizeof(s_ini_item_type) - 1] = '\0';
@@ -67,7 +82,7 @@ push_element_from_ini_header(
         s_ini_layout_group[sizeof(s_ini_layout_group) - 1] = '\0';
         push_field(revconfig_buffer, RCFIELD_UILAYOUT_GROUP, item_name);
     }
-    else
+    else if( item_name[0] != '\0' )
         push_field(revconfig_buffer, RCFIELD_ITEMNAME, item_name);
 }
 
@@ -109,6 +124,46 @@ push_field_from_ini_kv(
     }
 
     uint8_t kind = RCFIELD_NONE;
+
+    /*
+     * The two nameless sections first. Their keys are scoped to them the way
+     * `id=` is scoped to the cache-ref kinds -- `mover=` and `controls=` are
+     * ordinary enough words that a future [component:...] spelling could want
+     * them, and the section type is what keeps the two apart.
+     */
+    if( strcmp(s_ini_item_type, "features") == 0 )
+    {
+        if( strcmp(key, "era") == 0 )
+            kind = RCFIELD_FEATURES_ERA;
+        else if( strcmp(key, "ground_click_nearest") == 0 )
+            kind = RCFIELD_FEATURES_GROUND_CLICK_NEAREST;
+        else if( strcmp(key, "ground_click_unbounded") == 0 )
+            kind = RCFIELD_FEATURES_GROUND_CLICK_UNBOUNDED;
+        else if( strcmp(key, "ground_click_offmap") == 0 )
+            kind = RCFIELD_FEATURES_GROUND_CLICK_OFFMAP;
+        else if( strcmp(key, "mover") == 0 )
+            kind = RCFIELD_FEATURES_MOVER;
+        else if( strcmp(key, "painter_draw_distance") == 0 )
+            kind = RCFIELD_FEATURES_PAINTER_DRAW_DISTANCE;
+        else
+            fprintf(stderr, "revconfig: [features] has no key '%s'\n", key);
+        if( kind != RCFIELD_NONE )
+            push_field(vec, kind, value);
+        return;
+    }
+    if( strcmp(s_ini_item_type, "camera") == 0 )
+    {
+        if( strcmp(key, "zoom") == 0 )
+            kind = RCFIELD_CAMERA_ZOOM;
+        else if( strcmp(key, "controls") == 0 )
+            kind = RCFIELD_CAMERA_CONTROLS;
+        else
+            fprintf(stderr, "revconfig: [camera] has no key '%s'\n", key);
+        if( kind != RCFIELD_NONE )
+            push_field(vec, kind, value);
+        return;
+    }
+
     /* Section type comes from [type:name] header (e.g. component, layout, inv, sprite). */
     if( strcmp(key, "sprite") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_SPRITE;
@@ -168,10 +223,6 @@ push_field_from_ini_kv(
         kind = RCFIELD_UICOMPONENT_INV;
     else if( strcmp(key, "paint_levels") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_PAINT_LEVELS;
-    else if( strcmp(key, "mmb_rotate") == 0 && strcmp(s_ini_item_type, "component") == 0 )
-        kind = RCFIELD_UICOMPONENT_MMB_ROTATE;
-    else if( strcmp(key, "wheel_zoom") == 0 && strcmp(s_ini_item_type, "component") == 0 )
-        kind = RCFIELD_UICOMPONENT_WHEEL_ZOOM;
     else if( strcmp(key, "hotkey") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_HOTKEY;
     else if( strcmp(key, "color") == 0 && strcmp(s_ini_item_type, "component") == 0 )

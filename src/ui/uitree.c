@@ -1992,8 +1992,6 @@ UITree_Push(
 
     case UIELEM_BUILTIN_WORLD:
         component->u.world.level_mask = spec->u.world.level_mask;
-        component->u.world.mmb_rotate = spec->u.world.mmb_rotate;
-        component->u.world.wheel_zoom = spec->u.world.wheel_zoom;
         break;
 
     case UIELEM_BUILTIN_SIDEBAR:
@@ -2187,19 +2185,50 @@ UITree_ClearChildren(
     /* Reclaim the detached subtree, not just unlink it: an orphaned copy
      * keeps its component_id and shadows the remounted nodes in
      * FindByComponentId/ResolveComponentTarget (server IF_SETTEXT then lands
-     * on the invisible orphan — the "Weapon:%1" bug). */
+     * on the invisible orphan — the "Weapon:%1" bug).
+     *
+     * PROFILE-AUTHORED children are kept, and that exception is the whole
+     * reason this loop rebuilds the list instead of truncating it.
+     *
+     * What this function is for is emptying a SLOT before the server's
+     * interface goes into it (task_slot_mount), and a slot's contents are the
+     * server's to replace. A control the profile authored into that slot is
+     * not: it was placed by the boot manifest's RevConfig, no server knows it
+     * exists, and nothing will ever put it back. The symptom is exact and
+     * confusing -- the control is there in an offline boot and gone the moment
+     * a real server sends its login burst of IF_SETTABs, which looks like the
+     * control failing to build rather than like something sweeping it away.
+     *
+     * Recognised by id band (TORIRS_REVCONFIG_GROUP), the same way the chrome's
+     * own components are recognised everywhere else in this tree. */
     {
         int32_t child = c->first_child;
+        int32_t kept_head = -1;
+        int32_t kept_tail = -1;
+
         while( child >= 0 )
         {
             int32_t const next = tree->components[child].next_sibling;
-            uitree_reclaim_subtree(tree, child);
+            int const id = tree->components[child].component_id;
+            if( id >= 0 && ((id >> 16) & 0xFFFF) == TORIRS_REVCONFIG_GROUP )
+            {
+                tree->components[child].next_sibling = -1;
+                if( kept_tail >= 0 )
+                    tree->components[kept_tail].next_sibling = child;
+                else
+                    kept_head = child;
+                kept_tail = child;
+            }
+            else
+            {
+                uitree_reclaim_subtree(tree, child);
+            }
             child = next;
         }
+        c->first_child = kept_head;
+        c->last_child_hint = kept_tail;
     }
-    c->first_child = -1;
-    c->last_child_hint = -1;
-    c->child_key_max = UITREE_CHILD_KEY_NONE; /* no children left to match */
+    c->child_key_max = UITREE_CHILD_KEY_NONE; /* nothing left to match by key */
     uitree_child_index_drop(c);               /* ... and none left to index */
     c->is_dirty = 1;
     tree->generation++;

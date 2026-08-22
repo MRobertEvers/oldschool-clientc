@@ -7548,6 +7548,16 @@ App_Init(
         app->cfg.revconfig_ui_ini,
         app->cfg.revconfig_cache_ini,
         app->cfg.revconfig_inline_ini);
+    /* Same three sources, same load order, read for the other two things a
+     * revision profile states about behaviour rather than about ids: the
+     * feature table (consumed a few hundred lines below, where the era is
+     * resolved) and the camera policy. */
+    RevConfigProfile_Init(&app->revconfig_profile);
+    RevConfigProfile_LoadSources(
+        &app->revconfig_profile,
+        app->cfg.revconfig_ui_ini,
+        app->cfg.revconfig_cache_ini,
+        app->cfg.revconfig_inline_ini);
 
     ToriDraw_Init();
 
@@ -7902,13 +7912,33 @@ App_Init(
     app->clicked_com_id = -1;
     app->need_redraw = 1;
 
-    /* Client-behaviour era. Resolved unconditionally — an offline boot still
-     * clicks locs, so it still needs an approach model. Precedence matches the
-     * rest of the boot parameters: manifest > env > derived from the cache. */
+    /*
+     * Client-behaviour era. Resolved unconditionally — an offline boot still
+     * clicks locs, so it still needs an approach model.
+     *
+     * Precedence: manifest > env > revconfig `[features]` > derived from the
+     * cache. The revconfig sits under the manifest and not over it because the
+     * two answer different questions. `[features]` is a statement about the
+     * REVISION, shared by every world that boots that profile; a manifest's
+     * `[features:boot]` is a statement about one WORLD, and some of what it has
+     * to say is not derivable from the cache at all — era=server_routed is a
+     * property of the server, and manifest_osrs233xrsps.ini states it over a
+     * rev-233 cache whose own profile would say osrs.
+     */
     {
+        struct RevConfigFeaturesItem const* rc_features = &app->revconfig_profile.features;
         char const* era_name = cfg->features_era;
         if( !era_name || !era_name[0] )
             era_name = getenv("TORIRS_FEATURES_ERA");
+        if( !era_name || !era_name[0] )
+        {
+            era_name = rc_features->era;
+            if( era_name[0] && !ToriRS_Features_ByName(era_name) )
+                fprintf(
+                    stderr,
+                    "app: [features] era must be lostcity|osrs|server_routed, got '%s'\n",
+                    era_name);
+        }
         app->features = era_name && era_name[0] ? ToriRS_Features_ByName(era_name) : NULL;
         if( era_name && era_name[0] && !app->features )
             fprintf(stderr, "app: unknown features era '%s', deriving from cache\n", era_name);
@@ -7933,6 +7963,16 @@ App_Init(
         {
             char const* env = getenv("TORIRS_GROUND_CLICK_NEAREST");
             int model = -1;
+            if( rc_features->ground_click_nearest[0] )
+            {
+                model = ToriRS_Features_NearestModelByName(rc_features->ground_click_nearest);
+                if( model < 0 )
+                    fprintf(
+                        stderr,
+                        "app: [features] ground_click_nearest must be "
+                        "ring3|box10_rect|none, got '%s'\n",
+                        rc_features->ground_click_nearest);
+            }
             if( cfg->features_ground_click_nearest_set )
                 model = cfg->features_ground_click_nearest;
             if( env && env[0] )
@@ -7955,6 +7995,12 @@ App_Init(
          * them off — the client is deob-exact unless a boot asks otherwise —
          * so this is the only place either can be turned on.
          */
+        if( rc_features->ground_click_unbounded >= 0 )
+            app->features_storage.ground_click_nearest_unbounded =
+                rc_features->ground_click_unbounded;
+        if( rc_features->ground_click_offmap >= 0 )
+            app->features_storage.ground_click_offmap_nearest =
+                rc_features->ground_click_offmap;
         if( cfg->features_ground_click_unbounded )
             app->features_storage.ground_click_nearest_unbounded = 1;
         if( cfg->features_ground_click_offmap )
@@ -7966,6 +8012,20 @@ App_Init(
             env = getenv("TORIRS_GROUND_CLICK_OFFMAP");
             if( env && env[0] )
                 app->features_storage.ground_click_offmap_nearest = env[0] != '0';
+        }
+        if( rc_features->painter_draw_distance > 0 )
+        {
+            if( rc_features->painter_draw_distance < TORIRS_PAINTER_DRAW_DISTANCE_MIN ||
+                rc_features->painter_draw_distance > TORIRS_PAINTER_DRAW_DISTANCE_MAX )
+                fprintf(
+                    stderr,
+                    "app: [features] painter_draw_distance must be %d..%d, got %d\n",
+                    TORIRS_PAINTER_DRAW_DISTANCE_MIN,
+                    TORIRS_PAINTER_DRAW_DISTANCE_MAX,
+                    rc_features->painter_draw_distance);
+            else
+                app->features_storage.painter_draw_distance =
+                    rc_features->painter_draw_distance;
         }
         if( cfg->features_painter_draw_distance_set )
             app->features_storage.painter_draw_distance = cfg->features_painter_draw_distance;
@@ -7985,6 +8045,15 @@ App_Init(
         {
             int model = -1;
 
+            if( rc_features->mover[0] )
+            {
+                model = ToriRS_Features_MoverModelByName(rc_features->mover);
+                if( model < 0 )
+                    fprintf(
+                        stderr,
+                        "app: [features] mover must be cycle|frame, got '%s'\n",
+                        rc_features->mover);
+            }
             if( cfg->features_mover_model_set )
                 model = cfg->features_mover_model;
             {

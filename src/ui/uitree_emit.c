@@ -526,8 +526,6 @@ UITree_EmitFill(
     case UIELEM_BUILTIN_WORLD:
         out->kind = UITREE_EMIT_WORLD;
         out->world_level_mask = component->u.world.level_mask;
-        out->world_mmb_rotate = component->u.world.mmb_rotate;
-        out->world_wheel_zoom = component->u.world.wheel_zoom;
         return true;
 
     case UIELEM_BUILTIN_MINIMAP:
