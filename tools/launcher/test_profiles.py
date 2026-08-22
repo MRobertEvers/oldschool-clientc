@@ -1,7 +1,10 @@
+import os
+import tempfile
 import unittest
 
 from .iniparse import Ini
-from .profiles import LaunchError, Profile
+from .profiles import (LaunchError, Manifest, Profile,
+                       generate_resolved_manifest)
 
 
 PROFILE_TEXT = """
@@ -84,6 +87,51 @@ class ProfilePlatformOverlayTest(unittest.TestCase):
         ini = Ini.loads("[profile@windwos]\nclient=native\n", "bad.ini")
         with self.assertRaisesRegex(LaunchError, "unknown platform 'windwos'"):
             Profile("bad", "bad.ini", ini, "repo", platform="windows")
+
+
+class ResolvedManifestPathTest(unittest.TestCase):
+    def test_derived_output_is_rebased_with_generated_manifest(self):
+        with tempfile.TemporaryDirectory() as root:
+            manifests = os.path.join(root, "manifests")
+            profiles = os.path.join(root, "profiles")
+            generated = os.path.join(root, "build", "manifests")
+            os.makedirs(manifests)
+            os.makedirs(profiles)
+            world = os.path.join(manifests, "world.ini")
+            profile_path = os.path.join(profiles, "demo.ini")
+            with open(world, "w", encoding="utf-8") as handle:
+                handle.write(
+                    "[cache:boot]\n"
+                    "dir=../cache.demo\n"
+                    "\n"
+                    "[derived:scripts]\n"
+                    "out=../content/server/scripts/build\n"
+                    "check=checker.py --out {out}\n"
+                    "target=scripts\n")
+            profile = Profile(
+                "demo", profile_path,
+                Ini.loads(
+                    "[profile]\n"
+                    "world=manifests/world.ini\n"
+                    "client=native\n"
+                    "\n"
+                    "[override:chrome]\n"
+                    "executor=gdi\n",
+                    profile_path),
+                root,
+                platform="windows")
+
+            resolved_path = generate_resolved_manifest(profile, generated)
+            resolved = Manifest.load(resolved_path)
+            derived = dict(resolved.derived())["scripts"]
+
+            self.assertEqual(
+                os.path.normpath(os.path.join(root, "cache.demo")),
+                resolved.cache_dir)
+            self.assertEqual(
+                os.path.normpath(
+                    os.path.join(root, "content", "server", "scripts", "build")),
+                resolved.resolve_path(derived["out"]))
 
 
 if __name__ == "__main__":

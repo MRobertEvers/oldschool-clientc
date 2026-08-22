@@ -33,7 +33,9 @@
 
 /* Widest argument list a hook may carry. A bound, not an allocation size. */
 #define UITREE_HOOK_ARG_MAX 64
-#define UITREE_HOOK_STR_ARG_MAX 4
+/* Script 150's nine operation labels are the widest currently known hook;
+ * keep headroom so valid signatures are not silently truncated. */
+#define UITREE_HOOK_STR_ARG_MAX 16
 /* Longest string argument kept, including the terminator. */
 #define UITREE_HOOK_STR_ARG_LEN 80
 

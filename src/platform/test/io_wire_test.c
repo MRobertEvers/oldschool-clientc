@@ -266,6 +266,45 @@ check_malformed(void)
     IOWireBuf_Free(&buf);
 }
 
+/* A settings save always replaces an existing file after first launch. This
+ * specifically exercises the Windows path, where CRT rename() refuses to
+ * replace the destination and used to make every later preferences save fail. */
+static void
+check_file_replace(struct PlatformX_IO* px)
+{
+    char const* path = "build/io_replace_test.ini";
+    char const replacement[] = "version=2\n";
+    char actual[sizeof(replacement)] = { 0 };
+    struct ToriRS_IOItem item;
+    FILE* file;
+
+    file = fopen(path, "wb");
+    CHECK(file != NULL, "file replace: could not create initial file");
+    if( !file )
+        return;
+    fwrite("version=1\n", 1, 10, file);
+    fclose(file);
+
+    memset(&item, 0, sizeof(item));
+    item.kind = TORIRS_IOK_FILE_WRITE;
+    snprintf(item.u.file.path, sizeof(item.u.file.path), "%s", path);
+    item.data = (void*)replacement;
+    item.data_size = (int)(sizeof(replacement) - 1);
+    CHECK(PlatformX_IO_LoadItem(px, &item) == 0, "file replace: platform write failed");
+    CHECK(item.error_code == 0, "file replace: error code %d", item.error_code);
+
+    file = fopen(path, "rb");
+    CHECK(file != NULL, "file replace: replacement is missing");
+    if( file )
+    {
+        size_t got = fread(actual, 1, sizeof(actual) - 1, file);
+        fclose(file);
+        CHECK(got == sizeof(replacement) - 1, "file replace: got %d bytes", (int)got);
+        CHECK(strcmp(actual, replacement) == 0, "file replace: contents are '%s'", actual);
+    }
+    remove(path);
+}
+
 int
 main(
     int argc,
@@ -282,6 +321,9 @@ main(
 
     px = PlatformX_IO_New();
     assert(px);
+
+    printf("io_wire: client file replacement\n");
+    check_file_replace(px);
 
     dat1 = RSCache_Dat1DiskNewFromDirectory(dat1_dir);
     if( !dat1 )

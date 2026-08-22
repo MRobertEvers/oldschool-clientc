@@ -50,6 +50,7 @@ lib/python*
 *.out
 *.dSYM
 *.o
+.last_build
 .tmp
 out/
 
@@ -93,3 +94,7 @@ src/*.exe
 # Claude Code local overrides
 .claude/settings.local.json
 .claude/worktrees/
+
+# Build-flavor stamp: records which OBJ_DIR last linked src/torirs so a
+# debug/release swap forces a relink. Purely local state (src/makefile:632).
+src/.last_flavor

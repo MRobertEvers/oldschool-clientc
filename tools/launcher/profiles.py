@@ -27,6 +27,18 @@ MANIFEST_RELATIVE_KEYS = (
     "revconfig_cache",
 )
 
+
+def _is_manifest_relative_key(section, key):
+    """Whether `key` is interpreted relative to its manifest file.
+
+    The boot keys are a fixed format owned by bootmanifest.c. Derived blocks
+    are launcher metadata, and their `out=` follows the same manifest-relative
+    rule. Keeping that contextual avoids treating an unrelated section's
+    generic `out` key as a path.
+    """
+    return (key in MANIFEST_RELATIVE_KEYS or
+            (section.startswith("derived:") and key == "out"))
+
 CLIENT_KINDS = ("native", "web", "web-idb", "runelite", "headless")
 
 
@@ -345,12 +357,12 @@ def generate_resolved_manifest(profile, out_dir):
                 # against the manifest they are overriding, not against
                 # build/manifests/ where the copy lands — resolving it here is
                 # what keeps those two frames from disagreeing.
-                if key in MANIFEST_RELATIVE_KEYS:
+                if _is_manifest_relative_key(section, key):
                     value = reframe(value)
                 out_lines.append("%s=%s" % (key, value))
                 applied.add((section, key))
                 continue
-            if key in MANIFEST_RELATIVE_KEYS:
+            if _is_manifest_relative_key(section, key):
                 value = stripped.split("=", 1)[1].strip()
                 out_lines.append("%s=%s" % (key, reframe(value)))
                 continue
@@ -370,7 +382,7 @@ def generate_resolved_manifest(profile, out_dir):
             out_lines.append("[%s]" % section_name)
             for key in keys:
                 value = pending[(section_name, key)]
-                if key in MANIFEST_RELATIVE_KEYS:
+                if _is_manifest_relative_key(section_name, key):
                     value = reframe(value)
                 out_lines.append("%s=%s" % (key, value))
 
@@ -381,8 +393,8 @@ def generate_resolved_manifest(profile, out_dir):
         ";   profile  %s" % os.path.relpath(profile.path, profile.repo_root),
         ";   world    %s" % os.path.relpath(base_path, profile.repo_root),
         "; Edits here are overwritten on the next run — change the profile or",
-        "; the manifest instead. Manifest-relative paths were made absolute",
-        "; because this copy does not sit beside the original.",
+        "; the manifest instead. Manifest-relative paths were re-expressed",
+        "; relative to this copy because it does not sit beside the original.",
         "",
     ]
     with open(out_path, "w", encoding="utf-8") as handle:

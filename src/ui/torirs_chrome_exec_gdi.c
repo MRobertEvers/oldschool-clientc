@@ -104,6 +104,14 @@ static char const CHROME_GDI_WNDCLASS[] = "TorirsChromeToolWindow";
 #define CHROME_GDI_DOT_INSET CHROME_GDI_PX(TORIRS_CHROME_M_DOT_INSET)
 #define CHROME_GDI_SWATCH CHROME_GDI_PX(TORIRS_CHROME_M_SWATCH)
 #define CHROME_GDI_SWATCH_GAP CHROME_GDI_PX(TORIRS_CHROME_M_SWATCH_GAP)
+#define CHROME_GDI_COLORBAR_H CHROME_GDI_PX(TORIRS_CHROME_M_COLORBAR_H)
+#define CHROME_GDI_COLORBAR_GAP CHROME_GDI_PX(TORIRS_CHROME_M_COLORBAR_GAP)
+#define CHROME_GDI_COLORPOP_PAD CHROME_GDI_PX(4)
+#define CHROME_GDI_COLORPOP_CAP_W CHROME_GDI_PX(12)
+#define CHROME_GDI_COLORPOP_H                                                               \
+    (2 * CHROME_GDI_COLORPOP_PAD +                                                       \
+     TORIRS_CHROME_COLORBAR_COUNT * CHROME_GDI_COLORBAR_H +                            \
+     (TORIRS_CHROME_COLORBAR_COUNT - 1) * CHROME_GDI_COLORBAR_GAP)
 #define CHROME_GDI_FRAME CHROME_GDI_PX(TORIRS_CHROME_M_FRAME)
 /** Side of one frame corner tile. It carries the rail along each of its two
  *  outer edges, so it blits square at THIS rather than at the rail's width --
@@ -111,6 +119,8 @@ static char const CHROME_GDI_WNDCLASS[] = "TorirsChromeToolWindow";
 #define CHROME_GDI_FRAME_CORNER CHROME_GDI_PX(TORIRS_CHROME_M_FRAME_CORNER)
 #define CHROME_GDI_FIELD_PAD_X CHROME_GDI_PX(TORIRS_CHROME_M_FIELD_PAD_X)
 #define CHROME_GDI_FIELD_INSET CHROME_GDI_PX(TORIRS_CHROME_M_FIELD_INSET)
+#define CHROME_GDI_DROP_ARROW CHROME_GDI_PX(TORIRS_CHROME_M_DROP_ARROW)
+#define CHROME_GDI_DROP_LIST_ROW_H CHROME_GDI_PX(TORIRS_CHROME_M_DROP_LIST_ROW_H)
 #define CHROME_GDI_RULE CHROME_GDI_PX(1)
 /** A multiline field's own two numbers. @see TORIRS_CHROME_M_TEXTAREA_LINE --
  *  the pitch is authored rather than measured because this window lays out in
@@ -133,6 +143,20 @@ static char const CHROME_GDI_WNDCLASS[] = "TorirsChromeToolWindow";
     (CHROME_GDI_FRAME - CHROME_GDI_RULE + CHROME_GDI_TITLE_H + CHROME_GDI_TITLE_GAP +       \
      CHROME_GDI_RULE)
 #define CHROME_GDI_CLOSE_PAD CHROME_GDI_PX(TORIRS_CHROME_M_CLOSE_PAD)
+#define CHROME_GDI_GRIP_DOT CHROME_GDI_PX(2)
+#define CHROME_GDI_GRIP_PITCH CHROME_GDI_PX(3)
+#define CHROME_GDI_GRIP_LINES 3
+#define CHROME_GDI_GRIP_SIZE                                                           \
+    ((CHROME_GDI_GRIP_LINES - 1) * CHROME_GDI_GRIP_PITCH + CHROME_GDI_GRIP_DOT)
+#define CHROME_GDI_RESIZE_GRIP (CHROME_GDI_GRIP_SIZE + CHROME_GDI_PX(2))
+#define CHROME_GDI_MIN_W CHROME_GDI_PX(180)
+#define CHROME_GDI_MIN_H CHROME_GDI_PX(160)
+#define CHROME_GDI_SWP_SHOW (SWP_NOZORDER | SWP_SHOWWINDOW | SWP_NOREDRAW)
+/** The skinned dropdown face must be above its native combo sibling. NULL is
+ * HWND_TOP when SWP_NOZORDER is absent. */
+#define CHROME_GDI_SWP_SHOW_TOP (SWP_SHOWWINDOW | SWP_NOREDRAW)
+#define CHROME_GDI_SWP_HIDE                                                              \
+    (SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW | SWP_NOREDRAW)
 
 /** Opening size: the label column, a field beside it, and the pads. The window
  *  is resizable; this is only where it starts. */
@@ -157,6 +181,10 @@ static char const CHROME_GDI_WNDCLASS[] = "TorirsChromeToolWindow";
 #define CHROME_GDI_ID_ACTION_BASE 0x6000
 /** The window's own close button. One control, so one id rather than a block. */
 #define CHROME_GDI_ID_CLOSE 0x7000
+#define CHROME_GDI_ID_COLOR_BASE 0x7200
+/** A dropdown's visible, fully skinned face. The COMBOBOX remains directly
+ * behind it to own the popup, selection, focus and keyboard behaviour. */
+#define CHROME_GDI_ID_DROP_BASE 0x7400
 /**
  * The close button's box: the sprite, doubled.
  *
@@ -204,6 +232,12 @@ struct ChromeGdi
      */
     HWND swatch[TORIRS_CHROME_MAX_WIDGETS];
     HBRUSH swatch_brush[TORIRS_CHROME_MAX_WIDGETS];
+    /** Owner-drawn BUTTON over a native COMBOBOX's shell-owned closed face.
+     * USER32 does not include the combo's arrow strip in WM_DRAWITEM, so a
+     * sibling face is the only way to put the shared ToriRSChrome arrow there
+     * without replacing the real popup and keyboard control. */
+    HWND dropdown_face[TORIRS_CHROME_MAX_WIDGETS];
+    int dropdown_open;
     /**
      * The STATIC carrying a labelled control's caption.
      *
@@ -239,15 +273,30 @@ struct ChromeGdi
     unsigned char rows[TORIRS_CHROME_MAX_WIDGETS];
     /** Resolved widget colour, 0 meaning the kind's palette default. */
     uint32_t color[TORIRS_CHROME_MAX_WIDGETS];
+    int selected[TORIRS_CHROME_MAX_WIDGETS];
+    int dropdown_option_count[TORIRS_CHROME_MAX_WIDGETS];
     /** Set by the last layout only for rows actually inside the scroll
-     * viewport. WM_ERASEBKGND uses it so a clipped EDIT cannot leave a field
-     * frame painted at its old position. */
+     * viewport. The parent paint uses it so a clipped EDIT cannot leave a
+     * field frame painted at its old position. */
     unsigned char presented[TORIRS_CHROME_MAX_WIDGETS];
     int scroll_y;
     int content_h;
     unsigned char scrollbar_visible;
     unsigned char scrollbar_dragging;
     int scrollbar_drag_offset;
+    RECT color_popup_rect;
+    int color_popup_widget;
+    int color_drag_bar;
+    unsigned char resizing;
+    POINT resize_start_cursor;
+    RECT resize_start_window;
+    /** One model sync is one visual transaction. Native controls otherwise
+     * repaint while a page is half removed and half rebuilt. */
+    unsigned char syncing;
+    unsigned char batch_redraw_off;
+    unsigned char layout_dirty;
+    unsigned char paint_dirty;
+    unsigned char tabs_dirty;
     /**
      * The skin, once.
      *
@@ -268,6 +317,12 @@ struct ChromeGdi
     uint32_t* scratch_pixels;
     int scratch_w;
     int scratch_h;
+    /** The parent chrome is rendered here and copied to the HWND in one blit.
+     * WM_ERASEBKGND never exposes a cleared client area. */
+    HDC paint_dc;
+    HBITMAP paint_bitmap;
+    int paint_w;
+    int paint_h;
 };
 
 static struct ChromeGdi g_chrome_gdi;
@@ -550,6 +605,61 @@ chrome_gdi_row_h(struct ChromeGdi const* s, int kind, int widget)
     return (s->label[widget] ? CHROME_GDI_ROW_H : 0) + chrome_gdi_textarea_h(s, widget);
 }
 
+/** Total native COMBOBOX height: its closed selection plus the authored
+ * popup rows. SetWindowPos's height means BOTH for CBS_DROPDOWNLIST even
+ * though GetWindowRect reports only the closed selection. */
+static int
+chrome_gdi_dropdown_native_h(struct ChromeGdi const* s, int widget)
+{
+    int rows = s->dropdown_option_count[widget];
+
+    if( rows < 1 )
+        rows = 1;
+    if( rows > TORIRS_CHROME_M_DROP_LIST_ROWS )
+        rows = TORIRS_CHROME_M_DROP_LIST_ROWS;
+    return CHROME_GDI_ROW_H + rows * CHROME_GDI_DROP_LIST_ROW_H + 2 * CHROME_GDI_RULE;
+}
+
+static int
+chrome_gdi_colorbar_steps(int bar)
+{
+    if( bar == TORIRS_CHROME_COLORBAR_HUE )
+        return TORIRS_CHROME_COLOR_HUE_STEPS;
+    if( bar == TORIRS_CHROME_COLORBAR_SAT )
+        return TORIRS_CHROME_COLOR_SAT_STEPS;
+    return TORIRS_CHROME_COLOR_LUM_STEPS;
+}
+
+static int
+chrome_gdi_colorbar_value(int hsl16, int bar)
+{
+    int hue;
+    int sat;
+    int lum;
+    ToriRSChrome_Hsl16Split(hsl16, &hue, &sat, &lum);
+    if( bar == TORIRS_CHROME_COLORBAR_HUE )
+        return hue;
+    if( bar == TORIRS_CHROME_COLORBAR_SAT )
+        return sat;
+    return lum;
+}
+
+static int
+chrome_gdi_colorbar_with(int hsl16, int bar, int value)
+{
+    int hue;
+    int sat;
+    int lum;
+    ToriRSChrome_Hsl16Split(hsl16, &hue, &sat, &lum);
+    if( bar == TORIRS_CHROME_COLORBAR_HUE )
+        hue = value;
+    else if( bar == TORIRS_CHROME_COLORBAR_SAT )
+        sat = value;
+    else
+        lum = value;
+    return ToriRSChrome_Hsl16Pack(hue, sat, lum);
+}
+
 /* ---- line endings ---------------------------------------------------------
  *
  * The model's newline is '\n' and an EDIT control's is "\r\n", and neither
@@ -597,6 +707,20 @@ chrome_gdi_to_lf(char* dst, int cap, char const* src)
 
 static void chrome_gdi_layout(struct ChromeGdi* s);
 
+/** Queue a completed parent-and-children frame without requesting a background
+ * erase. Deliberately not RDW_UPDATENOW: successive wheel/mouse-move messages
+ * can coalesce before USER32 paints, rather than forcing one full present per
+ * input packet. The old complete frame remains visible until then. */
+static void
+chrome_gdi_repaint(struct ChromeGdi* s)
+{
+    if( !s->hwnd )
+        return;
+    RedrawWindow(
+        s->hwnd, NULL, NULL,
+        RDW_INVALIDATE | RDW_ALLCHILDREN);
+}
+
 /** Top of the scrolling row viewport. Tabs and the close button stay above
  * it, fixed, while the settings move underneath. */
 static int
@@ -629,6 +753,8 @@ chrome_gdi_measure_content(struct ChromeGdi* s)
         if( !w || !w->native || !ToriRSChromeMirror_Shown(&s->mirror, i) )
             continue;
         y += chrome_gdi_row_h(s, w->kind, i) + CHROME_GDI_ROW_GAP;
+        if( w->kind == TORIRS_CHROME_W_COLORPICK && s->checked[i] )
+            y += CHROME_GDI_COLORPOP_H + CHROME_GDI_ROW_GAP;
         rows++;
     }
     if( rows > 0 )
@@ -683,6 +809,48 @@ chrome_gdi_scrollbar_geometry(
     return 1;
 }
 
+/** A top-down DIB used as the complete parent-window backing store. Kept
+ * separate from `scratch`: sprite alpha compositing reads and writes scratch
+ * while this is the destination it is compositing onto. */
+static int
+chrome_gdi_paint_buffer(struct ChromeGdi* s, int w, int h)
+{
+    BITMAPINFO bi;
+    HBITMAP made;
+    void* bits = NULL;
+
+    if( w <= 0 || h <= 0 )
+        return 0;
+    if( s->paint_bitmap && s->paint_w >= w && s->paint_h >= h )
+        return 1;
+    if( !s->paint_dc )
+        s->paint_dc = CreateCompatibleDC(NULL);
+    if( !s->paint_dc )
+        return 0;
+    if( w < s->paint_w )
+        w = s->paint_w;
+    if( h < s->paint_h )
+        h = s->paint_h;
+
+    memset(&bi, 0, sizeof(bi));
+    bi.bmiHeader.biSize = sizeof(bi.bmiHeader);
+    bi.bmiHeader.biWidth = w;
+    bi.bmiHeader.biHeight = -h;
+    bi.bmiHeader.biPlanes = 1;
+    bi.bmiHeader.biBitCount = 32;
+    bi.bmiHeader.biCompression = BI_RGB;
+    made = CreateDIBSection(NULL, &bi, DIB_RGB_COLORS, &bits, NULL, 0);
+    if( !made || !bits )
+        return 0;
+    SelectObject(s->paint_dc, made);
+    if( s->paint_bitmap )
+        DeleteObject(s->paint_bitmap);
+    s->paint_bitmap = made;
+    s->paint_w = w;
+    s->paint_h = h;
+    return 1;
+}
+
 static int
 chrome_gdi_clamp_scroll(struct ChromeGdi* s, int requested)
 {
@@ -718,17 +886,19 @@ chrome_gdi_scroll_to(struct ChromeGdi* s, int requested)
 static HDWP
 chrome_gdi_hide_row(struct ChromeGdi* s, HDWP dwp, int widget, HWND control)
 {
-    dwp = DeferWindowPos(dwp, control, NULL, 0, 0, 0, 0,
-                         SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW);
+    dwp = DeferWindowPos(dwp, control, NULL, 0, 0, 0, 0, CHROME_GDI_SWP_HIDE);
     if( s->label[widget] )
-        dwp = DeferWindowPos(dwp, s->label[widget], NULL, 0, 0, 0, 0,
-                             SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW);
+        dwp = DeferWindowPos(
+            dwp, s->label[widget], NULL, 0, 0, 0, 0, CHROME_GDI_SWP_HIDE);
     if( s->action[widget] )
-        dwp = DeferWindowPos(dwp, s->action[widget], NULL, 0, 0, 0, 0,
-                             SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW);
+        dwp = DeferWindowPos(
+            dwp, s->action[widget], NULL, 0, 0, 0, 0, CHROME_GDI_SWP_HIDE);
     if( s->swatch[widget] )
-        dwp = DeferWindowPos(dwp, s->swatch[widget], NULL, 0, 0, 0, 0,
-                             SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_HIDEWINDOW);
+        dwp = DeferWindowPos(
+            dwp, s->swatch[widget], NULL, 0, 0, 0, 0, CHROME_GDI_SWP_HIDE);
+    if( s->dropdown_face[widget] )
+        dwp = DeferWindowPos(
+            dwp, s->dropdown_face[widget], NULL, 0, 0, 0, 0, CHROME_GDI_SWP_HIDE);
     return dwp;
 }
 
@@ -771,15 +941,17 @@ chrome_gdi_layout(struct ChromeGdi* s)
     rows_top = chrome_gdi_rows_top(s);
     rows_bottom = client.bottom - CHROME_GDI_FRAME - CHROME_GDI_PAD;
     memset(s->presented, 0, sizeof(s->presented));
+    memset(&s->color_popup_rect, 0, sizeof(s->color_popup_rect));
+    s->color_popup_widget = -1;
 
     for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
         if( ToriRSChromeMirror_Widget(&s->mirror, i) )
             live++;
 
-    /* Three per row at the worst -- a roster row is a name, a well and a
-     * switch -- plus the strip. Over-reserving costs nothing; under-reserving
-     * makes DeferWindowPos reallocate mid-batch. */
-    dwp = BeginDeferWindowPos(3 * live + s->tab_count + 1);
+    /* Four per row at the worst -- a dropdown is its label, native combo and
+     * skinned face -- plus the strip. Over-reserving costs nothing;
+     * under-reserving makes DeferWindowPos reallocate mid-batch. */
+    dwp = BeginDeferWindowPos(4 * live + s->tab_count + 1);
     if( !dwp )
         return;
 
@@ -796,7 +968,7 @@ chrome_gdi_layout(struct ChromeGdi* s)
                 CHROME_GDI_HEADER_H + CHROME_GDI_PAD,
                 CHROME_GDI_TAB_W,
                 CHROME_GDI_TAB_H,
-                SWP_NOZORDER | SWP_SHOWWINDOW);
+                CHROME_GDI_SWP_SHOW);
 
     /*
      * The close button, pinned to the top-right corner of the client area --
@@ -815,7 +987,7 @@ chrome_gdi_layout(struct ChromeGdi* s)
             CHROME_GDI_FRAME + (CHROME_GDI_TITLE_H - CHROME_GDI_CLOSE_SIDE) / 2,
             CHROME_GDI_CLOSE_SIDE,
             CHROME_GDI_CLOSE_SIDE,
-            SWP_NOZORDER | SWP_SHOWWINDOW);
+            CHROME_GDI_SWP_SHOW);
 
     /*
      * The rows start below the drawn title block and the optional tab strip.
@@ -836,6 +1008,7 @@ chrome_gdi_layout(struct ChromeGdi* s)
         struct ToriRSChromeMirrorWidget* w = ToriRSChromeMirror_Widget(&s->mirror, i);
         HWND control;
         int row_h;
+        int row_extent;
         int x = CHROME_GDI_FRAME + CHROME_GDI_PAD;
         int row_w = width - 2 * CHROME_GDI_PAD -
                     (s->scrollbar_visible ? CHROME_GDI_SCROLL_W + CHROME_GDI_SCROLL_GAP : 0);
@@ -843,6 +1016,9 @@ chrome_gdi_layout(struct ChromeGdi* s)
         if( !w || !w->native )
             continue;
         row_h = chrome_gdi_row_h(s, w->kind, i);
+        row_extent = row_h;
+        if( w->kind == TORIRS_CHROME_W_COLORPICK && s->checked[i] )
+            row_extent += CHROME_GDI_COLORPOP_H + CHROME_GDI_ROW_GAP;
         control = (HWND)w->native;
 
         if( !ToriRSChromeMirror_Shown(&s->mirror, i) )
@@ -860,10 +1036,10 @@ chrome_gdi_layout(struct ChromeGdi* s)
          * frame. Hiding a partially visible row is preferable to letting a
          * child HWND paint over the window furniture; at either scroll end
          * the range aligns the first/last row exactly with the viewport. */
-        if( y < rows_top || y + row_h > rows_bottom )
+        if( y < rows_top || y + row_extent > rows_bottom )
         {
             dwp = chrome_gdi_hide_row(s, dwp, i, control);
-            y += row_h + CHROME_GDI_ROW_GAP;
+            y += row_extent + CHROME_GDI_ROW_GAP;
             continue;
         }
         s->presented[i] = 1;
@@ -884,15 +1060,15 @@ chrome_gdi_layout(struct ChromeGdi* s)
             if( s->label[i] )
                 dwp = DeferWindowPos(
                     dwp, s->label[i], NULL, x, y, name_w > 0 ? name_w : 1, row_h,
-                    SWP_NOZORDER | SWP_SHOWWINDOW);
+                    CHROME_GDI_SWP_SHOW);
             if( s->action[i] )
                 dwp = DeferWindowPos(
                     dwp, s->action[i], NULL, icon_x,
                     y + (row_h - CHROME_GDI_ROW_ICON) / 2, CHROME_GDI_ROW_ICON,
-                    CHROME_GDI_ROW_ICON, SWP_NOZORDER | SWP_SHOWWINDOW);
+                    CHROME_GDI_ROW_ICON, CHROME_GDI_SWP_SHOW);
             dwp = DeferWindowPos(
                 dwp, control, NULL, tog_x, y, CHROME_GDI_TOGGLE_W, row_h,
-                SWP_NOZORDER | SWP_SHOWWINDOW);
+                CHROME_GDI_SWP_SHOW);
             y += row_h + CHROME_GDI_ROW_GAP;
             continue;
         }
@@ -913,16 +1089,16 @@ chrome_gdi_layout(struct ChromeGdi* s)
             if( s->label[i] )
                 dwp = DeferWindowPos(
                     dwp, s->label[i], NULL, x, y, row_w, CHROME_GDI_ROW_H,
-                    SWP_NOZORDER | SWP_SHOWWINDOW);
+                    CHROME_GDI_SWP_SHOW);
             /* Inset inside its field box for the same reason a one-line EDIT
-             * is: the parent draws the frame under it in WM_ERASEBKGND, and a
+             * is: the parent draws the frame under it in WM_PAINT, and a
              * control sitting exactly on the box covers it. */
             dwp = DeferWindowPos(
                 dwp, control, NULL, x + CHROME_GDI_FIELD_PAD_X,
                 y + cap_h + CHROME_GDI_TEXTAREA_PAD_Y,
                 row_w - 2 * CHROME_GDI_FIELD_PAD_X,
                 chrome_gdi_textarea_h(s, i) - 2 * CHROME_GDI_TEXTAREA_PAD_Y,
-                SWP_NOZORDER | SWP_SHOWWINDOW);
+                CHROME_GDI_SWP_SHOW);
             y += row_h + CHROME_GDI_ROW_GAP;
             continue;
         }
@@ -935,7 +1111,7 @@ chrome_gdi_layout(struct ChromeGdi* s)
             if( s->label[i] )
                 dwp = DeferWindowPos(
                     dwp, s->label[i], NULL, x, y, CHROME_GDI_LABEL_W, row_h,
-                    SWP_NOZORDER | SWP_SHOWWINDOW);
+                    CHROME_GDI_SWP_SHOW);
             x += CHROME_GDI_LABEL_W;
             row_w -= CHROME_GDI_LABEL_W;
         }
@@ -943,10 +1119,18 @@ chrome_gdi_layout(struct ChromeGdi* s)
          * a text row with a swatch in front of it rather than a second box. */
         if( w->kind == TORIRS_CHROME_W_COLORPICK && s->swatch[i] )
         {
+            if( s->checked[i] )
+            {
+                s->color_popup_widget = i;
+                s->color_popup_rect.left = x;
+                s->color_popup_rect.top = y + row_h + CHROME_GDI_ROW_GAP;
+                s->color_popup_rect.right = x + row_w;
+                s->color_popup_rect.bottom = s->color_popup_rect.top + CHROME_GDI_COLORPOP_H;
+            }
             dwp = DeferWindowPos(
                 dwp, s->swatch[i], NULL, x + CHROME_GDI_FIELD_INSET,
                 y + (row_h - CHROME_GDI_SWATCH) / 2, CHROME_GDI_SWATCH,
-                CHROME_GDI_SWATCH, SWP_NOZORDER | SWP_SHOWWINDOW);
+                CHROME_GDI_SWATCH, CHROME_GDI_SWP_SHOW);
             x += CHROME_GDI_FIELD_INSET + CHROME_GDI_SWATCH + CHROME_GDI_SWATCH_GAP;
             row_w -= CHROME_GDI_FIELD_INSET + CHROME_GDI_SWATCH + CHROME_GDI_SWATCH_GAP;
         }
@@ -957,7 +1141,7 @@ chrome_gdi_layout(struct ChromeGdi* s)
          * A typed control is INSET inside its field box.
          *
          * The box is script_3850's two-colour frame, and the parent draws it in
-         * WM_ERASEBKGND from this control's own rect grown by the inset. The
+         * WM_PAINT from this control's own rect grown by the inset. The
          * control sitting exactly on the box would cover the frame it is
          * supposed to be wearing.
          */
@@ -965,30 +1149,30 @@ chrome_gdi_layout(struct ChromeGdi* s)
             dwp = DeferWindowPos(
                 dwp, control, NULL, x + CHROME_GDI_FIELD_PAD_X,
                 y + CHROME_GDI_FIELD_INSET, row_w - 2 * CHROME_GDI_FIELD_PAD_X,
-                row_h - 2 * CHROME_GDI_FIELD_INSET, SWP_NOZORDER | SWP_SHOWWINDOW);
+                row_h - 2 * CHROME_GDI_FIELD_INSET, CHROME_GDI_SWP_SHOW);
         else
-            dwp = DeferWindowPos(dwp, control, NULL, x, y, row_w, row_h,
-                                 SWP_NOZORDER | SWP_SHOWWINDOW);
-        y += row_h + CHROME_GDI_ROW_GAP;
+            dwp = DeferWindowPos(
+                dwp, control, NULL, x, y, row_w,
+                w->kind == TORIRS_CHROME_W_DROPDOWN
+                    ? chrome_gdi_dropdown_native_h(s, i)
+                    : row_h,
+                CHROME_GDI_SWP_SHOW);
+        /* The real combo stays under this face and still owns its popup,
+         * selection and keyboard navigation. Cover the WHOLE combo, including
+         * the arrow strip USER32 withholds from WM_DRAWITEM. */
+        if( w->kind == TORIRS_CHROME_W_DROPDOWN && s->dropdown_face[i] )
+            dwp = DeferWindowPos(
+                dwp, s->dropdown_face[i], NULL, x, y, row_w, row_h,
+                CHROME_GDI_SWP_SHOW_TOP);
+        y += row_extent + CHROME_GDI_ROW_GAP;
     }
 
     EndDeferWindowPos(dwp);
 
-    /*
-     * Repaint the window and everything in it, every time rows move.
-     *
-     * The background is drawn against the CONTROLS' boxes -- the field frame
-     * under every EDIT is placed from that control's rect in WM_ERASEBKGND --
-     * so a row that moved leaves its old frame painted where it was and its
-     * new one unpainted. The symptom is an empty box floating beside every
-     * field, and it survives until something else happens to invalidate the
-     * window. Here rather than at each of the half-dozen callers, so a new one
-     * cannot forget.
-     */
-    /* Child moves/shows already invalidate the controls that need repainting.
-     * Invalidating them all a second time exposes the textured parent between
-     * their erase and paint passes, which is the page-switch flicker. */
-    RedrawWindow(s->hwnd, NULL, NULL, RDW_INVALIDATE);
+    /* Every move above used SWP_NOREDRAW. Paint once after the layout is
+     * stable. WM_PAINT supplies a complete off-screen background, so asking
+     * USER32 for an erase here would only reintroduce the flash it avoids. */
+    chrome_gdi_repaint(s);
 }
 
 /* ---- drawing the controls -------------------------------------------------
@@ -1121,6 +1305,31 @@ chrome_gdi_draw_title(struct ChromeGdi* s, HDC dc, int width)
     chrome_gdi_text(dc, text, caption, TORIRS_CHROME_C_BODY, DT_LEFT);
 }
 
+/**
+ * ToriRSChrome's resize handle: six 2x2 dots forming three nested diagonal
+ * carets in the bottom-right. This is dbg_push_grip in GDI vocabulary; it is
+ * procedural chrome, not a baked sprite slot.
+ */
+static void
+chrome_gdi_draw_resize_grip(HDC dc, RECT const* client)
+{
+    int const grip_x = client->right - CHROME_GDI_RULE - CHROME_GDI_RESIZE_GRIP;
+    int const grip_y = client->bottom - CHROME_GDI_RULE - CHROME_GDI_RESIZE_GRIP;
+    int const x1 = grip_x + CHROME_GDI_RESIZE_GRIP - 2 * CHROME_GDI_RULE;
+    int const y1 = grip_y + CHROME_GDI_RESIZE_GRIP - 2 * CHROME_GDI_RULE;
+
+    for( int j = 0; j < CHROME_GDI_GRIP_LINES; j++ )
+        for( int i = 0; i + j < CHROME_GDI_GRIP_LINES; i++ )
+            chrome_gdi_rect(
+                dc,
+                x1 - CHROME_GDI_GRIP_DOT + CHROME_GDI_RULE -
+                    i * CHROME_GDI_GRIP_PITCH,
+                y1 - CHROME_GDI_GRIP_DOT + CHROME_GDI_RULE -
+                    j * CHROME_GDI_GRIP_PITCH,
+                CHROME_GDI_GRIP_DOT, CHROME_GDI_GRIP_DOT,
+                TORIRS_CHROME_C_CHROME);
+}
+
 /** ~script31's scrollbar: arrow buttons, tiled track, and three-piece grip. */
 static void
 chrome_gdi_draw_scrollbar(struct ChromeGdi* s, HDC dc, RECT const* client)
@@ -1197,6 +1406,135 @@ chrome_gdi_draw_scrollbar(struct ChromeGdi* s, HDC dc, RECT const* client)
             dc, box.left, box.top, CHROME_GDI_SCROLL_W, CHROME_GDI_SCROLL_W,
             TORIRS_CHROME_C_SCROLL_GRIP);
         chrome_gdi_text(dc, box, "v", TORIRS_CHROME_C_ACCENT, DT_CENTER);
+    }
+}
+
+static RECT
+chrome_gdi_colorbar_rect(struct ChromeGdi const* s, int bar)
+{
+    RECT out = s->color_popup_rect;
+
+    out.left += CHROME_GDI_COLORPOP_PAD + CHROME_GDI_COLORPOP_CAP_W;
+    out.right -= CHROME_GDI_COLORPOP_PAD;
+    out.top += CHROME_GDI_COLORPOP_PAD +
+               bar * (CHROME_GDI_COLORBAR_H + CHROME_GDI_COLORBAR_GAP);
+    out.bottom = out.top + CHROME_GDI_COLORBAR_H;
+    return out;
+}
+
+static void
+chrome_gdi_color_preview(struct ChromeGdi* s, int widget, int hsl16)
+{
+    struct ToriRSChromeMirrorWidget* w = ToriRSChromeMirror_Widget(&s->mirror, widget);
+    HBRUSH replacement;
+    char text[16];
+
+    if( !w || w->kind != TORIRS_CHROME_W_COLORPICK )
+        return;
+    hsl16 &= 0xFFFF;
+    s->selected[widget] = hsl16;
+    replacement = CreateSolidBrush(
+        chrome_gdi_colorref(ToriRSChrome_Hsl16ToRgb(hsl16)));
+    if( replacement )
+    {
+        if( s->swatch_brush[widget] )
+            DeleteObject(s->swatch_brush[widget]);
+        s->swatch_brush[widget] = replacement;
+    }
+    snprintf(text, sizeof(text), "#%06X", ToriRSChrome_Hsl16ToRgb(hsl16) & 0xFFFFFFu);
+    SetWindowTextA((HWND)w->native, text);
+    if( s->swatch[widget] )
+        InvalidateRect(s->swatch[widget], NULL, TRUE);
+    InvalidateRect(s->hwnd, &s->color_popup_rect, TRUE);
+}
+
+static int
+chrome_gdi_colorbar_at(struct ChromeGdi const* s, int x, int y)
+{
+    if( s->color_popup_widget < 0 )
+        return TORIRS_CHROME_COLORBAR_NONE;
+    for( int bar = 0; bar < TORIRS_CHROME_COLORBAR_COUNT; bar++ )
+    {
+        RECT const box = chrome_gdi_colorbar_rect(s, bar);
+        if( x >= box.left && x < box.right && y >= box.top && y < box.bottom )
+            return bar;
+    }
+    return TORIRS_CHROME_COLORBAR_NONE;
+}
+
+static int
+chrome_gdi_resize_at(struct ChromeGdi const* s, int x, int y)
+{
+    RECT client;
+
+    assert(s);
+    if( !s->hwnd || !GetClientRect(s->hwnd, &client) )
+        return 0;
+    return x >= client.right - CHROME_GDI_RULE - CHROME_GDI_RESIZE_GRIP &&
+           y >= client.bottom - CHROME_GDI_RULE - CHROME_GDI_RESIZE_GRIP;
+}
+
+static void
+chrome_gdi_colorbar_apply(struct ChromeGdi* s, int bar, int x)
+{
+    RECT const box = chrome_gdi_colorbar_rect(s, bar);
+    int const steps = chrome_gdi_colorbar_steps(bar);
+    int value;
+
+    if( box.right <= box.left || steps <= 0 || s->color_popup_widget < 0 )
+        return;
+    value = (x - box.left) * steps / (box.right - box.left);
+    if( value < 0 )
+        value = 0;
+    if( value >= steps )
+        value = steps - 1;
+    chrome_gdi_color_preview(
+        s, s->color_popup_widget,
+        chrome_gdi_colorbar_with(s->selected[s->color_popup_widget], bar, value));
+}
+
+static void
+chrome_gdi_draw_color_popup(struct ChromeGdi* s, HDC dc)
+{
+    static char const captions[TORIRS_CHROME_COLORBAR_COUNT] = { 'H', 'S', 'L' };
+    RECT const popup = s->color_popup_rect;
+    int const widget = s->color_popup_widget;
+
+    if( widget < 0 || popup.right <= popup.left || popup.bottom <= popup.top )
+        return;
+    chrome_gdi_field(
+        s, dc, popup.left, popup.top, popup.right - popup.left, popup.bottom - popup.top);
+    for( int bar = 0; bar < TORIRS_CHROME_COLORBAR_COUNT; bar++ )
+    {
+        RECT const box = chrome_gdi_colorbar_rect(s, bar);
+        int const steps = chrome_gdi_colorbar_steps(bar);
+        int const width = box.right - box.left;
+        int const cells = steps > width ? width : steps;
+        int const chosen = chrome_gdi_colorbar_value(s->selected[widget], bar);
+        RECT caption = { popup.left + CHROME_GDI_COLORPOP_PAD, box.top,
+                         box.left, box.bottom };
+        char letter[2] = { captions[bar], '\0' };
+
+        chrome_gdi_text(dc, caption, letter, TORIRS_CHROME_C_TEXT, DT_LEFT);
+        for( int cell = 0; cell < cells; cell++ )
+        {
+            int const x0 = box.left + width * cell / cells;
+            int const x1 = box.left + width * (cell + 1) / cells;
+            int const value = steps * cell / cells;
+            chrome_gdi_rect(
+                dc, x0, box.top, x1 - x0, box.bottom - box.top,
+                ToriRSChrome_Hsl16ToRgb(
+                    chrome_gdi_colorbar_with(s->selected[widget], bar, value)));
+        }
+        {
+            int const x0 = box.left + width * chosen / steps;
+            int x1 = box.left + width * (chosen + 1) / steps;
+            if( x1 <= x0 )
+                x1 = x0 + CHROME_GDI_RULE;
+            chrome_gdi_outline(
+                dc, x0, box.top, x1 - x0, box.bottom - box.top,
+                TORIRS_CHROME_C_ACCENT);
+        }
     }
 }
 
@@ -1336,7 +1674,59 @@ chrome_gdi_draw_combo(struct ChromeGdi* s, DRAWITEMSTRUCT const* di)
     if( di->itemState & ODS_SELECTED )
         chrome_gdi_outline(di->hDC, box.left, box.top, w, h, TORIRS_CHROME_C_ACCENT);
     box.left += CHROME_GDI_FIELD_PAD_X;
-    chrome_gdi_text(di->hDC, box, caption, TORIRS_CHROME_C_TEXT, DT_LEFT);
+    box.right -= CHROME_GDI_FIELD_PAD_X;
+    chrome_gdi_text(di->hDC, box, caption, TORIRS_CHROME_C_LABEL, DT_CENTER);
+}
+
+/**
+ * The complete closed dropdown face.
+ *
+ * A CBS_DROPDOWNLIST only owner-draws the value well; USER32 reserves the
+ * shell's arrow strip beside it. This BUTTON is a sibling laid over the whole
+ * combo, so the same five pieces as every other ToriRSChrome executor can be
+ * drawn: tiled field, two rules, the scrollbar arrow on the right, and the
+ * orange value centred in the remaining strip. The combo underneath still
+ * supplies the popup, focus, selection and keyboard navigation.
+ */
+static void
+chrome_gdi_draw_dropdown_face(
+    struct ChromeGdi* s, int widget, DRAWITEMSTRUCT const* di)
+{
+    struct ToriRSChromeMirrorWidget* w = ToriRSChromeMirror_Widget(&s->mirror, widget);
+    HWND combo = w ? (HWND)w->native : NULL;
+    RECT box = di->rcItem;
+    RECT text = box;
+    int const width = box.right - box.left;
+    int const height = box.bottom - box.top;
+    int const arrow = CHROME_GDI_DROP_ARROW < height ? CHROME_GDI_DROP_ARROW : height;
+    int const arrow_x = box.right - CHROME_GDI_FIELD_INSET - arrow;
+    int const open = s->dropdown_open == widget;
+    int const slot = open ? TORIRS_CHROME_SKIN_SCROLL_UP : TORIRS_CHROME_SKIN_SCROLL_DOWN;
+    char caption[TORIRS_CHROME_TEXT_MAX];
+    int selected = combo ? (int)SendMessageA(combo, CB_GETCURSEL, 0, 0) : -1;
+
+    caption[0] = '\0';
+    if( combo && selected >= 0 )
+        SendMessageA(combo, CB_GETLBTEXT, (WPARAM)selected, (LPARAM)caption);
+
+    chrome_gdi_field(s, di->hDC, box.left, box.top, width, height);
+    if( ToriRSChromeSkin_ForSlot(slot) )
+        chrome_gdi_blit(
+            s, di->hDC, arrow_x, box.top + (height - arrow) / 2, arrow, arrow, slot);
+    else
+    {
+        RECT arrow_box = { arrow_x, box.top, arrow_x + arrow, box.bottom };
+        chrome_gdi_text(
+            di->hDC, arrow_box, open ? "^" : "v", TORIRS_CHROME_C_ACCENT, DT_CENTER);
+    }
+
+    text.left += CHROME_GDI_FIELD_INSET;
+    text.right = arrow_x;
+    chrome_gdi_text(di->hDC, text, caption, TORIRS_CHROME_C_LABEL, DT_CENTER);
+
+    if( di->itemState & ODS_SELECTED )
+        chrome_gdi_outline(
+            di->hDC, box.left, box.top, width, height, TORIRS_CHROME_C_ACCENT);
 }
 
 /**
@@ -1373,6 +1763,14 @@ chrome_gdi_drawitem(struct ChromeGdi* s, DRAWITEMSTRUCT const* di)
     char caption[TORIRS_CHROME_TEXT_MAX];
     int const pressed = (di->itemState & ODS_SELECTED) != 0;
     int handle;
+
+    if( (int)di->CtlID >= CHROME_GDI_ID_DROP_BASE &&
+        (int)di->CtlID < CHROME_GDI_ID_DROP_BASE + TORIRS_CHROME_MAX_WIDGETS )
+    {
+        chrome_gdi_draw_dropdown_face(
+            s, (int)di->CtlID - CHROME_GDI_ID_DROP_BASE, di);
+        return;
+    }
 
     if( di->CtlType == ODT_COMBOBOX )
     {
@@ -1480,6 +1878,53 @@ chrome_gdi_drawitem(struct ChromeGdi* s, DRAWITEMSTRUCT const* di)
     }
 }
 
+/** Draw every pixel owned by the parent window. Child HWNDs are deliberately
+ * absent: WS_CLIPCHILDREN reserves their boxes when the completed backing
+ * store is copied to the screen. */
+static void
+chrome_gdi_draw_parent(struct ChromeGdi* s, HDC dc, RECT const* client)
+{
+    int order[TORIRS_CHROME_MAX_WIDGETS];
+    int ordered;
+
+    chrome_gdi_tile(s, dc, 0, 0, client->right, client->bottom);
+    chrome_gdi_draw_title(s, dc, client->right);
+    chrome_gdi_draw_scrollbar(s, dc, client);
+    chrome_gdi_frame(s, dc, client->right, client->bottom);
+    chrome_gdi_draw_resize_grip(dc, client);
+
+    ordered = ToriRSChromeMirror_Order(&s->mirror, order, TORIRS_CHROME_MAX_WIDGETS);
+    for( int oi = 0; oi < ordered; oi++ )
+    {
+        int const i = order[oi];
+        struct ToriRSChromeMirrorWidget* w = ToriRSChromeMirror_Widget(&s->mirror, i);
+        RECT box;
+
+        if( !w || !w->native || !s->presented[i] )
+            continue;
+        if( w->kind != TORIRS_CHROME_W_TEXTINPUT &&
+            w->kind != TORIRS_CHROME_W_TEXTAREA &&
+            w->kind != TORIRS_CHROME_W_COLORPICK )
+            continue;
+        if( !GetWindowRect((HWND)w->native, &box) )
+            continue;
+        {
+            POINT tl;
+            tl.x = box.left;
+            tl.y = box.top;
+            ScreenToClient(s->hwnd, &tl);
+            chrome_gdi_field(
+                s,
+                dc,
+                (int)tl.x - CHROME_GDI_FIELD_INSET,
+                (int)tl.y - CHROME_GDI_FIELD_INSET,
+                (int)(box.right - box.left) + 2 * CHROME_GDI_FIELD_INSET,
+                (int)(box.bottom - box.top) + 2 * CHROME_GDI_FIELD_INSET);
+        }
+    }
+    chrome_gdi_draw_color_popup(s, dc);
+}
+
 /* ---- the window ----------------------------------------------------------- */
 
 static LRESULT CALLBACK
@@ -1530,6 +1975,26 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             return 0;
         }
 
+        /* The swatch opens/closes the inline HSL16 picker. The EDIT beside it
+         * remains the second zone and continues to commit typed hex on blur. */
+        if( id >= CHROME_GDI_ID_COLOR_BASE &&
+            id < CHROME_GDI_ID_COLOR_BASE + TORIRS_CHROME_MAX_WIDGETS )
+        {
+            int const handle = id - CHROME_GDI_ID_COLOR_BASE;
+            struct ToriRSChromeMirrorWidget* w =
+                ToriRSChromeMirror_Widget(&s->mirror, handle);
+            struct ToriRSChromeIntent intent;
+
+            if( !w || w->kind != TORIRS_CHROME_W_COLORPICK || notify != STN_CLICKED )
+                return 0;
+            memset(&intent, 0, sizeof(intent));
+            intent.kind = TORIRS_CHROME_INTENT_ACTIVATE;
+            intent.panel = w->panel;
+            intent.widget = handle;
+            ToriRSChromeMirror_PushIntent(&s->mirror, &intent);
+            return 0;
+        }
+
         /* A roster row's settings affordance. Its own id block, because the
          * row's two zones report DIFFERENT intents -- ACTION opens the entry's
          * page, TOGGLE flips it -- and one owner-drawn BUTTON reports a click
@@ -1549,6 +2014,26 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
             intent.panel = w->panel;
             intent.widget = handle;
             ToriRSChromeMirror_PushIntent(&s->mirror, &intent);
+            return 0;
+        }
+
+        /* The skinned face opens the real combo directly behind it. Keeping
+         * the combo is what preserves native popup dismissal, keyboard
+         * navigation and accessibility while no shell pixels remain visible
+         * in the closed control. */
+        if( id >= CHROME_GDI_ID_DROP_BASE &&
+            id < CHROME_GDI_ID_DROP_BASE + TORIRS_CHROME_MAX_WIDGETS )
+        {
+            int const handle = id - CHROME_GDI_ID_DROP_BASE;
+            struct ToriRSChromeMirrorWidget* w =
+                ToriRSChromeMirror_Widget(&s->mirror, handle);
+
+            if( w && w->kind == TORIRS_CHROME_W_DROPDOWN &&
+                notify == BN_CLICKED && w->native )
+            {
+                SetFocus((HWND)w->native);
+                SendMessageA((HWND)w->native, CB_SHOWDROPDOWN, TRUE, 0);
+            }
             return 0;
         }
 
@@ -1618,10 +2103,25 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
                 break;
 
             case TORIRS_CHROME_W_DROPDOWN:
-                if( notify == CBN_SELCHANGE )
+                if( notify == CBN_DROPDOWN )
+                {
+                    s->dropdown_open = handle;
+                    if( s->dropdown_face[handle] )
+                        InvalidateRect(s->dropdown_face[handle], NULL, TRUE);
+                }
+                else if( notify == CBN_CLOSEUP )
+                {
+                    if( s->dropdown_open == handle )
+                        s->dropdown_open = -1;
+                    if( s->dropdown_face[handle] )
+                        InvalidateRect(s->dropdown_face[handle], NULL, TRUE);
+                }
+                else if( notify == CBN_SELCHANGE )
                 {
                     struct ToriRSChromeIntent intent;
                     int const sel = (int)SendMessageA(control, CB_GETCURSEL, 0, 0);
+                    if( s->dropdown_face[handle] )
+                        InvalidateRect(s->dropdown_face[handle], NULL, TRUE);
                     memset(&intent, 0, sizeof(intent));
                     intent.kind = TORIRS_CHROME_INTENT_PICK;
                     intent.panel = w->panel;
@@ -1642,11 +2142,9 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     }
 
     case WM_SIZE:
+        /* Layout performs one atomic parent-and-children repaint after every
+         * child has reached its final position. */
         chrome_gdi_layout(s);
-        /* Everything is painted against the window's own box -- the tiling, the
-         * frame, the field boxes under the EDITs -- so a resize invalidates all
-         * of it rather than the newly exposed strip Windows would repaint. */
-        RedrawWindow(hwnd, NULL, NULL, RDW_INVALIDATE);
         return 0;
 
     case WM_NCHITTEST:
@@ -1683,6 +2181,23 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         struct ChromeGdiScrollbar bar;
         int const x = (LONG)(short)LOWORD(lp);
         int const y = (LONG)(short)HIWORD(lp);
+        int const color_bar = chrome_gdi_colorbar_at(s, x, y);
+
+        if( chrome_gdi_resize_at(s, x, y) )
+        {
+            s->resizing = 1;
+            GetCursorPos(&s->resize_start_cursor);
+            GetWindowRect(hwnd, &s->resize_start_window);
+            SetCapture(hwnd);
+            return 0;
+        }
+        if( color_bar != TORIRS_CHROME_COLORBAR_NONE )
+        {
+            s->color_drag_bar = color_bar;
+            chrome_gdi_colorbar_apply(s, color_bar, x);
+            SetCapture(hwnd);
+            return 0;
+        }
 
         GetClientRect(hwnd, &client);
         if( !s->scrollbar_visible || !chrome_gdi_scrollbar_geometry(s, &client, &bar) ||
@@ -1706,6 +2221,32 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
     }
 
     case WM_MOUSEMOVE:
+        if( s->resizing )
+        {
+            POINT cursor;
+            int width;
+            int height;
+
+            GetCursorPos(&cursor);
+            width = s->resize_start_window.right - s->resize_start_window.left +
+                    (int)(cursor.x - s->resize_start_cursor.x);
+            height = s->resize_start_window.bottom - s->resize_start_window.top +
+                     (int)(cursor.y - s->resize_start_cursor.y);
+            if( width < CHROME_GDI_MIN_W )
+                width = CHROME_GDI_MIN_W;
+            if( height < CHROME_GDI_MIN_H )
+                height = CHROME_GDI_MIN_H;
+            SetWindowPos(
+                hwnd, NULL, 0, 0, width, height,
+                SWP_NOMOVE | SWP_NOZORDER);
+            return 0;
+        }
+        if( s->color_drag_bar != TORIRS_CHROME_COLORBAR_NONE )
+        {
+            chrome_gdi_colorbar_apply(
+                s, s->color_drag_bar, (LONG)(short)LOWORD(lp));
+            return 0;
+        }
         if( s->scrollbar_dragging )
         {
             RECT client;
@@ -1728,6 +2269,36 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         break;
 
     case WM_LBUTTONUP:
+        if( s->resizing )
+        {
+            s->resizing = 0;
+            if( GetCapture() == hwnd )
+                ReleaseCapture();
+            return 0;
+        }
+        if( s->color_drag_bar != TORIRS_CHROME_COLORBAR_NONE )
+        {
+            int const widget = s->color_popup_widget;
+            struct ToriRSChromeMirrorWidget* w =
+                ToriRSChromeMirror_Widget(&s->mirror, widget);
+            struct ToriRSChromeIntent intent;
+
+            chrome_gdi_colorbar_apply(
+                s, s->color_drag_bar, (LONG)(short)LOWORD(lp));
+            s->color_drag_bar = TORIRS_CHROME_COLORBAR_NONE;
+            if( GetCapture() == hwnd )
+                ReleaseCapture();
+            if( w && w->kind == TORIRS_CHROME_W_COLORPICK )
+            {
+                memset(&intent, 0, sizeof(intent));
+                intent.kind = TORIRS_CHROME_INTENT_PICK;
+                intent.panel = w->panel;
+                intent.widget = widget;
+                intent.value = s->selected[widget];
+                ToriRSChromeMirror_PushIntent(&s->mirror, &intent);
+            }
+            return 0;
+        }
         if( s->scrollbar_dragging )
         {
             s->scrollbar_dragging = 0;
@@ -1738,7 +2309,9 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         break;
 
     case WM_CAPTURECHANGED:
+        s->resizing = 0;
         s->scrollbar_dragging = 0;
+        s->color_drag_bar = TORIRS_CHROME_COLORBAR_NONE;
         break;
 
     case WM_MOUSEWHEEL:
@@ -1754,66 +2327,37 @@ chrome_gdi_wndproc(HWND hwnd, UINT msg, WPARAM wp, LPARAM lp)
         return 1;
 
     case WM_MEASUREITEM:
-        /* An owner-drawn list keeps the FONT's item height unless it is told
-         * otherwise, so without this the rows of an open dropdown are a
-         * different pitch from the rows of the panel behind it. */
-        ((MEASUREITEMSTRUCT*)lp)->itemHeight = CHROME_GDI_ROW_H;
+        /* The popup uses the reference list's authored 20px pitch, which is
+         * deliberately taller than its 18px settings rows. */
+        ((MEASUREITEMSTRUCT*)lp)->itemHeight = CHROME_GDI_DROP_LIST_ROW_H;
         return 1;
 
-    /*
-     * The whole background, in one pass: tradebacking, the nine-slice border,
-     * and the field box behind every EDIT.
-     *
-     * An EDIT cannot be owner-drawn -- it is the one control here whose
-     * painting Windows keeps -- so its frame is drawn by the PARENT, under it,
-     * and the control is placed inset by the frame's thickness so it covers
-     * only the middle. That is also why this is WM_ERASEBKGND and not
-     * WM_PAINT: erase runs before the children paint, so their own pixels land
-     * on top of ours instead of being wiped by them.
-     */
+    /* Never clear the client area. Exposing that clear between USER32's parent
+     * and child paint passes is the characteristic navigation/scroll flash. */
     case WM_ERASEBKGND:
+        return 1;
+
+    /* The whole parent chrome is composed off-screen, then copied in one
+     * operation. This includes the field boxes behind native EDIT controls;
+     * the subsequent child paint lands over their completed frames. */
+    case WM_PAINT:
     {
-        HDC dc = (HDC)wp;
+        PAINTSTRUCT ps;
+        HDC dc = BeginPaint(hwnd, &ps);
         RECT client;
-        int order[TORIRS_CHROME_MAX_WIDGETS];
-        int ordered;
 
         GetClientRect(hwnd, &client);
-        chrome_gdi_tile(s, dc, 0, 0, client.right, client.bottom);
-        chrome_gdi_draw_title(s, dc, client.right);
-        chrome_gdi_draw_scrollbar(s, dc, &client);
-        chrome_gdi_frame(s, dc, client.right, client.bottom);
-
-        ordered = ToriRSChromeMirror_Order(&s->mirror, order, TORIRS_CHROME_MAX_WIDGETS);
-        for( int oi = 0; oi < ordered; oi++ )
+        if( chrome_gdi_paint_buffer(s, client.right, client.bottom) )
         {
-            int const i = order[oi];
-            struct ToriRSChromeMirrorWidget* w = ToriRSChromeMirror_Widget(&s->mirror, i);
-            RECT box;
-
-            if( !w || !w->native || !s->presented[i] )
-                continue;
-            if( w->kind != TORIRS_CHROME_W_TEXTINPUT &&
-                w->kind != TORIRS_CHROME_W_TEXTAREA &&
-                w->kind != TORIRS_CHROME_W_COLORPICK )
-                continue;
-            if( !GetWindowRect((HWND)w->native, &box) )
-                continue;
-            {
-                POINT tl;
-                tl.x = box.left;
-                tl.y = box.top;
-                ScreenToClient(hwnd, &tl);
-                chrome_gdi_field(
-                    s,
-                    dc,
-                    (int)tl.x - CHROME_GDI_FIELD_INSET,
-                    (int)tl.y - CHROME_GDI_FIELD_INSET,
-                    (int)(box.right - box.left) + 2 * CHROME_GDI_FIELD_INSET,
-                    (int)(box.bottom - box.top) + 2 * CHROME_GDI_FIELD_INSET);
-            }
+            chrome_gdi_draw_parent(s, s->paint_dc, &client);
+            BitBlt(
+                dc, 0, 0, client.right, client.bottom,
+                s->paint_dc, 0, 0, SRCCOPY);
         }
-        return 1;
+        else
+            chrome_gdi_draw_parent(s, dc, &client);
+        EndPaint(hwnd, &ps);
+        return 0;
     }
 
     case WM_CLOSE:
@@ -1963,8 +2507,8 @@ chrome_gdi_begin(void* user)
     wc.lpfnWndProc = chrome_gdi_wndproc;
     wc.hInstance = GetModuleHandleA(NULL);
     wc.hCursor = LoadCursor(NULL, IDC_ARROW);
-    /* NO class brush: WM_ERASEBKGND tiles the whole client area itself, and a
-     * class brush would flash the dialog face under it on every repaint. */
+    /* NO class brush: WM_PAINT supplies the complete off-screen background,
+     * and a class brush would flash the dialog face under it first. */
     wc.hbrBackground = NULL;
     wc.lpszClassName = CHROME_GDI_WNDCLASS;
     /* A duplicate class is not an error: begin() can run again after the model
@@ -2025,6 +2569,10 @@ chrome_gdi_begin(void* user)
     s->window_panel = -1;
     s->tab_panel = -1;
     s->tab_strip_widget = -1;
+    s->color_popup_widget = -1;
+    s->color_drag_bar = TORIRS_CHROME_COLORBAR_NONE;
+    s->dropdown_open = -1;
+    s->resizing = 0;
     s->tab_count = 0;
     s->open = 1;
     ShowWindow(s->hwnd, SW_SHOWNOACTIVATE);
@@ -2053,10 +2601,14 @@ chrome_gdi_end(void* user)
         DeleteObject(s->tile_brush);
     if( s->tile_bitmap )
         DeleteObject(s->tile_bitmap);
-    if( s->scratch_bitmap )
-        DeleteObject(s->scratch_bitmap);
     if( s->scratch_dc )
         DeleteDC(s->scratch_dc);
+    if( s->scratch_bitmap )
+        DeleteObject(s->scratch_bitmap);
+    if( s->paint_dc )
+        DeleteDC(s->paint_dc);
+    if( s->paint_bitmap )
+        DeleteObject(s->paint_bitmap);
     for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
         if( s->swatch_brush[i] )
         {
@@ -2073,6 +2625,10 @@ chrome_gdi_end(void* user)
     s->scratch_pixels = NULL;
     s->scratch_w = 0;
     s->scratch_h = 0;
+    s->paint_bitmap = NULL;
+    s->paint_dc = NULL;
+    s->paint_w = 0;
+    s->paint_h = 0;
     s->open = 0;
     s->window_panel = -1;
     s->scroll_y = 0;
@@ -2080,11 +2636,18 @@ chrome_gdi_end(void* user)
     s->scrollbar_visible = 0;
     s->scrollbar_dragging = 0;
     s->scrollbar_drag_offset = 0;
+    s->color_popup_widget = -1;
+    s->color_drag_bar = TORIRS_CHROME_COLORBAR_NONE;
+    s->dropdown_open = -1;
+    s->resizing = 0;
+    memset(&s->color_popup_rect, 0, sizeof(s->color_popup_rect));
     s->tab_count = 0;
     memset(s->tab_buttons, 0, sizeof(s->tab_buttons));
     memset(s->label, 0, sizeof(s->label));
     memset(s->action, 0, sizeof(s->action));
     memset(s->swatch, 0, sizeof(s->swatch));
+    memset(s->dropdown_face, 0, sizeof(s->dropdown_face));
+    memset(s->dropdown_option_count, 0, sizeof(s->dropdown_option_count));
 }
 
 /* ---- creating controls ---------------------------------------------------- */
@@ -2135,9 +2698,22 @@ chrome_gdi_drop_extras(struct ChromeGdi* s, int widget)
     if( s->swatch[widget] )
         DestroyWindow(s->swatch[widget]);
     s->swatch[widget] = NULL;
+    if( s->dropdown_face[widget] )
+        DestroyWindow(s->dropdown_face[widget]);
+    s->dropdown_face[widget] = NULL;
     if( s->swatch_brush[widget] )
         DeleteObject(s->swatch_brush[widget]);
     s->swatch_brush[widget] = NULL;
+    s->selected[widget] = 0;
+    s->dropdown_option_count[widget] = 0;
+    if( s->color_popup_widget == widget )
+    {
+        s->color_popup_widget = -1;
+        s->color_drag_bar = TORIRS_CHROME_COLORBAR_NONE;
+        memset(&s->color_popup_rect, 0, sizeof(s->color_popup_rect));
+    }
+    if( s->dropdown_open == widget )
+        s->dropdown_open = -1;
 }
 
 static void
@@ -2153,6 +2729,7 @@ chrome_gdi_add(struct ChromeGdi* s, struct ToriRSChromeCmd const* cmd)
 
     s->checked[cmd->widget] = 0;
     s->color[cmd->widget] = cmd->color;
+    s->selected[cmd->widget] = 0;
     s->presented[cmd->widget] = 0;
     /* The ADD is the one command carrying a widget's SHAPE, and `w` is a
      * LISTROW's settings affordance -- the same field the CS2 executor reads
@@ -2205,7 +2782,7 @@ chrome_gdi_add(struct ChromeGdi* s, struct ToriRSChromeCmd const* cmd)
          * would put a second control in the handle's id slot.
          *
          * No WS_BORDER: the field box around it is script_3850's two-colour
-         * frame, drawn by the PARENT in WM_ERASEBKGND, and Windows' own etched
+         * frame, drawn by the PARENT in WM_PAINT, and Windows' own etched
          * border inside that would be a third edge. */
         s->label[cmd->widget] = chrome_gdi_child(s, "STATIC", SS_LEFT, cmd->label, -1);
         control = chrome_gdi_child(s, "EDIT", ES_AUTOHSCROLL, cmd->text, id);
@@ -2240,35 +2817,45 @@ chrome_gdi_add(struct ChromeGdi* s, struct ToriRSChromeCmd const* cmd)
 
     case TORIRS_CHROME_W_COLORPICK:
         /*
-         * A coloured sample and the hex beside it.
-         *
-         * NOT the model's three axis bars, and not comdlg32's ChooseColor
-         * either. The bars are prims this executor cannot draw; ChooseColor is
-         * a MODAL dialog, and an executor is forbidden to block -- the client's
-         * frame loop runs these, so a window that waits on a dialog stalls the
-         * game. What is left is the same trade every other control here makes:
-         * the platform's own idiom for the job, which for a value you can also
-         * type is a field with a sample in front of it.
-         *
-         * Typing a hex is therefore how a colour is CHOSEN here, and the model
-         * quantises it onto the palette and echoes back the entry it landed on
-         * -- so the sample is always a colour the renderer can produce.
+         * A clickable coloured sample and the editable hex beside it. The
+         * swatch's ACTIVATE toggles the inline H/S/L bars; the field's ACTION
+         * keeps native EDIT focus and commits on blur. The picker therefore
+         * stays non-modal and uses the renderer's real HSL16 resolution.
          */
         s->label[cmd->widget] = chrome_gdi_child(s, "STATIC", SS_LEFT, cmd->label, -1);
-        s->swatch[cmd->widget] = chrome_gdi_child(s, "STATIC", SS_LEFT | SS_NOTIFY, "", -1);
+        s->swatch[cmd->widget] = chrome_gdi_child(
+            s, "STATIC", SS_LEFT | SS_NOTIFY, "", CHROME_GDI_ID_COLOR_BASE + cmd->widget);
         control = chrome_gdi_child(s, "EDIT", ES_AUTOHSCROLL, cmd->text, id);
         break;
 
     case TORIRS_CHROME_W_DROPDOWN:
-        /* CBS_OWNERDRAWFIXED so both halves are ours -- the closed button gets
-         * the field box with the scrollbar's own down arrow, an open row gets
-         * the cache's lighter list tile. CBS_HASSTRINGS keeps CB_ADDSTRING and
-         * CB_GETLBTEXT working, which is what an owner-drawn combo otherwise
-         * gives up and what every command below still uses. */
+        /* The native combo supplies the popup and keyboard semantics. A
+         * separate owner-drawn face, created AFTER it so it stays above it,
+         * covers the shell arrow strip that WM_DRAWITEM never includes. */
         s->label[cmd->widget] = chrome_gdi_child(s, "STATIC", SS_LEFT, cmd->label, -1);
         control = chrome_gdi_child(
             s, "COMBOBOX",
             CBS_DROPDOWNLIST | CBS_OWNERDRAWFIXED | CBS_HASSTRINGS | WS_VSCROLL, NULL, id);
+        /* USER32 normally chooses a closed-combo height from the system font,
+         * ignoring the row height passed to SetWindowPos. Measure its own
+         * fixed frame overhead and reduce the selection item so the native
+         * window ends exactly at the authored row edge; otherwise a white
+         * shell strip peeks out below the skinned face. */
+        if( control )
+        {
+            RECT native_box;
+            int const item_h = (int)SendMessageA(control, CB_GETITEMHEIGHT, (WPARAM)-1, 0);
+            if( GetWindowRect(control, &native_box) )
+            {
+                int const overhead = native_box.bottom - native_box.top - item_h;
+                if( overhead >= 0 && overhead < CHROME_GDI_ROW_H )
+                    SendMessageA(
+                        control, CB_SETITEMHEIGHT, (WPARAM)-1,
+                        CHROME_GDI_ROW_H - overhead);
+            }
+        }
+        s->dropdown_face[cmd->widget] = chrome_gdi_child(
+            s, "BUTTON", BS_OWNERDRAW, "", CHROME_GDI_ID_DROP_BASE + cmd->widget);
         break;
 
     case TORIRS_CHROME_W_BUTTON:
@@ -2320,6 +2907,62 @@ chrome_gdi_rebuild_tabs(struct ChromeGdi* s)
             s, "BUTTON", BS_OWNERDRAW, s->tabs[i], CHROME_GDI_ID_TAB_BASE + i);
 }
 
+/** Stop or resume painting for the parent and every native child it owns.
+ * Disabling only the parent is insufficient: EDIT and COMBOBOX windows can
+ * repaint synchronously from WM_SETTEXT/CB_RESETCONTENT during navigation. */
+static void
+chrome_gdi_set_redraw(struct ChromeGdi* s, int enabled)
+{
+    WPARAM const state = enabled ? TRUE : FALSE;
+
+    if( s->hwnd )
+        SendMessageA(s->hwnd, WM_SETREDRAW, state, 0);
+    if( s->close_button )
+        SendMessageA(s->close_button, WM_SETREDRAW, state, 0);
+    for( int t = 0; t < 16; t++ )
+        if( s->tab_buttons[t] )
+            SendMessageA(s->tab_buttons[t], WM_SETREDRAW, state, 0);
+    for( int i = 0; i < TORIRS_CHROME_MAX_WIDGETS; i++ )
+    {
+        struct ToriRSChromeMirrorWidget* w =
+            ToriRSChromeMirror_Widget(&s->mirror, i);
+        if( w && w->native )
+            SendMessageA((HWND)w->native, WM_SETREDRAW, state, 0);
+        if( s->label[i] )
+            SendMessageA(s->label[i], WM_SETREDRAW, state, 0);
+        if( s->action[i] )
+            SendMessageA(s->action[i], WM_SETREDRAW, state, 0);
+        if( s->swatch[i] )
+            SendMessageA(s->swatch[i], WM_SETREDRAW, state, 0);
+        if( s->dropdown_face[i] )
+            SendMessageA(s->dropdown_face[i], WM_SETREDRAW, state, 0);
+    }
+}
+
+/** The first real command in a sync freezes the complete HWND subtree. A
+ * marker-only frame therefore does no Win32 work at all. */
+static void
+chrome_gdi_batch_mutation(struct ChromeGdi* s)
+{
+    s->paint_dirty = 1;
+    if( s->syncing && !s->batch_redraw_off )
+    {
+        chrome_gdi_set_redraw(s, 0);
+        s->batch_redraw_off = 1;
+    }
+}
+
+static void
+chrome_gdi_request_layout(struct ChromeGdi* s)
+{
+    s->layout_dirty = 1;
+    if( !s->syncing )
+    {
+        s->layout_dirty = 0;
+        chrome_gdi_layout(s);
+    }
+}
+
 static void
 chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
 {
@@ -2331,6 +2974,42 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
     assert(cmd);
     if( !s->open )
         return;
+
+    if( cmd->kind == TORIRS_CHROME_CMD_SYNC_BEGIN )
+    {
+        s->syncing = 1;
+        s->layout_dirty = 0;
+        s->paint_dirty = 0;
+        s->tabs_dirty = 0;
+        return;
+    }
+    if( cmd->kind == TORIRS_CHROME_CMD_SYNC_END )
+    {
+        if( s->tabs_dirty )
+        {
+            chrome_gdi_rebuild_tabs(s);
+            s->layout_dirty = 1;
+        }
+        if( s->batch_redraw_off )
+            chrome_gdi_set_redraw(s, 1);
+        s->syncing = 0;
+        s->batch_redraw_off = 0;
+        if( s->layout_dirty )
+            chrome_gdi_layout(s);
+        else if( s->paint_dirty )
+            chrome_gdi_repaint(s);
+        s->layout_dirty = 0;
+        s->paint_dirty = 0;
+        s->tabs_dirty = 0;
+        if( s->mirror.intent_overflow )
+        {
+            fprintf(stderr, "chrome: gdi intent queue overflowed; input was dropped\n");
+            s->mirror.intent_overflow = 0;
+        }
+        return;
+    }
+
+    chrome_gdi_batch_mutation(s);
 
     /*
      * Destroy BEFORE the mirror folds the command in, not after.
@@ -2366,17 +3045,6 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
 
     switch( cmd->kind )
     {
-    case TORIRS_CHROME_CMD_SYNC_END:
-        /* One relayout per frame at most, and only when something moved. The
-         * flag is what keeps a frame that only changed a label from
-         * repositioning every control in the window. */
-        if( s->mirror.intent_overflow )
-        {
-            fprintf(stderr, "chrome: gdi intent queue overflowed; input was dropped\n");
-            s->mirror.intent_overflow = 0;
-        }
-        return;
-
     case TORIRS_CHROME_CMD_PANEL_OPEN:
         /* PANEL_OPEN is the one command every presentation gets. A paged
          * plugin window has no TABSTRIP, so deriving the close target from the
@@ -2386,12 +3054,11 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
         s->scrollbar_dragging = 0;
         if( cmd->text[0] )
             SetWindowTextA(s->hwnd, cmd->text);
-        chrome_gdi_layout(s);
+        chrome_gdi_request_layout(s);
         return;
 
     case TORIRS_CHROME_CMD_PANEL_TITLE:
         SetWindowTextA(s->hwnd, cmd->text);
-        InvalidateRect(s->hwnd, NULL, TRUE);
         return;
 
     case TORIRS_CHROME_CMD_PANEL_CLOSE:
@@ -2400,7 +3067,7 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
             s->window_panel = -1;
         s->scroll_y = 0;
         s->scrollbar_dragging = 0;
-        chrome_gdi_layout(s);
+        chrome_gdi_request_layout(s);
         return;
 
     case TORIRS_CHROME_CMD_CHECK_STYLE:
@@ -2415,19 +3082,19 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
         if( s->check_style != cmd->value )
         {
             s->check_style = cmd->value;
-            chrome_gdi_layout(s);
+            chrome_gdi_request_layout(s);
         }
         return;
 
     case TORIRS_CHROME_CMD_WIDGET_ADD:
         chrome_gdi_add(s, cmd);
-        chrome_gdi_layout(s);
+        chrome_gdi_request_layout(s);
         return;
 
     case TORIRS_CHROME_CMD_WIDGET_REMOVE:
         /* Destroyed above, for the same reason. The row it vacated has to be
          * closed up or every control below it stays a row too low. */
-        chrome_gdi_layout(s);
+        chrome_gdi_request_layout(s);
         return;
 
     default:
@@ -2444,17 +3111,18 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
             {
                 s->tab_count = cmd->value < 16 ? cmd->value : 16;
                 memset(s->tabs, 0, sizeof(s->tabs));
+                s->tabs_dirty = 1;
             }
             else if( cmd->kind == TORIRS_CHROME_CMD_WIDGET_OPTION && cmd->value < 16 )
             {
                 snprintf(
-                    s->tabs[cmd->value], sizeof(s->tabs[0]), "%s", cmd->text);
-                chrome_gdi_rebuild_tabs(s);
-                chrome_gdi_layout(s);
+                    s->tabs[cmd->value], sizeof(s->tabs[0]), "%.*s",
+                    (int)sizeof(s->tabs[0]) - 1, cmd->text);
+                s->tabs_dirty = 1;
             }
         }
         if( shape )
-            chrome_gdi_layout(s);
+            chrome_gdi_request_layout(s);
         return;
     }
 
@@ -2506,29 +3174,56 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
          * so the bit lives here and the repaint is what shows it. This also
          * covers a toggle the model REFUSED: the click flipped the shadow
          * optimistically, and a WIDGET_CHECKED that disagrees puts it back.
-         */
+        */
         s->checked[cmd->widget] = cmd->value ? 1 : 0;
-        InvalidateRect((HWND)w->native, NULL, TRUE);
+        if( w->kind == TORIRS_CHROME_W_COLORPICK )
+        {
+            /* Keep the newly expanded row on screen. Without this, opening a
+             * picker near the viewport bottom grows its row out from under
+             * the pointer and appears to make the swatch disappear. */
+            if( cmd->value )
+            {
+                RECT control;
+                RECT client;
+                POINT top;
+                if( GetWindowRect((HWND)w->native, &control) &&
+                    GetClientRect(s->hwnd, &client) )
+                {
+                    int desired_bottom;
+                    int const rows_bottom =
+                        client.bottom - CHROME_GDI_FRAME - CHROME_GDI_PAD;
+                    top.x = control.left;
+                    top.y = control.top;
+                    ScreenToClient(s->hwnd, &top);
+                    desired_bottom = (int)top.y - CHROME_GDI_FIELD_INSET +
+                                     CHROME_GDI_ROW_H + CHROME_GDI_ROW_GAP +
+                                     CHROME_GDI_COLORPOP_H;
+                    if( desired_bottom > rows_bottom )
+                        s->scroll_y += desired_bottom - rows_bottom;
+                }
+            }
+            s->color_drag_bar = TORIRS_CHROME_COLORBAR_NONE;
+            chrome_gdi_request_layout(s);
+        }
+        else
+            InvalidateRect((HWND)w->native, NULL, TRUE);
         break;
 
     case TORIRS_CHROME_CMD_WIDGET_OPTIONS:
+        s->dropdown_option_count[cmd->widget] = cmd->value;
         SendMessageA((HWND)w->native, CB_RESETCONTENT, 0, 0);
+        if( s->dropdown_face[cmd->widget] )
+            InvalidateRect(s->dropdown_face[cmd->widget], NULL, TRUE);
+        chrome_gdi_request_layout(s);
         break;
 
     case TORIRS_CHROME_CMD_WIDGET_OPTION:
     case TORIRS_CHROME_CMD_WIDGET_SELECTED:
         if( w->kind == TORIRS_CHROME_W_COLORPICK )
         {
-            /* The selection IS the colour (packed HSL16), so the sample's
-             * brush is rebuilt around it. Rebuilt rather than recoloured
-             * because a brush has no colour to set -- it is the object. */
-            HBRUSH replacement = CreateSolidBrush(
-                chrome_gdi_colorref(ToriRSChrome_Hsl16ToRgb(cmd->value)));
-            if( s->swatch_brush[cmd->widget] )
-                DeleteObject(s->swatch_brush[cmd->widget]);
-            s->swatch_brush[cmd->widget] = replacement;
-            if( s->swatch[cmd->widget] )
-                InvalidateRect(s->swatch[cmd->widget], NULL, TRUE);
+            /* The selection IS the packed HSL16 colour. Update the sample,
+             * editable hex and any open axis bars from the same value. */
+            chrome_gdi_color_preview(s, cmd->widget, cmd->value);
             break;
         }
         /* TEXTAREA also uses SELECTED, for its first visible model line. A
@@ -2540,7 +3235,11 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
             if( cmd->kind == TORIRS_CHROME_CMD_WIDGET_OPTION )
                 SendMessageA((HWND)w->native, CB_ADDSTRING, 0, (LPARAM)cmd->text);
             else
+            {
                 SendMessageA((HWND)w->native, CB_SETCURSEL, (WPARAM)cmd->value, 0);
+                if( s->dropdown_face[cmd->widget] )
+                    InvalidateRect(s->dropdown_face[cmd->widget], NULL, TRUE);
+            }
         }
         break;
 
@@ -2558,7 +3257,7 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
     }
 
     if( shape )
-        chrome_gdi_layout(s);
+        chrome_gdi_request_layout(s);
 }
 
 static int

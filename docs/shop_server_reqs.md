@@ -173,13 +173,12 @@ load-bearing**, don't port it blind.
 > `sidemodal`, so an unpopulated 301 meant the player's inventory was a blank
 > rectangle for as long as the shop was open.
 >
-> **One client cap found on the way**, and it is silent:
-> `TASK_CS2_RUN_STR_ARGS_MAX` (`src/game/task_cs2_run.c`) and
-> `UITREE_HOOK_STR_ARG_MAX` (`src/ui/uitree_hook.h`) both keep **four** string
-> arguments; a fifth degrades to `""` rather than erroring. Pushing five op
+> **One client cap found on the way**, fixed 2026-08-22: the task dispatcher,
+> `if_seton*` VM request, and stored UI hook each kept only **four** string
+> arguments; a fifth degraded to `""` rather than erroring. Pushing five op
 > labels produced `op5=""` under `TORIRS_OPS_DEBUG` while the wire payload
-> proved all five had been sent — which is why there is no "Sell 50" rung.
-> Both sites now say so on stderr when a *non-empty* string is dropped.
+> proved all five had been sent. All three bounds now keep sixteen strings,
+> enough for both script 149's five-op and script 150's nine-op signatures.
 
 The closest confirmed analogue, for reference: **`bankside_init`**
 (`script_294.cs2`) and its cell builder `bankside_build` (`script_296.cs2`)
