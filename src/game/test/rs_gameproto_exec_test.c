@@ -617,11 +617,15 @@ main(void)
         TEST_EXEC_ASSERT(
             app->slots.main_modal_id == iface_plain, "plain welcome screen opens");
 
-        /* A second one must not push in front of the screen already up. */
+        /* A second one must not push in front of the screen already up --
+         * checked with a packet that would otherwise select the OTHER screen,
+         * so "left alone" is distinguishable from "reopened identically". */
+        p._last_login_info.member_warning = 1;
         RS_GameProto_Exec(&ctx, &p);
         TEST_EXEC_ASSERT(
             app->slots.main_modal_id == iface_plain,
             "a welcome screen already open is left alone");
+        p._last_login_info.member_warning = 0;
 
         /* A members warning turns the same packet into the taller screen: it
          * is the only one carrying rows 652/653/654 to put the warning on. */

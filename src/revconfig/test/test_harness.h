@@ -22,5 +22,6 @@ void test_buffers(void);
 void test_items_build(void);
 void test_load(void);
 void test_parse(void);
+void test_refs(void);
 
 #endif

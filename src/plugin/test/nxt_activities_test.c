@@ -237,6 +237,54 @@ fake_varp(void* u, int id)
     (void)u;
     return (id >= 0 && id < FAKE_VARS_MAX) ? g_engine.varp[id] : 0;
 }
+/*
+ * The boot profile, as a fixture.
+ *
+ * The plugins now ask for rows by NAME (api->cache_id), so a test that wants to
+ * set one has to answer the same question the profile does. These are
+ * revconfig/osrs239's numbers; the point of listing them here is that the test
+ * still drives REAL ids -- if it invented its own, it would pass equally well
+ * against a plugin that resolved nothing.
+ */
+static struct
+{
+    char const* kind;
+    char const* name;
+    int id;
+} const k_fake_cache_ids[] = {
+    { "varbit", "bird_nest", 13087 },
+    { "varbit", "cannon_low_notify", 14175 },
+    { "varbit", "cannon_low_amount", 14176 },
+    { "varbit", "cannon_no_ammo_notify", 14177 },
+    { "varp", "cannon_ammo", 3 },
+    { "varp", "cannon_coord", 3551 },
+};
+
+static int
+fake_cache_id(void* u, char const* kind, char const* name)
+{
+    (void)u;
+    assert(kind);
+    assert(name);
+    for( size_t i = 0; i < sizeof(k_fake_cache_ids) / sizeof(k_fake_cache_ids[0]); i++ )
+    {
+        if( strcmp(k_fake_cache_ids[i].kind, kind) == 0 &&
+            strcmp(k_fake_cache_ids[i].name, name) == 0 )
+            return k_fake_cache_ids[i].id;
+    }
+    return -1;
+}
+
+/** The id this fixture gives `name`; asserts, because a typo would silently
+ *  set a var nothing reads and the test would pass for the wrong reason. */
+static int
+fake_id(char const* kind, char const* name)
+{
+    int id = fake_cache_id(NULL, kind, name);
+    assert(id >= 0);
+    return id;
+}
+
 static int
 fake_project(void* u, int fx, int fz, int h, int* ox, int* oy)
 {
@@ -463,6 +511,7 @@ fake_engine(void)
     e.element_height = fake_element_height;
     e.varbit = fake_varbit;
     e.varp = fake_varp;
+    e.cache_id = fake_cache_id;
     e.project = fake_project;
     e.draw_tile = fake_draw_tile;
     e.draw_hull = fake_draw_hull;
@@ -692,12 +741,12 @@ main(void)
         obj.tile_z = 3200;
         obj.level = 0;
 
-        g_engine.varbit[NXT_VARBIT_BIRD_NEST] = 1; /* inverted: 1 is OFF */
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_BIRD_NEST)] = 1; /* inverted: 1 is OFF */
         g_engine.notifies = 0;
         PluginHost_ObjSpawn(host, &obj);
         CHECK(g_engine.notifies == 0, "varbit 1 is the OFF state for setting 189");
 
-        g_engine.varbit[NXT_VARBIT_BIRD_NEST] = 0;
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_BIRD_NEST)] = 0;
         PluginHost_ObjSpawn(host, &obj);
         CHECK(g_engine.notifies == 1, "a nest under the player is announced");
         CHECK(
@@ -717,7 +766,7 @@ main(void)
         PluginHost_ObjSpawn(host, &obj);
         CHECK(g_engine.notifies == 0, "logs under the player are not a nest");
 
-        g_engine.varbit[NXT_VARBIT_BIRD_NEST] = 1;
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_BIRD_NEST)] = 1;
     }
 
     /* ---- 248 / 249 / 250: the cannon ammunition rows ---------------------
@@ -728,73 +777,73 @@ main(void)
      */
     {
         int tick = 0;
-        g_engine.varbit[NXT_VARBIT_CANNON_LOW_NOTIFY] = 1;
-        g_engine.varbit[NXT_VARBIT_CANNON_NO_AMMO_NOTIFY] = 1;
-        g_engine.varbit[NXT_VARBIT_CANNON_LOW_AMOUNT] = 10;
-        g_engine.varp[3551] = 0; /* no cannon */
-        g_engine.varp[3] = 30;
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_LOW_NOTIFY)] = 1;
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_NO_AMMO_NOTIFY)] = 1;
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_LOW_AMOUNT)] = 10;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_COORD)] = 0; /* no cannon */
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 30;
         g_engine.notifies = 0;
 
         PluginHost_ServerTick(host, ++tick);
         CHECK(g_engine.notifies == 0, "no cannon, nothing to say");
 
         /* Place one. Its starting load is a state, not a drop. */
-        g_engine.varp[3551] = 0x0C800C80;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_COORD)] = 0x0C800C80;
         PluginHost_ServerTick(host, ++tick);
         CHECK(g_engine.notifies == 0, "the first tick with a cannon announces nothing");
 
         /* Firing down towards the line, but not across it. */
-        g_engine.varp[3] = 12;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 12;
         PluginHost_ServerTick(host, ++tick);
         CHECK(g_engine.notifies == 0, "above the threshold is not low");
 
-        g_engine.varp[3] = 9;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 9;
         PluginHost_ServerTick(host, ++tick);
         CHECK(g_engine.notifies == 1, "crossing the threshold says so once");
         CHECK(strstr(g_engine.last_notify, "low") != NULL, "and says what happened");
 
         /* Still below it, and silent -- a line every tick would bury the
          * chatbox, which is the failure this check exists for. */
-        g_engine.varp[3] = 8;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 8;
         PluginHost_ServerTick(host, ++tick);
         CHECK(g_engine.notifies == 1, "staying below the line is not a second event");
 
-        g_engine.varp[3] = 0;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
         PluginHost_ServerTick(host, ++tick);
         CHECK(g_engine.notifies == 2, "empty says so");
         CHECK(strstr(g_engine.last_notify, "run out") != NULL, "as running out");
 
         /* Reloading is not news, and it re-arms the low notice. */
-        g_engine.varp[3] = 30;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 30;
         PluginHost_ServerTick(host, ++tick);
         CHECK(g_engine.notifies == 2, "loading it says nothing");
-        g_engine.varp[3] = 5;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 5;
         PluginHost_ServerTick(host, ++tick);
         CHECK(g_engine.notifies == 3, "and the threshold arms again");
 
         /* Threshold 0 is "the user has not chosen an amount": no low notice,
          * but empty still reports. */
-        g_engine.varbit[NXT_VARBIT_CANNON_LOW_AMOUNT] = 0;
-        g_engine.varp[3] = 30;
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_LOW_AMOUNT)] = 0;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 30;
         PluginHost_ServerTick(host, ++tick);
-        g_engine.varp[3] = 3;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 3;
         PluginHost_ServerTick(host, ++tick);
         CHECK(g_engine.notifies == 3, "threshold 0 never calls anything low");
-        g_engine.varp[3] = 0;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
         PluginHost_ServerTick(host, ++tick);
         CHECK(g_engine.notifies == 4, "but empty is still empty");
 
         /* Both rows off. */
-        g_engine.varbit[NXT_VARBIT_CANNON_NO_AMMO_NOTIFY] = 0;
-        g_engine.varp[3] = 30;
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_NO_AMMO_NOTIFY)] = 0;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 30;
         PluginHost_ServerTick(host, ++tick);
-        g_engine.varp[3] = 0;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
         PluginHost_ServerTick(host, ++tick);
         CHECK(g_engine.notifies == 4, "setting 250 off is silent at empty");
 
-        g_engine.varp[3551] = 0;
-        g_engine.varp[3] = 0;
-        g_engine.varbit[NXT_VARBIT_CANNON_LOW_NOTIFY] = 0;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_COORD)] = 0;
+        g_engine.varp[fake_id("varp", NXT_VARP_CANNON_AMMO)] = 0;
+        g_engine.varbit[fake_id("varbit", NXT_VARBIT_CANNON_LOW_NOTIFY)] = 0;
     }
 
     PluginHost_Free(host);

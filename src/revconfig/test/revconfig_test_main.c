@@ -9,6 +9,7 @@ main(void)
     test_items_build();
     test_load();
     test_parse();
+    test_refs();
 
     if( g_failures )
     {

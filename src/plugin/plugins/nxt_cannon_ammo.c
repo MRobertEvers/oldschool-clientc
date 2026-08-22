@@ -35,11 +35,6 @@
  * precisely so the number is the user's.
  */
 
-/** varp 3, `rockthrower`: cannonballs left in your cannon. */
-#define NXT_VARP_CANNON_AMMO 3
-/** varp 3551, `ownedmcannon_temp`: your cannon's coord, 0 when you have none. */
-#define NXT_VARP_CANNON_COORD 3551
-
 static struct ToriRS_PluginApi const* g_api;
 
 /**
@@ -58,9 +53,12 @@ nxt_cannon_tick(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     (void)event;
     (void)userdata;
 
-    int const has_cannon = g_api->varp(ctx, NXT_VARP_CANNON_COORD) != 0;
-    int const ammo = g_api->varp(ctx, NXT_VARP_CANNON_AMMO);
-    int const threshold = g_api->varbit(ctx, NXT_VARBIT_CANNON_LOW_AMOUNT);
+    /* Absent on this cache reads as "no cannon", which is the state in which
+     * this builtin does nothing at all -- the right answer for a revision that
+     * has no cannon varps to read. */
+    int const has_cannon = nxt_varp(g_api, ctx, NXT_VARP_CANNON_COORD, 0) != 0;
+    int const ammo = nxt_varp(g_api, ctx, NXT_VARP_CANNON_AMMO, 0);
+    int const threshold = nxt_varbit(g_api, ctx, NXT_VARBIT_CANNON_LOW_AMOUNT, 0);
     int const previous = g_last_ammo;
 
     assert(ctx);
