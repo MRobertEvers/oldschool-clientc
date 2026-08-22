@@ -54,7 +54,7 @@ To re-derive any of it:
 |---|---:|---|
 | **working** | 37 | 24 driven by the cache, 4 by builtins, 7 by the server, 2 by the client |
 | **partial** | 4 | 164, and 173 / 176 / 179 |
-| **not started** | 33 | classified below -- 7 + 15 + 12, and only 12 of those are open problems |
+| **not started** | 33 | classified below -- 7 + 14 + 12, and only 12 of those are open problems |
 
 The count moved by one. What moved underneath it is larger: **five rows that a
 builtin was faking are now driven by the cache's own scripts**, two builtins
@@ -139,7 +139,7 @@ in hand -- which the mock server does not currently place.
 | 271 | Clue scroll helper | ditto |
 | 277 | Clue scroll helper - Entity highlights | ditto |
 
-**B. the cache implements it; it needs the right context** -- 15 rows
+**B. the cache implements it; it needs the right context** -- 14 rows
 
 Reclassified by measurement rather than by eye. For every row, the scripts that
 READ its var were separated from the one that WRITES it and from the settings
@@ -166,9 +166,53 @@ is one the cache already implements; what it is missing is a situation.
 Three shapes, and none of them is a missing opcode:
 
 - **An interface only the server opens.** 111 / 299 / 300 / 301 all live on
-  interface 303 and read `%var1683`, the npc being fought. Nothing in the cache
-  opens 303; in the reference the server does, with `IF_OPENSUB`. Four rows,
-  one server feature.
+  interface 303 (`hpbar_hud`) and read `%hpbar_hud_npc`, the npc being fought.
+  Nothing in the cache opens 303; in the reference the server does, with
+  `IF_OPENSUB`.
+
+  **The server half is written** (`src/torirsserver/torirs_server_hpbar.c`):
+  once per tick, after the swing, the player's combat target becomes
+  `%hpbar_hud_npc` / `%hpbar_hud_hp` / `%hpbar_hud_basehp` and the interface is
+  opened into the gameframe's floater slot; a linger keeps it up across the gap
+  between one npc dying and the next click, and switching setting 111 off
+  closes it on the next tick. Every one of those names is the cache's own --
+  including `hpbar_hud_standard_disabled`, which is the row's inversion
+  *stated* rather than inferred.
+
+  Verified on the wire with `TORIRS_HPBAR_DEBUG=1` and the `::fightcave`
+  harness:
+
+  ```
+  hpbar: open iface 303 into 548:43 (live gameframe 548) for npc type 3116 (10/10)
+  if-opensub: mount iface=303 under uid=0x0224001c (548<<16|28) type=1
+  ```
+
+  `hpbar_hud_boss` stays 0 deliberately. Which npcs are "certain bosses" is a
+  per-encounter decision the reference leaves to the boss's own content, and
+  inventing a list would light the wide bar for the wrong monsters.
+
+  **The ordering is the whole trick, and the obvious order is the wrong one.**
+  Clientscript 2099 is 303's onload and it paints nothing -- all it does is
+
+  ```
+  if_setonsubchange("script2100(...)", $component0);
+  if_setonvartransmit("script2102(...){var1682, var1683}", $component6);
+  ```
+
+  so the first paint comes from a var TRANSMIT, not from the load. Writing the
+  varps before the `IF_OPENSUB` -- which reads as the careful order, "data
+  ready before the panel that shows it" -- is a change with nobody listening,
+  and the panel stays blank until the npc's hitpoints happen to move. It opens
+  first and feeds on the following tick, and that first feed is FORCED
+  (`ToriRSServer_WorldMarkVarp`), because the varp writers dedupe on the
+  current value and re-opening onto the same npc at the same hitpoints would
+  otherwise send nothing at all.
+
+  What is NOT closed: I have the open on the wire and the mount in the client
+  (`if-opensub: mount iface=303 under uid=0x0224001c`), but no screenshot of
+  the panel drawing. The `::fightcave` harness is slow and flaky -- the wave
+  restarts before an npc spawns more often than not -- so the ordering fix
+  above is reasoned from clientscript 2099 rather than observed.
 - **A server-driven timer.** 187 / 188 / 242 / 243 all end at
   `[proc,script5482]`-shaped gates, and the overlay itself is 5471 (npc),
   5475 (loc) or 5478 (coord) -- "run a countdown on this thing for N ticks",

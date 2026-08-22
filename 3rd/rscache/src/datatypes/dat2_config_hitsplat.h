@@ -93,8 +93,10 @@ struct RSCache;
  *     return id == -1 ? nullptr : HitmarkType::List(id);
  *
  * where `array` is the `count + 1` ids read from the stream **followed by** the
- * opcode-18 fallback — the reference's own `count + 2` layout. Opcode 17 has no
- * fallback of its own, so its last stream id doubles as one.
+ * opcode-18 fallback — the reference's own `count + 2` layout. Opcode 17 reads
+ * no fallback and the reference leaves that slot at **-1**, so an opcode-17
+ * record whose var reads out of range draws no splat at all. That is a real
+ * outcome and not a decode failure.
  *
  * `cache.osrs239` uses nothing else: of its 34 selector records, 25 are keyed on
  * varbit 10236 (`hitsplat_tint_disabled`) and 9 on 14196
@@ -184,7 +186,8 @@ struct RSCache_Dat2ConfigHitsplat
      *  `variant_varbit` is -1. -1 when absent. */
     int variant_varp;
     /** The id used when neither var is set or the value is out of range.
-     *  Opcode 18 only; -1 for opcode 17, whose last `variants` entry serves. */
+     *  Opcode 18 only. **-1 for opcode 17**, which reads no fallback — and -1
+     *  means "draw no splat", so that is the outcome, not a missing value. */
     int variant_fallback;
     /** The ids read from the stream, in var-value order. -1 is a real entry and
      *  means "draw no splat at all", not "absent". */

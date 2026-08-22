@@ -1079,6 +1079,84 @@ app_plugin_window_in_strip(struct App const* app)
     return app->plugin_exec_kind == TORIRS_CHROME_EXEC_CS2;
 }
 
+/**
+ * Which interface group holds the strip's panel slot, or -1 for none.
+ *
+ * The strip shows ONE panel at a time. `~chrome_popout_click` opens straight
+ * over whatever is there and lets the client's own IF_OPENSUB unmount the
+ * incumbent; the plugin window is a fourth entry in the same strip, so both
+ * halves of it -- taking the slot and giving it back -- start by asking who
+ * has it.
+ */
+static int
+app_plugin_popout_holder(struct App const* app)
+{
+    int rec;
+
+    assert(app);
+    if( !app->tree )
+        return -1;
+    rec = UITree_InterfaceParentFind(app->tree, APP_POPOUT_CONTAINER);
+    if( rec < 0 )
+        return -1;
+    return app->tree->interface_parents[rec].group_id;
+}
+
+/**
+ * Take the strip's panel slot for the plugin window, closing whoever held it.
+ *
+ * REGISTERING WAS NOT ENOUGH, and that was the bug. The InterfaceParent record
+ * is only the answer `if_hassub` gives; the incumbent panel's COMPONENTS are
+ * children of `popout:container` and go on laying out and drawing until
+ * something reclaims them. Overwriting the record left Hiscores' stat grid
+ * underneath the plugin rows -- two panels in one slot, both drawn, which is
+ * exactly what the strip looked like.
+ *
+ * So this does what the client's own replacing IF_OPENSUB does
+ * (task_interface_open.c): reclaim the outgoing group and drop its hooks, then
+ * claim the record. That rule's one exemption -- a group already in the slot is
+ * not unloaded -- is the early return.
+ */
+static void
+app_plugin_popout_claim(struct App* app)
+{
+    int held;
+
+    assert(app);
+    assert(app->tree);
+
+    held = app_plugin_popout_holder(app);
+    if( held == TORIRS_CHROME_CS2_GROUP )
+        return;
+    if( held > 0 )
+    {
+        UITree_ReclaimInterfaceGroup(app->tree, held);
+        RS_CS2Host_ClearHooksForInterfaceGroup(&app->host, held);
+    }
+    UITree_InterfaceParentSet(
+        app->tree, APP_POPOUT_CONTAINER, TORIRS_CHROME_CS2_GROUP, 1);
+}
+
+/**
+ * Give the slot back -- but only while it is still ours.
+ *
+ * This used to clear the record unconditionally, on the grounds that a stranded
+ * registration is a strip stuck open around nothing. That reasoning holds only
+ * for a registration THIS window made: a shipped panel that displaced us owns
+ * the record now, and clearing it collapses the strip around a panel that is
+ * still mounted and still drawing.
+ */
+static void
+app_plugin_popout_release(struct App* app)
+{
+    assert(app);
+    assert(app->tree);
+
+    if( app_plugin_popout_holder(app) != TORIRS_CHROME_CS2_GROUP )
+        return;
+    UITree_InterfaceParentClear(app->tree, APP_POPOUT_CONTAINER);
+}
+
 static void
 app_plugin_exec_bind(struct App* app);
 
@@ -1133,13 +1211,12 @@ app_plugin_window_set_open(struct App* app, int open)
         return;
 
     if( app->plugin_panel_visible && app_plugin_window_in_strip(app) )
-        UITree_InterfaceParentSet(
-            app->tree, APP_POPOUT_CONTAINER, TORIRS_CHROME_CS2_GROUP, 1);
+        app_plugin_popout_claim(app);
     else
-        /* Unconditional on the way down, including for an executor that never
-         * expanded it: an executor can change between opens, and a stranded
-         * registration is a strip stuck open around nothing. */
-        UITree_InterfaceParentClear(app->tree, APP_POPOUT_CONTAINER);
+        /* On the way down for every executor, including one that never
+         * expanded the strip: an executor can change between opens, and a
+         * stranded registration of OURS is a strip stuck open around nothing. */
+        app_plugin_popout_release(app);
     app_plugin_popout_relayout(app);
 }
 
@@ -1368,14 +1445,36 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
             relayout_cooldown--;
         if( container >= 0 )
         {
-            int const registered =
-                UITree_InterfaceParentFind(app->tree, APP_POPOUT_CONTAINER) >= 0;
+            int const holder = app_plugin_popout_holder(app);
+            int const registered = holder >= 0;
             /* Expanded is judged by the strip's measured on-screen width --
              * the same measurement the fixed-mode canvas grows by -- not by
              * the container's own box, which keeps a size while hidden. The
              * collapsed strip is its 42px icon column. */
             int const strip_w = App_MeasureRightChromeStripWidth(app);
             int const expanded = strip_w > 2 * APP_POPOUT_BTN;
+
+            /*
+             * A SHIPPED PANEL TOOK THE SLOT, so this window is no longer in it.
+             *
+             * `~chrome_popout_click` opens over whatever is there, and the
+             * client's own IF_OPENSUB unmounts the incumbent -- us -- before it
+             * mounts XP Tracker. Redeclaring here would put the plugin rows
+             * back into a slot the tracker is already drawing in, which is the
+             * same two-panels-in-one-slot the claim above exists to prevent,
+             * only reached from the other side. The strip's rule is one panel,
+             * so the window agrees with the strip and closes.
+             */
+            if( registered && holder != TORIRS_CHROME_CS2_GROUP )
+            {
+                if( getenv("TORIRS_CHROME_DEBUG") )
+                    fprintf(
+                        stderr,
+                        "chrome: strip slot taken by group %d; closing the plugin window\n",
+                        holder);
+                app_plugin_window_set_open(app, 0);
+                return;
+            }
 
             if( !registered )
                 UITree_InterfaceParentSet(

@@ -3461,6 +3461,34 @@ app_overlay_build_entity(
 
         if( combat->damage_start_cycles[i] > cycle || combat->damage_cycles[i] <= cycle )
             continue;
+
+        /*
+         * The wire named a type; the CACHE decides which one is drawn.
+         *
+         * 34 of this cache's hitsplat records are opcode 17/18 selectors keyed
+         * on the player's own settings — 5 "Hitsplat tinting" and 279 "Max hit
+         * hitsplats" — so the id that arrived is a question and this is where it
+         * is answered. See `game/rs_hitsplat.h`.
+         *
+         * Resolved HERE, per frame, rather than once when the hit landed, which
+         * is where the reference resolves it too: a splat already on screen
+         * re-skins the instant the setting is toggled, and resolving on receipt
+         * would leave the ones in flight wearing the old answer.
+         *
+         * `duration` and `slot_policy` are deliberately NOT resolved — those are
+         * read off the type the wire named, at the moment it arrived
+         * (`task_exec_entity_info.c`), exactly as the reference reads them from
+         * the unresolved type before it swaps.
+         */
+        int const splat_type =
+            RS_Hitsplats_ResolveType(&app->hitsplats, &app->varps, combat->damage_types[i]);
+
+        /* A resolved -1 is the cache saying "draw nothing for this hit". No
+         * record in cache.osrs239 says it; it is honoured anyway, because the
+         * alternative is drawing a splat the cache asked to hide. */
+        if( splat_type < 0 )
+            continue;
+
         if( !app_world_project(
                 app,
                 (int)draw_position->x,
@@ -3499,7 +3527,7 @@ app_overlay_build_entity(
          * always.
          */
         {
-            int splat_sprite = RS_Hitsplats_SpriteFor(&app->hitsplats, combat->damage_types[i]);
+            int splat_sprite = RS_Hitsplats_SpriteFor(&app->hitsplats, splat_type);
             int splat_scene = -1;
             int splat_frame = 0;
 
@@ -3508,6 +3536,10 @@ app_overlay_build_entity(
             if( splat_scene < 0 && hitmarks_scene > 0 )
             {
                 splat_scene = hitmarks_scene;
+                /* The WIRE type, not the resolved one: on the dat1 path this is
+                 * a frame index into the hitmarks archive, which is a different
+                 * id space from the config table. The two agree today only
+                 * because a dat1 cache has no selectors to resolve. */
                 splat_frame = combat->damage_types[i];
             }
             if( splat_scene >= 0 )
@@ -10329,6 +10361,11 @@ Task_OpenSubRefresh_Run(
             struct timespec close_t1;
             uint64_t close_ns;
             int rec = UITree_InterfaceParentFind(app->tree, self->target_uid);
+            /* Was this close aimed at the plugin window? Answered before the
+             * record goes, and acted on after -- see below. */
+            int closed_plugin_window =
+                rec >= 0 && self->target_uid == APP_POPOUT_CONTAINER &&
+                app->tree->interface_parents[rec].group_id == TORIRS_CHROME_CS2_GROUP;
             clock_gettime(CLOCK_MONOTONIC, &close_t0);
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_CLOSE, 1);
             if( rec >= 0 )
@@ -10346,6 +10383,21 @@ Task_OpenSubRefresh_Run(
             close_ns = (uint64_t)(close_t1.tv_sec - close_t0.tv_sec) * 1000000000ull +
                        (uint64_t)(close_t1.tv_nsec - close_t0.tv_nsec);
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_CLOSE_NS, (int64_t)close_ns);
+            /*
+             * The plugin window is a fourth entry in the popout strip and holds
+             * that slot exactly as a shipped panel does, so a close aimed at
+             * the slot is the strip saying the window is gone -- and the window
+             * has to agree. Without this its own keep-alive tick sees an empty
+             * slot, reads it as a gameframe rebuild, re-registers, re-expands
+             * the strip and rebuilds the rows, so `~chrome_popout_close` does
+             * nothing but flicker.
+             *
+             * After the record is cleared, not before: set_open releases the
+             * slot itself and would find someone else's registration to leave
+             * alone otherwise.
+             */
+            if( closed_plugin_window )
+                app_plugin_window_set_open(app, 0);
         }
         /*
          * Then tell the tree a sub-interface went away.

@@ -1471,6 +1471,18 @@ test-client-trigger: $(OBJ_DIR) game/rs_client_trigger.c game/rs_entity_overlay.
 		game/rs_client_trigger.c game/rs_entity_overlay.c game/test/rs_client_trigger_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/rs_client_trigger_test
 
+# The hitsplat multi-var selector -- settings 5 (tinting) and 279 (max hit),
+# which the cache implements inside the .hitmark record and this client threw
+# away until it resolved opcode 17/18. Uses the real decoder on the cache's own
+# record bytes, because the failure is not "no splat" but "the wrong splat, on
+# the right hit": both of the ways to get the resolution wrong still draw.
+test-hitsplat: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o game/rs_hitsplat.c \
+		varp/varp_manager.c game/test/rs_hitsplat_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_hitsplat_test \
+		game/rs_hitsplat.c varp/varp_manager.c game/test/rs_hitsplat_test.c \
+		$(OBJ_DIR)/rscache_unity.o $(LDFLAGS)
+	./$(OBJ_DIR)/rs_hitsplat_test
+
 test-clientop: $(OBJ_DIR) game/rs_clientop.c game/test/rs_clientop_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_clientop_test \
 		game/rs_clientop.c game/test/rs_clientop_test.c $(LDFLAGS)
