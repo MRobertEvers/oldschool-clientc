@@ -7633,24 +7633,23 @@ rs_cs2_host_exec_dispatch(
         {
             int answer = 0;
             bool handled;
+            bool const debug = getenv("TORIRS_HIGHLIGHT_DEBUG") != NULL;
+            enum RS_HighlightKind kind;
+            bool const known = RS_HighlightOpcodeKind(request->u.highlight.opcode, &kind);
 
             /* Every call, on request. The family is written entirely by cache
              * scripts, so when a highlight does not appear the first question
              * is always "did the script ask for it" -- and that question has
              * no other way to be answered from outside the VM. */
-            if( getenv("TORIRS_HIGHLIGHT_DEBUG") )
+            if( debug )
             {
-                enum RS_HighlightKind kind;
                 fprintf(
                     stderr,
                     "highlight: op %d (%s)",
                     request->u.highlight.opcode,
-                    RS_HighlightOpcodeKind(request->u.highlight.opcode, &kind)
-                        ? RS_HighlightKindName(kind)
-                        : "?");
+                    known ? RS_HighlightKindName(kind) : "?");
                 for( int i = 0; i < request->u.highlight.arg_count; i++ )
                     fprintf(stderr, " %d", request->u.highlight.args[i]);
-                fprintf(stderr, "\n");
             }
 
             handled = RS_HighlightApply(
@@ -7659,6 +7658,24 @@ rs_cs2_host_exec_dispatch(
                 request->u.highlight.args,
                 request->u.highlight.arg_count,
                 &answer);
+
+            /* The kind's subject count AFTER the op, on the same line.
+             *
+             * The op trace alone says what was asked for and not what the
+             * state became, and the difference between the two is the whole of
+             * one failure mode: a group that is re-ADDED to on every edge and
+             * never emptied looks identical, op for op, to one that is. It
+             * shows up here as a count that only ever climbs. */
+            if( debug )
+            {
+                if( known )
+                    fprintf(
+                        stderr,
+                        " -> %d %s",
+                        host->highlight.member_count[kind],
+                        RS_HighlightKindName(kind));
+                fprintf(stderr, "\n");
+            }
 
             if( !handled )
             {

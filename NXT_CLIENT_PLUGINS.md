@@ -131,7 +131,7 @@ this client's, and is the same one for all of them. See "The third half".
 Derived by grepping every clientscript that reads each row's var and
 looking at what it CALLS -- measured, not guessed.
 
-**A. reachable now, not yet proven on screen** -- 6 rows
+**A. reachable now** -- 6 rows, and two of them are now proven
 
 The two things that blocked these are implemented (see below): the cache's
 scripts for them are found and run, and the overlays they build are drawn. What
@@ -140,12 +140,65 @@ in hand -- which the mock server does not currently place.
 
 | id | setting | what it needs to be seen |
 |---:|---------|--------------------------|
-| 120 | Fishing spot indicators | a fishing spot npc in the scene |
-| 121 | Fishing spot indicators - Tools only | ditto, plus the tool in the inventory |
+| 120 | Fishing spot indicators | **works** -- see below |
+| 121 | Fishing spot indicators - Tools only | **works**, and it is what hid 120 |
 | 122 | Fishing spot indicators - Mouse over tooltip | ditto, plus a hover |
 | 270 | Clue scroll helper - Overlay | a read clue (`%var3546`) |
 | 271 | Clue scroll helper | ditto |
 | 277 | Clue scroll helper - Entity highlights | ditto |
+
+### 120 and 121 work, and 121 is why 120 looked broken
+
+Driven at the Lumbridge fishing spots (`0_50_50_freshfish`, absolute 3238,3252,
+npc category **280**) rather than reasoned about. The whole chain runs:
+
+```
+trigger: npc 35 (subject=1527 category=280) -> script 4531
+overlay: op 7200 args ...            <- 3721 creates the layer on the ACTIVE NPC
+overlay: op 104  args 39             <- 4553 empties it
+overlay: op 103  args 39 5 0         <- ... and creates the icon child
+overlay: #39 anchor=0 band=1 box=17,106 36x32 kids=1
+highlight: op 7001 (npc) 19 ... 11   <- the spot joins highlight group 11
+```
+
+The middle line is the one that was missing, and the reason it was missing is
+setting **121** doing exactly what it says. Clientscript 4553 opens with
+
+```
+if (%varbit12350 = 0 & $int8 = 0 & $int9 = 0) { ...highlight_npc_off(11); return; }
+```
+
+`%varbit12350` is row 121 and it is **inverted**, so 0 is "Tools only ON";
+`$int8`/`$int9` are "do I hold the lure/bait tool". A default account standing at
+a fishing spot with no rod therefore gets the layer created, emptied, and left
+empty -- which on screen is indistinguishable from the feature not existing.
+Setting 121 to 1 ("show regardless of tools") fills it immediately.
+
+So both rows are honoured; what was missing was a rod, not an implementation.
+That is worth writing down because "the overlay has no children" was the same
+symptom the scripted-overlay work chased for a different reason, and the two are
+told apart only by `TORIRS_OVERLAY_SCRIPT_DEBUG` showing op 104 without op 103.
+
+Recipe (note the UNDERSCORES -- see below):
+
+```sh
+SDL_VIDEODRIVER=dummy TORIRS_OVERLAY_SCRIPT_DEBUG=1 \
+  TORIRS_SIM_VARBIT="600,12349,0;610,12350,1" \
+  TORIRS_NET_CHEAT="tele 0_50_50_38_52" TORIRS_MAX_FRAMES=1100 \
+  ./run-live.sh manifests/manifest_osrs239.ini testc test
+```
+
+### `::tele` takes underscores, and the comma form fails SILENTLY
+
+`::tele 0_50_50_38_52`, not `0,50,50,38,52`. The comma form answers "nowhere
+called 0,50,50,38,52" in the chatbox and the run then continues from wherever
+the player already was -- so a headless recipe using it has been exercising the
+login tile and reporting whatever that showed. Several older recipes in
+`docs/` carry the comma form and are annotated now.
+
+`~tele_resolve` (cheat_tele.rs2) reads ONE word and decides name-or-coord from
+its first character; a comma literal is neither, which is why it is a miss
+rather than a parse error.
 
 ### 247 landed, and what it took
 
@@ -298,6 +351,38 @@ Three shapes, and none of them is a missing opcode:
   cannot: "the setting is off", "the server never started a timer", "type 10 has
   no arm", "1128 is ignored" and "the arc drew wrong" are all the same empty
   patch of grass.
+
+  **And the settings that gate it are measured, not assumed.** The gate is
+  `[clientscript,script5477]` -> `[proc,script5479]` -> one of 5482 / 5483 /
+  6679 / 6680, all of it the cache's; the server only says a countdown started.
+  Run them through the CS2 harness with the rows driven by `TORIRS_SIM_VARBIT`
+  (`tools/perf/cs2_cases/overlay_timer_gates.json`):
+
+  | gate | all on | dropdown = 1 | all off |
+  |------|-------:|-------------:|--------:|
+  | 187 ore `5482` | 1 | **0** | 0 |
+  | 188 woodcutting `5483` | 1 | **1** | 0 |
+  | 242 Tears of Guthix `6679` | 1 | 1 | 0 |
+  | 243 hunter trap `6680` | 1 | 1 | 0 |
+  | `~script5324` find a pickaxe | -1 | -1 | -1 |
+  | `~script5314` find an axe | 1359 | 1359 | 1359 |
+
+  The middle column is the one worth reading. **187 and 188 are given the same
+  dropdown value and answer differently**: 187's "only while mining" mode calls
+  `~script5324`, which walks `enum_5984` against `inv_total(inv_93, ..)` and
+  finds nothing, so the row says no; 188's calls `~script5314` and finds the
+  rune axe (1359) the test character carries, so it says yes. That is row 187
+  behaving as the **dropdown** it is -- 0 always / 1 only while mining / 2 never
+  -- discriminating on the real inventory, and it is not something a boolean
+  could have produced.
+
+  **What is NOT closed:** the gate is measured at the script, not observed as a
+  suppressed pie. `TORIRS_NET_CHEAT="~timer .."` fires at *login*, before
+  `TORIRS_SIM_VARBIT` can land, so a run cannot both set a row and then start a
+  timer; and the `RUNCLIENTSCRIPT` it sends is lost outright if it arrives
+  before the script host is up, which makes the create racy below ~1500 frames.
+  Reaching that end to end wants a frame-scheduled cheat, or
+  `TORIRS_SIM_RUNSCRIPT` widened past its four-argument cap (5478 takes five).
 
   **The call sites are wired**: ore through `~mining_rock_deplete` (row 187),
   woodcutting at the felling site in `woodcut.rs2` (188), and hunter traps in
@@ -1312,6 +1397,17 @@ once per player watching and the restriction is one player's.
 ```sh
 make -C src test-hitsplat        # the cache's hitsplat selector -- settings 5, 279
 make -C src test-uitree          # ... and the countdown pie: type 10, CC_SETARC, its spans
+
+# The four countdown-timer gates, per settings row. TORIRS_SIM_VARBIT writes
+# every row each run on purpose: varp 3154 (the base var behind 13085 / 13086)
+# is saved with the character, so a row left unwritten inherits the LAST run's
+# value and the matrix quietly stops being a matrix.
+SDL_VIDEODRIVER=dummy TORIRS_MAX_FRAMES=400 \
+  TORIRS_SIM_VARBIT="30,13085,1;32,13086,1;34,14167,0;36,14165,0" \
+  TORIRS_CS2_HARNESS=tools/perf/cs2_cases/overlay_timer_gates.json \
+  TORIRS_CS2_HARNESS_FRAME=200 TORIRS_CS2_HARNESS_OUT=/tmp/gates \
+  ./run-live.sh --skip-checks manifests/manifest_osrs239.ini testc test
+# each artifact's last trace record carries the return in `topInt`
 make -C src test-clientop        # the CLIENTOP_* registry and its context ops
 make -C src test-highlight       # the cache's HIGHLIGHT_* family, as state
 make -C src test-client-trigger  # trigger hashes vs real cache identifiers

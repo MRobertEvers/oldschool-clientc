@@ -181,6 +181,37 @@ enum AppPluginRowKind
 #define APP_SETTING_CLEAR_NPC_TAGS 267
 
 /*
+ * The TILE highlight groups the current-tile and destination-tile indicators
+ * live in, as their clientscripts number them.
+ *
+ * Needed because this client stands in for the reference's per-tile TRIGGERS
+ * and the scripts it runs in their place are not those triggers. The cache has
+ * two scripts per indicator: a `[trigger_4x]` that clears the group and re-adds
+ * one tile, and a `[clientscript]` that the settings panel calls to restate the
+ * group's colour and style. Only the hovered tile's pair splits the work the
+ * way the names suggest --
+ *
+ *     5197  [trigger_48]  _7039(5); highlight_tile_on(_6950, 5, 0)
+ *     5203  [trigger_49]  _7039(3); highlight_tile_on(coord, 3, 0)
+ *     5209  [trigger_47]  _7039(4); highlight_tile_on(_6950, 4, 0)
+ *     5204  [clientscript]  _7035(3, ...); highlight_tile_on(coord, 3, 0)
+ *     5210  [clientscript]  _7035(4, ...); highlight_tile_on(_3330, 4, 0)
+ *
+ * -- so 5204 and 5210, which are what App_RunOnce re-runs on a coord edge, ADD
+ * a tile and never take one away. Uncleared, every tile the player stood on and
+ * every flag they ever dropped stayed marked for the session. The two triggers
+ * are not run in their place because their subjects come from opcodes this
+ * client has no reading for (`_6902`/`_6903`, the queued-step list, and
+ * `_6904`/`_6905`), and a trigger whose guard is faked is a worse driver than
+ * an honest clear.
+ *
+ * Group ids are per KIND, which is why these two and the tile markers' 6 are
+ * separate groups that never disturb each other.
+ */
+#define APP_HIGHLIGHT_GROUP_CURRENT_TILE 3
+#define APP_HIGHLIGHT_GROUP_DEST_TILE 4
+
+/*
  * HINT_ARROW's `type` byte: what the packet's `id`/`z` fields mean.
  *
  * The reference's own values. 255 means "clear" and is normalised to 0 by
@@ -1172,11 +1203,14 @@ struct App
     /**
      * What the three tile-highlight refreshers were last run for.
      *
-     * Each of clientscripts 5197 / 5204 / 5210 clears its highlight group and
-     * re-adds one tile, so they are run on the EDGE of their subject changing
+     * Each of clientscripts 5197 / 5204 / 5210 re-adds one tile to its
+     * highlight group, so they are run on the EDGE of their subject changing
      * rather than every frame -- three dispatches and six highlight ops a
      * frame to restate what has not moved is not free, and the pointer sits
      * still for most of them.
+     *
+     * Only 5197 empties its group first; the other two are cleared by the
+     * caller (APP_HIGHLIGHT_GROUP_CURRENT_TILE says why).
      *
      * Seeded to a value no coord can take, so the first frame after login runs
      * all three: a group that starts empty has to be filled once, and the

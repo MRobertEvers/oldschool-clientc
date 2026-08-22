@@ -77,8 +77,22 @@ world_builder_resolve_loc(
  * model over the wrong span (a base-4x1 loc placed as its 1x1 target lands 192
  * units west of where it belongs, geometry still four tiles wide).
  *
- * The anim id follows the same rule for the same reason: the reference makes
- * any transformed loc a DynamicObject driven by the BASE `animationId`.
+ * The anim id does NOT follow that rule, and used to. What makes a transformed
+ * loc a DynamicObject is the BASE `animationId` *or* the presence of a
+ * transform table, and the frame it draws comes from the def the transform
+ * resolved to -- the reference re-reads the transformed `animationId` and
+ * re-arms when it differs, which is how a state that animates only in one rung
+ * animates at all. Taking the base's unconditionally meant a base with no
+ * `anim=` of its own froze every animated child: 474 multiloc families in this
+ * cache are exactly that shape (`blast_furnace_dispenser`, `golem_portal`, the
+ * mourning doors, and every canoe station -- the felled tree never fell and the
+ * canoe in the water never bobbed).
+ *
+ * The base stays as the FALLBACK rather than being dropped, so the 445 families
+ * whose shell carries the anim and whose children carry none keep animating
+ * exactly as before. What changes is "the child has one and the base does not"
+ * -- and "both have one", where the state's own anim is the one that belongs to
+ * the state being drawn.
  *
  * Writes through `storage` (caller-owned, so this allocates nothing) and
  * returns it. NULL means the varbit selected a state with no loc — the caller
@@ -113,7 +127,8 @@ world_builder_resolve_loc_for_place(
             64 * (base_loc->size_x - resolved->size_x));
 
     *storage = *resolved;
-    storage->seq_id = base_loc->seq_id;
+    if( resolved->seq_id < 0 )
+        storage->seq_id = base_loc->seq_id;
     storage->size_x = base_loc->size_x;
     storage->size_z = base_loc->size_z;
     return storage;

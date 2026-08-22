@@ -11930,11 +11930,16 @@ app_logic_tick(struct App* app)
      * run each one again when its subject changes. Nothing in the cache calls
      * them; the reference client does, on exactly these edges.
      *
-     * Edge-triggered and not per-frame. Each script clears its group and
-     * re-adds one tile, so running them every frame would be three script
-     * dispatches and six highlight ops a frame to say what has not changed --
-     * and they are also what CLEARS the group when the setting is switched
-     * off, so they must run at least once after any change either way.
+     * Edge-triggered and not per-frame. Each script re-adds one tile, so
+     * running them every frame would be three script dispatches and six
+     * highlight ops a frame to say what has not changed -- and they are also
+     * what CLEARS the group when the setting is switched off, so they must run
+     * at least once after any change either way.
+     *
+     * Emptying the group first is the CLIENT's job for two of the three: 5197
+     * opens with `_7039(5)` and 5204 / 5210 do not, because in the cache the
+     * per-tile driver for those two is a trigger script and the clear lives
+     * there. See APP_HIGHLIGHT_GROUP_CURRENT_TILE.
      */
     {
         int dest_coord = -1;
@@ -12124,6 +12129,8 @@ app_logic_tick(struct App* app)
             if( app->host.local_coord != app->highlight_last_local_coord )
             {
                 app->highlight_last_local_coord = app->host.local_coord;
+                RS_HighlightClear(
+                    &app->host.highlight, RS_HIGHLIGHT_TILE, APP_HIGHLIGHT_GROUP_CURRENT_TILE);
                 RS_CS2_RunScript(
                     &app->host, &app->runner, app->host.script_highlight_current_tile,
                     NULL, 0, 0, NULL, 0);
@@ -12131,6 +12138,8 @@ app_logic_tick(struct App* app)
             if( dest_coord != app->highlight_last_dest_coord )
             {
                 app->highlight_last_dest_coord = dest_coord;
+                RS_HighlightClear(
+                    &app->host.highlight, RS_HIGHLIGHT_TILE, APP_HIGHLIGHT_GROUP_DEST_TILE);
                 RS_CS2_RunScript(
                     &app->host, &app->runner, app->host.script_highlight_dest_tile,
                     NULL, 0, 0, NULL, 0);

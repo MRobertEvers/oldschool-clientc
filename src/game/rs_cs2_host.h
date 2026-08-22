@@ -485,7 +485,8 @@ struct RS_CS2Host
      * 5204 reads `coord`, 5210 reads `_3330`, 5197 reads `_6950` -- so the
      * client's whole job is to RE-RUN each one when its subject changes.
      * Nothing in the cache calls them; the reference client does, on the same
-     * three edges.
+     * three edges. Two of the three do not empty their group on the way in,
+     * and the caller does it for them -- see APP_HIGHLIGHT_GROUP_CURRENT_TILE.
      *
      * Held here beside `script_settings_client_mode` for the same reason: a
      * cache id this client has to know by number belongs in one place where it
