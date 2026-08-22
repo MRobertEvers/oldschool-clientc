@@ -1,6 +1,7 @@
 #include "render/torirs_frame.h"
 
 #include "painters/painters.h"
+#include "render/torirs_arc.h"
 #include "ui/uitree_emit.h"
 #include "ui/uitree_scroll.h"
 #include "world/world.h"
@@ -235,6 +236,26 @@ emit_color_argb(
         trans = 255;
     alpha = 255 - trans;
     return (alpha << 24) | (color & 0xFFFFFF);
+}
+
+/* The emit desc's arc fields, as the shape render/torirs_arc.c wants. Shared by
+ * the step count and the step itself so the two cannot disagree about how many
+ * rows there are. */
+static void
+frame_arc_shape(
+    struct UITreeEmitDesc const* desc,
+    struct ToriRS_ArcShape* out)
+{
+    assert(desc);
+    assert(out);
+    out->x = desc->x;
+    out->y = desc->y;
+    out->w = desc->w;
+    out->h = desc->h;
+    out->arc_start = desc->arc_start;
+    out->arc_end = desc->arc_end;
+    out->filled = desc->filled;
+    out->line_width = desc->line_width;
 }
 
 static void
@@ -804,6 +825,37 @@ translate_ui_cmd(
         out->u.fill_rect.scissor_h = desc->clip.h;
         out->u.fill_rect.filled = desc->filled;
         return true;
+
+    case UITREE_EMIT_ARC:
+    {
+        /* One horizontal run per step. Widget type 10 is an annulus sector
+         * (render/torirs_arc.h), and every backend already fills a run, so the
+         * arc never becomes a render command of its own -- the alternative is
+         * the same rasteriser written out four times. */
+        struct ToriRS_ArcShape arc;
+        struct ToriRS_ArcSpan spans[TORIRS_ARC_ROW_SPANS_MAX];
+        int const row = frame->scrollbar_step / TORIRS_ARC_ROW_SPANS_MAX;
+        int const slot = frame->scrollbar_step % TORIRS_ARC_ROW_SPANS_MAX;
+        int found;
+
+        frame_arc_shape(desc, &arc);
+        found = ToriRS_ArcRowSpans(&arc, row, spans);
+        if( slot >= found )
+            return false;
+
+        out->kind = TORIRSRC_FILL_RECT;
+        out->u.fill_rect.x = spans[slot].x;
+        out->u.fill_rect.y = spans[slot].y;
+        out->u.fill_rect.w = spans[slot].w;
+        out->u.fill_rect.h = 1;
+        out->u.fill_rect.argb = emit_color_argb(desc->color, desc->trans);
+        out->u.fill_rect.filled = 1;
+        out->u.fill_rect.scissor_x = desc->clip.x;
+        out->u.fill_rect.scissor_y = desc->clip.y;
+        out->u.fill_rect.scissor_w = desc->clip.w;
+        out->u.fill_rect.scissor_h = desc->clip.h;
+        return true;
+    }
 
     case UITREE_EMIT_LINE:
         out->kind = TORIRSRC_LINE;
@@ -2056,6 +2108,18 @@ again:
         {
             is_scrollbar = 1;
             sb_steps = 1 + desc->worldmap_tile_count;
+        }
+        /* An arc steps its bounding circle a row at a time, with a slot per
+         * run on that row. Rows and slots that hold nothing translate to
+         * nothing and are skipped, which costs an iteration and keeps the step
+         * count a pure function of the desc -- so the driver never has to ask
+         * the arc anything before it starts. */
+        if( desc->kind == UITREE_EMIT_ARC )
+        {
+            struct ToriRS_ArcShape arc;
+            frame_arc_shape(desc, &arc);
+            is_scrollbar = 1;
+            sb_steps = ToriRS_ArcRowCount(&arc) * TORIRS_ARC_ROW_SPANS_MAX;
         }
         /* Debug overlay: one step per display-list primitive. Stepping the
          * host's array in place is the reason the overlay's whole per-frame

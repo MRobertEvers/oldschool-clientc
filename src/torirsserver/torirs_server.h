@@ -2581,6 +2581,10 @@ struct ToriRSServerNpc
      *  that has to mean on a path that runs for every landed hit. Cleared with
      *  `damaged_by_players`. */
     unsigned char noloot_warned_players[TORIRSSERVER_PLAYER_MAX];
+    /** Who has already been SHOWN the restriction icon (setting 182). Separate
+     *  from the message latch beside it because 182 and 183 are independent
+     *  rows: a player may want the icon and not the chat line. */
+    unsigned char noloot_iconned_players[TORIRSSERVER_PLAYER_MAX];
     /** Stable tracker identity for a death script that parks on npc_delay. */
     int loot_credit_event_id;
     int loot_credit_npc_type;
@@ -4228,6 +4232,34 @@ ToriRSServer_NpcLootRestrictedFor(
     const struct ToriRSServerNpc* npc,
     const struct ToriRSServerPlayer* player);
 
+/**
+ * Should this viewer be shown the loot-restriction ICON over this npc?
+ *
+ * Setting 182, the indicator half of the pair 183 states in the chatbox. True at
+ * most once per npc per player — the row's word is "occasionally" and this is
+ * asked on every encoded hit — and only when the loot really is restricted and
+ * the (inverted) row is on.
+ *
+ * Answered at ENCODE time rather than where the hit lands, because the icon is
+ * one viewer's and an npc's splat list is not: the same list is written once per
+ * player watching the fight, and showing everybody a no-entry sign over a
+ * creature only one of them may not loot would be worse than showing nobody.
+ *
+ * Marks the player as shown, so it is not a pure predicate — call it once, in
+ * the encoder, and use the answer.
+ */
+int
+ToriRSServer_NpcLootIconWanted(
+    const struct ToriRSServer* srv,
+    struct ToriRSServerNpc* npc,
+    const struct ToriRSServerPlayer* viewer);
+
+/** The hitsplat record that IS the loot-restriction icon, or -1. See the
+ *  definition for how it was identified — it is the only record in the cache's
+ *  whole hitsplat table that draws a sprite and no number. */
+int
+ToriRSServer_HitsplatLootRestrictedIcon(void);
+
 /** Read a varbit out of the player's varps. 0 when the id is unknown. */
 int
 ToriRSServer_VarbitGet(
@@ -4900,6 +4932,27 @@ ToriRSServer_CombatPoisonNpc(
     int slot,
     const struct ToriRSServerPlayer* source,
     int severity);
+/**
+ * The same hit with the ATTACKER named, for the splat the victim is shown.
+ *
+ * `ToriRSServer_CombatHitPlayer` records dealer -1 ("nobody"), which is right
+ * for every hit an npc lands and wrong for player-versus-player: setting 5
+ * tints "damage that you did not deal", and a hit from another player is the
+ * whole of what that row is about. The plain form cannot answer it, because it
+ * runs with the VICTIM as `srv->active_player` -- the attacker is not on the
+ * stack by the time it is called.
+ *
+ * `dealer_slot` is a player pool index, or -1 for damage no player owns.
+ */
+void
+ToriRSServer_CombatHitPlayerFrom(
+    struct ToriRSServer* srv,
+    int type,
+    int amount,
+    int dealer_slot);
+
+/** The same hit with no attacker: an npc's swing, poison, a trap. Setting 5
+ *  leaves those untinted, which is what "damage that you did not deal" means. */
 void
 ToriRSServer_CombatHitPlayer(
     struct ToriRSServer* srv,

@@ -78,6 +78,11 @@ enum UITreeComponentType
     UIELEM_RS_RECT = 19,     /* TYPE_RECT */
     UIELEM_RS_LINE = 20,     /* TYPE_LINE */
     UIELEM_RS_INV_TEXT = 21, /* TYPE_INV_TEXT */
+    /** TYPE_ARC — a circular sector, shaped by CC/IF_SETARC's two angles.
+     *  The only user in the cache is clientscript 5480's countdown pie, which
+     *  stacks three of them: a full translucent disc, the swept wedge over it,
+     *  and the wedge's 1px arc outline. */
+    UIELEM_RS_ARC = 28,
     // Dynamic object created by CS2.
     UIELEM_CC_OBJ = 23, /* CS2 cc_create / if_setobject objbox */
 };
@@ -585,6 +590,18 @@ struct UITreeComponent
         } rs_rect;
         struct
         {
+            int color;
+            /** 1 = the whole disc, 0 = a `line_width`-pixel band along the arc
+             *  (reference NXTPix2D::DrawCircularArc's inner radius). */
+            int filled;
+            int line_width;
+            /** CC/IF_SETARC, 65536 to a full turn. 0 is straight up and the
+             *  sweep runs clockwise, so a drain reads as a clock hand. */
+            int arc_start;
+            int arc_end;
+        } rs_arc;
+        struct
+        {
             int inv_source_id;
             int cols;
             int rows;
@@ -1037,6 +1054,18 @@ struct UITreeNodeSpec
             int color;
             int filled;
         } rs_rect;
+        struct
+        {
+            int color;
+            /** 1 = the whole disc, 0 = a `line_width`-pixel band along the arc
+             *  (reference NXTPix2D::DrawCircularArc's inner radius). */
+            int filled;
+            int line_width;
+            /** CC/IF_SETARC, 65536 to a full turn. 0 is straight up and the
+             *  sweep runs clockwise, so a drain reads as a clock hand. */
+            int arc_start;
+            int arc_end;
+        } rs_arc;
         struct
         {
             int inv_source_id;

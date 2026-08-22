@@ -289,6 +289,16 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Set rectangle fill",
         int_in=("filled",),
     ),
+    "CC_SETARC": OpcodeDoc(
+        summary="Set arc start/end angle on active child",
+        int_in=("start_angle", "end_angle"),
+        notes="widget type 10; 65536 = a full turn, 0 = straight up, clockwise",
+    ),
+    "IF_SETARC": OpcodeDoc(
+        summary="Set arc start/end angle",
+        int_in=("start_angle", "end_angle", "component"),
+        notes="widget type 10; 65536 = a full turn, 0 = straight up, clockwise",
+    ),
     "CC_SETTRANS": OpcodeDoc(
         summary="Set transparency",
         operand="0 = active component, 1 = dot component",

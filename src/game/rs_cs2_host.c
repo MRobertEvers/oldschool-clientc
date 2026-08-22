@@ -4822,6 +4822,8 @@ exec_widget_set_int(
     case CS2VM_WIDGET_INT_LINE_WIDTH:
         if( node->type == UIELEM_RS_LINE )
             node->u.rs_line.line_width = request.value;
+        else if( node->type == UIELEM_RS_ARC )
+            node->u.rs_arc.line_width = request.value > 0 ? request.value : 1;
         break;
     case CS2VM_WIDGET_INT_LINE_DIRECTION:
         if( node->type == UIELEM_RS_LINE )
@@ -4889,6 +4891,33 @@ exec_widget_set_int(
     }
     if( idx >= 0 )
         UITree_MarkNodeDirty(rs_cs2_tree(host), idx);
+    return CS2VM_EXECNO_OK;
+}
+
+/* CC/IF_SETARC. The two angles are the whole shape of a type-10 widget: with
+ * start == end it is a zero-width sector and draws nothing, which is how the
+ * countdown pie's wedge starts and how it ends.
+ *
+ * A set on a component that is not an arc is dropped rather than asserted --
+ * the reference writes IfType +0x9c/+0xa0 on whatever the active component is,
+ * and every other CC setter here tolerates the same mismatch. */
+static int
+exec_widget_set_arc(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest_WidgetSetArc request)
+{
+    struct UITree* tree = rs_cs2_tree(host);
+    int32_t idx;
+    (void)vm;
+    if( !tree )
+        return CS2VM_EXECNO_OK;
+    idx = UITree_FindByComponentId(tree, request.component_id);
+    if( idx < 0 || tree->components[idx].type != UIELEM_RS_ARC )
+        return CS2VM_EXECNO_OK;
+    tree->components[idx].u.rs_arc.arc_start = request.arc_start;
+    tree->components[idx].u.rs_arc.arc_end = request.arc_end;
+    UITree_MarkNodeDirty(tree, idx);
     return CS2VM_EXECNO_OK;
 }
 
@@ -8048,7 +8077,7 @@ rs_cs2_host_exec_dispatch(
             if( sethide_debug )
             {
                 int g = (request->u.if_set_hide.component_id >> 16) & 0xffff;
-                if( g == 728 || g == 149 || g == 320 || g == 218 ||
+                if( g == 149 || g == 320 || g == 218 ||
                     (g == 161 && (request->u.if_set_hide.component_id & 0xffff) >= 73) )
                     fprintf(
                         stderr,
@@ -8269,6 +8298,14 @@ rs_cs2_host_exec_dispatch(
         if( node && node->type == UIELEM_RS_RECT )
         {
             node->u.rs_rect.filled = request->u.cc_set_fill.filled ? 1 : 0;
+            UITree_MarkNodeDirty(tree, rs_cs2_find_node(host, request->u.cc_set_fill.component_id));
+        }
+        /* An arc reads the same flag as "whole disc" vs "band along the arc"
+         * (reference DrawCircularArc's inner radius); 5480's ring and wedge set
+         * it and its outline clears it. */
+        else if( node && node->type == UIELEM_RS_ARC )
+        {
+            node->u.rs_arc.filled = request->u.cc_set_fill.filled ? 1 : 0;
             UITree_MarkNodeDirty(tree, rs_cs2_find_node(host, request->u.cc_set_fill.component_id));
         }
         return CS2VM_EXECNO_OK;
@@ -8792,8 +8829,7 @@ rs_cs2_host_exec_dispatch(
         return exec_widget_set_model_angle(host, vm, request->u.widget_set_model_angle);
 
     case CS2VM_HOST_REQUEST_WIDGET_SET_ARC:
-        /* UITree has no arc fields yet. */
-        return CS2VM_EXECNO_OK;
+        return exec_widget_set_arc(host, vm, request->u.widget_set_arc);
 
     case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND:
         return exec_widget_set_model_kind(host, vm, request->u.widget_set_model_kind);

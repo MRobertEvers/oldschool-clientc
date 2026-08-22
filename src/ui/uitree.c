@@ -1210,6 +1210,8 @@ UITree_ComponentTypeStr(enum UITreeComponentType type)
         return "rs_rect";
     case UIELEM_RS_LINE:
         return "rs_line";
+    case UIELEM_RS_ARC:
+        return "rs_arc";
     case UIELEM_RS_INV_TEXT:
         return "rs_inv_text";
     case UIELEM_CC_OBJ:
@@ -2033,6 +2035,15 @@ UITree_Push(
         component->u.rs_rect.filled = spec->u.rs_rect.filled;
         break;
 
+    case UIELEM_RS_ARC:
+        component->u.rs_arc.color = spec->u.rs_arc.color;
+        component->u.rs_arc.filled = spec->u.rs_arc.filled;
+        component->u.rs_arc.line_width =
+            spec->u.rs_arc.line_width > 0 ? spec->u.rs_arc.line_width : 1;
+        component->u.rs_arc.arc_start = spec->u.rs_arc.arc_start;
+        component->u.rs_arc.arc_end = spec->u.rs_arc.arc_end;
+        break;
+
     case UIELEM_RS_MODEL:
         component->u.rs_model.gamecache_model_id = spec->u.rs_model.gamecache_model_id;
         component->u.rs_model.active_model_id = spec->u.rs_model.active_model_id;
@@ -2343,6 +2354,16 @@ UITree_CcCreate(
         break;
     case 9: /* TORIRS_COMPONENT_LINE */
         spec.type = UIELEM_RS_LINE;
+        break;
+    case 10: /* TORIRS_COMPONENT_ARC */
+        /* An arc with no CC_SETARC yet is a zero-width sector, which draws
+         * nothing -- the reference's own default, and the right one: 5480
+         * creates all three children before it shapes any of them, so a
+         * full-turn default would flash a disc for the width of a rebuild. */
+        spec.type = UIELEM_RS_ARC;
+        spec.u.rs_arc.color = 0;
+        spec.u.rs_arc.filled = 0;
+        spec.u.rs_arc.line_width = 1;
         break;
     default:
         /* Type 2 (INV) and any unknown: item box until SETOBJECT fills it. */
@@ -2868,6 +2889,8 @@ UITree_ApplyColour(
         c->u.rs_text.color = colour;
     else if( c->type == UIELEM_RS_RECT )
         c->u.rs_rect.color = colour;
+    else if( c->type == UIELEM_RS_ARC )
+        c->u.rs_arc.color = colour;
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }

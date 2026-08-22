@@ -48,18 +48,18 @@ To re-derive any of it:
 3rd/rscache/tools/cs2/cs2 decompile --cache cache.osrs239 --rev osrs239 --out /tmp/cs2 6716 3965 3962 4181
 ```
 
-## Status: 46 of 74
+## Status: 53 of 74
 
 | | rows | |
 |---|---:|---|
-| **working** | 46 | 27 driven by the cache, 4 by builtins, 13 by the server, 2 by the client |
-| **partial** | 5 | 164, 173 / 176 / 179, and 182 (the rule works; its icon has no known asset) |
-| **not started** | 23 | classified below -- 6 + 14 + 4 (163, 184, 268, 275), one server feature between them |
+| **working** | 53 | 30 driven by the cache, 4 by builtins, 17 by the server, 2 by the client |
+| **partial** | 4 | 164, and 173 / 176 / 179 |
+| **not started** | 17 | classified below -- 6 + 11, and **bucket C is empty** |
 
-The count moved by eight, and bucket C -- the twelve rows this document called
-"the only open problems" -- is down to four, all of them the same feature. The
-paragraph that justified calling them problems was wrong in a way worth reading
-before trusting any other classification here: see bucket C below.
+The count moved by twelve, and **bucket C -- the twelve rows this document called
+"the only open problems" -- is empty**. The paragraph that justified calling them
+problems was wrong in a way worth reading before trusting any other
+classification here: see bucket C below.
 
 Earlier, the count moved by one. What moved underneath it is larger: **five rows that a
 builtin was faking are now driven by the cache's own scripts**, two builtins
@@ -98,6 +98,9 @@ See "Client triggers" and "Scripted entity overlays" below.
 | 266 | NPC names text colour | cache |
 | 267 | Clear your highlighted NPCs | client (button) |
 | 269 | Blast Furnace highlights | cache |
+| 187 | Ore respawn timer | cache + server (mining lane) |
+| 188 | Woodcutting respawn timer | cache + server (woodcutting lane) |
+| 243 | Hunter trap timers | cache + server (hunter lane) |
 | 367 | Highlight quest start points | cache |
 | 368 | Filter quest start highlights based on requirements | cache |
 | 374 | Beginner clue scroll warning | server (trail lane) |
@@ -178,7 +181,7 @@ The same publish is what makes **248 / 249 / 250** fire: `nxt-cannon-ammo` reads
 `rockthrower` and `ownedmcannon_temp` too, and until now no cannon ever wrote
 either.
 
-**B. the cache implements it; it needs the right context** -- 14 rows
+**B. the cache implements it; it needs the right context** -- 11 rows
 
 Reclassified by measurement rather than by eye. For every row, the scripts that
 READ its var were separated from the one that WRITES it and from the settings
@@ -191,10 +194,7 @@ is one the cache already implements; what it is missing is a situation.
 | 111 | Show normal health overlay | 4731 | interface 303, which only the server opens |
 | 116 | Data orbs - Regeneration indicators | 4718 4723 6052 6060 | the orbs' own layout pass |
 | 118 | Chambers of Xeric helper | 4663 | being in CoX |
-| 187 | Ore respawn timer | 5482 | a server `RUNCLIENTSCRIPT` 5475 |
-| 188 | Woodcutting respawn timer | 5483 | the same |
-| 242 | Tears of Guthix timers | 6679 | the same |
-| 243 | Hunter trap timers | 6680 | the same |
+| 242 | Tears of Guthix timers | 6679 | content that starts one -- the drawable and the server entry points are done; see the timer note below |
 | 245 | Herbiboar helper | 4743 6853 | being at a herbiboar |
 | 274 | Clue scroll helper - Menu highlights | 6477 6479 | a clue in hand |
 | 276 | Clue scroll helper - Clue text | 6634..6644 | a clue in hand |
@@ -253,10 +253,58 @@ Three shapes, and none of them is a missing opcode:
   restarts before an npc spawns more often than not -- so the ordering fix
   above is reasoned from clientscript 2099 rather than observed.
 - **A server-driven timer.** 187 / 188 / 242 / 243 all end at
-  `[proc,script5482]`-shaped gates, and the overlay itself is 5471 (npc),
-  5475 (loc) or 5478 (coord) -- "run a countdown on this thing for N ticks",
-  which nothing in the cache calls because the SERVER calls it by
-  `RUNCLIENTSCRIPT`. Four rows, one server feature.
+  `[proc,script5482]`-shaped gates, and the overlay itself is 5471 (npc) or
+  5478 (coord) -- "run a countdown on this thing for N ticks", which nothing in
+  the cache calls because the SERVER calls it by `RUNCLIENTSCRIPT`. (There is a
+  third, 5475, for a loc; it is the REFRESH form and takes an explicit start
+  and slot, so it is the cache's to call and not ours.)
+
+  **The server half is written.** `~overlay_timer_coord` / `~overlay_timer_npc`
+  in `general/scripts/misc/overlay_timers.rs2`, with the kinds and the entry
+  points in `overlay_timer.constant`; the ore respawn is wired at its four
+  depletion sites through a new `~mining_rock_deplete`, which does the
+  `loc_change` and the countdown together because the duration is one number
+  and reading it twice is how the two drift. `::~timer <kind> <ticks>` fires one
+  on the tile you stand on, because none of the four rows is reachable from a
+  headless session otherwise.
+
+  **The drawable is written too, and it was the last thing.** The three
+  segments are component **type 10** shaped by opcode **1128**, and this client
+  had neither: `cc_create` mapped type 10 to its `default:` arm (an objbox,
+  which draws nothing until SETOBJECT fills it) and 1128 was balanced and
+  ignored. Now `UIELEM_RS_ARC` carries the two angles, `CC_SETARC` / `IF_SETARC`
+  write them, and `UITREE_EMIT_ARC` reaches the frame translator.
+
+  What it is NOT is a fourth render command. The reference draws one with
+  `NXTPix2D::DrawCircularArc`, which is an **annulus** sector -- it carries an
+  inner radius as well as an outer one -- so `cc_setfill(true)` and
+  `cc_setfill(false) + cc_setlinewid(1)` are one shape with two inner radii, not
+  two primitives. `render/torirs_arc.c` answers "the runs of row N" and
+  `torirs_frame.c` steps them out as ordinary `FILL_RECT`s, which is why the
+  four backends learned nothing: the same argument `torirs_polygon.h` already
+  makes, that every renderer can fill an axis-aligned run and the geometry is
+  worth solving once.
+
+  Verified end to end with `::~timer 1 200` and `TORIRS_EXIT_BMP`, read as a
+  delta against the same frame with no timer running: a 25-pixel disc at the
+  layer's box, a translucent wedge from straight up sweeping clockwise, and an
+  **opaque** one-pixel band along the arc and nowhere else -- the reference's
+  outline is the arc band, not the wedge's radial edges. A second run with
+  `::~timer 1 2000` shows the same pie as a thin sliver pointing straight up,
+  which is what fixes the angle convention: 0 is up, 65536 is a full turn, the
+  sweep runs clockwise.
+
+  `make -C src test-uitree` pins the model and the geometry, because the picture
+  cannot: "the setting is off", "the server never started a timer", "type 10 has
+  no arm", "1128 is ignored" and "the arc drew wrong" are all the same empty
+  patch of grass.
+
+  **The call sites are wired**: ore through `~mining_rock_deplete` (row 187),
+  woodcutting at the felling site in `woodcut.rs2` (188), and hunter traps in
+  `~hunter_trap_slot_init` (243) -- which is where all eight placeable methods
+  already route their lay, so the timer arrives with snare, net, box, deadfall,
+  pitfall, magic box, rabbit snare and monkey trap at once. Kind 3, Tears of
+  Guthix (242), has no content here to start one.
 - **A place or an item.** 81, 118, 245, 274, 276 are unverifiable rather than
   unimplemented: a fresh Lumbridge login does not reach LMS, CoX, a herbiboar
   or a clue scroll.
@@ -293,14 +341,14 @@ rest. `docs/NXT_ACTIVITIES_BUCKET_C.md` is the full measurement.
 | 279 | Max hit hitsplats | **the cache**, same mechanism | done |
 | 280 | Max hit hitsplats threshold | the server (a comparison, not a lookup) | done |
 | 10 | Show boss health overlay | the server | done |
-| 182 | Iron loot restriction indicator | the server | rule done, icon unidentified |
+| 182 | Iron loot restriction indicator | the server | done |
 | 183 | Iron loot restriction messages | the server | done |
-| 272 | Clue scroll helper - Worldmap marker | the server, via HINT_ARROW | client half done |
+| 272 | Clue scroll helper - Worldmap marker | the server, via HINT_ARROW | done |
 | 273 | Clue scroll helper - World arrows | the server, via HINT_ARROW | done |
-| 163 | Agility helper | the server, via `RUNCLIENTSCRIPT` 5170 | open |
-| 184 | Slayer helper | the server, via `RUNCLIENTSCRIPT` 5317 | open |
-| 275 | Clue scroll helper - Infobox | the server, via `RUNCLIENTSCRIPT` 6631 | open |
-| 268 | Blast Furnace helper | the server, interface 474 | open |
+| 163 | Agility helper | the server, via `RUNCLIENTSCRIPT` 5170 | done |
+| 184 | Slayer helper | the server, via `RUNCLIENTSCRIPT` 5317 | done |
+| 275 | Clue scroll helper - Infobox | the server, via `RUNCLIENTSCRIPT` 6631 | done |
+| 268 | Blast Furnace helper | the minigame's own lane, interface 474 | done |
 
 ### 5 and 279: the cache branches inside the hitsplat config
 
@@ -1222,21 +1270,48 @@ have, and the gaps are worth naming because several share one:
 - **Setting 10 as a veto** in `torirs_server_hpbar.c`: content proposes the wide
   boss bar, the player's setting can lower it. Nothing raises it here -- which
   npcs are bosses is still the encounter's decision.
+- **The world map's hint marker** (row 272) -- the same coord row 273 draws an
+  arrow at, marked on the open map. The synthesised flash disc rather than one of
+  `worldmap_marker_0..8`: those are the PLAYER-PLACED markers, and reusing one
+  would make a server hint indistinguishable from the player's own note to
+  themselves.
+- **`ToriRSServer_CombatHitPlayerFrom`** -- player-versus-player hitsplat
+  attribution. The plain funnel runs with the VICTIM active, so the attacker is
+  not on the stack; the `damage` and `p_overhit` opcodes already save it one
+  frame out and now pass it. Without this, setting 5 tinted nothing for PvP while
+  looking implemented.
+- **Row 188's other half** -- `woodcut.rs2` now calls `~overlay_timer_coord` when
+  a tree goes down, the way `~mining_rock_deplete` does for row 187. The lane and
+  both procs already existed; only the caller was missing.
+- **The arc drawable** (`UIELEM_RS_ARC`, `CC_SETARC`, `render/torirs_arc.c`) --
+  the last thing standing between rows 187 / 188 / 242 / 243 and a picture. An
+  annulus sector rather than a pie plus an outline, and horizontal runs rather
+  than a fifth render command, so the four backends learned nothing. Row 243 is
+  wired at `~hunter_trap_slot_init`, the one place every placeable Hunter method
+  already routes its lay through.
 
-### 182's icon is the one thing genuinely not findable
+### 182's icon: the right question was not "which sprite"
 
-The rule behind it works and its varbit is registered; what is missing is what to
-DRAW. `cache.osrs239` names no sprite, spotanim or interface that is
-loot-restriction shaped, no clientscript reads varbit 13039, and the NXT
-decompilation has no class for it. So 183 (the chatbox message, which the row
-states unambiguously) is implemented and 182 is left as a rule with no
-appearance. Picking a sprite would be exactly the "confidently wrong helper"
-this document set out to avoid.
+This section used to say the icon was unfindable, on the grounds that nothing in
+the cache is *named* for loot restriction. That is true and it was the wrong
+search. The row wants an indicator ICON, and the question that answers it is
+**which record in the hitsplat table is not a hit splat**.
+
+Exactly one is, on two independent counts that are each unique across all 83
+records: it is the only one with an empty `text=` (so it draws its sprite and no
+number) and the only one lasting longer than 100 cycles (150 against 50). Its
+sprite is `hitmark_blocked`, a red circle-with-a-slash. See
+`ToriRSServer_HitsplatLootRestrictedIcon`, which records the evidence and what
+would falsify it.
+
+It is emitted per VIEWER in the encoder, because an npc's splat list is written
+once per player watching and the restriction is one player's.
 
 ## Verifying
 
 ```sh
 make -C src test-hitsplat        # the cache's hitsplat selector -- settings 5, 279
+make -C src test-uitree          # ... and the countdown pie: type 10, CC_SETARC, its spans
 make -C src test-clientop        # the CLIENTOP_* registry and its context ops
 make -C src test-highlight       # the cache's HIGHLIGHT_* family, as state
 make -C src test-client-trigger  # trigger hashes vs real cache identifiers

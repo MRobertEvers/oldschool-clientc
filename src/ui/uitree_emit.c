@@ -423,6 +423,16 @@ UITree_EmitFill(
         return true;
     }
 
+    case UIELEM_RS_ARC:
+        out->kind = UITREE_EMIT_ARC;
+        out->color = component->u.rs_arc.color;
+        out->filled = component->u.rs_arc.filled;
+        out->line_width =
+            component->u.rs_arc.line_width > 0 ? component->u.rs_arc.line_width : 1;
+        out->arc_start = component->u.rs_arc.arc_start;
+        out->arc_end = component->u.rs_arc.arc_end;
+        return true;
+
     case UIELEM_RS_LINE:
         out->kind = UITREE_EMIT_LINE;
         out->color = component->u.rs_line.color;

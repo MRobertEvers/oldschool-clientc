@@ -31,6 +31,17 @@ LOCAL_NAMES: dict[int, str] = {
     # why it routes through STRUCT_PARAM with struct -1. Vendor placeholder
     # _1613; nothing in the OldSchool numbering claims it.
     1613: "CC_GETPARAM",
+    # The arc/pie shaper for widget type 10, missing from the vendored table
+    # (which leaves both as _NNNN placeholders). The reference pops two ints and
+    # writes them to IfType +0x9c and +0xa0 -- the arc's START and END angle,
+    # 65536 to a full turn -- which NXTPix2D::DrawCircularArc then draws as an
+    # annulus sector: `cc_setfill(true)` gives the whole disc, `cc_setfill(false)`
+    # plus `cc_setlinewid(n)` an n-pixel band along the arc.
+    #
+    # Clientscript 5480 (the overlay countdown pie) is the whole reason these
+    # are named: it builds three type-10 children and shapes each with 1128.
+    1128: "CC_SETARC",
+    2128: "IF_SETARC",
     # OldSchool-era component param store, newer than the vendored table (which
     # stops at 1702). Not the same thing as 1613: these read and write a param
     # table the component owns at RUNTIME, and OldSchool IF3 files carry no param

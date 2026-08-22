@@ -586,6 +586,73 @@ ToriRSServer_NpcLootRestrictedFor(
 }
 
 /*
+ * The hitsplat record that IS the loot-restriction icon.
+ *
+ * ## How it was identified, and why this is not the guess it looks like
+ *
+ * Setting 182's wording is "Ironmen will occasionally see **indicator icons** to
+ * warn them...". An indicator icon is not a hit splat, and `cache.osrs239`'s
+ * hitsplat table contains exactly one record that is not a hit splat.
+ *
+ * Of all 83 records:
+ *
+ *   - **one** has an empty `text=`. Every other record carries `%1`, which is
+ *     the number the splat draws; an empty one draws the sprite ALONE.
+ *   - **one** lasts longer than 100 client cycles (150, against the 50 every
+ *     damage leaf uses). An indicator lingers; a splat does not.
+ *
+ * They are the same record, id 1, and its sprite 3521 is `hitmark_blocked` in
+ * the cache's own gameval table -- a red circle-with-a-slash, which
+ * `configs/all.hitsplat.compack` already documents from an earlier
+ * identification made the approved way (read the gameval name, then look).
+ *
+ * That is four independent properties agreeing, three of them unique in the
+ * table, and it is the same standard the 26/28 block-and-damage pair was
+ * identified to. It is still an identification rather than a decompiled fact:
+ * what would falsify it is a live capture showing this id used for something
+ * else, or a `.hitmark` record in a later cache that is also textless.
+ *
+ * By NAME, so a cache that numbers its table differently needs no change here,
+ * and a pack that has not identified the record leaves setting 182 dark rather
+ * than drawing an arbitrary splat over somebody's target.
+ */
+int
+ToriRSServer_HitsplatLootRestrictedIcon(void)
+{
+    return ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT, "hitsplat_blocked_icon");
+}
+
+int
+ToriRSServer_NpcLootIconWanted(
+    const struct ToriRSServer* srv,
+    struct ToriRSServerNpc* npc,
+    const struct ToriRSServerPlayer* viewer)
+{
+    const struct ToriRSServerIds* ids = ToriRSServer_Ids();
+
+    assert(srv);
+    assert(npc);
+    assert(viewer);
+
+    if( !ids || ids->varbit_iron_noloot_icon_off < 0 )
+        return 0;
+    if( viewer->pid < 0 || viewer->pid >= TORIRSSERVER_PLAYER_MAX )
+        return 0;
+    if( npc->noloot_iconned_players[viewer->pid] )
+        return 0;
+    /* Inverted, as the gameval name says: 1 is OFF. */
+    if( ToriRSServer_VarbitGet(viewer, ids->varbit_iron_noloot_icon_off) )
+        return 0;
+    if( ToriRSServer_HitsplatLootRestrictedIcon() < 0 )
+        return 0;
+    if( !ToriRSServer_NpcLootRestrictedFor(srv, npc, viewer) )
+        return 0;
+
+    npc->noloot_iconned_players[viewer->pid] = 1;
+    return 1;
+}
+
+/*
  * Setting 183, "Iron loot restriction messages".
  *
  * The row's own word is "occasionally", and it is load-bearing rather than
@@ -594,13 +661,9 @@ ToriRSServer_NpcLootRestrictedFor(
  * read past. One warning per npc per player is what "occasionally" has to mean
  * here -- the player is told once about this creature and not again.
  *
- * Setting 182's indicator ICON is deliberately not implemented beside it. The
- * cache carries no asset for it (no sprite, spotanim or interface names
- * anything loot-restriction shaped), no clientscript reads varbit 13039, and the
- * NXT decompilation has no class for it either -- so there is nothing to draw
- * and no evidence about what it should look like. Its varbit is registered and
- * this rule answers it; picking a sprite would be the kind of guess that makes
- * a helper confidently wrong. See docs/NXT_ACTIVITIES_BUCKET_C.md.
+ * Setting 182's indicator ICON is the same rule with a different output, and it
+ * lives in the ENCODER rather than here: an icon is one viewer's and an npc's
+ * splat list is not. See `ToriRSServer_NpcLootIconWanted`.
  */
 static void
 ToriRSServer_LootRestrictionWarn(
@@ -1520,11 +1583,20 @@ ToriRSServer_CombatHitmarkNpc(
         npc->masks |= TORIRSSERVER_NMASK_DAMAGE2;
 }
 
+/*
+ * Damage to a player, with the attacker named.
+ *
+ * `srv->active_player` is the VICTIM on this path -- the npc attack scripts and
+ * the `damage` opcode both make the target active before calling -- so the
+ * dealer cannot be inferred here and has to be passed. `ToriRSServer_CombatHitPlayer`
+ * below is the same call with "nobody dealt it", which is what an npc's hit is.
+ */
 void
-ToriRSServer_CombatHitPlayer(
+ToriRSServer_CombatHitPlayerFrom(
     struct ToriRSServer* srv,
     int type,
-    int amount)
+    int amount,
+    int dealer_slot)
 {
     struct ToriRSServerPlayer* player = srv->active_player;
 
@@ -1560,10 +1632,9 @@ ToriRSServer_CombatHitPlayer(
         amount = player->hitpoints;
     player->hitpoints -= amount;
 
-    /* Dealer -1 -- see the twin of this call in `CombatHitmarkPlayer`. */
     ToriRSServer_HitmarkAdd(player->hitmarks, &player->hitmark_count, amount,
                         amount > 0 ? type : (absorbed_fully ? hitsplat_shield() : hitsplat_block()),
-                        -1);
+                        dealer_slot);
     player->damage = player->hitmarks[0].damage;
     player->damage_type = player->hitmarks[0].type;
     player->hitpoints = player->hitpoints < 0 ? 0 : player->hitpoints;
@@ -1613,6 +1684,26 @@ ToriRSServer_CombatHitPlayer(
         ToriRSServer_ScriptsRunTrigger(srv, SS_TRIGGER_PLAYERDEATH, -1, -1, -1);
     }
 }
+
+void
+ToriRSServer_CombatHitPlayer(
+    struct ToriRSServer* srv,
+    int type,
+    int amount)
+{
+    /*
+     * Dealer -1: nobody owns this damage.
+     *
+     * Correct for every source this server currently has -- an npc's swing,
+     * poison, a trap -- and it is the answer setting 5 wants for them: the row
+     * tints "damage that you did not deal", and an npc hitting you is not
+     * another PLAYER's damage. Player-versus-player goes through
+     * `ToriRSServer_CombatHitPlayerFrom` instead, which is what the `damage`
+     * opcode calls now that it has an attacker to name.
+     */
+    ToriRSServer_CombatHitPlayerFrom(srv, type, amount, -1);
+}
+
 
 /* ------------------------------------------------------------------ */
 /* Engagement                                                          */
@@ -2588,6 +2679,7 @@ ToriRSServer_CombatRespawnTick(struct ToriRSServer* srv)
          * is still a corpse they damaged, and the drop table reads it. */
         memset(npc->damaged_by_players, 0, sizeof(npc->damaged_by_players));
         memset(npc->noloot_warned_players, 0, sizeof(npc->noloot_warned_players));
+        memset(npc->noloot_iconned_players, 0, sizeof(npc->noloot_iconned_players));
         /*
          * And the npc's own queue, which is where DAMAGE lives.
          *

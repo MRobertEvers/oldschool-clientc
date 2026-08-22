@@ -509,7 +509,17 @@
 #define CS2_OP__1125 1125
 #define CS2_OP_CC_SETLINEDIRECTION 1126
 #define CS2_OP_CC_SETMODELTRANSPARENT 1127
-#define CS2_OP__1128 1128
+/* CC_SETARC — Set the arc's start and end angle on the active child.
+ * int stack in:   start_angle, end_angle  (end_angle = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: widget type 10 only. 65536 is a full turn, 0 is straight up and the
+ * sweep runs clockwise. Drawn as an annulus sector: cc_setfill(true) fills the
+ * whole disc, cc_setfill(false) + cc_setlinewid(n) leaves an n-pixel band along
+ * the arc. Clientscript 5480 builds the overlay countdown pie out of three.
+ */
+#define CS2_OP_CC_SETARC 1128
 #define CS2_OP_CC_INPUT_SETSUBMITMODE 1133
 #define CS2_OP_CC_INPUT_SETSELECTCOLOUR 1134
 #define CS2_OP_CC_INPUT_SETACCEPTMODE 1135
@@ -1101,7 +1111,14 @@
  * str stack out:  -
  */
 #define CS2_OP_IF_SETMODELTRANSPARENT 2127
-#define CS2_OP__2128 2128
+/* IF_SETARC — Set the arc's start and end angle.
+ * int stack in:   start_angle, end_angle, component  (component = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: the by-id form of CC_SETARC; same angle units.
+ */
+#define CS2_OP_IF_SETARC 2128
 /*
  * IF_ variants of the input-field config setters. No UITree model for these
  * fields yet, so they are left to the stack-meta stub -- but they must still be

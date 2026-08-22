@@ -8674,7 +8674,19 @@ ToriRSServer_ScriptCommand(
         if( target_player == saved_player )
             target_player->hit_self_inflicted = 1;
         ToriRSServer_WorldSetActive(srv, target_player);
-        ToriRSServer_CombatHitPlayer(srv, values[1], values[2]);
+        /*
+         * `saved_player` is the ATTACKER, and it is the only place the attacker
+         * is still on the stack: the call below runs with the VICTIM active, by
+         * design, so the damage funnel cannot name a dealer on its own.
+         *
+         * Naming it here is the whole of setting 5 for player-versus-player --
+         * `hitsplat_damage_other` (the tinted wrapper) instead of
+         * `hitsplat_damage_me`. A script damaging its own player passes itself,
+         * which is also right: an overload's self-hit is damage you dealt.
+         */
+        ToriRSServer_CombatHitPlayerFrom(
+            srv, values[1], values[2],
+            saved_player ? (int)(saved_player - &srv->players[0]) : -1);
         ToriRSServer_WorldSetActive(srv, saved_player);
         return 1;
     }
@@ -8724,11 +8736,18 @@ ToriRSServer_ScriptCommand(
              * one place hitpoints reach zero and the only one that starts the
              * death sequence.
              */
-            ToriRSServer_CombatHitPlayer(srv, values[2], target_player->hitpoints);
+            ToriRSServer_CombatHitPlayerFrom(
+                srv, values[2], target_player->hitpoints,
+                saved_player ? (int)(saved_player - &srv->players[0]) : -1);
         }
         else
         {
-            ToriRSServer_CombatHitPlayer(srv, values[2], values[1]);
+            /* The attacker, for the same reason as `damage` above: this runs
+             * with the victim active and `saved_player` is the last frame that
+             * still knows who swung. */
+            ToriRSServer_CombatHitPlayerFrom(
+                srv, values[2], values[1],
+                saved_player ? (int)(saved_player - &srv->players[0]) : -1);
         }
         ToriRSServer_WorldSetActive(srv, saved_player);
         return 1;

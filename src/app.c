@@ -1454,6 +1454,69 @@ app_worldmap_build_tiles(
 
     app_worldmap_build_icons(app, area, centre_x, centre_y, display_x, display_y, region_px);
 
+    /*
+     * The HINT ARROW's target, marked on the map -- All Settings row 272,
+     * "Clue scroll helper - Worldmap marker".
+     *
+     * Same payload as row 273's in-world arrow and deliberately so: neither row
+     * has a reader in the cache or in the NXT engine, and the only marker family
+     * the reference carries is the hint arrow's own three sprites
+     * (`GetSpriteHintMapMarkersID` / `...HintMapEdgeID` / `...HintHeadIconsID`).
+     * So one server-sent coord is what both rows are about, and the server's
+     * choice of whether to send it is the setting; this is the map half of
+     * drawing it.
+     *
+     * Only the COORD form. An npc or player subject moves, and the world map is
+     * a static surface the player pans by hand -- a marker that chased an npc
+     * across it would be redrawing a map the player is reading. The reference
+     * marks a coord for the same reason.
+     *
+     * Last, so it lands over every icon: a marker underneath a mapfunction is a
+     * marker nobody sees, and the icons are exactly what a clue step points at.
+     */
+    if( app->hint_arrow.type == APP_HINT_ARROW_COORD )
+    {
+        int map_x, map_y;
+        int const capacity = (int)(sizeof(app->worldmap_tiles) / sizeof(app->worldmap_tiles[0]));
+
+        /* Plane 0: the hint packet carries no plane, and the world map surface
+         * is composited from one anyway. */
+        if( app->worldmap_tile_count < capacity &&
+            ToriRS_WorldMapArea_Position(area, 0, app->hint_arrow.target, app->hint_arrow.tile_z,
+                                         &map_x, &map_y) )
+        {
+            int const flash_scene = app_worldmap_flash_marker_scene(app);
+            int const x = centre_x + (map_x - display_x) * region_px / WORLD_MAP_TERRAIN_X;
+            int const y = centre_y - (map_y - display_y) * region_px / WORLD_MAP_TERRAIN_Z;
+
+            if( flash_scene > 0 && x > app->worldmap_box_x - 32 &&
+                x < app->worldmap_box_x + app->worldmap_box_w + 32 &&
+                y > app->worldmap_box_y - 32 &&
+                y < app->worldmap_box_y + app->worldmap_box_h + 32 )
+            {
+                /*
+                 * The synthesised flash disc, not one of `worldmap_marker_0..8`.
+                 * Those are the PLAYER-PLACED markers -- `marker_0` is the yellow
+                 * X somebody dropped by hand -- and reusing one would make a
+                 * server hint indistinguishable from the player's own note to
+                 * themselves. The disc is already what this client draws to say
+                 * "look here" (see `app_worldmap_flash_marker_scene`), and the
+                 * cache names no hint-marker asset to prefer over it.
+                 */
+                struct UITreeWorldMapTile* tile =
+                    &app->worldmap_tiles[app->worldmap_tile_count++];
+
+                tile->scene_id = flash_scene;
+                tile->atlas_index = 0;
+                tile->w = 30;
+                tile->h = 30;
+                tile->scaled = 0;
+                tile->x = x - tile->w / 2;
+                tile->y = y - tile->h / 2;
+            }
+        }
+    }
+
     app->worldmap_debug_frame++;
     if( getenv("TORIRS_WORLDMAP_DEBUG") && app->worldmap_debug_frame % 300 == 0 )
     {
@@ -2440,11 +2503,23 @@ app_overlay_build_hint_arrow(struct App* app)
 
     {
         /*
-         * Frame 0 is the downward arrow that sits over the subject. The pack's
-         * other frames are the screen-EDGE arrows the reference draws when the
-         * subject is off-view, which this does not do yet: the edge form needs
-         * the off-screen direction, and a wrong edge arrow points the player
-         * somewhere there is nothing.
+         * Frame 0: the solid downward arrow that sits over the subject.
+         *
+         * There is no screen-EDGE form to draw, and that is a fact about this
+         * cache rather than a gap here. `headicons_hint` (sprite archive 441)
+         * declares six 25x25 frames and **only two have any pixels**: frame 0 is
+         * the solid arrow and frame 1 is the same arrow in outline. Frames 2..5
+         * are entirely transparent.
+         *
+         * The reference's edge form comes from a different pack --
+         * `GraphicsDefaults::GetSpriteHintMapEdgeID`, beside
+         * `...HintMapMarkersID` -- and this cache's sprite gameval table names
+         * no such group: `headicons_hint` is its only hint asset. So an
+         * off-screen arrow here would need artwork invented for it.
+         *
+         * Re-derive with:
+         *   3rd/rscache/tools/spritebake/spritebake --rev osrs239 cache.osrs239 \
+         *       --list --probe headicons_hint
          */
         struct UITreeEntityOverlay spr = {
             .kind = UITREE_ENTITY_OVERLAY_SPRITE,

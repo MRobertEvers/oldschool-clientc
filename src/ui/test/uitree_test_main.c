@@ -43,6 +43,7 @@ main(void)
     test_entity_overlay_draw_order();
     test_scripted_entity_overlay();
     test_scripted_entity_overlay_clipped();
+    test_scripted_overlay_arc();
 
     if( g_failures )
     {

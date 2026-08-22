@@ -467,7 +467,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	editor/editor_host_remote.c editor/editor_panel.c \
 	torirsmaped/torirs_maped.c torirsmaped/torirs_maped_buf.c \
 	torirsmaped/torirs_maped_cmdwire.c torirsmaped/torirs_maped_embed.c \
-	render/torirs_polygon.c \
+	render/torirs_polygon.c render/torirs_arc.c \
 	game/rs_highlight.c game/rs_clientop.c game/rs_entity_overlay.c \
 	game/rs_client_trigger.c \
 	plugin/torirs_plugin_host.c plugin/torirs_plugin_registry.c \
@@ -1963,7 +1963,7 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_chrome_cs2.c ui/torirs_chrome_exec_cs2.c \
 		$(CHROME_EXEC_TEST_CFLAGS) \
 		ui/test/uitree_test_entity_overlay_order.c \
-		ui/test/uitree_test_scripted_overlay.c
+		ui/test/uitree_test_scripted_overlay.c render/torirs_arc.c -lm
 	./$(OBJ_DIR)/uitree_test
 
 # Font markup grammar + the rules it strokes (<str>, <u>), rasterised into a
@@ -2032,7 +2032,7 @@ test-debug-overlay-visual: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o \
 		ui/uitree_debug_overlay.c engine/torirs_debug_font_baked.c \
 		engine/torirs_chrome_skin_baked.c \
 		render/torirs_frame.c render/torirs_pick.c \
-		render/torirs_polygon.c \
+		render/torirs_polygon.c render/torirs_arc.c \
 		platform/platform_sdl2_renderer_soft3d.c \
 		$(BMP_DIR)/bmp.c \
 		$(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o \

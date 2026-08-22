@@ -4612,10 +4612,38 @@ put_npc_extended_v5(
          * legal, but it would spend a block to say nothing.
          */
         int hits = npc->hitmark_count > 0 ? npc->hitmark_count : 1;
+        /*
+         * Setting 182's loot-restriction icon, appended for THIS viewer only.
+         *
+         * It rides the hitmark list because that is what it is -- the cache's
+         * one textless hitsplat record, drawn over the entity and lasting three
+         * times as long as a splat (see ToriRSServer_HitsplatLootRestrictedIcon).
+         * Riding an existing block also means it appears while the player is
+         * attacking, which is exactly when the row says to warn them.
+         *
+         * Decided here rather than where the hit lands because it is one
+         * viewer's: the same npc's list is written once per player watching, and
+         * an icon added at the source would put a no-entry sign over the
+         * creature for everybody in the fight.
+         *
+         * Counted BEFORE the count byte goes out. The block is a length-prefixed
+         * list, so an extra quadruple written after a count that did not include
+         * it is not a cosmetic error -- the client reads the next field as this
+         * one and every block after it shifts.
+         */
+        int const icon_type =
+            ToriRSServer_NpcLootIconWanted(recipient->world, npc, recipient)
+                ? ToriRSServer_HitsplatLootRestrictedIcon()
+                : -1;
 
         if( hits > TORIRSSERVER_HITMARK_MAX )
             hits = TORIRSSERVER_HITMARK_MAX;
-        rsab_p1_alt1(buf, hits);
+        /* And the icon has to fit the client's four slots too: a fifth entry
+         * has nowhere to be drawn, so it is dropped rather than displacing a
+         * damage splat the player needs more. */
+        int const icon = (icon_type >= 0 && hits < TORIRSSERVER_HITMARK_MAX) ? 1 : 0;
+
+        rsab_p1_alt1(buf, hits + icon);
         for( int i = 0; i < hits; i++ )
         {
             /* `hitmark_count == 0` with the mask set can only come from a
@@ -4639,6 +4667,18 @@ put_npc_extended_v5(
             /* Actor.method3560 only inserts the hitmark when this slot limit is
              * positive. Revision 239 actors retain four concurrent hitmarks. */
             v5_psmart1or2(buf, 4);
+        }
+        if( icon )
+        {
+            /* Value 0, and it draws no number: the record's `text=` is empty,
+             * which is the property that identified it. */
+            v5_psmart1or2(buf, icon_type);
+            v5_psmart1or2(buf, 0);
+            v5_psmart1or2(buf, 0);
+            v5_psmart1or2(buf, 4);
+            if( getenv("TORIRSSERVER_SPLAT_DEBUG") )
+                fprintf(stderr, "  SPLAT noloot icon %d for %s over npc type %d\n", icon_type,
+                        recipient->display_name, npc->type);
         }
     }
     if( flag & V5_NPC_HEADBARS )

@@ -39753,6 +39753,9 @@ ToriRSServer_WorldSelftest(void)
                   "a rolled trail length covers the wiki's range and both its ends" },
                 { "[proc,selftest_trail_run]", 5,
                   "a whole easy trail walks to its reward casket" },
+                { "[proc,selftest_trail_cluehelper]", 3,
+                  "reading a clue points the infobox helper at that clue's own "
+                  "row, and solving the step empties it" },
                 { "[proc,selftest_trail_emote_data]", 7,
                   "an emote clue's emote index is the emote tab's own, and its "
                   "target resolves to a world coord" },
@@ -54775,6 +54778,137 @@ ToriRSServer_WorldSelftest(void)
                                                           dealer_slot) == other,
                                "somebody ELSE's max hit is still just their damage to you");
             }
+
+            /*
+             * And the same question asked through the DAMAGE FUNNEL rather than
+             * of the promoter directly, because that is where it was wrong.
+             *
+             * `ToriRSServer_CombatHitPlayer` runs with the victim as the active
+             * player -- so for as long as the dealer was inferred from
+             * `srv->active_player`, every hit a player took was recorded as
+             * their own damage and setting 5 tinted nothing at all while
+             * looking implemented. The plain call must record -1 (an npc's
+             * swing, which the row does not tint) and the `_From` call must
+             * record the attacker (another player, which it does).
+             */
+            {
+                struct ToriRSServerPlayer* victim = &srv->players[0];
+                struct ToriRSServerPlayer* attacker = &srv->players[1];
+
+                memset(victim, 0, sizeof(*victim));
+                memset(attacker, 0, sizeof(*attacker));
+                victim->active = 1;
+                attacker->active = 1;
+                victim->world = srv;
+                attacker->world = srv;
+                victim->pid = 0;
+                attacker->pid = 1;
+                victim->hitpoints = 50;
+                victim->max_hitpoints = 50;
+
+                ToriRSServer_WorldSetActive(srv, victim);
+                ToriRSServer_CombatHitPlayer(srv, leaf_damage, 3);
+                SELFTEST_CHECK(victim->hitmark_count > 0 &&
+                                   victim->hitmarks[0].dealer_slot == -1,
+                               "an npc's hit on a player is owned by nobody, not by the "
+                               "victim (saw dealer %d)",
+                               victim->hitmark_count > 0 ? victim->hitmarks[0].dealer_slot : -99);
+                if( victim->hitmark_count > 0 )
+                    SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, victim, leaf_damage, 3,
+                                                              victim->hitmarks[0].dealer_slot) ==
+                                       me,
+                                   "... so it draws untinted");
+
+                victim->hitmark_count = 0;
+                ToriRSServer_CombatHitPlayerFrom(srv, leaf_damage, 3, 1);
+                SELFTEST_CHECK(victim->hitmark_count > 0 &&
+                                   victim->hitmarks[0].dealer_slot == 1,
+                               "another player's hit names the attacker (saw dealer %d)",
+                               victim->hitmark_count > 0 ? victim->hitmarks[0].dealer_slot : -99);
+                if( victim->hitmark_count > 0 )
+                    SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, victim, leaf_damage, 3,
+                                                              victim->hitmarks[0].dealer_slot) ==
+                                       other,
+                                   "... so the victim sees the TINTED wrapper");
+
+                ToriRSServer_WorldSetActive(srv, NULL);
+                memset(victim, 0, sizeof(*victim));
+                memset(attacker, 0, sizeof(*attacker));
+            }
+
+
+            /*
+             * Setting 182's loot-restriction icon.
+             *
+             * Three separable claims, and they fail in different ways: the rule
+             * (is the loot restricted), the "occasionally" latch (once per npc
+             * per player, on a path that runs for every encoded hit), and the
+             * identification of the record itself. The last is the one a
+             * screenshot could not settle either way -- an icon drawn from the
+             * wrong hitsplat id is still an icon.
+             */
+            {
+                struct ToriRSServerPlayer* iron = &srv->players[0];
+                struct ToriRSServerPlayer* other_pl = &srv->players[1];
+                struct ToriRSServerNpc* target = &srv->npcs[1];
+                const struct ToriRSServerIds* ic_ids = ToriRSServer_Ids();
+                int const icon = ToriRSServer_HitsplatLootRestrictedIcon();
+
+                SELFTEST_CHECK(icon >= 0,
+                               "the hitsplat pack names `hitsplat_blocked_icon`, got %d", icon);
+
+                memset(iron, 0, sizeof(*iron));
+                memset(other_pl, 0, sizeof(*other_pl));
+                memset(target, 0, sizeof(*target));
+                iron->active = 1;
+                other_pl->active = 1;
+                iron->world = srv;
+                other_pl->world = srv;
+                iron->pid = 0;
+                other_pl->pid = 1;
+                target->active = 1;
+
+                if( icon >= 0 && ic_ids && ic_ids->varbit_ironman >= 0 )
+                {
+                    /* Nobody else has touched it yet. */
+                    SELFTEST_CHECK(!ToriRSServer_NpcLootRestrictedFor(srv, target, iron),
+                                   "an untouched creature is not restricted");
+
+                    ToriRSServer_VarbitSetOn(srv, iron, ic_ids->varbit_ironman, 1);
+                    target->damaged_by_players[1] = 1; /* somebody else got there first */
+
+                    SELFTEST_CHECK(ToriRSServer_NpcLootRestrictedFor(srv, target, iron),
+                                   "an ironman is restricted once another player has damaged it");
+                    SELFTEST_CHECK(!ToriRSServer_NpcLootRestrictedFor(srv, target, other_pl),
+                                   "the player who damaged it is not restricted BY THEIR OWN hit");
+
+                    /* A main is never restricted, whoever else swung. */
+                    ToriRSServer_VarbitSetOn(srv, other_pl, ic_ids->varbit_ironman, 0);
+                    target->damaged_by_players[0] = 1;
+                    SELFTEST_CHECK(!ToriRSServer_NpcLootRestrictedFor(srv, target, other_pl),
+                                   "a main account is never loot-restricted");
+                    target->damaged_by_players[0] = 0;
+
+                    /* The latch: once, then never again for this npc. */
+                    SELFTEST_CHECK(ToriRSServer_NpcLootIconWanted(srv, target, iron),
+                                   "the icon is wanted the first time");
+                    SELFTEST_CHECK(!ToriRSServer_NpcLootIconWanted(srv, target, iron),
+                                   "\"occasionally\" means once per npc, not once per hit");
+
+                    /* And the row's own switch, which is INVERTED. */
+                    memset(target->noloot_iconned_players, 0,
+                           sizeof(target->noloot_iconned_players));
+                    ToriRSServer_VarbitSetOn(srv, iron, ic_ids->varbit_iron_noloot_icon_off, 1);
+                    SELFTEST_CHECK(!ToriRSServer_NpcLootIconWanted(srv, target, iron),
+                                   "setting 182 switched off shows no icon");
+                    ToriRSServer_VarbitSetOn(srv, iron, ic_ids->varbit_iron_noloot_icon_off, 0);
+                }
+
+                memset(target, 0, sizeof(*target));
+                memset(iron, 0, sizeof(*iron));
+                memset(other_pl, 0, sizeof(*other_pl));
+            }
+
             memset(viewer, 0, sizeof(*viewer));
             memset(dealer, 0, sizeof(*dealer));
         }
@@ -54825,12 +54959,61 @@ ToriRSServer_WorldSelftest(void)
             int arg = -1;
             int const clue_row = 4321;
 
-            /* Doing nothing wants nothing. Stated first because every check
-             * below is a difference from it. */
             memset(who, 0, sizeof(*who));
             who->active = 1;
             who->world = srv;
             who->combat_target = -1;
+
+            /*
+             * The rows have to SURVIVE, and two of the three did not.
+             *
+             * Getting a settings row to the server is only half of it: the save
+             * writes `scope=perm` varps and skips undeclared ones on purpose
+             * ("if content never said the variable exists, the engine has no
+             * business making it outlive the session"). So a row whose carrier
+             * no `.varp` config declares is switched off, logged out, and back
+             * on again -- with the mirror working perfectly the whole time,
+             * which is why nothing else here would catch it.
+             *
+             * Row 163 always persisted, by luck: its carrier is declared for an
+             * unrelated Controls-tab toggle. 184 and 275 needed
+             * `general/configs/settings_activities.varp`.
+             *
+             * The base varp comes back from a write of the value already there
+             * -- there is no read-only accessor for it, and a no-op write is
+             * the honest way to ask.
+             */
+            {
+                int const k_setting[3] = { hp_ids->varbit_agility_helper_off,
+                                           hp_ids->varbit_slayer_helper_off,
+                                           hp_ids->varbit_cluehelper_infobox_on };
+                char const* const k_row[3] = { "163 (Agility helper)",
+                                               "184 (Slayer helper)",
+                                               "275 (Clue scroll helper - Infobox)" };
+
+                for( int i = 0; i < 3; i++ )
+                {
+                    int const base = ToriRSServer_VarbitSetOn(
+                        srv, who, k_setting[i], ToriRSServer_VarbitGet(who, k_setting[i]));
+                    const struct ToriRSServerVarpDef* def =
+                        base >= 0 ? ToriRSServer_ContentVarp(base) : NULL;
+
+                    SELFTEST_CHECK(def && def->transmit && def->scope_perm,
+                                   "row %s must ride a declared perm carrier or the "
+                                   "player's choice dies at logout (varp %d is %s)",
+                                   k_row[i], base,
+                                   !def ? "undeclared"
+                                        : (!def->scope_perm ? "declared but not perm"
+                                                            : "perm but not transmitted"));
+                }
+                memset(who, 0, sizeof(*who));
+                who->active = 1;
+                who->world = srv;
+                who->combat_target = -1;
+            }
+
+            /* Doing nothing wants nothing. Stated first because every check
+             * below is a difference from it. */
             SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
                                TORIRSSERVER_HELPER_NONE,
                            "a player doing nothing should want no helper, got %d",
@@ -54917,6 +55100,209 @@ ToriRSServer_WorldSelftest(void)
                            "a switched-off row should yield the panel to the next "
                            "claimant, not close it, got %d",
                            ToriRSServer_HelperWantedFor(srv, who, &arg));
+
+            /*
+             * And now the TICK, not just the choice.
+             *
+             * The choice above is half the story: a correct decision that
+             * never reaches the wire, or reaches it as a re-mount every tick,
+             * looks exactly the same from inside the function. So this drives
+             * `ToriRSServer_HelperTick` and reads what the server actually
+             * emitted -- which is also the only coverage the Slayer and clue
+             * paths get, since only the Agility one is reachable from a live
+             * headless run without a course to climb.
+             *
+             * Capture works on a bare player: `ToriRSServer_Send` records
+             * above its own fd check, precisely so the suite can assert on
+             * output with no socket.
+             */
+            {
+                static struct ToriRSServerCapture helper_capture;
+                int const slot_uid = ToriRSServer_PlayerHelper(who);
+                int at;
+
+                /*
+                 * WHERE the panel mounted is read back from the interface
+                 * registry, not decoded out of the packet.
+                 *
+                 * IF_OPENSUB's field order is the revision's, and this server
+                 * speaks two -- the rev-239 payload writer and the classic
+                 * fallback lay the same three values out differently, so an
+                 * offset decode here would be an assertion about which wire the
+                 * suite happened to be holding when it reached this line.
+                 * `ToriRSServer_IfStateOpenSub` records the mount before either
+                 * writer runs, and IF_RESYNC_V2 is rebuilt from that same
+                 * registry, so it is both stable and the thing that actually
+                 * decides what the client ends up with.
+                 *
+                 * The builder call is decoded, because that part IS
+                 * revision-independent: every RUNCLIENTSCRIPT writer in this
+                 * tree ends with the script id as a plain p4, and the argument
+                 * -- there is at most one here -- in the four bytes before it.
+                 */
+#define SELFTEST_HELPER_TAIL_I32(pk, back)                                                    \
+    ((pk)->len >= (back) ? (((int)(pk)->data[(pk)->len - (back)] << 24) |                     \
+                            ((int)(pk)->data[(pk)->len - (back) + 1] << 16) |                 \
+                            ((int)(pk)->data[(pk)->len - (back) + 2] << 8) |                  \
+                            (int)(pk)->data[(pk)->len - (back) + 3])                          \
+                         : -1)
+
+                memset(who, 0, sizeof(*who));
+                who->active = 1;
+                who->world = srv;
+                who->combat_target = -1;
+                ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_helper_agility_course, 15);
+
+                /* The open and the build, on ONE tick. */
+                ToriRSServer_CaptureReset(&helper_capture);
+                ToriRSServer_CaptureBegin(srv, &helper_capture);
+                ToriRSServer_HelperTick(srv, who);
+                ToriRSServer_CaptureEnd(srv);
+
+                at = ToriRSServer_CaptureFindNamed(&helper_capture, PKT_NAME_IF_OPENSUB, 0);
+                SELFTEST_CHECK(at >= 0, "the helper tick should mount `helper_generic`");
+                {
+                    int mounted = 0;
+
+                    for( int i = 0; i < who->interfaces.mount_count; i++ )
+                        if( who->interfaces.mounts[i].target_uid == slot_uid &&
+                            who->interfaces.mounts[i].interface_id ==
+                                hp_ids->iface_helper_generic )
+                            mounted++;
+                    /* The slot, and this is the one the handoff got wrong:
+                     * `helper_content`, three layers in, not `helper`. Mounted
+                     * one layer out the panel would exist and never be laid
+                     * out, because clientscript 4704 sizes THIS component and
+                     * 4731/4732 ask `if_hassub` of it. */
+                    SELFTEST_CHECK(mounted == 1,
+                                   "`helper_generic` (%d) should be mounted exactly once at "
+                                   "the `helper_content` slot 0x%08x, found %d",
+                                   hp_ids->iface_helper_generic, (unsigned)slot_uid, mounted);
+                }
+
+                at = ToriRSServer_CaptureFindNamed(&helper_capture, PKT_NAME_RUNCLIENTSCRIPT, 0);
+                SELFTEST_CHECK(at >= 0, "the helper tick should run the cache's builder");
+                if( at >= 0 )
+                    SELFTEST_CHECK(
+                        SELFTEST_HELPER_TAIL_I32(&helper_capture.packets[at], 4) == 5170,
+                        "the Agility helper's builder is clientscript 5170, got %d",
+                        SELFTEST_HELPER_TAIL_I32(&helper_capture.packets[at], 4));
+
+                /* `%current_helper`, for the panel's own Reset op. 2 is the
+                 * only value clientscript 4697 acts on. */
+                SELFTEST_CHECK(ToriRSServer_VarbitGet(who, hp_ids->varbit_current_helper) == 2,
+                               "the Agility helper should publish `current_helper` 2, got %d",
+                               ToriRSServer_VarbitGet(who, hp_ids->varbit_current_helper));
+
+                /*
+                 * Nothing changed, so nothing goes out -- and this is the check
+                 * that matters most for how the panel LOOKS. Re-mounting every
+                 * tick would throw away the rows the builder `cc_create`d a
+                 * moment ago, fifty times a minute, and the symptom would be a
+                 * panel that flickers or draws empty rather than anything that
+                 * reads as a bug in this file.
+                 */
+                ToriRSServer_CaptureReset(&helper_capture);
+                ToriRSServer_CaptureBegin(srv, &helper_capture);
+                ToriRSServer_HelperTick(srv, who);
+                ToriRSServer_CaptureEnd(srv);
+                SELFTEST_CHECK(
+                    ToriRSServer_CaptureFindNamed(&helper_capture, PKT_NAME_IF_OPENSUB, 0) < 0,
+                    "a steady helper must not be re-mounted every tick");
+                SELFTEST_CHECK(
+                    ToriRSServer_CaptureFindNamed(&helper_capture, PKT_NAME_RUNCLIENTSCRIPT, 0) < 0,
+                    "a steady helper must not be rebuilt every tick");
+
+                /*
+                 * Swapping one helper for another rebuilds IN PLACE.
+                 *
+                 * Every builder opens with `~script4695`, which calls 4698 and
+                 * `cc_deleteall`s the content component, so the panel clears
+                 * itself. Closing and reopening the mount as well would be a
+                 * second, slower way to reach the same screen -- and would drop
+                 * the scrollbar state the frame keeps.
+                 */
+                ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_helper_agility_course, 0);
+                ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_cluehelper_infobox_on, 1);
+                who->varps[hp_ids->varp_cluehelper_infobox_clue] = clue_row;
+                ToriRSServer_CaptureReset(&helper_capture);
+                ToriRSServer_CaptureBegin(srv, &helper_capture);
+                ToriRSServer_HelperTick(srv, who);
+                ToriRSServer_CaptureEnd(srv);
+                SELFTEST_CHECK(
+                    ToriRSServer_CaptureFindNamed(&helper_capture, PKT_NAME_IF_OPENSUB, 0) < 0,
+                    "swapping helpers should rebuild in place, not re-mount");
+                at = ToriRSServer_CaptureFindNamed(&helper_capture, PKT_NAME_RUNCLIENTSCRIPT, 0);
+                SELFTEST_CHECK(at >= 0 &&
+                                   SELFTEST_HELPER_TAIL_I32(&helper_capture.packets[at], 4) == 6631,
+                               "the clue helper's builder is clientscript 6631, got %d",
+                               at >= 0 ? SELFTEST_HELPER_TAIL_I32(&helper_capture.packets[at], 4)
+                                       : -1);
+                SELFTEST_CHECK(at >= 0 &&
+                                   SELFTEST_HELPER_TAIL_I32(&helper_capture.packets[at], 8) ==
+                                       clue_row,
+                               "the clue step's dbrow should ride the builder call as its "
+                               "argument (want %d, got %d)",
+                               clue_row,
+                               at >= 0 ? SELFTEST_HELPER_TAIL_I32(&helper_capture.packets[at], 8)
+                                       : -1);
+                SELFTEST_CHECK(ToriRSServer_VarbitGet(who, hp_ids->varbit_current_helper) == 0,
+                               "a helper 4697 cannot rebuild should publish 0, not an "
+                               "invented id, got %d",
+                               ToriRSServer_VarbitGet(who, hp_ids->varbit_current_helper));
+
+                /*
+                 * A new clue STEP on the same helper still has to rebuild.
+                 *
+                 * The Agility and Slayer builders re-arm themselves on a var
+                 * afterwards; 6633 lays out one step and stops. So the argument
+                 * is part of what "unchanged" means, and a tick that compared
+                 * only the helper would leave the solved step on screen for the
+                 * rest of the trail.
+                 */
+                who->varps[hp_ids->varp_cluehelper_infobox_clue] = clue_row + 1;
+                ToriRSServer_CaptureReset(&helper_capture);
+                ToriRSServer_CaptureBegin(srv, &helper_capture);
+                ToriRSServer_HelperTick(srv, who);
+                ToriRSServer_CaptureEnd(srv);
+                at = ToriRSServer_CaptureFindNamed(&helper_capture, PKT_NAME_RUNCLIENTSCRIPT, 0);
+                SELFTEST_CHECK(at >= 0 &&
+                                   SELFTEST_HELPER_TAIL_I32(&helper_capture.packets[at], 8) ==
+                                       clue_row + 1,
+                               "a new clue step must re-run the builder with its own row "
+                               "(want %d, got %d)",
+                               clue_row + 1,
+                               at >= 0 ? SELFTEST_HELPER_TAIL_I32(&helper_capture.packets[at], 8)
+                                       : -1);
+
+                /* And the close. */
+                who->varps[hp_ids->varp_cluehelper_infobox_clue] = 0;
+                ToriRSServer_CaptureReset(&helper_capture);
+                ToriRSServer_CaptureBegin(srv, &helper_capture);
+                ToriRSServer_HelperTick(srv, who);
+                ToriRSServer_CaptureEnd(srv);
+                SELFTEST_CHECK(
+                    ToriRSServer_CaptureFindNamed(&helper_capture, PKT_NAME_IF_CLOSESUB, 0) >= 0,
+                    "the last helper going away should unmount the panel");
+                {
+                    int still = 0;
+
+                    for( int i = 0; i < who->interfaces.mount_count; i++ )
+                        still += who->interfaces.mounts[i].target_uid == slot_uid;
+                    SELFTEST_CHECK(still == 0,
+                                   "the close should leave the helper slot empty in the "
+                                   "registry IF_RESYNC_V2 is rebuilt from, found %d",
+                                   still);
+                }
+                SELFTEST_CHECK(
+                    ToriRSServer_CaptureFindNamed(&helper_capture, PKT_NAME_RUNCLIENTSCRIPT, 0) < 0,
+                    "a closing panel must not be handed a builder to run");
+                SELFTEST_CHECK(ToriRSServer_VarbitGet(who, hp_ids->varbit_current_helper) == 0,
+                               "closing should clear `current_helper`, got %d",
+                               ToriRSServer_VarbitGet(who, hp_ids->varbit_current_helper));
+
+#undef SELFTEST_HELPER_TAIL_I32
+            }
 
             memset(who, 0, sizeof(*who));
         }
