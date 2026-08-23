@@ -822,9 +822,18 @@ main(void)
          * own button, which cycles the filter's mode, and stealing it would
          * trade a working control for a decorative one.
          */
+        /*
+         * Fourteen tabs and the three filter buttons that SELECT something.
+         *
+         * Report abuse claims none: it is not a view of the chat, it opens a
+         * report, so the click stays the lane's. That asymmetry is the whole
+         * reason to count regions rather than buttons -- claiming all four
+         * would take the report button away from the client that implements
+         * it and give it to a plugin that does not.
+         */
         CHECK(
-            g_frame.regions == 14 + FRAME_CHAT_BUTTON_COUNT,
-            "and claims all fourteen tabs plus the four filter buttons");
+            g_frame.regions == 14 + FRAME_CHAT_BUTTON_COUNT - 1,
+            "and claims the tabs plus the three selectable filter buttons");
 
         /* No tab open: no lit stone, and everything else unchanged. */
         g_frame.active_tab = -1;

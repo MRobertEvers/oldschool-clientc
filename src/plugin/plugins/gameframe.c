@@ -379,6 +379,178 @@ enum
 static int g_redstone_flip[3][REDSTONE_FLIP_COUNT];
 static int g_redstone_flipped;
 
+/** The filter-button plates, composed to the height this lane's two-line
+ *  buttons need. @see frame_build_chat_plates. */
+enum FrameChatPlate
+{
+    CHAT_PLATE_IDLE = 0,
+    CHAT_PLATE_HOVER,
+    CHAT_PLATE_ACTIVE,
+    CHAT_PLATE_ACTIVE_HOVER,
+    CHAT_PLATE_REPORT,
+    CHAT_PLATE_REPORT_HOVER,
+
+    CHAT_PLATE_COUNT
+};
+
+static int g_chat_plate[CHAT_PLATE_COUNT];
+static int g_chat_plates_built;
+
+/*
+ * The chatbox's own switch, and which filter it is showing.
+ *
+ * The resizable frame's chatbox is a PANEL you can put away -- the scene is
+ * behind it and there is no surround holding a hole for it, so closing it
+ * gives the window back rather than leaving a gap. The fixed frames have no
+ * such thing: their chatbox sits in a socket cut out of a 765x503 surround,
+ * and closing it would show the hole.
+ *
+ * Held by the plugin rather than by the client, because it is a property of
+ * THIS frame: a layout with no chatbox to put away should not inherit a "the
+ * chat is closed" flag from one that had.
+ */
+static int g_chat_open = 1;
+static int g_chat_filter;
+
+/** One picture to blit, in canvas coordinates. Built by the layout pass. */
+struct FrameBlit
+{
+    int image;
+    int x;
+    int y;
+    /**
+     * Repeat the image over this box instead of drawing it once. 0 = once.
+     *
+     * The OldSchool resizable frames back their side panel with
+     * `tradebacking_dark` -- an 88x60 swatch of leather TILED to whatever the
+     * panel is (`side_background` in both toplevel_pre_eoc and
+     * toplevel_osrs_stretch: widthmode/heightmode 1, `tiled=yes`) -- rather
+     * than with the fixed frame's 190x261 plate. Fifteen entries in the blit
+     * list would say the same thing and spend half its budget, so the repeat
+     * is a property of the entry and the draw pass expands it.
+     */
+    int tile_w;
+    int tile_h;
+};
+
+/*
+ * A tab's stone, its icon box, and the redstone it wears when pressed.
+ *
+ * `stone` is the picture BEHIND the icon and `stone_pressed` the one it swaps
+ * to. The two frames answer that differently and both are here rather than in
+ * two draw paths: the OldSchool frame draws a stone for every tab and a
+ * BRIGHTER one for the selected, and the 2004 frame draws nothing at all until
+ * a tab is selected and then draws its redstone. A -1 in either is "draw
+ * nothing", which is what makes one loop serve both.
+ */
+struct FrameTab
+{
+    int x;
+    int y;
+    int w;
+    int h;
+    /**
+     * The tab this box stands for -- NOT its position in this table.
+     *
+     * They differ, and only on one frame: 548 puts Clan chat on the bottom
+     * row's first stone and Account on its third, so the eighth box drawn is
+     * tab 7 and the ninth is tab 9. Carrying the number here rather than
+     * assuming the index is what keeps the pressed stone under the tab that is
+     * actually open, and a click on a stone opening the panel it shows.
+     */
+    int tabno;
+    int stone;
+    int stone_pressed;
+    int icon;
+};
+
+/* Chrome blits one layout may declare. The OldSchool fixed frame is the
+ * largest at fourteen surround pieces plus two tab strips. */
+#define FRAME_BLIT_MAX 32
+
+static struct
+{
+    int layout;
+    int canvas_w;
+    int canvas_h;
+    struct FrameBlit blit[FRAME_BLIT_MAX];
+    int blit_count;
+    /*
+     * Chrome that goes OVER the live surfaces instead of behind them.
+     *
+     * Almost all frame art sits behind: the panel is behind the inventory, the
+     * chatbox backing is behind the text. The map housing is the exception and
+     * it is not a detail -- the stone ring OVERLAPS the map, which is what
+     * turns a square blit of terrain into a round minimap. Drawn behind, the
+     * corners of the map cover the ring and the frame reads as a photograph
+     * pasted over the stones.
+     *
+     * Two lists rather than a flag per blit, because the two are drawn from
+     * different events: the frame surface (under the interfaces) and the
+     * canvas surface (over them). @see EV_DRAW_FRAME.
+     */
+    struct FrameBlit over[FRAME_BLIT_MAX];
+    int over_count;
+    struct FrameTab tab[FRAME_TAB_COUNT];
+    int tab_count;
+    /*
+     * The filter buttons' plates.
+     *
+     * Declared here rather than blitted into the list above, for the reason
+     * the tab stones are: which plate a button wears changes with the POINTER
+     * and the list is built once per layout. Same shape, same reason -- a
+     * frame that has no plates simply records none.
+     */
+    struct FrameChatButton
+    {
+        int x;
+        int y;
+        int w;
+        /** The filter this button toggles, which is also its member number. */
+        int filter;
+        int idle;
+        int hover;
+        /** -1 on a frame whose chatbox cannot be put away, which is also what
+         *  says "this button does not select anything". */
+        int active;
+        int active_hover;
+    } chat_button[FRAME_CHAT_BUTTON_COUNT];
+    int chat_button_count;
+    /** Set once the layout has been declared at least once, so the draw pass
+     *  can tell "nothing to draw yet" from "a frame with no chrome". */
+    int declared;
+} g_frame;
+
+/* ------------------------------------------------------------------ helpers */
+
+static void
+frame_blit_into(
+    struct FrameBlit* list,
+    int* count,
+    int image,
+    int x,
+    int y,
+    int tile_w,
+    int tile_h)
+{
+    assert(list);
+    assert(count);
+    if( image < 0 )
+        return;
+    if( *count >= FRAME_BLIT_MAX )
+    {
+        /* Said rather than silently dropped: a frame missing one stone reads
+         * as a rendering bug, and this is the one thing that could cause it. */
+        g_api->log(NULL, "frame: more than %d chrome blits; the rest are dropped", FRAME_BLIT_MAX);
+        return;
+    }
+    list[*count].image = image;
+    list[*count].x = x;
+    list[*count].y = y;
+    list[*count].tile_w = tile_w;
+    list[*count].tile_h = tile_h;
+    (*count)++;
+}
 /** Chrome behind the live surfaces. */
 static void
 frame_blit(int image, int x, int y)
@@ -633,9 +805,7 @@ frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
                 X[i],
                 467,
                 FRAME_CHAT_BUTTON_W,
-                FRAME_CHAT_BUTTON_H,
-        /*plate=*/0,
-        /*selectable=*/0);
+                FRAME_CHAT_BUTTON_H);
     }
 }
 
@@ -1035,20 +1205,6 @@ frame_compose_flip(
 #define FRAME_CHAT_BRIGHT_NUM 3
 #define FRAME_CHAT_BRIGHT_DEN 2
 
-enum FrameChatPlate
-{
-    CHAT_PLATE_IDLE = 0,
-    CHAT_PLATE_HOVER,
-    CHAT_PLATE_ACTIVE,
-    CHAT_PLATE_ACTIVE_HOVER,
-    CHAT_PLATE_REPORT,
-    CHAT_PLATE_REPORT_HOVER,
-
-    CHAT_PLATE_COUNT
-};
-
-static int g_chat_plate[CHAT_PLATE_COUNT];
-static int g_chat_plates_built;
 
 static int
 frame_compose_plate(
@@ -1191,46 +1347,6 @@ frame_build_redstones(struct ToriRS_PluginCtx* ctx)
  */
 #define FRAME_CHAT_ACTIVE_NUM 3
 #define FRAME_CHAT_ACTIVE_DEN 2
-
-static void
-frame_build_chat_button_hover(struct ToriRS_PluginCtx* ctx)
-{
-    uint32_t* px;
-    int w = 0;
-    int h = 0;
-    int const src = g_image[IMG_O_CHAT_BUTTON_REPORT];
-
-    assert(ctx);
-    if( g_chat_button_report_hover >= 0 )
-        return;
-    if( src < 0 || !g_api->image_size(ctx, src, &w, &h) || w <= 0 || h <= 0 )
-        return;
-
-    px = malloc((size_t)w * (size_t)h * sizeof(*px));
-    assert(px);
-    if( g_api->image_pixels(ctx, src, px, w * h) != w * h )
-    {
-        free(px);
-        return;
-    }
-    for( int i = 0; i < w * h; i++ )
-    {
-        uint32_t const p = px[i];
-        uint32_t out = p & 0xFF000000u;
-        for( int ch = 0; ch < 3; ch++ )
-        {
-            int v = (int)((p >> (ch * 8)) & 0xFFu);
-            v = v * FRAME_CHAT_ACTIVE_NUM / FRAME_CHAT_ACTIVE_DEN;
-            if( v > 255 )
-                v = 255;
-            out |= (uint32_t)v << (ch * 8);
-        }
-        px[i] = out;
-    }
-    g_chat_button_report_hover =
-        g_api->image_compose(ctx, "chat_button_report_hover.png", w, h, px);
-    free(px);
-}
 
 /** The choices, in enum order. Also the schema's `choices` string, split. */
 static char const* const FRAME_LAYOUT_NAME[] = {
