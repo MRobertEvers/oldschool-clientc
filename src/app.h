@@ -50,6 +50,7 @@
 #include "game/rs_soundscape.h"
 #include "varp/varp_manager.h"
 #include "world/world_pickset.h"
+#include "world/worldview.h"
 
 struct ToriRS_Frame;
 struct ToriRS_PickHits;
@@ -736,6 +737,30 @@ struct App
      * World references assets and scene elements by integer id only). */
     struct World* world;
     struct WorldBuilder* world_builder;
+    /**
+     * Multi-world view registry (OSRS world entities / sailing — worldview.h).
+     * Slot 0 is the root view and BORROWS `world`/`world_builder` above, so
+     * the hundreds of existing app->world call sites stay valid; views spawned
+     * by WORLDENTITY_INFO (later phase) own their pairs and free them on
+     * despawn.
+     */
+    struct WorldviewRegistry worldviews;
+    /**
+     * Packet-apply cursor: the view id the current tick's zone/entity packets
+     * address. SET_ACTIVE_WORLD flips it; SERVER_TICK_END resets it to
+     * WORLDVIEW_ROOT. Zone applicators resolve their (world, builder) through
+     * App_ActiveWorldview, never through `world` above directly; async spawn
+     * tasks and the pending-zone queue capture the cursor at enqueue time,
+     * because they outlive it (SERVER_TICK_END resets it before they run).
+     */
+    int active_world;
+    /**
+     * Plane the last SET_ACTIVE_WORLD said the addressed view draws (the deob
+     * snapshots the active WorldView's plane beside the cursor). Nothing
+     * consumes it at C0 — C1's view-local zone decode does. Reset to 0 with
+     * the cursor at the tick fence.
+     */
+    int active_world_level;
     struct PaintersBuffer* painter_buffer;
     /** Selected only after the platform renderer has initialized successfully. */
     enum ToriRS_WorldRenderMode world_render_mode;
@@ -1955,6 +1980,10 @@ struct App
         int base_x; /* app->zone_base_* as of arrival */
         int base_z;
         int level; /* zone header plane as of arrival */
+        /* Packet-apply cursor as of arrival: a queued packet can be replayed
+         * ticks later, after SERVER_TICK_END has reset the live cursor, so
+         * resolving it at replay time would land a boat's zones in the root. */
+        int view;
     } pending_zone[256];
     int pending_zone_count;
     /** Last REBUILD_NORMAL centre zone (deob field1192/field474 /
@@ -2665,6 +2694,17 @@ App_WorldRebuildShift(
     struct App* app,
     int base_dx,
     int base_dz);
+
+/**
+ * The view the active-world packet cursor addresses (worldview.h). This is the
+ * one seam between the packet-apply layer and the multi-world registry: zone
+ * applicators and the rebuild path take their (world, builder) from here, so a
+ * SET_ACTIVE_WORLD naming a boat view routes them without touching the call
+ * sites again. Asserts the cursor names a live view — id 0 always is once the
+ * root registers at world creation.
+ */
+struct Worldview*
+App_ActiveWorldview(struct App* app);
 
 /**
  * REBUILD_NORMAL (Client-TS / deob method3310): early-out when the centre

@@ -16,6 +16,12 @@ struct PktMapRebuild
 {
     int zonex;
     int zonez;
+    /* rev 239+ REBUILD_NORMAL: the world-entity view this rebuild rebuilds
+     * (leading wire field; 0 = the root world). The exec resolves it through
+     * the worldview registry, which asserts on an id no view holds — the deob
+     * throws there too. REBUILD_REGION's codec carries no view id; the parse's
+     * memset leaves 0, and an instance is a root-world scene. */
+    int world_area;
     /* dat2 / osrs230 REBUILD_NORMAL carries per-map-square XTEA keys (dat1
      * maps are unencrypted, so these stay 0/NULL there). region_keys holds
      * region_count*4 ints; region_ids[i] = (mapSquareX<<8)|mapSquareZ. Both
@@ -651,6 +657,16 @@ struct PktSetNpcUpdateOrigin
     int z;
 };
 
+/* SET_ACTIVE_WORLD: the world view + plane the following entity/zone packets
+ * address (rev 239+). world_id 0 is the root world; non-zero ids name a
+ * WORLDENTITY_INFO-spawned view. SERVER_TICK_END resets the exec cursor to
+ * root. */
+struct PktSetActiveWorld
+{
+    int world_id; /* g2: world-entity/view id, 0 = root */
+    int level;    /* g1: plane the addressed view draws */
+};
+
 struct PktFriendListLoaded
 {
     int status; /* g1: 2 = connected */
@@ -945,6 +961,7 @@ struct RevPacket
         struct PktSetPlayerOp _set_player_op;
         struct PktRunClientScript _runclientscript;
         struct PktSetNpcUpdateOrigin _set_npc_update_origin;
+        struct PktSetActiveWorld _set_active_world;
     };
 };
 

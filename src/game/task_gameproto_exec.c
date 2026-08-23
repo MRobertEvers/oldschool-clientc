@@ -35,6 +35,17 @@ struct Task_GameProtoExec
     int pending_obj_id;
 };
 
+/* The view a REBUILD packet addresses: its own world_area prefix (0 = root),
+ * not the SET_ACTIVE_WORLD cursor — the deob reads the id off the rebuild
+ * itself. Resolved fresh at every use because locals do not survive the
+ * protothread await; Get() asserts the id names a live view, the same loud
+ * stop as the deob's unknown-world-entity throw. */
+static struct Worldview*
+rebuild_view(struct Task_GameProtoExec* self)
+{
+    return WorldviewRegistry_Get(&self->app->worldviews, self->packet._map_rebuild.world_area);
+}
+
 /* Obj id referenced by a zone entry that spawns a ground item, or -1. */
 static int
 zone_entry_obj_id(struct PktZoneSubPacket const* entry)
@@ -171,6 +182,13 @@ Task_GameProtoExec_Run(
          * REBUILD_NORMAL, and then silence. */
         self->zone_x = self->packet._map_rebuild.zonex;
         self->zone_z = self->packet._map_rebuild.zonez;
+        /* The tail below (App_WorldRebuildBegin's root flags, the entity
+         * shift, camera/minimap, App_WorldLoadFinish) acts on the ROOT scene:
+         * a boat's rebuild arrives as REBUILD_WORLDENTITY (plan C2) and never
+         * through here. rebuild_view() already asserts the id is live; this
+         * pins that at C0/C1 only the root can be addressed by these two
+         * packets. */
+        assert(self->packet._map_rebuild.world_area == WORLDVIEW_ROOT);
         {
             int force = self->packet.packet_type == PKT_NAME_REBUILD_REGION ||
                         app->net_force_rebuild;
@@ -186,25 +204,28 @@ Task_GameProtoExec_Run(
             rebuild_compute_chunks(self);
         /* Entities carry scene-local coords relative to the old base;
          * capture it so they can be shifted onto the new one (Client-TS
-         * shifts by mapBuildBaseX - mapBuildPrevBaseX). */
-        self->had_world = app->world_active && app->world && app->world->load_complete;
-        self->prev_base_x = self->had_world ? app->world->_base_tile_x : 0;
-        self->prev_base_z = self->had_world ? app->world->_base_tile_z : 0;
+         * shifts by mapBuildBaseX - mapBuildPrevBaseX). (world, builder)
+         * resolve through rebuild_view() at every use rather than into a
+         * local: locals do not survive the protothread await below. */
+        self->had_world =
+            app->world_active && app->world && rebuild_view(self)->world->load_complete;
+        self->prev_base_x = self->had_world ? rebuild_view(self)->world->_base_tile_x : 0;
+        self->prev_base_z = self->had_world ? rebuild_view(self)->world->_base_tile_z : 0;
         /* on_done is NULL: we await the load and run the tail ourselves
          * below, so the entity shift can land between the scene swap and
          * App_WorldLoadFinish (which the shift must precede). */
         PT_TASK_AWAITSELF_IF(CreateTask_WorldLoad(
-            app->provider, app->world_builder, self->chunks, self->chunk_count,
+            app->provider, rebuild_view(self)->builder, self->chunks, self->chunk_count,
             self->zone_x, self->zone_z, self->packet._map_rebuild.zones, NULL, NULL));
         /* The load's final step swapped the scene synchronously (same
          * task drain — no frame renders in between): relocate the kept
          * entities before any later packet or frame reads them, then run
          * the post-load wiring (height fn, minimap bake, MAP_BUILD_COMPLETE). */
-        if( self->had_world && app->world->load_complete )
+        if( self->had_world && rebuild_view(self)->world->load_complete )
             App_WorldRebuildShift(
                 app,
-                app->world->_base_tile_x - self->prev_base_x,
-                app->world->_base_tile_z - self->prev_base_z);
+                rebuild_view(self)->world->_base_tile_x - self->prev_base_x,
+                rebuild_view(self)->world->_base_tile_z - self->prev_base_z);
         App_WorldLoadFinish(app);
     }
     else if( self->packet.packet_type == PKT_NAME_OBJ_ADD ||

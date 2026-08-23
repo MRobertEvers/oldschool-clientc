@@ -544,6 +544,9 @@ osrs239_parse(
             if( !zone_run(&c, rsprot_rebuild_normal_v2_out,
                           rsprot_rebuild_normal_v2_out_count, &hdr) )
                 return 0;
+            /* The world-entity prefix (0 = root). Dropping it here is how a
+             * boat rebuild would silently rebuild the main scene. */
+            p->world_area = hdr.world_area;
             p->zonez = hdr.zone_z;
             p->zonex = hdr.zone_x;
         }
@@ -1208,6 +1211,14 @@ osrs239_parse(
     case PKT_NAME_SET_NPC_UPDATE_ORIGIN:
         out->_set_npc_update_origin.x = RSProt_BufferG1(&c);
         out->_set_npc_update_origin.z = RSProt_BufferG1(&c);
+        return c.err ? 0 : 1;
+
+    /* SetActiveWorldV2Encoder: p2 world-entity id (0 = root), p1 plane —
+     * the layout ToriRSServer_SendSetActiveWorld writes and the world
+     * selftest pins byte-for-byte. */
+    case PKT_NAME_SET_ACTIVE_WORLD:
+        out->_set_active_world.world_id = RSProt_BufferG2Be(&c);
+        out->_set_active_world.level = RSProt_BufferG1(&c);
         return c.err ? 0 : 1;
 
     case PKT_NAME_SERVER_TICK_END:

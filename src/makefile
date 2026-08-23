@@ -72,6 +72,13 @@ EMBED_SERVER ?= 0
 REPO_ROOT    := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))/..)
 SRC_DIR      := $(REPO_ROOT)/src
 
+# Every text file in this tree is UTF-8, and the python3 check/generate scripts
+# read them with the interpreter's default encoding. On Windows that default is
+# the ANSI codepage (cp1252), which dies on the first curly quote in a docs
+# file. Force UTF-8 mode for every python this make spawns; on POSIX hosts the
+# default is UTF-8 already and this is a no-op.
+export PYTHONUTF8 := 1
+
 # Every recipe here is POSIX sh (rm -rf, mkdir -p, cp, `for` loops). On Windows
 # GNU make looks for sh.exe on PATH and falls back to cmd.exe when it cannot
 # find one; SHELL is then left as the unresolved literal `sh.exe`, and the first
@@ -516,6 +523,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	revconfig/revconfig_profile.c \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
+	world/worldview.c \
 	engine/world_builder/task_world_load.c \
 	editor/editor.c editor/editor_doc.c editor/editor_jm2.c \
 	editor/editor_cmd.c editor/editor_derive.c editor/editor_host_local.c \

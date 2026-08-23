@@ -7919,6 +7919,12 @@ App_Init(
     World_SetScene(app->world, app->scene);
     app->world_builder = WorldBuilder_New(app->world, app->provider, app->scene, &app->varps);
     assert(app->world_builder);
+    /* Multi-world substrate (SAILING_PLAN C0): the root view borrows the pair
+     * above; boat views register owned pairs later. The cursor starts — and
+     * after every SERVER_TICK_END returns — on the root. */
+    WorldviewRegistry_Init(&app->worldviews);
+    WorldviewRegistry_RegisterRoot(&app->worldviews, app->world, app->world_builder);
+    app->active_world = WORLDVIEW_ROOT;
     app->painter_buffer = painter_buffer_new();
     assert(app->painter_buffer);
     /* v1 GameRunescape camera defaults; repositioned on world load complete. */
@@ -8619,6 +8625,9 @@ App_Shutdown(struct App* app)
     RS_Soundscapes_Free(&app->soundscapes);
     RS_Healthbars_Free(&app->healthbars);
     RS_EntitySync_Free(&app->esync);
+    /* Frees any owned (non-root) views; the root slot only borrows the pair
+     * freed just below. */
+    WorldviewRegistry_Free(&app->worldviews);
     WorldBuilder_Free(app->world_builder);
     World_Free(app->world);
     VarPManager_Free(&app->varps);
@@ -17459,6 +17468,7 @@ app_world_spawn_npc_now(
 static void
 app_world_spawn_projectile_now(
     struct App* app,
+    struct World* world,
     int model_id,
     int seq_id,
     int src_tile_x,
@@ -17474,6 +17484,8 @@ app_world_spawn_projectile_now(
     int range, t2;
     int element_id;
 
+    assert(app);
+    assert(world);
     model_ids[0] = model_id;
     model = app_world_build_model(app, model_ids, 1, NULL, 128, 128, APP_LIGHT_ACTOR, 0, 0);
     if( !model )
@@ -17499,7 +17511,7 @@ app_world_spawn_projectile_now(
         return;
 
     World_ProjectileSpawn(
-        app->world,
+        world,
         element_id,
         src_level,
         src_x,
@@ -17543,6 +17555,7 @@ app_world_spawn_projectile_now(
 static void
 app_world_spawn_projectile_spot_now(
     struct App* app,
+    struct World* world,
     int spotanim_id,
     int src_tile_x,
     int src_tile_z,
@@ -17563,6 +17576,8 @@ app_world_spawn_projectile_spot_now(
     int src_x, src_z, dst_x, dst_z, src_y;
     int element_id;
 
+    assert(app);
+    assert(world);
     spot = CacheProvider_SpotanimtypeGet(app->provider, spotanim_id);
     if( !spot )
     {
@@ -17597,7 +17612,7 @@ app_world_spawn_projectile_spot_now(
      * goes through in its wire encoding so World re-aims the arc at that
      * entity's live position every cycle (reference addProjectiles). */
     World_ProjectileSpawn(
-        app->world,
+        world,
         element_id,
         dst_level,
         src_x,
@@ -17686,6 +17701,7 @@ app_seq_total_duration(
 static void
 app_world_spawn_spotanim_now(
     struct App* app,
+    struct World* world,
     int spotanim_id,
     int tile_x,
     int tile_z,
@@ -17699,6 +17715,8 @@ app_world_spawn_spotanim_now(
     int element_id;
     int lifetime;
 
+    assert(app);
+    assert(world);
     spot = CacheProvider_SpotanimtypeGet(app->provider, spotanim_id);
     if( !spot )
     {
@@ -17726,7 +17744,7 @@ app_world_spawn_spotanim_now(
     lifetime = app_seq_total_duration(app, spot->seq);
 
     World_SpotanimSpawn(
-        app->world, element_id, level, world_x, world_z, world_y, 0, delay, lifetime);
+        world, element_id, level, world_x, world_z, world_y, 0, delay, lifetime);
     app_world_apply_seq(app, element_id, spot->seq);
     /* A delayed spotanim is invisible until World flips it active, so its
      * sequence must not run in the meantime. Park it as anim_external — the
@@ -18285,6 +18303,7 @@ app_plugin_object_materialize_now(struct App* app, int handle)
 static void
 app_world_scenery_anim_apply(
     struct App* app,
+    struct World* world,
     int scene_x,
     int scene_z,
     int level,
@@ -18310,6 +18329,14 @@ struct Task_AppSpawn
     struct ToriRS_Task task;
     struct pt pt;
     struct App* app;
+    /* The worldview cursor AS OF ENQUEUE (app->active_world). Spawn tasks run
+     * at the END of the exec FIFO, behind later packets — including the
+     * SERVER_TICK_END that resets the live cursor — so the apply cannot read
+     * app->active_world when it finally runs; it must carry its own copy. The
+     * view can legitimately die while the task is parked (a boat despawns
+     * mid-flight), so applies guard on WorldviewRegistry_IsLive rather than
+     * asserting. */
+    int view;
     enum AppSpawnKind kind;
     int tile_x;
     int tile_z;
@@ -18379,19 +18406,21 @@ struct Task_AppSpawn
 static void
 app_loc_change_apply_ops(
     struct App* app,
+    struct World* world,
     const struct Task_AppSpawn* self)
 {
     int idx;
     struct WorldEntity_Scenery* sc;
 
     assert(app);
+    assert(world);
     assert(self);
     if( self->loc_id < 0 )
         return; /* a pure delete has no placement to describe */
-    idx = World_SceneryFindAt(app->world, self->tile_x, self->tile_z, self->level, self->loc_shape);
+    idx = World_SceneryFindAt(world, self->tile_x, self->tile_z, self->level, self->loc_shape);
     if( idx < 0 )
         return; /* the spawn was refused (unknown loc, off-scene) — nothing to dress */
-    sc = World_EntityPoolGet(&app->world->entities.scenery, idx);
+    sc = World_EntityPoolGet(&world->entities.scenery, idx);
     if( !sc )
         return;
 
@@ -18456,7 +18485,18 @@ Task_AppSpawn_Run(
         if( self->model_id > 0 )
         {
             PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
-            App_WorldObjStackAdd(app, self->tile_x, self->tile_z, self->level, self->obj_id, 1);
+            /* The applicator resolves the cursor itself, so re-arm it with the
+             * view captured at enqueue for the duration of the call. The view
+             * can have died while the task was parked (a despawned boat takes
+             * its late drops with it) — that is the guard, not a contract. */
+            if( WorldviewRegistry_IsLive(&app->worldviews, self->view) )
+            {
+                int prev_view = app->active_world;
+                app->active_world = self->view;
+                App_WorldObjStackAdd(
+                    app, self->tile_x, self->tile_z, self->level, self->obj_id, 1);
+                app->active_world = prev_view;
+            }
         }
         else
             fprintf(stderr, "spawn_obj: obj %d has no inventory model\n", self->obj_id);
@@ -18478,14 +18518,18 @@ Task_AppSpawn_Run(
         }
         if( self->seq_id >= 0 )
             PT_TASK_AWAITSELF_IF(CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
-        app_world_spawn_spotanim_now(
-            app,
-            self->spotanim_id,
-            self->tile_x,
-            self->tile_z,
-            self->level,
-            self->spotanim_height,
-            self->spotanim_delay);
+        /* Guarded, not asserted: the captured view can die while the task is
+         * parked, and a late effect on a despawned boat is simply dropped. */
+        if( WorldviewRegistry_IsLive(&app->worldviews, self->view) )
+            app_world_spawn_spotanim_now(
+                app,
+                WorldviewRegistry_Get(&app->worldviews, self->view)->world,
+                self->spotanim_id,
+                self->tile_x,
+                self->tile_z,
+                self->level,
+                self->spotanim_height,
+                self->spotanim_delay);
     }
     else if( self->kind == APP_SPAWN_ENTITY_SPOTANIM )
     {
@@ -18526,22 +18570,25 @@ Task_AppSpawn_Run(
         }
         if( self->seq_id >= 0 )
             PT_TASK_AWAITSELF_IF(CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
-        app_world_spawn_projectile_spot_now(
-            app,
-            self->spotanim_id,
-            self->src_tile_x,
-            self->src_tile_z,
-            self->src_level,
-            self->tile_x,
-            self->tile_z,
-            self->level,
-            self->proj_src_height,
-            self->proj_dst_height,
-            self->proj_start_delay,
-            self->proj_end_delay,
-            self->proj_peak,
-            self->proj_arc,
-            self->proj_target);
+        /* Guarded, not asserted: see the spotanim branch. */
+        if( WorldviewRegistry_IsLive(&app->worldviews, self->view) )
+            app_world_spawn_projectile_spot_now(
+                app,
+                WorldviewRegistry_Get(&app->worldviews, self->view)->world,
+                self->spotanim_id,
+                self->src_tile_x,
+                self->src_tile_z,
+                self->src_level,
+                self->tile_x,
+                self->tile_z,
+                self->level,
+                self->proj_src_height,
+                self->proj_dst_height,
+                self->proj_start_delay,
+                self->proj_end_delay,
+                self->proj_peak,
+                self->proj_arc,
+                self->proj_target);
     }
     else if( self->kind == APP_SPAWN_PLUGIN_OBJECT )
     {
@@ -18574,8 +18621,15 @@ Task_AppSpawn_Run(
         /* Nothing to await: the point of the task is its PLACE IN THE FIFO,
          * behind any LOC_ADD_CHANGE for the same tile in the same packet. See
          * App_WorldSceneryAnim. */
-        app_world_scenery_anim_apply(
-            app, self->tile_x, self->tile_z, self->level, self->loc_shape, self->seq_id);
+        if( WorldviewRegistry_IsLive(&app->worldviews, self->view) )
+            app_world_scenery_anim_apply(
+                app,
+                WorldviewRegistry_Get(&app->worldviews, self->view)->world,
+                self->tile_x,
+                self->tile_z,
+                self->level,
+                self->loc_shape,
+                self->seq_id);
     }
     else if( self->kind == APP_SPAWN_LOC_CHANGE )
     {
@@ -18621,17 +18675,24 @@ Task_AppSpawn_Run(
                 PT_TASK_AWAITSELF_IF(
                     CreateTask_SequenceLoad(app->provider, app->scene, self->seq_id));
         }
-        if( app->world_builder && app->world && app->world->load_complete )
+        /* Resolve the view captured at enqueue — the change queued behind the
+         * asset waits, so the live cursor moved on long ago. IsLive is a
+         * guard, not an assert: the view can legitimately die mid-flight. */
+        struct Worldview* wv = WorldviewRegistry_IsLive(&app->worldviews, self->view)
+                                   ? WorldviewRegistry_Get(&app->worldviews, self->view)
+                                   : NULL;
+        struct World* world = wv ? wv->world : NULL;
+        if( wv && wv->builder && world && world->load_complete )
         {
             int old_type = -1;
             int old_angle = 0;
             int old_shape = -1;
             int old_idx = World_SceneryFindAt(
-                app->world, self->tile_x, self->tile_z, self->level, self->loc_shape);
+                world, self->tile_x, self->tile_z, self->level, self->loc_shape);
             if( old_idx >= 0 )
             {
                 struct WorldEntity_Scenery* old =
-                    World_EntityPoolGet(&app->world->entities.scenery, old_idx);
+                    World_EntityPoolGet(&world->entities.scenery, old_idx);
                 if( old )
                 {
                     old_type = old->loc_id;
@@ -18640,7 +18701,7 @@ Task_AppSpawn_Run(
                 }
             }
             World_LocChangePush(
-                app->world,
+                world,
                 self->level,
                 World_LocShapeToLayer(self->loc_shape),
                 self->tile_x,
@@ -18651,10 +18712,10 @@ Task_AppSpawn_Run(
                 self->loc_id,
                 self->loc_angle,
                 self->loc_shape,
-                app->world->cycle,
+                world->cycle,
                 -1);
             WorldBuilder_ApplyLocChange(
-                app->world_builder,
+                wv->builder,
                 self->tile_x,
                 self->tile_z,
                 self->level,
@@ -18671,7 +18732,7 @@ Task_AppSpawn_Run(
              * loc carries the mask and the labels, and the menu builder reads
              * the loctype first and lets the placement win (deob class108).
              */
-            app_loc_change_apply_ops(app, self);
+            app_loc_change_apply_ops(app, world, self);
             /*
              * The cache's own "a loc was placed" script, for a loc that arrived
              * AFTER the scene was built.
@@ -18691,10 +18752,10 @@ Task_AppSpawn_Run(
             if( self->loc_id >= 0 )
             {
                 int const placed_idx = World_SceneryFindAt(
-                    app->world, self->tile_x, self->tile_z, self->level, self->loc_shape);
+                    world, self->tile_x, self->tile_z, self->level, self->loc_shape);
                 struct WorldEntity_Scenery* placed =
                     placed_idx >= 0
-                        ? World_EntityPoolGet(&app->world->entities.scenery, placed_idx)
+                        ? World_EntityPoolGet(&world->entities.scenery, placed_idx)
                         : NULL;
                 if( placed )
                     app_client_trigger_loc(app, placed, RS_TRIGGER_LOC_ADD);
@@ -18706,16 +18767,18 @@ Task_AppSpawn_Run(
     else
     {
         PT_TASK_AWAITSELF_IF(CreateTask_ModelLoad(app->provider, self->model_id));
-        app_world_spawn_projectile_now(
-            app,
-            self->model_id,
-            self->seq_id,
-            self->src_tile_x,
-            self->src_tile_z,
-            self->src_level,
-            self->tile_x,
-            self->tile_z,
-            self->proj_target);
+        if( WorldviewRegistry_IsLive(&app->worldviews, self->view) )
+            app_world_spawn_projectile_now(
+                app,
+                WorldviewRegistry_Get(&app->worldviews, self->view)->world,
+                self->model_id,
+                self->seq_id,
+                self->src_tile_x,
+                self->src_tile_z,
+                self->src_level,
+                self->tile_x,
+                self->tile_z,
+                self->proj_target);
     }
 
     PT_END(&self->pt);
@@ -19616,6 +19679,9 @@ app_spawn_task_new(
     task->task.vtable = &Task_AppSpawn_VTable;
     strncpy(task->task.name, "AppSpawn", sizeof(task->task.name) - 1);
     task->app = app;
+    /* Single capture point for every spawn kind: the enqueue happens while the
+     * addressing SET_ACTIVE_WORLD is still in force. */
+    task->view = app->active_world;
     task->kind = kind;
     task->tile_x = tile_x;
     task->tile_z = tile_z;
@@ -20840,19 +20906,25 @@ App_WorldLocMerge(
     int player_pid)
 {
     struct WorldEntity_Player* player = NULL;
+    struct World* world;
     int old_type = -1;
     int old_angle = 0;
     int old_shape = shape;
     int idx;
 
     assert(app);
-    if( !app->world || !app->world->load_complete )
+    /* Pre-login there is no world at all — that is a state, not a bug. Once
+     * one exists, the mutation goes to whichever view the cursor addresses. */
+    if( !app->world )
+        return;
+    world = App_ActiveWorldview(app)->world;
+    if( !world->load_complete )
         return;
 
-    idx = World_SceneryFindAt(app->world, scene_x, scene_z, level, shape);
+    idx = World_SceneryFindAt(world, scene_x, scene_z, level, shape);
     if( idx >= 0 )
     {
-        struct WorldEntity_Scenery* old = World_EntityPoolGet(&app->world->entities.scenery, idx);
+        struct WorldEntity_Scenery* old = World_EntityPoolGet(&world->entities.scenery, idx);
         if( old )
         {
             old_type = old->loc_id;
@@ -20864,7 +20936,7 @@ App_WorldLocMerge(
     /* Countdown LocChange: hide (new_type -1) after start_cycle ticks, restore
      * after end_cycle ticks — Client-TS locChangeCreate(..., t1+1, t2+1). */
     World_LocChangePush(
-        app->world,
+        world,
         level,
         World_LocShapeToLayer(shape),
         scene_x,
@@ -20881,11 +20953,11 @@ App_WorldLocMerge(
     if( player_pid == app->esync.local_pid )
         player = app_local_player(app);
     else
-        player = World_PlayerGetByServerPid(app->world, player_pid);
+        player = World_PlayerGetByServerPid(world, player_pid);
     if( player )
     {
-        player->loc_start_cycle = app->world->cycle + start_cycle;
-        player->loc_stop_cycle = app->world->cycle + end_cycle;
+        player->loc_start_cycle = world->cycle + start_cycle;
+        player->loc_stop_cycle = world->cycle + end_cycle;
         player->loc_merge_id = loc_id;
         player->loc_merge_shape = shape;
         player->loc_merge_angle = angle;
@@ -27358,12 +27430,17 @@ App_WorldObjStackAdd(
     int world_y;
     int element_id;
     int existing;
+    struct World* world;
 
     assert(app);
-    existing = World_ObjStackFind(app->world, scene_x, scene_z, level, obj_id);
+    /* Zone mutations act on whichever view the packet cursor addresses — the
+     * root scene or a boat — never on app->world directly. See app.h
+     * `active_world`. */
+    world = App_ActiveWorldview(app)->world;
+    existing = World_ObjStackFind(world, scene_x, scene_z, level, obj_id);
     if( existing >= 0 )
     {
-        World_ObjStackSetCount(app->world, existing, count);
+        World_ObjStackSetCount(world, existing, count);
         app_plugin_obj_notify(app, existing, TORIRS_PLUGIN_EV_OBJ_COUNT);
         app->need_redraw = 1;
         return existing;
@@ -27388,7 +27465,7 @@ App_WorldObjStackAdd(
     /* LocType.raiseobject: world Y is negative-up, so subtracting raise lifts
      * the stack onto the table (Client-TS objs.y - objs.height). */
     world_y = app_world_height(app, world_x, world_z, level) -
-              World_ObjRaiseGet(app->world, scene_x, scene_z, level);
+              World_ObjRaiseGet(world, scene_x, scene_z, level);
     element_id = app_world_scene_element_create(app, model, world_x, world_y, world_z);
     if( element_id < 0 )
         return -1;
@@ -27411,7 +27488,7 @@ App_WorldObjStackAdd(
         for( int a = 0; a < 5; a++ )
             snprintf(actions32[a], sizeof(actions32[a]), "%s", obj->ground_actions[a]);
         int const idx = World_ObjStackAdd(
-            app->world, element_id, scene_x, scene_z, level, obj_id, count, obj->name, actions32);
+            world, element_id, scene_x, scene_z, level, obj_id, count, obj->name, actions32);
         app_plugin_obj_notify(app, idx, TORIRS_PLUGIN_EV_OBJ_SPAWN);
         return idx;
     }
@@ -27521,6 +27598,15 @@ App_WorldRebuildShift(
     app->need_redraw = 1;
 }
 
+struct Worldview*
+App_ActiveWorldview(struct App* app)
+{
+    assert(app);
+    /* Get() asserts the cursor names a live view — the same failure the deob
+     * client throws when a packet addresses a despawned world entity. */
+    return WorldviewRegistry_Get(&app->worldviews, app->active_world);
+}
+
 int
 App_WorldRebuildBegin(
     struct App* app,
@@ -27554,14 +27640,16 @@ App_WorldObjStackDel(
     int obj_id)
 {
     int idx;
+    struct World* world;
     assert(app);
-    idx = World_ObjStackFind(app->world, scene_x, scene_z, level, obj_id);
+    world = App_ActiveWorldview(app)->world;
+    idx = World_ObjStackFind(world, scene_x, scene_z, level, obj_id);
     if( idx >= 0 )
     {
         /* Ahead of the release, so a plugin's last look at the stack is a
          * whole one -- the same ordering the npc despawn path uses. */
         app_plugin_obj_notify(app, idx, TORIRS_PLUGIN_EV_OBJ_DESPAWN);
-        World_ObjStackDel(app->world, idx);
+        World_ObjStackDel(world, idx);
         app->need_redraw = 1;
     }
 }
@@ -27576,11 +27664,13 @@ App_WorldObjStackSetCount(
     int count)
 {
     int idx;
+    struct World* world;
     assert(app);
-    idx = World_ObjStackFind(app->world, scene_x, scene_z, level, obj_id);
+    world = App_ActiveWorldview(app)->world;
+    idx = World_ObjStackFind(world, scene_x, scene_z, level, obj_id);
     if( idx < 0 )
         return;
-    World_ObjStackSetCount(app->world, idx, count);
+    World_ObjStackSetCount(world, idx, count);
     app_plugin_obj_notify(app, idx, TORIRS_PLUGIN_EV_OBJ_COUNT);
     app->need_redraw = 1;
 }
@@ -27593,12 +27683,14 @@ App_WorldObjStackClearTile(
     int level)
 {
     int idx;
+    struct World* world;
     assert(app);
+    world = App_ActiveWorldview(app)->world;
     /* obj_id -1 = any, so this drains the tile one stack at a time. */
-    while( (idx = World_ObjStackFind(app->world, scene_x, scene_z, level, -1)) >= 0 )
+    while( (idx = World_ObjStackFind(world, scene_x, scene_z, level, -1)) >= 0 )
     {
         app_plugin_obj_notify(app, idx, TORIRS_PLUGIN_EV_OBJ_DESPAWN);
-        World_ObjStackDel(app->world, idx);
+        World_ObjStackDel(world, idx);
         app->need_redraw = 1;
     }
 }
@@ -27653,6 +27745,7 @@ App_WorldSceneryAnim(
 static void
 app_world_scenery_anim_apply(
     struct App* app,
+    struct World* world,
     int scene_x,
     int scene_z,
     int level,
@@ -27661,11 +27754,12 @@ app_world_scenery_anim_apply(
 {
     int idx;
     assert(app);
-    idx = World_SceneryFindAt(app->world, scene_x, scene_z, level, loc_shape);
+    assert(world);
+    idx = World_SceneryFindAt(world, scene_x, scene_z, level, loc_shape);
     if( idx >= 0 )
     {
         struct WorldEntity_Scenery* scenery =
-            World_EntityPoolGet(&app->world->entities.scenery, idx);
+            World_EntityPoolGet(&world->entities.scenery, idx);
         if( scenery && scenery->element_id >= 0 )
         {
             struct ToriDraw_SceneElement* element =
