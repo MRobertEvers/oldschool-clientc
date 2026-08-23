@@ -34,6 +34,9 @@ _Static_assert(
     (int)UITREE_FRAME_SLOT_MAIN_MODAL == (int)TORIRS_PLUGIN_SLOT_MAIN_MODAL,
     "frame slot order must match the plugin contract");
 _Static_assert(
+    (int)UITREE_FRAME_SLOT_CHAT_BUTTONS == (int)TORIRS_PLUGIN_SLOT_CHAT_BUTTONS,
+    "frame slot order must match the plugin contract");
+_Static_assert(
     (int)UITREE_FRAME_SLOT_COUNT == (int)TORIRS_PLUGIN_SLOT_COUNT,
     "frame slot count must match the plugin contract");
 
@@ -44,17 +47,14 @@ _Static_assert(
 #define UITREE_FRAME_HIDDEN_MAX 256
 
 /*
- * Nodes one role may be spread across.
- *
  * A role is not a node, and the sidebar is why. The 2004 frame carries
  * FOURTEEN sidebar mounts -- one per tab, all at the same rectangle, only one
  * of them showing -- so a layout that moved "the sidebar" and meant the first
  * would move the combat tab and leave the other thirteen where the old frame
  * had them: the inventory would still be drawn at 553,205 while the panel it
- * sits in had moved. 16 covers that frame's fourteen with room, and it is
- * checked rather than assumed.
+ * sits in had moved. UITREE_FRAME_SLOT_NODES_MAX covers that frame's fourteen
+ * with room, and it is checked rather than assumed.
  */
-#define UITREE_FRAME_SLOT_NODES_MAX 16
 
 struct UITreeFrameLayout
 {
@@ -63,6 +63,9 @@ struct UITreeFrameLayout
      *  they were authored at. */
     int32_t slot_node[UITREE_FRAME_SLOT_COUNT][UITREE_FRAME_SLOT_NODES_MAX];
     int slot_component_id[UITREE_FRAME_SLOT_COUNT][UITREE_FRAME_SLOT_NODES_MAX];
+    /** UITree_FrameSlotIndex for each, so a per-member box finds its node
+     *  without re-deriving it every frame. */
+    int slot_member[UITREE_FRAME_SLOT_COUNT][UITREE_FRAME_SLOT_NODES_MAX];
     struct UITreeElemPosition slot_saved[UITREE_FRAME_SLOT_COUNT][UITREE_FRAME_SLOT_NODES_MAX];
     int slot_node_count[UITREE_FRAME_SLOT_COUNT];
     /** The declaration itself, kept so the re-assert can restate it. */
@@ -138,8 +141,28 @@ frame_node_is_slot(
         return c->type == UIELEM_BUILTIN_SIDEBAR || c->slot_tag == UITREE_SLOT_SIDE_MODAL;
     case UITREE_FRAME_SLOT_MAIN_MODAL:
         return c->slot_tag == UITREE_SLOT_MAIN_MODAL;
+    case UITREE_FRAME_SLOT_CHAT_BUTTONS:
+        return c->type == UIELEM_BUILTIN_CHAT_BUTTON;
     default:
         return 0;
+    }
+}
+
+int
+UITree_FrameSlotIndex(
+    struct UITreeComponent const* node,
+    int slot)
+{
+    assert(node);
+    switch( slot )
+    {
+    case UITREE_FRAME_SLOT_CHAT_BUTTONS:
+        return node->type == UIELEM_BUILTIN_CHAT_BUTTON ? (int)node->u.chat_button.filter : -1;
+    case UITREE_FRAME_SLOT_SIDEBAR:
+        return node->type == UIELEM_BUILTIN_SIDEBAR ? node->u.sidebar.tabno : -1;
+    default:
+        /* One surface, nothing to number. */
+        return -1;
     }
 }
 
@@ -172,6 +195,31 @@ UITree_FrameSlotNode(
         if( c->freed )
             continue;
         if( frame_node_is_slot(c, slot) )
+            return (int32_t)i;
+    }
+    return -1;
+}
+
+int32_t
+UITree_FrameSlotMemberNode(
+    struct UITree const* tree,
+    int slot,
+    int member)
+{
+    assert(tree);
+    if( member < 0 )
+        return UITree_FrameSlotNode(tree, slot);
+    if( slot < 0 || slot >= UITREE_FRAME_SLOT_COUNT )
+        return -1;
+
+    for( uint32_t i = 0; i < tree->component_count; i++ )
+    {
+        struct UITreeComponent const* c = &tree->components[i];
+        if( c->freed )
+            continue;
+        if( !frame_node_is_slot(c, slot) )
+            continue;
+        if( UITree_FrameSlotIndex(c, slot) == member )
             return (int32_t)i;
     }
     return -1;
@@ -210,7 +258,18 @@ frame_is_lane_chrome(
     case UIELEM_BUILTIN_SPRITE:
     case UIELEM_BUILTIN_REDSTONE_TAB:
     case UIELEM_BUILTIN_TAB_ICONS:
-    case UIELEM_BUILTIN_CHAT_BUTTON:
+        /*
+         * Decoration by construction: a sprite, a tab stone, a tab icon. Every
+         * one of them exists only to be looked at, and a layout that draws its
+         * own is drawing over them.
+         *
+         * The chat filter buttons are deliberately NOT in this list. They wear
+         * the same stone and sit in the same strip, so they look like chrome --
+         * and they are four working CONTROLS. Suppressing them cost the player
+         * the public/private/trade toggles and left their empty plates behind,
+         * which is why they are a role (UITREE_FRAME_SLOT_CHAT_BUTTONS) that a
+         * layout places rather than art it replaces.
+         */
         return 1;
     case UIELEM_RS_GRAPHIC:
     case UIELEM_RS_RECT:
@@ -267,10 +326,30 @@ frame_collect_slots(
             }
             fl->slot_node[s][n] = (int32_t)i;
             fl->slot_component_id[s][n] = c->component_id;
+            fl->slot_member[s][n] = UITree_FrameSlotIndex(c, s);
             fl->slot_saved[s][n] = c->position;
             fl->slot_node_count[s] = n + 1;
         }
     }
+}
+
+/*
+ * The box that applies to one member of a role, or NULL for "not placed".
+ *
+ * Per-member first and the whole-role box second, which is the precedence a
+ * declaration reads with: a layout that placed the four chat buttons
+ * individually and then said something about "the chat buttons" as a group
+ * meant the individual boxes, or it would not have bothered writing them.
+ */
+static struct UITreeFrameRect const*
+frame_rect_for(
+    struct UITreeFrameSlotRect const* slot,
+    int member)
+{
+    assert(slot);
+    if( member >= 0 && member < UITREE_FRAME_SLOT_NODES_MAX && slot->at[member].placed )
+        return &slot->at[member];
+    return slot->all.placed ? &slot->all : NULL;
 }
 
 /*
@@ -292,7 +371,7 @@ static void
 frame_place_node(
     struct UITree* tree,
     int32_t idx,
-    struct UITreeFrameSlotRect const* rect)
+    struct UITreeFrameRect const* rect)
 {
     struct UITreeComponent* c;
 
@@ -394,19 +473,20 @@ UITree_FrameApply(
         for( int n = 0; n < fl->slot_node_count[s]; n++ )
         {
             int32_t const idx = fl->slot_node[s][n];
-            struct UITreeComponent* c = &tree->components[idx];
+            struct UITreeFrameRect const* rect = frame_rect_for(&slots[s], fl->slot_member[s][n]);
 
-            if( !slots[s].placed )
+            if( !rect )
             {
-                /* A role the declaration did not mention is one this frame
-                 * does not show -- a modern resizable layout has no compass
-                 * housing of its own, and leaving the lane's compass on screen
-                 * would put it wherever the old frame had it. */
+                /* A role -- or one member of it -- the declaration did not
+                 * mention is one this frame does not show. A modern resizable
+                 * layout has no compass housing of its own, and leaving the
+                 * lane's compass on screen would put it wherever the old frame
+                 * had it. */
                 frame_hide_node(tree, fl, idx);
                 continue;
             }
 
-            frame_place_node(tree, idx, &slots[s]);
+            frame_place_node(tree, idx, rect);
         }
     }
 
@@ -443,14 +523,14 @@ UITree_FrameReassert(struct UITree* tree)
      */
     for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
     {
-        if( !fl->slot_rect[s].placed )
-            continue;
         for( int n = 0; n < fl->slot_node_count[s]; n++ )
         {
             int32_t const idx = fl->slot_node[s][n];
-            if( !frame_node_alive(tree, idx) )
+            struct UITreeFrameRect const* rect =
+                frame_rect_for(&fl->slot_rect[s], fl->slot_member[s][n]);
+            if( !rect || !frame_node_alive(tree, idx) )
                 continue;
-            frame_place_node(tree, idx, &fl->slot_rect[s]);
+            frame_place_node(tree, idx, rect);
         }
     }
 }

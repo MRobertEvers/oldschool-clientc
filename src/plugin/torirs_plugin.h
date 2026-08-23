@@ -1065,6 +1065,20 @@ enum ToriRS_PluginLayoutSlot
     TORIRS_PLUGIN_SLOT_SIDEBAR,
     /** Where a bank, a level-up or a dialogue opens. */
     TORIRS_PLUGIN_SLOT_MAIN_MODAL,
+    /**
+     * The chat filter buttons -- public, private, trade, report abuse.
+     *
+     * A role rather than art, and the distinction is the whole reason it is
+     * here: they wear the same stone as the surround and sit in the same
+     * strip, so a layout replacing the frame's decoration takes them with it
+     * -- and they are four working CONTROLS. Suppressed, the player loses the
+     * privacy toggles and gets four empty plates where they were.
+     *
+     * The only role with four members at four DIFFERENT boxes, which is what
+     * layout_slot_at exists for. Their member numbers are the filters
+     * themselves: 0 public, 1 private, 2 trade, 3 report.
+     */
+    TORIRS_PLUGIN_SLOT_CHAT_BUTTONS,
 
     TORIRS_PLUGIN_SLOT_COUNT
 };
@@ -1309,6 +1323,35 @@ struct ToriRS_PluginApi
     int (*layout_slot)(
         struct ToriRS_PluginCtx* ctx,
         int slot,
+        int x,
+        int y,
+        int w,
+        int h);
+
+    /**
+     * Place ONE member of a role. Otherwise exactly layout_slot, and legal in
+     * the same one place.
+     *
+     * `member` is the role's OWN numbering and never a position in a list: a
+     * chat button's is the filter it toggles, a sidebar mount's is its tab
+     * number. That distinction is what keeps a declaration true when the frame
+     * is rebuilt, reordered, or authored by a different cache -- a list
+     * position is whatever order this revision happened to build in, and the
+     * next one changes it.
+     *
+     * A member placed here wins over anything layout_slot said about the role;
+     * a member with no box of its own falls back to it; a member with neither
+     * is hidden. So "all four in a row, but the report button wider" is two
+     * calls, and "the sidebar, wherever it is" is still one.
+     *
+     * @return 1 when this gameframe has a member of that role with that
+     * number, 0 otherwise -- so a layout can tell a frame with no Trade/duel
+     * button from one that has it somewhere unexpected.
+     */
+    int (*layout_slot_at)(
+        struct ToriRS_PluginCtx* ctx,
+        int slot,
+        int member,
         int x,
         int y,
         int w,

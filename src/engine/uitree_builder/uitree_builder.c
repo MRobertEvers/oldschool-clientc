@@ -1,5 +1,7 @@
 #include "uitree_builder.h"
 
+#include "revconfig/revconfig.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -208,7 +210,14 @@ UITreeBuilder_ResolveSpriteRef(
             nlen = sizeof(name) - 1;
         memcpy(name, ref, nlen);
         name[nlen] = '\0';
-        atlas = atoi(bracket + 1);
+        /* The index is a revconfig number like any other, so `sprite[0x0A]`
+         * reads the same as `sprite[10]`; what follows it has to be the ']'. */
+        char const* end = NULL;
+        if( !revconfig_parse_int_expr(bracket + 1, &end, &atlas) || *end != ']' )
+        {
+            fprintf(stderr, "uitree_builder: bad atlas index in sprite ref '%s'\n", ref);
+            atlas = -1;
+        }
     }
     else
     {

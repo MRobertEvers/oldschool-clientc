@@ -147,9 +147,10 @@ struct ToriRS_PluginEngine
     /** Apply what the declaration left behind, and hide every surface it did
      *  not place. */
     void (*layout_end)(void* user);
-    /** Place one slot. @see ToriRS_PluginApi::layout_slot; the return is the
-     *  same "does this frame have one" answer. */
-    int (*layout_slot)(void* user, int slot, int x, int y, int w, int h);
+    /** Place one slot, or one MEMBER of it when `member` is not -1.
+     *  @see ToriRS_PluginApi::layout_slot_at; the return is the same "does
+     *  this frame have one" answer. */
+    int (*layout_slot)(void* user, int slot, int member, int x, int y, int w, int h);
     /** The selected sidebar tab, or -1. @see ToriRS_PluginApi::tab_active. */
     int (*tab_active)(void* user);
     /** Flip to that tab. @see ToriRS_PluginApi::tab_select. */

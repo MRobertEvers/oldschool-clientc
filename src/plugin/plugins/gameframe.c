@@ -83,6 +83,19 @@ enum FrameLayout
 /** Sidebar tabs, in the order every revision since 2001 numbers them. */
 #define FRAME_TAB_COUNT 14
 
+/**
+ * The chat filter buttons, by the filter each one toggles.
+ *
+ * Placed and not suppressed, because they are CONTROLS: the stone plate under
+ * them belongs to the frame art and the button on it belongs to the player.
+ * A frame that has none simply places none -- every call reports whether it
+ * landed on anything.
+ */
+#define FRAME_CHAT_BUTTON_COUNT 4
+/** The 2004 frame's own: a 100x32 box each, on the backbase1 strip. */
+#define FRAME_CHAT_BUTTON_W 100
+#define FRAME_CHAT_BUTTON_H 32
+
 /* ------------------------------------------------------------------- assets */
 
 /*
@@ -379,6 +392,38 @@ frame_tab(int tabno, int x, int y, int w, int h, int stone, int stone_pressed, i
     t->icon = icon;
 }
 
+/*
+ * The filter buttons spread evenly across a strip.
+ *
+ * What the two OldSchool layouts use, because neither frame has a row of 2004
+ * chat buttons to copy positions from -- OldSchool moved these into the
+ * chatbox interface itself. Even spacing is therefore a LAYOUT decision rather
+ * than a reproduction, and stating it as arithmetic is what lets the same
+ * three lines serve a 519-wide fixed chatbox and a resizable one.
+ */
+static void
+frame_chat_buttons_across(
+    struct ToriRS_PluginCtx* ctx,
+    int x,
+    int y,
+    int width)
+{
+    int const cell = width / FRAME_CHAT_BUTTON_COUNT;
+
+    assert(ctx);
+    for( int i = 0; i < FRAME_CHAT_BUTTON_COUNT; i++ )
+    {
+        g_api->layout_slot_at(
+            ctx,
+            TORIRS_PLUGIN_SLOT_CHAT_BUTTONS,
+            i,
+            x + i * cell + (cell - FRAME_CHAT_BUTTON_W) / 2,
+            y,
+            FRAME_CHAT_BUTTON_W,
+            FRAME_CHAT_BUTTON_H);
+    }
+}
+
 /* --------------------------------------------------------- classic fixed */
 
 /*
@@ -466,6 +511,25 @@ frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_CHAT, 17, 357, 479, 96);
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_SIDEBAR, 553, 205, 190, 261);
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_MAIN_MODAL, 4, 4, 512, 334);
+    /*
+     * The four filter buttons at the reference's own x, which is not an even
+     * spacing and cannot be computed: 6, 135, 273, 408. `Report abuse` is
+     * centred at 458 (Client-TS redrawPrivacySettings), so its 100-wide box
+     * starts at 408 -- and 412 pushed the final `e` against the backbase2
+     * corner, which is why the number is copied rather than derived.
+     */
+    {
+        static int const X[FRAME_CHAT_BUTTON_COUNT] = { 6, 135, 273, 408 };
+        for( int i = 0; i < FRAME_CHAT_BUTTON_COUNT; i++ )
+            g_api->layout_slot_at(
+                ctx,
+                TORIRS_PLUGIN_SLOT_CHAT_BUTTONS,
+                i,
+                X[i],
+                467,
+                FRAME_CHAT_BUTTON_W,
+                FRAME_CHAT_BUTTON_H);
+    }
 }
 
 /* ---------------------------------------------------------- modern fixed */
@@ -556,6 +620,8 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_CHAT, 7, 345, 506, 152);
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_SIDEBAR, 547, 205, 190, 261);
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_MAIN_MODAL, 4, 4, 512, 334);
+    /* Along the bottom of the chatbox, inside its frame. */
+    frame_chat_buttons_across(ctx, 7, 465, 506);
 }
 
 /* ------------------------------------------------------ modern resizable */
@@ -650,6 +716,8 @@ frame_layout_modern_resizable(
      */
     g_api->layout_slot(
         ctx, TORIRS_PLUGIN_SLOT_MAIN_MODAL, (canvas_w - 512) / 2, (canvas_h - 334) / 2, 512, 334);
+    frame_chat_buttons_across(
+        ctx, 7, chat_y + FRAME_R_CHAT_H - FRAME_CHAT_BUTTON_H - 4, FRAME_R_CHAT_W - 13);
 }
 
 /* -------------------------------------------------------------- the events */

@@ -703,9 +703,10 @@ api_layout_owned(struct ToriRS_PluginCtx* ctx)
 }
 
 static int
-api_layout_slot(
+api_layout_slot_at(
     struct ToriRS_PluginCtx* ctx,
     int slot,
+    int member,
     int x,
     int y,
     int w,
@@ -726,7 +727,21 @@ api_layout_slot(
         return 0;
     if( w <= 0 || h <= 0 )
         return 0;
-    return ctx->host->engine.layout_slot(ctx->host->engine.user, slot, x, y, w, h);
+    return ctx->host->engine.layout_slot(ctx->host->engine.user, slot, member, x, y, w, h);
+}
+
+/* The whole role, which is `member` -1. One entry point with a name for the
+ * common case, rather than every caller writing the sentinel. */
+static int
+api_layout_slot(
+    struct ToriRS_PluginCtx* ctx,
+    int slot,
+    int x,
+    int y,
+    int w,
+    int h)
+{
+    return api_layout_slot_at(ctx, slot, -1, x, y, w, h);
 }
 
 static int
@@ -2557,6 +2572,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .layout_release = api_layout_release,
         .layout_owned = api_layout_owned,
         .layout_slot = api_layout_slot,
+        .layout_slot_at = api_layout_slot_at,
         .tab_active = api_tab_active,
         .tab_select = api_tab_select,
         .stat = api_stat,

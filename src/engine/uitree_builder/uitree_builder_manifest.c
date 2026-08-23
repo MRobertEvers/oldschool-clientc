@@ -280,7 +280,7 @@ add_inv(
     assert(s->obj_ids && s->obj_counts);
     for( int i = 0; i < s->item_count; i++ )
     {
-        s->obj_ids[i] = atoi(inv->items[i]);
+        s->obj_ids[i] = revconfig_parse_int(inv->items[i]);
         s->obj_counts[i] = 1;
     }
 }

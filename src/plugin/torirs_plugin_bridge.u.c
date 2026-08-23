@@ -1918,15 +1918,22 @@ app_plugin_layout_begin(void* user)
 }
 
 static int
-app_plugin_layout_slot(void* user, int slot, int x, int y, int w, int h)
+app_plugin_layout_slot(void* user, int slot, int member, int x, int y, int w, int h)
 {
     struct App* app = (struct App*)user;
-    struct AppPluginLayoutSlot* out;
+    struct UITreeFrameRect* out;
 
     assert(app);
     assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_COUNT);
 
-    out = &app->plugin_layout_slots[slot];
+    /* A member number out of range is a plugin's arithmetic, not a broken
+     * contract: it is refused and reported as "this frame has no such
+     * member", which is the same answer it gets for a member the frame really
+     * does not have. */
+    if( member >= UITREE_FRAME_SLOT_NODES_MAX )
+        return 0;
+    out = member < 0 ? &app->plugin_layout_slots[slot].all
+                     : &app->plugin_layout_slots[slot].at[member];
     out->placed = 1;
     out->x = x;
     out->y = y;
@@ -1935,28 +1942,20 @@ app_plugin_layout_slot(void* user, int slot, int x, int y, int w, int h)
     /* The answer is about the FRAME and not about the recording: a plugin asks
      * "did that land on anything" so it knows whether to draw the housing for
      * it, and a frame with no compass should get no compass ring. */
-    return app->tree && UITree_FrameSlotNode(app->tree, slot) >= 0;
+    return app->tree && UITree_FrameSlotMemberNode(app->tree, slot, member) >= 0;
 }
 
 static void
 app_plugin_layout_end(void* user)
 {
     struct App* app = (struct App*)user;
-    struct UITreeFrameSlotRect rects[TORIRS_PLUGIN_SLOT_COUNT];
 
     assert(app);
     if( !app->tree )
         return;
 
-    for( int i = 0; i < TORIRS_PLUGIN_SLOT_COUNT; i++ )
-    {
-        rects[i].placed = app->plugin_layout_slots[i].placed;
-        rects[i].x = app->plugin_layout_slots[i].x;
-        rects[i].y = app->plugin_layout_slots[i].y;
-        rects[i].w = app->plugin_layout_slots[i].w;
-        rects[i].h = app->plugin_layout_slots[i].h;
-    }
-    UITree_FrameApply(app->tree, rects, app_plugin_layout_root_group(app));
+    UITree_FrameApply(
+        app->tree, app->plugin_layout_slots, app_plugin_layout_root_group(app));
     app->plugin_layout_w = UITREE_LAYOUT_ROOT_W;
     app->plugin_layout_h = UITREE_LAYOUT_ROOT_H;
     app->plugin_layout_generation = app->tree->generation;

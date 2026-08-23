@@ -40119,6 +40119,11 @@ ToriRSServer_WorldSelftest(void)
                 { "[proc,selftest_hespori]", 7,
                   "the Hespori's buds make it invulnerable and six clicks "
                   "break the entangle" },
+                { "[proc,selftest_collection_varps]", 9,
+                  "the collection log's varps are all written: the catalog "
+                  "maxes, the runeday inside its fourteen bits, the bodytype "
+                  "bit, both ring columns, the subsections an item belongs "
+                  "to, and the scratch mailbox the draw path clears" },
                 { "[proc,selftest_gilded_altar]", 6,
                   "the gilded altar is 250/300/350, not a doubling" },
                 { "[proc,selftest_bird_nests]", 7,

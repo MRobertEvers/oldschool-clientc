@@ -65,6 +65,10 @@ static struct
     int h;
 } g_image[FAKE_IMAGE_SLOTS];
 
+/** Members of one role this fake frame records. Four is what the chat filter
+ *  buttons need and nothing here has more. */
+#define FAKE_SLOT_MEMBERS 8
+
 /** What the frame declared: the claim, the slots, and the drawing. */
 static struct
 {
@@ -74,7 +78,7 @@ static struct
     int fixed_h;
     int set_calls;
 
-    struct
+    struct FakeRect
     {
         int placed;
         int x;
@@ -82,6 +86,7 @@ static struct
         int w;
         int h;
     } slot[TORIRS_PLUGIN_SLOT_COUNT];
+    struct FakeRect member[TORIRS_PLUGIN_SLOT_COUNT][FAKE_SLOT_MEMBERS];
     int begin_calls;
     int end_calls;
 
@@ -120,6 +125,7 @@ fake_layout_begin(void* u)
 {
     (void)u;
     memset(g_frame.slot, 0, sizeof(g_frame.slot));
+    memset(g_frame.member, 0, sizeof(g_frame.member));
     g_frame.begin_calls++;
 }
 
@@ -131,15 +137,28 @@ fake_layout_end(void* u)
 }
 
 static int
-fake_layout_slot(void* u, int slot, int x, int y, int w, int h)
+fake_layout_slot(void* u, int slot, int member, int x, int y, int w, int h)
 {
     (void)u;
     assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_COUNT);
-    g_frame.slot[slot].placed = 1;
-    g_frame.slot[slot].x = x;
-    g_frame.slot[slot].y = y;
-    g_frame.slot[slot].w = w;
-    g_frame.slot[slot].h = h;
+    if( member >= FAKE_SLOT_MEMBERS )
+        return 0;
+    if( member < 0 )
+    {
+        g_frame.slot[slot].placed = 1;
+        g_frame.slot[slot].x = x;
+        g_frame.slot[slot].y = y;
+        g_frame.slot[slot].w = w;
+        g_frame.slot[slot].h = h;
+    }
+    else
+    {
+        g_frame.member[slot][member].placed = 1;
+        g_frame.member[slot][member].x = x;
+        g_frame.member[slot][member].y = y;
+        g_frame.member[slot][member].w = w;
+        g_frame.member[slot][member].h = h;
+    }
     return fake_has_slot(slot);
 }
 
@@ -520,6 +539,38 @@ main(void)
     CHECK(
         g_frame.slot[TORIRS_PLUGIN_SLOT_COMPASS].placed,
         "a role the frame lacks is still declared");
+
+    {
+        /*
+         * The four chat filter buttons, each at its own box.
+         *
+         * They are CONTROLS wearing chrome, so an earlier version of this
+         * suppressed them with the surround they sit in: the player lost the
+         * public/private/trade toggles and got four empty stone plates. The
+         * case pins the fix in both halves -- that they are placed at all, and
+         * that each one is placed SEPARATELY, since a single box for the role
+         * would stack all four on top of each other.
+         */
+        int distinct = 1;
+        for( int i = 1; i < 4; i++ )
+            if( g_frame.member[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS][i].x <=
+                g_frame.member[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS][i - 1].x )
+                distinct = 0;
+        for( int i = 0; i < 4; i++ )
+            CHECK(
+                g_frame.member[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS][i].placed,
+                "every chat filter button is placed, not suppressed");
+        CHECK(distinct, "and each at its own box, left to right");
+        CHECK(
+            !g_frame.slot[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS].placed,
+            "the role as a whole is not placed -- one box would stack them");
+        /* The reference's own x for Report abuse: centred at 458, so a
+         * 100-wide box starts at 408. */
+        CHECK(
+            g_frame.member[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS][3].x == 408 &&
+                g_frame.member[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS][3].y == 467,
+            "classic places Report abuse where the 2004 frame does");
+    }
 
     /* ---- 3. the drawing and the tabs ----------------------------------- */
 

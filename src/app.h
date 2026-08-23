@@ -27,6 +27,7 @@
 #include "inv/inv_manager.h"
 #include "platform/platform_x_io.h"
 #include "plugin/torirs_plugin_host.h"
+#include "ui/uitree_frame.h"
 #include "revconfig/revconfig_profile.h"
 #include "revconfig/revconfig_refs.h"
 #include "task_runner.h"
@@ -978,23 +979,21 @@ struct App
      * The slots are a DECLARATION and not a running total: EV_LAYOUT empties
      * the table, the handler fills it, and app_plugin_layout_end applies the
      * result and hides every role the handler did not mention. That is why
-     * `placed` is here rather than being implied by a non-empty rectangle -- a
-     * slot at 0,0 0x0 and a slot nobody asked for are different states, and
-     * only one of them means "hide it".
+     * `placed` is on each rectangle rather than being implied by a non-empty
+     * one -- a slot at 0,0 0x0 and a slot nobody asked for are different
+     * states, and only one of them means "hide it".
+     *
+     * The table is the tree's own type, not a copy of it, because the only
+     * thing that happens to it is being handed to UITree_FrameApply. A second
+     * shape here would be a second thing to keep in step for no reader's
+     * benefit.
      */
     int plugin_layout_owned;
     /** enum ToriRS_PluginLayoutCanvas. */
     int plugin_layout_canvas;
     int plugin_layout_fixed_w;
     int plugin_layout_fixed_h;
-    struct AppPluginLayoutSlot
-    {
-        uint8_t placed;
-        int x;
-        int y;
-        int w;
-        int h;
-    } plugin_layout_slots[TORIRS_PLUGIN_SLOT_COUNT];
+    struct UITreeFrameSlotRect plugin_layout_slots[TORIRS_PLUGIN_SLOT_COUNT];
     /** Canvas the last declaration was made against, so the app can tell a
      *  resize (which needs a fresh declaration) from a frame that merely
      *  rendered again. */
