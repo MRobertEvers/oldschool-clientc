@@ -16,7 +16,7 @@
  *   GET  /...          a file under --root (default build-web/), "/" -> index.html
  *
  * Usage:
- *   src/build/io_server --manifest manifests/manifest_rs254.ini [--port 8088]
+ *   src/build/io_server --manifest manifests/manifest_rs254lc.ini [--port 8088]
  *   src/build/io_server --rev lc254 cache.rs254_zuk
  */
 

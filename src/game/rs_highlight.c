@@ -16,12 +16,17 @@
  * in the middle would shift every later block by one and the formula would go
  * on returning a plausible answer for the wrong kind.
  *
- * 7040..7044 -- "_7040 .. _7044", a SETUP/ON/OFF/GET/CLEAR block keyed by a
- * STRING like the player family -- is deliberately absent. Its subject is a
- * name this client never sees: CS2VM2_Op_Highlight pops and discards the
- * string stack, so an entry here could only ever record members keyed on
- * nothing. Falling through as "not ours" is the honest result, and the caller
- * logs it.
+ * 7040..7044 -- "_7040 .. _7044" -- is a ninth block of the same shape, keyed
+ * by a STRING like the player family. It is the OP GROUP kind: the reference
+ * answers it with `HighlightManager::AddOpGroupHighlight` and friends, taking
+ * an `OpGroup` that `OpGroup::Create` builds from a subject's NAME and its op
+ * list -- so a scripted `_7041("Cow", 9)` marks everything the right-click
+ * menu would call a Cow, whatever pool it lives in. This cache only ever sets
+ * it up and clears it (script 5486's teardown walks `_7040(group, -1, 0, 0, 0)`
+ * over twenty groups; 6686 calls `_7044(6)`), so its ON/OFF/GET have no caller
+ * here -- they are recorded anyway, because the state is what makes them true
+ * if one ever appears, and because half a family is how `_7031` came to be a
+ * no-op.
  */
 struct RS_HighlightOp
 {
@@ -39,6 +44,9 @@ struct RS_HighlightOp
     int coord_slot;
     /** Where the per-subject flags sit, or -1. */
     int flag_slot;
+    /** Does the form take its subject off the STRING stack? Only the PLAYER
+     *  family's ON / OFF / GET do. */
+    bool named;
 };
 
 #define OP_SETUP 0
@@ -49,65 +57,79 @@ struct RS_HighlightOp
 
 /* clang-format off */
 static struct RS_HighlightOp const HIGHLIGHT_OPS[] = {
-    /* opcode                             kind                    action     n  grp key crd flg */
+    /* opcode                             kind                  action     n  grp key crd flg  named */
     /* SETUP is (group, colour, style, opacity, flags) for every kind. */
-    { CS2_OP_HIGHLIGHT_NPC_SETUP,       RS_HIGHLIGHT_NPC,       OP_SETUP,  5,  0, -1, -1, -1 },
+    { CS2_OP_HIGHLIGHT_NPC_SETUP,       RS_HIGHLIGHT_NPC,       OP_SETUP,  5,  0, -1, -1, -1, false },
     /* NPC: (npc_uid, coord, group). */
-    { CS2_OP_HIGHLIGHT_NPC_ON,          RS_HIGHLIGHT_NPC,       OP_ON,     3,  2,  0,  1, -1 },
-    { CS2_OP_HIGHLIGHT_NPC_OFF,         RS_HIGHLIGHT_NPC,       OP_OFF,    3,  2,  0,  1, -1 },
-    { CS2_OP_HIGHLIGHT_NPC_GET,         RS_HIGHLIGHT_NPC,       OP_GET,    3,  2,  0,  1, -1 },
-    { CS2_OP_HIGHLIGHT_NPC_CLEAR,       RS_HIGHLIGHT_NPC,       OP_CLEAR,  1,  0, -1, -1, -1 },
+    { CS2_OP_HIGHLIGHT_NPC_ON,          RS_HIGHLIGHT_NPC,       OP_ON,     3,  2,  0,  1, -1, false },
+    { CS2_OP_HIGHLIGHT_NPC_OFF,         RS_HIGHLIGHT_NPC,       OP_OFF,    3,  2,  0,  1, -1, false },
+    { CS2_OP_HIGHLIGHT_NPC_GET,         RS_HIGHLIGHT_NPC,       OP_GET,    3,  2,  0,  1, -1, false },
+    { CS2_OP_HIGHLIGHT_NPC_CLEAR,       RS_HIGHLIGHT_NPC,       OP_CLEAR,  1,  0, -1, -1, -1, false },
 
-    { CS2_OP_HIGHLIGHT_NPCTYPE_SETUP,   RS_HIGHLIGHT_NPCTYPE,   OP_SETUP,  5,  0, -1, -1, -1 },
+    { CS2_OP_HIGHLIGHT_NPCTYPE_SETUP,   RS_HIGHLIGHT_NPCTYPE,   OP_SETUP,  5,  0, -1, -1, -1, false },
     /* The *TYPE forms name a type and nothing else: (type, group). */
-    { CS2_OP_HIGHLIGHT_NPCTYPE_ON,      RS_HIGHLIGHT_NPCTYPE,   OP_ON,     2,  1,  0, -1, -1 },
-    { CS2_OP_HIGHLIGHT_NPCTYPE_OFF,     RS_HIGHLIGHT_NPCTYPE,   OP_OFF,    2,  1,  0, -1, -1 },
-    { CS2_OP_HIGHLIGHT_NPCTYPE_GET,     RS_HIGHLIGHT_NPCTYPE,   OP_GET,    2,  1,  0, -1, -1 },
-    { CS2_OP_HIGHLIGHT_NPCTYPE_CLEAR,   RS_HIGHLIGHT_NPCTYPE,   OP_CLEAR,  1,  0, -1, -1, -1 },
+    { CS2_OP_HIGHLIGHT_NPCTYPE_ON,      RS_HIGHLIGHT_NPCTYPE,   OP_ON,     2,  1,  0, -1, -1, false },
+    { CS2_OP_HIGHLIGHT_NPCTYPE_OFF,     RS_HIGHLIGHT_NPCTYPE,   OP_OFF,    2,  1,  0, -1, -1, false },
+    { CS2_OP_HIGHLIGHT_NPCTYPE_GET,     RS_HIGHLIGHT_NPCTYPE,   OP_GET,    2,  1,  0, -1, -1, false },
+    { CS2_OP_HIGHLIGHT_NPCTYPE_CLEAR,   RS_HIGHLIGHT_NPCTYPE,   OP_CLEAR,  1,  0, -1, -1, -1, false },
 
-    { CS2_OP_HIGHLIGHT_LOC_SETUP,       RS_HIGHLIGHT_LOC,       OP_SETUP,  5,  0, -1, -1, -1 },
+    { CS2_OP_HIGHLIGHT_LOC_SETUP,       RS_HIGHLIGHT_LOC,       OP_SETUP,  5,  0, -1, -1, -1, false },
     /* LOC and OBJ carry a per-subject flag word: (type, coord, group, flags). */
-    { CS2_OP_HIGHLIGHT_LOC_ON,          RS_HIGHLIGHT_LOC,       OP_ON,     4,  2,  0,  1,  3 },
-    { CS2_OP_HIGHLIGHT_LOC_OFF,         RS_HIGHLIGHT_LOC,       OP_OFF,    4,  2,  0,  1,  3 },
-    { CS2_OP_HIGHLIGHT_LOC_GET,         RS_HIGHLIGHT_LOC,       OP_GET,    4,  2,  0,  1,  3 },
-    { CS2_OP_HIGHLIGHT_LOC_CLEAR,       RS_HIGHLIGHT_LOC,       OP_CLEAR,  1,  0, -1, -1, -1 },
+    { CS2_OP_HIGHLIGHT_LOC_ON,          RS_HIGHLIGHT_LOC,       OP_ON,     4,  2,  0,  1,  3, false },
+    { CS2_OP_HIGHLIGHT_LOC_OFF,         RS_HIGHLIGHT_LOC,       OP_OFF,    4,  2,  0,  1,  3, false },
+    { CS2_OP_HIGHLIGHT_LOC_GET,         RS_HIGHLIGHT_LOC,       OP_GET,    4,  2,  0,  1,  3, false },
+    { CS2_OP_HIGHLIGHT_LOC_CLEAR,       RS_HIGHLIGHT_LOC,       OP_CLEAR,  1,  0, -1, -1, -1, false },
 
-    { CS2_OP_HIGHLIGHT_LOCTYPE_SETUP,   RS_HIGHLIGHT_LOCTYPE,   OP_SETUP,  5,  0, -1, -1, -1 },
-    { CS2_OP_HIGHLIGHT_LOCTYPE_ON,      RS_HIGHLIGHT_LOCTYPE,   OP_ON,     2,  1,  0, -1, -1 },
-    { CS2_OP_HIGHLIGHT_LOCTYPE_OFF,     RS_HIGHLIGHT_LOCTYPE,   OP_OFF,    2,  1,  0, -1, -1 },
-    { CS2_OP_HIGHLIGHT_LOCTYPE_GET,     RS_HIGHLIGHT_LOCTYPE,   OP_GET,    2,  1,  0, -1, -1 },
-    { CS2_OP_HIGHLIGHT_LOCTYPE_CLEAR,   RS_HIGHLIGHT_LOCTYPE,   OP_CLEAR,  1,  0, -1, -1, -1 },
+    { CS2_OP_HIGHLIGHT_LOCTYPE_SETUP,   RS_HIGHLIGHT_LOCTYPE,   OP_SETUP,  5,  0, -1, -1, -1, false },
+    { CS2_OP_HIGHLIGHT_LOCTYPE_ON,      RS_HIGHLIGHT_LOCTYPE,   OP_ON,     2,  1,  0, -1, -1, false },
+    { CS2_OP_HIGHLIGHT_LOCTYPE_OFF,     RS_HIGHLIGHT_LOCTYPE,   OP_OFF,    2,  1,  0, -1, -1, false },
+    { CS2_OP_HIGHLIGHT_LOCTYPE_GET,     RS_HIGHLIGHT_LOCTYPE,   OP_GET,    2,  1,  0, -1, -1, false },
+    { CS2_OP_HIGHLIGHT_LOCTYPE_CLEAR,   RS_HIGHLIGHT_LOCTYPE,   OP_CLEAR,  1,  0, -1, -1, -1, false },
 
-    { CS2_OP_HIGHLIGHT_OBJ_SETUP,       RS_HIGHLIGHT_OBJ,       OP_SETUP,  5,  0, -1, -1, -1 },
-    { CS2_OP_HIGHLIGHT_OBJ_ON,          RS_HIGHLIGHT_OBJ,       OP_ON,     4,  2,  0,  1,  3 },
-    { CS2_OP_HIGHLIGHT_OBJ_OFF,         RS_HIGHLIGHT_OBJ,       OP_OFF,    4,  2,  0,  1,  3 },
-    { CS2_OP_HIGHLIGHT_OBJ_GET,         RS_HIGHLIGHT_OBJ,       OP_GET,    4,  2,  0,  1,  3 },
-    { CS2_OP_HIGHLIGHT_OBJ_CLEAR,       RS_HIGHLIGHT_OBJ,       OP_CLEAR,  1,  0, -1, -1, -1 },
+    { CS2_OP_HIGHLIGHT_OBJ_SETUP,       RS_HIGHLIGHT_OBJ,       OP_SETUP,  5,  0, -1, -1, -1, false },
+    { CS2_OP_HIGHLIGHT_OBJ_ON,          RS_HIGHLIGHT_OBJ,       OP_ON,     4,  2,  0,  1,  3, false },
+    { CS2_OP_HIGHLIGHT_OBJ_OFF,         RS_HIGHLIGHT_OBJ,       OP_OFF,    4,  2,  0,  1,  3, false },
+    { CS2_OP_HIGHLIGHT_OBJ_GET,         RS_HIGHLIGHT_OBJ,       OP_GET,    4,  2,  0,  1,  3, false },
+    { CS2_OP_HIGHLIGHT_OBJ_CLEAR,       RS_HIGHLIGHT_OBJ,       OP_CLEAR,  1,  0, -1, -1, -1, false },
 
-    { CS2_OP_HIGHLIGHT_OBJTYPE_SETUP,   RS_HIGHLIGHT_OBJTYPE,   OP_SETUP,  5,  0, -1, -1, -1 },
-    { CS2_OP_HIGHLIGHT_OBJTYPE_ON,      RS_HIGHLIGHT_OBJTYPE,   OP_ON,     2,  1,  0, -1, -1 },
-    { CS2_OP_HIGHLIGHT_OBJTYPE_OFF,     RS_HIGHLIGHT_OBJTYPE,   OP_OFF,    2,  1,  0, -1, -1 },
-    { CS2_OP_HIGHLIGHT_OBJTYPE_GET,     RS_HIGHLIGHT_OBJTYPE,   OP_GET,    2,  1,  0, -1, -1 },
-    { CS2_OP_HIGHLIGHT_OBJTYPE_CLEAR,   RS_HIGHLIGHT_OBJTYPE,   OP_CLEAR,  1,  0, -1, -1, -1 },
+    { CS2_OP_HIGHLIGHT_OBJTYPE_SETUP,   RS_HIGHLIGHT_OBJTYPE,   OP_SETUP,  5,  0, -1, -1, -1, false },
+    { CS2_OP_HIGHLIGHT_OBJTYPE_ON,      RS_HIGHLIGHT_OBJTYPE,   OP_ON,     2,  1,  0, -1, -1, false },
+    { CS2_OP_HIGHLIGHT_OBJTYPE_OFF,     RS_HIGHLIGHT_OBJTYPE,   OP_OFF,    2,  1,  0, -1, -1, false },
+    { CS2_OP_HIGHLIGHT_OBJTYPE_GET,     RS_HIGHLIGHT_OBJTYPE,   OP_GET,    2,  1,  0, -1, -1, false },
+    { CS2_OP_HIGHLIGHT_OBJTYPE_CLEAR,   RS_HIGHLIGHT_OBJTYPE,   OP_CLEAR,  1,  0, -1, -1, -1, false },
 
-    /* PLAYER's subject is a NAME on the string stack, which the VM discards --
-     * so SETUP and CLEAR are recorded and ON/OFF/GET are not in this table.
-     * They fall through as "not ours" and the caller logs them, which is what
-     * a player highlight nobody can key is. */
-    { CS2_OP_HIGHLIGHT_PLAYER_SETUP,    RS_HIGHLIGHT_PLAYER,    OP_SETUP,  5,  0, -1, -1, -1 },
-    { CS2_OP_HIGHLIGHT_PLAYER_CLEAR,    RS_HIGHLIGHT_PLAYER,    OP_CLEAR,  1,  0, -1, -1, -1 },
+    /* PLAYER's subject is a NAME on the string stack, so its ON / OFF / GET
+     * take one int (the group) and one string. `named` is what says so; the
+     * name reaches RS_HighlightApply beside `args` and is kept in its own list
+     * (see RS_HighlightNamedMember). They used to be absent from this table
+     * altogether, on the grounds that the VM discarded the string -- which
+     * made `highlight_player_on(_6900, 5)`, the whole mouse-over player
+     * highlight, a no-op. */
+    { CS2_OP_HIGHLIGHT_PLAYER_SETUP,    RS_HIGHLIGHT_PLAYER,    OP_SETUP,  5,  0, -1, -1, -1, false },
+    { CS2_OP_HIGHLIGHT_PLAYER_ON,       RS_HIGHLIGHT_PLAYER,    OP_ON,     1,  0, -1, -1, -1, true  },
+    { CS2_OP_HIGHLIGHT_PLAYER_OFF,      RS_HIGHLIGHT_PLAYER,    OP_OFF,    1,  0, -1, -1, -1, true  },
+    { CS2_OP_HIGHLIGHT_PLAYER_GET,      RS_HIGHLIGHT_PLAYER,    OP_GET,    1,  0, -1, -1, -1, true  },
+    { CS2_OP_HIGHLIGHT_PLAYER_CLEAR,    RS_HIGHLIGHT_PLAYER,    OP_CLEAR,  1,  0, -1, -1, -1, false },
 
-    { CS2_OP_HIGHLIGHT_TILE_SETUP,      RS_HIGHLIGHT_TILE,      OP_SETUP,  5,  0, -1, -1, -1 },
+    { CS2_OP_HIGHLIGHT_TILE_SETUP,      RS_HIGHLIGHT_TILE,      OP_SETUP,  5,  0, -1, -1, -1, false },
     /* TILE names a place and no key: (coord, group, flags). */
-    { CS2_OP_HIGHLIGHT_TILE_ON,         RS_HIGHLIGHT_TILE,      OP_ON,     3,  1, -1,  0,  2 },
-    { CS2_OP_HIGHLIGHT_TILE_OFF,        RS_HIGHLIGHT_TILE,      OP_OFF,    3,  1, -1,  0,  2 },
-    { CS2_OP_HIGHLIGHT_TILE_GET,        RS_HIGHLIGHT_TILE,      OP_GET,    3,  1, -1,  0,  2 },
-    { CS2_OP_HIGHLIGHT_TILE_CLEAR,      RS_HIGHLIGHT_TILE,      OP_CLEAR,  1,  0, -1, -1, -1 },
+    { CS2_OP_HIGHLIGHT_TILE_ON,         RS_HIGHLIGHT_TILE,      OP_ON,     3,  1, -1,  0,  2, false },
+    { CS2_OP_HIGHLIGHT_TILE_OFF,        RS_HIGHLIGHT_TILE,      OP_OFF,    3,  1, -1,  0,  2, false },
+    { CS2_OP_HIGHLIGHT_TILE_GET,        RS_HIGHLIGHT_TILE,      OP_GET,    3,  1, -1,  0,  2, false },
+    { CS2_OP_HIGHLIGHT_TILE_CLEAR,      RS_HIGHLIGHT_TILE,      OP_CLEAR,  1,  0, -1, -1, -1, false },
+
+    /* The OP GROUP block, whose subject is a menu name -- same shape as the
+     * player family's, one int and one string. See the header. */
+    { CS2_OP__7040,                     RS_HIGHLIGHT_OPGROUP,   OP_SETUP,  5,  0, -1, -1, -1, false },
+    { CS2_OP__7041,                     RS_HIGHLIGHT_OPGROUP,   OP_ON,     1,  0, -1, -1, -1, true  },
+    { CS2_OP__7042,                     RS_HIGHLIGHT_OPGROUP,   OP_OFF,    1,  0, -1, -1, -1, true  },
+    { CS2_OP__7043,                     RS_HIGHLIGHT_OPGROUP,   OP_GET,    1,  0, -1, -1, -1, true  },
+    { CS2_OP__7044,                     RS_HIGHLIGHT_OPGROUP,   OP_CLEAR,  1,  0, -1, -1, -1, false },
 };
 /* clang-format on */
 
 static char const* const KIND_NAME[RS_HIGHLIGHT_KIND_COUNT] = {
-    "npc", "npctype", "loc", "loctype", "obj", "objtype", "player", "tile"
+    "npc", "npctype", "loc", "loctype", "obj", "objtype", "player", "tile", "opgroup"
 };
 
 char const*
@@ -290,6 +312,121 @@ RS_HighlightOff(
     state->revision++;
 }
 
+/*
+ * The PLAYER kind's own list.
+ *
+ * A linear walk like the int-keyed one, and for the same reason: the list is
+ * short (the cache holds one hovered player at a time) and the compare is a
+ * string that is at most 31 bytes. The reference hashes because its map is
+ * sized for a whole friends list; nothing in this cache fills one.
+ */
+static int
+highlight_named_find(
+    struct RS_HighlightState const* state,
+    enum RS_HighlightKind kind,
+    int group,
+    char const* name)
+{
+    for( int i = 0; i < state->named_count; i++ )
+        if( state->named[i].kind == (int)kind && state->named[i].group == group &&
+            strcmp(state->named[i].name, name) == 0 )
+            return i;
+    return -1;
+}
+
+bool
+RS_HighlightNameOn(
+    struct RS_HighlightState* state,
+    enum RS_HighlightKind kind,
+    int group,
+    char const* name)
+{
+    int at;
+
+    assert(state);
+    assert(name);
+    assert(kind == RS_HIGHLIGHT_PLAYER || kind == RS_HIGHLIGHT_OPGROUP);
+
+    if( !highlight_group_ok(state, group, "named on") )
+        return false;
+    if( name[0] == '\0' )
+        return false;
+    if( strlen(name) >= RS_HIGHLIGHT_NAME_MAX )
+    {
+        /* Truncating would key the highlight on a name that is not the one the
+         * script said, which marks a different player rather than none. */
+        fprintf(
+            stderr,
+            "highlight: player name '%s' is longer than %d bytes -- refused\n",
+            name,
+            RS_HIGHLIGHT_NAME_MAX - 1);
+        return false;
+    }
+
+    at = highlight_named_find(state, kind, group, name);
+    if( at >= 0 )
+        return true; /* Already in: a name carries nothing a repeat can change. */
+
+    if( state->named_count >= RS_HIGHLIGHT_NAMED_MAX )
+    {
+        if( !state->overflowed )
+        {
+            state->overflowed = true;
+            fprintf(
+                stderr,
+                "highlight: the named list is full at %d names; further ones are "
+                "refused (they would otherwise be silently unmarked)\n",
+                RS_HIGHLIGHT_NAMED_MAX);
+        }
+        return false;
+    }
+
+    at = state->named_count++;
+    state->named[at].kind = (int)kind;
+    state->named[at].group = group;
+    snprintf(state->named[at].name, sizeof(state->named[at].name), "%s", name);
+    state->revision++;
+    return true;
+}
+
+void
+RS_HighlightNameOff(
+    struct RS_HighlightState* state,
+    enum RS_HighlightKind kind,
+    int group,
+    char const* name)
+{
+    int at;
+
+    assert(state);
+    assert(name);
+    assert(kind == RS_HIGHLIGHT_PLAYER || kind == RS_HIGHLIGHT_OPGROUP);
+
+    if( !highlight_group_ok(state, group, "named off") )
+        return;
+    at = highlight_named_find(state, kind, group, name);
+    if( at < 0 )
+        return;
+    state->named[at] = state->named[--state->named_count];
+    state->revision++;
+}
+
+bool
+RS_HighlightNameGet(
+    struct RS_HighlightState const* state,
+    enum RS_HighlightKind kind,
+    int group,
+    char const* name)
+{
+    assert(state);
+    assert(name);
+    assert(kind == RS_HIGHLIGHT_PLAYER || kind == RS_HIGHLIGHT_OPGROUP);
+
+    if( group < 0 || group >= RS_HIGHLIGHT_GROUP_MAX )
+        return false;
+    return highlight_named_find(state, kind, group, name) >= 0;
+}
+
 bool
 RS_HighlightGet(
     struct RS_HighlightState const* state,
@@ -318,6 +455,21 @@ RS_HighlightClear(struct RS_HighlightState* state, enum RS_HighlightKind kind, i
 
     if( !highlight_group_ok(state, group, "clear") )
         return;
+
+    /* The two name-keyed kinds' subjects are in the named list, not the
+     * int-keyed one. Clearing the wrong list is a clear that reports success
+     * and empties nothing, which is how a stale hover highlight would outlive
+     * its group. */
+    if( kind == RS_HIGHLIGHT_PLAYER || kind == RS_HIGHLIGHT_OPGROUP )
+    {
+        for( int i = 0; i < state->named_count; i++ )
+            if( state->named[i].kind != (int)kind || state->named[i].group != group )
+                state->named[kept++] = state->named[i];
+        if( kept != state->named_count )
+            state->revision++;
+        state->named_count = kept;
+        return;
+    }
 
     for( int i = 0; i < state->member_count[kind]; i++ )
         if( state->member[kind][i].group != group )
@@ -364,6 +516,7 @@ RS_HighlightApply(
     int opcode,
     int const* args,
     int arg_count,
+    char const* name,
     int* out_query)
 {
     struct RS_HighlightOp const* op = highlight_op_find(opcode);
@@ -395,6 +548,42 @@ RS_HighlightApply(
     key = op->key_slot >= 0 ? args[op->key_slot] : -1;
     coord = op->coord_slot >= 0 ? args[op->coord_slot] : -1;
     flags = op->flag_slot >= 0 ? args[op->flag_slot] : 0;
+
+    /*
+     * The name-keyed forms, before the int-keyed switch.
+     *
+     * A missing name is refused rather than treated as "": the string stack is
+     * the only place these carry their subject, so a NULL here means the VM
+     * and this disagree about the form -- the same class of mistake the
+     * arg_count check above catches, and just as silent if acted on.
+     */
+    if( op->named )
+    {
+        if( !name )
+        {
+            fprintf(
+                stderr,
+                "highlight: opcode %d takes a name off the string stack and got "
+                "none -- ignored\n",
+                opcode);
+            return false;
+        }
+        switch( op->action )
+        {
+        case OP_ON:
+            RS_HighlightNameOn(state, op->kind, group, name);
+            return true;
+        case OP_OFF:
+            RS_HighlightNameOff(state, op->kind, group, name);
+            return true;
+        case OP_GET:
+            assert(out_query);
+            *out_query = RS_HighlightNameGet(state, op->kind, group, name) ? 1 : 0;
+            return true;
+        default:
+            return false;
+        }
+    }
 
     switch( op->action )
     {

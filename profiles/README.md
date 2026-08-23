@@ -33,6 +33,21 @@ has. The shell asks `launch complete` for the candidates, so a new subcommand,
 flag, or profile is completable without touching the shell scripts — see
 [tools/launcher/completion.py](../tools/launcher/completion.py).
 
+## Naming
+
+The same scheme the worlds and revconfigs use: `<epoch><revision>`, where the
+epoch is `osrs` (OldSchool) or `rs` (everything before it), with the server
+family glued on where a revision has more than one — `rs289lc` and `rs254lc` are
+Lost City builds, `osrs233xrsps` is an xrsps one.
+
+A `-suffix` after that is a *way of running* the same world, not a different
+world: `osrs239-web`, `osrs239-asan`, `osrs239-net`. Content lanes read the same
+way, because a lane is a world variant reached through one profile —
+`osrs239-summoning`, `osrs239-curses`, `osrs239-rs2012`.
+
+The profile's name is its filename, so this is the whole registry; nothing
+inside a profile restates it.
+
 ## The split: worlds vs profiles
 
 A **manifest** (`manifests/*.ini`) is a WORLD — a cache lineage, a revision,
@@ -104,8 +119,8 @@ Two things stop a declaration from being a footgun:
 * **A likely omission is a note.** A manifest with `transport=tcp` and no
   `torirsserver` gets a one-line note, and only when nothing is already
   listening on the port. Dialling a server somebody else runs is an ordinary
-  setup here (LostCity for `rs254`, an external checkout for `xrsps`), so this
-  never blocks.
+  setup here (LostCity for `rs289lc` and `rs254lc`, an external checkout for
+  `osrs233xrsps`), so this never blocks.
 
 ## Process ownership
 

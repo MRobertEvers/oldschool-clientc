@@ -424,9 +424,17 @@ rows live in the marked lane and the real client acceptance right-clicks the Sum
 sends op2, opens `skill_guide_v2`, renders the live Spirit wolf row through `db_find`, and sends its
 pouch through the object/model renderer. Note `script_9176.cs2b` is **bytecode-only**, so the
 guide's Overview tab remains unmodified. The Summoning-points orb is now live in interface 160:
-it uses the exact rev-530 interface-747 backing/rings/wolf sprites, remapped to target ids
-20000..20003. Authored clientscript 12004 is the default and reshapes those pieces into the modern
-57x34 orb layout, including the shared 26px fill and device-aware hover frame. It is visible only
+it draws the cache's OWN orb art rather than a rev-530 import — target 20001/20027 are sprites
+1071/1072 (`orb_frame,0` and its hovered twin) mirrored left-to-right, 20002 is the special-attack
+gauge 1607 hue-rotated -24 degrees into Summoning's teal-green, and 20003 is `orb_filler,0`
+unchanged (`tools/make_summoning_orb_sprites.py` derives all four). Only target 20000, the wolf
+head, is still the rev-530 import, reboxed from 20x20 into the 26x26 box every osrs239 orb icon is
+centred in. The chrome is mirrored because this orb hangs off the minimap's bottom-RIGHT arc while
+the other four curve down the bottom-left: unmirrored, its gauge would face away from the map and
+its number panel would run off the edge. Authored clientscript 12004 is the default and reshapes
+those pieces into the modern 57x34 orb layout, mirrored through the plate — the 26px gauge, unlit
+disc and icon share one box at 4,4 where a native orb's share one at 27,4, and the number panel
+sits at 30,16 where a native orb's sits at 4,16. It is visible only
 while a familiar is active and displays the server-owned 0..60 special-move points. The active and
 special varps transmit directly and drive the orb's `onvartransmit` hook. The source-era
 clientscript 12000 remains packed as the legacy stat-points alternative. The originally

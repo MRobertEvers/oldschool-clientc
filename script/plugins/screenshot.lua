@@ -41,6 +41,32 @@
 --     photographs your death without being asked is a different judgement
 --     call, and this one errs the other way.
 --
+-- ## The camera button
+--
+-- RuneLite's manual screenshot is a hotkey and a toolbar button. The hotkey is
+-- below; the button is `camera`, and it is off by default because a client
+-- that puts a control on screen without being asked is the same judgement call
+-- as the one above.
+--
+-- Where it goes is the whole of the setting, and the two families of answer
+-- are different in kind:
+--
+--   * A CORNER of the world safe area -- the scene with the chrome and every
+--     other plugin's claim already taken out, which is the only box that means
+--     "somewhere the player is not trying to look" on both a fixed and a
+--     resizable frame. It sits there mostly transparent and comes up solid
+--     under the pointer, the way the reference's own orbs light up: a control
+--     over the world has to be findable without being something you look past
+--     the whole session.
+--   * The REPORT ABUSE button. Not "beside it" -- in its place: the region is
+--     claimed over the button's own box, so the click that was Report abuse is
+--     Take Screenshot instead. Solid, because a chat button is chrome and a
+--     half-transparent one would read as disabled.
+--
+-- The art is `camera.png`, shipped in this plugin's asset folder and
+-- hand-authored in the options_icons palette -- @see
+-- script/plugins/assets/screenshot/camera.txt, which is where to edit it.
+--
 
 ---@type torirs.Plugin
 local plugin = {
@@ -87,9 +113,8 @@ local plugin = {
             label = "Valuable drop threshold"
         },
 
-        -- RuneLite's manual screenshot, which is its `hotkey` config and its
-        -- toolbar button. There is no toolbar to put a button on here, so the
-        -- key is the whole of it. 0 means unbound.
+        -- RuneLite's manual screenshot: its `hotkey` config, and its toolbar
+        -- button below. 0 means unbound.
         {
             key = "hotkey",
             type = "int",
@@ -98,8 +123,73 @@ local plugin = {
             max = 512,
             label = "Manual screenshot key (LibToriRS_KeyCode, 0 = off)"
         },
+
+        -- One key and not two (a switch plus a position), because "off" IS a
+        -- position in the same sense the others are: every value answers the
+        -- one question the button raises, and a pair would let a player set
+        -- where a button they turned off would have gone.
+        {
+            key = "camera",
+            type = "enum",
+            choices = "off|top-left|top-right|bottom-left|bottom-right|report-button",
+            default = "off",
+            label = "Camera button"
+        },
+
     },
 }
+
+------------------------------------------------------------------ the button
+
+--- The report button, wherever this revision keeps it.
+---
+--- This used to be a config key holding `<interface>:<component>`, parsed by
+--- hand and shifted into a uid, defaulting to the OldSchool chat bar's
+--- `162:31` -- which is a correct id on exactly one cache and covers whatever
+--- component 31 of interface 162 happens to be on every other. The profile is
+--- where that answer belongs, and a role is how it gets asked for.
+---
+--- Bound once, resolved on every call: on a 2004 frame this is a client
+--- builtin with no component id at all, and on an OldSchool one it is
+--- interface 162's component 31. Neither fact reaches this file.
+local report_button
+
+--- Handed to hit_region and read back in on_canvas_click. One region, so one
+--- tag; it is the plugin's own number and the host does not look at it.
+local TAG_CAPTURE = 1
+
+--- What the mouseover line says and what the right-click menu offers. First op
+--- is also the left click, which is the whole of the interaction.
+local CAPTURE_OPS = { "Take Screenshot" }
+
+--- How far a corner button sits off the safe area's edges.
+local MARGIN = 6
+
+--- The plate the report-button placement draws under the camera, in the
+--- options_icons ramp the art itself is painted from.
+---
+--- Drawn rather than shipped as a picture, and that is the point: the button
+--- it replaces is a different width and a different colour on every frame, and
+--- a picture cut from one cache would be the wrong shape on the next. Two
+--- rects fit whatever box the frame reports.
+---
+--- It is also what makes the placement REPLACE the button rather than sit on
+--- top of it: the widget underneath still draws its own label, and a camera
+--- centred on the bare plate leaves "Re" and "rt" showing either side.
+local PLATE_FILL = 0x2b2824
+local PLATE_EDGE = 0x56504a
+
+--- Transparency in the reference's sense: 0 is solid, 255 is invisible. The
+--- resting value is a judgement -- far enough back that it is not competing
+--- with the scene, near enough that it is visibly THERE, which a control the
+--- player has to remember is not.
+local TRANS_RESTING = 170
+local TRANS_HOVER = 0
+
+--- The handle from api.image_load, or nil until on_start has asked for it.
+--- Asynchronous: image_size answers nil for the first frames, and the button
+--- simply is not drawn until it does.
+local icon = nil
 
 -- kind -> { config key that switches it on, folder it files under }.
 --
@@ -204,10 +294,24 @@ local function wanted(api, ev)
     return kind[2]
 end
 
+-- Take the picture and say so, in the chatbox.
+--
+-- The message is the whole reason api.screenshot answers with a path: a
+-- capture is silent by nature -- the file appears somewhere the player is not
+-- looking, under a folder layout they configured once and have since
+-- forgotten -- and "a screenshot happened" without a destination is only half
+-- an answer. The path is the engine's own, resolved, so the browser lane's
+-- saved-asset folder and a desktop user's absolute destination both read as
+-- the place the file actually is.
+--
+-- A game message rather than a log line, and both rather than either: the log
+-- is for whoever is reading stderr, the chatbox is for whoever is playing.
 local function capture(api, name, dir)
-    if api.screenshot(name, dir) then
-        api.log("captured " .. (dir ~= "" and (dir .. "/") or "") .. name)
-    end
+    local ok, path = api.screenshot(name, dir)
+
+    if not ok then return end
+    api.log("captured " .. path)
+    api.notify("Screenshot saved: " .. path)
 end
 
 function plugin.on_game_event(api, ev)
@@ -251,19 +355,149 @@ end
 
 -- RuneLite's manual screenshot: no category, no delay, no waiting for anything
 -- to settle. Whatever is on screen is what was asked for.
+local function capture_now(api)
+    capture(api,
+        "screenshot_" .. (api.datestamp() or "unknown") .. ".png",
+        folder(api, nil))
+end
+
 function plugin.on_key(api, ev)
     local key = api.config.hotkey
 
     if key == 0 or not ev.down or ev.key ~= key then return end
-    capture(api,
-        "screenshot_" .. (api.datestamp() or "unknown") .. ".png",
-        folder(api, nil))
+    capture_now(api)
+end
+
+-- Where the button goes this frame, as x, y, and whether it is the solid one.
+--
+-- Measured EVERY frame and never cached, because every input is: the safe area
+-- moves when a window is resized or another plugin reserves an edge, and the
+-- report button moves when the gameframe is rebuilt. A cached box is a button
+-- that answers clicks where it used to be.
+--
+-- Returns nil when there is nowhere to put it -- the setting is off, the frame
+-- has no report button, no region answered -- which the caller draws nothing
+-- for rather than guessing a corner.
+local function button_box(api, w, h)
+    local where = api.config.camera
+
+    if where == "off" then return nil end
+
+    if where == "report-button" then
+        -- One question, asked once. Which node answers it is the profile's
+        -- business: a chat-button member on a 2004 frame, interface 162's
+        -- component 31 on an OldSchool one, and neither spelling is here.
+        local box = report_button.rect()
+        -- A revision whose profile has not named it is an answer, not a fault:
+        -- the button is simply not offered rather than landing somewhere
+        -- arbitrary.
+        if not box then return nil end
+        return box.x + (box.w - w) // 2, box.y + (box.h - h) // 2, true, box
+    end
+
+    -- The scene with the chrome taken out. The fallback chain is slot_rect's
+    -- own: ask for the tightest region first, and a frame that has no safe
+    -- area still has a canvas.
+    local area = api.layout.safe.rect()
+        or api.layout.viewport.rect()
+        or api.layout.canvas.rect()
+    if not area then return nil end
+
+    local left = area.x + MARGIN
+    local right = area.x + area.w - w - MARGIN
+    local top = area.y + MARGIN
+    local bottom = area.y + area.h - h - MARGIN
+
+    if where == "top-left" then return left, top, false, area end
+    if where == "top-right" then return right, top, false, area end
+    if where == "bottom-left" then return left, bottom, false, area end
+    if where == "bottom-right" then return right, bottom, false, area end
+    return nil
+end
+
+--- The camera button: claimed, then drawn.
+---
+--- The claim comes first for the reason minimap_orbs claims before it blits --
+--- later regions win where two overlap, so a region declared after the drawing
+--- would be fighting whatever the next handler declares rather than sitting
+--- under its own art.
+function plugin.on_draw_canvas(api, draw)
+    if not icon then return end
+
+    local w, h = api.image_size(icon)
+
+    -- The read has not landed. Ordinary for the first frames after a start,
+    -- and not worth a message: the button appears when the picture does.
+    if not w then return end
+    -- Before login there is no session to photograph and no frame to hang a
+    -- button off; the login screen is not where this belongs.
+    if not api.local_player() then return end
+
+    local x, y, solid, box = button_box(api, w, h)
+    if not x then return end
+
+    -- What is actually ON SCREEN, which is the art cut to the box it was
+    -- placed in: a frame whose report button is smaller than the picture shows
+    -- the middle of the camera rather than spilling it over the chat. A corner
+    -- button's own area never cuts it, so there the two are the same rectangle.
+    --
+    -- The CLIPPED box is what gets claimed and what the hover is tested
+    -- against, so the part of the button a player can see is exactly the part
+    -- that answers -- a region reaching past the art it stands for is a click
+    -- that lands on nothing visible.
+    local rx = math.max(x, box.x)
+    local ry = math.max(y, box.y)
+    local rw = math.min(x + w, box.x + box.w) - rx
+    local rh = math.min(y + h, box.y + box.h) - ry
+
+    if rw <= 0 or rh <= 0 then return end
+
+    api.hit_region(rx, ry, rw, rh, CAPTURE_OPS, TAG_CAPTURE)
+
+    local trans = TRANS_RESTING
+    if solid then
+        -- In the report button's place it is chrome, and chrome is solid: a
+        -- half-transparent chat button reads as a disabled one.
+        trans = TRANS_HOVER
+        draw.rect(box.x, box.y, box.w, box.h, PLATE_FILL, 255)
+        draw.rect(box.x, box.y, box.w, box.h, PLATE_EDGE, 0)
+    else
+        local mx, my = api.mouse_pos()
+        if mx and mx >= rx and mx < rx + rw and my >= ry and my < ry + rh then
+            trans = TRANS_HOVER
+        end
+    end
+
+    draw.image(icon, x, y, trans, rx, ry, rw, rh)
+end
+
+--- The click, and the menu row, arriving as the one thing they are.
+function plugin.on_canvas_click(api, ev)
+    if ev.tag ~= TAG_CAPTURE then return end
+    capture_now(api)
+end
+
+--- Asked for once, at start, and not on the first frame that wants it: the
+--- read is asynchronous either way, and a load issued from the draw handler
+--- would be issued again on every frame until it landed.
+function plugin.on_start(api)
+    icon = api.image_load("camera.png")
+    if not icon then
+        api.log("camera.png did not load; the camera button is unavailable")
+    end
+    -- Bound here and resolved later. on_start runs before the gameframe is
+    -- built, so asking now would answer "not here" on every lane.
+    report_button = api.role("report_button")
 end
 
 function plugin.on_stop(api)
     -- Anything still waiting belongs to a session that is over. Dropped rather
     -- than taken on the way out: the frame it was waiting for never came.
     pending = {}
+    if icon then
+        api.image_release(icon)
+        icon = nil
+    end
 end
 
 return plugin

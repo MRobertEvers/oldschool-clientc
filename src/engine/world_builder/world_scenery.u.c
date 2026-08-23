@@ -14,6 +14,7 @@
 #include "toridraw_scene.h"
 #include "varp/varp_manager.h"
 #include "world_builder.h"
+#include "world_scenery_mapfuncs.h"
 #include <rscache.h>
 
 // clang-format off
@@ -77,8 +78,22 @@ world_builder_resolve_loc(
  * model over the wrong span (a base-4x1 loc placed as its 1x1 target lands 192
  * units west of where it belongs, geometry still four tiles wide).
  *
- * The anim id follows the same rule for the same reason: the reference makes
- * any transformed loc a DynamicObject driven by the BASE `animationId`.
+ * The anim id does NOT follow that rule, and used to. What makes a transformed
+ * loc a DynamicObject is the BASE `animationId` *or* the presence of a
+ * transform table, and the frame it draws comes from the def the transform
+ * resolved to -- the reference re-reads the transformed `animationId` and
+ * re-arms when it differs, which is how a state that animates only in one rung
+ * animates at all. Taking the base's unconditionally meant a base with no
+ * `anim=` of its own froze every animated child: 474 multiloc families in this
+ * cache are exactly that shape (`blast_furnace_dispenser`, `golem_portal`, the
+ * mourning doors, and every canoe station -- the felled tree never fell and the
+ * canoe in the water never bobbed).
+ *
+ * The base stays as the FALLBACK rather than being dropped, so the 445 families
+ * whose shell carries the anim and whose children carry none keep animating
+ * exactly as before. What changes is "the child has one and the base does not"
+ * -- and "both have one", where the state's own anim is the one that belongs to
+ * the state being drawn.
  *
  * Writes through `storage` (caller-owned, so this allocates nothing) and
  * returns it. NULL means the varbit selected a state with no loc — the caller
@@ -113,7 +128,8 @@ world_builder_resolve_loc_for_place(
             64 * (base_loc->size_x - resolved->size_x));
 
     *storage = *resolved;
-    storage->seq_id = base_loc->seq_id;
+    if( resolved->seq_id < 0 )
+        storage->seq_id = base_loc->seq_id;
     storage->size_x = base_loc->size_x;
     storage->size_z = base_loc->size_z;
     return storage;
@@ -1195,6 +1211,16 @@ scenery_load_animation(
     if( element_id < 0 || seq_id < 0 )
         return;
     anim = ToriDraw_SceneAnimationGet(builder->scene, seq_id);
+    /* Under TORIRS_SCENERY_DEBUG, say whether the bind took. "The loc does not
+     * animate" has two halves -- the seq never reached the element, or it did
+     * and the tick is not advancing it -- and only this line separates them. */
+    if( WB_ENV_SCENERY_DEBUG() )
+        fprintf(
+            stderr,
+            "  loc anim: element=%d seq=%d frames=%d\n",
+            element_id,
+            seq_id,
+            anim ? anim->frame_count : -1);
     if( !anim || anim->frame_count <= 0 || ((!anim->frames || !anim->base) && !anim->skeletal) )
         return;
     element = ToriDraw_SceneElementGet(builder->scene, element_id);
@@ -2099,12 +2125,17 @@ world_builder_minimap_add_chunk_mapfunctions(
 }
 
 /* Post-build pass: nudge icons off their loc tile with the reference's
- * 10-step collision-respecting random walk (bounded ±3 tiles; a fixed set of
- * funcs stays put). Runs once per rebuild, after collision maps are final. */
+ * 10-step collision-respecting random walk (bounded ±3 tiles; on dat1 a fixed
+ * set of atlas frames stays put — see world_scenery_mapfuncs.h). Runs once per
+ * rebuild, after collision maps are final. */
 void
 world_builder_minimap_spread_mapfunctions(struct WorldBuilder* builder)
 {
     struct World* world = builder->world;
+    /* The exemption list is dat1 atlas frame indices; a dat2 `func` is a
+     * mapelement id from an unrelated numbering, so it cannot be tested
+     * against them. */
+    bool const dat1 = RSCache_IsDat1(CacheProvider_Profile(builder->cache));
 
     for( int i = 0; i < world->mapfunc_count; i++ )
     {
@@ -2113,8 +2144,7 @@ world_builder_minimap_spread_mapfunctions(struct WorldBuilder* builder)
         int func = icon->func;
         if( !cm )
             continue;
-        if( func == 22 || func == 29 || func == 34 || func == 36 || func == 46 || func == 47 ||
-            func == 48 )
+        if( dat1 && World_MapFunctionDat1StaysPut(func) )
             continue;
 
         int x = icon->x;

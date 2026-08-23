@@ -44,13 +44,46 @@ enum RS_ClientCodeId
     RS_CC_REPORT_RULE1 = 601,
     RS_CC_REPORT_RULE12 = 612,
     RS_CC_MOD_MUTE = 613,
+    /* Welcome-screen rows, filled from LAST_LOGIN_INFO. 650 and 655 are the
+     * same row on two different welcome screens -- the cache ships one for an
+     * account with recovery questions set and one for an account without, and
+     * the packet's days_since_recovery is what chooses between them. */
     RS_CC_LAST_LOGIN_INFO = 650,
     RS_CC_UNREAD_MESSAGES = 651,
+    RS_CC_RECOVERY1 = 652,
+    RS_CC_RECOVERY2 = 653,
+    RS_CC_RECOVERY3 = 654,
     RS_CC_LAST_LOGIN_INFO2 = 655,
     RS_CC_FRIENDS2_START = 701,
     RS_CC_FRIENDS2_END = 800,
     RS_CC_FRIENDS2_UPDATE_START = 801,
     RS_CC_FRIENDS2_UPDATE_END = 900,
+};
+
+/*
+ * Two values LAST_LOGIN_INFO's `days_since_recovery` carries that are not day
+ * counts. They are protocol constants of the same 254-era data as the
+ * clientCode numbers above, which is why they live beside them.
+ */
+enum RS_ClientCodeRecoveryDays
+{
+    /** The account has never set recovery questions. */
+    RS_CC_RECOVERY_DAYS_NEVER_SET = 200,
+    /** Nothing to say about recovery questions — and the only state in which
+     *  the packet's member warning gets to use those three rows instead. */
+    RS_CC_RECOVERY_DAYS_SILENT = 201,
+};
+
+/*
+ * The unread-messages row is the one welcome row the reference recolours
+ * rather than just retexts (Colour.YELLOW for none waiting, Colour.GREEN for
+ * some). Not revconfig: this is not the row's colour, it is a colour that
+ * carries a value, the same way the friends list writes @red@Offline.
+ */
+enum RS_ClientCodeWelcomeColour
+{
+    RS_CC_WELCOME_COLOUR_YELLOW = 0xffff00,
+    RS_CC_WELCOME_COLOUR_GREEN = 0x00ff00,
 };
 
 /**

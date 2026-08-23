@@ -88,6 +88,24 @@ enum RevConfigMiniMenuAction
     REVCONFIG_MINIMENU_TGT_OBJ = 370,
     REVCONFIG_MINIMENU_TGT_PLAYER = 131,
     REVCONFIG_MINIMENU_TGT_HELD = 563,
+
+    /*
+     * A row the CLIENT invents, in the client's own action band.
+     *
+     * Every id above is the reference's, and every one of them is a message to
+     * a server or a cache script. This one is neither: it opens the plugin
+     * window, which is this client's own furniture, and there is nothing at
+     * the other end of it to send.
+     *
+     * The band matters as much as the number. Ids below 1000 carry the
+     * reference's +2000 priority bias and get it stripped again at dispatch,
+     * so a client-invented id parked among them would arrive somewhere else;
+     * UITREE_MINIMENU_ACTION_CLIENT_BASE is the range that is exempt from
+     * both. Restated as a literal rather than derived because this header is
+     * the leaf that ui/ and game/ both build on -- the static assertion in
+     * game/rs_minimenu_build.h is what holds the two in step.
+     */
+    REVCONFIG_MINIMENU_PLUGIN_PANEL = 500005,
 };
 
 // Dat1 sprite cache section example:
@@ -126,6 +144,7 @@ enum RevConfigFieldKind
     RCFIELD_CACHE_CROP_HEIGHT,
     RCFIELD_CACHE_FONT_NAME,
     RCFIELD_CACHE_FONT_ID,
+    RCFIELD_CACHEREF_ID,
     RCFIELD_UICOMPONENT_TYPE,
     RCFIELD_UICOMPONENT_SPRITE,
     RCFIELD_UICOMPONENT_WIDTH,
@@ -137,15 +156,18 @@ enum RevConfigFieldKind
     RCFIELD_UICOMPONENT_COMPONENTNO,
     RCFIELD_UICOMPONENT_INV,
     RCFIELD_UICOMPONENT_PAINT_LEVELS,
-    RCFIELD_UICOMPONENT_MMB_ROTATE,
-    RCFIELD_UICOMPONENT_WHEEL_ZOOM,
     RCFIELD_UICOMPONENT_HOTKEY,
     RCFIELD_HOTKEY_COMPONENT,
     RCFIELD_HOTKEY_EFFECT,
     RCFIELD_UICOMPONENT_COLOR,
     RCFIELD_UICOMPONENT_FILLED,
+    RCFIELD_UICOMPONENT_TILED,
+    RCFIELD_UICOMPONENT_MMB_ROTATE,
+    RCFIELD_UICOMPONENT_WHEEL_ZOOM,
     RCFIELD_UICOMPONENT_FONT,
     RCFIELD_UICOMPONENT_CENTER,
+    RCFIELD_UICOMPONENT_VALIGN,
+    RCFIELD_UICOMPONENT_OVER_COLOR,
     RCFIELD_UICOMPONENT_SHADOWED,
     RCFIELD_UICOMPONENT_TEXT,
     RCFIELD_UICOMPONENT_OPTION,
@@ -202,6 +224,25 @@ enum RevConfigFieldKind
     RCFIELD_UILAYOUT_PARENT,
     RCFIELD_UILAYOUT_NAME,
     RCFIELD_UILAYOUT_GROUP,
+    RCFIELD_FEATURES_ERA,
+    RCFIELD_FEATURES_GROUND_CLICK_NEAREST,
+    RCFIELD_FEATURES_GROUND_CLICK_UNBOUNDED,
+    RCFIELD_FEATURES_GROUND_CLICK_OFFMAP,
+    RCFIELD_FEATURES_MOVER,
+    RCFIELD_FEATURES_PAINTER_DRAW_DISTANCE,
+    RCFIELD_CAMERA_ZOOM,
+    RCFIELD_CAMERA_CONTROLS,
+    RCFIELD_CAMERA_WHEEL_STEP,
+    RCFIELD_CHROME_PLUGIN_IFACE,
+    RCFIELD_CHROME_PLUGIN_BUTTON_PARENT,
+    RCFIELD_CHROME_PLUGIN_PANEL_PARENT,
+    RCFIELD_CHROME_PLUGIN_BUTTON_SLOT,
+    RCFIELD_CHROME_PLUGIN_BUTTON_SIZE,
+    RCFIELD_CHROME_PLUGIN_BUTTON_PITCH,
+    RCFIELD_CHROME_PLUGIN_BUTTON_OP,
+    RCFIELD_CHROME_PLUGIN_LAYOUT_SCRIPT,
+    RCFIELD_ROLE_MATCH,
+    RCFIELD_UICOMPONENT_ROLE,
     RCFIELD_UILAYOUT_NULL,
 };
 
@@ -227,6 +268,143 @@ enum RevConfigItemKind
     RCITEM_UILAYOUT,
     RCITEM_INV,
     RCITEM_HOTKEY,
+    RCITEM_CACHE_REF,
+    RCITEM_FEATURES,
+    RCITEM_CAMERA,
+    RCITEM_CHROME,
+    RCITEM_ROLE,
+};
+
+/** Section types that build an RCITEM_CACHE_REF, i.e. a bare name -> cache id. */
+#define REVCONFIG_CACHEREF_KINDS "script", "iface", "varbit", "varp", "seq", "setting"
+
+/*
+ * One `[<kind>:<name>] id=<n>` binding — a cache id the CLIENT has to know by
+ * number, given a name here instead of a literal in C.
+ *
+ * The client legitimately knows what a thing is FOR: that the settings panel
+ * has an apply script, that the XP counter lives on some interface, that an
+ * unrigged preview model needs the human ready animation. What it must not
+ * know is WHICH id that is, because the answer moves every revision and a
+ * literal in C is a silent wrong answer on every other cache.
+ *
+ * An undeclared name resolves to -1, and -1 means "this revision does not have
+ * that thing" — not "use the built-in default". There is no built-in default;
+ * a caller that gets -1 turns the feature off. That is why the rev-254 profile
+ * can omit the tile-highlight scripts (which did not exist yet) without
+ * pretending rev-239's ids apply to it.
+ */
+struct RevConfigCacheRefItem
+{
+    /* [<kind>:<name>] — the section type, one of REVCONFIG_CACHEREF_KINDS. */
+    char kind[16];
+
+    /* [<kind>:<name>] — the symbolic name C looks up. Unique within a kind. */
+    char name[64];
+
+    /* INI: id= — the cache id. -1 when the section opens, so a section that
+     * declares no id= is indistinguishable from an absent one. */
+    int id;
+};
+
+/** How one `match=` line in a [role:…] names the node it is looking for. */
+enum RevConfigRoleMatchKind
+{
+    /* No form stated -- an empty matcher slot. */
+    REVCONFIG_ROLE_MATCH_NONE,
+
+    /* slot(<region>[, <member>]) — hand off to the frame-slot resolver, which
+     * already answers the placeable regions on both a revconfig frame and a
+     * cache one. The member is the role's OWN numbering (a chat button's
+     * filter, a sidebar mount's tabno), never a position in a list. */
+    REVCONFIG_ROLE_MATCH_SLOT,
+
+    /* id(<expr>) — a uid, stated outright. Flat on dat1, `if(group, child)`
+     * on dat2; the expression parser spells both. */
+    REVCONFIG_ROLE_MATCH_ID,
+
+    /* iface(<name>[, <child>]) — the [iface:<name>] group's `child`
+     * (0 = the group root). A group this world has not mounted simply does
+     * not match, which is what lets one chain carry a rung per toplevel. */
+    REVCONFIG_ROLE_MATCH_IFACE,
+
+    /* clientcode(<expr>) — the cache's own semantic tag. */
+    REVCONFIG_ROLE_MATCH_CLIENTCODE,
+
+    /* cc(<anchor>, <sub_id>) — a CS2-created child of `anchor`, by the sub id
+     * the script named it with. The ONLY stable way to address a dynamic
+     * node: its component_id is a rotating handle that a delete-all and
+     * rebuild hands straight back out again. */
+    REVCONFIG_ROLE_MATCH_CC,
+};
+
+/*
+ * One component named inside a matcher: the whole of an `id()`/`iface()` line,
+ * or the anchor half of a `cc()` one.
+ */
+struct RevConfigRoleRef
+{
+    /* REVCONFIG_ROLE_MATCH_ID, _IFACE, or _NONE for "no reference stated". */
+    enum RevConfigRoleMatchKind kind;
+
+    /* _IFACE: the [iface:<name>] section id, verbatim -- this module is a leaf
+     * and does not resolve it. Empty for _ID. */
+    char name[48];
+
+    /* _ID: the uid. _IFACE: the child within the group, 0 when unstated. */
+    int value;
+};
+
+/*
+ * One rung of a role's matcher chain.
+ *
+ * Rungs are tried in declaration order and the first that resolves against the
+ * LIVE tree wins, so a profile states its alternates -- one per toplevel, or a
+ * cache tag with a hardcoded uid behind it -- rather than having to know which
+ * one this world booted.
+ */
+struct RevConfigRoleMatcher
+{
+    /* Which form the line used. */
+    enum RevConfigRoleMatchKind kind;
+
+    /* _SLOT: the region name and the member, verbatim ("chat_buttons",
+     * "report"). An empty member means the region itself. */
+    char slot[32];
+    char member[24];
+
+    /* _CLIENTCODE: the code. _CC: the dynamic sub id. -1 otherwise. */
+    int value;
+
+    /* _ID and _IFACE: the node itself. _CC: its parent. _NONE otherwise. */
+    struct RevConfigRoleRef ref;
+};
+
+/** How many rungs one chain may carry. */
+#define REVCONFIG_ROLE_MAX_MATCHERS 8
+
+/*
+ * One `[role:<name>]` section — a semantic name for an interface element,
+ * bound to whatever this revision happens to have put it in.
+ *
+ * The same argument as [iface:…] one level further down. There, the client
+ * knows the settings panel HAS an apply script and the profile knows its id.
+ * Here, the client knows a world has a report button and a logout screen, and
+ * the profile knows which node that is -- a chat-button member on a 2004
+ * frame, a component of some toplevel on an OldSchool one, and on a CS2 lane
+ * possibly a node no cache record describes at all because a script built it.
+ *
+ * A role no profile declares does not resolve, and that is an ANSWER: the
+ * plugin asking offers no verb rather than pressing something at random.
+ */
+struct RevConfigRoleItem
+{
+    /* [role:<name>] — the symbolic name a plugin asks for. */
+    char name[64];
+
+    /* INI: match= — the chain, in declaration order. */
+    struct RevConfigRoleMatcher matchers[REVCONFIG_ROLE_MAX_MATCHERS];
+    int matcher_count;
 };
 
 /*
@@ -449,6 +627,16 @@ struct RevConfigUIComponentItem
     char slot[24];
 
     /*
+     * INI: role=
+     * A semantic name for this node, stamped onto the live component so a
+     * plugin can ask for it by what it IS. The direct channel, for the nodes
+     * this profile authored itself; a cache-owned or script-built node is
+     * named the other way round, by a [role:<name>] matcher chain. Empty =
+     * this node carries no role.
+     */
+    char role[64];
+
+    /*
      * INI: componentno=  (default -1 when section opens)
      * Interfaces-archive component id. When >= 0 and type is RS-backed, triggers
      * Task_RSComponentLoad during revconfig ingest; subtree is baked under the owner
@@ -463,23 +651,6 @@ struct RevConfigUIComponentItem
      * Empty string means all levels (0xF mask).
      */
     char paint_levels[64];
-
-    /*
-     * INI: mmb_rotate= (true/1 or false/0; default true when the section opens)
-     * type=world: holding the MIDDLE mouse button inside the viewport and
-     * dragging rotates the camera (yaw from horizontal travel, pitch from
-     * vertical). Revisions that need the middle button for something else set
-     * this false.
-     */
-    int mmb_rotate;
-
-    /*
-     * INI: wheel_zoom= (true/1 or false/0; default true when the section opens)
-     * type=world: the mouse wheel over the viewport zooms the camera in/out
-     * (orbit distance when following the player, dolly along the view axis for
-     * the free camera).
-     */
-    int wheel_zoom;
 
     /*
      * INI: hotkey=  (repeatable, up to REVCONFIG_COMPONENT_HOTKEY_MAX)
@@ -503,6 +674,16 @@ struct RevConfigUIComponentItem
      */
     int filled;
 
+    /*
+     * INI: tiled= (true/1 or false/0)
+     * type=rs_graphic: repeat the sprite across the widget's box instead of
+     * blitting it once. The interfaces' own wide buttons are authored this way
+     * -- two fixed caps and a narrow tile stretched between them -- and a
+     * client-owned control drawn with that art needs the same, or it gets one
+     * tile and a gap.
+     */
+    int tiled;
+
     /* INI: font= — RS font id 0–3 for type=rs_text, or symbolic [font:…] name
      * for hovertext/minimenu. */
     int font;
@@ -512,6 +693,29 @@ struct RevConfigUIComponentItem
 
     /* INI: center= — horizontally centred text for type=rs_text. */
     int center;
+
+    /*
+     * INI: valign= — 0 top, 1 centre, 2 bottom (the interfaces' own `valign`).
+     * type=rs_text: where the line sits inside the widget's box.
+     *
+     * Centring is what a BUTTON caption wants, and it wants it against the
+     * whole plate rather than against a line-height box the author positioned
+     * by hand: ascent and descent differ per face, so a hand-placed 13px box
+     * that looks centred in one font sits low in the next. The cache's own
+     * button captions are authored the same way -- full height, `valign=1`.
+     */
+    int valign;
+
+    /*
+     * INI: over_color= — RGB the text/rect takes while the pointer is on it.
+     * 0 (the default) means "no hover colour", matching the reference's own
+     * test: a component with colourOver 0 keeps its ordinary colour.
+     *
+     * The cache authors this as a pair of mouseover/mouseleave scripts; a
+     * client-owned control has no scripts, so it states the colour directly
+     * and the emit does the same swap.
+     */
+    int over_color;
 
     /* INI: shadowed= — text shadow for type=rs_text. */
     int shadowed;
@@ -648,6 +852,185 @@ struct RevConfigHotkeyItem
     char effect[64];
 };
 
+/*
+ * `[features]` — the per-era CLIENT BEHAVIOUR table, stated by the revision
+ * profile instead of by the boot manifest.
+ *
+ * Every value here is a name or a number as written in the INI, never a
+ * resolved enum: this module is a leaf and does not include
+ * src/features/features.h, so the spellings ("lostcity", "box10_rect",
+ * "frame") are handed on verbatim and resolved by the App, which already owns
+ * ToriRS_Features_ByName and its siblings. A typo therefore names itself at
+ * the one place that can say what the legal spellings are.
+ *
+ * Why the revconfig and not the manifest: which pathing model, which mover,
+ * which unreachable-click fallback a client runs is a fact about the REVISION,
+ * exactly like which id the settings script has — and a revision profile is
+ * shared by every world that boots it (rs245_2lc's file serves 254, 289 and
+ * 377), so stating it once here is what keeps three manifests from drifting.
+ *
+ * A manifest `[features:boot]` still wins, and has to: `era=server_routed` is
+ * a property of the SERVER, not the cache, so manifest_osrs233xrsps.ini states
+ * it over a rev-233 cache whose own profile would say `osrs`.
+ *
+ * Unstated is a real state, distinct from every value: the sentinels below are
+ * what the App tests before touching its copy of the era table.
+ */
+struct RevConfigFeaturesItem
+{
+    /* INI: era= — "lostcity" | "osrs" | "server_routed". "" = not stated, i.e.
+     * derive the era from the cache identity (ToriRS_Features_ForCache). */
+    char era[32];
+
+    /* INI: ground_click_nearest= — "ring3" | "box10_rect" | "none"
+     * (enum ToriRS_NearestModel). "" = not stated. */
+    char ground_click_nearest[32];
+
+    /* INI: mover= — "cycle" | "frame" (enum ToriRS_MoverModel). "" = not
+     * stated. */
+    char mover[32];
+
+    /* INI: ground_click_unbounded= / ground_click_offmap= — the two permissive
+     * ground-click extensions. 0/1; -1 = not stated. */
+    int ground_click_unbounded;
+    int ground_click_offmap;
+
+    /* INI: painter_draw_distance= — painter radius in tiles (the official
+     * 25..90 band). 0 = not stated. */
+    int painter_draw_distance;
+};
+
+/** enum for RevConfigCameraItem.zoom_mode. */
+enum RevConfigCameraZoomMode
+{
+    /**
+     * `zoom=clamped:[min,max]` — the eye height is a live value the wheel
+     * moves, bounded by min..max. This is the client's own gesture and no
+     * revision's behaviour; it is the default because it is what this tree
+     * already did everywhere.
+     */
+    REVCONFIG_CAMERA_ZOOM_CLAMPED = 0,
+    /**
+     * `zoom=fixed:<height>` — the eye height is that number and nothing moves
+     * it: no wheel, and no viewport-height interpolation either. `fixed:600`
+     * is Client-TS exactly (`camFollow(..., pitch * 3 + 600)`), which is why
+     * every pre-HD revision states it.
+     */
+    REVCONFIG_CAMERA_ZOOM_FIXED = 1,
+};
+
+/** Bits for RevConfigCameraItem.controls, from the `controls=` name list. */
+enum
+{
+    /** `arrow_keys` — the reference's keyHeld[1..4] orbit (Client-TS
+     *  updateOrbitCamera). Every revision has this; it is the default. */
+    REVCONFIG_CAMERA_CONTROL_ARROW_KEYS = 1 << 0,
+    /** `mmb` — middle-button drag rotates the camera. No revision has it;
+     *  it is this client's own gesture. */
+    REVCONFIG_CAMERA_CONTROL_MMB = 1 << 1,
+};
+
+/** `zoom=` when no `[camera]` section states one: the wheel band this tree
+ *  shipped with, expressed as eye heights around the reference's 600. */
+#define REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN 240
+#define REVCONFIG_CAMERA_ZOOM_DEFAULT_MAX 2160
+/** The reference eye height, and this client's zoom rest position. */
+#define REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT 600
+/** `wheel_step=` when no `[camera]` section states one: one notch moves the eye
+ *  height by a tenth of the reference 600, which is what this tree's old
+ *  percentage step came to. */
+#define REVCONFIG_CAMERA_WHEEL_STEP_DEFAULT 60
+
+/*
+ * `[camera]` — what the world camera lets the player do.
+ *
+ * The follow camera places the eye `pitch * 3 + height` behind the player
+ * (Client-TS camFollow), and `height` is the whole of "zoom": the 2004 client
+ * has no way to change it, so its camera is `fixed:600` and the wheel does
+ * nothing. Later clients interpolate it over the viewport and this one adds a
+ * wheel, which is what `clamped:[min,max]` describes.
+ *
+ * Every key replaces what it states outright rather than merging, so a profile
+ * that says `controls=arrow_keys` has turned the middle button OFF — it has
+ * not merely declined to mention it.
+ */
+struct RevConfigCameraItem
+{
+    /* INI: zoom= — enum RevConfigCameraZoomMode. */
+    int zoom_mode;
+    /* INI: zoom=fixed:<height> — the pinned eye height. */
+    int zoom_height;
+    /* INI: zoom=clamped:[min,max] — the band the wheel may reach. */
+    int zoom_min;
+    int zoom_max;
+    /* INI: controls= — REVCONFIG_CAMERA_CONTROL_* bits. */
+    int controls;
+    /* INI: wheel_step= — eye-height units one wheel notch moves. Only the
+     * `clamped:` camera reads it; a `fixed:` band has nowhere to move. */
+    int wheel_step;
+
+    /* Which keys this section actually carried, so a later source can override
+     * one of them without silently restoring the default for the other. */
+    uint8_t has_zoom;
+    uint8_t has_controls;
+    uint8_t has_wheel_step;
+};
+
+/** Longest `[chrome]` name or op text. One field value is 64 bytes, so nothing
+ *  longer than that can reach here anyway. */
+#define REVCONFIG_CHROME_NAME_LEN 64
+
+/*
+ * `[chrome]` -- where the CLIENT's own furniture mounts on this revision.
+ *
+ * One thing today: the plugin window's launcher button and the strip it lives
+ * in. That button is not the cache's -- plugins are a client feature and no
+ * server knows about them -- but WHERE it goes is entirely the cache's
+ * business: interface 728's button column is child 6 on rev-239 and does not
+ * exist at all on a 2004 dat1 cache. Every one of those numbers used to be a
+ * literal in torirs_plugin_panel.u.c, which is the same silent-wrong-answer
+ * trap `[iface:…]` exists to delete, one level down: the interface id was
+ * named by the profile and the children, the slot, the geometry and the layout
+ * script were not.
+ *
+ * Nothing here is defaulted. An absent section, or one that leaves a key out,
+ * means "this revision has no strip to mount in" -- the button is not built
+ * and the window opens in the canvas instead, which is exactly what a lane
+ * with no `[iface:plugin_popout]` already did.
+ */
+struct RevConfigChromeItem
+{
+    /* INI: plugin_button_iface= -- the `[iface:<name>]` section naming the
+     * interface the strip belongs to. Empty when unstated. */
+    char plugin_iface[REVCONFIG_CHROME_NAME_LEN];
+
+    /* INI: plugin_button_parent= -- child component of that interface holding
+     * the launcher column the button is appended to. -1 when unstated. */
+    int plugin_button_parent;
+
+    /* INI: plugin_panel_parent= -- child component panels mount into, i.e. the
+     * one slot the strip shows at a time. -1 when unstated. */
+    int plugin_panel_parent;
+
+    /* INI: plugin_button_slot= -- index down the column. The shipped entries
+     * take the ones before it. -1 when unstated. */
+    int plugin_button_slot;
+
+    /* INI: plugin_button_size= / plugin_button_pitch= -- the column's own icon
+     * box and vertical pitch, in interface pixels. -1 when unstated. */
+    int plugin_button_size;
+    int plugin_button_pitch;
+
+    /* INI: plugin_button_op= -- the hover option the button advertises, e.g.
+     * "Show Plugin Settings". Empty means the button names nothing on hover. */
+    char plugin_button_op[REVCONFIG_CHROME_NAME_LEN];
+
+    /* INI: plugin_layout_script= -- the `[script:<name>]` binding for the
+     * clientscript that lays the strip out, run after the panel takes the slot
+     * or gives it back. Empty when the strip needs no such pass. */
+    char plugin_layout_script[REVCONFIG_CHROME_NAME_LEN];
+};
+
 struct RevConfigItem
 {
     enum RevConfigItemKind kind;
@@ -659,6 +1042,11 @@ struct RevConfigItem
         struct RevConfigUILayoutItem uilayout;
         struct RevConfigInvItem inv;
         struct RevConfigHotkeyItem hotkey;
+        struct RevConfigCacheRefItem cacheref;
+        struct RevConfigFeaturesItem features;
+        struct RevConfigCameraItem camera;
+        struct RevConfigChromeItem chrome;
+        struct RevConfigRoleItem role;
     } u;
 };
 
@@ -698,12 +1086,98 @@ revconfig_items_build(
     const struct RevConfigBuffer* fields,
     struct RevConfigItemBuffer* out);
 
-/** Parse symbolic MiniMenuAction name or decimal string. Returns 0 if unknown/empty. */
+/**
+ * Parse the value of a numeric key.
+ *
+ * The value is an integer expression, not just a decimal run, so a profile can
+ * spell an id, a mask or a colour the way the reference does:
+ *
+ *   hex          0x1088     1088h     0FFh      #FF0000
+ *   binary       0b1010_1010
+ *   grouping     0x1000_0000          (underscores between digits)
+ *   colours      rgb(255, 0, 0)       rgba(0, 0, 0, 128)
+ *   palette      hsl16(0, 7, 64)      -- hue, saturation, lightness
+ *   uids         if(1088, 255)        -- (interface << 16) | component
+ *   arithmetic   (1088 << 16) | 0xFF
+ *
+ * Operators and their precedence are C's: | ^ & << >> + - * / % and unary
+ * + - ~. `#` is a hex marker like `0x`, of no fixed width. `rgb()` packs RGB,
+ * `rgba()` packs ARGB -- the word the client blits. `hsl16()` packs the
+ * client's own palette index (hue 0..63, saturation 0..7, lightness 0..127),
+ * which is the unit a face colour and a text tint are in and which no rgb()
+ * can spell. `if()` takes 0..65535 per half, or -1 for the "no component"
+ * 0xFFFF.
+ *
+ * Arithmetic is 64-bit and the result must land in [INT32_MIN, UINT32_MAX];
+ * what comes back is its 32-bit pattern, so rgba(255,255,255,255) arrives as
+ * -1 rather than as a value an `int` field could not hold.
+ *
+ * A value that does not parse is REPORTED on stderr and comes back 0. An empty
+ * value is 0 with nothing said: an unstated key is not a malformed one.
+ */
+int
+revconfig_parse_int(char const* str);
+
+/**
+ * The same grammar, for a value that has more than a number in it -- a zoom
+ * band's `[<min>, <max>]`, say.
+ *
+ * Parses ONE expression off the front of `str`. Returns 1 and writes the value
+ * and, when `out_end` is given, the first character not consumed; the caller
+ * decides what may follow. Returns 0 without touching either when the text is
+ * not an expression or the value does not fit 32 bits, and says nothing --
+ * this is the form to probe with.
+ */
+int
+revconfig_parse_int_expr(char const* str, char const** out_end, int* out_value);
+
+/** Parse symbolic MiniMenuAction name or number (@see revconfig_parse_int). Returns 0 if unknown/empty. */
 int
 revconfig_parse_minimenu_action(char const* str);
 
-/** Parse button_type= string (ok/toggle/select/close/continue/target) or integer. */
+/** Parse button_type= string (ok/toggle/select/close/continue/target) or number. */
 int
 revconfig_parse_button_type(char const* str);
+
+/**
+ * Parse a `[camera] zoom=` value into `out`: `fixed:<height>` or
+ * `clamped:[<min>,<max>]`. Whitespace inside the brackets is allowed.
+ *
+ * Returns 1 on success. Returns 0 and leaves `out` untouched otherwise, so a
+ * misspelling keeps the default camera rather than pinning the eye at 0 —
+ * the caller reports it.
+ */
+int
+revconfig_parse_camera_zoom(char const* str, struct RevConfigCameraItem* out);
+
+/**
+ * Parse one `[role:…] match=` line into `out`.
+ *
+ *   slot(<region>[, <member>])   slot(chat_buttons, report)
+ *   id(<expr>)                   id(2449)   id(if(553, 0))
+ *   iface(<name>[, <child>])     iface(logout)
+ *   clientcode(<expr>)           clientcode(205)
+ *   cc(<anchor>, <sub_id>)       cc(iface(xpdrop), 4)
+ *
+ * where `<anchor>` is an `id()` or an `iface()`, and every `<expr>` is the
+ * full integer-expression grammar (@see revconfig_parse_int).
+ *
+ * Returns 1 on success. Returns 0 and leaves `out` untouched otherwise, having
+ * REPORTED the line on stderr: a matcher that does not parse must be loud,
+ * because the alternative is a role that silently never resolves and a plugin
+ * that quietly offers no verb on every world.
+ */
+int
+revconfig_parse_role_matcher(char const* str, struct RevConfigRoleMatcher* out);
+
+/**
+ * Parse a `[camera] controls=` comma-separated name list into a
+ * REVCONFIG_CAMERA_CONTROL_* bitmask. `-1` when a name is not one of them.
+ *
+ * The list is the whole truth, not an addition: an empty value is a camera
+ * with no player controls at all, which is a legal thing to want.
+ */
+int
+revconfig_parse_camera_controls(char const* str);
 
 #endif

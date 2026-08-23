@@ -57,6 +57,14 @@ UITree_PushBuildComponent(
     int scene_id = -1;
     int scene_id_active = -1;
 
+    /* The two slot-background tables the INV case fills. Declared HERE and not
+     * inside that case, because `spec` only borrows them: UITree_Push copies
+     * out of the pointers below, and it runs after the switch has closed. A
+     * `case`-local array is out of scope by then, and reading it is undefined
+     * however intact the stack happens to look. */
+    int slot_bg_scene[UI_INV_SLOT_OFFSET_MAX];
+    int slot_bg_atlas[UI_INV_SLOT_OFFSET_MAX];
+
     switch( comp->type )
     {
     case UIBUILD_LAYER:
@@ -147,8 +155,6 @@ UITree_PushBuildComponent(
         spec.u.rs_inv.inv_slot_offset_x = comp->inv_slot_offset_x;
         spec.u.rs_inv.inv_slot_offset_y = comp->inv_slot_offset_y;
 
-        int slot_bg_scene[UI_INV_SLOT_OFFSET_MAX];
-        int slot_bg_atlas[UI_INV_SLOT_OFFSET_MAX];
         for( int i = 0; i < UI_INV_SLOT_OFFSET_MAX; i++ )
         {
             if( resolve_sprite && comp->inv_slot_graphic_id[i] > 0 )
@@ -207,11 +213,6 @@ UITree_PushBuildComponent(
         spec.type = UIELEM_BUILTIN_WORLD;
         memset(&spec.u, 0, sizeof(spec.u));
         spec.u.world.level_mask = 0xF;
-        /* Cache-built viewports have no revconfig section to read mmb_rotate=
-         * / wheel_zoom= from, so they take the same default the RevConfig
-         * component path does (both on). */
-        spec.u.world.mmb_rotate = 1;
-        spec.u.world.wheel_zoom = 1;
         break;
     case UITREE_CLIENT_CODE_CONTENT_MINIMAP:
         spec.type = UIELEM_BUILTIN_MINIMAP;

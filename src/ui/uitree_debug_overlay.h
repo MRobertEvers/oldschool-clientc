@@ -331,6 +331,22 @@ enum ToriRSChromeSkinSlot
      */
     TORIRS_CHROME_SKIN_CHECK_BOX_ON,
     TORIRS_CHROME_SKIN_CHECK_BOX_OFF,
+    /*
+     * The interfaces' own wide stone BUTTON, in three pieces: two 36x36 caps
+     * with the rounded corners on their outer edges, and a 20x36 tile that
+     * repeats to fill whatever is between them. It is the button the logout
+     * interface's "Logout" and "World Switcher" rows are drawn with.
+     *
+     * Baked here rather than named by cache id, because it is drawn by
+     * CHROME -- the client's own furniture, which has to look the same on a
+     * cache that does not contain it, on a cache that failed to open, and on
+     * the frames of 2004 that have no such art at all. That is the same reason
+     * every other slot above is baked, and the reason a `[component:]` can now
+     * ask for one by `sprite=chrome:<slot>`.
+     */
+    TORIRS_CHROME_SKIN_BUTTON_LEFT,
+    TORIRS_CHROME_SKIN_BUTTON_MID,
+    TORIRS_CHROME_SKIN_BUTTON_RIGHT,
     TORIRS_CHROME_SKIN_SLOT_COUNT
 };
 
@@ -760,6 +776,11 @@ struct ToriRSChromeWidget
     /** LISTROW: draw and hit-test the settings affordance. A row without one
      *  is a name and a switch, and its whole width toggles. */
     int row_action;
+    /** LISTROW: this row has no switch at all -- the thing it names has one
+     *  state. The toggle column is not drawn and not reserved, so the name
+     *  runs out to where the switch would have been, and every part of the row
+     *  opens it. @see ToriRSChrome_ListRowLocked. */
+    int row_locked;
     /** TEXTAREA: visible lines of the box, before it scrolls. Part of the
      *  widget's SHAPE, so it rides the ADD command and never changes after. */
     int rows;
@@ -1330,6 +1351,19 @@ ToriRSChrome_Checkbox(struct ToriRSChrome* ui, int panel, char const* label, int
 int
 ToriRSChrome_ListRow(
     struct ToriRSChrome* ui, int panel, char const* label, int checked, int has_action);
+
+/**
+ * A roster row for something that cannot be switched off: `label` and the
+ * settings affordance, and no switch.
+ *
+ * Not `ListRow(..., checked = 1, ...)` with the toggle ignored, because a
+ * switch drawn on is a switch that says it can be turned off -- clicking it
+ * would be the one control on the page that does nothing, which reads as a
+ * broken row rather than as a fixed one. The column is not merely disabled,
+ * it is not there, and the name takes the space.
+ */
+int
+ToriRSChrome_ListRowLocked(struct ToriRSChrome* ui, int panel, char const* label);
 
 int
 ToriRSChrome_TextInput(struct ToriRSChrome* ui, int panel, char const* label, char const* text);

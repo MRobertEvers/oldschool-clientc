@@ -74,6 +74,7 @@ ifneq ($(filter $(PLATFORM),macos linux),)
   # and added to the shared SRCS in the makefile, so a backend swap is local.
   PLATFORM_SRCS     := platform/platform_x_io.c \
                        platform/platform_x_io_js5_cache.c \
+                       platform/platform_x_io_ondemand.c \
                        platform/platform_audio_sdl2.c \
                        platform/platform_sdl2_renderer_gl3.c \
                        platform/platform_sdl2_renderer_gl3zb.c
@@ -161,6 +162,7 @@ else ifeq ($(PLATFORM),win32)
   # for now). No GL renderer, no SDL audio.
   PLATFORM_SRCS     := platform/platform_x_io.c \
                        platform/platform_x_io_js5_cache.c \
+                       platform/platform_x_io_ondemand.c \
                        platform/platform_audio_null.c \
                        platform/platform_win32_timing.c \
                        platform/platform_win32_renderer_d3d9_core.c \
@@ -263,6 +265,7 @@ else ifeq ($(PLATFORM),win64)
   PLATFORM_TARGET   := torirs_win64.exe
   PLATFORM_SRCS     := platform/platform_x_io.c \
                        platform/platform_x_io_js5_cache.c \
+                       platform/platform_x_io_ondemand.c \
                        platform/platform_audio_null.c \
                        platform/platform_win32_timing.c \
                        platform/platform_win32_renderer_d3d9_core.c \
@@ -338,6 +341,7 @@ else ifeq ($(PLATFORM),web)
     # and the pre-main() metadata barrier the page drives.
     PLATFORM_SRCS     := platform/platform_x_io.c \
                          platform/platform_x_io_js5_cache.c \
+                         platform/platform_x_io_ondemand.c \
                          platform/dat2_web_store.c \
                          platform/web_cache_boot.c \
                          platform/platform_audio_wasm.c \

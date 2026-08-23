@@ -211,9 +211,9 @@ somewhere the name does not suggest:
 | `manifests/manifest_osrs239.ini` | `cache.osrs239` |
 | `manifests/manifest_osrs230.ini` | `cache.osrs239.baked` ← the **baked** cache, not `cache.osrs230` |
 | `manifests/manifest_osrs239_packed.ini` | `cache.osrs239_packed` (built by the content pipeline) |
-| `manifests/manifest_rs254.ini` | `cache.rs254_zuk` |
-| `manifests/manifest_rs377.ini` | `cache.rs377` |
-| `manifests/manifest_void634.ini` | `cache.void634` |
+| `manifests/manifest_rs254lc.ini` | `cache.rs254_zuk` |
+| `manifests/manifest_rs377lc.ini` | `cache.rs377` |
+| `manifests/manifest_rs634void.ini` | `cache.void634` |
 
 ```sh
 grep -m1 '^dir=' manifests/manifest_osrs239.ini      # what this manifest actually opens
@@ -493,8 +493,8 @@ src/torirs --manifest manifests/manifest_osrs239.ini --offline
 ```
 
 Manifests in the repo root: `manifest_osrs230*.ini`, `manifest_osrs239*.ini`,
-`manifests/manifest_rs254.ini`, `manifests/manifest_rs377.ini`, `manifests/manifest_void634.ini`,
-`manifests/manifest_xrsps.ini`.
+`manifests/manifest_rs254lc.ini`, `manifests/manifest_rs377lc.ini`, `manifests/manifest_rs634void.ini`,
+`manifests/manifest_osrs233xrsps.ini`.
 
 ### Command line
 
@@ -548,7 +548,7 @@ arg=Jane Doe
 
 ```sh
 ./run-live.sh manifests/manifest_osrs239.ini testc test          # live, embedded server
-./run-live.sh manifests/manifest_rs254.ini asdf a --offline      # offline
+./run-live.sh manifests/manifest_rs254lc.ini asdf a --offline      # offline
 ./run-live.sh web manifests/manifest_osrs239.ini asdf a --offline
 ```
 
@@ -1314,8 +1314,9 @@ already produce a single self-contained `.exe` — that is the package.
 
 The old `tools/ci/` tree (`package_build.py` plus the LAN WinXP CI split under
 `build_host/`, `runner/`, `client/`) drove **CMake**, the retired build path, and
-packed `src/osrs/scripts` + `src/osrs/revconfig/configs`, both of which moved to
-`v0/`. It is archived at
+packed `src/osrs/scripts` + `src/osrs/revconfig/configs`. The scripts moved to
+`v0/`; the revconfig INIs are now [`revconfig/`](revconfig/README.md) at the
+repository root. It is archived at
 [`tools/deprecated/ci/`](tools/deprecated/ci/README.md).
 
 ---

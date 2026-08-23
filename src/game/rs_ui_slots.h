@@ -48,7 +48,6 @@ struct RS_UISlots
     int32_t main_overlay_index;
     int32_t side_modal_index;
     int32_t chat_index;
-    int32_t tut_index;
 
     /** Privacy-bar modes (reference chatPublicMode/PrivateMode/TradeMode);
      *  indexed by enum RS_UIChatFilter. Report has a single mode. */
@@ -114,9 +113,44 @@ RS_UISlots_OpenChat(struct App* app, int iface_id);
 void
 RS_UISlots_OpenOverlay(struct App* app, int iface_id);
 
-/** TUT_OPEN: mount the tutorial-progress interface (tut slot). */
+/**
+ * TUT_OPEN: the tutorial-progress interface.
+ *
+ * It has no region of its own. The reference draws it in the CHAT area, and
+ * only when no chat dialogue is there to take precedence -- one `else if` in
+ * drawChat -- so it shares the chat builtin's region here and loses to a chat
+ * dialogue the same way. A gameframe therefore needs no `slot=tut` to show it,
+ * which is just as well: no revconfig in this tree declares one, so the whole
+ * feature was a mount into region -1 and a line on stderr.
+ */
 void
 RS_UISlots_OpenTut(struct App* app, int iface_id);
+
+/**
+ * What the chat region is showing: the IF_OPENCHAT dialogue if one is mounted,
+ * otherwise the tutorial-progress component, otherwise -1.
+ *
+ * The chat builtin's own content -- the message log and the input line -- is
+ * suppressed whenever this is not -1, which is what makes the reference's
+ * if/else-if chain hold: whatever is mounted in the region draws INSTEAD of
+ * the log, not over it.
+ */
+int
+RS_UISlots_ChatRegionIface(struct RS_UISlots const* slots);
+
+/**
+ * Should tab `tabno`'s icon be hidden on the frame at `logic_cycle`?
+ *
+ * The flash is a gap, not a highlight: the flagged tab's icon is simply not
+ * drawn for half of every 20-tick cycle (reference drawSidebarIcons). Answers 0
+ * for every tab that is not the flagged one, so a caller can ask it about all
+ * of them.
+ */
+int
+RS_UISlots_TabFlashHidden(
+    struct RS_UISlots const* slots,
+    int tabno,
+    uint64_t logic_cycle);
 
 /** IF_CLOSE: close main modal, side modal, and chat dialog. */
 void

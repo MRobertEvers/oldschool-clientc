@@ -39,8 +39,15 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     case UITREE_HOST_GET_INV_SELECTION:
     case UITREE_HOST_GET_OBJ_ICON_PLAIN:
     case UITREE_HOST_GET_OBJ_ICON_BORDERED:
+    /* Hostless answers, all three "no": the server has taken nothing away, the
+     * player is not in a multi-combat zone, and no update is pending. Each is
+     * the state a tree with no session is genuinely in, not a placeholder. */
+    case UITREE_HOST_GET_MINIMAP_HIDDEN:
+    case UITREE_HOST_GET_MULTIWAY:
+    case UITREE_HOST_GET_REBOOT_TIMER:
     case UITREE_HOST_GET_MINIMAP_DOTS:
     case UITREE_HOST_GET_ENTITY_OVERLAYS:
+    case UITREE_HOST_GET_CANVAS_OVERLAYS:
     case UITREE_HOST_GET_WORLDMAP_TILES:
     case UITREE_HOST_GET_WORLDMAP_OVERVIEW:
     case UITREE_HOST_GET_DEBUG_OVERLAY:
@@ -54,6 +61,9 @@ UITree_Host(struct UITreeHost const* host, struct UITreeHostRequest* req)
     case UITREE_HOST_GET_SELECTED_TAB:
     case UITREE_HOST_GET_CAMERA_YAW:
     case UITREE_HOST_GET_TAB_ENABLED:
+    /* 0 = "not hidden", which is the right answer for a tree with no host:
+     * nothing is flashing, so nothing is blinked out. */
+    case UITREE_HOST_GET_TAB_FLASH_HIDDEN:
     case UITREE_HOST_GET_CHAT_FILTER_MODE:
     case UITREE_HOST_CYCLE_CHAT_FILTER_MODE:
     case UITREE_HOST_GET_CHAT_STATE:

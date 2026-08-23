@@ -214,7 +214,16 @@ static int
 app_plugin_color_hsl(char const* text)
 {
     uint32_t rgb = 0xFFFFFFu;
-    (void)ToriRSChrome_ParseHexRgb(text, &rgb);
+    int expr = 0;
+
+    /* Hex first, because the picker writes "#RRGGBB" and every round trip
+     * comes back through here. Anything else the store may hold -- rgb(),
+     * hsl16(), an arithmetic expression -- is what cfg_color reads it as, so
+     * the swatch has to read it the same way or the panel would show white
+     * for a colour the plugin is drawing correctly. */
+    if( !ToriRSChrome_ParseHexRgb(text, &rgb) &&
+        revconfig_parse_int_expr(text, NULL, &expr) )
+        rgb = (uint32_t)expr & 0xFFFFFFu;
     /* NEAREST, so a key written by Save and read back on the next open comes
      * back as the same colour. The reference quantiser moves it a hue step
      * every trip, which is a marker that drifts a shade per session. */
@@ -372,67 +381,89 @@ app_plugin_panel_sync(struct App* app)
 
     if( g_plugin_page < 0 )
     {
-        for( int p = 0; p < count; p++ )
+        /*
+         * Two passes, essential rows first.
+         *
+         * Registration order already puts the client's own settings at the
+         * top -- the registry lists it first on purpose -- but the roster is
+         * not only that table: the Lua adapter registers a further plugin per
+         * script it loads, and a build that grows a second static plugin ahead
+         * of it would move it without anyone noticing. The pass is what makes
+         * "first" a property of the row rather than of a table somewhere else.
+         */
+        for( int pass = 0; pass < 2; pass++ )
         {
-            char label[TORIRS_CHROME_INPUT_MAX];
-            char const* err = PluginHost_Error(app->plugins, p);
-
-            /*
-             * An ADAPTER is machinery, and a working one has no row.
-             *
-             * The Lua adapter is registered beside the scripts it runs -- that
-             * uniformity is the whole design -- so it also appeared in the
-             * roster, called "lua", sitting among them and looking like a peer
-             * with nothing a user does to it. Its scripts are the rows; they
-             * speak for it.
-             *
-             * It comes back the moment it has something to say, and the two
-             * conditions below are the two states you cannot get out of
-             * otherwise: a fault has to be visible somewhere or a broken Lua
-             * layer is a client with no plugins and no explanation, and a
-             * switched-off adapter has to have a switch or it can never come
-             * back on.
-             */
-            if( PluginHost_IsAdapter(app->plugins, p) && !err &&
-                PluginHost_IsEnabled(app->plugins, p) )
-                continue;
-
-            /*
-             * A HIDDEN builtin has no row at all, faulting or not.
-             *
-             * Unlike an adapter, there is nothing here for the user to do
-             * about it: it is a feature of the client whose switch is in the
-             * cache's own All Settings panel, and a row here would be a second
-             * switch over the same thing. See ToriRS_PluginDef::hidden.
-             */
-            if( PluginHost_IsHidden(app->plugins, p) )
-                continue;
-
-            /* The TITLE, not the name: the name is the ini key, and a roster
-             * of kebab-case ids reads as a config file that got onto the
-             * screen. Nothing here keys off the string -- the row carries the
-             * plugin index. */
-            snprintf(label, sizeof(label), "%s", PluginHost_Title(app->plugins, p));
-            app_plugin_panel_track(
-                app,
-                ToriRSChrome_ListRow(
-                    &app->plugin_ui,
-                    app->plugin_panel,
-                    label,
-                    PluginHost_IsEnabled(app->plugins, p) ? 1 : 0,
-                    app_plugin_has_page(app, p)),
-                p,
-                APP_PLUGIN_ROW_ENABLE,
-                -1,
-                NULL);
-
-            /* A script that faulted says so where its switch is, rather than
-             * only in a log nobody has open. */
-            if( err )
+            for( int p = 0; p < count; p++ )
             {
-                snprintf(label, sizeof(label), "  ! %s", err);
-                ToriRSChrome_LabelColored(
-                    &app->plugin_ui, app->plugin_panel, label, 0xFFCC5555u);
+                char label[TORIRS_CHROME_INPUT_MAX];
+                char const* err = PluginHost_Error(app->plugins, p);
+                bool const essential = PluginHost_IsEssential(app->plugins, p);
+
+                if( essential != (pass == 0) )
+                    continue;
+
+                /*
+                 * An ADAPTER is machinery, and a working one has no row.
+                 *
+                 * The Lua adapter is registered beside the scripts it runs -- that
+                 * uniformity is the whole design -- so it also appeared in the
+                 * roster, called "lua", sitting among them and looking like a peer
+                 * with nothing a user does to it. Its scripts are the rows; they
+                 * speak for it.
+                 *
+                 * It comes back the moment it has something to say, and the two
+                 * conditions below are the two states you cannot get out of
+                 * otherwise: a fault has to be visible somewhere or a broken Lua
+                 * layer is a client with no plugins and no explanation, and a
+                 * switched-off adapter has to have a switch or it can never come
+                 * back on.
+                 */
+                if( PluginHost_IsAdapter(app->plugins, p) && !err &&
+                    PluginHost_IsEnabled(app->plugins, p) )
+                    continue;
+
+                /*
+                 * A HIDDEN builtin has no row at all, faulting or not.
+                 *
+                 * Unlike an adapter, there is nothing here for the user to do
+                 * about it: it is a feature of the client whose switch is in the
+                 * cache's own All Settings panel, and a row here would be a second
+                 * switch over the same thing. See ToriRS_PluginDef::hidden.
+                 */
+                if( PluginHost_IsHidden(app->plugins, p) )
+                    continue;
+
+                /* The TITLE, not the name: the name is the ini key, and a roster
+                 * of kebab-case ids reads as a config file that got onto the
+                 * screen. Nothing here keys off the string -- the row carries the
+                 * plugin index. */
+                snprintf(label, sizeof(label), "%s", PluginHost_Title(app->plugins, p));
+                app_plugin_panel_track(
+                    app,
+                    /* An essential plugin's row carries no switch: it has one
+                     * state, and a toggle drawn over it would be the only control
+                     * on the screen that does nothing. */
+                    essential ? ToriRSChrome_ListRowLocked(
+                                    &app->plugin_ui, app->plugin_panel, label)
+                              : ToriRSChrome_ListRow(
+                                    &app->plugin_ui,
+                                    app->plugin_panel,
+                                    label,
+                                    PluginHost_IsEnabled(app->plugins, p) ? 1 : 0,
+                                    app_plugin_has_page(app, p)),
+                    p,
+                    APP_PLUGIN_ROW_ENABLE,
+                    -1,
+                    NULL);
+
+                /* A script that faulted says so where its switch is, rather than
+                 * only in a log nobody has open. */
+                if( err )
+                {
+                    snprintf(label, sizeof(label), "  ! %s", err);
+                    ToriRSChrome_LabelColored(
+                        &app->plugin_ui, app->plugin_panel, label, 0xFFCC5555u);
+                }
             }
         }
     }
@@ -866,10 +897,10 @@ app_plugin_panel_apply(struct App* app, int widget)
 
 /* ---- the sidebar Plugin button --------------------------------------------
  *
- * A fourth entry in the gameframe's own popout strip -- interface 728
- * `popout`, the launcher column down the right edge that carries XP Tracker,
- * Loot Tools and Hiscores. Clicking it opens the plugin window in that strip's
- * panel slot, framed by the strip's own chrome.
+ * A further entry in the gameframe's own popout strip -- on rev-239 that is
+ * interface 728 `popout`, the launcher column down the right edge that carries
+ * XP Tracker, Loot Tools and Hiscores. Clicking it opens the plugin window in
+ * that strip's panel slot, framed by the strip's own chrome.
  *
  * WHY THE CLIENT ADDS IT, not the content. The three shipped entries come from
  * the cache: `enum_4067` maps a 1-based slot to a struct carrying param_1412
@@ -880,20 +911,34 @@ app_plugin_panel_apply(struct App* app, int widget)
  * pointed at any other server must still have them. So the client appends its
  * own button and answers its own click, and the cache is untouched.
  *
- * Everything it needs is already on screen by then, which is why this waits:
- * `popout:buttons` (728:6) holds the three icons as 30x30 children on a 36px
- * pitch, and `popout:container` (728:9) is the slot the panels mount into.
+ * WHERE IT GOES IS THE PROFILE'S, not this file's. Which interface the strip
+ * is, which of its children hold the column and the panel slot, which slot in
+ * that column is free, how big the icons are and how far apart, and which
+ * clientscript lays the strip out again afterwards -- every one of those is a
+ * fact about a revision, and every one of them used to be a literal here. They
+ * are the RevConfig `[chrome]` block now; see struct RevConfigChromeItem. A
+ * revision that states none of it has no strip, gets no button, and opens the
+ * window in the canvas instead -- which is what every dat1 lane already did.
+ *
+ * Everything the button needs is on screen only once the server has mounted
+ * that interface, which is why the build below waits for the column to appear.
  */
 
-/** interface 728 `popout`, and the two components of it this uses. */
-#define APP_POPOUT_IFACE 728
-#define APP_POPOUT_BUTTONS ((APP_POPOUT_IFACE << 16) | 6)
-#define APP_POPOUT_CONTAINER ((APP_POPOUT_IFACE << 16) | 9)
-/** Slot 3: the strip ships 0..2 (XP Tracker, Loot Tools, Hiscores). */
-#define APP_POPOUT_SLOT_PLUGINS 3
-/** Geometry read off the live strip: 30x30 icons on a 36px pitch. */
-#define APP_POPOUT_BTN 30
-#define APP_POPOUT_PITCH 36
+/** The `[chrome]` block of the running revision's profile. */
+#define APP_POPOUT_CHROME (&app->revconfig_profile.chrome)
+/** The strip's two components, packed as uids -- the button column and the
+ *  panel slot -- or -1 when this revision declares no strip. Every use below
+ *  already treats "not found" as "no strip to mount in". */
+#define APP_POPOUT_BUTTONS \
+    app_plugin_popout_com(app, APP_POPOUT_CHROME->plugin_button_parent)
+#define APP_POPOUT_CONTAINER \
+    app_plugin_popout_com(app, APP_POPOUT_CHROME->plugin_panel_parent)
+/** The slot the button takes down the column, and the column's own icon box
+ *  and pitch. Read straight off the profile; -1 when it declares no strip, and
+ *  nothing that reads them runs in that case. */
+#define APP_POPOUT_SLOT_PLUGINS (APP_POPOUT_CHROME->plugin_button_slot)
+#define APP_POPOUT_BTN (APP_POPOUT_CHROME->plugin_button_size)
+#define APP_POPOUT_PITCH (APP_POPOUT_CHROME->plugin_button_pitch)
 /*
  * The icon is TORIRS_CHROME_SKIN_PLUGIN_ICON, baked from `sideicons_interface_11` --
  * the wrench the game already uses for settings.
@@ -909,8 +954,83 @@ app_plugin_panel_apply(struct App* app, int widget)
  * reads as "account". A bare wrench is what this game already means by
  * "settings", so it needs no explaining.
  */
-/** `^clientscript_popout_layout` -- the strip's layout owner. */
-#define APP_POPOUT_LAYOUT_SCRIPT 5354
+/**
+ * Is this revision's plugin-button mount fully stated?
+ *
+ * All of it or none of it. The mount is ONE description -- an interface, two of
+ * its children, a slot and the geometry of the column that slot is in -- and
+ * half of it is not half a button: a `[chrome]` block that names the strip but
+ * forgets the pitch stacks the icon on top of the one above it, which reads as
+ * a missing button and is far harder to find than an absent one.
+ *
+ * Saying nothing at all is the ordinary case (a 2004 lane has no strip), so
+ * that is silent. A HALF-stated block is a mistake in the profile, and gets one
+ * line on stderr.
+ */
+static int
+app_plugin_popout_declared(struct App const* app)
+{
+    struct RevConfigChromeItem const* chrome;
+    int stated;
+    int complete;
+
+    assert(app);
+    chrome = &app->revconfig_profile.chrome;
+    stated = chrome->plugin_iface[0] != '\0' || chrome->plugin_button_parent >= 0 ||
+             chrome->plugin_panel_parent >= 0 || chrome->plugin_button_slot >= 0 ||
+             chrome->plugin_button_size >= 0 || chrome->plugin_button_pitch >= 0;
+    complete = chrome->plugin_iface[0] != '\0' && chrome->plugin_button_parent >= 0 &&
+               chrome->plugin_panel_parent >= 0 && chrome->plugin_button_slot >= 0 &&
+               chrome->plugin_button_size > 0 && chrome->plugin_button_pitch > 0;
+    if( stated && !complete )
+    {
+        static int complained = 0;
+        if( !complained )
+        {
+            complained = 1;
+            fprintf(
+                stderr,
+                "chrome: [chrome] states only part of the plugin button mount "
+                "(plugin_button_iface, plugin_button_parent, plugin_panel_parent, "
+                "plugin_button_slot, plugin_button_size, plugin_button_pitch); "
+                "the strip gets no plugin button\n");
+        }
+    }
+    return complete;
+}
+
+/**
+ * Packed uid of one child of the declared strip interface, or -1.
+ *
+ * -1 for an undeclared or half-declared strip as well as for an interface this
+ * cache does not have, because the callers all ask the same question of it --
+ * "is there somewhere to mount?" -- and one answer for "no" is what keeps them
+ * from disagreeing about it.
+ */
+static int
+app_plugin_popout_com(struct App const* app, int child)
+{
+    assert(app);
+    if( child < 0 || !app_plugin_popout_declared(app) )
+        return -1;
+    return app_iface_com(app, app->revconfig_profile.chrome.plugin_iface, child);
+}
+
+/**
+ * The clientscript that lays the strip out, or -1 when this revision names
+ * none. `[chrome] plugin_layout_script=` names a `[script:…]` binding rather
+ * than carrying the id itself: a script id is a cache id, and cache ids are
+ * what that table is for.
+ */
+static int
+app_plugin_popout_layout_script(struct App const* app)
+{
+    assert(app);
+    if( !app->revconfig_profile.chrome.plugin_layout_script[0] )
+        return -1;
+    return RevConfigRefs_Get(
+        &app->revconfig_refs, "script", app->revconfig_profile.chrome.plugin_layout_script);
+}
 
 /**
  * Scene font for a cache font id, REQUESTING the load if it is not here --
@@ -1012,8 +1132,15 @@ app_plugin_button_sync(struct App* app)
     comp.model_seq_id = -1;
     /* Op 1, so the strip's own hover line names it -- the shipped buttons set
      * "Open"/"Close" the same way (script5356's cc_setop) and a launcher that
-     * says nothing on hover is the one thing in the column that does not. */
-    snprintf(comp.ops[0], sizeof(comp.ops[0]), "Show Plugin Settings");
+     * says nothing on hover is the one thing in the column that does not.
+     *
+     * The wording is `[chrome] plugin_button_op=`, because it is text a player
+     * reads: a revision whose strip says "Open" about everything else should be
+     * able to say it about this too, and one with no op line at all leaves the
+     * key out and gets a button that names nothing. */
+    if( APP_POPOUT_CHROME->plugin_button_op[0] )
+        snprintf(
+            comp.ops[0], sizeof(comp.ops[0]), "%s", APP_POPOUT_CHROME->plugin_button_op);
     node = UITree_PushBuildComponent(app->tree, buttons, &comp, NULL, NULL, app);
     if( node < 0 )
         return;
@@ -1026,7 +1153,8 @@ app_plugin_button_sync(struct App* app)
 /**
  * Drive the strip's own layout pass.
  *
- * clientscript 5354 is `^clientscript_popout_layout` -- the cache's own
+ * `[chrome] plugin_layout_script=` names it; on rev-239 it resolves to
+ * clientscript 5354, `^clientscript_popout_layout` -- the cache's own
  * `~script5355(~script900)` wrapper, and the ONLY thing that widens the strip
  * when a panel opens or collapses it when one closes. It decides by asking
  * `if_hassub(popout:container)`, so the mount registration below has to happen
@@ -1036,14 +1164,21 @@ app_plugin_button_sync(struct App* app)
  * Queued through the same path a server-sent RUNCLIENTSCRIPT takes, rather than
  * run inline: it is held to the tick fence, which is where the rest of the
  * frame's interface work already lands.
+ *
+ * A revision whose strip lays itself out with no such script names none, and
+ * this is then the whole of what it does.
  */
 static void
 app_plugin_popout_relayout(struct App* app)
 {
     struct PktRunClientScript req;
+    int const script = app_plugin_popout_layout_script(app);
+
+    if( script < 0 )
+        return;
 
     memset(&req, 0, sizeof(req));
-    req.script_id = APP_POPOUT_LAYOUT_SCRIPT;
+    req.script_id = script;
     req.argc = 0;
     App_RunClientScript(app, &req);
 }
@@ -1077,6 +1212,90 @@ static int
 app_plugin_window_in_strip(struct App const* app)
 {
     return app->plugin_exec_kind == TORIRS_CHROME_EXEC_CS2;
+}
+
+/**
+ * Which interface group holds the strip's panel slot, or -1 for none.
+ *
+ * The strip shows ONE panel at a time. `~chrome_popout_click` opens straight
+ * over whatever is there and lets the client's own IF_OPENSUB unmount the
+ * incumbent; the plugin window is a fourth entry in the same strip, so both
+ * halves of it -- taking the slot and giving it back -- start by asking who
+ * has it.
+ */
+static int
+app_plugin_popout_holder(struct App const* app)
+{
+    int rec;
+
+    assert(app);
+    if( !app->tree )
+        return -1;
+    rec = UITree_InterfaceParentFind(app->tree, APP_POPOUT_CONTAINER);
+    if( rec < 0 )
+        return -1;
+    return app->tree->interface_parents[rec].group_id;
+}
+
+/**
+ * Take the strip's panel slot for the plugin window, closing whoever held it.
+ *
+ * REGISTERING WAS NOT ENOUGH, and that was the bug. The InterfaceParent record
+ * is only the answer `if_hassub` gives; the incumbent panel's COMPONENTS are
+ * children of `popout:container` and go on laying out and drawing until
+ * something reclaims them. Overwriting the record left Hiscores' stat grid
+ * underneath the plugin rows -- two panels in one slot, both drawn, which is
+ * exactly what the strip looked like.
+ *
+ * So this does what the client's own replacing IF_OPENSUB does
+ * (task_interface_open.c): reclaim the outgoing group and drop its hooks, then
+ * claim the record. That rule's one exemption -- a group already in the slot is
+ * not unloaded -- is the early return.
+ */
+static void
+app_plugin_popout_claim(struct App* app)
+{
+    int held;
+
+    assert(app);
+    assert(app->tree);
+
+    /* No `[chrome]` mount in this profile: there is no strip and no slot to
+     * take. Not a contract violation — a rev with no popout strip is a real
+     * rev — so it returns rather than asserting. */
+    if( APP_POPOUT_CONTAINER < 0 )
+        return;
+
+    held = app_plugin_popout_holder(app);
+    if( held == TORIRS_CHROME_CS2_GROUP )
+        return;
+    if( held > 0 )
+    {
+        UITree_ReclaimInterfaceGroup(app->tree, held);
+        RS_CS2Host_ClearHooksForInterfaceGroup(&app->host, held);
+    }
+    UITree_InterfaceParentSet(
+        app->tree, APP_POPOUT_CONTAINER, TORIRS_CHROME_CS2_GROUP, 1);
+}
+
+/**
+ * Give the slot back -- but only while it is still ours.
+ *
+ * This used to clear the record unconditionally, on the grounds that a stranded
+ * registration is a strip stuck open around nothing. That reasoning holds only
+ * for a registration THIS window made: a shipped panel that displaced us owns
+ * the record now, and clearing it collapses the strip around a panel that is
+ * still mounted and still drawing.
+ */
+static void
+app_plugin_popout_release(struct App* app)
+{
+    assert(app);
+    assert(app->tree);
+
+    if( app_plugin_popout_holder(app) != TORIRS_CHROME_CS2_GROUP )
+        return;
+    UITree_InterfaceParentClear(app->tree, APP_POPOUT_CONTAINER);
 }
 
 static void
@@ -1133,13 +1352,12 @@ app_plugin_window_set_open(struct App* app, int open)
         return;
 
     if( app->plugin_panel_visible && app_plugin_window_in_strip(app) )
-        UITree_InterfaceParentSet(
-            app->tree, APP_POPOUT_CONTAINER, TORIRS_CHROME_CS2_GROUP, 1);
+        app_plugin_popout_claim(app);
     else
-        /* Unconditional on the way down, including for an executor that never
-         * expanded it: an executor can change between opens, and a stranded
-         * registration is a strip stuck open around nothing. */
-        UITree_InterfaceParentClear(app->tree, APP_POPOUT_CONTAINER);
+        /* On the way down for every executor, including one that never
+         * expanded the strip: an executor can change between opens, and a
+         * stranded registration of OURS is a strip stuck open around nothing. */
+        app_plugin_popout_release(app);
     app_plugin_popout_relayout(app);
 }
 
@@ -1200,8 +1418,7 @@ app_plugin_exec_bind_inner(struct App* app)
          * in the game's own p12 (below), resolved per build. */
         int const font = UITreeSceneBridge_EnsureDebugFont(&app->bridge, TORIRS_CHROME_FONT_BODY);
         /* The p12 body face, the one interface text is set in. */
-        int const p12 = app->cfg.cache_kind == APP_CACHE_DAT1 ? APP_FONT_P12_DAT1_SLOT
-                                                              : APP_FONT_P12_CACHE_ID;
+        int const p12 = app_font_cache_id(app, APP_FONT_P12);
         /*
          * Mounted INTO the strip's panel slot, not as a root of its own.
          *
@@ -1368,28 +1585,69 @@ app_plugin_panel_tick(struct App* app, struct LibToriRS_Input* input)
             relayout_cooldown--;
         if( container >= 0 )
         {
-            int const registered =
-                UITree_InterfaceParentFind(app->tree, APP_POPOUT_CONTAINER) >= 0;
-            /* Expanded is judged by the strip's measured on-screen width --
-             * the same measurement the fixed-mode canvas grows by -- not by
-             * the container's own box, which keeps a size while hidden. The
-             * collapsed strip is its 42px icon column. */
-            int const strip_w = App_MeasureRightChromeStripWidth(app);
-            int const expanded = strip_w > 2 * APP_POPOUT_BTN;
+            int const holder = app_plugin_popout_holder(app);
+            int const registered = holder >= 0;
 
-            if( !registered )
-                UITree_InterfaceParentSet(
-                    app->tree, APP_POPOUT_CONTAINER, TORIRS_CHROME_CS2_GROUP, 1);
-            if( (!registered || !expanded) && relayout_cooldown == 0 )
+            /*
+             * A SHIPPED PANEL TOOK THE SLOT, so this window is no longer in it.
+             *
+             * `~chrome_popout_click` opens over whatever is there, and the
+             * client's own IF_OPENSUB unmounts the incumbent -- us -- before it
+             * mounts XP Tracker. Redeclaring here would put the plugin rows
+             * back into a slot the tracker is already drawing in, which is the
+             * same two-panels-in-one-slot the claim above exists to prevent,
+             * only reached from the other side. The strip's rule is one panel,
+             * so the window agrees with the strip and closes.
+             */
+            if( registered && holder != TORIRS_CHROME_CS2_GROUP )
             {
                 if( getenv("TORIRS_CHROME_DEBUG") )
                     fprintf(
                         stderr,
-                        "chrome: strip %s (w=%d); re-running layout\n",
-                        registered ? "collapsed" : "lost to a tree rebuild",
-                        strip_w);
-                app_plugin_popout_relayout(app);
-                relayout_cooldown = 30;
+                        "chrome: strip slot taken by group %d; closing the plugin window\n",
+                        holder);
+                app_plugin_window_set_open(app, 0);
+                return;
+            }
+
+            if( !registered )
+                UITree_InterfaceParentSet(
+                    app->tree, APP_POPOUT_CONTAINER, TORIRS_CHROME_CS2_GROUP, 1);
+
+            /*
+             * The width is measured only on a tick that could act on it.
+             *
+             * App_MeasureRightChromeStripWidth walks every component in the
+             * tree and asks each one whether an ancestor hid it -- a scan of
+             * several thousand nodes with a walk to the root inside it, and in
+             * a `sample` profile of an open window it was the single hottest
+             * thing this window does per frame, above everything the panel
+             * itself draws. Its answer is read by exactly one thing, the
+             * rate-limited relayout below, so asking it on the twenty-nine
+             * ticks out of thirty that cannot act on it is measuring in order
+             * to throw the measurement away.
+             *
+             * Expanded is judged by that measured on-screen width -- the same
+             * measurement the fixed-mode canvas grows by -- not by the
+             * container's own box, which keeps a size while hidden. The
+             * collapsed strip is its 42px icon column.
+             */
+            if( relayout_cooldown == 0 )
+            {
+                int const strip_w = App_MeasureRightChromeStripWidth(app);
+                int const expanded = strip_w > 2 * APP_POPOUT_BTN;
+
+                if( !registered || !expanded )
+                {
+                    if( getenv("TORIRS_CHROME_DEBUG") )
+                        fprintf(
+                            stderr,
+                            "chrome: strip %s (w=%d); re-running layout\n",
+                            registered ? "collapsed" : "lost to a tree rebuild",
+                            strip_w);
+                    app_plugin_popout_relayout(app);
+                    relayout_cooldown = 30;
+                }
             }
         }
     }

@@ -220,6 +220,68 @@ static char const k_inline_manifest[] =
 
 static char const k_inline_path[] = "uitree_builder_test_inline.tmp.ini";
 
+/*
+ * The two viewport widgets the server drives but no interface owns: the
+ * multi-combat indicator (SET_MULTIWAY) and the system-update countdown
+ * (UPDATE_REBOOT_TIMER). Every number either one draws with -- the headicons
+ * frame, the two positions, the colour -- is stated in the shipped revconfig
+ * and nowhere in C, so this reads THAT file rather than a fixture: a rename or
+ * a dropped line there is the failure worth catching, and a fixture copy would
+ * pass right through it.
+ */
+static void
+test_viewport_widgets_from_shipped_revconfig(void)
+{
+    struct UIBuilderManifest manifest;
+    struct UIBuilderManifestSources src = { 0 };
+    struct UIBuilderTreeOp const* multiway = NULL;
+    struct UIBuilderTreeOp const* reboot = NULL;
+
+    src.ui_ini_path = "../revconfig/rs245_2lc/rs245_2lc_dat1_ui.ini";
+    src.cache_ini_path = "../revconfig/rs245_2lc/rs245_2lc_dat1_cache.ini";
+    src.root_interface_id = 161;
+
+    uibuilder_manifest_init(&manifest);
+    TEST_ASSERT(
+        uibuilder_manifest_from_sources(&manifest, &src) == 0, "shipped revconfig parses");
+
+    for( int i = 0; i < manifest.op_count; i++ )
+    {
+        if( strcmp(manifest.ops[i].type, "multiway") == 0 )
+            multiway = &manifest.ops[i];
+        else if( strcmp(manifest.ops[i].type, "reboot_timer") == 0 )
+            reboot = &manifest.ops[i];
+    }
+
+    TEST_ASSERT(multiway != NULL, "revconfig declares the multiway indicator");
+    if( multiway )
+    {
+        /* Frame 1 of the headicons pack, by name and bracket index -- the
+         * builder resolves both halves, so a bare `headicons` here would
+         * silently draw frame 0 (protect-from-melee). */
+        TEST_ASSERT(
+            strcmp(multiway->sprite_ref, "headicons[1]") == 0, "multiway sprite frame");
+        /* Reference plots it at 472,296 inside the viewport, so it hangs off
+         * the viewport node with those coordinates unchanged. */
+        TEST_ASSERT(strcmp(multiway->parent_name, "world_viewport") == 0, "multiway parent");
+        TEST_ASSERT(multiway->x == 472 && multiway->y == 296, "multiway position");
+    }
+
+    TEST_ASSERT(reboot != NULL, "revconfig declares the reboot countdown");
+    if( reboot )
+    {
+        TEST_ASSERT(reboot->has_font_ref, "reboot countdown names a font");
+        TEST_ASSERT(strcmp(reboot->font_ref, "p12") == 0, "reboot countdown font");
+        /* Yellow. Stated decimal because that is what the field parses as; a
+         * hex spelling would read back as 0 and draw the line in black. */
+        TEST_ASSERT(reboot->color == 16776960, "reboot countdown colour");
+        TEST_ASSERT(strcmp(reboot->parent_name, "world_viewport") == 0, "reboot parent");
+        TEST_ASSERT(reboot->x == 4 && reboot->y == 329, "reboot countdown position");
+    }
+
+    uibuilder_manifest_free(&manifest);
+}
+
 static int
 write_fixture(char const* path, char const* text)
 {
@@ -322,6 +384,7 @@ main(void)
     test_manifest_from_hand_pushed_fields();
     test_manifest_from_inline_sources();
     test_manifest_default_root_layout();
+    test_viewport_widgets_from_shipped_revconfig();
     if( g_failures )
     {
         fprintf(stderr, "%d failure(s)\n", g_failures);

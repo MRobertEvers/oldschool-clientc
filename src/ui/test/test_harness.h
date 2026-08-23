@@ -18,6 +18,8 @@
 
 extern int g_failures;
 
+void test_roles(void);
+
 #define TEST_ASSERT(cond, msg)                                                                     \
     do                                                                                             \
     {                                                                                              \
@@ -55,6 +57,15 @@ struct TestHostState
     /** When >= 0, GET_OBJ_NAME answers for that obj id and reports it as a bank
      *  placeholder — the one fact that suppresses an item cell's count text. */
     int placeholder_obj_id;
+    /* Server-driven viewport state: MINIMAP_TOGGLE, SET_MULTIWAY and the
+     * UPDATE_REBOOT_TIMER line. All three default off, which is what a client
+     * with no session is actually in. */
+    int minimap_hidden;
+    /** Scene id GET_MINIMAP_STATE answers with; 0 leaves it at "no baked map",
+     *  which the emit treats the same as any other not-ready asset. */
+    int minimap_scene_id;
+    int multiway;
+    char const* reboot_timer_text;
     /* Optional stub slots for UITREE_HOST_GET_INV_SOURCE_SLOT (tests). */
     int inv_source_id;
     struct UIInvSlotData inv_slots[UI_INV_SLOT_OFFSET_MAX];
@@ -111,6 +122,23 @@ UITree_TestHostRequest(void* user, struct UITreeHostRequest* req)
         *req->u.get_entity_overlays.out_clip_w = st->entity_overlay_clip_w;
         *req->u.get_entity_overlays.out_clip_h = st->entity_overlay_clip_h;
         return st->entity_overlay_count;
+    case UITREE_HOST_GET_MINIMAP_HIDDEN:
+        return st->minimap_hidden;
+    case UITREE_HOST_GET_MINIMAP_STATE:
+        if( st->minimap_scene_id <= 0 )
+            return -1;
+        if( req->u.get_minimap_state.out_src_anchor_x )
+            *req->u.get_minimap_state.out_src_anchor_x = 0;
+        if( req->u.get_minimap_state.out_src_anchor_y )
+            *req->u.get_minimap_state.out_src_anchor_y = 0;
+        return st->minimap_scene_id;
+    case UITREE_HOST_GET_MULTIWAY:
+        return st->multiway;
+    case UITREE_HOST_GET_REBOOT_TIMER:
+        if( !st->reboot_timer_text || !req->u.get_reboot_timer.out_text )
+            return 0;
+        *req->u.get_reboot_timer.out_text = st->reboot_timer_text;
+        return 1;
     case UITREE_HOST_IS_ACTIVE:
         return 0;
     case UITREE_HOST_SET_SELECTED_TAB:
@@ -192,6 +220,7 @@ UITree_TestResolve(struct UITree* tree)
 /* Unit tests */
 void test_scripted_entity_overlay(void);
 void test_scripted_entity_overlay_clipped(void);
+void test_scripted_overlay_arc(void);
 void test_dirty_marking(void);
 void test_walk_topology(void);
 void test_mounted_world_resize(void);
@@ -228,5 +257,6 @@ void test_debug_overlay(void);
 void test_chrome_exec(void);
 void test_chrome_cs2(void);
 void test_entity_overlay_draw_order(void);
+void test_server_driven_viewport_widgets(void);
 
 #endif

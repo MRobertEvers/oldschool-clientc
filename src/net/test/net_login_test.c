@@ -294,6 +294,71 @@ test_osrs239_partial_empty_slot(void)
     printf("ok - osrs239 partial inventory empty-slot boundary\n");
 }
 
+/*
+ * The classic (2004-era) inventory packets, as UpdateInvFullEncoder and
+ * UpdateInvPartialEncoder write them and as the reference client reads them
+ * back: the full packet's slot count is TWO bytes, and a partial's slot index
+ * is a smart.
+ *
+ * Read as one byte, the count is the high half of a number that never reaches
+ * 256 -- so every container on this generation decoded as size 0 and painted
+ * empty, with nothing on the wire or in the log to say so.
+ */
+static void
+test_lc_inv_full_size_is_two_bytes(void)
+{
+    /* component 8847, 3 slots: obj 250 x1, empty, obj 1526 x255-escape(1000). */
+    static uint8_t body[] = {
+        0x22, 0x8f,             /* component 8847 */
+        0x00, 0x03,             /* slot count 3 -- two bytes */
+        0x00, 0xfa, 0x01,       /* obj id+1 = 250 -> 249, count 1 */
+        0x00, 0x00, 0x00,       /* empty slot */
+        0x05, 0xf7, 0xff,       /* obj id+1 = 1527 -> 1526, count escape... */
+        0x00, 0x00, 0x03, 0xe8, /* ...1000 */
+    };
+    struct GameProtoRevTable const* rev = GameProtoRev_LC289();
+    struct RevPacket packet;
+
+    memset(&packet, 0, sizeof(packet));
+    assert(gameproto_parse(rev, PKT_NAME_UPDATE_INV_FULL, body, sizeof(body), &packet) == 1);
+    assert(packet._update_inv_full.component_id == 8847);
+    assert(packet._update_inv_full.size == 3);
+    assert(packet._update_inv_full.obj_ids[0] == 249);
+    assert(packet._update_inv_full.obj_counts[0] == 1);
+    assert(packet._update_inv_full.obj_ids[1] == -1);
+    assert(packet._update_inv_full.obj_ids[2] == 1526);
+    assert(packet._update_inv_full.obj_counts[2] == 1000);
+    gameproto_free(&packet);
+    printf("ok - classic UPDATE_INV_FULL slot count is two bytes\n");
+}
+
+static void
+test_lc_inv_partial_slot_is_smart(void)
+{
+    /* Bank slots 5 and 200: the second is over the one-byte smart boundary and
+     * goes out as 0x8000 + 200. Reading it as a byte ate the object id. */
+    static uint8_t body[] = {
+        0x00, 0x0c,       /* component 12 */
+        0x05, 0x01, 0x0d, 0x02, /* slot 5, obj id+1 = 269 -> 268, count 2 */
+        0x80, 0xc8, 0x00, 0xfb, 0x07, /* slot 200, obj id+1 = 251 -> 250, count 7 */
+    };
+    struct GameProtoRevTable const* rev = GameProtoRev_LC289();
+    struct RevPacket packet;
+
+    memset(&packet, 0, sizeof(packet));
+    assert(gameproto_parse(rev, PKT_NAME_UPDATE_INV_PARTIAL, body, sizeof(body), &packet) == 1);
+    assert(packet._update_inv_partial.component_id == 12);
+    assert(packet._update_inv_partial.count == 2);
+    assert(packet._update_inv_partial.entries[0].slot == 5);
+    assert(packet._update_inv_partial.entries[0].obj_id == 268);
+    assert(packet._update_inv_partial.entries[0].count == 2);
+    assert(packet._update_inv_partial.entries[1].slot == 200);
+    assert(packet._update_inv_partial.entries[1].obj_id == 250);
+    assert(packet._update_inv_partial.entries[1].count == 7);
+    gameproto_free(&packet);
+    printf("ok - classic UPDATE_INV_PARTIAL slot index is a smart\n");
+}
+
 int
 main(void)
 {
@@ -303,6 +368,8 @@ main(void)
     test_packet_framing();
     test_packet_varu16();
     test_osrs239_partial_empty_slot();
+    test_lc_inv_full_size_is_two_bytes();
+    test_lc_inv_partial_slot_is_smart();
     printf("net-login: all tests passed\n");
     return 0;
 }

@@ -15,6 +15,7 @@
 #include "ui/uitree.h"
 #include "ui/uitree_build.h"
 #include "ui/uitree_debug_overlay.h"
+#include "ui/uitree_role.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -33,6 +34,10 @@ type_from_string(char const* type)
         return UIELEM_BUILTIN_ENTITY_OVERLAY;
     if( strcmp(type, "hovertext") == 0 )
         return UIELEM_BUILTIN_HOVERTEXT;
+    if( strcmp(type, "multiway") == 0 )
+        return UIELEM_BUILTIN_MULTIWAY;
+    if( strcmp(type, "reboot_timer") == 0 )
+        return UIELEM_BUILTIN_REBOOT_TIMER;
     if( strcmp(type, "minimenu") == 0 )
         return UIELEM_BUILTIN_MINIMENU;
     if( strcmp(type, "minimap") == 0 )
@@ -182,6 +187,127 @@ find_sprite_entry(
     return NULL;
 }
 
+/**
+ * `chrome:<slot>` -> the baked chrome skin, or -1 when `ref` is not one.
+ *
+ * The other sprite source, and the reason it exists: everything in the
+ * builder's own table is a CACHE sprite, declared by a `[sprite:...]` section
+ * that names an archive. Art the CLIENT owns has no archive to name -- it is
+ * compiled in (engine/torirs_chrome_skin_baked.h) precisely so that it draws
+ * on a revision whose cache does not contain it, on a cache that failed to
+ * open, and on a build shipped without one.
+ *
+ * A profile reaches it by SLOT NAME rather than by number, for the same reason
+ * every other revconfig binding is by name: the bake order is spritebake's
+ * argument order, and a re-bake that moved a slot would otherwise silently
+ * draw a scrollbar arrow where a button should be.
+ *
+ * The whole skin is ONE scene entry with a frame per slot, so the answer is
+ * that entry's id and the slot as the atlas index -- the same shape a
+ * multi-frame cache sprite already has.
+ */
+static int
+resolve_chrome_sprite(struct UITreeBuilder* builder, char const* ref, int* out_atlas)
+{
+    static char const* const SLOT_NAME[TORIRS_CHROME_SKIN_SLOT_COUNT] = {
+        [TORIRS_CHROME_SKIN_BUTTON_LEFT] = "button_left",
+        [TORIRS_CHROME_SKIN_BUTTON_MID] = "button_mid",
+        [TORIRS_CHROME_SKIN_BUTTON_RIGHT] = "button_right",
+        [TORIRS_CHROME_SKIN_CLOSE] = "close",
+        [TORIRS_CHROME_SKIN_CLOSE_OVER] = "close_over",
+        [TORIRS_CHROME_SKIN_PANEL_BODY] = "panel_body",
+        [TORIRS_CHROME_SKIN_PLUGIN_ICON] = "plugin_icon",
+    };
+    char const* slot_name;
+    int scene_id;
+
+    assert(builder);
+    assert(ref);
+
+    if( strncmp(ref, "chrome:", 7) != 0 )
+        return -1;
+    slot_name = ref + 7;
+
+    for( int slot = 0; slot < TORIRS_CHROME_SKIN_SLOT_COUNT; slot++ )
+    {
+        if( !SLOT_NAME[slot] || strcmp(SLOT_NAME[slot], slot_name) != 0 )
+            continue;
+        if( !builder->bridge )
+            return -1;
+        scene_id = UITreeSceneBridge_EnsureChromeSkin(builder->bridge);
+        /* -1 is a real answer: a lane can be built with the skin module
+         * stubbed out, and a component that asked for one draws nothing rather
+         * than the client refusing to boot. */
+        if( scene_id < 0 )
+            return -1;
+        if( out_atlas )
+            *out_atlas = slot;
+        return scene_id;
+    }
+
+    /*
+     * A name that is not a slot IS a mistake worth stopping on, unlike a
+     * missing skin: the profile spelled something, and the only outcomes are
+     * the right picture or a silently blank control.
+     */
+    fprintf(stderr, "uitree_builder_bake: no chrome skin slot named '%s'\n", slot_name);
+    assert(0 && "unknown chrome: sprite slot");
+    return -1;
+}
+
+/**
+ * `chrome:<slot>` -> a baked chrome face, or -1 when `ref` is not one.
+ *
+ * The font twin of resolve_chrome_sprite, and it exists for the same reason: a
+ * `[font:...]` section names a face in the CACHE, and a control the client
+ * owns has to be readable on a cache that does not carry one. The three faces
+ * are the ones the chrome already bakes -- 494, 495 and 496 in the OSRS fonts
+ * table -- and `bold` is 496, which is the face the interfaces' own buttons
+ * set their captions in.
+ *
+ * Pinned at 1x (EnsureDebugFont1x). These glyphs land in INTERFACE pixels,
+ * which the gameframe lays out and the shell scales afterwards; the
+ * chrome-scale accessor beside it would hand a 2x face to a 1x coordinate
+ * system on any HighDPI display and the caption would come out double-sized.
+ */
+static int
+resolve_chrome_font(struct UITreeBuilder* builder, char const* ref)
+{
+    static const struct
+    {
+        char const* name;
+        int slot;
+    } SLOT[] = {
+        { "small", TORIRS_CHROME_FONT_SMALL },
+        { "body", TORIRS_CHROME_FONT_BODY },
+        /* The bold one. Named for what an author is choosing rather than for
+         * the chrome's own use of it -- `menu` says where it is spent, `bold`
+         * says what it looks like, and a profile is picking a face. */
+        { "bold", TORIRS_CHROME_FONT_MENU },
+    };
+    char const* slot_name;
+
+    assert(builder);
+    assert(ref);
+
+    if( strncmp(ref, "chrome:", 7) != 0 )
+        return -1;
+    slot_name = ref + 7;
+
+    for( size_t i = 0; i < sizeof(SLOT) / sizeof(SLOT[0]); i++ )
+    {
+        if( strcmp(SLOT[i].name, slot_name) != 0 )
+            continue;
+        if( !builder->bridge )
+            return -1;
+        return UITreeSceneBridge_EnsureDebugFont1x(builder->bridge, SLOT[i].slot);
+    }
+
+    fprintf(stderr, "uitree_builder_bake: no chrome font named '%s'\n", slot_name);
+    assert(0 && "unknown chrome: font slot");
+    return -1;
+}
+
 static int
 resolve_sprite_required(
     struct UITreeBuilder* builder,
@@ -194,6 +320,8 @@ resolve_sprite_required(
             *out_atlas = 0;
         return -1;
     }
+    if( strncmp(ref, "chrome:", 7) == 0 )
+        return resolve_chrome_sprite(builder, ref, out_atlas);
     if( !find_sprite_entry(builder, ref) )
     {
         fprintf(
@@ -381,9 +509,12 @@ uitree_builder_bake_pack_under_owner(
                     scene_id = UITreeSceneBridge_EnsurePlayerModel(builder->bridge);
                     if( scene_id >= 0 )
                     {
+                        /* The human ready animation. Which seq that is belongs
+                         * to the profile: a preview posed at some other cache's
+                         * 808 is a bind-pose snap or a wrong pose, silently. */
                         node->u.rs_model.gamecache_model_id = scene_id;
                         if( node->u.rs_model.anim_seq_id < 0 )
-                            node->u.rs_model.anim_seq_id = 808; /* human readyanim */
+                            node->u.rs_model.anim_seq_id = builder->bridge->player_idle_seq;
                         node->u.rs_model.anim_frame = 0;
                         node->u.rs_model.anim_frame_cycle = 0;
                         node->u.rs_model.anim_hold = 1;
@@ -463,9 +594,32 @@ push_builtin_op(
      * unmounted-spillover sweep, which is what it is there for.
      */
     spec.component_id = is_iface_mount ? -1 : op->componentno;
+    /*
+     * A control the PROFILE invented gets an id of its own, so a click on it
+     * has something to travel as.
+     *
+     * Only one that offers a menu row or a hover colour -- the two things a
+     * control has to be RECOGNISED at runtime for. The click path carries a
+     * component id, and so does the hover walk, which reports a node by id and
+     * only ever a node that has one (uitree_hover.c gates on `component_id >=
+     * 0`): a caption with `over_color=` and no id is a caption that never
+     * lights up. An id costs nothing but it also means nothing for the frame's
+     * stone sprites, and handing every decorative layer one would put
+     * thousands of them into the tree's by-id lookups for no reader.
+     */
+    if( spec.component_id < 0 && !is_iface_mount &&
+        (op->option[0] != '\0' || op->over_color != 0) )
+        spec.component_id = TORIRS_REVCONFIG_ID_BASE + builder->authored_id_next++;
     apply_layout_position(op, &spec.position);
     spec.has_position = 1;
     spec.slot_tag = (uint8_t)slot_tag_from_string(op->slot);
+    if( op->role[0] != '\0' && builder->roles )
+    {
+        spec.role_id = UITree_RoleIntern(builder->roles, op->role);
+        /* Told at the same moment the tag is stamped, so a lookup for a role
+         * nothing authored never walks the tree hunting for one. */
+        UITree_RoleMarkAuthored(builder->roles, spec.role_id);
+    }
     if( op->dirty )
         spec.always_dirty = 1;
     copy_menu_options(op, &spec.menu_options);
@@ -493,10 +647,23 @@ push_builtin_op(
 
     struct UITreeBehavior behavior;
     memset(&behavior, 0, sizeof(behavior));
-    if( op->button_type != 0 || op->client_code != 0 )
+    /*
+     * -1, not the memset's 0, and this one has bitten before.
+     *
+     * `over_layer_id` is a COMPONENT ID, and zero is a real one. The hover walk
+     * tests it before it tests anything else (`if( over_layer_id >= 0 )
+     * redirect`), so a behaviour block left at zero says "when the pointer is
+     * on me, report component 0 as hovered" -- which is not this node, so this
+     * node's own hover colour never applies, and some unrelated component
+     * lights up instead. The chrome's own sidebar button carries the same
+     * initialiser for the same reason.
+     */
+    behavior.over_layer_id = -1;
+    if( op->button_type != 0 || op->client_code != 0 || op->over_color != 0 )
     {
         behavior.button_type = op->button_type;
         behavior.client_code = op->client_code;
+        behavior.over_color = op->over_color;
         spec.behavior = &behavior;
     }
 
@@ -511,6 +678,28 @@ push_builtin_op(
         spec.always_dirty = 1;
         spec.u.sprite.scene_id = sprite_id;
         spec.u.sprite.atlas_index = 0;
+        break;
+    /* Unlike the cross, the frame matters: `sprite=headicons[1]` is how the
+     * indicator picks its icon out of a 20-frame pack, so the atlas index the
+     * ref resolved has to survive. */
+    case UIELEM_BUILTIN_MULTIWAY:
+        spec.always_dirty = 1;
+        spec.u.sprite.scene_id = sprite_id;
+        spec.u.sprite.atlas_index = atlas_index;
+        break;
+    case UIELEM_BUILTIN_REBOOT_TIMER:
+        spec.always_dirty = 1;
+        spec.u.reboot_timer.color = op->color;
+        if( op->has_font_ref && op->font_ref[0] )
+        {
+            int font_id = UITreeBuilder_ResolveFontName(builder, op->font_ref);
+            assert(font_id >= 0 && "reboot_timer font missing");
+            spec.u.reboot_timer.font_id = font_id;
+        }
+        else if( op->font >= 0 )
+        {
+            spec.u.reboot_timer.font_id = UITreeBuilder_ResolveFontArchive(builder, op->font);
+        }
         break;
     case UIELEM_BUILTIN_ENTITY_OVERLAY:
         spec.always_dirty = 1;
@@ -648,8 +837,6 @@ push_builtin_op(
     }
     case UIELEM_BUILTIN_WORLD:
         spec.u.world.level_mask = (uint8_t)op->level_mask;
-        spec.u.world.mmb_rotate = op->mmb_rotate ? 1u : 0u;
-        spec.u.world.wheel_zoom = op->wheel_zoom ? 1u : 0u;
         break;
     case UIELEM_BUILTIN_REDSTONE_TAB:
         spec.u.redstone_tab.tabno = op->tabno;
@@ -679,11 +866,14 @@ push_builtin_op(
         spec.u.rs_graphic.atlas_index = atlas_index;
         spec.u.rs_graphic.scene_id_active = sprite_active_id;
         spec.u.rs_graphic.atlas_index_active = atlas_active;
+        spec.u.rs_graphic.tiled = op->tiled ? 1 : 0;
         break;
     case UIELEM_RS_TEXT:
         if( op->has_font_ref && op->font_ref[0] )
         {
-            int font_id = UITreeBuilder_ResolveFontName(builder, op->font_ref);
+            int font_id = resolve_chrome_font(builder, op->font_ref);
+            if( font_id < 0 && strncmp(op->font_ref, "chrome:", 7) != 0 )
+                font_id = UITreeBuilder_ResolveFontName(builder, op->font_ref);
             assert(font_id >= 0 && "rs_text font missing");
             spec.u.rs_text.font_id = font_id;
         }
@@ -693,6 +883,7 @@ push_builtin_op(
         }
         spec.u.rs_text.color = op->color;
         spec.u.rs_text.center = op->center ? 1 : 0;
+        spec.u.rs_text.y_align = op->valign;
         spec.u.rs_text.shadowed = op->shadowed ? 1 : 0;
         spec.u.rs_text.text = op->text[0] ? op->text : NULL;
         break;
@@ -961,10 +1152,13 @@ uitree_builder_hide_unmounted_spillover(
 }
 
 void
-uitree_builder_reassert_player_idle_anim(struct UITree* tree)
+uitree_builder_reassert_player_idle_anim(
+    struct UITree* tree,
+    struct UITreeSceneBridge const* bridge)
 {
     int mi;
     assert(tree);
+    assert(bridge);
     for( mi = 0; mi < tree->models.count; mi++ )
     {
         int32_t i = tree->models.slots[mi];
@@ -977,7 +1171,7 @@ uitree_builder_reassert_player_idle_anim(struct UITree* tree)
             continue;
         if( c->u.rs_model.gamecache_model_id != UITREE_SCENE_PLAYER_MODEL_ID )
             continue;
-        c->u.rs_model.anim_seq_id = UITREE_BUILDER_PLAYER_IDLE_SEQ;
+        c->u.rs_model.anim_seq_id = bridge->player_idle_seq;
         c->u.rs_model.anim_frame = 0;
         c->u.rs_model.anim_frame_cycle = 0;
         c->u.rs_model.anim_hold = 1;

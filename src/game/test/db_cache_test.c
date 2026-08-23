@@ -187,7 +187,7 @@ main(void)
     struct InvManager invs;
     InvManager_Init(&invs);
     struct RS_CS2Host host;
-    RS_CS2Host_Init(&host, tree, provider, &invs, NULL, NULL);
+    RS_CS2Host_Init(&host, tree, provider, &invs, NULL, NULL, NULL);
 
     struct CS2VM2 vm;
     CS2VM2_Init(&vm);

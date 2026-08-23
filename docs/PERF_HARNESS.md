@@ -1,5 +1,13 @@
 # Performance harness
 
+> **`::tele` takes underscores, not commas.** `::tele 0_50_50_21_21`. The comma
+> form in some older recipes below fails with "nowhere called 0,50,50,21,21" and
+> the run then CONTINUES from wherever the player already was — so a harness
+> using it has been measuring the login tile, silently. `~tele_resolve` reads one
+> word and decides name-or-coord by its first character (cheat_tele.rs2); a comma
+> literal is neither.
+
+
 Entry point for measuring and iterating on torirs client frame time,
 especially under `manifests/manifest_osrs230.ini` / `manifests/manifest_osrs230_embed.ini`.
 

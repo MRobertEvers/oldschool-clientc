@@ -3,7 +3,7 @@
 # which needs dtrace). Uses /usr/bin/sample, which works on your own processes.
 #
 #   ./profile-mac.sh                              # headless, manifests/manifest_osrs230.ini, 25s
-#   ./profile-mac.sh manifests/manifest_rs254.ini           # another manifest
+#   ./profile-mac.sh manifests/manifest_rs254lc.ini           # another manifest
 #   ./profile-mac.sh manifests/manifest_osrs230_embed.ini 40 # embedded server, Soft3D (harness)
 #   ./profile-mac.sh manifests/manifest_osrs230.ini 40      # sample for 40 seconds
 #   TORIRS_PROFILE_WINDOWED=1 ./profile-mac.sh    # real SDL window instead of dummy

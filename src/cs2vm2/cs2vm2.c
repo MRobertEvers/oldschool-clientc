@@ -8209,13 +8209,19 @@ CS2VM2_Op_Highlight(struct CS2VM2_Thread* vm, int opcode)
     request.u.highlight.arg_count = meta.int_in;
     request.u.highlight.query = meta.int_out != 0;
 
-    /* Strings first: they sit above the ints on their own stack, and the only
-     * string any of these takes is the PLAYER family's name, which nothing here
-     * can act on. Popped to keep the pool balanced, then dropped. */
+    /*
+     * Strings first: they sit above the ints on their own stack.
+     *
+     * The only string any of these takes is a SUBJECT NAME -- the PLAYER
+     * family's, and the unnamed 7041..7043 block's -- and it is carried to the
+     * host rather than dropped. Popping more than one would mean a form this
+     * does not know; the last one popped is the subject either way, and the
+     * rest are popped to keep the pool balanced.
+     */
+    request.u.highlight.name = NULL;
     for( int i = 0; i < meta.str_in; i++ )
     {
-        char* discard;
-        if( CS2VM2_PopStr(vm, &discard) != CS2VM_EXECNO_OK )
+        if( CS2VM2_PopStr(vm, &request.u.highlight.name) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
     }
 
@@ -8369,7 +8375,7 @@ CS2VM2_Op_ClientOp(
 
 /*
  * The client op's SUBJECT: `_6750..6753`, `_6800..6802`, `_6850..6852`,
- * `_6900 / _6902`, `_6950`.
+ * `_6900`, `_6950`.
  *
  * No arguments to pop -- they are bare reads of the op being dispatched -- so
  * this only tags the opcode and lets the host push the answer, exactly like
@@ -8384,6 +8390,40 @@ CS2VM2_Op_ClientOpContext(struct CS2VM2_Thread* vm, int opcode)
     request.kind = CS2VM_HOST_REQUEST_CLIENTOP_CONTEXT;
     memset(&request.u.clientop_context, 0, sizeof(request.u.clientop_context));
     request.u.clientop_context.opcode = opcode;
+    return vm->vm->host_exec(vm, &request);
+}
+
+/*
+ * The ACTIVE PLAYER: `_6901`, `_6902`, `_6903`, `_6904`, `_6905`.
+ *
+ * `_6901` is the one that WRITES -- it makes the local player the active one
+ * and pushes whether there was one to make active, which is how a script that
+ * was not entered from a per-player trigger gets a subject for the other four.
+ * Only `_6903` takes an argument (the route index), so it is the only one that
+ * pops. The rest are bare reads the host pushes the answer to, like the
+ * context getters above.
+ *
+ * `_6902` sits in the same numeric block as the client-op context getters and
+ * is NOT one: the reference's ScriptRunnerImpl_6900To6999.cpp answers it with
+ * `player->m_routeLength`, having first asserted `m_activePlayer != -1`. It
+ * was routed as "the active player's COORD" here on the strength of the block
+ * it sits in, which made clientscript 5203 read a coord where it wanted a
+ * count.
+ */
+static int
+CS2VM2_Op_ActivePlayer(struct CS2VM2_Thread* vm, int opcode)
+{
+    assert(vm);
+
+    struct CS2VM_HostRequest request;
+    memset(&request, 0, sizeof(request));
+    request.kind = CS2VM_HOST_REQUEST_ACTIVE_PLAYER;
+    request.u.active_player.opcode = opcode;
+    request.u.active_player.index = -1;
+    if( opcode == CS2_OP__6903 &&
+        CS2VM2_PopInt(vm, &request.u.active_player.index) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
     return vm->vm->host_exec(vm, &request);
 }
 
@@ -11184,10 +11224,10 @@ CS2VM2_RunOp(
         return CS2VM2_Op_ClientOp(vm, opcode, false);
     /*
      * The client op's subject, read from inside the script it just ran. Listed
-     * one by one rather than as ranges: each block has a hole in it (`_6901`
-     * carries no signature at all, and the obj block's name getter is called by
-     * nothing), and a range would have routed those too and answered them with
-     * a confident zero.
+     * one by one rather than as ranges: the blocks are not uniform -- `_6901`
+     * is a SETTER and belongs with the active-player group below, and the
+     * player block's `_6902`.. are about a route -- and a range would have
+     * routed those here too and answered them with a confident zero.
      */
     case CS2_OP__6750: /* npc name   */
     case CS2_OP__6751: /* npc uid    */
@@ -11199,10 +11239,19 @@ CS2VM2_RunOp(
     case CS2_OP__6850: /* obj name   */
     case CS2_OP__6851: /* obj coord  */
     case CS2_OP__6852: /* obj id     */
+    case CS2_OP__6853: /* obj count  */
     case CS2_OP__6900: /* player name  */
-    case CS2_OP__6902: /* player coord */
     case CS2_OP__6950: /* tile coord */
         return CS2VM2_Op_ClientOpContext(vm, opcode);
+    /* The active player's route (6902/6903) and the two player uids
+     * (6904/6905). Numerically inside the player block above, but a different
+     * question -- see CS2VM2_Op_ActivePlayer. */
+    case CS2_OP__6901: /* make the local player active */
+    case CS2_OP__6902: /* route length            */
+    case CS2_OP__6903: /* route coord at an index */
+    case CS2_OP__6904: /* active player uid       */
+    case CS2_OP__6905: /* local player uid        */
+        return CS2VM2_Op_ActivePlayer(vm, opcode);
     case CS2_OP_LOC_FIND:
     case CS2_OP_COORD_INSCENE:
         return CS2VM2_Op_SubjectFind(vm, opcode);
@@ -11277,6 +11326,11 @@ CS2VM2_RunOp(
     case CS2_OP_MINIMENU_ISOPEN:
     case CS2_OP_MINIMENU_FINDCOMPONENT:
     case CS2_OP_MINIMENU_NUMOPS:
+    /* The acting row's TILE and its OBJ id. Numbered inside the minimenu block
+     * and answered from the same acting row; nothing in this cache calls
+     * either, which is why they sat unrouted and faked a zero. */
+    case CS2_OP__7106:
+    case CS2_OP__7107:
         return CS2VM2_Op_Minimenu(vm, opcode);
     /* Audio volumes (3203..3208): direct setters take just a value, getters take
      * nothing; the host owns the value and pushes it back. */

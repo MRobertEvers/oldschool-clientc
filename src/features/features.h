@@ -18,7 +18,15 @@
  * loc. Resolution order (app.c App_Init):
  *
  *   [features:boot] era=<name>  >  TORIRS_FEATURES_ERA  >
+ *   revconfig `[features] era=<name>`  >
  *   ToriRS_Features_ForCache(epoch, revision)
+ *
+ * The revconfig layer is where an era normally states itself, because which
+ * model a client runs is a fact about the REVISION and a revision profile is
+ * shared by every world that boots it (revconfig/rs245_2lc's file serves 254,
+ * 289 and 377). The manifest sits above it for the things that are true of one
+ * WORLD rather than of its revision — era=server_routed is a property of the
+ * server, not the cache. See src/revconfig/revconfig_profile.h.
  *
  * Interaction/routing was the first genuine two-model split (see
  * docs/PATHING_INTERACTION_PARITY.md); painter, lighting, and audio differences
@@ -183,6 +191,37 @@ enum ToriRS_MoverModel
      * position is ordinary here and the 256 rule would teleport through it.
      */
     TORIRS_MOVER_FRAME_DELTA = 1,
+};
+
+/**
+ * Whether the Controls panel's two "Attack" dropdowns exist, and what the
+ * combat-level comparison does when they do not.
+ *
+ * The 2004 client has neither dropdown. Client-TS `addNpcOptions` /
+ * `addPlayerOptions` emit the Attack row unconditionally and bump it below the
+ * others only when the target out-levels the local player — and for an NPC the
+ * bump is computed INSIDE the attack pass, so nothing else on the row list
+ * moves. The settings-era client (rs_attack_option.h, deob class75) reads the
+ * choice out of two clientcode varps instead, boots both at Hidden, and applies
+ * its "Depends on combat levels" bump to every op on the NPC, attack or not.
+ *
+ * Which is why this cannot be left to the varp alone: a 2004 server transmits
+ * neither varp, so a settings-era client pointed at one sits at Hidden forever
+ * and every NPC and player loses its Attack row.
+ */
+enum ToriRS_AttackOptionModel
+{
+    /**
+     * Client-TS: no dropdowns. Both options behave as "Depends on combat
+     * levels", and the level bump reaches the attack pass only.
+     */
+    TORIRS_ATTACK_OPTION_MODEL_CLASSIC = 0,
+    /**
+     * OldSchool: varp clientcode 18 (player) and 22 (NPC) carry the setting,
+     * the client boots both at Hidden, and "Depends" deprioritizes every op on
+     * a higher-level NPC.
+     */
+    TORIRS_ATTACK_OPTION_MODEL_SETTINGS = 1,
 };
 
 struct ToriRS_FeatureTable
@@ -357,6 +396,14 @@ struct ToriRS_FeatureTable
      * route from silently becoming a function of how much terrain is loaded.
      */
     int route_window_tiles;
+
+    /* --- minimenu: the "Attack" options ---------------------------------- */
+
+    /**
+     * enum ToriRS_AttackOptionModel. 0 = the 2004 client, which has no such
+     * setting at all.
+     */
+    int attack_option_model;
 
     /* --- widget targeting ------------------------------------------------ */
 

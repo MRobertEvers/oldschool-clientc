@@ -48,14 +48,29 @@ push_element_from_ini_header(
     }
 
     const char* space = strchr(section_header, ':');
-    if( !space )
-        return;
+    if( space )
+    {
+        strncpy(item_type, section_header, space - section_header);
+        item_type[space - section_header] = '\0';
 
-    strncpy(item_type, section_header, space - section_header);
-    item_type[space - section_header] = '\0';
-
-    strncpy(item_name, space + 1, sizeof(item_name) - 1);
-    item_name[sizeof(item_name) - 1] = '\0';
+        strncpy(item_name, space + 1, sizeof(item_name) - 1);
+        item_name[sizeof(item_name) - 1] = '\0';
+    }
+    else
+    {
+        /*
+         * A section with no `:` at all -- `[camera]`, `[features]`, `[chrome]`.
+         * There is exactly one of each per profile, so there is nothing to name
+         * it by, and the type IS the header.
+         *
+         * The old code returned here instead, which left s_ini_item_type
+         * pointing at whatever section came BEFORE: an unrecognised header's
+         * keys were silently applied to the previous item rather than dropped.
+         */
+        strncpy(item_type, section_header, sizeof(item_type) - 1);
+        item_type[sizeof(item_type) - 1] = '\0';
+        item_name[0] = '\0';
+    }
 
     strncpy(s_ini_item_type, item_type, sizeof(s_ini_item_type) - 1);
     s_ini_item_type[sizeof(s_ini_item_type) - 1] = '\0';
@@ -67,8 +82,23 @@ push_element_from_ini_header(
         s_ini_layout_group[sizeof(s_ini_layout_group) - 1] = '\0';
         push_field(revconfig_buffer, RCFIELD_UILAYOUT_GROUP, item_name);
     }
-    else
+    else if( item_name[0] != '\0' )
         push_field(revconfig_buffer, RCFIELD_ITEMNAME, item_name);
+}
+
+/* `id=` is scoped to the cache-ref section types so it can never be mistaken
+ * for a key of some future [component:…] or [sprite:…] spelling. */
+static int
+ini_type_is_cacheref(const char* item_type)
+{
+    static char const* const kinds[] = { REVCONFIG_CACHEREF_KINDS };
+    assert(item_type);
+    for( size_t i = 0; i < sizeof(kinds) / sizeof(kinds[0]); i++ )
+    {
+        if( strcmp(item_type, kinds[i]) == 0 )
+            return 1;
+    }
+    return 0;
 }
 
 static void
@@ -94,6 +124,72 @@ push_field_from_ini_kv(
     }
 
     uint8_t kind = RCFIELD_NONE;
+
+    /*
+     * The three nameless sections first. Their keys are scoped to them the way
+     * `id=` is scoped to the cache-ref kinds -- `mover=` and `controls=` are
+     * ordinary enough words that a future [component:...] spelling could want
+     * them, and the section type is what keeps the two apart.
+     */
+    if( strcmp(s_ini_item_type, "features") == 0 )
+    {
+        if( strcmp(key, "era") == 0 )
+            kind = RCFIELD_FEATURES_ERA;
+        else if( strcmp(key, "ground_click_nearest") == 0 )
+            kind = RCFIELD_FEATURES_GROUND_CLICK_NEAREST;
+        else if( strcmp(key, "ground_click_unbounded") == 0 )
+            kind = RCFIELD_FEATURES_GROUND_CLICK_UNBOUNDED;
+        else if( strcmp(key, "ground_click_offmap") == 0 )
+            kind = RCFIELD_FEATURES_GROUND_CLICK_OFFMAP;
+        else if( strcmp(key, "mover") == 0 )
+            kind = RCFIELD_FEATURES_MOVER;
+        else if( strcmp(key, "painter_draw_distance") == 0 )
+            kind = RCFIELD_FEATURES_PAINTER_DRAW_DISTANCE;
+        else
+            fprintf(stderr, "revconfig: [features] has no key '%s'\n", key);
+        if( kind != RCFIELD_NONE )
+            push_field(vec, kind, value);
+        return;
+    }
+    if( strcmp(s_ini_item_type, "camera") == 0 )
+    {
+        if( strcmp(key, "zoom") == 0 )
+            kind = RCFIELD_CAMERA_ZOOM;
+        else if( strcmp(key, "controls") == 0 )
+            kind = RCFIELD_CAMERA_CONTROLS;
+        else if( strcmp(key, "wheel_step") == 0 )
+            kind = RCFIELD_CAMERA_WHEEL_STEP;
+        else
+            fprintf(stderr, "revconfig: [camera] has no key '%s'\n", key);
+        if( kind != RCFIELD_NONE )
+            push_field(vec, kind, value);
+        return;
+    }
+    if( strcmp(s_ini_item_type, "chrome") == 0 )
+    {
+        if( strcmp(key, "plugin_button_iface") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_IFACE;
+        else if( strcmp(key, "plugin_button_parent") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_BUTTON_PARENT;
+        else if( strcmp(key, "plugin_panel_parent") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_PANEL_PARENT;
+        else if( strcmp(key, "plugin_button_slot") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_BUTTON_SLOT;
+        else if( strcmp(key, "plugin_button_size") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_BUTTON_SIZE;
+        else if( strcmp(key, "plugin_button_pitch") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_BUTTON_PITCH;
+        else if( strcmp(key, "plugin_button_op") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_BUTTON_OP;
+        else if( strcmp(key, "plugin_layout_script") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_LAYOUT_SCRIPT;
+        else
+            fprintf(stderr, "revconfig: [chrome] has no key '%s'\n", key);
+        if( kind != RCFIELD_NONE )
+            push_field(vec, kind, value);
+        return;
+    }
+
     /* Section type comes from [type:name] header (e.g. component, layout, inv, sprite). */
     if( strcmp(key, "sprite") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_SPRITE;
@@ -147,26 +243,35 @@ push_field_from_ini_kv(
         kind = RCFIELD_UICOMPONENT_SELECTED;
     else if( strcmp(key, "slot") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_SLOT;
+    else if( strcmp(key, "role") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_ROLE;
+    /* `match=` is scoped to [role:…] the way `id=` is to the cache-ref kinds:
+     * it is a common enough word that a future section spelling it must not
+     * silently land here. */
+    else if( strcmp(key, "match") == 0 && strcmp(s_ini_item_type, "role") == 0 )
+        kind = RCFIELD_ROLE_MATCH;
     else if( strcmp(key, "componentno") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_COMPONENTNO;
     else if( strcmp(key, "inv") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_INV;
     else if( strcmp(key, "paint_levels") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_PAINT_LEVELS;
-    else if( strcmp(key, "mmb_rotate") == 0 && strcmp(s_ini_item_type, "component") == 0 )
-        kind = RCFIELD_UICOMPONENT_MMB_ROTATE;
-    else if( strcmp(key, "wheel_zoom") == 0 && strcmp(s_ini_item_type, "component") == 0 )
-        kind = RCFIELD_UICOMPONENT_WHEEL_ZOOM;
     else if( strcmp(key, "hotkey") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_HOTKEY;
     else if( strcmp(key, "color") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_COLOR;
     else if( strcmp(key, "filled") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_FILLED;
+    else if( strcmp(key, "tiled") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_TILED;
     else if( strcmp(key, "font") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_FONT;
     else if( strcmp(key, "center") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_CENTER;
+    else if( strcmp(key, "valign") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_VALIGN;
+    else if( strcmp(key, "over_color") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_OVER_COLOR;
     else if( strcmp(key, "shadowed") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_SHADOWED;
     else if( strcmp(key, "text") == 0 && strcmp(s_ini_item_type, "component") == 0 )
@@ -299,6 +404,8 @@ push_field_from_ini_kv(
         kind = RCFIELD_CACHE_FONT_NAME;
     else if( strcmp(key, "cache_font_id") == 0 )
         kind = RCFIELD_CACHE_FONT_ID;
+    else if( strcmp(key, "id") == 0 && ini_type_is_cacheref(s_ini_item_type) )
+        kind = RCFIELD_CACHEREF_ID;
     else if(
         strcmp(key, "transform1") == 0 || strcmp(key, "transform2") == 0 ||
         strcmp(key, "transform3") == 0 || strcmp(key, "transform4") == 0 )

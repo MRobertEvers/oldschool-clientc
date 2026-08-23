@@ -564,22 +564,21 @@ static const struct
     const char* name;
     const char* blocked_on;
 } k_opcode_gap_allowed[] = {
-    { "HINT_NPC",
-      "Nothing exists end to end. There is no server encoder; rev230's table maps "
-      "HINT_ARROW to PKT_NAME_NONE (net/rev/osrs230/packetin.h) where rev239 maps it; "
-      "and the client stores the state but never draws it — app.h calls the drawing "
-      "'a flagged follow-on'. So the opcode on its own would encode nothing, or encode "
-      "into a packet the client discards: a no-op that looks implemented. Blocked on "
-      "the client's hint-arrow render lane, and it deletes itself the day that lands. "
-      "Siblings HINT_COORD/HINT_PL/HINT_STOP are absent too. 5 sites, 3 live, all in "
-      "quest_mm's demon fight",
-    },
-    { "HINT_STOP",
-      "Same missing render lane as HINT_NPC above — clearing a hint arrow the client "
-      "never drew is still a no-op. First wanted 2026-08-20 by quest_troll's "
-      "[label,troll_dad_surrender], undoing the hint_npc that starts the Dad fight. "
-      "Deletes itself alongside HINT_NPC's row the day the arrow lane lands.",
-    },
+    /*
+     * EMPTY, and that is the state this table is for -- every opcode the
+     * content tree names is implemented.
+     *
+     * The last two rows were HINT_NPC and HINT_STOP, both of whose notes said
+     * they would "delete themselves the day the client's hint-arrow render lane
+     * lands". It landed (`app_overlay_build_hint_arrow` in src/app.c), the four
+     * `hint_*` opcodes are implemented below, and the rows are gone.
+     *
+     * The sentinel is not a row: `name` is NULL, so the lookup below skips it
+     * and no opcode can match. It exists because ISO C has no zero-length array
+     * and this table is meant to be empty most of the time -- deleting the last
+     * real row should not require also editing the loops that read it.
+     */
+    { NULL, NULL },
 };
 
 #define TORIRSSERVER_OPCODE_GAP_ALLOWED_COUNT                                                           \
@@ -596,6 +595,8 @@ opcode_gap_allowed(int opcode)
         return 0;
     for( int i = 0; i < TORIRSSERVER_OPCODE_GAP_ALLOWED_COUNT; i++ )
     {
+        if( !k_opcode_gap_allowed[i].name )
+            continue;
         if( strcmp(k_opcode_gap_allowed[i].name, name) == 0 )
             return 1;
     }
@@ -673,6 +674,8 @@ ToriRSServer_ScriptsReportGaps(struct ToriRSServer* srv)
         {
             const char* name = SSVM_OpcodeName(opcode);
 
+            if( !k_opcode_gap_allowed[i].name )
+                continue;
             if( !name || strcmp(name, k_opcode_gap_allowed[i].name) != 0 )
                 continue;
             if( !opcode_implemented(opcode) )
@@ -8513,6 +8516,75 @@ ToriRSServer_ScriptCommand(
         return 1;
     }
 
+    /*
+     * The hint arrow family -- `hint_npc`, `hint_coord`, `hint_pl`, `hint_stop`.
+     *
+     * These were in `k_opcode_gap_allowed` with the note "blocked on the
+     * client's hint-arrow render lane, and it deletes itself the day that lands".
+     * That lane has landed (`app_overlay_build_hint_arrow`), so the rows are
+     * gone and these are the implementations they were waiting for.
+     *
+     * They are also the only mechanism this revision has for two All Settings
+     * rows -- 272 "Clue scroll helper - Worldmap marker" and 273 "... World
+     * arrows". Neither has a reader in the cache or in the NXT engine; the arrow
+     * is the payload and the server's choice of whether to send it is the
+     * setting. Content decides both, which is why these are script opcodes
+     * rather than an engine feature keyed on a varbit.
+     */
+    case SS_OP_HINT_NPC:
+    {
+        int slot = (int)state->host_tag - 1;
+
+        if( slot < 0 )
+        {
+            SSVM_Abort(state, "hint_npc with no active npc");
+            return 1;
+        }
+        if( srv->active_player )
+            ToriRSServer_SendHintArrow(srv->active_player, TORIRSSERVER_HINT_ARROW_NPC, slot, 0, 0);
+        return 1;
+    }
+
+    case SS_OP_HINT_PL:
+    {
+        /* The ACTIVE player is both the subject and the recipient here, which
+         * is what `hint_pl` means in a single-player-facing script: point me at
+         * myself. A script that wants to point one player at another has no
+         * spelling for it in this opcode's metadata (zero arguments), so this
+         * does not invent one. */
+        if( srv->active_player )
+            ToriRSServer_SendHintArrow(srv->active_player, TORIRSSERVER_HINT_ARROW_PLAYER,
+                                   srv->active_player->pid, 0, 0);
+        return 1;
+    }
+
+    case SS_OP_HINT_COORD:
+    {
+        int32_t values[3];
+
+        for( int i = 2; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        /* (coord, height, unused). The coord is a packed server coord; the wire
+         * wants absolute x and z, which is what the client converts back. */
+        if( srv->active_player )
+            ToriRSServer_SendHintArrow(srv->active_player, TORIRSSERVER_HINT_ARROW_COORD,
+                                   ToriRSServer_CoordX(values[0]),
+                                   ToriRSServer_CoordZ(values[0]), values[1]);
+        return 1;
+    }
+
+    case SS_OP_HINT_STOP:
+    {
+        /* 255 is the wire's clear, which `rs_gameproto_exec.c` normalises to
+         * type 0 on the way in. */
+        if( srv->active_player )
+            ToriRSServer_SendHintArrow(srv->active_player, TORIRSSERVER_HINT_ARROW_CLEAR, 0, 0, 0);
+        return 1;
+    }
+
     case SS_OP_NPC_DAMAGE:
     {
         int32_t values[2];
@@ -8602,7 +8674,19 @@ ToriRSServer_ScriptCommand(
         if( target_player == saved_player )
             target_player->hit_self_inflicted = 1;
         ToriRSServer_WorldSetActive(srv, target_player);
-        ToriRSServer_CombatHitPlayer(srv, values[1], values[2]);
+        /*
+         * `saved_player` is the ATTACKER, and it is the only place the attacker
+         * is still on the stack: the call below runs with the VICTIM active, by
+         * design, so the damage funnel cannot name a dealer on its own.
+         *
+         * Naming it here is the whole of setting 5 for player-versus-player --
+         * `hitsplat_damage_other` (the tinted wrapper) instead of
+         * `hitsplat_damage_me`. A script damaging its own player passes itself,
+         * which is also right: an overload's self-hit is damage you dealt.
+         */
+        ToriRSServer_CombatHitPlayerFrom(
+            srv, values[1], values[2],
+            saved_player ? (int)(saved_player - &srv->players[0]) : -1);
         ToriRSServer_WorldSetActive(srv, saved_player);
         return 1;
     }
@@ -8652,11 +8736,18 @@ ToriRSServer_ScriptCommand(
              * one place hitpoints reach zero and the only one that starts the
              * death sequence.
              */
-            ToriRSServer_CombatHitPlayer(srv, values[2], target_player->hitpoints);
+            ToriRSServer_CombatHitPlayerFrom(
+                srv, values[2], target_player->hitpoints,
+                saved_player ? (int)(saved_player - &srv->players[0]) : -1);
         }
         else
         {
-            ToriRSServer_CombatHitPlayer(srv, values[2], values[1]);
+            /* The attacker, for the same reason as `damage` above: this runs
+             * with the victim active and `saved_player` is the last frame that
+             * still knows who swung. */
+            ToriRSServer_CombatHitPlayerFrom(
+                srv, values[2], values[1],
+                saved_player ? (int)(saved_player - &srv->players[0]) : -1);
         }
         ToriRSServer_WorldSetActive(srv, saved_player);
         return 1;

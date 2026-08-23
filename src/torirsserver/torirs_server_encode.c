@@ -78,6 +78,7 @@ static int v5_face_from_classic(
 enum
 {
     OP_SET_MAP_FLAG = PKT_NAME_UNSET_MAP_FLAG,
+    OP_HINT_ARROW = PKT_NAME_HINT_ARROW,
     OP_CHAT_FILTER_SETTINGS = PKT_NAME_CHAT_FILTER_SETTINGS,
     OP_IF_OPENSUB = PKT_NAME_IF_OPENSUB,
     OP_FRIENDLIST_LOADED = PKT_NAME_FRIENDLIST_LOADED,
@@ -1185,6 +1186,12 @@ ToriRSServer_GameframeBindSlots(
     snprintf(name, sizeof(name), "%s:floater", top_name);
     uid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, name);
     player->gameframe_floater = uid;
+
+    /* `helper_content`, the innermost of the three helper layers -- see
+     * ToriRSServerIds.com_gameframe_helper for why not `helper`. */
+    snprintf(name, sizeof(name), "%s:helper_content", top_name);
+    uid = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_COMPONENT, name);
+    player->gameframe_helper = uid;
 }
 
 static int
@@ -2580,6 +2587,44 @@ ToriRSServer_SendUnsetMapFlag(struct ToriRSServerPlayer* player)
     flush(player, &buf, OP_SET_MAP_FLAG, 0);
 }
 
+/*
+ * HINT_ARROW -- point the player at something.
+ *
+ * Six fixed bytes at revision 239 (`3rd/rsprot/gen/rev239_prot.h`): a type byte,
+ * then `id` and `z` as u16 and a height byte. What the last three MEAN depends
+ * on the type, which is why this takes them raw and the four script opcodes
+ * above it name the shapes:
+ *
+ *   1  coord   id = absolute tile x, z = absolute tile z, height above it
+ *   2  npc     id = npc slot; z and height are padding
+ *   10 player  id = player pid; z and height are padding
+ *   255 clear
+ *
+ * Absolute coords for the coord form, deliberately. The arrow's whole purpose
+ * is to point at somewhere the player is not, and a scene-local coord cannot
+ * name a tile outside the loaded window -- see the matching note in
+ * `app_overlay_build_hint_arrow`, which converts with the same origin
+ * `SET_MAP_FLAG`'s absolute form uses.
+ */
+void
+ToriRSServer_SendHintArrow(
+    struct ToriRSServerPlayer* player,
+    int type,
+    int id,
+    int z,
+    int height)
+{
+    struct RSAreaBuf buf;
+
+    assert(player);
+    open_packet(&buf, 8);
+    rsab_p1(&buf, type & 0xff);
+    rsab_p2(&buf, id & 0xffff);
+    rsab_p2(&buf, z & 0xffff);
+    rsab_p1(&buf, height & 0xff);
+    flush(player, &buf, OP_HINT_ARROW, 0);
+}
+
 void
 ToriRSServer_SendSetMapFlag(struct ToriRSServerPlayer* player, int local_x, int local_z)
 {
@@ -3830,15 +3875,33 @@ ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
             memset(&ext, 0, sizeof(ext));
             if( player->masks & (TORIRSSERVER_PMASK_DAMAGE | TORIRSSERVER_PMASK_DAMAGE2) )
             {
+                /*
+                 * Promoted to the wrapper that carries THIS viewer's settings.
+                 *
+                 * Content names a family (`hitsplat_damage`); the cache carries
+                 * a me/other pair and a max-hit wrapper over it, both keyed on
+                 * All Settings varbits the client resolves at draw time. Sending
+                 * the family leaf answers settings 5 and 279 "off" for every
+                 * player, silently -- see ToriRSServer_HitsplatForViewer.
+                 *
+                 * The viewer here is the player being hit, which is the common
+                 * case where the two differ: another player's damage on you is
+                 * damage you did not deal, and that is exactly what setting 5
+                 * tints.
+                 */
                 ext.has_hit = 1;
-                ext.hit_type = player->damage_type;
+                ext.hit_type = ToriRSServer_HitsplatForViewer(
+                    srv, player, player->damage_type, player->damage,
+                    player->hitmark_count > 0 ? player->hitmarks[0].dealer_slot : -1);
                 ext.hit_value = player->damage;
                 /* Splats two and onward of the same tick. The mirrors above are
                  * hitmarks[0]; everything the player took alongside it goes in
                  * the list rather than being dropped (struct ToriRSServerHitmark). */
                 for( int i = 1; i < player->hitmark_count && i <= 3; i++ )
                 {
-                    ext.hit_extra[ext.hit_extra_count].type = player->hitmarks[i].type;
+                    ext.hit_extra[ext.hit_extra_count].type = ToriRSServer_HitsplatForViewer(
+                        srv, player, player->hitmarks[i].type, player->hitmarks[i].damage,
+                        player->hitmarks[i].dealer_slot);
                     ext.hit_extra[ext.hit_extra_count].value = player->hitmarks[i].damage;
                     ext.hit_extra_count++;
                 }
@@ -4549,18 +4612,54 @@ put_npc_extended_v5(
          * legal, but it would spend a block to say nothing.
          */
         int hits = npc->hitmark_count > 0 ? npc->hitmark_count : 1;
+        /*
+         * Setting 182's loot-restriction icon, appended for THIS viewer only.
+         *
+         * It rides the hitmark list because that is what it is -- the cache's
+         * one textless hitsplat record, drawn over the entity and lasting three
+         * times as long as a splat (see ToriRSServer_HitsplatLootRestrictedIcon).
+         * Riding an existing block also means it appears while the player is
+         * attacking, which is exactly when the row says to warn them.
+         *
+         * Decided here rather than where the hit lands because it is one
+         * viewer's: the same npc's list is written once per player watching, and
+         * an icon added at the source would put a no-entry sign over the
+         * creature for everybody in the fight.
+         *
+         * Counted BEFORE the count byte goes out. The block is a length-prefixed
+         * list, so an extra quadruple written after a count that did not include
+         * it is not a cosmetic error -- the client reads the next field as this
+         * one and every block after it shifts.
+         */
+        int const icon_type =
+            ToriRSServer_NpcLootIconWanted(recipient->world, npc, recipient)
+                ? ToriRSServer_HitsplatLootRestrictedIcon()
+                : -1;
 
         if( hits > TORIRSSERVER_HITMARK_MAX )
             hits = TORIRSSERVER_HITMARK_MAX;
-        rsab_p1_alt1(buf, hits);
+        /* And the icon has to fit the client's four slots too: a fifth entry
+         * has nowhere to be drawn, so it is dropped rather than displacing a
+         * damage splat the player needs more. */
+        int const icon = (icon_type >= 0 && hits < TORIRSSERVER_HITMARK_MAX) ? 1 : 0;
+
+        rsab_p1_alt1(buf, hits + icon);
         for( int i = 0; i < hits; i++ )
         {
             /* `hitmark_count == 0` with the mask set can only come from a
              * writer that set the mask by hand; fall back to the mirror so it
              * still says what it used to. */
             int const damage = npc->hitmark_count > 0 ? npc->hitmarks[i].damage : npc->damage;
-            int const damage_type =
+            int const stated =
                 npc->hitmark_count > 0 ? npc->hitmarks[i].type : npc->damage_type;
+            int const dealer =
+                npc->hitmark_count > 0 ? npc->hitmarks[i].dealer_slot : -1;
+            /* Per RECIPIENT, which is the whole reason this cannot be decided
+             * where the hit lands: one npc's splat list is encoded once per
+             * player watching, and "was this my damage" is a fact about the
+             * pair. See ToriRSServer_HitsplatForViewer. */
+            int const damage_type =
+                ToriRSServer_HitsplatForViewer(recipient->world, recipient, stated, damage, dealer);
 
             v5_psmart1or2(buf, damage_type);
             v5_psmart1or2(buf, damage);
@@ -4568,6 +4667,18 @@ put_npc_extended_v5(
             /* Actor.method3560 only inserts the hitmark when this slot limit is
              * positive. Revision 239 actors retain four concurrent hitmarks. */
             v5_psmart1or2(buf, 4);
+        }
+        if( icon )
+        {
+            /* Value 0, and it draws no number: the record's `text=` is empty,
+             * which is the property that identified it. */
+            v5_psmart1or2(buf, icon_type);
+            v5_psmart1or2(buf, 0);
+            v5_psmart1or2(buf, 0);
+            v5_psmart1or2(buf, 4);
+            if( getenv("TORIRSSERVER_SPLAT_DEBUG") )
+                fprintf(stderr, "  SPLAT noloot icon %d for %s over npc type %d\n", icon_type,
+                        recipient->display_name, npc->type);
         }
     }
     if( flag & V5_NPC_HEADBARS )

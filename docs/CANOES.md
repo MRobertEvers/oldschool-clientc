@@ -372,6 +372,94 @@ ends mid-ride saves the player sitting in the canoe at 1817,4514, and the next
 run logs in there — which reads exactly like a cutscene that never exits. The
 first two attempts at this verification chased that and not the code.
 
+## 6b. The station never changed on screen (fixed 2026-08-22)
+
+Everything in §6 passed while a player at a canoe station watched the tree stand
+still through the whole chop / shape / float / paddle chain. The chain was
+working; none of it was reaching the client. Two independent breaks, one on each
+side of the wire.
+
+### The varbits were never transmitted
+
+A canoe station is ONE placed loc — `canoeing_canoestation_lumbridge` and its
+nine siblings — and its fifteen states are multiloc children the **client**
+picks with `canoestation_state_<name>`. So "the loc changes" is not something
+the server draws; it is a varbit reaching the client and the client remorphing.
+
+`ToriRSServer_WorldMarkVarp` sends nothing for a varp whose `.varp` config does
+not say `transmit=yes`, and an *undeclared* varp is server-only. Five of the six
+carriers were undeclared:
+
+| varp | carries |
+|---|---|
+| `canoeing_river_lum` | Lumbridge, Champions' Guild, Barbarian Village, Edgeville |
+| `canoeing_river_lum_2` | Ferox Enclave |
+| `canoeing_river_dougne` | Castle Wars, Tree Gnome Stronghold, Clocktower, Chaos Druid Tower |
+| `canoeing_river_dougne_2` | Tree Gnome Village |
+| `canoeing_menu_2` | `canoe_startfrom`, `canoe_river` |
+| `canoeing_menu` | `canoe_type` — the one that WAS declared, by `interface_farming` |
+
+`canoe_type` working while the rest did not is why the *cutscene* verified fine
+in §6 and the station did not: the boat under the player is chosen from the one
+carrier something else had already declared.
+
+They are now declared in `canoes/configs/canoes.varp`, at the default
+session scope — "made canoes remain at the station until you log out" is the
+wiki's own wording, so a station state that survived a logout would be wrong.
+
+**Why the suite did not catch it.** Every §6 assertion read the state back with
+`~canoe_state_get`, which reads the server's own copy. Reading a varbit back is
+not evidence that it was sent. The canoe section now checks the six carriers by
+name; without the declarations it produces exactly five failures.
+
+### A multiloc child's `anim=` never played
+
+`canoeing_canoestation_lumbridge` carries no `anim=` of its own. The four
+animated states do: `canoestation_tree_falling` (state 9, the tree going over)
+and `canoestation_*_inwater` (states 5–8, the launch splash), all on
+`canoeing_station_animations` (seq 3304).
+
+`world_builder_resolve_loc_for_place` took `seq_id` off the BASE unconditionally
+— documented, and half right: what makes a transformed loc a DynamicObject is
+the base `animationId` *or* the presence of a transform table, but the frame it
+draws comes from the def the transform resolved to. Taking the base's meant a
+shell with no `anim=` froze every animated child. That is not a canoe bug —
+**474 multiloc families in this cache have exactly that shape**
+(`blast_furnace_dispenser`, `golem_portal`, the mourning doors, …).
+
+The resolved child's `seq_id` now wins when it has one, with the base as the
+fallback so the 445 families that animate from the shell are untouched.
+
+Under `TORIRS_SCENERY_DEBUG` a `loc anim: element=… seq=… frames=…` line says
+whether the bind took — which is what separates "the seq never reached the
+element" from "it did and nothing is advancing it". Both look identical on
+screen.
+
+### What it looks like now
+
+Driven through the real packets under `SDL_VIDEODRIVER=dummy`, one `OPLOC1` on
+the station at 3241,3235:
+
+```sh
+TORIRSSERVER_SAVES=$scratch/saves SDL_VIDEODRIVER=dummy \
+TORIRS_ORBIT_CAM=512,300,110 TORIRS_MAX_FRAMES=600 \
+TORIRS_BMP_SERIES=$scratch/chop,330,12,20 \
+TORIRS_SIM_OPLOC="330,1,3241,3235,12163" TORIRS_NET_CHEAT="canoe 1" \
+./run-live.sh --skip-checks manifests/manifest_osrs239_torirs.ini asdf a
+```
+
+The player swings the axe, the tree **falls over through seq 3304** rather than
+popping, the fallen trunk lands, and interface 416 opens on the four canoe
+models. `::canoestate 1..4` and `11..14` each draw their own hull on the bank
+and in the water; `::canoestate 1` plus an `OPLOC1` plays
+`canoeing_pushing_into_water` and slides the canoe down the bank; `::canoestate
+11` plus an `OPLOC1` plays `canoeing_getting_in` and opens the travel map with
+the "you are here" arrow on the right station — which is `canoe_startfrom`
+arriving, the second half of the transmit fix.
+
+`TORIRS_ORBIT_CAM=512,…` is the yaw that frames a Lum station from the bank;
+the default login camera looks past it.
+
 ## 7. Open / deliberately not done
 
 - The five River Dougne assistants have no entry in the generated world spawn

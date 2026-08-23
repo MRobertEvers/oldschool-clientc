@@ -17,6 +17,7 @@
 #include "game/rs_worldmap.h"
 #include "inv/inv_manager.h"
 #include "perf/torirs_perf.h"
+#include "revconfig/revconfig_refs.h"
 #include "ui/uitree.h"
 #include "ui/uitree_layout.h"
 #include "ui/uitree_scroll.h"
@@ -830,6 +831,25 @@ rs_cs2_struct_param_lookup(
  * Init / Tick
  * ========================================================================= */
 
+/*
+ * A cache id the profile named, or -1.
+ *
+ * NULL refs is a table with nothing in it, not a reason to substitute a
+ * literal: an embedding with no profile gets a host whose id-driven features
+ * are all off, which is the only honest answer when nobody has said what
+ * cache this is.
+ */
+static int
+cs2_host_ref(
+    struct RevConfigRefs const* refs,
+    char const* kind,
+    char const* name)
+{
+    assert(kind);
+    assert(name);
+    return refs ? RevConfigRefs_Get(refs, kind, name) : -1;
+}
+
 void
 RS_CS2Host_Init(
     struct RS_CS2Host* host,
@@ -837,7 +857,8 @@ RS_CS2Host_Init(
     struct CacheProvider* provider,
     struct InvManager* invs,
     struct VarPManager* varps,
-    struct VarCManager* varcs)
+    struct VarCManager* varcs,
+    struct RevConfigRefs const* refs)
 {
     assert(host);
     assert(tree);
@@ -854,11 +875,18 @@ RS_CS2Host_Init(
     host->local_coord = 0;
     host->dest_coord = -1;
     host->hover_coord = -1;
-    /* pack/12_clientscripts.pack: the three tile-highlight refreshers. Each is
-     * a [clientscript] with no caller in the cache -- see the header. */
-    host->script_highlight_hover_tile = 5197;
-    host->script_highlight_current_tile = 5204;
-    host->script_highlight_dest_tile = 5210;
+    /* The three tile-highlight TRIGGER scripts: trigger_48, trigger_49 and
+     * trigger_47 -- see the header for what fires each and why the
+     * [clientscript] apply forms beside them are the cache's to run and not
+     * this client's. Which ids those are is the profile's answer, because a
+     * cache that predates the feature has no such scripts and must not be
+     * told to run rev-239's numbers. */
+    host->script_highlight_hover_tile = cs2_host_ref(refs, "script", "highlight_hover_tile");
+    host->script_highlight_current_tile = cs2_host_ref(refs, "script", "highlight_current_tile");
+    host->script_highlight_dest_tile = cs2_host_ref(refs, "script", "highlight_dest_tile");
+    /* -1, not 0: 0 is a real player slot, so a zero here would make `_6905`
+     * name whichever player the server put in slot 0 before login. */
+    host->local_pid = -1;
     host->top_interface_id = -1;
     host->mouse_x = -1;
     host->mouse_y = -1;
@@ -928,14 +956,20 @@ RS_CS2Host_Init(
     host->window_mode_dirty = false;
     host->client_layout_mode = 1; /* resizable classic — matches stretch boot */
     host->client_layout_dirty = false;
-    /* pack/12_clientscripts.pack: 3998=script_3998; decompile name settings_client_mode */
-    host->script_settings_client_mode = 3998;
-    host->script_settings_client_apply = 3967;
-    host->varbit_settings_last_changed = 9657;
-    /* 4183=settings_colour_input_click (the swatch's op), 4181=settings_get_colour
+    /* The Display panel's mode/apply pair (decompile names
+     * settings_client_mode / settings_client_apply) and the varbit those apply
+     * hubs write the pressed setting id into. */
+    host->script_settings_client_mode = cs2_host_ref(refs, "script", "settings_client_mode");
+    host->script_settings_client_apply = cs2_host_ref(refs, "script", "settings_client_apply");
+    host->varbit_settings_last_changed = cs2_host_ref(refs, "varbit", "settings_last_changed");
+    /* -1, not 0: script 0 is a real id, so zero would mirror every varbit write
+     * made by whatever script happens to be id 0 before the panel is ever used. */
+    host->settings_mirror_root_script = -1;
+    host->settings_mirror_count = 0;
+    /* settings_colour_input_click (the swatch's op) and settings_get_colour
      * (the read hub whose varp read names a row's varp). */
-    host->script_settings_colour_click = 4183;
-    host->script_settings_colour_get = 4181;
+    host->script_settings_colour_click = cs2_host_ref(refs, "script", "settings_colour_click");
+    host->script_settings_colour_get = cs2_host_ref(refs, "script", "settings_colour_get");
     host->settings_colour_count = 0;
     host->settings_colour_pending = false;
     RS_HighlightReset(&host->highlight);
@@ -2459,6 +2493,38 @@ exec_mec(
  * the subject into a highlight group. While TYPE answered 0 the script
  * returned on its first branch and the setting did nothing at all.
  */
+/*
+ * One FIND op: latch the acting row's subject into the kind's active register,
+ * and report whether there was one of that kind.
+ *
+ * A miss CLEARS the register rather than leaving it, which is the reference's
+ * behaviour too (its setter writes -1 to both halves when the entry does not
+ * resolve): a script that asked "is this a player" and was told no must not
+ * then be able to read the player it asked about three rows ago.
+ */
+static int
+minimenu_find(struct RS_CS2Host* host, enum RS_ClientOpKind kind, int menu_type)
+{
+    assert(host);
+
+    if( host->clientop.mouseover_type != menu_type ||
+        host->clientop.mouseover.kind != (int)kind )
+    {
+        RS_ClientOpActiveSet(&host->clientop, kind, NULL);
+        return 0;
+    }
+    RS_ClientOpActiveSet(&host->clientop, kind, &host->clientop.mouseover);
+    if( getenv("TORIRS_CLIENTOP_DEBUG") )
+        fprintf(
+            stderr,
+            "minimenu_find: %s latched uid=%d type=%d '%s'\n",
+            RS_ClientOpKindName(kind),
+            host->clientop.mouseover.uid,
+            host->clientop.mouseover.type,
+            host->clientop.mouseover.name);
+    return 1;
+}
+
 static int
 exec_minimenu(
     struct RS_CS2Host* host,
@@ -2478,36 +2544,93 @@ exec_minimenu(
             thread, CS2VM2_StrDup(thread, host->clientop.mouseover_target));
     }
     case CS2_OP_MINIMENU_TYPE:
+        /*
+         * The acting row's type. A world pick answers for itself; a row about
+         * an INTERFACE component is type 7, and that is a row the world pick
+         * never sees -- the two publishers are the pick set and the menu the
+         * hover line is composed from, and only the second one knows about
+         * widgets. Derived here rather than stored so neither publisher has to
+         * run after the other. See RS_MINIMENU_TYPE_COMPONENT.
+         */
+        if( host->clientop.mouseover_type == RS_MINIMENU_TYPE_NONE &&
+            host->clientop.mouseover_component >= 0 )
+            return CS2VM2_PushInt(thread, RS_MINIMENU_TYPE_COMPONENT);
         return CS2VM2_PushInt(thread, host->clientop.mouseover_type);
     /*
-     * The FIND ops confirm that the target really is of that kind.
+     * The FIND ops LATCH the acting row's subject, then say whether it was of
+     * the kind asked for.
      *
-     * In the reference they also LATCH it for the getters that follow; here
-     * the App has already published every field of the one target there is, so
-     * confirming is all there is left to do. Answering 1 for a kind the
-     * pointer is not on would send 5350 to read an npc uid off a loc.
+     * Latching is the load-bearing half, and it is the reference's own
+     * behaviour: `ScriptRunnerImpl::ExecuteCommand7100To7199` takes the menu's
+     * selected entry (or the LAST one -- the default left-click row -- when
+     * nothing is selected), sets the active npc / loc / obj / player from it,
+     * and pushes whether that worked. Clientscript 5350 depends on the order:
+     *
+     *     if ($int0 = 2 & _7102 = 1) { ~script5951(nc_param(_6753, ...)); }
+     *
+     * -- `_6753` is read AFTER `_7102`, and it is the entry `_7102` latched
+     * that it is about. Answering without latching left that reading whatever
+     * the mouseover fallback happened to hold, which is usually the same
+     * subject and silently is not when a row outlives the pick that made it.
+     *
+     * The acting row here is the mouseover the App publishes each frame, which
+     * is this client's spelling of "the entry the menu would act on".
      */
     case CS2_OP_MINIMENU_FINDNPC:
         return CS2VM2_PushInt(
-            thread, host->clientop.mouseover_type == RS_MINIMENU_TYPE_NPC);
+            thread, minimenu_find(host, RS_CLIENTOP_NPC, RS_MINIMENU_TYPE_NPC));
     case CS2_OP_MINIMENU_FINDLOC:
         return CS2VM2_PushInt(
-            thread, host->clientop.mouseover_type == RS_MINIMENU_TYPE_LOC);
+            thread, minimenu_find(host, RS_CLIENTOP_LOC, RS_MINIMENU_TYPE_LOC));
     case CS2_OP_MINIMENU_FINDOBJ:
         return CS2VM2_PushInt(
-            thread, host->clientop.mouseover_type == RS_MINIMENU_TYPE_OBJ);
+            thread, minimenu_find(host, RS_CLIENTOP_OBJ, RS_MINIMENU_TYPE_OBJ));
     case CS2_OP_MINIMENU_FINDPLAYER:
         return CS2VM2_PushInt(
-            thread, host->clientop.mouseover_type == RS_MINIMENU_TYPE_PLAYER);
+            thread, minimenu_find(host, RS_CLIENTOP_PLAYER, RS_MINIMENU_TYPE_PLAYER));
+    /*
+     * The acting row's TILE (`_7106`) and its OBJ id (`_7107`).
+     *
+     * The reference reads both off the entry: the coord from the entry's own
+     * packed x/z when it has one and from the mouseover ground tile when it
+     * does not, and the obj id from the entry field its FINDOBJ matches an obj
+     * against. Nothing in this cache calls either -- they are routed because
+     * the alternative is the stack stub answering a confident zero, which for
+     * a COORD is the corner of the map square.
+     */
+    case CS2_OP__7106:
+        return CS2VM2_PushInt(
+            thread,
+            host->clientop.mouseover.coord >= 0 ? host->clientop.mouseover.coord
+                                                : host->hover_coord);
+    case CS2_OP__7107:
+        return CS2VM2_PushInt(
+            thread,
+            host->clientop.mouseover_type == RS_MINIMENU_TYPE_OBJ
+                ? host->clientop.mouseover.type
+                : 0);
     case CS2_OP_MINIMENU_ISOPEN:
         return CS2VM2_PushInt(thread, host->clientop.menu_open ? 1 : 0);
     case CS2_OP_MINIMENU_NUMOPS:
         return CS2VM2_PushInt(thread, host->clientop.mouseover_opcount);
-    /* FINDCOMPONENT is the one this cannot answer: it wants the interface
-     * component under the pointer, which is the UITree's business and not the
-     * world pick set's. Nothing in the Activities category reads it. */
+    /*
+     * FINDCOMPONENT is the same latch for an INTERFACE row, and what it
+     * latches is the VM's active component -- the reference's
+     * `ScriptRunnerImpl::SetActiveComponent` from the entry, which is why
+     * proc 4728 reads `cc_getlayer` immediately after `_7109 = 1` and expects
+     * the hovered widget. It answered a flat 0 here, so the tooltip proc's
+     * whole component branch never ran.
+     */
     case CS2_OP_MINIMENU_FINDCOMPONENT:
-        return CS2VM2_PushInt(thread, 0);
+        if( host->clientop.mouseover_component < 0 )
+            return CS2VM2_PushInt(thread, 0);
+        CS2VM2_SetActiveAndDotComponentId(thread, host->clientop.mouseover_component);
+        if( getenv("TORIRS_CLIENTOP_DEBUG") )
+            fprintf(
+                stderr,
+                "minimenu_find: component latched %d\n",
+                host->clientop.mouseover_component);
+        return CS2VM2_PushInt(thread, 1);
     default:
         fprintf(stderr, "exec_minimenu: unhandled opcode %d\n", opcode);
         return CS2VM_EXECNO_ERROR;
@@ -2975,6 +3098,129 @@ rs_cs2_settings_record_action(
     slot = host->settings_action_count++;
     host->settings_action_id[slot] = setting_id;
     host->settings_action_value[slot] = value;
+}
+
+/** The root frame's script id, or -1 when there is no frame. */
+static int
+rs_cs2_root_script_id(struct CS2VM2_Thread* vm)
+{
+    if( !vm || vm->frame_sp <= 0 || !vm->frames[0] || !vm->frames[0]->script )
+        return -1;
+    return vm->frames[0]->script->script_id;
+}
+
+/*
+ * Mirror an All Settings varbit write to the server.
+ *
+ * Ten rows of this category are decided server-side and every one of them reads
+ * a varbit the panel writes client-only, so without this they read whatever the
+ * server last set and the panel's checkbox means nothing. See
+ * `settings_mirror_varbit` in the header for why no packet in this revision
+ * carries it and what is sent instead.
+ *
+ * The hub identifies itself: `%varbit9657 = <setting id>` is the first
+ * statement of all four apply hubs, so the root frame at that moment IS a hub,
+ * and every varbit write under that same root afterwards is this row's own. A
+ * list of hub script ids would say the same thing and would have to be kept in
+ * step with the cache by hand.
+ *
+ * 9657 itself is not mirrored. It is the panel telling ITSELF which row is
+ * being applied -- `%varbit9657` is read back by nothing on the server, and
+ * sending it would spend a packet on a value with no server-side meaning.
+ */
+static void
+rs_cs2_settings_record_mirror(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    int varbit_id,
+    int value)
+{
+    int root;
+
+    assert(host);
+    root = rs_cs2_root_script_id(vm);
+
+    if( host->varbit_settings_last_changed > 0 &&
+        varbit_id == host->varbit_settings_last_changed )
+    {
+        host->settings_mirror_root_script = root;
+        return;
+    }
+
+    if( root < 0 || root != host->settings_mirror_root_script )
+        return;
+
+    RS_CS2Host_QueueSettingsMirror(host, varbit_id, value);
+}
+
+void
+RS_CS2Host_QueueSettingsMirror(
+    struct RS_CS2Host* host,
+    int varbit_id,
+    int value)
+{
+    int slot;
+
+    assert(host);
+    if( varbit_id < 0 )
+        return;
+
+    /*
+     * Coalesce on the varbit, rather than appending.
+     *
+     * A row toggled twice before the queue drains is one value to send, not
+     * two, and the LAST one is the answer -- the opposite of the settings
+     * ACTION queue beside this, where two presses of a button row are two
+     * events and collapsing them would lose one.
+     */
+    for( slot = 0; slot < host->settings_mirror_count; slot++ )
+    {
+        if( host->settings_mirror_varbit[slot] == varbit_id )
+        {
+            host->settings_mirror_value[slot] = value;
+            return;
+        }
+    }
+
+    if( host->settings_mirror_count >= RS_CS2_HOST_SETTINGS_ACTIONS_MAX )
+    {
+        /* Drop the oldest, as the action queue does. A dropped mirror is one
+         * setting the server keeps its old value for, which the next write of
+         * that row corrects; blocking the queue would strand every later one. */
+        for( int i = 1; i < host->settings_mirror_count; i++ )
+        {
+            host->settings_mirror_varbit[i - 1] = host->settings_mirror_varbit[i];
+            host->settings_mirror_value[i - 1] = host->settings_mirror_value[i];
+        }
+        host->settings_mirror_count--;
+    }
+    slot = host->settings_mirror_count++;
+    host->settings_mirror_varbit[slot] = varbit_id;
+    host->settings_mirror_value[slot] = value;
+}
+
+bool
+RS_CS2Host_TakeSettingsMirror(
+    struct RS_CS2Host* host,
+    int* out_varbit_id,
+    int* out_value)
+{
+    assert(host);
+    assert(out_varbit_id);
+    assert(out_value);
+
+    if( host->settings_mirror_count <= 0 )
+        return false;
+
+    *out_varbit_id = host->settings_mirror_varbit[0];
+    *out_value = host->settings_mirror_value[0];
+    host->settings_mirror_count--;
+    for( int i = 0; i < host->settings_mirror_count; i++ )
+    {
+        host->settings_mirror_varbit[i] = host->settings_mirror_varbit[i + 1];
+        host->settings_mirror_value[i] = host->settings_mirror_value[i + 1];
+    }
+    return true;
 }
 
 /*
@@ -4695,6 +4941,8 @@ exec_widget_set_int(
     case CS2VM_WIDGET_INT_LINE_WIDTH:
         if( node->type == UIELEM_RS_LINE )
             node->u.rs_line.line_width = request.value;
+        else if( node->type == UIELEM_RS_ARC )
+            node->u.rs_arc.line_width = request.value > 0 ? request.value : 1;
         break;
     case CS2VM_WIDGET_INT_LINE_DIRECTION:
         if( node->type == UIELEM_RS_LINE )
@@ -4762,6 +5010,33 @@ exec_widget_set_int(
     }
     if( idx >= 0 )
         UITree_MarkNodeDirty(rs_cs2_tree(host), idx);
+    return CS2VM_EXECNO_OK;
+}
+
+/* CC/IF_SETARC. The two angles are the whole shape of a type-10 widget: with
+ * start == end it is a zero-width sector and draws nothing, which is how the
+ * countdown pie's wedge starts and how it ends.
+ *
+ * A set on a component that is not an arc is dropped rather than asserted --
+ * the reference writes IfType +0x9c/+0xa0 on whatever the active component is,
+ * and every other CC setter here tolerates the same mismatch. */
+static int
+exec_widget_set_arc(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    struct CS2VM_HostRequest_WidgetSetArc request)
+{
+    struct UITree* tree = rs_cs2_tree(host);
+    int32_t idx;
+    (void)vm;
+    if( !tree )
+        return CS2VM_EXECNO_OK;
+    idx = UITree_FindByComponentId(tree, request.component_id);
+    if( idx < 0 || tree->components[idx].type != UIELEM_RS_ARC )
+        return CS2VM_EXECNO_OK;
+    tree->components[idx].u.rs_arc.arc_start = request.arc_start;
+    tree->components[idx].u.rs_arc.arc_end = request.arc_end;
+    UITree_MarkNodeDirty(tree, idx);
     return CS2VM_EXECNO_OK;
 }
 
@@ -7271,6 +7546,9 @@ rs_cs2_host_exec_dispatch(
         rs_cs2_settings_record_action(
             host, vm, request->u.vars_write_varbit.varbit_id,
             request->u.vars_write_varbit.value);
+        rs_cs2_settings_record_mirror(
+            host, vm, request->u.vars_write_varbit.varbit_id,
+            request->u.vars_write_varbit.value);
         rs_cs2_settings_apply_client_layout(
             host, vm, request->u.vars_write_varbit.varbit_id,
             request->u.vars_write_varbit.value);
@@ -7490,24 +7768,25 @@ rs_cs2_host_exec_dispatch(
         {
             int answer = 0;
             bool handled;
+            bool const debug = getenv("TORIRS_HIGHLIGHT_DEBUG") != NULL;
+            enum RS_HighlightKind kind;
+            bool const known = RS_HighlightOpcodeKind(request->u.highlight.opcode, &kind);
 
             /* Every call, on request. The family is written entirely by cache
              * scripts, so when a highlight does not appear the first question
              * is always "did the script ask for it" -- and that question has
              * no other way to be answered from outside the VM. */
-            if( getenv("TORIRS_HIGHLIGHT_DEBUG") )
+            if( debug )
             {
-                enum RS_HighlightKind kind;
                 fprintf(
                     stderr,
                     "highlight: op %d (%s)",
                     request->u.highlight.opcode,
-                    RS_HighlightOpcodeKind(request->u.highlight.opcode, &kind)
-                        ? RS_HighlightKindName(kind)
-                        : "?");
+                    known ? RS_HighlightKindName(kind) : "?");
                 for( int i = 0; i < request->u.highlight.arg_count; i++ )
                     fprintf(stderr, " %d", request->u.highlight.args[i]);
-                fprintf(stderr, "\n");
+                if( request->u.highlight.name )
+                    fprintf(stderr, " '%s'", request->u.highlight.name);
             }
 
             handled = RS_HighlightApply(
@@ -7515,24 +7794,45 @@ rs_cs2_host_exec_dispatch(
                 request->u.highlight.opcode,
                 request->u.highlight.args,
                 request->u.highlight.arg_count,
+                request->u.highlight.name,
                 &answer);
+
+            /* The kind's subject count AFTER the op, on the same line.
+             *
+             * The op trace alone says what was asked for and not what the
+             * state became, and the difference between the two is the whole of
+             * one failure mode: a group that is re-ADDED to on every edge and
+             * never emptied looks identical, op for op, to one that is. It
+             * shows up here as a count that only ever climbs. */
+            if( debug )
+            {
+                /* The PLAYER kind counts its own list -- its subjects are
+                 * names, and reporting the int-keyed count for it would print
+                 * a flat 0 while names were going in and out. */
+                if( known )
+                    fprintf(
+                        stderr,
+                        " -> %d %s",
+                        kind == RS_HIGHLIGHT_PLAYER ? host->highlight.named_count
+                                                    : host->highlight.member_count[kind],
+                        RS_HighlightKindName(kind));
+                fprintf(stderr, "\n");
+            }
 
             if( !handled )
             {
-                /* The two forms this cannot own: the PLAYER family's ON/OFF/GET
-                 * and the unnamed 7041..7043, which key on a NAME that
-                 * CS2VM2_Op_Highlight has already discarded off the string
-                 * stack. Said once, because a highlight nobody can key is a
-                 * real gap rather than a quiet one. */
+                /* The one block this cannot own: the unnamed 7041..7043, whose
+                 * string subject nothing in the cache ever names -- see the
+                 * table in rs_highlight.c. Said once, because a highlight
+                 * nobody can key is a real gap rather than a quiet one. */
                 static bool announced = false;
                 if( !announced )
                 {
                     announced = true;
                     fprintf(
                         stderr,
-                        "cs2: HIGHLIGHT opcode %d is not recorded -- its subject is a "
-                        "name, and the string stack is discarded before the host sees "
-                        "it\n",
+                        "cs2: HIGHLIGHT opcode %d is not recorded -- nothing in this "
+                        "cache names a subject for its family\n",
                         request->u.highlight.opcode);
                 }
             }
@@ -7624,6 +7924,111 @@ rs_cs2_host_exec_dispatch(
         if( text )
             return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, text));
         return CS2VM2_PushInt(vm, value);
+    }
+
+    case CS2VM_HOST_REQUEST_ACTIVE_PLAYER:
+    {
+        /*
+         * The ACTIVE PLAYER's route (`_6902` / `_6903`) and the two uids
+         * (`_6904` / `_6905`).
+         *
+         * Who the active player is comes from the same register the client-op
+         * context getters read -- a dispatch, else what an opcode named, else
+         * the mouseover -- which is this port's spelling of the reference's
+         * `ScriptRunner::m_activePlayer`. The client sets it before firing a
+         * per-player trigger, exactly as the reference's SetActivePlayer does.
+         *
+         * The reference asserts `m_activePlayer != -1` on all but `_6905`.
+         * Here a missing active player answers 0 steps and -1 coords instead:
+         * the value comes from a cache script's context and not from a caller
+         * of this function, which is the same reason a highlight group id out
+         * of range is refused rather than fatal (see rs_highlight.c). Every
+         * consumer reads "no route" as standing still, which is the truthful
+         * reading of "no player is active".
+         */
+        int const opcode = request->u.active_player.opcode;
+        int running = -1;
+        struct RS_ClientOpContext const* subject;
+        int uid = -1;
+        int answer = -1;
+
+        if( vm && vm->frame_sp > 0 && vm->frames[0] && vm->frames[0]->script )
+            running = vm->frames[0]->script->script_id;
+        subject = RS_ClientOpSubject(&host->clientop, RS_CLIENTOP_PLAYER, running);
+        if( subject )
+            uid = subject->uid;
+
+        switch( opcode )
+        {
+        case CS2_OP__6901:
+        {
+            /*
+             * Make the LOCAL player the active one, and say whether there was
+             * one to make active.
+             *
+             * The reference pushes 1 on success and -1 -- not 0 -- when the
+             * local player index is out of range or its slot is empty, which
+             * is the state before login. Nothing in this cache calls it; it is
+             * here because it is the only WRITE in the block and the four
+             * getters beside it are useless to a script that was not entered
+             * from a per-player trigger without it.
+             */
+            struct RS_ClientOpContext ctx;
+            if( host->local_pid < 0 )
+            {
+                answer = -1;
+                break;
+            }
+            memset(&ctx, 0, sizeof(ctx));
+            ctx.kind = RS_CLIENTOP_PLAYER;
+            ctx.script_id = -1;
+            ctx.uid = host->local_pid;
+            ctx.type = -1;
+            ctx.layer = -1;
+            ctx.coord = host->local_coord;
+            RS_ClientOpActiveSet(&host->clientop, RS_CLIENTOP_PLAYER, &ctx);
+            answer = 1;
+            break;
+        }
+        case CS2_OP__6904:
+            answer = uid;
+            break;
+        case CS2_OP__6905:
+            answer = host->local_pid;
+            break;
+        case CS2_OP__6902:
+        case CS2_OP__6903:
+        {
+            int coord = -1;
+            int length = -1;
+
+            if( uid >= 0 && host->player_route )
+                length = host->player_route(
+                    host->world_user, uid, request->u.active_player.index, &coord);
+            /* A uid the world has no player for is a player who has left the
+             * scene since the register was written. No route, not a fatal. */
+            if( length < 0 )
+                length = 0;
+            answer = opcode == CS2_OP__6902 ? length : coord;
+            break;
+        }
+        default:
+            fprintf(stderr, "cs2: opcode %d is not an active-player getter\n", opcode);
+            return CS2VM_EXECNO_ERROR;
+        }
+        /* Same switch as the highlight trace, and for the same reason: when
+         * the current-tile marker sits on the wrong tile, the first question
+         * is whether 5203 took the ROUTE branch or fell back to `coord`, and
+         * that is decided entirely by what these four answered. */
+        if( getenv("TORIRS_HIGHLIGHT_DEBUG") )
+            fprintf(
+                stderr,
+                "activeplayer: op %d (uid %d, index %d) -> %d\n",
+                opcode,
+                uid,
+                request->u.active_player.index,
+                answer);
+        return CS2VM2_PushInt(vm, answer);
     }
 
     case CS2VM_HOST_REQUEST_DB:
@@ -8167,6 +8572,14 @@ rs_cs2_host_exec_dispatch(
                     tree, rs_cs2_find_node(host, request->u.cc_set_fill.component_id));
             }
         }
+        /* An arc reads the same flag as "whole disc" vs "band along the arc"
+         * (reference DrawCircularArc's inner radius); 5480's ring and wedge set
+         * it and its outline clears it. */
+        else if( node && node->type == UIELEM_RS_ARC )
+        {
+            node->u.rs_arc.filled = request->u.cc_set_fill.filled ? 1 : 0;
+            UITree_MarkNodeDirty(tree, rs_cs2_find_node(host, request->u.cc_set_fill.component_id));
+        }
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETTRANS:
@@ -8706,8 +9119,7 @@ rs_cs2_host_exec_dispatch(
         return exec_widget_set_model_angle(host, vm, request->u.widget_set_model_angle);
 
     case CS2VM_HOST_REQUEST_WIDGET_SET_ARC:
-        /* UITree has no arc fields yet. */
-        return CS2VM_EXECNO_OK;
+        return exec_widget_set_arc(host, vm, request->u.widget_set_arc);
 
     case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND:
         return exec_widget_set_model_kind(host, vm, request->u.widget_set_model_kind);

@@ -23405,6 +23405,45 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(log_cell >= 0, "canoeing:log should resolve as a component");
             SELFTEST_CHECK(dest_guild >= 0, "canoe_map_lum:destination_2 should resolve");
 
+            /*
+             * The station state has to reach the CLIENT, not just the server.
+             *
+             * A canoe station is one placed multiloc whose child the client
+             * picks from `canoestation_state_<name>`, and the travel map greys
+             * its destinations from `canoe_startfrom`. Both are varbits, and a
+             * varbit only goes out inside the varp that carries it -- which
+             * `ToriRSServer_WorldMarkVarp` will not send unless the varp's
+             * config says `transmit=yes`.
+             *
+             * Everything below this line passed for a build in which five of
+             * the six were undeclared: the varbits were written, read back and
+             * agreed with at every step, while the tree stood at the bank
+             * through the whole chop/shape/float/paddle chain because no VARP
+             * packet ever left. Reading the state back is not evidence that it
+             * was sent, so the sending is checked here, by name.
+             */
+            {
+                static const char* const carriers[] = {
+                    "canoeing_river_lum",      /* stations 1-4  */
+                    "canoeing_river_lum_2",    /* Ferox Enclave */
+                    "canoeing_river_dougne",   /* stations 6, 8, 9, 10 */
+                    "canoeing_river_dougne_2", /* Tree Gnome Village   */
+                    "canoeing_menu",           /* canoe_type      */
+                    "canoeing_menu_2",         /* canoe_startfrom, canoe_river */
+                };
+                for( size_t ci = 0; ci < sizeof(carriers) / sizeof(carriers[0]); ci++ )
+                {
+                    int varp = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_VARP, carriers[ci]);
+                    const struct ToriRSServerVarpDef* def =
+                        varp >= 0 ? ToriRSServer_ContentVarp(varp) : NULL;
+                    SELFTEST_CHECK(
+                        def && def->transmit,
+                        "%s carries a canoe varbit the client reads, so it must be declared "
+                        "transmit=yes (see canoes/configs/canoes.varp)",
+                        carriers[ci]);
+                }
+            }
+
             if( station_loc >= 0 && state_bit >= 0 && type_bit >= 0 && from_bit >= 0 &&
                 log_cell >= 0 && dest_guild >= 0 && dest_edge >= 0 && axe >= 0 && woodcutting >= 0 )
             {
@@ -39753,6 +39792,9 @@ ToriRSServer_WorldSelftest(void)
                   "a rolled trail length covers the wiki's range and both its ends" },
                 { "[proc,selftest_trail_run]", 5,
                   "a whole easy trail walks to its reward casket" },
+                { "[proc,selftest_trail_cluehelper]", 3,
+                  "reading a clue points the infobox helper at that clue's own "
+                  "row, and solving the step empties it" },
                 { "[proc,selftest_trail_emote_data]", 7,
                   "an emote clue's emote index is the emote tab's own, and its "
                   "target resolves to a world coord" },
@@ -40077,6 +40119,11 @@ ToriRSServer_WorldSelftest(void)
                 { "[proc,selftest_hespori]", 7,
                   "the Hespori's buds make it invulnerable and six clicks "
                   "break the entangle" },
+                { "[proc,selftest_collection_varps]", 9,
+                  "the collection log's varps are all written: the catalog "
+                  "maxes, the runeday inside its fourteen bits, the bodytype "
+                  "bit, both ring columns, the subsections an item belongs "
+                  "to, and the scratch mailbox the draw path clears" },
                 { "[proc,selftest_gilded_altar]", 6,
                   "the gilded altar is 250/300/350, not a doubling" },
                 { "[proc,selftest_bird_nests]", 7,
@@ -54596,6 +54643,712 @@ ToriRSServer_WorldSelftest(void)
                 }
             }
             ToriRSServer_ScriptsFree(srv);
+        }
+    }
+
+    /*
+     * HINT_ARROW, on the wire.
+     *
+     * Four script opcodes (`hint_npc`, `hint_pl`, `hint_coord`, `hint_stop`)
+     * that sat in `k_opcode_gap_allowed` until the client's render lane landed,
+     * with the note that they would "delete themselves the day that lands". The
+     * rows are gone; this is what stops them coming back as a silent no-op,
+     * which is precisely what that table exists to prevent.
+     *
+     * Asserted on the BYTES rather than on "a packet went out". The type byte is
+     * the whole meaning of the payload -- the same three fields are an npc slot,
+     * a player pid or an absolute tile depending on it -- so a packet with the
+     * right length and the wrong type points the arrow somewhere real and wrong,
+     * which is the failure a length check cannot see.
+     */
+    {
+        struct ToriRSServerCapture capture;
+        /*
+         * Revision-gated, and the gate is the assertion.
+         *
+         * Revision 230 has no HINT_ARROW at all -- `net/rev/osrs230/packetin.h`
+         * maps it to `PKT_NAME_NONE` where 239 gives it opcode 50 -- so `flush`
+         * correctly drops the packet and the four opcodes are a no-op there.
+         * That is the truthful state and not a bug, so this skips rather than
+         * failing; running the suite at 230 and seeing three red lines about a
+         * packet the revision does not define would be a false alarm that
+         * teaches people to ignore the stanza.
+         */
+        int const hint_op = srv->wire ? ToriRSServer_WireOpcode(srv->wire, PKT_NAME_HINT_ARROW) : -1;
+        struct ToriRSServerPlayer* hint_player =
+            hint_op >= 0 ? ToriRSServer_WorldAddPlayer(srv, NULL) : NULL;
+
+        if( hint_op < 0 )
+            fprintf(stderr,
+                    "ToriRSServer selftest: HINT_ARROW skipped — revision %s has no opcode "
+                    "for it\n",
+                    srv->wire && srv->wire->name ? srv->wire->name : "?");
+        if( hint_player )
+        {
+            int at;
+
+            ToriRSServer_WorldSetActive(srv, hint_player);
+            ToriRSServer_CaptureBegin(srv, &capture);
+
+            ToriRSServer_SendHintArrow(hint_player, TORIRSSERVER_HINT_ARROW_NPC, 41, 0, 0);
+            at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_HINT_ARROW, 0);
+            SELFTEST_CHECK(at >= 0, "hint_npc puts a HINT_ARROW on the wire");
+            if( at >= 0 )
+            {
+                struct ToriRSServerCapturedPacket* pkt = &capture.packets[at];
+
+                SELFTEST_CHECK(pkt->len == 6,
+                               "HINT_ARROW is six fixed bytes at rev239, saw %d", pkt->len);
+                if( pkt->len == 6 )
+                {
+                    SELFTEST_CHECK(pkt->data[0] == TORIRSSERVER_HINT_ARROW_NPC,
+                                   "the npc form states type 2, saw %d", pkt->data[0]);
+                    SELFTEST_CHECK((pkt->data[1] << 8 | pkt->data[2]) == 41,
+                                   "... and carries the npc slot");
+                }
+            }
+
+            ToriRSServer_SendHintArrow(hint_player, TORIRSSERVER_HINT_ARROW_COORD, 3200, 3200, 60);
+            at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_HINT_ARROW, at + 1);
+            SELFTEST_CHECK(at >= 0, "hint_coord puts a second HINT_ARROW on the wire");
+            if( at >= 0 && capture.packets[at].len == 6 )
+            {
+                uint8_t* d = capture.packets[at].data;
+
+                SELFTEST_CHECK(d[0] == TORIRSSERVER_HINT_ARROW_COORD,
+                               "the coord form states type 1, saw %d", d[0]);
+                /* ABSOLUTE, not scene-local: the arrow's job is to point at
+                 * somewhere the player is not, and a scene-local coord cannot
+                 * name a tile outside the loaded window. The client converts
+                 * back with the same origin SET_MAP_FLAG's absolute form uses. */
+                SELFTEST_CHECK((d[1] << 8 | d[2]) == 3200 && (d[3] << 8 | d[4]) == 3200,
+                               "... and carries the ABSOLUTE tile, not a scene-local one");
+                SELFTEST_CHECK(d[5] == 60, "... and the height byte");
+            }
+
+            ToriRSServer_SendHintArrow(hint_player, TORIRSSERVER_HINT_ARROW_CLEAR, 0, 0, 0);
+            at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_HINT_ARROW, at + 1);
+            SELFTEST_CHECK(at >= 0 && capture.packets[at].len == 6 &&
+                               capture.packets[at].data[0] == TORIRSSERVER_HINT_ARROW_CLEAR,
+                           "hint_stop sends the 255 clear the client normalises to none");
+
+            ToriRSServer_CaptureEnd(srv);
+            ToriRSServer_WorldRemovePlayer(srv, hint_player);
+        }
+    }
+
+    /*
+     * The hitsplat promoter -- settings 5, 279 and 280.
+     *
+     * Driven directly rather than through a fight, because the branch that
+     * matters cannot be reached from one here: "somebody else's damage" needs a
+     * dealer who is not the viewer, and every fight this suite stages is one
+     * player against npcs. The promotion the fights DO exercise (leaf -> the
+     * viewer's own `_me` wrapper) is visible under TORIRSSERVER_SPLAT_DEBUG and
+     * is the case that cannot silently regress; this is the other three.
+     *
+     * A failure here is invisible in every other way. The leaf and the wrapper
+     * both draw a splat, so sending the wrong one produces a perfectly ordinary
+     * hit with the player's setting silently answered for them.
+     */
+    {
+        int const leaf_damage = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT,
+                                                       "hitsplat_damage");
+        int const me = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT,
+                                              "hitsplat_damage_me");
+        int const other = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT,
+                                                 "hitsplat_damage_other");
+        int const max_me = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT,
+                                                  "hitsplat_damage_max_me");
+        int const heal = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_HITSPLAT, "hitsplat_heal");
+
+        SELFTEST_CHECK(leaf_damage >= 0 && me >= 0 && other >= 0 && max_me >= 0,
+                       "the hitsplat pack names the damage family's wrappers "
+                       "(leaf %d, me %d, other %d, max %d)",
+                       leaf_damage, me, other, max_me);
+
+        if( leaf_damage >= 0 && me >= 0 && other >= 0 && max_me >= 0 )
+        {
+            struct ToriRSServerPlayer* viewer = &srv->players[0];
+            struct ToriRSServerPlayer* dealer = &srv->players[1];
+            int const viewer_slot = 0;
+            int const dealer_slot = 1;
+            const struct ToriRSServerIds* hs_ids = ToriRSServer_Ids();
+
+            memset(viewer, 0, sizeof(*viewer));
+            memset(dealer, 0, sizeof(*dealer));
+            viewer->active = 1;
+            dealer->active = 1;
+            viewer->world = srv;
+            dealer->world = srv;
+
+            SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, viewer, leaf_damage, 3,
+                                                      viewer_slot) == me,
+                           "your own damage takes the untinted `_me` wrapper");
+            SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, viewer, leaf_damage, 3,
+                                                      dealer_slot) == other,
+                           "another player's damage takes the `_other` wrapper, "
+                           "which is the one setting 5 tints");
+            SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, viewer, leaf_damage, 3, -1) == me,
+                           "damage nobody dealt is NOT tinted as somebody else's");
+            SELFTEST_CHECK(heal < 0 ||
+                               ToriRSServer_HitsplatForViewer(srv, viewer, heal, 3, dealer_slot) ==
+                                   heal,
+                           "a family with no wrapper is left exactly as content asked");
+
+            if( hs_ids && hs_ids->varp_com_maxhit >= 0 &&
+                hs_ids->varp_com_maxhit < TORIRSSERVER_VARP_COUNT )
+            {
+                dealer->varps[hs_ids->varp_com_maxhit] = 9;
+                SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, dealer, leaf_damage, 9,
+                                                          dealer_slot) == max_me,
+                               "a hit equal to your own max hit takes the max-hit wrapper");
+                SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, dealer, leaf_damage, 8,
+                                                          dealer_slot) == me,
+                               "a hit below your max hit does not");
+                /* Setting 280: the floor. A max hit under the threshold is
+                 * still a max hit and still must not get the splat -- which is
+                 * the one part of these two rows a var selector cannot express,
+                 * because it is a comparison against the damage. */
+                if( hs_ids->varbit_hitsplat_threshold >= 0 )
+                {
+                    ToriRSServer_VarbitSetOn(srv, dealer, hs_ids->varbit_hitsplat_threshold, 20);
+                    SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, dealer, leaf_damage, 9,
+                                                              dealer_slot) == me,
+                                   "a max hit below setting 280's threshold gets no max splat");
+                    ToriRSServer_VarbitSetOn(srv, dealer, hs_ids->varbit_hitsplat_threshold, 0);
+                }
+                SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, viewer, leaf_damage, 9,
+                                                          dealer_slot) == other,
+                               "somebody ELSE's max hit is still just their damage to you");
+            }
+
+            /*
+             * And the same question asked through the DAMAGE FUNNEL rather than
+             * of the promoter directly, because that is where it was wrong.
+             *
+             * `ToriRSServer_CombatHitPlayer` runs with the victim as the active
+             * player -- so for as long as the dealer was inferred from
+             * `srv->active_player`, every hit a player took was recorded as
+             * their own damage and setting 5 tinted nothing at all while
+             * looking implemented. The plain call must record -1 (an npc's
+             * swing, which the row does not tint) and the `_From` call must
+             * record the attacker (another player, which it does).
+             */
+            {
+                struct ToriRSServerPlayer* victim = &srv->players[0];
+                struct ToriRSServerPlayer* attacker = &srv->players[1];
+
+                memset(victim, 0, sizeof(*victim));
+                memset(attacker, 0, sizeof(*attacker));
+                victim->active = 1;
+                attacker->active = 1;
+                victim->world = srv;
+                attacker->world = srv;
+                victim->pid = 0;
+                attacker->pid = 1;
+                victim->hitpoints = 50;
+                victim->max_hitpoints = 50;
+
+                ToriRSServer_WorldSetActive(srv, victim);
+                ToriRSServer_CombatHitPlayer(srv, leaf_damage, 3);
+                SELFTEST_CHECK(victim->hitmark_count > 0 &&
+                                   victim->hitmarks[0].dealer_slot == -1,
+                               "an npc's hit on a player is owned by nobody, not by the "
+                               "victim (saw dealer %d)",
+                               victim->hitmark_count > 0 ? victim->hitmarks[0].dealer_slot : -99);
+                if( victim->hitmark_count > 0 )
+                    SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, victim, leaf_damage, 3,
+                                                              victim->hitmarks[0].dealer_slot) ==
+                                       me,
+                                   "... so it draws untinted");
+
+                victim->hitmark_count = 0;
+                ToriRSServer_CombatHitPlayerFrom(srv, leaf_damage, 3, 1);
+                SELFTEST_CHECK(victim->hitmark_count > 0 &&
+                                   victim->hitmarks[0].dealer_slot == 1,
+                               "another player's hit names the attacker (saw dealer %d)",
+                               victim->hitmark_count > 0 ? victim->hitmarks[0].dealer_slot : -99);
+                if( victim->hitmark_count > 0 )
+                    SELFTEST_CHECK(ToriRSServer_HitsplatForViewer(srv, victim, leaf_damage, 3,
+                                                              victim->hitmarks[0].dealer_slot) ==
+                                       other,
+                                   "... so the victim sees the TINTED wrapper");
+
+                ToriRSServer_WorldSetActive(srv, NULL);
+                memset(victim, 0, sizeof(*victim));
+                memset(attacker, 0, sizeof(*attacker));
+            }
+
+
+            /*
+             * Setting 182's loot-restriction icon.
+             *
+             * Three separable claims, and they fail in different ways: the rule
+             * (is the loot restricted), the "occasionally" latch (once per npc
+             * per player, on a path that runs for every encoded hit), and the
+             * identification of the record itself. The last is the one a
+             * screenshot could not settle either way -- an icon drawn from the
+             * wrong hitsplat id is still an icon.
+             */
+            {
+                struct ToriRSServerPlayer* iron = &srv->players[0];
+                struct ToriRSServerPlayer* other_pl = &srv->players[1];
+                struct ToriRSServerNpc* target = &srv->npcs[1];
+                const struct ToriRSServerIds* ic_ids = ToriRSServer_Ids();
+                int const icon = ToriRSServer_HitsplatLootRestrictedIcon();
+
+                SELFTEST_CHECK(icon >= 0,
+                               "the hitsplat pack names `hitsplat_blocked_icon`, got %d", icon);
+
+                memset(iron, 0, sizeof(*iron));
+                memset(other_pl, 0, sizeof(*other_pl));
+                memset(target, 0, sizeof(*target));
+                iron->active = 1;
+                other_pl->active = 1;
+                iron->world = srv;
+                other_pl->world = srv;
+                iron->pid = 0;
+                other_pl->pid = 1;
+                target->active = 1;
+
+                if( icon >= 0 && ic_ids && ic_ids->varbit_ironman >= 0 )
+                {
+                    /* Nobody else has touched it yet. */
+                    SELFTEST_CHECK(!ToriRSServer_NpcLootRestrictedFor(srv, target, iron),
+                                   "an untouched creature is not restricted");
+
+                    ToriRSServer_VarbitSetOn(srv, iron, ic_ids->varbit_ironman, 1);
+                    target->damaged_by_players[1] = 1; /* somebody else got there first */
+
+                    SELFTEST_CHECK(ToriRSServer_NpcLootRestrictedFor(srv, target, iron),
+                                   "an ironman is restricted once another player has damaged it");
+                    SELFTEST_CHECK(!ToriRSServer_NpcLootRestrictedFor(srv, target, other_pl),
+                                   "the player who damaged it is not restricted BY THEIR OWN hit");
+
+                    /* A main is never restricted, whoever else swung. */
+                    ToriRSServer_VarbitSetOn(srv, other_pl, ic_ids->varbit_ironman, 0);
+                    target->damaged_by_players[0] = 1;
+                    SELFTEST_CHECK(!ToriRSServer_NpcLootRestrictedFor(srv, target, other_pl),
+                                   "a main account is never loot-restricted");
+                    target->damaged_by_players[0] = 0;
+
+                    /* The latch: once, then never again for this npc. */
+                    SELFTEST_CHECK(ToriRSServer_NpcLootIconWanted(srv, target, iron),
+                                   "the icon is wanted the first time");
+                    SELFTEST_CHECK(!ToriRSServer_NpcLootIconWanted(srv, target, iron),
+                                   "\"occasionally\" means once per npc, not once per hit");
+
+                    /* And the row's own switch, which is INVERTED. */
+                    memset(target->noloot_iconned_players, 0,
+                           sizeof(target->noloot_iconned_players));
+                    ToriRSServer_VarbitSetOn(srv, iron, ic_ids->varbit_iron_noloot_icon_off, 1);
+                    SELFTEST_CHECK(!ToriRSServer_NpcLootIconWanted(srv, target, iron),
+                                   "setting 182 switched off shows no icon");
+                    ToriRSServer_VarbitSetOn(srv, iron, ic_ids->varbit_iron_noloot_icon_off, 0);
+                }
+
+                memset(target, 0, sizeof(*target));
+                memset(iron, 0, sizeof(*iron));
+                memset(other_pl, 0, sizeof(*other_pl));
+            }
+
+            memset(viewer, 0, sizeof(*viewer));
+            memset(dealer, 0, sizeof(*dealer));
+        }
+    }
+
+    /*
+     * The helper panel's choice -- settings 163, 184 and 275.
+     *
+     * Driven directly, because a screenshot cannot tell these apart: an empty
+     * helper panel, a helper that never opened, and a helper drawn off-viewport
+     * are the same picture, and the wrong helper for the player's state is a
+     * perfectly ordinary-looking panel. What is actually being pinned is the
+     * decision -- which of three claimants gets the one frame, and that an
+     * inverted row switched off gives up its turn without taking anybody else's.
+     */
+    {
+        const struct ToriRSServerIds* hp_ids = ToriRSServer_Ids();
+
+        SELFTEST_CHECK(hp_ids->iface_helper_generic > 0,
+                       "the content tree should name `helper_generic`, got %d",
+                       hp_ids->iface_helper_generic);
+        SELFTEST_CHECK(hp_ids->com_gameframe_helper > 0,
+                       "the gameframe should name a `helper_content` slot, got %d",
+                       hp_ids->com_gameframe_helper);
+        SELFTEST_CHECK(hp_ids->varbit_agility_helper_off >= 0 &&
+                           hp_ids->varbit_slayer_helper_off >= 0 &&
+                           hp_ids->varbit_cluehelper_infobox_on >= 0,
+                       "the three helper settings should resolve (agility %d, "
+                       "slayer %d, clue %d)",
+                       hp_ids->varbit_agility_helper_off,
+                       hp_ids->varbit_slayer_helper_off,
+                       hp_ids->varbit_cluehelper_infobox_on);
+        SELFTEST_CHECK(hp_ids->varbit_helper_agility_course >= 0 &&
+                           hp_ids->varp_slayer_count >= 0 &&
+                           hp_ids->varp_cluehelper_infobox_clue >= 0,
+                       "the three helper INPUTS should resolve (course %d, "
+                       "slayer count %d, clue row %d)",
+                       hp_ids->varbit_helper_agility_course,
+                       hp_ids->varp_slayer_count,
+                       hp_ids->varp_cluehelper_infobox_clue);
+
+        if( hp_ids->iface_helper_generic > 0 && hp_ids->varbit_helper_agility_course >= 0 &&
+            hp_ids->varp_slayer_count >= 0 && hp_ids->varp_cluehelper_infobox_clue >= 0 &&
+            hp_ids->varbit_agility_helper_off >= 0 && hp_ids->varbit_slayer_helper_off >= 0 &&
+            hp_ids->varbit_cluehelper_infobox_on >= 0 )
+        {
+            struct ToriRSServerPlayer* who = &srv->players[0];
+            int arg = -1;
+            int const clue_row = 4321;
+
+            memset(who, 0, sizeof(*who));
+            who->active = 1;
+            who->world = srv;
+            who->combat_target = -1;
+
+            /*
+             * The rows have to SURVIVE, and two of the three did not.
+             *
+             * Getting a settings row to the server is only half of it: the save
+             * writes `scope=perm` varps and skips undeclared ones on purpose
+             * ("if content never said the variable exists, the engine has no
+             * business making it outlive the session"). So a row whose carrier
+             * no `.varp` config declares is switched off, logged out, and back
+             * on again -- with the mirror working perfectly the whole time,
+             * which is why nothing else here would catch it.
+             *
+             * Row 163 always persisted, by luck: its carrier is declared for an
+             * unrelated Controls-tab toggle. 184 and 275 needed
+             * `general/configs/settings_activities.varp`.
+             *
+             * The base varp comes back from a write of the value already there
+             * -- there is no read-only accessor for it, and a no-op write is
+             * the honest way to ask.
+             */
+            {
+                int const k_setting[3] = { hp_ids->varbit_agility_helper_off,
+                                           hp_ids->varbit_slayer_helper_off,
+                                           hp_ids->varbit_cluehelper_infobox_on };
+                char const* const k_row[3] = { "163 (Agility helper)",
+                                               "184 (Slayer helper)",
+                                               "275 (Clue scroll helper - Infobox)" };
+
+                for( int i = 0; i < 3; i++ )
+                {
+                    int const base = ToriRSServer_VarbitSetOn(
+                        srv, who, k_setting[i], ToriRSServer_VarbitGet(who, k_setting[i]));
+                    const struct ToriRSServerVarpDef* def =
+                        base >= 0 ? ToriRSServer_ContentVarp(base) : NULL;
+
+                    SELFTEST_CHECK(def && def->transmit && def->scope_perm,
+                                   "row %s must ride a declared perm carrier or the "
+                                   "player's choice dies at logout (varp %d is %s)",
+                                   k_row[i], base,
+                                   !def ? "undeclared"
+                                        : (!def->scope_perm ? "declared but not perm"
+                                                            : "perm but not transmitted"));
+                }
+                memset(who, 0, sizeof(*who));
+                who->active = 1;
+                who->world = srv;
+                who->combat_target = -1;
+            }
+
+            /* Doing nothing wants nothing. Stated first because every check
+             * below is a difference from it. */
+            SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
+                               TORIRSSERVER_HELPER_NONE,
+                           "a player doing nothing should want no helper, got %d",
+                           ToriRSServer_HelperWantedFor(srv, who, &arg));
+
+            /* Agility: the course varbit is both "which" and "whether". */
+            ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_helper_agility_course, 15);
+            SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
+                               TORIRSSERVER_HELPER_AGILITY,
+                           "a course in `helper_agility_current_course` should want "
+                           "the Agility helper, got %d",
+                           ToriRSServer_HelperWantedFor(srv, who, &arg));
+
+            /* Setting 163, and this is the check the whole inverted-row family
+             * exists for: `agility_helper_disabled` = 1 is OFF. Read the plain
+             * way it would still be AGILITY here. */
+            ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_agility_helper_off, 1);
+            SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
+                               TORIRSSERVER_HELPER_NONE,
+                           "switching row 163 OFF should stop the Agility helper, got %d",
+                           ToriRSServer_HelperWantedFor(srv, who, &arg));
+            ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_agility_helper_off, 0);
+
+            /* Slayer: an assignment ALONE is not enough, or the panel would be
+             * pinned open for days and the other two would never be seen. */
+            memset(who, 0, sizeof(*who));
+            who->active = 1;
+            who->world = srv;
+            who->combat_target = -1;
+            who->varps[hp_ids->varp_slayer_count] = 42;
+            SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
+                               TORIRSSERVER_HELPER_NONE,
+                           "merely HOLDING a Slayer task should not open the panel, got %d",
+                           ToriRSServer_HelperWantedFor(srv, who, &arg));
+            who->combat_target = 3;
+            SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
+                               TORIRSSERVER_HELPER_SLAYER,
+                           "a Slayer task being fought should want the Slayer helper, got %d",
+                           ToriRSServer_HelperWantedFor(srv, who, &arg));
+            ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_slayer_helper_off, 1);
+            SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
+                               TORIRSSERVER_HELPER_NONE,
+                           "switching row 184 OFF should stop the Slayer helper, got %d",
+                           ToriRSServer_HelperWantedFor(srv, who, &arg));
+            ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_slayer_helper_off, 0);
+
+            /* A course beats a task being fought: the lap is the shorter-lived
+             * of the two, and the one that would otherwise never get a turn. */
+            ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_helper_agility_course, 7);
+            SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
+                               TORIRSSERVER_HELPER_AGILITY,
+                           "a course should outrank a task being fought, got %d",
+                           ToriRSServer_HelperWantedFor(srv, who, &arg));
+
+            /* The clue step outranks both, and is the only one that carries an
+             * argument -- 6631 takes the step's dbrow. Row 275 is the one
+             * stated `..._enabled`, so it has to be RAISED to show. */
+            memset(who, 0, sizeof(*who));
+            who->active = 1;
+            who->world = srv;
+            who->combat_target = -1;
+            who->varps[hp_ids->varp_cluehelper_infobox_clue] = clue_row;
+            arg = -1;
+            SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
+                               TORIRSSERVER_HELPER_NONE,
+                           "row 275 is `..._enabled`: unset means no clue infobox, got %d",
+                           ToriRSServer_HelperWantedFor(srv, who, &arg));
+            ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_cluehelper_infobox_on, 1);
+            arg = -1;
+            SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
+                                   TORIRSSERVER_HELPER_CLUE &&
+                               arg == clue_row,
+                           "an active clue step should want the clue helper with its "
+                           "own row as the builder's argument, got helper %d arg %d",
+                           ToriRSServer_HelperWantedFor(srv, who, &arg), arg);
+
+            /* And the check that keeps "not that one" from becoming "not any":
+             * a player who turned the clue infobox off, mid-lap, gets the
+             * Agility helper rather than an empty slot. */
+            ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_helper_agility_course, 3);
+            ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_cluehelper_infobox_on, 0);
+            SELFTEST_CHECK(ToriRSServer_HelperWantedFor(srv, who, &arg) ==
+                               TORIRSSERVER_HELPER_AGILITY,
+                           "a switched-off row should yield the panel to the next "
+                           "claimant, not close it, got %d",
+                           ToriRSServer_HelperWantedFor(srv, who, &arg));
+
+            /*
+             * And now the TICK, not just the choice.
+             *
+             * The choice above is half the story: a correct decision that
+             * never reaches the wire, or reaches it as a re-mount every tick,
+             * looks exactly the same from inside the function. So this drives
+             * `ToriRSServer_HelperTick` and reads what the server actually
+             * emitted -- which is also the only coverage the Slayer and clue
+             * paths get, since only the Agility one is reachable from a live
+             * headless run without a course to climb.
+             *
+             * Capture works on a bare player: `ToriRSServer_Send` records
+             * above its own fd check, precisely so the suite can assert on
+             * output with no socket.
+             */
+            {
+                static struct ToriRSServerCapture helper_capture;
+                int const slot_uid = ToriRSServer_PlayerHelper(who);
+                int at;
+
+                /*
+                 * WHERE the panel mounted is read back from the interface
+                 * registry, not decoded out of the packet.
+                 *
+                 * IF_OPENSUB's field order is the revision's, and this server
+                 * speaks two -- the rev-239 payload writer and the classic
+                 * fallback lay the same three values out differently, so an
+                 * offset decode here would be an assertion about which wire the
+                 * suite happened to be holding when it reached this line.
+                 * `ToriRSServer_IfStateOpenSub` records the mount before either
+                 * writer runs, and IF_RESYNC_V2 is rebuilt from that same
+                 * registry, so it is both stable and the thing that actually
+                 * decides what the client ends up with.
+                 *
+                 * The builder call is decoded, because that part IS
+                 * revision-independent: every RUNCLIENTSCRIPT writer in this
+                 * tree ends with the script id as a plain p4, and the argument
+                 * -- there is at most one here -- in the four bytes before it.
+                 */
+#define SELFTEST_HELPER_TAIL_I32(pk, back)                                                    \
+    ((pk)->len >= (back) ? (((int)(pk)->data[(pk)->len - (back)] << 24) |                     \
+                            ((int)(pk)->data[(pk)->len - (back) + 1] << 16) |                 \
+                            ((int)(pk)->data[(pk)->len - (back) + 2] << 8) |                  \
+                            (int)(pk)->data[(pk)->len - (back) + 3])                          \
+                         : -1)
+
+                memset(who, 0, sizeof(*who));
+                who->active = 1;
+                who->world = srv;
+                who->combat_target = -1;
+                ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_helper_agility_course, 15);
+
+                /* The open and the build, on ONE tick. */
+                ToriRSServer_CaptureReset(&helper_capture);
+                ToriRSServer_CaptureBegin(srv, &helper_capture);
+                ToriRSServer_HelperTick(srv, who);
+                ToriRSServer_CaptureEnd(srv);
+
+                at = ToriRSServer_CaptureFindNamed(&helper_capture, PKT_NAME_IF_OPENSUB, 0);
+                SELFTEST_CHECK(at >= 0, "the helper tick should mount `helper_generic`");
+                {
+                    int mounted = 0;
+
+                    for( int i = 0; i < who->interfaces.mount_count; i++ )
+                        if( who->interfaces.mounts[i].target_uid == slot_uid &&
+                            who->interfaces.mounts[i].interface_id ==
+                                hp_ids->iface_helper_generic )
+                            mounted++;
+                    /* The slot, and this is the one the handoff got wrong:
+                     * `helper_content`, three layers in, not `helper`. Mounted
+                     * one layer out the panel would exist and never be laid
+                     * out, because clientscript 4704 sizes THIS component and
+                     * 4731/4732 ask `if_hassub` of it. */
+                    SELFTEST_CHECK(mounted == 1,
+                                   "`helper_generic` (%d) should be mounted exactly once at "
+                                   "the `helper_content` slot 0x%08x, found %d",
+                                   hp_ids->iface_helper_generic, (unsigned)slot_uid, mounted);
+                }
+
+                at = ToriRSServer_CaptureFindNamed(&helper_capture, PKT_NAME_RUNCLIENTSCRIPT, 0);
+                SELFTEST_CHECK(at >= 0, "the helper tick should run the cache's builder");
+                if( at >= 0 )
+                    SELFTEST_CHECK(
+                        SELFTEST_HELPER_TAIL_I32(&helper_capture.packets[at], 4) == 5170,
+                        "the Agility helper's builder is clientscript 5170, got %d",
+                        SELFTEST_HELPER_TAIL_I32(&helper_capture.packets[at], 4));
+
+                /* `%current_helper`, for the panel's own Reset op. 2 is the
+                 * only value clientscript 4697 acts on. */
+                SELFTEST_CHECK(ToriRSServer_VarbitGet(who, hp_ids->varbit_current_helper) == 2,
+                               "the Agility helper should publish `current_helper` 2, got %d",
+                               ToriRSServer_VarbitGet(who, hp_ids->varbit_current_helper));
+
+                /*
+                 * Nothing changed, so nothing goes out -- and this is the check
+                 * that matters most for how the panel LOOKS. Re-mounting every
+                 * tick would throw away the rows the builder `cc_create`d a
+                 * moment ago, fifty times a minute, and the symptom would be a
+                 * panel that flickers or draws empty rather than anything that
+                 * reads as a bug in this file.
+                 */
+                ToriRSServer_CaptureReset(&helper_capture);
+                ToriRSServer_CaptureBegin(srv, &helper_capture);
+                ToriRSServer_HelperTick(srv, who);
+                ToriRSServer_CaptureEnd(srv);
+                SELFTEST_CHECK(
+                    ToriRSServer_CaptureFindNamed(&helper_capture, PKT_NAME_IF_OPENSUB, 0) < 0,
+                    "a steady helper must not be re-mounted every tick");
+                SELFTEST_CHECK(
+                    ToriRSServer_CaptureFindNamed(&helper_capture, PKT_NAME_RUNCLIENTSCRIPT, 0) < 0,
+                    "a steady helper must not be rebuilt every tick");
+
+                /*
+                 * Swapping one helper for another rebuilds IN PLACE.
+                 *
+                 * Every builder opens with `~script4695`, which calls 4698 and
+                 * `cc_deleteall`s the content component, so the panel clears
+                 * itself. Closing and reopening the mount as well would be a
+                 * second, slower way to reach the same screen -- and would drop
+                 * the scrollbar state the frame keeps.
+                 */
+                ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_helper_agility_course, 0);
+                ToriRSServer_VarbitSetOn(srv, who, hp_ids->varbit_cluehelper_infobox_on, 1);
+                who->varps[hp_ids->varp_cluehelper_infobox_clue] = clue_row;
+                ToriRSServer_CaptureReset(&helper_capture);
+                ToriRSServer_CaptureBegin(srv, &helper_capture);
+                ToriRSServer_HelperTick(srv, who);
+                ToriRSServer_CaptureEnd(srv);
+                SELFTEST_CHECK(
+                    ToriRSServer_CaptureFindNamed(&helper_capture, PKT_NAME_IF_OPENSUB, 0) < 0,
+                    "swapping helpers should rebuild in place, not re-mount");
+                at = ToriRSServer_CaptureFindNamed(&helper_capture, PKT_NAME_RUNCLIENTSCRIPT, 0);
+                SELFTEST_CHECK(at >= 0 &&
+                                   SELFTEST_HELPER_TAIL_I32(&helper_capture.packets[at], 4) == 6631,
+                               "the clue helper's builder is clientscript 6631, got %d",
+                               at >= 0 ? SELFTEST_HELPER_TAIL_I32(&helper_capture.packets[at], 4)
+                                       : -1);
+                SELFTEST_CHECK(at >= 0 &&
+                                   SELFTEST_HELPER_TAIL_I32(&helper_capture.packets[at], 8) ==
+                                       clue_row,
+                               "the clue step's dbrow should ride the builder call as its "
+                               "argument (want %d, got %d)",
+                               clue_row,
+                               at >= 0 ? SELFTEST_HELPER_TAIL_I32(&helper_capture.packets[at], 8)
+                                       : -1);
+                SELFTEST_CHECK(ToriRSServer_VarbitGet(who, hp_ids->varbit_current_helper) == 0,
+                               "a helper 4697 cannot rebuild should publish 0, not an "
+                               "invented id, got %d",
+                               ToriRSServer_VarbitGet(who, hp_ids->varbit_current_helper));
+
+                /*
+                 * A new clue STEP on the same helper still has to rebuild.
+                 *
+                 * The Agility and Slayer builders re-arm themselves on a var
+                 * afterwards; 6633 lays out one step and stops. So the argument
+                 * is part of what "unchanged" means, and a tick that compared
+                 * only the helper would leave the solved step on screen for the
+                 * rest of the trail.
+                 */
+                who->varps[hp_ids->varp_cluehelper_infobox_clue] = clue_row + 1;
+                ToriRSServer_CaptureReset(&helper_capture);
+                ToriRSServer_CaptureBegin(srv, &helper_capture);
+                ToriRSServer_HelperTick(srv, who);
+                ToriRSServer_CaptureEnd(srv);
+                at = ToriRSServer_CaptureFindNamed(&helper_capture, PKT_NAME_RUNCLIENTSCRIPT, 0);
+                SELFTEST_CHECK(at >= 0 &&
+                                   SELFTEST_HELPER_TAIL_I32(&helper_capture.packets[at], 8) ==
+                                       clue_row + 1,
+                               "a new clue step must re-run the builder with its own row "
+                               "(want %d, got %d)",
+                               clue_row + 1,
+                               at >= 0 ? SELFTEST_HELPER_TAIL_I32(&helper_capture.packets[at], 8)
+                                       : -1);
+
+                /* And the close. */
+                who->varps[hp_ids->varp_cluehelper_infobox_clue] = 0;
+                ToriRSServer_CaptureReset(&helper_capture);
+                ToriRSServer_CaptureBegin(srv, &helper_capture);
+                ToriRSServer_HelperTick(srv, who);
+                ToriRSServer_CaptureEnd(srv);
+                SELFTEST_CHECK(
+                    ToriRSServer_CaptureFindNamed(&helper_capture, PKT_NAME_IF_CLOSESUB, 0) >= 0,
+                    "the last helper going away should unmount the panel");
+                {
+                    int still = 0;
+
+                    for( int i = 0; i < who->interfaces.mount_count; i++ )
+                        still += who->interfaces.mounts[i].target_uid == slot_uid;
+                    SELFTEST_CHECK(still == 0,
+                                   "the close should leave the helper slot empty in the "
+                                   "registry IF_RESYNC_V2 is rebuilt from, found %d",
+                                   still);
+                }
+                SELFTEST_CHECK(
+                    ToriRSServer_CaptureFindNamed(&helper_capture, PKT_NAME_RUNCLIENTSCRIPT, 0) < 0,
+                    "a closing panel must not be handed a builder to run");
+                SELFTEST_CHECK(ToriRSServer_VarbitGet(who, hp_ids->varbit_current_helper) == 0,
+                               "closing should clear `current_helper`, got %d",
+                               ToriRSServer_VarbitGet(who, hp_ids->varbit_current_helper));
+
+#undef SELFTEST_HELPER_TAIL_I32
+            }
+
+            memset(who, 0, sizeof(*who));
         }
     }
 

@@ -4,6 +4,7 @@
 
 #include <assert.h>
 #include <rsbuffer.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -197,8 +198,24 @@ loginproto_poll(struct LoginProto* loginproto)
             /* 18 = reconnect (not implemented), 16 = fresh login. */
             p1(&out, 16);
 
-            p1(&out, encrypted_len + 36 + 1 + 1);
-            p1(&out, loginproto->rev->client_version);
+            /* The revision is one byte, with 255 as the escape to a two-byte
+             * one. Builds past 254 (LostCity's 274 and 289 branches) cannot
+             * be written any other way, and the length byte has to grow with
+             * it -- a server reads exactly the count it was promised, so
+             * getting this wrong desyncs the whole block rather than failing
+             * the version check. */
+            int rev_bytes = loginproto->rev->client_version > 254 ? 3 : 1;
+
+            p1(&out, encrypted_len + 36 + rev_bytes + 1);
+            if( rev_bytes == 3 )
+            {
+                p1(&out, 255);
+                p2(&out, loginproto->rev->client_version);
+            }
+            else
+            {
+                p1(&out, loginproto->rev->client_version);
+            }
             p1(&out, low_memory ? 1 : 0);
 
             for( int i = 0; i < 9; i++ )

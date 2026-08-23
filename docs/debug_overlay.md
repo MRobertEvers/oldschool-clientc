@@ -173,7 +173,7 @@ the emit pass appends nothing. One host call a frame, no pixels. Measured on
 `manifests/manifest_osrs230.ini`, 30 frames, `SDL_VIDEODRIVER=dummy`: `tree_components`
 1069 → 1070 (the overlay node) and a byte-identical exit BMP.
 
-`manifests/manifest_osrs230_zuk.ini`, `manifests/manifest_rs254.ini` and `manifests/manifest_rs377.ini`
+`manifests/manifest_osrs230_zuk.ini`, `manifests/manifest_rs254lc.ini` and `manifests/manifest_rs377lc.ini`
 declare no `[revconfig:layout:root]` and so have nowhere to hang it; they take
 the synthesised default root (§1) and would need the two sections spelled out.
 
@@ -240,9 +240,9 @@ The `+1` is exactly the `rs_iface` owner node.
 
 **Not measured, for want of a local cache:** `manifests/manifest_osrs230.ini`, `_alt`,
 `_bank`, `_dev`, `_embed` and `the osrs239-net profile (profiles/osrs239-net.ini)` (need
-`cache.osrs239.baked`); `manifests/manifest_rs254.ini` (`cache.rs254_zuk`);
-`manifests/manifest_rs377.ini` (`cache.rs377`); `manifests/manifest_void634.ini` (`cache.void634`);
-`manifests/manifest_xrsps.ini` (an absolute macOS path). rs254 and rs377 are the two with
+`cache.osrs239.baked`); `manifests/manifest_rs254lc.ini` (`cache.rs254_zuk`);
+`manifests/manifest_rs377lc.ini` (`cache.rs377`); `manifests/manifest_rs634void.ini` (`cache.void634`);
+`manifests/manifest_osrs233xrsps.ini` (an absolute macOS path). rs254 and rs377 are the two with
 a behaviour change to expect, not just a code path change — see §1.1.
 
 **Tests:** `test-uitree` (incl. `debug overlay (measure / menu geometry /

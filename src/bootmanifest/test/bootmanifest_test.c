@@ -437,11 +437,11 @@ static void
 test_migrated_spawn_actions(void)
 {
     static char const* const manifests[] = {
-        "../manifests/manifest_rs254.ini",
+        "../manifests/manifest_rs254lc.ini",
         "../manifests/manifest_osrs239_summoning.ini",
         "../manifests/manifest_osrs239_packed.ini",
         "../manifests/manifest_osrs239.ini",
-        "../manifests/manifest_void634.ini",
+        "../manifests/manifest_rs634void.ini",
     };
     for( size_t i = 0; i < sizeof(manifests) / sizeof(manifests[0]); i++ )
     {

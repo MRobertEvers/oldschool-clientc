@@ -1,6 +1,7 @@
 #include "render/torirs_frame.h"
 
 #include "painters/painters.h"
+#include "render/torirs_arc.h"
 #include "ui/uitree_emit.h"
 #include "ui/uitree_scroll.h"
 #include "world/world.h"
@@ -237,6 +238,26 @@ emit_color_argb(
     return (alpha << 24) | (color & 0xFFFFFF);
 }
 
+/* The emit desc's arc fields, as the shape render/torirs_arc.c wants. Shared by
+ * the step count and the step itself so the two cannot disagree about how many
+ * rows there are. */
+static void
+frame_arc_shape(
+    struct UITreeEmitDesc const* desc,
+    struct ToriRS_ArcShape* out)
+{
+    assert(desc);
+    assert(out);
+    out->x = desc->x;
+    out->y = desc->y;
+    out->w = desc->w;
+    out->h = desc->h;
+    out->arc_start = desc->arc_start;
+    out->arc_end = desc->arc_end;
+    out->filled = desc->filled;
+    out->line_width = desc->line_width;
+}
+
 static void
 fill_rect_cmd(
     struct ToriRS_RenderCommand* out,
@@ -372,6 +393,40 @@ sprite_cmd(
     out->u.sprite.if3 = 0;
 }
 
+/*
+ * A sprite TILED over a box, rather than stretched into it.
+ *
+ * Which is what a scrollbar's trough and dragger middle need: both are five
+ * rows of texture meant to repeat down a groove of any length, and stretching
+ * five rows over ninety smears them into bands. One command either way -- the
+ * repeat happens in the blit.
+ */
+static void
+sprite_tiled_cmd(
+    struct ToriRS_RenderCommand* out,
+    int scene_id,
+    int x,
+    int y,
+    int w,
+    int h,
+    struct UITreeEmitClip const* clip)
+{
+    memset(out, 0, sizeof(*out));
+    out->kind = TORIRSRC_SPRITE;
+    out->u.sprite.scene_id = scene_id;
+    out->u.sprite.atlas_index = 0;
+    out->u.sprite.x = x;
+    out->u.sprite.y = y;
+    out->u.sprite.w = w;
+    out->u.sprite.h = h;
+    out->u.sprite.tiled = 1;
+    out->u.sprite.scissor_x = clip->x;
+    out->u.sprite.scissor_y = clip->y;
+    out->u.sprite.scissor_w = clip->w;
+    out->u.sprite.scissor_h = clip->h;
+    out->u.sprite.if3 = 0;
+}
+
 static bool
 vertical_scrollbar_grip(
     struct UITreeEmitDesc const* desc,
@@ -422,6 +477,139 @@ horizontal_scrollbar_grip(
     return true;
 }
 
+/*
+ * The OldSchool vertical scrollbar: six sprites, in six steps.
+ *
+ * A different SHAPE from the 2004 one and not a re-skin of it. The 2004 bar is
+ * a filled track with a filled grip and four one-pixel bevel edges drawn over
+ * it -- nine steps of rectangles. This one is a tiled groove, a three-piece
+ * dragger (two caps and a tiled middle, so it can be any length) and two
+ * arrows, which is why it gets its own step machine rather than a `scene_id`
+ * argument threaded through the old one.
+ *
+ * Both are correct on the frame they belong to, so neither replaces the other:
+ * the frame that declared a skin gets this and every other frame gets the one
+ * above.
+ */
+static bool
+translate_scrollbar_v_skin_step(
+    struct ToriRS_Frame* frame,
+    struct UITreeEmitDesc const* desc,
+    int step,
+    struct ToriRS_RenderCommand* out)
+{
+    int const* skin = frame->scrollbar_skin;
+    int const sb_x = desc->x;
+    int const ly = desc->y;
+    int const vh = desc->h;
+    int const track_y = ly + UITREE_SCROLLBAR_THICKNESS;
+    int grip_y = 0;
+    int grip_size = 0;
+    int track_h = 0;
+    int grip_y0;
+    struct UITreeEmitClip const* clip = &desc->clip;
+
+    /* The arrows are the two steps that do not depend on there being anything
+     * to scroll: a bar with no content still shows its ends, which is what the
+     * reference draws and what makes an empty chatbox look like a chatbox. */
+    if( step == UITREE_SCROLLBAR_SKIN_ARROW_UP )
+    {
+        sprite_cmd(
+            frame,
+            out,
+            skin[UITREE_SCROLLBAR_SKIN_ARROW_UP],
+            0,
+            sb_x,
+            ly,
+            UITREE_SCROLLBAR_THICKNESS,
+            UITREE_SCROLLBAR_THICKNESS,
+            0,
+            clip);
+        return true;
+    }
+    if( step == UITREE_SCROLLBAR_SKIN_ARROW_DOWN )
+    {
+        sprite_cmd(
+            frame,
+            out,
+            skin[UITREE_SCROLLBAR_SKIN_ARROW_DOWN],
+            0,
+            sb_x,
+            ly + vh - UITREE_SCROLLBAR_THICKNESS,
+            UITREE_SCROLLBAR_THICKNESS,
+            UITREE_SCROLLBAR_THICKNESS,
+            0,
+            clip);
+        return true;
+    }
+
+    if( !vertical_scrollbar_grip(desc, vh, &grip_y, &grip_size, &track_h) )
+        return false;
+    /* The three-piece dragger has a floor the two-colour one does not: below
+     * eleven rows the caps meet and the middle is negative. Clamped here and
+     * not in vertical_scrollbar_grip, because that answer is shared with the
+     * painted bar, whose grip is legitimately shorter. */
+    if( grip_size < UITREE_SCROLLBAR_SKIN_DRAGGER_MIN )
+        grip_size = UITREE_SCROLLBAR_SKIN_DRAGGER_MIN;
+    if( grip_size > track_h )
+        grip_size = track_h;
+    grip_y0 = track_y + grip_y;
+    if( grip_y0 + grip_size > track_y + track_h )
+        grip_y0 = track_y + track_h - grip_size;
+
+    switch( step )
+    {
+    case UITREE_SCROLLBAR_SKIN_TROUGH:
+        sprite_tiled_cmd(
+            out,
+            skin[UITREE_SCROLLBAR_SKIN_TROUGH],
+            sb_x,
+            track_y,
+            UITREE_SCROLLBAR_THICKNESS,
+            track_h,
+            clip);
+        return true;
+    case UITREE_SCROLLBAR_SKIN_DRAGGER_TOP:
+        sprite_cmd(
+            frame,
+            out,
+            skin[UITREE_SCROLLBAR_SKIN_DRAGGER_TOP],
+            0,
+            sb_x,
+            grip_y0,
+            UITREE_SCROLLBAR_THICKNESS,
+            UITREE_SCROLLBAR_SKIN_CAP_H,
+            0,
+            clip);
+        return true;
+    case UITREE_SCROLLBAR_SKIN_DRAGGER_MID:
+        sprite_tiled_cmd(
+            out,
+            skin[UITREE_SCROLLBAR_SKIN_DRAGGER_MID],
+            sb_x,
+            grip_y0 + UITREE_SCROLLBAR_SKIN_CAP_H,
+            UITREE_SCROLLBAR_THICKNESS,
+            grip_size - 2 * UITREE_SCROLLBAR_SKIN_CAP_H,
+            clip);
+        return true;
+    case UITREE_SCROLLBAR_SKIN_DRAGGER_BOTTOM:
+        sprite_cmd(
+            frame,
+            out,
+            skin[UITREE_SCROLLBAR_SKIN_DRAGGER_BOTTOM],
+            0,
+            sb_x,
+            grip_y0 + grip_size - UITREE_SCROLLBAR_SKIN_CAP_H,
+            UITREE_SCROLLBAR_THICKNESS,
+            UITREE_SCROLLBAR_SKIN_CAP_H,
+            0,
+            clip);
+        return true;
+    default:
+        return false;
+    }
+}
+
 static bool
 translate_scrollbar_v_step(
     struct ToriRS_Frame* frame,
@@ -437,6 +625,9 @@ translate_scrollbar_v_step(
     int track_h = 0;
     int grip_y0;
     struct UITreeEmitClip const* clip = &desc->clip;
+
+    if( frame->scrollbar_skin[0] > 0 )
+        return translate_scrollbar_v_skin_step(frame, desc, step, out);
 
     switch( step )
     {
@@ -804,6 +995,37 @@ translate_ui_cmd(
         out->u.fill_rect.scissor_h = desc->clip.h;
         out->u.fill_rect.filled = desc->filled;
         return true;
+
+    case UITREE_EMIT_ARC:
+    {
+        /* One horizontal run per step. Widget type 10 is an annulus sector
+         * (render/torirs_arc.h), and every backend already fills a run, so the
+         * arc never becomes a render command of its own -- the alternative is
+         * the same rasteriser written out four times. */
+        struct ToriRS_ArcShape arc;
+        struct ToriRS_ArcSpan spans[TORIRS_ARC_ROW_SPANS_MAX];
+        int const row = frame->scrollbar_step / TORIRS_ARC_ROW_SPANS_MAX;
+        int const slot = frame->scrollbar_step % TORIRS_ARC_ROW_SPANS_MAX;
+        int found;
+
+        frame_arc_shape(desc, &arc);
+        found = ToriRS_ArcRowSpans(&arc, row, spans);
+        if( slot >= found )
+            return false;
+
+        out->kind = TORIRSRC_FILL_RECT;
+        out->u.fill_rect.x = spans[slot].x;
+        out->u.fill_rect.y = spans[slot].y;
+        out->u.fill_rect.w = spans[slot].w;
+        out->u.fill_rect.h = 1;
+        out->u.fill_rect.argb = emit_color_argb(desc->color, desc->trans);
+        out->u.fill_rect.filled = 1;
+        out->u.fill_rect.scissor_x = desc->clip.x;
+        out->u.fill_rect.scissor_y = desc->clip.y;
+        out->u.fill_rect.scissor_w = desc->clip.w;
+        out->u.fill_rect.scissor_h = desc->clip.h;
+        return true;
+    }
 
     case UITREE_EMIT_LINE:
         out->kind = TORIRSRC_LINE;
@@ -1925,6 +2147,24 @@ ToriRS_FrameSetScene(
 }
 
 void
+ToriRS_FrameSetScrollbarSkin(
+    struct ToriRS_Frame* frame,
+    int const* pieces)
+{
+    assert(frame);
+    memset(frame->scrollbar_skin, 0, sizeof(frame->scrollbar_skin));
+    if( !pieces )
+        return;
+    /* All six or none. A skin missing one piece would draw a bar with a hole
+     * in it, which reads as a broken client rather than as an unskinned one --
+     * and the caller that half-filled the array is the thing to fix. */
+    for( int i = 0; i < UITREE_SCROLLBAR_SKIN_COUNT; i++ )
+        if( pieces[i] <= 0 )
+            return;
+    memcpy(frame->scrollbar_skin, pieces, sizeof(frame->scrollbar_skin));
+}
+
+void
 ToriRS_FrameSetCanvas(
     struct ToriRS_Frame* frame,
     int width,
@@ -2056,6 +2296,18 @@ again:
         {
             is_scrollbar = 1;
             sb_steps = 1 + desc->worldmap_tile_count;
+        }
+        /* An arc steps its bounding circle a row at a time, with a slot per
+         * run on that row. Rows and slots that hold nothing translate to
+         * nothing and are skipped, which costs an iteration and keeps the step
+         * count a pure function of the desc -- so the driver never has to ask
+         * the arc anything before it starts. */
+        if( desc->kind == UITREE_EMIT_ARC )
+        {
+            struct ToriRS_ArcShape arc;
+            frame_arc_shape(desc, &arc);
+            is_scrollbar = 1;
+            sb_steps = ToriRS_ArcRowCount(&arc) * TORIRS_ARC_ROW_SPANS_MAX;
         }
         /* Debug overlay: one step per display-list primitive. Stepping the
          * host's array in place is the reason the overlay's whole per-frame

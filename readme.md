@@ -1636,7 +1636,7 @@ print the main-thread breakdown:
 
 ```
 ./profile-mac.sh                              # manifests/manifest_osrs230.ini, 25s sample
-./profile-mac.sh manifests/manifest_rs254.ini 40        # another manifest, 40s
+./profile-mac.sh manifests/manifest_rs254lc.ini 40        # another manifest, 40s
 TORIRS_PROFILE_WINDOWED=1 ./profile-mac.sh    # real window instead of SDL dummy
 TORIRS_PROFILE_ATTACH=$(pgrep -f src/torirs) ./profile-mac.sh   # client already running
 OUT=before ./profile-mac.sh                   # names the outputs before.svg/.folded

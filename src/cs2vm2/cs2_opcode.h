@@ -509,7 +509,17 @@
 #define CS2_OP__1125 1125
 #define CS2_OP_CC_SETLINEDIRECTION 1126
 #define CS2_OP_CC_SETMODELTRANSPARENT 1127
-#define CS2_OP__1128 1128
+/* CC_SETARC — Set the arc's start and end angle on the active child.
+ * int stack in:   start_angle, end_angle  (end_angle = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: widget type 10 only. 65536 is a full turn, 0 is straight up and the
+ * sweep runs clockwise. Drawn as an annulus sector: cc_setfill(true) fills the
+ * whole disc, cc_setfill(false) + cc_setlinewid(n) leaves an n-pixel band along
+ * the arc. Clientscript 5480 builds the overlay countdown pie out of three.
+ */
+#define CS2_OP_CC_SETARC 1128
 #define CS2_OP_CC_INPUT_SETSUBMITMODE 1133
 #define CS2_OP_CC_INPUT_SETSELECTCOLOUR 1134
 #define CS2_OP_CC_INPUT_SETACCEPTMODE 1135
@@ -1101,7 +1111,14 @@
  * str stack out:  -
  */
 #define CS2_OP_IF_SETMODELTRANSPARENT 2127
-#define CS2_OP__2128 2128
+/* IF_SETARC — Set the arc's start and end angle.
+ * int stack in:   start_angle, end_angle, component  (component = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ * notes: the by-id form of CC_SETARC; same angle units.
+ */
+#define CS2_OP_IF_SETARC 2128
 /*
  * IF_ variants of the input-field config setters. No UITree model for these
  * fields yet, so they are left to the stack-meta stub -- but they must still be
@@ -2761,9 +2778,57 @@
 #define CS2_OP__6852 6852
 #define CS2_OP__6853 6853
 #define CS2_OP__6900 6900
+/* _6901 — Make the local player the active player.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  1 when there is a local player else -1
+ * str stack out:  -
+ * notes: the only WRITE in the _6900.._6905 block. The reference sets
+ *        its ScriptRunner's active player to m_localPlayerIndex and
+ *        pushes 1 or -1; the four getters beside it are about whichever
+ *        player is active. Absent from the vendored table -- added by
+ *        tools/cs2_gen_opcodes/local_opcodes.py.
+ */
+#define CS2_OP__6901 6901
+/* _6902 — Active player's route length.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  m_routeLength (0..9)
+ * str stack out:  -
+ * notes: The queue of tiles the server has put the player on that the
+ *        client has not walked through yet. 0 means standing still, and
+ *        clientscript 5203 reads it exactly that way: with a route it marks
+ *        _6903(0), without one it marks `coord`.
+ */
 #define CS2_OP__6902 6902
+/* _6903 — Active player's route coord at an index.
+ * int stack in:   index
+ * str stack in:   -
+ * int stack out:  coord or -1
+ * str stack out:  -
+ * notes: Index 0 is the NEWEST entry -- ClientPlayer::AddRoutePoint
+ *        shifts the queue up and writes the new tile at 0 -- so it is the
+ *        player's server-side tile, ahead of the rendered position while
+ *        walking. The reference packs it as plane << 28 | x << 14 | z after
+ *        WorldCoordFromBuildCoord, and asserts index < m_routeLength.
+ */
 #define CS2_OP__6903 6903
+/* _6904 — Active player's uid.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  uid or -1
+ * str stack out:  -
+ */
 #define CS2_OP__6904 6904
+/* _6905 — Local player's uid.
+ * int stack in:   -
+ * str stack in:   -
+ * int stack out:  uid or -1
+ * str stack out:  -
+ * notes: `_6904 = _6905` is how a per-player trigger script asks whether
+ *        the player it fired for is this client's own -- clientscript 5203
+ *        (the current-tile indicator) is the cache's only user of either.
+ */
 #define CS2_OP__6905 6905
 /* LOGIN_INT24 — rev 634 login/account int getter (Class24.anInt359).
  * operand: unused

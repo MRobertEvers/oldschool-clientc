@@ -89,6 +89,17 @@ Task_UIBuilderAssetsLoad_Run(
         {
             PT_TASK_AWAITSELF_IF(CreateTask_SpriteLoad(self->builder->provider, req->archive_id));
         }
+        else if( req->archive[0] != '\0' && req->data_filename[0] == '\0' )
+        {
+            /* Dat2 name-keyed sprite: `table=sprites archive=<name>`. The
+             * sprites table is addressed by archive NAME on this era, and the
+             * id it lands on differs between caches — which is the whole reason
+             * the name belongs in RevConfig and not in a C table. The dat1
+             * spelling is distinguished by carrying filename=, since a dat1
+             * section names both a jagfile archive and a file inside it. */
+            PT_TASK_AWAITSELF_IF(
+                CreateTask_SpriteLoadByName(self->builder->provider, req->archive));
+        }
         else if( req->format[0] != '\0' && req->data_filename[0] != '\0' )
         {
             /* Dat1 name-keyed sprite: the local descriptor is fully consumed by
@@ -110,7 +121,7 @@ Task_UIBuilderAssetsLoad_Run(
             PT_TASK_AWAITSELF_IF(CreateTask_SpriteLoadFromSource(self->builder->provider, &src));
         }
     }
-    /* Re-register dat1 sprites with their assigned provider ids so bake's
+    /* Re-register name-keyed sprites with their assigned provider ids so bake's
      * UITreeBuilder_ResolveSpriteRef returns a loadable id. */
     for( self->i = 0; self->i < self->manifest->sprite_count; self->i++ )
     {
@@ -118,6 +129,17 @@ Task_UIBuilderAssetsLoad_Run(
         if( req->archive_id < 0 )
         {
             int assigned = CacheProvider_SpriteIdByName(self->builder->provider, req->name);
+            /* A dat2 load registers under the ARCHIVE name, which need not be
+             * the section name — rev-239 ships the hitsplat pack as `hitmark`
+             * while the client asks for `hitmarks`. Alias the section name onto
+             * the same id so every later lookup, including the host's static
+             * slots, can use the one spelling C knows. */
+            if( assigned < 0 && req->archive[0] != '\0' )
+            {
+                assigned = CacheProvider_SpriteIdByName(self->builder->provider, req->archive);
+                if( assigned >= 0 )
+                    CacheProvider_SpriteNameMapPut(self->builder->provider, req->name, assigned);
+            }
             if( assigned >= 0 )
                 UITreeBuilder_RegisterSprite(
                     self->builder, req->name, assigned, req->atlas_index, req->atlas_count);

@@ -463,6 +463,24 @@ bm_set_kv(
             bm_join_path(bm->cache_dir, sizeof(bm->cache_dir), manifest_dir, value);
             return;
         }
+        if( strcmp(key, "source") == 0 )
+        {
+            if( strcmp(value, "disk") == 0 )
+            {
+                bm->cache_on_demand = 0;
+                return;
+            }
+            if( strcmp(value, "ondemand") == 0 )
+            {
+                bm->cache_on_demand = 1;
+                return;
+            }
+            fprintf(
+                stderr,
+                "bootmanifest: [cache] source must be disk|ondemand, got '%s'\n",
+                value);
+            return;
+        }
         if( strcmp(key, "spawn") == 0 )
         {
             int spawn_x = -1;
@@ -1264,6 +1282,12 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->cache_kind = (enum AppCacheKind)bm->cache_kind;
     if( bm->cache_dir[0] )
         cfg->cache_dir = bm->cache_dir;
+    cfg->cache_on_demand = bm->cache_on_demand;
+    /* ws_port is the server's HTTP endpoint, which for LostCity also serves
+     * the jag archives and /crc. The on-demand cache source is the only native
+     * reader of it; a web boot still reaches it through ApplyWebEndpoint. */
+    if( bm->ws_port > 0 )
+        cfg->web_port = bm->ws_port;
     if( bm->editor_content_dir[0] )
         cfg->editor_content_dir = bm->editor_content_dir;
     if( bm->editor_repo_root[0] )

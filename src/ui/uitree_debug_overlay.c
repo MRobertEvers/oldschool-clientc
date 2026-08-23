@@ -846,14 +846,51 @@ ToriRSChrome_WrapText(
 static void
 dbg_dropdown_close(struct ToriRSChrome* ui);
 
+/*
+ * THE one answer to "where does the box start" -- widths, draws, hit tests and
+ * the dropdown popup all ask dbg_row_box_offset / dbg_row_box_top, which is
+ * what keeps a popup opening under the box it belongs to rather than under
+ * where the box would have been.
+ */
+
+/**
+ * Is this row's caption too long for the label column, so that it takes a line
+ * of its own above the control?
+ *
+ * The column is 104 pixels and a settings panel is 320: a caption that does
+ * not fit used to be drawn from the row's left edge anyway, straight under the
+ * field box that is painted after it. The visible result is a name with its
+ * second half missing -- not truncated with the box beside it, but sliced off
+ * BY the box, which reads as a rendering fault rather than as a long name.
+ *
+ * Clipping it to the column instead would only make the slice tidy; the name
+ * would still be unreadable, and a settings row whose name you cannot read is
+ * not a settings row. So a long caption gets the whole row width and the
+ * control goes underneath it, which is the shape a multiline field already
+ * has (@see TORIRS_CHROME_W_TEXTAREA) and the shape the reference's own wider
+ * settings rows have.
+ *
+ * Only the three kinds that put a BOX in the label row's right-hand column
+ * answer yes. A checkbox or a list row draws its name in the space the control
+ * does not use and has no column to overrun.
+ */
+static int
+dbg_row_label_stacked(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
+{
+    if( !w->label[0] )
+        return 0;
+    if( w->kind != TORIRS_CHROME_W_TEXTINPUT && w->kind != TORIRS_CHROME_W_DROPDOWN &&
+        w->kind != TORIRS_CHROME_W_COLORPICK )
+        return 0;
+    return ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->label) +
+               DBG_ROW_NAME_GAP >
+           DBG_LABEL_W;
+}
+
 /**
  * Offset from a labelled row's left edge to its control box.
  *
- * THE one answer to "where does the box start" -- widths, draws and the
- * dropdown popup all ask here, which is what keeps a table panel's popup
- * opening under the box it belongs to rather than under where the box would
- * have been without the table. In a table panel every row shares the panel's
- * label column; otherwise each row sits right after its own label.
+ * Zero for a STACKED row, whose caption is not beside the box at all.
  */
 static int
 dbg_row_box_offset(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
@@ -871,7 +908,37 @@ dbg_row_box_offset(struct ToriRSChrome const* ui, struct ToriRSChromeWidget cons
      * that will never be drawn is how a lone dropdown in a 210-wide panel ends
      * up half the width of the panel holding it.
      */
+    if( dbg_row_label_stacked(ui, w) )
+        return 0;
     return w->label[0] ? DBG_LABEL_W : 0;
+}
+
+/** Offset from a row's top to its control box. A stacked row spends its first
+ *  line on the caption; every other row puts the box at the top. */
+static int
+dbg_row_box_top(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w)
+{
+    return dbg_row_label_stacked(ui, w) ? DBG_ROW_H : 0;
+}
+
+/**
+ * Natural width of a row that puts a box in the label row, given the box's own
+ * want.
+ *
+ * Stacked, the two are on separate lines and the row wants whichever is wider
+ * -- asking for caption PLUS box would demand a panel twice as wide as
+ * anything on the row, which is how a stacked row would end up widening the
+ * window it was introduced to fit inside.
+ */
+static int
+dbg_row_stacked_width(
+    struct ToriRSChrome const* ui, struct ToriRSChromeWidget const* w, int box_w)
+{
+    if( !dbg_row_label_stacked(ui, w) )
+        return dbg_row_box_offset(ui, w) + box_w;
+
+    int const label_w = ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->label);
+    return label_w > box_w ? label_w : box_w;
 }
 
 /* ---- a multiline field's geometry ----------------------------------------
@@ -1696,6 +1763,21 @@ ToriRSChrome_ListRow(
 }
 
 int
+ToriRSChrome_ListRowLocked(struct ToriRSChrome* ui, int panel, char const* label)
+{
+    int const h = dbg_widget_add(ui, panel, TORIRS_CHROME_W_LISTROW);
+    if( h < 0 )
+        return -1;
+    dbg_copy(ui->widgets[h].label, TORIRS_CHROME_LABEL_MAX, label);
+    /* A locked row is always an action row: with no switch, opening the page
+     * is the only thing it can do, and a row that does nothing at all is not
+     * worth a line. */
+    ui->widgets[h].row_action = 1;
+    ui->widgets[h].row_locked = 1;
+    return h;
+}
+
+int
 ToriRSChrome_TextInput(struct ToriRSChrome* ui, int panel, char const* label, char const* text)
 {
     int const h = dbg_widget_add(ui, panel, TORIRS_CHROME_W_TEXTINPUT);
@@ -2298,14 +2380,14 @@ dbg_widget_width(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const*
          * whole list, which is what makes it a list instead of a form. */
         return ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->label) +
                DBG_ROW_NAME_GAP + (w->row_action ? DBG_ROW_ICON + DBG_ROW_ICON_GAP : 0) +
-               DBG_TOGGLE_W;
+               (w->row_locked ? 0 : DBG_TOGGLE_W);
     case TORIRS_CHROME_W_TEXTINPUT:
     {
         int box_w = ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->text) +
                     2 * DBG_INPUT_PAD_X + 2 * DBG_RULE;
         if( box_w < DBG_INPUT_MIN_W )
             box_w = DBG_INPUT_MIN_W;
-        return dbg_row_box_offset(ui, w) + box_w;
+        return dbg_row_stacked_width(ui, w, box_w);
     }
     case TORIRS_CHROME_W_TEXTAREA:
         /*
@@ -2326,7 +2408,7 @@ dbg_widget_width(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const*
                     DBG_SWATCH + DBG_SWATCH_GAP + 2 * DBG_INPUT_PAD_X + 2 * DBG_RULE;
         if( box_w < DBG_INPUT_MIN_W )
             box_w = DBG_INPUT_MIN_W;
-        return dbg_row_box_offset(ui, w) + box_w;
+        return dbg_row_stacked_width(ui, w, box_w);
     }
     case TORIRS_CHROME_W_MENUITEM:
         /* In a WINDOW panel this is a button and is measured as one; the
@@ -2345,7 +2427,7 @@ dbg_widget_width(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const*
                 box_w = ow;
         }
         box_w += 2 * DBG_INPUT_PAD_X + 2 * DBG_RULE + DBG_DROP_ARROW_W;
-        return dbg_row_box_offset(ui, w) + box_w;
+        return dbg_row_stacked_width(ui, w, box_w);
     }
     case TORIRS_CHROME_W_MODELVIEW:
         return w->view_w + 2 * DBG_RULE;
@@ -2407,7 +2489,9 @@ dbg_widget_height(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const
     case TORIRS_CHROME_W_FREE:
         return 0;
     default:
-        return DBG_ROW_H;
+        /* A caption that did not fit its column took a line of its own, so the
+         * row is two lines tall. @see dbg_row_label_stacked. */
+        return DBG_ROW_H + dbg_row_box_top(ui, w);
     }
 }
 
@@ -3817,7 +3901,7 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
              * settings affordance sits inside it, and the name gets what is
              * left. Pinned rather than flowed so a column of rows lines its
              * controls up regardless of how long the names are. */
-            int const tog_x = row_x + w->w - DBG_TOGGLE_W;
+            int const tog_x = row_x + w->w - (w->row_locked ? 0 : DBG_TOGGLE_W);
             int const tog_y = row_y + (row_h - DBG_TOGGLE_H) / 2;
             int const icon_x = tog_x - DBG_ROW_ICON_GAP - DBG_ROW_ICON;
             int const icon_y = row_y + (row_h - DBG_ROW_ICON) / 2;
@@ -3872,6 +3956,11 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
                         1,
                         clip);
             }
+
+            /* A locked row has no second state, so it has no switch: nothing
+             * below draws and nothing above reserved the column for it. */
+            if( w->row_locked )
+                break;
 
             /* The switch: a well with the knob at the end its state names, lit
              * in the interfaces' own on/off green when it is on. */
@@ -3975,6 +4064,8 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
         {
             int const label_w = ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->label);
             int const box_x = row_x + dbg_row_box_offset(ui, w);
+            int const box_y = row_y + dbg_row_box_top(ui, w);
+            int const box_h = row_h - dbg_row_box_top(ui, w);
             int const box_w = row_x + w->w - box_x;
             int const open = ui->dropdown_open == widget;
             char const* shown = (w->selected >= 0 && w->selected < w->option_count)
@@ -3986,7 +4077,7 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
                 dbg_push_text(
                     ui,
                     row_x,
-                    dbg_row_text_baseline(ui, row_y, row_h),
+                    dbg_row_text_baseline(ui, row_y, DBG_ROW_H),
                     w->label,
                     w->color ? w->color : th->text_dim,
                     ui->theme.font_row,
@@ -3996,9 +4087,9 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
                 break;
 
             box.x = box_x;
-            box.y = row_y;
+            box.y = box_y;
             box.w = box_w;
-            box.h = row_h;
+            box.h = box_h;
             dbg_push_dropdown_button(ui, box, shown, open, hovered, clip);
             break;
         }
@@ -4007,6 +4098,8 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
         {
             int const label_w = ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->label);
             int const box_x = row_x + dbg_row_box_offset(ui, w);
+            int const box_y = row_y + dbg_row_box_top(ui, w);
+            int const box_h = row_h - dbg_row_box_top(ui, w);
             int const box_w = row_x + w->w - box_x;
             int const focused = ui->focus == widget;
             struct ToriRSChromeRect inner;
@@ -4018,7 +4111,7 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
                 dbg_push_text(
                     ui,
                     row_x,
-                    dbg_row_text_baseline(ui, row_y, row_h),
+                    dbg_row_text_baseline(ui, row_y, DBG_ROW_H),
                     w->label,
                     w->color ? w->color : th->text_dim,
                     ui->theme.font_row,
@@ -4035,17 +4128,17 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
                  * focused field that no longer reads as the same control. */
                 struct ToriRSChromeRect field;
                 field.x = box_x;
-                field.y = row_y;
+                field.y = box_y;
                 field.w = box_w;
-                field.h = row_h;
+                field.h = box_h;
                 dbg_push_field_chrome(ui, field, clip);
                 if( focused )
                     dbg_push_rect(
                         ui,
                         box_x + DBG_RULE,
-                        row_y + DBG_RULE,
+                        box_y + DBG_RULE,
                         box_w - 2 * DBG_RULE,
-                        row_h - 2 * DBG_RULE,
+                        box_h - 2 * DBG_RULE,
                         th->input_border_focus,
                         0,
                         clip);
@@ -4054,9 +4147,9 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             /* Scroll the content so the caret stays inside the box — the
              * classic single-line edit behaviour. */
             inner.x = box_x + DBG_INPUT_PAD_X;
-            inner.y = row_y + DBG_RULE;
+            inner.y = box_y + DBG_RULE;
             inner.w = box_w - 2 * DBG_INPUT_PAD_X;
-            inner.h = row_h - 2 * DBG_RULE;
+            inner.h = box_h - 2 * DBG_RULE;
             if( inner.w < 0 )
                 inner.w = 0;
             caret_px = dbg_measure_prefix(ui->theme.font_row, ui->scale, w->text, w->caret);
@@ -4067,7 +4160,7 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             dbg_push_text(
                 ui,
                 text_x,
-                dbg_row_text_baseline(ui, row_y, row_h),
+                dbg_row_text_baseline(ui, box_y, box_h),
                 w->text,
                 th->input_text,
                 ui->theme.font_row,
@@ -4077,9 +4170,9 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
                 dbg_push_rect(
                     ui,
                     text_x + caret_px,
-                    row_y + DBG_FIELD_INSET,
+                    box_y + DBG_FIELD_INSET,
                     DBG_RULE,
-                    row_h - 2 * DBG_FIELD_INSET,
+                    box_h - 2 * DBG_FIELD_INSET,
                     th->input_text,
                     1,
                     inner);
@@ -4174,11 +4267,13 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
              * a mode. */
             int const label_w = ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->label);
             int const box_x = row_x + dbg_row_box_offset(ui, w);
+            int const box_y = row_y + dbg_row_box_top(ui, w);
+            int const box_h = row_h - dbg_row_box_top(ui, w);
             int const box_w = row_x + w->w - box_x;
             int const focused = ui->focus == widget;
             int const open = ui->colorpick_open == widget;
             int const sw_x = box_x + DBG_PX(3);
-            int const sw_y = row_y + (row_h - DBG_SWATCH) / 2;
+            int const sw_y = box_y + (box_h - DBG_SWATCH) / 2;
             struct ToriRSChromeRect inner;
             int text_x;
             int caret_px;
@@ -4187,7 +4282,7 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
                 dbg_push_text(
                     ui,
                     row_x,
-                    dbg_row_text_baseline(ui, row_y, row_h),
+                    dbg_row_text_baseline(ui, row_y, DBG_ROW_H),
                     w->label,
                     w->color ? w->color : th->text_dim,
                     ui->theme.font_row,
@@ -4199,17 +4294,17 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             {
                 struct ToriRSChromeRect field;
                 field.x = box_x;
-                field.y = row_y;
+                field.y = box_y;
                 field.w = box_w;
-                field.h = row_h;
+                field.h = box_h;
                 dbg_push_field_chrome(ui, field, clip);
                 if( focused )
                     dbg_push_rect(
                         ui,
                         box_x + DBG_RULE,
-                        row_y + DBG_RULE,
+                        box_y + DBG_RULE,
                         box_w - 2 * DBG_RULE,
-                        row_h - 2 * DBG_RULE,
+                        box_h - 2 * DBG_RULE,
                         th->input_border_focus,
                         0,
                         clip);
@@ -4227,9 +4322,9 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
                 (open || hovered) ? th->accent : th->dropdown_border_inner, 0, clip);
 
             inner.x = sw_x + DBG_SWATCH + DBG_SWATCH_GAP;
-            inner.y = row_y + DBG_RULE;
+            inner.y = box_y + DBG_RULE;
             inner.w = box_x + box_w - DBG_INPUT_PAD_X - inner.x;
-            inner.h = row_h - 2 * DBG_RULE;
+            inner.h = box_h - 2 * DBG_RULE;
             if( inner.w < 0 )
                 inner.w = 0;
             text_x = inner.x;
@@ -4240,7 +4335,7 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
             dbg_push_text(
                 ui,
                 text_x,
-                dbg_row_text_baseline(ui, row_y, row_h),
+                dbg_row_text_baseline(ui, box_y, box_h),
                 w->text,
                 th->input_text,
                 ui->theme.font_row,
@@ -4250,9 +4345,9 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
                 dbg_push_rect(
                     ui,
                     text_x + caret_px,
-                    row_y + DBG_FIELD_INSET,
+                    box_y + DBG_FIELD_INSET,
                     DBG_RULE,
-                    row_h - 2 * DBG_FIELD_INSET,
+                    box_h - 2 * DBG_FIELD_INSET,
                     th->input_text,
                     1,
                     inner);
@@ -5181,7 +5276,14 @@ dbg_panel_title_rect(struct ToriRSChrome const* ui, struct ToriRSChromePanel con
     r.x = p->last_rect.x + DBG_RULE;
     r.y = p->last_rect.y + DBG_RULE;
     r.w = p->last_rect.w - 2 * DBG_RULE;
-    r.h = ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_MENU, ui->scale);
+    /* Down to the BOTTOM of the black bar, borders included. dbg_build_window
+     * draws that bar at the panel's inner edge -- p->y + `edge` -- so a handle
+     * one line box tall measured from the outer edge stops short of it by the
+     * frame's thickness on a framed panel: the grab band lands on the top
+     * border and the bar's first few rows, and the rest of the bar, which is
+     * the whole of what the user is aiming at, does nothing. */
+    r.h = (dbg_panel_is_framed(ui, p) ? DBG_FRAME : DBG_RULE) - DBG_RULE +
+          ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_MENU, ui->scale);
     return r;
 }
 
@@ -6199,7 +6301,9 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y)
              * to toggling, so no zone is ever inert.
              */
             int const tog_x = w->x + w->w - DBG_TOGGLE_W;
-            if( w->row_action && x < tog_x )
+            /* A locked row is all action zone: there is no switch to hit, so
+             * the right end of it opens the page like the rest. */
+            if( w->row_locked || (w->row_action && x < tog_x) )
             {
                 ui->activated = hit;
                 ui->activated_action = 1;

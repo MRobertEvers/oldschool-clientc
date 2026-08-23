@@ -69,7 +69,7 @@ struct ToriRS_D3D9;
 
 /* Repo-relative defaults (run from the repo root); pass an explicit cache dir
  * as argv[1] from anywhere else. The default boot is the 254-era dat1 cache
- * driven by the rev_245_2 RevConfig; --dat2 switches to the js5 cache, where
+ * driven by the rs245_2lc RevConfig; --dat2 switches to the js5 cache, where
  * an interface id is opened directly instead. */
 #define DAT1_CACHE_DIR "cache254"
 #define DAT2_CACHE_DIR "cache.jan2026"
@@ -87,11 +87,21 @@ harness_shot(void* user, char const* path)
     free(pixels);
 }
 
-#define DEFAULT_REVCONFIG_UI "v0/osrs/revconfig/configs/rev_245_2/rev_245_2_dat1_ui.ini"
-#define DEFAULT_REVCONFIG_CACHE "v0/osrs/revconfig/configs/rev_245_2/rev_245_2_dat1_cache.ini"
+#define DEFAULT_REVCONFIG_UI "revconfig/rs245_2lc/rs245_2lc_dat1_ui.ini"
+#define DEFAULT_REVCONFIG_CACHE "revconfig/rs245_2lc/rs245_2lc_dat1_cache.ini"
 #define CONFIG_DIR "config"
 #define SCRIPT_DIR "script"
-#define DEFAULT_INTERFACE_ID 84
+
+/*
+ * "Nothing has said which interface to open yet."
+ *
+ * The boot group used to be the literal 84, which is the Lost City gameframe
+ * and nothing else's — every other cache opening it got whatever that id
+ * happens to be there. It now comes from the resolved profile's `[iface:boot]`,
+ * below, and this sentinel is only how the CLI parse records that neither a
+ * positional argument nor a manifest overrode it.
+ */
+#define INTERFACE_ID_UNSET 0
 
 /* TORIRS_DUMP_TREE=1: print the widget tree in the reference client's
  * widgetTreeDump.ts format (interface editor parity diffing). */
@@ -682,7 +692,7 @@ static struct AppConfig cfg = {
     .cache_dir = NULL, /* resolved from cache_kind below */
     .config_dir = CONFIG_DIR,
     .script_dir = SCRIPT_DIR,
-    .interface_id = DEFAULT_INTERFACE_ID,
+    .interface_id = INTERFACE_ID_UNSET,
     .cache_kind = APP_CACHE_DAT1,
     /* -1 = no manifest spawn; app_world_load_begin falls back to the client default. */
     .spawn_x = -1,
@@ -1602,6 +1612,17 @@ frame_loop_step(void)
             {
                 VarPManager_SetVarbitOptimistic(&app.varps, (int)vb_id, (int)vb_value);
                 RS_CS2Host_NotifyVarChanged(&app.host, -1);
+                /*
+                 * Mirror it to the server too, exactly as a panel click would.
+                 *
+                 * Ten Activities rows are decided server-side, and this
+                 * variable is the only way to reach any row from a headless
+                 * run -- nothing in the cache writes these varbits. A simulated
+                 * write the server never heard about would leave every one of
+                 * those rows untestable, which is the state that made them look
+                 * unimplementable in the first place.
+                 */
+                RS_CS2Host_QueueSettingsMirror(&app.host, (int)vb_id, (int)vb_value);
                 fprintf(
                     stderr,
                     "sim_varbit: %ld = %ld (base varp %d, reads back %d)\n",
@@ -2352,6 +2373,14 @@ frame_loop_teardown(void)
                         c->position.abs_x,
                         c->position.abs_y);
             }
+            for( int t = 0; t < 14; t++ )
+                fprintf(
+                    stderr,
+                    "exit: tabgate %d enabled=%d flash_hidden=%d flash_tab=%d\n",
+                    t,
+                    RS_UISlots_TabEnabled(&app.slots, t),
+                    RS_UISlots_TabFlashHidden(&app.slots, t, app.logic_cycle),
+                    app.slots.flash_tab);
             for( int f = 0; f < 6; f++ )
                 fprintf(
                     stderr,
@@ -3292,21 +3321,56 @@ main(
         }
     }
 
-    if( cfg.revconfig_ui_ini )
-        fprintf(
-            stderr,
-            "torirs: %s cache=%s revconfig=%s cache_ini=%s\n",
-            cfg.cache_kind == APP_CACHE_DAT1 ? "dat1" : "dat2",
-            cfg.cache_dir,
+    /*
+     * The boot interface, when neither a positional argument nor a manifest
+     * named one. It is a cache id like any other, so the resolved profile
+     * answers it: `[iface:boot]` in the *_ui.ini (or the cache half, or the
+     * manifest's own inline sections -- all three are read here, in load
+     * order).
+     *
+     * Left unset if the profile does not state one. A dat1 boot then has no
+     * gameframe to open and says so; a dat2 boot does not come through here at
+     * all, because its manifest states `interface_id` in `[ui:boot]`.
+     */
+    if( cfg.interface_id == INTERFACE_ID_UNSET )
+    {
+        struct RevConfigRefs boot_refs;
+        int declared;
+        RevConfigRefs_Init(&boot_refs);
+        RevConfigRefs_LoadSources(
+            &boot_refs,
             cfg.revconfig_ui_ini,
-            cfg.revconfig_cache_ini ? cfg.revconfig_cache_ini : "(none)");
-    else
-        fprintf(
-            stderr,
-            "torirs: %s cache=%s iface=%d\n",
-            cfg.cache_kind == APP_CACHE_DAT1 ? "dat1" : "dat2",
-            cfg.cache_dir,
-            cfg.interface_id);
+            cfg.revconfig_cache_ini,
+            cfg.revconfig_inline_ini);
+        declared = RevConfigRefs_Get(&boot_refs, "iface", "boot");
+        RevConfigRefs_Free(&boot_refs);
+        if( declared > 0 )
+            cfg.interface_id = declared;
+    }
+
+    {
+        /* An on-demand boot opens no directory, so naming one here would be a
+         * line of output pointing at a cache this run never reads -- the
+         * DEFAULT_CACHE_DIR fallback at that, which is somebody else's world.
+         * Say where the bytes actually come from instead. */
+        char const* cache_label = cfg.cache_on_demand ? "(on demand)" : cfg.cache_dir;
+
+        if( cfg.revconfig_ui_ini )
+            fprintf(
+                stderr,
+                "torirs: %s cache=%s revconfig=%s cache_ini=%s\n",
+                cfg.cache_kind == APP_CACHE_DAT1 ? "dat1" : "dat2",
+                cache_label,
+                cfg.revconfig_ui_ini,
+                cfg.revconfig_cache_ini ? cfg.revconfig_cache_ini : "(none)");
+        else
+            fprintf(
+                stderr,
+                "torirs: %s cache=%s iface=%d\n",
+                cfg.cache_kind == APP_CACHE_DAT1 ? "dat1" : "dat2",
+                cache_label,
+                cfg.interface_id);
+    }
 
     /* TORIRS_ROOT_SIZE=WxH: host the interface at the gameframe slot the client
      * would give it instead of the full canvas. Interfaces size themselves from
@@ -3361,7 +3425,27 @@ main(
     TorirsPerf_Init(0);
     /* Before anything can read it: App_Init has already run RS_CS2Host_Init,
      * whose default the manifest is entitled to override, and the root
-     * interface's own scripts (opened on the next line) call getwindowmode. */
+     * interface's own scripts (opened on the next line) call getwindowmode.
+     *
+     * An unstated windowmode is DERIVED from the interface logic rather than
+     * left at the host's default, because that default (resizable) is a CS2
+     * assumption: a CS2 gameframe relayouts to whatever canvas it is given, and
+     * a CS1 one cannot -- it is a baked 765x503 layout, and the only thing a
+     * bigger canvas does to it is leave the rest of the canvas black.
+     *
+     * That was visible two ways at once on a HighDPI display, where the canvas
+     * follows a drawable twice the window points: the frame drew at 1x in the
+     * top-left quarter, and every click landed at double its coordinate,
+     * because MapMouse scales window points into the canvas by exactly the
+     * ratio the frame was not drawn at. Fixed pins the canvas at 765x503 and
+     * letterboxes it into the drawable, which on a 2x display is an exact
+     * doubling -- and MapMouse undoes the same letterbox, so clicks land where
+     * they are drawn.
+     *
+     * A manifest that states `[ui:boot] windowmode=` still wins: this only
+     * fills in the case nobody answered. */
+    if( !cfg.window_mode && App_UiLogic(&app) == APP_UI_LOGIC_CS1 )
+        cfg.window_mode = CS2VM_WINDOW_MODE_FIXED;
     App_SetBootWindowMode(&app, cfg.window_mode);
     App_OpenRootInterface(&app, cfg.interface_id);
 
@@ -3373,6 +3457,7 @@ main(
         getenv("TORIRS_SIM_KEYS") || getenv("TORIRS_SIM_WORLD_KEY") ||
         getenv("TORIRS_SIM_MOUSE_CLICK") || getenv("TORIRS_DUMP_EMIT") ||
         getenv("TORIRS_DUMP_TREE") || getenv("TORIRS_WORLD_BMP") ||
+        getenv("TORIRS_DUMP_ROLES") || getenv("TORIRS_DUMP_CLIENTCODES") ||
         getenv("TORIRS_CMD_REPLAY") )
         App_BootWait(&app);
 
@@ -3827,6 +3912,118 @@ main(
 
     if( getenv("TORIRS_DUMP_TREE") && app.tree )
         dump_tree(&app, cfg.interface_id);
+
+    /*
+     * TORIRS_DUMP_ROLES=1: what every declared semantic role resolves to.
+     *
+     * The one question a screenshot cannot answer about a role, and the same
+     * question UITree_FrameHiddenCount exists for one level down: a plugin
+     * that offers no verb may be looking at a lane whose profile never named
+     * the element, or at a binding that names the wrong node. "declared but
+     * unresolved" and "not declared at all" print differently here, because
+     * they are different bugs with the same symptom.
+     *
+     * Also the survey instrument. A role bound on a lane it has not been
+     * measured on prints its node and its box, which is how the binding gets
+     * checked against what is actually on screen rather than against memory.
+     */
+    if( getenv("TORIRS_DUMP_ROLES") && app.tree )
+    {
+        /*
+         * Which interface groups are actually mounted, before the roles
+         * themselves.
+         *
+         * dump_tree walks from the root interface and so shows only what hangs
+         * under it; a role bound to `iface(<name>)` resolves against the whole
+         * component array. When a binding does not resolve, "that group is not
+         * mounted on this lane" and "that group is mounted and the child is
+         * wrong" are the two answers, and this is what tells them apart.
+         */
+        {
+            int groups[64];
+            int group_count = 0;
+            for( uint32_t gi = 0; gi < app.tree->component_count; gi++ )
+            {
+                int id = app.tree->components[gi].component_id;
+                int group;
+                int seen = 0;
+                if( app.tree->components[gi].freed || id < 0 )
+                    continue;
+                group = (id >> 16) & 0xffff;
+                for( int k = 0; k < group_count; k++ )
+                    seen |= groups[k] == group;
+                if( !seen && group_count < (int)(sizeof(groups) / sizeof(groups[0])) )
+                    groups[group_count++] = group;
+            }
+            printf("mounted groups (%d):", group_count);
+            for( int k = 0; k < group_count; k++ )
+                printf(" %d", groups[k]);
+            printf("\n");
+        }
+
+        printf("roles: %d declared\n", app.ui_roles.count);
+        for( int ri = 0; ri < app.ui_roles.count; ri++ )
+        {
+            struct UITreeRoleEntry const* entry = &app.ui_roles.entries[ri];
+            int32_t node = UITree_RoleNode(app.tree, &app.ui_roles, (uint16_t)(ri + 1));
+
+            if( node < 0 )
+            {
+                printf(
+                    "  %-24s UNRESOLVED (%s%d match rungs)\n",
+                    entry->name,
+                    entry->authored ? "authored + " : "",
+                    entry->matcher_count);
+                continue;
+            }
+            struct UITreeComponent const* c = &app.tree->components[node];
+            printf(
+                "  %-24s node=%d com=0x%08x type=%d%s%s box=%d,%d %dx%d\n",
+                entry->name,
+                (int)node,
+                c->component_id,
+                (int)c->type,
+                c->dynamic ? " dynamic" : "",
+                (c->behavior.hide || c->frame_hidden) ? " hidden" : "",
+                c->position.abs_x,
+                c->position.abs_y,
+                c->position.abs_w,
+                c->position.abs_h);
+        }
+    }
+
+    /*
+     * TORIRS_DUMP_CLIENTCODES=1: every live node carrying a clientCode.
+     *
+     * The cache's own semantic tagging, which is where a `clientcode()` rung
+     * gets its number from. Reading it off the tree is the point: the code
+     * tables in rs_clientcode.h are the CS1 era's, and which of them a given
+     * dat2 gameframe actually ships is a fact about that cache.
+     */
+    if( getenv("TORIRS_DUMP_CLIENTCODES") && app.tree )
+    {
+        printf("clientcodes: %d live\n", app.tree->client_code.count);
+        for( int32_t si = 0; si < app.tree->client_code.count; si++ )
+        {
+            int32_t idx = app.tree->client_code.slots[si];
+            struct UITreeComponent const* c;
+            if( idx < 0 || (uint32_t)idx >= app.tree->component_count )
+                continue;
+            c = &app.tree->components[idx];
+            if( c->freed )
+                continue;
+            printf(
+                "  code=%-5d node=%d com=0x%08x type=%d box=%d,%d %dx%d\n",
+                c->behavior.client_code,
+                (int)idx,
+                c->component_id,
+                (int)c->type,
+                c->position.abs_x,
+                c->position.abs_y,
+                c->position.abs_w,
+                c->position.abs_h);
+        }
+    }
 
     /* TEMP DEBUG: dump runtime hook script ids (TORIRS_DUMP_HOOKS=1) */
     if( getenv("TORIRS_DUMP_HOOKS") && app.tree )

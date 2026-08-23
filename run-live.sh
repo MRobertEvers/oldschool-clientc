@@ -4,10 +4,10 @@
 #   ./run-live.sh [--skip-checks]       <manifest.ini> [user] [pass] [client args...]
 #   ./run-live.sh [--skip-checks] web   <manifest.ini> [user] [pass] [client args...]
 #
-# The manifest (manifests/manifest_rs254.ini, manifests/manifest_osrs230.ini, manifests/manifest_xrsps.ini, …)
+# The manifest (manifests/manifest_rs254lc.ini, manifests/manifest_osrs230.ini, manifests/manifest_osrs233xrsps.ini, …)
 # specifies cache, rev, transport, host/port and RSA keys. user/pass default to
 # asdf/a. Anything after them is passed straight through to the client, so
-# `./run-live.sh manifests/manifest_rs254.ini asdf a --offline` works. Extra behavior via
+# `./run-live.sh manifests/manifest_rs254lc.ini asdf a --offline` works. Extra behavior via
 # env vars: TORIRS_NET_DEBUG=1, TORIRS_NET_CHEAT="tele 0,50,50,21,21",
 # TORIRS_MAX_FRAMES/TORIRS_EXIT_BMP.
 #

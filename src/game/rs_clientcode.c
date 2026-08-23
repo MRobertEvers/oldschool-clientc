@@ -282,6 +282,156 @@ design_gender_button_tick(
     return 1;
 }
 
+/*
+ * Welcome screen (reference clientComponent, CC_LAST_LOGIN_INFO onwards). The
+ * five rows below are the whole of what the client does with LAST_LOGIN_INFO,
+ * and every one of them is a plain read of App::welcome -- the packet exec
+ * stores, and nothing else in the client consults it.
+ *
+ * `last_ip == 0` means the server did not send one (and, at login, that no
+ * LAST_LOGIN_INFO has arrived yet); the reference blanks the row rather than
+ * printing an address of 0.0.0.0.
+ */
+static int
+welcome_last_login_tick(
+    struct App* app,
+    struct UITree* tree,
+    int32_t idx)
+{
+    char text[128];
+    char when[32];
+    uint32_t ip;
+
+    assert(app);
+    assert(tree);
+    if( app->welcome.last_ip == 0 )
+        return set_node_text(tree, idx, "");
+
+    if( app->welcome.days_since_login == 0 )
+        snprintf(when, sizeof(when), "earlier today");
+    else if( app->welcome.days_since_login == 1 )
+        snprintf(when, sizeof(when), "yesterday");
+    else
+        snprintf(when, sizeof(when), "%d days ago", app->welcome.days_since_login);
+
+    ip = (uint32_t)app->welcome.last_ip;
+    /* A loopback address is not information -- it is every account on a local
+     * server -- so the reference drops the "from:" clause for it rather than
+     * printing 127.0.0.1 to everyone. */
+    if( ip == 0x7f000001u )
+        snprintf(text, sizeof(text), "You last logged in %s.", when);
+    else
+        snprintf(
+            text,
+            sizeof(text),
+            "You last logged in %s from: %u.%u.%u.%u",
+            when,
+            (ip >> 24) & 0xff,
+            (ip >> 16) & 0xff,
+            (ip >> 8) & 0xff,
+            ip & 0xff);
+    return set_node_text(tree, idx, text);
+}
+
+/* Reference recolours this row as well as retexting it: zero unread is yellow,
+ * anything waiting is green. */
+static int
+welcome_unread_tick(
+    struct App* app,
+    struct UITree* tree,
+    struct UITreeComponent* c,
+    int32_t idx)
+{
+    char text[64];
+    int colour;
+    int changed = 0;
+
+    assert(app);
+    assert(tree);
+    assert(c);
+    if( app->welcome.unread_messages == 1 )
+    {
+        snprintf(text, sizeof(text), "1 unread message");
+        colour = RS_CC_WELCOME_COLOUR_GREEN;
+    }
+    else if( app->welcome.unread_messages > 1 )
+    {
+        snprintf(text, sizeof(text), "%d unread messages", app->welcome.unread_messages);
+        colour = RS_CC_WELCOME_COLOUR_GREEN;
+    }
+    else
+    {
+        snprintf(text, sizeof(text), "0 unread messages");
+        colour = RS_CC_WELCOME_COLOUR_YELLOW;
+    }
+
+    changed |= set_node_text(tree, idx, text);
+    if( c->type == UIELEM_RS_TEXT && c->u.rs_text.color != colour )
+    {
+        c->u.rs_text.color = colour;
+        UITree_MarkNodeDirty(tree, idx);
+        changed = 1;
+    }
+    return changed;
+}
+
+/*
+ * The three recovery-question lines, which are one paragraph split across three
+ * components -- so each row's text depends on which of the three paragraphs is
+ * being told, not just on its own index. days_since_recovery carries two
+ * non-day sentinels for that: 200 = never set, 201 = nothing to say (and then
+ * member_warning may want the three rows for its own paragraph instead).
+ */
+static int
+welcome_recovery_tick(
+    struct App* app,
+    struct UITree* tree,
+    int32_t idx,
+    int client_code)
+{
+    int const row = client_code - RS_CC_RECOVERY1;
+    static char const* const k_members[3] = {
+        "@yel@This is a non-members world: @whi@Since you are a member we",
+        "@whi@recommend you use a members world instead. You may use",
+        "@whi@this world but member benefits are unavailable whilst here.",
+    };
+    static char const* const k_never_set[3] = {
+        "You have not yet set any password recovery questions.",
+        "We strongly recommend you do so now to secure your account.",
+        "Do this from the 'account management' area on our front webpage",
+    };
+    char text[128];
+
+    assert(app);
+    assert(tree);
+    /* The caller keys on the 652..654 range, so a row outside 0..2 means that
+     * range and this arithmetic have drifted apart -- and the two array reads
+     * below would be the first thing to notice, silently. */
+    assert(row >= 0 && row < 3);
+    if( app->welcome.days_since_recovery == RS_CC_RECOVERY_DAYS_SILENT )
+        return set_node_text(tree, idx, app->welcome.member_warning == 1 ? k_members[row] : "");
+    if( app->welcome.days_since_recovery == RS_CC_RECOVERY_DAYS_NEVER_SET )
+        return set_node_text(tree, idx, k_never_set[row]);
+
+    if( row == 0 )
+    {
+        char when[32];
+        if( app->welcome.days_since_recovery == 0 )
+            snprintf(when, sizeof(when), "Earlier today");
+        else if( app->welcome.days_since_recovery == 1 )
+            snprintf(when, sizeof(when), "Yesterday");
+        else
+            snprintf(when, sizeof(when), "%d days ago", app->welcome.days_since_recovery);
+        snprintf(text, sizeof(text), "%s you changed your recovery questions", when);
+        return set_node_text(tree, idx, text);
+    }
+    if( row == 1 )
+        return set_node_text(
+            tree, idx, "If you do not remember making this change then cancel it immediately");
+    return set_node_text(
+        tree, idx, "Do this from the 'account management' area on our front webpage");
+}
+
 int
 RS_ClientCode_Tick(
     struct App* app,
@@ -344,10 +494,11 @@ RS_ClientCode_Tick(
         else if( cc == RS_CC_SWITCH_TO_MALE || cc == RS_CC_SWITCH_TO_FEMALE )
             changed |= design_gender_button_tick(app, tree, (int32_t)i, cc);
         else if( cc == RS_CC_LAST_LOGIN_INFO || cc == RS_CC_LAST_LOGIN_INFO2 )
-            changed |= set_node_text(
-                tree, (int32_t)i, "You last logged in @yel@earlier today@whi@.");
+            changed |= welcome_last_login_tick(app, tree, (int32_t)i);
         else if( cc == RS_CC_UNREAD_MESSAGES )
-            changed |= set_node_text(tree, (int32_t)i, "0 unread messages");
+            changed |= welcome_unread_tick(app, tree, c, (int32_t)i);
+        else if( cc >= RS_CC_RECOVERY1 && cc <= RS_CC_RECOVERY3 )
+            changed |= welcome_recovery_tick(app, tree, (int32_t)i, cc);
     }
 
     return changed;

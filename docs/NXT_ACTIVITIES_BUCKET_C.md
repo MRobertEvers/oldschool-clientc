@@ -1,4 +1,9 @@
-# Bucket C, re-measured
+# Bucket C, re-measured — and implemented
+
+> **Status.** All twelve rows are done. The measurement below is what the
+> implementation was built from and is left standing; a closing section records
+> what it turned into and the things the work found that this document did not
+> predict.
 
 `NXT_CLIENT_PLUGINS.md` closes with twelve rows it calls the only open problems,
 on the grounds that most of them "need a fact this client is not told":
@@ -377,3 +382,167 @@ grep -A2 variantop /tmp/hs/configs/all.hitsplat
 grep -n 'HitmarkType6Decode\|HitmarkType15GetMultiHitmark' \
     ~/Documents/git_repos/osclient_decompile/osclient-216-mac.c
 ```
+
+---
+
+# What it turned into
+
+## Done
+
+| id | row | where |
+|---:|-----|-------|
+| 5 | Hitsplat tinting | `RS_Hitsplats_ResolveType` + `ToriRSServer_HitsplatForViewer` |
+| 279 | Max hit hitsplats | the same pair |
+| 280 | Max hit hitsplats threshold | `hitsplat_is_max_hit`, server-side |
+| 10 | Show boss health overlay | `torirs_server_hpbar.c`, as a veto |
+| 183 | Iron loot restriction messages | `ToriRSServer_LootRestrictionWarn` |
+| 273 | Clue scroll helper - World arrows | `app_overlay_build_hint_arrow` + the four `hint_*` opcodes |
+| 272 | Clue scroll helper - Worldmap marker | the same coord, marked on the open world map |
+| 163 | Agility helper | `torirs_server_helper.c` + `agility_helper.rs2` |
+| 184 | Slayer helper | `torirs_server_helper.c` |
+| 275 | Clue scroll helper - Infobox | `torirs_server_helper.c` |
+| 268 | Blast Furnace helper | `~bf_hud_sync`, in the minigame's own lane |
+| — | the settings mirror | `settings_mirror_varbit`, which all ten server rows needed |
+
+**182 is done too**, and its icon turned out to be identifiable after all — see
+"the icon was in the hitsplat table all along" below. The first pass looked for
+a *sprite* named for loot restriction and correctly found none; what it did not
+do was ask which record in the hitsplat table is not a hit splat.
+
+163 / 184 / 275 / 268 were handed off as `docs/HANDOFF_HELPER_GENERIC.md` and
+built from it. 268 landed somewhere the handoff did not propose, and the reason
+is better than the proposal: the row turns on `~bf_in_area`, which the Blast
+Furnace's own lane already answers every tick, so teaching C where the furnace
+is would have been the wrong seam.
+
+## Three things the measurement did not predict
+
+### 1. The content tree had been destroying the hitsplat table
+
+`OSRS-Content/.../configs/all.hitsplat` was an export from the *old, broken*
+decoder — `opcode8=37`, a phantom `opcode49`, `opcode18` as opaque hex. cachepack
+rejects those keys, so every `torirsserver-cache` bake wrote near-empty records:
+**83 records in 318 bytes**, every `text` and `duration` lost and **all 34
+selectors with them**.
+
+So the client resolver would have found nothing to resolve, and the failure would
+have looked exactly like the resolver being broken. Regenerated;
+`cachepack verify --types hitsplat` reports 83/83 byte-exact and the boot line
+now reads `83 types (83 records, 34 var selectors)`. That count is printed for
+this reason and no other.
+
+The general lesson is the one `exporter-owns-generated-configs` already states,
+with a sharper edge: a generated file that predates a decoder fix is not stale
+in the harmless sense. It is a rejected file, and cachepack's per-key warnings
+scroll past in a bake that reports success.
+
+### 2. `test-torirsserver` never rebuilt the server
+
+`ToriRSServer` (capitalised) is listed in `.PHONY` and **has no rule anywhere**.
+On a case-insensitive filesystem it resolves to the already-built
+`torirsserver`, make answers "Nothing to be done", and the suite runs whatever
+binary is on disk.
+
+Found by mutating a function the suite asserts on and watching the suite stay
+green — the same shape as the unregistered-stanza hazard
+`tools/check_selftest_registration.py` exists for, but on the C side, where
+nothing was checking. Four targets depended on it. Fixed.
+
+This is why the mutation step is not optional: the suite reported green for a
+binary built before the change under test, which is a negative control that
+cannot go red.
+
+### 3. Two settings share one varp, and it is load-bearing
+
+`ironman_var_1` (varp 1425) carries settings **5** (bit 16), **10** (bit 17) and
+**279** (bit 20). Any server write to that varp moves all three at once, which is
+the concrete reason an unmirrored client-side settings write is not merely
+invisible to the server but not durable on the client either. The hitsplat test
+asserts the two hitsplat rows do not move each other for exactly this reason.
+
+### 4. `srv->active_player` is the victim, and the fix had to be a second entry point
+
+`ToriRSServer_CombatHitPlayer` runs with the VICTIM active — the npc attack
+scripts and the `damage` opcode both make the target active before calling — so
+the attacker is simply not on the stack by the time the hitmark is recorded.
+Inferring the dealer from `srv->active_player` there would record every npc hit
+in the game as the player's own damage: setting 5 would look implemented and
+tint nothing.
+
+The attacker *is* known one frame out. The `damage` and `p_overhit` opcodes both
+save `srv->active_player` before switching to the target, and that saved pointer
+is the attacker. So `ToriRSServer_CombatHitPlayerFrom` takes the dealer
+explicitly and the plain form is a wrapper that passes -1 — which is the right
+answer for an npc's swing, poison or a trap, and the row agrees: "damage that
+you did not deal" is not about damage nobody dealt.
+
+The selftest drives the funnel rather than the promoter for exactly this branch,
+and a mutation that drops the dealer turns it red.
+
+### 5. The icon was in the hitsplat table all along
+
+Setting 182 wants "indicator **icons**". The first search asked "is there a
+sprite, spotanim or interface named for loot restriction" — there is not — and
+stopped. The question that answers it is different: **which record in the
+hitsplat table is not a hit splat?**
+
+Of all 83 records in `cache.osrs239`:
+
+- exactly **one** has an empty `text=`. Every other record carries `%1`, the
+  number the splat draws; an empty one draws its sprite alone.
+- exactly **one** lasts longer than 100 client cycles — 150, against the 50
+  every damage leaf uses. An indicator lingers; a splat does not.
+
+They are the same record, **id 1**, and its sprite 3521 is `hitmark_blocked` in
+the cache's own gameval table — a red circle-with-a-slash, which
+`configs/all.hitsplat.compack` already documents from an earlier identification
+made the approved way (read the gameval name, then look at the sprite).
+
+Four properties agreeing, three of them unique in the table. It is still an
+identification rather than a decompiled fact, and what would falsify it is
+written down beside the code: a live capture showing that id used for something
+else, or a later cache with a second textless record.
+
+The icon is emitted **per viewer**, in the encoder, for the same reason the
+me/other hitsplat wrappers are: one npc's splat list is written once per player
+watching it, and a no-entry sign over a creature only one of them may not loot
+is worse shown to everybody than shown to nobody. It rides an existing hitmark
+block, which also gets the timing the row asks for — it appears while the player
+is attacking.
+
+One hazard worth naming because it is invisible: the hitmark block is a
+**length-prefixed list**, so the extra entry has to be counted before the count
+byte goes out. An extra quadruple written after a count that did not include it
+does not draw an extra icon — it shifts every extended block after it.
+
+### 6. This cache has no edge-of-screen hint arrows
+
+The previous pass left these undone on the grounds that the reference's rule for
+which edge, and where along it, was not cheaply readable out of the Ghidra
+output. That was true and it was also the wrong question.
+
+`headicons_hint` (sprite archive 441) declares **six** 25x25 frames and only two
+have any pixels: frame 0 is the solid downward arrow and frame 1 is the same
+arrow in outline. **Frames 2..5 are entirely transparent.**
+
+```sh
+3rd/rscache/tools/spritebake/spritebake --rev osrs239 cache.osrs239 \
+    --list --probe headicons_hint
+```
+
+The reference's edge form comes from a different pack —
+`GraphicsDefaults::GetSpriteHintMapEdgeID`, beside `...HintMapMarkersID` — and
+this cache's sprite gameval table names no such group. So there is no edge
+arrow to draw here, and the honest state is "this cache does not ship one"
+rather than "not implemented yet". The code comment says so, with the command to
+re-check it.
+
+## What is still not done, precisely
+
+- **Edge-of-screen hint arrows** are not a gap: the assets are absent from this
+  cache (above). A cache that ships them would need the reference's placement
+  rule, which is still unread.
+- **The world-map marker uses the synthesised flash disc**, not a cache asset.
+  `worldmap_marker_0..8` are the PLAYER-PLACED markers — reusing one would make a
+  server hint indistinguishable from the player's own note to themselves — and
+  the cache names no hint-marker asset to prefer over the disc.

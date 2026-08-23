@@ -48,8 +48,50 @@
 /** World objects one plugin may hold at once. A loot beam per lit tile is the
  *  shape this is sized for; past it object_create refuses and says so. */
 #define TORIRS_PLUGIN_OBJECT_BUDGET 64
-/** Resident assets, across every plugin. */
-#define TORIRS_PLUGIN_ASSETS_MAX 32
+/** Authored meshes one plugin may hold at once. Far smaller than the object
+ *  budget on purpose: a mesh is a SHAPE and the objects standing on it are the
+ *  copies, so a plugin needs one per distinct thing it draws (a beam per
+ *  style, a marker, a plinth) and not one per place it draws it. */
+#define TORIRS_PLUGIN_MESH_BUDGET 8
+/**
+ * Resident assets, across every plugin.
+ *
+ * Raised from 32 with the image ceiling below, and for the same reason: an
+ * image is READ through the asset sandbox, so every picture a plugin ships
+ * occupies a slot here as well as one there, and a gameframe is seventy
+ * pictures. At 32 the layout plugin's tab icons loaded as handles with no
+ * pixels behind them -- a frame drawn with half its art missing and one line
+ * on stderr to say why.
+ *
+ * The cost is honest and known: the PNG bytes of an image stay resident after
+ * the decode that only needed them once, so ~70 KB of this table is bytes
+ * nothing will read again. Dropping them would mean the host deciding that a
+ * file loaded as an image is not also wanted as bytes, which is not something
+ * it can know -- a plugin may legitimately hold both. Slots are cheap; the
+ * guess would not be.
+ */
+#define TORIRS_PLUGIN_ASSETS_MAX 128
+/** Resident shipped MODELS, across every plugin. Each holds decoded geometry
+ *  the host keeps for as long as the plugin runs, so the ceiling is what stops
+ *  a plugin from loading a folder of art nothing stands on. */
+#define TORIRS_PLUGIN_MODELS_MAX 32
+/**
+ * Resident IMAGES, across every plugin. Each holds a decoded ARGB sprite in
+ * the scene, so the ceiling is what keeps a plugin from filling the scene's
+ * sprite table with art nothing draws.
+ *
+ * Raised from 64 when the gameframe layouts landed. 64 was sized against the
+ * plugins that existed -- an orb set is ten pictures and an xp drop is two --
+ * and a whole GAMEFRAME is a different order of thing: two families of stone
+ * surround, twenty-seven tab icons and nine mirrored redstones is seventy-odd
+ * on its own, and it has to share the table with whatever else is switched on.
+ * At ~40 bytes a slot the whole table is under 8 KB either way, so the number
+ * is bounded by what is reasonable to draw rather than by what it costs.
+ */
+#define TORIRS_PLUGIN_IMAGES_MAX 192
+/** Live reservations across every plugin. One per (plugin, region, edge), and
+ *  four edges of one region each is already an unusual plugin. */
+#define TORIRS_PLUGIN_RESERVES_MAX 32
 /** Longest screenshot destination a plugin may name, including separators. */
 #define TORIRS_PLUGIN_SCREENSHOT_DIR_MAX 192
 
@@ -83,9 +125,130 @@ struct ToriRS_PluginEngine
     int (*hover_entity)(void* user, struct ToriRS_PluginHoverEntity* out);
     int (*element_height)(void* user, int element_id);
 
+    /** The pointer, in canvas coords. @see ToriRS_PluginApi::mouse_pos. */
+    int (*mouse_pos)(void* user, int* out_x, int* out_y);
+    /** The minimap's box this frame. @see ToriRS_PluginApi::minimap_rect. */
+    int (*minimap_rect)(void* user, int* out_x, int* out_y, int* out_w, int* out_h);
+    /**
+     * One PLACEABLE region's box, plus CANVAS. @see
+     * ToriRS_PluginApi::slot_rect.
+     *
+     * SAFE is deliberately not here: it is derived from these plus the host's
+     * own reservation table, and the host is the only thing that holds both.
+     */
+    int (*slot_rect)(
+        void* user, int slot, int* out_x, int* out_y, int* out_w, int* out_h);
+    /**
+     * One MEMBER of a placeable region. @see
+     * ToriRS_PluginApi::slot_member_rect.
+     *
+     * The read half of layout_slot's `member`, so the two use one numbering.
+     */
+    int (*slot_member_rect)(
+        void* user, int slot, int member, int* out_x, int* out_y, int* out_w, int* out_h);
+    /** One component's box, by id. @see ToriRS_PluginApi::component_rect. */
+    int (*component_rect)(
+        void* user, int component_id, int* out_x, int* out_y, int* out_w, int* out_h);
+
+    /* The semantic roles. @see ToriRS_PluginApi::role_rect and friends.
+     *
+     * Whole verbs and not a name->id resolver the host then feeds to the id
+     * verbs, because a role may name a node that HAS no id -- and because the
+     * answer has to be taken and used in one step: a role bound to a
+     * script-built component is only true until that subtree is next rebuilt.
+     *
+     * `safe` is the exception the engine cannot answer, for the same reason it
+     * cannot answer SLOT_SAFE: it is derived from the reservation table, which
+     * is the host's. The host intercepts that one name before it gets here. */
+
+    /** Where a role's element is. @see ToriRS_PluginApi::role_rect. */
+    int (*role_rect)(
+        void* user, char const* role, int* out_x, int* out_y, int* out_w, int* out_h);
+    /** Whether it is on screen. @see ToriRS_PluginApi::role_visible. */
+    int (*role_visible)(void* user, char const* role);
+    /** Press it. @see ToriRS_PluginApi::role_click. */
+    int (*role_click)(void* user, char const* role, int op);
+    /** Its component id right now, or -1. @see ToriRS_PluginApi::role_id. */
+    int (*role_id)(void* user, char const* role);
+
+    /* The gameframe claim. @see ToriRS_PluginApi::layout_claim.
+     *
+     * The host owns WHO holds the frame; the engine owns what holding it does
+     * -- suppressing the lane's own chrome, pinning the canvas, moving the
+     * live surfaces. Split there because only the engine can reach a tree
+     * node and only the host can arbitrate between plugins. */
+
+    /** The claim changed (or was restated). `owned` is 1 while a plugin holds
+     *  the frame; `canvas` is enum ToriRS_PluginLayoutCanvas and `fixed_w/h`
+     *  the pinned canvas, 0 when it follows the window. */
+    void (*layout_set)(void* user, int owned, int canvas, int fixed_w, int fixed_h);
+    /** Empty the slot table, before an EV_LAYOUT declaration. */
+    void (*layout_begin)(void* user);
+    /** Apply what the declaration left behind, and hide every surface it did
+     *  not place. */
+    void (*layout_end)(void* user);
+    /** Place one slot, or one MEMBER of it when `member` is not -1.
+     *  @see ToriRS_PluginApi::layout_slot_at; the return is the same "does
+     *  this frame have one" answer. */
+    int (*layout_slot)(void* user, int slot, int member, int x, int y, int w, int h);
+    /** Skin one slot: the picture it draws from and the alpha cut-out it is
+     *  clipped to, as plugin image slots (-1 for "leave it alone").
+     *  @see ToriRS_PluginApi::layout_slot_skin. */
+    int (*layout_slot_skin)(void* user, int slot, int art, int mask);
+    /** Six plugin image slots in UITreeScrollbarSkinPiece order, or NULL to
+     *  clear. @see ToriRS_PluginApi::layout_scrollbar. */
+    int (*layout_scrollbar)(void* user, int const* images, int count);
+    /** The selected sidebar tab, or -1. @see ToriRS_PluginApi::tab_active. */
+    int (*tab_active)(void* user);
+    /** Flip to that tab. @see ToriRS_PluginApi::tab_select. */
+    int (*tab_select)(void* user, int tabno);
+    /** One skill's boosted and base level. @see ToriRS_PluginApi::stat. */
+    int (*stat)(void* user, int skill, int* out_current, int* out_base);
+    /** One skill's xp and the thresholds either side of it.
+     *  @see ToriRS_PluginApi::stat_xp. */
+    int (*stat_xp)(
+        void* user,
+        int skill,
+        int* out_xp,
+        int* out_level_xp,
+        int* out_next_xp);
+    /** The skill's name, or NULL past the stat table.
+     *  @see ToriRS_PluginApi::skill_name. */
+    char const* (*skill_name)(void* user, int skill);
+    /** Run energy, 0..100. */
+    int (*run_energy)(void* user);
+
+    /**
+     * The client-only feature flags. @see ToriRS_PluginApi::feature_next.
+     *
+     * The ENGINE decides what is on this list, and that is the whole of the
+     * rule keeping a server-agreed flag away from a plugin: there is no key
+     * for one, so no plugin can name it and none can be added by a plugin
+     * shipping its own idea of the list.
+     */
+    int (*feature_next)(void* user, int iter, struct ToriRS_PluginFeature* out);
+    int (*feature_get)(void* user, char const* key);
+    int (*feature_set)(void* user, char const* key, int value);
+    /** One client-wide display preference and its range, and the setter for
+     *  it. @see ToriRS_PluginApi::display_setting. */
+    int (*display_setting)(
+        void* user, int setting, int* out_value, int* out_min, int* out_max);
+    int (*display_setting_set)(void* user, int setting, int value);
+
     /** The client's live var state, read-only. @see ToriRS_PluginApi::varbit. */
     int (*varbit)(void* user, int varbit_id);
     int (*varp)(void* user, int varp_id);
+
+    /** The boot profile's `[<kind>:<name>] id=` table. @see ToriRS_PluginApi::cache_id. */
+    int (*cache_id)(void* user, char const* kind, char const* name);
+
+    /** One objtype, resident-only. @see ToriRS_PluginApi::obj_info. */
+    int (*obj_info)(void* user, int obj_id, struct ToriRS_PluginObjInfo* out);
+    /** One container slot. `inv` is enum ToriRS_PluginInv.
+     *  @see ToriRS_PluginApi::inv_slot. */
+    int (*inv_slot)(void* user, int inv, int slot, int* out_obj_id, int* out_count);
+    /** That container's slot count. @see ToriRS_PluginApi::inv_size. */
+    int (*inv_size)(void* user, int inv);
 
     int (*project)(
         void* user,
@@ -97,6 +260,80 @@ struct ToriRS_PluginEngine
 
     /* Drawing. Each returns the number of overlay items it pushed, so the host
      * can hold a plugin to its per-frame budget. */
+
+    /**
+     * Which list the draw calls below append to: 0 the world overlay, 1 the
+     * canvas overlay. Set by the host around each draw dispatch and never by a
+     * plugin.
+     *
+     * A mode rather than a second set of draw entry points, because a rect is
+     * a rect: only the list it lands in and the clip that list carries differ,
+     * and duplicating five builders to say so would leave five chances for the
+     * two to drift apart.
+     */
+    void (*draw_select_canvas)(void* user, int canvas);
+
+    /**
+     * Decode `data` as an image and publish it at `slot`, returning 1 on
+     * success. The engine owns the decode and the scene entry; the host owns
+     * which plugin may see which slot.
+     */
+    int (*image_publish)(
+        void* user,
+        int slot,
+        void const* data,
+        int size,
+        int* out_w,
+        int* out_h);
+    /**
+     * Publish `w`x`h` ARGB pixels at `slot`, returning 1 on success.
+     *
+     * image_publish's sibling with the decode taken out, because the caller
+     * already has pixels. @see ToriRS_PluginApi::image_compose.
+     */
+    int (*image_publish_argb)(
+        void* user,
+        int slot,
+        int w,
+        int h,
+        uint32_t const* argb);
+    /**
+     * Copy a published image's pixels back into `out`, which holds `max` of
+     * them. @return how many were copied, 0 if it will not fit or the slot
+     * holds nothing. @see ToriRS_PluginApi::image_pixels.
+     */
+    int (*image_read)(void* user, int slot, uint32_t* out, int max);
+    /** Drop a published image. Idempotent. */
+    void (*image_release)(void* user, int slot);
+    /**
+     * Record a hit region for the plugin currently drawing.
+     * @see ToriRS_PluginApi::hit_region. Returns 1 when it was kept.
+     */
+    int (*hit_region)(
+        void* user,
+        int plugin,
+        int x,
+        int y,
+        int w,
+        int h,
+        char const* const* ops,
+        int op_count,
+        uint32_t tag);
+    /** Press an interface button. @see ToriRS_PluginApi::if_click. */
+    int (*if_click)(void* user, int component_id, int op);
+    /** Blit a published image. @see ToriRS_PluginApi::draw_image. */
+    int (*draw_image)(
+        void* user,
+        int slot,
+        int x,
+        int y,
+        int w,
+        int h,
+        int clip_x,
+        int clip_y,
+        int clip_w,
+        int clip_h,
+        int trans);
     int (*draw_tile)(
         void* user,
         int tile_x,
@@ -135,11 +372,35 @@ struct ToriRS_PluginEngine
 
     /** Record a deferred frame capture. `dir` is NULL or "" for the plugin's
      *  own saved-asset directory. Returns 1 when the request was accepted; the
-     *  engine takes it at the end of the frame and writes the PNG itself. */
-    int (*screenshot)(void* user, char const* plugin, char const* dir, char const* name);
+     *  engine takes it at the end of the frame and writes the PNG itself.
+     *  `out_path` is filled with the file the capture will land in -- the
+     *  engine owns the folders, so it is the only side that can say -- and is
+     *  left empty when there is nowhere to write it. */
+    int (*screenshot)(
+        void* user,
+        char const* plugin,
+        char const* dir,
+        char const* name,
+        char* out_path,
+        int out_path_size);
 
     /* World objects. Handles are the engine's; the host records who owns each
      * one so a stopped plugin's objects leave the scene with it. */
+
+    /* Authored meshes. Storage is the engine's, for the same reason objects'
+     * is: only it can turn one into a drawable model. */
+
+    /** Decode `data` as a model and hold it at slot `model`. Returns 0 when
+     *  the bytes are not a model this client reads -- which is an answer, not
+     *  an error: the plugin named the file. */
+    int (*model_publish)(void* user, int model, void const* data, int size);
+    void (*model_release)(void* user, int model);
+
+    int (*mesh_create)(void* user);
+    void (*mesh_destroy)(void* user, int mesh);
+    void (*mesh_clear)(void* user, int mesh);
+    int (*mesh_vertex)(void* user, int mesh, int x, int y, int z);
+    int (*mesh_face)(void* user, int mesh, int a, int b, int c, int hsl, int alpha);
 
     int (*object_create)(void* user);
     void (*object_destroy)(void* user, int object);
@@ -232,6 +493,9 @@ bool PluginHost_IsAdapter(struct ToriRS_PluginHost const* host, int plugin_index
 /** Is this a builtin, whose switch lives in the cache's All Settings panel?
  *  @see ToriRS_PluginDef::hidden. The roster is the only caller. */
 bool PluginHost_IsHidden(struct ToriRS_PluginHost const* host, int plugin_index);
+/** Is this the plugin that cannot be switched off, and sorts to the top of the
+ *  roster? @see ToriRS_PluginDef::essential. */
+bool PluginHost_IsEssential(struct ToriRS_PluginHost const* host, int plugin_index);
 void PluginHost_SetError(struct ToriRS_PluginHost* host, int plugin_index, char const* text);
 int PluginHost_IndexOf(struct ToriRS_PluginHost const* host, char const* name);
 
@@ -307,6 +571,50 @@ int PluginHost_Key(struct ToriRS_PluginHost* host, int key, int ch, bool down);
 
 /** Opens the draw window, dispatches EV_DRAW_WORLD, closes it. */
 void PluginHost_DrawWorld(struct ToriRS_PluginHost* host);
+
+/** The same, for EV_DRAW_CANVAS: a different surface token, a different
+ *  overlay list, and the canvas rather than the world viewport as the clip. */
+void PluginHost_DrawCanvas(struct ToriRS_PluginHost* host, int width, int height);
+
+/** The same again, for EV_DRAW_FRAME -- the chrome surface, under the
+ *  interfaces. Raised for the frame's owner alone, and not at all when nobody
+ *  holds it, so a client with no layout plugin pays one branch. */
+void PluginHost_DrawFrame(struct ToriRS_PluginHost* host, int width, int height);
+
+/**
+ * Ask the frame's owner to declare it, against a canvas of `width` x `height`.
+ *
+ * The engine calls this at the three moments the last declaration stopped
+ * being true: the canvas resized, the gameframe was rebuilt, and (from inside
+ * the api) the claim was just made. A no-op when no plugin holds the frame.
+ *
+ * The two dimensions are ignored for a FIXED claim, which reads its own pinned
+ * size back -- see the body.
+ */
+void PluginHost_Layout(struct ToriRS_PluginHost* host, int width, int height);
+
+/**
+ * The frame's geometry moved: bump the revision and raise EV_LAYOUT_CHANGED.
+ *
+ * Called by the client when something it owns moved a region -- a resize, a
+ * gameframe rebuild -- and by the host itself when a plugin reserves. Both are
+ * the same news to a plugin holding a picture measured against a box.
+ */
+void PluginHost_LayoutChanged(struct ToriRS_PluginHost* host);
+
+/** Which plugin holds the frame, or -1. The engine reads it to decide whether
+ *  the lane's own chrome is suppressed this layout pass. */
+int PluginHost_LayoutOwner(struct ToriRS_PluginHost const* host);
+
+/**
+ * Deliver a canvas hit region's use, raising EV_CANVAS_CLICK on the plugin
+ * that declared it and on no other.
+ *
+ * `plugin_index` is what the engine recorded beside the region, so a plugin
+ * can never be handed another's click even if the two overlap.
+ */
+void PluginHost_CanvasClick(
+    struct ToriRS_PluginHost* host, int plugin_index, uint32_t tag, int op, int x, int y);
 
 /** Dispatches EV_MENU_BUILD. `cursor` is handed to engine->menu_add. */
 void PluginHost_MenuBuild(

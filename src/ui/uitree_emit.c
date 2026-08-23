@@ -1,5 +1,7 @@
 #include "uitree_emit.h"
 
+#include "uitree_frame.h"
+
 #include "perf/torirs_perf.h"
 #include "uitree_chatview.h"
 #include "uitree_hovertext.h"
@@ -434,6 +436,16 @@ UITree_EmitFill(
         return true;
     }
 
+    case UIELEM_RS_ARC:
+        out->kind = UITREE_EMIT_ARC;
+        out->color = component->u.rs_arc.color;
+        out->filled = component->u.rs_arc.filled;
+        out->line_width =
+            component->u.rs_arc.line_width > 0 ? component->u.rs_arc.line_width : 1;
+        out->arc_start = component->u.rs_arc.arc_start;
+        out->arc_end = component->u.rs_arc.arc_end;
+        return true;
+
     case UIELEM_RS_LINE:
         out->kind = UITREE_EMIT_LINE;
         out->color = component->u.rs_line.color;
@@ -527,8 +539,6 @@ UITree_EmitFill(
     case UIELEM_BUILTIN_WORLD:
         out->kind = UITREE_EMIT_WORLD;
         out->world_level_mask = component->u.world.level_mask;
-        out->world_mmb_rotate = component->u.world.mmb_rotate;
-        out->world_wheel_zoom = component->u.world.wheel_zoom;
         return true;
 
     case UIELEM_BUILTIN_MINIMAP:
@@ -540,6 +550,14 @@ UITree_EmitFill(
             .u.get_minimap_state.out_src_anchor_x = &out->src_anchor_x,
             .u.get_minimap_state.out_src_anchor_y = &out->src_anchor_y,
         };
+        /* MINIMAP_TOGGLE: the server can take the map away. Nothing is
+         * drawn in its place -- the hole in the mapback frame art is what
+         * shows through, which is the reference's "hidden" too. */
+        {
+            struct UITreeHostRequest hidden_req = { .kind = UITREE_HOST_GET_MINIMAP_HIDDEN };
+            if( UITree_Host(host, &hidden_req) )
+                return false;
+        }
         out->kind = UITREE_EMIT_MINIMAP;
         out->scene_id = UITree_Host(host, &req);
         if( out->scene_id <= 0 )
@@ -696,6 +714,49 @@ UITree_EmitFill(
         return true;
     }
 
+    case UIELEM_BUILTIN_MULTIWAY:
+    {
+        /* Reference drawScene tail: `if (inMultizone === 1) headicons[1]
+         * .plotSprite(472, 296)`. Both of those numbers are revconfig's here
+         * -- the frame through `sprite=headicons[1]`, the place through the
+         * layout row -- so this is only the gate and the blit. */
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_MULTIWAY };
+        if( !UITree_Host(host, &req) )
+            return false;
+        if( component->u.sprite.scene_id <= 0 )
+            return false;
+        out->kind = UITREE_EMIT_SPRITE;
+        out->scene_id = component->u.sprite.scene_id;
+        out->atlas_index = component->u.sprite.atlas_index;
+        return true;
+    }
+
+    case UIELEM_BUILTIN_REBOOT_TIMER:
+    {
+        /* Reference drawScene tail: 'System update in: M:SS' at (4, 329) in
+         * yellow. The host owns the string because it owns the clock; the
+         * font, the colour and the place are the widget's. */
+        char const* text = NULL;
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_REBOOT_TIMER,
+            .u.get_reboot_timer.out_text = &text,
+        };
+        if( !UITree_Host(host, &req) || !text || !text[0] )
+            return false;
+        if( component->u.reboot_timer.font_id <= 0 )
+            return false;
+        out->kind = UITREE_EMIT_TEXT;
+        out->font_id = component->u.reboot_timer.font_id;
+        out->color = component->u.reboot_timer.color;
+        out->text = text;
+        /* The reference expresses this as font.drawString(s, x, y), so the
+         * layout's y is the baseline and the box does not align it. That is
+         * what lets the revconfig row carry the reference's own coordinates
+         * rather than a guess at where the top of the line would be. */
+        out->text_baseline = 1;
+        return true;
+    }
+
     case UIELEM_BUILTIN_TAB_ICONS:
     {
         /* Icons draw only for tabs with an interface assigned (reference
@@ -705,6 +766,14 @@ UITree_EmitFill(
             .u.tab_enabled.tabno = component->u.tab_icon.tabno,
         };
         if( host && !UITree_Host(host, &req) )
+            return false;
+        /* TUT_FLASH: the tutorial points at a tab by blinking its icon, which
+         * is drawn as NOT DRAWING it for half of each cycle -- there is no
+         * highlight sprite, the gap is the signal (reference drawSidebarIcons).
+         * It belongs here rather than in whatever handled the packet: the icon
+         * is this component, and a blink is a property of drawing it. */
+        req.kind = UITREE_HOST_GET_TAB_FLASH_HIDDEN;
+        if( host && UITree_Host(host, &req) )
             return false;
         out->kind = UITREE_EMIT_SPRITE;
         out->scene_id = component->u.tab_icon.scene_id;
@@ -1669,7 +1738,12 @@ emit_rs_inv_slots(
             }
         }
 
-        if( obj_id > 0 && scene_id >= 0 )
+        /* > 0, not >= 0: the bridge allocates icon scene ids from 1 up and
+         * answers -1 when it cannot build one, so 0 is not an icon — it is a
+         * slot whose icon reference was never set. Drawing it emitted an empty
+         * sprite and then the stack count on top, which reads as a floating
+         * number with no item under it. */
+        if( obj_id > 0 && scene_id > 0 )
         {
             /* Selected for "Use" (reference outline = 0xFFFFFF): swap the plain
              * icon for the white-outlined variant. The host answers >0 only for
@@ -1959,6 +2033,13 @@ emit_walk_node(
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_EMIT, 1);
 
     c = &tree->components[idx];
+    /* A plugin layout's suppression, and it admits no exception: the whole
+     * subtree goes, because the lane's chrome is what the layout replaced. */
+    if( c->frame_hidden )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
+        return;
+    }
     /* Hide-gated layers stay invisible unless their component_id is hovered. */
     if( c->behavior.hide && !UITree_ComponentVisibleById(c, hovered_component_id) )
     {
@@ -2455,6 +2536,170 @@ emit_debug_overlay_pass(
 }
 
 /*
+ * The plugin FRAME overlay: one desc, in canvas space, hoisted to sit directly
+ * over the 3D scene -- under every interface, and under the entity overlays.
+ *
+ * This is where the reference's own frame art is drawn, and a gameframe cannot
+ * be drawn anywhere else. The canvas pass below paints over the interfaces,
+ * which is right for a readout and wrong for chrome: a sidebar panel emitted
+ * there covers the inventory it is meant to sit behind, and a chatbox backing
+ * covers the chat text.
+ *
+ * OVER the entity overlays and not under them, for the reason the overlays
+ * were hoisted in the first place: a health bar above an entity standing
+ * behind the chatbox must not draw on the chatbox, and under a plugin layout
+ * the chatbox backing is one of these blits.
+ *
+ * No world in the tree means no frame either. A layout that could not find the
+ * scene has nothing to be a frame AROUND, and appending the chrome anyway
+ * would put it over the interfaces -- the one place it must never be.
+ */
+static void
+emit_plugin_frame_pass(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* out)
+{
+    struct UITreeEmitDesc desc;
+    struct UITreeHostRequest req;
+    int world = -1;
+    int at;
+
+    assert(tree);
+    assert(out);
+
+    for( int i = 0; i < out->count; i++ )
+        if( out->cmds[i].kind == UITREE_EMIT_WORLD )
+            world = i;
+    if( world < 0 )
+        return;
+
+    memset(&desc, 0, sizeof(desc));
+    memset(&req, 0, sizeof(req));
+    req.kind = UITREE_HOST_GET_FRAME_OVERLAYS;
+    req.u.get_entity_overlays.out_items = &desc.entity_overlays;
+    req.u.get_entity_overlays.out_clip_x = &desc.clip.x;
+    req.u.get_entity_overlays.out_clip_y = &desc.clip.y;
+    req.u.get_entity_overlays.out_clip_w = &desc.clip.w;
+    req.u.get_entity_overlays.out_clip_h = &desc.clip.h;
+    desc.entity_overlay_count = UITree_Host(host, &req);
+    if( desc.entity_overlay_count <= 0 || !desc.entity_overlays )
+        return;
+
+    desc.kind = UITREE_EMIT_ENTITY_OVERLAY;
+    desc.node_index = -1;
+    desc.component_id = -1;
+    emit_buffer_append(out, &desc);
+
+    /* Stable rotate to just after the world, exactly as the entity-overlay
+     * hoist does it -- and BEFORE that hoist runs, which is what orders the
+     * two: the hoist then inserts the bars at the same index and pushes this
+     * desc one further along, so the chrome paints over them. */
+    at = out->count - 1;
+    if( at > world + 1 )
+    {
+        struct UITreeEmitDesc moved = out->cmds[at];
+        memmove(
+            &out->cmds[world + 2],
+            &out->cmds[world + 1],
+            (size_t)(at - world - 1) * sizeof(*out->cmds));
+        out->cmds[world + 1] = moved;
+    }
+}
+
+/*
+ * The plugin CANVAS overlay: one desc, in canvas space, above everything the
+ * tree drew.
+ *
+ * No node behind it, unlike the entity overlay and the debug overlay, and that
+ * is deliberate. Both of those are components a profile has to author, and a
+ * profile that forgot one is a lane where the feature silently does not exist
+ * -- which is exactly what a plugin must not depend on. A plugin runs on every
+ * lane this client boots, including the ones whose gameframe comes out of a
+ * 2004 cache and knows nothing about any of this, so its surface is the
+ * canvas itself and the pass that emits it is unconditional.
+ *
+ * It costs one host call per frame when no plugin drew, and that call answers
+ * zero -- the same shape as the entity overlay's, which also asks every frame.
+ *
+ * Placed BEFORE the debug overlay pass: developer chrome stays on top of
+ * everything, plugin chrome sits over the game.
+ */
+static void
+emit_plugin_canvas_pass(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* out)
+{
+    assert(tree);
+
+    struct UITreeEmitDesc desc;
+    struct UITreeHostRequest req;
+
+    memset(&desc, 0, sizeof(desc));
+    memset(&req, 0, sizeof(req));
+    req.kind = UITREE_HOST_GET_CANVAS_OVERLAYS;
+    req.u.get_entity_overlays.out_items = &desc.entity_overlays;
+    req.u.get_entity_overlays.out_clip_x = &desc.clip.x;
+    req.u.get_entity_overlays.out_clip_y = &desc.clip.y;
+    req.u.get_entity_overlays.out_clip_w = &desc.clip.w;
+    req.u.get_entity_overlays.out_clip_h = &desc.clip.h;
+    desc.entity_overlay_count = UITree_Host(host, &req);
+    if( desc.entity_overlay_count <= 0 || !desc.entity_overlays )
+        return;
+
+    /* The same emit kind, because the item vocabulary and the renderer's
+     * expansion of it are the same; only the clip the host reported differs. */
+    desc.kind = UITREE_EMIT_ENTITY_OVERLAY;
+    desc.node_index = -1;
+    desc.component_id = -1;
+    emit_buffer_append(out, &desc);
+
+    /*
+     * ...and then slide it back under the POINTER FEEDBACK.
+     *
+     * Plugin chrome belongs over the game and under the things that answer the
+     * pointer: the right-click menu, the mouseover line and the click cross.
+     * Appending puts it over all three, and an orb drawn across an open
+     * minimenu is not a layering nicety -- the menu is what the player is
+     * reading, and half of it is behind an orb.
+     *
+     * Found by NODE TYPE rather than by emit kind, because those three carry
+     * no kind of their own: the minimenu is a run of RECT and TEXT descs, the
+     * hover line is TEXT, the cross is a SPRITE. What they have in common is
+     * the builtin they were emitted from, which every desc names.
+     */
+    {
+        int insert_at = -1;
+
+        for( int i = 0; i < out->count - 1; i++ )
+        {
+            int32_t const node = out->cmds[i].node_index;
+            enum UITreeComponentType type;
+
+            if( node < 0 || (uint32_t)node >= tree->component_count )
+                continue;
+            type = tree->components[node].type;
+            if( type != UIELEM_BUILTIN_MINIMENU && type != UIELEM_BUILTIN_HOVERTEXT &&
+                type != UIELEM_BUILTIN_CROSS )
+                continue;
+            insert_at = i;
+            break;
+        }
+
+        if( insert_at >= 0 )
+        {
+            struct UITreeEmitDesc const moved = out->cmds[out->count - 1];
+            memmove(
+                &out->cmds[insert_at + 1],
+                &out->cmds[insert_at],
+                (size_t)(out->count - 1 - insert_at) * sizeof(*out->cmds));
+            out->cmds[insert_at] = moved;
+        }
+    }
+}
+
+/*
  * Entity overlays belong to the SCENE pass, not to their place in the tree.
  *
  * The reference draws health bars and hitsplats inside drawEntities, which is
@@ -2543,6 +2788,35 @@ UITree_EmitWalk(
 {
     assert(tree);
     assert(out);
+    /*
+     * Draw never reads a stale box (reference ensureLayout, run before the
+     * widget draw for exactly this reason). A layout input can be written from
+     * anywhere between two frames -- the CS1 clientCode tick resizes the
+     * friends/ignore list scroll extents, which invalidates every resolved box
+     * -- and UITree_LayoutGetBounds answers an unresolved node with its
+     * AUTHORED x/y/w/h. For a mounted IF1 subtree those are relative to the
+     * interface, so the sidebar's whole inventory drew at 16,8 under a clip of
+     * zero width: no item icons at all. No-op when nothing invalidated.
+     */
+    /*
+     * A plugin layout is restated here, at the last moment before anything is
+     * drawn, and that placement is the whole point.
+     *
+     * Every other writer of a node's box and hide flag runs during the TICK --
+     * the CS1 value scripts on a dat1 frame, the CS2 onload and resize hooks on
+     * a cache one, the slot manager on both -- and each of them is right about
+     * the frame it was written for. A declaration applied once, earlier in the
+     * frame, simply loses to whichever of them ran last, and what that looks
+     * like is the plugin's gameframe and the lane's gameframe on screen
+     * together. Being last is the only way to be authoritative, and this is
+     * where last is.
+     *
+     * Costs a comparison per node the declaration touched, and nothing at all
+     * when no plugin holds the frame. Before EnsureLayout, so a box it changes
+     * is resolved by the pass below rather than a frame later.
+     */
+    UITree_FrameReassert((struct UITree*)tree);
+    UITree_EnsureLayout(tree);
     /* Reachability scratch for the retention signal — see UITree::emit_visited.
      * Grown to the current node count and cleared here so that what it holds
      * during the frame after this walk is exactly "entered by this walk". */
@@ -2588,7 +2862,14 @@ UITree_EmitWalk(
         emit_walk_pass(
             tree, host, out, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 1);
     }
+    /* A layout plugin's gameframe: over the scene, under the interfaces.
+     * Before the hoist, which is what puts the bars and hitsplats it moves
+     * BEHIND the chrome rather than over it. */
+    emit_plugin_frame_pass(tree, host, out);
     emit_hoist_entity_overlays(tree, out);
+    /* Plugin chrome: over the interfaces, under the pointer feedback and the
+     * developer overlay. */
+    emit_plugin_canvas_pass(tree, host, out);
     /* Last, so developer chrome is over everything including drag ghosts. */
     emit_debug_overlay_pass(tree, host, out);
 

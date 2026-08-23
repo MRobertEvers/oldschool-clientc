@@ -441,8 +441,8 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	audio/torirs_pcm.c audio/torirs_mixer.c audio/torirs_midi_file.c \
 	audio/torirs_soundbank.c audio/torirs_midi_synth.c audio/torirs_music.c \
 	engine/dat2/task_dat2_music_load.c \
-	engine/uitree_anim.c engine/entity_model_build.c \
-	ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
+	engine/uitree_anim.c engine/entity_model_build.c engine/uitree_role_load.c \
+	ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c ui/uitree_role.c \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
 	ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
@@ -461,6 +461,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	net/rev/packets/pkt_rebuild_region.c \
 	net/rev/gameproto_rev_params.c net/rev/rsprot_bridge.c \
 	net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c \
+	net/rev/lc289/gameproto_rev_lc289.c net/rev/lc289/lc289_entity_info.c \
 	bootmanifest/bootmanifest.c features/features.c \
 	platform/sockstream.c platform/platform_socket.c \
 	platform/net_transport_tcp.c platform/net_transport_ws.c \
@@ -472,7 +473,8 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	net/rev/osrs230/gameproto_rev_osrs230.c net/rev/osrs230/osrs230_parse.c \
 	net/rev/osrs239/gameproto_rev_osrs239.c net/rev/osrs239/osrs239_parse.c \
 	net/rev/osrs239/osrs239_entity_info.c \
-	revconfig/revconfig.c revconfig/revconfig_load.c \
+	revconfig/revconfig.c revconfig/revconfig_load.c revconfig/revconfig_refs.c \
+	revconfig/revconfig_profile.c \
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
 	engine/world_builder/task_world_load.c \
@@ -481,12 +483,18 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	editor/editor_host_remote.c editor/editor_panel.c \
 	torirsmaped/torirs_maped.c torirsmaped/torirs_maped_buf.c \
 	torirsmaped/torirs_maped_cmdwire.c torirsmaped/torirs_maped_embed.c \
-	render/torirs_polygon.c \
+	render/torirs_polygon.c render/torirs_arc.c \
 	game/rs_highlight.c game/rs_clientop.c game/rs_entity_overlay.c \
 	game/rs_client_trigger.c \
 	plugin/torirs_plugin_host.c plugin/torirs_plugin_registry.c \
 	plugin/torirs_plugin_lua.c plugin/task_plugin_io.c \
+	plugin/plugins/client_settings.c \
+	plugin/plugins/feature_flags.c \
 	plugin/plugins/tileind.c \
+	plugin/plugins/minimap_orbs.c \
+	plugin/plugins/xp_orbs.c \
+	plugin/plugins/gameframe.c \
+	plugin/plugins/item_stats.c \
 	plugin/plugins/nxt_highlight.c \
 	plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
 	painters/painters.c \
@@ -524,6 +532,7 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_healthbarinfo.c \
 	torirsserver/torirs_server_npcinfo.c torirsserver/torirs_server_combat.c torirsserver/torirs_server_seqinfo.c \
 	torirsserver/torirs_server_hpbar.c \
+	torirsserver/torirs_server_helper.c \
 	torirsserver/torirs_server_scripts.c torirsserver/torirs_server_ws.c torirsserver/torirs_server_content.c \
 	torirsserver/torirs_server_servercodec.c torirsserver/torirs_server_servpack.c \
 	torirsserver/torirs_server_db.c \
@@ -892,6 +901,7 @@ $(OBJ_DIR)/$(notdir $(1:.c=.o)): $(1) | $(OBJ_DIR)
 endef
 
 NET_REV_SRCS = net/rev/lc245_2/gameproto_rev_lc245_2.c net/rev/lc254/gameproto_rev_lc254.c \
+	net/rev/lc289/gameproto_rev_lc289.c \
 	net/rev/xrsps233/gameproto_rev_xrsps233.c net/rev/osrs230/gameproto_rev_osrs230.c \
 	net/rev/osrs239/gameproto_rev_osrs239.c
 
@@ -908,6 +918,8 @@ $(OBJ_DIR)/gameproto_rev_lc245_2.o: net/rev/lc245_2/gameproto_rev_lc245_2.c | $(
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc245_2 -c $< -o $@
 $(OBJ_DIR)/gameproto_rev_lc254.o: net/rev/lc254/gameproto_rev_lc254.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc254 -c $< -o $@
+$(OBJ_DIR)/gameproto_rev_lc289.o: net/rev/lc289/gameproto_rev_lc289.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/lc289 -c $< -o $@
 $(OBJ_DIR)/gameproto_rev_xrsps233.o: net/rev/xrsps233/gameproto_rev_xrsps233.c | $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/net/rev/xrsps233 -c $< -o $@
 $(OBJ_DIR)/gameproto_rev_osrs230.o: net/rev/osrs230/gameproto_rev_osrs230.c | $(OBJ_DIR)
@@ -1058,6 +1070,37 @@ rs2012-qbd-kernel-survey: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/torid
 		engine/proctex/test/rs2012_qbd_kernel_survey.c \
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+
+.PHONY: plugin-model-extract plugin-beam-assets
+
+plugin-model-extract: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
+		$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_model_extract \
+		plugin/tools/plugin_model_extract.c \
+		engine/torirs_model_from_rscache.c engine/toridraw_model_from_torirs.c \
+		engine/toridraw_animation_from_rscache.c engine/torirs_types.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+
+# The loot beam's two shipped models, lifted out of OSRS 239.
+#
+# Committed under script/plugins/assets/, so a clone has them and no boot reads
+# a model id out of whatever cache it happens to be running. Re-run this only
+# to refresh them or to re-point the plugin at different geometry; the source
+# cache is ~ a gigabyte and is NOT carried by a clone (.gitignore's `cache.*/`),
+# so the recipe names it rather than assuming it.
+PLUGIN_BEAM_SRC_CACHE ?= $(REPO_ROOT)/cache.osrs239
+PLUGIN_BEAM_ASSETS = $(REPO_ROOT)/script/plugins/assets/loot-beam
+
+plugin-beam-assets: plugin-model-extract
+	@test -d $(PLUGIN_BEAM_SRC_CACHE) || { \
+		echo "plugin-beam-assets: $(PLUGIN_BEAM_SRC_CACHE) is missing;"; \
+		echo "  obtain the OSRS 239 cache or set PLUGIN_BEAM_SRC_CACHE=<dir>"; \
+		exit 1; }
+	./$(OBJ_DIR)/plugin_model_extract --cache $(PLUGIN_BEAM_SRC_CACHE) --rev osrs239 \
+		--model 43330 --out $(PLUGIN_BEAM_ASSETS)/beam_modern.model
+	./$(OBJ_DIR)/plugin_model_extract --cache $(PLUGIN_BEAM_SRC_CACHE) --rev osrs239 \
+		--model 5809 --out $(PLUGIN_BEAM_ASSETS)/beam_light.model
 
 rs2012-material-bake: $(OBJ_DIR) $(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rscache_unity.o \
 		$(OBJ_DIR)/bmp.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o \
@@ -1485,6 +1528,18 @@ test-client-trigger: $(OBJ_DIR) game/rs_client_trigger.c game/rs_entity_overlay.
 		game/rs_client_trigger.c game/rs_entity_overlay.c game/test/rs_client_trigger_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/rs_client_trigger_test
 
+# The hitsplat multi-var selector -- settings 5 (tinting) and 279 (max hit),
+# which the cache implements inside the .hitmark record and this client threw
+# away until it resolved opcode 17/18. Uses the real decoder on the cache's own
+# record bytes, because the failure is not "no splat" but "the wrong splat, on
+# the right hit": both of the ways to get the resolution wrong still draw.
+test-hitsplat: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o game/rs_hitsplat.c \
+		varp/varp_manager.c game/test/rs_hitsplat_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_hitsplat_test \
+		game/rs_hitsplat.c varp/varp_manager.c game/test/rs_hitsplat_test.c \
+		$(OBJ_DIR)/rscache_unity.o $(LDFLAGS)
+	./$(OBJ_DIR)/rs_hitsplat_test
+
 test-clientop: $(OBJ_DIR) game/rs_clientop.c game/test/rs_clientop_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_clientop_test \
 		game/rs_clientop.c game/test/rs_clientop_test.c $(LDFLAGS)
@@ -1496,17 +1551,70 @@ test-clientop: $(OBJ_DIR) game/rs_clientop.c game/test/rs_clientop_test.c
 # the whole category looked like before they existed. This is where that shows.
 test-nxt-plugins: $(OBJ_DIR) plugin/test/nxt_activities_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/nxt_activities_test \
-		plugin/torirs_plugin_host.c ui/uitree_minimenu.c \
+		plugin/torirs_plugin_host.c ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/plugins/nxt_highlight.c \
 		plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
 		plugin/test/nxt_activities_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/nxt_activities_test
 
+# The item-stats tooltip, against a hand-built api table rather than the host:
+# the whole plugin is "given a hovered item and a set of levels, what does the
+# panel say", and every input to that is an api verb. It reads the real
+# text.ini, so a rebaked atlas whose metrics moved shows up here as a row count
+# that no longer matches.
+test-item-stats: $(OBJ_DIR) plugin/plugins/item_stats.c plugin/test/item_stats_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/item_stats_test \
+		plugin/plugins/item_stats.c engine/png_decode.c \
+		$(REPO_ROOT)/3rd/miniz/miniz.c plugin/test/item_stats_test.c $(LDFLAGS)
+	ITEM_STATS_TEST_BMP=$(OBJ_DIR)/item_stats_test.bmp ./$(OBJ_DIR)/item_stats_test
+
 test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/test/torirs_plugin_host_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_host_test \
-		plugin/torirs_plugin_host.c ui/uitree_minimenu.c \
+		plugin/torirs_plugin_host.c ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/test/torirs_plugin_host_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/plugin_host_test
+
+# The Feature Flags plugin against a fake engine that publishes three flags,
+# one of each shape. What is under test is the round trip -- the page built
+# from the engine's list, a pick reaching the engine, the ini keeping the words
+# rather than an ordinal, and "Revision default" restoring rather than merely
+# stopping. Not which flags the client publishes: that is app.c's statement
+# about what is client-only, and a test restating it would only compare two
+# hand-typed lists.
+.PHONY: test-feature-flags
+test-feature-flags: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/feature_flags.c \
+		plugin/test/feature_flags_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/feature_flags_test \
+		plugin/torirs_plugin_host.c ui/uitree_minimenu.c revconfig/revconfig.c \
+		plugin/plugins/feature_flags.c \
+		plugin/test/feature_flags_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/feature_flags_test
+
+# The XP drop orbs, against a fake engine with a real PNG decode and a real
+# image table -- because this plugin's whole draw path is read-pixels /
+# compose / blit, and a stub that answered nothing would exercise none of it.
+# It also writes build/xp_orbs_test.png, which is the half of the result no
+# assertion can state: whether the picture is a globe.
+# The gameframe layout plugin against the fake engine, with the same real PNG
+# decode and image table -- this plugin composes its mirrored redstones out of
+# pixels it loaded, so an image table that answered nothing would exercise none
+# of it. Run from src/, where the shipped assets resolve.
+.PHONY: test-gameframe
+test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/gameframe.c \
+		plugin/test/gameframe_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/gameframe_test \
+		plugin/torirs_plugin_host.c ui/uitree_minimenu.c revconfig/revconfig.c \
+		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/gameframe.c \
+		plugin/test/gameframe_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/gameframe_test
+
+test-xp-orbs: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/xp_orbs.c \
+		plugin/test/xp_orbs_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/xp_orbs_test \
+		plugin/torirs_plugin_host.c ui/uitree_minimenu.c revconfig/revconfig.c \
+		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/xp_orbs.c \
+		plugin/test/xp_orbs_test.c $(LDFLAGS)
+	XP_ORBS_TEST_PNG=$(OBJ_DIR)/xp_orbs_test.png ./$(OBJ_DIR)/xp_orbs_test
 
 test-editor-cmd: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
 		editor/test/editor_cmd_test.c
@@ -1748,7 +1856,7 @@ test-cs1: $(OBJ_DIR)
 		cs1vm/cs1vm.c cs1vm/cs1vm_script.c \
 		game/rs_cs1_host.c game/rs_player_stats.c \
 		inv/inv_manager.c varp/varp_manager.c \
-		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
+		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c ui/uitree_role.c \
 		ui/uitree_scroll.c ui/uitree_emit.c ui/uitree_inv_view.c \
 		ui/uitree_cross.c ui/uitree_minimenu.c ui/uitree_hovertext.c \
 		perf/torirs_perf.c \
@@ -1764,7 +1872,9 @@ NET_CORE_OBJS = $(OBJ_DIR)/isaac.o $(OBJ_DIR)/rsa.o $(OBJ_DIR)/ringbuf.o \
 	$(OBJ_DIR)/jbase37.o $(OBJ_DIR)/wordpack.o $(OBJ_DIR)/loginproto.o \
 	$(OBJ_DIR)/loginproto_xrsps.o $(OBJ_DIR)/loginproto_osrs230.o \
 	$(OBJ_DIR)/packetbuffer.o $(OBJ_DIR)/gameproto_rev_lc245_2.o \
-	$(OBJ_DIR)/gameproto_rev_lc254.o $(OBJ_DIR)/gameproto_rev_xrsps233.o \
+	$(OBJ_DIR)/gameproto_rev_lc254.o $(OBJ_DIR)/gameproto_rev_lc289.o \
+	$(OBJ_DIR)/lc289_entity_info.o $(OBJ_DIR)/pkt_player_info.o $(OBJ_DIR)/pkt_npc_info.o \
+	$(OBJ_DIR)/gameproto_rev_xrsps233.o \
 	$(OBJ_DIR)/gameproto_rev_osrs230.o $(OBJ_DIR)/osrs230_parse.o \
 	$(OBJ_DIR)/gameproto_rev_osrs239.o $(OBJ_DIR)/osrs239_parse.o \
 	$(OBJ_DIR)/osrs239_entity_info.o $(OBJ_DIR)/pkt_player_appearance.o \
@@ -1941,7 +2051,7 @@ CHROME_EXEC_TEST_CFLAGS = -UTORIRS_CHROME_EXEC_SDL_AVAILABLE
 test-uitree: $(OBJ_DIR)
 	@mkdir -p build
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ui -I$(SRC_DIR)/ui/test -o $(OBJ_DIR)/uitree_test \
-		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
+		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c ui/uitree_role.c \
 		ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 		ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
 		ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
@@ -1964,7 +2074,8 @@ test-uitree: $(OBJ_DIR)
 		ui/test/uitree_test_chrome_cs2.c ui/torirs_chrome_exec_cs2.c \
 		$(CHROME_EXEC_TEST_CFLAGS) \
 		ui/test/uitree_test_entity_overlay_order.c \
-		ui/test/uitree_test_scripted_overlay.c
+		ui/test/uitree_test_server_viewport.c ui/test/uitree_test_roles.c \
+		ui/test/uitree_test_scripted_overlay.c render/torirs_arc.c -lm
 	./$(OBJ_DIR)/uitree_test
 
 # Font markup grammar + the rules it strokes (<str>, <u>), rasterised into a
@@ -2033,7 +2144,7 @@ test-debug-overlay-visual: $(OBJ_DIR) $(OBJ_DIR)/toridraw_unity.o \
 		ui/uitree_debug_overlay.c engine/torirs_debug_font_baked.c \
 		engine/torirs_chrome_skin_baked.c \
 		render/torirs_frame.c render/torirs_pick.c \
-		render/torirs_polygon.c \
+		render/torirs_polygon.c render/torirs_arc.c \
 		platform/platform_sdl2_renderer_soft3d.c \
 		$(BMP_DIR)/bmp.c \
 		$(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/toridraw_font.o \
@@ -2272,7 +2383,7 @@ test-cs2-transmit-pump: $(OBJ_DIR) $(OBJS)
 	./$(OBJ_DIR)/rs_cs2_transmit_pump_test
 
 # Runtime interface-slot API contract test (IF_OPENMAIN/IF_OPENSIDE/IF_SETTAB
-# surface) against the real dat1 cache + rev_245_2 RevConfig build.
+# surface) against the real dat1 cache + rs245_2lc RevConfig build.
 test-ui-slots: $(OBJ_DIR) $(OBJS)
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/rs_ui_slots_test \
 		game/test/rs_ui_slots_test.c \
@@ -2290,10 +2401,12 @@ test-uitree-builder-dat1: $(OBJ_DIR) $(OBJS)
 
 test-revconfig: $(OBJ_DIR)
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/revconfig -I$(SRC_DIR)/revconfig/test -o $(OBJ_DIR)/revconfig_test \
-		revconfig/revconfig.c revconfig/revconfig_load.c $(INI_SRC) \
+		revconfig/revconfig.c revconfig/revconfig_load.c revconfig/revconfig_refs.c \
+		revconfig/revconfig_profile.c $(INI_SRC) \
 		revconfig/test/revconfig_test_main.c revconfig/test/revconfig_test_buffer.c \
 		revconfig/test/revconfig_test_items.c revconfig/test/revconfig_test_load.c \
-		revconfig/test/revconfig_test_parse.c
+		revconfig/test/revconfig_test_parse.c revconfig/test/revconfig_test_refs.c \
+		revconfig/test/revconfig_test_profile.c revconfig/test/revconfig_test_roles.c
 	./$(OBJ_DIR)/revconfig_test
 
 # Standalone TCP mock server for the OSRS rev-230 protocol: login handshake,
@@ -2589,15 +2702,15 @@ check-godwars-contract:
 # script build separate lets a God Wars evidence run diagnose its own lane even
 # when an unrelated content contract blocks the aggregate torirsserver-scripts gate.
 .PHONY: godwars-evidence check-godwars-evidence test-godwars-restart
-godwars-evidence: ToriRSServer check-godwars-manifest check-godwars-contract
+godwars-evidence: torirsserver check-godwars-manifest check-godwars-contract
 	@cd $(REPO_ROOT) && python3 tools/capture_godwars_evidence.py --skip-contracts \
 		--server src/$(OBJ_DIR)/torirsserver
 
-check-godwars-evidence: ToriRSServer check-godwars-manifest check-godwars-contract
+check-godwars-evidence: torirsserver check-godwars-manifest check-godwars-contract
 	@cd $(REPO_ROOT) && python3 tools/capture_godwars_evidence.py --check --skip-contracts \
 		--server src/$(OBJ_DIR)/torirsserver
 
-test-godwars-restart: ToriRSServer
+test-godwars-restart: torirsserver
 	@cd $(REPO_ROOT) && python3 tools/test_godwars_restart.py \
 		--server src/$(OBJ_DIR)/torirsserver \
 		--scripts OSRS-Content/osrs239-content/server/scripts/build
@@ -3374,7 +3487,24 @@ torirsserver-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o -lm
 	@echo "built $(OBJ_DIR)/ToriRSServer_Pack"
 
-# `torirsserver-scripts` and not just `ToriRSServer`: combat, prayer and the interface
+# `ToriRSServer` (capitalised) is DELIBERATELY not the prerequisite here any
+# more, and the reason is the same hazard this comment block is about.
+#
+# It is listed in .PHONY and has no rule anywhere in this file. On the
+# case-insensitive filesystem this tree is developed on it resolves to the
+# already-built `torirsserver`, so make answers "Nothing to be done" and moves
+# on -- which means `test-torirsserver` ran whatever binary happened to be on
+# disk, however old. That is the C-side twin of the stale-script hazard below,
+# and it is worse: the stale-script guard at least refuses to run. This one
+# reported green for a binary built before the change under test, which is a
+# negative control that cannot go red.
+#
+# Found by mutating a function the suite asserts on and watching the suite stay
+# green. The other three users of the empty phony (godwars-evidence,
+# check-godwars-evidence, test-godwars-restart) had the same hole and are fixed
+# the same way.
+#
+# `torirsserver-scripts` and not just `torirsserver`: combat, prayer and the interface
 # arming are content now, so an assertion about them is an assertion about
 # `script.dat`. Without this the selftest happily runs a binary built from
 # today's C against a script pack built days ago â which is not a stale-result
@@ -3382,7 +3512,7 @@ torirsserver-pack: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/bzip.o \
 # `[proc,combat_effective_stat]` and re-running left the suite fully green,
 # because the .rs2 edit had never been compiled. A negative control that cannot
 # go red is worse than no negative control, since it reads as proof.
-test-torirsserver: ToriRSServer torirsserver-scripts torirsserver-servpack check-crystal-set-contract check-gauntlet-contract
+test-torirsserver: torirsserver torirsserver-scripts torirsserver-servpack check-crystal-set-contract check-gauntlet-contract
 	cd $(REPO_ROOT) && ./src/$(OBJ_DIR)/torirsserver --selftest
 
 # The opcode-coverage table is derived from the `case SS_OP_*:` labels in the VM

@@ -1,5 +1,6 @@
 #include "plugin/torirs_plugin_host.h"
 
+#include "revconfig/revconfig.h"
 #include "ui/uitree_minimenu.h"
 
 #include <assert.h>
@@ -64,6 +65,12 @@ struct ToriRS_PluginCtx
     int objects[TORIRS_PLUGIN_OBJECT_BUDGET];
     int object_count;
     bool object_clipped;
+    /* Authored mesh handles, tracked for the same reason and released after
+     * the objects: an object is built FROM a mesh, so a mesh that went first
+     * would be pulled out from under geometry still standing in the world. */
+    int meshes[TORIRS_PLUGIN_MESH_BUDGET];
+    int mesh_count;
+    bool mesh_clipped;
 };
 
 struct PluginMenuRoute
@@ -92,6 +99,21 @@ struct PluginAsset
     bool pending;
 };
 
+/**
+ * Which of the three draw surfaces is open.
+ *
+ * The values are the engine's `draw_select_canvas` argument, so the order is
+ * load-bearing: it names the list a draw verb appends to, and app.c switches
+ * on the same numbers.
+ */
+enum PluginDrawSurface
+{
+    PLUGIN_DRAW_SURFACE_WORLD = 0,
+    PLUGIN_DRAW_SURFACE_CANVAS = 1,
+    /** Over the scene, under the interfaces. @see EV_DRAW_FRAME. */
+    PLUGIN_DRAW_SURFACE_FRAME = 2
+};
+
 struct ToriRS_PluginHost
 {
     struct ToriRS_PluginEngine engine;
@@ -114,11 +136,97 @@ struct ToriRS_PluginHost
     int dispatching;
     /* Non-NULL only between the open and close of a draw window. */
     void* draw_surface;
+    /* Which surface that is -- enum PluginDrawSurface. Read by the two
+     * world-only draw verbs, which have nothing to mean on the other two. */
+    int draw_canvas;
+
+    /*
+     * The gameframe claim.
+     *
+     * -1 when the lane's own chrome is in charge, which is the state every
+     * session starts in and returns to. One index and not a stack: a frame
+     * being arranged by two plugins is not a state worth being able to
+     * represent, so a second claimant is refused rather than queued.
+     */
+    int layout_owner;
+    /** enum ToriRS_PluginLayoutCanvas, and the pinned size for FIXED. */
+    int layout_canvas;
+    int layout_fixed_w;
+    int layout_fixed_h;
+    /** Non-zero only inside an EV_LAYOUT dispatch: layout_slot is legal then
+     *  and at no other time, for the same reason hit_region is. */
+    int layout_declaring;
+
+    /*
+     * Reservations: bites taken out of a derived region, one per
+     * (plugin, region, edge).
+     *
+     * A flat table rather than a per-plugin array for the reason the window's
+     * widget pool is flat: almost every plugin reserves nothing, one or two
+     * reserve a single edge, and sizing a slice for the greediest and
+     * multiplying it by thirty-two spends memory on a case that does not
+     * happen. Declaration ORDER is meaningful -- two plugins on the same edge
+     * stack in the order they asked -- so nothing here is compacted or sorted.
+     */
+    struct PluginReserve
+    {
+        /** -1 for a free row. */
+        int plugin;
+        uint8_t slot;
+        uint8_t edge;
+        int px;
+    } reserves[TORIRS_PLUGIN_RESERVES_MAX];
+
+    /** Moves whenever anything about the layout does. @see layout_revision. */
+    int layout_revision;
+    /** Set while EV_LAYOUT_CHANGED is being delivered. @see
+     *  PluginHost_LayoutChanged. */
+    int layout_notifying;
     /* Non-NULL only during an EV_MENU_BUILD dispatch. */
     void* menu_cursor;
 
     struct PluginAsset assets[TORIRS_PLUGIN_ASSETS_MAX];
     int asset_count;
+
+    /*
+     * Resident images: one decoded sprite in the scene per slot.
+     *
+     * A table of its own rather than a flag on the asset above, because the
+     * two have different lifetimes and different owners. The asset is BYTES,
+     * which the host frees when the plugin stops; an image is a scene entry,
+     * which the engine owns and has to be told to drop. A plugin can also
+     * legitimately hold an asset it never draws (a price table), and an image
+     * of a file it has since re-saved.
+     *
+     * The slot index IS the handle a plugin holds, and it is stable for the
+     * life of the image: nothing compacts this table, because a compaction
+     * would silently renumber every handle already handed out.
+     */
+    struct PluginImage
+    {
+        /** Owning plugin, or -1 for a free slot. */
+        int plugin;
+        char asset[TORIRS_PLUGIN_ASSET_NAME_MAX];
+        int width;
+        int height;
+        /** The engine has a scene entry for this slot. */
+        bool published;
+    } images[TORIRS_PLUGIN_IMAGES_MAX];
+
+    /*
+     * Resident shipped models, the same shape as the image table above and for
+     * the same reasons: keyed on (plugin, file) so a second load is the same
+     * handle, and reclaimed with the plugin so a stopped one leaves no
+     * geometry behind.
+     */
+    struct PluginModel
+    {
+        /** Owning plugin, or -1 for a free slot. */
+        int plugin;
+        char asset[TORIRS_PLUGIN_ASSET_NAME_MAX];
+        /** The engine holds decoded geometry for this slot. */
+        bool published;
+    } models[TORIRS_PLUGIN_MODELS_MAX];
 
     /*
      * The shared plugin window.
@@ -303,8 +411,41 @@ plugin_dispatch(struct ToriRS_PluginHost* host, enum ToriRS_PluginEvent ev, void
     return TORIRS_PLUGIN_PASS;
 }
 
-/* Priority-ordered insert, so a plugin that declared a higher priority sees an
- * event first regardless of registration order. Stable within a priority. */
+/*
+ * Is `ev` one of the passes whose order is a Z ORDER?
+ *
+ * On these, running first means being drawn UNDER, so they sort by
+ * ToriRS_PluginDef::draw_order and the rest sort by `priority`. One list, two
+ * keys, chosen here -- the alternative is a second subscription table that
+ * only three events use.
+ */
+static int
+plugin_ev_is_draw(enum ToriRS_PluginEvent ev)
+{
+    return ev == TORIRS_PLUGIN_EV_DRAW_WORLD || ev == TORIRS_PLUGIN_EV_DRAW_CANVAS ||
+           ev == TORIRS_PLUGIN_EV_DRAW_FRAME;
+}
+
+/*
+ * The key this event sorts a subscriber by, HIGHEST FIRST.
+ *
+ * A draw pass negates draw_order so that a higher one runs later and therefore
+ * lands on top: "nearer the viewer" is the direction a person means by a z
+ * order, and the list is walked front to back.
+ */
+static int
+plugin_sub_key(
+    struct ToriRS_PluginHost const* host,
+    enum ToriRS_PluginEvent ev,
+    int plugin)
+{
+    struct ToriRS_PluginDef const* def = host->plugins[plugin].def;
+    return plugin_ev_is_draw(ev) ? -def->draw_order : def->priority;
+}
+
+/* Key-ordered insert, so a plugin that declared a higher priority sees an
+ * event first -- or, on a draw pass, a higher draw_order lands on top --
+ * regardless of registration order. Stable within a key. */
 static void
 plugin_sub_insert(
     struct ToriRS_PluginHost* host,
@@ -315,12 +456,12 @@ plugin_sub_insert(
     assert(sub);
 
     int const count = host->sub_count[ev];
-    int const priority = host->plugins[sub->plugin].def->priority;
+    int const priority = plugin_sub_key(host, ev, sub->plugin);
     int at = count;
 
     for( int i = 0; i < count; i++ )
     {
-        int const other = host->plugins[host->subs[ev][i].plugin].def->priority;
+        int const other = plugin_sub_key(host, ev, host->subs[ev][i].plugin);
         if( priority > other )
         {
             at = i;
@@ -488,6 +629,681 @@ api_element_height(struct ToriRS_PluginCtx* ctx, int element_id)
 }
 
 static int
+api_mouse_pos(struct ToriRS_PluginCtx* ctx, int* out_x, int* out_y)
+{
+    assert(ctx);
+    return ctx->host->engine.mouse_pos(ctx->host->engine.user, out_x, out_y);
+}
+
+static int
+api_minimap_rect(
+    struct ToriRS_PluginCtx* ctx, int* out_x, int* out_y, int* out_w, int* out_h)
+{
+    assert(ctx);
+    return ctx->host->engine.minimap_rect(
+        ctx->host->engine.user, out_x, out_y, out_w, out_h);
+}
+
+/* ------------------------------------------------------------ the gameframe */
+
+/* Both layout entry points deliver to ONE plugin -- the frame's owner -- and
+ * the walker that does that is defined with the other window-scoped dispatch,
+ * far below. Forward-declared rather than moved, so the plugin-scoped dispatch
+ * rules stay written down in one place. */
+static void
+plugin_dispatch_one(
+    struct ToriRS_PluginHost* host,
+    int plugin_index,
+    enum ToriRS_PluginEvent ev,
+    void* payload);
+
+/*
+ * Tell the engine what the claim is now, so it can switch the lane's own
+ * chrome off (or back on) and pin or unpin the canvas.
+ *
+ * Called on every transition and on no-ops besides, because the engine's copy
+ * of this is what the layout pass reads and a claim the engine never heard
+ * about is a plugin drawing stones over a frame that is still drawing its own.
+ */
+static void
+plugin_layout_publish(struct ToriRS_PluginHost* host)
+{
+    assert(host);
+    host->engine.layout_set(
+        host->engine.user,
+        host->layout_owner >= 0 ? 1 : 0,
+        host->layout_canvas,
+        host->layout_fixed_w,
+        host->layout_fixed_h);
+}
+
+static bool
+api_layout_claim(
+    struct ToriRS_PluginCtx* ctx,
+    int canvas,
+    int fixed_w,
+    int fixed_h)
+{
+    struct ToriRS_PluginHost* host;
+
+    assert(ctx);
+    host = ctx->host;
+    /* Both arrive from a plugin's own config, so a value out of range is bad
+     * INPUT and not a broken contract: a layout told to pin a canvas of 0x0
+     * should be refused and say so, not abort the client. */
+    if( canvas != TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW && canvas != TORIRS_PLUGIN_CANVAS_FIXED )
+        return false;
+    if( canvas == TORIRS_PLUGIN_CANVAS_FIXED && (fixed_w <= 0 || fixed_h <= 0) )
+        return false;
+    if( host->layout_owner >= 0 && host->layout_owner != ctx->index )
+        return false;
+
+    host->layout_owner = ctx->index;
+    host->layout_canvas = canvas;
+    host->layout_fixed_w = canvas == TORIRS_PLUGIN_CANVAS_FIXED ? fixed_w : 0;
+    host->layout_fixed_h = canvas == TORIRS_PLUGIN_CANVAS_FIXED ? fixed_h : 0;
+    /*
+     * Publishing the claim is the whole of it: the engine marks the frame
+     * needing a declaration and raises EV_LAYOUT on its next layout pass, with
+     * the canvas it actually has.
+     *
+     * This used to declare here as well, passing 0x0 for the canvas because
+     * the host has no window and no way to ask. For a FIXED claim that was
+     * harmless -- it reads its pinned size back -- and for a FOLLOW_WINDOW one
+     * it was silently fatal: every anchor is measured from an edge, so a
+     * canvas of nothing puts the sidebar at x = -245 and the chatbox at
+     * y = -142, and the frame is declared, drawn, and entirely off-screen. The
+     * plugin reports twenty pieces drawn and the screen shows none of them.
+     *
+     * The host cannot invent a canvas. The engine is the only thing that knows
+     * one, so the engine is what declares.
+     */
+    plugin_layout_publish(host);
+    return true;
+}
+
+static void
+api_layout_release(struct ToriRS_PluginCtx* ctx)
+{
+    struct ToriRS_PluginHost* host;
+
+    assert(ctx);
+    host = ctx->host;
+    if( host->layout_owner != ctx->index )
+        return;
+    host->layout_owner = -1;
+    host->layout_canvas = TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW;
+    host->layout_fixed_w = 0;
+    host->layout_fixed_h = 0;
+    plugin_layout_publish(host);
+}
+
+static int
+api_layout_owned(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+    return ctx->host->layout_owner == ctx->index ? 1 : 0;
+}
+
+static int
+api_layout_slot_at(
+    struct ToriRS_PluginCtx* ctx,
+    int slot,
+    int member,
+    int x,
+    int y,
+    int w,
+    int h)
+{
+    assert(ctx);
+    /* The same window test the draw verbs make. A slot placed outside the
+     * declaration would land in a table the engine has already applied, so it
+     * would take effect a frame late and survive a declaration that never
+     * mentioned it -- which is exactly the drift the rebuilt-from-nothing rule
+     * exists to prevent. */
+    assert(
+        ctx->host->layout_declaring &&
+        "layout_slot is legal only inside EV_LAYOUT");
+    assert(ctx->host->layout_owner == ctx->index);
+    /* A number a plugin computed, so out of range is input. */
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_COUNT )
+        return 0;
+    if( w <= 0 || h <= 0 )
+        return 0;
+    return ctx->host->engine.layout_slot(ctx->host->engine.user, slot, member, x, y, w, h);
+}
+
+/* The whole role, which is `member` -1. One entry point with a name for the
+ * common case, rather than every caller writing the sentinel. */
+static int
+api_layout_slot(
+    struct ToriRS_PluginCtx* ctx,
+    int slot,
+    int x,
+    int y,
+    int w,
+    int h)
+{
+    return api_layout_slot_at(ctx, slot, -1, x, y, w, h);
+}
+
+static int
+api_tab_active(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+    return ctx->host->engine.tab_active(ctx->host->engine.user);
+}
+
+static bool
+api_tab_select(struct ToriRS_PluginCtx* ctx, int tabno)
+{
+    assert(ctx);
+    /* A tab number a plugin read off its own stone table. */
+    if( tabno < 0 )
+        return false;
+    return ctx->host->engine.tab_select(ctx->host->engine.user, tabno) ? true : false;
+}
+
+
+/* -- layout regions ------------------------------------------------------- */
+
+struct PluginRect
+{
+    int x;
+    int y;
+    int w;
+    int h;
+};
+
+/**
+ * `box` with `cut` taken out of it, as the largest rectangle that survives.
+ *
+ * There is no exact rectangular answer to "subtract a rectangle from a
+ * rectangle" -- the true result is an L, and an L is not a box a caller can
+ * centre anything in. So this does what a person does: it tries the four
+ * rectangles left when you slice `box` along each of `cut`'s edges and keeps
+ * whichever has the most area.
+ *
+ * A heuristic, and the right one here because of what the occluders ARE. A
+ * minimap in a corner, a chatbox along the bottom, a sidebar down one side:
+ * each has an obvious side to cut from, and "the biggest remaining piece"
+ * picks it every time. A cut sitting in the middle of the box has no good
+ * answer and this gives the least bad one.
+ */
+static struct PluginRect
+plugin_rect_subtract(struct PluginRect box, struct PluginRect cut)
+{
+    struct PluginRect best = box;
+    int best_area = -1;
+    int const bx1 = box.x + box.w;
+    int const by1 = box.y + box.h;
+    int const cx1 = cut.x + cut.w;
+    int const cy1 = cut.y + cut.h;
+    struct PluginRect candidate[4];
+
+    if( cut.w <= 0 || cut.h <= 0 )
+        return box;
+    /* Somewhere else on the screen entirely. */
+    if( cx1 <= box.x || cut.x >= bx1 || cy1 <= box.y || cut.y >= by1 )
+        return box;
+
+    /* Left of it, right of it, above it, below it. */
+    candidate[0].x = box.x;
+    candidate[0].y = box.y;
+    candidate[0].w = cut.x - box.x;
+    candidate[0].h = box.h;
+    candidate[1].x = cx1;
+    candidate[1].y = box.y;
+    candidate[1].w = bx1 - cx1;
+    candidate[1].h = box.h;
+    candidate[2].x = box.x;
+    candidate[2].y = box.y;
+    candidate[2].w = box.w;
+    candidate[2].h = cut.y - box.y;
+    candidate[3].x = box.x;
+    candidate[3].y = cy1;
+    candidate[3].w = box.w;
+    candidate[3].h = by1 - cy1;
+
+    for( int i = 0; i < 4; i++ )
+    {
+        int const area = candidate[i].w > 0 && candidate[i].h > 0
+                             ? candidate[i].w * candidate[i].h
+                             : 0;
+        if( area > best_area )
+        {
+            best_area = area;
+            best = candidate[i];
+        }
+    }
+    /* Every slice was empty: the cut covers the box. Answer with nothing
+     * rather than with a negative rectangle -- a caller's fallback chain reads
+     * that as "this frame has no such region", which is true. */
+    if( best_area <= 0 )
+    {
+        best.w = 0;
+        best.h = 0;
+    }
+    return best;
+}
+
+/** Ask the engine for a placeable region, or CANVAS. */
+static int
+plugin_engine_rect(struct ToriRS_PluginHost* host, int slot, struct PluginRect* out)
+{
+    assert(host);
+    assert(out);
+    return host->engine.slot_rect(
+        host->engine.user, slot, &out->x, &out->y, &out->w, &out->h);
+}
+
+/**
+ * SAFE: the scene's box with the chrome and every reservation taken out.
+ *
+ * Starts from VIEWPORT rather than from CANVAS because on a fixed frame that
+ * is already the answer -- the chrome sits outside the scene box and every
+ * subtraction below misses. On a resizable frame the viewport IS the window,
+ * and the same code then does real work as the minimap, the chatbox and the
+ * sidebar are cut out of it one at a time. One rule, both window modes.
+ *
+ * MAIN_MODAL is deliberately not an occluder: it is the region a modal opens
+ * INTO, which is the middle of the safe area rather than something covering
+ * it.
+ */
+static int
+plugin_safe_rect(struct ToriRS_PluginHost* host, struct PluginRect* out)
+{
+    static int const OCCLUDER[] = {
+        TORIRS_PLUGIN_SLOT_MINIMAP,
+        TORIRS_PLUGIN_SLOT_COMPASS,
+        TORIRS_PLUGIN_SLOT_CHAT,
+        TORIRS_PLUGIN_SLOT_CHAT_BUTTONS,
+        TORIRS_PLUGIN_SLOT_SIDEBAR,
+    };
+    struct PluginRect box;
+
+    assert(host);
+    assert(out);
+
+    if( !plugin_engine_rect(host, TORIRS_PLUGIN_SLOT_VIEWPORT, &box) &&
+        !plugin_engine_rect(host, TORIRS_PLUGIN_SLOT_CANVAS, &box) )
+        return 0;
+
+    for( size_t i = 0; i < sizeof(OCCLUDER) / sizeof(OCCLUDER[0]); i++ )
+    {
+        struct PluginRect cut;
+        if( plugin_engine_rect(host, OCCLUDER[i], &cut) )
+            box = plugin_rect_subtract(box, cut);
+    }
+
+    /*
+     * Then the reservations, in DECLARATION order.
+     *
+     * Order is what makes two plugins on the same edge stack instead of fight:
+     * the first one's 180 pixels are gone before the second one's 120 are
+     * measured, so the second gets the 120 next to it rather than the same 120
+     * on top of it.
+     */
+    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
+    {
+        struct PluginReserve const* r = &host->reserves[i];
+        int px;
+
+        if( r->plugin < 0 || r->slot != TORIRS_PLUGIN_SLOT_SAFE || r->px <= 0 )
+            continue;
+        switch( r->edge )
+        {
+        case TORIRS_PLUGIN_EDGE_LEFT:
+            px = r->px > box.w ? box.w : r->px;
+            box.x += px;
+            box.w -= px;
+            break;
+        case TORIRS_PLUGIN_EDGE_RIGHT:
+            px = r->px > box.w ? box.w : r->px;
+            box.w -= px;
+            break;
+        case TORIRS_PLUGIN_EDGE_TOP:
+            px = r->px > box.h ? box.h : r->px;
+            box.y += px;
+            box.h -= px;
+            break;
+        default:
+            px = r->px > box.h ? box.h : r->px;
+            box.h -= px;
+            break;
+        }
+    }
+
+    *out = box;
+    return box.w > 0 && box.h > 0;
+}
+
+static int
+api_slot_rect(
+    struct ToriRS_PluginCtx* ctx,
+    int slot,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    struct PluginRect box;
+    int got;
+
+    assert(ctx);
+
+    /* A region id out of range is a plugin's arithmetic, not a broken
+     * contract -- it may have come from a config key or from a script -- so it
+     * answers "this frame has no such region", like any other absent one. */
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_COUNT )
+        return 0;
+
+    got = slot == TORIRS_PLUGIN_SLOT_SAFE ? plugin_safe_rect(ctx->host, &box)
+                                          : plugin_engine_rect(ctx->host, slot, &box);
+    if( !got || box.w <= 0 || box.h <= 0 )
+        return 0;
+
+    if( out_x )
+        *out_x = box.x;
+    if( out_y )
+        *out_y = box.y;
+    if( out_w )
+        *out_w = box.w;
+    if( out_h )
+        *out_h = box.h;
+    return 1;
+}
+
+/* ------------------------------------------------------------ roles */
+
+/*
+ * Where a role's element is. @see ToriRS_PluginApi::role_rect.
+ *
+ * `safe` is answered here and never reaches the engine, for the same reason
+ * SLOT_SAFE does not: it is the placeable regions minus every plugin's edge
+ * reservation, and the reservation table is the host's. Routing it through
+ * api_slot_rect rather than re-deriving it is what keeps the name and the
+ * region enum answering with one rectangle.
+ */
+static int
+api_role_rect(
+    struct ToriRS_PluginCtx* ctx,
+    char const* role,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    int x = 0, y = 0, w = 0, h = 0;
+
+    assert(ctx);
+    /* An empty name is a plugin's own string handling, and the answer is the
+     * same one an undeclared role gets. */
+    if( !role || role[0] == '\0' )
+        return 0;
+
+    if( strcmp(role, "safe") == 0 )
+        return api_slot_rect(ctx, TORIRS_PLUGIN_SLOT_SAFE, out_x, out_y, out_w, out_h);
+
+    if( !ctx->host->engine.role_rect(ctx->host->engine.user, role, &x, &y, &w, &h) )
+        return 0;
+    if( w <= 0 || h <= 0 )
+        return 0;
+
+    if( out_x )
+        *out_x = x;
+    if( out_y )
+        *out_y = y;
+    if( out_w )
+        *out_w = w;
+    if( out_h )
+        *out_h = h;
+    return 1;
+}
+
+static int
+api_role_visible(struct ToriRS_PluginCtx* ctx, char const* role)
+{
+    assert(ctx);
+    if( !role || role[0] == '\0' )
+        return 0;
+    /* `safe` and `canvas` are rectangles rather than things that can be
+     * hidden, and a derived region is on screen whenever the client is. */
+    if( strcmp(role, "safe") == 0 || strcmp(role, "canvas") == 0 )
+        return api_role_rect(ctx, role, NULL, NULL, NULL, NULL);
+    return ctx->host->engine.role_visible(ctx->host->engine.user, role);
+}
+
+static int
+api_role_click(struct ToriRS_PluginCtx* ctx, char const* role, int op)
+{
+    assert(ctx);
+    if( !role || role[0] == '\0' )
+        return 0;
+    /* Same reading as if_click's: an op out of range came from a config key or
+     * a script, so it is bad input and not a broken contract. */
+    if( op < 0 || op > 10 )
+        return 0;
+    return ctx->host->engine.role_click(ctx->host->engine.user, role, op);
+}
+
+static int
+api_role_id(struct ToriRS_PluginCtx* ctx, char const* role)
+{
+    assert(ctx);
+    if( !role || role[0] == '\0' )
+        return -1;
+    return ctx->host->engine.role_id(ctx->host->engine.user, role);
+}
+
+/*
+ * One member of a region. @see ToriRS_PluginApi::slot_member_rect.
+ *
+ * SAFE is absent on purpose and is not an oversight: it is derived from the
+ * placeable regions and has no members to number.
+ */
+static int
+api_slot_member_rect(
+    struct ToriRS_PluginCtx* ctx,
+    int slot,
+    int member,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    int x = 0, y = 0, w = 0, h = 0;
+
+    assert(ctx);
+
+    /* Same reading as slot_rect's: an id out of range is a plugin's
+     * arithmetic, and the answer is "this frame has no such region". */
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT || member < 0 )
+        return 0;
+
+    if( !ctx->host->engine.slot_member_rect(ctx->host->engine.user, slot, member, &x, &y, &w, &h) )
+        return 0;
+    if( w <= 0 || h <= 0 )
+        return 0;
+
+    if( out_x )
+        *out_x = x;
+    if( out_y )
+        *out_y = y;
+    if( out_w )
+        *out_w = w;
+    if( out_h )
+        *out_h = h;
+    return 1;
+}
+
+/*
+ * Where a component is. @see ToriRS_PluginApi::component_rect.
+ *
+ * No range test on the id, unlike the region verbs above: every 32-bit value
+ * is a well-formed component id, and "the tree has no such component" is the
+ * engine's answer to all of them.
+ */
+static int
+api_component_rect(
+    struct ToriRS_PluginCtx* ctx,
+    int component_id,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    int x = 0, y = 0, w = 0, h = 0;
+
+    assert(ctx);
+
+    if( !ctx->host->engine.component_rect(ctx->host->engine.user, component_id, &x, &y, &w, &h) )
+        return 0;
+    if( w <= 0 || h <= 0 )
+        return 0;
+
+    if( out_x )
+        *out_x = x;
+    if( out_y )
+        *out_y = y;
+    if( out_w )
+        *out_w = w;
+    if( out_h )
+        *out_h = h;
+    return 1;
+}
+
+static int
+api_layout_reserve(struct ToriRS_PluginCtx* ctx, int slot, int edge, int px)
+{
+    struct ToriRS_PluginHost* host;
+    int free_row = -1;
+
+    assert(ctx);
+    host = ctx->host;
+
+    /* Only the derived regions. A placeable role is whatever the frame says it
+     * is, and eating an edge of it here would be arguing with the layout
+     * rather than making room beside it. */
+    if( slot != TORIRS_PLUGIN_SLOT_SAFE )
+    {
+        fprintf(
+            stderr,
+            "plugin: %s reserved from region %d; only SAFE can be reserved from\n",
+            ctx->name,
+            slot);
+        return 0;
+    }
+    if( edge < 0 || edge >= TORIRS_PLUGIN_EDGE_COUNT )
+        return 0;
+    if( px < 0 )
+        px = 0;
+
+    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
+    {
+        struct PluginReserve* r = &host->reserves[i];
+        if( r->plugin == ctx->index && r->slot == slot && r->edge == edge )
+        {
+            /* Replaced IN PLACE, keeping this plugin's position in the
+             * declaration order: one that re-states its width on a config
+             * change must not jump to the back of the queue and swap sides
+             * with a neighbour that has not moved. */
+            if( r->px == px )
+                return 1;
+            r->px = px;
+            if( px == 0 )
+                r->plugin = -1;
+            PluginHost_LayoutChanged(host);
+            return 1;
+        }
+        if( r->plugin < 0 && free_row < 0 )
+            free_row = i;
+    }
+
+    if( px == 0 )
+        return 1; /* nothing of this plugin's to drop */
+    if( free_row < 0 )
+    {
+        fprintf(
+            stderr,
+            "plugin: %s could not reserve; the reservation table is full (%d)\n",
+            ctx->name,
+            TORIRS_PLUGIN_RESERVES_MAX);
+        return 0;
+    }
+    host->reserves[free_row].plugin = ctx->index;
+    host->reserves[free_row].slot = (uint8_t)slot;
+    host->reserves[free_row].edge = (uint8_t)edge;
+    host->reserves[free_row].px = px;
+    PluginHost_LayoutChanged(host);
+    return 1;
+}
+
+static int
+api_layout_revision(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+    return ctx->host->layout_revision;
+}
+
+static void
+plugin_reserves_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
+{
+    int dropped = 0;
+
+    assert(host);
+    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
+    {
+        if( host->reserves[i].plugin != plugin )
+            continue;
+        host->reserves[i].plugin = -1;
+        host->reserves[i].px = 0;
+        dropped = 1;
+    }
+    if( dropped )
+        PluginHost_LayoutChanged(host);
+}
+
+static int
+api_stat(struct ToriRS_PluginCtx* ctx, int skill, int* out_current, int* out_base)
+{
+    assert(ctx);
+    /* `skill` is a NUMBER a plugin computed or read out of its own config, so
+     * an out-of-range one is bad input rather than a broken contract: the
+     * engine answers 0 and leaves the outs alone. */
+    return ctx->host->engine.stat(ctx->host->engine.user, skill, out_current, out_base);
+}
+
+static int
+api_stat_xp(
+    struct ToriRS_PluginCtx* ctx,
+    int skill,
+    int* out_xp,
+    int* out_level_xp,
+    int* out_next_xp)
+{
+    assert(ctx);
+    /* Out of range is bad input rather than a broken contract, for the reason
+     * api_stat says: the number came from the plugin. */
+    return ctx->host->engine.stat_xp(
+        ctx->host->engine.user, skill, out_xp, out_level_xp, out_next_xp);
+}
+
+static char const*
+api_skill_name(struct ToriRS_PluginCtx* ctx, int skill)
+{
+    assert(ctx);
+    return ctx->host->engine.skill_name(ctx->host->engine.user, skill);
+}
+
+static int
+api_run_energy(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+    return ctx->host->engine.run_energy(ctx->host->engine.user);
+}
+
+static int
 api_project(
     struct ToriRS_PluginCtx* ctx,
     int fine_x,
@@ -521,6 +1337,14 @@ PluginHost_ConfigGet(struct ToriRS_PluginHost const* host, int plugin_index, cha
     return NULL;
 }
 
+static int
+api_cfg_has(struct ToriRS_PluginCtx* ctx, char const* key)
+{
+    assert(ctx);
+    assert(key);
+    return PluginHost_ConfigGet(ctx->host, ctx->index, key) != NULL;
+}
+
 static char const*
 api_cfg_str(struct ToriRS_PluginCtx* ctx, char const* key)
 {
@@ -534,6 +1358,38 @@ api_cfg_str(struct ToriRS_PluginCtx* ctx, char const* key)
     return value;
 }
 
+/**
+ * A stored value as a number, in revconfig's expression grammar.
+ *
+ * The same grammar a revconfig profile's numeric keys are in, and for the same
+ * reason: plugin_prefs.ini is a file people edit by hand, and the spellings
+ * they reach for are the ones the reference and their other clients use --
+ * `#FF0000`, `rgb(255, 0, 0)`, `0x8000`, `1 << 4`, `hsl16(0, 7, 64)`. atoi()
+ * read every one of those as 0, silently, which is a colour (black) and a
+ * plausible id, so a mistyped value looked like a setting that did nothing.
+ *
+ * @return `fallback` when the value is not one whole expression. Silent,
+ * deliberately: a colour key is read on the draw path, so a broken one would
+ * print once per frame forever.
+ */
+static int
+plugin_cfg_number(char const* value, int fallback)
+{
+    char const* end = NULL;
+    int parsed = 0;
+
+    assert(value);
+
+    if( !revconfig_parse_int_expr(value, &end, &parsed) )
+        return fallback;
+    /* One expression and nothing after it -- "5 apples" is a typo, not a 5. */
+    while( *end == ' ' || *end == '\t' || *end == '\r' || *end == '\n' )
+        end++;
+    if( *end != '\0' )
+        return fallback;
+    return parsed;
+}
+
 static int
 api_cfg_bool(struct ToriRS_PluginCtx* ctx, char const* key)
 {
@@ -542,24 +1398,27 @@ api_cfg_bool(struct ToriRS_PluginCtx* ctx, char const* key)
         return 0;
     if( strcmp(value, "true") == 0 || strcmp(value, "yes") == 0 )
         return 1;
-    return atoi(value) != 0;
+    return plugin_cfg_number(value, 0) != 0;
 }
 
 static int
 api_cfg_int(struct ToriRS_PluginCtx* ctx, char const* key)
 {
-    return atoi(api_cfg_str(ctx, key));
+    return plugin_cfg_number(api_cfg_str(ctx, key), 0);
 }
 
+/**
+ * A colour key as 0xRRGGBB.
+ *
+ * Masked to 24 bits, which is the api's contract and not an oversight: the
+ * plugins that blit one supply their own alpha, and rgba()'s fourth channel
+ * would arrive here as a top byte they would then have to strip. A plugin that
+ * wants the packed ARGB word reads the same key with cfg_int.
+ */
 static uint32_t
 api_cfg_color(struct ToriRS_PluginCtx* ctx, char const* key)
 {
-    char const* value = api_cfg_str(ctx, key);
-    if( value[0] == '#' )
-        return (uint32_t)strtoul(value + 1, NULL, 16) & 0xffffffu;
-    if( value[0] == '0' && (value[1] == 'x' || value[1] == 'X') )
-        return (uint32_t)strtoul(value + 2, NULL, 16) & 0xffffffu;
-    return (uint32_t)strtoul(value, NULL, 10) & 0xffffffu;
+    return (uint32_t)plugin_cfg_number(api_cfg_str(ctx, key), 0) & 0xffffffu;
 }
 
 void
@@ -621,10 +1480,109 @@ api_varbit(struct ToriRS_PluginCtx* ctx, int varbit_id)
 }
 
 static int
+api_feature_next(struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginFeature* out)
+{
+    assert(ctx);
+    assert(out);
+    return ctx->host->engine.feature_next(ctx->host->engine.user, iter, out);
+}
+
+static int
+api_feature_get(struct ToriRS_PluginCtx* ctx, char const* key)
+{
+    assert(ctx);
+    assert(key);
+    return ctx->host->engine.feature_get(ctx->host->engine.user, key);
+}
+
+static bool
+api_feature_set(struct ToriRS_PluginCtx* ctx, char const* key, int value)
+{
+    assert(ctx);
+    assert(key);
+    return ctx->host->engine.feature_set(ctx->host->engine.user, key, value) != 0;
+}
+
+static int
+api_display_setting(
+    struct ToriRS_PluginCtx* ctx,
+    int setting,
+    int* out_value,
+    int* out_min,
+    int* out_max)
+{
+    assert(ctx);
+    /* A number a plugin computed, so out of range is input rather than a
+     * broken contract -- and the answer it gets is the same one a build
+     * without that setting gives, which is the answer a page should render
+     * the same way either way. */
+    if( setting < 0 || setting >= TORIRS_PLUGIN_DISPLAY_SETTING_COUNT )
+        return 0;
+    return ctx->host->engine.display_setting(
+        ctx->host->engine.user, setting, out_value, out_min, out_max);
+}
+
+static int
+api_display_setting_set(
+    struct ToriRS_PluginCtx* ctx,
+    int setting,
+    int value)
+{
+    assert(ctx);
+    if( setting < 0 || setting >= TORIRS_PLUGIN_DISPLAY_SETTING_COUNT )
+        return 0;
+    return ctx->host->engine.display_setting_set(ctx->host->engine.user, setting, value);
+}
+
+static int
 api_varp(struct ToriRS_PluginCtx* ctx, int varp_id)
 {
     assert(ctx);
     return ctx->host->engine.varp(ctx->host->engine.user, varp_id);
+}
+
+static int
+api_cache_id(struct ToriRS_PluginCtx* ctx, char const* kind, char const* name)
+{
+    assert(ctx);
+    assert(kind);
+    assert(name);
+    if( !ctx->host->engine.cache_id )
+        return -1;
+    return ctx->host->engine.cache_id(ctx->host->engine.user, kind, name);
+}
+
+static int
+api_obj_info(
+    struct ToriRS_PluginCtx* ctx,
+    int obj_id,
+    struct ToriRS_PluginObjInfo* out)
+{
+    assert(ctx);
+    assert(out);
+    /* An id the plugin computed, so out of range is bad input rather than a
+     * broken contract -- the engine answers 0 and leaves `out` alone. */
+    return ctx->host->engine.obj_info(ctx->host->engine.user, obj_id, out);
+}
+
+static int
+api_inv_slot(
+    struct ToriRS_PluginCtx* ctx,
+    int inv,
+    int slot,
+    int* out_obj_id,
+    int* out_count)
+{
+    assert(ctx);
+    return ctx->host->engine.inv_slot(
+        ctx->host->engine.user, inv, slot, out_obj_id, out_count);
+}
+
+static int
+api_inv_size(struct ToriRS_PluginCtx* ctx, int inv)
+{
+    assert(ctx);
+    return ctx->host->engine.inv_size(ctx->host->engine.user, inv);
 }
 
 static uint32_t
@@ -786,6 +1744,152 @@ plugin_assets_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
     }
 }
 
+/* -- images -------------------------------------------------------------- */
+
+/**
+ * The slot `image` names, if this plugin owns it.
+ *
+ * A handle is an index into a table every plugin shares, so "is this mine" is
+ * a question that has to be asked on every use -- a plugin holding a stale
+ * handle across a reload would otherwise be drawing, releasing and resizing
+ * another plugin's art. Complained about rather than asserted for the same
+ * reason an asset name is: a handle can arrive from a script.
+ *
+ * @return NULL when the handle is out of range or belongs to someone else.
+ */
+static struct PluginImage*
+plugin_image_owned(struct ToriRS_PluginCtx* ctx, int image)
+{
+    assert(ctx);
+
+    if( image < 0 || image >= TORIRS_PLUGIN_IMAGES_MAX )
+        return NULL;
+    if( ctx->host->images[image].plugin != ctx->index )
+    {
+        fprintf(
+            stderr,
+            "plugin: %s used image handle %d, which it does not own\n",
+            ctx->name,
+            image);
+        return NULL;
+    }
+    return &ctx->host->images[image];
+}
+
+/** Free a slot's scene entry and mark it free. Idempotent. */
+static void
+plugin_image_drop(struct ToriRS_PluginHost* host, int image)
+{
+    assert(host);
+    assert(image >= 0 && image < TORIRS_PLUGIN_IMAGES_MAX);
+
+    if( host->images[image].published )
+        host->engine.image_release(host->engine.user, image);
+    memset(&host->images[image], 0, sizeof(host->images[image]));
+    host->images[image].plugin = -1;
+}
+
+static void
+plugin_model_drop(struct ToriRS_PluginHost* host, int model)
+{
+    assert(host);
+    assert(model >= 0 && model < TORIRS_PLUGIN_MODELS_MAX);
+
+    if( host->models[model].published )
+        host->engine.model_release(host->engine.user, model);
+    memset(&host->models[model], 0, sizeof(host->models[model]));
+    host->models[model].plugin = -1;
+}
+
+static void
+plugin_models_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
+{
+    assert(host);
+    for( int i = 0; i < TORIRS_PLUGIN_MODELS_MAX; i++ )
+        if( host->models[i].plugin == plugin )
+            plugin_model_drop(host, i);
+}
+
+/**
+ * Hand a slot's bytes to the engine to decode.
+ *
+ * A file that will not decode is reported and left unpublished, exactly as an
+ * undecodable image is: the plugin named the file, and "that is not a model
+ * this client reads" is an answer it has to be able to get. The handle stays
+ * valid and every object standing on it simply is not in the scene, which is
+ * the same state a pending load leaves them in.
+ */
+static void
+plugin_model_publish(
+    struct ToriRS_PluginHost* host, int model, void const* data, int size)
+{
+    struct PluginModel* slot;
+
+    assert(host);
+    assert(model >= 0 && model < TORIRS_PLUGIN_MODELS_MAX);
+    assert(data);
+
+    slot = &host->models[model];
+    if( !host->engine.model_publish(host->engine.user, model, data, size) )
+    {
+        fprintf(
+            stderr,
+            "plugin: %s model '%s' would not decode (%d bytes); it draws nothing\n",
+            host->plugins[slot->plugin].name,
+            slot->asset,
+            size);
+        return;
+    }
+    slot->published = true;
+}
+
+static void
+plugin_images_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
+{
+    assert(host);
+    for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
+        if( host->images[i].plugin == plugin )
+            plugin_image_drop(host, i);
+}
+
+/**
+ * Hand a slot's bytes to the engine to decode and publish.
+ *
+ * A file that will not decode is reported and left unpublished, not asserted:
+ * it is a file, the plugin named it, and "that is not a PNG this client reads"
+ * is an answer the plugin has to be able to get. The handle stays valid and
+ * image_size keeps answering 0, which is the same state a pending load is in
+ * -- and deliberately so, because for a caller laying out against it there is
+ * nothing to do differently.
+ */
+static void
+plugin_image_publish(
+    struct ToriRS_PluginHost* host, int image, void const* data, int size)
+{
+    struct PluginImage* slot;
+    int w = 0;
+    int h = 0;
+
+    assert(host);
+    assert(image >= 0 && image < TORIRS_PLUGIN_IMAGES_MAX);
+    assert(data);
+
+    slot = &host->images[image];
+    if( !host->engine.image_publish(host->engine.user, image, data, size, &w, &h) )
+    {
+        fprintf(
+            stderr,
+            "plugin: %s image '%s' would not decode (%d bytes); it draws nothing\n",
+            host->plugins[slot->plugin].name,
+            slot->asset,
+            size);
+        return;
+    }
+    slot->width = w;
+    slot->height = h;
+    slot->published = true;
+}
+
 static int
 api_asset_load(struct ToriRS_PluginCtx* ctx, char const* name)
 {
@@ -937,17 +2041,29 @@ plugin_screenshot_dir_ok(struct ToriRS_PluginCtx* ctx, char const* dir)
 }
 
 static int
-api_screenshot(struct ToriRS_PluginCtx* ctx, char const* dir, char const* name)
+api_screenshot(
+    struct ToriRS_PluginCtx* ctx,
+    char const* dir,
+    char const* name,
+    char* out_path,
+    int out_path_size)
 {
     assert(ctx);
     assert(name);
+    assert(out_path);
+    assert(out_path_size > 0);
 
+    /* Emptied first, so a refused request leaves nothing for a caller to read
+     * as a destination -- the string is the answer to "where did it go", and
+     * "nowhere" has to be sayable. */
+    out_path[0] = '\0';
     if( !plugin_asset_name_ok(ctx, name) )
         return 0;
     if( dir && *dir && !plugin_screenshot_dir_ok(ctx, dir) )
         return 0;
 
-    return ctx->host->engine.screenshot(ctx->host->engine.user, ctx->name, dir, name);
+    return ctx->host->engine.screenshot(
+        ctx->host->engine.user, ctx->name, dir, name, out_path, out_path_size);
 }
 
 /*
@@ -1020,6 +2136,21 @@ PluginHost_AssetDeliver(
         slot->size = size;
     }
 
+    /* An image waiting on this file becomes a scene sprite here, before the
+     * event goes out -- so a plugin told its asset landed can lay out against
+     * image_size in the same handler rather than waiting another frame. */
+    if( data )
+    {
+        for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
+            if( host->images[i].plugin == plugin &&
+                strcmp(host->images[i].asset, asset_name) == 0 )
+                plugin_image_publish(host, i, slot->data, slot->size);
+        for( int i = 0; i < TORIRS_PLUGIN_MODELS_MAX; i++ )
+            if( host->models[i].plugin == plugin &&
+                strcmp(host->models[i].asset, asset_name) == 0 )
+                plugin_model_publish(host, i, slot->data, slot->size);
+    }
+
     struct ToriRS_PluginCtx* ctx = &host->plugins[plugin];
     if( !ctx->enabled || !ctx->running )
         return;
@@ -1038,6 +2169,92 @@ PluginHost_AssetDeliver(
             break;
     }
     host->dispatching = prev;
+}
+
+/* -- authored meshes -- */
+
+/* Same rule the object handles are held to: a handle the plugin was never
+ * given is a contract violation, and the budget is not. */
+static void
+plugin_mesh_assert_owned(struct ToriRS_PluginCtx* ctx, int mesh)
+{
+    assert(ctx);
+    for( int i = 0; i < ctx->mesh_count; i++ )
+    {
+        if( ctx->meshes[i] == mesh )
+            return;
+    }
+    assert(!"plugin mesh handle is not owned by this plugin");
+}
+
+static int
+api_mesh_create(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+
+    struct ToriRS_PluginHost* host = ctx->host;
+    if( ctx->mesh_count >= TORIRS_PLUGIN_MESH_BUDGET )
+    {
+        if( !ctx->mesh_clipped )
+        {
+            ctx->mesh_clipped = true;
+            fprintf(
+                stderr,
+                "plugin: %s is at its %d mesh budget; further mesh_create "
+                "calls are refused\n",
+                ctx->name,
+                TORIRS_PLUGIN_MESH_BUDGET);
+        }
+        return -1;
+    }
+
+    int const mesh = host->engine.mesh_create(host->engine.user);
+    if( mesh < 0 )
+        return -1;
+    ctx->meshes[ctx->mesh_count++] = mesh;
+    return mesh;
+}
+
+static void
+api_mesh_destroy(struct ToriRS_PluginCtx* ctx, int mesh)
+{
+    plugin_mesh_assert_owned(ctx, mesh);
+
+    for( int i = 0; i < ctx->mesh_count; i++ )
+    {
+        if( ctx->meshes[i] != mesh )
+            continue;
+        ctx->meshes[i] = ctx->meshes[ctx->mesh_count - 1];
+        ctx->mesh_count--;
+        break;
+    }
+    ctx->host->engine.mesh_destroy(ctx->host->engine.user, mesh);
+}
+
+static void
+api_mesh_clear(struct ToriRS_PluginCtx* ctx, int mesh)
+{
+    plugin_mesh_assert_owned(ctx, mesh);
+    ctx->host->engine.mesh_clear(ctx->host->engine.user, mesh);
+}
+
+static int
+api_mesh_vertex(struct ToriRS_PluginCtx* ctx, int mesh, int x, int y, int z)
+{
+    plugin_mesh_assert_owned(ctx, mesh);
+    return ctx->host->engine.mesh_vertex(ctx->host->engine.user, mesh, x, y, z);
+}
+
+static int
+api_mesh_face(struct ToriRS_PluginCtx* ctx, int mesh, int a, int b, int c, int hsl, int alpha)
+{
+    plugin_mesh_assert_owned(ctx, mesh);
+    /* Vertex indices are checked by the engine against the mesh it holds; the
+     * transparency is checked here because its ceiling is part of the api
+     * contract and not of any mesh's state. */
+    assert(alpha >= 0);
+    assert(alpha <= TORIRS_PLUGIN_MESH_ALPHA_MAX);
+    return ctx->host->engine.mesh_face(ctx->host->engine.user, mesh, a, b, c, hsl, alpha);
 }
 
 /* -- world objects -- */
@@ -1111,6 +2328,19 @@ plugin_objects_destroy_all(struct ToriRS_PluginHost* host, struct ToriRS_PluginC
         host->engine.object_destroy(host->engine.user, ctx->objects[i]);
     ctx->object_count = 0;
     ctx->object_clipped = false;
+}
+
+/* After plugin_objects_destroy_all, never before it: the objects are what hold
+ * the meshes up. */
+static void
+plugin_meshes_destroy_all(struct ToriRS_PluginHost* host, struct ToriRS_PluginCtx* ctx)
+{
+    assert(host);
+    assert(ctx);
+    for( int i = 0; i < ctx->mesh_count; i++ )
+        host->engine.mesh_destroy(host->engine.user, ctx->meshes[i]);
+    ctx->mesh_count = 0;
+    ctx->mesh_clipped = false;
 }
 
 static void
@@ -1415,6 +2645,24 @@ plugin_draw_allow(struct ToriRS_PluginCtx* ctx, void* surface)
     return true;
 }
 
+/*
+ * The extra gate on the two WORLD-only verbs.
+ *
+ * A tile and a hull are both named in scene terms -- an absolute tile, a scene
+ * element -- and the canvas surface has no scene behind it. Drawing one there
+ * is not a thing that comes out slightly wrong; it is a call whose arguments
+ * cannot be resolved at all, which makes it a contract violation and not a
+ * runtime state.
+ */
+static void
+plugin_draw_require_world(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+    assert(
+        ctx->host->draw_canvas == PLUGIN_DRAW_SURFACE_WORLD &&
+        "draw_tile/draw_hull name something in the scene; the screen surfaces have none");
+}
+
 static void
 api_draw_tile(
     struct ToriRS_PluginCtx* ctx,
@@ -1426,6 +2674,7 @@ api_draw_tile(
     uint32_t fill_rgb,
     int fill_alpha)
 {
+    plugin_draw_require_world(ctx);
     if( !plugin_draw_allow(ctx, surface) )
         return;
     ctx->draw_used += ctx->host->engine.draw_tile(
@@ -1442,6 +2691,7 @@ api_draw_hull(
     int shape)
 {
     assert(shape == TORIRS_PLUGIN_HULL_BOUNDS || shape == TORIRS_PLUGIN_HULL_MESH);
+    plugin_draw_require_world(ctx);
     if( !plugin_draw_allow(ctx, surface) )
         return;
     ctx->draw_used +=
@@ -1495,6 +2745,405 @@ api_draw_rect(
         ctx->host->engine.draw_rect(ctx->host->engine.user, x, y, w, h, rgb, fill_alpha);
 }
 
+/* -- images -- */
+
+static int
+api_image_load(struct ToriRS_PluginCtx* ctx, char const* name)
+{
+    assert(ctx);
+    assert(name);
+
+    struct ToriRS_PluginHost* host = ctx->host;
+    int free_slot = -1;
+
+    if( !plugin_asset_name_ok(ctx, name) )
+        return -1;
+
+    for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
+    {
+        /* Already asked for. One image per (plugin, file), so a plugin that
+         * calls this from on_start and again from a config change gets the
+         * handle it already has rather than a second copy in the scene. */
+        if( host->images[i].plugin == ctx->index &&
+            strcmp(host->images[i].asset, name) == 0 )
+            return i;
+        if( host->images[i].plugin < 0 && free_slot < 0 )
+            free_slot = i;
+    }
+
+    if( free_slot < 0 )
+    {
+        fprintf(
+            stderr,
+            "plugin: %s image '%s' not loaded, the resident image table is full (%d)\n",
+            ctx->name,
+            name,
+            TORIRS_PLUGIN_IMAGES_MAX);
+        return -1;
+    }
+
+    host->images[free_slot].plugin = ctx->index;
+    snprintf(
+        host->images[free_slot].asset, sizeof(host->images[free_slot].asset), "%s", name);
+    host->images[free_slot].width = 0;
+    host->images[free_slot].height = 0;
+    host->images[free_slot].published = false;
+
+    /*
+     * The bytes come through the ordinary asset path, so an image is a file in
+     * the same sandbox as any other and the arrival is delivered to the same
+     * place. What is different is only what happens to the bytes when they
+     * land -- see PluginHost_AssetDeliver, which publishes any image waiting
+     * on that name.
+     *
+     * A load already resident answers immediately; the publish is done here so
+     * that an image of a file the plugin had already loaded as raw bytes does
+     * not wait for a read that will never be queued.
+     */
+    if( api_asset_load(ctx, name) )
+    {
+        int size = 0;
+        void const* data = api_asset_data(ctx, name, &size);
+        if( data )
+            plugin_image_publish(host, free_slot, data, size);
+    }
+    return free_slot;
+}
+
+/* -- shipped models -- */
+
+/*
+ * api_image_load's twin. Same slot rule (one per plugin+file), same sandbox on
+ * the name, same asset path for the bytes; only what happens to them on
+ * arrival differs.
+ */
+static int
+api_model_load(struct ToriRS_PluginCtx* ctx, char const* name)
+{
+    assert(ctx);
+    assert(name);
+
+    struct ToriRS_PluginHost* host = ctx->host;
+    int free_slot = -1;
+
+    if( !plugin_asset_name_ok(ctx, name) )
+        return -1;
+
+    for( int i = 0; i < TORIRS_PLUGIN_MODELS_MAX; i++ )
+    {
+        if( host->models[i].plugin == ctx->index &&
+            strcmp(host->models[i].asset, name) == 0 )
+            return i;
+        if( host->models[i].plugin < 0 && free_slot < 0 )
+            free_slot = i;
+    }
+
+    if( free_slot < 0 )
+    {
+        fprintf(
+            stderr,
+            "plugin: %s model '%s' not loaded, the resident model table is full (%d)\n",
+            ctx->name,
+            name,
+            TORIRS_PLUGIN_MODELS_MAX);
+        return -1;
+    }
+
+    host->models[free_slot].plugin = ctx->index;
+    snprintf(
+        host->models[free_slot].asset, sizeof(host->models[free_slot].asset), "%s", name);
+    host->models[free_slot].published = false;
+
+    if( api_asset_load(ctx, name) )
+    {
+        int size = 0;
+        void const* data = api_asset_data(ctx, name, &size);
+        if( data )
+            plugin_model_publish(host, free_slot, data, size);
+    }
+    return free_slot;
+}
+
+/**
+ * Pixels the plugin composed, published under `name`.
+ *
+ * The slot search is image_load's, deliberately: one image per (plugin, name)
+ * whichever way it was made, so a plugin that composes the same picture every
+ * frame reuses one slot rather than exhausting the table in a second. What is
+ * different is only where the pixels come from -- there is no asset read, and
+ * so no pending state and no frame in which the handle is live but empty.
+ */
+static int
+api_image_compose(
+    struct ToriRS_PluginCtx* ctx,
+    char const* name,
+    int w,
+    int h,
+    uint32_t const* argb)
+{
+    assert(ctx);
+    assert(name);
+    assert(argb);
+
+    struct ToriRS_PluginHost* host = ctx->host;
+    int slot = -1;
+    int free_slot = -1;
+
+    if( !plugin_asset_name_ok(ctx, name) )
+        return -1;
+    /* A size is a NUMBER the plugin computed -- from a config key, in every
+     * case this exists for -- so a silly one is bad input, not a bug in the
+     * caller's frame. The engine refuses it too; refusing here as well is what
+     * keeps a plugin from spending a slot on it. */
+    if( w <= 0 || h <= 0 || w > 4096 || h > 4096 )
+    {
+        fprintf(
+            stderr,
+            "plugin: %s composed image '%s' is %dx%d, which is not a picture\n",
+            ctx->name,
+            name,
+            w,
+            h);
+        return -1;
+    }
+
+    for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
+    {
+        if( host->images[i].plugin == ctx->index &&
+            strcmp(host->images[i].asset, name) == 0 )
+        {
+            slot = i;
+            break;
+        }
+        if( host->images[i].plugin < 0 && free_slot < 0 )
+            free_slot = i;
+    }
+    if( slot < 0 )
+        slot = free_slot;
+    if( slot < 0 )
+    {
+        fprintf(
+            stderr,
+            "plugin: %s image '%s' not composed, the resident image table is full "
+            "(%d)\n",
+            ctx->name,
+            name,
+            TORIRS_PLUGIN_IMAGES_MAX);
+        return -1;
+    }
+
+    if( !host->engine.image_publish_argb(host->engine.user, slot, w, h, argb) )
+        return -1;
+
+    host->images[slot].plugin = ctx->index;
+    snprintf(host->images[slot].asset, sizeof(host->images[slot].asset), "%s", name);
+    host->images[slot].width = w;
+    host->images[slot].height = h;
+    host->images[slot].published = true;
+    return slot;
+}
+
+static int
+api_image_pixels(struct ToriRS_PluginCtx* ctx, int image, uint32_t* out, int max)
+{
+    struct PluginImage const* slot = plugin_image_owned(ctx, image);
+
+    assert(out);
+    /* Still pending is the ORDINARY state for the first frames after a load,
+     * so it answers 0 rather than asserting -- the same answer, and for the
+     * same reason, that image_size gives while a read is in flight. */
+    if( !slot || !slot->published )
+        return 0;
+    if( max < slot->width * slot->height )
+        return 0;
+    return ctx->host->engine.image_read(ctx->host->engine.user, image, out, max);
+}
+
+static int
+api_image_size(struct ToriRS_PluginCtx* ctx, int image, int* out_w, int* out_h)
+{
+    struct PluginImage const* slot = plugin_image_owned(ctx, image);
+
+    if( out_w )
+        *out_w = slot ? slot->width : 0;
+    if( out_h )
+        *out_h = slot ? slot->height : 0;
+    return slot && slot->published ? 1 : 0;
+}
+
+static void
+api_image_release(struct ToriRS_PluginCtx* ctx, int image)
+{
+    if( !plugin_image_owned(ctx, image) )
+        return;
+    plugin_image_drop(ctx->host, image);
+}
+
+static int
+api_layout_slot_skin(
+    struct ToriRS_PluginCtx* ctx,
+    int slot,
+    int art,
+    int mask)
+{
+    assert(ctx);
+    assert(
+        ctx->host->layout_declaring &&
+        "layout_slot_skin is legal only inside EV_LAYOUT");
+    assert(ctx->host->layout_owner == ctx->index);
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_COUNT )
+        return 0;
+    /*
+     * Not resident yet is the ORDINARY state for the first frames after a
+     * load -- api_draw_image says the same and for the same reason -- so an
+     * image still crossing the IO queue leaves the surface as it was rather
+     * than skinning it with nothing. The layout pass runs again at the next
+     * resize or rebuild, which is when the handle has pixels behind it.
+     */
+    if( art >= 0 )
+    {
+        struct PluginImage const* image = plugin_image_owned(ctx, art);
+        if( !image || !image->published )
+            return 0;
+    }
+    if( mask >= 0 )
+    {
+        struct PluginImage const* image = plugin_image_owned(ctx, mask);
+        if( !image || !image->published )
+            return 0;
+    }
+    return ctx->host->engine.layout_slot_skin(ctx->host->engine.user, slot, art, mask);
+}
+
+static int
+api_layout_scrollbar(
+    struct ToriRS_PluginCtx* ctx,
+    int trough,
+    int dragger_top,
+    int dragger_mid,
+    int dragger_bottom,
+    int arrow_up,
+    int arrow_down)
+{
+    int images[6];
+
+    assert(ctx);
+    assert(
+        ctx->host->layout_declaring &&
+        "layout_scrollbar is legal only inside EV_LAYOUT");
+    assert(ctx->host->layout_owner == ctx->index);
+
+    images[0] = trough;
+    images[1] = dragger_top;
+    images[2] = dragger_mid;
+    images[3] = dragger_bottom;
+    images[4] = arrow_up;
+    images[5] = arrow_down;
+    for( int i = 0; i < 6; i++ )
+    {
+        struct PluginImage const* image;
+        /* Any piece missing clears the whole skin, which is what a layout with
+         * no scrollbar art asks for by passing -1 -- and also what a layout
+         * whose art has not crossed the IO queue yet gets, until it has. */
+        if( images[i] < 0 )
+            return ctx->host->engine.layout_scrollbar(ctx->host->engine.user, NULL, 0);
+        image = plugin_image_owned(ctx, images[i]);
+        if( !image || !image->published )
+            return ctx->host->engine.layout_scrollbar(ctx->host->engine.user, NULL, 0);
+    }
+    return ctx->host->engine.layout_scrollbar(
+        ctx->host->engine.user, images, 6);
+}
+
+static void
+api_draw_image(
+    struct ToriRS_PluginCtx* ctx,
+    void* surface,
+    int image,
+    int x,
+    int y,
+    int clip_x,
+    int clip_y,
+    int clip_w,
+    int clip_h,
+    int trans)
+{
+    struct PluginImage const* slot = plugin_image_owned(ctx, image);
+
+    if( !plugin_draw_allow(ctx, surface) )
+        return;
+    /* Not resident yet is the ORDINARY state for the first frames after a
+     * load, so it draws nothing rather than asserting. A handle this plugin
+     * does not own is the other thing plugin_image_owned answers with NULL,
+     * and that one it has already complained about. */
+    if( !slot || !slot->published )
+        return;
+    ctx->draw_used += ctx->host->engine.draw_image(
+        ctx->host->engine.user,
+        image,
+        x,
+        y,
+        slot->width,
+        slot->height,
+        clip_x,
+        clip_y,
+        clip_w,
+        clip_h,
+        trans);
+}
+
+/* -- canvas hit regions, and the one verb that acts -- */
+
+static int
+api_hit_region(
+    struct ToriRS_PluginCtx* ctx,
+    void* surface,
+    int x,
+    int y,
+    int w,
+    int h,
+    char const* const* ops,
+    int op_count,
+    uint32_t tag)
+{
+    assert(ctx);
+    /* The same window test the draw verbs make, and for the same reason: a
+     * region declared outside the draw dispatch would go into a list the
+     * engine has already read and answer clicks for a frame that is gone. */
+    assert(ctx->host->draw_surface);
+    assert(surface == ctx->host->draw_surface);
+    /* Legal on both screen surfaces and not on the world one. A layout draws
+     * its tab stones through EV_DRAW_FRAME and they have to be clickable, so
+     * the test is "not the world" rather than "the canvas": the world surface
+     * is cut to the viewport and its coordinates are the scene's, which is
+     * what a region cannot be expressed in. */
+    assert(
+        ctx->host->draw_canvas != PLUGIN_DRAW_SURFACE_WORLD &&
+        "a hit region is a rectangle of the SCREEN; the world surface has none");
+    (void)surface;
+
+    if( w <= 0 || h <= 0 )
+        return 0;
+    if( !ops || op_count < 0 )
+        op_count = 0;
+    if( op_count > TORIRS_PLUGIN_REGION_OPS_MAX )
+        op_count = TORIRS_PLUGIN_REGION_OPS_MAX;
+    return ctx->host->engine.hit_region(
+        ctx->host->engine.user, ctx->index, x, y, w, h, ops, op_count, tag);
+}
+
+static int
+api_if_click(struct ToriRS_PluginCtx* ctx, int component_id, int op)
+{
+    assert(ctx);
+    /* Both are numbers a plugin read out of its own config, so both are bad
+     * INPUT rather than broken contracts -- and a config that names no button
+     * is the ordinary case, not a fault. */
+    if( component_id < 0 || op < 0 || op > 10 )
+        return 0;
+    return ctx->host->engine.if_click(ctx->host->engine.user, component_id, op);
+}
+
 /* --------------------------------------------------------------- lifecycle */
 
 struct ToriRS_PluginHost*
@@ -1503,6 +3152,14 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine);
     assert(engine->world_cycle);
     assert(engine->frame_ms);
+    assert(engine->layout_set);
+    assert(engine->layout_begin);
+    assert(engine->layout_end);
+    assert(engine->layout_slot);
+    assert(engine->layout_slot_skin);
+    assert(engine->layout_scrollbar);
+    assert(engine->tab_active);
+    assert(engine->tab_select);
     assert(engine->local_player);
     assert(engine->npc_next);
     assert(engine->npc_by_slot);
@@ -1515,6 +3172,11 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->hover_tile);
     assert(engine->hover_entity);
     assert(engine->element_height);
+    assert(engine->feature_next);
+    assert(engine->feature_get);
+    assert(engine->feature_set);
+    assert(engine->display_setting);
+    assert(engine->display_setting_set);
     assert(engine->varbit);
     assert(engine->varp);
     assert(engine->project);
@@ -1527,6 +3189,13 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->asset_read);
     assert(engine->asset_write);
     assert(engine->screenshot);
+    assert(engine->model_publish);
+    assert(engine->model_release);
+    assert(engine->mesh_create);
+    assert(engine->mesh_destroy);
+    assert(engine->mesh_clear);
+    assert(engine->mesh_vertex);
+    assert(engine->mesh_face);
     assert(engine->object_create);
     assert(engine->object_destroy);
     assert(engine->object_set_model);
@@ -1539,12 +3208,50 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->object_ready);
     assert(engine->hsl_from_rgb);
     assert(engine->hsl_to_rgb);
+    assert(engine->mouse_pos);
+    assert(engine->minimap_rect);
+    assert(engine->slot_rect);
+    assert(engine->slot_member_rect);
+    assert(engine->component_rect);
+    assert(engine->role_rect);
+    assert(engine->role_visible);
+    assert(engine->role_click);
+    assert(engine->role_id);
+    assert(engine->stat);
+    assert(engine->stat_xp);
+    assert(engine->skill_name);
+    assert(engine->run_energy);
+    assert(engine->draw_select_canvas);
+    assert(engine->image_publish);
+    assert(engine->image_publish_argb);
+    assert(engine->image_read);
+    assert(engine->image_release);
+    assert(engine->draw_image);
+    assert(engine->hit_region);
+    assert(engine->if_click);
+    assert(engine->obj_info);
+    assert(engine->inv_slot);
+    assert(engine->inv_size);
 
     struct ToriRS_PluginHost* host = calloc(1, sizeof(*host));
     assert(host);
 
     host->engine = *engine;
     host->dispatching = -1;
+    /* Same trap as the image slots below: 0 is a plugin index, so a calloc'd
+     * owner would mean "the first plugin registered owns the gameframe" and
+     * every lane would boot with its own chrome suppressed. */
+    host->layout_owner = -1;
+    /* 0 is a real plugin index, so an empty reservation row needs a value of
+     * its own rather than the calloc's zero. */
+    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
+        host->reserves[i].plugin = -1;
+    /* -1 is the free marker and 0 is plugin index zero, so the calloc above
+     * would have handed every image slot to the first plugin registered. */
+    for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
+        host->images[i].plugin = -1;
+    for( int i = 0; i < TORIRS_PLUGIN_MODELS_MAX; i++ )
+        host->models[i].plugin = -1;
 
     struct ToriRS_PluginApi api = {
         .abi_version = TORIRS_PLUGIN_ABI,
@@ -1564,14 +3271,48 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .hover_tile = api_hover_tile,
         .hover_entity = api_hover_entity,
         .element_height = api_element_height,
+        .mouse_pos = api_mouse_pos,
+        .minimap_rect = api_minimap_rect,
+        .slot_rect = api_slot_rect,
+        .slot_member_rect = api_slot_member_rect,
+        .component_rect = api_component_rect,
+        .role_rect = api_role_rect,
+        .role_visible = api_role_visible,
+        .role_click = api_role_click,
+        .role_id = api_role_id,
+        .layout_reserve = api_layout_reserve,
+        .layout_revision = api_layout_revision,
+        .layout_claim = api_layout_claim,
+        .layout_release = api_layout_release,
+        .layout_owned = api_layout_owned,
+        .layout_slot = api_layout_slot,
+        .layout_slot_at = api_layout_slot_at,
+        .layout_slot_skin = api_layout_slot_skin,
+        .layout_scrollbar = api_layout_scrollbar,
+        .tab_active = api_tab_active,
+        .tab_select = api_tab_select,
+        .stat = api_stat,
+        .stat_xp = api_stat_xp,
+        .skill_name = api_skill_name,
+        .run_energy = api_run_energy,
         .project = api_project,
         .cfg_bool = api_cfg_bool,
         .cfg_int = api_cfg_int,
         .cfg_color = api_cfg_color,
         .cfg_str = api_cfg_str,
+        .cfg_has = api_cfg_has,
         .cfg_set = api_cfg_set,
+        .feature_next = api_feature_next,
+        .feature_get = api_feature_get,
+        .feature_set = api_feature_set,
+        .display_setting = api_display_setting,
+        .display_setting_set = api_display_setting_set,
         .varbit = api_varbit,
         .varp = api_varp,
+        .cache_id = api_cache_id,
+        .obj_info = api_obj_info,
+        .inv_slot = api_inv_slot,
+        .inv_size = api_inv_size,
         .setting_color = api_setting_color,
         .menu_add = api_menu_add,
         .draw_tile = api_draw_tile,
@@ -1579,12 +3320,26 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .draw_line = api_draw_line,
         .draw_text = api_draw_text,
         .draw_rect = api_draw_rect,
+        .image_load = api_image_load,
+        .image_compose = api_image_compose,
+        .image_pixels = api_image_pixels,
+        .image_size = api_image_size,
+        .image_release = api_image_release,
+        .draw_image = api_draw_image,
+        .hit_region = api_hit_region,
+        .if_click = api_if_click,
         .asset_load = api_asset_load,
         .asset_data = api_asset_data,
         .asset_save = api_asset_save,
         .asset_release = api_asset_release,
         .screenshot = api_screenshot,
         .datestamp = api_datestamp,
+        .model_load = api_model_load,
+        .mesh_create = api_mesh_create,
+        .mesh_destroy = api_mesh_destroy,
+        .mesh_clear = api_mesh_clear,
+        .mesh_vertex = api_mesh_vertex,
+        .mesh_face = api_mesh_face,
         .object_create = api_object_create,
         .object_destroy = api_object_destroy,
         .object_set_model = api_object_set_model,
@@ -1632,9 +3387,14 @@ PluginHost_Free(struct ToriRS_PluginHost* host)
             ctx->def->shutdown(ctx);
         ctx->running = false;
         plugin_objects_destroy_all(host, ctx);
+        plugin_meshes_destroy_all(host, ctx);
     }
     for( int i = host->asset_count - 1; i >= 0; i-- )
         plugin_asset_drop(host, &host->assets[i]);
+    for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
+        plugin_image_drop(host, i);
+    for( int i = 0; i < TORIRS_PLUGIN_MODELS_MAX; i++ )
+        plugin_model_drop(host, i);
     free(host);
 }
 
@@ -1832,10 +3592,29 @@ plugin_teardown(struct ToriRS_PluginHost* host, int plugin_index)
     /* Geometry and bytes go out with the subscriptions, and for the same
      * reason: nothing is left running that could remove them later. */
     plugin_objects_destroy_all(host, ctx);
+    plugin_meshes_destroy_all(host, ctx);
     plugin_assets_drop_plugin(host, plugin_index);
+    plugin_images_drop_plugin(host, plugin_index);
+    /* Reservations go too, and that is what makes `reserve` safe to use: a
+     * dock that is switched off gives its edge back without anybody asking,
+     * and the readouts beside it widen on the next frame. */
+    plugin_reserves_drop_plugin(host, plugin_index);
+    plugin_models_drop_plugin(host, plugin_index);
     /* The tab goes with them: a stopped plugin's controls would otherwise sit
      * in the window still taking clicks, dispatching to a plugin that is not
      * running and silently doing nothing. */
+    /* The frame goes back to the lane. A layout plugin that stopped while
+     * holding it would leave the client with the client's chrome suppressed
+     * and nobody drawing any: a black surround and an inventory floating in
+     * it. */
+    if( host->layout_owner == plugin_index )
+    {
+        host->layout_owner = -1;
+        host->layout_canvas = TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW;
+        host->layout_fixed_w = 0;
+        host->layout_fixed_h = 0;
+        plugin_layout_publish(host);
+    }
     plugin_win_drop(host, plugin_index);
     if( host->win_tab[plugin_index] )
     {
@@ -1853,6 +3632,15 @@ PluginHost_SetEnabled(struct ToriRS_PluginHost* host, int plugin_index, bool ena
 
     struct ToriRS_PluginCtx* ctx = plugin_at(host, plugin_index);
     if( ctx->enabled == enabled )
+        return;
+
+    /*
+     * An essential plugin has one state. Refused rather than asserted because
+     * the ask does not only come from the panel -- which draws no switch for
+     * it -- but from a plugin_prefs.ini written by a build where the plugin
+     * was ordinary, and a saved line is not a caller's bug to abort on.
+     */
+    if( !enabled && ctx->def->essential )
         return;
 
     /* Enable state is saved state: without this a panel toggle would hold for
@@ -1986,6 +3774,15 @@ PluginHost_IsHidden(struct ToriRS_PluginHost const* host, int plugin_index)
     assert(plugin_index >= 0);
     assert(plugin_index < host->plugin_count);
     return host->plugins[plugin_index].def->hidden;
+}
+
+bool
+PluginHost_IsEssential(struct ToriRS_PluginHost const* host, int plugin_index)
+{
+    assert(host);
+    assert(plugin_index >= 0);
+    assert(plugin_index < host->plugin_count);
+    return host->plugins[plugin_index].def->essential;
 }
 
 char const*
@@ -2278,9 +4075,205 @@ PluginHost_DrawWorld(struct ToriRS_PluginHost* host)
      * the same assert that catches drawing outside the window. */
     struct ToriRS_PluginEvDraw ev;
     host->draw_surface = host;
+    host->draw_canvas = PLUGIN_DRAW_SURFACE_WORLD;
     ev.surface = host;
+    host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_WORLD);
     plugin_dispatch(host, TORIRS_PLUGIN_EV_DRAW_WORLD, &ev);
     host->draw_surface = NULL;
+}
+
+void
+PluginHost_DrawCanvas(struct ToriRS_PluginHost* host, int width, int height)
+{
+    if( !host || host->sub_count[TORIRS_PLUGIN_EV_DRAW_CANVAS] == 0 )
+        return;
+
+    /*
+     * A DIFFERENT token from the world surface's, and that is the point: the
+     * token is compared, never dereferenced, so `&host->api` here and `host`
+     * there is all it takes for a handler that kept the wrong event's surface
+     * to be caught by the same assert that catches drawing outside a window.
+     */
+    struct ToriRS_PluginEvDrawCanvas ev;
+    host->draw_surface = &host->api;
+    host->draw_canvas = PLUGIN_DRAW_SURFACE_CANVAS;
+    ev.surface = &host->api;
+    ev.width = width;
+    ev.height = height;
+    host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_CANVAS);
+    plugin_dispatch(host, TORIRS_PLUGIN_EV_DRAW_CANVAS, &ev);
+    host->draw_surface = NULL;
+    host->draw_canvas = PLUGIN_DRAW_SURFACE_WORLD;
+    host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_WORLD);
+}
+
+void
+PluginHost_DrawFrame(struct ToriRS_PluginHost* host, int width, int height)
+{
+    struct ToriRS_PluginEvDrawCanvas ev;
+
+    if( !host || host->layout_owner < 0 )
+        return;
+    if( host->sub_count[TORIRS_PLUGIN_EV_DRAW_FRAME] == 0 )
+        return;
+
+    /* A third token, for the third surface, on the same reasoning as the
+     * canvas one: compared and never dereferenced, so three distinct addresses
+     * are the whole mechanism that catches a handler which kept the wrong
+     * event's surface. */
+    host->draw_surface = &host->engine;
+    host->draw_canvas = PLUGIN_DRAW_SURFACE_FRAME;
+    ev.surface = &host->engine;
+    ev.width = width;
+    ev.height = height;
+    host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_FRAME);
+    /* The owner and nobody else. Chrome drawn under the interfaces of a frame
+     * somebody else is arranging is chrome in the wrong place. */
+    plugin_dispatch_one(host, host->layout_owner, TORIRS_PLUGIN_EV_DRAW_FRAME, &ev);
+    host->draw_surface = NULL;
+    host->draw_canvas = PLUGIN_DRAW_SURFACE_WORLD;
+    host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_WORLD);
+}
+
+void
+PluginHost_LayoutChanged(struct ToriRS_PluginHost* host)
+{
+    struct ToriRS_PluginEvTick ev;
+
+    if( !host )
+        return;
+
+    /*
+     * The revision moves for EVERY change, including one made from inside the
+     * notification. Readers compare it and re-read a live region, so they are
+     * correct either way.
+     */
+    host->layout_revision++;
+    if( host->sub_count[TORIRS_PLUGIN_EV_LAYOUT_CHANGED] == 0 )
+        return;
+
+    /*
+     * The EVENT does not nest, and this is not a nicety.
+     *
+     * A cooperative layout invites exactly the shape that would spin: a dock
+     * hears that the safe region moved, recalculates the width it wants, and
+     * reserves -- which changes the layout, which notifies it again. Two docks
+     * responding to each other need not even disagree to do it forever.
+     *
+     * Coalescing rather than refusing: the claim is still recorded and the
+     * revision still moves, so the next read -- and every read is live -- sees
+     * it. What is dropped is only the second telling, which every subscriber
+     * is about to be told anyway.
+     */
+    if( host->layout_notifying )
+        return;
+    host->layout_notifying = 1;
+    ev.cycle = host->layout_revision;
+    plugin_dispatch(host, TORIRS_PLUGIN_EV_LAYOUT_CHANGED, &ev);
+    host->layout_notifying = 0;
+}
+
+void
+PluginHost_Layout(struct ToriRS_PluginHost* host, int width, int height)
+{
+    struct ToriRS_PluginEvLayout ev;
+
+    if( !host || host->layout_owner < 0 )
+        return;
+    /*
+     * A canvas of nothing is refused rather than laid out against.
+     *
+     * Every anchor in a resizable layout is measured from an edge, so a zero
+     * canvas does not produce a small frame -- it produces one at negative
+     * coordinates, declared and drawn and invisible. Saying so is the
+     * difference between a caller that fixes its call and one that spends an
+     * afternoon looking at the plugin.
+     */
+    if( host->layout_canvas != TORIRS_PLUGIN_CANVAS_FIXED && (width <= 0 || height <= 0) )
+    {
+        fprintf(
+            stderr,
+            "plugin: %s asked to lay out against a %dx%d canvas; nothing declared\n",
+            host->plugins[host->layout_owner].name,
+            width,
+            height);
+        return;
+    }
+
+    /*
+     * FIXED reads back its own pinned size, not the window's.
+     *
+     * The alternative -- handing over whatever the platform last set -- makes
+     * the plugin's arithmetic depend on when in the boot it was asked, because
+     * the canvas is not pinned until the engine has acted on the claim. A
+     * layout that asked for 765x503 is entitled to be told 765x503 the first
+     * time it is asked, and every time after.
+     */
+    if( host->layout_canvas == TORIRS_PLUGIN_CANVAS_FIXED )
+    {
+        ev.width = host->layout_fixed_w;
+        ev.height = host->layout_fixed_h;
+    }
+    else
+    {
+        ev.width = width;
+        ev.height = height;
+    }
+    ev.canvas = host->layout_canvas;
+
+    /* Empty first, apply after: the dispatch is the whole declaration, so a
+     * slot the handler does not mention this time is one the frame no longer
+     * has. @see EV_LAYOUT. */
+    host->engine.layout_begin(host->engine.user);
+    host->layout_declaring = 1;
+    plugin_dispatch_one(host, host->layout_owner, TORIRS_PLUGIN_EV_LAYOUT, &ev);
+    host->layout_declaring = 0;
+    host->engine.layout_end(host->engine.user);
+}
+
+int
+PluginHost_LayoutOwner(struct ToriRS_PluginHost const* host)
+{
+    return host ? host->layout_owner : -1;
+}
+
+void
+PluginHost_CanvasClick(
+    struct ToriRS_PluginHost* host, int plugin_index, uint32_t tag, int op, int x, int y)
+{
+    struct ToriRS_PluginCtx* ctx;
+    struct ToriRS_PluginEvCanvasClick ev;
+    int prev;
+
+    if( !host )
+        return;
+    if( plugin_index < 0 || plugin_index >= host->plugin_count )
+        return;
+
+    ctx = &host->plugins[plugin_index];
+    /* A region outlives the frame it was declared in by one -- the menu is
+     * built from the previous frame's list -- so a plugin disabled in between
+     * can still be named by a click. It hears nothing. */
+    if( !ctx->enabled || !ctx->running )
+        return;
+
+    ev.tag = tag;
+    ev.op = op;
+    ev.x = x;
+    ev.y = y;
+    prev = host->dispatching;
+    host->dispatching = plugin_index;
+    /* Only the plugin that declared the region, like EV_ASSET and EV_UI: a
+     * click on one plugin's orb is not news to another. */
+    for( int i = 0; i < host->sub_count[TORIRS_PLUGIN_EV_CANVAS_CLICK]; i++ )
+    {
+        struct PluginSub const* sub = &host->subs[TORIRS_PLUGIN_EV_CANVAS_CLICK][i];
+        if( sub->plugin != plugin_index )
+            continue;
+        if( sub->handler(ctx, &ev, sub->userdata) == TORIRS_PLUGIN_CONSUME )
+            break;
+    }
+    host->dispatching = prev;
 }
 
 void
@@ -2409,7 +4402,12 @@ PluginHost_ConfigApply(
      * panel toggles and what a crashed script gets cleared by. */
     if( strcmp(key, "enabled") == 0 )
     {
-        ctx->enabled = atoi(value) != 0;
+        /* Same refusal as PluginHost_SetEnabled, and it has to be here too:
+         * this path writes the field directly, so an `enabled=0` left over
+         * from a build where the plugin was ordinary would switch it off
+         * behind both the panel and the host. */
+        if( !ctx->def->essential )
+            ctx->enabled = atoi(value) != 0;
         return;
     }
 
@@ -2522,8 +4520,9 @@ PluginHost_ConfigEncode(struct ToriRS_PluginHost const* host, void** out_data, i
     assert(out_data);
     assert(out_size);
 
-    /* Bounded by the store's own fixed caps, so one sizing pass is enough. */
-    size_t cap = 128;
+    /* Bounded by the store's own fixed caps, so one sizing pass is enough.
+     * The 512 is the banner below, which is written whatever the store holds. */
+    size_t cap = 512;
     for( int i = 0; i < host->plugin_count; i++ )
         cap += 96 + (size_t)host->plugins[i].config_count *
                         (64 + TORIRS_PLUGIN_CONFIG_VALUE_MAX + 4);
@@ -2532,7 +4531,20 @@ PluginHost_ConfigEncode(struct ToriRS_PluginHost const* host, void** out_data, i
     assert(buf);
 
     size_t at = 0;
-    at += (size_t)snprintf(buf + at, cap - at, "; torirs plugin settings\n");
+    /* A banner rather than nothing, because this file is REWRITTEN on every
+     * save: a comment somebody adds by hand to remind themselves what a value
+     * may say is gone at the next launch, so the reminder has to be written
+     * from here to survive. */
+    at += (size_t)snprintf(
+        buf + at,
+        cap - at,
+        "; torirs plugin settings\n"
+        ";\n"
+        "; A numeric value is an integer expression, as in a revconfig profile:\n"
+        ";   12   0x1F   1Fh   0b1010   #FF8000   1 << 4   (1088 << 16) | 255\n"
+        ";   rgb(255, 128, 0)   rgba(0, 0, 0, 128)   hsl16(hue, sat, lum)\n"
+        "; Colours are read as 0xRRGGBB; hsl16() packs the client's own palette\n"
+        "; index (hue 0..63, saturation 0..7, lightness 0..127).\n");
 
     for( int i = 0; i < host->plugin_count; i++ )
     {

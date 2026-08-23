@@ -70,12 +70,12 @@ RSCache_Dat2ConfigHitsplatInit(struct RSCache_Dat2ConfigHitsplat* entry)
      * policy of "overwrite the lowest cycle", neither of which is the default
      * behaviour. */
     entry->sprite_id = -1;
-    entry->opcode_1 = -1;
-    entry->colour = 0xFFFFFF;
-    entry->opcode_3 = -1;
-    entry->opcode_4 = -1;
-    entry->opcode_6 = -1;
-    entry->opcode_11_14 = -1;
+    entry->font_id = -1;
+    entry->text_colour = 0xFFFFFF;
+    entry->icon_sprite_id = -1;
+    entry->left_sprite_id = -1;
+    entry->right_sprite_id = -1;
+    entry->fade_after = -1;
     entry->duration = 70;
     entry->slot_policy = -1;
     entry->variant_fallback = -1;
@@ -165,32 +165,32 @@ RSCache_Dat2ConfigHitsplatDecodeOp(
     switch( opcode )
     {
     case 1:
-        entry->opcode_1 = g2(buffer);
-        entry->has_opcode_1 = true;
+        entry->font_id = g2(buffer);
+        entry->has_font = true;
         break;
     case 2:
         /* The one width with no measured sibling — see the header. */
-        entry->colour = g3(buffer);
-        entry->has_colour = true;
+        entry->text_colour = g3(buffer);
+        entry->has_text_colour = true;
         break;
     case 3:
-        entry->opcode_3 = g2(buffer);
-        entry->has_opcode_3 = true;
+        entry->icon_sprite_id = g2(buffer);
+        entry->has_icon_sprite = true;
         break;
     case 4:
-        entry->opcode_4 = g2(buffer);
-        entry->has_opcode_4 = true;
+        entry->left_sprite_id = g2(buffer);
+        entry->has_left_sprite = true;
         break;
     case 5:
         entry->sprite_id = g2(buffer);
         break;
     case 6:
-        entry->opcode_6 = g2(buffer);
-        entry->has_opcode_6 = true;
+        entry->right_sprite_id = g2(buffer);
+        entry->has_right_sprite = true;
         break;
     case 7:
-        entry->opcode_7 = g2(buffer);
-        entry->has_opcode_7 = true;
+        entry->drift_x = g2(buffer);
+        entry->has_drift_x = true;
         break;
     case 8:
         if( !hitsplat_read_text(entry, buffer) )
@@ -201,27 +201,27 @@ RSCache_Dat2ConfigHitsplatDecodeOp(
         entry->has_duration = true;
         break;
     case 10:
-        entry->opcode_10 = g2(buffer);
-        entry->has_opcode_10 = true;
+        entry->drift_up = g2(buffer);
+        entry->has_drift_up = true;
         break;
     case 11:
         /* The reference sets the field to 0 here, with no operand. Opcode 14
          * sets the same field with a u16, so the two are distinguished for the
          * encoder rather than collapsed. */
-        entry->opcode_11_14 = 0;
-        entry->has_opcode_11_flag = true;
+        entry->fade_after = 0;
+        entry->has_fade_flag = true;
         break;
     case 12:
         entry->slot_policy = g1(buffer);
         entry->has_slot_policy = true;
         break;
     case 13:
-        entry->opcode_13 = g2(buffer);
-        entry->has_opcode_13 = true;
+        entry->text_offset_y = g2(buffer);
+        entry->has_text_offset_y = true;
         break;
     case 14:
-        entry->opcode_11_14 = g2(buffer);
-        entry->has_opcode_14 = true;
+        entry->fade_after = g2(buffer);
+        entry->has_fade_after = true;
         break;
     case 17:
     case 18:
@@ -282,28 +282,28 @@ hitsplat_write_opcode(
     switch( opcode )
     {
     case 1:
-        if( !entry->has_opcode_1 )
+        if( !entry->has_font )
             return false;
         p1(buffer, 1);
-        p2(buffer, entry->opcode_1);
+        p2(buffer, entry->font_id);
         return true;
     case 2:
-        if( !entry->has_colour )
+        if( !entry->has_text_colour )
             return false;
         p1(buffer, 2);
-        p3(buffer, entry->colour);
+        p3(buffer, entry->text_colour);
         return true;
     case 3:
-        if( !entry->has_opcode_3 )
+        if( !entry->has_icon_sprite )
             return false;
         p1(buffer, 3);
-        p2(buffer, entry->opcode_3);
+        p2(buffer, entry->icon_sprite_id);
         return true;
     case 4:
-        if( !entry->has_opcode_4 )
+        if( !entry->has_left_sprite )
             return false;
         p1(buffer, 4);
-        p2(buffer, entry->opcode_4);
+        p2(buffer, entry->left_sprite_id);
         return true;
     case 5:
         if( entry->sprite_id < 0 )
@@ -312,16 +312,16 @@ hitsplat_write_opcode(
         p2(buffer, entry->sprite_id);
         return true;
     case 6:
-        if( !entry->has_opcode_6 )
+        if( !entry->has_right_sprite )
             return false;
         p1(buffer, 6);
-        p2(buffer, entry->opcode_6);
+        p2(buffer, entry->right_sprite_id);
         return true;
     case 7:
-        if( !entry->has_opcode_7 )
+        if( !entry->has_drift_x )
             return false;
         p1(buffer, 7);
-        p2(buffer, entry->opcode_7);
+        p2(buffer, entry->drift_x);
         return true;
     case 8:
     {
@@ -341,13 +341,13 @@ hitsplat_write_opcode(
         p2(buffer, entry->duration);
         return true;
     case 10:
-        if( !entry->has_opcode_10 )
+        if( !entry->has_drift_up )
             return false;
         p1(buffer, 10);
-        p2(buffer, entry->opcode_10);
+        p2(buffer, entry->drift_up);
         return true;
     case 11:
-        if( !entry->has_opcode_11_flag )
+        if( !entry->has_fade_flag )
             return false;
         p1(buffer, 11);
         return true;
@@ -358,16 +358,16 @@ hitsplat_write_opcode(
         p1(buffer, entry->slot_policy);
         return true;
     case 13:
-        if( !entry->has_opcode_13 )
+        if( !entry->has_text_offset_y )
             return false;
         p1(buffer, 13);
-        p2(buffer, entry->opcode_13);
+        p2(buffer, entry->text_offset_y);
         return true;
     case 14:
-        if( !entry->has_opcode_14 )
+        if( !entry->has_fade_after )
             return false;
         p1(buffer, 14);
-        p2(buffer, entry->opcode_11_14);
+        p2(buffer, entry->fade_after);
         return true;
     case 17:
     case 18:

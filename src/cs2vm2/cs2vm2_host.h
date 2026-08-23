@@ -371,6 +371,16 @@ enum CS2VM_HostRequestKind
      * or -1. Clientscript 5210 guards it as `if (_3330 ! null)` before marking
      * the destination tile, so the absent case must be -1 and not tile zero. */
     CS2VM_HOST_REQUEST_DEST_COORD,
+    /*
+     * The ACTIVE PLAYER's route, and the two player uids (6902..6905).
+     *
+     * `_6902` is that player's route length and `_6903(index)` the packed
+     * world coord of one route entry; `_6904` is the active player's uid and
+     * `_6905` the local player's, which is how a per-player trigger script
+     * asks "is this me". See rs_cs2_host.h's `player_route` for what a route
+     * is and why index 0 is the tile the server last put the player on.
+     */
+    CS2VM_HOST_REQUEST_ACTIVE_PLAYER,
     /* STAT / STAT_BASE / STAT_XP (3305-3307): the skill a script is asking
      * about. `stat` is the protocol's skill index — the same one UPDATE_STAT
      * carries. */
@@ -499,7 +509,11 @@ enum CS2VM_HostRequestKind
     /*
      * The client op's SUBJECT, read from inside the script one just ran:
      * `_6750..6753` (npc name / uid / coord / type), `_6800..6802` (loc),
-     * `_6850..6852` (obj), `_6900 / _6902` (player), `_6950` (tile).
+     * `_6850..6852` (obj), `_6900` (player name), `_6950` (tile).
+     *
+     * `_6902` is NOT one of these, though it sits in the player block: it is
+     * the active player's ROUTE LENGTH and is answered by
+     * CS2VM_HOST_REQUEST_ACTIVE_PLAYER.
      *
      * They take no arguments and answer about the op being dispatched RIGHT
      * NOW -- there is no handle, because a client op's script is only ever run
@@ -1448,6 +1462,17 @@ struct CS2VM_HostRequest_Highlight
     int args[CS2VM_HIGHLIGHT_ARG_MAX];
     int arg_count;
     bool query;
+    /**
+     * The subject the PLAYER family's ON / OFF / GET take off the STRING
+     * stack, and NULL for every other form.
+     *
+     * Borrowed from the VM's string pool, like CS2VM_HostRequest_Loot::name:
+     * the pool entry dies with the frame, so a host that keeps it must copy
+     * it. This used to be popped and dropped on the floor, which left
+     * `highlight_player_on(_6900, 5)` -- the mouse-over player highlight --
+     * with no subject to record.
+     */
+    char* name;
 };
 
 /**
@@ -1564,6 +1589,14 @@ struct CS2VM_HostRequest_ClientOp
 struct CS2VM_HostRequest_ClientOpContext
 {
     int opcode;
+};
+
+/** 6902..6905. `index` is `_6903`'s route index and -1 for the three forms
+ *  that pop nothing. */
+struct CS2VM_HostRequest_ActivePlayer
+{
+    int opcode;
+    int index;
 };
 
 /** Any loot-tracker opcode (7400-family + 7600-family). `name` is borrowed
@@ -1737,6 +1770,7 @@ struct CS2VM_HostRequest
         struct CS2VM_HostRequest_SafeArea safearea;
         struct CS2VM_HostRequest_ClientOp clientop;
         struct CS2VM_HostRequest_ClientOpContext clientop_context;
+        struct CS2VM_HostRequest_ActivePlayer active_player;
         struct CS2VM_HostRequest_Social social;
         struct CS2VM_HostRequest_Chat chat;
         struct CS2VM_HostRequest_ResumeCountDialog resume_countdialog;

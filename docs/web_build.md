@@ -108,7 +108,7 @@ What the web block swaps:
 ## Running it
 
 ```sh
-./run-live.sh web manifests/manifest_rs254.ini asdf a --offline
+./run-live.sh web manifests/manifest_rs254lc.ini asdf a --offline
 ```
 
 Same script, same arguments as a native run — `web` is the only difference. It
@@ -129,7 +129,7 @@ By hand, if you want the pieces separately:
 ```sh
 make -C src web
 make -C src io-server
-./src/build/io_server --manifest manifests/manifest_rs254.ini      # http://localhost:8088/
+./src/build/io_server --manifest manifests/manifest_rs254lc.ini      # http://localhost:8088/
 ```
 
 The server serves `build-web/` over `GET` and answers cache reads on `POST /io`.
@@ -159,7 +159,7 @@ may contain a comma, a space or an `&` — a password, a `TORIRS_NET_CHEAT`
 string. `run-live.sh` forwards every `TORIRS_*` variable in its environment the
 same way, so `TORIRS_BOOT_STATS=1 ./run-live.sh web …` behaves as it does
 natively. With no query at all the default is
-`--manifest manifests/manifest_rs254.ini --offline`.
+`--manifest manifests/manifest_rs254lc.ini --offline`.
 
 ### Arguments carried by a manifest
 
@@ -209,7 +209,7 @@ into the virtual filesystem before `main()` runs. Any manifest works against
 any build, and a new one needs no rebuild.
 
 ```
-torirs: boot files manifests/manifest_rs254.ini v0/osrs/revconfig/configs/rev_245_2/rev_245_2_dat1_ui.ini …
+torirs: boot files manifests/manifest_rs254lc.ini revconfig/rs245_2lc/rs245_2lc_dat1_ui.ini …
 ```
 
 `--boot-root` (default the working directory) is where the server reads those
@@ -557,7 +557,7 @@ So a browser run against either is one command:
 
 ```sh
 ./run-live.sh web manifests/manifest_osrs230.ini testc test   # the in-repo mock
-./run-live.sh web manifests/manifest_rs254.ini   matt5 zuk    # a real LostCity server
+./run-live.sh web manifests/manifest_rs254lc.ini   matt5 zuk    # a real LostCity server
 ```
 
 each of which builds what is missing, starts the IO server (and, for local live

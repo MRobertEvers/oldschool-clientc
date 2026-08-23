@@ -215,7 +215,7 @@ Task_UITreeBuild_Run(
 
     /* 6. Player-preview components idle with the player readyanim, not whatever
      * sequence an onLoad script set (TS parity — see uitree_builder_bake.h). */
-    uitree_builder_reassert_player_idle_anim(self->builder->tree);
+    uitree_builder_reassert_player_idle_anim(self->builder->tree, self->builder->bridge);
 
     /* 7. Final layout: the onLoad scripts above resize and reposition nodes. */
     UITree_LayoutResolve(

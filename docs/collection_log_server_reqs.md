@@ -1,5 +1,27 @@
 # Collection Log (`collection` 621, `collection_overview` 908): what the server owes
 
+> **UPDATE 2026-08-22 — every varp the client reads is now written.** The five
+> rows §3 still owed are in `interface_collection/`: the twelve
+> `collection_overview_last_itemN_date` varps (`~collection_ring_push` shifts
+> both columns together and stamps the head), `%current_runeday`
+> (`~collection_runeday`), `%collection_player_bodytype` (`gender()` at login),
+> the five subsection counters (`~collection_bump_sections` on a first find),
+> and the `%collection_category_count` / `%collection_personal_best_transmit`
+> mailbox (declared `scope=temp`, cleared by `~collection_mailbox_push` from
+> the draw path). **Varbit 9535 is fourteen bits wide and
+> `ToriRSServer_VarbitSetOn` masks rather than refuses**, so the runeday is
+> counted from the client's own 27 Feb 2002 epoch
+> (`^collection_runeday_epoch`); `date_runeday()` here answers days since the
+> *Unix* epoch and would have stored ~20700 as ~4300, silently. Permanent
+> check: `[proc,selftest_collection_varps]`, nine steps, registered in
+> `torirs_server_world_selftest.c`. Setting the epoch to 0 takes it red at step
+> 2, which is how the truncation was confirmed rather than assumed.
+>
+> What is still open is a *source* for the mailbox, not the mailbox: this tree
+> has no kill-count or personal-best subsystem, so the panel draws
+> "<boss> kills: 0" and "Personal Best: N/A" — correct-for-nothing-recorded
+> rather than the previous source's numbers under this source's labels.
+>
 > **UPDATE 2026-08-03 — item-grid Check armed.** `~collection_arm` now
 > `if_setevents`s `collection:items_contents` (`0..512`, `^if_event_op1`) so
 > script_2732's CS2 `cc_setop(1, "Check")` survives the minimenu mask. Without
@@ -66,8 +88,8 @@
 
 | interface | id | status | what's missing |
 |---|---|---|---|
-| `collection` (detail view) | 621 | **landed** (open + body draw via 7798 + tab/list/close; tabs + items_contents IF_SETEVENTS-armed) | per-source kill-count/PB scratch; earn hooks beyond default death |
-| `collection_overview` (summary grid) | 908 | **landed** (open + ring/counts) | same |
+| `collection` (detail view) | 621 | **landed** (open + body draw via 7798 + tab/list/close; tabs + items_contents IF_SETEVENTS-armed; every varp written) | a kill-count/PB source for the mailbox; earn hooks beyond default death |
+| `collection_overview` (summary grid) | 908 | **landed** (open + ring/counts/dates + subsection rings) | same |
 
 ---
 
@@ -149,11 +171,11 @@ grows forever, must persist indefinitely. Persistence callers exist now
 | container **620** (`collection_transmit`, 500 slots) | the load-bearing per-item obtained+count state | generic container wire, same as bank | **landed** — registry resolve-or-create; persists as `[container.620]`; selftested |
 | `%collection_count`/`_max` | overview "Collections Logged: N/M" | generic varp transmit | **landed** — `interface_collection/`; max from catalog enums |
 | `%collection_count_highscores` (Account Summary's own line) | kept in lockstep with `%collection_count` on earn/login | generic varp transmit | **landed** |
-| per-subsection counts (Bosses/Raids/Clues/Minigames/Other ×2 each) | the 5 progress rings | generic varp transmit | **declared**; subsection bump on earn still open |
-| 12-slot "Latest Collections" ring (item + day-obtained ×12) | the overview's recent-items strip | generic varp transmit | **landed** item ring; day-obtained pairing still open |
-| `%varbit9535` (`current_runeday`) | "obtained N days ago" display | pre-existing systemwide clock | not confirmed landed |
-| per-source kill-count/PB scratch varps (`%collection_category_count` family) | a **transmit mailbox** — server copies the selected source's real counter into shared scratch varps on demand | generic varp transmit | not declared; kill-count infrastructure still absent |
-| `%varbit14577` (`collection_player_bodytype`) | gendered item-variant substitution for counting | generic varbit transmit | **declared** on the collection carrier |
+| per-subsection counts (Bosses/Raids/Clues/Minigames/Other ×2 each) | the 5 progress rings | generic varp transmit | **landed** — maxes from the catalog at login, current bumped by `~collection_bump_sections` on a first find (every tab whose catalog holds the obj) |
+| 12-slot "Latest Collections" ring (item + day-obtained ×12) | the overview's recent-items strip | generic varp transmit | **landed** — both columns shift in `~collection_ring_push`, head stamped with `~collection_runeday` |
+| `%varbit9535` (`current_runeday`) | "obtained N days ago" display | pre-existing systemwide clock | **landed** — written at login from `~collection_runeday`; 14-bit field, so counted from the 2002 epoch, not `date_runeday()` raw |
+| per-source kill-count/PB scratch varps (`%collection_category_count` family) | a **transmit mailbox** — server copies the selected source's real counter into shared scratch varps on demand | generic varp transmit | **declared** `scope=temp` and cleared per selection by `~collection_mailbox_push`, called from `~collection_draw`; kill-count infrastructure still absent, so it fills with zeroes |
+| `%varbit14577` (`collection_player_bodytype`) | gendered item-variant substitution for counting | generic varbit transmit | **landed** — `gender()` at login |
 | point-of-earning trigger | write the slot + message the player | content | **partial** — `~collection_earn` + `::collect` + catalog-guarded hook on `~npc_default_death`; per-table drops ongoing |
 
 The transport for every varp/varbit row is generic and already works. The
@@ -166,9 +188,12 @@ container is no longer novel engine surface — see
   body-draw bootstrap (`runclientscript*` 7798 + tab/list/close handlers),
   category-tab `IF_SETEVENTS` arming in `~collection_arm`, aggregate varps,
   catalog-derived `%collection_count_max`, `~collection_earn` / `::collect`,
-  default-death catalog hook, Character Summary ops that mount the panels.
-- **Gap, content**: earn hooks in every `drop_tables/` script; subsection
-  counter bumps on first find; kill-count/PB mailbox; day-obtained ring half.
+  default-death catalog hook, Character Summary ops that mount the panels,
+  subsection counters, the ring's date column, `%current_runeday`,
+  `%collection_player_bodytype`, and the kill-count/PB mailbox as a cleared
+  seam.
+- **Gap, content**: earn hooks in every `drop_tables/` script; a kill-count and
+  personal-best subsystem for `~collection_mailbox_push` to read.
 - **Not new work**: per-source kill counts/PBs look collection-log-adjacent
   but are a pre-existing dependency this feature merely displays — the same
   relationship the loot tracker has to the NPC-death drop-roll mechanism

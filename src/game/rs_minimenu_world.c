@@ -130,14 +130,34 @@ add_world_select_row(
  * "Depends on combat levels", the half of the NPC Attack option that is not
  * about the Attack row at all.
  *
- * The reference's per-op priority bump (Statics.method7229) tests the option
- * and the level difference OUTSIDE its is-this-the-attack-pass branch, so with
- * Depends selected a higher-level NPC has EVERY row deprioritized, not just
- * Attack — left-clicking a level-21 guard at level 10 walks rather than
- * pickpockets. Only the "Always right-click" arm is attack-pass-only.
+ * The settings-era reference's per-op priority bump (Statics.method7229) tests
+ * the option and the level difference OUTSIDE its is-this-the-attack-pass
+ * branch, so with Depends selected a higher-level NPC has EVERY row
+ * deprioritized, not just Attack — left-clicking a level-21 guard at level 10
+ * walks rather than pickpockets. Only the "Always right-click" arm is
+ * attack-pass-only.
+ *
+ * The 2004 client computes the same comparison inside its attack pass and
+ * nowhere else (Client-TS addNpcOptions), so under the classic model this
+ * spread does not happen and Pickpocket stays the left click.
  */
 static bool
 npc_option_deprioritizes(
+    int attack_option_model,
+    int npc_attack_option,
+    struct WorldEntity_NPC const* npc,
+    int viewer_combat_level)
+{
+    return attack_option_model == TORIRS_ATTACK_OPTION_MODEL_SETTINGS &&
+           npc_attack_option == RS_ATTACK_OPTION_DEPENDS && viewer_combat_level >= 0 &&
+           npc->combat_level > viewer_combat_level;
+}
+
+/* The attack pass's own bump, which both eras compute: the target out-levels
+ * the viewer. Shared so the classic model still gets it with the spread above
+ * turned off. */
+static bool
+npc_attack_row_deprioritizes(
     int npc_attack_option,
     struct WorldEntity_NPC const* npc,
     int viewer_combat_level)
@@ -202,7 +222,8 @@ add_npc_rows(
         if( strcasecmp(npc->actions[i].name, "attack") == 0 )
             continue;
         action = opnpc_action_for_slot(i);
-        if( npc_option_deprioritizes(attack_option, npc, viewer_combat_level) )
+        if( npc_option_deprioritizes(
+                ctx->attack_option_model, attack_option, npc, viewer_combat_level) )
             action = UIMinimenu_ActionDeprioritize(action);
         snprintf(text, sizeof(text), "%s @yel@%s", npc->actions[i].name, tooltip);
         UIMinimenu_AddOption(menu, text, action, i, pick);
@@ -223,7 +244,7 @@ add_npc_rows(
                 continue;
             action = opnpc_action_for_slot(i);
             if( attack_option == RS_ATTACK_OPTION_RIGHTCLICK ||
-                npc_option_deprioritizes(attack_option, npc, viewer_combat_level) )
+                npc_attack_row_deprioritizes(attack_option, npc, viewer_combat_level) )
                 action = UIMinimenu_ActionDeprioritize(action);
             snprintf(text, sizeof(text), "%s @yel@%s", npc->actions[i].name, tooltip);
             UIMinimenu_AddOption(menu, text, action, i, pick);

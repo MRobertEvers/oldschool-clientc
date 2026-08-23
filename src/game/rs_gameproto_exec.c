@@ -8,6 +8,7 @@
 #include "rs_attack_option.h"
 #include "rs_audio.h"
 #include "rs_chat.h"
+#include "rs_clientcode.h"
 #include "rs_cs2_dispatch.h"
 #include "rs_cs2_host.h"
 #include "rs_entity_sync.h"
@@ -161,9 +162,17 @@ exec_update_inv_partial(
             p->count);
     for( int i = 0; i < p->count; i++ )
     {
+        /* The packet carries an item, not an icon: say so, rather than
+         * letting the zero-initialiser pass 0 off as a scene id. Zero is
+         * never allocated (the bridge counts up from 1), but it IS >= 0, so
+         * emit drew "sprite 0" — nothing — with the stack count over it, and
+         * it is not INV_MANAGER_NO_SCENE_ID, so the icon reconcile never
+         * looked at the slot again. Every destination of an item that moved
+         * between containers arrives on this path. */
         struct InvSlot slot = { 0 };
         slot.obj_id = p->entries[i].obj_id;
         slot.obj_count = p->entries[i].count;
+        slot.scene_id = INV_MANAGER_NO_SCENE_ID;
         InvManager_SetSlot(ctx->invs, src, p->entries[i].slot, &slot);
         if( getenv("TORIRS_INV_DEBUG") )
             fprintf(
@@ -597,6 +606,61 @@ exec_zone_sub_packet_at(
     }
 }
 
+/*
+ * Open the welcome screen (reference tcpIn LAST_LOGIN_INFO).
+ *
+ * The reference picks WHICH interface by scanning every loaded IfType for a
+ * component whose clientCode is 650 or 655 and taking that component's layer.
+ * It can: its interface archive is one blob, decoded whole at startup. This
+ * client loads interfaces as per-id packs and has nothing to scan, so the two
+ * answers that scan would give are declared in the profile instead
+ * (`[iface:welcome_screen]` / `[iface:welcome_screen_notice]`).
+ *
+ * What stays here is the CHOICE between them, because that is a fact about the
+ * packet rather than about the cache: 201 is the "nothing to say about
+ * recovery questions" sentinel, so anything else -- or a members-on-a-free-
+ * world warning -- means there is a paragraph to show, and the paragraph rows
+ * only exist on the second screen.
+ */
+static void
+exec_open_welcome_screen(struct App* app)
+{
+    char const* iface_name;
+    int iface_id;
+
+    assert(app);
+
+    /* No address means the server is not offering a welcome screen at all.
+     * The reference gates on the same field, and it is also what keeps a
+     * zero-filled App from opening one before any packet has arrived. */
+    if( app->welcome.last_ip == 0 )
+        return;
+    /* Never in front of something already open. LAST_LOGIN_INFO is a login
+     * packet by convention, not by rule, and the reference makes the same
+     * check rather than trusting that. */
+    if( app->slots.main_modal_id != -1 )
+        return;
+
+    iface_name = (app->welcome.days_since_recovery != RS_CC_RECOVERY_DAYS_SILENT ||
+                  app->welcome.member_warning == 1)
+                     ? "welcome_screen_notice"
+                     : "welcome_screen";
+    iface_id = RevConfigRefs_Get(&app->revconfig_refs, "iface", iface_name);
+    /* -1 = this profile declares no such interface, which is the honest answer
+     * for a revision whose cache has no welcome screen. Not a fallback to the
+     * other name: the two hold different rows, and opening the wrong one shows
+     * a paragraph about recovery questions that the server never sent. */
+    if( iface_id < 0 )
+        return;
+
+    /* Clears a side modal or chat dialogue the way the reference's closeModal()
+     * does. It does NOT send CLOSE_MODAL: the reference's send is unconditional
+     * only because closeModal() is one function, and we have already
+     * established there is no viewport modal for the server to hear about. */
+    RS_UISlots_CloseModal(app);
+    RS_UISlots_OpenMain(app, iface_id);
+}
+
 void
 RS_GameProto_Exec(
     struct RS_GameProtoCtx const* ctx,
@@ -943,27 +1007,74 @@ RS_GameProto_Exec(
             struct PktIfResync const* sync = &packet->_if_resync;
             int root_changed = sync->root_interface_id > 0 &&
                                sync->root_interface_id != app->boot_interface_id;
+            struct UITreeInterfaceParent live[UITREE_INTERFACE_PARENT_MAX];
+            int live_count = 0;
 
             if( root_changed )
                 App_OpenRootInterface(app, sync->root_interface_id);
-            else if( app->tree )
+
+            /*
+             * RECONCILE against what is already mounted; do not close and
+             * reopen the lot.
+             *
+             * The snapshot is the server's mount registry, so a slot it
+             * restates with the same group and type is a slot the client
+             * already has right — and closing it is destructive, not neutral.
+             * A close reclaims the whole widget group (App_CloseSubInterface),
+             * which throws away everything the CS2 scripts built on top of the
+             * cache pack: hidden/shown layers, dynamic children, the lot. The
+             * reopen re-bakes from the pack and only re-runs that pack's OWN
+             * onload, so anything configured from outside it stays lost.
+             *
+             * Measured on the Display panel's layout switch, which is the only
+             * thing that sends this packet: `ToriRSServer_GameframeOpentop`
+             * remounts the frame and then commits the same registry here. The
+             * toplevel's onload had already picked the popout strip's
+             * collapsed variant (`popout` 728: layer 4 shown, layer 7 hidden)
+             * and created its three panel buttons as dynamic children of
+             * 728:6; the blanket close threw all of it away and the reopen
+             * came back at the cache defaults — a black strip with no buttons.
+             *
+             * Closing what the snapshot does NOT restate is still this
+             * packet's job, and that is what removes the stale mounts an
+             * interrupted layout switch leaves behind.
+             */
+            if( app->tree )
             {
-                int uids[UITREE_INTERFACE_PARENT_MAX];
-                int count = app->tree->interface_parent_count;
-                if( count > UITREE_INTERFACE_PARENT_MAX )
-                    count = UITREE_INTERFACE_PARENT_MAX;
-                for( int i = 0; i < count; i++ )
-                    uids[i] = app->tree->interface_parents[i].container_uid;
-                for( int i = 0; i < count; i++ )
-                    App_CloseSubInterface(app, uids[i]);
+                live_count = app->tree->interface_parent_count;
+                if( live_count > UITREE_INTERFACE_PARENT_MAX )
+                    live_count = UITREE_INTERFACE_PARENT_MAX;
+                memcpy(
+                    live,
+                    app->tree->interface_parents,
+                    (size_t)live_count * sizeof(live[0]));
+            }
+            for( int i = 0; i < live_count; i++ )
+            {
+                int keep = 0;
+                for( int j = 0; !keep && j < sync->mount_count; j++ )
+                    keep = sync->mounts[j].target_uid == live[i].container_uid &&
+                           sync->mounts[j].interface_id == live[i].group_id &&
+                           sync->mounts[j].type == live[i].type;
+                if( !keep )
+                    App_CloseSubInterface(app, live[i].container_uid);
             }
             App_IfEventsClear(app);
             for( int i = 0; i < sync->mount_count; i++ )
+            {
+                int mounted = 0;
+                for( int j = 0; !mounted && j < live_count; j++ )
+                    mounted = live[j].container_uid == sync->mounts[i].target_uid &&
+                              live[j].group_id == sync->mounts[i].interface_id &&
+                              live[j].type == sync->mounts[i].type;
+                if( mounted )
+                    continue;
                 App_OpenSubInterface(
                     app,
                     sync->mounts[i].target_uid,
                     sync->mounts[i].interface_id,
                     sync->mounts[i].type);
+            }
             for( int i = 0; i < sync->event_count; i++ )
             {
                 uint32_t mask = sync->events[i].events1 |
@@ -1348,11 +1459,22 @@ RS_GameProto_Exec(
             ctx->app->welcome.days_since_login = packet->_last_login_info.days_since_login;
             ctx->app->welcome.days_since_recovery = packet->_last_login_info.days_since_recovery;
             ctx->app->welcome.unread_messages = packet->_last_login_info.unread_messages;
+            ctx->app->welcome.member_warning = packet->_last_login_info.member_warning;
+            /* The rows themselves are clientCode components RS_ClientCode_Tick
+             * refreshes off this struct; this packet also OPENS the screen they
+             * sit on, which is the only thing that ever does. */
+            exec_open_welcome_screen(ctx->app);
+            ctx->app->need_redraw = 1;
         }
         break;
     case PKT_NAME_UPDATE_REBOOT_TIMER:
+        /* The wire carries SERVER ticks; the countdown runs on the 20ms client
+         * cycle, so it is converted once here rather than at every read
+         * (reference `rebootTimer = g2() * 30`, where 30 is the same ratio
+         * spelled as a literal). */
         if( ctx->app )
-            ctx->app->reboot_ticks = packet->_update_reboot_timer.ticks;
+            ctx->app->reboot_timer =
+                packet->_update_reboot_timer.ticks * APP_SERVER_TICK_LOGIC_CYCLES;
         break;
     case PKT_NAME_P_COUNTDIALOG:
         if( ctx->chat )
@@ -1387,8 +1509,18 @@ RS_GameProto_Exec(
         }
         break;
     case PKT_NAME_SET_MULTIWAY:
-        if( ctx->app )
+        if( ctx->app && ctx->app->multiway != packet->_set_multiway.multiway )
+        {
             ctx->app->multiway = packet->_set_multiway.multiway;
+            ctx->app->need_redraw = 1;
+        }
+        break;
+    case PKT_NAME_MINIMAP_TOGGLE:
+        if( ctx->app && ctx->app->minimap_state != packet->_minimap_toggle.state )
+        {
+            ctx->app->minimap_state = packet->_minimap_toggle.state;
+            ctx->app->need_redraw = 1;
+        }
         break;
     case PKT_NAME_HINT_ARROW:
         if( ctx->app )
@@ -1431,7 +1563,19 @@ RS_GameProto_Exec(
     /* ---- tutorial ---- */
     case PKT_NAME_TUT_FLASH:
         if( ctx->app )
+        {
             ctx->app->slots.flash_tab = packet->_tut_flash.tab;
+            /* Asked to flash the tab the player is already looking at, the
+             * reference moves them OFF it -- an open panel covers its own icon,
+             * so a blink nobody can see is no instruction at all. 3 is the
+             * inventory, which is where it sends you unless that IS the tab. */
+            if( packet->_tut_flash.tab >= 0 &&
+                packet->_tut_flash.tab == ctx->app->slots.side_tab )
+            {
+                ctx->app->slots.side_tab = packet->_tut_flash.tab == 3 ? 1 : 3;
+                ctx->app->need_redraw = 1;
+            }
+        }
         break;
     case PKT_NAME_TUT_OPEN:
         if( ctx->app )

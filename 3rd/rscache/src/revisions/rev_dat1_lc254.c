@@ -2,7 +2,7 @@
 
 /*
  * LostCity revision 254 — the old-generation reference the client boots by
- * default (`cache254.lostcity`, manifests/manifest_rs254.ini).
+ * default (`cache254.lostcity`, manifests/manifest_rs254lc.ini).
  *
  * Jagfile container: config records live in ".dat"/".idx" pairs inside the
  * config jagfile rather than in JS5 groups, strings are newline terminated

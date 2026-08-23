@@ -1223,6 +1223,16 @@ cs2_rebuild(struct ChromeCs2* s)
         }
     }
 
+    /*
+     * A close does not take the layer down with it -- end() empties it and
+     * forgets the index -- so a reopen has to find that layer again rather than
+     * push a second one carrying the same component id. Two of those under one
+     * mount is a lookup that answers with whichever came first, and a column of
+     * dead layers accumulating one per open.
+     */
+    if( !cs2_panel_alive(s) )
+        s->panel_node = UITree_FindByComponentId(s->tree, TORIRS_CHROME_CS2_ID_BASE);
+
     if( cs2_panel_alive(s) )
         UITree_ClearChildren(s->tree, s->panel_node);
     else
@@ -1928,7 +1938,12 @@ chrome_cs2_end(void* user)
     assert(s);
     if( !s->open )
         return;
-    if( s->tree && s->panel_node >= 0 )
+    /* The ALIVE test, not `panel_node >= 0`: the strip's slot can be taken from
+     * under this window -- a shipped popout panel opening over it reclaims this
+     * group -- and the index we hold then names a freed slot, or a component
+     * some later build put there. Clearing that one's children is somebody
+     * else's panel going blank. */
+    if( cs2_panel_alive(s) )
     {
         UITree_ClearChildren(s->tree, s->panel_node);
         UITree_MarkAllDirty(s->tree);

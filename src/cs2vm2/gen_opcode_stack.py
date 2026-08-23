@@ -67,6 +67,13 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     48: (0, 1, 0, 0),  # POP_VARC_STRING_OLD(varc id) <- string
     86: (1, 0, 0, 0),  # BRANCH_IF_ONE(value): branch if value == 1 (RS2-era)
     6910: (0, 0, 1, 0),  # LOGIN_INT24 -> Class24.anInt359 (stub: 0)
+    # _6901: set the ACTIVE PLAYER to the local player, push whether there
+    # is one. The vendored table has no row for it and no script in this
+    # cache calls it; the signature is the reference's own body
+    # (ScriptRunnerImpl_6900To6999.cpp: SetActivePlayer(m_localPlayerIndex)
+    # then push 1, else push -1), which is the other half of the
+    # _6902.._6905 block this client does implement.
+    6901: (0, 0, 1, 0),
     106: (2, 0, 0, 0),  # CC_CREATECHILD
     107: (2, 0, 0, 0),  # CC_CREATESIBLING
     # 202/203 used to be guessed here as CC_FINDROOT / CC_CHILDREN_FIND. They

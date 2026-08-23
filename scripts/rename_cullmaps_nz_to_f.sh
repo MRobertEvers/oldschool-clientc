@@ -3,7 +3,7 @@
 # "nz<N>" -> "f<N>" and "nzm<N>" -> "fm<N>" in filenames.
 set -euo pipefail
 
-CULLMAPS_DIR="$(cd "$(dirname "$0")/../src/osrs/revconfig/configs/cullmaps" && pwd)"
+CULLMAPS_DIR="$(cd "$(dirname "$0")/../revconfig/cullmaps" && pwd)"
 
 renamed=0
 skipped=0

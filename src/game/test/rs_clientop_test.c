@@ -140,6 +140,37 @@ main(void)
             "a loc getter answers nothing during a tile dispatch");
     }
 
+    /* ---- the obj block, including the COUNT (`_6853`) --------------------
+     *
+     * A ground stack is identified by BOTH its id and its count -- the
+     * reference's own FINDOBJ matches a menu row to an obj with
+     * `obj->id == entry->id && obj->count == entry->count`, which is what
+     * tells two stacks of the same item on one tile apart. `_6852` is the id
+     * and `_6853` is the count.
+     */
+    {
+        struct RS_ClientOpContext ctx;
+        int const coord = RS_CLIENTOP_COORD(0, 3222, 3218);
+
+        memset(&ctx, 0, sizeof(ctx));
+        ctx.kind = RS_CLIENTOP_OBJ;
+        ctx.script_id = 4646;
+        ctx.uid = -1;
+        ctx.type = 995;
+        ctx.count = 250;
+        ctx.coord = coord;
+        snprintf(ctx.name, sizeof(ctx.name), "Coins");
+        RS_ClientOpContextBegin(&st, &ctx);
+
+        CHECK(ctx_int(&st, CS2_OP__6852, 4646) == 995, "_6852 is the obj id");
+        CHECK(ctx_int(&st, CS2_OP__6853, 4646) == 250, "_6853 is the stack count");
+        CHECK(ctx_int(&st, CS2_OP__6851, 4646) == coord, "_6851 is the coord");
+        RS_ClientOpContextEnd(&st);
+        CHECK(
+            ctx_int(&st, CS2_OP__6853, 4646) == -1,
+            "and outside the dispatch there is no count to report");
+    }
+
     /* ---- "Tag": _6700(1, "Tag", 6688), clientscript 7580 -----------------
      *
      *   ~script6688: highlight_npc_on(_6751, _6752, 6); ~script6695(_6751,

@@ -32,11 +32,22 @@
  *   %hpbar_hud_boss     (varbit)  draw the wide boss bar rather than the
  *                                 small one
  *
- * `hpbar_hud_boss` stays 0 here. Which npcs are "certain bosses" (setting 10's
- * wording) is a per-encounter decision the reference leaves to the boss's own
- * content, and this server has no such list -- inventing one would light the
- * wide bar for the wrong monsters, which is worse than not lighting it. A
- * boss script can raise the varbit itself and the panel follows.
+ * `hpbar_hud_boss` is never RAISED here. Which npcs are "certain bosses"
+ * (setting 10's wording) is a per-encounter decision the reference leaves to the
+ * boss's own content, and this server has no such list -- inventing one would
+ * light the wide bar for the wrong monsters, which is worse than not lighting
+ * it. A boss script can raise the varbit itself and the panel follows.
+ *
+ * It IS lowered here, and that is setting 10's whole implementation:
+ *
+ *   10   Show boss health overlay            %hpbar_hud_boss_disabled
+ *
+ * The row had no reader anywhere -- not in the cache (the panel's layout script
+ * 2101 branches on `%hpbar_hud_boss`, never on the setting), not in the NXT
+ * engine, and not here. So a player who switched it off still got the wide bar
+ * from any encounter that raised the varbit. Clearing it on the setting puts the
+ * decision back where the row says it is without this file having to know which
+ * npcs are bosses: content proposes, the player disposes.
  *
  * ---- the setting is INVERTED, and the cache says so in the name ----
  *
@@ -53,6 +64,10 @@
  *  feel -- long enough to cover a re-target, short enough that walking away
  *  clears it. */
 #define TORIRSSERVER_HPBAR_LINGER_TICKS 6
+
+/** `hpbar_open`: the panel exists but has not been fed yet / is live. */
+#define TORIRSSERVER_HPBAR_OPENING 1
+#define TORIRSSERVER_HPBAR_LIVE 2
 
 static int
 hpbar_target_slot(struct ToriRSServerPlayer* player)
@@ -119,6 +134,26 @@ ToriRSServer_HpBarTick(
     if( want_type >= 0 && ToriRSServer_VarbitGet(player, ids->varbit_hpbar_hud_standard_off) )
         want_type = -1;
 
+    /*
+     * Setting 10, and it is a VETO rather than a switch.
+     *
+     * Read every tick beside setting 111's, for the same reason: switching it
+     * off mid-fight has to narrow the bar on the next tick, not on the next
+     * encounter. An encounter that has raised `hpbar_hud_boss` keeps whatever it
+     * set for as long as the player wants boss bars; the moment they do not, the
+     * varbit goes to 0 and clientscript 2101 draws the small bar instead.
+     *
+     * Nothing here ever sets it to 1 -- see the header.
+     */
+    if( ids->varbit_hpbar_hud_boss >= 0 && ids->varbit_hpbar_hud_boss_off >= 0 &&
+        ToriRSServer_VarbitGet(player, ids->varbit_hpbar_hud_boss_off) &&
+        ToriRSServer_VarbitGet(player, ids->varbit_hpbar_hud_boss) )
+    {
+        if( getenv("TORIRS_HPBAR_DEBUG") )
+            fprintf(stderr, "hpbar: setting 10 is off — clearing the boss bar\n");
+        ToriRSServer_VarbitSetOn(srv, player, ids->varbit_hpbar_hud_boss, 0);
+    }
+
     if( want_type < 0 )
     {
         if( !player->hpbar_open )
@@ -132,17 +167,23 @@ ToriRSServer_HpBarTick(
         return;
     }
 
-    /* The varps first, then the open: the panel's onload reads them, and an
-     * open that arrives ahead of its own data draws one frame of the previous
-     * fight. */
-    ToriRSServer_WorldSetVarpOn(srv, player, ids->varp_hpbar_hud_npc, want_type);
-    ToriRSServer_VarbitSetOn(srv, player, ids->varbit_hpbar_hud_hp, want_hp);
-    ToriRSServer_VarbitSetOn(srv, player, ids->varbit_hpbar_hud_basehp, want_max);
-
+    /*
+     * The open comes FIRST, and the data one tick later.
+     *
+     * The panel paints from a var-transmit hook, not from its onload:
+     * clientscript 2099 is 303's onload and all it does is register
+     * `if_setonvartransmit("script2102(...){var1682, var1683}")`. So a value
+     * written before the mount has finished is a change with nobody listening,
+     * and the panel stays blank until the npc's hitpoints happen to move.
+     *
+     * Writing on the next tick instead costs one tick of an empty panel and
+     * cannot race the mount, which on this client is a task rather than an
+     * immediate build.
+     */
     if( !player->hpbar_open )
     {
         int const floater = ToriRSServer_PlayerFloater(player);
-        player->hpbar_open = 1;
+        player->hpbar_open = TORIRSSERVER_HPBAR_OPENING;
         if( getenv("TORIRS_HPBAR_DEBUG") )
             fprintf(
                 stderr,
@@ -160,5 +201,31 @@ ToriRSServer_HpBarTick(
             TORIRSSERVER_COM_CHILD(floater),
             ids->iface_hpbar_hud,
             1);
+        return;
+    }
+
+    {
+        /*
+         * Re-send on the first data tick even when nothing changed.
+         *
+         * The varp writers dedupe, and they are right to -- but a panel that
+         * just opened onto the same npc at the same hitpoints would then be
+         * fed nothing at all, because the last thing that changed those values
+         * happened before it existed. Marking the carriers re-queues them
+         * without pretending they changed.
+         */
+        int const first = player->hpbar_open == TORIRSSERVER_HPBAR_OPENING;
+        int base;
+
+        player->hpbar_open = TORIRSSERVER_HPBAR_LIVE;
+        ToriRSServer_WorldSetVarpOn(srv, player, ids->varp_hpbar_hud_npc, want_type);
+        base = ToriRSServer_VarbitSetOn(srv, player, ids->varbit_hpbar_hud_hp, want_hp);
+        ToriRSServer_VarbitSetOn(srv, player, ids->varbit_hpbar_hud_basehp, want_max);
+        if( first )
+        {
+            ToriRSServer_WorldMarkVarp(player, ids->varp_hpbar_hud_npc);
+            if( base >= 0 )
+                ToriRSServer_WorldMarkVarp(player, base);
+        }
     }
 }

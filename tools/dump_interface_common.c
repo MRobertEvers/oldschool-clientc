@@ -930,7 +930,7 @@ dump_iface_scan_parents(
         fprintf(
             fp,
             "  (sidebar panels mount on gameframe 165 children 8-21 via DisplayHandler; "
-            "see rev_kronos_ui.ini tab table for iface %d)\n\n",
+            "see osrs_kronos_ui.ini tab table for iface %d)\n\n",
             target_iface);
         dump_iface_free(&gameframe);
     }

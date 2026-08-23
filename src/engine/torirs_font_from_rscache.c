@@ -155,6 +155,25 @@ font_new_from_dat2_metrics_and_sprite_pack(
     return font;
 }
 
+static int
+font_name_is_full(char const* font_name)
+{
+    size_t len;
+
+    assert(font_name);
+    len = strlen(font_name);
+    return len > 5 && strcmp(font_name + len - 5, "_full") == 0;
+}
+
+/* The quill font, whatever stem a revision gives it. PixFont.depack takes this
+ * as a separate argument and passes 1 for exactly one font. */
+static int
+font_name_is_quill(char const* font_name)
+{
+    assert(font_name);
+    return strncmp(font_name, "q8", 2) == 0;
+}
+
 struct ToriRS_Font*
 ToriRS_FontFromDat1Jagfile(
     struct RSCache_FileListDat* title_jagfile,
@@ -183,11 +202,23 @@ ToriRS_FontFromDat1Jagfile(
         return NULL;
     }
 
-    pixfont = RSCache_Dat1PixFontNewDecode(
-        title_jagfile->files[data_file_idx],
-        title_jagfile->file_sizes[data_file_idx],
-        title_jagfile->files[index_file_idx],
-        title_jagfile->file_sizes[index_file_idx]);
+    /* "<stem>_full" is the 256-record, character-code-indexed layout; anything
+     * else is the 94-record CHARSET one. See the header for why the stem is
+     * allowed to decide this. `quill` is the reference's own special case: the
+     * quill font (q8) takes its space width from 'I' rather than 'i'. */
+    if( font_name_is_full(font_name) )
+        pixfont = RSCache_Dat1PixFontFullNewDecode(
+            title_jagfile->files[data_file_idx],
+            title_jagfile->file_sizes[data_file_idx],
+            title_jagfile->files[index_file_idx],
+            title_jagfile->file_sizes[index_file_idx],
+            font_name_is_quill(font_name));
+    else
+        pixfont = RSCache_Dat1PixFontNewDecode(
+            title_jagfile->files[data_file_idx],
+            title_jagfile->file_sizes[data_file_idx],
+            title_jagfile->files[index_file_idx],
+            title_jagfile->file_sizes[index_file_idx]);
     if( !pixfont )
         return NULL;
 

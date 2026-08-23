@@ -1,5 +1,7 @@
 #include "uitree.h"
 
+#include "uitree_frame.h"
+
 #include "perf/torirs_perf.h"
 #include "uitree_layout.h"
 #include "uitree_scroll.h"
@@ -1185,6 +1187,10 @@ UITree_ComponentTypeStr(enum UITreeComponentType type)
         return "minimenu";
     case UIELEM_BUILTIN_HOVERTEXT:
         return "hovertext";
+    case UIELEM_BUILTIN_MULTIWAY:
+        return "multiway";
+    case UIELEM_BUILTIN_REBOOT_TIMER:
+        return "reboot_timer";
     case UIELEM_BUILTIN_ENTITY_OVERLAY:
         return "entity_overlay";
     case UIELEM_BUILTIN_DEBUG_OVERLAY:
@@ -1225,6 +1231,8 @@ UITree_ComponentTypeStr(enum UITreeComponentType type)
         return "rs_rect";
     case UIELEM_RS_LINE:
         return "rs_line";
+    case UIELEM_RS_ARC:
+        return "rs_arc";
     case UIELEM_RS_INV_TEXT:
         return "rs_inv_text";
     case UIELEM_CC_OBJ:
@@ -1375,6 +1383,7 @@ UITree_Free(struct UITree* tree)
     free(tree->layout_changed);
     free(tree->emit_visited);
     uitree_all_sets_free(tree);
+    UITree_FrameForget(tree);
     free(tree->components);
     free(tree);
 }
@@ -1400,6 +1409,11 @@ UITree_Clear(struct UITree* tree)
     tree->generation++;
     /* Reclaim already unregistered each node; clear empties any leftover buckets. */
     uitree_all_sets_clear(tree);
+    /* A plugin layout's hold names NODES, and every one of them has just
+     * stopped existing. Dropping it rather than releasing it is deliberate:
+     * there is nothing left to restore, and the frame's owner is asked for a
+     * fresh declaration once the new tree is baked. */
+    UITree_FrameForget(tree);
 }
 
 
@@ -1470,7 +1484,8 @@ UITree_TypeIsAlwaysDirtyFrame(enum UITreeComponentType type)
 {
     return type == UIELEM_BUILTIN_WORLD || type == UIELEM_BUILTIN_MINIMAP ||
            type == UIELEM_BUILTIN_COMPASS || type == UIELEM_BUILTIN_CROSS ||
-           type == UIELEM_BUILTIN_MINIMENU || type == UIELEM_BUILTIN_HOVERTEXT;
+           type == UIELEM_BUILTIN_MINIMENU || type == UIELEM_BUILTIN_HOVERTEXT ||
+           type == UIELEM_BUILTIN_MULTIWAY || type == UIELEM_BUILTIN_REBOOT_TIMER;
 }
 
 void
@@ -1963,6 +1978,7 @@ UITree_Push(
      * grows one is duplicated instead of aliased into the node. */
     UITree_MenuOptionsSet(component, &spec->menu_options);
     component->slot_tag = spec->slot_tag;
+    component->role_id = spec->role_id;
     component->no_click_through = spec->no_click_through;
     component->hotkey_effects = spec->hotkey_effects;
 
@@ -1999,6 +2015,7 @@ UITree_Push(
     case UIELEM_BUILTIN_SPRITE:
     case UIELEM_BUILTIN_COMPASS:
     case UIELEM_BUILTIN_CROSS:
+    case UIELEM_BUILTIN_MULTIWAY:
         component->u.sprite.scene_id = spec->u.sprite.scene_id;
         component->u.sprite.atlas_index = spec->u.sprite.atlas_index;
         component->u.sprite.mask_scene_id = spec->u.sprite.mask_scene_id;
@@ -2011,6 +2028,11 @@ UITree_Push(
 
     case UIELEM_BUILTIN_HOVERTEXT:
         component->u.hovertext.font_id = spec->u.hovertext.font_id;
+        break;
+
+    case UIELEM_BUILTIN_REBOOT_TIMER:
+        component->u.reboot_timer.font_id = spec->u.reboot_timer.font_id;
+        component->u.reboot_timer.color = spec->u.reboot_timer.color;
         break;
 
     case UIELEM_BUILTIN_DEBUG_OVERLAY:
@@ -2049,8 +2071,6 @@ UITree_Push(
 
     case UIELEM_BUILTIN_WORLD:
         component->u.world.level_mask = spec->u.world.level_mask;
-        component->u.world.mmb_rotate = spec->u.world.mmb_rotate;
-        component->u.world.wheel_zoom = spec->u.world.wheel_zoom;
         break;
 
     case UIELEM_BUILTIN_SIDEBAR:
@@ -2101,6 +2121,15 @@ UITree_Push(
     case UIELEM_RS_RECT:
         component->u.rs_rect.color = spec->u.rs_rect.color;
         component->u.rs_rect.filled = spec->u.rs_rect.filled;
+        break;
+
+    case UIELEM_RS_ARC:
+        component->u.rs_arc.color = spec->u.rs_arc.color;
+        component->u.rs_arc.filled = spec->u.rs_arc.filled;
+        component->u.rs_arc.line_width =
+            spec->u.rs_arc.line_width > 0 ? spec->u.rs_arc.line_width : 1;
+        component->u.rs_arc.arc_start = spec->u.rs_arc.arc_start;
+        component->u.rs_arc.arc_end = spec->u.rs_arc.arc_end;
         break;
 
     case UIELEM_RS_MODEL:
@@ -2236,19 +2265,50 @@ UITree_ClearChildren(
     /* Reclaim the detached subtree, not just unlink it: an orphaned copy
      * keeps its component_id and shadows the remounted nodes in
      * FindByComponentId/ResolveComponentTarget (server IF_SETTEXT then lands
-     * on the invisible orphan — the "Weapon:%1" bug). */
+     * on the invisible orphan — the "Weapon:%1" bug).
+     *
+     * PROFILE-AUTHORED children are kept, and that exception is the whole
+     * reason this loop rebuilds the list instead of truncating it.
+     *
+     * What this function is for is emptying a SLOT before the server's
+     * interface goes into it (task_slot_mount), and a slot's contents are the
+     * server's to replace. A control the profile authored into that slot is
+     * not: it was placed by the boot manifest's RevConfig, no server knows it
+     * exists, and nothing will ever put it back. The symptom is exact and
+     * confusing -- the control is there in an offline boot and gone the moment
+     * a real server sends its login burst of IF_SETTABs, which looks like the
+     * control failing to build rather than like something sweeping it away.
+     *
+     * Recognised by id band (TORIRS_REVCONFIG_GROUP), the same way the chrome's
+     * own components are recognised everywhere else in this tree. */
     {
         int32_t child = c->first_child;
+        int32_t kept_head = -1;
+        int32_t kept_tail = -1;
+
         while( child >= 0 )
         {
             int32_t const next = tree->components[child].next_sibling;
-            uitree_reclaim_subtree(tree, child);
+            int const id = tree->components[child].component_id;
+            if( id >= 0 && ((id >> 16) & 0xFFFF) == TORIRS_REVCONFIG_GROUP )
+            {
+                tree->components[child].next_sibling = -1;
+                if( kept_tail >= 0 )
+                    tree->components[kept_tail].next_sibling = child;
+                else
+                    kept_head = child;
+                kept_tail = child;
+            }
+            else
+            {
+                uitree_reclaim_subtree(tree, child);
+            }
             child = next;
         }
+        c->first_child = kept_head;
+        c->last_child_hint = kept_tail;
     }
-    c->first_child = -1;
-    c->last_child_hint = -1;
-    c->child_key_max = UITREE_CHILD_KEY_NONE; /* no children left to match */
+    c->child_key_max = UITREE_CHILD_KEY_NONE; /* nothing left to match by key */
     uitree_child_index_drop(c);               /* ... and none left to index */
     c->is_dirty = 1;
     uitree_topo_bump(tree, __LINE__);
@@ -2418,6 +2478,16 @@ UITree_CcCreate(
         break;
     case 9: /* TORIRS_COMPONENT_LINE */
         spec.type = UIELEM_RS_LINE;
+        break;
+    case 10: /* TORIRS_COMPONENT_ARC */
+        /* An arc with no CC_SETARC yet is a zero-width sector, which draws
+         * nothing -- the reference's own default, and the right one: 5480
+         * creates all three children before it shapes any of them, so a
+         * full-turn default would flash a disc for the width of a rebuild. */
+        spec.type = UIELEM_RS_ARC;
+        spec.u.rs_arc.color = 0;
+        spec.u.rs_arc.filled = 0;
+        spec.u.rs_arc.line_width = 1;
         break;
     default:
         /* Type 2 (INV) and any unknown: item box until SETOBJECT fills it. */
@@ -3040,6 +3110,8 @@ UITree_ApplyColour(
         c->u.rs_text.color = colour;
     else if( c->type == UIELEM_RS_RECT )
         c->u.rs_rect.color = colour;
+    else if( c->type == UIELEM_RS_ARC )
+        c->u.rs_arc.color = colour;
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }

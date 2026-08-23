@@ -6674,6 +6674,44 @@ handle_cheat(
      * handler was already offering the line to a debugproc first, so this
      * branch had been unreachable since that file landed. */
 
+    if( strncmp(text, "setting ", 8) == 0 )
+    {
+        /*
+         * `::setting <varbit> <value>` — the client mirroring an All Settings row.
+         *
+         * Not a debug command despite the channel it rides on. Ten rows of the
+         * All Settings > Activities category are decided HERE and read a varbit
+         * whose base is an ordinary server varp; the panel writes the client's
+         * own copy and nothing in revision 239 carries that write to a server.
+         * See `settings_mirror_varbit` in `src/game/rs_cs2_host.h` for the whole
+         * of why, including why CLIENT_CHEAT is the transport rather than a new
+         * opcode.
+         *
+         * Silent on success. This fires on every toggle of every settings row,
+         * and a chat line per checkbox would bury the messages the player asked
+         * for -- which is also why it is not routed through `say`. It is not
+         * silent on a REFUSAL: a varbit this server cannot write is a mirror the
+         * player will never see the effect of, and that is worth a line.
+         */
+        int varbit_id = -1;
+        int value = 0;
+
+        if( sscanf(text, "setting %d %d", &varbit_id, &value) != 2 || varbit_id < 0 )
+        {
+            say(srv, "setting: expected ::setting <varbit> <value>.");
+            return;
+        }
+        if( ToriRSServer_VarbitSet(srv, varbit_id, value) < 0 )
+        {
+            say(srv, "setting: varbit %d is not in this cache.", varbit_id);
+            return;
+        }
+        if( getenv("TORIRSSERVER_SETTINGS_DEBUG") )
+            fprintf(stderr, "setting: varbit %d = %d (player %s)\n", varbit_id, value,
+                    srv->active_player ? srv->active_player->display_name : "?");
+        return;
+    }
+
     if( strncmp(text, "style", 5) == 0 )
     {
         /*
@@ -11184,6 +11222,9 @@ phase_player(struct ToriRSServerPlayer* player)
     /* After the swing, so the bar shows the hitpoints this tick left behind
      * rather than the ones it started with. */
     ToriRSServer_HpBarTick(srv, player);
+    /* Beside it, and for the same reason: the helper panel reports on what the
+     * player is doing, so it reads the tick's outcome rather than its input. */
+    ToriRSServer_HelperTick(srv, player);
     PP_MARK(bd_on, bd_t, PP_TAIL);
 }
 

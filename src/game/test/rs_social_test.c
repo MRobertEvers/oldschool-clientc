@@ -446,7 +446,7 @@ test_host_ops(void)
     printf("social: the host ops answer from the store, and the mutators do both halves\n");
 
     InvManager_Init(&invs);
-    RS_CS2Host_Init(&host, tree, provider, &invs, NULL, NULL);
+    RS_CS2Host_Init(&host, tree, provider, &invs, NULL, NULL, NULL);
     RS_Social_Init(&social);
     RS_Social_AddFriend(&social, "bob", 7);
     RS_CS2Host_SetSocial(&host, &social, filter_modes, 7);

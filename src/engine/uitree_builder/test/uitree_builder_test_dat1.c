@@ -1,6 +1,6 @@
 /*
  * End-to-end dat1 RevConfig build: opens the dat1 cache (cache254), runs
- * CreateTask_UITreeBuild with the rev_245_2 dat1 INIs, then asserts the
+ * CreateTask_UITreeBuild with the rs245_2lc dat1 INIs, then asserts the
  * provider contents and dumps the baked chrome to a BMP.
  *
  * Run from src/: make test-uitree-builder-dat1 [DAT1_CACHE=../cache254]
@@ -79,8 +79,8 @@ main(
     char** argv)
 {
     char const* cache_dir = argc > 1 ? argv[1] : "../cache254";
-    char const* ui_ini = "engine/uitree_builder/test/rev_245_2_dat1_ui.ini";
-    char const* cache_ini = "engine/uitree_builder/test/rev_245_2_dat1_cache.ini";
+    char const* ui_ini = "engine/uitree_builder/test/rs245_2lc_dat1_ui.ini";
+    char const* cache_ini = "engine/uitree_builder/test/rs245_2lc_dat1_cache.ini";
 
     ToriDraw_Init();
 
@@ -131,13 +131,14 @@ main(
             invback->frames[0].width > 100 && invback->frames[0].height > 100,
             "invback has plausible dimensions");
 
-    /* pix32 + INI crop. */
+    /* pix32, uncropped: the compass keeps its native 51x51 canvas so the
+     * rotated blit pivots on its centre pixel. */
     struct ToriRS_Sprite* compass = sprite_by_name(provider, "compass");
     CHECK(compass != NULL, "compass (pix32) decoded");
     if( compass )
         CHECK(
-            compass->frames[0].width == 34 && compass->frames[0].height == 34,
-            "compass cropped to 34x34");
+            compass->frames[0].width == 51 && compass->frames[0].height == 51,
+            "compass keeps its native 51x51 canvas");
 
     /* Multi-frame atlas. */
     struct ToriRS_Sprite* sideicons = sprite_by_name(provider, "sideicons");
@@ -225,9 +226,11 @@ main(
         CHECK(!z_bound, "binding dropped: compass never advertised select_tab");
     }
 
-    /* Client-hardcoded sprites bound to bridge slots (no owning INI node).
-     * mapmarker/mapdots are absent from the RevConfig INI, so they exercise the
-     * dat1 media-jagfile load path inside CreateTask_StaticSpritesLoad. */
+    /* Sprites the client draws itself, bound to bridge slots. They have no
+     * owning [component:] node, but every one of them IS declared as a
+     * [sprite:] section -- that is the whole binding, and a slot whose section
+     * is missing stays unbound. mapmarker/mapdots/scrollbar are the three that
+     * used to be named only in C. */
     {
         static enum StaticSpriteSlot const k_expect[] = {
             STATIC_SPRITE_COMPASS,  STATIC_SPRITE_MAPEDGE, STATIC_SPRITE_MAPSCENE,

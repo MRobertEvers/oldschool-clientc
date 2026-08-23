@@ -37,6 +37,9 @@ static struct ToriRS_FeatureTable const k_features_lostcity = {
     .ground_click_clamp_tiles = 0,
     .los_symmetric_pvp = 0,
     .route_window_tiles = 0,
+    /* No Controls panel, so no Attack dropdowns: every Attack row is emitted
+     * and only the attack pass reads the combat-level difference. */
+    .attack_option_model = TORIRS_ATTACK_OPTION_MODEL_CLASSIC,
     .target_mask_held = TORIRS_TARGET_MASK_HELD_CLASSIC,
     .painter_draw_distance = 0,
     .npc_light_uses_type_ambient_contrast = 0,
@@ -92,6 +95,8 @@ static struct ToriRS_FeatureTable const k_features_osrs = {
     .ground_click_clamp_tiles = 70,
     .los_symmetric_pvp = 1,
     .route_window_tiles = 128,
+    /* Two dropdowns on `settings_side`, read from varp clientcode 18/22. */
+    .attack_option_model = TORIRS_ATTACK_OPTION_MODEL_SETTINGS,
     /* IF3 moved the held-item target flag one bit up. */
     .target_mask_held = TORIRS_TARGET_MASK_HELD_OSRS,
     /* Project default for OSRS; the official preference's valid range is
@@ -147,6 +152,8 @@ static struct ToriRS_FeatureTable const k_features_server_routed = {
     .ground_click_clamp_tiles = 0,
     .los_symmetric_pvp = 1,
     .route_window_tiles = 128,
+    /* Same modern client generation as osrs, so the same two dropdowns. */
+    .attack_option_model = TORIRS_ATTACK_OPTION_MODEL_SETTINGS,
     .target_mask_held = TORIRS_TARGET_MASK_HELD_OSRS,
     .painter_draw_distance = 0,
     /* xrsps: NpcModelLoader applies type ambient/contrast; player chatheads

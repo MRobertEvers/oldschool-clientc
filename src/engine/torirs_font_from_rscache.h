@@ -22,6 +22,15 @@ struct RSCache_FileListDat;
 /**
  * Decode a dat1 title-jagfile font ("<font_name>.dat" + "index.dat", e.g. "b12").
  * Does not free the jagfile.
+ *
+ * The stem also selects the GLYPH LAYOUT, because in this cache family that is
+ * what a stem is for. LostCity's 2004 builds ship "b12" -- 94 glyph records in
+ * CHARSET order -- and its 2005 builds ship "b12_full" beside it: 256 records
+ * indexed by character code. Two names, two layouts, one archive; the client
+ * that asks for "b12_full" is asking for the second, and the `_full` suffix is
+ * the cache's own name for it rather than a heuristic invented here. Which
+ * stem a world uses is stated in its revconfig (`[font:b12] font_name=`), so
+ * the choice is data, not detection.
  */
 struct ToriRS_Font*
 ToriRS_FontFromDat1Jagfile(

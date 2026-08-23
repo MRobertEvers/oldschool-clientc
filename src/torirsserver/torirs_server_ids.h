@@ -70,6 +70,22 @@ struct ToriRSServerIds
      */
     int iface_hpbar_hud;
 
+    /*
+     * The generic helper panel.
+     *
+     * One frame that three All Settings > Activities rows fill with three
+     * different things: the Agility, Slayer and clue-step helpers all build
+     * their rows into `helper_generic:content` and differ only in which
+     * clientscript does the building. See torirs_server_helper.c.
+     *
+     * The fourth row of that family (268, the Blast Furnace helper) is NOT
+     * here, and deliberately: it is its own interface with its own onload, so
+     * opening it is the whole of the row, and "is this player at the Blast
+     * Furnace" is a fact the minigame's lane already keeps. It opens itself,
+     * from `[softtimer,bf_state_tick]`.
+     */
+    int iface_helper_generic;
+
     /* --- Containers (pack/inv.pack) --- */
 
     /*
@@ -131,6 +147,20 @@ struct ToriRSServerIds
     int com_gameframe_sidemodal;
     /** The floating panel, which is where the world map goes. */
     int com_gameframe_floater;
+    /**
+     * Where the helper panel mounts.
+     *
+     * `helper_content`, NOT `helper`. The gameframe's helper slot is three
+     * components deep -- `helper` (a full-size layer) holds `helper_dodger`
+     * holds `helper_content` (180x100) -- and only the innermost is empty, which
+     * is what an if_opensub target has to be. It is also the one the cache
+     * itself addresses: clientscript 4704 resizes `toplevel_osrs_stretch:12` to
+     * whatever the built rows measure, and 4731/4732 ask `if_hassub` of that
+     * same component to decide whether the panel is on screen and what has to
+     * dodge around it. Mounting into `helper` instead would leave both looking
+     * at an empty slot and the panel would never be laid out.
+     */
+    int com_gameframe_helper;
 
     /*
      * Where a chatbox dialogue mounts.
@@ -236,6 +266,69 @@ struct ToriRSServerIds
     int varbit_hpbar_hud_hp;
     int varbit_hpbar_hud_basehp;
     int varbit_hpbar_hud_standard_off;
+    /** Setting 10, "Show boss health overlay". `..._disabled`: 1 is OFF. */
+    int varbit_hpbar_hud_boss_off;
+    /** The wide-bar switch the panel's own layout script reads. Not a setting. */
+    int varbit_hpbar_hud_boss;
+
+    /*
+     * The helper panel's three settings, and the two cache vars its builders read.
+     *
+     * Three of the four are named `..._disabled` and one `..._enabled`, and the
+     * cache is stating the sense rather than being inconsistent: read an
+     * inverted row the plain way and the helper appears for exactly the players
+     * who switched it off.
+     */
+    int varbit_agility_helper_off;    /**< 163, `agility_helper_disabled`. */
+    int varbit_slayer_helper_off;     /**< 184, `slayer_helper_disabled`. */
+    int varbit_cluehelper_infobox_on; /**< 275, `option_cluehelper_infobox_enabled`. */
+
+    /**
+     * Which helper the panel is showing, in the cache's own numbering.
+     *
+     * Read by clientscript 4697 -- the panel's "Reset" op -- and written by
+     * nothing in the cache, which is the same server-shaped hole the builders
+     * themselves are. Only ONE value of it is a cache fact: 4697's `case 2`
+     * rebuilds the Agility helper. See torirs_server_helper.c.
+     */
+    int varbit_current_helper;
+    /**
+     * Which course the Agility helper is about, as an index into `enum_3507`.
+     *
+     * Content's to write, not this engine's: the course numbering in
+     * `skill_agility/configs/agility.constant` is that lane's own and says so,
+     * so the lane maps its id to the cache's here rather than C guessing at a
+     * correspondence between two lists that merely both mention Draynor.
+     * Non-zero is also how the tick knows the helper is wanted at all.
+     */
+    int varbit_helper_agility_course;
+
+    /** How many of the current Slayer task are left; 0 for "no task". */
+    int varp_slayer_count;
+    /** The dbrow of the clue step the infobox helper is about; 0 for none. */
+    int varp_cluehelper_infobox_clue;
+
+    /*
+     * The player's max hit, computed by `[proc,player_combat_stat]`.
+     *
+     * Read by the hitsplat promoter, which needs "was that this attacker's
+     * maximum" for setting 279. It is a varp rather than a field because the max
+     * hit is a game-design calculation and lives in content -- see the note over
+     * `roll_hit` in torirs_server_combat.c.
+     */
+    int varp_com_maxhit;
+    /** Setting 280's floor: max hits below it do not get the max-hit splat. */
+    int varbit_hitsplat_threshold;
+
+    /*
+     * The ironman loot restriction warnings.
+     *
+     * `ironman` is the account mode (0 normal, non-zero one of the iron modes);
+     * the two `..._disabled` rows are inverted, as their names state.
+     */
+    int varbit_ironman;
+    int varbit_iron_noloot_icon_off;
+    int varbit_iron_noloot_message_off;
 
     int varbit_bank_withdrawnotes;
     int varbit_bank_insertmode;

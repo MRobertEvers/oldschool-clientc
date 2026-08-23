@@ -66,6 +66,18 @@ struct FakeEngine
     char last_shot_name[64];
     struct FakeObject objects[FAKE_OBJECTS_MAX];
     int objects_live;
+    /* Meshes: counts only. What the triangles ARE is the engine's business
+     * and is tested where the engine is; what the host owes is that a handle
+     * reaches the engine, that the budget refuses past it, and that a stopped
+     * plugin's meshes go with it. */
+    int model_publishes;
+    int model_releases;
+    int last_model_size;
+    int meshes_live;
+    int mesh_creates;
+    int mesh_vertices;
+    int mesh_faces;
+    int mesh_clears;
 };
 
 static struct FakeEngine g_engine;
@@ -176,6 +188,109 @@ fake_element_height(void* u, int element_id)
     (void)u;
     return element_id >= 0 ? 200 : 0;
 }
+/*
+ * Feature flags, as a fake engine publishes them: one int, one enum, and a
+ * boot snapshot so the UNSET restore has something to restore TO. Two is
+ * enough to exercise everything the host forwards -- the walk, the range
+ * refusal and the sentinel -- without this file growing a copy of app.c's
+ * table, which is the client's business and not the host's.
+ */
+struct FakeFeature
+{
+    char const* key;
+    char const* label;
+    int kind;
+    int min;
+    int max;
+    char const* choices;
+    int values[2];
+    int value_count;
+    int boot;
+    int value;
+};
+
+static struct FakeFeature g_fake_features[] = {
+    { "draw_distance", "Draw distance", TORIRS_PLUGIN_FEATURE_INT, 25, 90, NULL,
+      { 0, 0 }, 0, 25, 25 },
+    { "camera_zoom", "Camera zoom", TORIRS_PLUGIN_FEATURE_ENUM, 0, 0, "Adjustable|Fixed",
+      { 0, 1 }, 2, 0, 0 },
+};
+
+#define FAKE_FEATURE_COUNT ((int)(sizeof(g_fake_features) / sizeof(g_fake_features[0])))
+
+static struct FakeFeature*
+fake_feature_find(char const* key)
+{
+    for( int i = 0; i < FAKE_FEATURE_COUNT; i++ )
+    {
+        if( strcmp(g_fake_features[i].key, key) == 0 )
+            return &g_fake_features[i];
+    }
+    return NULL;
+}
+
+static int
+fake_feature_next(void* u, int i, struct ToriRS_PluginFeature* o)
+{
+    (void)u;
+
+    int const at = i < 0 ? 0 : i + 1;
+    if( at >= FAKE_FEATURE_COUNT )
+        return -1;
+
+    struct FakeFeature const* f = &g_fake_features[at];
+    memset(o, 0, sizeof(*o));
+    snprintf(o->key, sizeof(o->key), "%s", f->key);
+    snprintf(o->label, sizeof(o->label), "%s", f->label);
+    o->kind = f->kind;
+    o->min = f->min;
+    o->max = f->max;
+    if( f->choices )
+        snprintf(o->choices, sizeof(o->choices), "%s", f->choices);
+    o->value_count = f->value_count;
+    for( int v = 0; v < f->value_count; v++ )
+        o->values[v] = f->values[v];
+    o->value = f->value;
+    o->is_default = f->value == f->boot;
+    return at;
+}
+
+static int
+fake_feature_get(void* u, char const* k)
+{
+    (void)u;
+
+    struct FakeFeature const* f = fake_feature_find(k);
+    return f ? f->value : TORIRS_PLUGIN_FEATURE_UNSET;
+}
+
+static int
+fake_feature_set(void* u, char const* k, int v)
+{
+    (void)u;
+
+    struct FakeFeature* f = fake_feature_find(k);
+    if( !f )
+        return 0;
+    if( v == TORIRS_PLUGIN_FEATURE_UNSET )
+    {
+        f->value = f->boot;
+        return 1;
+    }
+    if( f->kind == TORIRS_PLUGIN_FEATURE_ENUM )
+    {
+        int legal = 0;
+        for( int i = 0; i < f->value_count; i++ )
+            legal |= f->values[i] == v;
+        if( !legal )
+            return 0;
+    }
+    else if( v < f->min || v > f->max )
+        return 0;
+    f->value = v;
+    return 1;
+}
+
 static int
 fake_varbit(void* u, int id)
 {
@@ -308,14 +423,109 @@ fake_asset_write(void* u, char const* plugin, char const* name, void const* data
 }
 
 static int
-fake_screenshot(void* u, char const* plugin, char const* dir, char const* name)
+fake_screenshot(
+    void* u,
+    char const* plugin,
+    char const* dir,
+    char const* name,
+    char* out_path,
+    int out_path_size)
 {
     struct FakeEngine* e = u;
     (void)plugin;
     e->screenshots++;
     snprintf(e->last_shot_dir, sizeof(e->last_shot_dir), "%s", dir ? dir : "");
     snprintf(e->last_shot_name, sizeof(e->last_shot_name), "%s", name);
+    /* The engine owns the folders, so the path it answers with is its own
+     * doing; this fake states the shape the app builds -- destination then
+     * name -- so the host's pass-through can be checked without one. */
+    snprintf(
+        out_path,
+        (size_t)out_path_size,
+        "%s%s%s",
+        dir ? dir : "",
+        (dir && *dir) ? "/" : "",
+        name);
     return 1;
+}
+
+static void
+fake_layout_begin(void* u)
+{
+    (void)u;
+}
+static void
+fake_layout_end(void* u)
+{
+    (void)u;
+}
+static int
+fake_model_publish(void* u, int model, void const* data, int size)
+{
+    struct FakeEngine* e = u;
+    (void)model;
+    (void)data;
+    e->model_publishes++;
+    /* Size is the whole test: the host must forward the asset's bytes, and a
+     * publish of nothing is the bug this catches. */
+    e->last_model_size = size;
+    return size > 0;
+}
+
+static void
+fake_model_release(void* u, int model)
+{
+    struct FakeEngine* e = u;
+    (void)model;
+    e->model_releases++;
+}
+
+static int
+fake_mesh_create(void* u)
+{
+    struct FakeEngine* e = u;
+    e->mesh_creates++;
+    return e->meshes_live++;
+}
+
+static void
+fake_mesh_destroy(void* u, int mesh)
+{
+    struct FakeEngine* e = u;
+    (void)mesh;
+    e->meshes_live--;
+}
+
+static void
+fake_mesh_clear(void* u, int mesh)
+{
+    struct FakeEngine* e = u;
+    (void)mesh;
+    e->mesh_clears++;
+}
+
+static int
+fake_mesh_vertex(void* u, int mesh, int x, int y, int z)
+{
+    struct FakeEngine* e = u;
+    (void)mesh;
+    (void)x;
+    (void)y;
+    (void)z;
+    return e->mesh_vertices++;
+}
+
+static int
+fake_mesh_face(void* u, int mesh, int a, int b, int c, int hsl, int alpha)
+{
+    struct FakeEngine* e = u;
+    (void)mesh;
+    (void)a;
+    (void)b;
+    (void)c;
+    (void)hsl;
+    (void)alpha;
+    return e->mesh_faces++;
 }
 
 static int
@@ -438,6 +648,424 @@ fake_menu_add(void* u, void* cursor, char const* text, int action)
     return 1;
 }
 
+/* ---- the 2026-08-22 additions: the canvas surface, images and if_click ----
+ *
+ * Stubs, deliberately: what these tests exercise is the HOST -- the bus, the
+ * budget, the sandbox -- and none of that cares what the engine does with a
+ * blit. What they do have to do is EXIST, because PluginHost_New asserts every
+ * entry: a fake engine missing one is a fake that has fallen behind the
+ * contract, and the assert is what says so. */
+static int
+fake_mouse_pos(void* u, int* x, int* y)
+{
+    (void)u;
+    if( x )
+        *x = 0;
+    if( y )
+        *y = 0;
+    return 1;
+}
+static int
+fake_minimap_rect(void* u, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    if( x )
+        *x = 550;
+    if( y )
+        *y = 4;
+    if( w )
+        *w = 146;
+    if( h )
+        *h = 151;
+    return 1;
+}
+/*
+ * The engine entry points this suite does not exercise.
+ *
+ * PluginHost_New asserts every one of them, so a seam that grows a callback
+ * aborts the whole suite on its first line until the fake catches up -- which
+ * is the point of the assert, and is why these are stubs with honest answers
+ * rather than omissions. Each returns the "this frame has none" answer its
+ * contract defines.
+ */
+static void
+fake_layout_set(void* u, int owned, int canvas, int fixed_w, int fixed_h)
+{
+    (void)u;
+    (void)owned;
+    (void)canvas;
+    (void)fixed_w;
+    (void)fixed_h;
+}
+static int
+fake_layout_slot(void* u, int slot, int member, int x, int y, int w, int h)
+{
+    (void)u;
+    (void)slot;
+    (void)member;
+    (void)x;
+    (void)y;
+    (void)w;
+    (void)h;
+    return 0;
+}
+static int
+fake_layout_slot_skin(void* u, int slot, int art, int mask)
+{
+    (void)u;
+    (void)slot;
+    (void)art;
+    (void)mask;
+    return 0;
+}
+static int
+fake_layout_scrollbar(void* u, int const* images, int count)
+{
+    (void)u;
+    (void)images;
+    (void)count;
+    return 0;
+}
+static int
+fake_display_setting(void* u, int setting, int* out_value, int* out_min, int* out_max)
+{
+    (void)u;
+    (void)setting;
+    (void)out_value;
+    (void)out_min;
+    (void)out_max;
+    return 0;
+}
+static int
+fake_display_setting_set(void* u, int setting, int value)
+{
+    (void)u;
+    (void)setting;
+    (void)value;
+    return 0;
+}
+static int
+fake_tab_active(void* u)
+{
+    (void)u;
+    return -1;
+}
+static int
+fake_tab_select(void* u, int tabno)
+{
+    (void)u;
+    (void)tabno;
+    return 0;
+}
+static int
+fake_obj_info(void* u, int obj_id, struct ToriRS_PluginObjInfo* out)
+{
+    (void)u;
+    (void)obj_id;
+    (void)out;
+    return 0;
+}
+static int
+fake_inv_slot(void* u, int inv, int slot, int* out_obj_id, int* out_count)
+{
+    (void)u;
+    (void)inv;
+    (void)slot;
+    (void)out_obj_id;
+    (void)out_count;
+    return 0;
+}
+static int
+fake_inv_size(void* u, int inv)
+{
+    (void)u;
+    (void)inv;
+    return 0;
+}
+
+/* Regions, by role. `w` of 0 means "this gameframe has no such region", which
+ * is how the fallback chain in slot_rect's contract gets exercised. */
+static int g_slot_x[TORIRS_PLUGIN_SLOT_COUNT];
+static int g_slot_y[TORIRS_PLUGIN_SLOT_COUNT];
+static int g_slot_w[TORIRS_PLUGIN_SLOT_COUNT];
+static int g_slot_h[TORIRS_PLUGIN_SLOT_COUNT];
+
+static int
+fake_slot_rect(void* u, int slot, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_COUNT )
+        return 0;
+    if( g_slot_w[slot] <= 0 || g_slot_h[slot] <= 0 )
+        return 0;
+    if( x )
+        *x = g_slot_x[slot];
+    if( y )
+        *y = g_slot_y[slot];
+    if( w )
+        *w = g_slot_w[slot];
+    if( h )
+        *h = g_slot_h[slot];
+    return 1;
+}
+
+/* One member, so that a readout naming one can be told from a readout that
+ * fell back to the role. `g_member_no` of -1 means this frame declares none.
+ */
+static int g_member_slot = -1;
+static int g_member_no = -1;
+static int g_member_box[4];
+
+static int
+fake_slot_member_rect(void* u, int slot, int member, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    if( slot != g_member_slot || member != g_member_no )
+        return 0;
+    if( x )
+        *x = g_member_box[0];
+    if( y )
+        *y = g_member_box[1];
+    if( w )
+        *w = g_member_box[2];
+    if( h )
+        *h = g_member_box[3];
+    return 1;
+}
+
+/* One mounted component, so a readout by id can be told from one that missed.
+ * `g_component_id` of -1 means nothing is mounted. */
+static int g_component_id = -1;
+static int g_component_box[4];
+
+static int
+fake_component_rect(void* u, int component_id, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    if( component_id != g_component_id )
+        return 0;
+    if( x )
+        *x = g_component_box[0];
+    if( y )
+        *y = g_component_box[1];
+    if( w )
+        *w = g_component_box[2];
+    if( h )
+        *h = g_component_box[3];
+    return 1;
+}
+/*
+ * One bound role, so a name that resolves can be told from one that does not.
+ * `g_role_name` NULL means this revision declares nothing at all -- which is
+ * the state every lane is in before its profile is written, and the one the
+ * contract's "an unbound role is an answer" rule is about.
+ */
+static char const* g_role_name;
+static int g_role_box[4];
+static int g_role_visible;
+static int g_role_component_id = -1;
+static int g_role_clicked_op = -1;
+static char const* g_role_clicked;
+
+static int
+role_is(char const* role)
+{
+    return g_role_name && strcmp(role, g_role_name) == 0;
+}
+
+static int
+fake_role_rect(void* u, char const* role, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    if( !role_is(role) )
+        return 0;
+    if( x )
+        *x = g_role_box[0];
+    if( y )
+        *y = g_role_box[1];
+    if( w )
+        *w = g_role_box[2];
+    if( h )
+        *h = g_role_box[3];
+    return 1;
+}
+
+static int
+fake_role_visible(void* u, char const* role)
+{
+    (void)u;
+    return role_is(role) ? g_role_visible : 0;
+}
+
+static int
+fake_role_click(void* u, char const* role, int op)
+{
+    (void)u;
+    if( !role_is(role) )
+        return 0;
+    g_role_clicked = role;
+    g_role_clicked_op = op;
+    return 1;
+}
+
+static int
+fake_role_id(void* u, char const* role)
+{
+    (void)u;
+    return role_is(role) ? g_role_component_id : -1;
+}
+
+static int
+fake_stat(void* u, int skill, int* cur, int* base)
+{
+    (void)u;
+    (void)skill;
+    if( cur )
+        *cur = 10;
+    if( base )
+        *base = 10;
+    return 1;
+}
+/* Level 10 with 1154 xp: the hitpoints a fresh account starts on, so the
+ * thresholds either side of it are real numbers rather than zeroes. */
+static int
+fake_stat_xp(void* u, int skill, int* xp, int* level_xp, int* next_xp)
+{
+    (void)u;
+    if( skill < 0 || skill >= 25 )
+        return 0;
+    if( xp )
+        *xp = 1154;
+    if( level_xp )
+        *level_xp = 1154;
+    if( next_xp )
+        *next_xp = 1358;
+    return 1;
+}
+static char const*
+fake_skill_name(void* u, int skill)
+{
+    static char const* const NAMES[] = { "Attack", "Defence", "Strength", "Hitpoints" };
+    (void)u;
+    if( skill < 0 || skill >= (int)(sizeof(NAMES) / sizeof(NAMES[0])) )
+        return NULL;
+    return NAMES[skill];
+}
+static int
+fake_run_energy(void* u)
+{
+    (void)u;
+    return 100;
+}
+static void
+fake_draw_select_canvas(void* u, int canvas)
+{
+    (void)u;
+    (void)canvas;
+}
+static int
+fake_image_publish(void* u, int slot, void const* data, int size, int* w, int* h)
+{
+    (void)u;
+    (void)slot;
+    (void)data;
+    (void)size;
+    if( w )
+        *w = 26;
+    if( h )
+        *h = 26;
+    return 1;
+}
+/* The composed image the host last published, so a test can see the pixels
+ * came through and read them back the way the engine's own scene would. */
+static struct
+{
+    int slot;
+    int w;
+    int h;
+    uint32_t argb[64 * 64];
+} g_composed;
+
+static int
+fake_image_publish_argb(void* u, int slot, int w, int h, uint32_t const* argb)
+{
+    (void)u;
+    if( w <= 0 || h <= 0 || w * h > (int)(sizeof(g_composed.argb) / sizeof(uint32_t)) )
+        return 0;
+    g_composed.slot = slot;
+    g_composed.w = w;
+    g_composed.h = h;
+    memcpy(g_composed.argb, argb, (size_t)(w * h) * sizeof(uint32_t));
+    return 1;
+}
+static int
+fake_image_read(void* u, int slot, uint32_t* out, int max)
+{
+    (void)u;
+    int const pixels = g_composed.w * g_composed.h;
+
+    if( slot != g_composed.slot || pixels <= 0 || pixels > max )
+        return 0;
+    memcpy(out, g_composed.argb, (size_t)pixels * sizeof(uint32_t));
+    return pixels;
+}
+static void
+fake_image_release(void* u, int slot)
+{
+    (void)u;
+    (void)slot;
+}
+static int
+fake_draw_image(
+    void* u, int slot, int x, int y, int w, int h, int cx, int cy, int cw, int ch, int trans)
+{
+    (void)u;
+    (void)slot;
+    (void)x;
+    (void)y;
+    (void)w;
+    (void)h;
+    (void)cx;
+    (void)cy;
+    (void)cw;
+    (void)ch;
+    (void)trans;
+    g_engine.draw_items += 1;
+    return 1;
+}
+static int
+fake_hit_region(
+    void* u,
+    int plugin,
+    int x,
+    int y,
+    int w,
+    int h,
+    char const* const* ops,
+    int op_count,
+    uint32_t tag)
+{
+    (void)u;
+    (void)plugin;
+    (void)x;
+    (void)y;
+    (void)w;
+    (void)h;
+    (void)ops;
+    (void)op_count;
+    (void)tag;
+    return 1;
+}
+static int
+fake_if_click(void* u, int component_id, int op)
+{
+    (void)u;
+    (void)component_id;
+    (void)op;
+    return 1;
+}
+
+
 static struct ToriRS_PluginEngine
 fake_engine(void)
 {
@@ -457,6 +1085,9 @@ fake_engine(void)
     e.hover_tile = fake_hover_tile;
     e.hover_entity = fake_hover_entity;
     e.element_height = fake_element_height;
+    e.feature_next = fake_feature_next;
+    e.feature_get = fake_feature_get;
+    e.feature_set = fake_feature_set;
     e.varbit = fake_varbit;
     e.varp = fake_varp;
     e.project = fake_project;
@@ -465,11 +1096,52 @@ fake_engine(void)
     e.draw_line = fake_draw_line;
     e.draw_text = fake_draw_text;
     e.draw_rect = fake_draw_rect;
+    e.mouse_pos = fake_mouse_pos;
+    e.minimap_rect = fake_minimap_rect;
+    e.slot_rect = fake_slot_rect;
+    e.slot_member_rect = fake_slot_member_rect;
+    e.component_rect = fake_component_rect;
+    e.role_rect = fake_role_rect;
+    e.role_visible = fake_role_visible;
+    e.role_click = fake_role_click;
+    e.role_id = fake_role_id;
+    e.layout_set = fake_layout_set;
+    e.layout_slot = fake_layout_slot;
+    e.layout_slot_skin = fake_layout_slot_skin;
+    e.layout_scrollbar = fake_layout_scrollbar;
+    e.display_setting = fake_display_setting;
+    e.display_setting_set = fake_display_setting_set;
+    e.tab_active = fake_tab_active;
+    e.tab_select = fake_tab_select;
+    e.obj_info = fake_obj_info;
+    e.inv_slot = fake_inv_slot;
+    e.inv_size = fake_inv_size;
+    e.stat = fake_stat;
+    e.stat_xp = fake_stat_xp;
+    e.skill_name = fake_skill_name;
+    e.run_energy = fake_run_energy;
+    e.draw_select_canvas = fake_draw_select_canvas;
+    e.image_publish = fake_image_publish;
+    e.image_publish_argb = fake_image_publish_argb;
+    e.image_read = fake_image_read;
+    e.image_release = fake_image_release;
+    e.draw_image = fake_draw_image;
+    e.hit_region = fake_hit_region;
+    e.if_click = fake_if_click;
     e.menu_add = fake_menu_add;
     e.obj_next = fake_obj_next;
     e.asset_read = fake_asset_read;
     e.asset_write = fake_asset_write;
     e.screenshot = fake_screenshot;
+    e.layout_begin = fake_layout_begin;
+    e.layout_end = fake_layout_end;
+    e.model_publish = fake_model_publish;
+    e.model_release = fake_model_release;
+    e.mesh_create = fake_mesh_create;
+    e.mesh_destroy = fake_mesh_destroy;
+    e.mesh_clear = fake_mesh_clear;
+    e.mesh_vertex = fake_mesh_vertex;
+    e.mesh_face = fake_mesh_face;
     e.object_create = fake_object_create;
     e.object_destroy = fake_object_destroy;
     e.object_set_model = fake_object_set_model;
@@ -631,6 +1303,8 @@ gamma_asset(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
     return TORIRS_PLUGIN_PASS;
 }
 
+static int g_gamma_mesh = -1;
+
 static void
 gamma_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
 {
@@ -645,6 +1319,18 @@ gamma_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
         if( handle >= 0 )
             g_gamma_objects[g_gamma_object_count++] = handle;
     }
+
+    /* One authored triangle, so the mesh seam is exercised by a plugin that
+     * also uses the cache seam: the two sources have to coexist on one host. */
+    g_gamma_mesh = api->mesh_create(ctx);
+    if( g_gamma_mesh >= 0 )
+    {
+        int const a = api->mesh_vertex(ctx, g_gamma_mesh, -64, 0, 0);
+        int const b = api->mesh_vertex(ctx, g_gamma_mesh, 64, 0, 0);
+        int const c = api->mesh_vertex(ctx, g_gamma_mesh, 0, -256, 0);
+        api->mesh_face(ctx, g_gamma_mesh, a, b, c, api->hsl_from_rgb(ctx, 0xFF9600), 64);
+    }
+
     for( int i = 0; i < g_gamma_object_count; i++ )
     {
         api->object_set_model(ctx, g_gamma_objects[i], TORIRS_PLUGIN_MODEL_CACHE, 43330);
@@ -655,6 +1341,7 @@ gamma_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
     }
 }
 
+/* Declared beside the objects it stands next to; see gamma_init. */
 static struct ToriRS_PluginDef const GAMMA = {
     .name = "gamma",
     .version = "1",
@@ -834,6 +1521,21 @@ static struct ToriRS_PluginDef const OFF_BY_DEFAULT = {
     .disabled_by_default = true,
 };
 
+/*
+ * The shape the Feature Flags plugin has: listed, but with one state.
+ *
+ * Registered here rather than tested through the real plugin because what is
+ * under test is the HOST's half of the contract -- that `essential` is
+ * reported, that SetEnabled will not clear it, and that a saved `enabled=0`
+ * does not either. The plugin's own page is the panel's business.
+ */
+static struct ToriRS_PluginDef const ESSENTIAL = {
+    .name = "always-on",
+    .title = "Always On",
+    .version = "1",
+    .essential = true,
+};
+
 /* Declares no title, so the host must make one: the roster is not allowed to
  * fall back to printing the id at anybody. */
 static struct ToriRS_PluginDef const TITLELESS = {
@@ -891,6 +1593,226 @@ main(void)
     PluginHost_SetEnabled(host, a, true);
     PluginHost_LogicTick(host, 3);
     CHECK(g_alpha_ticks == 1, "re-enabling restores its subscriptions");
+
+    /*
+     * Essential: listed, and with no second state.
+     *
+     * Every one of these is a way the switch could come back on a plugin whose
+     * whole point is that it has none -- the panel writing it, an ini carrying
+     * it from a build where it was ordinary, or the encoder saving one.
+     */
+    {
+        int const e = PluginHost_Register(host, &ESSENTIAL);
+        CHECK(PluginHost_IsEssential(host, e), "essential is reported to the roster");
+        CHECK(!PluginHost_IsEssential(host, a), "and an ordinary plugin is not");
+        CHECK(PluginHost_IsEnabled(host, e), "an essential plugin starts on");
+
+        PluginHost_SetEnabled(host, e, false);
+        CHECK(PluginHost_IsEnabled(host, e), "and cannot be switched off");
+
+        PluginHost_ConfigApply(host, "always-on", "enabled", "0");
+        CHECK(PluginHost_IsEnabled(host, e),
+              "a saved enabled=0 from an older build is ignored too");
+    }
+
+    /*
+     * Feature flags: the walk, the sentinel, and the two refusals.
+     *
+     * The refusals are the load-bearing half. A key the engine does not
+     * publish is how a server-agreed flag stays out of a plugin's reach, and a
+     * value outside the flag's range is what stops a typed number from
+     * becoming a draw distance nothing can render.
+     */
+    {
+        struct ToriRS_PluginApi const* api = PluginHost_Api(host);
+        struct ToriRS_PluginCtx* ctx = PluginHost_Ctx(host, a);
+        struct ToriRS_PluginFeature flag;
+        int seen = 0;
+        int iter = -1;
+
+        while( (iter = api->feature_next(ctx, iter, &flag)) >= 0 )
+            seen++;
+        CHECK(seen == FAKE_FEATURE_COUNT, "the walk visits every published flag");
+
+        CHECK(api->feature_get(ctx, "pathing_mode") == TORIRS_PLUGIN_FEATURE_UNSET,
+              "an unpublished flag reads as unset");
+        CHECK(!api->feature_set(ctx, "pathing_mode", 1),
+              "and cannot be set, which is the whole server-agreement rule");
+
+        CHECK(api->feature_set(ctx, "draw_distance", 60), "a value in range is taken");
+        CHECK(api->feature_get(ctx, "draw_distance") == 60, "and is what reads back");
+        CHECK(!api->feature_set(ctx, "draw_distance", 4000), "a value out of range is not");
+        CHECK(api->feature_get(ctx, "draw_distance") == 60, "and leaves the flag alone");
+
+        CHECK(api->feature_set(ctx, "draw_distance", TORIRS_PLUGIN_FEATURE_UNSET),
+              "the sentinel is accepted");
+        CHECK(api->feature_get(ctx, "draw_distance") == 25,
+              "and restores what the boot resolved");
+
+        CHECK(api->feature_set(ctx, "camera_zoom", 1), "an enum takes a declared value");
+        CHECK(!api->feature_set(ctx, "camera_zoom", 7), "and refuses one it never offered");
+        CHECK(api->feature_get(ctx, "camera_zoom") == 1, "leaving the declared one in place");
+    }
+
+    /*
+     * Region readouts: the role, and one MEMBER of it.
+     *
+     * The member read is the half a plugin anchoring to the report abuse
+     * button needs, and the two answers have to be able to DIFFER -- the role
+     * answers with whichever chat button the frame found first, the member
+     * with the one that was asked for. A member the frame does not declare is
+     * an answer ("no such button here"), not a fault, and it must leave the
+     * caller's outs alone rather than half-filling them.
+     */
+    {
+        struct ToriRS_PluginApi const* api = PluginHost_Api(host);
+        struct ToriRS_PluginCtx* ctx = PluginHost_Ctx(host, a);
+        int x = -1, y = -1, w = -1, h = -1;
+
+        g_slot_x[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS] = 6;
+        g_slot_y[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS] = 467;
+        g_slot_w[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS] = 56;
+        g_slot_h[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS] = 19;
+        g_member_slot = TORIRS_PLUGIN_SLOT_CHAT_BUTTONS;
+        g_member_no = 3;
+        g_member_box[0] = 408;
+        g_member_box[1] = 467;
+        g_member_box[2] = 56;
+        g_member_box[3] = 19;
+
+        CHECK(api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, &x, &y, &w, &h),
+              "the role answers");
+        CHECK(x == 6, "with the box the frame gave the role");
+
+        x = y = w = h = -1;
+        CHECK(api->slot_member_rect(ctx, TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, 3, &x, &y, &w, &h),
+              "and the member answers for the number it was asked for");
+        CHECK(x == 408 && y == 467 && w == 56 && h == 19,
+              "with that member's own box, not the role's");
+
+        x = y = w = h = -1;
+        CHECK(!api->slot_member_rect(ctx, TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, 2, &x, &y, &w, &h),
+              "a member this frame does not declare is 0");
+        CHECK(x == -1 && y == -1 && w == -1 && h == -1, "and leaves the outputs untouched");
+
+        CHECK(!api->slot_member_rect(ctx, TORIRS_PLUGIN_SLOT_SAFE, 0, &x, &y, &w, &h),
+              "SAFE is derived and has no members to number");
+        CHECK(!api->slot_member_rect(ctx, TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, -1, &x, &y, &w, &h),
+              "and \"any member\" is not a question this verb takes");
+
+        /*
+         * And the same box reached by COMPONENT ID, which is what a cache
+         * frame leaves a plugin: its chat buttons are the interface's own
+         * widgets, so they carry no role at all and the id is the only handle
+         * on them. An id nothing mounted is an answer, like an absent member.
+         */
+        g_component_id = (162 << 16) | 31;
+        g_component_box[0] = 437;
+        g_component_box[1] = 480;
+        g_component_box[2] = 79;
+        g_component_box[3] = 23;
+
+        x = y = w = h = -1;
+        CHECK(api->component_rect(ctx, (162 << 16) | 31, &x, &y, &w, &h),
+              "a mounted component answers by id");
+        CHECK(x == 437 && y == 480 && w == 79 && h == 23, "with its own box");
+
+        x = y = w = h = -1;
+        CHECK(!api->component_rect(ctx, (162 << 16) | 33, &x, &y, &w, &h),
+              "an id this tree does not carry is 0");
+        CHECK(x == -1 && y == -1, "and leaves the outputs untouched");
+
+        g_component_id = -1;
+        g_member_slot = -1;
+        g_member_no = -1;
+        g_slot_w[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS] = 0;
+        g_slot_h[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS] = 0;
+    }
+
+    /*
+     * Semantic roles: the same four verbs, addressed by what the element is.
+     *
+     * The negative half is the point. A role no profile declared has to answer
+     * "not here" through every verb, because that is the state every lane is
+     * in until someone writes its binding -- and a plugin that got a plausible
+     * answer instead would be drawing over, or pressing, whatever happened to
+     * be there.
+     */
+    {
+        struct ToriRS_PluginApi const* api = PluginHost_Api(host);
+        struct ToriRS_PluginCtx* ctx = PluginHost_Ctx(host, a);
+        int x, y, w, h;
+
+        g_role_name = NULL;
+        x = y = w = h = -1;
+        CHECK(!api->role_rect(ctx, "report_button", &x, &y, &w, &h),
+              "an undeclared role has no rectangle");
+        CHECK(x == -1 && y == -1, "and leaves the outputs untouched");
+        CHECK(!api->role_visible(ctx, "report_button"), "an undeclared role is not visible");
+        CHECK(!api->role_click(ctx, "report_button", 0), "an undeclared role cannot be pressed");
+        CHECK(api->role_id(ctx, "report_button") == -1, "an undeclared role has no id");
+
+        /* An empty name is a plugin's own string handling and gets the same
+         * answer rather than reaching the engine. */
+        CHECK(!api->role_rect(ctx, "", &x, &y, &w, &h), "an empty role name is not a role");
+        CHECK(api->role_id(ctx, "") == -1, "an empty role name has no id");
+
+        g_role_name = "report_button";
+        g_role_box[0] = 408;
+        g_role_box[1] = 467;
+        g_role_box[2] = 100;
+        g_role_box[3] = 32;
+        g_role_visible = 1;
+        g_role_component_id = (553 << 16) | 0;
+
+        x = y = w = h = -1;
+        CHECK(api->role_rect(ctx, "report_button", &x, &y, &w, &h), "a bound role answers");
+        CHECK(x == 408 && y == 467 && w == 100 && h == 32, "with its element's box");
+        CHECK(api->role_visible(ctx, "report_button"), "and reports it on screen");
+        CHECK(api->role_id(ctx, "report_button") == ((553 << 16) | 0), "and hands back its id");
+
+        /* A different name is still unbound, so one binding cannot answer for
+         * the whole vocabulary. */
+        CHECK(!api->role_rect(ctx, "logout_screen", &x, &y, &w, &h),
+              "a role this profile did not bind is still absent");
+
+        g_role_visible = 0;
+        CHECK(!api->role_visible(ctx, "report_button"), "a hidden element is not visible");
+        CHECK(api->role_rect(ctx, "report_button", &x, &y, &w, &h),
+              "…but it still has a box, which is why the two are separate verbs");
+
+        g_role_clicked = NULL;
+        g_role_clicked_op = -1;
+        CHECK(api->role_click(ctx, "report_button", 1), "a bound role presses");
+        CHECK(g_role_clicked && strcmp(g_role_clicked, "report_button") == 0,
+              "the press reached the element the role names");
+        CHECK(g_role_clicked_op == 1, "carrying the op it was given");
+
+        /* Same reading as if_click's: an op out of range came from a config
+         * key, so it is refused rather than passed down. */
+        g_role_clicked_op = -1;
+        CHECK(!api->role_click(ctx, "report_button", 11), "an op past 10 is refused");
+        CHECK(g_role_clicked_op == -1, "and never reaches the engine");
+
+        /*
+         * `safe` never reaches the engine at all: it is derived from the
+         * regions and the host's own reservation table, so it has to answer
+         * with exactly what the region enum answers.
+         */
+        {
+            int sx, sy, sw, sh, rx, ry, rw, rh;
+            int by_slot = api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_SAFE, &sx, &sy, &sw, &sh);
+            int by_role = api->role_rect(ctx, "safe", &rx, &ry, &rw, &rh);
+            CHECK(by_slot == by_role, "the safe role and the safe region agree that it exists");
+            if( by_slot && by_role )
+                CHECK(sx == rx && sy == ry && sw == rw && sh == rh,
+                      "and agree on the rectangle");
+        }
+
+        g_role_name = NULL;
+        g_role_visible = 0;
+        g_role_component_id = -1;
+    }
 
     /* Packet interception. */
     CHECK(PluginHost_PacketIn(host, 5, -1) == 0, "an unremarkable packet passes");
@@ -992,6 +1914,42 @@ main(void)
         free(data);
     }
 
+    /*
+     * Typed reads. The store is text, so what cfg_int and cfg_color make of
+     * that text IS the setting -- and the spellings a hand-edited
+     * plugin_prefs.ini carries are revconfig's, not atoi's.
+     */
+    {
+        struct ToriRS_PluginCtx* ctx = PluginHost_Ctx(host, a);
+
+        PluginHost_ConfigSet(host, a, "colour", "#FF8000");
+        CHECK(g_api->cfg_color(ctx, "colour") == 0xFF8000u, "#RRGGBB");
+        PluginHost_ConfigSet(host, a, "colour", "rgb(255, 0, 0)");
+        CHECK(g_api->cfg_color(ctx, "colour") == 0xFF0000u, "rgb()");
+        PluginHost_ConfigSet(host, a, "colour", "0x0000FF");
+        CHECK(g_api->cfg_color(ctx, "colour") == 0x0000FFu, "0x hex");
+        PluginHost_ConfigSet(host, a, "colour", "65280");
+        CHECK(g_api->cfg_color(ctx, "colour") == 0x00FF00u, "a bare run is decimal");
+        PluginHost_ConfigSet(host, a, "colour", "rgba(255, 0, 0, 128)");
+        CHECK(
+            g_api->cfg_color(ctx, "colour") == 0xFF0000u,
+            "rgba() parses; cfg_color drops the alpha byte its contract has no room for");
+        PluginHost_ConfigSet(host, a, "colour", "cornflower");
+        CHECK(g_api->cfg_color(ctx, "colour") == 0u, "a value that is not a number reads as 0");
+
+        PluginHost_ConfigSet(host, a, "level", "0x10");
+        CHECK(g_api->cfg_int(ctx, "level") == 16, "an int key is the same grammar");
+        PluginHost_ConfigSet(host, a, "level", "1 << 4");
+        CHECK(g_api->cfg_int(ctx, "level") == 16, "arithmetic");
+        PluginHost_ConfigSet(host, a, "level", "hsl16(0, 7, 64)");
+        CHECK(g_api->cfg_int(ctx, "level") == ((7 << 7) | 64), "hsl16() packs a palette index");
+        PluginHost_ConfigSet(host, a, "level", "-1");
+        CHECK(g_api->cfg_int(ctx, "level") == -1, "a negative value survives");
+        PluginHost_ConfigSet(host, a, "level", "9 apples");
+        CHECK(g_api->cfg_int(ctx, "level") == 0, "a number with text after it is a typo, not a 9");
+        PluginHost_ConfigSet(host, a, "level", "9");
+    }
+
     /* Enable state is saved state. */
     {
         void* data = NULL;
@@ -1027,6 +1985,26 @@ main(void)
         CHECK(g_engine.objects[g_gamma_objects[0]].seq_id == 9260, "so is the sequence");
         CHECK(g_engine.objects[g_gamma_objects[0]].recolors == 1, "so is the recolour pair");
         CHECK(g_api->object_ready(ctx, g_gamma_objects[0]) == 1, "object_ready reports the engine");
+
+        /* Authored geometry. */
+        CHECK(g_gamma_mesh >= 0, "mesh_create hands out a handle");
+        CHECK(g_engine.meshes_live == 1, "and it reaches the engine");
+        CHECK(g_engine.mesh_vertices == 3, "every vertex is forwarded");
+        CHECK(g_engine.mesh_faces == 1, "and so is the face");
+        {
+            /* The budget is a runtime fact, not a contract violation: past it
+             * mesh_create refuses rather than aborting, exactly as
+             * object_create does. */
+            int taken = 0;
+            for( int i = 0; i < TORIRS_PLUGIN_MESH_BUDGET + 4; i++ )
+            {
+                if( g_api->mesh_create(ctx) >= 0 )
+                    taken++;
+            }
+            CHECK(
+                taken == TORIRS_PLUGIN_MESH_BUDGET - 1,
+                "mesh_create refuses past the plugin's budget");
+        }
 
         /* Ground items reach a plugin. */
         {
@@ -1073,6 +2051,29 @@ main(void)
             g_api->asset_data(ctx, "missing.txt", NULL) == NULL,
             "and leaves nothing resident");
 
+        /*
+         * A shipped model is a file: the handle is live before the bytes are,
+         * and the arrival is what publishes it.
+         */
+        {
+            int const shipped = g_api->model_load(ctx, "beam.model");
+            CHECK(shipped >= 0, "model_load hands out a handle");
+            CHECK(
+                g_api->model_load(ctx, "beam.model") == shipped,
+                "and a second load of the same file is the same handle, not a second copy");
+            CHECK(g_engine.model_publishes == 0, "nothing is published before the bytes land");
+            {
+                char* bytes = malloc(16);
+                memset(bytes, 0x7f, 16);
+                PluginHost_AssetDeliver(host3, "gamma", "beam.model", bytes, 16);
+            }
+            CHECK(g_engine.model_publishes == 1, "the delivery publishes it");
+            CHECK(g_engine.last_model_size == 16, "with the asset's own bytes");
+        }
+        CHECK(
+            g_api->model_load(ctx, "../beam.model") == -1,
+            "a path model name is refused, like every other asset name");
+
         /* Save replaces the resident copy before the write is queued. */
         CHECK(g_api->asset_save(ctx, "prices.txt", "4151=1", 6) == 1, "asset_save is accepted");
         CHECK(g_engine.asset_writes == 1, "and queues a write");
@@ -1086,6 +2087,78 @@ main(void)
         }
 
         /*
+         * Composed images: the plugin rasterises, the host publishes, and the
+         * pixels come back out through the same handle.
+         *
+         * The round trip is the point. A plugin that composes a picture out of
+         * the art it ships does both halves -- read the icon, write the
+         * composite -- and a read that answered plausible-but-wrong pixels
+         * would draw a picture nobody could tell was wrong.
+         */
+        {
+            uint32_t src[4] = { 0xFF102030u, 0xFF405060u, 0x80708090u, 0x00000000u };
+            uint32_t back[4] = { 0 };
+            int image;
+
+            memset(&g_composed, 0, sizeof(g_composed));
+            g_composed.slot = -1;
+
+            CHECK(
+                g_api->image_compose(ctx, "sub/dir.png", 2, 2, src) == -1,
+                "a composed image's name goes through the same gate a file's does");
+            CHECK(
+                g_api->image_compose(ctx, "orb.png", 0, 2, src) == -1,
+                "and a size that is not a picture is refused");
+
+            image = g_api->image_compose(ctx, "orb.png", 2, 2, src);
+            CHECK(image >= 0, "an ordinary compose hands out a handle");
+            CHECK(g_composed.w == 2 && g_composed.h == 2, "the geometry reaches the engine");
+            {
+                int w = 0;
+                int h = 0;
+                CHECK(
+                    g_api->image_size(ctx, image, &w, &h) == 1 && w == 2 && h == 2,
+                    "and the image is resident at once -- there is no read to wait for");
+            }
+            CHECK(
+                g_api->image_compose(ctx, "orb.png", 2, 2, src) == image,
+                "composing the same name again replaces it in place");
+
+            CHECK(
+                g_api->image_pixels(ctx, image, back, 3) == 0,
+                "a buffer too small for the whole image copies nothing");
+            CHECK(
+                g_api->image_pixels(ctx, image, back, 4) == 4,
+                "a big enough one copies every pixel");
+            CHECK(
+                memcmp(back, src, sizeof(src)) == 0,
+                "and they are the pixels that went in, alpha included");
+            CHECK(
+                g_api->image_pixels(ctx, image + 40, back, 4) == 0,
+                "a handle this plugin does not own reads nothing");
+
+            g_api->image_release(ctx, image);
+        }
+
+        /* stat_xp answers the three numbers a progress meter needs at once. */
+        {
+            int xp = -1;
+            int level_xp = -1;
+            int next_xp = -1;
+
+            CHECK(
+                g_api->stat_xp(ctx, 3, &xp, &level_xp, &next_xp) == 1,
+                "stat_xp answers for a skill in range");
+            CHECK(
+                xp == 1154 && level_xp == 1154 && next_xp == 1358,
+                "with the xp and both thresholds");
+            xp = -1;
+            CHECK(
+                g_api->stat_xp(ctx, 99, &xp, NULL, NULL) == 0 && xp == -1,
+                "and refuses one out of range without touching the outs");
+        }
+
+        /*
          * Screenshots.
          *
          * The name goes through the same gate an asset name does, because it
@@ -1096,26 +2169,46 @@ main(void)
          * the rest of the disk.
          */
         {
+            char shot_path[TORIRS_PLUGIN_SCREENSHOT_PATH_MAX];
+
             g_engine.screenshots = 0;
             CHECK(
-                g_api->screenshot(ctx, NULL, "levelup.png") == 1,
+                g_api->screenshot(ctx, NULL, "levelup.png", shot_path, (int)sizeof(shot_path)) ==
+                    1,
                 "a bare filename with no destination is accepted");
             CHECK(g_engine.screenshots == 1, "and reaches the engine");
             CHECK(g_engine.last_shot_dir[0] == '\0', "with no destination of its own");
+            CHECK(
+                strcmp(shot_path, "levelup.png") == 0,
+                "and the engine's answer for where it lands comes back");
 
             CHECK(
-                g_api->screenshot(ctx, "shots/levels", "levelup.png") == 1,
+                g_api->screenshot(
+                    ctx, "shots/levels", "levelup.png", shot_path, (int)sizeof(shot_path)) == 1,
                 "a destination with a separator is accepted");
             CHECK(
                 strcmp(g_engine.last_shot_dir, "shots/levels") == 0,
                 "and is forwarded unchanged");
+            CHECK(
+                strcmp(shot_path, "shots/levels/levelup.png") == 0,
+                "and the path it answers with carries it");
 
+            /*
+             * A refusal empties the path. It is the string a plugin puts in
+             * front of the player -- "saved to X" -- so a stale one left over
+             * from the last capture would name a file that was never written.
+             */
             CHECK(
-                g_api->screenshot(ctx, "shots/../../etc", "levelup.png") == 0,
+                g_api->screenshot(
+                    ctx, "shots/../../etc", "levelup.png", shot_path, (int)sizeof(shot_path)) ==
+                    0,
                 "a destination that climbs out is refused");
+            CHECK(shot_path[0] == '\0', "and leaves no path behind it");
             CHECK(
-                g_api->screenshot(ctx, NULL, "../levelup.png") == 0,
+                g_api->screenshot(ctx, NULL, "../levelup.png", shot_path, (int)sizeof(shot_path)) ==
+                    0,
                 "and so is a name that does");
+            CHECK(shot_path[0] == '\0', "with no path either");
             CHECK(g_engine.screenshots == 2, "neither reaches the engine");
         }
 
@@ -1149,6 +2242,8 @@ main(void)
         /* Stopping the plugin takes its geometry and its bytes with it. */
         PluginHost_SetEnabled(host3, g, false);
         CHECK(g_engine.objects_live == 0, "a stopped plugin's world objects are destroyed");
+        CHECK(g_engine.meshes_live == 0, "and so are its meshes");
+        CHECK(g_engine.model_releases == 1, "and its shipped models are released");
         {
             struct ToriRS_PluginHost* host4 = PluginHost_New(&engine);
             PluginHost_Register(host4, &GAMMA);
@@ -1161,6 +2256,7 @@ main(void)
             CHECK(g_gamma_assets == 0, "a delivery nobody asked for raises nothing");
             PluginHost_Free(host4);
             CHECK(g_engine.objects_live == 0, "and freeing a host destroys its objects too");
+            CHECK(g_engine.meshes_live == 0, "meshes included");
         }
 
         PluginHost_Free(host3);

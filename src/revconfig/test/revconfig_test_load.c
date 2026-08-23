@@ -45,8 +45,6 @@ test_load(void)
         "\n"
         "[component:world]\n"
         "type=world\n"
-        "mmb_rotate=true\n"
-        "wheel_zoom=false\n"
         "hotkey=select_tab\n"
         "hotkey=another_effect\n"
         "\n"
@@ -69,7 +67,19 @@ test_load(void)
         "\n"
         "[inv:backpack]\n"
         "item=bronze_dagger\n"
-        "item=coins\n";
+        "item=coins\n"
+        "\n"
+        /* The two nameless sections. The header has no ':' at all, so this is
+         * also the regression test for the old parser dropping such a header
+         * and applying its keys to whatever section came before. */
+        "[features]\n"
+        "era=lostcity\n"
+        "mover=cycle\n"
+        "\n"
+        "[camera]\n"
+        "zoom=clamped:[240, 2160]\n"
+        "controls=mmb,arrow_keys\n"
+        "wheel_step=60\n";
 
     revconfig_load_fields_from_ini_bytes((const uint8_t*)ini, (uint32_t)strlen(ini), fields);
 
@@ -106,11 +116,6 @@ test_load(void)
             components++;
             if( strcmp(items->items[i].u.uicomponent.name, "compass") == 0 )
                 TEST_ASSERT(items->items[i].u.uicomponent.width == 33, "component w value");
-            else
-            {
-                TEST_ASSERT(items->items[i].u.uicomponent.mmb_rotate == 1, "mmb_rotate=true");
-                TEST_ASSERT(items->items[i].u.uicomponent.wheel_zoom == 0, "wheel_zoom=false");
-            }
             break;
         case RCITEM_UILAYOUT:
             layouts++;
@@ -128,6 +133,32 @@ test_load(void)
     TEST_ASSERT(components == 2, "two components");
     TEST_ASSERT(layouts == 2, "two layouts from bare =");
     TEST_ASSERT(invs == 1, "one inv");
+
+    {
+        struct RevConfigItem const* features = NULL;
+        struct RevConfigItem const* camera = NULL;
+        for( uint32_t i = 0; i < items->item_count; i++ )
+        {
+            if( items->items[i].kind == RCITEM_FEATURES )
+                features = &items->items[i];
+            else if( items->items[i].kind == RCITEM_CAMERA )
+                camera = &items->items[i];
+        }
+        TEST_ASSERT(features != NULL, "[features] section parsed");
+        TEST_ASSERT(strcmp(features->u.features.era, "lostcity") == 0, "features era");
+        TEST_ASSERT(strcmp(features->u.features.mover, "cycle") == 0, "features mover");
+        TEST_ASSERT(camera != NULL, "[camera] section parsed");
+        TEST_ASSERT(
+            camera->u.camera.zoom_mode == REVCONFIG_CAMERA_ZOOM_CLAMPED, "camera clamped");
+        TEST_ASSERT(camera->u.camera.zoom_min == 240, "camera zoom min");
+        TEST_ASSERT(camera->u.camera.zoom_max == 2160, "camera zoom max");
+        TEST_ASSERT(
+            camera->u.camera.controls ==
+                (REVCONFIG_CAMERA_CONTROL_MMB | REVCONFIG_CAMERA_CONTROL_ARROW_KEYS),
+            "camera controls both");
+        TEST_ASSERT(camera->u.camera.has_wheel_step == 1, "camera wheel step stated");
+        TEST_ASSERT(camera->u.camera.wheel_step == 60, "camera wheel step");
+    }
 
     struct RevConfigItem const* first_layout = NULL;
     struct RevConfigItem const* second_layout = NULL;

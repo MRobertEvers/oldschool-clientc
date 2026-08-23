@@ -29,7 +29,6 @@ RS_UISlots_Init(struct RS_UISlots* slots)
     slots->main_overlay_index = -1;
     slots->side_modal_index = -1;
     slots->chat_index = -1;
-    slots->tut_index = -1;
     slots->flash_tab = -1;
 }
 
@@ -77,12 +76,46 @@ RS_UISlots_InitFromTree(
             slots->chat_index = (int32_t)i;
             break;
         case UITREE_SLOT_TUT:
-            slots->tut_index = (int32_t)i;
+            /* Still a legal tag for a gameframe that wants to give the
+             * tutorial component a region of its own; this client draws it in
+             * the chat region instead (RS_UISlots_OpenTut), so there is
+             * nothing to record. */
             break;
         case UITREE_SLOT_NONE:
             break;
         }
     }
+}
+
+/*
+ * What the chat region should be showing.
+ *
+ * Two things compete for it and the order is the reference's: an IF_OPENCHAT
+ * dialogue wins, and the tutorial-progress component shows only when there is
+ * none (drawChat's `if (chatInterfaceId !== -1) ... else if (tutComId !== -1)`).
+ * Every mutation of either goes through here so that closing the dialogue puts
+ * the tutorial component back rather than leaving the region empty.
+ */
+int
+RS_UISlots_ChatRegionIface(struct RS_UISlots const* slots)
+{
+    assert(slots);
+    if( slots->chat_com_id != -1 )
+        return slots->chat_com_id;
+    return slots->tut_com_id;
+}
+
+int
+RS_UISlots_TabFlashHidden(
+    struct RS_UISlots const* slots,
+    int tabno,
+    uint64_t logic_cycle)
+{
+    assert(slots);
+    if( tabno < 0 || slots->flash_tab != tabno )
+        return 0;
+    /* Ten ticks lit, ten dark. */
+    return (logic_cycle % 20) >= 10;
 }
 
 int
@@ -208,7 +241,7 @@ RS_UISlots_OpenChat(struct App* app, int iface_id)
     if( app->slots.main_modal_id != -1 || app->slots.side_modal_id != -1 )
         RS_UISlots_CloseModal(app);
     app->slots.chat_com_id = iface_id > 0 ? iface_id : -1;
-    slot_mount(app, app->slots.chat_index, iface_id);
+    slot_mount(app, app->slots.chat_index, RS_UISlots_ChatRegionIface(&app->slots));
 }
 
 void
@@ -225,7 +258,7 @@ RS_UISlots_OpenTut(struct App* app, int iface_id)
 {
     assert(app);
     app->slots.tut_com_id = iface_id > 0 ? iface_id : -1;
-    slot_mount(app, app->slots.tut_index, iface_id);
+    slot_mount(app, app->slots.chat_index, RS_UISlots_ChatRegionIface(&app->slots));
     app->need_redraw = 1;
 }
 
@@ -246,7 +279,8 @@ RS_UISlots_CloseModal(struct App* app)
     if( app->slots.chat_com_id != -1 )
     {
         app->slots.chat_com_id = -1;
-        slot_mount(app, app->slots.chat_index, -1);
+        /* Not -1: the tutorial component was underneath and comes back. */
+        slot_mount(app, app->slots.chat_index, RS_UISlots_ChatRegionIface(&app->slots));
     }
     app->need_redraw = 1;
 }

@@ -43,6 +43,9 @@ main(void)
     test_entity_overlay_draw_order();
     test_scripted_entity_overlay();
     test_scripted_entity_overlay_clipped();
+    test_scripted_overlay_arc();
+    test_server_driven_viewport_widgets();
+    test_roles();
 
     if( g_failures )
     {

@@ -18,6 +18,7 @@ enum UITreeEmitKind
     UITREE_EMIT_TEXT,
     UITREE_EMIT_RECT,
     UITREE_EMIT_LINE,
+    UITREE_EMIT_ARC,
     UITREE_EMIT_MODEL,
     UITREE_EMIT_CC_OBJ,
     UITREE_EMIT_SCROLLBAR_V,
@@ -146,13 +147,14 @@ struct UITreeEmitDesc
     /* Type-9 LINE: cache lineWidth + lineDirection (stored as rs_line.horizontal). */
     int line_width;
     uint8_t line_direction;
+    /* Type-10 ARC: the sector's start and end angle, 65536 to a full turn, 0
+     * straight up and clockwise. `filled` and `line_width` are shared with RECT
+     * and LINE and mean the same things they do there: a filled arc is the whole
+     * disc, an unfilled one a `line_width`-pixel band along the arc. */
+    int arc_start;
+    int arc_end;
     /* WORLD: scene levels the painter may draw (bit per level). */
     uint8_t world_level_mask;
-    /* WORLD: camera gestures this viewport accepts (revconfig mmb_rotate= /
-     * wheel_zoom=). The host reads them off the cached WORLD desc, which is
-     * also what gates the pointer to the viewport rect. */
-    uint8_t world_mmb_rotate;
-    uint8_t world_wheel_zoom;
 };
 
 /** Fill a single emit descriptor for a node. Returns false if nothing to draw.

@@ -280,7 +280,7 @@ add_inv(
     assert(s->obj_ids && s->obj_counts);
     for( int i = 0; i < s->item_count; i++ )
     {
-        s->obj_ids[i] = atoi(inv->items[i]);
+        s->obj_ids[i] = revconfig_parse_int(inv->items[i]);
         s->obj_counts[i] = 1;
     }
 }
@@ -304,15 +304,17 @@ fill_tree_op_from_component(
     op->tabno = comp->tabno;
     op->selected = comp->selected;
     strncpy(op->slot, comp->slot, sizeof(op->slot) - 1);
+    strncpy(op->role, comp->role, sizeof(op->role) - 1);
     op->level_mask = parse_paint_levels_mask(comp->paint_levels);
-    op->mmb_rotate = comp->mmb_rotate;
-    op->wheel_zoom = comp->wheel_zoom;
     op->hotkey_count = comp->hotkey_count;
     for( int i = 0; i < comp->hotkey_count && i < REVCONFIG_COMPONENT_HOTKEY_MAX; i++ )
         strncpy(op->hotkeys[i], comp->hotkeys[i], sizeof(op->hotkeys[i]) - 1);
     op->color = comp->color;
     op->filled = comp->filled;
+    op->tiled = comp->tiled;
     op->center = comp->center;
+    op->valign = comp->valign;
+    op->over_color = comp->over_color;
     op->shadowed = comp->shadowed;
     strncpy(op->text, comp->text, sizeof(op->text) - 1);
     op->button_type = comp->button_type;

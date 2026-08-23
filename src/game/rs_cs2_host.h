@@ -15,6 +15,7 @@ struct CacheProvider;
 struct InvManager;
 struct VarPManager;
 struct VarCManager;
+struct RevConfigRefs;
 struct RS_PlayerStats;
 struct CS2VM2_Thread;
 struct UITreeSceneBridge;
@@ -440,6 +441,24 @@ struct RS_CS2Host
         char* out_name,
         int name_cap);
     int (*coord_in_scene)(void* user, int coord);
+    /**
+     * One player's queued ROUTE, for `_6902` and `_6903`.
+     *
+     * A route is the tiles the server has put a player on that the client has
+     * not walked through yet -- the reference's `ClientPlayer::m_routeLength`
+     * and its two `array<int,10>` companions, which this client mirrors as
+     * WorldEntityFacet_Pathing. Index 0 is the NEWEST entry, so it is the
+     * player's server-side tile and runs AHEAD of the rendered position while
+     * they walk; that is the whole point of the current-tile indicator, which
+     * marks `_6903(0)` when there is a route and `coord` when there is not.
+     *
+     * Returns the route length, or -1 when no player in the world has that
+     * uid. `*out_coord` is filled with the packed absolute coord of entry
+     * `index` when that index is inside the route, and left alone otherwise.
+     * NULL here (a host with no world) is a client where every player has no
+     * route, which is what a client with no players truthfully has.
+     */
+    int (*player_route)(void* user, int player_uid, int index, int* out_coord);
     void* world_user;
 
     bool has_pending;
@@ -456,6 +475,19 @@ struct RS_CS2Host
      * has no local player yet", which reads as no tile rather than as tile
      * zero. See CS2VM2_Op_Coord. */
     int local_coord;
+    /**
+     * The local player's uid, as `_6905` reports it, or -1 before login.
+     *
+     * This client's player uid IS the server player slot (pid), the same
+     * choice RS_ClientOpContext::uid makes for an npc and for the same reason:
+     * the value never leaves the client, so the only requirement is that
+     * whoever reports it and whoever resolves it agree.
+     *
+     * Read beside `_6904` (the ACTIVE player's uid) and never on its own: the
+     * pair is how a per-player trigger script asks "is this me", which is what
+     * clientscript 5203 opens with.
+     */
+    int local_pid;
     /**
      * Where the local player is WALKING to, packed the same way, or -1.
      *
@@ -479,13 +511,31 @@ struct RS_CS2Host
     int hover_coord;
 
     /**
-     * The three tile-highlight refresh scripts, by cache id.
+     * The three tile-highlight TRIGGER scripts, by cache id.
      *
-     * They take no arguments and read their subject from a var or an opcode --
-     * 5204 reads `coord`, 5210 reads `_3330`, 5197 reads `_6950` -- so the
-     * client's whole job is to RE-RUN each one when its subject changes.
-     * Nothing in the cache calls them; the reference client does, on the same
-     * three edges.
+     * Each is a `[trigger_4x]` with no arguments that clears its highlight
+     * group and re-adds one tile, reading the tile from the context the client
+     * set before firing it:
+     *
+     *     5197  [trigger_48]  hovered tile      _7039(5); tile_on(_6950, 5, 0)
+     *     5203  [trigger_49]  current tile      _7039(3); tile_on(_6903(0) or coord, 3, 0)
+     *     5209  [trigger_47]  destination tile  _7039(4); tile_on(_6950, 4, 0)
+     *
+     * Nothing in the CACHE calls them -- a trigger script is the client's to
+     * fire -- and the reference fires each on one edge: the mouseover ground
+     * tile changing (`Client::GlUpdateMouseOverTile`), a player's route being
+     * updated (`ReceivePlayerPositions` and `Client::GlMovePlayers`), and the
+     * minimap flag moving (`Client::SetPlayerDestination`). It sets the ACTIVE
+     * PLAYER and, for the two tile-context ones, the ACTIVE TILE first; see
+     * app_logic_tick, which is the half of this that lives on the App.
+     *
+     * Their `[clientscript]` siblings -- 5198, 5204 and 5210 -- are the
+     * settings-panel APPLY forms of the same three rows: they restate the
+     * group's colour and style and are called by the cache (5199/5205/5211
+     * write the varbit and call one; the login settings pass runs all three).
+     * Running one of THOSE on a coord edge is what this client used to do, and
+     * an apply script adds a tile without clearing the group first, so every
+     * tile the player stood on and every flag they dropped stayed marked.
      *
      * Held here beside `script_settings_client_mode` for the same reason: a
      * cache id this client has to know by number belongs in one place where it
@@ -594,6 +644,72 @@ struct RS_CS2Host
     int settings_action_id[RS_CS2_HOST_SETTINGS_ACTIONS_MAX];
     int settings_action_value[RS_CS2_HOST_SETTINGS_ACTIONS_MAX];
     int settings_action_count;
+
+    /**
+     * Settings varbit writes, waiting to be mirrored to the SERVER.
+     *
+     * ## Why the server has to be told, and why nothing tells it
+     *
+     * Ten rows of the Activities category are decided server-side -- the
+     * Agility / Slayer / Blast Furnace helpers, the clue helper's marker, arrow
+     * and infobox, the iron loot warnings, the boss health overlay and the
+     * max-hit threshold. Every one of them reads a varbit whose base varp is an
+     * ORDINARY SERVER VARP (`ironman_var_1`, `options_varp`, `options_mobile`
+     * ...), and the panel writes it with `VarPManager_SetVarbitOptimistic` --
+     * the client's own copy only. `VarPManager_ApplySync` overwrites that copy
+     * from `var_serv` the moment the server speaks about the varp, so the write
+     * is not merely invisible to the server, it is not durable here either.
+     *
+     * Nothing in the revision closes that gap:
+     *
+     *   - rev239's client prot table (`3rd/rsprot/gen/rev239_prot.h`) carries no
+     *     varp, varbit or settings packet. `SET_CHATFILTERSETTINGS` is the only
+     *     settings-shaped entry and it is about chat filters.
+     *   - the reference client does not transmit either: NXT's
+     *     `ClientVarCache::SetVarbit` writes `m_var` and returns, and `m_varServ`
+     *     is written only by the inbound `VARP_*` handlers.
+     *   - the panel does not ask the server: there is no `if_triggerop` or
+     *     `cc_triggerop` anywhere in interface 134's script family, and the
+     *     cache's own server-applied row kind (`~script3968`) has an empty
+     *     switch, which none of these rows uses.
+     *
+     * So the reference server holds these varps by a path this revision's prot
+     * table does not show, and the client's write is a prediction of a value the
+     * server is expected to already agree with.
+     *
+     * ## What this client does instead, and why it is CLIENT_CHEAT
+     *
+     * The App drains this queue and sends `::setting <varbit> <value>` over
+     * `CLIENT_CHEAT`, which ToriRSServer applies to the player's varps.
+     *
+     * CLIENT_CHEAT rather than a new opcode, deliberately. Adding a client
+     * packet id that rev239 does not define would make this client unable to
+     * talk to a real rev239 server at all -- an unknown opcode is not ignored,
+     * it desynchronises the stream, because the reader takes the packet's LENGTH
+     * from the prot table. CLIENT_CHEAT is a real rev239 client packet with a
+     * var-u8 string payload, so a server that does not know the command answers
+     * "unknown command" or says nothing, and the connection survives. A wire
+     * extension that degrades to a no-op is the only kind worth having here.
+     *
+     * ## What is mirrored, and what is not
+     *
+     * Only writes made INSIDE an All Settings apply hub. The root script id of
+     * the frame that wrote `%varbit9657` is remembered, and a varbit write is
+     * mirrored only while that same script is the root -- so the 510
+     * clientscripts in this cache that write a varbit for some other reason
+     * (a quest stage, a panel's scroll position) say nothing to the server,
+     * which is right: those are the server's own state and it already knows.
+     *
+     * Learned rather than tabulated, the same way `settings_colour_varp` is: the
+     * hub announces itself by writing 9657 as its first statement, so nothing
+     * here has to carry a list of hub script ids to keep in step with the cache.
+     */
+    int settings_mirror_varbit[RS_CS2_HOST_SETTINGS_ACTIONS_MAX];
+    int settings_mirror_value[RS_CS2_HOST_SETTINGS_ACTIONS_MAX];
+    int settings_mirror_count;
+    /** The apply hub's own script id, learned from the frame that wrote 9657.
+     *  -1 before the panel has ever applied anything. */
+    int settings_mirror_root_script;
 
     /**
      * The All Settings panel's COLOUR rows, and the one the player just
@@ -921,6 +1037,16 @@ struct RS_CS2Host
     int triggeroplocal_head;
 };
 
+/**
+ * Seed the host, including every cache id it drives a feature from.
+ *
+ * `refs` is the boot's RevConfig id table and may be NULL (tests, and any
+ * embedding with no profile). Each id it fails to supply is left at -1, and -1
+ * means the running revision has no such script or varbit: the settings-panel
+ * mirror and the tile-highlight bridge switch themselves off rather than
+ * running whatever script happens to carry rev-239's number on some other
+ * cache.
+ */
 void
 RS_CS2Host_Init(
     struct RS_CS2Host* host,
@@ -928,7 +1054,8 @@ RS_CS2Host_Init(
     struct CacheProvider* provider,
     struct InvManager* invs,
     struct VarPManager* varps,
-    struct VarCManager* varcs);
+    struct VarCManager* varcs,
+    struct RevConfigRefs const* refs);
 
 /** Arm the var- and inv-transmit hooks a component record declares in the
  *  cache (`onVarpTransmit`/`varpTriggers`, `onInvTransmit`/`inventoryTriggers`).
@@ -1036,6 +1163,34 @@ RS_CS2Host_TakeSettingsAction(
     struct RS_CS2Host* host,
     int* out_setting_id,
     int* out_value);
+
+/**
+ * Pop the oldest settings varbit write waiting to be mirrored to the server.
+ *
+ * FIFO, and false when the queue is empty. See `settings_mirror_varbit` for why
+ * a client-side settings write has to reach the server at all.
+ */
+bool
+RS_CS2Host_TakeSettingsMirror(
+    struct RS_CS2Host* host,
+    int* out_varbit_id,
+    int* out_value);
+
+/**
+ * Queue a settings varbit write for the server directly, bypassing the "was a
+ * hub on the stack" test.
+ *
+ * For the writers that are not the panel: `TORIRS_SIM_VARBIT`, which exists
+ * precisely because nothing in the cache writes these varbits and a headless
+ * run has no panel to click. A simulated write that the server never heard
+ * about would make every server-side row untestable from a headless run, which
+ * is the only way most of them can be tested at all.
+ */
+void
+RS_CS2Host_QueueSettingsMirror(
+    struct RS_CS2Host* host,
+    int varbit_id,
+    int value);
 
 /**
  * A clientscript is about to run, with its arguments already in its locals.

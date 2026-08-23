@@ -2967,7 +2967,7 @@ InterfaceX_InvStoreSeedDefaults(struct InterfaceX_VMHost* host)
     for( int slot = 0; slot < backpack->size; slot++ )
         InterfaceX_InvContainerSetSlot(backpack, slot, -1, 0);
 
-    /* Sequential seed matching rev_osrs_ui.ini [inv:worn] / [inv:inventory]. */
+    /* Sequential seed matching osrs_static_ui.ini [inv:worn] / [inv:inventory]. */
     int const k_worn_items[] = { 1153, 1007, 1725, 1333, 1115, 1201, 1189, 1063, 1067, 2564, 882 };
     for( int i = 0; i < (int)(sizeof(k_worn_items) / sizeof(k_worn_items[0])); i++ )
     {

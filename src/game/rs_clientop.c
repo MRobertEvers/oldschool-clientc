@@ -52,13 +52,31 @@ static struct RS_ClientOpOp const CLIENTOP_OPS[] = {
  * the only complete one -- name, uid, coord and type -- and the others are
  * subsets, which is why this is a table of opcodes rather than four parallel
  * blocks of arithmetic.
+ *
+ * `_6853` is the obj block's fourth: the stack COUNT. The reference reads the
+ * active obj's second int field, and its FINDOBJ pins what that field is by
+ * matching a menu entry to an obj on both of them --
+ * `obj->id == entry->id && obj->count == entry->count` -- which is exactly the
+ * pair that tells two stacks of the same item apart on one tile. (`_6852` is
+ * the first: its own menu builder reads the id as `ObjType::List(obj->id)`.)
+ * Nothing in this cache calls it; it is routed because the field it wants is
+ * one this client's ground stacks already carry.
+ *
+ * The player block is a subset in a way that matters: `_6900` is its ONLY
+ * context getter. The reference has no "active player coord" op at all --
+ * `_6902` and `_6903` are that player's ROUTE and `_6904` / `_6905` are two
+ * uids (see CS2VM2_Op_ActivePlayer). `_6902` was listed here as the coord on
+ * the strength of the block it sits in, which handed clientscript 5203 a coord
+ * where its `if (_6902 > 0)` wanted a step count.
  */
 enum
 {
     CTX_NAME = 0,
     CTX_UID,
     CTX_COORD,
-    CTX_TYPE
+    CTX_TYPE,
+    /** A ground stack's count. Only the obj block has one. */
+    CTX_COUNT
 };
 
 struct RS_ClientOpCtxOp
@@ -79,8 +97,8 @@ static struct RS_ClientOpCtxOp const CONTEXT_OPS[] = {
     { CS2_OP__6850, RS_CLIENTOP_OBJ, CTX_NAME },
     { CS2_OP__6851, RS_CLIENTOP_OBJ, CTX_COORD },
     { CS2_OP__6852, RS_CLIENTOP_OBJ, CTX_TYPE },
+    { CS2_OP__6853, RS_CLIENTOP_OBJ, CTX_COUNT },
     { CS2_OP__6900, RS_CLIENTOP_PLAYER, CTX_NAME },
-    { CS2_OP__6902, RS_CLIENTOP_PLAYER, CTX_COORD },
     { CS2_OP__6950, RS_CLIENTOP_TILE, CTX_COORD },
 };
 
@@ -93,9 +111,11 @@ RS_ClientOpReset(struct RS_ClientOpState* state)
     state->mouseover.kind = -1;
     state->mouseover.uid = -1;
     state->mouseover.type = -1;
+    state->mouseover.count = -1;
     state->mouseover.coord = -1;
     state->mouseover.layer = -1;
     state->mouseover_type = RS_MINIMENU_TYPE_NONE;
+    state->mouseover_component = -1;
     for( int i = 0; i < RS_CLIENTOP_KIND_COUNT; i++ )
         RS_ClientOpActiveSet(state, (enum RS_ClientOpKind)i, NULL);
 }
@@ -281,6 +301,7 @@ RS_ClientOpContextEnd(struct RS_ClientOpState* state)
     state->ctx.script_id = -1;
     state->ctx.uid = -1;
     state->ctx.type = -1;
+    state->ctx.count = -1;
     state->ctx.coord = -1;
     state->ctx.layer = -1;
     /* The mouseover is deliberately NOT cleared here: this ends one client op's
@@ -348,6 +369,9 @@ RS_ClientOpContextRead(
             return true;
         case CTX_TYPE:
             *out_int = live ? from->type : -1;
+            return true;
+        case CTX_COUNT:
+            *out_int = live ? from->count : -1;
             return true;
         default:
             return false;

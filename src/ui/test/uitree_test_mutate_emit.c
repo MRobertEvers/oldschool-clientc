@@ -186,6 +186,51 @@ test_mutate_emit(void)
     TEST_ASSERT(UITree_ApplyPosition(tree, 501, 3, 4), "apply position");
     TEST_ASSERT(UITree_ApplySize(tree, 501, 11, 12), "apply size");
 
+    /*
+     * A slot mount empties the slot -- except for what the PROFILE authored
+     * into it.
+     *
+     * This is the whole of a bug that only appears against a real server: a
+     * revconfig control placed in a sidebar tab is there in an offline boot,
+     * and gone the moment the login burst of IF_SETTABs mounts the server's
+     * own interface over it, because task_slot_mount clears the container
+     * first. It reads as the control failing to build rather than as something
+     * sweeping it away, which is why the behaviour is pinned here rather than
+     * left to the one lane that would notice.
+     */
+    {
+        int32_t const owner = UITree_TestPushXy(tree, -1, UIELEM_RS_LAYER, 900, 0, 0, 100, 100);
+        int32_t const from_cache =
+            UITree_TestPushXy(tree, owner, UIELEM_RS_RECT, 901, 0, 0, 10, 10);
+        int32_t const authored = UITree_TestPushXy(
+            tree, owner, UIELEM_RS_RECT, TORIRS_REVCONFIG_ID_BASE + 0, 0, 20, 10, 10);
+        int32_t const authored_child =
+            UITree_TestPushXy(tree, authored, UIELEM_RS_TEXT, -1, 0, 0, 10, 10);
+
+        TEST_ASSERT(from_cache >= 0 && authored >= 0, "slot children pushed");
+        TEST_ASSERT(authored_child >= 0, "authored control has a child of its own");
+
+        UITree_ClearChildren(tree, owner);
+
+        TEST_ASSERT(
+            UITree_FindByComponentId(tree, 901) < 0,
+            "a cache-mounted child is reclaimed by the clear");
+        TEST_ASSERT(
+            UITree_FindByComponentId(tree, TORIRS_REVCONFIG_ID_BASE + 0) == authored,
+            "a profile-authored child survives the clear");
+        TEST_ASSERT(
+            tree->components[owner].first_child == authored,
+            "the survivor is relinked as the owner's child");
+        TEST_ASSERT(
+            tree->components[authored].next_sibling < 0,
+            "and the reclaimed sibling is not still linked after it");
+        /* The whole subtree, not just the node with the id on it: the three
+         * graphics and the label under a button carry no id of their own. */
+        TEST_ASSERT(
+            !tree->components[authored_child].freed,
+            "the survivor keeps its own children");
+    }
+
     UITree_Free(tree);
 }
 

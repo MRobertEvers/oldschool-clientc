@@ -99,16 +99,23 @@ struct UIBuilderTreeOp
     int tabno;
     int selected;
     char slot[24];
+    /** RevConfig `role=`: the semantic name this node is stamped with, interned
+     *  into the builder's role table at bake. @see ui/uitree_role.h. */
+    char role[64];
     int dirty;
     int level_mask;
-    int mmb_rotate;
-    int wheel_zoom;
     /** Effect names this component advertises (revconfig hotkey= lines). */
     char hotkeys[REVCONFIG_COMPONENT_HOTKEY_MAX][64];
     int hotkey_count;
     int color;
     int filled;
+    /** type=rs_graphic: repeat the sprite across the box. @see RevConfig `tiled=`. */
+    int tiled;
     int center;
+    /** type=rs_text: 0 top, 1 centre, 2 bottom. @see RevConfig `valign=`. */
+    int valign;
+    /** Hover colour, 0 for none. @see RevConfig `over_color=`. */
+    int over_color;
     int shadowed;
     char text[256];
     int button_type;

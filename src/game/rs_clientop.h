@@ -112,6 +112,16 @@ struct RS_ClientOpContext
     /** npc type / loc type / obj id. -1 for a tile and a player. */
     int type;
     /**
+     * A ground stack's COUNT, as `_6853` reports it; -1 for every other kind.
+     *
+     * Half of a ground obj's identity and not a detail: two stacks of the same
+     * item with different counts are two rows on one tile, and the reference's
+     * own FINDOBJ matches an entry to an obj on BOTH fields --
+     * `obj->id == entry->id && obj->count == entry->count` -- which is what
+     * says this field is the count and not some second id.
+     */
+    int count;
+    /**
      * A loc's LAYER (0 wall / 1 wall decor / 2 ground / 3 ground decor); -1 for
      * every other kind.
      *
@@ -130,16 +140,25 @@ struct RS_ClientOpContext
 /*
  * The cache's MINIMENU_TYPE (7100) numbering.
  *
- * Read off clientscript 5350, which is the mouseover highlighter: it bails on
- * 0 and 1, and branches to the npc / loc / obj / player highlighters on 2, 3,
- * 4 and 6. 5 is not reached by anything this cache runs and is not guessed at.
+ * `_7100` is the ACTING ROW's own type field, which the reference pushes raw
+ * (0 when the menu has no entry at all). 2, 3, 4 and 6 are read off
+ * clientscript 5350, the mouseover highlighter, which branches to the npc /
+ * loc / obj / player highlighters on them; the reference's own FIND ops agree
+ * -- `_7102` acts on type 2 and `_7105` on type 6.
+ *
+ * 7 is the COMPONENT row, and it comes from the reference rather than the
+ * scripts: `_7109`'s setter takes the acting entry only when its type is 7,
+ * and proc 4728 (the mouse-over tooltip) gates its `_7109` branch on
+ * `_7100 = 7`. It was 1 here, guessed from 5350 bailing on 0 and 1 -- so the
+ * tooltip's component branch could never run. What 1 and 5 are is still
+ * unstated by anything this client can read, and neither is guessed at.
  */
 #define RS_MINIMENU_TYPE_NONE 0
-#define RS_MINIMENU_TYPE_COMPONENT 1
 #define RS_MINIMENU_TYPE_NPC 2
 #define RS_MINIMENU_TYPE_LOC 3
 #define RS_MINIMENU_TYPE_OBJ 4
 #define RS_MINIMENU_TYPE_PLAYER 6
+#define RS_MINIMENU_TYPE_COMPONENT 7
 
 struct RS_ClientOpState
 {
@@ -204,6 +223,20 @@ struct RS_ClientOpState
     char mouseover_op[RS_CLIENTOP_MENU_TEXT_MAX];
     char mouseover_target[RS_CLIENTOP_MENU_TEXT_MAX];
     int mouseover_opcount;
+    /**
+     * The INTERFACE COMPONENT the acting row belongs to, or -1 for a row about
+     * the world.
+     *
+     * `_7109` (MINIMENU_FINDCOMPONENT) is the interface arm of the FIND ops:
+     * the reference reads the entry's component id and makes it the script's
+     * ACTIVE COMPONENT, which is why proc 4728 -- the mouse-over tooltip --
+     * reads `cc_getlayer` on the strength of `_7109 = 1` alone.
+     *
+     * Published beside `mouseover_op` and from the same row, because it is the
+     * same row's other half: an id from one frame's menu beside an op from
+     * another would name a widget the tooltip is not about.
+     */
+    int mouseover_component;
     /** Is the right-click menu open (`_7108`)? */
     bool menu_open;
 };

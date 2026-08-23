@@ -10,6 +10,12 @@
  * rides along, so a plugin capture costs no new dependency. */
 #include "miniz.h"
 #include "bootmanifest/bootmanifest.h"
+#if !defined(TORIRS_PLATFORM_WEB)
+/* The dat1 cache source that is a LostCity server rather than a directory.
+ * Native only: a browser build has no host cache to replace, and its reads
+ * already leave the process (platform_x_io_web.c). */
+#include "platform/platform_x_io_ondemand.h"
+#endif
 #include "cmd/cmdbus.h"
 #include "cs2vm2/cs2vm2.h"
 #include "editor/editor.h"
@@ -46,14 +52,18 @@ EM_JS(void, web_editor_open_panel_tab, (void), {
 #endif
 
 #include "engine/torirs_chrome_skin_baked.h"
+#include "engine/uitree_role_load.h"
 #include "engine/dat1/dat1_buildcache.h"
 #include "engine/dat1/dat1_tasks.h"
 #include "engine/dat2/dat2_buildcache.h"
 #include "engine/dat2/dat2_tasks.h"
 #include "engine/entity_model_build.h"
 #include "engine/player_appearance.h"
+#include "engine/png_decode.h"
+#include "ui/uitree_frame.h"
 #include "engine/task_obj_model_load.h"
 #include "engine/toridraw_model_from_torirs.h"
+#include "engine/torirs_model_from_rscache.h"
 #include "engine/torirs_model_inst_cache.h"
 #include "engine/torirs_worldmap_from_rscache.h"
 #include "engine/uitree_builder/task_interface_open.h"
@@ -217,15 +227,10 @@ enum
      * The orbit pitch band is only 255 units wide, so it moves at half that. */
     APP_WORLD_MMB_YAW_PER_PX = 4,
     APP_WORLD_MMB_PITCH_PER_PX = 2,
-    /* Wheel zoom, as a percentage of the follow camera's natural orbit
-     * distance. The bounds keep the eye outside the player model at one end
-     * and inside the scene's draw distance at the other. */
-    APP_WORLD_ZOOM_DEFAULT_PCT = 100,
-    APP_WORLD_ZOOM_MIN_PCT = 40,
-    APP_WORLD_ZOOM_MAX_PCT = 360,
-    APP_WORLD_ZOOM_STEP_PCT = 10,
     /* Free camera (offline / scripted): no orbit distance to scale, so a notch
-     * dollies along the view axis instead. */
+     * dollies along the view axis instead. The follow camera's notch is not
+     * here — it is `[camera] wheel_step=` in the revconfig, beside the band
+     * `[camera] zoom=` gives it to move in. */
     APP_WORLD_ZOOM_FREECAM_STEP = 140,
 };
 
@@ -487,7 +492,9 @@ app_chat_build_view(struct App* app)
         &filters,
         &app->ui_host,
         font_id,
-        app->slots.chat_com_id != -1,
+        /* Not chat_com_id: the tutorial-progress component shares this region
+         * and suppresses the log the same way a dialogue does. */
+        RS_UISlots_ChatRegionIface(&app->slots) != -1,
         app->chat_input_active || app->chat.social_input_open || app->chat.dialog_input_open,
         &app->chat_view);
 }
@@ -1454,6 +1461,69 @@ app_worldmap_build_tiles(
 
     app_worldmap_build_icons(app, area, centre_x, centre_y, display_x, display_y, region_px);
 
+    /*
+     * The HINT ARROW's target, marked on the map -- All Settings row 272,
+     * "Clue scroll helper - Worldmap marker".
+     *
+     * Same payload as row 273's in-world arrow and deliberately so: neither row
+     * has a reader in the cache or in the NXT engine, and the only marker family
+     * the reference carries is the hint arrow's own three sprites
+     * (`GetSpriteHintMapMarkersID` / `...HintMapEdgeID` / `...HintHeadIconsID`).
+     * So one server-sent coord is what both rows are about, and the server's
+     * choice of whether to send it is the setting; this is the map half of
+     * drawing it.
+     *
+     * Only the COORD form. An npc or player subject moves, and the world map is
+     * a static surface the player pans by hand -- a marker that chased an npc
+     * across it would be redrawing a map the player is reading. The reference
+     * marks a coord for the same reason.
+     *
+     * Last, so it lands over every icon: a marker underneath a mapfunction is a
+     * marker nobody sees, and the icons are exactly what a clue step points at.
+     */
+    if( app->hint_arrow.type == APP_HINT_ARROW_COORD )
+    {
+        int map_x, map_y;
+        int const capacity = (int)(sizeof(app->worldmap_tiles) / sizeof(app->worldmap_tiles[0]));
+
+        /* Plane 0: the hint packet carries no plane, and the world map surface
+         * is composited from one anyway. */
+        if( app->worldmap_tile_count < capacity &&
+            ToriRS_WorldMapArea_Position(area, 0, app->hint_arrow.target, app->hint_arrow.tile_z,
+                                         &map_x, &map_y) )
+        {
+            int const flash_scene = app_worldmap_flash_marker_scene(app);
+            int const x = centre_x + (map_x - display_x) * region_px / WORLD_MAP_TERRAIN_X;
+            int const y = centre_y - (map_y - display_y) * region_px / WORLD_MAP_TERRAIN_Z;
+
+            if( flash_scene > 0 && x > app->worldmap_box_x - 32 &&
+                x < app->worldmap_box_x + app->worldmap_box_w + 32 &&
+                y > app->worldmap_box_y - 32 &&
+                y < app->worldmap_box_y + app->worldmap_box_h + 32 )
+            {
+                /*
+                 * The synthesised flash disc, not one of `worldmap_marker_0..8`.
+                 * Those are the PLAYER-PLACED markers -- `marker_0` is the yellow
+                 * X somebody dropped by hand -- and reusing one would make a
+                 * server hint indistinguishable from the player's own note to
+                 * themselves. The disc is already what this client draws to say
+                 * "look here" (see `app_worldmap_flash_marker_scene`), and the
+                 * cache names no hint-marker asset to prefer over it.
+                 */
+                struct UITreeWorldMapTile* tile =
+                    &app->worldmap_tiles[app->worldmap_tile_count++];
+
+                tile->scene_id = flash_scene;
+                tile->atlas_index = 0;
+                tile->w = 30;
+                tile->h = 30;
+                tile->scaled = 0;
+                tile->x = x - tile->w / 2;
+                tile->y = y - tile->h / 2;
+            }
+        }
+    }
+
     app->worldmap_debug_frame++;
     if( getenv("TORIRS_WORLDMAP_DEBUG") && app->worldmap_debug_frame % 300 == 0 )
     {
@@ -2181,10 +2251,53 @@ app_overlay_push(
     struct App* app,
     struct UITreeEntityOverlay const* item)
 {
+    /*
+     * Which list depends on the draw window that is open, and nothing above
+     * this has to know which one that is.
+     *
+     * Every built-in overlay -- health bars, hitsplats, overhead chat, the
+     * editor marks -- is built with no window open at all, so `canvas` is 0
+     * for all of them and they land in the world list exactly as before. Only
+     * a plugin drawing inside EV_DRAW_CANVAS flips it.
+     */
+    if( app->plugin_draw_canvas == APP_PLUGIN_SURFACE_CANVAS )
+    {
+        int cap = (int)(sizeof(app->canvas_overlays) / sizeof(app->canvas_overlays[0]));
+        if( app->canvas_overlay_count >= cap )
+            return;
+        app->canvas_overlays[app->canvas_overlay_count++] = *item;
+        return;
+    }
+    if( app->plugin_draw_canvas == APP_PLUGIN_SURFACE_FRAME )
+    {
+        int cap = (int)(sizeof(app->frame_overlays) / sizeof(app->frame_overlays[0]));
+        if( app->frame_overlay_count >= cap )
+            return;
+        app->frame_overlays[app->frame_overlay_count++] = *item;
+        return;
+    }
+
     int cap = (int)(sizeof(app->entity_overlays) / sizeof(app->entity_overlays[0]));
     if( app->entity_overlay_count >= cap )
         return;
     app->entity_overlays[app->entity_overlay_count++] = *item;
+}
+
+/** How many items the open draw window has pushed, so a draw verb can report
+ *  its own cost without knowing which list it landed in. */
+static int
+app_overlay_count(struct App const* app)
+{
+    assert(app);
+    switch( app->plugin_draw_canvas )
+    {
+    case APP_PLUGIN_SURFACE_CANVAS:
+        return app->canvas_overlay_count;
+    case APP_PLUGIN_SURFACE_FRAME:
+        return app->frame_overlay_count;
+    default:
+        return app->entity_overlay_count;
+    }
 }
 
 /* One entity's overlay set. combat/damage state lives on the shared facet, so
@@ -2330,6 +2443,144 @@ app_overlay_build_player_headicons(
         };
         app_overlay_push(app, &spr);
         y_off -= 25;
+    }
+}
+
+/*
+ * The HINT ARROW -- the server pointing at something.
+ *
+ * `HINT_ARROW` (server prot 50) has been parsed into `app->hint_arrow` for as
+ * long as the packet existed and drawn nowhere, which `app.h` recorded as
+ * "drawing is a flagged follow-on". This is that follow-on.
+ *
+ * It is also the only mechanism this revision has for two All Settings rows:
+ *
+ *   272  Clue scroll helper - Worldmap marker
+ *   273  Clue scroll helper - World arrows
+ *
+ * Neither has a reader in the cache and neither has one in the NXT engine --
+ * the only marker family the reference carries is
+ * `GraphicsDefaults::GetSpriteHintMapMarkersID` / `...HintHeadIconsID` /
+ * `...HintMapEdgeID`, which is this. So the payload is one coord the server
+ * sends, and the two rows are the server's choice of whether to send it; the
+ * client's job is to draw the arrow it is given.
+ *
+ * ## The three subject kinds
+ *
+ * The wire's `type` byte selects what `id`/`z` mean, and the reference's own
+ * values are 1 = a COORD (id is x, z is z, and the height byte is how far above
+ * the tile the arrow floats), 2 = an NPC by slot, 10 = a PLAYER by pid. 255
+ * clears, which `rs_gameproto_exec.c` already normalises to 0.
+ *
+ * A subject that is out of view is not an error and not a clear: an npc can
+ * walk behind the camera and come back. It simply does not project this frame,
+ * which is the same distinction the scripted-overlay reaper had to learn.
+ */
+static void
+app_overlay_build_hint_arrow(struct App* app)
+{
+    int const type = app->hint_arrow.type;
+    int hint_scene;
+    int screen_x, screen_y;
+    int world_x, world_z, height;
+
+    if( type <= 0 || !app->world )
+        return;
+
+    hint_scene = UITreeSceneBridge_StaticSpriteSceneId(&app->bridge, STATIC_SPRITE_HEADICONS_HINT);
+    if( hint_scene <= 0 )
+        return;
+
+    switch( type )
+    {
+    case APP_HINT_ARROW_COORD:
+    {
+        /*
+         * A tile, in ABSOLUTE world coordinates, converted to the scene's own
+         * frame through the same origin `SET_MAP_FLAG`'s absolute form uses.
+         *
+         * Absolute rather than scene-local because the arrow's whole purpose is
+         * to point somewhere the player is not, and a scene-local coord cannot
+         * name a tile outside the loaded window. `ToriRSServer_SendHintArrowCoord`
+         * sends it that way; a third-party server that sends scene-local coords
+         * would put the arrow near the map corner, which is the symptom to look
+         * for.
+         *
+         * The packet's `height` is in the projector's units above the tile, not
+         * a pixel offset -- the reference floats a coord arrow clear of the
+         * ground so it stays readable over scenery.
+         */
+        int const base_x = (app->rebuild_zone_x - 6) * 8;
+        int const base_z = (app->rebuild_zone_z - 6) * 8;
+
+        world_x = ((app->hint_arrow.target - base_x) << 7) + 64;
+        world_z = ((app->hint_arrow.tile_z - base_z) << 7) + 64;
+        height = app->hint_arrow.height * 2;
+        break;
+    }
+    case APP_HINT_ARROW_NPC:
+    {
+        struct WorldEntity_NPC* npc = World_NpcGetByServerSlot(app->world, app->hint_arrow.target);
+
+        if( !npc || npc->element_id < 0 )
+            return;
+        world_x = (int)npc->draw_position.x;
+        world_z = (int)npc->draw_position.z;
+        height = app_entity_model_height(app, npc->element_id) + 15;
+        break;
+    }
+    case APP_HINT_ARROW_PLAYER:
+    {
+        struct WorldEntity_Player* player =
+            World_PlayerGetByServerPid(app->world, app->hint_arrow.target);
+
+        if( !player || player->element_id < 0 )
+            return;
+        world_x = (int)player->draw_position.x;
+        world_z = (int)player->draw_position.z;
+        height = app_entity_model_height(app, player->element_id) + 15;
+        break;
+    }
+    default:
+        /* An unknown subject kind, which is a server sending something this
+         * revision does not define. Silent: it is not this frame's business to
+         * decide, and a log line per frame would be the whole log. */
+        return;
+    }
+
+    if( !app_world_project(app, world_x, world_z, height, &screen_x, &screen_y) )
+        return;
+
+    {
+        /*
+         * Frame 0: the solid downward arrow that sits over the subject.
+         *
+         * There is no screen-EDGE form to draw, and that is a fact about this
+         * cache rather than a gap here. `headicons_hint` (sprite archive 441)
+         * declares six 25x25 frames and **only two have any pixels**: frame 0 is
+         * the solid arrow and frame 1 is the same arrow in outline. Frames 2..5
+         * are entirely transparent.
+         *
+         * The reference's edge form comes from a different pack --
+         * `GraphicsDefaults::GetSpriteHintMapEdgeID`, beside
+         * `...HintMapMarkersID` -- and this cache's sprite gameval table names
+         * no such group: `headicons_hint` is its only hint asset. So an
+         * off-screen arrow here would need artwork invented for it.
+         *
+         * Re-derive with:
+         *   3rd/rscache/tools/spritebake/spritebake --rev osrs239 cache.osrs239 \
+         *       --list --probe headicons_hint
+         */
+        struct UITreeEntityOverlay spr = {
+            .kind = UITREE_ENTITY_OVERLAY_SPRITE,
+            .x = screen_x - 12,
+            .y = screen_y - 48,
+            .w = 0,
+            .h = 0,
+            .scene_id = hint_scene,
+            .atlas_index = 0,
+        };
+        app_overlay_push(app, &spr);
     }
 }
 
@@ -3200,19 +3451,42 @@ app_chrome_route_keys(
  * already-resolved scene font when b12 cannot load. Declared above the plugin
  * includes because the plugin window's CS2 presentation sets its rows in the
  * same p12 the interfaces use. */
-enum
-{
-    APP_FONT_B12_CACHE_ID = 496,
-    APP_FONT_B12_DAT1_SLOT = 2,
-    /* Hitsplat numbers use p11 (reference `this.p11.centreString`). RevConfig
-     * orders the dat1 title jagfile fonts p11/p12/b12/q8 as slots 0-3; the
-     * dat2 fonts table keeps them adjacent with b12 at 496. */
-    APP_FONT_P11_CACHE_ID = 494,
-    APP_FONT_P11_DAT1_SLOT = 0,
-    /* Rebuild loading overlay (deob / Client-TS `p12.centreString`). */
-    APP_FONT_P12_CACHE_ID = 495,
-    APP_FONT_P12_DAT1_SLOT = 1,
-};
+/*
+ * The three fonts the client draws with directly, named the way the RevConfig
+ * profile names them. `app_font_cache_id` turns one of these into the number
+ * this cache uses — a dat1 scene slot or a dat2 fonts-table archive id, which
+ * are different numbers for the same font.
+ *
+ * Minimenu and hovertext use bold-12; hitsplat numbers use p11 (reference
+ * `this.p11.centreString`); the rebuild overlay uses p12 (Client-TS
+ * `p12.centreString`).
+ */
+#define APP_FONT_B12 "b12"
+#define APP_FONT_P11 "p11"
+#define APP_FONT_P12 "p12"
+
+/* Defined below; declared here because the plugin panel included beneath this
+ * point sets its rows in the game's own p12 and mounts into a cache interface
+ * the profile names. */
+static int
+app_font_cache_id(
+    struct App const* app,
+    char const* font_name);
+
+static int
+app_iface_com(
+    struct App const* app,
+    char const* iface_name,
+    int child);
+
+/*
+ * Forward-declared for the bridge below, which is included here and needs the
+ * dispatcher that lives 18,000 lines further down: api->if_click presses a
+ * button by running the row a real click would have built, and the row is run
+ * by exactly one function in this file.
+ */
+static int
+app_minimenu_run_option(struct App* app, int option_index, int click_x, int click_y);
 
 #include "plugin/torirs_plugin_bridge.u.c"
 #include "plugin/torirs_plugin_panel.u.c"
@@ -3461,6 +3735,34 @@ app_overlay_build_entity(
 
         if( combat->damage_start_cycles[i] > cycle || combat->damage_cycles[i] <= cycle )
             continue;
+
+        /*
+         * The wire named a type; the CACHE decides which one is drawn.
+         *
+         * 34 of this cache's hitsplat records are opcode 17/18 selectors keyed
+         * on the player's own settings — 5 "Hitsplat tinting" and 279 "Max hit
+         * hitsplats" — so the id that arrived is a question and this is where it
+         * is answered. See `game/rs_hitsplat.h`.
+         *
+         * Resolved HERE, per frame, rather than once when the hit landed, which
+         * is where the reference resolves it too: a splat already on screen
+         * re-skins the instant the setting is toggled, and resolving on receipt
+         * would leave the ones in flight wearing the old answer.
+         *
+         * `duration` and `slot_policy` are deliberately NOT resolved — those are
+         * read off the type the wire named, at the moment it arrived
+         * (`task_exec_entity_info.c`), exactly as the reference reads them from
+         * the unresolved type before it swaps.
+         */
+        int const splat_type =
+            RS_Hitsplats_ResolveType(&app->hitsplats, &app->varps, combat->damage_types[i]);
+
+        /* A resolved -1 is the cache saying "draw nothing for this hit". No
+         * record in cache.osrs239 says it; it is honoured anyway, because the
+         * alternative is drawing a splat the cache asked to hide. */
+        if( splat_type < 0 )
+            continue;
+
         if( !app_world_project(
                 app,
                 (int)draw_position->x,
@@ -3499,7 +3801,7 @@ app_overlay_build_entity(
          * always.
          */
         {
-            int splat_sprite = RS_Hitsplats_SpriteFor(&app->hitsplats, combat->damage_types[i]);
+            int splat_sprite = RS_Hitsplats_SpriteFor(&app->hitsplats, splat_type);
             int splat_scene = -1;
             int splat_frame = 0;
 
@@ -3508,6 +3810,10 @@ app_overlay_build_entity(
             if( splat_scene < 0 && hitmarks_scene > 0 )
             {
                 splat_scene = hitmarks_scene;
+                /* The WIRE type, not the resolved one: on the dat1 path this is
+                 * a frame index into the hitmarks archive, which is a different
+                 * id space from the config table. The two agree today only
+                 * because a dat1 cache has no selectors to resolve. */
                 splat_frame = combat->damage_types[i];
             }
             if( splat_scene >= 0 )
@@ -3673,6 +3979,23 @@ app_client_trigger_debug(
         script_id);
 }
 
+/** The same line with the subject's coord, for the ops that compare against a
+ *  server-published one. Split out because most triggers have no coord to
+ *  print and the extra field would be -1 noise on every npc. */
+static void
+app_client_trigger_debug_coord(char const* what, int trigger, int subject, int coord)
+{
+    if( !getenv("TORIRS_TRIGGER_DEBUG") )
+        return;
+    fprintf(
+        stderr,
+        "trigger: %s %d subject=%d coord=%d\n",
+        what,
+        trigger,
+        subject,
+        coord);
+}
+
 /** Fire an npc trigger with the npc as the active subject. */
 static void
 app_client_trigger_npc(struct App* app, struct WorldEntity_NPC* npc, int trigger)
@@ -3746,6 +4069,7 @@ app_client_trigger_loc(struct App* app, struct WorldEntity_Scenery* loc, int tri
         app->world->_base_tile_z + loc->grid_position.z);
     ctx.layer = World_LocShapeToLayer(loc->shape);
     snprintf(ctx.name, sizeof(ctx.name), "%s", loc->name);
+    app_client_trigger_debug_coord("loc", trigger, loc->loc_id, ctx.coord);
     app_client_trigger_queue(app, &ctx, script_id);
 }
 
@@ -3909,6 +4233,137 @@ app_cs2_loc_at_coord(
     *out_layer = World_LocShapeToLayer(scenery->shape);
     snprintf(out_name, (size_t)name_cap, "%s", scenery->name);
     return 1;
+}
+
+/*
+ * `_6902` / `_6903`: one player's queued route.
+ *
+ * The route is WorldEntityFacet_Pathing, which is the reference's
+ * `ClientPlayer::m_routeLength` + its two `array<int,10>`s tile for tile --
+ * index 0 is the newest entry, so it is the tile the server last put the
+ * player on and the one that runs ahead of the rendered position while they
+ * walk. The entries are scene-local, so the base tile makes them absolute.
+ *
+ * The LEVEL is the local player's, not the subject's: the reference builds the
+ * coord with `client->m_plane` (the plane the scene is being rendered at) and
+ * the two are the same number for every player the client can see.
+ */
+static int
+app_cs2_player_route(void* user, int player_uid, int index, int* out_coord)
+{
+    struct App* app = (struct App*)user;
+    struct WorldEntity_Player* player;
+    struct WorldEntity_Player* self;
+    int level;
+
+    assert(app);
+    assert(out_coord);
+
+    if( !app->world )
+        return -1;
+    player = World_PlayerGetByServerPid(app->world, player_uid);
+    if( !player )
+        return -1;
+
+    self = World_PlayerGetByServerPid(app->world, app->world->local_pid);
+    level = self ? (self->grid_position.level & 3) : (player->grid_position.level & 3);
+
+    if( index >= 0 && index < (int)player->pathing.route_length )
+        *out_coord = RS_CLIENTOP_COORD(
+            level,
+            app->world->_base_tile_x + player->pathing.route_x[index],
+            app->world->_base_tile_z + player->pathing.route_z[index]);
+    return (int)player->pathing.route_length;
+}
+
+/*
+ * The reference's `ScriptRunner::SetActivePlayer` and `SetActiveTile`, which
+ * every trigger dispatch calls before firing the script.
+ *
+ * A trigger script takes no arguments, so the context IS its argument list:
+ * 5203 reads the active player's route through `_6902` / `_6903` and compares
+ * `_6904` with `_6905`; 5197 and 5209 read the active tile through `_6950`.
+ * Both registers are the persistent kind -- the reference's are two fields on
+ * its ScriptRunner and are left set after the script returns -- which is safe
+ * because every script that reads one is fired right after it is written, and
+ * the scripts that go looking for their own subject (clientscript 5350 calls
+ * MINIMENU_FINDPLAYER first) overwrite it before reading.
+ */
+static void
+app_cs2_set_active_player(struct App* app, int pid)
+{
+    struct RS_ClientOpContext ctx;
+    struct WorldEntity_Player* player;
+
+    assert(app);
+
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.kind = RS_CLIENTOP_PLAYER;
+    ctx.script_id = -1;
+    ctx.uid = pid;
+    ctx.type = -1;
+    ctx.count = -1;
+    ctx.layer = -1;
+    ctx.coord = -1;
+
+    player = app->world ? World_PlayerGetByServerPid(app->world, pid) : NULL;
+    if( player )
+    {
+        ctx.coord = RS_CLIENTOP_COORD(
+            player->grid_position.level,
+            app->world->_base_tile_x + player->grid_position.x,
+            app->world->_base_tile_z + player->grid_position.z);
+        snprintf(ctx.name, sizeof(ctx.name), "%s", player->name);
+    }
+    RS_ClientOpActiveSet(&app->host.clientop, RS_CLIENTOP_PLAYER, &ctx);
+}
+
+static void
+app_cs2_set_active_tile(struct App* app, int coord)
+{
+    struct RS_ClientOpContext ctx;
+
+    assert(app);
+    /* A trigger is fired ABOUT a tile. No caller has one to give when the
+     * answer would be "nowhere", and `_6950` already has a standing answer for
+     * that case (the mouseover fallback in rs_cs2_host.c). */
+    assert(coord >= 0);
+
+    memset(&ctx, 0, sizeof(ctx));
+    ctx.kind = RS_CLIENTOP_TILE;
+    ctx.script_id = -1;
+    ctx.uid = -1;
+    ctx.type = -1;
+    ctx.count = -1;
+    ctx.layer = -1;
+    ctx.coord = coord;
+    RS_ClientOpActiveSet(&app->host.clientop, RS_CLIENTOP_TILE, &ctx);
+}
+
+/*
+ * What trigger_49 fires on: the local player's ROUTE, folded to one int.
+ *
+ * The length alone is not the edge -- a step consumed and a step added in the
+ * same cycle leaves it unchanged while the true tile moves -- and the newest
+ * tile alone is not either, since arriving empties the queue without moving
+ * it. The reference watches both halves in its two dispatch sites (the packet
+ * that rewrites the route, and the mover that consumes a step), so this
+ * carries both. -1 when there is no local player.
+ */
+static int
+app_cs2_local_route_signature(struct App* app)
+{
+    struct WorldEntity_Player* self;
+
+    assert(app);
+
+    if( !app->world || !app->world->load_complete )
+        return -1;
+    self = World_PlayerGetByServerPid(app->world, app->world->local_pid);
+    if( !self )
+        return -1;
+    return ((int)self->pathing.route_length << 28) | ((int)self->pathing.route_x[0] << 14) |
+           (int)self->pathing.route_z[0];
 }
 
 /* COORD_INSCENE (6951). */
@@ -4165,6 +4620,89 @@ app_entity_overlay_layout(struct App* app)
     }
 }
 
+/*
+ * The plugin canvas overlay, built on demand.
+ *
+ * A whole function for four lines because the shape has to match the world
+ * list's exactly: reset, let the pushers fill it, hand the array over. What is
+ * NOT here is any of the client's own drawing -- nothing but a plugin ever
+ * writes to this list, which is why the pass that asks for it can be
+ * unconditional and still cost nothing on a client with no plugins.
+ */
+static int
+app_build_canvas_overlays(
+    struct App* app,
+    struct UITreeEntityOverlay const** out_items)
+{
+    assert(app);
+    assert(out_items);
+
+    app->canvas_overlay_count = 0;
+    /* The regions go with the pixels they describe: both are declared inside
+     * the draw dispatches, and a region kept from a frame whose drawing was
+     * replaced would answer clicks for something that is no longer on the
+     * screen. The reset lives in app_build_frame_overlays, which runs first in
+     * the same walk -- see there. */
+    *out_items = app->canvas_overlays;
+    if( !app->plugins )
+        return 0;
+
+    PluginHost_DrawCanvas(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    return app->canvas_overlay_count;
+}
+
+/*
+ * The plugin FRAME overlay -- the same shape again, for the third surface.
+ *
+ * The regions are NOT reset here, unlike the canvas list's: this pass runs
+ * first and the canvas pass runs later in the same emit walk, so clearing them
+ * twice would throw away every tab stone the frame just claimed. One reset,
+ * owned by whichever pass comes first, and it is this one.
+ */
+static int
+app_build_frame_overlays(
+    struct App* app,
+    struct UITreeEntityOverlay const** out_items)
+{
+    assert(app);
+    assert(out_items);
+
+    app->frame_overlay_count = 0;
+    app->plugin_region_count = 0;
+    *out_items = app->frame_overlays;
+    if( !app->plugins )
+        return 0;
+
+    PluginHost_DrawFrame(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    /*
+     * TORIRS_FRAME_DEBUG=1: how many pieces the frame's owner drew, and at
+     * what canvas.
+     *
+     * "The layout plugin draws nothing" has two separate causes and they look
+     * identical from a screenshot: the plugin declared nothing (this says
+     * zero), or it declared a frame that something else is drawing over (this
+     * says twenty and the screen still shows the lane's own chrome). Which of
+     * those it is decides whether to look at the plugin or at the
+     * suppression, and there is no other way to tell them apart.
+     */
+    if( getenv("TORIRS_FRAME_DEBUG") )
+        fprintf(
+            stderr,
+            "frameoverlay: %d items, canvas %dx%d, hid %d chrome, roles "
+            "world=%d map=%d compass=%d chat=%d side=%d modal=%d\n",
+            app->frame_overlay_count,
+            UITREE_LAYOUT_ROOT_W,
+            UITREE_LAYOUT_ROOT_H,
+            app->tree ? UITree_FrameHiddenCount(app->tree) : 0,
+            app->tree ? UITree_FrameSlotCount(app->tree, UITREE_FRAME_SLOT_VIEWPORT) : 0,
+            app->tree ? UITree_FrameSlotCount(app->tree, UITREE_FRAME_SLOT_MINIMAP) : 0,
+            app->tree ? UITree_FrameSlotCount(app->tree, UITREE_FRAME_SLOT_COMPASS) : 0,
+            app->tree ? UITree_FrameSlotCount(app->tree, UITREE_FRAME_SLOT_CHAT) : 0,
+            app->tree ? UITree_FrameSlotCount(app->tree, UITREE_FRAME_SLOT_SIDEBAR) : 0,
+            app->tree ? UITree_FrameSlotCount(app->tree, UITREE_FRAME_SLOT_MAIN_MODAL) : 0);
+    return app->frame_overlay_count;
+}
+
 static int
 app_build_entity_overlays(
     struct App* app,
@@ -4244,6 +4782,10 @@ app_build_entity_overlays(
         app_overlay_build_player_headicons(
             app, player->element_id, player->headicon, &player->draw_position, headicons_scene);
     }
+
+    /* One arrow, after every entity, so it layers over the health bars and
+     * splats of whatever it is pointing at. */
+    app_overlay_build_hint_arrow(app);
 
     /* Overhead chat is a second pass so it layers above every entity's health
      * bar and hitsplats (reference draws chatX/chatY after the entity loop).
@@ -4406,6 +4948,39 @@ app_chrome_merged_prims(struct App* app, int* out_count)
     return app->chrome_merged;
 }
 
+/*
+ * The system-update line, or NULL when no update is pending.
+ *
+ * Reference drawScene: seconds = rebootTimer / 50 (fifty 20ms cycles to the
+ * second), then minutes:seconds zero-padded. The 50 is spelled here as the
+ * cycles-per-second it is, so the one place the client turns its own clock
+ * into a wall-clock reading says which clock it means.
+ *
+ * The returned pointer is App-owned and lives until the next call, which is
+ * the same frame lifetime the hovertext model has.
+ */
+static char const*
+app_reboot_timer_text(struct App* app)
+{
+    int seconds;
+    int minutes;
+
+    assert(app);
+    if( app->reboot_timer == 0 )
+        return NULL;
+
+    seconds = app->reboot_timer / APP_LOGIC_CYCLES_PER_SECOND;
+    minutes = seconds / 60;
+    seconds %= 60;
+    snprintf(
+        app->reboot_timer_text,
+        sizeof(app->reboot_timer_text),
+        "System update in: %d:%02d",
+        minutes,
+        seconds);
+    return app->reboot_timer_text;
+}
+
 static int
 app_host_request(
     void* user,
@@ -4430,6 +5005,25 @@ app_host_request(
         *req->u.get_entity_overlays.out_clip_w = app->world_emit_desc.w;
         *req->u.get_entity_overlays.out_clip_h = app->world_emit_desc.h;
         return app_build_entity_overlays(app, req->u.get_entity_overlays.out_items);
+    case UITREE_HOST_GET_CANVAS_OVERLAYS:
+        /* The canvas, not the world viewport -- that difference IS this
+         * surface. Built here rather than beside the world list because the
+         * two are asked for at different points of the emit walk, and the
+         * plugin drawing into either has to see the same frame's state. */
+        *req->u.get_entity_overlays.out_clip_x = 0;
+        *req->u.get_entity_overlays.out_clip_y = 0;
+        *req->u.get_entity_overlays.out_clip_w = UITREE_LAYOUT_ROOT_W;
+        *req->u.get_entity_overlays.out_clip_h = UITREE_LAYOUT_ROOT_H;
+        return app_build_canvas_overlays(app, req->u.get_entity_overlays.out_items);
+    case UITREE_HOST_GET_FRAME_OVERLAYS:
+        /* Cut to the canvas, like the list above it: a gameframe is chrome
+         * around the viewport, so clipping it to the viewport would erase
+         * exactly the part that is the frame. */
+        *req->u.get_entity_overlays.out_clip_x = 0;
+        *req->u.get_entity_overlays.out_clip_y = 0;
+        *req->u.get_entity_overlays.out_clip_w = UITREE_LAYOUT_ROOT_W;
+        *req->u.get_entity_overlays.out_clip_h = UITREE_LAYOUT_ROOT_H;
+        return app_build_frame_overlays(app, req->u.get_entity_overlays.out_items);
     case UITREE_HOST_GET_CROSS_ACTIVE:
         return UICross_IsActive(&app->cross) ? 1 : 0;
     case UITREE_HOST_GET_CROSS_ATLAS_FRAME:
@@ -4484,6 +5078,14 @@ app_host_request(
             req->u.get_minimap_state.out_src_anchor_y);
         return app->world_map_scene_id;
     }
+    case UITREE_HOST_GET_MINIMAP_HIDDEN:
+        return app->minimap_state != APP_MINIMAP_STATE_NORMAL;
+    case UITREE_HOST_GET_MULTIWAY:
+        return app->multiway == 1;
+    case UITREE_HOST_GET_REBOOT_TIMER:
+        assert(req->u.get_reboot_timer.out_text);
+        *req->u.get_reboot_timer.out_text = app_reboot_timer_text(app);
+        return *req->u.get_reboot_timer.out_text != NULL;
     case UITREE_HOST_GET_MINIMAP_DOTS:
         return App_MinimapBuildDots(app, req->u.get_minimap_dots.out_dots);
     case UITREE_HOST_GET_WORLDMAP_TILES:
@@ -4529,9 +5131,20 @@ app_host_request(
             app->slots.side_tab = req->u.set_selected_tab.tabno;
             app->need_redraw = 1;
         }
+        /* Opening the tab the tutorial was pointing at is the instruction being
+         * followed, so the blink stops. The reference notices this while
+         * drawing the sidebar; noticing it at the selection itself is the same
+         * rule asked once instead of every frame. */
+        if( app->slots.flash_tab == req->u.set_selected_tab.tabno )
+            app->slots.flash_tab = -1;
         return 1;
     case UITREE_HOST_GET_TAB_ENABLED:
         return RS_UISlots_TabEnabled(&app->slots, req->u.tab_enabled.tabno);
+    case UITREE_HOST_GET_TAB_FLASH_HIDDEN:
+        /* logic_cycle is the reference loopCycle, and the 20/10 split is its
+         * own: visible for ten client ticks, hidden for ten. */
+        return RS_UISlots_TabFlashHidden(
+            &app->slots, req->u.tab_enabled.tabno, app->logic_cycle);
     case UITREE_HOST_GET_CHAT_FILTER_MODE:
         if( req->u.chat_filter.filter < 0 || req->u.chat_filter.filter >= RS_UI_CHAT_FILTER_COUNT )
             return 0;
@@ -4656,45 +5269,6 @@ app_host_request(
     }
 }
 
-/* Demo content until real state sync exists: seed the worn/backpack/bank
- * containers so item-bearing interfaces have something to show. */
-static void
-seed_inv_defaults(struct InvManager* invs)
-{
-    static int const k_worn_items[] = { 1153, 1007, 1725, 1333, 1115, 1201,
-                                        1189, 1063, 1067, 2564, 882 };
-    static int const k_backpack_items[] = { 1333 };
-    /* Bank contents so interface 12 renders its item grid + tab row. */
-    static int const k_bank_items[] = { 995,  1333, 1153, 1007, 1725, 1115, 1201, 1189, 1063,
-                                        1067, 2564, 882,  4151, 1305, 1319, 1215, 1231, 1147,
-                                        1163, 1079, 1093, 861,  1163, 1704, 2550, 6585, 1725,
-                                        3105, 1387, 1275, 1291, 4587, 1215, 1333, 995,  1038 };
-
-    assert(invs);
-    assert(InvManager_ResolveSource(invs, INV_MANAGER_SOURCE_NAME_WORN) >= 0);
-    assert(InvManager_ResolveSource(invs, INV_MANAGER_SOURCE_NAME_BACKPACK) >= 0);
-
-    assert(InvManager_ApplyFull(
-        invs,
-        INV_MANAGER_CONTAINER_WORN,
-        k_worn_items,
-        NULL,
-        (int)(sizeof(k_worn_items) / sizeof(k_worn_items[0]))));
-    assert(InvManager_ApplyFull(
-        invs,
-        INV_MANAGER_CONTAINER_BACKPACK,
-        k_backpack_items,
-        NULL,
-        (int)(sizeof(k_backpack_items) / sizeof(k_backpack_items[0]))));
-    assert(InvManager_EnsureContainer(invs, INV_MANAGER_CONTAINER_BANK, 800, "bank") >= 0);
-    assert(InvManager_ApplyFull(
-        invs,
-        INV_MANAGER_CONTAINER_BANK,
-        k_bank_items,
-        NULL,
-        (int)(sizeof(k_bank_items) / sizeof(k_bank_items[0]))));
-}
-
 /* ---- Inventory obj-icon reconcile ------------------------------------- *
  *
  * Server UPDATE_INV_FULL/PARTIAL (rs_gameproto_exec.c) write item ids into the
@@ -4712,6 +5286,10 @@ seed_inv_defaults(struct InvManager* invs)
  * resets scene_id to NO_SCENE_ID and re-arms the reconcile. */
 #define APP_INV_ICON_BATCH_MAX 64
 #define APP_INV_ICON_SCENE_FAILED (-2)
+/* Reconcile passes a slot may spend waiting for its objtype, model and
+ * textures before the icon is given up on. One pass per tick, so this is a
+ * two-second ceiling on a cache that answers over the network. */
+#define APP_INV_ICON_ATTEMPT_MAX 100
 
 /* True while any item slot still needs a first rasterization attempt. */
 static int
@@ -4773,8 +5351,29 @@ Task_InvIconReconcile_Run(
         PT_TASK_AWAITSELF_IF(
             CreateTask_ObjModelLoad(app->provider, self->obj_ids, self->counts, self->n));
 
-    /* Rasterize every pending slot from whatever is now resident and stamp the
-     * scene id (or the failed sentinel) back onto the slot. */
+    /*
+     * Rasterize the pending slots whose parts have actually landed, and leave
+     * the rest pending for a later pass.
+     *
+     * Asking `ObjModelLoad_NeedsWork` first is the whole fix for icons that go
+     * missing at random. The batch above is capped, so on a bank (1410 slots)
+     * or a busy boot most pending slots never had their models requested; an
+     * UPDATE_INV that lands while this task awaits adds slots it never asked
+     * for either; and against an on-demand cache the answer arrives over the
+     * network whenever it arrives. In all three cases the raster below used to
+     * find nothing resident, stamp APP_INV_ICON_SCENE_FAILED, and the per-tick
+     * scan — which only looks at INV_MANAGER_NO_SCENE_ID — would never come
+     * back. The slot stayed blank until the server replaced the item.
+     *
+     * Baking too early is the same bug wearing the other face: an icon rastered
+     * before its model's textures arrive is cached blank against that
+     * (obj, count) key for the rest of the session, which draws as a stack
+     * count with no item under it.
+     *
+     * The attempt counter bounds the wait. An obj whose model genuinely never
+     * resolves keeps NeedsWork true forever, and without a bound it would
+     * re-arm this reconcile every tick for the rest of the session.
+     */
     for( int ci = 0; ci < app->invs.container_count; ci++ )
     {
         struct InvContainer* c = &app->invs.containers[ci];
@@ -4783,12 +5382,24 @@ Task_InvIconReconcile_Run(
         for( int s = 0; s < c->slot_count; s++ )
         {
             struct InvSlot* slot = &c->slots[s];
+            int count;
             int scene_id;
             if( slot->obj_id <= 0 || slot->scene_id != INV_MANAGER_NO_SCENE_ID )
                 continue;
-            scene_id = UITreeSceneBridge_EnsureObjIcon(
-                &app->bridge, slot->obj_id, slot->obj_count > 0 ? slot->obj_count : 1);
-            slot->scene_id = scene_id >= 0 ? scene_id : APP_INV_ICON_SCENE_FAILED;
+            count = slot->obj_count > 0 ? slot->obj_count : 1;
+            scene_id = UITreeSceneBridge_EnsureObjIcon(&app->bridge, slot->obj_id, count);
+            if( scene_id >= 0 )
+            {
+                slot->scene_id = scene_id;
+                slot->atlas_index = 0;
+                continue;
+            }
+            /* Could not build it *yet*: leave the slot pending so the next
+             * pass batches it, until the attempts run out. */
+            if( ObjModelLoad_NeedsWork(app->provider, slot->obj_id, count) &&
+                ++slot->icon_attempts < APP_INV_ICON_ATTEMPT_MAX )
+                continue;
+            slot->scene_id = APP_INV_ICON_SCENE_FAILED;
             slot->atlas_index = 0;
         }
     }
@@ -5580,12 +6191,14 @@ app_varp_server_update(
             &app->audio, VarPManager_GetVarp(&app->varps, varp_id), &app->audio_out);
         break;
     case RS_ATTACK_OPTION_CLIENTCODE_PLAYER:
-        app->player_attack_option =
-            RS_AttackOption_FromVarp(VarPManager_GetVarp(&app->varps, varp_id));
+        if( app->features->attack_option_model == TORIRS_ATTACK_OPTION_MODEL_SETTINGS )
+            app->player_attack_option =
+                RS_AttackOption_FromVarp(VarPManager_GetVarp(&app->varps, varp_id));
         break;
     case RS_ATTACK_OPTION_CLIENTCODE_NPC:
-        app->npc_attack_option =
-            RS_AttackOption_FromVarp(VarPManager_GetVarp(&app->varps, varp_id));
+        if( app->features->attack_option_model == TORIRS_ATTACK_OPTION_MODEL_SETTINGS )
+            app->npc_attack_option =
+                RS_AttackOption_FromVarp(VarPManager_GetVarp(&app->varps, varp_id));
         break;
     default:
         break;
@@ -7023,6 +7636,35 @@ app_editor_on_state(
     const int32_t* values,
     int count);
 
+/*
+ * Boot / session-reset value for the two Attack options.
+ *
+ * Era-dependent, and the two answers are opposites. A settings-era client boots
+ * both at Hidden and only leaves that state when varp clientcode 18/22 arrives
+ * (rs_attack_option.h), so zeroing them there would left-click-attack against a
+ * server that never sends the setting. A 2004-era client has no such setting to
+ * send: Client-TS emits the Attack row unconditionally, so Hidden there hides
+ * every Attack row on every NPC and player for the whole session.
+ *
+ * Called after the feature table is resolved, never from the memset above it.
+ */
+static void
+app_attack_options_reset(struct App* app)
+{
+    assert(app);
+    assert(app->features);
+    if( app->features->attack_option_model == TORIRS_ATTACK_OPTION_MODEL_SETTINGS )
+    {
+        app->player_attack_option = RS_ATTACK_OPTION_DEFAULT;
+        app->npc_attack_option = RS_ATTACK_OPTION_DEFAULT;
+    }
+    else
+    {
+        app->player_attack_option = RS_ATTACK_OPTION_DEPENDS;
+        app->npc_attack_option = RS_ATTACK_OPTION_DEPENDS;
+    }
+}
+
 void
 App_Init(
     struct App* app,
@@ -7032,13 +7674,39 @@ App_Init(
     assert(cfg);
     memset(app, 0, sizeof(*app));
     app->cfg = *cfg;
+    /* 0 is a legal component uid, so "nothing has mounted a modal yet" needs a
+     * value of its own. */
+    app->modal_host_uid = -1;
 
-    /* Not zero: the reference boots both Attack options at Hidden and only
-     * ever leaves that state when varp clientcode 18/22 arrives (see
-     * rs_attack_option.h). Zeroing them here would left-click-attack against a
-     * server that never sends the setting. */
-    app->player_attack_option = RS_ATTACK_OPTION_DEFAULT;
-    app->npc_attack_option = RS_ATTACK_OPTION_DEFAULT;
+    /* Before any subsystem: RS_CS2Host_Init wants its script ids, and the
+     * boot font loads want theirs. Local-file parse only — no cache IO, so it
+     * does not need the task runtime that phase 1 builds below. */
+    RevConfigRefs_Init(&app->revconfig_refs);
+    RevConfigRefs_LoadSources(
+        &app->revconfig_refs,
+        app->cfg.revconfig_ui_ini,
+        app->cfg.revconfig_cache_ini,
+        app->cfg.revconfig_inline_ini);
+    /* Same three sources, same load order, read for the other two things a
+     * revision profile states about behaviour rather than about ids: the
+     * feature table (consumed a few hundred lines below, where the era is
+     * resolved) and the camera policy. */
+    RevConfigProfile_Init(&app->revconfig_profile);
+    RevConfigProfile_LoadSources(
+        &app->revconfig_profile,
+        app->cfg.revconfig_ui_ini,
+        app->cfg.revconfig_cache_ini,
+        app->cfg.revconfig_inline_ini);
+    /* And the third: the semantic roles. After the refs and not beside them,
+     * because a matcher spelled `iface(<name>)` is resolved through the table
+     * loaded just above. */
+    memset(&app->ui_roles, 0, sizeof(app->ui_roles));
+    UITreeRoleLoad_LoadSources(
+        &app->ui_roles,
+        &app->revconfig_refs,
+        app->cfg.revconfig_ui_ini,
+        app->cfg.revconfig_cache_ini,
+        app->cfg.revconfig_inline_ini);
 
     ToriDraw_Init();
 
@@ -7095,7 +7763,28 @@ App_Init(
      * answer from an empty cache. */
     (void)cfg->cache_dir;
 #else
-    if( cfg->cache_kind == APP_CACHE_DAT1 )
+    if( cfg->cache_kind == APP_CACHE_DAT1 && cfg->cache_on_demand )
+    {
+        /* The cache is the server's. Nothing local is opened, so a missing or
+         * stale main_file_cache.* on this machine cannot affect this boot --
+         * which is the whole reason to run this way against LostCity. The IO
+         * owns the client, the same way it owns the JS5 one. */
+        char const* host = cfg->connect_target && cfg->connect_target[0] ? cfg->connect_target
+                                                                        : "localhost";
+        int enabled = PlatformXIO_Dat1OnDemandEnable(
+            app->runner.px, host, cfg->connect_port, cfg->web_port);
+        if( enabled != 0 )
+            fprintf(
+                stderr,
+                "app: [cache:boot] source=ondemand, but %s is not serving a cache "
+                "(game port %d, web port %d)\n",
+                host,
+                cfg->connect_port > 0 ? cfg->connect_port : 43594,
+                cfg->web_port > 0 ? cfg->web_port : 80);
+        assert(enabled == 0);
+        app->cache_on_demand = 1;
+    }
+    else if( cfg->cache_kind == APP_CACHE_DAT1 )
     {
         app->dat1_disk = RSCache_Dat1DiskNewFromDirectory(cfg->cache_dir);
         if( !app->dat1_disk )
@@ -7180,6 +7869,12 @@ App_Init(
         TORIDRAW_SCRATCH_BUFFER_VERYHIGH_16K);
     assert(app->scene);
     UITreeSceneBridge_Init(&app->bridge, app->scene, app->provider);
+    /* The seq the design/local-player previews are posed at. Stated here, once,
+     * for both the boot bake and the runtime interface mount — they share the
+     * bridge and nothing else. -1 when the profile does not name one, which
+     * leaves the preview in its bind pose instead of another cache's animation. */
+    app->bridge.player_idle_seq =
+        RevConfigRefs_Get(&app->revconfig_refs, "seq", "human_readyanim");
 
     /* Phase 4: game state (host needs tree + provider + invs + varps, then
      * the bridge for icon rasterization). */
@@ -7220,14 +7915,16 @@ App_Init(
     app->world_camera_pos.z = -800;
     app->orbit_pitch = 128; /* reference orbitCameraPitch default */
     app->orbit_yaw = 0;
-    app->world_zoom_pct = APP_WORLD_ZOOM_DEFAULT_PCT;
+    /* The rest position the profile chose: the reference height when the band
+     * contains it, the pinned height under `zoom=fixed:`. */
+    app->world_cam_height = app->revconfig_profile.camera.zoom_height;
     app->world_hover_tile_x = -1;
     app->world_hover_tile_z = -1;
     app->world_hover_tile_level = 0;
     /* -2, not -1: -1 is "no tile", a state the refreshers must still be run
      * for once, and seeding them equal to it would skip that first run. */
     app->highlight_last_hover_coord = -2;
-    app->highlight_last_local_coord = -2;
+    app->highlight_last_route = -2;
     app->highlight_last_dest_coord = -2;
     app->highlight_last_mouseover = -2;
     app->world_map_scene_id = -1;
@@ -7268,12 +7965,14 @@ App_Init(
     for( size_t i = 0; i < sizeof(app->entity_spotanims) / sizeof(app->entity_spotanims[0]); i++ )
         app->entity_spotanims[i].body_element_id = -1;
 
-    seed_inv_defaults(&app->invs);
     RS_EntitySync_Init(&app->esync);
     RS_Audio_Init(&app->audio);
     ToriRS_AudioQueue_Reset(&app->audio_out);
     app->inv_drag_com_id = -1;
-    app->reboot_ticks = 0;
+    app->reboot_timer = 0;
+    app->multiway = 0;
+    app->minimap_state = 0;
+    memset(&app->welcome, 0, sizeof(app->welcome));
     RS_Social_Init(&app->social);
     /* Reference reset path: idkDesignGender = male, then validateIdkDesign().
      * The kit scan itself waits for the idk configs, so the clientCode tick
@@ -7285,12 +7984,20 @@ App_Init(
      * welcome message; its only "Welcome to RuneScape" is the login title). */
     app->chat_source.line_at = app_chat_line_at;
     app->chat_source.user = app;
-    RS_CS2Host_Init(&app->host, app->tree, app->provider, &app->invs, &app->varps, &app->varcs);
+    RS_CS2Host_Init(
+        &app->host,
+        app->tree,
+        app->provider,
+        &app->invs,
+        &app->varps,
+        &app->varcs,
+        &app->revconfig_refs);
     app->host.loot = &app->loot;
     app->host.events_override_for_component = app_cs2_events_override_for_component;
     app->host.events_user = app;
     app->host.loc_at_coord = app_cs2_loc_at_coord;
     app->host.coord_in_scene = app_cs2_coord_in_scene;
+    app->host.player_route = app_cs2_player_route;
     app->host.world_user = app;
     /*
      * State the starting gain once, so a backend is never left guessing at a
@@ -7356,13 +8063,33 @@ App_Init(
     app->clicked_com_id = -1;
     app->need_redraw = 1;
 
-    /* Client-behaviour era. Resolved unconditionally — an offline boot still
-     * clicks locs, so it still needs an approach model. Precedence matches the
-     * rest of the boot parameters: manifest > env > derived from the cache. */
+    /*
+     * Client-behaviour era. Resolved unconditionally — an offline boot still
+     * clicks locs, so it still needs an approach model.
+     *
+     * Precedence: manifest > env > revconfig `[features]` > derived from the
+     * cache. The revconfig sits under the manifest and not over it because the
+     * two answer different questions. `[features]` is a statement about the
+     * REVISION, shared by every world that boots that profile; a manifest's
+     * `[features:boot]` is a statement about one WORLD, and some of what it has
+     * to say is not derivable from the cache at all — era=server_routed is a
+     * property of the server, and manifest_osrs233xrsps.ini states it over a
+     * rev-233 cache whose own profile would say osrs.
+     */
     {
+        struct RevConfigFeaturesItem const* rc_features = &app->revconfig_profile.features;
         char const* era_name = cfg->features_era;
         if( !era_name || !era_name[0] )
             era_name = getenv("TORIRS_FEATURES_ERA");
+        if( !era_name || !era_name[0] )
+        {
+            era_name = rc_features->era;
+            if( era_name[0] && !ToriRS_Features_ByName(era_name) )
+                fprintf(
+                    stderr,
+                    "app: [features] era must be lostcity|osrs|server_routed, got '%s'\n",
+                    era_name);
+        }
         app->features = era_name && era_name[0] ? ToriRS_Features_ByName(era_name) : NULL;
         if( era_name && era_name[0] && !app->features )
             fprintf(stderr, "app: unknown features era '%s', deriving from cache\n", era_name);
@@ -7384,9 +8111,22 @@ App_Init(
          */
         app->features_storage = *app->features;
         app->features = &app->features_storage;
+        /* The era is now known, so the two Attack options can take their boot
+         * value; see app_attack_options_reset. */
+        app_attack_options_reset(app);
         {
             char const* env = getenv("TORIRS_GROUND_CLICK_NEAREST");
             int model = -1;
+            if( rc_features->ground_click_nearest[0] )
+            {
+                model = ToriRS_Features_NearestModelByName(rc_features->ground_click_nearest);
+                if( model < 0 )
+                    fprintf(
+                        stderr,
+                        "app: [features] ground_click_nearest must be "
+                        "ring3|box10_rect|none, got '%s'\n",
+                        rc_features->ground_click_nearest);
+            }
             if( cfg->features_ground_click_nearest_set )
                 model = cfg->features_ground_click_nearest;
             if( env && env[0] )
@@ -7409,6 +8149,12 @@ App_Init(
          * them off — the client is deob-exact unless a boot asks otherwise —
          * so this is the only place either can be turned on.
          */
+        if( rc_features->ground_click_unbounded >= 0 )
+            app->features_storage.ground_click_nearest_unbounded =
+                rc_features->ground_click_unbounded;
+        if( rc_features->ground_click_offmap >= 0 )
+            app->features_storage.ground_click_offmap_nearest =
+                rc_features->ground_click_offmap;
         if( cfg->features_ground_click_unbounded )
             app->features_storage.ground_click_nearest_unbounded = 1;
         if( cfg->features_ground_click_offmap )
@@ -7420,6 +8166,20 @@ App_Init(
             env = getenv("TORIRS_GROUND_CLICK_OFFMAP");
             if( env && env[0] )
                 app->features_storage.ground_click_offmap_nearest = env[0] != '0';
+        }
+        if( rc_features->painter_draw_distance > 0 )
+        {
+            if( rc_features->painter_draw_distance < TORIRS_PAINTER_DRAW_DISTANCE_MIN ||
+                rc_features->painter_draw_distance > TORIRS_PAINTER_DRAW_DISTANCE_MAX )
+                fprintf(
+                    stderr,
+                    "app: [features] painter_draw_distance must be %d..%d, got %d\n",
+                    TORIRS_PAINTER_DRAW_DISTANCE_MIN,
+                    TORIRS_PAINTER_DRAW_DISTANCE_MAX,
+                    rc_features->painter_draw_distance);
+            else
+                app->features_storage.painter_draw_distance =
+                    rc_features->painter_draw_distance;
         }
         if( cfg->features_painter_draw_distance_set )
             app->features_storage.painter_draw_distance = cfg->features_painter_draw_distance;
@@ -7439,6 +8199,15 @@ App_Init(
         {
             int model = -1;
 
+            if( rc_features->mover[0] )
+            {
+                model = ToriRS_Features_MoverModelByName(rc_features->mover);
+                if( model < 0 )
+                    fprintf(
+                        stderr,
+                        "app: [features] mover must be cycle|frame, got '%s'\n",
+                        rc_features->mover);
+            }
             if( cfg->features_mover_model_set )
                 model = cfg->features_mover_model;
             {
@@ -7668,7 +8437,7 @@ App_Init(
     editor_skipped:;
     }
 
-    /* Phase 6: networking (opt-in). The default RSA key is the rev_245_2 Lost
+    /* Phase 6: networking (opt-in). The default RSA key is the rs245_2lc Lost
      * City pair (v0 tori_rs_init); TORIRS_RSA_EXP/MOD override it. */
     if( cfg->connect_target && cfg->connect_target[0] )
     {
@@ -7700,6 +8469,24 @@ App_Init(
          * (the lazy TORIRS_JAG_CRC parse in the rev getter already ran). */
         if( cfg->jag_crc_set && !getenv("TORIRS_JAG_CRC") )
             GameProtoRev_SetJagChecksums(rev, cfg->jag_crc);
+#if !defined(TORIRS_PLATFORM_WEB)
+        /* An on-demand boot can do better than any stated value: the cache and
+         * the checksums come from the same server, in the same second, so they
+         * cannot disagree. A manifest `jag_crc=` (or the env) is a deliberate
+         * override and still wins -- that is the seam for pointing a client at
+         * one server while claiming another's cache. */
+        if( app->cache_on_demand && !cfg->jag_crc_set && !getenv("TORIRS_JAG_CRC") )
+        {
+            int32_t crc[9];
+            if( PlatformXIO_Dat1OnDemandJagChecksums(app->runner.px, crc) == 0 )
+                GameProtoRev_SetJagChecksums(rev, crc);
+            else
+                fprintf(
+                    stderr,
+                    "app: could not read /crc from the cache server; login will be "
+                    "refused as out of date\n");
+        }
+#endif
         if( cfg->client_version > 0 )
             GameProtoRev_SetClientVersion(rev, cfg->client_version);
 
@@ -7842,12 +8629,68 @@ App_Shutdown(struct App* app)
     free(app->if_heads);
     free(app->if_player_models);
     free(app->if_hides);
+    RevConfigRefs_Free(&app->revconfig_refs);
+    UITree_RoleTableFree(&app->ui_roles);
+}
+
+/*
+ * Cache font id for a RevConfig `[font:<name>]` section on this cache.
+ *
+ * -1 when the profile does not declare it, which every caller already handles
+ * the same way it handles a font that has not finished loading: draw nothing,
+ * or fall back to whatever font a text node already resolved.
+ */
+static int
+app_font_cache_id(
+    struct App const* app,
+    char const* font_name)
+{
+    assert(app);
+    assert(font_name);
+    return RevConfigRefs_FontCacheId(
+        &app->revconfig_refs, font_name, app->cfg.cache_kind == APP_CACHE_DAT1);
 }
 
 static int
 app_font_b12_cache_id(struct App const* app)
 {
-    return app->cfg.cache_kind == APP_CACHE_DAT1 ? APP_FONT_B12_DAT1_SLOT : APP_FONT_B12_CACHE_ID;
+    return app_font_cache_id(app, APP_FONT_B12);
+}
+
+/*
+ * Packed component uid — `(iface << 16) | child` — for a RevConfig
+ * `[iface:<name>]` section, or -1 when this profile declares no such interface.
+ *
+ * The CHILD number stays in C: which component of the XP panel holds the stat
+ * listener is a fact about that interface's own layout, and it travels with the
+ * interface. Which id the interface HAS does not, so that half is the
+ * profile's.
+ */
+static int
+app_iface_com(
+    struct App const* app,
+    char const* iface_name,
+    int child)
+{
+    int iface;
+    assert(app);
+    assert(iface_name);
+    assert(child >= 0);
+    iface = RevConfigRefs_Get(&app->revconfig_refs, "iface", iface_name);
+    if( iface < 0 )
+        return -1;
+    return (iface << 16) | child;
+}
+
+/** Id of a `[setting:<name>]` row, or -1 when this profile has no such row. */
+static int
+app_setting_id(
+    struct App const* app,
+    char const* setting_name)
+{
+    assert(app);
+    assert(setting_name);
+    return RevConfigRefs_Get(&app->revconfig_refs, "setting", setting_name);
 }
 
 /* Scene font for hitsplat numbers; queues the load on a miss the same way
@@ -7858,9 +8701,11 @@ app_font_b12_cache_id(struct App const* app)
 static int
 app_hitsplat_font_scene_id(struct App* app)
 {
-    int font_cache_id =
-        app->cfg.cache_kind == APP_CACHE_DAT1 ? APP_FONT_P11_DAT1_SLOT : APP_FONT_P11_CACHE_ID;
-    int scene_id = UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id);
+    int font_cache_id = app_font_cache_id(app, APP_FONT_P11);
+    int scene_id;
+    if( font_cache_id < 0 )
+        return -1;
+    scene_id = UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id);
     if( scene_id < 0 )
     {
         struct ToriRS_Task* task = CreateTask_FontLoad(app->provider, font_cache_id);
@@ -7874,8 +8719,9 @@ static int
 app_minimenu_font_scene_id(struct App* app)
 {
     int font_cache_id = app_font_b12_cache_id(app);
-    int scene_id = UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id);
-    if( scene_id <= 0 )
+    int scene_id = font_cache_id >= 0 ? UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id)
+                                      : -1;
+    if( scene_id <= 0 && font_cache_id >= 0 )
     {
         /* Queue the load (no blocking drain — the boot task awaits this font
          * before binding the configured overlay models, so at runtime a miss
@@ -9621,6 +10467,44 @@ app_apply_wedge_scale(struct App* app)
     }
     if( mode < 0 )
         return;
+    /*
+     * A revision whose camera is `zoom=fixed:` has no viewport-derived
+     * projection either, and for the same reason the follow distance skips the
+     * interpolation (app_world_camera_follow): class159.method5357 IS the later
+     * client's zoom, and the 2004 client does not have it. Its projection is the
+     * bare `<< 9` in Model.project / Model.draw (Client-TS dash3d/Model.ts) --
+     * scale 512, whatever the viewport measures.
+     *
+     * Recomputing it here is what drew the 2004-era frame at HALF the reference
+     * magnification: the world viewport is 335 high, the SETFOV endpoints this
+     * era never writes default to 256, and `335 * 256 / 334` lands on 256. Half
+     * the scale reads as an eye at twice the distance -- the "camera is too far
+     * out" report against rev 289, whose `[camera]` is the shared
+     * revconfig/rs245_2lc one.
+     *
+     * An explicitly forced scale (TORIRS_WEDGE_SCALE=<n>) still wins, since it
+     * exists to bisect exactly this.
+     */
+    if( mode == 0 &&
+        app->revconfig_profile.camera.zoom_mode == REVCONFIG_CAMERA_ZOOM_FIXED )
+    {
+        app->world_camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
+        app->world_camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+        if( getenv("TORIRS_WEDGE_FOV_DEBUG") )
+        {
+            static int logged = 0;
+            if( !logged )
+            {
+                logged = 1;
+                fprintf(
+                    stderr,
+                    "wedge: fixed camera -> constant scale=%d (no viewport "
+                    "recompute)\n",
+                    TORIDRAW_PROJ_SCALE_DEFAULT);
+            }
+        }
+        return;
+    }
     if( !app->world_view_valid )
         return;
 
@@ -10071,8 +10955,15 @@ Task_AppBoot_Run(
 
     app->boot_progress = 60;
 
-    /* Shared b12 fallback before configured overlay models are bound. */
-    PT_TASK_AWAITSELF_IF(CreateTask_FontLoad(app->provider, app_font_b12_cache_id(app)));
+    /* Shared b12 fallback before configured overlay models are bound. Normally
+     * already resident — the RevConfig assets pass loads every declared
+     * [font:…] — so this only does work when the profile reaches b12 through a
+     * different section. A profile that declares no b12 at all skips it, and
+     * the minimenu falls back to a text node's font. */
+    PT_TASK_AWAITSELF_IF(
+        app_font_b12_cache_id(app) >= 0
+            ? CreateTask_FontLoad(app->provider, app_font_b12_cache_id(app))
+            : NULL);
 
     app->boot_progress = 75;
 
@@ -10224,6 +11115,10 @@ App_OpenRootInterface(
     app->builder.root_interface_id = interface_id;
     /* Bake remaps sprite/font ids to scene ids so the tree renders directly. */
     app->builder.bridge = &app->bridge;
+    /* Where a component's `role=` is interned. The table outlives the tree, so
+     * a remount re-stamps the same ids onto the new nodes rather than handing
+     * out fresh ones. */
+    app->builder.roles = &app->ui_roles;
     app->builder_active = 1;
 
     app->app_state = APP_STATE_BOOTING;
@@ -10329,6 +11224,11 @@ Task_OpenSubRefresh_Run(
             struct timespec close_t1;
             uint64_t close_ns;
             int rec = UITree_InterfaceParentFind(app->tree, self->target_uid);
+            /* Was this close aimed at the plugin window? Answered before the
+             * record goes, and acted on after -- see below. */
+            int closed_plugin_window =
+                rec >= 0 && self->target_uid == APP_POPOUT_CONTAINER &&
+                app->tree->interface_parents[rec].group_id == TORIRS_CHROME_CS2_GROUP;
             clock_gettime(CLOCK_MONOTONIC, &close_t0);
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_CLOSE, 1);
             if( rec >= 0 )
@@ -10346,6 +11246,21 @@ Task_OpenSubRefresh_Run(
             close_ns = (uint64_t)(close_t1.tv_sec - close_t0.tv_sec) * 1000000000ull +
                        (uint64_t)(close_t1.tv_nsec - close_t0.tv_nsec);
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_IFACE_CLOSE_NS, (int64_t)close_ns);
+            /*
+             * The plugin window is a fourth entry in the popout strip and holds
+             * that slot exactly as a shipped panel does, so a close aimed at
+             * the slot is the strip saying the window is gone -- and the window
+             * has to agree. Without this its own keep-alive tick sees an empty
+             * slot, reads it as a gameframe rebuild, re-registers, re-expands
+             * the strip and rebuilds the rows, so `~chrome_popout_close` does
+             * nothing but flicker.
+             *
+             * After the record is cleared, not before: set_open releases the
+             * slot itself and would find someone else's registration to leave
+             * alone otherwise.
+             */
+            if( closed_plugin_window )
+                app_plugin_window_set_open(app, 0);
         }
         /*
          * Then tell the tree a sub-interface went away.
@@ -10412,6 +11327,11 @@ App_OpenSubInterface(
             (target_uid >> 16) & 0xffff,
             target_uid & 0xffff,
             type);
+    /* Type 0 is the modal mount. Recorded on the OPEN and not on the close --
+     * App_CloseSubInterface reaches app_enqueue_open_sub directly with
+     * iface -1, so an unmount cannot erase the frame's answer. */
+    if( type == 0 && interface_id > 0 )
+        app->modal_host_uid = target_uid;
     app_enqueue_open_sub(app, target_uid, interface_id, type);
 }
 
@@ -10900,13 +11820,12 @@ App_NetSessionReset(struct App* app)
 {
     assert(app);
     RS_EntitySync_Clear(&app->esync, app->world);
-    /* The reference's game-state reset puts both Attack options back to
-     * Hidden rather than recomputing them from the varp table it is about to
-     * clear (rs_attack_option.h): a re-established session onto an account
+    /* The reference's game-state reset puts both Attack options back to their
+     * boot value rather than recomputing them from the varp table it is about
+     * to clear (rs_attack_option.h): a re-established session onto an account
      * whose setting is the default 0 would otherwise keep the previous
      * session's choice until its own VARP arrived. */
-    app->player_attack_option = RS_ATTACK_OPTION_DEFAULT;
-    app->npc_attack_option = RS_ATTACK_OPTION_DEFAULT;
+    app_attack_options_reset(app);
     app->need_redraw = 1;
 }
 
@@ -11070,14 +11989,14 @@ app_net_link_watch(
 /*
  * XP-drop panel probe (TORIRS_XPDROP_DEBUG=1).
  *
- * Interface 122 is entirely client-driven and its failure modes all present the
+ * The panel is entirely client-driven and its failure modes all present the
  * same way — no drops — so the probe prints the three states that separate them
- * and nothing else. Component ids are the cache's (122:2 statlistener holds the
- * stat-transmit hook, 122:17 drops_container, 122:18..24 the seven rows); they
- * are stable across rev 230 and 239.
+ * and nothing else. The interface is the profile's `[iface:xpdrop]`; the child
+ * numbers are that interface's own layout (child 2 statlistener holds the
+ * stat-transmit hook, 17 drops_container, 18..24 the seven rows) and travel
+ * with it, stable across rev 230 and 239.
  */
-#define APP_XPDROP_IFACE 122
-#define APP_XPDROP_COM(child) ((APP_XPDROP_IFACE << 16) | (child))
+#define APP_XPDROP_COM(child) app_iface_com(app, "xpdrop", (child))
 #define APP_XPDROP_ROW_COUNT 7
 
 static int
@@ -11379,6 +12298,19 @@ app_logic_tick(struct App* app)
 
     app->logic_cycle++;
 
+    /*
+     * System-update countdown (reference gameLoop: `if (rebootTimer > 1)
+     * rebootTimer--`). Stops at 1, never 0 — 0 is "no update pending", and
+     * counting into it would erase the warning at the moment it matters most.
+     * Ahead of the early return below, because a busy exec runner must not be
+     * able to stall a clock the server started.
+     */
+    if( app->reboot_timer > 1 )
+    {
+        app->reboot_timer--;
+        redraw = 1;
+    }
+
     /* Before the packet pump, so a handler that samples world state sees the
      * cycle it was told about rather than one already half-advanced by this
      * tick's packets. The 600ms server cadence is a different event
@@ -11661,23 +12593,46 @@ app_logic_tick(struct App* app)
             }
         }
         app->host.local_coord = coord;
+        /* `_6905`, and the other half of every `_6904 = _6905` a per-player
+         * trigger script opens with. Published here beside the coord because
+         * it is the same fact about the same player and neither belongs to a
+         * script's call. */
+        app->host.local_pid =
+            (app->world && app->world->load_complete) ? app->world->local_pid : -1;
     }
 
     /*
-     * The two other coords the highlight refreshers read, and the three edges
-     * that re-run them.
+     * The three tile-highlight TRIGGERS, and the edges that fire them.
      *
-     * Clientscripts 5197 / 5204 / 5210 mark the hovered, current and
-     * destination tile. Each takes no arguments and reads its subject from an
-     * opcode -- `_6950`, `coord`, `_3330` -- so the client's whole job is to
-     * run each one again when its subject changes. Nothing in the cache calls
-     * them; the reference client does, on exactly these edges.
+     * Clientscripts 5197 / 5203 / 5209 mark the hovered, current and
+     * destination tile. Each is a `[trigger_4x]` that clears its own group and
+     * re-adds one tile, reading that tile from the context the client sets
+     * first -- so the client's whole job is (a) to notice the edge, (b) to set
+     * the active player and the active tile, and (c) to fire the script. The
+     * cache calls none of them; the reference fires each from one place:
      *
-     * Edge-triggered and not per-frame. Each script clears its group and
-     * re-adds one tile, so running them every frame would be three script
-     * dispatches and six highlight ops a frame to say what has not changed --
-     * and they are also what CLEARS the group when the setting is switched
-     * off, so they must run at least once after any change either way.
+     *     trigger_48 / 5197  Client::GlUpdateMouseOverTile   the ground tile
+     *                                                        under the pointer
+     *                                                        changed
+     *     trigger_49 / 5203  ReceivePlayerPositions and
+     *                        Client::GlMovePlayers           a player's ROUTE
+     *                                                        changed
+     *     trigger_47 / 5209  Client::SetPlayerDestination    the minimap flag
+     *                                                        moved
+     *
+     * Edge-triggered and not per-frame, which is the reference's shape too:
+     * three dispatches and six highlight ops a frame to restate what has not
+     * moved is not free, and both the pointer and the player sit still for
+     * most frames.
+     *
+     * What this client does NOT do is fan trigger_49 out over every player.
+     * The reference fires it for each player whose route the packet updated
+     * and each one that consumed a step this cycle; 5203, the only script in
+     * this cache that is a trigger_49, opens by comparing `_6904` with
+     * `_6905` and returns for anyone but the local player. A fan-out would be
+     * a script dispatch per moving player per cycle to reach that same early
+     * return. The opcodes it would need are all here, so a cache that starts
+     * marking other players' true tiles needs the loop and nothing else.
      */
     {
         int dest_coord = -1;
@@ -11725,6 +12680,7 @@ app_logic_tick(struct App* app)
             mo.kind = -1;
             mo.uid = -1;
             mo.type = -1;
+            mo.count = -1;
             mo.coord = -1;
             mo.layer = -1;
 
@@ -11779,6 +12735,9 @@ app_logic_tick(struct App* app)
                         mo.kind = RS_CLIENTOP_OBJ;
                         minimenu_type = RS_MINIMENU_TYPE_OBJ;
                         mo.type = stack->obj_id;
+                        /* `_6853`, and the other half of a ground stack's
+                         * identity -- see RS_ClientOpContext::count. */
+                        mo.count = stack->count;
                         mo.coord = RS_CLIENTOP_COORD(
                             stack->grid_position.level,
                             base_x + stack->grid_position.x,
@@ -11793,6 +12752,10 @@ app_logic_tick(struct App* app)
                             continue;
                         mo.kind = RS_CLIENTOP_PLAYER;
                         minimenu_type = RS_MINIMENU_TYPE_PLAYER;
+                        /* The server slot, which is what a player uid is here
+                         * -- `_6904` reports it and app_cs2_player_route
+                         * resolves it back. Same choice as an npc's. */
+                        mo.uid = pl->server_pid;
                         mo.coord = RS_CLIENTOP_COORD(
                             pl->grid_position.level,
                             base_x + pl->grid_position.x,
@@ -11836,47 +12799,103 @@ app_logic_tick(struct App* app)
              */
             if( getenv("TORIRS_CLIENTOP_DEBUG") )
             {
-                int const subject = mo.kind < 0 ? -1 : (mo.kind * 4096) ^ mo.uid ^ mo.type;
+                /* The COMPONENT is part of what the pointer is on, so a UI
+                 * hover is a change of subject even when the world pick is
+                 * empty -- `_7109` reads that half. */
+                int const subject = (mo.kind < 0 ? -1 : (mo.kind * 4096) ^ mo.uid ^ mo.type) ^
+                                    (app->host.clientop.mouseover_component * 8192);
                 if( subject != app->highlight_last_mouseover )
                 {
                     app->highlight_last_mouseover = subject;
                     fprintf(
                         stderr,
-                        "mouseover: type=%d kind=%d uid=%d id=%d '%s'\n",
+                        "mouseover: type=%d kind=%d uid=%d id=%d com=%d '%s'\n",
                         minimenu_type,
                         mo.kind,
                         mo.uid,
                         mo.type,
+                        app->host.clientop.mouseover_component,
                         mo.name);
                 }
             }
         }
 
-        /* Only once the world is up: before that the scripts would clear a
+        /*
+         * Only once the world is up: before that the scripts would clear a
          * group and re-add a tile from a scene that is about to be replaced,
-         * and the group is rebuilt by the login initialiser anyway. */
-        if( app->world && app->world->load_complete )
+         * and the group is rebuilt by the login initialiser anyway.
+         *
+         * And only where those clientscripts exist. The three refreshers are
+         * CS2 ids out of a dat2 cache; a dat1 boot has no clientscript table at
+         * all, and asking its provider for one is a contract violation that
+         * aborts (task_dat1_clientscript_load.c). The highlighter simply does
+         * not apply to a CS1 world -- the cache that would drive it is not the
+         * cache being read.
+         */
+        if( app->world && app->world->load_complete && App_UiLogic(app) == APP_UI_LOGIC_CS2 )
         {
+            int const route = app_cs2_local_route_signature(app);
+
+            /*
+             * The hovered tile. Fired only for a REAL tile, which is the
+             * reference's own rule -- GlUpdateMouseOverTile returns before the
+             * dispatch when the pointer is not over ground, leaving the last
+             * hovered tile marked while the pointer is over the interface.
+             * Firing it with no tile would run 5197's `tile_on(_6950, 5, 0)`
+             * on a coord of -1 and put tile (3, 16383, 16383) in the group.
+             */
             if( hover_coord != app->highlight_last_hover_coord )
             {
                 app->highlight_last_hover_coord = hover_coord;
-                RS_CS2_RunScript(
-                    &app->host, &app->runner, app->host.script_highlight_hover_tile,
-                    NULL, 0, 0, NULL, 0);
+                if( hover_coord >= 0 )
+                {
+                    app_cs2_set_active_player(app, app->world->local_pid);
+                    app_cs2_set_active_tile(app, hover_coord);
+                    RS_CS2_RunScript(
+                        &app->host, &app->runner, app->host.script_highlight_hover_tile,
+                        NULL, 0, 0, NULL, 0);
+                }
             }
-            if( app->host.local_coord != app->highlight_last_local_coord )
+            /* The current tile: the local player's route changed, which is
+             * both of the reference's trigger_49 edges. 5203 reads the route
+             * itself -- `_6903(0)` while walking, `coord` while still -- so
+             * the active player is the whole of what it needs. */
+            if( route != app->highlight_last_route )
             {
-                app->highlight_last_local_coord = app->host.local_coord;
+                app->highlight_last_route = route;
+                app_cs2_set_active_player(app, app->world->local_pid);
                 RS_CS2_RunScript(
                     &app->host, &app->runner, app->host.script_highlight_current_tile,
                     NULL, 0, 0, NULL, 0);
             }
+            /*
+             * The destination tile: the minimap flag moved.
+             *
+             * When it moves to NOWHERE -- arrival, or a teleport out from
+             * under it -- the tile fired with is the player's own, which is
+             * the truth (the walk ended where they are standing) and is the
+             * case 5209 answers by clearing group 4 and adding nothing:
+             * `if (... | _6950 = coord) return` sits after its `_7039(4)`.
+             *
+             * The reference gets there by clearing the flag to scene tile
+             * (0, 0) and firing with THAT, which marks the corner of the map
+             * square -- always ~50 tiles from a player who is always near the
+             * middle of their own scene, so never a tile anyone sees. Firing
+             * with the player's tile reaches the same cleared group without
+             * putting a member nobody asked for in it.
+             */
             if( dest_coord != app->highlight_last_dest_coord )
             {
+                int const fire_coord = dest_coord >= 0 ? dest_coord : app->host.local_coord;
                 app->highlight_last_dest_coord = dest_coord;
-                RS_CS2_RunScript(
-                    &app->host, &app->runner, app->host.script_highlight_dest_tile,
-                    NULL, 0, 0, NULL, 0);
+                if( fire_coord >= 0 )
+                {
+                    app_cs2_set_active_player(app, app->world->local_pid);
+                    app_cs2_set_active_tile(app, fire_coord);
+                    RS_CS2_RunScript(
+                        &app->host, &app->runner, app->host.script_highlight_dest_tile,
+                        NULL, 0, 0, NULL, 0);
+                }
             }
         }
     }
@@ -12873,14 +13892,16 @@ app_draw_viewport_message(
         }
     }
 
-    font_cache_id =
-        app->cfg.cache_kind == APP_CACHE_DAT1 ? APP_FONT_P12_DAT1_SLOT : APP_FONT_P12_CACHE_ID;
-    scene_id = UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id);
+    font_cache_id = app_font_cache_id(app, APP_FONT_P12);
+    scene_id = font_cache_id >= 0 ? UITreeSceneBridge_EnsureFont(&app->bridge, font_cache_id) : -1;
     if( scene_id < 0 )
     {
-        struct ToriRS_Task* task = CreateTask_FontLoad(app->provider, font_cache_id);
-        if( task )
-            ToriRS_TaskQueue_Add(app->runner.queue, task);
+        if( font_cache_id >= 0 )
+        {
+            struct ToriRS_Task* task = CreateTask_FontLoad(app->provider, font_cache_id);
+            if( task )
+                ToriRS_TaskQueue_Add(app->runner.queue, task);
+        }
         scene_id = app_minimenu_font_scene_id(app);
     }
     if( scene_id < 0 )
@@ -14331,6 +15352,11 @@ app_minimap_click(
 
     if( !app->minimap_view_valid || !app->world || !app->world->load_complete )
         return 0;
+    /* MINIMAP_TOGGLE state 2 takes the clicks as well as the picture; state 1
+     * takes only the picture, and walking by memory across a map you cannot
+     * see is the point of that state existing. */
+    if( app->minimap_state == APP_MINIMAP_STATE_HIDDEN_UNCLICKABLE )
+        return 0;
     if( mouse_x < desc->x || mouse_x >= desc->x + desc->w || mouse_y < desc->y ||
         mouse_y >= desc->y + desc->h )
         return 0;
@@ -14518,10 +15544,23 @@ app_world_camera_keys(
     /* Arrows drive the orbit camera (reference keyHeld[1..4]); the follow
      * step consumes these next frame. When the follow cam is off (offline or
      * scripted) fall back to the free-cam direct rotate. */
-    app->cam_key_left = LibToriRS_Input_IsKeyHeld(input, TORIRSK_LEFT);
-    app->cam_key_right = LibToriRS_Input_IsKeyHeld(input, TORIRSK_RIGHT);
-    app->cam_key_up = LibToriRS_Input_IsKeyHeld(input, TORIRSK_UP);
-    app->cam_key_down = LibToriRS_Input_IsKeyHeld(input, TORIRSK_DOWN);
+    if( app->revconfig_profile.camera.controls & REVCONFIG_CAMERA_CONTROL_ARROW_KEYS )
+    {
+        app->cam_key_left = LibToriRS_Input_IsKeyHeld(input, TORIRSK_LEFT);
+        app->cam_key_right = LibToriRS_Input_IsKeyHeld(input, TORIRSK_RIGHT);
+        app->cam_key_up = LibToriRS_Input_IsKeyHeld(input, TORIRSK_UP);
+        app->cam_key_down = LibToriRS_Input_IsKeyHeld(input, TORIRSK_DOWN);
+    }
+    else
+    {
+        /* Cleared, not merely left alone: the follow step reads these every
+         * cycle and a latch held from before the profile said no would keep
+         * accelerating the yaw for as long as the key stayed down. */
+        app->cam_key_left = 0;
+        app->cam_key_right = 0;
+        app->cam_key_up = 0;
+        app->cam_key_down = 0;
+    }
     if( app->cam_script.scripted || !app->net || app->camera_unlocked )
     {
         if( app->cam_key_left )
@@ -14727,6 +15766,16 @@ app_ui_hotkeys(
     }
 }
 
+/* Does this revision's follow camera zoom at all? `zoom=fixed:<height>` is a
+ * band of one, which is the 2004 client: the eye is `pitch * 3 + 600` behind
+ * the player and nothing the player does moves it. */
+static int
+app_world_camera_zooms(struct App const* app)
+{
+    assert(app);
+    return app->revconfig_profile.camera.zoom_min < app->revconfig_profile.camera.zoom_max;
+}
+
 /* TORIRS_CAM_DEBUG=1: one line whenever a mouse gesture moves the camera.
  * Prints whichever camera is live, since the follow cam and the free cam keep
  * their angles in different fields. */
@@ -14740,21 +15789,22 @@ app_debug_log_camera(
         return;
     fprintf(
         stderr,
-        "cam_%s: %s yaw=%d pitch=%d zoom=%d%% eye=%d,%d,%d\n",
+        "cam_%s: %s yaw=%d pitch=%d height=%d eye=%d,%d,%d\n",
         what,
         follow_cam ? "orbit" : "free",
         follow_cam ? app->orbit_yaw : app->world_camera.yaw,
         follow_cam ? app->orbit_pitch : app->world_camera.pitch,
-        app->world_zoom_pct,
+        app->world_cam_height,
         app->world_camera_pos.x,
         app->world_camera_pos.y,
         app->world_camera_pos.z);
 }
 
 /* Middle-button rotate and wheel zoom over the world viewport. Both gestures
- * are properties of the WORLD element (revconfig mmb_rotate= / wheel_zoom=),
- * read off the cached emit desc — the same desc whose rect app_world_mouse_gate
- * uses to decide the pointer is on the scene rather than on the interface.
+ * are properties of the REVISION (revconfig `[camera] controls=` and `zoom=`),
+ * not of the viewport widget: a camera that cannot zoom cannot zoom over any
+ * viewport. The emit desc is still what app_world_mouse_gate reads to decide
+ * the pointer is on the scene rather than on the interface.
  *
  * Neither gesture exists in the reference client, so there is nothing to match.
  * The rotate uses the drag-the-camera convention every OSRS client with a
@@ -14783,7 +15833,7 @@ app_world_camera_mouse(
      * the orbit follow cam owns the angles, otherwise the free camera does. */
     follow_cam = app->net && !app->cam_script.scripted;
 
-    if( app->world_emit_desc.world_mmb_rotate )
+    if( app->revconfig_profile.camera.controls & REVCONFIG_CAMERA_CONTROL_MMB )
     {
         /* Only the press has to land on the scene; once latched the drag keeps
          * the pointer until release, so sweeping over the sidebar mid-rotate
@@ -14844,7 +15894,7 @@ app_world_camera_mouse(
      * scroll pane drawn across the viewport still belongs to that pane —
      * app_world_mouse_gate alone only rejects *interactive* nodes, and an IF1
      * scroll layer is pass-through. */
-    if( app->world_emit_desc.world_wheel_zoom && input->curr.mouse_wheel_y != 0 &&
+    if( input->curr.mouse_wheel_y != 0 &&
         !out->wheel_consumed && !app->interact.minimenu.visible &&
         /* The chrome's claim is checked HERE, not inferred from consumed
          * flags: this runs long after the overlay handled input, when
@@ -14855,18 +15905,25 @@ app_world_camera_mouse(
         !ToriRSChrome_WantsWheel(&app->dbg_ui, mouse_x, mouse_y) &&
         app_world_mouse_gate(app, mouse_x, mouse_y) )
     {
-        if( follow_cam )
-        {
-            app->world_zoom_pct -= input->curr.mouse_wheel_y * APP_WORLD_ZOOM_STEP_PCT;
-            if( app->world_zoom_pct < APP_WORLD_ZOOM_MIN_PCT )
-                app->world_zoom_pct = APP_WORLD_ZOOM_MIN_PCT;
-            if( app->world_zoom_pct > APP_WORLD_ZOOM_MAX_PCT )
-                app->world_zoom_pct = APP_WORLD_ZOOM_MAX_PCT;
-        }
-        else
+        /* Only the FOLLOW camera is the revision's. The free camera is this
+         * client's own debug flight -- the one U unlocks and W/A/S/D drives --
+         * so a revision that does not zoom does not take its dolly away, or an
+         * offline rev-254 boot (which has no follow camera at all) would lose
+         * the only way it has of moving in or out. */
+        if( !follow_cam )
         {
             app_camera_move_forward(app, input->curr.mouse_wheel_y * APP_WORLD_ZOOM_FREECAM_STEP);
         }
+        else if( app_world_camera_zooms(app) )
+        {
+            app->world_cam_height = RevConfigProfile_CameraClampHeight(
+                &app->revconfig_profile,
+                app->world_cam_height -
+                    input->curr.mouse_wheel_y *
+                        app->revconfig_profile.camera.wheel_step);
+        }
+        else
+            return;
         app_debug_log_camera(app, "zoom", follow_cam);
         app->need_redraw = 1;
     }
@@ -16290,6 +17347,151 @@ app_world_spawn_spotanim_now(
     app->need_redraw = 1;
 }
 
+/* ------------------------------------------------ plugin-authored meshes */
+
+/*
+ * Geometry a plugin built itself, and the model made from it.
+ *
+ * The reason this exists at all is that a cache id is not portable. A plugin
+ * that stands a beam of light over a drop by naming model 43330 is naming a
+ * number that means that beam in one revision, means something else in
+ * another, and is absent from most -- so the plugin works on the cache it was
+ * written against and silently draws a crate, or nothing, on the rest. An
+ * authored mesh has no such dependency: it is the same triangles wherever it
+ * is drawn.
+ *
+ * Storage is the App's rather than the host's because only this side can turn
+ * a mesh into something drawable, and the arrays grow on append because the
+ * api ceilings are a limit and not a size.
+ */
+
+static struct AppPluginAssetModel*
+app_plugin_asset_model_at(struct App* app, int handle)
+{
+    assert(app);
+    if( handle < 0 || handle >= TORIRS_PLUGIN_MODELS_MAX )
+        return NULL;
+    if( !app->plugin_asset_models[handle].in_use )
+        return NULL;
+    return &app->plugin_asset_models[handle];
+}
+
+static struct AppPluginMesh*
+app_plugin_mesh_at(struct App* app, int handle)
+{
+    assert(app);
+    if( handle < 0 || handle >= APP_PLUGIN_MESHES_MAX )
+        return NULL;
+    if( !app->plugin_meshes[handle].in_use )
+        return NULL;
+    return &app->plugin_meshes[handle];
+}
+
+/* Every array of a mesh's vertex half, or of its face half, grown together to
+ * `want` entries. One doubling for the whole half rather than a realloc per
+ * array per append: they are the same list seen eight ways and always carry
+ * the same count. */
+static void
+app_plugin_mesh_grow(struct AppPluginMesh* mesh, int faces, int want)
+{
+    int cap;
+
+    assert(mesh);
+    cap = faces ? mesh->face_cap : mesh->vertex_cap;
+    if( want <= cap )
+        return;
+    cap = cap ? cap * 2 : 64;
+    while( cap < want )
+        cap *= 2;
+
+    if( faces )
+    {
+        mesh->face_a = realloc(mesh->face_a, (size_t)cap * sizeof(*mesh->face_a));
+        mesh->face_b = realloc(mesh->face_b, (size_t)cap * sizeof(*mesh->face_b));
+        mesh->face_c = realloc(mesh->face_c, (size_t)cap * sizeof(*mesh->face_c));
+        mesh->face_color = realloc(mesh->face_color, (size_t)cap * sizeof(*mesh->face_color));
+        mesh->face_alpha = realloc(mesh->face_alpha, (size_t)cap * sizeof(*mesh->face_alpha));
+        assert(mesh->face_a);
+        assert(mesh->face_b);
+        assert(mesh->face_c);
+        assert(mesh->face_color);
+        assert(mesh->face_alpha);
+        mesh->face_cap = cap;
+        return;
+    }
+
+    mesh->vertices_x = realloc(mesh->vertices_x, (size_t)cap * sizeof(*mesh->vertices_x));
+    mesh->vertices_y = realloc(mesh->vertices_y, (size_t)cap * sizeof(*mesh->vertices_y));
+    mesh->vertices_z = realloc(mesh->vertices_z, (size_t)cap * sizeof(*mesh->vertices_z));
+    assert(mesh->vertices_x);
+    assert(mesh->vertices_y);
+    assert(mesh->vertices_z);
+    mesh->vertex_cap = cap;
+}
+
+static void
+app_plugin_mesh_release(struct AppPluginMesh* mesh)
+{
+    assert(mesh);
+    free(mesh->vertices_x);
+    free(mesh->vertices_y);
+    free(mesh->vertices_z);
+    free(mesh->face_a);
+    free(mesh->face_b);
+    free(mesh->face_c);
+    free(mesh->face_color);
+    free(mesh->face_alpha);
+    memset(mesh, 0, sizeof(*mesh));
+}
+
+/*
+ * A drawable model over one mesh, unlit and in its bind pose.
+ *
+ * Everything a cache model gets from its decoder is stated by the plugin here
+ * -- vertices, triangles, a flat colour and a transparency per face -- and the
+ * per-vertex a/b/c the rasteriser actually reads are left zeroed for the
+ * lighting pass that follows, exactly as ToriDraw_ModelFromToriRS leaves them
+ * for a model whose cache copy carried none.
+ */
+static struct ToriDraw_Model*
+app_plugin_mesh_build_model(struct AppPluginMesh const* mesh)
+{
+    struct ToriDraw_Model* model;
+
+    assert(mesh);
+    assert(mesh->vertex_count > 0);
+    assert(mesh->face_count > 0);
+
+    model = ToriDraw_ModelNew(mesh->vertex_count, mesh->face_count, 0);
+    assert(model);
+
+    model->vertices_x = ToriDraw_BufCopy(
+        mesh->vertices_x, (size_t)mesh->vertex_count, sizeof(*model->vertices_x));
+    model->vertices_y = ToriDraw_BufCopy(
+        mesh->vertices_y, (size_t)mesh->vertex_count, sizeof(*model->vertices_y));
+    model->vertices_z = ToriDraw_BufCopy(
+        mesh->vertices_z, (size_t)mesh->vertex_count, sizeof(*model->vertices_z));
+    model->face_indices_a =
+        ToriDraw_BufCopy(mesh->face_a, (size_t)mesh->face_count, sizeof(*model->face_indices_a));
+    model->face_indices_b =
+        ToriDraw_BufCopy(mesh->face_b, (size_t)mesh->face_count, sizeof(*model->face_indices_b));
+    model->face_indices_c =
+        ToriDraw_BufCopy(mesh->face_c, (size_t)mesh->face_count, sizeof(*model->face_indices_c));
+    model->face_colors =
+        ToriDraw_BufCopy(mesh->face_color, (size_t)mesh->face_count, sizeof(*model->face_colors));
+    model->face_alphas =
+        ToriDraw_BufCopy(mesh->face_alpha, (size_t)mesh->face_count, sizeof(*model->face_alphas));
+
+    model->face_colors_a = calloc((size_t)mesh->face_count, sizeof(*model->face_colors_a));
+    model->face_colors_b = calloc((size_t)mesh->face_count, sizeof(*model->face_colors_b));
+    model->face_colors_c = calloc((size_t)mesh->face_count, sizeof(*model->face_colors_c));
+    assert(model->face_colors_a);
+    assert(model->face_colors_b);
+    assert(model->face_colors_c);
+
+    return model;
+}
+
 /* ----------------------------------------------- plugin-owned world objects */
 
 /*
@@ -16334,6 +17536,31 @@ app_plugin_object_recolor_stamp(struct AppPluginObject const* obj)
     return stamp * 31 + obj->recolor_count;
 }
 
+/* The revision of the geometry this object stands on, or 0 when it stands on
+ * none -- a cache-sourced object, or one whose mesh was destroyed or whose
+ * shipped model never decoded. Compared against built_geometry_revision, so
+ * geometry that is re-authored, or that arrives late off the IO queue,
+ * rebuilds the objects made from it, and geometry re-stated unchanged rebuilds
+ * nothing. */
+static int
+app_plugin_object_geometry_revision(struct App* app, struct AppPluginObject const* obj)
+{
+    assert(app);
+    assert(obj);
+
+    if( obj->source == TORIRS_PLUGIN_MODEL_MESH )
+    {
+        struct AppPluginMesh const* mesh = app_plugin_mesh_at(app, obj->model_id);
+        return mesh ? mesh->revision : 0;
+    }
+    if( obj->source == TORIRS_PLUGIN_MODEL_ASSET )
+    {
+        struct AppPluginAssetModel const* shipped = app_plugin_asset_model_at(app, obj->model_id);
+        return shipped ? shipped->revision : 0;
+    }
+    return 0;
+}
+
 /* The model ids this object's source needs resident before it can be built:
  * a CACHE object names its model directly, a SPOTANIM object names it through
  * the spotanimtype. Returns -1 when it is not knowable yet. */
@@ -16349,6 +17576,12 @@ app_plugin_object_model_id(struct App* app, struct AppPluginObject const* obj)
             obj->model_id >= 0 ? CacheProvider_SpotanimtypeGet(app->provider, obj->model_id) : NULL;
         return spot ? spot->model : -1;
     }
+    /* A MESH object's model_id is a mesh handle and an ASSET object's is a
+     * model-load handle -- neither is a cache id, and neither has anything for
+     * the spawn task to make resident. That is the whole point of both: the
+     * geometry travels with the plugin. */
+    if( obj->source == TORIRS_PLUGIN_MODEL_MESH || obj->source == TORIRS_PLUGIN_MODEL_ASSET )
+        return -1;
     return obj->model_id;
 }
 
@@ -16359,6 +17592,16 @@ app_plugin_object_seq_id(struct App* app, struct AppPluginObject const* obj)
 {
     assert(app);
     assert(obj);
+
+    /* An AUTHORED mesh carries no rig, and a cache sequence is a table of
+     * transforms addressed by transform group -- there is nothing in a mesh
+     * for one to drive. Binding one is a plugin bug rather than a shape this
+     * can express, so it stops here instead of animating nothing.
+     *
+     * A SHIPPED model is not covered: a model file can carry bones, and a
+     * plugin that ships one alongside a cache revision it knows may legitimately
+     * name that revision's sequence. Whether the two agree is its business. */
+    assert(!(obj->source == TORIRS_PLUGIN_MODEL_MESH && obj->seq_id >= 0));
 
     if( obj->seq_id >= 0 )
         return obj->seq_id;
@@ -16388,44 +17631,73 @@ app_plugin_object_build_model(struct App* app, struct AppPluginObject const* obj
 {
     struct ToriRS_Spotanimtype const* spot = NULL;
     struct ToriDraw_Model* model;
-    int model_id;
     int retextured = 0;
 
     assert(app);
     assert(obj);
 
-    if( obj->source == TORIRS_PLUGIN_MODEL_SPOTANIM )
-        spot = obj->model_id >= 0 ? CacheProvider_SpotanimtypeGet(app->provider, obj->model_id)
-                                  : NULL;
-    model_id = app_plugin_object_model_id(app, obj);
-    if( model_id < 0 )
-        return NULL;
-
+    if( obj->source == TORIRS_PLUGIN_MODEL_ASSET )
     {
-        struct ToriRS_Model* rs = CacheProvider_ModelGet(app->provider, model_id);
-        model = rs ? ToriDraw_ModelFromToriRS(rs) : NULL;
+        /* Not resident yet is the ordinary state for the first frame or two:
+         * the file crosses the IO queue like every other asset, and the settle
+         * builds the object when it lands. */
+        struct AppPluginAssetModel const* shipped =
+            app_plugin_asset_model_at(app, obj->model_id);
+        if( !shipped || !shipped->model )
+            return NULL;
+        model = ToriDraw_ModelFromToriRS(shipped->model);
+        if( !model )
+            return NULL;
     }
-    if( !model )
-        return NULL;
-
-    /* The spotanimtype's own recolours first, so the plugin's pairs are stated
-     * against the colours it can actually see on the finished graphic. */
-    if( spot )
+    else if( obj->source == TORIRS_PLUGIN_MODEL_MESH )
     {
-        if( spot->recol_s[0] != 0 )
+        struct AppPluginMesh const* mesh = app_plugin_mesh_at(app, obj->model_id);
+        /* An empty mesh is not a bug: a plugin that has taken a handle and not
+         * yet authored into it is mid-build, and the object has nothing to
+         * draw until it has. A handle that names no mesh at all is the same
+         * answer from the object's side -- it was destroyed under it. */
+        if( !mesh || mesh->face_count <= 0 )
+            return NULL;
+        model = app_plugin_mesh_build_model(mesh);
+    }
+    else
+    {
+        int const model_id = app_plugin_object_model_id(app, obj);
+
+        if( obj->source == TORIRS_PLUGIN_MODEL_SPOTANIM )
+            spot = obj->model_id >= 0 ? CacheProvider_SpotanimtypeGet(app->provider, obj->model_id)
+                                      : NULL;
+        if( model_id < 0 )
+            return NULL;
+
         {
-            for( int i = 0; i < 6; i++ )
-                ToriDraw_ModelRecolor(model, spot->recol_s[i], spot->recol_d[i]);
+            struct ToriRS_Model* rs = CacheProvider_ModelGet(app->provider, model_id);
+            model = rs ? ToriDraw_ModelFromToriRS(rs) : NULL;
         }
-        for( int i = 0; i < 6; i++ )
+        if( !model )
+            return NULL;
+
+        /* The spotanimtype's own recolours first, so the plugin's pairs are
+         * stated against the colours it can actually see on the finished
+         * graphic. */
+        if( spot )
         {
-            if( spot->retex_s[i] != 0 )
+            if( spot->recol_s[0] != 0 )
             {
-                ToriDraw_ModelRetexture(model, spot->retex_s[i], spot->retex_d[i]);
-                retextured = 1;
+                for( int i = 0; i < 6; i++ )
+                    ToriDraw_ModelRecolor(model, spot->recol_s[i], spot->recol_d[i]);
+            }
+            for( int i = 0; i < 6; i++ )
+            {
+                if( spot->retex_s[i] != 0 )
+                {
+                    ToriDraw_ModelRetexture(model, spot->retex_s[i], spot->retex_d[i]);
+                    retextured = 1;
+                }
             }
         }
     }
+
     for( int i = 0; i < obj->recolor_count; i++ )
         ToriDraw_ModelRecolor(model, obj->recolor_from[i], obj->recolor_to[i]);
 
@@ -16478,6 +17750,7 @@ app_plugin_object_teardown(struct App* app, struct AppPluginObject* obj)
     obj->built_source = -1;
     obj->built_model_id = -1;
     obj->built_recolor_stamp = 0;
+    obj->built_geometry_revision = 0;
 }
 
 /* Scene-local placement for an object's absolute tile, or 0 when it is off the
@@ -16545,11 +17818,18 @@ app_plugin_object_materialize_now(struct App* app, int handle)
     element_id = app_world_scene_element_create(app, model, world_x, world_y, world_z);
     if( element_id < 0 )
         return;
+    /* The element carries the yaw, not the entity: the painter is handed an
+     * element id and reads the orientation off it, so an object whose yaw
+     * lived only on the WorldEntity stood in its bind orientation forever --
+     * a documented parameter that turned nothing. */
+    ToriDraw_SceneElementSetPosition(
+        app->scene, element_id, world_x, world_y, world_z, obj->yaw);
 
     obj->element_id = element_id;
     obj->built_source = obj->source;
     obj->built_model_id = obj->model_id;
     obj->built_recolor_stamp = app_plugin_object_recolor_stamp(obj);
+    obj->built_geometry_revision = app_plugin_object_geometry_revision(app, obj);
     obj->world_index = World_PluginObjectSpawn(
         app->world,
         element_id,
@@ -16972,6 +18252,33 @@ Task_AppSpawn_Run(
              * the loctype first and lets the placement win (deob class108).
              */
             app_loc_change_apply_ops(app, self);
+            /*
+             * The cache's own "a loc was placed" script, for a loc that arrived
+             * AFTER the scene was built.
+             *
+             * The world-loaded sweep covers the map's own locs; this covers a
+             * zone packet's, and the difference is not academic -- a Dwarf
+             * multicannon is placed by the server four ticks after you click,
+             * and clientscript 6672 is bound to `dwarf_multicannon1` by exactly
+             * this trigger. Without it the cannon hud (All Settings row 247)
+             * can never appear, because the cannon is never a loc the sweep
+             * saw. See game/rs_client_trigger.h.
+             *
+             * After the ops, for the same reason they are applied after the
+             * spawn: this is the first point at which the entity exists and is
+             * finished, and the script reads its type and its coord.
+             */
+            if( self->loc_id >= 0 )
+            {
+                int const placed_idx = World_SceneryFindAt(
+                    app->world, self->tile_x, self->tile_z, self->level, self->loc_shape);
+                struct WorldEntity_Scenery* placed =
+                    placed_idx >= 0
+                        ? World_EntityPoolGet(&app->world->entities.scenery, placed_idx)
+                        : NULL;
+                if( placed )
+                    app_client_trigger_loc(app, placed, RS_TRIGGER_LOC_ADD);
+            }
             app_sync_textures(app);
             app->need_redraw = 1;
         }
@@ -17919,7 +19226,8 @@ app_plugin_object_sync(struct App* app, int handle)
     /* A change to what the MODEL is made of cannot be applied in place. */
     if( obj->element_id >= 0 &&
         (obj->built_source != obj->source || obj->built_model_id != obj->model_id ||
-         obj->built_recolor_stamp != app_plugin_object_recolor_stamp(obj)) )
+         obj->built_recolor_stamp != app_plugin_object_recolor_stamp(obj) ||
+         obj->built_geometry_revision != app_plugin_object_geometry_revision(app, obj)) )
         app_plugin_object_teardown(app, obj);
 
     /* Nothing to draw yet, or nothing to draw at all. */
@@ -17950,8 +19258,9 @@ app_plugin_object_sync(struct App* app, int handle)
         return;
     }
 
-    /* Live: position, level and visibility are applied to the entity. */
-    ToriDraw_SceneElementSetPosition(app->scene, obj->element_id, world_x, world_y, world_z, 0);
+    /* Live: position, orientation, level and visibility are applied in place. */
+    ToriDraw_SceneElementSetPosition(
+        app->scene, obj->element_id, world_x, world_y, world_z, obj->yaw);
     if( obj->world_index >= 0 )
     {
         struct WorldEntity_PluginObject* we =
@@ -17991,7 +19300,41 @@ app_plugin_objects_rebuild(struct App* app)
         obj->built_source = -1;
         obj->built_model_id = -1;
         obj->built_recolor_stamp = 0;
+        obj->built_geometry_revision = 0;
         obj->load_pending = 0;
+        app_plugin_object_sync(app, i);
+    }
+}
+
+/*
+ * Objects standing on a mesh that has been re-authored, rebuilt.
+ *
+ * Once a frame rather than on every mesh_vertex: authoring a shape is hundreds
+ * of appends, and reconciling on each of them would build and throw away
+ * hundreds of models to arrive at the one the plugin meant. The dirty flag is
+ * what keeps the ordinary frame -- no plugin has touched any geometry -- free.
+ *
+ * It is also how a SHIPPED model gets on screen at all: its bytes cross the IO
+ * queue, so an object pointed at one is created before there is anything to
+ * build, and the arrival is what this notices.
+ */
+static void
+app_plugin_geometry_settle(struct App* app)
+{
+    assert(app);
+    if( !app->plugin_geometry_dirty )
+        return;
+    app->plugin_geometry_dirty = 0;
+    for( int i = 0; i < APP_PLUGIN_OBJECTS_MAX; i++ )
+    {
+        struct AppPluginObject* obj = &app->plugin_objects[i];
+        if( !obj->in_use )
+            continue;
+        if( obj->source != TORIRS_PLUGIN_MODEL_MESH && obj->source != TORIRS_PLUGIN_MODEL_ASSET )
+            continue;
+        if( obj->element_id >= 0 &&
+            obj->built_geometry_revision == app_plugin_object_geometry_revision(app, obj) )
+            continue;
         app_plugin_object_sync(app, i);
     }
 }
@@ -18103,15 +19446,75 @@ app_plugin_asset_write(void* user, char const* plugin, char const* name, void co
  * silently dropping the request: a plugin that fills it is asking for four
  * pictures of one instant, and the only way it finds that out is being told.
  */
+/*
+ * Where a capture lands, as one path.
+ *
+ * An absolute destination is the user's own folder and is used as given. A
+ * relative one -- and that includes the common case of no destination at all
+ * -- lands under the plugin's saved-asset directory, so "Bob/Levels" sorts a
+ * browser run's captures the same way it sorts a desktop one. The browser lane
+ * has no path to name; without this it would have no way to organise them
+ * either.
+ *
+ * `out` is emptied when there is nowhere to write: persistence off for this
+ * run AND a destination that is not absolute. That is the one case with no
+ * answer, and it is an answer.
+ */
+static void
+app_plugin_screenshot_path(
+    struct App* app,
+    char const* plugin,
+    char const* dir,
+    char const* name,
+    char* out,
+    size_t out_size)
+{
+    assert(app);
+    assert(plugin);
+    assert(dir);
+    assert(name);
+    assert(out);
+    assert(out_size > 0);
+
+    if( dir[0] == '/' )
+    {
+        snprintf(out, out_size, "%s/%s", dir, name);
+        return;
+    }
+
+    char base[TORIRS_IOITEM_MAX_PATH];
+
+    app_plugin_asset_saved_path(app, plugin, "", base, sizeof(base));
+    if( base[0] && dir[0] )
+    {
+        /* asset_saved_path ends in the trailing separator plus the empty name
+         * it was handed, so the slash is already there. */
+        snprintf(out, out_size, "%s%s/%s", base, dir, name);
+    }
+    else if( base[0] )
+        snprintf(out, out_size, "%s%s", base, name);
+    else
+        out[0] = '\0';
+}
+
 static int
-app_plugin_screenshot(void* user, char const* plugin, char const* dir, char const* name)
+app_plugin_screenshot(
+    void* user,
+    char const* plugin,
+    char const* dir,
+    char const* name,
+    char* out_path,
+    int out_path_size)
 {
     struct App* app = (struct App*)user;
 
     assert(app);
     assert(plugin);
     assert(name);
+    assert(out_path);
+    assert(out_path_size > 0);
 
+    out_path[0] = '\0';
     for( int i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
     {
         struct AppPluginScreenshot* shot = &app->plugin_screenshots[i];
@@ -18120,7 +19523,6 @@ app_plugin_screenshot(void* user, char const* plugin, char const* dir, char cons
         if( shot->in_use )
             continue;
 
-        shot->in_use = 1;
         snprintf(shot->plugin, sizeof(shot->plugin), "%s", plugin);
         snprintf(shot->dir, sizeof(shot->dir), "%s", dir ? dir : "");
         snprintf(shot->name, sizeof(shot->name), "%s", name);
@@ -18131,6 +19533,29 @@ app_plugin_screenshot(void* user, char const* plugin, char const* dir, char cons
         len = strlen(shot->name);
         if( !strchr(shot->name, '.') && len + 4 < sizeof(shot->name) )
             snprintf(shot->name + len, sizeof(shot->name) - len, ".png");
+
+        /* Resolved now rather than at the write, so the caller can be told
+         * where its picture is going while it is still in a position to say
+         * so. Refused here for the same reason app_plugin_asset_write refuses:
+         * a client told not to write files must not start writing them because
+         * a plugin asked -- and a refusal before the frame is spent is better
+         * than one after it. */
+        app_plugin_screenshot_path(
+            app, shot->plugin, shot->dir, shot->name, shot->path, sizeof(shot->path));
+        if( !shot->path[0] )
+        {
+            fprintf(
+                stderr,
+                "plugin: %s cannot save screenshot '%s'; plugin persistence is off for "
+                "this run (TORIRS_PLUGIN_PREFS is empty), so there is no folder to put it "
+                "under and the destination is not an absolute path\n",
+                shot->plugin,
+                shot->name);
+            return 0;
+        }
+
+        shot->in_use = 1;
+        snprintf(out_path, (size_t)out_path_size, "%s", shot->path);
         return 1;
     }
 
@@ -18214,55 +19639,17 @@ app_plugin_screenshots_write(struct App* app, int const* pixels, int width, int 
     for( int i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
     {
         struct AppPluginScreenshot* shot = &app->plugin_screenshots[i];
-        char path[TORIRS_IOITEM_MAX_PATH];
 
         if( !shot->in_use )
             continue;
         shot->in_use = 0;
 
-        /*
-         * An absolute destination is the user's own folder and is used as
-         * given. A relative one -- and that includes the common case of no
-         * destination at all -- lands under the plugin's saved-asset
-         * directory, so "Bob/Levels" sorts a browser run's captures the same
-         * way it sorts a desktop one. The browser lane has no path to name;
-         * without this it would have no way to organise them either.
-         */
-        if( shot->dir[0] == '/' )
-            snprintf(path, sizeof(path), "%s/%s", shot->dir, shot->name);
-        else
-        {
-            char base[TORIRS_IOITEM_MAX_PATH];
-
-            app_plugin_asset_saved_path(app, shot->plugin, "", base, sizeof(base));
-            if( base[0] && shot->dir[0] )
-            {
-                /* asset_saved_path ends in the trailing separator plus the
-                 * empty name it was handed, so the slash is already there. */
-                snprintf(path, sizeof(path), "%s%s/%s", base, shot->dir, shot->name);
-            }
-            else if( base[0] )
-                snprintf(path, sizeof(path), "%s%s", base, shot->name);
-            else
-                path[0] = '\0';
-        }
-
-        if( !path[0] )
-        {
-            /* Same refusal as app_plugin_asset_write, for the same reason: a
-             * client told not to write files must not start writing them
-             * because a plugin asked. */
-            fprintf(
-                stderr,
-                "plugin: %s cannot save screenshot '%s'; plugin persistence is off for "
-                "this run (TORIRS_PLUGIN_PREFS is empty), so there is no folder to put it "
-                "under and the destination is not an absolute path\n",
-                shot->plugin,
-                shot->name);
-            continue;
-        }
+        /* The destination was resolved -- and refused, when there was none --
+         * back when the request was made, so a queued capture always has a
+         * path to go to. */
+        assert(shot->path[0]);
         ToriRS_TaskQueue_Add(
-            app->runner.queue, CreateTask_PluginAssetWrite(path, png, (int)png_size));
+            app->runner.queue, CreateTask_PluginAssetWrite(shot->path, png, (int)png_size));
     }
 
     mz_free(png);
@@ -18409,6 +19796,209 @@ App_NotifyStatLevel(
 }
 
 /* ---- the engine seam the plugin host holds (declared in the bridge) ---- */
+
+/*
+ * Decode a plugin's model file and hold it at `handle`.
+ *
+ * RSCache_ModelNewDecode sniffs the format off the file's own trailer magic
+ * (OB2 / OB3 / V2 / V3) and never consults the booted revision's profile,
+ * which is the property that makes a shipped model portable: one file decodes
+ * the same way under every cache this client boots. Nothing here may key off
+ * app->provider for that reason.
+ *
+ * Returns 0 for bytes that are not a model. Not an assert: the plugin named a
+ * file, and being told "that will not decode" is an answer it has to be able
+ * to get.
+ */
+static int
+app_plugin_model_publish(void* user, int handle, void const* data, int size)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginAssetModel* shipped;
+    struct RSCache_Model* decoded;
+
+    assert(app);
+    assert(data);
+    if( handle < 0 || handle >= TORIRS_PLUGIN_MODELS_MAX )
+        return 0;
+    if( size <= 0 )
+        return 0;
+
+    decoded = RSCache_ModelNewDecode((uint8_t*)data, size);
+    if( !decoded )
+        return 0;
+
+    shipped = &app->plugin_asset_models[handle];
+    /* A republish of the same slot replaces what was there; the objects
+     * standing on it rebuild on the revision change. */
+    if( shipped->model )
+        ToriRS_ModelFree(shipped->model);
+    shipped->in_use = 1;
+    shipped->model = ToriRS_ModelFromRSCache(decoded);
+    RSCache_ModelFree(decoded);
+    shipped->revision++;
+
+    app->plugin_geometry_dirty = 1;
+    app->need_redraw = 1;
+    return shipped->model != NULL;
+}
+
+static void
+app_plugin_model_release(void* user, int handle)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginAssetModel* shipped;
+
+    assert(app);
+    shipped = app_plugin_asset_model_at(app, handle);
+    if( !shipped )
+        return;
+    if( shipped->model )
+        ToriRS_ModelFree(shipped->model);
+    memset(shipped, 0, sizeof(*shipped));
+    /* Objects built from it are still standing; the settle takes them down. */
+    app->plugin_geometry_dirty = 1;
+    app->need_redraw = 1;
+}
+
+static int
+app_plugin_mesh_create(void* user)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+
+    for( int i = 0; i < APP_PLUGIN_MESHES_MAX; i++ )
+    {
+        struct AppPluginMesh* mesh = &app->plugin_meshes[i];
+        if( mesh->in_use )
+            continue;
+        memset(mesh, 0, sizeof(*mesh));
+        mesh->in_use = 1;
+        /* Revisions start at 1 so that 0 can mean "stands on no mesh", which
+         * is what app_plugin_object_geometry_revision answers for a destroyed
+         * one -- and what tears the objects still standing on it down. */
+        mesh->revision = 1;
+        return i;
+    }
+    fprintf(
+        stderr, "plugin: mesh table full (%d); mesh_create refused\n", APP_PLUGIN_MESHES_MAX);
+    return -1;
+}
+
+static void
+app_plugin_mesh_destroy(void* user, int handle)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginMesh* mesh;
+
+    assert(app);
+    mesh = app_plugin_mesh_at(app, handle);
+    if( !mesh )
+        return;
+    app_plugin_mesh_release(mesh);
+    /* Objects built from it are still standing; the settle takes them down. */
+    app->plugin_geometry_dirty = 1;
+    app->need_redraw = 1;
+}
+
+static void
+app_plugin_mesh_clear(void* user, int handle)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginMesh* mesh;
+
+    assert(app);
+    mesh = app_plugin_mesh_at(app, handle);
+    if( !mesh )
+        return;
+    /* The capacity stays: clear-then-rebuild is how a mesh is re-authored, and
+     * handing the buffers back only to ask for the same size again next frame
+     * is the allocation this is trying not to make. */
+    mesh->vertex_count = 0;
+    mesh->face_count = 0;
+    mesh->revision++;
+    app->plugin_geometry_dirty = 1;
+}
+
+static int
+app_plugin_mesh_vertex(void* user, int handle, int x, int y, int z)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginMesh* mesh;
+    int index;
+
+    assert(app);
+    mesh = app_plugin_mesh_at(app, handle);
+    if( !mesh )
+        return -1;
+    if( mesh->vertex_count >= TORIRS_PLUGIN_MESH_VERTICES_MAX )
+    {
+        fprintf(
+            stderr,
+            "plugin: mesh %d is at its %d vertex ceiling; mesh_vertex refused\n",
+            handle,
+            TORIRS_PLUGIN_MESH_VERTICES_MAX);
+        return -1;
+    }
+    /* Model coordinates are 16-bit in every renderer this feeds, so a plugin
+     * that computed one outside that range has geometry that would wrap rather
+     * than geometry that is merely large. */
+    assert(x >= INT16_MIN && x <= INT16_MAX);
+    assert(y >= INT16_MIN && y <= INT16_MAX);
+    assert(z >= INT16_MIN && z <= INT16_MAX);
+
+    index = mesh->vertex_count;
+    app_plugin_mesh_grow(mesh, /*faces=*/0, index + 1);
+    mesh->vertices_x[index] = (int16_t)x;
+    mesh->vertices_y[index] = (int16_t)y;
+    mesh->vertices_z[index] = (int16_t)z;
+    mesh->vertex_count = index + 1;
+    mesh->revision++;
+    app->plugin_geometry_dirty = 1;
+    return index;
+}
+
+static int
+app_plugin_mesh_face(void* user, int handle, int a, int b, int c, int hsl, int alpha)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginMesh* mesh;
+    int index;
+
+    assert(app);
+    mesh = app_plugin_mesh_at(app, handle);
+    if( !mesh )
+        return -1;
+    if( mesh->face_count >= TORIRS_PLUGIN_MESH_FACES_MAX )
+    {
+        fprintf(
+            stderr,
+            "plugin: mesh %d is at its %d face ceiling; mesh_face refused\n",
+            handle,
+            TORIRS_PLUGIN_MESH_FACES_MAX);
+        return -1;
+    }
+    /* A face naming a vertex that has not been authored is a plugin bug that
+     * would otherwise read past the vertex arrays in the rasteriser, three
+     * layers from the call that caused it. */
+    assert(a >= 0 && a < mesh->vertex_count);
+    assert(b >= 0 && b < mesh->vertex_count);
+    assert(c >= 0 && c < mesh->vertex_count);
+    assert(hsl >= 0 && hsl <= 0xFFFF);
+    assert(alpha >= 0 && alpha <= TORIRS_PLUGIN_MESH_ALPHA_MAX);
+
+    index = mesh->face_count;
+    app_plugin_mesh_grow(mesh, /*faces=*/1, index + 1);
+    mesh->face_a[index] = (int16_t)a;
+    mesh->face_b[index] = (int16_t)b;
+    mesh->face_c[index] = (int16_t)c;
+    mesh->face_color[index] = (uint16_t)hsl;
+    mesh->face_alpha[index] = (uint8_t)alpha;
+    mesh->face_count = index + 1;
+    mesh->revision++;
+    app->plugin_geometry_dirty = 1;
+    return index;
+}
 
 static int
 app_plugin_object_create(void* user)
@@ -19452,7 +21042,11 @@ app_world_camera_follow(struct App* app)
      * angles cannot drift back.
      *
      * yaw is 0..2047, pitch 128..383 (the same range the middle-button drag
-     * allows), zoom is the follow distance as a percentage.
+     * allows), zoom is the follow height as a percentage of the reference 600 —
+     * still a percentage here rather than a raw height, because that is the
+     * spelling every recorded TORIRS_ORBIT_CAM string in the tree uses. It is
+     * clamped into whatever band `[camera] zoom=` allows, so a `fixed:` profile
+     * ignores it exactly as the wheel does.
      */
     {
         static int resolved = 0;
@@ -19484,7 +21078,9 @@ app_world_camera_follow(struct App* app)
                 app->orbit_pitch_vel = 0;
             }
             if( cam_zoom > 0 )
-                app->world_zoom_pct = cam_zoom;
+                app->world_cam_height = RevConfigProfile_CameraClampHeight(
+                    &app->revconfig_profile,
+                    REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT * cam_zoom / 100);
         }
     }
     if( !RS_EntitySync_FindPlayer(
@@ -19590,11 +21186,20 @@ app_world_camera_follow(struct App* app)
     if( app->camera_pitch_clamp / 256 > pitch )
         pitch = app->camera_pitch_clamp / 256;
     yaw = app->orbit_yaw & 0x7ff;
-    /* Reference distance is `(pitch * 3 + 600) * viewportZoom / 256`
-     * (client.method2068); our own wheel zoom scales that. At 100% (the
-     * default, and the only value the reference has) the last term is exact. */
-    distance = (pitch * 3 + 600) * app_world_cam_dist_zoom(app) / 256;
-    distance = distance * app->world_zoom_pct / APP_WORLD_ZOOM_DEFAULT_PCT;
+    /*
+     * Reference distance is `pitch * 3 + 600` (Client-TS camFollow), later
+     * scaled by a viewport-height zoom (`* viewportZoom / 256`,
+     * client.method2068). `world_cam_height` is that 600, moved by the wheel
+     * inside whatever band `[camera] zoom=` allows.
+     *
+     * Under `zoom=fixed:` the viewport interpolation is skipped as well as the
+     * wheel, and for the same reason: it is a later client's way of zooming,
+     * and a revision that states a fixed height has said its camera has none.
+     * `fixed:600` is then Client-TS's expression exactly.
+     */
+    distance = pitch * 3 + app->world_cam_height;
+    if( app->revconfig_profile.camera.zoom_mode != REVCONFIG_CAMERA_ZOOM_FIXED )
+        distance = distance * app_world_cam_dist_zoom(app) / 256;
     off_x = 0;
     off_y = 0;
     off_z = distance;
@@ -19934,12 +21539,20 @@ app_minimenu_entry_publish(
     clientop->mouseover_op[0] = '\0';
     clientop->mouseover_target[0] = '\0';
     clientop->mouseover_opcount = num_ops > 0 ? num_ops : 0;
+    clientop->mouseover_component = -1;
     if( num_ops > 0 )
+    {
+        struct UIMinimenuOption const* acting = &menu->options[menu->option_count - 1];
         snprintf(
-            clientop->mouseover_op,
-            sizeof(clientop->mouseover_op),
-            "%s",
-            menu->options[menu->option_count - 1].text);
+            clientop->mouseover_op, sizeof(clientop->mouseover_op), "%s", acting->text);
+        /* `_7109`'s subject: the component the acting row is about, for the
+         * two row kinds that have one. The reference reads the same field off
+         * its own entry and gates on the entry TYPE being one of the two
+         * interface kinds, which is what these two are. */
+        if( acting->pick.kind == UI_MINIMENU_PICK_UI ||
+            acting->pick.kind == UI_MINIMENU_PICK_INV_SLOT )
+            clientop->mouseover_component = acting->pick.id;
+    }
 }
 
 /*
@@ -19990,6 +21603,7 @@ app_hover_text_update(
                 .player_ops_primary = app->player_ops_primary,
                 .player_attack_option = app->player_attack_option,
                 .npc_attack_option = app->npc_attack_option,
+                .attack_option_model = app->features->attack_option_model,
                 .world = app->world,
                 /* Same rule the click paths use: world rows only when the
                  * pointer is over bare viewport. */
@@ -20001,7 +21615,7 @@ app_hover_text_update(
             UIMinimenu_Reset(&scratch);
             scratch.font_id = app->hover_text.font_id;
             RS_Minimenu_Build(&mctx, mouse_x, mouse_y, &scratch);
-            app_plugin_menu_build(app, &scratch, 1);
+            app_plugin_menu_build(app, &scratch, mouse_x, mouse_y, 1);
         }
         UIHoverText_Compose(&scratch, &app->hover_text);
         app_minimenu_entry_publish(app, &scratch);
@@ -20253,6 +21867,7 @@ app_clientop_run(struct App* app, struct UIMinimenuOption const* opt)
     ctx.kind = kind;
     ctx.uid = -1;
     ctx.type = -1;
+    ctx.count = -1;
     ctx.coord = -1;
 
     switch( (enum RS_ClientOpKind)kind )
@@ -20293,6 +21908,7 @@ app_clientop_run(struct App* app, struct UIMinimenuOption const* opt)
         if( !stack )
             return 1;
         ctx.type = stack->obj_id;
+        ctx.count = stack->count;
         ctx.coord = RS_CLIENTOP_COORD(
             stack->grid_position.level,
             base_x + stack->grid_position.x,
@@ -20306,6 +21922,7 @@ app_clientop_run(struct App* app, struct UIMinimenuOption const* opt)
             World_PlayerGetByElementId(app->world, opt->pick.id);
         if( !player )
             return 1;
+        ctx.uid = player->server_pid;
         ctx.coord = RS_CLIENTOP_COORD(
             player->grid_position.level,
             base_x + player->grid_position.x,
@@ -20368,6 +21985,7 @@ app_minimenu_open(
         .player_ops_primary = app->player_ops_primary,
         .player_attack_option = app->player_attack_option,
         .npc_attack_option = app->npc_attack_option,
+        .attack_option_model = app->features->attack_option_model,
         .world = app->world,
         .world_pickset = &app->world_pickset,
         .click_in_world = click_in_world != 0,
@@ -20385,7 +22003,7 @@ app_minimenu_open(
      * ops are the cache's, and a plugin adding a row after them must not leave
      * the menu half-sorted. */
     app_clientop_menu_build(app, menu, 0);
-    app_plugin_menu_build(app, menu, 0);
+    app_plugin_menu_build(app, menu, click_x, click_y, 0);
 
     /* TORIRS_MINIMENU_DEBUG=1: the world pickset that fed the rows plus every
      * row built from it — the one place to see why a loc/obj came up bare. */
@@ -20844,6 +22462,7 @@ app_run_default_ui_row(
         .player_ops_primary = app->player_ops_primary,
         .player_attack_option = app->player_attack_option,
         .npc_attack_option = app->npc_attack_option,
+        .attack_option_model = app->features->attack_option_model,
         .world = app->world,
         .world_pickset = NULL,
         .click_in_world = false,
@@ -20857,7 +22476,7 @@ app_run_default_ui_row(
     UIMinimenu_Reset(&scratch);
     scratch.font_id = app->interact.minimenu.font_id;
     RS_Minimenu_Build(&mctx, click_x, click_y, &scratch);
-    app_plugin_menu_build(app, &scratch, 0);
+    app_plugin_menu_build(app, &scratch, click_x, click_y, 0);
     default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
     /*
      * TORIRS_CLICK_DEBUG=1: the same readout the generic left-click path
@@ -21470,6 +23089,51 @@ app_minimenu_run_option(
             snprintf(line, sizeof(line), "It's a %s.", name ? name : "mystery");
         RS_CS2Host_ChatAdd(&app->host, RS_CHAT_TYPE_GAME, NULL, NULL, line);
         app->need_redraw = 1;
+        return 0; /* handled locally; no CS2 task was dispatched */
+    }
+
+    /*
+     * "Manage Plugins": open the plugin window.
+     *
+     * A profile authors this row -- `op0_action=PLUGIN_PANEL` on a component
+     * it placed in whatever tab it likes -- so the CLIENT never has to know
+     * which gameframe it is running on or where the button went. The
+     * gameframes that HAVE a popout strip get the launcher in it
+     * (app_plugin_button_sync); the ones that do not, which is every dat1
+     * frame, get whatever their profile put there instead, and this is where
+     * both arrive.
+     *
+     * Before the pick.kind switch, like the client rows below it: there is no
+     * engine behaviour behind this action id to fall through to, and a
+     * component-kind pick carrying it would otherwise be read as an IF_BUTTON.
+     */
+    if( opt.action == RS_MINIMENU_ACTION_PLUGIN_PANEL )
+    {
+        app_plugin_window_set_open(app, !app->plugin_panel_visible);
+        return 0; /* handled locally; no CS2 task was dispatched */
+    }
+
+    /*
+     * A plugin canvas region's row -- an orb, a bar, anything a plugin drew on
+     * the canvas and claimed.
+     *
+     * `action_index` is the region's index in this frame's list. Re-checked
+     * against the count rather than trusted, because the row outlives the
+     * build that made it by a click: a menu opened on one frame is chosen from
+     * on a later one, and in between a plugin can have been switched off and
+     * its regions cleared.
+     */
+    if( opt.action == RS_MINIMENU_ACTION_PLUGIN_REGION )
+    {
+        int const at = opt.action_index / TORIRS_PLUGIN_REGION_OPS_MAX;
+        int const op = opt.action_index % TORIRS_PLUGIN_REGION_OPS_MAX;
+        if( opt.action_index >= 0 && at < app->plugin_region_count &&
+            op < app->plugin_regions[at].op_count )
+        {
+            struct AppPluginRegion const* region = &app->plugin_regions[at];
+            PluginHost_CanvasClick(
+                app->plugins, region->plugin, region->tag, op, click_x, click_y);
+        }
         return 0; /* handled locally; no CS2 task was dispatched */
     }
 
@@ -22529,6 +24193,139 @@ App_SetBootWindowMode(
      * indistinguishable from a clientscript's SETWINDOWMODE on the next drain. */
 }
 
+void
+App_SyncPluginLayoutCanvas(struct App* app)
+{
+    int want;
+
+    assert(app);
+    /*
+     * A RELEASE does not force resizable back on.
+     *
+     * The lane had a window mode before any plugin claimed the frame -- a dat1
+     * world is fixed and says so in its manifest -- and a released layout
+     * should hand that back rather than leave the client in whatever mode the
+     * plugin wanted. So only a live claim states one.
+     */
+    if( !app->plugin_layout_owned )
+        return;
+
+    want = app->plugin_layout_canvas == TORIRS_PLUGIN_CANVAS_FIXED
+               ? CS2VM_WINDOW_MODE_FIXED
+               : CS2VM_WINDOW_MODE_RESIZABLE;
+    if( app->host.window_mode == want )
+        return;
+    /*
+     * Re-asserted every frame the claim stands, not only when it changes.
+     *
+     * The window mode has other writers: a clientscript's setwindowmode, and
+     * on login the saved Display-panel layout being applied. Either of those
+     * lands AFTER the claim, and a claim that only spoke once loses to them
+     * silently -- the plugin goes on laying its frame out at the canvas it
+     * asked for while the client uses the window's, which puts a 765x503 frame
+     * in the corner of a 1440x900 canvas with the lane's own chrome spread
+     * around it. Two gameframes at once, and neither wrong from where it is
+     * standing.
+     *
+     * Whoever holds the frame decides how big the canvas is. Restating it is
+     * how that stays true for longer than one frame.
+     */
+    app->host.window_mode = want;
+    app->host.window_mode_dirty = true;
+}
+
+int
+App_PluginLayoutFixedSize(struct App const* app, int* out_w, int* out_h)
+{
+    assert(app);
+    if( !app->plugin_layout_owned )
+        return 0;
+    if( app->plugin_layout_canvas != TORIRS_PLUGIN_CANVAS_FIXED )
+        return 0;
+    if( app->plugin_layout_fixed_w <= 0 || app->plugin_layout_fixed_h <= 0 )
+        return 0;
+    if( out_w )
+        *out_w = app->plugin_layout_fixed_w;
+    if( out_h )
+        *out_h = app->plugin_layout_fixed_h;
+    return 1;
+}
+
+void
+App_PluginLayoutTick(struct App* app)
+{
+    assert(app);
+
+    if( !app->plugins )
+        return;
+    if( !app->plugin_layout_owned )
+    {
+        /* A claim that ended while the tree was up: give the chrome back once,
+         * then stop paying for the check. UITree_FrameRelease is idempotent,
+         * and `plugin_layout_dirty` is what makes this happen exactly once. */
+        if( app->plugin_layout_dirty && app->tree )
+        {
+            UITree_FrameRelease(app->tree);
+            app->plugin_layout_dirty = 0;
+        }
+        return;
+    }
+    if( !app->tree || app->tree->root_index < 0 )
+        return;
+    /*
+     * Nothing is declared against a frame that is still being built.
+     *
+     * The gameframe bakes across many frames -- the root interface, its packs,
+     * the scripts that rearrange them -- and a declaration made partway
+     * through finds none of the roles and none of the chrome, then stands for
+     * ever because it believes it succeeded. What that looks like is a client
+     * drawing the plugin's stones UNDER its own untouched gameframe, which is
+     * the one outcome worse than either frame alone.
+     *
+     * Marked dirty rather than merely skipped, so the first READY frame
+     * declares even if nothing else changed.
+     */
+    if( app->app_state != APP_STATE_READY )
+    {
+        app->plugin_layout_dirty = 1;
+        return;
+    }
+
+    /* The canvas the claim asked for, restated. @see the body: it has other
+     * writers, and the last one to speak wins. */
+    App_SyncPluginLayoutCanvas(app);
+
+    /*
+     * Re-declare only when the last answer stopped being true.
+     *
+     * The cases are the canvas resizing, the gameframe being rebuilt (which
+     * bumps the tree generation and drops the whole table with it), the boot
+     * finishing, and the claim itself. Re-declaring every frame would work and
+     * would cost a whole-tree walk per frame to collect the chrome again -- on
+     * a rev-239 toplevel that is thousands of nodes for an answer that has not
+     * changed since the window was last dragged.
+     */
+    if( app->plugin_layout_dirty || !UITree_FrameActive(app->tree) ||
+        app->plugin_layout_generation != app->tree->generation ||
+        app->plugin_layout_w != UITREE_LAYOUT_ROOT_W ||
+        app->plugin_layout_h != UITREE_LAYOUT_ROOT_H )
+    {
+        PluginHost_Layout(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        /*
+         * And tell EVERY plugin, not just the frame's owner.
+         *
+         * The conditions above are exactly the ones that move a region -- a
+         * resize, a rebuild, a fresh claim -- so a readout holding a picture
+         * measured against one of them has to hear about it here or nowhere.
+         * PluginHost_Layout is the owner's news; this is everybody else's.
+         */
+        PluginHost_LayoutChanged(app->plugins);
+    }
+    /* The re-assert is NOT here. It has to be the last writer before the draw,
+     * and the tick is nowhere near last -- see UITree_EmitWalk, which is where
+     * it runs from. */
+}
+
 int
 App_TakeWindowModeChange(
     struct App* app,
@@ -22708,6 +24505,14 @@ App_RunOnce(
      * run first: a plugin panel's toggle has to latch during a boot, and
      * anything it changes has to be visible to this frame's emit rebuild. */
     PluginHost_FrameStart(app->plugins, now_ms);
+    /* After the frame handlers, not before: a plugin that re-authors its
+     * geometry from on_frame gets it on screen this frame rather than next. */
+    app_plugin_geometry_settle(app);
+    /* And the gameframe with them, for the same reason: a layout that claimed
+     * the frame from its start handler has to be on screen this frame, not
+     * next -- the alternative is one rendered frame of the lane's chrome
+     * flashing past every time a layout plugin is switched on. */
+    App_PluginLayoutTick(app);
 
     /*
      * All Settings rows, drained here and not inside the VM.
@@ -22724,23 +24529,68 @@ App_RunOnce(
             /*
              * The two BUTTON rows, which the cache does not act on itself.
              *
-             * "Clear your highlighted tiles" (117) and "Clear your highlighted
-             * NPCs" (267) both reach clientscript 3969, whose switch has no
+             * "Clear your highlighted tiles" and "Clear your highlighted
+             * NPCs" both reach the settings apply hub, whose switch has no
              * case for either -- the only thing it does for them is write the
-             * setting id to varbit 9657, which is how they get here at all.
-             * The reference clears the group natively; so does this.
+             * setting id to the settings-changed varbit, which is how they get
+             * here at all. The reference clears the group natively; so does
+             * this.
              *
-             * Group 6 for both, and they are different groups: the tile
-             * markers live in the TILE kind's 6 (clientscript 4763 sets it up)
-             * and the tagged npcs in the NPC kind's (6688 adds to it). Group
-             * ids are per kind, which is exactly why clearing one does not
-             * touch the other.
+             * Which group each is, and why they are different groups even
+             * though both are 6, is stated once in rs_highlight.h beside the
+             * two constants -- a cache id this client has to know by number
+             * belongs where it can be checked against the cache.
              */
-            if( setting_id == APP_SETTING_CLEAR_TILE_MARKERS )
-                RS_HighlightClear(&app->host.highlight, RS_HIGHLIGHT_TILE, 6);
-            else if( setting_id == APP_SETTING_CLEAR_NPC_TAGS )
-                RS_HighlightClear(&app->host.highlight, RS_HIGHLIGHT_NPC, 6);
+            int const clear_tiles = app_setting_id(app, APP_SETTING_CLEAR_TILE_MARKERS);
+            int const clear_npcs = app_setting_id(app, APP_SETTING_CLEAR_NPC_TAGS);
+            /* Both tested for >= 0 first: an undeclared row is -1, and the id
+             * on the wire must never be allowed to match "there is no such
+             * row". */
+            if( clear_tiles >= 0 && setting_id == clear_tiles )
+                RS_HighlightClear(
+                    &app->host.highlight,
+                    RS_HIGHLIGHT_TILE,
+                    RS_HIGHLIGHT_GROUP_TILE_MARKERS);
+            else if( clear_npcs >= 0 && setting_id == clear_npcs )
+                RS_HighlightClear(
+                    &app->host.highlight, RS_HIGHLIGHT_NPC, RS_HIGHLIGHT_GROUP_NPC_TAGS);
             PluginHost_Setting(app->plugins, setting_id, setting_value);
+        }
+    }
+
+    /*
+     * Settings varbit writes, mirrored to the SERVER.
+     *
+     * Ten Activities rows are decided server-side -- the Agility, Slayer and
+     * Blast Furnace helpers, the clue helper's worldmap marker, world arrow and
+     * infobox, the two iron loot warnings, the boss health overlay and the
+     * max-hit threshold -- and every one of them reads a varbit this panel
+     * writes into the client's copy alone. See `settings_mirror_varbit` in
+     * rs_cs2_host.h for why no packet in this revision carries it and why the
+     * mirror rides CLIENT_CHEAT.
+     *
+     * Retried rather than dropped when the send fails. `App_SendCommand`
+     * answers false until the connection reaches GAME, and the settings panel
+     * is reachable well before that on a slow login -- a mirror lost there
+     * would leave the server on the opposite value with no second chance,
+     * since a row already at the value the player wants is never written again.
+     */
+    {
+        int mirror_varbit;
+        int mirror_value;
+        while( RS_CS2Host_TakeSettingsMirror(&app->host, &mirror_varbit, &mirror_value) )
+        {
+            char cmd[64];
+
+            snprintf(cmd, sizeof(cmd), "setting %d %d", mirror_varbit, mirror_value);
+            if( !App_SendCommand(app, cmd) )
+            {
+                RS_CS2Host_QueueSettingsMirror(&app->host, mirror_varbit, mirror_value);
+                break;
+            }
+            if( getenv("TORIRS_SETTINGS_DEBUG") )
+                fprintf(stderr, "settings: mirror varbit %d = %d -> server\n", mirror_varbit,
+                        mirror_value);
         }
     }
 
@@ -23054,6 +24904,88 @@ App_RunOnce(
      * every cycle from the same menu the click paths build. */
     app_hover_text_update(app, input->curr.mouse_x, input->curr.mouse_y);
 
+    /*
+     * A plugin's canvas region takes its own LEFT click, before anything else
+     * acts on this frame's gestures.
+     *
+     * First, and off the raw input rather than off `out`, because a left click
+     * reaches this function by three different routes depending on what is
+     * underneath the pointer -- a component id, a minimap gesture, or a
+     * left-click miss -- and a plugin orb drawn over the minimap would
+     * otherwise walk the player before its own row was ever considered. One
+     * test on the click edge covers all three.
+     *
+     * Right clicks are deliberately NOT intercepted: the region contributes a
+     * row to the menu the right click builds (app_plugin_menu_build), so it
+     * appears there beside whatever else is under the pointer, which is what a
+     * right click is for.
+     */
+    int plugin_region_took_click = 0;
+    if( LibToriRS_Input_IsClick(input, TORIRSM_LEFT) && out.minimenu_select < 0 &&
+        !out.minimenu_closed )
+    {
+        int const region = app_plugin_region_at(
+            app,
+            input->last_click_x[TORIRSM_LEFT],
+            input->last_click_y[TORIRSM_LEFT]);
+
+        /*
+         * TORIRS_PLUGIN_REGION_DEBUG=1: which plugin region a left click
+         * landed in, and what the frame's regions actually are.
+         *
+         * "The orb does nothing" has three separate causes -- the click missed
+         * the region, the region offered no verb, or the verb pressed a
+         * component this gameframe does not hold -- and from outside they look
+         * identical. This separates the first two; the plugin's own message
+         * names the third.
+         */
+        if( getenv("TORIRS_PLUGIN_REGION_DEBUG") )
+        {
+            fprintf(
+                stderr,
+                "region: click %d,%d -> %d of %d\n",
+                input->last_click_x[TORIRSM_LEFT],
+                input->last_click_y[TORIRSM_LEFT],
+                region,
+                app->plugin_region_count);
+            for( int i = 0; i < app->plugin_region_count; i++ )
+                fprintf(
+                    stderr,
+                    "  region[%d] plugin=%d %d,%d %dx%d ops=%d '%s'\n",
+                    i,
+                    app->plugin_regions[i].plugin,
+                    app->plugin_regions[i].x,
+                    app->plugin_regions[i].y,
+                    app->plugin_regions[i].w,
+                    app->plugin_regions[i].h,
+                    app->plugin_regions[i].op_count,
+                    app->plugin_regions[i].op_count > 0 ? app->plugin_regions[i].ops[0]
+                                                        : "");
+        }
+        if( region >= 0 && app->plugin_regions[region].op_count > 0 )
+        {
+            /* Op 0 is the default, the same rule the right-click menu's top
+             * row follows -- they are one decision, made once. */
+            PluginHost_CanvasClick(
+                app->plugins,
+                app->plugin_regions[region].plugin,
+                app->plugin_regions[region].tag,
+                0,
+                input->last_click_x[TORIRSM_LEFT],
+                input->last_click_y[TORIRSM_LEFT]);
+            plugin_region_took_click = 1;
+            /* Everything the click would otherwise have reached. Cleared
+             * rather than guarded at each of the three sites below, so a
+             * fourth route added later cannot quietly get the click too. */
+            out.clicked_com_id = -1;
+            out.minimap_click = 0;
+            out.left_click_miss = 0;
+            app->input_frame_consumed = 1;
+            app->need_redraw = 1;
+        }
+    }
+    (void)plugin_region_took_click;
+
     /* Minimenu gesture results (see interact_minimenu): option selected on
      * mousedown -> dispatch; right press with no menu open -> build + show. */
     if( out.minimenu_select >= 0 )
@@ -23140,6 +25072,7 @@ App_RunOnce(
             .player_ops_primary = app->player_ops_primary,
             .player_attack_option = app->player_attack_option,
             .npc_attack_option = app->npc_attack_option,
+            .attack_option_model = app->features->attack_option_model,
             .world = app->world,
             .world_pickset = NULL, /* UI hit: mouse was over a component */
             .click_in_world = false,
@@ -23156,7 +25089,7 @@ App_RunOnce(
         UIMinimenu_Reset(&scratch);
         scratch.font_id = app->interact.minimenu.font_id;
         RS_Minimenu_Build(&mctx, out.clicked_x, out.clicked_y, &scratch);
-        app_plugin_menu_build(app, &scratch, 0);
+        app_plugin_menu_build(app, &scratch, out.clicked_x, out.clicked_y, 0);
         default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
         /*
          * TORIRS_CLICK_DEBUG=1: what the left click resolved to.
@@ -23262,6 +25195,7 @@ App_RunOnce(
             .player_ops_primary = app->player_ops_primary,
             .player_attack_option = app->player_attack_option,
             .npc_attack_option = app->npc_attack_option,
+            .attack_option_model = app->features->attack_option_model,
             .world = app->world,
             .world_pickset = &app->world_pickset,
             .click_in_world = true,
@@ -23281,7 +25215,7 @@ App_RunOnce(
         scratch.font_id = app->interact.minimenu.font_id;
         app_minimenu_ctx_ground_fallback(app, &mctx, out.left_click_miss_x, out.left_click_miss_y);
         RS_Minimenu_Build(&mctx, out.left_click_miss_x, out.left_click_miss_y, &scratch);
-        app_plugin_menu_build(app, &scratch, 0);
+        app_plugin_menu_build(app, &scratch, out.left_click_miss_x, out.left_click_miss_y, 0);
         default_idx = RS_Minimenu_DefaultOptionIndex(&scratch);
         if( default_idx >= 0 )
         {
@@ -25708,6 +27642,11 @@ App_BuildFrame(
         ToriRS_FrameSetScene(frame, app->scene);
         ToriRS_FrameSetCanvas(frame, width, height);
         ToriRS_FrameSetEmitBuffer(frame, &app->emit);
+        /* The frame's scrollbars wear whatever the standing layout declaration
+         * asked for, which is all zero when no plugin holds the frame or the
+         * one that does brought no scrollbar art. */
+        ToriRS_FrameSetScrollbarSkin(
+            frame, app->plugin_layout_owned ? app->plugin_layout_scrollbar : NULL);
 
         /* World pass: paint the visibility-ordered command list for the current
          * camera and attach it so UITREE_EMIT_WORLD opens the 3D pass. */

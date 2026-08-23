@@ -261,6 +261,55 @@ read_classic(
     return 1;
 }
 
+/*
+ * The same block with LostCity's 289 tail.
+ *
+ * Written out rather than "read_classic then two more bytes", because
+ * read_classic reports success and not where it stopped -- and a decoder that
+ * resumed at a position it had to guess would be the one bug this whole file
+ * is arranged to prevent. The shared field readers do the work either way; what
+ * is duplicated is the FIELD ORDER, which is the thing that differs per build.
+ */
+static int
+read_classic_lc289(
+    struct OpWriter* w,
+    struct RSCache_Buffer* rsbuf)
+{
+    if( !need(rsbuf, 2) )
+        return 0;
+    op_value(w, PKT_APPEARANCE_OP_GENDER, g1(rsbuf));
+    op_value(w, PKT_APPEARANCE_OP_HEAD_ICON, g1(rsbuf));
+
+    for( int i = 0; i < APPEARANCE_SLOT_COUNT; i++ )
+    {
+        int wire = read_slot_word(rsbuf);
+        if( wire < 0 )
+            return 0;
+        if( i == 0 && wire == APPEARANCE_WIRE_TRANSMOG )
+        {
+            if( !need(rsbuf, 2) )
+                return 0;
+            op_value(w, PKT_APPEARANCE_OP_TRANSMOG, g2(rsbuf));
+            break;
+        }
+        op_slot(w, APPEARANCE_ENC_CLASSIC, APPEARANCE_LAYER_VISIBLE, i, wire);
+    }
+
+    /* Two more than the classic block needs: the skill level below. */
+    if( !need(rsbuf, APPEARANCE_COLOUR_COUNT + APPEARANCE_ANIM_COUNT * 2 + 8 + 1 + 2) )
+        return 0;
+    read_colours_and_anims(w, rsbuf);
+
+    {
+        char name[APPEARANCE_TEXT_MAX];
+        base37tostr((uint64_t)g8(rsbuf), name, (int)sizeof(name));
+        op_text(w, PKT_APPEARANCE_OP_NAME, 0, name);
+    }
+    op_value(w, PKT_APPEARANCE_OP_COMBAT_LEVEL, g1(rsbuf));
+    op_value(w, PKT_APPEARANCE_OP_SKILL_LEVEL, g2(rsbuf));
+    return 1;
+}
+
 /* ------------------------------------------------------------------ */
 /* The 239 (v5) block                                                   */
 /* ------------------------------------------------------------------ */
@@ -401,7 +450,12 @@ pkt_appearance_read(
     w.capacity = ops_capacity;
     RSCache_BufferInit(&rsbuf, (uint8_t*)data, (uint32_t)len);
 
-    ok = encoding == APPEARANCE_ENC_V5 ? read_v5(&w, &rsbuf) : read_classic(&w, &rsbuf);
+    if( encoding == APPEARANCE_ENC_V5 )
+        ok = read_v5(&w, &rsbuf);
+    else if( encoding == APPEARANCE_ENC_CLASSIC_LC289 )
+        ok = read_classic_lc289(&w, &rsbuf);
+    else
+        ok = read_classic(&w, &rsbuf);
     /* A stream that did not fit is a silently wrong appearance, not a short
      * one — the dropped ops are whichever fields came last. */
     if( !ok || w.overflow )

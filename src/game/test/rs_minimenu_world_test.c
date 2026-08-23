@@ -78,6 +78,56 @@ menu_index_of(struct UIMinimenu const* menu, char const* needle)
     return -1;
 }
 
+/*
+ * The dat1 half of the case above: a 2004 cache states the continue prompt as
+ * `buttontype=pause` and carries no armed events at all (there is no
+ * IF_SETEVENTS before rev 230). The row must still be built -- and, critically,
+ * must NOT claim a numbered op slot.
+ *
+ * action_index is what the click dispatcher reads to decide a row is an IF3
+ * `IF_BUTTON<n>` for the server. Tagging this row op 0 sent "Click here to
+ * continue" out as IF_BUTTON1 on a component the server had armed nothing on,
+ * and suppressed the local apply that turns it into RESUME_PAUSEBUTTON -- so
+ * every npc dialogue was unclickable while looking perfectly correct.
+ */
+static void
+test_dat1_continue_is_not_a_numbered_op(void)
+{
+    struct UITree* tree = UITree_New(4);
+    struct UITreeNodeSpec spec = { 0 };
+    struct UITreeBehavior behavior = { .button_type = REVCONFIG_BUTTON_TYPE_CONTINUE };
+    struct RS_MinimenuBuildCtx ctx = { .tree = tree };
+    struct UIMinimenu menu;
+    int found = 0;
+
+    spec.type = UIELEM_RS_TEXT;
+    spec.component_id = 4886;
+    spec.width = 350;
+    spec.height = 17;
+    spec.behavior = &behavior;
+    spec.u.rs_text.text = "Click here to continue";
+    /* What the dat1 decoder leaves for an empty `option=` on a pause button. */
+    snprintf(spec.menu_options.option, sizeof(spec.menu_options.option), "Continue");
+    TEST_ASSERT(UITree_Push(tree, -1, &spec) >= 0, "dat1 continue fixture pushed");
+    UITree_LayoutResolve(tree, 0, 0, 400, 100);
+    RS_Minimenu_Build(&ctx, 10, 10, &menu);
+
+    TEST_ASSERT(
+        menu_action_count(&menu, REVCONFIG_MINIMENU_RESUME_PAUSEBUTTON) == 1,
+        "a cache buttontype=pause builds one RESUME_PAUSEBUTTON row");
+    for( int i = 0; i < menu.option_count; i++ )
+    {
+        if( menu.options[i].action != REVCONFIG_MINIMENU_RESUME_PAUSEBUTTON )
+            continue;
+        found = 1;
+        TEST_ASSERT(
+            menu.options[i].action_index < 0,
+            "a button-type row carries no numbered op index");
+    }
+    TEST_ASSERT(found, "the RESUME_PAUSEBUTTON row was found");
+    UITree_Free(tree);
+}
+
 static void
 test_if3_continue_uses_resume(void)
 {
@@ -519,6 +569,47 @@ test_obj_pick_expands_siblings(void)
     World_Free(world);
 }
 
+/*
+ * A pile of ground items produces two rows apiece (Take + Examine) plus the
+ * Walk here row, so six objs on one tile is thirteen rows. The menu array used
+ * to hold ten and UIMinimenu_AddOption dropped the overflow without a word,
+ * which showed up in game as a right-click on a stack listing only the first
+ * four items -- the rest were unreachable. Six objs is the smallest count that
+ * proves the cap is gone.
+ */
+static void
+test_obj_stack_beyond_old_cap(void)
+{
+    printf("TEST: a six-obj stack lists every item\n");
+
+    struct World* world = World_TestMakeReady(104);
+    char actions[5][32] = { { 0 } };
+    static char const* const names[6] = { "Bucket", "Small fishing net", "Tinderbox",
+                                          "Bronze axe", "Shears", "Spade" };
+    for( int i = 0; i < 6; i++ )
+        World_ObjStackAdd(world, 600 + i, 15, 15, 0, 1000 + i, 1, names[i], actions);
+
+    struct World_PickSet picks;
+    World_PickSetReset(&picks);
+    World_PickSetAdd(&picks, 600, WORLD_PICK_OBJSTACK, 15, 15, 0);
+
+    struct RS_MinimenuBuildCtx ctx = {
+        .selection = { .mode = RS_MINIMENU_SELECT_NONE },
+        .world = world,
+        .world_pickset = &picks,
+        .click_in_world = true,
+    };
+    struct UIMinimenu menu;
+    UIMinimenu_Reset(&menu);
+    RS_Minimenu_AddWorldRows(&ctx, &menu);
+
+    for( int i = 0; i < 6; i++ )
+        TEST_ASSERT(menu_has_substr(&menu, names[i]), names[i]);
+    TEST_ASSERT(menu.option_count >= 13, "six objs emit at least thirteen rows");
+
+    World_Free(world);
+}
+
 static void
 test_local_alone_no_player_ops(void)
 {
@@ -697,8 +788,9 @@ attack_fixture_init(struct AttackFixture* fx, int local_level, int other_level, 
 }
 
 static void
-attack_fixture_build(
+attack_fixture_build_model(
     struct AttackFixture* fx,
+    int model,
     int player_option,
     int npc_option,
     struct UIMinimenu* out)
@@ -709,12 +801,26 @@ attack_fixture_build(
         .player_ops_primary = fx->player_ops_primary,
         .player_attack_option = player_option,
         .npc_attack_option = npc_option,
+        .attack_option_model = model,
         .world = fx->world,
         .world_pickset = &fx->picks,
         .click_in_world = true,
     };
     UIMinimenu_Reset(out);
     RS_Minimenu_AddWorldRows(&ctx, out);
+}
+
+/* The two dropdowns only exist in the settings era, so every test that states
+ * one of their values builds under that model. */
+static void
+attack_fixture_build(
+    struct AttackFixture* fx,
+    int player_option,
+    int npc_option,
+    struct UIMinimenu* out)
+{
+    attack_fixture_build_model(
+        fx, TORIRS_ATTACK_OPTION_MODEL_SETTINGS, player_option, npc_option, out);
 }
 
 /** The row whose text starts with `verb`, or -1. Deprioritized rows carry the
@@ -783,6 +889,44 @@ test_npc_attack_option(void)
     TEST_ASSERT(
         menu_action_for_verb(&menu, "Attack") == REVCONFIG_MINIMENU_OPNPC2,
         "Left-click where available ignores the level difference");
+    World_Free(fx.world);
+}
+
+/*
+ * The classic era has no dropdowns at all, so a client that never hears varp
+ * clientcode 18/22 must still offer Attack — which is what a LostCity world
+ * (rs289lc) looks like from here. Client-TS addNpcOptions also computes the
+ * combat-level bump inside its attack pass alone, so the other ops keep their
+ * natural priority against a higher-level NPC.
+ */
+static void
+test_npc_attack_option_classic(void)
+{
+    printf("TEST: the classic era emits Attack with no settings varp\n");
+
+    struct AttackFixture fx;
+    struct UIMinimenu menu;
+
+    attack_fixture_init(&fx, 50, 50, true);
+    attack_fixture_build_model(
+        &fx, TORIRS_ATTACK_OPTION_MODEL_CLASSIC, RS_ATTACK_OPTION_DEPENDS,
+        RS_ATTACK_OPTION_DEPENDS, &menu);
+    TEST_ASSERT(
+        menu_action_for_verb(&menu, "Attack") == REVCONFIG_MINIMENU_OPNPC2,
+        "an equal-level NPC is left-click-attackable");
+    World_Free(fx.world);
+
+    attack_fixture_init(&fx, 10, 21, true);
+    attack_fixture_build_model(
+        &fx, TORIRS_ATTACK_OPTION_MODEL_CLASSIC, RS_ATTACK_OPTION_DEPENDS,
+        RS_ATTACK_OPTION_DEPENDS, &menu);
+    TEST_ASSERT(
+        menu_action_for_verb(&menu, "Attack") ==
+            UIMinimenu_ActionDeprioritize(REVCONFIG_MINIMENU_OPNPC2),
+        "a higher-level NPC still sinks its Attack row");
+    TEST_ASSERT(
+        menu_action_for_verb(&menu, "Talk-to") == REVCONFIG_MINIMENU_OPNPC1,
+        "but the bump stays inside the attack pass");
     World_Free(fx.world);
 }
 
@@ -940,6 +1084,7 @@ main(void)
     test_widget_target_priority_default();
     test_dat2_stacking_behaviour_is_not_boolean();
     test_if3_continue_uses_resume();
+    test_dat1_continue_is_not_a_numbered_op();
     test_if3_item_uses_only_scripted_ops();
     test_if3_item_onop_and_target_rows_match_rev239();
     test_player_get_by_element_id();
@@ -947,9 +1092,11 @@ main(void)
     test_other_player_stack_rows();
     test_local_player_pick_expands_ground_items();
     test_obj_pick_expands_siblings();
+    test_obj_stack_beyond_old_cap();
     test_local_alone_no_player_ops();
     test_walk_here_ground_fallback();
     test_npc_attack_option();
+    test_npc_attack_option_classic();
     test_player_attack_option();
     test_player_attack_option_clan();
     test_dat2_obj_team_decodes();

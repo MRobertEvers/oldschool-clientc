@@ -12,6 +12,30 @@
 #define UI_INV_SLOT_OFFSET_MAX 20
 /* UITreeComponent::child_key_max sentinels (below any real sub-id key). */
 #define UITREE_CHILD_KEY_UNKNOWN INT32_MIN
+/**
+ * Component ids for controls a PROFILE authored, one group below the chrome's.
+ *
+ * A revconfig `[component:]` has no cache id -- there is no interface behind
+ * it -- so the builder used to leave its component_id at -1, and that is the
+ * whole reason such a control could be hovered but never clicked: the click
+ * path carries a component ID, and `-1` reads as "the click landed on
+ * nothing". The mouseover line worked, the right-click menu worked, and the
+ * left click silently did nothing, which is the least debuggable shape a bug
+ * can take.
+ *
+ * A synthetic id fixes that for every authored control at once, and a RANGE is
+ * what makes it safe: it cannot collide with a cache uid (no interface is
+ * numbered 0x7FFD) and it is one bounds test away from being recognised.
+ *
+ * A GROUP of its own rather than sharing the chrome's, because the chrome's
+ * group is intercepted before the game's dispatch ever sees it
+ * (add_component_rows returns 0 for it) -- these are the opposite: they are
+ * ordinary components with ordinary menu rows, and the only thing they need
+ * from the id is to have one.
+ */
+#define TORIRS_REVCONFIG_GROUP 0x7FFD
+#define TORIRS_REVCONFIG_ID_BASE (TORIRS_REVCONFIG_GROUP << 16)
+
 #define UITREE_CHILD_KEY_NONE (INT32_MIN + 1)
 #define UITREE_MENU_OPTION_SLOTS 10
 /* 64: option labels carry <col=...>name</col> tags well past 32 chars. */
@@ -70,6 +94,20 @@ enum UITreeComponentType
      *  it gets its own emit pass, after the drag pass, so it draws over
      *  everything. Skipped entirely when the host has no overlay. */
     UIELEM_BUILTIN_DEBUG_OVERLAY = 27,
+    /**
+     * Multi-combat indicator (SET_MULTIWAY): one sprite frame, drawn only
+     * while the server says the player is in a multi-combat zone. A builtin
+     * because no interface owns it -- the reference plots it straight onto the
+     * viewport -- but its sprite and its place are revconfig's, not C's.
+     */
+    UIELEM_BUILTIN_MULTIWAY = 29,
+    /**
+     * System-update countdown (UPDATE_REBOOT_TIMER): one line of text over the
+     * viewport while an update is pending. Same deal as MULTIWAY -- font,
+     * colour and position come from revconfig, the host supplies the string
+     * and whether there is one.
+     */
+    UIELEM_BUILTIN_REBOOT_TIMER = 30,
     UIELEM_RS_TEXT = 14,     /* TYPE_TEXT */
     UIELEM_RS_GRAPHIC = 15,  /* TYPE_GRAPHIC */
     UIELEM_RS_MODEL = 16,    /* TYPE_MODEL */
@@ -78,6 +116,11 @@ enum UITreeComponentType
     UIELEM_RS_RECT = 19,     /* TYPE_RECT */
     UIELEM_RS_LINE = 20,     /* TYPE_LINE */
     UIELEM_RS_INV_TEXT = 21, /* TYPE_INV_TEXT */
+    /** TYPE_ARC — a circular sector, shaped by CC/IF_SETARC's two angles.
+     *  The only user in the cache is clientscript 5480's countdown pie, which
+     *  stacks three of them: a full translucent disc, the swept wedge over it,
+     *  and the wedge's 1px arc outline. */
+    UIELEM_RS_ARC = 28,
     // Dynamic object created by CS2.
     UIELEM_CC_OBJ = 23, /* CS2 cc_create / if_setobject objbox */
 };
@@ -492,8 +535,36 @@ struct UITreeComponent
     int target_priority;
     /** CC/IF_SETOPFORCELEFTCLICK: left-click executes the op without opening the menu. */
     uint8_t force_left_click;
+    /**
+     * Suppressed by a plugin gameframe layout (ui/uitree_frame.h).
+     *
+     * A flag of its own rather than a use of `behavior.hide`, and the reason
+     * is not tidiness. `hide` is the CACHE's and the SCRIPTS': the CS1 value
+     * scripts rewrite it every tick on a dat1 frame and the CS2 hooks do the
+     * same on a dat2 one, so a layout borrowing it is overwritten before the
+     * frame it wrote for is drawn. Worse, `UITree_ComponentVisibleById` reads
+     * a hidden node with NO component id as visible -- a rule that is right
+     * for the hover-reveal it was written for and means every revconfig
+     * builtin, which has no id, ignores `hide` completely. Setting it on the
+     * 2004 gameframe's forty-six stones changed nothing at all.
+     *
+     * Nothing but the layout writes this, so it needs no re-asserting and
+     * cannot be argued with.
+     */
+    uint8_t frame_hidden;
     /** enum UITreeSlotTag — nonzero marks this node as a mount region. */
     uint8_t slot_tag;
+    /**
+     * Semantic role this node was AUTHORED with (ui/uitree_role.h), interned
+     * against the tree's role table. 0 = none.
+     *
+     * The direct half of the role vocabulary, for the nodes a revconfig
+     * profile built itself. The other half is a matcher chain, which finds a
+     * node the profile did not author -- a cache component, or one a CS2
+     * script created -- and needs no field here because there is nowhere to
+     * put it: the node does not exist until the script runs.
+     */
+    uint16_t role_id;
     /** OR of enum UITreeHotkeyEffect: the effects this node accepts from a
      *  bound key (revconfig `hotkey=` lines). 0 = not a hotkey target. */
     uint32_t hotkey_effects;
@@ -541,11 +612,6 @@ struct UITreeComponent
         struct
         {
             uint8_t level_mask;
-            /** INI mmb_rotate= — middle-button drag inside the viewport
-             *  rotates the camera (yaw/pitch). */
-            uint8_t mmb_rotate;
-            /** INI wheel_zoom= — mouse wheel over the viewport zooms. */
-            uint8_t wheel_zoom;
         } world;
         struct
         {
@@ -621,6 +687,18 @@ struct UITreeComponent
         } rs_rect;
         struct
         {
+            int color;
+            /** 1 = the whole disc, 0 = a `line_width`-pixel band along the arc
+             *  (reference NXTPix2D::DrawCircularArc's inner radius). */
+            int filled;
+            int line_width;
+            /** CC/IF_SETARC, 65536 to a full turn. 0 is straight up and the
+             *  sweep runs clockwise, so a drain reads as a clock hand. */
+            int arc_start;
+            int arc_end;
+        } rs_arc;
+        struct
+        {
             int inv_source_id;
             int cols;
             int rows;
@@ -663,6 +741,12 @@ struct UITreeComponent
         {
             int font_id;
         } hovertext;
+        struct
+        {
+            int font_id;
+            /** revconfig color=; text colour of the countdown line. */
+            int color;
+        } reboot_timer;
         struct
         {
             /** Scene font ids the host registered the baked debug faces
@@ -991,6 +1075,9 @@ struct UITree
     /** Open-addressed group_id -> nodes with that component_id high half. */
     struct UITreeGroupBucket* group_map;
     uint32_t group_map_cap;
+    /** A plugin layout's hold on this frame (ui/uitree_frame.h), or NULL --
+     *  which it is on every lane until a layout plugin claims one. */
+    struct UITreeFrameLayout* frame_layout;
 };
 
 struct UITreeNodeSpec
@@ -1010,6 +1097,8 @@ struct UITreeNodeSpec
     int dynamic_child_index;
     uint8_t has_position;
     uint8_t slot_tag; /* enum UITreeSlotTag */
+    /** Interned semantic role, or 0. @see UITreeComponent::role_id. */
+    uint16_t role_id;
     /** dat2 noClickThrough on a LAYER; CS2 can also raise it later. */
     uint8_t no_click_through;
     struct UITreeElemPosition position;
@@ -1044,8 +1133,6 @@ struct UITreeNodeSpec
         struct
         {
             uint8_t level_mask;
-            uint8_t mmb_rotate; /* INI mmb_rotate= (see UITreeComponent) */
-            uint8_t wheel_zoom; /* INI wheel_zoom= (see UITreeComponent) */
         } world;
         struct
         {
@@ -1119,6 +1206,18 @@ struct UITreeNodeSpec
         } rs_rect;
         struct
         {
+            int color;
+            /** 1 = the whole disc, 0 = a `line_width`-pixel band along the arc
+             *  (reference NXTPix2D::DrawCircularArc's inner radius). */
+            int filled;
+            int line_width;
+            /** CC/IF_SETARC, 65536 to a full turn. 0 is straight up and the
+             *  sweep runs clockwise, so a drain reads as a clock hand. */
+            int arc_start;
+            int arc_end;
+        } rs_arc;
+        struct
+        {
             int inv_source_id;
             int cols;
             int rows;
@@ -1161,6 +1260,12 @@ struct UITreeNodeSpec
         {
             int font_id;
         } hovertext;
+        struct
+        {
+            int font_id;
+            /** revconfig color=; text colour of the countdown line. */
+            int color;
+        } reboot_timer;
         struct
         {
             /** Scene font ids the host registered the baked debug faces

@@ -1059,11 +1059,18 @@ painter_reset_to_static(struct Painter* painter)
         {
             for( int z = 0; z < size_z; z++ )
             {
-                tile = painter_tile_at(
-                    painter,
-                    painter->elements[i].sx + x,
-                    painter->elements[i].sz + z,
-                    painter->elements[i].source_level);
+                int tx = painter->elements[i].sx + x;
+                int tz = painter->elements[i].sz + z;
+                /* A footprint may legally overhang the scene edge — a 2x2 loc
+                 * on the last column is half off the map. The add clamps to
+                 * width-1/height-1 (compute_normal_scenery_spans) and registers
+                 * only the tiles that exist, so the unwind must stop at the same
+                 * edge; walking the full size_x*size_z rectangle asks
+                 * painter_tile_at for a tile the add never touched and aborts on
+                 * its bounds assert. Same guard as painter_release_scenery. */
+                if( tx >= painter->width || tz >= painter->height )
+                    continue;
+                tile = painter_tile_at(painter, tx, tz, painter->elements[i].source_level);
                 tile_remove_scenery_element(painter, tile, i);
             }
         }

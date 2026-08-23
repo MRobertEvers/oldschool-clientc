@@ -144,6 +144,28 @@ enum UITreeHostRequestKind
      */
     UITREE_HOST_GET_MINIMAP_STATE,
     /**
+     * Nonzero when the server has taken the minimap away (MINIMAP_TOGGLE).
+     *
+     * Deliberately not folded into GET_MINIMAP_STATE's return, which already
+     * answers "-1 = no baked map yet": that is the map not being READY, this
+     * is the map being WITHHELD, and a caller that cannot tell them apart
+     * will eventually treat one as the other.
+     */
+    UITREE_HOST_GET_MINIMAP_HIDDEN,
+    /**
+     * Nonzero when the player is in a multi-combat zone (SET_MULTIWAY) and the
+     * indicator should draw. The sprite and its place are the widget's, from
+     * revconfig; only the answer to "now?" is the host's.
+     */
+    UITREE_HOST_GET_MULTIWAY,
+    /**
+     * System-update countdown (UPDATE_REBOOT_TIMER). Returns nonzero when an
+     * update is pending and writes the formatted line -- a pointer with
+     * frame lifetime, like the hovertext model -- to
+     * u.get_reboot_timer.out_text.
+     */
+    UITREE_HOST_GET_REBOOT_TIMER,
+    /**
      * Writes a pointer to the host-computed minimap overlay dots (valid only
      * for the current frame) to u.get_minimap_dots.out_dots; returns the
      * count (0 = no overlay).
@@ -155,6 +177,26 @@ enum UITreeHostRequestKind
      * item count.
      */
     UITREE_HOST_GET_ENTITY_OVERLAYS,
+    /**
+     * The PLUGIN CANVAS overlay: the same item vocabulary as the entity
+     * overlays above, drawn in canvas space instead of world space. Writes the
+     * host-owned array (same-frame lifetime) to u.get_entity_overlays.out_items
+     * and the clip to the same outs; returns the item count.
+     *
+     * A second list rather than a flag on the first, because the two are
+     * clipped and LAYERED differently and a plugin has to be able to ask for
+     * either. An entity overlay is hoisted to just above the 3D world and cut
+     * to the world viewport, which is what makes a tile marker sit under the
+     * inventory the way the reference draws it; an orb beside the minimap is
+     * chrome, and in a fixed gameframe the minimap is not inside the world
+     * viewport at all -- a marker drawn there through the world list is
+     * clipped away entirely.
+     */
+    UITREE_HOST_GET_CANVAS_OVERLAYS,
+    /** The plugin FRAME overlay: a layout plugin's own chrome, cut to the
+     *  canvas like GET_CANVAS_OVERLAYS and emitted in a different place --
+     *  over the 3D scene, under the interfaces. @see EV_DRAW_FRAME. */
+    UITREE_HOST_GET_FRAME_OVERLAYS,
     /**
      * Writes the host-owned world map tile array (the baked regions covering
      * the map surface this frame, same-frame lifetime) to
@@ -174,6 +216,20 @@ enum UITreeHostRequestKind
      * (reference sideOverlayId[n] != -1) — gates tab icon draw + tab clicks.
      */
     UITREE_HOST_GET_TAB_ENABLED,
+    /**
+     * Returns nonzero when u.tab_enabled.tabno is the tab the server asked to
+     * FLASH and the blink is currently in its dark half — i.e. "hide this
+     * icon on this frame".
+     *
+     * Separate from GET_TAB_ENABLED rather than folded into it, though the
+     * reference writes the two as one expression
+     * (`sideIcon[n] !== -1 && (tutFlashIcon !== n || loopCycle % 20 < 10)`).
+     * They answer different questions: one is whether the tab HAS a panel, the
+     * other is where a blink is in its cycle this frame, and a single "enabled"
+     * that silently means both is the kind of answer that later gets reused
+     * for the wrong one.
+     */
+    UITREE_HOST_GET_TAB_FLASH_HIDDEN,
     /** Returns the current mode (0..3) of u.chat_filter.filter
      *  (enum UITreeChatButtonFilter). */
     UITREE_HOST_GET_CHAT_FILTER_MODE,
@@ -379,6 +435,10 @@ struct UITreeHostRequest
             int* out_src_anchor_x;
             int* out_src_anchor_y;
         } get_minimap_state;
+        struct
+        {
+            char const** out_text;
+        } get_reboot_timer;
         struct
         {
             struct UITreeMinimapDot const** out_dots;

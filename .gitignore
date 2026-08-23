@@ -54,7 +54,7 @@ lib/python*
 out/
 
 # Generated painters cullmap blobs (see tools/gen_painters_cullmap)
-src/osrs/revconfig/configs/cullmaps/*.bin
+revconfig/cullmaps/*.bin
 
 # Browser (Emscripten) intermediate build output
 src2/programs/browser/browser_build/
@@ -93,6 +93,10 @@ src/*.exe
 # Claude Code local overrides
 .claude/settings.local.json
 .claude/worktrees/
+
+# Build-flavor stamp: records which OBJ_DIR last linked src/torirs so a
+# debug/release swap forces a relink. Purely local state (src/makefile:632).
+src/.last_flavor
 
 # Extracted toolchains. The zips in lib/ are the checked-in form -- these
 # directories are what unzipping them produces (~2 GB) and must never be
