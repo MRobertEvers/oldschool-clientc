@@ -239,6 +239,42 @@ tob_harness_boss(struct ToriRSServer* srv, struct ToriRSServerPlayer* player)
     return best_d <= 48 ? best : -1;
 }
 
+/*
+ * The text of a captured MESSAGE_GAME, or NULL if it is not readable.
+ *
+ * Every content walkthrough in this suite reports through `mes`, and the
+ * seventy-odd stanzas that read those messages used to skip one byte and take
+ * the rest as the string. That is revision 230's layout. Revision 239 writes a
+ * `psmart` type and then a sender-name flag before the text, so the same two
+ * lines read from the flag byte — a zero — and handed back the empty string:
+ * every `::whatever-run should reach its OK line` failed on that lane while the
+ * scripts underneath ran perfectly. `ToriRSServer_WireReadMessageGame` knows
+ * both layouts; this is the one-line form the stanzas use.
+ *
+ * FOUR ROTATING BUFFERS, not one, because a handful of call sites hold two
+ * messages at once (a report line and the line it is compared against). Four is
+ * comfortably more than any of them needs and the strings live only as long as
+ * the loop that reads them.
+ */
+static const char*
+selftest_message_text(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerCapturedPacket* packet)
+{
+    static char pool[4][TORIRSSERVER_CAPTURE_BYTES];
+    static int next;
+    char* out;
+
+    assert(srv);
+    assert(packet);
+    out = pool[next];
+    next = (next + 1) % (int)(sizeof(pool) / sizeof(pool[0]));
+    if( !ToriRSServer_WireReadMessageGame(srv->wire, packet->data, packet->len, out,
+                                          (int)sizeof(pool[0])) )
+        return NULL;
+    return out;
+}
+
 static int
 tob_harness_attacks_span(struct ToriRSServer* srv, int* out_period, int* out_first, int* out_last);
 
@@ -253,15 +289,15 @@ tob_harness_attacks(struct ToriRSServer* srv, int* out_period)
     ToriRSServer_CaptureBegin(srv, &cap);
     ToriRSServer_ScriptsRunDebugproc(srv, "tobdbgread");
     ToriRSServer_CaptureEnd(srv);
-    for( int i = ToriRSServer_CaptureFind(&cap, 90 /* MESSAGE_GAME */, 0); i >= 0;
-         i = ToriRSServer_CaptureFind(&cap, 90, i + 1) )
+    for( int i = ToriRSServer_CaptureFindNamed(&cap, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+         i = ToriRSServer_CaptureFindNamed(&cap, PKT_NAME_MESSAGE_GAME, i + 1) )
     {
         const struct ToriRSServerCapturedPacket* pk = &cap.packets[i];
         const char* text;
 
-        if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+        text = selftest_message_text(srv, pk);
+        if( !text )
             continue;
-        text = (const char*)pk->data + 1;
         if( sscanf(text, "tobdbg %d %d %d", &count, &first, &last) == 3 )
         {
             if( getenv("TORIRSSERVER_TOB_RAW") )
@@ -286,15 +322,15 @@ tob_harness_attacks_span(struct ToriRSServer* srv, int* out_period, int* out_fir
     ToriRSServer_CaptureBegin(srv, &cap);
     ToriRSServer_ScriptsRunDebugproc(srv, "tobdbgread");
     ToriRSServer_CaptureEnd(srv);
-    for( int i = ToriRSServer_CaptureFind(&cap, 90, 0); i >= 0;
-         i = ToriRSServer_CaptureFind(&cap, 90, i + 1) )
+    for( int i = ToriRSServer_CaptureFindNamed(&cap, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+         i = ToriRSServer_CaptureFindNamed(&cap, PKT_NAME_MESSAGE_GAME, i + 1) )
     {
         const struct ToriRSServerCapturedPacket* pk = &cap.packets[i];
         const char* text;
 
-        if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+        text = selftest_message_text(srv, pk);
+        if( !text )
             continue;
-        text = (const char*)pk->data + 1;
         if( sscanf(text, "tobdbg %d %d %d", &count, &first, &last) == 3 )
             break;
     }
@@ -2128,14 +2164,15 @@ ToriRSServer_ToaReadDbg(
     ToriRSServer_CaptureBegin(srv, &cap);
     ToriRSServer_ScriptsRunDebugproc(srv, "toazdbg");
     ToriRSServer_CaptureEnd(srv);
-    for( int w = ToriRSServer_CaptureFind(&cap, 90, 0); w >= 0;
-         w = ToriRSServer_CaptureFind(&cap, 90, w + 1) )
+    for( int w = ToriRSServer_CaptureFindNamed(&cap, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+         w = ToriRSServer_CaptureFindNamed(&cap, PKT_NAME_MESSAGE_GAME, w + 1) )
     {
         const struct ToriRSServerCapturedPacket* pk = &cap.packets[w];
 
-        if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+        const char* text = selftest_message_text(srv, pk);
+        if( !text )
             continue;
-        if( sscanf((const char*)pk->data + 1,
+        if( sscanf(text,
                    "toazdbg %d started=%d clock=%d now=%d attacks=%d phase=%d "
                    "wave=%d shield=%d done=%d bosshp=%d bosstype=%d",
                    &room, &started, &clock, &now, &attacks, phase, wave, shield,
@@ -2429,15 +2466,15 @@ ToriRSServer_WorldSelftest(void)
         ToriRSServer_CaptureBegin(srv, &td_only_capture);
         ToriRSServer_ScriptsRunDebugproc(srv, "tdtest");
         ToriRSServer_CaptureEnd(srv);
-        for( int i = ToriRSServer_CaptureFind(&td_only_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
-             i = ToriRSServer_CaptureFind(&td_only_capture, 90, i + 1) )
+        for( int i = ToriRSServer_CaptureFindNamed(&td_only_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+             i = ToriRSServer_CaptureFindNamed(&td_only_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
         {
             const struct ToriRSServerCapturedPacket* packet = &td_only_capture.packets[i];
             const char* text;
 
-            if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+            text = selftest_message_text(srv, packet);
+            if( !text )
                 continue;
-            text = (const char*)packet->data + 1;
             if( strstr(text, "tdtest PASS") != NULL )
                 td_said_pass = 1;
             else if( strstr(text, "tdtest FAIL") != NULL || strstr(text, "tdtest:") != NULL )
@@ -11673,7 +11710,7 @@ ToriRSServer_WorldSelftest(void)
         ToriRSServer_CaptureEnd(srv);
         SELFTEST_CHECK(!player->worldmap_open,
                        "an unresolved RESUME_PAUSEBUTTON on worldmap:close must close it");
-        SELFTEST_CHECK(ToriRSServer_CaptureFind(&capture, 36 /* IF_CLOSESUB */, 0) >= 0,
+        SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_CLOSESUB, 0) >= 0,
                        "the close-X resume must send IF_CLOSESUB");
     }
 
@@ -13310,7 +13347,7 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_CaptureBegin(srv, &capture);
             ToriRSServer_WorldTick(srv);
             ToriRSServer_CaptureEnd(srv);
-            SELFTEST_CHECK(ToriRSServer_CaptureFind(&capture, 90 /* MESSAGE_GAME */, 0) >= 0,
+            SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_MESSAGE_GAME, 0) >= 0,
                            "[login] should produce a game message");
             SELFTEST_CHECK(player->login_pending == 0, "the login latch should be drained");
 
@@ -13808,7 +13845,7 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_CaptureBegin(srv, &capture);
             ToriRSServer_WorldHandle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON, resume, 4);
             ToriRSServer_CaptureEnd(srv);
-            SELFTEST_CHECK(ToriRSServer_CaptureFind(&capture, 94 /* IF_SETTEXT */, 0) >= 0,
+            SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_SETTEXT, 0) >= 0,
                            "clicking continue should draw the next page");
             SELFTEST_CHECK(player->active_script != NULL, "and park again on page 2");
             SELFTEST_CHECK(player->last_com == continue_uid,
@@ -13821,7 +13858,7 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_CaptureEnd(srv);
             SELFTEST_CHECK(player->active_script == NULL,
                            "the script should finish after the last page");
-            SELFTEST_CHECK(ToriRSServer_CaptureFind(&capture, 36 /* IF_CLOSESUB */, 0) >= 0,
+            SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_CLOSESUB, 0) >= 0,
                            "if_close should close the dialogue");
             SELFTEST_CHECK(player->resume_button_count == 0,
                            "and drop its resume buttons");
@@ -14105,7 +14142,7 @@ ToriRSServer_WorldSelftest(void)
                         "(resume uid %d should not still be chatmenu:options %d)",
                         player->resume_button_count > 0 ? player->resume_buttons[0] : -1,
                         rows_uid);
-                    SELFTEST_CHECK(ToriRSServer_CaptureFind(&capture, 94 /* IF_SETTEXT */, 0) >= 0,
+                    SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_SETTEXT, 0) >= 0,
                                    "six-byte resume should draw branch 3's chatplayer");
 
                     /*
@@ -14688,8 +14725,17 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_WorldHandle(player, PKTOUT_NAME_IF_BUTTON2, button, sizeof(button));
                 ToriRSServer_CaptureEnd(srv);
 
-                open_at = ToriRSServer_CaptureFind(&capture, 6 /* IF_OPENSUB */, 0);
-                run_at = ToriRSServer_CaptureFind(&capture, 84 /* RUNCLIENTSCRIPT */, 0);
+                /*
+                 * BY NAME, not by number. 6 and 84 are revision 230's opcodes
+                 * for these two; 239 sends the same packets under different
+                 * ones, so the whole of this stanza — 24 cells x 4 assertions —
+                 * went red on that lane against a server that had sent exactly
+                 * the right thing. `ToriRSServer_CaptureFindNamed` exists for
+                 * assertions that are about the packet rather than about one
+                 * revision's number for it.
+                 */
+                open_at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_OPENSUB, 0);
+                run_at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_RUNCLIENTSCRIPT, 0);
 
                 SELFTEST_CHECK(open_at >= 0, "op 2 on %s should mount the guide", k_cells[i]);
                 SELFTEST_CHECK(run_at >= 0,
@@ -14700,16 +14746,18 @@ ToriRSServer_WorldSelftest(void)
 
                 if( open_at >= 0 )
                 {
-                    struct RSAreaBuf mount;
-                    int type;
-                    int group;
-                    int target;
+                    int type = -1;
+                    int group = -1;
+                    int target = -1;
 
-                    rsab_wrap(&mount, capture.packets[open_at].data,
-                              (size_t)capture.packets[open_at].len);
-                    type = rsab_g1(&mount);
-                    group = rsab_g2_alt2(&mount);
-                    target = rsab_g4_alt3(&mount);
+                    /* And the PAYLOAD by name too: 239 writes the same three
+                     * fields in the opposite order with a different transform
+                     * on the id, so decoding them here by hand would be the
+                     * same 230-only assertion one layer down. */
+                    SELFTEST_CHECK(ToriRSServer_WireReadIfOpensub(
+                                       srv->wire, capture.packets[open_at].data,
+                                       capture.packets[open_at].len, &group, &target, &type),
+                                   "%s: the IF_OPENSUB payload is short", k_cells[i]);
                     SELFTEST_CHECK(group == guide,
                                    "%s should mount skill_guide_v2 (%d), got %d", k_cells[i],
                                    guide, group);
@@ -14725,26 +14773,26 @@ ToriRSServer_WorldSelftest(void)
                     continue;
 
                 {
-                    /* Wire layout: the per-argument type string, newline
-                     * terminated; then the arguments in REVERSE; then the script
-                     * id. See ToriRSServer_SendRunClientscriptMixed. */
-                    struct RSAreaBuf run;
+                    /* Wire layout: the per-argument type string, then the
+                     * arguments in REVERSE, then the script id. The type
+                     * string's TERMINATOR differs by revision, so the decode
+                     * goes through the wire rather than being spelled here —
+                     * see ToriRSServer_WireReadRunClientscript. */
                     char types[8];
                     int argc = 0;
                     int argv[4] = { 0, 0, 0, 0 };
-                    int script_id;
+                    int script_id = 0;
                     int index;
+                    int decoded;
 
-                    rsab_wrap(&run, capture.packets[run_at].data,
-                              (size_t)capture.packets[run_at].len);
-                    while( argc < (int)sizeof(types) - 1 )
-                    {
-                        int c = rsab_g1(&run);
-                        if( c == '\n' || !rsab_ok(&run) )
-                            break;
-                        types[argc++] = (char)c;
-                    }
-                    types[argc] = '\0';
+                    decoded = ToriRSServer_WireReadRunClientscript(
+                        srv->wire, capture.packets[run_at].data, capture.packets[run_at].len,
+                        types, (int)sizeof(types), argv, (int)(sizeof(argv) / sizeof(argv[0])),
+                        &argc, &script_id);
+                    SELFTEST_CHECK(decoded,
+                                   "%s: the RUNCLIENTSCRIPT payload is short", k_cells[i]);
+                    if( !decoded )
+                        continue;
 
                     SELFTEST_CHECK(strcmp(types, "iiii") == 0,
                                    "%s: clientscript 1902 takes four ints, the packet says "
@@ -14752,12 +14800,6 @@ ToriRSServer_WorldSelftest(void)
                                    k_cells[i], types);
                     if( strcmp(types, "iiii") != 0 )
                         continue;
-
-                    for( int a = argc - 1; a >= 0; a-- )
-                        argv[a] = rsab_g4(&run);
-                    script_id = rsab_g4(&run);
-                    SELFTEST_CHECK(rsab_ok(&run),
-                                   "%s: the RUNCLIENTSCRIPT payload is short", k_cells[i]);
 
                     index = argv[0];
                     for( int j = 0; j < seen_count; j++ )
@@ -14842,21 +14884,26 @@ ToriRSServer_WorldSelftest(void)
 
                     if( com <= 0 )
                         continue;
-                    for( int p = 0; p < capture.count; p++ )
+                    /* By canonical name and through the wire's own layout:
+                     * 47 is revision 230's opcode for this and the field order
+                     * differs at 239, so both the search and the decode have to
+                     * come from the revision rather than from here. */
+                    for( int p = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_SETEVENTS, 0);
+                         p >= 0;
+                         p = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_SETEVENTS, p + 1) )
                     {
-                        struct RSAreaBuf ev;
+                        int uid = -1;
+                        int from = 0;
+                        int to = 0;
+                        uint32_t events = 0;
 
-                        if( capture.packets[p].opcode != 47 /* IF_SETEVENTS */ )
+                        if( !ToriRSServer_WireReadIfSetevents(srv->wire, capture.packets[p].data,
+                                                              capture.packets[p].len, &uid, &from,
+                                                              &to, &events) )
                             continue;
-                        /* IfSetEventsEncoder: p4Alt3 uid, p2Alt2 start, p4Alt1
-                         * events, p2 end — read in write order, not argument
-                         * order. */
-                        rsab_wrap(&ev, capture.packets[p].data,
-                                  (size_t)capture.packets[p].len);
-                        if( rsab_g4_alt3(&ev) != com )
+                        if( uid != com )
                             continue;
-                        rsab_g2_alt2(&ev); /* from */
-                        mask = rsab_g4_alt1(&ev);
+                        mask = (int)events;
                         break;
                     }
                     SELFTEST_CHECK(mask == 4 /* ^if_event_op2 */,
@@ -14885,17 +14932,22 @@ ToriRSServer_WorldSelftest(void)
 
                     for( int p = 0; p < capture.count; p++ )
                     {
-                        struct RSAreaBuf ev;
+                        int ev_uid = -1;
+                        int ev_from = 0;
+                        int ev_to = 0;
+                        uint32_t ev_mask = 0;
 
-                        if( capture.packets[p].opcode != 47 /* IF_SETEVENTS */ )
+                        if( capture.packets[p].name != PKT_NAME_IF_SETEVENTS )
                             continue;
-                        rsab_wrap(&ev, capture.packets[p].data,
-                                  (size_t)capture.packets[p].len);
-                        if( rsab_g4_alt3(&ev) != close )
+                        if( !ToriRSServer_WireReadIfSetevents(
+                                srv->wire, capture.packets[p].data, capture.packets[p].len,
+                                &ev_uid, &ev_from, &ev_to, &ev_mask) )
                             continue;
-                        from = rsab_g2_alt2(&ev);
-                        mask = rsab_g4_alt1(&ev);
-                        to = rsab_g2(&ev);
+                        if( ev_uid != close )
+                            continue;
+                        from = ev_from;
+                        mask = (int)ev_mask;
+                        to = ev_to;
                         break;
                     }
                     SELFTEST_CHECK(close > 0,
@@ -14967,16 +15019,22 @@ ToriRSServer_WorldSelftest(void)
 
                 for( int p = 0; p < arm.count; p++ )
                 {
-                    struct RSAreaBuf ev;
+                    int ev_uid = -1;
+                    int ev_from = 0;
+                    int ev_to = 0;
+                    uint32_t ev_mask = 0;
 
-                    if( arm.packets[p].opcode != 47 /* IF_SETEVENTS */ )
+                    if( arm.packets[p].name != PKT_NAME_IF_SETEVENTS )
                         continue;
-                    rsab_wrap(&ev, arm.packets[p].data, (size_t)arm.packets[p].len);
-                    if( rsab_g4_alt3(&ev) != trigger )
+                    if( !ToriRSServer_WireReadIfSetevents(
+                            srv->wire, arm.packets[p].data, arm.packets[p].len,
+                            &ev_uid, &ev_from, &ev_to, &ev_mask) )
                         continue;
-                    from = rsab_g2_alt2(&ev);
-                    mask = rsab_g4_alt1(&ev);
-                    to = rsab_g2(&ev);
+                    if( ev_uid != trigger )
+                        continue;
+                    from = ev_from;
+                    mask = (int)ev_mask;
+                    to = ev_to;
                     break;
                 }
                 SELFTEST_CHECK(mask == 2 /* ^if_event_op1 */,
@@ -15015,7 +15073,7 @@ ToriRSServer_WorldSelftest(void)
                         player->varps[latest]);
                 }
 
-                open_at = ToriRSServer_CaptureFind(&capture, 6 /* IF_OPENSUB */, 0);
+                open_at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_OPENSUB, 0);
                 SELFTEST_CHECK(open_at >= 0,
                                "View-journal on the skill guide trigger should mount "
                                "questjournal");
@@ -15165,16 +15223,22 @@ ToriRSServer_WorldSelftest(void)
 
                 for( int p = 0; p < arm.count; p++ )
                 {
-                    struct RSAreaBuf ev;
+                    int ev_uid = -1;
+                    int ev_from = 0;
+                    int ev_to = 0;
+                    uint32_t ev_mask = 0;
 
-                    if( arm.packets[p].opcode != 47 /* IF_SETEVENTS */ )
+                    if( arm.packets[p].name != PKT_NAME_IF_SETEVENTS )
                         continue;
-                    rsab_wrap(&ev, arm.packets[p].data, (size_t)arm.packets[p].len);
-                    if( rsab_g4_alt3(&ev) != list )
+                    if( !ToriRSServer_WireReadIfSetevents(
+                            srv->wire, arm.packets[p].data, arm.packets[p].len,
+                            &ev_uid, &ev_from, &ev_to, &ev_mask) )
                         continue;
-                    from = rsab_g2_alt2(&ev);
-                    mask = rsab_g4_alt1(&ev);
-                    to = rsab_g2(&ev);
+                    if( ev_uid != list )
+                        continue;
+                    from = ev_from;
+                    mask = (int)ev_mask;
+                    to = ev_to;
                     break;
                 }
                 SELFTEST_CHECK(mask == 4 /* ^if_event_op2 */,
@@ -15222,8 +15286,8 @@ ToriRSServer_WorldSelftest(void)
                                player->varps[qj_lines]);
             }
 
-            open_at = ToriRSServer_CaptureFind(&capture, 6 /* IF_OPENSUB */, 0);
-            run_at = ToriRSServer_CaptureFind(&capture, 84 /* RUNCLIENTSCRIPT */, 0);
+            open_at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_OPENSUB, 0);
+            run_at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_RUNCLIENTSCRIPT, 0);
             SELFTEST_CHECK(open_at >= 0, "Read journal should mount questjournal");
             SELFTEST_CHECK(run_at >= 0, "Read journal should run clientscript 2523");
             SELFTEST_CHECK(open_at >= 0 && run_at > open_at,
@@ -15333,7 +15397,7 @@ ToriRSServer_WorldSelftest(void)
                     player, PKTOUT_NAME_IF_BUTTON1, switch_button, sizeof(switch_button));
                 ToriRSServer_CaptureEnd(srv);
 
-                overview_open = ToriRSServer_CaptureFind(&to_overview, 6 /* IF_OPENSUB */, 0);
+                overview_open = ToriRSServer_CaptureFindNamed(&to_overview, PKT_NAME_IF_OPENSUB, 0);
                 SELFTEST_CHECK(overview_open >= 0,
                                "questjournal:switch should mount the overview");
                 SELFTEST_CHECK(ToriRSServer_CaptureFind(
@@ -15364,7 +15428,7 @@ ToriRSServer_WorldSelftest(void)
                     player, PKTOUT_NAME_IF_BUTTON1, switch_button, sizeof(switch_button));
                 ToriRSServer_CaptureEnd(srv);
 
-                journal_open = ToriRSServer_CaptureFind(&to_journal, 6 /* IF_OPENSUB */, 0);
+                journal_open = ToriRSServer_CaptureFindNamed(&to_journal, PKT_NAME_IF_OPENSUB, 0);
                 SELFTEST_CHECK(journal_open >= 0,
                                "questjournal_overview:switch should return to the journal");
                 SELFTEST_CHECK(ToriRSServer_CaptureFind(
@@ -15395,7 +15459,7 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_CaptureBegin(srv, &other);
                 ToriRSServer_WorldHandle(player, PKTOUT_NAME_IF_BUTTON2, button, sizeof(button));
                 ToriRSServer_CaptureEnd(srv);
-                SELFTEST_CHECK(ToriRSServer_CaptureFind(&other, 6 /* IF_OPENSUB */, 0) >= 0,
+                SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&other, PKT_NAME_IF_OPENSUB, 0) >= 0,
                                "an unwritten quest should still mount questjournal");
             }
 
@@ -15655,16 +15719,22 @@ ToriRSServer_WorldSelftest(void)
 
                 for( int p = 0; p < capture.count; p++ )
                 {
-                    struct RSAreaBuf ev;
+                    int ev_uid = -1;
+                    int ev_from = 0;
+                    int ev_to = 0;
+                    uint32_t ev_mask = 0;
 
-                    if( capture.packets[p].opcode != 47 /* IF_SETEVENTS */ )
+                    if( capture.packets[p].name != PKT_NAME_IF_SETEVENTS )
                         continue;
-                    rsab_wrap(&ev, capture.packets[p].data, (size_t)capture.packets[p].len);
-                    if( rsab_g4_alt3(&ev) != layer )
+                    if( !ToriRSServer_WireReadIfSetevents(
+                            srv->wire, capture.packets[p].data, capture.packets[p].len,
+                            &ev_uid, &ev_from, &ev_to, &ev_mask) )
                         continue;
-                    from = rsab_g2_alt2(&ev);
-                    mask = rsab_g4_alt1(&ev);
-                    to = rsab_g2(&ev);
+                    if( ev_uid != layer )
+                        continue;
+                    from = ev_from;
+                    mask = (int)ev_mask;
+                    to = ev_to;
                     break;
                 }
                 SELFTEST_CHECK(mask == 30 /* ^if_event_op1to4 */,
@@ -15673,7 +15743,7 @@ ToriRSServer_WorldSelftest(void)
                                "summary_click_layer should arm sub-ids 0..7, got %d..%d", from,
                                to);
 
-                run_at = ToriRSServer_CaptureFind(&capture, 84 /* RUNCLIENTSCRIPT */, 0);
+                run_at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_RUNCLIENTSCRIPT, 0);
                 SELFTEST_CHECK(run_at >= 0,
                                "if_open should push clientscript 3954 for combat level");
                 if( run_at >= 0 )
@@ -15748,7 +15818,7 @@ ToriRSServer_WorldSelftest(void)
                                "%s: last_slot should be %d, got %d", cases[i].label,
                                cases[i].sub, player->last_slot);
 
-                open_at = ToriRSServer_CaptureFind(&capture, 6 /* IF_OPENSUB */, 0);
+                open_at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_OPENSUB, 0);
                 SELFTEST_CHECK(open_at >= 0, "%s should mount an interface", cases[i].label);
                 if( open_at >= 0 )
                 {
@@ -15793,7 +15863,7 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_WorldHandle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
                 ToriRSServer_CaptureEnd(srv);
 
-                run_at = ToriRSServer_CaptureFind(&capture, 84 /* RUNCLIENTSCRIPT */, 0);
+                run_at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_RUNCLIENTSCRIPT, 0);
                 SELFTEST_CHECK(run_at >= 0,
                                "Time Played reveal should push clientscript 3970");
                 if( run_at >= 0 )
@@ -15866,16 +15936,22 @@ ToriRSServer_WorldSelftest(void)
 
                 for( int p = 0; p < capture.count; p++ )
                 {
-                    struct RSAreaBuf ev;
+                    int ev_uid = -1;
+                    int ev_from = 0;
+                    int ev_to = 0;
+                    uint32_t ev_mask = 0;
 
-                    if( capture.packets[p].opcode != 47 /* IF_SETEVENTS */ )
+                    if( capture.packets[p].name != PKT_NAME_IF_SETEVENTS )
                         continue;
-                    rsab_wrap(&ev, capture.packets[p].data, (size_t)capture.packets[p].len);
-                    if( rsab_g4_alt3(&ev) != taskbox )
+                    if( !ToriRSServer_WireReadIfSetevents(
+                            srv->wire, capture.packets[p].data, capture.packets[p].len,
+                            &ev_uid, &ev_from, &ev_to, &ev_mask) )
                         continue;
-                    from = rsab_g2_alt2(&ev);
-                    mask = rsab_g4_alt1(&ev);
-                    to = rsab_g2(&ev);
+                    if( ev_uid != taskbox )
+                        continue;
+                    from = ev_from;
+                    mask = (int)ev_mask;
+                    to = ev_to;
                     break;
                 }
                 SELFTEST_CHECK(mask == 6 /* op1|op2 */,
@@ -15899,7 +15975,7 @@ ToriRSServer_WorldSelftest(void)
                                "diary row click: last_slot should be 0, got %d",
                                player->last_slot);
 
-                open_at = ToriRSServer_CaptureFind(&capture, 6 /* IF_OPENSUB */, 0);
+                open_at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_OPENSUB, 0);
                 SELFTEST_CHECK(open_at >= 0, "diary op1 should mount journalscroll");
                 if( open_at >= 0 )
                 {
@@ -15963,16 +16039,20 @@ ToriRSServer_WorldSelftest(void)
                         continue;
                     for( int p = 0; p < capture.count; p++ )
                     {
-                        struct RSAreaBuf ev;
+                        int ev_uid = -1;
+                        int ev_from = 0;
+                        int ev_to = 0;
+                        uint32_t ev_mask = 0;
 
-                        if( capture.packets[p].opcode != 47 /* IF_SETEVENTS */ )
+                        if( capture.packets[p].name != PKT_NAME_IF_SETEVENTS )
                             continue;
-                        rsab_wrap(&ev, capture.packets[p].data,
-                                  (size_t)capture.packets[p].len);
-                        if( rsab_g4_alt3(&ev) != com )
+                        if( !ToriRSServer_WireReadIfSetevents(
+                                srv->wire, capture.packets[p].data, capture.packets[p].len,
+                                &ev_uid, &ev_from, &ev_to, &ev_mask) )
                             continue;
-                        rsab_g2_alt2(&ev); /* from */
-                        mask = rsab_g4_alt1(&ev);
+                        if( ev_uid != com )
+                            continue;
+                        mask = (int)ev_mask;
                         break;
                     }
                     SELFTEST_CHECK(mask == 2 /* ^if_event_op1 */,
@@ -15994,16 +16074,20 @@ ToriRSServer_WorldSelftest(void)
                 {
                     for( int p = 0; p < capture.count; p++ )
                     {
-                        struct RSAreaBuf ev;
+                        int ev_uid = -1;
+                        int ev_from = 0;
+                        int ev_to = 0;
+                        uint32_t ev_mask = 0;
 
-                        if( capture.packets[p].opcode != 47 /* IF_SETEVENTS */ )
+                        if( capture.packets[p].name != PKT_NAME_IF_SETEVENTS )
                             continue;
-                        rsab_wrap(&ev, capture.packets[p].data,
-                                  (size_t)capture.packets[p].len);
-                        if( rsab_g4_alt3(&ev) != items_contents )
+                        if( !ToriRSServer_WireReadIfSetevents(
+                                srv->wire, capture.packets[p].data, capture.packets[p].len,
+                                &ev_uid, &ev_from, &ev_to, &ev_mask) )
                             continue;
-                        rsab_g2_alt2(&ev); /* from */
-                        items_mask = rsab_g4_alt1(&ev);
+                        if( ev_uid != items_contents )
+                            continue;
+                        items_mask = (int)ev_mask;
                         break;
                     }
                     SELFTEST_CHECK(
@@ -16013,7 +16097,7 @@ ToriRSServer_WorldSelftest(void)
                         items_mask);
                 }
 
-                run_at = ToriRSServer_CaptureFind(&capture, 84 /* RUNCLIENTSCRIPT */, 0);
+                run_at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_RUNCLIENTSCRIPT, 0);
                 SELFTEST_CHECK(run_at >= 0,
                                "collection_open should push clientscript 7798 for body draw");
                 if( run_at >= 0 )
@@ -16059,7 +16143,7 @@ ToriRSServer_WorldSelftest(void)
                     ToriRSServer_WorldHandle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
                     ToriRSServer_CaptureEnd(srv);
 
-                    run_at = ToriRSServer_CaptureFind(&capture, 84 /* RUNCLIENTSCRIPT */, 0);
+                    run_at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_RUNCLIENTSCRIPT, 0);
                     SELFTEST_CHECK(run_at >= 0,
                                    "IF_BUTTON1 on raid_tab should re-push clientscript 7798");
                     if( run_at >= 0 )
@@ -16205,7 +16289,7 @@ ToriRSServer_WorldSelftest(void)
                                    "the walk to the Tool Leprechaun should complete");
                     ToriRSServer_CaptureEnd(srv);
 
-                    open_a = ToriRSServer_CaptureFind(&capture, 6 /* IF_OPENSUB */, 0);
+                    open_a = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_OPENSUB, 0);
                     open_b = open_a >= 0 ? ToriRSServer_CaptureFind(&capture, 6, open_a + 1) : -1;
                     SELFTEST_CHECK(open_a >= 0 && open_b >= 0,
                                    "\"Exchange\" should mount both halves of the store, got "
@@ -16260,21 +16344,26 @@ ToriRSServer_WorldSelftest(void)
 
                         for( int p = 0; p < capture.count; p++ )
                         {
-                            struct RSAreaBuf ev;
+                            int ev_uid = -1;
+                            int ev_from = 0;
+                            int ev_to = 0;
+                            uint32_t ev_mask = 0;
 
-                            if( capture.packets[p].opcode != 47 /* IF_SETEVENTS */ )
+                            if( capture.packets[p].name != PKT_NAME_IF_SETEVENTS )
                                 continue;
                             found++;
-                            rsab_wrap(&ev, capture.packets[p].data,
-                                      (size_t)capture.packets[p].len);
+                            if( !ToriRSServer_WireReadIfSetevents(
+                                    srv->wire, capture.packets[p].data, capture.packets[p].len,
+                                    &ev_uid, &ev_from, &ev_to, &ev_mask) )
+                                continue;
                             {
-                                /* IfSetEventsEncoder: p4Alt3 uid, p2Alt2 start,
-                                 * p4Alt1 events, p2 end — read in the order it
-                                 * is written, not in argument order. */
-                                int com = rsab_g4_alt3(&ev);
-                                int from = rsab_g2_alt2(&ev);
-                                int events = rsab_g4_alt1(&ev);
-                                int to = rsab_g2(&ev);
+                                /* Decoded through the wire: the field order and
+                                 * the transforms differ by revision, and 239
+                                 * splits the event mask across two words. */
+                                int com = ev_uid;
+                                int from = ev_from;
+                                int events = (int)ev_mask;
+                                int to = ev_to;
                                 (void)to;
                                 (void)from;
                                 if( com == sym[4].id )
@@ -16801,7 +16890,7 @@ ToriRSServer_WorldSelftest(void)
                                    "the walk to Turael should complete");
                     ToriRSServer_CaptureEnd(srv);
 
-                    open_at = ToriRSServer_CaptureFind(&capture, 6 /* IF_OPENSUB */, 0);
+                    open_at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_OPENSUB, 0);
                     SELFTEST_CHECK(open_at >= 0,
                                    "\"Rewards\" (op 5) should mount slayer_rewards");
 
@@ -16886,22 +16975,27 @@ ToriRSServer_WorldSelftest(void)
 
                     for( int p = 0; p < capture.count; p++ )
                     {
-                        struct RSAreaBuf ev;
+                        int ev_uid = -1;
+                        int ev_from = 0;
+                        int ev_to = 0;
+                        uint32_t ev_mask = 0;
                         int com;
 
-                        if( capture.packets[p].opcode != 47 /* IF_SETEVENTS */ )
+                        if( capture.packets[p].name != PKT_NAME_IF_SETEVENTS )
                             continue;
-                        /* IfSetEventsEncoder: p4Alt3 combinedId, p2Alt2 start,
-                         * p4Alt1 events, p2 end. */
-                        rsab_wrap(&ev, capture.packets[p].data, (size_t)capture.packets[p].len);
-                        com = rsab_g4_alt3(&ev);
-                        rsab_g2_alt2(&ev); /* from */
+                        /* Decoded through the wire: field order, transforms
+                         * and the 239 two-word event split all live there. */
+                        if( !ToriRSServer_WireReadIfSetevents(
+                                srv->wire, capture.packets[p].data, capture.packets[p].len,
+                                &ev_uid, &ev_from, &ev_to, &ev_mask) )
+                            continue;
+                        com = ev_uid;
                         for( int w = 0; w < 2; w++ )
                         {
                             if( com != sym[k_want[w]].id )
                                 continue;
-                            mask[w] = rsab_g4_alt1(&ev);
-                            to[w] = rsab_g2(&ev);
+                            mask[w] = (int)ev_mask;
+                            to[w] = ev_to;
                         }
                     }
                     for( int w = 0; w < 2; w++ )
@@ -17054,8 +17148,8 @@ ToriRSServer_WorldSelftest(void)
                     ToriRSServer_WorldHandle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
                     ToriRSServer_CaptureEnd(srv);
 
-                    open_at = ToriRSServer_CaptureFind(&capture, 6 /* IF_OPENSUB */, 0);
-                    run_at = ToriRSServer_CaptureFind(&capture, 84 /* RUNCLIENTSCRIPT */, 0);
+                    open_at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_OPENSUB, 0);
+                    run_at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_RUNCLIENTSCRIPT, 0);
                     SELFTEST_CHECK(open_at >= 0, "\"View List\" should mount 924");
                     SELFTEST_CHECK(run_at >= 0, "and run the clientscript that fills it");
                     SELFTEST_CHECK(open_at >= 0 && run_at > open_at,
@@ -19936,7 +20030,7 @@ ToriRSServer_WorldSelftest(void)
             1);
         ToriRSServer_CaptureEnd(srv);
 
-        open_at = ToriRSServer_CaptureFind(&capture, 6 /* IF_OPENSUB */, 0);
+        open_at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_OPENSUB, 0);
         SELFTEST_CHECK(open_at >= 0, "stretch:xp_drops opensub should encode");
         if( open_at >= 0 )
         {
@@ -19964,7 +20058,7 @@ ToriRSServer_WorldSelftest(void)
             1);
         ToriRSServer_CaptureEnd(srv);
 
-        open_at = ToriRSServer_CaptureFind(&capture, 6 /* IF_OPENSUB */, 0);
+        open_at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_OPENSUB, 0);
         SELFTEST_CHECK(open_at >= 0, "orbs:xp_drops opensub should encode");
         if( open_at >= 0 )
         {
@@ -19995,7 +20089,7 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_WorldHandle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
             ToriRSServer_CaptureEnd(srv);
 
-            for( int at = 0; (at = ToriRSServer_CaptureFind(&capture, 6 /* IF_OPENSUB */, at)) >= 0;
+            for( int at = 0; (at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_OPENSUB, at)) >= 0;
                  at++ )
             {
                 rsab_wrap(&mount, capture.packets[at].data, (size_t)capture.packets[at].len);
@@ -20060,7 +20154,7 @@ ToriRSServer_WorldSelftest(void)
         ToriRSServer_GameframeOpentop(player, ids->iface_toplevel_pre_eoc);
         ToriRSServer_CaptureEnd(srv);
 
-        for( int at = 0; (at = ToriRSServer_CaptureFind(&capture, 6 /* IF_OPENSUB */, at)) >= 0;
+        for( int at = 0; (at = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_OPENSUB, at)) >= 0;
              at++ )
         {
             int target;
@@ -21577,13 +21671,13 @@ ToriRSServer_WorldSelftest(void)
                                "an obj op nothing binds leaves the pile on the floor — "
                                "the engine take is gone, not renamed");
 
-                for( int i = ToriRSServer_CaptureFind(&unbound_capture, 90 /* MESSAGE_GAME */, 0);
-                     i >= 0; i = ToriRSServer_CaptureFind(&unbound_capture, 90, i + 1) )
+                for( int i = ToriRSServer_CaptureFindNamed(&unbound_capture, PKT_NAME_MESSAGE_GAME, 0);
+                     i >= 0; i = ToriRSServer_CaptureFindNamed(&unbound_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* packet = &unbound_capture.packets[i];
-                    const char* text = (const char*)packet->data + 1;
+                    const char* text = selftest_message_text(srv, packet);
 
-                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    if( !text )
                         continue;
                     if( strstr(text, "Nothing interesting happens") )
                         said_nothing_interesting = 1;
@@ -23288,15 +23382,15 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(!chop_capture.overflow,
                                "the capture should hold every message of the chop");
 
-                for( int i = ToriRSServer_CaptureFind(&chop_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
-                     i = ToriRSServer_CaptureFind(&chop_capture, 90, i + 1) )
+                for( int i = ToriRSServer_CaptureFindNamed(&chop_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                     i = ToriRSServer_CaptureFindNamed(&chop_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* packet = &chop_capture.packets[i];
                     const char* text;
 
-                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    text = selftest_message_text(srv, packet);
+                    if( !text )
                         continue;
-                    text = (const char*)packet->data + 1;
                     if( strstr(text, "swing your axe") )
                         swings++;
                 }
@@ -23541,14 +23635,15 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_WorldTick(srv);
                     ToriRSServer_CaptureEnd(srv);
 
-                    for( int i = ToriRSServer_CaptureFind(&canoe_capture, 90 /* MESSAGE_GAME */, 0);
-                         i >= 0; i = ToriRSServer_CaptureFind(&canoe_capture, 90, i + 1) )
+                    for( int i = ToriRSServer_CaptureFindNamed(&canoe_capture, PKT_NAME_MESSAGE_GAME, 0);
+                         i >= 0; i = ToriRSServer_CaptureFindNamed(&canoe_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
                     {
                         const struct ToriRSServerCapturedPacket* packet = &canoe_capture.packets[i];
 
-                        if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                        const char* text = selftest_message_text(srv, packet);
+                        if( !text )
                             continue;
-                        if( strstr((const char*)packet->data + 1, "travel that far") )
+                        if( strstr(text, "travel that far") )
                             refused++;
                     }
                     SELFTEST_CHECK(refused > 0,
@@ -23827,7 +23922,7 @@ ToriRSServer_WorldSelftest(void)
                  * p_pausebutton in it, so the script SHOULD finish. What proves
                  * it ran is the interface going out, which is why this looks for
                  * IF_OPENSUB rather than for a parked script. */
-                SELFTEST_CHECK(ToriRSServer_CaptureFind(&charter_open, 6 /* IF_OPENSUB */, 0) >= 0,
+                SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&charter_open, PKT_NAME_IF_OPENSUB, 0) >= 0,
                                "[opnpc4] Charter should open sailing_menu — the cache's own "
                                "destination map, which clientscripts 8940/8941 fill from "
                                "dbtable 206");
@@ -25115,15 +25210,15 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_CaptureBegin(srv, &crestrun_capture);
                 ToriRSServer_ScriptsRunDebugproc(srv, "crestrun");
                 ToriRSServer_CaptureEnd(srv);
-                for( int i = ToriRSServer_CaptureFind(&crestrun_capture, 90, 0); i >= 0;
-                     i = ToriRSServer_CaptureFind(&crestrun_capture, 90, i + 1) )
+                for( int i = ToriRSServer_CaptureFindNamed(&crestrun_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                     i = ToriRSServer_CaptureFindNamed(&crestrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* packet = &crestrun_capture.packets[i];
                     const char* text;
 
-                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    text = selftest_message_text(srv, packet);
+                    if( !text )
                         continue;
-                    text = (const char*)packet->data + 1;
                     if( strstr(text, "CRESTRUN") == NULL )
                         continue;
                     fprintf(stderr, "  %s\n", text);
@@ -25162,15 +25257,15 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_CaptureBegin(srv, &treerun_capture);
             ToriRSServer_ScriptsRunDebugproc(srv, "treerun");
             ToriRSServer_CaptureEnd(srv);
-            for( int i = ToriRSServer_CaptureFind(&treerun_capture, 90, 0); i >= 0;
-                 i = ToriRSServer_CaptureFind(&treerun_capture, 90, i + 1) )
+            for( int i = ToriRSServer_CaptureFindNamed(&treerun_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                 i = ToriRSServer_CaptureFindNamed(&treerun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &treerun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "TREERUN") == NULL )
                     continue;
                 fprintf(stderr, "  %s\n", text);
@@ -25206,16 +25301,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_CaptureBegin(srv, &sheepherderrun_capture);
             ToriRSServer_ScriptsRunDebugproc(srv, "sheepherderrun");
             ToriRSServer_CaptureEnd(srv);
-            for( int i = ToriRSServer_CaptureFind(&sheepherderrun_capture, 90, 0); i >= 0;
-                 i = ToriRSServer_CaptureFind(&sheepherderrun_capture, 90, i + 1) )
+            for( int i = ToriRSServer_CaptureFindNamed(&sheepherderrun_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                 i = ToriRSServer_CaptureFindNamed(&sheepherderrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet =
                     &sheepherderrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "SHEEPHERDERRUN") == NULL )
                     continue;
                 fprintf(stderr, "  %s\n", text);
@@ -25444,15 +25539,15 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_CaptureBegin(srv, &arenarun_capture);
                 ToriRSServer_ScriptsRunDebugproc(srv, "arenarun");
                 ToriRSServer_CaptureEnd(srv);
-                for( int i = ToriRSServer_CaptureFind(&arenarun_capture, 90, 0); i >= 0;
-                     i = ToriRSServer_CaptureFind(&arenarun_capture, 90, i + 1) )
+                for( int i = ToriRSServer_CaptureFindNamed(&arenarun_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                     i = ToriRSServer_CaptureFindNamed(&arenarun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* packet = &arenarun_capture.packets[i];
                     const char* text;
 
-                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    text = selftest_message_text(srv, packet);
+                    if( !text )
                         continue;
-                    text = (const char*)packet->data + 1;
                     if( strstr(text, "ARENARUN") == NULL )
                         continue;
                     fprintf(stderr, "  %s\n", text);
@@ -25577,16 +25672,16 @@ ToriRSServer_WorldSelftest(void)
                     ToriRSServer_CaptureBegin(srv, &hazeelcultrun_capture);
                     ToriRSServer_ScriptsRunDebugproc(srv, stage_names[stage]);
                     ToriRSServer_CaptureEnd(srv);
-                    for( int i = ToriRSServer_CaptureFind(&hazeelcultrun_capture, 90, 0); i >= 0;
-                         i = ToriRSServer_CaptureFind(&hazeelcultrun_capture, 90, i + 1) )
+                    for( int i = ToriRSServer_CaptureFindNamed(&hazeelcultrun_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                         i = ToriRSServer_CaptureFindNamed(&hazeelcultrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
                     {
                         const struct ToriRSServerCapturedPacket* packet =
                             &hazeelcultrun_capture.packets[i];
                         const char* text;
 
-                        if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                        text = selftest_message_text(srv, packet);
+                        if( !text )
                             continue;
-                        text = (const char*)packet->data + 1;
                         if( strstr(text, "HAZEELCULTRUN") == NULL )
                             continue;
                         fprintf(stderr, "  %s\n", text);
@@ -26754,14 +26849,14 @@ ToriRSServer_WorldSelftest(void)
              * version reading `stat` would wield it and fail the two checks
              * above rather than passing quietly. */
 
-            for( int i = ToriRSServer_CaptureFind(&capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
-                 i = ToriRSServer_CaptureFind(&capture, 90, i + 1) )
+            for( int i = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                 i = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 /* payload: one type byte, then a NUL-terminated string. */
                 const struct ToriRSServerCapturedPacket* packet = &capture.packets[i];
-                const char* text = (const char*)packet->data + 1;
+                const char* text = selftest_message_text(srv, packet);
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                if( !text )
                     continue;
                 if( strstr(text, "Attack level of 40") )
                     said = 1;
@@ -26913,15 +27008,15 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_CaptureBegin(srv, &tdtest_capture);
             ToriRSServer_ScriptsRunDebugproc(srv, "tdtest");
             ToriRSServer_CaptureEnd(srv);
-            for( int i = ToriRSServer_CaptureFind(&tdtest_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
-                 i = ToriRSServer_CaptureFind(&tdtest_capture, 90, i + 1) )
+            for( int i = ToriRSServer_CaptureFindNamed(&tdtest_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                 i = ToriRSServer_CaptureFindNamed(&tdtest_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &tdtest_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "tdtest PASS") != NULL )
                     td_said_pass = 1;
                 else if( strstr(text, "tdtest FAIL") != NULL || strstr(text, "tdtest:") != NULL )
@@ -26953,15 +27048,15 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_CaptureBegin(srv, &zulrah_capture);
             ToriRSServer_ScriptsRunDebugproc(srv, "zulrahrun");
             ToriRSServer_CaptureEnd(srv);
-            for( int i = ToriRSServer_CaptureFind(&zulrah_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
-                 i = ToriRSServer_CaptureFind(&zulrah_capture, 90, i + 1) )
+            for( int i = ToriRSServer_CaptureFindNamed(&zulrah_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                 i = ToriRSServer_CaptureFindNamed(&zulrah_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &zulrah_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "zulrahrun") == NULL )
                     continue;
                 /* Echoed whether it passed or failed: a stanza that is silent on
@@ -27248,15 +27343,15 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_CaptureBegin(srv, &tob_capture);
             ToriRSServer_ScriptsRunDebugproc(srv, "tobrun");
             ToriRSServer_CaptureEnd(srv);
-            for( int i = ToriRSServer_CaptureFind(&tob_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
-                 i = ToriRSServer_CaptureFind(&tob_capture, 90, i + 1) )
+            for( int i = ToriRSServer_CaptureFindNamed(&tob_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                 i = ToriRSServer_CaptureFindNamed(&tob_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &tob_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "tobrun") == NULL )
                     continue;
                 fprintf(stderr, "  %s\n", text);
@@ -27304,15 +27399,15 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_CaptureBegin(srv, &toa_capture);
             ToriRSServer_ScriptsRunDebugproc(srv, "toarun");
             ToriRSServer_CaptureEnd(srv);
-            for( int i = ToriRSServer_CaptureFind(&toa_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
-                 i = ToriRSServer_CaptureFind(&toa_capture, 90, i + 1) )
+            for( int i = ToriRSServer_CaptureFindNamed(&toa_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                 i = ToriRSServer_CaptureFindNamed(&toa_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &toa_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "toarun") == NULL )
                     continue;
                 fprintf(stderr, "  %s\n", text);
@@ -27347,15 +27442,15 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_CaptureBegin(srv, &maze_capture);
             ToriRSServer_ScriptsRunDebugproc(srv, "tobmaze");
             ToriRSServer_CaptureEnd(srv);
-            for( int i = ToriRSServer_CaptureFind(&maze_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
-                 i = ToriRSServer_CaptureFind(&maze_capture, 90, i + 1) )
+            for( int i = ToriRSServer_CaptureFindNamed(&maze_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                 i = ToriRSServer_CaptureFindNamed(&maze_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &maze_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "tobmaze") == NULL && strstr(text, "tobrun FAIL") == NULL )
                     continue;
                 fprintf(stderr, "  %s\n", text);
@@ -27388,15 +27483,15 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_CaptureBegin(srv, &rate_capture);
             ToriRSServer_ScriptsRunDebugproc(srv, "tobmazerate");
             ToriRSServer_CaptureEnd(srv);
-            for( int i = ToriRSServer_CaptureFind(&rate_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
-                 i = ToriRSServer_CaptureFind(&rate_capture, 90, i + 1) )
+            for( int i = ToriRSServer_CaptureFindNamed(&rate_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                 i = ToriRSServer_CaptureFindNamed(&rate_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &rate_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "tobmazerate") == NULL )
                     continue;
                 fprintf(stderr, "  %s\n", text);
@@ -27446,15 +27541,15 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_CaptureBegin(srv, &tobhit_capture);
             ToriRSServer_ScriptsRunDebugproc(srv, "tobhit");
             ToriRSServer_CaptureEnd(srv);
-            for( int i = ToriRSServer_CaptureFind(&tobhit_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
-                 i = ToriRSServer_CaptureFind(&tobhit_capture, 90, i + 1) )
+            for( int i = ToriRSServer_CaptureFindNamed(&tobhit_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                 i = ToriRSServer_CaptureFindNamed(&tobhit_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &tobhit_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "tobhit") == NULL )
                     continue;
                 fprintf(stderr, "  %s\n", text);
@@ -27491,15 +27586,15 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_CaptureBegin(srv, &tobrooms_capture);
             ToriRSServer_ScriptsRunDebugproc(srv, "tobrooms");
             ToriRSServer_CaptureEnd(srv);
-            for( int i = ToriRSServer_CaptureFind(&tobrooms_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
-                 i = ToriRSServer_CaptureFind(&tobrooms_capture, 90, i + 1) )
+            for( int i = ToriRSServer_CaptureFindNamed(&tobrooms_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                 i = ToriRSServer_CaptureFindNamed(&tobrooms_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &tobrooms_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "tobrooms") == NULL )
                     continue;
                 fprintf(stderr, "  %s\n", text);
@@ -27554,15 +27649,15 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_CaptureBegin(srv, &tobexit_capture);
                 ToriRSServer_ScriptsRunDebugproc(srv, "tobexit");
                 ToriRSServer_CaptureEnd(srv);
-                for( int i = ToriRSServer_CaptureFind(&tobexit_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
-                     i = ToriRSServer_CaptureFind(&tobexit_capture, 90, i + 1) )
+                for( int i = ToriRSServer_CaptureFindNamed(&tobexit_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                     i = ToriRSServer_CaptureFindNamed(&tobexit_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* packet = &tobexit_capture.packets[i];
                     const char* text;
 
-                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    text = selftest_message_text(srv, packet);
+                    if( !text )
                         continue;
-                    text = (const char*)packet->data + 1;
                     if( strstr(text, "tobexit") == NULL )
                         continue;
                     fprintf(stderr, "  %s\n", text);
@@ -27673,16 +27768,16 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_CaptureBegin(srv, &walk_capture);
                 ToriRSServer_ScriptsRunDebugproc(srv, "tobexit");
                 ToriRSServer_CaptureEnd(srv);
-                for( int i = ToriRSServer_CaptureFind(&walk_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
-                     i = ToriRSServer_CaptureFind(&walk_capture, 90, i + 1) )
+                for( int i = ToriRSServer_CaptureFindNamed(&walk_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                     i = ToriRSServer_CaptureFindNamed(&walk_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* packet = &walk_capture.packets[i];
                     const char* text;
                     const char* at;
 
-                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    text = selftest_message_text(srv, packet);
+                    if( !text )
                         continue;
-                    text = (const char*)packet->data + 1;
                     at = strstr(text, "want x=");
                     if( !at )
                         continue;
@@ -27704,13 +27799,14 @@ ToriRSServer_WorldSelftest(void)
                 /* The walk itself, and what the game said about it: "I can't
                  * reach that" is the shape a broken exit takes, and it is worth
                  * printing whether this passes or fails. */
-                for( int i = ToriRSServer_CaptureFind(&walk_capture, 90, 0); i >= 0;
-                     i = ToriRSServer_CaptureFind(&walk_capture, 90, i + 1) )
+                for( int i = ToriRSServer_CaptureFindNamed(&walk_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                     i = ToriRSServer_CaptureFindNamed(&walk_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* packet = &walk_capture.packets[i];
-                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    const char* text = selftest_message_text(srv, packet);
+                    if( !text )
                         continue;
-                    fprintf(stderr, "    %s\n", (const char*)packet->data + 1);
+                    fprintf(stderr, "    %s\n", text);
                 }
                 fprintf(stderr, "  tobwalk room %d: %d ticks from the arena to its exit passage at %d,%d\n",
                         room, settled, tile_x, tile_z);
@@ -27741,16 +27837,16 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_CaptureBegin(srv, &walk_capture);
                 ToriRSServer_ScriptsRunDebugproc(srv, "tobwhere");
                 ToriRSServer_CaptureEnd(srv);
-                for( int i = ToriRSServer_CaptureFind(&walk_capture, 90, 0); i >= 0;
-                     i = ToriRSServer_CaptureFind(&walk_capture, 90, i + 1) )
+                for( int i = ToriRSServer_CaptureFindNamed(&walk_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                     i = ToriRSServer_CaptureFindNamed(&walk_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* packet = &walk_capture.packets[i];
                     const char* text;
                     int now = -1;
 
-                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    text = selftest_message_text(srv, packet);
+                    if( !text )
                         continue;
-                    text = (const char*)packet->data + 1;
                     if( sscanf(text, "tobwhere room=%d", &now) != 1 )
                         continue;
                     fprintf(stderr, "  tobwalk room %d -> %s\n", room, text);
@@ -27808,15 +27904,17 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_CaptureBegin(srv, &walkin_capture);
             ToriRSServer_ScriptsRunDebugproc(srv, "tobwhere");
             ToriRSServer_CaptureEnd(srv);
-            for( int i = ToriRSServer_CaptureFind(&walkin_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
-                 i = ToriRSServer_CaptureFind(&walkin_capture, 90, i + 1) )
+            for( int i = ToriRSServer_CaptureFindNamed(&walkin_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                 i = ToriRSServer_CaptureFindNamed(&walkin_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &walkin_capture.packets[i];
+                const char* text;
                 int now = -1;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                if( sscanf((const char*)packet->data + 1, "tobwhere room=%d", &now) != 1 )
+                if( sscanf(text, "tobwhere room=%d", &now) != 1 )
                     continue;
                 fprintf(stderr, "  tobwalkin: standing in the passage -> room %d\n", now);
                 if( now == 2 )
@@ -28102,15 +28200,15 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_CaptureBegin(srv, &toarooms_capture);
             ToriRSServer_ScriptsRunDebugproc(srv, "toarooms");
             ToriRSServer_CaptureEnd(srv);
-            for( int i = ToriRSServer_CaptureFind(&toarooms_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
-                 i = ToriRSServer_CaptureFind(&toarooms_capture, 90, i + 1) )
+            for( int i = ToriRSServer_CaptureFindNamed(&toarooms_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                 i = ToriRSServer_CaptureFindNamed(&toarooms_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &toarooms_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "toarooms") == NULL )
                     continue;
                 fprintf(stderr, "  %s\n", text);
@@ -28159,15 +28257,15 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_WorldTick(srv);
             ToriRSServer_ScriptsRunDebugproc(srv, "toacrondischeck");
             ToriRSServer_CaptureEnd(srv);
-            for( int i = ToriRSServer_CaptureFind(&toacrondis_capture, 90 /* MESSAGE_GAME */, 0);
-                 i >= 0; i = ToriRSServer_CaptureFind(&toacrondis_capture, 90, i + 1) )
+            for( int i = ToriRSServer_CaptureFindNamed(&toacrondis_capture, PKT_NAME_MESSAGE_GAME, 0);
+                 i >= 0; i = ToriRSServer_CaptureFindNamed(&toacrondis_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &toacrondis_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "toacrondis") == NULL )
                     continue;
                 fprintf(stderr, "  %s\n", text);
@@ -28209,15 +28307,15 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "toaleak");
             ToriRSServer_CaptureEnd(srv);
             live_after = ToriRSServer_MapInstanceLiveCount();
-            for( int i = ToriRSServer_CaptureFind(&toaleak_capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
-                 i = ToriRSServer_CaptureFind(&toaleak_capture, 90, i + 1) )
+            for( int i = ToriRSServer_CaptureFindNamed(&toaleak_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                 i = ToriRSServer_CaptureFindNamed(&toaleak_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &toaleak_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "toaleak") == NULL )
                     continue;
                 fprintf(stderr, "  %s\n", text);
@@ -28252,16 +28350,16 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_CaptureBegin(srv, &resume_capture);
                 ToriRSServer_ScriptsRunDebugproc(srv, resume_procs[rp]);
                 ToriRSServer_CaptureEnd(srv);
-                for( int p = ToriRSServer_CaptureFind(&resume_capture, 90 /* MESSAGE_GAME */, 0);
-                     p >= 0; p = ToriRSServer_CaptureFind(&resume_capture, 90, p + 1) )
+                for( int p = ToriRSServer_CaptureFindNamed(&resume_capture, PKT_NAME_MESSAGE_GAME, 0);
+                     p >= 0; p = ToriRSServer_CaptureFindNamed(&resume_capture, PKT_NAME_MESSAGE_GAME, p + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* packet =
                         &resume_capture.packets[p];
                     const char* text;
 
-                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    text = selftest_message_text(srv, packet);
+                    if( !text )
                         continue;
-                    text = (const char*)packet->data + 1;
                     if( strstr(text, resume_procs[rp]) == NULL )
                         continue;
                     fprintf(stderr, "  %s\n", text);
@@ -28490,17 +28588,18 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_CaptureBegin(srv, &zc);
                         ToriRSServer_ScriptsRunDebugproc(srv, "toazdbg");
                         ToriRSServer_CaptureEnd(srv);
-                        for( int w = ToriRSServer_CaptureFind(&zc, 90, 0); w >= 0;
-                             w = ToriRSServer_CaptureFind(&zc, 90, w + 1) )
+                        for( int w = ToriRSServer_CaptureFindNamed(&zc, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+                             w = ToriRSServer_CaptureFindNamed(&zc, PKT_NAME_MESSAGE_GAME, w + 1) )
                         {
                             const struct ToriRSServerCapturedPacket* pk = &zc.packets[w];
 
-                            if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                            const char* text = selftest_message_text(srv, pk);
+                            if( !text )
                                 continue;
-                            if( sscanf((const char*)pk->data + 1,
+                            if( sscanf(text,
                                        "toazdbg %d started=%d clock=%d now=%d attacks=%d",
                                        &room, &started, &clock, &now, &attacks) == 5 )
-                                fprintf(stderr, "  %s\n", (const char*)pk->data + 1);
+                                fprintf(stderr, "  %s\n", text);
                         }
                     }
                     /*
@@ -28866,15 +28965,15 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_CaptureBegin(srv, &loot);
                 ToriRSServer_ScriptsRunDebugproc(srv, "toaloot");
                 ToriRSServer_CaptureEnd(srv);
-                for( int w = ToriRSServer_CaptureFind(&loot, 90, 0); w >= 0;
-                     w = ToriRSServer_CaptureFind(&loot, 90, w + 1) )
+                for( int w = ToriRSServer_CaptureFindNamed(&loot, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+                     w = ToriRSServer_CaptureFindNamed(&loot, PKT_NAME_MESSAGE_GAME, w + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* pk = &loot.packets[w];
                     const char* text;
 
-                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                    text = selftest_message_text(srv, pk);
+                    if( !text )
                         continue;
-                    text = (const char*)pk->data + 1;
                     if( strstr(text, "toaloot") == NULL )
                         continue;
                     fprintf(stderr, "  %s\n", text);
@@ -28923,17 +29022,18 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_CaptureBegin(srv, &panel);
                 ToriRSServer_ScriptsRunDebugproc(srv, "toapanel");
                 ToriRSServer_CaptureEnd(srv);
-                for( int w = ToriRSServer_CaptureFind(&panel, 90, 0); w >= 0;
-                     w = ToriRSServer_CaptureFind(&panel, 90, w + 1) )
+                for( int w = ToriRSServer_CaptureFindNamed(&panel, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+                     w = ToriRSServer_CaptureFindNamed(&panel, PKT_NAME_MESSAGE_GAME, w + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* pk = &panel.packets[w];
 
-                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                    const char* text = selftest_message_text(srv, pk);
+                    if( !text )
                         continue;
-                    if( sscanf((const char*)pk->data + 1,
+                    if( sscanf(text,
                                "toapanel level=%d m0=%d m1=%d m2=%d",
                                &level, &m0, &m1, &m2) == 4 )
-                        fprintf(stderr, "  %s\n", (const char*)pk->data + 1);
+                        fprintf(stderr, "  %s\n", text);
                 }
                 SELFTEST_CHECK(level == 5,
                                "clicking the first invocation row should select Try "
@@ -28960,15 +29060,15 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_CaptureBegin(srv, &party);
                 ToriRSServer_ScriptsRunDebugproc(srv, "toaparty");
                 ToriRSServer_CaptureEnd(srv);
-                for( int w = ToriRSServer_CaptureFind(&party, 90, 0); w >= 0;
-                     w = ToriRSServer_CaptureFind(&party, 90, w + 1) )
+                for( int w = ToriRSServer_CaptureFindNamed(&party, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+                     w = ToriRSServer_CaptureFindNamed(&party, PKT_NAME_MESSAGE_GAME, w + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* pk = &party.packets[w];
                     const char* text;
 
-                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                    text = selftest_message_text(srv, pk);
+                    if( !text )
                         continue;
-                    text = (const char*)pk->data + 1;
                     if( strstr(text, "toaparty") == NULL )
                         continue;
                     fprintf(stderr, "  %s\n", text);
@@ -28994,15 +29094,15 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_CaptureBegin(srv, &supply);
                 ToriRSServer_ScriptsRunDebugproc(srv, "toasupply");
                 ToriRSServer_CaptureEnd(srv);
-                for( int w = ToriRSServer_CaptureFind(&supply, 90, 0); w >= 0;
-                     w = ToriRSServer_CaptureFind(&supply, 90, w + 1) )
+                for( int w = ToriRSServer_CaptureFindNamed(&supply, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+                     w = ToriRSServer_CaptureFindNamed(&supply, PKT_NAME_MESSAGE_GAME, w + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* pk = &supply.packets[w];
                     const char* text;
 
-                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                    text = selftest_message_text(srv, pk);
+                    if( !text )
                         continue;
-                    text = (const char*)pk->data + 1;
                     if( strstr(text, "toasupply") == NULL )
                         continue;
                     fprintf(stderr, "  %s\n", text);
@@ -29029,15 +29129,15 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_CaptureBegin(srv, &gate);
                 ToriRSServer_ScriptsRunDebugproc(srv, "toagate");
                 ToriRSServer_CaptureEnd(srv);
-                for( int w = ToriRSServer_CaptureFind(&gate, 90, 0); w >= 0;
-                     w = ToriRSServer_CaptureFind(&gate, 90, w + 1) )
+                for( int w = ToriRSServer_CaptureFindNamed(&gate, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+                     w = ToriRSServer_CaptureFindNamed(&gate, PKT_NAME_MESSAGE_GAME, w + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* pk = &gate.packets[w];
                     const char* text;
 
-                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                    text = selftest_message_text(srv, pk);
+                    if( !text )
                         continue;
-                    text = (const char*)pk->data + 1;
                     if( strstr(text, "toagate") == NULL )
                         continue;
                     fprintf(stderr, "  %s\n", text);
@@ -29073,15 +29173,15 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_CaptureBegin(srv, &bosses);
                 ToriRSServer_ScriptsRunDebugproc(srv, "toabosses");
                 ToriRSServer_CaptureEnd(srv);
-                for( int w = ToriRSServer_CaptureFind(&bosses, 90, 0); w >= 0;
-                     w = ToriRSServer_CaptureFind(&bosses, 90, w + 1) )
+                for( int w = ToriRSServer_CaptureFindNamed(&bosses, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+                     w = ToriRSServer_CaptureFindNamed(&bosses, PKT_NAME_MESSAGE_GAME, w + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* pk = &bosses.packets[w];
                     const char* text;
 
-                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                    text = selftest_message_text(srv, pk);
+                    if( !text )
                         continue;
-                    text = (const char*)pk->data + 1;
                     if( strstr(text, "toabosses") == NULL )
                         continue;
                     fprintf(stderr, "  %s\n", text);
@@ -29108,15 +29208,15 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_CaptureBegin(srv, &pyr);
                 ToriRSServer_ScriptsRunDebugproc(srv, "toapyramid");
                 ToriRSServer_CaptureEnd(srv);
-                for( int w = ToriRSServer_CaptureFind(&pyr, 90, 0); w >= 0;
-                     w = ToriRSServer_CaptureFind(&pyr, 90, w + 1) )
+                for( int w = ToriRSServer_CaptureFindNamed(&pyr, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+                     w = ToriRSServer_CaptureFindNamed(&pyr, PKT_NAME_MESSAGE_GAME, w + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* pk = &pyr.packets[w];
                     const char* text;
 
-                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                    text = selftest_message_text(srv, pk);
+                    if( !text )
                         continue;
-                    text = (const char*)pk->data + 1;
                     if( strstr(text, "toapyramid") == NULL )
                         continue;
                     fprintf(stderr, "  %s\n", text);
@@ -29137,15 +29237,16 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_CaptureBegin(srv, &poison);
                 ToriRSServer_ScriptsRunDebugproc(srv, "toapoison");
                 ToriRSServer_CaptureEnd(srv);
-                for( int w = ToriRSServer_CaptureFind(&poison, 90, 0); w >= 0;
-                     w = ToriRSServer_CaptureFind(&poison, 90, w + 1) )
+                for( int w = ToriRSServer_CaptureFindNamed(&poison, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+                     w = ToriRSServer_CaptureFindNamed(&poison, PKT_NAME_MESSAGE_GAME, w + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* pk = &poison.packets[w];
 
-                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                    const char* text = selftest_message_text(srv, pk);
+                    if( !text )
                         continue;
-                    if( strstr((const char*)pk->data + 1, "toapoison") != NULL )
-                        fprintf(stderr, "  %s\n", (const char*)pk->data + 1);
+                    if( strstr(text, "toapoison") != NULL )
+                        fprintf(stderr, "  %s\n", text);
                 }
             }
         }
@@ -29270,14 +29371,15 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_CaptureBegin(srv, &st);
                         ToriRSServer_ScriptsRunDebugproc(srv, "tobstand");
                         ToriRSServer_CaptureEnd(srv);
-                        for( int w = ToriRSServer_CaptureFind(&st, 90, 0); w >= 0;
-                             w = ToriRSServer_CaptureFind(&st, 90, w + 1) )
+                        for( int w = ToriRSServer_CaptureFindNamed(&st, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+                             w = ToriRSServer_CaptureFindNamed(&st, PKT_NAME_MESSAGE_GAME, w + 1) )
                         {
                             const struct ToriRSServerCapturedPacket* pk = &st.packets[w];
-                            if( pk->len < 2 || pk->data[pk->len - 1] != 0 ) continue;
-                            if( strncmp((const char*)pk->data + 1, "tobstand", 8) == 0 )
+                            const char* text = selftest_message_text(srv, pk);
+                            if( !text ) continue;
+                            if( strncmp(text, "tobstand", 8) == 0 )
                                 fprintf(stderr, "  %s: %s (boss at %d,%d size %d; player %d,%d)\n",
-                                        k_rooms[i].name, (const char*)pk->data + 1,
+                                        k_rooms[i].name, text,
                                         srv->npcs[boss].x, srv->npcs[boss].z,
                                         srv->npcs[boss].size, player->x, player->z);
                         }
@@ -29384,14 +29486,15 @@ ToriRSServer_WorldSelftest(void)
                     ToriRSServer_CaptureBegin(srv, &g);
                     ToriRSServer_ScriptsRunDebugproc(srv, "tobgates");
                     ToriRSServer_CaptureEnd(srv);
-                    for( int w = ToriRSServer_CaptureFind(&g, 90, 0); w >= 0;
-                         w = ToriRSServer_CaptureFind(&g, 90, w + 1) )
+                    for( int w = ToriRSServer_CaptureFindNamed(&g, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+                         w = ToriRSServer_CaptureFindNamed(&g, PKT_NAME_MESSAGE_GAME, w + 1) )
                     {
                         const struct ToriRSServerCapturedPacket* pk = &g.packets[w];
-                        if( pk->len < 2 || pk->data[pk->len - 1] != 0 ) continue;
-                        if( strncmp((const char*)pk->data + 1, "tobgates", 8) == 0 )
+                        const char* text = selftest_message_text(srv, pk);
+                        if( !text ) continue;
+                        if( strncmp(text, "tobgates", 8) == 0 )
                             fprintf(stderr, "  %s: %s\n", k_rooms[i].name,
-                                    (const char*)pk->data + 1);
+                                    text);
                     }
                 }
                 count = tob_harness_attacks(srv, &period);
@@ -29407,14 +29510,15 @@ ToriRSServer_WorldSelftest(void)
                         ToriRSServer_CaptureBegin(srv, &why2);
                         ToriRSServer_ScriptsRunDebugproc(srv, "tobwhy");
                         ToriRSServer_CaptureEnd(srv);
-                        for( int w = ToriRSServer_CaptureFind(&why2, 90, 0); w >= 0;
-                             w = ToriRSServer_CaptureFind(&why2, 90, w + 1) )
+                        for( int w = ToriRSServer_CaptureFindNamed(&why2, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+                             w = ToriRSServer_CaptureFindNamed(&why2, PKT_NAME_MESSAGE_GAME, w + 1) )
                         {
                             const struct ToriRSServerCapturedPacket* pk = &why2.packets[w];
-                            if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                            const char* text = selftest_message_text(srv, pk);
+                            if( !text )
                                 continue;
                             fprintf(stderr, "  why[%s]: %s\n", k_rooms[i].name,
-                                    (const char*)pk->data + 1);
+                                    text);
                         }
                     }
                     ToriRSServer_ScriptsRunDebugproc(srv, "tobout");
@@ -29538,15 +29642,15 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_CaptureBegin(srv, &maze);
             ToriRSServer_ScriptsRunDebugproc(srv, "tobmazestate");
             ToriRSServer_CaptureEnd(srv);
-            for( int w = ToriRSServer_CaptureFind(&maze, 90, 0); w >= 0;
-                 w = ToriRSServer_CaptureFind(&maze, 90, w + 1) )
+            for( int w = ToriRSServer_CaptureFindNamed(&maze, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+                 w = ToriRSServer_CaptureFindNamed(&maze, PKT_NAME_MESSAGE_GAME, w + 1) )
             {
                 const struct ToriRSServerCapturedPacket* pk = &maze.packets[w];
                 const char* text;
 
-                if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                text = selftest_message_text(srv, pk);
+                if( !text )
                     continue;
-                text = (const char*)pk->data + 1;
                 if( strncmp(text, "tobmazestate", 12) != 0 )
                     continue;
                 fprintf(stderr, "  Sotetseg: %s\n", text);
@@ -29610,17 +29714,17 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "tobmazestate");
             ToriRSServer_ScriptsRunDebugproc(srv, "tobsotestate");
             ToriRSServer_CaptureEnd(srv);
-            for( int w = ToriRSServer_CaptureFind(&maze, 90, 0); w >= 0;
-                 w = ToriRSServer_CaptureFind(&maze, 90, w + 1) )
+            for( int w = ToriRSServer_CaptureFindNamed(&maze, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+                 w = ToriRSServer_CaptureFindNamed(&maze, PKT_NAME_MESSAGE_GAME, w + 1) )
             {
                 const struct ToriRSServerCapturedPacket* pk = &maze.packets[w];
                 const char* text;
                 int def_now = 0;
                 int def_base = 0;
 
-                if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                text = selftest_message_text(srv, pk);
+                if( !text )
                     continue;
-                text = (const char*)pk->data + 1;
                 if( strncmp(text, "tobmazestate", 12) == 0 )
                 {
                     fprintf(stderr, "  Sotetseg: %s\n", text);
@@ -30758,13 +30862,14 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_CaptureBegin(srv, &mc);
             ToriRSServer_ScriptsRunDebugproc(srv, "tobmelee");
             ToriRSServer_CaptureEnd(srv);
-            for( int w = ToriRSServer_CaptureFind(&mc, 90, 0); w >= 0;
-                 w = ToriRSServer_CaptureFind(&mc, 90, w + 1) )
+            for( int w = ToriRSServer_CaptureFindNamed(&mc, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+                 w = ToriRSServer_CaptureFindNamed(&mc, PKT_NAME_MESSAGE_GAME, w + 1) )
             {
                 const struct ToriRSServerCapturedPacket* pk = &mc.packets[w];
-                if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                const char* text = selftest_message_text(srv, pk);
+                if( !text )
                     continue;
-                if( sscanf((const char*)pk->data + 1, "tobmelee %d %d %d",
+                if( sscanf(text, "tobmelee %d %d %d",
                            &adj, &under, &far) == 3 )
                     break;
             }
@@ -30952,13 +31057,14 @@ ToriRSServer_WorldSelftest(void)
                     ToriRSServer_CaptureBegin(srv, &jc);
                     ToriRSServer_ScriptsRunDebugproc(srv, "tobjoin");
                     ToriRSServer_CaptureEnd(srv);
-                    for( int w = ToriRSServer_CaptureFind(&jc, 90, 0); w >= 0;
-                         w = ToriRSServer_CaptureFind(&jc, 90, w + 1) )
+                    for( int w = ToriRSServer_CaptureFindNamed(&jc, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+                         w = ToriRSServer_CaptureFindNamed(&jc, PKT_NAME_MESSAGE_GAME, w + 1) )
                     {
                         const struct ToriRSServerCapturedPacket* pk = &jc.packets[w];
-                        if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                        const char* text = selftest_message_text(srv, pk);
+                        if( !text )
                             continue;
-                        if( sscanf((const char*)pk->data + 1, "tobjoin %d", &joined) == 1 )
+                        if( sscanf(text, "tobjoin %d", &joined) == 1 )
                             break;
                     }
                 }
@@ -31013,15 +31119,16 @@ ToriRSServer_WorldSelftest(void)
                     ToriRSServer_CaptureEnd(srv);
                     {
                         int nth = 0;
-                        for( int w = ToriRSServer_CaptureFind(&lc, 90, 0); w >= 0;
-                             w = ToriRSServer_CaptureFind(&lc, 90, w + 1) )
+                        for( int w = ToriRSServer_CaptureFindNamed(&lc, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+                             w = ToriRSServer_CaptureFindNamed(&lc, PKT_NAME_MESSAGE_GAME, w + 1) )
                         {
                             const struct ToriRSServerCapturedPacket* pk = &lc.packets[w];
                             int value = -1;
 
-                            if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                            const char* text = selftest_message_text(srv, pk);
+                            if( !text )
                                 continue;
-                            if( sscanf((const char*)pk->data + 1, "tobbloatlos %d", &value) != 1 )
+                            if( sscanf(text, "tobbloatlos %d", &value) != 1 )
                                 continue;
                             if( nth == 0 )
                                 los_host = value;
@@ -31072,35 +31179,34 @@ ToriRSServer_WorldSelftest(void)
                      * tiles and 10 008 open ones. The square's TERRAIN reaches
                      * the instance and its LOCS do not.
                      *
-                     * Narrowed since (2026-08-23), so the next pass starts
-                     * further along. It is NOT the ToB content and it is not
-                     * the room's own square:
+                     * FOUND (2026-08-23), and it is not the instance copy:
+                     * THIS FIXTURE IS NOT IN THE BLOAT ROOM.
                      *
-                     *  - m51_69 built as an ORDINARY scene carries the tank
-                     *    exactly where the room expects it — `tob_bloat_pillar`
-                     *    (32955) twelve times at square-local (29,29) and
-                     *    around, `tob_bloat_chamber` (32957) at (30,30), all at
-                     *    LEVEL 0 with shape 10.
-                     *  - The instance's window maps that square identity: zone
-                     *    (803,11) of the reservation reads src zone 411,555 —
-                     *    m51_69 — at src_level 0 with rotation 0, so
-                     *    instance-local (24,24) is square-local (24,24).
-                     *  - And yet no loc id in 32940..32975 appears ANYWHERE in
-                     *    the built instanced scene, on any plane, while the
-                     *    same square's shape-22 ground decor does arrive. The
-                     *    tile the pillar should occupy holds nothing at all.
+                     * Traced by logging every source square each scene build
+                     * reads. The build standing when this census runs was made
+                     * from m49_68 — XARPUS's template — and m51_69, Bloat's,
+                     * was not read at all. The tank is missing because the room
+                     * around it is somebody else's; the same trace shows
+                     * `tob_bloat_pillar` (32955) copied into an instance
+                     * perfectly whenever a build does read m51_69.
                      *
-                     * So the loss is inside the instanced build of a square
-                     * whose ordinary build is correct, and it is selective by
-                     * something other than zone, plane or rotation.
-                     * `g_settings[1]` differs between the two builds at the
-                     * same tile (8 ordinary, 0 instanced), which is the next
-                     * thread to pull.
+                     * So `::tob 2` above did not build the room. It cannot say
+                     * so: `~tob_build_room` returns false when
+                     * `~map_instance_from_square` has no free reservation (the
+                     * pool holds eight), `::tob` answers that with a `mes` this
+                     * stanza is not capturing, and `~tob_debug_reset` has
+                     * already zeroed `%tob_active` — so `%tob_handle` keeps the
+                     * PREVIOUS room's value, `::tobjoin` joins the mate to it,
+                     * and `handle == joined` passes on the wrong chamber.
+                     * `tob_harness_boss` then finds Xarpus by proximity and the
+                     * sight checks above pass vacuously against him.
                      *
-                     * Not a Bloat defect, and deliberately not reported as one
-                     * — but it makes Bloat's signature mechanic inert, so it is
-                     * reported here, where it was found, with the census that
-                     * identifies it.
+                     * The repair is therefore upstream of this census: either
+                     * the pool is exhausted by the stanzas before it (nothing
+                     * here frees between rooms) or `::tob N` needs to fail
+                     * loudly. Until one of those lands this assertion stays
+                     * red, and it should: the census is correct and the room it
+                     * is pointed at is not.
                      */
                     SELFTEST_CHECK(locs > 0 || projs > 0,
                                    "the Bloat room's tank must block sight, or the "
@@ -31452,13 +31558,14 @@ ToriRSServer_WorldSelftest(void)
                     ToriRSServer_CaptureBegin(srv, &kill);
                     ToriRSServer_ScriptsRunDebugproc(srv, "tobnylokillbig");
                     ToriRSServer_CaptureEnd(srv);
-                    for( int w = ToriRSServer_CaptureFind(&kill, 90, 0); w >= 0;
-                         w = ToriRSServer_CaptureFind(&kill, 90, w + 1) )
+                    for( int w = ToriRSServer_CaptureFindNamed(&kill, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+                         w = ToriRSServer_CaptureFindNamed(&kill, PKT_NAME_MESSAGE_GAME, w + 1) )
                     {
                         const struct ToriRSServerCapturedPacket* pk = &kill.packets[w];
-                        if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                        const char* text = selftest_message_text(srv, pk);
+                        if( !text )
                             continue;
-                        sscanf((const char*)pk->data + 1, "tobnylokillbig at %d %d",
+                        sscanf(text, "tobnylokillbig at %d %d",
                                &death_lx, &death_lz);
                     }
                     if( death_lx >= 0 )
@@ -31540,13 +31647,14 @@ ToriRSServer_WorldSelftest(void)
                     ToriRSServer_CaptureBegin(srv, &brk);
                     ToriRSServer_ScriptsRunDebugproc(srv, "tobnylobreak");
                     ToriRSServer_CaptureEnd(srv);
-                    for( int w = ToriRSServer_CaptureFind(&brk, 90, 0); w >= 0;
-                         w = ToriRSServer_CaptureFind(&brk, 90, w + 1) )
+                    for( int w = ToriRSServer_CaptureFindNamed(&brk, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+                         w = ToriRSServer_CaptureFindNamed(&brk, PKT_NAME_MESSAGE_GAME, w + 1) )
                     {
                         const struct ToriRSServerCapturedPacket* pk = &brk.packets[w];
-                        if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                        const char* text = selftest_message_text(srv, pk);
+                        if( !text )
                             continue;
-                        sscanf((const char*)pk->data + 1, "tobnylobreak latched %d",
+                        sscanf(text, "tobnylobreak latched %d",
                                &latched);
                     }
                     /*
@@ -32340,13 +32448,14 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_CaptureBegin(srv, &bc);
                 ToriRSServer_ScriptsRunDebugproc(srv, "tobbloatwindow");
                 ToriRSServer_CaptureEnd(srv);
-                for( int w = ToriRSServer_CaptureFind(&bc, 90, 0); w >= 0;
-                     w = ToriRSServer_CaptureFind(&bc, 90, w + 1) )
+                for( int w = ToriRSServer_CaptureFindNamed(&bc, PKT_NAME_MESSAGE_GAME, 0); w >= 0;
+                     w = ToriRSServer_CaptureFindNamed(&bc, PKT_NAME_MESSAGE_GAME, w + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* pk = &bc.packets[w];
-                    if( pk->len < 2 || pk->data[pk->len - 1] != 0 )
+                    const char* text = selftest_message_text(srv, pk);
+                    if( !text )
                         continue;
-                    if( sscanf((const char*)pk->data + 1, "tobbloat %d %d %d",
+                    if( sscanf(text, "tobbloat %d %d %d",
                                &down, &stomp, &up) == 3 )
                         break;
                 }
@@ -32452,16 +32561,16 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_ScriptsRunDebugproc(srv, "gearrun");
                 ToriRSServer_CaptureEnd(srv);
             }
-            for( int i = ToriRSServer_CaptureFind(&gearrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&gearrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&gearrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&gearrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &gearrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strncmp(text, "gearrun OK", 10) == 0 )
                     said_ok = 1;
                 if( strncmp(text, "gearrun FAIL", 12) == 0 )
@@ -32575,16 +32684,17 @@ ToriRSServer_WorldSelftest(void)
                     ToriRSServer_CaptureBegin(srv, &capture);
                     ToriRSServer_ScriptsRunDebugproc(srv, line);
                     ToriRSServer_CaptureEnd(srv);
-                    for( int i = ToriRSServer_CaptureFind(&capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
-                         i = ToriRSServer_CaptureFind(&capture, 90, i + 1) )
+                    for( int i = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                         i = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_MESSAGE_GAME, i + 1) )
                     {
                         const struct ToriRSServerCapturedPacket* packet = &capture.packets[i];
 
-                        if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                        const char* text = selftest_message_text(srv, packet);
+                        if( !text )
                             continue;
-                        if( strcmp((const char*)packet->data + 1, "levelrequire yes") == 0 )
+                        if( strcmp(text, "levelrequire yes") == 0 )
                             said_yes = 1;
-                        if( strcmp((const char*)packet->data + 1, "levelrequire no") == 0 )
+                        if( strcmp(text, "levelrequire no") == 0 )
                             said_no = 1;
                     }
                     if( pass == 0 && !said_no )
@@ -32677,14 +32787,15 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_CaptureBegin(srv, &capture);
                 ToriRSServer_ScriptsRunDebugproc(srv, line);
                 ToriRSServer_CaptureEnd(srv);
-                for( int i = ToriRSServer_CaptureFind(&capture, 90 /* MESSAGE_GAME */, 0); i >= 0;
-                     i = ToriRSServer_CaptureFind(&capture, 90, i + 1) )
+                for( int i = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                     i = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_MESSAGE_GAME, i + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* packet = &capture.packets[i];
 
-                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    const char* text = selftest_message_text(srv, packet);
+                    if( !text )
                         continue;
-                    if( strcmp((const char*)packet->data + 1, expect) == 0 )
+                    if( strcmp(text, expect) == 0 )
                         said = 1;
                 }
                 if( !said )
@@ -41254,7 +41365,7 @@ ToriRSServer_WorldSelftest(void)
 
             SELFTEST_CHECK(!player->bank.open,
                            "closing should clear the open flag even with a script bound");
-            SELFTEST_CHECK(ToriRSServer_CaptureFind(&capture, 36 /* IF_CLOSESUB */, 0) >= 0,
+            SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_CLOSESUB, 0) >= 0,
                            "and the unmount must still reach the client");
 
             /* House options is the revision-239 counterexample to the old
@@ -41273,7 +41384,7 @@ ToriRSServer_WorldSelftest(void)
 
             SELFTEST_CHECK(player->sidemodal_group == 0,
                            "CLOSE_MODAL must clear a side-only house-options mount");
-            SELFTEST_CHECK(ToriRSServer_CaptureFind(&capture, 36 /* IF_CLOSESUB */, 0) >= 0,
+            SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_CLOSESUB, 0) >= 0,
                            "and side-only CLOSE_MODAL must send IF_CLOSESUB");
         }
         ToriRSServer_ScriptsFree(srv);
@@ -43974,16 +44085,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "chargesrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&chargesrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&chargesrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&chargesrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&chargesrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &chargesrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strncmp(text, "chargesrun OK", 13) == 0 )
                     said_ok = 1;
                 if( strncmp(text, "chargesrun FAIL", 15) == 0 )
@@ -44040,16 +44151,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "gauntletrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&gauntletrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&gauntletrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&gauntletrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&gauntletrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &gauntletrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strncmp(text, "gauntletrun OK", 14) == 0 )
                     said_ok = 1;
                 if( strncmp(text, "gauntletrun FAIL", 16) == 0 )
@@ -44092,16 +44203,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "hunterrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&hunterrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&hunterrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&hunterrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&hunterrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &hunterrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "hunterrun OK") != NULL )
                     said_ok = 1;
                 if( strstr(text, "hunterrun FAIL") != NULL )
@@ -44146,16 +44257,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "cookrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&cookrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&cookrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&cookrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&cookrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &cookrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "COOKRUN OK") != NULL )
                     said_ok = 1;
                 if( strstr(text, "COOKRUN FAIL") != NULL )
@@ -44205,16 +44316,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "gobdiprun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&gobdiprun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&gobdiprun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&gobdiprun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&gobdiprun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &gobdiprun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 fprintf(stderr, "  DBG %s\n", text);
                 if( strstr(text, "GOBDIPRUN OK") != NULL )
                     said_ok = 1;
@@ -44264,16 +44375,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "doricrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&doricrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&doricrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&doricrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&doricrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &doricrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "DORICRUN OK") != NULL )
                     said_ok = 1;
                 if( strstr(text, "DORICRUN FAIL") != NULL )
@@ -44325,16 +44436,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "druidrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&druidrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&druidrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&druidrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&druidrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &druidrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 fprintf(stderr, "  DBG %s\n", text);
                 if( strstr(text, "DRUIDRUN OK") != NULL )
                     said_ok = 1;
@@ -44429,16 +44540,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "blackknightrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&blackknightrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&blackknightrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&blackknightrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&blackknightrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &blackknightrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "BLACKKNIGHTRUN OK") != NULL )
                     said_ok = 1;
                 if( strstr(text, "BLACKKNIGHTRUN FAIL") != NULL )
@@ -44488,16 +44599,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "demonrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&demonrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&demonrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&demonrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&demonrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &demonrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "DEMONRUN OK") != NULL )
                     said_ok = 1;
                 if( strstr(text, "DEMONRUN FAIL") != NULL )
@@ -45014,16 +45125,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "fishingcomporun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&fishingcomporun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&fishingcomporun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&fishingcomporun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&fishingcomporun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &fishingcomporun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "FISHINGCOMPORUN OK") != NULL )
                     said_ok = 1;
                 if( strstr(text, "FISHINGCOMPORUN FAIL") != NULL )
@@ -45044,16 +45155,16 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_ScriptsRunDebugproc(srv, "fishingcompo_catchtest_win");
                 ToriRSServer_CaptureEnd(srv);
 
-                for( int i = ToriRSServer_CaptureFind(&catchwin_capture, 90, 0);
+                for( int i = ToriRSServer_CaptureFindNamed(&catchwin_capture, PKT_NAME_MESSAGE_GAME, 0);
                      i >= 0;
-                     i = ToriRSServer_CaptureFind(&catchwin_capture, 90, i + 1) )
+                     i = ToriRSServer_CaptureFindNamed(&catchwin_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* packet = &catchwin_capture.packets[i];
                     const char* text;
 
-                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    text = selftest_message_text(srv, packet);
+                    if( !text )
                         continue;
-                    text = (const char*)packet->data + 1;
                     if( strstr(text, "You catch a giant carp.") != NULL )
                         said_carp = 1;
                     if( strstr(text, "FAIL") != NULL )
@@ -45072,16 +45183,16 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_ScriptsRunDebugproc(srv, "fishingcompo_catchtest_lose");
                 ToriRSServer_CaptureEnd(srv);
 
-                for( int i = ToriRSServer_CaptureFind(&catchlose_capture, 90, 0);
+                for( int i = ToriRSServer_CaptureFindNamed(&catchlose_capture, PKT_NAME_MESSAGE_GAME, 0);
                      i >= 0;
-                     i = ToriRSServer_CaptureFind(&catchlose_capture, 90, i + 1) )
+                     i = ToriRSServer_CaptureFindNamed(&catchlose_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* packet = &catchlose_capture.packets[i];
                     const char* text;
 
-                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    text = selftest_message_text(srv, packet);
+                    if( !text )
                         continue;
-                    text = (const char*)packet->data + 1;
                     if( strstr(text, "You catch a sardine.") != NULL )
                         said_sardine = 1;
                     if( strstr(text, "You catch a giant carp.") != NULL )
@@ -45134,16 +45245,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "drunkmonkrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&drunkmonkrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&drunkmonkrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&drunkmonkrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&drunkmonkrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &drunkmonkrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 fprintf(stderr, "  DBG %s\n", text);
                 if( strstr(text, "DRUNKMONKRUN OK") != NULL )
                     said_ok = 1;
@@ -45228,16 +45339,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "romeojulietrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&romeojulietrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&romeojulietrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&romeojulietrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&romeojulietrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &romeojulietrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "ROMEOJULIETRUN OK") != NULL )
                     said_ok = 1;
                 if( strstr(text, "ROMEOJULIETRUN FAIL") != NULL )
@@ -45286,16 +45397,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "blackarmgangrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&blackarmgangrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&blackarmgangrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&blackarmgangrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&blackarmgangrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &blackarmgangrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "BLACKARMGANGRUN OK") != NULL )
                     said_ok = 1;
                 if( strstr(text, "BLACKARMGANGRUN FAIL") != NULL )
@@ -45343,16 +45454,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "hauntedrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&hauntedrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&hauntedrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&hauntedrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&hauntedrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &hauntedrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "HAUNTEDRUN OK") != NULL )
                     said_ok = 1;
                 if( strstr(text, "HAUNTEDRUN FAIL") != NULL )
@@ -45398,16 +45509,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "imprun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&imprun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&imprun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&imprun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&imprun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &imprun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "IMPRUN OK") != NULL )
                     said_ok = 1;
                 if( strstr(text, "IMPRUN FAIL") != NULL )
@@ -45462,16 +45573,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "princerun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&princerun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&princerun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&princerun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&princerun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &princerun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 fprintf(stderr, "  DBG %s\n", text);
                 if( strstr(text, "PRINCERUN OK") != NULL )
                     said_ok = 1;
@@ -45528,16 +45639,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "hettyrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&hettyrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&hettyrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&hettyrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&hettyrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &hettyrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 fprintf(stderr, "  DBG %s\n", text);
                 if( strstr(text, "HETTYRUN OK") != NULL )
                     said_ok = 1;
@@ -45687,16 +45798,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "arthurrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&arthurrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&arthurrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&arthurrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&arthurrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &arthurrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 fprintf(stderr, "  DBG %s\n", text);
                 if( strstr(text, "ARTHURRUN OK") != NULL )
                     said_ok = 1;
@@ -45793,16 +45904,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "scorpcatcherrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&scorpcatcherrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&scorpcatcherrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&scorpcatcherrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&scorpcatcherrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &scorpcatcherrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 fprintf(stderr, "  DBG %s\n", text);
                 if( strstr(text, "SCORPCATCHERRUN OK") != NULL )
                     said_ok = 1;
@@ -45858,16 +45969,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "totemrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&totemrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&totemrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&totemrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&totemrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &totemrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 fprintf(stderr, "  DBG %s\n", text);
                 if( strstr(text, "TOTEMRUN OK") != NULL )
                     said_ok = 1;
@@ -45979,16 +46090,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "ikovrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&ikovrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&ikovrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&ikovrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&ikovrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &ikovrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 fprintf(stderr, "  DBG %s\n", text);
                 if( strstr(text, "IKOVRUN OK") != NULL )
                     said_ok = 1;
@@ -46405,16 +46516,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "itgronigenrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&itgronigenrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&itgronigenrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&itgronigenrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&itgronigenrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &itgronigenrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 fprintf(stderr, "  DBG %s\n", text);
                 if( strstr(text, "ITGRONIGENRUN OK") != NULL )
                     said_ok = 1;
@@ -49482,16 +49593,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "squirerun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&squirerun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&squirerun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&squirerun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&squirerun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &squirerun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 fprintf(stderr, "  DBG %s\n", text);
                 if( strstr(text, "SQUIRERUN OK") != NULL )
                     said_ok = 1;
@@ -49543,16 +49654,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "huntrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&huntrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&huntrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&huntrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&huntrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &huntrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 fprintf(stderr, "  DBG %s\n", text);
                 if( strstr(text, "HUNTRUN OK") != NULL )
                     said_ok = 1;
@@ -49604,16 +49715,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "dragonrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&dragonrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&dragonrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&dragonrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&dragonrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &dragonrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 fprintf(stderr, "  DBG %s\n", text);
                 if( strstr(text, "DRAGONRUN OK") != NULL )
                     said_ok = 1;
@@ -49732,16 +49843,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "zanarisrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&zanarisrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&zanarisrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&zanarisrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&zanarisrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &zanarisrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 fprintf(stderr, "  DBG %s\n", text);
                 if( strstr(text, "ZANARISRUN OK") != NULL )
                     said_ok = 1;
@@ -49852,16 +49963,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "priestrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&priestrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&priestrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&priestrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&priestrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &priestrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 fprintf(stderr, "  DBG %s\n", text);
                 if( strstr(text, "PRIESTRUN OK") != NULL )
                     said_ok = 1;
@@ -49965,16 +50076,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "vampirerun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&vampirerun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&vampirerun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&vampirerun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&vampirerun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &vampirerun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 fprintf(stderr, "  DBG %s\n", text);
                 if( strstr(text, "VAMPIRERUN OK") != NULL )
                     said_ok = 1;
@@ -50237,16 +50348,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "sheeprun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&sheeprun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&sheeprun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&sheeprun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&sheeprun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &sheeprun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 fprintf(stderr, "  DBG %s\n", text);
                 if( strstr(text, "SHEEPRUN OK") != NULL )
                     said_ok = 1;
@@ -50291,16 +50402,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "sheeprunbought");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&sheeprunbought_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&sheeprunbought_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&sheeprunbought_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&sheeprunbought_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &sheeprunbought_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 fprintf(stderr, "  DBG %s\n", text);
                 if( strstr(text, "SHEEPRUNBOUGHT OK") != NULL )
                     said_ok = 1;
@@ -50433,16 +50544,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "agilityrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&agilityrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&agilityrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&agilityrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&agilityrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &agilityrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strstr(text, "agilityrun OK") != NULL )
                     said_ok = 1;
                 if( strstr(text, "agilityrun FAIL") != NULL )
@@ -50490,16 +50601,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "wintrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&wintrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&wintrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&wintrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&wintrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &wintrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strncmp(text, "wintrun OK", 10) == 0 )
                     said_ok = 1;
                 if( strncmp(text, "wintrun FAIL", 12) == 0 )
@@ -50554,16 +50665,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "trekrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&trekrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&trekrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&trekrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&trekrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &trekrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strncmp(text, "trekrun OK", 10) == 0 )
                     said_ok = 1;
                 if( strncmp(text, "trekrun FAIL", 12) == 0 )
@@ -50608,16 +50719,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "fishingrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&fishingrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&fishingrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&fishingrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&fishingrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &fishingrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strncmp(text, "fishingrun OK", 13) == 0 )
                     said_ok = 1;
                 if( strncmp(text, "fishingrun FAIL", 15) == 0 )
@@ -50691,16 +50802,16 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_CaptureEnd(srv);
             }
 
-            for( int i = ToriRSServer_CaptureFind(&runecraftrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&runecraftrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&runecraftrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&runecraftrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &runecraftrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strncmp(text, "runecraftrun OK", 13) == 0 )
                     said_ok = 1;
                 if( strncmp(text, "runecraftrun FAIL", 15) == 0 )
@@ -50767,16 +50878,16 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_CaptureEnd(srv);
             }
 
-            for( int i = ToriRSServer_CaptureFind(&miningrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&miningrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&miningrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&miningrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &miningrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strncmp(text, "miningrun OK", 13) == 0 )
                     said_ok = 1;
                 if( strncmp(text, "miningrun FAIL", 15) == 0 )
@@ -50914,16 +51025,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "blackjackrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&blackjackrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&blackjackrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&blackjackrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&blackjackrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &blackjackrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strncmp(text, "blackjackrun OK", 15) == 0 )
                     said_ok = 1;
                 if( strncmp(text, "blackjackrun FAIL", 17) == 0 )
@@ -50968,16 +51079,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "fletchingrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&fletchingrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&fletchingrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&fletchingrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&fletchingrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &fletchingrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strncmp(text, "fletchingrun OK", 15) == 0 )
                     said_ok = 1;
                 if( strncmp(text, "fletchingrun FAIL", 17) == 0 )
@@ -51022,16 +51133,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "smithingrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&smithingrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&smithingrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&smithingrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&smithingrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &smithingrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 if( strncmp(text, "smithingrun OK", 14) == 0 )
                     said_ok = 1;
                 if( strncmp(text, "smithingrun FAIL", 16) == 0 )
@@ -51093,16 +51204,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "ballrun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&ballrun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&ballrun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&ballrun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&ballrun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &ballrun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 fprintf(stderr, "  DBG %s\n", text);
                 if( strstr(text, "BALLRUN OK") != NULL )
                     said_ok = 1;
@@ -51334,8 +51445,8 @@ ToriRSServer_WorldSelftest(void)
                 ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1,
                                                     loc_herokitchendoor, category, slot);
                 ToriRSServer_CaptureEnd(srv);
-                for( int i = ToriRSServer_CaptureFind(&sanity_capture, 90, 0); i >= 0;
-                     i = ToriRSServer_CaptureFind(&sanity_capture, 90, i + 1) )
+                for( int i = ToriRSServer_CaptureFindNamed(&sanity_capture, PKT_NAME_MESSAGE_GAME, 0); i >= 0;
+                     i = ToriRSServer_CaptureFindNamed(&sanity_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* packet = &sanity_capture.packets[i];
 
@@ -51485,16 +51596,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "herorun");
             ToriRSServer_CaptureEnd(srv);
 
-            for( int i = ToriRSServer_CaptureFind(&herorun_capture, 90 /* MESSAGE_GAME */, 0);
+            for( int i = ToriRSServer_CaptureFindNamed(&herorun_capture, PKT_NAME_MESSAGE_GAME, 0);
                  i >= 0;
-                 i = ToriRSServer_CaptureFind(&herorun_capture, 90, i + 1) )
+                 i = ToriRSServer_CaptureFindNamed(&herorun_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
             {
                 const struct ToriRSServerCapturedPacket* packet = &herorun_capture.packets[i];
                 const char* text;
 
-                if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                text = selftest_message_text(srv, packet);
+                if( !text )
                     continue;
-                text = (const char*)packet->data + 1;
                 fprintf(stderr, "  DBG %s\n", text);
                 if( strstr(text, "HERORUN OK") != NULL )
                     said_ok = 1;
@@ -51772,16 +51883,16 @@ ToriRSServer_WorldSelftest(void)
                 SELFTEST_CHECK(player->active_script == NULL,
                                "clicking a product should release the parked script");
 
-                for( int i = ToriRSServer_CaptureFind(&skillmulti_answer, 90 /* MESSAGE_GAME */, 0);
+                for( int i = ToriRSServer_CaptureFindNamed(&skillmulti_answer, PKT_NAME_MESSAGE_GAME, 0);
                      i >= 0;
-                     i = ToriRSServer_CaptureFind(&skillmulti_answer, 90, i + 1) )
+                     i = ToriRSServer_CaptureFindNamed(&skillmulti_answer, PKT_NAME_MESSAGE_GAME, i + 1) )
                 {
                     const struct ToriRSServerCapturedPacket* packet = &skillmulti_answer.packets[i];
                     const char* text;
 
-                    if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                    text = selftest_message_text(srv, packet);
+                    if( !text )
                         continue;
-                    text = (const char*)packet->data + 1;
                     if( strncmp(text, "skillmultirun picked=", 21) != 0 )
                         continue;
                     said_pick = 1;
@@ -52960,15 +53071,15 @@ ToriRSServer_WorldSelftest(void)
                         for( int i = ToriRSServer_CaptureFind(
                                  &claim_capture, 90 /* MESSAGE_GAME */, 0);
                              i >= 0;
-                             i = ToriRSServer_CaptureFind(&claim_capture, 90, i + 1) )
+                             i = ToriRSServer_CaptureFindNamed(&claim_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
                         {
                             const struct ToriRSServerCapturedPacket* packet =
                                 &claim_capture.packets[i];
                             const char* text;
 
-                            if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                            text = selftest_message_text(srv, packet);
+                            if( !text )
                                 continue;
-                            text = (const char*)packet->data + 1;
                             if( strstr(text, "rs2012qbdclaimtest OK") )
                                 said_ok = 1;
                             if( strstr(text, "rs2012qbdclaimtest FAIL") )
@@ -54366,16 +54477,17 @@ ToriRSServer_WorldSelftest(void)
                                        TORIRSSERVER_TRIGGER_RAN,
                                    "::rs2012qbdwall should reach content");
                     ToriRSServer_CaptureEnd(srv);
-                    for( int i = ToriRSServer_CaptureFind(&wall_capture, 90 /* MESSAGE_GAME */, 0);
+                    for( int i = ToriRSServer_CaptureFindNamed(&wall_capture, PKT_NAME_MESSAGE_GAME, 0);
                          i >= 0;
-                         i = ToriRSServer_CaptureFind(&wall_capture, 90, i + 1) )
+                         i = ToriRSServer_CaptureFindNamed(&wall_capture, PKT_NAME_MESSAGE_GAME, i + 1) )
                     {
                         const struct ToriRSServerCapturedPacket* packet = &wall_capture.packets[i];
 
-                        if( packet->len < 2 || packet->data[packet->len - 1] != 0 )
+                        const char* text = selftest_message_text(srv, packet);
+                        if( !text )
                             continue;
-                        if( strstr((const char*)packet->data + 1, "rs2012qbdwall FAIL") )
-                            fprintf(stderr, "  %s\n", (const char*)packet->data + 1);
+                        if( strstr(text, "rs2012qbdwall FAIL") )
+                            fprintf(stderr, "  %s\n", text);
                     }
                     srv->wire = wire239;
                     for( int tick = 1; tick <= 40; tick++ )

@@ -168,6 +168,313 @@ w239_if_closesub(struct RSAreaBuf* buf, int dest_uid)
     rsab_p4(buf, dest_uid);
 }
 
+/* All defined below, beside the rest of the 239 writer set; named here because
+ * the readers that mirror them have to be able to tell the layouts apart. */
+static void
+w239_message_game(struct RSAreaBuf* buf, int type, const char* text);
+static void
+w239_if_settext(struct RSAreaBuf* buf, int uid, const char* text);
+static void
+w239_if_setevents(
+    struct RSAreaBuf* buf,
+    int component_uid,
+    int start,
+    int end,
+    uint32_t events1,
+    uint32_t events2);
+static void
+w239_run_clientscript(
+    struct RSAreaBuf* buf,
+    int script_id,
+    const char* types,
+    int const* intv,
+    const char* const* strv,
+    int argc);
+
+/*
+ * READING an IF_SETTEXT back.
+ *
+ * The two fields swap: 230 writes `p4 uid` then a NEWLINE-terminated string,
+ * 239 writes a NUL-terminated string then `pCombinedIdAlt2 uid`. A stanza that
+ * reads the uid from the front therefore reads the first four characters of the
+ * text at 239, and its string comparison starts four bytes into the message.
+ */
+int
+ToriRSServer_WireReadIfSettext(
+    const struct ToriRSServerWire* wire,
+    const uint8_t* data,
+    int len,
+    int* out_uid,
+    char* out_text,
+    int text_cap)
+{
+    struct RSAreaBuf buf;
+    int n = 0;
+    int terminator;
+    int trailing_uid;
+
+    assert(wire);
+    assert(data);
+    assert(out_uid);
+    assert(out_text);
+    assert(text_cap > 0);
+
+    out_text[0] = '\0';
+    *out_uid = -1;
+    trailing_uid = (wire->payload && wire->payload->if_settext == w239_if_settext);
+    terminator = trailing_uid ? 0 : '\n';
+    rsab_wrap(&buf, (uint8_t*)data, (size_t)(len < 0 ? 0 : len));
+    if( !trailing_uid )
+        *out_uid = rsab_g4(&buf);
+    for( ;; )
+    {
+        int c = rsab_g1(&buf);
+
+        if( !rsab_ok(&buf) )
+            return 0;
+        if( c == terminator )
+            break;
+        if( n >= text_cap - 1 )
+            return 0;
+        out_text[n++] = (char)c;
+    }
+    out_text[n] = '\0';
+    if( trailing_uid )
+        *out_uid = rsab_g4_alt2(&buf);
+    return rsab_ok(&buf);
+}
+
+/*
+ * READING a MESSAGE_GAME back — the text, which is what every stanza wants.
+ *
+ * 230 writes `p1 type` then the string; 239 writes `psmart1or2 type`, then a
+ * p1 sender-name flag, then the string. Sixty-eight stanzas skipped a single
+ * byte and read from there, so at 239 they read from the sender flag — a zero
+ * — and every `mes` came back as the empty string. That is silent: the capture
+ * loop simply matches nothing, and a content walkthrough that reports through
+ * `mes` reads as "::whatever-run never reached its OK line" while the script
+ * ran perfectly.
+ *
+ * Copies into the caller's buffer rather than pointing into the packet: the two
+ * revisions start the string at different offsets and a caller holding a
+ * pointer would have to know which.
+ */
+int
+ToriRSServer_WireReadMessageGame(
+    const struct ToriRSServerWire* wire,
+    const uint8_t* data,
+    int len,
+    char* out_text,
+    int text_cap)
+{
+    struct RSAreaBuf buf;
+    int n = 0;
+
+    assert(wire);
+    assert(data);
+    assert(out_text);
+    assert(text_cap > 0);
+
+    out_text[0] = '\0';
+    rsab_wrap(&buf, (uint8_t*)data, (size_t)(len < 0 ? 0 : len));
+    if( wire->payload && wire->payload->message_game == w239_message_game )
+    {
+        (void)rsab_gsmart(&buf); /* message type */
+        (void)rsab_g1(&buf);     /* sender-name present flag */
+    }
+    else
+    {
+        (void)rsab_g1(&buf); /* message type */
+    }
+    for( ;; )
+    {
+        int c = rsab_g1(&buf);
+
+        if( !rsab_ok(&buf) )
+            return 0;
+        if( c == 0 )
+            break;
+        if( n >= text_cap - 1 )
+            return 0;
+        out_text[n++] = (char)c;
+    }
+    out_text[n] = '\0';
+    return 1;
+}
+
+/*
+ * READING an IF_SETEVENTS back.
+ *
+ * 230 writes `p4Alt3 uid, p2Alt2 start, p4Alt1 events, p2 end`; 239's
+ * IfSetEventsV2 writes `p2Alt2 end, p4 events2, p4Alt2 events1, p2 start,
+ * p4Alt3 uid` — a different order, different transforms, and a second event
+ * word 230 does not have. A stanza that scans for its component by decoding
+ * the first field found nothing at all at 239, which is how "the login burst
+ * arms every skill-guide cell" came to report an unarmed cell for all 24.
+ *
+ * `out_events` is the CLASSIC mask, recombined. 239 does not carry one:
+ * `ToriRSServer_IfStateSplitClassicEvents` moves classic bits 1..10 into a
+ * second word shifted down by one and leaves the rest in the first, so op 2 —
+ * classic bit 2, value 4 — arrives as events1 = 0 and events2 = 2. Returning
+ * events1 raw therefore reports "unarmed" for every op an interface actually
+ * has. This undoes the split so the assertions keep speaking classic.
+ */
+int
+ToriRSServer_WireReadIfSetevents(
+    const struct ToriRSServerWire* wire,
+    const uint8_t* data,
+    int len,
+    int* out_uid,
+    int* out_start,
+    int* out_end,
+    uint32_t* out_events)
+{
+    struct RSAreaBuf buf;
+
+    assert(wire);
+    assert(data);
+    assert(out_uid);
+    assert(out_start);
+    assert(out_end);
+    assert(out_events);
+
+    rsab_wrap(&buf, (uint8_t*)data, (size_t)(len < 0 ? 0 : len));
+    if( wire->payload && wire->payload->if_setevents == w239_if_setevents )
+    {
+        uint32_t events2;
+        uint32_t events1;
+
+        *out_end = rsab_g2_alt2(&buf);
+        events2 = (uint32_t)rsab_g4(&buf);
+        events1 = (uint32_t)rsab_g4_alt2(&buf);
+        *out_start = rsab_g2(&buf);
+        *out_uid = rsab_g4_alt3(&buf);
+        *out_events = (events1 & ~UINT32_C(0x7fe)) | ((events2 & UINT32_C(0x3ff)) << 1);
+    }
+    else
+    {
+        *out_uid = rsab_g4_alt3(&buf);
+        *out_start = rsab_g2_alt2(&buf);
+        *out_events = (uint32_t)rsab_g4_alt1(&buf);
+        *out_end = rsab_g2(&buf);
+    }
+    return rsab_ok(&buf);
+}
+
+/*
+ * READING a RUNCLIENTSCRIPT back, all-int arguments only.
+ *
+ * The two layouts differ in exactly one byte and it is a silent one: the type
+ * string is NEWLINE-terminated at 230 and NUL-terminated at 239 (see
+ * `w239_run_clientscript`'s note). A reader that scans for the wrong terminator
+ * does not fail — it swallows the terminator as a type character and then reads
+ * three bytes of the first argument as more of them, so `types` still compares
+ * equal to "iiii" up to its embedded NUL while every argument and the script id
+ * come out shifted. That is what made the skill guide's 24 cells all report the
+ * same skill index at 239.
+ *
+ * Only 'i' is decoded, because that is the shape every payload assertion in the
+ * suite inspects; anything else returns 0 rather than guessing.
+ */
+int
+ToriRSServer_WireReadRunClientscript(
+    const struct ToriRSServerWire* wire,
+    const uint8_t* data,
+    int len,
+    char* out_types,
+    int types_cap,
+    int* out_argv,
+    int argv_cap,
+    int* out_argc,
+    int* out_script_id)
+{
+    struct RSAreaBuf buf;
+    int terminator;
+    int argc = 0;
+
+    assert(wire);
+    assert(data);
+    assert(out_types);
+    assert(out_argv);
+    assert(out_argc);
+    assert(out_script_id);
+    assert(types_cap > 0);
+
+    terminator = (wire->payload && wire->payload->run_clientscript == w239_run_clientscript)
+                     ? 0
+                     : '\n';
+    rsab_wrap(&buf, (uint8_t*)data, (size_t)(len < 0 ? 0 : len));
+    for( ;; )
+    {
+        int c = rsab_g1(&buf);
+
+        if( !rsab_ok(&buf) )
+            return 0;
+        if( c == terminator )
+            break;
+        if( c != 'i' || argc >= types_cap - 1 || argc >= argv_cap )
+            return 0;
+        out_types[argc++] = (char)c;
+    }
+    out_types[argc] = '\0';
+
+    /* Reversed on the wire at both revisions: the client pops them off a
+     * stack. */
+    for( int i = argc - 1; i >= 0; i-- )
+        out_argv[i] = rsab_g4(&buf);
+    *out_script_id = rsab_g4(&buf);
+    *out_argc = argc;
+    return rsab_ok(&buf);
+}
+
+/*
+ * READING one back, which the selftest needs and nothing on the wire does.
+ *
+ * Every assertion in the suite that inspects an IF_OPENSUB payload was written
+ * against the 230 layout — `p1(type)`, `p2Alt2(interfaceId)`,
+ * `pCombinedIdAlt3(dest)` — and 239 writes the same three fields in the
+ * opposite order with a different transform on the id. A stanza that decodes by
+ * hand is therefore a 230-only assertion wearing a revision-neutral name, which
+ * is how the skill guide's payload checks came to assert nothing at 239.
+ *
+ * So the decode lives beside the encoders, one branch per revision, and the
+ * callers ask for fields rather than for bytes. Mirrors `w239_if_opensub` and
+ * `ToriRSServer_SendIfOpensub`'s else-branch exactly; if either moves this must
+ * move with it.
+ */
+int
+ToriRSServer_WireReadIfOpensub(
+    const struct ToriRSServerWire* wire,
+    const uint8_t* data,
+    int len,
+    int* out_group,
+    int* out_uid,
+    int* out_type)
+{
+    struct RSAreaBuf buf;
+
+    assert(wire);
+    assert(data);
+    assert(out_group);
+    assert(out_uid);
+    assert(out_type);
+
+    rsab_wrap(&buf, (uint8_t*)data, (size_t)(len < 0 ? 0 : len));
+    if( wire->payload && wire->payload->if_opensub == w239_if_opensub )
+    {
+        *out_group = rsab_g2_alt3(&buf);
+        *out_uid = rsab_g4_alt3(&buf);
+        *out_type = rsab_g1(&buf);
+    }
+    else
+    {
+        *out_type = rsab_g1(&buf);
+        *out_group = rsab_g2_alt2(&buf);
+        *out_uid = rsab_g4_alt3(&buf);
+    }
+    return rsab_ok(&buf);
+}
+
 /*
  * The remaining interface layouts are transcribed from the authoritative
  * client's handlers, not inferred from neighbouring packets. In the golden
