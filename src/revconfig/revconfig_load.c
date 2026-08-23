@@ -243,6 +243,13 @@ push_field_from_ini_kv(
         kind = RCFIELD_UICOMPONENT_SELECTED;
     else if( strcmp(key, "slot") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_SLOT;
+    else if( strcmp(key, "role") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_ROLE;
+    /* `match=` is scoped to [role:…] the way `id=` is to the cache-ref kinds:
+     * it is a common enough word that a future section spelling it must not
+     * silently land here. */
+    else if( strcmp(key, "match") == 0 && strcmp(s_ini_item_type, "role") == 0 )
+        kind = RCFIELD_ROLE_MATCH;
     else if( strcmp(key, "componentno") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_COMPONENTNO;
     else if( strcmp(key, "inv") == 0 && strcmp(s_ini_item_type, "component") == 0 )

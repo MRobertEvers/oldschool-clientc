@@ -1909,6 +1909,7 @@ UITree_Push(
      * grows one is duplicated instead of aliased into the node. */
     UITree_MenuOptionsSet(component, &spec->menu_options);
     component->slot_tag = spec->slot_tag;
+    component->role_id = spec->role_id;
     component->no_click_through = spec->no_click_through;
     component->hotkey_effects = spec->hotkey_effects;
 

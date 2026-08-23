@@ -12,6 +12,7 @@ main(void)
     test_parse_numbers();
     test_refs();
     test_profile();
+    test_roles();
 
     if( g_failures )
     {

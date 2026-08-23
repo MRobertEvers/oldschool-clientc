@@ -153,6 +153,12 @@ dofile = nil
 ---@field cfg_set fun(key: string, value: string|number|boolean) The only way to write config; the table itself is read-only.
 ---@field config table<string, any> Live view of this plugin's settings, typed by the schema: a `color` reads back as an integer, a `bool` as a boolean. Reading a key the plugin never declared is an error, not nil.
 --- A numeric or colour setting is stored as text and read as an integer EXPRESSION, the same grammar a revconfig profile uses: `12`, `0x1F`, `1Fh`, `0b1010`, `#FF8000`, `1 << 4`, `rgb(255, 128, 0)`, `rgba(0, 0, 0, 128)`, `hsl16(hue, sat, lum)`. Text that is not one whole expression reads as 0.
+---@field image_load fun(name: string): integer? A PICTURE this plugin ships, out of the same asset folder asset_load reads, decoded by the host: hand the handle to draw.image. nil when the name is refused or the plugin is at its image budget. ASYNCHRONOUS -- image_size answers nil and draw.image draws nothing until the read lands, so lay out against image_size and skip a frame rather than waiting.
+---@field image_size fun(image: integer): integer?, integer? The picture's `w, h`, or nil while the read is still in flight.
+---@field image_release fun(image: integer) Drop it. The file is untouched, and every image is dropped for you when the plugin stops.
+---@field component_rect fun(component_id: integer): torirs.Rect? Where one of the INTERFACE's own widgets is, by `(interface << 16) | component` -- the read half of a component id, for the buttons the gameframe's roles do not cover. A cache frame's chat filters are interface widgets, so api.layout.chat_buttons has no members to number there and this is the only handle on them. nil for a component this cache does not have or an interface that is not open.
+---@field mouse_pos fun(): integer?, integer? The pointer in canvas coordinates, or nil when the client has none. What a hover highlight is drawn from -- a hit region answers CLICKS, not hovers.
+---@field hit_region fun(x: integer, y: integer, w: integer, h: integer, ops?: string|string[], tag?: integer): boolean Claim a box of the canvas so what was drawn there can be clicked. Legal only inside on_draw_canvas, and DECLARED WITH THE DRAWING every frame: the box comes from where the frame put things this frame, and a region registered once at start is a rectangle over whatever used to be there after the first resize. The first op is the mouseover line and the LEFT click; all of them are rows in the right-click menu. No ops claims the pointer without offering anything, which is how a plugin stops a click falling through to the world behind its own art. `tag` comes back in on_canvas_click.
 ---@field asset_load fun(name: string): boolean Begin loading one of this plugin's own files. True means it is already resident; false means a read was queued and on_asset will fire. `name` is a bare filename of [A-Za-z0-9._-] -- a path is refused, so one plugin can never read another's.
 ---@field asset_data fun(name: string): string? The resident bytes, or nil while pending / after a failure. Binary-safe: Lua strings count their bytes and may contain NULs.
 ---@field asset_save fun(name: string, data: string): boolean Replace `name` and queue the write. The resident copy is updated before returning, so asset_data() answers with the new bytes at once.
@@ -224,7 +230,7 @@ dofile = nil
 --- the frame says it is; `replace` is legal only for the plugin that owns the
 --- frame, and only inside its layout handler.
 ---@class torirs.LayoutRegion
----@field rect fun(): torirs.Rect? Where it is now, or nil when this gameframe has no such region. Answered live, so a region another plugin moved reads correctly on the very next call -- there is nothing to invalidate.
+---@field rect fun(member?: integer): torirs.Rect? Where it is now, or nil when this gameframe has no such region. With a `member`, that one member of it -- the role's OWN numbering, so `chat_buttons.rect(3)` is the report abuse button and not the fourth chat button this cache happened to build (0 public, 1 private, 2 trade, 3 report; a sidebar mount's is its tab number). Answered live, so a region another plugin moved reads correctly on the very next call -- there is nothing to invalidate.
 ---@field reserve fun(edge: torirs.Edge, px: integer): boolean Take `px` off one side, for as long as this plugin runs. Many plugins may reserve and they STACK in the order they asked, so two docks on the same edge sit beside each other rather than on top of each other. `px` of 0 gives this plugin's back.
 ---@field release fun() Give back every edge this plugin took from this region. Happens automatically when the plugin stops.
 ---@field replace fun(rect: torirs.Rect): boolean State where the frame puts this region. The EXCLUSIVE verb: only the frame's owner may call it, and only from its layout handler.
@@ -257,10 +263,18 @@ dofile = nil
 ---@field top_level torirs.LayoutTopLevel
 ---@field revision fun(): integer Moves whenever anything about the layout does. Compare it against the value a cached picture was built at.
 
---- Handed to on_draw_world as its second argument, and legal only there --
---- every call checks the open surface and raises otherwise. `fill` is 0..255
---- and 0 means outline only.
+--- Handed to on_draw_world and on_draw_canvas as their second argument, and
+--- legal only inside one of them -- every call checks the open surface and
+--- raises otherwise. `tile` and `hull` are WORLD-only on top of that: both
+--- name something in the scene, and the canvas has no scene behind it.
+---
+--- `fill` is 0..255 and 0 means outline only. On the canvas surface, `width`
+--- and `height` are the canvas itself -- anything anchored to an edge is
+--- `draw.width - something`, so the size rides on the table rather than
+--- arriving as an argument every handler has to accept in order to use.
 ---@class torirs.Draw
+---@field width integer Canvas width. Set for on_draw_canvas only.
+---@field height integer Canvas height. Set for on_draw_canvas only.
 --- A tile's wash has a colour of its own -- the marker is read against the
 --- ground rather than against a model, so a bright outline can stay findable
 --- while the fill only tints the tile. Both halves are given together: pass
@@ -270,6 +284,7 @@ dofile = nil
 ---@field line fun(x0: integer, y0: integer, x1: integer, y1: integer, colour: torirs.Colour) Screen space; see api.project().
 ---@field text fun(x: integer, y: integer, text: string, colour: torirs.Colour)
 ---@field rect fun(x: integer, y: integer, w: integer, h: integer, colour: torirs.Colour, fill?: integer)
+---@field image fun(image: integer, x: integer, y: integer, trans?: integer, clip_x?: integer, clip_y?: integer, clip_w?: integer, clip_h?: integer) Blit an image from api.image_load at its own size. `trans` is the reference's sense and NOT the `fill` above it: 0 is solid and 255 is invisible, matching every sprite blit in the client. The clip is an extra rectangle to cut the blit to, in this surface's coordinates -- what a meter is made of, and why it is an argument rather than a second verb. An image whose read has not landed draws nothing.
 
 ------------------------------------------------------------ event payloads --
 
@@ -347,6 +362,18 @@ dofile = nil
 ---@field value integer New level / kill count / coin value, or -1 when the kind carries none.
 ---@field text string The line it was recognised from, markup stripped. Empty for a level-up, which comes from UPDATE_STAT rather than from prose.
 
+--- One of THIS plugin's canvas hit regions was used.
+---
+--- Raised for the plugin that declared the region and no other. The left-click
+--- default and the region's row in the right-click menu both arrive here,
+--- because to the plugin they are the same thing happening -- which of the two
+--- the player did is not a question a button has an answer for.
+---@class torirs.EvCanvasClick
+---@field tag integer The `tag` the region was declared with.
+---@field op integer Which of the region's ops was chosen, indexing the list it was declared with. A left click is always op 0.
+---@field x integer Where the pointer was, in canvas coordinates.
+---@field y integer
+
 ---@class torirs.EvConfig
 ---@field key string
 
@@ -398,7 +425,9 @@ dofile = nil
 ---@field on_key? fun(api: torirs.Api, ev: torirs.EvKey): torirs.Verdict
 ---@field on_menu_build? fun(api: torirs.Api, ev: torirs.EvMenuBuild): torirs.Verdict
 ---@field on_menu_select? fun(api: torirs.Api, ev: torirs.EvMenuSelect): torirs.Verdict
----@field on_draw_world? fun(api: torirs.Api, draw: torirs.Draw): torirs.Verdict
+---@field on_draw_world? fun(api: torirs.Api, draw: torirs.Draw): torirs.Verdict The WORLD surface: marks cut to the viewport and hoisted to just above the scene, so they sit under the inventory and the chatbox. Right for anything that marks a thing in the world.
+---@field on_draw_canvas? fun(api: torirs.Api, draw: torirs.Draw): torirs.Verdict The CANVAS surface: the whole client window, above the interfaces. Right for anything that belongs to the CHROME -- an orb beside the minimap, a button in a corner. `draw.tile` and `draw.hull` are not legal here; api.hit_region is, and only here.
+---@field on_canvas_click? fun(api: torirs.Api, ev: torirs.EvCanvasClick): torirs.Verdict One of this plugin's hit regions was clicked, or its menu row chosen.
 ---@field on_layout_changed? fun(api: torirs.Api, ev: torirs.EvTick): torirs.Verdict A region moved -- a resize, a gameframe rebuild, or another plugin reserving space. `ev.cycle` is the new api.layout.revision(). Only for plugins that CACHE something measured against a region; one that reads a region while drawing already sees the new box.
 ---@field on_config_changed? fun(api: torirs.Api, ev: torirs.EvConfig): torirs.Verdict
 ---@field on_obj_spawn? fun(api: torirs.Api, obj: torirs.ObjSnap): torirs.Verdict

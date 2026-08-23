@@ -1055,6 +1055,42 @@ api_slot_member_rect(
     return 1;
 }
 
+/*
+ * Where a component is. @see ToriRS_PluginApi::component_rect.
+ *
+ * No range test on the id, unlike the region verbs above: every 32-bit value
+ * is a well-formed component id, and "the tree has no such component" is the
+ * engine's answer to all of them.
+ */
+static int
+api_component_rect(
+    struct ToriRS_PluginCtx* ctx,
+    int component_id,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    int x = 0, y = 0, w = 0, h = 0;
+
+    assert(ctx);
+
+    if( !ctx->host->engine.component_rect(ctx->host->engine.user, component_id, &x, &y, &w, &h) )
+        return 0;
+    if( w <= 0 || h <= 0 )
+        return 0;
+
+    if( out_x )
+        *out_x = x;
+    if( out_y )
+        *out_y = y;
+    if( out_w )
+        *out_w = w;
+    if( out_h )
+        *out_h = h;
+    return 1;
+}
+
 static int
 api_layout_reserve(struct ToriRS_PluginCtx* ctx, int slot, int edge, int px)
 {
@@ -3094,6 +3130,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->minimap_rect);
     assert(engine->slot_rect);
     assert(engine->slot_member_rect);
+    assert(engine->component_rect);
     assert(engine->stat);
     assert(engine->stat_xp);
     assert(engine->skill_name);
@@ -3152,6 +3189,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .minimap_rect = api_minimap_rect,
         .slot_rect = api_slot_rect,
         .slot_member_rect = api_slot_member_rect,
+        .component_rect = api_component_rect,
         .layout_reserve = api_layout_reserve,
         .layout_revision = api_layout_revision,
         .layout_claim = api_layout_claim,

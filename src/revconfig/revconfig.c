@@ -921,6 +921,10 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_CHROME_PLUGIN_BUTTON_OP";
     case RCFIELD_CHROME_PLUGIN_LAYOUT_SCRIPT:
         return "RCFIELD_CHROME_PLUGIN_LAYOUT_SCRIPT";
+    case RCFIELD_ROLE_MATCH:
+        return "RCFIELD_ROLE_MATCH";
+    case RCFIELD_UICOMPONENT_ROLE:
+        return "RCFIELD_UICOMPONENT_ROLE";
     default:
         return "UNKNOWN";
     }
@@ -1056,6 +1060,9 @@ revconfig_item_set_name(
     case RCITEM_CACHE_REF:
         strncpy(item->u.cacheref.name, value, sizeof(item->u.cacheref.name) - 1);
         break;
+    case RCITEM_ROLE:
+        strncpy(item->u.role.name, value, sizeof(item->u.role.name) - 1);
+        break;
     default:
         break;
     }
@@ -1100,6 +1107,8 @@ revconfig_item_begin(
     }
     else if( strcmp(type_value, "layout") == 0 )
         item->kind = RCITEM_UILAYOUT;
+    else if( strcmp(type_value, "role") == 0 )
+        item->kind = RCITEM_ROLE;
     else if( strcmp(type_value, "inv") == 0 )
         item->kind = RCITEM_INV;
     else if( strcmp(type_value, "hotkey") == 0 )
@@ -1412,6 +1421,10 @@ revconfig_item_apply_uicomponent_field(
     case RCFIELD_UICOMPONENT_SLOT:
         strncpy(comp->slot, value, sizeof(comp->slot) - 1);
         comp->slot[sizeof(comp->slot) - 1] = '\0';
+        break;
+    case RCFIELD_UICOMPONENT_ROLE:
+        strncpy(comp->role, value, sizeof(comp->role) - 1);
+        comp->role[sizeof(comp->role) - 1] = '\0';
         break;
     case RCFIELD_UICOMPONENT_SPRITE_ACTIVE:
         strncpy(comp->sprite_active, value, sizeof(comp->sprite_active) - 1);
@@ -1897,6 +1910,17 @@ revconfig_item_apply_field(
         if( kind == RCFIELD_CACHEREF_ID )
             item->u.cacheref.id = revconfig_parse_int(value);
         break;
+    case RCITEM_ROLE:
+        if( kind == RCFIELD_ROLE_MATCH &&
+            item->u.role.matcher_count < REVCONFIG_ROLE_MAX_MATCHERS )
+        {
+            /* A line that does not parse has already been reported; dropping
+             * it keeps the rungs that DID parse working. */
+            if( revconfig_parse_role_matcher(
+                    value, &item->u.role.matchers[item->u.role.matcher_count]) )
+                item->u.role.matcher_count++;
+        }
+        break;
     case RCITEM_FEATURES:
         revconfig_item_apply_features_field(&item->u.features, kind, value);
         break;
@@ -2074,4 +2098,275 @@ revconfig_parse_camera_controls(char const* str)
         p = revconfig_skip_space(end + 1);
     }
     return controls;
+}
+
+/*
+ * ---------------------------------------------------------------------------
+ * [role:…] matcher parsing
+ * ---------------------------------------------------------------------------
+ *
+ * Every form is `<head>(<args>)`, so the whole grammar is one split plus a
+ * per-head reading of the arguments. Nested calls are ordinary here -- both
+ * `id(if(553, 0))` and `cc(iface(xpdrop), 4)` carry a call inside an argument
+ * -- so argument splitting counts parenthesis depth rather than taking the
+ * first comma it sees.
+ */
+
+/** Copy `src[0..len)` into `dst` with the ends trimmed. 0 when it will not fit. */
+static int
+revconfig_role_copy_trimmed(char* dst, size_t cap, char const* src, size_t len)
+{
+    assert(dst);
+    assert(src);
+
+    while( len > 0 && (*src == ' ' || *src == '\t') )
+    {
+        src++;
+        len--;
+    }
+    while( len > 0 && (src[len - 1] == ' ' || src[len - 1] == '\t') )
+        len--;
+
+    if( len >= cap )
+        return 0;
+    memcpy(dst, src, len);
+    dst[len] = '\0';
+    return 1;
+}
+
+/**
+ * Split `str` as `<head>(<body>)`, with nothing but space after the close.
+ *
+ * Returns 1 and points `out_body`/`out_body_len` at the inside of the parens.
+ */
+static int
+revconfig_role_split_call(
+    char const* str,
+    char* out_head,
+    size_t head_cap,
+    char const** out_body,
+    size_t* out_body_len)
+{
+    char const* open;
+    char const* p;
+    int depth;
+
+    assert(str);
+    assert(out_head);
+    assert(out_body);
+    assert(out_body_len);
+
+    open = strchr(str, '(');
+    if( !open )
+        return 0;
+    if( !revconfig_role_copy_trimmed(out_head, head_cap, str, (size_t)(open - str)) )
+        return 0;
+    if( out_head[0] == '\0' )
+        return 0;
+
+    depth = 0;
+    for( p = open; *p; p++ )
+    {
+        if( *p == '(' )
+            depth++;
+        else if( *p == ')' )
+        {
+            depth--;
+            if( depth == 0 )
+                break;
+        }
+    }
+    if( depth != 0 || *p != ')' )
+        return 0;
+
+    /* A trailing tail -- `id(4) junk` -- is a malformed line, not a matcher
+     * with something ignorable after it. */
+    if( *revconfig_skip_space(p + 1) != '\0' )
+        return 0;
+
+    *out_body = open + 1;
+    *out_body_len = (size_t)(p - (open + 1));
+    return 1;
+}
+
+/**
+ * Offset of the comma separating the first argument of `s[0..len)` from the
+ * rest, skipping any nested call's own commas. -1 when there is only one.
+ */
+static long
+revconfig_role_arg_split(char const* s, size_t len)
+{
+    int depth = 0;
+
+    assert(s);
+
+    for( size_t i = 0; i < len; i++ )
+    {
+        if( s[i] == '(' )
+            depth++;
+        else if( s[i] == ')' )
+            depth--;
+        else if( s[i] == ',' && depth == 0 )
+            return (long)i;
+    }
+    return -1;
+}
+
+/** Parse `s[0..len)` as one whole integer expression. */
+static int
+revconfig_role_parse_int(char const* s, size_t len, int* out_value)
+{
+    char buf[64];
+    char const* end;
+
+    assert(s);
+    assert(out_value);
+
+    if( !revconfig_role_copy_trimmed(buf, sizeof(buf), s, len) )
+        return 0;
+    if( buf[0] == '\0' )
+        return 0;
+    if( !revconfig_parse_int_expr(buf, &end, out_value) )
+        return 0;
+    return *revconfig_skip_space(end) == '\0';
+}
+
+/** Parse an `id(<expr>)` or `iface(<name>[, <child>])` reference. */
+static int
+revconfig_role_parse_ref(char const* s, size_t len, struct RevConfigRoleRef* out)
+{
+    char text[64];
+    char head[32];
+    char const* body;
+    size_t body_len;
+    long comma;
+
+    assert(s);
+    assert(out);
+
+    if( !revconfig_role_copy_trimmed(text, sizeof(text), s, len) )
+        return 0;
+    if( !revconfig_role_split_call(text, head, sizeof(head), &body, &body_len) )
+        return 0;
+
+    memset(out, 0, sizeof(*out));
+
+    if( strcmp(head, "id") == 0 )
+    {
+        if( !revconfig_role_parse_int(body, body_len, &out->value) )
+            return 0;
+        out->kind = REVCONFIG_ROLE_MATCH_ID;
+        return 1;
+    }
+
+    if( strcmp(head, "iface") == 0 )
+    {
+        comma = revconfig_role_arg_split(body, body_len);
+        if( comma < 0 )
+        {
+            if( !revconfig_role_copy_trimmed(
+                    out->name, sizeof(out->name), body, body_len) )
+                return 0;
+            /* Child 0 is the group's own root, which is what naming a group
+             * with no child means. */
+            out->value = 0;
+        }
+        else
+        {
+            if( !revconfig_role_copy_trimmed(
+                    out->name, sizeof(out->name), body, (size_t)comma) )
+                return 0;
+            if( !revconfig_role_parse_int(
+                    body + comma + 1, body_len - (size_t)comma - 1, &out->value) )
+                return 0;
+        }
+        if( out->name[0] == '\0' )
+            return 0;
+        out->kind = REVCONFIG_ROLE_MATCH_IFACE;
+        return 1;
+    }
+
+    return 0;
+}
+
+int
+revconfig_parse_role_matcher(char const* str, struct RevConfigRoleMatcher* out)
+{
+    struct RevConfigRoleMatcher matcher;
+    char head[32];
+    char const* body;
+    size_t body_len;
+    long comma;
+
+    assert(str);
+    assert(out);
+
+    memset(&matcher, 0, sizeof(matcher));
+    matcher.value = -1;
+
+    if( !revconfig_role_split_call(str, head, sizeof(head), &body, &body_len) )
+        goto malformed;
+
+    if( strcmp(head, "slot") == 0 )
+    {
+        comma = revconfig_role_arg_split(body, body_len);
+        if( comma < 0 )
+        {
+            if( !revconfig_role_copy_trimmed(
+                    matcher.slot, sizeof(matcher.slot), body, body_len) )
+                goto malformed;
+        }
+        else
+        {
+            if( !revconfig_role_copy_trimmed(
+                    matcher.slot, sizeof(matcher.slot), body, (size_t)comma) )
+                goto malformed;
+            /* Kept verbatim: which numbering a member is in belongs to the
+             * role -- a chat button's filter has names, a sidebar mount's
+             * tabno does not -- and that is the ui layer's to know. */
+            if( !revconfig_role_copy_trimmed(
+                    matcher.member,
+                    sizeof(matcher.member),
+                    body + comma + 1,
+                    body_len - (size_t)comma - 1) )
+                goto malformed;
+            if( matcher.member[0] == '\0' )
+                goto malformed;
+        }
+        if( matcher.slot[0] == '\0' )
+            goto malformed;
+        matcher.kind = REVCONFIG_ROLE_MATCH_SLOT;
+    }
+    else if( strcmp(head, "clientcode") == 0 )
+    {
+        if( !revconfig_role_parse_int(body, body_len, &matcher.value) )
+            goto malformed;
+        matcher.kind = REVCONFIG_ROLE_MATCH_CLIENTCODE;
+    }
+    else if( strcmp(head, "cc") == 0 )
+    {
+        comma = revconfig_role_arg_split(body, body_len);
+        if( comma < 0 )
+            goto malformed;
+        if( !revconfig_role_parse_ref(body, (size_t)comma, &matcher.ref) )
+            goto malformed;
+        if( !revconfig_role_parse_int(
+                body + comma + 1, body_len - (size_t)comma - 1, &matcher.value) )
+            goto malformed;
+        matcher.kind = REVCONFIG_ROLE_MATCH_CC;
+    }
+    else
+    {
+        /* id() and iface() are references in their own right. */
+        if( !revconfig_role_parse_ref(str, strlen(str), &matcher.ref) )
+            goto malformed;
+        matcher.kind = matcher.ref.kind;
+    }
+
+    *out = matcher;
+    return 1;
+
+malformed:
+    fprintf(stderr, "revconfig: unrecognised role matcher '%s'\n", str);
+    return 0;
 }

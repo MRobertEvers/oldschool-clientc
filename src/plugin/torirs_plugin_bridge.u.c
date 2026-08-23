@@ -2540,6 +2540,30 @@ app_plugin_slot_rect(
  * plugin anchoring to a member reads it once per frame, not once per drawn
  * thing.
  */
+/*
+ * Where a component is. @see ToriRS_PluginApi::component_rect.
+ *
+ * The same node->rect the region readouts end in, reached by id rather than by
+ * role, so a component and a region answer with one notion of "where".
+ */
+static int
+app_plugin_component_rect(
+    void* user, int component_id, int* out_x, int* out_y, int* out_w, int* out_h)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    if( !app->tree )
+        return 0;
+    return app_plugin_node_rect(
+        app,
+        UITree_FindByComponentId(app->tree, component_id),
+        out_x,
+        out_y,
+        out_w,
+        out_h);
+}
+
 static int
 app_plugin_slot_member_rect(
     void* user, int slot, int member, int* out_x, int* out_y, int* out_w, int* out_h)
@@ -3033,6 +3057,7 @@ app_plugin_engine(struct App* app)
     engine.minimap_rect = app_plugin_minimap_rect;
     engine.slot_rect = app_plugin_slot_rect;
     engine.slot_member_rect = app_plugin_slot_member_rect;
+    engine.component_rect = app_plugin_component_rect;
     engine.layout_set = app_plugin_layout_set;
     engine.layout_begin = app_plugin_layout_begin;
     engine.layout_end = app_plugin_layout_end;

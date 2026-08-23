@@ -391,6 +391,7 @@ static int fake_mouse_pos(void* u, int* x, int* y) { (void)u; (void)x; (void)y; 
 static int fake_minimap_rect(void* u, int* x, int* y, int* w, int* h) { (void)u; (void)x; (void)y; (void)w; (void)h; return 0; }
 static int fake_slot_rect(void* u, int a, int* x, int* y, int* w, int* h) { (void)u; (void)a; (void)x; (void)y; (void)w; (void)h; return 0; }
 static int fake_slot_member_rect(void* u, int a, int m, int* x, int* y, int* w, int* h) { (void)u; (void)a; (void)m; (void)x; (void)y; (void)w; (void)h; return 0; }
+static int fake_component_rect(void* u, int c, int* x, int* y, int* w, int* h) { (void)u; (void)c; (void)x; (void)y; (void)w; (void)h; return 0; }
 static int fake_stat(void* u, int s, int* c, int* b) { (void)u; (void)s; (void)c; (void)b; return 0; }
 static int fake_stat_xp(void* u, int s, int* a, int* b, int* c) { (void)u; (void)s; (void)a; (void)b; (void)c; return 0; }
 static char const* fake_skill_name(void* u, int s) { (void)u; (void)s; return NULL; }
@@ -506,6 +507,7 @@ main(void)
     e.minimap_rect = fake_minimap_rect;
     e.slot_rect = fake_slot_rect;
     e.slot_member_rect = fake_slot_member_rect;
+    e.component_rect = fake_component_rect;
     e.layout_set = fake_layout_set;
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;

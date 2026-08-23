@@ -146,6 +146,9 @@ struct ToriRS_PluginEngine
      */
     int (*slot_member_rect)(
         void* user, int slot, int member, int* out_x, int* out_y, int* out_w, int* out_h);
+    /** One component's box, by id. @see ToriRS_PluginApi::component_rect. */
+    int (*component_rect)(
+        void* user, int component_id, int* out_x, int* out_y, int* out_w, int* out_h);
 
     /* The gameframe claim. @see ToriRS_PluginApi::layout_claim.
      *

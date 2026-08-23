@@ -2176,6 +2176,32 @@ struct ToriRS_PluginApi
      */
     int (*if_click)(struct ToriRS_PluginCtx* ctx, int component_id, int op);
 
+    /**
+     * Where a component IS, in canvas coordinates. Any out may be NULL.
+     *
+     * The read half of if_click, and it exists for the same reason slot_rect
+     * does beside layout_slot: a plugin that can press a button by id but
+     * cannot ask where that button is can only act on things it is unable to
+     * draw over. The two take the SAME id -- `(interface << 16) | component`
+     * -- so a config key naming a button answers both verbs.
+     *
+     * Which id that is on a given cache is the CALLER's problem, exactly as it
+     * is for if_click. Regions are the way to address the frame by ROLE and
+     * survive a change of revision; this is for the buttons that have no role
+     * because they are the cache's own widgets rather than the frame's.
+     *
+     * @return 1 when a component with that id is in the tree and has a
+     * resolved, non-empty box. 0 otherwise -- an interface that is not open,
+     * or a component this cache does not have, is an ANSWER and not a fault.
+     */
+    int (*component_rect)(
+        struct ToriRS_PluginCtx* ctx,
+        int component_id,
+        int* out_x,
+        int* out_y,
+        int* out_w,
+        int* out_h);
+
     /* -- images --
      *
      * A plugin's OWN art, from its own asset file, drawn at its own pixels.

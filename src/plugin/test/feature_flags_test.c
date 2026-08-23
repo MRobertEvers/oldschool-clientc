@@ -521,6 +521,20 @@ fake_slot_member_rect(void* u, int slot, int member, int* x, int* y, int* w, int
     return 0;
 }
 
+/* Nothing under test mounts a component tree, so every id answers "not
+ * here" -- @see ToriRS_PluginApi::component_rect, where that is an answer. */
+static int
+fake_component_rect(void* u, int component_id, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    (void)component_id;
+    (void)x;
+    (void)y;
+    (void)w;
+    (void)h;
+    return 0;
+}
+
 static int
 fake_stat(
     void* u,
@@ -1123,6 +1137,7 @@ fake_engine(void)
     e.tab_select = fake_tab_select;
     e.slot_rect = fake_slot_rect;
     e.slot_member_rect = fake_slot_member_rect;
+    e.component_rect = fake_component_rect;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;
     e.skill_name = fake_skill_name;

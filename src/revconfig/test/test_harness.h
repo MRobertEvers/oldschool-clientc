@@ -25,5 +25,6 @@ void test_parse(void);
 void test_parse_numbers(void);
 void test_refs(void);
 void test_profile(void);
+void test_roles(void);
 
 #endif

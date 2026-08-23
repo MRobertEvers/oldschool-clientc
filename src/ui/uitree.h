@@ -517,6 +517,17 @@ struct UITreeComponent
     uint8_t frame_hidden;
     /** enum UITreeSlotTag — nonzero marks this node as a mount region. */
     uint8_t slot_tag;
+    /**
+     * Semantic role this node was AUTHORED with (ui/uitree_role.h), interned
+     * against the tree's role table. 0 = none.
+     *
+     * The direct half of the role vocabulary, for the nodes a revconfig
+     * profile built itself. The other half is a matcher chain, which finds a
+     * node the profile did not author -- a cache component, or one a CS2
+     * script created -- and needs no field here because there is nowhere to
+     * put it: the node does not exist until the script runs.
+     */
+    uint16_t role_id;
     /** OR of enum UITreeHotkeyEffect: the effects this node accepts from a
      *  bound key (revconfig `hotkey=` lines). 0 = not a hotkey target. */
     uint32_t hotkey_effects;
@@ -1006,6 +1017,8 @@ struct UITreeNodeSpec
     int dynamic_child_index;
     uint8_t has_position;
     uint8_t slot_tag; /* enum UITreeSlotTag */
+    /** Interned semantic role, or 0. @see UITreeComponent::role_id. */
+    uint16_t role_id;
     /** dat2 noClickThrough on a LAYER; CS2 can also raise it later. */
     uint8_t no_click_through;
     struct UITreeElemPosition position;

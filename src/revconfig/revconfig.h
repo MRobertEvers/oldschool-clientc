@@ -241,6 +241,8 @@ enum RevConfigFieldKind
     RCFIELD_CHROME_PLUGIN_BUTTON_PITCH,
     RCFIELD_CHROME_PLUGIN_BUTTON_OP,
     RCFIELD_CHROME_PLUGIN_LAYOUT_SCRIPT,
+    RCFIELD_ROLE_MATCH,
+    RCFIELD_UICOMPONENT_ROLE,
     RCFIELD_UILAYOUT_NULL,
 };
 
@@ -270,6 +272,7 @@ enum RevConfigItemKind
     RCITEM_FEATURES,
     RCITEM_CAMERA,
     RCITEM_CHROME,
+    RCITEM_ROLE,
 };
 
 /** Section types that build an RCITEM_CACHE_REF, i.e. a bare name -> cache id. */
@@ -302,6 +305,106 @@ struct RevConfigCacheRefItem
     /* INI: id= — the cache id. -1 when the section opens, so a section that
      * declares no id= is indistinguishable from an absent one. */
     int id;
+};
+
+/** How one `match=` line in a [role:…] names the node it is looking for. */
+enum RevConfigRoleMatchKind
+{
+    /* No form stated -- an empty matcher slot. */
+    REVCONFIG_ROLE_MATCH_NONE,
+
+    /* slot(<region>[, <member>]) — hand off to the frame-slot resolver, which
+     * already answers the placeable regions on both a revconfig frame and a
+     * cache one. The member is the role's OWN numbering (a chat button's
+     * filter, a sidebar mount's tabno), never a position in a list. */
+    REVCONFIG_ROLE_MATCH_SLOT,
+
+    /* id(<expr>) — a uid, stated outright. Flat on dat1, `if(group, child)`
+     * on dat2; the expression parser spells both. */
+    REVCONFIG_ROLE_MATCH_ID,
+
+    /* iface(<name>[, <child>]) — the [iface:<name>] group's `child`
+     * (0 = the group root). A group this world has not mounted simply does
+     * not match, which is what lets one chain carry a rung per toplevel. */
+    REVCONFIG_ROLE_MATCH_IFACE,
+
+    /* clientcode(<expr>) — the cache's own semantic tag. */
+    REVCONFIG_ROLE_MATCH_CLIENTCODE,
+
+    /* cc(<anchor>, <sub_id>) — a CS2-created child of `anchor`, by the sub id
+     * the script named it with. The ONLY stable way to address a dynamic
+     * node: its component_id is a rotating handle that a delete-all and
+     * rebuild hands straight back out again. */
+    REVCONFIG_ROLE_MATCH_CC,
+};
+
+/*
+ * One component named inside a matcher: the whole of an `id()`/`iface()` line,
+ * or the anchor half of a `cc()` one.
+ */
+struct RevConfigRoleRef
+{
+    /* REVCONFIG_ROLE_MATCH_ID, _IFACE, or _NONE for "no reference stated". */
+    enum RevConfigRoleMatchKind kind;
+
+    /* _IFACE: the [iface:<name>] section id, verbatim -- this module is a leaf
+     * and does not resolve it. Empty for _ID. */
+    char name[48];
+
+    /* _ID: the uid. _IFACE: the child within the group, 0 when unstated. */
+    int value;
+};
+
+/*
+ * One rung of a role's matcher chain.
+ *
+ * Rungs are tried in declaration order and the first that resolves against the
+ * LIVE tree wins, so a profile states its alternates -- one per toplevel, or a
+ * cache tag with a hardcoded uid behind it -- rather than having to know which
+ * one this world booted.
+ */
+struct RevConfigRoleMatcher
+{
+    /* Which form the line used. */
+    enum RevConfigRoleMatchKind kind;
+
+    /* _SLOT: the region name and the member, verbatim ("chat_buttons",
+     * "report"). An empty member means the region itself. */
+    char slot[32];
+    char member[24];
+
+    /* _CLIENTCODE: the code. _CC: the dynamic sub id. -1 otherwise. */
+    int value;
+
+    /* _ID and _IFACE: the node itself. _CC: its parent. _NONE otherwise. */
+    struct RevConfigRoleRef ref;
+};
+
+/** How many rungs one chain may carry. */
+#define REVCONFIG_ROLE_MAX_MATCHERS 8
+
+/*
+ * One `[role:<name>]` section — a semantic name for an interface element,
+ * bound to whatever this revision happens to have put it in.
+ *
+ * The same argument as [iface:…] one level further down. There, the client
+ * knows the settings panel HAS an apply script and the profile knows its id.
+ * Here, the client knows a world has a report button and a logout screen, and
+ * the profile knows which node that is -- a chat-button member on a 2004
+ * frame, a component of some toplevel on an OldSchool one, and on a CS2 lane
+ * possibly a node no cache record describes at all because a script built it.
+ *
+ * A role no profile declares does not resolve, and that is an ANSWER: the
+ * plugin asking offers no verb rather than pressing something at random.
+ */
+struct RevConfigRoleItem
+{
+    /* [role:<name>] — the symbolic name a plugin asks for. */
+    char name[64];
+
+    /* INI: match= — the chain, in declaration order. */
+    struct RevConfigRoleMatcher matchers[REVCONFIG_ROLE_MAX_MATCHERS];
+    int matcher_count;
 };
 
 /*
@@ -522,6 +625,16 @@ struct RevConfigUIComponentItem
      * mainModalId/sideModalId/chatComId surfaces). Empty = not a slot.
      */
     char slot[24];
+
+    /*
+     * INI: role=
+     * A semantic name for this node, stamped onto the live component so a
+     * plugin can ask for it by what it IS. The direct channel, for the nodes
+     * this profile authored itself; a cache-owned or script-built node is
+     * named the other way round, by a [role:<name>] matcher chain. Empty =
+     * this node carries no role.
+     */
+    char role[64];
 
     /*
      * INI: componentno=  (default -1 when section opens)
@@ -933,6 +1046,7 @@ struct RevConfigItem
         struct RevConfigFeaturesItem features;
         struct RevConfigCameraItem camera;
         struct RevConfigChromeItem chrome;
+        struct RevConfigRoleItem role;
     } u;
 };
 
@@ -1035,6 +1149,26 @@ revconfig_parse_button_type(char const* str);
  */
 int
 revconfig_parse_camera_zoom(char const* str, struct RevConfigCameraItem* out);
+
+/**
+ * Parse one `[role:…] match=` line into `out`.
+ *
+ *   slot(<region>[, <member>])   slot(chat_buttons, report)
+ *   id(<expr>)                   id(2449)   id(if(553, 0))
+ *   iface(<name>[, <child>])     iface(logout)
+ *   clientcode(<expr>)           clientcode(205)
+ *   cc(<anchor>, <sub_id>)       cc(iface(xpdrop), 4)
+ *
+ * where `<anchor>` is an `id()` or an `iface()`, and every `<expr>` is the
+ * full integer-expression grammar (@see revconfig_parse_int).
+ *
+ * Returns 1 on success. Returns 0 and leaves `out` untouched otherwise, having
+ * REPORTED the line on stderr: a matcher that does not parse must be loud,
+ * because the alternative is a role that silently never resolves and a plugin
+ * that quietly offers no verb on every world.
+ */
+int
+revconfig_parse_role_matcher(char const* str, struct RevConfigRoleMatcher* out);
 
 /**
  * Parse a `[camera] controls=` comma-separated name list into a

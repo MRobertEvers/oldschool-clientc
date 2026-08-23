@@ -1264,6 +1264,46 @@ lua_api_image_release(lua_State* L)
     return 0;
 }
 
+/* -- the interface's own widgets -- */
+
+/**
+ * `component_rect(id)` -> `{x=,y=,w=,h=}`, or nil.
+ *
+ * The read half of a component id, for the buttons the gameframe's ROLES do
+ * not cover: a cache frame's chat filters are the interface's own widgets, so
+ * api.layout.chat_buttons has no members to number and the id is the only
+ * handle there is. `id` is `(interface << 16) | component`, the same number
+ * the wire uses. Nil for a component this cache does not have or an interface
+ * that is not open, which is an answer -- a caller draws nothing rather than
+ * guessing a box.
+ */
+static int
+lua_api_component_rect(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    int const component_id = (int)luaL_checkinteger(L, 1);
+    int x = 0;
+    int y = 0;
+    int w = 0;
+    int h = 0;
+
+    if( !g_api->component_rect(script->cur_ctx, component_id, &x, &y, &w, &h) )
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_createtable(L, 0, 4);
+    lua_pushinteger(L, x);
+    lua_setfield(L, -2, "x");
+    lua_pushinteger(L, y);
+    lua_setfield(L, -2, "y");
+    lua_pushinteger(L, w);
+    lua_setfield(L, -2, "w");
+    lua_pushinteger(L, h);
+    lua_setfield(L, -2, "h");
+    return 1;
+}
+
 /* -- the pointer -- */
 
 /** `x, y` in canvas coordinates, or nil when the client has no pointer. */
@@ -1785,6 +1825,7 @@ lua_build_api_table(struct LuaScript* script)
         { "image_size", lua_api_image_size },
         { "image_release", lua_api_image_release },
         { "mouse_pos", lua_api_mouse_pos },
+        { "component_rect", lua_api_component_rect },
         { "hit_region", lua_api_hit_region },
         { "asset_load", lua_api_asset_load },
         { "asset_data", lua_api_asset_data },

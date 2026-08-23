@@ -832,6 +832,28 @@ fake_slot_member_rect(void* u, int slot, int member, int* x, int* y, int* w, int
         *h = g_member_box[3];
     return 1;
 }
+
+/* One mounted component, so a readout by id can be told from one that missed.
+ * `g_component_id` of -1 means nothing is mounted. */
+static int g_component_id = -1;
+static int g_component_box[4];
+
+static int
+fake_component_rect(void* u, int component_id, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    if( component_id != g_component_id )
+        return 0;
+    if( x )
+        *x = g_component_box[0];
+    if( y )
+        *y = g_component_box[1];
+    if( w )
+        *w = g_component_box[2];
+    if( h )
+        *h = g_component_box[3];
+    return 1;
+}
 static int
 fake_stat(void* u, int skill, int* cur, int* base)
 {
@@ -1017,6 +1039,7 @@ fake_engine(void)
     e.minimap_rect = fake_minimap_rect;
     e.slot_rect = fake_slot_rect;
     e.slot_member_rect = fake_slot_member_rect;
+    e.component_rect = fake_component_rect;
     e.layout_set = fake_layout_set;
     e.layout_slot = fake_layout_slot;
     e.layout_slot_skin = fake_layout_slot_skin;
@@ -1612,6 +1635,29 @@ main(void)
         CHECK(!api->slot_member_rect(ctx, TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, -1, &x, &y, &w, &h),
               "and \"any member\" is not a question this verb takes");
 
+        /*
+         * And the same box reached by COMPONENT ID, which is what a cache
+         * frame leaves a plugin: its chat buttons are the interface's own
+         * widgets, so they carry no role at all and the id is the only handle
+         * on them. An id nothing mounted is an answer, like an absent member.
+         */
+        g_component_id = (162 << 16) | 31;
+        g_component_box[0] = 437;
+        g_component_box[1] = 480;
+        g_component_box[2] = 79;
+        g_component_box[3] = 23;
+
+        x = y = w = h = -1;
+        CHECK(api->component_rect(ctx, (162 << 16) | 31, &x, &y, &w, &h),
+              "a mounted component answers by id");
+        CHECK(x == 437 && y == 480 && w == 79 && h == 23, "with its own box");
+
+        x = y = w = h = -1;
+        CHECK(!api->component_rect(ctx, (162 << 16) | 33, &x, &y, &w, &h),
+              "an id this tree does not carry is 0");
+        CHECK(x == -1 && y == -1, "and leaves the outputs untouched");
+
+        g_component_id = -1;
         g_member_slot = -1;
         g_member_no = -1;
         g_slot_w[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS] = 0;

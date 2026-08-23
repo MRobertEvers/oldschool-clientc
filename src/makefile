@@ -2386,7 +2386,7 @@ test-revconfig: $(OBJ_DIR)
 		revconfig/test/revconfig_test_main.c revconfig/test/revconfig_test_buffer.c \
 		revconfig/test/revconfig_test_items.c revconfig/test/revconfig_test_load.c \
 		revconfig/test/revconfig_test_parse.c revconfig/test/revconfig_test_refs.c \
-		revconfig/test/revconfig_test_profile.c
+		revconfig/test/revconfig_test_profile.c revconfig/test/revconfig_test_roles.c
 	./$(OBJ_DIR)/revconfig_test
 
 # Standalone TCP mock server for the OSRS rev-230 protocol: login handshake,
