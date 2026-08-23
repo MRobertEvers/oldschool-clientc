@@ -1624,10 +1624,10 @@ struct ToriRSServerNpcDef;
 
 enum
 {
-    /* 512 was enough while the suite only ran at revision 230. Revision 239
-     * emits more packets per tick — the interface resync alone adds a burst —
-     * and one stanza's capture overflowed, which silently truncates the record
-     * every assertion after it reads. */
+    /* 512 was enough while the suite only ran at revision 230; 239 emits more
+     * per tick and some stanzas ran the count out. There are ~170 static
+     * captures, so this size is paid 170 times over in BSS — raise it for a
+     * measured overflow, not on suspicion. */
     TORIRSSERVER_CAPTURE_MAX = 1024,
     TORIRSSERVER_CAPTURE_BYTES = 1024,
 };
@@ -1635,6 +1635,21 @@ enum
 struct ToriRSServerCapturedPacket
 {
     int opcode;
+    /**
+     * Bytes this packet actually carried, which may exceed the `data` this
+     * record kept — revision 239's appearance and interface-resync blocks run
+     * past 4 KB. `len` is always what is READABLE in `data`; `full_len` is what
+     * went on the wire, and `truncated` says the two differ.
+     *
+     * Recording a cut copy rather than refusing the packet is the point: a
+     * refused packet made `overflow` mean "some packet was too big", which
+     * invalidated the whole capture and reported as an overflowed buffer
+     * holding eighty packets. Absence assertions stay honest because the packet
+     * is still in the record; a decoder that runs off the end gets a short read
+     * and says so.
+     */
+    int full_len;
+    int truncated;
     /**
      * The packet's CANONICAL name (`PKT_NAME_*`), beside the revision's number
      * for it.
@@ -1658,8 +1673,9 @@ struct ToriRSServerCapture
 {
     struct ToriRSServerCapturedPacket packets[TORIRSSERVER_CAPTURE_MAX];
     int count;
-    /** Set when a packet was dropped, so a test cannot silently assert against
-     *  a truncated record. */
+    /** Set when the COUNT ran out and packets were dropped entirely, so a test
+     *  cannot silently assert absence against a partial record. An oversized
+     *  packet does not set this — it is kept, cut, and flagged per packet. */
     int overflow;
 };
 

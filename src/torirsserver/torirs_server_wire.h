@@ -457,6 +457,19 @@ ToriRSServer_WireReadInvHeader(
     int* out_capacity);
 
 /**
+ * Decode a captured VARP_SMALL / VARP_LARGE. The two forms put their fields in
+ * different orders at 239 and the same order at 230, so `pkt_name` selects.
+ */
+int
+ToriRSServer_WireReadVarp(
+    const struct ToriRSServerWire* wire,
+    int pkt_name,
+    const uint8_t* data,
+    int len,
+    int* out_varp,
+    int* out_value);
+
+/**
  * Decode a captured IF_SETTEXT: the uid and the string swap places between
  * revisions, and the string's terminator differs with them.
  */

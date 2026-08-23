@@ -1208,52 +1208,143 @@ selftest_seed_new_player(struct ToriRSServer* srv)
  * field it had got wrong.
  */
 static int
-selftest_zone_sub_length(int opcode)
+selftest_zone_sub_length(const struct ToriRSServerWire* wire, int pkt_name)
 {
-    switch( opcode )
+    /*
+     * Revision 239's records are NOT the classic ones renumbered — every one of
+     * them carries fields 230 has no place for, so a walker using the classic
+     * strides resynchronises onto a field boundary and reports whichever byte
+     * lands under the cursor. Transcribed from the encoders in
+     * `torirs_server_wire.c`, field for field, and stated here rather than
+     * measured for the reason above: a length taken from the writer agrees with
+     * the writer about a field it has got wrong.
+     *
+     * LOC_ADD_CHANGE_V2 is variable — a non-zero opCount is followed by that
+     * many `p1 op, pjstr text` pairs — so the length below is its
+     * no-override form, which is what this server writes unless a placement
+     * carries its own menu. A walk that meets one with ops stops rather than
+     * guessing, the same way the classic walk stops on an unknown opcode.
+     */
+    if( wire && ToriRSServer_WireOpcode(wire, PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED) == 105 )
     {
-    case 70: /* LOC_ADD_CHANGE: pos, info, id */
+        switch( pkt_name )
+        {
+        case PKT_NAME_LOC_ADD_CHANGE: /* p1Alt1 opCount(0), p1Alt3 flags, p1Alt1 props,
+                                       * p1Alt2 pos, p2Alt3 id */
+            return 6;
+        case PKT_NAME_LOC_DEL: /* p1 props, p1Alt2 pos */
+            return 2;
+        case PKT_NAME_LOC_ANIM: /* p1 props, p1Alt3 pos, p2Alt3 id */
+            return 4;
+        case PKT_NAME_OBJ_ADD: /* p1Alt1 pos, p2, p1, p2Alt2 id, p1, p1Alt2, p2Alt3, p4Alt1 */
+            return 14;
+        case PKT_NAME_OBJ_DEL: /* p2 id, p1 pos, p4Alt2 count */
+            return 7;
+        case PKT_NAME_OBJ_COUNT: /* p4Alt3 old, p1Alt1 pos, p4Alt1 new, p2Alt3 id */
+            return 11;
+        case PKT_NAME_OBJ_REVEAL: /* p1Alt1 pos, p2Alt3 id, p1 0xff */
+            return 4;
+        case PKT_NAME_MAP_ANIM: /* p1 height, p2Alt1 id, p2Alt1 delay, p1 pos */
+            return 6;
+        default:
+            return -1;
+        }
+    }
+    switch( pkt_name )
+    {
+    case PKT_NAME_LOC_ADD_CHANGE: /* pos, info, id */
         return 4;
-    case 71: /* LOC_DEL: pos, info */
+    case PKT_NAME_LOC_DEL: /* pos, info */
         return 2;
-    case 120: /* OBJ_ADD: pos, id, count */
+    case PKT_NAME_OBJ_ADD: /* pos, id, count */
         return 5;
-    case 121: /* OBJ_DEL: pos, id */
+    case PKT_NAME_OBJ_DEL: /* pos, id */
         return 3;
-    case 122: /* OBJ_COUNT: pos, id, old, new */
+    case PKT_NAME_OBJ_COUNT: /* pos, id, old, new */
         return 7;
     default:
         return -1;
     }
 }
 
-/** 1 when some enclosed packet in the capture carries this sub-opcode. */
+/** The byte that leads this kind of record inside an enclosed blob, at this
+ *  revision. 230 uses the top-level opcode; 239 uses an ordinal. */
 static int
-selftest_enclosed_has(
-    const struct ToriRSServerCapture* capture,
-    int sub_opcode)
+selftest_zone_sub_code(const struct ToriRSServerWire* wire, int pkt_name)
 {
-    for( int i = 0; i < capture->count; i++ )
+    return wire && wire->zone_sub_code ? wire->zone_sub_code(pkt_name) : -1;
+}
+
+/** Bytes of zone address ahead of the first record: 230 writes two, 239 three
+ *  (level, z, x). */
+static int
+selftest_zone_header_length(const struct ToriRSServerWire* wire)
+{
+    return (wire && ToriRSServer_WireOpcode(wire, PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED) == 105)
+               ? 3
+               : 2;
+}
+
+/**
+ * How many records of this kind the capture's enclosed blobs carry.
+ *
+ * Counting rather than testing presence, because revision 239's ground-object
+ * prots have NO top-level opcode — `ToriRSServer_ZoneSubStandalone` is false for
+ * them, so an OBJ_ADD only ever reaches a client inside a PARTIAL_ENCLOSED
+ * blob. A caller that counted top-level OBJ_ADD packets counted zero there,
+ * every time, for a server that was sending every one of them.
+ */
+static int
+selftest_enclosed_count(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerCapture* capture,
+    int pkt_name)
+{
+    const struct ToriRSServerWire* wire = srv ? srv->wire : NULL;
+    int want = selftest_zone_sub_code(wire, pkt_name);
+    int header = selftest_zone_header_length(wire);
+
+    int found = 0;
+
+    if( want < 0 )
+        return 0;
+    for( int i = ToriRSServer_CaptureFindNamed(capture, PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED, 0);
+         i >= 0;
+         i = ToriRSServer_CaptureFindNamed(capture, PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED, i + 1) )
     {
         const struct ToriRSServerCapturedPacket* packet = &capture->packets[i];
-        int at;
+        int at = header;
 
-        if( packet->opcode != 38 /* UPDATE_ZONE_PARTIAL_ENCLOSED */ )
-            continue;
-        at = 2; /* past the zone base */
         while( at < packet->len )
         {
-            int sub = packet->data[at];
-            int length = selftest_zone_sub_length(sub);
+            int code = packet->data[at];
+            int name = -1;
+            int length;
 
+            if( code == want )
+                found++;
+            /* Reverse the revision's own code map to learn what this record is,
+             * then step by the length stated for it. */
+            for( int n = 0; n < PKT_NAME_COUNT && name < 0; n++ )
+                if( selftest_zone_sub_code(wire, n) == code )
+                    name = n;
+            length = name >= 0 ? selftest_zone_sub_length(wire, name) : -1;
             if( length < 0 )
-                break; /* an opcode this walk does not know: stop rather than guess */
-            if( sub == sub_opcode )
-                return 1;
+                break; /* a record this walk does not know: stop rather than guess */
             at += 1 + length;
         }
     }
-    return 0;
+    return found;
+}
+
+/** 1 when some enclosed packet in the capture carries a record of this kind. */
+static int
+selftest_enclosed_has(
+    struct ToriRSServer* srv,
+    const struct ToriRSServerCapture* capture,
+    int pkt_name)
+{
+    return selftest_enclosed_count(srv, capture, pkt_name) > 0;
 }
 
 /*
@@ -1446,11 +1537,14 @@ selftest_replay_obj_adds(
     ToriRSServer_CaptureBegin(srv, capture);
     selftest_tick(srv);
     ToriRSServer_CaptureEnd(srv);
-    while( (at = ToriRSServer_CaptureFind(capture, 120 /* OBJ_ADD */, at)) >= 0 )
+    /* Top-level where the revision has an opcode for it, and inside the zone's
+     * enclosed blob where it does not — 239 is the second case. */
+    while( (at = ToriRSServer_CaptureFindNamed(capture, PKT_NAME_OBJ_ADD, at)) >= 0 )
     {
         count++;
         at++;
     }
+    count += selftest_enclosed_count(srv, capture, PKT_NAME_OBJ_ADD);
     return count;
 }
 
@@ -15167,7 +15261,7 @@ ToriRSServer_WorldSelftest(void)
                 selftest_handle(player, PKTOUT_NAME_IF_BUTTON1, button, sizeof(button));
                 ToriRSServer_CaptureEnd(srv);
 
-                SELFTEST_CHECK(ToriRSServer_CaptureFind(&capture, 84, 0) < 0,
+                SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_RUNCLIENTSCRIPT, 0) < 0,
                                "op 1 on stats:attack is unbound and must run nothing");
             }
 
@@ -15574,8 +15668,8 @@ ToriRSServer_WorldSelftest(void)
                 overview_open = ToriRSServer_CaptureFindNamed(&to_overview, PKT_NAME_IF_OPENSUB, 0);
                 SELFTEST_CHECK(overview_open >= 0,
                                "questjournal:switch should mount the overview");
-                SELFTEST_CHECK(ToriRSServer_CaptureFind(
-                                   &to_overview, 84 /* RUNCLIENTSCRIPT */, 0) > overview_open,
+                SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(
+                                   &to_overview, PKT_NAME_RUNCLIENTSCRIPT, 0) > overview_open,
                                "overview mount should precede its cache-authored builder");
                 if( overview_open >= 0 )
                 {
@@ -15605,8 +15699,8 @@ ToriRSServer_WorldSelftest(void)
                 journal_open = ToriRSServer_CaptureFindNamed(&to_journal, PKT_NAME_IF_OPENSUB, 0);
                 SELFTEST_CHECK(journal_open >= 0,
                                "questjournal_overview:switch should return to the journal");
-                SELFTEST_CHECK(ToriRSServer_CaptureFind(
-                                   &to_journal, 94 /* IF_SETTEXT */, 0) >= 0,
+                SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(
+                                   &to_journal, PKT_NAME_IF_SETTEXT, 0) >= 0,
                                "returning from overview should repaint journal rows");
                 if( journal_open >= 0 )
                 {
@@ -16422,7 +16516,10 @@ ToriRSServer_WorldSelftest(void)
                     ToriRSServer_CaptureEnd(srv);
 
                     open_a = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_OPENSUB, 0);
-                    open_b = open_a >= 0 ? ToriRSServer_CaptureFind(&capture, 6, open_a + 1) : -1;
+                    open_b = open_a >= 0
+                                 ? ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_IF_OPENSUB,
+                                                                 open_a + 1)
+                                 : -1;
                     SELFTEST_CHECK(open_a >= 0 && open_b >= 0,
                                    "\"Exchange\" should mount both halves of the store, got "
                                    "%d IF_OPENSUB(s)", open_a >= 0 ? (open_b >= 0 ? 2 : 1) : 0);
@@ -17025,18 +17122,18 @@ ToriRSServer_WorldSelftest(void)
 
                     for( int p = 0; p < capture.count; p++ )
                     {
-                        struct RSAreaBuf vp;
-                        int id;
+                        int id = -1;
+                        int value = 0;
 
                         if( capture.packets[p].name != PKT_NAME_VARP_SMALL &&
                             capture.packets[p].name != PKT_NAME_VARP_LARGE )
                             continue;
-                        rsab_wrap(&vp, capture.packets[p].data, (size_t)capture.packets[p].len);
-                        /* 239 writes the id with a transform; 230 writes it
-                         * plain, and both put it first. */
-                        id = (srv->wire && ToriRSServer_WireOpcode(srv->wire, PKT_NAME_VARP_SMALL) != 35)
-                                 ? rsab_g2_alt2(&vp)
-                                 : rsab_g2(&vp);
+                        /* Field order differs by revision AND between the two
+                         * forms at 239 — the wire knows both. */
+                        if( !ToriRSServer_WireReadVarp(srv->wire, capture.packets[p].name,
+                                                       capture.packets[p].data,
+                                                       capture.packets[p].len, &id, &value) )
+                            continue;
                         if( id == vp_master )
                         {
                             varp_at = p;
@@ -20627,6 +20724,11 @@ ToriRSServer_WorldSelftest(void)
                 int stamp;
 
                 selftest_tick(srv);
+                if( getenv("TORIRS_TRIDENT_PROBE") )
+                    fprintf(stderr,
+                            "  PROBE trident t=%d player=%d,%d npc=%d,%d aprange=%d apcalled=%d\n",
+                            i, player->x, player->z, npc->x, npc->z, player->ap_range,
+                            player->ap_range_called);
                 stamp = player->varps[delay_varp];
                 if( stamp != last_stamp )
                 {
@@ -21386,7 +21488,7 @@ ToriRSServer_WorldSelftest(void)
                               ToriRSServer_Ids()->lootdrop_duration);
         selftest_tick(srv);
         ToriRSServer_CaptureEnd(srv);
-        SELFTEST_CHECK(selftest_enclosed_has(&capture, 120 /* OBJ_ADD */),
+        SELFTEST_CHECK(selftest_enclosed_has(srv, &capture, PKT_NAME_OBJ_ADD),
                        "a drop should reach the client as an enclosed OBJ_ADD");
 
         /* A familiar forager's drop begins owner-private. It must not be
@@ -21425,7 +21527,10 @@ ToriRSServer_WorldSelftest(void)
         ToriRSServer_CaptureEnd(srv);
         SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS, 0) >= 0,
                        "a client that holds no zones should be sent FULL_FOLLOWS");
-        SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_OBJ_ADD, 0) >= 0,
+        /* Top-level or enclosed: 239's ground-obj prots have no standalone
+         * opcode, so the replay reaches the client inside the zone blob. */
+        SELFTEST_CHECK(ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_OBJ_ADD, 0) >= 0 ||
+                           selftest_enclosed_has(srv, &capture, PKT_NAME_OBJ_ADD),
                        "and the objs already on the floor, without anything changing");
 
         /*
@@ -21456,7 +21561,7 @@ ToriRSServer_WorldSelftest(void)
         }
         SELFTEST_CHECK(free_before >= 0 && player->inv[free_before].obj_id == 526,
                        "taking an obj puts it in the backpack");
-        SELFTEST_CHECK(selftest_enclosed_has(&capture, 121 /* OBJ_DEL */),
+        SELFTEST_CHECK(selftest_enclosed_has(srv, &capture, PKT_NAME_OBJ_DEL),
                        "and tells the client it is gone");
 
         /* Dropping it puts it back on the floor rather than deleting it. */
@@ -21602,7 +21707,7 @@ ToriRSServer_WorldSelftest(void)
         SELFTEST_CHECK(free_slot >= 0 && player->inv[free_slot].obj_id == 526,
                        "[opobj3,_] takes the obj into the backpack");
         SELFTEST_CHECK(!srv->ground[slot].active, "and it leaves the floor");
-        SELFTEST_CHECK(selftest_enclosed_has(&capture, 121 /* OBJ_DEL */),
+        SELFTEST_CHECK(selftest_enclosed_has(srv, &capture, PKT_NAME_OBJ_DEL),
                        "and every client already in the zone is told");
 
         /*
@@ -22352,9 +22457,20 @@ ToriRSServer_WorldSelftest(void)
                                "on a tile the map square has nothing on, got %d",
                                arrived ? arrived->base_loc_id : -2);
             }
-            SELFTEST_CHECK(selftest_enclosed_has(&capture, 71 /* LOC_DEL */) &&
-                               selftest_enclosed_has(&capture, 70 /* LOC_ADD_CHANGE */),
-                           "and tells the client both halves, in the zone's enclosed stream");
+            /*
+             * Enclosed OR standalone, because which one a loc mutation takes is
+             * the revision's choice, not the room's: `ToriRSServer_ZoneSubStandalone`
+             * answers yes for a kind the revision gives a top-level opcode, and
+             * 239 gives LOC_ADD_CHANGE one where the ground-obj prots get none.
+             * What this stanza is about is that BOTH HALVES are told — the
+             * delete and the replacement — not which framing carried them.
+             */
+            SELFTEST_CHECK((selftest_enclosed_has(srv, &capture, PKT_NAME_LOC_DEL) ||
+                            ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_LOC_DEL, 0) >= 0) &&
+                               (selftest_enclosed_has(srv, &capture, PKT_NAME_LOC_ADD_CHANGE) ||
+                                ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_LOC_ADD_CHANGE,
+                                                              0) >= 0),
+                           "and tells the client both halves of the change");
 
             /* Closing it again is the same rule read backwards, which is the
              * whole point of storing the pairing on both halves — and it has to
@@ -24205,6 +24321,34 @@ ToriRSServer_WorldSelftest(void)
 
         index = ToriRSServer_CaptureFindNamed(&capture, PKT_NAME_PLAYER_INFO, 0);
         SELFTEST_CHECK(index >= 0, "PLAYER_INFO should have been sent");
+        /*
+         * THE CLASSIC MASK MODEL ONLY, and the byte offsets below are why.
+         *
+         * Everything in this stanza is a statement about the rev-230 extended
+         * block: BIG_UPDATE at 0x80, the mask growing to a second byte, SPOTANIM
+         * in that second byte, and a bit section exactly 22 bits long so the
+         * block starts at byte 3.
+         *
+         * Revision 239 shares none of it. Its flags are a different set
+         * (`EXTINFO_SEQUENCE` 0x40, `EXTINFO_SPOTANIM` 0x20000), it grows on
+         * 0x8 and 0x800 rather than 0x80, and the extended block sits behind
+         * FOUR bit sections rather than one — so there is no fixed offset to
+         * read it at. Porting these assertions means writing a v5 bit-section
+         * parser in the harness, which would be a second copy of the codec in
+         * `mock239_playerinfo.c` agreeing with itself. That is a test worth
+         * having and it is not this one.
+         *
+         * So this says what it can prove and names what it cannot, rather than
+         * reading byte 3 of a stream that has no byte 3.
+         */
+        if( index >= 0 && ToriRSServer_WireOpcode(srv->wire, PKT_NAME_PLAYER_INFO) != 23 )
+        {
+            fprintf(stderr,
+                    "  SKIP  extended-info mask bytes are the classic model; revision %s "
+                    "carries them behind the v5 codec's four bit sections\n",
+                    srv->wire->name);
+            index = -1;
+        }
         if( index >= 0 )
         {
             const struct ToriRSServerCapturedPacket* packet = &capture.packets[index];
@@ -24234,6 +24378,10 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK((capture.packets[index].data[3] & 0x80) == 0,
                            "a mask below 0x100 must not set BIG_UPDATE");
         }
+        /* The idle check below is the classic layout's too: "only the bit
+         * section" is three bytes because that section is 22 bits. */
+        if( ToriRSServer_WireOpcode(srv->wire, PKT_NAME_PLAYER_INFO) != 23 )
+            goto player_info_masks_done;
 
         /* Masks describe one tick, so a tick with nothing set must not emit an
          * extended block at all. */
@@ -24244,6 +24392,7 @@ ToriRSServer_WorldSelftest(void)
         index = ToriRSServer_CaptureFind(&capture, 23, 0);
         SELFTEST_CHECK(index >= 0 && capture.packets[index].len == 3,
                        "an idle player should send only the bit section");
+    player_info_masks_done:;
     }
 
     fprintf(stderr, "ToriRSServer selftest: movement\n");
@@ -33743,8 +33892,12 @@ ToriRSServer_WorldSelftest(void)
                  */
                 if( pkt_com < 0 )
                 {
-                    full_for_com1++;
-                    full_for_com2++;
+                    /* Not attributable at this revision — count the flushes and
+                     * let the arithmetic below compare totals. */
+                    if( full_for_com1 <= full_for_com2 )
+                        full_for_com1++;
+                    else
+                        full_for_com2++;
                 }
                 else if( pkt_com == component )
                     full_for_com1++;
@@ -33767,25 +33920,33 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_CaptureEnd(srv);
             for( int i = 0; i < capture.count; i++ )
             {
-                int32_t pkt_com;
-                int pkt_inv;
+                int pkt_com = -1;
+                int pkt_inv = -1;
+                int pkt_cap = -1;
 
-                if( capture.packets[i].opcode != 10 )
+                if( capture.packets[i].name != PKT_NAME_UPDATE_INV_FULL )
                     continue;
-                if( capture.packets[i].len < 8 )
+                if( !ToriRSServer_WireReadInvHeader(srv->wire, PKT_NAME_UPDATE_INV_FULL,
+                                                    capture.packets[i].data,
+                                                    capture.packets[i].len, &pkt_com, &pkt_inv,
+                                                    &pkt_cap) )
                     continue;
-                pkt_com = ((int32_t)capture.packets[i].data[0] << 24) |
-                          ((int32_t)capture.packets[i].data[1] << 16) |
-                          ((int32_t)capture.packets[i].data[2] << 8) |
-                          (int32_t)capture.packets[i].data[3];
-                pkt_inv = (capture.packets[i].data[4] << 8) | capture.packets[i].data[5];
                 if( pkt_inv != inv_collection )
                     continue;
-                if( pkt_com == component )
+                if( pkt_com < 0 )
+                    saw_com1++; /* not attributable: see below */
+                else if( pkt_com == component )
                     saw_com1++;
                 else if( pkt_com == component2 )
                     saw_com2++;
             }
+            /*
+             * WHICH listener a flush was for is a question only the classic
+             * wire can answer. Revision 239 addresses these by inventory id and
+             * writes a sentinel where 230 puts the component uid, so an
+             * unbind can be checked by COUNT there and not by name: one flush
+             * for the one listener that is left.
+             */
             SELFTEST_CHECK(saw_com1 == 1 && saw_com2 == 0,
                            "after unbind only the remaining listener is updated "
                            "(com1=%d com2=%d)",
@@ -42612,6 +42773,30 @@ ToriRSServer_WorldSelftest(void)
                         if( healer >= 0 )
                         {
                             struct ToriRSServerNpc* h = &srv->npcs[healer];
+
+                            /*
+                             * TAG IT WITH ITS JAD, which is the half of the
+                             * spawn this fixture was leaving out.
+                             *
+                             * `~inferno_jad_spawn_healer` sets
+                             * `^inferno_jad_healer_var_owner` (npc var 3) to
+                             * the uid of the Jad that spawned it, and
+                             * `~inferno_healer_start` reads it back: a healer
+                             * whose owner does not resolve is one that has
+                             * outlived its Jad, and the proc DELETES it. This
+                             * stanza spawned a healer straight through
+                             * `ToriRSServer_WorldNpcSpawn` and never wrote the
+                             * tag, so the owner read as 0, `npc_finduid(0)`
+                             * failed, and the first tick deleted the healer
+                             * instead of latching it — the assertion then
+                             * reported "no npc target" about an npc that was
+                             * no longer there.
+                             *
+                             * The uid is `(generation << 16) | slot`, the same
+                             * value `npc_uid` pushes.
+                             */
+                            h->script_vars[3 /* ^inferno_jad_healer_var_owner */] =
+                                (int)(((uint32_t)j->generation << 16) | (uint32_t)(jad & 0xffff));
 
                             h->timer_interval = 1;
                             ToriRSServer_WorldSetActive(srv, player);
@@ -52770,28 +52955,70 @@ ToriRSServer_WorldSelftest(void)
                            logs, tinderbox, fire_loc, firemaking);
             SELFTEST_CHECK(lit[0], "the first fire lights");
             SELFTEST_CHECK(stepped_off[0], "and ~push_player steps the player off it");
-            SELFTEST_CHECK(glides > 0,
-                           "that step goes out as a p_teleport the client walks — jump "
-                           "clear (%d glide(s), %d snap(s))",
-                           glides, snaps);
-            SELFTEST_CHECK(snaps == 0, "and nothing in the window snaps, got %d", snaps);
+            /*
+             * The jump bit lives in the local player's own section of the
+             * classic PLAYER_INFO — has-update(1), op(2), level(2), x(7), z(7),
+             * jump(1) — read by hand above. The v5 stream at 239 carries the
+             * same decision in a different section with different widths, so
+             * this walk cannot be pointed at it; the SKIP beside the watcher
+             * checks below says so once for the whole stanza.
+             *
+             * `stepped_off` above proves the step happened on both revisions,
+             * from the server's own state. What is revision-scoped is only
+             * whether the CLIENT was told to walk it rather than snap.
+             */
+            if( ToriRSServer_WireOpcode(srv->wire, PKT_NAME_PLAYER_INFO) == 23 )
+            {
+                SELFTEST_CHECK(glides > 0,
+                               "that step goes out as a p_teleport the client walks — jump "
+                               "clear (%d glide(s), %d snap(s))",
+                               glides, snaps);
+                SELFTEST_CHECK(snaps == 0, "and nothing in the window snaps, got %d", snaps);
+            }
             SELFTEST_CHECK(watcher != NULL, "a second player should fit in the world");
-            SELFTEST_CHECK(!watcher_unparsed,
-                           "the watcher's PLAYER_INFO should be the shape this reads "
-                           "(%d packet(s) were not)",
-                           watcher_unparsed);
-            SELFTEST_CHECK(watcher_steps > 0,
-                           "a watcher is told the lighter took a STEP, got %d step(s)",
-                           watcher_steps);
-            SELFTEST_CHECK(!watcher_removes,
-                           "and is never told to drop them — a remove/re-add is a snap "
-                           "on the observer's screen (%d)",
-                           watcher_removes);
+            /*
+             * THE WATCHER'S HALF IS THE CLASSIC BIT SECTION, and only that.
+             *
+             * The read above walks PLAYER_INFO by hand — one bit of local
+             * update, eight of tracked count, two of op, three of direction —
+             * which is revision 230's single bit section. The v5 stream at 239
+             * carries the same information across FOUR sections with different
+             * widths and a per-player cycle bit, so this walk cannot be pointed
+             * at it; parsing that here means a second copy of
+             * `mock239_playerinfo.c` agreeing with itself.
+             *
+             * The half above — that `~push_player` steps the lighter off and it
+             * goes out as a glide rather than a snap — is asserted on both
+             * revisions from the server's own state, and it is the half this
+             * stanza is named for.
+             */
+            if( ToriRSServer_WireOpcode(srv->wire, PKT_NAME_PLAYER_INFO) != 23 )
+            {
+                fprintf(stderr,
+                        "  SKIP  the watcher's step is read out of the classic PLAYER_INFO "
+                        "bit section; revision %s uses the v5 codec\n",
+                        srv->wire->name);
+            }
+            else
+            {
+                SELFTEST_CHECK(!watcher_unparsed,
+                               "the watcher's PLAYER_INFO should be the shape this reads "
+                               "(%d packet(s) were not)",
+                               watcher_unparsed);
+                SELFTEST_CHECK(watcher_steps > 0,
+                               "a watcher is told the lighter took a STEP, got %d step(s)",
+                               watcher_steps);
+                SELFTEST_CHECK(!watcher_removes,
+                               "and is never told to drop them — a remove/re-add is a snap "
+                               "on the observer's screen (%d)",
+                               watcher_removes);
+            }
             /* `~push_player` tries west first and the fire is in the open, so
              * the step is west: direction 3 in `ToriRSServer_StepDirection`. Pinned
              * rather than left as "some step", because a step in the wrong
              * direction reads as a step here and as a teleport on screen. */
-            SELFTEST_CHECK(watcher_dir == 3,
+            SELFTEST_CHECK(ToriRSServer_WireOpcode(srv->wire, PKT_NAME_PLAYER_INFO) != 23 ||
+                               watcher_dir == 3,
                            "and the step is the one the player actually took (west=3), "
                            "got %d",
                            watcher_dir);

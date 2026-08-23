@@ -324,20 +324,24 @@ ToriRSServer_Send(
     {
         struct ToriRSServerCapture* capture = srv->capture;
 
-        if( capture->count < TORIRSSERVER_CAPTURE_MAX && len <= TORIRSSERVER_CAPTURE_BYTES )
+        if( capture->count < TORIRSSERVER_CAPTURE_MAX )
         {
             struct ToriRSServerCapturedPacket* packet = &capture->packets[capture->count++];
+            int kept = len > TORIRSSERVER_CAPTURE_BYTES ? TORIRSSERVER_CAPTURE_BYTES : len;
 
             packet->opcode = opcode;
             packet->name = pkt_name;
-            packet->len = len;
-            if( len > 0 )
-                memcpy(packet->data, payload, (size_t)len);
+            packet->len = kept;
+            packet->full_len = len;
+            packet->truncated = kept != len;
+            if( kept > 0 )
+                memcpy(packet->data, payload, (size_t)kept);
         }
         else
         {
-            /* Never silently truncate: a test asserting "this packet is absent"
-             * against a full buffer would pass for the wrong reason. */
+            /* Never silently DROP: a test asserting "this packet is absent"
+             * against a full buffer would pass for the wrong reason. An
+             * oversized packet is kept and cut instead — see `truncated`. */
             capture->overflow = 1;
         }
     }

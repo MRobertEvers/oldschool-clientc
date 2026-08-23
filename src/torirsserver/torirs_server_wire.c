@@ -173,6 +173,8 @@ w239_if_closesub(struct RSAreaBuf* buf, int dest_uid)
 static void
 w239_message_game(struct RSAreaBuf* buf, int type, const char* text);
 static void
+w239_varp_small(struct RSAreaBuf* buf, int varp, int value);
+static void
 w239_inv_header(struct RSAreaBuf* buf, int pkt_name, int uid, int container, int capacity);
 static void
 w239_if_settext(struct RSAreaBuf* buf, int uid, const char* text);
@@ -240,6 +242,55 @@ ToriRSServer_WireReadInvHeader(
     }
     if( pkt_name == PKT_NAME_UPDATE_INV_FULL )
         *out_capacity = rsab_g2(&buf);
+    return rsab_ok(&buf);
+}
+
+/*
+ * READING a VARP_SMALL / VARP_LARGE back.
+ *
+ * The two forms do not even agree with each other at 239: VARP_SMALL writes
+ * `p1Alt1 value` and THEN `p2Alt3 varp`, while VARP_LARGE writes `p2Alt2 varp`
+ * first and `p4Alt1 value` after. 230 puts a plain `p2 varp` first in both. A
+ * stanza that reads two bytes off the front and calls it a varp id therefore
+ * reads a value-plus-half-an-id at 239 and matches nothing — "the open should
+ * transmit slayer_misc (4844)" about an open that transmitted it.
+ */
+int
+ToriRSServer_WireReadVarp(
+    const struct ToriRSServerWire* wire,
+    int pkt_name,
+    const uint8_t* data,
+    int len,
+    int* out_varp,
+    int* out_value)
+{
+    struct RSAreaBuf buf;
+    int large = pkt_name == PKT_NAME_VARP_LARGE;
+
+    assert(wire);
+    assert(data);
+    assert(out_varp);
+    assert(out_value);
+
+    rsab_wrap(&buf, (uint8_t*)data, (size_t)(len < 0 ? 0 : len));
+    if( wire->payload && wire->payload->varp_small == w239_varp_small )
+    {
+        if( large )
+        {
+            *out_varp = rsab_g2_alt2(&buf);
+            *out_value = rsab_g4_alt1(&buf);
+        }
+        else
+        {
+            *out_value = rsab_g1_alt1(&buf);
+            *out_varp = rsab_g2_alt3(&buf);
+        }
+    }
+    else
+    {
+        *out_varp = rsab_g2(&buf);
+        *out_value = large ? rsab_g4(&buf) : rsab_g1(&buf);
+    }
     return rsab_ok(&buf);
 }
 
