@@ -10886,46 +10886,52 @@ ToriRSServer_WorldSelftest(void)
          * active_player. Two live players prove follow/facing chooses the
          * owner; reusing the owner's slot proves it does not transfer. */
         {
-            struct ToriRSServer owners;
+            /* Heap, same reason `srv` above is: `struct ToriRSServer` is ~5 MB,
+             * and as a stack local this one put the selftest's frame past the
+             * win64 exe's 2 MB stack reserve — the prologue's stack probe
+             * faulted before the first stanza could run. */
+            struct ToriRSServer* owners;
             struct ToriRSServerPlayer* first;
             struct ToriRSServerPlayer* other;
             struct ToriRSServerPlayer* replacement;
             struct ToriRSServerNpc* familiar;
             uint32_t first_generation;
 
-            memset(&owners, 0, sizeof(owners));
-            first = ToriRSServer_WorldAddPlayer(&owners, NULL);
-            other = ToriRSServer_WorldAddPlayer(&owners, NULL);
-            familiar = &owners.npcs[0];
+            owners = calloc(1, sizeof(*owners));
+            assert(owners);
+            first = ToriRSServer_WorldAddPlayer(owners, NULL);
+            other = ToriRSServer_WorldAddPlayer(owners, NULL);
+            familiar = &owners->npcs[0];
             familiar->active = 1;
             familiar->mode = TORIRSSERVER_NPCMODE_PLAYERFACE;
             familiar->face_entity = -1;
             familiar->turnspeed = 32;
-            owners.npc_slot_max = 1;
+            owners->npc_slot_max = 1;
             ToriRSServer_WorldNpcSetOwner(familiar, first);
             first_generation = first->login_generation;
 
             SELFTEST_CHECK(first_generation != 0 && other != NULL,
                            "two player logins get a non-zero generation");
-            SELFTEST_CHECK(ToriRSServer_WorldNpcOwner(&owners, familiar) == first,
+            SELFTEST_CHECK(ToriRSServer_WorldNpcOwner(owners, familiar) == first,
                            "an owner handle resolves its exact login");
-            SELFTEST_CHECK(ToriRSServer_WorldNpcVisibleTo(&owners, familiar, first),
+            SELFTEST_CHECK(ToriRSServer_WorldNpcVisibleTo(owners, familiar, first),
                            "an owned npc is visible to its exact owner");
-            SELFTEST_CHECK(!ToriRSServer_WorldNpcVisibleTo(&owners, familiar, other),
+            SELFTEST_CHECK(!ToriRSServer_WorldNpcVisibleTo(owners, familiar, other),
                            "an owned npc is hidden from another player");
-            SELFTEST_CHECK(npc_run_mode(&owners, familiar, 0) == 1 &&
+            SELFTEST_CHECK(npc_run_mode(owners, familiar, 0) == 1 &&
                                familiar->face_entity == TORIRSSERVER_FACE_PLAYER_BASE + first->pid,
                            "an owned npc faces its owner, not active_player");
 
             first->active = 0;
-            replacement = ToriRSServer_WorldAddPlayer(&owners, NULL);
+            replacement = ToriRSServer_WorldAddPlayer(owners, NULL);
             SELFTEST_CHECK(replacement == first &&
                                replacement->login_generation != first_generation,
                            "a reused pid advances its login generation");
-            SELFTEST_CHECK(ToriRSServer_WorldNpcOwner(&owners, familiar) == NULL,
+            SELFTEST_CHECK(ToriRSServer_WorldNpcOwner(owners, familiar) == NULL,
                            "a stale owner handle does not transfer to the replacement");
-            SELFTEST_CHECK(!ToriRSServer_WorldNpcVisibleTo(&owners, familiar, replacement),
+            SELFTEST_CHECK(!ToriRSServer_WorldNpcVisibleTo(owners, familiar, replacement),
                            "a stale owned npc stays hidden after pid reuse");
+            free(owners);
         }
 
         SELFTEST_CHECK(ToriRSServer_IdsResolve() == 0, "every id should resolve");
@@ -13640,7 +13646,7 @@ ToriRSServer_WorldSelftest(void)
 
                     ToriRSServer_WorldPlayerInit(second);
 
-                    srv->active_player = first;
+                    ToriRSServer_WorldSetActive(srv, first);
                     SELFTEST_CHECK(ToriRSServer_ScriptsRunProc(
                                        srv, "[proc,selftest_vars_write]", NULL, 0),
                                    "[proc,selftest_vars_write] should run");
@@ -13648,7 +13654,7 @@ ToriRSServer_WorldSelftest(void)
                     /* Read it back through the writing player first: if this
                      * fails the opcodes are broken outright, and the
                      * cross-player check below would be uninterpretable. */
-                    srv->active_player = first;
+                    ToriRSServer_WorldSetActive(srv, first);
                     ran = ToriRSServer_ScriptsRunProcInt(
                         srv, "[proc,selftest_vars_read]", NULL, 0, &seen);
                     SELFTEST_CHECK(ran && seen == 3,
@@ -13658,14 +13664,14 @@ ToriRSServer_WorldSelftest(void)
                     /* The claim. A per-player variable passes everything above
                      * and fails exactly here. */
                     seen = -1;
-                    srv->active_player = second;
+                    ToriRSServer_WorldSetActive(srv, second);
                     ran = ToriRSServer_ScriptsRunProcInt(
                         srv, "[proc,selftest_vars_read]", NULL, 0, &seen);
                     SELFTEST_CHECK(ran && seen == 3,
                                    "a SECOND player sees the shared vars write, got %d",
                                    seen);
 
-                    srv->active_player = first;
+                    ToriRSServer_WorldSetActive(srv, first);
                     ToriRSServer_WorldPlayerFree(srv, second->pid);
                     ToriRSServer_WorldPlayerReap(srv);
                 }
@@ -19430,12 +19436,14 @@ ToriRSServer_WorldSelftest(void)
                            clock_at, clock_opentop_at);
         }
         {
-            int origin_x = ToriRSServer_SceneOrigin(srv->zone_x);
-            int origin_z = ToriRSServer_SceneOrigin(srv->zone_z);
+            /* The PLAYER's window, not the world's root: login recentres the
+             * logging-in player's own scene and leaves the root anchored. */
+            int origin_x = ToriRSServer_SceneOrigin(player->zone_x);
+            int origin_z = ToriRSServer_SceneOrigin(player->zone_z);
 
-            SELFTEST_CHECK(srv->zone_x == (login_x >> 3) && srv->zone_z == (login_z >> 3),
+            SELFTEST_CHECK(player->zone_x == (login_x >> 3) && player->zone_z == (login_z >> 3),
                            "login rebuild must centre saved coord %d,%d; got zone %d,%d",
-                           login_x, login_z, srv->zone_x, srv->zone_z);
+                           login_x, login_z, player->zone_x, player->zone_z);
             SELFTEST_CHECK(login_x > origin_x && login_z > origin_z &&
                                login_x < origin_x + TORIRSSERVER_SCENE_TILES &&
                                login_z < origin_z + TORIRSSERVER_SCENE_TILES,
@@ -24220,8 +24228,10 @@ ToriRSServer_WorldSelftest(void)
             int middle_z = -1;
             int end_x = -1;
             int end_z = -1;
-            int scene_x = ToriRSServer_SceneOrigin(srv->zone_x);
-            int scene_z = ToriRSServer_SceneOrigin(srv->zone_z);
+            /* Scan the PLAYER's own window: the walk below is judged against
+             * it, so the corner has to be found inside it. */
+            int scene_x = ToriRSServer_SceneOrigin(player->zone_x);
+            int scene_z = ToriRSServer_SceneOrigin(player->zone_z);
             for( int x = scene_x + 1; x < scene_x + TORIRSSERVER_SCENE_TILES - 1 && corner_x < 0;
                  x++ )
             {
@@ -24297,8 +24307,8 @@ ToriRSServer_WorldSelftest(void)
          * Put the scene back where this section found it.
          *
          * The search above parks on the scene's south-west corner, and a park
-         * rebuilds the world around it — so this stanza silently hands the next
-         * one a window shifted two zones west and south. That is what broke the
+         * rebuilds this player's own window around it — so this stanza silently
+         * hands the next one a window shifted two zones west and south. That is what broke the
          * castle-door lookup below when this check was added. Restoring here as
          * well as parking there means the next stanza to be written does not
          * have to know that this one moves global state.
@@ -26636,17 +26646,20 @@ ToriRSServer_WorldSelftest(void)
     fprintf(stderr, "ToriRSServer selftest: rebuild on scene edge\n");
 
     {
-        int zone_before = srv->zone_x;
+        /* Per-player now: walking to the edge re-centres THIS PLAYER's window
+         * (`player->zone_x`); the world's root window never moves. */
+        int zone_before = player->zone_x;
         steps_clear(player);
-        player->x = ToriRSServer_SceneOrigin(srv->zone_x) + 4; /* inside the 16-tile margin */
+        player->x = ToriRSServer_SceneOrigin(player->zone_x) + 4; /* inside the 16-tile margin */
         ToriRSServer_WorldTick(srv);
-        SELFTEST_CHECK(srv->zone_x != zone_before, "walking to the scene edge re-centres the scene");
+        SELFTEST_CHECK(player->zone_x != zone_before,
+                       "walking to the scene edge re-centres the player's scene");
         SELFTEST_CHECK(player->place_dirty == 0,
                        "edge rebuild is not a teleport (LostCity BuildArea.rebuildNormal)");
         SELFTEST_CHECK(player->rebuild_pending == 0,
                        "rebuild was sent this tick");
         {
-            int local_x = player->x - ToriRSServer_SceneOrigin(srv->zone_x);
+            int local_x = player->x - ToriRSServer_SceneOrigin(player->zone_x);
             SELFTEST_CHECK(local_x >= 0 && local_x < TORIRSSERVER_SCENE_TILES,
                            "player sits inside the new scene, local_x=%d", local_x);
         }
@@ -27531,7 +27544,7 @@ ToriRSServer_WorldSelftest(void)
          *
          * THE TICK BETWEEN THE TWO COMMANDS IS THE WHOLE REASON THIS IS A
          * STANZA rather than another line in ::tobrooms. `loc_find` reads the
-         * one currently-built scene, and the scene is rebuilt on the tick
+         * acting player's currently-built window, and it is rebuilt on the tick
          * boundary by ToriRSServer_WorldSceneRebuild, not inside `p_teleport` —
          * so asking in the same script that built the room reads the scene the
          * player has not moved into yet, and answers "missing" for all five.
@@ -35949,10 +35962,27 @@ ToriRSServer_WorldSelftest(void)
          * ground with anything in it is a question about Lumbridge's walls
          * rather than about the mode. The run has to be clear one tile *behind*
          * the origin too — that is where the follower stands.
+         *
+         * "Clear" is judged the way the follower's own steps will judge it —
+         * entity occupancy included, the same flags `npc_travel_extra` gives a
+         * blockwalking npc — not just static collision. The world's roster
+         * npcs are live through the whole selftest, and now that every scene
+         * window keeps its own neighbourhood realised the home-area wanderers
+         * have had thousands of ticks to drift: a sheep standing in a
+         * statically-clear lane stalls the follower exactly like a wall
+         * would, and that is a question about the fixture, not the mode.
+         *
+         * Occupancy at scan time is not enough on its own: the stanza runs the
+         * world ~24 ticks, and a wanderer two tiles off the lane can drift
+         * into it mid-leg. The standoff below holds every live npc away from
+         * the lane when it is chosen — the widest margin the map affords,
+         * tried from 6 tiles down, because home-area Lumbridge is dense
+         * enough that no lane at all survives the widest one everywhere.
          */
-        for( int cx = 3200; cx < 3250 && origin_x < 0; cx++ )
+        for( int standoff = 6; standoff >= 2 && origin_x < 0; standoff-- )
+        for( int cx = 3170; cx < 3260 && origin_x < 0; cx++ )
         {
-            for( int cz = 3200; cz < 3250 && origin_x < 0; cz++ )
+            for( int cz = 3170; cz < 3260 && origin_x < 0; cz++ )
             {
                 for( int d = 0; d < 4 && origin_x < 0; d++ )
                 {
@@ -35965,8 +35995,39 @@ ToriRSServer_WorldSelftest(void)
 
                         if( !ToriRSServer_SceneContains(tx, tz) ||
                             !ToriRSServer_SceneContains(tx + k_dirs[d][0], tz + k_dirs[d][1]) ||
-                            !ToriRSServer_SceneCanTravel(0, tx, tz, k_dirs[d][0], k_dirs[d][1], 1, 0) )
+                            !ToriRSServer_SceneCanTravel(0, tx, tz, k_dirs[d][0], k_dirs[d][1], 1,
+                                                         COLL_FLAG_BLOCK_NPC_AND_PLAYERS |
+                                                             COLL_FLAG_NPC_OCC |
+                                                             COLL_FLAG_PLAYER_OCC) )
                             ok = 0;
+                    }
+                    if( ok )
+                    {
+                        /* The lane's bounding box, one tile behind the origin
+                         * to one past the run's end, and every live npc held
+                         * off it — see the standoff comment above. */
+                        int lo_x = cx + k_dirs[d][0] * (k_dirs[d][0] < 0 ? run : -1);
+                        int hi_x = cx + k_dirs[d][0] * (k_dirs[d][0] < 0 ? -1 : run);
+                        int lo_z = cz + k_dirs[d][1] * (k_dirs[d][1] < 0 ? run : -1);
+                        int hi_z = cz + k_dirs[d][1] * (k_dirs[d][1] < 0 ? -1 : run);
+
+                        for( int slot = 0; slot < srv->npc_slot_max && ok; slot++ )
+                        {
+                            const struct ToriRSServerNpc* other = &srv->npcs[slot];
+                            int gap_x;
+                            int gap_z;
+                            int gap;
+
+                            if( !other->active || other->level != 0 )
+                                continue;
+                            gap_x = other->x < lo_x ? lo_x - other->x
+                                                    : (other->x > hi_x ? other->x - hi_x : 0);
+                            gap_z = other->z < lo_z ? lo_z - other->z
+                                                    : (other->z > hi_z ? other->z - hi_z : 0);
+                            gap = gap_x > gap_z ? gap_x : gap_z;
+                            if( gap < standoff )
+                                ok = 0;
+                        }
                     }
                     if( ok )
                     {
@@ -36626,7 +36687,14 @@ ToriRSServer_WorldSelftest(void)
              * is 208 tiles from the castle and OUT is 224, so 709 of Lumbridge's
              * npcs are still legitimately standing there and the check below
              * would read as a bug in the sync.
+             *
+             * The roster is synced to the union of every built window's centre
+             * now, so the player's own Lumbridge-centred window would keep
+             * every Lumbridge npc standing regardless of where the root moves.
+             * Release it for the duration: what this row tests is the sync's
+             * retire/stand-up behaviour, not the union.
              */
+            ToriRSServer_SceneWindowRelease(ToriRSServer_PlayerSceneWindow(player));
             srv->zone_x = 2662 >> 3;
             srv->zone_z = 3305 >> 3;
             ToriRSServer_WorldSceneRebuild(srv);
@@ -36649,10 +36717,13 @@ ToriRSServer_WorldSelftest(void)
             SELFTEST_CHECK(varrock <= TORIRSSERVER_NPC_MAX,
                            "which has to fit the pool, %d vs %d", varrock, TORIRSSERVER_NPC_MAX);
 
-            /* Put the world back where the rest of the suite expects it. */
+            /* Put the world back where the rest of the suite expects it: the
+             * root at home, and the player's own window rebuilt over them. */
             srv->zone_x = 3222 >> 3;
             srv->zone_z = 3218 >> 3;
             ToriRSServer_WorldSceneRebuild(srv);
+            maybe_rebuild(srv);
+            player->rebuild_pending = 0;
             (void)spawns;
         }
     }
@@ -36678,14 +36749,17 @@ ToriRSServer_WorldSelftest(void)
          * there is moved back to the middle before a box could overhang, by
          * exactly one tile. That one tile is the whole reason this passed by
          * accident for as long as it did, and a test that lets the re-centre
-         * happen proves nothing. So the build area is moved *off* the player
-         * directly and NPC_INFO is called without a tick around it.
+         * happen proves nothing. So the player's OWN zone numbers — which are
+         * what `window_holds` clips against now — are moved off them directly
+         * and NPC_INFO is called without a tick around it. No window is
+         * rebuilt: the clip is arithmetic on player->zone_x/zone_z, and the
+         * roster around Lumbridge is already standing and filed.
          *
          * Dropping the build-area clip in `window_holds` fails this with a
          * dozen npcs named.
          */
-        int saved_zone_x = srv->zone_x;
-        int saved_zone_z = srv->zone_z;
+        int saved_zone_x;
+        int saved_zone_z;
         int checked = 0;
         int outside = 0;
         int off_area = 0;
@@ -36696,14 +36770,15 @@ ToriRSServer_WorldSelftest(void)
         int base_z;
 
         selftest_park_player(srv, 3222, 3218);
+        saved_zone_x = player->zone_x;
+        saved_zone_z = player->zone_z;
         /* Put the player in the south-west CORNER zone of the build area: its
          * origin becomes (player_zone + 6 - 6) * 8, so everything south or west
          * of the player's own zone is outside the region entirely. */
-        srv->zone_x = (3222 >> 3) + TORIRSSERVER_ZONE_BUILD_RADIUS;
-        srv->zone_z = (3218 >> 3) + TORIRSSERVER_ZONE_BUILD_RADIUS;
-        ToriRSServer_WorldSceneRebuild(srv);
-        base_x = ToriRSServer_SceneOrigin(srv->zone_x);
-        base_z = ToriRSServer_SceneOrigin(srv->zone_z);
+        player->zone_x = (3222 >> 3) + TORIRSSERVER_ZONE_BUILD_RADIUS;
+        player->zone_z = (3218 >> 3) + TORIRSSERVER_ZONE_BUILD_RADIUS;
+        base_x = ToriRSServer_SceneOrigin(player->zone_x);
+        base_z = ToriRSServer_SceneOrigin(player->zone_z);
         SELFTEST_CHECK(player->x - base_x < TORIRSSERVER_NPC_VIEW_TILES ||
                            player->z - base_z < TORIRSSERVER_NPC_VIEW_TILES,
                        "the fixture has to put the view box over the build edge, "
@@ -36719,11 +36794,12 @@ ToriRSServer_WorldSelftest(void)
         /*
          * Phase 8's order, by hand, because this test does not run a tick.
          *
-         * The area is fed by the map's membership lists, and the scene rebuild
-         * above re-windowed the world roster — so the npcs it just stood up are
-         * filed nowhere until the reconcile runs. Skipping it here read as "the
-         * area collects nothing", which is a true statement about a world whose
-         * map has not been synced and says nothing about the area.
+         * The area is fed by the map's membership lists, and the previous
+         * test's restore re-windowed the world roster without ticking — so the
+         * npcs it stood back up are filed nowhere until the reconcile runs.
+         * Skipping it here read as "the area collects nothing", which is a
+         * true statement about a world whose map has not been synced and says
+         * nothing about the area.
          */
         ToriRSServer_ZoneSyncNpcs(srv);
         ToriRSServer_ZoneSyncObjs(srv);
@@ -36945,15 +37021,161 @@ ToriRSServer_WorldSelftest(void)
             }
         }
 
-        /* Put the world back under the player for the suites below. */
-        srv->zone_x = saved_zone_x;
-        srv->zone_z = saved_zone_z;
-        ToriRSServer_WorldSceneRebuild(srv);
+        /* Put the player's zone numbers back over their (untouched) window
+         * for the suites below. Nothing was rebuilt, so nothing needs
+         * rebuilding. */
+        player->zone_x = saved_zone_x;
+        player->zone_z = saved_zone_z;
         selftest_park_player(srv, g_home_x, g_home_z);
         ToriRSServer_ZonePlayerReset(player);
         player->tracked_count = 0;
         memset(player->npc_tracked, 0, sizeof(player->npc_tracked));
         ToriRSServer_WorldTick(srv);
+    }
+
+    fprintf(stderr,
+            "ToriRSServer selftest: two far-apart players each hold their own window\n");
+    {
+        /*
+         * The point of the per-player scene window (docs/SAILING_PLAN.md S0).
+         * Before it the world had ONE 104x104 collision window: a second
+         * player more than a scene away either stood on ground the server had
+         * no collision for at all, or the window recentred on whoever acted
+         * last and thrashed back and forth every time both of them moved. So
+         * the row is exactly that shape — two players more than 70 tiles
+         * apart — and the claim is that BOTH route against correct local
+         * collision, from windows that hold still.
+         */
+        struct ToriRSServerPlayer* far_player = ToriRSServer_WorldAddPlayer(srv, NULL);
+
+        SELFTEST_CHECK(far_player != NULL, "a second player joins to hold the far window");
+        if( far_player )
+        {
+            int path_x[TORIRSSERVER_STEP_MAX];
+            int path_z[TORIRSSERVER_STEP_MAX];
+            int dist_x;
+            int dist_z;
+            int dist;
+
+            ToriRSServer_WorldPlayerInit(far_player);
+
+            /* The suite's player keeps their home window; the second player
+             * parks in Draynor. `selftest_park_player` parks the ACTIVE
+             * player and ends in maybe_rebuild, which builds every owed
+             * window — so after the second park both windows stand. */
+            selftest_park_player(srv, 3222, 3218);
+            ToriRSServer_WorldSetActive(srv, far_player);
+            selftest_park_player(srv, 3093, 3244);
+
+            dist_x = abs(far_player->x - player->x);
+            dist_z = abs(far_player->z - player->z);
+            dist = dist_x > dist_z ? dist_x : dist_z;
+            SELFTEST_CHECK(dist > 70,
+                           "the fixture has to separate them by more than half a scene, "
+                           "got %d", dist);
+
+            SELFTEST_CHECK(
+                ToriRSServer_SceneWindowBuilt(ToriRSServer_PlayerSceneWindow(player)),
+                "the home player's window should be built");
+            SELFTEST_CHECK(
+                ToriRSServer_SceneWindowBuilt(ToriRSServer_PlayerSceneWindow(far_player)),
+                "and the far player's own, at the same time");
+
+            /* Each window holds its own player and cannot also hold the
+             * other: 70+ tiles does not fit one 104-tile window with both
+             * players inside the rebuild margin. Asked per WINDOW —
+             * ToriRSServer_SceneContains would say yes for both tiles here,
+             * because it answers for ANY built window, which is the point of
+             * the whole change. */
+            SELFTEST_CHECK(
+                ToriRSServer_SceneWindowContains(
+                    ToriRSServer_PlayerSceneWindow(far_player), far_player->x, far_player->z),
+                "the far player's own tile is inside their window");
+            SELFTEST_CHECK(!ToriRSServer_SceneWindowContains(
+                               ToriRSServer_PlayerSceneWindow(far_player), player->x, player->z),
+                           "which cannot also hold the home player's tile");
+            SELFTEST_CHECK(
+                ToriRSServer_SceneWindowContains(
+                    ToriRSServer_PlayerSceneWindow(player), player->x, player->z),
+                "the home player's window holds the home player");
+            SELFTEST_CHECK(
+                !ToriRSServer_SceneWindowContains(
+                    ToriRSServer_PlayerSceneWindow(player), far_player->x, far_player->z),
+                "and not the far ground");
+            /* And the tile-level union view agrees both are in SOME scene —
+             * this is what npc logic far from the acting player leans on. */
+            SELFTEST_CHECK(ToriRSServer_SceneContains(player->x, player->z) &&
+                               ToriRSServer_SceneContains(far_player->x, far_player->z),
+                           "both tiles are covered by the union of windows");
+
+            /* Correct collision is a route, not a flag: find open ground near
+             * the far player and require a legal walk to it, judged by the
+             * far window's own collision (the courtyard stanza's measure). */
+            {
+                struct CollisionMap* cm = ToriRSServer_SceneCollision(0);
+                int routed = 0;
+
+                SELFTEST_CHECK(cm != NULL, "the far window should have collision for level 0");
+                for( int x = far_player->x - 12; cm && x <= far_player->x + 12 && !routed; x++ )
+                {
+                    for( int z = far_player->z - 12; z <= far_player->z + 12; z++ )
+                    {
+                        int dx = x - far_player->x;
+                        int dz = z - far_player->z;
+
+                        if( dx * dx + dz * dz < 9 )
+                            continue;
+                        if( !ToriRSServer_SceneContains(x, z) ||
+                            collision_map_tile(cm, x - ToriRSServer_SceneBaseX(),
+                                               z - ToriRSServer_SceneBaseZ()) !=
+                                COLL_FLAG_OPEN )
+                            continue;
+                        if( ToriRSServer_SceneRoute(0, far_player->x, far_player->z, x, z,
+                                                path_x, path_z, TORIRSSERVER_STEP_MAX) < 1 )
+                            continue;
+                        routed = 1;
+                        break;
+                    }
+                }
+                SELFTEST_CHECK(routed, "the far player routes on their own local ground");
+            }
+
+            /* And the home player's window still answers for home, untouched
+             * by everything the far player just did. */
+            ToriRSServer_WorldSetActive(srv, player);
+            SELFTEST_CHECK(ToriRSServer_SceneRoute(0, 3222, 3218, 3234, 3226, path_x,
+                                               path_z, TORIRSSERVER_STEP_MAX) > 0,
+                           "the courtyard route still exists in it");
+
+            /* No thrash: neither window moves while both players stand still.
+             * Under the one-window model this is exactly what could not hold —
+             * every rebuild for one player moved the ground out from under the
+             * other. */
+            {
+                int home_zone_x = player->zone_x;
+                int home_zone_z = player->zone_z;
+                int far_zone_x = far_player->zone_x;
+                int far_zone_z = far_player->zone_z;
+
+                for( int i = 0; i < 5; i++ )
+                    ToriRSServer_WorldTick(srv);
+                SELFTEST_CHECK(player->zone_x == home_zone_x &&
+                                   player->zone_z == home_zone_z,
+                               "five ticks with both standing still move nobody's window");
+                SELFTEST_CHECK(far_player->zone_x == far_zone_x &&
+                                   far_player->zone_z == far_zone_z,
+                               "the far one included");
+            }
+
+            /* The free releases the far window (the WorldPlayerFree choke
+             * point owns that) and the roster sync retires Draynor's spawns
+             * with it. */
+            ToriRSServer_WorldSetActive(srv, player);
+            ToriRSServer_WorldPlayerFree(srv, far_player->pid);
+            ToriRSServer_WorldPlayerReap(srv);
+            selftest_park_player(srv, 3222, 3218);
+            player->rebuild_pending = 0;
+        }
     }
 
     fprintf(stderr, "ToriRSServer selftest: NPC_INFO measures view range to the footprint\n");

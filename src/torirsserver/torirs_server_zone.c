@@ -1118,11 +1118,12 @@ ToriRSServer_PlayerzonemapFind(
     return NULL;
 }
 
-/** Is `index` in the 7x7 window centred on (centre_x, centre_z), clipped to the
- *  build area? The one place the window's shape is written down. */
+/** Is `index` in the 7x7 window centred on (centre_x, centre_z), clipped to
+ *  this player's own build area? The one place the window's shape is written
+ *  down. */
 static int
 window_holds(
-    const struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
     int centre_x,
     int centre_z,
     int index)
@@ -1136,14 +1137,15 @@ window_holds(
     if( zone_z < centre_z - TORIRSSERVER_ZONE_VIEW_RADIUS ||
         zone_z > centre_z + TORIRSSERVER_ZONE_VIEW_RADIUS )
         return 0;
-    /* Clipped to the build area, which is what a tile box is not and why
+    /* Clipped to the build area — the scene THIS client holds, centred on the
+     * player's own window origin — which is what a tile box is not and why
      * NPC_INFO used to name npcs outside the region the client has a scene
      * for. */
-    if( zone_x < srv->zone_x - TORIRSSERVER_ZONE_BUILD_RADIUS ||
-        zone_x > srv->zone_x + TORIRSSERVER_ZONE_BUILD_RADIUS )
+    if( zone_x < player->zone_x - TORIRSSERVER_ZONE_BUILD_RADIUS ||
+        zone_x > player->zone_x + TORIRSSERVER_ZONE_BUILD_RADIUS )
         return 0;
-    if( zone_z < srv->zone_z - TORIRSSERVER_ZONE_BUILD_RADIUS ||
-        zone_z > srv->zone_z + TORIRSSERVER_ZONE_BUILD_RADIUS )
+    if( zone_z < player->zone_z - TORIRSSERVER_ZONE_BUILD_RADIUS ||
+        zone_z > player->zone_z + TORIRSSERVER_ZONE_BUILD_RADIUS )
         return 0;
     return 1;
 }
@@ -1182,8 +1184,8 @@ ToriRSServer_PlayerzonemapMove(struct ToriRSServerPlayer* player)
         return;
     here = ToriRSServer_ZoneIndex(player->x, player->z, player->level);
     if( player->zone_index == here && player->zonemap.count > 0 &&
-        player->zonemap.built_zone_x == srv->zone_x &&
-        player->zonemap.built_zone_z == srv->zone_z )
+        player->zonemap.built_zone_x == player->zone_x &&
+        player->zonemap.built_zone_z == player->zone_z )
         return;
 
     centre_x = player->x >> 3;
@@ -1198,7 +1200,7 @@ ToriRSServer_PlayerzonemapMove(struct ToriRSServerPlayer* player)
             {
                 int index = ToriRSServer_ZoneIndex(x << 3, z << 3, level);
 
-                if( !window_holds(srv, centre_x, centre_z, index) )
+                if( !window_holds(player, centre_x, centre_z, index) )
                     continue;
                 if( wanted_count < TORIRSSERVER_ZONE_ACTIVE_MAX )
                     wanted[wanted_count++] = index;
@@ -1228,8 +1230,8 @@ ToriRSServer_PlayerzonemapMove(struct ToriRSServerPlayer* player)
     memcpy(player->zonemap.zones, kept, sizeof(kept[0]) * (size_t)kept_count);
     player->zonemap.count = kept_count;
     player->zone_index = here;
-    player->zonemap.built_zone_x = srv->zone_x;
-    player->zonemap.built_zone_z = srv->zone_z;
+    player->zonemap.built_zone_x = player->zone_x;
+    player->zonemap.built_zone_z = player->zone_z;
 }
 
 /* The gap to a npc's FOOTPRINT, per axis. See torirs_server_zone.h — the header

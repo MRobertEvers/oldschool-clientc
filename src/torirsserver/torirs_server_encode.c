@@ -862,18 +862,18 @@ send_rebuild_normal_at(
 void
 ToriRSServer_SendRebuildNormal(struct ToriRSServerPlayer* player)
 {
-    struct ToriRSServer* srv = player->world;
-
-    send_rebuild_normal_at(player, srv->zone_x, srv->zone_z, 1);
+    /* The player's own window origin: the scene this client holds is the one
+     * their movement is judged against, whoever else is online. */
+    send_rebuild_normal_at(player, player->zone_x, player->zone_z, 1);
 }
 
 /*
  * A normal-world scene centred somewhere other than the authoritative player.
  *
  * Construction's scrying pool is the caller. It must load the destination's
- * terrain for one client without moving the player, changing the world's
- * shared scene/collision origin, or re-seeding the already-live player-info
- * table. The remote-view lifetime and restoration are owned by
+ * terrain for one client without moving the player, changing the player's
+ * own scene/collision window origin, or re-seeding the already-live
+ * player-info table. The remote-view lifetime and restoration are owned by
  * ToriRSServer_WorldRemoteView_*; this encoder is deliberately only the packet.
  */
 void
@@ -920,7 +920,7 @@ ToriRSServer_SendRebuildRegion(struct ToriRSServerPlayer* player)
     struct ToriRSServerMapInstanceWindow window;
     int key_count = 0;
 
-    ToriRSServer_MapInstanceWindow(srv->zone_x, srv->zone_z, &window);
+    ToriRSServer_MapInstanceWindow(player->zone_x, player->zone_z, &window);
 
     open_packet(&buf, 8192);
     {
@@ -928,13 +928,13 @@ ToriRSServer_SendRebuildRegion(struct ToriRSServerPlayer* player)
         if( pl && pl->rebuild_region )
         {
             /* V2 has no worldArea field and adds `reload`; zoneZ comes first. */
-            pl->rebuild_region(&buf, srv->zone_x, srv->zone_z, 0);
+            pl->rebuild_region(&buf, player->zone_x, player->zone_z, 0);
         }
         else
         {
             rsab_p2(&buf, 0);
-            rsab_p2_alt2(&buf, srv->zone_x);
-            rsab_p2(&buf, srv->zone_z);
+            rsab_p2_alt2(&buf, player->zone_x);
+            rsab_p2(&buf, player->zone_z);
         }
     }
 
@@ -1023,8 +1023,8 @@ ToriRSServer_SendRebuildRegion(struct ToriRSServerPlayer* player)
         fprintf(
             stderr,
             "torirsserver: rebuild region zone=%d,%d source zones=%d squares=%d\n",
-            srv->zone_x,
-            srv->zone_z,
+            player->zone_x,
+            player->zone_z,
             window.set_count,
             key_count);
 }
@@ -2143,8 +2143,9 @@ ToriRSServer_SendCamMoveto(
             pl->cam_moveto(&buf, world_x, world_z, height, rate, rate2);
         else
         {
-            rsab_p1(&buf, world_x - ToriRSServer_SceneBaseX());
-            rsab_p1(&buf, world_z - ToriRSServer_SceneBaseZ());
+            /* Local to the RECEIVING player's own scene window. */
+            rsab_p1(&buf, world_x - ToriRSServer_SceneOrigin(player->zone_x));
+            rsab_p1(&buf, world_z - ToriRSServer_SceneOrigin(player->zone_z));
             rsab_p2(&buf, height);
             rsab_p1(&buf, rate);
             rsab_p1(&buf, rate2);
@@ -2171,8 +2172,9 @@ ToriRSServer_SendCamLookat(
             pl->cam_lookat(&buf, world_x, world_z, height, rate, rate2);
         else
         {
-            rsab_p1(&buf, world_x - ToriRSServer_SceneBaseX());
-            rsab_p1(&buf, world_z - ToriRSServer_SceneBaseZ());
+            /* Local to the RECEIVING player's own scene window. */
+            rsab_p1(&buf, world_x - ToriRSServer_SceneOrigin(player->zone_x));
+            rsab_p1(&buf, world_z - ToriRSServer_SceneOrigin(player->zone_z));
             rsab_p2(&buf, height);
             rsab_p1(&buf, rate);
             rsab_p1(&buf, rate2);
@@ -2634,8 +2636,9 @@ ToriRSServer_SendSetMapFlag(struct ToriRSServerPlayer* player, int local_x, int 
     {
         const struct ToriRSServerWirePayload* pl = wire_payload(player);
         if( pl && pl->set_map_flag )
-            pl->set_map_flag(&buf, player->level, ToriRSServer_SceneOrigin(player->world->zone_x) + local_x,
-                             ToriRSServer_SceneOrigin(player->world->zone_z) + local_z);
+            pl->set_map_flag(&buf, player->level,
+                             ToriRSServer_SceneOrigin(player->zone_x) + local_x,
+                             ToriRSServer_SceneOrigin(player->zone_z) + local_z);
         else
         {
             rsab_p1(&buf, local_x & 0xff);
@@ -3249,10 +3252,13 @@ put_player_extended(
          * mask word above is written before any field, so a bit set with no
          * body does not drop a field — it eats the next player's block and
          * corrupts everything after it in the stream.
+         *
+         * Scene-local to the RECIPIENT's window: the tiles are decoded
+         * against the scene the watching client holds, which is the
+         * recipient's own, not the moving player's.
          */
-        struct ToriRSServer* srv = player->world;
-        int origin_x = ToriRSServer_SceneOrigin(srv->zone_x);
-        int origin_z = ToriRSServer_SceneOrigin(srv->zone_z);
+        int origin_x = ToriRSServer_SceneOrigin(recipient->zone_x);
+        int origin_z = ToriRSServer_SceneOrigin(recipient->zone_z);
 
         rsab_p1(buf, (player->exact_start_x - origin_x) & 0xff);
         rsab_p1(buf, (player->exact_start_z - origin_z) & 0xff);
@@ -3319,15 +3325,17 @@ put_player_extended(
  *                           encode, however many clients stand in the zone.
  */
 
+/* Against the RECEIVING player's own window origin: a zone header is
+ * scene-local to the scene that client holds, and each client holds its own. */
 static int
 zone_base(
-    struct ToriRSServer* srv,
+    const struct ToriRSServerPlayer* player,
     int zone_x,
     int zone_z,
     int* base_z)
 {
-    *base_z = (zone_z * TORIRSSERVER_ZONE_TILES) - ToriRSServer_SceneOrigin(srv->zone_z);
-    return (zone_x * TORIRSSERVER_ZONE_TILES) - ToriRSServer_SceneOrigin(srv->zone_x);
+    *base_z = (zone_z * TORIRSSERVER_ZONE_TILES) - ToriRSServer_SceneOrigin(player->zone_z);
+    return (zone_x * TORIRSSERVER_ZONE_TILES) - ToriRSServer_SceneOrigin(player->zone_x);
 }
 
 /*
@@ -3349,7 +3357,7 @@ ToriRSServer_SendZoneHeader(
 {
     struct RSAreaBuf buf;
     int base_z;
-    int base_x = zone_base(player->world, zone_x, zone_z, &base_z);
+    int base_x = zone_base(player, zone_x, zone_z, &base_z);
 
     open_packet(&buf, 8);
     {
@@ -3664,7 +3672,7 @@ ToriRSServer_SendZoneEnclosed(
 {
     struct RSAreaBuf buf;
     int base_z;
-    int base_x = zone_base(player->world, zone_x, zone_z, &base_z);
+    int base_x = zone_base(player, zone_x, zone_z, &base_z);
 
     if( len <= 0 )
         return;
@@ -3741,8 +3749,9 @@ ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player)
 {
     struct ToriRSServer* srv = player->world;
     struct RSAreaBuf buf;
-    int local_x = player->x - ToriRSServer_SceneOrigin(srv->zone_x);
-    int local_z = player->z - ToriRSServer_SceneOrigin(srv->zone_z);
+    /* This player's own window origin — the scene their client holds. */
+    int local_x = player->x - ToriRSServer_SceneOrigin(player->zone_x);
+    int local_z = player->z - ToriRSServer_SceneOrigin(player->zone_z);
     int extended = player->masks != 0;
     /* Who gets an extended block, in bit-section order. `player` itself is
      * spelled as its own pointer rather than as a pid, because the local player
@@ -5086,8 +5095,10 @@ ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player)
          * moves the build area under a stationary player.
          */
         open_packet(&buf, 4);
-        rsab_p1(&buf, player->x - ToriRSServer_SceneBaseX());
-        rsab_p1(&buf, player->z - ToriRSServer_SceneBaseZ());
+        /* Local to this player's OWN window — the build area their client
+         * holds, not whichever window happens to be bound. */
+        rsab_p1(&buf, player->x - ToriRSServer_SceneOrigin(player->zone_x));
+        rsab_p1(&buf, player->z - ToriRSServer_SceneOrigin(player->zone_z));
         flush(player, &buf, OP_SET_NPC_UPDATE_ORIGIN, 0);
 
         open_packet(&buf, 4096);

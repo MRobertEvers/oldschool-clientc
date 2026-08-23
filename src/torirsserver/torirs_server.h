@@ -113,6 +113,7 @@
 
 struct ToriRSServerConn;
 struct ToriRSServerSession;
+struct ToriRSServerSceneWindow;
 
 /* ------------------------------------------------------------------ */
 /* Coordinates                                                         */
@@ -3338,9 +3339,25 @@ struct ToriRSServerPlayer
     int last_map_x;
     int last_map_z;
 
-    /** REBUILD_NORMAL owed to this client: it walked out of the scene, someone
-     *  else moved the world's origin, or it changed level. */
+    /** Origin zone of THIS player's scene window: the scene their client
+     *  holds, the collision their movement is judged against, and the origin
+     *  every zone-local coordinate sent to them is relative to. Owned by the
+     *  per-player rebuild (`maybe_rebuild` / `world_player_scene_build`);
+     *  0,0 until the first build. */
+    int zone_x, zone_z;
+
+    /** REBUILD_NORMAL owed to this client: it walked out of its window's
+     *  margin, its window was rebuilt under it, or it changed level. */
     int rebuild_pending;
+    /** A scene build has been attempted at zone_x/zone_z — set even when the
+     *  build found no cache, which is the documented cacheless fallback: the
+     *  window stays unbuilt (all-walkable collision) but the placement is
+     *  decided. maybe_rebuild's skip test keys off THIS, not off the window's
+     *  built bit: cacheless, "built" never comes true, and keying off it
+     *  re-ran the build — and ZonePlayerReset — for every player every tick,
+     *  forever. Cleared with the windows (WorldReset) and by the login
+     *  memset. */
+    int scene_build_attempted;
     /** Which map-instance build this client's scene is a copy of
      *  (`ToriRSServer_MapInstanceGeneration`); 0 = not in an instance. A mismatch
      *  against the instance the player is standing in means the scene it holds
@@ -3826,10 +3843,12 @@ struct ToriRSServer
      *  asking why the world holds fewer npcs than the tree states. */
     int static_npcs_live;
 
-    /** Origin zone of the scene every client currently holds, and the window
-     *  `ToriRSServer_SceneBuild` keeps collision for. One per world rather than one
-     *  per player: the scene builder is a singleton, so two players far enough
-     *  apart would rebuild it under each other. §6.1 step 3 is the fix. */
+    /** Origin zone of the world's ROOT collision window — the window world
+     *  logic with no player in hand (npc wander, hunts, timers) falls back to,
+     *  and one of the centres the static npc roster is stood up around.
+     *  Anchored at WorldInit's home zone and never moved by walking: each
+     *  player carries their own window origin (`players[i].zone_x`) and the
+     *  per-player rebuild moves those instead. */
     int zone_x, zone_z;
 
     struct ToriRSServerNpc npcs[TORIRSSERVER_NPC_MAX];
@@ -4481,6 +4500,12 @@ ToriRSServer_WorldSetActive(
     struct ToriRSServer* srv,
     struct ToriRSServerPlayer* player);
 
+/** This player's scene window (pool index 1 + pid). Always a valid window;
+ *  whether it is BUILT is a separate question
+ *  (`ToriRSServer_SceneWindowBuilt`). */
+struct ToriRSServerSceneWindow*
+ToriRSServer_PlayerSceneWindow(const struct ToriRSServerPlayer* player);
+
 /**
  * Reset one player to a newly-created character, on the home tile.
  *
@@ -4630,14 +4655,16 @@ ToriRSServer_WorldLocSetOps(
     enum ToriRSServerLocSetKind kind,
     const struct ToriRSServerLocOps* ops);
 
-/** Re-apply every recorded loc change to a scene that has just been rebuilt
- *  from the cache. Without this the server forgets its own doors whenever the
- *  origin moves — which it did, despite a comment claiming otherwise. */
+/** Re-apply every recorded loc change to EVERY built scene window. Without
+ *  this the server forgets its own doors whenever a window is rebuilt — which
+ *  it did, despite a comment claiming otherwise. Idempotent per window, so
+ *  running it over windows that already carry the changes is safe. */
 void
 ToriRSServer_WorldLocsReapply(struct ToriRSServer* srv);
 
-/** Build the server's collision window for the world's current zone, choosing
- *  the cache or the map-instance descriptors by where that zone is. */
+/** Build the ROOT collision window at the world's home zone, choosing the
+ *  cache or the map-instance descriptors by where that zone is. Player windows
+ *  are built by the per-player rebuild, not by this. */
 void
 ToriRSServer_WorldSceneRebuild(struct ToriRSServer* srv);
 

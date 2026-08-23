@@ -18,6 +18,15 @@
 #include <string.h>
 #include <sys/stat.h>
 
+/* MinGW's mkdir takes no mode argument — the same portability seam
+ * editor_host_local.c and rs2012_material_bake.c already carry. */
+#ifdef _WIN32
+#include <direct.h>
+#define test_mkdir(path) _mkdir(path)
+#else
+#define test_mkdir(path) mkdir(path, 0755)
+#endif
+
 #include <bmp.h>
 #include <rscache.h>
 #include <toridraw.h>
@@ -496,7 +505,7 @@ test_world_builder_cache_render(void)
     TEST_ASSERT(final_drawn > 0 || final_nonzero > 100, "rendered something");
     TEST_ASSERT(final_nonzero > 100, "framebuffer not empty");
 
-    mkdir("build", 0755);
+    test_mkdir("build");
     bmp_write_file("build/world_builder_cache_render.bmp", pixels, FB_W, FB_H);
     printf(
         "wrote build/world_builder_cache_render.bmp (%d cmds, %d drawn, %d px; pitch=%d off=%d)\n",

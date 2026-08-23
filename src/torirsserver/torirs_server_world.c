@@ -69,13 +69,20 @@ int g_home_z = 3218;
 static void
 ToriRSServer_WorldBuildEntities(struct ToriRSServer* srv);
 
-/* Declared up here because the scene rebuild — the one place the window moves —
+/* Declared up here because the scene rebuild — the one place a window moves —
  * is a thousand lines above where the roster lives. */
 static void
 world_static_npcs_sync(struct ToriRSServer* srv);
 
 static void
 world_static_npcs_reset(void);
+
+/* And the loc replay, for the same reason: the window build helper sits with
+ * the rebuild machinery, the ZoneMap replay sits with the loc mutations. */
+static void
+world_locs_reapply_window(
+    struct ToriRSServer* srv,
+    struct ToriRSServerSceneWindow* window);
 
 static void
 ToriRSServer_WorldLoginFinish(struct ToriRSServerPlayer* player);
@@ -2440,7 +2447,8 @@ player_process_locstep(struct ToriRSServer* srv)
 }
 
 /*
- * Build the server's collision window for the world's current zone.
+ * Build one scene window at one zone origin, and replay everything durable
+ * onto it.
  *
  * The instance check is here, in one place, rather than at each of the callers:
  * whether a scene is instanced is a property of *where* it is, and both the
@@ -2449,31 +2457,72 @@ player_process_locstep(struct ToriRSServer* srv)
  * keeps the server's collision and the client's REBUILD_REGION descriptors from
  * disagreeing about which map the scene is.
  */
-void
-ToriRSServer_WorldSceneRebuild(struct ToriRSServer* srv)
+static void
+world_window_scene_build(
+    struct ToriRSServer* srv,
+    struct ToriRSServerSceneWindow* window,
+    int zone_x,
+    int zone_z)
 {
-    struct ToriRSServerMapInstanceWindow window;
+    struct ToriRSServerSceneWindow* bound = ToriRSServer_SceneBoundWindow();
+    struct ToriRSServerMapInstanceWindow instance_window;
+    int centre_x = ToriRSServer_SceneOrigin(zone_x) + TORIRSSERVER_SCENE_TILES / 2;
+    int centre_z = ToriRSServer_SceneOrigin(zone_z) + TORIRSSERVER_SCENE_TILES / 2;
 
-    if( ToriRSServer_MapInstanceFind(ToriRSServer_SceneOrigin(srv->zone_x) + TORIRSSERVER_SCENE_TILES / 2,
-                                 ToriRSServer_SceneOrigin(srv->zone_z) + TORIRSSERVER_SCENE_TILES / 2) == 0 )
+    ToriRSServer_SceneBindWindow(window);
+    if( ToriRSServer_MapInstanceFind(centre_x, centre_z) == 0 )
     {
-        ToriRSServer_SceneBuild(ToriRSServer_WorldCacheDir(), srv->zone_x, srv->zone_z);
-        world_static_npcs_sync(srv);
-        return;
+        ToriRSServer_SceneBuild(ToriRSServer_WorldCacheDir(), zone_x, zone_z);
     }
-    ToriRSServer_MapInstanceWindow(srv->zone_x, srv->zone_z, &window);
-    ToriRSServer_SceneBuildInstance(ToriRSServer_WorldCacheDir(), srv->zone_x, srv->zone_z, &window);
+    else
+    {
+        ToriRSServer_MapInstanceWindow(zone_x, zone_z, &instance_window);
+        ToriRSServer_SceneBuildInstance(ToriRSServer_WorldCacheDir(), zone_x, zone_z,
+                                        &instance_window);
+    }
+    /* A build reads the cache, so the fresh window has forgotten every runtime
+     * loc change. The durable record is the ZoneMap's; replay it onto the
+     * window just built — the other windows still carry theirs. */
+    world_locs_reapply_window(srv, window);
+    ToriRSServer_SceneBindWindow(bound);
+
+    /* The entities' own collision, which the rebuilt map does not carry.
+     * Occupancy broadcasts into every built window and adds are ORs, so
+     * windows that already carry it are restamped idempotently. */
+    world_occupancy_restamp(srv);
     /*
-     * The roster follows the window, and this is the only place the window
-     * moves — every re-centre, every instance build and the login build all
-     * come through here, which is why the sync hangs off this rather than off
-     * each of their call sites.
+     * The roster follows the windows, and every build comes through here —
+     * login, per-player re-centre, instance — which is why the sync hangs off
+     * this rather than off each of their call sites.
      *
      * After the scene, not before: a spawn is placed against collision
      * (`npc_spawn` stamps occupancy), and standing one up against the scene it
      * is leaving would file it in the wrong zones.
      */
     world_static_npcs_sync(srv);
+}
+
+/* Build (or re-centre) one PLAYER's window on where they stand, moving their
+ * wire origin with it. */
+static void
+world_player_scene_build(
+    struct ToriRSServer* srv,
+    struct ToriRSServerPlayer* player)
+{
+    player->zone_x = player->x >> 3;
+    player->zone_z = player->z >> 3;
+    /* Attempted, not necessarily built: cacheless the window stays unbuilt,
+     * and maybe_rebuild's skip test must key off the attempt or it re-builds
+     * every tick. See scene_build_attempted in torirs_server.h. */
+    player->scene_build_attempted = 1;
+    world_window_scene_build(srv, ToriRSServer_PlayerSceneWindow(player), player->zone_x,
+                             player->zone_z);
+}
+
+void
+ToriRSServer_WorldSceneRebuild(struct ToriRSServer* srv)
+{
+    world_window_scene_build(srv, ToriRSServer_SceneWindowRoot(), srv->zone_x, srv->zone_z);
 }
 
 /*
@@ -2490,8 +2539,6 @@ ToriRSServer_WorldMapInstanceBuilt(
     struct ToriRSServer* srv,
     int handle)
 {
-    int rebuilt = 0;
-
     for( int i = 0; i < srv->player_count; i++ )
     {
         struct ToriRSServerPlayer* player = &srv->players[i];
@@ -2500,13 +2547,10 @@ ToriRSServer_WorldMapInstanceBuilt(
             continue;
         if( ToriRSServer_MapInstanceFind(player->x, player->z) != handle )
             continue;
-        if( !rebuilt )
-        {
-            ToriRSServer_WorldSceneRebuild(srv);
-            ToriRSServer_WorldLocsReapply(srv);
-            world_occupancy_restamp(srv);
-            rebuilt = 1;
-        }
+        /* Each occupant's own window, not a shared one: the zones changed
+         * under them, so their collision and their client's scene are both
+         * stale. */
+        world_player_scene_build(srv, player);
         player->rebuild_pending = 1;
         player->place_dirty = 1;
         /* Same reason as maybe_rebuild: the client's scene is being replaced, so
@@ -2514,6 +2558,9 @@ ToriRSServer_WorldMapInstanceBuilt(
         ToriRSServer_ZonePlayerReset(player);
         player->move_count = 0;
     }
+    /* A first build may have upgraded the active player from the root binding
+     * to their own window — refresh the binding. */
+    ToriRSServer_WorldSetActive(srv, srv->active_player);
 }
 
 int
@@ -2591,32 +2638,33 @@ ToriRSServer_WorldMapInstanceFree(
 }
 
 /*
- * Re-centre the scene when a player nears its edge.
+ * Re-centre a player's scene window when they near its edge.
  *
  * The client holds a 104x104 scene based at (zone - 6) * 8. Once a player is
- * within 16 tiles of an edge the scene has to be rebuilt around them. The
+ * within 16 tiles of an edge their scene has to be rebuilt around them. The
  * client shifts every kept entity/camera by the base-tile delta
  * (App_WorldRebuildShift / deob method3310) — this is not a teleport. LostCity
  * BuildArea.rebuildNormal sends REBUILD_NORMAL without setting player.tele;
  * place_dirty stays off so PLAYER_INFO can keep walk/run bits and mid-tile
  * interpolation survives.
  *
- * **The origin is the world's, so re-centring it re-centres it for everybody.**
- * Every scene-local coordinate on the wire is measured from it, so a player who
- * was not the reason for the move still has to be told, or their next
- * PLAYER_INFO places them 40 tiles from where they are. That makes the world's
- * one build area a genuine multiplayer limit and not just an untidiness: two
- * players more than ~70 tiles apart pull the origin back and forth and rebuild
- * each other's scene every tick. Zones (§6.1 step 3) are what fixes it; until
- * then, everyone rebuilds together and it is correct rather than efficient.
+ * **Per player, per window.** The scene used to be the world's one window and
+ * re-centring it re-centred it for everybody, which made the one build area a
+ * genuine multiplayer limit: two players more than ~70 tiles apart pulled the
+ * origin back and forth and rebuilt each other's scene every tick. Every
+ * player now owns a window (`ToriRSServer_PlayerSceneWindow`) with its own
+ * origin (`player->zone_x`), only the player who crossed their own margin is
+ * rebuilt, and nobody else's wire origin moves — so nobody else is told
+ * anything. The world's root window (`srv->zone_x`) stays anchored at the home
+ * zone for world logic that acts with no player in hand.
  */
 void
 maybe_rebuild(struct ToriRSServer* srv)
 {
     int edge = TORIRSSERVER_SCENE_TILES - TORIRSSERVER_REBUILD_MARGIN;
-    struct ToriRSServerPlayer* mover = NULL;
+    int rebuilt = 0;
 
-    for( int i = 0; i < srv->player_count && !mover; i++ )
+    for( int i = 0; i < srv->player_count; i++ )
     {
         struct ToriRSServerPlayer* player = &srv->players[i];
         int local_x;
@@ -2624,25 +2672,25 @@ maybe_rebuild(struct ToriRSServer* srv)
 
         if( !player->active )
             continue;
-        local_x = player->x - ToriRSServer_SceneOrigin(srv->zone_x);
-        local_z = player->z - ToriRSServer_SceneOrigin(srv->zone_z);
-        if( local_x < TORIRSSERVER_REBUILD_MARGIN || local_x >= edge ||
-            local_z < TORIRSSERVER_REBUILD_MARGIN || local_z >= edge )
-            mover = player;
-    }
-
-    if( !mover )
-        return;
-
-    srv->zone_x = mover->x >> 3;
-    srv->zone_z = mover->z >> 3;
-
-    for( int i = 0; i < srv->player_count; i++ )
-    {
-        struct ToriRSServerPlayer* player = &srv->players[i];
-
-        if( !player->active )
+        local_x = player->x - ToriRSServer_SceneOrigin(player->zone_x);
+        local_z = player->z - ToriRSServer_SceneOrigin(player->zone_z);
+        /* The attempt flag, NOT the window's built bit: cacheless builds are a
+         * documented fallback (no collision, window stays unbuilt), so keying
+         * the skip off "built" re-attempted the build — and reset every
+         * player's zones — every tick, forever. The margins alone decide a
+         * re-centre once a placement exists. */
+        if( player->scene_build_attempted &&
+            local_x >= TORIRSSERVER_REBUILD_MARGIN && local_x < edge &&
+            local_z >= TORIRSSERVER_REBUILD_MARGIN && local_z < edge )
             continue;
+
+        /*
+         * The server's collision window moves with this client's scene, and a
+         * build re-reads the cache — the durable loc record and the entity
+         * occupancy are replayed inside world_window_scene_build, which is
+         * what puts collision back where the clients believe it is.
+         */
+        world_player_scene_build(srv, player);
         player->rebuild_pending = 1;
         /* No place_dirty: edge rebuild is not a teleport. Login / P_TELEPORT /
          * plane change / instance room-add still set it where absolute place
@@ -2654,37 +2702,27 @@ maybe_rebuild(struct ToriRSServer* srv)
          * than where it is sent: phase 10 is where the zones go out, so clearing
          * at send time would be a tick late. */
         ToriRSServer_ZonePlayerReset(player);
+        /* Tracked npcs and players deliberately survive: the client shifts
+         * every kept entity by the base-tile delta when it rebuilds
+         * (App_WorldRebuildShift), so their slots stay valid. Dropping and
+         * re-adding them would instead re-spawn into slots the client still
+         * holds. */
+        rebuilt = 1;
     }
 
-    /*
-     * The server's collision window moves with the client's scene.
-     *
-     * `ToriRSServer_SceneBuild` calls `ToriRSServer_SceneFree` first, so this throws the
-     * loc array away and re-reads it from the cache — which used to mean the
-     * *server* forgot its own doors on every rebuild too, despite the comment
-     * that stood here claiming the changed list survived. It never did: the
-     * changed flags were on the freed array. The durable record is the ZoneMap's
-     * now, and re-applying it is what puts collision back where the clients
-     * believe it is.
-     */
-    ToriRSServer_WorldSceneRebuild(srv);
-    ToriRSServer_WorldLocsReapply(srv);
-    /* And the entities' own collision, which the rebuilt map does not carry —
-     * see world_occupancy_restamp. */
-    world_occupancy_restamp(srv);
-    /* Tracked npcs and players deliberately survive: the client shifts every
-     * kept entity by the base-tile delta when it rebuilds
-     * (App_WorldRebuildShift), so their slots stay valid. Dropping and re-adding
-     * them would instead re-spawn into slots the client still holds. */
+    /* A first build upgrades the active player from the root binding to their
+     * own window — refresh the binding. */
+    if( rebuilt )
+        ToriRSServer_WorldSetActive(srv, srv->active_player);
 }
 
 /*
  * A player-scoped map view which does not move the player.
  *
- * REBUILD_NORMAL normally derives its centre from the world's one shared scene
- * origin. Scrying is different: only the viewer loads a remote normal-world
- * scene, while their entity, collision, zone triggers and every other player
- * remain in the POH instance. The arbitrary-centre rebuild therefore goes
+ * REBUILD_NORMAL normally derives its centre from this player's own scene
+ * window origin. Scrying is different: only the viewer loads a remote
+ * normal-world scene, while their entity, collision (their own window,
+ * unmoved), zone triggers and every other player remain in the POH instance. The arbitrary-centre rebuild therefore goes
  * straight to this client and the authoritative world is left untouched.
  *
  * Scene-local output is withheld in phase_client_out for the lifetime of the
@@ -8043,7 +8081,8 @@ handle_idle_timer(
  * against a scene which did not exist yet.
  *
  * A second rebuild may become necessary while the first one is loading (for
- * example another player moves the world's shared scene origin). In that case
+ * example this player walks over their own window's margin, or their map
+ * instance rebuilds under them). In that case
  * acknowledge the old scene by sending the new rebuild and wait for a second
  * completion; state for the login burst still must not escape between them.
  */
@@ -9433,12 +9472,32 @@ ToriRSServer_WorldSetHome(
 }
 
 /*
+ * The scene window a player's movement and view are judged against: pool slot
+ * `1 + pid` (slot 0 is the root window, the world's boot anchor). The slot is
+ * the player's for the lifetime of the pid — it may simply not be built yet,
+ * which `ToriRSServer_SceneWindowBuilt` reports.
+ */
+struct ToriRSServerSceneWindow*
+ToriRSServer_PlayerSceneWindow(const struct ToriRSServerPlayer* player)
+{
+    assert(player);
+    return ToriRSServer_SceneWindowByIndex(1 + player->pid);
+}
+
+/*
  * Say whose turn it is. The one place `active_player` is written.
  *
  * Every subsystem that still reaches `srv->active_player` — the scripts, the
  * bank, combat, the world map — is asking "who am I doing this for", and this is
  * the answer. The per-player phases call it as they iterate and the session
  * calls it before dispatching a packet, so the question always has one.
+ *
+ * It is also the one bind policy for scene windows: the acting player's own
+ * window when they have one built, the root window otherwise (including
+ * player == NULL — world logic with nobody acting runs against the root).
+ * Everything that rebinds temporarily (the loc mirror, per-window reapply)
+ * saves and restores around itself, so between calls the binding always
+ * reflects the active player.
  */
 void
 ToriRSServer_WorldSetActive(
@@ -9446,6 +9505,10 @@ ToriRSServer_WorldSetActive(
     struct ToriRSServerPlayer* player)
 {
     srv->active_player = player;
+    if( player && ToriRSServer_SceneWindowBuilt(ToriRSServer_PlayerSceneWindow(player)) )
+        ToriRSServer_SceneBindWindow(ToriRSServer_PlayerSceneWindow(player));
+    else
+        ToriRSServer_SceneBindWindow(ToriRSServer_SceneWindowRoot());
 }
 
 /*
@@ -9549,6 +9612,16 @@ ToriRSServer_WorldPlayerFree(
     }
     /* No overflow branch: sized to TORIRSSERVER_PLAYER_MAX and at most one command
      * per currently-active player can ever be pending between reaps. */
+
+    /* The pid's scene window goes back with the slot, HERE at the choke point
+     * rather than only in ToriRSServer_WorldRemovePlayer: maybe_rebuild builds
+     * a window for every active player, and pids are reused, so a window left
+     * built would hand the next login into this slot a fully stamped 104x104
+     * of somebody else's map. Release also rebinds the root window if this
+     * one happened to be bound. Then let the static-npc roster retire spawns
+     * that only this window's centre kept in range. */
+    ToriRSServer_SceneWindowRelease(ToriRSServer_PlayerSceneWindow(player));
+    world_static_npcs_sync(srv);
 }
 
 /*
@@ -9800,6 +9873,10 @@ ToriRSServer_WorldRemovePlayer(
      */
     ToriRSServer_FriendsLogout(player->name37);
     player_set_occupancy(player, 0);
+    /* The pid's scene window is released inside ToriRSServer_WorldPlayerFree
+     * below — the despawn choke point every teardown path goes through, this
+     * one included. Occupancy came out first (line above) so no other window
+     * is left holding this player's stamp when the window goes. */
     /*
      * Out of the ZoneMap, both ends, BEFORE `active` clears.
      *
@@ -9906,6 +9983,18 @@ void
 ToriRSServer_WorldReset(struct ToriRSServer* srv)
 {
     srv->world_built = 0;
+    /* Every scene window is the world's: the selftest runs many worlds in one
+     * process, and a player window left built here would hand the next world's
+     * first login a stamped 104x104 of the previous world's map. The next
+     * WorldInit rebuilds the root; the player windows must start unbuilt. This
+     * also rebinds the root, so no dangling preference survives the reset. */
+    for( int i = 0; i < TORIRSSERVER_SCENE_WINDOW_MAX; i++ )
+        ToriRSServer_SceneWindowRelease(ToriRSServer_SceneWindowByIndex(i));
+    /* The windows are gone, so no player's placement survives either: a stale
+     * attempt flag would make maybe_rebuild skip the next world's first
+     * build for any player kept across the reset. */
+    for( int i = 0; i < srv->player_count; i++ )
+        srv->players[i].scene_build_attempted = 0;
     /* The ZoneMap is the world's memory of every runtime loc change and of
      * where every entity stands, so a world that is being thrown away has to
      * throw it away too — the selftest runs many worlds in one process, and a
@@ -10157,12 +10246,47 @@ world_static_npcs_reset(void)
         memset(g_static_realised, 0, (size_t)g_static_realised_count);
 }
 
+/* Chebyshev distance from a tile to the NEAREST of the sync's centres. */
+static int
+static_spawn_nearest_dist(
+    const int* centre_x,
+    const int* centre_z,
+    int centre_count,
+    int x,
+    int z)
+{
+    int best = INT_MAX;
+
+    assert(centre_x);
+    assert(centre_z);
+    assert(centre_count > 0);
+    for( int i = 0; i < centre_count; i++ )
+    {
+        int dx = abs(x - centre_x[i]);
+        int dz = abs(z - centre_z[i]);
+        int dist = dx > dz ? dx : dz;
+
+        if( dist < best )
+            best = dist;
+    }
+    return best;
+}
+
 /*
- * Stand up the roster entries near the scene, retire the ones that are not.
+ * Stand up the roster entries near the world's windows, retire the ones that
+ * are near none of them.
  *
- * Chebyshev distance from the scene's centre tile, not Euclidean: the scene is
- * a square and so is everything else that reasons about it, and a circle
- * inscribed in it would retire npcs in the corners of the very window the
+ * "Near" is against a set of centres now, not one: the root window's centre
+ * (the boot anchor, always) plus the centre of every player's built window.
+ * A spawn stands up within TORIRSSERVER_STATIC_SPAWN_IN of ANY centre and is
+ * retired only beyond TORIRSSERVER_STATIC_SPAWN_OUT of ALL of them — the
+ * hysteresis band is per centre, so a player walking a boundary still cannot
+ * make a spawn flap, and a second player far away keeps their own
+ * neighbourhood alive without disturbing anyone else's.
+ *
+ * Chebyshev distance from each centre tile, not Euclidean: the scene is a
+ * square and so is everything else that reasons about it, and a circle
+ * inscribed in it would retire npcs in the corners of the very window a
  * client is holding.
  *
  * Both halves are unconditional passes over their own domain rather than a diff
@@ -10177,8 +10301,9 @@ world_static_npcs_sync(struct ToriRSServer* srv)
 {
     int count = 0;
     const struct ToriRSServerMapNpcSpawn* spawns = ToriRSServer_ContentNpcSpawns(&count);
-    int centre_x = ToriRSServer_SceneOrigin(srv->zone_x) + TORIRSSERVER_SCENE_TILES / 2;
-    int centre_z = ToriRSServer_SceneOrigin(srv->zone_z) + TORIRSSERVER_SCENE_TILES / 2;
+    int centre_x[1 + TORIRSSERVER_PLAYER_MAX];
+    int centre_z[1 + TORIRSSERVER_PLAYER_MAX];
+    int centre_count = 0;
     int live = 0;
     int declined = 0;
 
@@ -10188,6 +10313,24 @@ world_static_npcs_sync(struct ToriRSServer* srv)
         world_static_npcs_reset();
     if( !g_static_realised )
         return;
+
+    centre_x[centre_count] = ToriRSServer_SceneOrigin(srv->zone_x) + TORIRSSERVER_SCENE_TILES / 2;
+    centre_z[centre_count] = ToriRSServer_SceneOrigin(srv->zone_z) + TORIRSSERVER_SCENE_TILES / 2;
+    centre_count++;
+    for( int i = 0; i < srv->player_count; i++ )
+    {
+        struct ToriRSServerPlayer* player = &srv->players[i];
+
+        if( !player->active )
+            continue;
+        if( !ToriRSServer_SceneWindowBuilt(ToriRSServer_PlayerSceneWindow(player)) )
+            continue;
+        centre_x[centre_count] =
+            ToriRSServer_SceneOrigin(player->zone_x) + TORIRSSERVER_SCENE_TILES / 2;
+        centre_z[centre_count] =
+            ToriRSServer_SceneOrigin(player->zone_z) + TORIRSSERVER_SCENE_TILES / 2;
+        centre_count++;
+    }
 
     /*
      * Retire first. This used to also make the freed slots available to the
@@ -10207,14 +10350,11 @@ world_static_npcs_sync(struct ToriRSServer* srv)
     {
         struct ToriRSServerNpc* npc = &srv->npcs[slot];
         int index = npc->static_spawn;
-        int dx;
-        int dz;
 
         if( !npc->active || index < 0 || index >= count )
             continue;
-        dx = abs(spawns[index].x - centre_x);
-        dz = abs(spawns[index].z - centre_z);
-        if( dx <= TORIRSSERVER_STATIC_SPAWN_OUT && dz <= TORIRSSERVER_STATIC_SPAWN_OUT )
+        if( static_spawn_nearest_dist(centre_x, centre_z, centre_count, spawns[index].x,
+                                      spawns[index].z) <= TORIRSSERVER_STATIC_SPAWN_OUT )
             continue;
         /* The ordinary NPC_INFO remove path, the same one a despawn uses: the
          * client is told the way it is told about everything else. Nothing here
@@ -10240,8 +10380,6 @@ world_static_npcs_sync(struct ToriRSServer* srv)
 
     for( int i = 0; i < count; i++ )
     {
-        int dx = abs(spawns[i].x - centre_x);
-        int dz = abs(spawns[i].z - centre_z);
         int slot;
 
         if( g_static_realised[i] )
@@ -10249,7 +10387,8 @@ world_static_npcs_sync(struct ToriRSServer* srv)
             live++;
             continue;
         }
-        if( dx > TORIRSSERVER_STATIC_SPAWN_IN || dz > TORIRSSERVER_STATIC_SPAWN_IN )
+        if( static_spawn_nearest_dist(centre_x, centre_z, centre_count, spawns[i].x,
+                                      spawns[i].z) > TORIRSSERVER_STATIC_SPAWN_IN )
             continue;
         slot = npc_spawn(srv, spawns[i].npc_id, spawns[i].x, spawns[i].z, spawns[i].level);
         if( slot < 0 )
@@ -10269,9 +10408,9 @@ world_static_npcs_sync(struct ToriRSServer* srv)
      * than as the pool running out. */
     if( declined )
         fprintf(stderr,
-                "torirsserver: %d roster spawn(s) declined near %d,%d — the npc pool (%d) is "
-                "smaller than this window needs\n",
-                declined, centre_x, centre_z, TORIRSSERVER_NPC_MAX);
+                "torirsserver: %d roster spawn(s) declined across %d window centre(s) — the "
+                "npc pool (%d) is smaller than these windows need\n",
+                declined, centre_count, TORIRSSERVER_NPC_MAX);
 }
 
 /*
@@ -10406,8 +10545,8 @@ ToriRSServer_WorldLogin(struct ToriRSServerPlayer* player)
     ToriRSServer_CombatSyncHitpoints(player);
 
     /*
-     * The save may put this player outside the scene the world happened to
-     * build at process startup.  Align the shared scene before the login
+     * The save decides where this player stands, and this player's own scene
+     * window has never been built.  Centre and build it before the login
      * REBUILD/GPI init is encoded.  If this is deferred to phase_info on the
      * first tick, the client receives a perfectly valid GPI coordinate that is
      * outside its current WorldView: the tracker is high-resolution but no
@@ -10415,23 +10554,24 @@ ToriRSServer_WorldLogin(struct ToriRSServerPlayer* player)
      * LOGGED_IN and delivers StatChanged/GameTick callbacks with
      * getLocalPlayer() == null until the corrective rebuild arrives.
      *
-     * maybe_rebuild marks every active player as owing the newly centred
-     * scene.  The explicit login rebuild below fulfils that debt for this
-     * player; existing players retain theirs and receive it in phase 10.
+     * maybe_rebuild builds only the windows whose owners need one — for a
+     * fresh login that is exactly this player, whose window is unbuilt. The
+     * explicit login rebuild below fulfils the debt it marks; other players'
+     * windows are untouched, so nobody else owes anything.
      */
     if( srv->verbose )
         fprintf(stderr,
                 "torirsserver: login scene preflight player=%d,%d level=%d "
-                "zone=%d,%d origin=%d,%d players=%d active=%d\n",
-                player->x, player->z, player->level, srv->zone_x, srv->zone_z,
-                ToriRSServer_SceneOrigin(srv->zone_x), ToriRSServer_SceneOrigin(srv->zone_z),
+                "window_zone=%d,%d built=%d players=%d active=%d\n",
+                player->x, player->z, player->level, player->zone_x, player->zone_z,
+                ToriRSServer_SceneWindowBuilt(ToriRSServer_PlayerSceneWindow(player)),
                 srv->player_count, player->active);
     maybe_rebuild(srv);
     if( srv->verbose )
         fprintf(stderr,
                 "torirsserver: login scene ready zone=%d,%d origin=%d,%d pending=%d\n",
-                srv->zone_x, srv->zone_z, ToriRSServer_SceneOrigin(srv->zone_x),
-                ToriRSServer_SceneOrigin(srv->zone_z), player->rebuild_pending);
+                player->zone_x, player->zone_z, ToriRSServer_SceneOrigin(player->zone_x),
+                ToriRSServer_SceneOrigin(player->zone_z), player->rebuild_pending);
 
     /*
      * 0. Presence, before any packet.
@@ -11314,9 +11454,15 @@ ToriRSServer_WorldLocSet(
     return ToriRSServer_WorldLocSetOps(srv, x, z, level, shape, loc_id, angle, kind, &ops);
 }
 
-int
-ToriRSServer_WorldLocSetOps(
-    struct ToriRSServer* srv,
+/*
+ * Replay one successful scene mutation into every OTHER built window covering
+ * the tile — the second half of the window-coherence invariant (the first is
+ * occupancy's broadcast in ToriRSServer_SceneChangeOccupancy). Slot numbers
+ * are per-window, so each window runs its own lookup; the ZoneMap record the
+ * caller writes covers windows built later.
+ */
+static void
+world_loc_mirror(
     int x,
     int z,
     int level,
@@ -11325,6 +11471,57 @@ ToriRSServer_WorldLocSetOps(
     int angle,
     enum ToriRSServerLocSetKind kind,
     const struct ToriRSServerLocOps* ops)
+{
+    struct ToriRSServerSceneWindow* primary = ToriRSServer_SceneBoundWindow();
+
+    assert(ops);
+    for( int i = 0; i < TORIRSSERVER_SCENE_WINDOW_MAX; i++ )
+    {
+        struct ToriRSServerSceneWindow* window = ToriRSServer_SceneWindowByIndex(i);
+        int slot;
+
+        if( window == primary )
+            continue;
+        if( !ToriRSServer_SceneWindowContains(window, x, z) )
+            continue;
+        ToriRSServer_SceneBindWindow(window);
+        slot = ToriRSServer_SceneFindLocExact(x, z, level, shape);
+        if( loc_id < 0 )
+        {
+            /* A delete: this window's own occupant goes; if it was a loc_add
+             * the window's static loc stands revealed underneath, same as in
+             * the primary. Nothing to remove is fine — the windows agreed
+             * before the mutation, so they agree after. */
+            ToriRSServer_SceneRemoveLoc(slot);
+        }
+        else if( kind == TORIRSSERVER_LOC_SET_ADD || !ToriRSServer_SceneLoc(slot) )
+        {
+            slot = ToriRSServer_SceneAddLoc(x, z, level, loc_id, shape, angle);
+            if( slot >= 0 )
+                ToriRSServer_SceneLocSetOps(slot, ops);
+        }
+        else if( ToriRSServer_SceneReplaceLoc(slot, loc_id, angle) )
+        {
+            ToriRSServer_SceneLocSetOps(slot, ops);
+        }
+    }
+    ToriRSServer_SceneBindWindow(primary);
+}
+
+/* The body of ToriRSServer_WorldLocSetOps, already bound to the window the
+ * mutation lands in (`covered` says whether any built window holds the tile). */
+static int
+world_loc_set_ops_in_window(
+    struct ToriRSServer* srv,
+    int x,
+    int z,
+    int level,
+    int shape,
+    int loc_id,
+    int angle,
+    enum ToriRSServerLocSetKind kind,
+    const struct ToriRSServerLocOps* ops,
+    int covered)
 {
     int slot = ToriRSServer_SceneFindLocExact(x, z, level, shape);
     struct ToriRSServerSceneLoc* existing = ToriRSServer_SceneLoc(slot);
@@ -11346,14 +11543,14 @@ ToriRSServer_WorldLocSetOps(
     assert(ops);
 
     /*
-     * A tile the scene window does not cover. The reference has no such case —
-     * its World holds every zone — and content is entitled to the same reach:
+     * A tile no built window covers. The reference has no such case — its
+     * World holds every zone — and content is entitled to the same reach:
      * puro-puro's crop circle rotates through eight farms and at most one of
-     * them is ever near the player. The ZoneMap is world-indexed and is the
+     * them is ever near a player. The ZoneMap is world-indexed and is the
      * durable authority anyway (§3.17), so the mutation is recorded there and
      * the scene halves (collision, the slot array) are skipped; the rebuild's
-     * `ToriRSServer_WorldLocsReapply` puts the record onto the scene if the window
-     * ever moves over it.
+     * `ToriRSServer_WorldLocsReapply` puts the record onto a window if one is
+     * ever built over it.
      *
      * What this cannot know is the map square's own loc on that tile: `base`
      * stays -1 unless an earlier in-scene change captured it, so an
@@ -11362,7 +11559,7 @@ ToriRSServer_WorldLocSetOps(
      * than restores. Reading the square from the cache on this path would fix
      * that; nothing needs it yet.
      */
-    if( !ToriRSServer_SceneContains(x, z) )
+    if( !covered )
     {
         if( loc_id < 0 )
         {
@@ -11404,6 +11601,7 @@ ToriRSServer_WorldLocSetOps(
         revealed = ToriRSServer_SceneLoc(ToriRSServer_SceneFindLocExact(x, z, level, shape));
         if( revealed && revealed->active )
         {
+            world_loc_mirror(x, z, level, shape, loc_id, angle, kind, ops);
             /* The uncovered loc's own menu, not the caller's: this is the map
              * square's loc reappearing, and what it offers is what its loctype
              * offers. Passing the removal's `ops` here would leave a closed
@@ -11438,14 +11636,45 @@ ToriRSServer_WorldLocSetOps(
         ToriRSServer_SceneLocSetOps(added, ops);
     }
 
+    world_loc_mirror(x, z, level, shape, loc_id, angle, kind, ops);
     ToriRSServer_ZoneLocChanged(srv, x, z, level, shape, loc_id, angle, base_id, base_angle,
                              over_base, ops);
     return 1;
 }
 
-/** One recorded change, put back onto a scene that has just been re-read from
- *  the cache. A record outside the new window is left alone: it stays in the
- *  ZoneMap and re-applies if the origin ever moves back. */
+int
+ToriRSServer_WorldLocSetOps(
+    struct ToriRSServer* srv,
+    int x,
+    int z,
+    int level,
+    int shape,
+    int loc_id,
+    int angle,
+    enum ToriRSServerLocSetKind kind,
+    const struct ToriRSServerLocOps* ops)
+{
+    /* The mutation lands in a window that actually covers the tile — the bound
+     * one when it does (the acting player's own scene), else any built window
+     * that does — and world_loc_mirror then repeats it into the rest. The
+     * caller's binding is restored on every path: a script that mutates a loc
+     * across the world must not leave the engine bound to a stranger's
+     * window. */
+    struct ToriRSServerSceneWindow* home = ToriRSServer_SceneBoundWindow();
+    struct ToriRSServerSceneWindow* covering = ToriRSServer_SceneWindowFind(x, z);
+    int result;
+
+    if( covering )
+        ToriRSServer_SceneBindWindow(covering);
+    result = world_loc_set_ops_in_window(srv, x, z, level, shape, loc_id, angle, kind, ops,
+                                         covering != NULL);
+    ToriRSServer_SceneBindWindow(home);
+    return result;
+}
+
+/** One recorded change, put back onto a window that has just been re-read from
+ *  the cache. A record outside the bound window is left alone: it stays in the
+ *  ZoneMap and re-applies if a window is ever built over it. */
 static void
 reapply_loc(
     struct ToriRSServerZoneLoc* loc,
@@ -11454,7 +11683,7 @@ reapply_loc(
     int slot;
 
     (void)user;
-    if( !ToriRSServer_SceneContains(loc->x, loc->z) )
+    if( !ToriRSServer_SceneWindowContains(ToriRSServer_SceneBoundWindow(), loc->x, loc->z) )
         return;
     slot = ToriRSServer_SceneFindLocExact(loc->x, loc->z, loc->level, loc->shape);
     if( loc->loc_id < 0 )
@@ -11479,10 +11708,33 @@ reapply_loc(
     ToriRSServer_SceneLocSetOps(slot, &loc->ops);
 }
 
+static void
+world_locs_reapply_window(
+    struct ToriRSServer* srv,
+    struct ToriRSServerSceneWindow* window)
+{
+    struct ToriRSServerSceneWindow* bound = ToriRSServer_SceneBoundWindow();
+
+    assert(window);
+    ToriRSServer_SceneBindWindow(window);
+    ToriRSServer_ZoneLocsForeach(srv, reapply_loc, NULL);
+    ToriRSServer_SceneBindWindow(bound);
+}
+
 void
 ToriRSServer_WorldLocsReapply(struct ToriRSServer* srv)
 {
-    ToriRSServer_ZoneLocsForeach(srv, reapply_loc, NULL);
+    /* Every built window: the replay is idempotent per window (a delete on an
+     * already-deleted slot is a no-op, a change re-lands the same id), so a
+     * window that already carries a record just keeps it. */
+    for( int i = 0; i < TORIRSSERVER_SCENE_WINDOW_MAX; i++ )
+    {
+        struct ToriRSServerSceneWindow* window = ToriRSServer_SceneWindowByIndex(i);
+
+        if( !ToriRSServer_SceneWindowBuilt(window) )
+            continue;
+        world_locs_reapply_window(srv, window);
+    }
 }
 
 /*
@@ -11519,14 +11771,14 @@ ToriRSServer_WorldLocReverts(struct ToriRSServer* srv)
          * than by remembering which opcode armed the timer.
          *
          * It can refuse, and there is one way that happens which is worth
-         * saying out loud: the scene is a single 104x104 window for the whole
-         * world, so a revert armed before somebody walked far enough to move the
-         * origin may be aimed at a tile the scene no longer covers. The ZoneMap
-         * record stands, which is the safe direction — the clients were told the
-         * loc changed and it stays changed — but the timer is spent, so the loc
-         * never comes back. That is the single-scene-origin limitation
-         * (docs/osrs230_mockserver.md §6.1 step 1), not this table's, and it is
-         * reported rather than swallowed.
+         * saying out loud: collision windows cover only where the world is
+         * being watched from (the root anchor plus each player's own window),
+         * so a revert armed before everyone walked away may be aimed at a tile
+         * no built window covers any more. The ZoneMap record stands, which is
+         * the safe direction — the clients were told the loc changed and it
+         * stays changed — but the timer is spent, so the loc never comes back.
+         * That is the windowed-collision limitation, not this table's, and it
+         * is reported rather than swallowed.
          */
         /*
          * Undoing a `loc_add` takes away the loc that was added, and never the
@@ -11822,8 +12074,8 @@ phase_info(struct ToriRSServer* srv)
         ToriRSServer_WorldSetActive(srv, player);
         ToriRSServer_WorldSyncCombatVarbits(srv);
     }
-    /* One origin for the whole world, so this is decided once and may mark
-     * every player as owing a rebuild — see maybe_rebuild. */
+    /* One origin per player now: this walks every player and rebuilds only the
+     * windows whose owners crossed their own margin — see maybe_rebuild. */
     maybe_rebuild(srv);
 }
 
@@ -12136,8 +12388,8 @@ phase_client_out(struct ToriRSServerPlayer* player)
      * (docs/ORANGE_WEDGE.md §18). The generation is pool-wide and bumped by
      * every build, so "same place, new map" is exactly what it detects.
      *
-     * The server's own scene is rebuilt here too, not just the client's: it is
-     * a copy of the same descriptors and is equally stale.
+     * This player's own scene window is rebuilt here too, not just the
+     * client's: it is a copy of the same descriptors and is equally stale.
      */
     {
         int instance_handle = ToriRSServer_MapInstanceFind(player->x, player->z);
@@ -12151,9 +12403,12 @@ phase_client_out(struct ToriRSServerPlayer* player)
              * server scene twice in one tick is wasted work, not a bug. */
             if( !player->rebuild_pending )
             {
-                ToriRSServer_WorldSceneRebuild(srv);
-                ToriRSServer_WorldLocsReapply(srv);
-                world_occupancy_restamp(srv);
+                /* Locs, occupancy and the npc roster are folded into the
+                 * window build itself — see world_window_scene_build. A first
+                 * build upgrades this player from the root binding, so
+                 * refresh. */
+                world_player_scene_build(srv, player);
+                ToriRSServer_WorldSetActive(srv, player);
                 ToriRSServer_ZonePlayerReset(player);
                 player->rebuild_pending = 1;
                 player->place_dirty = 1;
