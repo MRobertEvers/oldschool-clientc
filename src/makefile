@@ -2381,7 +2381,14 @@ test-texspan-asm: $(OBJ_DIR)
 ifeq ($(TEXSPAN_ASM_SRC),)
 	@echo "test-texspan-asm: no kernel for PLATFORM=$(PLATFORM) -- nothing to score"
 else
-	$(CC) -std=c11 -O2 -g -Wall -Wno-unused-parameter -Wno-unused-function 		-Wno-unused-but-set-variable 		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/texspan_asm_test 		$(TORIDRAW_DIR)/toridraw_texspan_asm_test.c $(TEXSPAN_ASM_SRC) -lm
+	@# Two steps, and for the same reason $(TEXSPAN_ASM_OBJ) is its own rule:
+	@# the C half needs $(PLATFORM_BASE_CFLAGS) or the lane's ISA floor is not
+	@# the one being tested -- win32 without -march=pentium4 has no SSE2 and
+	@# the reference twin does not compile -- while the asm half must not see
+	@# them, because -include win32_compat.h reaches the assembler as several
+	@# hundred lines of "no such instruction".
+	$(CC) -I$(TORIDRAW_DIR) -c $(TEXSPAN_ASM_SRC) -o $(OBJ_DIR)/texspan_asm_test_kernel.o
+	$(CC) -std=c11 -O2 -g -Wall -Wno-unused-parameter -Wno-unused-function 		-Wno-unused-but-set-variable $(PLATFORM_BASE_CFLAGS) 		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/texspan_asm_test 		$(TORIDRAW_DIR)/toridraw_texspan_asm_test.c 		$(OBJ_DIR)/texspan_asm_test_kernel.o -lm
 	./$(OBJ_DIR)/texspan_asm_test
 endif
 

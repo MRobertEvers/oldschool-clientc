@@ -108,6 +108,66 @@
 	.endm
 
 /*
+ * DIVR: \q <- \n / \w, the exact C quotient (truncated toward zero), using
+ * only 32-bit operations. Expects 1.0f / (float)\w in xmm1 and |\w| >= 2 --
+ * the caller peels +/-1, which also disposes of INT_MIN / -1. \n is a memory
+ * operand, read again by the fixup; \q, \r, \t are three distinct scratch
+ * registers, none of them \w. Clobbers xmm2 and xmm3.
+ *
+ * The float product lands within a unit of the true quotient, the 32-bit
+ * remainder it leaves is exact even where the multiply wraps (n - q*w is
+ * congruent mod 2^32 and small enough to be meant literally), and one more
+ * multiply by the same reciprocal refines it. Whatever is left is walked off
+ * a step at a time: the remainder is home when it is zero, or has the
+ * numerator's sign and is smaller in magnitude than the divisor -- which is
+ * exactly C truncation. Brute force over 209 million adversarial pairs
+ * (divrefine_b.c, kept with the perf notes) never needed more than one step
+ * under round-to-nearest, and the loop terminates under any MXCSR rounding
+ * mode because each step moves the remainder |\w| closer to home.
+ */
+	.macro DIVR n, w, q, r, t
+	cvtsi2ssl \n, %xmm2
+	mulss   %xmm1, %xmm2
+	cvtss2si %xmm2, \q
+	movl    \q, \t
+	imull   \w, \t
+	movl    \n, \r
+	subl    \t, \r
+	cvtsi2ssl \r, %xmm2
+	mulss   %xmm1, %xmm2
+	cvtss2si %xmm2, \t
+	addl    \t, \q
+	imull   \w, \t
+	subl    \t, \r
+7:
+	testl   \r, \r
+	je      9f
+	movl    \r, \t
+	xorl    \n, \t
+	js      8f
+	movd    \r, %xmm3
+	movl    \r, \t
+	negl    \t
+	cmovsl  \r, \t
+	movl    \w, \r
+	negl    \r
+	cmovsl  \w, \r
+	cmpl    \r, \t
+	movd    %xmm3, \r
+	jb      9f
+8:
+	movl    \r, \t
+	xorl    \w, \t
+	sarl    $31, \t
+	orl     $1, \t
+	addl    \t, \q
+	imull   \w, \t
+	subl    \t, \r
+	jmp     7b
+9:
+	.endm
+
+/*
  * tex_span_u_quotient: clamp in float, THEN convert.
  *
  * The order is the whole point -- an out-of-range cvttss2si yields INT_MIN on
@@ -131,19 +191,21 @@
  * tex_span_wrapped_quotient: trust the reciprocal only while it still carries
  * the low bits that select the texel row, else divide.
  *
- * The slow side divides in DOUBLE rather than with idivl, and that is exact
- * rather than merely close. Both operands are int32 and so convert without
- * loss; the quotient is then correctly rounded, so it sits within |n| * 2^-53
- * of the true value. A non-integral quotient of int32s is at least 1/|w| away
- * from the nearest integer, and |n| * 2^-53 < 1/|w| reduces to |n| < 2^53,
- * which always holds. So truncation lands on the same integer idivl produces,
- * for every input this kernel can be handed.
+ * The slow side is the C's own `n / w`, instruction for instruction: one idivl,
+ * so the result is the reference quotient by construction rather than by an
+ * argument about rounding. This kernel is 32-bit throughout -- no operand, and
+ * no intermediate, is ever wider than a dword.
  *
- * It is also faster than idivl and it cannot fault: idivl raises #DE on
- * INT_MIN / -1, where cvttsd2si simply yields INT_MIN.
+ * The one case idivl cannot take is INT_MIN / -1, where the true quotient is
+ * 2^31 and the instruction raises #DE instead of producing it. w == -1 is
+ * therefore peeled off in front: n / -1 is -n for every other n, and at
+ * n == INT_MIN negl wraps back to INT_MIN, which is the value x86 hands back
+ * for an out-of-range conversion anyway. Two instructions, on a path that only
+ * runs once the reciprocal has already been refused.
  *
- * n numerator (register or m32), w divisor (register or m32), out a register.
- * Clobbers xmm2, xmm3.
+ * n numerator (register or m32), w divisor (register or m32) -- but not eax or
+ * edx, which the divide sequence writes before it reads w. out a register.
+ * Clobbers xmm2, xmm3, eax, edx.
  */
 	.macro WRAPQ n, w, out
 	cvtsi2ssl \n, %xmm2
@@ -156,10 +218,16 @@
 	cvttss2si %xmm2, \out
 	jmp     9f
 8:
-	cvtsi2sdl \n, %xmm2
-	cvtsi2sdl \w, %xmm3
-	divsd   %xmm3, %xmm2
-	cvttsd2si %xmm2, \out
+	movl    \n, %eax
+	cmpl    $-1, \w
+	je      7f
+	cltd
+	idivl   \w
+	movl    %eax, \out
+	jmp     9f
+7:
+	negl    %eax
+	movl    %eax, \out
 9:
 	.endm
 
@@ -264,8 +332,9 @@
  *
  * Cold: only blocks whose linear fit was refused arrive here, and the fit is
  * refused when the block sweeps more than a texture tile or the quotient has
- * left the reciprocal exact range. Two divides per pixel, because that is what
- * the reference rasterizer does and matching it is the entire point.
+ * left the reciprocal exact range. Two exact quotients per pixel, because that
+ * is what the reference rasterizer computes and matching it bit for bit is the
+ * entire point; DIVR makes them without touching the divide unit.
  *
  * Works from its own copies of au/bv/cw so the span accumulators are left
  * alone, and touches only eax/ecx/edx/ebx/ebp besides.
@@ -288,23 +357,41 @@
 	je      2f
 
 	/*
-	 * Both quotients in one divpd. The C spends two idivl here, which is
-	 * the reason this path costs what it does; a packed double divide
-	 * produces au/w and bv/w together for less than one idivl, and by the
-	 * argument above it is exact rather than approximate.
+	 * The two exact divides the C spends here, made without the divide
+	 * unit: one divss builds 1/w and DIVR refines both quotients from it
+	 * with 32-bit multiplies. A Pentium 4 idivl is 60-80 cycles and two of
+	 * them serialise; its divss is around 23 and the two refines overlap.
+	 *
+	 * |w| == 1 is peeled first: DIVR wants |w| >= 2, the quotients are
+	 * just +/-n, and negl wraps INT_MIN / -1 where idivl would fault.
+	 * w == 0 cannot reach here -- the testl above skips it. ebx is the
+	 * pixel index and stays out of bounds for DIVR; the first quotient
+	 * parks in xmm0 across the second because there is no register left.
 	 */
-	movd    EB_AU(%esp), %xmm0
-	movd    EB_BV(%esp), %xmm1
-	punpckldq %xmm1, %xmm0
-	cvtdq2pd %xmm0, %xmm0
-	movd    %ecx, %xmm1
-	pshufd  $0, %xmm1, %xmm1
-	cvtdq2pd %xmm1, %xmm1
-	divpd   %xmm1, %xmm0
-	cvttpd2dq %xmm0, %xmm0
+	cmpl    $1, %ecx
+	je      4f
+	cmpl    $-1, %ecx
+	je      5f
+	movss   LC_one, %xmm1
+	cvtsi2ssl %ecx, %xmm2
+	divss   %xmm2, %xmm1
+	DIVR    EB_AU(%esp), %ecx, %ebp, %edx, %eax
+	movd    %ebp, %xmm0
+	DIVR    EB_BV(%esp), %ecx, %ebp, %edx, %eax
+	movl    %ebp, %edx
 	movd    %xmm0, %eax
-	pshufd  $0x55, %xmm0, %xmm1
-	movd    %xmm1, %edx
+	jmp     0f
+4:
+	movl    EB_AU(%esp), %eax
+	movl    EB_BV(%esp), %edx
+	jmp     0f
+5:
+	movl    EB_AU(%esp), %eax
+	negl    %eax
+	movl    EB_BV(%esp), %edx
+	negl    %edx
+0:
+	/* eax = au / w, edx = bv / w */
 
 	/* clamp(au / w, 0, texture_width - 1) */
 	xorl    %ebp, %ebp
