@@ -854,6 +854,67 @@ fake_component_rect(void* u, int component_id, int* x, int* y, int* w, int* h)
         *h = g_component_box[3];
     return 1;
 }
+/*
+ * One bound role, so a name that resolves can be told from one that does not.
+ * `g_role_name` NULL means this revision declares nothing at all -- which is
+ * the state every lane is in before its profile is written, and the one the
+ * contract's "an unbound role is an answer" rule is about.
+ */
+static char const* g_role_name;
+static int g_role_box[4];
+static int g_role_visible;
+static int g_role_component_id = -1;
+static int g_role_clicked_op = -1;
+static char const* g_role_clicked;
+
+static int
+role_is(char const* role)
+{
+    return g_role_name && strcmp(role, g_role_name) == 0;
+}
+
+static int
+fake_role_rect(void* u, char const* role, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    if( !role_is(role) )
+        return 0;
+    if( x )
+        *x = g_role_box[0];
+    if( y )
+        *y = g_role_box[1];
+    if( w )
+        *w = g_role_box[2];
+    if( h )
+        *h = g_role_box[3];
+    return 1;
+}
+
+static int
+fake_role_visible(void* u, char const* role)
+{
+    (void)u;
+    return role_is(role) ? g_role_visible : 0;
+}
+
+static int
+fake_role_click(void* u, char const* role, int op)
+{
+    (void)u;
+    if( !role_is(role) )
+        return 0;
+    g_role_clicked = role;
+    g_role_clicked_op = op;
+    return 1;
+}
+
+static int
+fake_role_id(void* u, char const* role)
+{
+    (void)u;
+    return role_is(role) ? g_role_component_id : -1;
+}
+
 static int
 fake_stat(void* u, int skill, int* cur, int* base)
 {
@@ -1040,6 +1101,10 @@ fake_engine(void)
     e.slot_rect = fake_slot_rect;
     e.slot_member_rect = fake_slot_member_rect;
     e.component_rect = fake_component_rect;
+    e.role_rect = fake_role_rect;
+    e.role_visible = fake_role_visible;
+    e.role_click = fake_role_click;
+    e.role_id = fake_role_id;
     e.layout_set = fake_layout_set;
     e.layout_slot = fake_layout_slot;
     e.layout_slot_skin = fake_layout_slot_skin;
@@ -1662,6 +1727,91 @@ main(void)
         g_member_no = -1;
         g_slot_w[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS] = 0;
         g_slot_h[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS] = 0;
+    }
+
+    /*
+     * Semantic roles: the same four verbs, addressed by what the element is.
+     *
+     * The negative half is the point. A role no profile declared has to answer
+     * "not here" through every verb, because that is the state every lane is
+     * in until someone writes its binding -- and a plugin that got a plausible
+     * answer instead would be drawing over, or pressing, whatever happened to
+     * be there.
+     */
+    {
+        struct ToriRS_PluginApi const* api = PluginHost_Api(host);
+        struct ToriRS_PluginCtx* ctx = PluginHost_Ctx(host, a);
+        int x, y, w, h;
+
+        g_role_name = NULL;
+        x = y = w = h = -1;
+        CHECK(!api->role_rect(ctx, "report_button", &x, &y, &w, &h),
+              "an undeclared role has no rectangle");
+        CHECK(x == -1 && y == -1, "and leaves the outputs untouched");
+        CHECK(!api->role_visible(ctx, "report_button"), "an undeclared role is not visible");
+        CHECK(!api->role_click(ctx, "report_button", 0), "an undeclared role cannot be pressed");
+        CHECK(api->role_id(ctx, "report_button") == -1, "an undeclared role has no id");
+
+        /* An empty name is a plugin's own string handling and gets the same
+         * answer rather than reaching the engine. */
+        CHECK(!api->role_rect(ctx, "", &x, &y, &w, &h), "an empty role name is not a role");
+        CHECK(api->role_id(ctx, "") == -1, "an empty role name has no id");
+
+        g_role_name = "report_button";
+        g_role_box[0] = 408;
+        g_role_box[1] = 467;
+        g_role_box[2] = 100;
+        g_role_box[3] = 32;
+        g_role_visible = 1;
+        g_role_component_id = (553 << 16) | 0;
+
+        x = y = w = h = -1;
+        CHECK(api->role_rect(ctx, "report_button", &x, &y, &w, &h), "a bound role answers");
+        CHECK(x == 408 && y == 467 && w == 100 && h == 32, "with its element's box");
+        CHECK(api->role_visible(ctx, "report_button"), "and reports it on screen");
+        CHECK(api->role_id(ctx, "report_button") == ((553 << 16) | 0), "and hands back its id");
+
+        /* A different name is still unbound, so one binding cannot answer for
+         * the whole vocabulary. */
+        CHECK(!api->role_rect(ctx, "logout_screen", &x, &y, &w, &h),
+              "a role this profile did not bind is still absent");
+
+        g_role_visible = 0;
+        CHECK(!api->role_visible(ctx, "report_button"), "a hidden element is not visible");
+        CHECK(api->role_rect(ctx, "report_button", &x, &y, &w, &h),
+              "…but it still has a box, which is why the two are separate verbs");
+
+        g_role_clicked = NULL;
+        g_role_clicked_op = -1;
+        CHECK(api->role_click(ctx, "report_button", 1), "a bound role presses");
+        CHECK(g_role_clicked && strcmp(g_role_clicked, "report_button") == 0,
+              "the press reached the element the role names");
+        CHECK(g_role_clicked_op == 1, "carrying the op it was given");
+
+        /* Same reading as if_click's: an op out of range came from a config
+         * key, so it is refused rather than passed down. */
+        g_role_clicked_op = -1;
+        CHECK(!api->role_click(ctx, "report_button", 11), "an op past 10 is refused");
+        CHECK(g_role_clicked_op == -1, "and never reaches the engine");
+
+        /*
+         * `safe` never reaches the engine at all: it is derived from the
+         * regions and the host's own reservation table, so it has to answer
+         * with exactly what the region enum answers.
+         */
+        {
+            int sx, sy, sw, sh, rx, ry, rw, rh;
+            int by_slot = api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_SAFE, &sx, &sy, &sw, &sh);
+            int by_role = api->role_rect(ctx, "safe", &rx, &ry, &rw, &rh);
+            CHECK(by_slot == by_role, "the safe role and the safe region agree that it exists");
+            if( by_slot && by_role )
+                CHECK(sx == rx && sy == ry && sw == rw && sh == rh,
+                      "and agree on the rectangle");
+        }
+
+        g_role_name = NULL;
+        g_role_visible = 0;
+        g_role_component_id = -1;
     }
 
     /* Packet interception. */

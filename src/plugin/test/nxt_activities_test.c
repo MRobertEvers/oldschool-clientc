@@ -483,6 +483,45 @@ fake_layout_end(void* u)
 {
     (void)u;
 }
+/* No role table under test either: every name answers "this revision does not
+ * have that", which is the contract's own reading of an unbound role. */
+static int
+fake_role_rect(void* u, char const* role, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    (void)role;
+    (void)x;
+    (void)y;
+    (void)w;
+    (void)h;
+    return 0;
+}
+
+static int
+fake_role_visible(void* u, char const* role)
+{
+    (void)u;
+    (void)role;
+    return 0;
+}
+
+static int
+fake_role_click(void* u, char const* role, int op)
+{
+    (void)u;
+    (void)role;
+    (void)op;
+    return 0;
+}
+
+static int
+fake_role_id(void* u, char const* role)
+{
+    (void)u;
+    (void)role;
+    return -1;
+}
+
 static int
 fake_layout_slot(void* u, int slot, int member, int x, int y, int w, int h)
 {
@@ -963,6 +1002,10 @@ fake_engine(void)
     e.layout_set = fake_layout_set;
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
+    e.role_rect = fake_role_rect;
+    e.role_visible = fake_role_visible;
+    e.role_click = fake_role_click;
+    e.role_id = fake_role_id;
     e.layout_slot = fake_layout_slot;
     e.layout_slot_skin = fake_layout_slot_skin;
     e.layout_scrollbar = fake_layout_scrollbar;

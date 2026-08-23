@@ -236,7 +236,6 @@ enum FrameImage
     IMG_O_STONE_BR,
     IMG_O_STONE_MID,
     IMG_O_STONE_MID_R,
-    IMG_O_STONE_MID_R2,
     IMG_O_COMPASS,
     IMG_O_MAPBACK_R,
     IMG_O_MINIMAP_MASK,
@@ -325,7 +324,6 @@ static char const* const FRAME_IMAGE_FILE[FRAME_IMG_COUNT] = {
     [IMG_O_STONE_BR] = "osrs_stone_br.png",
     [IMG_O_STONE_MID] = "osrs_stone_mid.png",
     [IMG_O_STONE_MID_R] = "osrs_stone_mid_r.png",
-    [IMG_O_STONE_MID_R2] = "osrs_stone_mid_r2.png",
     [IMG_O_COMPASS] = "osrs_compass.png",
     [IMG_O_MAPBACK_R] = "osrs_mapback_r.png",
     [IMG_O_MINIMAP_MASK] = "osrs_minimap_mask.png",
@@ -869,7 +867,8 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
 /** The OldSchool tab strip: seven 33-wide stones between two end caps. */
 #define FRAME_R_ROW_W 241
 #define FRAME_R_ROW_H 37
-#define FRAME_R_STONE_W 33
+/** The stones are 36 tall inside a 37-tall strip, as 164 cuts them. */
+#define FRAME_R_STONE_H 36
 #define FRAME_R_PANEL_W 190
 #define FRAME_R_PANEL_H 261
 /**
@@ -928,8 +927,6 @@ frame_layout_modern_resizable(
     int const panel_x = row_x + (FRAME_R_ROW_W - FRAME_R_PANEL_W) / 2;
     int const map_x = canvas_w - FRAME_R_MAP_W;
     int const chat_y = canvas_h - FRAME_R_CHAT_H;
-    /* The stones start one end-cap in. 241 - 7*33 = 10, five a side. */
-    int const stone_x = row_x + (FRAME_R_ROW_W - FRAME_R_STONE_W * 7) / 2;
 
     assert(ctx);
 
@@ -954,6 +951,44 @@ frame_layout_modern_resizable(
     frame_blit(g_image[IMG_O_CHATBACK], 0, chat_y);
     frame_blit(g_image[IMG_O_CHAT_STONES], 0, chat_y + FRAME_O_CHAT_H);
 
+    /*
+     * The fourteen boxes, exactly as interface 164 states them.
+     *
+     * Not a uniform stride: the two ends of each row are 38 wide and the five
+     * between are 33 (0, 38, 71, 104, 137, 170, 203, ending at 241), and the
+     * top row's third box is 38 rather than 33 -- a quirk 548 has too, and
+     * copied rather than tidied for the same reason the rest of these numbers
+     * are copied. A 33-wide stride centred in the strip put every interior tab
+     * two pixels off its own stone.
+     *
+     * And the four CORNERS wear corner stones. `side_stone_highlights` is five
+     * sprites, not one: 1026..1029 are the top-left, top-right, bottom-left
+     * and bottom-right shapes and 1030 is the middle. Lighting a corner tab
+     * with the middle stone drew a square highlight into a rounded corner, so
+     * the strip's own rounded end showed through beside it.
+     */
+    static struct
+    {
+        int x;
+        int w;
+        int stone;
+    } const TAB[FRAME_TAB_COUNT] = {
+        { 0,   38, IMG_O_STONE_TL },
+        { 38,  33, IMG_O_STONE_MID},
+        { 71,  38, IMG_O_STONE_MID},
+        { 104, 33, IMG_O_STONE_MID},
+        { 137, 33, IMG_O_STONE_MID},
+        { 170, 33, IMG_O_STONE_MID},
+        { 203, 38, IMG_O_STONE_TR },
+        { 0,   38, IMG_O_STONE_BL },
+        { 38,  33, IMG_O_STONE_MID},
+        { 71,  33, IMG_O_STONE_MID},
+        { 104, 33, IMG_O_STONE_MID},
+        { 137, 33, IMG_O_STONE_MID},
+        { 170, 33, IMG_O_STONE_MID},
+        { 203, 38, IMG_O_STONE_BR },
+    };
+
     for( int i = 0; i < FRAME_TAB_COUNT; i++ )
     {
         /*
@@ -963,23 +998,15 @@ frame_layout_modern_resizable(
          * where friends belongs. @see FRAME_TAB_SCREEN_ORDER.
          */
         int const tab = FRAME_TAB_SCREEN_ORDER[i];
-        int const row = i / 7;
-        int const col = i % 7;
+
         frame_tab(
             tab,
-            stone_x + col * FRAME_R_STONE_W,
-            row == 0 ? top_row_y : bottom_row_y,
-            FRAME_R_STONE_W,
-            FRAME_R_ROW_H,
+            row_x + TAB[i].x,
+            i < 7 ? top_row_y : bottom_row_y,
+            TAB[i].w,
+            FRAME_R_STONE_H,
             /*stone=*/-1,
-            /*
-             * The RED stone (`pre_eoc_stones_1`), not the grey one beside it.
-             * The two are a pair -- 1180 is the unlit stone the strips are
-             * already made of and 1181 is the lit one -- so drawing 1180 for
-             * the pressed tab painted the strip's own stone back onto itself
-             * and the open tab was indistinguishable from the six beside it.
-             */
-            g_image[IMG_O_STONE_MID_R2],
+            g_image[TAB[i].stone],
             g_image[IMG_O_SIDEICON_0 + tab]);
     }
 

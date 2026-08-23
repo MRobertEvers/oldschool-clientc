@@ -1,0 +1,7 @@
+# The one dependency is TypeScript, installed with `npm install` in this directory.
+node_modules/
+package-lock.json
+
+# `cs2dom cachegen` writes this from the content tree; it is generated, like the
+# .if and .cs2 output, and regenerating it is a command rather than a merge.
+example/ui/cache.gen.ts

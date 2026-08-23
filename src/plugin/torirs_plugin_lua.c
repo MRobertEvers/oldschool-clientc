@@ -842,6 +842,131 @@ lua_layout_revision(lua_State* L)
     return 1;
 }
 
+/* -------------------------------------------------------------- roles */
+
+/*
+ * The semantic role a call is about, carried as a SECOND upvalue, exactly as a
+ * layout region is.
+ *
+ * Same argument, one level further out: a role is a thing a script talks about
+ * repeatedly, and a string argument repeated at every call site is a typo
+ * waiting to be a silent no-op. `api.role("report_button")` binds the name
+ * once and a misspelling of the VERB is then a nil index at the point of the
+ * mistake. The name itself cannot be checked at bind time and deliberately is
+ * not: the vocabulary is open, and a role this revision has not bound is a
+ * legitimate answer rather than an error -- the same script has to run on the
+ * lane whose profile names it and on the one whose profile does not.
+ */
+static char const*
+lua_role_name(lua_State* L)
+{
+    return lua_tostring(L, lua_upvalueindex(2));
+}
+
+/** `rect()` -> `{x=,y=,w=,h=}`, or nil for a role this revision has not bound. */
+static int
+lua_role_rect(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    int x = 0;
+    int y = 0;
+    int w = 0;
+    int h = 0;
+
+    if( !g_api->role_rect(script->cur_ctx, lua_role_name(L), &x, &y, &w, &h) )
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_createtable(L, 0, 4);
+    lua_pushinteger(L, x);
+    lua_setfield(L, -2, "x");
+    lua_pushinteger(L, y);
+    lua_setfield(L, -2, "y");
+    lua_pushinteger(L, w);
+    lua_setfield(L, -2, "w");
+    lua_pushinteger(L, h);
+    lua_setfield(L, -2, "h");
+    return 1;
+}
+
+static int
+lua_role_visible(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    lua_pushboolean(L, g_api->role_visible(script->cur_ctx, lua_role_name(L)));
+    return 1;
+}
+
+/** `click([op])` -- op defaults to 0, the classic unnumbered button. */
+static int
+lua_role_click(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    lua_pushboolean(
+        L, g_api->role_click(script->cur_ctx, lua_role_name(L), (int)luaL_optinteger(L, 1, 0)));
+    return 1;
+}
+
+/** `id()` -- the component id right now, or nil. Do not keep it; @see role_id. */
+static int
+lua_role_id(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    int const id = g_api->role_id(script->cur_ctx, lua_role_name(L));
+
+    if( id < 0 )
+        lua_pushnil(L);
+    else
+        lua_pushinteger(L, id);
+    return 1;
+}
+
+/**
+ * `api.role(name)` -> the verb table for that role.
+ *
+ * A constructor rather than a pre-built table per name, because the vocabulary
+ * is OPEN -- a profile may name anything, and there is no list here to build
+ * from. The tables are cached (upvalue 2) so a script that calls this in a
+ * frame handler is not allocating one per frame; a script that hoists it is
+ * doing the same thing, only visibly.
+ */
+static int
+lua_api_role(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* name = luaL_checkstring(L, 1);
+    static const struct
+    {
+        char const* name;
+        lua_CFunction fn;
+    } VERBS[] = {
+        { "rect", lua_role_rect },
+        { "visible", lua_role_visible },
+        { "click", lua_role_click },
+        { "id", lua_role_id },
+    };
+
+    lua_pushvalue(L, lua_upvalueindex(2));
+    lua_getfield(L, -1, name);
+    if( lua_istable(L, -1) )
+        return 1;
+    lua_pop(L, 1);
+
+    lua_createtable(L, 0, (int)(sizeof(VERBS) / sizeof(VERBS[0])));
+    for( size_t v = 0; v < sizeof(VERBS) / sizeof(VERBS[0]); v++ )
+    {
+        lua_pushlightuserdata(L, script);
+        lua_pushstring(L, name);
+        lua_pushcclosure(L, VERBS[v].fn, 2);
+        lua_setfield(L, -2, VERBS[v].name);
+    }
+    /* Into the cache, and left on the stack as the return value. */
+    lua_pushvalue(L, -1);
+    lua_setfield(L, -3, name);
+    return 1;
+}
+
 static int
 lua_window_request(lua_State* L)
 {
@@ -1862,6 +1987,17 @@ lua_build_api_table(struct LuaScript* script)
         lua_pushcclosure(L, FNS[i].fn, 1);
         lua_setfield(L, -2, FNS[i].name);
     }
+
+    /*
+     * api.role: the constructor, closed over its own cache table.
+     *
+     * Not in FNS above because it needs a second upvalue, and the cache has to
+     * be created here rather than lazily so that every call shares one.
+     */
+    lua_pushlightuserdata(L, script);
+    lua_createtable(L, 0, 8);
+    lua_pushcclosure(L, lua_api_role, 2);
+    lua_setfield(L, -2, "role");
 
     /*
      * api.layout: one sub-table per REGION, with the verbs on it.

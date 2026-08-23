@@ -158,6 +158,7 @@ dofile = nil
 ---@field image_release fun(image: integer) Drop it. The file is untouched, and every image is dropped for you when the plugin stops.
 ---@field component_rect fun(component_id: integer): torirs.Rect? Where one of the INTERFACE's own widgets is, by `(interface << 16) | component` -- the read half of a component id, for the buttons the gameframe's roles do not cover. A cache frame's chat filters are interface widgets, so api.layout.chat_buttons has no members to number there and this is the only handle on them. nil for a component this cache does not have or an interface that is not open.
 ---@field mouse_pos fun(): integer?, integer? The pointer in canvas coordinates, or nil when the client has none. What a hover highlight is drawn from -- a hit region answers CLICKS, not hovers.
+---@field role torirs.RoleFn Address an interface element by what it IS -- `api.role("report_button")` -- and get back a table of verbs bound to that name. The missing name component_rect's caveat is about; see torirs.Role.
 ---@field hit_region fun(x: integer, y: integer, w: integer, h: integer, ops?: string|string[], tag?: integer): boolean Claim a box of the canvas so what was drawn there can be clicked. Legal only inside on_draw_canvas, and DECLARED WITH THE DRAWING every frame: the box comes from where the frame put things this frame, and a region registered once at start is a rectangle over whatever used to be there after the first resize. The first op is the mouseover line and the LEFT click; all of them are rows in the right-click menu. No ops claims the pointer without offering anything, which is how a plugin stops a click falling through to the world behind its own art. `tag` comes back in on_canvas_click.
 ---@field asset_load fun(name: string): boolean Begin loading one of this plugin's own files. True means it is already resident; false means a read was queued and on_asset will fire. `name` is a bare filename of [A-Za-z0-9._-] -- a path is refused, so one plugin can never read another's.
 ---@field asset_data fun(name: string): string? The resident bytes, or nil while pending / after a failure. Binary-safe: Lua strings count their bytes and may contain NULs.
@@ -262,6 +263,43 @@ dofile = nil
 ---@field safe torirs.LayoutRegion The largest part of the canvas no chrome is sitting on -- the scene, minus the minimap, the chatbox, the sidebar, and every reservation. DERIVED, so it stays right when a plugin nobody anticipated docks a panel down one side. This is the region a readout wants.
 ---@field top_level torirs.LayoutTopLevel
 ---@field revision fun(): integer Moves whenever anything about the layout does. Compare it against the value a cached picture was built at.
+
+
+-------------------------------------------------------------------- roles --
+
+--- One semantically-named element, bound once so the name is typed once.
+---
+--- Every verb answers "not here" for a role this revision has not bound, which
+--- is an ANSWER and not an error: the same script runs on the lane whose
+--- profile names the report button and on the one whose profile does not, and
+--- offering no verb is what it should do on the second.
+---@class torirs.Role
+---@field rect fun(): torirs.Rect? Where the element is, in canvas pixels. nil when the role does not resolve, or resolves to something with no laid-out box.
+---@field visible fun(): boolean Whether the player can actually see it -- the node and every ancestor, counting both the cache's own hiding and a gameframe layout's suppression. The verb that answers "is the logout screen up"; `rect` still returns a box for a hidden element, which is why they are separate.
+---@field click fun(op?: integer): boolean Press it, exactly as a real click would: the local button behaviour, the varp it owns, and the packet the server is waiting for. `op` is the numbered operation 1..10, or 0 (the default) for the classic unnumbered button.
+---@field id fun(): integer? The component id it resolves to RIGHT NOW, for handing to the id verbs. Do not keep it and do not compare two taken at different times: if the role names a component a CS2 script built, the id is recycled the next time that subtree is rebuilt and by then belongs to something else. Ask again. nil for a role that does not resolve, and also for one whose element carries no id of its own.
+
+--- Elements addressed by what they ARE.
+---
+--- `api.layout` does this for the gameframe's REGIONS; this does it for the
+--- things inside them, and for the same reason. `component_rect` and its
+--- relatives take `(interface << 16) | component`, and their whole caveat is
+--- that which number that is changes with the revision and no profile names
+--- it. A role is that missing name: the revision's profile states
+--- `[role:report_button]` and what it is bound to on that lane, and the script
+--- asks for `"report_button"`.
+---
+--- Bind once and keep the table -- `local report = api.role("report_button")`
+--- -- rather than spelling the name at every call site, the same way a region
+--- is a name you index and not a string you pass.
+---
+--- The vocabulary is OPEN. Every `api.layout` region name works here too and
+--- answers the identical rectangle (`"viewport"`, `"minimap"`, `"compass"`,
+--- `"chat"`, `"sidebar"`, `"main_modal"`, `"chat_buttons"`, `"canvas"`,
+--- `"safe"`), and beyond those it is whatever the revision's profile has
+--- named. `"report_button"` and `"logout_screen"` are the two the client's own
+--- profiles ship.
+---@alias torirs.RoleFn fun(name: string): torirs.Role
 
 --- Handed to on_draw_world and on_draw_canvas as their second argument, and
 --- legal only inside one of them -- every call checks the open surface and

@@ -2678,20 +2678,35 @@ app_plugin_role_visible(void* user, char const* role)
 
     /*
      * Up the ancestry, because a visible child of a hidden parent is not on
-     * screen. Both flags, because they are set by different owners and mean
-     * the same thing to the player: `hide` is the cache's and the scripts',
-     * `frame_hidden` is a gameframe layout's.
+     * screen. Three tests, because "hidden" is spelled three ways by three
+     * owners and means one thing to the player:
      *
-     * `hide` is read directly rather than through UITree_ComponentVisibleById,
-     * whose rule that a hidden node with no id counts as visible is right for
-     * the hover-reveal it was written for and wrong here -- every revconfig
-     * builtin has no id, and this verb would call all of them visible always.
+     *   `hide` is the cache's and the scripts'. Read directly rather than
+     *   through UITree_ComponentVisibleById, whose rule that a hidden node
+     *   with no id counts as visible is right for the hover-reveal it was
+     *   written for and wrong here -- every revconfig builtin has no id, and
+     *   this verb would call all of them visible always.
+     *
+     *   `frame_hidden` is a gameframe layout's suppression.
+     *
+     *   And the HOST's, for the builtins whose visibility is not a flag at
+     *   all: a sidebar mount is on screen only while its tab is the selected
+     *   one, and that lives in the client rather than on the node. Without it
+     *   "is the logout screen up" would answer yes from the moment the frame
+     *   was built, on every tab -- which is the whole question.
      */
     while( node >= 0 && (uint32_t)node < app->tree->component_count )
     {
         struct UITreeComponent const* c = &app->tree->components[node];
         if( c->freed || c->frame_hidden || c->behavior.hide )
             return 0;
+        if( c->type == UIELEM_BUILTIN_SIDEBAR || c->type == UIELEM_BUILTIN_REDSTONE_TAB ||
+            c->type == UIELEM_BUILTIN_CROSS || c->type == UIELEM_BUILTIN_MINIMENU )
+        {
+            struct UITreeHoverIds hover = { 0 };
+            if( !UITree_ComponentVisibleHost(c, &hover, &app->ui_host) )
+                return 0;
+        }
         node = c->parent;
     }
     return 1;

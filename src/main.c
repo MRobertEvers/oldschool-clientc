@@ -3457,6 +3457,7 @@ main(
         getenv("TORIRS_SIM_KEYS") || getenv("TORIRS_SIM_WORLD_KEY") ||
         getenv("TORIRS_SIM_MOUSE_CLICK") || getenv("TORIRS_DUMP_EMIT") ||
         getenv("TORIRS_DUMP_TREE") || getenv("TORIRS_WORLD_BMP") ||
+        getenv("TORIRS_DUMP_ROLES") || getenv("TORIRS_DUMP_CLIENTCODES") ||
         getenv("TORIRS_CMD_REPLAY") )
         App_BootWait(&app);
 
@@ -3911,6 +3912,118 @@ main(
 
     if( getenv("TORIRS_DUMP_TREE") && app.tree )
         dump_tree(&app, cfg.interface_id);
+
+    /*
+     * TORIRS_DUMP_ROLES=1: what every declared semantic role resolves to.
+     *
+     * The one question a screenshot cannot answer about a role, and the same
+     * question UITree_FrameHiddenCount exists for one level down: a plugin
+     * that offers no verb may be looking at a lane whose profile never named
+     * the element, or at a binding that names the wrong node. "declared but
+     * unresolved" and "not declared at all" print differently here, because
+     * they are different bugs with the same symptom.
+     *
+     * Also the survey instrument. A role bound on a lane it has not been
+     * measured on prints its node and its box, which is how the binding gets
+     * checked against what is actually on screen rather than against memory.
+     */
+    if( getenv("TORIRS_DUMP_ROLES") && app.tree )
+    {
+        /*
+         * Which interface groups are actually mounted, before the roles
+         * themselves.
+         *
+         * dump_tree walks from the root interface and so shows only what hangs
+         * under it; a role bound to `iface(<name>)` resolves against the whole
+         * component array. When a binding does not resolve, "that group is not
+         * mounted on this lane" and "that group is mounted and the child is
+         * wrong" are the two answers, and this is what tells them apart.
+         */
+        {
+            int groups[64];
+            int group_count = 0;
+            for( uint32_t gi = 0; gi < app.tree->component_count; gi++ )
+            {
+                int id = app.tree->components[gi].component_id;
+                int group;
+                int seen = 0;
+                if( app.tree->components[gi].freed || id < 0 )
+                    continue;
+                group = (id >> 16) & 0xffff;
+                for( int k = 0; k < group_count; k++ )
+                    seen |= groups[k] == group;
+                if( !seen && group_count < (int)(sizeof(groups) / sizeof(groups[0])) )
+                    groups[group_count++] = group;
+            }
+            printf("mounted groups (%d):", group_count);
+            for( int k = 0; k < group_count; k++ )
+                printf(" %d", groups[k]);
+            printf("\n");
+        }
+
+        printf("roles: %d declared\n", app.ui_roles.count);
+        for( int ri = 0; ri < app.ui_roles.count; ri++ )
+        {
+            struct UITreeRoleEntry const* entry = &app.ui_roles.entries[ri];
+            int32_t node = UITree_RoleNode(app.tree, &app.ui_roles, (uint16_t)(ri + 1));
+
+            if( node < 0 )
+            {
+                printf(
+                    "  %-24s UNRESOLVED (%s%d match rungs)\n",
+                    entry->name,
+                    entry->authored ? "authored + " : "",
+                    entry->matcher_count);
+                continue;
+            }
+            struct UITreeComponent const* c = &app.tree->components[node];
+            printf(
+                "  %-24s node=%d com=0x%08x type=%d%s%s box=%d,%d %dx%d\n",
+                entry->name,
+                (int)node,
+                c->component_id,
+                (int)c->type,
+                c->dynamic ? " dynamic" : "",
+                (c->behavior.hide || c->frame_hidden) ? " hidden" : "",
+                c->position.abs_x,
+                c->position.abs_y,
+                c->position.abs_w,
+                c->position.abs_h);
+        }
+    }
+
+    /*
+     * TORIRS_DUMP_CLIENTCODES=1: every live node carrying a clientCode.
+     *
+     * The cache's own semantic tagging, which is where a `clientcode()` rung
+     * gets its number from. Reading it off the tree is the point: the code
+     * tables in rs_clientcode.h are the CS1 era's, and which of them a given
+     * dat2 gameframe actually ships is a fact about that cache.
+     */
+    if( getenv("TORIRS_DUMP_CLIENTCODES") && app.tree )
+    {
+        printf("clientcodes: %d live\n", app.tree->client_code.count);
+        for( int32_t si = 0; si < app.tree->client_code.count; si++ )
+        {
+            int32_t idx = app.tree->client_code.slots[si];
+            struct UITreeComponent const* c;
+            if( idx < 0 || (uint32_t)idx >= app.tree->component_count )
+                continue;
+            c = &app.tree->components[idx];
+            if( c->freed )
+                continue;
+            printf(
+                "  code=%-5d node=%d com=0x%08x type=%d box=%d,%d %dx%d\n",
+                c->behavior.client_code,
+                (int)idx,
+                c->component_id,
+                (int)c->type,
+                c->position.abs_x,
+                c->position.abs_y,
+                c->position.abs_w,
+                c->position.abs_h);
+        }
+    }
 
     /* TEMP DEBUG: dump runtime hook script ids (TORIRS_DUMP_HOOKS=1) */
     if( getenv("TORIRS_DUMP_HOOKS") && app.tree )
