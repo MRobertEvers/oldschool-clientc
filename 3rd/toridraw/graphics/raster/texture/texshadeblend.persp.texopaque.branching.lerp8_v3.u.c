@@ -190,7 +190,7 @@ raster_texshadeblend_persp_texopaque_branching_lerp8_v3_ordered(
 
         while( y1-- > 0 )
         {
-            draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
+            tex_span_opaque_lerp8_v3_ordered(
                 pixel_buffer,
                 screen_width,
                 edge_x_AB_ish16,
@@ -221,7 +221,7 @@ raster_texshadeblend_persp_texopaque_branching_lerp8_v3_ordered(
 
         while( y2-- > 0 )
         {
-            draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
+            tex_span_opaque_lerp8_v3_ordered(
                 pixel_buffer,
                 screen_width,
                 edge_x_BC_ish16,
@@ -257,7 +257,7 @@ raster_texshadeblend_persp_texopaque_branching_lerp8_v3_ordered(
 
         while( y1-- > 0 )
         {
-            draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
+            tex_span_opaque_lerp8_v3_ordered(
                 pixel_buffer,
                 screen_width,
                 edge_x_AC_ish16,
@@ -288,7 +288,7 @@ raster_texshadeblend_persp_texopaque_branching_lerp8_v3_ordered(
 
         while( y2-- > 0 )
         {
-            draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered(
+            tex_span_opaque_lerp8_v3_ordered(
                 pixel_buffer,
                 screen_width,
                 edge_x_AC_ish16,

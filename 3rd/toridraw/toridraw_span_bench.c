@@ -99,6 +99,18 @@ fill_run(toripixel_t* RESTRICT buf, int offset, int stride, int color, int step)
     toridraw_gouraud_span_fill_run(buf, offset, stride, color, step);
 }
 
+static void
+fill_edge(toripixel_t* RESTRICT buf, int offset, int stride, int color, int step)
+{
+    toridraw_gouraud_span_fill_edge(buf, offset, stride, color, step);
+}
+
+static void
+fill_short(toripixel_t* RESTRICT buf, int offset, int stride, int color, int step)
+{
+    toridraw_gouraud_span_fill_short(buf, offset, stride, color, step);
+}
+
 /*
  * Draws nothing. This is the floor: replay loop, indirect call, argument
  * setup and the trace's own cache misses, with no fill under it. Any variant
@@ -133,6 +145,8 @@ static struct Variant const g_variants[] = {
     { "ref", fill_ref, 0, "today's shipping loop" },
     { "sse2", fill_sse2, 0, "one movdqu per 4-pixel block" },
     { "run", fill_run, 0, "one palette load per run of equal indices" },
+    { "edge", fill_edge, 0, "branchless 1-3 px tail, reference block loop" },
+    { "short", fill_short, 0, "that, plus stride<4 lifted out of the loop" },
     { "none", fill_none, 1, "PROBE: draws nothing -- replay overhead floor" },
     { "first", fill_first, 1, "PROBE: one pixel per span -- no write traffic" },
 };

@@ -1,0 +1,729 @@
+/*
+ * toridraw_texspan_opaque_lerp8_v3_asm -- hand-written i686 (cdecl, SSE2).
+ *
+ * The XP lane half of the pair. tex_span_x64.S is the same kernel for the MS
+ * x64 ABI and carries the argument for why either exists; tex_span_asm.h
+ * carries the measurement. Both are scored against
+ * draw_texture_scanline_opaque_blend_branching_lerp8_v3_ordered in
+ * tex.span.sse2.u.c by toridraw_texspan_asm_test.c, span by span, pixel by
+ * pixel.
+ *
+ * WHAT i686 CHANGES, AND WHAT IT DOES NOT
+ *
+ * The pipeline is identical -- three-deep cur/nxt/fut, with the reciprocal a
+ * further stage ahead in xmm7 -- because that is the part that mattered. What
+ * changes is where the state lives. Eight general registers cannot hold three
+ * quotient pairs, three accumulators, two pointers and two scratch, so the
+ * pipeline state moves to the frame and the registers are spent on the only
+ * thing read sixteen times per block: the fill.
+ *
+ * That trade is the right way round here, and the pipeline is the reason.
+ * cur/nxt/fut are touched once per block and never inside the fill, so a stack
+ * slot costs them one load off the critical path. The per-pixel steps are
+ * touched sixteen times, so a stack slot would put a store-to-load forward in
+ * front of every pixel. s_u therefore keeps ebx for the whole fill; only s_v is
+ * reloaded, and only eight times, because GATHER1 needs two scratch registers
+ * to add the row offset to the column and i686 has exactly that many left.
+ *
+ * xmm6 and xmm7 are not saved. Every xmm register is caller-saved in the
+ * 32-bit Windows calling convention -- unlike x64, where xmm6-xmm15 are not,
+ * and where this file twin spends two movdqu on them.
+ *
+ * ABLATION: this kernel does not honour TORIDRAW_ABLATE_TEX, and the makefile
+ * withdraws it from any build that asks for the census or the ablation modes.
+ * Those counters live in the C twin; measure them there.
+ */
+
+/* ------------------------------------------------------------------ */
+/*  Stack frame. Four pushes then FRAME bytes, and cdecl puts the      */
+/*  return address and then the arguments above them, so argument n    */
+/*  (0-based) sits at esp + FRAME + 20 + 4n.                           */
+/* ------------------------------------------------------------------ */
+#define AU        0
+#define BV        4
+#define CW        8
+#define ST_AU     12
+#define ST_BV     16
+#define ST_CW     20
+#define ST_AU8    24
+#define ST_BV8    28
+#define ST_CW8    32
+#define ST_SH8    36
+#define ST_AU16   40
+#define ST_BV16   44
+#define ST_CW16   48
+#define ST_CW24   52
+#define REMAIN    56
+#define BLKN      60
+#define SHADE     64
+#define CUR_U     68
+#define CUR_V     72
+#define NXT_U     76
+#define NXT_V     80
+#define FUT_U     84
+#define FUT_V     88
+#define SV        92
+#define EB_AU     96
+#define EB_BV     100
+#define EB_CW     104
+#define EB_N      108
+#define EB_I      112
+#define EB_SH     116
+
+#define FRAME     124
+#define A(n) (144 + 4 * (n))(%esp)
+
+	.text
+
+/* ------------------------------------------------------------------ */
+/* w != 0 already established. xmm1 <- 1.0f / (float)w                 */
+/* ------------------------------------------------------------------ */
+	.macro RECIP w
+	cvtsi2ssl \w, %xmm0
+	movss   LC_one, %xmm1
+	divss   %xmm0, %xmm1
+	.endm
+
+/*
+ * The same reciprocal, three blocks early and into xmm7.
+ *
+ * divss is around fourteen cycles on the machines this was measured on and far
+ * worse on a Pentium 4, while one eight-pixel fill is not that much shadow --
+ * so the divide runs a stage ahead of the quotients that consume it: block k
+ * divides for block k+3 and multiplies for block k+2. xmm7 is free the whole
+ * way through, because the fill lives in xmm0..xmm6, so this costs no general
+ * register. On i686 that is not a nicety; there were none to spend.
+ *
+ * A zero w is folded to one rather than branched around. Such a block is
+ * skipped by the sentinel two blocks later and its quotient never read; the
+ * substitution exists only to keep a divide by zero out of MXCSR.
+ */
+	.macro RECIP7 w, tmp
+	movl    $1, \tmp
+	testl   \w, \w
+	cmovel  \tmp, \w
+	cvtsi2ssl \w, %xmm0
+	movss   LC_one, %xmm7
+	divss   %xmm0, %xmm7
+	.endm
+
+/*
+ * tex_span_u_quotient: clamp in float, THEN convert.
+ *
+ * The order is the whole point -- an out-of-range cvttss2si yields INT_MIN on
+ * x86, which is why the C clamps in float too. maxss against +0.0 also lands
+ * q == -0.0 on zero, because MAXSS returns its source operand when the two
+ * compare equal.
+ *
+ * n numerator (register or m32), twm1f float (texture_width - 1), out a
+ * register. Clobbers xmm2, xmm3.
+ */
+	.macro QUOTU n, twm1f, out
+	cvtsi2ssl \n, %xmm2
+	mulss   %xmm1, %xmm2
+	xorps   %xmm3, %xmm3
+	maxss   %xmm3, %xmm2
+	minss   \twm1f, %xmm2
+	cvttss2si %xmm2, \out
+	.endm
+
+/*
+ * tex_span_wrapped_quotient: trust the reciprocal only while it still carries
+ * the low bits that select the texel row, else divide.
+ *
+ * The slow side divides in DOUBLE rather than with idivl, and that is exact
+ * rather than merely close. Both operands are int32 and so convert without
+ * loss; the quotient is then correctly rounded, so it sits within |n| * 2^-53
+ * of the true value. A non-integral quotient of int32s is at least 1/|w| away
+ * from the nearest integer, and |n| * 2^-53 < 1/|w| reduces to |n| < 2^53,
+ * which always holds. So truncation lands on the same integer idivl produces,
+ * for every input this kernel can be handed.
+ *
+ * It is also faster than idivl and it cannot fault: idivl raises #DE on
+ * INT_MIN / -1, where cvttsd2si simply yields INT_MIN.
+ *
+ * n numerator (register or m32), w divisor (register or m32), out a register.
+ * Clobbers xmm2, xmm3.
+ */
+	.macro WRAPQ n, w, out
+	cvtsi2ssl \n, %xmm2
+	mulss   %xmm1, %xmm2
+	movaps  %xmm2, %xmm3
+	andps   LC_absmask, %xmm3
+	comiss  LC_lim, %xmm3
+	jp      8f
+	jae     8f
+	cvttss2si %xmm2, \out
+	jmp     9f
+8:
+	cvtsi2sdl \n, %xmm2
+	cvtsi2sdl \w, %xmm3
+	divsd   %xmm3, %xmm2
+	cvttsd2si %xmm2, \out
+9:
+	.endm
+
+/*
+ * shade_blend4_sse in place on v, 16-bit shade broadcast in xmm4, zero in
+ * xmm5. Widen to 16-bit, multiply, shift, pack -- the same four steps in the
+ * same order as the intrinsic twin, so the result is the same bits and not
+ * merely the same colour.
+ */
+	.macro BLEND4 v
+	movdqa  \v, %xmm2
+	punpcklbw %xmm5, %xmm2
+	movdqa  \v, %xmm3
+	punpckhbw %xmm5, %xmm3
+	pmullw  %xmm4, %xmm2
+	pmullw  %xmm4, %xmm3
+	psrlw   $8, %xmm2
+	psrlw   $8, %xmm3
+	packuswb %xmm3, %xmm2
+	movdqa  %xmm2, \v
+	.endm
+
+/*
+ * One texel into dstx. u_scan eax, v_scan ecx, texels esi, scratch edx/ebp.
+ *
+ * The index is ((u_scan >> SH) & TWM1) + (v_scan & VMASK) -- the C expression
+ * with v_mask spelled out. v_mask is exactly (texture_width - 1) << SH, so the
+ * masked v_scan is already the row offset and needs no shift of its own.
+ *
+ * The u mask is dropped, and that is a claim rather than a shortcut, so here is
+ * the argument. QUOTU clamps both endpoints into [0, texture_width - 1] before
+ * they ever reach here, u_scan runs from cur_u << SH to nxt_u << SH, and a
+ * linear ramp between two in-range endpoints stays in range. So u_scan >> SH is
+ * already inside [0, texture_width - 1] and & TWM1 cannot change it. The C
+ * keeps the mask because the same helper serves paths whose endpoints are not
+ * clamped; this one only ever runs behind QUOTU.
+ *
+ * Two scratch registers, and there is no way down to one: the column and the
+ * row are independent computations that have to be summed, and neither folds
+ * into the addressing mode. That is what costs s_v its register.
+ */
+	.macro GATHER1 sh, twm1, vmask, dstx
+	movl    %eax, %edx
+	sarl    $\sh, %edx
+	movl    %ecx, %ebp
+	andl    $\vmask, %ebp
+	addl    %ebp, %edx
+	movd    (%esi,%edx,4), \dstx
+	.endm
+
+/* Four texels -> xmm0, advancing the scan by s_u (ebx) / s_v (frame). */
+	.macro GATHER4 sh, twm1, vmask
+	GATHER1 \sh, \twm1, \vmask, %xmm0
+	addl    %ebx, %eax
+	addl    SV(%esp), %ecx
+	GATHER1 \sh, \twm1, \vmask, %xmm6
+	addl    %ebx, %eax
+	addl    SV(%esp), %ecx
+	punpckldq %xmm6, %xmm0
+	GATHER1 \sh, \twm1, \vmask, %xmm1
+	addl    %ebx, %eax
+	addl    SV(%esp), %ecx
+	GATHER1 \sh, \twm1, \vmask, %xmm6
+	addl    %ebx, %eax
+	addl    SV(%esp), %ecx
+	punpckldq %xmm6, %xmm1
+	punpcklqdq %xmm1, %xmm0
+	.endm
+
+/* The eight-pixel linear block, into edi. */
+	.macro FILL8 sh, twm1, vmask
+	GATHER4 \sh, \twm1, \vmask
+	BLEND4  %xmm0
+	movdqu  %xmm0, (%edi)
+	GATHER4 \sh, \twm1, \vmask
+	BLEND4  %xmm0
+	movdqu  %xmm0, 16(%edi)
+	.endm
+
+/*
+ * shade_blend, scalar. c is the texel and receives the result, t is scratch,
+ * sh8 is the shade (0..255) and may be a memory operand.
+ *
+ * Two masked multiplies rather than three, because red and blue are eight bits
+ * apart and cannot carry into one another: c * shade is at most 255 * 255,
+ * which leaves the top byte of each 16-bit field clear.
+ */
+	.macro SHADEBLEND c, t, sh8
+	movl    \c, \t
+	andl    $0x00FF00FF, \c
+	andl    $0x0000FF00, \t
+	imull   \sh8, \c
+	imull   \sh8, \t
+	andl    $0xFF00FF00, \c
+	andl    $0x00FF0000, \t
+	orl     \t, \c
+	shrl    $8, \c
+	.endm
+
+/*
+ * tex_span_exact_block. Count already in EB_N, shade in EB_SH.
+ *
+ * Cold: only blocks whose linear fit was refused arrive here, and the fit is
+ * refused when the block sweeps more than a texture tile or the quotient has
+ * left the reciprocal exact range. Two divides per pixel, because that is what
+ * the reference rasterizer does and matching it is the entire point.
+ *
+ * Works from its own copies of au/bv/cw so the span accumulators are left
+ * alone, and touches only eax/ecx/edx/ebx/ebp besides.
+ */
+	.macro EXACTBLK sh, twm1
+	movl    AU(%esp), %eax
+	movl    %eax, EB_AU(%esp)
+	movl    BV(%esp), %eax
+	movl    %eax, EB_BV(%esp)
+	movl    CW(%esp), %eax
+	movl    %eax, EB_CW(%esp)
+	movl    $0, EB_I(%esp)
+1:
+	movl    EB_I(%esp), %ebx
+	cmpl    EB_N(%esp), %ebx
+	jge     3f
+	movl    EB_CW(%esp), %ecx
+	sarl    $\sh, %ecx
+	testl   %ecx, %ecx
+	je      2f
+
+	/*
+	 * Both quotients in one divpd. The C spends two idivl here, which is
+	 * the reason this path costs what it does; a packed double divide
+	 * produces au/w and bv/w together for less than one idivl, and by the
+	 * argument above it is exact rather than approximate.
+	 */
+	movd    EB_AU(%esp), %xmm0
+	movd    EB_BV(%esp), %xmm1
+	punpckldq %xmm1, %xmm0
+	cvtdq2pd %xmm0, %xmm0
+	movd    %ecx, %xmm1
+	pshufd  $0, %xmm1, %xmm1
+	cvtdq2pd %xmm1, %xmm1
+	divpd   %xmm1, %xmm0
+	cvttpd2dq %xmm0, %xmm0
+	movd    %xmm0, %eax
+	pshufd  $0x55, %xmm0, %xmm1
+	movd    %xmm1, %edx
+
+	/* clamp(au / w, 0, texture_width - 1) */
+	xorl    %ebp, %ebp
+	testl   %eax, %eax
+	cmovsl  %ebp, %eax
+	movl    $\twm1, %ebp
+	cmpl    %ebp, %eax
+	cmovgl  %ebp, %eax
+
+	/* (bv / w) & (texture_width - 1), the row offset once shifted */
+	andl    $\twm1, %edx
+	shll    $\sh, %edx
+	addl    %edx, %eax
+
+	movl    (%esi,%eax,4), %eax
+	SHADEBLEND %eax, %edx, EB_SH(%esp)
+	movl    %eax, (%edi,%ebx,4)
+2:
+	movl    ST_AU(%esp), %eax
+	addl    %eax, EB_AU(%esp)
+	movl    ST_BV(%esp), %eax
+	addl    %eax, EB_BV(%esp)
+	movl    ST_CW(%esp), %eax
+	addl    %eax, EB_CW(%esp)
+	incl    EB_I(%esp)
+	jmp     1b
+3:
+	.endm
+
+/*
+ * The span itself, specialised per texture width so every shift and mask is an
+ * immediate.
+ *
+ * REGISTERS, once the fill is running:
+ *   eax  u_scan          ecx  v_scan
+ *   ebx  s_u             esi  texels          edi  dst
+ *   edx, ebp             scratch for the texel index
+ * s_v, au/bv/cw, the cur/nxt/fut quotient pairs, the block count and the shade
+ * all live in the frame. See the header: they are read once per block, not
+ * sixteen times, so they are the ones that can afford to.
+ *
+ * THE PIPELINE. Three quotient pairs are live -- cur (this block), nxt (the
+ * next, which supplies this one its right-hand endpoint) and fut. nxt of block
+ * k and cur of block k+1 are the same quotient of the same au/bv/cw, so there
+ * is exactly one new pair per block, not two. Block k issues fut for block k+2
+ * at its top and does not read it until k+1, so the divide chain has a whole
+ * fill to hide in. The reciprocal that feeds those quotients is a further
+ * stage ahead again, in xmm7 -- see RECIP7.
+ *
+ * A cur_u of -1 means the block had w == 0 and draws nothing. QUOTU clamps
+ * every real quotient into [0, texture_width - 1], so -1 is unreachable
+ * otherwise and one cmpl replaces the flag register this used to need.
+ */
+	.macro SPANBODY sh, twm1, vmask, twm1f, tag
+
+	/* --- prime cur, the quotient pair for block 0 --- */
+	movl    CW(%esp), %ecx
+	sarl    $\sh, %ecx
+	testl   %ecx, %ecx
+	je      1f
+	RECIP   %ecx
+	QUOTU   AU(%esp), \twm1f, %edx
+	movl    %edx, CUR_U(%esp)
+	WRAPQ   BV(%esp), %ecx, %edx
+	movl    %edx, CUR_V(%esp)
+	jmp     2f
+1:
+	movl    $-1, CUR_U(%esp)
+2:
+
+	/* --- prime nxt, the pair for block 1 --- */
+	movl    CW(%esp), %ecx
+	addl    ST_CW8(%esp), %ecx
+	sarl    $\sh, %ecx
+	testl   %ecx, %ecx
+	je      3f
+	RECIP   %ecx
+	movl    AU(%esp), %edx
+	addl    ST_AU8(%esp), %edx
+	QUOTU   %edx, \twm1f, %ebx
+	movl    %ebx, NXT_U(%esp)
+	movl    BV(%esp), %edx
+	addl    ST_BV8(%esp), %edx
+	WRAPQ   %edx, %ecx, %ebx
+	movl    %ebx, NXT_V(%esp)
+	jmp     4f
+3:
+	movl    $-1, NXT_U(%esp)
+4:
+
+	/* Seed the reciprocal pipeline: block 0 consumes 1/w_2. */
+	movl    CW(%esp), %eax
+	addl    ST_CW16(%esp), %eax
+	sarl    $\sh, %eax
+	RECIP7  %eax, %edx
+
+	cmpl    $0, BLKN(%esp)
+	jle     .Ltail\tag
+
+.Lblk\tag:
+	/*
+	 * Two hoists in one. The reciprocal for block k+3 is issued here, into
+	 * xmm7, while the one issued three blocks back is consumed to build the
+	 * quotient pair for block k+2. Everything below is the shadow both hide
+	 * in.
+	 */
+	movl    CW(%esp), %ecx
+	addl    ST_CW16(%esp), %ecx
+	sarl    $\sh, %ecx
+	movaps  %xmm7, %xmm1
+	movl    CW(%esp), %eax
+	addl    ST_CW24(%esp), %eax
+	sarl    $\sh, %eax
+	RECIP7  %eax, %edx
+	testl   %ecx, %ecx
+	je      .Lfutz\tag
+	movl    AU(%esp), %edx
+	addl    ST_AU16(%esp), %edx
+	QUOTU   %edx, \twm1f, %ebx
+	movl    %ebx, FUT_U(%esp)
+	movl    BV(%esp), %edx
+	addl    ST_BV16(%esp), %edx
+	WRAPQ   %edx, %ecx, %ebx
+	movl    %ebx, FUT_V(%esp)
+.Lfutd\tag:
+
+	cmpl    $-1, CUR_U(%esp)
+	je      .Lrot\tag
+	cmpl    $-1, NXT_U(%esp)
+	je      .Lexact8\tag
+
+	/*
+	 * Does the linear fit hold? Both endpoints must stay inside the range
+	 * where a 16.16 scan cannot overflow, and the block must not sweep more
+	 * than one texture tile in v -- past that the wrap is not a straight
+	 * line and the exact path has to run.
+	 */
+	movl    CUR_V(%esp), %eax
+	addl    $536870912, %eax
+	cmpl    $1073741824, %eax
+	ja      .Lexact8\tag
+	movl    NXT_V(%esp), %ecx
+	movl    %ecx, %eax
+	addl    $536870912, %eax
+	cmpl    $1073741824, %eax
+	ja      .Lexact8\tag
+	subl    CUR_V(%esp), %ecx
+	movl    %ecx, %eax
+	addl    $(\twm1 + 1), %eax
+	cmpl    $(2 * \twm1 + 2), %eax
+	ja      .Lexact8\tag
+
+	/* ecx still holds nxt_v - cur_v: the per-pixel v step, pre-shifted. */
+	shll    $(\sh - 3), %ecx
+	movl    %ecx, SV(%esp)
+	movl    NXT_U(%esp), %ebx
+	subl    CUR_U(%esp), %ebx
+	shll    $(\sh - 3), %ebx
+
+	movl    CUR_U(%esp), %eax
+	shll    $\sh, %eax
+	movl    CUR_V(%esp), %ecx
+	andl    $\twm1, %ecx
+	shll    $\sh, %ecx
+
+	/* cur <- nxt while the endpoints are still in registers. */
+	movl    NXT_U(%esp), %edx
+	movl    %edx, CUR_U(%esp)
+	movl    NXT_V(%esp), %edx
+	movl    %edx, CUR_V(%esp)
+
+	movl    SHADE(%esp), %edx
+	sarl    $8, %edx
+	movd    %edx, %xmm4
+	pshuflw $0, %xmm4, %xmm4
+	pshufd  $0, %xmm4, %xmm4
+	pxor    %xmm5, %xmm5
+
+	FILL8   \sh, \twm1, \vmask
+	jmp     .Ladv\tag
+
+.Lexact8\tag:
+	movl    SHADE(%esp), %eax
+	sarl    $8, %eax
+	movl    %eax, EB_SH(%esp)
+	movl    $8, EB_N(%esp)
+	EXACTBLK \sh, \twm1
+.Lrot\tag:
+	movl    NXT_U(%esp), %eax
+	movl    %eax, CUR_U(%esp)
+	movl    NXT_V(%esp), %eax
+	movl    %eax, CUR_V(%esp)
+.Ladv\tag:
+	movl    FUT_U(%esp), %eax
+	movl    %eax, NXT_U(%esp)
+	movl    FUT_V(%esp), %eax
+	movl    %eax, NXT_V(%esp)
+	movl    ST_AU8(%esp), %eax
+	addl    %eax, AU(%esp)
+	movl    ST_BV8(%esp), %eax
+	addl    %eax, BV(%esp)
+	movl    ST_CW8(%esp), %eax
+	addl    %eax, CW(%esp)
+	movl    ST_SH8(%esp), %eax
+	addl    %eax, SHADE(%esp)
+	addl    $32, %edi
+	decl    BLKN(%esp)
+	jne     .Lblk\tag
+	jmp     .Ltail\tag
+
+.Lfutz\tag:
+	movl    $-1, FUT_U(%esp)
+	jmp     .Lfutd\tag
+
+/*
+ * The ragged end, 1..7 pixels. Same two tests, then either the exact loop or a
+ * scalar walk of the linear scan -- no eight-wide store can be used here, so
+ * there is nothing to vectorise.
+ */
+.Ltail\tag:
+	cmpl    $0, REMAIN(%esp)
+	jle     .Lret
+	cmpl    $-1, CUR_U(%esp)
+	je      .Lret
+	cmpl    $-1, NXT_U(%esp)
+	je      .Ltexact\tag
+
+	movl    CUR_V(%esp), %eax
+	addl    $536870912, %eax
+	cmpl    $1073741824, %eax
+	ja      .Ltexact\tag
+	movl    NXT_V(%esp), %eax
+	addl    $536870912, %eax
+	cmpl    $1073741824, %eax
+	ja      .Ltexact\tag
+	movl    NXT_V(%esp), %eax
+	subl    CUR_V(%esp), %eax
+	addl    $(\twm1 + 1), %eax
+	cmpl    $(2 * \twm1 + 2), %eax
+	jbe     .Ltlerp\tag
+
+.Ltexact\tag:
+	movl    SHADE(%esp), %eax
+	sarl    $8, %eax
+	movl    %eax, EB_SH(%esp)
+	movl    REMAIN(%esp), %eax
+	movl    %eax, EB_N(%esp)
+	EXACTBLK \sh, \twm1
+	jmp     .Lret
+
+.Ltlerp\tag:
+	movl    NXT_U(%esp), %ebx
+	subl    CUR_U(%esp), %ebx
+	shll    $(\sh - 3), %ebx
+	movl    NXT_V(%esp), %eax
+	subl    CUR_V(%esp), %eax
+	shll    $(\sh - 3), %eax
+	movl    %eax, SV(%esp)
+
+	movl    CUR_U(%esp), %eax
+	shll    $\sh, %eax
+	movl    CUR_V(%esp), %ecx
+	andl    $\twm1, %ecx
+	shll    $\sh, %ecx
+
+	movl    SHADE(%esp), %edx
+	sarl    $8, %edx
+	movl    %edx, EB_SH(%esp)
+	movl    REMAIN(%esp), %edx
+	movl    %edx, EB_N(%esp)
+.Ltloop\tag:
+	movl    %eax, %edx
+	sarl    $\sh, %edx
+	movl    %ecx, %ebp
+	andl    $\vmask, %ebp
+	addl    %ebp, %edx
+	movl    (%esi,%edx,4), %edx
+	SHADEBLEND %edx, %ebp, EB_SH(%esp)
+	movl    %edx, (%edi)
+	addl    $4, %edi
+	addl    %ebx, %eax
+	addl    SV(%esp), %ecx
+	decl    EB_N(%esp)
+	jne     .Ltloop\tag
+	jmp     .Lret
+	.endm
+
+	.globl  _toridraw_texspan_opaque_lerp8_v3_asm
+	.def    _toridraw_texspan_opaque_lerp8_v3_asm; .scl 2; .type 32; .endef
+
+_toridraw_texspan_opaque_lerp8_v3_asm:
+	pushl   %ebx
+	pushl   %esi
+	pushl   %edi
+	pushl   %ebp
+	subl    $FRAME, %esp
+
+	/* x0 = (screen_x0_ish16 - 1) >> 16, floored at 0 */
+	movl    A(2), %eax
+	decl    %eax
+	sarl    $16, %eax
+	xorl    %edx, %edx
+	testl   %eax, %eax
+	cmovsl  %edx, %eax
+
+	/* x1 = screen_x1_ish16 >> 16, capped at screen_width - 1 */
+	movl    A(3), %ecx
+	sarl    $16, %ecx
+	movl    A(1), %edx
+	decl    %edx
+	cmpl    A(1), %ecx
+	cmovgel %edx, %ecx
+
+	cmpl    %ecx, %eax
+	jge     .Lret
+
+	/* adjust = x0 - (screen_width >> 1); au/bv/cw stepped to the left end */
+	movl    A(1), %edx
+	sarl    $1, %edx
+	movl    %eax, %ebx
+	subl    %edx, %ebx
+
+	movl    A(8), %edx
+	imull   %ebx, %edx
+	addl    A(5), %edx
+	movl    %edx, AU(%esp)
+	movl    A(9), %edx
+	imull   %ebx, %edx
+	addl    A(6), %edx
+	movl    %edx, BV(%esp)
+	movl    A(10), %edx
+	imull   %ebx, %edx
+	addl    A(7), %edx
+	movl    %edx, CW(%esp)
+
+	/* steps -> whole blocks plus a remainder */
+	subl    %eax, %ecx
+	movl    %ecx, %edx
+	andl    $7, %edx
+	movl    %edx, REMAIN(%esp)
+	sarl    $3, %ecx
+	movl    %ecx, BLKN(%esp)
+
+	/* dst = pixel_buffer + pixel_offset + x0 */
+	movl    A(4), %edx
+	addl    %eax, %edx
+	movl    A(0), %edi
+	leal    (%edi,%edx,4), %edi
+
+	/* shade = wrap_add(shade, wrap_mul(step_shade, x0)) */
+	movl    A(12), %edx
+	imull   %eax, %edx
+	addl    A(11), %edx
+	movl    %edx, SHADE(%esp)
+
+	/* Per-pixel, per-block, and the two lookahead strides the pipeline uses. */
+	movl    A(8), %eax
+	movl    %eax, ST_AU(%esp)
+	shll    $3, %eax
+	movl    %eax, ST_AU8(%esp)
+	addl    %eax, %eax
+	movl    %eax, ST_AU16(%esp)
+
+	movl    A(9), %eax
+	movl    %eax, ST_BV(%esp)
+	shll    $3, %eax
+	movl    %eax, ST_BV8(%esp)
+	addl    %eax, %eax
+	movl    %eax, ST_BV16(%esp)
+
+	movl    A(10), %eax
+	movl    %eax, ST_CW(%esp)
+	shll    $3, %eax
+	movl    %eax, ST_CW8(%esp)
+	movl    %eax, %edx
+	addl    %eax, %eax
+	movl    %eax, ST_CW16(%esp)
+	addl    %edx, %eax
+	movl    %eax, ST_CW24(%esp)
+
+	movl    A(12), %eax
+	shll    $3, %eax
+	movl    %eax, ST_SH8(%esp)
+
+	movl    A(13), %esi
+
+	cmpl    $128, A(14)
+	je      .Lwidth128
+	jmp     .Lwidth64
+
+.Lret:
+	addl    $FRAME, %esp
+	popl    %ebp
+	popl    %edi
+	popl    %esi
+	popl    %ebx
+	ret
+
+.Lwidth128:
+	SPANBODY 7, 127, 0x3F80, LC_f127, 128
+
+.Lwidth64:
+	SPANBODY 6, 63, 0x0FC0, LC_f63, 64
+
+	.section .rdata,"dr"
+	.align 16
+LC_absmask:
+	.long 0x7FFFFFFF
+	.long 0x7FFFFFFF
+	.long 0x7FFFFFFF
+	.long 0x7FFFFFFF
+	.align 4
+LC_one:
+	.long 0x3F800000        /* 1.0f */
+LC_lim:
+	.long 0x4A000000        /* 2097152.0f -- above this a float32 quotient
+				 * has already dropped the low bits that pick
+				 * the texel row, so WRAPQ must divide. */
+LC_f127:
+	.long 0x42FE0000        /* 127.0f */
+LC_f63:
+	.long 0x427C0000        /* 63.0f */
