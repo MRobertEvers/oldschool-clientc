@@ -512,9 +512,9 @@ UITreeSceneBridge_EnsureChromeSkin(struct UITreeSceneBridge* bridge)
     return UITREE_SCENE_CHROME_SKIN_ID;
 }
 
-/** Slots in the plugin-image range. One per resident image across every
- *  plugin; the host is what holds a plugin to a share of them. */
-#define BRIDGE_PLUGIN_IMAGE_SLOTS 64
+/** @see UITREE_SCENE_PLUGIN_IMAGE_SLOTS, which the header states so that the
+ *  plugin host's ceiling can be checked against it. */
+#define BRIDGE_PLUGIN_IMAGE_SLOTS UITREE_SCENE_PLUGIN_IMAGE_SLOTS
 
 int
 UITreeSceneBridge_PublishPluginImage(

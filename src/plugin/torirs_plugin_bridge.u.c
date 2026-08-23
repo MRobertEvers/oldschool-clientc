@@ -1862,6 +1862,16 @@ _Static_assert(
     "AppPluginSurface must match the host's PluginDrawSurface");
 
 /*
+ * The host hands out image handles and the scene stores the pixels, so a
+ * handle past the scene's range is an image that decodes and never draws --
+ * reported as "would not decode", which is the one thing it is not. This is
+ * the only file that sees both numbers.
+ */
+_Static_assert(
+    TORIRS_PLUGIN_IMAGES_MAX <= UITREE_SCENE_PLUGIN_IMAGE_SLOTS,
+    "every plugin image handle needs a scene slot to publish into");
+
+/*
  * The interface group the gameframe was rooted to, or -1 on a lane whose frame
  * is revconfig builtins.
  *

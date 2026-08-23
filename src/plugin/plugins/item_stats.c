@@ -2127,9 +2127,17 @@ is_equip_from_info(struct ToriRS_PluginObjInfo const* info, struct is_equip* out
     out->wearpos = info->wearpos;
     out->stated = info->has_bonuses;
     out->ranged_strength = info->ranged_strength;
-    /* An unstated rate is unarmed's four, so subtracting one weapon from
-     * another never produces a speed change out of a missing field. */
-    out->speed = info->attack_rate >= 0 ? info->attack_rate : 4;
+    /*
+     * ZERO for a record that states no rate, and unarmed's four only where
+     * is_equip_unarmed puts it.
+     *
+     * Four here instead looks harmless and is not: equipping a two-handed
+     * weapon takes the OFF-HAND off as well, so the shield's speed is
+     * subtracted too -- and a shield that claimed unarmed's rate took four
+     * ticks off every two-hander's speed row, which read as the crossbow being
+     * faster than the bare hand it replaced.
+     */
+    out->speed = info->attack_rate >= 0 ? info->attack_rate : 0;
     out->two_handed = info->wearpos == IS_SLOT_WEAPON &&
                       (info->wearpos2 == IS_SLOT_SHIELD || info->wearpos3 == IS_SLOT_SHIELD);
     for( int i = 0; i < TORIRS_PLUGIN_BONUS_COUNT; i++ )

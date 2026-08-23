@@ -331,11 +331,14 @@ report(char const* out, int model_id, struct RSCache_Model const* model, int siz
         model->vertex_count,
         model->face_count,
         model->textured_face_count,
-        /* Whether the file is RIGGED is the thing a plugin author has to know
-         * before shipping it: a rigged model's BIND POSE is not the shape the
-         * game shows -- that shape is a frame of a sequence -- so shipping the
-         * model alone gets whatever the artist left the vertices at. */
-        model->vertex_bone_map ? "rigged (bind pose is not the animated shape)"
+        /* Whether the file is RIGGED is the thing a plugin author has to check
+         * before shipping it. What gets written is the BIND POSE, and for a
+         * rigged model that may or may not be the shape the game shows: both
+         * loot beams turn out to be authored at full size and animated only
+         * within that envelope, while an effect that GROWS is stored collapsed
+         * and ships as a spike. The extents below are how the two are told
+         * apart -- compare them against a posed extract. */
+        model->vertex_bone_map ? "rigged (bind pose written; --pose bakes a frame instead)"
                                : "unrigged");
     /* The extents are how a caller choosing a POSE tells the frames apart: an
      * effect's frames differ mostly in size, and 128 units is one tile. */

@@ -330,6 +330,16 @@ fake_screenshot(void* u, char const* plugin, char const* dir, char const* name)
     return 1;
 }
 
+static void
+fake_layout_begin(void* u)
+{
+    (void)u;
+}
+static void
+fake_layout_end(void* u)
+{
+    (void)u;
+}
 static int
 fake_model_publish(void* u, int model, void const* data, int size)
 {
@@ -842,6 +852,8 @@ fake_engine(void)
     e.asset_read = fake_asset_read;
     e.asset_write = fake_asset_write;
     e.screenshot = fake_screenshot;
+    e.layout_begin = fake_layout_begin;
+    e.layout_end = fake_layout_end;
     e.model_publish = fake_model_publish;
     e.model_release = fake_model_release;
     e.mesh_create = fake_mesh_create;

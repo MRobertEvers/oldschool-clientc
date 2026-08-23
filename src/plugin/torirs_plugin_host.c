@@ -2437,6 +2437,8 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->world_cycle);
     assert(engine->frame_ms);
     assert(engine->layout_set);
+    assert(engine->layout_begin);
+    assert(engine->layout_end);
     assert(engine->layout_slot);
     assert(engine->tab_active);
     assert(engine->tab_select);

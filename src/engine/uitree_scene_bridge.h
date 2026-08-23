@@ -156,6 +156,19 @@ struct UITreeSceneBridge
  */
 #define UITREE_SCENE_PLUGIN_IMAGE_BASE 0x48000000
 
+/**
+ * Slots in the plugin-image range: one per resident image across every plugin.
+ *
+ * It has to be at least the plugin host's TORIRS_PLUGIN_IMAGES_MAX, and it is
+ * stated here rather than there because the SCENE is what runs out -- an image
+ * the host handed a slot to and the bridge refused is an image that decodes
+ * fine and draws nothing, reported as "would not decode". The two are held
+ * together by a static assert in plugin/torirs_plugin_bridge.u.c, which is the
+ * one file that sees both numbers. The range above it starts 0x08000000
+ * higher, so there is no ceiling here worth economising against.
+ */
+#define UITREE_SCENE_PLUGIN_IMAGE_SLOTS 192
+
 void
 UITreeSceneBridge_Init(
     struct UITreeSceneBridge* bridge,

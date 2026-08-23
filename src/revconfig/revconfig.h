@@ -233,6 +233,14 @@ enum RevConfigFieldKind
     RCFIELD_CAMERA_ZOOM,
     RCFIELD_CAMERA_CONTROLS,
     RCFIELD_CAMERA_WHEEL_STEP,
+    RCFIELD_CHROME_PLUGIN_IFACE,
+    RCFIELD_CHROME_PLUGIN_BUTTON_PARENT,
+    RCFIELD_CHROME_PLUGIN_PANEL_PARENT,
+    RCFIELD_CHROME_PLUGIN_BUTTON_SLOT,
+    RCFIELD_CHROME_PLUGIN_BUTTON_SIZE,
+    RCFIELD_CHROME_PLUGIN_BUTTON_PITCH,
+    RCFIELD_CHROME_PLUGIN_BUTTON_OP,
+    RCFIELD_CHROME_PLUGIN_LAYOUT_SCRIPT,
     RCFIELD_UILAYOUT_NULL,
 };
 
@@ -261,6 +269,7 @@ enum RevConfigItemKind
     RCITEM_CACHE_REF,
     RCITEM_FEATURES,
     RCITEM_CAMERA,
+    RCITEM_CHROME,
 };
 
 /** Section types that build an RCITEM_CACHE_REF, i.e. a bare name -> cache id. */
@@ -854,6 +863,61 @@ struct RevConfigCameraItem
     uint8_t has_wheel_step;
 };
 
+/** Longest `[chrome]` name or op text. One field value is 64 bytes, so nothing
+ *  longer than that can reach here anyway. */
+#define REVCONFIG_CHROME_NAME_LEN 64
+
+/*
+ * `[chrome]` -- where the CLIENT's own furniture mounts on this revision.
+ *
+ * One thing today: the plugin window's launcher button and the strip it lives
+ * in. That button is not the cache's -- plugins are a client feature and no
+ * server knows about them -- but WHERE it goes is entirely the cache's
+ * business: interface 728's button column is child 6 on rev-239 and does not
+ * exist at all on a 2004 dat1 cache. Every one of those numbers used to be a
+ * literal in torirs_plugin_panel.u.c, which is the same silent-wrong-answer
+ * trap `[iface:…]` exists to delete, one level down: the interface id was
+ * named by the profile and the children, the slot, the geometry and the layout
+ * script were not.
+ *
+ * Nothing here is defaulted. An absent section, or one that leaves a key out,
+ * means "this revision has no strip to mount in" -- the button is not built
+ * and the window opens in the canvas instead, which is exactly what a lane
+ * with no `[iface:plugin_popout]` already did.
+ */
+struct RevConfigChromeItem
+{
+    /* INI: plugin_button_iface= -- the `[iface:<name>]` section naming the
+     * interface the strip belongs to. Empty when unstated. */
+    char plugin_iface[REVCONFIG_CHROME_NAME_LEN];
+
+    /* INI: plugin_button_parent= -- child component of that interface holding
+     * the launcher column the button is appended to. -1 when unstated. */
+    int plugin_button_parent;
+
+    /* INI: plugin_panel_parent= -- child component panels mount into, i.e. the
+     * one slot the strip shows at a time. -1 when unstated. */
+    int plugin_panel_parent;
+
+    /* INI: plugin_button_slot= -- index down the column. The shipped entries
+     * take the ones before it. -1 when unstated. */
+    int plugin_button_slot;
+
+    /* INI: plugin_button_size= / plugin_button_pitch= -- the column's own icon
+     * box and vertical pitch, in interface pixels. -1 when unstated. */
+    int plugin_button_size;
+    int plugin_button_pitch;
+
+    /* INI: plugin_button_op= -- the hover option the button advertises, e.g.
+     * "Show Plugin Settings". Empty means the button names nothing on hover. */
+    char plugin_button_op[REVCONFIG_CHROME_NAME_LEN];
+
+    /* INI: plugin_layout_script= -- the `[script:<name>]` binding for the
+     * clientscript that lays the strip out, run after the panel takes the slot
+     * or gives it back. Empty when the strip needs no such pass. */
+    char plugin_layout_script[REVCONFIG_CHROME_NAME_LEN];
+};
+
 struct RevConfigItem
 {
     enum RevConfigItemKind kind;
@@ -868,6 +932,7 @@ struct RevConfigItem
         struct RevConfigCacheRefItem cacheref;
         struct RevConfigFeaturesItem features;
         struct RevConfigCameraItem camera;
+        struct RevConfigChromeItem chrome;
     } u;
 };
 

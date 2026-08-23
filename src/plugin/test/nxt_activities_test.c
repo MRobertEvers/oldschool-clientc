@@ -401,6 +401,83 @@ fake_screenshot(void* u, char const* plugin, char const* dir, char const* name)
     (void)name;
     return 1;
 }
+/*
+ * The engine entry points this suite does not exercise.
+ *
+ * PluginHost_New asserts every one of them, so a seam that grows a callback
+ * aborts the suite on its first line until the fake catches up -- which is the
+ * point of the assert, and is why these are stubs with honest answers rather
+ * than omissions. Each returns the "this frame has none" answer its contract
+ * defines.
+ */
+static int
+fake_obj_info(void* u, int obj_id, struct ToriRS_PluginObjInfo* out)
+{
+    (void)u;
+    (void)obj_id;
+    (void)out;
+    return 0;
+}
+static int
+fake_inv_slot(void* u, int inv, int slot, int* out_obj_id, int* out_count)
+{
+    (void)u;
+    (void)inv;
+    (void)slot;
+    (void)out_obj_id;
+    (void)out_count;
+    return 0;
+}
+static int
+fake_inv_size(void* u, int inv)
+{
+    (void)u;
+    (void)inv;
+    return 0;
+}
+static void
+fake_layout_set(void* u, int owned, int canvas, int fixed_w, int fixed_h)
+{
+    (void)u;
+    (void)owned;
+    (void)canvas;
+    (void)fixed_w;
+    (void)fixed_h;
+}
+static void
+fake_layout_begin(void* u)
+{
+    (void)u;
+}
+static void
+fake_layout_end(void* u)
+{
+    (void)u;
+}
+static int
+fake_layout_slot(void* u, int slot, int x, int y, int w, int h)
+{
+    (void)u;
+    (void)slot;
+    (void)x;
+    (void)y;
+    (void)w;
+    (void)h;
+    return 0;
+}
+static int
+fake_tab_active(void* u)
+{
+    (void)u;
+    return -1;
+}
+static int
+fake_tab_select(void* u, int tabno)
+{
+    (void)u;
+    (void)tabno;
+    return 0;
+}
 static int
 fake_model_publish(void* u, int m, void const* d, int size)
 {
@@ -772,6 +849,15 @@ fake_engine(void)
     e.asset_read = fake_asset_read;
     e.asset_write = fake_asset_write;
     e.screenshot = fake_screenshot;
+    e.obj_info = fake_obj_info;
+    e.inv_slot = fake_inv_slot;
+    e.inv_size = fake_inv_size;
+    e.layout_set = fake_layout_set;
+    e.layout_begin = fake_layout_begin;
+    e.layout_end = fake_layout_end;
+    e.layout_slot = fake_layout_slot;
+    e.tab_active = fake_tab_active;
+    e.tab_select = fake_tab_select;
     e.model_publish = fake_model_publish;
     e.model_release = fake_model_release;
     e.mesh_create = fake_mesh_create;

@@ -53,16 +53,42 @@
  *  copies, so a plugin needs one per distinct thing it draws (a beam per
  *  style, a marker, a plinth) and not one per place it draws it. */
 #define TORIRS_PLUGIN_MESH_BUDGET 8
-/** Resident assets, across every plugin. */
-#define TORIRS_PLUGIN_ASSETS_MAX 32
+/**
+ * Resident assets, across every plugin.
+ *
+ * Raised from 32 with the image ceiling below, and for the same reason: an
+ * image is READ through the asset sandbox, so every picture a plugin ships
+ * occupies a slot here as well as one there, and a gameframe is seventy
+ * pictures. At 32 the layout plugin's tab icons loaded as handles with no
+ * pixels behind them -- a frame drawn with half its art missing and one line
+ * on stderr to say why.
+ *
+ * The cost is honest and known: the PNG bytes of an image stay resident after
+ * the decode that only needed them once, so ~70 KB of this table is bytes
+ * nothing will read again. Dropping them would mean the host deciding that a
+ * file loaded as an image is not also wanted as bytes, which is not something
+ * it can know -- a plugin may legitimately hold both. Slots are cheap; the
+ * guess would not be.
+ */
+#define TORIRS_PLUGIN_ASSETS_MAX 128
 /** Resident shipped MODELS, across every plugin. Each holds decoded geometry
  *  the host keeps for as long as the plugin runs, so the ceiling is what stops
  *  a plugin from loading a folder of art nothing stands on. */
 #define TORIRS_PLUGIN_MODELS_MAX 32
-/** Resident IMAGES, across every plugin. Each holds a decoded ARGB sprite in
- *  the scene, so the ceiling is what keeps a plugin from filling the scene's
- *  sprite table with art nothing draws. */
-#define TORIRS_PLUGIN_IMAGES_MAX 64
+/**
+ * Resident IMAGES, across every plugin. Each holds a decoded ARGB sprite in
+ * the scene, so the ceiling is what keeps a plugin from filling the scene's
+ * sprite table with art nothing draws.
+ *
+ * Raised from 64 when the gameframe layouts landed. 64 was sized against the
+ * plugins that existed -- an orb set is ten pictures and an xp drop is two --
+ * and a whole GAMEFRAME is a different order of thing: two families of stone
+ * surround, twenty-seven tab icons and nine mirrored redstones is seventy-odd
+ * on its own, and it has to share the table with whatever else is switched on.
+ * At ~40 bytes a slot the whole table is under 8 KB either way, so the number
+ * is bounded by what is reasonable to draw rather than by what it costs.
+ */
+#define TORIRS_PLUGIN_IMAGES_MAX 192
 /** Longest screenshot destination a plugin may name, including separators. */
 #define TORIRS_PLUGIN_SCREENSHOT_DIR_MAX 192
 

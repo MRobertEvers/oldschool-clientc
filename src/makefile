@@ -1541,6 +1541,17 @@ test-nxt-plugins: $(OBJ_DIR) plugin/test/nxt_activities_test.c
 		plugin/test/nxt_activities_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/nxt_activities_test
 
+# The item-stats tooltip, against a hand-built api table rather than the host:
+# the whole plugin is "given a hovered item and a set of levels, what does the
+# panel say", and every input to that is an api verb. It reads the real
+# text.ini, so a rebaked atlas whose metrics moved shows up here as a row count
+# that no longer matches.
+test-item-stats: $(OBJ_DIR) plugin/plugins/item_stats.c plugin/test/item_stats_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/item_stats_test \
+		plugin/plugins/item_stats.c engine/png_decode.c \
+		$(REPO_ROOT)/3rd/miniz/miniz.c plugin/test/item_stats_test.c $(LDFLAGS)
+	ITEM_STATS_TEST_BMP=$(OBJ_DIR)/item_stats_test.bmp ./$(OBJ_DIR)/item_stats_test
+
 test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/test/torirs_plugin_host_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_host_test \
 		plugin/torirs_plugin_host.c ui/uitree_minimenu.c \
@@ -1552,6 +1563,19 @@ test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/test/torirs_plug
 # compose / blit, and a stub that answered nothing would exercise none of it.
 # It also writes build/xp_orbs_test.png, which is the half of the result no
 # assertion can state: whether the picture is a globe.
+# The gameframe layout plugin against the fake engine, with the same real PNG
+# decode and image table -- this plugin composes its mirrored redstones out of
+# pixels it loaded, so an image table that answered nothing would exercise none
+# of it. Run from src/, where the shipped assets resolve.
+.PHONY: test-gameframe
+test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/gameframe.c \
+		plugin/test/gameframe_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/gameframe_test \
+		plugin/torirs_plugin_host.c ui/uitree_minimenu.c \
+		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/gameframe.c \
+		plugin/test/gameframe_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/gameframe_test
+
 test-xp-orbs: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/xp_orbs.c \
 		plugin/test/xp_orbs_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/xp_orbs_test \

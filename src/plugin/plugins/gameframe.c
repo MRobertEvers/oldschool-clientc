@@ -276,6 +276,16 @@ struct FrameTab
     int y;
     int w;
     int h;
+    /**
+     * The tab this box stands for -- NOT its position in this table.
+     *
+     * They differ, and only on one frame: 548 puts Clan chat on the bottom
+     * row's first stone and Account on its third, so the eighth box drawn is
+     * tab 7 and the ninth is tab 9. Carrying the number here rather than
+     * assuming the index is what keeps the pressed stone under the tab that is
+     * actually open, and a click on a stone opening the panel it shows.
+     */
+    int tabno;
     int stone;
     int stone_pressed;
     int icon;
@@ -320,7 +330,7 @@ frame_blit(int image, int x, int y)
 }
 
 static void
-frame_tab(int x, int y, int w, int h, int stone, int stone_pressed, int icon)
+frame_tab(int tabno, int x, int y, int w, int h, int stone, int stone_pressed, int icon)
 {
     struct FrameTab* t;
 
@@ -331,6 +341,7 @@ frame_tab(int x, int y, int w, int h, int stone, int stone_pressed, int icon)
     t->y = y;
     t->w = w;
     t->h = h;
+    t->tabno = tabno;
     t->stone = stone;
     t->stone_pressed = stone_pressed;
     t->icon = icon;
@@ -402,7 +413,12 @@ frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
         int const base = REDSTONE_BASE[TAB[i].stone];
         int const pressed =
             TAB[i].flip < 0 ? g_image[base] : g_redstone_flip[TAB[i].stone][TAB[i].flip];
+        /* The 2004 frame's boxes ARE in tab order, so the box index is the
+         * tab; it is passed anyway rather than left implied, because the frame
+         * below is the one where they differ and one loop that reads the index
+         * and one that reads a field is how that divergence hides. */
         frame_tab(
+            i,
             TAB[i].x,
             TAB[i].y,
             TAB[i].w,
@@ -492,6 +508,7 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
     {
         int const tab = TAB_AT[i];
         frame_tab(
+            tab,
             TAB[i].x,
             TAB[i].y,
             TAB[i].w,
@@ -572,6 +589,7 @@ frame_layout_modern_resizable(
         int const row = i / 7;
         int const col = i % 7;
         frame_tab(
+            i,
             stone_x + col * FRAME_R_STONE_W,
             row == 0 ? top_row_y : bottom_row_y,
             FRAME_R_STONE_W,
@@ -776,7 +794,9 @@ frame_on_draw(
     for( int i = 0; i < g_frame.tab_count; i++ )
     {
         struct FrameTab const* t = &g_frame.tab[i];
-        int const stone = (i == active) ? t->stone_pressed : t->stone;
+        /* Against the tab NUMBER, not the box index: on 548 they differ, and
+         * comparing the index lights the stone next to the open panel. */
+        int const stone = (t->tabno == active) ? t->stone_pressed : t->stone;
         int iw = 0;
         int ih = 0;
 
@@ -804,7 +824,15 @@ frame_on_draw(
          * stone was just painted at -- a region registered at start would be a
          * rectangle over wherever the tabs used to be after a resize. */
         g_api->hit_region(
-            ctx, ev->surface, t->x, t->y, t->w, t->h, TAB_OP, 1, FRAME_TAG_TAB | (uint32_t)i);
+            ctx,
+            ev->surface,
+            t->x,
+            t->y,
+            t->w,
+            t->h,
+            TAB_OP,
+            1,
+            FRAME_TAG_TAB | (uint32_t)t->tabno);
     }
 
     return TORIRS_PLUGIN_PASS;
