@@ -93,3 +93,21 @@ src/*.exe
 # Claude Code local overrides
 .claude/settings.local.json
 .claude/worktrees/
+
+# Extracted toolchains. The zips in lib/ are the checked-in form -- these
+# directories are what unzipping them produces (~2 GB) and must never be
+# committed. See tools/toolchain/README.md.
+/toolchains/mingw32/
+/toolchains/mingw64/
+/toolchains/emsdk-win64/
+
+# Same rule for the XP profiler tooling: toolchains/winxp_profiles/downloads/
+# holds the zips; these are the unpacked trees and the installer they produce.
+/toolchains/winxp_profiles/cv2pdb-0.54/
+/toolchains/winxp_profiles/verysleepy_0_7/
+/toolchains/winxp_profiles/verysleepy_0_7_exact/
+/toolchains/winxp_profiles/verysleepy_0_7_setup.exe
+/tmp/verysleepy-0.7.2-source/
+
+# Staged build output.
+/dist/
