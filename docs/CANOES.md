@@ -169,6 +169,21 @@ moves; the trees do.
 The camera sits off the bank looking at the canoe tile, and `cam_reset` runs
 before the teleport out — a camera left locked survives the scene change.
 
+The shot is **across** the channel, not along it: the eye stands on the boat's
+own z line on the east bank, so the river lies flat across the frame and the
+canoe is broadside. Two things are deliberately off-centre, both compensating
+for the same thing — this client draws the world across the whole canvas with
+the gameframe over it, so the look point lands at *canvas* centre and not at the
+centre of the visible 3D viewport. `^canoe_cam_look_height` (40) aims below the
+boat to lift it clear of the chatbox; the look-at's z is one tile past the boat
+to slide it left of the sidebar. Screen-right is +z for a camera facing west.
+
+`cinemaCamera` clamps the derived pitch to `[128, 383]` (Client-TS 3364,
+`app_cinema_angles` matches), so 22.5 degrees is the flattest shot available no
+matter how low the eye goes — an eye height that asks for less just wastes
+distance. The river and cave eyes stand on very different ground (flat h13
+against the cave trench's h44 face) and so carry separate heights.
+
 ---
 
 ## 3. What the cache already does client-side
@@ -215,6 +230,20 @@ title row cannot answer for a real row. These four are driven with
 triggers instead.
 
 ### Interfaces 953 `canoe_map_lum` / 952 `canoe_map_dougne` — the travel maps
+
+**These take the keyboard, and the cache never gives it back.**
+`canoe_map_init` (clientscript 3099) opens with `~chatdefault_stopinput` —
+`%varcint11 = 1` plus `if_setonkey(null, chatbox:universe)` — because each
+destination component binds the place's initial letter (`canoe_location_setup`,
+3100). Nothing releases it: the X runs `canoe_close` (3098), which is `if_close`
+and nothing else. The release is the server's, `runclientscript*(2158)`, and
+`~canoe_travel_release` in `canoe_travel.rs2` is where it lives; every path that
+closes the map calls it, including the `[if_close]` triggers that Escape and the
+X arrive on. Without it the chatbox cannot accept a key for the rest of the
+session **and** every client-side hotkey stands down with it — this client reads
+varcint11 in `app_iface_text_input_focused` — which is how a canoe trip used to
+leave the arrow-key camera dead. Same bug as the settings search box; see
+`interface_settings_side/scripts/settings_side.rs2` §"Search-box teardown".
 
 `universe`'s `onload` runs **clientscript 3099** (`canoe_map_init`), which
 branches on `canoe_river` (varbit 20259): `0` → River Lum wiring (7884), else

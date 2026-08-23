@@ -2615,6 +2615,14 @@ maybe_rebuild(struct ToriRSServer* srv)
 {
     int edge = TORIRSSERVER_SCENE_TILES - TORIRSSERVER_REBUILD_MARGIN;
     struct ToriRSServerPlayer* mover = NULL;
+    /*
+     * Which instance the CURRENT window is a copy of, asked exactly the way
+     * `ToriRSServer_WorldSceneRebuild` asks it — off the window's centre tile.
+     * The two must agree or the second condition below would fight the first.
+     */
+    int scene_handle = ToriRSServer_MapInstanceFind(
+        ToriRSServer_SceneOrigin(srv->zone_x) + TORIRSSERVER_SCENE_TILES / 2,
+        ToriRSServer_SceneOrigin(srv->zone_z) + TORIRSSERVER_SCENE_TILES / 2);
 
     for( int i = 0; i < srv->player_count && !mover; i++ )
     {
@@ -2628,6 +2636,35 @@ maybe_rebuild(struct ToriRSServer* srv)
         local_z = player->z - ToriRSServer_SceneOrigin(srv->zone_z);
         if( local_x < TORIRSSERVER_REBUILD_MARGIN || local_x >= edge ||
             local_z < TORIRSSERVER_REBUILD_MARGIN || local_z >= edge )
+        {
+            mover = player;
+            continue;
+        }
+        /*
+         * A DIFFERENT INSTANCE IS A DIFFERENT MAP, even at the same window.
+         *
+         * The window is 104 tiles and an instance square is 64, so a teleport
+         * from one reservation to a neighbouring one can land well inside the
+         * margin above and move the window not at all. The scene then stays
+         * centred on the square the player LEFT — which content has usually
+         * just released — and `ToriRSServer_WorldSceneRebuild`, which decides
+         * "instanced or not" from that same stale centre, answers "not" and
+         * builds the pool's empty land instead: a scene with no locs at all,
+         * and a `loc_find` in the new room that reports the room is missing.
+         *
+         * Measured on the Theatre, walking room 3 -> room 4: the Nylocas
+         * square and Sotetseg's are both inside one window, so the Sotetseg
+         * chamber built as "scene built at zone 803,14 — 0 locs" and its exit
+         * passage could not be found on any plane. The generation check in
+         * `ToriRSServer_WorldClientsOut` sees the change but rebuilds at the
+         * stale centre, so it cannot repair this on its own.
+         *
+         * Zones are 8 tiles and squares are 64, both aligned, so a zone lies
+         * wholly inside one reservation or outside every one: the player's own
+         * tile and the centre this re-centres onto can never disagree, and the
+         * condition therefore cannot re-trigger against itself.
+         */
+        if( ToriRSServer_MapInstanceFind(player->x, player->z) != scene_handle )
             mover = player;
     }
 

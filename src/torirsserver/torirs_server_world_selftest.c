@@ -27717,6 +27717,27 @@ ToriRSServer_WorldSelftest(void)
                 if( settled < 0 )
                     continue;
 
+                /*
+                 * THE TRANSITION COSTS A TICK, deliberately, and asking on the
+                 * tick of the click reads the room being left.
+                 *
+                 * `~tob_advance_room` puts the blood spread up first and arms
+                 * `~tob_build_room` for the tick AFTER — "the spread goes up
+                 * while the player is still standing in the room they are
+                 * leaving, and the build waits a tick" (tob_raid.rs2). So
+                 * `^tob_var_room` is still room N when the passage is clicked.
+                 *
+                 * Reading it immediately did not merely under-count: it moved
+                 * the whole loop one room out of step. Iteration N+1's `::tob`
+                 * built room N+1 and then the PREVIOUS iteration's pending
+                 * advance landed on its first tick, so the fixture was walking
+                 * room N+2's passage while calling it room N+1 — and three of
+                 * the five matched `room + 1` by that accident while the
+                 * Maiden and Xarpus did not.
+                 */
+                for( int t = 0; t < 3; t++ )
+                    ToriRSServer_WorldTick(srv);
+
                 ToriRSServer_CaptureBegin(srv, &walk_capture);
                 ToriRSServer_ScriptsRunDebugproc(srv, "tobwhere");
                 ToriRSServer_CaptureEnd(srv);
@@ -28724,9 +28745,38 @@ ToriRSServer_WorldSelftest(void)
                              * counter is for, and it can only fire on a run
                              * where something actually dies. This is that run.
                              */
+                            /*
+                             * READ THE CORPSE ON THE TICK IT IS MADE, and not
+                             * a moment later.
+                             *
+                             * Her death frees the chamber, the free takes her
+                             * npc slot with it, and `ToriRSServer_WorldNpcReap`
+                             * hands that slot to the next spawn that asks —
+                             * which on this world is the standing roster, one
+                             * tick later. Reading four ticks in read npc type
+                             * 7580 standing in Lumbridge and called it a
+                             * failure of Kephri's death: a recycled slot, not a
+                             * wrong transform.
+                             *
+                             * The first tick is the whole death — transform,
+                             * heal-to-one, bank, free — so it is both the
+                             * earliest and the last moment this slot is still
+                             * hers. The remaining ticks only let the room
+                             * settle.
+                             */
+                            int died_as_type = -1;
+                            int died_with_hp = -1;
+
                             srv->npcs[kephri].hitpoints = 0;
                             for( int t = 0; t < 4; t++ )
+                            {
                                 ToriRSServer_WorldTick(srv);
+                                if( t == 0 )
+                                {
+                                    died_as_type = srv->npcs[kephri].type;
+                                    died_with_hp = srv->npcs[kephri].hitpoints;
+                                }
+                            }
                             /*
                              * Read from the NPC STRUCT, not from `::toazdbg`.
                              *
@@ -28746,10 +28796,9 @@ ToriRSServer_WorldSelftest(void)
                                                  &toa_shield, &toa_hp, &toa_type,
                                                  &toa_done, &toa_room);
                             fprintf(stderr,
-                                    "  Kephri killed: npc active=%d type=%d hp=%d, "
+                                    "  Kephri killed: died as type=%d hp=%d, "
                                     "room now %d\n",
-                                    srv->npcs[kephri].active, srv->npcs[kephri].type,
-                                    srv->npcs[kephri].hitpoints, toa_room);
+                                    died_as_type, died_with_hp, toa_room);
                             /*
                              * SHE TRANSFORMED BEFORE SHE WENT, which is what
                              * this asserts rather than "a corpse is standing
@@ -28770,16 +28819,16 @@ ToriRSServer_WorldSelftest(void)
                              * and it is exactly what the first version of
                              * `~toa_akkha_die` would have produced.
                              */
-                            SELFTEST_CHECK(srv->npcs[kephri].type == 11722,
+                            SELFTEST_CHECK(died_as_type == 11722,
                                            "a dying Kephri should transform to the "
                                            "finished body 11722, saw %d",
-                                           srv->npcs[kephri].type);
-                            SELFTEST_CHECK(srv->npcs[kephri].hitpoints > 0,
+                                           died_as_type);
+                            SELFTEST_CHECK(died_with_hp > 0,
                                            "Kephri must be held off zero hitpoints "
                                            "through her death, or the engine reaps "
                                            "her before the corpse exists and the "
                                            "player sees her vanish, saw %d",
-                                           srv->npcs[kephri].hitpoints);
+                                           died_with_hp);
                             /*
                              * And the room is banked, which shows as the party
                              * no longer being in it — `~toa_boss_complete` ends
@@ -29140,13 +29189,24 @@ ToriRSServer_WorldSelftest(void)
                  */
                 { 5, "Xarpus",    4, 160 },
                 /*
-                 * Verzik is measured at her PHASE 3 cadence of 7, not P1's 14.
-                 * She does not stay on the throne: by the time the room is
-                 * running she is mobile - the harness watched her walk, and a
-                 * P1 Verzik never moves - so 14 was measuring a phase she was
-                 * no longer in.
+                 * Verzik is measured at her PHASE ONE cadence, because phase
+                 * one is the phase this fixture is in.
+                 *
+                 * `::tob 6` + `::tobgo` stands her up on the throne at a full
+                 * 8500, the fixture player is in god mode and deals no damage,
+                 * and P1 ends only when its share of the pool is spent
+                 * (`~tob_verzik_p1_tick`: "she does not die here, she comes off
+                 * the throne"). So she never leaves it inside this window and
+                 * `^tob_verzik_p1_attack_ticks` — 14 — is the number under
+                 * test. It used to assert P3's 5..7 on the claim that she was
+                 * already mobile by then; she is not, and the measurement said
+                 * so with a flat 14 every run.
+                 *
+                 * Her later phases are exercised where they are actually
+                 * reached: the P2 transition and its clock in "Verzik P2", and
+                 * P3's rotation in the stanzas that drop her pool by hand.
                  */
-                { 6, "Verzik",    7, 90 },
+                { 6, "Verzik",   14, 90 },
             };
 
             int saved_hp = player->hitpoints;
@@ -29360,34 +29420,11 @@ ToriRSServer_WorldSelftest(void)
                     ToriRSServer_ScriptsRunDebugproc(srv, "tobout");
                     continue;
                 }
-                if( k_rooms[i].room == 6 )
-                {
-                    /*
-                     * Verzik is the one boss whose cadence is not a single
-                     * number, so she is the one boss not asserted as one.
-                     * Phase 3 runs at 7 and drops to 5 once enraged, and its
-                     * rotation inserts a special every four autos which
-                     * lengthens that gap - so the mean over a window sits
-                     * BETWEEN the two documented speeds rather than on either.
-                     * Asserting an exact 7 here would be asserting that her
-                     * enrage and her specials do not exist.
-                     */
-                    SELFTEST_CHECK(period >= TOB_VERZIK_P3_ENRAGED_PERIOD &&
-                                       period <= TOB_VERZIK_P3_PERIOD,
-                                   "Verzik's phase 3 must average between its "
-                                   "enraged and normal speeds (%d..%d), measured %d "
-                                   "over %d attacks",
-                                   TOB_VERZIK_P3_ENRAGED_PERIOD, TOB_VERZIK_P3_PERIOD,
-                                   period, count);
-                }
-                else
-                {
-                    SELFTEST_CHECK(period == k_rooms[i].period,
-                                   "%s should attack every %d ticks, measured %d "
-                                   "(%d attacks over %d ticks)",
-                                   k_rooms[i].name, k_rooms[i].period, period,
-                                   count, k_rooms[i].ticks);
-                }
+                SELFTEST_CHECK(period == k_rooms[i].period,
+                               "%s should attack every %d ticks, measured %d "
+                               "(%d attacks over %d ticks)",
+                               k_rooms[i].name, k_rooms[i].period, period,
+                               count, k_rooms[i].ticks);
                 {
                     /*
                      * Count only the npcs sitting in the ROOM'S INSTANCE, not
@@ -29712,6 +29749,28 @@ ToriRSServer_WorldSelftest(void)
                     ToriRSServer_WorldTick(srv);
                     ToriRSServer_ScriptsRunDebugproc(srv, "tobstand");
                     /*
+                     * ONE THROW, ON PURPOSE, because the roll is not what the
+                     * pool checks below are about.
+                     *
+                     * `~tob_maiden_blood_due` is a 1-in-3 roll on each eligible
+                     * attack with a two-attack cooldown after a hit. Her attack
+                     * period is ten ticks, so these sixty carry about six
+                     * attacks and only two or three eligible rolls — and "she
+                     * rolled no blood in this window" is a perfectly ordinary
+                     * outcome that reads here as "she cannot aim". It was the
+                     * failure: zero pool-tile-ticks ANYWHERE in the arena,
+                     * which is the roll's number and not the throw's.
+                     *
+                     * So the throw is driven once, through the real proc, and
+                     * what the two assertions then measure is what they say:
+                     * where the blood LANDS — on the player's own tile, and
+                     * never on her platform. Everything she throws of her own
+                     * accord still counts alongside it.
+                     */
+                    if( t == 20 )
+                        ToriRSServer_ScriptsRunProcOnNpc(
+                            srv, "[proc,tob_maiden_blood_throw]", boss);
+                    /*
                      * Her body moves type as she crosses each threshold, and
                      * `tob_harness_boss` finds by proximity rather than by type
                      * for exactly that reason - but a crab standing next to her
@@ -29820,8 +29879,19 @@ ToriRSServer_WorldSelftest(void)
                      * the suite asks the question from the player's side.
                      */
                     {
+                        /*
+                         * SHAPE 22, not 10. `~tob_maiden_pool_land` adds the
+                         * pool as `grounddecor` and states why in as many
+                         * words: shape 22 is the tile's exclusive decor slot
+                         * and is emitted in the tile's base step, while a
+                         * `centrepiece_straight` joins the tile's scenery chain
+                         * and sorts against the player standing on it — a pool
+                         * nearer the camera than his anchor drew OVER him.
+                         * Looking for a centrepiece here found nothing, every
+                         * run, and reported it as "she never threw".
+                         */
                         int slot = ToriRSServer_SceneFindLocExact(
-                            player->x, player->z, player->level, 10);
+                            player->x, player->z, player->level, 22 /* grounddecor */);
                         struct ToriRSServerSceneLoc* l =
                             slot >= 0 ? ToriRSServer_SceneLoc(slot) : NULL;
                         if( l && l->active && l->loc_id == 32984 )
@@ -29849,7 +29919,7 @@ ToriRSServer_WorldSelftest(void)
                         {
                             int slot = ToriRSServer_SceneFindLocExact(
                                 srv->npcs[boss].x + px, srv->npcs[boss].z + pz,
-                                srv->npcs[boss].level, 10);
+                                srv->npcs[boss].level, 22 /* grounddecor */);
                             struct ToriRSServerSceneLoc* l =
                                 slot >= 0 ? ToriRSServer_SceneLoc(slot) : NULL;
                             if( l && l->active && l->loc_id == 32984 )
@@ -30080,7 +30150,7 @@ ToriRSServer_WorldSelftest(void)
                             struct ToriRSServerSceneLoc* loc;
 
                             slot = ToriRSServer_SceneFindLocExact(
-                                tx, tz, srv->npcs[boss].level, 10 /* centrepiece_straight */);
+                                tx, tz, srv->npcs[boss].level, 22 /* grounddecor */);
                             loc = slot >= 0 ? ToriRSServer_SceneLoc(slot) : NULL;
                             if( loc && loc->active && loc->loc_id == k_blood_loc )
                                 on_body++;
@@ -30101,7 +30171,7 @@ ToriRSServer_WorldSelftest(void)
                                 int tx = ox + rx;
                                 int tz = oz + rz;
                                 int lslot = ToriRSServer_SceneFindLocExact(
-                                    tx, tz, srv->npcs[boss].level, 10);
+                                    tx, tz, srv->npcs[boss].level, 22 /* grounddecor */);
                                 struct ToriRSServerSceneLoc* l =
                                     lslot >= 0 ? ToriRSServer_SceneLoc(lslot) : NULL;
                                 char c = '.';
@@ -31002,6 +31072,31 @@ ToriRSServer_WorldSelftest(void)
                      * tiles and 10 008 open ones. The square's TERRAIN reaches
                      * the instance and its LOCS do not.
                      *
+                     * Narrowed since (2026-08-23), so the next pass starts
+                     * further along. It is NOT the ToB content and it is not
+                     * the room's own square:
+                     *
+                     *  - m51_69 built as an ORDINARY scene carries the tank
+                     *    exactly where the room expects it — `tob_bloat_pillar`
+                     *    (32955) twelve times at square-local (29,29) and
+                     *    around, `tob_bloat_chamber` (32957) at (30,30), all at
+                     *    LEVEL 0 with shape 10.
+                     *  - The instance's window maps that square identity: zone
+                     *    (803,11) of the reservation reads src zone 411,555 —
+                     *    m51_69 — at src_level 0 with rotation 0, so
+                     *    instance-local (24,24) is square-local (24,24).
+                     *  - And yet no loc id in 32940..32975 appears ANYWHERE in
+                     *    the built instanced scene, on any plane, while the
+                     *    same square's shape-22 ground decor does arrive. The
+                     *    tile the pillar should occupy holds nothing at all.
+                     *
+                     * So the loss is inside the instanced build of a square
+                     * whose ordinary build is correct, and it is selective by
+                     * something other than zone, plane or rotation.
+                     * `g_settings[1]` differs between the two builds at the
+                     * same tile (8 ordinary, 0 instanced), which is the next
+                     * thread to pull.
+                     *
                      * Not a Bloat defect, and deliberately not reported as one
                      * — but it makes Bloat's signature mechanic inert, so it is
                      * reported here, where it was found, with the census that
@@ -31172,7 +31267,8 @@ ToriRSServer_WorldSelftest(void)
             int form_gap_min = 1 << 30;
             int form_gap_max = 0;
             int last_form_tick = -1;
-            int hud_special = 0;
+            int hud_waves_boss = 0;
+            int hud_special_seen = 0;
             int hud_boss = 0;
             int start_tick;
 
@@ -31557,9 +31653,14 @@ ToriRSServer_WorldSelftest(void)
                  */
                 hud = ToriRSServer_MapInstanceVarGet(handle, 63);
                 if( hud > 0 && hud / 1048576 == 2 )
-                    hud_special = 1;
+                    hud_special_seen = 1;
                 if( hud > 0 && hud / 1048576 == 1 )
-                    hud_boss = 1;
+                {
+                    if( boss_slot < 0 )
+                        hud_waves_boss = 1;
+                    else
+                        hud_boss = 1;
+                }
                 (void)standing;
             }
 
@@ -31657,11 +31758,32 @@ ToriRSServer_WorldSelftest(void)
                                "and never twice into the same colour, %d repeats",
                                form_repeat);
             }
-            SELFTEST_CHECK(hud_special,
-                           "the wave defence draws a SPECIAL bar (the four supports "
-                           "combined), not a boss one");
+            /*
+             * THE ORDINARY BAR, on purpose, for both halves of the room.
+             *
+             * This used to require the SPECIAL type (2) while the waves ran.
+             * `^tob_hud_type_special` is Zenyte's DISABLED and the cache draws
+             * it purple-and-yellow with NO PERCENTAGE on it, which is right
+             * where the room is not fighting the thing the bar is about —
+             * Xarpus feeding, Sotetseg's maze. The supports are the opposite
+             * case: they are the only thing the team is losing and the number
+             * is what tells them how fast, so tob_nylocas.rs2 pushes
+             * `^tob_hud_type_boss` and says so, and Near-Reality's
+             * `NylocasRoom.healthBarType` is REGULAR too.
+             *
+             * So the three halves are: an ordinary bar for the supports, an
+             * ordinary bar for Vasilias, and the special type never used in
+             * this room at all. The last one is what stops the requirement
+             * quietly inverting again.
+             */
+            SELFTEST_CHECK(hud_waves_boss,
+                           "the wave defence draws the ordinary boss bar for the four "
+                           "supports combined");
+            SELFTEST_CHECK(!hud_special_seen,
+                           "and never the SPECIAL type, which the cache draws with no "
+                           "percentage on it");
             SELFTEST_CHECK(hud_boss,
-                           "and Vasilias turns it into a boss bar when she lands");
+                           "and it stays a boss bar once Vasilias lands");
 
             ToriRSServer_ScriptsRunDebugproc(srv, "tobout");
             player->stat_level[TORIRSSERVER_STAT_HITPOINTS] = saved_level;
@@ -45908,6 +46030,25 @@ ToriRSServer_WorldSelftest(void)
                                        npc->max_hitpoints, npc->def->attack, npc->def->strength,
                                        npc->def->defence);
 
+                        /*
+                         * `::ikovrun` walks the whole quest and leaves the
+                         * quest journal (interface 119) mounted in the
+                         * mainmodal slot, with thirteen of its own queue
+                         * entries stacked up behind it — `player_can_access`
+                         * is false while a modal is up, so `[queue]` entries
+                         * are held rather than run. The death below arms
+                         * `queue_defeat_lucien2`, and it would be held too:
+                         * the stanza would read "the Armadyl path did not
+                         * complete" for a modal nobody closed.
+                         *
+                         * So: close what the walkthrough left open and drop
+                         * what it left queued, then arm the fixture. This is
+                         * setup, not the thing under test.
+                         */
+                        ToriRSServer_WorldCloseModal(srv);
+                        for( int q = 0; q < TORIRSSERVER_QUEUE_MAX; q++ )
+                            player->queue[q].active = 0;
+
                         player->varps[varp_ikov] = 70; /* ikov_helping_armadyl */
                         player->worn[2].obj_id = obj_pendant; /* wearpos=2, cache-confirmed */
                         player->worn[2].count = 1;
@@ -46485,6 +46626,28 @@ ToriRSServer_WorldSelftest(void)
                                 ToriRSServer_WorldHandle(
                                     player, PKTOUT_NAME_RESUME_PAUSEBUTTON, right_resume, 4);
                             }
+                            /*
+                             * ...and one more past the professor's own
+                             * confirmation. `observatory_constellation_answer`
+                             * checks the inventory has room and then says
+                             * "That's exactly it!" through `~chatnpc_anim`
+                             * BEFORE granting anything, so the reward, the
+                             * quest state and the QP all sit behind a second
+                             * chat_left park. Stopping at the player's reply
+                             * reads as "a correct guess does not complete the
+                             * quest".
+                             *
+                             * Three of them, not one: the reward and
+                             * `%itgronigen` land behind the first, and the
+                             * professor says two more lines ("By Saradomin's
+                             * earlobes!", "Look in your backpack...") before
+                             * `~quest_complete_rewards` — which is where the
+                             * quest points are. Stopping early reads as "the
+                             * quest completed but awarded no QP".
+                             */
+                            for( int i = 0; i < 3; i++ )
+                                ToriRSServer_WorldHandle(player, PKTOUT_NAME_RESUME_PAUSEBUTTON,
+                                                         resume, 4);
                         }
 
                         SELFTEST_CHECK(player->varps[varp_itgronigen] == 7 /* itgronigen_complete */,
@@ -46564,6 +46727,8 @@ ToriRSServer_WorldSelftest(void)
             int obj_elenakey = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "elenakey");
             int loc_mudpatch = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "plaguemudpatch2");
             int loc_pipe = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "plaguesewerpipe");
+            int loc_pipe_open =
+                ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "plaguesewerpipe_open");
             int loc_manholeclosed = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "plaguemanholeclosed");
             int loc_manholeopen = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "plaguemanholeopen");
             int loc_barrel = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_LOC, "plaguekeybarrel");
@@ -46677,6 +46842,18 @@ ToriRSServer_WorldSelftest(void)
                     int mx, mz;
                     int found_x = -1, found_z = -1;
 
+                    /*
+                     * The mud-patch check above ends with a messagebox up and
+                     * its `[proc,mesbox]` parked. This engine holds one parked
+                     * script per player, so the manhole's own
+                     * `~climb_ladder_anim` is DROPPED rather than parked
+                     * ("dropping [proc,climb_ladder_anim], which suspended
+                     * while [proc,mesbox] waits") and the p_telejump behind
+                     * its p_delay never runs — which reads as "the open
+                     * manhole does not lead anywhere".
+                     */
+                    ToriRSServer_WorldCloseModal(srv);
+
                     ToriRSServer_WorldTeleport(srv, 0, 2529, 3303);
                     ToriRSServer_WorldTick(srv);
                     for( mx = 2523; mx <= 2535 && manhole_slot < 0; mx++ )
@@ -46712,10 +46889,15 @@ ToriRSServer_WorldSelftest(void)
                                                                manhole_slot);
                             /* elena_enter_manhole calls ~climb_ladder_anim,
                              * which parks on p_delay(1) before the
-                             * p_telejump that follows it -- a tick lets
-                             * that delay expire and the script resume on
-                             * its own, no click needed. */
-                            ToriRSServer_WorldTick(srv);
+                             * p_telejump that follows it -- ticks let that
+                             * delay expire and the script resume on its own,
+                             * no click needed. `p_delay(1)` is
+                             * `tick + 1 + 1`, so ONE tick is one short of
+                             * it: the jump then landed after this check had
+                             * already read the town square and called it a
+                             * manhole that leads nowhere. */
+                            for( int t = 0; t < 3; t++ )
+                                ToriRSServer_WorldTick(srv);
                             SELFTEST_CHECK(player->x != found_x || player->z != found_z,
                                            "entering the open manhole should move the "
                                            "player into the sewer, still at (%d,%d,%d)",
@@ -46738,22 +46920,67 @@ ToriRSServer_WorldSelftest(void)
                      * in-content transition. The manhole test above just
                      * landed the player here via a real p_telejump, on a
                      * scene proven loaded; scan out from that instead. */
+                    /*
+                     * EITHER id, because the map only carries the second one.
+                     *
+                     * `plaguesewerpipe` (2541) is the name the script was
+                     * ported under and this cache places it nowhere; the loc
+                     * standing at (2514,9737) is `plaguesewerpipe_open` (2542).
+                     * sewerpipe.rs2 binds both headers for that reason, so the
+                     * fixture has to be willing to click whichever one is
+                     * actually there — and it drives the triggers with THAT
+                     * id, not with a hard-coded one, or a map that starts
+                     * shipping 2541 would exercise a slot of the other type.
+                     */
+                    int pipe_id = loc_pipe;
+
                     for( px = start_x - 40; px <= start_x + 40 && pipe_slot < 0; px++ )
                         for( pz = start_z - 40; pz <= start_z + 40 && pipe_slot < 0; pz++ )
                             pipe_slot = ToriRSServer_SceneFindLocId(px, pz, start_level, loc_pipe);
-                    SELFTEST_CHECK(pipe_slot >= 0, "plaguesewerpipe should be findable from "
-                                   "the sewer (player landed at %d,%d,%d), got slot %d",
+                    if( pipe_slot < 0 && loc_pipe_open >= 0 )
+                    {
+                        pipe_id = loc_pipe_open;
+                        for( px = start_x - 40; px <= start_x + 40 && pipe_slot < 0; px++ )
+                            for( pz = start_z - 40; pz <= start_z + 40 && pipe_slot < 0; pz++ )
+                                pipe_slot =
+                                    ToriRSServer_SceneFindLocId(px, pz, start_level, loc_pipe_open);
+                    }
+                    SELFTEST_CHECK(pipe_slot >= 0, "plaguesewerpipe (or its _open twin) should "
+                                   "be findable from the sewer (player landed at %d,%d,%d), "
+                                   "got slot %d",
                                    start_x, start_z, start_level, pipe_slot);
                     if( pipe_slot >= 0 )
                     {
+                        /*
+                         * Stand at the pipe before clicking it. The manhole
+                         * dropped the player 36 tiles away, and the climb runs
+                         * `~forcewalk2(movecoord(loc_coord, 0, 0, 1))` first —
+                         * from over there that is a walk, not a step, and the
+                         * `p_telejump` behind it would not have happened by the
+                         * time this stanza looks.
+                         */
+                        {
+                            struct ToriRSServerSceneLoc* pipe = ToriRSServer_SceneLoc(pipe_slot);
+
+                            if( pipe )
+                            {
+                                ToriRSServer_WorldTeleport(srv, pipe->level, pipe->x,
+                                                        pipe->z + 1);
+                                ToriRSServer_WorldTick(srv);
+                                start_x = player->x;
+                                start_z = player->z;
+                                start_level = player->level;
+                            }
+                        }
+
                         player->varps[varp_elena] = 8; /* quest_elena_opened_tunnel */
                         for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                             inv_set(player, s, -1, 0);
                         inv_set(player, 0, obj_rope, 1);
                         player->last_useitem = obj_rope;
                         player->last_useslot = 0;
-                        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, loc_pipe,
-                                                           ToriRSServer_LocCategory(loc_pipe),
+                        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOCU, pipe_id,
+                                                           ToriRSServer_LocCategory(pipe_id),
                                                            pipe_slot);
                         SELFTEST_CHECK(player->varps[varp_elena] == 9 /* quest_elena_tied_rope */,
                                        "using rope on the grill should reach "
@@ -46764,13 +46991,21 @@ ToriRSServer_WorldSelftest(void)
                          * same as edmond.rs2's own [opnpc1,edmond] case. */
                         player->varps[varp_elena] = 10; /* quest_elena_opened_pipe */
 
+                        /* The rope's own `~mesbox` is still parked, and one
+                         * parked script per player is the rule: the climb's
+                         * `~forcewalk2` would be DROPPED rather than held
+                         * ("dropping [proc,forcewalk2], which suspended while
+                         * [proc,mesbox] waits") and the squeeze behind it would
+                         * never run. */
+                        ToriRSServer_WorldCloseModal(srv);
+
                         /* No gas mask worn: climbing must refuse. */
                         for( int s = 0; s < TORIRSSERVER_INV_SLOTS; s++ )
                             inv_set(player, s, -1, 0);
                         player->worn[0].obj_id = -1;
                         player->worn[0].count = 0;
-                        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_pipe,
-                                                           ToriRSServer_LocCategory(loc_pipe),
+                        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, pipe_id,
+                                                           ToriRSServer_LocCategory(pipe_id),
                                                            pipe_slot);
                         SELFTEST_CHECK(player->x == start_x && player->z == start_z,
                                        "climbing through the pipe with no gas mask worn "
@@ -46779,10 +47014,17 @@ ToriRSServer_WorldSelftest(void)
 
                         /* Wearing it: climbing should succeed and land at
                          * the West Ardougne manhole. */
+                        ToriRSServer_WorldCloseModal(srv);
                         worn_set(player, 0, obj_gasmask, 1);
-                        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, loc_pipe,
-                                                           ToriRSServer_LocCategory(loc_pipe),
+                        ToriRSServer_ScriptsRunTriggerOnLoc(srv, SS_TRIGGER_OPLOC1, pipe_id,
+                                                           ToriRSServer_LocCategory(pipe_id),
                                                            pipe_slot);
+                        /* `~agility_exactmove` holds the squeeze for its own
+                         * frames before the `p_telejump` at the end of the
+                         * label runs; the jump is several ticks out, not
+                         * immediate. */
+                        for( int t = 0; t < 15; t++ )
+                            ToriRSServer_WorldTick(srv);
                         SELFTEST_CHECK(player->x != start_x || player->z != start_z,
                                        "climbing through the pipe with the gas mask worn "
                                        "should move the player out of the sewer, still at "
@@ -52456,18 +52698,23 @@ ToriRSServer_WorldSelftest(void)
     }
 
     /*
-     * The Queen, her tortured souls, and the intermission worms all store
-     * revision-727 life points, but only the Queen owns a phase cap and a
-     * leave-one-LP transition. Exercise the actual shared player-hit funnel on
-     * both mortal add types: a 50 old-HP roll must kill a 500-LP channelled
-     * soul and award 50-domain XP, while 65 does the same to a 650-LP worm.
+     * The Queen owns a phase cap and a leave-one-LP transition; her tortured
+     * souls and intermission worms own neither and die like any other npc.
+     *
+     * The whole encounter is stored on the ordinary hitpoint scale — the era's
+     * 10x life points were divided out of the configs and the scripts alike
+     * (content commit "qbd hp scaling"), which is why there is no multiply on
+     * this path any more and why the adds need no `[ai_queue2]` of their own.
+     * So: a 50 roll must kill a 50-hitpoint channelled soul and award
+     * 50-domain XP, and 65 does the same to a 65-hitpoint worm — the numbers
+     * the splat draws and the numbers the pool holds are now the same numbers.
      *
      * The soul is marked as the active time-stop caster before its queued hit.
      * Its real ai_queue3 has to run and clear that latch, which proves the
-     * scaled damage can interrupt the spell rather than merely changing a
-     * helper's arithmetic.
+     * damage can interrupt the spell rather than merely changing a helper's
+     * arithmetic.
      */
-    fprintf(stderr, "ToriRSServer selftest: QBD adds share LP scaling but die normally\n");
+    fprintf(stderr, "ToriRSServer selftest: QBD adds die on the ordinary hitpoint scale\n");
     {
         int loaded = ToriRSServer_ScriptsLoad(srv, "OSRS-Content/osrs239-content/server/scripts/build");
 
@@ -52501,8 +52748,8 @@ ToriRSServer_WorldSelftest(void)
             {
                 soul = ToriRSServer_WorldNpcSpawn(
                     srv, soul_type, player->x + 1, player->z, player->level);
-                SELFTEST_CHECK(soul >= 0 && srv->npcs[soul].hitpoints == 500,
-                               "the time-stop soul should spawn with 500 LP, slot=%d hp=%d",
+                SELFTEST_CHECK(soul >= 0 && srv->npcs[soul].hitpoints == 50,
+                               "the time-stop soul should spawn with 50 hitpoints, slot=%d hp=%d",
                                soul, soul >= 0 ? srv->npcs[soul].hitpoints : -1);
                 if( soul >= 0 )
                 {
@@ -52516,24 +52763,24 @@ ToriRSServer_WorldSelftest(void)
                     SELFTEST_CHECK(ToriRSServer_ScriptsRunProcOnNpc(
                                        srv, "[proc,rs2012_qbd_add_hit_host_probe]", soul),
                                    "the shared QBD-add hit probe should run on a soul");
-                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 500050 &&
-                                       npc->hitpoints == 500,
-                                   "a queued soul hit should prepare 500 LP / 50 XP before "
+                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 50050 &&
+                                       npc->hitpoints == 50,
+                                   "a queued soul hit should prepare 50 damage / 50 XP before "
                                    "landing, encoded=%d hp=%d",
                                    player->varps[SELFTEST_VARP_QUEST_PROGRESS],
                                    npc->hitpoints);
                     for( int tick = 0; tick < 8 && npc->active; tick++ )
                         ToriRSServer_WorldTick(srv);
                     SELFTEST_CHECK(!npc->active && player->varps[caster_alive] == 0,
-                                   "the lethal scaled hit should retire the time-stop caster "
+                                   "the lethal hit should retire the time-stop caster "
                                    "and clear its latch, active=%d caster=%d hp=%d",
                                    npc->active, player->varps[caster_alive], npc->hitpoints);
                 }
 
                 worm = ToriRSServer_WorldNpcSpawn(
                     srv, worm_type, player->x + 1, player->z, player->level);
-                SELFTEST_CHECK(worm >= 0 && srv->npcs[worm].hitpoints == 650,
-                               "the QBD intermission worm should spawn with 650 LP, "
+                SELFTEST_CHECK(worm >= 0 && srv->npcs[worm].hitpoints == 65,
+                               "the QBD intermission worm should spawn with 65 hitpoints, "
                                "slot=%d hp=%d",
                                worm, worm >= 0 ? srv->npcs[worm].hitpoints : -1);
                 if( worm >= 0 )
@@ -52546,16 +52793,16 @@ ToriRSServer_WorldSelftest(void)
                     SELFTEST_CHECK(ToriRSServer_ScriptsRunProcOnNpc(
                                        srv, "[proc,rs2012_qbd_add_hit_host_probe]", worm),
                                    "the shared QBD-add hit probe should run on a worm");
-                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 650065 &&
-                                       npc->hitpoints == 650,
-                                   "a queued worm hit should prepare 650 LP / 65 XP before "
+                    SELFTEST_CHECK(player->varps[SELFTEST_VARP_QUEST_PROGRESS] == 65065 &&
+                                       npc->hitpoints == 65,
+                                   "a queued worm hit should prepare 65 damage / 65 XP before "
                                    "landing, encoded=%d hp=%d",
                                    player->varps[SELFTEST_VARP_QUEST_PROGRESS],
                                    npc->hitpoints);
                     for( int tick = 0; tick < 8 && npc->active; tick++ )
                         ToriRSServer_WorldTick(srv);
                     SELFTEST_CHECK(!npc->active,
-                                   "the lethal scaled hit should use the worm's ordinary "
+                                   "the lethal hit should use the worm's ordinary "
                                    "one-life death path, active=%d hp=%d",
                                    npc->active, npc->hitpoints);
                 }
@@ -52918,12 +53165,22 @@ ToriRSServer_WorldSelftest(void)
                         "rs2012_qbd_crystal",
                         "rs2012_qbd_hardened",
                     };
-                    /* The adds fall through on the OTHER combat wildcard.
-                     * `[ai_queue2,_]` draws the damage it is handed, and
-                     * everything in this encounter is dealt in era LP — ten
-                     * times the number a player should read, and past 25 it
-                     * wraps in the wire's one-byte damage field. */
-                    static const char* const k_lp_adds[] = {
+                    /*
+                     * The adds are the opposite case, and it is worth stating
+                     * rather than leaving unasserted.
+                     *
+                     * They used to carry era life points — ten times the number
+                     * a player should read, and past 25 it wraps in the wire's
+                     * one-byte damage field — so each needed an `[ai_queue2]`
+                     * of its own to draw a divided splat. The encounter is
+                     * stored on the ordinary hitpoint scale now (content commit
+                     * "qbd hp scaling"), so the number they are dealt IS the
+                     * number to draw, and the right handler is the wildcard's:
+                     * `[ai_queue2,_] ~npc_default_damage(last_int)`. A handler
+                     * of their own would be a second, unstated damage transform
+                     * on a path that no longer needs one.
+                     */
+                    static const char* const k_plain_adds[] = {
                         "rs2012_qbd_tortured_soul",
                         "rs2012_qbd_giant_worm",
                     };
@@ -52941,17 +53198,18 @@ ToriRSServer_WorldSelftest(void)
                                        "falls through to the default melee swing",
                                        k_swing_forms[f]);
                     }
-                    for( int f = 0; f < (int)(sizeof(k_lp_adds) / sizeof(k_lp_adds[0])); f++ )
+                    for( int f = 0; f < (int)(sizeof(k_plain_adds) / sizeof(k_plain_adds[0])); f++ )
                     {
-                        int const id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, k_lp_adds[f]);
+                        int const id =
+                            ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_NPC, k_plain_adds[f]);
 
                         if( id < 0 || !srv->scripts_ok )
                             continue;
                         SELFTEST_CHECK(SSVM_ProviderGetByTriggerSpecific(
-                                           srv->scripts, SS_TRIGGER_AI_QUEUE2, id, -1) != NULL,
-                                       "%s must state its own [ai_queue2] or its hitsplat "
-                                       "draws the raw 10x life-point figure",
-                                       k_lp_adds[f]);
+                                           srv->scripts, SS_TRIGGER_AI_QUEUE2, id, -1) == NULL,
+                                       "%s must NOT state an [ai_queue2] of its own — it is on "
+                                       "the ordinary hitpoint scale and belongs on the wildcard",
+                                       k_plain_adds[f]);
                     }
                 }
 
