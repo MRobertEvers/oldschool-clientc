@@ -28,7 +28,7 @@ function Resolve-ToriRSWindowsToolchain {
     }
 
     $RepoRoot = [IO.Path]::GetFullPath($RepoRoot)
-    $toolchainParent = Join-Path $RepoRoot "toolchain"
+    $toolchainParent = Join-Path $RepoRoot "toolchains"
     $toolchainRoot = Join-Path $toolchainParent $spec.RootName
 
     if ($Override) {

@@ -1,3 +1,5 @@
+#include "perf/torirs_perf.h"
+
 #include "game/task_cs2_run.h"
 
 #include "cs2vm2/cs2_opcode_meta.h"
@@ -110,10 +112,16 @@ struct Task_CS2Run
     int int_args[TASK_CS2_RUN_INT_ARGS_MAX];
     int int_arg_count;
     /* Bit i set = arg position i is a string; strings fill str_args[] in
-     * position order. Positions past the pool cap degrade to "". */
+     * position order. Positions past the pool cap degrade to "".
+     *
+     * Exact-sized and allocated per invocation rather than a 16x512 matrix
+     * inline. Every quiet onTimer passes no strings at all, and the matrix made
+     * each one of them calloc and zero 8 KiB it never read — 72.9 invocations
+     * per rendered frame on the XP baseline. Entries [0, str_arg_count) are
+     * always non-NULL; the rest are untouched. */
     uint64_t str_mask;
     int str_arg_count;
-    char str_args[TASK_CS2_RUN_STR_ARGS_MAX][TASK_CS2_RUN_STR_ARG_LEN];
+    char* str_args[TASK_CS2_RUN_STR_ARGS_MAX];
 
     /*
      * Event context frozen at CreateTask time.
@@ -136,7 +144,19 @@ struct Task_CS2Run
     int event_drag_target_id;
     int event_drag_target_child_index;
 
-    struct CS2VM_HostRequest pending;
+    /*
+     * The host request the VM yielded on. A tagged union over every host op's
+     * argument list, so it is by far the widest thing here — 1.3 KiB against a
+     * few hundred bytes for the rest of the task.
+     *
+     * Allocated on the first yield rather than inline, because most
+     * invocations never yield at all: an onTimer that reads a varp and sets a
+     * text runs to completion inside CS2VM2_Run. Inline, all 72.9 invocations
+     * per rendered frame paid to zero it. Non-NULL from the first yield until
+     * the task is freed; every reader below is on a resume path, which by
+     * definition ran one.
+     */
+    struct CS2VM_HostRequest* pending;
     enum TaskCS2YieldPlan yield_plan;
     int await_id;
     /* Second config a request needs alongside await_id (the ParamType behind a
@@ -291,6 +311,7 @@ task_cs2_set_int_local(
 static int
 task_cs2_group_id_from_request(struct CS2VM_HostRequest const* request)
 {
+    assert(request);
     switch( request->kind )
     {
     case CS2VM_HOST_REQUEST_CC_CREATE:
@@ -316,6 +337,7 @@ task_cs2_group_id_from_request(struct CS2VM_HostRequest const* request)
 static int
 task_cs2_mount_parent_id_from_request(struct CS2VM_HostRequest const* request)
 {
+    assert(request);
     switch( request->kind )
     {
     case CS2VM_HOST_REQUEST_CC_CREATE:
@@ -384,7 +406,7 @@ task_cs2_bake_pack(struct Task_CS2Run* self)
      * under 728:6 while loading 728) are already linked inside the pack. */
     pack_root_id = (self->await_id << 16) | 0;
     pack_root_idx = UITree_FindByComponentId(tree, pack_root_id);
-    mount_parent_id = task_cs2_mount_parent_id_from_request(&self->pending);
+    mount_parent_id = task_cs2_mount_parent_id_from_request(self->pending);
     mount_group = (mount_parent_id >> 16) & 0xffff;
     if( pack_root_idx >= 0 && mount_group > 0 && mount_group != self->await_id )
     {
@@ -418,6 +440,9 @@ task_cs2_bake_pack(struct Task_CS2Run* self)
         if( !root->behavior.hide )
             root->behavior.hide_unmounted = 1;
         root->behavior.hide = 1;
+        /* Closing a pack changes the emit list; the retention gate reads
+         * dirty_gen and this path does not go through MarkNodeDirty. */
+        tree->dirty_gen++;
     }
 
     UITree_LayoutResolve(tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
@@ -447,7 +472,7 @@ task_cs2_bake_pack(struct Task_CS2Run* self)
 static void
 task_cs2_plan_pushscript(struct Task_CS2Run* self)
 {
-    self->await_id = self->pending.u.push_script.script_id;
+    self->await_id = self->pending->u.push_script.script_id;
     assert(self->await_id > 0);
     self->yield_plan = TASK_CS2_YIELD_SCRIPT;
 }
@@ -455,10 +480,10 @@ task_cs2_plan_pushscript(struct Task_CS2Run* self)
 static void
 task_cs2_plan_enum(struct Task_CS2Run* self)
 {
-    if( self->pending.kind == CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT )
-        self->await_id = self->pending.u.enum_get_output_count.enum_id;
+    if( self->pending->kind == CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT )
+        self->await_id = self->pending->u.enum_get_output_count.enum_id;
     else
-        self->await_id = self->pending.u.enum_lookup.enum_id;
+        self->await_id = self->pending->u.enum_lookup.enum_id;
     assert(self->await_id >= 0);
     self->yield_plan = TASK_CS2_YIELD_ENUM;
 }
@@ -468,12 +493,12 @@ task_cs2_plan_enum(struct Task_CS2Run* self)
 static void
 task_cs2_plan_db(struct Task_CS2Run* self)
 {
-    self->await_id = self->pending.u.db.load_id;
-    if( self->pending.u.db.load_kind == CS2VM_DB_LOAD_ROW )
+    self->await_id = self->pending->u.db.load_id;
+    if( self->pending->u.db.load_kind == CS2VM_DB_LOAD_ROW )
         self->yield_plan = TASK_CS2_YIELD_DBROW;
-    else if( self->pending.u.db.load_kind == CS2VM_DB_LOAD_INDEX )
+    else if( self->pending->u.db.load_kind == CS2VM_DB_LOAD_INDEX )
         self->yield_plan = TASK_CS2_YIELD_DBINDEX;
-    else if( self->pending.u.db.load_kind == CS2VM_DB_LOAD_TABLE )
+    else if( self->pending->u.db.load_kind == CS2VM_DB_LOAD_TABLE )
         self->yield_plan = TASK_CS2_YIELD_DBTABLE;
     else
         self->yield_plan = TASK_CS2_YIELD_NONE;
@@ -491,7 +516,7 @@ task_cs2_plan_worldmap(struct Task_CS2Run* self)
 static void
 task_cs2_plan_mapelement(struct Task_CS2Run* self)
 {
-    self->await_id = self->pending.u.mec.mec_id;
+    self->await_id = self->pending->u.mec.mec_id;
     self->yield_plan = self->await_id >= 0 ? TASK_CS2_YIELD_MAPELEMENT : TASK_CS2_YIELD_NONE;
 }
 
@@ -502,8 +527,8 @@ task_cs2_plan_mapelement(struct Task_CS2Run* self)
 static void
 task_cs2_plan_struct(struct Task_CS2Run* self)
 {
-    self->await_id = self->pending.u.struct_param.struct_id;
-    self->await_id2 = self->pending.u.struct_param.param_id;
+    self->await_id = self->pending->u.struct_param.struct_id;
+    self->await_id2 = self->pending->u.struct_param.param_id;
     assert(self->await_id >= 0 || self->await_id2 >= 0);
     self->yield_plan = TASK_CS2_YIELD_STRUCT;
 }
@@ -511,33 +536,33 @@ task_cs2_plan_struct(struct Task_CS2Run* self)
 static void
 task_cs2_plan_obj(struct Task_CS2Run* self)
 {
-    switch( self->pending.kind )
+    switch( self->pending->kind )
     {
     case CS2VM_HOST_REQUEST_OC_PARAM:
         /* Same pairing as task_cs2_plan_struct: objtype + ParamType. */
-        self->await_id = self->pending.u.oc_param.item_id;
-        self->await_id2 = self->pending.u.oc_param.param_id;
+        self->await_id = self->pending->u.oc_param.item_id;
+        self->await_id2 = self->pending->u.oc_param.param_id;
         break;
     case CS2VM_HOST_REQUEST_OC_NAME:
-        self->await_id = self->pending.u.oc_name.item_id;
+        self->await_id = self->pending->u.oc_name.item_id;
         break;
     case CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER:
     case CS2VM_HOST_REQUEST_OC_PLACEHOLDER:
         /* Both directions live in the same request payload (the union aliases
          * `oc_placeholder` onto `oc_unplaceholder`). */
-        self->await_id = self->pending.u.oc_unplaceholder.item_id;
+        self->await_id = self->pending->u.oc_unplaceholder.item_id;
         break;
     case CS2VM_HOST_REQUEST_OC_INT_PARAM:
-        self->await_id = self->pending.u.oc_int_param.item_id;
+        self->await_id = self->pending->u.oc_int_param.item_id;
         break;
     case CS2VM_HOST_REQUEST_OC_OP:
-        self->await_id = self->pending.u.oc_op.item_id;
+        self->await_id = self->pending->u.oc_op.item_id;
         break;
     case CS2VM_HOST_REQUEST_OC_IOP:
-        self->await_id = self->pending.u.oc_iop.item_id;
+        self->await_id = self->pending->u.oc_iop.item_id;
         break;
     case CS2VM_HOST_REQUEST_OC_EXAMINE:
-        self->await_id = self->pending.u.oc_examine.item_id;
+        self->await_id = self->pending->u.oc_examine.item_id;
         break;
     default:
         assert(0 && "task_cs2_plan_obj: unexpected kind");
@@ -552,8 +577,8 @@ task_cs2_plan_obj(struct Task_CS2Run* self)
 static void
 task_cs2_plan_npc_name(struct Task_CS2Run* self)
 {
-    assert(self->pending.kind == CS2VM_HOST_REQUEST_NC_NAME);
-    self->await_id = self->pending.u.nc_name.npc_id;
+    assert(self->pending->kind == CS2VM_HOST_REQUEST_NC_NAME);
+    self->await_id = self->pending->u.nc_name.npc_id;
     if( self->await_id < 0 )
     {
         self->yield_plan = TASK_CS2_YIELD_NONE;
@@ -565,7 +590,7 @@ task_cs2_plan_npc_name(struct Task_CS2Run* self)
 static void
 task_cs2_plan_component(struct Task_CS2Run* self)
 {
-    self->await_id = task_cs2_group_id_from_request(&self->pending);
+    self->await_id = task_cs2_group_id_from_request(self->pending);
     assert(self->await_id > 0 && "component yield must carry a valid group id");
     self->yield_plan = TASK_CS2_YIELD_COMPONENT;
 }
@@ -573,7 +598,7 @@ task_cs2_plan_component(struct Task_CS2Run* self)
 static void
 task_cs2_plan_widget_set_model(struct Task_CS2Run* self)
 {
-    self->await_id = self->pending.u.widget_set_model.model_id;
+    self->await_id = self->pending->u.widget_set_model.model_id;
     if( self->await_id < 0 )
     {
         self->yield_plan = TASK_CS2_YIELD_NONE;
@@ -585,8 +610,8 @@ task_cs2_plan_widget_set_model(struct Task_CS2Run* self)
 static void
 task_cs2_plan_widget_set_model_kind(struct Task_CS2Run* self)
 {
-    int model_id = self->pending.u.widget_set_model_kind.model_id;
-    enum CS2VM_ModelKind kind = self->pending.u.widget_set_model_kind.model_kind;
+    int model_id = self->pending->u.widget_set_model_kind.model_id;
+    enum CS2VM_ModelKind kind = self->pending->u.widget_set_model_kind.model_kind;
 
     if( kind == CS2VM_MODEL_KIND_PLAIN )
     {
@@ -631,15 +656,15 @@ task_cs2_plan_widget_set_model_kind(struct Task_CS2Run* self)
 static void
 task_cs2_plan_setobject(struct Task_CS2Run* self)
 {
-    if( self->pending.kind == CS2VM_HOST_REQUEST_IF_SETOBJECT )
+    if( self->pending->kind == CS2VM_HOST_REQUEST_IF_SETOBJECT )
     {
-        self->yield_obj_id = self->pending.u.if_set_object.obj_id;
-        self->yield_obj_count = self->pending.u.if_set_object.count;
+        self->yield_obj_id = self->pending->u.if_set_object.obj_id;
+        self->yield_obj_count = self->pending->u.if_set_object.count;
     }
     else
     {
-        self->yield_obj_id = self->pending.u.cc_set_object.obj_id;
-        self->yield_obj_count = self->pending.u.cc_set_object.count;
+        self->yield_obj_id = self->pending->u.cc_set_object.obj_id;
+        self->yield_obj_count = self->pending->u.cc_set_object.count;
     }
 
     /* obj_id <= 0 clears the slot — no load. */
@@ -655,7 +680,7 @@ task_cs2_plan_setobject(struct Task_CS2Run* self)
 static void
 task_cs2_plan_setgraphic(struct Task_CS2Run* self)
 {
-    self->await_id = self->pending.u.cc_set_graphic.graphic_id;
+    self->await_id = self->pending->u.cc_set_graphic.graphic_id;
     if( self->await_id < 0 )
     {
         self->yield_plan = TASK_CS2_YIELD_NONE;
@@ -667,10 +692,10 @@ task_cs2_plan_setgraphic(struct Task_CS2Run* self)
 static void
 task_cs2_plan_font(struct Task_CS2Run* self)
 {
-    if( self->pending.kind == CS2VM_HOST_REQUEST_CC_SETTEXTFONT )
-        self->await_id = self->pending.u.cc_set_text_font.font_id;
+    if( self->pending->kind == CS2VM_HOST_REQUEST_CC_SETTEXTFONT )
+        self->await_id = self->pending->u.cc_set_text_font.font_id;
     else
-        self->await_id = self->pending.u.para_height.font_id;
+        self->await_id = self->pending->u.para_height.font_id;
     if( self->await_id < 0 )
     {
         self->yield_plan = TASK_CS2_YIELD_NONE;
@@ -683,6 +708,8 @@ static void
 task_cs2_plan_yield(struct Task_CS2Run* self)
 {
     assert(self);
+    /* The single gate in front of every self->pending reader below. */
+    assert(self->pending);
 
     self->yield_plan = TASK_CS2_YIELD_NONE;
     self->await_id = -1;
@@ -691,7 +718,7 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     self->yield_npc_id = -1;
     self->yield_npc_depth = 0;
 
-    switch( self->pending.kind )
+    switch( self->pending->kind )
     {
     case CS2VM_HOST_REQUEST_PUSHSCRIPT:
         task_cs2_plan_pushscript(self);
@@ -711,7 +738,7 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
      * skips the struct load). */
     case CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM:
         self->await_id = -1;
-        self->await_id2 = self->pending.u.cc_component_param.param_id;
+        self->await_id2 = self->pending->u.cc_component_param.param_id;
         self->yield_plan =
             self->await_id2 >= 0 ? TASK_CS2_YIELD_STRUCT : TASK_CS2_YIELD_NONE;
         break;
@@ -752,9 +779,9 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
 
     case CS2VM_HOST_REQUEST_NC_PARAM:
     case CS2VM_HOST_REQUEST_LC_PARAM:
-        self->await_id = self->pending.u.nc_param.type_id;
-        self->await_id2 = self->pending.u.nc_param.param_id;
-        self->yield_plan = self->pending.kind == CS2VM_HOST_REQUEST_NC_PARAM
+        self->await_id = self->pending->u.nc_param.type_id;
+        self->await_id2 = self->pending->u.nc_param.param_id;
+        self->yield_plan = self->pending->kind == CS2VM_HOST_REQUEST_NC_PARAM
                                ? TASK_CS2_YIELD_NPC_PARAM
                                : TASK_CS2_YIELD_LOC_PARAM;
         break;
@@ -921,7 +948,7 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
         fprintf(
             stderr,
             "Task_CS2Run: unhandled yield kind %d (script %d)\n",
-            (int)self->pending.kind,
+            (int)self->pending->kind,
             self->script_id);
         self->yield_plan = TASK_CS2_YIELD_ABORT;
         break;
@@ -968,6 +995,7 @@ Task_CS2Run_Run(
 
     if( !self->started )
     {
+        TORIRS_PERF_STAGE_BEGIN(TORIRS_PERF_STAGE_CS2_TASK_START);
         self->vm = CS2VM2_Acquire();
         assert(self->vm);
         CS2VM2_BindHost(self->vm, self->host, RS_CS2Host_Exec);
@@ -985,6 +1013,12 @@ Task_CS2Run_Run(
              * fill string locals in order (OSRS ScriptEvent semantics). */
             int int_i = 0;
             int str_i = 0;
+            /* task_cs2_run_new clamps this; restated here because it is what
+             * bounds the int_args[] read below and nothing between the two
+             * says so. The `j < 64` in the string test also means the compiler
+             * reads the else branch as reachable with j == 64, which is where
+             * its standing -Warray-bounds on this loop comes from. */
+            assert(self->int_arg_count <= TASK_CS2_RUN_INT_ARGS_MAX);
             for( j = 0; j < self->int_arg_count; j++ )
             {
                 if( j < 64 && (self->str_mask & ((uint64_t)1 << j)) )
@@ -1036,6 +1070,7 @@ Task_CS2Run_Run(
         RS_CS2Host_ScriptStarted(self->host, thread, self->active_component_id);
 
         self->started = 1;
+        TORIRS_PERF_STAGE_END(TORIRS_PERF_STAGE_CS2_TASK_START);
 
         /* TORIRS_CS2_DUMP_SCRIPT=<id>: one-shot disassembly of a script when it
          * starts, to understand hooks that run without failing (e.g. tab-visibility
@@ -1161,7 +1196,13 @@ Task_CS2Run_Run(
             break;
         }
 
-        self->pending = self->host->pending;
+        /* First yield of this task buys the slot; later ones reuse it. */
+        if( !self->pending )
+        {
+            self->pending = malloc(sizeof(*self->pending));
+            assert(self->pending);
+        }
+        *self->pending = self->host->pending;
         self->host->has_pending = false;
 
         /* Flat switch (no PT) then linear awaits — protothreads cannot nest switch. */
@@ -1338,6 +1379,10 @@ Task_CS2Run_Free(struct ToriRS_Task* task)
     assert(self);
     /* NULL when the task was dropped before it ever ran (queue teardown). */
     CS2VM2_Release(self->vm);
+    /* NULL when the task never yielded, which is the common case. */
+    free(self->pending);
+    for( int i = 0; i < self->str_arg_count; i++ )
+        free(self->str_args[i]);
     free(self);
 }
 
@@ -1345,6 +1390,31 @@ static struct ToriRS_TaskVTable Task_CS2Run_VTable = {
     .run = Task_CS2Run_Run,
     .free = Task_CS2Run_Free,
 };
+
+/*
+ * Exact-sized copy of one positional string argument.
+ *
+ * Still truncated at TASK_CS2_RUN_STR_ARG_LEN so dispatch behaviour is
+ * byte-identical to the fixed matrix this replaced; the cap is a semantic the
+ * warning above documents, not an artefact of the storage.
+ */
+static char*
+task_cs2_str_arg_dup(char const* s)
+{
+    size_t n;
+    char* out;
+
+    if( !s )
+        s = "";
+    n = strlen(s);
+    if( n > (size_t)(TASK_CS2_RUN_STR_ARG_LEN - 1) )
+        n = (size_t)(TASK_CS2_RUN_STR_ARG_LEN - 1);
+    out = malloc(n + 1);
+    assert(out);
+    memcpy(out, s, n);
+    out[n] = '\0';
+    return out;
+}
 
 static struct ToriRS_Task*
 task_cs2_run_new(
@@ -1446,10 +1516,7 @@ task_cs2_run_new(
         str_arg_count = 0;
     self->str_arg_count = str_arg_count;
     for( int i = 0; i < str_arg_count; i++ )
-    {
-        strncpy(self->str_args[i], str_args[i] ? str_args[i] : "", TASK_CS2_RUN_STR_ARG_LEN - 1);
-        self->str_args[i][TASK_CS2_RUN_STR_ARG_LEN - 1] = '\0';
-    }
+        self->str_args[i] = task_cs2_str_arg_dup(str_args[i]);
 
     PT_INIT(&self->pt);
     /* Display dropdown / server remount: settings_client_mode (script_3998) may

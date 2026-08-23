@@ -9,7 +9,7 @@
       * EMBED_SERVER=1 -> links the rev-230 server into the client.
 
     The committed lib\mingw64-win64-toolchain.zip is extracted on demand to
-    the ignored toolchain\mingw64 directory. The result is staged as
+    the toolchains\mingw64 directory. The result is staged as
     dist\win64\torirs.exe. No compiler or runtime DLL needs to be installed.
 
 .PARAMETER Toolchain

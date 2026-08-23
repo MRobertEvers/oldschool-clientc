@@ -158,6 +158,25 @@ UITree_HookSet(
     char const* const* strv,
     int str_argc);
 
+/** Would `UITree_HookSet` with these arguments leave the slot exactly as it
+ *  already is? Applies the same clamps and the same NULL normalisations first,
+ *  so a true answer means "identical", not "similar".
+ *
+ *  For skipping a re-registration: `if_seton*` is re-armed wholesale whenever a
+ *  script rebuilds an interface, and the great majority of those calls re-state
+ *  the binding already in the slot. Setting it again would free both tails,
+ *  malloc them back at the same sizes, and strdup every string, to arrive where
+ *  it started. */
+int
+UITree_HookEquals(
+    struct UITreeRuntimeScriptHook const* hook,
+    int script_id,
+    int const* argv,
+    int argc,
+    uint64_t str_mask,
+    char const* const* strv,
+    int str_argc);
+
 /** Release the tails and zero the slot. The ONLY correct way to blank one —
  *  a memset leaks both tails, which is why the raw struct is no longer safe to
  *  clear by hand. */

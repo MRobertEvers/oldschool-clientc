@@ -4,6 +4,8 @@
 #define MINIPT_ENABLE_USER_PTR 1
 #include <3rd/minipt.h>
 
+#include "perf/torirs_perf.h"
+
 #include <assert.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -452,6 +454,7 @@ ToriRS_TaskQueue_Run(
     while( queue->head != NULL )
     {
         task = queue->head;
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_TASK_RESUMES, 1);
         res = task_run(task, io);
 
         // Return states for the protothread functions
@@ -478,14 +481,16 @@ ToriRS_TaskQueue_Run(
              * DONE means the whole queue drained, not just one task. */
             if( torirs_task_log_enabled() )
                 fprintf(stderr, "Task %s completed\n", task->name);
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_TASK_ENDS, 1);
             ToriRS_TaskQueue_Remove(queue, task);
             break;
         case PT_EXITED:
             /* Early return via PT_EXIT. Some are benign guard clauses; others
              * follow an error the task already logged. Distinguished from a
              * clean end and gated behind the same trace flag. */
-            if( getenv("TORIRS_TASK_LOG") )
+            if( torirs_task_log_enabled() )
                 fprintf(stderr, "Task %s exited early (PT_EXIT)\n", task->name);
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_TASK_ENDS, 1);
             ToriRS_TaskQueue_Remove(queue, task);
             break;
         default:

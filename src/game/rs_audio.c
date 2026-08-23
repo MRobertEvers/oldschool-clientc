@@ -35,6 +35,7 @@ RS_Audio_Init(struct RS_Audio* audio)
     assert(audio);
     memset(audio, 0, sizeof(*audio));
     audio->enabled = true;
+    audio->device_present = true;
     audio->master_volume = RS_AUDIO_DEFAULT_VOLUME;
     audio->effect_volume = RS_AUDIO_DEFAULT_VOLUME;
     audio->area_volume = RS_AUDIO_DEFAULT_VOLUME;
@@ -47,6 +48,22 @@ RS_Audio_Init(struct RS_Audio* audio)
     audio->area_generation = -1;
     ToriRS_Music_Init(&audio->music);
     ToriRS_Music_SetVolume(&audio->music, audio->music_volume, NULL);
+}
+
+void
+RS_Audio_SetDevicePresent(struct RS_Audio* audio, bool present)
+{
+    assert(audio);
+    audio->device_present = present;
+}
+
+/* Both gates on the effect path: the player's setting, and whether there is
+ * anything downstream to play into. */
+static bool
+audio_effects_active(struct RS_Audio const* audio)
+{
+    assert(audio);
+    return audio->enabled && audio->device_present;
 }
 
 void
@@ -95,7 +112,7 @@ queue_effect(
     struct RS_AudioEntry* entry;
 
     assert(audio);
-    if( !audio->enabled || synth_id < 0 )
+    if( !audio_effects_active(audio) || synth_id < 0 )
         return;
     /*
      * Zero repeats is not "play once" -- the reference refuses the entry
@@ -1308,7 +1325,22 @@ RS_Audio_Tick(
 {
     assert(audio);
 
+    /* Kept monotonic on both paths: the overlap rule reads it as a timestamp,
+     * so it must not stall while silent and then jump when a device appears. */
     audio->tick++;
+
+    /*
+     * With no sink, everything below decodes and mixes into nothing. The
+     * effect queue is already refused at queue_effect, the music player is
+     * only asked to fetch and decode a track from inside its own tick, and the
+     * area-sound pass is a scene walk whose only product is voice commands --
+     * so declining to run them costs no state, and running them cost a
+     * measurable slice of every logic tick on a client that could not make a
+     * sound. Requests still reach the music player, so what the client believes
+     * is playing is unchanged.
+     */
+    if( !audio->device_present )
+        return;
 
     /* Assets first: a voice started this tick must name an asset the backend
      * already has, and commands are applied in the order they are queued. */

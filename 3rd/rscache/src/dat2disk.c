@@ -662,25 +662,90 @@ dat2disk_fopen_index(
     return fopen(path, "rb");
 }
 
+/* Slot in `disk->index_files` for a table id, or -1 for an id that has no index
+ * file at all.
+ *
+ * The reference table is the reason this is not just the table id. Reads of
+ * idx255 go through exactly the same path as reads of idx0..idx36, but 255 is
+ * outside the range RSCache_Dat2DiskIsValidTableId admits — that predicate
+ * bounds the *reference-table array*, which is indexed by the table a reference
+ * table describes, and 255 is the file they are all stored in rather than one of
+ * the things described. So it gets the slot past the end. */
+static int
+dat2disk_index_slot(int table_id)
+{
+    if( table_id == RSCACHE_DAT2_DISK_REFERENCE_TABLE_ID )
+        return RSCACHE_DAT2_DISK_TABLE_CAPACITY;
+    if( RSCache_Dat2DiskIsValidTableId(table_id) )
+        return table_id;
+    return -1;
+}
+
+/* The disk's read handle on idxN, opened on first use. NULL means "no such
+ * table", which is an ordinary answer here and not cached: a table can be
+ * created later by commit_table, and a disk that answered "absent" once must
+ * not keep saying so. */
+static FILE*
+dat2disk_disk_index_handle(struct RSCache_Dat2Disk* disk, int table_id)
+{
+    assert(disk);
+    assert(disk->directory);
+
+    int slot = dat2disk_index_slot(table_id);
+    if( slot < 0 )
+        return NULL;
+    if( !disk->index_files[slot] )
+        disk->index_files[slot] = dat2disk_fopen_index(disk->directory, table_id);
+    return disk->index_files[slot];
+}
+
+/* Drop one cached read handle. Called where this disk changes a table under
+ * itself, so the next read reopens rather than serving what stdio buffered
+ * before the write. `table_id < 0` drops every slot. */
+static void
+dat2disk_disk_index_forget(struct RSCache_Dat2Disk* disk, int table_id)
+{
+    assert(disk);
+
+    if( table_id >= 0 )
+    {
+        int slot = dat2disk_index_slot(table_id);
+        if( slot >= 0 && disk->index_files[slot] )
+        {
+            fclose(disk->index_files[slot]);
+            disk->index_files[slot] = NULL;
+        }
+        return;
+    }
+
+    for( int i = 0; i <= RSCACHE_DAT2_DISK_TABLE_CAPACITY; ++i )
+    {
+        if( disk->index_files[i] )
+        {
+            fclose(disk->index_files[i]);
+            disk->index_files[i] = NULL;
+        }
+    }
+}
+
 static int
 dat2disk_read_index(
     struct RSCache_Dat2DiskIndexRecord* record,
-    char const* cache_directory,
+    struct RSCache_Dat2Disk* disk,
     int table_id,
     int entry_idx)
 {
-    FILE* index_file = dat2disk_fopen_index(cache_directory, table_id);
+    assert(record);
+    assert(disk);
+
+    FILE* index_file = dat2disk_disk_index_handle(disk, table_id);
     if( !index_file )
         return -1;
 
     if( RSCache_Dat2DiskIndexFileReadRecord(index_file, entry_idx, record) != 0 )
-    {
-        fclose(index_file);
         return -1;
-    }
 
     record->idx_file_id = table_id;
-    fclose(index_file);
     return 0;
 }
 
@@ -708,7 +773,7 @@ dat2_file_store_get(
         return -1;
     /* An idx entry that is not there is the ordinary "no such archive", which
      * is 0 and not an error: an incremental cache is mostly holes. */
-    if( dat2disk_read_index(&index_record, disk->directory, table_id, archive_id) != 0 )
+    if( dat2disk_read_index(&index_record, disk, table_id, archive_id) != 0 )
         return 0;
 
     memset(&archive, 0, sizeof(archive));
@@ -745,10 +810,17 @@ dat2_file_store_put(
     int size)
 {
     struct RSCache_Dat2Disk* disk = (struct RSCache_Dat2Disk*)user;
+    int rc;
 
     if( !disk || disk->read_only || !disk->directory )
         return -1;
-    return RSCache_Dat2DiskWriteArchive(disk->directory, table_id, archive_id, data, size);
+    rc = RSCache_Dat2DiskWriteArchive(disk->directory, table_id, archive_id, data, size);
+    /* The write went through its own stream (dat2disk_idx_handle's rw cache), so
+     * this disk's read handle on the same idxN may be holding bytes from before
+     * it. Drop it whether or not the write succeeded — a partial write leaves the
+     * same staleness. */
+    dat2disk_disk_index_forget(disk, table_id);
+    return rc;
 }
 
 static int
@@ -757,15 +829,13 @@ dat2_file_store_has_table(
     int table_id)
 {
     struct RSCache_Dat2Disk* disk = (struct RSCache_Dat2Disk*)user;
-    FILE* index_file;
 
     if( !disk || !disk->directory )
         return 0;
-    index_file = dat2disk_fopen_index(disk->directory, table_id);
-    if( !index_file )
-        return 0;
-    fclose(index_file);
-    return 1;
+    /* Through the cache: presence is the same question the read path asks, and a
+     * table that exists is about to be read from anyway. A missing table is not
+     * cached, so a later commit_table still becomes visible here. */
+    return dat2disk_disk_index_handle(disk, table_id) != NULL;
 }
 
 /*
@@ -776,6 +846,11 @@ dat2_file_store_has_table(
  * invisible to the next open. The dat2 reopen is because the write went through
  * its own FILE stream, so this disk's reader may be holding an input buffer or
  * end-of-file state from before the append.
+ *
+ * The cached idxN read handle is dropped for the same reason as the dat2 reopen,
+ * and additionally because this may be the call that creates idxN: a handle
+ * opened before it existed would be NULL, and a handle opened on the file this
+ * touches would predate the reference-table write.
  */
 static int
 dat2_file_store_commit_table(
@@ -790,6 +865,8 @@ dat2_file_store_commit_table(
 
     if( !disk || !disk->directory )
         return -1;
+
+    dat2disk_disk_index_forget(disk, table_id);
 
     path_size =
         snprintf(path, sizeof(path), "%s/main_file_cache.idx%d", disk->directory, table_id);
@@ -1184,6 +1261,7 @@ RSCache_Dat2DiskFree(struct RSCache_Dat2Disk* disk)
      * final flush through it still could. */
     if( disk->dat2_file )
         fclose(disk->dat2_file);
+    dat2disk_disk_index_forget(disk, -1);
 
     for( int i = 0; i < RSCACHE_DAT2_DISK_TABLE_CAPACITY; ++i )
     {

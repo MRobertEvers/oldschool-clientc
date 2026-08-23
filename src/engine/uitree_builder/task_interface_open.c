@@ -433,6 +433,12 @@ mount_pack_under_target(struct Task_InterfaceOpen* self)
         {
             c->behavior.hide = 0;
             c->behavior.hide_unmounted = 0;
+            /* Unhiding makes this node reachable by the emit walk when it was
+             * not before, which is exactly the transition the retention gate
+             * has to see (Opt 11). It cannot go through UITree_MarkNodeDirty:
+             * that filters by the last walk's reachability, and by definition
+             * this node was unreachable then. Bump directly. */
+            self->tree->dirty_gen++;
         }
         if( c->parent == mount_idx )
             continue;
@@ -679,6 +685,9 @@ Task_InterfaceOpen_Run(
             {
                 c->behavior.hide = 0;
                 c->behavior.hide_unmounted = 0;
+                /* See the mount sweep above: an unhide is a reachability
+                 * change the retention gate must not miss. */
+                self->tree->dirty_gen++;
             }
         }
     }

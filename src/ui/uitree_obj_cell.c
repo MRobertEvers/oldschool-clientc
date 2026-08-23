@@ -334,6 +334,10 @@ UITree_ObjCellDynamicSwap(
         uint8_t hide_swap = a->behavior.hide;
         a->behavior.hide = b->behavior.hide;
         b->behavior.hide = hide_swap;
+        /* Swapping hide bits can make an unreachable slot reachable, which the
+         * MarkNodeDirty calls below cannot signal — their bump is filtered on
+         * the old reachability. See UITree_SetHide for the rule. */
+        tree->dirty_gen++;
     }
 
     UITree_MarkNodeDirty(tree, idx_a);

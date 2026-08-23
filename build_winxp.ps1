@@ -18,7 +18,7 @@
     Path to a MinGW root or 'bin' directory (must contain gcc, mingw32-make,
     and objdump).
     Defaults to the repository-owned lib\mingw32-win32-toolchain.zip, extracted
-    on demand under the ignored toolchain\mingw32 directory.
+    on demand under the toolchains\mingw32 directory.
 
 .PARAMETER Opt
     Release build (OPT=1). Default is a debug build.

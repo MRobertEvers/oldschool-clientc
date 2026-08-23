@@ -1,6 +1,7 @@
 #include "plugin/torirs_plugin_lua.h"
 
 #include "plugin/torirs_plugin_host.h"
+#include "platform/platform_memory.h"
 
 /* The key enum, for PluginLua_KeyCodeFromName. The only engine header this
  * file needs: a script names a key ("shift"), and one side of that lookup has
@@ -392,6 +393,17 @@ lua_api_frame_ms(lua_State* L)
 {
     struct LuaScript* script = lua_upvalue_script(L);
     lua_pushinteger(L, (lua_Integer)g_api->frame_ms(script->cur_ctx));
+    return 1;
+}
+
+static int
+lua_api_memory_bytes(lua_State* L)
+{
+    uint64_t bytes = 0;
+
+    (void)lua_upvalue_script(L);
+    PlatformMemory_FootprintBytes(&bytes);
+    lua_pushinteger(L, (lua_Integer)bytes);
     return 1;
 }
 
@@ -1931,6 +1943,7 @@ lua_build_api_table(struct LuaScript* script)
         { "log", lua_api_log },
         { "world_cycle", lua_api_world_cycle },
         { "frame_ms", lua_api_frame_ms },
+        { "memory_bytes", lua_api_memory_bytes },
         { "local_player", lua_api_local_player },
         { "npcs", lua_api_npcs },
         { "players", lua_api_players },

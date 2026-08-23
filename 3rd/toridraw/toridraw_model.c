@@ -300,19 +300,77 @@ ToriDraw_AnimApplyTransform(
     }
 }
 
+/**
+ * Recycled normals blocks.
+ *
+ * World lighting allocates normals for every lightable model in a six-column
+ * sliding window and frees them one column later, so a region rebuild churns
+ * three malloc/free pairs per model -- 7668 models on the measured scene, and
+ * `TORIRS_REBUILD_TIMING=1` put that alloc pass at 3.8 ms, the largest of the
+ * three column stages. Pooling by capacity removes the churn: a free pushes the
+ * block, a new pops the first block already big enough. Capacities are retained
+ * rather than trimmed, so the pool converges on the scene's largest models and
+ * steady-state allocation drops to zero.
+ *
+ * Bounded so a scene full of outsized models cannot pin unbounded memory; past
+ * the cap a free is a real free. Not thread safe, in keeping with the rest of
+ * the world builder's scratch.
+ */
+#define TORIDRAW_NORMALS_POOL_MAX 256
+
+static struct ToriDraw_Normals* g_normals_pool[TORIDRAW_NORMALS_POOL_MAX];
+static int g_normals_pool_count = 0;
+
 struct ToriDraw_Normals*
 ToriDraw_NormalsNew(
     int vertex_count,
     int face_count)
 {
-    struct ToriDraw_Normals* normals = malloc(sizeof(struct ToriDraw_Normals));
-    memset(normals, 0, sizeof(struct ToriDraw_Normals));
-    normals->vertex_normals = malloc(sizeof(struct ToriDraw_Normal) * (size_t)vertex_count);
+    struct ToriDraw_Normals* normals = NULL;
+
+    for( int i = g_normals_pool_count - 1; i >= 0; i-- )
+    {
+        struct ToriDraw_Normals* cand = g_normals_pool[i];
+        /* `face_normals` is NULL exactly when the count is zero, and callers do
+         * test the pointer -- `merged_normals` is always built with
+         * `face_count == 0`, so handing it a recycled block that still carries
+         * another model's face buffer makes that test succeed against a buffer
+         * of the wrong length. Match the shape, not just the capacity. */
+        if( (face_count > 0) != (cand->face_normals_cap > 0) )
+            continue;
+        if( cand->vertex_normals_cap < vertex_count )
+            continue;
+        if( cand->face_normals_cap < face_count )
+            continue;
+        normals = cand;
+        g_normals_pool[i] = g_normals_pool[--g_normals_pool_count];
+        break;
+    }
+
+    if( !normals )
+    {
+        normals = malloc(sizeof(struct ToriDraw_Normals));
+        assert(normals);
+        memset(normals, 0, sizeof(struct ToriDraw_Normals));
+        normals->vertex_normals = malloc(sizeof(struct ToriDraw_Normal) * (size_t)vertex_count);
+        assert(normals->vertex_normals);
+        normals->vertex_normals_cap = vertex_count;
+        if( face_count > 0 )
+        {
+            normals->face_normals = malloc(sizeof(struct ToriDraw_Normal) * (size_t)face_count);
+            assert(normals->face_normals);
+            normals->face_normals_cap = face_count;
+        }
+    }
+
+    /* Zero only what this model uses. The tail of an oversized recycled block
+     * keeps the previous model's values, which is why every consumer must read
+     * `*_count` and not `*_cap`. */
     memset(normals->vertex_normals, 0, sizeof(struct ToriDraw_Normal) * (size_t)vertex_count);
     normals->vertex_normals_count = vertex_count;
+    normals->face_normals_count = 0;
     if( face_count > 0 )
     {
-        normals->face_normals = malloc(sizeof(struct ToriDraw_Normal) * (size_t)face_count);
         memset(normals->face_normals, 0, sizeof(struct ToriDraw_Normal) * (size_t)face_count);
         normals->face_normals_count = face_count;
     }
@@ -324,6 +382,11 @@ ToriDraw_NormalsFree(struct ToriDraw_Normals* normals)
 {
     if( !normals )
         return;
+    if( g_normals_pool_count < TORIDRAW_NORMALS_POOL_MAX )
+    {
+        g_normals_pool[g_normals_pool_count++] = normals;
+        return;
+    }
     free(normals->vertex_normals);
     free(normals->face_normals);
     free(normals);

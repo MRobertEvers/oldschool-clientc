@@ -2,6 +2,7 @@
 #define SRC_TASK_RUNNER_H
 
 #include "asyncio.h"
+#include "perf/torirs_perf.h"
 #include "platform/platform_x_io.h"
 
 #include <assert.h>
@@ -46,23 +47,40 @@ TaskRunner_Step(struct TaskRunner* runner)
     int stat;
 
     assert(runner && runner->queue && runner->io && runner->px);
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_TASK_STEPS, 1);
     /* A read the platform has not answered yet: the head task is parked right
      * after its PT_YIELD and running it would resume it over an empty slot.
      * Always false on a synchronous backend, so native behaviour is unchanged. */
-    if( PlatformX_IO_Pending(runner->px, runner->io) )
-        return TASK_RUNNER_PENDING;
-    stat = ToriRS_TaskQueue_Run(runner->queue, runner->io);
+    {
+        int pending = 0;
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)
+        {
+            pending = PlatformX_IO_Pending(runner->px, runner->io);
+        }
+        if( pending )
+            return TASK_RUNNER_PENDING;
+    }
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_QUEUE_RUN)
+    {
+        stat = ToriRS_TaskQueue_Run(runner->queue, runner->io);
+    }
     if( stat == TORIRS_ASYNCIO_STAT_BLOCKED )
     {
         /* A blocked yield requests nothing, but an earlier task in this same
          * pass may have left items queued; draining them here keeps the IO
          * list's lifetime identical on both exits. */
-        PlatformX_IO_Process(runner->px, runner->io);
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)
+        {
+            PlatformX_IO_Process(runner->px, runner->io);
+        }
         return TASK_RUNNER_BLOCKED;
     }
     if( stat == TORIRS_ASYNCIO_STAT_YIELD )
     {
-        PlatformX_IO_Process(runner->px, runner->io);
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)
+        {
+            PlatformX_IO_Process(runner->px, runner->io);
+        }
         return TASK_RUNNER_PENDING;
     }
     return TASK_RUNNER_IDLE;
@@ -103,9 +121,17 @@ TaskRunner_SettleFrame(struct TaskRunner* runner)
 
     do
     {
+        int pending = 0;
         stat = TaskRunner_Step(runner);
-    } while( stat == TASK_RUNNER_PENDING &&
-             !PlatformX_IO_Pending(runner->px, runner->io) );
+        if( stat != TASK_RUNNER_PENDING )
+            break;
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_TASK_IO)
+        {
+            pending = PlatformX_IO_Pending(runner->px, runner->io);
+        }
+        if( pending )
+            break;
+    } while( 1 );
 
     return stat;
 }

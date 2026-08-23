@@ -28,7 +28,6 @@ symbols.txt
 public/cache/
 .cache/
 emsdk/
-/toolchain/
 android/.idea/
 
 package_build_*.zip
@@ -98,3 +97,23 @@ src/*.exe
 # Build-flavor stamp: records which OBJ_DIR last linked src/torirs so a
 # debug/release swap forces a relink. Purely local state (src/makefile:632).
 src/.last_flavor
+
+# Extracted toolchains. The zips in lib/ are the checked-in form -- these
+# directories are what unzipping them produces (~2 GB) and must never be
+# committed. See tools/toolchain/README.md.
+/toolchains/mingw32/
+/toolchains/mingw64/
+/toolchains/emsdk-win64/
+
+# Same rule for the XP profiler tooling: lib/cv2pdb-0.54-win32.zip and
+# lib/verysleepy-0.7.2-win32.zip are the checked-in form; these are the
+# unpacked trees and the installer they produce. See
+# toolchains/winxp_profiles/README.md.
+/toolchains/winxp_profiles/cv2pdb-0.54/
+/toolchains/winxp_profiles/verysleepy_0_7/
+/toolchains/winxp_profiles/verysleepy_0_7_exact/
+/toolchains/winxp_profiles/verysleepy_0_7_setup.exe
+/tmp/verysleepy-0.7.2-source/
+
+# Staged build output.
+/dist/

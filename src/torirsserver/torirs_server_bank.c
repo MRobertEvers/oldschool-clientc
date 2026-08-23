@@ -763,8 +763,7 @@ bank_slot_emptied(
         /* A different obj is in the cell now, so whatever the withdrawn item
          * had charged, dosed or degraded to does not follow it — the same rule
          * `ToriRSServer_ContainerSet` applies when an obj changes under a slot. */
-        memset(bank->slots[bank_slot].var_key, 0, sizeof(bank->slots[bank_slot].var_key));
-        memset(bank->slots[bank_slot].var_val, 0, sizeof(bank->slots[bank_slot].var_val));
+        ToriRSServer_ItemClearVars(&bank->slots[bank_slot]);
         bank->dirty = 1;
         return;
     }
@@ -1241,6 +1240,11 @@ ToriRSServer_BankInitPlayer(struct ToriRSServerPlayer* player)
     {
         bank->slots[i].obj_id = -1;
         bank->slots[i].count = 0;
+        /* calloc leaves the var keys at 0, and 0 is obj id 0, not "unset" —
+         * without this every slot in a fresh bank looks to
+         * `ToriRSServer_ItemSetVar` like its four var entries are already taken,
+         * and the first `inv_setvar` a script aims at a banked item aborts. */
+        ToriRSServer_ItemClearVars(&bank->slots[i]);
     }
     bank->open = 0;
     bank->note_mode = 0;

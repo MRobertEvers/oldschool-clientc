@@ -1,5 +1,6 @@
 #include "platform/platform_sdl2_renderer_soft3d.h"
 
+#include "perf/torirs_perf.h"
 #include "render/torirs_frame.h"
 
 #include "toridraw.h"
@@ -1371,6 +1372,52 @@ soft3d_pixowner_end(void)
         fclose(out);
 }
 
+/* `ToriRS_Soft3D_Execute` under a per-class timer, so the one opaque `render`
+ * bracket splits into world models, sprites, glyphs and rectangles. The classes
+ * are disjoint and exhaustive.
+ *
+ * This is how `render` was attributed: 85.5% of it is `r_model`, i.e. 64% of
+ * the whole i686 frame, against 4.4% for sprite blitting. It is the gate for
+ * the R1-R4 targets in docs/CS2_OPTIMIZATION_TARGETS.md.
+ *
+ * Two clock reads per command is not free when perf is enabled; `r_cmds` is
+ * the divisor that says how much was added. Read the split as a ratio between
+ * the classes. With perf off this costs one predicted branch per command. */
+static void
+soft3d_execute_measured(
+    struct ToriRS_Soft3D* soft,
+    struct ToriRS_RenderCommand const* cmd)
+{
+    assert(soft);
+    assert(cmd);
+
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_CMDS, 1);
+    switch( cmd->kind )
+    {
+    case TORIRSRC_DRAW_MODEL:
+    case TORIRSRC_DRAW_MODEL_WIDGET:
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_CMDS_MODEL, 1);
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_MODEL) { ToriRS_Soft3D_Execute(soft, cmd); }
+        return;
+    case TORIRSRC_SPRITE:
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_CMDS_SPRITE, 1);
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_SPRITE) { ToriRS_Soft3D_Execute(soft, cmd); }
+        return;
+    case TORIRSRC_FONT:
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_CMDS_FONT, 1);
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_FONT) { ToriRS_Soft3D_Execute(soft, cmd); }
+        return;
+    case TORIRSRC_CLEAR_RECT:
+    case TORIRSRC_FILL_RECT:
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_CMDS_RECT, 1);
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_RECT) { ToriRS_Soft3D_Execute(soft, cmd); }
+        return;
+    default:
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_OTHER) { ToriRS_Soft3D_Execute(soft, cmd); }
+        return;
+    }
+}
+
 void
 ToriRS_Soft3D_RenderFrame(
     struct ToriRS_Soft3D* soft,
@@ -1385,13 +1432,12 @@ ToriRS_Soft3D_RenderFrame(
     assert(soft->width > 0 && soft->height > 0);
 
     n = (size_t)soft->width * (size_t)soft->height;
-#if defined(__APPLE__)
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_CLEAR)
     {
+#if defined(__APPLE__)
         uint32_t bg = (uint32_t)TORIRS_SOFT3D_BG;
         memset_pattern4(soft->pixels, &bg, n * sizeof(int));
-    }
 #else
-    {
         uint32_t* p = (uint32_t*)soft->pixels;
         uint32_t bg = (uint32_t)TORIRS_SOFT3D_BG;
         size_t i = 0;
@@ -1404,8 +1450,8 @@ ToriRS_Soft3D_RenderFrame(
         }
         for( ; i < n; i++ )
             p[i] = bg;
-    }
 #endif
+    }
 
     soft->has_3d = false;
     ToriRS_FrameBegin(frame);
@@ -1414,7 +1460,7 @@ ToriRS_Soft3D_RenderFrame(
         soft3d_pixowner_begin(soft);
         while( ToriRS_FrameNextCommand(frame, &cmd) )
         {
-            ToriRS_Soft3D_Execute(soft, &cmd);
+            soft3d_execute_measured(soft, &cmd);
             soft3d_pixowner_after_command(soft, &cmd);
         }
         soft3d_pixowner_end();
@@ -1422,7 +1468,7 @@ ToriRS_Soft3D_RenderFrame(
     else
     {
         while( ToriRS_FrameNextCommand(frame, &cmd) )
-            ToriRS_Soft3D_Execute(soft, &cmd);
+            soft3d_execute_measured(soft, &cmd);
     }
     ToriRS_FrameEnd(frame);
 }

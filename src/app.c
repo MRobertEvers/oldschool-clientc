@@ -11739,11 +11739,29 @@ app_settle_cs2_frame(struct App* app)
         /* Resize listeners and transmit painters must observe the geometry
          * produced by the script which queued them, not the last committed
          * frame's bounds. */
-        UITree_LayoutResolve(app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
-        if( !app_cs2_enqueue_followups(app) )
         {
-            app->runner.frame_settle_pending = 0;
-            return TASK_RUNNER_IDLE;
+            /* Scoped separately from the enclosing cs2_settle: the loop's cost is
+             * either script dispatch above or this full-tree resolve, and the two
+             * have different fixes. cs2_settle minus cs2_settle_layout is the
+             * task pump. */
+            TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2_SETTLE_LAYOUT);
+            UITree_LayoutResolve(
+                app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        }
+        {
+            int more;
+            /* The pump/followups split. Timed with the explicit begin/end form
+             * rather than TORIRS_PERF_SCOPE because the measured region produces
+             * a value the loop then branches on, and a `for`-shaped scope macro
+             * cannot carry one out. */
+            TORIRS_PERF_STAGE_BEGIN(TORIRS_PERF_STAGE_CS2_SETTLE_FOLLOWUPS);
+            more = app_cs2_enqueue_followups(app);
+            TORIRS_PERF_STAGE_END(TORIRS_PERF_STAGE_CS2_SETTLE_FOLLOWUPS);
+            if( !more )
+            {
+                app->runner.frame_settle_pending = 0;
+                return TASK_RUNNER_IDLE;
+            }
         }
     }
 }
@@ -13121,6 +13139,35 @@ app_logic_tick(struct App* app)
                 &app->runner,
                 com_id,
                 &UITree_Hooks(&app->tree->components[idx])->on_timer);
+            /*
+             * Unconditional, and it has to stay that way until the emit walk
+             * reads the dirty bit.
+             *
+             * `need_redraw` is the sole gate on `UITree_EmitWalk`, and that walk
+             * is dirty-unaware — uitree_emit.c never reads `is_dirty` and never
+             * calls `UITree_NodeNeedsEmit`, so it rebuilds the whole list from
+             * whatever the components currently say. Narrowing this to "the
+             * dispatch changed something" therefore needs a signal covering
+             * every input emit reads, not just the ones the appliers write.
+             *
+             * That is not, as this comment previously claimed, a problem of
+             * unmarked writers: component writes outside ui/uitree.c come to 12
+             * lines in 5 files, and the ones on the host path already call
+             * `UITree_MarkNodeDirty` (rs_cs2_host.c:4789). The problem is that
+             * emit reads well beyond the component struct — 32 `UITree_Host(...)`
+             * calls in uitree_emit.c, plus inventory, hover, drag and varp state.
+             * A node's emitted output goes stale when an inventory changes behind
+             * it, with nothing written to the node at all, so no per-node dirty
+             * bit can gate this walk however faithfully it is maintained. What
+             * that needs is per-node dependency tracking (target 11), and a
+             * partial version returns a stale panel rather than a missed
+             * optimisation.
+             *
+             * The compare-first appliers (ui/uitree.c) still pay for themselves
+             * here by not doing the strdup/free round trip, but they cannot make
+             * a quiet frame skip the emit while the walk ignores what they
+             * decided. That gate is the tree-side work, not this line.
+             */
             redraw = 1;
         }
     }
@@ -13310,11 +13357,12 @@ app_logic_tick(struct App* app)
         if( stats_enabled < 0 )
             stats_enabled = getenv("TORIRS_STATS") != NULL;
         stats_tick++;
-#if !defined(TORIRS_PERF_DISABLE)
-        if( g_torirs_perf_enabled || stats_enabled )
-#else
-        if( stats_enabled )
-#endif
+        /* Gauges are last-sample-wins, and this block walks the whole
+         * component array. Sampling it every tick cost ~6% of the measured CS2
+         * time on the XP baseline while producing values nothing read; the
+         * perf module now says when a sample will actually be reported. */
+        if( TorirsPerf_GaugeSampleDue(TORIRS_PERF_GAUGE_SITE_IFACE_STATS) ||
+            (stats_enabled && stats_tick % 250 == 0) )
         {
             UITreeIfaceStats_SampleGauges(app->tree);
             TORIRS_PERF_COUNT_SET(
@@ -23803,6 +23851,13 @@ App_SetAudioFeedback(
 }
 
 void
+App_SetAudioDevicePresent(struct App* app, bool present)
+{
+    assert(app);
+    RS_Audio_SetDevicePresent(&app->audio, present);
+}
+
+void
 App_PlaySong(
     struct App* app,
     int song_id,
@@ -24028,13 +24083,13 @@ App_MeasureRightChromeStripWidth(struct App const* app)
         int right;
         int w;
 
-        /* Ancestors too: a speculatively baked panel (the CS2 runtime bakes a
-         * pack the moment a script touches it) is hidden at its group root,
-         * while the right-docked column inside it keeps a clear flag and a
-         * full-height box — the exact signature this loop looks for. Measuring
-         * that column grew the fixed canvas by a panel that was never open. */
-        if( component_hidden_or_orphaned(app->tree, (int32_t)i) )
-            continue;
+        /* Geometry first, visibility last. Every test here is an independent
+         * reject, so the order is free to choose — and all of these read the
+         * component record already in cache, while the visibility test below
+         * chases `parent` to the root, a fresh cache line per hop. Almost
+         * nothing in the tree is a full-height right-docked fixed-width box, so
+         * paying for the ancestor walk on every component — 7,142 of them in a
+         * logged-in frame — was most of this function. */
         w = c->position.abs_w;
         if( w <= 0 || c->position.abs_x <= 0 || c->position.width_mode != 0 ||
             c->position.height_mode != 1 || c->position.x_mode != 2 )
@@ -24045,8 +24100,19 @@ App_MeasureRightChromeStripWidth(struct App const* app)
         right = c->position.abs_x + w;
         if( right != canvas_w )
             continue;
-        if( w > best )
-            best = w;
+        /* A wider candidate cannot lose to the ancestor walk, so only ask the
+         * question when the answer can change the result. */
+        if( w <= best )
+            continue;
+        /* Ancestors too: a speculatively baked panel (the CS2 runtime bakes a
+         * pack the moment a script touches it) is hidden at its group root,
+         * while the right-docked column inside it keeps a clear flag and a
+         * full-height box — the exact signature this loop looks for. Measuring
+         * that column grew the fixed canvas by a panel that was never open. */
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CHROME_STRIP_VISCHECK, 1);
+        if( component_hidden_or_orphaned(app->tree, (int32_t)i) )
+            continue;
+        best = w;
     }
     return best;
 }
@@ -24670,7 +24736,7 @@ App_RunOnce(
             TORIRS_PERF_COUNT(TORIRS_PERF_CTR_LOGIC_TICKS, ticks);
             for( int t = 0; t < ticks; t++ )
             {
-                TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2)
+                TORIRS_PERF_SCOPE_CS2()
                 {
                     if( app_logic_tick(app) )
                         app->need_redraw = 1;
@@ -24684,7 +24750,7 @@ App_RunOnce(
                 {
                     enum TaskRunnerStat stat;
 
-                    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2)
+                    TORIRS_PERF_SCOPE_CS2()
                     TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2_SETTLE)
                     {
                         stat = app_settle_cs2_frame(app);
@@ -24751,7 +24817,7 @@ App_RunOnce(
     {
         enum TaskRunnerStat stat;
 
-        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2)
+        TORIRS_PERF_SCOPE_CS2()
         TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2_SETTLE)
         {
             stat = app_settle_cs2_frame(app);
@@ -25690,7 +25756,7 @@ App_RunOnce(
         {
             enum TaskRunnerStat stat;
 
-            TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2)
+            TORIRS_PERF_SCOPE_CS2()
             {
                 stat = app_settle_cs2_frame(app);
             }
@@ -25837,10 +25903,196 @@ App_RunOnce(
          * whatever intermediate state the cooperative schedulers reached. */
         assert(App_FrameSettled(app));
         app_entity_overlay_layout(app);
-        app->emit.count = 0;
-        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_EMIT)
+        /* Opt 11 retention, SHADOW MODE: work out whether this walk could have
+         * been skipped, but always run it anyway, and check the verdict against
+         * the byte compare below. `emit_gen_unsound` counts frames the gate
+         * called quiet whose list nevertheless changed — i.e. skips that would
+         * have served a stale list. It is the safety proof for turning the skip
+         * on, and it must be 0 over a full replay.
+         *
+         * The tree half is `dirty_gen`; the host half is not covered yet, so a
+         * nonzero unsound count here names the host inputs still unaccounted
+         * for rather than condemning the approach. */
+        int gate_quiet = 0;
         {
-            UITree_EmitWalk(app->tree, &app->ui_host, &app->emit, app->hover_com_id);
+            static uint32_t prev_dirty_gen = 0;
+            static uint32_t prev_layout_seq = 0;
+            static int prev_hover = -2;
+            static int primed = 0;
+
+            /* Three terms, not two. `dirty_gen` covers writes that claim to
+             * change what a node draws; it does NOT cover layout re-resolving,
+             * which moves resolved boxes (and therefore emitted clips) off
+             * `layout_stale` / `layout_force_full` / a changed root box without
+             * raising anyone's `is_dirty`. That is the one hole the unsound
+             * counter found: emit #5 of a 2,000-frame run, clip.w 765 -> 807 on
+             * the group-548 root, gate quiet, list changed. */
+            gate_quiet = primed && app->tree->dirty_gen == prev_dirty_gen &&
+                         app->tree->layout_resolve_seq == prev_layout_seq &&
+                         app->hover_com_id == prev_hover;
+            /* Every dirty_gen source was measured bursty (creates, hide flips,
+             * child link/unlink — all interface-open work), so on a steady-state
+             * frame the tree term should hold and the gate should fire. It fires
+             * twice in 2,000 frames. These two counters say which term is
+             * actually failing instead of assuming it is the tree one. */
+            if( primed && app->tree->dirty_gen == prev_dirty_gen )
+                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GATE_TREE_QUIET, 1);
+            if( primed && app->hover_com_id == prev_hover )
+                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_GATE_HOVER_QUIET, 1);
+            if( primed )
+                TORIRS_PERF_COUNT(
+                    TORIRS_PERF_CTR_EMIT_DIRTY_BUMPS,
+                    (int)(app->tree->dirty_gen - prev_dirty_gen));
+            prev_dirty_gen = app->tree->dirty_gen;
+            prev_layout_seq = app->tree->layout_resolve_seq;
+            prev_hover = app->hover_com_id;
+            primed = 1;
+        }
+        /* Opt 11/12/14, emit half: nothing the walk reads has moved, so the list
+         * it would produce is the one already in the buffer. Reuse it in place —
+         * no copy, no compare, the buffer simply is not touched.
+         *
+         * Two guards, both necessary:
+         *
+         *  - Descs holding a host-owned pointer with same-frame lifetime are
+         *    byte-identical frame to frame while the buffer behind them changes
+         *    completely, so a plain skip would freeze a live minimap or health
+         *    bar. Every quiet frame in this scene has at least one (the entity
+         *    overlay), so a whole-list skip is worth exactly zero — measured, not
+         *    assumed. `UITree_EmitRefreshVolatile` re-issues just those host
+         *    requests in place, which is a few calls against a whole-tree DFS.
+         *    Where a volatile desc cannot be re-issued from itself, the buffer
+         *    says so and the full walk runs.
+         *  - TORIRS_EMIT_VERIFY=1 forces the walk to run anyway, which keeps the
+         *    `[emit-unsound]` detector below live over a full replay. That
+         *    detector is the soundness proof for this skip; leaving it with no
+         *    way to run once the skip exists would retire the proof along with
+         *    the problem it proved.
+         */
+        {
+            static int verify = -1;
+            int retain;
+
+            if( verify < 0 )
+                verify = getenv("TORIRS_EMIT_VERIFY") ? 1 : 0;
+
+            retain = gate_quiet && !verify && app->emit.count > 0 &&
+                     !app->emit.volatile_unrefreshable;
+
+            if( gate_quiet && !verify && app->emit.count > 0 &&
+                app->emit.volatile_unrefreshable )
+                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_RETAIN_BLOCKED, 1);
+
+            if( retain )
+            {
+                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_RETAINED, 1);
+                if( app->emit.volatile_refs )
+                    UITree_EmitRefreshVolatile(app->tree, &app->ui_host, &app->emit);
+            }
+            else
+            {
+                app->emit.count = 0;
+                TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_EMIT)
+                {
+                    UITree_EmitWalk(
+                        app->tree, &app->ui_host, &app->emit, app->hover_com_id);
+                }
+            }
+        }
+        /* DIAGNOSTIC (Opt 11 scoping, temporary): retaining the emit list only
+         * pays if the list repeats, so measure the repeat rate before building
+         * anything that could retain it. Every desc is memset before fill, so
+         * the padding is deterministic and a byte compare is well defined.
+         * The compare + copy is ~450 KB of traffic per frame — it inflates the
+         * `emit` stage in any build carrying it. Read the counters, not the
+         * clock. */
+        if( g_torirs_perf_enabled )
+        {
+            static struct UITreeEmitDesc* prev = NULL;
+            static int prev_count = -1;
+            static int prev_cap = 0;
+            static int emit_seq = 0;
+            int n = app->emit.count;
+
+            emit_seq++;
+
+            if( prev_count == n &&
+                (n == 0 ||
+                 memcmp(prev, app->emit.cmds, (size_t)n * sizeof(*prev)) == 0) )
+            {
+                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_LIST_SAME, 1);
+                if( gate_quiet )
+                    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_GEN_QUIET, 1);
+            }
+            else
+            {
+                /* The gate called this frame quiet and the list moved anyway:
+                 * skipping here would have shown a stale panel. */
+                if( gate_quiet )
+                {
+                    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_GEN_UNSOUND, 1);
+                    /* DIAGNOSTIC (temporary): an unsound frame is rare enough
+                     * that naming the byte that moved is cheaper than reasoning
+                     * about which of ~60 desc fields could have changed without
+                     * touching dirty_gen or hover. The offset resolves to a
+                     * field with pahole / offsetof. */
+                    if( prev_count != n )
+                    {
+                        fprintf(
+                            stderr, "[emit-unsound] count %d -> %d\n", prev_count, n);
+                    }
+                    else
+                    {
+                        for( int u = 0; u < n; u++ )
+                        {
+                            unsigned char const* a = (unsigned char const*)&prev[u];
+                            unsigned char const* b =
+                                (unsigned char const*)&app->emit.cmds[u];
+                            if( memcmp(a, b, sizeof(*prev)) == 0 )
+                                continue;
+                            for( size_t k = 0; k < sizeof(*prev); k++ )
+                            {
+                                if( a[k] == b[k] )
+                                    continue;
+                                fprintf(
+                                    stderr,
+                                    "[emit-unsound] emit#%d desc %d/%d kind %d "
+                                    "com %d node %d first diff at byte %zu  "
+                                    "clip.w %d -> %d\n",
+                                    emit_seq, u, n, (int)app->emit.cmds[u].kind,
+                                    app->emit.cmds[u].component_id,
+                                    (int)app->emit.cmds[u].node_index, k,
+                                    prev[u].clip.w, app->emit.cmds[u].clip.w);
+                                break;
+                            }
+                            break;
+                        }
+                    }
+                }
+
+                int i;
+                int diff = 0;
+
+                for( i = 0; i < n; i++ )
+                {
+                    if( i >= prev_count ||
+                        memcmp(&prev[i], &app->emit.cmds[i], sizeof(*prev)) != 0 )
+                        diff++;
+                }
+                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_LIST_DIFF, 1);
+                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_DESC_DIFF, diff);
+
+                if( prev_cap < n )
+                {
+                    free(prev);
+                    prev = malloc((size_t)n * sizeof(*prev));
+                    assert(prev);
+                    prev_cap = n;
+                }
+                if( n > 0 )
+                    memcpy(prev, app->emit.cmds, (size_t)n * sizeof(*prev));
+                prev_count = n;
+            }
         }
         /* Keep painting while a server-driven rebuild is in flight so the
          * loading overlay refreshes (and picks up p12 once FontLoad lands). */

@@ -136,6 +136,7 @@ dofile = nil
 ---@field log fun(...: any) Writes to stderr, prefixed with the plugin name. Values are stringified with __tostring.
 ---@field world_cycle fun(): integer
 ---@field frame_ms fun(): integer
+---@field memory_bytes fun(): integer Current client memory footprint in bytes (resident process memory on desktop; the live WebAssembly heap in a browser). Returns 0 when unavailable.
 ---@field local_player fun(): torirs.PlayerSnap? nil before login and while the world is rebuilding.
 ---@field npcs fun(): fun(): torirs.NpcSnap? Generic-for iterator: `for npc in api.npcs() do`. One value per step, not ipairs' pair.
 ---@field players fun(): fun(): torirs.PlayerSnap? `for player in api.players() do`
