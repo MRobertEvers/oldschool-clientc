@@ -45,6 +45,21 @@
  * Modes 3 and 4 reach the affine spans too, which share those helpers; the
  * perspective spans are the overwhelming majority of both.
  *
+ * None of 1..4 touches the texture triangle's own scanline walk, so what mode 1
+ * leaves behind is still "walk + per-triangle prologue" mixed together -- the
+ * texture axis had no rung matching TORIDRAW_ABLATE=2. Mode 5 is that rung:
+ *
+ *   TORIDRAW_ABLATE_TEX=5   cut the texture triangle at the same boundary
+ *                           TORIDRAW_ABLATE=2 uses in the gouraud triangle --
+ *                           after the y clamps, before the trapezoid walk.
+ *                           Per-triangle prologue only.
+ *
+ * Mode 5 subsumes mode 1's cut: returning before the walk means no span runs.
+ * So mode 1 minus mode 5 is the texture scanline walk plus its per-span
+ * prologue, and mode 5 is the per-triangle cost. The fill macro fires at 5 too,
+ * so a walker with no mode-5 cut loses its fill rather than quietly counting as
+ * walk time.
+ *
  * Compile-time gated -- build with -DTORIDRAW_ABLATE=1 and set
  * TORIDRAW_ABLATE=<level>. The shipping build contains none of it.
  */
@@ -87,11 +102,20 @@ toridraw_ablate_tex(void)
     return g_toridraw_ablate_tex;
 }
 
-#define TORIDRAW_ABLATE_TEX_RETURN()                                                      \
-    do                                                                                    \
-    {                                                                                     \
-        if( toridraw_ablate_tex() == 1 )                                                   \
-            return;                                                                       \
+#define TORIDRAW_ABLATE_TEX_RETURN()                                                  \
+    do                                                                                \
+    {                                                                                 \
+        int const _tex_ablate = toridraw_ablate_tex();                                \
+        if( _tex_ablate == 1 || _tex_ablate == 5 )                                    \
+            return;                                                                   \
+    } while( 0 )
+
+/** The texture triangle's level-2 cut: prologue kept, trapezoid walk dropped. */
+#define TORIDRAW_ABLATE_TEX_WALK_RETURN()                                             \
+    do                                                                                \
+    {                                                                                 \
+        if( toridraw_ablate_tex() == 5 )                                              \
+            return;                                                                   \
     } while( 0 )
 
 /** Skip one of the three fill paths, so each can be subtracted on its own. */
@@ -106,6 +130,7 @@ toridraw_ablate_tex(void)
 
 #define TORIDRAW_ABLATE_RETURN_AT(level) ((void)0)
 #define TORIDRAW_ABLATE_TEX_RETURN() ((void)0)
+#define TORIDRAW_ABLATE_TEX_WALK_RETURN() ((void)0)
 #define TORIDRAW_ABLATE_TEX_RETURN_IF(mode) ((void)0)
 
 #endif
