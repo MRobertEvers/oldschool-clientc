@@ -2,6 +2,26 @@
 
 Vendored binaries used for Windows XP client profiling.
 
+## Where the archives live
+
+The checked-in form is the zip, in `lib/`, alongside the compiler toolchains:
+
+| archive | upstream name | unpacks to |
+| --- | --- | --- |
+| `lib/cv2pdb-0.54-win32.zip` | `cv2pdb-0.54.zip` | `toolchains/winxp_profiles/cv2pdb-0.54/` |
+| `lib/verysleepy-0.7.2-win32.zip` | `sleepy-0.7.2.zip` | `toolchains/winxp_profiles/verysleepy_0_7/` |
+
+The unpacked trees are gitignored, as are `verysleepy_0_7_exact/` and
+`verysleepy_0_7_setup.exe`. Unpack with:
+
+```sh
+unzip -o lib/cv2pdb-0.54-win32.zip      -d toolchains/winxp_profiles/cv2pdb-0.54
+unzip -o lib/verysleepy-0.7.2-win32.zip -d toolchains/winxp_profiles/verysleepy_0_7
+```
+
+Unlike the compiler zips these two are under a megabyte each, so they are
+ordinary git blobs rather than LFS objects.
+
 ## Very Sleepy 0.7
 
 - Exact installer supplied for the XP profile: `verysleepy_0_7_setup.exe`

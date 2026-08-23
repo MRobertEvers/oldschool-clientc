@@ -105,8 +105,10 @@ src/.last_flavor
 /toolchains/mingw64/
 /toolchains/emsdk-win64/
 
-# Same rule for the XP profiler tooling: toolchains/winxp_profiles/downloads/
-# holds the zips; these are the unpacked trees and the installer they produce.
+# Same rule for the XP profiler tooling: lib/cv2pdb-0.54-win32.zip and
+# lib/verysleepy-0.7.2-win32.zip are the checked-in form; these are the
+# unpacked trees and the installer they produce. See
+# toolchains/winxp_profiles/README.md.
 /toolchains/winxp_profiles/cv2pdb-0.54/
 /toolchains/winxp_profiles/verysleepy_0_7/
 /toolchains/winxp_profiles/verysleepy_0_7_exact/
