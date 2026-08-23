@@ -23066,6 +23066,20 @@ app_minimenu_run_option(
     }
 
     /*
+     * A privacy button's mode, named outright.
+     *
+     * Beside the row above and for its reason: there is no engine behaviour
+     * behind this id to fall through to, and a UI-kind pick carrying it would
+     * be read as an IF_BUTTON and press whatever component id it names.
+     */
+    if( opt.action == RS_MINIMENU_ACTION_CHAT_FILTER )
+    {
+        if( RS_UISlots_SetChatFilter(&app->slots, opt.pick.secondary_id, opt.pick.tertiary_id) )
+            app->need_redraw = 1;
+        return 0;
+    }
+
+    /*
      * A plugin canvas region's row -- an orb, a bar, anything a plugin drew on
      * the canvas and claimed.
      *
@@ -24913,12 +24927,31 @@ App_RunOnce(
              * fourth route added later cannot quietly get the click too. */
             out.clicked_com_id = -1;
             out.minimap_click = 0;
+            out.chat_button_filter = -1;
             out.left_click_miss = 0;
             app->input_frame_consumed = 1;
             app->need_redraw = 1;
         }
     }
     (void)plugin_region_took_click;
+
+    /*
+     * A chat filter button, if nothing above took the click.
+     *
+     * Dispatched HERE and not in the interact walk that found it, because a
+     * plugin layout may own that rectangle: the modern frames make these
+     * buttons open and close the chatbox and leave the filter to the right
+     * click, and a walk that cycled on the way past would have changed the
+     * setting before the layout ever saw the press.
+     */
+    if( out.chat_button_filter >= 0 )
+    {
+        struct UITreeHostRequest cycle_req = {
+            .kind = UITREE_HOST_CYCLE_CHAT_FILTER_MODE,
+            .u.chat_filter.filter = out.chat_button_filter,
+        };
+        UITree_Host(&app->ui_host, &cycle_req);
+    }
 
     /* Minimenu gesture results (see interact_minimenu): option selected on
      * mousedown -> dispatch; right press with no menu open -> build + show. */

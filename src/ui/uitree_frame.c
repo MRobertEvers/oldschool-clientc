@@ -165,7 +165,24 @@ frame_node_is_slot(
     case UITREE_FRAME_SLOT_CHAT:
         return c->type == UIELEM_BUILTIN_CHAT || c->slot_tag == UITREE_SLOT_CHAT;
     case UITREE_FRAME_SLOT_SIDEBAR:
-        return c->type == UIELEM_BUILTIN_SIDEBAR || c->slot_tag == UITREE_SLOT_SIDE_MODAL;
+        /*
+         * A mount with no interface behind it is not a sidebar PANEL.
+         *
+         * The 2004 layout declares all fourteen tabs and gives the seventh
+         * `componentno=-1`, because LostCity has no clan chat to put there and
+         * never sends an if_settab for it. The node exists so the tab set is
+         * the shape every revision since 2001 numbers it, and it stands for
+         * nothing -- so a layout asking "does this frame have tab 7" has to
+         * hear no, or it draws an icon over a panel that cannot open and
+         * invites the click that does nothing.
+         *
+         * Said here rather than in UITree_FrameSlotIndex, which answers what
+         * number a node ANSWERS TO: this mount does answer to seven. What it
+         * is not is a member of the role.
+         */
+        if( c->type == UIELEM_BUILTIN_SIDEBAR )
+            return c->u.sidebar.componentno >= 0;
+        return c->slot_tag == UITREE_SLOT_SIDE_MODAL;
     case UITREE_FRAME_SLOT_MAIN_MODAL:
         return c->slot_tag == UITREE_SLOT_MAIN_MODAL;
     case UITREE_FRAME_SLOT_CHAT_BUTTONS:

@@ -106,6 +106,16 @@ enum RevConfigMiniMenuAction
      * game/rs_minimenu_build.h is what holds the two in step.
      */
     REVCONFIG_MINIMENU_PLUGIN_PANEL = 500005,
+    /**
+     * Set one chat filter to one mode. Pick: id = the button's component id,
+     * secondary = the filter, tertiary = the mode.
+     *
+     * A CLIENT id and not a reference one, because the reference has no such
+     * row: its privacy buttons only cycle, and the menu that names a mode
+     * outright is this client's answer to a frame where the left click belongs
+     * to something else -- the modern layouts give it to the chatbox switch.
+     */
+    REVCONFIG_MINIMENU_CHAT_FILTER = 500007,
 };
 
 // Dat1 sprite cache section example:

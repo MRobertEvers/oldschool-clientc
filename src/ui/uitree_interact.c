@@ -792,6 +792,8 @@ UITree_InteractConsumePendingDragPickup(
     assert(out);
 
     memset(out, 0, sizeof(*out));
+    /* 0 is a real filter (public), so the empty state has to be stated. */
+    out->chat_button_filter = -1;
     out->hover_com_id = -1;
     out->clicked_com_id = -1;
     out->minimenu_select = -1;
@@ -1157,11 +1159,10 @@ interact_click(
         }
         if( hit_c->type == UIELEM_BUILTIN_CHAT_BUTTON )
         {
-            struct UITreeHostRequest cycle_req = {
-                .kind = UITREE_HOST_CYCLE_CHAT_FILTER_MODE,
-                .u.chat_filter.filter = (int)hit_c->u.chat_button.filter,
-            };
-            UITree_Host(ui_host, &cycle_req);
+            /* Reported, not cycled. @see UITreeInteractOut::chat_button_filter
+             * -- a plugin layout may own this rectangle, and a filter cycled
+             * here is one nothing downstream can put back. */
+            out->chat_button_filter = (int)hit_c->u.chat_button.filter;
             out->need_redraw = 1;
             return;
         }
@@ -1361,6 +1362,8 @@ UITree_InteractFrame(
     assert(out);
 
     memset(out, 0, sizeof(*out));
+    /* 0 is a real filter (public), so the empty state has to be stated. */
+    out->chat_button_filter = -1;
     out->hover_com_id = -1;
     out->clicked_com_id = -1;
     out->minimenu_select = -1;

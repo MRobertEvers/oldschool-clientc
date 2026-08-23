@@ -156,6 +156,19 @@ struct UIInteractOut
     int minimap_click;
     int minimap_click_x;
     int minimap_click_y;
+    /**
+     * Left click landed on a chat filter button, and which filter it was.
+     *
+     * Reported rather than acted on, for a reason the minimap's flag above
+     * does not have: a plugin layout may have claimed that rectangle, and the
+     * app cannot un-cycle a filter that this walk already cycled. Everything a
+     * plugin region can intercept has to leave here as a REQUEST -- the
+     * interception clears these the same way it clears `clicked_com_id` -- or
+     * the click is spent before anyone can take it.
+     *
+     * -1 in `chat_button_filter` means no button was clicked.
+     */
+    int chat_button_filter;
     /** An interface under the cursor handled this frame's wheel, either by
      * natively stepping an IF1 scroll layer or dispatching a CS2 onScroll hook.
      * App-level wheel gestures (notably world camera zoom) check this so the

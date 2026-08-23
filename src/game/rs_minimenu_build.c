@@ -1,6 +1,7 @@
 #include "rs_minimenu_build.h"
 
 #include "rs_minimenu_world.h"
+#include "rs_ui_slots.h"
 
 #include "revconfig/revconfig.h"
 #include "ui/torirs_chrome_exec.h"
@@ -641,6 +642,63 @@ add_chat_rows(
     return menu->option_count - before;
 }
 
+/*
+ * The modes one privacy button can be put into, as menu rows.
+ *
+ * Named rather than stepped: "Public chat: Friends" says which mode it means,
+ * and the same row means the same thing wherever the filter happens to be.
+ * That is the whole reason these exist -- the modern frames give the button's
+ * left click to the chatbox switch, so cycling is no longer available, and a
+ * setting with no gesture left is a setting you cannot change.
+ *
+ * A filter that does not cycle contributes nothing. Report abuse is one: it is
+ * a click-through to the report interface and has no modes to choose between,
+ * so its right click offers what any other component's does and no more.
+ */
+static int
+add_chat_button_rows(
+    struct RS_MinimenuBuildCtx const* ctx,
+    struct UITreeComponent const* node,
+    struct UIMinimenu* menu)
+{
+    struct UITreeChatButtonConfig const* cfg = &node->u.chat_button;
+    int const filter = (int)cfg->filter;
+    int const modes = RS_UISlots_ChatFilterModeCount(filter);
+    int const before = menu->option_count;
+
+    assert(ctx);
+    assert(node);
+    assert(menu);
+    if( modes <= 1 )
+        return 0;
+
+    /*
+     * Highest mode FIRST, because a later row draws higher: walking down puts
+     * On at the top of the menu, which is the order the button itself cycles
+     * in and the order the labels read in the ini.
+     */
+    for( int mode = modes - 1; mode >= 0; mode-- )
+    {
+        char text[UITREE_MINIMENU_OPTION_LEN];
+
+        if( !cfg->mode_label[mode][0] )
+            continue;
+        snprintf(text, sizeof(text), "%s: %s", cfg->label, cfg->mode_label[mode]);
+        UIMinimenu_AddOption(
+            menu,
+            text,
+            RS_MINIMENU_ACTION_CHAT_FILTER,
+            -1,
+            (struct UIMinimenuPick){
+                .kind = UI_MINIMENU_PICK_UI,
+                .id = node->component_id,
+                .secondary_id = filter,
+                .tertiary_id = mode,
+            });
+    }
+    return menu->option_count - before;
+}
+
 static int
 if_button_action_for_type(int button_type)
 {
@@ -1004,6 +1062,8 @@ RS_Minimenu_Build(
             continue;
         if( node->type == UIELEM_BUILTIN_CHAT )
             add_chat_rows(ctx, node, click_x, click_y, out);
+        else if( node->type == UIELEM_BUILTIN_CHAT_BUTTON )
+            add_chat_button_rows(ctx, node, out);
         else
             add_component_rows(ctx, node, ctx->selection.mode, out);
     }

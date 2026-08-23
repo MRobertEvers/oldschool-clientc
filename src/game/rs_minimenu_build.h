@@ -202,6 +202,22 @@ _Static_assert(
     RS_MINIMENU_ACTION_PLUGIN_PANEL == REVCONFIG_MINIMENU_PLUGIN_PANEL,
     "the profile's PLUGIN_PANEL id is not this client action");
 
+/**
+ * Set one chat filter to one named mode.
+ *
+ * `pick.id` is the button's component id, `secondary_id` the filter and
+ * `tertiary_id` the mode. The row exists because the modern frames take the
+ * LEFT click off these buttons -- there it opens and closes the chatbox -- and
+ * a filter you can no longer cycle has to be reachable some other way. The
+ * fixed frames keep the click and get these rows as well, which is no loss:
+ * naming a mode beats stepping to it.
+ */
+#define RS_MINIMENU_ACTION_CHAT_FILTER (UITREE_MINIMENU_ACTION_CLIENT_BASE + 7)
+
+_Static_assert(
+    RS_MINIMENU_ACTION_CHAT_FILTER == REVCONFIG_MINIMENU_CHAT_FILTER,
+    "the profile's CHAT_FILTER id is not this client action");
+
 /*
  * A PLUGIN CANVAS REGION's row: "Toggle Run" on an orb a plugin drew.
  *

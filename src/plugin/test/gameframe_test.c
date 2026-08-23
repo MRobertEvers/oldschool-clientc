@@ -75,18 +75,20 @@ static struct
 #define FRAME_CHAT_BUTTON_COUNT 4
 
 /**
- * Draws per chat-button plate: two end caps and the body repeated between them.
+ * Draws per chat-button plate: ONE.
  *
- * A 56-wide plate with 8-wide caps has a 40-wide body, and a 100-wide button
- * has 84 columns to fill between its caps -- three copies. Counted rather than
- * assumed, because a three-slice that dropped its middle would leave a button
- * with two rounded ends and a hole, which no assertion about the button's
- * RECTANGLE can see.
+ * The plate is composed at the button's own size -- caps copied, body
+ * stretched -- so nothing is sliced at draw time. It was five while the slice
+ * happened per frame, and the count is kept as an assertion rather than
+ * dropped: a plate that went back to being assembled from pieces every frame
+ * would be four extra blits per button and no assertion about the button's
+ * RECTANGLE could see it.
  */
-#define FRAME_CHAT_PLATE_DRAWS (2 + 3)
-#define FRAME_CHAT_PLATES (4 * FRAME_CHAT_PLATE_DRAWS)
+#define FRAME_CHAT_PLATES 4
 
-#define FAKE_SLOT_MEMBERS 8
+/* Fourteen sidebar mounts and four chat buttons: a member number is the
+ * role's OWN numbering, so the table has to be as wide as the widest role. */
+#define FAKE_SLOT_MEMBERS 16
 
 /** What the frame declared: the claim, the slots, and the drawing. */
 static struct
@@ -125,6 +127,8 @@ static struct
         int mask;
     } skin[TORIRS_PLUGIN_SLOT_COUNT];
     int scrollbar_pieces;
+    /** A sidebar tab this fake gameframe does NOT have, or -1. */
+    int missing_tab;
 } g_frame;
 
 /** Which roles this fake gameframe has. Everything but the compass, so that
@@ -170,6 +174,10 @@ fake_layout_slot(void* u, int slot, int member, int x, int y, int w, int h)
     (void)u;
     assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_COUNT);
     if( member >= FAKE_SLOT_MEMBERS )
+        return 0;
+    /* A lane whose sidebar is missing one panel -- rs289lc has no clan chat --
+     * answers "no such member" for it, and the layout has to cope. */
+    if( slot == TORIRS_PLUGIN_SLOT_SIDEBAR && member >= 0 && member == g_frame.missing_tab )
         return 0;
     if( member < 0 )
     {
@@ -567,6 +575,7 @@ main(void)
 
     /* asset_read answers into the host it is reading for, and the engine user
      * pointer is the only channel it has -- so the host is built twice. */
+    g_frame.missing_tab = -1;
     g_host = PluginHost_New(&e);
     e.user = g_host;
     PluginHost_Free(g_host);
@@ -841,6 +850,27 @@ main(void)
         CHECK(
             g_frame.blits == 6 + FRAME_R_PANEL_TILES + FRAME_CHAT_PLATES + 14,
             "with no tab open there is no lit stone");
+
+        /*
+         * A tab this gameframe does not have draws its STONE and no icon.
+         *
+         * The stone is the frame's own furniture -- fourteen of them make the
+         * two rows, and a hole where one should be is a broken strip -- but
+         * the icon stands for a panel, and rs289lc has no clan chat to stand
+         * for. An icon over nothing invites the click that does nothing, which
+         * is worse than a blank stone.
+         */
+        g_frame.missing_tab = 7;
+        /* Re-DECLARED, not merely redrawn: which icon a stone wears is decided
+         * in the layout pass, because that is where the frame is asked what
+         * tabs it has. */
+        declare(1440, 900);
+        draw(1440, 900);
+        CHECK(
+            g_frame.blits == 6 + FRAME_R_PANEL_TILES + FRAME_CHAT_PLATES + 13,
+            "a tab the frame has no panel for draws a blank stone");
+        g_frame.missing_tab = -1;
+        declare(1440, 900);
 
         /*
          * And the map housing OVER them.
