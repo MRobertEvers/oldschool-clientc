@@ -124,6 +124,10 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_UICOMPONENT_FONT";
     case RCFIELD_UICOMPONENT_CENTER:
         return "RCFIELD_UICOMPONENT_CENTER";
+    case RCFIELD_UICOMPONENT_VALIGN:
+        return "RCFIELD_UICOMPONENT_VALIGN";
+    case RCFIELD_UICOMPONENT_OVER_COLOR:
+        return "RCFIELD_UICOMPONENT_OVER_COLOR";
     case RCFIELD_UICOMPONENT_SHADOWED:
         return "RCFIELD_UICOMPONENT_SHADOWED";
     case RCFIELD_UICOMPONENT_TEXT:
@@ -246,6 +250,8 @@ revconfig_field_kind_str(enum RevConfigFieldKind kind)
         return "RCFIELD_CAMERA_ZOOM";
     case RCFIELD_CAMERA_CONTROLS:
         return "RCFIELD_CAMERA_CONTROLS";
+    case RCFIELD_CAMERA_WHEEL_STEP:
+        return "RCFIELD_CAMERA_WHEEL_STEP";
     default:
         return "UNKNOWN";
     }
@@ -769,6 +775,12 @@ revconfig_item_apply_uicomponent_field(
     case RCFIELD_UICOMPONENT_CENTER:
         comp->center = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
         break;
+    case RCFIELD_UICOMPONENT_VALIGN:
+        comp->valign = atoi(value);
+        break;
+    case RCFIELD_UICOMPONENT_OVER_COLOR:
+        comp->over_color = atoi(value);
+        break;
     case RCFIELD_UICOMPONENT_SHADOWED:
         comp->shadowed = (strcmp(value, "true") == 0 || strcmp(value, "1") == 0) ? 1 : 0;
         break;
@@ -1039,6 +1051,22 @@ revconfig_item_apply_camera_field(
                 stderr,
                 "revconfig: [camera] controls must be a comma list of "
                 "mmb|arrow_keys, got '%s'\n",
+                value);
+        break;
+    }
+    case RCFIELD_CAMERA_WHEEL_STEP:
+    {
+        int step = atoi(value);
+        if( step > 0 )
+        {
+            camera->wheel_step = step;
+            camera->has_wheel_step = 1;
+        }
+        else
+            fprintf(
+                stderr,
+                "revconfig: [camera] wheel_step must be a positive eye-height "
+                "step, got '%s'\n",
                 value);
         break;
     }

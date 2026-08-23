@@ -312,6 +312,8 @@ fill_tree_op_from_component(
     op->filled = comp->filled;
     op->tiled = comp->tiled;
     op->center = comp->center;
+    op->valign = comp->valign;
+    op->over_color = comp->over_color;
     op->shadowed = comp->shadowed;
     strncpy(op->text, comp->text, sizeof(op->text) - 1);
     op->button_type = comp->button_type;

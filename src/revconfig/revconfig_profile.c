@@ -22,6 +22,7 @@ RevConfigProfile_Init(struct RevConfigProfile* profile)
     profile->camera.zoom_height = REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT;
     profile->camera.controls =
         REVCONFIG_CAMERA_CONTROL_MMB | REVCONFIG_CAMERA_CONTROL_ARROW_KEYS;
+    profile->camera.wheel_step = REVCONFIG_CAMERA_WHEEL_STEP_DEFAULT;
 }
 
 static void
@@ -66,6 +67,8 @@ profile_merge_camera(
     }
     if( src->has_controls )
         dst->controls = src->controls;
+    if( src->has_wheel_step )
+        dst->wheel_step = src->wheel_step;
 }
 
 void

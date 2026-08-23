@@ -109,6 +109,10 @@ struct UIBuilderTreeOp
     /** type=rs_graphic: repeat the sprite across the box. @see RevConfig `tiled=`. */
     int tiled;
     int center;
+    /** type=rs_text: 0 top, 1 centre, 2 bottom. @see RevConfig `valign=`. */
+    int valign;
+    /** Hover colour, 0 for none. @see RevConfig `over_color=`. */
+    int over_color;
     int shadowed;
     char text[256];
     int button_type;

@@ -87,6 +87,8 @@ struct ToriRS_PluginEngine
     int (*hover_entity)(void* user, struct ToriRS_PluginHoverEntity* out);
     int (*element_height)(void* user, int element_id);
 
+    /** The pointer, in canvas coords. @see ToriRS_PluginApi::mouse_pos. */
+    int (*mouse_pos)(void* user, int* out_x, int* out_y);
     /** The minimap's box this frame. @see ToriRS_PluginApi::minimap_rect. */
     int (*minimap_rect)(void* user, int* out_x, int* out_y, int* out_w, int* out_h);
     /** One skill's boosted and base level. @see ToriRS_PluginApi::stat. */
@@ -149,7 +151,8 @@ struct ToriRS_PluginEngine
         int y,
         int w,
         int h,
-        char const* op,
+        char const* const* ops,
+        int op_count,
         uint32_t tag);
     /** Press an interface button. @see ToriRS_PluginApi::if_click. */
     int (*if_click)(void* user, int component_id, int op);
@@ -389,7 +392,7 @@ void PluginHost_DrawCanvas(struct ToriRS_PluginHost* host, int width, int height
  * can never be handed another's click even if the two overlap.
  */
 void PluginHost_CanvasClick(
-    struct ToriRS_PluginHost* host, int plugin_index, uint32_t tag, int x, int y);
+    struct ToriRS_PluginHost* host, int plugin_index, uint32_t tag, int op, int x, int y);
 
 /** Dispatches EV_MENU_BUILD. `cursor` is handed to engine->menu_add. */
 void PluginHost_MenuBuild(

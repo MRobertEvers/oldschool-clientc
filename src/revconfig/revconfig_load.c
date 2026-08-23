@@ -157,6 +157,8 @@ push_field_from_ini_kv(
             kind = RCFIELD_CAMERA_ZOOM;
         else if( strcmp(key, "controls") == 0 )
             kind = RCFIELD_CAMERA_CONTROLS;
+        else if( strcmp(key, "wheel_step") == 0 )
+            kind = RCFIELD_CAMERA_WHEEL_STEP;
         else
             fprintf(stderr, "revconfig: [camera] has no key '%s'\n", key);
         if( kind != RCFIELD_NONE )
@@ -235,6 +237,10 @@ push_field_from_ini_kv(
         kind = RCFIELD_UICOMPONENT_FONT;
     else if( strcmp(key, "center") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_CENTER;
+    else if( strcmp(key, "valign") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_VALIGN;
+    else if( strcmp(key, "over_color") == 0 && strcmp(s_ini_item_type, "component") == 0 )
+        kind = RCFIELD_UICOMPONENT_OVER_COLOR;
     else if( strcmp(key, "shadowed") == 0 && strcmp(s_ini_item_type, "component") == 0 )
         kind = RCFIELD_UICOMPONENT_SHADOWED;
     else if( strcmp(key, "text") == 0 && strcmp(s_ini_item_type, "component") == 0 )

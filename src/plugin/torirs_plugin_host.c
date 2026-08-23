@@ -516,6 +516,13 @@ api_element_height(struct ToriRS_PluginCtx* ctx, int element_id)
 }
 
 static int
+api_mouse_pos(struct ToriRS_PluginCtx* ctx, int* out_x, int* out_y)
+{
+    assert(ctx);
+    return ctx->host->engine.mouse_pos(ctx->host->engine.user, out_x, out_y);
+}
+
+static int
 api_minimap_rect(
     struct ToriRS_PluginCtx* ctx, int* out_x, int* out_y, int* out_w, int* out_h)
 {
@@ -1815,7 +1822,8 @@ api_hit_region(
     int y,
     int w,
     int h,
-    char const* op,
+    char const* const* ops,
+    int op_count,
     uint32_t tag)
 {
     assert(ctx);
@@ -1831,8 +1839,12 @@ api_hit_region(
 
     if( w <= 0 || h <= 0 )
         return 0;
+    if( !ops || op_count < 0 )
+        op_count = 0;
+    if( op_count > TORIRS_PLUGIN_REGION_OPS_MAX )
+        op_count = TORIRS_PLUGIN_REGION_OPS_MAX;
     return ctx->host->engine.hit_region(
-        ctx->host->engine.user, ctx->index, x, y, w, h, op ? op : "", tag);
+        ctx->host->engine.user, ctx->index, x, y, w, h, ops, op_count, tag);
 }
 
 static int
@@ -1891,6 +1903,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->object_ready);
     assert(engine->hsl_from_rgb);
     assert(engine->hsl_to_rgb);
+    assert(engine->mouse_pos);
     assert(engine->minimap_rect);
     assert(engine->stat);
     assert(engine->run_energy);
@@ -1929,6 +1942,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .hover_tile = api_hover_tile,
         .hover_entity = api_hover_entity,
         .element_height = api_element_height,
+        .mouse_pos = api_mouse_pos,
         .minimap_rect = api_minimap_rect,
         .stat = api_stat,
         .run_energy = api_run_energy,
@@ -2690,7 +2704,7 @@ PluginHost_DrawCanvas(struct ToriRS_PluginHost* host, int width, int height)
 
 void
 PluginHost_CanvasClick(
-    struct ToriRS_PluginHost* host, int plugin_index, uint32_t tag, int x, int y)
+    struct ToriRS_PluginHost* host, int plugin_index, uint32_t tag, int op, int x, int y)
 {
     struct ToriRS_PluginCtx* ctx;
     struct ToriRS_PluginEvCanvasClick ev;
@@ -2709,6 +2723,7 @@ PluginHost_CanvasClick(
         return;
 
     ev.tag = tag;
+    ev.op = op;
     ev.x = x;
     ev.y = y;
     prev = host->dispatching;

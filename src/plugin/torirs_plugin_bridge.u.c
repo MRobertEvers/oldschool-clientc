@@ -1400,7 +1400,8 @@ app_plugin_hit_region(
     int y,
     int w,
     int h,
-    char const* op,
+    char const* const* ops,
+    int op_count,
     uint32_t tag)
 {
     struct App* app = (struct App*)user;
@@ -1408,19 +1409,30 @@ app_plugin_hit_region(
     struct AppPluginRegion* region;
 
     assert(app);
-    assert(op);
 
     if( app->plugin_region_count >= cap )
         return 0;
 
     region = &app->plugin_regions[app->plugin_region_count++];
+    memset(region, 0, sizeof(*region));
     region->plugin = plugin;
     region->x = x;
     region->y = y;
     region->w = w;
     region->h = h;
     region->tag = tag;
-    snprintf(region->op, sizeof(region->op), "%s", op);
+    /* Empty entries are dropped rather than kept as blank rows, so a caller
+     * with a fixed-size table can hand the whole thing over. The INDEX a click
+     * reports is into what was kept, which is what the plugin then switches
+     * on -- see ToriRS_PluginEvCanvasClick::op. */
+    for( int i = 0; i < op_count; i++ )
+    {
+        if( !ops[i] || !ops[i][0] )
+            continue;
+        snprintf(
+            region->ops[region->op_count], sizeof(region->ops[0]), "%s", ops[i]);
+        region->op_count++;
+    }
     return 1;
 }
 
@@ -1446,6 +1458,10 @@ app_plugin_if_click(void* user, int component_id, int op)
     struct UIMinimenu scratch;
     struct UIMinimenu saved;
     struct UIMinimenuPick pick;
+    int32_t node;
+    int action;
+    int action_index;
+    int button_type;
 
     assert(app);
 
@@ -1453,21 +1469,57 @@ app_plugin_if_click(void* user, int component_id, int op)
         return 0;
     /* A component id this tree does not hold is bad input -- a config key
      * naming a button that is not on this cache -- not a broken contract. */
-    if( UITree_FindByComponentId(app->tree, component_id) < 0 )
+    node = UITree_FindByComponentId(app->tree, component_id);
+    if( node < 0 )
         return 0;
 
     memset(&pick, 0, sizeof(pick));
     pick.kind = UI_MINIMENU_PICK_UI;
     pick.id = component_id;
 
+    /*
+     * The action a real click on THIS button would carry, derived from its own
+     * `buttonType` -- the same derivation add_component_rows makes when it
+     * builds the row for it.
+     *
+     * Hardcoding IF_BUTTON here worked for a plain button and silently did the
+     * wrong thing for every other kind. A LostCity run toggle is
+     * `buttontype=select`: the local half of pressing it is writing the varp
+     * the button selects, which only IF_BUTTON_SELECT does, so an IF_BUTTON
+     * sent the packet and left the client showing the old state until the
+     * server's varp came back -- or, offline, for ever.
+     *
+     * A NUMBERED op keeps IF_BUTTON: op 1..10 is the IF3 form, where the
+     * number is the whole of what the component offers and buttonType is not
+     * part of the vocabulary.
+     */
+    button_type = app->tree->components[node].behavior.button_type;
+    action = op >= 1 ? REVCONFIG_MINIMENU_IF_BUTTON
+                     : RS_Minimenu_IfButtonActionForType(button_type);
+
+    /*
+     * `action_index` is the op SLOT, and the dispatcher reads it as `op_num =
+     * index + 1`. So an index of 0 does not mean "no numbered op", it means
+     * "op 1" -- and a classic IF1 button pressed with index 0 was being routed
+     * into the IF3 numbered-op path: the client sent IF_BUTTON<1>, which a
+     * 2004 protocol has no answer for, and then returned before
+     * RS_IF1_ApplyButtonClick could apply the button's own semantics. The
+     * press did nothing, on exactly the revisions whose buttons are classic.
+     *
+     * -1 is the "unnumbered" index the rest of this dispatcher already uses.
+     * Which of the two a component wants is not a guess: an IF1 button says so
+     * by carrying a `buttonType`, and an IF3 one says so by carrying none.
+     */
+    if( op >= 1 )
+        action_index = op - 1;
+    else if( button_type != 0 )
+        action_index = -1;
+    else
+        action_index = 0;
+
     UIMinimenu_Reset(&scratch);
     scratch.font_id = app->interact.minimenu.font_id;
-    if( !UIMinimenu_AddOption(
-            &scratch,
-            "",
-            REVCONFIG_MINIMENU_IF_BUTTON,
-            op >= 1 ? op - 1 : 0,
-            pick) )
+    if( !UIMinimenu_AddOption(&scratch, "", action, action_index, pick) )
         return 0;
 
     /* 0,0 as the click point, and it is never read: the cross is painted per
@@ -1492,6 +1544,22 @@ app_plugin_draw_select_canvas(void* user, int canvas)
 }
 
 /* ------------------------------------------------------- chrome + the player */
+
+static int
+app_plugin_mouse_pos(void* user, int* out_x, int* out_y)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    /* The same point every click path reads, latched once per frame from the
+     * input drain (App_RunOnce). Before the first frame it is 0,0, which is a
+     * legal position -- so the answer is the position, not a validity flag. */
+    if( out_x )
+        *out_x = app->world_mouse_x;
+    if( out_y )
+        *out_y = app->world_mouse_y;
+    return 1;
+}
 
 static int
 app_plugin_minimap_rect(void* user, int* out_x, int* out_y, int* out_w, int* out_h)
@@ -1640,7 +1708,7 @@ app_plugin_menu_build(
         struct AppPluginRegion const* region = &app->plugin_regions[i];
         struct UIMinimenuPick pick;
 
-        if( region->op[0] == '\0' )
+        if( region->op_count <= 0 )
             continue;
         if( click_x < region->x || click_x >= region->x + region->w )
             continue;
@@ -1649,9 +1717,17 @@ app_plugin_menu_build(
 
         memset(&pick, 0, sizeof(pick));
         pick.kind = UI_MINIMENU_PICK_NONE;
-        /* The region INDEX, so the dispatcher can find the owner and the tag
-         * without a second lookup by coordinates. */
-        UIMinimenu_AddOption(menu, region->op, RS_MINIMENU_ACTION_PLUGIN_REGION, i, pick);
+        /* Last op first: rows draw bottom-to-top, so adding in reverse puts
+         * op 0 on top -- the same order add_menu_ops_rows walks a component's
+         * own verbs in, and the reason op 1 is the one beside Cancel. */
+        for( int op = region->op_count - 1; op >= 0; op-- )
+            UIMinimenu_AddOption(
+                menu,
+                region->ops[op],
+                RS_MINIMENU_ACTION_PLUGIN_REGION,
+                /* The region and the op, in the one field a row carries. */
+                i * TORIRS_PLUGIN_REGION_OPS_MAX + op,
+                pick);
         break;
     }
 
@@ -1736,6 +1812,7 @@ app_plugin_engine(struct App* app)
     engine.draw_image = app_plugin_draw_image;
     engine.hit_region = app_plugin_hit_region;
     engine.if_click = app_plugin_if_click;
+    engine.mouse_pos = app_plugin_mouse_pos;
     engine.minimap_rect = app_plugin_minimap_rect;
     engine.stat = app_plugin_stat;
     engine.run_energy = app_plugin_run_energy;

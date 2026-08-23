@@ -4,6 +4,7 @@
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 
 /*
@@ -17,6 +18,9 @@
  * from a dat1 cache -- there is no such interface and no way to author one:
  * the numbers exist (UPDATE_STAT, UPDATE_RUNENERGY, the special-attack varp
  * are all on the wire) and the picture does not.
+ *
+ * The four are hitpoints, prayer, run energy and special attack, in the
+ * reference's own order and at its own positions.
  *
  * A plugin is the right shape for that gap precisely because it is not tied to
  * a revision. It brings its own art, reads the numbers through the api rather
@@ -88,11 +92,41 @@
  * valign=1 lands an 11px face. */
 #define ORB_TEXT_CX (4 + 23 / 2)
 #define ORB_TEXT_BASELINE (16 + 13 / 2 + 4)
+/* The plugin's own face is laid out from the line box TOP rather than from a
+ * baseline: the metrics beside the atlas state each glyph's offset inside that
+ * box, which is how the cache states them too. 9px of ink centred in the 13px
+ * panel at y=16. */
+#define ORB_TEXT_TOP (16 + (13 - 9) / 2 - 1)
 /** Yellow, as every orb's own `colour=16776960` states it. */
 #define ORB_TEXT_RGB 0xFFFF00u
 
-/** Hitpoints, in the skill order that has not moved since 2001. */
+/**
+ * Where each orb sits, relative to the column's origin.
+ *
+ * The reference's own four positions, from interface 160: the orbs do not
+ * stack in a straight line, they step out to the right as they go down,
+ * because they are following the curve of the minimap they hang off. A fixed
+ * pitch puts the lower ones under the map instead of beside it.
+ *
+ * Orbs fill these slots in order, so a client showing three of them uses the
+ * first three and the curve is continuous -- rather than leaving the gap where
+ * the prayer orb would have been.
+ */
+static const struct
+{
+    int dx;
+    int dy;
+} ORB_SLOT[] = {
+    { 0, 37 },
+    { 0, 71 },
+    { 10, 103 },
+    { 32, 128 },
+};
+#define ORB_SLOT_COUNT ((int)(sizeof(ORB_SLOT) / sizeof(ORB_SLOT[0])))
+
+/** Hitpoints and prayer, in the skill order that has not moved since 2001. */
 #define ORB_STAT_HITPOINTS 3
+#define ORB_STAT_PRAYER 5
 
 /*
  * The ids the three-step resolve below falls back on.
@@ -114,22 +148,29 @@ static struct ToriRS_PluginApi const* g_api;
 enum OrbImage
 {
     ORB_IMG_FRAME = 0,
+    ORB_IMG_FRAME_OVER,
     ORB_IMG_FILL_EMPTY,
     ORB_IMG_FILL_RED,
     ORB_IMG_FILL_GREY,
     ORB_IMG_FILL_GOLD,
     ORB_IMG_FILL_CYAN,
+    ORB_IMG_FILL_CYAN_LIT,
+    ORB_IMG_FILL_PRAYER,
     ORB_IMG_ICON_HP,
+    ORB_IMG_ICON_PRAYER,
     ORB_IMG_ICON_WALK,
     ORB_IMG_ICON_RUN,
     ORB_IMG_ICON_SPEC,
+    /* The digits, as one row of glyphs. @see orbs_draw_number. */
+    ORB_IMG_DIGITS,
     ORB_IMG_COUNT
 };
 
 static char const* const ORB_IMAGE_FILE[ORB_IMG_COUNT] = {
-    "frame.png",     "fill_empty.png", "fill_red.png",  "fill_grey.png",
-    "fill_gold.png", "fill_cyan.png",  "icon_hp.png",   "icon_walk.png",
-    "icon_run.png",  "icon_spec.png",
+    "frame.png",        "frame_over.png", "fill_empty.png",  "fill_red.png",
+    "fill_grey.png",    "fill_gold.png",  "fill_cyan.png",   "fill_cyan_lit.png",
+    "fill_prayer.png",  "icon_hp.png",    "icon_prayer.png", "icon_walk.png",
+    "icon_run.png",     "icon_spec.png",  "digits.png",
 };
 
 /** Handles from api->image_load, or -1 while a load has not been asked for. */
@@ -140,6 +181,7 @@ static int g_image[ORB_IMG_COUNT];
 enum OrbTag
 {
     ORB_TAG_HP = 1,
+    ORB_TAG_PRAYER,
     ORB_TAG_RUN,
     ORB_TAG_SPEC
 };
@@ -158,38 +200,104 @@ enum OrbTag
 static int
 orbs_parse_button(char const* spec, int* out_component, int* out_op)
 {
-    int iface = -1;
-    int component = -1;
+    int a = -1;
+    int b = -1;
     int op = 0;
-    int const fields = spec ? sscanf(spec, "%d:%d:%d", &iface, &component, &op) : 0;
+    int fields;
 
     assert(out_component);
     assert(out_op);
 
-    if( fields < 2 )
+    if( !spec || !spec[0] )
         return 0;
-    if( iface < 0 || iface > 0xFFFF || component < 0 || component > 0xFFFF )
+    fields = sscanf(spec, "%d:%d:%d", &a, &b, &op);
+    if( fields < 1 || a < 0 )
         return 0;
     if( op < 0 || op > 10 )
         return 0;
 
-    *out_component = (iface << 16) | component;
+    /*
+     * ONE number is an id already, two are an interface and a component in it.
+     *
+     * Both spellings exist because both eras do. A dat1 interface numbers
+     * every component flatly -- LostCity's run toggle is 153, full stop -- and
+     * a dat2 one addresses `(interface << 16) | index`, which is far easier to
+     * read as the pair the wire and the interface tree both speak in.
+     */
+    if( fields == 1 )
+    {
+        *out_component = a;
+        *out_op = 0;
+        return 1;
+    }
+    if( b < 0 || a > 0xFFFF || b > 0xFFFF )
+        return 0;
+    *out_component = (a << 16) | b;
     *out_op = op;
     return 1;
 }
 
-/** The verb an orb offers, or NULL when its button is not configured. A region
- *  with no verb still claims the pointer, which is what keeps a click on the
- *  orb from falling through to the minimap behind it and walking. */
-static char const*
-orbs_verb(struct ToriRS_PluginCtx* ctx, char const* button_key, char const* verb)
+/**
+ * The button an orb presses: the plugin's config first, the boot profile's
+ * `[iface:<name>]` second.
+ *
+ * Same three-step shape as orbs_varp, and for the same reason -- which
+ * component a button is cannot be known from here. The profile is where a lane
+ * states it (the LostCity run toggle is `controls:com_5`, id 153; the rev-239
+ * one is interface 160's `runbutton`), and the config key is the escape hatch
+ * for a server that has moved one and has no profile entry to say so.
+ *
+ * @return 1 when a button was named, and then `out_*` describe it.
+ */
+static int
+orbs_button(
+    struct ToriRS_PluginCtx* ctx,
+    char const* key,
+    char const* name,
+    int* out_component,
+    int* out_op)
+{
+    int declared;
+
+    if( orbs_parse_button(g_api->cfg_str(ctx, key), out_component, out_op) )
+        return 1;
+
+    declared = g_api->cache_id(ctx, "iface", name);
+    if( declared < 0 )
+        return 0;
+    *out_component = declared;
+    *out_op = 0;
+    return 1;
+}
+
+/**
+ * The verbs an orb offers, into `out`, which must hold
+ * TORIRS_PLUGIN_REGION_OPS_MAX entries.
+ *
+ * An orb offers a verb only when the lane has told the plugin which button it
+ * presses -- there is nothing to put in the menu otherwise, and a row that
+ * does nothing is worse than no row. The REGION is still claimed either way,
+ * which is what keeps a click on an orb from falling through to the minimap
+ * behind it and walking the player.
+ *
+ * @return how many were written.
+ */
+static int
+orbs_ops(
+    struct ToriRS_PluginCtx* ctx,
+    char const* key,
+    char const* name,
+    char const* verb,
+    char const** out)
 {
     int component;
     int op;
 
-    if( !orbs_parse_button(g_api->cfg_str(ctx, button_key), &component, &op) )
-        return NULL;
-    return verb;
+    assert(out);
+    if( !orbs_button(ctx, key, name, &component, &op) )
+        return 0;
+    out[0] = verb;
+    return 1;
 }
 
 static void
@@ -240,6 +348,157 @@ orbs_varp(
     return fallback;
 }
 
+/*
+ * The orb face, shipped as the plugin's own font.
+ *
+ * `digits.png` is one row of glyphs and `digits.ini` says where each of them
+ * is in it -- both cut from the rev-239 orb face (cache font 494) at authoring
+ * time, in the orbs' own yellow with the reference's drop shadow already on
+ * them. See tools/fontbake_atlas.py.
+ *
+ * Why not api->draw_text: that verb draws in the CLIENT's hitsplat face,
+ * because that is the one face the overlay layer can be sure of. It is a
+ * chunky combat face and it is not what an orb's number is set in -- the
+ * difference is immediately visible beside a cache that draws its own orbs.
+ * Laying the digits out here costs one blit per digit and gets the right
+ * picture on a lane whose cache has no such font at all, which is the whole
+ * reason this plugin brings its own art.
+ */
+struct OrbGlyph
+{
+    /** Where in the atlas, and how big. */
+    int x;
+    int y;
+    int w;
+    int h;
+    /** Where inside the line box, and how far the pen moves after it. */
+    int off_x;
+    int off_y;
+    int advance;
+};
+
+static struct OrbGlyph g_digit[10];
+static int g_digits_ready;
+/** Colour steps in the atlas, and how far apart their rows are. @see
+ *  tools/fontbake_atlas.py `ramp:N`. 1 step is a single-colour atlas. */
+static int g_digit_steps = 1;
+static int g_digit_row_h;
+
+/**
+ * Read `digits.ini` into the table above.
+ *
+ * Parsed by hand rather than through a config key, because it is not a
+ * SETTING: it is the other half of the atlas, generated beside it, and a user
+ * editing it would only ever break the pairing. Returns 1 once the table is
+ * usable; a file that has not landed yet, or that carries no digit rows, keeps
+ * the caller on its fallback.
+ */
+static int
+orbs_load_digits(struct ToriRS_PluginCtx* ctx)
+{
+    char const* at;
+    int size = 0;
+
+    if( g_digits_ready )
+        return 1;
+
+    if( !g_api->asset_load(ctx, "digits.ini") )
+        return 0;
+    at = (char const*)g_api->asset_data(ctx, "digits.ini", &size);
+    if( !at || size <= 0 )
+        return 0;
+
+    for( char const* end = at + size; at < end; )
+    {
+        char const* line = at;
+        char const* stop = line;
+        while( stop < end && *stop != '\n' )
+            stop++;
+        at = stop < end ? stop + 1 : end;
+
+        /* `<digit>=x y w h ox oy advance`. Anything else -- the header
+         * comments, the `ascent=` line -- is skipped by the same test. */
+        if( stop - line > 6 && strncmp(line, "steps=", 6) == 0 )
+        {
+            g_digit_steps = atoi(line + 6);
+            continue;
+        }
+        if( stop - line > 11 && strncmp(line, "row_height=", 11) == 0 )
+        {
+            g_digit_row_h = atoi(line + 11);
+            continue;
+        }
+        if( stop - line < 3 || line[0] < '0' || line[0] > '9' || line[1] != '=' )
+            continue;
+        {
+            struct OrbGlyph* g = &g_digit[line[0] - '0'];
+            if( sscanf(
+                    line + 2, "%d %d %d %d %d %d %d", &g->x, &g->y, &g->w, &g->h,
+                    &g->off_x, &g->off_y, &g->advance) == 7 )
+                g_digits_ready = 1;
+        }
+    }
+    return g_digits_ready;
+}
+
+/**
+ * `value`, centred on `cx`, with `top` as the line box's top.
+ *
+ * A glyph is drawn by sliding the WHOLE atlas so the glyph lands where it
+ * belongs and clipping to the glyph's own box -- which is what the clip
+ * argument on api->draw_image is for, and why it is an argument rather than a
+ * second entry point.
+ */
+static void
+orbs_draw_number(
+    struct ToriRS_PluginCtx* ctx,
+    void* surface,
+    int cx,
+    int top,
+    int value,
+    int filled,
+    int total)
+{
+    char text[16];
+    int len;
+    int width = 0;
+    int pen;
+    int row = 0;
+
+    /*
+     * The colour is the METER's, not the number's: clientscript 449 ramps it
+     * from red at empty through yellow at half to green at full, so a glance
+     * at the colour says as much as reading the digits. The atlas carries that
+     * ramp as rows (see tools/fontbake_atlas.py); this picks the row.
+     */
+    if( g_digit_steps > 1 && total > 0 )
+    {
+        int const clamped = filled < 0 ? 0 : (filled > total ? total : filled);
+        row = clamped * (g_digit_steps - 1) / total;
+    }
+
+    snprintf(text, sizeof(text), "%d", value);
+    len = (int)strlen(text);
+
+    for( int i = 0; i < len; i++ )
+        width += g_digit[text[i] - '0'].advance;
+    pen = cx - width / 2;
+
+    for( int i = 0; i < len; i++ )
+    {
+        struct OrbGlyph const* g = &g_digit[text[i] - '0'];
+        int const dx = pen + g->off_x;
+        int const dy = top + g->off_y;
+
+        int const src_y = g->y + row * g_digit_row_h;
+
+        g_api->draw_image(
+            ctx, surface, g_image[ORB_IMG_DIGITS], dx - g->x, dy - src_y, dx, dy, g->w,
+            g->h, 0);
+        pen += g->advance;
+    }
+}
+
 /**
  * One orb, drawn.
  *
@@ -260,27 +519,77 @@ orbs_draw_one(
     int filled,
     int total,
     uint32_t tag,
-    char const* verb)
+    char const* const* ops,
+    int op_count,
+    int inactive)
 {
     char text[16];
     int hidden;
+    int hovered = 0;
+    int trans;
 
     if( g_image[ORB_IMG_FRAME] < 0 )
         return;
 
     /*
+     * The three states the reference draws an orb in, and what each one
+     * changes (clientscript 2792):
+     *
+     *   INACTIVE  a GREY disc at `if_settrans(50)` and the ops cleared -- what
+     *             the spec orb is when nothing you are holding has a special
+     *             attack.
+     *   idle      the orb's own colour at trans 25, which is what
+     *             `specenergy_indicator` is authored with.
+     *   HOVERED   the same, with the lit plate (graphic 1072 beside 1071).
+     *
+     * The transparency is on the DISC alone, not on the orb: 2792's
+     * `if_settrans` names the indicator component, and the plate and the icon
+     * over it stay opaque in every state. Washing the whole orb out instead
+     * makes an inactive one look like a rendering fault rather than like a
+     * control that is switched off.
+     */
+    {
+        int mx = 0;
+        int my = 0;
+        /*
+         * Gated on having a VERB, not on the grey look. The reference clears
+         * the ops and the mouseover hooks in the same breath, so "offers
+         * nothing" is exactly when the plate must not light -- and the run orb
+         * is grey while you are walking yet is still the button that starts
+         * you running.
+         */
+        if( op_count > 0 && g_api->mouse_pos(ctx, &mx, &my) )
+            hovered = mx >= x && mx < x + ORB_W && my >= y && my < y + ORB_H;
+    }
+    trans = inactive ? 50 : 25;
+    if( inactive )
+    {
+        fill_image = ORB_IMG_FILL_GREY;
+        /* Full, so no dark cap is drawn over it: an inactive orb shows no
+         * level at all, rather than a level of zero. */
+        filled = total;
+    }
+
+    /*
      * The plate is the button, claimed before it is drawn.
      *
-     * Claimed even when there is no verb -- `verb` is NULL for an orb whose
-     * button is not configured -- because the region's other job is to stop
-     * the click: an orb sits over the minimap on most gameframes, and without
-     * this a click on it walks the player to whatever tile is underneath.
+     * Claimed even when there are no verbs -- `op_count` is 0 for an orb whose
+     * button the lane has not named -- because the region's other job is to
+     * stop the click: an orb sits over the minimap on most gameframes, and
+     * without this a click on it walks the player to whatever tile is
+     * underneath.
      */
-    g_api->hit_region(ctx, surface, x, y, ORB_W, ORB_H, verb, tag);
+    g_api->hit_region(ctx, surface, x, y, ORB_W, ORB_H, ops, op_count, tag);
 
-    g_api->draw_image(ctx, surface, g_image[ORB_IMG_FRAME], x, y, 0, 0, 0, 0, 0);
+    {
+        int const plate = hovered && g_image[ORB_IMG_FRAME_OVER] >= 0
+                              ? ORB_IMG_FRAME_OVER
+                              : ORB_IMG_FRAME;
+        g_api->draw_image(ctx, surface, g_image[plate], x, y, 0, 0, 0, 0, 0);
+    }
     g_api->draw_image(
-        ctx, surface, g_image[fill_image], x + ORB_DISC_X, y + ORB_DISC_Y, 0, 0, 0, 0, 0);
+        ctx, surface, g_image[fill_image], x + ORB_DISC_X, y + ORB_DISC_Y, 0, 0, 0, 0,
+        trans);
 
     /*
      * The dark disc over the unfilled part, clipped to the rows above the
@@ -312,6 +621,16 @@ orbs_draw_one(
     g_api->draw_image(
         ctx, surface, g_image[icon_image], x + ORB_DISC_X, y + ORB_DISC_Y, 0, 0, 0, 0, 0);
 
+    if( g_digits_ready && g_image[ORB_IMG_DIGITS] >= 0 )
+    {
+        orbs_draw_number(
+            ctx, surface, x + ORB_TEXT_CX, y + ORB_TEXT_TOP, value, filled, total);
+        return;
+    }
+
+    /* The atlas has not landed yet, or would not decode. The client's own
+     * overlay face is the wrong one for an orb, but a number in the wrong face
+     * beats an orb with no number in it. */
     snprintf(text, sizeof(text), "%d", value);
     g_api->draw_text(
         ctx, surface, x + ORB_TEXT_CX, y + ORB_TEXT_BASELINE, text, ORB_TEXT_RGB);
@@ -329,7 +648,7 @@ orbs_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     int map_h;
     int x;
     int y;
-    int pitch;
+    int slot = 0;
 
     assert(ctx);
     assert(ev);
@@ -341,23 +660,28 @@ orbs_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
      */
     if( !g_api->minimap_rect(ctx, &map_x, &map_y, &map_w, &map_h) )
         return TORIRS_PLUGIN_PASS;
-    (void)map_h;
 
     /* Asked for every frame, not only at start: an image that failed its read
      * on the first attempt is retried, and a plugin re-enabled after a reload
      * has no handles at all. Both are answered by the same line, and a handle
      * it already has costs a table scan. */
     orbs_load_images(ctx);
+    orbs_load_digits(ctx);
 
     /*
-     * The column hangs off the minimap's LEFT edge, which is where interface
-     * 160 puts it and where a player looks for it. The two offsets are config
-     * so that a gameframe whose minimap sits against the screen edge, or whose
-     * frame art the plate would cover, can move them without a rebuild.
+     * The column hangs off the minimap's LEFT edge, starting a QUARTER of the
+     * way down it, which is where interface 160 puts it and where a player
+     * looks for it: the orbs curve around the lower part of the map and carry
+     * on past its bottom edge, rather than running down the whole side of it.
+     *
+     * Anchored to the map's own height rather than to a number, because that
+     * height is a property of the gameframe -- 151 in a 2004 frame, and
+     * whatever a resizable one resolves to. The offsets stay config so a
+     * gameframe whose minimap sits against the screen edge, or whose frame art
+     * the plate would cover, can move the column without a rebuild.
      */
     x = map_x + g_api->cfg_int(ctx, "offset_x") - ORB_W;
-    y = map_y + g_api->cfg_int(ctx, "offset_y");
-    pitch = g_api->cfg_int(ctx, "pitch");
+    y = map_y + map_h / 4 + g_api->cfg_int(ctx, "offset_y") - ORB_SLOT[0].dy;
 
     if( g_api->cfg_bool(ctx, "show_hp") )
     {
@@ -368,35 +692,69 @@ orbs_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
          * hitpoints orb showing zero out of zero looks like a death. */
         if( base > 0 )
         {
+            char const* ops[TORIRS_PLUGIN_REGION_OPS_MAX] = { 0 };
+            int const n = orbs_ops(ctx, "hp_button", "orb_hp_button", "Cure", ops);
             orbs_draw_one(
-                ctx, ev->surface, x, y, ORB_IMG_FILL_RED, ORB_IMG_ICON_HP,
-                current, current, base, ORB_TAG_HP,
-                orbs_verb(ctx, "hp_button", "Cure"));
-            y += pitch;
+                ctx, ev->surface, x + ORB_SLOT[slot].dx, y + ORB_SLOT[slot].dy,
+                ORB_IMG_FILL_RED, ORB_IMG_ICON_HP, current, current, base, ORB_TAG_HP,
+                ops, n, 0);
+            slot++;
+        }
+    }
+
+    if( g_api->cfg_bool(ctx, "show_prayer") && slot < ORB_SLOT_COUNT )
+    {
+        int current = 0;
+        int base = 0;
+        g_api->stat(ctx, ORB_STAT_PRAYER, &current, &base);
+        if( base > 0 )
+        {
+            char const* ops[TORIRS_PLUGIN_REGION_OPS_MAX] = { 0 };
+            /* The reference's own verb: `prayerbutton` carries `op1=*` over
+             * the name "Quick-prayers", which reads as one row. */
+            int const n =
+                orbs_ops(ctx, "prayer_button", "orb_prayer_button", "Quick-prayers", ops);
+            orbs_draw_one(
+                ctx, ev->surface, x + ORB_SLOT[slot].dx, y + ORB_SLOT[slot].dy,
+                ORB_IMG_FILL_PRAYER, ORB_IMG_ICON_PRAYER, current, current, base,
+                ORB_TAG_PRAYER, ops, n, 0);
+            slot++;
         }
     }
 
     if( g_api->cfg_bool(ctx, "show_run") )
     {
+        char const* ops[TORIRS_PLUGIN_REGION_OPS_MAX] = { 0 };
+        int const n = orbs_ops(ctx, "run_button", "orb_run_on", "Toggle Run", ops);
         int const energy = g_api->run_energy(ctx);
         int const run_varp = orbs_varp(ctx, "run_varp", "run_mode", ORB_VARP_RUN_FALLBACK);
         /* Run ON is the gold disc and the running boot; walking is the grey
          * disc and the standing one -- the same pair the reference swaps. A
          * lane with no run var reads as walking rather than as an error. */
         int const running = run_varp >= 0 && g_api->varp(ctx, run_varp) != 0;
-        orbs_draw_one(
-            ctx,
-            ev->surface,
-            x,
-            y,
-            running ? ORB_IMG_FILL_GOLD : ORB_IMG_FILL_GREY,
-            running ? ORB_IMG_ICON_RUN : ORB_IMG_ICON_WALK,
-            energy,
-            energy,
-            100,
-            ORB_TAG_RUN,
-            orbs_verb(ctx, "run_button", "Toggle Run"));
-        y += pitch;
+        if( slot < ORB_SLOT_COUNT )
+        {
+            orbs_draw_one(
+                ctx,
+                ev->surface,
+                x + ORB_SLOT[slot].dx,
+                y + ORB_SLOT[slot].dy,
+                ORB_IMG_FILL_GOLD,
+                running ? ORB_IMG_ICON_RUN : ORB_IMG_ICON_WALK,
+                energy,
+                energy,
+                100,
+                ORB_TAG_RUN,
+                ops,
+                n,
+                /* Walking is the run orb's OFF state, and it wears the same
+                 * grey the spec orb wears when nothing can spend it: the disc
+                 * says whether running is on, and the number beside it still
+                 * says how much energy there is. The gold disc and the running
+                 * boot are the on state. */
+                !running);
+            slot++;
+        }
     }
 
     if( g_api->cfg_bool(ctx, "show_spec") )
@@ -404,9 +762,32 @@ orbs_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         int const spec_varp =
             orbs_varp(ctx, "spec_varp", "special_attack_energy", ORB_VARP_SPEC_FALLBACK);
         int const spec_max = g_api->cfg_int(ctx, "spec_max");
-        if( spec_varp >= 0 && spec_max > 0 )
+        if( spec_varp >= 0 && spec_max > 0 && slot < ORB_SLOT_COUNT )
         {
+            char const* ops[TORIRS_PLUGIN_REGION_OPS_MAX] = { 0 };
+            int const n =
+                orbs_ops(ctx, "spec_button", "orb_spec_button", "Use Special Attack", ops);
+            /*
+             * INACTIVE when nothing can spend it.
+             *
+             * The reference asks whether the weapon in the worn slot has a
+             * special attack at all (clientscript 2792 reads its cost out of
+             * enum 906) and greys the orb out when it does not. This client's
+             * plugin layer cannot see equipment or read an enum, so it asks
+             * the nearest question it CAN: whether this world has named a
+             * button for the orb to press. On a world with no special attack
+             * anywhere -- every LostCity one -- that is the same answer for
+             * the same reason, and it is permanently right rather than
+             * momentarily wrong.
+             *
+             * The per-weapon half is still missing, and looks like this: an
+             * orb that stays lit while holding a rune scimitar. Closing it
+             * needs the worn obj and an enum lookup in the api.
+             */
+            int const inactive = n == 0;
             int energy = g_api->varp(ctx, spec_varp);
+            int const armed = g_api->varp(ctx, spec_varp + 1) > 0;
+
             if( energy < 0 )
                 energy = 0;
             if( energy > spec_max )
@@ -414,9 +795,11 @@ orbs_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
             orbs_draw_one(
                 ctx,
                 ev->surface,
-                x,
-                y,
-                ORB_IMG_FILL_CYAN,
+                x + ORB_SLOT[slot].dx,
+                y + ORB_SLOT[slot].dy,
+                /* The lit disc while the special is ARMED, the plain one
+                 * otherwise -- graphic 1608 beside 1607, as 2792 picks them. */
+                armed ? ORB_IMG_FILL_CYAN_LIT : ORB_IMG_FILL_CYAN,
                 ORB_IMG_ICON_SPEC,
                 /* The panel reads a PERCENT, as the reference's does; the bar
                  * itself is in thousandths and only the fill uses them. */
@@ -424,8 +807,10 @@ orbs_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
                 energy,
                 spec_max,
                 ORB_TAG_SPEC,
-                orbs_verb(ctx, "spec_button", "Use Special Attack"));
-            y += pitch;
+                ops,
+                n,
+                inactive);
+            slot++;
         }
     }
 
@@ -445,9 +830,10 @@ orbs_click(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     (void)userdata;
 
     struct ToriRS_PluginEvCanvasClick* ev = (struct ToriRS_PluginEvCanvasClick*)event;
-    char const* key;
-    int component;
-    int op;
+    char const* key = NULL;
+    char const* name = NULL;
+    int component = -1;
+    int op = 0;
 
     assert(ctx);
     assert(ev);
@@ -456,30 +842,76 @@ orbs_click(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     {
     case ORB_TAG_HP:
         key = "hp_button";
+        name = "orb_hp_button";
+        break;
+    case ORB_TAG_PRAYER:
+        key = "prayer_button";
+        name = "orb_prayer_button";
         break;
     case ORB_TAG_RUN:
-        key = "run_button";
+        /*
+         * The run toggle is TWO buttons wherever the gameframe states run as a
+         * choice rather than as a switch: LostCity's controls tab carries a
+         * walk button and a run button, each `buttontype=select` on the same
+         * varp, and pressing the one that is already selected does nothing.
+         * So the orb presses the OTHER one -- and a lane that names only the
+         * first has a single toggle, which is the rev-239 shape.
+         */
+        {
+            int const run_varp =
+                orbs_varp(ctx, "run_varp", "run_mode", ORB_VARP_RUN_FALLBACK);
+            int const running = run_varp >= 0 && g_api->varp(ctx, run_varp) != 0;
+            char const* off_key = "run_button_off";
+            char const* off_name = "orb_run_off";
+
+            if( running && orbs_button(ctx, off_key, off_name, &component, &op) )
+            {
+                key = off_key;
+                break;
+            }
+            key = "run_button";
+            name = "orb_run_on";
+        }
         break;
     case ORB_TAG_SPEC:
         key = "spec_button";
+        name = "orb_spec_button";
         break;
     default:
         return TORIRS_PLUGIN_PASS;
     }
 
-    /* No button configured is the ordinary state on a lane nobody has told
-     * this plugin about, and the region offered no verb for it -- so the click
-     * that got here is a click on an orb that says it does nothing, and it
-     * does nothing. */
-    if( !orbs_parse_button(g_api->cfg_str(ctx, key), &component, &op) )
+    /* No button named is the ordinary state on a lane nobody has told this
+     * plugin about, and the region offered no verb for it -- so the click that
+     * got here is a click on an orb that says it does nothing, and it does
+     * nothing. */
+    if( component < 0 && !orbs_button(ctx, key, name, &component, &op) )
         return TORIRS_PLUGIN_PASS;
 
     if( !g_api->if_click(ctx, component, op) )
-        g_api->log(
-            ctx,
-            "%s names component 0x%x, which this gameframe does not hold",
-            key,
-            component);
+    {
+        char msg[128];
+
+        /*
+         * Said to the PLAYER, not only to the log.
+         *
+         * "The orb does nothing" is the least debuggable report a control can
+         * produce, and the cause is always the same one thing: the component
+         * this world was told to press is not in the interface tree -- the
+         * gameframe puts that button somewhere else, or does not have it at
+         * all. Naming the id turns a dead button into a line someone can act
+         * on, and it is a client-owned control, so the client is entitled to
+         * explain itself.
+         */
+        snprintf(
+            msg,
+            sizeof(msg),
+            "Minimap orbs: this world has no interface component %d for '%s'.",
+            component,
+            key);
+        g_api->notify(ctx, msg);
+        g_api->log(ctx, "%s", msg);
+    }
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -495,7 +927,9 @@ orbs_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
      * with handles the host has since handed to someone else. */
     for( int i = 0; i < ORB_IMG_COUNT; i++ )
         g_image[i] = -1;
+    g_digits_ready = 0;
     orbs_load_images(ctx);
+    orbs_load_digits(ctx);
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -508,6 +942,7 @@ orbs_stop(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 
     for( int i = 0; i < ORB_IMG_COUNT; i++ )
         g_image[i] = -1;
+    g_digits_ready = 0;
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -533,11 +968,11 @@ orbs_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
  */
 static struct ToriRS_PluginConfigItem const ORBS_CONFIG[] = {
     { "show_hp",   TORIRS_PLUGIN_CFG_BOOL, "Hitpoints orb",           "1",  0, 0,      NULL, 0 },
+    { "show_prayer", TORIRS_PLUGIN_CFG_BOOL, "Prayer orb",            "1",  0, 0,      NULL, 0 },
     { "show_run",  TORIRS_PLUGIN_CFG_BOOL, "Run energy orb",          "1",  0, 0,      NULL, 0 },
     { "show_spec", TORIRS_PLUGIN_CFG_BOOL, "Special attack orb",      "1",  0, 0,      NULL, 0 },
     { "offset_x",  TORIRS_PLUGIN_CFG_INT,  "Offset from minimap left", "6", -512, 512, NULL, 0 },
-    { "offset_y",  TORIRS_PLUGIN_CFG_INT,  "Offset from minimap top",  "0", -512, 512, NULL, 0 },
-    { "pitch",     TORIRS_PLUGIN_CFG_INT,  "Spacing between orbs",    "33", 8,  128,   NULL, 0 },
+    { "offset_y",  TORIRS_PLUGIN_CFG_INT,  "Offset from the anchor", "0", -512, 512, NULL, 0 },
     { "run_varp",  TORIRS_PLUGIN_CFG_INT,  "Run mode varp (-1 auto)", "-1", -1, 65535, NULL, 0 },
     { "spec_varp", TORIRS_PLUGIN_CFG_INT,  "Special attack varp (-1 auto)", "-1", -1, 65535, NULL, 0 },
     { "spec_max",  TORIRS_PLUGIN_CFG_INT,  "Special attack bar maximum", "1000", 1, 100000, NULL, 0 },
@@ -551,7 +986,9 @@ static struct ToriRS_PluginConfigItem const ORBS_CONFIG[] = {
      * Filling these in is a per-world job, which is what a config key is.
      */
     { "hp_button",   TORIRS_PLUGIN_CFG_STRING, "Hitpoints orb button",      "", 0, 0, NULL, 0 },
-    { "run_button",  TORIRS_PLUGIN_CFG_STRING, "Run orb button",            "", 0, 0, NULL, 0 },
+    { "prayer_button", TORIRS_PLUGIN_CFG_STRING, "Prayer orb button",       "", 0, 0, NULL, 0 },
+    { "run_button",  TORIRS_PLUGIN_CFG_STRING, "Run orb button (turns run on)", "", 0, 0, NULL, 0 },
+    { "run_button_off", TORIRS_PLUGIN_CFG_STRING, "Run orb button (turns run off)", "", 0, 0, NULL, 0 },
     { "spec_button", TORIRS_PLUGIN_CFG_STRING, "Special attack orb button", "", 0, 0, NULL, 0 },
     { NULL,        TORIRS_PLUGIN_CFG_BOOL, NULL,                      NULL, 0, 0,      NULL, 0 },
 };

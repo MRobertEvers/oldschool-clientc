@@ -747,8 +747,9 @@ attack_fixture_init(struct AttackFixture* fx, int local_level, int other_level, 
 }
 
 static void
-attack_fixture_build(
+attack_fixture_build_model(
     struct AttackFixture* fx,
+    int model,
     int player_option,
     int npc_option,
     struct UIMinimenu* out)
@@ -759,12 +760,26 @@ attack_fixture_build(
         .player_ops_primary = fx->player_ops_primary,
         .player_attack_option = player_option,
         .npc_attack_option = npc_option,
+        .attack_option_model = model,
         .world = fx->world,
         .world_pickset = &fx->picks,
         .click_in_world = true,
     };
     UIMinimenu_Reset(out);
     RS_Minimenu_AddWorldRows(&ctx, out);
+}
+
+/* The two dropdowns only exist in the settings era, so every test that states
+ * one of their values builds under that model. */
+static void
+attack_fixture_build(
+    struct AttackFixture* fx,
+    int player_option,
+    int npc_option,
+    struct UIMinimenu* out)
+{
+    attack_fixture_build_model(
+        fx, TORIRS_ATTACK_OPTION_MODEL_SETTINGS, player_option, npc_option, out);
 }
 
 /** The row whose text starts with `verb`, or -1. Deprioritized rows carry the
@@ -833,6 +848,44 @@ test_npc_attack_option(void)
     TEST_ASSERT(
         menu_action_for_verb(&menu, "Attack") == REVCONFIG_MINIMENU_OPNPC2,
         "Left-click where available ignores the level difference");
+    World_Free(fx.world);
+}
+
+/*
+ * The classic era has no dropdowns at all, so a client that never hears varp
+ * clientcode 18/22 must still offer Attack — which is what a LostCity world
+ * (rs289lc) looks like from here. Client-TS addNpcOptions also computes the
+ * combat-level bump inside its attack pass alone, so the other ops keep their
+ * natural priority against a higher-level NPC.
+ */
+static void
+test_npc_attack_option_classic(void)
+{
+    printf("TEST: the classic era emits Attack with no settings varp\n");
+
+    struct AttackFixture fx;
+    struct UIMinimenu menu;
+
+    attack_fixture_init(&fx, 50, 50, true);
+    attack_fixture_build_model(
+        &fx, TORIRS_ATTACK_OPTION_MODEL_CLASSIC, RS_ATTACK_OPTION_DEPENDS,
+        RS_ATTACK_OPTION_DEPENDS, &menu);
+    TEST_ASSERT(
+        menu_action_for_verb(&menu, "Attack") == REVCONFIG_MINIMENU_OPNPC2,
+        "an equal-level NPC is left-click-attackable");
+    World_Free(fx.world);
+
+    attack_fixture_init(&fx, 10, 21, true);
+    attack_fixture_build_model(
+        &fx, TORIRS_ATTACK_OPTION_MODEL_CLASSIC, RS_ATTACK_OPTION_DEPENDS,
+        RS_ATTACK_OPTION_DEPENDS, &menu);
+    TEST_ASSERT(
+        menu_action_for_verb(&menu, "Attack") ==
+            UIMinimenu_ActionDeprioritize(REVCONFIG_MINIMENU_OPNPC2),
+        "a higher-level NPC still sinks its Attack row");
+    TEST_ASSERT(
+        menu_action_for_verb(&menu, "Talk-to") == REVCONFIG_MINIMENU_OPNPC1,
+        "but the bump stays inside the attack pass");
     World_Free(fx.world);
 }
 
@@ -1001,6 +1054,7 @@ main(void)
     test_local_alone_no_player_ops();
     test_walk_here_ground_fallback();
     test_npc_attack_option();
+    test_npc_attack_option_classic();
     test_player_attack_option();
     test_player_attack_option_clan();
     test_dat2_obj_team_decodes();

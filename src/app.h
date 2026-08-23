@@ -27,6 +27,7 @@
 #include "inv/inv_manager.h"
 #include "platform/platform_x_io.h"
 #include "plugin/torirs_plugin_host.h"
+#include "revconfig/revconfig_profile.h"
 #include "revconfig/revconfig_refs.h"
 #include "task_runner.h"
 #include "toridraw_scene.h"
@@ -576,6 +577,19 @@ struct App
      */
     struct RevConfigRefs revconfig_refs;
 
+    /*
+     * The other half of the same profile: what this revision's client DOES,
+     * rather than which id it does it to. `[features]` states the era table
+     * (pathing, mover, painter radius); `[camera]` states what the world camera
+     * lets the player do — the 2004 frame has no zoom and no middle-button
+     * rotate, and saying so is what stops this client adding gestures the
+     * revision never had.
+     *
+     * Held for the session for the same reason the refs are: the camera policy
+     * is read on every wheel notch, long after Task_UITreeBuild is gone.
+     */
+    struct RevConfigProfile revconfig_profile;
+
     /* Phase 1: task runtime + disk (created first, freed last). Exactly one of
      * the two disks is live, per cfg.cache_kind. */
     struct TaskRunner runner; /* owns queue + io + px */
@@ -653,10 +667,10 @@ struct App
     int cam_key_right;
     int cam_key_up;
     int cam_key_down;
-    /* Middle-button rotate (revconfig mmb_rotate= on the WORLD element): the
-     * press latches inside the viewport rect and keeps the pointer until
-     * release, so a drag that wanders over the sidebar keeps rotating.
-     * cam_mmb_x/y is the pointer position the last delta was measured from. */
+    /* Middle-button rotate (revconfig `[camera] controls=mmb`): the press
+     * latches inside the viewport rect and keeps the pointer until release, so
+     * a drag that wanders over the sidebar keeps rotating. cam_mmb_x/y is the
+     * pointer position the last delta was measured from. */
     int cam_mmb_active;
     int cam_mmb_x;
     int cam_mmb_y;
@@ -664,10 +678,17 @@ struct App
      * code. Debug world hotkeys share the digit row with the rev-254 tab
      * bindings, so they check this and stand down rather than firing both. */
     uint8_t hotkey_consumed[TORIRS_OSRSKEY_COUNT];
-    /* Wheel zoom (revconfig wheel_zoom=), as a percentage of the follow cam's
-     * natural orbit distance. 100 = the reference distance; smaller is closer.
-     * The free camera dollies instead and ignores this. */
-    int world_zoom_pct;
+    /*
+     * The follow camera's eye HEIGHT: the eye sits `pitch * 3 + height` behind
+     * the player, so this is the whole of "zoom". 600 is the reference's
+     * constant (Client-TS camFollow) and smaller is closer.
+     *
+     * The wheel moves it inside the band `[camera] zoom=clamped:[min,max]`
+     * states; under `zoom=fixed:<height>` there is no band and nothing moves
+     * it, which is how a 2004 revision says it does not zoom. The free camera
+     * dollies along the view axis instead and ignores this entirely.
+     */
+    int world_cam_height;
     int world_active; /* 1 once Task_WorldLoad completed */
     /** U toggles: 1 = the follow camera stands down and W/A/S/D + R/F fly
      *  world_camera_pos freely; relocking eases back onto the player (the
@@ -832,8 +853,11 @@ struct App
         int w;
         int h;
         uint32_t tag;
-        /** The verb the player reads; "" for a region that offers none. */
-        char op[40];
+        /** The verbs the player reads, in declaration order; op 0 is the
+         *  left-click default. `op_count` 0 is a region that offers none and
+         *  exists only to stop a click falling through. */
+        char ops[TORIRS_PLUGIN_REGION_OPS_MAX][40];
+        int op_count;
     } plugin_regions[64];
     int plugin_region_count;
     /* Per-frame world map blits, filled by the GET_WORLDMAP_TILES host request

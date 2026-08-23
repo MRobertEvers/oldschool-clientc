@@ -41,6 +41,8 @@
 #define TORIRS_PLUGIN_ASSET_NAME_MAX 64
 /** Recolour pairs one world object may carry, matching a spotanimtype's six. */
 #define TORIRS_PLUGIN_OBJECT_RECOLORS_MAX 6
+/** Verbs one canvas hit region may offer, matching a component's op1..op5. */
+#define TORIRS_PLUGIN_REGION_OPS_MAX 5
 
 /*
  * Key codes for api->key_held, mirroring enum LibToriRS_KeyCode.
@@ -515,6 +517,10 @@ struct ToriRS_PluginEvCanvasClick
 {
     /** The `tag` the region was declared with. */
     uint32_t tag;
+    /** Which of the region's ops was chosen, indexing the array it was
+     *  declared with. A left click is always op 0 -- the first verb is the
+     *  default one, the same rule the reference's own op 1 follows. */
+    int op;
     /** Where the pointer was, in canvas coordinates. */
     int x;
     int y;
@@ -891,6 +897,20 @@ struct ToriRS_PluginApi
      *  those apart asks hover_tile too. */
     int (*hover_entity)(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginHoverEntity* out);
 
+    /**
+     * Where the pointer is, in canvas coordinates. Returns 0, leaving the
+     * outputs untouched, when the client has no pointer position yet.
+     *
+     * Not hover_tile, which answers with the GROUND under the pointer, and not
+     * hover_entity, which answers with a thing in the world. This is the raw
+     * point, and what it is for is chrome: a control the plugin drew knows its
+     * own box and needs only the pointer to light up when it is inside one.
+     * The alternative -- a hover event per region -- would be the same test
+     * done by the host, once per region, on a frame where the plugin is
+     * already walking its own list to draw them.
+     */
+    int (*mouse_pos)(struct ToriRS_PluginCtx* ctx, int* out_x, int* out_y);
+
     /* -- the chrome's own geometry --
      *
      * Where the client PUT something, as this frame's layout resolved it. A
@@ -1116,14 +1136,26 @@ struct ToriRS_PluginApi
      * list is rebuilt every frame from nothing, exactly like the drawing it
      * describes, so the two cannot disagree.
      *
-     * `op` is the verb the player reads -- in the mouseover line, and as the
-     * region's row in the right-click menu. A LEFT click runs it, because a
-     * region is the plugin's own real estate with nothing of the game's
-     * underneath: this is the one place a plugin row may be the default,
-     * unlike api->menu_add, which appends to a menu the game owns and where a
-     * plugin taking the default click would be taking it from something else.
-     * NULL or "" claims the pointer without offering anything -- a region that
-     * only wants to stop a click falling through to the world behind it.
+     * `ops` are the verbs the player reads: the first one in the mouseover line
+     * and as the LEFT click, all of them as rows in the right-click menu. A
+     * region may offer several, because the things it stands for do -- the
+     * reference's own orbs carry an op each and its xp orb carries two -- and
+     * a plugin that could offer only one would have to redraw the same button
+     * as several regions to say so.
+     *
+     * A left click runs op 0, because a region is the plugin's own real estate
+     * with nothing of the game's underneath: this is the one place a plugin
+     * row may be the default, unlike api->menu_add, which appends to a menu
+     * the game owns and where a plugin taking the default click would be
+     * taking it from something else.
+     *
+     * NULL or an `op_count` of 0 claims the pointer without offering anything
+     * -- a region that only wants to stop a click falling through to whatever
+     * is behind it. Empty strings inside the array are skipped, so a caller
+     * with a fixed-size table need not compact it.
+     *
+     * Rows are drawn in the reference's own order: the LAST op sinks to the
+     * bottom of the menu and the first ends up on top, beside Cancel.
      *
      * `tag` comes back in EV_CANVAS_CLICK, and is the plugin's own; the host
      * does not read it.
@@ -1141,7 +1173,8 @@ struct ToriRS_PluginApi
         int y,
         int w,
         int h,
-        char const* op,
+        char const* const* ops,
+        int op_count,
         uint32_t tag);
 
     /**

@@ -597,12 +597,17 @@ push_builtin_op(
      * A control the PROFILE invented gets an id of its own, so a click on it
      * has something to travel as.
      *
-     * Only one that offers a menu row: an id costs nothing but it also means
-     * nothing for the frame's stone sprites, and handing every decorative
-     * layer a component id would put thousands of them into the tree's
-     * by-id lookups for no reader.
+     * Only one that offers a menu row or a hover colour -- the two things a
+     * control has to be RECOGNISED at runtime for. The click path carries a
+     * component id, and so does the hover walk, which reports a node by id and
+     * only ever a node that has one (uitree_hover.c gates on `component_id >=
+     * 0`): a caption with `over_color=` and no id is a caption that never
+     * lights up. An id costs nothing but it also means nothing for the frame's
+     * stone sprites, and handing every decorative layer one would put
+     * thousands of them into the tree's by-id lookups for no reader.
      */
-    if( spec.component_id < 0 && !is_iface_mount && op->option[0] != '\0' )
+    if( spec.component_id < 0 && !is_iface_mount &&
+        (op->option[0] != '\0' || op->over_color != 0) )
         spec.component_id = TORIRS_REVCONFIG_ID_BASE + builder->authored_id_next++;
     apply_layout_position(op, &spec.position);
     spec.has_position = 1;
@@ -634,10 +639,23 @@ push_builtin_op(
 
     struct UITreeBehavior behavior;
     memset(&behavior, 0, sizeof(behavior));
-    if( op->button_type != 0 || op->client_code != 0 )
+    /*
+     * -1, not the memset's 0, and this one has bitten before.
+     *
+     * `over_layer_id` is a COMPONENT ID, and zero is a real one. The hover walk
+     * tests it before it tests anything else (`if( over_layer_id >= 0 )
+     * redirect`), so a behaviour block left at zero says "when the pointer is
+     * on me, report component 0 as hovered" -- which is not this node, so this
+     * node's own hover colour never applies, and some unrelated component
+     * lights up instead. The chrome's own sidebar button carries the same
+     * initialiser for the same reason.
+     */
+    behavior.over_layer_id = -1;
+    if( op->button_type != 0 || op->client_code != 0 || op->over_color != 0 )
     {
         behavior.button_type = op->button_type;
         behavior.client_code = op->client_code;
+        behavior.over_color = op->over_color;
         spec.behavior = &behavior;
     }
 
@@ -857,6 +875,7 @@ push_builtin_op(
         }
         spec.u.rs_text.color = op->color;
         spec.u.rs_text.center = op->center ? 1 : 0;
+        spec.u.rs_text.y_align = op->valign;
         spec.u.rs_text.shadowed = op->shadowed ? 1 : 0;
         spec.u.rs_text.text = op->text[0] ? op->text : NULL;
         break;

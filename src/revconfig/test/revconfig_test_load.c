@@ -78,7 +78,8 @@ test_load(void)
         "\n"
         "[camera]\n"
         "zoom=clamped:[240, 2160]\n"
-        "controls=mmb,arrow_keys\n";
+        "controls=mmb,arrow_keys\n"
+        "wheel_step=60\n";
 
     revconfig_load_fields_from_ini_bytes((const uint8_t*)ini, (uint32_t)strlen(ini), fields);
 
@@ -155,6 +156,8 @@ test_load(void)
             camera->u.camera.controls ==
                 (REVCONFIG_CAMERA_CONTROL_MMB | REVCONFIG_CAMERA_CONTROL_ARROW_KEYS),
             "camera controls both");
+        TEST_ASSERT(camera->u.camera.has_wheel_step == 1, "camera wheel step stated");
+        TEST_ASSERT(camera->u.camera.wheel_step == 60, "camera wheel step");
     }
 
     struct RevConfigItem const* first_layout = NULL;

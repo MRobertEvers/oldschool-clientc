@@ -446,6 +446,16 @@ fake_menu_add(void* u, void* cursor, char const* text, int action)
  * entry: a fake engine missing one is a fake that has fallen behind the
  * contract, and the assert is what says so. */
 static int
+fake_mouse_pos(void* u, int* x, int* y)
+{
+    (void)u;
+    if( x )
+        *x = 0;
+    if( y )
+        *y = 0;
+    return 1;
+}
+static int
 fake_minimap_rect(void* u, int* x, int* y, int* w, int* h)
 {
     (void)u;
@@ -521,7 +531,15 @@ fake_draw_image(
 }
 static int
 fake_hit_region(
-    void* u, int plugin, int x, int y, int w, int h, char const* op, uint32_t tag)
+    void* u,
+    int plugin,
+    int x,
+    int y,
+    int w,
+    int h,
+    char const* const* ops,
+    int op_count,
+    uint32_t tag)
 {
     (void)u;
     (void)plugin;
@@ -529,7 +547,8 @@ fake_hit_region(
     (void)y;
     (void)w;
     (void)h;
-    (void)op;
+    (void)ops;
+    (void)op_count;
     (void)tag;
     return 1;
 }
@@ -570,6 +589,7 @@ fake_engine(void)
     e.draw_line = fake_draw_line;
     e.draw_text = fake_draw_text;
     e.draw_rect = fake_draw_rect;
+    e.mouse_pos = fake_mouse_pos;
     e.minimap_rect = fake_minimap_rect;
     e.stat = fake_stat;
     e.run_energy = fake_run_energy;

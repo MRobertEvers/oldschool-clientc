@@ -49,11 +49,16 @@
  *   [features:boot] era=lostcity|osrs|server_routed
  *                 Client-behaviour generation (src/features/features.h): who
  *                 computes a click's route, and which approach model decides
- *                 "close enough to interact". Optional — absent, the era is
- *                 derived from the cache epoch/revision, which is right for
- *                 every cache-only boot. State it when the *server* diverges
- *                 from what the cache implies (xrsps paths server-side over a
- *                 rev-233 cache, so it needs era=server_routed).
+ *                 "close enough to interact". Optional, and usually absent:
+ *                 the revision profile states this now, as `[features]` in its
+ *                 RevConfig (see src/revconfig/revconfig_profile.h), and a
+ *                 profile is shared by every world that boots it. What belongs
+ *                 HERE is only what is true of one WORLD — above all a *server*
+ *                 that diverges from what the cache implies (xrsps paths
+ *                 server-side over a rev-233 cache, so it needs
+ *                 era=server_routed), or a lane whose mover is not its
+ *                 lineage's. This block overrides the profile, which in turn
+ *                 overrides ToriRS_Features_ForCache.
  *                 ground_click_nearest=ring3|box10_rect|none
  *                 Per-item override of the era's unreachable-ground-click
  *                 fallback (enum ToriRS_NearestModel): `ring3` is Client-TS's
@@ -383,8 +388,9 @@ struct BootManifest
     int js5_revision;          /* 0 = unset/inherit */
     int js5_revision_set;
 
-    /* [features:boot] — client-behaviour era name; "" = derive from the cache
-     * identity (ToriRS_Features_ForCache). */
+    /* [features:boot] — client-behaviour era name; "" = fall through to the
+     * revconfig profile's `[features] era`, and then to the cache identity
+     * (ToriRS_Features_ForCache). */
     char features_era[32];
     /* [features:boot] ground_click_nearest — enum ToriRS_NearestModel, or -1
      * for "not stated, keep the era's". Defaulted in BootManifest_Init. */

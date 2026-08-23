@@ -166,6 +166,8 @@ enum RevConfigFieldKind
     RCFIELD_UICOMPONENT_WHEEL_ZOOM,
     RCFIELD_UICOMPONENT_FONT,
     RCFIELD_UICOMPONENT_CENTER,
+    RCFIELD_UICOMPONENT_VALIGN,
+    RCFIELD_UICOMPONENT_OVER_COLOR,
     RCFIELD_UICOMPONENT_SHADOWED,
     RCFIELD_UICOMPONENT_TEXT,
     RCFIELD_UICOMPONENT_OPTION,
@@ -230,6 +232,7 @@ enum RevConfigFieldKind
     RCFIELD_FEATURES_PAINTER_DRAW_DISTANCE,
     RCFIELD_CAMERA_ZOOM,
     RCFIELD_CAMERA_CONTROLS,
+    RCFIELD_CAMERA_WHEEL_STEP,
     RCFIELD_UILAYOUT_NULL,
 };
 
@@ -569,6 +572,29 @@ struct RevConfigUIComponentItem
     /* INI: center= — horizontally centred text for type=rs_text. */
     int center;
 
+    /*
+     * INI: valign= — 0 top, 1 centre, 2 bottom (the interfaces' own `valign`).
+     * type=rs_text: where the line sits inside the widget's box.
+     *
+     * Centring is what a BUTTON caption wants, and it wants it against the
+     * whole plate rather than against a line-height box the author positioned
+     * by hand: ascent and descent differ per face, so a hand-placed 13px box
+     * that looks centred in one font sits low in the next. The cache's own
+     * button captions are authored the same way -- full height, `valign=1`.
+     */
+    int valign;
+
+    /*
+     * INI: over_color= — RGB the text/rect takes while the pointer is on it.
+     * 0 (the default) means "no hover colour", matching the reference's own
+     * test: a component with colourOver 0 keeps its ordinary colour.
+     *
+     * The cache authors this as a pair of mouseover/mouseleave scripts; a
+     * client-owned control has no scripts, so it states the colour directly
+     * and the emit does the same swap.
+     */
+    int over_color;
+
     /* INI: shadowed= — text shadow for type=rs_text. */
     int shadowed;
 
@@ -788,6 +814,10 @@ enum
 #define REVCONFIG_CAMERA_ZOOM_DEFAULT_MAX 2160
 /** The reference eye height, and this client's zoom rest position. */
 #define REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT 600
+/** `wheel_step=` when no `[camera]` section states one: one notch moves the eye
+ *  height by a tenth of the reference 600, which is what this tree's old
+ *  percentage step came to. */
+#define REVCONFIG_CAMERA_WHEEL_STEP_DEFAULT 60
 
 /*
  * `[camera]` — what the world camera lets the player do.
@@ -798,7 +828,7 @@ enum
  * nothing. Later clients interpolate it over the viewport and this one adds a
  * wheel, which is what `clamped:[min,max]` describes.
  *
- * Both keys replace what they state outright rather than merging, so a profile
+ * Every key replaces what it states outright rather than merging, so a profile
  * that says `controls=arrow_keys` has turned the middle button OFF — it has
  * not merely declined to mention it.
  */
@@ -813,11 +843,15 @@ struct RevConfigCameraItem
     int zoom_max;
     /* INI: controls= — REVCONFIG_CAMERA_CONTROL_* bits. */
     int controls;
+    /* INI: wheel_step= — eye-height units one wheel notch moves. Only the
+     * `clamped:` camera reads it; a `fixed:` band has nowhere to move. */
+    int wheel_step;
 
     /* Which keys this section actually carried, so a later source can override
      * one of them without silently restoring the default for the other. */
     uint8_t has_zoom;
     uint8_t has_controls;
+    uint8_t has_wheel_step;
 };
 
 struct RevConfigItem

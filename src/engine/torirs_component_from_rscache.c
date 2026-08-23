@@ -485,12 +485,20 @@ ToriRS_ComponentFromRSCacheDat1(const struct RSCache_Dat1ConfigComponent* src)
     dst->hide = src->hide ? 1 : 0;
     dst->button_type = src->buttonType;
     dst->client_code = src->clientCode;
-    dst->click_mask = src->targetMask;
-    /* dat1 keeps the mask as its own field, decoded only for a BUTTON_TARGET or
+    /*
+     * dat1 keeps the mask as its own field, decoded only for a BUTTON_TARGET or
      * an INV, and left at -1 ("never read") everywhere else. -1 is not a mask:
-     * passed on as one it would answer yes to every target kind, so the
-     * not-a-target case is spelled 0 here the way every other generation
-     * spells it. */
+     * passed on as one it answers yes to every bit there is.
+     *
+     * BOTH fields need saying, and only one of them used to say it. As a
+     * CLICK mask, -1 sets the drag-depth bits, so UITree_ComponentIsDraggable
+     * answered yes for every ordinary IF1 widget in the cache -- an era whose
+     * interfaces have no drag concept at all -- and most of a 2004 gameframe
+     * could be picked up and thrown around. It also makes every one of them a
+     * drop target and a click target, which is the same mistake wearing three
+     * hats.
+     */
+    dst->click_mask = src->targetMask > 0 ? src->targetMask : 0;
     dst->target_mask = src->targetMask > 0 ? src->targetMask : 0;
     dst->parent_id = src->layer;
 

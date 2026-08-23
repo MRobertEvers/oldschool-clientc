@@ -198,6 +198,7 @@ UITree_EmitFill(
      * matches this component's own id. */
     bool const hovered =
         hovered_component_id >= 0 && component->component_id == hovered_component_id;
+
     bool const active = host ? UITree_ComponentIsActiveHost(host, component) : false;
 
     if( host )
@@ -2521,9 +2522,12 @@ emit_debug_overlay_pass(
  */
 static void
 emit_plugin_canvas_pass(
+    struct UITree const* tree,
     struct UITreeHost const* host,
     struct UITreeEmitBuffer* out)
 {
+    assert(tree);
+
     struct UITreeEmitDesc desc;
     struct UITreeHostRequest req;
 
@@ -2545,6 +2549,49 @@ emit_plugin_canvas_pass(
     desc.node_index = -1;
     desc.component_id = -1;
     emit_buffer_append(out, &desc);
+
+    /*
+     * ...and then slide it back under the POINTER FEEDBACK.
+     *
+     * Plugin chrome belongs over the game and under the things that answer the
+     * pointer: the right-click menu, the mouseover line and the click cross.
+     * Appending puts it over all three, and an orb drawn across an open
+     * minimenu is not a layering nicety -- the menu is what the player is
+     * reading, and half of it is behind an orb.
+     *
+     * Found by NODE TYPE rather than by emit kind, because those three carry
+     * no kind of their own: the minimenu is a run of RECT and TEXT descs, the
+     * hover line is TEXT, the cross is a SPRITE. What they have in common is
+     * the builtin they were emitted from, which every desc names.
+     */
+    {
+        int insert_at = -1;
+
+        for( int i = 0; i < out->count - 1; i++ )
+        {
+            int32_t const node = out->cmds[i].node_index;
+            enum UITreeComponentType type;
+
+            if( node < 0 || (uint32_t)node >= tree->component_count )
+                continue;
+            type = tree->components[node].type;
+            if( type != UIELEM_BUILTIN_MINIMENU && type != UIELEM_BUILTIN_HOVERTEXT &&
+                type != UIELEM_BUILTIN_CROSS )
+                continue;
+            insert_at = i;
+            break;
+        }
+
+        if( insert_at >= 0 )
+        {
+            struct UITreeEmitDesc const moved = out->cmds[out->count - 1];
+            memmove(
+                &out->cmds[insert_at + 1],
+                &out->cmds[insert_at],
+                (size_t)(out->count - 1 - insert_at) * sizeof(*out->cmds));
+            out->cmds[insert_at] = moved;
+        }
+    }
 }
 
 /*
@@ -2675,8 +2722,9 @@ UITree_EmitWalk(
             tree, host, out, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 1);
     }
     emit_hoist_entity_overlays(tree, out);
-    /* Plugin chrome: over the interfaces, under the developer overlay. */
-    emit_plugin_canvas_pass(host, out);
+    /* Plugin chrome: over the interfaces, under the pointer feedback and the
+     * developer overlay. */
+    emit_plugin_canvas_pass(tree, host, out);
     /* Last, so developer chrome is over everything including drag ghosts. */
     emit_debug_overlay_pass(tree, host, out);
 }

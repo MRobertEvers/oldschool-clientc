@@ -224,15 +224,10 @@ enum
      * The orbit pitch band is only 255 units wide, so it moves at half that. */
     APP_WORLD_MMB_YAW_PER_PX = 4,
     APP_WORLD_MMB_PITCH_PER_PX = 2,
-    /* Wheel zoom, as a percentage of the follow camera's natural orbit
-     * distance. The bounds keep the eye outside the player model at one end
-     * and inside the scene's draw distance at the other. */
-    APP_WORLD_ZOOM_DEFAULT_PCT = 100,
-    APP_WORLD_ZOOM_MIN_PCT = 40,
-    APP_WORLD_ZOOM_MAX_PCT = 360,
-    APP_WORLD_ZOOM_STEP_PCT = 10,
     /* Free camera (offline / scripted): no orbit distance to scale, so a notch
-     * dollies along the view axis instead. */
+     * dollies along the view axis instead. The follow camera's notch is not
+     * here — it is `[camera] wheel_step=` in the revconfig, beside the band
+     * `[camera] zoom=` gives it to move in. */
     APP_WORLD_ZOOM_FREECAM_STEP = 140,
 };
 
@@ -6079,12 +6074,14 @@ app_varp_server_update(
             &app->audio, VarPManager_GetVarp(&app->varps, varp_id), &app->audio_out);
         break;
     case RS_ATTACK_OPTION_CLIENTCODE_PLAYER:
-        app->player_attack_option =
-            RS_AttackOption_FromVarp(VarPManager_GetVarp(&app->varps, varp_id));
+        if( app->features->attack_option_model == TORIRS_ATTACK_OPTION_MODEL_SETTINGS )
+            app->player_attack_option =
+                RS_AttackOption_FromVarp(VarPManager_GetVarp(&app->varps, varp_id));
         break;
     case RS_ATTACK_OPTION_CLIENTCODE_NPC:
-        app->npc_attack_option =
-            RS_AttackOption_FromVarp(VarPManager_GetVarp(&app->varps, varp_id));
+        if( app->features->attack_option_model == TORIRS_ATTACK_OPTION_MODEL_SETTINGS )
+            app->npc_attack_option =
+                RS_AttackOption_FromVarp(VarPManager_GetVarp(&app->varps, varp_id));
         break;
     default:
         break;
@@ -7522,6 +7519,35 @@ app_editor_on_state(
     const int32_t* values,
     int count);
 
+/*
+ * Boot / session-reset value for the two Attack options.
+ *
+ * Era-dependent, and the two answers are opposites. A settings-era client boots
+ * both at Hidden and only leaves that state when varp clientcode 18/22 arrives
+ * (rs_attack_option.h), so zeroing them there would left-click-attack against a
+ * server that never sends the setting. A 2004-era client has no such setting to
+ * send: Client-TS emits the Attack row unconditionally, so Hidden there hides
+ * every Attack row on every NPC and player for the whole session.
+ *
+ * Called after the feature table is resolved, never from the memset above it.
+ */
+static void
+app_attack_options_reset(struct App* app)
+{
+    assert(app);
+    assert(app->features);
+    if( app->features->attack_option_model == TORIRS_ATTACK_OPTION_MODEL_SETTINGS )
+    {
+        app->player_attack_option = RS_ATTACK_OPTION_DEFAULT;
+        app->npc_attack_option = RS_ATTACK_OPTION_DEFAULT;
+    }
+    else
+    {
+        app->player_attack_option = RS_ATTACK_OPTION_DEPENDS;
+        app->npc_attack_option = RS_ATTACK_OPTION_DEPENDS;
+    }
+}
+
 void
 App_Init(
     struct App* app,
@@ -7531,13 +7557,6 @@ App_Init(
     assert(cfg);
     memset(app, 0, sizeof(*app));
     app->cfg = *cfg;
-
-    /* Not zero: the reference boots both Attack options at Hidden and only
-     * ever leaves that state when varp clientcode 18/22 arrives (see
-     * rs_attack_option.h). Zeroing them here would left-click-attack against a
-     * server that never sends the setting. */
-    app->player_attack_option = RS_ATTACK_OPTION_DEFAULT;
-    app->npc_attack_option = RS_ATTACK_OPTION_DEFAULT;
 
     /* Before any subsystem: RS_CS2Host_Init wants its script ids, and the
      * boot font loads want theirs. Local-file parse only — no cache IO, so it
@@ -7766,7 +7785,9 @@ App_Init(
     app->world_camera_pos.z = -800;
     app->orbit_pitch = 128; /* reference orbitCameraPitch default */
     app->orbit_yaw = 0;
-    app->world_zoom_pct = APP_WORLD_ZOOM_DEFAULT_PCT;
+    /* The rest position the profile chose: the reference height when the band
+     * contains it, the pinned height under `zoom=fixed:`. */
+    app->world_cam_height = app->revconfig_profile.camera.zoom_height;
     app->world_hover_tile_x = -1;
     app->world_hover_tile_z = -1;
     app->world_hover_tile_level = 0;
@@ -7960,6 +7981,9 @@ App_Init(
          */
         app->features_storage = *app->features;
         app->features = &app->features_storage;
+        /* The era is now known, so the two Attack options can take their boot
+         * value; see app_attack_options_reset. */
+        app_attack_options_reset(app);
         {
             char const* env = getenv("TORIRS_GROUND_CLICK_NEAREST");
             int model = -1;
@@ -10312,6 +10336,44 @@ app_apply_wedge_scale(struct App* app)
     }
     if( mode < 0 )
         return;
+    /*
+     * A revision whose camera is `zoom=fixed:` has no viewport-derived
+     * projection either, and for the same reason the follow distance skips the
+     * interpolation (app_world_camera_follow): class159.method5357 IS the later
+     * client's zoom, and the 2004 client does not have it. Its projection is the
+     * bare `<< 9` in Model.project / Model.draw (Client-TS dash3d/Model.ts) --
+     * scale 512, whatever the viewport measures.
+     *
+     * Recomputing it here is what drew the 2004-era frame at HALF the reference
+     * magnification: the world viewport is 335 high, the SETFOV endpoints this
+     * era never writes default to 256, and `335 * 256 / 334` lands on 256. Half
+     * the scale reads as an eye at twice the distance -- the "camera is too far
+     * out" report against rev 289, whose `[camera]` is the shared
+     * revconfig/rs245_2lc one.
+     *
+     * An explicitly forced scale (TORIRS_WEDGE_SCALE=<n>) still wins, since it
+     * exists to bisect exactly this.
+     */
+    if( mode == 0 &&
+        app->revconfig_profile.camera.zoom_mode == REVCONFIG_CAMERA_ZOOM_FIXED )
+    {
+        app->world_camera.proj_mode = TORIDRAW_PROJ_MODE_SCALE;
+        app->world_camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
+        if( getenv("TORIRS_WEDGE_FOV_DEBUG") )
+        {
+            static int logged = 0;
+            if( !logged )
+            {
+                logged = 1;
+                fprintf(
+                    stderr,
+                    "wedge: fixed camera -> constant scale=%d (no viewport "
+                    "recompute)\n",
+                    TORIDRAW_PROJ_SCALE_DEFAULT);
+            }
+        }
+        return;
+    }
     if( !app->world_view_valid )
         return;
 
@@ -11600,13 +11662,12 @@ App_NetSessionReset(struct App* app)
 {
     assert(app);
     RS_EntitySync_Clear(&app->esync, app->world);
-    /* The reference's game-state reset puts both Attack options back to
-     * Hidden rather than recomputing them from the varp table it is about to
-     * clear (rs_attack_option.h): a re-established session onto an account
+    /* The reference's game-state reset puts both Attack options back to their
+     * boot value rather than recomputing them from the varp table it is about
+     * to clear (rs_attack_option.h): a re-established session onto an account
      * whose setting is the default 0 would otherwise keep the previous
      * session's choice until its own VARP arrived. */
-    app->player_attack_option = RS_ATTACK_OPTION_DEFAULT;
-    app->npc_attack_option = RS_ATTACK_OPTION_DEFAULT;
+    app_attack_options_reset(app);
     app->need_redraw = 1;
 }
 
@@ -15295,10 +15356,23 @@ app_world_camera_keys(
     /* Arrows drive the orbit camera (reference keyHeld[1..4]); the follow
      * step consumes these next frame. When the follow cam is off (offline or
      * scripted) fall back to the free-cam direct rotate. */
-    app->cam_key_left = LibToriRS_Input_IsKeyHeld(input, TORIRSK_LEFT);
-    app->cam_key_right = LibToriRS_Input_IsKeyHeld(input, TORIRSK_RIGHT);
-    app->cam_key_up = LibToriRS_Input_IsKeyHeld(input, TORIRSK_UP);
-    app->cam_key_down = LibToriRS_Input_IsKeyHeld(input, TORIRSK_DOWN);
+    if( app->revconfig_profile.camera.controls & REVCONFIG_CAMERA_CONTROL_ARROW_KEYS )
+    {
+        app->cam_key_left = LibToriRS_Input_IsKeyHeld(input, TORIRSK_LEFT);
+        app->cam_key_right = LibToriRS_Input_IsKeyHeld(input, TORIRSK_RIGHT);
+        app->cam_key_up = LibToriRS_Input_IsKeyHeld(input, TORIRSK_UP);
+        app->cam_key_down = LibToriRS_Input_IsKeyHeld(input, TORIRSK_DOWN);
+    }
+    else
+    {
+        /* Cleared, not merely left alone: the follow step reads these every
+         * cycle and a latch held from before the profile said no would keep
+         * accelerating the yaw for as long as the key stayed down. */
+        app->cam_key_left = 0;
+        app->cam_key_right = 0;
+        app->cam_key_up = 0;
+        app->cam_key_down = 0;
+    }
     if( app->cam_script.scripted || !app->net || app->camera_unlocked )
     {
         if( app->cam_key_left )
@@ -15504,6 +15578,16 @@ app_ui_hotkeys(
     }
 }
 
+/* Does this revision's follow camera zoom at all? `zoom=fixed:<height>` is a
+ * band of one, which is the 2004 client: the eye is `pitch * 3 + 600` behind
+ * the player and nothing the player does moves it. */
+static int
+app_world_camera_zooms(struct App const* app)
+{
+    assert(app);
+    return app->revconfig_profile.camera.zoom_min < app->revconfig_profile.camera.zoom_max;
+}
+
 /* TORIRS_CAM_DEBUG=1: one line whenever a mouse gesture moves the camera.
  * Prints whichever camera is live, since the follow cam and the free cam keep
  * their angles in different fields. */
@@ -15517,21 +15601,22 @@ app_debug_log_camera(
         return;
     fprintf(
         stderr,
-        "cam_%s: %s yaw=%d pitch=%d zoom=%d%% eye=%d,%d,%d\n",
+        "cam_%s: %s yaw=%d pitch=%d height=%d eye=%d,%d,%d\n",
         what,
         follow_cam ? "orbit" : "free",
         follow_cam ? app->orbit_yaw : app->world_camera.yaw,
         follow_cam ? app->orbit_pitch : app->world_camera.pitch,
-        app->world_zoom_pct,
+        app->world_cam_height,
         app->world_camera_pos.x,
         app->world_camera_pos.y,
         app->world_camera_pos.z);
 }
 
 /* Middle-button rotate and wheel zoom over the world viewport. Both gestures
- * are properties of the WORLD element (revconfig mmb_rotate= / wheel_zoom=),
- * read off the cached emit desc — the same desc whose rect app_world_mouse_gate
- * uses to decide the pointer is on the scene rather than on the interface.
+ * are properties of the REVISION (revconfig `[camera] controls=` and `zoom=`),
+ * not of the viewport widget: a camera that cannot zoom cannot zoom over any
+ * viewport. The emit desc is still what app_world_mouse_gate reads to decide
+ * the pointer is on the scene rather than on the interface.
  *
  * Neither gesture exists in the reference client, so there is nothing to match.
  * The rotate uses the drag-the-camera convention every OSRS client with a
@@ -15560,7 +15645,7 @@ app_world_camera_mouse(
      * the orbit follow cam owns the angles, otherwise the free camera does. */
     follow_cam = app->net && !app->cam_script.scripted;
 
-    if( app->world_emit_desc.world_mmb_rotate )
+    if( app->revconfig_profile.camera.controls & REVCONFIG_CAMERA_CONTROL_MMB )
     {
         /* Only the press has to land on the scene; once latched the drag keeps
          * the pointer until release, so sweeping over the sidebar mid-rotate
@@ -15621,7 +15706,7 @@ app_world_camera_mouse(
      * scroll pane drawn across the viewport still belongs to that pane —
      * app_world_mouse_gate alone only rejects *interactive* nodes, and an IF1
      * scroll layer is pass-through. */
-    if( app->world_emit_desc.world_wheel_zoom && input->curr.mouse_wheel_y != 0 &&
+    if( input->curr.mouse_wheel_y != 0 &&
         !out->wheel_consumed && !app->interact.minimenu.visible &&
         /* The chrome's claim is checked HERE, not inferred from consumed
          * flags: this runs long after the overlay handled input, when
@@ -15632,18 +15717,25 @@ app_world_camera_mouse(
         !ToriRSChrome_WantsWheel(&app->dbg_ui, mouse_x, mouse_y) &&
         app_world_mouse_gate(app, mouse_x, mouse_y) )
     {
-        if( follow_cam )
-        {
-            app->world_zoom_pct -= input->curr.mouse_wheel_y * APP_WORLD_ZOOM_STEP_PCT;
-            if( app->world_zoom_pct < APP_WORLD_ZOOM_MIN_PCT )
-                app->world_zoom_pct = APP_WORLD_ZOOM_MIN_PCT;
-            if( app->world_zoom_pct > APP_WORLD_ZOOM_MAX_PCT )
-                app->world_zoom_pct = APP_WORLD_ZOOM_MAX_PCT;
-        }
-        else
+        /* Only the FOLLOW camera is the revision's. The free camera is this
+         * client's own debug flight -- the one U unlocks and W/A/S/D drives --
+         * so a revision that does not zoom does not take its dolly away, or an
+         * offline rev-254 boot (which has no follow camera at all) would lose
+         * the only way it has of moving in or out. */
+        if( !follow_cam )
         {
             app_camera_move_forward(app, input->curr.mouse_wheel_y * APP_WORLD_ZOOM_FREECAM_STEP);
         }
+        else if( app_world_camera_zooms(app) )
+        {
+            app->world_cam_height = RevConfigProfile_CameraClampHeight(
+                &app->revconfig_profile,
+                app->world_cam_height -
+                    input->curr.mouse_wheel_y *
+                        app->revconfig_profile.camera.wheel_step);
+        }
+        else
+            return;
         app_debug_log_camera(app, "zoom", follow_cam);
         app->need_redraw = 1;
     }
@@ -20256,7 +20348,11 @@ app_world_camera_follow(struct App* app)
      * angles cannot drift back.
      *
      * yaw is 0..2047, pitch 128..383 (the same range the middle-button drag
-     * allows), zoom is the follow distance as a percentage.
+     * allows), zoom is the follow height as a percentage of the reference 600 —
+     * still a percentage here rather than a raw height, because that is the
+     * spelling every recorded TORIRS_ORBIT_CAM string in the tree uses. It is
+     * clamped into whatever band `[camera] zoom=` allows, so a `fixed:` profile
+     * ignores it exactly as the wheel does.
      */
     {
         static int resolved = 0;
@@ -20288,7 +20384,9 @@ app_world_camera_follow(struct App* app)
                 app->orbit_pitch_vel = 0;
             }
             if( cam_zoom > 0 )
-                app->world_zoom_pct = cam_zoom;
+                app->world_cam_height = RevConfigProfile_CameraClampHeight(
+                    &app->revconfig_profile,
+                    REVCONFIG_CAMERA_ZOOM_DEFAULT_HEIGHT * cam_zoom / 100);
         }
     }
     if( !RS_EntitySync_FindPlayer(
@@ -20394,11 +20492,20 @@ app_world_camera_follow(struct App* app)
     if( app->camera_pitch_clamp / 256 > pitch )
         pitch = app->camera_pitch_clamp / 256;
     yaw = app->orbit_yaw & 0x7ff;
-    /* Reference distance is `(pitch * 3 + 600) * viewportZoom / 256`
-     * (client.method2068); our own wheel zoom scales that. At 100% (the
-     * default, and the only value the reference has) the last term is exact. */
-    distance = (pitch * 3 + 600) * app_world_cam_dist_zoom(app) / 256;
-    distance = distance * app->world_zoom_pct / APP_WORLD_ZOOM_DEFAULT_PCT;
+    /*
+     * Reference distance is `pitch * 3 + 600` (Client-TS camFollow), later
+     * scaled by a viewport-height zoom (`* viewportZoom / 256`,
+     * client.method2068). `world_cam_height` is that 600, moved by the wheel
+     * inside whatever band `[camera] zoom=` allows.
+     *
+     * Under `zoom=fixed:` the viewport interpolation is skipped as well as the
+     * wheel, and for the same reason: it is a later client's way of zooming,
+     * and a revision that states a fixed height has said its camera has none.
+     * `fixed:600` is then Client-TS's expression exactly.
+     */
+    distance = pitch * 3 + app->world_cam_height;
+    if( app->revconfig_profile.camera.zoom_mode != REVCONFIG_CAMERA_ZOOM_FIXED )
+        distance = distance * app_world_cam_dist_zoom(app) / 256;
     off_x = 0;
     off_y = 0;
     off_z = distance;
@@ -20802,6 +20909,7 @@ app_hover_text_update(
                 .player_ops_primary = app->player_ops_primary,
                 .player_attack_option = app->player_attack_option,
                 .npc_attack_option = app->npc_attack_option,
+                .attack_option_model = app->features->attack_option_model,
                 .world = app->world,
                 /* Same rule the click paths use: world rows only when the
                  * pointer is over bare viewport. */
@@ -21183,6 +21291,7 @@ app_minimenu_open(
         .player_ops_primary = app->player_ops_primary,
         .player_attack_option = app->player_attack_option,
         .npc_attack_option = app->npc_attack_option,
+        .attack_option_model = app->features->attack_option_model,
         .world = app->world,
         .world_pickset = &app->world_pickset,
         .click_in_world = click_in_world != 0,
@@ -21659,6 +21768,7 @@ app_run_default_ui_row(
         .player_ops_primary = app->player_ops_primary,
         .player_attack_option = app->player_attack_option,
         .npc_attack_option = app->npc_attack_option,
+        .attack_option_model = app->features->attack_option_model,
         .world = app->world,
         .world_pickset = NULL,
         .click_in_world = false,
@@ -22321,11 +22431,14 @@ app_minimenu_run_option(
      */
     if( opt.action == RS_MINIMENU_ACTION_PLUGIN_REGION )
     {
-        if( opt.action_index >= 0 && opt.action_index < app->plugin_region_count )
+        int const at = opt.action_index / TORIRS_PLUGIN_REGION_OPS_MAX;
+        int const op = opt.action_index % TORIRS_PLUGIN_REGION_OPS_MAX;
+        if( opt.action_index >= 0 && at < app->plugin_region_count &&
+            op < app->plugin_regions[at].op_count )
         {
-            struct AppPluginRegion const* region = &app->plugin_regions[opt.action_index];
+            struct AppPluginRegion const* region = &app->plugin_regions[at];
             PluginHost_CanvasClick(
-                app->plugins, region->plugin, region->tag, click_x, click_y);
+                app->plugins, region->plugin, region->tag, op, click_x, click_y);
         }
         return 0; /* handled locally; no CS2 task was dispatched */
     }
@@ -23962,12 +24075,49 @@ App_RunOnce(
             app,
             input->last_click_x[TORIRSM_LEFT],
             input->last_click_y[TORIRSM_LEFT]);
-        if( region >= 0 && app->plugin_regions[region].op[0] != '\0' )
+
+        /*
+         * TORIRS_PLUGIN_REGION_DEBUG=1: which plugin region a left click
+         * landed in, and what the frame's regions actually are.
+         *
+         * "The orb does nothing" has three separate causes -- the click missed
+         * the region, the region offered no verb, or the verb pressed a
+         * component this gameframe does not hold -- and from outside they look
+         * identical. This separates the first two; the plugin's own message
+         * names the third.
+         */
+        if( getenv("TORIRS_PLUGIN_REGION_DEBUG") )
         {
+            fprintf(
+                stderr,
+                "region: click %d,%d -> %d of %d\n",
+                input->last_click_x[TORIRSM_LEFT],
+                input->last_click_y[TORIRSM_LEFT],
+                region,
+                app->plugin_region_count);
+            for( int i = 0; i < app->plugin_region_count; i++ )
+                fprintf(
+                    stderr,
+                    "  region[%d] plugin=%d %d,%d %dx%d ops=%d '%s'\n",
+                    i,
+                    app->plugin_regions[i].plugin,
+                    app->plugin_regions[i].x,
+                    app->plugin_regions[i].y,
+                    app->plugin_regions[i].w,
+                    app->plugin_regions[i].h,
+                    app->plugin_regions[i].op_count,
+                    app->plugin_regions[i].op_count > 0 ? app->plugin_regions[i].ops[0]
+                                                        : "");
+        }
+        if( region >= 0 && app->plugin_regions[region].op_count > 0 )
+        {
+            /* Op 0 is the default, the same rule the right-click menu's top
+             * row follows -- they are one decision, made once. */
             PluginHost_CanvasClick(
                 app->plugins,
                 app->plugin_regions[region].plugin,
                 app->plugin_regions[region].tag,
+                0,
                 input->last_click_x[TORIRSM_LEFT],
                 input->last_click_y[TORIRSM_LEFT]);
             plugin_region_took_click = 1;
@@ -24069,6 +24219,7 @@ App_RunOnce(
             .player_ops_primary = app->player_ops_primary,
             .player_attack_option = app->player_attack_option,
             .npc_attack_option = app->npc_attack_option,
+            .attack_option_model = app->features->attack_option_model,
             .world = app->world,
             .world_pickset = NULL, /* UI hit: mouse was over a component */
             .click_in_world = false,
@@ -24191,6 +24342,7 @@ App_RunOnce(
             .player_ops_primary = app->player_ops_primary,
             .player_attack_option = app->player_attack_option,
             .npc_attack_option = app->npc_attack_option,
+            .attack_option_model = app->features->attack_option_model,
             .world = app->world,
             .world_pickset = &app->world_pickset,
             .click_in_world = true,

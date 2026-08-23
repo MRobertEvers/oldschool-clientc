@@ -2,6 +2,7 @@
 #define SRC_RS_MINIMENU_BUILD_H
 
 #include "engine/cache_provider.h"
+#include "features/features.h"
 #include "inv/inv_manager.h"
 #include "revconfig/revconfig.h"
 #include "task_runner.h"
@@ -94,6 +95,11 @@ struct RS_MinimenuBuildCtx
      * shipped with and what the standalone tests want. */
     int player_attack_option;
     int npc_attack_option;
+    /* enum ToriRS_AttackOptionModel (features/features.h). Zero — the classic
+     * 2004 client, which has no such setting — is what the standalone tests
+     * want, and it is the value that keeps the "Depends on combat levels" bump
+     * inside the NPC attack pass instead of spreading it over every op. */
+    int attack_option_model;
 
     /* Clan-channel membership test for RS_ATTACK_OPTION_CLAN (reference
      * ClientPlayer.isClanMember, which scans the four clan channels). NULL —

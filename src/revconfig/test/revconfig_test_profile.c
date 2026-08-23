@@ -44,6 +44,25 @@ test_profile(void)
             profile.camera.controls ==
                 (REVCONFIG_CAMERA_CONTROL_MMB | REVCONFIG_CAMERA_CONTROL_ARROW_KEYS),
             "default controls both");
+        TEST_ASSERT(
+            profile.camera.wheel_step == REVCONFIG_CAMERA_WHEEL_STEP_DEFAULT,
+            "default wheel step");
+    }
+
+    /* wheel_step= is its own key: a section that states only it keeps the
+     * default band, and a later source can override it alone. */
+    {
+        struct RevConfigProfile profile;
+        RevConfigProfile_Init(&profile);
+        merge_ini(&profile, "[camera]\nzoom=clamped:[300,1200]\nwheel_step=25\n");
+        TEST_ASSERT(profile.camera.wheel_step == 25, "wheel step stated");
+        TEST_ASSERT(profile.camera.zoom_min == 300, "band stated beside it");
+        merge_ini(&profile, "[camera]\nwheel_step=100\n");
+        TEST_ASSERT(profile.camera.wheel_step == 100, "wheel step overridden");
+        TEST_ASSERT(profile.camera.zoom_min == 300, "band survives wheel step override");
+        TEST_ASSERT(profile.camera.zoom_max == 1200, "band max survives");
+        merge_ini(&profile, "[camera]\nzoom=clamped:[240,2160]\n");
+        TEST_ASSERT(profile.camera.wheel_step == 100, "wheel step survives zoom override");
     }
 
     /* The 2004 camera: pinned eye height, arrow keys only. */
