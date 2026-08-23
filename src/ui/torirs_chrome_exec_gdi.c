@@ -267,6 +267,9 @@ struct ChromeGdi
      */
     unsigned char checked[TORIRS_CHROME_MAX_WIDGETS];
     unsigned char row_action[TORIRS_CHROME_MAX_WIDGETS];
+    /** A LISTROW that cannot be switched off, so it has no switch control at
+     *  all and its own HWND is the NAME. @see TORIRS_CHROME_ROW_LOCKED. */
+    unsigned char row_locked[TORIRS_CHROME_MAX_WIDGETS];
     /** A TEXTAREA's line count -- the other half of the ADD's shape fields.
      *  The layout needs it, because a multiline row is the one row here that is
      *  not CHROME_GDI_ROW_H tall. */
@@ -1052,23 +1055,30 @@ chrome_gdi_layout(struct ChromeGdi* s)
          */
         if( w->kind == TORIRS_CHROME_W_LISTROW )
         {
-            int const tog_x = x + row_w - CHROME_GDI_TOGGLE_W;
+            /* A locked row reserves no switch column -- it has no switch --
+             * and its own control IS the name, because a row with nothing in
+             * the handle's id slot would be skipped by the walk above and
+             * never placed at all. */
+            int const locked = s->row_locked[i];
+            int const tog_x = x + row_w - (locked ? 0 : CHROME_GDI_TOGGLE_W);
             int const icon_x = tog_x - CHROME_GDI_ROW_ICON_GAP - CHROME_GDI_ROW_ICON;
             int const name_w =
                 (s->action[i] ? icon_x : tog_x) - CHROME_GDI_ROW_NAME_GAP - x;
+            HWND const name = locked ? control : s->label[i];
 
-            if( s->label[i] )
+            if( name )
                 dwp = DeferWindowPos(
-                    dwp, s->label[i], NULL, x, y, name_w > 0 ? name_w : 1, row_h,
+                    dwp, name, NULL, x, y, name_w > 0 ? name_w : 1, row_h,
                     CHROME_GDI_SWP_SHOW);
             if( s->action[i] )
                 dwp = DeferWindowPos(
                     dwp, s->action[i], NULL, icon_x,
                     y + (row_h - CHROME_GDI_ROW_ICON) / 2, CHROME_GDI_ROW_ICON,
                     CHROME_GDI_ROW_ICON, CHROME_GDI_SWP_SHOW);
-            dwp = DeferWindowPos(
-                dwp, control, NULL, tog_x, y, CHROME_GDI_TOGGLE_W, row_h,
-                CHROME_GDI_SWP_SHOW);
+            if( !locked )
+                dwp = DeferWindowPos(
+                    dwp, control, NULL, tog_x, y, CHROME_GDI_TOGGLE_W, row_h,
+                    CHROME_GDI_SWP_SHOW);
             y += row_h + CHROME_GDI_ROW_GAP;
             continue;
         }
@@ -2732,9 +2742,11 @@ chrome_gdi_add(struct ChromeGdi* s, struct ToriRSChromeCmd const* cmd)
     s->selected[cmd->widget] = 0;
     s->presented[cmd->widget] = 0;
     /* The ADD is the one command carrying a widget's SHAPE, and `w` is a
-     * LISTROW's settings affordance -- the same field the CS2 executor reads
-     * it out of. A row that gained or lost one is re-added, not updated. */
-    s->row_action[cmd->widget] = cmd->w ? 1 : 0;
+     * LISTROW's shape bits -- its settings affordance and its lock -- the same
+     * field the CS2 executor reads them out of. A row that gained or lost
+     * either is re-added, not updated. */
+    s->row_action[cmd->widget] = (cmd->w & TORIRS_CHROME_ROW_ACTION) ? 1 : 0;
+    s->row_locked[cmd->widget] = (cmd->w & TORIRS_CHROME_ROW_LOCKED) ? 1 : 0;
     /* ...and `h` is a TEXTAREA's line count. Clamped on the way in, because
      * the number reaches the seam from a plugin manifest. */
     s->rows[cmd->widget] =
@@ -2769,11 +2781,24 @@ chrome_gdi_add(struct ChromeGdi* s, struct ToriRSChromeCmd const* cmd)
          * Before this, a LISTROW fell through to the default branch and became
          * a STATIC -- a row of plugin names with no switch and no way in.
          */
-        s->label[cmd->widget] = chrome_gdi_child(s, "STATIC", SS_LEFT, cmd->label, -1);
-        if( cmd->w )
+        if( !s->row_locked[cmd->widget] )
+            s->label[cmd->widget] =
+                chrome_gdi_child(s, "STATIC", SS_LEFT, cmd->label, -1);
+        if( s->row_action[cmd->widget] )
             s->action[cmd->widget] = chrome_gdi_child(
                 s, "BUTTON", BS_OWNERDRAW, "", CHROME_GDI_ID_ACTION_BASE + cmd->widget);
-        control = chrome_gdi_child(s, "BUTTON", BS_OWNERDRAW, "", id);
+        /*
+         * A LOCKED row has no switch, so the control in the handle's own slot
+         * is its NAME instead: the mirror holds exactly one native per widget
+         * and the layout walk skips a widget that has none, so a row whose
+         * only controls were the label and the well would never be placed.
+         *
+         * A STATIC also cannot be clicked, which is the point -- there is no
+         * switch to flip, and no WM_COMMAND to ignore.
+         */
+        control = s->row_locked[cmd->widget]
+                      ? chrome_gdi_child(s, "STATIC", SS_LEFT, cmd->label, -1)
+                      : chrome_gdi_child(s, "BUTTON", BS_OWNERDRAW, "", id);
         break;
 
     case TORIRS_CHROME_W_TEXTINPUT:
@@ -3157,9 +3182,10 @@ chrome_gdi_apply(void* user, struct ToriRSChromeCmd const* cmd)
 
     case TORIRS_CHROME_CMD_WIDGET_LABEL:
         /* A checkbox carries its own caption; a roster row's name is the
-         * STATIC beside it. Both are the label, and only one of them was
+         * STATIC beside it -- or, on a LOCKED row, the widget's own control,
+         * which is that STATIC. Both are the label, and only one of them was
          * being updated -- a plugin renamed by a reload kept its old name. */
-        if( w->kind == TORIRS_CHROME_W_CHECKBOX )
+        if( w->kind == TORIRS_CHROME_W_CHECKBOX || s->row_locked[cmd->widget] )
             SetWindowTextA((HWND)w->native, cmd->label);
         else if( s->label[cmd->widget] )
             SetWindowTextA(s->label[cmd->widget], cmd->label);

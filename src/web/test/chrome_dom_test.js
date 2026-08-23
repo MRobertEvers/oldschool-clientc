@@ -440,6 +440,33 @@ check(
   addedRow(21).children.filter(c => c.classList.contains('rowact')).length === 0,
   'a row without an action gets no affordance');
 
+/*
+ * And a LOCKED row -- the same `cw` field's other bit -- must not grow a
+ * SWITCH. It is the roster's essential row (Client Settings, Feature Flags):
+ * there is no second state, so an unchecked box beside it reads as a plugin
+ * somebody turned off and a checked one is a control that does nothing.
+ */
+apply(cmd(
+  CMD.WIDGET_ADD,
+  { w: 25, v: W.LISTROW, tab: -1, label: 'Client Settings', cw: 0x1 | 0x2 }));
+const lockedRow = addedRow(25);
+check(
+  lockedRow.children.filter(c => c.classList.contains('rowsw')).length === 0,
+  'a locked row gets no switch');
+check(
+  lockedRow.children.filter(c => c.classList.contains('rowact')).length === 1,
+  'and keeps the affordance the other bit asked for');
+check(
+  lockedRow.children.filter(c => c.classList.contains('rowname'))[0].textContent ===
+    'Client Settings',
+  'and still carries its name');
+/* A CHECKED it cannot show must not throw on the way past, either: the model
+ * sends one for every widget it thinks has a switch. */
+apply(cmd(CMD.WIDGET_CHECKED, { w: 25, v: 1 }));
+check(
+  rowFor(25).children.filter(c => c.classList.contains('rowsw')).length === 0,
+  'and a later WIDGET_CHECKED does not conjure one');
+
 /* COLORPICK: the hex field is the control, and the swatch follows it. */
 apply(cmd(CMD.WIDGET_ADD, { w: 22, v: W.COLORPICK, tab: -1, label: 'beam colour' }));
 apply(cmd(CMD.WIDGET_TEXT, { w: 22, text: '#FFCC00' }));
