@@ -54,18 +54,38 @@ def main() -> int:
         REPO
         / "OSRS-Content/osrs239-content/sprites/ported/scape2009_summoning"
     )
-    expected_sprites = {
-        "summoning_orb_icon": "ab53c1293c23ee39e056f4b04a394ccb17cbf87346d4f2ca4fc36a76a1360220",
-        "summoning_orb_backing": "764e90013ff6a9076e6643af308081178834c365211eb9325fe0f6bb661c0833",
-        "summoning_orb_indicator": "9489b4c50b01cd619ab2cdff0f069e79a6286a88e105501d9e8669681ef3e932",
-        "summoning_orb_empty": "233ea60b31223e8224fb66d16e723166f8788ae92169aa74ea0ae9945a715a24",
+    # The wolf head is still the exact rev-530 import; only the sprite canvas
+    # around it changed, from 20x20 to the 26x26 box every osrs239 orb icon is
+    # centred in, so its pixels hash the same as they did before that rebox.
+    expect(
+        hashlib.sha256((sprite_root / "summoning_orb_icon" / "0.bmp").read_bytes()).hexdigest()
+        == "ab53c1293c23ee39e056f4b04a394ccb17cbf87346d4f2ca4fc36a76a1360220",
+        "summoning_orb_icon: pixels are not the exact rev-530 source sprite",
+    )
+    # The chrome is not an import at all any more. Every one of these is a
+    # transform of an osrs239 orb sprite, written by
+    # tools/make_summoning_orb_sprites.py, which is what makes this orb a member
+    # of interface 160's set rather than a rev-530 orb parked beside it. Rerun
+    # that tool if these move; do not repin them by hand.
+    derived_sprites = {
+        "summoning_orb_backing": "2327eeacb04b26097442635940785cfa4451d910d97a6be5ff54bb5cb7ff420e",
+        "summoning_orb_backing_hover": "fab7b74c936bbbecd552484ea74861f80c7f3dd28d63ac108fa5e95e2680c6c4",
+        "summoning_orb_indicator": "0fc38d6249383bbb6be6808a3a555bf42e5fad3701dda7dfa1be24f7aafec328",
+        "summoning_orb_empty": "7477bdeb15aa6486e09565c147e139d958924cdb42c5a3fd33e7ac42470f931d",
     }
-    for name, expected in expected_sprites.items():
+    for name, expected in derived_sprites.items():
         path = sprite_root / name / "0.bmp"
         expect(
             path.is_file() and hashlib.sha256(path.read_bytes()).hexdigest() == expected,
-            f"{name}: pixels are not the exact rev-530 source sprite",
+            f"{name}: not what make_summoning_orb_sprites.py derives from the cache's orb art",
         )
+    # The unlit gauge is a straight copy, so say so where it can be checked
+    # rather than only in a comment.
+    expect(
+        (sprite_root / "summoning_orb_empty" / "0.bmp").read_bytes()
+        == (sprite_root.parents[1] / "orb_filler_0" / "0.bmp").read_bytes(),
+        "the orb's unlit gauge is no longer osrs239's own orb_filler,0",
+    )
 
     args.out.mkdir(parents=True, exist_ok=True)
     bmp = args.out / "summoning_orb.bmp"
@@ -116,12 +136,15 @@ def main() -> int:
         "this build has no embedded server" not in result.stdout,
         "client was built without the embedded mock server",
     )
+    # 20027, not 1072: the hovered plate is this lane's own mirrored copy now.
     expect(
-        "static graphic=1072 abs=601,138 57x34 hidden=0" in result.stdout,
+        "static graphic=20027 abs=601,138 57x34 hidden=0" in result.stdout,
         "modern hovered orb backing did not render in the visible minimap arc",
     )
+    # The icon shares the gauge's box at the plate's 4,4 — the mirror of the
+    # native orbs' 27,4 — and is 26x26 like every other orb icon in the cache.
     expect(
-        "static graphic=20000 abs=631,145 20x20 hidden=0" in result.stdout,
+        "static graphic=20000 abs=605,142 26x26 hidden=0" in result.stdout,
         "source-authentic wolf orb icon did not render",
     )
     expect(

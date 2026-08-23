@@ -30,6 +30,13 @@ static int
 app_plugin_asset_write(void* user, char const* plugin, char const* name, void const* data, int size);
 static int
 app_plugin_screenshot(void* user, char const* plugin, char const* dir, char const* name);
+static int app_plugin_model_publish(void* user, int model, void const* data, int size);
+static void app_plugin_model_release(void* user, int model);
+static int app_plugin_mesh_create(void* user);
+static void app_plugin_mesh_destroy(void* user, int mesh);
+static void app_plugin_mesh_clear(void* user, int mesh);
+static int app_plugin_mesh_vertex(void* user, int mesh, int x, int y, int z);
+static int app_plugin_mesh_face(void* user, int mesh, int a, int b, int c, int hsl, int alpha);
 static int app_plugin_object_create(void* user);
 static void app_plugin_object_destroy(void* user, int handle);
 static void app_plugin_object_set_model(void* user, int handle, int source, int id);
@@ -1050,6 +1057,135 @@ app_plugin_cache_id(void* user, char const* kind, char const* name)
     return RevConfigRefs_Get(&app->revconfig_refs, kind, name);
 }
 
+/*
+ * One objtype, as the cache states it.
+ *
+ * A HIT and never a load, for the reason app_plugin_fill_obj gives: this runs
+ * inside a frame -- a hover, a draw -- and a snapshot verb that started IO
+ * would stall the one thing it is supposed to be cheap enough for.
+ *
+ * The twelve bonuses come out of the record's own param table. Ids 0..11 are
+ * the equipment bonuses and 14 is the attack rate in ticks -- an OldSchool
+ * convention (OpenRune's ParamMapper documents it, and the server reads the
+ * same table through read_combat_params) -- so a client running an OldSchool
+ * cache answers a weapon's stats with no hand-written bonus table anywhere.
+ * A string param's value is a `char*`, so reading one as an int would be a
+ * wild dereference and not a wrong number: those are skipped by kind.
+ */
+static int
+app_plugin_obj_info(void* user, int obj_id, struct ToriRS_PluginObjInfo* out)
+{
+    struct App* app = (struct App*)user;
+    struct ToriRS_Objtype* type;
+
+    assert(app);
+    assert(out);
+
+    if( obj_id < 0 || !app->provider )
+        return 0;
+    type = CacheProvider_ObjtypeGet(app->provider, obj_id);
+    if( !type )
+        return 0;
+
+    memset(out, 0, sizeof(*out));
+    out->obj_id = obj_id;
+    snprintf(out->name, sizeof(out->name), "%s", type->name);
+    out->cost = type->cost;
+    out->stackable = type->stackable ? 1 : 0;
+    out->cert_link = type->cert_template >= 0 ? type->cert_link : -1;
+    out->wearpos = type->wearpos;
+    out->wearpos2 = type->wearpos2;
+    out->wearpos3 = type->wearpos3;
+    out->attack_rate = -1;
+
+    for( int i = 0; i < type->param_count; i++ )
+    {
+        struct ToriRS_Param const* param = &type->params[i];
+        if( param->string_value )
+            continue;
+        if( param->key >= 0 && param->key < TORIRS_PLUGIN_BONUS_COUNT )
+        {
+            out->bonus[param->key] = param->int_value;
+            out->has_bonuses = 1;
+        }
+        else if( param->key == 14 )
+        {
+            out->attack_rate = param->int_value;
+            out->has_bonuses = 1;
+        }
+        /* Ranged strength, from whichever of the two ids this record uses. */
+        else if( param->key == 12 || param->key == 189 )
+        {
+            out->ranged_strength += param->int_value;
+            out->has_bonuses = 1;
+        }
+    }
+    return 1;
+}
+
+/* The client's container ids, which is where they already live: a plugin
+ * naming one by number would be carrying a copy of a constant it cannot
+ * check. -1 for an `inv` outside the enum, which the callers below turn into
+ * "no such container" rather than reading slot 0 of the backpack. */
+static int
+app_plugin_inv_container(int inv)
+{
+    switch( inv )
+    {
+    case TORIRS_PLUGIN_INV_BACKPACK:
+        return INV_MANAGER_CONTAINER_BACKPACK;
+    case TORIRS_PLUGIN_INV_WORN:
+        return INV_MANAGER_CONTAINER_WORN;
+    case TORIRS_PLUGIN_INV_BANK:
+        return INV_MANAGER_CONTAINER_BANK;
+    default:
+        return INV_MANAGER_CONTAINER_NONE;
+    }
+}
+
+/*
+ * One container slot.
+ *
+ * An empty slot answers 1 with an obj id of -1, and that is the distinction
+ * the return value exists to make: "the shield slot is empty" and "this client
+ * has never been told about a worn container" are different facts, and a
+ * plugin diffing against worn equipment does different things with them.
+ */
+static int
+app_plugin_inv_slot(void* user, int inv, int slot, int* out_obj_id, int* out_count)
+{
+    struct App* app = (struct App*)user;
+    int container = app_plugin_inv_container(inv);
+    struct InvContainer const* held;
+
+    assert(app);
+
+    if( container == INV_MANAGER_CONTAINER_NONE || slot < 0 )
+        return 0;
+    held = InvManager_FindContainer(&app->invs, container);
+    if( !held || slot >= InvManager_Size(&app->invs, container) )
+        return 0;
+
+    if( out_obj_id )
+        *out_obj_id = InvManager_GetObj(&app->invs, container, slot);
+    if( out_count )
+        *out_count = InvManager_GetNum(&app->invs, container, slot);
+    return 1;
+}
+
+static int
+app_plugin_inv_size(void* user, int inv)
+{
+    struct App* app = (struct App*)user;
+    int container = app_plugin_inv_container(inv);
+
+    assert(app);
+
+    if( container == INV_MANAGER_CONTAINER_NONE )
+        return 0;
+    return InvManager_Size(&app->invs, container);
+}
+
 static int
 app_plugin_project(void* user, int fine_x, int fine_z, int height, int* out_x, int* out_y)
 {
@@ -1564,13 +1700,15 @@ app_plugin_if_click(void* user, int component_id, int op)
     return 1;
 }
 
-/* Which overlay list the draw verbs above append to. @see app_overlay_push. */
+/* Which overlay list the draw verbs above append to. @see app_overlay_push.
+ * The value is enum PluginDrawSurface and is carried verbatim, because the
+ * lists are indexed by it on the other side. */
 static void
 app_plugin_draw_select_canvas(void* user, int canvas)
 {
     struct App* app = (struct App*)user;
     assert(app);
-    app->plugin_draw_canvas = canvas ? 1 : 0;
+    app->plugin_draw_canvas = canvas;
 }
 
 /* ------------------------------------------------------- chrome + the player */
@@ -1613,6 +1751,232 @@ app_plugin_minimap_rect(void* user, int* out_x, int* out_y, int* out_w, int* out
         *out_w = app->minimap_emit_desc.w;
     if( out_h )
         *out_h = app->minimap_emit_desc.h;
+    return 1;
+}
+
+/** A laid-out node's box, or 0 for one that has no size. */
+static int
+app_plugin_node_rect(
+    struct App* app, int32_t node, int* out_x, int* out_y, int* out_w, int* out_h)
+{
+    struct UITreeComponent const* c;
+
+    assert(app);
+    if( !app->tree || node < 0 || (uint32_t)node >= app->tree->component_count )
+        return 0;
+    c = &app->tree->components[node];
+    /* Unresolved or zero-sized is not a rectangle. A modal region that has
+     * never been laid out answers nothing rather than answering (0,0,0,0),
+     * which a caller would centre things on. */
+    if( c->freed || !c->position.layout_resolved )
+        return 0;
+    if( c->position.abs_w <= 0 || c->position.abs_h <= 0 )
+        return 0;
+    if( out_x )
+        *out_x = c->position.abs_x;
+    if( out_y )
+        *out_y = c->position.abs_y;
+    if( out_w )
+        *out_w = c->position.abs_w;
+    if( out_h )
+        *out_h = c->position.abs_h;
+    return 1;
+}
+
+/*
+ * The three boxes a plugin may anchor to. @see ToriRS_PluginApi::anchor_rect.
+ *
+ * MODAL is the interesting one, and it is resolved in two steps because the
+ * two gameframe families state it in two different places. A dat1 frame
+ * DECLARES a region for it -- `[component:main_modal_region] slot=main_modal`
+ * -- and that is an answer available from boot, before anything has opened. A
+ * dat2 frame declares nothing: the server names the host component in
+ * IF_OPENSUB, and it is a different one in the fixed frame than in the
+ * resizable one, so the only thing that knows is the mount. App records it
+ * there (App::modal_host_uid) and this reads it back.
+ */
+static int
+app_plugin_anchor_rect(
+    void* user, int which, int* out_x, int* out_y, int* out_w, int* out_h)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+
+    switch( which )
+    {
+    case TORIRS_PLUGIN_ANCHOR_CANVAS:
+        if( out_x )
+            *out_x = 0;
+        if( out_y )
+            *out_y = 0;
+        if( out_w )
+            *out_w = UITREE_LAYOUT_ROOT_W;
+        if( out_h )
+            *out_h = UITREE_LAYOUT_ROOT_H;
+        return 1;
+
+    case TORIRS_PLUGIN_ANCHOR_VIEWPORT:
+        if( !app->world_view_valid || app->world_emit_desc.w <= 0 ||
+            app->world_emit_desc.h <= 0 )
+            return 0;
+        if( out_x )
+            *out_x = app->world_emit_desc.x;
+        if( out_y )
+            *out_y = app->world_emit_desc.y;
+        if( out_w )
+            *out_w = app->world_emit_desc.w;
+        if( out_h )
+            *out_h = app->world_emit_desc.h;
+        return 1;
+
+    case TORIRS_PLUGIN_ANCHOR_MODAL:
+        if( app_plugin_node_rect(
+                app, app->slots.main_modal_index, out_x, out_y, out_w, out_h) )
+            return 1;
+        if( app->modal_host_uid < 0 || !app->tree )
+            return 0;
+        return app_plugin_node_rect(
+            app,
+            UITree_FindByComponentId(app->tree, app->modal_host_uid),
+            out_x,
+            out_y,
+            out_w,
+            out_h);
+
+    default:
+        return 0;
+    }
+}
+
+/* ------------------------------------------------------------ the gameframe */
+
+/*
+ * The three overlay lists and the host's three draw surfaces are one
+ * numbering. app.h restates it rather than including the host's
+ * implementation file, so this is where the two are held together.
+ */
+_Static_assert(
+    (int)APP_PLUGIN_SURFACE_WORLD == 0 && (int)APP_PLUGIN_SURFACE_CANVAS == 1 &&
+        (int)APP_PLUGIN_SURFACE_FRAME == 2,
+    "AppPluginSurface must match the host's PluginDrawSurface");
+
+/*
+ * The interface group the gameframe was rooted to, or -1 on a lane whose frame
+ * is revconfig builtins.
+ *
+ * It is what tells a cache toplevel's OWN decoration apart from the interface
+ * packs mounted inside it, and getting it wrong is not subtle in either
+ * direction: -1 on a dat2 lane leaves the toplevel's stones drawn under the
+ * plugin's, and a wrong group id hides an inventory.
+ */
+static int
+app_plugin_layout_root_group(struct App const* app)
+{
+    assert(app);
+    if( App_UiLogic((struct App*)app) == APP_UI_LOGIC_CS1 )
+        return -1;
+    return app->host.top_interface_id > 0 ? app->host.top_interface_id : -1;
+}
+
+static void
+app_plugin_layout_set(void* user, int owned, int canvas, int fixed_w, int fixed_h)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    app->plugin_layout_owned = owned ? 1 : 0;
+    app->plugin_layout_canvas = canvas;
+    app->plugin_layout_fixed_w = fixed_w;
+    app->plugin_layout_fixed_h = fixed_h;
+    /* Whatever the claim just became, the frame on screen is no longer the one
+     * that was declared -- a release has to give the lane's chrome back and a
+     * claim has to take it. */
+    app->plugin_layout_dirty = 1;
+    if( !app->plugin_layout_owned && app->tree )
+        UITree_FrameRelease(app->tree);
+    App_SyncPluginLayoutCanvas(app);
+}
+
+static void
+app_plugin_layout_begin(void* user)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    memset(app->plugin_layout_slots, 0, sizeof(app->plugin_layout_slots));
+}
+
+static int
+app_plugin_layout_slot(void* user, int slot, int x, int y, int w, int h)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginLayoutSlot* out;
+
+    assert(app);
+    assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_COUNT);
+
+    out = &app->plugin_layout_slots[slot];
+    out->placed = 1;
+    out->x = x;
+    out->y = y;
+    out->w = w;
+    out->h = h;
+    /* The answer is about the FRAME and not about the recording: a plugin asks
+     * "did that land on anything" so it knows whether to draw the housing for
+     * it, and a frame with no compass should get no compass ring. */
+    return app->tree && UITree_FrameSlotNode(app->tree, slot) >= 0;
+}
+
+static void
+app_plugin_layout_end(void* user)
+{
+    struct App* app = (struct App*)user;
+    struct UITreeFrameSlotRect rects[TORIRS_PLUGIN_SLOT_COUNT];
+
+    assert(app);
+    if( !app->tree )
+        return;
+
+    for( int i = 0; i < TORIRS_PLUGIN_SLOT_COUNT; i++ )
+    {
+        rects[i].placed = app->plugin_layout_slots[i].placed;
+        rects[i].x = app->plugin_layout_slots[i].x;
+        rects[i].y = app->plugin_layout_slots[i].y;
+        rects[i].w = app->plugin_layout_slots[i].w;
+        rects[i].h = app->plugin_layout_slots[i].h;
+    }
+    UITree_FrameApply(app->tree, rects, app_plugin_layout_root_group(app));
+    app->plugin_layout_w = UITREE_LAYOUT_ROOT_W;
+    app->plugin_layout_h = UITREE_LAYOUT_ROOT_H;
+    app->plugin_layout_dirty = 0;
+}
+
+static int
+app_plugin_tab_active(void* user)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    return app->slots.side_tab;
+}
+
+static int
+app_plugin_tab_select(void* user, int tabno)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    /* The client's own tab flip, not a varp write: which interface is on a tab
+     * is the SERVER's (IF_SETTAB), and selecting one is a client-side
+     * selection over that table. Refusing a tab the frame has nothing on is
+     * what keeps a stone drawn for a tab this cache does not fill from
+     * blanking the sidebar when it is pressed. */
+    if( tabno < 0 || tabno >= RS_UI_SLOTS_TAB_MAX )
+        return 0;
+    if( !RS_UISlots_TabEnabled(&app->slots, tabno) )
+        return 0;
+    RS_UISlots_SetSideTab(app, tabno);
     return 1;
 }
 
@@ -1820,6 +2184,8 @@ app_plugin_menu_build(
         row->npc_slot = -1;
         row->player_pid = -1;
         row->target_id = -1;
+        row->component_id = -1;
+        row->slot = -1;
 
         /* The pick carries a scene element id; a plugin speaks in server
          * slots and pids, which are the ids that survive a scene rebuild. */
@@ -1840,6 +2206,23 @@ app_plugin_menu_build(
             opt->pick.kind == UI_MINIMENU_PICK_OBJ )
         {
             row->target_id = opt->pick.secondary_id;
+        }
+        else if( opt->pick.kind == UI_MINIMENU_PICK_UI )
+        {
+            row->component_id = opt->pick.id;
+        }
+        /*
+         * An inventory cell names three things and the row carries all three:
+         * the grid it is in, the slot inside that grid, and the ITEM sitting
+         * there. The item is the target -- a row about a cell is a row about
+         * what is in it -- and the component is how a reader tells the
+         * backpack from the worn tab from a bank, which no other field says.
+         */
+        else if( opt->pick.kind == UI_MINIMENU_PICK_INV_SLOT )
+        {
+            row->component_id = opt->pick.id;
+            row->slot = opt->pick.secondary_id;
+            row->target_id = opt->pick.tertiary_id;
         }
     }
 
@@ -1873,6 +2256,9 @@ app_plugin_engine(struct App* app)
     engine.varbit = app_plugin_varbit;
     engine.varp = app_plugin_varp;
     engine.cache_id = app_plugin_cache_id;
+    engine.obj_info = app_plugin_obj_info;
+    engine.inv_slot = app_plugin_inv_slot;
+    engine.inv_size = app_plugin_inv_size;
     engine.project = app_plugin_project;
     engine.draw_tile = app_plugin_draw_tile;
     engine.draw_hull = app_plugin_draw_hull;
@@ -1889,6 +2275,13 @@ app_plugin_engine(struct App* app)
     engine.if_click = app_plugin_if_click;
     engine.mouse_pos = app_plugin_mouse_pos;
     engine.minimap_rect = app_plugin_minimap_rect;
+    engine.anchor_rect = app_plugin_anchor_rect;
+    engine.layout_set = app_plugin_layout_set;
+    engine.layout_begin = app_plugin_layout_begin;
+    engine.layout_end = app_plugin_layout_end;
+    engine.layout_slot = app_plugin_layout_slot;
+    engine.tab_active = app_plugin_tab_active;
+    engine.tab_select = app_plugin_tab_select;
     engine.stat = app_plugin_stat;
     engine.stat_xp = app_plugin_stat_xp;
     engine.skill_name = app_plugin_skill_name;
@@ -1897,6 +2290,13 @@ app_plugin_engine(struct App* app)
     engine.asset_read = app_plugin_asset_read;
     engine.asset_write = app_plugin_asset_write;
     engine.screenshot = app_plugin_screenshot;
+    engine.model_publish = app_plugin_model_publish;
+    engine.model_release = app_plugin_model_release;
+    engine.mesh_create = app_plugin_mesh_create;
+    engine.mesh_destroy = app_plugin_mesh_destroy;
+    engine.mesh_clear = app_plugin_mesh_clear;
+    engine.mesh_vertex = app_plugin_mesh_vertex;
+    engine.mesh_face = app_plugin_mesh_face;
     engine.object_create = app_plugin_object_create;
     engine.object_destroy = app_plugin_object_destroy;
     engine.object_set_model = app_plugin_object_set_model;

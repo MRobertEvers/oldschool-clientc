@@ -3,8 +3,15 @@
 
 #include <stdint.h>
 
-// 94 drawable glyphs (A-Z a-z 0-9 punctuation, space last). See Client-TS PixFont.
+// 94 drawable glyph RECORDS (A-Z a-z 0-9 punctuation, '|' last). See Client-TS PixFont.
 #define RSCACHE_DAT1_PIXFONT_CHAR_COUNT 94
+
+// The space, which is one past the last glyph record. It has no bitmap in
+// either layout -- neither the 94-record file nor the 256-record one supplies
+// its width -- so it is an ADVANCE ONLY, taken from a letter after the fact
+// ('I' in the 94-record layout, 'i' or 'I' in the 256-record one). Hence
+// char_advance is CHAR_COUNT + 1 long while every other array is CHAR_COUNT.
+#define RSCACHE_DAT1_PIXFONT_SPACE_SLOT RSCACHE_DAT1_PIXFONT_CHAR_COUNT
 
 // Bitmap font from the dat1 title jagfile ("<name>.dat" + "index.dat", e.g. b12.dat).
 struct RSCache_Dat1PixFont

@@ -402,6 +402,61 @@ fake_screenshot(void* u, char const* plugin, char const* dir, char const* name)
     return 1;
 }
 static int
+fake_model_publish(void* u, int m, void const* d, int size)
+{
+    (void)u;
+    (void)m;
+    (void)d;
+    (void)size;
+    return 0;
+}
+static void
+fake_model_release(void* u, int m)
+{
+    (void)u;
+    (void)m;
+}
+static int
+fake_mesh_create(void* u)
+{
+    (void)u;
+    return -1;
+}
+static void
+fake_mesh_destroy(void* u, int m)
+{
+    (void)u;
+    (void)m;
+}
+static void
+fake_mesh_clear(void* u, int m)
+{
+    (void)u;
+    (void)m;
+}
+static int
+fake_mesh_vertex(void* u, int m, int x, int y, int z)
+{
+    (void)u;
+    (void)m;
+    (void)x;
+    (void)y;
+    (void)z;
+    return -1;
+}
+static int
+fake_mesh_face(void* u, int m, int a, int b, int c, int hsl, int alpha)
+{
+    (void)u;
+    (void)m;
+    (void)a;
+    (void)b;
+    (void)c;
+    (void)hsl;
+    (void)alpha;
+    return -1;
+}
+static int
 fake_object_create(void* u)
 {
     (void)u;
@@ -518,6 +573,24 @@ fake_minimap_rect(void* u, int* x, int* y, int* w, int* h)
         *w = 146;
     if( h )
         *h = 151;
+    return 1;
+}
+/* The gameframe boxes a plugin anchors to. One rect for every `which`: these
+ * plugins never ask, and what the suite needs is that the entry point exists
+ * -- PluginHost_New asserts every one of them. */
+static int
+fake_anchor_rect(void* u, int which, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    (void)which;
+    if( x )
+        *x = 0;
+    if( y )
+        *y = 0;
+    if( w )
+        *w = 512;
+    if( h )
+        *h = 334;
     return 1;
 }
 static int
@@ -682,6 +755,7 @@ fake_engine(void)
     e.draw_rect = fake_draw_rect;
     e.mouse_pos = fake_mouse_pos;
     e.minimap_rect = fake_minimap_rect;
+    e.anchor_rect = fake_anchor_rect;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;
     e.skill_name = fake_skill_name;
@@ -698,6 +772,13 @@ fake_engine(void)
     e.asset_read = fake_asset_read;
     e.asset_write = fake_asset_write;
     e.screenshot = fake_screenshot;
+    e.model_publish = fake_model_publish;
+    e.model_release = fake_model_release;
+    e.mesh_create = fake_mesh_create;
+    e.mesh_destroy = fake_mesh_destroy;
+    e.mesh_clear = fake_mesh_clear;
+    e.mesh_vertex = fake_mesh_vertex;
+    e.mesh_face = fake_mesh_face;
     e.object_create = fake_object_create;
     e.object_destroy = fake_object_destroy;
     e.object_set_model = fake_object_set_model;

@@ -428,7 +428,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	audio/torirs_soundbank.c audio/torirs_midi_synth.c audio/torirs_music.c \
 	engine/dat2/task_dat2_music_load.c \
 	engine/uitree_anim.c engine/entity_model_build.c \
-	ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
+	ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c \
 	ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 	ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
 	ui/uitree_hovertext.c ui/uitree_debug_overlay.c \
@@ -477,6 +477,8 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	plugin/plugins/tileind.c \
 	plugin/plugins/minimap_orbs.c \
 	plugin/plugins/xp_orbs.c \
+	plugin/plugins/gameframe.c \
+	plugin/plugins/item_stats.c \
 	plugin/plugins/nxt_highlight.c \
 	plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
 	painters/painters.c \
@@ -1053,6 +1055,37 @@ rs2012-qbd-kernel-survey: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/torid
 		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/bzip.o \
 		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
 
+.PHONY: plugin-model-extract plugin-beam-assets
+
+plugin-model-extract: $(OBJ_DIR) $(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o \
+		$(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_model_extract \
+		plugin/tools/plugin_model_extract.c \
+		engine/torirs_model_from_rscache.c engine/toridraw_model_from_torirs.c \
+		engine/toridraw_animation_from_rscache.c engine/torirs_types.c \
+		$(OBJ_DIR)/rscache_unity.o $(OBJ_DIR)/toridraw_unity.o $(OBJ_DIR)/bzip.o \
+		$(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o $(OBJ_DIR)/xteas.o $(LDFLAGS)
+
+# The loot beam's two shipped models, lifted out of OSRS 239.
+#
+# Committed under script/plugins/assets/, so a clone has them and no boot reads
+# a model id out of whatever cache it happens to be running. Re-run this only
+# to refresh them or to re-point the plugin at different geometry; the source
+# cache is ~ a gigabyte and is NOT carried by a clone (.gitignore's `cache.*/`),
+# so the recipe names it rather than assuming it.
+PLUGIN_BEAM_SRC_CACHE ?= $(REPO_ROOT)/cache.osrs239
+PLUGIN_BEAM_ASSETS = $(REPO_ROOT)/script/plugins/assets/loot-beam
+
+plugin-beam-assets: plugin-model-extract
+	@test -d $(PLUGIN_BEAM_SRC_CACHE) || { \
+		echo "plugin-beam-assets: $(PLUGIN_BEAM_SRC_CACHE) is missing;"; \
+		echo "  obtain the OSRS 239 cache or set PLUGIN_BEAM_SRC_CACHE=<dir>"; \
+		exit 1; }
+	./$(OBJ_DIR)/plugin_model_extract --cache $(PLUGIN_BEAM_SRC_CACHE) --rev osrs239 \
+		--model 43330 --out $(PLUGIN_BEAM_ASSETS)/beam_modern.model
+	./$(OBJ_DIR)/plugin_model_extract --cache $(PLUGIN_BEAM_SRC_CACHE) --rev osrs239 \
+		--model 5809 --out $(PLUGIN_BEAM_ASSETS)/beam_light.model
+
 rs2012-material-bake: $(OBJ_DIR) $(OBJ_DIR)/proctex_generator.o $(OBJ_DIR)/rscache_unity.o \
 		$(OBJ_DIR)/bmp.o $(OBJ_DIR)/bzip.o $(OBJ_DIR)/bzip_encode.o $(OBJ_DIR)/miniz.o \
 		$(OBJ_DIR)/xteas.o
@@ -1525,7 +1558,7 @@ test-xp-orbs: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/xp_orbs.c \
 		plugin/torirs_plugin_host.c ui/uitree_minimenu.c \
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/xp_orbs.c \
 		plugin/test/xp_orbs_test.c $(LDFLAGS)
-	./$(OBJ_DIR)/xp_orbs_test
+	XP_ORBS_TEST_PNG=$(OBJ_DIR)/xp_orbs_test.png ./$(OBJ_DIR)/xp_orbs_test
 
 test-editor-cmd: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
 		editor/test/editor_cmd_test.c
@@ -1767,7 +1800,7 @@ test-cs1: $(OBJ_DIR)
 		cs1vm/cs1vm.c cs1vm/cs1vm_script.c \
 		game/rs_cs1_host.c game/rs_player_stats.c \
 		inv/inv_manager.c varp/varp_manager.c \
-		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
+		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c \
 		ui/uitree_scroll.c ui/uitree_emit.c ui/uitree_inv_view.c \
 		ui/uitree_cross.c ui/uitree_minimenu.c ui/uitree_hovertext.c \
 		perf/torirs_perf.c \
@@ -1962,7 +1995,7 @@ CHROME_EXEC_TEST_CFLAGS = -UTORIRS_CHROME_EXEC_SDL_AVAILABLE
 test-uitree: $(OBJ_DIR)
 	@mkdir -p build
 	$(CC) $(CFLAGS) -I$(SRC_DIR)/ui -I$(SRC_DIR)/ui/test -o $(OBJ_DIR)/uitree_test \
-		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c \
+		ui/uitree.c ui/uitree_hook.c ui/uitree_component_options.c engine/torirs_component_hook.c ui/uitree_layout.c ui/uitree_build.c ui/uitree_host.c ui/uitree_frame.c \
 		ui/uitree_input.c ui/uitree_hover.c ui/uitree_scroll.c ui/uitree_emit.c \
 		ui/uitree_inv_view.c ui/uitree_obj_cell.c ui/uitree_cross.c ui/uitree_minimenu.c \
 		ui/uitree_hovertext.c ui/uitree_debug_overlay.c \

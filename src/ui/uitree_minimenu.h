@@ -13,7 +13,12 @@
  * drawn bottom-to-top so the highest-priority (last after sort) entry is on top.
  */
 
-#define UITREE_MINIMENU_MAX_OPTIONS 10
+/* Reference cap: Client.ts addWorldOptions refuses to add past 400 rows
+ * (Client.ts:9465, :9560) into a 500-slot array. Ours was 10, which is
+ * fewer rows than a single ground tile with five items produces -- the
+ * overflow was dropped silently by UIMinimenu_AddOption, so a stack of
+ * objs listed only the first few and the rest were unreachable. */
+#define UITREE_MINIMENU_MAX_OPTIONS 400
 #define UITREE_MINIMENU_OPTION_LEN 128
 /** Default bold-12 glyph line box: max(offset_y + glyph_height) == 16. */
 #define UITREE_MINIMENU_DEFAULT_LINE_BOX 16

@@ -569,6 +569,47 @@ test_obj_pick_expands_siblings(void)
     World_Free(world);
 }
 
+/*
+ * A pile of ground items produces two rows apiece (Take + Examine) plus the
+ * Walk here row, so six objs on one tile is thirteen rows. The menu array used
+ * to hold ten and UIMinimenu_AddOption dropped the overflow without a word,
+ * which showed up in game as a right-click on a stack listing only the first
+ * four items -- the rest were unreachable. Six objs is the smallest count that
+ * proves the cap is gone.
+ */
+static void
+test_obj_stack_beyond_old_cap(void)
+{
+    printf("TEST: a six-obj stack lists every item\n");
+
+    struct World* world = World_TestMakeReady(104);
+    char actions[5][32] = { { 0 } };
+    static char const* const names[6] = { "Bucket", "Small fishing net", "Tinderbox",
+                                          "Bronze axe", "Shears", "Spade" };
+    for( int i = 0; i < 6; i++ )
+        World_ObjStackAdd(world, 600 + i, 15, 15, 0, 1000 + i, 1, names[i], actions);
+
+    struct World_PickSet picks;
+    World_PickSetReset(&picks);
+    World_PickSetAdd(&picks, 600, WORLD_PICK_OBJSTACK, 15, 15, 0);
+
+    struct RS_MinimenuBuildCtx ctx = {
+        .selection = { .mode = RS_MINIMENU_SELECT_NONE },
+        .world = world,
+        .world_pickset = &picks,
+        .click_in_world = true,
+    };
+    struct UIMinimenu menu;
+    UIMinimenu_Reset(&menu);
+    RS_Minimenu_AddWorldRows(&ctx, &menu);
+
+    for( int i = 0; i < 6; i++ )
+        TEST_ASSERT(menu_has_substr(&menu, names[i]), names[i]);
+    TEST_ASSERT(menu.option_count >= 13, "six objs emit at least thirteen rows");
+
+    World_Free(world);
+}
+
 static void
 test_local_alone_no_player_ops(void)
 {
@@ -1051,6 +1092,7 @@ main(void)
     test_other_player_stack_rows();
     test_local_player_pick_expands_ground_items();
     test_obj_pick_expands_siblings();
+    test_obj_stack_beyond_old_cap();
     test_local_alone_no_player_ops();
     test_walk_here_ground_fallback();
     test_npc_attack_option();

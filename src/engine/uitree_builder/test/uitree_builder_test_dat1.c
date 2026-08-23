@@ -131,13 +131,14 @@ main(
             invback->frames[0].width > 100 && invback->frames[0].height > 100,
             "invback has plausible dimensions");
 
-    /* pix32 + INI crop. */
+    /* pix32, uncropped: the compass keeps its native 51x51 canvas so the
+     * rotated blit pivots on its centre pixel. */
     struct ToriRS_Sprite* compass = sprite_by_name(provider, "compass");
     CHECK(compass != NULL, "compass (pix32) decoded");
     if( compass )
         CHECK(
-            compass->frames[0].width == 34 && compass->frames[0].height == 34,
-            "compass cropped to 34x34");
+            compass->frames[0].width == 51 && compass->frames[0].height == 51,
+            "compass keeps its native 51x51 canvas");
 
     /* Multi-frame atlas. */
     struct ToriRS_Sprite* sideicons = sprite_by_name(provider, "sideicons");

@@ -66,6 +66,18 @@ struct FakeEngine
     char last_shot_name[64];
     struct FakeObject objects[FAKE_OBJECTS_MAX];
     int objects_live;
+    /* Meshes: counts only. What the triangles ARE is the engine's business
+     * and is tested where the engine is; what the host owes is that a handle
+     * reaches the engine, that the budget refuses past it, and that a stopped
+     * plugin's meshes go with it. */
+    int model_publishes;
+    int model_releases;
+    int last_model_size;
+    int meshes_live;
+    int mesh_creates;
+    int mesh_vertices;
+    int mesh_faces;
+    int mesh_clears;
 };
 
 static struct FakeEngine g_engine;
@@ -319,6 +331,75 @@ fake_screenshot(void* u, char const* plugin, char const* dir, char const* name)
 }
 
 static int
+fake_model_publish(void* u, int model, void const* data, int size)
+{
+    struct FakeEngine* e = u;
+    (void)model;
+    (void)data;
+    e->model_publishes++;
+    /* Size is the whole test: the host must forward the asset's bytes, and a
+     * publish of nothing is the bug this catches. */
+    e->last_model_size = size;
+    return size > 0;
+}
+
+static void
+fake_model_release(void* u, int model)
+{
+    struct FakeEngine* e = u;
+    (void)model;
+    e->model_releases++;
+}
+
+static int
+fake_mesh_create(void* u)
+{
+    struct FakeEngine* e = u;
+    e->mesh_creates++;
+    return e->meshes_live++;
+}
+
+static void
+fake_mesh_destroy(void* u, int mesh)
+{
+    struct FakeEngine* e = u;
+    (void)mesh;
+    e->meshes_live--;
+}
+
+static void
+fake_mesh_clear(void* u, int mesh)
+{
+    struct FakeEngine* e = u;
+    (void)mesh;
+    e->mesh_clears++;
+}
+
+static int
+fake_mesh_vertex(void* u, int mesh, int x, int y, int z)
+{
+    struct FakeEngine* e = u;
+    (void)mesh;
+    (void)x;
+    (void)y;
+    (void)z;
+    return e->mesh_vertices++;
+}
+
+static int
+fake_mesh_face(void* u, int mesh, int a, int b, int c, int hsl, int alpha)
+{
+    struct FakeEngine* e = u;
+    (void)mesh;
+    (void)a;
+    (void)b;
+    (void)c;
+    (void)hsl;
+    (void)alpha;
+    return e->mesh_faces++;
+}
+
+static int
 fake_object_create(void* u)
 {
     struct FakeEngine* e = u;
@@ -467,6 +548,93 @@ fake_minimap_rect(void* u, int* x, int* y, int* w, int* h)
         *w = 146;
     if( h )
         *h = 151;
+    return 1;
+}
+/*
+ * The engine entry points this suite does not exercise.
+ *
+ * PluginHost_New asserts every one of them, so a seam that grows a callback
+ * aborts the whole suite on its first line until the fake catches up -- which
+ * is the point of the assert, and is why these are stubs with honest answers
+ * rather than omissions. Each returns the "this frame has none" answer its
+ * contract defines.
+ */
+static void
+fake_layout_set(void* u, int owned, int canvas, int fixed_w, int fixed_h)
+{
+    (void)u;
+    (void)owned;
+    (void)canvas;
+    (void)fixed_w;
+    (void)fixed_h;
+}
+static int
+fake_layout_slot(void* u, int slot, int x, int y, int w, int h)
+{
+    (void)u;
+    (void)slot;
+    (void)x;
+    (void)y;
+    (void)w;
+    (void)h;
+    return 0;
+}
+static int
+fake_tab_active(void* u)
+{
+    (void)u;
+    return -1;
+}
+static int
+fake_tab_select(void* u, int tabno)
+{
+    (void)u;
+    (void)tabno;
+    return 0;
+}
+static int
+fake_obj_info(void* u, int obj_id, struct ToriRS_PluginObjInfo* out)
+{
+    (void)u;
+    (void)obj_id;
+    (void)out;
+    return 0;
+}
+static int
+fake_inv_slot(void* u, int inv, int slot, int* out_obj_id, int* out_count)
+{
+    (void)u;
+    (void)inv;
+    (void)slot;
+    (void)out_obj_id;
+    (void)out_count;
+    return 0;
+}
+static int
+fake_inv_size(void* u, int inv)
+{
+    (void)u;
+    (void)inv;
+    return 0;
+}
+
+/* The gameframe boxes a plugin anchors to. One rect for every `which`: the
+ * host only forwards the call, so what the test needs from it is that it
+ * exists -- PluginHost_New asserts every engine entry point, and a NULL here
+ * aborted the suite before its first case. */
+static int
+fake_anchor_rect(void* u, int which, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    (void)which;
+    if( x )
+        *x = 0;
+    if( y )
+        *y = 0;
+    if( w )
+        *w = 512;
+    if( h )
+        *h = 334;
     return 1;
 }
 static int
@@ -649,6 +817,14 @@ fake_engine(void)
     e.draw_rect = fake_draw_rect;
     e.mouse_pos = fake_mouse_pos;
     e.minimap_rect = fake_minimap_rect;
+    e.anchor_rect = fake_anchor_rect;
+    e.layout_set = fake_layout_set;
+    e.layout_slot = fake_layout_slot;
+    e.tab_active = fake_tab_active;
+    e.tab_select = fake_tab_select;
+    e.obj_info = fake_obj_info;
+    e.inv_slot = fake_inv_slot;
+    e.inv_size = fake_inv_size;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;
     e.skill_name = fake_skill_name;
@@ -666,6 +842,13 @@ fake_engine(void)
     e.asset_read = fake_asset_read;
     e.asset_write = fake_asset_write;
     e.screenshot = fake_screenshot;
+    e.model_publish = fake_model_publish;
+    e.model_release = fake_model_release;
+    e.mesh_create = fake_mesh_create;
+    e.mesh_destroy = fake_mesh_destroy;
+    e.mesh_clear = fake_mesh_clear;
+    e.mesh_vertex = fake_mesh_vertex;
+    e.mesh_face = fake_mesh_face;
     e.object_create = fake_object_create;
     e.object_destroy = fake_object_destroy;
     e.object_set_model = fake_object_set_model;
@@ -827,6 +1010,8 @@ gamma_asset(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
     return TORIRS_PLUGIN_PASS;
 }
 
+static int g_gamma_mesh = -1;
+
 static void
 gamma_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
 {
@@ -841,6 +1026,18 @@ gamma_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
         if( handle >= 0 )
             g_gamma_objects[g_gamma_object_count++] = handle;
     }
+
+    /* One authored triangle, so the mesh seam is exercised by a plugin that
+     * also uses the cache seam: the two sources have to coexist on one host. */
+    g_gamma_mesh = api->mesh_create(ctx);
+    if( g_gamma_mesh >= 0 )
+    {
+        int const a = api->mesh_vertex(ctx, g_gamma_mesh, -64, 0, 0);
+        int const b = api->mesh_vertex(ctx, g_gamma_mesh, 64, 0, 0);
+        int const c = api->mesh_vertex(ctx, g_gamma_mesh, 0, -256, 0);
+        api->mesh_face(ctx, g_gamma_mesh, a, b, c, api->hsl_from_rgb(ctx, 0xFF9600), 64);
+    }
+
     for( int i = 0; i < g_gamma_object_count; i++ )
     {
         api->object_set_model(ctx, g_gamma_objects[i], TORIRS_PLUGIN_MODEL_CACHE, 43330);
@@ -851,6 +1048,7 @@ gamma_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
     }
 }
 
+/* Declared beside the objects it stands next to; see gamma_init. */
 static struct ToriRS_PluginDef const GAMMA = {
     .name = "gamma",
     .version = "1",
@@ -1224,6 +1422,26 @@ main(void)
         CHECK(g_engine.objects[g_gamma_objects[0]].recolors == 1, "so is the recolour pair");
         CHECK(g_api->object_ready(ctx, g_gamma_objects[0]) == 1, "object_ready reports the engine");
 
+        /* Authored geometry. */
+        CHECK(g_gamma_mesh >= 0, "mesh_create hands out a handle");
+        CHECK(g_engine.meshes_live == 1, "and it reaches the engine");
+        CHECK(g_engine.mesh_vertices == 3, "every vertex is forwarded");
+        CHECK(g_engine.mesh_faces == 1, "and so is the face");
+        {
+            /* The budget is a runtime fact, not a contract violation: past it
+             * mesh_create refuses rather than aborting, exactly as
+             * object_create does. */
+            int taken = 0;
+            for( int i = 0; i < TORIRS_PLUGIN_MESH_BUDGET + 4; i++ )
+            {
+                if( g_api->mesh_create(ctx) >= 0 )
+                    taken++;
+            }
+            CHECK(
+                taken == TORIRS_PLUGIN_MESH_BUDGET - 1,
+                "mesh_create refuses past the plugin's budget");
+        }
+
         /* Ground items reach a plugin. */
         {
             struct ToriRS_PluginObjSnap snap;
@@ -1268,6 +1486,29 @@ main(void)
         CHECK(
             g_api->asset_data(ctx, "missing.txt", NULL) == NULL,
             "and leaves nothing resident");
+
+        /*
+         * A shipped model is a file: the handle is live before the bytes are,
+         * and the arrival is what publishes it.
+         */
+        {
+            int const shipped = g_api->model_load(ctx, "beam.model");
+            CHECK(shipped >= 0, "model_load hands out a handle");
+            CHECK(
+                g_api->model_load(ctx, "beam.model") == shipped,
+                "and a second load of the same file is the same handle, not a second copy");
+            CHECK(g_engine.model_publishes == 0, "nothing is published before the bytes land");
+            {
+                char* bytes = malloc(16);
+                memset(bytes, 0x7f, 16);
+                PluginHost_AssetDeliver(host3, "gamma", "beam.model", bytes, 16);
+            }
+            CHECK(g_engine.model_publishes == 1, "the delivery publishes it");
+            CHECK(g_engine.last_model_size == 16, "with the asset's own bytes");
+        }
+        CHECK(
+            g_api->model_load(ctx, "../beam.model") == -1,
+            "a path model name is refused, like every other asset name");
 
         /* Save replaces the resident copy before the write is queued. */
         CHECK(g_api->asset_save(ctx, "prices.txt", "4151=1", 6) == 1, "asset_save is accepted");
@@ -1417,6 +1658,8 @@ main(void)
         /* Stopping the plugin takes its geometry and its bytes with it. */
         PluginHost_SetEnabled(host3, g, false);
         CHECK(g_engine.objects_live == 0, "a stopped plugin's world objects are destroyed");
+        CHECK(g_engine.meshes_live == 0, "and so are its meshes");
+        CHECK(g_engine.model_releases == 1, "and its shipped models are released");
         {
             struct ToriRS_PluginHost* host4 = PluginHost_New(&engine);
             PluginHost_Register(host4, &GAMMA);
@@ -1429,6 +1672,7 @@ main(void)
             CHECK(g_gamma_assets == 0, "a delivery nobody asked for raises nothing");
             PluginHost_Free(host4);
             CHECK(g_engine.objects_live == 0, "and freeing a host destroys its objects too");
+            CHECK(g_engine.meshes_live == 0, "meshes included");
         }
 
         PluginHost_Free(host3);

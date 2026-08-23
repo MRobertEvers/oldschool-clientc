@@ -198,6 +198,64 @@ enum AppPluginRowKind
 #define APP_PLUGIN_OBJECTS_MAX 256
 
 /*
+ * One model FILE a plugin ships, decoded and held for as long as it runs.
+ *
+ * Held as a ToriRS_Model -- the decoded form, not the bytes and not a drawable
+ * model -- for the same reason a mesh is held as triangles: the file is the
+ * plugin's SHAPE, and every object standing on it builds its own drawable copy
+ * with its own recolours and its own lighting baked in.
+ *
+ * `revision` moves when the geometry arrives or goes, which is what tells the
+ * objects already pointed at this slot that there is now something to build.
+ */
+struct AppPluginAssetModel
+{
+    int in_use;
+    int revision;
+    struct ToriRS_Model* model;
+};
+
+/* Authored meshes across every plugin at once: TORIRS_PLUGIN_MAX plugins at
+ * TORIRS_PLUGIN_MESH_BUDGET each, which is what the host will hand out and so
+ * what this has to be able to hold. */
+#define APP_PLUGIN_MESHES_MAX 128
+
+/*
+ * One mesh a plugin authored, triangle by triangle.
+ *
+ * Held as the plugin stated it -- vertices, faces, packed HSL, transparency --
+ * and not as a ToriDraw_Model, because the two have different lifetimes: the
+ * mesh is the plugin's SHAPE and outlives any number of objects standing on
+ * it, each of which builds its own model (its own lighting, its own recolours,
+ * its own bounds) from these arrays.
+ *
+ * `revision` moves on every edit. It is what an object's built_mesh_revision
+ * is compared against, so re-authoring a mesh rebuilds the objects made from
+ * it and re-stating one unchanged rebuilds nothing.
+ */
+struct AppPluginMesh
+{
+    int in_use;
+    int revision;
+    /* Grown on append rather than sized to TORIRS_PLUGIN_MESH_*_MAX up front:
+     * the ceilings are what a plugin may not exceed, not what one costs, and
+     * a table of 128 meshes at the maximum would be megabytes of App that
+     * nothing has authored. */
+    int vertex_count;
+    int vertex_cap;
+    int face_count;
+    int face_cap;
+    int16_t* vertices_x;
+    int16_t* vertices_y;
+    int16_t* vertices_z;
+    int16_t* face_a;
+    int16_t* face_b;
+    int16_t* face_c;
+    uint16_t* face_color;
+    uint8_t* face_alpha;
+};
+
+/*
  * Frame captures a plugin has asked for and the client has not taken yet.
  *
  * Small on purpose. A capture is a rare, deliberate act -- a level-up, a boss
@@ -245,6 +303,11 @@ struct AppPluginObject
     int built_source;
     int built_model_id;
     int built_recolor_stamp;
+    /** The revision of the geometry the live element was built from -- a mesh's
+     *  or a shipped model's -- so re-authoring it, or its arriving late,
+     *  rebuilds the object, and re-stating the same geometry does not. 0 for
+     *  the cache-sourced kinds, which have nothing of the sort. */
+    int built_geometry_revision;
     /** A load task is in flight. Without this a plugin polling a not-yet-
      *  resident model on every frame would queue a task per frame. */
     int load_pending;
@@ -471,6 +534,20 @@ struct AppConfig
      * --window overrides, and TORIRS_ROOT_SIZE overrides both. */
     int window_w;
     int window_h;
+};
+
+/**
+ * Which plugin overlay list is open. The values are the plugin host's
+ * `draw_select_canvas` argument, restated here rather than included because
+ * app.h is not allowed to reach into the host's implementation file -- the
+ * static assert beside the engine table in torirs_plugin_bridge.u.c is what
+ * keeps the two true.
+ */
+enum AppPluginSurface
+{
+    APP_PLUGIN_SURFACE_WORLD = 0,
+    APP_PLUGIN_SURFACE_CANVAS = 1,
+    APP_PLUGIN_SURFACE_FRAME = 2
 };
 
 /** App boot lifecycle: BOOTING until the root-interface build task (and its
@@ -795,6 +872,21 @@ struct App
     struct World_PickSet world_pickset;
     struct UITreeEmitDesc world_emit_desc;
     int world_view_valid;
+    /**
+     * The component the last MODAL sub-interface was mounted on, or -1.
+     *
+     * Recorded because "where does a modal open" is a question with no static
+     * answer: the dat1 gameframes declare a region for it (`slot=main_modal`),
+     * the dat2 ones do not -- the server names the host in IF_OPENSUB and it is
+     * a different component in the fixed frame than in the resizable one. The
+     * only thing that knows is the mount itself, so the mount is where it is
+     * written down.
+     *
+     * Kept across the close, deliberately: it is an answer about the FRAME
+     * ("modals go here"), not about the interface that happened to be open, and
+     * a reader asking between two modals wants the same rectangle.
+     */
+    int modal_host_uid;
     /* Minimap widget: cached emit desc (on-screen box + the rotation/anchor
      * the blit drew with) for click-to-walk, and the destination flag tile
      * (scene coords, -1 = none; reference minimapFlagX/Z). */
@@ -830,8 +922,22 @@ struct App
      */
     struct UITreeEntityOverlay canvas_overlays[512];
     int canvas_overlay_count;
-    /** Which of the two lists the plugin draw verbs append to this dispatch:
-     *  0 world, 1 canvas. Set by the host around each draw window. */
+    /*
+     * The plugin FRAME overlay: chrome, over the 3D scene and under the
+     * interfaces (UITREE_HOST_GET_FRAME_OVERLAYS).
+     *
+     * The third list, for the same reason there is a second: a third clip and
+     * a third place in the emit order need a third desc. It is the biggest of
+     * them because a whole gameframe is drawn through it -- a 2004 surround is
+     * a dozen stone blits, a modern one is that plus fourteen tab stones,
+     * fourteen icons and their pressed twins -- where the canvas list carries
+     * a handful of orbs.
+     */
+    struct UITreeEntityOverlay frame_overlays[512];
+    int frame_overlay_count;
+    /** Which of the three lists the plugin draw verbs append to this dispatch
+     *  -- enum AppPluginSurface, which IS the host's enum PluginDrawSurface.
+     *  Set by the host around each draw window. */
     int plugin_draw_canvas;
     /*
      * Clickable rectangles a plugin claimed while drawing its canvas overlay.
@@ -860,6 +966,43 @@ struct App
         int op_count;
     } plugin_regions[64];
     int plugin_region_count;
+
+    /*
+     * The gameframe, when a plugin is arranging it.
+     *
+     * `plugin_layout_owned` is the switch the whole feature hangs off: while it
+     * is 0 -- which is every session that loads no layout plugin -- nothing
+     * below is read and the frame is the lane's own, exactly as it has always
+     * been.
+     *
+     * The slots are a DECLARATION and not a running total: EV_LAYOUT empties
+     * the table, the handler fills it, and app_plugin_layout_end applies the
+     * result and hides every role the handler did not mention. That is why
+     * `placed` is here rather than being implied by a non-empty rectangle -- a
+     * slot at 0,0 0x0 and a slot nobody asked for are different states, and
+     * only one of them means "hide it".
+     */
+    int plugin_layout_owned;
+    /** enum ToriRS_PluginLayoutCanvas. */
+    int plugin_layout_canvas;
+    int plugin_layout_fixed_w;
+    int plugin_layout_fixed_h;
+    struct AppPluginLayoutSlot
+    {
+        uint8_t placed;
+        int x;
+        int y;
+        int w;
+        int h;
+    } plugin_layout_slots[TORIRS_PLUGIN_SLOT_COUNT];
+    /** Canvas the last declaration was made against, so the app can tell a
+     *  resize (which needs a fresh declaration) from a frame that merely
+     *  rendered again. */
+    int plugin_layout_w;
+    int plugin_layout_h;
+    /** Set when the tree was rebuilt or the canvas resized under a claim:
+     *  the next layout pass re-raises EV_LAYOUT before it applies anything. */
+    uint8_t plugin_layout_dirty;
     /* Per-frame world map blits, filled by the GET_WORLDMAP_TILES host request
      * and consumed by the same frame's draw: the visible regions first, then
      * every map element icon over them. A full-screen surface spans ~30 regions
@@ -1340,6 +1483,17 @@ struct App
     int plugin_highlight_count;
     /** Plugin-owned world objects, indexed by the handle the plugin holds. */
     struct AppPluginObject plugin_objects[APP_PLUGIN_OBJECTS_MAX];
+    /** Plugin-authored meshes, indexed by the handle the plugin holds. */
+    struct AppPluginMesh plugin_meshes[APP_PLUGIN_MESHES_MAX];
+    /** Plugin-shipped models, indexed by the handle the plugin holds. The host
+     *  bounds this at TORIRS_PLUGIN_MODELS_MAX, which is a slot table shared
+     *  across every plugin -- so unlike the mesh table it is not per plugin
+     *  and needs no multiplying. */
+    struct AppPluginAssetModel plugin_asset_models[TORIRS_PLUGIN_MODELS_MAX];
+    /** A mesh or a shipped model moved since the last settle, so the objects
+     *  standing on one may be holding a model built from geometry that has
+     *  changed or that no longer exists. */
+    int plugin_geometry_dirty;
     /**
      * Deferred frame captures (api->screenshot), taken at the top of the NEXT
      * App_RunOnce.
@@ -1971,6 +2125,44 @@ App_SyncFixedChromeInset(struct App* app);
  */
 int
 App_SyncUiScale(struct App* app);
+
+/**
+ * Act on a plugin's claim of the frame: pin or unpin the canvas.
+ *
+ * Raised through the SAME pending-window-mode flag a clientscript's
+ * setwindowmode raises, deliberately. Fixed versus resizable is a statement
+ * about the WINDOW, the App has no platform to make it with, and there is
+ * already one drain in the shell that does. A second path would be a second
+ * place for the two halves of "resizable" to disagree, which is the exact bug
+ * docs/gameframe_layout_resize.md §3A was written about.
+ */
+void
+App_SyncPluginLayoutCanvas(struct App* app);
+
+/**
+ * The canvas a plugin layout pinned, or 0 when none did.
+ *
+ * The shell reads this instead of APP_CANVAS_MIN_W/H when it pins a fixed
+ * canvas, so a layout authored for something other than the classic 765x503
+ * gets the size it asked for rather than being letterboxed into the wrong one.
+ * Returns 1 when both outs were written.
+ */
+int
+App_PluginLayoutFixedSize(struct App const* app, int* out_w, int* out_h);
+
+/**
+ * Bring the frame up to date once per frame: re-declare it if the canvas or
+ * the tree changed under the claim, and re-assert the chrome suppression the
+ * declaration made.
+ *
+ * The re-assert is not redundant. On a cache gameframe the toplevel's own
+ * scripts show and hide its decoration constantly, so a suppression applied
+ * once is undone by the first script that runs after it.
+ *
+ * A no-op, costing one branch, when no plugin holds the frame.
+ */
+void
+App_PluginLayoutTick(struct App* app);
 
 /**
  * Take a pending SETWINDOWMODE, if a clientscript issued one since the last

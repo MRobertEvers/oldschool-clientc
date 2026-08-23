@@ -2,6 +2,7 @@
 
 #include "../rsbuffer.h"
 
+#include <assert.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -19,10 +20,19 @@ static const uint16_t CHARSET[] = {
     '?', '\\', '|', ' '
 };
 
+/* 95 entries, not 94: the last one is the SPACE, which has no glyph record in
+ * either layout. That is why char_advance is one longer than every other
+ * per-glyph array -- CHARSET[94] addresses char_advance[94] and nothing else.
+ * A search that stops at CHAR_COUNT cannot find ' ', and the two callers below
+ * both ask for it. */
+_Static_assert(
+    sizeof(CHARSET) / sizeof(CHARSET[0]) == RSCACHE_DAT1_PIXFONT_SPACE_SLOT + 1,
+    "CHARSET is the 94 glyph records plus the advance-only space");
+
 static int
 index_of_char(uint8_t c)
 {
-    for( int i = 0; i < RSCACHE_DAT1_PIXFONT_CHAR_COUNT; i++ )
+    for( int i = 0; i <= RSCACHE_DAT1_PIXFONT_SPACE_SLOT; i++ )
     {
         if( (CHARSET[i] & 0xFF) == c )
             return i;
@@ -37,7 +47,7 @@ pixfont_init_charcodeset(struct RSCache_Dat1PixFont* pixfont)
     {
         int c = index_of_char((uint8_t)i);
         if( c == -1 )
-            c = index_of_char(' ');
+            c = RSCACHE_DAT1_PIXFONT_SPACE_SLOT;
         pixfont->charcodeset[i] = (char)c;
     }
 }
@@ -128,11 +138,10 @@ RSCache_Dat1PixFontNewDecode(
         }
     }
 
-    // Space is the 94th char (index 93). It often has an empty/small mask so advance can
-    // become 0; ensure space advances at least as much as digit '8' so spaces are visible.
-    if( pixfont->char_advance[93] < 4 )
-        pixfont->char_advance[93] = pixfont->char_advance[8];
-    pixfont->char_advance[RSCACHE_DAT1_PIXFONT_CHAR_COUNT] = pixfont->char_advance[8];
+    // Space has no record here -- the file stops at '|' -- so it takes 'I''s
+    // advance, CHARSET index 8. The reference does exactly this one assignment
+    // and nothing to '|' (index 93), which is a glyph like any other.
+    pixfont->char_advance[RSCACHE_DAT1_PIXFONT_SPACE_SLOT] = pixfont->char_advance[8];
     for( int i = 0; i < 256; i++ )
     {
         pixfont->draw_width[i] =
@@ -204,8 +213,12 @@ RSCache_Dat1PixFontFullNewDecode(
         // Codes outside CHARSET are dropped rather than folded onto space:
         // charcodeset already routes an unmapped byte to the space GLYPH at
         // draw time, and storing byte 0x01's bitmap there would replace it.
+        //
+        // Space itself is dropped for a different reason: it is an advance and
+        // not a glyph, so it has no bitmap slot to be stored in -- and the
+        // advance this record would give it is overwritten by the donor below.
         int slot = index_of_char((uint8_t)code);
-        if( slot < 0 )
+        if( slot < 0 || slot >= RSCACHE_DAT1_PIXFONT_CHAR_COUNT )
         {
             free(mask);
             continue;
@@ -238,14 +251,14 @@ RSCache_Dat1PixFontFullNewDecode(
     }
 
     // Space takes its width from a letter rather than from its own (empty)
-    // glyph: 'I' for the quill font, 'i' for the rest.
+    // glyph: 'I' for the quill font, 'i' for the rest. Getting this wrong is
+    // not subtle at draw time -- 'I' is two pixels wider than 'i' in b12, so
+    // every b12 heading came out two pixels per word too long and ran over the
+    // box it was centred in.
     {
         int donor = index_of_char(quill ? (uint8_t)'I' : (uint8_t)'i');
-        int space_slot = index_of_char((uint8_t)' ');
-        if( donor >= 0 && space_slot >= 0 )
-            pixfont->char_advance[space_slot] = pixfont->char_advance[donor];
-        pixfont->char_advance[RSCACHE_DAT1_PIXFONT_CHAR_COUNT] =
-            space_slot >= 0 ? pixfont->char_advance[space_slot] : pixfont->char_advance[8];
+        assert(donor >= 0);
+        pixfont->char_advance[RSCACHE_DAT1_PIXFONT_SPACE_SLOT] = pixfont->char_advance[donor];
     }
 
     for( int i = 0; i < 256; i++ )

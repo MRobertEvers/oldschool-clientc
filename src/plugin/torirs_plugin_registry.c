@@ -20,6 +20,8 @@
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_TILEIND;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_MINIMAP_ORBS;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_ORBS;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_GAMEFRAME;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_ITEM_STATS;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_LUA;
 
 /*
@@ -40,6 +42,8 @@ static struct ToriRS_PluginDef const* const PLUGIN_TABLE[] = {
     &TORIRS_PLUGIN_TILEIND,
     &TORIRS_PLUGIN_MINIMAP_ORBS,
     &TORIRS_PLUGIN_XP_ORBS,
+    &TORIRS_PLUGIN_GAMEFRAME,
+    &TORIRS_PLUGIN_ITEM_STATS,
     &TORIRS_PLUGIN_NXT_HIGHLIGHT,
     &TORIRS_PLUGIN_NXT_BIRD_NEST,
     &TORIRS_PLUGIN_NXT_CANNON_AMMO,

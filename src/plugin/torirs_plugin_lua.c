@@ -1048,6 +1048,103 @@ lua_api_datestamp(lua_State* L)
     return 1;
 }
 
+/* -- shipped models -- */
+
+static int
+lua_api_model_load(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    int const handle = g_api->model_load(script->cur_ctx, luaL_checkstring(L, 1));
+
+    if( handle < 0 )
+        lua_pushnil(L);
+    else
+        lua_pushinteger(L, handle);
+    return 1;
+}
+
+/* -- authored meshes -- */
+
+/* nil rather than -1 wherever a budget can refuse, for the reason
+ * lua_api_object_create gives: `if not m then` is the shape the script is
+ * already writing around every other allocation here. */
+static int
+lua_api_mesh_create(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    int const handle = g_api->mesh_create(script->cur_ctx);
+
+    if( handle < 0 )
+        lua_pushnil(L);
+    else
+        lua_pushinteger(L, handle);
+    return 1;
+}
+
+static int
+lua_api_mesh_destroy(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    g_api->mesh_destroy(script->cur_ctx, (int)luaL_checkinteger(L, 1));
+    return 0;
+}
+
+static int
+lua_api_mesh_clear(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    g_api->mesh_clear(script->cur_ctx, (int)luaL_checkinteger(L, 1));
+    return 0;
+}
+
+static int
+lua_api_mesh_vertex(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    int const index = g_api->mesh_vertex(
+        script->cur_ctx,
+        (int)luaL_checkinteger(L, 1),
+        (int)luaL_checkinteger(L, 2),
+        (int)luaL_checkinteger(L, 3),
+        (int)luaL_checkinteger(L, 4));
+
+    if( index < 0 )
+        lua_pushnil(L);
+    else
+        lua_pushinteger(L, index);
+    return 1;
+}
+
+static int
+lua_api_mesh_face(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    int const alpha = (int)luaL_optinteger(L, 6, 0);
+    int index;
+
+    /* Checked here rather than left to the host's assert: a transparency out
+     * of range is a script's arithmetic going wrong, and a script error names
+     * the line it went wrong on where an abort names the C frame under it. */
+    if( alpha < 0 || alpha > TORIRS_PLUGIN_MESH_ALPHA_MAX )
+        return luaL_error(
+            L, "mesh_face: alpha must be 0..%d, got %d", TORIRS_PLUGIN_MESH_ALPHA_MAX, alpha);
+
+    index = g_api->mesh_face(
+        script->cur_ctx,
+        (int)luaL_checkinteger(L, 1),
+        (int)luaL_checkinteger(L, 2),
+        (int)luaL_checkinteger(L, 3),
+        (int)luaL_checkinteger(L, 4),
+        (int)luaL_checkinteger(L, 5),
+        alpha);
+
+    if( index < 0 )
+        lua_pushnil(L);
+    else
+        lua_pushinteger(L, index);
+    return 1;
+}
+
 /* -- world objects -- */
 
 static int
@@ -1081,11 +1178,22 @@ lua_api_object_model(lua_State* L)
     int const handle = (int)luaL_checkinteger(L, 1);
     int const id = (int)luaL_checkinteger(L, 2);
     char const* kind = luaL_optstring(L, 3, "model");
-    enum ToriRS_PluginModelSource source =
-        strcmp(kind, "spotanim") == 0 ? TORIRS_PLUGIN_MODEL_SPOTANIM : TORIRS_PLUGIN_MODEL_CACHE;
+    enum ToriRS_PluginModelSource source;
 
-    if( strcmp(kind, "spotanim") != 0 && strcmp(kind, "model") != 0 )
-        return luaL_error(L, "object_model: kind must be \"model\" or \"spotanim\", got \"%s\"", kind);
+    if( strcmp(kind, "model") == 0 )
+        source = TORIRS_PLUGIN_MODEL_CACHE;
+    else if( strcmp(kind, "spotanim") == 0 )
+        source = TORIRS_PLUGIN_MODEL_SPOTANIM;
+    else if( strcmp(kind, "mesh") == 0 )
+        source = TORIRS_PLUGIN_MODEL_MESH;
+    else if( strcmp(kind, "asset") == 0 )
+        source = TORIRS_PLUGIN_MODEL_ASSET;
+    else
+        return luaL_error(
+            L,
+            "object_model: kind must be \"model\", \"spotanim\", \"mesh\" or "
+            "\"asset\", got \"%s\"",
+            kind);
 
     g_api->object_set_model(script->cur_ctx, handle, source, id);
     return 0;
@@ -1289,6 +1397,12 @@ lua_build_api_table(struct LuaScript* script)
         { "asset_release", lua_api_asset_release },
         { "screenshot", lua_api_screenshot },
         { "datestamp", lua_api_datestamp },
+        { "model_load", lua_api_model_load },
+        { "mesh_create", lua_api_mesh_create },
+        { "mesh_destroy", lua_api_mesh_destroy },
+        { "mesh_clear", lua_api_mesh_clear },
+        { "mesh_vertex", lua_api_mesh_vertex },
+        { "mesh_face", lua_api_mesh_face },
         { "object_create", lua_api_object_create },
         { "object_destroy", lua_api_object_destroy },
         { "object_model", lua_api_object_model },

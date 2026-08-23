@@ -4,11 +4,29 @@
 -- A beam of light over every ground item worth more than a threshold, after
 -- RuneLite's Ground Items plugin (net.runelite.client.plugins.grounditems.
 -- Lootbeam). Both of its styles are here and they are not cosmetic variants of
--- each other -- MODERN is model 43330 with two recoloured bands and the
--- FX_BEAM_IDLE sequence, LIGHT is the older model 5809 with one band and
--- ENAKH_LIGHT_STREAMING -- so both ids and both sequences are config, not
--- constants. This client runs a dozen cache revisions and only some of them
--- have either model.
+-- each other -- MODERN is the bright-cored column with two recoloured bands,
+-- LIGHT the plainer older graphic with one -- so both are separate models.
+--
+-- The models are SHIPPED, not named. An earlier version pointed the beam at
+-- cache model 43330 and sequence 9260, which is the OSRS pair, and that number
+-- means the beam in one revision, means some other model in the next, and is
+-- absent from most of the dozen this client boots -- so the plugin worked on
+-- the cache it was written against and silently drew nothing, or a crate, on
+-- the rest. Four config rows existed only so a user could go and find the
+-- right ids for their revision, which is not a thing a user can be asked to
+-- do.
+--
+-- beam_modern.model and beam_light.model are those two models, lifted out of
+-- OSRS 239 once and carried in this plugin's own asset folder
+-- (`make -C src plugin-beam-assets` re-extracts them). Neither carries a
+-- textured face, so nothing about how they draw depends on the booted cache;
+-- api.model_load hands the bytes to a decoder that reads the model format off
+-- the file's own trailer rather than off the revision.
+--
+-- What does NOT come with them is the animation: sequence 9260 is a rig
+-- driving transform groups, and shipping it would mean shipping its frames and
+-- its framemap too. The rise here is a spin instead -- the model turns on its
+-- own axis, one yaw update per beam per frame, no model rebuilt for it.
 --
 -- The beam is a WORLD OBJECT, not an overlay. That is the whole reason this
 -- plugin needed anything new: an overlay is painted after the scene and is
@@ -28,7 +46,7 @@
 local plugin           = {
     name    = "loot-beam",
     title   = "Loot Beams",
-    version = "1.0.0",
+    version = "2.0.0",
     config  = {
         {
             key = "tier",
@@ -83,74 +101,77 @@ local plugin           = {
         { key = "high_color",   type = "color", default = "#FF9600", label = "High colour" },
         { key = "insane_color", type = "color", default = "#FF66B2", label = "Insane colour" },
 
-        -- Cache ids. Defaults are OSRS's; a revision without them draws
-        -- nothing and says so once, rather than silently.
+        -- The one thing left that is a choice rather than a cache id. The
+        -- shipped models carry their own size, so there is no height row: a
+        -- beam is as tall as the model is.
         {
-            key = "modern_model",
+            key = "spin",
             type = "int",
-            default = "43330",
+            default = "90",
             min = 0,
-            max = 200000,
-            label = "Modern beam model"
-        },
-        {
-            key = "modern_seq",
-            type = "int",
-            default = "9260",
-            min = -1,
-            max = 200000,
-            label = "Modern beam seq"
-        },
-        {
-            key = "light_model",
-            type = "int",
-            default = "5809",
-            min = 0,
-            max = 200000,
-            label = "Light beam model"
-        },
-        {
-            key = "light_seq",
-            type = "int",
-            default = "3101",
-            min = -1,
-            max = 200000,
-            label = "Light beam seq"
+            max = 720,
+            label = "Spin (degrees/sec)"
         },
     },
 }
 
--- The face colours each style's model paints its bands with. Reference
--- Lootbeam.Style: LIGHT recolours the single colour 6371, MODERN the pair
--- 26432 (body) and 26584 (core, one notch brighter).
-local FACE_LIGHT       = 6371
-local FACE_MODERN_BODY = 26432
-local FACE_MODERN_CORE = 26584
+--
+-- What each style ships, and what its bands are recoloured from.
+--
+-- The face colours are the models' own: LIGHT paints its single band 6371,
+-- MODERN paints its body 26432 and its core 26584 -- reference
+-- Lootbeam.Style, which recolours exactly these. The models are the ones those
+-- constants were written against, so they stay the values they are rather than
+-- becoming keys this plugin invented.
+--
+local STYLES        = {
+    modern = {
+        asset = "beam_modern.model",
+        -- Body first, core second: the core is the one that gets the extra
+        -- luminance, which is what gives the beam a bright centre instead of a
+        -- flat coloured tube.
+        body  = 26432,
+        core  = 26584,
+    },
+    light  = {
+        asset = "beam_light.model",
+        body  = 6371,
+        core  = nil,
+    },
+}
 
-local LUMINANCE_MAX    = 127
+local LUMINANCE_MAX = 127
 
-local PRICES_ASSET     = "prices.txt"
+local PRICES_ASSET  = "prices.txt"
 
--- tile key -> { handle, rgb, style }. Keyed on the ABSOLUTE tile, which is
--- what survives a scene rebuild -- the same reason api.object_position takes
--- one.
-local beams            = {}
+-- tile key -> { handle, rgb, style, x, z, level, phase }. Keyed on the
+-- ABSOLUTE tile, which is what survives a scene rebuild -- the same reason
+-- api.object_position takes one.
+local beams         = {}
+-- style name -> model handle from api.model_load. Loaded on first use rather
+-- than at start: a client that never shows a LIGHT beam never reads its file.
+local models        = {}
 -- obj_id -> price, from the asset. Empty until it lands, and empty forever if
 -- it is not shipped; the cache cost is the fallback either way.
-local prices           = {}
+local prices        = {}
 -- Set by every edge that can change what should be lit; drained on the server
 -- tick, so a packet burst that adds ten stacks rebuilds once and not ten
 -- times.
-local dirty            = true
--- One complaint per model id, not one per tick.
-local warned_model     = nil
+local dirty         = true
 -- Beams standing after the last rebuild, so the count is only reported when it
 -- moves.
-local live = 0
--- Ticks a beam has existed without its model landing. A load is asynchronous,
--- so "not ready" is the normal state for a tick or two; only a run of them
--- means the id is not in this cache.
-local unready_ticks    = 0
+local live          = 0
+
+-- The model for a style, asked for on first use. nil only when the resident
+-- model table is full, which two files cannot fill.
+local function model_for(api, style)
+    local handle = models[style]
+
+    if handle then return handle end
+    handle = api.model_load(STYLES[style].asset)
+    models[style] = handle
+    return handle
+end
 
 local function tier_rank(name)
     if name == "low" then return 1 end
@@ -193,36 +214,37 @@ local function parse_prices(text)
     return out, n
 end
 
--- Point a beam at a colour and a style. Everything here is applied to the
--- object's INTENT; the host rebuilds the model behind it and the beam appears
--- when the cache assets land.
+--
+-- Point a beam at a colour and a style.
+--
+-- Everything here is applied to the object's INTENT; the host rebuilds the
+-- model behind it and the beam appears when the file has landed.
+--
+-- Reference Lootbeam.Style.MODERN: the body loses a notch of saturation and
+-- the core gains 24 luminance, which is what gives the beam a bright centre
+-- instead of a flat coloured tube. The saturation step is skipped on an
+-- already-dull colour (sat <= 2) because taking one off would push it to grey.
+--
 local function dress(api, beam, rgb, style)
     local handle = beam.handle
+    local shape = STYLES[style]
+    local model = model_for(api, style)
     local hsl = api.hsl(rgb)
+    local h, s, l = api.hsl_unpack(hsl)
+    local sat_step = s > 2 and 1 or 0
+
+    if not model then return end
 
     api.object_clear_recolors(handle)
-    if style == "light" then
-        api.object_model(handle, api.config.light_model)
-        api.object_recolor(handle, FACE_LIGHT, hsl)
-        api.object_anim(handle, api.config.light_seq, true)
-        api.object_light(handle, 0, 0)
-    else
-        -- Reference Lootbeam.Style.MODERN: the body loses a notch of
-        -- saturation and the core gains 24 luminance, which is what gives the
-        -- beam a bright centre instead of a flat coloured tube. The saturation
-        -- step is skipped on an already-dull colour (sat <= 2) because taking
-        -- one off would push it to grey.
-        local h, s, l = api.hsl_unpack(hsl)
-        local sat_step = s > 2 and 1 or 0
-        api.object_model(handle, api.config.modern_model)
-        api.object_recolor(handle, FACE_MODERN_BODY, api.hsl_pack(h, s - sat_step, l))
+    api.object_model(handle, model, "asset")
+    api.object_recolor(handle, shape.body, api.hsl_pack(h, s - sat_step, l))
+    if shape.core then
         api.object_recolor(
-            handle, FACE_MODERN_CORE, api.hsl_pack(h, s, math.min(l + 24, LUMINANCE_MAX)))
-        api.object_anim(handle, api.config.modern_seq, true)
-        -- The reference lights this model well above the default; without it
-        -- the recoloured bands read as dark plastic rather than as light.
-        api.object_light(handle, 75, 1875)
+            handle, shape.core, api.hsl_pack(h, s, math.min(l + 24, LUMINANCE_MAX)))
     end
+    -- The reference lights this model well above the default; without it the
+    -- recoloured bands read as dark plastic rather than as light.
+    api.object_light(handle, 75, 1875)
     beam.rgb, beam.style = rgb, style
 end
 
@@ -274,15 +296,22 @@ local function rebuild(api)
             if beam.rgb ~= w.rgb or beam.style ~= style then
                 dress(api, beam, w.rgb, style)
             end
-            api.object_position(beam.handle, w.x, w.z, w.level)
+            -- Held for the spin, which restates the position every frame with
+            -- nothing but the yaw moved.
+            beam.x, beam.z, beam.level = w.x, w.z, w.level
+            -- Beams on neighbouring tiles turning in lockstep read as one
+            -- rigid object rather than as several lights; the tile is a phase
+            -- that is stable across a rebuild, which frame_ms alone is not.
+            beam.phase = (w.x * 137 + w.z * 311) % 2048
+            api.object_position(beam.handle, w.x, w.z, w.level, 0, beam.phase)
             api.object_active(beam.handle, true)
         end
     end
 
     -- Only when the count moves. "No beams appear" is the report this plugin
     -- will get, and it has two very different causes -- nothing on the floor
-    -- clears the threshold, or beams exist and their model does not draw. One
-    -- line separates them; a line per tick would bury both.
+    -- clears the threshold, or beams exist and are not being drawn. One line
+    -- separates them; a line per tick would bury both.
     live = 0
     for _ in pairs(beams) do live = live + 1 end
     if live ~= before then
@@ -295,16 +324,19 @@ local function clear(api)
         api.object_destroy(beam.handle)
         beams[key] = nil
     end
+    live = 0
 end
 
 function plugin.on_start(api)
-    beams, prices, dirty, warned_model, unready_ticks = {}, {}, true, nil, 0
+    beams, models, prices, dirty, live = {}, {}, {}, true, 0
     -- Optional: a client without the file simply prices everything from the
     -- cache. on_asset hears about it either way.
     api.asset_load(PRICES_ASSET)
 end
 
 function plugin.on_stop(api)
+    -- The model files go with the plugin; the host releases them when it stops
+    -- one, for the same reason it takes its objects out of the world.
     clear(api)
 end
 
@@ -342,7 +374,8 @@ end
 function plugin.on_world_loaded(api, ev)
     -- The scene was rebuilt. Every stack the client tracked off the new scene
     -- has already been announced as despawned, so the beam set is rebuilt
-    -- from scratch rather than trusted.
+    -- from scratch rather than trusted. The loaded models survive it -- they
+    -- are geometry, and nothing about a scene rebuild changes their shape.
     clear(api)
     dirty = true
 end
@@ -352,30 +385,29 @@ function plugin.on_server_tick(api, ev)
         dirty = false
         rebuild(api)
     end
+end
 
-    -- One line when a configured model does not exist in this cache. Without
-    -- it, "no beams appear" is indistinguishable between a threshold nobody
-    -- meets and a model id that belongs to another revision. Counted over
-    -- several ticks because a model load is asynchronous: not-ready-yet is the
-    -- ordinary state right after a beam is created.
-    local model = api.config.style == "light" and api.config.light_model
-        or api.config.modern_model
-    local waiting = false
+--
+-- The rise, one yaw per beam.
+--
+-- Per FRAME rather than per tick because it is motion and a tick is 600ms, and
+-- through object_position because turning a standing object is applied to the
+-- live element -- no model is rebuilt for it, which is what makes an animation
+-- this plugin owns affordable at all.
+--
+function plugin.on_frame(api, ev)
+    local spin = api.config.spin
+    local turn
+
+    if spin == 0 then return end
+    -- 2048 yaw units to a turn, `spin` degrees to a second.
+    turn = (ev.now_ms * spin * 2048) // 360000
+
     for _, beam in pairs(beams) do
-        if not api.object_ready(beam.handle) then
-            waiting = true
-            break
+        if beam.x then
+            api.object_position(
+                beam.handle, beam.x, beam.z, beam.level, 0, (turn + beam.phase) % 2048)
         end
-    end
-    if not waiting then
-        unready_ticks = 0
-        return
-    end
-    unready_ticks = unready_ticks + 1
-    if unready_ticks > 5 and warned_model ~= model then
-        warned_model = model
-        api.log("beam model " .. model .. " has not loaded after "
-            .. unready_ticks .. " ticks; is it in this cache?")
     end
 end
 

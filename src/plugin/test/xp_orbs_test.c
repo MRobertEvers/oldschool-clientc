@@ -16,6 +16,10 @@
  *   human looks at it. The assertions say it drew SOMETHING and how big; the
  *   sheet says whether it is a globe.
  *
+ * Run from `src/`, which is where the makefile runs it from: the assets are
+ * read out of the tree at their shipped path, not out of a fixture, so what is
+ * drawn here is the art the client would draw.
+ *
  * The engine underneath is a stub with two real parts: the PNG decode, which
  * is the client's own, and the image table, because this plugin's whole draw
  * path is read-pixels-compose-blit and a fake that answered nothing would
@@ -320,6 +324,30 @@ fake_mouse_pos(void* u, int* x, int* y)
         *y = g_mouse_y;
     return g_mouse_x >= 0;
 }
+/* The anchor the plugin should centre on. `w` of 0 means "this gameframe has
+ * no such box", which is how the fallback chain is exercised. */
+static int g_anchor_x[3];
+static int g_anchor_y[3];
+static int g_anchor_w[3];
+static int g_anchor_h[3];
+
+static int
+fake_anchor_rect(void* u, int which, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    if( which < 0 || which > 2 || g_anchor_w[which] <= 0 || g_anchor_h[which] <= 0 )
+        return 0;
+    if( x )
+        *x = g_anchor_x[which];
+    if( y )
+        *y = g_anchor_y[which];
+    if( w )
+        *w = g_anchor_w[which];
+    if( h )
+        *h = g_anchor_h[which];
+    return 1;
+}
+
 static int
 fake_minimap_rect(void* u, int* x, int* y, int* w, int* h)
 {
@@ -411,10 +439,16 @@ fake_image_publish(void* u, int slot, void const* data, int size, int* w, int* h
     return 1;
 }
 
+/* Composes of the tooltip, which is the only 150-wide picture this plugin
+ * builds -- a globe is its orb size and a drop label is as wide as its text. */
+static int g_tip_composes;
+
 static int
 fake_image_publish_argb(void* u, int slot, int w, int h, uint32_t const* argb)
 {
     (void)u;
+    if( w == 150 )
+        g_tip_composes++;
     if( slot < 0 || slot >= FAKE_IMAGE_SLOTS || w <= 0 || h <= 0 )
         return 0;
     free(g_image[slot].argb);
@@ -564,6 +598,61 @@ fake_screenshot(void* u, char const* plugin, char const* dir, char const* name)
     (void)dir;
     (void)name;
     return 1;
+}
+static int
+fake_model_publish(void* u, int m, void const* d, int size)
+{
+    (void)u;
+    (void)m;
+    (void)d;
+    (void)size;
+    return 0;
+}
+static void
+fake_model_release(void* u, int m)
+{
+    (void)u;
+    (void)m;
+}
+static int
+fake_mesh_create(void* u)
+{
+    (void)u;
+    return -1;
+}
+static void
+fake_mesh_destroy(void* u, int m)
+{
+    (void)u;
+    (void)m;
+}
+static void
+fake_mesh_clear(void* u, int m)
+{
+    (void)u;
+    (void)m;
+}
+static int
+fake_mesh_vertex(void* u, int m, int x, int y, int z)
+{
+    (void)u;
+    (void)m;
+    (void)x;
+    (void)y;
+    (void)z;
+    return -1;
+}
+static int
+fake_mesh_face(void* u, int m, int a, int b, int c, int hsl, int alpha)
+{
+    (void)u;
+    (void)m;
+    (void)a;
+    (void)b;
+    (void)c;
+    (void)hsl;
+    (void)alpha;
+    return -1;
 }
 static int
 fake_object_create(void* u)
@@ -788,11 +877,25 @@ write_frame(char const* path, int w, int h)
 #define CANVAS_H 200
 
 static struct ToriRS_PluginHost* g_host;
+static void tick(void);
+static void draw(void);
 
+/**
+ * One client cycle, and ONLY that.
+ *
+ * Deliberately not PluginHost_ServerTick: that event is raised from
+ * PKT_NAME_SERVER_TICK_END, which only osrs230, osrs239 and the rsprot bridge
+ * put on the wire. Every 2004-era lane in this tree -- lc245_2, lc254, lc289,
+ * xrsps233 -- has no tick fence at all, so a plugin that polls there never runs
+ * on those worlds and silently shows nothing while the player gains xp. That is
+ * exactly what happened on the rev-289 profile, and driving the test off the
+ * event those lanes DO raise is what keeps it from happening again.
+ */
 static void
 tick(void)
 {
-    PluginHost_ServerTick(g_host, 1);
+    static int cycle;
+    PluginHost_LogicTick(g_host, ++cycle);
 }
 
 static void
@@ -801,6 +904,33 @@ draw(void)
     g_blit_count = 0;
     g_region_count = 0;
     PluginHost_DrawCanvas(g_host, CANVAS_W, CANVAS_H);
+}
+
+/**
+ * One gain on `skill` with `drop_offset_y` set to `offset`: where its label
+ * starts, and where it has climbed to a good way through.
+ *
+ * The screen is cleared first so the label being measured is the only one in
+ * the air -- drops are drawn before globes, so `g_blit[0]` is then the label
+ * and `g_blit[1]` the orb it belongs to.
+ */
+static void
+sample_drop(int plugin, int skill, char const* offset, int* out_first, int* out_last)
+{
+    PluginHost_ConfigSet(g_host, plugin, "drop_offset_y", offset);
+    g_now_ms += 30000;
+    draw();
+
+    g_now_ms += 600;
+    g_level[skill] = 40;
+    g_xp[skill] = g_level_xp[38] + 500;
+    tick();
+    draw();
+    *out_first = g_blit_count == 2 ? g_blit[0].y : 0;
+
+    g_now_ms += 700;
+    draw();
+    *out_last = g_blit_count == 2 ? g_blit[0].y : 0;
 }
 
 int
@@ -838,6 +968,7 @@ main(void)
     e.draw_select_canvas = fake_draw_select_canvas;
     e.mouse_pos = fake_mouse_pos;
     e.minimap_rect = fake_minimap_rect;
+    e.anchor_rect = fake_anchor_rect;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;
     e.skill_name = fake_skill_name;
@@ -853,6 +984,13 @@ main(void)
     e.asset_read = fake_asset_read;
     e.asset_write = fake_asset_write;
     e.screenshot = fake_screenshot;
+    e.model_publish = fake_model_publish;
+    e.model_release = fake_model_release;
+    e.mesh_create = fake_mesh_create;
+    e.mesh_destroy = fake_mesh_destroy;
+    e.mesh_clear = fake_mesh_clear;
+    e.mesh_vertex = fake_mesh_vertex;
+    e.mesh_face = fake_mesh_face;
     e.object_create = fake_object_create;
     e.object_destroy = fake_object_destroy;
     e.object_set_model = fake_object_set_model;
@@ -878,6 +1016,16 @@ main(void)
     PluginHost_SetEnabled(g_host, index, true);
     PluginHost_Start(g_host);
 
+    /* CANVAS always answers; the other two are set per case below. Starting
+     * with only the canvas is the login-screen state -- no scene, no modal. */
+    g_anchor_w[0] = CANVAS_W;
+    g_anchor_h[0] = CANVAS_H;
+
+    /* Off for the structural cases: a floating label is a second blit per
+     * globe and would make every count below say something about two features
+     * at once. It gets cases of its own, and the sheet, further down. */
+    PluginHost_ConfigSet(g_host, index, "show_xp_drops", "0");
+
     for( int i = 0; i < SKILL_COUNT; i++ )
     {
         g_level[i] = 1;
@@ -892,6 +1040,34 @@ main(void)
     tick();
     draw();
     CHECK(g_blit_count == 0, "the first sight of the stat table draws nothing");
+
+    /*
+     * A world with no tick fence still gets orbs.
+     *
+     * Stated as its own case rather than left implicit in `tick`, because what
+     * is being pinned is a NEGATIVE: that nothing here depends on
+     * PluginHost_ServerTick, which the 2004-era lanes never call. Raising the
+     * server tick and only the server tick must produce nothing, or the plugin
+     * has drifted back onto an event half this client's worlds do not have.
+     */
+    {
+        int const before = g_blit_count;
+        g_now_ms += 600;
+        g_xp[19] = 5000;   /* farming, a gain nobody polls for */
+        g_level[19] = 30;
+        PluginHost_ServerTick(g_host, 1);
+        draw();
+        CHECK(
+            g_blit_count == before,
+            "the server-tick fence alone drives nothing -- half the lanes have none");
+        /* and the client cycle picks that same gain up. */
+        tick();
+        draw();
+        CHECK(g_blit_count == before + 1, "the client cycle is what notices a gain");
+        g_now_ms += 11000;
+        draw();
+        CHECK(g_blit_count == 0, "cleared before the cases below");
+    }
 
     /* One gain, one globe. */
     g_now_ms += 600;
@@ -950,12 +1126,6 @@ main(void)
         g_blit_count == 6 && g_image[g_blit[5].slot].w == 150,
         "which is the reference's own width");
 
-    /* The sheet a human looks at: five globes, the middle one hovered. */
-    {
-        char const* path = getenv("XP_ORBS_TEST_PNG");
-        write_frame(path ? path : "build/xp_orbs_test.png", CANVAS_W, CANVAS_H);
-    }
-
     /* Flip turns the row into a column. */
     PluginHost_CanvasClick(g_host, index, 1u, 0, g_mouse_x, g_mouse_y);
     g_mouse_x = -1;
@@ -990,6 +1160,264 @@ main(void)
         draw();
     }
     CHECK(g_blit_count >= 1, "hovering holds a globe past its duration");
+
+    /* Both cases below start from an empty screen and seed their own globes:
+     * they are the last in the file precisely so they can leave it in any
+     * state they like. */
+    g_mouse_x = -1;
+    g_now_ms += 20000;
+    draw();
+    {
+        /* Skills nothing above has touched: a value a skill already holds is
+         * not a gain, and re-using one from an earlier case would seed
+         * nothing. */
+        int const more[] = { 1, 4, 7, 13, 21 };
+        int const percent[] = { 12, 35, 58, 80, 96 };
+        for( size_t i = 0; i < sizeof(more) / sizeof(more[0]); i++ )
+        {
+            int const level = 40 + (int)i;
+            int const base = g_level_xp[level - 2];
+            int const next = g_level_xp[level - 1];
+            g_now_ms += 120;
+            g_level[more[i]] = level;
+            g_xp[more[i]] = base + (next - base) * percent[i] / 100;
+            tick();
+        }
+        draw();
+        CHECK(g_blit_count == 5, "five globes seeded for the cases below");
+    }
+
+    /*
+     * The column centres on the ANCHOR, not on the canvas.
+     *
+     * The failure this pins is the one a resizable gameframe produces: the
+     * scene fills the whole window, the chrome floats on top of it, and a
+     * column centred on the canvas sits off to the side of what the player is
+     * actually looking at. Given a viewport that is not the canvas, the run of
+     * globes has to centre in THAT.
+     */
+    {
+        int const run = 5 * 40 + 4 * 10;
+        g_mouse_x = -1;
+        g_anchor_w[1] = 300;   /* VIEWPORT: an off-centre 300x150 box */
+        g_anchor_h[1] = 150;
+        g_anchor_x[1] = 40;
+        g_anchor_y[1] = 12;
+        draw();
+        CHECK(
+            g_blit_count == 5 && g_blit[0].x == 40 + (300 - run) / 2 - 3,
+            "the column centres in the viewport when there is one");
+
+        /* And MODAL outranks it, because on a resizable frame the viewport IS
+         * the whole window and the modal region is the part kept clear. */
+        g_anchor_w[2] = 200;
+        g_anchor_h[2] = 120;
+        g_anchor_x[2] = 260;
+        g_anchor_y[2] = 30;
+        draw();
+        CHECK(
+            g_blit_count == 5 && g_blit[0].x == 260 + (200 - run) / 2 - 3,
+            "and in the modal region in preference to it");
+
+        /* A frame that has neither falls all the way back to the canvas. */
+        g_anchor_w[1] = 0;
+        g_anchor_w[2] = 0;
+        draw();
+        CHECK(
+            g_blit_count == 5 && g_blit[0].x == (CANVAS_W - run) / 2 - 3,
+            "and on the canvas when the frame offers neither");
+        g_anchor_w[1] = 300;
+        g_anchor_h[1] = 150;
+    }
+
+    /*
+     * The gained amount floats up into its orb.
+     *
+     * Checked as a POSITION over time rather than as a pixel: what makes this
+     * read as "into the orb" is that the label starts below the disc and ends
+     * inside it, and that is a claim about two frames, not about one.
+     */
+    {
+        int first_y = 0;
+        int last_y = 0;
+        int found = 0;
+
+        PluginHost_ConfigSet(g_host, index, "show_xp_drops", "1");
+        g_now_ms += 20000;
+        draw();
+        CHECK(g_blit_count == 0, "the screen is clear before the drop case");
+
+        g_now_ms += 600;
+        g_level[15] = 50;   /* herblore, untouched above */
+        g_xp[15] = g_level_xp[48] + 777;
+        tick();
+        draw();
+        CHECK(g_blit_count == 2, "a gain draws its globe AND its floating label");
+        /* Drawn first, so the label passes BEHIND the orb rather than over it. */
+        CHECK(
+            g_blit[0].y > g_blit[1].y,
+            "the label starts below the disc and is drawn under it");
+        first_y = g_blit[0].y;
+
+        for( int i = 0; i < 6; i++ )
+        {
+            g_now_ms += 150;
+            draw();
+            if( g_blit_count == 2 )
+            {
+                last_y = g_blit[0].y;
+                found = 1;
+            }
+        }
+        CHECK(found && last_y < first_y, "and climbs");
+
+        /*
+         * BOTH ends of the climb move with the setting.
+         *
+         * This is the regression, and it is a comparison of two runs rather
+         * than a fact about one, because the bug it pins was not that the
+         * label was in the wrong place -- it was that only the START responded
+         * to the setting while the finish stayed pinned inside the orb, so the
+         * number was buried at every value of it. Shifting the setting by 40
+         * has to shift where the label begins AND where it gets to by 40.
+         */
+        {
+            int lo_first = 0;
+            int lo_last = 0;
+            int hi_first = 0;
+            int hi_last = 0;
+
+            sample_drop(index, 12, "20", &lo_first, &lo_last);
+            sample_drop(index, 18, "60", &hi_first, &hi_last);
+            CHECK(lo_first > 0 && hi_first > 0, "both samples drew a label");
+            CHECK(hi_first - lo_first == 40, "the setting moves where it starts");
+            CHECK(hi_last - lo_last == 40, "and where it finishes, by the same 40");
+            PluginHost_ConfigSet(g_host, index, "drop_offset_y", "20");
+        }
+
+        /* Re-seed for the sheet: the samples above ran the clock out. */
+        g_now_ms += 30000;
+        draw();
+
+        /* The sheet a human looks at: five globes, one hovered, with a label
+         * part way up into another. */
+        {
+            int const more[] = { 5, 9, 17, 22 };
+            int const percent[] = { 12, 35, 58, 96 };
+            for( size_t i = 0; i < sizeof(more) / sizeof(more[0]); i++ )
+            {
+                int const level = 40 + (int)i;
+                int const base = g_level_xp[level - 2];
+                int const next = g_level_xp[level - 1];
+                g_now_ms += 120;
+                g_level[more[i]] = level;
+                g_xp[more[i]] = base + (next - base) * percent[i] / 100;
+                tick();
+            }
+            /* One more gain immediately before the shot, so the sheet
+             * catches a label mid-climb rather than at the faded tail of one.
+             * On a skill that already HAS a globe, which is the ordinary case
+             * -- a second log, another ore. */
+            g_now_ms += 300;
+            g_xp[22] += 231;   /* the RIGHTMOST globe... */
+            tick();
+            g_now_ms += 250;
+            draw();
+            /* ...and the hover on the leftmost orb, so the tooltip opens away
+             * from the climbing label instead of on top of it. Both are in the
+             * shot that way.
+             *
+             * Found by SHAPE rather than by index: a globe's picture is square
+             * and at least an orb wide, a drop label is wide and one line tall,
+             * and how many of each are in flight depends on the clock. */
+            {
+                int leftmost = -1;
+                for( int b = 0; b < g_blit_count; b++ )
+                {
+                    if( g_blit[b].w != g_blit[b].h || g_blit[b].w < 40 )
+                        continue;
+                    if( leftmost < 0 || g_blit[b].x < g_blit[leftmost].x )
+                        leftmost = b;
+                }
+                CHECK(leftmost >= 0, "the sheet found an orb to hover");
+                if( leftmost >= 0 )
+                {
+                    g_mouse_x = g_blit[leftmost].x + g_blit[leftmost].w / 2;
+                    g_mouse_y = g_blit[leftmost].y + g_blit[leftmost].h / 2;
+                }
+            }
+            draw();
+            {
+                char const* path = getenv("XP_ORBS_TEST_PNG");
+                write_frame(path ? path : "xp_orbs_test.png", CANVAS_W, CANVAS_H);
+            }
+            g_mouse_x = -1;
+        }
+        PluginHost_ConfigSet(g_host, index, "show_xp_drops", "0");
+        g_now_ms += 20000;
+        draw();
+    }
+
+
+    /*
+     * The tooltip's numbers hold still.
+     *
+     * Two of its lines are rates, and a rate recomputed per frame is a number
+     * nobody can read -- it is not wrong, it just never stops moving. What is
+     * pinned here is that the panel is REBUILT on a clock while still being
+     * drawn every frame, and that a change the reader would notice at once --
+     * a different orb, a fresh gain -- jumps the queue rather than waiting.
+     */
+    {
+        int after_first;
+
+        /* Its own globes: the case above ends by running the clock out, so
+         * there is nothing on screen to hover by the time this starts. */
+        g_now_ms += 20000;
+        draw();
+        {
+            int const pair[] = { 11, 16 };   /* firemaking, agility: untouched */
+            for( size_t i = 0; i < sizeof(pair) / sizeof(pair[0]); i++ )
+            {
+                int const level = 30 + (int)i;
+                g_now_ms += 120;
+                g_level[pair[i]] = level;
+                g_xp[pair[i]] = g_level_xp[level - 2] + 100;
+                tick();
+            }
+            draw();
+            CHECK(g_blit_count == 2, "two globes to hover between");
+        }
+
+        g_mouse_x = g_blit[0].x + 20;
+        g_mouse_y = g_blit[0].y + 20;
+        g_tip_composes = 0;
+        draw();
+        CHECK(g_tip_composes == 1, "hovering builds the tooltip once");
+
+        after_first = g_blit_count;
+        for( int i = 0; i < 8; i++ )
+        {
+            g_now_ms += 400;   /* 3.2s, inside the window */
+            draw();
+        }
+        CHECK(g_tip_composes == 1, "and holds it while the pointer stays put");
+        CHECK(g_blit_count == after_first, "while still drawing it every frame");
+
+        g_now_ms += 2000;      /* now past five seconds */
+        draw();
+        CHECK(g_tip_composes == 2, "past the window it refreshes");
+
+        /* A different orb is answered at once, not on the next tick of the
+         * clock -- a panel describing the orb next door is worse than a stale
+         * rate. */
+        g_mouse_x = g_blit[1].x + 20;
+        g_mouse_y = g_blit[1].y + 20;
+        g_now_ms += 30;
+        draw();
+        CHECK(g_tip_composes == 3, "and a different orb rebuilds it immediately");
+        g_mouse_x = -1;
+    }
 
     PluginHost_Free(g_host);
     printf("%d checks, %d failures\n", g_checks, g_failures);

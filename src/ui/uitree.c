@@ -1,5 +1,7 @@
 #include "uitree.h"
 
+#include "uitree_frame.h"
+
 #include "perf/torirs_perf.h"
 #include "uitree_layout.h"
 #include "uitree_scroll.h"
@@ -1365,6 +1367,7 @@ UITree_Free(struct UITree* tree)
     free(tree->layout_depth);
     free(tree->layout_changed);
     uitree_all_sets_free(tree);
+    UITree_FrameForget(tree);
     free(tree->components);
     free(tree);
 }
@@ -1390,6 +1393,11 @@ UITree_Clear(struct UITree* tree)
     tree->generation++;
     /* Reclaim already unregistered each node; clear empties any leftover buckets. */
     uitree_all_sets_clear(tree);
+    /* A plugin layout's hold names NODES, and every one of them has just
+     * stopped existing. Dropping it rather than releasing it is deliberate:
+     * there is nothing left to restore, and the frame's owner is asked for a
+     * fresh declaration once the new tree is baked. */
+    UITree_FrameForget(tree);
 }
 
 void

@@ -2503,6 +2503,78 @@ emit_debug_overlay_pass(
 }
 
 /*
+ * The plugin FRAME overlay: one desc, in canvas space, hoisted to sit directly
+ * over the 3D scene -- under every interface, and under the entity overlays.
+ *
+ * This is where the reference's own frame art is drawn, and a gameframe cannot
+ * be drawn anywhere else. The canvas pass below paints over the interfaces,
+ * which is right for a readout and wrong for chrome: a sidebar panel emitted
+ * there covers the inventory it is meant to sit behind, and a chatbox backing
+ * covers the chat text.
+ *
+ * OVER the entity overlays and not under them, for the reason the overlays
+ * were hoisted in the first place: a health bar above an entity standing
+ * behind the chatbox must not draw on the chatbox, and under a plugin layout
+ * the chatbox backing is one of these blits.
+ *
+ * No world in the tree means no frame either. A layout that could not find the
+ * scene has nothing to be a frame AROUND, and appending the chrome anyway
+ * would put it over the interfaces -- the one place it must never be.
+ */
+static void
+emit_plugin_frame_pass(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* out)
+{
+    struct UITreeEmitDesc desc;
+    struct UITreeHostRequest req;
+    int world = -1;
+    int at;
+
+    assert(tree);
+    assert(out);
+
+    for( int i = 0; i < out->count; i++ )
+        if( out->cmds[i].kind == UITREE_EMIT_WORLD )
+            world = i;
+    if( world < 0 )
+        return;
+
+    memset(&desc, 0, sizeof(desc));
+    memset(&req, 0, sizeof(req));
+    req.kind = UITREE_HOST_GET_FRAME_OVERLAYS;
+    req.u.get_entity_overlays.out_items = &desc.entity_overlays;
+    req.u.get_entity_overlays.out_clip_x = &desc.clip.x;
+    req.u.get_entity_overlays.out_clip_y = &desc.clip.y;
+    req.u.get_entity_overlays.out_clip_w = &desc.clip.w;
+    req.u.get_entity_overlays.out_clip_h = &desc.clip.h;
+    desc.entity_overlay_count = UITree_Host(host, &req);
+    if( desc.entity_overlay_count <= 0 || !desc.entity_overlays )
+        return;
+
+    desc.kind = UITREE_EMIT_ENTITY_OVERLAY;
+    desc.node_index = -1;
+    desc.component_id = -1;
+    emit_buffer_append(out, &desc);
+
+    /* Stable rotate to just after the world, exactly as the entity-overlay
+     * hoist does it -- and BEFORE that hoist runs, which is what orders the
+     * two: the hoist then inserts the bars at the same index and pushes this
+     * desc one further along, so the chrome paints over them. */
+    at = out->count - 1;
+    if( at > world + 1 )
+    {
+        struct UITreeEmitDesc moved = out->cmds[at];
+        memmove(
+            &out->cmds[world + 2],
+            &out->cmds[world + 1],
+            (size_t)(at - world - 1) * sizeof(*out->cmds));
+        out->cmds[world + 1] = moved;
+    }
+}
+
+/*
  * The plugin CANVAS overlay: one desc, in canvas space, above everything the
  * tree drew.
  *
@@ -2721,6 +2793,10 @@ UITree_EmitWalk(
         emit_walk_pass(
             tree, host, out, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 1);
     }
+    /* A layout plugin's gameframe: over the scene, under the interfaces.
+     * Before the hoist, which is what puts the bars and hitsplats it moves
+     * BEHIND the chrome rather than over it. */
+    emit_plugin_frame_pass(tree, host, out);
     emit_hoist_entity_overlays(tree, out);
     /* Plugin chrome: over the interfaces, under the pointer feedback and the
      * developer overlay. */

@@ -24,7 +24,7 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 10
+#define TORIRS_PLUGIN_ABI 13
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 /** Bytes of a plugin's human title, terminator included. Longer than the name
@@ -41,6 +41,18 @@
 #define TORIRS_PLUGIN_ASSET_NAME_MAX 64
 /** Recolour pairs one world object may carry, matching a spotanimtype's six. */
 #define TORIRS_PLUGIN_OBJECT_RECOLORS_MAX 6
+/** Vertices and faces one authored mesh may carry. Sized for the shapes a
+ *  plugin actually builds by hand -- a beam, a marker, a plinth -- and not for
+ *  a model somebody meant to ship as data: past these mesh_vertex and
+ *  mesh_face refuse and say so. */
+#define TORIRS_PLUGIN_MESH_VERTICES_MAX 1024
+#define TORIRS_PLUGIN_MESH_FACES_MAX 2048
+/** Face transparency a plugin may state: 0 opaque .. 253 nearly invisible.
+ *  254 and 255 are not transparencies at all in this model format -- they are
+ *  the two render-type overrides (flat black, and untextured-flat) -- so the
+ *  authored range stops one short of them rather than letting a plugin ask for
+ *  "almost gone" and get a black triangle. */
+#define TORIRS_PLUGIN_MESH_ALPHA_MAX 253
 /** Verbs one canvas hit region may offer, matching a component's op1..op5. */
 #define TORIRS_PLUGIN_REGION_OPS_MAX 5
 
@@ -182,6 +194,43 @@ enum ToriRS_PluginEvent
      * pressed twice; this can.
      */
     TORIRS_PLUGIN_EV_SETTING,
+    /**
+     * Declare the gameframe. Payload: EvLayout. Legal callers of the layout
+     * api, and the only ones.
+     *
+     * Raised for the plugin that owns the frame (api->layout_claim) and no
+     * other: at the claim, whenever the canvas changes size, and after every
+     * gameframe rebuild -- which is to say, at each of the three moments the
+     * previous answer stopped being true, and at no other.
+     *
+     * The dispatch is the whole declaration. The host empties the slot table
+     * before calling and applies what came back afterwards, so a handler
+     * states the frame it wants rather than the difference from the frame it
+     * had; a slot left unplaced is a slot HIDDEN, not one left where it was.
+     * Same shape as EV_DRAW_CANVAS and its hit regions, and for the same
+     * reason: a table rebuilt from nothing cannot disagree with itself.
+     */
+    TORIRS_PLUGIN_EV_LAYOUT,
+    /**
+     * The FRAME surface is open: the whole canvas, above the 3D scene and
+     * BELOW the interfaces. Payload: EvDrawCanvas.
+     *
+     * The third draw surface, and the one a gameframe needs. EV_DRAW_CANVAS
+     * paints over everything, which is right for a readout and wrong for
+     * chrome: a sidebar panel drawn there covers the inventory it is supposed
+     * to sit behind, and a chatbox backing covers the chat text. This one is
+     * ordered exactly where the reference's own frame art is -- the scene is
+     * already down, the interfaces have not been drawn yet.
+     *
+     * Open only while a plugin owns the frame, and only for that plugin. A
+     * plugin that has not claimed the layout never sees it, because chrome
+     * drawn under the interfaces of a frame somebody else is arranging is
+     * chrome in the wrong place.
+     *
+     * Same verb set as EV_DRAW_CANVAS: rect, line, text and image, and not
+     * draw_tile or draw_hull.
+     */
+    TORIRS_PLUGIN_EV_DRAW_FRAME,
 
     TORIRS_PLUGIN_EV_COUNT
 };
@@ -321,6 +370,110 @@ struct ToriRS_PluginObjSnap
     int level;
     /** ToriDraw scene element, for api->draw_hull. -1 when not drawn. */
     int element_id;
+};
+
+/**
+ * Which of the client's OWN containers. @see ToriRS_PluginApi::inv_slot.
+ *
+ * Names rather than numbers, because the numbers are the client's and it
+ * already holds them (INV_MANAGER_CONTAINER_WORN and friends). A plugin
+ * carrying 94 of its own would be carrying a copy of a constant it cannot
+ * check, on a client that boots several revisions.
+ */
+enum ToriRS_PluginInv
+{
+    /** The backpack: the 28 slots of the inventory tab. */
+    TORIRS_PLUGIN_INV_BACKPACK = 0,
+    /** Worn equipment, indexed by an objtype's `wearpos`. */
+    TORIRS_PLUGIN_INV_WORN,
+    TORIRS_PLUGIN_INV_BANK
+};
+
+/**
+ * The twelve equipment bonuses, in the order the cache states them.
+ *
+ * These are param ids 0..11 on an OldSchool obj record -- the numbering
+ * OpenRune's ParamMapper documents and the server reads through
+ * ToriRSServerCombatParam. The order is load-bearing twice: `ATTACK_STAB + style`
+ * picks the attack bonus for a damage type and `+ DEFENCE_STAB` the defence
+ * one.
+ */
+enum ToriRS_PluginBonus
+{
+    TORIRS_PLUGIN_BONUS_ATTACK_STAB = 0,
+    TORIRS_PLUGIN_BONUS_ATTACK_SLASH,
+    TORIRS_PLUGIN_BONUS_ATTACK_CRUSH,
+    TORIRS_PLUGIN_BONUS_ATTACK_MAGIC,
+    TORIRS_PLUGIN_BONUS_ATTACK_RANGE,
+    TORIRS_PLUGIN_BONUS_DEFENCE_STAB,
+    TORIRS_PLUGIN_BONUS_DEFENCE_SLASH,
+    TORIRS_PLUGIN_BONUS_DEFENCE_CRUSH,
+    TORIRS_PLUGIN_BONUS_DEFENCE_MAGIC,
+    TORIRS_PLUGIN_BONUS_DEFENCE_RANGE,
+    TORIRS_PLUGIN_BONUS_STRENGTH,
+    TORIRS_PLUGIN_BONUS_PRAYER,
+    TORIRS_PLUGIN_BONUS_COUNT
+};
+
+/**
+ * One objtype, as the cache states it. @see ToriRS_PluginApi::obj_info.
+ *
+ * The record and nothing else: an obj snapshot describes a stack lying on a
+ * tile, and this describes the ITEM -- what it is called, what it is worth,
+ * where it is worn and what it does to a combat roll.
+ */
+struct ToriRS_PluginObjInfo
+{
+    int obj_id;
+    /** ObjType.name, as the minimenu prints it. */
+    char name[64];
+    /** ObjType.cost, the same number ObjSnap carries. */
+    int cost;
+    int stackable;
+    /**
+     * Bank-note linkage: the id of the item this note stands for, or -1.
+     *
+     * A note carries none of the base item's ops or params of its own, so a
+     * reader that wants an item's stats from a noted stack asks again with
+     * this id.
+     */
+    int cert_link;
+    /**
+     * Equipment placement (dat2 wearpos/wearpos2/wearpos3), -1 for an item
+     * that is not worn. The primary position is the slot the item occupies --
+     * the same index the WORN container is addressed by -- and the secondary
+     * ones are the slots it COVERS: a two-handed weapon is wearpos 3 with a
+     * shield slot among the others, which is how the cache says two-handed
+     * without a flag for it.
+     *
+     * Dat1 has no such metadata, so all three are -1 on a classic cache and a
+     * caller gets "not equipment" for a sword. That is the honest answer for a
+     * revision whose cache does not state it, not a bug to be guessed around.
+     */
+    int wearpos;
+    int wearpos2;
+    int wearpos3;
+    /**
+     * 1 when the record carries the OldSchool bonus params at all.
+     *
+     * The distinction 0 cannot make: an unarmed slot and a cape with no
+     * offensive bonus both read as twelve zeroes, and only this says which was
+     * measured. A cache lineage that states no params (dat1, and the pre-EoC
+     * dat2 revisions) leaves this 0 for every item in the game.
+     */
+    int has_bonuses;
+    /** Indexed by enum ToriRS_PluginBonus. */
+    int bonus[TORIRS_PLUGIN_BONUS_COUNT];
+    /** Ticks between swings (cache param 14), or -1 when unstated. */
+    int attack_rate;
+    /**
+     * Ranged strength, which OldSchool keeps OUTSIDE the contiguous block and
+     * in two places: param 12 on ammunition and thrown weapons (a dragon arrow
+     * reads 60, a dragon dart 35), param 189 on everything else (a twisted bow
+     * reads 20, a necklace of anguish 5). Summed here, because they are one
+     * number on the equipment screen and no record states both.
+     */
+    int ranged_strength;
 };
 
 /** What a highlight item is attached to. @see ToriRS_PluginHighlightItem. */
@@ -481,8 +634,16 @@ struct ToriRS_PluginMenuRow
     int npc_slot;
     /** Server pid when the row targets a player, else -1. */
     int player_pid;
-    /** Loc/obj id when the row targets one, else -1. */
+    /** Loc/obj id when the row targets one, else -1. For an INV_SLOT row that
+     *  is the ITEM in the cell -- the one thing a row about an inventory cell
+     *  is actually about. */
     int target_id;
+    /** `(interface << 16) | component` of the node the row is about, for the
+     *  two kinds that name one (UI and INV_SLOT), else -1. Which panel the
+     *  cell belongs to -- backpack, worn tab, bank -- is read off this. */
+    int component_id;
+    /** Slot within that container for an INV_SLOT row, else -1. */
+    int slot;
 };
 
 struct ToriRS_PluginEvMenuBuild
@@ -535,6 +696,23 @@ struct ToriRS_PluginEvDrawCanvas
     /** The canvas, in the coordinates every draw call on this surface uses. */
     int width;
     int height;
+};
+
+/**
+ * The canvas the frame is being declared against. @see EV_LAYOUT.
+ *
+ * Carries the size and nothing else, because everything else a layout needs is
+ * the plugin's own arithmetic: where the sidebar goes at 1440x900 is a
+ * statement the plugin makes, not one the host can be asked for.
+ */
+struct ToriRS_PluginEvLayout
+{
+    int width;
+    int height;
+    /** enum ToriRS_PluginLayoutCanvas, as the claim asked for it. A plugin
+     *  that claimed FIXED reads its own pinned size back here rather than the
+     *  window's, so one handler serves both kinds. */
+    int canvas;
 };
 
 struct ToriRS_PluginEvConfig
@@ -772,7 +950,20 @@ enum ToriRS_PluginModelSource
     /** A spotanimtype id: its model with that type's own recolours, retextures,
      *  resize, angle and lighting -- the graphic exactly as the server would
      *  draw it -- and its `seq` bound unless the plugin names another. */
-    TORIRS_PLUGIN_MODEL_SPOTANIM
+    TORIRS_PLUGIN_MODEL_SPOTANIM,
+    /** A mesh handle from mesh_create: geometry the PLUGIN authored, triangle
+     *  by triangle. Nothing about it is read from the cache, which is the
+     *  whole point -- a cache id names a model that exists in one revision and
+     *  is something else, or nothing, in the next, so a plugin that draws its
+     *  own furniture by id works on the cache it was written against and
+     *  silently draws a rock on the rest. An authored mesh is the same shape
+     *  on every revision this client boots. */
+    TORIRS_PLUGIN_MODEL_MESH,
+    /** A handle from model_load: a model FILE the plugin ships, in its own
+     *  asset folder. Portable for the same reason an authored mesh is -- the
+     *  geometry travels with the plugin -- and the way to ship real art rather
+     *  than something computed from trigonometry. */
+    TORIRS_PLUGIN_MODEL_ASSET
 };
 
 /**
@@ -798,6 +989,107 @@ enum ToriRS_PluginHullShape
     TORIRS_PLUGIN_HULL_BOUNDS = 0,
     /** The model's own posed geometry: tight, and linear in the mesh. */
     TORIRS_PLUGIN_HULL_MESH = 1
+};
+
+/**
+ * A box on the canvas a plugin can hang its own chrome off.
+ *
+ * Three, because a gameframe answers "where is the middle of the screen" three
+ * different ways and only the caller knows which one it meant.
+ */
+enum ToriRS_PluginAnchor
+{
+    /** The whole client window. Always available; almost never what a readout
+     *  wants, because in a resizable frame the sides of it are under the
+     *  inventory and the chatbox. */
+    TORIRS_PLUGIN_ANCHOR_CANVAS = 0,
+    /** The 3D scene's box. In a FIXED gameframe this is the play area and the
+     *  chrome sits outside it; in a resizable one it is the whole window and
+     *  the chrome floats on top. */
+    TORIRS_PLUGIN_ANCHOR_VIEWPORT,
+    /**
+     * Where a modal interface opens -- a bank, a level-up, a dialogue.
+     *
+     * The one anchor that means "the part of the screen the player is looking
+     * at" in BOTH window modes, which is why it exists: it is the area the
+     * gameframe itself keeps clear, so it is the area a client-owned readout
+     * belongs in. A fixed frame answers with its play area; a resizable one
+     * with the region it centres modals in rather than with the whole window.
+     *
+     * Answered from the gameframe's declared modal region where there is one
+     * (the dat1 frames tag one `slot=main_modal`), and otherwise from where the
+     * last modal actually mounted -- so on a revision that declares nothing it
+     * is unavailable until the session's first modal opens, which for a
+     * logged-in client is the welcome screen. Callers fall back to VIEWPORT.
+     */
+    TORIRS_PLUGIN_ANCHOR_MODAL
+};
+
+/* ------------------------------------------------------------------------ */
+/* Owning the gameframe                                                      */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * The live surfaces a layout arranges.
+ *
+ * A layout plugin brings its own ART -- the stones, the panels, the tab strip
+ * -- and it cannot bring these. The 3D scene, the minimap, the chat log, the
+ * open sidebar interface and the modal region are the CLIENT's, wired to the
+ * cache, the server and the world, and a plugin that tried to reproduce one
+ * would be writing a second client. So the frame is split in two: the plugin
+ * draws the picture and states where each of these belongs inside it, and the
+ * host puts them there.
+ *
+ * Which node each slot is on this lane is the HOST's problem, and it is a real
+ * one: on a 2004 dat1 frame they are revconfig builtins, and on an OldSchool
+ * cache they are components of interface 548/161/164 carrying a clientCode.
+ * Naming them by role rather than by id is what lets one layout serve both.
+ *
+ * A slot the gameframe does not have is not an error. A frame with no compass
+ * answers the placement with 0 and the plugin draws no compass housing.
+ */
+enum ToriRS_PluginLayoutSlot
+{
+    /** The 3D scene. Every gameframe has one. */
+    TORIRS_PLUGIN_SLOT_VIEWPORT = 0,
+    /** The map square itself, not the stone ring around it -- the box a click
+     *  hit-tests against, exactly as api->minimap_rect reports it. */
+    TORIRS_PLUGIN_SLOT_MINIMAP,
+    TORIRS_PLUGIN_SLOT_COMPASS,
+    /** The chat log and its input line. */
+    TORIRS_PLUGIN_SLOT_CHAT,
+    /** Whichever sidebar interface is open -- the inventory, the spellbook,
+     *  the stats page. One slot and not fourteen: only one is up at a time,
+     *  and a layout that had to place each would be stating the same rectangle
+     *  fourteen times. */
+    TORIRS_PLUGIN_SLOT_SIDEBAR,
+    /** Where a bank, a level-up or a dialogue opens. */
+    TORIRS_PLUGIN_SLOT_MAIN_MODAL,
+
+    TORIRS_PLUGIN_SLOT_COUNT
+};
+
+/** What the client canvas does under this layout. @see layout_claim. */
+enum ToriRS_PluginLayoutCanvas
+{
+    /**
+     * The canvas is the window: the layout is re-declared at whatever size the
+     * user drags it to.
+     *
+     * EV_LAYOUT then fires on every resize, and the plugin's arithmetic has to
+     * be in terms of the box it was handed rather than in constants.
+     */
+    TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW = 0,
+    /**
+     * The canvas is pinned to the size the claim named, and the window
+     * letterboxes it.
+     *
+     * The 765x503 frames want this and not "resizable at 765x503": the two
+     * differ the moment the window is not that size, and the difference is
+     * whether the art is magnified into the window or stranded in a corner of
+     * it.
+     */
+    TORIRS_PLUGIN_CANVAS_FIXED = 1
 };
 
 /* ------------------------------------------------------------------------ */
@@ -931,6 +1223,113 @@ struct ToriRS_PluginApi
      */
     int (*minimap_rect)(
         struct ToriRS_PluginCtx* ctx, int* out_x, int* out_y, int* out_w, int* out_h);
+
+    /**
+     * One of the anchor boxes above, in canvas coordinates. Any out may be
+     * NULL.
+     *
+     * @return 1 when this gameframe has that box and it has a size, 0
+     * otherwise, and 0 leaves the outs untouched -- so the idiom is to ask for
+     * the tightest anchor first and fall back:
+     *
+     *     if( !api->anchor_rect(ctx, TORIRS_PLUGIN_ANCHOR_MODAL, ...) &&
+     *         !api->anchor_rect(ctx, TORIRS_PLUGIN_ANCHOR_VIEWPORT, ...) )
+     *         api->anchor_rect(ctx, TORIRS_PLUGIN_ANCHOR_CANVAS, ...);
+     */
+    int (*anchor_rect)(
+        struct ToriRS_PluginCtx* ctx,
+        enum ToriRS_PluginAnchor which,
+        int* out_x,
+        int* out_y,
+        int* out_w,
+        int* out_h);
+
+    /* -- owning the gameframe --
+     *
+     * One plugin at a time arranges the frame, and while it does, the lane's
+     * OWN chrome is switched off: the 2004 stone surround, the OldSchool
+     * toplevel's backing sprites, the tab strip that came with the cache. That
+     * is not a side effect to be minimised, it is what a layout plugin is --
+     * two frames drawn at once is two sets of stones over one inventory.
+     *
+     * What survives is the list in ToriRS_PluginLayoutSlot: the surfaces no
+     * plugin can author. The plugin draws everything else itself, in
+     * EV_DRAW_FRAME, out of art it ships.
+     */
+
+    /**
+     * Claim the frame for this plugin.
+     *
+     * `canvas` is enum ToriRS_PluginLayoutCanvas. `fixed_w`/`fixed_h` are read
+     * only for CANVAS_FIXED and are the pinned canvas; FOLLOW_WINDOW ignores
+     * them and takes the window's size.
+     *
+     * Idempotent for the plugin that already holds it, which is what makes a
+     * claim in the START handler and a re-claim after a config change the same
+     * call. Refused -- returning false, changing nothing -- when ANOTHER plugin
+     * holds it: the loser must be able to carry on drawing whatever it drew
+     * before, and a claim that half-succeeded would leave two plugins each
+     * believing they own the stones.
+     *
+     * A successful claim raises EV_LAYOUT before it returns, so a plugin never
+     * has to place its slots twice: once here and once from the event.
+     *
+     * The claim is dropped when the plugin stops, so a disabled layout plugin
+     * gives the lane's own gameframe back rather than leaving the client with
+     * no frame at all.
+     */
+    bool (*layout_claim)(
+        struct ToriRS_PluginCtx* ctx,
+        int canvas,
+        int fixed_w,
+        int fixed_h);
+    /** Hand the frame back. The lane's own chrome returns on the next layout
+     *  pass. Harmless for a plugin that does not hold the claim. */
+    void (*layout_release)(struct ToriRS_PluginCtx* ctx);
+    /** 1 when THIS plugin holds the frame. */
+    int (*layout_owned)(struct ToriRS_PluginCtx* ctx);
+
+    /**
+     * Place one slot, in canvas coordinates. Legal only inside EV_LAYOUT
+     * (asserted), because that dispatch IS the declaration -- see the event.
+     *
+     * `slot` is enum ToriRS_PluginLayoutSlot. A slot placed twice keeps the
+     * last rectangle; a slot never placed is hidden for as long as this
+     * declaration stands.
+     *
+     * @return 1 when the slot was recorded AND this gameframe has a surface
+     * for it, 0 when the frame has no such surface -- which is the answer to
+     * "should I draw the housing for it", and the reason the placement reports
+     * anything at all.
+     */
+    int (*layout_slot)(
+        struct ToriRS_PluginCtx* ctx,
+        int slot,
+        int x,
+        int y,
+        int w,
+        int h);
+
+    /**
+     * Which sidebar tab is showing, or -1 when this frame has no tabs.
+     *
+     * The tab set is the CACHE's -- which interface is on tab 3 is a fact
+     * about the gameframe -- so a layout draws the stones and the icons and
+     * asks this which one to draw pressed, rather than keeping a selection of
+     * its own that the server could contradict.
+     */
+    int (*tab_active)(struct ToriRS_PluginCtx* ctx);
+    /**
+     * Flip to tab `tabno`, exactly as a click on that tab's stone would.
+     *
+     * The sibling of if_click, and separate from it for the same reason
+     * layout slots are named by role: the component that switches a tab is a
+     * different one in every gameframe and some frames switch tabs with no
+     * component at all.
+     *
+     * @return 1 when the frame has that tab and it was selected.
+     */
+    bool (*tab_select)(struct ToriRS_PluginCtx* ctx, int tabno);
 
     /* -- the player's numbers --
      *
@@ -1088,6 +1487,47 @@ struct ToriRS_PluginApi
      */
     uint32_t (*setting_color)(
         struct ToriRS_PluginCtx* ctx, int varp_id, uint32_t fallback);
+
+    /* -- the cache's item table, and the containers holding items -- */
+
+    /**
+     * One objtype, as this cache states it. @return 1 when the record is
+     * RESIDENT, 0 otherwise, and 0 leaves `out` untouched.
+     *
+     * A hit and never a load: this answers from what the client has already
+     * decoded, because every caller is inside a frame -- a hover, a draw --
+     * and an api verb that started IO would stall it. In practice that costs
+     * nothing, since an item the player can see has had its icon built and its
+     * record is therefore resident; an item named out of nowhere (an id read
+     * from a plugin's own table) may not be, and the honest answer there is
+     * "ask again next frame" rather than a record of zeroes.
+     */
+    int (*obj_info)(
+        struct ToriRS_PluginCtx* ctx, int obj_id, struct ToriRS_PluginObjInfo* out);
+
+    /**
+     * What is in one slot of one of the client's containers. Either out may be
+     * NULL.
+     *
+     * @param inv enum ToriRS_PluginInv.
+     * @return 1 when the container exists and the slot is inside it, 0
+     * otherwise, and 0 leaves the outs untouched. An EMPTY slot answers 1 with
+     * an obj id of -1 -- "there is no item there" is a different fact from
+     * "there is no such container", and a plugin comparing against worn
+     * equipment needs to tell them apart.
+     *
+     * READ ONLY, for api->varp's reason: a container is the server's.
+     */
+    int (*inv_slot)(
+        struct ToriRS_PluginCtx* ctx,
+        int inv,
+        int slot,
+        int* out_obj_id,
+        int* out_count);
+
+    /** How many slots that container has, or 0 when the client has never been
+     *  told about it. @param inv enum ToriRS_PluginInv. */
+    int (*inv_size)(struct ToriRS_PluginCtx* ctx, int inv);
 
     /* -- minimenu; legal only inside EV_MENU_BUILD (asserted) -- */
 
@@ -1457,6 +1897,92 @@ struct ToriRS_PluginApi
      */
     int (*datestamp)(struct ToriRS_PluginCtx* ctx, char* out, int out_size);
 
+    /* -- shipped models --
+     *
+     * A model FILE out of the plugin's own asset folder, decoded by the host
+     * and stood in the world through an object whose source is
+     * TORIRS_PLUGIN_MODEL_ASSET.
+     *
+     * This and mesh_* answer the same need from opposite ends. A mesh is
+     * geometry a plugin COMPUTES, which is right when the shape depends on
+     * something only known at runtime and wrong as a way to carry art. A
+     * shipped model is a file, authored as art is authored, and is what a
+     * plugin should reach for when the shape is fixed -- it can be edited,
+     * replaced or re-extracted without touching a line of the plugin.
+     *
+     * What it is NOT is a cache id. The bytes travel with the plugin, and the
+     * decoder sniffs the model format off the file's own trailer rather than
+     * off the booted revision's profile, so one file draws identically under
+     * every cache this client boots. A model carrying TEXTURED faces is the
+     * one exception and is not portable at all -- a texture id is a revision's
+     * own numbering -- which is why the tool that produces these files refuses
+     * a textured model unless told otherwise.
+     */
+
+    /**
+     * Begin loading `name` as a model, through the ordinary asset sandbox --
+     * so a bare filename, resolved saved-copy-first, exactly as asset_load
+     * resolves one.
+     *
+     * @return a model handle, or -1 when the plugin's name is refused or the
+     * resident model table is full.
+     *
+     * The handle is live at once and the GEOMETRY is not: the read crosses the
+     * IO queue like every other asset. An object pointed at a model that has
+     * not landed simply is not in the scene yet -- object_ready is how a
+     * plugin tells that from an object that will never draw.
+     *
+     * One handle per (plugin, file): asking twice gets the same one back
+     * rather than a second decoded copy.
+     */
+    int (*model_load)(struct ToriRS_PluginCtx* ctx, char const* name);
+
+    /* -- authored meshes --
+     *
+     * Geometry a plugin builds itself and stands in the world through an
+     * object whose source is TORIRS_PLUGIN_MODEL_MESH.
+     *
+     * A mesh is triangles: vertices in MODEL space -- x right, z forward, y
+     * NEGATIVE-UP, the same axes and the same 128-units-to-a-tile scale every
+     * cache model is authored in -- and faces naming three of them plus a
+     * packed HSL colour and a transparency. Lighting, sorting, clipping and
+     * the near plane are the host's, exactly as they are for a cache model:
+     * an authored mesh is a model, not an overlay drawn in perspective.
+     *
+     * Colours are packed HSL because face colours are (see hsl_from_rgb).
+     * Vertex ORDER decides which way a face points, and a face is only lit
+     * from the side its winding faces; the beam that reads as a hollow tube
+     * from outside is the same triangles wound the other way.
+     *
+     * Editing a mesh an object is already built from rebuilds that object's
+     * model, so an animation driven by re-authoring geometry costs a rebuild
+     * per change. Spinning, raising or moving an object costs nothing --
+     * object_set_position is applied to the live element -- which is why a
+     * plugin that wants motion should look for it there first.
+     */
+
+    /** An empty mesh owned by this plugin. Returns a handle, or -1 at the
+     *  plugin's mesh budget. */
+    int (*mesh_create)(struct ToriRS_PluginCtx* ctx);
+    void (*mesh_destroy)(struct ToriRS_PluginCtx* ctx, int mesh);
+    /** Drop every vertex and face, keeping the handle. Objects built from it
+     *  rebuild, so clear-then-rebuild is how a mesh is re-authored. */
+    void (*mesh_clear)(struct ToriRS_PluginCtx* ctx, int mesh);
+    /** Append a vertex; returns its index, or -1 at
+     *  TORIRS_PLUGIN_MESH_VERTICES_MAX. */
+    int (*mesh_vertex)(struct ToriRS_PluginCtx* ctx, int mesh, int x, int y, int z);
+    /** Append a triangle over three vertex indices, in packed HSL, with
+     *  `alpha` 0 (opaque) .. TORIRS_PLUGIN_MESH_ALPHA_MAX. Returns its face
+     *  index, or -1 at TORIRS_PLUGIN_MESH_FACES_MAX. */
+    int (*mesh_face)(
+        struct ToriRS_PluginCtx* ctx,
+        int mesh,
+        int a,
+        int b,
+        int c,
+        int hsl,
+        int alpha);
+
     /* -- world objects --
      *
      * A model the plugin owns, drawn in the scene among the locs and the
@@ -1479,7 +2005,9 @@ struct ToriRS_PluginApi
      *  Returns a handle, or -1 when the plugin is at its object budget. */
     int (*object_create)(struct ToriRS_PluginCtx* ctx);
     void (*object_destroy)(struct ToriRS_PluginCtx* ctx, int object);
-    /** Setting a model the object does not already have re-queues its load. */
+    /** `id` is read by `source`: a cache model id, a spotanimtype id, a mesh
+     *  handle from mesh_create, or a model handle from model_load. Setting a
+     *  model the object does not already have re-queues its load. */
     void (*object_set_model)(
         struct ToriRS_PluginCtx* ctx,
         int object,

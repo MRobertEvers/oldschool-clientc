@@ -967,6 +967,9 @@ struct UITree
     /** Open-addressed group_id -> nodes with that component_id high half. */
     struct UITreeGroupBucket* group_map;
     uint32_t group_map_cap;
+    /** A plugin layout's hold on this frame (ui/uitree_frame.h), or NULL --
+     *  which it is on every lane until a layout plugin claims one. */
+    struct UITreeFrameLayout* frame_layout;
 };
 
 struct UITreeNodeSpec

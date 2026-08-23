@@ -117,8 +117,8 @@ static const struct
     int dx;
     int dy;
 } ORB_SLOT[] = {
-    { 0, 37 },
-    { 0, 71 },
+    { 0,  37  },
+    { 0,  71  },
     { 10, 103 },
     { 32, 128 },
 };
@@ -167,10 +167,9 @@ enum OrbImage
 };
 
 static char const* const ORB_IMAGE_FILE[ORB_IMG_COUNT] = {
-    "frame.png",        "frame_over.png", "fill_empty.png",  "fill_red.png",
-    "fill_grey.png",    "fill_gold.png",  "fill_cyan.png",   "fill_cyan_lit.png",
-    "fill_prayer.png",  "icon_hp.png",    "icon_prayer.png", "icon_walk.png",
-    "icon_run.png",     "icon_spec.png",  "digits.png",
+    "frame.png",       "frame_over.png", "fill_empty.png",    "fill_red.png",    "fill_grey.png",
+    "fill_gold.png",   "fill_cyan.png",  "fill_cyan_lit.png", "fill_prayer.png", "icon_hp.png",
+    "icon_prayer.png", "icon_walk.png",  "icon_run.png",      "icon_spec.png",   "digits.png",
 };
 
 /** Handles from api->image_load, or -1 while a load has not been asked for. */
@@ -198,7 +197,10 @@ enum OrbTag
  * then nothing is written to the outputs).
  */
 static int
-orbs_parse_button(char const* spec, int* out_component, int* out_op)
+orbs_parse_button(
+    char const* spec,
+    int* out_component,
+    int* out_op)
 {
     int a = -1;
     int b = -1;
@@ -436,6 +438,28 @@ orbs_load_digits(struct ToriRS_PluginCtx* ctx)
         memcpy(line, start, len);
         line[len] = '\0';
 
+        /*
+         * The face's vertical metrics, which orbs_text_origin needs to place a
+         * centred line the way ToriDraw2D_DrawStringBox places one. Read
+         * before the glyph rows because they sit above them in the file, and
+         * because a zero here is not a harmless default -- it moves the number
+         * several pixels down the panel.
+         */
+        if( len > 12 && strncmp(line, "line_height=", 12) == 0 )
+        {
+            g_digit_line_height = atoi(line + 12);
+            continue;
+        }
+        if( len > 11 && strncmp(line, "max_ascent=", 11) == 0 )
+        {
+            g_digit_max_ascent = atoi(line + 11);
+            continue;
+        }
+        if( len > 12 && strncmp(line, "max_descent=", 12) == 0 )
+        {
+            g_digit_max_descent = atoi(line + 12);
+            continue;
+        }
         /* `<digit>=x y w h ox oy advance`. Anything else -- the header
          * comments, the `ascent=` line -- is skipped by the same test. */
         if( len > 6 && strncmp(line, "steps=", 6) == 0 )
@@ -453,8 +477,15 @@ orbs_load_digits(struct ToriRS_PluginCtx* ctx)
         {
             struct OrbGlyph* g = &g_digit[line[0] - '0'];
             if( sscanf(
-                    line + 2, "%d %d %d %d %d %d %d", &g->x, &g->y, &g->w, &g->h,
-                    &g->off_x, &g->off_y, &g->advance) == 7 )
+                    line + 2,
+                    "%d %d %d %d %d %d %d",
+                    &g->x,
+                    &g->y,
+                    &g->w,
+                    &g->h,
+                    &g->off_x,
+                    &g->off_y,
+                    &g->advance) == 7 )
                 g_digits_ready = 1;
         }
     }
@@ -478,12 +509,22 @@ orbs_load_digits(struct ToriRS_PluginCtx* ctx)
  * else again on any other face.
  */
 static int
-orbs_text_origin(int y, int h)
+orbs_text_origin(
+    int y,
+    int h)
 {
-    int const line_height = g_digit_line_height > 0 ? g_digit_line_height : 1;
     int const space = h - g_digit_max_ascent - g_digit_max_descent;
 
-    return y + g_digit_max_ascent + space / 2 - line_height;
+    /*
+     * Metrics that never arrived would put the number several pixels down the
+     * panel rather than nowhere, which is the kind of wrong that looks like a
+     * taste decision. The box's own top is the answer for a face whose ascent
+     * fills its line box -- which is every face an orb is set in -- so it is
+     * the honest fallback as well as the common case.
+     */
+    if( g_digit_line_height <= 0 || g_digit_max_ascent <= 0 )
+        return y;
+    return y + g_digit_max_ascent + space / 2 - g_digit_line_height;
 }
 
 /**
@@ -538,8 +579,7 @@ orbs_draw_number(
         int const src_y = g->y + row * g_digit_row_h;
 
         g_api->draw_image(
-            ctx, surface, g_image[ORB_IMG_DIGITS], dx - g->x, dy - src_y, dx, dy, g->w,
-            g->h, 0);
+            ctx, surface, g_image[ORB_IMG_DIGITS], dx - g->x, dy - src_y, dx, dy, g->w, g->h, 0);
         pen += g->advance;
     }
 }
@@ -627,14 +667,12 @@ orbs_draw_one(
     g_api->hit_region(ctx, surface, x, y, ORB_W, ORB_H, ops, op_count, tag);
 
     {
-        int const plate = hovered && g_image[ORB_IMG_FRAME_OVER] >= 0
-                              ? ORB_IMG_FRAME_OVER
-                              : ORB_IMG_FRAME;
+        int const plate =
+            hovered && g_image[ORB_IMG_FRAME_OVER] >= 0 ? ORB_IMG_FRAME_OVER : ORB_IMG_FRAME;
         g_api->draw_image(ctx, surface, g_image[plate], x, y, 0, 0, 0, 0, 0);
     }
     g_api->draw_image(
-        ctx, surface, g_image[fill_image], x + ORB_DISC_X, y + ORB_DISC_Y, 0, 0, 0, 0,
-        trans);
+        ctx, surface, g_image[fill_image], x + ORB_DISC_X, y + ORB_DISC_Y, 0, 0, 0, 0, trans);
 
     /*
      * The dark disc over the unfilled part, clipped to the rows above the
@@ -683,12 +721,14 @@ orbs_draw_one(
      * overlay face is the wrong one for an orb, but a number in the wrong face
      * beats an orb with no number in it. */
     snprintf(text, sizeof(text), "%d", value);
-    g_api->draw_text(
-        ctx, surface, x + ORB_TEXT_CX, y + ORB_TEXT_BASELINE, text, ORB_TEXT_RGB);
+    g_api->draw_text(ctx, surface, x + ORB_TEXT_CX, y + ORB_TEXT_BASELINE, text, ORB_TEXT_RGB);
 }
 
 static enum ToriRS_PluginVerdict
-orbs_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+orbs_draw(
+    struct ToriRS_PluginCtx* ctx,
+    void* event,
+    void* userdata)
 {
     (void)userdata;
 
@@ -746,9 +786,19 @@ orbs_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
             char const* ops[TORIRS_PLUGIN_REGION_OPS_MAX] = { 0 };
             int const n = orbs_ops(ctx, "hp_button", "orb_hp_button", "Cure", ops);
             orbs_draw_one(
-                ctx, ev->surface, x + ORB_SLOT[slot].dx, y + ORB_SLOT[slot].dy,
-                ORB_IMG_FILL_RED, ORB_IMG_ICON_HP, current, current, base, ORB_TAG_HP,
-                ops, n, 0);
+                ctx,
+                ev->surface,
+                x + ORB_SLOT[slot].dx,
+                y + ORB_SLOT[slot].dy,
+                ORB_IMG_FILL_RED,
+                ORB_IMG_ICON_HP,
+                current,
+                current,
+                base,
+                ORB_TAG_HP,
+                ops,
+                n,
+                0);
             slot++;
         }
     }
@@ -763,12 +813,21 @@ orbs_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
             char const* ops[TORIRS_PLUGIN_REGION_OPS_MAX] = { 0 };
             /* The reference's own verb: `prayerbutton` carries `op1=*` over
              * the name "Quick-prayers", which reads as one row. */
-            int const n =
-                orbs_ops(ctx, "prayer_button", "orb_prayer_button", "Quick-prayers", ops);
+            int const n = orbs_ops(ctx, "prayer_button", "orb_prayer_button", "Quick-prayers", ops);
             orbs_draw_one(
-                ctx, ev->surface, x + ORB_SLOT[slot].dx, y + ORB_SLOT[slot].dy,
-                ORB_IMG_FILL_PRAYER, ORB_IMG_ICON_PRAYER, current, current, base,
-                ORB_TAG_PRAYER, ops, n, 0);
+                ctx,
+                ev->surface,
+                x + ORB_SLOT[slot].dx,
+                y + ORB_SLOT[slot].dy,
+                ORB_IMG_FILL_PRAYER,
+                ORB_IMG_ICON_PRAYER,
+                current,
+                current,
+                base,
+                ORB_TAG_PRAYER,
+                ops,
+                n,
+                0);
             slot++;
         }
     }
@@ -876,7 +935,10 @@ orbs_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
  * different button on the same interface.
  */
 static enum ToriRS_PluginVerdict
-orbs_click(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+orbs_click(
+    struct ToriRS_PluginCtx* ctx,
+    void* event,
+    void* userdata)
 {
     (void)userdata;
 
@@ -909,8 +971,7 @@ orbs_click(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
          * first has a single toggle, which is the rev-239 shape.
          */
         {
-            int const run_varp =
-                orbs_varp(ctx, "run_varp", "run_mode", ORB_VARP_RUN_FALLBACK);
+            int const run_varp = orbs_varp(ctx, "run_varp", "run_mode", ORB_VARP_RUN_FALLBACK);
             int const running = run_varp >= 0 && g_api->varp(ctx, run_varp) != 0;
             char const* off_key = "run_button_off";
             char const* off_name = "orb_run_off";
@@ -967,7 +1028,10 @@ orbs_click(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 }
 
 static enum ToriRS_PluginVerdict
-orbs_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+orbs_start(
+    struct ToriRS_PluginCtx* ctx,
+    void* event,
+    void* userdata)
 {
     (void)event;
     (void)userdata;
@@ -985,7 +1049,10 @@ orbs_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 }
 
 static enum ToriRS_PluginVerdict
-orbs_stop(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+orbs_stop(
+    struct ToriRS_PluginCtx* ctx,
+    void* event,
+    void* userdata)
 {
     (void)ctx;
     (void)event;
@@ -998,7 +1065,9 @@ orbs_stop(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 }
 
 static void
-orbs_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
+orbs_init(
+    struct ToriRS_PluginCtx* ctx,
+    struct ToriRS_PluginApi const* api)
 {
     assert(ctx);
     assert(api);
@@ -1018,15 +1087,19 @@ orbs_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
  * that someone whose orb reads wrong can fix it without a rebuild.
  */
 static struct ToriRS_PluginConfigItem const ORBS_CONFIG[] = {
-    { "show_hp",   TORIRS_PLUGIN_CFG_BOOL, "Hitpoints orb",           "1",  0, 0,      NULL, 0 },
-    { "show_prayer", TORIRS_PLUGIN_CFG_BOOL, "Prayer orb",            "1",  0, 0,      NULL, 0 },
-    { "show_run",  TORIRS_PLUGIN_CFG_BOOL, "Run energy orb",          "1",  0, 0,      NULL, 0 },
-    { "show_spec", TORIRS_PLUGIN_CFG_BOOL, "Special attack orb",      "1",  0, 0,      NULL, 0 },
-    { "offset_x",  TORIRS_PLUGIN_CFG_INT,  "Offset from minimap left", "6", -512, 512, NULL, 0 },
-    { "offset_y",  TORIRS_PLUGIN_CFG_INT,  "Offset from the anchor", "0", -512, 512, NULL, 0 },
-    { "run_varp",  TORIRS_PLUGIN_CFG_INT,  "Run mode varp (-1 auto)", "-1", -1, 65535, NULL, 0 },
-    { "spec_varp", TORIRS_PLUGIN_CFG_INT,  "Special attack varp (-1 auto)", "-1", -1, 65535, NULL, 0 },
-    { "spec_max",  TORIRS_PLUGIN_CFG_INT,  "Special attack bar maximum", "1000", 1, 100000, NULL, 0 },
+    { "show_hp",        TORIRS_PLUGIN_CFG_BOOL,   "Hitpoints orb",                  "1",    0,    0,      NULL, 0 },
+    { "show_prayer",    TORIRS_PLUGIN_CFG_BOOL,   "Prayer orb",                     "1",    0,    0,      NULL, 0 },
+    { "show_run",       TORIRS_PLUGIN_CFG_BOOL,   "Run energy orb",                 "1",    0,    0,      NULL, 0 },
+    { "show_spec",      TORIRS_PLUGIN_CFG_BOOL,   "Special attack orb",             "1",    0,    0,      NULL, 0 },
+    { "offset_x",       TORIRS_PLUGIN_CFG_INT,    "Offset from minimap left",       "6",    -512, 512,    NULL, 0 },
+    { "offset_y",       TORIRS_PLUGIN_CFG_INT,    "Offset from the anchor",         "-10",  -512, 512,    NULL, 0 },
+    { "run_varp",       TORIRS_PLUGIN_CFG_INT,    "Run mode varp (-1 auto)",        "-1",   -1,   65535,  NULL, 0 },
+    { "spec_varp",
+     TORIRS_PLUGIN_CFG_INT,                       "Special attack varp (-1 auto)",
+     "-1",                                                                                  -1,
+     65535,                                                                                               NULL,
+     0                                                                                                            },
+    { "spec_max",       TORIRS_PLUGIN_CFG_INT,    "Special attack bar maximum",     "1000", 1,    100000, NULL, 0 },
     /*
      * The buttons each orb presses, `<interface>:<component>[:<op>]`, empty
      * for none.
@@ -1036,15 +1109,21 @@ static struct ToriRS_PluginConfigItem const ORBS_CONFIG[] = {
      * IF_BUTTON sent to a server about a component the player never touched.
      * Filling these in is a per-world job, which is what a config key is.
      */
-    { "hp_button",   TORIRS_PLUGIN_CFG_STRING, "Hitpoints orb button",      "", 0, 0, NULL, 0 },
-    { "prayer_button", TORIRS_PLUGIN_CFG_STRING, "Prayer orb button",       "", 0, 0, NULL, 0 },
-    { "run_button",  TORIRS_PLUGIN_CFG_STRING, "Run orb button (turns run on)", "", 0, 0, NULL, 0 },
-    { "run_button_off", TORIRS_PLUGIN_CFG_STRING, "Run orb button (turns run off)", "", 0, 0, NULL, 0 },
-    { "spec_button", TORIRS_PLUGIN_CFG_STRING, "Special attack orb button", "", 0, 0, NULL, 0 },
-    { NULL,        TORIRS_PLUGIN_CFG_BOOL, NULL,                      NULL, 0, 0,      NULL, 0 },
+    { "hp_button",      TORIRS_PLUGIN_CFG_STRING, "Hitpoints orb button",           "",     0,    0,      NULL, 0 },
+    { "prayer_button",  TORIRS_PLUGIN_CFG_STRING, "Prayer orb button",              "",     0,    0,      NULL, 0 },
+    { "run_button",     TORIRS_PLUGIN_CFG_STRING, "Run orb button (turns run on)",  "",     0,    0,      NULL, 0 },
+    { "run_button_off",
+     TORIRS_PLUGIN_CFG_STRING,                    "Run orb button (turns run off)",
+     "",                                                                                    0,
+     0,                                                                                                   NULL,
+     0                                                                                                            },
+    { "spec_button",    TORIRS_PLUGIN_CFG_STRING, "Special attack orb button",      "",     0,    0,      NULL, 0 },
+    { NULL,             TORIRS_PLUGIN_CFG_BOOL,   NULL,                             NULL,   0,    0,      NULL, 0 },
 };
 
-_Static_assert(ORB_SPEC_MAX == 1000, "the spec_max default above states this number too");
+_Static_assert(
+    ORB_SPEC_MAX == 1000,
+    "the spec_max default above states this number too");
 
 struct ToriRS_PluginDef const TORIRS_PLUGIN_MINIMAP_ORBS = {
     .name = "minimap-orbs",

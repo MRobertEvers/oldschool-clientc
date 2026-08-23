@@ -78,10 +78,25 @@
  * RuneLite's XpTrackerPlugin is, and it is a dozen lines when the only
  * consumer is this.
  *
- * A gain is noticed by polling on EV_SERVER_TICK rather than by an event of
- * its own, and deliberately: the client has no "a stat changed" event, the
- * poll is 25 integer compares once per server tick, and a poll cannot miss a
- * gain the way a subscription to the wrong packet could.
+ * A gain is noticed by POLLING, because the client has no "a stat changed"
+ * event and a poll cannot miss a gain the way a subscription to the wrong
+ * packet could.
+ *
+ * It polls on EV_LOGIC_TICK and not on EV_SERVER_TICK, and that is the whole
+ * difference between this working on one lane and on all of them.
+ * EV_SERVER_TICK is raised from PKT_NAME_SERVER_TICK_END, and only osrs230,
+ * osrs239 and the rsprot bridge carry that packet: the 2004-era protocols --
+ * lc245_2, lc254, lc289, xrsps233 -- have no tick fence on the wire at all, so
+ * on those worlds the event simply never fires and a plugin waiting for it sits
+ * there doing nothing while the player gains xp. EV_LOGIC_TICK is the client's
+ * own 20ms cycle and is raised on every lane.
+ *
+ * Nothing is given up by moving. EV_SERVER_TICK's promise is a COHERENT
+ * snapshot -- every packet of the tick applied, so a reader does not see a
+ * half-updated world -- and a per-skill xp counter has no such invariant to
+ * violate: UPDATE_STAT carries one skill, and two skills advancing one 20ms
+ * cycle apart rather than together is not a difference anybody can see. What
+ * it costs is 25 integer compares every 20ms instead of every 600ms.
  */
 
 /* -------------------------------------------------------------- the shape */
@@ -244,6 +259,36 @@ struct XpGlobe
 static struct XpGlobe g_globe[ORB_MAX_SHOWN];
 static int g_globe_count;
 
+/**
+ * One "+N" floating up into its orb.
+ *
+ * A drop is a GAIN, not a state, which is why these are a table of their own
+ * rather than a field on the globe: two gains 200ms apart are two labels in
+ * the air at once, and a globe holding "the last amount" could only ever show
+ * the second one.
+ *
+ * The table is small and shared across every globe, and a new gain with no
+ * free slot takes the oldest -- the same rule the globes themselves use, and
+ * for the same reason: at the point where six labels are in flight, the one
+ * that has been readable longest is the one nobody is still reading.
+ */
+struct XpDrop
+{
+    /** -1 for a free slot. */
+    int skill;
+    int amount;
+    uint64_t at_ms;
+    /** The composed "+N", or -1 before it has been rasterised. */
+    int image;
+    /** What that image says, so a slot reused for a different amount
+     *  recomposes and one reused for the same amount does not. */
+    int image_amount;
+    uint32_t image_rgb;
+};
+
+#define ORB_DROP_MAX 8
+static struct XpDrop g_drop[ORB_DROP_MAX];
+
 /** Per skill: the xp this plugin last saw, or -1 for one it has never seen.
  *  -1 is what makes the login burst -- every skill arriving at once -- seed
  *  the table instead of putting a globe on screen for all 25. */
@@ -262,6 +307,28 @@ static int g_text_w;
 static int g_text_h;
 
 static uint32_t g_scratch[ORB_SCRATCH_W * ORB_SCRATCH_H];
+
+/**
+ * How often the tooltip's numbers are allowed to move.
+ *
+ * Two of its lines are RATES -- xp per hour, and the time to goal derived from
+ * it -- and a rate recomputed every frame is a number that never stops
+ * twitching. It is not wrong at any instant; it is unreadable at every one,
+ * because the eye cannot hold a value that changes sixty times a second, and
+ * the last two digits of "XP per hour" carry no information anybody wants.
+ *
+ * Five seconds is slow enough to read and short enough that a rate which has
+ * genuinely changed is not stale for long. It gates the RECOMPOSE only: the
+ * panel is still blitted every frame, so it follows the pointer without lag.
+ */
+#define ORB_TIP_REFRESH_MS 5000
+
+/** The composed tooltip, and what it is a picture of. @see orb_draw_tooltip. */
+static int g_tip_image = -1;
+static int g_tip_h;
+static int g_tip_skill = -1;
+static int g_tip_xp = -1;
+static uint64_t g_tip_ms;
 
 /** The one verb a globe offers, and the reference's own: it flips the column
  *  between across and down. */
@@ -430,7 +497,8 @@ orb_blit_scaled(
     int src_x,
     int src_y,
     int src_w,
-    int src_h)
+    int src_h,
+    uint32_t tint)
 {
     assert(buf);
     assert(src);
@@ -480,8 +548,21 @@ orb_blit_scaled(
             if( n == 0 || a == 0 )
                 continue;
             {
-                uint32_t const px = ((a / (uint32_t)n) << 24) | ((r / a) << 16) |
-                                    ((g / a) << 8) | (b / a);
+                uint32_t cr = r / a;
+                uint32_t cg = g / a;
+                uint32_t cb = b / a;
+                uint32_t px;
+
+                /* Multiplied, not replaced: white ink becomes the tint and the
+                 * black drop shadow stays black, which is the whole reason one
+                 * baked row can serve every skill's colour. */
+                if( tint )
+                {
+                    cr = cr * ((tint >> 16) & 0xFF) / 255;
+                    cg = cg * ((tint >> 8) & 0xFF) / 255;
+                    cb = cb * (tint & 0xFF) / 255;
+                }
+                px = ((a / (uint32_t)n) << 24) | (cr << 16) | (cg << 8) | cb;
                 buf[ty * w + tx] = orb_over(buf[ty * w + tx], px);
             }
         }
@@ -518,28 +599,43 @@ orb_load_glyphs(struct ToriRS_PluginCtx* ctx)
 
     for( char const* end = at + size; at < end; )
     {
-        char const* line = at;
-        char const* stop = line;
+        /* The asset is a byte range, not a C string -- PlatformX_IO hands back
+         * exactly the bytes it read, with no terminator -- so every line is
+         * copied out before it is parsed. atoi/sscanf run to a NUL, and on the
+         * last line of the file that NUL is past the end of the allocation. */
+        char line[128];
+        char const* start = at;
+        char const* stop = start;
+        size_t len;
+
         while( stop < end && *stop != '\n' )
             stop++;
         at = stop < end ? stop + 1 : end;
+        if( stop > start && stop[-1] == '\r' )
+            stop--;
 
-        if( stop - line > 6 && strncmp(line, "steps=", 6) == 0 )
+        len = (size_t)(stop - start);
+        if( len >= sizeof(line) )
+            len = sizeof(line) - 1;
+        memcpy(line, start, len);
+        line[len] = '\0';
+
+        if( len > 6 && strncmp(line, "steps=", 6) == 0 )
         {
             g_glyph_rows = atoi(line + 6);
             continue;
         }
-        if( stop - line > 11 && strncmp(line, "row_height=", 11) == 0 )
+        if( len > 11 && strncmp(line, "row_height=", 11) == 0 )
         {
             g_glyph_row_h = atoi(line + 11);
             continue;
         }
-        if( stop - line > 12 && strncmp(line, "line_height=", 12) == 0 )
+        if( len > 12 && strncmp(line, "line_height=", 12) == 0 )
         {
             g_glyph_line_h = atoi(line + 12);
             continue;
         }
-        if( stop - line < 3 || line[1] != '=' )
+        if( len < 3 || line[1] != '=' )
             continue;
         {
             int const index = (unsigned char)line[0] - ORB_GLYPH_FIRST;
@@ -573,7 +669,16 @@ orb_text_width(char const* text)
     return width;
 }
 
-/** `text` into `buf`, with `x` as the pen and `top` as the line box's top. */
+/**
+ * `text` into `buf`, with `x` as the pen and `top` as the line box's top.
+ *
+ * `tint` is 0 to draw the row as it was baked, or an 0xRRGGBB the ink is
+ * multiplied by. The multiply works because of how the atlas is built: every
+ * glyph pixel is either the row's colour or the black drop shadow, so scaling
+ * a WHITE row by a colour gives that colour and leaves the shadow black. It is
+ * what lets one baked row serve twenty-five skill colours -- baking a row per
+ * skill would be twenty-five copies of the same glyph pack.
+ */
 static void
 orb_text(
     uint32_t* buf,
@@ -582,7 +687,8 @@ orb_text(
     int x,
     int top,
     char const* text,
-    int row)
+    int row,
+    uint32_t tint)
 {
     int pen = x;
 
@@ -604,7 +710,7 @@ orb_text(
         if( g->w > 0 && g->h > 0 )
             orb_blit_scaled(
                 buf, w, h, pen + g->off_x, top + g->off_y, g->w, g->h, g_text_px,
-                g_text_w, g->x, g->y + row * g_glyph_row_h, g->w, g->h);
+                g_text_w, g->x, g->y + row * g_glyph_row_h, g->w, g->h, tint);
         pen += g->advance;
     }
 }
@@ -685,6 +791,24 @@ orb_cfg_argb(struct ToriRS_PluginCtx* ctx, char const* key, int alpha)
 {
     uint32_t const rgb = g_api->cfg_color(ctx, key) & 0x00FFFFFFu;
     return ((uint32_t)orb_clampi(alpha, 0, 255) << 24) | rgb;
+}
+
+/**
+ * The colour this skill's ring is drawn in, as 0xRRGGBB.
+ *
+ * Shared by the ring and by the "+N" that floats into it, because they are one
+ * statement -- "this gain was magic" -- said twice on the screen. Two copies of
+ * the rule would let a custom arc colour recolour one of them and not the
+ * other.
+ */
+static uint32_t
+orb_skill_rgb(struct ToriRS_PluginCtx* ctx, int skill)
+{
+    if( g_api->cfg_bool(ctx, "custom_arc_color") )
+        return g_api->cfg_color(ctx, "arc_color") & 0x00FFFFFFu;
+    if( skill >= 0 && skill < ORB_SKILL_RGB_COUNT )
+        return ORB_SKILL_RGB[skill];
+    return 0xFFFFFFu;
 }
 
 static int
@@ -789,6 +913,35 @@ orb_add(struct ToriRS_PluginCtx* ctx, int skill, int xp, int level, uint64_t now
     g_globe_count++;
 }
 
+/**
+ * Put a "+N" in the air for `skill`.
+ *
+ * The image handle stays with the SLOT rather than travelling with the drop --
+ * a slot reused for a different amount recomposes on its next frame because
+ * `image_amount` no longer matches, and one reused for the same amount does
+ * not have to.
+ */
+static void
+orb_drop_add(int skill, int amount, uint64_t now)
+{
+    int at = -1;
+
+    for( int i = 0; i < ORB_DROP_MAX; i++ )
+    {
+        if( g_drop[i].skill < 0 )
+        {
+            at = i;
+            break;
+        }
+        if( at < 0 || g_drop[i].at_ms < g_drop[at].at_ms )
+            at = i;
+    }
+    assert(at >= 0);
+    g_drop[at].skill = skill;
+    g_drop[at].amount = amount;
+    g_drop[at].at_ms = now;
+}
+
 /** Forget every globe and every session number. What a logout is. */
 static void
 orb_reset(struct ToriRS_PluginCtx* ctx)
@@ -800,6 +953,8 @@ orb_reset(struct ToriRS_PluginCtx* ctx)
         g_globe[i].key = 0;
     }
     g_globe_count = 0;
+    for( int i = 0; i < ORB_DROP_MAX; i++ )
+        g_drop[i].skill = -1;
     for( int i = 0; i < g_skill_count; i++ )
     {
         g_seen_xp[i] = -1;
@@ -891,6 +1046,10 @@ orb_tick(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
             g_track[skill].start_ms = now;
         }
         g_track[skill].actions++;
+        /* The AMOUNT, before the seen value moves -- it is the difference
+         * between the two, and there is nowhere else to read it from. */
+        if( g_api->cfg_bool(ctx, "show_xp_drops") )
+            orb_drop_add(skill, xp - g_seen_xp[skill], now);
         g_seen_xp[skill] = xp;
 
         if( level >= 99 )
@@ -985,12 +1144,7 @@ orb_compose(
     assert(side <= ORB_SCRATCH_W);
     assert(side <= ORB_SCRATCH_H);
 
-    if( g_api->cfg_bool(ctx, "custom_arc_color") )
-        arc = orb_cfg_argb(ctx, "arc_color", 255);
-    else if( globe->skill >= 0 && globe->skill < ORB_SKILL_RGB_COUNT )
-        arc = 0xFF000000u | ORB_SKILL_RGB[globe->skill];
-    else
-        arc = 0xFFFFFFFFu;
+    arc = 0xFF000000u | orb_skill_rgb(ctx, globe->skill);
 
     memset(g_scratch, 0, (size_t)side * (size_t)side * sizeof(uint32_t));
 
@@ -1006,7 +1160,7 @@ orb_compose(
             orb_blit_scaled(
                 g_scratch, side, side, offset + (size - icon) / 2,
                 offset + (size - icon) / 2, icon, icon, g_skills_px, g_skills_w,
-                globe->skill * cell, 0, cell, cell);
+                globe->skill * cell, 0, cell, cell, 0);
     }
 
     /* 3. hovered: the wash, and the percentage the reference prints on it. */
@@ -1024,7 +1178,8 @@ orb_compose(
                 (side - orb_text_width(label)) / 2,
                 (side - g_glyph_line_h) / 2,
                 label,
-                ORB_TEXT_WHITE);
+                ORB_TEXT_WHITE,
+                0);
         }
     }
 
@@ -1075,9 +1230,24 @@ orb_draw_tooltip(
     int height;
     int x;
     int y;
-    int image;
+    uint64_t const now = g_api->frame_ms(ctx);
 
     assert(globe);
+
+    /*
+     * Rebuilt on a CHANGE or on the clock, whichever comes first.
+     *
+     * The clock alone would be wrong: moving the pointer to a different orb,
+     * or gaining xp while reading one, has to be answered at once or the panel
+     * is describing something other than what it is pointing at. What the
+     * clock is for is the two lines that move on their own.
+     */
+    if( g_tip_image >= 0 && g_tip_skill == globe->skill && g_tip_xp == globe->xp &&
+        now - g_tip_ms < ORB_TIP_REFRESH_MS )
+    {
+        height = g_tip_h;
+        goto blit;
+    }
 
     {
         char const* const name = g_api->skill_name(ctx, globe->skill);
@@ -1160,7 +1330,7 @@ orb_draw_tooltip(
         int const top = ORB_TIP_BORDER + i * g_glyph_line_h;
         orb_text(
             g_scratch, ORB_TIP_W, height, ORB_TIP_BORDER, top, row[i].left,
-            row[i].left_row);
+            row[i].left_row, 0);
         orb_text(
             g_scratch,
             ORB_TIP_W,
@@ -1168,15 +1338,21 @@ orb_draw_tooltip(
             ORB_TIP_W - ORB_TIP_BORDER - orb_text_width(row[i].right),
             top,
             row[i].right,
-            ORB_TEXT_WHITE);
+            ORB_TEXT_WHITE,
+            0);
     }
 
-    image = g_api->image_compose(ctx, "tooltip.png", ORB_TIP_W, height, g_scratch);
-    if( image < 0 )
+    g_tip_image = g_api->image_compose(ctx, "tooltip.png", ORB_TIP_W, height, g_scratch);
+    if( g_tip_image < 0 )
         return;
+    g_tip_h = height;
+    g_tip_skill = globe->skill;
+    g_tip_xp = globe->xp;
+    g_tip_ms = now;
 
-    /* Below and right of the pointer, as every tooltip in the client is, and
-     * folded back inside the canvas rather than clipped off the edge of it. */
+blit:
+    /* Every frame, whatever the gate above decided: the panel follows the
+     * pointer, and only its CONTENTS are on a clock. */
     x = mouse_x + 10;
     y = mouse_y + 20;
     if( x + ORB_TIP_W > canvas_w )
@@ -1184,8 +1360,8 @@ orb_draw_tooltip(
     if( y + height > canvas_h )
         y = mouse_y - height - 5;
     g_api->draw_image(
-        ctx, surface, image, orb_clampi(x, 0, canvas_w), orb_clampi(y, 0, canvas_h), 0,
-        0, 0, 0, 0);
+        ctx, surface, g_tip_image, orb_clampi(x, 0, canvas_w),
+        orb_clampi(y, 0, canvas_h), 0, 0, 0, 0, 0);
 }
 
 /* ---------------------------------------------------------------- the draw */
@@ -1222,6 +1398,141 @@ orb_load_art(struct ToriRS_PluginCtx* ctx)
         {
             free(g_text_px);
             g_text_px = NULL;
+        }
+    }
+}
+
+/**
+ * Every "+N" in the air, at its point along the climb.
+ *
+ * The travel is from just under the orb up to its centre, over `drop_duration`
+ * -- and the label does not have to fade to disappear, because the orb is drawn
+ * over it and swallows it. The fade is only for the tail of the climb, so a
+ * label crossing a disc that is itself half transparent does not show through
+ * as a smudge once it is "inside".
+ *
+ * A drop whose skill has no globe on screen goes with it. Its whole meaning is
+ * "this much went into THAT orb", and an orb that has expired leaves the number
+ * climbing towards nothing.
+ */
+static void
+orb_draw_drops(
+    struct ToriRS_PluginCtx* ctx,
+    void* surface,
+    uint64_t now,
+    int origin_x,
+    int origin_y,
+    int size,
+    int vertical)
+{
+    int const duration = orb_clampi(g_api->cfg_int(ctx, "drop_duration"), 100, 10000);
+
+    if( !g_api->cfg_bool(ctx, "show_xp_drops") || !g_glyph_ready )
+        return;
+
+    for( int i = 0; i < ORB_DROP_MAX; i++ )
+    {
+        struct XpDrop* drop = &g_drop[i];
+        int slot = -1;
+        int elapsed;
+        int travel;
+        int x;
+        int y;
+        int trans;
+        uint32_t rgb;
+
+        if( drop->skill < 0 )
+            continue;
+        elapsed = (int)(now - drop->at_ms);
+        if( elapsed >= duration )
+        {
+            drop->skill = -1;
+            continue;
+        }
+        for( int g = 0; g < g_globe_count; g++ )
+            if( g_globe[g].skill == drop->skill )
+                slot = g;
+        if( slot < 0 )
+        {
+            drop->skill = -1;
+            continue;
+        }
+
+        rgb = orb_skill_rgb(ctx, drop->skill);
+        if( drop->image < 0 || drop->image_amount != drop->amount ||
+            drop->image_rgb != rgb )
+        {
+            char label[24];
+            char amount[20];
+            char name[TORIRS_PLUGIN_ASSET_NAME_MAX];
+            int w;
+            int const h = g_glyph_line_h + 2;
+
+            orb_commas(amount, sizeof(amount), drop->amount);
+            snprintf(label, sizeof(label), "+%s", amount);
+            /*
+             * The rasterise STRIDE is the published width, not the scratch's.
+             *
+             * They have to be the same number. image_compose reads w*h pixels
+             * straight out of the buffer, so a label laid out at one stride and
+             * published at another is not a narrower picture -- it is the
+             * buffer reinterpreted, and it arrives as a few disconnected
+             * fragments of the first row or two.
+             */
+            w = orb_text_width(label) + 1;
+            if( w <= 0 || w > ORB_SCRATCH_W || h > ORB_SCRATCH_H )
+                continue;
+            memset(g_scratch, 0, (size_t)w * (size_t)h * sizeof(uint32_t));
+            orb_text(g_scratch, w, h, 0, 0, label, ORB_TEXT_WHITE, rgb);
+            snprintf(name, sizeof(name), "drop%d.png", i);
+            drop->image = g_api->image_compose(ctx, name, w, h, g_scratch);
+            drop->image_amount = drop->amount;
+            drop->image_rgb = rgb;
+        }
+        if( drop->image < 0 )
+            continue;
+
+        {
+            int label_w = 0;
+            int label_h = 0;
+            int const disc_x = origin_x + (vertical ? 0 : slot * (size + ORB_STEP));
+            int const disc_y = origin_y + (vertical ? slot * (size + ORB_STEP) : 0);
+
+            int const drop_y = orb_clampi(g_api->cfg_int(ctx, "drop_offset_y"), -128, 128);
+            int start_y;
+            int end_y;
+
+            g_api->image_size(ctx, drop->image, &label_w, &label_h);
+            /*
+             * The climb: from just under the disc up to its middle, and then
+             * the whole path shifted by `drop_offset_y`.
+             *
+             * BOTH ends move together, which is the thing an earlier version of
+             * this got wrong. It made only the start adjustable, and the finish
+             * stayed pinned to the middle of the orb -- so however far down the
+             * label began, it still spent the back half of its life sitting on
+             * the artwork, and no amount of the setting could move it off.
+             * Where the label ENDS is what decides whether it reads as landing
+             * on the orb or as buried in it, so that is what has to be
+             * settable.
+             *
+             * The default puts the finish at the orb's lower edge rather than
+             * at its centre: the number is still absorbed, but it is absorbed
+             * at the rim where it can be read on the way in.
+             */
+            start_y = disc_y + size + 4 + drop_y;
+            end_y = disc_y + size / 2 - label_h / 2 + drop_y;
+            travel = start_y - end_y;
+            x = disc_x + (size - label_w) / 2;
+            y = start_y - travel * elapsed / duration;
+            /* Opaque for the first two thirds, then out. `trans` is the
+             * reference's sense: 0 is opaque, 255 invisible. */
+            trans = elapsed * 3 <= duration * 2
+                        ? 0
+                        : 255 * (elapsed * 3 - duration * 2) / duration;
+            g_api->draw_image(
+                ctx, surface, drop->image, x, y, 0, 0, 0, 0,
+                orb_clampi(trans, 0, 255));
         }
     }
 }
@@ -1276,17 +1587,54 @@ orb_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
      * to one side.
      */
     {
-        /* The pitch is the reference's -- one ORB plus MINIMUM_STEP, so the gap
-         * between two discs is 10 whatever the rings around them are doing. The
-         * buffer is wider than the orb by the ring's overhang, and it is the
-         * DISC that is laid out; the buffer is blitted back by that overhang.
+        /*
+         * Centred on the part of the screen the player is looking at, which is
+         * NOT the canvas.
+         *
+         * The reference hangs its overlays off OverlayPosition.TOP_CENTER of
+         * the game window, and on a fixed frame that is the same thing as the
+         * play area. It stops being the same thing the moment the frame is
+         * resizable: the scene then fills the whole window and the chrome
+         * floats on top of it, so centring on the canvas puts the orbs
+         * somewhere between the two -- off to the side of what the player is
+         * watching, and under the chrome at the edges.
+         *
+         * So it asks for the tightest anchor first. MODAL is the area the
+         * gameframe itself keeps clear for a bank or a dialogue, which is the
+         * definition of "the middle of the screen" in both window modes;
+         * VIEWPORT is the answer on a frame that has never opened a modal and
+         * declares no region for one; CANVAS cannot fail and is what a client
+         * with no scene at all -- the login screen -- falls back to.
          */
+        int box_x = 0;
+        int box_y = 0;
+        int box_w = ev->width;
+        int box_h = ev->height;
         int const run = g_globe_count * size + (g_globe_count - 1) * ORB_STEP;
-        origin_x = vertical ? (ev->width - size) / 2 : (ev->width - run) / 2;
-        origin_y = offset;
+
+        if( !g_api->anchor_rect(
+                ctx, TORIRS_PLUGIN_ANCHOR_MODAL, &box_x, &box_y, &box_w, &box_h) &&
+            !g_api->anchor_rect(
+                ctx, TORIRS_PLUGIN_ANCHOR_VIEWPORT, &box_x, &box_y, &box_w, &box_h) )
+            g_api->anchor_rect(
+                ctx, TORIRS_PLUGIN_ANCHOR_CANVAS, &box_x, &box_y, &box_w, &box_h);
+
+        origin_x = box_x + (vertical ? (box_w - size) / 2 : (box_w - run) / 2);
+        origin_y = box_y + offset;
         origin_x += g_api->cfg_int(ctx, "offset_x");
         origin_y += g_api->cfg_int(ctx, "offset_y");
     }
+
+    /*
+     * The floating "+N"s, drawn BEFORE the globes and therefore behind them.
+     *
+     * That ordering is the effect. A label rises from under its orb and slides
+     * up behind the disc, so it is absorbed rather than stopping on top of the
+     * icon -- which is what "floating up into the orb" has to look like to read
+     * as the gain belonging to that skill. Drawn on top it would just be a
+     * number parked over the artwork.
+     */
+    orb_draw_drops(ctx, ev->surface, now, origin_x, origin_y, size, vertical);
 
     for( int i = 0; i < g_globe_count; i++ )
     {
@@ -1393,6 +1741,9 @@ orb_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
      * of drawing with numbers the host has since handed to someone else. */
     g_img_skills = -1;
     g_img_text = -1;
+    g_tip_image = -1;
+    g_tip_skill = -1;
+    g_tip_xp = -1;
     free(g_skills_px);
     g_skills_px = NULL;
     free(g_text_px);
@@ -1402,6 +1753,12 @@ orb_start(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     {
         g_globe[i].image = -1;
         g_globe[i].key = 0;
+    }
+    for( int i = 0; i < ORB_DROP_MAX; i++ )
+    {
+        g_drop[i].image = -1;
+        g_drop[i].image_amount = 0;
+        g_drop[i].image_rgb = 0;
     }
     orb_size_tables(ctx);
     orb_reset(ctx);
@@ -1418,6 +1775,9 @@ orb_stop(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
 
     g_img_skills = -1;
     g_img_text = -1;
+    g_tip_image = -1;
+    g_tip_skill = -1;
+    g_tip_xp = -1;
     free(g_skills_px);
     g_skills_px = NULL;
     free(g_text_px);
@@ -1428,6 +1788,11 @@ orb_stop(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     {
         g_globe[i].image = -1;
         g_globe[i].key = 0;
+    }
+    for( int i = 0; i < ORB_DROP_MAX; i++ )
+    {
+        g_drop[i].skill = -1;
+        g_drop[i].image = -1;
     }
     return TORIRS_PLUGIN_PASS;
 }
@@ -1442,7 +1807,7 @@ orb_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
     g_api = api;
     api->subscribe(ctx, TORIRS_PLUGIN_EV_START, orb_start, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_STOP, orb_stop, NULL);
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_SERVER_TICK, orb_tick, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_LOGIC_TICK, orb_tick, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_DRAW_CANVAS, orb_draw, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_CANVAS_CLICK, orb_click, NULL);
 }
@@ -1491,6 +1856,9 @@ static struct ToriRS_PluginConfigItem const ORB_CONFIG[] = {
     { "arc_width",         TORIRS_PLUGIN_CFG_INT,   "Progress arc width",           "2", 1, 12, NULL, 0 },
     { "orb_size",          TORIRS_PLUGIN_CFG_INT,   "Size of orbs",                 "40", 16, ORB_SIZE_MAX, NULL, 0 },
     { "orb_duration",      TORIRS_PLUGIN_CFG_INT,   "Duration of orbs (seconds)",   "10", 1, 600, NULL, 0 },
+    { "show_xp_drops",     TORIRS_PLUGIN_CFG_BOOL,  "Float the XP gained into the orb", "1", 0, 0, NULL, 0 },
+    { "drop_duration",     TORIRS_PLUGIN_CFG_INT,   "XP drop float time (ms)",      "1200", 100, 10000, NULL, 0 },
+    { "drop_offset_y",     TORIRS_PLUGIN_CFG_INT,   "XP drop height (px, + is lower)", "20", -128, 128, NULL, 0 },
     { "vertical",          TORIRS_PLUGIN_CFG_BOOL,  "Vertical orbs",                "0", 0, 0, NULL, 0 },
     { "offset_x",          TORIRS_PLUGIN_CFG_INT,   "Offset from top centre, across", "0", -2048, 2048, NULL, 0 },
     { "offset_y",          TORIRS_PLUGIN_CFG_INT,   "Offset from top centre, down", "0", -2048, 2048, NULL, 0 },

@@ -59,8 +59,10 @@ EM_JS(void, web_editor_open_panel_tab, (void), {
 #include "engine/entity_model_build.h"
 #include "engine/player_appearance.h"
 #include "engine/png_decode.h"
+#include "ui/uitree_frame.h"
 #include "engine/task_obj_model_load.h"
 #include "engine/toridraw_model_from_torirs.h"
+#include "engine/torirs_model_from_rscache.h"
 #include "engine/torirs_model_inst_cache.h"
 #include "engine/torirs_worldmap_from_rscache.h"
 #include "engine/uitree_builder/task_interface_open.h"
@@ -2257,12 +2259,20 @@ app_overlay_push(
      * for all of them and they land in the world list exactly as before. Only
      * a plugin drawing inside EV_DRAW_CANVAS flips it.
      */
-    if( app->plugin_draw_canvas )
+    if( app->plugin_draw_canvas == APP_PLUGIN_SURFACE_CANVAS )
     {
         int cap = (int)(sizeof(app->canvas_overlays) / sizeof(app->canvas_overlays[0]));
         if( app->canvas_overlay_count >= cap )
             return;
         app->canvas_overlays[app->canvas_overlay_count++] = *item;
+        return;
+    }
+    if( app->plugin_draw_canvas == APP_PLUGIN_SURFACE_FRAME )
+    {
+        int cap = (int)(sizeof(app->frame_overlays) / sizeof(app->frame_overlays[0]));
+        if( app->frame_overlay_count >= cap )
+            return;
+        app->frame_overlays[app->frame_overlay_count++] = *item;
         return;
     }
 
@@ -2278,7 +2288,15 @@ static int
 app_overlay_count(struct App const* app)
 {
     assert(app);
-    return app->plugin_draw_canvas ? app->canvas_overlay_count : app->entity_overlay_count;
+    switch( app->plugin_draw_canvas )
+    {
+    case APP_PLUGIN_SURFACE_CANVAS:
+        return app->canvas_overlay_count;
+    case APP_PLUGIN_SURFACE_FRAME:
+        return app->frame_overlay_count;
+    default:
+        return app->entity_overlay_count;
+    }
 }
 
 /* One entity's overlay set. combat/damage state lives on the shared facet, so
@@ -4620,16 +4638,42 @@ app_build_canvas_overlays(
 
     app->canvas_overlay_count = 0;
     /* The regions go with the pixels they describe: both are declared inside
-     * the one draw dispatch below, and a region kept from a frame whose
-     * drawing was replaced would answer clicks for something that is no
-     * longer on the screen. */
-    app->plugin_region_count = 0;
+     * the draw dispatches, and a region kept from a frame whose drawing was
+     * replaced would answer clicks for something that is no longer on the
+     * screen. The reset lives in app_build_frame_overlays, which runs first in
+     * the same walk -- see there. */
     *out_items = app->canvas_overlays;
     if( !app->plugins )
         return 0;
 
     PluginHost_DrawCanvas(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     return app->canvas_overlay_count;
+}
+
+/*
+ * The plugin FRAME overlay -- the same shape again, for the third surface.
+ *
+ * The regions are NOT reset here, unlike the canvas list's: this pass runs
+ * first and the canvas pass runs later in the same emit walk, so clearing them
+ * twice would throw away every tab stone the frame just claimed. One reset,
+ * owned by whichever pass comes first, and it is this one.
+ */
+static int
+app_build_frame_overlays(
+    struct App* app,
+    struct UITreeEntityOverlay const** out_items)
+{
+    assert(app);
+    assert(out_items);
+
+    app->frame_overlay_count = 0;
+    app->plugin_region_count = 0;
+    *out_items = app->frame_overlays;
+    if( !app->plugins )
+        return 0;
+
+    PluginHost_DrawFrame(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    return app->frame_overlay_count;
 }
 
 static int
@@ -4944,6 +4988,15 @@ app_host_request(
         *req->u.get_entity_overlays.out_clip_w = UITREE_LAYOUT_ROOT_W;
         *req->u.get_entity_overlays.out_clip_h = UITREE_LAYOUT_ROOT_H;
         return app_build_canvas_overlays(app, req->u.get_entity_overlays.out_items);
+    case UITREE_HOST_GET_FRAME_OVERLAYS:
+        /* Cut to the canvas, like the list above it: a gameframe is chrome
+         * around the viewport, so clipping it to the viewport would erase
+         * exactly the part that is the frame. */
+        *req->u.get_entity_overlays.out_clip_x = 0;
+        *req->u.get_entity_overlays.out_clip_y = 0;
+        *req->u.get_entity_overlays.out_clip_w = UITREE_LAYOUT_ROOT_W;
+        *req->u.get_entity_overlays.out_clip_h = UITREE_LAYOUT_ROOT_H;
+        return app_build_frame_overlays(app, req->u.get_entity_overlays.out_items);
     case UITREE_HOST_GET_CROSS_ACTIVE:
         return UICross_IsActive(&app->cross) ? 1 : 0;
     case UITREE_HOST_GET_CROSS_ATLAS_FRAME:
@@ -7557,6 +7610,9 @@ App_Init(
     assert(cfg);
     memset(app, 0, sizeof(*app));
     app->cfg = *cfg;
+    /* 0 is a legal component uid, so "nothing has mounted a modal yet" needs a
+     * value of its own. */
+    app->modal_host_uid = -1;
 
     /* Before any subsystem: RS_CS2Host_Init wants its script ids, and the
      * boot font loads want theirs. Local-file parse only — no cache IO, so it
@@ -11192,6 +11248,11 @@ App_OpenSubInterface(
             (target_uid >> 16) & 0xffff,
             target_uid & 0xffff,
             type);
+    /* Type 0 is the modal mount. Recorded on the OPEN and not on the close --
+     * App_CloseSubInterface reaches app_enqueue_open_sub directly with
+     * iface -1, so an unmount cannot erase the frame's answer. */
+    if( type == 0 && interface_id > 0 )
+        app->modal_host_uid = target_uid;
     app_enqueue_open_sub(app, target_uid, interface_id, type);
 }
 
@@ -17159,6 +17220,151 @@ app_world_spawn_spotanim_now(
     app->need_redraw = 1;
 }
 
+/* ------------------------------------------------ plugin-authored meshes */
+
+/*
+ * Geometry a plugin built itself, and the model made from it.
+ *
+ * The reason this exists at all is that a cache id is not portable. A plugin
+ * that stands a beam of light over a drop by naming model 43330 is naming a
+ * number that means that beam in one revision, means something else in
+ * another, and is absent from most -- so the plugin works on the cache it was
+ * written against and silently draws a crate, or nothing, on the rest. An
+ * authored mesh has no such dependency: it is the same triangles wherever it
+ * is drawn.
+ *
+ * Storage is the App's rather than the host's because only this side can turn
+ * a mesh into something drawable, and the arrays grow on append because the
+ * api ceilings are a limit and not a size.
+ */
+
+static struct AppPluginAssetModel*
+app_plugin_asset_model_at(struct App* app, int handle)
+{
+    assert(app);
+    if( handle < 0 || handle >= TORIRS_PLUGIN_MODELS_MAX )
+        return NULL;
+    if( !app->plugin_asset_models[handle].in_use )
+        return NULL;
+    return &app->plugin_asset_models[handle];
+}
+
+static struct AppPluginMesh*
+app_plugin_mesh_at(struct App* app, int handle)
+{
+    assert(app);
+    if( handle < 0 || handle >= APP_PLUGIN_MESHES_MAX )
+        return NULL;
+    if( !app->plugin_meshes[handle].in_use )
+        return NULL;
+    return &app->plugin_meshes[handle];
+}
+
+/* Every array of a mesh's vertex half, or of its face half, grown together to
+ * `want` entries. One doubling for the whole half rather than a realloc per
+ * array per append: they are the same list seen eight ways and always carry
+ * the same count. */
+static void
+app_plugin_mesh_grow(struct AppPluginMesh* mesh, int faces, int want)
+{
+    int cap;
+
+    assert(mesh);
+    cap = faces ? mesh->face_cap : mesh->vertex_cap;
+    if( want <= cap )
+        return;
+    cap = cap ? cap * 2 : 64;
+    while( cap < want )
+        cap *= 2;
+
+    if( faces )
+    {
+        mesh->face_a = realloc(mesh->face_a, (size_t)cap * sizeof(*mesh->face_a));
+        mesh->face_b = realloc(mesh->face_b, (size_t)cap * sizeof(*mesh->face_b));
+        mesh->face_c = realloc(mesh->face_c, (size_t)cap * sizeof(*mesh->face_c));
+        mesh->face_color = realloc(mesh->face_color, (size_t)cap * sizeof(*mesh->face_color));
+        mesh->face_alpha = realloc(mesh->face_alpha, (size_t)cap * sizeof(*mesh->face_alpha));
+        assert(mesh->face_a);
+        assert(mesh->face_b);
+        assert(mesh->face_c);
+        assert(mesh->face_color);
+        assert(mesh->face_alpha);
+        mesh->face_cap = cap;
+        return;
+    }
+
+    mesh->vertices_x = realloc(mesh->vertices_x, (size_t)cap * sizeof(*mesh->vertices_x));
+    mesh->vertices_y = realloc(mesh->vertices_y, (size_t)cap * sizeof(*mesh->vertices_y));
+    mesh->vertices_z = realloc(mesh->vertices_z, (size_t)cap * sizeof(*mesh->vertices_z));
+    assert(mesh->vertices_x);
+    assert(mesh->vertices_y);
+    assert(mesh->vertices_z);
+    mesh->vertex_cap = cap;
+}
+
+static void
+app_plugin_mesh_release(struct AppPluginMesh* mesh)
+{
+    assert(mesh);
+    free(mesh->vertices_x);
+    free(mesh->vertices_y);
+    free(mesh->vertices_z);
+    free(mesh->face_a);
+    free(mesh->face_b);
+    free(mesh->face_c);
+    free(mesh->face_color);
+    free(mesh->face_alpha);
+    memset(mesh, 0, sizeof(*mesh));
+}
+
+/*
+ * A drawable model over one mesh, unlit and in its bind pose.
+ *
+ * Everything a cache model gets from its decoder is stated by the plugin here
+ * -- vertices, triangles, a flat colour and a transparency per face -- and the
+ * per-vertex a/b/c the rasteriser actually reads are left zeroed for the
+ * lighting pass that follows, exactly as ToriDraw_ModelFromToriRS leaves them
+ * for a model whose cache copy carried none.
+ */
+static struct ToriDraw_Model*
+app_plugin_mesh_build_model(struct AppPluginMesh const* mesh)
+{
+    struct ToriDraw_Model* model;
+
+    assert(mesh);
+    assert(mesh->vertex_count > 0);
+    assert(mesh->face_count > 0);
+
+    model = ToriDraw_ModelNew(mesh->vertex_count, mesh->face_count, 0);
+    assert(model);
+
+    model->vertices_x = ToriDraw_BufCopy(
+        mesh->vertices_x, (size_t)mesh->vertex_count, sizeof(*model->vertices_x));
+    model->vertices_y = ToriDraw_BufCopy(
+        mesh->vertices_y, (size_t)mesh->vertex_count, sizeof(*model->vertices_y));
+    model->vertices_z = ToriDraw_BufCopy(
+        mesh->vertices_z, (size_t)mesh->vertex_count, sizeof(*model->vertices_z));
+    model->face_indices_a =
+        ToriDraw_BufCopy(mesh->face_a, (size_t)mesh->face_count, sizeof(*model->face_indices_a));
+    model->face_indices_b =
+        ToriDraw_BufCopy(mesh->face_b, (size_t)mesh->face_count, sizeof(*model->face_indices_b));
+    model->face_indices_c =
+        ToriDraw_BufCopy(mesh->face_c, (size_t)mesh->face_count, sizeof(*model->face_indices_c));
+    model->face_colors =
+        ToriDraw_BufCopy(mesh->face_color, (size_t)mesh->face_count, sizeof(*model->face_colors));
+    model->face_alphas =
+        ToriDraw_BufCopy(mesh->face_alpha, (size_t)mesh->face_count, sizeof(*model->face_alphas));
+
+    model->face_colors_a = calloc((size_t)mesh->face_count, sizeof(*model->face_colors_a));
+    model->face_colors_b = calloc((size_t)mesh->face_count, sizeof(*model->face_colors_b));
+    model->face_colors_c = calloc((size_t)mesh->face_count, sizeof(*model->face_colors_c));
+    assert(model->face_colors_a);
+    assert(model->face_colors_b);
+    assert(model->face_colors_c);
+
+    return model;
+}
+
 /* ----------------------------------------------- plugin-owned world objects */
 
 /*
@@ -17203,6 +17409,31 @@ app_plugin_object_recolor_stamp(struct AppPluginObject const* obj)
     return stamp * 31 + obj->recolor_count;
 }
 
+/* The revision of the geometry this object stands on, or 0 when it stands on
+ * none -- a cache-sourced object, or one whose mesh was destroyed or whose
+ * shipped model never decoded. Compared against built_geometry_revision, so
+ * geometry that is re-authored, or that arrives late off the IO queue,
+ * rebuilds the objects made from it, and geometry re-stated unchanged rebuilds
+ * nothing. */
+static int
+app_plugin_object_geometry_revision(struct App* app, struct AppPluginObject const* obj)
+{
+    assert(app);
+    assert(obj);
+
+    if( obj->source == TORIRS_PLUGIN_MODEL_MESH )
+    {
+        struct AppPluginMesh const* mesh = app_plugin_mesh_at(app, obj->model_id);
+        return mesh ? mesh->revision : 0;
+    }
+    if( obj->source == TORIRS_PLUGIN_MODEL_ASSET )
+    {
+        struct AppPluginAssetModel const* shipped = app_plugin_asset_model_at(app, obj->model_id);
+        return shipped ? shipped->revision : 0;
+    }
+    return 0;
+}
+
 /* The model ids this object's source needs resident before it can be built:
  * a CACHE object names its model directly, a SPOTANIM object names it through
  * the spotanimtype. Returns -1 when it is not knowable yet. */
@@ -17218,6 +17449,12 @@ app_plugin_object_model_id(struct App* app, struct AppPluginObject const* obj)
             obj->model_id >= 0 ? CacheProvider_SpotanimtypeGet(app->provider, obj->model_id) : NULL;
         return spot ? spot->model : -1;
     }
+    /* A MESH object's model_id is a mesh handle and an ASSET object's is a
+     * model-load handle -- neither is a cache id, and neither has anything for
+     * the spawn task to make resident. That is the whole point of both: the
+     * geometry travels with the plugin. */
+    if( obj->source == TORIRS_PLUGIN_MODEL_MESH || obj->source == TORIRS_PLUGIN_MODEL_ASSET )
+        return -1;
     return obj->model_id;
 }
 
@@ -17228,6 +17465,16 @@ app_plugin_object_seq_id(struct App* app, struct AppPluginObject const* obj)
 {
     assert(app);
     assert(obj);
+
+    /* An AUTHORED mesh carries no rig, and a cache sequence is a table of
+     * transforms addressed by transform group -- there is nothing in a mesh
+     * for one to drive. Binding one is a plugin bug rather than a shape this
+     * can express, so it stops here instead of animating nothing.
+     *
+     * A SHIPPED model is not covered: a model file can carry bones, and a
+     * plugin that ships one alongside a cache revision it knows may legitimately
+     * name that revision's sequence. Whether the two agree is its business. */
+    assert(!(obj->source == TORIRS_PLUGIN_MODEL_MESH && obj->seq_id >= 0));
 
     if( obj->seq_id >= 0 )
         return obj->seq_id;
@@ -17257,44 +17504,73 @@ app_plugin_object_build_model(struct App* app, struct AppPluginObject const* obj
 {
     struct ToriRS_Spotanimtype const* spot = NULL;
     struct ToriDraw_Model* model;
-    int model_id;
     int retextured = 0;
 
     assert(app);
     assert(obj);
 
-    if( obj->source == TORIRS_PLUGIN_MODEL_SPOTANIM )
-        spot = obj->model_id >= 0 ? CacheProvider_SpotanimtypeGet(app->provider, obj->model_id)
-                                  : NULL;
-    model_id = app_plugin_object_model_id(app, obj);
-    if( model_id < 0 )
-        return NULL;
-
+    if( obj->source == TORIRS_PLUGIN_MODEL_ASSET )
     {
-        struct ToriRS_Model* rs = CacheProvider_ModelGet(app->provider, model_id);
-        model = rs ? ToriDraw_ModelFromToriRS(rs) : NULL;
+        /* Not resident yet is the ordinary state for the first frame or two:
+         * the file crosses the IO queue like every other asset, and the settle
+         * builds the object when it lands. */
+        struct AppPluginAssetModel const* shipped =
+            app_plugin_asset_model_at(app, obj->model_id);
+        if( !shipped || !shipped->model )
+            return NULL;
+        model = ToriDraw_ModelFromToriRS(shipped->model);
+        if( !model )
+            return NULL;
     }
-    if( !model )
-        return NULL;
-
-    /* The spotanimtype's own recolours first, so the plugin's pairs are stated
-     * against the colours it can actually see on the finished graphic. */
-    if( spot )
+    else if( obj->source == TORIRS_PLUGIN_MODEL_MESH )
     {
-        if( spot->recol_s[0] != 0 )
+        struct AppPluginMesh const* mesh = app_plugin_mesh_at(app, obj->model_id);
+        /* An empty mesh is not a bug: a plugin that has taken a handle and not
+         * yet authored into it is mid-build, and the object has nothing to
+         * draw until it has. A handle that names no mesh at all is the same
+         * answer from the object's side -- it was destroyed under it. */
+        if( !mesh || mesh->face_count <= 0 )
+            return NULL;
+        model = app_plugin_mesh_build_model(mesh);
+    }
+    else
+    {
+        int const model_id = app_plugin_object_model_id(app, obj);
+
+        if( obj->source == TORIRS_PLUGIN_MODEL_SPOTANIM )
+            spot = obj->model_id >= 0 ? CacheProvider_SpotanimtypeGet(app->provider, obj->model_id)
+                                      : NULL;
+        if( model_id < 0 )
+            return NULL;
+
         {
-            for( int i = 0; i < 6; i++ )
-                ToriDraw_ModelRecolor(model, spot->recol_s[i], spot->recol_d[i]);
+            struct ToriRS_Model* rs = CacheProvider_ModelGet(app->provider, model_id);
+            model = rs ? ToriDraw_ModelFromToriRS(rs) : NULL;
         }
-        for( int i = 0; i < 6; i++ )
+        if( !model )
+            return NULL;
+
+        /* The spotanimtype's own recolours first, so the plugin's pairs are
+         * stated against the colours it can actually see on the finished
+         * graphic. */
+        if( spot )
         {
-            if( spot->retex_s[i] != 0 )
+            if( spot->recol_s[0] != 0 )
             {
-                ToriDraw_ModelRetexture(model, spot->retex_s[i], spot->retex_d[i]);
-                retextured = 1;
+                for( int i = 0; i < 6; i++ )
+                    ToriDraw_ModelRecolor(model, spot->recol_s[i], spot->recol_d[i]);
+            }
+            for( int i = 0; i < 6; i++ )
+            {
+                if( spot->retex_s[i] != 0 )
+                {
+                    ToriDraw_ModelRetexture(model, spot->retex_s[i], spot->retex_d[i]);
+                    retextured = 1;
+                }
             }
         }
     }
+
     for( int i = 0; i < obj->recolor_count; i++ )
         ToriDraw_ModelRecolor(model, obj->recolor_from[i], obj->recolor_to[i]);
 
@@ -17347,6 +17623,7 @@ app_plugin_object_teardown(struct App* app, struct AppPluginObject* obj)
     obj->built_source = -1;
     obj->built_model_id = -1;
     obj->built_recolor_stamp = 0;
+    obj->built_geometry_revision = 0;
 }
 
 /* Scene-local placement for an object's absolute tile, or 0 when it is off the
@@ -17414,11 +17691,18 @@ app_plugin_object_materialize_now(struct App* app, int handle)
     element_id = app_world_scene_element_create(app, model, world_x, world_y, world_z);
     if( element_id < 0 )
         return;
+    /* The element carries the yaw, not the entity: the painter is handed an
+     * element id and reads the orientation off it, so an object whose yaw
+     * lived only on the WorldEntity stood in its bind orientation forever --
+     * a documented parameter that turned nothing. */
+    ToriDraw_SceneElementSetPosition(
+        app->scene, element_id, world_x, world_y, world_z, obj->yaw);
 
     obj->element_id = element_id;
     obj->built_source = obj->source;
     obj->built_model_id = obj->model_id;
     obj->built_recolor_stamp = app_plugin_object_recolor_stamp(obj);
+    obj->built_geometry_revision = app_plugin_object_geometry_revision(app, obj);
     obj->world_index = World_PluginObjectSpawn(
         app->world,
         element_id,
@@ -18815,7 +19099,8 @@ app_plugin_object_sync(struct App* app, int handle)
     /* A change to what the MODEL is made of cannot be applied in place. */
     if( obj->element_id >= 0 &&
         (obj->built_source != obj->source || obj->built_model_id != obj->model_id ||
-         obj->built_recolor_stamp != app_plugin_object_recolor_stamp(obj)) )
+         obj->built_recolor_stamp != app_plugin_object_recolor_stamp(obj) ||
+         obj->built_geometry_revision != app_plugin_object_geometry_revision(app, obj)) )
         app_plugin_object_teardown(app, obj);
 
     /* Nothing to draw yet, or nothing to draw at all. */
@@ -18846,8 +19131,9 @@ app_plugin_object_sync(struct App* app, int handle)
         return;
     }
 
-    /* Live: position, level and visibility are applied to the entity. */
-    ToriDraw_SceneElementSetPosition(app->scene, obj->element_id, world_x, world_y, world_z, 0);
+    /* Live: position, orientation, level and visibility are applied in place. */
+    ToriDraw_SceneElementSetPosition(
+        app->scene, obj->element_id, world_x, world_y, world_z, obj->yaw);
     if( obj->world_index >= 0 )
     {
         struct WorldEntity_PluginObject* we =
@@ -18887,7 +19173,41 @@ app_plugin_objects_rebuild(struct App* app)
         obj->built_source = -1;
         obj->built_model_id = -1;
         obj->built_recolor_stamp = 0;
+        obj->built_geometry_revision = 0;
         obj->load_pending = 0;
+        app_plugin_object_sync(app, i);
+    }
+}
+
+/*
+ * Objects standing on a mesh that has been re-authored, rebuilt.
+ *
+ * Once a frame rather than on every mesh_vertex: authoring a shape is hundreds
+ * of appends, and reconciling on each of them would build and throw away
+ * hundreds of models to arrive at the one the plugin meant. The dirty flag is
+ * what keeps the ordinary frame -- no plugin has touched any geometry -- free.
+ *
+ * It is also how a SHIPPED model gets on screen at all: its bytes cross the IO
+ * queue, so an object pointed at one is created before there is anything to
+ * build, and the arrival is what this notices.
+ */
+static void
+app_plugin_geometry_settle(struct App* app)
+{
+    assert(app);
+    if( !app->plugin_geometry_dirty )
+        return;
+    app->plugin_geometry_dirty = 0;
+    for( int i = 0; i < APP_PLUGIN_OBJECTS_MAX; i++ )
+    {
+        struct AppPluginObject* obj = &app->plugin_objects[i];
+        if( !obj->in_use )
+            continue;
+        if( obj->source != TORIRS_PLUGIN_MODEL_MESH && obj->source != TORIRS_PLUGIN_MODEL_ASSET )
+            continue;
+        if( obj->element_id >= 0 &&
+            obj->built_geometry_revision == app_plugin_object_geometry_revision(app, obj) )
+            continue;
         app_plugin_object_sync(app, i);
     }
 }
@@ -19305,6 +19625,209 @@ App_NotifyStatLevel(
 }
 
 /* ---- the engine seam the plugin host holds (declared in the bridge) ---- */
+
+/*
+ * Decode a plugin's model file and hold it at `handle`.
+ *
+ * RSCache_ModelNewDecode sniffs the format off the file's own trailer magic
+ * (OB2 / OB3 / V2 / V3) and never consults the booted revision's profile,
+ * which is the property that makes a shipped model portable: one file decodes
+ * the same way under every cache this client boots. Nothing here may key off
+ * app->provider for that reason.
+ *
+ * Returns 0 for bytes that are not a model. Not an assert: the plugin named a
+ * file, and being told "that will not decode" is an answer it has to be able
+ * to get.
+ */
+static int
+app_plugin_model_publish(void* user, int handle, void const* data, int size)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginAssetModel* shipped;
+    struct RSCache_Model* decoded;
+
+    assert(app);
+    assert(data);
+    if( handle < 0 || handle >= TORIRS_PLUGIN_MODELS_MAX )
+        return 0;
+    if( size <= 0 )
+        return 0;
+
+    decoded = RSCache_ModelNewDecode((uint8_t*)data, size);
+    if( !decoded )
+        return 0;
+
+    shipped = &app->plugin_asset_models[handle];
+    /* A republish of the same slot replaces what was there; the objects
+     * standing on it rebuild on the revision change. */
+    if( shipped->model )
+        ToriRS_ModelFree(shipped->model);
+    shipped->in_use = 1;
+    shipped->model = ToriRS_ModelFromRSCache(decoded);
+    RSCache_ModelFree(decoded);
+    shipped->revision++;
+
+    app->plugin_geometry_dirty = 1;
+    app->need_redraw = 1;
+    return shipped->model != NULL;
+}
+
+static void
+app_plugin_model_release(void* user, int handle)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginAssetModel* shipped;
+
+    assert(app);
+    shipped = app_plugin_asset_model_at(app, handle);
+    if( !shipped )
+        return;
+    if( shipped->model )
+        ToriRS_ModelFree(shipped->model);
+    memset(shipped, 0, sizeof(*shipped));
+    /* Objects built from it are still standing; the settle takes them down. */
+    app->plugin_geometry_dirty = 1;
+    app->need_redraw = 1;
+}
+
+static int
+app_plugin_mesh_create(void* user)
+{
+    struct App* app = (struct App*)user;
+    assert(app);
+
+    for( int i = 0; i < APP_PLUGIN_MESHES_MAX; i++ )
+    {
+        struct AppPluginMesh* mesh = &app->plugin_meshes[i];
+        if( mesh->in_use )
+            continue;
+        memset(mesh, 0, sizeof(*mesh));
+        mesh->in_use = 1;
+        /* Revisions start at 1 so that 0 can mean "stands on no mesh", which
+         * is what app_plugin_object_geometry_revision answers for a destroyed
+         * one -- and what tears the objects still standing on it down. */
+        mesh->revision = 1;
+        return i;
+    }
+    fprintf(
+        stderr, "plugin: mesh table full (%d); mesh_create refused\n", APP_PLUGIN_MESHES_MAX);
+    return -1;
+}
+
+static void
+app_plugin_mesh_destroy(void* user, int handle)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginMesh* mesh;
+
+    assert(app);
+    mesh = app_plugin_mesh_at(app, handle);
+    if( !mesh )
+        return;
+    app_plugin_mesh_release(mesh);
+    /* Objects built from it are still standing; the settle takes them down. */
+    app->plugin_geometry_dirty = 1;
+    app->need_redraw = 1;
+}
+
+static void
+app_plugin_mesh_clear(void* user, int handle)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginMesh* mesh;
+
+    assert(app);
+    mesh = app_plugin_mesh_at(app, handle);
+    if( !mesh )
+        return;
+    /* The capacity stays: clear-then-rebuild is how a mesh is re-authored, and
+     * handing the buffers back only to ask for the same size again next frame
+     * is the allocation this is trying not to make. */
+    mesh->vertex_count = 0;
+    mesh->face_count = 0;
+    mesh->revision++;
+    app->plugin_geometry_dirty = 1;
+}
+
+static int
+app_plugin_mesh_vertex(void* user, int handle, int x, int y, int z)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginMesh* mesh;
+    int index;
+
+    assert(app);
+    mesh = app_plugin_mesh_at(app, handle);
+    if( !mesh )
+        return -1;
+    if( mesh->vertex_count >= TORIRS_PLUGIN_MESH_VERTICES_MAX )
+    {
+        fprintf(
+            stderr,
+            "plugin: mesh %d is at its %d vertex ceiling; mesh_vertex refused\n",
+            handle,
+            TORIRS_PLUGIN_MESH_VERTICES_MAX);
+        return -1;
+    }
+    /* Model coordinates are 16-bit in every renderer this feeds, so a plugin
+     * that computed one outside that range has geometry that would wrap rather
+     * than geometry that is merely large. */
+    assert(x >= INT16_MIN && x <= INT16_MAX);
+    assert(y >= INT16_MIN && y <= INT16_MAX);
+    assert(z >= INT16_MIN && z <= INT16_MAX);
+
+    index = mesh->vertex_count;
+    app_plugin_mesh_grow(mesh, /*faces=*/0, index + 1);
+    mesh->vertices_x[index] = (int16_t)x;
+    mesh->vertices_y[index] = (int16_t)y;
+    mesh->vertices_z[index] = (int16_t)z;
+    mesh->vertex_count = index + 1;
+    mesh->revision++;
+    app->plugin_geometry_dirty = 1;
+    return index;
+}
+
+static int
+app_plugin_mesh_face(void* user, int handle, int a, int b, int c, int hsl, int alpha)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginMesh* mesh;
+    int index;
+
+    assert(app);
+    mesh = app_plugin_mesh_at(app, handle);
+    if( !mesh )
+        return -1;
+    if( mesh->face_count >= TORIRS_PLUGIN_MESH_FACES_MAX )
+    {
+        fprintf(
+            stderr,
+            "plugin: mesh %d is at its %d face ceiling; mesh_face refused\n",
+            handle,
+            TORIRS_PLUGIN_MESH_FACES_MAX);
+        return -1;
+    }
+    /* A face naming a vertex that has not been authored is a plugin bug that
+     * would otherwise read past the vertex arrays in the rasteriser, three
+     * layers from the call that caused it. */
+    assert(a >= 0 && a < mesh->vertex_count);
+    assert(b >= 0 && b < mesh->vertex_count);
+    assert(c >= 0 && c < mesh->vertex_count);
+    assert(hsl >= 0 && hsl <= 0xFFFF);
+    assert(alpha >= 0 && alpha <= TORIRS_PLUGIN_MESH_ALPHA_MAX);
+
+    index = mesh->face_count;
+    app_plugin_mesh_grow(mesh, /*faces=*/1, index + 1);
+    mesh->face_a[index] = (int16_t)a;
+    mesh->face_b[index] = (int16_t)b;
+    mesh->face_c[index] = (int16_t)c;
+    mesh->face_color[index] = (uint16_t)hsl;
+    mesh->face_alpha[index] = (uint8_t)alpha;
+    mesh->face_count = index + 1;
+    mesh->revision++;
+    app->plugin_geometry_dirty = 1;
+    return index;
+}
 
 static int
 app_plugin_object_create(void* user)
@@ -23481,6 +24004,91 @@ App_SetBootWindowMode(
      * indistinguishable from a clientscript's SETWINDOWMODE on the next drain. */
 }
 
+void
+App_SyncPluginLayoutCanvas(struct App* app)
+{
+    int want;
+
+    assert(app);
+    want = (app->plugin_layout_owned &&
+            app->plugin_layout_canvas == TORIRS_PLUGIN_CANVAS_FIXED)
+               ? CS2VM_WINDOW_MODE_FIXED
+               : CS2VM_WINDOW_MODE_RESIZABLE;
+    /*
+     * A RELEASE does not force resizable back on.
+     *
+     * The lane had a window mode before any plugin claimed the frame -- a dat1
+     * world is fixed and says so in its manifest -- and a released layout
+     * should hand that back rather than leave the client in whatever mode the
+     * plugin wanted. So only a live claim states one.
+     */
+    if( !app->plugin_layout_owned )
+        return;
+    if( app->host.window_mode == want )
+        return;
+    app->host.window_mode = want;
+    app->host.window_mode_dirty = true;
+}
+
+int
+App_PluginLayoutFixedSize(struct App const* app, int* out_w, int* out_h)
+{
+    assert(app);
+    if( !app->plugin_layout_owned )
+        return 0;
+    if( app->plugin_layout_canvas != TORIRS_PLUGIN_CANVAS_FIXED )
+        return 0;
+    if( app->plugin_layout_fixed_w <= 0 || app->plugin_layout_fixed_h <= 0 )
+        return 0;
+    if( out_w )
+        *out_w = app->plugin_layout_fixed_w;
+    if( out_h )
+        *out_h = app->plugin_layout_fixed_h;
+    return 1;
+}
+
+void
+App_PluginLayoutTick(struct App* app)
+{
+    assert(app);
+
+    if( !app->plugins )
+        return;
+    if( !app->plugin_layout_owned )
+    {
+        /* A claim that ended while the tree was up: give the chrome back once,
+         * then stop paying for the check. UITree_FrameRelease is idempotent,
+         * and `plugin_layout_dirty` is what makes this happen exactly once. */
+        if( app->plugin_layout_dirty && app->tree )
+        {
+            UITree_FrameRelease(app->tree);
+            app->plugin_layout_dirty = 0;
+        }
+        return;
+    }
+    if( !app->tree || app->tree->root_index < 0 )
+        return;
+
+    /*
+     * Re-declare only when the last answer stopped being true.
+     *
+     * The three cases are the canvas resizing, the gameframe being rebuilt
+     * (which reclaims every node the declaration named, so UITree_Clear drops
+     * the whole table) and the claim itself. Re-declaring every frame would
+     * work and would cost a whole-tree walk per frame to collect the chrome
+     * again -- on a rev-239 toplevel that is thousands of nodes for an answer
+     * that has not changed since the window was last dragged.
+     */
+    if( app->plugin_layout_dirty || !UITree_FrameActive(app->tree) ||
+        app->plugin_layout_w != UITREE_LAYOUT_ROOT_W ||
+        app->plugin_layout_h != UITREE_LAYOUT_ROOT_H )
+    {
+        PluginHost_Layout(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    }
+
+    UITree_FrameReassert(app->tree);
+}
+
 int
 App_TakeWindowModeChange(
     struct App* app,
@@ -23660,6 +24268,14 @@ App_RunOnce(
      * run first: a plugin panel's toggle has to latch during a boot, and
      * anything it changes has to be visible to this frame's emit rebuild. */
     PluginHost_FrameStart(app->plugins, now_ms);
+    /* After the frame handlers, not before: a plugin that re-authors its
+     * geometry from on_frame gets it on screen this frame rather than next. */
+    app_plugin_geometry_settle(app);
+    /* And the gameframe with them, for the same reason: a layout that claimed
+     * the frame from its start handler has to be on screen this frame, not
+     * next -- the alternative is one rendered frame of the lane's chrome
+     * flashing past every time a layout plugin is switched on. */
+    App_PluginLayoutTick(app);
 
     /*
      * All Settings rows, drained here and not inside the VM.

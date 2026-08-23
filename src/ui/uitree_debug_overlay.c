@@ -5181,7 +5181,14 @@ dbg_panel_title_rect(struct ToriRSChrome const* ui, struct ToriRSChromePanel con
     r.x = p->last_rect.x + DBG_RULE;
     r.y = p->last_rect.y + DBG_RULE;
     r.w = p->last_rect.w - 2 * DBG_RULE;
-    r.h = ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_MENU, ui->scale);
+    /* Down to the BOTTOM of the black bar, borders included. dbg_build_window
+     * draws that bar at the panel's inner edge -- p->y + `edge` -- so a handle
+     * one line box tall measured from the outer edge stops short of it by the
+     * frame's thickness on a framed panel: the grab band lands on the top
+     * border and the bar's first few rows, and the rest of the bar, which is
+     * the whole of what the user is aiming at, does nothing. */
+    r.h = (dbg_panel_is_framed(ui, p) ? DBG_FRAME : DBG_RULE) - DBG_RULE +
+          ToriRSChrome_FontLineBox(TORIRS_CHROME_FONT_MENU, ui->scale);
     return r;
 }
 
