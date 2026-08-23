@@ -471,16 +471,11 @@ end
 --
 -- `box` is nil for a corner placement, which is the scene and always has room.
 local function icon_that_fits(api, box)
-    local w, h = nil, nil
-
     if icon then
-        w, h = api.image_size(icon)
-        if w and (not box or h + 2 <= box.h) then return icon, w, h end
+        local w, h = api.image_size(icon)
+        if w and (not box or h + 2 <= box.h) then return icon end
     end
-    if icon_small then
-        w, h = api.image_size(icon_small)
-        if w then return icon_small, w, h end
-    end
+    if icon_small and api.image_size(icon_small) then return icon_small end
     return nil
 end
 
@@ -539,8 +534,11 @@ function plugin.on_draw_canvas(api, draw)
 
     -- The read has not landed. Ordinary for the first frames after a start,
     -- and not worth a message: the button appears when the picture does.
-    local art, w, h = icon_that_fits(api, plated and box or nil)
+    local art = icon_that_fits(api, plated and box or nil)
     if not art then return end
+
+    local w, h = api.image_size(art)
+    if not w then return end
 
     local x, y
     if plated then
