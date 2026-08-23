@@ -41,6 +41,32 @@
 --     photographs your death without being asked is a different judgement
 --     call, and this one errs the other way.
 --
+-- ## The camera button
+--
+-- RuneLite's manual screenshot is a hotkey and a toolbar button. The hotkey is
+-- below; the button is `camera`, and it is off by default because a client
+-- that puts a control on screen without being asked is the same judgement call
+-- as the one above.
+--
+-- Where it goes is the whole of the setting, and the two families of answer
+-- are different in kind:
+--
+--   * A CORNER of the world safe area -- the scene with the chrome and every
+--     other plugin's claim already taken out, which is the only box that means
+--     "somewhere the player is not trying to look" on both a fixed and a
+--     resizable frame. It sits there mostly transparent and comes up solid
+--     under the pointer, the way the reference's own orbs light up: a control
+--     over the world has to be findable without being something you look past
+--     the whole session.
+--   * The REPORT ABUSE button. Not "beside it" -- in its place: the region is
+--     claimed over the button's own box, so the click that was Report abuse is
+--     Take Screenshot instead. Solid, because a chat button is chrome and a
+--     half-transparent one would read as disabled.
+--
+-- The art is `camera.png`, shipped in this plugin's asset folder and
+-- hand-authored in the options_icons palette -- @see
+-- script/plugins/assets/screenshot/camera.txt, which is where to edit it.
+--
 
 ---@type torirs.Plugin
 local plugin = {
@@ -87,9 +113,8 @@ local plugin = {
             label = "Valuable drop threshold"
         },
 
-        -- RuneLite's manual screenshot, which is its `hotkey` config and its
-        -- toolbar button. There is no toolbar to put a button on here, so the
-        -- key is the whole of it. 0 means unbound.
+        -- RuneLite's manual screenshot: its `hotkey` config, and its toolbar
+        -- button below. 0 means unbound.
         {
             key = "hotkey",
             type = "int",
@@ -98,8 +123,49 @@ local plugin = {
             max = 512,
             label = "Manual screenshot key (LibToriRS_KeyCode, 0 = off)"
         },
+
+        -- One key and not two (a switch plus a position), because "off" IS a
+        -- position in the same sense the others are: every value answers the
+        -- one question the button raises, and a pair would let a player set
+        -- where a button they turned off would have gone.
+        {
+            key = "camera",
+            type = "enum",
+            choices = "off|top-left|top-right|bottom-left|bottom-right|report-button",
+            default = "off",
+            label = "Camera button"
+        },
     },
 }
+
+------------------------------------------------------------------ the button
+
+--- Filter 3 of the chat buttons, which is Report abuse. The role's own
+--- numbering -- @see api.layout.<region>.rect(member).
+local REPORT_FILTER = 3
+
+--- Handed to hit_region and read back in on_canvas_click. One region, so one
+--- tag; it is the plugin's own number and the host does not look at it.
+local TAG_CAPTURE = 1
+
+--- What the mouseover line says and what the right-click menu offers. First op
+--- is also the left click, which is the whole of the interaction.
+local CAPTURE_OPS = { "Take Screenshot" }
+
+--- How far a corner button sits off the safe area's edges.
+local MARGIN = 6
+
+--- Transparency in the reference's sense: 0 is solid, 255 is invisible. The
+--- resting value is a judgement -- far enough back that it is not competing
+--- with the scene, near enough that it is visibly THERE, which a control the
+--- player has to remember is not.
+local TRANS_RESTING = 170
+local TRANS_HOVER = 0
+
+--- The handle from api.image_load, or nil until on_start has asked for it.
+--- Asynchronous: image_size answers nil for the first frames, and the button
+--- simply is not drawn until it does.
+local icon = nil
 
 -- kind -> { config key that switches it on, folder it files under }.
 --
@@ -204,10 +270,24 @@ local function wanted(api, ev)
     return kind[2]
 end
 
+-- Take the picture and say so, in the chatbox.
+--
+-- The message is the whole reason api.screenshot answers with a path: a
+-- capture is silent by nature -- the file appears somewhere the player is not
+-- looking, under a folder layout they configured once and have since
+-- forgotten -- and "a screenshot happened" without a destination is only half
+-- an answer. The path is the engine's own, resolved, so the browser lane's
+-- saved-asset folder and a desktop user's absolute destination both read as
+-- the place the file actually is.
+--
+-- A game message rather than a log line, and both rather than either: the log
+-- is for whoever is reading stderr, the chatbox is for whoever is playing.
 local function capture(api, name, dir)
-    if api.screenshot(name, dir) then
-        api.log("captured " .. (dir ~= "" and (dir .. "/") or "") .. name)
-    end
+    local ok, path = api.screenshot(name, dir)
+
+    if not ok then return end
+    api.log("captured " .. path)
+    api.notify("Screenshot saved: " .. path)
 end
 
 function plugin.on_game_event(api, ev)

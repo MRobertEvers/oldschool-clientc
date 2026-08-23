@@ -292,24 +292,6 @@ fake_feature_set(void* u, char const* k, int v)
 }
 
 static int
-fake_display_setting(void* u, int setting, int* value, int* min, int* max)
-{
-    (void)u;
-    (void)setting;
-    (void)value;
-    (void)min;
-    (void)max;
-    return 0;
-}
-static int
-fake_display_setting_set(void* u, int setting, int value)
-{
-    (void)u;
-    (void)setting;
-    (void)value;
-    return 0;
-}
-static int
 fake_varbit(void* u, int id)
 {
     (void)u;
@@ -441,13 +423,29 @@ fake_asset_write(void* u, char const* plugin, char const* name, void const* data
 }
 
 static int
-fake_screenshot(void* u, char const* plugin, char const* dir, char const* name)
+fake_screenshot(
+    void* u,
+    char const* plugin,
+    char const* dir,
+    char const* name,
+    char* out_path,
+    int out_path_size)
 {
     struct FakeEngine* e = u;
     (void)plugin;
     e->screenshots++;
     snprintf(e->last_shot_dir, sizeof(e->last_shot_dir), "%s", dir ? dir : "");
     snprintf(e->last_shot_name, sizeof(e->last_shot_name), "%s", name);
+    /* The engine owns the folders, so the path it answers with is its own
+     * doing; this fake states the shape the app builds -- destination then
+     * name -- so the host's pass-through can be checked without one. */
+    snprintf(
+        out_path,
+        (size_t)out_path_size,
+        "%s%s%s",
+        dir ? dir : "",
+        (dir && *dir) ? "/" : "",
+        name);
     return 1;
 }
 
@@ -721,6 +719,14 @@ fake_layout_slot_skin(void* u, int slot, int art, int mask)
     return 0;
 }
 static int
+fake_layout_scrollbar(void* u, int const* images, int count)
+{
+    (void)u;
+    (void)images;
+    (void)count;
+    return 0;
+}
+static int
 fake_display_setting(void* u, int setting, int* out_value, int* out_min, int* out_max)
 {
     (void)u;
@@ -777,23 +783,53 @@ fake_inv_size(void* u, int inv)
     return 0;
 }
 
-/* The gameframe boxes a plugin anchors to. One rect for every `which`: the
- * host only forwards the call, so what the test needs from it is that it
- * exists -- PluginHost_New asserts every engine entry point, and a NULL here
- * aborted the suite before its first case. */
+/* Regions, by role. `w` of 0 means "this gameframe has no such region", which
+ * is how the fallback chain in slot_rect's contract gets exercised. */
+static int g_slot_x[TORIRS_PLUGIN_SLOT_COUNT];
+static int g_slot_y[TORIRS_PLUGIN_SLOT_COUNT];
+static int g_slot_w[TORIRS_PLUGIN_SLOT_COUNT];
+static int g_slot_h[TORIRS_PLUGIN_SLOT_COUNT];
+
 static int
-fake_anchor_rect(void* u, int which, int* x, int* y, int* w, int* h)
+fake_slot_rect(void* u, int slot, int* x, int* y, int* w, int* h)
 {
     (void)u;
-    (void)which;
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_COUNT )
+        return 0;
+    if( g_slot_w[slot] <= 0 || g_slot_h[slot] <= 0 )
+        return 0;
     if( x )
-        *x = 0;
+        *x = g_slot_x[slot];
     if( y )
-        *y = 0;
+        *y = g_slot_y[slot];
     if( w )
-        *w = 512;
+        *w = g_slot_w[slot];
     if( h )
-        *h = 334;
+        *h = g_slot_h[slot];
+    return 1;
+}
+
+/* One member, so that a readout naming one can be told from a readout that
+ * fell back to the role. `g_member_no` of -1 means this frame declares none.
+ */
+static int g_member_slot = -1;
+static int g_member_no = -1;
+static int g_member_box[4];
+
+static int
+fake_slot_member_rect(void* u, int slot, int member, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    if( slot != g_member_slot || member != g_member_no )
+        return 0;
+    if( x )
+        *x = g_member_box[0];
+    if( y )
+        *y = g_member_box[1];
+    if( w )
+        *w = g_member_box[2];
+    if( h )
+        *h = g_member_box[3];
     return 1;
 }
 static int
@@ -969,8 +1005,6 @@ fake_engine(void)
     e.feature_next = fake_feature_next;
     e.feature_get = fake_feature_get;
     e.feature_set = fake_feature_set;
-    e.display_setting = fake_display_setting;
-    e.display_setting_set = fake_display_setting_set;
     e.varbit = fake_varbit;
     e.varp = fake_varp;
     e.project = fake_project;
@@ -981,10 +1015,12 @@ fake_engine(void)
     e.draw_rect = fake_draw_rect;
     e.mouse_pos = fake_mouse_pos;
     e.minimap_rect = fake_minimap_rect;
-    e.anchor_rect = fake_anchor_rect;
+    e.slot_rect = fake_slot_rect;
+    e.slot_member_rect = fake_slot_member_rect;
     e.layout_set = fake_layout_set;
     e.layout_slot = fake_layout_slot;
     e.layout_slot_skin = fake_layout_slot_skin;
+    e.layout_scrollbar = fake_layout_scrollbar;
     e.display_setting = fake_display_setting;
     e.display_setting_set = fake_display_setting_set;
     e.tab_active = fake_tab_active;
@@ -1530,6 +1566,58 @@ main(void)
         CHECK(api->feature_get(ctx, "camera_zoom") == 1, "leaving the declared one in place");
     }
 
+    /*
+     * Region readouts: the role, and one MEMBER of it.
+     *
+     * The member read is the half a plugin anchoring to the report abuse
+     * button needs, and the two answers have to be able to DIFFER -- the role
+     * answers with whichever chat button the frame found first, the member
+     * with the one that was asked for. A member the frame does not declare is
+     * an answer ("no such button here"), not a fault, and it must leave the
+     * caller's outs alone rather than half-filling them.
+     */
+    {
+        struct ToriRS_PluginApi const* api = PluginHost_Api(host);
+        struct ToriRS_PluginCtx* ctx = PluginHost_Ctx(host, a);
+        int x = -1, y = -1, w = -1, h = -1;
+
+        g_slot_x[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS] = 6;
+        g_slot_y[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS] = 467;
+        g_slot_w[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS] = 56;
+        g_slot_h[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS] = 19;
+        g_member_slot = TORIRS_PLUGIN_SLOT_CHAT_BUTTONS;
+        g_member_no = 3;
+        g_member_box[0] = 408;
+        g_member_box[1] = 467;
+        g_member_box[2] = 56;
+        g_member_box[3] = 19;
+
+        CHECK(api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, &x, &y, &w, &h),
+              "the role answers");
+        CHECK(x == 6, "with the box the frame gave the role");
+
+        x = y = w = h = -1;
+        CHECK(api->slot_member_rect(ctx, TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, 3, &x, &y, &w, &h),
+              "and the member answers for the number it was asked for");
+        CHECK(x == 408 && y == 467 && w == 56 && h == 19,
+              "with that member's own box, not the role's");
+
+        x = y = w = h = -1;
+        CHECK(!api->slot_member_rect(ctx, TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, 2, &x, &y, &w, &h),
+              "a member this frame does not declare is 0");
+        CHECK(x == -1 && y == -1 && w == -1 && h == -1, "and leaves the outputs untouched");
+
+        CHECK(!api->slot_member_rect(ctx, TORIRS_PLUGIN_SLOT_SAFE, 0, &x, &y, &w, &h),
+              "SAFE is derived and has no members to number");
+        CHECK(!api->slot_member_rect(ctx, TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, -1, &x, &y, &w, &h),
+              "and \"any member\" is not a question this verb takes");
+
+        g_member_slot = -1;
+        g_member_no = -1;
+        g_slot_w[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS] = 0;
+        g_slot_h[TORIRS_PLUGIN_SLOT_CHAT_BUTTONS] = 0;
+    }
+
     /* Packet interception. */
     CHECK(PluginHost_PacketIn(host, 5, -1) == 0, "an unremarkable packet passes");
     CHECK(PluginHost_PacketIn(host, 99, -1) == 1, "setting drop reports the drop");
@@ -1885,26 +1973,46 @@ main(void)
          * the rest of the disk.
          */
         {
+            char shot_path[TORIRS_PLUGIN_SCREENSHOT_PATH_MAX];
+
             g_engine.screenshots = 0;
             CHECK(
-                g_api->screenshot(ctx, NULL, "levelup.png") == 1,
+                g_api->screenshot(ctx, NULL, "levelup.png", shot_path, (int)sizeof(shot_path)) ==
+                    1,
                 "a bare filename with no destination is accepted");
             CHECK(g_engine.screenshots == 1, "and reaches the engine");
             CHECK(g_engine.last_shot_dir[0] == '\0', "with no destination of its own");
+            CHECK(
+                strcmp(shot_path, "levelup.png") == 0,
+                "and the engine's answer for where it lands comes back");
 
             CHECK(
-                g_api->screenshot(ctx, "shots/levels", "levelup.png") == 1,
+                g_api->screenshot(
+                    ctx, "shots/levels", "levelup.png", shot_path, (int)sizeof(shot_path)) == 1,
                 "a destination with a separator is accepted");
             CHECK(
                 strcmp(g_engine.last_shot_dir, "shots/levels") == 0,
                 "and is forwarded unchanged");
+            CHECK(
+                strcmp(shot_path, "shots/levels/levelup.png") == 0,
+                "and the path it answers with carries it");
 
+            /*
+             * A refusal empties the path. It is the string a plugin puts in
+             * front of the player -- "saved to X" -- so a stale one left over
+             * from the last capture would name a file that was never written.
+             */
             CHECK(
-                g_api->screenshot(ctx, "shots/../../etc", "levelup.png") == 0,
+                g_api->screenshot(
+                    ctx, "shots/../../etc", "levelup.png", shot_path, (int)sizeof(shot_path)) ==
+                    0,
                 "a destination that climbs out is refused");
+            CHECK(shot_path[0] == '\0', "and leaves no path behind it");
             CHECK(
-                g_api->screenshot(ctx, NULL, "../levelup.png") == 0,
+                g_api->screenshot(ctx, NULL, "../levelup.png", shot_path, (int)sizeof(shot_path)) ==
+                    0,
                 "and so is a name that does");
+            CHECK(shot_path[0] == '\0', "with no path either");
             CHECK(g_engine.screenshots == 2, "neither reaches the engine");
         }
 

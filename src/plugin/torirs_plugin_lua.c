@@ -118,6 +118,19 @@ struct LuaScript
      * C event carried without the script being handed a raw pointer. */
     struct ToriRS_PluginCtx* cur_ctx;
     void* cur_surface;
+    /*
+     * WHICH surface is open, because two of the draw verbs are legal on only
+     * one of them. draw.tile and draw.hull name something in the scene, and
+     * the host ASSERTS when they are called on a screen surface -- an abort is
+     * the right answer to a C plugin's contract violation and the wrong one to
+     * a typo in a script, so the binding refuses them here instead.
+     */
+    enum LuaSurface
+    {
+        LUA_SURFACE_NONE = 0,
+        LUA_SURFACE_WORLD,
+        LUA_SURFACE_CANVAS
+    } cur_surface_kind;
     struct ToriRS_PluginEvMenuBuild* cur_menu;
 
     size_t mem_used;
@@ -643,6 +656,192 @@ lua_window_kind_from_name(char const* name)
     return -1;
 }
 
+
+/* ------------------------------------------------------------------ layout */
+
+/*
+ * The layout region a call is about, carried as a SECOND upvalue.
+ *
+ * `api.layout.safe.reserve(...)` and `api.layout.viewport.rect()` are the same
+ * two C functions closed over different regions, which is what lets the
+ * scripted surface be per-region names -- the shape the C side reads as an
+ * argument -- without a function per region per verb.
+ */
+static int
+lua_layout_slot(lua_State* L)
+{
+    return (int)lua_tointeger(L, lua_upvalueindex(2));
+}
+
+/** The named edge, or -1. */
+static int
+lua_layout_edge_from_name(char const* name)
+{
+    if( !name )
+        return -1;
+    if( strcmp(name, "left") == 0 )
+        return TORIRS_PLUGIN_EDGE_LEFT;
+    if( strcmp(name, "right") == 0 )
+        return TORIRS_PLUGIN_EDGE_RIGHT;
+    if( strcmp(name, "top") == 0 )
+        return TORIRS_PLUGIN_EDGE_TOP;
+    if( strcmp(name, "bottom") == 0 )
+        return TORIRS_PLUGIN_EDGE_BOTTOM;
+    return -1;
+}
+
+/**
+ * `rect([member])` -> `{x=,y=,w=,h=}`, or nil.
+ *
+ * With no argument, the region as a whole. With one, that MEMBER of it -- the
+ * role's own numbering, so `chat_buttons.rect(3)` is the report abuse button
+ * and not the fourth chat button this cache happened to build. Nil for a
+ * region (or a member) this gameframe does not have, which is an answer: a
+ * caller draws nothing rather than guessing a box.
+ */
+static int
+lua_layout_rect(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    int const slot = lua_layout_slot(L);
+    int const want_member = !lua_isnoneornil(L, 1);
+    int const member = want_member ? (int)luaL_checkinteger(L, 1) : -1;
+    int x = 0;
+    int y = 0;
+    int w = 0;
+    int h = 0;
+    int got;
+
+    got = want_member ? g_api->slot_member_rect(script->cur_ctx, slot, member, &x, &y, &w, &h)
+                      : g_api->slot_rect(script->cur_ctx, slot, &x, &y, &w, &h);
+    if( !got )
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_createtable(L, 0, 4);
+    lua_pushinteger(L, x);
+    lua_setfield(L, -2, "x");
+    lua_pushinteger(L, y);
+    lua_setfield(L, -2, "y");
+    lua_pushinteger(L, w);
+    lua_setfield(L, -2, "w");
+    lua_pushinteger(L, h);
+    lua_setfield(L, -2, "h");
+    return 1;
+}
+
+static int
+lua_layout_reserve(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* edge_name = luaL_checkstring(L, 1);
+    int const px = (int)luaL_checkinteger(L, 2);
+    int const edge = lua_layout_edge_from_name(edge_name);
+
+    if( edge < 0 )
+        return luaL_error(
+            L, "reserve: '%s' is not an edge; use left, right, top or bottom",
+            edge_name);
+    lua_pushboolean(
+        L, g_api->layout_reserve(script->cur_ctx, lua_layout_slot(L), edge, px));
+    return 1;
+}
+
+/** Give back every edge of this region this script had taken. */
+static int
+lua_layout_release(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    int const slot = lua_layout_slot(L);
+
+    for( int edge = 0; edge < TORIRS_PLUGIN_EDGE_COUNT; edge++ )
+        g_api->layout_reserve(script->cur_ctx, slot, edge, 0);
+    return 0;
+}
+
+/**
+ * `replace(rect)` on a PLACEABLE region: state where the frame puts it.
+ *
+ * The exclusive verb, and the host enforces the rest of what that means --
+ * legal only for the plugin that owns the frame and only inside its layout
+ * handler. A script calling it anywhere else is told so rather than quietly
+ * doing nothing.
+ */
+static int
+lua_layout_replace(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    int const slot = lua_layout_slot(L);
+    int x;
+    int y;
+    int w;
+    int h;
+
+    luaL_checktype(L, 1, LUA_TTABLE);
+    lua_getfield(L, 1, "x");
+    x = (int)luaL_optinteger(L, -1, 0);
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "y");
+    y = (int)luaL_optinteger(L, -1, 0);
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "w");
+    w = (int)luaL_optinteger(L, -1, 0);
+    lua_pop(L, 1);
+    lua_getfield(L, 1, "h");
+    h = (int)luaL_optinteger(L, -1, 0);
+    lua_pop(L, 1);
+
+    lua_pushboolean(L, g_api->layout_slot(script->cur_ctx, slot, x, y, w, h));
+    return 1;
+}
+
+/** `api.layout.top_level.replace([opts])` -- own the whole gameframe. */
+static int
+lua_layout_top_level_replace(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    int canvas = TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW;
+    int w = 0;
+    int h = 0;
+
+    if( lua_istable(L, 1) )
+    {
+        lua_getfield(L, 1, "w");
+        w = (int)luaL_optinteger(L, -1, 0);
+        lua_pop(L, 1);
+        lua_getfield(L, 1, "h");
+        h = (int)luaL_optinteger(L, -1, 0);
+        lua_pop(L, 1);
+        if( w > 0 && h > 0 )
+            canvas = TORIRS_PLUGIN_CANVAS_FIXED;
+    }
+    lua_pushboolean(L, g_api->layout_claim(script->cur_ctx, canvas, w, h));
+    return 1;
+}
+
+static int
+lua_layout_top_level_release(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    g_api->layout_release(script->cur_ctx);
+    return 0;
+}
+
+static int
+lua_layout_top_level_rect(lua_State* L)
+{
+    return lua_layout_rect(L);
+}
+
+static int
+lua_layout_revision(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    lua_pushinteger(L, g_api->layout_revision(script->cur_ctx));
+    return 1;
+}
+
 static int
 lua_window_request(lua_State* L)
 {
@@ -787,8 +986,12 @@ lua_draw_tile(lua_State* L)
     uint32_t const fill_rgb = want_fill ? lua_check_color(L, 5) : rgb;
     int const fill = want_fill ? (int)luaL_checkinteger(L, 6) : 0;
 
-    if( !script->cur_surface )
-        return luaL_error(L, "draw calls are only legal inside on_draw_world");
+    if( script->cur_surface_kind != LUA_SURFACE_WORLD )
+        return luaL_error(
+            L,
+            "%s names something in the scene, so it is only legal inside "
+            "on_draw_world",
+            "draw.tile");
     g_api->draw_tile(
         script->cur_ctx, script->cur_surface, tx, tz, level, rgb, fill_rgb, fill);
     return 0;
@@ -828,8 +1031,12 @@ lua_draw_hull(lua_State* L)
     int const fill = (int)luaL_optinteger(L, 3, 0);
     int const shape = lua_check_hull_shape(L, 4);
 
-    if( !script->cur_surface )
-        return luaL_error(L, "draw calls are only legal inside on_draw_world");
+    if( script->cur_surface_kind != LUA_SURFACE_WORLD )
+        return luaL_error(
+            L,
+            "%s names something in the scene, so it is only legal inside "
+            "on_draw_world",
+            "draw.hull");
     g_api->draw_hull(script->cur_ctx, script->cur_surface, element_id, rgb, fill, shape);
     return 0;
 }
@@ -845,7 +1052,8 @@ lua_draw_line(lua_State* L)
     uint32_t const rgb = lua_check_color(L, 5);
 
     if( !script->cur_surface )
-        return luaL_error(L, "draw calls are only legal inside on_draw_world");
+        return luaL_error(
+            L, "draw calls are only legal inside on_draw_world / on_draw_canvas");
     g_api->draw_line(script->cur_ctx, script->cur_surface, x0, y0, x1, y1, rgb);
     return 0;
 }
@@ -860,7 +1068,8 @@ lua_draw_text(lua_State* L)
     uint32_t const rgb = lua_check_color(L, 4);
 
     if( !script->cur_surface )
-        return luaL_error(L, "draw calls are only legal inside on_draw_world");
+        return luaL_error(
+            L, "draw calls are only legal inside on_draw_world / on_draw_canvas");
     g_api->draw_text(script->cur_ctx, script->cur_surface, x, y, s, rgb);
     return 0;
 }
@@ -877,8 +1086,42 @@ lua_draw_rect(lua_State* L)
     int const fill = (int)luaL_optinteger(L, 6, 0);
 
     if( !script->cur_surface )
-        return luaL_error(L, "draw calls are only legal inside on_draw_world");
+        return luaL_error(
+            L, "draw calls are only legal inside on_draw_world / on_draw_canvas");
     g_api->draw_rect(script->cur_ctx, script->cur_surface, x, y, w, h, rgb, fill);
+    return 0;
+}
+
+/*
+ * draw.image(handle, x, y [, trans [, clip_x, clip_y, clip_w, clip_h]])
+ *
+ * `trans` is the reference's sense and not the fill alpha the other verbs
+ * take: 0 is opaque and 255 is invisible, matching every sprite blit in the
+ * client. The clip is an extra rectangle to cut the blit to, in the surface's
+ * own coordinates -- what a METER is made of, and the reason it is an argument
+ * rather than a second verb.
+ *
+ * An image whose read has not landed draws nothing, which is the ordinary
+ * state for the first frames after image_load and not an error.
+ */
+static int
+lua_draw_image(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    int const image = (int)luaL_checkinteger(L, 1);
+    int const x = (int)luaL_checkinteger(L, 2);
+    int const y = (int)luaL_checkinteger(L, 3);
+    int const trans = (int)luaL_optinteger(L, 4, 0);
+    int const clip_x = (int)luaL_optinteger(L, 5, 0);
+    int const clip_y = (int)luaL_optinteger(L, 6, 0);
+    int const clip_w = (int)luaL_optinteger(L, 7, 0);
+    int const clip_h = (int)luaL_optinteger(L, 8, 0);
+
+    if( !script->cur_surface )
+        return luaL_error(
+            L, "draw calls are only legal inside on_draw_world / on_draw_canvas");
+    g_api->draw_image(
+        script->cur_ctx, script->cur_surface, image, x, y, clip_x, clip_y, clip_w, clip_h, trans);
     return 0;
 }
 
@@ -963,6 +1206,142 @@ lua_api_locs(lua_State* L)
     return 1;
 }
 
+/* -- images --
+ *
+ * A PICTURE the plugin ships, out of the same asset folder api.asset_load
+ * reads: a PNG the host decodes and hands back a handle for, which draw.image
+ * blits. The bytes route of api.asset_data is deliberately not it -- a script
+ * holding a PNG as a string would have to decode it in Lua to draw a single
+ * pixel, and the host already has the decoder every C plugin uses.
+ *
+ * ASYNCHRONOUS, exactly like the C half: the read goes on the IO queue, so
+ * image_size answers nil and draw.image draws nothing for the first frames
+ * after a load. A script lays out against image_size and skips a frame rather
+ * than waiting for anything.
+ */
+
+static int
+lua_api_image_load(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    char const* name = luaL_checkstring(L, 1);
+    int const handle = g_api->image_load(script->cur_ctx, name);
+
+    /* -1 is a refusal the script can do something about -- a bad name, or its
+     * image budget -- so it comes back as nil rather than as a handle that
+     * silently draws nothing forever. */
+    if( handle < 0 )
+        lua_pushnil(L);
+    else
+        lua_pushinteger(L, handle);
+    return 1;
+}
+
+/** `w, h`, or nil while the read has not landed. */
+static int
+lua_api_image_size(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    int const image = (int)luaL_checkinteger(L, 1);
+    int w = 0;
+    int h = 0;
+
+    if( !g_api->image_size(script->cur_ctx, image, &w, &h) )
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_pushinteger(L, w);
+    lua_pushinteger(L, h);
+    return 2;
+}
+
+static int
+lua_api_image_release(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    g_api->image_release(script->cur_ctx, (int)luaL_checkinteger(L, 1));
+    return 0;
+}
+
+/* -- the pointer -- */
+
+/** `x, y` in canvas coordinates, or nil when the client has no pointer. */
+static int
+lua_api_mouse_pos(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    int x = 0;
+    int y = 0;
+
+    if( !g_api->mouse_pos(script->cur_ctx, &x, &y) )
+    {
+        lua_pushnil(L);
+        return 1;
+    }
+    lua_pushinteger(L, x);
+    lua_pushinteger(L, y);
+    return 2;
+}
+
+/*
+ * hit_region(x, y, w, h [, ops [, tag]])
+ *
+ * Claim a box of the canvas so what was drawn there can be clicked. `ops` is
+ * one verb or a list of them: the first is the mouseover line and the LEFT
+ * click, all of them are rows in the right-click menu. Omitted (or an empty
+ * list) claims the pointer without offering anything, which is how a plugin
+ * stops a click falling through to the world behind its own art.
+ *
+ * Declared with the drawing and never once at start, because the box comes
+ * from where the frame put things THIS frame. @see
+ * ToriRS_PluginApi::hit_region.
+ */
+static int
+lua_api_hit_region(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    int const x = (int)luaL_checkinteger(L, 1);
+    int const y = (int)luaL_checkinteger(L, 2);
+    int const w = (int)luaL_checkinteger(L, 3);
+    int const h = (int)luaL_checkinteger(L, 4);
+    uint32_t const tag = (uint32_t)luaL_optinteger(L, 6, 0);
+    char const* ops[TORIRS_PLUGIN_REGION_OPS_MAX];
+    int op_count = 0;
+
+    /* The world surface has no canvas coordinates to express a box in, and the
+     * host asserts on one declared there. A script gets a message. */
+    if( script->cur_surface_kind != LUA_SURFACE_CANVAS )
+        return luaL_error(L, "hit_region is only legal inside on_draw_canvas");
+
+    if( lua_isstring(L, 5) )
+        ops[op_count++] = lua_tostring(L, 5);
+    else if( lua_istable(L, 5) )
+    {
+        lua_Integer const n = luaL_len(L, 5);
+        for( lua_Integer i = 1; i <= n && op_count < TORIRS_PLUGIN_REGION_OPS_MAX; i++ )
+        {
+            lua_rawgeti(L, 5, i);
+            /* A STRING and not "stringable": lua_tostring on a number
+             * converts the stack slot in place, and that copy dies with the
+             * pop below while the pointer would live on in `ops`. */
+            if( lua_type(L, -1) == LUA_TSTRING )
+                /* Kept alive by the table, which is on the stack for the whole
+                 * call -- the host copies each string into the region. */
+                ops[op_count++] = lua_tostring(L, -1);
+            lua_pop(L, 1);
+        }
+    }
+    else if( !lua_isnoneornil(L, 5) )
+        return luaL_error(L, "hit_region: ops must be a string or a list of strings");
+
+    lua_pushboolean(
+        L,
+        g_api->hit_region(
+            script->cur_ctx, script->cur_surface, x, y, w, h, ops, op_count, tag));
+    return 1;
+}
+
 /* -- assets --
  *
  * Bytes cross as Lua STRINGS, which is the right carrier and not a shortcut: a
@@ -1016,21 +1395,32 @@ lua_api_asset_release(lua_State* L)
 
 /* -- screenshots --
  *
- * api.screenshot(name [, dir]). The destination is the SECOND argument and
- * optional, because the common call is `api.screenshot(filename)` and the
- * directory is a config value a plugin passes through unchanged when it has
- * one -- `api.screenshot(name, api.config.destination)` reads correctly even
- * when the key is empty, which is what the default has to be for the browser
- * lane. */
+ * api.screenshot(name [, dir]) -> ok, path. The destination is the SECOND
+ * argument and optional, because the common call is `api.screenshot(filename)`
+ * and the directory is a config value a plugin passes through unchanged when
+ * it has one -- `api.screenshot(name, api.config.destination)` reads correctly
+ * even when the key is empty, which is what the default has to be for the
+ * browser lane.
+ *
+ * The second return is where the file lands, which a script cannot work out
+ * from what it passed in: the relative case resolves against a folder only the
+ * engine knows. nil when the capture was refused, so `if ok then` and
+ * `if path then` say the same thing. */
 static int
 lua_api_screenshot(lua_State* L)
 {
     struct LuaScript* script = lua_upvalue_script(L);
     char const* name = luaL_checkstring(L, 1);
     char const* dir = luaL_optstring(L, 2, NULL);
+    char path[TORIRS_PLUGIN_SCREENSHOT_PATH_MAX];
+    int const ok = g_api->screenshot(script->cur_ctx, dir, name, path, (int)sizeof(path));
 
-    lua_pushboolean(L, g_api->screenshot(script->cur_ctx, dir, name));
-    return 1;
+    lua_pushboolean(L, ok);
+    if( ok )
+        lua_pushstring(L, path);
+    else
+        lua_pushnil(L);
+    return 2;
 }
 
 static int
@@ -1391,6 +1781,11 @@ lua_build_api_table(struct LuaScript* script)
         { "setting_color", lua_api_setting_color },
         { "project", lua_api_project },
         { "cfg_set", lua_api_cfg_set },
+        { "image_load", lua_api_image_load },
+        { "image_size", lua_api_image_size },
+        { "image_release", lua_api_image_release },
+        { "mouse_pos", lua_api_mouse_pos },
+        { "hit_region", lua_api_hit_region },
         { "asset_load", lua_api_asset_load },
         { "asset_data", lua_api_asset_data },
         { "asset_save", lua_api_asset_save },
@@ -1425,6 +1820,95 @@ lua_build_api_table(struct LuaScript* script)
         lua_pushlightuserdata(L, script);
         lua_pushcclosure(L, FNS[i].fn, 1);
         lua_setfield(L, -2, FNS[i].name);
+    }
+
+    /*
+     * api.layout: one sub-table per REGION, with the verbs on it.
+     *
+     * `api.layout.safe.reserve("right", 180)` rather than
+     * `api.layout.reserve("safe", "right", 180)`, because a region is a thing
+     * a script talks about repeatedly and a string argument repeated at every
+     * call site is a typo waiting to be a silent no-op. The region is bound
+     * once, into the closure, and a misspelling is then a nil index at the
+     * point of the mistake.
+     *
+     * The verb set is the same everywhere and the host refuses what does not
+     * apply: `reserve` on a placeable region, `replace` from a plugin that
+     * does not own the frame. Uniform surface, one place that says no.
+     */
+    {
+        static const struct
+        {
+            char const* name;
+            int slot;
+        } REGIONS[] = {
+            { "viewport", TORIRS_PLUGIN_SLOT_VIEWPORT },
+            { "minimap", TORIRS_PLUGIN_SLOT_MINIMAP },
+            { "compass", TORIRS_PLUGIN_SLOT_COMPASS },
+            { "chat", TORIRS_PLUGIN_SLOT_CHAT },
+            { "sidebar", TORIRS_PLUGIN_SLOT_SIDEBAR },
+            { "main_modal", TORIRS_PLUGIN_SLOT_MAIN_MODAL },
+            /* The name the design note uses for the same region. Both, because
+             * "where a modal opens" and "the modal viewport" are the same
+             * question asked by people who learned it from different ends. */
+            { "modal_viewport", TORIRS_PLUGIN_SLOT_MAIN_MODAL },
+            { "chat_buttons", TORIRS_PLUGIN_SLOT_CHAT_BUTTONS },
+            { "canvas", TORIRS_PLUGIN_SLOT_CANVAS },
+            { "safe", TORIRS_PLUGIN_SLOT_SAFE },
+        };
+        static const struct
+        {
+            char const* name;
+            lua_CFunction fn;
+        } VERBS[] = {
+            { "rect", lua_layout_rect },
+            { "reserve", lua_layout_reserve },
+            { "release", lua_layout_release },
+            { "replace", lua_layout_replace },
+        };
+
+        lua_createtable(L, 0, (int)(sizeof(REGIONS) / sizeof(REGIONS[0])) + 2);
+        for( size_t r = 0; r < sizeof(REGIONS) / sizeof(REGIONS[0]); r++ )
+        {
+            lua_createtable(L, 0, (int)(sizeof(VERBS) / sizeof(VERBS[0])));
+            for( size_t v = 0; v < sizeof(VERBS) / sizeof(VERBS[0]); v++ )
+            {
+                lua_pushlightuserdata(L, script);
+                lua_pushinteger(L, REGIONS[r].slot);
+                lua_pushcclosure(L, VERBS[v].fn, 2);
+                lua_setfield(L, -2, VERBS[v].name);
+            }
+            lua_setfield(L, -2, REGIONS[r].name);
+        }
+
+        /* top_level is the frame itself, so its `replace` is the claim. Same
+         * grammar, so a script that has learned the region tables has learned
+         * this one too. */
+        {
+            static const struct
+            {
+                char const* name;
+                lua_CFunction fn;
+            } TOP[] = {
+                { "rect", lua_layout_top_level_rect },
+                { "replace", lua_layout_top_level_replace },
+                { "release", lua_layout_top_level_release },
+            };
+            lua_createtable(L, 0, (int)(sizeof(TOP) / sizeof(TOP[0])));
+            for( size_t v = 0; v < sizeof(TOP) / sizeof(TOP[0]); v++ )
+            {
+                lua_pushlightuserdata(L, script);
+                lua_pushinteger(L, TORIRS_PLUGIN_SLOT_CANVAS);
+                lua_pushcclosure(L, TOP[v].fn, 2);
+                lua_setfield(L, -2, TOP[v].name);
+            }
+            lua_setfield(L, -2, "top_level");
+        }
+
+        lua_pushlightuserdata(L, script);
+        lua_pushcclosure(L, lua_layout_revision, 1);
+        lua_setfield(L, -2, "revision");
+        lua_setfield(L, -2, "layout");
     }
 
     /* api.window: the plugin's tab in the shared window. A sub-table rather
@@ -1476,7 +1960,7 @@ lua_build_api_table(struct LuaScript* script)
         lua_CFunction fn;
     } DRAW[] = {
         { "tile", lua_draw_tile },   { "hull", lua_draw_hull }, { "line", lua_draw_line },
-        { "text", lua_draw_text },   { "rect", lua_draw_rect },
+        { "text", lua_draw_text },   { "rect", lua_draw_rect },  { "image", lua_draw_image },
     };
     lua_createtable(L, 0, (int)(sizeof(DRAW) / sizeof(DRAW[0])));
     for( size_t i = 0; i < sizeof(DRAW) / sizeof(DRAW[0]); i++ )
@@ -1585,6 +2069,9 @@ static char const* const LUA_HANDLER_NAME[TORIRS_PLUGIN_EV_COUNT] = {
     [TORIRS_PLUGIN_EV_MENU_BUILD] = "on_menu_build",
     [TORIRS_PLUGIN_EV_MENU_SELECT] = "on_menu_select",
     [TORIRS_PLUGIN_EV_DRAW_WORLD] = "on_draw_world",
+    [TORIRS_PLUGIN_EV_DRAW_CANVAS] = "on_draw_canvas",
+    [TORIRS_PLUGIN_EV_CANVAS_CLICK] = "on_canvas_click",
+    [TORIRS_PLUGIN_EV_LAYOUT_CHANGED] = "on_layout_changed",
     [TORIRS_PLUGIN_EV_CONFIG_CHANGED] = "on_config_changed",
     [TORIRS_PLUGIN_EV_OBJ_SPAWN] = "on_obj_spawn",
     [TORIRS_PLUGIN_EV_OBJ_COUNT] = "on_obj_count",
@@ -1806,6 +2293,41 @@ lua_push_event_arg(struct LuaScript* script, int event, void* payload)
         lua_rawgeti(L, LUA_REGISTRYINDEX, script->draw_ref);
         return 1;
 
+    /*
+     * The same draw table, carrying the canvas it is open over.
+     *
+     * The size rides on the table rather than arriving as a third argument
+     * because a canvas handler needs it on nearly every call -- anything
+     * anchored to an edge is `draw.width - something` -- and a second
+     * parameter that every handler has to accept in order to use is a
+     * parameter every handler gets wrong once.
+     */
+    case TORIRS_PLUGIN_EV_DRAW_CANVAS:
+    {
+        struct ToriRS_PluginEvDrawCanvas const* ev = payload;
+        lua_rawgeti(L, LUA_REGISTRYINDEX, script->draw_ref);
+        lua_pushinteger(L, ev->width);
+        lua_setfield(L, -2, "width");
+        lua_pushinteger(L, ev->height);
+        lua_setfield(L, -2, "height");
+        return 1;
+    }
+
+    case TORIRS_PLUGIN_EV_CANVAS_CLICK:
+    {
+        struct ToriRS_PluginEvCanvasClick const* ev = payload;
+        lua_createtable(L, 0, 4);
+        lua_pushinteger(L, (lua_Integer)ev->tag);
+        lua_setfield(L, -2, "tag");
+        lua_pushinteger(L, ev->op);
+        lua_setfield(L, -2, "op");
+        lua_pushinteger(L, ev->x);
+        lua_setfield(L, -2, "x");
+        lua_pushinteger(L, ev->y);
+        lua_setfield(L, -2, "y");
+        return 1;
+    }
+
     case TORIRS_PLUGIN_EV_CONFIG_CHANGED:
     {
         struct ToriRS_PluginEvConfig const* ev = payload;
@@ -1862,7 +2384,15 @@ lua_trampoline(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     L = script->L;
     script->cur_ctx = ctx;
     if( binding->event == TORIRS_PLUGIN_EV_DRAW_WORLD )
+    {
         script->cur_surface = ((struct ToriRS_PluginEvDraw*)event)->surface;
+        script->cur_surface_kind = LUA_SURFACE_WORLD;
+    }
+    if( binding->event == TORIRS_PLUGIN_EV_DRAW_CANVAS )
+    {
+        script->cur_surface = ((struct ToriRS_PluginEvDrawCanvas*)event)->surface;
+        script->cur_surface_kind = LUA_SURFACE_CANVAS;
+    }
     if( binding->event == TORIRS_PLUGIN_EV_MENU_BUILD )
         script->cur_menu = (struct ToriRS_PluginEvMenuBuild*)event;
 
@@ -1883,6 +2413,7 @@ lua_trampoline(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         /* Clear the window before disabling: the fault path re-enters the host,
          * and a stale surface would outlive the frame that owned it. */
         script->cur_surface = NULL;
+        script->cur_surface_kind = LUA_SURFACE_NONE;
         script->cur_menu = NULL;
         lua_script_fault(script, msg);
         return TORIRS_PLUGIN_PASS;
@@ -1892,6 +2423,7 @@ lua_trampoline(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
     lua_pop(L, 1);
 
     script->cur_surface = NULL;
+    script->cur_surface_kind = LUA_SURFACE_NONE;
     script->cur_menu = NULL;
     return verdict;
 }

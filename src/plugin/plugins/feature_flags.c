@@ -1,6 +1,7 @@
 #include "plugin/torirs_plugin.h"
 
 #include <assert.h>
+#include <stdarg.h>
 #include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -9,9 +10,9 @@
 /*
  * Feature Flags -- the client's own knobs, in one place.
  *
- * The first row of the plugin roster and the only one with no switch, because
- * it is not a feature: it is where the CLIENT's behaviour is edited, and
- * "switch the settings off" is not a state anyone means to be in. @see
+ * The first row of the plugin roster and one of the two with no switch,
+ * because it is not a feature: it is where the CLIENT's behaviour is edited,
+ * and "switch the settings off" is not a state anyone means to be in. @see
  * ToriRS_PluginDef::essential.
  *
  * WHAT IT SHOWS IS THE ENGINE'S LIST, NOT ITS OWN. Every row comes from
@@ -30,17 +31,38 @@
  * else believes. None of those are published, so none of them can appear
  * here, whatever this file did.
  *
- * Every flag has one extra choice this plugin adds and the engine does not:
- * FF_DEFAULT_LABEL, which sets the flag back to whatever the boot resolved
+ * ## Every row is a dropdown, and none is a text field
+ *
+ * This page used to put the numeric flags in text boxes captioned with their
+ * range, and it was the worst control on the screen. A number typed into a box
+ * is a value nobody has checked until it is committed, so the row's whole
+ * vocabulary became refusing and explaining -- and the refusal came after the
+ * caption had already been sliced in half by the field it did not fit beside.
+ *
+ * So the engine names the values that MEAN something (@see
+ * ToriRS_PluginFeatureKind) and every row is a list of them. Nothing is typed,
+ * nothing is out of range, and the choice says what it does -- "70 tiles
+ * (deob)" rather than an integer in 0..104. Sections and short captions do the
+ * rest: a caption belongs to a heading, not to a parenthesis.
+ *
+ * ## The default is a choice, not an absence
+ *
+ * Every flag carries one extra entry this plugin adds and the engine does not:
+ * FF_DEFAULT_LABEL, which puts the flag back to whatever the boot resolved
  * from the era table, the manifest and the revconfig. The engine restores it
  * from its own snapshot (TORIRS_PLUGIN_FEATURE_UNSET); nothing here has to
- * know what the value was.
+ * know what the value was -- and because it does not, the entry also SHOWS
+ * that value, so a page of untouched rows still says what the client is
+ * actually doing instead of saying "default" fifteen times.
  *
- * State lives in this plugin's ini section, one key per flag, holding the
- * TEXT of the choice or the number -- so the file reads as what the user
- * picked rather than as a column of enum ordinals. A key absent, or holding
- * the default label, means "leave the revision alone" and the engine is not
- * called at all for it.
+ * ## What the ini holds
+ *
+ * An ENUM flag stores the choice TEXT, so a settings file survives the list
+ * gaining an entry -- an ordinal would silently become its neighbour. An INT
+ * flag stores the NUMBER, because its named values are suggestions rather than
+ * its legal set: a hand-edited file may carry an unnamed one, and this page
+ * shows it as an extra entry rather than dropping it. A key that is absent, or
+ * holds FF_DEFAULT_LABEL, means "leave the revision alone".
  */
 
 /** The choice every flag carries, standing for TORIRS_PLUGIN_FEATURE_UNSET. */
@@ -50,6 +72,16 @@
  *  ceiling on the walk, not a statement about the list. */
 #define FF_MAX 32
 
+/**
+ * One row's assembled choice list: FF_DEFAULT_LABEL, the engine's names, and
+ * -- for an INT carrying a value none of them names -- that value too.
+ *
+ * Sized for the default entry (which shows the effective value, so it is the
+ * longest single entry), the engine's whole list, and the one appended custom
+ * number.
+ */
+#define FF_CHOICES_MAX (TORIRS_PLUGIN_FEATURE_CHOICES_MAX + 96)
+
 static struct ToriRS_PluginApi const* g_api;
 
 /** The engine's list, as of the last build. Held so the UI handler can map a
@@ -57,6 +89,8 @@ static struct ToriRS_PluginApi const* g_api;
 static struct ToriRS_PluginFeature g_flags[FF_MAX];
 static int g_flag_count;
 
+/* ------------------------------------------------------------------------ */
+/* Choice lists                                                              */
 /* ------------------------------------------------------------------------ */
 
 /** Copy option `index` out of a '|'-separated list. False past the end. */
@@ -117,6 +151,22 @@ ff_enum_value(
     return TORIRS_PLUGIN_FEATURE_UNSET;
 }
 
+/** Index in `flag->values` of `value`, or -1 when nothing names it. */
+static int
+ff_value_index(
+    struct ToriRS_PluginFeature const* flag,
+    int value)
+{
+    assert(flag);
+
+    for( int i = 0; i < flag->value_count; i++ )
+    {
+        if( flag->values[i] == value )
+            return i;
+    }
+    return -1;
+}
+
 /** This flag's stored choice, or "" when the key has never been written.
  *
  *  Guarded, because there is no schema to have declared it: the reader asserts
@@ -142,6 +192,149 @@ ff_stored_is_default(char const* stored)
     return stored[0] == '\0' || strcmp(stored, FF_DEFAULT_LABEL) == 0;
 }
 
+/** The value a stored string asks for, or the sentinel for "the revision's". */
+static int
+ff_stored_value(
+    struct ToriRS_PluginFeature const* flag,
+    char const* stored)
+{
+    assert(flag);
+    assert(stored);
+
+    if( ff_stored_is_default(stored) )
+        return TORIRS_PLUGIN_FEATURE_UNSET;
+    if( flag->kind == TORIRS_PLUGIN_FEATURE_ENUM )
+        return ff_enum_value(flag, stored);
+    return atoi(stored);
+}
+
+/**
+ * Append to a bounded buffer and return the new length, never past `size - 1`.
+ *
+ * `at += snprintf(...)` is the shape this replaces, and it is wrong the moment
+ * anything truncates: snprintf returns what it WOULD have written, so `at`
+ * walks past the buffer and the next call is handed a negative length that a
+ * size_t reads as most of the address space.
+ */
+static size_t
+ff_append(
+    char* out,
+    size_t size,
+    size_t at,
+    char const* fmt,
+    ...)
+{
+    assert(out);
+    assert(size > 0);
+    assert(fmt);
+
+    if( at >= size - 1 )
+        return size - 1;
+
+    va_list args;
+    va_start(args, fmt);
+    int const wrote = vsnprintf(out + at, size - at, fmt, args);
+    va_end(args);
+
+    if( wrote < 0 )
+        return at;
+    if( (size_t)wrote >= size - at )
+        return size - 1;
+    return at + (size_t)wrote;
+}
+
+/**
+ * Build one row's list, and say which entry is showing.
+ *
+ * Entry 0 is always the default, and it carries the value in force with it --
+ * "Revision default (per frame)" rather than a word that could mean anything.
+ * A reader who has changed nothing can still see what the client is doing,
+ * which is what a settings page is for and what a bare "default" refuses to
+ * say.
+ *
+ * @param out_custom receives the value of the appended unnamed entry, or the
+ *        sentinel when none was appended.
+ * @return the index to show.
+ */
+static int
+ff_build_choices(
+    struct ToriRS_PluginCtx* ctx,
+    struct ToriRS_PluginFeature const* flag,
+    char* out,
+    size_t out_size,
+    int* out_custom)
+{
+    assert(ctx);
+    assert(flag);
+    assert(out);
+    assert(out_custom);
+
+    char const* stored = ff_stored(ctx, flag);
+    int const wanted = ff_stored_value(flag, stored);
+    char in_force_text[TORIRS_PLUGIN_FEATURE_CHOICES_MAX];
+    size_t at = 0;
+    int selected = 0;
+
+    *out_custom = TORIRS_PLUGIN_FEATURE_UNSET;
+
+    /*
+     * What entry 0 promises, in words where the flag names the value and as a
+     * number where it does not.
+     *
+     * Read from the ENGINE rather than remembered, because a restore is the
+     * engine's snapshot and this plugin never sees the number it would put
+     * back. Only worth saying while the flag IS at its default: naming the
+     * boot value beside a row that is overriding it would be two answers to
+     * "what is this set to" on one line.
+     */
+    in_force_text[0] = '\0';
+    if( flag->is_default )
+    {
+        int const in_force = g_api->feature_get(ctx, flag->key);
+        int const named = ff_value_index(flag, in_force);
+
+        if( named >= 0 )
+            (void)ff_choice_at(flag->choices, named, in_force_text, sizeof(in_force_text));
+        else if( flag->kind == TORIRS_PLUGIN_FEATURE_INT )
+            snprintf(in_force_text, sizeof(in_force_text), "%d", in_force);
+    }
+
+    if( in_force_text[0] )
+        at = ff_append(out, out_size, at, "%s (%s)", FF_DEFAULT_LABEL, in_force_text);
+    else
+        at = ff_append(out, out_size, at, "%s", FF_DEFAULT_LABEL);
+
+    for( int i = 0; i < flag->value_count; i++ )
+    {
+        char choice[TORIRS_PLUGIN_FEATURE_CHOICES_MAX];
+        if( !ff_choice_at(flag->choices, i, choice, sizeof(choice)) )
+            break;
+        at = ff_append(out, out_size, at, "|%s", choice);
+        if( wanted != TORIRS_PLUGIN_FEATURE_UNSET && flag->values[i] == wanted )
+            selected = i + 1;
+    }
+
+    /*
+     * A number the list does not name, kept rather than dropped.
+     *
+     * An INT's named values are the ones worth offering, not its legal set, so
+     * a hand-edited ini may carry any number in range. Showing it as an entry
+     * is what stops opening this page from silently rewriting a file somebody
+     * edited on purpose -- the alternative is a dropdown that reads "Revision
+     * default" over a client that is not at its default.
+     */
+    if( wanted != TORIRS_PLUGIN_FEATURE_UNSET && selected == 0 &&
+        flag->kind == TORIRS_PLUGIN_FEATURE_INT )
+    {
+        (void)ff_append(out, out_size, at, "|%d", wanted);
+        *out_custom = wanted;
+        selected = flag->value_count + 1;
+    }
+    return selected;
+}
+
+/* ------------------------------------------------------------------------ */
+/* Applying                                                                  */
 /* ------------------------------------------------------------------------ */
 
 /** Re-read the engine's list into g_flags. */
@@ -183,13 +376,7 @@ ff_apply_all(struct ToriRS_PluginCtx* ctx)
     {
         struct ToriRS_PluginFeature const* flag = &g_flags[i];
         char const* stored = ff_stored(ctx, flag);
-        int value = TORIRS_PLUGIN_FEATURE_UNSET;
-
-        if( !ff_stored_is_default(stored) )
-        {
-            value = flag->kind == TORIRS_PLUGIN_FEATURE_ENUM ? ff_enum_value(flag, stored)
-                                                             : atoi(stored);
-        }
+        int const value = ff_stored_value(flag, stored);
 
         if( !g_api->feature_set(ctx, flag->key, value) )
             g_api->log(
@@ -228,71 +415,46 @@ ff_on_ui_build(
 
     ff_refresh(ctx);
 
+    char section[TORIRS_PLUGIN_FEATURE_KEY_MAX] = { 0 };
+    int heading = 0;
+
     for( int i = 0; i < g_flag_count; i++ )
     {
         struct ToriRS_PluginFeature const* flag = &g_flags[i];
-        char const* stored = ff_stored(ctx, flag);
+        char choices[FF_CHOICES_MAX];
+        int custom;
+        int const selected = ff_build_choices(ctx, flag, choices, sizeof(choices), &custom);
 
-        if( flag->kind == TORIRS_PLUGIN_FEATURE_ENUM )
+        /*
+         * A heading whenever the engine's section changes, with a rule above
+         * every one but the first. Fifteen rows in one column is a list to
+         * search; four groups of four is a page to read, and the grouping is
+         * the engine's own -- it is the order the walk hands them over in.
+         */
+        if( flag->section[0] && strcmp(flag->section, section) != 0 )
         {
-            /*
-             * FF_DEFAULT_LABEL first and always, because it is the one choice
-             * every flag has and the engine states none of them: a flag says
-             * what its values ARE, and "the one this boot resolved" is not one
-             * of them -- it is the absence of a choice.
-             */
-            char choices[TORIRS_PLUGIN_FEATURE_CHOICES_MAX + sizeof(FF_DEFAULT_LABEL) + 1];
-            char current[TORIRS_PLUGIN_FEATURE_CHOICES_MAX];
-            int selected = 0;
+            char id[TORIRS_PLUGIN_WIDGET_ID_MAX];
 
-            snprintf(choices, sizeof(choices), "%s|%s", FF_DEFAULT_LABEL, flag->choices);
-            if( ff_stored_is_default(stored) )
-                snprintf(current, sizeof(current), "%s", FF_DEFAULT_LABEL);
-            else
-                snprintf(current, sizeof(current), "%s", stored);
-
-            for( int c = 0;; c++ )
+            snprintf(section, sizeof(section), "%s", flag->section);
+            if( heading++ )
             {
-                char option[TORIRS_PLUGIN_FEATURE_CHOICES_MAX];
-                if( !ff_choice_at(choices, c, option, sizeof(option)) )
-                    break;
-                if( strcmp(option, current) == 0 )
-                {
-                    selected = c;
-                    break;
-                }
+                snprintf(id, sizeof(id), "rule_%d", heading);
+                g_api->win_widget(ctx, TORIRS_PLUGIN_W_SEPARATOR, id, NULL);
             }
-
-            g_api->win_widget(ctx, TORIRS_PLUGIN_W_DROPDOWN, flag->key, flag->label);
-            g_api->win_set_options(ctx, flag->key, choices, selected);
+            snprintf(id, sizeof(id), "head_%d", heading);
+            g_api->win_widget(ctx, TORIRS_PLUGIN_W_LABEL, id, flag->section);
         }
-        else
+
+        if( !g_api->win_widget(ctx, TORIRS_PLUGIN_W_DROPDOWN, flag->key, flag->label) )
         {
-            /*
-             * A number, edited as text, with the sentinel spelled out rather
-             * than written as -1: the range a flag states is its own, and
-             * every one of them would otherwise have to explain separately
-             * what a negative number meant.
-             */
-            char label[TORIRS_PLUGIN_FEATURE_LABEL_MAX + 48];
-            char text[32];
-
-            snprintf(
-                label,
-                sizeof(label),
-                "%s (%d..%d, or %s)",
-                flag->label,
-                flag->min,
-                flag->max,
-                FF_DEFAULT_LABEL);
-            if( ff_stored_is_default(stored) )
-                snprintf(text, sizeof(text), "%s", FF_DEFAULT_LABEL);
-            else
-                snprintf(text, sizeof(text), "%d", atoi(stored));
-
-            g_api->win_widget(ctx, TORIRS_PLUGIN_W_INPUT, flag->key, label);
-            g_api->win_set_text(ctx, flag->key, text);
+            /* Out of control budget. Said out loud, because the alternative is
+             * a settings page that is simply missing its last few rows with
+             * nothing on screen to suggest they exist. */
+            g_api->log(
+                ctx, "feature-flags: no room on the tab for '%s' and what follows", flag->key);
+            break;
         }
+        g_api->win_set_options(ctx, flag->key, choices, selected);
     }
 
     if( g_flag_count == 0 )
@@ -300,6 +462,17 @@ ff_on_ui_build(
             ctx, TORIRS_PLUGIN_W_LABEL, "empty", "This build publishes no feature flags.");
 
     return TORIRS_PLUGIN_PASS;
+}
+
+/** Rebuild the page so every row reads back what it now holds. Cheap, and the
+ *  only thing that is right about the default entry: it carries the value in
+ *  force, so a change to ANY row can change what another row's entry 0 says. */
+static void
+ff_rebuild(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+    g_api->win_clear(ctx);
+    ff_on_ui_build(ctx, NULL, NULL);
 }
 
 /** A control was used: store the choice and push it straight through. */
@@ -326,45 +499,57 @@ ff_on_ui(
             continue;
 
         /*
-         * Stored as the user's own text -- the choice, or the number, or the
-         * default label -- and only then turned into a value. The ini is a
-         * record of what was picked; the engine's number is derived from it
-         * every time, so a flag whose choices change between builds re-reads
-         * as the same words rather than as the same ordinal.
+         * By INDEX, not by the text shown.
+         *
+         * The opposite of how the ini is keyed, and for the opposite reason:
+         * the list was assembled by ff_build_choices moments ago and is still
+         * the one on screen, whereas entry 0's text carries the value in force
+         * and is therefore not a name that means anything later. Index 0 is
+         * the default, 1..value_count are the engine's, and one past them is
+         * the unnamed number an ini carried -- which stays exactly as it was.
          */
-        char const* text = ev->text;
-        if( !text || !text[0] )
-            text = FF_DEFAULT_LABEL;
-        g_api->cfg_set(ctx, flag->key, text);
+        int const choice = ev->value;
+        char stored[TORIRS_PLUGIN_FEATURE_CHOICES_MAX];
 
-        if( ff_stored_is_default(text) )
+        if( choice <= 0 )
+            snprintf(stored, sizeof(stored), "%s", FF_DEFAULT_LABEL);
+        else if( choice <= flag->value_count )
         {
-            g_api->feature_set(ctx, flag->key, TORIRS_PLUGIN_FEATURE_UNSET);
+            if( flag->kind == TORIRS_PLUGIN_FEATURE_ENUM )
+            {
+                if( !ff_choice_at(flag->choices, choice - 1, stored, sizeof(stored)) )
+                    return TORIRS_PLUGIN_PASS;
+            }
+            else
+                snprintf(stored, sizeof(stored), "%d", flag->values[choice - 1]);
+        }
+        else
+        {
+            /* The appended unnamed number: chosen means "keep it", so the
+             * store is already right and rewriting it could only round it. */
             return TORIRS_PLUGIN_PASS;
         }
 
-        int const value =
-            flag->kind == TORIRS_PLUGIN_FEATURE_ENUM ? ff_enum_value(flag, text) : atoi(text);
-        if( !g_api->feature_set(ctx, flag->key, value) )
+        g_api->cfg_set(ctx, flag->key, stored);
+        if( !g_api->feature_set(ctx, flag->key, ff_stored_value(flag, stored)) )
         {
-            /*
-             * A typed number the flag will not take. Said out loud and put
-             * back, rather than left in the field looking accepted -- the
-             * whole failure mode of a text field over a bounded value.
-             */
-            g_api->notify(ctx, "That value is outside what this setting accepts.");
+            /* Nothing on this page can produce one -- every entry came from the
+             * engine's own list -- so a refusal means the list moved under us.
+             * Say so and put the row back rather than leaving it showing a
+             * choice that did not take. */
+            g_api->log(ctx, "feature-flags: engine refused %s=%s", flag->key, stored);
             g_api->cfg_set(ctx, flag->key, FF_DEFAULT_LABEL);
             g_api->feature_set(ctx, flag->key, TORIRS_PLUGIN_FEATURE_UNSET);
-            g_api->win_set_text(ctx, flag->key, FF_DEFAULT_LABEL);
         }
+        ff_rebuild(ctx);
         return TORIRS_PLUGIN_PASS;
     }
     return TORIRS_PLUGIN_PASS;
 }
 
-/** A key was edited from somewhere other than this tab -- a hand-edited ini,
- *  or the panel's own form. Re-push the lot; there is no cheaper answer that
- *  is also right about a key going back to its default. */
+/** A key was edited from somewhere other than this tab -- a hand-edited ini.
+ *  Re-push the lot; there is no cheaper answer that is also right about a key
+ *  going back to its default. */
 static enum ToriRS_PluginVerdict
 ff_on_config(
     struct ToriRS_PluginCtx* ctx,
@@ -414,7 +599,7 @@ ff_init(
 struct ToriRS_PluginDef const TORIRS_PLUGIN_FEATURE_FLAGS = {
     .name = "feature-flags",
     .title = "Feature Flags",
-    .version = "1.0",
+    .version = "1.1",
     /*
      * Above every other plugin's default, so the overrides are in force before
      * anything that reads a flag has run its own START. A gameframe that

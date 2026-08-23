@@ -41,6 +41,58 @@
 
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_ORBS;
 
+/*
+ * A do-nothing second plugin.
+ *
+ * The reservation cases need TWO plugins, because a plugin re-stating its own
+ * width replaces its own row -- that is the point of keeping a claim keyed on
+ * its owner -- and "these two stack" cannot be said with one.
+ */
+static int g_second;
+static struct ToriRS_PluginApi const* g_api;
+
+/* Set by the re-entrancy case: while non-NULL, this plugin answers every
+ * layout notification by reserving a DIFFERENT width, which is the pattern
+ * that would spin if the event nested. */
+static struct ToriRS_PluginCtx* g_reentrant_ctx;
+static int g_reentrant_left;
+static int g_reentrant_depth;
+static int g_reentrant_max_depth;
+
+static enum ToriRS_PluginVerdict
+second_layout_changed(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
+{
+    (void)event;
+    (void)userdata;
+
+    g_reentrant_depth++;
+    if( g_reentrant_depth > g_reentrant_max_depth )
+        g_reentrant_max_depth = g_reentrant_depth;
+    if( g_reentrant_ctx == ctx && g_reentrant_left > 0 )
+    {
+        g_reentrant_left--;
+        g_api->layout_reserve(
+            ctx, TORIRS_PLUGIN_SLOT_SAFE, TORIRS_PLUGIN_EDGE_LEFT,
+            10 + g_reentrant_left);
+    }
+    g_reentrant_depth--;
+    return TORIRS_PLUGIN_PASS;
+}
+
+static void
+second_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
+{
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_LAYOUT_CHANGED, second_layout_changed, NULL);
+}
+
+static struct ToriRS_PluginDef const SECOND = {
+    .name = "second",
+    .title = "Second",
+    .version = "1.0.0",
+    .init = second_init,
+};
+
+
 static int g_checks;
 static int g_failures;
 
@@ -244,24 +296,6 @@ fake_feature_set(void* u, char const* k, int v)
     return 0;
 }
 static int
-fake_display_setting(void* u, int setting, int* value, int* min, int* max)
-{
-    (void)u;
-    (void)setting;
-    (void)value;
-    (void)min;
-    (void)max;
-    return 0;
-}
-static int
-fake_display_setting_set(void* u, int setting, int value)
-{
-    (void)u;
-    (void)setting;
-    (void)value;
-    return 0;
-}
-static int
 fake_varbit(void* u, int id)
 {
     (void)u;
@@ -372,22 +406,6 @@ static int g_anchor_y[3];
 static int g_anchor_w[3];
 static int g_anchor_h[3];
 
-static int
-fake_anchor_rect(void* u, int which, int* x, int* y, int* w, int* h)
-{
-    (void)u;
-    if( which < 0 || which > 2 || g_anchor_w[which] <= 0 || g_anchor_h[which] <= 0 )
-        return 0;
-    if( x )
-        *x = g_anchor_x[which];
-    if( y )
-        *y = g_anchor_y[which];
-    if( w )
-        *w = g_anchor_w[which];
-    if( h )
-        *h = g_anchor_h[which];
-    return 1;
-}
 
 static int
 fake_minimap_rect(void* u, int* x, int* y, int* w, int* h)
@@ -399,6 +417,49 @@ fake_minimap_rect(void* u, int* x, int* y, int* w, int* h)
     (void)h;
     return 0;
 }
+/* Regions, by role. `w` of 0 means "this gameframe has no such region", which
+ * is how the fallback chain in slot_rect's contract gets exercised. */
+static int g_slot_x[TORIRS_PLUGIN_SLOT_COUNT];
+static int g_slot_y[TORIRS_PLUGIN_SLOT_COUNT];
+static int g_slot_w[TORIRS_PLUGIN_SLOT_COUNT];
+static int g_slot_h[TORIRS_PLUGIN_SLOT_COUNT];
+
+static int
+fake_slot_rect(void* u, int slot, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_COUNT )
+        return 0;
+    if( g_slot_w[slot] <= 0 || g_slot_h[slot] <= 0 )
+        return 0;
+    if( x )
+        *x = g_slot_x[slot];
+    if( y )
+        *y = g_slot_y[slot];
+    if( w )
+        *w = g_slot_w[slot];
+    if( h )
+        *h = g_slot_h[slot];
+    return 1;
+}
+
+/* No frame under test declares MEMBERS of a role, so the honest answer is
+ * "this gameframe has no such member" -- @see
+ * ToriRS_PluginApi::slot_member_rect, where that is an answer and not a
+ * fault. */
+static int
+fake_slot_member_rect(void* u, int slot, int member, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    (void)slot;
+    (void)member;
+    (void)x;
+    (void)y;
+    (void)w;
+    (void)h;
+    return 0;
+}
+
 static int
 fake_stat(void* u, int skill, int* cur, int* base)
 {
@@ -632,12 +693,18 @@ fake_asset_write(void* u, char const* plugin, char const* name, void const* data
     return 1;
 }
 static int
-fake_screenshot(void* u, char const* plugin, char const* dir, char const* name)
+fake_screenshot(
+    void* u,
+    char const* plugin,
+    char const* dir,
+    char const* name,
+    char* out_path,
+    int out_path_size)
 {
     (void)u;
     (void)plugin;
     (void)dir;
-    (void)name;
+    snprintf(out_path, (size_t)out_path_size, "%s", name);
     return 1;
 }
 /*
@@ -712,6 +779,14 @@ fake_layout_slot_skin(void* u, int slot, int art, int mask)
     (void)slot;
     (void)art;
     (void)mask;
+    return 0;
+}
+static int
+fake_layout_scrollbar(void* u, int const* images, int count)
+{
+    (void)u;
+    (void)images;
+    (void)count;
     return 0;
 }
 static int
@@ -1105,8 +1180,6 @@ main(void)
     e.feature_next = fake_feature_next;
     e.feature_get = fake_feature_get;
     e.feature_set = fake_feature_set;
-    e.display_setting = fake_display_setting;
-    e.display_setting_set = fake_display_setting_set;
     e.varbit = fake_varbit;
     e.varp = fake_varp;
     e.cache_id = fake_cache_id;
@@ -1119,7 +1192,8 @@ main(void)
     e.draw_select_canvas = fake_draw_select_canvas;
     e.mouse_pos = fake_mouse_pos;
     e.minimap_rect = fake_minimap_rect;
-    e.anchor_rect = fake_anchor_rect;
+    e.slot_rect = fake_slot_rect;
+    e.slot_member_rect = fake_slot_member_rect;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;
     e.skill_name = fake_skill_name;
@@ -1143,6 +1217,7 @@ main(void)
     e.layout_end = fake_layout_end;
     e.layout_slot = fake_layout_slot;
     e.layout_slot_skin = fake_layout_slot_skin;
+    e.layout_scrollbar = fake_layout_scrollbar;
     e.display_setting = fake_display_setting;
     e.display_setting_set = fake_display_setting_set;
     e.tab_active = fake_tab_active;
@@ -1177,7 +1252,10 @@ main(void)
     index = PluginHost_Register(g_host, &TORIRS_PLUGIN_XP_ORBS);
     CHECK(index >= 0, "the plugin registers");
     PluginHost_SetEnabled(g_host, index, true);
+    g_second = PluginHost_Register(g_host, &SECOND);
+    PluginHost_SetEnabled(g_host, g_second, true);
     PluginHost_Start(g_host);
+    g_api = PluginHost_Api(g_host);
 
     /* CANVAS always answers; the other two are set per case below. Starting
      * with only the canvas is the login-screen state -- no scene, no modal. */
@@ -1351,46 +1429,115 @@ main(void)
     }
 
     /*
-     * The column centres on the ANCHOR, not on the canvas.
+     * The column centres on the SAFE region, and the safe region is derived.
      *
      * The failure this pins is the one a resizable gameframe produces: the
-     * scene fills the whole window, the chrome floats on top of it, and a
-     * column centred on the canvas sits off to the side of what the player is
-     * actually looking at. Given a viewport that is not the canvas, the run of
-     * globes has to centre in THAT.
+     * scene fills the whole window and the chrome floats on top of it, so a
+     * column centred on the canvas -- or even on the viewport -- sits off to
+     * the side of what the player is actually looking at. SAFE is the viewport
+     * with the chrome cut out of it, computed by the host, so what is being
+     * checked here is arithmetic the plugin never sees.
      */
     {
         int const run = 5 * 40 + 4 * 10;
         g_mouse_x = -1;
-        g_anchor_w[1] = 300;   /* VIEWPORT: an off-centre 300x150 box */
-        g_anchor_h[1] = 150;
-        g_anchor_x[1] = 40;
-        g_anchor_y[1] = 12;
-        draw();
-        CHECK(
-            g_blit_count == 5 && g_blit[0].x == 40 + (300 - run) / 2 - 3,
-            "the column centres in the viewport when there is one");
 
-        /* And MODAL outranks it, because on a resizable frame the viewport IS
-         * the whole window and the modal region is the part kept clear. */
-        g_anchor_w[2] = 200;
-        g_anchor_h[2] = 120;
-        g_anchor_x[2] = 260;
-        g_anchor_y[2] = 30;
-        draw();
-        CHECK(
-            g_blit_count == 5 && g_blit[0].x == 260 + (200 - run) / 2 - 3,
-            "and in the modal region in preference to it");
-
-        /* A frame that has neither falls all the way back to the canvas. */
-        g_anchor_w[1] = 0;
-        g_anchor_w[2] = 0;
+        /* A resizable frame: the scene IS the window. */
+        g_slot_x[TORIRS_PLUGIN_SLOT_VIEWPORT] = 0;
+        g_slot_y[TORIRS_PLUGIN_SLOT_VIEWPORT] = 0;
+        g_slot_w[TORIRS_PLUGIN_SLOT_VIEWPORT] = CANVAS_W;
+        g_slot_h[TORIRS_PLUGIN_SLOT_VIEWPORT] = CANVAS_H;
         draw();
         CHECK(
             g_blit_count == 5 && g_blit[0].x == (CANVAS_W - run) / 2 - 3,
-            "and on the canvas when the frame offers neither");
-        g_anchor_w[1] = 300;
-        g_anchor_h[1] = 150;
+            "with nothing covering it, safe is the viewport");
+
+        /* Now dock the sidebar down the right, as a resizable frame does. */
+        g_slot_x[TORIRS_PLUGIN_SLOT_SIDEBAR] = CANVAS_W - 200;
+        g_slot_y[TORIRS_PLUGIN_SLOT_SIDEBAR] = 0;
+        g_slot_w[TORIRS_PLUGIN_SLOT_SIDEBAR] = 200;
+        g_slot_h[TORIRS_PLUGIN_SLOT_SIDEBAR] = CANVAS_H;
+        draw();
+        CHECK(
+            g_blit_count == 5 && g_blit[0].x == (CANVAS_W - 200 - run) / 2 - 3,
+            "the chrome is cut out of it, and the column re-centres");
+
+        /* A frame that reports no regions at all falls back to the canvas --
+         * the login screen, where there is no scene to measure. */
+        g_slot_w[TORIRS_PLUGIN_SLOT_VIEWPORT] = 0;
+        g_slot_w[TORIRS_PLUGIN_SLOT_SIDEBAR] = 0;
+        draw();
+        CHECK(
+            g_blit_count == 5 && g_blit[0].x == (CANVAS_W - run) / 2 - 3,
+            "and a frame with no regions falls back to the canvas");
+        g_slot_w[TORIRS_PLUGIN_SLOT_VIEWPORT] = CANVAS_W;
+        g_slot_h[TORIRS_PLUGIN_SLOT_VIEWPORT] = CANVAS_H;
+    }
+
+    /*
+     * Reservations: what lets two plugins share a screen without knowing about
+     * each other.
+     *
+     * The orbs are the reader here; the writer is the test standing in for a
+     * dock plugin. Nothing in the orbs is aware a reservation exists, which is
+     * the property being checked -- they simply re-centre.
+     */
+    {
+        int const run = 5 * 40 + 4 * 10;
+        struct ToriRS_PluginCtx* ctx = PluginHost_Ctx(g_host, index);
+        int const before = g_api->layout_revision(ctx);
+
+        CHECK(
+            g_api->layout_reserve(
+                ctx, TORIRS_PLUGIN_SLOT_SAFE, TORIRS_PLUGIN_EDGE_RIGHT, 180),
+            "a plugin can reserve an edge of the safe region");
+        CHECK(
+            g_api->layout_revision(ctx) > before,
+            "and the layout revision moves when it does");
+        draw();
+        CHECK(
+            g_blit_count == 5 && g_blit[0].x == (CANVAS_W - 180 - run) / 2 - 3,
+            "the orbs re-centre in what is left, knowing nothing about it");
+
+        /* A second claim on the SAME edge STACKS rather than replacing: this
+         * is the whole reason `reserve` exists beside `layout_slot`. Made by a
+         * different plugin, because one plugin re-stating its own width
+         * replaces its own row. */
+        {
+            struct ToriRS_PluginCtx* other = PluginHost_Ctx(g_host, g_second);
+            CHECK(
+                g_api->layout_reserve(
+                    other, TORIRS_PLUGIN_SLOT_SAFE, TORIRS_PLUGIN_EDGE_RIGHT, 120),
+                "a second plugin reserves the same edge");
+            draw();
+            CHECK(
+                g_blit_count == 5 &&
+                    g_blit[0].x == (CANVAS_W - 300 - run) / 2 - 3,
+                "and the two stack instead of fighting");
+
+            /* Disabling it hands the edge back with nobody asking. */
+            PluginHost_SetEnabled(g_host, g_second, false);
+            draw();
+            CHECK(
+                g_blit_count == 5 &&
+                    g_blit[0].x == (CANVAS_W - 180 - run) / 2 - 3,
+                "and a stopped plugin's reservation is dropped for it");
+        }
+
+        /* Only the derived regions can be reserved from: a placeable role is
+         * whatever the frame says it is. */
+        CHECK(
+            g_api->layout_reserve(
+                ctx, TORIRS_PLUGIN_SLOT_VIEWPORT, TORIRS_PLUGIN_EDGE_RIGHT, 10) == 0,
+            "a placeable region refuses a reservation");
+
+        /* Zero gives it back. */
+        g_api->layout_reserve(
+            ctx, TORIRS_PLUGIN_SLOT_SAFE, TORIRS_PLUGIN_EDGE_RIGHT, 0);
+        draw();
+        CHECK(
+            g_blit_count == 5 && g_blit[0].x == (CANVAS_W - run) / 2 - 3,
+            "and reserving zero releases it");
     }
 
     /*
@@ -1580,6 +1727,35 @@ main(void)
         draw();
         CHECK(g_tip_composes == 3, "and a different orb rebuilds it immediately");
         g_mouse_x = -1;
+    }
+
+    /*
+     * A handler that reserves from inside the notification does not spin.
+     *
+     * The shape a cooperative layout invites: a dock hears that the safe
+     * region moved, recalculates the width it wants, and reserves -- which
+     * changes the layout again. Nothing here refuses that; what is dropped
+     * is the second telling, and the test for it is simply that this
+     * returns at all.
+     */
+    {
+        struct ToriRS_PluginCtx* other = PluginHost_Ctx(g_host, g_second);
+        PluginHost_SetEnabled(g_host, g_second, true);
+        int const before = g_api->layout_revision(other);
+        g_reentrant_ctx = other;
+        g_reentrant_left = 4;
+        g_reentrant_max_depth = 0;
+        PluginHost_LayoutChanged(g_host);
+        /* ONCE, not once per change: the handler's own reserve is recorded
+         * and moves the revision, but it does not re-deliver the event.
+         * Four would be the runaway. */
+        CHECK(g_reentrant_left == 3, "the handler is told once, not once per change");
+        CHECK(g_reentrant_max_depth == 1, "and the notification does not nest");
+        CHECK(
+            g_api->layout_revision(other) > before,
+            "while the reserve it made still counts");
+        g_reentrant_ctx = NULL;
+        PluginHost_SetEnabled(g_host, g_second, false);
     }
 
     PluginHost_Free(g_host);

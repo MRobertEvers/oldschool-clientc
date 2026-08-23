@@ -89,6 +89,9 @@
  * is bounded by what is reasonable to draw rather than by what it costs.
  */
 #define TORIRS_PLUGIN_IMAGES_MAX 192
+/** Live reservations across every plugin. One per (plugin, region, edge), and
+ *  four edges of one region each is already an unusual plugin. */
+#define TORIRS_PLUGIN_RESERVES_MAX 32
 /** Longest screenshot destination a plugin may name, including separators. */
 #define TORIRS_PLUGIN_SCREENSHOT_DIR_MAX 192
 
@@ -126,10 +129,23 @@ struct ToriRS_PluginEngine
     int (*mouse_pos)(void* user, int* out_x, int* out_y);
     /** The minimap's box this frame. @see ToriRS_PluginApi::minimap_rect. */
     int (*minimap_rect)(void* user, int* out_x, int* out_y, int* out_w, int* out_h);
-    /** One of the gameframe's anchor boxes. @see
-     *  ToriRS_PluginApi::anchor_rect. `which` is enum ToriRS_PluginAnchor. */
-    int (*anchor_rect)(
-        void* user, int which, int* out_x, int* out_y, int* out_w, int* out_h);
+    /**
+     * One PLACEABLE region's box, plus CANVAS. @see
+     * ToriRS_PluginApi::slot_rect.
+     *
+     * SAFE is deliberately not here: it is derived from these plus the host's
+     * own reservation table, and the host is the only thing that holds both.
+     */
+    int (*slot_rect)(
+        void* user, int slot, int* out_x, int* out_y, int* out_w, int* out_h);
+    /**
+     * One MEMBER of a placeable region. @see
+     * ToriRS_PluginApi::slot_member_rect.
+     *
+     * The read half of layout_slot's `member`, so the two use one numbering.
+     */
+    int (*slot_member_rect)(
+        void* user, int slot, int member, int* out_x, int* out_y, int* out_w, int* out_h);
 
     /* The gameframe claim. @see ToriRS_PluginApi::layout_claim.
      *
@@ -155,6 +171,9 @@ struct ToriRS_PluginEngine
      *  clipped to, as plugin image slots (-1 for "leave it alone").
      *  @see ToriRS_PluginApi::layout_slot_skin. */
     int (*layout_slot_skin)(void* user, int slot, int art, int mask);
+    /** Six plugin image slots in UITreeScrollbarSkinPiece order, or NULL to
+     *  clear. @see ToriRS_PluginApi::layout_scrollbar. */
+    int (*layout_scrollbar)(void* user, int const* images, int count);
     /** The selected sidebar tab, or -1. @see ToriRS_PluginApi::tab_active. */
     int (*tab_active)(void* user);
     /** Flip to that tab. @see ToriRS_PluginApi::tab_select. */
@@ -329,8 +348,17 @@ struct ToriRS_PluginEngine
 
     /** Record a deferred frame capture. `dir` is NULL or "" for the plugin's
      *  own saved-asset directory. Returns 1 when the request was accepted; the
-     *  engine takes it at the end of the frame and writes the PNG itself. */
-    int (*screenshot)(void* user, char const* plugin, char const* dir, char const* name);
+     *  engine takes it at the end of the frame and writes the PNG itself.
+     *  `out_path` is filled with the file the capture will land in -- the
+     *  engine owns the folders, so it is the only side that can say -- and is
+     *  left empty when there is nowhere to write it. */
+    int (*screenshot)(
+        void* user,
+        char const* plugin,
+        char const* dir,
+        char const* name,
+        char* out_path,
+        int out_path_size);
 
     /* World objects. Handles are the engine's; the host records who owns each
      * one so a stopped plugin's objects leave the scene with it. */
@@ -540,6 +568,15 @@ void PluginHost_DrawFrame(struct ToriRS_PluginHost* host, int width, int height)
  * size back -- see the body.
  */
 void PluginHost_Layout(struct ToriRS_PluginHost* host, int width, int height);
+
+/**
+ * The frame's geometry moved: bump the revision and raise EV_LAYOUT_CHANGED.
+ *
+ * Called by the client when something it owns moved a region -- a resize, a
+ * gameframe rebuild -- and by the host itself when a plugin reserves. Both are
+ * the same news to a plugin holding a picture measured against a box.
+ */
+void PluginHost_LayoutChanged(struct ToriRS_PluginHost* host);
 
 /** Which plugin holds the frame, or -1. The engine reads it to decide whether
  *  the lane's own chrome is suppressed this layout pass. */

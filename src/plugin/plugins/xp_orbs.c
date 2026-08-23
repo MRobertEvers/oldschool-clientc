@@ -1599,12 +1599,14 @@ orb_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
          * somewhere between the two -- off to the side of what the player is
          * watching, and under the chrome at the edges.
          *
-         * So it asks for the tightest anchor first. MODAL is the area the
-         * gameframe itself keeps clear for a bank or a dialogue, which is the
-         * definition of "the middle of the screen" in both window modes;
-         * VIEWPORT is the answer on a frame that has never opened a modal and
-         * declares no region for one; CANVAS cannot fail and is what a client
-         * with no scene at all -- the login screen -- falls back to.
+         * So it asks for the tightest region first. SAFE is the scene with
+         * the chrome and every plugin's reservation taken out of it: the
+         * answer in both window modes, and the one that keeps working when a
+         * plugin nobody anticipated docks a panel down one side. MAIN_MODAL is
+         * where the frame itself opens a bank or a dialogue, and is the
+         * fallback on a frame whose chrome the host cannot locate; VIEWPORT
+         * below that; CANVAS cannot fail and is what a client with no scene at
+         * all -- the login screen -- lands on.
          */
         int box_x = 0;
         int box_y = 0;
@@ -1612,12 +1614,14 @@ orb_draw(struct ToriRS_PluginCtx* ctx, void* event, void* userdata)
         int box_h = ev->height;
         int const run = g_globe_count * size + (g_globe_count - 1) * ORB_STEP;
 
-        if( !g_api->anchor_rect(
-                ctx, TORIRS_PLUGIN_ANCHOR_MODAL, &box_x, &box_y, &box_w, &box_h) &&
-            !g_api->anchor_rect(
-                ctx, TORIRS_PLUGIN_ANCHOR_VIEWPORT, &box_x, &box_y, &box_w, &box_h) )
-            g_api->anchor_rect(
-                ctx, TORIRS_PLUGIN_ANCHOR_CANVAS, &box_x, &box_y, &box_w, &box_h);
+        if( !g_api->slot_rect(
+                ctx, TORIRS_PLUGIN_SLOT_SAFE, &box_x, &box_y, &box_w, &box_h) &&
+            !g_api->slot_rect(
+                ctx, TORIRS_PLUGIN_SLOT_MAIN_MODAL, &box_x, &box_y, &box_w, &box_h) &&
+            !g_api->slot_rect(
+                ctx, TORIRS_PLUGIN_SLOT_VIEWPORT, &box_x, &box_y, &box_w, &box_h) )
+            g_api->slot_rect(
+                ctx, TORIRS_PLUGIN_SLOT_CANVAS, &box_x, &box_y, &box_w, &box_h);
 
         origin_x = box_x + (vertical ? (box_w - size) / 2 : (box_w - run) / 2);
         origin_y = box_y + offset;

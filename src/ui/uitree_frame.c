@@ -36,9 +36,12 @@ _Static_assert(
 _Static_assert(
     (int)UITREE_FRAME_SLOT_CHAT_BUTTONS == (int)TORIRS_PLUGIN_SLOT_CHAT_BUTTONS,
     "frame slot order must match the plugin contract");
+/* The PLACEABLE half, and only that half: the plugin contract grew derived
+ * regions -- CANVAS and SAFE -- which are read through the same enum and are
+ * not nodes in this tree, so its own count is the placeable one. */
 _Static_assert(
-    (int)UITREE_FRAME_SLOT_COUNT == (int)TORIRS_PLUGIN_SLOT_COUNT,
-    "frame slot count must match the plugin contract");
+    (int)UITREE_FRAME_SLOT_COUNT == (int)TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT,
+    "frame slot count must match the plugin contract's placeable half");
 
 /* Chrome nodes one declaration may suppress. A 2004 surround is about twenty
  * and an OldSchool toplevel's own decoration is under a hundred; past this the

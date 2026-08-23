@@ -249,24 +249,6 @@ fake_feature_set(void* u, char const* k, int v)
     return 0;
 }
 static int
-fake_display_setting(void* u, int setting, int* value, int* min, int* max)
-{
-    (void)u;
-    (void)setting;
-    (void)value;
-    (void)min;
-    (void)max;
-    return 0;
-}
-static int
-fake_display_setting_set(void* u, int setting, int value)
-{
-    (void)u;
-    (void)setting;
-    (void)value;
-    return 0;
-}
-static int
 fake_varbit(void* u, int id)
 {
     (void)u;
@@ -434,12 +416,18 @@ fake_asset_write(void* u, char const* plugin, char const* name, void const* data
     return 1;
 }
 static int
-fake_screenshot(void* u, char const* plugin, char const* dir, char const* name)
+fake_screenshot(
+    void* u,
+    char const* plugin,
+    char const* dir,
+    char const* name,
+    char* out_path,
+    int out_path_size)
 {
     (void)u;
     (void)plugin;
     (void)dir;
-    (void)name;
+    snprintf(out_path, (size_t)out_path_size, "%s", name);
     return 1;
 }
 /*
@@ -514,6 +502,14 @@ fake_layout_slot_skin(void* u, int slot, int art, int mask)
     (void)slot;
     (void)art;
     (void)mask;
+    return 0;
+}
+static int
+fake_layout_scrollbar(void* u, int const* images, int count)
+{
+    (void)u;
+    (void)images;
+    (void)count;
     return 0;
 }
 static int
@@ -721,23 +717,47 @@ fake_minimap_rect(void* u, int* x, int* y, int* w, int* h)
         *h = 151;
     return 1;
 }
-/* The gameframe boxes a plugin anchors to. One rect for every `which`: these
- * plugins never ask, and what the suite needs is that the entry point exists
- * -- PluginHost_New asserts every one of them. */
+/* Regions, by role. `w` of 0 means "this gameframe has no such region", which
+ * is how the fallback chain in slot_rect's contract gets exercised. */
+static int g_slot_x[TORIRS_PLUGIN_SLOT_COUNT];
+static int g_slot_y[TORIRS_PLUGIN_SLOT_COUNT];
+static int g_slot_w[TORIRS_PLUGIN_SLOT_COUNT];
+static int g_slot_h[TORIRS_PLUGIN_SLOT_COUNT];
+
 static int
-fake_anchor_rect(void* u, int which, int* x, int* y, int* w, int* h)
+fake_slot_rect(void* u, int slot, int* x, int* y, int* w, int* h)
 {
     (void)u;
-    (void)which;
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_COUNT )
+        return 0;
+    if( g_slot_w[slot] <= 0 || g_slot_h[slot] <= 0 )
+        return 0;
     if( x )
-        *x = 0;
+        *x = g_slot_x[slot];
     if( y )
-        *y = 0;
+        *y = g_slot_y[slot];
     if( w )
-        *w = 512;
+        *w = g_slot_w[slot];
     if( h )
-        *h = 334;
+        *h = g_slot_h[slot];
     return 1;
+}
+
+/* No frame under test declares MEMBERS of a role, so the honest answer is
+ * "this gameframe has no such member" -- @see
+ * ToriRS_PluginApi::slot_member_rect, where that is an answer and not a
+ * fault. */
+static int
+fake_slot_member_rect(void* u, int slot, int member, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    (void)slot;
+    (void)member;
+    (void)x;
+    (void)y;
+    (void)w;
+    (void)h;
+    return 0;
 }
 static int
 fake_stat(void* u, int skill, int* cur, int* base)
@@ -893,8 +913,6 @@ fake_engine(void)
     e.feature_next = fake_feature_next;
     e.feature_get = fake_feature_get;
     e.feature_set = fake_feature_set;
-    e.display_setting = fake_display_setting;
-    e.display_setting_set = fake_display_setting_set;
     e.varbit = fake_varbit;
     e.varp = fake_varp;
     e.cache_id = fake_cache_id;
@@ -906,7 +924,8 @@ fake_engine(void)
     e.draw_rect = fake_draw_rect;
     e.mouse_pos = fake_mouse_pos;
     e.minimap_rect = fake_minimap_rect;
-    e.anchor_rect = fake_anchor_rect;
+    e.slot_rect = fake_slot_rect;
+    e.slot_member_rect = fake_slot_member_rect;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;
     e.skill_name = fake_skill_name;
@@ -931,6 +950,7 @@ fake_engine(void)
     e.layout_end = fake_layout_end;
     e.layout_slot = fake_layout_slot;
     e.layout_slot_skin = fake_layout_slot_skin;
+    e.layout_scrollbar = fake_layout_scrollbar;
     e.display_setting = fake_display_setting;
     e.display_setting_set = fake_display_setting_set;
     e.tab_active = fake_tab_active;

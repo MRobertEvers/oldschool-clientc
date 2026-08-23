@@ -156,6 +156,32 @@ struct ToriRS_PluginHost
     /** Non-zero only inside an EV_LAYOUT dispatch: layout_slot is legal then
      *  and at no other time, for the same reason hit_region is. */
     int layout_declaring;
+
+    /*
+     * Reservations: bites taken out of a derived region, one per
+     * (plugin, region, edge).
+     *
+     * A flat table rather than a per-plugin array for the reason the window's
+     * widget pool is flat: almost every plugin reserves nothing, one or two
+     * reserve a single edge, and sizing a slice for the greediest and
+     * multiplying it by thirty-two spends memory on a case that does not
+     * happen. Declaration ORDER is meaningful -- two plugins on the same edge
+     * stack in the order they asked -- so nothing here is compacted or sorted.
+     */
+    struct PluginReserve
+    {
+        /** -1 for a free row. */
+        int plugin;
+        uint8_t slot;
+        uint8_t edge;
+        int px;
+    } reserves[TORIRS_PLUGIN_RESERVES_MAX];
+
+    /** Moves whenever anything about the layout does. @see layout_revision. */
+    int layout_revision;
+    /** Set while EV_LAYOUT_CHANGED is being delivered. @see
+     *  PluginHost_LayoutChanged. */
+    int layout_notifying;
     /* Non-NULL only during an EV_MENU_BUILD dispatch. */
     void* menu_cursor;
 
@@ -618,23 +644,6 @@ api_minimap_rect(
         ctx->host->engine.user, out_x, out_y, out_w, out_h);
 }
 
-static int
-api_anchor_rect(
-    struct ToriRS_PluginCtx* ctx,
-    enum ToriRS_PluginAnchor which,
-    int* out_x,
-    int* out_y,
-    int* out_w,
-    int* out_h)
-{
-    assert(ctx);
-    /* An anchor this gameframe does not have is an ANSWER -- it is what the
-     * fallback chain in the contract is for -- so an unknown value is refused
-     * the same way, rather than asserted. */
-    return ctx->host->engine.anchor_rect(
-        ctx->host->engine.user, (int)which, out_x, out_y, out_w, out_h);
-}
-
 /* ------------------------------------------------------------ the gameframe */
 
 /* Both layout entry points deliver to ONE plugin -- the frame's owner -- and
@@ -793,6 +802,348 @@ api_tab_select(struct ToriRS_PluginCtx* ctx, int tabno)
     if( tabno < 0 )
         return false;
     return ctx->host->engine.tab_select(ctx->host->engine.user, tabno) ? true : false;
+}
+
+
+/* -- layout regions ------------------------------------------------------- */
+
+struct PluginRect
+{
+    int x;
+    int y;
+    int w;
+    int h;
+};
+
+/**
+ * `box` with `cut` taken out of it, as the largest rectangle that survives.
+ *
+ * There is no exact rectangular answer to "subtract a rectangle from a
+ * rectangle" -- the true result is an L, and an L is not a box a caller can
+ * centre anything in. So this does what a person does: it tries the four
+ * rectangles left when you slice `box` along each of `cut`'s edges and keeps
+ * whichever has the most area.
+ *
+ * A heuristic, and the right one here because of what the occluders ARE. A
+ * minimap in a corner, a chatbox along the bottom, a sidebar down one side:
+ * each has an obvious side to cut from, and "the biggest remaining piece"
+ * picks it every time. A cut sitting in the middle of the box has no good
+ * answer and this gives the least bad one.
+ */
+static struct PluginRect
+plugin_rect_subtract(struct PluginRect box, struct PluginRect cut)
+{
+    struct PluginRect best = box;
+    int best_area = -1;
+    int const bx1 = box.x + box.w;
+    int const by1 = box.y + box.h;
+    int const cx1 = cut.x + cut.w;
+    int const cy1 = cut.y + cut.h;
+    struct PluginRect candidate[4];
+
+    if( cut.w <= 0 || cut.h <= 0 )
+        return box;
+    /* Somewhere else on the screen entirely. */
+    if( cx1 <= box.x || cut.x >= bx1 || cy1 <= box.y || cut.y >= by1 )
+        return box;
+
+    /* Left of it, right of it, above it, below it. */
+    candidate[0].x = box.x;
+    candidate[0].y = box.y;
+    candidate[0].w = cut.x - box.x;
+    candidate[0].h = box.h;
+    candidate[1].x = cx1;
+    candidate[1].y = box.y;
+    candidate[1].w = bx1 - cx1;
+    candidate[1].h = box.h;
+    candidate[2].x = box.x;
+    candidate[2].y = box.y;
+    candidate[2].w = box.w;
+    candidate[2].h = cut.y - box.y;
+    candidate[3].x = box.x;
+    candidate[3].y = cy1;
+    candidate[3].w = box.w;
+    candidate[3].h = by1 - cy1;
+
+    for( int i = 0; i < 4; i++ )
+    {
+        int const area = candidate[i].w > 0 && candidate[i].h > 0
+                             ? candidate[i].w * candidate[i].h
+                             : 0;
+        if( area > best_area )
+        {
+            best_area = area;
+            best = candidate[i];
+        }
+    }
+    /* Every slice was empty: the cut covers the box. Answer with nothing
+     * rather than with a negative rectangle -- a caller's fallback chain reads
+     * that as "this frame has no such region", which is true. */
+    if( best_area <= 0 )
+    {
+        best.w = 0;
+        best.h = 0;
+    }
+    return best;
+}
+
+/** Ask the engine for a placeable region, or CANVAS. */
+static int
+plugin_engine_rect(struct ToriRS_PluginHost* host, int slot, struct PluginRect* out)
+{
+    assert(host);
+    assert(out);
+    return host->engine.slot_rect(
+        host->engine.user, slot, &out->x, &out->y, &out->w, &out->h);
+}
+
+/**
+ * SAFE: the scene's box with the chrome and every reservation taken out.
+ *
+ * Starts from VIEWPORT rather than from CANVAS because on a fixed frame that
+ * is already the answer -- the chrome sits outside the scene box and every
+ * subtraction below misses. On a resizable frame the viewport IS the window,
+ * and the same code then does real work as the minimap, the chatbox and the
+ * sidebar are cut out of it one at a time. One rule, both window modes.
+ *
+ * MAIN_MODAL is deliberately not an occluder: it is the region a modal opens
+ * INTO, which is the middle of the safe area rather than something covering
+ * it.
+ */
+static int
+plugin_safe_rect(struct ToriRS_PluginHost* host, struct PluginRect* out)
+{
+    static int const OCCLUDER[] = {
+        TORIRS_PLUGIN_SLOT_MINIMAP,
+        TORIRS_PLUGIN_SLOT_COMPASS,
+        TORIRS_PLUGIN_SLOT_CHAT,
+        TORIRS_PLUGIN_SLOT_CHAT_BUTTONS,
+        TORIRS_PLUGIN_SLOT_SIDEBAR,
+    };
+    struct PluginRect box;
+
+    assert(host);
+    assert(out);
+
+    if( !plugin_engine_rect(host, TORIRS_PLUGIN_SLOT_VIEWPORT, &box) &&
+        !plugin_engine_rect(host, TORIRS_PLUGIN_SLOT_CANVAS, &box) )
+        return 0;
+
+    for( size_t i = 0; i < sizeof(OCCLUDER) / sizeof(OCCLUDER[0]); i++ )
+    {
+        struct PluginRect cut;
+        if( plugin_engine_rect(host, OCCLUDER[i], &cut) )
+            box = plugin_rect_subtract(box, cut);
+    }
+
+    /*
+     * Then the reservations, in DECLARATION order.
+     *
+     * Order is what makes two plugins on the same edge stack instead of fight:
+     * the first one's 180 pixels are gone before the second one's 120 are
+     * measured, so the second gets the 120 next to it rather than the same 120
+     * on top of it.
+     */
+    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
+    {
+        struct PluginReserve const* r = &host->reserves[i];
+        int px;
+
+        if( r->plugin < 0 || r->slot != TORIRS_PLUGIN_SLOT_SAFE || r->px <= 0 )
+            continue;
+        switch( r->edge )
+        {
+        case TORIRS_PLUGIN_EDGE_LEFT:
+            px = r->px > box.w ? box.w : r->px;
+            box.x += px;
+            box.w -= px;
+            break;
+        case TORIRS_PLUGIN_EDGE_RIGHT:
+            px = r->px > box.w ? box.w : r->px;
+            box.w -= px;
+            break;
+        case TORIRS_PLUGIN_EDGE_TOP:
+            px = r->px > box.h ? box.h : r->px;
+            box.y += px;
+            box.h -= px;
+            break;
+        default:
+            px = r->px > box.h ? box.h : r->px;
+            box.h -= px;
+            break;
+        }
+    }
+
+    *out = box;
+    return box.w > 0 && box.h > 0;
+}
+
+static int
+api_slot_rect(
+    struct ToriRS_PluginCtx* ctx,
+    int slot,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    struct PluginRect box;
+    int got;
+
+    assert(ctx);
+
+    /* A region id out of range is a plugin's arithmetic, not a broken
+     * contract -- it may have come from a config key or from a script -- so it
+     * answers "this frame has no such region", like any other absent one. */
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_COUNT )
+        return 0;
+
+    got = slot == TORIRS_PLUGIN_SLOT_SAFE ? plugin_safe_rect(ctx->host, &box)
+                                          : plugin_engine_rect(ctx->host, slot, &box);
+    if( !got || box.w <= 0 || box.h <= 0 )
+        return 0;
+
+    if( out_x )
+        *out_x = box.x;
+    if( out_y )
+        *out_y = box.y;
+    if( out_w )
+        *out_w = box.w;
+    if( out_h )
+        *out_h = box.h;
+    return 1;
+}
+
+/*
+ * One member of a region. @see ToriRS_PluginApi::slot_member_rect.
+ *
+ * SAFE is absent on purpose and is not an oversight: it is derived from the
+ * placeable regions and has no members to number.
+ */
+static int
+api_slot_member_rect(
+    struct ToriRS_PluginCtx* ctx,
+    int slot,
+    int member,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    int x = 0, y = 0, w = 0, h = 0;
+
+    assert(ctx);
+
+    /* Same reading as slot_rect's: an id out of range is a plugin's
+     * arithmetic, and the answer is "this frame has no such region". */
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT || member < 0 )
+        return 0;
+
+    if( !ctx->host->engine.slot_member_rect(ctx->host->engine.user, slot, member, &x, &y, &w, &h) )
+        return 0;
+    if( w <= 0 || h <= 0 )
+        return 0;
+
+    if( out_x )
+        *out_x = x;
+    if( out_y )
+        *out_y = y;
+    if( out_w )
+        *out_w = w;
+    if( out_h )
+        *out_h = h;
+    return 1;
+}
+
+static int
+api_layout_reserve(struct ToriRS_PluginCtx* ctx, int slot, int edge, int px)
+{
+    struct ToriRS_PluginHost* host;
+    int free_row = -1;
+
+    assert(ctx);
+    host = ctx->host;
+
+    /* Only the derived regions. A placeable role is whatever the frame says it
+     * is, and eating an edge of it here would be arguing with the layout
+     * rather than making room beside it. */
+    if( slot != TORIRS_PLUGIN_SLOT_SAFE )
+    {
+        fprintf(
+            stderr,
+            "plugin: %s reserved from region %d; only SAFE can be reserved from\n",
+            ctx->name,
+            slot);
+        return 0;
+    }
+    if( edge < 0 || edge >= TORIRS_PLUGIN_EDGE_COUNT )
+        return 0;
+    if( px < 0 )
+        px = 0;
+
+    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
+    {
+        struct PluginReserve* r = &host->reserves[i];
+        if( r->plugin == ctx->index && r->slot == slot && r->edge == edge )
+        {
+            /* Replaced IN PLACE, keeping this plugin's position in the
+             * declaration order: one that re-states its width on a config
+             * change must not jump to the back of the queue and swap sides
+             * with a neighbour that has not moved. */
+            if( r->px == px )
+                return 1;
+            r->px = px;
+            if( px == 0 )
+                r->plugin = -1;
+            PluginHost_LayoutChanged(host);
+            return 1;
+        }
+        if( r->plugin < 0 && free_row < 0 )
+            free_row = i;
+    }
+
+    if( px == 0 )
+        return 1; /* nothing of this plugin's to drop */
+    if( free_row < 0 )
+    {
+        fprintf(
+            stderr,
+            "plugin: %s could not reserve; the reservation table is full (%d)\n",
+            ctx->name,
+            TORIRS_PLUGIN_RESERVES_MAX);
+        return 0;
+    }
+    host->reserves[free_row].plugin = ctx->index;
+    host->reserves[free_row].slot = (uint8_t)slot;
+    host->reserves[free_row].edge = (uint8_t)edge;
+    host->reserves[free_row].px = px;
+    PluginHost_LayoutChanged(host);
+    return 1;
+}
+
+static int
+api_layout_revision(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+    return ctx->host->layout_revision;
+}
+
+static void
+plugin_reserves_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
+{
+    int dropped = 0;
+
+    assert(host);
+    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
+    {
+        if( host->reserves[i].plugin != plugin )
+            continue;
+        host->reserves[i].plugin = -1;
+        host->reserves[i].px = 0;
+        dropped = 1;
+    }
+    if( dropped )
+        PluginHost_LayoutChanged(host);
 }
 
 static int
@@ -1572,17 +1923,29 @@ plugin_screenshot_dir_ok(struct ToriRS_PluginCtx* ctx, char const* dir)
 }
 
 static int
-api_screenshot(struct ToriRS_PluginCtx* ctx, char const* dir, char const* name)
+api_screenshot(
+    struct ToriRS_PluginCtx* ctx,
+    char const* dir,
+    char const* name,
+    char* out_path,
+    int out_path_size)
 {
     assert(ctx);
     assert(name);
+    assert(out_path);
+    assert(out_path_size > 0);
 
+    /* Emptied first, so a refused request leaves nothing for a caller to read
+     * as a destination -- the string is the answer to "where did it go", and
+     * "nowhere" has to be sayable. */
+    out_path[0] = '\0';
     if( !plugin_asset_name_ok(ctx, name) )
         return 0;
     if( dir && *dir && !plugin_screenshot_dir_ok(ctx, dir) )
         return 0;
 
-    return ctx->host->engine.screenshot(ctx->host->engine.user, ctx->name, dir, name);
+    return ctx->host->engine.screenshot(
+        ctx->host->engine.user, ctx->name, dir, name, out_path, out_path_size);
 }
 
 /*
@@ -2534,6 +2897,46 @@ api_layout_slot_skin(
     return ctx->host->engine.layout_slot_skin(ctx->host->engine.user, slot, art, mask);
 }
 
+static int
+api_layout_scrollbar(
+    struct ToriRS_PluginCtx* ctx,
+    int trough,
+    int dragger_top,
+    int dragger_mid,
+    int dragger_bottom,
+    int arrow_up,
+    int arrow_down)
+{
+    int images[6];
+
+    assert(ctx);
+    assert(
+        ctx->host->layout_declaring &&
+        "layout_scrollbar is legal only inside EV_LAYOUT");
+    assert(ctx->host->layout_owner == ctx->index);
+
+    images[0] = trough;
+    images[1] = dragger_top;
+    images[2] = dragger_mid;
+    images[3] = dragger_bottom;
+    images[4] = arrow_up;
+    images[5] = arrow_down;
+    for( int i = 0; i < 6; i++ )
+    {
+        struct PluginImage const* image;
+        /* Any piece missing clears the whole skin, which is what a layout with
+         * no scrollbar art asks for by passing -1 -- and also what a layout
+         * whose art has not crossed the IO queue yet gets, until it has. */
+        if( images[i] < 0 )
+            return ctx->host->engine.layout_scrollbar(ctx->host->engine.user, NULL, 0);
+        image = plugin_image_owned(ctx, images[i]);
+        if( !image || !image->published )
+            return ctx->host->engine.layout_scrollbar(ctx->host->engine.user, NULL, 0);
+    }
+    return ctx->host->engine.layout_scrollbar(
+        ctx->host->engine.user, images, 6);
+}
+
 static void
 api_draw_image(
     struct ToriRS_PluginCtx* ctx,
@@ -2636,6 +3039,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->layout_end);
     assert(engine->layout_slot);
     assert(engine->layout_slot_skin);
+    assert(engine->layout_scrollbar);
     assert(engine->tab_active);
     assert(engine->tab_select);
     assert(engine->local_player);
@@ -2688,7 +3092,8 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->hsl_to_rgb);
     assert(engine->mouse_pos);
     assert(engine->minimap_rect);
-    assert(engine->anchor_rect);
+    assert(engine->slot_rect);
+    assert(engine->slot_member_rect);
     assert(engine->stat);
     assert(engine->stat_xp);
     assert(engine->skill_name);
@@ -2714,6 +3119,10 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
      * owner would mean "the first plugin registered owns the gameframe" and
      * every lane would boot with its own chrome suppressed. */
     host->layout_owner = -1;
+    /* 0 is a real plugin index, so an empty reservation row needs a value of
+     * its own rather than the calloc's zero. */
+    for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
+        host->reserves[i].plugin = -1;
     /* -1 is the free marker and 0 is plugin index zero, so the calloc above
      * would have handed every image slot to the first plugin registered. */
     for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
@@ -2741,13 +3150,17 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .element_height = api_element_height,
         .mouse_pos = api_mouse_pos,
         .minimap_rect = api_minimap_rect,
-        .anchor_rect = api_anchor_rect,
+        .slot_rect = api_slot_rect,
+        .slot_member_rect = api_slot_member_rect,
+        .layout_reserve = api_layout_reserve,
+        .layout_revision = api_layout_revision,
         .layout_claim = api_layout_claim,
         .layout_release = api_layout_release,
         .layout_owned = api_layout_owned,
         .layout_slot = api_layout_slot,
         .layout_slot_at = api_layout_slot_at,
         .layout_slot_skin = api_layout_slot_skin,
+        .layout_scrollbar = api_layout_scrollbar,
         .tab_active = api_tab_active,
         .tab_select = api_tab_select,
         .stat = api_stat,
@@ -3054,6 +3467,10 @@ plugin_teardown(struct ToriRS_PluginHost* host, int plugin_index)
     plugin_meshes_destroy_all(host, ctx);
     plugin_assets_drop_plugin(host, plugin_index);
     plugin_images_drop_plugin(host, plugin_index);
+    /* Reservations go too, and that is what makes `reserve` safe to use: a
+     * dock that is switched off gives its edge back without anybody asking,
+     * and the readouts beside it widen on the next frame. */
+    plugin_reserves_drop_plugin(host, plugin_index);
     plugin_models_drop_plugin(host, plugin_index);
     /* The tab goes with them: a stopped plugin's controls would otherwise sit
      * in the window still taking clicks, dispatching to a plugin that is not
@@ -3588,6 +4005,44 @@ PluginHost_DrawFrame(struct ToriRS_PluginHost* host, int width, int height)
     host->draw_surface = NULL;
     host->draw_canvas = PLUGIN_DRAW_SURFACE_WORLD;
     host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_WORLD);
+}
+
+void
+PluginHost_LayoutChanged(struct ToriRS_PluginHost* host)
+{
+    struct ToriRS_PluginEvTick ev;
+
+    if( !host )
+        return;
+
+    /*
+     * The revision moves for EVERY change, including one made from inside the
+     * notification. Readers compare it and re-read a live region, so they are
+     * correct either way.
+     */
+    host->layout_revision++;
+    if( host->sub_count[TORIRS_PLUGIN_EV_LAYOUT_CHANGED] == 0 )
+        return;
+
+    /*
+     * The EVENT does not nest, and this is not a nicety.
+     *
+     * A cooperative layout invites exactly the shape that would spin: a dock
+     * hears that the safe region moved, recalculates the width it wants, and
+     * reserves -- which changes the layout, which notifies it again. Two docks
+     * responding to each other need not even disagree to do it forever.
+     *
+     * Coalescing rather than refusing: the claim is still recorded and the
+     * revision still moves, so the next read -- and every read is live -- sees
+     * it. What is dropped is only the second telling, which every subscriber
+     * is about to be told anyway.
+     */
+    if( host->layout_notifying )
+        return;
+    host->layout_notifying = 1;
+    ev.cycle = host->layout_revision;
+    plugin_dispatch(host, TORIRS_PLUGIN_EV_LAYOUT_CHANGED, &ev);
+    host->layout_notifying = 0;
 }
 
 void

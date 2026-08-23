@@ -29,7 +29,13 @@ static int app_plugin_asset_read(void* user, char const* plugin, char const* nam
 static int
 app_plugin_asset_write(void* user, char const* plugin, char const* name, void const* data, int size);
 static int
-app_plugin_screenshot(void* user, char const* plugin, char const* dir, char const* name);
+app_plugin_screenshot(
+    void* user,
+    char const* plugin,
+    char const* dir,
+    char const* name,
+    char* out_path,
+    int out_path_size);
 static int app_plugin_model_publish(void* user, int model, void const* data, int size);
 static void app_plugin_model_release(void* user, int model);
 static int app_plugin_mesh_create(void* user);
@@ -1101,17 +1107,30 @@ enum AppPluginFeatureSlot
 struct AppPluginFeatureDesc
 {
     char const* key;
+    /** Short: it shares a 320-pixel row with a dropdown. */
     char const* label;
+    /** Heading, or "" to continue the one before. */
+    char const* section;
     enum AppPluginFeatureSlot slot;
     /** Byte offset into the owning struct, or the bit mask for a CAMERA_BIT. */
     size_t offset;
     /** enum ToriRS_PluginFeatureKind. */
     int kind;
+    /** FEATURE_INT: the real range. A value outside `values` is still legal;
+     *  a settings file may carry one and the panel shows it. */
     int min;
     int max;
-    /** FEATURE_ENUM: "a|b|c" and the value each entry stands for. */
+    /**
+     * The values worth NAMING, and their names.
+     *
+     * Named rather than left to a number field because these are the numbers
+     * that mean something -- Client-TS's 600 eye height, the deob's 70-tile
+     * pick ceiling, xrsps's 128 chathead ambient, the official 25..90 draw
+     * band. A list of those is a settings row somebody can use; a box wanting
+     * an integer in 64..16384 is a quiz.
+     */
     char const* choices;
-    int values[8];
+    int values[TORIRS_PLUGIN_FEATURE_VALUES_MAX];
     int value_count;
 };
 
@@ -1122,67 +1141,73 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
     /* ---- camera: what the revision lets the player do with the view ------ */
     {
         "camera_zoom",
-        "Camera zoom",
+        "Zoom",
+        "Camera",
         APP_PLUGIN_FEATURE_SLOT_CAMERA,
         APP_PLUGIN_FEATURE_CAMERA_OFF(zoom_mode),
         TORIRS_PLUGIN_FEATURE_ENUM,
         0,
         0,
-        "Adjustable (mouse wheel)|Fixed",
+        "Mouse wheel|Fixed",
         { REVCONFIG_CAMERA_ZOOM_CLAMPED, REVCONFIG_CAMERA_ZOOM_FIXED },
         2,
     },
     {
         "camera_zoom_min",
-        "Camera zoom in limit",
+        "Closest",
+        "",
         APP_PLUGIN_FEATURE_SLOT_CAMERA,
         APP_PLUGIN_FEATURE_CAMERA_OFF(zoom_min),
         TORIRS_PLUGIN_FEATURE_INT,
         APP_PLUGIN_FEATURE_ZOOM_MIN,
         APP_PLUGIN_FEATURE_ZOOM_MAX,
-        NULL,
-        { 0 },
-        0,
+        "120|240|360|480|600",
+        { 120, 240, 360, 480, 600 },
+        5,
     },
     {
         "camera_zoom_max",
-        "Camera zoom out limit",
+        "Furthest",
+        "",
         APP_PLUGIN_FEATURE_SLOT_CAMERA,
         APP_PLUGIN_FEATURE_CAMERA_OFF(zoom_max),
         TORIRS_PLUGIN_FEATURE_INT,
         APP_PLUGIN_FEATURE_ZOOM_MIN,
         APP_PLUGIN_FEATURE_ZOOM_MAX,
-        NULL,
-        { 0 },
-        0,
+        "900|1200|1600|2160|3200|4800",
+        { 900, 1200, 1600, 2160, 3200, 4800 },
+        6,
     },
     {
         "camera_zoom_height",
-        "Camera fixed eye height",
+        "Fixed height",
+        "",
         APP_PLUGIN_FEATURE_SLOT_CAMERA,
         APP_PLUGIN_FEATURE_CAMERA_OFF(zoom_height),
         TORIRS_PLUGIN_FEATURE_INT,
         APP_PLUGIN_FEATURE_ZOOM_MIN,
         APP_PLUGIN_FEATURE_ZOOM_MAX,
-        NULL,
-        { 0 },
-        0,
+        "400|600 (2004)|900|1200",
+        { 400, 600, 900, 1200 },
+        4,
     },
     {
         "camera_wheel_step",
-        "Camera zoom per wheel notch",
+        "Wheel step",
+        "",
         APP_PLUGIN_FEATURE_SLOT_CAMERA,
         APP_PLUGIN_FEATURE_CAMERA_OFF(wheel_step),
         TORIRS_PLUGIN_FEATURE_INT,
         1,
         1024,
-        NULL,
-        { 0 },
-        0,
+        "Fine (20)|Small (40)|Normal (60)|Large (120)|Fastest (240)",
+        { 20, 40, 60, 120, 240 },
+        5,
     },
     {
         "camera_arrow_keys",
-        "Camera controls: arrow keys orbit",
+        "Arrow keys orbit",
+        "",
         APP_PLUGIN_FEATURE_SLOT_CAMERA_BIT,
         REVCONFIG_CAMERA_CONTROL_ARROW_KEYS,
         TORIRS_PLUGIN_FEATURE_ENUM,
@@ -1194,7 +1219,8 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
     },
     {
         "camera_mmb",
-        "Camera controls: middle-button drag",
+        "Middle-button drag",
+        "",
         APP_PLUGIN_FEATURE_SLOT_CAMERA_BIT,
         REVCONFIG_CAMERA_CONTROL_MMB,
         TORIRS_PLUGIN_FEATURE_ENUM,
@@ -1205,118 +1231,131 @@ static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
         2,
     },
 
-    /* ---- the era table, client-only half --------------------------------- */
-    {
-        "mover",
-        "Entity movement between tiles",
-        APP_PLUGIN_FEATURE_SLOT_TABLE,
-        APP_PLUGIN_FEATURE_TABLE_OFF(mover_model),
-        TORIRS_PLUGIN_FEATURE_ENUM,
-        0,
-        0,
-        "Per 20ms cycle (2004)|Per frame (modern)",
-        { TORIRS_MOVER_CYCLE_INTEGER, TORIRS_MOVER_FRAME_DELTA },
-        2,
-    },
-    {
-        "draw_distance",
-        "Scene draw distance, tiles",
-        APP_PLUGIN_FEATURE_SLOT_TABLE,
-        APP_PLUGIN_FEATURE_TABLE_OFF(painter_draw_distance),
-        TORIRS_PLUGIN_FEATURE_INT,
-        /* The official band, not the field's own range. 0 is a real value of
-         * the field -- it is how an era says "Client-TS's fixed 25" -- but it
-         * is not a distance anyone means to type, and 1..24 is nothing at all.
-         * Revision default is how you get back to the 0. */
-        TORIRS_PAINTER_DRAW_DISTANCE_MIN,
-        TORIRS_PAINTER_DRAW_DISTANCE_MAX,
-        NULL,
-        { 0 },
-        0,
-    },
+    /* ---- clicking ------------------------------------------------------- */
     {
         "ground_click_offmap",
-        "Ground click off the map walks to the nearest tile",
+        "Click off the map",
+        "Clicking",
         APP_PLUGIN_FEATURE_SLOT_TABLE,
         APP_PLUGIN_FEATURE_TABLE_OFF(ground_click_offmap_nearest),
         TORIRS_PLUGIN_FEATURE_ENUM,
         0,
         0,
-        "Off|On",
+        "Does nothing|Nearest tile",
         { 0, 1 },
         2,
     },
     {
         "ground_click_clamp",
-        "Ground click reach ceiling, tiles (0 = none)",
+        "Click reach",
+        "",
         APP_PLUGIN_FEATURE_SLOT_TABLE,
         APP_PLUGIN_FEATURE_TABLE_OFF(ground_click_clamp_tiles),
         TORIRS_PLUGIN_FEATURE_INT,
         0,
         104,
-        NULL,
-        { 0 },
-        0,
+        "No limit|25 tiles|50 tiles|70 tiles (deob)|104 tiles",
+        { 0, 25, 50, 70, 104 },
+        5,
     },
     {
         "attack_options",
-        "Attack option dropdowns",
+        "Attack options",
+        "",
         APP_PLUGIN_FEATURE_SLOT_TABLE,
         APP_PLUGIN_FEATURE_TABLE_OFF(attack_option_model),
         TORIRS_PLUGIN_FEATURE_ENUM,
         0,
         0,
-        "None, level bump only (2004)|Settings dropdowns (OldSchool)",
+        "Level bump (2004)|Dropdowns (OSRS)",
         { TORIRS_ATTACK_OPTION_MODEL_CLASSIC, TORIRS_ATTACK_OPTION_MODEL_SETTINGS },
         2,
     },
     {
         "target_mask_held",
-        "Spell target bit for a held item",
+        "Held-item spell bit",
+        "",
         APP_PLUGIN_FEATURE_SLOT_TABLE,
         APP_PLUGIN_FEATURE_TABLE_OFF(target_mask_held),
         TORIRS_PLUGIN_FEATURE_ENUM,
         0,
         0,
-        "0x10 (2004)|0x20 (OldSchool)",
+        "0x10 (2004)|0x20 (OSRS)",
         { 0x10, 0x20 },
         2,
     },
+
+    /* ---- what the scene looks like -------------------------------------- */
     {
-        "effects_monophonic",
-        "One sound effect at a time",
+        "mover",
+        "Movement",
+        "Scene",
         APP_PLUGIN_FEATURE_SLOT_TABLE,
-        APP_PLUGIN_FEATURE_TABLE_OFF(effects_monophonic),
+        APP_PLUGIN_FEATURE_TABLE_OFF(mover_model),
         TORIRS_PLUGIN_FEATURE_ENUM,
         0,
         0,
-        "Off, mix freely|On, 2004 rule",
-        { 0, 1 },
+        "Per cycle (2004)|Per frame (OSRS)",
+        { TORIRS_MOVER_CYCLE_INTEGER, TORIRS_MOVER_FRAME_DELTA },
         2,
     },
     {
+        "draw_distance",
+        "Draw distance",
+        "",
+        APP_PLUGIN_FEATURE_SLOT_TABLE,
+        APP_PLUGIN_FEATURE_TABLE_OFF(painter_draw_distance),
+        TORIRS_PLUGIN_FEATURE_INT,
+        /* The official band, not the field's own range. 0 is a real value of
+         * the field -- it is how an era says "Client-TS's fixed 25" -- but it
+         * is not a distance anyone means to pick, and 1..24 is nothing at all.
+         * Revision default is how you get back to the 0. */
+        TORIRS_PAINTER_DRAW_DISTANCE_MIN,
+        TORIRS_PAINTER_DRAW_DISTANCE_MAX,
+        "25 tiles|32 tiles|40 tiles|50 tiles|60 tiles|70 tiles|80 tiles|90 tiles",
+        { 25, 32, 40, 50, 60, 70, 80, 90 },
+        8,
+    },
+    {
         "npc_light_type",
-        "NPC lighting uses the npctype's ambient/contrast",
+        "NPC type lighting",
+        "",
         APP_PLUGIN_FEATURE_SLOT_TABLE,
         APP_PLUGIN_FEATURE_TABLE_OFF(npc_light_uses_type_ambient_contrast),
         TORIRS_PLUGIN_FEATURE_ENUM,
         0,
         0,
-        "Off|On",
+        "Ignored (2004)|Applied (xrsps)",
         { 0, 1 },
         2,
     },
     {
         "player_head_ambient",
-        "Chathead ambient (0 = scene regime)",
+        "Chathead light",
+        "",
         APP_PLUGIN_FEATURE_SLOT_TABLE,
         APP_PLUGIN_FEATURE_TABLE_OFF(player_head_light_ambient),
         TORIRS_PLUGIN_FEATURE_INT,
         0,
         255,
-        NULL,
-        { 0 },
+        "Scene regime|96|128 (xrsps)|160|192",
+        { 0, 96, 128, 160, 192 },
+        5,
+    },
+
+    /* ---- sound ----------------------------------------------------------- */
+    {
+        "effects_monophonic",
+        "Sound effects",
+        "Sound",
+        APP_PLUGIN_FEATURE_SLOT_TABLE,
+        APP_PLUGIN_FEATURE_TABLE_OFF(effects_monophonic),
+        TORIRS_PLUGIN_FEATURE_ENUM,
         0,
+        0,
+        "Mix freely|One at a time (2004)",
+        { 0, 1 },
+        2,
     },
 };
 
@@ -1445,6 +1484,7 @@ app_plugin_feature_next(void* user, int iter, struct ToriRS_PluginFeature* out)
     memset(out, 0, sizeof(*out));
     snprintf(out->key, sizeof(out->key), "%s", desc->key);
     snprintf(out->label, sizeof(out->label), "%s", desc->label);
+    snprintf(out->section, sizeof(out->section), "%s", desc->section);
     out->kind = desc->kind;
     out->min = desc->min;
     out->max = desc->max;
@@ -1495,6 +1535,9 @@ app_plugin_feature_set(void* user, char const* key, int value)
         value = app_plugin_feature_read(app, desc, 1);
     else if( desc->kind == TORIRS_PLUGIN_FEATURE_ENUM )
     {
+        /* An enum is its list and nothing else. An INT is its RANGE -- the
+         * named values are the ones worth offering, not the only ones legal,
+         * so a settings file carrying an unnamed number keeps it. */
         int legal = 0;
         for( int i = 0; i < desc->value_count; i++ )
             legal |= desc->values[i] == value;
@@ -2358,28 +2401,74 @@ app_plugin_node_rect(
 }
 
 /*
- * The three boxes a plugin may anchor to. @see ToriRS_PluginApi::anchor_rect.
+ * A region's box, by role. @see ToriRS_PluginApi::slot_rect.
  *
- * MODAL is the interesting one, and it is resolved in two steps because the
- * two gameframe families state it in two different places. A dat1 frame
- * DECLARES a region for it -- `[component:main_modal_region] slot=main_modal`
- * -- and that is an answer available from boot, before anything has opened. A
- * dat2 frame declares nothing: the server names the host component in
- * IF_OPENSUB, and it is a different one in the fixed frame than in the
- * resizable one, so the only thing that knows is the mount. App records it
- * there (App::modal_host_uid) and this reads it back.
+ * Resolved through UITree_FrameSlotNode, which is the same role->node lookup
+ * the layout WRITE path uses -- so a role a layout plugin can place is exactly
+ * a role a readout can read, on every lane, with no second table to keep in
+ * step. That is the whole point of collapsing the old anchor enum into this
+ * one: before it, "the viewport" was two different lookups that happened to
+ * agree.
+ *
+ * The lookup is a linear walk of the tree and its own header says "once per
+ * declaration, never per frame". This IS per frame, so the answer is cached
+ * against the tree revision below.
  */
+/**
+ * The node carrying `slot`'s role, cached for the life of a tree generation.
+ *
+ * UITree_FrameSlotNode is a linear walk of every component and its own header
+ * says so: "affordable because of WHEN it is called -- once per declaration,
+ * never per frame". Reading a region IS per frame, and on several regions at
+ * once, so the walk is done once per generation and the answer kept.
+ *
+ * Keyed on `tree->generation`, which is bumped by any topology change, so a
+ * rebuild, a mount or a reclaim all invalidate this without anything having to
+ * remember to.
+ */
+static int32_t
+app_plugin_slot_node_cached(struct App* app, int slot)
+{
+    assert(app);
+    assert(app->tree);
+    assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT);
+
+    if( app->plugin_slot_node_gen != app->tree->generation )
+    {
+        for( int i = 0; i < TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT; i++ )
+            app->plugin_slot_node[i] = UITree_FrameSlotNode(app->tree, i);
+        app->plugin_slot_node_gen = app->tree->generation;
+    }
+    return app->plugin_slot_node[slot];
+}
+
 static int
-app_plugin_anchor_rect(
-    void* user, int which, int* out_x, int* out_y, int* out_w, int* out_h)
+app_plugin_slot_node_rect(
+    struct App* app, int slot, int* out_x, int* out_y, int* out_w, int* out_h)
+{
+    int32_t node;
+
+    assert(app);
+    if( !app->tree )
+        return 0;
+    node = app_plugin_slot_node_cached(app, slot);
+    if( node < 0 )
+        return 0;
+    return app_plugin_node_rect(app, node, out_x, out_y, out_w, out_h);
+}
+
+static int
+app_plugin_slot_rect(
+    void* user, int slot, int* out_x, int* out_y, int* out_w, int* out_h)
 {
     struct App* app = (struct App*)user;
 
     assert(app);
 
-    switch( which )
+    /* CANVAS is not a node and never can be: it is the surface every node is
+     * laid out against. */
+    if( slot == TORIRS_PLUGIN_SLOT_CANVAS )
     {
-    case TORIRS_PLUGIN_ANCHOR_CANVAS:
         if( out_x )
             *out_x = 0;
         if( out_y )
@@ -2389,11 +2478,22 @@ app_plugin_anchor_rect(
         if( out_h )
             *out_h = UITREE_LAYOUT_ROOT_H;
         return 1;
+    }
+    /* SAFE is the host's: it needs the reservation table, which lives there. */
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+        return 0;
 
-    case TORIRS_PLUGIN_ANCHOR_VIEWPORT:
-        if( !app->world_view_valid || app->world_emit_desc.w <= 0 ||
-            app->world_emit_desc.h <= 0 )
-            return 0;
+    /*
+     * The scene's box comes from the render pass rather than from the node.
+     *
+     * They are the same rectangle in principle and not always in practice: the
+     * emit desc is the viewport the frame was actually DRAWN with this frame,
+     * gate rect and all, which is what a plugin drawing over the scene has to
+     * agree with. The node is what the layout says it should be.
+     */
+    if( slot == TORIRS_PLUGIN_SLOT_VIEWPORT && app->world_view_valid &&
+        app->world_emit_desc.w > 0 && app->world_emit_desc.h > 0 )
+    {
         if( out_x )
             *out_x = app->world_emit_desc.x;
         if( out_y )
@@ -2403,13 +2503,22 @@ app_plugin_anchor_rect(
         if( out_h )
             *out_h = app->world_emit_desc.h;
         return 1;
+    }
+    if( slot == TORIRS_PLUGIN_SLOT_MINIMAP )
+        return app_plugin_minimap_rect(user, out_x, out_y, out_w, out_h);
 
-    case TORIRS_PLUGIN_ANCHOR_MODAL:
-        if( app_plugin_node_rect(
-                app, app->slots.main_modal_index, out_x, out_y, out_w, out_h) )
-            return 1;
-        if( app->modal_host_uid < 0 || !app->tree )
-            return 0;
+    if( app_plugin_slot_node_rect(app, slot, out_x, out_y, out_w, out_h) )
+        return 1;
+
+    /*
+     * MAIN_MODAL has a second source, and it is the one that answers on a dat2
+     * frame: those declare no modal region at all -- the server names the host
+     * component in IF_OPENSUB, and it is a different one in the fixed frame
+     * than in the resizable one -- so the only thing that knows is the mount,
+     * and App records it there.
+     */
+    if( slot == TORIRS_PLUGIN_SLOT_MAIN_MODAL && app->modal_host_uid >= 0 &&
+        app->tree )
         return app_plugin_node_rect(
             app,
             UITree_FindByComponentId(app->tree, app->modal_host_uid),
@@ -2417,33 +2526,34 @@ app_plugin_anchor_rect(
             out_y,
             out_w,
             out_h);
-
-    default:
-        return 0;
-    }
+    return 0;
 }
 
-/* ------------------------------------------------------------ the gameframe */
-
 /*
- * The three overlay lists and the host's three draw surfaces are one
- * numbering. app.h restates it rather than including the host's
- * implementation file, so this is where the two are held together.
+ * One member of a region. @see ToriRS_PluginApi::slot_member_rect.
+ *
+ * UITree_FrameSlotMemberNode rather than the cached per-role node above,
+ * because that one holds the answer to "any member" and a caller asking for
+ * the report button wants the fourth chat filter and not whichever chat button
+ * the walk saw first. The walk is a linear one and this is a per-frame read,
+ * so it is the one region the CALLER is expected to be sparing with -- a
+ * plugin anchoring to a member reads it once per frame, not once per drawn
+ * thing.
  */
-_Static_assert(
-    (int)APP_PLUGIN_SURFACE_WORLD == 0 && (int)APP_PLUGIN_SURFACE_CANVAS == 1 &&
-        (int)APP_PLUGIN_SURFACE_FRAME == 2,
-    "AppPluginSurface must match the host's PluginDrawSurface");
+static int
+app_plugin_slot_member_rect(
+    void* user, int slot, int member, int* out_x, int* out_y, int* out_w, int* out_h)
+{
+    struct App* app = (struct App*)user;
 
-/*
- * The host hands out image handles and the scene stores the pixels, so a
- * handle past the scene's range is an image that decodes and never draws --
- * reported as "would not decode", which is the one thing it is not. This is
- * the only file that sees both numbers.
- */
-_Static_assert(
-    TORIRS_PLUGIN_IMAGES_MAX <= UITREE_SCENE_PLUGIN_IMAGE_SLOTS,
-    "every plugin image handle needs a scene slot to publish into");
+    assert(app);
+    if( !app->tree )
+        return 0;
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+        return 0;
+    return app_plugin_node_rect(
+        app, UITree_FrameSlotMemberNode(app->tree, slot, member), out_x, out_y, out_w, out_h);
+}
 
 /*
  * The interface group the gameframe was rooted to, or -1 on a lane whose frame
@@ -2531,6 +2641,31 @@ static int
 app_plugin_image_scene_id(int image)
 {
     return image < 0 ? 0 : UITREE_SCENE_PLUGIN_IMAGE_BASE + image;
+}
+
+/*
+ * The scrollbar skin the standing declaration asked for, as scene ids.
+ *
+ * `images` is the host's six pieces in UITREE_SCROLLBAR_SKIN_* order, already
+ * checked resident; a NULL one is a layout asking for the client's own painted
+ * bar back, which is the same thing an unfinished art load gets. Stored beside
+ * the slots and cleared with them, because it is part of the same declaration.
+ */
+static int
+app_plugin_layout_scrollbar(void* user, int const* images, int count)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+
+    if( !images || count < UITREE_SCROLLBAR_SKIN_COUNT )
+    {
+        memset(app->plugin_layout_scrollbar, 0, sizeof(app->plugin_layout_scrollbar));
+        return 1;
+    }
+    for( int i = 0; i < UITREE_SCROLLBAR_SKIN_COUNT; i++ )
+        app->plugin_layout_scrollbar[i] = app_plugin_image_scene_id(images[i]);
+    return 1;
 }
 
 static int
@@ -2896,12 +3031,14 @@ app_plugin_engine(struct App* app)
     engine.if_click = app_plugin_if_click;
     engine.mouse_pos = app_plugin_mouse_pos;
     engine.minimap_rect = app_plugin_minimap_rect;
-    engine.anchor_rect = app_plugin_anchor_rect;
+    engine.slot_rect = app_plugin_slot_rect;
+    engine.slot_member_rect = app_plugin_slot_member_rect;
     engine.layout_set = app_plugin_layout_set;
     engine.layout_begin = app_plugin_layout_begin;
     engine.layout_end = app_plugin_layout_end;
     engine.layout_slot = app_plugin_layout_slot;
     engine.layout_slot_skin = app_plugin_layout_slot_skin;
+    engine.layout_scrollbar = app_plugin_layout_scrollbar;
     engine.tab_active = app_plugin_tab_active;
     engine.tab_select = app_plugin_tab_select;
     engine.stat = app_plugin_stat;

@@ -83,6 +83,19 @@ enum FrameLayout
 /** Sidebar tabs, in the order every revision since 2001 numbers them. */
 #define FRAME_TAB_COUNT 14
 
+/*
+ * Screen order is not tab order.
+ *
+ * Both OldSchool frames put Clan chat on the bottom row's first stone, Friends
+ * on its second and Account on its third, so walking the fourteen boxes in tab
+ * order puts the account icon where friends belongs. This is the fourteen
+ * boxes in SCREEN order, each holding the tab it stands for; the 2004 frame
+ * needs no such table because its own rows are already in tab order.
+ */
+static int const FRAME_TAB_SCREEN_ORDER[FRAME_TAB_COUNT] = {
+    0, 1, 2, 3, 4, 5, 6, 7, 9, 8, 10, 11, 12, 13,
+};
+
 /**
  * The chat filter buttons, by the filter each one toggles.
  *
@@ -92,9 +105,25 @@ enum FrameLayout
  * landed on anything.
  */
 #define FRAME_CHAT_BUTTON_COUNT 4
+/** Which of the four is Report abuse. A filter number and not a position:
+ *  @see ToriRS_PluginLayoutSlot's chat-button member numbering. */
+#define FRAME_CHAT_BUTTON_REPORT 3
 /** The 2004 frame's own: a 100x32 box each, on the 50-tall backbase1 strip. */
 #define FRAME_CHAT_BUTTON_W 100
 #define FRAME_CHAT_BUTTON_H 32
+
+/*
+ * The OldSchool plate a filter button stands on, and the rounded ends that
+ * cannot be stretched.
+ *
+ * `chat_tab_button` is 56x22 with four tapering rows top and bottom and a
+ * light-to-dark bevel down the middle: it can be any WIDTH and only that
+ * height. Which happens to be the height the 2004 button needs -- p12 at
+ * label_y 2 and mode_y 15 is 25 rows of ink, and a plate two rows above the
+ * stone bar lands under all of it -- so the plate is three-sliced sideways to
+ * the button's box and left alone vertically.
+ */
+#define FRAME_O_CHAT_BUTTON_CAP 8
 
 /*
  * The OldSchool chatbox: a 519x142 backing with a 23-tall stone bar under it.
@@ -187,6 +216,14 @@ enum FrameImage
     IMG_O_MAPBACK,
     IMG_O_CHATBACK,
     IMG_O_CHAT_STONES,
+    IMG_O_CHAT_BUTTON,
+    IMG_O_CHAT_BUTTON_REPORT,
+    IMG_O_SB_TROUGH,
+    IMG_O_SB_DRAGGER_TOP,
+    IMG_O_SB_DRAGGER_MID,
+    IMG_O_SB_DRAGGER_BOTTOM,
+    IMG_O_SB_ARROW_UP,
+    IMG_O_SB_ARROW_DOWN,
     IMG_O_SIDE_PANEL,
     IMG_O_SIDE_PANEL_R,
     IMG_O_TABS_TOP,
@@ -199,6 +236,7 @@ enum FrameImage
     IMG_O_STONE_BR,
     IMG_O_STONE_MID,
     IMG_O_STONE_MID_R,
+    IMG_O_STONE_MID_R2,
     IMG_O_COMPASS,
     IMG_O_MAPBACK_R,
     IMG_O_MINIMAP_MASK,
@@ -267,6 +305,14 @@ static char const* const FRAME_IMAGE_FILE[FRAME_IMG_COUNT] = {
     [IMG_O_MAPBACK] = "osrs_mapback.png",
     [IMG_O_CHATBACK] = "osrs_chatback.png",
     [IMG_O_CHAT_STONES] = "osrs_chat_stones.png",
+    [IMG_O_CHAT_BUTTON] = "osrs_chat_button.png",
+    [IMG_O_CHAT_BUTTON_REPORT] = "osrs_chat_button_report.png",
+    [IMG_O_SB_TROUGH] = "osrs_sb_trough.png",
+    [IMG_O_SB_DRAGGER_TOP] = "osrs_sb_dragger_top.png",
+    [IMG_O_SB_DRAGGER_MID] = "osrs_sb_dragger_mid.png",
+    [IMG_O_SB_DRAGGER_BOTTOM] = "osrs_sb_dragger_bottom.png",
+    [IMG_O_SB_ARROW_UP] = "osrs_sb_arrow_up.png",
+    [IMG_O_SB_ARROW_DOWN] = "osrs_sb_arrow_down.png",
     [IMG_O_SIDE_PANEL] = "osrs_side_panel.png",
     [IMG_O_SIDE_PANEL_R] = "osrs_side_panel_r.png",
     [IMG_O_TABS_TOP] = "osrs_tabs_top.png",
@@ -279,6 +325,7 @@ static char const* const FRAME_IMAGE_FILE[FRAME_IMG_COUNT] = {
     [IMG_O_STONE_BR] = "osrs_stone_br.png",
     [IMG_O_STONE_MID] = "osrs_stone_mid.png",
     [IMG_O_STONE_MID_R] = "osrs_stone_mid_r.png",
+    [IMG_O_STONE_MID_R2] = "osrs_stone_mid_r2.png",
     [IMG_O_COMPASS] = "osrs_compass.png",
     [IMG_O_MAPBACK_R] = "osrs_mapback_r.png",
     [IMG_O_MINIMAP_MASK] = "osrs_minimap_mask.png",
@@ -334,6 +381,33 @@ struct FrameBlit
     int image;
     int x;
     int y;
+    /**
+     * Repeat the image over this box instead of drawing it once. 0 = once.
+     *
+     * The OldSchool resizable frames back their side panel with
+     * `tradebacking_dark` -- an 88x60 swatch of leather TILED to whatever the
+     * panel is (`side_background` in both toplevel_pre_eoc and
+     * toplevel_osrs_stretch: widthmode/heightmode 1, `tiled=yes`) -- rather
+     * than with the fixed frame's 190x261 plate. Fifteen entries in the blit
+     * list would say the same thing and spend half its budget, so the repeat
+     * is a property of the entry and the draw pass expands it.
+     */
+    int tile_w;
+    int tile_h;
+    /**
+     * Non-zero turns the repeat into a horizontal THREE-SLICE `cap` columns
+     * wide, drawn `tile_h` tall: the two end caps at their own size and the
+     * body repeated between them.
+     *
+     * Which is what a chat tab plate needs. `chat_tab_button` is a 56x22
+     * rounded rectangle -- its first four rows and last four taper, the
+     * columns between x=4 and x=51 are square, and down its middle runs a
+     * light-to-dark bevel -- so it stretches sideways and does not stretch
+     * upwards. A plain tile would repeat the rounded ENDS across the middle of
+     * a 100-wide button; a three-slice keeps them at the ends where they are
+     * the shape of the button.
+     */
+    int cap;
 };
 
 /*
@@ -404,7 +478,15 @@ static struct
 /* ------------------------------------------------------------------ helpers */
 
 static void
-frame_blit_into(struct FrameBlit* list, int* count, int image, int x, int y)
+frame_blit_into(
+    struct FrameBlit* list,
+    int* count,
+    int image,
+    int x,
+    int y,
+    int tile_w,
+    int tile_h,
+    int cap)
 {
     assert(list);
     assert(count);
@@ -420,6 +502,9 @@ frame_blit_into(struct FrameBlit* list, int* count, int image, int x, int y)
     list[*count].image = image;
     list[*count].x = x;
     list[*count].y = y;
+    list[*count].tile_w = tile_w;
+    list[*count].tile_h = tile_h;
+    list[*count].cap = cap;
     (*count)++;
 }
 
@@ -427,14 +512,28 @@ frame_blit_into(struct FrameBlit* list, int* count, int image, int x, int y)
 static void
 frame_blit(int image, int x, int y)
 {
-    frame_blit_into(g_frame.blit, &g_frame.blit_count, image, x, y);
+    frame_blit_into(g_frame.blit, &g_frame.blit_count, image, x, y, 0, 0, 0);
+}
+
+/** Chrome behind them, three-sliced to `w`. @see FrameBlit::cap. */
+static void
+frame_blit_hslice(int image, int x, int y, int w, int cap)
+{
+    frame_blit_into(g_frame.blit, &g_frame.blit_count, image, x, y, w, 0, cap);
+}
+
+/** Chrome behind them, REPEATED over a box. @see FrameBlit::tile_w. */
+static void
+frame_blit_tiled(int image, int x, int y, int w, int h)
+{
+    frame_blit_into(g_frame.blit, &g_frame.blit_count, image, x, y, w, h, 0);
 }
 
 /** Chrome over them. @see ToriRS_PluginEvDrawCanvas and `over`. */
 static void
 frame_blit_over(int image, int x, int y)
 {
-    frame_blit_into(g_frame.over, &g_frame.over_count, image, x, y);
+    frame_blit_into(g_frame.over, &g_frame.over_count, image, x, y, 0, 0, 0);
 }
 
 static void
@@ -470,21 +569,38 @@ frame_chat_buttons_across(
     int x,
     int y,
     int width,
-    int height)
+    int height,
+    int plate)
 {
     int const cell = width / FRAME_CHAT_BUTTON_COUNT;
 
     assert(ctx);
     for( int i = 0; i < FRAME_CHAT_BUTTON_COUNT; i++ )
     {
+        int const bx = x + i * cell + (cell - FRAME_CHAT_BUTTON_W) / 2;
+
+        /*
+         * The plate goes down BEFORE the button is placed, and in the frame
+         * pass rather than the canvas one, so it lands under the label the
+         * tree draws on top of it. A plate drawn over would hide the very
+         * thing it is a background for.
+         */
+        /*
+         * Report abuse wears the RED plate and the other three the stone one.
+         * `chat_tab_button` ships six tints for exactly this kind of call, and
+         * the red is not decoration: the button reports a player, it is the
+         * one control on the bar with a consequence, and the reference marks
+         * it apart from the three that only toggle what you can see.
+         */
+        if( plate >= 0 )
+            frame_blit_hslice(
+                g_image[i == FRAME_CHAT_BUTTON_REPORT ? IMG_O_CHAT_BUTTON_REPORT : plate],
+                bx,
+                y + FRAME_O_CHAT_BUTTON_LIFT,
+                FRAME_CHAT_BUTTON_W,
+                FRAME_O_CHAT_BUTTON_CAP);
         g_api->layout_slot_at(
-            ctx,
-            TORIRS_PLUGIN_SLOT_CHAT_BUTTONS,
-            i,
-            x + i * cell + (cell - FRAME_CHAT_BUTTON_W) / 2,
-            y,
-            FRAME_CHAT_BUTTON_W,
-            height);
+            ctx, TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, i, bx, y, FRAME_CHAT_BUTTON_W, height);
     }
 }
 
@@ -511,6 +627,28 @@ frame_skin_map(
     g_api->layout_slot_skin(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, -1, g_image[map_mask]);
     g_api->layout_slot_skin(
         ctx, TORIRS_PLUGIN_SLOT_COMPASS, g_image[IMG_O_COMPASS], g_image[compass_mask]);
+}
+
+/*
+ * The OldSchool scrollbar, on every bar this frame draws.
+ *
+ * One call and not one per bar: the art belongs to the FRAME, and a chatbox
+ * with an OldSchool groove beside a sidebar panel with a 2004 one is the same
+ * split-personality frame the whole layout exists to avoid. The six handles are
+ * `~scrollbar_vertical_repaint`'s six graphics, in its order.
+ */
+static void
+frame_skin_scrollbar(struct ToriRS_PluginCtx* ctx)
+{
+    assert(ctx);
+    g_api->layout_scrollbar(
+        ctx,
+        g_image[IMG_O_SB_TROUGH],
+        g_image[IMG_O_SB_DRAGGER_TOP],
+        g_image[IMG_O_SB_DRAGGER_MID],
+        g_image[IMG_O_SB_DRAGGER_BOTTOM],
+        g_image[IMG_O_SB_ARROW_UP],
+        g_image[IMG_O_SB_ARROW_DOWN]);
 }
 
 /* --------------------------------------------------------- classic fixed */
@@ -662,16 +800,6 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
         { 692, 466, 33, IMG_O_STONE_MID},
         { 725, 466, 38, IMG_O_STONE_BR },
     };
-    /*
-     * Screen order is not tab order.
-     *
-     * 548 puts Clan chat on the bottom row's first stone and Account on its
-     * third, so walking the fourteen boxes in tab order would put the friends
-     * icon where the account icon belongs. The table above is in SCREEN order
-     * and this maps each box to the tab it stands for.
-     */
-    static int const TAB_AT[FRAME_TAB_COUNT] = { 0, 1, 2, 3, 4, 5, 6, 7, 9, 8, 10, 11, 12, 13 };
-
     assert(ctx);
 
     frame_blit(g_image[IMG_O_BACKTOP1], 0, 0);
@@ -692,7 +820,7 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
 
     for( int i = 0; i < FRAME_TAB_COUNT; i++ )
     {
-        int const tab = TAB_AT[i];
+        int const tab = FRAME_TAB_SCREEN_ORDER[i];
         frame_tab(
             tab,
             TAB[i].x,
@@ -714,6 +842,7 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, 570, 9, 145, 151);
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_COMPASS, 545, 4, 32, 33);
     frame_skin_map(ctx, IMG_O_MINIMAP_MASK, IMG_O_COMPASS_MASK);
+    frame_skin_scrollbar(ctx);
     g_api->layout_slot(
         ctx,
         TORIRS_PLUGIN_SLOT_CHAT,
@@ -729,7 +858,8 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
         0,
         338 + FRAME_O_CHAT_H - FRAME_O_CHAT_BUTTON_LIFT,
         FRAME_O_CHAT_W,
-        FRAME_O_CHAT_BUTTON_H);
+        FRAME_O_CHAT_BUTTON_H,
+        IMG_O_CHAT_BUTTON);
 }
 
 /* ------------------------------------------------------ modern resizable */
@@ -805,7 +935,16 @@ frame_layout_modern_resizable(
 
     frame_blit_over(g_image[IMG_O_MAPBACK_R], map_x, 0);
     frame_blit(g_image[IMG_O_TABS_TOP_R], row_x, top_row_y);
-    frame_blit(g_image[IMG_O_SIDE_PANEL], panel_x, panel_y);
+    /*
+     * TILED `tradebacking_dark`, not the fixed frame's 190x261 plate.
+     * Both OldSchool resizable toplevels back their panel this way -- see
+     * `side_background` in toplevel_pre_eoc (161) and toplevel_osrs_stretch
+     * (164), which are `tiled=yes` over graphic 897 -- and only the FIXED
+     * frame (548) uses 1031. Using 1031 here was the fixed frame's plate in a
+     * resizable panel, which is why the inventory sat on flat brown.
+     */
+    frame_blit_tiled(
+        g_image[IMG_O_SIDE_PANEL_R], panel_x, panel_y, FRAME_R_PANEL_W, FRAME_R_PANEL_H);
     /* The pillars either side of the panel, which the fixed frame gets from
      * its surround (`backvmid2`/`backright1`) and this one has nothing to get
      * them from -- a floating panel has no surround, only its own edges. */
@@ -817,17 +956,31 @@ frame_layout_modern_resizable(
 
     for( int i = 0; i < FRAME_TAB_COUNT; i++ )
     {
+        /*
+         * SCREEN order, not tab order -- the same swap the fixed frame makes,
+         * and for the same reason: the bottom row runs clan, friends, account,
+         * so walking the fourteen boxes in tab order puts the account icon
+         * where friends belongs. @see FRAME_TAB_SCREEN_ORDER.
+         */
+        int const tab = FRAME_TAB_SCREEN_ORDER[i];
         int const row = i / 7;
         int const col = i % 7;
         frame_tab(
-            i,
+            tab,
             stone_x + col * FRAME_R_STONE_W,
             row == 0 ? top_row_y : bottom_row_y,
             FRAME_R_STONE_W,
             FRAME_R_ROW_H,
             /*stone=*/-1,
-            g_image[IMG_O_STONE_MID_R],
-            g_image[IMG_O_SIDEICON_0 + i]);
+            /*
+             * The RED stone (`pre_eoc_stones_1`), not the grey one beside it.
+             * The two are a pair -- 1180 is the unlit stone the strips are
+             * already made of and 1181 is the lit one -- so drawing 1180 for
+             * the pressed tab painted the strip's own stone back onto itself
+             * and the open tab was indistinguishable from the six beside it.
+             */
+            g_image[IMG_O_STONE_MID_R2],
+            g_image[IMG_O_SIDEICON_0 + tab]);
     }
 
     /* The scene is the WHOLE window, chrome included -- that is what
@@ -849,6 +1002,7 @@ frame_layout_modern_resizable(
         FRAME_R_COMPASS_W,
         FRAME_R_COMPASS_W);
     frame_skin_map(ctx, IMG_O_MINIMAP_MASK_R, IMG_O_COMPASS_MASK_R);
+    frame_skin_scrollbar(ctx);
     g_api->layout_slot(
         ctx,
         TORIRS_PLUGIN_SLOT_CHAT,
@@ -873,7 +1027,8 @@ frame_layout_modern_resizable(
         0,
         chat_y + FRAME_O_CHAT_H - FRAME_O_CHAT_BUTTON_LIFT,
         FRAME_O_CHAT_W,
-        FRAME_O_CHAT_BUTTON_H);
+        FRAME_O_CHAT_BUTTON_H,
+        IMG_O_CHAT_BUTTON);
 }
 
 /* -------------------------------------------------------------- the events */
@@ -1092,17 +1247,81 @@ frame_on_draw(
 
     for( int i = 0; i < g_frame.blit_count; i++ )
     {
-        g_api->draw_image(
-            ctx,
-            ev->surface,
-            g_frame.blit[i].image,
-            g_frame.blit[i].x,
-            g_frame.blit[i].y,
-            0,
-            0,
-            0,
-            0,
-            /*trans=*/0);
+        struct FrameBlit const* b = &g_frame.blit[i];
+        int iw = 0;
+        int ih = 0;
+
+        if( b->tile_w <= 0 || !g_api->image_size(ctx, b->image, &iw, &ih) || iw <= 0 ||
+            ih <= 0 || (b->tile_h <= 0 && b->cap <= 0) )
+        {
+            g_api->draw_image(ctx, ev->surface, b->image, b->x, b->y, 0, 0, 0, 0, 0);
+            continue;
+        }
+
+        /*
+         * A three-slice: the ends at their own size, the body repeated between
+         * them, and every copy clipped to the slice it belongs in. The image is
+         * positioned so the WANTED columns land inside that clip -- there is no
+         * sub-rect blit, so a slice is the whole picture drawn somewhere the
+         * scissor only lets part of it through.
+         */
+        if( b->cap > 0 )
+        {
+            int const body = iw - 2 * b->cap;
+            int const inner = b->tile_w - 2 * b->cap;
+
+            if( body <= 0 || inner <= 0 || b->tile_w < iw )
+            {
+                /* Narrower than the art it is made of: draw it whole and let
+                 * the box be the art's size, which is a button that looks like
+                 * a button rather than two caps with a gap between them. */
+                g_api->draw_image(ctx, ev->surface, b->image, b->x, b->y, 0, 0, 0, 0, 0);
+                continue;
+            }
+            g_api->draw_image(
+                ctx, ev->surface, b->image, b->x, b->y, b->x, b->y, b->cap, ih, 0);
+            for( int tx = 0; tx < inner; tx += body )
+                g_api->draw_image(
+                    ctx,
+                    ev->surface,
+                    b->image,
+                    b->x + tx,
+                    b->y,
+                    b->x + b->cap,
+                    b->y,
+                    inner,
+                    ih,
+                    0);
+            g_api->draw_image(
+                ctx,
+                ev->surface,
+                b->image,
+                b->x + b->tile_w - iw,
+                b->y,
+                b->x + b->tile_w - b->cap,
+                b->y,
+                b->cap,
+                ih,
+                0);
+            continue;
+        }
+        /* Every copy carries the WHOLE box as its clip, so the row and column
+         * that overhang are cut at the panel's edge rather than at their own.
+         * A swatch that divided the box exactly would not need it; 88x60 into
+         * 190x261 does not divide either way. */
+        for( int ty = 0; ty < b->tile_h; ty += ih )
+            for( int tx = 0; tx < b->tile_w; tx += iw )
+                g_api->draw_image(
+                    ctx,
+                    ev->surface,
+                    b->image,
+                    b->x + tx,
+                    b->y + ty,
+                    b->x,
+                    b->y,
+                    b->tile_w,
+                    b->tile_h,
+                    /*trans=*/0);
     }
 
     for( int i = 0; i < g_frame.tab_count; i++ )

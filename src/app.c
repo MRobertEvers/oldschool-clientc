@@ -19382,15 +19382,75 @@ app_plugin_asset_write(void* user, char const* plugin, char const* name, void co
  * silently dropping the request: a plugin that fills it is asking for four
  * pictures of one instant, and the only way it finds that out is being told.
  */
+/*
+ * Where a capture lands, as one path.
+ *
+ * An absolute destination is the user's own folder and is used as given. A
+ * relative one -- and that includes the common case of no destination at all
+ * -- lands under the plugin's saved-asset directory, so "Bob/Levels" sorts a
+ * browser run's captures the same way it sorts a desktop one. The browser lane
+ * has no path to name; without this it would have no way to organise them
+ * either.
+ *
+ * `out` is emptied when there is nowhere to write: persistence off for this
+ * run AND a destination that is not absolute. That is the one case with no
+ * answer, and it is an answer.
+ */
+static void
+app_plugin_screenshot_path(
+    struct App* app,
+    char const* plugin,
+    char const* dir,
+    char const* name,
+    char* out,
+    size_t out_size)
+{
+    assert(app);
+    assert(plugin);
+    assert(dir);
+    assert(name);
+    assert(out);
+    assert(out_size > 0);
+
+    if( dir[0] == '/' )
+    {
+        snprintf(out, out_size, "%s/%s", dir, name);
+        return;
+    }
+
+    char base[TORIRS_IOITEM_MAX_PATH];
+
+    app_plugin_asset_saved_path(app, plugin, "", base, sizeof(base));
+    if( base[0] && dir[0] )
+    {
+        /* asset_saved_path ends in the trailing separator plus the empty name
+         * it was handed, so the slash is already there. */
+        snprintf(out, out_size, "%s%s/%s", base, dir, name);
+    }
+    else if( base[0] )
+        snprintf(out, out_size, "%s%s", base, name);
+    else
+        out[0] = '\0';
+}
+
 static int
-app_plugin_screenshot(void* user, char const* plugin, char const* dir, char const* name)
+app_plugin_screenshot(
+    void* user,
+    char const* plugin,
+    char const* dir,
+    char const* name,
+    char* out_path,
+    int out_path_size)
 {
     struct App* app = (struct App*)user;
 
     assert(app);
     assert(plugin);
     assert(name);
+    assert(out_path);
+    assert(out_path_size > 0);
 
+    out_path[0] = '\0';
     for( int i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
     {
         struct AppPluginScreenshot* shot = &app->plugin_screenshots[i];
@@ -19399,7 +19459,6 @@ app_plugin_screenshot(void* user, char const* plugin, char const* dir, char cons
         if( shot->in_use )
             continue;
 
-        shot->in_use = 1;
         snprintf(shot->plugin, sizeof(shot->plugin), "%s", plugin);
         snprintf(shot->dir, sizeof(shot->dir), "%s", dir ? dir : "");
         snprintf(shot->name, sizeof(shot->name), "%s", name);
@@ -19410,6 +19469,29 @@ app_plugin_screenshot(void* user, char const* plugin, char const* dir, char cons
         len = strlen(shot->name);
         if( !strchr(shot->name, '.') && len + 4 < sizeof(shot->name) )
             snprintf(shot->name + len, sizeof(shot->name) - len, ".png");
+
+        /* Resolved now rather than at the write, so the caller can be told
+         * where its picture is going while it is still in a position to say
+         * so. Refused here for the same reason app_plugin_asset_write refuses:
+         * a client told not to write files must not start writing them because
+         * a plugin asked -- and a refusal before the frame is spent is better
+         * than one after it. */
+        app_plugin_screenshot_path(
+            app, shot->plugin, shot->dir, shot->name, shot->path, sizeof(shot->path));
+        if( !shot->path[0] )
+        {
+            fprintf(
+                stderr,
+                "plugin: %s cannot save screenshot '%s'; plugin persistence is off for "
+                "this run (TORIRS_PLUGIN_PREFS is empty), so there is no folder to put it "
+                "under and the destination is not an absolute path\n",
+                shot->plugin,
+                shot->name);
+            return 0;
+        }
+
+        shot->in_use = 1;
+        snprintf(out_path, (size_t)out_path_size, "%s", shot->path);
         return 1;
     }
 
@@ -19493,55 +19575,17 @@ app_plugin_screenshots_write(struct App* app, int const* pixels, int width, int 
     for( int i = 0; i < APP_PLUGIN_SCREENSHOTS_MAX; i++ )
     {
         struct AppPluginScreenshot* shot = &app->plugin_screenshots[i];
-        char path[TORIRS_IOITEM_MAX_PATH];
 
         if( !shot->in_use )
             continue;
         shot->in_use = 0;
 
-        /*
-         * An absolute destination is the user's own folder and is used as
-         * given. A relative one -- and that includes the common case of no
-         * destination at all -- lands under the plugin's saved-asset
-         * directory, so "Bob/Levels" sorts a browser run's captures the same
-         * way it sorts a desktop one. The browser lane has no path to name;
-         * without this it would have no way to organise them either.
-         */
-        if( shot->dir[0] == '/' )
-            snprintf(path, sizeof(path), "%s/%s", shot->dir, shot->name);
-        else
-        {
-            char base[TORIRS_IOITEM_MAX_PATH];
-
-            app_plugin_asset_saved_path(app, shot->plugin, "", base, sizeof(base));
-            if( base[0] && shot->dir[0] )
-            {
-                /* asset_saved_path ends in the trailing separator plus the
-                 * empty name it was handed, so the slash is already there. */
-                snprintf(path, sizeof(path), "%s%s/%s", base, shot->dir, shot->name);
-            }
-            else if( base[0] )
-                snprintf(path, sizeof(path), "%s%s", base, shot->name);
-            else
-                path[0] = '\0';
-        }
-
-        if( !path[0] )
-        {
-            /* Same refusal as app_plugin_asset_write, for the same reason: a
-             * client told not to write files must not start writing them
-             * because a plugin asked. */
-            fprintf(
-                stderr,
-                "plugin: %s cannot save screenshot '%s'; plugin persistence is off for "
-                "this run (TORIRS_PLUGIN_PREFS is empty), so there is no folder to put it "
-                "under and the destination is not an absolute path\n",
-                shot->plugin,
-                shot->name);
-            continue;
-        }
+        /* The destination was resolved -- and refused, when there was none --
+         * back when the request was made, so a queued capture always has a
+         * path to go to. */
+        assert(shot->path[0]);
         ToriRS_TaskQueue_Add(
-            app->runner.queue, CreateTask_PluginAssetWrite(path, png, (int)png_size));
+            app->runner.queue, CreateTask_PluginAssetWrite(shot->path, png, (int)png_size));
     }
 
     mz_free(png);
@@ -24185,6 +24229,15 @@ App_PluginLayoutTick(struct App* app)
         app->plugin_layout_h != UITREE_LAYOUT_ROOT_H )
     {
         PluginHost_Layout(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        /*
+         * And tell EVERY plugin, not just the frame's owner.
+         *
+         * The conditions above are exactly the ones that move a region -- a
+         * resize, a rebuild, a fresh claim -- so a readout holding a picture
+         * measured against one of them has to hear about it here or nowhere.
+         * PluginHost_Layout is the owner's news; this is everybody else's.
+         */
+        PluginHost_LayoutChanged(app->plugins);
     }
     /* The re-assert is NOT here. It has to be the last writer before the draw,
      * and the tick is nowhere near last -- see UITree_EmitWalk, which is where
@@ -27321,6 +27374,11 @@ App_BuildFrame(
         ToriRS_FrameSetScene(frame, app->scene);
         ToriRS_FrameSetCanvas(frame, width, height);
         ToriRS_FrameSetEmitBuffer(frame, &app->emit);
+        /* The frame's scrollbars wear whatever the standing layout declaration
+         * asked for, which is all zero when no plugin holds the frame or the
+         * one that does brought no scrollbar art. */
+        ToriRS_FrameSetScrollbarSkin(
+            frame, app->plugin_layout_owned ? app->plugin_layout_scrollbar : NULL);
 
         /* World pass: paint the visibility-ordered command list for the current
          * camera and attach it so UITREE_EMIT_WORLD opens the 3D pass. */

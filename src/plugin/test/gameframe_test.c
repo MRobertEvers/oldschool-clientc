@@ -67,6 +67,22 @@ static struct
 
 /** Members of one role this fake frame records. Four is what the chat filter
  *  buttons need and nothing here has more. */
+/** The resizable panel's backing is an 88x60 swatch tiled over 190x261: three
+ *  columns of five, and the overhang is clipped rather than dropped. */
+#define FRAME_R_PANEL_TILES (3 * 5)
+
+/**
+ * Draws per chat-button plate: two end caps and the body repeated between them.
+ *
+ * A 56-wide plate with 8-wide caps has a 40-wide body, and a 100-wide button
+ * has 84 columns to fill between its caps -- three copies. Counted rather than
+ * assumed, because a three-slice that dropped its middle would leave a button
+ * with two rounded ends and a hole, which no assertion about the button's
+ * RECTANGLE can see.
+ */
+#define FRAME_CHAT_PLATE_DRAWS (2 + 3)
+#define FRAME_CHAT_PLATES (4 * FRAME_CHAT_PLATE_DRAWS)
+
 #define FAKE_SLOT_MEMBERS 8
 
 /** What the frame declared: the claim, the slots, and the drawing. */
@@ -105,6 +121,7 @@ static struct
         int art;
         int mask;
     } skin[TORIRS_PLUGIN_SLOT_COUNT];
+    int scrollbar_pieces;
 } g_frame;
 
 /** Which roles this fake gameframe has. Everything but the compass, so that
@@ -133,6 +150,7 @@ fake_layout_begin(void* u)
     memset(g_frame.slot, 0, sizeof(g_frame.slot));
     memset(g_frame.member, 0, sizeof(g_frame.member));
     memset(g_frame.skin, 0, sizeof(g_frame.skin));
+    g_frame.scrollbar_pieces = 0;
     g_frame.begin_calls++;
 }
 
@@ -180,6 +198,17 @@ fake_layout_slot_skin(void* u, int slot, int art, int mask)
     g_frame.skin[slot].art = art;
     g_frame.skin[slot].mask = mask;
     return fake_has_slot(slot);
+}
+
+/** The scrollbar skin is one call for the whole frame, so the fake only has to
+ *  record that it arrived and how many pieces came with it. */
+static int
+fake_layout_scrollbar(void* u, int const* images, int count)
+{
+    (void)u;
+    (void)images;
+    g_frame.scrollbar_pieces = count;
+    return count > 0;
 }
 
 static int
@@ -360,7 +389,8 @@ static int fake_draw_rect(void* u, int x, int y, int w, int h, uint32_t c, int a
 static void fake_draw_select_canvas(void* u, int c) { (void)u; (void)c; }
 static int fake_mouse_pos(void* u, int* x, int* y) { (void)u; (void)x; (void)y; return 0; }
 static int fake_minimap_rect(void* u, int* x, int* y, int* w, int* h) { (void)u; (void)x; (void)y; (void)w; (void)h; return 0; }
-static int fake_anchor_rect(void* u, int a, int* x, int* y, int* w, int* h) { (void)u; (void)a; (void)x; (void)y; (void)w; (void)h; return 0; }
+static int fake_slot_rect(void* u, int a, int* x, int* y, int* w, int* h) { (void)u; (void)a; (void)x; (void)y; (void)w; (void)h; return 0; }
+static int fake_slot_member_rect(void* u, int a, int m, int* x, int* y, int* w, int* h) { (void)u; (void)a; (void)m; (void)x; (void)y; (void)w; (void)h; return 0; }
 static int fake_stat(void* u, int s, int* c, int* b) { (void)u; (void)s; (void)c; (void)b; return 0; }
 static int fake_stat_xp(void* u, int s, int* a, int* b, int* c) { (void)u; (void)s; (void)a; (void)b; (void)c; return 0; }
 static char const* fake_skill_name(void* u, int s) { (void)u; (void)s; return NULL; }
@@ -368,7 +398,15 @@ static int fake_run_energy(void* u) { (void)u; return 0; }
 static int fake_menu_add(void* u, void* c, char const* t, int a) { (void)u; (void)c; (void)t; (void)a; return 0; }
 static int fake_if_click(void* u, int c, int o) { (void)u; (void)c; (void)o; return 0; }
 static int fake_asset_write(void* u, char const* p, char const* n, void const* d, int s) { (void)u; (void)p; (void)n; (void)d; (void)s; return 1; }
-static int fake_screenshot(void* u, char const* p, char const* d, char const* n) { (void)u; (void)p; (void)d; (void)n; return 1; }
+static int
+fake_screenshot(void* u, char const* p, char const* d, char const* n, char* out, int out_size)
+{
+    (void)u;
+    (void)p;
+    (void)d;
+    snprintf(out, (size_t)out_size, "%s", n);
+    return 1;
+}
 static int fake_model_publish(void* u, int m, void const* d, int size) { (void)u; (void)m; (void)d; (void)size; return 0; }
 static void fake_model_release(void* u, int m) { (void)u; (void)m; }
 static int fake_obj_info(void* u, int id, struct ToriRS_PluginObjInfo* o) { (void)u; (void)id; (void)o; return 0; }
@@ -466,12 +504,14 @@ main(void)
     e.draw_select_canvas = fake_draw_select_canvas;
     e.mouse_pos = fake_mouse_pos;
     e.minimap_rect = fake_minimap_rect;
-    e.anchor_rect = fake_anchor_rect;
+    e.slot_rect = fake_slot_rect;
+    e.slot_member_rect = fake_slot_member_rect;
     e.layout_set = fake_layout_set;
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
     e.layout_slot = fake_layout_slot;
     e.layout_slot_skin = fake_layout_slot_skin;
+    e.layout_scrollbar = fake_layout_scrollbar;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
     e.stat = fake_stat;
@@ -700,6 +740,9 @@ main(void)
             g_frame.skin[TORIRS_PLUGIN_SLOT_COMPASS].placed &&
                 g_frame.skin[TORIRS_PLUGIN_SLOT_COMPASS].art >= 0,
             "the compass is drawn from the OldSchool rose, not the lane's");
+        /* All six pieces or none: a bar drawn from five of them has a hole in
+         * it, which is a worse frame than one drawn the 2004 way. */
+        CHECK(g_frame.scrollbar_pieces == 6, "and the scrollbars wear all six of their pieces");
         CHECK(
             g_frame.slot[TORIRS_PLUGIN_SLOT_SIDEBAR].x + 190 < 1024 &&
                 g_frame.slot[TORIRS_PLUGIN_SLOT_SIDEBAR].x + 190 > 1024 - 60,
@@ -740,22 +783,30 @@ main(void)
          * land outside it and simply not be drawn -- which from a screenshot
          * looks like a missing asset rather than a wrong number.
          *
-         * Seven chrome pieces UNDER the surfaces (two tab strips, the panel
-         * and the two pillars either side of it, the chatbox and the stone bar
-         * under it), an icon per tab, and ONE stone -- the lit one under the
-         * open tab. The unlit stones
-         * are part of the tab strips already blitted, which is why there are
-         * not fourteen of them.
+         * Six chrome pieces UNDER the surfaces -- two tab strips, the two
+         * pillars either side of the panel, the chatbox and the stone bar
+         * under it -- plus the panel itself, an icon per tab, and ONE stone,
+         * the lit one under the open tab. The unlit stones are part of the tab
+         * strips already blitted, which is why there are not fourteen of them.
+         *
+         * The panel is TILED, so it is one declaration and FRAME_R_PANEL_TILES
+         * draws. Counting the draws and not the declarations is deliberate: a
+         * tile loop that stopped after one copy would leave the panel
+         * three-quarters bare, and a count of declarations cannot see that.
          */
         g_frame.active_tab = 3;
         draw(1440, 900);
-        CHECK(g_frame.blits == 7 + 14 + 1, "the resizable frame draws all of its art");
+        CHECK(
+            g_frame.blits == 6 + FRAME_R_PANEL_TILES + FRAME_CHAT_PLATES + 14 + 1,
+            "the resizable frame draws all of its art");
         CHECK(g_frame.regions == 14, "and claims all fourteen tabs");
 
         /* No tab open: no lit stone, and everything else unchanged. */
         g_frame.active_tab = -1;
         draw(1440, 900);
-        CHECK(g_frame.blits == 7 + 14, "with no tab open there is no lit stone");
+        CHECK(
+            g_frame.blits == 6 + FRAME_R_PANEL_TILES + FRAME_CHAT_PLATES + 14,
+            "with no tab open there is no lit stone");
 
         /*
          * And the map housing OVER them.

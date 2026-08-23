@@ -24,21 +24,39 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 14
+#define TORIRS_PLUGIN_ABI 15
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 /** Bytes of a plugin's human title, terminator included. Longer than the name
  *  because a title carries spaces and words the kebab-case id compresses. */
 #define TORIRS_PLUGIN_TITLE_MAX 64
 #define TORIRS_PLUGIN_MENU_ROWS_MAX 16
-/** Controls one plugin may put on its tab. A budget, not a limit on what a
- *  window can hold: sixteen plugins sharing one window need the SHARE bounded,
- *  or the first one to ask takes the whole chrome. */
-#define TORIRS_PLUGIN_WIDGETS_MAX 24
+/**
+ * Controls one plugin may put on its tab. A budget, not a limit on what a
+ * window can hold: sixteen plugins sharing one window need the SHARE bounded,
+ * or the first one to ask takes the whole chrome.
+ *
+ * Raised from 24 when the settings pages arrived. 24 was sized against a
+ * plugin's own handful of controls, and a page that renders a LIST -- one row
+ * per published feature flag, plus a heading and a rule per section -- is a
+ * different order of thing: sixteen flags in four sections is twenty-three on
+ * its own, which fit only by accident and would have started dropping rows,
+ * silently, at the seventeenth flag.
+ *
+ * It costs nothing to raise: the slots come out of the shared
+ * TORIRS_PLUGIN_WIN_WIDGETS_MAX pool, so this number bounds one plugin's
+ * SHARE of it and never allocates anything on its own.
+ */
+#define TORIRS_PLUGIN_WIDGETS_MAX 48
 /** Bytes of a control id, terminator included. */
 #define TORIRS_PLUGIN_WIDGET_ID_MAX 32
 /** Longest asset name a plugin may ask for, including its extension. */
 #define TORIRS_PLUGIN_ASSET_NAME_MAX 64
+/** Buffer a caller of api->screenshot needs for the path it is handed back.
+ *  The engine's own path ceiling (TORIRS_IOITEM_MAX_PATH), stated again here
+ *  because a plugin has no business including the client's IO header -- a
+ *  shorter buffer is not refused, it is truncated. */
+#define TORIRS_PLUGIN_SCREENSHOT_PATH_MAX 256
 /** Recolour pairs one world object may carry, matching a spotanimtype's six. */
 #define TORIRS_PLUGIN_OBJECT_RECOLORS_MAX 6
 /** Vertices and faces one authored mesh may carry. Sized for the shapes a
@@ -211,6 +229,17 @@ enum ToriRS_PluginEvent
      * reason: a table rebuilt from nothing cannot disagree with itself.
      */
     TORIRS_PLUGIN_EV_LAYOUT,
+    /**
+     * Any region moved. Payload: EvTick, carrying the new layout_revision.
+     *
+     * Raised for EVERY plugin, unlike EV_LAYOUT, which goes only to the frame's
+     * owner. That difference is the point: EV_LAYOUT asks one plugin to state
+     * the frame, and this tells everyone else that it changed. A readout that
+     * composed a picture against the old box learns here that it has to
+     * recompose; one that reads the box while drawing can ignore this
+     * entirely.
+     */
+    TORIRS_PLUGIN_EV_LAYOUT_CHANGED,
     /**
      * The FRAME surface is open: the whole canvas, above the 3D scene and
      * BELOW the interfaces. Payload: EvDrawCanvas.
@@ -985,19 +1014,39 @@ enum ToriRS_PluginDisplaySetting
 #define TORIRS_PLUGIN_FEATURE_KEY_MAX 32
 #define TORIRS_PLUGIN_FEATURE_LABEL_MAX 64
 /** Bytes of a feature's '|'-separated choice list, terminator included. */
-#define TORIRS_PLUGIN_FEATURE_CHOICES_MAX 160
+#define TORIRS_PLUGIN_FEATURE_CHOICES_MAX 224
+/** Choices one flag may offer. */
+#define TORIRS_PLUGIN_FEATURE_VALUES_MAX 12
 
-/** How a published flag is edited. */
+/**
+ * How a published flag is WRITTEN DOWN. Both kinds are CHOSEN the same way --
+ * from `choices` -- and the difference is only what a settings file holds.
+ *
+ * That every flag offers a fixed set of choices is deliberate and is the whole
+ * reason this is not a text field. A number typed into a box has to be
+ * validated, refused, explained and put back, and the failure is silent until
+ * it is not: a draw distance of 4000 or an eye height of 3 is a client you
+ * cannot see out of, entered one keystroke at a time with nothing to say so.
+ * Naming the values that mean something -- the reference's own 600, the deob's
+ * 70-tile ceiling, xrsps's 128 -- says more in the list than a range ever said
+ * in a caption.
+ */
 enum ToriRS_PluginFeatureKind
 {
-    /** A number in [min, max]. */
+    /**
+     * A number. `choices` are the values worth naming and `values[i]` is the
+     * number each stands for, but `min`..`max` is the flag's real range: a
+     * value outside the list is legal, and a settings file that carries one
+     * keeps it. So this is stored as the NUMBER.
+     */
     TORIRS_PLUGIN_FEATURE_INT = 0,
     /**
-     * One of `choices`, where choice i has value `values[i]`.
+     * One of `choices` and nothing else, where choice i has value `values[i]`.
      *
      * The values are carried rather than implied by the index because a flag's
      * legal set is not always 0..n: `target_mask_held` is 0x10 or 0x20, and an
-     * index would make the panel write 1 for a bit that is 32.
+     * index would make the panel write 1 for a bit that is 32. Stored as the
+     * CHOICE TEXT, so a settings file survives the list gaining an entry.
      */
     TORIRS_PLUGIN_FEATURE_ENUM
 };
@@ -1006,18 +1055,33 @@ enum ToriRS_PluginFeatureKind
 struct ToriRS_PluginFeature
 {
     char key[TORIRS_PLUGIN_FEATURE_KEY_MAX];
-    /** What a PERSON is shown. Never empty. */
+    /**
+     * What a PERSON is shown. Never empty.
+     *
+     * SHORT -- it shares a row with the control, and a settings panel is
+     * narrow. What the flag is about belongs in `section`; what its values mean
+     * belongs in the choice names.
+     */
     char label[TORIRS_PLUGIN_FEATURE_LABEL_MAX];
+    /**
+     * Heading this flag sits under, or "" for one that sits under none.
+     *
+     * The walk is in section order, so a reader groups by "the section
+     * changed" rather than by collecting: two runs of the same name are two
+     * headings, which is a fact about the engine's list and not something to
+     * paper over.
+     */
+    char section[TORIRS_PLUGIN_FEATURE_KEY_MAX];
     /** enum ToriRS_PluginFeatureKind. */
     int kind;
-    /** FEATURE_INT only. */
+    /** FEATURE_INT: the real range, wider than the named choices. */
     int min;
     int max;
-    /** FEATURE_ENUM only: "a|b|c", WITHOUT a "revision default" entry -- that
-     *  is the sentinel's job and every flag has it, so no flag states it. */
+    /** "a|b|c", WITHOUT a "revision default" entry -- that is the sentinel's
+     *  job and every flag has it, so no flag states it. */
     char choices[TORIRS_PLUGIN_FEATURE_CHOICES_MAX];
-    /** FEATURE_ENUM only: the value each choice stands for. */
-    int values[8];
+    /** The value each choice stands for. */
+    int values[TORIRS_PLUGIN_FEATURE_VALUES_MAX];
     int value_count;
     /** The value the flag holds right now. */
     int value;
@@ -1087,40 +1151,6 @@ enum ToriRS_PluginHullShape
     TORIRS_PLUGIN_HULL_MESH = 1
 };
 
-/**
- * A box on the canvas a plugin can hang its own chrome off.
- *
- * Three, because a gameframe answers "where is the middle of the screen" three
- * different ways and only the caller knows which one it meant.
- */
-enum ToriRS_PluginAnchor
-{
-    /** The whole client window. Always available; almost never what a readout
-     *  wants, because in a resizable frame the sides of it are under the
-     *  inventory and the chatbox. */
-    TORIRS_PLUGIN_ANCHOR_CANVAS = 0,
-    /** The 3D scene's box. In a FIXED gameframe this is the play area and the
-     *  chrome sits outside it; in a resizable one it is the whole window and
-     *  the chrome floats on top. */
-    TORIRS_PLUGIN_ANCHOR_VIEWPORT,
-    /**
-     * Where a modal interface opens -- a bank, a level-up, a dialogue.
-     *
-     * The one anchor that means "the part of the screen the player is looking
-     * at" in BOTH window modes, which is why it exists: it is the area the
-     * gameframe itself keeps clear, so it is the area a client-owned readout
-     * belongs in. A fixed frame answers with its play area; a resizable one
-     * with the region it centres modals in rather than with the whole window.
-     *
-     * Answered from the gameframe's declared modal region where there is one
-     * (the dat1 frames tag one `slot=main_modal`), and otherwise from where the
-     * last modal actually mounted -- so on a revision that declares nothing it
-     * is unavailable until the session's first modal opens, which for a
-     * logged-in client is the welcome screen. Callers fall back to VIEWPORT.
-     */
-    TORIRS_PLUGIN_ANCHOR_MODAL
-};
-
 /* ------------------------------------------------------------------------ */
 /* Owning the gameframe                                                      */
 /* ------------------------------------------------------------------------ */
@@ -1176,7 +1206,56 @@ enum ToriRS_PluginLayoutSlot
      */
     TORIRS_PLUGIN_SLOT_CHAT_BUTTONS,
 
+    /**
+     * Where the roles a layout may PLACE stop.
+     *
+     * Everything below this line is DERIVED: the host works it out from the
+     * frame and from what plugins have reserved, and layout_slot refuses it.
+     * The two kinds are in one enum because they are read through one verb and
+     * name boxes on one screen -- and they have to be told apart, because
+     * "place the canvas somewhere" is not a sentence.
+     */
+    TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT,
+
+    /**
+     * The whole client window.
+     *
+     * The denominator, and the one region that can never fail to answer, which
+     * makes it the bottom of every fallback chain.
+     */
+    TORIRS_PLUGIN_SLOT_CANVAS = TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT,
+
+    /**
+     * The largest part of the canvas no chrome is sitting on.
+     *
+     * The region a readout actually wants, and the reason this enum grew a
+     * derived half. "Where is the middle of the screen" has no single answer a
+     * frame can state: on a fixed frame it is the viewport, because the chrome
+     * is outside it; on a resizable one the viewport is the whole window and
+     * the minimap, the chatbox and the sidebar float on top of it, so the same
+     * question has a much smaller answer.
+     *
+     * DERIVED rather than declared, and that is the value of it: it is
+     * computed from what is actually claimed, so it stays right when a plugin
+     * adds a dock nobody anticipated. A declared "safe area" is only ever as
+     * current as the last person who remembered to update it.
+     *
+     * @see layout_reserve, which is how a plugin takes a bite out of it.
+     */
+    TORIRS_PLUGIN_SLOT_SAFE,
+
     TORIRS_PLUGIN_SLOT_COUNT
+};
+
+/** Which side of a region a reservation eats. @see layout_reserve. */
+enum ToriRS_PluginEdge
+{
+    TORIRS_PLUGIN_EDGE_LEFT = 0,
+    TORIRS_PLUGIN_EDGE_RIGHT,
+    TORIRS_PLUGIN_EDGE_TOP,
+    TORIRS_PLUGIN_EDGE_BOTTOM,
+
+    TORIRS_PLUGIN_EDGE_COUNT
 };
 
 /** What the client canvas does under this layout. @see layout_claim. */
@@ -1335,24 +1414,109 @@ struct ToriRS_PluginApi
         struct ToriRS_PluginCtx* ctx, int* out_x, int* out_y, int* out_w, int* out_h);
 
     /**
-     * One of the anchor boxes above, in canvas coordinates. Any out may be
-     * NULL.
+     * Any region's box, in canvas coordinates. Any out may be NULL.
      *
-     * @return 1 when this gameframe has that box and it has a size, 0
-     * otherwise, and 0 leaves the outs untouched -- so the idiom is to ask for
-     * the tightest anchor first and fall back:
+     * The read half of the layout vocabulary, and deliberately the SAME
+     * vocabulary the write half uses: a plugin that moves
+     * TORIRS_PLUGIN_SLOT_VIEWPORT and a plugin that reads it are then talking
+     * about one thing rather than two that happen to agree. Before this there
+     * were three names for these boxes -- the role list, minimap_rect, and an
+     * anchor enum of its own -- and nothing connected them but the
+     * implementation happening to route them to the same place.
      *
-     *     if( !api->anchor_rect(ctx, TORIRS_PLUGIN_ANCHOR_MODAL, ...) &&
-     *         !api->anchor_rect(ctx, TORIRS_PLUGIN_ANCHOR_VIEWPORT, ...) )
-     *         api->anchor_rect(ctx, TORIRS_PLUGIN_ANCHOR_CANVAS, ...);
+     * @return 1 when this gameframe has that region and it has a size, 0
+     * otherwise, and 0 leaves the outs untouched. A role a frame does not have
+     * is an ANSWER, not a fault -- plenty of frames have no compass -- so the
+     * idiom is to ask for the tightest region first and fall back:
+     *
+     *     if( !api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_SAFE, ...) &&
+     *         !api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_MAIN_MODAL, ...) &&
+     *         !api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_VIEWPORT, ...) )
+     *         api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_CANVAS, ...);
+     *
+     * Answered from live state on every call and never cached by the host, so
+     * a change by any writer is visible on the next read with no invalidation
+     * protocol to get wrong. It is a few field reads; the staleness bug it
+     * removes is not.
      */
-    int (*anchor_rect)(
+    int (*slot_rect)(
         struct ToriRS_PluginCtx* ctx,
-        enum ToriRS_PluginAnchor which,
+        int slot,
         int* out_x,
         int* out_y,
         int* out_w,
         int* out_h);
+
+    /**
+     * One MEMBER of a region, in canvas coordinates. Otherwise exactly
+     * slot_rect. Any out may be NULL.
+     *
+     * The read half of layout_slot_at, and `member` is the same number that
+     * one takes: the role's OWN numbering and never a position in a list. A
+     * chat button's is the filter it toggles -- 0 public, 1 private, 2 trade,
+     * 3 report abuse -- and a sidebar mount's is its tab number. Reading the
+     * report button's box through "the fourth chat button I find" would be
+     * asking for whatever order this revision happened to build in.
+     *
+     * slot_rect answers for the role as a whole, which for CHAT_BUTTONS is ONE
+     * of the four and not the strip: a plugin that wants a particular button
+     * has to name it, and this is where it does.
+     *
+     * @return 1 when this gameframe has a member of that role with that
+     * number and it has a size, 0 otherwise -- a frame with no Report abuse
+     * button is an answer, not a fault.
+     */
+    int (*slot_member_rect)(
+        struct ToriRS_PluginCtx* ctx,
+        int slot,
+        int member,
+        int* out_x,
+        int* out_y,
+        int* out_w,
+        int* out_h);
+
+    /**
+     * Take `px` off one edge of a region, for as long as this plugin runs.
+     *
+     * The COOPERATIVE claim, and the one most plugins should reach for. Many
+     * plugins may reserve; the host subtracts them in declaration order, so
+     * two plugins that each want the right edge stack rather than fight, and
+     * neither has to know the other exists. layout_slot is the exclusive verb
+     * -- it says "this region IS this box" and only the frame's owner may say
+     * it -- and a design with only that one makes any two plugins that touch
+     * the frame mutually exclusive.
+     *
+     * `px` of 0 drops this plugin's claim on that edge and leaves every other
+     * plugin's standing. Every claim is dropped for you when the plugin stops,
+     * in the same teardown that reclaims its images, meshes and window tab.
+     *
+     * Only the derived regions can be reserved from -- SAFE is the one that
+     * means anything -- because a placeable role is whatever the frame says it
+     * is, and shrinking it here would be arguing with the layout rather than
+     * making room beside it.
+     *
+     * @return 1 when the claim was recorded, 0 for a region that cannot be
+     * reserved from, an edge out of range, or a plugin at its claim budget.
+     */
+    int (*layout_reserve)(
+        struct ToriRS_PluginCtx* ctx,
+        int slot,
+        int edge,
+        int px);
+
+    /**
+     * A counter that moves whenever anything about the layout does.
+     *
+     * For plugins that CACHE something measured against a region -- a composed
+     * image, a laid-out panel. Reading a region is free and always current, so
+     * a plugin that only looks while drawing needs none of this; one that
+     * rasterised a picture against last frame's box needs to know the box
+     * moved, and comparing one int is the cheapest way to ask.
+     *
+     * EV_LAYOUT_CHANGED is the same news pushed rather than polled. Both
+     * exist because both shapes of plugin exist.
+     */
+    int (*layout_revision)(struct ToriRS_PluginCtx* ctx);
 
     /* -- owning the gameframe --
      *
@@ -1485,6 +1649,40 @@ struct ToriRS_PluginApi
         int slot,
         int art,
         int mask);
+
+    /**
+     * Dress every vertical scrollbar in this layout's art. Legal in the same
+     * one place as layout_slot.
+     *
+     * A scrollbar is not a slot -- there is no one node to place, and a frame
+     * has as many of them as it has scrolling panels -- but it IS part of the
+     * frame's look, and the 2004 bar inside an OldSchool chatbox is the same
+     * mismatch as a 2004 compass inside an OldSchool map housing.
+     *
+     * SIX pieces, because the reference's own scrollbar is six: a trough tiled
+     * down the groove, a dragger built from two end caps and a tiled middle so
+     * it can be any length, and the two arrows. That is
+     * `~scrollbar_vertical_repaint` (clientscript 838) and the chatbox's call
+     * to it, and a layout that supplied fewer would be inventing a bar rather
+     * than reproducing one.
+     *
+     * All six or none: passing -1 anywhere puts every bar back to the client's
+     * own painted one, which is what a layout that has no scrollbar art should
+     * do rather than leave a bar with a hole in it. The declaration is rebuilt
+     * from nothing each EV_LAYOUT, so a layout that stops calling this stops
+     * skinning them.
+     *
+     * @return 1 when the skin was taken, 0 when a handle was not resident yet
+     * -- the layout pass runs again at the next resize or rebuild.
+     */
+    int (*layout_scrollbar)(
+        struct ToriRS_PluginCtx* ctx,
+        int trough,
+        int dragger_top,
+        int dragger_mid,
+        int dragger_bottom,
+        int arrow_up,
+        int arrow_down);
 
     /**
      * Which sidebar tab is showing, or -1 when this frame has no tabs.
@@ -2167,8 +2365,22 @@ struct ToriRS_PluginApi
      *
      * `name` is a bare filename; the host appends ".png" when it has no
      * extension. Returns 1 when the capture was queued.
+     *
+     * `out_path` is where the file will be, resolved -- the two readings above
+     * collapsed into one string, ".png" completion included. A plugin cannot
+     * work this out for itself: the saved-asset folder is the engine's, and on
+     * the browser lane there is no path to guess. It is filled BEFORE the
+     * picture is taken, which is the only time a caller can be told anything
+     * at all about a deferred write, and it is what lets a plugin say where a
+     * screenshot went instead of only that one happened. Empty and 0 returned
+     * when the destination could not be resolved.
      */
-    int (*screenshot)(struct ToriRS_PluginCtx* ctx, char const* dir, char const* name);
+    int (*screenshot)(
+        struct ToriRS_PluginCtx* ctx,
+        char const* dir,
+        char const* name,
+        char* out_path,
+        int out_path_size);
 
     /**
      * Local wall-clock time as "YYYY-MM-DD_HH-MM-SS", into `out`.

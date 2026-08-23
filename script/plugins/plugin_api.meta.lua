@@ -157,7 +157,7 @@ dofile = nil
 ---@field asset_data fun(name: string): string? The resident bytes, or nil while pending / after a failure. Binary-safe: Lua strings count their bytes and may contain NULs.
 ---@field asset_save fun(name: string, data: string): boolean Replace `name` and queue the write. The resident copy is updated before returning, so asset_data() answers with the new bytes at once.
 ---@field asset_release fun(name: string) Drop the resident copy. The file is untouched.
----@field screenshot fun(name: string, dir?: string): boolean Capture the client's frame as a PNG. DEFERRED: taken at the top of the next frame, because every caller runs before the interface it wants has been laid out. `name` is a bare filename of [A-Za-z0-9._-]; ".png" is appended when it carries no extension. `dir` is a destination the USER named -- the one place the asset sandbox does not apply, since a screenshot is write-only and the path comes from a config field; `..` is still refused. ABSOLUTE (leading '/') is used as given; RELATIVE or absent lands under the plugin's own saved-asset folder, so subdirectories work on the browser lane too.
+---@field screenshot fun(name: string, dir?: string): boolean, string? Capture the client's frame as a PNG. Answers `ok, path` -- the path being where the file lands, resolved by the engine, which a script cannot work out from what it passed in; nil when the capture was refused. DEFERRED: taken at the top of the next frame, because every caller runs before the interface it wants has been laid out. `name` is a bare filename of [A-Za-z0-9._-]; ".png" is appended when it carries no extension. `dir` is a destination the USER named -- the one place the asset sandbox does not apply, since a screenshot is write-only and the path comes from a config field; `..` is still refused. ABSOLUTE (leading '/') is used as given; RELATIVE or absent lands under the plugin's own saved-asset folder, so subdirectories work on the browser lane too.
 ---@field datestamp fun(): string? Local wall-clock as "YYYY-MM-DD_HH-MM-SS". The only clock a script has with any relation to a calendar -- the sandbox does not link `os`, and frame_ms is monotonic. Filename-safe by construction, and the format RuneLite names screenshots with.
 ---@field model_load fun(name: string): integer? A model FILE this plugin ships, out of its own asset folder, decoded by the host. nil when the name is refused or the resident model table is full. The bytes travel with the plugin and the decoder reads the format off the file's own trailer, so one file draws the same under every cache -- unlike a cache model id, which means something different in every revision. Asynchronous: an object pointed at it is simply not in the scene until the read lands.
 ---@field mesh_create fun(): integer? A mesh this plugin authors itself, triangle by triangle. nil when the plugin is at its mesh budget. Geometry a plugin builds is the same shape on every cache revision, which a model id is not.
@@ -179,6 +179,7 @@ dofile = nil
 ---@field rgb fun(hsl: integer): integer The inverse, through the palette the rasteriser uses.
 ---@field hsl_pack fun(hue: integer, saturation: integer, luminance: integer): integer Hue 0-63, saturation 0-7, luminance 0-127.
 ---@field hsl_unpack fun(hsl: integer): integer, integer, integer
+---@field layout torirs.Layout The gameframe's regions: where the scene, the chat, the sidebar and the modal area are, and how to take a bite out of the space beside them.
 
 --- The names key_held() understands. Any other key is passed as its
 --- enum LibToriRS_KeyCode integer.
@@ -199,6 +200,62 @@ dofile = nil
 ---@alias torirs.HullShape
 ---| '"bounds"'
 ---| '"mesh"'
+
+
+------------------------------------------------------------------- layout --
+
+--- One region's box, in canvas pixels.
+---@class torirs.Rect
+---@field x integer
+---@field y integer
+---@field w integer
+---@field h integer
+
+--- Which side of a region a reservation eats.
+---@alias torirs.Edge
+---| '"left"'
+---| '"right"'
+---| '"top"'
+---| '"bottom"'
+
+--- The verbs every region carries. Which of them MEAN anything depends on the
+--- region, and the host says no rather than the surface hiding them: `reserve`
+--- works on `safe` and nothing else, because a placeable region is whatever
+--- the frame says it is; `replace` is legal only for the plugin that owns the
+--- frame, and only inside its layout handler.
+---@class torirs.LayoutRegion
+---@field rect fun(): torirs.Rect? Where it is now, or nil when this gameframe has no such region. Answered live, so a region another plugin moved reads correctly on the very next call -- there is nothing to invalidate.
+---@field reserve fun(edge: torirs.Edge, px: integer): boolean Take `px` off one side, for as long as this plugin runs. Many plugins may reserve and they STACK in the order they asked, so two docks on the same edge sit beside each other rather than on top of each other. `px` of 0 gives this plugin's back.
+---@field release fun() Give back every edge this plugin took from this region. Happens automatically when the plugin stops.
+---@field replace fun(rect: torirs.Rect): boolean State where the frame puts this region. The EXCLUSIVE verb: only the frame's owner may call it, and only from its layout handler.
+
+--- The whole gameframe, as a region with the same three verbs.
+---@class torirs.LayoutTopLevel
+---@field rect fun(): torirs.Rect? The canvas.
+---@field replace fun(opts?: {w: integer, h: integer}): boolean Own the frame: this plugin now draws the chrome and states where every region goes. With `w`/`h` the canvas is PINNED to that size and the window letterboxes it (what a 765x503 frame wants); without, the canvas follows the window and the layout is re-declared on every resize.
+---@field release fun() Hand the frame back; the lane's own chrome returns on the next layout pass.
+
+--- The gameframe's regions, addressed by what they ARE rather than by a
+--- component id -- an id is a fact about one revision, and a role survives the
+--- move from a 2004 frame to a modern one.
+---
+--- Reading is free and always current, so a plugin that only looks while
+--- drawing needs no bookkeeping. One that CACHES something measured against a
+--- region -- a composed image, a laid-out panel -- watches `revision` or
+--- subscribes to on_layout_changed.
+---@class torirs.Layout
+---@field viewport torirs.LayoutRegion The 3D scene. On a fixed frame this is the play area; on a resizable one it is the whole window with the chrome floating over it.
+---@field minimap torirs.LayoutRegion The map square itself, not the stone ring around it.
+---@field compass torirs.LayoutRegion
+---@field chat torirs.LayoutRegion The chat log and its input line.
+---@field chat_buttons torirs.LayoutRegion The four filter buttons.
+---@field sidebar torirs.LayoutRegion Whichever sidebar interface is open.
+---@field main_modal torirs.LayoutRegion Where a bank, a level-up or a dialogue opens.
+---@field modal_viewport torirs.LayoutRegion The same region as `main_modal`, under the other name people know it by.
+---@field canvas torirs.LayoutRegion The whole client window. Never fails, which makes it the bottom of every fallback chain.
+---@field safe torirs.LayoutRegion The largest part of the canvas no chrome is sitting on -- the scene, minus the minimap, the chatbox, the sidebar, and every reservation. DERIVED, so it stays right when a plugin nobody anticipated docks a panel down one side. This is the region a readout wants.
+---@field top_level torirs.LayoutTopLevel
+---@field revision fun(): integer Moves whenever anything about the layout does. Compare it against the value a cached picture was built at.
 
 --- Handed to on_draw_world as its second argument, and legal only there --
 --- every call checks the open surface and raises otherwise. `fill` is 0..255
@@ -342,6 +399,7 @@ dofile = nil
 ---@field on_menu_build? fun(api: torirs.Api, ev: torirs.EvMenuBuild): torirs.Verdict
 ---@field on_menu_select? fun(api: torirs.Api, ev: torirs.EvMenuSelect): torirs.Verdict
 ---@field on_draw_world? fun(api: torirs.Api, draw: torirs.Draw): torirs.Verdict
+---@field on_layout_changed? fun(api: torirs.Api, ev: torirs.EvTick): torirs.Verdict A region moved -- a resize, a gameframe rebuild, or another plugin reserving space. `ev.cycle` is the new api.layout.revision(). Only for plugins that CACHE something measured against a region; one that reads a region while drawing already sees the new box.
 ---@field on_config_changed? fun(api: torirs.Api, ev: torirs.EvConfig): torirs.Verdict
 ---@field on_obj_spawn? fun(api: torirs.Api, obj: torirs.ObjSnap): torirs.Verdict
 ---@field on_obj_count? fun(api: torirs.Api, obj: torirs.ObjSnap): torirs.Verdict A stack's count changed in place; `obj` carries the new one.

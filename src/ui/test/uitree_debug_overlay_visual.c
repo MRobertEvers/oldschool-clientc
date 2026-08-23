@@ -873,6 +873,79 @@ visual_textinput(void)
 }
 
 /*
+ * A caption too long for the label column takes a line of its own.
+ *
+ * The bug this settles could only be seen in pixels. The column is 104 wide
+ * and a settings panel is 320, so a caption that did not fit was drawn from
+ * the row's left edge anyway -- and the field box, painted after it, went
+ * straight over its second half. The name did not read as truncated with a
+ * control beside it; it read as a name with a hole in it.
+ *
+ * Three things the geometry alone cannot say: the long row is two lines tall,
+ * its caption band carries NO field chrome (which is the overdraw, stated as
+ * pixels), and a short caption is untouched -- still one line, still with its
+ * box in the label column.
+ */
+static void
+visual_stacked_caption(void)
+{
+    struct ToriRSChromeTheme const* t = &g_ui.theme;
+    struct ToriRSChromeWidget const* longw;
+    struct ToriRSChromeWidget const* shortw;
+    char const* const OPTS[] = { "Revision default (per frame)", "Per cycle", "Per frame" };
+    int panel;
+    int w_long;
+    int w_short;
+
+    printf("VISUAL: caption too long for the column\n");
+    ToriRSChrome_Init(&g_ui);
+    panel =
+        ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 20, 20, 320, "Feature Flags");
+    w_short = ToriRSChrome_Dropdown(&g_ui, panel, "Movement", OPTS, 3, 0);
+    w_long = ToriRSChrome_Dropdown(
+        &g_ui, panel, "NPC lighting uses the type's ambient", OPTS, 3, 2);
+    ToriRSChrome_Build(&g_ui);
+    render("29_stacked_caption");
+
+    shortw = &g_ui.widgets[w_short];
+    longw = &g_ui.widgets[w_long];
+
+    VT_ASSERT(
+        longw->h == 2 * shortw->h, "a caption that does not fit makes the row two lines tall");
+    VT_ASSERT(shortw->h == TORIRS_CHROME_M_ROW_H, "one that fits leaves its row alone");
+
+    /*
+     * The caption band holds text and nothing else. `dropdown_border` is the
+     * field frame's outer colour, so finding any of it up here would BE the
+     * overdraw -- the box climbing into the caption's line.
+     */
+    VT_ASSERT(
+        count_eq(longw->x, longw->y, longw->w, TORIRS_CHROME_M_ROW_H, t->dropdown_border) == 0,
+        "no field chrome is drawn in the caption's own line");
+    VT_ASSERT(
+        count_eq(longw->x, longw->y, longw->w, TORIRS_CHROME_M_ROW_H, t->text_dim) > 0,
+        "and the caption is");
+    VT_ASSERT(
+        count_eq(
+            longw->x,
+            longw->y + TORIRS_CHROME_M_ROW_H,
+            longw->w,
+            TORIRS_CHROME_M_ROW_H,
+            t->dropdown_border) > 0,
+        "the box is on the line below it");
+
+    /* The stacked box spans the row rather than starting at the label column,
+     * which is the width the long option names needed in the first place. */
+    VT_ASSERT(
+        count_eq(longw->x, longw->y + TORIRS_CHROME_M_ROW_H, 2, TORIRS_CHROME_M_ROW_H,
+                 t->dropdown_border) > 0,
+        "and it starts at the row's left edge, not in the label column");
+    VT_ASSERT(
+        count_eq(shortw->x, shortw->y, 2, shortw->h, t->dropdown_border) == 0,
+        "while a fitting row still keeps its label column clear");
+}
+
+/*
  * The multiline field, as the ground-items settings page uses two of them.
  *
  * Three things only pixels can settle: the body is the reference's flat
@@ -2623,6 +2696,7 @@ main(void)
     visual_checkbox_style_box();
     visual_textinput();
     visual_textarea();
+    visual_stacked_caption();
     visual_damage();
     visual_clipping();
     visual_kitchen_sink();

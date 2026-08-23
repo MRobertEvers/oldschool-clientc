@@ -2,6 +2,7 @@
 #define SRC_RENDER_TORIRS_FRAME_H
 
 #include "render/torirs_render.h"
+#include "ui/uitree_scroll.h"
 
 #include <stdbool.h>
 
@@ -51,6 +52,17 @@ struct ToriRS_Frame
     int dbg_drop_no_model;
     /** Sub-step within UITREE_EMIT_SCROLLBAR_V/H expansion (0 = not mid-bar). */
     int scrollbar_step;
+    /**
+     * Scene ids of a sprite-drawn vertical scrollbar, or all zero for the
+     * client's own filled-rect one. @see UITreeScrollbarSkinPiece.
+     *
+     * On the FRAME and not on each desc, because it is one fact about the
+     * client and not a property of a particular bar: every scrollbar on screen
+     * belongs to the same frame and wears the same art. A copy per desc would
+     * be twenty-four bytes on every draw descriptor to say the same six
+     * numbers over and over.
+     */
+    int scrollbar_skin[UITREE_SCROLLBAR_SKIN_COUNT];
     bool in_world;
     bool world_begun;
     bool has_queued;
@@ -78,6 +90,18 @@ void
 ToriRS_FrameSetScene(
     struct ToriRS_Frame* frame,
     struct ToriDraw_Scene* scene);
+
+/**
+ * Dress every vertical scrollbar in art, or (NULL) put them back in paint.
+ *
+ * `pieces` is UITREE_SCROLLBAR_SKIN_COUNT scene ids in UITreeScrollbarSkinPiece
+ * order; a zero anywhere in it is refused as a whole, because a bar missing
+ * one of its six is worse than one drawn the old way.
+ */
+void
+ToriRS_FrameSetScrollbarSkin(
+    struct ToriRS_Frame* frame,
+    int const* pieces);
 
 void
 ToriRS_FrameSetCanvas(

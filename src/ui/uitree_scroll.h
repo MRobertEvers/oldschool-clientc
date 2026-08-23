@@ -19,6 +19,44 @@
 #define UITREE_SCROLLBAR_GRIP_HI_ARGB 0xFF766654
 #define UITREE_SCROLLBAR_GRIP_LO_ARGB 0xFF332D25
 
+/**
+ * The six pieces a SPRITE-drawn vertical scrollbar is made of, in the order
+ * the reference's own repainter hands them over.
+ *
+ * OldSchool draws a scrollbar out of art; the 2004 client draws one out of
+ * filled rectangles in three hardcoded colours, which is what this tree has
+ * always done. Both are kept, because both are right on the frame they belong
+ * to -- and which one is drawn is decided by whether a skin was declared, not
+ * by a mode flag somebody has to remember to set.
+ *
+ * The order is `~scrollbar_vertical_repaint`'s (clientscript 838), read off
+ * the chatbox's own call in `toplevel_chatbox_background`:
+ *
+ *     ~scrollbar_vertical_repaint(interface_162:559, 792, 789, 790, 791, 773, 788, ...)
+ *
+ * whose six graphics land on that component's subs 0,2,1,3,4,5 -- trough,
+ * dragger top, dragger middle, dragger bottom, up arrow, down arrow.
+ */
+enum UITreeScrollbarSkinPiece
+{
+    /** Tiled down the track: the groove the dragger runs in. */
+    UITREE_SCROLLBAR_SKIN_TROUGH = 0,
+    UITREE_SCROLLBAR_SKIN_DRAGGER_TOP,
+    /** Tiled: the dragger is three pieces so it can be any length. */
+    UITREE_SCROLLBAR_SKIN_DRAGGER_MID,
+    UITREE_SCROLLBAR_SKIN_DRAGGER_BOTTOM,
+    UITREE_SCROLLBAR_SKIN_ARROW_UP,
+    UITREE_SCROLLBAR_SKIN_ARROW_DOWN,
+
+    UITREE_SCROLLBAR_SKIN_COUNT
+};
+
+/** The dragger's end caps, at the height OldSchool cut them: 16x5 each. */
+#define UITREE_SCROLLBAR_SKIN_CAP_H 5
+/** Shortest dragger the three-piece build can make: two caps and a row of
+ *  middle. Below it the caps would overlap and read as one smear. */
+#define UITREE_SCROLLBAR_SKIN_DRAGGER_MIN (2 * UITREE_SCROLLBAR_SKIN_CAP_H + 1)
+
 /* Phased draw steps per scrollbar axis (see Client.ts drawScrollbar / v1). */
 #define UITREE_SCROLLBAR_V_DRAW_STEPS 9
 #define UITREE_SCROLLBAR_H_DRAW_STEPS 9

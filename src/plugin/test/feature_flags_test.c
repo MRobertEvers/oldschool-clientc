@@ -42,34 +42,45 @@ struct FakeFlag
 {
     char const* key;
     char const* label;
+    char const* section;
     int kind;
     int min;
     int max;
     char const* choices;
-    int values[2];
+    int values[4];
     int value_count;
     /** What this "boot" resolved, i.e. what the UNSET sentinel restores. */
     int boot;
     int value;
 };
 
+/*
+ * One flag of each shape: a NUMBER whose named values are suggestions, an
+ * ENUM whose values are 0..n, and an ENUM whose values are not (0x10/0x20 is
+ * the case that catches a panel writing a choice INDEX where a bit belongs).
+ * Two sections between them, because the headings are part of what the page
+ * has to get right.
+ */
 static struct FakeFlag g_flags[] = {
     { "draw_distance",
-     "Draw distance",   TORIRS_PLUGIN_FEATURE_INT,
-     25, 90,
-     NULL,                           { 0, 0 },
-     0, 25,
+     "Draw distance", "Scene",
+     TORIRS_PLUGIN_FEATURE_INT,  25,
+     90, "25 tiles|40 tiles|60 tiles|90 tiles",
+     { 25, 40, 60, 90 },
+     4, 25,
      25   },
     { "camera_zoom",
-     "Camera zoom",     TORIRS_PLUGIN_FEATURE_ENUM,
-     0,  0,
-     "Adjustable|Fixed",             { 0, 1 },
+     "Zoom",          "Camera",
+     TORIRS_PLUGIN_FEATURE_ENUM, 0,
+     0,  "Adjustable|Fixed",
+     { 0, 1 },
      2, 0,
      0    },
     { "target_mask_held",
-     "Held target bit", TORIRS_PLUGIN_FEATURE_ENUM,
-     0,  0,
-     "0x10 (2004)|0x20 (OldSchool)", { 0x10, 0x20 },
+     "Held bit",      "",
+     TORIRS_PLUGIN_FEATURE_ENUM, 0,
+     0,  "0x10 (2004)|0x20 (OldSchool)",
+     { 0x10, 0x20 },
      2, 0x10,
      0x10 },
 };
@@ -110,6 +121,7 @@ fake_feature_next(
     memset(o, 0, sizeof(*o));
     snprintf(o->key, sizeof(o->key), "%s", f->key);
     snprintf(o->label, sizeof(o->label), "%s", f->label);
+    snprintf(o->section, sizeof(o->section), "%s", f->section);
     o->kind = f->kind;
     o->min = f->min;
     o->max = f->max;
@@ -151,6 +163,7 @@ fake_feature_set(
     }
     if( f->kind == TORIRS_PLUGIN_FEATURE_ENUM )
     {
+        /* As the engine does: an enum is its list, an INT is its range. */
         int legal = 0;
         for( int i = 0; i < f->value_count; i++ )
             legal |= f->values[i] == v;
@@ -465,23 +478,49 @@ fake_minimap_rect(
     (void)h;
     return 0;
 }
+/* Regions, by role. `w` of 0 means "this gameframe has no such region", which
+ * is how the fallback chain in slot_rect's contract gets exercised. */
+static int g_slot_x[TORIRS_PLUGIN_SLOT_COUNT];
+static int g_slot_y[TORIRS_PLUGIN_SLOT_COUNT];
+static int g_slot_w[TORIRS_PLUGIN_SLOT_COUNT];
+static int g_slot_h[TORIRS_PLUGIN_SLOT_COUNT];
+
 static int
-fake_anchor_rect(
-    void* u,
-    int a,
-    int* x,
-    int* y,
-    int* w,
-    int* h)
+fake_slot_rect(void* u, int slot, int* x, int* y, int* w, int* h)
 {
     (void)u;
-    (void)a;
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_COUNT )
+        return 0;
+    if( g_slot_w[slot] <= 0 || g_slot_h[slot] <= 0 )
+        return 0;
+    if( x )
+        *x = g_slot_x[slot];
+    if( y )
+        *y = g_slot_y[slot];
+    if( w )
+        *w = g_slot_w[slot];
+    if( h )
+        *h = g_slot_h[slot];
+    return 1;
+}
+
+/* No frame under test declares MEMBERS of a role, so the honest answer is
+ * "this gameframe has no such member" -- @see
+ * ToriRS_PluginApi::slot_member_rect, where that is an answer and not a
+ * fault. */
+static int
+fake_slot_member_rect(void* u, int slot, int member, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    (void)slot;
+    (void)member;
     (void)x;
     (void)y;
     (void)w;
     (void)h;
     return 0;
 }
+
 static int
 fake_stat(
     void* u,
@@ -569,12 +608,14 @@ fake_screenshot(
     void* u,
     char const* p,
     char const* d,
-    char const* n)
+    char const* n,
+    char* out_path,
+    int out_path_size)
 {
     (void)u;
     (void)p;
     (void)d;
-    (void)n;
+    snprintf(out_path, (size_t)out_path_size, "%s", n);
     return 1;
 }
 static int
@@ -815,7 +856,7 @@ fake_hsl_to_rgb(
     return 0;
 }
 
-/* ------------------------------------------------------------------ tests */
+/* -- everything the plugin does not use, answered flatly -- */
 
 static int
 fake_display_setting(
@@ -856,6 +897,17 @@ fake_layout_set(
     (void)c;
     (void)w;
     (void)h;
+}
+static int
+fake_layout_scrollbar(
+    void* u,
+    int const* images,
+    int count)
+{
+    (void)u;
+    (void)images;
+    (void)count;
+    return 0;
 }
 static void
 fake_layout_begin(void* u)
@@ -1061,14 +1113,16 @@ fake_engine(void)
     e.draw_select_canvas = fake_draw_select_canvas;
     e.mouse_pos = fake_mouse_pos;
     e.minimap_rect = fake_minimap_rect;
-    e.anchor_rect = fake_anchor_rect;
     e.layout_set = fake_layout_set;
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
     e.layout_slot = fake_layout_slot;
     e.layout_slot_skin = fake_layout_slot_skin;
+    e.layout_scrollbar = fake_layout_scrollbar;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
+    e.slot_rect = fake_slot_rect;
+    e.slot_member_rect = fake_slot_member_rect;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;
     e.skill_name = fake_skill_name;
@@ -1140,6 +1194,43 @@ widget_named(
     return NULL;
 }
 
+/** Index of a control's choice whose text is `text`, or -1. */
+static int
+choice_index(
+    struct ToriRS_PluginWinWidget const* w,
+    char const* text)
+{
+    char const* at = w->choices;
+    int i = 0;
+
+    for( ;; i++ )
+    {
+        char const* end = strchr(at, '|');
+        size_t const len = end ? (size_t)(end - at) : strlen(at);
+        if( strlen(text) == len && strncmp(at, text, len) == 0 )
+            return i;
+        if( !end )
+            return -1;
+        at = end + 1;
+    }
+}
+
+/** Do the same thing the panel does when a dropdown row is used. */
+static void
+pick(
+    struct ToriRS_PluginHost* host,
+    int p,
+    char const* id,
+    char const* text)
+{
+    struct ToriRS_PluginWinWidget const* w = widget_named(host, p, id);
+    int const index = w ? choice_index(w, text) : -1;
+
+    CHECK(index >= 0, text);
+    if( index >= 0 )
+        PluginHost_WinDispatch(host, p, id, TORIRS_PLUGIN_UI_PICK, index, text);
+}
+
 int
 main(void)
 {
@@ -1163,67 +1254,108 @@ main(void)
         "a start with no saved overrides leaves every flag at its boot value");
 
     PluginHost_WinBuild(host, p);
-    CHECK(
-        PluginHost_WinWidgetCount(host, p) == FLAG_COUNT,
-        "the page carries one control per published flag");
 
+    /*
+     * NOT ONE TEXT FIELD.
+     *
+     * The row this page is built out of is a list of named values, and that is
+     * the point rather than a detail: a number typed into a box is a value
+     * nobody has checked, in a caption that did not fit beside it. A control
+     * of any other kind here is the regression.
+     */
+    for( int i = 0; i < PluginHost_WinWidgetCount(host, p); i++ )
     {
-        struct ToriRS_PluginWinWidget const* w = widget_named(host, p, "camera_zoom");
-        CHECK(w != NULL, "an enum flag gets a control named for its key");
-        CHECK(w && w->kind == TORIRS_PLUGIN_W_DROPDOWN, "and it is a dropdown");
-        CHECK(
-            w && strcmp(w->choices, "Revision default|Adjustable|Fixed") == 0,
-            "whose first choice is the default the engine never states");
-        CHECK(w && w->selected == 0, "and which opens on it when nothing is stored");
+        struct ToriRS_PluginWinWidget const* w = PluginHost_WinWidgetAt(host, p, i);
+        CHECK(w && w->kind != TORIRS_PLUGIN_W_INPUT, "no row on the page is a text field");
     }
+
+    /* Two sections, so two headings and the one rule between them, plus a row
+     * per flag. */
+    CHECK(
+        PluginHost_WinWidgetCount(host, p) == FLAG_COUNT + 3,
+        "the page carries a row per flag, a heading per section and a rule between");
+    {
+        struct ToriRS_PluginWinWidget const* w = PluginHost_WinWidgetAt(host, p, 0);
+        CHECK(
+            w && w->kind == TORIRS_PLUGIN_W_LABEL && strcmp(w->label, "Scene") == 0,
+            "the first section's heading comes before its rows");
+        CHECK(
+            widget_named(host, p, "head_2") != NULL && widget_named(host, p, "rule_2") != NULL,
+            "and the second section gets a heading with a rule above it");
+    }
+
     {
         struct ToriRS_PluginWinWidget const* w = widget_named(host, p, "draw_distance");
-        CHECK(w && w->kind == TORIRS_PLUGIN_W_INPUT, "an int flag gets a field");
-        CHECK(w && strstr(w->label, "25..90") != NULL, "labelled with the range it takes");
+        CHECK(w && w->kind == TORIRS_PLUGIN_W_DROPDOWN, "a number flag is a dropdown");
+        CHECK(w && strcmp(w->label, "Draw distance") == 0, "captioned short enough to fit");
+        /*
+         * The default entry NAMES the value in force. A page of untouched rows
+         * that all say "Revision default" tells a reader nothing about what
+         * the client is actually doing, which is the one question they opened
+         * it to answer.
+         */
         CHECK(
-            w && strcmp(w->text, "Revision default") == 0,
-            "and showing the default in words rather than as a bare -1");
+            w && strncmp(w->choices, "Revision default (25 tiles)|", 28) == 0,
+            "and its default entry carries the value in force");
+        CHECK(w && w->selected == 0, "opening on it when nothing is stored");
+    }
+    {
+        struct ToriRS_PluginWinWidget const* w = widget_named(host, p, "camera_zoom");
+        CHECK(
+            w && strcmp(w->choices, "Revision default (Adjustable)|Adjustable|Fixed") == 0,
+            "an enum's default entry names its value the same way");
     }
 
-    /* A pick reaches the engine and is stored as the WORDS, so the ini reads
-     * as what was chosen and survives the choice list growing an entry. */
-    PluginHost_WinDispatch(host, p, "camera_zoom", TORIRS_PLUGIN_UI_PICK, 2, "Fixed");
+    /* A pick reaches the engine. An ENUM stores the choice TEXT, so a settings
+     * file survives the list gaining an entry. */
+    pick(host, p, "camera_zoom", "Fixed");
     CHECK(g_flags[1].value == 1, "picking a choice applies it");
     CHECK(
         strcmp(PluginHost_ConfigGet(host, p, "camera_zoom"), "Fixed") == 0,
-        "and stores the choice text, not its index");
-
-    /* The values are the flag's own, not the choice index -- 0x20 is 32. */
-    PluginHost_WinDispatch(
-        host, p, "target_mask_held", TORIRS_PLUGIN_UI_PICK, 2, "0x20 (OldSchool)");
-    CHECK(g_flags[2].value == 0x20, "an enum whose values are not 0..n still applies");
-
-    PluginHost_WinDispatch(host, p, "draw_distance", TORIRS_PLUGIN_UI_TEXT, -1, "60");
-    CHECK(g_flags[0].value == 60, "a typed number in range applies");
-
-    /* Out of range: refused, said out loud, and PUT BACK -- a field left
-     * holding a number the engine did not take is the failure mode. */
-    PluginHost_WinDispatch(host, p, "draw_distance", TORIRS_PLUGIN_UI_TEXT, -1, "4000");
-    CHECK(g_flags[0].value == 25, "a typed number out of range falls back to the default");
-    CHECK(
-        strcmp(PluginHost_ConfigGet(host, p, "draw_distance"), "Revision default") == 0,
-        "and the store says so rather than keeping the refused value");
+        "and an enum stores the choice text, not its index");
     {
-        struct ToriRS_PluginWinWidget const* w = widget_named(host, p, "draw_distance");
-        CHECK(w && strcmp(w->text, "Revision default") == 0, "as does the field");
+        struct ToriRS_PluginWinWidget const* w = widget_named(host, p, "camera_zoom");
+        CHECK(w && w->selected == 2, "the row comes back showing what was chosen");
+        CHECK(
+            w && strcmp(w->choices, "Revision default|Adjustable|Fixed") == 0,
+            "and the default entry drops the value it no longer names");
     }
 
-    /* Revision default is a RESTORE, not merely a stop: the flag goes back to
-     * what the boot resolved, without this plugin having to know the number. */
-    PluginHost_WinDispatch(host, p, "camera_zoom", TORIRS_PLUGIN_UI_PICK, 0, "Revision default");
-    CHECK(g_flags[1].value == 0, "picking the default puts the flag back");
+    /* The values are the flag's own, not the choice index -- 0x20 is 32. */
+    pick(host, p, "target_mask_held", "0x20 (OldSchool)");
+    CHECK(g_flags[2].value == 0x20, "an enum whose values are not 0..n still applies");
+
+    /* A NUMBER stores the number, because its named values are suggestions
+     * rather than its legal set. */
+    pick(host, p, "draw_distance", "60 tiles");
+    CHECK(g_flags[0].value == 60, "picking a named number applies it");
+    CHECK(
+        strcmp(PluginHost_ConfigGet(host, p, "draw_distance"), "60") == 0,
+        "and a number stores the number, not the words around it");
+
+    /*
+     * Revision default is a RESTORE, not merely a stop: the flag goes back to
+     * what the boot resolved, without this plugin having to know the number.
+     *
+     * The entry reads plainly here rather than "(60 tiles)": a row that is
+     * OVERRIDING its default does not also name the default, because naming
+     * both would be two answers to "what is this set to" on one line.
+     */
+    {
+        struct ToriRS_PluginWinWidget const* w = widget_named(host, p, "draw_distance");
+        CHECK(
+            w && strncmp(w->choices, "Revision default|", 17) == 0,
+            "an overridden row's default entry names nothing");
+    }
+    pick(host, p, "draw_distance", "Revision default");
+    CHECK(g_flags[0].value == 25, "picking the default puts the flag back");
 
     /* A saved ini is re-applied at the next start, both halves: the key that
      * carries a choice, and the key that carries the default. */
     {
         struct ToriRS_PluginEngine e2 = fake_engine();
         struct ToriRS_PluginHost* host2 = PluginHost_New(&e2);
-        (void)PluginHost_Register(host2, &TORIRS_PLUGIN_FEATURE_FLAGS);
+        int const p2 = PluginHost_Register(host2, &TORIRS_PLUGIN_FEATURE_FLAGS);
 
         flags_reset();
         PluginHost_ConfigApply(host2, "feature-flags", "camera_zoom", "Fixed");
@@ -1235,6 +1367,33 @@ main(void)
         CHECK(g_flags[0].value == 80, "and so is a saved number");
         CHECK(g_flags[2].value == 0x10, "a saved default leaves the flag where it was");
         PluginHost_Free(host2);
+        (void)p2;
+    }
+
+    /*
+     * A hand-edited number the list does not name is KEPT and shown.
+     *
+     * Opening a settings page must not quietly rewrite a file somebody edited
+     * on purpose, and a dropdown with no entry for the value in force would
+     * read as "Revision default" over a client that is not at its default. So
+     * the value gets an entry of its own, after the ones the engine named.
+     */
+    {
+        struct ToriRS_PluginEngine e3 = fake_engine();
+        struct ToriRS_PluginHost* host3 = PluginHost_New(&e3);
+        int const p3 = PluginHost_Register(host3, &TORIRS_PLUGIN_FEATURE_FLAGS);
+        struct ToriRS_PluginWinWidget const* w;
+
+        flags_reset();
+        PluginHost_ConfigApply(host3, "feature-flags", "draw_distance", "63");
+        PluginHost_Start(host3);
+        CHECK(g_flags[0].value == 63, "an ini value the list does not name still applies");
+
+        PluginHost_WinBuild(host3, p3);
+        w = widget_named(host3, p3, "draw_distance");
+        CHECK(w && choice_index(w, "63") == 5, "and is appended after the named ones");
+        CHECK(w && w->selected == 5, "with the row showing it");
+        PluginHost_Free(host3);
     }
 
     PluginHost_Free(host);

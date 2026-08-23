@@ -28,6 +28,7 @@
 #include "platform/platform_x_io.h"
 #include "plugin/torirs_plugin_host.h"
 #include "ui/uitree_frame.h"
+#include "ui/uitree_scroll.h"
 #include "revconfig/revconfig_profile.h"
 #include "revconfig/revconfig_refs.h"
 #include "task_runner.h"
@@ -888,6 +889,11 @@ struct App
      * a reader asking between two modals wants the same rectangle.
      */
     int modal_host_uid;
+
+    /** Role -> node, resolved once per tree generation. @see
+     *  app_plugin_slot_node_cached. */
+    int32_t plugin_slot_node[TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT];
+    uint32_t plugin_slot_node_gen;
     /* Minimap widget: cached emit desc (on-screen box + the rotation/anchor
      * the blit drew with) for click-to-walk, and the destination flag tile
      * (scene coords, -1 = none; reference minimapFlagX/Z). */
@@ -993,7 +999,19 @@ struct App
     int plugin_layout_canvas;
     int plugin_layout_fixed_w;
     int plugin_layout_fixed_h;
-    struct UITreeFrameSlotRect plugin_layout_slots[TORIRS_PLUGIN_SLOT_COUNT];
+    /* The PLACEABLE half only: CANVAS and SAFE are derived and are never
+     * placed, so a row for each would be two that nothing ever writes. */
+    struct UITreeFrameSlotRect plugin_layout_slots[TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT];
+    /**
+     * Scene ids of the scrollbar art the standing declaration asked for, or
+     * all zero for the client's own painted bar.
+     *
+     * Beside the slots and emptied with them, because it is part of the same
+     * declaration: a layout states its whole frame each EV_LAYOUT, and a
+     * scrollbar skin that survived a declaration which stopped asking for one
+     * would be the one piece of the old frame still on screen.
+     */
+    int plugin_layout_scrollbar[UITREE_SCROLLBAR_SKIN_COUNT];
     /** Canvas the last declaration was made against, so the app can tell a
      *  resize (which needs a fresh declaration) from a frame that merely
      *  rendered again. */
@@ -1533,6 +1551,12 @@ struct App
         char plugin[TORIRS_PLUGIN_NAME_MAX];
         char dir[TORIRS_PLUGIN_SCREENSHOT_DIR_MAX];
         char name[TORIRS_PLUGIN_ASSET_NAME_MAX + 8];
+        /** The file this will be written to, resolved when the request was
+         *  made rather than when the picture is taken. The plugin is handed it
+         *  on the spot -- a deferred write has no other moment to tell anyone
+         *  where it went -- so it is worked out once, here, and the writer
+         *  uses the same string rather than resolving a second time. */
+        char path[TORIRS_IOITEM_MAX_PATH];
     } plugin_screenshots[APP_PLUGIN_SCREENSHOTS_MAX];
     /** Where plugin settings are written; NULL turns persistence off. */
     char const* plugin_prefs_path;
