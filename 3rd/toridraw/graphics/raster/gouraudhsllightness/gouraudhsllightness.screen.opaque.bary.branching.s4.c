@@ -51,7 +51,8 @@ draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
         color_hsl16_ish8, toridraw_wrap_mul(x_start, color_step_hsl16_ish8));
 
     int stride = (x_end - x_start);
-    TORIDRAW_SPAN_CENSUS_RECORD(stride, offset, 1);
+    TORIDRAW_SPAN_CENSUS_RECORD(
+        stride, offset, 1, color_hsl16_ish8, color_step_hsl16_ish8);
 
     TORIDRAW_ABLATE_RETURN_AT(1);
 
@@ -114,7 +115,8 @@ draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered_noclip
         color_hsl16_ish8, toridraw_wrap_mul(x_start, color_step_hsl16_ish8));
 
     int stride = (x_end - x_start);
-    TORIDRAW_SPAN_CENSUS_RECORD(stride, offset, 0);
+    TORIDRAW_SPAN_CENSUS_RECORD(
+        stride, offset, 0, color_hsl16_ish8, color_step_hsl16_ish8);
 
     TORIDRAW_ABLATE_RETURN_AT(1);
 

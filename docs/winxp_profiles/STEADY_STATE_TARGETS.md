@@ -105,21 +105,13 @@ the win.)
 GDI/present or timer path, not the rasterizer) and replace with 32-bit or
 shift math wherever it is.
 
-## Tier 1 — the single biggest target: UI layout (~12.6%)
+## Tier 1 — UI layout — **no longer a target**
 
-`UITree_LayoutSetRootSize` is the #1 steady-state symbol. The counters say
-why: `uitree_layout_nodes` = 36,160/frame, `uitree_layout_node_skip` =
-36,115/frame — **the layout pass visits 36 k nodes every frame to skip
-99.87% of them.** The skip test is cheap but the walk itself (pointer-chase
-over the whole tree, per frame) is not. 4.66 of its 5.12 s sit under
-`app_dispatch_clientscript` (post-clientscript relayout).
-
-Fix direction: make dirtiness prune the *walk*, not just the node work —
-propagate a `subtree_dirty` bit upward on mutation and stop descent at clean
-subtrees; a clientscript that touched one widget should relayout one branch.
-Expected: most of ~12%, i.e. the largest single win available. Medium effort,
-needs care around anchoring/percent-size dependencies (a parent resize dirties
-children).
+This was the #1 item at 36,160 layout nodes/frame and ~12.6% of steady CPU.
+Another lane's panel work landed in between and fixed it: the counters now
+read `uitree_layout_nodes` = 7,629/frame and `UITree_LayoutSetRootSize` is
+0.50 s / 1.2% of steady CPU. Nothing to do here. Kept as an entry only so the
+next person does not re-derive it from the stale table above.
 
 ## Tier 2 — attribute first, then fix
 
@@ -180,9 +172,33 @@ compare-mode test, not assert-free trust.
 
 ## Tier 4 — smaller, real, in order
 
-* **`app_plugin_highlight_next` 3.6%** — the nxt-highlight Lua plugin scans
-  every frame; gate it to frames where a highlight target exists (fix the
-  plugin's loop, not a script-id list).
+* **`app_plugin_highlight_next` (5.0% on the current binary) — gated, worth
+  1.8%; the rest needs a different fix.** `app_plugin_highlights_rebuild`
+  walked the npc, player, scenery and obj_stack pools at the start of every
+  walk, testing each entity against that kind's subject list. A pool whose
+  subject list is empty makes the whole walk dead work, so each pool is now
+  gated on having something to look for (`app_plugin_highlight_pools_wanted`).
+  Not cacheable on `hl->revision`: the resolved list carries draw positions,
+  which move every frame without anything being said.
+
+  Measured 38.97 → 38.27 ms/frame (2 clean reps each; one baseline rep was
+  discarded for a 3.6 s boot, i.e. a failed boot, against 13.4 s otherwise).
+  That is **1.8%, not the 5% the profile suggested**, and the census run says
+  why: the cache marks 3 locs and 4 loctypes at boot, so `want_loc` is true
+  and the **scenery pool — ~23k entities — is still walked every frame** to
+  resolve nothing. The other three pools are now skipped.
+
+  The remaining fix is algorithmic, not another gate: the walk is
+  O(entities × members) with the member list on the inside. Index the marked
+  keys instead — a 256-byte direct-mapped filter on `loc_id & 255` rejects
+  almost every entity with one L1 load, and only a hit pays the full compare.
+  Same shape for npc (`npc_id`/`base_npc_id`) and obj.
+
+  Equivalence is machine-checked, not argued: under `TORIRS_HIGHLIGHT_DEBUG`
+  the rebuild runs a second time with every pool armed and prints
+  `highlight-gate: MISMATCH` if the two resolve to different counts. A gate
+  that wrongly skipped a pool would otherwise look exactly like a highlight
+  the script never asked for. 400 frames, no mismatch.
 * **`painter_cullmap_refresh_camera_key` 1.9%** — refresh only when the
   camera crosses into a new key/cell instead of per frame.
 * **CS2 VM init/release ~1.3 ms/frame** (`cs2_vm_init_ns` 691 µs +

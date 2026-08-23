@@ -77,7 +77,19 @@ RENDERER_FLAGS = {
 # the pacing wait, `render` is the renderer, `build` is the frame the renderer
 # was handed — a soft3d regression that is really a scene-build regression
 # shows up as the wrong one of those two moving.
-REPORT_STAGES = ("frame", "render", "build", "present", "paint")
+REPORT_STAGES = (
+    "frame",
+    "render",
+    "build",
+    "present",
+    "paint",
+    # The three phases of a model draw, nested inside `r_model`. They are
+    # here because `r_model` alone cannot say whether a raster change helped:
+    # projection and the face sort move with the scene, not with the kernel.
+    "r_project",
+    "r_sort",
+    "r_raster",
+)
 
 # Per-frame counters that say what the renderer was asked to draw. A faster
 # number with a smaller count is not a faster renderer, and these are what

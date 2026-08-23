@@ -939,8 +939,11 @@ soft3d_draw_model(
                  cmd->model.u.model.model->vertex_count >= trace_min;
 
     position = cmd->position;
-    cull = ToriDraw_RenderModel1Project(
-        cmd->model, soft->scene, &position, &soft->view_port_3d, &soft->camera_3d);
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_PROJECT)
+    {
+        cull = ToriDraw_RenderModel1Project(
+            cmd->model, soft->scene, &position, &soft->view_port_3d, &soft->camera_3d);
+    }
     if( trace_this && cull != g_draw_trace_last_cull )
     {
         struct ToriDraw_Model const* m = cmd->model.u.model.model;
@@ -987,7 +990,11 @@ soft3d_draw_model(
     if( cmd->pick_only )
         return;
     {
-        int const sorted = ToriDraw_RenderModel2SortFaces(cmd->model, soft->scene);
+        int sorted = 0;
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_SORT)
+        {
+            sorted = ToriDraw_RenderModel2SortFaces(cmd->model, soft->scene);
+        }
         /* Only the transitions matter: went-to-zero is the invisible-but-
          * clickable state, came-back is the recovery. A drifting face count on
          * a model that keeps drawing is noise. */
@@ -1014,8 +1021,11 @@ soft3d_draw_model(
             return;
         }
     }
-    ToriDraw_RenderModel3Raster(
-        soft->scene, &soft->view_port_3d, &soft->camera_3d, soft->pixels, false);
+    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_R_RASTER)
+    {
+        ToriDraw_RenderModel3Raster(
+            soft->scene, &soft->view_port_3d, &soft->camera_3d, soft->pixels, false);
+    }
 }
 
 void

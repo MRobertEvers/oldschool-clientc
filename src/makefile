@@ -297,7 +297,20 @@ TORIDRAW_O_LEVEL = -O2
 else
 TORIDRAW_O_LEVEL = $(O_LEVEL)
 endif
+# Raster probes, off unless asked for. The rasterizer's measurement gates are
+# compile-time (graphics/raster/span_census.h, graphics/raster/raster_ablate.h)
+# because a runtime branch in the innermost span loop taxes the very thing it
+# is there to measure. `?=` so this can be set from the environment and reach a
+# build driven by ./launch, which does not forward make arguments:
+#
+#   rm -f src/build_win64_opt/toridraw_unity.o     # not dep-tracked for -D
+#   TORIDRAW_PROBE_CFLAGS=-DTORIDRAW_SPAN_TRACE=1 ./launch bench osrs239-bench ...
+#
+# Removing the unity object by hand is not optional: the .u.c files it pulls in
+# are not dependency-tracked, and an added -D forces no rebuild on its own.
+TORIDRAW_PROBE_CFLAGS ?=
 TORIDRAW_CFLAGS = -std=c11 $(TORIDRAW_O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -MMD -MP \
+	$(TORIDRAW_PROBE_CFLAGS) \
 	-I$(TORIDRAW_DIR) \
 	-I$(BMP_DIR)
 
@@ -2294,6 +2307,18 @@ test-scanline: $(OBJ_DIR)
 # component box differs from the image, and in a measured client frame all of
 # them were 1:1 -- so the shortcut is the common path, not the rare one, and it
 # has to be exact. Standalone TU, no cache or disk.
+# Gouraud span-fill kernels: bit-exactness against the reference twin first,
+# then ns/pixel over a replayed trace of real spans. The scene bench's `render`
+# p50 repeats to +/-1-3% and the whole span fill is a few percent of it, so a
+# kernel change is smaller than that harness's own spread and has to be scored
+# here instead. TRACE=<file> replays a capture made with -DTORIDRAW_SPAN_TRACE=1;
+# without one it falls back to a synthetic distribution and says so.
+test-span-bench: $(OBJ_DIR)
+	$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \
+		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/span_bench \
+		$(TORIDRAW_DIR)/toridraw_span_bench.c -lm
+	./$(OBJ_DIR)/span_bench $(TRACE)
+
 test-blit-scaled: $(OBJ_DIR)
 	$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \
 		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/blit_scaled_test \

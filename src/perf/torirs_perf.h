@@ -159,6 +159,23 @@ enum TorirsPerfStage
     TORIRS_PERF_STAGE_R_FONT,
     TORIRS_PERF_STAGE_R_RECT,
     TORIRS_PERF_STAGE_R_OTHER,
+
+    /* The three phases of soft3d_draw_model, nested inside `r_model`.
+     *
+     * `r_model` is 82.8% of `render` on the XP lane, and subtracting the two
+     * span fills off it leaves 57% of the whole frame unaccounted for. That
+     * remainder was a residual -- render minus what the ablation switches could
+     * turn off -- not a measurement, and a residual is not something to
+     * optimise against. These name the three calls the phase pipeline already
+     * makes, so the remainder splits into per-vertex projection, the face
+     * bucket sort, and the raster walk that is left once the fills are ablated.
+     *
+     * Six extra clock reads per drawn model when perf is ON. Divide by
+     * `r_model_drawn`, and read them against each other rather than as
+     * absolute nanoseconds -- same caveat as the six stages above. */
+    TORIRS_PERF_STAGE_R_PROJECT,
+    TORIRS_PERF_STAGE_R_SORT,
+    TORIRS_PERF_STAGE_R_RASTER,
     TORIRS_PERF_STAGE_COUNT
 };
 
