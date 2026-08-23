@@ -174,6 +174,22 @@ struct UITreeEmitBuffer
     struct UITreeEmitDesc* cmds;
     int count;
     int cap;
+    /** Set by `UITree_EmitWalk` when any desc in `cmds` carries a host-owned
+     *  pointer whose lifetime is this frame only — minimap dots, entity
+     *  overlays, worldmap tiles, debug prims.
+     *
+     *  Such a desc can compare byte-identical to last frame's while the buffer
+     *  behind the pointer holds entirely different contents, so a list that is
+     *  "unchanged" by memcmp is NOT evidence that the pixels are unchanged.
+     *  Emit retention must not skip a frame whose previous list had any. This is
+     *  computed by testing the pointers, not by listing the kinds that set them,
+     *  so a kind added later cannot quietly opt itself out of the check. */
+    int volatile_refs;
+    /** Set when at least one volatile desc cannot be re-issued from the desc
+     *  alone, so the whole list must be rebuilt by the walk instead of
+     *  refreshed. Today that is WORLDMAP only: its desc does not record which of
+     *  the two host requests (tiles vs overview) produced it. */
+    int volatile_unrefreshable;
 };
 
 void
@@ -193,5 +209,24 @@ UITree_EmitWalk(
     struct UITreeHost const* host,
     struct UITreeEmitBuffer* out,
     int hovered_component_id);
+
+/**
+ * Re-issue the host requests behind the same-frame pointers in an already-built
+ * list, leaving every other desc untouched.
+ *
+ * The point of the emit retention gate is to skip the tree walk on a frame where
+ * nothing the walk reads has moved. On such a frame most descs are genuinely
+ * reusable, but a handful hold host-owned pointers whose *contents* change every
+ * frame regardless of the tree — health bars, hitsplats, minimap dots. Those are
+ * the reason a byte-identical list is not a byte-identical picture. Refreshing
+ * just them costs a few host calls against a walk that visits every node.
+ *
+ * Requires `volatile_unrefreshable == 0`.
+ */
+void
+UITree_EmitRefreshVolatile(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* out);
 
 #endif

@@ -269,8 +269,8 @@ one lane only.
 - **Status:** Contract
 - **Applies to:** Win32 and Win64 build lanes
 - **Behavior:** The canonical i686 and x86_64 MinGW toolchains are Git LFS
-  archives under `lib/`. The wrappers extract them on demand into ignored
-  `toolchain/mingw32` and `toolchain/mingw64` directories, require the exact
+  archives under `lib/`. The wrappers extract them on demand into the shared
+  `toolchains/mingw32` and `toolchains/mingw64` directories, require the exact
   target triple, and reject a Git LFS pointer in place of archive contents.
   Git for Windows still supplies `sh.exe` for the POSIX make recipes.
 - **Reason:** A developer's ambient `gcc` can silently change the PE

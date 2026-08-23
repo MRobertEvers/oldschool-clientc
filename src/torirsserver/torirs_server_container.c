@@ -17,8 +17,8 @@
 /* Per-slot vars                                                       */
 /* ------------------------------------------------------------------ */
 
-static void
-item_clear_vars(struct ToriRSServerItem* item)
+void
+ToriRSServer_ItemClearVars(struct ToriRSServerItem* item)
 {
     int i;
 
@@ -247,7 +247,7 @@ ToriRSServer_ContainerResolve(
     {
         row->items[i].obj_id = -1;
         row->items[i].count = 0;
-        item_clear_vars(&row->items[i]);
+        ToriRSServer_ItemClearVars(&row->items[i]);
     }
     return row;
 }
@@ -489,12 +489,12 @@ ToriRSServer_ContainerSet(
     {
         item->obj_id = -1;
         item->count = 0;
-        item_clear_vars(item);
+        ToriRSServer_ItemClearVars(item);
     }
     else
     {
         if( item->obj_id != obj_id )
-            item_clear_vars(item);
+            ToriRSServer_ItemClearVars(item);
         item->obj_id = obj_id;
         item->count = count;
     }

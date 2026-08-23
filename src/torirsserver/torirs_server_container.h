@@ -193,6 +193,20 @@ ToriRSServer_ContainerStacksObj(
     const struct ToriRSServerContainer* container,
     int obj_id);
 
+/**
+ * Put a slot's var table back to "no keys set".
+ *
+ * Every container that hands `ToriRSServer_ContainerAdopt` its own storage has to
+ * call this over that storage first. An unset key is -1, not 0 — 0 is a real
+ * obj id, so a var table left at its calloc default reads to
+ * `ToriRSServer_ItemSetVar` as four entries already taken by obj 0, and the next
+ * `inv_setvar` on the slot finds nowhere to write and trips its assert.
+ * `ToriRSServer_ContainerCreate` does this for the storage it owns; an adopting
+ * caller is on its own by design, because its storage may already be loaded.
+ */
+void
+ToriRSServer_ItemClearVars(struct ToriRSServerItem* item);
+
 /** `inv_getvar` — 0 when the slot is empty or the key is unset. */
 int
 ToriRSServer_ItemGetVar(

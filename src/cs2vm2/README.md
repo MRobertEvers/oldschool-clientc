@@ -37,7 +37,7 @@ CS2VM2 splits shared host state from per-execution thread state:
 
 ```mermaid
 flowchart LR
-  CS2VM2["CS2VM2\nhost_exec, user\nthreads[4]"]
+  CS2VM2["CS2VM2\nhost_exec, user\nthreads[1]"]
   T0["CS2VM2_Thread\nstacks, frames, arrays"]
   Host["HostExec_Fn"]
   CS2VM2 --> T0
@@ -51,8 +51,16 @@ flowchart LR
 |-------|---------|
 | `host_exec` | Single callback for all world/UI ops |
 | `user` | Opaque host userdata (`CS2VM_USER(thread)` reads this) |
-| `threads[4]` | Fixed pool of execution contexts |
+| `threads[1]` | The execution context. One per block — see below |
 | `thread_count` | Set to `CS2VM2_MAX_THREADS` by `CS2VM2_Init` |
+
+`CS2VM2_MAX_THREADS` is 1, and concurrency is one script per *block* rather
+than per slot: `CS2VM2_ThreadMain` and `CS2VM2_Run` both hand out `threads[0]`,
+and a script that nests — awaits a load while another starts — acquires its own
+VM from the free list in `cs2vm2.c`. This was 4, which cost every script 4x the
+per-thread setup and teardown (`CS2VM2_Init` and `CS2VM2_Free` walk
+`thread_count`, and the pool parks torn-down blocks) over three slots no code
+could address. See the comment on the constant before raising it.
 
 ### `CS2VM2_Thread` (execution context)
 

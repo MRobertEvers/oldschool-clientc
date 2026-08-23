@@ -41,8 +41,57 @@ struct CS2VM2_Frame
 {
     struct CS2VM2_Script* script;
     int pc;
-    int int_locals[CS2VM_MAX_LOCALS];
-    char* str_locals[CS2VM_MAX_LOCALS];
+    /*
+     * Locals, grown to what a script actually touches instead of reserved at
+     * CS2VM_MAX_LOCALS. `_cap` is the allocated length, `_dirty` how far the
+     * current occupant has written; NULL with both zero is the state of a frame
+     * that has never run anything, and is what a fresh block starts in.
+     *
+     * Two invariants carry the whole scheme:
+     *
+     *   1. slots in [dirty, cap) are zero;
+     *   2. slots at or above cap are *logically* zero — nothing is stored there,
+     *      and every read of one answers 0 / NULL.
+     *
+     * Together they make "above dirty" the single test a read needs, so an
+     * unwritten local never touches the buffer at all, and they mean a push has
+     * to clear only [0, dirty) to hand the next occupant the all-zero locals it
+     * is entitled to.
+     *
+     * The reservation this replaces was CS2VM_MAX_LOCALS ints plus
+     * CS2VM_MAX_LOCALS pointers inline in the struct — 12,288 of a 12,352-byte
+     * frame, up to 1.51 MB if the stack ever went its full 128 deep, against
+     * scripts that declare a handful of locals each. The frame is 96 bytes now,
+     * and a 2000-frame embedded-server run grows 4,032 bytes of locals in total
+     * across every block it ever allocates.
+     *
+     * The footprint was the smaller half. The arrays were also *cleared* in full
+     * on every push, and that is per-script work, not per-block: the same run
+     * pushes 138,215 frames and was zeroing 1.71 GB to do it, against 3.16 MB
+     * now — a mean of 22.9 bytes actually written per push. Nearly all of it was
+     * rewriting zeros over zeros. Measured on that workload, interleaved against
+     * a build with these buffers forced back to full size, it is 3.0% of the cs2
+     * stage p50 (338.3 vs 348.7 us, lower in all five pairs).
+     *
+     * `dirty` tracks actual writes rather than the script's declared
+     * `local_int_count`, and that is the safety of it: the opcodes that write a
+     * local bound their index against CS2VM_MAX_LOCALS, not against the declared
+     * count, so a script writing past what it declared would leave dirt above a
+     * declared-count mark and the next occupant would read the previous
+     * script's values instead of zero. Every write raises the mark and grows the
+     * buffer, so no write can escape the next clear.
+     *
+     * Buffers stay with the block across a release/acquire round trip — that is
+     * what keeps this from turning one memset into two allocations per push.
+     * A warm pool reallocs only when a frame reaches deeper than any script that
+     * has occupied it before.
+     */
+    int* int_locals;
+    char** str_locals;
+    int int_locals_cap;
+    int str_locals_cap;
+    int int_locals_dirty;
+    int str_locals_dirty;
 
     int return_pc;
     int return_frame;
@@ -293,7 +342,33 @@ struct CS2VM2_YieldCheckpoint
     int undo_log_len; /* undo_log length at op entry; on yield, roll back to here */
 };
 
-#define CS2VM2_MAX_THREADS 4
+/*
+ * One. Concurrency in this VM is one script per *block*, not one per thread
+ * slot.
+ *
+ * This was 4, and the other three were dead capacity that every script paid
+ * for twice. Nothing in the tree ever addressed `threads[1]` and up:
+ * `CS2VM2_ThreadMain` and `CS2VM2_Run` both hand out `threads[0]`, and when a
+ * script nests — awaits a load while another starts — the second one acquires
+ * its own VM from the pool in cs2vm2.c, which is exactly why that pool is a
+ * free list rather than a singleton. So the slots were never a scheduling
+ * resource; they were three copies of a 128-array table and a string pool that
+ * no code could reach.
+ *
+ * They were not free, because `CS2VM2_Init` and `CS2VM2_Free` both walk
+ * `thread_count` and the pool parks torn-down blocks rather than warm VMs: every
+ * script ran 4x the per-thread setup and teardown, three quarters of it over
+ * state untouched since the identical pass before it. Measured on the rev-239
+ * gameframe, the acquire/release round trip was 1,879 ns per script and 32.9% of
+ * the whole CS2 stage.
+ *
+ * Raising it again means restoring that cost, so a real multi-thread model has
+ * to make Init/Free track which slots were touched rather than walking all of
+ * them. Within one thread that tracking has since been done — Free walks
+ * `array_alloc` and a pooled block skips the array clear entirely — but it is
+ * per-thread work, so it does not make the thread count free again.
+ */
+#define CS2VM2_MAX_THREADS 1
 struct CS2VM2_Thread
 {
     struct CS2VM2* vm;
@@ -486,11 +561,12 @@ CS2VM2_Free(struct CS2VM2* vm);
  * allocator traffic in a boot — a gigabyte of it, interleaved with the small
  * long-lived allocations that fragment a wasm heap.
  *
- * Acquire returns an Init'd VM; Release runs the same CS2VM2_Free teardown and
- * parks the block. Recycling a block is exactly as safe as a fresh malloc:
+ * Acquire returns an Init'd VM; Release runs the CS2VM2_Free teardown and parks
+ * the block. Recycling a block is exactly as safe as a fresh malloc:
  * cs2vm2_thread_init is written against uninitialised memory (see its comment).
- * Drain releases the parked blocks and the pooled call frames — call it at
- * shutdown or when trimming. */
+ * A block that comes back out of the pool skips that wide clear, because Free
+ * left the array table clean — see cs2vm2_init_warm. Drain releases the parked
+ * blocks and the pooled call frames — call it at shutdown or when trimming. */
 struct CS2VM2*
 CS2VM2_Acquire(void);
 

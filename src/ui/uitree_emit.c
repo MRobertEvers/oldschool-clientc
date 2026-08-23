@@ -193,16 +193,17 @@ UITree_EmitFill(
     assert(component);
     assert(out);
 
-    memset(out, 0, sizeof(*out));
-
-    /* TS Client draw: components swap to their "active" (getIfActive) or "over"
-     * (hovered) colour / text / sprite variant. Active is host-evaluated; hover
-     * matches this component's own id. */
-    bool const hovered =
-        hovered_component_id >= 0 && component->component_id == hovered_component_id;
-
-    bool const active = host ? UITree_ComponentIsActiveHost(host, component) : false;
-
+    /* The two guards below reject ~118 of the visits that reach this function in
+     * a quiet frame — measured as the drop in host round trips, not off
+     * `uitree_emit_skip`, which seven different sites share — and neither of
+     * them reads `out`. Clearing a 520-byte descriptor above them therefore
+     * zeroed ~61 KB per frame that was discarded on the next line; together with
+     * the host call this is worth -1.4% of the emit stage. The clear sits after
+     * them instead, and
+     * `active` (a host round trip) is computed only once a node is going to
+     * draw. Everything from here to the switch writes `out`, so the clear still
+     * precedes the first field written and the untouched tail is still zero —
+     * which the frame-to-frame byte compare in app.c depends on. */
     if( host )
     {
         if( !UITree_ComponentShouldEmit(component, host) )
@@ -218,6 +219,15 @@ UITree_EmitFill(
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
         return false;
     }
+
+    memset(out, 0, sizeof(*out));
+
+    /* TS Client draw: components swap to their "active" (getIfActive) or "over"
+     * (hovered) colour / text / sprite variant. Active is host-evaluated; hover
+     * matches this component's own id. */
+    bool const hovered =
+        hovered_component_id >= 0 && component->component_id == hovered_component_id;
+    bool const active = host ? UITree_ComponentIsActiveHost(host, component) : false;
 
     int x = 0, y = 0, w = 0, h = 0;
     UITree_LayoutGetBounds(&component->position, &x, &y, &w, &h);
@@ -2037,6 +2047,15 @@ emit_walk_node(
         return;
     }
 
+    /* After the own-hide reject, not before: a self-hidden node contributes
+     * nothing to the list, so marks on it are worth filtering, and that is
+     * where two thirds of this client's per-frame UI damage lands (closed
+     * interfaces still ticking their 3D models). Safe only because every write
+     * to a `hide` bit bumps dirty_gen unconditionally rather than through the
+     * filtered MarkNodeDirty path — see UITree_SetHide. */
+    if( (uint32_t)idx < tree->emit_visited_cap )
+        tree->emit_visited[idx] = 1;
+
     /* Inactive sidebar tabs prune their whole mounted subtree (same gate as
      * UITree_ComponentVisibleHost; ShouldEmit only skips the container's own
      * draw, not its children). */
@@ -2798,6 +2817,24 @@ UITree_EmitWalk(
      */
     UITree_FrameReassert((struct UITree*)tree);
     UITree_EnsureLayout(tree);
+    /* Reachability scratch for the retention signal — see UITree::emit_visited.
+     * Grown to the current node count and cleared here so that what it holds
+     * during the frame after this walk is exactly "entered by this walk". */
+    {
+        struct UITree* mut = (struct UITree*)tree;
+        if( mut->emit_visited_cap < tree->component_count )
+        {
+            uint32_t cap = tree->component_capacity > tree->component_count
+                               ? tree->component_capacity
+                               : tree->component_count;
+            uint8_t* grown = realloc(mut->emit_visited, cap);
+            assert(grown);
+            mut->emit_visited = grown;
+            mut->emit_visited_cap = cap;
+        }
+        if( mut->emit_visited_cap > 0 )
+            memset(mut->emit_visited, 0, mut->emit_visited_cap);
+    }
     {
         int free_len = 0;
         for( int32_t i = tree->free_head; i >= 0; i = tree->components[i].free_next )
@@ -2835,4 +2872,69 @@ UITree_EmitWalk(
     emit_plugin_canvas_pass(tree, host, out);
     /* Last, so developer chrome is over everything including drag ghosts. */
     emit_debug_overlay_pass(tree, host, out);
+
+    /* One pass over the finished list to answer "may this list be retained?".
+     * See UITreeEmitBuffer.volatile_refs — the test is on the pointers, so it
+     * stays correct as kinds are added. A few hundred predictable loads against
+     * a walk that visits millions of nodes; it does not register in the stage. */
+    out->volatile_refs = 0;
+    out->volatile_unrefreshable = 0;
+    for( int i = 0; i < out->count; i++ )
+    {
+        struct UITreeEmitDesc const* d = &out->cmds[i];
+        if( !d->minimap_dots && !d->entity_overlays && !d->worldmap_tiles && !d->debug_prims )
+            continue;
+        out->volatile_refs++;
+        /* A WORLDMAP desc does not record which of the two host requests filled
+         * it (tiles vs overview), so it cannot be re-issued from the desc alone.
+         * Refusing to refresh is the safe direction: the caller falls back to the
+         * full walk, which is the path that was always correct. */
+        if( d->worldmap_tiles )
+            out->volatile_unrefreshable = 1;
+    }
+}
+
+void
+UITree_EmitRefreshVolatile(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* out)
+{
+    assert(tree);
+    assert(out);
+    assert(!out->volatile_unrefreshable);
+
+    (void)tree;
+    for( int i = 0; i < out->count; i++ )
+    {
+        struct UITreeEmitDesc* d = &out->cmds[i];
+
+        if( d->entity_overlays )
+        {
+            struct UITreeHostRequest req = {
+                .kind = UITREE_HOST_GET_ENTITY_OVERLAYS,
+                .u.get_entity_overlays.out_items = &d->entity_overlays,
+                .u.get_entity_overlays.out_clip_x = &d->clip.x,
+                .u.get_entity_overlays.out_clip_y = &d->clip.y,
+                .u.get_entity_overlays.out_clip_w = &d->clip.w,
+                .u.get_entity_overlays.out_clip_h = &d->clip.h,
+            };
+            d->entity_overlay_count = UITree_Host(host, &req);
+        }
+        if( d->minimap_dots )
+        {
+            struct UITreeHostRequest req = {
+                .kind = UITREE_HOST_GET_MINIMAP_DOTS,
+                .u.get_minimap_dots.out_dots = &d->minimap_dots,
+            };
+            d->minimap_dot_count = UITree_Host(host, &req);
+        }
+        if( d->debug_prims )
+        {
+            struct UITreeHostRequest req;
+            req.kind = UITREE_HOST_GET_DEBUG_OVERLAY;
+            req.u.get_debug_overlay.out_prims = &d->debug_prims;
+            d->debug_prim_count = UITree_Host(host, &req);
+        }
+    }
 }

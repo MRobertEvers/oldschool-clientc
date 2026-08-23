@@ -1145,6 +1145,9 @@ uitree_builder_hide_unmounted_spillover(
         if( !tree->components[root].behavior.hide )
             tree->components[root].behavior.hide_unmounted = 1;
         tree->components[root].behavior.hide = 1;
+        /* A hide is a change in what the walk emits just as much as an unhide;
+         * the retention gate (Opt 11) reads dirty_gen and nothing here marks. */
+        tree->dirty_gen++;
     }
 }
 

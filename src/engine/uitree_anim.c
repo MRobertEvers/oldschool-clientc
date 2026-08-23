@@ -81,6 +81,7 @@ UITreeAnim_Advance(
     int applied = 0;
     int model_n;
     int mi;
+    uint64_t begin_marks = g_torirs_dirty_mark_seq;
 
     assert(tree && scene);
     model_n = tree->models.count;
@@ -191,5 +192,7 @@ UITreeAnim_Advance(
             applied = 1;
         }
     }
+    TORIRS_PERF_COUNT(
+        TORIRS_PERF_CTR_ANIM_MARKS, (int64_t)(g_torirs_dirty_mark_seq - begin_marks));
     return applied;
 }

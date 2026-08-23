@@ -191,9 +191,25 @@ else ifeq ($(PLATFORM),win32)
   #                               post-XP import fails at compile time here
   #                               rather than as "procedure entry point not
   #                               found" on the target.
-  #   -march=i686                 Keep the executable usable on pre-SSE2 XP
-  #     -mfpmath=387              machines. The i686 MinGW lane and x87 are the
-  #                               conservative 32-bit compatibility baseline.
+  #   -march=pentium4             SSE2 is assumed present on every XP target.
+  #     -mfpmath=sse              Pentium 4 is the canonical 32-bit SSE2
+  #                               baseline; -mfpmath=sse then keeps float work
+  #                               out of x87 entirely.
+  #
+  #                               This is load-bearing for speed, not just
+  #                               codegen taste. The textured span in
+  #                               3rd/toridraw/.../span/tex.span.u.c selects
+  #                               NEON/AVX2/SSE4.1/SSE2/scalar with #if at
+  #                               compile time, and -march=i686 meant this lane
+  #                               took the scalar fallback -- on a lane where
+  #                               the textured span is 79% of raster cycles and
+  #                               ~50% of the frame. See the R1 target in
+  #                               docs/CS2_OPTIMIZATION_TARGETS.md.
+  #
+  #                               -mfpmath=sse also drops x87's 80-bit
+  #                               intermediates, so float results can differ in
+  #                               the last bit from the old lane. That is a
+  #                               deliberate accepted change, not a regression.
   #   -include win32_compat.h     setenv/unsetenv, which MinGW does not ship
   #                               and the embedded rev-230 server calls. It is
   #                               in BASE_CFLAGS, not CFLAGS, so it reaches the
@@ -206,7 +222,7 @@ else ifeq ($(PLATFORM),win32)
   PLATFORM_BASE_CFLAGS := -DTORIRS_HAVE_D3D9=1 -DD3D_DISABLE_9EX=1 \
                           -DTORIRS_NO_D3D8=1 -DTORIRS_NO_D3D11=1 \
                           -D_WIN32_WINNT=0x0501 -DWINVER=0x0501 \
-                          -march=i686 -mtune=generic -mfpmath=387 \
+                          -march=pentium4 -mtune=generic -mfpmath=sse \
                           -include $(SRC_DIR)/platform/win32_compat.h
   # No TORIRS_HAVE_GL3: this lane selects the fixed-function D3D9 path instead.
   PLATFORM_CFLAGS  := $(PLATFORM_BASE_CFLAGS)
@@ -228,7 +244,7 @@ else ifeq ($(PLATFORM),win32)
   # stages the .exe and nothing else. Linking static makes the one file the
   # whole deliverable, which is what this lane is for.
   PLATFORM_LDFLAGS := -lm -static -static-libgcc -Wl,--subsystem,console:5.01 \
-                      -ld3d9 -lgdi32 -luser32 -lws2_32 -lwinmm -lkernel32
+                      -ld3d9 -lgdi32 -luser32 -lws2_32 -lwinmm -lpsapi -lkernel32
   # See the linux note above: --gc-sections would be a no-op here too.
   PLATFORM_STRIP_LDFLAGS :=
   PLATFORM_MEMTRACE_WRAP_LDFLAGS := \
@@ -281,7 +297,7 @@ else ifeq ($(PLATFORM),win64)
   # loader reject the image with STATUS_INVALID_IMAGE_FORMAT before main.
   # _WIN32_WINNT/WINVER above remain the actual Windows 10 API floor.
   PLATFORM_LDFLAGS := -lm -static -static-libgcc -Wl,--subsystem,console:6.0 \
-                       -ld3d9 -lgdi32 -luser32 -lws2_32 -lwinmm -lkernel32
+                       -ld3d9 -lgdi32 -luser32 -lws2_32 -lwinmm -lpsapi -lkernel32
   PLATFORM_STRIP_LDFLAGS :=
   PLATFORM_MEMTRACE_WRAP_LDFLAGS := \
       -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc -Wl,--wrap=free \

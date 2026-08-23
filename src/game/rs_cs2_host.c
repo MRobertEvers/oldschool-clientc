@@ -7435,7 +7435,23 @@ RS_CS2Host_Exec(
     assert(host && "CS2VM_USER(thread) must be RS_CS2Host*");
 
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_HOST_OPS, 1);
-    result = rs_cs2_host_exec_dispatch(vm, request);
+    /* Depth-guarded because a handler may re-enter the VM and reach this
+     * function again (CC_CALLONOP and the trigger dispatchers do), and a stage
+     * that begins twice before it ends bills the inner span to the outer one.
+     * Only the outermost dispatch is timed, so the stage total stays the
+     * wall-clock time `cs2` spends inside host work rather than a sum that can
+     * exceed its own parent. Not thread-local on purpose: the VM is pumped from
+     * one thread and this is measurement scaffolding, not tree state. */
+    {
+        static int depth = 0;
+        int timed = (depth++ == 0);
+        if( timed )
+            TORIRS_PERF_STAGE_BEGIN(TORIRS_PERF_STAGE_CS2_HOST_OP);
+        result = rs_cs2_host_exec_dispatch(vm, request);
+        if( timed )
+            TORIRS_PERF_STAGE_END(TORIRS_PERF_STAGE_CS2_HOST_OP);
+        depth--;
+    }
     /* The await record only spans the yield -> load -> retry window: a request
      * that completes retires it, so a resource evicted later can be awaited
      * again. */
@@ -8543,8 +8559,18 @@ rs_cs2_host_exec_dispatch(
         node = rs_cs2_node(host, request->u.cc_set_fill.component_id);
         if( node && node->type == UIELEM_RS_RECT )
         {
-            node->u.rs_rect.filled = request->u.cc_set_fill.filled ? 1 : 0;
-            UITree_MarkNodeDirty(tree, rs_cs2_find_node(host, request->u.cc_set_fill.component_id));
+            /* Compare before marking. Scripts re-assert the same value every
+             * frame far more often than they change it, and an unconditional
+             * mark costs a repaint the client does not need plus a dirty_gen
+             * bump that defeats the emit retention gate (Opt 11). This is the
+             * pattern UITree_SetHide and set_node_text already use. */
+            uint8_t const filled = request->u.cc_set_fill.filled ? 1 : 0;
+            if( node->u.rs_rect.filled != filled )
+            {
+                node->u.rs_rect.filled = filled;
+                UITree_MarkNodeDirty(
+                    tree, rs_cs2_find_node(host, request->u.cc_set_fill.component_id));
+            }
         }
         /* An arc reads the same flag as "whole disc" vs "band along the arc"
          * (reference DrawCircularArc's inner radius); 5480's ring and wedge set
@@ -8558,7 +8584,7 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_CC_SETTRANS:
         node = rs_cs2_node(host, request->u.cc_set_trans.component_id);
-        if( node )
+        if( node && node->trans != request->u.cc_set_trans.trans )
         {
             node->trans = request->u.cc_set_trans.trans;
             UITree_MarkNodeDirty(
@@ -8570,9 +8596,13 @@ rs_cs2_host_exec_dispatch(
         node = rs_cs2_node(host, request->u.cc_set_no_click_through.component_id);
         if( node )
         {
-            node->no_click_through = request->u.cc_set_no_click_through.enabled ? 1 : 0;
-            UITree_MarkNodeDirty(
-                tree, rs_cs2_find_node(host, request->u.cc_set_no_click_through.component_id));
+            uint8_t const enabled = request->u.cc_set_no_click_through.enabled ? 1 : 0;
+            if( node->no_click_through != enabled )
+            {
+                node->no_click_through = enabled;
+                UITree_MarkNodeDirty(
+                    tree, rs_cs2_find_node(host, request->u.cc_set_no_click_through.component_id));
+            }
         }
         return CS2VM_EXECNO_OK;
 
@@ -8624,11 +8654,15 @@ rs_cs2_host_exec_dispatch(
                         area_uid = tree->components[child].component_id;
                 }
             }
-            node->draggable = 1;
-            node->drag_render_area_uid = area_uid;
-            node->drag_render_area_child_index = -1;
-            UITree_MarkNodeDirty(
-                tree, rs_cs2_find_node(host, request->u.cc_set_draggable.component_id));
+            if( !node->draggable || node->drag_render_area_uid != area_uid ||
+                node->drag_render_area_child_index != -1 )
+            {
+                node->draggable = 1;
+                node->drag_render_area_uid = area_uid;
+                node->drag_render_area_child_index = -1;
+                UITree_MarkNodeDirty(
+                    tree, rs_cs2_find_node(host, request->u.cc_set_draggable.component_id));
+            }
         }
         return CS2VM_EXECNO_OK;
 
@@ -8637,9 +8671,13 @@ rs_cs2_host_exec_dispatch(
         node = rs_cs2_node(host, request->u.cc_set_draggable_behavior.component_id);
         if( node )
         {
-            node->drag_behavior = request->u.cc_set_draggable_behavior.behavior;
-            UITree_MarkNodeDirty(
-                tree, rs_cs2_find_node(host, request->u.cc_set_draggable_behavior.component_id));
+            if( node->drag_behavior != request->u.cc_set_draggable_behavior.behavior )
+            {
+                node->drag_behavior = request->u.cc_set_draggable_behavior.behavior;
+                UITree_MarkNodeDirty(
+                    tree,
+                    rs_cs2_find_node(host, request->u.cc_set_draggable_behavior.component_id));
+            }
         }
         return CS2VM_EXECNO_OK;
 
@@ -8647,9 +8685,12 @@ rs_cs2_host_exec_dispatch(
         node = rs_cs2_node(host, request->u.cc_set_drag_dead_zone.component_id);
         if( node )
         {
-            node->drag_dead_zone = (uint8_t)request->u.cc_set_drag_dead_zone.zone;
-            UITree_MarkNodeDirty(
-                tree, rs_cs2_find_node(host, request->u.cc_set_drag_dead_zone.component_id));
+            if( node->drag_dead_zone != (uint8_t)request->u.cc_set_drag_dead_zone.zone )
+            {
+                node->drag_dead_zone = (uint8_t)request->u.cc_set_drag_dead_zone.zone;
+                UITree_MarkNodeDirty(
+                    tree, rs_cs2_find_node(host, request->u.cc_set_drag_dead_zone.component_id));
+            }
         }
         return CS2VM_EXECNO_OK;
 
@@ -8657,9 +8698,12 @@ rs_cs2_host_exec_dispatch(
         node = rs_cs2_node(host, request->u.cc_set_drag_dead_time.component_id);
         if( node )
         {
-            node->drag_dead_time = (uint8_t)request->u.cc_set_drag_dead_time.time;
-            UITree_MarkNodeDirty(
-                tree, rs_cs2_find_node(host, request->u.cc_set_drag_dead_time.component_id));
+            if( node->drag_dead_time != (uint8_t)request->u.cc_set_drag_dead_time.time )
+            {
+                node->drag_dead_time = (uint8_t)request->u.cc_set_drag_dead_time.time;
+                UITree_MarkNodeDirty(
+                    tree, rs_cs2_find_node(host, request->u.cc_set_drag_dead_time.component_id));
+            }
         }
         return CS2VM_EXECNO_OK;
 

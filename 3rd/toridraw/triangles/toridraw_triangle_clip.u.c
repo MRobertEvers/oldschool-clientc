@@ -126,7 +126,7 @@ ToriDraw_TriangleSlopei(
         dnear >>= 1;
         dz >>= 1;
     }
-    return dz > 0 ? (dnear << 16) / dz : 0;
+    return dz > 0 ? ((dnear << 16) / dz) : 0;
 }
 
 static inline int
@@ -164,8 +164,25 @@ ToriDraw_TriangleLerpPlaneProjecti(
     int pb)
 {
     int lerp_p = ToriDraw_TriangleLerpPlanei(near_plane_z, lerp_slope, pa, pb);
+    long long const scaled = (((long long)lerp_p * (camera_cot16 >> 1)) >> 6);
 
-    return (int)((((long long)lerp_p * (camera_cot16 >> 1)) >> 6) / near_plane_z);
+    /* The 64-bit *product* is load-bearing: `lerp_p * (camera_cot16 >> 1)`
+     * overflows `int` at ordinary camera scales, which is why this is a
+     * `long long` at all. The *divide* is not. After the `>> 6` the value is
+     * back inside `int` for every projection the client actually issues, and on
+     * i686 a 32-bit `idiv` is one instruction where a 64-bit divide is a call to
+     * `__divdi3`.
+     *
+     * This one line was 110 of the 114 `__divdi3` call sites in
+     * `toridraw_unity.o` -- every near-clipped vertex of every clipped face
+     * paid it, on the lane where `render` is 8.2 ms of a 10.0 ms frame.
+     *
+     * The wide divide is kept as the fallback rather than asserted away: a
+     * large enough `near_plane_z` can leave `scaled` outside `int` while the
+     * quotient still fits, and that is a legitimate camera, not a caller bug. */
+    if( scaled >= INT32_MIN && scaled <= INT32_MAX )
+        return (int)scaled / near_plane_z;
+    return (int)(scaled / near_plane_z);
 }
 
 static inline float

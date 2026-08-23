@@ -308,10 +308,15 @@ UITree_EnsureLayoutFor(
     }
 }
 
+/* Growth gauges only. Counting the free list means walking it, and a resolve
+ * runs several times per frame inside the CS2 settle loop, so this is gated on
+ * the perf module actually wanting a sample rather than run on every resolve. */
 static void
 uitree_perf_snapshot(struct UITree const* tree)
 {
     int free_len = 0;
+    if( !TorirsPerf_GaugeSampleDue(TORIRS_PERF_GAUGE_SITE_UITREE_LAYOUT) )
+        return;
     for( int32_t i = tree->free_head; i >= 0; i = tree->components[i].free_next )
         free_len++;
     TORIRS_PERF_COUNT_SET(TORIRS_PERF_CTR_UITREE_COMPONENTS, (int64_t)tree->component_count);
@@ -348,6 +353,10 @@ UITree_LayoutResolve(
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_LAYOUT_SKIP, 1);
         return;
     }
+
+    /* Past the skip check: this call is going to recompute boxes, so any of them
+     * may move. See UITree.layout_resolve_seq — the emit retention gate reads it. */
+    tree->layout_resolve_seq++;
 
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_LAYOUT_NODES, (int64_t)tree->component_count);
 

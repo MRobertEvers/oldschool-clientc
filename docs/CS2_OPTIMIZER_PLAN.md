@@ -927,4 +927,183 @@ changes numbers everything else is measured against, so it goes first.
    uses `HMAP_INSERT` and would silently overwrite an entry if a script were
    loaded twice, so §12.3's inline cache is guarded by making a duplicate
    `Add` an assertion (the load task already checks `Has` first) — a
-   generation counter is not needed.
+    generation counter is not needed.
+
+---
+
+## 15. Windows XP profile-driven execution order (2026-08-22)
+
+> Superseded for implementation order by
+> [`CS2_OPTIMIZATION_TARGETS.md`](CS2_OPTIMIZATION_TARGETS.md). The target list
+> incorporates the result that the incremental sequence below did not produce
+> enough improvement and uses a world-render-dominance budget.
+>
+> The measurements in 15.1 average windows 1–9 and are contaminated by a
+> mid-capture reconnect in window 1. Corrected steady-state figures
+> (windows 2–9: 7.11 ms CS2/tick, 22.17 scripts/tick, 1,211 opcodes/tick,
+> 174.4 host ops/tick) are in `winxp_profiles/analysis.md`; the per-tick
+> derivations below (7.52 ms, 2,341 opcodes, 344 host ops) are kept as
+> written but should not be used as a baseline.
+
+This section updates **priority**, not the architecture above. It is based on
+the symbol-bearing 32-bit SSE2/Soft3D capture in `docs/winxp_profiles/` and
+takes precedence over the older suggestion to begin with frame-memory work.
+
+### 15.1 What the quiet profile says
+
+The 1,000-frame TORIRS_PERF run had almost no user interaction:
+
+| measurement | observed |
+|---|---:|
+| effective FPS | 11.579 |
+| steady frame mean (windows 1-9) | 67.76 ms |
+| steady logic mean | 26.41 ms |
+| steady CS2 mean | 25.75 ms |
+| logic ticks | 3.424 / rendered frame |
+| scripts | 79.002 / frame = **23.073 / logic tick** |
+| opcodes | 8,015.290 / frame = **2,340.914 / logic tick** |
+| host operations | 1,179.333 / frame = **344.431 / logic tick** |
+| VM pool misses | 1 total / 76,671 acquires |
+| CS2 aborts | 0 |
+
+The scripts/tick ratio is the important clue. Existing UI soak logs normally
+show 28 registered timer hooks, 7 hidden, leaving about 21 visible. That is
+close enough to 23.073 scripts/tick that `onTimer` is the likely source of
+nearly the whole quiet workload. Slow Soft3D frames then execute several 20 ms
+catch-up ticks per rendered frame, multiplying that timer work. This is not an
+input-event problem, and optimizing allocation around VM acquire will not move
+it: the pool already hits essentially every time.
+
+The stable metric for this work is **CS2 milliseconds per logic tick**, not per
+rendered frame. The baseline is `25.75 / 3.424 = 7.52 ms/tick`. FPS changes the
+number of ticks grouped into each rendered frame, but there are still about 50
+logic ticks per real second.
+
+### 15.2 P0 - attribute every script before changing semantics
+
+Extend the existing opt-in `TORIRS_CS2_PROFILE` rather than adding a second
+profiler:
+
+1. Carry a cheap `enum CS2DispatchOrigin` into `Task_CS2Run`: `TIMER`,
+   `VAR_TRANSMIT`, `INV_TRANSMIT`, `STAT_TRANSMIT`, `MISC_TRANSMIT`,
+   `FRIEND_TRANSMIT`, `CHAT_TRANSMIT`, `SUBCHANGE`, `SERVER`, and `INPUT`.
+2. Emit CSV rows by `(origin, entry_script_id)` with calls, completed opcodes,
+   host ops, yields, total ns, p95 ns, and maximum ns. Preserve the current
+   zero-overhead disabled path; the current exit report calls `clock_gettime`
+   twice per script entry and is for diagnosis, not benchmark comparisons.
+3. Add a request-kind histogram to `RS_CS2Host_Exec` and opcode histogram to
+   the VM. Do not guess the fast-path list.
+4. Count registered/visible/dead timer hooks and timer scripts actually queued.
+   Assert that a dead hook cannot remain in the live timer set.
+5. Keep separate warm-cache scenarios: quiet fixed camera, bank, skill guide,
+   spellbook filter, world map, and a deterministic interaction replay. Run
+   both Soft3D and D3D9; renderer choice must not change scripts per logic tick.
+
+P0 exits when the top 20 scripts explain at least 90% of CS2 wall time and the
+sum of origin counts equals `TORIRS_PERF_CTR_CS2_SCRIPTS` exactly.
+
+### 15.3 P1 - remove unnecessary dispatch, carefully
+
+First prove whether all approximately 23 timer scripts need to execute every
+tick.
+
+- **Never ship a blanket timer skip or a lower catch-up cap.** Timers can write
+  state, send host requests, arm hooks, or observe `clientclock`; dropping them
+  silently changes game behavior.
+- Add a diagnostic-only `TORIRS_CS2_TIMER_FILTER` to run one timer script (or
+  none) at a time. This bounds the possible saving and makes each hot script's
+  effect visible without claiming the filter is a fix.
+- Classify hot timers using the Part A effects table and host log:
+  1. stateful timers run every logic tick;
+  2. idempotent visual timers may be coalesced across catch-up ticks and run
+     once against the final `clientclock`;
+  3. timers whose complete input set is unchanged may be memoized, invalidated
+     by their declared var/varbit/varc/container reads and any UI-tree mutation.
+  Start with an explicit allowlist; generalize only when the effects analysis
+  proves the same rule corpus-wide.
+- Audit the dirty transmit paths at the same time. A quiet tick should create
+  no var/inv/stat/misc/friend/chat task. Counters by origin make a dirty flag
+  that is re-raised with an equal value immediately obvious.
+- For scripts that merely rewrite the same widget values, make the host setters
+  no-op on equality and report `changed=0`; this preserves script execution
+  semantics while avoiding layout/redraw work. Do not suppress the script until
+  the host log proves its only observable effects are equal writes.
+
+P1's conservative target is fewer than 23 timer scripts/tick **only where the
+host-request differential is identical**. Even if every timer is required,
+P0 still tells P2 which opcodes and requests matter.
+
+### 15.4 P2 - reduce the fixed cost of 2,341 opcodes/tick
+
+Implement these as small, separately benchmarked changes:
+
+1. Generate opcode metadata including `CAN_YIELD`, then save/restore the six-int
+   checkpoint and reset the undo log only for yield-capable opcodes. Arithmetic,
+   local loads/stores, branches, and most string operations should not pay it.
+2. Shrink `CS2VM_HostRequest` from 1,336 bytes and remove whole-union `memset`s.
+   At the measured 344 host ops/tick, the current code clears roughly 460 KB per
+   logic tick before doing useful host work.
+3. Add direct host fast paths for only the request kinds that P0 says dominate.
+   Varp/varbit/varc and component getters are likely candidates, but the
+   histogram decides. A missing/cache-loading value retains the existing
+   request/yield path.
+4. Cache warm `gosub` targets by script+pc. The clientscript cache is
+   session-lifetime, so repeated provider hash lookups are unnecessary.
+5. Replace linear large-switch lookup and then the opcode switch as described
+   in sections 12.4-12.5. Keep computed goto and superinstructions behind later
+   profile gates.
+6. Cache every debug `getenv` on a hot host path once.
+
+The first P2 goal is **below 5.0 ms CS2/tick** with identical host logs. The
+stretch goal is **below 4.0 ms/tick** (about a 47% reduction from 7.52 ms).
+Record ns/opcode and ns/host-op so improvements remain comparable when the
+number of scripts changes.
+
+### 15.5 P3 - optimize the executed bytecode, guided by dynamic data
+
+Part A is still valuable, but its first payoff should target the hot timer
+scripts found by P0:
+
+- O1 first: constant/copy propagation, folding, dead stores/code, branch
+  folding, and peepholes. The first target is dynamic opcode count, not static
+  table-12 size.
+- Inline only small, hot, non-yielding callees at first. Rank candidates by
+  dynamic gosub count multiplied by measured call cost; enforce a byte-growth
+  budget.
+- Use the effects table for safe within-run common-subexpression elimination of
+  pure getters. Invalidate on the corresponding setter or any unknown host op.
+- Consider decode-time private superinstructions for the most frequent opcode
+  sequences before building a very broad source-level optimizer. They are
+  lower risk, do not alter cache bytes, and give a quick dispatch-overhead test.
+- Keep the full IR lowerer, recursion transforms, loop unrolling, and
+  cache-constant folding as later milestones after O1 demonstrates a dynamic
+  reduction on the XP hot set.
+
+P3 exits its first milestone when opcodes/tick fall by at least 20% on the quiet
+and UI scenarios without increasing host ops, bytecode growth stays within the
+declared budget, and all differential gates pass.
+
+### 15.6 Verification matrix and stop rules
+
+Every patch records the same table:
+
+- CS2 ms/tick, scripts/tick, opcodes/tick, host ops/tick, yields/tick;
+- top scripts by origin and wall time;
+- frame p50/p95 and effective FPS on XP Soft3D and D3D9;
+- table-12 bytes fetched progressively over JS5;
+- host-request-log diff, screenshot hashes, and existing CS2/transmit/frame
+  settlement tests.
+
+Reject an optimization if it wins only with profiling disabled but loses under
+the normal release counters, changes host-request order/arguments, drops a
+timer without a proven coalescing rule, increases p95 by more than 5%, or moves
+work from CS2 into layout/render without reducing total frame time.
+
+### 15.7 Suggested first five patches
+
+1. Origin-aware per-script/opcode/request CSV profiler (P0).
+2. Quiet XP + D3D9/Soft3D baselines and hot timer-script inventory.
+3. Generated `CAN_YIELD` metadata and checkpoint gating.
+4. Host-request shrink plus memset removal.
+5. Histogram-selected getter fast paths; reprofile before choosing between
+   timer coalescing, bytecode O1, callee caching, or dispatch-table work.

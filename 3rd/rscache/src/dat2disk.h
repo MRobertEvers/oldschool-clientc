@@ -351,6 +351,23 @@ struct RSCache_Dat2Disk
     /** The file store's handle on main_file_cache.dat2, and NULL under any
      *  other backing. Nothing outside the file store may read through it. */
     FILE* dat2_file;
+    /** Read handles on main_file_cache.idxN, opened lazily and held for the life
+     *  of the disk exactly as `dat2_file` is. Every entry is NULL under a
+     *  non-file backing.
+     *
+     *  These exist because an archive read needs six bytes out of an index, and
+     *  opening a file to get them cost more than everything else in the read
+     *  put together — `dat2disk_fopen_index` was 6.85 s of a 60 s launch
+     *  capture, in fopen/CreateFileA chains. A slot is dropped when the store
+     *  writes or commits that table, so a cached handle never serves bytes from
+     *  before a write this disk made.
+     *
+     *  Indexed by `dat2disk_index_slot`, not by table id: idx255 is read on the
+     *  same path as every other index but sits outside the 0..36 range
+     *  RSCache_Dat2DiskIsValidTableId admits, so it gets the one extra slot on
+     *  the end. Keying this array on the table id instead silently loses idx255,
+     *  and idx255 is where every reference table lives. */
+    FILE* index_files[RSCACHE_DAT2_DISK_TABLE_CAPACITY + 1];
     /** Stated identity. game/revision drive table ids and the map XTEA gate.
      *  Unset (ProfileZero) until RSCache_Dat2DiskSetProfile. */
     struct RSCache profile;

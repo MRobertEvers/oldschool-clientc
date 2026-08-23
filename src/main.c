@@ -4498,7 +4498,13 @@ main(
          * refusing to start, which is the same courtesy the renderer gets. */
         audio = PlatformAudio_New();
         if( !PlatformAudio_Init(audio, TORIRS_AUDIO_SAMPLE_RATE) )
+        {
             fprintf(stderr, "audio: no device; running silent\n");
+            /* Silence is free: without this the game still decodes every clip
+             * and synthesises every music frame, then hands it to a backend
+             * that drops it. */
+            App_SetAudioDevicePresent(&app, false);
+        }
 
         /* TORIRS_SIM_SONG / TORIRS_SIM_JINGLE=<id>: start a music track or a
          * jingle once the client is up. The only way to hear the synth without

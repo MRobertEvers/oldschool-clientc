@@ -380,8 +380,15 @@ enum
 static int g_redstone_flip[3][REDSTONE_FLIP_COUNT];
 static int g_redstone_flipped;
 
-/** The filter-button plates, composed to the height this lane's two-line
- *  buttons need. @see frame_build_chat_plates. */
+/*
+ * The six plates a filter button can wear, composed to the size this lane's
+ * two-line buttons need.
+ *
+ * Declared here rather than beside the composer that fills it, because the
+ * LAYOUT pass reads it -- a button records which plates it wears at the moment
+ * it is placed -- and the layout pass runs first in this file.
+ * @see frame_build_chat_plates for what each one is cut from.
+ */
 enum FrameChatPlate
 {
     CHAT_PLATE_IDLE = 0,
@@ -509,12 +516,29 @@ static struct
         int x;
         int y;
         int w;
-        /** The filter this button toggles, which is also its member number. */
+        /**
+         * The filter this button selects -- carried, not inferred.
+         *
+         * It equals the index today because the four are recorded in order,
+         * and the draw and click paths still read it rather than the slot: a
+         * frame that placed only some of them would otherwise light the wrong
+         * button, and the tag handed to the host has to be a filter number
+         * because that is what frame_on_click compares against.
+         */
         int filter;
         int idle;
         int hover;
-        /** -1 on a frame whose chatbox cannot be put away, which is also what
-         *  says "this button does not select anything". */
+        /**
+         * The SELECTED plates, and the one thing that says this button is the
+         * frame's to click.
+         *
+         * -1 on two kinds of button and they mean the same thing here: one on
+         * a frame whose chatbox cannot be put away, and Report abuse, which is
+         * not a view of the chat but a verb the LANE implements. Neither is
+         * the frame's, so neither claims a region -- @see frame_on_draw, where
+         * a claimed rectangle would put this plugin's one op over the client's
+         * own report button and take it away.
+         */
         int active;
         int active_hover;
     } chat_button[FRAME_CHAT_BUTTON_COUNT];
@@ -556,6 +580,7 @@ frame_blit_into(
     list[*count].trans = trans;
     (*count)++;
 }
+
 /** Chrome behind the live surfaces. */
 static void
 frame_blit(int image, int x, int y)
@@ -1289,7 +1314,6 @@ frame_compose_flip(
 #define FRAME_CHAT_BRIGHT_NUM 3
 #define FRAME_CHAT_BRIGHT_DEN 2
 
-
 static int
 frame_compose_plate(
     struct ToriRS_PluginCtx* ctx,
@@ -1441,19 +1465,6 @@ frame_build_redstones(struct ToriRS_PluginCtx* ctx)
     }
     g_redstone_flipped = 1;
 }
-
-/*
- * The lit Report plate, built once out of the red one.
- *
- * The factor is measured rather than chosen: across the family's own idle and
- * hovered pair the median channel goes up by about half again, so the same
- * half again turns the red plate into a plate that is visibly the SAME button
- * with the light on. Saturating at 255 rather than scaling the whole thing
- * down keeps the bevel's dark edge dark, which is what makes it still read as
- * a raised button.
- */
-#define FRAME_CHAT_ACTIVE_NUM 3
-#define FRAME_CHAT_ACTIVE_DEN 2
 
 /** The choices, in enum order. Also the schema's `choices` string, split. */
 static char const* const FRAME_LAYOUT_NAME[] = {
@@ -1658,9 +1669,11 @@ frame_on_draw(
             /* One blit: the plate was composed at the button's own size, so
              * there is nothing left to slice at draw time. */
             g_api->draw_image(ctx, ev->surface, plate, b->x, b->y, 0, 0, 0, 0, 0);
-            /* Only a frame whose chatbox can be put away claims these: on the
-             * fixed frames the click belongs to the lane's own button, which
-             * cycles the filter's mode. */
+            /* Only a frame whose chatbox can be put away claims these, and
+             * on it only the three buttons that SELECT something: on the fixed
+             * frames the click belongs to the lane's own button, which cycles
+             * the filter's mode, and Report abuse is the lane's on every frame.
+             * @see FrameChatButton::active. */
             if( b->active >= 0 )
                 g_api->hit_region(
                     ctx,

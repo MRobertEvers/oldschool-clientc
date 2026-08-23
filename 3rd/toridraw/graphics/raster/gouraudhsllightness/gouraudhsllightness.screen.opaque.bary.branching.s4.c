@@ -190,6 +190,29 @@ raster_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
      * effectively random per triangle, so the load misses more than the divide
      * costs; the truncated reciprocal also shifted ~3% of drawn pixels. Keep
      * the divides.
+     *
+     * Second measurement, win32/pentium4 lane, 2026-08-23. The whole question
+     * of whether these divides are worth removing is settled, and the answer is
+     * no. This prologue issues five divides per triangle -- three edge slopes
+     * and two barycentric colour steps -- which the osrs239 steady state runs
+     * 9,605 times a frame, so about 48,000 divides per frame. Adding a second,
+     * identical set of five (same divisors, perturbed numerators, volatile sink,
+     * output bit-identical) cost 29.8 us on r_model and 37.3 us on frame, of
+     * 3,338 us and 5,958 us. So the entire divide population is ~0.5% of the
+     * frame -- roughly 2.7 cycles apiece, not the ~26 an idiv latency table
+     * suggests, because they are independent and the core overlaps them.
+     *
+     * Corollaries, so nobody re-derives them:
+     *   - A dy == 1 fast path is exact and looks tempting (33.1% of edge
+     *     divides have dy == 1, censused over 1000 frames). It is worth about
+     *     7 us. It was built, measured, and thrown away.
+     *   - An exact reciprocal table for dy <= 64 would reach ~89% of edge
+     *     divides and cannot beat ~0.3% of frame. Not worth the exactness
+     *     proof.
+     *   - GCC deletes a `if (dy == 1) return dx << 16;` guard anyway: it proves
+     *     the arm equals the divide and cross-jumps it away. It survives only
+     *     behind an asm barrier. The value-identity that makes such a guard
+     *     safe is the same property that makes the compiler discard it.
      */
     if( dy_AC > 0 )
     {

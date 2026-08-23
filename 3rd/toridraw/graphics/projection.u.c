@@ -209,8 +209,8 @@ project_perspective(
         y >>= 15;
     }
 
-    int screen_x = SCALE_UNIT(x) / z;
-    int screen_y = SCALE_UNIT(y) / z;
+    int screen_x = ToriDraw_ScaleUnitDiv(x, z);
+    int screen_y = ToriDraw_ScaleUnitDiv(y, z);
 
     // Set the projected triangle
     projected_vertex.x = screen_x;
@@ -727,7 +727,7 @@ project_divide(
     p >>= 16 - scale_angle;
 
     assert(z > 0);
-    return SCALE_UNIT(p) / z;
+    return ToriDraw_ScaleUnitDiv(p, z);
 }
 
 /**
@@ -808,8 +808,8 @@ project_perspective_fast_trig(
     y >>= 16 - scale_angle;
 
     // So we can increase x_bits_max to 11 by reducing the angle scale by 1.
-    int screen_x = SCALE_UNIT(x) / z;
-    int screen_y = SCALE_UNIT(y) / z;
+    int screen_x = ToriDraw_ScaleUnitDiv(x, z);
+    int screen_y = ToriDraw_ScaleUnitDiv(y, z);
     // screen_x *= cot_fov_half_ish_scaled;
     // screen_y *= cot_fov_half_ish_scaled;
     // screen_x >>= 16 - scale_angle;
@@ -876,8 +876,8 @@ project_perspective_fast_fov2(
     y >>= 15;
 
     // So we can increase x_bits_max to 11 by reducing the angle scale by 1.
-    int screen_x = SCALE_UNIT(x) / z;
-    int screen_y = SCALE_UNIT(y) / z;
+    int screen_x = ToriDraw_ScaleUnitDiv(x, z);
+    int screen_y = ToriDraw_ScaleUnitDiv(y, z);
     // screen_x *= cot_fov_half_ish_scaled;
     // screen_y *= cot_fov_half_ish_scaled;
     // screen_x >>= 16 - scale_angle;

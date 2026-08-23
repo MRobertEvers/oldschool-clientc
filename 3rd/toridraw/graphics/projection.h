@@ -10,6 +10,31 @@
 #define UNIT_SCALE ((1 << UNIT_SCALE_SHIFT))
 
 /**
+ * `SCALE_UNIT(v) / z`, without the 64-bit divide when the numerator fits.
+ *
+ * On i686 a 64/64 divide is a call to a libgcc helper rather than an
+ * instruction, and the projection kernels pay one per projected vertex --
+ * `objdump` puts ten such call sites in `ToriDraw_Project` alone, on a lane
+ * where `render` is 8.2 ms of a 10.0 ms frame.
+ *
+ * The 64-bit numerator exists only so a coordinate large enough to overflow
+ * `v << 9` survives. Inside +/-2^22 it cannot, and the reference client does
+ * this multiply in plain 32-bit arithmetic, so the narrow path is the reference
+ * spelling rather than a departure from it. C integer division truncates toward
+ * zero in both widths, so an in-range value divides to the same result.
+ *
+ * Spelled as a multiply, not a shift: left-shifting a negative signed value is
+ * undefined, and the compiler emits the shift for `* UNIT_SCALE` anyway.
+ */
+static inline int
+ToriDraw_ScaleUnitDiv(int v, int z)
+{
+    if( v > -(1 << 22) && v < (1 << 22) )
+        return (v * UNIT_SCALE) / z;
+    return (int)(SCALE_UNIT(v) / z);
+}
+
+/**
  * Screen x parked here by the projection kernels (projection16_simd.*.u.c) when
  * a vertex falls behind the near plane; its screen y is left *undivided*, so
  * consumers must reject the whole face rather than read the pair.

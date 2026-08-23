@@ -11,6 +11,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+
+
+static void
+uitree_topo_bump(struct UITree* tree, int line)
+{
+    tree->dirty_gen++;
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_DIRTY_TOPO, 1);
+    g_torirs_dirty_topo_seq++;
+    g_torirs_dirty_topo_line = line;
+}
+
 /* ---- UITreeNodeSet ------------------------------------------------------- */
 
 static void
@@ -949,6 +960,7 @@ push_element_unlinked(struct UITree* tree)
      * Deposit operation), so a short left click found no normal default row. */
     component->target_priority = 4;
     component->is_dirty = 1;
+    uitree_topo_bump(tree, __LINE__);
     tree->generation++;
     return idx;
 }
@@ -1040,6 +1052,7 @@ UITree_UnlinkChild(
             tree->components[walk].parent = -1;
             tree->components[walk].next_sibling = -1;
             parent->is_dirty = 1;
+            uitree_topo_bump(tree, __LINE__);
             tree->generation++;
             return;
         }
@@ -1115,6 +1128,7 @@ UITree_Reparent(
     child->parent = new_parent_index;
     child->next_sibling = -1;
     child->is_dirty = 1;
+    uitree_topo_bump(tree, __LINE__);
     child->position.layout_resolved = 0;
     UITree_LayoutInvalidateBoxes(tree);
 
@@ -1144,6 +1158,7 @@ UITree_Reparent(
         uitree_append_child(tree, new_parent_index, child_index);
         uitree_child_key_added(tree, new_parent_index, child_index);
         tree->components[new_parent_index].is_dirty = 1;
+        uitree_topo_bump(tree, __LINE__);
     }
     tree->generation++;
 }
@@ -1366,6 +1381,7 @@ UITree_Free(struct UITree* tree)
     free(tree->layout_order);
     free(tree->layout_depth);
     free(tree->layout_changed);
+    free(tree->emit_visited);
     uitree_all_sets_free(tree);
     UITree_FrameForget(tree);
     free(tree->components);
@@ -1400,6 +1416,7 @@ UITree_Clear(struct UITree* tree)
     UITree_FrameForget(tree);
 }
 
+
 void
 UITree_MarkAllDirty(struct UITree* tree)
 {
@@ -1407,7 +1424,12 @@ UITree_MarkAllDirty(struct UITree* tree)
 
     for( uint32_t i = 0; i < tree->component_count; i++ )
         tree->components[i].is_dirty = 1;
+    /* Outside the loop deliberately: dirty_gen is a tree-level generation, so a
+     * blanket mark is one change to it, not one per node. Braces above are not
+     * optional here — without them this line reads as loop body. */
+    uitree_topo_bump(tree, __LINE__);
 }
+
 
 void
 UITree_MarkNodeDirty(
@@ -1418,6 +1440,25 @@ UITree_MarkNodeDirty(
     if( idx < 0 || (uint32_t)idx >= tree->component_count )
         return;
     tree->components[idx].is_dirty = 1;
+    /* `is_dirty` is unconditional above: it is this node's repaint bit and the
+     * caller is right about it either way. Only the emit-retention generation
+     * is filtered, and only by reachability — a mark on a node the last walk
+     * never entered cannot change the next walk's output, because the next walk
+     * will not enter it either unless an ancestor moved, and that ancestor
+     * bumps. See UITree::emit_visited for why this is a bitmap rather than a
+     * hidden-ancestor query, and why a node past the bitmap counts as reached. */
+    if( (uint32_t)idx >= tree->emit_visited_cap || tree->emit_visited[idx] )
+    {
+        tree->dirty_gen++;
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_DIRTY_MARK, 1);
+        /* Only the reached branch is sequenced. An unreached mark cannot change
+         * the next emit, so it is not what holds emit_gen_quiet at zero, and
+         * counting it here would attribute harmless writes to a script and send
+         * target 7 after the wrong one. See g_torirs_dirty_mark_seq. */
+        g_torirs_dirty_mark_seq++;
+    }
+    else
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_DIRTY_UNREACHED, 1);
 }
 
 void
@@ -1458,6 +1499,14 @@ UITree_MarkFrameAlwaysDirtyTypes(struct UITree* tree)
         if( UITree_TypeIsAlwaysDirtyFrame(c->type) )
         {
             c->is_dirty = 1;
+            /* No dirty_gen bump. This is the one place where "repaint this
+             * node" and "this node's emit descriptor changed" genuinely come
+             * apart, and conflating them is what defeated the Opt 11 retention
+             * gate on every single frame: this runs per frame over the compass,
+             * cross, minimenu and hovertext nodes, so it was contributing ~34
+             * of the ~45 bumps/frame all on its own. Saying a node always
+             * repaints says nothing about whether what it emits changed — and
+             * when it does change, the setter that changed it marks it. */
             if( !c->always_dirty )
                 c->always_dirty = 1;
         }
@@ -1488,8 +1537,28 @@ UITree_FindByComponentId_Linear(
 static inline uint32_t
 uitree_id_hash(int component_id)
 {
-    /* Fibonacci hashing; the low bits are masked to the table size by the caller. */
-    return (uint32_t)component_id * 2654435761u;
+    /*
+     * Fibonacci multiply, then fold the high half down before the caller masks.
+     *
+     * The fold is the part that matters, and leaving it out made this hash
+     * ignore the interface id outright. Callers index with `hash & (cap - 1)`,
+     * and the low n bits of `x * K` are a function of the low n bits of `x`
+     * alone — multiplication never carries information downwards. Fibonacci
+     * hashing puts its quality in the *high* bits for exactly that reason and is
+     * normally read as `>> (32 - n)`.
+     *
+     * So with cap 16384 the old hash keyed on bits 0..13 of the id and discarded
+     * every bit above them. Ids are `(iface_id << 16) | child_id`
+     * (UITree_ComponentUid), which puts the whole interface id in the discarded
+     * half: every component sharing a child index, across every resident
+     * interface, hashed to one slot. Measured cost was 3.59 probes per lookup
+     * against the ~1.4 the 0.44 load factor should give.
+     *
+     * Keep the result full-width so the existing `& mask` callers stay correct.
+     */
+    uint32_t h = (uint32_t)component_id * 2654435761u;
+    h ^= h >> 16;
+    return h;
 }
 
 /* Insert (or resolve a tie for) one component into the open-addressed map.
@@ -1983,6 +2052,7 @@ UITree_Push(
     case UIELEM_BUILTIN_CHAT_BUTTON:
         component->u.chat_button = spec->u.chat_button;
         component->is_dirty = 1;
+        uitree_topo_bump(tree, __LINE__);
         break;
 
     case UIELEM_BUILTIN_REDSTONE_TAB:
@@ -2134,6 +2204,7 @@ UITree_Push(
         component->u.tab_icon.atlas_index = spec->u.tab_icon.atlas_index;
         component->u.tab_icon.tabno = spec->u.tab_icon.tabno;
         component->is_dirty = 1;
+        uitree_topo_bump(tree, __LINE__);
         break;
 
     case UIELEM_RS_LINE:
@@ -2240,6 +2311,7 @@ UITree_ClearChildren(
     c->child_key_max = UITREE_CHILD_KEY_NONE; /* nothing left to match by key */
     uitree_child_index_drop(c);               /* ... and none left to index */
     c->is_dirty = 1;
+    uitree_topo_bump(tree, __LINE__);
     tree->generation++;
 }
 
@@ -2346,6 +2418,9 @@ UITree_CcCreate(
 {
     assert(tree);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_CC_CREATE, 1);
+    /* Readable mid-run so target 7 can attribute creates to the running script;
+     * see g_torirs_cc_create_seq. */
+    g_torirs_cc_create_seq++;
     if( parent_index < 0 || (uint32_t)parent_index >= tree->component_count )
         return -1;
 
@@ -2574,6 +2649,7 @@ UITree_CcCopy(
      * hooks, and the script arrays are owned per node. */
 
     dst->is_dirty = 1;
+    uitree_topo_bump(tree, __LINE__);
     tree->generation++;
     return idx;
 }
@@ -2638,6 +2714,7 @@ UITree_CcDelete(
      * with the ceiling, and the next long lookup rebuilds both. */
     uitree_child_index_drop(parent);
     parent->is_dirty = 1;
+    uitree_topo_bump(tree, __LINE__);
     tree->generation++;
 }
 
@@ -2654,11 +2731,13 @@ UITree_CcDeleteAll(
     struct UITreeComponent* parent = &tree->components[parent_index];
     int32_t child = parent->first_child;
     int32_t prev = -1;
+    int removed_any = 0;
     while( child >= 0 )
     {
         int32_t const next = tree->components[child].next_sibling;
         if( tree->components[child].dynamic )
         {
+            removed_any = 1;
             if( prev < 0 )
                 parent->first_child = next;
             else
@@ -2677,6 +2756,22 @@ UITree_CcDeleteAll(
         }
         child = next;
     }
+    /* A deleteall that found nothing dynamic to delete changed nothing: no slot
+     * was recycled, `first_child` still points where it did, and the key ceiling
+     * and key->child map are still correct for the static children. Invalidating
+     * them anyway — and bumping dirty_gen — is not merely wasted work, it is the
+     * write that made the whole tree look modified every frame.
+     *
+     * The reference client rebuilds a list by clearing it and re-adding rows, so
+     * the common steady-state call is deleteall on a parent that is *already*
+     * empty. Measured on the login-screen scene: one per-tick onTimer script did
+     * exactly one topology bump per call, 2004 in 2000 frames, and it was this
+     * line. That single bump held the emit retention gate (targets 11, 12 and
+     * 14) at zero hits for the entire run. Making the no-op case a real no-op is
+     * the general fix — it is a property of deleteall, not of that script. */
+    if( !removed_any )
+        return;
+
     /* The splicing above bypasses UITree_UnlinkChild, so the key ceiling and the
      * key->child map are dropped once for the whole batch rather than per row;
      * the next by-sub-id lookup recomputes them over the static children that
@@ -2686,6 +2781,7 @@ UITree_CcDeleteAll(
     parent->child_key_max = UITREE_CHILD_KEY_UNKNOWN;
     uitree_child_index_drop(parent);
     parent->is_dirty = 1;
+    uitree_topo_bump(tree, __LINE__);
     tree->generation++;
 }
 
@@ -2752,8 +2848,30 @@ UITree_ApplyHide(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
-    tree->components[idx].behavior.hide = hide ? 1 : 0;
+    hide = hide ? 1 : 0;
+    /*
+     * Writing the value that is already there and marking the node dirty anyway
+     * is what makes a quiet frame repaint. Scripts restate their whole interface
+     * on every transmit — an inventory's 28 cells come back with the same object,
+     * the same colour and the same hide flag — so the mutation volume the emit
+     * walk sees is far larger than the number of things that actually moved.
+     * Every applier below therefore compares first and leaves the node clean
+     * when nothing changed; the position/size ones already did.
+     */
+    if( tree->components[idx].behavior.hide == (uint8_t)hide )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
+    tree->components[idx].behavior.hide = (uint8_t)hide;
     UITree_MarkNodeDirty(tree, idx);
+    /* MarkNodeDirty alone is not enough here, and this is the general rule for
+     * every `hide` write: its dirty_gen bump is filtered by whether the last
+     * walk reached this node, which is precisely what this line just changed.
+     * An unhide would be dropped as "unreachable" using the reachability it is
+     * abolishing, and the gate would call the frame quiet while a panel opened.
+     * Bump unconditionally instead. */
+    uitree_topo_bump(tree, __LINE__);
     return true;
 }
 
@@ -2770,23 +2888,40 @@ UITree_ApplyComponentParam(
     if( idx < 0 )
         return false;
 
-    char* owned = NULL;
+    struct UITreeComponent* c = &tree->components[idx];
+    char* owned;
+
+    for( int i = 0; i < c->params_count; i++ )
+    {
+        if( c->params[i].id != param_id )
+            continue;
+        /* Restating a param that is already there was a strdup and a free to
+         * arrive back where it started; the gameframe re-tags its rows on every
+         * rebuild. Both-NULL is caught by the pointer compare. */
+        if( c->params[i].value == value &&
+            (c->params[i].str == str ||
+             (c->params[i].str && str && strcmp(c->params[i].str, str) == 0)) )
+        {
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+            return true;
+        }
+        owned = NULL;
+        if( str )
+        {
+            owned = strdup(str);
+            assert(owned);
+        }
+        free(c->params[i].str);
+        c->params[i].str = owned;
+        c->params[i].value = value;
+        return true;
+    }
+
+    owned = NULL;
     if( str )
     {
         owned = strdup(str);
         assert(owned);
-    }
-
-    struct UITreeComponent* c = &tree->components[idx];
-    for( int i = 0; i < c->params_count; i++ )
-    {
-        if( c->params[i].id == param_id )
-        {
-            free(c->params[i].str);
-            c->params[i].str = owned;
-            c->params[i].value = value;
-            return true;
-        }
     }
 
     if( c->params_count == c->params_capacity )
@@ -2869,6 +3004,11 @@ UITree_ApplyClickMask(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
+    if( tree->components[idx].behavior.click_mask == click_mask )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
     tree->components[idx].behavior.click_mask = click_mask;
     UITree_MarkNodeDirty(tree, idx);
     return true;
@@ -2884,10 +3024,24 @@ UITree_ApplyText(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
-    char* copy = strdup(text ? text : "");
+    struct UITreeComponent* c = &tree->components[idx];
+    char const* text_now = c->type == UIELEM_RS_TEXT ? c->u.rs_text.text : c->data_text;
+    char* copy;
+
+    if( !text )
+        text = "";
+    /* Before the strdup, not after: the chatbox's 500 line components are
+     * rewritten with their current contents on every chat transmit, and a text
+     * that has not changed is a malloc, a free and a repaint for nothing. */
+    if( text_now && strcmp(text_now, text) == 0 )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
+
+    copy = strdup(text);
     assert(copy);
 
-    struct UITreeComponent* c = &tree->components[idx];
     if( c->type == UIELEM_RS_TEXT )
     {
         free((void*)c->u.rs_text.text);
@@ -2915,6 +3069,13 @@ UITree_ApplyGraphic(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_GRAPHIC )
         return false;
+    if( tree->components[idx].u.rs_graphic.scene_id == scene_id &&
+        tree->components[idx].u.rs_graphic.atlas_index == atlas_index &&
+        tree->components[idx].u.rs_graphic.graphic_hitbox_only == 0 )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
     tree->components[idx].u.rs_graphic.scene_id = scene_id;
     tree->components[idx].u.rs_graphic.atlas_index = atlas_index;
     tree->components[idx].u.rs_graphic.graphic_hitbox_only = 0;
@@ -2933,6 +3094,17 @@ UITree_ApplyColour(
     if( idx < 0 )
         return false;
     struct UITreeComponent* c = &tree->components[idx];
+    /* Both the generic field and the type's own copy — they can be written from
+     * different places, so "the generic one already matches" is not enough. */
+    int const colour_now_matches =
+        c->colour == colour &&
+        (c->type != UIELEM_RS_TEXT || c->u.rs_text.color == colour) &&
+        (c->type != UIELEM_RS_RECT || c->u.rs_rect.color == colour);
+    if( colour_now_matches )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
     c->colour = colour;
     if( c->type == UIELEM_RS_TEXT )
         c->u.rs_text.color = colour;
@@ -2954,6 +3126,11 @@ UITree_ApplyFillColour(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
+    if( tree->components[idx].fill_colour == colour )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
     tree->components[idx].fill_colour = colour;
     UITree_MarkNodeDirty(tree, idx);
     return true;
@@ -2972,7 +3149,10 @@ UITree_ApplyPosition(
         return false;
     struct UITreeComponent* const com = &tree->components[idx];
     if( com->position.x == x && com->position.y == y && com->position.layout_resolved )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
         return true;
+    }
     com->position.x = x;
     com->position.y = y;
     com->position.layout_resolved = 0;
@@ -2995,7 +3175,10 @@ UITree_ApplySize(
     struct UITreeComponent* const com = &tree->components[idx];
     if( com->position.width == width && com->position.height == height &&
         com->position.layout_resolved )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
         return true;
+    }
     com->position.width = width;
     com->position.height = height;
     com->position.layout_resolved = 0;
@@ -3020,7 +3203,10 @@ UITree_ApplyPositionModes(
     struct UITreeComponent* const com = &tree->components[idx];
     if( com->position.x == x && com->position.y == y && com->position.x_mode == (int8_t)x_mode &&
         com->position.y_mode == (int8_t)y_mode && com->position.layout_resolved )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
         return true;
+    }
     com->position.x = x;
     com->position.y = y;
     com->position.x_mode = (int8_t)x_mode;
@@ -3048,7 +3234,10 @@ UITree_ApplySizeModes(
     if( com->position.width == width && com->position.height == height &&
         com->position.width_mode == (int8_t)width_mode &&
         com->position.height_mode == (int8_t)height_mode && com->position.layout_resolved )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
         return true;
+    }
     com->position.width = width;
     com->position.height = height;
     com->position.width_mode = (int8_t)width_mode;
@@ -3069,7 +3258,13 @@ UITree_ApplyGraphicTiled(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_GRAPHIC )
         return false;
-    tree->components[idx].u.rs_graphic.tiled = tiled ? 1 : 0;
+    tiled = tiled ? 1 : 0;
+    if( tree->components[idx].u.rs_graphic.tiled == tiled )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
+    tree->components[idx].u.rs_graphic.tiled = tiled;
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
@@ -3084,6 +3279,11 @@ UITree_ApplyGraphicOutline(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_GRAPHIC )
         return false;
+    if( tree->components[idx].u.rs_graphic.outline == outline )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
     tree->components[idx].u.rs_graphic.outline = outline;
     UITree_MarkNodeDirty(tree, idx);
     return true;
@@ -3099,6 +3299,11 @@ UITree_ApplyGraphicShadow(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_GRAPHIC )
         return false;
+    if( tree->components[idx].u.rs_graphic.graphic_shadow == shadow_colour )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
     tree->components[idx].u.rs_graphic.graphic_shadow = shadow_colour;
     UITree_MarkNodeDirty(tree, idx);
     return true;
@@ -3129,7 +3334,10 @@ UITree_ApplyGraphic2DAngle(
                 stderr, "set2dangle: com=0x%08x angle=%d\n", component_id, angle_r2pi65536);
     }
     if( tree->components[idx].u.rs_graphic.sprite_angle_r2pi65536 == angle_r2pi65536 )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
         return true;
+    }
     tree->components[idx].u.rs_graphic.sprite_angle_r2pi65536 = angle_r2pi65536;
     UITree_MarkNodeDirty(tree, idx);
     return true;
@@ -3149,7 +3357,10 @@ UITree_ApplyScrollSize(
     struct UITreeComponent* const com = &tree->components[idx];
     if( com->u.rs_layer.scroll_width == scroll_width &&
         com->u.rs_layer.scroll_height == scroll_height )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
         return true;
+    }
     com->u.rs_layer.scroll_width = scroll_width;
     com->u.rs_layer.scroll_height = scroll_height;
     /* The scroll extent is what this layer's children lay out against
@@ -3170,6 +3381,11 @@ UITree_ApplyScrollPos(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
+    if( tree->components[idx].scroll_x == scroll_x && tree->components[idx].scroll_y == scroll_y )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
     tree->components[idx].scroll_x = scroll_x;
     tree->components[idx].scroll_y = scroll_y;
     UITree_MarkNodeDirty(tree, idx);
@@ -3243,8 +3459,22 @@ UITree_ApplyObject(
     int const is_equipment_overlay =
         c->dynamic && c->dynamic_child_index == 1 && uitree_parent_is_equipment_slot(tree, c);
 
+    /*
+     * Tracked rather than short-circuited, because the sibling silhouette below
+     * is state this write owns as much as the item fields are: a cell whose
+     * object is unchanged can still have had its silhouette toggled from
+     * elsewhere, and returning early would leave the two disagreeing. The
+     * silhouette call is itself an ApplyHide, so it costs nothing when it agrees.
+     */
+    int changed;
+
     if( obj_id <= 0 )
     {
+        changed = c->item_id != 0 || c->item_count != 0 || c->item_scene_id != -1 ||
+                  c->item_atlas_index != 0;
+        if( c->type == UIELEM_CC_OBJ )
+            changed = changed || c->u.cc_obj.obj_id != 0 || c->u.cc_obj.obj_count != 0 ||
+                      c->u.cc_obj.scene_id != -1 || c->u.cc_obj.atlas_index != 0;
         c->item_id = 0;
         c->item_count = 0;
         c->item_scene_id = -1;
@@ -3268,9 +3498,21 @@ UITree_ApplyObject(
             if( sil_idx >= 0 && tree->components[sil_idx].type == UIELEM_RS_GRAPHIC )
                 (void)UITree_ApplyHide(tree, tree->components[sil_idx].component_id, 0);
         }
+        if( !changed )
+        {
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+            return true;
+        }
         UITree_MarkNodeDirty(tree, idx);
         return true;
     }
+
+    changed = c->item_id != obj_id || c->item_count != obj_count ||
+              c->item_scene_id != scene_id || c->item_atlas_index != atlas_index ||
+              c->item_num_mode != (uint8_t)num_mode || c->behavior.hide != 0;
+    if( c->type == UIELEM_CC_OBJ )
+        changed = changed || c->u.cc_obj.obj_id != obj_id || c->u.cc_obj.obj_count != obj_count ||
+                  c->u.cc_obj.scene_id != scene_id || c->u.cc_obj.atlas_index != atlas_index;
 
     c->item_id = obj_id;
     /* Keep the raw count: -1 is the scripts' "icon only, never a number"
@@ -3293,7 +3535,12 @@ UITree_ApplyObject(
      * rs_graphic.scene_id (SETGRAPHIC chrome). Emit prefers item when set. */
 
     if( c->behavior.hide )
+    {
         c->behavior.hide = 0;
+        /* Unhide = reachability change; MarkNodeDirty would filter it out
+         * because the walk could not have reached this node last frame. */
+        uitree_topo_bump(tree, __LINE__);
+    }
     /* Hide silhouette sibling while an item occupies the equipment slot. */
     if( is_equipment_overlay && c->parent >= 0 )
     {
@@ -3302,6 +3549,11 @@ UITree_ApplyObject(
             tree, parent_idx, tree->components[parent_idx].component_id, 2);
         if( sil_idx >= 0 && tree->components[sil_idx].type == UIELEM_RS_GRAPHIC )
             (void)UITree_ApplyHide(tree, tree->components[sil_idx].component_id, 1);
+    }
+    if( !changed )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
     }
     UITree_MarkNodeDirty(tree, idx);
     return true;
@@ -3317,6 +3569,11 @@ UITree_ApplyModel(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_MODEL )
         return false;
+    if( tree->components[idx].u.rs_model.gamecache_model_id == model_id )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
     tree->components[idx].u.rs_model.gamecache_model_id = model_id;
     UITree_MarkNodeDirty(tree, idx);
     return true;
@@ -3332,7 +3589,13 @@ UITree_ApplyModelTransparent(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
-    tree->components[idx].model_transparent = transparent ? 1 : 0;
+    transparent = transparent ? 1 : 0;
+    if( tree->components[idx].model_transparent == (uint8_t)transparent )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
+    tree->components[idx].model_transparent = (uint8_t)transparent;
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
@@ -3348,6 +3611,12 @@ UITree_ApplyModelOffset(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_MODEL )
         return false;
+    if( tree->components[idx].u.rs_model.x_offset == x_offset &&
+        tree->components[idx].u.rs_model.y_offset == y_offset )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
     tree->components[idx].u.rs_model.x_offset = x_offset;
     tree->components[idx].u.rs_model.y_offset = y_offset;
     UITree_MarkNodeDirty(tree, idx);
@@ -3366,6 +3635,14 @@ UITree_ApplyModelAngle(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_MODEL )
         return false;
+    /* zoom <= 0 means "leave the zoom alone", so it is not part of the test. */
+    if( tree->components[idx].u.rs_model.xan == xan &&
+        tree->components[idx].u.rs_model.yan == yan &&
+        (zoom <= 0 || tree->components[idx].u.rs_model.zoom == zoom) )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
     tree->components[idx].u.rs_model.xan = xan;
     tree->components[idx].u.rs_model.yan = yan;
     if( zoom > 0 )
@@ -3384,6 +3661,12 @@ UITree_ApplyModelRotateSpeed(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_MODEL )
         return false;
+    if( tree->components[idx].u.rs_model.rotate_x_speed == x_speed &&
+        tree->components[idx].u.rs_model.rotate_y_speed == y_speed )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
     tree->components[idx].u.rs_model.rotate_x_speed = x_speed;
     tree->components[idx].u.rs_model.rotate_y_speed = y_speed;
     UITree_MarkNodeDirty(tree, idx);
@@ -3421,6 +3704,15 @@ UITree_ApplyModelAnim(
         tree->components[idx].u.rs_model.anim_frame = 0;
         tree->components[idx].u.rs_model.anim_frame_cycle = 0;
     }
+    /*
+     * The one applier that stays unconditional. `UITreeAnim_Advance` moves
+     * `anim_frame` without marking the node — it only reports "something was
+     * posed" to the frame loop — so on a widget whose sequence is running, this
+     * re-apply is what keeps the node emit-eligible while its pose changes
+     * underneath. Comparing here would freeze animated chatheads on whichever
+     * frame they were last dirtied at, which reads as a broken sequence rather
+     * than as a missing dirty bit.
+     */
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
@@ -3435,6 +3727,11 @@ UITree_ApplyTextFont(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_TEXT )
         return false;
+    if( tree->components[idx].u.rs_text.font_id == font_id )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
     tree->components[idx].u.rs_text.font_id = font_id;
     UITree_MarkNodeDirty(tree, idx);
     return true;
@@ -3452,6 +3749,13 @@ UITree_ApplyTextAlign(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_TEXT )
         return false;
+    if( tree->components[idx].u.rs_text.center == h_align &&
+        tree->components[idx].u.rs_text.y_align == v_align &&
+        tree->components[idx].u.rs_text.line_height == line_height )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
     tree->components[idx].u.rs_text.center = h_align;
     tree->components[idx].u.rs_text.y_align = v_align;
     tree->components[idx].u.rs_text.line_height = line_height;
@@ -3469,7 +3773,13 @@ UITree_ApplyTextShadow(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 || tree->components[idx].type != UIELEM_RS_TEXT )
         return false;
-    tree->components[idx].u.rs_text.shadowed = shadowed ? 1 : 0;
+    shadowed = shadowed ? 1 : 0;
+    if( tree->components[idx].u.rs_text.shadowed == shadowed )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
+    tree->components[idx].u.rs_text.shadowed = shadowed;
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
@@ -3506,7 +3816,13 @@ UITree_ApplyForceLeftClick(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
-    tree->components[idx].force_left_click = enabled ? 1 : 0;
+    enabled = enabled ? 1 : 0;
+    if( tree->components[idx].force_left_click == (uint8_t)enabled )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
+    tree->components[idx].force_left_click = (uint8_t)enabled;
     UITree_MarkNodeDirty(tree, idx);
     return true;
 }
@@ -3545,6 +3861,24 @@ UITree_ApplyRuntimeHook(
     assert(slot);
     assert(tree);
 
+    /*
+     * A re-registration that names the binding already here has nothing to do.
+     * Scripts re-arm `if_seton*` wholesale every time they rebuild an interface
+     * — the inventory's per-slot hooks come back identical on every
+     * inv_transmit — and setting the same thing again means freeing both tails,
+     * mallocing them back at the same sizes, strdup'ing every string, then
+     * resolving the component id and rewriting five set memberships to their
+     * current values. `UITree_HookEquals` answers "would that change anything"
+     * against post-clamp values, so a true here means byte-identical, and the
+     * sets are a pure function of the slot, so they cannot have drifted while it
+     * held still.
+     */
+    if( UITree_HookEquals(slot, script_id, argv, argc, str_mask, strs, str_argc) )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_HOOK_SKIP, 1);
+        return true;
+    }
+
     /* Clamping and the tail allocations both belong to the slot type — see
      * ui/uitree_hook.h for why they are no longer inline arrays. */
     UITree_HookSet(slot, script_id, argv, argc, str_mask, strs, str_argc);
@@ -3566,10 +3900,21 @@ UITree_ApplyOpBase(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
+    if( !text )
+        text = "";
+    /* strncmp to the same bound the copy uses: two texts that differ only past
+     * the truncation point land on the same stored option, so they are equal
+     * here too. */
+    if( strncmp(
+            UITree_MenuOptions(&tree->components[idx])->option,
+            text,
+            UITREE_MENU_OPTION_LEN - 1) == 0 )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
     strncpy(
-        UITree_MenuOptionsMut(&tree->components[idx])->option,
-        text ? text : "",
-        UITREE_MENU_OPTION_LEN - 1);
+        UITree_MenuOptionsMut(&tree->components[idx])->option, text, UITREE_MENU_OPTION_LEN - 1);
     UITree_MenuOptionsMut(&tree->components[idx])->option[UITREE_MENU_OPTION_LEN - 1] = '\0';
     UITree_MarkNodeDirty(tree, idx);
     return true;
@@ -3585,9 +3930,19 @@ UITree_ApplyTargetVerb(
     int32_t idx = UITree_ResolveComponentTarget(tree, component_id, -1);
     if( idx < 0 )
         return false;
+    if( !text )
+        text = "";
+    if( strncmp(
+            UITree_MenuOptions(&tree->components[idx])->target_verb,
+            text,
+            UITREE_MENU_OPTION_LEN - 1) == 0 )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_APPLY_NOCHANGE, 1);
+        return true;
+    }
     strncpy(
         UITree_MenuOptionsMut(&tree->components[idx])->target_verb,
-        text ? text : "",
+        text,
         UITREE_MENU_OPTION_LEN - 1);
     UITree_MenuOptionsMut(&tree->components[idx])->target_verb[UITREE_MENU_OPTION_LEN - 1] =
         '\0';

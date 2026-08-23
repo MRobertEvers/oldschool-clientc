@@ -212,6 +212,17 @@ struct RS_Audio
 
     bool enabled;
     /**
+     * A mixer sink exists.
+     *
+     * Distinct from `enabled`, which is the player's effect-volume setting and
+     * is restored by any later volume command. This one is the boot-time fact
+     * that the platform found no output device, and nothing in the session
+     * flips it back. While it is false every clip decode, area-sound scene walk
+     * and Vorbis frame below would render into a sink that discards them, so
+     * none of it runs -- the server still gets told what it would have played.
+     */
+    bool device_present;
+    /**
      * Refuse a short effect while a longer one is sounding (the 2004 client's
      * monophony). Set from the era feature table; off for OldSchool, whose
      * mixer is polyphonic and where the rule would swallow most of a combat
@@ -294,6 +305,16 @@ void
 RS_Audio_SetFeatures(
     struct RS_Audio* audio,
     struct ToriRS_FeatureTable const* features);
+
+/**
+ * Say whether the platform opened an output device.
+ *
+ * Call once, after PlatformAudio_Init reports. Defaults to present, so a
+ * caller that never opens a device and never calls this keeps the old
+ * behaviour of decoding everything into a discarding sink.
+ */
+void
+RS_Audio_SetDevicePresent(struct RS_Audio* audio, bool present);
 
 /** Release the music player and everything it holds. */
 void

@@ -75,6 +75,15 @@ struct ToriDraw_Normals
 
     struct ToriDraw_Normal* face_normals;
     int face_normals_count;
+
+    /** Allocated length of the two arrays, which a recycled block keeps while
+     *  `*_count` drops to what the current model actually uses. Only
+     *  `ToriDraw_NormalsNew` / `ToriDraw_NormalsFree` may touch these -- they
+     *  are what lets a freed block be handed to a smaller model without
+     *  reallocating, and reading `*_count` as the capacity would then walk off
+     *  the end of a block that is genuinely larger than it claims. */
+    int vertex_normals_cap;
+    int face_normals_cap;
 };
 
 struct ToriDraw_Bones

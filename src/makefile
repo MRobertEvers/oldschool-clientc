@@ -127,6 +127,19 @@ else
 OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
 O_LEVEL = $(PLATFORM_DEBUG_O_LEVEL)
 endif
+
+# The optimized XP deliverable is a deployment binary, not a profiling build.
+# Let the i686 register allocator reclaim EBP and do not carry DWARF through
+# every object. Other lanes retain their existing diagnostic-friendly flags.
+ifeq ($(PLATFORM),win32)
+ifeq ($(OPT),1)
+BUILD_DIAGNOSTIC_CFLAGS = -fomit-frame-pointer
+else
+BUILD_DIAGNOSTIC_CFLAGS = -fno-omit-frame-pointer -g
+endif
+else
+BUILD_DIAGNOSTIC_CFLAGS = -fno-omit-frame-pointer -g
+endif
 # Debug and release deliberately share ./torirs, but a traced binary must not
 # join them: MEMTRACE is a long-running capture, and `make -C src all` in
 # another terminal would silently replace it mid-session â the symptom being a
@@ -147,11 +160,11 @@ endif
 # bake ran for tens of minutes. A host tool has no reason to be built for the
 # target; XP never runs it.
 #
-# Preference order: the toolchain vendored at toolchain/mingw64 (see
+# Preference order: the toolchain vendored at toolchains/mingw64 (see
 # tools/toolchain/README.md), then a 64-bit cross-compiler on PATH, then
 # whatever the lane uses â so this degrades to the old behaviour rather than
 # failing on a machine with neither.
-TOOLCHAIN_MINGW64_CC := $(REPO_ROOT)/toolchain/mingw64/bin/gcc.exe
+TOOLCHAIN_MINGW64_CC := $(REPO_ROOT)/toolchains/mingw64/bin/gcc.exe
 HOST_CC ?= $(strip \
     $(if $(wildcard $(TOOLCHAIN_MINGW64_CC)),$(TOOLCHAIN_MINGW64_CC), \
     $(if $(shell command -v x86_64-w64-mingw32-gcc 2>/dev/null),x86_64-w64-mingw32-gcc, \
@@ -189,8 +202,8 @@ LUA_DIR      := $(REPO_ROOT)/3rd/lua
 # binary, which is not a thing anyone should have to do to catch a type error.
 # Scoped rather than a blanket -Werror: the tree still carries unused-variable
 # and sign-compare warnings that are not worth failing a build over.
-CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -Wall -Wextra \
-	-Werror=incompatible-pointer-types -g -MMD -MP \
+CFLAGS = -std=c11 $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -Wall -Wextra \
+	-Werror=incompatible-pointer-types -MMD -MP \
 	-I$(SRC_DIR) -I$(SRC_DIR)/cs2vm2 -I$(SRC_DIR)/serverscript \
 	-I$(REPO_ROOT) -I$(RSCACHE_DIR)/include -I$(RSCACHE_DIR)/src \
 	-I$(TORIDRAW_DIR) -I$(TRSPK_DIR) -I$(BMP_DIR) -I$(HMAP_DIR) -I$(RSAREABUF_DIR) \
@@ -208,7 +221,7 @@ CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -Wall -Wextra \
 # recursive variables â CFLAGS is expanded at use, not here.
 RSPROT_HDR_INCLUDES = -I$(RSPROT_DIR)/src -I$(RSPROT_DIR)/include -I$(RSPROT_DIR)
 
-RSCACHE_CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
+RSCACHE_CFLAGS = -std=c11 $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -MMD -MP \
 	-I$(RSCACHE_DIR)/include \
 	-I$(RSCACHE_DIR)/src \
 	-I$(RSCACHE_DIR) \
@@ -241,10 +254,10 @@ RSPROT_INCLUDES = \
 	-I$(REPO_ROOT) \
 	-I$(REPO_ROOT)/3rd/xteas
 
-RSPROT_CFLAGS = -std=c11 $(O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
+RSPROT_CFLAGS = -std=c11 $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -MMD -MP \
 	$(RSPROT_INCLUDES)
 
-COMPRESS_CFLAGS = -std=c11 -O3 -fno-omit-frame-pointer -g -MMD -MP \
+COMPRESS_CFLAGS = -std=c11 -O3 $(BUILD_DIAGNOSTIC_CFLAGS) -MMD -MP \
 	-I$(REPO_ROOT)/3rd/bzip \
 	-I$(REPO_ROOT)/3rd/miniz \
 	-I$(REPO_ROOT)/3rd/xteas
@@ -256,7 +269,7 @@ TORIDRAW_O_LEVEL = -O2
 else
 TORIDRAW_O_LEVEL = $(O_LEVEL)
 endif
-TORIDRAW_CFLAGS = -std=c11 $(TORIDRAW_O_LEVEL) -fno-omit-frame-pointer -g -MMD -MP \
+TORIDRAW_CFLAGS = -std=c11 $(TORIDRAW_O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) -MMD -MP \
 	-I$(TORIDRAW_DIR) \
 	-I$(BMP_DIR)
 
@@ -330,6 +343,7 @@ endif
 # platform/platform_sdl2*.c is shared (emscripten ports SDL2); the IO, audio
 # and 3D-renderer backends are per-platform and come in via $(PLATFORM_SRCS).
 SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_EXEC_SRC) \
+	platform/platform_memory.c \
 	platform/platform_sdl2_renderer_soft3d.c \
 	$(ASAN_COMPAT_SRC) \
 	$(PLATFORM_SRCS) \
@@ -622,7 +636,7 @@ $(WINDOWS_FLAGS_STAMP): FORCE_WINDOWS_FLAGS | $(OBJ_DIR)
 $(OBJS): $(WINDOWS_FLAGS_STAMP)
 endif
 
-.PHONY: test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug web-idb web-idb-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
+.PHONY: test-font-markup test-seal-rig torirsserver-cache-check torirsserver-bank test-torirsserver-bank torirsserver-alt test-torirsserver-alt torirsserver-dev test-torirsserver-dev test-cache-trim all release web web-debug web-idb web-idb-debug winxp winxp-debug win64 win64-debug clean-lane io-server servers test-io-wire test-js5 test-js5-server js5-server mock-js5 clean run ToriRSServer test-sound test-ToriRSServer test-torirsserver-poh test-poh-servants check-crystal-set-contract check-godwars-manifest check-godwars-contract check-quest-combat-manifest check-quest-combat-contract check-charter-contract check-selftest-registration check-tob-pillar-contract test-construction-catalog test-poh-quest-status bench-uitree test-blit-scaled test-blit-opaque test-rsareabuf test-varp test-npctype-multi test-varc test-loot-store test-inv test-world test-uitree test-uitree-builder test-uitree-builder-dat1 test-revconfig test-bootmanifest test-light-model test-animation-object-step test-scene-profiles test-ws-frame test-world-builder test-minimap test-cs1vm test-cs1 test-cmdbus test-net-login test-net-loopback test-net-exec test-ui-slots test-walkmerge test-entity-decode check-no-drain test-task-order test-cs2-frame-settle test-db test-cs2-math test-cs2-string test-cs2-component-param test-cs2-text-align test-cs2-triggerop test-cs2-highlight test-cs2-options test-cs2-dialect world-builder test-ss-meta test-ss-corpus test-ss-roundtrip test-ss-vm test-ss-verify test-ss-provider test-ssc sscompile torirsserver-scripts torirsserver-scripts-summoning torirsserver-scripts-curses torirsserver-servpack torirsserver-cache torirsserver-pack test-social test-cs2-transmit-pump test-minimenu-world test-entity-info-shrink test-minimap-dots test-painters-occluders test-pick-level test-painters-ground-decor test-summoning-cs2 test-summoning-isolation test-summoning-import test-summoning-byte-identity torirsserver-cache-summoning torirsserver-cache-curses torirsserver-cache-all torirsserver-scripts-summoning-curses test-curses-cs2 test-curses-isolation test-summoning-phase1 test-summoning-phase3 test-summoning-phase4 test-summoning-phase4c torirsserver-cache-rs2012-summoning
 .PHONY: test-server-clean test-painters-terrain-levels test-mock239-inbound test-mock239-runclientscript test-mock239-interface-setters test-mock239-varp test-torirsserver-interface-state rsprot test-rsprot test-pktexec test-pktpackets test-rsprot-bridge test-net-out-resume test-midi-packets test-cs2-target-verb test-cs2-world-click-responsiveness test-summoning-phase4d test-summoning-phase4e test-summoning-phase4f test-summoning-phase5a test-summoning-phase5b test-summoning-phase5c-corpus test-summoning-scroll-assets test-summoning-pet-guide-assets test-summoning-phase5b-runtime test-summoning-phase6 test-summoning-phase6-cache test-summoning-phase7d test-summoning-phase7f summoning-texture-review
 .PHONY: test-summoning-specials test-summoning-source-provenance test-summoning-interact test-summoning-leash test-summoning-instance summoning-dialogue
 .PHONY: check-dks-contract check-boss-contract
@@ -1365,7 +1379,7 @@ $(OBJ_DIR)/ini.o: $(INI_SRC) | $(OBJ_DIR)
 # Lua 5.5, one object with its own flags (see plugin/lua_unity.c for what is
 # deliberately left out of it). -w because a vendored library's warnings are
 # not ours to fix and would drown the tree's own.
-LUA_CFLAGS = -std=c99 $(O_LEVEL) -g -I$(LUA_DIR)
+LUA_CFLAGS = -std=c99 $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) $(PLATFORM_BASE_CFLAGS) -I$(LUA_DIR)
 $(OBJ_DIR)/lua_unity.o: $(SRC_DIR)/plugin/lua_unity.c | $(OBJ_DIR)
 	$(CC) $(LUA_CFLAGS) -w -c $(SRC_DIR)/plugin/lua_unity.c -o $@
 
@@ -2210,7 +2224,7 @@ test-task-order: $(OBJ_DIR)
 # CS2 visual transactions: ready work drains past the old per-frame caps, while
 # genuine external waits retain the last complete display list until settlement.
 test-cs2-frame-settle: $(OBJ_DIR)
-	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_frame_settle_test game/test/cs2_frame_settle_test.c -lm
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_frame_settle_test game/test/cs2_frame_settle_test.c perf/torirs_perf.c -lm
 	./$(OBJ_DIR)/cs2_frame_settle_test
 
 # No blocking IO outside tests: TaskRunner_Drain must appear only under */test/.
@@ -2246,6 +2260,12 @@ test-blit-scaled: $(OBJ_DIR)
 		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/blit_scaled_test \
 		$(TORIDRAW_DIR)/toridraw_blit_scaled_test.c -lm
 	./$(OBJ_DIR)/blit_scaled_test
+
+test-blit-opaque: $(OBJ_DIR)
+	$(CC) -std=c11 -O2 -g -Wall -Wextra -Wno-unused-parameter -Wno-unused-function \
+		-I$(TORIDRAW_DIR) -o $(OBJ_DIR)/blit_opaque_test \
+		$(TORIDRAW_DIR)/toridraw_blit_opaque_test.c -lm
+	./$(OBJ_DIR)/blit_opaque_test
 
 # The `gouraudrgb` family: per-channel RGB interpolation, as opposed to
 # `gouraudhsllightness`, which walks a packed HSL16 word through the palette.
