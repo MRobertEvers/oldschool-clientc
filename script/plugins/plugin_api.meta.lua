@@ -152,6 +152,7 @@ dofile = nil
 ---@field project fun(fine_x: integer, fine_z: integer, height?: integer): integer?, integer? Fine world position to screen x, y. nil when it is off-screen or behind the camera.
 ---@field cfg_set fun(key: string, value: string|number|boolean) The only way to write config; the table itself is read-only.
 ---@field config table<string, any> Live view of this plugin's settings, typed by the schema: a `color` reads back as an integer, a `bool` as a boolean. Reading a key the plugin never declared is an error, not nil.
+--- A numeric or colour setting is stored as text and read as an integer EXPRESSION, the same grammar a revconfig profile uses: `12`, `0x1F`, `1Fh`, `0b1010`, `#FF8000`, `1 << 4`, `rgb(255, 128, 0)`, `rgba(0, 0, 0, 128)`, `hsl16(hue, sat, lum)`. Text that is not one whole expression reads as 0.
 ---@field asset_load fun(name: string): boolean Begin loading one of this plugin's own files. True means it is already resident; false means a read was queued and on_asset will fire. `name` is a bare filename of [A-Za-z0-9._-] -- a path is refused, so one plugin can never read another's.
 ---@field asset_data fun(name: string): string? The resident bytes, or nil while pending / after a failure. Binary-safe: Lua strings count their bytes and may contain NULs.
 ---@field asset_save fun(name: string, data: string): boolean Replace `name` and queue the write. The resident copy is updated before returning, so asset_data() answers with the new bytes at once.

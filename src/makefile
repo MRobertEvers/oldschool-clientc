@@ -474,6 +474,8 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	game/rs_client_trigger.c \
 	plugin/torirs_plugin_host.c plugin/torirs_plugin_registry.c \
 	plugin/torirs_plugin_lua.c plugin/task_plugin_io.c \
+	plugin/plugins/client_settings.c \
+	plugin/plugins/feature_flags.c \
 	plugin/plugins/tileind.c \
 	plugin/plugins/minimap_orbs.c \
 	plugin/plugins/xp_orbs.c \
@@ -1557,6 +1559,22 @@ test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/test/torirs_plug
 		plugin/torirs_plugin_host.c ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/test/torirs_plugin_host_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/plugin_host_test
+
+# The Feature Flags plugin against a fake engine that publishes three flags,
+# one of each shape. What is under test is the round trip -- the page built
+# from the engine's list, a pick reaching the engine, the ini keeping the words
+# rather than an ordinal, and "Revision default" restoring rather than merely
+# stopping. Not which flags the client publishes: that is app.c's statement
+# about what is client-only, and a test restating it would only compare two
+# hand-typed lists.
+.PHONY: test-feature-flags
+test-feature-flags: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/feature_flags.c \
+		plugin/test/feature_flags_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/feature_flags_test \
+		plugin/torirs_plugin_host.c ui/uitree_minimenu.c revconfig/revconfig.c \
+		plugin/plugins/feature_flags.c \
+		plugin/test/feature_flags_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/feature_flags_test
 
 # The XP drop orbs, against a fake engine with a real PNG decode and a real
 # image table -- because this plugin's whole draw path is read-pixels /

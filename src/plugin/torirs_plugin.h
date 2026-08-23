@@ -881,7 +881,7 @@ enum ToriRS_PluginConfigType
     TORIRS_PLUGIN_CFG_BOOL = 0,
     /** Uses min/max. */
     TORIRS_PLUGIN_CFG_INT,
-    /** Stored as "#RRGGBB", read back as 0xRRGGBB. */
+    /** Written as "#RRGGBB" by the panel, read back as 0xRRGGBB. */
     TORIRS_PLUGIN_CFG_COLOR,
     /** Also the carrier for lists, as comma-separated text. */
     TORIRS_PLUGIN_CFG_STRING,
@@ -927,6 +927,44 @@ struct ToriRS_PluginConfigItem
      * `choices` silently shifts what each of those braces means.
      */
     int rows;
+};
+
+/* ------------------------------------------------------------------------ */
+/* Display settings                                                          */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * A client-wide DISPLAY preference, as display_setting names it.
+ *
+ * Not a feature flag and not a varp, and it is worth saying which it is not.
+ * A feature flag is a per-era BEHAVIOUR with a revision default to fall back
+ * to; a varp is the SERVER's and read-only here. These are the DEVICE's: they
+ * describe the screen the client is being looked at on, they have no revision
+ * default because no revision has an opinion about a monitor, and they are
+ * persisted per install in preferences.ini.
+ *
+ * The rev-239 cache edits the same two rows in its own All Settings panel, so
+ * these are the SAME store rather than a second one -- a lane with that panel
+ * shows one value in two places, and a lane without it (every dat1 world:
+ * there is no All Settings interface in a 2004 cache) has these and nothing
+ * else. That gap is the whole reason the verbs exist.
+ */
+enum ToriRS_PluginDisplaySetting
+{
+    /**
+     * Interface scale, as a PERCENT of 1:1.
+     *
+     * The canvas is the window divided by it and the present stretches that
+     * back to fill the window, so 200 is half as many pixels each drawn twice
+     * the size -- the 3D scene included, which is the trade this buys: chrome
+     * and text at a readable size on a high-density display, a scene rendered
+     * at fewer pixels. 100 is untouched.
+     */
+    TORIRS_PLUGIN_DISPLAY_UI_SCALE = 0,
+    /** How that stretch is filtered: 0 nearest, 1 linear, 2 bicubic. */
+    TORIRS_PLUGIN_DISPLAY_UI_SCALE_FILTER,
+
+    TORIRS_PLUGIN_DISPLAY_SETTING_COUNT
 };
 
 /* ------------------------------------------------------------------------ */
@@ -1573,10 +1611,36 @@ struct ToriRS_PluginApi
 
     /* -- config -- */
 
+    /*
+     * The store is TEXT, and what these make of it is revconfig's expression
+     * grammar -- the same one a revconfig profile's numeric keys are in:
+     *
+     *   12   0x1F   1Fh   0b1010   #FF8000   1 << 4   (1088 << 16) | 255
+     *   rgb(255, 128, 0)   rgba(0, 0, 0, 128)   hsl16(hue, sat, lum)
+     *
+     * Because plugin_prefs.ini is a file people edit by hand, and those are
+     * the spellings they reach for. A value that is not one whole expression
+     * reads as 0, silently: a colour key is read on the draw path, so saying
+     * so would print once a frame forever.
+     */
     int (*cfg_bool)(struct ToriRS_PluginCtx* ctx, char const* key);
     int (*cfg_int)(struct ToriRS_PluginCtx* ctx, char const* key);
+    /** 0xRRGGBB. An rgba() alpha is dropped -- read the key with cfg_int for
+     *  the packed ARGB word. */
     uint32_t (*cfg_color)(struct ToriRS_PluginCtx* ctx, char const* key);
     char const* (*cfg_str)(struct ToriRS_PluginCtx* ctx, char const* key);
+    /**
+     * Does the store hold this key at all?
+     *
+     * For a plugin whose keys are not a fixed schema but a set discovered at
+     * runtime -- the feature-flags page, whose rows are whatever the engine
+     * publishes. Every cfg_* reader ASSERTS the key exists, which is right for
+     * a declared schema (reading an undeclared key is the plugin's bug) and
+     * unanswerable for a discovered one: "has the user ever set this?" is a
+     * real question there, and the only alternative is writing a default for
+     * every key just so it can be read back.
+     */
+    int (*cfg_has)(struct ToriRS_PluginCtx* ctx, char const* key);
     /** Marks the store dirty and raises EV_CONFIG_CHANGED. */
     void (*cfg_set)(struct ToriRS_PluginCtx* ctx, char const* key, char const* value);
 
@@ -1603,8 +1667,9 @@ struct ToriRS_PluginApi
      */
 
     /**
-     * Walk the published flags. `iter` starts at 0; the return is the next
-     * iterator, or 0 when the walk is over.
+     * Walk the published flags, the way npc_next / loc_next walk theirs:
+     * `iter` starts at -1, the return is the iterator to pass next, and -1
+     * means the walk is over. `out` is filled on every non-negative return.
      *
      * The walk is what makes the list the ENGINE's: a plugin that renders it
      * grows a row when a flag is published and loses one when a flag stops
@@ -1633,6 +1698,36 @@ struct ToriRS_PluginApi
      *         the flag's stated range.
      */
     bool (*feature_set)(struct ToriRS_PluginCtx* ctx, char const* key, int value);
+
+    /* -- the client's own display settings -- */
+
+    /**
+     * One display preference: its value now, and the range it accepts.
+     *
+     * @param setting enum ToriRS_PluginDisplaySetting.
+     * @param out_value, out_min, out_max may each be NULL.
+     * @return 1 when this build has that setting, 0 otherwise, and 0 leaves
+     * every out untouched. A build that drops one should cost the page its
+     * row, not give it a row over nothing.
+     */
+    int (*display_setting)(
+        struct ToriRS_PluginCtx* ctx,
+        int setting,
+        int* out_value,
+        int* out_min,
+        int* out_max);
+
+    /**
+     * Set it. Takes effect on the next frame and persists by itself -- the
+     * preferences file is captured from the client's own option store, so
+     * there is no save here to forget.
+     *
+     * @return 1 when it was applied, 0 for a setting this build does not have.
+     * A value outside the range is CLAMPED rather than refused: the store
+     * clamps every writer, including the cache's own settings scripts, and a
+     * verb that refused here would be the only one that did.
+     */
+    int (*display_setting_set)(struct ToriRS_PluginCtx* ctx, int setting, int value);
 
     /* -- the client's own variables --
      *
@@ -2320,6 +2415,30 @@ struct ToriRS_PluginDef
     char const* version;
     /** Higher runs earlier within an event. Ties break on registration order. */
     int priority;
+    /**
+     * Where this plugin's DRAWING sits in the stack, within one draw pass.
+     * Higher is nearer the viewer; 0 is the default.
+     *
+     * Separate from `priority`, because on a draw event the two want opposite
+     * things and one number cannot say both. Priority is about seeing an event
+     * FIRST -- a feature flag has to be restored before anything reads one --
+     * and on a draw pass "first" means UNDERNEATH. So a plugin that raised its
+     * priority to be early would sink its own drawing, and a plugin that
+     * lowered it to draw on top would stop being early. This orders the
+     * pixels; priority goes on ordering the handlers.
+     *
+     * The case it exists for is a gameframe. Its art is a BACKDROP -- a map
+     * housing, a sidebar panel, a chatbox -- and every readout another plugin
+     * paints near one belongs over it, which is not something the readout
+     * should have to know: the minimap orbs sat under the map surround's ring
+     * because the frame happened to be registered after them, and nothing in
+     * either plugin said so. A frame declares itself low and the question
+     * stops being about registration order.
+     *
+     * Only the draw events read it -- EV_DRAW_WORLD, EV_DRAW_CANVAS,
+     * EV_DRAW_FRAME. Ties break on `priority`, then on registration order.
+     */
+    int draw_order;
     /** NULL-key-terminated array, or NULL for no config. */
     struct ToriRS_PluginConfigItem const* config;
     /** Start switched off until the user asks for it, or until a saved

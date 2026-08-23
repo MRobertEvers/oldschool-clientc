@@ -188,6 +188,127 @@ fake_element_height(void* u, int element_id)
     (void)u;
     return element_id >= 0 ? 200 : 0;
 }
+/*
+ * Feature flags, as a fake engine publishes them: one int, one enum, and a
+ * boot snapshot so the UNSET restore has something to restore TO. Two is
+ * enough to exercise everything the host forwards -- the walk, the range
+ * refusal and the sentinel -- without this file growing a copy of app.c's
+ * table, which is the client's business and not the host's.
+ */
+struct FakeFeature
+{
+    char const* key;
+    char const* label;
+    int kind;
+    int min;
+    int max;
+    char const* choices;
+    int values[2];
+    int value_count;
+    int boot;
+    int value;
+};
+
+static struct FakeFeature g_fake_features[] = {
+    { "draw_distance", "Draw distance", TORIRS_PLUGIN_FEATURE_INT, 25, 90, NULL,
+      { 0, 0 }, 0, 25, 25 },
+    { "camera_zoom", "Camera zoom", TORIRS_PLUGIN_FEATURE_ENUM, 0, 0, "Adjustable|Fixed",
+      { 0, 1 }, 2, 0, 0 },
+};
+
+#define FAKE_FEATURE_COUNT ((int)(sizeof(g_fake_features) / sizeof(g_fake_features[0])))
+
+static struct FakeFeature*
+fake_feature_find(char const* key)
+{
+    for( int i = 0; i < FAKE_FEATURE_COUNT; i++ )
+    {
+        if( strcmp(g_fake_features[i].key, key) == 0 )
+            return &g_fake_features[i];
+    }
+    return NULL;
+}
+
+static int
+fake_feature_next(void* u, int i, struct ToriRS_PluginFeature* o)
+{
+    (void)u;
+
+    int const at = i < 0 ? 0 : i + 1;
+    if( at >= FAKE_FEATURE_COUNT )
+        return -1;
+
+    struct FakeFeature const* f = &g_fake_features[at];
+    memset(o, 0, sizeof(*o));
+    snprintf(o->key, sizeof(o->key), "%s", f->key);
+    snprintf(o->label, sizeof(o->label), "%s", f->label);
+    o->kind = f->kind;
+    o->min = f->min;
+    o->max = f->max;
+    if( f->choices )
+        snprintf(o->choices, sizeof(o->choices), "%s", f->choices);
+    o->value_count = f->value_count;
+    for( int v = 0; v < f->value_count; v++ )
+        o->values[v] = f->values[v];
+    o->value = f->value;
+    o->is_default = f->value == f->boot;
+    return at;
+}
+
+static int
+fake_feature_get(void* u, char const* k)
+{
+    (void)u;
+
+    struct FakeFeature const* f = fake_feature_find(k);
+    return f ? f->value : TORIRS_PLUGIN_FEATURE_UNSET;
+}
+
+static int
+fake_feature_set(void* u, char const* k, int v)
+{
+    (void)u;
+
+    struct FakeFeature* f = fake_feature_find(k);
+    if( !f )
+        return 0;
+    if( v == TORIRS_PLUGIN_FEATURE_UNSET )
+    {
+        f->value = f->boot;
+        return 1;
+    }
+    if( f->kind == TORIRS_PLUGIN_FEATURE_ENUM )
+    {
+        int legal = 0;
+        for( int i = 0; i < f->value_count; i++ )
+            legal |= f->values[i] == v;
+        if( !legal )
+            return 0;
+    }
+    else if( v < f->min || v > f->max )
+        return 0;
+    f->value = v;
+    return 1;
+}
+
+static int
+fake_display_setting(void* u, int setting, int* value, int* min, int* max)
+{
+    (void)u;
+    (void)setting;
+    (void)value;
+    (void)min;
+    (void)max;
+    return 0;
+}
+static int
+fake_display_setting_set(void* u, int setting, int value)
+{
+    (void)u;
+    (void)setting;
+    (void)value;
+    return 0;
+}
 static int
 fake_varbit(void* u, int id)
 {
@@ -600,6 +721,24 @@ fake_layout_slot_skin(void* u, int slot, int art, int mask)
     return 0;
 }
 static int
+fake_display_setting(void* u, int setting, int* out_value, int* out_min, int* out_max)
+{
+    (void)u;
+    (void)setting;
+    (void)out_value;
+    (void)out_min;
+    (void)out_max;
+    return 0;
+}
+static int
+fake_display_setting_set(void* u, int setting, int value)
+{
+    (void)u;
+    (void)setting;
+    (void)value;
+    return 0;
+}
+static int
 fake_tab_active(void* u)
 {
     (void)u;
@@ -827,6 +966,11 @@ fake_engine(void)
     e.hover_tile = fake_hover_tile;
     e.hover_entity = fake_hover_entity;
     e.element_height = fake_element_height;
+    e.feature_next = fake_feature_next;
+    e.feature_get = fake_feature_get;
+    e.feature_set = fake_feature_set;
+    e.display_setting = fake_display_setting;
+    e.display_setting_set = fake_display_setting_set;
     e.varbit = fake_varbit;
     e.varp = fake_varp;
     e.project = fake_project;
@@ -841,6 +985,8 @@ fake_engine(void)
     e.layout_set = fake_layout_set;
     e.layout_slot = fake_layout_slot;
     e.layout_slot_skin = fake_layout_slot_skin;
+    e.display_setting = fake_display_setting;
+    e.display_setting_set = fake_display_setting_set;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
     e.obj_info = fake_obj_info;
@@ -1251,6 +1397,21 @@ static struct ToriRS_PluginDef const OFF_BY_DEFAULT = {
     .disabled_by_default = true,
 };
 
+/*
+ * The shape the Feature Flags plugin has: listed, but with one state.
+ *
+ * Registered here rather than tested through the real plugin because what is
+ * under test is the HOST's half of the contract -- that `essential` is
+ * reported, that SetEnabled will not clear it, and that a saved `enabled=0`
+ * does not either. The plugin's own page is the panel's business.
+ */
+static struct ToriRS_PluginDef const ESSENTIAL = {
+    .name = "always-on",
+    .title = "Always On",
+    .version = "1",
+    .essential = true,
+};
+
 /* Declares no title, so the host must make one: the roster is not allowed to
  * fall back to printing the id at anybody. */
 static struct ToriRS_PluginDef const TITLELESS = {
@@ -1308,6 +1469,66 @@ main(void)
     PluginHost_SetEnabled(host, a, true);
     PluginHost_LogicTick(host, 3);
     CHECK(g_alpha_ticks == 1, "re-enabling restores its subscriptions");
+
+    /*
+     * Essential: listed, and with no second state.
+     *
+     * Every one of these is a way the switch could come back on a plugin whose
+     * whole point is that it has none -- the panel writing it, an ini carrying
+     * it from a build where it was ordinary, or the encoder saving one.
+     */
+    {
+        int const e = PluginHost_Register(host, &ESSENTIAL);
+        CHECK(PluginHost_IsEssential(host, e), "essential is reported to the roster");
+        CHECK(!PluginHost_IsEssential(host, a), "and an ordinary plugin is not");
+        CHECK(PluginHost_IsEnabled(host, e), "an essential plugin starts on");
+
+        PluginHost_SetEnabled(host, e, false);
+        CHECK(PluginHost_IsEnabled(host, e), "and cannot be switched off");
+
+        PluginHost_ConfigApply(host, "always-on", "enabled", "0");
+        CHECK(PluginHost_IsEnabled(host, e),
+              "a saved enabled=0 from an older build is ignored too");
+    }
+
+    /*
+     * Feature flags: the walk, the sentinel, and the two refusals.
+     *
+     * The refusals are the load-bearing half. A key the engine does not
+     * publish is how a server-agreed flag stays out of a plugin's reach, and a
+     * value outside the flag's range is what stops a typed number from
+     * becoming a draw distance nothing can render.
+     */
+    {
+        struct ToriRS_PluginApi const* api = PluginHost_Api(host);
+        struct ToriRS_PluginCtx* ctx = PluginHost_Ctx(host, a);
+        struct ToriRS_PluginFeature flag;
+        int seen = 0;
+        int iter = -1;
+
+        while( (iter = api->feature_next(ctx, iter, &flag)) >= 0 )
+            seen++;
+        CHECK(seen == FAKE_FEATURE_COUNT, "the walk visits every published flag");
+
+        CHECK(api->feature_get(ctx, "pathing_mode") == TORIRS_PLUGIN_FEATURE_UNSET,
+              "an unpublished flag reads as unset");
+        CHECK(!api->feature_set(ctx, "pathing_mode", 1),
+              "and cannot be set, which is the whole server-agreement rule");
+
+        CHECK(api->feature_set(ctx, "draw_distance", 60), "a value in range is taken");
+        CHECK(api->feature_get(ctx, "draw_distance") == 60, "and is what reads back");
+        CHECK(!api->feature_set(ctx, "draw_distance", 4000), "a value out of range is not");
+        CHECK(api->feature_get(ctx, "draw_distance") == 60, "and leaves the flag alone");
+
+        CHECK(api->feature_set(ctx, "draw_distance", TORIRS_PLUGIN_FEATURE_UNSET),
+              "the sentinel is accepted");
+        CHECK(api->feature_get(ctx, "draw_distance") == 25,
+              "and restores what the boot resolved");
+
+        CHECK(api->feature_set(ctx, "camera_zoom", 1), "an enum takes a declared value");
+        CHECK(!api->feature_set(ctx, "camera_zoom", 7), "and refuses one it never offered");
+        CHECK(api->feature_get(ctx, "camera_zoom") == 1, "leaving the declared one in place");
+    }
 
     /* Packet interception. */
     CHECK(PluginHost_PacketIn(host, 5, -1) == 0, "an unremarkable packet passes");
@@ -1407,6 +1628,42 @@ main(void)
             PluginHost_Free(host2);
         }
         free(data);
+    }
+
+    /*
+     * Typed reads. The store is text, so what cfg_int and cfg_color make of
+     * that text IS the setting -- and the spellings a hand-edited
+     * plugin_prefs.ini carries are revconfig's, not atoi's.
+     */
+    {
+        struct ToriRS_PluginCtx* ctx = PluginHost_Ctx(host, a);
+
+        PluginHost_ConfigSet(host, a, "colour", "#FF8000");
+        CHECK(g_api->cfg_color(ctx, "colour") == 0xFF8000u, "#RRGGBB");
+        PluginHost_ConfigSet(host, a, "colour", "rgb(255, 0, 0)");
+        CHECK(g_api->cfg_color(ctx, "colour") == 0xFF0000u, "rgb()");
+        PluginHost_ConfigSet(host, a, "colour", "0x0000FF");
+        CHECK(g_api->cfg_color(ctx, "colour") == 0x0000FFu, "0x hex");
+        PluginHost_ConfigSet(host, a, "colour", "65280");
+        CHECK(g_api->cfg_color(ctx, "colour") == 0x00FF00u, "a bare run is decimal");
+        PluginHost_ConfigSet(host, a, "colour", "rgba(255, 0, 0, 128)");
+        CHECK(
+            g_api->cfg_color(ctx, "colour") == 0xFF0000u,
+            "rgba() parses; cfg_color drops the alpha byte its contract has no room for");
+        PluginHost_ConfigSet(host, a, "colour", "cornflower");
+        CHECK(g_api->cfg_color(ctx, "colour") == 0u, "a value that is not a number reads as 0");
+
+        PluginHost_ConfigSet(host, a, "level", "0x10");
+        CHECK(g_api->cfg_int(ctx, "level") == 16, "an int key is the same grammar");
+        PluginHost_ConfigSet(host, a, "level", "1 << 4");
+        CHECK(g_api->cfg_int(ctx, "level") == 16, "arithmetic");
+        PluginHost_ConfigSet(host, a, "level", "hsl16(0, 7, 64)");
+        CHECK(g_api->cfg_int(ctx, "level") == ((7 << 7) | 64), "hsl16() packs a palette index");
+        PluginHost_ConfigSet(host, a, "level", "-1");
+        CHECK(g_api->cfg_int(ctx, "level") == -1, "a negative value survives");
+        PluginHost_ConfigSet(host, a, "level", "9 apples");
+        CHECK(g_api->cfg_int(ctx, "level") == 0, "a number with text after it is a typo, not a 9");
+        PluginHost_ConfigSet(host, a, "level", "9");
     }
 
     /* Enable state is saved state. */

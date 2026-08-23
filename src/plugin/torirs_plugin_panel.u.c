@@ -381,67 +381,89 @@ app_plugin_panel_sync(struct App* app)
 
     if( g_plugin_page < 0 )
     {
-        for( int p = 0; p < count; p++ )
+        /*
+         * Two passes, essential rows first.
+         *
+         * Registration order already puts the client's own settings at the
+         * top -- the registry lists it first on purpose -- but the roster is
+         * not only that table: the Lua adapter registers a further plugin per
+         * script it loads, and a build that grows a second static plugin ahead
+         * of it would move it without anyone noticing. The pass is what makes
+         * "first" a property of the row rather than of a table somewhere else.
+         */
+        for( int pass = 0; pass < 2; pass++ )
         {
-            char label[TORIRS_CHROME_INPUT_MAX];
-            char const* err = PluginHost_Error(app->plugins, p);
-
-            /*
-             * An ADAPTER is machinery, and a working one has no row.
-             *
-             * The Lua adapter is registered beside the scripts it runs -- that
-             * uniformity is the whole design -- so it also appeared in the
-             * roster, called "lua", sitting among them and looking like a peer
-             * with nothing a user does to it. Its scripts are the rows; they
-             * speak for it.
-             *
-             * It comes back the moment it has something to say, and the two
-             * conditions below are the two states you cannot get out of
-             * otherwise: a fault has to be visible somewhere or a broken Lua
-             * layer is a client with no plugins and no explanation, and a
-             * switched-off adapter has to have a switch or it can never come
-             * back on.
-             */
-            if( PluginHost_IsAdapter(app->plugins, p) && !err &&
-                PluginHost_IsEnabled(app->plugins, p) )
-                continue;
-
-            /*
-             * A HIDDEN builtin has no row at all, faulting or not.
-             *
-             * Unlike an adapter, there is nothing here for the user to do
-             * about it: it is a feature of the client whose switch is in the
-             * cache's own All Settings panel, and a row here would be a second
-             * switch over the same thing. See ToriRS_PluginDef::hidden.
-             */
-            if( PluginHost_IsHidden(app->plugins, p) )
-                continue;
-
-            /* The TITLE, not the name: the name is the ini key, and a roster
-             * of kebab-case ids reads as a config file that got onto the
-             * screen. Nothing here keys off the string -- the row carries the
-             * plugin index. */
-            snprintf(label, sizeof(label), "%s", PluginHost_Title(app->plugins, p));
-            app_plugin_panel_track(
-                app,
-                ToriRSChrome_ListRow(
-                    &app->plugin_ui,
-                    app->plugin_panel,
-                    label,
-                    PluginHost_IsEnabled(app->plugins, p) ? 1 : 0,
-                    app_plugin_has_page(app, p)),
-                p,
-                APP_PLUGIN_ROW_ENABLE,
-                -1,
-                NULL);
-
-            /* A script that faulted says so where its switch is, rather than
-             * only in a log nobody has open. */
-            if( err )
+            for( int p = 0; p < count; p++ )
             {
-                snprintf(label, sizeof(label), "  ! %s", err);
-                ToriRSChrome_LabelColored(
-                    &app->plugin_ui, app->plugin_panel, label, 0xFFCC5555u);
+                char label[TORIRS_CHROME_INPUT_MAX];
+                char const* err = PluginHost_Error(app->plugins, p);
+                bool const essential = PluginHost_IsEssential(app->plugins, p);
+
+                if( essential != (pass == 0) )
+                    continue;
+
+                /*
+                 * An ADAPTER is machinery, and a working one has no row.
+                 *
+                 * The Lua adapter is registered beside the scripts it runs -- that
+                 * uniformity is the whole design -- so it also appeared in the
+                 * roster, called "lua", sitting among them and looking like a peer
+                 * with nothing a user does to it. Its scripts are the rows; they
+                 * speak for it.
+                 *
+                 * It comes back the moment it has something to say, and the two
+                 * conditions below are the two states you cannot get out of
+                 * otherwise: a fault has to be visible somewhere or a broken Lua
+                 * layer is a client with no plugins and no explanation, and a
+                 * switched-off adapter has to have a switch or it can never come
+                 * back on.
+                 */
+                if( PluginHost_IsAdapter(app->plugins, p) && !err &&
+                    PluginHost_IsEnabled(app->plugins, p) )
+                    continue;
+
+                /*
+                 * A HIDDEN builtin has no row at all, faulting or not.
+                 *
+                 * Unlike an adapter, there is nothing here for the user to do
+                 * about it: it is a feature of the client whose switch is in the
+                 * cache's own All Settings panel, and a row here would be a second
+                 * switch over the same thing. See ToriRS_PluginDef::hidden.
+                 */
+                if( PluginHost_IsHidden(app->plugins, p) )
+                    continue;
+
+                /* The TITLE, not the name: the name is the ini key, and a roster
+                 * of kebab-case ids reads as a config file that got onto the
+                 * screen. Nothing here keys off the string -- the row carries the
+                 * plugin index. */
+                snprintf(label, sizeof(label), "%s", PluginHost_Title(app->plugins, p));
+                app_plugin_panel_track(
+                    app,
+                    /* An essential plugin's row carries no switch: it has one
+                     * state, and a toggle drawn over it would be the only control
+                     * on the screen that does nothing. */
+                    essential ? ToriRSChrome_ListRowLocked(
+                                    &app->plugin_ui, app->plugin_panel, label)
+                              : ToriRSChrome_ListRow(
+                                    &app->plugin_ui,
+                                    app->plugin_panel,
+                                    label,
+                                    PluginHost_IsEnabled(app->plugins, p) ? 1 : 0,
+                                    app_plugin_has_page(app, p)),
+                    p,
+                    APP_PLUGIN_ROW_ENABLE,
+                    -1,
+                    NULL);
+
+                /* A script that faulted says so where its switch is, rather than
+                 * only in a log nobody has open. */
+                if( err )
+                {
+                    snprintf(label, sizeof(label), "  ! %s", err);
+                    ToriRSChrome_LabelColored(
+                        &app->plugin_ui, app->plugin_panel, label, 0xFFCC5555u);
+                }
             }
         }
     }

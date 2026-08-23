@@ -31,7 +31,8 @@ DUMP=tools/dump_sprites/dump_sprites
   osrs_sideicon_12=786 osrs_sideicon_13=787 \
   osrs_stone_tl=1026 osrs_stone_tr=1027 osrs_stone_bl=1028 osrs_stone_br=1029 \
   osrs_stone_mid=1030 osrs_stone_mid_r=1180 osrs_stone_mid_r2=1181 \
-  osrs_invback=297 osrs_chatback=1017 osrs_mapback=1182 osrs_compass=169 \
+  osrs_invback=297 osrs_chatback=1017 osrs_chat_stones=1018 \
+  osrs_mapback=1182 osrs_compass=169 \
   osrs_side_panel=1031 osrs_side_panel_r=897 \
   osrs_tabs_top=1036 osrs_tabs_bottom=1032 osrs_tabs_top_r=1173 osrs_tabs_bottom_r=1174 \
   osrs_minimap_mask=1183 osrs_compass_mask=1184 \

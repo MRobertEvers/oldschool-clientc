@@ -1696,6 +1696,21 @@ ToriRSChrome_ListRow(
 }
 
 int
+ToriRSChrome_ListRowLocked(struct ToriRSChrome* ui, int panel, char const* label)
+{
+    int const h = dbg_widget_add(ui, panel, TORIRS_CHROME_W_LISTROW);
+    if( h < 0 )
+        return -1;
+    dbg_copy(ui->widgets[h].label, TORIRS_CHROME_LABEL_MAX, label);
+    /* A locked row is always an action row: with no switch, opening the page
+     * is the only thing it can do, and a row that does nothing at all is not
+     * worth a line. */
+    ui->widgets[h].row_action = 1;
+    ui->widgets[h].row_locked = 1;
+    return h;
+}
+
+int
 ToriRSChrome_TextInput(struct ToriRSChrome* ui, int panel, char const* label, char const* text)
 {
     int const h = dbg_widget_add(ui, panel, TORIRS_CHROME_W_TEXTINPUT);
@@ -2298,7 +2313,7 @@ dbg_widget_width(struct ToriRSChrome const* ui, struct ToriRSChromeWidget const*
          * whole list, which is what makes it a list instead of a form. */
         return ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->label) +
                DBG_ROW_NAME_GAP + (w->row_action ? DBG_ROW_ICON + DBG_ROW_ICON_GAP : 0) +
-               DBG_TOGGLE_W;
+               (w->row_locked ? 0 : DBG_TOGGLE_W);
     case TORIRS_CHROME_W_TEXTINPUT:
     {
         int box_w = ToriRSChrome_MeasureText(ui->theme.font_row, ui->scale, w->text) +
@@ -3817,7 +3832,7 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
              * settings affordance sits inside it, and the name gets what is
              * left. Pinned rather than flowed so a column of rows lines its
              * controls up regardless of how long the names are. */
-            int const tog_x = row_x + w->w - DBG_TOGGLE_W;
+            int const tog_x = row_x + w->w - (w->row_locked ? 0 : DBG_TOGGLE_W);
             int const tog_y = row_y + (row_h - DBG_TOGGLE_H) / 2;
             int const icon_x = tog_x - DBG_ROW_ICON_GAP - DBG_ROW_ICON;
             int const icon_y = row_y + (row_h - DBG_ROW_ICON) / 2;
@@ -3872,6 +3887,11 @@ dbg_build_window(struct ToriRSChrome* ui, struct ToriRSChromePanel* p)
                         1,
                         clip);
             }
+
+            /* A locked row has no second state, so it has no switch: nothing
+             * below draws and nothing above reserved the column for it. */
+            if( w->row_locked )
+                break;
 
             /* The switch: a well with the knob at the end its state names, lit
              * in the interfaces' own on/off green when it is on. */
@@ -6206,7 +6226,9 @@ ToriRSChrome_MouseUp(struct ToriRSChrome* ui, int x, int y)
              * to toggling, so no zone is ever inert.
              */
             int const tog_x = w->x + w->w - DBG_TOGGLE_W;
-            if( w->row_action && x < tog_x )
+            /* A locked row is all action zone: there is no switch to hit, so
+             * the right end of it opens the page like the rest. */
+            if( w->row_locked || (w->row_action && x < tog_x) )
             {
                 ui->activated = hit;
                 ui->activated_action = 1;

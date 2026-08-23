@@ -186,6 +186,11 @@ struct ToriRS_PluginEngine
     int (*feature_next)(void* user, int iter, struct ToriRS_PluginFeature* out);
     int (*feature_get)(void* user, char const* key);
     int (*feature_set)(void* user, char const* key, int value);
+    /** One client-wide display preference and its range, and the setter for
+     *  it. @see ToriRS_PluginApi::display_setting. */
+    int (*display_setting)(
+        void* user, int setting, int* out_value, int* out_min, int* out_max);
+    int (*display_setting_set)(void* user, int setting, int value);
 
     /** The client's live var state, read-only. @see ToriRS_PluginApi::varbit. */
     int (*varbit)(void* user, int varbit_id);

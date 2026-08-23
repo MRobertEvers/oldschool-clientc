@@ -385,8 +385,41 @@ plugin_dispatch(struct ToriRS_PluginHost* host, enum ToriRS_PluginEvent ev, void
     return TORIRS_PLUGIN_PASS;
 }
 
-/* Priority-ordered insert, so a plugin that declared a higher priority sees an
- * event first regardless of registration order. Stable within a priority. */
+/*
+ * Is `ev` one of the passes whose order is a Z ORDER?
+ *
+ * On these, running first means being drawn UNDER, so they sort by
+ * ToriRS_PluginDef::draw_order and the rest sort by `priority`. One list, two
+ * keys, chosen here -- the alternative is a second subscription table that
+ * only three events use.
+ */
+static int
+plugin_ev_is_draw(enum ToriRS_PluginEvent ev)
+{
+    return ev == TORIRS_PLUGIN_EV_DRAW_WORLD || ev == TORIRS_PLUGIN_EV_DRAW_CANVAS ||
+           ev == TORIRS_PLUGIN_EV_DRAW_FRAME;
+}
+
+/*
+ * The key this event sorts a subscriber by, HIGHEST FIRST.
+ *
+ * A draw pass negates draw_order so that a higher one runs later and therefore
+ * lands on top: "nearer the viewer" is the direction a person means by a z
+ * order, and the list is walked front to back.
+ */
+static int
+plugin_sub_key(
+    struct ToriRS_PluginHost const* host,
+    enum ToriRS_PluginEvent ev,
+    int plugin)
+{
+    struct ToriRS_PluginDef const* def = host->plugins[plugin].def;
+    return plugin_ev_is_draw(ev) ? -def->draw_order : def->priority;
+}
+
+/* Key-ordered insert, so a plugin that declared a higher priority sees an
+ * event first -- or, on a draw pass, a higher draw_order lands on top --
+ * regardless of registration order. Stable within a key. */
 static void
 plugin_sub_insert(
     struct ToriRS_PluginHost* host,
@@ -397,12 +430,12 @@ plugin_sub_insert(
     assert(sub);
 
     int const count = host->sub_count[ev];
-    int const priority = host->plugins[sub->plugin].def->priority;
+    int const priority = plugin_sub_key(host, ev, sub->plugin);
     int at = count;
 
     for( int i = 0; i < count; i++ )
     {
-        int const other = host->plugins[host->subs[ev][i].plugin].def->priority;
+        int const other = plugin_sub_key(host, ev, host->subs[ev][i].plugin);
         if( priority > other )
         {
             at = i;
@@ -835,6 +868,14 @@ PluginHost_ConfigGet(struct ToriRS_PluginHost const* host, int plugin_index, cha
     return NULL;
 }
 
+static int
+api_cfg_has(struct ToriRS_PluginCtx* ctx, char const* key)
+{
+    assert(ctx);
+    assert(key);
+    return PluginHost_ConfigGet(ctx->host, ctx->index, key) != NULL;
+}
+
 static char const*
 api_cfg_str(struct ToriRS_PluginCtx* ctx, char const* key)
 {
@@ -967,6 +1008,61 @@ api_varbit(struct ToriRS_PluginCtx* ctx, int varbit_id)
 {
     assert(ctx);
     return ctx->host->engine.varbit(ctx->host->engine.user, varbit_id);
+}
+
+static int
+api_feature_next(struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginFeature* out)
+{
+    assert(ctx);
+    assert(out);
+    return ctx->host->engine.feature_next(ctx->host->engine.user, iter, out);
+}
+
+static int
+api_feature_get(struct ToriRS_PluginCtx* ctx, char const* key)
+{
+    assert(ctx);
+    assert(key);
+    return ctx->host->engine.feature_get(ctx->host->engine.user, key);
+}
+
+static bool
+api_feature_set(struct ToriRS_PluginCtx* ctx, char const* key, int value)
+{
+    assert(ctx);
+    assert(key);
+    return ctx->host->engine.feature_set(ctx->host->engine.user, key, value) != 0;
+}
+
+static int
+api_display_setting(
+    struct ToriRS_PluginCtx* ctx,
+    int setting,
+    int* out_value,
+    int* out_min,
+    int* out_max)
+{
+    assert(ctx);
+    /* A number a plugin computed, so out of range is input rather than a
+     * broken contract -- and the answer it gets is the same one a build
+     * without that setting gives, which is the answer a page should render
+     * the same way either way. */
+    if( setting < 0 || setting >= TORIRS_PLUGIN_DISPLAY_SETTING_COUNT )
+        return 0;
+    return ctx->host->engine.display_setting(
+        ctx->host->engine.user, setting, out_value, out_min, out_max);
+}
+
+static int
+api_display_setting_set(
+    struct ToriRS_PluginCtx* ctx,
+    int setting,
+    int value)
+{
+    assert(ctx);
+    if( setting < 0 || setting >= TORIRS_PLUGIN_DISPLAY_SETTING_COUNT )
+        return 0;
+    return ctx->host->engine.display_setting_set(ctx->host->engine.user, setting, value);
 }
 
 static int
@@ -2554,6 +2650,11 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->hover_tile);
     assert(engine->hover_entity);
     assert(engine->element_height);
+    assert(engine->feature_next);
+    assert(engine->feature_get);
+    assert(engine->feature_set);
+    assert(engine->display_setting);
+    assert(engine->display_setting_set);
     assert(engine->varbit);
     assert(engine->varp);
     assert(engine->project);
@@ -2658,7 +2759,13 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .cfg_int = api_cfg_int,
         .cfg_color = api_cfg_color,
         .cfg_str = api_cfg_str,
+        .cfg_has = api_cfg_has,
         .cfg_set = api_cfg_set,
+        .feature_next = api_feature_next,
+        .feature_get = api_feature_get,
+        .feature_set = api_feature_set,
+        .display_setting = api_display_setting,
+        .display_setting_set = api_display_setting_set,
         .varbit = api_varbit,
         .varp = api_varp,
         .cache_id = api_cache_id,
@@ -2982,6 +3089,15 @@ PluginHost_SetEnabled(struct ToriRS_PluginHost* host, int plugin_index, bool ena
     if( ctx->enabled == enabled )
         return;
 
+    /*
+     * An essential plugin has one state. Refused rather than asserted because
+     * the ask does not only come from the panel -- which draws no switch for
+     * it -- but from a plugin_prefs.ini written by a build where the plugin
+     * was ordinary, and a saved line is not a caller's bug to abort on.
+     */
+    if( !enabled && ctx->def->essential )
+        return;
+
     /* Enable state is saved state: without this a panel toggle would hold for
      * the session and be forgotten at the next launch. */
     host->config_dirty = true;
@@ -3113,6 +3229,15 @@ PluginHost_IsHidden(struct ToriRS_PluginHost const* host, int plugin_index)
     assert(plugin_index >= 0);
     assert(plugin_index < host->plugin_count);
     return host->plugins[plugin_index].def->hidden;
+}
+
+bool
+PluginHost_IsEssential(struct ToriRS_PluginHost const* host, int plugin_index)
+{
+    assert(host);
+    assert(plugin_index >= 0);
+    assert(plugin_index < host->plugin_count);
+    return host->plugins[plugin_index].def->essential;
 }
 
 char const*
@@ -3694,7 +3819,12 @@ PluginHost_ConfigApply(
      * panel toggles and what a crashed script gets cleared by. */
     if( strcmp(key, "enabled") == 0 )
     {
-        ctx->enabled = atoi(value) != 0;
+        /* Same refusal as PluginHost_SetEnabled, and it has to be here too:
+         * this path writes the field directly, so an `enabled=0` left over
+         * from a build where the plugin was ordinary would switch it off
+         * behind both the panel and the host. */
+        if( !ctx->def->essential )
+            ctx->enabled = atoi(value) != 0;
         return;
     }
 
@@ -3807,8 +3937,9 @@ PluginHost_ConfigEncode(struct ToriRS_PluginHost const* host, void** out_data, i
     assert(out_data);
     assert(out_size);
 
-    /* Bounded by the store's own fixed caps, so one sizing pass is enough. */
-    size_t cap = 128;
+    /* Bounded by the store's own fixed caps, so one sizing pass is enough.
+     * The 512 is the banner below, which is written whatever the store holds. */
+    size_t cap = 512;
     for( int i = 0; i < host->plugin_count; i++ )
         cap += 96 + (size_t)host->plugins[i].config_count *
                         (64 + TORIRS_PLUGIN_CONFIG_VALUE_MAX + 4);
@@ -3817,7 +3948,20 @@ PluginHost_ConfigEncode(struct ToriRS_PluginHost const* host, void** out_data, i
     assert(buf);
 
     size_t at = 0;
-    at += (size_t)snprintf(buf + at, cap - at, "; torirs plugin settings\n");
+    /* A banner rather than nothing, because this file is REWRITTEN on every
+     * save: a comment somebody adds by hand to remind themselves what a value
+     * may say is gone at the next launch, so the reminder has to be written
+     * from here to survive. */
+    at += (size_t)snprintf(
+        buf + at,
+        cap - at,
+        "; torirs plugin settings\n"
+        ";\n"
+        "; A numeric value is an integer expression, as in a revconfig profile:\n"
+        ";   12   0x1F   1Fh   0b1010   #FF8000   1 << 4   (1088 << 16) | 255\n"
+        ";   rgb(255, 128, 0)   rgba(0, 0, 0, 128)   hsl16(hue, sat, lum)\n"
+        "; Colours are read as 0xRRGGBB; hsl16() packs the client's own palette\n"
+        "; index (hue 0..63, saturation 0..7, lightness 0..127).\n");
 
     for( int i = 0; i < host->plugin_count; i++ )
     {

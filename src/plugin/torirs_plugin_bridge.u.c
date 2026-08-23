@@ -1047,6 +1047,580 @@ app_plugin_varp(void* user, int varp_id)
     return VarPManager_GetVarp(&app->varps, varp_id);
 }
 
+/* ------------------------------------------------- the client's feature flags */
+
+/*
+ * What a plugin may reach of src/features/features.h and the revision's
+ * `[camera]` profile, and nothing else.
+ *
+ * THE LIST IS THE WHOLE ENFORCEMENT. A flag absent from FEATURE_FLAGS has no
+ * key, so no plugin can name it and none can be talked into publishing it --
+ * which is the point, because most of that table is not a preference at all.
+ * The pathing mode, the approach model, npc_approach_uses_size, the
+ * under-target route-out, the op-click nearest range and its ranking, the
+ * ground-click nearest model and its unbounded extension, the route window,
+ * symmetric PvP line of sight and the run-energy model are read by BOTH halves
+ * of this tree -- the client for its local BFS and the mock server for every
+ * route it answers with. A client holding a different value from its server
+ * does not get its own experience, it gets a broken one: tiles flagged inside
+ * a large npc, routes the server will not honour, an energy bar draining at a
+ * rate nothing else believes. `era` is the same thing one level up, since it
+ * carries all of them at once. None of those are here.
+ *
+ * `varbit_interface_resizing` is absent for a different reason: it is read
+ * exactly once, at the boot that seeds the varbit, so a control over it would
+ * do nothing until the next launch and say nothing about why.
+ *
+ * Every flag is applied LIVE. The call sites read through `app->features` and
+ * `app->revconfig_profile.camera` each time they need an answer, so the two
+ * that had latched a copy at boot -- the audio device's monophony rule and the
+ * bridge's lighting regime -- are re-pushed by the setter below rather than
+ * left to drift from the table they came from.
+ */
+
+enum
+{
+    /** Eye heights. The band this tree ships is 240..2160 around 600; the
+     *  bounds here are wider than any profile states because a profile is a
+     *  statement about a revision and this is a person moving a camera. */
+    APP_PLUGIN_FEATURE_ZOOM_MIN = 64,
+    APP_PLUGIN_FEATURE_ZOOM_MAX = 16384,
+};
+
+/** How a flag reaches its home. */
+enum AppPluginFeatureSlot
+{
+    /** int field of struct ToriRS_FeatureTable, by byte offset. */
+    APP_PLUGIN_FEATURE_SLOT_TABLE = 0,
+    /** int field of struct RevConfigCameraItem, by byte offset. */
+    APP_PLUGIN_FEATURE_SLOT_CAMERA,
+    /** One bit of RevConfigCameraItem::controls; `offset` is the mask. */
+    APP_PLUGIN_FEATURE_SLOT_CAMERA_BIT
+};
+
+struct AppPluginFeatureDesc
+{
+    char const* key;
+    char const* label;
+    enum AppPluginFeatureSlot slot;
+    /** Byte offset into the owning struct, or the bit mask for a CAMERA_BIT. */
+    size_t offset;
+    /** enum ToriRS_PluginFeatureKind. */
+    int kind;
+    int min;
+    int max;
+    /** FEATURE_ENUM: "a|b|c" and the value each entry stands for. */
+    char const* choices;
+    int values[8];
+    int value_count;
+};
+
+#define APP_PLUGIN_FEATURE_TABLE_OFF(field) offsetof(struct ToriRS_FeatureTable, field)
+#define APP_PLUGIN_FEATURE_CAMERA_OFF(field) offsetof(struct RevConfigCameraItem, field)
+
+static struct AppPluginFeatureDesc const APP_PLUGIN_FEATURES[] = {
+    /* ---- camera: what the revision lets the player do with the view ------ */
+    {
+        "camera_zoom",
+        "Camera zoom",
+        APP_PLUGIN_FEATURE_SLOT_CAMERA,
+        APP_PLUGIN_FEATURE_CAMERA_OFF(zoom_mode),
+        TORIRS_PLUGIN_FEATURE_ENUM,
+        0,
+        0,
+        "Adjustable (mouse wheel)|Fixed",
+        { REVCONFIG_CAMERA_ZOOM_CLAMPED, REVCONFIG_CAMERA_ZOOM_FIXED },
+        2,
+    },
+    {
+        "camera_zoom_min",
+        "Camera zoom in limit",
+        APP_PLUGIN_FEATURE_SLOT_CAMERA,
+        APP_PLUGIN_FEATURE_CAMERA_OFF(zoom_min),
+        TORIRS_PLUGIN_FEATURE_INT,
+        APP_PLUGIN_FEATURE_ZOOM_MIN,
+        APP_PLUGIN_FEATURE_ZOOM_MAX,
+        NULL,
+        { 0 },
+        0,
+    },
+    {
+        "camera_zoom_max",
+        "Camera zoom out limit",
+        APP_PLUGIN_FEATURE_SLOT_CAMERA,
+        APP_PLUGIN_FEATURE_CAMERA_OFF(zoom_max),
+        TORIRS_PLUGIN_FEATURE_INT,
+        APP_PLUGIN_FEATURE_ZOOM_MIN,
+        APP_PLUGIN_FEATURE_ZOOM_MAX,
+        NULL,
+        { 0 },
+        0,
+    },
+    {
+        "camera_zoom_height",
+        "Camera fixed eye height",
+        APP_PLUGIN_FEATURE_SLOT_CAMERA,
+        APP_PLUGIN_FEATURE_CAMERA_OFF(zoom_height),
+        TORIRS_PLUGIN_FEATURE_INT,
+        APP_PLUGIN_FEATURE_ZOOM_MIN,
+        APP_PLUGIN_FEATURE_ZOOM_MAX,
+        NULL,
+        { 0 },
+        0,
+    },
+    {
+        "camera_wheel_step",
+        "Camera zoom per wheel notch",
+        APP_PLUGIN_FEATURE_SLOT_CAMERA,
+        APP_PLUGIN_FEATURE_CAMERA_OFF(wheel_step),
+        TORIRS_PLUGIN_FEATURE_INT,
+        1,
+        1024,
+        NULL,
+        { 0 },
+        0,
+    },
+    {
+        "camera_arrow_keys",
+        "Camera controls: arrow keys orbit",
+        APP_PLUGIN_FEATURE_SLOT_CAMERA_BIT,
+        REVCONFIG_CAMERA_CONTROL_ARROW_KEYS,
+        TORIRS_PLUGIN_FEATURE_ENUM,
+        0,
+        0,
+        "Off|On",
+        { 0, 1 },
+        2,
+    },
+    {
+        "camera_mmb",
+        "Camera controls: middle-button drag",
+        APP_PLUGIN_FEATURE_SLOT_CAMERA_BIT,
+        REVCONFIG_CAMERA_CONTROL_MMB,
+        TORIRS_PLUGIN_FEATURE_ENUM,
+        0,
+        0,
+        "Off|On",
+        { 0, 1 },
+        2,
+    },
+
+    /* ---- the era table, client-only half --------------------------------- */
+    {
+        "mover",
+        "Entity movement between tiles",
+        APP_PLUGIN_FEATURE_SLOT_TABLE,
+        APP_PLUGIN_FEATURE_TABLE_OFF(mover_model),
+        TORIRS_PLUGIN_FEATURE_ENUM,
+        0,
+        0,
+        "Per 20ms cycle (2004)|Per frame (modern)",
+        { TORIRS_MOVER_CYCLE_INTEGER, TORIRS_MOVER_FRAME_DELTA },
+        2,
+    },
+    {
+        "draw_distance",
+        "Scene draw distance, tiles",
+        APP_PLUGIN_FEATURE_SLOT_TABLE,
+        APP_PLUGIN_FEATURE_TABLE_OFF(painter_draw_distance),
+        TORIRS_PLUGIN_FEATURE_INT,
+        /* The official band, not the field's own range. 0 is a real value of
+         * the field -- it is how an era says "Client-TS's fixed 25" -- but it
+         * is not a distance anyone means to type, and 1..24 is nothing at all.
+         * Revision default is how you get back to the 0. */
+        TORIRS_PAINTER_DRAW_DISTANCE_MIN,
+        TORIRS_PAINTER_DRAW_DISTANCE_MAX,
+        NULL,
+        { 0 },
+        0,
+    },
+    {
+        "ground_click_offmap",
+        "Ground click off the map walks to the nearest tile",
+        APP_PLUGIN_FEATURE_SLOT_TABLE,
+        APP_PLUGIN_FEATURE_TABLE_OFF(ground_click_offmap_nearest),
+        TORIRS_PLUGIN_FEATURE_ENUM,
+        0,
+        0,
+        "Off|On",
+        { 0, 1 },
+        2,
+    },
+    {
+        "ground_click_clamp",
+        "Ground click reach ceiling, tiles (0 = none)",
+        APP_PLUGIN_FEATURE_SLOT_TABLE,
+        APP_PLUGIN_FEATURE_TABLE_OFF(ground_click_clamp_tiles),
+        TORIRS_PLUGIN_FEATURE_INT,
+        0,
+        104,
+        NULL,
+        { 0 },
+        0,
+    },
+    {
+        "attack_options",
+        "Attack option dropdowns",
+        APP_PLUGIN_FEATURE_SLOT_TABLE,
+        APP_PLUGIN_FEATURE_TABLE_OFF(attack_option_model),
+        TORIRS_PLUGIN_FEATURE_ENUM,
+        0,
+        0,
+        "None, level bump only (2004)|Settings dropdowns (OldSchool)",
+        { TORIRS_ATTACK_OPTION_MODEL_CLASSIC, TORIRS_ATTACK_OPTION_MODEL_SETTINGS },
+        2,
+    },
+    {
+        "target_mask_held",
+        "Spell target bit for a held item",
+        APP_PLUGIN_FEATURE_SLOT_TABLE,
+        APP_PLUGIN_FEATURE_TABLE_OFF(target_mask_held),
+        TORIRS_PLUGIN_FEATURE_ENUM,
+        0,
+        0,
+        "0x10 (2004)|0x20 (OldSchool)",
+        { 0x10, 0x20 },
+        2,
+    },
+    {
+        "effects_monophonic",
+        "One sound effect at a time",
+        APP_PLUGIN_FEATURE_SLOT_TABLE,
+        APP_PLUGIN_FEATURE_TABLE_OFF(effects_monophonic),
+        TORIRS_PLUGIN_FEATURE_ENUM,
+        0,
+        0,
+        "Off, mix freely|On, 2004 rule",
+        { 0, 1 },
+        2,
+    },
+    {
+        "npc_light_type",
+        "NPC lighting uses the npctype's ambient/contrast",
+        APP_PLUGIN_FEATURE_SLOT_TABLE,
+        APP_PLUGIN_FEATURE_TABLE_OFF(npc_light_uses_type_ambient_contrast),
+        TORIRS_PLUGIN_FEATURE_ENUM,
+        0,
+        0,
+        "Off|On",
+        { 0, 1 },
+        2,
+    },
+    {
+        "player_head_ambient",
+        "Chathead ambient (0 = scene regime)",
+        APP_PLUGIN_FEATURE_SLOT_TABLE,
+        APP_PLUGIN_FEATURE_TABLE_OFF(player_head_light_ambient),
+        TORIRS_PLUGIN_FEATURE_INT,
+        0,
+        255,
+        NULL,
+        { 0 },
+        0,
+    },
+};
+
+#define APP_PLUGIN_FEATURE_COUNT \
+    ((int)(sizeof(APP_PLUGIN_FEATURES) / sizeof(APP_PLUGIN_FEATURES[0])))
+
+/**
+ * This boot's own values, captured before any plugin touched one.
+ *
+ * Lazily, because the plugin host is built in App_Init well BEFORE the era is
+ * resolved -- and it has to be, so a plugin's config is readable the moment
+ * anything asks. Nothing can reach these functions before PluginHost_Start,
+ * which the plugin-prefs IO task runs long after App_Init has finished, so the
+ * first call here always sees the resolved table.
+ */
+static void
+app_plugin_feature_capture(struct App* app)
+{
+    assert(app);
+    assert(app->features);
+
+    if( app->plugin_feature_boot_valid )
+        return;
+    app->plugin_feature_boot = *app->features;
+    app->plugin_feature_boot_camera = app->revconfig_profile.camera;
+    app->plugin_feature_boot_valid = 1;
+}
+
+static struct AppPluginFeatureDesc const*
+app_plugin_feature_desc(char const* key)
+{
+    assert(key);
+
+    for( int i = 0; i < APP_PLUGIN_FEATURE_COUNT; i++ )
+    {
+        if( strcmp(APP_PLUGIN_FEATURES[i].key, key) == 0 )
+            return &APP_PLUGIN_FEATURES[i];
+    }
+    return NULL;
+}
+
+/** The live int a flag names. `boot` selects this boot's snapshot instead. */
+static int*
+app_plugin_feature_cell(
+    struct App* app, struct AppPluginFeatureDesc const* desc, int boot)
+{
+    assert(app);
+    assert(desc);
+
+    switch( desc->slot )
+    {
+    case APP_PLUGIN_FEATURE_SLOT_TABLE:
+    {
+        struct ToriRS_FeatureTable* table =
+            boot ? &app->plugin_feature_boot : &app->features_storage;
+        return (int*)((char*)table + desc->offset);
+    }
+    case APP_PLUGIN_FEATURE_SLOT_CAMERA:
+    case APP_PLUGIN_FEATURE_SLOT_CAMERA_BIT:
+    {
+        struct RevConfigCameraItem* camera =
+            boot ? &app->plugin_feature_boot_camera : &app->revconfig_profile.camera;
+        /* A BIT names the mask in `offset`, so its cell is always `controls`;
+         * the caller does the masking. */
+        if( desc->slot == APP_PLUGIN_FEATURE_SLOT_CAMERA_BIT )
+            return &camera->controls;
+        return (int*)((char*)camera + desc->offset);
+    }
+    }
+    assert(0 && "unhandled feature slot");
+    return NULL;
+}
+
+static int
+app_plugin_feature_read(
+    struct App* app, struct AppPluginFeatureDesc const* desc, int boot)
+{
+    assert(app);
+    assert(desc);
+
+    int const cell = *app_plugin_feature_cell(app, desc, boot);
+    if( desc->slot == APP_PLUGIN_FEATURE_SLOT_CAMERA_BIT )
+        return (cell & (int)desc->offset) != 0;
+    return cell;
+}
+
+/*
+ * Re-push the two flags something else keeps a copy of.
+ *
+ * Both copies are made once at boot and would otherwise outlive the table they
+ * were made from: RS_Audio holds `effects_monophonic` as its own bool, and the
+ * scene bridge holds the lighting regime as two ints app.c merged `[render:light]`
+ * into. Everything else in the list is read through `app->features` or the
+ * camera item at the moment it is needed and needs nothing here.
+ */
+static void
+app_plugin_feature_repush(struct App* app)
+{
+    assert(app);
+
+    RS_Audio_SetFeatures(&app->audio, app->features);
+    app->npc_light_uses_type_ambient_contrast =
+        app->features->npc_light_uses_type_ambient_contrast;
+    app->player_head_light_ambient = app->features->player_head_light_ambient;
+    app->bridge.npc_light_uses_type_ambient_contrast =
+        app->npc_light_uses_type_ambient_contrast;
+    app->bridge.player_head_light_ambient = app->player_head_light_ambient;
+    app->need_redraw = 1;
+}
+
+static int
+app_plugin_feature_next(void* user, int iter, struct ToriRS_PluginFeature* out)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    assert(out);
+
+    app_plugin_feature_capture(app);
+
+    int const at = iter < 0 ? 0 : iter + 1;
+    if( at >= APP_PLUGIN_FEATURE_COUNT )
+        return -1;
+
+    struct AppPluginFeatureDesc const* desc = &APP_PLUGIN_FEATURES[at];
+    memset(out, 0, sizeof(*out));
+    snprintf(out->key, sizeof(out->key), "%s", desc->key);
+    snprintf(out->label, sizeof(out->label), "%s", desc->label);
+    out->kind = desc->kind;
+    out->min = desc->min;
+    out->max = desc->max;
+    if( desc->choices )
+        snprintf(out->choices, sizeof(out->choices), "%s", desc->choices);
+    out->value_count = desc->value_count;
+    for( int i = 0; i < desc->value_count; i++ )
+        out->values[i] = desc->values[i];
+    out->value = app_plugin_feature_read(app, desc, 0);
+    out->is_default = out->value == app_plugin_feature_read(app, desc, 1);
+    return at;
+}
+
+static int
+app_plugin_feature_get(void* user, char const* key)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    assert(key);
+
+    app_plugin_feature_capture(app);
+
+    struct AppPluginFeatureDesc const* desc = app_plugin_feature_desc(key);
+    if( !desc )
+        return TORIRS_PLUGIN_FEATURE_UNSET;
+    return app_plugin_feature_read(app, desc, 0);
+}
+
+static int
+app_plugin_feature_set(void* user, char const* key, int value)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    assert(key);
+
+    app_plugin_feature_capture(app);
+
+    struct AppPluginFeatureDesc const* desc = app_plugin_feature_desc(key);
+    if( !desc )
+        return 0;
+
+    /* The sentinel is a RESTORE, not a value: whatever this boot resolved from
+     * the era table, the manifest and the revconfig, which nothing outside
+     * app.c can reconstruct. */
+    if( value == TORIRS_PLUGIN_FEATURE_UNSET )
+        value = app_plugin_feature_read(app, desc, 1);
+    else if( desc->kind == TORIRS_PLUGIN_FEATURE_ENUM )
+    {
+        int legal = 0;
+        for( int i = 0; i < desc->value_count; i++ )
+            legal |= desc->values[i] == value;
+        if( !legal )
+            return 0;
+    }
+    else if( value < desc->min || value > desc->max )
+        return 0;
+
+    int* cell = app_plugin_feature_cell(app, desc, 0);
+    if( desc->slot == APP_PLUGIN_FEATURE_SLOT_CAMERA_BIT )
+    {
+        if( value )
+            *cell |= (int)desc->offset;
+        else
+            *cell &= ~(int)desc->offset;
+    }
+    else
+        *cell = value;
+
+    /*
+     * A zoom band is two numbers and one of them arrives first, so a band
+     * typed in either order passes through a moment where min > max. Ordering
+     * them here rather than refusing the first edit: app_world_camera_zooms
+     * reads `min < max` as "this revision zooms at all", and an inverted band
+     * would silently take the wheel away.
+     */
+    if( desc->slot == APP_PLUGIN_FEATURE_SLOT_CAMERA )
+    {
+        if( app->revconfig_profile.camera.zoom_min >
+            app->revconfig_profile.camera.zoom_max )
+        {
+            int const swap = app->revconfig_profile.camera.zoom_min;
+            app->revconfig_profile.camera.zoom_min =
+                app->revconfig_profile.camera.zoom_max;
+            app->revconfig_profile.camera.zoom_max = swap;
+        }
+        /* The live eye height is a position inside the band, so a band that
+         * moved under it has to pull it back in or the next wheel notch
+         * starts from outside it. */
+        app->world_cam_height = RevConfigProfile_CameraClampHeight(
+            &app->revconfig_profile, app->world_cam_height);
+    }
+
+    app_plugin_feature_repush(app);
+    return 1;
+}
+
+/*
+ * The client's own display preferences, as a plugin page may edit them.
+ *
+ * The SAME store the cache's All Settings panel writes -- device options 27
+ * and 15 -- and deliberately: a lane with that panel would otherwise show one
+ * value in two places and disagree with itself, and the whole reason these
+ * verbs exist is the lane WITHOUT it. A 2004 dat1 cache has no All Settings
+ * interface at all, so before this there was no way to reach interface
+ * scaling on one -- the frame sat at 1:1 device pixels on a high-density
+ * display and nothing in the client could say otherwise.
+ *
+ * Persistence needs nothing here: RS_Prefs_CaptureFromHost polls the option
+ * store every tick and writes preferences.ini when it moves.
+ */
+static int
+app_plugin_display_setting(
+    void* user,
+    int setting,
+    int* out_value,
+    int* out_min,
+    int* out_max)
+{
+    struct App* app = (struct App*)user;
+    int value;
+    int min;
+    int max;
+
+    assert(app);
+    switch( setting )
+    {
+    case TORIRS_PLUGIN_DISPLAY_UI_SCALE:
+        value = RS_CS2Host_UiScalePercent(&app->host);
+        min = RS_CS2_UI_SCALE_MIN;
+        max = RS_CS2_UI_SCALE_MAX;
+        break;
+    case TORIRS_PLUGIN_DISPLAY_UI_SCALE_FILTER:
+        value = RS_CS2Host_UiScaleMode(&app->host);
+        min = RS_CS2_UI_SCALE_MODE_NEAREST;
+        max = RS_CS2_UI_SCALE_MODE_BICUBIC;
+        break;
+    default:
+        return 0;
+    }
+
+    if( out_value )
+        *out_value = value;
+    if( out_min )
+        *out_min = min;
+    if( out_max )
+        *out_max = max;
+    return 1;
+}
+
+static int
+app_plugin_display_setting_set(void* user, int setting, int value)
+{
+    struct App* app = (struct App*)user;
+    int option;
+
+    assert(app);
+    switch( setting )
+    {
+    case TORIRS_PLUGIN_DISPLAY_UI_SCALE:
+        option = RS_CS2_DEVICEOPTION_UI_SCALE;
+        break;
+    case TORIRS_PLUGIN_DISPLAY_UI_SCALE_FILTER:
+        option = RS_CS2_DEVICEOPTION_UI_SCALE_MODE;
+        break;
+    default:
+        return 0;
+    }
+    /* Clamped by the store rather than refused here, which is what every other
+     * writer of these two gets -- the cache's own settings scripts included.
+     * @see RS_CS2Host_SetOption. */
+    RS_CS2Host_SetOption(&app->host, RS_CS2_OPTION_DEVICE, option, value);
+    return 1;
+}
+
 static int
 app_plugin_cache_id(void* user, char const* kind, char const* name)
 {
@@ -2295,6 +2869,11 @@ app_plugin_engine(struct App* app)
     engine.hover_tile = app_plugin_hover_tile;
     engine.hover_entity = app_plugin_hover_entity;
     engine.element_height = app_plugin_element_height;
+    engine.feature_next = app_plugin_feature_next;
+    engine.feature_get = app_plugin_feature_get;
+    engine.feature_set = app_plugin_feature_set;
+    engine.display_setting = app_plugin_display_setting;
+    engine.display_setting_set = app_plugin_display_setting_set;
     engine.varbit = app_plugin_varbit;
     engine.varp = app_plugin_varp;
     engine.cache_id = app_plugin_cache_id;

@@ -1291,6 +1291,20 @@ struct App
      *  applies the overrides and points `features` here. Read through
      *  `features`; this member exists to own the storage. */
     struct ToriRS_FeatureTable features_storage;
+    /**
+     * This boot's own feature values, before any plugin set one.
+     *
+     * The Feature Flags plugin's "Revision default" is a restore, and what it
+     * restores TO is the merge of the era table, the manifest's
+     * `[features:boot]`, the env overrides and the revconfig -- which nothing
+     * outside App_Init can reconstruct once a plugin has written over it. So
+     * it is snapshotted instead, lazily, on the first plugin call (which is
+     * always after App_Init: PluginHost_Start runs from the plugin-prefs IO
+     * task). @see app_plugin_feature_capture.
+     */
+    struct ToriRS_FeatureTable plugin_feature_boot;
+    struct RevConfigCameraItem plugin_feature_boot_camera;
+    int plugin_feature_boot_valid;
     /** Effective lighting behaviour after era + `[render:light]` merge.
      *  Call sites read these rather than features->npc_light_* directly so a
      *  manifest override wins without mutating the const era table. */

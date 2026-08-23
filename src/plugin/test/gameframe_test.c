@@ -343,6 +343,11 @@ static int fake_key_held(void* u, int k) { (void)u; (void)k; return 0; }
 static int fake_hover_tile(void* u, int* x, int* z, int* l) { (void)u; (void)x; (void)z; (void)l; return 0; }
 static int fake_hover_entity(void* u, struct ToriRS_PluginHoverEntity* o) { (void)u; (void)o; return 0; }
 static int fake_element_height(void* u, int e) { (void)u; (void)e; return 0; }
+static int fake_feature_next(void* u, int i, struct ToriRS_PluginFeature* o) { (void)u; (void)i; (void)o; return -1; }
+static int fake_feature_get(void* u, char const* k) { (void)u; (void)k; return TORIRS_PLUGIN_FEATURE_UNSET; }
+static int fake_feature_set(void* u, char const* k, int v) { (void)u; (void)k; (void)v; return 0; }
+static int fake_display_setting(void* u, int s, int* v, int* mn, int* mx) { (void)u; (void)s; (void)v; (void)mn; (void)mx; return 0; }
+static int fake_display_setting_set(void* u, int s, int v) { (void)u; (void)s; (void)v; return 0; }
 static int fake_varbit(void* u, int i) { (void)u; (void)i; return 0; }
 static int fake_varp(void* u, int i) { (void)u; (void)i; return 0; }
 static int fake_cache_id(void* u, char const* k, char const* n) { (void)u; (void)k; (void)n; return -1; }
@@ -444,6 +449,11 @@ main(void)
     e.hover_tile = fake_hover_tile;
     e.hover_entity = fake_hover_entity;
     e.element_height = fake_element_height;
+    e.feature_next = fake_feature_next;
+    e.feature_get = fake_feature_get;
+    e.feature_set = fake_feature_set;
+    e.display_setting = fake_display_setting;
+    e.display_setting_set = fake_display_setting_set;
     e.varbit = fake_varbit;
     e.varp = fake_varp;
     e.cache_id = fake_cache_id;
@@ -730,21 +740,22 @@ main(void)
          * land outside it and simply not be drawn -- which from a screenshot
          * looks like a missing asset rather than a wrong number.
          *
-         * Six chrome pieces UNDER the surfaces (two tab strips, the panel and
-         * the two pillars either side of it, the chatbox), an icon per tab,
-         * and ONE stone -- the lit one under the open tab. The unlit stones
+         * Seven chrome pieces UNDER the surfaces (two tab strips, the panel
+         * and the two pillars either side of it, the chatbox and the stone bar
+         * under it), an icon per tab, and ONE stone -- the lit one under the
+         * open tab. The unlit stones
          * are part of the tab strips already blitted, which is why there are
          * not fourteen of them.
          */
         g_frame.active_tab = 3;
         draw(1440, 900);
-        CHECK(g_frame.blits == 6 + 14 + 1, "the resizable frame draws all of its art");
+        CHECK(g_frame.blits == 7 + 14 + 1, "the resizable frame draws all of its art");
         CHECK(g_frame.regions == 14, "and claims all fourteen tabs");
 
         /* No tab open: no lit stone, and everything else unchanged. */
         g_frame.active_tab = -1;
         draw(1440, 900);
-        CHECK(g_frame.blits == 6 + 14, "with no tab open there is no lit stone");
+        CHECK(g_frame.blits == 7 + 14, "with no tab open there is no lit stone");
 
         /*
          * And the map housing OVER them.

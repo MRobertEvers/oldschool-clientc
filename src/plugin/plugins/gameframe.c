@@ -92,9 +92,54 @@ enum FrameLayout
  * landed on anything.
  */
 #define FRAME_CHAT_BUTTON_COUNT 4
-/** The 2004 frame's own: a 100x32 box each, on the backbase1 strip. */
+/** The 2004 frame's own: a 100x32 box each, on the 50-tall backbase1 strip. */
 #define FRAME_CHAT_BUTTON_W 100
 #define FRAME_CHAT_BUTTON_H 32
+
+/*
+ * The OldSchool chatbox: a 519x142 backing with a 23-tall stone bar under it.
+ *
+ * 142 + 23 = 165, and that is not a coincidence -- interface 548 puts the
+ * chatbox at y=338 of a 765x503 canvas, and 338 + 165 is exactly 503. The bar
+ * is its own sprite (`main_stones_bottom`) rather than part of the backing, so
+ * a layout that blits only the backing gives the filter buttons nothing to
+ * stand on and they read as text floating on the scene.
+ */
+#define FRAME_O_CHAT_W 519
+#define FRAME_O_CHAT_H 142
+#define FRAME_O_CHAT_STONES_H 23
+
+/*
+ * The chat SURFACE inside it, at the size the lane authored -- not the size of
+ * the hole.
+ *
+ * The chat builtin's geometry is the 2004 client's and every number in it is
+ * fixed: a 463-wide message column, a 77-tall message window, the scrollbar at
+ * x+463 for 77 rows, and the input line under a rule at y+77 (Client.ts
+ * drawChatArea; uitree_emit.c's emit_chat ports it line for line). None of it
+ * reads the node's box. So handing it the housing's inner rectangle did not
+ * make a bigger chatbox -- it made the same one with forty columns of empty
+ * beige to its right and fifty rows below, a scrollbar stranded in the middle
+ * of the box, and the input line floating halfway up it. The box it is drawn
+ * for is 479x96, which is exactly what `classic_chatback` measures; centre
+ * that in the OldSchool housing and the two agree.
+ */
+#define FRAME_O_CHAT_INNER_W 479
+#define FRAME_O_CHAT_INNER_H 96
+#define FRAME_O_CHAT_INNER_X ((FRAME_O_CHAT_W - FRAME_O_CHAT_INNER_W) / 2)
+#define FRAME_O_CHAT_INNER_Y ((FRAME_O_CHAT_H - FRAME_O_CHAT_INNER_H) / 2)
+
+/*
+ * The filter buttons stand ON the stone bar, two rows above its top.
+ *
+ * Two lines of p12 at label_y 2 and mode_y 15 is 25 rows of ink for a 23-row
+ * bar, so a box flush with the bar puts `On` a line below it and a box centred
+ * on the bar puts the label a line above the chatbox border. Two rows up is
+ * the one offset where both lines land on stone. The 2004 frame needs none of
+ * this: its own strip is 50 tall.
+ */
+#define FRAME_O_CHAT_BUTTON_H 25
+#define FRAME_O_CHAT_BUTTON_LIFT 2
 
 /* ------------------------------------------------------------------- assets */
 
@@ -141,6 +186,7 @@ enum FrameImage
     IMG_O_BACKHMID1,
     IMG_O_MAPBACK,
     IMG_O_CHATBACK,
+    IMG_O_CHAT_STONES,
     IMG_O_SIDE_PANEL,
     IMG_O_SIDE_PANEL_R,
     IMG_O_TABS_TOP,
@@ -220,6 +266,7 @@ static char const* const FRAME_IMAGE_FILE[FRAME_IMG_COUNT] = {
     [IMG_O_BACKHMID1] = "osrs_backhmid1.png",
     [IMG_O_MAPBACK] = "osrs_mapback.png",
     [IMG_O_CHATBACK] = "osrs_chatback.png",
+    [IMG_O_CHAT_STONES] = "osrs_chat_stones.png",
     [IMG_O_SIDE_PANEL] = "osrs_side_panel.png",
     [IMG_O_SIDE_PANEL_R] = "osrs_side_panel_r.png",
     [IMG_O_TABS_TOP] = "osrs_tabs_top.png",
@@ -422,7 +469,8 @@ frame_chat_buttons_across(
     struct ToriRS_PluginCtx* ctx,
     int x,
     int y,
-    int width)
+    int width,
+    int height)
 {
     int const cell = width / FRAME_CHAT_BUTTON_COUNT;
 
@@ -436,7 +484,7 @@ frame_chat_buttons_across(
             x + i * cell + (cell - FRAME_CHAT_BUTTON_W) / 2,
             y,
             FRAME_CHAT_BUTTON_W,
-            FRAME_CHAT_BUTTON_H);
+            height);
     }
 }
 
@@ -638,6 +686,7 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
     frame_blit(g_image[IMG_O_SIDE_PANEL], 547, 205);
     frame_blit(g_image[IMG_O_BACKRIGHT1], 737, 205);
     frame_blit(g_image[IMG_O_CHATBACK], 0, 338);
+    frame_blit(g_image[IMG_O_CHAT_STONES], 0, 338 + FRAME_O_CHAT_H);
     frame_blit(g_image[IMG_O_BACKLEFT2], 519, 338);
     frame_blit(g_image[IMG_O_TABS_BOTTOM], 519, 466);
 
@@ -665,11 +714,22 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, 570, 9, 145, 151);
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_COMPASS, 545, 4, 32, 33);
     frame_skin_map(ctx, IMG_O_MINIMAP_MASK, IMG_O_COMPASS_MASK);
-    g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_CHAT, 7, 345, 506, 152);
+    g_api->layout_slot(
+        ctx,
+        TORIRS_PLUGIN_SLOT_CHAT,
+        FRAME_O_CHAT_INNER_X,
+        338 + FRAME_O_CHAT_INNER_Y,
+        FRAME_O_CHAT_INNER_W,
+        FRAME_O_CHAT_INNER_H);
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_SIDEBAR, 547, 205, 190, 261);
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_MAIN_MODAL, 4, 4, 512, 334);
-    /* Along the bottom of the chatbox, inside its frame. */
-    frame_chat_buttons_across(ctx, 7, 465, 506);
+    /* On the stone bar under the chatbox, spread across its width. */
+    frame_chat_buttons_across(
+        ctx,
+        0,
+        338 + FRAME_O_CHAT_H - FRAME_O_CHAT_BUTTON_LIFT,
+        FRAME_O_CHAT_W,
+        FRAME_O_CHAT_BUTTON_H);
 }
 
 /* ------------------------------------------------------ modern resizable */
@@ -702,8 +762,10 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
 #define FRAME_R_COMPASS_W 35
 /** The pillars either side of the inventory panel, `osrs_side_column_*`. */
 #define FRAME_R_COL_W 26
-#define FRAME_R_CHAT_W 519
-#define FRAME_R_CHAT_H 142
+/** The chatbox and its stone bar, which is what the layout has to reserve --
+ *  @see FRAME_O_CHAT_H. */
+#define FRAME_R_CHAT_W FRAME_O_CHAT_W
+#define FRAME_R_CHAT_H (FRAME_O_CHAT_H + FRAME_O_CHAT_STONES_H)
 
 /*
  * OldSchool resizable: the scene fills the window and the chrome floats on it.
@@ -751,6 +813,7 @@ frame_layout_modern_resizable(
     frame_blit(g_image[IMG_O_SIDE_COLUMN_R], panel_x + FRAME_R_PANEL_W, panel_y);
     frame_blit(g_image[IMG_O_TABS_BOTTOM_R], row_x, bottom_row_y);
     frame_blit(g_image[IMG_O_CHATBACK], 0, chat_y);
+    frame_blit(g_image[IMG_O_CHAT_STONES], 0, chat_y + FRAME_O_CHAT_H);
 
     for( int i = 0; i < FRAME_TAB_COUNT; i++ )
     {
@@ -786,7 +849,13 @@ frame_layout_modern_resizable(
         FRAME_R_COMPASS_W,
         FRAME_R_COMPASS_W);
     frame_skin_map(ctx, IMG_O_MINIMAP_MASK_R, IMG_O_COMPASS_MASK_R);
-    g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_CHAT, 7, chat_y + 7, FRAME_R_CHAT_W - 13, FRAME_R_CHAT_H - 14);
+    g_api->layout_slot(
+        ctx,
+        TORIRS_PLUGIN_SLOT_CHAT,
+        FRAME_O_CHAT_INNER_X,
+        chat_y + FRAME_O_CHAT_INNER_Y,
+        FRAME_O_CHAT_INNER_W,
+        FRAME_O_CHAT_INNER_H);
     g_api->layout_slot(
         ctx, TORIRS_PLUGIN_SLOT_SIDEBAR, panel_x, panel_y, FRAME_R_PANEL_W, FRAME_R_PANEL_H);
     /*
@@ -800,7 +869,11 @@ frame_layout_modern_resizable(
     g_api->layout_slot(
         ctx, TORIRS_PLUGIN_SLOT_MAIN_MODAL, (canvas_w - 512) / 2, (canvas_h - 334) / 2, 512, 334);
     frame_chat_buttons_across(
-        ctx, 7, chat_y + FRAME_R_CHAT_H - FRAME_CHAT_BUTTON_H - 4, FRAME_R_CHAT_W - 13);
+        ctx,
+        0,
+        chat_y + FRAME_O_CHAT_H - FRAME_O_CHAT_BUTTON_LIFT,
+        FRAME_O_CHAT_W,
+        FRAME_O_CHAT_BUTTON_H);
 }
 
 /* -------------------------------------------------------------- the events */
@@ -1300,6 +1373,16 @@ struct ToriRS_PluginDef const TORIRS_PLUGIN_GAMEFRAME = {
     .title = "Gameframe Layout",
     .version = "1.0.0",
     .priority = 0,
+    /*
+     * A BACKDROP, under every other plugin's drawing.
+     *
+     * The frame is the thing readouts are drawn on: the minimap orbs, an xp
+     * counter, a tile marker's label all belong over the map housing and the
+     * chatbox rather than behind them. Without this it came down to which
+     * plugin was registered first, and the orbs lost -- they were drawn, and
+     * then the map surround's ring was drawn over them.
+     */
+    .draw_order = -100,
     .config = FRAME_CONFIG,
     /*
      * OFF until asked for, and this one more emphatically than most.

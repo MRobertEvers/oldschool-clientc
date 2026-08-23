@@ -17,6 +17,8 @@
  * registers a further plugin per script it loads.
  */
 
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_CLIENT_SETTINGS;
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_FEATURE_FLAGS;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_TILEIND;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_MINIMAP_ORBS;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_ORBS;
@@ -39,6 +41,21 @@ extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_BIRD_NEST;
 extern struct ToriRS_PluginDef const TORIRS_PLUGIN_NXT_CANNON_AMMO;
 
 static struct ToriRS_PluginDef const* const PLUGIN_TABLE[] = {
+    /*
+     * FIRST, and their position is load-bearing: the roster lists plugins in
+     * registration order and these two are where the CLIENT's own knobs live,
+     * so they belong at the top of the list rather than sorted in among the
+     * extras. Both are `.essential`, so neither has a switch -- see
+     * ToriRS_PluginDef::essential.
+     *
+     * Display settings first because that is the order a person reads them in:
+     * how the client LOOKS, then how it BEHAVES. The order of START is settled
+     * by priority and not by this table, and there Feature Flags goes first --
+     * a flag has to be in force before anything that reads one has run, and
+     * nothing reads a display setting at START at all.
+     */
+    &TORIRS_PLUGIN_CLIENT_SETTINGS,
+    &TORIRS_PLUGIN_FEATURE_FLAGS,
     &TORIRS_PLUGIN_TILEIND,
     &TORIRS_PLUGIN_MINIMAP_ORBS,
     &TORIRS_PLUGIN_XP_ORBS,

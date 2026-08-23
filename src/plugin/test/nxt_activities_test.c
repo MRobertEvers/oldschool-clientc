@@ -226,6 +226,47 @@ fake_element_height(void* u, int element_id)
     return element_id >= 0 ? 200 : 0;
 }
 static int
+fake_feature_next(void* u, int i, struct ToriRS_PluginFeature* o)
+{
+    (void)u;
+    (void)i;
+    (void)o;
+    return -1;
+}
+static int
+fake_feature_get(void* u, char const* k)
+{
+    (void)u;
+    (void)k;
+    return TORIRS_PLUGIN_FEATURE_UNSET;
+}
+static int
+fake_feature_set(void* u, char const* k, int v)
+{
+    (void)u;
+    (void)k;
+    (void)v;
+    return 0;
+}
+static int
+fake_display_setting(void* u, int setting, int* value, int* min, int* max)
+{
+    (void)u;
+    (void)setting;
+    (void)value;
+    (void)min;
+    (void)max;
+    return 0;
+}
+static int
+fake_display_setting_set(void* u, int setting, int value)
+{
+    (void)u;
+    (void)setting;
+    (void)value;
+    return 0;
+}
+static int
 fake_varbit(void* u, int id)
 {
     (void)u;
@@ -473,6 +514,24 @@ fake_layout_slot_skin(void* u, int slot, int art, int mask)
     (void)slot;
     (void)art;
     (void)mask;
+    return 0;
+}
+static int
+fake_display_setting(void* u, int setting, int* out_value, int* out_min, int* out_max)
+{
+    (void)u;
+    (void)setting;
+    (void)out_value;
+    (void)out_min;
+    (void)out_max;
+    return 0;
+}
+static int
+fake_display_setting_set(void* u, int setting, int value)
+{
+    (void)u;
+    (void)setting;
+    (void)value;
     return 0;
 }
 static int
@@ -831,6 +890,11 @@ fake_engine(void)
     e.hover_tile = fake_hover_tile;
     e.hover_entity = fake_hover_entity;
     e.element_height = fake_element_height;
+    e.feature_next = fake_feature_next;
+    e.feature_get = fake_feature_get;
+    e.feature_set = fake_feature_set;
+    e.display_setting = fake_display_setting;
+    e.display_setting_set = fake_display_setting_set;
     e.varbit = fake_varbit;
     e.varp = fake_varp;
     e.cache_id = fake_cache_id;
@@ -867,6 +931,8 @@ fake_engine(void)
     e.layout_end = fake_layout_end;
     e.layout_slot = fake_layout_slot;
     e.layout_slot_skin = fake_layout_slot_skin;
+    e.display_setting = fake_display_setting;
+    e.display_setting_set = fake_display_setting_set;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
     e.model_publish = fake_model_publish;
