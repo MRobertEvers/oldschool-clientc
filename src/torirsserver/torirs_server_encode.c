@@ -5624,6 +5624,31 @@ ToriRSServer_CaptureFindNamed(
     return -1;
 }
 
+/*
+ * The same ordering test by CANONICAL name.
+ *
+ * `ToriRSServer_CaptureHasSequence` matches wire numbers, which are a different
+ * set per revision — so a sequence written in 230's numbers asserts nothing at
+ * 239, silently, exactly as the single-packet search did.
+ */
+int
+ToriRSServer_CaptureHasSequenceNamed(
+    const struct ToriRSServerCapture* capture,
+    const int* pkt_names,
+    int count)
+{
+    int at = 0;
+
+    for( int i = 0; i < count; i++ )
+    {
+        at = ToriRSServer_CaptureFindNamed(capture, pkt_names[i], at);
+        if( at < 0 )
+            return 0;
+        at++;
+    }
+    return 1;
+}
+
 int
 ToriRSServer_CaptureHasSequence(
     const struct ToriRSServerCapture* capture,

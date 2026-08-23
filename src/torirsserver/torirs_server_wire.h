@@ -440,6 +440,23 @@ ToriRSServer_WireOpcode(const struct ToriRSServerWire* wire, int pkt_name);
  * revision. Returns non-zero when the payload was long enough.
  */
 /**
+ * Decode an UPDATE_INV_FULL / UPDATE_INV_PARTIAL header.
+ *
+ * `*out_component` is -1 when the revision does not carry one — 239 addresses
+ * these by inventory id and writes a sentinel in the component's place. Do not
+ * read that -1 as a component. `*out_capacity` is -1 for the partial form.
+ */
+int
+ToriRSServer_WireReadInvHeader(
+    const struct ToriRSServerWire* wire,
+    int pkt_name,
+    const uint8_t* data,
+    int len,
+    int* out_component,
+    int* out_container,
+    int* out_capacity);
+
+/**
  * Decode a captured IF_SETTEXT: the uid and the string swap places between
  * revisions, and the string's terminator differs with them.
  */

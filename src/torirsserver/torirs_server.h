@@ -1624,7 +1624,11 @@ struct ToriRSServerNpcDef;
 
 enum
 {
-    TORIRSSERVER_CAPTURE_MAX = 512,
+    /* 512 was enough while the suite only ran at revision 230. Revision 239
+     * emits more packets per tick — the interface resync alone adds a burst —
+     * and one stanza's capture overflowed, which silently truncates the record
+     * every assertion after it reads. */
+    TORIRSSERVER_CAPTURE_MAX = 1024,
     TORIRSSERVER_CAPTURE_BYTES = 1024,
 };
 
@@ -1682,6 +1686,14 @@ ToriRSServer_CaptureFindNamed(
     const struct ToriRSServerCapture* capture,
     int pkt_name,
     int from);
+
+/** True when the canonical `pkt_names` all appear in order — the
+ *  revision-independent form of `ToriRSServer_CaptureHasSequence`. */
+int
+ToriRSServer_CaptureHasSequenceNamed(
+    const struct ToriRSServerCapture* capture,
+    const int* pkt_names,
+    int count);
 
 /** True when `opcodes` all appear in order. Other packets may interleave. */
 int

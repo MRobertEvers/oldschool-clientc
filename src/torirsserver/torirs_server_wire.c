@@ -173,6 +173,8 @@ w239_if_closesub(struct RSAreaBuf* buf, int dest_uid)
 static void
 w239_message_game(struct RSAreaBuf* buf, int type, const char* text);
 static void
+w239_inv_header(struct RSAreaBuf* buf, int pkt_name, int uid, int container, int capacity);
+static void
 w239_if_settext(struct RSAreaBuf* buf, int uid, const char* text);
 static void
 w239_if_setevents(
@@ -190,6 +192,56 @@ w239_run_clientscript(
     int const* intv,
     const char* const* strv,
     int argc);
+
+/*
+ * READING an UPDATE_INV_FULL / UPDATE_INV_PARTIAL header.
+ *
+ * 230 writes `p4 component, p2 container[, p2 capacity]`. 239 writes the same
+ * three fields but deliberately puts `OSRS239_INV_COMBINED_ID_NONE` where the
+ * component goes: at that revision the INVENTORY ID is the address and the
+ * component is not carried at all (see `w239_inv_stop_transmit`, where the
+ * golden client's handler indexes by inventory).
+ *
+ * `*out_component` is therefore set to -1 when the revision does not carry one,
+ * and callers must not read it as "component 0". An assertion that counts one
+ * flush per listening COMPONENT cannot be made at 239 by construction; the
+ * honest form there is per container.
+ */
+int
+ToriRSServer_WireReadInvHeader(
+    const struct ToriRSServerWire* wire,
+    int pkt_name,
+    const uint8_t* data,
+    int len,
+    int* out_component,
+    int* out_container,
+    int* out_capacity)
+{
+    struct RSAreaBuf buf;
+
+    assert(wire);
+    assert(data);
+    assert(out_component);
+    assert(out_container);
+    assert(out_capacity);
+
+    *out_capacity = -1;
+    rsab_wrap(&buf, (uint8_t*)data, (size_t)(len < 0 ? 0 : len));
+    if( wire->payload && wire->payload->inv_header == w239_inv_header )
+    {
+        (void)rsab_g4(&buf); /* the NONE sentinel, not a component */
+        *out_component = -1;
+        *out_container = rsab_g2(&buf);
+    }
+    else
+    {
+        *out_component = rsab_g4(&buf);
+        *out_container = rsab_g2(&buf);
+    }
+    if( pkt_name == PKT_NAME_UPDATE_INV_FULL )
+        *out_capacity = rsab_g2(&buf);
+    return rsab_ok(&buf);
+}
 
 /*
  * READING an IF_SETTEXT back.
