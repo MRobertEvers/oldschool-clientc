@@ -244,6 +244,24 @@ UITreeSceneBridge_PublishPluginImage(
     int height,
     uint32_t const* argb);
 
+/**
+ * Copy a published plugin image's pixels back into `out`, which holds `max`.
+ *
+ * The scene is where the pixels live -- the publish above deep-copies into it
+ * and the caller's buffer is gone -- so this is the only place a plugin's own
+ * art can be read back to compose something new out of.
+ *
+ * @return how many pixels were copied, or 0 when the slot holds nothing or the
+ * buffer is too small for the whole image. Never a partial copy: half an image
+ * is a torn picture, not a smaller one.
+ */
+int
+UITreeSceneBridge_ReadPluginImage(
+    struct UITreeSceneBridge* bridge,
+    int slot,
+    uint32_t* out,
+    int max);
+
 /** Drop a published plugin image, freeing its scene entry. */
 void
 UITreeSceneBridge_ReleasePluginImage(struct UITreeSceneBridge* bridge, int slot);

@@ -542,6 +542,28 @@ api_stat(struct ToriRS_PluginCtx* ctx, int skill, int* out_current, int* out_bas
 }
 
 static int
+api_stat_xp(
+    struct ToriRS_PluginCtx* ctx,
+    int skill,
+    int* out_xp,
+    int* out_level_xp,
+    int* out_next_xp)
+{
+    assert(ctx);
+    /* Out of range is bad input rather than a broken contract, for the reason
+     * api_stat says: the number came from the plugin. */
+    return ctx->host->engine.stat_xp(
+        ctx->host->engine.user, skill, out_xp, out_level_xp, out_next_xp);
+}
+
+static char const*
+api_skill_name(struct ToriRS_PluginCtx* ctx, int skill)
+{
+    assert(ctx);
+    return ctx->host->engine.skill_name(ctx->host->engine.user, skill);
+}
+
+static int
 api_run_energy(struct ToriRS_PluginCtx* ctx)
 {
     assert(ctx);
@@ -1755,6 +1777,101 @@ api_image_load(struct ToriRS_PluginCtx* ctx, char const* name)
     return free_slot;
 }
 
+/**
+ * Pixels the plugin composed, published under `name`.
+ *
+ * The slot search is image_load's, deliberately: one image per (plugin, name)
+ * whichever way it was made, so a plugin that composes the same picture every
+ * frame reuses one slot rather than exhausting the table in a second. What is
+ * different is only where the pixels come from -- there is no asset read, and
+ * so no pending state and no frame in which the handle is live but empty.
+ */
+static int
+api_image_compose(
+    struct ToriRS_PluginCtx* ctx,
+    char const* name,
+    int w,
+    int h,
+    uint32_t const* argb)
+{
+    assert(ctx);
+    assert(name);
+    assert(argb);
+
+    struct ToriRS_PluginHost* host = ctx->host;
+    int slot = -1;
+    int free_slot = -1;
+
+    if( !plugin_asset_name_ok(ctx, name) )
+        return -1;
+    /* A size is a NUMBER the plugin computed -- from a config key, in every
+     * case this exists for -- so a silly one is bad input, not a bug in the
+     * caller's frame. The engine refuses it too; refusing here as well is what
+     * keeps a plugin from spending a slot on it. */
+    if( w <= 0 || h <= 0 || w > 4096 || h > 4096 )
+    {
+        fprintf(
+            stderr,
+            "plugin: %s composed image '%s' is %dx%d, which is not a picture\n",
+            ctx->name,
+            name,
+            w,
+            h);
+        return -1;
+    }
+
+    for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
+    {
+        if( host->images[i].plugin == ctx->index &&
+            strcmp(host->images[i].asset, name) == 0 )
+        {
+            slot = i;
+            break;
+        }
+        if( host->images[i].plugin < 0 && free_slot < 0 )
+            free_slot = i;
+    }
+    if( slot < 0 )
+        slot = free_slot;
+    if( slot < 0 )
+    {
+        fprintf(
+            stderr,
+            "plugin: %s image '%s' not composed, the resident image table is full "
+            "(%d)\n",
+            ctx->name,
+            name,
+            TORIRS_PLUGIN_IMAGES_MAX);
+        return -1;
+    }
+
+    if( !host->engine.image_publish_argb(host->engine.user, slot, w, h, argb) )
+        return -1;
+
+    host->images[slot].plugin = ctx->index;
+    snprintf(host->images[slot].asset, sizeof(host->images[slot].asset), "%s", name);
+    host->images[slot].width = w;
+    host->images[slot].height = h;
+    host->images[slot].published = true;
+    return slot;
+}
+
+static int
+api_image_pixels(struct ToriRS_PluginCtx* ctx, int image, uint32_t* out, int max)
+{
+    struct PluginImage const* slot = plugin_image_owned(ctx, image);
+
+    assert(out);
+    /* Still pending is the ORDINARY state for the first frames after a load,
+     * so it answers 0 rather than asserting -- the same answer, and for the
+     * same reason, that image_size gives while a read is in flight. */
+    if( !slot || !slot->published )
+        return 0;
+    if( max < slot->width * slot->height )
+        return 0;
+    return ctx->host->engine.image_read(ctx->host->engine.user, image, out, max);
+}
+
 static int
 api_image_size(struct ToriRS_PluginCtx* ctx, int image, int* out_w, int* out_h)
 {
@@ -1906,9 +2023,13 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->mouse_pos);
     assert(engine->minimap_rect);
     assert(engine->stat);
+    assert(engine->stat_xp);
+    assert(engine->skill_name);
     assert(engine->run_energy);
     assert(engine->draw_select_canvas);
     assert(engine->image_publish);
+    assert(engine->image_publish_argb);
+    assert(engine->image_read);
     assert(engine->image_release);
     assert(engine->draw_image);
     assert(engine->hit_region);
@@ -1945,6 +2066,8 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .mouse_pos = api_mouse_pos,
         .minimap_rect = api_minimap_rect,
         .stat = api_stat,
+        .stat_xp = api_stat_xp,
+        .skill_name = api_skill_name,
         .run_energy = api_run_energy,
         .project = api_project,
         .cfg_bool = api_cfg_bool,
@@ -1963,6 +2086,8 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .draw_text = api_draw_text,
         .draw_rect = api_draw_rect,
         .image_load = api_image_load,
+        .image_compose = api_image_compose,
+        .image_pixels = api_image_pixels,
         .image_size = api_image_size,
         .image_release = api_image_release,
         .draw_image = api_draw_image,

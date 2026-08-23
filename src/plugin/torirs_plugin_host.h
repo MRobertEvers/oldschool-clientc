@@ -93,6 +93,17 @@ struct ToriRS_PluginEngine
     int (*minimap_rect)(void* user, int* out_x, int* out_y, int* out_w, int* out_h);
     /** One skill's boosted and base level. @see ToriRS_PluginApi::stat. */
     int (*stat)(void* user, int skill, int* out_current, int* out_base);
+    /** One skill's xp and the thresholds either side of it.
+     *  @see ToriRS_PluginApi::stat_xp. */
+    int (*stat_xp)(
+        void* user,
+        int skill,
+        int* out_xp,
+        int* out_level_xp,
+        int* out_next_xp);
+    /** The skill's name, or NULL past the stat table.
+     *  @see ToriRS_PluginApi::skill_name. */
+    char const* (*skill_name)(void* user, int skill);
     /** Run energy, 0..100. */
     int (*run_energy)(void* user);
 
@@ -138,6 +149,24 @@ struct ToriRS_PluginEngine
         int size,
         int* out_w,
         int* out_h);
+    /**
+     * Publish `w`x`h` ARGB pixels at `slot`, returning 1 on success.
+     *
+     * image_publish's sibling with the decode taken out, because the caller
+     * already has pixels. @see ToriRS_PluginApi::image_compose.
+     */
+    int (*image_publish_argb)(
+        void* user,
+        int slot,
+        int w,
+        int h,
+        uint32_t const* argb);
+    /**
+     * Copy a published image's pixels back into `out`, which holds `max` of
+     * them. @return how many were copied, 0 if it will not fit or the slot
+     * holds nothing. @see ToriRS_PluginApi::image_pixels.
+     */
+    int (*image_read)(void* user, int slot, uint32_t* out, int max);
     /** Drop a published image. Idempotent. */
     void (*image_release)(void* user, int slot);
     /**

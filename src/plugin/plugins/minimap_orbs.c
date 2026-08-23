@@ -87,16 +87,16 @@
 #define ORB_DISC_X 27
 #define ORB_DISC_Y 4
 #define ORB_DISC 26
-/* The value panel: x=4 y=16 w=23 h=13, centred both ways. The baseline is the
- * box's middle plus half a cap height, which is where the interfaces' own
- * valign=1 lands an 11px face. */
-#define ORB_TEXT_CX (4 + 23 / 2)
-#define ORB_TEXT_BASELINE (16 + 13 / 2 + 4)
-/* The plugin's own face is laid out from the line box TOP rather than from a
- * baseline: the metrics beside the atlas state each glyph's offset inside that
- * box, which is how the cache states them too. 9px of ink centred in the 13px
- * panel at y=16. */
-#define ORB_TEXT_TOP (16 + (13 - 9) / 2 - 1)
+/* The value panel, exactly as every orb authors it: a 23x13 box at 4,16 with
+ * halign 1 and valign 1. */
+#define ORB_TEXT_X 4
+#define ORB_TEXT_Y 16
+#define ORB_TEXT_W 23
+#define ORB_TEXT_H 13
+#define ORB_TEXT_CX (ORB_TEXT_X + ORB_TEXT_W / 2)
+/* Only the fallback path's, which draws through api->draw_text and so takes a
+ * baseline rather than a box. */
+#define ORB_TEXT_BASELINE (ORB_TEXT_Y + ORB_TEXT_H / 2 + 4)
 /** Yellow, as every orb's own `colour=16776960` states it. */
 #define ORB_TEXT_RGB 0xFFFF00u
 
@@ -383,6 +383,11 @@ static int g_digits_ready;
  *  tools/fontbake_atlas.py `ramp:N`. 1 step is a single-colour atlas. */
 static int g_digit_steps = 1;
 static int g_digit_row_h;
+/** The face's vertical metrics, as ToriDraw2D_DrawStringBox reads them. @see
+ *  orbs_text_origin. */
+static int g_digit_line_height;
+static int g_digit_max_ascent;
+static int g_digit_max_descent;
 
 /**
  * Read `digits.ini` into the table above.
@@ -410,25 +415,40 @@ orbs_load_digits(struct ToriRS_PluginCtx* ctx)
 
     for( char const* end = at + size; at < end; )
     {
-        char const* line = at;
-        char const* stop = line;
+        /* The asset is a byte range, not a C string -- PlatformX_IO hands back
+         * exactly the bytes it read, with no terminator -- so every line is
+         * copied out before it is parsed. atoi/sscanf run to a NUL, and on the
+         * last line of the file that NUL is past the end of the allocation. */
+        char line[128];
+        char const* start = at;
+        char const* stop = start;
+        size_t len;
+
         while( stop < end && *stop != '\n' )
             stop++;
         at = stop < end ? stop + 1 : end;
+        if( stop > start && stop[-1] == '\r' )
+            stop--;
+
+        len = (size_t)(stop - start);
+        if( len >= sizeof(line) )
+            len = sizeof(line) - 1;
+        memcpy(line, start, len);
+        line[len] = '\0';
 
         /* `<digit>=x y w h ox oy advance`. Anything else -- the header
          * comments, the `ascent=` line -- is skipped by the same test. */
-        if( stop - line > 6 && strncmp(line, "steps=", 6) == 0 )
+        if( len > 6 && strncmp(line, "steps=", 6) == 0 )
         {
             g_digit_steps = atoi(line + 6);
             continue;
         }
-        if( stop - line > 11 && strncmp(line, "row_height=", 11) == 0 )
+        if( len > 11 && strncmp(line, "row_height=", 11) == 0 )
         {
             g_digit_row_h = atoi(line + 11);
             continue;
         }
-        if( stop - line < 3 || line[0] < '0' || line[0] > '9' || line[1] != '=' )
+        if( len < 3 || line[0] < '0' || line[0] > '9' || line[1] != '=' )
             continue;
         {
             struct OrbGlyph* g = &g_digit[line[0] - '0'];
@@ -439,6 +459,31 @@ orbs_load_digits(struct ToriRS_PluginCtx* ctx)
         }
     }
     return g_digits_ready;
+}
+
+/**
+ * Where a vertically CENTRED line's glyph offsets are measured from, inside a
+ * box `h` tall whose top is `y`.
+ *
+ * ToriDraw2D_DrawStringBox's own arithmetic, and it has to be run rather than
+ * approximated:
+ *
+ *     base_y0 = max_ascent + (h - max_ascent - max_descent) / 2
+ *     origin  = y + base_y0 - line_height
+ *
+ * For the orb face those cancel exactly -- ascent 10, descent 2, box 13, line
+ * height 10 -- so the origin is the box's own y and a digit lands one pixel
+ * into it. Centring the glyph CELL in the box by eye instead lands it a pixel
+ * lower, which is what the numbers were doing, and would land it somewhere
+ * else again on any other face.
+ */
+static int
+orbs_text_origin(int y, int h)
+{
+    int const line_height = g_digit_line_height > 0 ? g_digit_line_height : 1;
+    int const space = h - g_digit_max_ascent - g_digit_max_descent;
+
+    return y + g_digit_max_ascent + space / 2 - line_height;
 }
 
 /**
@@ -624,7 +669,13 @@ orbs_draw_one(
     if( g_digits_ready && g_image[ORB_IMG_DIGITS] >= 0 )
     {
         orbs_draw_number(
-            ctx, surface, x + ORB_TEXT_CX, y + ORB_TEXT_TOP, value, filled, total);
+            ctx,
+            surface,
+            x + ORB_TEXT_CX,
+            y + orbs_text_origin(ORB_TEXT_Y, ORB_TEXT_H),
+            value,
+            filled,
+            total);
         return;
     }
 

@@ -24,7 +24,7 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 9
+#define TORIRS_PLUGIN_ABI 10
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 /** Bytes of a plugin's human title, terminator included. Longer than the name
@@ -954,6 +954,54 @@ struct ToriRS_PluginApi
      */
     int (*stat)(struct ToriRS_PluginCtx* ctx, int skill, int* out_current, int* out_base);
 
+    /**
+     * One skill's EXPERIENCE, and the two thresholds the level it is inside
+     * runs between. Any out may be NULL.
+     *
+     * Three numbers and not one because a progress bar asks for all three at
+     * once and only ever together -- "how far through this level am I" is
+     * `(xp - level_xp) / (next_xp - level_xp)`, and a caller handed only the
+     * first has to carry its own copy of the xp table to answer it. The table
+     * is the CLIENT's (RS_PlayerStats builds it at init, and it is the same
+     * one the client's own "xp to next level" readout is computed from), so
+     * asking for it here is what keeps one answer rather than two that agree
+     * until one of them is edited.
+     *
+     * `out_next_xp` is 0 at the TOP of that table -- level 99, the last
+     * threshold the client holds. That is not "no progress": it is a skill
+     * with no next level to progress towards, and a caller drawing a meter
+     * should read it as full. Virtual levels are past the client's table
+     * entirely and are the caller's own extrapolation, not this one's.
+     *
+     * @return 1 when the index is in range, 0 otherwise, and 0 leaves the outs
+     * untouched.
+     */
+    int (*stat_xp)(
+        struct ToriRS_PluginCtx* ctx,
+        int skill,
+        int* out_xp,
+        int* out_level_xp,
+        int* out_next_xp);
+
+    /**
+     * The skill's name, "Attack" through "Summoning", or NULL past the end of
+     * this client's stat table.
+     *
+     * A verb and not a table in this header, for the reason EvGameEvent's
+     * `kind` is a string: the recogniser (game/rs_game_events.c) already owns
+     * the list -- it is the one the level-up line is written from -- and a
+     * second copy here would be a second thing to keep in step. A stat table
+     * that grows a skill reaches every plugin without touching the ABI.
+     *
+     * NULL is also how a plugin learns how MANY skills there are: walk up from
+     * 0 until it answers NULL. The count is a property of the revision (25
+     * here, with sailing and summoning at the top of it) and not a constant a
+     * plugin should be carrying.
+     *
+     * The string is the client's own and lives for the life of the process.
+     */
+    char const* (*skill_name)(struct ToriRS_PluginCtx* ctx, int skill);
+
     /** Run energy as the wire carries it: a percent, 0..100. */
     int (*run_energy)(struct ToriRS_PluginCtx* ctx);
 
@@ -1236,6 +1284,62 @@ struct ToriRS_PluginApi
      * the same way the client's own graphics do.
      */
     int (*image_load)(struct ToriRS_PluginCtx* ctx, char const* name);
+    /**
+     * Publish `w`x`h` pixels the plugin RASTERISED ITSELF, under `name`, and
+     * get back a handle draw_image blits like any other.
+     *
+     * `argb` is `w * h` non-premultiplied 0xAARRGGBB in row order, borrowed
+     * for the call. Composing again under the same name replaces the pixels
+     * in place, so a picture that changes -- a meter, an arc, a caption -- is
+     * one handle for the life of the plugin rather than a handle per frame.
+     *
+     * This is the escape hatch for a shape the draw verbs above have no
+     * primitive for. They are the ones the CLIENT needs: a rect, a line, a
+     * hull, a blit. A circle, an annulus sector, a gradient or a soft edge is
+     * none of those, and the honest ways to get one are to teach every
+     * rasteriser in the tree a new primitive, or to approximate it out of
+     * hundreds of rects and lines and spend the frame's whole draw budget on
+     * one orb. Handing over pixels is the third way, and it is the one that
+     * scales: whatever the plugin can compute, it can draw, at one blit.
+     *
+     * It pairs with image_pixels below -- read the art the plugin ships, put
+     * it in the picture it is composing -- which is what makes a composite of
+     * cache art and computed shapes possible without a decoder in the plugin.
+     *
+     * `name` is in the same per-plugin namespace as a loaded file's, so a
+     * composed image and a file must not share one. It is a name and not just
+     * a handle because a plugin reloaded mid-session re-runs its start
+     * handler, and a name is what lets that find the image it already has.
+     *
+     * @return a handle, or -1 for a name that is not a legal asset name, a
+     * non-positive or absurd size, or a plugin at its image budget.
+     */
+    int (*image_compose)(
+        struct ToriRS_PluginCtx* ctx,
+        char const* name,
+        int w,
+        int h,
+        uint32_t const* argb);
+    /**
+     * Copy a resident image's pixels back out, into `out`, which must hold at
+     * least `max` of them. Same 0xAARRGGBB layout image_compose takes.
+     *
+     * A plugin ships art as PNG because that is what a paint program writes
+     * and what the client already decodes; it composes in ARGB because that is
+     * what pixels are. Without this the two never meet, and a plugin wanting
+     * its own icon inside a picture it computed would need a PNG decoder of
+     * its own -- a second decoder in the tree, reached only from plugins.
+     *
+     * @return how many pixels were copied, or 0 for a handle this plugin does
+     * not own, one still pending, or a buffer too small for the whole image.
+     * Partial copies are not offered: half an image is not a smaller image,
+     * and a caller that got one would draw a torn picture rather than none.
+     */
+    int (*image_pixels)(
+        struct ToriRS_PluginCtx* ctx,
+        int image,
+        uint32_t* out,
+        int max);
     /** The image's pixels. Both outs may be NULL. @return 1 once it is
      *  resident, 0 while it is pending or if the file would not decode. */
     int (*image_size)(struct ToriRS_PluginCtx* ctx, int image, int* out_w, int* out_h);

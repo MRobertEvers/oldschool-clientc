@@ -13,10 +13,18 @@ spritebake's -- the alpha, the crop and the palette are the cache's, not this
 script's -- and what changes is only the container.
 
 Usage:
-  spritebake_png.py <bake.c> <out_dir>
+  spritebake_png.py <bake.c> <out_dir> [--strip <name>]
 
 Each `<Prefix>_<symbol>_argb[N]` array in the file becomes `<symbol>.png`, sized
 from the geometry table spritebake writes beside it.
+
+`--strip` writes ONE `<name>.png` instead: every sprite in the bake laid out
+left to right in a cell the size of the largest of them, in the order the
+recipe asked for them. A set that is indexed rather than named -- the skill
+icons, one per skill id -- is one asset that way instead of twenty-three, and
+the plugin holding it addresses a member by multiplying, with nothing to keep
+in step but the cell size. Twenty-three files would each be a load, an image
+handle and a name to get right, and the host caps both tables.
 """
 
 import re
@@ -81,12 +89,43 @@ def write_png(path, width, height, pixels):
         out.write(chunk(b"IEND", b""))
 
 
+def write_strip(path, sprites):
+    """Every sprite in one row of equal cells, each centred in its own."""
+    cell_w = max(s[1] for s in sprites)
+    cell_h = max(s[2] for s in sprites)
+    width = cell_w * len(sprites)
+    pixels = [0] * (width * cell_h)
+    for index, (_symbol, w, h, src) in enumerate(sprites):
+        # Centred, not corner-aligned: the cell is as wide as the widest
+        # member, so a narrower one corner-aligned would sit off to one side of
+        # a caller that draws the whole cell.
+        ox = index * cell_w + (cell_w - w) // 2
+        oy = (cell_h - h) // 2
+        for y in range(h):
+            row = (oy + y) * width + ox
+            pixels[row : row + w] = src[y * w : y * w + w]
+    write_png(path, width, cell_h, pixels)
+    return width, cell_h, cell_w
+
+
 def main(argv):
-    if len(argv) != 3:
+    strip = None
+    if len(argv) == 5 and argv[3] == "--strip":
+        strip = argv[4]
+    elif len(argv) != 3:
         raise SystemExit(__doc__.strip())
     text = open(argv[1]).read()
     os.makedirs(argv[2], exist_ok=True)
-    for symbol, width, height, pixels in parse_bake(text):
+    sprites = list(parse_bake(text))
+    if strip:
+        path = os.path.join(argv[2], strip + ".png")
+        width, height, cell = write_strip(path, sprites)
+        print(
+            "wrote %s (%dx%d, %d sprites in %dpx cells)"
+            % (path, width, height, len(sprites), cell)
+        )
+        return
+    for symbol, width, height, pixels in sprites:
         path = os.path.join(argv[2], symbol + ".png")
         write_png(path, width, height, pixels)
         print("wrote %s (%dx%d)" % (path, width, height))

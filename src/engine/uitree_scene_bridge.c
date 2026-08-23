@@ -567,6 +567,37 @@ UITreeSceneBridge_PublishPluginImage(
     return scene_id;
 }
 
+int
+UITreeSceneBridge_ReadPluginImage(
+    struct UITreeSceneBridge* bridge,
+    int slot,
+    uint32_t* out,
+    int max)
+{
+    struct ToriDraw_Sprite** sprites;
+    struct ToriDraw_Sprite const* sprite;
+    int count = 0;
+    int pixels;
+
+    assert(bridge);
+    assert(bridge->scene);
+    assert(out);
+
+    if( slot < 0 || slot >= BRIDGE_PLUGIN_IMAGE_SLOTS )
+        return 0;
+    sprites = ToriDraw_SceneSpriteGet(bridge->scene, UITREE_SCENE_PLUGIN_IMAGE_BASE + slot, &count);
+    if( !sprites || count <= 0 )
+        return 0;
+    sprite = sprites[0];
+    if( !sprite || !sprite->pixels_argb )
+        return 0;
+    pixels = sprite->width * sprite->height;
+    if( pixels <= 0 || pixels > max )
+        return 0;
+    memcpy(out, sprite->pixels_argb, (size_t)pixels * sizeof(uint32_t));
+    return pixels;
+}
+
 void
 UITreeSceneBridge_ReleasePluginImage(struct UITreeSceneBridge* bridge, int slot)
 {

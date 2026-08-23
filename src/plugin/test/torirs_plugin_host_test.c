@@ -480,6 +480,31 @@ fake_stat(void* u, int skill, int* cur, int* base)
         *base = 10;
     return 1;
 }
+/* Level 10 with 1154 xp: the hitpoints a fresh account starts on, so the
+ * thresholds either side of it are real numbers rather than zeroes. */
+static int
+fake_stat_xp(void* u, int skill, int* xp, int* level_xp, int* next_xp)
+{
+    (void)u;
+    if( skill < 0 || skill >= 25 )
+        return 0;
+    if( xp )
+        *xp = 1154;
+    if( level_xp )
+        *level_xp = 1154;
+    if( next_xp )
+        *next_xp = 1358;
+    return 1;
+}
+static char const*
+fake_skill_name(void* u, int skill)
+{
+    static char const* const NAMES[] = { "Attack", "Defence", "Strength", "Hitpoints" };
+    (void)u;
+    if( skill < 0 || skill >= (int)(sizeof(NAMES) / sizeof(NAMES[0])) )
+        return NULL;
+    return NAMES[skill];
+}
 static int
 fake_run_energy(void* u)
 {
@@ -504,6 +529,39 @@ fake_image_publish(void* u, int slot, void const* data, int size, int* w, int* h
     if( h )
         *h = 26;
     return 1;
+}
+/* The composed image the host last published, so a test can see the pixels
+ * came through and read them back the way the engine's own scene would. */
+static struct
+{
+    int slot;
+    int w;
+    int h;
+    uint32_t argb[64 * 64];
+} g_composed;
+
+static int
+fake_image_publish_argb(void* u, int slot, int w, int h, uint32_t const* argb)
+{
+    (void)u;
+    if( w <= 0 || h <= 0 || w * h > (int)(sizeof(g_composed.argb) / sizeof(uint32_t)) )
+        return 0;
+    g_composed.slot = slot;
+    g_composed.w = w;
+    g_composed.h = h;
+    memcpy(g_composed.argb, argb, (size_t)(w * h) * sizeof(uint32_t));
+    return 1;
+}
+static int
+fake_image_read(void* u, int slot, uint32_t* out, int max)
+{
+    (void)u;
+    int const pixels = g_composed.w * g_composed.h;
+
+    if( slot != g_composed.slot || pixels <= 0 || pixels > max )
+        return 0;
+    memcpy(out, g_composed.argb, (size_t)pixels * sizeof(uint32_t));
+    return pixels;
 }
 static void
 fake_image_release(void* u, int slot)
@@ -592,9 +650,13 @@ fake_engine(void)
     e.mouse_pos = fake_mouse_pos;
     e.minimap_rect = fake_minimap_rect;
     e.stat = fake_stat;
+    e.stat_xp = fake_stat_xp;
+    e.skill_name = fake_skill_name;
     e.run_energy = fake_run_energy;
     e.draw_select_canvas = fake_draw_select_canvas;
     e.image_publish = fake_image_publish;
+    e.image_publish_argb = fake_image_publish_argb;
+    e.image_read = fake_image_read;
     e.image_release = fake_image_release;
     e.draw_image = fake_draw_image;
     e.hit_region = fake_hit_region;
@@ -1217,6 +1279,78 @@ main(void)
             CHECK(
                 data && size == 6 && memcmp(data, "4151=1", 6) == 0,
                 "and the resident copy is the new one immediately, not after the IO");
+        }
+
+        /*
+         * Composed images: the plugin rasterises, the host publishes, and the
+         * pixels come back out through the same handle.
+         *
+         * The round trip is the point. A plugin that composes a picture out of
+         * the art it ships does both halves -- read the icon, write the
+         * composite -- and a read that answered plausible-but-wrong pixels
+         * would draw a picture nobody could tell was wrong.
+         */
+        {
+            uint32_t src[4] = { 0xFF102030u, 0xFF405060u, 0x80708090u, 0x00000000u };
+            uint32_t back[4] = { 0 };
+            int image;
+
+            memset(&g_composed, 0, sizeof(g_composed));
+            g_composed.slot = -1;
+
+            CHECK(
+                g_api->image_compose(ctx, "sub/dir.png", 2, 2, src) == -1,
+                "a composed image's name goes through the same gate a file's does");
+            CHECK(
+                g_api->image_compose(ctx, "orb.png", 0, 2, src) == -1,
+                "and a size that is not a picture is refused");
+
+            image = g_api->image_compose(ctx, "orb.png", 2, 2, src);
+            CHECK(image >= 0, "an ordinary compose hands out a handle");
+            CHECK(g_composed.w == 2 && g_composed.h == 2, "the geometry reaches the engine");
+            {
+                int w = 0;
+                int h = 0;
+                CHECK(
+                    g_api->image_size(ctx, image, &w, &h) == 1 && w == 2 && h == 2,
+                    "and the image is resident at once -- there is no read to wait for");
+            }
+            CHECK(
+                g_api->image_compose(ctx, "orb.png", 2, 2, src) == image,
+                "composing the same name again replaces it in place");
+
+            CHECK(
+                g_api->image_pixels(ctx, image, back, 3) == 0,
+                "a buffer too small for the whole image copies nothing");
+            CHECK(
+                g_api->image_pixels(ctx, image, back, 4) == 4,
+                "a big enough one copies every pixel");
+            CHECK(
+                memcmp(back, src, sizeof(src)) == 0,
+                "and they are the pixels that went in, alpha included");
+            CHECK(
+                g_api->image_pixels(ctx, image + 40, back, 4) == 0,
+                "a handle this plugin does not own reads nothing");
+
+            g_api->image_release(ctx, image);
+        }
+
+        /* stat_xp answers the three numbers a progress meter needs at once. */
+        {
+            int xp = -1;
+            int level_xp = -1;
+            int next_xp = -1;
+
+            CHECK(
+                g_api->stat_xp(ctx, 3, &xp, &level_xp, &next_xp) == 1,
+                "stat_xp answers for a skill in range");
+            CHECK(
+                xp == 1154 && level_xp == 1154 && next_xp == 1358,
+                "with the xp and both thresholds");
+            xp = -1;
+            CHECK(
+                g_api->stat_xp(ctx, 99, &xp, NULL, NULL) == 0 && xp == -1,
+                "and refuses one out of range without touching the outs");
         }
 
         /*

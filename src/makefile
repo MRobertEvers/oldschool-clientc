@@ -476,6 +476,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	plugin/torirs_plugin_lua.c plugin/task_plugin_io.c \
 	plugin/plugins/tileind.c \
 	plugin/plugins/minimap_orbs.c \
+	plugin/plugins/xp_orbs.c \
 	plugin/plugins/nxt_highlight.c \
 	plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
 	painters/painters.c \
@@ -1512,6 +1513,19 @@ test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/test/torirs_plug
 		plugin/torirs_plugin_host.c ui/uitree_minimenu.c \
 		plugin/test/torirs_plugin_host_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/plugin_host_test
+
+# The XP drop orbs, against a fake engine with a real PNG decode and a real
+# image table -- because this plugin's whole draw path is read-pixels /
+# compose / blit, and a stub that answered nothing would exercise none of it.
+# It also writes build/xp_orbs_test.png, which is the half of the result no
+# assertion can state: whether the picture is a globe.
+test-xp-orbs: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/xp_orbs.c \
+		plugin/test/xp_orbs_test.c
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/xp_orbs_test \
+		plugin/torirs_plugin_host.c ui/uitree_minimenu.c \
+		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/xp_orbs.c \
+		plugin/test/xp_orbs_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/xp_orbs_test
 
 test-editor-cmd: $(OBJ_DIR) editor/editor_jm2.c editor/editor_doc.c editor/editor_cmd.c \
 		editor/test/editor_cmd_test.c

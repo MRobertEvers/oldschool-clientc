@@ -531,6 +531,15 @@ fake_stat(void* u, int skill, int* cur, int* base)
         *base = 10;
     return 1;
 }
+static char const*
+fake_skill_name(void* u, int skill)
+{
+    static char const* const NAMES[] = { "Attack", "Defence", "Strength", "Hitpoints" };
+    (void)u;
+    if( skill < 0 || skill >= (int)(sizeof(NAMES) / sizeof(NAMES[0])) )
+        return NULL;
+    return NAMES[skill];
+}
 static int
 fake_run_energy(void* u)
 {
@@ -542,6 +551,36 @@ fake_draw_select_canvas(void* u, int canvas)
 {
     (void)u;
     (void)canvas;
+}
+static int
+fake_stat_xp(void* u, int skill, int* xp, int* level_xp, int* next_xp)
+{
+    (void)u;
+    (void)skill;
+    if( xp )
+        *xp = 0;
+    if( level_xp )
+        *level_xp = 0;
+    if( next_xp )
+        *next_xp = 83;
+    return 1;
+}
+static int
+fake_image_publish_argb(void* u, int slot, int w, int h, uint32_t const* argb)
+{
+    (void)u;
+    (void)slot;
+    (void)argb;
+    return w > 0 && h > 0;
+}
+static int
+fake_image_read(void* u, int slot, uint32_t* out, int max)
+{
+    (void)u;
+    (void)slot;
+    (void)out;
+    (void)max;
+    return 0;
 }
 static int
 fake_image_publish(void* u, int slot, void const* data, int size, int* w, int* h)
@@ -644,9 +683,13 @@ fake_engine(void)
     e.mouse_pos = fake_mouse_pos;
     e.minimap_rect = fake_minimap_rect;
     e.stat = fake_stat;
+    e.stat_xp = fake_stat_xp;
+    e.skill_name = fake_skill_name;
     e.run_energy = fake_run_energy;
     e.draw_select_canvas = fake_draw_select_canvas;
     e.image_publish = fake_image_publish;
+    e.image_publish_argb = fake_image_publish_argb;
+    e.image_read = fake_image_read;
     e.image_release = fake_image_release;
     e.draw_image = fake_draw_image;
     e.hit_region = fake_hit_region;

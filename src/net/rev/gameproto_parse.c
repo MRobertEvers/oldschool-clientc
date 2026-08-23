@@ -220,7 +220,12 @@ gameproto_parse(
     {
         packet->_update_inv_full.component_id = g2(&buffer);
         packet->_update_inv_full.inv_id = -1; /* component id is the container key */
-        packet->_update_inv_full.size = g1(&buffer);
+        /* Two bytes, not one (reference Client.ts UPDATE_INV_FULL: `g2`, and
+         * UpdateInvFullEncoder writes `p2(max)`). Read as one, every inventory
+         * on this generation decoded as the HIGH byte of a slot count that
+         * never reaches 256 — i.e. size 0, every container silently empty.
+         * The skill guide's item column was the visible half of it. */
+        packet->_update_inv_full.size = g2(&buffer);
 
         packet->_update_inv_full.obj_ids = malloc(packet->_update_inv_full.size * sizeof(int));
         packet->_update_inv_full.obj_counts = malloc(packet->_update_inv_full.size * sizeof(int));
@@ -631,14 +636,20 @@ gameproto_parse(
     {
         packet->_update_inv_partial.component_id = g2(&buffer);
         packet->_update_inv_partial.inv_id = -1;
-        /* count is derived from remaining bytes; allocate conservatively */
-        int max_entries = (data_size - 2) / 5 + 1;
+        /* count is derived from remaining bytes; allocate conservatively. The
+         * smallest record is 4 bytes — a one-byte smart slot, the two-byte obj
+         * and a one-byte count — so the divisor is 4. Sizing by 5 under-allocated
+         * whenever a packet carried only short records and wrote past the end. */
+        int max_entries = (data_size - 2) / 4 + 1;
         packet->_update_inv_partial.entries =
             (struct PktUpdateInvPartialEntry*)malloc(max_entries * sizeof(struct PktUpdateInvPartialEntry));
         int n = 0;
         while( buffer.position < data_size )
         {
-            int slot = g1(&buffer);
+            /* Smart, not a plain byte (reference `gsmart`, encoder `psmart`):
+             * a bank slot of 128 or more goes out as two bytes, and reading one
+             * desynchronised the rest of the packet. */
+            int slot = gushortsmart(&buffer);
             int obj_id_raw = g2(&buffer);
             int count = g1(&buffer);
             if( count == 255 )

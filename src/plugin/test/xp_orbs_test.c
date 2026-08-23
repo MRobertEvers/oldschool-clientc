@@ -1,0 +1,997 @@
+/*
+ * The XP drop orbs plugin, run against a fake engine.
+ *
+ * Two things it proves, and they need different kinds of evidence:
+ *
+ *   The BEHAVIOUR -- a first sight of a stat seeds instead of appearing, a
+ *   gain appears, five is the ceiling and the oldest is what goes, an expiry
+ *   removes, a hover holds one alive, Flip flips -- is checked with assertions,
+ *   because every one of those is a yes or no.
+ *
+ *   The PICTURE is not. "Is the arc on the right side of the disc, is the icon
+ *   the right skill, is the ring anti-aliased" is not a predicate, and a test
+ *   that asserted a pixel value would only pin whatever the rasteriser did the
+ *   day it was written. So the composed globes are written out as a PNG
+ *   (build/xp_orbs_test.png by default, $XP_ORBS_TEST_PNG to move it) and a
+ *   human looks at it. The assertions say it drew SOMETHING and how big; the
+ *   sheet says whether it is a globe.
+ *
+ * The engine underneath is a stub with two real parts: the PNG decode, which
+ * is the client's own, and the image table, because this plugin's whole draw
+ * path is read-pixels-compose-blit and a fake that answered nothing would
+ * exercise none of it.
+ */
+
+#include "engine/png_decode.h"
+#include "plugin/torirs_plugin.h"
+#include "plugin/torirs_plugin_host.h"
+
+#include <assert.h>
+#include <math.h>
+#include <stdarg.h>
+#include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "miniz.h"
+
+extern struct ToriRS_PluginDef const TORIRS_PLUGIN_XP_ORBS;
+
+static int g_checks;
+static int g_failures;
+
+#define CHECK(cond, what)                                                              \
+    do                                                                                 \
+    {                                                                                  \
+        g_checks++;                                                                    \
+        if( !(cond) )                                                                  \
+        {                                                                              \
+            g_failures++;                                                              \
+            printf("FAIL: %s (%s:%d)\n", (what), __FILE__, __LINE__);                  \
+        }                                                                              \
+    } while( 0 )
+
+/* ------------------------------------------------------------ fake engine */
+
+#define FAKE_IMAGE_SLOTS 64
+
+struct FakeImage
+{
+    uint32_t* argb;
+    int w;
+    int h;
+};
+
+static struct FakeImage g_image[FAKE_IMAGE_SLOTS];
+
+/** Every blit this frame, so the test can see what was drawn where. */
+struct FakeBlit
+{
+    int slot;
+    int x;
+    int y;
+    int w;
+    int h;
+};
+
+static struct FakeBlit g_blit[64];
+static int g_blit_count;
+static int g_region_count;
+static uint32_t g_region_tag;
+static int g_region_x;
+static int g_region_y;
+static int g_region_w;
+
+/** The stat table the plugin polls. */
+static int g_xp[25];
+static int g_level[25];
+static uint64_t g_now_ms;
+static int g_mouse_x = -1;
+static int g_mouse_y = -1;
+
+static char const* const SKILL_NAME[] = {
+    "Attack",   "Defence",  "Strength", "Hitpoints",   "Ranged",  "Prayer",
+    "Magic",    "Cooking",  "Woodcutting", "Fletching", "Fishing", "Firemaking",
+    "Crafting", "Smithing", "Mining",   "Herblore",    "Agility", "Thieving",
+    "Slayer",   "Farming",  "Runecraft", "Hunter",     "Construction",
+    "Sailing",  "Summoning",
+};
+#define SKILL_COUNT ((int)(sizeof(SKILL_NAME) / sizeof(SKILL_NAME[0])))
+
+/** The client's own xp table, built the way RS_PlayerStats_Init builds it. */
+static int g_level_xp[99];
+
+static void
+fake_build_xp_table(void)
+{
+    double points = 0.0;
+    for( int level = 1; level <= 99; level++ )
+    {
+        points += (double)level + 300.0 * pow(2.0, (double)level / 7.0);
+        g_level_xp[level - 1] = (int)(points / 4.0);
+    }
+}
+
+static int
+fake_world_cycle(void* u)
+{
+    (void)u;
+    return 1;
+}
+static uint64_t
+fake_frame_ms(void* u)
+{
+    (void)u;
+    return g_now_ms;
+}
+static int
+fake_local_player(void* u, struct ToriRS_PluginPlayerSnap* out)
+{
+    (void)u;
+    if( out )
+        memset(out, 0, sizeof(*out));
+    return 1;
+}
+static int
+fake_npc_next(void* u, int iter, struct ToriRS_PluginNpcSnap* out)
+{
+    (void)u;
+    (void)iter;
+    (void)out;
+    return -1;
+}
+static int
+fake_npc_by_slot(void* u, int slot, struct ToriRS_PluginNpcSnap* out)
+{
+    (void)u;
+    (void)slot;
+    (void)out;
+    return 0;
+}
+static int
+fake_player_next(void* u, int iter, struct ToriRS_PluginPlayerSnap* out)
+{
+    (void)u;
+    (void)iter;
+    (void)out;
+    return -1;
+}
+static int
+fake_obj_next(void* u, int iter, struct ToriRS_PluginObjSnap* out)
+{
+    (void)u;
+    (void)iter;
+    (void)out;
+    return -1;
+}
+static int
+fake_loc_next(void* u, int iter, struct ToriRS_PluginLocSnap* out)
+{
+    (void)u;
+    (void)iter;
+    (void)out;
+    return -1;
+}
+static int
+fake_highlight_next(void* u, int iter, struct ToriRS_PluginHighlightItem* out)
+{
+    (void)u;
+    (void)iter;
+    (void)out;
+    return -1;
+}
+static void
+fake_notify(void* u, char const* text)
+{
+    (void)u;
+    (void)text;
+}
+static int
+fake_key_held(void* u, int key)
+{
+    (void)u;
+    (void)key;
+    return 0;
+}
+static int
+fake_hover_tile(void* u, int* x, int* z, int* l)
+{
+    (void)u;
+    (void)x;
+    (void)z;
+    (void)l;
+    return 0;
+}
+static int
+fake_hover_entity(void* u, struct ToriRS_PluginHoverEntity* out)
+{
+    (void)u;
+    (void)out;
+    return 0;
+}
+static int
+fake_element_height(void* u, int element)
+{
+    (void)u;
+    (void)element;
+    return 200;
+}
+static int
+fake_varbit(void* u, int id)
+{
+    (void)u;
+    (void)id;
+    return 0;
+}
+static int
+fake_varp(void* u, int id)
+{
+    (void)u;
+    (void)id;
+    return 0;
+}
+static int
+fake_cache_id(void* u, char const* kind, char const* name)
+{
+    (void)u;
+    (void)kind;
+    (void)name;
+    return -1;
+}
+static int
+fake_project(void* u, int fx, int fz, int hy, int* x, int* y)
+{
+    (void)u;
+    (void)fx;
+    (void)fz;
+    (void)hy;
+    (void)x;
+    (void)y;
+    return 0;
+}
+static int
+fake_draw_tile(void* u, int x, int z, int l, uint32_t rgb, uint32_t fill, int alpha)
+{
+    (void)u;
+    (void)x;
+    (void)z;
+    (void)l;
+    (void)rgb;
+    (void)fill;
+    (void)alpha;
+    return 1;
+}
+static int
+fake_draw_hull(void* u, int element, uint32_t rgb, int alpha, int shape)
+{
+    (void)u;
+    (void)element;
+    (void)rgb;
+    (void)alpha;
+    (void)shape;
+    return 1;
+}
+static int
+fake_draw_line(void* u, int x0, int y0, int x1, int y1, uint32_t rgb)
+{
+    (void)u;
+    (void)x0;
+    (void)y0;
+    (void)x1;
+    (void)y1;
+    (void)rgb;
+    return 1;
+}
+static int
+fake_draw_text(void* u, int x, int y, char const* text, uint32_t rgb)
+{
+    (void)u;
+    (void)x;
+    (void)y;
+    (void)text;
+    (void)rgb;
+    return 1;
+}
+static int
+fake_draw_rect(void* u, int x, int y, int w, int h, uint32_t rgb, int alpha)
+{
+    (void)u;
+    (void)x;
+    (void)y;
+    (void)w;
+    (void)h;
+    (void)rgb;
+    (void)alpha;
+    return 1;
+}
+static void
+fake_draw_select_canvas(void* u, int canvas)
+{
+    (void)u;
+    (void)canvas;
+}
+static int
+fake_mouse_pos(void* u, int* x, int* y)
+{
+    (void)u;
+    if( x )
+        *x = g_mouse_x;
+    if( y )
+        *y = g_mouse_y;
+    return g_mouse_x >= 0;
+}
+static int
+fake_minimap_rect(void* u, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    (void)x;
+    (void)y;
+    (void)w;
+    (void)h;
+    return 0;
+}
+static int
+fake_stat(void* u, int skill, int* cur, int* base)
+{
+    (void)u;
+    if( skill < 0 || skill >= SKILL_COUNT )
+        return 0;
+    if( cur )
+        *cur = g_level[skill];
+    if( base )
+        *base = g_level[skill];
+    return 1;
+}
+
+/* The bridge's own arithmetic: level_xp[n] is the xp that reaches level n + 2,
+ * so a level's own threshold is two entries below it and the next one is one. */
+static int
+fake_stat_xp(void* u, int skill, int* xp, int* level_xp, int* next_xp)
+{
+    (void)u;
+    if( skill < 0 || skill >= SKILL_COUNT )
+        return 0;
+    if( xp )
+        *xp = g_xp[skill];
+    {
+        int level = g_level[skill] < 1 ? 1 : g_level[skill];
+        if( level_xp )
+            *level_xp = level >= 2 ? g_level_xp[level - 2] : 0;
+        if( next_xp )
+            *next_xp = level < 99 ? g_level_xp[level - 1] : 0;
+    }
+    return 1;
+}
+static char const*
+fake_skill_name(void* u, int skill)
+{
+    (void)u;
+    if( skill < 0 || skill >= SKILL_COUNT )
+        return NULL;
+    return SKILL_NAME[skill];
+}
+static int
+fake_run_energy(void* u)
+{
+    (void)u;
+    return 100;
+}
+static int
+fake_menu_add(void* u, void* cursor, char const* text, int action_id)
+{
+    (void)u;
+    (void)cursor;
+    (void)text;
+    (void)action_id;
+    return 1;
+}
+
+/* -- the image table, which this plugin actually uses -- */
+
+static int
+fake_image_publish(void* u, int slot, void const* data, int size, int* w, int* h)
+{
+    uint32_t* px = NULL;
+    int iw = 0;
+    int ih = 0;
+
+    (void)u;
+    if( slot < 0 || slot >= FAKE_IMAGE_SLOTS )
+        return 0;
+    if( !PngDecode_Argb(data, size, &iw, &ih, &px) )
+        return 0;
+    free(g_image[slot].argb);
+    g_image[slot].argb = px;
+    g_image[slot].w = iw;
+    g_image[slot].h = ih;
+    if( w )
+        *w = iw;
+    if( h )
+        *h = ih;
+    return 1;
+}
+
+static int
+fake_image_publish_argb(void* u, int slot, int w, int h, uint32_t const* argb)
+{
+    (void)u;
+    if( slot < 0 || slot >= FAKE_IMAGE_SLOTS || w <= 0 || h <= 0 )
+        return 0;
+    free(g_image[slot].argb);
+    g_image[slot].argb = malloc((size_t)w * (size_t)h * sizeof(uint32_t));
+    assert(g_image[slot].argb);
+    memcpy(g_image[slot].argb, argb, (size_t)w * (size_t)h * sizeof(uint32_t));
+    g_image[slot].w = w;
+    g_image[slot].h = h;
+    return 1;
+}
+
+static int
+fake_image_read(void* u, int slot, uint32_t* out, int max)
+{
+    (void)u;
+    if( slot < 0 || slot >= FAKE_IMAGE_SLOTS || !g_image[slot].argb )
+        return 0;
+    {
+        int const pixels = g_image[slot].w * g_image[slot].h;
+        if( pixels > max )
+            return 0;
+        memcpy(out, g_image[slot].argb, (size_t)pixels * sizeof(uint32_t));
+        return pixels;
+    }
+}
+
+static void
+fake_image_release(void* u, int slot)
+{
+    (void)u;
+    if( slot < 0 || slot >= FAKE_IMAGE_SLOTS )
+        return;
+    free(g_image[slot].argb);
+    memset(&g_image[slot], 0, sizeof(g_image[slot]));
+}
+
+static int
+fake_draw_image(
+    void* u, int slot, int x, int y, int w, int h, int cx, int cy, int cw, int ch, int trans)
+{
+    (void)u;
+    (void)cx;
+    (void)cy;
+    (void)cw;
+    (void)ch;
+    (void)trans;
+    if( g_blit_count < (int)(sizeof(g_blit) / sizeof(g_blit[0])) )
+    {
+        g_blit[g_blit_count].slot = slot;
+        g_blit[g_blit_count].x = x;
+        g_blit[g_blit_count].y = y;
+        g_blit[g_blit_count].w = w;
+        g_blit[g_blit_count].h = h;
+        g_blit_count++;
+    }
+    return 1;
+}
+
+static int
+fake_hit_region(
+    void* u,
+    int plugin,
+    int x,
+    int y,
+    int w,
+    int h,
+    char const* const* ops,
+    int op_count,
+    uint32_t tag)
+{
+    (void)u;
+    (void)plugin;
+    (void)h;
+    (void)ops;
+    (void)op_count;
+    g_region_count++;
+    g_region_tag = tag;
+    g_region_x = x;
+    g_region_y = y;
+    g_region_w = w;
+    return 1;
+}
+
+static int
+fake_if_click(void* u, int component, int op)
+{
+    (void)u;
+    (void)component;
+    (void)op;
+    return 1;
+}
+
+/* -- assets: the read is answered straight off disk -- */
+
+static int
+fake_asset_read(void* u, char const* plugin, char const* name)
+{
+    char path[512];
+    FILE* f;
+    long size;
+    void* data;
+
+    (void)u;
+    snprintf(path, sizeof(path), "../script/plugins/assets/%s/%s", plugin, name);
+    f = fopen(path, "rb");
+    if( !f )
+    {
+        printf("FAIL: no asset at %s\n", path);
+        g_failures++;
+        return 0;
+    }
+    fseek(f, 0, SEEK_END);
+    size = ftell(f);
+    fseek(f, 0, SEEK_SET);
+    data = malloc((size_t)size);
+    assert(data);
+    if( fread(data, 1, (size_t)size, f) != (size_t)size )
+    {
+        fclose(f);
+        free(data);
+        return 0;
+    }
+    fclose(f);
+    /* Delivered inline rather than queued: there is no IO loop here, and the
+     * host is happy to be told an asset landed during the load that asked for
+     * it -- which is the same order a resident asset arrives in. */
+    PluginHost_AssetDeliver(
+        (struct ToriRS_PluginHost*)u, plugin, name, data, (int)size);
+    return 1;
+}
+
+static int
+fake_asset_write(void* u, char const* plugin, char const* name, void const* data, int size)
+{
+    (void)u;
+    (void)plugin;
+    (void)name;
+    (void)data;
+    (void)size;
+    return 1;
+}
+static int
+fake_screenshot(void* u, char const* plugin, char const* dir, char const* name)
+{
+    (void)u;
+    (void)plugin;
+    (void)dir;
+    (void)name;
+    return 1;
+}
+static int
+fake_object_create(void* u)
+{
+    (void)u;
+    return -1;
+}
+static void
+fake_object_destroy(void* u, int o)
+{
+    (void)u;
+    (void)o;
+}
+static void
+fake_object_set_model(void* u, int o, int source, int id)
+{
+    (void)u;
+    (void)o;
+    (void)source;
+    (void)id;
+}
+static void
+fake_object_recolor(void* u, int o, int a, int b)
+{
+    (void)u;
+    (void)o;
+    (void)a;
+    (void)b;
+}
+static void
+fake_object_clear_recolors(void* u, int o)
+{
+    (void)u;
+    (void)o;
+}
+static void
+fake_object_set_anim(void* u, int o, int seq, int loop)
+{
+    (void)u;
+    (void)o;
+    (void)seq;
+    (void)loop;
+}
+static void
+fake_object_set_light(void* u, int o, int a, int c)
+{
+    (void)u;
+    (void)o;
+    (void)a;
+    (void)c;
+}
+static void
+fake_object_set_position(void* u, int o, int x, int z, int l, int h, int yaw)
+{
+    (void)u;
+    (void)o;
+    (void)x;
+    (void)z;
+    (void)l;
+    (void)h;
+    (void)yaw;
+}
+static void
+fake_object_set_active(void* u, int o, int on)
+{
+    (void)u;
+    (void)o;
+    (void)on;
+}
+static int
+fake_object_ready(void* u, int o)
+{
+    (void)u;
+    (void)o;
+    return 0;
+}
+static int
+fake_hsl_from_rgb(void* u, uint32_t rgb)
+{
+    (void)u;
+    (void)rgb;
+    return 0;
+}
+static uint32_t
+fake_hsl_to_rgb(void* u, int hsl)
+{
+    (void)u;
+    (void)hsl;
+    return 0;
+}
+
+/* ------------------------------------------------------------- the sheet */
+
+/** 8-bit RGBA, no interlace -- the same container spritebake_png.py writes. */
+static void
+write_png(char const* path, int w, int h, uint32_t const* argb)
+{
+    unsigned char* raw;
+    mz_ulong raw_size = (unsigned long)(w * 4 + 1) * (unsigned long)h;
+    mz_ulong comp_size;
+    unsigned char* comp;
+    FILE* f;
+    int at = 0;
+
+    raw = malloc(raw_size);
+    assert(raw);
+    for( int y = 0; y < h; y++ )
+    {
+        raw[at++] = 0;
+        for( int x = 0; x < w; x++ )
+        {
+            uint32_t const p = argb[y * w + x];
+            raw[at++] = (unsigned char)(p >> 16);
+            raw[at++] = (unsigned char)(p >> 8);
+            raw[at++] = (unsigned char)p;
+            raw[at++] = (unsigned char)(p >> 24);
+        }
+    }
+    comp_size = mz_compressBound(raw_size);
+    comp = malloc(comp_size);
+    assert(comp);
+    mz_compress2(comp, &comp_size, raw, raw_size, 9);
+
+    f = fopen(path, "wb");
+    if( !f )
+    {
+        free(raw);
+        free(comp);
+        return;
+    }
+#define BE32(v) \
+    (unsigned char)((v) >> 24), (unsigned char)((v) >> 16), (unsigned char)((v) >> 8), \
+        (unsigned char)(v)
+    {
+        unsigned char const sig[8] = { 0x89, 'P', 'N', 'G', '\r', '\n', 0x1A, '\n' };
+        unsigned char ihdr[25] = { BE32(13), 'I', 'H', 'D', 'R', BE32(w), BE32(h),
+                                   8,       6,   0,   0,   0,   0, 0, 0, 0 };
+        mz_ulong crc = mz_crc32(0, ihdr + 4, 17);
+        unsigned char iend[12] = { BE32(0), 'I', 'E', 'N', 'D', 0, 0, 0, 0 };
+        mz_ulong icrc = mz_crc32(0, iend + 4, 4);
+        unsigned char idat_head[8] = { BE32((unsigned)comp_size), 'I', 'D', 'A', 'T' };
+        mz_ulong dcrc;
+        unsigned char tail[4];
+
+        ihdr[21] = (unsigned char)(crc >> 24);
+        ihdr[22] = (unsigned char)(crc >> 16);
+        ihdr[23] = (unsigned char)(crc >> 8);
+        ihdr[24] = (unsigned char)crc;
+        fwrite(sig, 1, sizeof(sig), f);
+        fwrite(ihdr, 1, sizeof(ihdr), f);
+
+        dcrc = mz_crc32(0, idat_head + 4, 4);
+        dcrc = mz_crc32(dcrc, comp, (unsigned)comp_size);
+        fwrite(idat_head, 1, 8, f);
+        fwrite(comp, 1, comp_size, f);
+        tail[0] = (unsigned char)(dcrc >> 24);
+        tail[1] = (unsigned char)(dcrc >> 16);
+        tail[2] = (unsigned char)(dcrc >> 8);
+        tail[3] = (unsigned char)dcrc;
+        fwrite(tail, 1, 4, f);
+
+        iend[8] = (unsigned char)(icrc >> 24);
+        iend[9] = (unsigned char)(icrc >> 16);
+        iend[10] = (unsigned char)(icrc >> 8);
+        iend[11] = (unsigned char)icrc;
+        fwrite(iend, 1, sizeof(iend), f);
+    }
+#undef BE32
+    fclose(f);
+    free(raw);
+    free(comp);
+    printf("wrote %s (%dx%d)\n", path, w, h);
+}
+
+/** Every blit of this frame, composited onto a checkerboard so transparency
+ *  reads as transparency rather than as black. */
+static void
+write_frame(char const* path, int w, int h)
+{
+    uint32_t* canvas = malloc((size_t)w * (size_t)h * sizeof(uint32_t));
+
+    assert(canvas);
+    for( int y = 0; y < h; y++ )
+        for( int x = 0; x < w; x++ )
+            canvas[y * w + x] =
+                0xFF000000u | (((x / 8 + y / 8) & 1) ? 0x2E3436u : 0x3C4448u);
+
+    for( int i = 0; i < g_blit_count; i++ )
+    {
+        struct FakeImage const* img = &g_image[g_blit[i].slot];
+        if( !img->argb )
+            continue;
+        for( int y = 0; y < img->h; y++ )
+        {
+            int const ty = g_blit[i].y + y;
+            if( ty < 0 || ty >= h )
+                continue;
+            for( int x = 0; x < img->w; x++ )
+            {
+                int const tx = g_blit[i].x + x;
+                uint32_t const p = img->argb[y * img->w + x];
+                uint32_t const a = p >> 24;
+                uint32_t d;
+                if( tx < 0 || tx >= w || a == 0 )
+                    continue;
+                d = canvas[ty * w + tx];
+                canvas[ty * w + tx] =
+                    0xFF000000u |
+                    (((((p >> 16) & 0xFF) * a + ((d >> 16) & 0xFF) * (255 - a)) / 255) << 16) |
+                    (((((p >> 8) & 0xFF) * a + ((d >> 8) & 0xFF) * (255 - a)) / 255) << 8) |
+                    ((((p & 0xFF) * a + (d & 0xFF) * (255 - a)) / 255));
+            }
+        }
+    }
+    write_png(path, w, h, canvas);
+    free(canvas);
+}
+
+/* ------------------------------------------------------------------ tests */
+
+#define CANVAS_W 520
+#define CANVAS_H 200
+
+static struct ToriRS_PluginHost* g_host;
+
+static void
+tick(void)
+{
+    PluginHost_ServerTick(g_host, 1);
+}
+
+static void
+draw(void)
+{
+    g_blit_count = 0;
+    g_region_count = 0;
+    PluginHost_DrawCanvas(g_host, CANVAS_W, CANVAS_H);
+}
+
+int
+main(void)
+{
+    struct ToriRS_PluginEngine e;
+    int index;
+
+    fake_build_xp_table();
+
+    memset(&e, 0, sizeof(e));
+    e.world_cycle = fake_world_cycle;
+    e.frame_ms = fake_frame_ms;
+    e.local_player = fake_local_player;
+    e.npc_next = fake_npc_next;
+    e.npc_by_slot = fake_npc_by_slot;
+    e.player_next = fake_player_next;
+    e.obj_next = fake_obj_next;
+    e.loc_next = fake_loc_next;
+    e.highlight_next = fake_highlight_next;
+    e.notify = fake_notify;
+    e.key_held = fake_key_held;
+    e.hover_tile = fake_hover_tile;
+    e.hover_entity = fake_hover_entity;
+    e.element_height = fake_element_height;
+    e.varbit = fake_varbit;
+    e.varp = fake_varp;
+    e.cache_id = fake_cache_id;
+    e.project = fake_project;
+    e.draw_tile = fake_draw_tile;
+    e.draw_hull = fake_draw_hull;
+    e.draw_line = fake_draw_line;
+    e.draw_text = fake_draw_text;
+    e.draw_rect = fake_draw_rect;
+    e.draw_select_canvas = fake_draw_select_canvas;
+    e.mouse_pos = fake_mouse_pos;
+    e.minimap_rect = fake_minimap_rect;
+    e.stat = fake_stat;
+    e.stat_xp = fake_stat_xp;
+    e.skill_name = fake_skill_name;
+    e.run_energy = fake_run_energy;
+    e.menu_add = fake_menu_add;
+    e.image_publish = fake_image_publish;
+    e.image_publish_argb = fake_image_publish_argb;
+    e.image_read = fake_image_read;
+    e.image_release = fake_image_release;
+    e.draw_image = fake_draw_image;
+    e.hit_region = fake_hit_region;
+    e.if_click = fake_if_click;
+    e.asset_read = fake_asset_read;
+    e.asset_write = fake_asset_write;
+    e.screenshot = fake_screenshot;
+    e.object_create = fake_object_create;
+    e.object_destroy = fake_object_destroy;
+    e.object_set_model = fake_object_set_model;
+    e.object_recolor = fake_object_recolor;
+    e.object_clear_recolors = fake_object_clear_recolors;
+    e.object_set_anim = fake_object_set_anim;
+    e.object_set_light = fake_object_set_light;
+    e.object_set_position = fake_object_set_position;
+    e.object_set_active = fake_object_set_active;
+    e.object_ready = fake_object_ready;
+    e.hsl_from_rgb = fake_hsl_from_rgb;
+    e.hsl_to_rgb = fake_hsl_to_rgb;
+
+    g_host = PluginHost_New(&e);
+    /* asset_read has to answer into the host it is reading for, and the engine
+     * user pointer is the only channel it has. */
+    e.user = g_host;
+    PluginHost_Free(g_host);
+    g_host = PluginHost_New(&e);
+
+    index = PluginHost_Register(g_host, &TORIRS_PLUGIN_XP_ORBS);
+    CHECK(index >= 0, "the plugin registers");
+    PluginHost_SetEnabled(g_host, index, true);
+    PluginHost_Start(g_host);
+
+    for( int i = 0; i < SKILL_COUNT; i++ )
+    {
+        g_level[i] = 1;
+        g_xp[i] = 0;
+    }
+    g_level[3] = 10;
+    g_xp[3] = 1154;
+    g_now_ms = 100000;
+
+    /* The login burst SEEDS. Every stat arrives at once and none of it is a
+     * gain the player just made. */
+    tick();
+    draw();
+    CHECK(g_blit_count == 0, "the first sight of the stat table draws nothing");
+
+    /* One gain, one globe. */
+    g_now_ms += 600;
+    g_level[8] = 3;  /* woodcutting, a fifth of the way to level 4 */
+    g_xp[8] = g_level_xp[1] + (g_level_xp[2] - g_level_xp[1]) / 5;
+    tick();
+    draw();
+    CHECK(g_blit_count == 1, "a gain puts one globe on screen");
+    CHECK(g_region_count == 1, "and claims the box it drew in");
+    CHECK(g_region_tag == 1u, "with the Flip tag");
+    CHECK(
+        g_blit_count == 1 && g_blit[0].w == g_blit[0].h,
+        "the globe's picture is square");
+    CHECK(
+        g_blit_count == 1 && g_blit[0].w >= 40,
+        "and at least as wide as the default orb");
+
+    /* Five more skills: the ceiling holds and the OLDEST goes.
+     *
+     * Each is put a different fraction of the way through its level, so the
+     * sheet shows five different arcs rather than five full rings -- the arc
+     * is the whole point of the picture and a test that only ever draws it
+     * complete would not show it being drawn wrong. */
+    {
+        int const more[] = { 0, 2, 6, 14, 20 };
+        int const percent[] = { 12, 35, 58, 80, 96 };
+        for( size_t i = 0; i < sizeof(more) / sizeof(more[0]); i++ )
+        {
+            int const level = 40 + (int)i;
+            int const base = g_level_xp[level - 2];
+            int const next = g_level_xp[level - 1];
+            g_now_ms += 600;
+            g_level[more[i]] = level;
+            g_xp[more[i]] = base + (next - base) * percent[i] / 100;
+            tick();
+        }
+    }
+    draw();
+    CHECK(g_blit_count == 5, "no more than five globes are shown at once");
+
+    /* Ordered by skill, left to right, so the row does not reshuffle. */
+    {
+        int ordered = 1;
+        for( int i = 1; i < g_blit_count; i++ )
+            if( g_blit[i].x <= g_blit[i - 1].x )
+                ordered = 0;
+        CHECK(ordered, "and they are laid out left to right");
+    }
+
+    /* Hovering one holds it alive and opens the tooltip: a sixth blit. */
+    g_mouse_x = g_blit[2].x + g_blit[2].w / 2;
+    g_mouse_y = g_blit[2].y + g_blit[2].h / 2;
+    draw();
+    CHECK(g_blit_count == 6, "hovering a globe adds the tooltip");
+    CHECK(
+        g_blit_count == 6 && g_image[g_blit[5].slot].w == 150,
+        "which is the reference's own width");
+
+    /* The sheet a human looks at: five globes, the middle one hovered. */
+    {
+        char const* path = getenv("XP_ORBS_TEST_PNG");
+        write_frame(path ? path : "build/xp_orbs_test.png", CANVAS_W, CANVAS_H);
+    }
+
+    /* Flip turns the row into a column. */
+    PluginHost_CanvasClick(g_host, index, 1u, 0, g_mouse_x, g_mouse_y);
+    g_mouse_x = -1;
+    draw();
+    {
+        int stacked = g_blit_count > 1;
+        for( int i = 1; i < g_blit_count; i++ )
+            if( g_blit[i].y <= g_blit[i - 1].y || g_blit[i].x != g_blit[0].x )
+                stacked = 0;
+        CHECK(stacked, "Flip stacks them into a column");
+    }
+    PluginHost_CanvasClick(g_host, index, 1u, 0, 0, 0);
+
+    /* And they expire. */
+    g_now_ms += 11000;
+    draw();
+    CHECK(g_blit_count == 0, "a globe past its duration is gone");
+
+    /* A hovered one does not, because a tooltip that vanishes mid-read is
+     * worse than one that overstays. */
+    g_now_ms += 600;
+    g_xp[10] = 5000;
+    g_level[10] = 30;
+    tick();
+    draw();
+    CHECK(g_blit_count == 1, "a fresh gain is back");
+    g_mouse_x = g_blit[0].x + g_blit[0].w / 2;
+    g_mouse_y = g_blit[0].y + g_blit[0].h / 2;
+    for( int i = 0; i < 40; i++ )
+    {
+        g_now_ms += 1000;
+        draw();
+    }
+    CHECK(g_blit_count >= 1, "hovering holds a globe past its duration");
+
+    PluginHost_Free(g_host);
+    printf("%d checks, %d failures\n", g_checks, g_failures);
+    return g_failures ? 1 : 0;
+}

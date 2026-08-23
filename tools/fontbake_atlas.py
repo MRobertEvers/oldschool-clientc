@@ -33,6 +33,14 @@ meter is, and a plugin blitting a fixed-colour atlas cannot tint one -- so the
 colours are baked, one row per step, and the caller picks the row. N is a
 sampling of a continuous ramp: 21 steps is 5% apart, which is finer than the
 eye separates at this size.
+
+`rows:RGB,RGB,...` bakes the SAME rows for a set of colours the caller names,
+which is the discrete form of the same idea. A caption that is white where it
+states a value and orange where it labels one -- every tooltip in the reference
+client, and RuneLite's after it -- is two colours of one face, and two atlas
+files would be two copies of the same glyph pack that could drift apart. One
+file with a row each keeps them one artefact, and the reader is already written:
+it is `steps` and `row_height`, unchanged.
 """
 
 import os
@@ -43,11 +51,16 @@ import zlib
 
 # The 94-glyph RS charset, in the order a baked font's slots are indexed. Same
 # table fontbake writes from; restated here because the bake does not carry it.
+#
+# It has to be that table EXACTLY, because the only thing tying a character to
+# its glyph is its position in it: one spurious entry shifts every slot after it
+# and the atlas bakes the wrong picture for every one of them, silently. There
+# is no '|' in it -- see fontbake's FONT_CHARSET.
 CHARSET = (
     "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
     "abcdefghijklmnopqrstuvwxyz"
     "0123456789"
-    "!\"£$%^&*()-_=+[{]};:'@#~,<.>/?\\| "
+    "!\"£$%^&*()-_=+[{]};:'@#~,<.>/?\\ "
 )
 
 
@@ -60,6 +73,7 @@ def parse_bake(text):
             raise SystemExit("no .%s table in the bake" % field)
         return [int(v) for v in re.findall(r"-?\d+", m.group(1))]
 
+    line_height = re.search(r"\.line_height = (\d+)", text)
     blob = re.search(r"static const unsigned char \w+_glyph_bits\[\d+\] = \{(.*?)\};", text, re.S)
     if not blob:
         raise SystemExit("no glyph blob in the bake")
@@ -67,7 +81,20 @@ def parse_bake(text):
 
     # Each glyph's mask starts at its own offset into that blob; the bake
     # states those as pointer arithmetic, which is the only place they appear.
-    offsets = [int(v) for v in re.findall(r"_glyph_bits \+ (\d+)", text)]
+    #
+    # Read out of the glyph_alpha TABLE rather than out of the whole file,
+    # because a glyph with no ink -- space, in every face -- is baked as a
+    # literal NULL and so states no offset at all. Scanning for the arithmetic
+    # alone silently shortens the table, and every slot after the gap then
+    # reads its neighbour's mask; here the NULL keeps its slot and its zero
+    # width is what makes the offset unused.
+    alpha_m = re.search(r"\.glyph_alpha = \{(.*?)\},\s*\n", text, re.S)
+    if not alpha_m:
+        raise SystemExit("no .glyph_alpha table in the bake")
+    offsets = [
+        0 if m.group(1) is None else int(m.group(1))
+        for m in re.finditer(r"NULL|_glyph_bits \+ (\d+)", alpha_m.group(1))
+    ]
 
     # `ascent` is not a field of the struct -- it is stated in the bake's own
     # header comment, which is the only place the number survives.
@@ -82,6 +109,7 @@ def parse_bake(text):
         "oy": ints("offset_y"),
         "advance": ints("advance"),
         "ascent": ascent,
+        "line_height": int(line_height.group(1)) if line_height else ascent,
     }
 
 
@@ -121,7 +149,14 @@ def main(argv):
         text += open(header).read()
     spec = argv[5] if len(argv) > 5 else "FFFF00"
     ramp = int(spec.split(":", 1)[1]) if spec.startswith("ramp:") else 0
-    rgb = 0 if ramp else int(spec, 16)
+    # `rows:` is the explicit sibling of `ramp:`: the caller states the colours
+    # instead of asking for a sampling of one gradient.
+    palette = (
+        [int(v, 16) for v in spec.split(":", 1)[1].split(",")]
+        if spec.startswith("rows:")
+        else []
+    )
+    rgb = 0 if (ramp or palette) else int(spec, 16)
     shadow = int(argv[6], 16) if len(argv) > 6 else 0x000000
 
     font = parse_bake(text)
@@ -138,11 +173,13 @@ def main(argv):
     cells = [(ch, s, font["w"][s] + 1, font["h"][s] + 1) for ch, s in slots]
     atlas_w = sum(c[2] for c in cells)
     row_h = max(c[3] for c in cells)
-    steps = ramp if ramp > 0 else 1
+    steps = len(palette) if palette else (ramp if ramp > 0 else 1)
     pixels = [0] * (atlas_w * row_h * steps)
 
     def ramp_colour(step):
         """clientscript 449, evaluated at `step`/(steps-1) full."""
+        if palette:
+            return palette[step]
         if steps == 1:
             return rgb
         total = 2 * (steps - 1)          # so `half` is exactly steps-1
@@ -186,15 +223,35 @@ def main(argv):
             "; One row per glyph in %s.png:\n"
             ";   <char> = <atlas x> <atlas y> <w> <h> <offset x> <offset y> <advance>\n"
             ";\n"
+            "; The char is the line\'s FIRST byte and the \'=\' its second, which is what\n"
+            "; makes the space glyph -- a line that begins with a space -- readable by the\n"
+            "; same one-line rule as every other glyph, and unmistakable for a comment or\n"
+            "; for one of the header keys above.\n"
+            ";\n"
             "; The offsets are the glyph's place inside the LINE BOX and the advance is\n"
             "; how far the pen moves after it, both exactly as the cache states them --\n"
             "; so text laid out from this file sits where the same string would sit if the\n"
             "; client had drawn it with the cache's own face.\n"
             "\n" % name
         )
+        # The three numbers ToriDraw2D_DrawStringBox needs to place a line in a
+        # box, derived the way font_get_vertical_metrics derives them: the
+        # font's own line_height is the baseline anchor, and the ascent/descent
+        # are how far the tallest and deepest drawable glyphs reach past it.
+        # A caller that centres by eye instead is off by one on this face and by
+        # something else on the next.
+        drawable = [
+            i for i in range(len(font["w"])) if font["w"][i] > 0 and font["h"][i] > 0
+        ]
+        min_oy = min(font["oy"][i] for i in drawable)
+        max_bottom = max(font["oy"][i] + font["h"][i] for i in drawable)
+        out.write("line_height=%d\n" % font["line_height"])
+        out.write("max_ascent=%d\n" % (font["line_height"] - min_oy))
+        out.write("max_descent=%d\n" % max(0, max_bottom - font["line_height"]))
         out.write("ascent=%d\n" % font["ascent"])
-        # The colour ramp, when there is one: `steps` rows of the same glyphs,
-        # `row_height` apart, from empty at row 0 to full at the last.
+        # The colour rows, when there is more than one: `steps` rows of the same
+        # glyphs, `row_height` apart -- a sampling of the meter ramp under
+        # `ramp:`, or the caller's own list under `rows:`.
         out.write("steps=%d\nrow_height=%d\n\n" % (steps, row_h))
         for ch, x, y, w, h, ox, oy, adv in rows:
             out.write("%s=%d %d %d %d %d %d %d\n" % (ch, x, y, w, h, ox, oy, adv))

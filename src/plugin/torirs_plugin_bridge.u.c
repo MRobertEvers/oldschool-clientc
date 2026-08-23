@@ -1319,6 +1319,36 @@ app_plugin_image_publish(
     return 1;
 }
 
+/*
+ * Pixels the plugin composed. The publish above with the decode taken out.
+ *
+ * Refusing an absurd geometry rather than asserting it, for the reason the
+ * decode path refuses one: the numbers come from a plugin, and the honest
+ * answer to "that is not a picture" is that the image did not become one.
+ */
+static int
+app_plugin_image_publish_argb(void* user, int slot, int w, int h, uint32_t const* argb)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    assert(argb);
+
+    if( w <= 0 || h <= 0 )
+        return 0;
+    return UITreeSceneBridge_PublishPluginImage(&app->bridge, slot, w, h, argb) >= 0;
+}
+
+static int
+app_plugin_image_read(void* user, int slot, uint32_t* out, int max)
+{
+    struct App* app = (struct App*)user;
+
+    assert(app);
+    assert(out);
+    return UITreeSceneBridge_ReadPluginImage(&app->bridge, slot, out, max);
+}
+
 static void
 app_plugin_image_release(void* user, int slot)
 {
@@ -1602,6 +1632,49 @@ app_plugin_stat(void* user, int skill, int* out_current, int* out_base)
 }
 
 static int
+app_plugin_stat_xp(
+    void* user,
+    int skill,
+    int* out_xp,
+    int* out_level_xp,
+    int* out_next_xp)
+{
+    struct App* app = (struct App*)user;
+    int level;
+
+    assert(app);
+    if( skill < 0 || skill >= RS_PLAYER_STATS_SKILL_COUNT )
+        return 0;
+    if( out_xp )
+        *out_xp = app->stats.xp[skill];
+
+    /*
+     * The thresholds either side of the EARNED level, out of the client's own
+     * table. `level_xp[n]` is the xp that reaches level n + 2, so the xp that
+     * reached the current level is the entry two below it and the next one is
+     * the entry one below -- which is also why level 1 has no entry at all and
+     * starts at zero.
+     */
+    level = app->stats.base_level[skill];
+    if( level < 1 )
+        level = 1;
+    if( out_level_xp )
+        *out_level_xp = level >= 2 ? app->stats.level_xp[level - 2] : 0;
+    if( out_next_xp )
+        *out_next_xp =
+            level < RS_PLAYER_STATS_LEVEL_MAX ? app->stats.level_xp[level - 1] : 0;
+    return 1;
+}
+
+static char const*
+app_plugin_skill_name(void* user, int skill)
+{
+    assert(user);
+    (void)user;
+    return RS_GameEvent_SkillName(skill);
+}
+
+static int
 app_plugin_run_energy(void* user)
 {
     struct App* app = (struct App*)user;
@@ -1808,6 +1881,8 @@ app_plugin_engine(struct App* app)
     engine.draw_rect = app_plugin_draw_rect;
     engine.draw_select_canvas = app_plugin_draw_select_canvas;
     engine.image_publish = app_plugin_image_publish;
+    engine.image_publish_argb = app_plugin_image_publish_argb;
+    engine.image_read = app_plugin_image_read;
     engine.image_release = app_plugin_image_release;
     engine.draw_image = app_plugin_draw_image;
     engine.hit_region = app_plugin_hit_region;
@@ -1815,6 +1890,8 @@ app_plugin_engine(struct App* app)
     engine.mouse_pos = app_plugin_mouse_pos;
     engine.minimap_rect = app_plugin_minimap_rect;
     engine.stat = app_plugin_stat;
+    engine.stat_xp = app_plugin_stat_xp;
+    engine.skill_name = app_plugin_skill_name;
     engine.run_energy = app_plugin_run_energy;
     engine.menu_add = app_plugin_menu_add;
     engine.asset_read = app_plugin_asset_read;
