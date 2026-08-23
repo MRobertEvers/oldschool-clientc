@@ -39,7 +39,199 @@ char g_cs2_trace_extra[512];
 static struct CS2VM2_Frame* g_frame_pool[CS2VM2_FRAME_POOL_MAX];
 static int g_frame_pool_count;
 
-/* Contents are left as-is; every caller memsets the frame before use. */
+/*
+ * The length a locals buffer grows to in order to cover `need` slots.
+ *
+ * Doubling from a small floor, because the distribution is lopsided: almost
+ * every script declares single-digit locals and a few — the quicksorts, the
+ * catalogue builders — reach dozens. Eight covers the common case in one
+ * allocation, and the rare deep frame pays two or three reallocs *once*, since
+ * the buffer stays with the block for the rest of the pool's life.
+ */
+static int
+cs2vm2_frame_locals_capacity_for(int cap, int need)
+{
+    assert(need > 0);
+    assert(need <= CS2VM_MAX_LOCALS);
+
+    int next = cap > 0 ? cap : 8;
+    while( next < need )
+        next *= 2;
+    if( next > CS2VM_MAX_LOCALS )
+        next = CS2VM_MAX_LOCALS;
+    return next;
+}
+
+/*
+ * Make room for `need` int locals. New slots are zeroed so that invariant 1 on
+ * CS2VM2_Frame ("slots in [dirty, cap) are zero") survives the growth — the
+ * whole read path depends on it, and realloc leaves the tail indeterminate.
+ */
+static void
+cs2vm2_frame_reserve_int_locals(struct CS2VM2_Frame* frame, int need)
+{
+    assert(frame);
+
+    if( need <= frame->int_locals_cap )
+        return;
+
+    int next = cs2vm2_frame_locals_capacity_for(frame->int_locals_cap, need);
+    int* buf = (int*)realloc(frame->int_locals, (size_t)next * sizeof(*buf));
+    assert(buf);
+    memset(
+        buf + frame->int_locals_cap,
+        0,
+        (size_t)(next - frame->int_locals_cap) * sizeof(*buf));
+    TORIRS_PERF_COUNT(
+        TORIRS_PERF_CTR_CS2_FRAME_LOCALS_BYTES,
+        (long long)(next - frame->int_locals_cap) * (long long)sizeof(*buf));
+    frame->int_locals = buf;
+    frame->int_locals_cap = next;
+}
+
+static void
+cs2vm2_frame_reserve_str_locals(struct CS2VM2_Frame* frame, int need)
+{
+    assert(frame);
+
+    if( need <= frame->str_locals_cap )
+        return;
+
+    int next = cs2vm2_frame_locals_capacity_for(frame->str_locals_cap, need);
+    char** buf = (char**)realloc(frame->str_locals, (size_t)next * sizeof(*buf));
+    assert(buf);
+    memset(
+        buf + frame->str_locals_cap,
+        0,
+        (size_t)(next - frame->str_locals_cap) * sizeof(*buf));
+    TORIRS_PERF_COUNT(
+        TORIRS_PERF_CTR_CS2_FRAME_LOCALS_BYTES,
+        (long long)(next - frame->str_locals_cap) * (long long)sizeof(*buf));
+    frame->str_locals = buf;
+    frame->str_locals_cap = next;
+}
+
+/*
+ * The slot to write `idx` through: the buffer is grown to reach it and the
+ * high-water mark raised to cover it.
+ *
+ * The bound is asserted rather than guarded because these replace call sites
+ * that were already indexing a CS2VM_MAX_LOCALS array with this value — an
+ * out-of-range idx has always been an out-of-bounds write here, silently landing
+ * in str_locals or past the frame. The assert does not add a failure mode, it
+ * names one that used to corrupt memory quietly.
+ */
+static inline int*
+cs2vm2_frame_int_local_ref(struct CS2VM2_Frame* frame, int idx)
+{
+    assert(frame);
+    assert(idx >= 0);
+    assert(idx < CS2VM_MAX_LOCALS);
+
+    if( idx >= frame->int_locals_dirty )
+    {
+        cs2vm2_frame_reserve_int_locals(frame, idx + 1);
+        frame->int_locals_dirty = idx + 1;
+    }
+    return &frame->int_locals[idx];
+}
+
+static inline char**
+cs2vm2_frame_str_local_ref(struct CS2VM2_Frame* frame, int idx)
+{
+    assert(frame);
+    assert(idx >= 0);
+    assert(idx < CS2VM_MAX_LOCALS);
+
+    if( idx >= frame->str_locals_dirty )
+    {
+        cs2vm2_frame_reserve_str_locals(frame, idx + 1);
+        frame->str_locals_dirty = idx + 1;
+    }
+    return &frame->str_locals[idx];
+}
+
+/*
+ * Read a local. A slot the current occupant has not written is zero by
+ * invariant, whether or not the buffer even reaches that far — which is why one
+ * compare against the mark answers both the unwritten case and the
+ * beyond-capacity case, and why an unwritten local never dereferences the
+ * buffer.
+ */
+static inline int
+cs2vm2_frame_int_local(const struct CS2VM2_Frame* frame, int idx)
+{
+    assert(frame);
+    assert(idx >= 0);
+    assert(idx < CS2VM_MAX_LOCALS);
+
+    return idx < frame->int_locals_dirty ? frame->int_locals[idx] : 0;
+}
+
+static inline char*
+cs2vm2_frame_str_local(const struct CS2VM2_Frame* frame, int idx)
+{
+    assert(frame);
+    assert(idx >= 0);
+    assert(idx < CS2VM_MAX_LOCALS);
+
+    return idx < frame->str_locals_dirty ? frame->str_locals[idx] : NULL;
+}
+
+/*
+ * Return a frame to the state a never-used one is in, keeping its buffers.
+ *
+ * Equivalent to the memset(frame, 0, sizeof *frame) this replaces, and it has to
+ * stay exactly equivalent: scripts read locals they never wrote and expect zero,
+ * so this is not an optimisation that trades a little correctness for speed. The
+ * locals come out zero because the previous occupant's writes are cleared and
+ * nothing above its mark was ever non-zero.
+ *
+ * str_locals holds borrowed pointers — VM-owned interned strings and array
+ * handles — so dropping them is the existing ownership model, not a leak this
+ * introduces.
+ */
+static inline void
+cs2vm2_frame_clear(struct CS2VM2_Frame* frame)
+{
+    assert(frame);
+    assert(frame->int_locals_dirty >= 0);
+    assert(frame->int_locals_dirty <= frame->int_locals_cap);
+    assert(frame->str_locals_dirty >= 0);
+    assert(frame->str_locals_dirty <= frame->str_locals_cap);
+
+    if( frame->int_locals_dirty > 0 )
+        memset(
+            frame->int_locals,
+            0,
+            (size_t)frame->int_locals_dirty * sizeof(frame->int_locals[0]));
+    if( frame->str_locals_dirty > 0 )
+        memset(
+            frame->str_locals,
+            0,
+            (size_t)frame->str_locals_dirty * sizeof(frame->str_locals[0]));
+    frame->int_locals_dirty = 0;
+    frame->str_locals_dirty = 0;
+
+    frame->script = NULL;
+    frame->pc = 0;
+    frame->return_pc = 0;
+    frame->return_frame = 0;
+    frame->has_return = 0;
+    frame->return_int_count = 0;
+    memset(frame->return_ints, 0, sizeof(frame->return_ints));
+}
+
+/*
+ * A pooled block comes back with its contents intact — cs2vm2_frame_clear makes
+ * it fit for its next occupant, and it needs the previous occupant's high-water
+ * marks and buffers to do so, so both must survive the round trip.
+ *
+ * A fresh block is calloc'd rather than malloc'd for the same reason from the
+ * other side: everything here reads the marks and the buffer pointers before it
+ * writes them, so a block whose header is indeterminate would clear a random
+ * prefix of a garbage pointer.
+ */
 static struct CS2VM2_Frame*
 cs2vm2_frame_acquire(void)
 {
@@ -49,7 +241,22 @@ cs2vm2_frame_acquire(void)
         return g_frame_pool[--g_frame_pool_count];
     }
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_FRAME_POOL_MISS, 1);
-    return (struct CS2VM2_Frame*)malloc(sizeof(struct CS2VM2_Frame));
+
+    struct CS2VM2_Frame* frame = (struct CS2VM2_Frame*)calloc(1, sizeof(*frame));
+    assert(frame);
+    return frame;
+}
+
+/* Give a block back for good. The locals buffers are the frame's own, so they go
+ * with it — the pool path deliberately does not come through here. */
+static void
+cs2vm2_frame_destroy(struct CS2VM2_Frame* frame)
+{
+    if( !frame )
+        return;
+    free(frame->int_locals);
+    free(frame->str_locals);
+    free(frame);
 }
 
 static void
@@ -59,7 +266,7 @@ cs2vm2_frame_release(struct CS2VM2_Frame* frame)
     if( g_frame_pool_count < CS2VM2_FRAME_POOL_MAX )
         g_frame_pool[g_frame_pool_count++] = frame;
     else
-        free(frame);
+        cs2vm2_frame_destroy(frame);
 }
 
 /*
@@ -77,12 +284,7 @@ cs2vm2_thread_frame_grow(
     assert(depth < CS2VM_MAX_FRAMES);
 
     while( thread->frames_live <= depth )
-    {
-        struct CS2VM2_Frame* frame = cs2vm2_frame_acquire();
-        if( !frame )
-            return NULL;
-        thread->frames[thread->frames_live++] = frame;
-    }
+        thread->frames[thread->frames_live++] = cs2vm2_frame_acquire();
     return thread->frames[depth];
 }
 
@@ -151,7 +353,7 @@ CS2VM2_RestoreYieldCheckpoint(
      * yielding op, so no frame copy is needed — only the pointers and pc are rolled back. */
     assert(vm->frame_sp <= vm->frames_live);
     for( int i = cp->frame_sp; i < vm->frame_sp; i++ )
-        memset(vm->frames[i], 0, sizeof(struct CS2VM2_Frame));
+        cs2vm2_frame_clear(vm->frames[i]);
 
     vm->ints_stack_top = cp->ints_stack_top;
     vm->strs_stack_top = cp->strs_stack_top;
@@ -257,7 +459,7 @@ cs2vm2_array_local(struct CS2VM2_Thread* vm, struct CS2VM2_Frame* frame, int slo
 {
     if( slot < 0 || slot >= CS2VM_MAX_LOCALS )
         return NULL;
-    return cs2vm2_array_from_handle(vm, frame->str_locals[slot]);
+    return cs2vm2_array_from_handle(vm, cs2vm2_frame_str_local(frame, slot));
 }
 
 /* Opt-in tracked array store: records the prior value so a yield restore can undo
@@ -406,6 +608,15 @@ CS2VM2_TraceCaptureEnd(void)
     return count;
 }
 
+/* True when either trace consumer is armed. Kept as a macro so the interpreter
+ * loop can test it without a call — see the call site in
+ * `cs2vm2_run_script_body`. Deliberately looser than the tests inside
+ * `CS2VM2_TraceOpcode`: this only has to be conservative, and the function
+ * re-checks each consumer properly. */
+#define CS2VM2_TRACE_ARMED() (g_cs2_trace_capture != NULL || g_cs2_trace_mode != 0)
+
+/* Never call this directly from the interpreter loop; go through
+ * CS2VM2_TRACE_ARMED() so an untraced run pays nothing. */
 static void
 CS2VM2_TraceOpcode(
     struct CS2VM2_Thread* vm,
@@ -573,7 +784,7 @@ CS2VM2_PopIntFrameLocal(
     if( vm->ints_stack_top <= 0 )
         return CS2VM_EXECNO_ERROR;
 
-    frame->int_locals[operand] = vm->ints_stack[--vm->ints_stack_top];
+    *cs2vm2_frame_int_local_ref(frame, operand) = vm->ints_stack[--vm->ints_stack_top];
 
     return CS2VM_EXECNO_OK;
 }
@@ -602,7 +813,7 @@ CS2VM2_SetIntFrameLocal(
 {
     assert(vm);
     assert(frame);
-    frame->int_locals[idx] = value;
+    *cs2vm2_frame_int_local_ref(frame, idx) = value;
     return CS2VM_EXECNO_OK;
 }
 
@@ -627,7 +838,7 @@ CS2VM2_SetStringCurrentFrameLocal(
     if( idx < 0 || idx >= CS2VM_MAX_LOCALS )
         return CS2VM_EXECNO_ERROR;
     frame = CS2VM_FRAME(vm);
-    frame->str_locals[idx] = CS2VM2_StrDup(vm, value);
+    *cs2vm2_frame_str_local_ref(frame, idx) = CS2VM2_StrDup(vm, value);
     return CS2VM_EXECNO_OK;
 }
 
@@ -640,7 +851,7 @@ CS2VM2_PushIntFrameLocal(
     assert(vm);
     assert(frame);
 
-    return CS2VM2_PushInt(vm, frame->int_locals[idx]);
+    return CS2VM2_PushInt(vm, cs2vm2_frame_int_local(frame, idx));
 }
 
 int
@@ -727,7 +938,7 @@ CS2VM2_PopStrFrameLocal(
     if( vm->strs_stack_top <= 0 )
         return CS2VM_EXECNO_OK;
 
-    frame->str_locals[operand] = vm->strs_stack[--vm->strs_stack_top];
+    *cs2vm2_frame_str_local_ref(frame, operand) = vm->strs_stack[--vm->strs_stack_top];
 
     return CS2VM_EXECNO_OK;
 }
@@ -756,25 +967,27 @@ CS2VM2_PushStrFrameLocal(
     assert(vm);
     assert(frame);
 
+    char* value = cs2vm2_frame_str_local(frame, idx);
+
     /* A string local that was never assigned. The reference's frame is a
      * `String[]` of nulls and pushing one is legal there — a script that
      * declares `def_string $s;` and pushes it before any write is ordinary
      * cache code, not a contract violation, so it cannot reach StrPool_Dup's
      * assert. "" is the value every reader downstream already handles. */
-    if( !frame->str_locals[idx] )
+    if( !value )
         return CS2VM2_PushStr(vm, CS2VM2_StrEmpty(vm));
 
     /* An array HANDLE rides string locals and the string stack as a raw
      * pointer — strdup'ing it would copy the struct's leading bytes as "text"
      * and the callee's array ops would resolve nothing (the spellbook sort
      * received exactly that and silently no-opped). Pass it through. */
-    if( cs2vm2_array_from_handle(vm, frame->str_locals[idx]) )
-        return CS2VM2_PushStr(vm, frame->str_locals[idx]);
+    if( cs2vm2_array_from_handle(vm, value) )
+        return CS2VM2_PushStr(vm, value);
 
     /* Push a copy, not the local's pointer: the in-place string opcodes
      * (UPPERCASE / LOWERCASE) rewrite the buffer their operand points at, which
      * would otherwise silently rewrite the local too. */
-    return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, frame->str_locals[idx]));
+    return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, value));
 }
 
 int
@@ -792,8 +1005,8 @@ CS2VM2_Op_PushVar(
     assert(frame);
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_VARS_READ_VARP_AKA_PUSH_VAR;
+    memset(&request.u.vars_read_varp, 0, sizeof(request.u.vars_read_varp));
     request.u.vars_read_varp.varp_id = operand;
 
     int result = vm->vm->host_exec(vm, &request);
@@ -812,9 +1025,18 @@ CS2VM2_Op_PushVarbit(
     assert(vm);
     assert(frame);
 
+    /*
+     * Clear the arm, not the union. `struct CS2VM_HostRequest` is 4,408 bytes
+     * because one arm (the `if_seton*` hook payload) carries a 16x256 inline
+     * string matrix, and every builder in this file used to pay for all of it
+     * to set a single int. At ~174 host ops per logic tick that clearing alone
+     * was 11.8% of `RS_CS2Host_Exec`'s sampled subtree. Nothing reads an
+     * inactive arm -- `kind` says which one is live -- so zeroing the live one
+     * is the same guarantee at 1/1000th the width.
+     */
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_VARS_READ_VARBIT;
+    memset(&request.u.vars_read_varbit, 0, sizeof(request.u.vars_read_varbit));
     request.u.vars_read_varbit.varbit_id = operand;
 
     int result = vm->vm->host_exec(vm, &request);
@@ -839,8 +1061,8 @@ CS2VM2_Op_KeyQuery(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = kind;
+    memset(&request.u.key_query, 0, sizeof(request.u.key_query));
     request.u.key_query.key_code = key_code;
 
     return vm->vm->host_exec(vm, &request);
@@ -856,8 +1078,8 @@ CS2VM2_Op_PushVarcInt(
     assert(frame);
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_VARS_READ_VARC_INT;
+    memset(&request.u.vars_read_varc_int, 0, sizeof(request.u.vars_read_varc_int));
     request.u.vars_read_varc_int.varc_id = operand;
 
     int result = vm->vm->host_exec(vm, &request);
@@ -881,8 +1103,8 @@ CS2VM2_Op_PopVarcInt(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_VARS_WRITE_VARC_INT;
+    memset(&request.u.vars_write_varc_int, 0, sizeof(request.u.vars_write_varc_int));
     request.u.vars_write_varc_int.varc_id = operand;
     request.u.vars_write_varc_int.value = value;
 
@@ -903,8 +1125,8 @@ CS2VM2_Op_PushVarcString(
     assert(frame);
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_VARS_READ_VARC_STRING;
+    memset(&request.u.vars_read_varc_string, 0, sizeof(request.u.vars_read_varc_string));
     request.u.vars_read_varc_string.varc_id = operand;
 
     int result = vm->vm->host_exec(vm, &request);
@@ -928,8 +1150,8 @@ CS2VM2_Op_PopVarcString(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_VARS_WRITE_VARC_STRING;
+    memset(&request.u.vars_write_varc_string, 0, sizeof(request.u.vars_write_varc_string));
     request.u.vars_write_varc_string.varc_id = operand;
     request.u.vars_write_varc_string.value = value;
 
@@ -1389,8 +1611,8 @@ CS2VM2_Op_ParaHeight(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_PARAHEIGHT;
+    memset(&request.u.para_height, 0, sizeof(request.u.para_height));
     request.u.para_height.font_id = font_id;
     request.u.para_height.max_width = max_width;
     request.u.para_height.text = text;
@@ -1424,8 +1646,8 @@ CS2VM2_Op_ParaWidth(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_PARAWIDTH;
+    memset(&request.u.para_height, 0, sizeof(request.u.para_height));
     request.u.para_height.font_id = font_id;
     request.u.para_height.max_width = max_width;
     request.u.para_height.text = text;
@@ -1466,9 +1688,11 @@ CS2VM2_Op_GosubWithParams(
     caller->return_pc = caller->pc;
     caller->return_frame = vm->frame_sp - 1;
 
+    /* Arm, not union -- see the note on the varbit-read builder above. This is
+     * the single hottest source line in the interpreter's profile. */
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_PUSHSCRIPT;
+    memset(&request.u.push_script, 0, sizeof(request.u.push_script));
     request.u.push_script.script_id = operand;
 
     int result = vm->vm->host_exec(vm, &request);
@@ -1485,7 +1709,7 @@ CS2VM2_Op_GosubWithParams(
         char* value = NULL;
         if( CS2VM2_PopStr(vm, &value) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        callee->str_locals[i] = value;
+        *cs2vm2_frame_str_local_ref(callee, i) = value;
     }
     for( int i = int_args - 1; i >= 0; i-- )
     {
@@ -1510,8 +1734,8 @@ CS2VM2_Op_CC_DeleteAll(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_DELETEALL;
+    memset(&request.u.cc_delete_all, 0, sizeof(request.u.cc_delete_all));
     request.u.cc_delete_all.component_id = component_id;
 
     int result = vm->vm->host_exec(vm, &request);
@@ -1542,8 +1766,8 @@ CS2VM2_Op_CC_Copy(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_COPY;
+    memset(&request.u.cc_copy, 0, sizeof(request.u.cc_copy));
     request.u.cc_copy.parent_id = parent_id;
     request.u.cc_copy.src_sub_id = src_sub;
     request.u.cc_copy.dst_sub_id = dst_sub;
@@ -1569,8 +1793,8 @@ CS2VM2_Op_CC_Find(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_FIND;
+    memset(&request.u.cc_find, 0, sizeof(request.u.cc_find));
     request.u.cc_find.parent_id = parent;
     request.u.cc_find.sub_id = sub;
     request.u.cc_find.dot_operand = operand;
@@ -1613,9 +1837,10 @@ CS2VM2_Op_CC_Create(
     if( CS2VM2_PopInt(vm, &parent_id) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
+    /* Arm, not union -- see the note on the varbit-read builder above. */
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_CREATE;
+    memset(&request.u.cc_create, 0, sizeof(request.u.cc_create));
     request.u.cc_create.parent_id = parent_id;
     request.u.cc_create.component_type = type;
     request.u.cc_create.child_index = child_index;
@@ -1652,8 +1877,8 @@ CS2VM2_Op_CC_SetPosition(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETPOSITION;
+    memset(&request.u.cc_set_position, 0, sizeof(request.u.cc_set_position));
     request.u.cc_set_position.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_position.x = x;
     request.u.cc_set_position.y = y;
@@ -1688,8 +1913,8 @@ CS2VM2_Op_CC_SetSize(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETSIZE;
+    memset(&request.u.cc_set_size, 0, sizeof(request.u.cc_set_size));
     request.u.cc_set_size.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_size.width = w;
     request.u.cc_set_size.height = h;
@@ -1718,8 +1943,8 @@ CS2VM2_Op_CC_SetGraphic(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETGRAPHIC;
+    memset(&request.u.cc_set_graphic, 0, sizeof(request.u.cc_set_graphic));
     request.u.cc_set_graphic.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_graphic.graphic_id = graphic_id;
 
@@ -1745,8 +1970,8 @@ CS2VM2_Op_CC_SetGraphic2(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETGRAPHIC2;
+    memset(&request.u.cc_set_graphic2, 0, sizeof(request.u.cc_set_graphic2));
     request.u.cc_set_graphic2.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_graphic2.graphic_id = graphic_id;
 
@@ -1771,8 +1996,8 @@ CS2VM2_Op_CC_SetTiling(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETTILING;
+    memset(&request.u.cc_set_tiling, 0, sizeof(request.u.cc_set_tiling));
     request.u.cc_set_tiling.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_tiling.tiling = tiling;
 
@@ -1797,8 +2022,8 @@ CS2VM2_Op_CC_SetOutline(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETOUTLINE;
+    memset(&request.u.cc_set_outline, 0, sizeof(request.u.cc_set_outline));
     request.u.cc_set_outline.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_outline.outline = outline;
 
@@ -1823,8 +2048,8 @@ CS2VM2_Op_CC_SetGraphicShadow(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETGRAPHICSHADOW;
+    memset(&request.u.cc_set_graphic_shadow, 0, sizeof(request.u.cc_set_graphic_shadow));
     request.u.cc_set_graphic_shadow.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_graphic_shadow.shadow = shadow;
 
@@ -1852,8 +2077,8 @@ CS2VM2_Op_IF_SetTiling(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETTILING;
+    memset(&request.u.cc_set_tiling, 0, sizeof(request.u.cc_set_tiling));
     request.u.cc_set_tiling.component_id = component_id;
     request.u.cc_set_tiling.tiling = tiling;
 
@@ -1881,8 +2106,8 @@ CS2VM2_Op_IF_SetGraphicShadow(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETGRAPHICSHADOW;
+    memset(&request.u.cc_set_graphic_shadow, 0, sizeof(request.u.cc_set_graphic_shadow));
     request.u.cc_set_graphic_shadow.component_id = component_id;
     request.u.cc_set_graphic_shadow.shadow = shadow;
 
@@ -1907,8 +2132,8 @@ CS2VM2_Op_CC_SetColour(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETCOLOUR;
+    memset(&request.u.cc_set_colour, 0, sizeof(request.u.cc_set_colour));
     request.u.cc_set_colour.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_colour.colour = colour;
 
@@ -1936,8 +2161,8 @@ CS2VM2_Op_IF_SetColour(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETCOLOUR;
+    memset(&request.u.cc_set_colour, 0, sizeof(request.u.cc_set_colour));
     request.u.cc_set_colour.component_id = component_id;
     request.u.cc_set_colour.colour = colour;
 
@@ -1962,8 +2187,8 @@ CS2VM2_Op_CC_SetFill(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETFILL;
+    memset(&request.u.cc_set_fill, 0, sizeof(request.u.cc_set_fill));
     request.u.cc_set_fill.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_fill.filled = filled;
 
@@ -1991,8 +2216,8 @@ CS2VM2_Op_IF_SetFill(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETFILL;
+    memset(&request.u.cc_set_fill, 0, sizeof(request.u.cc_set_fill));
     request.u.cc_set_fill.component_id = component_id;
     request.u.cc_set_fill.filled = filled;
 
@@ -2017,8 +2242,8 @@ CS2VM2_Op_CC_SetTrans(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETTRANS;
+    memset(&request.u.cc_set_trans, 0, sizeof(request.u.cc_set_trans));
     request.u.cc_set_trans.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_trans.trans = trans;
 
@@ -2064,8 +2289,11 @@ sound_request(
 {
     struct CS2VM_HostRequest request;
 
-    memset(&request, 0, sizeof(request));
+    /* Arm, not union -- see the note on the varbit-read builder above. The
+     * assignment below covers every named field; the clear is what keeps the
+     * arm's padding zero, which the differential capture compares. */
     request.kind = kind;
+    memset(&request.u.sound, 0, sizeof(request.u.sound));
     request.u.sound = *sound;
     return vm->vm->host_exec(vm, &request);
 }
@@ -2166,8 +2394,8 @@ CS2VM2_Op_CC_TriggerOp(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_TRIGGEROP;
+    memset(&request.u.cc_trigger_op, 0, sizeof(request.u.cc_trigger_op));
     request.u.cc_trigger_op.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_trigger_op.op_index = op_index;
 
@@ -2233,8 +2461,8 @@ CS2VM2_Op_IF_TriggerOpLocal(
     int sub = (child_index != -1) ? child_index : typed0;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_TRIGGEROPLOCAL;
+    memset(&request.u.if_triggeroplocal, 0, sizeof(request.u.if_triggeroplocal));
     request.u.if_triggeroplocal.component_id = component_id;
     request.u.if_triggeroplocal.sub = sub;
 
@@ -2258,8 +2486,8 @@ CS2VM2_Op_IF_SetTrans(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETTRANS;
+    memset(&request.u.cc_set_trans, 0, sizeof(request.u.cc_set_trans));
     request.u.cc_set_trans.component_id = component_id;
     request.u.cc_set_trans.trans = trans;
 
@@ -2284,8 +2512,8 @@ CS2VM2_Op_CC_SetNoClickThrough(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETNOCLICKTHROUGH;
+    memset(&request.u.cc_set_no_click_through, 0, sizeof(request.u.cc_set_no_click_through));
     request.u.cc_set_no_click_through.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_no_click_through.enabled = enabled;
 
@@ -2310,8 +2538,8 @@ CS2VM2_Op_CC_SetText(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETTEXT;
+    memset(&request.u.cc_set_text, 0, sizeof(request.u.cc_set_text));
     request.u.cc_set_text.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_text.text = text;
 
@@ -2336,8 +2564,8 @@ CS2VM2_Op_CC_SetTextFont(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETTEXTFONT;
+    memset(&request.u.cc_set_text_font, 0, sizeof(request.u.cc_set_text_font));
     request.u.cc_set_text_font.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_text_font.font_id = font_id;
 
@@ -2365,8 +2593,8 @@ CS2VM2_Op_IF_SetTextFont(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETTEXTFONT;
+    memset(&request.u.cc_set_text_font, 0, sizeof(request.u.cc_set_text_font));
     request.u.cc_set_text_font.component_id = component_id;
     request.u.cc_set_text_font.font_id = font_id;
 
@@ -2395,8 +2623,8 @@ CS2VM2_Op_CC_SetTextAlign(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETTEXTALIGN;
+    memset(&request.u.cc_set_text_align, 0, sizeof(request.u.cc_set_text_align));
     request.u.cc_set_text_align.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_text_align.x_align = x_align;
     request.u.cc_set_text_align.y_align = y_align;
@@ -2430,8 +2658,8 @@ CS2VM2_Op_IF_SetTextAlign(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETTEXTALIGN;
+    memset(&request.u.cc_set_text_align, 0, sizeof(request.u.cc_set_text_align));
     request.u.cc_set_text_align.component_id = component_id;
     request.u.cc_set_text_align.x_align = x_align;
     request.u.cc_set_text_align.y_align = y_align;
@@ -2458,8 +2686,8 @@ CS2VM2_Op_CC_SetTextShadow(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETTEXTSHADOW;
+    memset(&request.u.cc_set_text_shadow, 0, sizeof(request.u.cc_set_text_shadow));
     request.u.cc_set_text_shadow.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_text_shadow.shadowed = shadowed;
 
@@ -2487,8 +2715,8 @@ CS2VM2_Op_IF_SetTextShadow(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETTEXTSHADOW;
+    memset(&request.u.cc_set_text_shadow, 0, sizeof(request.u.cc_set_text_shadow));
     request.u.cc_set_text_shadow.component_id = component_id;
     request.u.cc_set_text_shadow.shadowed = shadowed;
 
@@ -2517,8 +2745,8 @@ CS2VM2_Op_CC_SetDraggable(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETDRAGGABLE;
+    memset(&request.u.cc_set_draggable, 0, sizeof(request.u.cc_set_draggable));
     request.u.cc_set_draggable.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_draggable.parent_uid = parent_uid;
     request.u.cc_set_draggable.child_index = child_index;
@@ -2544,8 +2772,8 @@ CS2VM2_Op_CC_SetDraggableBehavior(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETDRAGGABLEBEHAVIOR;
+    memset(&request.u.cc_set_draggable_behavior, 0, sizeof(request.u.cc_set_draggable_behavior));
     request.u.cc_set_draggable_behavior.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_draggable_behavior.behavior = behavior;
 
@@ -2570,8 +2798,8 @@ CS2VM2_Op_CC_SetDragDeadZone(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETDRAGDEADZONE;
+    memset(&request.u.cc_set_drag_dead_zone, 0, sizeof(request.u.cc_set_drag_dead_zone));
     request.u.cc_set_drag_dead_zone.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_drag_dead_zone.zone = zone;
 
@@ -2596,8 +2824,8 @@ CS2VM2_Op_CC_SetDragDeadTime(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETDRAGDEADTIME;
+    memset(&request.u.cc_set_drag_dead_time, 0, sizeof(request.u.cc_set_drag_dead_time));
     request.u.cc_set_drag_dead_time.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_drag_dead_time.time = time;
 
@@ -2626,8 +2854,8 @@ CS2VM2_Op_CC_SetObject(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETOBJECT;
+    memset(&request.u.cc_set_object, 0, sizeof(request.u.cc_set_object));
     request.u.cc_set_object.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_object.obj_id = obj_id;
     request.u.cc_set_object.count = count;
@@ -2661,8 +2889,8 @@ CS2VM2_Op_IF_SetObject(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_SETOBJECT;
+    memset(&request.u.if_set_object, 0, sizeof(request.u.if_set_object));
     request.u.if_set_object.component_id = component_id;
     request.u.if_set_object.obj_id = obj_id;
     request.u.if_set_object.count = count;
@@ -2693,8 +2921,8 @@ CS2VM2_Op_IF_SetGraphic(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_SETGRAPHIC;
+    memset(&request.u.if_set_graphic, 0, sizeof(request.u.if_set_graphic));
     request.u.if_set_graphic.component_id = component_id;
     request.u.if_set_graphic.graphic_id = graphic_id;
 
@@ -2729,8 +2957,8 @@ CS2VM2_Op_IF_SetGraphic2(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETGRAPHIC2;
+    memset(&request.u.cc_set_graphic2, 0, sizeof(request.u.cc_set_graphic2));
     request.u.cc_set_graphic2.component_id = component_id;
     request.u.cc_set_graphic2.graphic_id = graphic_id;
 
@@ -2756,8 +2984,8 @@ CS2VM2_Op_IF_SetText(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_SETTEXT;
+    memset(&request.u.if_set_text, 0, sizeof(request.u.if_set_text));
     request.u.if_set_text.component_id = component_id;
     request.u.if_set_text.text = text;
 
@@ -2786,8 +3014,8 @@ CS2VM2_Op_CC_SetOp(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETOP;
+    memset(&request.u.if_set_op, 0, sizeof(request.u.if_set_op));
     request.u.if_set_op.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.if_set_op.index = index;
     request.u.if_set_op.text = text;
@@ -2813,8 +3041,8 @@ CS2VM2_Op_CC_SetOpBase(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_SETOPBASE;
+    memset(&request.u.if_set_op_base, 0, sizeof(request.u.if_set_op_base));
     request.u.if_set_op_base.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.if_set_op_base.text = text;
 
@@ -2899,8 +3127,8 @@ CS2VM2_Op_SetOpKey(
         pair_count++;
     }
 
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_WIDGET_SET_OPKEY;
+    memset(&request.u.widget_set_opkey, 0, sizeof(request.u.widget_set_opkey));
     request.u.widget_set_opkey.component_id =
         is_if ? component_id : CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.widget_set_opkey.op_index = op_index;
@@ -2973,8 +3201,8 @@ CS2VM2_Op_SetOpKeyRate(
             return CS2VM_EXECNO_ERROR;
     }
 
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_WIDGET_SET_OPKEY_RATE;
+    memset(&request.u.widget_set_opkey_rate, 0, sizeof(request.u.widget_set_opkey_rate));
     request.u.widget_set_opkey_rate.component_id =
         is_if ? component_id : CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.widget_set_opkey_rate.op_index = op_index;
@@ -3009,8 +3237,8 @@ CS2VM2_Op_CC_Delete(
     (void)frame;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_DELETE;
+    memset(&request.u.cc_delete, 0, sizeof(request.u.cc_delete));
     request.u.cc_delete.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
 
     return vm->vm->host_exec(vm, &request);
@@ -3027,8 +3255,8 @@ CS2VM2_Op_CC_ClearOps(
     (void)frame;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_CLEAROPS;
+    memset(&request.u.if_clear_ops, 0, sizeof(request.u.if_clear_ops));
     request.u.if_clear_ops.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
 
     int result = vm->vm->host_exec(vm, &request);
@@ -3053,8 +3281,8 @@ CS2VM2_Op_CC_ClearOpSubmenu(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_CLEAROPSUBMENU;
+    memset(&request.u.if_clear_op_submenu, 0, sizeof(request.u.if_clear_op_submenu));
     request.u.if_clear_op_submenu.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.if_clear_op_submenu.op_index = op_index;
 
@@ -3081,8 +3309,8 @@ CS2VM2_Op_CC_SetOpSubmenu(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_SETOPSUBMENU;
+    memset(&request.u.if_set_op_submenu, 0, sizeof(request.u.if_set_op_submenu));
     request.u.if_set_op_submenu.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.if_set_op_submenu.sub_index = sub_index;
     request.u.if_set_op_submenu.op_index = op_index;
@@ -3106,8 +3334,8 @@ CS2VM2_Op_CC_SetTargetPriority(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_SETTARGETPRIORITY;
+    memset(&request.u.if_set_target_priority, 0, sizeof(request.u.if_set_target_priority));
     request.u.if_set_target_priority.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.if_set_target_priority.priority = priority;
 
@@ -3128,8 +3356,8 @@ CS2VM2_Op_CC_SetHide(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_SETHIDE;
+    memset(&request.u.if_set_hide, 0, sizeof(request.u.if_set_hide));
     request.u.if_set_hide.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.if_set_hide.hidden = hide != 0;
 
@@ -3151,8 +3379,8 @@ cs2vm2_op_cc_get_int(
     (void)frame;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = kind;
+    memset(&request.u.cc_gettext, 0, sizeof(request.u.cc_gettext));
     request.u.cc_gettext.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     return vm->vm->host_exec(vm, &request);
 }
@@ -3174,8 +3402,8 @@ cs2vm2_op_if_get_int(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = kind;
+    memset(&request.u.if_gettext, 0, sizeof(request.u.if_gettext));
     request.u.if_gettext.component_id = component_id;
     return vm->vm->host_exec(vm, &request);
 }
@@ -3192,8 +3420,8 @@ CS2VM2_Op_CC_GetId(
     (void)frame;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_GETID;
+    memset(&request.u.cc_get_id, 0, sizeof(request.u.cc_get_id));
     request.u.cc_get_id.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
 
     int result = vm->vm->host_exec(vm, &request);
@@ -3214,8 +3442,8 @@ CS2VM2_Op_CC_GetX(
     (void)frame;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_GETX;
+    memset(&request.u.cc_get_id, 0, sizeof(request.u.cc_get_id));
     request.u.cc_get_id.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
 
     int result = vm->vm->host_exec(vm, &request);
@@ -3236,8 +3464,8 @@ CS2VM2_Op_CC_GetY(
     (void)frame;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_GETY;
+    memset(&request.u.cc_get_id, 0, sizeof(request.u.cc_get_id));
     request.u.cc_get_id.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
 
     int result = vm->vm->host_exec(vm, &request);
@@ -3258,8 +3486,8 @@ CS2VM2_Op_CC_GetWidth(
     (void)frame;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_GETWIDTH;
+    memset(&request.u.cc_get_id, 0, sizeof(request.u.cc_get_id));
     request.u.cc_get_id.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
 
     int result = vm->vm->host_exec(vm, &request);
@@ -3280,8 +3508,8 @@ CS2VM2_Op_CC_GetHeight(
     (void)frame;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_GETHEIGHT;
+    memset(&request.u.cc_get_id, 0, sizeof(request.u.cc_get_id));
     request.u.cc_get_id.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
 
     int result = vm->vm->host_exec(vm, &request);
@@ -3302,8 +3530,8 @@ CS2VM2_Op_CC_GetHide(
     (void)frame;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_GETHIDE;
+    memset(&request.u.cc_get_id, 0, sizeof(request.u.cc_get_id));
     request.u.cc_get_id.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
 
     int result = vm->vm->host_exec(vm, &request);
@@ -3328,8 +3556,8 @@ CS2VM2_Op_CC_GetOp(
     if( CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_GETOP;
+    memset(&request.u.widget_get_op, 0, sizeof(request.u.widget_get_op));
     request.u.widget_get_op.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.widget_get_op.op_index = op_index;
     return vm->vm->host_exec(vm, &request);
@@ -3350,8 +3578,8 @@ CS2VM2_Op_IF_GetWidth(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_GETWIDTH;
+    memset(&request.u.if_get_width, 0, sizeof(request.u.if_get_width));
     request.u.if_get_width.component_id = component_id;
 
     int result = vm->vm->host_exec(vm, &request);
@@ -3376,8 +3604,8 @@ CS2VM2_Op_IF_GetHeight(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_GETHEIGHT;
+    memset(&request.u.if_get_height, 0, sizeof(request.u.if_get_height));
     request.u.if_get_height.component_id = component_id;
 
     int result = vm->vm->host_exec(vm, &request);
@@ -3406,8 +3634,8 @@ CS2VM2_Op_IF_GetOp(
         CS2VM2_PopInt(vm, &op_index) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_GETOP;
+    memset(&request.u.widget_get_op, 0, sizeof(request.u.widget_get_op));
     request.u.widget_get_op.component_id = component_id;
     request.u.widget_get_op.op_index = op_index;
     return vm->vm->host_exec(vm, &request);
@@ -3428,8 +3656,8 @@ CS2VM2_Op_IF_GetHide(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_GETHIDE;
+    memset(&request.u.if_get_width, 0, sizeof(request.u.if_get_width));
     request.u.if_get_width.component_id = component_id;
 
     int result = vm->vm->host_exec(vm, &request);
@@ -3457,8 +3685,8 @@ CS2VM2_Op_IF_HasSub(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_HASSUB;
+    memset(&request.u.if_get_width, 0, sizeof(request.u.if_get_width));
     request.u.if_get_width.component_id = component_id;
 
     return vm->vm->host_exec(vm, &request);
@@ -3509,8 +3737,8 @@ CS2VM2_Op_IF_SetParam(
     (void)child_index;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETCOMPONENTPARAM;
+    memset(&request.u.cc_component_param, 0, sizeof(request.u.cc_component_param));
     request.u.cc_component_param.component_id = component_id;
     request.u.cc_component_param.param_id = param_id;
     request.u.cc_component_param.value = value;
@@ -3540,8 +3768,8 @@ CS2VM2_Op_IF_HasChild(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_HASCHILD;
+    memset(&request.u.if_has_child, 0, sizeof(request.u.if_has_child));
     request.u.if_has_child.component_id = component_id;
     request.u.if_has_child.group_id = group_id;
 
@@ -3563,8 +3791,8 @@ CS2VM2_Op_IF_GetY(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_GETY;
+    memset(&request.u.if_get_width, 0, sizeof(request.u.if_get_width));
     request.u.if_get_width.component_id = component_id;
 
     int result = vm->vm->host_exec(vm, &request);
@@ -3589,8 +3817,8 @@ CS2VM2_Op_IF_GetLayer(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_GETLAYER;
+    memset(&request.u.if_get_layer, 0, sizeof(request.u.if_get_layer));
     request.u.if_get_layer.component_id = component_id;
 
     int result = vm->vm->host_exec(vm, &request);
@@ -3636,8 +3864,8 @@ CS2VM2_Op_IF_GetScrollX(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_GETSCROLLX;
+    memset(&request.u.if_get_scroll_x, 0, sizeof(request.u.if_get_scroll_x));
     request.u.if_get_scroll_x.component_id = component_id;
 
     int result = vm->vm->host_exec(vm, &request);
@@ -3662,8 +3890,8 @@ CS2VM2_Op_IF_GetScrollY(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_GETSCROLLY;
+    memset(&request.u.if_get_scroll_y, 0, sizeof(request.u.if_get_scroll_y));
     request.u.if_get_scroll_y.component_id = component_id;
 
     int result = vm->vm->host_exec(vm, &request);
@@ -3688,8 +3916,8 @@ CS2VM2_Op_IF_GetScrollHeight(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_GETSCROLLHEIGHT;
+    memset(&request.u.if_get_scroll_height, 0, sizeof(request.u.if_get_scroll_height));
     request.u.if_get_scroll_height.component_id = component_id;
 
     int result = vm->vm->host_exec(vm, &request);
@@ -3722,8 +3950,8 @@ CS2VM2_Op_IF_SetScrollPos(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_SETSCROLLPOS;
+    memset(&request.u.if_set_scroll_pos, 0, sizeof(request.u.if_set_scroll_pos));
     request.u.if_set_scroll_pos.component_id = component_id;
     request.u.if_set_scroll_pos.scroll_x = scroll_x;
     request.u.if_set_scroll_pos.scroll_y = scroll_y;
@@ -3758,8 +3986,8 @@ CS2VM2_Op_IF_SetScrollSize(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_SETSCROLLSIZE;
+    memset(&request.u.if_set_scroll_size, 0, sizeof(request.u.if_set_scroll_size));
     request.u.if_set_scroll_size.component_id = component_id;
     request.u.if_set_scroll_size.scroll_width = scroll_width;
     request.u.if_set_scroll_size.scroll_height = scroll_height;
@@ -3796,8 +4024,8 @@ CS2VM2_Op_IF_SetPosition(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_SETPOSITION;
+    memset(&request.u.cc_set_position, 0, sizeof(request.u.cc_set_position));
     request.u.cc_set_position.component_id = component_id;
     request.u.cc_set_position.x = x;
     request.u.cc_set_position.y = y;
@@ -3828,8 +4056,8 @@ CS2VM2_Op_IF_SetOutline(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_SETOUTLINE;
+    memset(&request.u.if_set_outline, 0, sizeof(request.u.if_set_outline));
     request.u.if_set_outline.component_id = component_id;
     request.u.if_set_outline.outline = outline;
 
@@ -3865,8 +4093,8 @@ CS2VM2_Op_IF_SetSize(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_SETSIZE;
+    memset(&request.u.cc_set_size, 0, sizeof(request.u.cc_set_size));
     request.u.cc_set_size.component_id = component_id;
     request.u.cc_set_size.width = w;
     request.u.cc_set_size.height = h;
@@ -3899,8 +4127,8 @@ CS2VM2_Op_IF_SetHide(
     bool hidden = hide != 0;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_SETHIDE;
+    memset(&request.u.if_set_hide, 0, sizeof(request.u.if_set_hide));
     request.u.if_set_hide.component_id = component_id;
     request.u.if_set_hide.hidden = hidden;
 
@@ -4064,8 +4292,8 @@ CS2VM2_Op_IF_SetOnEventHandler(
 
     {
         struct CS2VM_HostRequest request;
-        memset(&request, 0, sizeof(request));
         request.kind = kind;
+        memset(&request.u.if_set_on_op, 0, sizeof(request.u.if_set_on_op));
         request.u.if_set_on_op = *out_request;
 
         int result = vm->vm->host_exec(vm, &request);
@@ -4211,8 +4439,8 @@ CS2VM2_Op_CC_SetOnEventHandler(
 
     {
         struct CS2VM_HostRequest request;
-        memset(&request, 0, sizeof(request));
         request.kind = kind;
+        memset(&request.u.cc_set_on_op, 0, sizeof(request.u.cc_set_on_op));
         request.u.cc_set_on_op = *out_request;
 
         int result = vm->vm->host_exec(vm, &request);
@@ -4523,8 +4751,8 @@ CS2VM2_Op_IF_SetDraggable(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_SETDRAGGABLE;
+    memset(&request.u.cc_set_draggable, 0, sizeof(request.u.cc_set_draggable));
     request.u.cc_set_draggable.component_id = component_id;
     request.u.cc_set_draggable.parent_uid = parent_uid;
     request.u.cc_set_draggable.child_index = child_index;
@@ -4549,8 +4777,8 @@ CS2VM2_Op_IF_SetDraggableBehavior(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_SETDRAGGABLEBEHAVIOR;
+    memset(&request.u.cc_set_draggable_behavior, 0, sizeof(request.u.cc_set_draggable_behavior));
     request.u.cc_set_draggable_behavior.component_id = component_id;
     request.u.cc_set_draggable_behavior.behavior = behavior;
     return vm->vm->host_exec(vm, &request);
@@ -4588,8 +4816,8 @@ CS2VM2_Op_DragPickup(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = kind;
+    memset(&request.u.drag_pickup, 0, sizeof(request.u.drag_pickup));
     request.u.drag_pickup.component_id = component_id;
     request.u.drag_pickup.pickup_x = pickup_x;
     request.u.drag_pickup.pickup_y = pickup_y;
@@ -4611,8 +4839,8 @@ CS2VM2_Op_SetAntiDrag(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_SETANTIDRAG;
+    memset(&request.u.widget_set_int, 0, sizeof(request.u.widget_set_int));
     request.u.widget_set_int.value = value;
     return vm->vm->host_exec(vm, &request);
 }
@@ -4738,8 +4966,8 @@ cs2vm2_op_if_set_on_transmit(
      * The host clears the registry entry instead of acquiring one. */
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = kind;
+    memset(&request.u.if_set_on_var_transmit, 0, sizeof(request.u.if_set_on_var_transmit));
     request.u.if_set_on_var_transmit.component_id = widget_uid;
     request.u.if_set_on_var_transmit.script_id = script_id;
     request.u.if_set_on_var_transmit.signature = signature;
@@ -4892,8 +5120,8 @@ CS2VM2_Op_IF_SetOnInvTransmit(
      * The host clears the registry entry instead of acquiring one. */
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_SETONINVTRANSMIT;
+    memset(&request.u.if_set_on_inv_transmit, 0, sizeof(request.u.if_set_on_inv_transmit));
     request.u.if_set_on_inv_transmit.component_id = widget_uid;
     request.u.if_set_on_inv_transmit.script_id = script_id;
     request.u.if_set_on_inv_transmit.signature = signature;
@@ -5303,8 +5531,8 @@ CS2VM2_Op_IF_SetOp(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_SETOP;
+    memset(&request.u.if_set_op, 0, sizeof(request.u.if_set_op));
     request.u.if_set_op.component_id = widget;
     request.u.if_set_op.index = index;
     request.u.if_set_op.text = text;
@@ -5334,8 +5562,8 @@ CS2VM2_Op_IF_SetOpBase(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_SETOPBASE;
+    memset(&request.u.if_set_op_base, 0, sizeof(request.u.if_set_op_base));
     request.u.if_set_op_base.component_id = component_id;
     request.u.if_set_op_base.text = text;
 
@@ -5391,8 +5619,8 @@ CS2VM2_Op_IF_SetOpSubmenu(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_SETOPSUBMENU;
+    memset(&request.u.if_set_op_submenu, 0, sizeof(request.u.if_set_op_submenu));
     request.u.if_set_op_submenu.component_id = component_id;
     request.u.if_set_op_submenu.sub_index = sub_index;
     request.u.if_set_op_submenu.op_index = op_index;
@@ -5422,8 +5650,8 @@ CS2VM2_Op_IF_SetTargetPriority(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_SETTARGETPRIORITY;
+    memset(&request.u.if_set_target_priority, 0, sizeof(request.u.if_set_target_priority));
     request.u.if_set_target_priority.component_id = component_id;
     request.u.if_set_target_priority.priority = priority;
 
@@ -5448,8 +5676,8 @@ CS2VM2_Op_IF_ClearOps(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_CLEAROPS;
+    memset(&request.u.if_clear_ops, 0, sizeof(request.u.if_clear_ops));
     request.u.if_clear_ops.component_id = component_id;
 
     int result = vm->vm->host_exec(vm, &request);
@@ -5486,8 +5714,8 @@ CS2VM2_Op_IF_CallOnResize(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_CALLONRESIZE;
+    memset(&request.u.if_call_on_resize, 0, sizeof(request.u.if_call_on_resize));
     request.u.if_call_on_resize.component_id = component_id;
 
     return vm->vm->host_exec(vm, &request);
@@ -5943,9 +6171,10 @@ CS2VM2_Op_Enum(
     if( CS2VM2_PopInt(vm, &input_type) != CS2VM_EXECNO_OK )
         return CS2VM_EXECNO_ERROR;
 
+    /* Arm, not union -- see the note on the varbit-read builder above. */
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_ENUM_LOOKUP;
+    memset(&request.u.enum_lookup, 0, sizeof(request.u.enum_lookup));
     request.u.enum_lookup.input_type = input_type;
     request.u.enum_lookup.output_type = output_type;
     request.u.enum_lookup.enum_id = enum_id;
@@ -5977,8 +6206,8 @@ CS2VM2_Op_EnumString(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_ENUM_LOOKUP;
+    memset(&request.u.enum_lookup, 0, sizeof(request.u.enum_lookup));
     request.u.enum_lookup.input_type = (int)'i';
     request.u.enum_lookup.output_type = (int)'s';
     request.u.enum_lookup.enum_id = enum_id;
@@ -6002,8 +6231,8 @@ CS2VM2_Op_EnumGetOutputCount(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT;
+    memset(&request.u.enum_get_output_count, 0, sizeof(request.u.enum_get_output_count));
     request.u.enum_get_output_count.enum_id = enum_id;
 
     int result = vm->vm->host_exec(vm, &request);
@@ -6025,8 +6254,9 @@ CS2VM2_Op_Db(
 
     assert(vm);
 
-    memset(&request, 0, sizeof(request));
+    /* Arm, not union -- see the note on the varbit-read builder above. */
     request.kind = CS2VM_HOST_REQUEST_DB;
+    memset(&request.u.db, 0, sizeof(request.u.db));
     request.u.db.opcode = opcode;
     return vm->vm->host_exec(vm, &request);
 }
@@ -6538,8 +6768,8 @@ CS2VM2_Op_PopVar(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_VARS_WRITE_VARP_AKA_POP_VAR;
+    memset(&request.u.vars_write_varp, 0, sizeof(request.u.vars_write_varp));
     request.u.vars_write_varp.varp_id = operand;
     request.u.vars_write_varp.value = value;
 
@@ -6560,8 +6790,8 @@ CS2VM2_Op_PopVarbit(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_VARS_WRITE_VARBIT;
+    memset(&request.u.vars_write_varbit, 0, sizeof(request.u.vars_write_varbit));
     request.u.vars_write_varbit.varbit_id = operand;
     request.u.vars_write_varbit.value = value;
 
@@ -6637,7 +6867,7 @@ CS2VM2_Op_DefineArray(
             for( int i = 0; i < array->size; i++ )
                 array->cells.ints[i] = -1;
     }
-    frame->str_locals[str_slot] = (char*)array;
+    *cs2vm2_frame_str_local_ref(frame, str_slot) = (char*)array;
     return CS2VM_EXECNO_OK;
 }
 
@@ -7257,8 +7487,8 @@ CS2VM2_Op_CC_ChildrenFindCount(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_CHILDREN_FIND;
+    memset(&request.u.cc_children_find, 0, sizeof(request.u.cc_children_find));
     request.u.cc_children_find.parent_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_children_find.start_index = start_index;
 
@@ -7300,8 +7530,8 @@ CS2VM2_Op_IF_ChildrenCollect(
     (void)unused;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_CHILDREN_FIND;
+    memset(&request.u.if_children_find, 0, sizeof(request.u.if_children_find));
     request.u.if_children_find.uid = uid;
     request.u.if_children_find.start_index = start_index;
     request.u.if_children_find.dot_operand = operand;
@@ -7973,8 +8203,8 @@ CS2VM2_Op_Highlight(struct CS2VM2_Thread* vm, int opcode)
     assert(meta.int_in <= CS2VM_HIGHLIGHT_ARG_MAX);
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_HIGHLIGHT;
+    memset(&request.u.highlight, 0, sizeof(request.u.highlight));
     request.u.highlight.opcode = opcode;
     request.u.highlight.arg_count = meta.int_in;
     request.u.highlight.query = meta.int_out != 0;
@@ -8006,8 +8236,8 @@ CS2VM2_Op_SubjectFind(struct CS2VM2_Thread* vm, int opcode)
     assert(vm);
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_SUBJECT_FIND;
+    memset(&request.u.subject_find, 0, sizeof(request.u.subject_find));
     request.u.subject_find.opcode = opcode;
     request.u.subject_find.loc_type = -1;
 
@@ -8043,8 +8273,8 @@ CS2VM2_Op_EntityOverlay(struct CS2VM2_Thread* vm, int opcode, int operand)
     assert(meta.str_in == 0);
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_ENTITY_OVERLAY;
+    memset(&request.u.entity_overlay, 0, sizeof(request.u.entity_overlay));
     request.u.entity_overlay.opcode = opcode;
     request.u.entity_overlay.arg_count = meta.int_in;
     request.u.entity_overlay.query = meta.int_out != 0;
@@ -8070,8 +8300,8 @@ CS2VM2_Op_Minimenu(
     assert(vm);
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_MINIMENU;
+    memset(&request.u.minimenu, 0, sizeof(request.u.minimenu));
     request.u.minimenu.opcode = opcode;
     return vm->vm->host_exec(vm, &request);
 }
@@ -8091,8 +8321,8 @@ CS2VM2_Op_ClientOption(
     assert(vm);
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CLIENT_OPTION;
+    memset(&request.u.client_option, 0, sizeof(request.u.client_option));
     request.u.client_option.opcode = opcode;
 
     if( has_value )
@@ -8120,8 +8350,8 @@ CS2VM2_Op_ClientOp(
     assert(vm);
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CLIENTOP;
+    memset(&request.u.clientop, 0, sizeof(request.u.clientop));
     request.u.clientop.opcode = opcode;
     request.u.clientop.is_set = is_set;
 
@@ -8151,8 +8381,8 @@ CS2VM2_Op_ClientOpContext(struct CS2VM2_Thread* vm, int opcode)
     assert(vm);
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CLIENTOP_CONTEXT;
+    memset(&request.u.clientop_context, 0, sizeof(request.u.clientop_context));
     request.u.clientop_context.opcode = opcode;
     return vm->vm->host_exec(vm, &request);
 }
@@ -8170,8 +8400,8 @@ CS2VM2_Op_LocalNotification(
     assert(vm);
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_LOCAL_NOTIFICATION;
+    memset(&request.u.local_notification, 0, sizeof(request.u.local_notification));
     request.u.local_notification.opcode = opcode;
 
     char* title = NULL;
@@ -8216,8 +8446,8 @@ CS2VM2_Op_Minimap(
     assert(vm);
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_MINIMAP;
+    memset(&request.u.minimap, 0, sizeof(request.u.minimap));
     request.u.minimap.opcode = opcode;
 
     if( has_value )
@@ -8241,8 +8471,8 @@ CS2VM2_Op_Viewport(
     assert(pop_count <= CS2VM_VIEWPORT_ARG_MAX);
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_VIEWPORT;
+    memset(&request.u.viewport, 0, sizeof(request.u.viewport));
     request.u.viewport.opcode = opcode;
     request.u.viewport.arg_count = pop_count;
 
@@ -8265,8 +8495,8 @@ CS2VM2_Op_UiZoom(
     assert(vm);
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_UIZOOM;
+    memset(&request.u.uizoom, 0, sizeof(request.u.uizoom));
     request.u.uizoom.opcode = opcode;
 
     if( has_value )
@@ -8287,8 +8517,8 @@ CS2VM2_Op_SafeArea(
     assert(vm);
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_SAFEAREA;
+    memset(&request.u.safearea, 0, sizeof(request.u.safearea));
     request.u.safearea.opcode = opcode;
     return vm->vm->host_exec(vm, &request);
 }
@@ -8635,8 +8865,8 @@ CS2VM2_Op_OC_Param(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_OC_PARAM;
+    memset(&request.u.oc_param, 0, sizeof(request.u.oc_param));
     request.u.oc_param.param_id = param_id;
     request.u.oc_param.item_id = item_id;
 
@@ -8691,8 +8921,8 @@ CS2VM2_Op_OC_Name(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_OC_NAME;
+    memset(&request.u.oc_name, 0, sizeof(request.u.oc_name));
     request.u.oc_name.item_id = item_id;
 
     int result = vm->vm->host_exec(vm, &request);
@@ -8717,8 +8947,8 @@ CS2VM2_Op_NC_Name(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_NC_NAME;
+    memset(&request.u.nc_name, 0, sizeof(request.u.nc_name));
     request.u.nc_name.npc_id = npc_id;
 
     int result = vm->vm->host_exec(vm, &request);
@@ -8743,8 +8973,8 @@ CS2VM2_Op_OC_Unplaceholder(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER;
+    memset(&request.u.oc_unplaceholder, 0, sizeof(request.u.oc_unplaceholder));
     request.u.oc_unplaceholder.item_id = item_id;
 
     int result = vm->vm->host_exec(vm, &request);
@@ -8776,8 +9006,8 @@ CS2VM2_Op_OC_ActionString(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = kind;
+    memset(&request.u.oc_op, 0, sizeof(request.u.oc_op));
     request.u.oc_op.opcode = opcode;
     request.u.oc_op.item_id = item_id;
     request.u.oc_op.op_index = op_index - 1;
@@ -8796,8 +9026,8 @@ CS2VM2_Op_OC_Examine(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_OC_EXAMINE;
+    memset(&request.u.oc_examine, 0, sizeof(request.u.oc_examine));
     request.u.oc_examine.item_id = item_id;
     return vm->vm->host_exec(vm, &request);
 }
@@ -8815,8 +9045,8 @@ CS2VM2_Op_OC_Placeholder(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_OC_PLACEHOLDER;
+    memset(&request.u.oc_placeholder, 0, sizeof(request.u.oc_placeholder));
     request.u.oc_placeholder.item_id = item_id;
     return vm->vm->host_exec(vm, &request);
 }
@@ -8845,8 +9075,8 @@ CS2VM2_Op_OC_Find(
     }
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_OC_FIND;
+    memset(&request.u.oc_find, 0, sizeof(request.u.oc_find));
     request.u.oc_find.opcode = opcode;
     request.u.oc_find.query = query; /* borrowed; NULL for FINDNEXT/FINDRESET */
 
@@ -8869,8 +9099,8 @@ CS2VM2_Op_Loot(
 
     assert(vm);
 
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_LOOT;
+    memset(&request.u.loot, 0, sizeof(request.u.loot));
     request.u.loot.opcode = opcode;
 
     switch( opcode )
@@ -9018,8 +9248,8 @@ CS2VM2_Op_Hiscores(
 
     assert(vm);
 
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_HISCORES;
+    memset(&request.u.hiscores, 0, sizeof(request.u.hiscores));
     request.u.hiscores.opcode = opcode;
 
     return vm->vm->host_exec(vm, &request);
@@ -9052,8 +9282,8 @@ CS2VM2_Op_Social(
 
     assert(vm);
 
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_SOCIAL;
+    memset(&request.u.social, 0, sizeof(request.u.social));
     request.u.social.opcode = opcode;
 
     switch( opcode )
@@ -9105,8 +9335,8 @@ CS2VM2_Op_Chat(
 
     assert(vm);
 
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CHAT;
+    memset(&request.u.chat, 0, sizeof(request.u.chat));
     request.u.chat.opcode = opcode;
 
     switch( opcode )
@@ -9218,8 +9448,8 @@ CS2VM2_Op_OC_ShiftClickIop(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_OC_SHIFTCLICKIOP;
+    memset(&request.u.oc_shiftclickiop, 0, sizeof(request.u.oc_shiftclickiop));
     request.u.oc_shiftclickiop.item_id = item_id;
     return vm->vm->host_exec(vm, &request);
 }
@@ -9237,8 +9467,8 @@ CS2VM2_Op_OC_WearPos(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_OC_WEARPOS;
+    memset(&request.u.oc_wearpos, 0, sizeof(request.u.oc_wearpos));
     request.u.oc_wearpos.opcode = opcode;
     request.u.oc_wearpos.item_id = item_id;
     return vm->vm->host_exec(vm, &request);
@@ -9256,8 +9486,8 @@ CS2VM2_Op_OC_Weight(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_OC_WEIGHT;
+    memset(&request.u.oc_weight, 0, sizeof(request.u.oc_weight));
     request.u.oc_weight.item_id = item_id;
     return vm->vm->host_exec(vm, &request);
 }
@@ -9280,8 +9510,8 @@ CS2VM2_Op_OC_Isubop(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_OC_ISUBOP;
+    memset(&request.u.oc_isubop, 0, sizeof(request.u.oc_isubop));
     request.u.oc_isubop.item_id = item_id;
     request.u.oc_isubop.op_index = op_index;
     request.u.oc_isubop.sub_index = sub_index;
@@ -9314,8 +9544,8 @@ CS2VM2_Op_InvSize(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_INVS_GET_SIZE;
+    memset(&request.u.invs_get_size, 0, sizeof(request.u.invs_get_size));
     request.u.invs_get_size.inv_id = inv_id;
 
     int result = vm->vm->host_exec(vm, &request);
@@ -9346,8 +9576,8 @@ CS2VM2_Op_InvGetObj(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_INVS_GET_OBJ;
+    memset(&request.u.invs_get_obj, 0, sizeof(request.u.invs_get_obj));
     request.u.invs_get_obj.inv_id = inv_id;
     request.u.invs_get_obj.slot = slot;
 
@@ -9375,8 +9605,8 @@ CS2VM2_Op_InvGetNum(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_INVS_GET_NUM;
+    memset(&request.u.invs_get_num, 0, sizeof(request.u.invs_get_num));
     request.u.invs_get_num.inv_id = inv_id;
     request.u.invs_get_num.slot = slot;
 
@@ -9404,8 +9634,8 @@ CS2VM2_Op_InvTotal(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_INVS_GET_TOTAL;
+    memset(&request.u.invs_get_total, 0, sizeof(request.u.invs_get_total));
     request.u.invs_get_total.inv_id = inv_id;
     request.u.invs_get_total.item_id = item_id;
 
@@ -9424,8 +9654,8 @@ CS2VM2_DispatchWidgetSetInt(
     int value)
 {
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_WIDGET_SET_INT;
+    memset(&request.u.widget_set_int, 0, sizeof(request.u.widget_set_int));
     request.u.widget_set_int.component_id = component_id;
     request.u.widget_set_int.field = field;
     request.u.widget_set_int.value = value;
@@ -9490,8 +9720,8 @@ CS2VM2_Op_CC_SetScrollPos(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETSCROLLPOS;
+    memset(&request.u.cc_set_scroll_pos, 0, sizeof(request.u.cc_set_scroll_pos));
     request.u.cc_set_scroll_pos.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_scroll_pos.scroll_x = scroll_x;
     request.u.cc_set_scroll_pos.scroll_y = scroll_y;
@@ -9517,8 +9747,8 @@ CS2VM2_Op_CC_SetScrollSize(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETSCROLLSIZE;
+    memset(&request.u.cc_set_scroll_size, 0, sizeof(request.u.cc_set_scroll_size));
     request.u.cc_set_scroll_size.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_set_scroll_size.scroll_width = scroll_width;
     request.u.cc_set_scroll_size.scroll_height = scroll_height;
@@ -9541,8 +9771,8 @@ CS2VM2_Op_CC_SetModel(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_WIDGET_SET_MODEL;
+    memset(&request.u.widget_set_model, 0, sizeof(request.u.widget_set_model));
     request.u.widget_set_model.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.widget_set_model.model_id = model_id;
 
@@ -9568,8 +9798,8 @@ CS2VM2_Op_IF_SetModel(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_WIDGET_SET_MODEL;
+    memset(&request.u.widget_set_model, 0, sizeof(request.u.widget_set_model));
     request.u.widget_set_model.component_id = component_id;
     request.u.widget_set_model.model_id = model_id;
 
@@ -9606,8 +9836,8 @@ CS2VM2_Op_CC_SetModelAngle(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_ANGLE;
+    memset(&request.u.widget_set_model_angle, 0, sizeof(request.u.widget_set_model_angle));
     request.u.widget_set_model_angle.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.widget_set_model_angle.offset_x = offset_x;
     request.u.widget_set_model_angle.offset_y = offset_y;
@@ -9653,8 +9883,8 @@ CS2VM2_Op_IF_SetModelAngle(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_ANGLE;
+    memset(&request.u.widget_set_model_angle, 0, sizeof(request.u.widget_set_model_angle));
     request.u.widget_set_model_angle.component_id = component_id;
     request.u.widget_set_model_angle.offset_x = offset_x;
     request.u.widget_set_model_angle.offset_y = offset_y;
@@ -9684,8 +9914,8 @@ CS2VM2_Op_CC_SetArc(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_WIDGET_SET_ARC;
+    memset(&request.u.widget_set_arc, 0, sizeof(request.u.widget_set_arc));
     request.u.widget_set_arc.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.widget_set_arc.arc_start = arc_start;
     request.u.widget_set_arc.arc_end = arc_end;
@@ -9715,8 +9945,8 @@ CS2VM2_Op_IF_SetArc(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_WIDGET_SET_ARC;
+    memset(&request.u.widget_set_arc, 0, sizeof(request.u.widget_set_arc));
     request.u.widget_set_arc.component_id = component_id;
     request.u.widget_set_arc.arc_start = arc_start;
     request.u.widget_set_arc.arc_end = arc_end;
@@ -9744,8 +9974,8 @@ CS2VM2_Op_CC_SetModelKind(
     }
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND;
+    memset(&request.u.widget_set_model_kind, 0, sizeof(request.u.widget_set_model_kind));
     request.u.widget_set_model_kind.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.widget_set_model_kind.model_kind = model_kind;
     request.u.widget_set_model_kind.model_id = model_id;
@@ -9777,8 +10007,8 @@ CS2VM2_Op_IF_SetModelKind(
     }
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND;
+    memset(&request.u.widget_set_model_kind, 0, sizeof(request.u.widget_set_model_kind));
     request.u.widget_set_model_kind.component_id = component_id;
     request.u.widget_set_model_kind.model_kind = model_kind;
     request.u.widget_set_model_kind.model_id = model_id;
@@ -9802,8 +10032,8 @@ CS2VM2_Op_CC_InputInt(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_WIDGET_INPUT_INT;
+    memset(&request.u.widget_input_int, 0, sizeof(request.u.widget_input_int));
     request.u.widget_input_int.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.widget_input_int.field = field;
     request.u.widget_input_int.value = value;
@@ -10462,8 +10692,8 @@ CS2VM2_RunOp(
          * signature is {0,0,0,0}; do not route through WidgetInt (which pops
          * a phantom value). */
         struct CS2VM_HostRequest request;
-        memset(&request, 0, sizeof(request));
         request.kind = CS2VM_HOST_REQUEST_RESUME_PAUSEBUTTON;
+        memset(&request.u.resume_pausebutton, 0, sizeof(request.u.resume_pausebutton));
         request.u.resume_pausebutton.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
         return vm->vm->host_exec(vm, &request);
     }
@@ -10894,8 +11124,8 @@ CS2VM2_RunOp(
         int height;
         if( CS2VM2_PopInt(vm, &height) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        memset(&request, 0, sizeof(request));
         request.kind = CS2VM_HOST_REQUEST_CAM_SETFOLLOWHEIGHT;
+        memset(&request.u.cam_set_follow_height, 0, sizeof(request.u.cam_set_follow_height));
         request.u.cam_set_follow_height.height = height;
         return vm->vm->host_exec(vm, &request);
     }
@@ -10923,8 +11153,8 @@ CS2VM2_RunOp(
             return CS2VM_EXECNO_ERROR;
         if( CS2VM2_PopInt(vm, &angle_x) != CS2VM_EXECNO_OK )
             return CS2VM_EXECNO_ERROR;
-        memset(&request, 0, sizeof(request));
         request.kind = CS2VM_HOST_REQUEST_CAM_FORCEANGLE;
+        memset(&request.u.cam_force_angle, 0, sizeof(request.u.cam_force_angle));
         request.u.cam_force_angle.angle_x = angle_x;
         request.u.cam_force_angle.angle_y = angle_y;
         return vm->vm->host_exec(vm, &request);
@@ -11319,13 +11549,16 @@ CS2VM2_DebugPrintOpCode(
     printf("\n");
 
     if( opcode == CS2_OP_PUSH_INT_LOCAL || opcode == CS2_OP_POP_INT_LOCAL )
-        printf("    int_local[%d] = %d\n", operand, frame->int_locals[operand]);
+        printf(
+            "    int_local[%d] = %d\n",
+            operand,
+            cs2vm2_frame_int_local(frame, operand));
 
     if( opcode == CS2_OP_PUSH_STRING_LOCAL || opcode == CS2_OP_POP_STRING_LOCAL )
-        printf(
-            "    str_local[%d] = \"%s\"\n",
-            operand,
-            frame->str_locals[operand] ? frame->str_locals[operand] : "(null)");
+    {
+        char const* value = cs2vm2_frame_str_local(frame, operand);
+        printf("    str_local[%d] = \"%s\"\n", operand, value ? value : "(null)");
+    }
 
     int int_args = 0;
     int str_args = 0;
@@ -11375,7 +11608,12 @@ CS2VM2_PushCallScript(
     if( !frame )
         return CS2VM_EXECNO_ERROR;
 
-    memset(frame, 0, sizeof(*frame));
+    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_FRAME_PUSH, 1);
+    TORIRS_PERF_COUNT(
+        TORIRS_PERF_CTR_CS2_FRAME_CLEAR_BYTES,
+        (long long)frame->int_locals_dirty * (long long)sizeof(frame->int_locals[0]) +
+            (long long)frame->str_locals_dirty * (long long)sizeof(frame->str_locals[0]));
+    cs2vm2_frame_clear(frame);
     frame->script = script;
     vm->frame_sp += 1;
     return CS2VM_EXECNO_OK;
@@ -11415,11 +11653,53 @@ struct cs2_profile_row
     int script_id;
     uint64_t ns;
     uint32_t calls;
+    /* Components this script created, from bracketing the call with
+     * g_torirs_cc_create_seq. Target 7's allowlist needs to know not just which
+     * scripts are expensive but which ones damage the tree every frame, because
+     * those are the ones whose skip also unblocks targets 11, 12 and 14. */
+    uint64_t creates;
+    /* Reached dirty marks this script caused. `creates` turned out to be a
+     * startup measure — the per-frame scripts create nothing — so this is the
+     * column that actually identifies the script defeating target 11's gate. */
+    uint64_t marks;
+    /* Topology bumps (link/unlink/allocate/hide) this script caused. `marks`
+     * only sees UITree_MarkNodeDirty; the topology path bumps dirty_gen without
+     * going through it, which is why the script that provably defeats the gate
+     * still read as zero in both columns above. */
+    uint64_t topo;
+    /* uitree.c line of the last topology bump this script caused. Exact when
+     * the script bumps once per call, which is the shape target 7 cares about. */
+    int topo_line;
+    /* `calls` is zeroed by the report's selection sort; this survives it. */
+    uint32_t calls_total;
 };
 
 static struct cs2_profile_row g_cs2_profile[CS2_PROFILE_ROWS];
 static int g_cs2_profile_rows;
 static int g_cs2_profile_on = -1;
+
+/*
+ * Opcode histogram, on the same gate as the script profile above.
+ *
+ * Target 8 (predecode) has to choose a micro-op set, and choosing it from the
+ * opcode table rather than from what this client actually executes is how a
+ * predecoder ends up optimising ops that never run. The measured cost is
+ * ~109 ns/opcode over 2,164 opcodes a frame; this says which opcodes those are.
+ *
+ * Counts, not times: timing individual ops needs two clock reads each, which at
+ * this volume would cost more than the thing being measured and would move the
+ * number it reports. Count x the known mean is the honest instrument here — and
+ * a flat-ish distribution is itself the answer, because it would mean no small
+ * micro-op set can cover the traffic and target 8 should be reconsidered.
+ *
+ * Sized to cover the whole opcode space including the 10xxx dialect range, and
+ * indexed only after a bounds test: `opcode` is a plain int off the script and
+ * a malformed cache must not scribble past the array.
+ */
+#define CS2_OPCODE_HIST_SIZE 16384
+static uint32_t g_cs2_opcode_hist[CS2_OPCODE_HIST_SIZE];
+static uint64_t g_cs2_opcode_hist_total;
+static uint32_t g_cs2_opcode_hist_dropped;
 
 static uint64_t
 cs2_profile_now_ns(void)
@@ -11432,6 +11712,25 @@ cs2_profile_now_ns(void)
 static void
 cs2_profile_report(void)
 {
+    /* Grand total across every row, printed before the selection sort below
+     * consumes the table. This is the number that decides targets 8, 9 and 13:
+     * `cs2_settle` minus host ops leaves ~236 us/frame that has been *assumed*
+     * to be opcode execution, and this is the only direct measurement of what
+     * CS2VM2_RunScript actually costs. 17.6 calls a frame is cheap enough to
+     * bracket honestly; per-opcode timing is not. */
+    {
+        uint64_t all_ns = 0;
+        uint64_t all_calls = 0;
+        for( int i = 0; i < g_cs2_profile_rows; i++ )
+        {
+            all_ns += g_cs2_profile[i].ns;
+            all_calls += g_cs2_profile[i].calls;
+        }
+        fprintf(
+            stderr, "=== cs2 RunScript total: %.3f ms over %llu calls, %llu distinct scripts ===\n",
+            (double)all_ns / 1e6, (unsigned long long)all_calls,
+            (unsigned long long)g_cs2_profile_rows);
+    }
     fprintf(stderr, "=== cs2 script profile (top 20 by total wall time) ===\n");
     for( int rank = 0; rank < 20 && rank < g_cs2_profile_rows; rank++ )
     {
@@ -11446,13 +11745,75 @@ cs2_profile_report(void)
         if( best < 0 )
             break;
         fprintf(
-            stderr, "  script %-6d %8.3f ms total  %6u calls  %8.3f us/call\n",
+            stderr,
+            "  script %-6d %8.3f ms total  %6u calls  %8.3f us/call  %8llu creates  %8llu "
+            "marks  %8llu topo  %7.2f topo/call  uitree.c:%d\n",
             g_cs2_profile[best].script_id, (double)g_cs2_profile[best].ns / 1e6,
             g_cs2_profile[best].calls,
-            (double)g_cs2_profile[best].ns / 1e3 / (double)g_cs2_profile[best].calls);
+            (double)g_cs2_profile[best].ns / 1e3 / (double)g_cs2_profile[best].calls,
+            (unsigned long long)g_cs2_profile[best].creates,
+            (unsigned long long)g_cs2_profile[best].marks,
+            (unsigned long long)g_cs2_profile[best].topo,
+            (double)g_cs2_profile[best].topo / (double)g_cs2_profile[best].calls,
+            g_cs2_profile[best].topo_line);
         g_cs2_profile[best].calls = 0; /* consumed: this pass is a selection sort */
     }
+    /* The top-20 listing above cannot answer "is there cost outside the VM?" —
+     * that needs every row. Compare this against the `cs2` stage: what the stage
+     * has and this does not is task machinery, and if the gap is small there is
+     * nothing there to optimize. `calls` is consumed by the selection sort
+     * above, so this sums `ns`, which is not. */
+    {
+        double total_ms = 0.0;
+        uint64_t total_calls = 0;
+        for( int i = 0; i < g_cs2_profile_rows; i++ )
+        {
+            total_ms += (double)g_cs2_profile[i].ns / 1e6;
+            total_calls += g_cs2_profile[i].calls_total;
+        }
+        fprintf(
+            stderr, "  ALL %d scripts: %.3f ms total, %llu calls\n", g_cs2_profile_rows,
+            total_ms, (unsigned long long)total_calls);
+    }
     fprintf(stderr, "=== end cs2 script profile ===\n");
+
+    /* Cumulative share is the number target 8 is actually choosing against: it
+     * says how many distinct opcodes a micro-op set has to cover to reach most
+     * of the traffic. Forty rows is enough to see that curve flatten. */
+    fprintf(stderr, "=== cs2 opcode histogram (top 40 of %llu executed) ===\n",
+            (unsigned long long)g_cs2_opcode_hist_total);
+    {
+        uint64_t running = 0;
+        for( int rank = 0; rank < 40; rank++ )
+        {
+            int best = -1;
+            for( int i = 0; i < CS2_OPCODE_HIST_SIZE; i++ )
+            {
+                if( g_cs2_opcode_hist[i] == 0 )
+                    continue;
+                if( best < 0 || g_cs2_opcode_hist[i] > g_cs2_opcode_hist[best] )
+                    best = i;
+            }
+            if( best < 0 )
+                break;
+            running += g_cs2_opcode_hist[best];
+            fprintf(
+                stderr, "  op %-6d %10u  %5.2f%%  cum %5.2f%%\n", best,
+                g_cs2_opcode_hist[best],
+                g_cs2_opcode_hist_total
+                    ? 100.0 * (double)g_cs2_opcode_hist[best] / (double)g_cs2_opcode_hist_total
+                    : 0.0,
+                g_cs2_opcode_hist_total
+                    ? 100.0 * (double)running / (double)g_cs2_opcode_hist_total
+                    : 0.0);
+            g_cs2_opcode_hist[best] = 0; /* consumed, same selection sort as above */
+        }
+        if( g_cs2_opcode_hist_dropped )
+            fprintf(
+                stderr, "  (%u executions had an opcode outside [0,%d) and were not counted)\n",
+                g_cs2_opcode_hist_dropped, CS2_OPCODE_HIST_SIZE);
+    }
+    fprintf(stderr, "=== end cs2 opcode histogram ===\n");
 }
 
 static struct cs2_profile_row*
@@ -11475,7 +11836,7 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
     assert(vm);
     assert(vm->frame_sp > 0);
 
-    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_SCRIPTS, 1);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_SCRIPTS, 1);
 
     int result;
     int cycles = 0;
@@ -11504,8 +11865,28 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
 
         CS2VM2_DebugPrintOpCode(vm, frame, opcode, operand, str_operand_str);
 
+        /* Gated on the same env flag as the script profile, so an ordinary run
+         * pays one predictable load-and-test against a ~109 ns opcode. */
+        if( g_cs2_profile_on > 0 )
+        {
+            if( opcode >= 0 && opcode < CS2_OPCODE_HIST_SIZE )
+                g_cs2_opcode_hist[opcode]++;
+            else
+                g_cs2_opcode_hist_dropped++;
+            g_cs2_opcode_hist_total++;
+        }
+
         int op_pc = frame->pc;
         frame->pc += 1;
+
+        /* An inline fast path for PUSH_CONSTANT_INT / PUSH_INT_LOCAL /
+         * POP_INT_LOCAL — 57.3% of all executed opcodes — was built here and
+         * measured neutral: cs2 p50 328.8 and 338.6 us against a 326.1–350.5
+         * baseline band. Reverted. The hot opcodes are all < 64, so GCC already
+         * emits a jump table for that cluster and had already inlined the small
+         * static handlers; there was no dispatch overhead left to remove. See
+         * "the fast path that changed nothing" in docs/CS2_OPTIMIZATION_TARGETS.md
+         * before rebuilding it. */
 
         /* The undo log only tracks the in-flight op: reset it here so a yield
          * rolls back exactly this op's tracked mutations, and committed prior
@@ -11517,7 +11898,27 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
 
         result = CS2VM2_RunOp(vm, frame, opcode, operand, str_operand_str);
 
-        CS2VM2_TraceOpcode(vm, frame, op_pc, opcode, operand, result);
+        /*
+         * Gated inline: this was the only unconditional call left in the
+         * per-opcode path, and an untraced run reaches it 4.33M times per 2000
+         * frames to load two globals and return.
+         *
+         * Measured worth on win64/-O3: none. Two runs of the gated binary put
+         * cs2 p50 at 326.2 and 330.8 us against 322.6 before it — a spread that
+         * is the run-to-run noise band, not an effect. GCC can see the whole of
+         * this static callee and had already made the untraced path cheap.
+         *
+         * It stays for i686, which is the target the XP column of the scorecard
+         * cares about and which cannot hide the call the same way: win64 passes
+         * four of these six arguments in registers, cdecl pushes all six for
+         * every opcode. That is unmeasured here — treat it as a reason the gate
+         * is not worth reverting, not as a claimed win.
+         *
+         * `CS2VM2_DebugPrintOpCode` above needs no such gate — its body is
+         * entirely `#if CS2VM2_DEBUG_OPS`, so it compiles to nothing here.
+         */
+        if( CS2VM2_TRACE_ARMED() )
+            CS2VM2_TraceOpcode(vm, frame, op_pc, opcode, operand, result);
 
         switch( result )
         {
@@ -11565,6 +11966,39 @@ cs2vm2_run_script_body(struct CS2VM2_Thread* vm)
     return CS2VM_EXECNO_ERROR;
 }
 
+/** Depth of nested `cs2vm2_run_script_body`. A script can reach the task layer,
+ *  which can run another script, so only the outermost body is timed — otherwise
+ *  the child's nanoseconds land in the stage twice. */
+static int g_cs2_script_depth = 0;
+
+/** Run a script body under the `cs2_script` stage. `cs2_settle` minus that stage
+ *  is the task machinery proper — the subtraction that sizes it without
+ *  reconstructing it from per-script means times per-frame call rates. */
+static int
+cs2vm2_run_script_body_timed(struct CS2VM2_Thread* vm)
+{
+    int r = CS2VM_EXECNO_ERROR;
+
+    assert(vm);
+
+    if( g_cs2_script_depth++ )
+    {
+        r = cs2vm2_run_script_body(vm);
+        g_cs2_script_depth--;
+        return r;
+    }
+    {
+        uint64_t t0 = cs2_profile_now_ns();
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_CS2_SCRIPT)
+        {
+            r = cs2vm2_run_script_body(vm);
+        }
+        g_torirs_cs2_script_ns += cs2_profile_now_ns() - t0;
+    }
+    g_cs2_script_depth--;
+    return r;
+}
+
 int
 CS2VM2_RunScript(struct CS2VM2_Thread* vm)
 {
@@ -11582,15 +12016,31 @@ CS2VM2_RunScript(struct CS2VM2_Thread* vm)
             atexit(cs2_profile_report);
     }
     if( !g_cs2_profile_on )
-        return cs2vm2_run_script_body(vm);
+        return cs2vm2_run_script_body_timed(vm);
 
     row = cs2_profile_row_for(CS2VM_FRAME(vm)->script->script_id);
     begin_ns = cs2_profile_now_ns();
-    result = cs2vm2_run_script_body(vm);
-    if( row )
     {
-        row->ns += cs2_profile_now_ns() - begin_ns;
-        row->calls++;
+        uint64_t begin_creates = g_torirs_cc_create_seq;
+        uint64_t begin_marks = g_torirs_dirty_mark_seq;
+        uint64_t begin_topo = g_torirs_dirty_topo_seq;
+        result = cs2vm2_run_script_body_timed(vm);
+        if( row )
+        {
+            row->ns += cs2_profile_now_ns() - begin_ns;
+            row->calls++;
+            row->calls_total++;
+            /* Gosubs run inside this call, so creates land on the entry script —
+             * the same attribution rule the wall-time column already uses, and
+             * the right one for target 7, whose allowlist is entry scripts. */
+            row->creates += g_torirs_cc_create_seq - begin_creates;
+            row->marks += g_torirs_dirty_mark_seq - begin_marks;
+            if( g_torirs_dirty_topo_seq != begin_topo )
+            {
+                row->topo += g_torirs_dirty_topo_seq - begin_topo;
+                row->topo_line = g_torirs_dirty_topo_line;
+            }
+        }
     }
     return result;
 }
@@ -11603,9 +12053,10 @@ CS2VM2_Op_CC_CreateUnderParent(
     int child_index,
     int operand)
 {
+    /* Arm, not union -- see the note on the varbit-read builder above. */
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_CREATE;
+    memset(&request.u.cc_create, 0, sizeof(request.u.cc_create));
     request.u.cc_create.parent_id = parent_id;
     request.u.cc_create.component_type = type;
     request.u.cc_create.child_index = child_index;
@@ -11653,8 +12104,8 @@ CS2VM2_Op_CC_ChildrenFindNext(
     int sub_id = vm->children_iter_indices[vm->children_iter_index++];
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_FIND;
+    memset(&request.u.cc_find, 0, sizeof(request.u.cc_find));
     request.u.cc_find.parent_id = vm->children_iter_parent;
     request.u.cc_find.sub_id = sub_id;
     request.u.cc_find.dot_operand = operand;
@@ -11678,8 +12129,8 @@ CS2VM2_Op_IF_ChildrenFind(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_CHILDREN_FIND;
+    memset(&request.u.if_children_find, 0, sizeof(request.u.if_children_find));
     request.u.if_children_find.uid = uid;
     request.u.if_children_find.start_index = start_index;
     request.u.if_children_find.dot_operand = operand;
@@ -11738,8 +12189,8 @@ CS2VM2_Op_CC_CreateSibling(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_RESOLVE_PARENT;
+    memset(&request.u.cc_resolve_parent, 0, sizeof(request.u.cc_resolve_parent));
     request.u.cc_resolve_parent.component_id = current_id;
 
     int result = vm->vm->host_exec(vm, &request);
@@ -11773,8 +12224,8 @@ CS2VM2_Op_StructParam(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_STRUCT_PARAM;
+    memset(&request.u.struct_param, 0, sizeof(request.u.struct_param));
     request.u.struct_param.struct_id = struct_id;
     request.u.struct_param.param_id = param_id;
 
@@ -11807,8 +12258,8 @@ CS2VM2_Op_CC_GetParam(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_STRUCT_PARAM;
+    memset(&request.u.struct_param, 0, sizeof(request.u.struct_param));
     request.u.struct_param.struct_id = -1;
     request.u.struct_param.param_id = param_id;
 
@@ -11826,8 +12277,8 @@ CS2VM2_Op_CC_GetText(
     (void)frame;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_GETTEXT;
+    memset(&request.u.cc_gettext, 0, sizeof(request.u.cc_gettext));
     request.u.cc_gettext.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
 
     return vm->vm->host_exec(vm, &request);
@@ -11844,8 +12295,8 @@ CS2VM2_Op_CC_GetTrans(
     (void)frame;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_GETTRANS;
+    memset(&request.u.cc_gettrans, 0, sizeof(request.u.cc_gettrans));
     request.u.cc_gettrans.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
 
     return vm->vm->host_exec(vm, &request);
@@ -11877,8 +12328,8 @@ CS2VM2_Op_CC_GetComponentParam(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM;
+    memset(&request.u.cc_component_param, 0, sizeof(request.u.cc_component_param));
     request.u.cc_component_param.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_component_param.param_id = param_id;
 
@@ -11922,8 +12373,8 @@ CS2VM2_Op_IF_GetComponentParam(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_GETCOMPONENTPARAM;
+    memset(&request.u.cc_component_param, 0, sizeof(request.u.cc_component_param));
     request.u.cc_component_param.component_id = component_id;
     request.u.cc_component_param.param_id = param_id;
     request.u.cc_component_param.value = fallback;
@@ -11964,8 +12415,8 @@ CS2VM2_Op_CC_SetComponentParam(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_CC_SETCOMPONENTPARAM;
+    memset(&request.u.cc_component_param, 0, sizeof(request.u.cc_component_param));
     request.u.cc_component_param.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
     request.u.cc_component_param.param_id = param_id;
     request.u.cc_component_param.value = value;
@@ -11989,8 +12440,8 @@ CS2VM2_Op_IF_Find(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_FIND;
+    memset(&request.u.if_find, 0, sizeof(request.u.if_find));
     request.u.if_find.component_id = component_id;
     request.u.if_find.dot_operand = operand;
 
@@ -12012,8 +12463,8 @@ CS2VM2_Op_IF_GetX(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_GETX;
+    memset(&request.u.if_getx, 0, sizeof(request.u.if_getx));
     request.u.if_getx.component_id = component_id;
 
     return vm->vm->host_exec(vm, &request);
@@ -12034,8 +12485,8 @@ CS2VM2_Op_IF_GetText(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_GETTEXT;
+    memset(&request.u.if_gettext, 0, sizeof(request.u.if_gettext));
     request.u.if_gettext.component_id = component_id;
 
     return vm->vm->host_exec(vm, &request);
@@ -12056,8 +12507,8 @@ CS2VM2_Op_IF_GetScrollWidth(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_IF_GETSCROLLWIDTH;
+    memset(&request.u.if_getscrollwidth, 0, sizeof(request.u.if_getscrollwidth));
     request.u.if_getscrollwidth.component_id = component_id;
 
     return vm->vm->host_exec(vm, &request);
@@ -12079,8 +12530,8 @@ CS2VM2_Op_OC_IntParam(
         return CS2VM_EXECNO_ERROR;
 
     struct CS2VM_HostRequest request;
-    memset(&request, 0, sizeof(request));
     request.kind = CS2VM_HOST_REQUEST_OC_INT_PARAM;
+    memset(&request.u.oc_int_param, 0, sizeof(request.u.oc_int_param));
     request.u.oc_int_param.item_id = item_id;
     request.u.oc_int_param.field = field;
 
@@ -12130,7 +12581,7 @@ CS2VM2_ResetRuntime(struct CS2VM2_Thread* vm)
  * it is for a fresh block or one that CS2VM2_Free has already emptied.
  */
 static void
-cs2vm2_thread_init(
+cs2vm2_thread_init_common(
     struct CS2VM2_Thread* thread,
     struct CS2VM2* vm)
 {
@@ -12166,18 +12617,6 @@ cs2vm2_thread_init(
     thread->children_iter_parent = -1;
     thread->children_collect_handle = NULL;
 
-    /* Cell blocks are dropped here, not freed: like str_pool, this is for a
-     * fresh block or one CS2VM2_Free has already emptied (see the note above).
-     * A pooled VM comes back through Release -> CS2VM2_Free, which frees them,
-     * so dropping the pointers here cannot leak. */
-    for( int i = 0; i < CS2VM2_MAX_ARRAYS; i++ )
-    {
-        thread->arrays[i].cells.strings = NULL;
-        thread->arrays[i].capacity = 0;
-        thread->arrays[i].defined = 0;
-        thread->arrays[i].size = 0;
-        thread->arrays[i].is_string = 0;
-    }
     thread->array_alloc = 0;
 
     CS2VM2_StrPool_Init(&thread->str_pool);
@@ -12186,6 +12625,30 @@ cs2vm2_thread_init(
     thread->canvas_h = 0;
     thread->window_mode = 0;
     thread->default_window_mode = 0;
+}
+
+static void
+cs2vm2_thread_init(
+    struct CS2VM2_Thread* thread,
+    struct CS2VM2* vm)
+{
+    /* Cell blocks are dropped here, not freed: like str_pool, this is for a
+     * fresh block or one CS2VM2_Free has already emptied (see the note above).
+     * A pooled VM comes back through Release -> CS2VM2_Free, which frees them,
+     * so dropping the pointers here cannot leak.
+     *
+     * This is the only full-width part of thread setup, and it is why the warm
+     * path below exists: CS2VM2_Free leaves all 128 descriptors already clean,
+     * so a block coming back out of the pool does not need this loop at all. */
+    for( int i = 0; i < CS2VM2_MAX_ARRAYS; i++ )
+    {
+        thread->arrays[i].cells.strings = NULL;
+        thread->arrays[i].capacity = 0;
+        thread->arrays[i].defined = 0;
+        thread->arrays[i].size = 0;
+        thread->arrays[i].is_string = 0;
+    }
+    cs2vm2_thread_init_common(thread, vm);
 }
 
 void
@@ -12199,6 +12662,29 @@ CS2VM2_Init(struct CS2VM2* vm)
         cs2vm2_thread_init(&vm->threads[i], vm);
 }
 
+/*
+ * Init for a block that CS2VM2_Free has just emptied.
+ *
+ * Free walks the arrays it actually handed out and leaves every descriptor —
+ * all 128 of them — with a NULL cell block, zero capacity, and the defined/size
+ * flags cleared, so re-clearing the table would be writing zeroes over zeroes.
+ * Scripts allocate almost no arrays, so the table Free touches is nearly empty
+ * while the table this skips is the whole 128.
+ *
+ * Only CS2VM2_Acquire may use this, and only on a pool hit; a fresh malloc'd
+ * block has an indeterminate array table and must go through CS2VM2_Init.
+ */
+static void
+cs2vm2_init_warm(struct CS2VM2* vm)
+{
+    assert(vm);
+    vm->thread_count = CS2VM2_MAX_THREADS;
+    vm->host_exec = NULL;
+    vm->user = NULL;
+    for( int i = 0; i < CS2VM2_MAX_THREADS; i++ )
+        cs2vm2_thread_init_common(&vm->threads[i], vm);
+}
+
 void
 CS2VM2_Free(struct CS2VM2* vm)
 {
@@ -12208,12 +12694,24 @@ CS2VM2_Free(struct CS2VM2* vm)
         CS2VM2_ResetRuntime(&vm->threads[i]);
         /* ResetRuntime keeps a block for reuse; nothing will reuse it now. */
         CS2VM2_StrPool_Free(&vm->threads[i].str_pool);
-        for( int a = 0; a < CS2VM2_MAX_ARRAYS; a++ )
+        /* Arrays are handed out by bumping array_alloc, so everything at or
+         * past it was never touched and is already NULL from whichever Init
+         * built this block. Walking all 128 was 128 free(NULL) calls to reach
+         * the handful a script actually defines.
+         *
+         * The flags are cleared here as well as the pointers, which the wide
+         * loop in cs2vm2_thread_init used to do: that is what lets the warm
+         * Init above skip the table entirely. */
+        for( int a = 0; a < vm->threads[i].array_alloc; a++ )
         {
             free(vm->threads[i].arrays[a].cells.strings);
             vm->threads[i].arrays[a].cells.strings = NULL;
             vm->threads[i].arrays[a].capacity = 0;
+            vm->threads[i].arrays[a].defined = 0;
+            vm->threads[i].arrays[a].size = 0;
+            vm->threads[i].arrays[a].is_string = 0;
         }
+        vm->threads[i].array_alloc = 0;
         cs2vm2_thread_frames_release(&vm->threads[i]);
     }
 }
@@ -12234,24 +12732,29 @@ CS2VM2_Acquire(void)
     struct timespec t0;
     struct timespec t1;
     int64_t init_ns;
+    bool warm;
 
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_VM_ACQUIRE, 1);
 
     if( g_vm_pool_count > 0 )
     {
         vm = g_vm_pool[--g_vm_pool_count];
+        warm = true;
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_VM_POOL_HIT, 1);
     }
     else
     {
         vm = (struct CS2VM2*)malloc(sizeof(*vm));
+        warm = false;
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_VM_POOL_MISS, 1);
     }
-    if( !vm )
-        return NULL;
+    assert(vm);
 
     clock_gettime(CLOCK_MONOTONIC, &t0);
-    CS2VM2_Init(vm);
+    if( warm )
+        cs2vm2_init_warm(vm);
+    else
+        CS2VM2_Init(vm);
     clock_gettime(CLOCK_MONOTONIC, &t1);
     init_ns = (int64_t)(t1.tv_sec - t0.tv_sec) * 1000000000LL + (int64_t)(t1.tv_nsec - t0.tv_nsec);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CS2_VM_INIT_NS, init_ns);
@@ -12261,10 +12764,22 @@ CS2VM2_Acquire(void)
 void
 CS2VM2_Release(struct CS2VM2* vm)
 {
+    struct timespec t0;
+    struct timespec t1;
+
     if( !vm )
         return;
 
+    /* Measured alongside the Init above because the two are one round trip:
+     * a pool hit avoids the 2.9 MB malloc and nothing else, so whatever these
+     * two cost is what every script pays no matter how warm the pool is. */
+    clock_gettime(CLOCK_MONOTONIC, &t0);
     CS2VM2_Free(vm);
+    clock_gettime(CLOCK_MONOTONIC, &t1);
+    TORIRS_PERF_COUNT(
+        TORIRS_PERF_CTR_CS2_VM_RELEASE_NS,
+        (int64_t)(t1.tv_sec - t0.tv_sec) * 1000000000LL + (int64_t)(t1.tv_nsec - t0.tv_nsec));
+
     if( g_vm_pool_count < CS2VM2_POOL_MAX )
         g_vm_pool[g_vm_pool_count++] = vm;
     else
@@ -12279,7 +12794,7 @@ CS2VM2_PoolDrain(void)
     /* Parked VMs hold no frames (Release empties them), so the free list is all
      * that is left to give back. */
     while( g_frame_pool_count > 0 )
-        free(g_frame_pool[--g_frame_pool_count]);
+        cs2vm2_frame_destroy(g_frame_pool[--g_frame_pool_count]);
 }
 
 void

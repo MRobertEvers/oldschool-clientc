@@ -33,17 +33,22 @@ LANE_FORBID_linux  := -dead_strip
 # D3D_DISABLE_9EX removes the Vista-only interfaces from MinGW's d3d9.h at
 # compile time. The post-link probe below also proves the executable imports
 # classic Direct3DCreate9 and no Ex/D3DX/shader-compiler entry point.
-LANE_REQUIRE_win32 := _WIN32_WINNT=0x0501 WINVER=0x0501 -march=i686 \
-                      -mfpmath=387 console:5.01 -static -static-libgcc win32_compat.h \
+LANE_REQUIRE_win32 := _WIN32_WINNT=0x0501 WINVER=0x0501 -march=pentium4 \
+                      -mfpmath=sse console:5.01 -static -static-libgcc win32_compat.h \
                       TORIRS_HAVE_D3D9=1 D3D_DISABLE_9EX=1 -ld3d9
+# -march=i686/-mfpmath=387 are forbidden, not merely un-required. SSE2 is
+# assumed present on every XP target, and the i686 baseline silently costs this
+# lane the SIMD textured span it selects with #if -- 79% of its raster cycles.
+# A well-meaning "restore the conservative baseline" edit must fail the check.
 LANE_FORBID_win32  := -dead_strip -sUSE_SDL=2 webgl1 TORIRS_HAVE_GL3 \
+                      -march=i686 -mfpmath=387 \
                       -ld3dx -ld3dcompiler -ldxcompiler
 
 # --- Modern Windows: explicit Windows 10+, x86_64, standalone D3D9 ----------
 LANE_REQUIRE_win64 := _WIN32_WINNT=0x0A00 WINVER=0x0A00 -march=x86-64 \
                       console:6.0 -static -static-libgcc win32_compat.h \
                       TORIRS_HAVE_D3D9=1 D3D_DISABLE_9EX=1 -ld3d9
-LANE_FORBID_win64  := -march=i686 -mfpmath=387 console:5.01 -dead_strip \
+LANE_FORBID_win64  := -march=i686 -march=pentium4 -mfpmath=387 console:5.01 -dead_strip \
                       -sUSE_SDL=2 webgl1 TORIRS_HAVE_GL3 \
                       -ld3dx -ld3dcompiler -ldxcompiler
 

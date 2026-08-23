@@ -1,0 +1,199 @@
+torirs: js5 host=10.10.10.1 port=43595 fallback=0 revision=239 cache=build/manifests/..\..\cache.osrs239.sparse
+torirs: dat2 cache=build/manifests/..\..\cache.osrs239.sparse iface=161
+torirs: JS5 reference tables primed (23 references, 208 network bytes)
+torirs: JS5 metadata ready (23 references, 208 network bytes)
+torirs_perf: enabled (ring=2048 window=100 budget=20ms cpu_clock=GetThreadTimes) csv=C:\dev\oldschool-clientc\winxp-soft3d-torirs-perf.csv
+audio: no device; running silent
+plugin: 5 of 5 enabled -- tile-indicator-c, nxt-highlight, nxt-bird-nest, nxt-cannon-ammo, lua
+Dat2SpriteLoadByName: archive 'hitmark' not found in sprites table
+osrs239 login: OK, local player index 1
+No terrain archive for map (37,81)
+No scenery archive for map (37,81)
+world_load: map 37,81 unavailable (missing archive)
+No terrain archive for map (38,81)
+No scenery archive for map (38,81)
+world_load: map 38,81 unavailable (missing archive)
+textures: sprite-backed system (no materials table)
+world_load: 4 chunks, 1 underlays, 2 overlays, 1 textures, 91 locs, 80 models, 9 seqs
+Failed to load dat2 idk 307
+spawn_player: element=17407 tile=52,52 level=0
+if-opentop: switching root 161 -> 548
+cs2: HIGHLIGHT opcode 7040 is not recorded -- its subject is a name, and the string stack is discarded before the host sees it
+message_game: Welcome to the mock 230 world.
+message_game: Click to walk. Right-click an npc to talk.
+message_game: Welcome to Lumbridge.
+message_game: Goblins east of the river. Guards on the Al Kharid road.
+message_game: Try ::style 1 for aggressive, or ::setlevel 2 40 for some strength.
+message_game: A crop circle is active near Doric's Hut.
+message_game: <col=ff0000>You have unlocked a new music track: In the Pits
+windowmode: fixed
+client_layout: mode=0
+net: connection lost (client was not running) — attempting to reestablish
+net: reconnect attempt 1
+osrs239 login: RECONNECT_OK, 4608 byte player-info init, index 1
+net: session re-established after 1 attempt(s)
+No terrain archive for map (37,81)
+No scenery archive for map (37,81)
+world_load: map 37,81 unavailable (missing archive)
+No terrain archive for map (38,81)
+No scenery archive for map (38,81)
+world_load: map 38,81 unavailable (missing archive)
+world_load: 4 chunks, 1 underlays, 2 overlays, 1 textures, 91 locs, 80 models, 9 seqs
+Failed to load dat2 idk 307
+spawn_player: element=17407 tile=55,52 level=0
+message_game: Welcome to the mock 230 world.
+message_game: Click to walk. Right-click an npc to talk.
+message_game: Welcome to Lumbridge.
+message_game: Goblins east of the river. Guards on the Al Kharid road.
+message_game: Try ::style 1 for aggressive, or ::setlevel 2 40 for some strength.
+message_game: A crop circle is active near Doric's Hut.
+message_game: <col=ff0000>You have unlocked a new music track: In the Pits
+client_layout: mode=0
+torirs_perf: window=100 writing C:\dev\oldschool-clientc\winxp-soft3d-torirs-perf.csv.windows.csv
+torirs_perf: window=0 frame_p95=1312.19ms
+torirs_perf: window=1 frame_p95=119.85ms
+torirs_perf: window=2 frame_p95=86.12ms
+torirs_perf: window=3 frame_p95=72.05ms
+torirs_perf: window=4 frame_p95=87.27ms
+torirs_perf: window=5 frame_p95=88.87ms
+torirs_perf: window=6 frame_p95=73.55ms
+torirs_perf: window=7 frame_p95=93.92ms
+torirs_perf: window=8 frame_p95=89.65ms
+Connection in progress to 10.10.10.1:43595
+Connection completed
+app: map archives are unencrypted at this revision
+app: cache profile epoch=dat2 game=oldschool revision=239 quirks=none
+Connection in progress to 10.10.10.1:43595
+Connection completed
+Connection in progress to 10.10.10.1:43596
+varp load: 5725 types (5725 records, ids 0..5724)
+varbit load: 20411 types (19086 records, ids 0..20410)
+hitsplat load: 83 types (83 records)
+healthbar load: 85 types (85 records)
+soundscape load: 11 ids (10 records)
+RevConfigBuild done: iface=161 ui=- inline=build/manifests/osrs239-xp-js5.ini tree_components=1073 sprites=0 fonts=0 onloads=6 inv_hooks=0 var_hooks=6 mounts=0
+Connection completed
+RevConfigBuild done: iface=548 ui=- inline=build/manifests/osrs239-xp-js5.ini tree_components=1074 sprites=0 fonts=0 onloads=1 inv_hooks=0 var_hooks=6 mounts=0
+Connection in progress to 10.10.10.1:43596
+Connection completed
+torirs_perf: window=9 frame_p95=90.41ms
+
+=== torirs_perf report ===
+frames=1000 ring=1000 over_20ms=978 (97.8%) eff_fps=11.6
+frame_ns mean=86362315 p50=65718129 p95=111521436 max=6732338886  (budget=20000000)
+main_thread_cpu_ns mean=70187500 p50=46875000 p95=93750000 max=6031250000  (clock=GetThreadTimes distribution=coarse_direct raw_total=70187500000)
+
+stage           mean_ns     p50_ns     p95_ns     max_ns
+async           2555901      21231    1998298 2106579189
+logic          43152896   21556651   65278408 6496321739
+cs2            42487313   20940650   64673302 6495018500
+layout            15889      13689      18996    1624787
+interact          93394      70400      77663   23595736
+emit            2834078    2236318    2332140   27358225
+paint           1576962    1095111    1166070   50062787
+build           1583929    1102096    1173054   50070330
+render         27087976   20107584   43462786   69737354
+pick_finish           0          0          0          0
+present         1520381    1013536    1085892   24570721
+server                0          0          0          0
+platform_poll      54276      16203      94705   15943087
+command_drain      91723       5866      65651   33121248
+app_run        49032656   25047318   70661495 6634601604
+frame_post      1398938     959899    1038121   33371839
+input_prep       105702      36038     114819   31042772
+surface_sync       8252       6426       7543    1629816
+display        34263811   36903014   49233352   86084404
+window_sync     1037803     769651     830273   59776592
+pace             261517       4000       4000   37589000
+period         86647172   65745000  112190000 6732400000
+cs2_settle     14194866    6782147   31939255 1234927345
+ui_icon            2482          0          0    1541817
+tick_packets   13758152      91631   12038401 5642268779
+residual     -237403754  (frame_mean - attributed stages)
+
+counter                                 total    per_frame
+uitree_find_id                         803179       803.18
+uitree_find_id_probes                 3634384      3634.38
+uitree_find_id_linear                     343         0.34
+uitree_id_rebuild                          24         0.02
+uitree_find_child                       63466        63.47
+uitree_find_child_hit                   34606        34.61
+uitree_find_child_ceil_miss             26088        26.09
+uitree_walk_emit                      2763448      2763.45
+uitree_walk_hit                        664867       664.87
+uitree_walk_hover                      112436       112.44
+uitree_emit_skip                      2129275      2129.28
+uitree_layout_resolve                    7412         7.41
+uitree_layout_skip                       3771         3.77
+uitree_layout_nodes                  25907659     25907.66
+uitree_layout_node_skip              25163460     25163.46
+uitree_layout_depth_recompute            3610         3.61
+uitree_ensure_layout                    77735        77.73
+uitree_cc_create                        30283        30.28
+uitree_cc_delete                           30         0.03
+uitree_cc_deleteall                      4116         4.12
+uitree_cc_deleteall_rows                 9902         9.90
+uitree_apply_geo                        58996        59.00
+uitree_apply_content                    68945        68.94
+uitree_apply_hook                       33089        33.09
+uitree_apply_other                      57360        57.36
+uitree_components                     6959010      6959.01
+uitree_capacity                       7964672      7964.67
+uitree_free_list                         5316         5.32
+uitree_node_bytes                  5479694336   5479694.34
+cs2_scripts                             79002        79.00
+cs2_opcodes                           8015290      8015.29
+cs2_host_ops                          1179333      1179.33
+cs2_cycles                            8015290      8015.29
+cs2_vm_acquire                          76671        76.67
+cs2_vm_pool_hit                         76670        76.67
+cs2_vm_pool_miss                            1         0.00
+cs2_vm_init_ns                      789943638    789943.64
+cs2_frame_pool_hit                     115871       115.87
+cs2_frame_pool_miss                        10         0.01
+cache_model_hit                         24543        24.54
+cache_model_miss                          194         0.19
+cache_sprite_hit                        18144        18.14
+cache_sprite_miss                        1134         1.13
+model_inst_hit                            150         0.15
+model_inst_miss                           135         0.14
+model_inst_evict                           36         0.04
+painter_pops                          5930046      5930.05
+painter_gate_rejects                  2391850      2391.85
+painter_pushes                        5930046      5930.05
+painter_push_dedup                    5999654      5999.65
+painter_commands                      1055935      1055.93
+painter_tiles_remaining_set           3149208      3149.21
+scene_elements                       16966773     16966.77
+scene_anim_list                        187008       187.01
+cache_model_size                       109919       109.92
+cache_sprite_size                      725309       725.31
+iface_open                                 92         0.09
+iface_close                                50         0.05
+iface_bake                                 64         0.06
+iface_bake_reuse                           28         0.03
+iface_mount_ns                      257362875    257362.88
+iface_close_ns                       72176776     72176.78
+iface_groups_resident                   25228        25.23
+uitree_hidden                         3147240      3147.24
+uitree_unmounted                         1021         1.02
+uitree_freed                             5286         5.29
+uitree_hook_blocks                    2094725      2094.72
+uitree_hook_bytes                  1675780000   1675780.00
+host_inv_hooks                          19201        19.20
+host_var_hooks                         165289       165.29
+host_stat_hooks                         65704        65.70
+bridge_sprite_map                      526601       526.60
+bridge_obj_icon_map                     10606        10.61
+cache_clientscript_size                555432       555.43
+uitree_anim_scan                         6826         6.83
+iface_group_scan_nodes                  25702        25.70
+logic_ticks                              3424         3.42
+proto_packets                            1146         1.15
+ui_icon_raster                             18         0.02
+npc_model_cache_hit                        16         0.02
+npc_model_cache_miss                        9         0.01
+
+torirs_perf: wrote C:\dev\oldschool-clientc\winxp-soft3d-torirs-perf.csv
+=== end torirs_perf ===
+

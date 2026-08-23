@@ -103,7 +103,7 @@
       "--clang-tidy",
       "--header-insertion=never",
       "--compile-commands-dir=${workspaceFolder}/build-winxp",
-      "--query-driver=${workspaceFolder}/toolchain/win32/mingw32/bin/**,C:/Users/mrobe/Downloads/**/mingw32/bin/**"
+      "--query-driver=${workspaceFolder}/toolchains/mingw32/bin/**,C:/Users/mrobe/Downloads/**/mingw32/bin/**"
     ]
   },
   "[linux]": {

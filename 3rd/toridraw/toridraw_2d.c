@@ -5,6 +5,7 @@
 #include <assert.h>
 #include <math.h>
 #include <stdlib.h>
+#include <string.h>
 
 static int
 toridraw2d_argb_alpha(uint32_t p)
@@ -369,6 +370,57 @@ ToriDraw2D_BlitArgbAlpha(
     int const draw_w = (int)(x1 - x0);
     int const draw_h = (int)(y1 - y0);
     int const stride = view_port->stride;
+
+    /*
+     * The fully-opaque caller is the common one -- ToriDraw2D_BlitArgb routes
+     * here with a literal 255, and that is what the UI chrome uses -- so it
+     * gets its own row walk instead of paying the per-pixel branch ladder.
+     *
+     * The ladder is what costs. Per pixel the shared path extracts the alpha,
+     * tests it against the blend factor, against 0, and against 255; the last
+     * two are data-dependent, so a sprite edge mispredicts on every pixel.
+     * Sprite rows are not edges though -- they are long runs of a==255
+     * (interior) and a==0 (surround) with a few blended pixels between. Walking
+     * runs pays one branch per run rather than per pixel, and hands the opaque
+     * run to memcpy, which the lane now vectorises.
+     *
+     * The copy is verbatim because a==255 already means the source word's top
+     * byte is 0xFF, so the `argb | 0xFF000000` that the per-pixel path applies
+     * is a no-op on exactly the pixels this run contains. Same bytes out.
+     */
+    if( alpha == 255 )
+    {
+        for( int y = 0; y < draw_h; y++ )
+        {
+            uint32_t const* srow = src + (size_t)(src_y0 + y) * src_w + src_x0;
+            int* drow = pixel_buffer + (size_t)((int)y0 + y) * stride + (int)x0;
+            int x = 0;
+            while( x < draw_w )
+            {
+                uint32_t const a = srow[x] >> 24;
+                if( a == 255u )
+                {
+                    int run = x + 1;
+                    while( run < draw_w && (srow[run] >> 24) == 255u )
+                        run++;
+                    memcpy(&drow[x], &srow[x], (size_t)(run - x) * sizeof(*drow));
+                    x = run;
+                }
+                else if( a == 0u )
+                {
+                    do
+                        x++;
+                    while( x < draw_w && (srow[x] >> 24) == 0u );
+                }
+                else
+                {
+                    toridraw2d_blend_argb_unclipped(&drow[x], srow[x], 255);
+                    x++;
+                }
+            }
+        }
+        return;
+    }
 
     for( int y = 0; y < draw_h; y++ )
     {

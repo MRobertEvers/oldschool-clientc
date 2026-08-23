@@ -142,8 +142,8 @@ a declared contract, see `DESKTOP-LINK-001` in
 
 You do **not** need to install a compiler. Both toolchains are repository
 inputs: pinned WinLibs/MinGW-w64 archives committed through Git LFS under
-`lib/`, which the PowerShell wrappers extract on demand into the ignored
-`toolchain/` directory and validate by target triple.
+`lib/`, which the PowerShell wrappers extract on demand into the shared
+`toolchains/` directory and validate by target triple.
 
 | Lane | Archive | Triple |
 |---|---|---|

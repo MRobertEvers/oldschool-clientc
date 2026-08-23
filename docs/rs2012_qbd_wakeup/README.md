@@ -60,7 +60,7 @@ out and fall back to sleeping idle first.
 ## Rebuilding after a `.rs2`/`.constant` edit
 
 ```sh
-export PATH="$PWD/toolchain/mingw64/bin:$PATH"
+export PATH="$PWD/toolchains/mingw64/bin:$PATH"
 mingw32-make -C src torirsserver-scripts torirsserver-servpack
 mingw32-make -C src EMBED_SERVER=1 CC=gcc win64
 cp src/torirs_win64.exe dist/win64/torirs.exe

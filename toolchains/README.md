@@ -1,4 +1,11 @@
-# Vendored Java toolchain
+# Repository toolchains
+
+This directory is the single home for the repository's materialized compiler
+toolchains and its vendored Java bundle. The Windows build wrappers use
+`mingw32/`, `mingw64/`, and `emsdk-win64/`; the RuneLite lane uses the Java
+archive and `unpacked/`. This directory is intentionally not gitignored.
+
+## Vendored Java toolchain
 
 `java-toolchain-osrs239.zip` is everything Java that `run-runelite.sh` needs and
 that lives in no repository: a JDK, RuneLite's own jar repository, and the two
@@ -61,9 +68,6 @@ Overridable with `JAVA_HOME`, `RL_REPO`, `DEOB_REPO`, `RL_VERSION`.
 
 ## Size, and git
 
-The zip is a few hundred megabytes. It is a build input rather than source, so
-decide deliberately whether it belongs in history: either track it with
-`git lfs track 'toolchains/*.zip'` or leave it untracked. Note that the
-repository's `.gitignore` already ignores `/toolchain/` (singular, an unrelated
-emscripten path) and does **not** ignore this directory, so an unthinking
-`git add -A` will try to commit the whole zip as a blob.
+The zip is a few hundred megabytes and is tracked through Git LFS. Materialized
+toolchains are visible to Git as well, so review them deliberately when adding
+changes.

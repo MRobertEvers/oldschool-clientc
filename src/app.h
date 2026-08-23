@@ -2450,6 +2450,16 @@ App_SetAudioFeedback(
     struct App* app,
     const struct ToriRS_AudioFeedback* feedback);
 
+/**
+ * Tell the game whether the host opened an output device at all.
+ *
+ * Separate from the per-frame feedback above, which reports on a device that
+ * exists. A host that never calls this is assumed to have one, so the silent
+ * path is opt-in and nothing changes for a host that does not know about it.
+ */
+void
+App_SetAudioDevicePresent(struct App* app, bool present);
+
 /** Play a music track (MIDI_SONG / MIDI_SONG_V2). */
 void
 App_PlaySong(

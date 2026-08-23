@@ -28,7 +28,6 @@ symbols.txt
 public/cache/
 .cache/
 emsdk/
-/toolchain/
 android/.idea/
 
 package_build_*.zip

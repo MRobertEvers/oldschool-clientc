@@ -144,9 +144,24 @@ enum UITreeElemPositionKind
 
 struct UITreeElemPosition
 {
-    enum UITreeElemPositionKind kind;
+    /* Hot front, 36 bytes: UITree_LayoutGetBounds reads exactly these nine
+     * fields and nothing else, and it runs on every node of every per-frame
+     * walk. They are first so that they share the containing component's first
+     * cache line — see the hot block at the top of struct UITreeComponent for
+     * why that matters. Ordering inside this struct is not observed anywhere
+     * (no positional initializers, no memcpy/fread over it), but keep the
+     * layout-resolved bounds together at the front. */
+    uint8_t layout_resolved;
+    int abs_x;
+    int abs_y;
+    int abs_w;
+    int abs_h;
     int x;
     int y;
+    int width;
+    int height;
+
+    enum UITreeElemPositionKind kind;
 
     int relative_flags;
     int anchor_x;
@@ -155,8 +170,6 @@ struct UITreeElemPosition
     int top;
     int right;
     int bottom;
-    int width;
-    int height;
 
     int8_t x_mode;
     int8_t y_mode;
@@ -164,12 +177,6 @@ struct UITreeElemPosition
     int8_t height_mode;
     int aspect_w;
     int aspect_h;
-
-    int abs_x;
-    int abs_y;
-    int abs_w;
-    int abs_h;
-    uint8_t layout_resolved;
 };
 
 /* Runtime script hooks live in their own file: the slot type, its accessors and
@@ -200,6 +207,16 @@ struct UITreeInterfaceParent
 
 struct UITreeBehavior
 {
+    /** First on purpose: this is the one field of this struct the per-frame
+     *  walks read on every node, and putting it at offset 0 keeps it on the
+     *  second cache line of the component rather than a fourth. */
+    uint8_t hide;
+    /** Set when `hide` was forced by the interface-mount bookkeeping (a group
+     *  baked into the tree but not mounted anywhere, or the group a mount slot
+     *  just replaced) rather than by the cache data or a script. Mounting the
+     *  group clears it — a cache/script hide is left alone. */
+    uint8_t hide_unmounted;
+    uint8_t script_kind;
     /** CS1 (IF1) value scripts: scripts[i] is compared against script_operand[i]
      *  using script_comparator[i] to decide the component's active state. */
     int scripts_count;
@@ -209,13 +226,6 @@ struct UITreeBehavior
     int comparator_count;
     int* script_comparator;
     int* script_operand;
-    uint8_t hide;
-    /** Set when `hide` was forced by the interface-mount bookkeeping (a group
-     *  baked into the tree but not mounted anywhere, or the group a mount slot
-     *  just replaced) rather than by the cache data or a script. Mounting the
-     *  group clears it — a cache/script hide is left alone. */
-    uint8_t hide_unmounted;
-    uint8_t script_kind;
     int button_type;
     int client_code;
     int32_t click_mask;
@@ -365,16 +375,47 @@ struct UITreeComponentParam
 
 struct UITreeComponent
 {
+    /* --- Hot block: the fields every per-frame walk reads on every node it
+     * visits, packed into this struct's first cache line. Do not scatter them.
+     *
+     * The tree is ~7,100 components of ~744 bytes — 5.3 MB, several times the
+     * L2 — and the emit walk chases first_child/next_sibling indices through
+     * it in an order unrelated to the array's layout, so each visit is a
+     * random stride and every extra 64-byte line it straddles is its own DRAM
+     * miss. Measured: repeating the emit walk over the just-warmed tree costs
+     * 41% of the cold walk, i.e. ~59% of the stage is the memory system, and
+     * prefetching does not help because the footprint, not the latency, is
+     * the problem. Before this block the per-visit reads were spread over
+     * lines 0, 1, 2 and 5; they now sit on line 0, plus `behavior.hide` on
+     * line 1.
+     *
+     * type + the three links + component_id + trans + four flag bytes is 28
+     * bytes, and the hot front of `position` is the other 36 — exactly 64.
+     * There is no slack: one more field here pushes `position.height` onto
+     * the next line and gives the win back. --- */
     enum UITreeComponentType type;
+    int32_t parent;
+    int32_t first_child;
+    int32_t next_sibling;
+    int component_id;
+    int trans;
+    uint8_t if3;
+    /** Visual-only override flag while dragging (does not mutate position.abs_*);
+     *  the drag_visual_* values it selects are cold and live below. */
+    uint8_t drag_active;
     uint8_t always_dirty;
     uint8_t is_dirty;
+    struct UITreeElemPosition position;
+    /** Immediately after `position` so that `behavior.hide` — read on every
+     *  visit, and the only field of this struct that is — lands at offset 112,
+     *  on the second cache line rather than a fourth one. */
+    struct UITreeBehavior behavior;
+    /* --- end hot block --- */
+
     /** Slot is on the tree free-list (CC_DELETEALL reclaim); skipped by array
      *  walks and reused by the next push. */
     uint8_t freed;
     int32_t free_next;
-    int32_t parent;
-    int32_t first_child;
-    int32_t next_sibling;
     /** Hint at the tail of `first_child`'s sibling list, so appending a child is
      *  O(1) instead of walking the list (cc_create fills a container one child at
      *  a time, which is quadratic in the child count). Never trusted blindly —
@@ -401,7 +442,6 @@ struct UITreeComponent
     int32_t* child_key_index;
     int32_t child_key_index_cap;
     uint8_t child_key_index_bad;
-    int component_id;
     uint8_t dynamic;
     int dynamic_child_index;
 
@@ -421,8 +461,6 @@ struct UITreeComponent
     int fill_colour;
     char* data_text;
 
-    int trans;
-    uint8_t if3;
     uint8_t no_click_through;
     uint8_t draggable;
     int drag_behavior;
@@ -432,13 +470,12 @@ struct UITreeComponent
     /** CC/IF_SETDRAGGABLE render-area parent uid (-1 = none). */
     int drag_render_area_uid;
     int drag_render_area_child_index;
-    /** Visual-only overrides while dragging (do not mutate position.abs_*). */
-    uint8_t drag_active;
+    /** Visual-only overrides while dragging (do not mutate position.abs_*);
+     *  selected by `drag_active` up in the hot block. */
     int drag_visual_x;
     int drag_visual_y;
     int drag_visual_trans; /* -1 = use component trans; else forced (e.g. 128) */
 
-    struct UITreeBehavior behavior;
     /** Last CS1 evaluation, written by the CS1 eval task and read by the emit
      *  host: emit stays synchronous while the VM's asset yields are serviced by
      *  the task layer. */
@@ -468,7 +505,6 @@ struct UITreeComponent
     int params_capacity;
     int scroll_x;
     int scroll_y;
-    struct UITreeElemPosition position;
     /* Lazily allocated — see ui/uitree_component_options.h. Read through
      * UITree_MenuOptions / UITree_OpKeys (never NULL), write through the Mut
      * accessors, test with the Has ones. */
@@ -759,9 +795,53 @@ struct UITree
     /** Tail of root sibling list — O(1) append while baking large packs. */
     int32_t last_root_index;
     uint32_t generation;
+    /** Bumped every time `UITree_LayoutResolve` actually walks, i.e. every time
+     *  a resolved box could have moved. `dirty_gen` does not cover this: layout
+     *  re-resolves on `layout_stale`, `layout_force_full` and a changed root box,
+     *  none of which raise a component's `is_dirty`. That gap is what made the
+     *  emit retention gate call a frame quiet while a clip width moved 765 -> 807
+     *  underneath it (measured once, at emit #5 of a 2,000-frame run). It is the
+     *  third term of the gate, alongside `dirty_gen` and the hover id. */
+    uint32_t layout_resolve_seq;
     /** Bumped only when a component_id is assigned or cleared (reclaim) — the id
      *  index depends on ids alone, so topology churn must not invalidate it. */
     uint32_t id_generation;
+    /** Bumped wherever a component's `is_dirty` is raised, i.e. by every write
+     *  that claims to change what a node draws — the tree half of the emit
+     *  retention signal (Opt 11). `generation` is not a substitute: it tracks
+     *  topology only, so a cc_settext that rewrites a label leaves it alone.
+     *
+     *  Deliberately conservative. It over-counts freely (a write of the same
+     *  value still bumps), because over-counting only costs a missed skip,
+     *  whereas under-counting reuses a stale list and freezes a panel. Anything
+     *  that sets `is_dirty` must bump this in the same breath. */
+    uint32_t dirty_gen;
+    /** One byte per node, set by `emit_walk_node` for every node the last emit
+     *  walk entered, cleared at the head of each walk. It is the reachability
+     *  half of the retention signal: `UITree_MarkNodeDirty` skips the
+     *  `dirty_gen` bump for a node this array says the walk never reached, so a
+     *  closed interface ticking its 3D model stops defeating the gate.
+     *
+     *  "Reached" and "hidden" are not the same question, which is why this is a
+     *  bitmap and not a `UITree_ComponentOrAncestorHidden` call: inactive
+     *  sidebar tabs prune their whole mounted subtree with no hide bit set
+     *  anywhere, and a dynamically-created child with no component_id cannot be
+     *  looked up by that function at all. Both read as visible; neither is.
+     *
+     *  Sound because a node the walk did not enter can only become entered if
+     *  some ancestor's traversal decision changed, and every write that changes
+     *  one goes through a `dirty_gen` bump on that ancestor — which was itself
+     *  entered, since it is the node that made the decision. That is why the
+     *  bump sites inside uitree.c stay unfiltered: they are the ones that move
+     *  hide bits and topology, and filtering them would break the argument.
+     *
+     *  Written through a `struct UITree const*` on purpose — the walk takes the
+     *  tree read-only and this is scratch, not tree state. Allocated on first
+     *  walk; `cap` trails `component_count` after a growth, and an index past
+     *  it is treated as reached (conservative: a new node has never been
+     *  walked, so it must not be skipped). */
+    uint8_t* emit_visited;
+    uint32_t emit_visited_cap;
     /** Head of the reclaimed-slot free-list (chained via component free_next). */
     int32_t free_head;
     /** Lazy id->index acceleration for UITree_FindByComponentId. Open-addressed,

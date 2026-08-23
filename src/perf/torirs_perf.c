@@ -16,10 +16,19 @@
 #endif
 
 int g_torirs_perf_enabled = 0;
+uint64_t g_torirs_cc_create_seq = 0;
+uint64_t g_torirs_dirty_mark_seq = 0;
+uint64_t g_torirs_dirty_topo_seq = 0;
+uint64_t g_torirs_cs2_script_ns = 0;
+int g_torirs_dirty_topo_line = 0;
 
 #define TORIRS_PERF_RING 2048
 #define TORIRS_PERF_BUDGET_NS 20000000ull /* 20 ms */
 #define TORIRS_PERF_WINDOW_DEFAULT 1000
+/* Gauge resample cadence when no window boundary is near. Small enough that the
+ * exit report never quotes a stale growth figure, large enough that the full
+ * tree walks behind the gauges cost nothing measurable. */
+#define TORIRS_PERF_GAUGE_FALLBACK_FRAMES 64
 
 struct TorirsPerfFrame
 {
@@ -57,6 +66,9 @@ static uint64_t g_frames_over_budget;
 static char g_csv_path[512];
 static int g_window_frames;
 static int g_window_index;
+/* Sticky per-site "a gauge sample is wanted" flags; see
+ * TorirsPerf_GaugeSampleDue. */
+static int g_gauge_sample_due[TORIRS_PERF_GAUGE_SITE_COUNT] = { 1, 1 };
 static FILE* g_window_csv;
 static int g_window_csv_header_written;
 static int g_window_flush_pending;
@@ -71,6 +83,19 @@ static char const* const g_stage_names[TORIRS_PERF_STAGE_COUNT] = {
     "emit",     "paint",  "build",  "render",  "pick_finish", "present", "server",
     "platform_poll", "command_drain", "app_run", "frame_post",
     "input_prep", "surface_sync", "display", "window_sync", "pace", "period", "cs2_settle", "ui_icon", "tick_packets",
+    "cs2_settle_layout", "present_fill", "present_blit", "cs2_host_op",
+    "cs2_settle_followups",
+    "cs2_script",
+    "task_queue_run",
+    "cs2_task_start",
+    "cs2_script_in",
+    "task_io",
+    "r_clear",
+    "r_model",
+    "r_sprite",
+    "r_font",
+    "r_rect",
+    "r_other",
 };
 
 static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
@@ -100,7 +125,9 @@ static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
     "uitree_apply_geo",
     "uitree_apply_content",
     "uitree_apply_hook",
+    "uitree_apply_hook_skip",
     "uitree_apply_other",
+    "uitree_apply_nochange",
     "uitree_key_scan",
     "uitree_key_scan_nodes",
     "uitree_components",
@@ -116,8 +143,12 @@ static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
     "cs2_vm_pool_hit",
     "cs2_vm_pool_miss",
     "cs2_vm_init_ns",
+    "cs2_vm_release_ns",
     "cs2_frame_pool_hit",
     "cs2_frame_pool_miss",
+    "cs2_frame_push",
+    "cs2_frame_clear_bytes",
+    "cs2_frame_locals_bytes",
     "cache_model_hit",
     "cache_model_miss",
     "cache_model_evict",
@@ -232,6 +263,33 @@ static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
     "ui_model_build",
     "npc_model_cache_hit",
     "npc_model_cache_miss",
+    "present_blit_1to1",
+    "present_blit_stretch",
+    "present_blit_pixels",
+    "present_fill_pixels",
+    "chrome_strip_vischeck",
+    "emit_list_same",
+    "emit_list_diff",
+    "emit_desc_diff",
+    "emit_dirty_bumps",
+    "emit_dirty_unreached",
+    "emit_dirty_mark",
+    "emit_dirty_topo",
+    "emit_gen_quiet",
+    "emit_gen_unsound",
+    "task_steps",
+    "task_resumes",
+    "task_ends",
+    "anim_marks",
+    "gate_tree_quiet",
+    "gate_hover_quiet",
+    "emit_retained",
+    "emit_retain_blocked",
+    "r_cmds",
+    "r_cmds_model",
+    "r_cmds_sprite",
+    "r_cmds_font",
+    "r_cmds_rect",
 };
 
 /* COUNT_SET gauges: window flush reports last sample, not a sum. */
@@ -793,6 +851,7 @@ TorirsPerf_Init(int enabled)
     char const* env;
     char const* csv;
     char const* win;
+    int i;
 
     memset(&g_cur, 0, sizeof(g_cur));
     memset(g_ring, 0, sizeof(g_ring));
@@ -817,6 +876,8 @@ TorirsPerf_Init(int enabled)
     g_window_csv_header_written = 0;
     g_window_flush_pending = 0;
     g_window_frames = TORIRS_PERF_WINDOW_DEFAULT;
+    for( i = 0; i < TORIRS_PERF_GAUGE_SITE_COUNT; i++ )
+        g_gauge_sample_due[i] = 1;
     torirs_perf_cpu_cycle_clock_init();
 
     env = getenv("TORIRS_PERF");
@@ -983,6 +1044,37 @@ TorirsPerf_FrameEnd(void)
     if( g_window_frames > 0 && g_csv_path[0] &&
         (g_total_frames % (uint64_t)g_window_frames) == 0 )
         g_window_flush_pending = 1;
+
+    /*
+     * Arm the next gauge sample. g_total_frames now counts completed frames, so
+     * the frame about to start has index g_total_frames and is the last one of
+     * its window when (index + 1) % window == 0 — sampling there puts a fresh
+     * value in front of the flush. The 64-frame fallback keeps the exit report
+     * (and a run with no window CSV) from quoting a stale gauge.
+     */
+    if( (g_window_frames > 0 &&
+         ((g_total_frames + 1) % (uint64_t)g_window_frames) == 0) ||
+        (g_total_frames % TORIRS_PERF_GAUGE_FALLBACK_FRAMES) == 0 )
+    {
+        int i;
+        for( i = 0; i < TORIRS_PERF_GAUGE_SITE_COUNT; i++ )
+            g_gauge_sample_due[i] = 1;
+    }
+}
+
+int
+TorirsPerf_GaugeSampleDue(enum TorirsPerfGaugeSite site)
+{
+    assert(site >= 0);
+    assert(site < TORIRS_PERF_GAUGE_SITE_COUNT);
+    if( !g_torirs_perf_enabled )
+        return 0;
+    if( !g_gauge_sample_due[site] )
+        return 0;
+    /* Consume: a frame that runs no logic tick leaves the arm set for the next
+     * one rather than skipping the window's sample entirely. */
+    g_gauge_sample_due[site] = 0;
+    return 1;
 }
 
 void

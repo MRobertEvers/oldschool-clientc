@@ -168,12 +168,12 @@ The tree ships a Mach-O `cs2` binary; on Windows the build produces `cs2.exe`
 beside it.
 
 ```sh
-export PATH="/c/Users/mrobe/Documents/git_repos/oldschool-clientc/toolchain/mingw64/bin:$PATH"
+export PATH="/c/Users/mrobe/Documents/git_repos/oldschool-clientc/toolchains/mingw64/bin:$PATH"
 cd 3rd/rscache/tools && mingw32-make CC=gcc cs2
 # -> 3rd/rscache/tools/cs2/cs2.exe
 ```
 
-`toolchain/mingw64` is the bundled compiler. There is no `cc`/`gcc` on the
+`toolchains/mingw64` is the bundled compiler. There is no `cc`/`gcc` on the
 default PATH and no WSL on this machine.
 
 ### The gates, in order
@@ -884,7 +884,7 @@ stack-unbalanced code.
 
 **Build.** The tool did not compile on Windows (D11). Fixed by including the
 compat header that already existed for the purpose. Built with the bundled
-`toolchain/mingw64`.
+`toolchains/mingw64`.
 
 **Baseline.** Ran all four gates. Stage 1 came back 9,744/9,745 exact, which made
 the rest tractable: everything below is the language layer. Stage 4 at 32.6% was

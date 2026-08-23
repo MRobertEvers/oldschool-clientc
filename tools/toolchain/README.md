@@ -2,9 +2,9 @@
 
 The two Windows build lanes use pinned WinLibs/MinGW-w64 archives committed
 through Git LFS under `lib/`. The PowerShell wrappers validate the compiler
-triple and extract the required archive on demand into the ignored
-`toolchain/` directory. Extracted compiler trees are caches, not source files;
-do not force-add them.
+triple and extract the required archive on demand into the shared
+`toolchains/` directory alongside the Java toolchain. The directory is not
+ignored, so all repository toolchain material is visible to Git in one place.
 
 | Lane | Canonical archive | Required triple | Contents | Repository SHA-256 |
 |---|---|---|---|---|
