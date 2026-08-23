@@ -22,11 +22,18 @@
  *     that eating it plays an animation. RuneLite carries the same table for
  *     the same reason.
  *
- *   - EQUIPMENT is the CACHE, and needs no table at all. An OldSchool obj
- *     record keeps its twelve bonuses in its own param block (ids 0..11, with
- *     14 the attack rate and 12/189 the ranged strength), which is the same
- *     block this tree's server reads to run real accuracy formulas. So every
- *     item in the game answers, including ones authored after this file.
+ *   - EQUIPMENT is the CACHE where the cache knows. An OldSchool obj record
+ *     keeps its twelve bonuses in its own param block (ids 0..11, with 14 the
+ *     attack rate and 12/189 the ranged strength), which is the same block this
+ *     tree's server reads to run real accuracy formulas. So on those revisions
+ *     every item in the game answers, including ones authored after this file.
+ *
+ *     A DAT1 cache states none of it -- no params, no wearpos, no attack rate,
+ *     because in 2004 the bonuses were the SERVER's and the equipment screen
+ *     was text it sent. For those worlds the numbers are shipped too, in
+ *     `bonuses.txt` beside the font (see tools/item_bonus_bake), and read ONLY
+ *     when the open cache carries nothing -- so an OldSchool session can never
+ *     be told about a different game's balance.
  *
  * The table is keyed by NAME and not by item id, which is the one real
  * departure from the reference. RuneLite runs against one revision and can name
@@ -2088,6 +2095,151 @@ is_build_consumable(
     }
 }
 
+/* --------------------------------------------- bonuses this cache lacks */
+
+/*
+ * The equipment table the plugin ships, for revisions whose cache states no
+ * bonuses at all.
+ *
+ * That is every DAT1 world -- the 2004-2005 caches, and every LostCity server
+ * this client boots. There the bonuses were the SERVER's: the equipment screen
+ * was text it sent, and the obj record carries no params, no wearpos and no
+ * attack rate. A client cannot compute what it was never told, so the numbers
+ * are shipped, exactly as RuneLite ships item_stats.json -- and the honest
+ * source for them is an OldSchool cache, which is this game's own answer for an
+ * item of that name. See tools/item_bonus_bake.
+ *
+ * Read ONLY when the open cache states nothing: an OldSchool session answers
+ * out of its own record, so the table can never contradict the cache the player
+ * is actually running.
+ */
+struct is_bonus_row
+{
+    /** Normalized with the same is_normalize_name the lookup uses, so the two
+     *  sides cannot drift: the file ships raw lowercase names. */
+    char name[56];
+    short slot;
+    short two_handed;
+    short bonus[TORIRS_PLUGIN_BONUS_COUNT];
+    short ranged_strength;
+    short speed;
+};
+
+static struct is_bonus_row* g_bonus;
+static int g_bonus_count;
+/** 0 not tried, 1 loaded, -1 the asset is absent -- which is a legitimate
+ *  install (the table is only needed by the older revisions) and must not be
+ *  retried every frame. */
+static int g_bonus_state;
+
+static int
+is_load_bonuses(struct ToriRS_PluginCtx* ctx)
+{
+    char const* at;
+    int size = 0;
+    int cap = 0;
+
+    assert(ctx);
+
+    if( g_bonus_state != 0 )
+        return g_bonus_state > 0;
+    if( !g_api->asset_load(ctx, "bonuses.txt") )
+        return 0; /* still reading; asked again next frame */
+    at = (char const*)g_api->asset_data(ctx, "bonuses.txt", &size);
+    if( !at || size <= 0 )
+    {
+        g_bonus_state = -1;
+        return 0;
+    }
+
+    for( char const* end = at + size; at < end; )
+    {
+        /* The asset is a byte range and not a C string, so each line is copied
+         * out before sscanf runs to a NUL that is not there. */
+        char line[160];
+        char const* start = at;
+        char const* stop = start;
+        char const* eq;
+        size_t len;
+        struct is_bonus_row row;
+        int v[16];
+
+        while( stop < end && *stop != '\n' )
+            stop++;
+        at = stop < end ? stop + 1 : end;
+        if( stop > start && stop[-1] == '\r' )
+            stop--;
+        len = (size_t)(stop - start);
+        if( len >= sizeof(line) )
+            len = sizeof(line) - 1;
+        memcpy(line, start, len);
+        line[len] = '\0';
+
+        if( line[0] == ';' || line[0] == '\0' )
+            continue;
+        eq = strchr(line, '=');
+        if( !eq || eq == line )
+            continue;
+        if( sscanf(
+                eq + 1,
+                "%d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d",
+                &v[0], &v[1], &v[2], &v[3], &v[4], &v[5], &v[6], &v[7],
+                &v[8], &v[9], &v[10], &v[11], &v[12], &v[13], &v[14], &v[15]) != 16 )
+            continue;
+
+        memset(&row, 0, sizeof(row));
+        {
+            char raw[64];
+            size_t name_len = (size_t)(eq - line);
+            if( name_len >= sizeof(raw) )
+                name_len = sizeof(raw) - 1;
+            memcpy(raw, line, name_len);
+            raw[name_len] = '\0';
+            is_normalize_name(raw, row.name, sizeof(row.name));
+        }
+        if( row.name[0] == '\0' )
+            continue;
+        row.slot = (short)v[0];
+        row.two_handed = (short)v[1];
+        for( int i = 0; i < TORIRS_PLUGIN_BONUS_COUNT; i++ )
+            row.bonus[i] = (short)v[2 + i];
+        row.ranged_strength = (short)v[14];
+        row.speed = (short)v[15];
+
+        if( g_bonus_count == cap )
+        {
+            cap = cap ? cap * 2 : 512;
+            g_bonus = realloc(g_bonus, (size_t)cap * sizeof(*g_bonus));
+            assert(g_bonus);
+        }
+        g_bonus[g_bonus_count++] = row;
+    }
+
+    /* The bytes are the host's and are not needed once parsed. */
+    g_api->asset_release(ctx, "bonuses.txt");
+    g_bonus_state = g_bonus_count > 0 ? 1 : -1;
+    return g_bonus_state > 0;
+}
+
+static struct is_bonus_row const*
+is_bonus_lookup(struct ToriRS_PluginCtx* ctx, char const* cache_name)
+{
+    char key[56];
+
+    assert(ctx);
+    assert(cache_name);
+
+    if( !is_load_bonuses(ctx) )
+        return NULL;
+    is_normalize_name(cache_name, key, sizeof(key));
+    if( key[0] == '\0' )
+        return NULL;
+    for( int i = 0; i < g_bonus_count; i++ )
+        if( strcmp(g_bonus[i].name, key) == 0 )
+            return &g_bonus[i];
+    return NULL;
+}
+
 /* ------------------------------------------------------- equipment stats */
 
 /*
@@ -2116,6 +2268,54 @@ enum
     IS_SLOT_SHIELD = 5,
     IS_SLOT_RING = 12
 };
+
+static void
+is_equip_from_info(struct ToriRS_PluginObjInfo const* info, struct is_equip* out);
+
+/*
+ * What this item does to a combat roll, from whichever source knows.
+ *
+ * The cache first, always: an OldSchool record states its own bonuses and is
+ * the truth for the session being played. Only when it states NOTHING -- a
+ * dat1 world, where the numbers were the server's -- does the shipped table
+ * answer, and then it also supplies the slot and the two-handedness, because a
+ * dat1 record carries no wearpos either.
+ *
+ * @return 1 when the bonuses are known, 0 when neither source has them, and 0
+ * leaves `out` zeroed rather than claiming an item has none.
+ */
+static int
+is_equip_resolve(
+    struct ToriRS_PluginCtx* ctx,
+    struct ToriRS_PluginObjInfo const* info,
+    struct is_equip* out)
+{
+    struct is_bonus_row const* row;
+
+    assert(ctx);
+    assert(info);
+    assert(out);
+
+    if( info->has_bonuses )
+    {
+        is_equip_from_info(info, out);
+        return 1;
+    }
+
+    row = is_bonus_lookup(ctx, info->name);
+    if( !row || row->slot < 0 )
+        return 0;
+
+    memset(out, 0, sizeof(*out));
+    out->wearpos = row->slot;
+    out->two_handed = row->two_handed;
+    out->ranged_strength = row->ranged_strength;
+    out->speed = row->speed >= 0 ? row->speed : 0;
+    out->stated = 1;
+    for( int i = 0; i < TORIRS_PLUGIN_BONUS_COUNT; i++ )
+        out->bonus[i] = row->bonus[i];
+    return 1;
+}
 
 static void
 is_equip_from_info(struct ToriRS_PluginObjInfo const* info, struct is_equip* out)
@@ -2181,8 +2381,7 @@ is_worn_equip(struct ToriRS_PluginCtx* ctx, int slot, struct is_equip* out)
         return 0;
     if( obj_id < 0 || !g_api->obj_info(ctx, obj_id, &info) )
         return 0;
-    is_equip_from_info(&info, out);
-    return 1;
+    return is_equip_resolve(ctx, &info, out);
 }
 
 /*
@@ -2263,10 +2462,9 @@ is_build_equipment(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginObjInfo con
     assert(ctx);
     assert(info);
 
-    if( !info->has_bonuses || info->wearpos < 0 )
+    if( !is_equip_resolve(ctx, info, &self) || self.wearpos < 0 )
         return;
 
-    is_equip_from_info(info, &self);
     diff = self;
 
     have_other = is_worn_equip(ctx, self.wearpos, &other);
@@ -2599,6 +2797,10 @@ is_shutdown(struct ToriRS_PluginCtx* ctx)
     g_tip_obj = -1;
     g_text_px = NULL;
     g_glyph_ready = 0;
+    free(g_bonus);
+    g_bonus = NULL;
+    g_bonus_count = 0;
+    g_bonus_state = 0;
 }
 
 /*

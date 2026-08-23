@@ -110,11 +110,19 @@ local plugin = {
             choices = "off|value|alch|both",
             label = "Price display"
         },
+        -- Which of the two prices every threshold in this plugin is measured
+        -- against. The reference defaults this to HIGHEST; the default here is
+        -- the high-alchemy price, because the exchange price a client without
+        -- a price feed can offer is ObjType.cost, and cost is a shop number
+        -- rather than what a drop is worth. The alch price is derived from the
+        -- same field but is the one the game itself will actually pay for the
+        -- item, so it is the honest default -- and `highest` and `value` are
+        -- still here for a client that ships a prices.txt worth trusting.
         {
             key = "value_mode",
             type = "enum",
-            default = "highest",
-            choices = "highest|value|alch",
+            default = "alch",
+            choices = "alch|value|highest",
             label = "Value calculation"
         },
         {
@@ -318,12 +326,13 @@ local function prices_of(obj)
     return unit * obj.count, (unit * HA_NUM // HA_DEN) * obj.count
 end
 
--- Reference ValueCalculationMode, whose default is HIGHEST.
+-- Reference ValueCalculationMode. HIGHEST is the reference's default; `alch`
+-- is this plugin's, for the reason the config row states.
 local function value_by_mode(api, exchange, alch)
     local mode = api.config.value_mode
     if mode == "value" then return exchange end
-    if mode == "alch" then return alch end
-    return exchange > alch and exchange or alch
+    if mode == "highest" then return exchange > alch and exchange or alch end
+    return alch
 end
 
 local TIER_KEY = { "low_color", "medium_color", "high_color", "insane_color" }

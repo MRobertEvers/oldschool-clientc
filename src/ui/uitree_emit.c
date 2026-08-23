@@ -1,5 +1,7 @@
 #include "uitree_emit.h"
 
+#include "uitree_frame.h"
+
 #include "perf/torirs_perf.h"
 #include "uitree_chatview.h"
 #include "uitree_hovertext.h"
@@ -2016,6 +2018,13 @@ emit_walk_node(
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_EMIT, 1);
 
     c = &tree->components[idx];
+    /* A plugin layout's suppression, and it admits no exception: the whole
+     * subtree goes, because the lane's chrome is what the layout replaced. */
+    if( c->frame_hidden )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
+        return;
+    }
     /* Hide-gated layers stay invisible unless their component_id is hovered. */
     if( c->behavior.hide && !UITree_ComponentVisibleById(c, hovered_component_id) )
     {
@@ -2765,6 +2774,24 @@ UITree_EmitWalk(
      * interface, so the sidebar's whole inventory drew at 16,8 under a clip of
      * zero width: no item icons at all. No-op when nothing invalidated.
      */
+    /*
+     * A plugin layout is restated here, at the last moment before anything is
+     * drawn, and that placement is the whole point.
+     *
+     * Every other writer of a node's box and hide flag runs during the TICK --
+     * the CS1 value scripts on a dat1 frame, the CS2 onload and resize hooks on
+     * a cache one, the slot manager on both -- and each of them is right about
+     * the frame it was written for. A declaration applied once, earlier in the
+     * frame, simply loses to whichever of them ran last, and what that looks
+     * like is the plugin's gameframe and the lane's gameframe on screen
+     * together. Being last is the only way to be authoritative, and this is
+     * where last is.
+     *
+     * Costs a comparison per node the declaration touched, and nothing at all
+     * when no plugin holds the frame. Before EnsureLayout, so a box it changes
+     * is resolved by the pass below rather than a frame later.
+     */
+    UITree_FrameReassert((struct UITree*)tree);
     UITree_EnsureLayout(tree);
     {
         int free_len = 0;

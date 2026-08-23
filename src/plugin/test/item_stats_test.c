@@ -213,8 +213,32 @@ fake_cfg_color(struct ToriRS_PluginCtx* ctx, char const* key)
 
 /* -- the atlas, read off disk exactly as the client would hand it over -- */
 
-static char* g_asset_bytes;
-static int g_asset_size;
+/*
+ * The shipped assets, read off disk by name.
+ *
+ * By NAME and not one slot, because the plugin ships two of them now -- the
+ * glyph metrics and the equipment table for revisions whose cache states no
+ * bonuses -- and a fake that answered the second request with the first file's
+ * bytes would have the plugin parse a font atlas as a bonus table.
+ */
+#define FAKE_ASSETS_MAX 4
+
+static struct
+{
+    char name[32];
+    char* bytes;
+    int size;
+} g_asset[FAKE_ASSETS_MAX];
+static int g_asset_count;
+
+static int
+fake_asset_find(char const* name)
+{
+    for( int i = 0; i < g_asset_count; i++ )
+        if( strcmp(g_asset[i].name, name) == 0 )
+            return i;
+    return -1;
+}
 
 static int
 fake_asset_load(struct ToriRS_PluginCtx* ctx, char const* name)
@@ -222,10 +246,13 @@ fake_asset_load(struct ToriRS_PluginCtx* ctx, char const* name)
     char path[512];
     FILE* f;
     long size;
+    int at;
 
     (void)ctx;
-    if( g_asset_bytes )
+    if( fake_asset_find(name) >= 0 )
         return 1;
+    if( g_asset_count >= FAKE_ASSETS_MAX )
+        return 0;
     snprintf(path, sizeof(path), "../script/plugins/assets/item-stats/%s", name);
     f = fopen(path, "rb");
     if( !f )
@@ -233,21 +260,45 @@ fake_asset_load(struct ToriRS_PluginCtx* ctx, char const* name)
     fseek(f, 0, SEEK_END);
     size = ftell(f);
     fseek(f, 0, SEEK_SET);
-    g_asset_bytes = malloc((size_t)size);
-    assert(g_asset_bytes);
-    g_asset_size = (int)fread(g_asset_bytes, 1, (size_t)size, f);
+    at = g_asset_count++;
+    snprintf(g_asset[at].name, sizeof(g_asset[at].name), "%s", name);
+    g_asset[at].bytes = malloc((size_t)size);
+    assert(g_asset[at].bytes);
+    g_asset[at].size = (int)fread(g_asset[at].bytes, 1, (size_t)size, f);
     fclose(f);
-    return g_asset_size > 0;
+    return g_asset[at].size > 0;
 }
 
 static void const*
 fake_asset_data(struct ToriRS_PluginCtx* ctx, char const* name, int* out_size)
 {
+    int const at = fake_asset_find(name);
+
     (void)ctx;
-    (void)name;
+    if( at < 0 )
+    {
+        if( out_size )
+            *out_size = 0;
+        return NULL;
+    }
     if( out_size )
-        *out_size = g_asset_size;
-    return g_asset_bytes;
+        *out_size = g_asset[at].size;
+    return g_asset[at].bytes;
+}
+
+/* Dropping the resident copy is the plugin's own housekeeping once it has
+ * parsed a table; the file itself is untouched, so a later load reads it
+ * again. */
+static void
+fake_asset_release(struct ToriRS_PluginCtx* ctx, char const* name)
+{
+    int const at = fake_asset_find(name);
+
+    (void)ctx;
+    if( at < 0 )
+        return;
+    free(g_asset[at].bytes);
+    g_asset[at] = g_asset[--g_asset_count];
 }
 
 /*
@@ -391,6 +442,7 @@ api_init(void)
     g_api.cfg_color = fake_cfg_color;
     g_api.asset_load = fake_asset_load;
     g_api.asset_data = fake_asset_data;
+    g_api.asset_release = fake_asset_release;
     g_api.image_load = fake_image_load;
     g_api.image_size = fake_image_size;
     g_api.image_pixels = fake_image_pixels;
@@ -697,6 +749,62 @@ test_two_handed_takes_the_shield_off(void)
 }
 
 /*
+ * A cache that states no bonuses at all -- every dat1 world.
+ *
+ * The record has no params and no wearpos, exactly as a 2004 objtype decodes,
+ * so everything the panel says has to come from the shipped table. This is the
+ * case that made the plugin look broken on a LostCity world: the hover was
+ * found, the name was read, and there was nothing to say about a scimitar.
+ */
+static void
+test_dat1_falls_back_to_the_shipped_table(void)
+{
+    struct ToriRS_PluginObjInfo* scimitar;
+
+    client_reset();
+    scimitar = obj_add(1333, "Rune scimitar");
+    scimitar->has_bonuses = 0;
+    scimitar->wearpos = -1;
+    frame(1333);
+    TEST_ASSERT(
+        g_client.draw_count == 1,
+        "a dat1 weapon still gets a panel (drew %d)",
+        g_client.draw_count);
+    /*
+     * Melee Str, the Attack heading with Stab/Slash/Crush, and the Defence
+     * heading with the one point of slash defence a scimitar carries. No Speed
+     * row: it swings at unarmed's rate, so equipping it changes nothing there,
+     * which is exactly the row the reference suppresses.
+     */
+    TEST_ASSERT(tip_rows() == 7, "str, and both bonus groups; got %d", tip_rows());
+}
+
+/*
+ * The cache wins where it has an answer.
+ *
+ * Same item, same name, but the record states its own bonuses -- and they are
+ * deliberately not the table's. An OldSchool session must read its own record,
+ * or the plugin would be telling a player about a different game's balance.
+ */
+static void
+test_cache_params_beat_the_table(void)
+{
+    struct ToriRS_PluginObjInfo* scimitar;
+
+    client_reset();
+    scimitar = obj_add(1333, "Rune scimitar");
+    scimitar->has_bonuses = 1;
+    scimitar->wearpos = 3;
+    scimitar->attack_rate = 4;
+    scimitar->bonus[TORIRS_PLUGIN_BONUS_ATTACK_SLASH] = 1;
+    frame(1333);
+    TEST_ASSERT(
+        tip_rows() == 2,
+        "the record's one bonus and its heading, not the table's four; got %d",
+        tip_rows());
+}
+
+/*
  * The sample the BMP is written from: a saradomin brew drunk at 40/99 with the
  * attacking stats up, which is the busiest consumable panel there is -- a heal,
  * a defence boost, and a drain on each of the four stats it takes from.
@@ -790,6 +898,8 @@ main(void)
     test_equipment_against_nothing();
     test_equipment_against_the_same_item();
     test_two_handed_takes_the_shield_off();
+    test_dat1_falls_back_to_the_shipped_table();
+    test_cache_params_beat_the_table();
     test_render_sample();
     write_png_stub();
 

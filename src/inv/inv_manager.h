@@ -43,6 +43,11 @@ struct InvSlot
     int obj_count;
     int scene_id;
     int atlas_index;
+    /** Reconcile passes that have found this slot's icon parts still in
+     *  flight. Bounds the wait so an obj whose model never resolves stops
+     *  re-arming the reconcile; reset with scene_id whenever the item
+     *  changes. */
+    int icon_attempts;
 };
 
 struct InvContainer

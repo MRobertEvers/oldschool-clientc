@@ -124,6 +124,22 @@ UITree_FrameRelease(struct UITree* tree);
 int
 UITree_FrameActive(struct UITree const* tree);
 
+/**
+ * How many lane-chrome nodes the standing declaration hid, and how many nodes
+ * it found for `slot`.
+ *
+ * Diagnostics, and they answer the one question a screenshot cannot: when both
+ * frames are on screen at once, is that because the suppression found nothing
+ * to hide, or because it hid the wrong things? Zero and zero means the roles
+ * were never recognised on this lane, which is a different bug from a layout
+ * that placed them badly.
+ */
+int
+UITree_FrameHiddenCount(struct UITree const* tree);
+
+int
+UITree_FrameSlotCount(struct UITree const* tree, int slot);
+
 /** Drop the frame table. Called from UITree_Free / UITree_Clear: the node
  *  indices in it name nodes that are about to stop existing. */
 void

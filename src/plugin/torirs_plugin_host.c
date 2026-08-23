@@ -659,11 +659,23 @@ api_layout_claim(
     host->layout_canvas = canvas;
     host->layout_fixed_w = canvas == TORIRS_PLUGIN_CANVAS_FIXED ? fixed_w : 0;
     host->layout_fixed_h = canvas == TORIRS_PLUGIN_CANVAS_FIXED ? fixed_h : 0;
+    /*
+     * Publishing the claim is the whole of it: the engine marks the frame
+     * needing a declaration and raises EV_LAYOUT on its next layout pass, with
+     * the canvas it actually has.
+     *
+     * This used to declare here as well, passing 0x0 for the canvas because
+     * the host has no window and no way to ask. For a FIXED claim that was
+     * harmless -- it reads its pinned size back -- and for a FOLLOW_WINDOW one
+     * it was silently fatal: every anchor is measured from an edge, so a
+     * canvas of nothing puts the sidebar at x = -245 and the chatbox at
+     * y = -142, and the frame is declared, drawn, and entirely off-screen. The
+     * plugin reports twenty pieces drawn and the screen shows none of them.
+     *
+     * The host cannot invent a canvas. The engine is the only thing that knows
+     * one, so the engine is what declares.
+     */
     plugin_layout_publish(host);
-    /* One code path for placing the slots: the claim raises the same event a
-     * resize does, so a plugin's whole layout lives in its EV_LAYOUT handler
-     * and nowhere else. */
-    PluginHost_Layout(host, 0, 0);
     return true;
 }
 
@@ -3370,6 +3382,25 @@ PluginHost_Layout(struct ToriRS_PluginHost* host, int width, int height)
 
     if( !host || host->layout_owner < 0 )
         return;
+    /*
+     * A canvas of nothing is refused rather than laid out against.
+     *
+     * Every anchor in a resizable layout is measured from an edge, so a zero
+     * canvas does not produce a small frame -- it produces one at negative
+     * coordinates, declared and drawn and invisible. Saying so is the
+     * difference between a caller that fixes its call and one that spends an
+     * afternoon looking at the plugin.
+     */
+    if( host->layout_canvas != TORIRS_PLUGIN_CANVAS_FIXED && (width <= 0 || height <= 0) )
+    {
+        fprintf(
+            stderr,
+            "plugin: %s asked to lay out against a %dx%d canvas; nothing declared\n",
+            host->plugins[host->layout_owner].name,
+            width,
+            height);
+        return;
+    }
 
     /*
      * FIXED reads back its own pinned size, not the window's.

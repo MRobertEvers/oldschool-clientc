@@ -65,10 +65,12 @@ struct UITreeFrameLayout
     int slot_component_id[UITREE_FRAME_SLOT_COUNT][UITREE_FRAME_SLOT_NODES_MAX];
     struct UITreeElemPosition slot_saved[UITREE_FRAME_SLOT_COUNT][UITREE_FRAME_SLOT_NODES_MAX];
     int slot_node_count[UITREE_FRAME_SLOT_COUNT];
-    /** Lane chrome forced hidden, and the hide each node had before -- a node
-     *  the cache had already hidden must stay hidden on release. */
+    /** The declaration itself, kept so the re-assert can restate it. */
+    struct UITreeFrameSlotRect slot_rect[UITREE_FRAME_SLOT_COUNT];
+    /** Lane chrome the declaration suppressed. No "what was it before": the
+     *  flag is the layout's alone, so clearing it restores exactly the state
+     *  the lane had. */
     int32_t hidden[UITREE_FRAME_HIDDEN_MAX];
-    uint8_t hidden_was[UITREE_FRAME_HIDDEN_MAX];
     int hidden_count;
     uint8_t active;
 };
@@ -271,6 +273,53 @@ frame_collect_slots(
     }
 }
 
+/*
+ * One node, at the declared box.
+ *
+ * An absolute box, and every mode cleared. A cache component states its
+ * geometry in MODES as often as in numbers -- widthmode 1 is "fill my parent",
+ * xmode 1 is "centre in it" -- and writing x/y/w/h while leaving those standing
+ * means the resolve recomputes the box from the parent and throws the
+ * declaration away. The plugin said where it goes; nothing else gets a vote.
+ *
+ * The hide is NOT cleared. A sidebar mount that is not the selected tab is
+ * hidden by the slot manager, and showing all fourteen because the layout
+ * placed the role would draw the whole tab set stacked in one panel. The
+ * declaration says where a role goes, not which of its nodes is the one on
+ * screen -- that stays the client's.
+ */
+static void
+frame_place_node(
+    struct UITree* tree,
+    int32_t idx,
+    struct UITreeFrameSlotRect const* rect)
+{
+    struct UITreeComponent* c;
+
+    assert(tree);
+    assert(rect);
+    c = &tree->components[idx];
+    if( c->position.kind == UIPOS_XY && c->position.x == rect->x && c->position.y == rect->y &&
+        c->position.width == rect->w && c->position.height == rect->h &&
+        c->position.x_mode < 0 && c->position.y_mode < 0 && c->position.width_mode < 0 &&
+        c->position.height_mode < 0 && c->position.relative_flags == 0 )
+        return;
+
+    c->position.kind = UIPOS_XY;
+    c->position.x = rect->x;
+    c->position.y = rect->y;
+    c->position.width = rect->w;
+    c->position.height = rect->h;
+    c->position.x_mode = -1;
+    c->position.y_mode = -1;
+    c->position.width_mode = -1;
+    c->position.height_mode = -1;
+    c->position.relative_flags = 0;
+    c->position.layout_resolved = 0;
+    UITree_MarkNodeDirty(tree, idx);
+    UITree_LayoutInvalidateBoxes(tree);
+}
+
 static void
 frame_hide_node(
     struct UITree* tree,
@@ -285,9 +334,8 @@ frame_hide_node(
         return;
     c = &tree->components[idx];
     fl->hidden[fl->hidden_count] = idx;
-    fl->hidden_was[fl->hidden_count] = c->behavior.hide;
     fl->hidden_count++;
-    c->behavior.hide = 1;
+    c->frame_hidden = 1;
     UITree_MarkNodeDirty(tree, idx);
 }
 
@@ -358,40 +406,11 @@ UITree_FrameApply(
                 continue;
             }
 
-            /*
-             * An absolute box, and every mode cleared.
-             *
-             * A cache component states its geometry in MODES as often as in
-             * numbers -- widthmode 1 is "fill my parent", xmode 1 is "centre
-             * in it" -- and writing x/y/w/h while leaving those standing means
-             * the resolve recomputes the box from the parent and throws the
-             * declaration away. The plugin said where it goes; nothing else
-             * gets a vote.
-             */
-            c->position.kind = UIPOS_XY;
-            c->position.x = slots[s].x;
-            c->position.y = slots[s].y;
-            c->position.width = slots[s].w;
-            c->position.height = slots[s].h;
-            c->position.x_mode = -1;
-            c->position.y_mode = -1;
-            c->position.width_mode = -1;
-            c->position.height_mode = -1;
-            c->position.relative_flags = 0;
-            c->position.layout_resolved = 0;
-            /*
-             * The hide is NOT cleared.
-             *
-             * A sidebar mount that is not the selected tab is hidden by the
-             * slot manager, and showing all fourteen because the layout placed
-             * the role would draw the whole tab set stacked in one panel. The
-             * declaration says where a role goes, not which of its nodes is
-             * the one on screen -- that stays the client's.
-             */
-            UITree_MarkNodeDirty(tree, idx);
+            frame_place_node(tree, idx, &slots[s]);
         }
     }
 
+    memcpy(fl->slot_rect, slots, sizeof(fl->slot_rect));
     frame_collect_chrome(tree, fl, root_group);
     fl->active = 1;
     UITree_LayoutInvalidate(tree);
@@ -407,15 +426,32 @@ UITree_FrameReassert(struct UITree* tree)
     if( !fl || !fl->active )
         return;
 
-    for( int i = 0; i < fl->hidden_count; i++ )
+    /*
+     * The BOXES, and only the boxes.
+     *
+     * The suppression needs no restating -- `frame_hidden` has one writer and
+     * it is this file. A slot's box does: on a dat1 lane every gameframe
+     * component carries IF1 value scripts, and the CS1 tick re-evaluates them
+     * and writes the interface's authored geometry back, so a placement made
+     * once is undone before the frame it was made for is drawn. Nothing is
+     * wrong with the CS1 tick; the layout simply has to be the LAST writer,
+     * and calling this from the emit walk is what makes it one.
+     *
+     * The loop skips a node that already agrees, so the steady-state cost is a
+     * comparison per placed node -- about twenty on a 2004 frame -- and no
+     * layout invalidation at all.
+     */
+    for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
     {
-        int32_t const idx = fl->hidden[i];
-        if( !frame_node_alive(tree, idx) )
+        if( !fl->slot_rect[s].placed )
             continue;
-        if( tree->components[idx].behavior.hide )
-            continue;
-        tree->components[idx].behavior.hide = 1;
-        UITree_MarkNodeDirty(tree, idx);
+        for( int n = 0; n < fl->slot_node_count[s]; n++ )
+        {
+            int32_t const idx = fl->slot_node[s][n];
+            if( !frame_node_alive(tree, idx) )
+                continue;
+            frame_place_node(tree, idx, &fl->slot_rect[s]);
+        }
     }
 }
 
@@ -434,7 +470,7 @@ UITree_FrameRelease(struct UITree* tree)
         int32_t const idx = fl->hidden[i];
         if( !frame_node_alive(tree, idx) )
             continue;
-        tree->components[idx].behavior.hide = fl->hidden_was[i];
+        tree->components[idx].frame_hidden = 0;
         UITree_MarkNodeDirty(tree, idx);
     }
     fl->hidden_count = 0;
@@ -468,6 +504,22 @@ UITree_FrameActive(struct UITree const* tree)
 {
     assert(tree);
     return tree->frame_layout && tree->frame_layout->active ? 1 : 0;
+}
+
+int
+UITree_FrameHiddenCount(struct UITree const* tree)
+{
+    assert(tree);
+    return tree->frame_layout ? tree->frame_layout->hidden_count : 0;
+}
+
+int
+UITree_FrameSlotCount(struct UITree const* tree, int slot)
+{
+    assert(tree);
+    if( !tree->frame_layout || slot < 0 || slot >= UITREE_FRAME_SLOT_COUNT )
+        return 0;
+    return tree->frame_layout->slot_node_count[slot];
 }
 
 void

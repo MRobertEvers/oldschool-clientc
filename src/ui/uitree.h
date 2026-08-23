@@ -498,6 +498,23 @@ struct UITreeComponent
     int target_priority;
     /** CC/IF_SETOPFORCELEFTCLICK: left-click executes the op without opening the menu. */
     uint8_t force_left_click;
+    /**
+     * Suppressed by a plugin gameframe layout (ui/uitree_frame.h).
+     *
+     * A flag of its own rather than a use of `behavior.hide`, and the reason
+     * is not tidiness. `hide` is the CACHE's and the SCRIPTS': the CS1 value
+     * scripts rewrite it every tick on a dat1 frame and the CS2 hooks do the
+     * same on a dat2 one, so a layout borrowing it is overwritten before the
+     * frame it wrote for is drawn. Worse, `UITree_ComponentVisibleById` reads
+     * a hidden node with NO component id as visible -- a rule that is right
+     * for the hover-reveal it was written for and means every revconfig
+     * builtin, which has no id, ignores `hide` completely. Setting it on the
+     * 2004 gameframe's forty-six stones changed nothing at all.
+     *
+     * Nothing but the layout writes this, so it needs no re-asserting and
+     * cannot be argued with.
+     */
+    uint8_t frame_hidden;
     /** enum UITreeSlotTag — nonzero marks this node as a mount region. */
     uint8_t slot_tag;
     /** OR of enum UITreeHotkeyEffect: the effects this node accepts from a

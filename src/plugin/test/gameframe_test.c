@@ -164,10 +164,8 @@ fake_draw_image(
     void* u, int slot, int x, int y, int w, int h,
     int cx, int cy, int cw, int ch, int trans)
 {
-    (void)u; (void)x; (void)y; (void)w; (void)h;
+    (void)u; (void)slot; (void)x; (void)y; (void)w; (void)h;
     (void)cx; (void)cy; (void)cw; (void)ch; (void)trans;
-    if( getenv("GF_TRACE") )
-        printf("  blit slot=%d\n", slot);
     g_frame.blits++;
     return 1;
 }
@@ -370,6 +368,15 @@ draw(int w, int h)
     PluginHost_DrawFrame(g_host, w, h);
 }
 
+/** The chrome that goes OVER the live surfaces -- the map housing. */
+static void
+draw_over(int w, int h)
+{
+    g_frame.blits = 0;
+    g_frame.regions = 0;
+    PluginHost_DrawCanvas(g_host, w, h);
+}
+
 static int
 slot_is(int slot, int x, int y, int w, int h)
 {
@@ -474,9 +481,16 @@ main(void)
     CHECK(g_frame.owned == 1, "starting claims the frame");
     CHECK(g_frame.canvas == TORIRS_PLUGIN_CANVAS_FIXED, "classic_fixed pins the canvas");
     CHECK(g_frame.fixed_w == 765 && g_frame.fixed_h == 503, "pinned at the classic frame");
-    /* The claim raises the layout event itself, so the frame is declared
-     * before anything else asks for it. */
-    CHECK(g_frame.end_calls >= 1, "the claim declares the frame");
+    /*
+     * The claim does NOT declare on the spot, and that is deliberate.
+     *
+     * The host has no window, so declaring from inside the claim meant passing
+     * a 0x0 canvas -- under which every edge-anchored piece of a resizable
+     * layout lands at a negative coordinate, and the frame is declared, drawn
+     * and entirely off-screen. The engine is the only thing that knows a
+     * canvas, so the engine is what declares.
+     */
+    CHECK(g_frame.end_calls == 0, "the claim does not declare against a canvas it cannot know");
 
     /* ---- 2. classic fixed ---------------------------------------------- */
 
@@ -530,7 +544,16 @@ main(void)
 
     /* ---- 4. modern fixed ----------------------------------------------- */
 
-    PluginHost_ConfigSet(g_host, g_plugin, "layout", "1");
+    /*
+     * By LABEL, because that is how the setting is stored.
+     *
+     * A config enum keeps whichever dropdown row was chosen, so what reaches
+     * plugin_prefs.ini and comes back at the next launch is "Modern Fixed" and
+     * not "1". Reading it as a number turns every saved choice into 0, which
+     * is a layout silently reverting to Classic Fixed on restart -- invisible
+     * to a test that only ever set indices.
+     */
+    PluginHost_ConfigSet(g_host, g_plugin, "layout", "Modern Fixed");
     CHECK(g_frame.canvas == TORIRS_PLUGIN_CANVAS_FIXED, "modern_fixed pins the canvas too");
     declare(765, 503);
     CHECK(
@@ -560,10 +583,12 @@ main(void)
 
     /* ---- 5. modern resizable ------------------------------------------- */
 
+    /* The index form too: plugin_prefs.ini is a file people edit, and
+     * `layout=2` is the obvious thing to write in it. */
     PluginHost_ConfigSet(g_host, g_plugin, "layout", "2");
     CHECK(
         g_frame.canvas == TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW,
-        "the resizable layout unpins the canvas");
+        "the resizable layout unpins the canvas, and an index still selects it");
 
     declare(1024, 768);
     CHECK(
@@ -615,13 +640,33 @@ main(void)
          * land outside it and simply not be drawn -- which from a screenshot
          * looks like a missing asset rather than a wrong number.
          *
-         * Five chrome pieces (map housing, two tab strips, the panel, the
-         * chatbox), a stone per tab and an icon per tab.
+         * Four chrome pieces UNDER the surfaces (two tab strips, the panel,
+         * the chatbox), an icon per tab, and ONE stone -- the lit one under
+         * the open tab. The unlit stones are part of the tab strips already
+         * blitted, which is why there are not fourteen of them.
          */
+        g_frame.active_tab = 3;
         draw(1440, 900);
-        printf("resizable blits=%d regions=%d\n", g_frame.blits, g_frame.regions);
-        CHECK(g_frame.blits == 5 + 14 + 14, "the resizable frame draws all of its art");
+        CHECK(g_frame.blits == 4 + 14 + 1, "the resizable frame draws all of its art");
         CHECK(g_frame.regions == 14, "and claims all fourteen tabs");
+
+        /* No tab open: no lit stone, and everything else unchanged. */
+        g_frame.active_tab = -1;
+        draw(1440, 900);
+        CHECK(g_frame.blits == 4 + 14, "with no tab open there is no lit stone");
+
+        /*
+         * And the map housing OVER them.
+         *
+         * Its own case because "behind" and "over" are one blit apart and the
+         * difference is invisible in a count of the whole frame: drawn behind,
+         * the square of terrain covers the ring and the minimap stops being
+         * round. That is the entire visible symptom, and no assertion about
+         * the frame surface can see it.
+         */
+        draw_over(1440, 900);
+        CHECK(g_frame.blits == 1, "the map housing is drawn over the minimap, not behind it");
+        CHECK(g_frame.regions == 0, "and the over-pass claims no regions of its own");
     }
 
     /* ---- 6. release ---------------------------------------------------- */

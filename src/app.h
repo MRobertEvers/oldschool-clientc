@@ -1003,6 +1003,16 @@ struct App
     /** Set when the tree was rebuilt or the canvas resized under a claim:
      *  the next layout pass re-raises EV_LAYOUT before it applies anything. */
     uint8_t plugin_layout_dirty;
+    /**
+     * Tree generation the standing declaration was made against.
+     *
+     * A gameframe REBUILD -- the Display panel's remount, a server IF_OPENTOP
+     * -- clears the tree and bumps this, and every node the declaration named
+     * stops existing with it. Comparing it is what re-raises EV_LAYOUT against
+     * the new frame instead of leaving the layout holding indices into the old
+     * one.
+     */
+    uint32_t plugin_layout_generation;
     /* Per-frame world map blits, filled by the GET_WORLDMAP_TILES host request
      * and consumed by the same frame's draw: the visible regions first, then
      * every map element icon over them. A full-screen surface spans ~30 regions

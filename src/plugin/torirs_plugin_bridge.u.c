@@ -1959,6 +1959,7 @@ app_plugin_layout_end(void* user)
     UITree_FrameApply(app->tree, rects, app_plugin_layout_root_group(app));
     app->plugin_layout_w = UITREE_LAYOUT_ROOT_W;
     app->plugin_layout_h = UITREE_LAYOUT_ROOT_H;
+    app->plugin_layout_generation = app->tree->generation;
     app->plugin_layout_dirty = 0;
 }
 

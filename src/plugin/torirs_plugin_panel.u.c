@@ -866,10 +866,10 @@ app_plugin_panel_apply(struct App* app, int widget)
 
 /* ---- the sidebar Plugin button --------------------------------------------
  *
- * A fourth entry in the gameframe's own popout strip -- interface 728
- * `popout`, the launcher column down the right edge that carries XP Tracker,
- * Loot Tools and Hiscores. Clicking it opens the plugin window in that strip's
- * panel slot, framed by the strip's own chrome.
+ * A further entry in the gameframe's own popout strip -- on rev-239 that is
+ * interface 728 `popout`, the launcher column down the right edge that carries
+ * XP Tracker, Loot Tools and Hiscores. Clicking it opens the plugin window in
+ * that strip's panel slot, framed by the strip's own chrome.
  *
  * WHY THE CLIENT ADDS IT, not the content. The three shipped entries come from
  * the cache: `enum_4067` maps a 1-based slot to a struct carrying param_1412
@@ -880,23 +880,34 @@ app_plugin_panel_apply(struct App* app, int widget)
  * pointed at any other server must still have them. So the client appends its
  * own button and answers its own click, and the cache is untouched.
  *
- * Everything it needs is already on screen by then, which is why this waits:
- * `popout:buttons` (728:6) holds the three icons as 30x30 children on a 36px
- * pitch, and `popout:container` (728:9) is the slot the panels mount into.
+ * WHERE IT GOES IS THE PROFILE'S, not this file's. Which interface the strip
+ * is, which of its children hold the column and the panel slot, which slot in
+ * that column is free, how big the icons are and how far apart, and which
+ * clientscript lays the strip out again afterwards -- every one of those is a
+ * fact about a revision, and every one of them used to be a literal here. They
+ * are the RevConfig `[chrome]` block now; see struct RevConfigChromeItem. A
+ * revision that states none of it has no strip, gets no button, and opens the
+ * window in the canvas instead -- which is what every dat1 lane already did.
+ *
+ * Everything the button needs is on screen only once the server has mounted
+ * that interface, which is why the build below waits for the column to appear.
  */
 
-/** interface 728 `popout`, and the two components of it this uses. */
-/* The popout strip the panel mounts into. Its id is the profile's
- * `[iface:plugin_popout]`; children 6 (button row) and 9 (panel slot) are that
- * interface's own layout. Both read -1 when the profile does not declare it,
- * and every use below already treats "not found" as "no strip to mount in". */
-#define APP_POPOUT_BUTTONS app_iface_com(app, "plugin_popout", 6)
-#define APP_POPOUT_CONTAINER app_iface_com(app, "plugin_popout", 9)
-/** Slot 3: the strip ships 0..2 (XP Tracker, Loot Tools, Hiscores). */
-#define APP_POPOUT_SLOT_PLUGINS 3
-/** Geometry read off the live strip: 30x30 icons on a 36px pitch. */
-#define APP_POPOUT_BTN 30
-#define APP_POPOUT_PITCH 36
+/** The `[chrome]` block of the running revision's profile. */
+#define APP_POPOUT_CHROME (&app->revconfig_profile.chrome)
+/** The strip's two components, packed as uids -- the button column and the
+ *  panel slot -- or -1 when this revision declares no strip. Every use below
+ *  already treats "not found" as "no strip to mount in". */
+#define APP_POPOUT_BUTTONS \
+    app_plugin_popout_com(app, APP_POPOUT_CHROME->plugin_button_parent)
+#define APP_POPOUT_CONTAINER \
+    app_plugin_popout_com(app, APP_POPOUT_CHROME->plugin_panel_parent)
+/** The slot the button takes down the column, and the column's own icon box
+ *  and pitch. Read straight off the profile; -1 when it declares no strip, and
+ *  nothing that reads them runs in that case. */
+#define APP_POPOUT_SLOT_PLUGINS (APP_POPOUT_CHROME->plugin_button_slot)
+#define APP_POPOUT_BTN (APP_POPOUT_CHROME->plugin_button_size)
+#define APP_POPOUT_PITCH (APP_POPOUT_CHROME->plugin_button_pitch)
 /*
  * The icon is TORIRS_CHROME_SKIN_PLUGIN_ICON, baked from `sideicons_interface_11` --
  * the wrench the game already uses for settings.
@@ -912,8 +923,83 @@ app_plugin_panel_apply(struct App* app, int widget)
  * reads as "account". A bare wrench is what this game already means by
  * "settings", so it needs no explaining.
  */
-/** `^clientscript_popout_layout` -- the strip's layout owner. */
-#define APP_POPOUT_LAYOUT_SCRIPT 5354
+/**
+ * Is this revision's plugin-button mount fully stated?
+ *
+ * All of it or none of it. The mount is ONE description -- an interface, two of
+ * its children, a slot and the geometry of the column that slot is in -- and
+ * half of it is not half a button: a `[chrome]` block that names the strip but
+ * forgets the pitch stacks the icon on top of the one above it, which reads as
+ * a missing button and is far harder to find than an absent one.
+ *
+ * Saying nothing at all is the ordinary case (a 2004 lane has no strip), so
+ * that is silent. A HALF-stated block is a mistake in the profile, and gets one
+ * line on stderr.
+ */
+static int
+app_plugin_popout_declared(struct App const* app)
+{
+    struct RevConfigChromeItem const* chrome;
+    int stated;
+    int complete;
+
+    assert(app);
+    chrome = &app->revconfig_profile.chrome;
+    stated = chrome->plugin_iface[0] != '\0' || chrome->plugin_button_parent >= 0 ||
+             chrome->plugin_panel_parent >= 0 || chrome->plugin_button_slot >= 0 ||
+             chrome->plugin_button_size >= 0 || chrome->plugin_button_pitch >= 0;
+    complete = chrome->plugin_iface[0] != '\0' && chrome->plugin_button_parent >= 0 &&
+               chrome->plugin_panel_parent >= 0 && chrome->plugin_button_slot >= 0 &&
+               chrome->plugin_button_size > 0 && chrome->plugin_button_pitch > 0;
+    if( stated && !complete )
+    {
+        static int complained = 0;
+        if( !complained )
+        {
+            complained = 1;
+            fprintf(
+                stderr,
+                "chrome: [chrome] states only part of the plugin button mount "
+                "(plugin_button_iface, plugin_button_parent, plugin_panel_parent, "
+                "plugin_button_slot, plugin_button_size, plugin_button_pitch); "
+                "the strip gets no plugin button\n");
+        }
+    }
+    return complete;
+}
+
+/**
+ * Packed uid of one child of the declared strip interface, or -1.
+ *
+ * -1 for an undeclared or half-declared strip as well as for an interface this
+ * cache does not have, because the callers all ask the same question of it --
+ * "is there somewhere to mount?" -- and one answer for "no" is what keeps them
+ * from disagreeing about it.
+ */
+static int
+app_plugin_popout_com(struct App const* app, int child)
+{
+    assert(app);
+    if( child < 0 || !app_plugin_popout_declared(app) )
+        return -1;
+    return app_iface_com(app, app->revconfig_profile.chrome.plugin_iface, child);
+}
+
+/**
+ * The clientscript that lays the strip out, or -1 when this revision names
+ * none. `[chrome] plugin_layout_script=` names a `[script:…]` binding rather
+ * than carrying the id itself: a script id is a cache id, and cache ids are
+ * what that table is for.
+ */
+static int
+app_plugin_popout_layout_script(struct App const* app)
+{
+    assert(app);
+    if( !app->revconfig_profile.chrome.plugin_layout_script[0] )
+        return -1;
+    return RevConfigRefs_Get(
+        &app->revconfig_refs, "script", app->revconfig_profile.chrome.plugin_layout_script);
+}
 
 /**
  * Scene font for a cache font id, REQUESTING the load if it is not here --
@@ -1015,8 +1101,15 @@ app_plugin_button_sync(struct App* app)
     comp.model_seq_id = -1;
     /* Op 1, so the strip's own hover line names it -- the shipped buttons set
      * "Open"/"Close" the same way (script5356's cc_setop) and a launcher that
-     * says nothing on hover is the one thing in the column that does not. */
-    snprintf(comp.ops[0], sizeof(comp.ops[0]), "Show Plugin Settings");
+     * says nothing on hover is the one thing in the column that does not.
+     *
+     * The wording is `[chrome] plugin_button_op=`, because it is text a player
+     * reads: a revision whose strip says "Open" about everything else should be
+     * able to say it about this too, and one with no op line at all leaves the
+     * key out and gets a button that names nothing. */
+    if( APP_POPOUT_CHROME->plugin_button_op[0] )
+        snprintf(
+            comp.ops[0], sizeof(comp.ops[0]), "%s", APP_POPOUT_CHROME->plugin_button_op);
     node = UITree_PushBuildComponent(app->tree, buttons, &comp, NULL, NULL, app);
     if( node < 0 )
         return;
@@ -1029,7 +1122,8 @@ app_plugin_button_sync(struct App* app)
 /**
  * Drive the strip's own layout pass.
  *
- * clientscript 5354 is `^clientscript_popout_layout` -- the cache's own
+ * `[chrome] plugin_layout_script=` names it; on rev-239 it resolves to
+ * clientscript 5354, `^clientscript_popout_layout` -- the cache's own
  * `~script5355(~script900)` wrapper, and the ONLY thing that widens the strip
  * when a panel opens or collapses it when one closes. It decides by asking
  * `if_hassub(popout:container)`, so the mount registration below has to happen
@@ -1039,14 +1133,21 @@ app_plugin_button_sync(struct App* app)
  * Queued through the same path a server-sent RUNCLIENTSCRIPT takes, rather than
  * run inline: it is held to the tick fence, which is where the rest of the
  * frame's interface work already lands.
+ *
+ * A revision whose strip lays itself out with no such script names none, and
+ * this is then the whole of what it does.
  */
 static void
 app_plugin_popout_relayout(struct App* app)
 {
     struct PktRunClientScript req;
+    int const script = app_plugin_popout_layout_script(app);
+
+    if( script < 0 )
+        return;
 
     memset(&req, 0, sizeof(req));
-    req.script_id = APP_POPOUT_LAYOUT_SCRIPT;
+    req.script_id = script;
     req.argc = 0;
     App_RunClientScript(app, &req);
 }
@@ -1128,8 +1229,8 @@ app_plugin_popout_claim(struct App* app)
     assert(app);
     assert(app->tree);
 
-    /* No `[iface:plugin_popout]` in this profile: there is no strip and no slot
-     * to take. Not a contract violation — a rev with no popout strip is a real
+    /* No `[chrome]` mount in this profile: there is no strip and no slot to
+     * take. Not a contract violation — a rev with no popout strip is a real
      * rev — so it returns rather than asserting. */
     if( APP_POPOUT_CONTAINER < 0 )
         return;

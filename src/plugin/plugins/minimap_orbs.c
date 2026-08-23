@@ -1092,7 +1092,7 @@ static struct ToriRS_PluginConfigItem const ORBS_CONFIG[] = {
     { "show_run",       TORIRS_PLUGIN_CFG_BOOL,   "Run energy orb",                 "1",    0,    0,      NULL, 0 },
     { "show_spec",      TORIRS_PLUGIN_CFG_BOOL,   "Special attack orb",             "1",    0,    0,      NULL, 0 },
     { "offset_x",       TORIRS_PLUGIN_CFG_INT,    "Offset from minimap left",       "6",    -512, 512,    NULL, 0 },
-    { "offset_y",       TORIRS_PLUGIN_CFG_INT,    "Offset from the anchor",         "-10",  -512, 512,    NULL, 0 },
+    { "offset_y",       TORIRS_PLUGIN_CFG_INT,    "Offset from the anchor",         "-6",   -512, 512,    NULL, 0 },
     { "run_varp",       TORIRS_PLUGIN_CFG_INT,    "Run mode varp (-1 auto)",        "-1",   -1,   65535,  NULL, 0 },
     { "spec_varp",
      TORIRS_PLUGIN_CFG_INT,                       "Special attack varp (-1 auto)",

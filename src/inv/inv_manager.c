@@ -13,6 +13,7 @@ inv_slot_clear(struct InvSlot* slot)
     slot->obj_count = 0;
     slot->scene_id = INV_MANAGER_NO_SCENE_ID;
     slot->atlas_index = 0;
+    slot->icon_attempts = 0;
 }
 
 static void
@@ -478,6 +479,7 @@ InvManager_ApplyFull(
             {
                 container->slots[i].scene_id = INV_MANAGER_NO_SCENE_ID;
                 container->slots[i].atlas_index = 0;
+                container->slots[i].icon_attempts = 0;
             }
             container->slots[i].obj_id = oid;
             container->slots[i].obj_count = norm_count;
@@ -550,6 +552,7 @@ InvManager_ApplyPartial(
             {
                 container->slots[slot].scene_id = INV_MANAGER_NO_SCENE_ID;
                 container->slots[slot].atlas_index = 0;
+                container->slots[slot].icon_attempts = 0;
             }
             container->slots[slot].obj_id = oid;
             container->slots[slot].obj_count = norm_count;

@@ -133,13 +133,37 @@ static int const k_inv_button_action[UITREE_MENU_OPTION_SLOTS] = {
     REVCONFIG_MINIMENU_IF_BUTTON,  REVCONFIG_MINIMENU_IF_BUTTON,
     REVCONFIG_MINIMENU_IF_BUTTON,  REVCONFIG_MINIMENU_IF_BUTTON,
 };
+/*
+ * The same ops, when the component under them is a legacy TYPE_INV container.
+ *
+ * Those are a family of their own on the wire — INV_BUTTON1..5, one opcode per
+ * slot (Client.ts:9772-9795, `if (child.iop)`) — and the pre-237 protocol has
+ * no IF_BUTTON<n> at all. Sending the worn tab's "Remove" through the
+ * IF_BUTTON ladder therefore reached net_out_if_button_op with a name no lc254
+ * or lc289 table carries, which resolves to -1, which is how net_out declines
+ * to send: the menu row was built, the click was consumed, and the helmet
+ * stayed on with nothing on the socket to explain it.
+ *
+ * Slots 5..9 keep IF_BUTTON. The classic family stops at five and a container
+ * that names a sixth op is by construction a CS2 one, where the numbered
+ * ladder is the right answer.
+ */
+static int const k_container_iop_action[UITREE_MENU_OPTION_SLOTS] = {
+    REVCONFIG_MINIMENU_INV_BUTTON1, REVCONFIG_MINIMENU_INV_BUTTON2,
+    REVCONFIG_MINIMENU_INV_BUTTON3, REVCONFIG_MINIMENU_INV_BUTTON4,
+    REVCONFIG_MINIMENU_INV_BUTTON5, REVCONFIG_MINIMENU_IF_BUTTON,
+    REVCONFIG_MINIMENU_IF_BUTTON,   REVCONFIG_MINIMENU_IF_BUTTON,
+    REVCONFIG_MINIMENU_IF_BUTTON,   REVCONFIG_MINIMENU_IF_BUTTON,
+};
 
 /*
  * Rows from a node's cache/script ops (op slot 4 down to 0, so op 1 lands on
  * top after the bottom-to-top draw). Action id = op_actions[i] when a script
- * assigned one, else the INV_BUTTON default for the slot. target_suffix is
- * appended to each verb (reference: "<op> <target>", e.g. "Withdraw-1
- * <col>Coins</col>"); NULL/empty for plain verbs. Port of v1
+ * assigned one, else `default_actions[i]` — which family the click belongs to
+ * is the CALLER's knowledge, not this loop's (k_inv_button_action for a plain
+ * widget, k_container_iop_action for an item container's own buttons).
+ * target_suffix is appended to each verb (reference: "<op> <target>", e.g.
+ * "Withdraw-1 <col>Coins</col>"); NULL/empty for plain verbs. Port of v1
  * ui_click_add_menu_ops_rows + xrsps buildWidgetOpEntry labeling.
  */
 static int
@@ -147,10 +171,15 @@ add_menu_ops_rows(
     struct UIMinimenu* menu,
     struct UITreeMenuOptions const* opts,
     struct UIMinimenuPick pick,
-    char const* target_suffix)
+    char const* target_suffix,
+    int const* default_actions)
 {
     int const before = menu->option_count;
     char text[UITREE_MINIMENU_OPTION_LEN];
+
+    assert(menu);
+    assert(opts);
+    assert(default_actions);
 
     for( int i = UITREE_MENU_OPTION_SLOTS - 1; i >= 0; i-- )
     {
@@ -163,7 +192,7 @@ add_menu_ops_rows(
             snprintf(text, sizeof(text), "%s", opts->ops[i]);
 
         {
-            int action = k_inv_button_action[i];
+            int action = default_actions[i];
             if( opts->op_actions[i] != 0 )
                 action = opts->op_actions[i];
             UIMinimenu_AddOption(menu, text, action, i, pick);
@@ -439,7 +468,7 @@ add_obj_cell_rows(
     /* Container's own iop buttons (a shop's Value/Sell 1/5/10, the worn tab's
      * Remove), then the always-present Examine — trailing order per reference
      * (Client.ts: 9993-10020). */
-    add_menu_ops_rows(menu, &component_ops, pick, suffix);
+    add_menu_ops_rows(menu, &component_ops, pick, suffix, k_container_iop_action);
     {
         char examine[UITREE_MINIMENU_OPTION_LEN];
         format_inv_item_option(examine, sizeof(examine), "Examine", obj_name);
@@ -848,7 +877,8 @@ add_component_rows(
     if( rows )
     {
         ops_added = add_menu_ops_rows(
-            menu, rows, pick, rows->option[0] != '\0' ? rows->option : NULL);
+            menu, rows, pick, rows->option[0] != '\0' ? rows->option : NULL,
+            k_inv_button_action);
         if( ops_added > 0 )
             return menu->option_count - before;
     }

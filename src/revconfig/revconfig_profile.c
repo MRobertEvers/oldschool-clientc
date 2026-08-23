@@ -16,6 +16,15 @@ RevConfigProfile_Init(struct RevConfigProfile* profile)
     profile->features.ground_click_unbounded = -1;
     profile->features.ground_click_offmap = -1;
 
+    /* Nothing stated: no strip, so no plugin button. The memset already left
+     * both names empty; the numbers need their own sentinel because 0 is a real
+     * child, a real slot and (for a size) a real-looking one. */
+    profile->chrome.plugin_button_parent = -1;
+    profile->chrome.plugin_panel_parent = -1;
+    profile->chrome.plugin_button_slot = -1;
+    profile->chrome.plugin_button_size = -1;
+    profile->chrome.plugin_button_pitch = -1;
+
     profile->camera.zoom_mode = REVCONFIG_CAMERA_ZOOM_CLAMPED;
     profile->camera.zoom_min = REVCONFIG_CAMERA_ZOOM_DEFAULT_MIN;
     profile->camera.zoom_max = REVCONFIG_CAMERA_ZOOM_DEFAULT_MAX;
@@ -71,6 +80,39 @@ profile_merge_camera(
         dst->wheel_step = src->wheel_step;
 }
 
+static void
+profile_merge_chrome(
+    struct RevConfigChromeItem* dst,
+    struct RevConfigChromeItem const* src)
+{
+    assert(dst);
+    assert(src);
+
+    /* Per key, like the two above: a later source moving the button one slot
+     * down must not take the interface, the geometry and the layout script with
+     * it. An unstated key is an empty string or a -1, which is exactly what the
+     * item carries for a key its section did not spell. */
+    if( src->plugin_iface[0] )
+        memcpy(dst->plugin_iface, src->plugin_iface, sizeof(dst->plugin_iface));
+    if( src->plugin_button_op[0] )
+        memcpy(dst->plugin_button_op, src->plugin_button_op, sizeof(dst->plugin_button_op));
+    if( src->plugin_layout_script[0] )
+        memcpy(
+            dst->plugin_layout_script,
+            src->plugin_layout_script,
+            sizeof(dst->plugin_layout_script));
+    if( src->plugin_button_parent >= 0 )
+        dst->plugin_button_parent = src->plugin_button_parent;
+    if( src->plugin_panel_parent >= 0 )
+        dst->plugin_panel_parent = src->plugin_panel_parent;
+    if( src->plugin_button_slot >= 0 )
+        dst->plugin_button_slot = src->plugin_button_slot;
+    if( src->plugin_button_size >= 0 )
+        dst->plugin_button_size = src->plugin_button_size;
+    if( src->plugin_button_pitch >= 0 )
+        dst->plugin_button_pitch = src->plugin_button_pitch;
+}
+
 void
 RevConfigProfile_AddItems(
     struct RevConfigProfile* profile,
@@ -86,6 +128,8 @@ RevConfigProfile_AddItems(
             profile_merge_features(&profile->features, &item->u.features);
         else if( item->kind == RCITEM_CAMERA )
             profile_merge_camera(&profile->camera, &item->u.camera);
+        else if( item->kind == RCITEM_CHROME )
+            profile_merge_chrome(&profile->chrome, &item->u.chrome);
     }
 }
 

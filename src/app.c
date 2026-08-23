@@ -4673,6 +4673,32 @@ app_build_frame_overlays(
         return 0;
 
     PluginHost_DrawFrame(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    /*
+     * TORIRS_FRAME_DEBUG=1: how many pieces the frame's owner drew, and at
+     * what canvas.
+     *
+     * "The layout plugin draws nothing" has two separate causes and they look
+     * identical from a screenshot: the plugin declared nothing (this says
+     * zero), or it declared a frame that something else is drawing over (this
+     * says twenty and the screen still shows the lane's own chrome). Which of
+     * those it is decides whether to look at the plugin or at the
+     * suppression, and there is no other way to tell them apart.
+     */
+    if( getenv("TORIRS_FRAME_DEBUG") )
+        fprintf(
+            stderr,
+            "frameoverlay: %d items, canvas %dx%d, hid %d chrome, roles "
+            "world=%d map=%d compass=%d chat=%d side=%d modal=%d\n",
+            app->frame_overlay_count,
+            UITREE_LAYOUT_ROOT_W,
+            UITREE_LAYOUT_ROOT_H,
+            app->tree ? UITree_FrameHiddenCount(app->tree) : 0,
+            app->tree ? UITree_FrameSlotCount(app->tree, UITREE_FRAME_SLOT_VIEWPORT) : 0,
+            app->tree ? UITree_FrameSlotCount(app->tree, UITREE_FRAME_SLOT_MINIMAP) : 0,
+            app->tree ? UITree_FrameSlotCount(app->tree, UITREE_FRAME_SLOT_COMPASS) : 0,
+            app->tree ? UITree_FrameSlotCount(app->tree, UITREE_FRAME_SLOT_CHAT) : 0,
+            app->tree ? UITree_FrameSlotCount(app->tree, UITREE_FRAME_SLOT_SIDEBAR) : 0,
+            app->tree ? UITree_FrameSlotCount(app->tree, UITREE_FRAME_SLOT_MAIN_MODAL) : 0);
     return app->frame_overlay_count;
 }
 
@@ -5259,6 +5285,10 @@ app_host_request(
  * resets scene_id to NO_SCENE_ID and re-arms the reconcile. */
 #define APP_INV_ICON_BATCH_MAX 64
 #define APP_INV_ICON_SCENE_FAILED (-2)
+/* Reconcile passes a slot may spend waiting for its objtype, model and
+ * textures before the icon is given up on. One pass per tick, so this is a
+ * two-second ceiling on a cache that answers over the network. */
+#define APP_INV_ICON_ATTEMPT_MAX 100
 
 /* True while any item slot still needs a first rasterization attempt. */
 static int
@@ -5320,8 +5350,29 @@ Task_InvIconReconcile_Run(
         PT_TASK_AWAITSELF_IF(
             CreateTask_ObjModelLoad(app->provider, self->obj_ids, self->counts, self->n));
 
-    /* Rasterize every pending slot from whatever is now resident and stamp the
-     * scene id (or the failed sentinel) back onto the slot. */
+    /*
+     * Rasterize the pending slots whose parts have actually landed, and leave
+     * the rest pending for a later pass.
+     *
+     * Asking `ObjModelLoad_NeedsWork` first is the whole fix for icons that go
+     * missing at random. The batch above is capped, so on a bank (1410 slots)
+     * or a busy boot most pending slots never had their models requested; an
+     * UPDATE_INV that lands while this task awaits adds slots it never asked
+     * for either; and against an on-demand cache the answer arrives over the
+     * network whenever it arrives. In all three cases the raster below used to
+     * find nothing resident, stamp APP_INV_ICON_SCENE_FAILED, and the per-tick
+     * scan — which only looks at INV_MANAGER_NO_SCENE_ID — would never come
+     * back. The slot stayed blank until the server replaced the item.
+     *
+     * Baking too early is the same bug wearing the other face: an icon rastered
+     * before its model's textures arrive is cached blank against that
+     * (obj, count) key for the rest of the session, which draws as a stack
+     * count with no item under it.
+     *
+     * The attempt counter bounds the wait. An obj whose model genuinely never
+     * resolves keeps NeedsWork true forever, and without a bound it would
+     * re-arm this reconcile every tick for the rest of the session.
+     */
     for( int ci = 0; ci < app->invs.container_count; ci++ )
     {
         struct InvContainer* c = &app->invs.containers[ci];
@@ -5330,12 +5381,24 @@ Task_InvIconReconcile_Run(
         for( int s = 0; s < c->slot_count; s++ )
         {
             struct InvSlot* slot = &c->slots[s];
+            int count;
             int scene_id;
             if( slot->obj_id <= 0 || slot->scene_id != INV_MANAGER_NO_SCENE_ID )
                 continue;
-            scene_id = UITreeSceneBridge_EnsureObjIcon(
-                &app->bridge, slot->obj_id, slot->obj_count > 0 ? slot->obj_count : 1);
-            slot->scene_id = scene_id >= 0 ? scene_id : APP_INV_ICON_SCENE_FAILED;
+            count = slot->obj_count > 0 ? slot->obj_count : 1;
+            scene_id = UITreeSceneBridge_EnsureObjIcon(&app->bridge, slot->obj_id, count);
+            if( scene_id >= 0 )
+            {
+                slot->scene_id = scene_id;
+                slot->atlas_index = 0;
+                continue;
+            }
+            /* Could not build it *yet*: leave the slot pending so the next
+             * pass batches it, until the attempts run out. */
+            if( ObjModelLoad_NeedsWork(app->provider, slot->obj_id, count) &&
+                ++slot->icon_attempts < APP_INV_ICON_ATTEMPT_MAX )
+                continue;
+            slot->scene_id = APP_INV_ICON_SCENE_FAILED;
             slot->atlas_index = 0;
         }
     }
@@ -24010,10 +24073,6 @@ App_SyncPluginLayoutCanvas(struct App* app)
     int want;
 
     assert(app);
-    want = (app->plugin_layout_owned &&
-            app->plugin_layout_canvas == TORIRS_PLUGIN_CANVAS_FIXED)
-               ? CS2VM_WINDOW_MODE_FIXED
-               : CS2VM_WINDOW_MODE_RESIZABLE;
     /*
      * A RELEASE does not force resizable back on.
      *
@@ -24024,8 +24083,27 @@ App_SyncPluginLayoutCanvas(struct App* app)
      */
     if( !app->plugin_layout_owned )
         return;
+
+    want = app->plugin_layout_canvas == TORIRS_PLUGIN_CANVAS_FIXED
+               ? CS2VM_WINDOW_MODE_FIXED
+               : CS2VM_WINDOW_MODE_RESIZABLE;
     if( app->host.window_mode == want )
         return;
+    /*
+     * Re-asserted every frame the claim stands, not only when it changes.
+     *
+     * The window mode has other writers: a clientscript's setwindowmode, and
+     * on login the saved Display-panel layout being applied. Either of those
+     * lands AFTER the claim, and a claim that only spoke once loses to them
+     * silently -- the plugin goes on laying its frame out at the canvas it
+     * asked for while the client uses the window's, which puts a 765x503 frame
+     * in the corner of a 1440x900 canvas with the lane's own chrome spread
+     * around it. Two gameframes at once, and neither wrong from where it is
+     * standing.
+     *
+     * Whoever holds the frame decides how big the canvas is. Restating it is
+     * how that stays true for longer than one frame.
+     */
     app->host.window_mode = want;
     app->host.window_mode_dirty = true;
 }
@@ -24068,25 +24146,49 @@ App_PluginLayoutTick(struct App* app)
     }
     if( !app->tree || app->tree->root_index < 0 )
         return;
+    /*
+     * Nothing is declared against a frame that is still being built.
+     *
+     * The gameframe bakes across many frames -- the root interface, its packs,
+     * the scripts that rearrange them -- and a declaration made partway
+     * through finds none of the roles and none of the chrome, then stands for
+     * ever because it believes it succeeded. What that looks like is a client
+     * drawing the plugin's stones UNDER its own untouched gameframe, which is
+     * the one outcome worse than either frame alone.
+     *
+     * Marked dirty rather than merely skipped, so the first READY frame
+     * declares even if nothing else changed.
+     */
+    if( app->app_state != APP_STATE_READY )
+    {
+        app->plugin_layout_dirty = 1;
+        return;
+    }
+
+    /* The canvas the claim asked for, restated. @see the body: it has other
+     * writers, and the last one to speak wins. */
+    App_SyncPluginLayoutCanvas(app);
 
     /*
      * Re-declare only when the last answer stopped being true.
      *
-     * The three cases are the canvas resizing, the gameframe being rebuilt
-     * (which reclaims every node the declaration named, so UITree_Clear drops
-     * the whole table) and the claim itself. Re-declaring every frame would
-     * work and would cost a whole-tree walk per frame to collect the chrome
-     * again -- on a rev-239 toplevel that is thousands of nodes for an answer
-     * that has not changed since the window was last dragged.
+     * The cases are the canvas resizing, the gameframe being rebuilt (which
+     * bumps the tree generation and drops the whole table with it), the boot
+     * finishing, and the claim itself. Re-declaring every frame would work and
+     * would cost a whole-tree walk per frame to collect the chrome again -- on
+     * a rev-239 toplevel that is thousands of nodes for an answer that has not
+     * changed since the window was last dragged.
      */
     if( app->plugin_layout_dirty || !UITree_FrameActive(app->tree) ||
+        app->plugin_layout_generation != app->tree->generation ||
         app->plugin_layout_w != UITREE_LAYOUT_ROOT_W ||
         app->plugin_layout_h != UITREE_LAYOUT_ROOT_H )
     {
         PluginHost_Layout(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
     }
-
-    UITree_FrameReassert(app->tree);
+    /* The re-assert is NOT here. It has to be the last writer before the draw,
+     * and the tick is nowhere near last -- see UITree_EmitWalk, which is where
+     * it runs from. */
 }
 
 int

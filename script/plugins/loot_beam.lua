@@ -41,6 +41,14 @@
 -- that override the cache for the items whose cache value is nothing like
 -- their real one (the coin-value of a rune scimitar is not 25,600).
 --
+-- What a beam is measured against is `value_mode`, and its default is the
+-- HIGH-ALCHEMY price rather than that raw cost, for the same reason
+-- ground_items.lua defaults the same way: cost is a shop number, and the alch
+-- price derived from it -- floor(cost * 0.6), the reference's own
+-- ItemComposition.getHaPrice -- is the one the game will actually pay. The
+-- two plugins spell this row identically so a threshold set on one can be
+-- read off the other.
+--
 
 ---@type torirs.Plugin
 local plugin           = {
@@ -61,6 +69,17 @@ local plugin           = {
             default = "modern",
             choices = "modern|light",
             label = "Beam style"
+        },
+        -- Spelled exactly as ground_items.lua's row of the same name, and
+        -- defaulted the same way -- see the header. `value` is the raw cost
+        -- (prices.txt applies to it), `highest` takes whichever of the two is
+        -- larger.
+        {
+            key = "value_mode",
+            type = "enum",
+            default = "alch",
+            choices = "alch|value|highest",
+            label = "Value calculation"
         },
 
         {
@@ -195,9 +214,23 @@ local function tier_colour(api, value)
     return nil
 end
 
-local function value_of(obj)
+-- Reference ItemComposition.getHaPrice: price * HIGH_ALCHEMY_MULTIPLIER
+-- (0.6f), truncated. Kept as a rational so the arithmetic stays in integers,
+-- and applied per UNIT before the stack multiply -- which is where the
+-- reference truncates too.
+local HA_NUM, HA_DEN = 3, 5
+
+-- What this stack is worth under the configured mode. `alch` is the default;
+-- see the header.
+local function value_of(api, obj)
     local unit = prices[obj.obj_id] or obj.cost
-    return unit * obj.count
+    local exchange = unit * obj.count
+    local alch = (unit * HA_NUM // HA_DEN) * obj.count
+    local mode = api.config.value_mode
+
+    if mode == "value" then return exchange end
+    if mode == "highest" then return exchange > alch and exchange or alch end
+    return alch
 end
 
 -- Parse `obj_id=price` lines. Anything else -- blank lines, `#` comments, a
@@ -254,7 +287,7 @@ local function rebuild(api)
     local tally = 0
 
     for obj in api.objs() do
-        local value = value_of(obj)
+        local value = value_of(api, obj)
         tally = tally + 1
         local rgb = tier_colour(api, value)
         if rgb then

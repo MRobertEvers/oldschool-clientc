@@ -257,7 +257,7 @@ hit_test_interactive_recursive(
     struct UITreeComponent const* component = &tree->components[node_index];
 
     /* Match emit: hidden subtrees are not interactive. */
-    if( component->behavior.hide )
+    if( component->behavior.hide || component->frame_hidden )
         return -1;
 
     /* Inactive sidebar tabs contribute nothing — gate FIRST, exactly like the
@@ -436,7 +436,7 @@ UITree_HitTestRecursive(
     struct UITreeComponent const* component = &tree->components[node_index];
 
     /* Match emit: hidden subtrees are not interactive. */
-    if( component->behavior.hide )
+    if( component->behavior.hide || component->frame_hidden )
         return -1;
 
     int32_t hit = -1;
@@ -515,7 +515,7 @@ collect_nodes_recursive(
 
     struct UITreeComponent const* component = &tree->components[node_index];
 
-    if( component->behavior.hide )
+    if( component->behavior.hide || component->frame_hidden )
         return;
 
     /* Inactive sidebar tabs contribute nothing — gate FIRST (like the emit

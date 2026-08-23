@@ -302,6 +302,22 @@ static struct
     int canvas_h;
     struct FrameBlit blit[FRAME_BLIT_MAX];
     int blit_count;
+    /*
+     * Chrome that goes OVER the live surfaces instead of behind them.
+     *
+     * Almost all frame art sits behind: the panel is behind the inventory, the
+     * chatbox backing is behind the text. The map housing is the exception and
+     * it is not a detail -- the stone ring OVERLAPS the map, which is what
+     * turns a square blit of terrain into a round minimap. Drawn behind, the
+     * corners of the map cover the ring and the frame reads as a photograph
+     * pasted over the stones.
+     *
+     * Two lists rather than a flag per blit, because the two are drawn from
+     * different events: the frame surface (under the interfaces) and the
+     * canvas surface (over them). @see EV_DRAW_FRAME.
+     */
+    struct FrameBlit over[FRAME_BLIT_MAX];
+    int over_count;
     struct FrameTab tab[FRAME_TAB_COUNT];
     int tab_count;
     /** Set once the layout has been declared at least once, so the draw pass
@@ -312,21 +328,37 @@ static struct
 /* ------------------------------------------------------------------ helpers */
 
 static void
-frame_blit(int image, int x, int y)
+frame_blit_into(struct FrameBlit* list, int* count, int image, int x, int y)
 {
+    assert(list);
+    assert(count);
     if( image < 0 )
         return;
-    if( g_frame.blit_count >= FRAME_BLIT_MAX )
+    if( *count >= FRAME_BLIT_MAX )
     {
         /* Said rather than silently dropped: a frame missing one stone reads
          * as a rendering bug, and this is the one thing that could cause it. */
         g_api->log(NULL, "frame: more than %d chrome blits; the rest are dropped", FRAME_BLIT_MAX);
         return;
     }
-    g_frame.blit[g_frame.blit_count].image = image;
-    g_frame.blit[g_frame.blit_count].x = x;
-    g_frame.blit[g_frame.blit_count].y = y;
-    g_frame.blit_count++;
+    list[*count].image = image;
+    list[*count].x = x;
+    list[*count].y = y;
+    (*count)++;
+}
+
+/** Chrome behind the live surfaces. */
+static void
+frame_blit(int image, int x, int y)
+{
+    frame_blit_into(g_frame.blit, &g_frame.blit_count, image, x, y);
+}
+
+/** Chrome over them. @see ToriRS_PluginEvDrawCanvas and `over`. */
+static void
+frame_blit_over(int image, int x, int y)
+{
+    frame_blit_into(g_frame.over, &g_frame.over_count, image, x, y);
 }
 
 static void
@@ -395,7 +427,7 @@ frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
     frame_blit(g_image[IMG_C_BACKTOP1], 0, 0);
     frame_blit(g_image[IMG_C_BACKLEFT1], 0, 4);
     frame_blit(g_image[IMG_C_BACKVMID1], 516, 4);
-    frame_blit(g_image[IMG_C_MAPBACK], 550, 4);
+    frame_blit_over(g_image[IMG_C_MAPBACK], 550, 4);
     frame_blit(g_image[IMG_C_BACKRIGHT1], 722, 4);
     frame_blit(g_image[IMG_C_BACKHMID1], 516, 160);
     frame_blit(g_image[IMG_C_BACKVMID2], 516, 205);
@@ -493,7 +525,7 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
     frame_blit(g_image[IMG_O_BACKTOP_RIGHT], 717, 0);
     frame_blit(g_image[IMG_O_BACKLEFT1], 0, 4);
     frame_blit(g_image[IMG_O_BACKVMID1], 516, 4);
-    frame_blit(g_image[IMG_O_MAPBACK], 545, 4);
+    frame_blit_over(g_image[IMG_O_MAPBACK], 545, 4);
     frame_blit(g_image[IMG_O_BACKRIGHT_TOP], 717, 4);
     frame_blit(g_image[IMG_O_BACKHMID1], 516, 160);
     frame_blit(g_image[IMG_O_TABS_TOP], 516, 167);
@@ -578,7 +610,7 @@ frame_layout_modern_resizable(
 
     assert(ctx);
 
-    frame_blit(g_image[IMG_O_MAPBACK], map_x, 0);
+    frame_blit_over(g_image[IMG_O_MAPBACK], map_x, 0);
     frame_blit(g_image[IMG_O_TABS_TOP_R], row_x, top_row_y);
     frame_blit(g_image[IMG_O_SIDE_PANEL], panel_x, panel_y);
     frame_blit(g_image[IMG_O_TABS_BOTTOM_R], row_x, bottom_row_y);
@@ -710,14 +742,53 @@ frame_build_redstones(struct ToriRS_PluginCtx* ctx)
     g_redstone_flipped = 1;
 }
 
+/** The choices, in enum order. Also the schema's `choices` string, split. */
+static char const* const FRAME_LAYOUT_NAME[] = {
+    "Classic Fixed",
+    "Modern Fixed",
+    "Modern Resizable",
+};
+
+/*
+ * Which layout the setting names.
+ *
+ * Read as a STRING and resolved two ways, because a config enum is stored as
+ * its LABEL: the settings panel writes back whichever dropdown row was chosen
+ * ("Modern Resizable"), and that is what lands in plugin_prefs.ini. Reading it
+ * as a number -- which is what cfg_int does, and what this used to do -- turns
+ * every saved choice into atoi("Modern Resizable"), which is 0, so the layout
+ * silently reverted to Classic Fixed on the next launch and the panel went on
+ * showing the choice that had been thrown away.
+ *
+ * The index form is still accepted, and not only for the test: plugin_prefs.ini
+ * is a file people edit, `layout=2` is the obvious thing to write in it, and a
+ * client that ignored it would be answering a reasonable edit with silence.
+ */
 static int
 frame_layout_from_config(struct ToriRS_PluginCtx* ctx)
 {
-    /* The enum's own index, as the config schema spells the choices. */
-    int const value = g_api->cfg_int(ctx, "layout");
-    if( value < FRAME_CLASSIC_FIXED || value > FRAME_MODERN_RESIZABLE )
+    char const* value = g_api->cfg_str(ctx, "layout");
+
+    assert(ctx);
+    if( !value || !value[0] )
         return FRAME_CLASSIC_FIXED;
-    return value;
+
+    if( value[0] >= '0' && value[0] <= '9' )
+    {
+        int const index = atoi(value);
+        if( index >= FRAME_CLASSIC_FIXED && index <= FRAME_MODERN_RESIZABLE )
+            return index;
+        return FRAME_CLASSIC_FIXED;
+    }
+
+    for( int i = 0; i <= FRAME_MODERN_RESIZABLE; i++ )
+        if( strcmp(value, FRAME_LAYOUT_NAME[i]) == 0 )
+            return i;
+    /* A label this build does not have -- a prefs file from a version that
+     * offered a layout this one dropped, or a typo. The frame it falls back to
+     * is a frame, which is the one thing it must be. */
+    g_api->log(ctx, "unknown layout '%s'; using %s", value, FRAME_LAYOUT_NAME[0]);
+    return FRAME_CLASSIC_FIXED;
 }
 
 static enum ToriRS_PluginVerdict
@@ -738,6 +809,7 @@ frame_on_layout(
     g_frame.canvas_w = ev->width;
     g_frame.canvas_h = ev->height;
     g_frame.blit_count = 0;
+    g_frame.over_count = 0;
     g_frame.tab_count = 0;
 
     switch( g_frame.layout )
@@ -753,6 +825,24 @@ frame_on_layout(
         break;
     }
     g_frame.declared = 1;
+    /*
+     * One line per declaration, and there are only three moments that produce
+     * one -- a claim, a resize, a rebuild -- so it is a record of the frame's
+     * whole history rather than per-frame noise.
+     *
+     * It names the LAYOUT because that is the question a wrong-looking frame
+     * raises first, and the setting is stored as a label that has to be
+     * resolved: "the dropdown says Modern Resizable and the screen says
+     * Classic Fixed" is a real failure with no other symptom.
+     */
+    g_api->log(
+        ctx,
+        "layout %s at %dx%d: %d chrome pieces, %d tabs",
+        FRAME_LAYOUT_NAME[g_frame.layout],
+        ev->width,
+        ev->height,
+        g_frame.blit_count + g_frame.over_count,
+        g_frame.tab_count);
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -835,6 +925,46 @@ frame_on_draw(
             FRAME_TAG_TAB | (uint32_t)t->tabno);
     }
 
+    return TORIRS_PLUGIN_PASS;
+}
+
+/*
+ * The over-chrome, on the canvas surface.
+ *
+ * Separate handler because it is a separate EVENT, and the tab regions are not
+ * repeated here: a region declared in one draw pass is the same list either
+ * way, and claiming each stone twice would put two rows in the right-click
+ * menu for one stone.
+ */
+static enum ToriRS_PluginVerdict
+frame_on_draw_over(
+    struct ToriRS_PluginCtx* ctx,
+    void* payload,
+    void* userdata)
+{
+    struct ToriRS_PluginEvDrawCanvas const* ev = payload;
+
+    (void)userdata;
+    assert(ctx);
+    assert(ev);
+
+    if( !g_frame.declared || !g_api->layout_owned(ctx) )
+        return TORIRS_PLUGIN_PASS;
+
+    for( int i = 0; i < g_frame.over_count; i++ )
+    {
+        g_api->draw_image(
+            ctx,
+            ev->surface,
+            g_frame.over[i].image,
+            g_frame.over[i].x,
+            g_frame.over[i].y,
+            0,
+            0,
+            0,
+            0,
+            /*trans=*/0);
+    }
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -987,21 +1117,32 @@ frame_init(
     api->subscribe(ctx, TORIRS_PLUGIN_EV_STOP, frame_on_stop, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_LAYOUT, frame_on_layout, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_DRAW_FRAME, frame_on_draw, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_DRAW_CANVAS, frame_on_draw_over, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_CANVAS_CLICK, frame_on_click, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_CONFIG_CHANGED, frame_on_config, NULL);
 }
 
+/*
+ * The default is the LABEL and not "0", so that the value this ships with has
+ * the same shape as the value the settings panel writes. Two spellings of the
+ * same choice in one file is how the reader ends up believing one of them is
+ * special.
+ */
 static struct ToriRS_PluginConfigItem const FRAME_CONFIG[] = {
     { "layout",
      TORIRS_PLUGIN_CFG_ENUM,
      "Layout",
-     "0",
+     "Classic Fixed",
      0,
      2,
      "Classic Fixed|Modern Fixed|Modern Resizable",
      0 },
     { NULL, TORIRS_PLUGIN_CFG_BOOL, NULL, NULL, 0, 0, NULL, 0 },
 };
+
+_Static_assert(
+    sizeof(FRAME_LAYOUT_NAME) / sizeof(FRAME_LAYOUT_NAME[0]) == FRAME_MODERN_RESIZABLE + 1,
+    "the name table and the layout enum must agree; the schema's choices= is the same list");
 
 struct ToriRS_PluginDef const TORIRS_PLUGIN_GAMEFRAME = {
     .name = "gameframe-layout",

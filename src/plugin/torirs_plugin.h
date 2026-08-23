@@ -1271,8 +1271,12 @@ struct ToriRS_PluginApi
      * before, and a claim that half-succeeded would leave two plugins each
      * believing they own the stones.
      *
-     * A successful claim raises EV_LAYOUT before it returns, so a plugin never
-     * has to place its slots twice: once here and once from the event.
+     * A successful claim does NOT declare the frame on the spot: it marks the
+     * frame as needing one, and EV_LAYOUT arrives on the client's next layout
+     * pass, with the canvas the client actually has. A plugin therefore places
+     * its slots in exactly one place -- its EV_LAYOUT handler -- and nowhere
+     * else, and it must not assume the frame is declared by the time this
+     * returns. Anything drawn before the first EV_LAYOUT should draw nothing.
      *
      * The claim is dropped when the plugin stops, so a disabled layout plugin
      * gives the lane's own gameframe back rather than leaving the client with

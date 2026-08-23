@@ -972,11 +972,51 @@ revconfig_items_build(
     const struct RevConfigBuffer* fields,
     struct RevConfigItemBuffer* out);
 
-/** Parse symbolic MiniMenuAction name or decimal string. Returns 0 if unknown/empty. */
+/**
+ * Parse the value of a numeric key.
+ *
+ * The value is an integer expression, not just a decimal run, so a profile can
+ * spell an id, a mask or a colour the way the reference does:
+ *
+ *   hex          0x1088     1088h     0FFh
+ *   binary       0b1010_1010
+ *   grouping     0x1000_0000          (underscores between digits)
+ *   colours      rgb(255, 0, 0)       rgba(0, 0, 0, 128)
+ *   uids         if(1088, 255)        -- (interface << 16) | component
+ *   arithmetic   (1088 << 16) | 0xFF
+ *
+ * Operators and their precedence are C's: | ^ & << >> + - * / % and unary
+ * + - ~. `rgb()` packs RGB, `rgba()` packs ARGB -- the word the client blits.
+ * `if()` takes 0..65535 per half, or -1 for the "no component" 0xFFFF.
+ *
+ * Arithmetic is 64-bit and the result must land in [INT32_MIN, UINT32_MAX];
+ * what comes back is its 32-bit pattern, so rgba(255,255,255,255) arrives as
+ * -1 rather than as a value an `int` field could not hold.
+ *
+ * A value that does not parse is REPORTED on stderr and comes back 0. An empty
+ * value is 0 with nothing said: an unstated key is not a malformed one.
+ */
+int
+revconfig_parse_int(char const* str);
+
+/**
+ * The same grammar, for a value that has more than a number in it -- a zoom
+ * band's `[<min>, <max>]`, say.
+ *
+ * Parses ONE expression off the front of `str`. Returns 1 and writes the value
+ * and, when `out_end` is given, the first character not consumed; the caller
+ * decides what may follow. Returns 0 without touching either when the text is
+ * not an expression or the value does not fit 32 bits, and says nothing --
+ * this is the form to probe with.
+ */
+int
+revconfig_parse_int_expr(char const* str, char const** out_end, int* out_value);
+
+/** Parse symbolic MiniMenuAction name or number (@see revconfig_parse_int). Returns 0 if unknown/empty. */
 int
 revconfig_parse_minimenu_action(char const* str);
 
-/** Parse button_type= string (ok/toggle/select/close/continue/target) or integer. */
+/** Parse button_type= string (ok/toggle/select/close/continue/target) or number. */
 int
 revconfig_parse_button_type(char const* str);
 

@@ -59,9 +59,9 @@ push_element_from_ini_header(
     else
     {
         /*
-         * A section with no `:` at all -- `[camera]`, `[features]`. There is
-         * exactly one of each per profile, so there is nothing to name it by,
-         * and the type IS the header.
+         * A section with no `:` at all -- `[camera]`, `[features]`, `[chrome]`.
+         * There is exactly one of each per profile, so there is nothing to name
+         * it by, and the type IS the header.
          *
          * The old code returned here instead, which left s_ini_item_type
          * pointing at whatever section came BEFORE: an unrecognised header's
@@ -126,7 +126,7 @@ push_field_from_ini_kv(
     uint8_t kind = RCFIELD_NONE;
 
     /*
-     * The two nameless sections first. Their keys are scoped to them the way
+     * The three nameless sections first. Their keys are scoped to them the way
      * `id=` is scoped to the cache-ref kinds -- `mover=` and `controls=` are
      * ordinary enough words that a future [component:...] spelling could want
      * them, and the section type is what keeps the two apart.
@@ -161,6 +161,30 @@ push_field_from_ini_kv(
             kind = RCFIELD_CAMERA_WHEEL_STEP;
         else
             fprintf(stderr, "revconfig: [camera] has no key '%s'\n", key);
+        if( kind != RCFIELD_NONE )
+            push_field(vec, kind, value);
+        return;
+    }
+    if( strcmp(s_ini_item_type, "chrome") == 0 )
+    {
+        if( strcmp(key, "plugin_button_iface") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_IFACE;
+        else if( strcmp(key, "plugin_button_parent") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_BUTTON_PARENT;
+        else if( strcmp(key, "plugin_panel_parent") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_PANEL_PARENT;
+        else if( strcmp(key, "plugin_button_slot") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_BUTTON_SLOT;
+        else if( strcmp(key, "plugin_button_size") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_BUTTON_SIZE;
+        else if( strcmp(key, "plugin_button_pitch") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_BUTTON_PITCH;
+        else if( strcmp(key, "plugin_button_op") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_BUTTON_OP;
+        else if( strcmp(key, "plugin_layout_script") == 0 )
+            kind = RCFIELD_CHROME_PLUGIN_LAYOUT_SCRIPT;
+        else
+            fprintf(stderr, "revconfig: [chrome] has no key '%s'\n", key);
         if( kind != RCFIELD_NONE )
             push_field(vec, kind, value);
         return;
