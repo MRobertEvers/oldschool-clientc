@@ -500,6 +500,24 @@ enum TorirsPerfCounter
     TORIRS_PERF_CTR_R_CMDS_FONT,
     TORIRS_PERF_CTR_R_CMDS_RECT,
 
+    /** What the three model gates do with those submissions. `r_cmds_model` is
+     *  what the painter handed the renderer; these say how far each one got.
+     *
+     *  A model rejected by FastCull/AabbCull (toridraw_render.u.c:2638) costs a
+     *  rotation-invariant sphere test and an 8-point AABB and nothing else. One
+     *  that passes pays a transform for every vertex whether or not a single
+     *  pixel survives. One that then sorts to zero faces paid that projection
+     *  in full and rasterizes nothing.
+     *
+     *  So `r_model_culled / r_cmds_model` is the answer to "is the culling
+     *  working", and `r_model_faces / r_model_drawn` is what the rasterizer is
+     *  actually being asked to fill. Counted here rather than inside toridraw
+     *  because the verdicts are already in hand at the soft3d call site. */
+    TORIRS_PERF_CTR_R_MODEL_CULLED,
+    TORIRS_PERF_CTR_R_MODEL_DRAWN,
+    TORIRS_PERF_CTR_R_MODEL_SORT_EMPTY,
+    TORIRS_PERF_CTR_R_MODEL_FACES,
+
     TORIRS_PERF_CTR_COUNT
 };
 

@@ -609,7 +609,7 @@ PlatformSDL2_Init(struct PlatformSDL2* p, int width, int height, char const* tit
     AdjustWindowRect(&r, WS_OVERLAPPEDWINDOW, FALSE);
 
     p->hwnd = CreateWindowExA(
-        0, RPD_WNDCLASS, title ? title : "torirs",
+        0, RPD_WNDCLASS, title ? title : "ToriRS",
         WS_OVERLAPPEDWINDOW,
         CW_USEDEFAULT, CW_USEDEFAULT,
         r.right - r.left, r.bottom - r.top,

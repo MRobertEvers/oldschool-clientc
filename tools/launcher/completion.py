@@ -48,6 +48,24 @@ COMMANDS = {
             "--no-open": "print the URL instead of opening a browser",
         },
     },
+    "bench": {
+        "help": "time the world's [bench:*] scenes",
+        "positionals": ("profile", "clientarg*"),
+        "flags": {
+            "--scene": "which scenes, comma-separated",
+            "--renderer": "which renderers, comma-separated",
+            "--repeat": "client processes per scene and renderer",
+            "--baseline": "an earlier run to report deltas against",
+            "--shots": "dump one BMP per run at the sample camera",
+            "--list": "print the suite and stop",
+            "--client": "override the profile's frontend",
+            "--flavor": "override the profile's build flavor",
+            "--no-build": "skip the client build",
+            "--skip-checks": "run the cache exactly as it is",
+            "--no-gate": "report a budget_ms breach without failing",
+            "--timeout": "seconds before one run is killed",
+        },
+    },
     "status": {
         "help": "what is running",
         "positionals": ("run",),
@@ -86,6 +104,11 @@ COMMANDS = {
 VALUE_FLAGS = {
     "--client": "client",
     "--flavor": "flavor",
+    "--scene": "scene",
+    "--renderer": "renderer",
+    "--baseline": "",
+    "--repeat": "",
+    "--timeout": "",
     "-n": "",
     "--lines": "",
 }
@@ -192,6 +215,10 @@ def candidates(repo_root, words):
             return [(name, "") for name in CLIENT_KINDS]
         if kind == "flavor":
             return _flavor_candidates(current)
+        if kind == "scene":
+            return _scenes(repo_root, _profile_word(spec, prior))
+        if kind == "renderer":
+            return _renderers()
         return []
 
     if current.startswith("-"):
@@ -229,6 +256,56 @@ def candidates(repo_root, words):
         return sorted(SHELLS.items())
     # clientarg: free-form arguments the client parses, nothing to offer.
     return []
+
+
+
+def _profile_word(spec, prior):
+    """The profile name already typed on this line, if there is one.
+
+    A value flag is completed before the positionals are counted, so the
+    profile has to be recovered from the words themselves rather than from
+    a slot index.
+    """
+    if not spec["positionals"] or spec["positionals"][0] != "profile":
+        return None
+    skip_next = False
+    for word in prior[1:]:
+        if skip_next:
+            skip_next = False
+            continue
+        if word.startswith("-"):
+            skip_next = word in VALUE_FLAGS
+            continue
+        return word
+    return None
+
+
+def _scenes(repo_root, profile_name):
+    """The scene names the named profile's world declares.
+
+    Offered only once a profile is on the line: scenes belong to a world,
+    and guessing a registry-wide list would offer names that the profile
+    being completed cannot run.
+    """
+    if not profile_name:
+        return []
+    try:
+        from .bench import load_suite
+        from .profiles import load_profile
+
+        suite = load_suite(load_profile(repo_root, profile_name).manifest())
+    except Exception:
+        # A half-typed profile, a world with no bench block, a manifest
+        # mid-edit: none of those are worth an error message inside a
+        # completion.
+        return []
+    return [(scene.name, scene.description) for scene in suite.scenes]
+
+
+def _renderers():
+    from .bench import RENDERER_FLAGS
+
+    return sorted((name, flag) for name, flag in RENDERER_FLAGS.items())
 
 
 def _is_subsequence(typed, word):

@@ -6,6 +6,8 @@
 #include "graphics/dash_restrict.h"
 #include "graphics/raster/gouraudhsllightness/gouraudhsllightness_barycentric_steps.h"
 #include "graphics/raster/flat/flat_screen_edges.h"
+#include "graphics/raster/span_census.h"
+#include "graphics/raster/raster_ablate.h"
 
 #include "graphics/shared_tables.h"
 
@@ -49,6 +51,9 @@ draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
         color_hsl16_ish8, toridraw_wrap_mul(x_start, color_step_hsl16_ish8));
 
     int stride = (x_end - x_start);
+    TORIDRAW_SPAN_CENSUS_RECORD(stride, offset, 1);
+
+    TORIDRAW_ABLATE_RETURN_AT(1);
 
     int steps = (stride) >> 2;
     color_step_hsl16_ish8 <<= 2;
@@ -109,6 +114,9 @@ draw_scanline_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered_noclip
         color_hsl16_ish8, toridraw_wrap_mul(x_start, color_step_hsl16_ish8));
 
     int stride = (x_end - x_start);
+    TORIDRAW_SPAN_CENSUS_RECORD(stride, offset, 0);
+
+    TORIDRAW_ABLATE_RETURN_AT(1);
 
     int steps = (stride) >> 2;
     color_step_hsl16_ish8 <<= 2;
@@ -288,6 +296,8 @@ raster_gouraudhsllightness_screen_opaque_bary_branching_s4_ordered(
     {
         y2 = screen_height;
     }
+
+    TORIDRAW_ABLATE_RETURN_AT(2);
 
     if( (y0 == y1 && step_edge_x_AC_ish16 <= step_edge_x_BC_ish16) ||
         (y0 != y1 && step_edge_x_AC_ish16 >= step_edge_x_AB_ish16) )

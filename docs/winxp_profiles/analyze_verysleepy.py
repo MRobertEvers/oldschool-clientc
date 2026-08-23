@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""Convert a Very Sleepy 0.7 archive's text payload into reviewable tables."""
+"""Convert a Very Sleepy 0.7 archive's text payload into reviewable tables.
+
+    analyze_verysleepy.py [RAW_DIR] [OUT_PREFIX]
+
+Both optional, defaulting to the Aug-22 baseline capture. They exist so a
+second capture can be analysed without overwriting the first: the baseline
+tables (verysleepy_*) are the only surviving record of a binary that no longer
+exists, so a re-profile writes verysleepy-<something>_* instead.
+"""
 
 from __future__ import annotations
 
@@ -7,11 +15,13 @@ import collections
 import csv
 import json
 import re
+import sys
 from pathlib import Path
 
 
 HERE = Path(__file__).resolve().parent
-RAW = HERE / "winxp-soft3d-60s-raw"
+RAW = HERE / (sys.argv[1] if len(sys.argv) > 1 else "winxp-soft3d-60s-raw")
+OUT_PREFIX = sys.argv[2] if len(sys.argv) > 2 else "verysleepy"
 SYMBOL_RE = re.compile(
     r'^(sym\d+)\s+"([^"]*)"\s+"([^"]*)"\s+"([^"]*)"\s+(\d+)$'
 )
@@ -74,7 +84,7 @@ def main() -> None:
             )
         )
     hotspot_rows.sort(key=lambda row: (row[6], row[4]), reverse=True)
-    with (HERE / "verysleepy_hotspots.csv").open("w", newline="", encoding="utf-8") as out:
+    with (HERE / (OUT_PREFIX + "_hotspots.csv")).open("w", newline="", encoding="utf-8") as out:
         writer = csv.writer(out)
         writer.writerow(
             [
@@ -91,13 +101,13 @@ def main() -> None:
         for row in hotspot_rows:
             writer.writerow((*row[:4], *(f"{value:.6f}" for value in row[4:])))
 
-    with (HERE / "verysleepy_top_stacks.csv").open("w", newline="", encoding="utf-8") as out:
+    with (HERE / (OUT_PREFIX + "_top_stacks.csv")).open("w", newline="", encoding="utf-8") as out:
         writer = csv.writer(out)
         writer.writerow(["seconds", "percent", "leaf_to_root"])
         for seconds, stack in sorted(stack_rows, reverse=True):
             writer.writerow([f"{seconds:.6f}", f"{100.0 * seconds / total:.6f}", stack])
 
-    with (HERE / "verysleepy_stacks.folded").open("w", encoding="utf-8", newline="\n") as out:
+    with (HERE / (OUT_PREFIX + "_stacks.folded")).open("w", encoding="utf-8", newline="\n") as out:
         for stack, seconds in sorted(folded.items(), key=lambda item: item[1], reverse=True):
             out.write("%s %d\n" % (stack, max(1, round(seconds * 1_000_000))))
 
@@ -109,7 +119,7 @@ def main() -> None:
             continue
         _address, seconds, source, line_number = match.groups()
         source_counts[(source, int(line_number))] += float(seconds)
-    with (HERE / "verysleepy_source_hotspots.csv").open(
+    with (HERE / (OUT_PREFIX + "_source_hotspots.csv")).open(
         "w", newline="", encoding="utf-8"
     ) as out:
         writer = csv.writer(out)
@@ -127,7 +137,7 @@ def main() -> None:
         "stack_record_count": len(stack_rows),
         "archive_stats": (RAW / "Stats.txt").read_text(errors="replace").splitlines(),
     }
-    (HERE / "verysleepy_summary.json").write_text(
+    (HERE / (OUT_PREFIX + "_summary.json")).write_text(
         json.dumps(stats, indent=2) + "\n", encoding="utf-8"
     )
     print(json.dumps(stats, indent=2))

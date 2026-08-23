@@ -128,6 +128,34 @@ OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(N
 O_LEVEL = $(PLATFORM_DEBUG_O_LEVEL)
 endif
 
+# What OPT=1 adds beyond -O3. These were not in this makefile: the XP profiling
+# build that produced docs/winxp_profiles/analysis.md carried them on the
+# command line, so the numbers on record describe flags no `make OPT=1` could
+# reproduce. Both belong in the release configuration itself.
+#
+#   -flto      The client is built as a handful of large unity TUs plus a few
+#              hundred ordinary ones. Cross-TU inlining is exactly what the
+#              unity files exist to fake, and LTO does it without the
+#              #include-a-.c arrangement. Wants matching flags at link, which
+#              PLATFORM_LDFLAGS already supplies for this lane (-O3 -g0).
+#
+#   -DNDEBUG   Compiles out assert(). Note this contradicts CLAUDE.md, which
+#              states asserts stay live in every configuration including OPT=1
+#              -- the convention there makes assert() the error handling, not a
+#              debug aid. It is safe in the narrow mechanical sense: all 45
+#              assert() sites in src/ and 3rd/toridraw that wrap a call wrap a
+#              pure predicate (World_EntityPoolIsActive, td_scene_element_valid,
+#              ToriDraw_SceneHasZBuffer, ...), so nothing with a side effect
+#              vanishes with the macro. What it does cost is the loud abort:
+#              an assert()ed malloc becomes an unchecked one.
+ifeq ($(OPT),1)
+OPT_RELEASE_CFLAGS  = -DNDEBUG -flto
+OPT_RELEASE_LDFLAGS = -flto
+else
+OPT_RELEASE_CFLAGS  =
+OPT_RELEASE_LDFLAGS =
+endif
+
 # The optimized XP deliverable is a deployment binary, not a profiling build.
 # Let the i686 register allocator reclaim EBP and do not carry DWARF through
 # every object. Other lanes retain their existing diagnostic-friendly flags.
@@ -282,6 +310,17 @@ RSPROT_CFLAGS   += $(PLATFORM_BASE_CFLAGS)
 COMPRESS_CFLAGS += $(PLATFORM_BASE_CFLAGS)
 TORIDRAW_CFLAGS += $(PLATFORM_BASE_CFLAGS)
 LDFLAGS = $(PLATFORM_LDFLAGS) $(PLATFORM_STRIP_LDFLAGS)
+
+# Empty unless OPT=1; see the definition above. Every compile that feeds the
+# final link gets these, because a partly-LTO link is a silently partly-
+# optimized one -- GCC accepts the mixture and just leaves the plain objects
+# out of the whole-program pass.
+CFLAGS          += $(OPT_RELEASE_CFLAGS)
+RSCACHE_CFLAGS  += $(OPT_RELEASE_CFLAGS)
+RSPROT_CFLAGS   += $(OPT_RELEASE_CFLAGS)
+COMPRESS_CFLAGS += $(OPT_RELEASE_CFLAGS)
+TORIDRAW_CFLAGS += $(OPT_RELEASE_CFLAGS)
+LDFLAGS         += $(OPT_RELEASE_LDFLAGS)
 
 ifeq ($(ENABLE_ASAN),1)
 CFLAGS += -fsanitize=address -fno-omit-frame-pointer -DTORIRS_ENABLE_ASAN=1
@@ -1379,7 +1418,7 @@ $(OBJ_DIR)/ini.o: $(INI_SRC) | $(OBJ_DIR)
 # Lua 5.5, one object with its own flags (see plugin/lua_unity.c for what is
 # deliberately left out of it). -w because a vendored library's warnings are
 # not ours to fix and would drown the tree's own.
-LUA_CFLAGS = -std=c99 $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) $(PLATFORM_BASE_CFLAGS) -I$(LUA_DIR)
+LUA_CFLAGS = -std=c99 $(O_LEVEL) $(BUILD_DIAGNOSTIC_CFLAGS) $(OPT_RELEASE_CFLAGS) $(PLATFORM_BASE_CFLAGS) -I$(LUA_DIR)
 $(OBJ_DIR)/lua_unity.o: $(SRC_DIR)/plugin/lua_unity.c | $(OBJ_DIR)
 	$(CC) $(LUA_CFLAGS) -w -c $(SRC_DIR)/plugin/lua_unity.c -o $@
 

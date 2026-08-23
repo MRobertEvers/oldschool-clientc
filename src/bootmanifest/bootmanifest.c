@@ -712,6 +712,12 @@ bm_set_kv(
             bm->hidpi = atoi(value) != 0 ? 1 : -1;
             return;
         }
+        if( strcmp(key, "plugins") == 0 )
+        {
+            /* Tri-state, like hidpi above and for the same reason. */
+            bm->plugins = atoi(value) != 0 ? 1 : -1;
+            return;
+        }
         if( strcmp(key, "window") == 0 )
         {
             char* sep = NULL;
@@ -1426,6 +1432,8 @@ BootManifest_ApplyToConfig(struct BootManifest const* bm, struct AppConfig* cfg)
         cfg->chrome_checkbox = bm->chrome_checkbox - 1;
     if( bm->hidpi )
         cfg->hidpi = bm->hidpi;
+    if( bm->plugins )
+        cfg->plugins = bm->plugins;
     if( bm->window_w > 0 && bm->window_h > 0 )
     {
         cfg->window_w = bm->window_w;

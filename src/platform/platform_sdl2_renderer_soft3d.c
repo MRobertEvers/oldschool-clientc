@@ -959,7 +959,10 @@ soft3d_draw_model(
     if( trace_this && cull != TORIDRAW_CULL_VISIBLE )
         g_draw_trace_drawn_frames++;
     if( cull != TORIDRAW_CULL_VISIBLE )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_CULLED, 1);
         return;
+    }
 
     /* Hittest before the face sort: the scene scratch holds this model's
      * projection only until the next model projects, and a model whose faces
@@ -1000,8 +1003,16 @@ soft3d_draw_model(
         }
         g_draw_trace_last_sorted = sorted;
         g_draw_trace_drawn_frames++;
+        /* Counted after the sort, not before: a model that survives both culls
+         * has already paid its whole per-vertex projection by this point, so
+         * `sorted <= 0` is work spent for no pixels and wants its own name. */
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_DRAWN, 1);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_FACES, sorted > 0 ? sorted : 0);
         if( sorted <= 0 )
+        {
+            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_R_MODEL_SORT_EMPTY, 1);
             return;
+        }
     }
     ToriDraw_RenderModel3Raster(
         soft->scene, &soft->view_port_3d, &soft->camera_3d, soft->pixels, false);

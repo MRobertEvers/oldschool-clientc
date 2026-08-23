@@ -5240,7 +5240,16 @@ rs_cs2_cache_hook_args(
     char str_args[][CS2VM_SETON_STR_ARG_LEN],
     struct ToriRS_ScriptHook const* src)
 {
-    int argc = src->argc > 0 ? src->argc - 1 : 0;
+    int argc;
+
+    assert(int_args);
+    assert(int_arg_count);
+    assert(str_arg_mask);
+    assert(str_arg_count);
+    assert(str_args);
+    assert(src);
+
+    argc = src->argc > 0 ? src->argc - 1 : 0;
 
     if( argc > RS_CS2_HOST_TRANSMIT_INT_ARG_MAX )
         argc = RS_CS2_HOST_TRANSMIT_INT_ARG_MAX;
@@ -5249,11 +5258,35 @@ rs_cs2_cache_hook_args(
     *int_arg_count = argc;
 
     *str_arg_mask = src->str_mask >> 1;
-    *str_arg_count =
-        src->str_argc > CS2VM_SETON_STR_ARG_MAX ? CS2VM_SETON_STR_ARG_MAX : src->str_argc;
+    /*
+     * Two different bounds meet here and they are not the same number: the
+     * destination holds CS2VM_SETON_STR_ARG_MAX rows (16), the source holds
+     * TORIRS_COMPONENT_HOOK_STR_MAX (4). Clamping the count to the
+     * destination's bound, and running the copy loop to it while indexing the
+     * *source* with it, meant twelve of every sixteen iterations read past the
+     * end of `src->strv` and handed whatever followed the struct to "%s".
+     * strlen then ran from there until it met a zero byte or an unmapped page.
+     *
+     * That is the crash the XP box died of in strlen inside snprintf, roughly
+     * one launch in three, from
+     * RS_CS2_RegisterCacheTransmitHooks <- Task_InterfaceOpen_Run: whether it
+     * faulted was decided by what happened to sit after the hook record, so it
+     * tracked heap layout -- a console being attached was enough to change the
+     * odds -- and not anything about the frame it died on.
+     *
+     * The source array is the bound for reading it, and slots past the count
+     * are cleared rather than left to whatever the destination held, so every
+     * row the transmit tables go on to read is a defined string.
+     */
+    *str_arg_count = src->str_argc > TORIRS_COMPONENT_HOOK_STR_MAX
+                         ? TORIRS_COMPONENT_HOOK_STR_MAX
+                         : src->str_argc;
     for( int i = 0; i < CS2VM_SETON_STR_ARG_MAX; i++ )
     {
-        snprintf(str_args[i], CS2VM_SETON_STR_ARG_LEN, "%s", src->strv[i]);
+        if( i < *str_arg_count )
+            snprintf(str_args[i], CS2VM_SETON_STR_ARG_LEN, "%s", src->strv[i]);
+        else
+            str_args[i][0] = '\0';
     }
 }
 

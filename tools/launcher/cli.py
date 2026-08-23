@@ -10,6 +10,7 @@ ownership of the processes that name implies.
 
 import argparse
 import contextlib
+import json
 import os
 import signal
 import subprocess
@@ -17,7 +18,7 @@ import sys
 import time
 import urllib.parse
 
-from . import host, services as services_mod
+from . import bench, host, services as services_mod
 from . import staleness, supervisor
 from .profiles import (LaunchError, generate_resolved_manifest, list_profiles,
                        load_profile)
@@ -595,6 +596,166 @@ def _stop_quietly(profile_name):
             say("stopped %s" % name)
 
 
+# ------------------------------------------------------------------- bench
+def _bench_selection(args, suite):
+    """The scenes, renderers and repeat count this invocation asks for."""
+    scenes = suite.select(
+        [name.strip() for name in (args.scene or "").split(",") if name.strip()])
+    renderers = [name.strip()
+                 for name in (args.renderer or "").split(",") if name.strip()]
+    if renderers:
+        unknown = [name for name in renderers if name not in bench.RENDERER_FLAGS]
+        if unknown:
+            raise LaunchError(
+                "--renderer names %s; this client has %s"
+                % (", ".join(unknown), ", ".join(sorted(bench.RENDERER_FLAGS))))
+    else:
+        renderers = suite.renderers
+    return scenes, renderers, args.repeat or suite.repeat
+
+
+def _bench_run_one(plan, run, shots, timeout):
+    """One client process. Returns its exit code, or None if it was killed."""
+    env = dict(os.environ)
+    env.update({str(key): str(value) for key, value in plan.env.items()})
+    env.update(run.env(shots=shots))
+    if shots:
+        # The client's bmp writer does not create its directory; it
+        # reports the failed open and carries on rendering, so a missing
+        # directory costs a shot rather than a run.
+        os.makedirs(run.shot_dir, exist_ok=True)
+    argv = list(plan.client_argv) + run.args()
+    # stdout and stderr both into the run's log. The perf report the client
+    # prints at exit is on stderr, and it is what you go and read when a
+    # number in the table looks wrong.
+    with open(run.log_path, "w", encoding="utf-8", errors="replace") as log:
+        log.write("$ %s\n\n" % " ".join(argv))
+        log.flush()
+        try:
+            return subprocess.run(
+                argv, cwd=REPO_ROOT, env=env, stdout=log,
+                stderr=subprocess.STDOUT, timeout=timeout).returncode
+        except subprocess.TimeoutExpired:
+            log.write("\n\nlaunch: killed after %ds\n" % timeout)
+            return None
+
+
+def cmd_bench(args):
+    profile = load_profile(REPO_ROOT, args.profile)
+    plan = build_plan(profile, args.client, args.flavor, args.args)
+    if plan.client not in ("native", "headless"):
+        raise LaunchError(
+            "bench needs a native client to time; profile '%s' is client=%s"
+            % (profile.name, plan.client))
+
+    world = os.path.relpath(plan.base_manifest_path, REPO_ROOT)
+    suite = bench.load_suite(plan.manifest)
+    if not suite.scenes:
+        raise LaunchError(
+            "%s declares no [bench:<scene>] blocks, so there is nothing to "
+            "measure" % world)
+    scenes, renderers, repeat = _bench_selection(args, suite)
+
+    if args.list:
+        say("%s - cache %s" % (world, os.path.relpath(suite.cache_dir, REPO_ROOT)))
+        say("renderers: %s" % ", ".join(renderers))
+        for scene in scenes:
+            print("%-24s %s" % (scene.name, scene.summary_line()))
+            if scene.description:
+                print("%-24s %s" % ("", scene.description))
+        return 0
+
+    stamp = time.strftime("%Y%m%d-%H%M%S")
+    out_dir = os.path.join(REPO_ROOT, "build", "bench", profile.name, stamp)
+    os.makedirs(out_dir, exist_ok=True)
+
+    if not _prepare(plan, args.skip_checks, False):
+        return 1
+    if plan.target and not args.no_build:
+        if _run_make(plan.target, plan.make_args, plan.env) != 0:
+            say("client build failed")
+            return 1
+
+    runs = bench.plan_runs(suite, scenes, renderers, repeat, out_dir)
+    say("%d run%s into %s"
+        % (len(runs), "" if len(runs) == 1 else "s",
+           os.path.relpath(out_dir, REPO_ROOT)))
+
+    rows = []
+    failed = []
+    for index, run in enumerate(runs, 1):
+        say("[%d/%d] %s - %d frames"
+            % (index, len(runs), run.stem, run.scene.total_frames))
+        code = _bench_run_one(plan, run, args.shots, args.timeout)
+        samples = bench.read_windows(run.windows_csv_path)
+        row = bench.summarise(run, samples)
+        row["exit_code"] = code
+        rows.append(row)
+        if code is None:
+            failed.append("%s: killed after %ds" % (run.stem, args.timeout))
+        elif code != 0:
+            failed.append("%s: exit %d" % (run.stem, code))
+        elif row["samples_kept"] == 0:
+            failed.append(
+                "%s: no samples - see %s"
+                % (run.stem, os.path.relpath(run.log_path, REPO_ROOT)))
+
+    print(bench.format_table(rows))
+    print("")
+    say("milliseconds. p50/p95 are medians across the kept samples of a run, "
+        "'worst p95' the largest single sample")
+
+    summary = {
+        "profile": profile.name,
+        "world": world,
+        "manifest_used": os.path.relpath(plan.manifest_path, REPO_ROOT),
+        "cache": os.path.relpath(suite.cache_dir, REPO_ROOT),
+        "revision": plan.manifest.revision,
+        "flavors": plan.flavors,
+        "binary": plan.binary,
+        "renderers": renderers,
+        "repeat": repeat,
+        "stamp": stamp,
+        "runs": rows,
+    }
+    summary_path = os.path.join(out_dir, "summary.json")
+    with open(summary_path, "w", encoding="utf-8") as handle:
+        json.dump(summary, handle, indent=2)
+    say("summary: %s" % os.path.relpath(summary_path, REPO_ROOT))
+
+    if args.baseline:
+        baseline_path = args.baseline
+        if os.path.isdir(baseline_path):
+            baseline_path = os.path.join(baseline_path, "summary.json")
+        if not os.path.isfile(baseline_path):
+            raise LaunchError("no bench summary at '%s'" % baseline_path)
+        with open(baseline_path, encoding="utf-8") as handle:
+            baseline = json.load(handle)
+        if baseline.get("cache") != summary["cache"]:
+            # Not fatal, but it has to be said: a different cache is
+            # different geometry, and a percentage measured against
+            # different geometry is not a renderer measurement.
+            say("warning: baseline was measured against cache %s, this run "
+                "against %s" % (baseline.get("cache"), summary["cache"]))
+        print("")
+        print(bench.format_deltas(rows, baseline.get("runs", [])))
+        print("")
+        say("vs %s - positive is slower now"
+            % os.path.relpath(baseline_path, REPO_ROOT))
+
+    for problem in failed:
+        say(problem)
+
+    if suite.budget_ms is not None and not args.no_gate:
+        breached = bench.over_budget(rows, suite.budget_ms)
+        for row, value in breached:
+            say("over budget: %s/%s frame p95 %.2f ms > %.2f ms"
+                % (row["scene"], row["renderer"], value, suite.budget_ms))
+        if breached:
+            return 1
+    return 1 if failed else 0
+
+
 def cmd_status(args):
     names = [args.profile] if args.profile else supervisor.known_runs(REPO_ROOT)
     if not names:
@@ -836,6 +997,35 @@ def main(argv=None):
                      help="print the URL instead of opening a browser")
     run.add_argument("args", nargs="*", help="extra client arguments")
 
+    bench_cmd = sub.add_parser(
+        "bench", help="time the world's [bench:*] scenes")
+    bench_cmd.add_argument("profile")
+    bench_cmd.add_argument("--scene",
+                           help="comma-separated scene names (default: all)")
+    bench_cmd.add_argument("--renderer",
+                           help="comma-separated renderers, overriding [bench]")
+    bench_cmd.add_argument("--repeat", type=int,
+                           help="whole client processes per scene and renderer")
+    bench_cmd.add_argument("--baseline",
+                           help="an earlier run directory or summary.json to "
+                                "report deltas against")
+    bench_cmd.add_argument("--shots", action="store_true",
+                           help="dump one BMP per run at the sample camera")
+    bench_cmd.add_argument("--list", action="store_true",
+                           help="print the suite and stop")
+    bench_cmd.add_argument("--client", help="override the profile's frontend")
+    bench_cmd.add_argument("--flavor",
+                           help="override the profile's build flavor")
+    bench_cmd.add_argument("--no-build", action="store_true",
+                           help="skip the client build")
+    bench_cmd.add_argument("--skip-checks", action="store_true",
+                           help="run the cache exactly as it is")
+    bench_cmd.add_argument("--no-gate", action="store_true",
+                           help="report a budget_ms breach without failing")
+    bench_cmd.add_argument("--timeout", type=int, default=900,
+                           help="seconds before one run is killed")
+    bench_cmd.add_argument("args", nargs="*", help="extra client arguments")
+
     status = sub.add_parser("status", help="what is running")
     status.add_argument("profile", nargs="?")
 
@@ -863,6 +1053,7 @@ def main(argv=None):
 
     handlers = {
         "list": cmd_list, "show": cmd_show, "run": cmd_run,
+        "bench": cmd_bench,
         "status": cmd_status, "stop": cmd_stop, "logs": cmd_logs,
         "doctor": cmd_doctor, "completion": cmd_completion,
     }

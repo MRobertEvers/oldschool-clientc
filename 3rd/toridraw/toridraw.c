@@ -284,7 +284,12 @@ ToriDraw_SceneAllocBuffers(
     }
     else
     {
-        scene->tmp_depth_face_count = malloc((size_t)caps->depth_levels * sizeof(faceint_t));
+        /* calloc, not malloc: the render path never clears this table whole.
+         * Each sort re-zeroes only the buckets it dirtied after its consumer
+         * has walked them (ToriDraw_ComputeProjectedFaceOrder), so the
+         * all-zero state is established here, once. */
+        scene->tmp_depth_face_count =
+            calloc((size_t)caps->depth_levels, sizeof(faceint_t));
         scene->tmp_depth_faces = malloc(
             (size_t)caps->depth_levels * (size_t)caps->depth_stride * sizeof(faceint_t));
         scene->tmp_priority_face_count = malloc(12 * sizeof(faceint_t));

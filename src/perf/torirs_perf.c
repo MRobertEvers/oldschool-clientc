@@ -290,6 +290,10 @@ static char const* const g_ctr_names[TORIRS_PERF_CTR_COUNT] = {
     "r_cmds_sprite",
     "r_cmds_font",
     "r_cmds_rect",
+    "r_model_culled",
+    "r_model_drawn",
+    "r_model_sort_empty",
+    "r_model_faces",
 };
 
 /* COUNT_SET gauges: window flush reports last sample, not a sum. */

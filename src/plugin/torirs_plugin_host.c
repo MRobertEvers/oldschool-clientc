@@ -43,8 +43,27 @@ struct ToriRS_PluginCtx
     struct ToriRS_PluginHost* host;
     struct ToriRS_PluginDef const* def;
     int index;
+    /* The USER's switch, as the settings file holds it. Never written by
+     * anything the plugin itself does -- see `refused`. */
     bool enabled;
     bool running;
+    /*
+     * The plugin looked at the lane and stood down. @see
+     * ToriRS_PluginApi::disable_self.
+     *
+     * A second flag rather than a cleared `enabled`, because the two are
+     * different facts with different lifetimes: `enabled` is a preference that
+     * outlives the boot and is written to disk, and this is one boot's answer
+     * to "can this plugin work here at all". Folding them together would make
+     * booting an OldSchool world silently forget the gameframe layout chosen
+     * on a 2004 world, since the encoder writes whatever `enabled` holds.
+     *
+     * Cleared by an explicit enable and by a reload -- both are the user
+     * asking for the decision to be taken again -- and by nothing else, so a
+     * refusal holds for the rest of the boot without the plugin having to
+     * restate it.
+     */
+    bool refused;
     /* Overlay items pushed this frame, against TORIRS_PLUGIN_DRAW_BUDGET. */
     int draw_used;
     bool draw_clipped;
@@ -375,6 +394,11 @@ plugin_drop_subs(struct ToriRS_PluginHost* host, int plugin_index)
  * Re-reading the count each step and skipping stale entries is what keeps that
  * from walking off the end.
  */
+/* Defined with the lifecycle, far below, because it belongs to it -- the api
+ * verb that lets a plugin stand down is the only thing up here that needs it. */
+static void
+plugin_teardown(struct ToriRS_PluginHost* host, int plugin_index);
+
 static enum ToriRS_PluginVerdict
 plugin_dispatch(struct ToriRS_PluginHost* host, enum ToriRS_PluginEvent ev, void* payload)
 {
@@ -1550,6 +1574,62 @@ api_cache_id(struct ToriRS_PluginCtx* ctx, char const* kind, char const* name)
     if( !ctx->host->engine.cache_id )
         return -1;
     return ctx->host->engine.cache_id(ctx->host->engine.user, kind, name);
+}
+
+static int
+api_lane(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginLane* out)
+{
+    assert(ctx);
+    assert(out);
+
+    memset(out, 0, sizeof(*out));
+    /* A build with no lane seam answers UNKNOWN rather than refusing the call:
+     * every field already holds the "nothing has said" value, so a plugin
+     * reads the same thing here as on a boot whose identity has not landed. */
+    if( !ctx->host->engine.lane )
+        return 0;
+    return ctx->host->engine.lane(ctx->host->engine.user, out);
+}
+
+/*
+ * A plugin standing down.
+ *
+ * The teardown is PluginHost_SetEnabled's, and what it does NOT do is the
+ * point: `enabled` is left alone and the store is not marked dirty, so the
+ * user's saved switch survives a lane that cannot run the plugin.
+ */
+static void
+api_disable_self(struct ToriRS_PluginCtx* ctx, char const* reason)
+{
+    struct ToriRS_PluginHost* host;
+    int prev;
+
+    assert(ctx);
+    assert(reason);
+    /* An essential plugin has one state -- the roster draws no switch for it
+     * and SetEnabled refuses to clear it -- so a def that declares itself
+     * essential and then stands down is that plugin's own bug. */
+    assert(!ctx->def->essential);
+
+    host = ctx->host;
+    /* Idempotent: a plugin that says so twice, or from a second handler that
+     * runs after the one that already did, is not deciding twice. */
+    if( ctx->refused )
+        return;
+
+    PluginHost_SetError(host, ctx->index, reason);
+    /*
+     * Saved and restored around the teardown, which ends by clearing it.
+     *
+     * This is called from inside a dispatch -- init, or a handler -- and the
+     * caller goes on running after it returns. Leaving the host with nobody
+     * dispatching would make every api verb the rest of that handler tried
+     * answer for the wrong plugin.
+     */
+    prev = host->dispatching;
+    plugin_teardown(host, ctx->index);
+    host->dispatching = prev;
+    ctx->refused = true;
 }
 
 static int
@@ -3310,6 +3390,8 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .varbit = api_varbit,
         .varp = api_varp,
         .cache_id = api_cache_id,
+        .lane = api_lane,
+        .disable_self = api_disable_self,
         .obj_info = api_obj_info,
         .inv_slot = api_inv_slot,
         .inv_size = api_inv_size,
@@ -3546,7 +3628,11 @@ PluginHost_Start(struct ToriRS_PluginHost* host)
     for( int i = 0; i < host->plugin_count; i++ )
     {
         struct ToriRS_PluginCtx* ctx = &host->plugins[i];
-        if( ctx->running || !ctx->enabled )
+        /* `refused` and not `enabled`, so a plugin that stood down on this
+         * lane stays down for every later Start -- a script finishing its load
+         * runs this again, and without the flag every refusal would be
+         * reconsidered, re-taken and re-logged on each one. */
+        if( ctx->running || !ctx->enabled || ctx->refused )
             continue;
 
         ctx->running = true;
@@ -3631,7 +3717,11 @@ PluginHost_SetEnabled(struct ToriRS_PluginHost* host, int plugin_index, bool ena
     assert(host);
 
     struct ToriRS_PluginCtx* ctx = plugin_at(host, plugin_index);
-    if( ctx->enabled == enabled )
+    /* `refused` is part of the state being asked about: a plugin that stood
+     * down reads as off in the roster, so the switch the user then flips asks
+     * for a state it already nominally has, and returning here would make that
+     * click do nothing at all. */
+    if( ctx->enabled == enabled && !ctx->refused )
         return;
 
     /*
@@ -3651,10 +3741,16 @@ PluginHost_SetEnabled(struct ToriRS_PluginHost* host, int plugin_index, bool ena
     {
         plugin_teardown(host, plugin_index);
         ctx->enabled = false;
+        ctx->refused = false;
         return;
     }
 
     ctx->enabled = true;
+    /* Asked for explicitly, so the lane question goes back to the plugin. It
+     * may well stand down again -- the lane has not changed -- and that is the
+     * honest answer to the click: the reason lands beside the row the switch
+     * is on. */
+    ctx->refused = false;
     PluginHost_Start(host);
 }
 
@@ -3718,8 +3814,11 @@ PluginHost_Reload(struct ToriRS_PluginHost* host, int plugin_index)
         }
     }
 
-    /* Whatever the last run faulted with was about the run that just ended. */
+    /* Whatever the last run faulted with was about the run that just ended,
+     * and so was any refusal: a reload is a fresh run, decided again from
+     * whatever the new source says. */
     ctx->error[0] = '\0';
+    ctx->refused = false;
 
     PluginHost_Start(host);
 }
@@ -3730,7 +3829,7 @@ PluginHost_IsEnabled(struct ToriRS_PluginHost const* host, int plugin_index)
     assert(host);
     assert(plugin_index >= 0);
     assert(plugin_index < host->plugin_count);
-    return host->plugins[plugin_index].enabled;
+    return host->plugins[plugin_index].enabled && !host->plugins[plugin_index].refused;
 }
 
 int

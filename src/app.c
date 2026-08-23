@@ -184,6 +184,12 @@ app_debug_key_held(
  * TORIRS_PAINTER_W3D=1), 1 = force world3d, 2 = force bucket. Set by the
  * TORIRS_PAINTER_ALT same-frame BMP pair in main.c. */
 int g_torirs_painter_force = 0;
+/* Ordinal of the frame being drawn, bumped once per main-loop iteration in
+ * main.c. Anything whose phase must be a function of the frame rather than
+ * of the clock reads it -- TORIRS_WEDGE_CAM_PATH does. Distinct from main's
+ * frame_count, which only advances when TORIRS_MAX_FRAMES bounded the run;
+ * a camera path has to keep moving in an unbounded session too. */
+long g_torirs_frame_no = 0;
 
 enum
 {
@@ -200,12 +206,28 @@ enum
      * quiet" but "was this client running". A frame gap that large means the
      * process was not scheduled (a hidden or frozen browser tab, a suspended
      * machine), so whatever is queued behind the socket is a backlog to
-     * abandon, not a stream to replay. It has to sit above any legitimate
-     * hitch: a slow map load or a GC pause is hundreds of milliseconds, not
-     * seconds.
+     * abandon, not a stream to replay.
+     *
+     * The gap it tests is now_ms - last_frame_ms, and last_frame_ms is stamped
+     * at the TOP of App_RunOnce — so the quantity is the previous frame's whole
+     * wall duration, work included, not the time the process spent descheduled.
+     * That conflation is harmless where a frame is always short. It is not
+     * harmless on the Windows XP lane: the earlier value, 4000, assumed "a slow
+     * map load is hundreds of milliseconds, not seconds", and on that hardware
+     * it is seconds. Measured worst legitimate frame, hydrating the sparse
+     * cache over JS5 while rebuilding the world:
+     *
+     *   docs/winxp_profiles/baseline-winxp-soft3d-torirs-perf.csv   6.73s
+     *   docs/winxp_profiles/new-run1.csv                           11.04s
+     *
+     * A client working flat out therefore concluded twelve times in one
+     * thousand frames that it had not been running, and dropped a healthy
+     * session — each drop costing a reconnect and a fresh login, which is what
+     * made the profile unusable. 30000 clears the worst measured frame by
+     * ~2.7x while staying far below any real suspend, which is minutes.
      */
     APP_NET_TIMEOUT_MS = 15000,
-    APP_NET_STALL_MS = 4000,
+    APP_NET_STALL_MS = 30000,
     /* Outbound silence that has to pass before the NO_TIMEOUT keepalive goes
      * out. The reference's own figure (Client.ts:2181), and far below the
      * server's idle cutoff, so one late tick cannot cost the session. */
@@ -7939,13 +7961,17 @@ App_Init(
      * Built here so a plugin's config is readable the moment anything asks,
      * but NOT started: PluginHost_Start runs after the saved settings have
      * been applied, or every plugin would spend its first frames on defaults
-     * and then jump when the ini arrived. TORIRS_PLUGINS=0 switches the whole
-     * layer off, which is what the headless parity harnesses use to prove a
-     * change is theirs and not a plugin's.
+     * and then jump when the ini arrived. `[ui:boot] plugins=0` in the manifest
+     * switches the whole layer off, and TORIRS_PLUGINS outranks the manifest in
+     * both directions -- which is what the headless parity harnesses use to
+     * prove a change is theirs and not a plugin's.
      */
     {
         char const* plugins_env = getenv("TORIRS_PLUGINS");
-        if( !plugins_env || atoi(plugins_env) != 0 )
+        int want_plugins = cfg->plugins >= 0;
+        if( plugins_env )
+            want_plugins = atoi(plugins_env) != 0;
+        if( want_plugins )
         {
             struct ToriRS_PluginEngine engine = app_plugin_engine(app);
             app->plugin_panel = -1;
@@ -9117,6 +9143,63 @@ app_world_map_poll(struct App* app)
     app->need_redraw = 1;
 }
 
+/* The most squares one offline TORIRS_WORLD_MAP load may name. 16 is a 4x4
+ * block, 256x256 tiles -- well past the 104x104 the live client keeps
+ * resident, so the cap bounds the array without capping any scene worth
+ * meshing. */
+#define APP_WORLD_MAP_SQUARE_MAX 16
+
+/*
+ * Parse TORIRS_WORLD_MAP: "x,z", or up to `max_pairs` such squares separated
+ * by ';'. Writes the pairs into `out_chunks` and returns how many.
+ *
+ * The list form exists because ONE square is 64x64 tiles -- under half the
+ * 104x104 scene the live client keeps around the player. Every
+ * distance-scaled renderer cost (projection, sort, raster coverage) is
+ * therefore understated by a one-square offline scene, which is exactly the
+ * cost a scene benchmark is there to measure. Naming a 2x2 block meshes the
+ * draw distance the game actually has.
+ *
+ * Returns 0 -- never a partial read -- for anything it does not fully
+ * understand, a list longer than the cap included. Meshing fewer squares than
+ * was asked for is invisible in the frame and reads as "the renderer got
+ * faster", so the caller keeps its default and says so instead.
+ */
+static int
+app_world_map_squares_parse(char const* spec, int* out_chunks, int max_pairs)
+{
+    int count = 0;
+    char const* cursor = spec;
+
+    assert(spec);
+    assert(out_chunks);
+    assert(max_pairs > 0);
+
+    while( count < max_pairs )
+    {
+        int x = 0;
+        int z = 0;
+        int consumed = 0;
+
+        if( sscanf(cursor, " %d , %d%n", &x, &z, &consumed) != 2 )
+            return 0;
+        out_chunks[count * 2] = x;
+        out_chunks[count * 2 + 1] = z;
+        count++;
+        cursor += consumed;
+        while( *cursor == ' ' )
+            cursor++;
+        if( *cursor != ';' )
+            break;
+        cursor++;
+    }
+    while( *cursor == ' ' )
+        cursor++;
+    if( *cursor != '\0' )
+        return 0;
+    return count;
+}
+
 /* Task_WorldLoad on_done trampoline: adapts the void* hook to App_WorldLoadFinish. */
 static void
 app_world_load_finish_cb(void* userdata)
@@ -9135,7 +9218,7 @@ app_world_load_begin(
     int const* chunks_xz,
     int chunk_pair_count)
 {
-    int chunks[2] = { 50, 50 };
+    int chunks[APP_WORLD_MAP_SQUARE_MAX * 2] = { 50, 50 };
     struct ToriRS_Task* task;
 
     /* Same seam as CacheProvider_TrimDerivedCaches inside Task_WorldLoad:
@@ -9145,6 +9228,7 @@ app_world_load_begin(
     if( !chunks_xz )
     {
         char const* env;
+        int pair_count = 1;
 
         /*
          * Spawn square precedence: TORIRS_WORLD_MAP, then the manifest's `[cache:boot] spawn`,
@@ -9164,25 +9248,31 @@ app_world_load_begin(
         env = getenv("TORIRS_WORLD_MAP");
         if( env )
         {
-            int env_x;
-            int env_z;
-            if( sscanf(env, "%d,%d", &env_x, &env_z) == 2 )
+            /* Into scratch, not `chunks`: a list that turns out to be malformed
+             * halfway through must not have already overwritten the manifest
+             * square the message below is about to name as the fallback. */
+            int parsed_chunks[APP_WORLD_MAP_SQUARE_MAX * 2];
+            int parsed = app_world_map_squares_parse(
+                env, parsed_chunks, APP_WORLD_MAP_SQUARE_MAX);
+            if( parsed > 0 )
             {
-                chunks[0] = env_x;
-                chunks[1] = env_z;
+                memcpy(chunks, parsed_chunks, sizeof(int) * 2 * (size_t)parsed);
+                pair_count = parsed;
             }
             else
             {
                 fprintf(
                     stderr,
-                    "TORIRS_WORLD_MAP must be \"x,z\", got '%s' - using %d,%d\n",
+                    "TORIRS_WORLD_MAP must be \"x,z\", or up to %d such squares "
+                    "separated by ';', got '%s' - using %d,%d\n",
+                    APP_WORLD_MAP_SQUARE_MAX,
                     env,
                     chunks[0],
                     chunks[1]);
             }
         }
         chunks_xz = chunks;
-        chunk_pair_count = 1;
+        chunk_pair_count = pair_count;
     }
 
     /*
@@ -14326,6 +14416,306 @@ app_update_painter_cull(
     (void)center_sx;
 }
 
+/* Camera paths -- TORIRS_WEDGE_CAM_PATH.
+ *
+ *   TORIRS_WEDGE_CAM_PATH=<mode>,<frames>,<wrap>;x,y,z,pitch,yaw;x,y,z,...
+ *
+ * <mode> is `linear` (straight legs between waypoints) or `spline` (a
+ * Catmull-Rom curve THROUGH them). <frames> is how many frames one full
+ * traversal takes. <wrap> is `loop` (waypoint N joins back to waypoint 0),
+ * `pingpong` (walk it back the way it came) or `hold` (stop at the end).
+ * Two waypoints and up; one waypoint is TORIRS_WEDGE_CAM with extra syntax.
+ *
+ * The phase is a function of the FRAME ORDINAL, never of the clock. A camera
+ * driven by elapsed time would make the geometry depend on how fast the
+ * machine drew it, so a slower renderer would be measured over a different
+ * scene than the faster one it is being compared against -- and the counter
+ * columns would stop being the cross-check they exist to be. Frame-indexed,
+ * two runs of a scene traverse it identically whatever they cost.
+ */
+#define APP_WEDGE_CAM_PATH_MAX 32
+
+enum
+{
+    APP_WEDGE_CAM_LINEAR = 0,
+    APP_WEDGE_CAM_SPLINE = 1
+};
+
+enum
+{
+    APP_WEDGE_CAM_LOOP = 0,
+    APP_WEDGE_CAM_PINGPONG = 1,
+    APP_WEDGE_CAM_HOLD = 2
+};
+
+struct AppWedgeCamKey
+{
+    int x;
+    int y;
+    int z;
+    int pitch;
+    int yaw;
+};
+
+struct AppWedgeCamPath
+{
+    int mode;
+    int wrap;
+    int count;
+    long frames;
+    /* Net yaw carried by one full traversal, so a looping orbit keeps turning
+     * the same way across the seam instead of unwinding at it. Zero for a path
+     * that ends facing where it started. */
+    long turn;
+    struct AppWedgeCamKey keys[APP_WEDGE_CAM_PATH_MAX];
+};
+
+/* Returns 1 only if the whole spec parsed. Never a partial path: half a route
+ * read as a whole one is a camera that quietly measures somewhere else. */
+static int
+app_wedge_cam_path_parse(char const* spec, struct AppWedgeCamPath* out_path)
+{
+    char mode[16];
+    char wrap[16];
+    long frames = 0;
+    int consumed = 0;
+    int count = 0;
+    int i;
+    char const* cursor = spec;
+
+    assert(spec);
+    assert(out_path);
+
+    if( sscanf(cursor, " %15[^, ] , %ld , %15[^, ;]%n", mode, &frames, wrap, &consumed) != 3 )
+        return 0;
+    cursor += consumed;
+
+    if( strcmp(mode, "linear") == 0 )
+        out_path->mode = APP_WEDGE_CAM_LINEAR;
+    else if( strcmp(mode, "spline") == 0 )
+        out_path->mode = APP_WEDGE_CAM_SPLINE;
+    else
+        return 0;
+
+    if( strcmp(wrap, "loop") == 0 )
+        out_path->wrap = APP_WEDGE_CAM_LOOP;
+    else if( strcmp(wrap, "pingpong") == 0 )
+        out_path->wrap = APP_WEDGE_CAM_PINGPONG;
+    else if( strcmp(wrap, "hold") == 0 )
+        out_path->wrap = APP_WEDGE_CAM_HOLD;
+    else
+        return 0;
+
+    if( frames <= 0 )
+        return 0;
+    out_path->frames = frames;
+
+    while( count < APP_WEDGE_CAM_PATH_MAX )
+    {
+        struct AppWedgeCamKey key;
+
+        while( *cursor == ' ' )
+            cursor++;
+        if( *cursor != ';' )
+            break;
+        cursor++;
+        consumed = 0;
+        if( sscanf(
+                cursor,
+                " %d , %d , %d , %d , %d%n",
+                &key.x,
+                &key.y,
+                &key.z,
+                &key.pitch,
+                &key.yaw,
+                &consumed) != 5 )
+            return 0;
+        out_path->keys[count] = key;
+        count++;
+        cursor += consumed;
+    }
+    while( *cursor == ' ' )
+        cursor++;
+    if( *cursor != '\0' )
+        return 0;
+    if( count < 2 )
+        return 0;
+    out_path->count = count;
+
+    /* Unwrap yaw into a monotone sequence before anything interpolates it.
+     * 2048 units is a full turn, so 1900 -> 100 is +248, not -1800:
+     * interpolating the raw pair would spin the camera almost the whole way
+     * round to reach somewhere it was already next to. A deliberate orbit
+     * still works -- give it four waypoints a quarter turn apart and every hop
+     * is an unambiguous +512. */
+    for( i = 1; i < count; i++ )
+    {
+        int delta = (out_path->keys[i].yaw - out_path->keys[i - 1].yaw) % 2048;
+        if( delta > 1024 )
+            delta -= 2048;
+        if( delta < -1024 )
+            delta += 2048;
+        out_path->keys[i].yaw = out_path->keys[i - 1].yaw + delta;
+    }
+
+    out_path->turn = 0;
+    if( out_path->wrap == APP_WEDGE_CAM_LOOP )
+    {
+        /* The closing leg gets the same shortest-arc treatment, and what it
+         * adds is what one lap is worth in yaw. */
+        int delta = (out_path->keys[0].yaw - out_path->keys[count - 1].yaw) % 2048;
+        if( delta > 1024 )
+            delta -= 2048;
+        if( delta < -1024 )
+            delta += 2048;
+        out_path->turn = (out_path->keys[count - 1].yaw + delta) - out_path->keys[0].yaw;
+    }
+    return 1;
+}
+
+/* Waypoint by index, with the index allowed to run off both ends -- Catmull-Rom
+ * needs the neighbours of the leg it is on. A loop wraps and carries the lap's
+ * worth of yaw with it; the others clamp, which duplicates the endpoint and is
+ * the usual way to terminate a Catmull-Rom. */
+static void
+app_wedge_cam_path_key(
+    struct AppWedgeCamPath const* path, int index, struct AppWedgeCamKey* out_key)
+{
+    int wrapped;
+    long laps = 0;
+
+    assert(path);
+    assert(out_key);
+    assert(path->count > 0);
+
+    if( path->wrap == APP_WEDGE_CAM_LOOP )
+    {
+        wrapped = index % path->count;
+        laps = (index - wrapped) / path->count;
+        if( wrapped < 0 )
+        {
+            wrapped += path->count;
+            laps -= 1;
+        }
+    }
+    else
+    {
+        wrapped = index;
+        if( wrapped < 0 )
+            wrapped = 0;
+        if( wrapped > path->count - 1 )
+            wrapped = path->count - 1;
+    }
+    *out_key = path->keys[wrapped];
+    out_key->yaw = (int)(out_key->yaw + laps * path->turn);
+}
+
+/* Fixed point rather than float, all the way through: the phase has to be a
+ * bit-exact function of the frame ordinal on every build this suite compares. */
+static int
+app_wedge_cam_lerp(int p0, int p1, int64_t t)
+{
+    return (int)((int64_t)p0 + ((((int64_t)p1 - (int64_t)p0) * t) >> 12));
+}
+
+static int
+app_wedge_cam_spline(int p0, int p1, int p2, int p3, int64_t t)
+{
+    int64_t t2 = (t * t) >> 12;
+    int64_t t3 = (t2 * t) >> 12;
+    int64_t a = 2 * (int64_t)p1;
+    int64_t b = (int64_t)p2 - (int64_t)p0;
+    int64_t c = 2 * (int64_t)p0 - 5 * (int64_t)p1 + 4 * (int64_t)p2 - (int64_t)p3;
+    int64_t d = -(int64_t)p0 + 3 * (int64_t)p1 - 3 * (int64_t)p2 + (int64_t)p3;
+
+    return (int)((a + ((b * t) >> 12) + ((c * t2) >> 12) + ((d * t3) >> 12)) >> 1);
+}
+
+static void
+app_wedge_cam_path_eval(
+    struct AppWedgeCamPath const* path, long frame, struct AppWedgeCamKey* out_key)
+{
+    struct AppWedgeCamKey k0;
+    struct AppWedgeCamKey k1;
+    struct AppWedgeCamKey k2;
+    struct AppWedgeCamKey k3;
+    int64_t segments;
+    int64_t phase;
+    int64_t step;
+    int64_t t;
+    int index;
+
+    assert(path);
+    assert(out_key);
+    assert(path->count >= 2);
+    assert(path->frames > 0);
+
+    segments = (path->wrap == APP_WEDGE_CAM_LOOP) ? path->count : path->count - 1;
+
+    phase = frame;
+    if( path->wrap == APP_WEDGE_CAM_PINGPONG )
+    {
+        int64_t span = (int64_t)path->frames * 2;
+        phase = frame % span;
+        if( phase < 0 )
+            phase += span;
+        if( phase > path->frames )
+            phase = span - phase;
+    }
+    else if( path->wrap == APP_WEDGE_CAM_LOOP )
+    {
+        phase = frame % path->frames;
+        if( phase < 0 )
+            phase += path->frames;
+    }
+    else
+    {
+        if( phase < 0 )
+            phase = 0;
+        if( phase > path->frames )
+            phase = path->frames;
+    }
+
+    /* Position along the whole path in Q12, so an uneven frames/segments split
+     * does not park the camera on a waypoint for a frame and then jump. */
+    step = (phase * segments * 4096) / path->frames;
+    index = (int)(step >> 12);
+    t = step & 4095;
+    if( index >= segments )
+    {
+        index = (int)segments - 1;
+        t = 4096;
+    }
+
+    app_wedge_cam_path_key(path, index - 1, &k0);
+    app_wedge_cam_path_key(path, index, &k1);
+    app_wedge_cam_path_key(path, index + 1, &k2);
+    app_wedge_cam_path_key(path, index + 2, &k3);
+
+    if( path->mode == APP_WEDGE_CAM_SPLINE )
+    {
+        out_key->x = app_wedge_cam_spline(k0.x, k1.x, k2.x, k3.x, t);
+        out_key->y = app_wedge_cam_spline(k0.y, k1.y, k2.y, k3.y, t);
+        out_key->z = app_wedge_cam_spline(k0.z, k1.z, k2.z, k3.z, t);
+        out_key->pitch = app_wedge_cam_spline(k0.pitch, k1.pitch, k2.pitch, k3.pitch, t);
+        out_key->yaw = app_wedge_cam_spline(k0.yaw, k1.yaw, k2.yaw, k3.yaw, t);
+    }
+    else
+    {
+        out_key->x = app_wedge_cam_lerp(k1.x, k2.x, t);
+        out_key->y = app_wedge_cam_lerp(k1.y, k2.y, t);
+        out_key->z = app_wedge_cam_lerp(k1.z, k2.z, t);
+        out_key->pitch = app_wedge_cam_lerp(k1.pitch, k2.pitch, t);
+        out_key->yaw = app_wedge_cam_lerp(k1.yaw, k2.yaw, t);
+    }
+
+    /* Back into 0..2047. The unwrapped yaw above can be many turns from there,
+     * and a Catmull-Rom overshoots its control points -- so normalise both
+     * angles rather than hand a trig table an index it never expected. */
+    out_key->pitch = ((out_key->pitch % 2048) + 2048) % 2048;
+    out_key->yaw = ((out_key->yaw % 2048) + 2048) % 2048;
+}
+
 static void
 app_world_paint(struct App* app)
 {
@@ -14341,15 +14731,45 @@ app_world_paint(struct App* app)
     {
         static int resolved = 0;
         static int have = 0;
+        static int have_path = 0;
         static int px, py, pz, ppitch, pyaw;
+        static struct AppWedgeCamPath path;
         if( !resolved )
         {
             char const* wc = getenv("TORIRS_WEDGE_CAM");
+            char const* wp = getenv("TORIRS_WEDGE_CAM_PATH");
             resolved = 1;
+            /* The path wins where a scene sets both: TORIRS_WEDGE_CAM is then
+             * the still the route was authored from, and the route is the
+             * thing being measured. */
+            if( wp && wp[0] )
+            {
+                if( app_wedge_cam_path_parse(wp, &path) )
+                    have_path = 1;
+                else
+                    /* Once, at resolve time, never per frame. Loud because the
+                     * alternative is a mistyped route silently measuring a
+                     * still camera and reporting a number that looks fine. */
+                    fprintf(
+                        stderr,
+                        "TORIRS_WEDGE_CAM_PATH: cannot parse, camera not "
+                        "moving: %s\n",
+                        wp);
+            }
             if( wc && sscanf(wc, "%d,%d,%d,%d,%d", &px, &py, &pz, &ppitch, &pyaw) == 5 )
                 have = 1;
         }
-        if( have )
+        if( have_path )
+        {
+            struct AppWedgeCamKey key;
+            app_wedge_cam_path_eval(&path, g_torirs_frame_no, &key);
+            app->world_camera_pos.x = key.x;
+            app->world_camera_pos.y = key.y;
+            app->world_camera_pos.z = key.z;
+            app->world_camera.pitch = key.pitch;
+            app->world_camera.yaw = key.yaw;
+        }
+        else if( have )
         {
             app->world_camera_pos.x = px;
             app->world_camera_pos.y = py;

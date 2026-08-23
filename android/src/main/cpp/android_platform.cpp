@@ -135,7 +135,7 @@ platform_sdl2_init(struct PlatformSDL2* platform)
     // Create window for Android - let the system determine the size
     LOGI("Creating SDL window...");
     platform->window = SDL_CreateWindow(
-        "Scene Tile Test",
+        "ToriRS",
         SDL_WINDOWPOS_UNDEFINED,
         SDL_WINDOWPOS_UNDEFINED,
         0, // Let Android determine width

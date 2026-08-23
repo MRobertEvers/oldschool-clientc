@@ -1577,10 +1577,14 @@ ToriDraw_ComputeProjectedFaceOrder(
         debug_stats = &debug_stats_storage;
     }
 
-    memset(
-        scene->tmp_depth_face_count,
-        0,
-        (size_t)scene->depth_levels * sizeof(scene->tmp_depth_face_count[0]));
+    /* No clear here. The bucket-count table arrives all-zero -- calloc'd at
+     * scene creation, and each sort below re-zeroes exactly the buckets it
+     * dirtied once its consumer has walked them, so the invariant holds from
+     * model to model. The reference engine bounds this clear by the model's
+     * depth diameter for the same reason: a full-width clear is
+     * depth_levels-sized, and on the 16K tier that is 32KB zeroed per model
+     * to bucket a median of ~19 faces -- ~30MB of memset a frame, 6.9% of
+     * steady-state CPU on the XP lane, all of it evicting 2x a P4's L1D. */
 
     /*
      * How much depth precision this model has to give up to be sortable.
@@ -1650,6 +1654,22 @@ ToriDraw_ComputeProjectedFaceOrder(
             }
         }
         scene->tmp_face_order_count = order_index;
+
+        /* Restore the all-zero invariant: re-zero exactly the buckets this
+         * model dirtied. The sort's returned bounds are the ACTUAL touched
+         * range -- every accepted bucket write updated them -- not the
+         * bias-derived estimate, which animation can stretch past. An empty
+         * sort returns 0 (min=max=0): a 2-byte clear of an already-zero
+         * bucket. */
+        assert(model_min_depth >= 0);
+        assert(model_max_depth < scene->depth_levels);
+        assert(model_min_depth <= model_max_depth);
+        memset(
+            &scene->tmp_depth_face_count[model_min_depth],
+            0,
+            (size_t)(model_max_depth - model_min_depth + 1) *
+                sizeof(scene->tmp_depth_face_count[0]));
+
         if( debug_stats )
             toridraw_face_sort_debug_print(scene, hnd, debug_stats, order_index);
         /* #region agent log */
@@ -1681,6 +1701,18 @@ ToriDraw_ComputeProjectedFaceOrder(
         face_priorities,
         model_min_depth,
         model_max_depth);
+
+    /* Same invariant restore as the no-priority path: the partition above only
+     * reads the bucket counts over [model_min_depth, model_max_depth], so once
+     * it returns the dirtied range can be re-zeroed. */
+    assert(model_min_depth >= 0);
+    assert(model_max_depth < scene->depth_levels);
+    assert(model_min_depth <= model_max_depth);
+    memset(
+        &scene->tmp_depth_face_count[model_min_depth],
+        0,
+        (size_t)(model_max_depth - model_min_depth + 1) *
+            sizeof(scene->tmp_depth_face_count[0]));
 
     scene->tmp_face_order_count = sort_face_draw_order(
         scene->tmp_priority_depth_sum,
