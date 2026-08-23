@@ -47,7 +47,8 @@ revconfig_strncpy_trimmed(
  *   hex          0x1088      1088h      0FFh
  *   binary       0b1010_1010
  *   grouping     0x1000_0000            (underscores between digits)
- *   colours      rgb(255, 0, 0)         rgba(0, 0, 0, 128)
+ *   colours      rgb(255, 0, 0)         rgba(0, 0, 0, 128)    #FF0000
+ *   palette      hsl16(0, 7, 64)        -- hue, saturation, lightness
  *   uids         if(1088, 255)          -- (interface << 16) | component
  *   arithmetic   (1088 << 16) | 0xFF
  *
@@ -162,6 +163,15 @@ revconfig_num_literal(struct RevConfigNumCursor* c)
         base = 16;
         p += 2;
     }
+    /* `#RRGGBB`, the spelling a wiki page, a stylesheet and this tree's own
+     * plugin_prefs.ini all carry. It marks the digits as hex and says nothing
+     * about how many there are, so `#FFF` and `#FF0000FF` are both numbers --
+     * a colour's WIDTH is the field's business, not the literal's. */
+    else if( p[0] == '#' )
+    {
+        base = 16;
+        p += 1;
+    }
     else if( p[0] == '0' && (p[1] == 'b' || p[1] == 'B') )
     {
         base = 2;
@@ -264,6 +274,30 @@ revconfig_num_channel(struct RevConfigNumCursor* c, int64_t v)
     return (int)v;
 }
 
+/**
+ * One hsl16() axis, each with its own width.
+ *
+ * Separate from the rgb() channel check because the widths differ and the
+ * message has to name the axis: "0..7" on a saturation somebody wrote as 255
+ * is the whole answer.
+ */
+static int
+revconfig_num_hsl_axis(
+    struct RevConfigNumCursor* c,
+    int64_t v,
+    int64_t limit,
+    char const* reason)
+{
+    assert(c);
+    assert(reason);
+    if( v < 0 || v > limit )
+    {
+        revconfig_num_fail(c, reason);
+        return 0;
+    }
+    return (int)v;
+}
+
 /** 0..65535, or -1 for the "no component" half of a uid. */
 static int
 revconfig_num_uid_half(struct RevConfigNumCursor* c, int64_t v)
@@ -279,7 +313,7 @@ revconfig_num_uid_half(struct RevConfigNumCursor* c, int64_t v)
     return (int)v;
 }
 
-/** rgb(), rgba(), if() -- the spellings worth having a name for. */
+/** rgb(), rgba(), hsl16(), if() -- the spellings worth having a name for. */
 static int64_t
 revconfig_num_call(struct RevConfigNumCursor* c, char const* name)
 {
@@ -303,6 +337,15 @@ revconfig_num_call(struct RevConfigNumCursor* c, char const* name)
                ((int64_t)revconfig_num_channel(c, args[0]) << 16) |
                ((int64_t)revconfig_num_channel(c, args[1]) << 8) |
                (int64_t)revconfig_num_channel(c, args[2]);
+    /* The client's own colour unit: a packed palette index, hue 0..63,
+     * saturation 0..7, lightness 0..127. What a model recolour, a face colour
+     * and a text tint are addressed in, and a number no rgb() can spell --
+     * the palette is not a cube, so there is no exact RGB for most entries. */
+    if( strcasecmp(name, "hsl16") == 0 && count == 3 )
+        return ((int64_t)revconfig_num_hsl_axis(c, args[0], 63, "hsl16() hue is 0..63") << 10) |
+               ((int64_t)revconfig_num_hsl_axis(c, args[1], 7, "hsl16() saturation is 0..7")
+                << 7) |
+               (int64_t)revconfig_num_hsl_axis(c, args[2], 127, "hsl16() lightness is 0..127");
     if( strcasecmp(name, "if") == 0 && count == 2 )
         return ((int64_t)revconfig_num_uid_half(c, args[0]) << 16) |
                (int64_t)revconfig_num_uid_half(c, args[1]);

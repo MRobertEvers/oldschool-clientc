@@ -1945,6 +1945,38 @@ app_plugin_layout_slot(void* user, int slot, int member, int x, int y, int w, in
     return app->tree && UITree_FrameSlotMemberNode(app->tree, slot, member) >= 0;
 }
 
+/*
+ * A plugin image slot as the scene id the tree can draw from.
+ *
+ * The publish put the pixels at UITREE_SCENE_PLUGIN_IMAGE_BASE + slot and the
+ * host has already refused a handle whose pixels have not landed, so this is
+ * arithmetic rather than a lookup -- and it is the one place the two
+ * numberings meet.
+ */
+static int
+app_plugin_image_scene_id(int image)
+{
+    return image < 0 ? 0 : UITREE_SCENE_PLUGIN_IMAGE_BASE + image;
+}
+
+static int
+app_plugin_layout_slot_skin(void* user, int slot, int art, int mask)
+{
+    struct App* app = (struct App*)user;
+    struct UITreeFrameSkin* out;
+
+    assert(app);
+    assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_COUNT);
+
+    out = &app->plugin_layout_slots[slot].skin;
+    out->placed = 1;
+    out->art_scene_id = app_plugin_image_scene_id(art);
+    out->mask_scene_id = app_plugin_image_scene_id(mask);
+    /* The same "did that land on anything" answer layout_slot gives, and for
+     * the same reason: a frame with no compass should get no compass ring. */
+    return app->tree && UITree_FrameSlotNode(app->tree, slot) >= 0;
+}
+
 static void
 app_plugin_layout_end(void* user)
 {
@@ -2290,6 +2322,7 @@ app_plugin_engine(struct App* app)
     engine.layout_begin = app_plugin_layout_begin;
     engine.layout_end = app_plugin_layout_end;
     engine.layout_slot = app_plugin_layout_slot;
+    engine.layout_slot_skin = app_plugin_layout_slot_skin;
     engine.tab_active = app_plugin_tab_active;
     engine.tab_select = app_plugin_tab_select;
     engine.stat = app_plugin_stat;

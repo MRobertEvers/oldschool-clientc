@@ -1535,7 +1535,7 @@ test-clientop: $(OBJ_DIR) game/rs_clientop.c game/test/rs_clientop_test.c
 # the whole category looked like before they existed. This is where that shows.
 test-nxt-plugins: $(OBJ_DIR) plugin/test/nxt_activities_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/nxt_activities_test \
-		plugin/torirs_plugin_host.c ui/uitree_minimenu.c \
+		plugin/torirs_plugin_host.c ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/plugins/nxt_highlight.c \
 		plugin/plugins/nxt_bird_nest.c plugin/plugins/nxt_cannon_ammo.c \
 		plugin/test/nxt_activities_test.c $(LDFLAGS)
@@ -1554,7 +1554,7 @@ test-item-stats: $(OBJ_DIR) plugin/plugins/item_stats.c plugin/test/item_stats_t
 
 test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/test/torirs_plugin_host_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/plugin_host_test \
-		plugin/torirs_plugin_host.c ui/uitree_minimenu.c \
+		plugin/torirs_plugin_host.c ui/uitree_minimenu.c revconfig/revconfig.c \
 		plugin/test/torirs_plugin_host_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/plugin_host_test
 
@@ -1571,7 +1571,7 @@ test-plugin-host: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/test/torirs_plug
 test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/gameframe.c \
 		plugin/test/gameframe_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/gameframe_test \
-		plugin/torirs_plugin_host.c ui/uitree_minimenu.c \
+		plugin/torirs_plugin_host.c ui/uitree_minimenu.c revconfig/revconfig.c \
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/gameframe.c \
 		plugin/test/gameframe_test.c $(LDFLAGS)
 	./$(OBJ_DIR)/gameframe_test
@@ -1579,7 +1579,7 @@ test-gameframe: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/gameframe.
 test-xp-orbs: $(OBJ_DIR) plugin/torirs_plugin_host.c plugin/plugins/xp_orbs.c \
 		plugin/test/xp_orbs_test.c
 	$(CC) $(CFLAGS) -o $(OBJ_DIR)/xp_orbs_test \
-		plugin/torirs_plugin_host.c ui/uitree_minimenu.c \
+		plugin/torirs_plugin_host.c ui/uitree_minimenu.c revconfig/revconfig.c \
 		engine/png_decode.c $(REPO_ROOT)/3rd/miniz/miniz.c plugin/plugins/xp_orbs.c \
 		plugin/test/xp_orbs_test.c $(LDFLAGS)
 	XP_ORBS_TEST_PNG=$(OBJ_DIR)/xp_orbs_test.png ./$(OBJ_DIR)/xp_orbs_test

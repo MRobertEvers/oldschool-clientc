@@ -153,6 +153,14 @@ enum FrameImage
     IMG_O_STONE_BR,
     IMG_O_STONE_MID,
     IMG_O_STONE_MID_R,
+    IMG_O_COMPASS,
+    IMG_O_MAPBACK_R,
+    IMG_O_MINIMAP_MASK,
+    IMG_O_COMPASS_MASK,
+    IMG_O_MINIMAP_MASK_R,
+    IMG_O_COMPASS_MASK_R,
+    IMG_O_SIDE_COLUMN_L,
+    IMG_O_SIDE_COLUMN_R,
     IMG_O_SIDEICON_0,
 
     FRAME_IMG_COUNT = IMG_O_SIDEICON_0 + FRAME_TAB_COUNT
@@ -224,6 +232,14 @@ static char const* const FRAME_IMAGE_FILE[FRAME_IMG_COUNT] = {
     [IMG_O_STONE_BR] = "osrs_stone_br.png",
     [IMG_O_STONE_MID] = "osrs_stone_mid.png",
     [IMG_O_STONE_MID_R] = "osrs_stone_mid_r.png",
+    [IMG_O_COMPASS] = "osrs_compass.png",
+    [IMG_O_MAPBACK_R] = "osrs_mapback_r.png",
+    [IMG_O_MINIMAP_MASK] = "osrs_minimap_mask.png",
+    [IMG_O_COMPASS_MASK] = "osrs_compass_mask.png",
+    [IMG_O_MINIMAP_MASK_R] = "osrs_minimap_mask_r.png",
+    [IMG_O_COMPASS_MASK_R] = "osrs_compass_mask_r.png",
+    [IMG_O_SIDE_COLUMN_L] = "osrs_side_column_l.png",
+    [IMG_O_SIDE_COLUMN_R] = "osrs_side_column_r.png",
     [IMG_O_SIDEICON_0 + 0] = "osrs_sideicon_0.png",
     [IMG_O_SIDEICON_0 + 1] = "osrs_sideicon_1.png",
     [IMG_O_SIDEICON_0 + 2] = "osrs_sideicon_2.png",
@@ -424,6 +440,31 @@ frame_chat_buttons_across(
     }
 }
 
+/*
+ * The OldSchool compass rose, and the shape each map surface is cut to.
+ *
+ * The compass is the reason this exists at all: it TURNS with the camera, so
+ * no layout can blit it, and it is drawn from a picture that belongs to the
+ * frame rather than to the world -- a 2004 compass inside an OldSchool map
+ * housing is the same mismatch as 2004 stones around an OldSchool inventory,
+ * and on a dat1 lane that is exactly what was on screen.
+ *
+ * The masks travel with it because the two are one decision: a housing states
+ * where its holes are and what shape they are, and stating only the first
+ * leaves a square minimap in a round window.
+ */
+static void
+frame_skin_map(
+    struct ToriRS_PluginCtx* ctx,
+    int map_mask,
+    int compass_mask)
+{
+    assert(ctx);
+    g_api->layout_slot_skin(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, -1, g_image[map_mask]);
+    g_api->layout_slot_skin(
+        ctx, TORIRS_PLUGIN_SLOT_COMPASS, g_image[IMG_O_COMPASS], g_image[compass_mask]);
+}
+
 /* --------------------------------------------------------- classic fixed */
 
 /*
@@ -615,8 +656,15 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
     }
 
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_VIEWPORT, 4, 4, 512, 334);
+    /*
+     * The two holes in `osrs_mapback`, at the housing's own offsets: the map
+     * at 25,5 (145x151) and the compass at 0,0 (32x33). Measured off the art
+     * rather than chosen, which is what makes the two masks below line up with
+     * it pixel for pixel.
+     */
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, 570, 9, 145, 151);
-    g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_COMPASS, 546, 6, 29, 29);
+    g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_COMPASS, 545, 4, 32, 33);
+    frame_skin_map(ctx, IMG_O_MINIMAP_MASK, IMG_O_COMPASS_MASK);
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_CHAT, 7, 345, 506, 152);
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_SIDEBAR, 547, 205, 190, 261);
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_MAIN_MODAL, 4, 4, 512, 334);
@@ -634,9 +682,26 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
 #define FRAME_R_STONE_W 33
 #define FRAME_R_PANEL_W 190
 #define FRAME_R_PANEL_H 261
-/** The map housing, `osrs_mapback` at its own size. */
-#define FRAME_R_MAP_W 172
-#define FRAME_R_MAP_H 156
+/**
+ * The map housing, `osrs_mapback_r` at its own size, and its two holes.
+ *
+ * A different sprite from the fixed frame's and not a resized one: the fixed
+ * housing is an opaque plate with a round window cut in it, and the resizable
+ * one is a RING with the scene showing through everywhere it is not. That is
+ * also why this layout has to mask the two surfaces and the fixed one does
+ * not -- an unmasked square of minimap inside a ring draws its corners over
+ * the world. The offsets are the holes measured off the art.
+ */
+#define FRAME_R_MAP_W 182
+#define FRAME_R_MAP_H 166
+#define FRAME_R_MAP_HOLE_X 24
+#define FRAME_R_MAP_HOLE_Y 8
+#define FRAME_R_MAP_HOLE_W 152
+#define FRAME_R_COMPASS_X 5
+#define FRAME_R_COMPASS_Y 5
+#define FRAME_R_COMPASS_W 35
+/** The pillars either side of the inventory panel, `osrs_side_column_*`. */
+#define FRAME_R_COL_W 26
 #define FRAME_R_CHAT_W 519
 #define FRAME_R_CHAT_H 142
 
@@ -676,9 +741,14 @@ frame_layout_modern_resizable(
 
     assert(ctx);
 
-    frame_blit_over(g_image[IMG_O_MAPBACK], map_x, 0);
+    frame_blit_over(g_image[IMG_O_MAPBACK_R], map_x, 0);
     frame_blit(g_image[IMG_O_TABS_TOP_R], row_x, top_row_y);
     frame_blit(g_image[IMG_O_SIDE_PANEL], panel_x, panel_y);
+    /* The pillars either side of the panel, which the fixed frame gets from
+     * its surround (`backvmid2`/`backright1`) and this one has nothing to get
+     * them from -- a floating panel has no surround, only its own edges. */
+    frame_blit(g_image[IMG_O_SIDE_COLUMN_L], panel_x - FRAME_R_COL_W, panel_y);
+    frame_blit(g_image[IMG_O_SIDE_COLUMN_R], panel_x + FRAME_R_PANEL_W, panel_y);
     frame_blit(g_image[IMG_O_TABS_BOTTOM_R], row_x, bottom_row_y);
     frame_blit(g_image[IMG_O_CHATBACK], 0, chat_y);
 
@@ -701,8 +771,21 @@ frame_layout_modern_resizable(
      * "resizable" means here, and it is why the chat and the sidebar are drawn
      * over it rather than beside it. */
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_VIEWPORT, 0, 0, canvas_w, canvas_h);
-    g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, map_x + 21, 8, 145, 151);
-    g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_COMPASS, map_x + 3, 3, 29, 29);
+    g_api->layout_slot(
+        ctx,
+        TORIRS_PLUGIN_SLOT_MINIMAP,
+        map_x + FRAME_R_MAP_HOLE_X,
+        FRAME_R_MAP_HOLE_Y,
+        FRAME_R_MAP_HOLE_W,
+        FRAME_R_MAP_HOLE_W);
+    g_api->layout_slot(
+        ctx,
+        TORIRS_PLUGIN_SLOT_COMPASS,
+        map_x + FRAME_R_COMPASS_X,
+        FRAME_R_COMPASS_Y,
+        FRAME_R_COMPASS_W,
+        FRAME_R_COMPASS_W);
+    frame_skin_map(ctx, IMG_O_MINIMAP_MASK_R, IMG_O_COMPASS_MASK_R);
     g_api->layout_slot(ctx, TORIRS_PLUGIN_SLOT_CHAT, 7, chat_y + 7, FRAME_R_CHAT_W - 13, FRAME_R_CHAT_H - 14);
     g_api->layout_slot(
         ctx, TORIRS_PLUGIN_SLOT_SIDEBAR, panel_x, panel_y, FRAME_R_PANEL_W, FRAME_R_PANEL_H);

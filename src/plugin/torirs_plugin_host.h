@@ -151,6 +151,10 @@ struct ToriRS_PluginEngine
      *  @see ToriRS_PluginApi::layout_slot_at; the return is the same "does
      *  this frame have one" answer. */
     int (*layout_slot)(void* user, int slot, int member, int x, int y, int w, int h);
+    /** Skin one slot: the picture it draws from and the alpha cut-out it is
+     *  clipped to, as plugin image slots (-1 for "leave it alone").
+     *  @see ToriRS_PluginApi::layout_slot_skin. */
+    int (*layout_slot_skin)(void* user, int slot, int art, int mask);
     /** The selected sidebar tab, or -1. @see ToriRS_PluginApi::tab_active. */
     int (*tab_active)(void* user);
     /** Flip to that tab. @see ToriRS_PluginApi::tab_select. */
@@ -170,6 +174,18 @@ struct ToriRS_PluginEngine
     char const* (*skill_name)(void* user, int skill);
     /** Run energy, 0..100. */
     int (*run_energy)(void* user);
+
+    /**
+     * The client-only feature flags. @see ToriRS_PluginApi::feature_next.
+     *
+     * The ENGINE decides what is on this list, and that is the whole of the
+     * rule keeping a server-agreed flag away from a plugin: there is no key
+     * for one, so no plugin can name it and none can be added by a plugin
+     * shipping its own idea of the list.
+     */
+    int (*feature_next)(void* user, int iter, struct ToriRS_PluginFeature* out);
+    int (*feature_get)(void* user, char const* key);
+    int (*feature_set)(void* user, char const* key, int value);
 
     /** The client's live var state, read-only. @see ToriRS_PluginApi::varbit. */
     int (*varbit)(void* user, int varbit_id);
@@ -420,6 +436,9 @@ bool PluginHost_IsAdapter(struct ToriRS_PluginHost const* host, int plugin_index
 /** Is this a builtin, whose switch lives in the cache's All Settings panel?
  *  @see ToriRS_PluginDef::hidden. The roster is the only caller. */
 bool PluginHost_IsHidden(struct ToriRS_PluginHost const* host, int plugin_index);
+/** Is this the plugin that cannot be switched off, and sorts to the top of the
+ *  roster? @see ToriRS_PluginDef::essential. */
+bool PluginHost_IsEssential(struct ToriRS_PluginHost const* host, int plugin_index);
 void PluginHost_SetError(struct ToriRS_PluginHost* host, int plugin_index, char const* text);
 int PluginHost_IndexOf(struct ToriRS_PluginHost const* host, char const* name);
 

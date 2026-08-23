@@ -1728,7 +1728,12 @@ emit_rs_inv_slots(
             }
         }
 
-        if( obj_id > 0 && scene_id >= 0 )
+        /* > 0, not >= 0: the bridge allocates icon scene ids from 1 up and
+         * answers -1 when it cannot build one, so 0 is not an icon — it is a
+         * slot whose icon reference was never set. Drawing it emitted an empty
+         * sprite and then the stack count on top, which reads as a floating
+         * number with no item under it. */
+        if( obj_id > 0 && scene_id > 0 )
         {
             /* Selected for "Use" (reference outline = 0xFFFFFF): swap the plain
              * icon for the white-outlined variant. The host answers >0 only for

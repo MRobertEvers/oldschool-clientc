@@ -99,6 +99,12 @@ static struct
     int active_tab;
     int selected_tab;
     int select_calls;
+    struct
+    {
+        int placed;
+        int art;
+        int mask;
+    } skin[TORIRS_PLUGIN_SLOT_COUNT];
 } g_frame;
 
 /** Which roles this fake gameframe has. Everything but the compass, so that
@@ -126,6 +132,7 @@ fake_layout_begin(void* u)
     (void)u;
     memset(g_frame.slot, 0, sizeof(g_frame.slot));
     memset(g_frame.member, 0, sizeof(g_frame.member));
+    memset(g_frame.skin, 0, sizeof(g_frame.skin));
     g_frame.begin_calls++;
 }
 
@@ -159,6 +166,19 @@ fake_layout_slot(void* u, int slot, int member, int x, int y, int w, int h)
         g_frame.member[slot][member].w = w;
         g_frame.member[slot][member].h = h;
     }
+    return fake_has_slot(slot);
+}
+
+/** What the last declaration skinned each role with, so a test can ask whether
+ *  the resizable frame reached for its OWN map ring and not the fixed one. */
+static int
+fake_layout_slot_skin(void* u, int slot, int art, int mask)
+{
+    (void)u;
+    assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_COUNT);
+    g_frame.skin[slot].placed = 1;
+    g_frame.skin[slot].art = art;
+    g_frame.skin[slot].mask = mask;
     return fake_has_slot(slot);
 }
 
@@ -441,6 +461,7 @@ main(void)
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
     e.layout_slot = fake_layout_slot;
+    e.layout_slot_skin = fake_layout_slot_skin;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
     e.stat = fake_stat;
@@ -646,11 +667,29 @@ main(void)
         slot_is(TORIRS_PLUGIN_SLOT_VIEWPORT, 0, 0, 1024, 768),
         "the resizable scene is the whole window");
     {
-        int const map_x = 1024 - 172;
+        int const map_x = 1024 - 182;
         CHECK(
-            g_frame.slot[TORIRS_PLUGIN_SLOT_MINIMAP].x == map_x + 21 &&
+            g_frame.slot[TORIRS_PLUGIN_SLOT_MINIMAP].x == map_x + 24 &&
                 g_frame.slot[TORIRS_PLUGIN_SLOT_MINIMAP].y == 8,
             "the minimap is pinned to the top-right corner");
+        /*
+         * And it is CUT to the housing it sits in.
+         *
+         * The resizable map surround is a ring with the scene showing through
+         * everywhere it is not, so an unmasked minimap draws its square corners
+         * over the world -- the one visible difference from the fixed housing,
+         * which is an opaque plate and needs no mask at all. A layout that
+         * placed the map correctly and skinned it with nothing looks right in
+         * every rectangle assertion above.
+         */
+        CHECK(
+            g_frame.skin[TORIRS_PLUGIN_SLOT_MINIMAP].placed &&
+                g_frame.skin[TORIRS_PLUGIN_SLOT_MINIMAP].mask >= 0,
+            "and masked to the ring's window");
+        CHECK(
+            g_frame.skin[TORIRS_PLUGIN_SLOT_COMPASS].placed &&
+                g_frame.skin[TORIRS_PLUGIN_SLOT_COMPASS].art >= 0,
+            "the compass is drawn from the OldSchool rose, not the lane's");
         CHECK(
             g_frame.slot[TORIRS_PLUGIN_SLOT_SIDEBAR].x + 190 < 1024 &&
                 g_frame.slot[TORIRS_PLUGIN_SLOT_SIDEBAR].x + 190 > 1024 - 60,
@@ -691,20 +730,21 @@ main(void)
          * land outside it and simply not be drawn -- which from a screenshot
          * looks like a missing asset rather than a wrong number.
          *
-         * Four chrome pieces UNDER the surfaces (two tab strips, the panel,
-         * the chatbox), an icon per tab, and ONE stone -- the lit one under
-         * the open tab. The unlit stones are part of the tab strips already
-         * blitted, which is why there are not fourteen of them.
+         * Six chrome pieces UNDER the surfaces (two tab strips, the panel and
+         * the two pillars either side of it, the chatbox), an icon per tab,
+         * and ONE stone -- the lit one under the open tab. The unlit stones
+         * are part of the tab strips already blitted, which is why there are
+         * not fourteen of them.
          */
         g_frame.active_tab = 3;
         draw(1440, 900);
-        CHECK(g_frame.blits == 4 + 14 + 1, "the resizable frame draws all of its art");
+        CHECK(g_frame.blits == 6 + 14 + 1, "the resizable frame draws all of its art");
         CHECK(g_frame.regions == 14, "and claims all fourteen tabs");
 
         /* No tab open: no lit stone, and everything else unchanged. */
         g_frame.active_tab = -1;
         draw(1440, 900);
-        CHECK(g_frame.blits == 4 + 14, "with no tab open there is no lit stone");
+        CHECK(g_frame.blits == 6 + 14, "with no tab open there is no lit stone");
 
         /*
          * And the map housing OVER them.

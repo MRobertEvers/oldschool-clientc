@@ -214,7 +214,16 @@ static int
 app_plugin_color_hsl(char const* text)
 {
     uint32_t rgb = 0xFFFFFFu;
-    (void)ToriRSChrome_ParseHexRgb(text, &rgb);
+    int expr = 0;
+
+    /* Hex first, because the picker writes "#RRGGBB" and every round trip
+     * comes back through here. Anything else the store may hold -- rgb(),
+     * hsl16(), an arithmetic expression -- is what cfg_color reads it as, so
+     * the swatch has to read it the same way or the panel would show white
+     * for a colour the plugin is drawing correctly. */
+    if( !ToriRSChrome_ParseHexRgb(text, &rgb) &&
+        revconfig_parse_int_expr(text, NULL, &expr) )
+        rgb = (uint32_t)expr & 0xFFFFFFu;
     /* NEAREST, so a key written by Save and read back on the next open comes
      * back as the same colour. The reference quantiser moves it a hue step
      * every trip, which is a marker that drifts a shade per session. */

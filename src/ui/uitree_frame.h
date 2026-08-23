@@ -69,6 +69,32 @@ struct UITreeFrameRect
 };
 
 /**
+ * The art a live surface is drawn from, and the shape it is cut to.
+ *
+ * Two surfaces are neither art the frame draws nor content the world supplies:
+ * the compass turns with the camera and the minimap is baked per level, so a
+ * layout can only say what PICTURE they are made of. Which is a question about
+ * the frame -- a 2004 compass rose inside an OldSchool map surround is the
+ * same mismatch as 2004 stones around an OldSchool inventory.
+ *
+ * `mask` is what makes a FLOATING frame possible: the OldSchool resizable map
+ * surround is a ring with the scene showing through everywhere it is not, so
+ * an unmasked square of minimap draws its corners over the world. A housing
+ * that is opaque around its hole needs none, and passes 0.
+ *
+ * Scene sprite ids, because that is what a component holds; 0 is "nothing
+ * said", which is distinct from a layout that deliberately un-masks a surface
+ * -- nothing needs to say that yet, and a sentinel that means both would make
+ * it unsayable later.
+ */
+struct UITreeFrameSkin
+{
+    uint8_t placed;
+    int art_scene_id;
+    int mask_scene_id;
+};
+
+/**
  * One slot of a declaration: a box for the whole role, and a box per member.
  *
  * Most roles are one surface and use `all`. Two are not, and they differ in a
@@ -87,6 +113,7 @@ struct UITreeFrameSlotRect
 {
     struct UITreeFrameRect all;
     struct UITreeFrameRect at[UITREE_FRAME_SLOT_NODES_MAX];
+    struct UITreeFrameSkin skin;
 };
 
 /**

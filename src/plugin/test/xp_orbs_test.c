@@ -653,14 +653,24 @@ fake_layout_end(void* u)
     (void)u;
 }
 static int
-fake_layout_slot(void* u, int slot, int x, int y, int w, int h)
+fake_layout_slot(void* u, int slot, int member, int x, int y, int w, int h)
 {
     (void)u;
     (void)slot;
+    (void)member;
     (void)x;
     (void)y;
     (void)w;
     (void)h;
+    return 0;
+}
+static int
+fake_layout_slot_skin(void* u, int slot, int art, int mask)
+{
+    (void)u;
+    (void)slot;
+    (void)art;
+    (void)mask;
     return 0;
 }
 static int
@@ -1068,6 +1078,7 @@ main(void)
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
     e.layout_slot = fake_layout_slot;
+    e.layout_slot_skin = fake_layout_slot_skin;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
     e.model_publish = fake_model_publish;

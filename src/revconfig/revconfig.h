@@ -978,16 +978,21 @@ revconfig_items_build(
  * The value is an integer expression, not just a decimal run, so a profile can
  * spell an id, a mask or a colour the way the reference does:
  *
- *   hex          0x1088     1088h     0FFh
+ *   hex          0x1088     1088h     0FFh      #FF0000
  *   binary       0b1010_1010
  *   grouping     0x1000_0000          (underscores between digits)
  *   colours      rgb(255, 0, 0)       rgba(0, 0, 0, 128)
+ *   palette      hsl16(0, 7, 64)      -- hue, saturation, lightness
  *   uids         if(1088, 255)        -- (interface << 16) | component
  *   arithmetic   (1088 << 16) | 0xFF
  *
  * Operators and their precedence are C's: | ^ & << >> + - * / % and unary
- * + - ~. `rgb()` packs RGB, `rgba()` packs ARGB -- the word the client blits.
- * `if()` takes 0..65535 per half, or -1 for the "no component" 0xFFFF.
+ * + - ~. `#` is a hex marker like `0x`, of no fixed width. `rgb()` packs RGB,
+ * `rgba()` packs ARGB -- the word the client blits. `hsl16()` packs the
+ * client's own palette index (hue 0..63, saturation 0..7, lightness 0..127),
+ * which is the unit a face colour and a text tint are in and which no rgb()
+ * can spell. `if()` takes 0..65535 per half, or -1 for the "no component"
+ * 0xFFFF.
  *
  * Arithmetic is 64-bit and the result must land in [INT32_MIN, UINT32_MAX];
  * what comes back is its 32-bit pattern, so rgba(255,255,255,255) arrives as

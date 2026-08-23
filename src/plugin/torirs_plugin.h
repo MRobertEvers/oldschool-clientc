@@ -24,7 +24,7 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 13
+#define TORIRS_PLUGIN_ABI 14
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 /** Bytes of a plugin's human title, terminator included. Longer than the name
@@ -930,6 +930,64 @@ struct ToriRS_PluginConfigItem
 };
 
 /* ------------------------------------------------------------------------ */
+/* Feature flags                                                             */
+/* ------------------------------------------------------------------------ */
+
+/**
+ * "Whatever this boot resolved" -- not a value of any flag.
+ *
+ * -1 rather than 0 because 0 is a real value of nearly every flag in the
+ * table: the era tables are written zero-is-classic, so "off" and "the 2004
+ * behaviour" are the same number and a sentinel of 0 would make every default
+ * indistinguishable from the classic choice.
+ */
+#define TORIRS_PLUGIN_FEATURE_UNSET (-1)
+
+/** Bytes of a feature key / label, terminator included. */
+#define TORIRS_PLUGIN_FEATURE_KEY_MAX 32
+#define TORIRS_PLUGIN_FEATURE_LABEL_MAX 64
+/** Bytes of a feature's '|'-separated choice list, terminator included. */
+#define TORIRS_PLUGIN_FEATURE_CHOICES_MAX 160
+
+/** How a published flag is edited. */
+enum ToriRS_PluginFeatureKind
+{
+    /** A number in [min, max]. */
+    TORIRS_PLUGIN_FEATURE_INT = 0,
+    /**
+     * One of `choices`, where choice i has value `values[i]`.
+     *
+     * The values are carried rather than implied by the index because a flag's
+     * legal set is not always 0..n: `target_mask_held` is 0x10 or 0x20, and an
+     * index would make the panel write 1 for a bit that is 32.
+     */
+    TORIRS_PLUGIN_FEATURE_ENUM
+};
+
+/** One published flag, as feature_next reports it. */
+struct ToriRS_PluginFeature
+{
+    char key[TORIRS_PLUGIN_FEATURE_KEY_MAX];
+    /** What a PERSON is shown. Never empty. */
+    char label[TORIRS_PLUGIN_FEATURE_LABEL_MAX];
+    /** enum ToriRS_PluginFeatureKind. */
+    int kind;
+    /** FEATURE_INT only. */
+    int min;
+    int max;
+    /** FEATURE_ENUM only: "a|b|c", WITHOUT a "revision default" entry -- that
+     *  is the sentinel's job and every flag has it, so no flag states it. */
+    char choices[TORIRS_PLUGIN_FEATURE_CHOICES_MAX];
+    /** FEATURE_ENUM only: the value each choice stands for. */
+    int values[8];
+    int value_count;
+    /** The value the flag holds right now. */
+    int value;
+    /** 1 when the value in force is this boot's own, i.e. nothing has set it. */
+    int is_default;
+};
+
+/* ------------------------------------------------------------------------ */
 /* World objects                                                             */
 /* ------------------------------------------------------------------------ */
 
@@ -1358,6 +1416,39 @@ struct ToriRS_PluginApi
         int h);
 
     /**
+     * The art one live surface is drawn from, and the shape it is cut to.
+     * Legal in the same one place as layout_slot.
+     *
+     * The two surfaces that are neither the plugin's to draw nor the lane's to
+     * decide: the COMPASS turns with the camera and the MINIMAP is baked from
+     * the world, so a layout cannot blit either -- and both are drawn from a
+     * picture that belongs to the FRAME rather than to the world behind it. A
+     * 2004 frame's compass on an OldSchool surround is the same mismatch as
+     * 2004 stones around an OldSchool inventory, and the layout that replaced
+     * the one has no way to replace the other without this.
+     *
+     * `art` replaces the surface's own picture; -1 keeps the lane's. `mask` is
+     * an alpha cut-out, and it is what makes a floating frame possible at all:
+     * the OldSchool resizable map surround is a RING with the scene showing
+     * through everywhere it is not, so an unmasked square of minimap draws its
+     * corners over the world outside the ring. -1 is no mask, which is right
+     * for a housing that is opaque around its hole.
+     *
+     * Both are image handles from image_load or image_compose, and an image
+     * still crossing the IO queue is refused rather than remembered -- the
+     * layout pass runs again on the next resize or rebuild, which is when a
+     * handle that was not resident yet becomes one.
+     *
+     * @return 1 when this gameframe has a surface of that role to skin, 0
+     * otherwise.
+     */
+    int (*layout_slot_skin)(
+        struct ToriRS_PluginCtx* ctx,
+        int slot,
+        int art,
+        int mask);
+
+    /**
      * Which sidebar tab is showing, or -1 when this frame has no tabs.
      *
      * The tab set is the CACHE's -- which interface is on tab 3 is a fact
@@ -1488,6 +1579,60 @@ struct ToriRS_PluginApi
     char const* (*cfg_str)(struct ToriRS_PluginCtx* ctx, char const* key);
     /** Marks the store dirty and raises EV_CONFIG_CHANGED. */
     void (*cfg_set)(struct ToriRS_PluginCtx* ctx, char const* key, char const* value);
+
+    /* -- the client's own feature flags --
+     *
+     * The per-era client-behaviour table (src/features/features.h) and the
+     * revision's `[camera]` profile, as far as a plugin may reach them.
+     *
+     * WHAT IS REACHABLE IS THE ENGINE'S LIST, NOT THE PLUGIN'S. The engine
+     * exposes exactly the flags whose value the CLIENT decides on its own, and
+     * refuses every flag a server also reads -- the pathing model, the
+     * approach model, the ground-click nearest model and its unbounded
+     * extension, the route window, symmetric PvP line of sight, the run-energy
+     * model, the era itself. Those are not settings, they are agreements: a
+     * client that holds a different one from the server it is talking to
+     * flags tiles inside a boss, walks routes the server will not honour, or
+     * shows an energy bar that drains at a rate nothing else believes. There
+     * is no useful "just for me" value of any of them, so there is no way to
+     * ask for one here.
+     *
+     * `key` names a flag the engine publishes; @see feature_next to discover
+     * them. Nothing is by id, because a flag is a behaviour and its position
+     * in a struct is not a fact a plugin should be pinned to.
+     */
+
+    /**
+     * Walk the published flags. `iter` starts at 0; the return is the next
+     * iterator, or 0 when the walk is over.
+     *
+     * The walk is what makes the list the ENGINE's: a plugin that renders it
+     * grows a row when a flag is published and loses one when a flag stops
+     * being client-only, without being edited.
+     */
+    int (*feature_next)(
+        struct ToriRS_PluginCtx* ctx, int iter, struct ToriRS_PluginFeature* out);
+
+    /**
+     * This flag's effective value right now, or `TORIRS_PLUGIN_FEATURE_UNSET`
+     * for a key the engine does not publish.
+     */
+    int (*feature_get)(struct ToriRS_PluginCtx* ctx, char const* key);
+
+    /**
+     * Set it, or -- with `TORIRS_PLUGIN_FEATURE_UNSET` -- put it back to what
+     * this boot resolved before any plugin touched it.
+     *
+     * The restore is the reason the sentinel exists: the value a flag has out
+     * of the box is the era table's, merged with the manifest and the
+     * revconfig, and a plugin cannot reconstruct that from anything it can
+     * see. "Revision default" has to be a value the user can pick and get
+     * back, not a number a plugin remembered once and hoped stayed true.
+     *
+     * @return false for a key the engine does not publish, or a value outside
+     *         the flag's stated range.
+     */
+    bool (*feature_set)(struct ToriRS_PluginCtx* ctx, char const* key, int value);
 
     /* -- the client's own variables --
      *
@@ -2222,6 +2367,24 @@ struct ToriRS_PluginDef
      * it does is decided by the varbit it reads.
      */
     bool hidden;
+    /**
+     * Listed FIRST in the settings roster, and has no switch.
+     *
+     * For the one plugin that is not a feature at all but the place the
+     * client's own knobs are kept. Switching it off would not turn a feature
+     * off -- there is none -- it would only take the settings away, which is
+     * a state with nothing on either screen to explain it and no way back
+     * that does not involve editing an ini by hand.
+     *
+     * So the roster draws its row without a toggle, PluginHost_SetEnabled
+     * refuses to clear it, and a saved `enabled=0` from an older build is
+     * ignored rather than obeyed.
+     *
+     * Different from `hidden`, which has no row at all because its switch
+     * lives somewhere else. This one HAS a row -- it is the way in to a page
+     * -- and what it does not have is a second state.
+     */
+    bool essential;
     /** Both may be NULL. `init` is where subscriptions are made. */
     void (*init)(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api);
     void (*shutdown)(struct ToriRS_PluginCtx* ctx);

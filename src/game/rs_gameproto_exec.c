@@ -162,9 +162,17 @@ exec_update_inv_partial(
             p->count);
     for( int i = 0; i < p->count; i++ )
     {
+        /* The packet carries an item, not an icon: say so, rather than
+         * letting the zero-initialiser pass 0 off as a scene id. Zero is
+         * never allocated (the bridge counts up from 1), but it IS >= 0, so
+         * emit drew "sprite 0" — nothing — with the stack count over it, and
+         * it is not INV_MANAGER_NO_SCENE_ID, so the icon reconcile never
+         * looked at the slot again. Every destination of an item that moved
+         * between containers arrives on this path. */
         struct InvSlot slot = { 0 };
         slot.obj_id = p->entries[i].obj_id;
         slot.obj_count = p->entries[i].count;
+        slot.scene_id = INV_MANAGER_NO_SCENE_ID;
         InvManager_SetSlot(ctx->invs, src, p->entries[i].slot, &slot);
         if( getenv("TORIRS_INV_DEBUG") )
             fprintf(

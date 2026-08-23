@@ -579,14 +579,24 @@ fake_layout_set(void* u, int owned, int canvas, int fixed_w, int fixed_h)
     (void)fixed_h;
 }
 static int
-fake_layout_slot(void* u, int slot, int x, int y, int w, int h)
+fake_layout_slot(void* u, int slot, int member, int x, int y, int w, int h)
 {
     (void)u;
     (void)slot;
+    (void)member;
     (void)x;
     (void)y;
     (void)w;
     (void)h;
+    return 0;
+}
+static int
+fake_layout_slot_skin(void* u, int slot, int art, int mask)
+{
+    (void)u;
+    (void)slot;
+    (void)art;
+    (void)mask;
     return 0;
 }
 static int
@@ -830,6 +840,7 @@ fake_engine(void)
     e.anchor_rect = fake_anchor_rect;
     e.layout_set = fake_layout_set;
     e.layout_slot = fake_layout_slot;
+    e.layout_slot_skin = fake_layout_slot_skin;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
     e.obj_info = fake_obj_info;

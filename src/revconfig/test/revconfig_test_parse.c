@@ -107,6 +107,25 @@ test_parse_numbers(void)
     TEST_ASSERT(revconfig_parse_int("rgba(255,255,255,255)") == -1, "opaque white is the 32-bit pattern");
     TEST_ASSERT(revconfig_parse_int("rgb(255, 0, 0) | 0x00FF00") == 0xFFFF00, "a colour is an operand like any other");
 
+    /* `#` is a hex marker, not a colour type: the width is the field's. */
+    TEST_ASSERT(revconfig_parse_int("#FF0000") == 0xFF0000, "#RRGGBB");
+    TEST_ASSERT(revconfig_parse_int("#0f9") == 0x0F9, "# takes any digit count");
+    TEST_ASSERT(revconfig_parse_int("#80FF0000") == (int)0x80FF0000u, "# carries the top bit");
+    TEST_ASSERT(revconfig_parse_int("#FF0000 | 0x0000FF") == 0xFF00FF, "# is an operand");
+    TEST_ASSERT(revconfig_parse_int("#") == 0, "# with no digits");
+    TEST_ASSERT(revconfig_parse_int("#FFGG00") == 0, "# with a non-hex digit");
+
+    /* hsl16(), the client's own palette index -- hue, saturation, lightness
+     * packed as 6/3/7 bits. */
+    TEST_ASSERT(revconfig_parse_int("hsl16(0, 0, 0)") == 0, "hsl16 black");
+    TEST_ASSERT(revconfig_parse_int("hsl16(63, 7, 127)") == 0xFFFF, "hsl16 packs 6/3/7");
+    TEST_ASSERT(revconfig_parse_int("hsl16(0, 7, 64)") == ((0 << 10) | (7 << 7) | 64), "hsl16 red");
+    TEST_ASSERT(revconfig_parse_int("HSL16(1, 2, 3)") == ((1 << 10) | (2 << 7) | 3), "hsl16 is case-insensitive");
+    TEST_ASSERT(revconfig_parse_int("hsl16(64, 0, 0)") == 0, "hue out of range");
+    TEST_ASSERT(revconfig_parse_int("hsl16(0, 8, 0)") == 0, "saturation out of range");
+    TEST_ASSERT(revconfig_parse_int("hsl16(0, 0, 128)") == 0, "lightness out of range");
+    TEST_ASSERT(revconfig_parse_int("hsl16(0, 0)") == 0, "wrong argument count");
+
     /* Uids. */
     TEST_ASSERT(revconfig_parse_int("if(1088, 255)") == ((1088 << 16) | 255), "if() packs a uid");
     TEST_ASSERT(

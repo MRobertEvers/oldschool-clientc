@@ -1,5 +1,6 @@
 #include "plugin/torirs_plugin_host.h"
 
+#include "revconfig/revconfig.h"
 #include "ui/uitree_minimenu.h"
 
 #include <assert.h>
@@ -847,6 +848,38 @@ api_cfg_str(struct ToriRS_PluginCtx* ctx, char const* key)
     return value;
 }
 
+/**
+ * A stored value as a number, in revconfig's expression grammar.
+ *
+ * The same grammar a revconfig profile's numeric keys are in, and for the same
+ * reason: plugin_prefs.ini is a file people edit by hand, and the spellings
+ * they reach for are the ones the reference and their other clients use --
+ * `#FF0000`, `rgb(255, 0, 0)`, `0x8000`, `1 << 4`, `hsl16(0, 7, 64)`. atoi()
+ * read every one of those as 0, silently, which is a colour (black) and a
+ * plausible id, so a mistyped value looked like a setting that did nothing.
+ *
+ * @return `fallback` when the value is not one whole expression. Silent,
+ * deliberately: a colour key is read on the draw path, so a broken one would
+ * print once per frame forever.
+ */
+static int
+plugin_cfg_number(char const* value, int fallback)
+{
+    char const* end = NULL;
+    int parsed = 0;
+
+    assert(value);
+
+    if( !revconfig_parse_int_expr(value, &end, &parsed) )
+        return fallback;
+    /* One expression and nothing after it -- "5 apples" is a typo, not a 5. */
+    while( *end == ' ' || *end == '\t' || *end == '\r' || *end == '\n' )
+        end++;
+    if( *end != '\0' )
+        return fallback;
+    return parsed;
+}
+
 static int
 api_cfg_bool(struct ToriRS_PluginCtx* ctx, char const* key)
 {
@@ -855,24 +888,27 @@ api_cfg_bool(struct ToriRS_PluginCtx* ctx, char const* key)
         return 0;
     if( strcmp(value, "true") == 0 || strcmp(value, "yes") == 0 )
         return 1;
-    return atoi(value) != 0;
+    return plugin_cfg_number(value, 0) != 0;
 }
 
 static int
 api_cfg_int(struct ToriRS_PluginCtx* ctx, char const* key)
 {
-    return atoi(api_cfg_str(ctx, key));
+    return plugin_cfg_number(api_cfg_str(ctx, key), 0);
 }
 
+/**
+ * A colour key as 0xRRGGBB.
+ *
+ * Masked to 24 bits, which is the api's contract and not an oversight: the
+ * plugins that blit one supply their own alpha, and rgba()'s fourth channel
+ * would arrive here as a top byte they would then have to strip. A plugin that
+ * wants the packed ARGB word reads the same key with cfg_int.
+ */
 static uint32_t
 api_cfg_color(struct ToriRS_PluginCtx* ctx, char const* key)
 {
-    char const* value = api_cfg_str(ctx, key);
-    if( value[0] == '#' )
-        return (uint32_t)strtoul(value + 1, NULL, 16) & 0xffffffu;
-    if( value[0] == '0' && (value[1] == 'x' || value[1] == 'X') )
-        return (uint32_t)strtoul(value + 2, NULL, 16) & 0xffffffu;
-    return (uint32_t)strtoul(value, NULL, 10) & 0xffffffu;
+    return (uint32_t)plugin_cfg_number(api_cfg_str(ctx, key), 0) & 0xffffffu;
 }
 
 void
@@ -2366,6 +2402,42 @@ api_image_release(struct ToriRS_PluginCtx* ctx, int image)
     plugin_image_drop(ctx->host, image);
 }
 
+static int
+api_layout_slot_skin(
+    struct ToriRS_PluginCtx* ctx,
+    int slot,
+    int art,
+    int mask)
+{
+    assert(ctx);
+    assert(
+        ctx->host->layout_declaring &&
+        "layout_slot_skin is legal only inside EV_LAYOUT");
+    assert(ctx->host->layout_owner == ctx->index);
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_COUNT )
+        return 0;
+    /*
+     * Not resident yet is the ORDINARY state for the first frames after a
+     * load -- api_draw_image says the same and for the same reason -- so an
+     * image still crossing the IO queue leaves the surface as it was rather
+     * than skinning it with nothing. The layout pass runs again at the next
+     * resize or rebuild, which is when the handle has pixels behind it.
+     */
+    if( art >= 0 )
+    {
+        struct PluginImage const* image = plugin_image_owned(ctx, art);
+        if( !image || !image->published )
+            return 0;
+    }
+    if( mask >= 0 )
+    {
+        struct PluginImage const* image = plugin_image_owned(ctx, mask);
+        if( !image || !image->published )
+            return 0;
+    }
+    return ctx->host->engine.layout_slot_skin(ctx->host->engine.user, slot, art, mask);
+}
+
 static void
 api_draw_image(
     struct ToriRS_PluginCtx* ctx,
@@ -2467,6 +2539,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->layout_begin);
     assert(engine->layout_end);
     assert(engine->layout_slot);
+    assert(engine->layout_slot_skin);
     assert(engine->tab_active);
     assert(engine->tab_select);
     assert(engine->local_player);
@@ -2573,6 +2646,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .layout_owned = api_layout_owned,
         .layout_slot = api_layout_slot,
         .layout_slot_at = api_layout_slot_at,
+        .layout_slot_skin = api_layout_slot_skin,
         .tab_active = api_tab_active,
         .tab_select = api_tab_select,
         .stat = api_stat,

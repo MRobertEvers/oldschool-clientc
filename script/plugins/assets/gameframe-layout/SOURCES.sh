@@ -35,6 +35,8 @@ DUMP=tools/dump_sprites/dump_sprites
   osrs_side_panel=1031 osrs_side_panel_r=897 \
   osrs_tabs_top=1036 osrs_tabs_bottom=1032 osrs_tabs_top_r=1173 osrs_tabs_bottom_r=1174 \
   osrs_minimap_mask=1183 osrs_compass_mask=1184 \
+  osrs_mapback_r=1177 osrs_minimap_mask_r=1178 osrs_compass_mask_r=1179 \
+  osrs_side_column_l=1175 osrs_side_column_r=1176 \
   osrs_backleft1=4 osrs_backleft2=1034 osrs_backright1=1035 osrs_backtop1=1039 \
   osrs_backtop_right=1441 osrs_backright_top=1038 osrs_backvmid1=1037 \
   osrs_backvmid2=1033 osrs_backhmid1=1611
