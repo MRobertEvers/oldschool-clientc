@@ -646,6 +646,9 @@ ToriRSServer_MapInstanceSetchunk(
         return 0;
 
     zone = &inst->zones[level][zone_x][zone_z];
+    if( getenv("TORIRS_INST_PROBE") && level == 0 && zone_x == 3 && zone_z == 3 )
+        fprintf(stderr, "  PROBE instzone handle=%d dst=(%d,%d,%d) src=%d_%d\n", handle, zone_x,
+                zone_z, level, src_x >> 6, src_z >> 6);
     zone->set = 1;
     /* Floored to the zone: content names a tile it can point at (a landmark,
      * `movecoord`'d), not a zone index it would have to compute. */

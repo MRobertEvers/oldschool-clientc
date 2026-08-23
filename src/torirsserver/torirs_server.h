@@ -3952,6 +3952,9 @@ struct ToriRSServer
     int familiar_singles_assist;
 
     /** Non-NULL only under the selftest; see ToriRSServer_CaptureBegin. */
+    /** Generation of the reservation the current scene was built from, 0 when
+     *  the scene is ordinary map. See `scene_centre_generation`. */
+    int scene_built_generation;
     struct ToriRSServerCapture* capture;
 
     /**

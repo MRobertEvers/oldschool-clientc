@@ -20684,9 +20684,13 @@ ToriRSServer_WorldSelftest(void)
             int stamps = 0;
             int last_stamp = 0;
             int gap = 0;
+            int parked_x = 0;
+            int parked_z = 0;
             int shots = 0;
 
-            selftest_park_player(srv, npc->x - 6, npc->z);
+            parked_x = npc->x - 6;
+            parked_z = npc->z;
+            selftest_park_player(srv, parked_x, parked_z);
             player->level = npc->level;
             /* Same reasoning as the bow stanza above: a dead goblin answers
              * nothing, and the charge assertions need the fight to still be on
@@ -20724,11 +20728,6 @@ ToriRSServer_WorldSelftest(void)
                 int stamp;
 
                 selftest_tick(srv);
-                if( getenv("TORIRS_TRIDENT_PROBE") )
-                    fprintf(stderr,
-                            "  PROBE trident t=%d player=%d,%d npc=%d,%d aprange=%d apcalled=%d\n",
-                            i, player->x, player->z, npc->x, npc->z, player->ap_range,
-                            player->ap_range_called);
                 stamp = player->varps[delay_varp];
                 if( stamp != last_stamp )
                 {
@@ -20742,18 +20741,33 @@ ToriRSServer_WorldSelftest(void)
             srv->wire = saved_wire;
 
             {
-                int dx = player->x > npc->x ? player->x - npc->x : npc->x - player->x;
-                int dz = player->z > npc->z ? player->z - npc->z : npc->z - player->z;
+                int dx = player->x > parked_x ? player->x - parked_x : parked_x - player->x;
+                int dz = player->z > parked_z ? player->z - parked_z : parked_z - player->z;
 
                 gap = dx > dz ? dx : dz;
             }
-            /* `weapon_attackrange=7` on the record, and the powered-staff
-             * branch runs ahead of the melee one — a trident that walked into
-             * melee would mean the dispatch never took it. */
-            SELFTEST_CHECK(gap >= 3,
-                           "a seven-tile trident must not walk into melee: %d tile(s) "
-                           "from the goblin at %d,%d",
-                           gap, npc->x, npc->z);
+            /*
+             * THE PLAYER'S OWN FEET, not the distance between the two.
+             *
+             * `weapon_attackrange=7` on the record and the powered-staff branch
+             * runs ahead of the melee one — a trident that walked into melee
+             * would mean the dispatch never took it. What proves that is the
+             * player not having MOVED: it is parked six tiles out and casts
+             * from there.
+             *
+             * Measuring the GAP made this a statement about the goblin. It
+             * retaliates and closes the distance itself — 3225 down to 3221
+             * across the window, entirely correctly — so the gap shrank to 2
+             * while the player had not taken a single step, and the check
+             * reported the player as having walked in. On the classic wire the
+             * goblin happens not to close, which is the only reason this ever
+             * read as passing.
+             */
+            SELFTEST_CHECK(gap == 0,
+                           "a seven-tile trident must not walk into melee: the player "
+                           "moved %d tile(s) from where it was parked (now %d,%d, goblin "
+                           "at %d,%d)",
+                           gap, player->x, player->z, npc->x, npc->z);
 
             shots = selftest_rev239_zone_count(&capture, PKT_NAME_MAP_PROJANIM, travel);
             SELFTEST_CHECK(shots > 0,
@@ -31322,7 +31336,6 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "tobout");
             selftest_clear_pending(srv, srv->active_player);
             ToriRSServer_ScriptsRunDebugproc(srv, "tob 2");
-
             mate = ToriRSServer_WorldAddPlayer(srv, NULL);
             SELFTEST_CHECK(mate != NULL, "a second raider should fit in the world");
             if( mate )
@@ -31442,6 +31455,20 @@ ToriRSServer_WorldSelftest(void)
                     int projs = 0;
                     int floors = 0;
 
+                    if( getenv("TORIRS_TOB_FORCE") )
+                    {
+                        ToriRSServer_WorldSceneRebuild(srv);
+                        ToriRSServer_WorldLocsReapply(srv);
+                    }
+                    if( getenv("TORIRS_TOB_PROBE") )
+                        fprintf(stderr,
+                                "  PROBE census handle=%d live=%d hostat=%d,%d findhost=%d "
+                                "base=%d,%d bossat=%d,%d findboss=%d\n",
+                                handle, ToriRSServer_MapInstanceLiveCount(), host->x, host->z,
+                                ToriRSServer_MapInstanceFind(host->x, host->z), base_x, base_z,
+                                npc->x, npc->z,
+                                ToriRSServer_MapInstanceFind(npc->x, npc->z));
+
                     for( int lz = 20; lz < 44; lz++ )
                         for( int lx = 20; lx < 44; lx++ )
                         {
@@ -31463,34 +31490,38 @@ ToriRSServer_WorldSelftest(void)
                      * tiles and 10 008 open ones. The square's TERRAIN reaches
                      * the instance and its LOCS do not.
                      *
-                     * FOUND (2026-08-23), and it is not the instance copy:
-                     * THIS FIXTURE IS NOT IN THE BLOAT ROOM.
+                     * NARROWED (2026-08-23). It IS the instanced loc copy,
+                     * and it is SELECTIVE — which is what makes it worth
+                     * stating rather than merely noting.
                      *
-                     * Traced by logging every source square each scene build
-                     * reads. The build standing when this census runs was made
-                     * from m49_68 — XARPUS's template — and m51_69, Bloat's,
-                     * was not read at all. The tank is missing because the room
-                     * around it is somebody else's; the same trace shows
-                     * `tob_bloat_pillar` (32955) copied into an instance
-                     * perfectly whenever a build does read m51_69.
+                     * Ruled out first, each measured rather than assumed:
+                     *   - `::tob 2` builds the right room: `::tobwhere` answers
+                     *     `room=2 cleared=0 active=1` and the fixture stands
+                     *     inside it.
+                     *   - The reservation pool is not exhausted —
+                     *     `MapInstanceLiveCount()` is 1 at the build.
+                     *   - The window maps the right square, identity: the
+                     *     reservation's centre zone reads src zone 411,555 —
+                     *     m51_69, Bloat's own template — at src_level 0 and
+                     *     rotation 0, so instance-local (29,29) IS square-local
+                     *     (29,29).
                      *
-                     * So `::tob 2` above did not build the room. It cannot say
-                     * so: `~tob_build_room` returns false when
-                     * `~map_instance_from_square` has no free reservation (the
-                     * pool holds eight), `::tob` answers that with a `mes` this
-                     * stanza is not capturing, and `~tob_debug_reset` has
-                     * already zeroed `%tob_active` — so `%tob_handle` keeps the
-                     * PREVIOUS room's value, `::tobjoin` joins the mate to it,
-                     * and `handle == joined` passes on the wrong chamber.
-                     * `tob_harness_boss` then finds Xarpus by proximity and the
-                     * sight checks above pass vacuously against him.
+                     * What is left is the copy. m51_69 built as an ORDINARY
+                     * scene carries `tob_bloat_pillar` (32955) at square-local
+                     * (29,29), level 0, shape 10, with the rest of the tank
+                     * around it. The instanced build of the SAME square puts
+                     * 573 locs in this rect and not one of 32940..32975 on any
+                     * plane: the shape-22 ground decor
+                     * (`ahoy_indoor_dugupsoil`) arrives and the shape-10
+                     * scenery does not.
                      *
-                     * The repair is therefore upstream of this census: either
-                     * the pool is exhausted by the stanzas before it (nothing
-                     * here frees between rooms) or `::tob N` needs to fail
-                     * loudly. Until one of those lands this assertion stays
-                     * red, and it should: the census is correct and the room it
-                     * is pointed at is not.
+                     * So the question for the next pass is what
+                     * `record_locs_zone` / `record_loc_at` do differently for
+                     * those records. The `g_settings[1]` mismatch between the
+                     * two builds at the same tile is the thread to pull:
+                     * `apply_terrain_rules` derives `g_link_below` from plane
+                     * one, and `record_loc_at` DROPS a loc whose level goes
+                     * negative after the shift.
                      */
                     SELFTEST_CHECK(locs > 0 || projs > 0,
                                    "the Bloat room's tank must block sight, or the "

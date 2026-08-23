@@ -60,6 +60,7 @@ static struct ToriRS_FeatureTable const* g_features;
  * shift (Client-TS / LostCity). Map-square terrain buffers are freed per
  * square, so this has to be persisted for locs in the same build pass. */
 static unsigned char g_link_below[SCENE_TILES][SCENE_TILES];
+static int g_trace_loc = -1;
 
 /* The scene's raw tile settings bytes, gathered before the collision rules run.
  * See gather_terrain_square for why the two are separate passes. */
@@ -1028,6 +1029,11 @@ record_locs_zone(
         int dz;
         int angle;
 
+        if( g_trace_loc && map_loc->loc_id == g_trace_loc && sx >= 0 && sx < 8 && sz >= 0 &&
+            sz < 8 )
+            fprintf(stderr, "TRACE zone loc=%d cpl=%d srclvl=%d sx=%d sz=%d cfg=%d dst=%d\n",
+                    map_loc->loc_id, map_loc->chunk_pos_level, zone->src_level, sx, sz,
+                    config != NULL, dst_level);
         if( map_loc->chunk_pos_level != zone->src_level )
             continue;
         if( sx < 0 || sx >= 8 || sz < 0 || sz >= 8 )
@@ -1132,6 +1138,19 @@ ToriRSServer_SceneBuildInstance(
 
     square_count =
         window_source_squares(window, square_x, square_z, (int)(sizeof(square_x) / sizeof(*square_x)));
+    if( g_trace_loc < 0 )
+    {
+        const char* t = getenv("TORIRS_TRACE_LOC");
+        g_trace_loc = t ? atoi(t) : 0;
+    }
+    if( g_trace_loc )
+    {
+        fprintf(stderr, "TRACE build zone=%d,%d base=%d,%d squares=%d:", zone_x, zone_z, g_base_x,
+                g_base_z, square_count);
+        for( int q = 0; q < square_count; q++ )
+            fprintf(stderr, " %d_%d", square_x[q], square_z[q]);
+        fprintf(stderr, "\n");
+    }
 
     for( int s = 0; s < square_count; s++ )
     {
