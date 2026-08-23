@@ -31309,11 +31309,12 @@ ToriRSServer_WorldSelftest(void)
          * The geometry, in the room's local coordinates (tob.constant): the
          * tank fills x29..34, z29..34 and is what blocks sight. Bloat is parked
          * at (24,29) so its 5x5 spans x24..28, z29..33 — directly west of the
-         * tank. Both raiders stand in the corridor north of the tank, two tiles
-         * apart: the host at (30,35), which Bloat's east column can see along
-         * the outside of the tank's north-west corner, and the mate at (32,35),
-         * which is far enough along that every line from Bloat's near side
-         * crosses the tank itself.
+         * tank. Both raiders stand in the corridor north of the tank, three
+         * tiles apart: the host at (28,35), directly north of Bloat's exposed
+         * north-east corner, and the mate at (31,35), far enough east that
+         * every line from Bloat's near side crosses the tank itself. Three is
+         * also the fly-spread radius, so the hidden raider is the boundary case
+         * the second half needs.
          *
          * That is the room's actual pillar geometry rather than a contrived
          * one, and it is worth saying why the first attempt was not: the mate
@@ -31336,6 +31337,16 @@ ToriRSServer_WorldSelftest(void)
             ToriRSServer_ScriptsRunDebugproc(srv, "tobout");
             selftest_clear_pending(srv, srv->active_player);
             ToriRSServer_ScriptsRunDebugproc(srv, "tob 2");
+            /*
+             * `::tob 2` replaces the reservation in place. The live server
+             * reaches the tick boundary before another player can join or
+             * either player can query the room; drive that boundary here too
+             * so the scene is Bloat's m51_69 rather than the previous
+             * Xarpus fixture's m49_68. Testing collision in the same C call
+             * that changed the instance asks the scene about a map it has not
+             * had an opportunity to build yet.
+             */
+            selftest_tick(srv);
             mate = ToriRSServer_WorldAddPlayer(srv, NULL);
             SELFTEST_CHECK(mate != NULL, "a second raider should fit in the world");
             if( mate )
@@ -31403,16 +31414,16 @@ ToriRSServer_WorldSelftest(void)
                 npc->waypoint_index = -1;
 
                 ToriRSServer_WorldSetActive(srv, host);
-                ToriRSServer_ScriptsRunDebugproc(srv, "tobwarp 30 35");
+                ToriRSServer_ScriptsRunDebugproc(srv, "tobwarp 28 35");
                 ToriRSServer_WorldSetActive(srv, mate);
-                ToriRSServer_ScriptsRunDebugproc(srv, "tobwarp 32 35");
+                ToriRSServer_ScriptsRunDebugproc(srv, "tobwarp 31 35");
                 ToriRSServer_WorldSetActive(srv, host);
 
                 {
                     static struct ToriRSServerCapture lc;
                     ToriRSServer_CaptureBegin(srv, &lc);
-                    ToriRSServer_ScriptsRunDebugproc(srv, "tobbloatlos 30 35");
-                    ToriRSServer_ScriptsRunDebugproc(srv, "tobbloatlos 32 35");
+                    ToriRSServer_ScriptsRunDebugproc(srv, "tobbloatlos 28 35");
+                    ToriRSServer_ScriptsRunDebugproc(srv, "tobbloatlos 31 35");
                     ToriRSServer_CaptureEnd(srv);
                     {
                         int nth = 0;
@@ -31558,7 +31569,19 @@ ToriRSServer_WorldSelftest(void)
                  * where anybody stands by the time it drains.
                  */
                 for( int t = 0; t < 4; t++ )
+                {
                     selftest_tick(srv);
+                    /* The mate crossed into an asynchronously rebuilt rev239
+                     * WorldView. A real client acknowledges that load before
+                     * its delayed-hit queue may resume; this headless actor
+                     * has to drive the same packet explicitly. */
+                    if( mate->rebuild_scene_pending )
+                    {
+                        ToriRSServer_WorldSetActive(srv, mate);
+                        selftest_handle(mate, PKTOUT_NAME_MAP_BUILD_COMPLETE, NULL, 0);
+                        ToriRSServer_WorldSetActive(srv, host);
+                    }
+                }
                 SELFTEST_CHECK(host->hitpoints < 99,
                                "the exposed raider takes fly damage, on %d",
                                host->hitpoints);
