@@ -71,6 +71,9 @@ static struct
  *  columns of five, and the overhang is clipped rather than dropped. */
 #define FRAME_R_PANEL_TILES (3 * 5)
 
+/** Public, private, trade, report. */
+#define FRAME_CHAT_BUTTON_COUNT 4
+
 /**
  * Draws per chat-button plate: two end caps and the body repeated between them.
  *
@@ -809,7 +812,19 @@ main(void)
         CHECK(
             g_frame.blits == 6 + FRAME_R_PANEL_TILES + FRAME_CHAT_PLATES + 14 + 1,
             "the resizable frame draws all of its art");
-        CHECK(g_frame.regions == 14, "and claims all fourteen tabs");
+        /*
+         * Fourteen tabs and the four filter buttons.
+         *
+         * The buttons are the resizable frame's alone: its chatbox is a panel
+         * you can put away, so a click on one of them selects a filter or
+         * closes the box, and the region is what carries that. The fixed
+         * frames claim no such thing -- there the click belongs to the lane's
+         * own button, which cycles the filter's mode, and stealing it would
+         * trade a working control for a decorative one.
+         */
+        CHECK(
+            g_frame.regions == 14 + FRAME_CHAT_BUTTON_COUNT,
+            "and claims all fourteen tabs plus the four filter buttons");
 
         /* No tab open: no lit stone, and everything else unchanged. */
         g_frame.active_tab = -1;

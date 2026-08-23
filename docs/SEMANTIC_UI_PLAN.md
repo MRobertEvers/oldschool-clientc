@@ -382,12 +382,75 @@ plus role coverage in `torirs_plugin_host_test.c`. `make -C src test-revconfig
 test-uitree test-plugin-host test-gameframe test-xp-orbs test-feature-flags`
 all green.
 
+## 5b. The plugin migration, and where it stops
+
+Every plugin that was reaching for a semantically-named element by hand now
+asks for it by role — and one that looked like it should was deliberately left
+alone, because it is asking a different question.
+
+**`screenshot.lua` — migrated.** It carried a `report_button` config key
+holding `"<interface>:<component>"`, parsed it with a pattern match, shifted it
+into a uid by hand, and shipped `"162:31"` as the *default* — a correct id on
+exactly one cache, and a button drawn over whatever component 31 of interface
+162 happens to be on every other. All of that is one `api.role("report_button")`
+now, and the id moved to the profile where it can be right per lane. The config
+key is gone.
+
+**`minimap_orbs.c` — partly migrated.** Its `minimap_rect` call became
+`slot_rect(SLOT_MINIMAP)`: the same rectangle, reached through the vocabulary
+the layout *write* path uses, so a plugin that reads the map and a layout that
+places it cannot come to disagree about where it is.
+
+Its five orb *click targets* stay on `cache_id("iface", …)`, and that is not an
+oversight. `cache_id` answers **"what id does this revision declare"** — a
+static profile lookup. A role answers **"which node is that right now"** — a
+live tree resolution. They differ exactly when the target is not mounted, and
+that is the orbs' normal case: interface 160 is not in the osrs239 tree at all
+(the mounted groups are 161, 163, 728, 896), so a role-bound run orb would
+offer no verb where today it offers one and reports honestly if the press
+misses. Migrating would have been a silent regression dressed as a cleanup.
+
+The boundary is worth stating once: **use a role to find or measure an element
+that is on screen; use `cache_id` to name an id you intend to press blind.**
+
+**`gameframe.c` — unchanged.** It is the layout *writer* and already speaks
+roles (`layout_slot(SLOT_VIEWPORT, …)`); its tab art is its own, and its tab
+identity is the tabno, which is the role's own numbering rather than a magic
+number.
+
+## 5c. The role vocabulary the profiles now carry
+
+| profile | lanes | roles |
+|---|---|---|
+| `rs245_2lc_dat1_ui.ini` | rev 254 / 289 / 377 | 28 — 13 `tab_*` (baked `role=` on the sideicons), 13 `panel_*` via `slot(sidebar, N)`, `logout_screen`, `report_button` |
+| `osrs239_dat2_cache.ini` | the seven rev-239 manifests | 16 — 14 `panel_*` via `id(if(<iface>, 0))`, `report_button`, `logout_screen` |
+| `osrs_static_ui.ini`, `osrs_kronos_ui.ini` | (no manifest boots these) | 15 each — 14 `tab_*` + 14 `panel_*` + `logout_screen`; authored, not boot-verified |
+
+`tab_<name>` is the stone you click, `panel_<name>` the interface behind it.
+The point of the split is that both are things a player calls "the inventory",
+and the tab NUMBER — the fact that actually moves between revisions — is stated
+once in the profile and never learned by a plugin.
+
+The dat1 lane resolves all 28, and every `panel_*` uid matches the tab table
+that file has carried in its header comment since long before roles existed
+(5855 combat, 3917 stats, 638 quests, 3213 inventory, …). All 13 `tab_*` stones
+resolve with `component_id` = −1, so the role API is the only thing that can
+reach them.
+
+The osrs239 panel ids were each read off that cache before being written down:
+218 carries "Spell Filters", 541 "Prayer Filters", 239 "Playing:", 216 is the
+62-graphic emote grid, 593 the combat tab's styles, 387 the 42-graphic
+equipment sheet, 149 the bare container the server fills. They agree with the
+tab table `revconfig/osrs_static` has always carried, which is the
+cross-check — not the source.
+
 ## 6. Non-goals
 
 - **Retype/behaviour by role.** The registry identifies; it never changes what
   a node does. clientCode's retype table stays where it is.
-- **Migrating `[iface:orb_*]`.** The minimap-orb click targets could become
-  roles later; out of scope, and the config-string escape hatch stays.
+- **Migrating `[iface:orb_*]`.** Deliberately NOT done, and §5b says why: those
+  are ids to press blind, not elements to find. The config-string escape hatch
+  stays.
 - **A general tree-query language.** Matchers are a closed, small set on
   purpose; anything smarter belongs in a plugin.
 

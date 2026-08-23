@@ -34,7 +34,7 @@ export default function RunOrb() {
                 valign="centre"
                 shadow
             >
-                {`${percent}`}
+                {`Dog ${percent}`}
             </Text>
 
             <Layer

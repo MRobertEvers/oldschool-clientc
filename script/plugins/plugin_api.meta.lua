@@ -293,12 +293,27 @@ dofile = nil
 --- -- rather than spelling the name at every call site, the same way a region
 --- is a name you index and not a string you pass.
 ---
---- The vocabulary is OPEN. Every `api.layout` region name works here too and
---- answers the identical rectangle (`"viewport"`, `"minimap"`, `"compass"`,
---- `"chat"`, `"sidebar"`, `"main_modal"`, `"chat_buttons"`, `"canvas"`,
---- `"safe"`), and beyond those it is whatever the revision's profile has
---- named. `"report_button"` and `"logout_screen"` are the two the client's own
---- profiles ship.
+--- The vocabulary is OPEN -- a profile may name anything -- but these are the
+--- ones the client's own profiles ship, and the ones to reach for first:
+---
+--- REGIONS. Every `api.layout` region name works here too and answers the
+--- identical rectangle: `"viewport"`, `"minimap"`, `"compass"`, `"chat"`,
+--- `"sidebar"`, `"main_modal"`, `"chat_buttons"`, `"canvas"`, `"safe"`.
+---
+--- SIDEBAR. `"tab_<name>"` is the STONE you click; `"panel_<name>"` is the
+--- interface mounted behind it. `<name>` is one of `combat`, `stats`,
+--- `quests`, `inventory`, `equipment`, `prayer`, `magic`, `friends`, `ignore`,
+--- `logout`, `options`, `emotes`, `music`, plus `clan` and `account` on the
+--- OldSchool frames that have them. Which tab number any of these is stays in
+--- the profile -- that is the fact that moves between revisions.
+---
+--- ELEMENTS. `"report_button"` and `"logout_screen"` (the same node as
+--- `"panel_logout"`, under the name people ask for it by).
+---
+--- Not every lane binds every name, and that is the contract rather than a
+--- gap: `panel_clan` is absent on a 2004 frame because that frame has no clan
+--- tab, and `tab_<name>` is absent on a frame whose stones are the cache's own
+--- widgets rather than the profile's.
 ---@alias torirs.RoleFn fun(name: string): torirs.Role
 
 --- Handed to on_draw_world and on_draw_canvas as their second argument, and

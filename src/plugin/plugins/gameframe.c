@@ -379,153 +379,6 @@ enum
 static int g_redstone_flip[3][REDSTONE_FLIP_COUNT];
 static int g_redstone_flipped;
 
-/*
- * The Report abuse plate, under the pointer.
- *
- * COMPOSED, unlike every other plate, because the cache has no red one to
- * light. `chat_tab_button` is one shape in six states -- 0 idle, 1 hovered,
- * 2 active, 3 active and hovered, 4 alerting, 5 red (`redraw_chat_buttons`,
- * clientscript 178, picks between the first five) -- and the red is the only
- * member of its pair. So the other three buttons brighten by swapping to the
- * cache's own hovered plate and this one brightens by arithmetic, which is the
- * same thing the pair does anyway: 1 is 0 with the light turned up.
- */
-static int g_chat_button_report_hover = -1;
-
-/** One picture to blit, in canvas coordinates. Built by the layout pass. */
-struct FrameBlit
-{
-    int image;
-    int x;
-    int y;
-    /**
-     * Repeat the image over this box instead of drawing it once. 0 = once.
-     *
-     * The OldSchool resizable frames back their side panel with
-     * `tradebacking_dark` -- an 88x60 swatch of leather TILED to whatever the
-     * panel is (`side_background` in both toplevel_pre_eoc and
-     * toplevel_osrs_stretch: widthmode/heightmode 1, `tiled=yes`) -- rather
-     * than with the fixed frame's 190x261 plate. Fifteen entries in the blit
-     * list would say the same thing and spend half its budget, so the repeat
-     * is a property of the entry and the draw pass expands it.
-     */
-    int tile_w;
-    int tile_h;
-};
-
-/*
- * A tab's stone, its icon box, and the redstone it wears when pressed.
- *
- * `stone` is the picture BEHIND the icon and `stone_pressed` the one it swaps
- * to. The two frames answer that differently and both are here rather than in
- * two draw paths: the OldSchool frame draws a stone for every tab and a
- * BRIGHTER one for the selected, and the 2004 frame draws nothing at all until
- * a tab is selected and then draws its redstone. A -1 in either is "draw
- * nothing", which is what makes one loop serve both.
- */
-struct FrameTab
-{
-    int x;
-    int y;
-    int w;
-    int h;
-    /**
-     * The tab this box stands for -- NOT its position in this table.
-     *
-     * They differ, and only on one frame: 548 puts Clan chat on the bottom
-     * row's first stone and Account on its third, so the eighth box drawn is
-     * tab 7 and the ninth is tab 9. Carrying the number here rather than
-     * assuming the index is what keeps the pressed stone under the tab that is
-     * actually open, and a click on a stone opening the panel it shows.
-     */
-    int tabno;
-    int stone;
-    int stone_pressed;
-    int icon;
-};
-
-/* Chrome blits one layout may declare. The OldSchool fixed frame is the
- * largest at fourteen surround pieces plus two tab strips. */
-#define FRAME_BLIT_MAX 32
-
-static struct
-{
-    int layout;
-    int canvas_w;
-    int canvas_h;
-    struct FrameBlit blit[FRAME_BLIT_MAX];
-    int blit_count;
-    /*
-     * Chrome that goes OVER the live surfaces instead of behind them.
-     *
-     * Almost all frame art sits behind: the panel is behind the inventory, the
-     * chatbox backing is behind the text. The map housing is the exception and
-     * it is not a detail -- the stone ring OVERLAPS the map, which is what
-     * turns a square blit of terrain into a round minimap. Drawn behind, the
-     * corners of the map cover the ring and the frame reads as a photograph
-     * pasted over the stones.
-     *
-     * Two lists rather than a flag per blit, because the two are drawn from
-     * different events: the frame surface (under the interfaces) and the
-     * canvas surface (over them). @see EV_DRAW_FRAME.
-     */
-    struct FrameBlit over[FRAME_BLIT_MAX];
-    int over_count;
-    struct FrameTab tab[FRAME_TAB_COUNT];
-    int tab_count;
-    /*
-     * The filter buttons' plates.
-     *
-     * Declared here rather than blitted into the list above, for the reason
-     * the tab stones are: which plate a button wears changes with the POINTER
-     * and the list is built once per layout. Same shape, same reason -- a
-     * frame that has no plates simply records none.
-     */
-    struct FrameChatButton
-    {
-        int x;
-        int y;
-        int w;
-        int idle;
-        int hover;
-    } chat_button[FRAME_CHAT_BUTTON_COUNT];
-    int chat_button_count;
-    /** Set once the layout has been declared at least once, so the draw pass
-     *  can tell "nothing to draw yet" from "a frame with no chrome". */
-    int declared;
-} g_frame;
-
-/* ------------------------------------------------------------------ helpers */
-
-static void
-frame_blit_into(
-    struct FrameBlit* list,
-    int* count,
-    int image,
-    int x,
-    int y,
-    int tile_w,
-    int tile_h)
-{
-    assert(list);
-    assert(count);
-    if( image < 0 )
-        return;
-    if( *count >= FRAME_BLIT_MAX )
-    {
-        /* Said rather than silently dropped: a frame missing one stone reads
-         * as a rendering bug, and this is the one thing that could cause it. */
-        g_api->log(NULL, "frame: more than %d chrome blits; the rest are dropped", FRAME_BLIT_MAX);
-        return;
-    }
-    list[*count].image = image;
-    list[*count].x = x;
-    list[*count].y = y;
-    list[*count].tile_w = tile_w;
-    list[*count].tile_h = tile_h;
-    (*count)++;
-}
-
 /** Chrome behind the live surfaces. */
 static void
 frame_blit(int image, int x, int y)
@@ -581,7 +434,8 @@ frame_chat_buttons_across(
     int y,
     int width,
     int height,
-    int plate)
+    int plate,
+    int selectable)
 {
     int const cell = width / FRAME_CHAT_BUTTON_COUNT;
 
@@ -603,7 +457,7 @@ frame_chat_buttons_across(
          * one control on the bar with a consequence, and the reference marks
          * it apart from the three that only toggle what you can see.
          */
-        if( plate >= 0 && g_frame.chat_button_count < FRAME_CHAT_BUTTON_COUNT )
+        if( plate && g_frame.chat_button_count < FRAME_CHAT_BUTTON_COUNT )
         {
             struct FrameChatButton* b = &g_frame.chat_button[g_frame.chat_button_count++];
             int const report = i == FRAME_CHAT_BUTTON_REPORT;
@@ -611,8 +465,17 @@ frame_chat_buttons_across(
             b->x = bx;
             b->y = y + FRAME_O_CHAT_BUTTON_LIFT;
             b->w = FRAME_CHAT_BUTTON_W;
-            b->idle = g_image[report ? IMG_O_CHAT_BUTTON_REPORT : plate];
-            b->hover = report ? g_chat_button_report_hover : g_image[IMG_O_CHAT_BUTTON_HOVER];
+            b->filter = i;
+            b->idle = g_chat_plate[report ? CHAT_PLATE_REPORT : CHAT_PLATE_IDLE];
+            b->hover = g_chat_plate[report ? CHAT_PLATE_REPORT_HOVER : CHAT_PLATE_HOVER];
+            /*
+             * Report abuse selects nothing and so is never active: it is not a
+             * view of the chat, it opens a report. It still hovers, which is
+             * the whole of what a momentary button has to say.
+             */
+            b->active = selectable && !report ? g_chat_plate[CHAT_PLATE_ACTIVE] : -1;
+            b->active_hover =
+                selectable && !report ? g_chat_plate[CHAT_PLATE_ACTIVE_HOVER] : -1;
         }
         g_api->layout_slot_at(
             ctx, TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, i, bx, y, FRAME_CHAT_BUTTON_W, height);
@@ -770,7 +633,9 @@ frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
                 X[i],
                 467,
                 FRAME_CHAT_BUTTON_W,
-                FRAME_CHAT_BUTTON_H);
+                FRAME_CHAT_BUTTON_H,
+        /*plate=*/0,
+        /*selectable=*/0);
     }
 }
 
@@ -874,7 +739,8 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
         338 + FRAME_O_CHAT_H - FRAME_O_CHAT_BUTTON_LIFT,
         FRAME_O_CHAT_W,
         FRAME_O_CHAT_BUTTON_H,
-        IMG_O_CHAT_BUTTON);
+        /*plate=*/1,
+        /*selectable=*/0);
 }
 
 /* ------------------------------------------------------ modern resizable */
@@ -965,7 +831,13 @@ frame_layout_modern_resizable(
     frame_blit(g_image[IMG_O_SIDE_COLUMN_L], panel_x - FRAME_R_COL_W, panel_y);
     frame_blit(g_image[IMG_O_SIDE_COLUMN_R], panel_x + FRAME_R_PANEL_W, panel_y);
     frame_blit(g_image[IMG_O_TABS_BOTTOM_R], row_x, bottom_row_y);
-    frame_blit(g_image[IMG_O_CHATBACK], 0, chat_y);
+    /*
+     * The backing only when the chatbox is up. The stone BAR always: it is
+     * what the filter buttons stand on, and putting it away with the chat
+     * would leave the switch that reopens it floating on the scene.
+     */
+    if( g_chat_open )
+        frame_blit(g_image[IMG_O_CHATBACK], 0, chat_y);
     frame_blit(g_image[IMG_O_CHAT_STONES], 0, chat_y + FRAME_O_CHAT_H);
 
     /*
@@ -1047,13 +919,19 @@ frame_layout_modern_resizable(
         FRAME_R_COMPASS_W);
     frame_skin_map(ctx, IMG_O_MINIMAP_MASK_R, IMG_O_COMPASS_MASK_R);
     frame_skin_scrollbar(ctx);
-    g_api->layout_slot(
-        ctx,
-        TORIRS_PLUGIN_SLOT_CHAT,
-        FRAME_O_CHAT_INNER_X,
-        chat_y + FRAME_O_CHAT_INNER_Y,
-        FRAME_O_CHAT_INNER_W,
-        FRAME_O_CHAT_INNER_H);
+    /*
+     * A role this declaration does not mention is one the host HIDES, which is
+     * the whole mechanism behind the switch: closing the chatbox is not a flag
+     * the chat widget reads, it is a frame that stops having a chatbox in it.
+     */
+    if( g_chat_open )
+        g_api->layout_slot(
+            ctx,
+            TORIRS_PLUGIN_SLOT_CHAT,
+            FRAME_O_CHAT_INNER_X,
+            chat_y + FRAME_O_CHAT_INNER_Y,
+            FRAME_O_CHAT_INNER_W,
+            FRAME_O_CHAT_INNER_H);
     g_api->layout_slot(
         ctx, TORIRS_PLUGIN_SLOT_SIDEBAR, panel_x, panel_y, FRAME_R_PANEL_W, FRAME_R_PANEL_H);
     /*
@@ -1072,7 +950,8 @@ frame_layout_modern_resizable(
         chat_y + FRAME_O_CHAT_H - FRAME_O_CHAT_BUTTON_LIFT,
         FRAME_O_CHAT_W,
         FRAME_O_CHAT_BUTTON_H,
-        IMG_O_CHAT_BUTTON);
+        /*plate=*/1,
+        /*selectable=*/1);
 }
 
 /* -------------------------------------------------------------- the events */
@@ -1125,6 +1004,141 @@ frame_compose_flip(
     free(px);
     free(out);
     return handle;
+}
+
+/*
+ * The plates, cut to the height a 2004 filter button actually needs.
+ *
+ * `chat_tab_button` is 22 rows because OldSchool's own chat tabs are ONE line
+ * of text. This lane's buttons are two -- the filter's name over its mode, at
+ * label_y 2 and mode_y 15 -- and their ink runs from four rows below the box
+ * top to twenty-four, which is 21 rows that have to sit inside 22 with the
+ * bevel's dark lip at the bottom. It fits arithmetically and looks wedged: the
+ * `On` sits ON the lip.
+ *
+ * So each plate is rebuilt taller. The two ends are copied exactly -- they
+ * carry the rounded corners and both bevels -- and the extra rows come out of
+ * the middle of the straight body, where the art is a smooth vertical gradient
+ * and a repeated row is invisible. Stretching, not tiling: tiling a gradient
+ * shows every seam, and this has none because the seam is inside a run of
+ * near-identical rows.
+ *
+ * `bright` is the other thing composed here, and only the Report plate needs
+ * it: the family is six states of one shape -- 0 idle, 1 hovered, 2 active,
+ * 3 active and hovered, 4 alerting, 5 red (`redraw_chat_buttons`, clientscript
+ * 178) -- and the red is the only member of its pair, so the three ordinary
+ * buttons brighten by swapping to the cache's own hovered plate and this one
+ * brightens by arithmetic. The factor is measured off that pair: across it the
+ * median channel goes up by about half again.
+ */
+#define FRAME_O_CHAT_PLATE_H 26
+#define FRAME_CHAT_BRIGHT_NUM 3
+#define FRAME_CHAT_BRIGHT_DEN 2
+
+enum FrameChatPlate
+{
+    CHAT_PLATE_IDLE = 0,
+    CHAT_PLATE_HOVER,
+    CHAT_PLATE_ACTIVE,
+    CHAT_PLATE_ACTIVE_HOVER,
+    CHAT_PLATE_REPORT,
+    CHAT_PLATE_REPORT_HOVER,
+
+    CHAT_PLATE_COUNT
+};
+
+static int g_chat_plate[CHAT_PLATE_COUNT];
+static int g_chat_plates_built;
+
+static int
+frame_compose_plate(
+    struct ToriRS_PluginCtx* ctx,
+    char const* name,
+    int src,
+    int bright)
+{
+    uint32_t* px;
+    uint32_t* out;
+    int w = 0;
+    int h = 0;
+    int handle;
+    int const out_h = FRAME_O_CHAT_PLATE_H;
+
+    assert(ctx);
+    assert(name);
+    if( src < 0 || !g_api->image_size(ctx, src, &w, &h) || w <= 0 || h <= 0 || h > out_h )
+        return -1;
+
+    px = malloc((size_t)w * (size_t)h * sizeof(*px));
+    assert(px);
+    if( g_api->image_pixels(ctx, src, px, w * h) != w * h )
+    {
+        free(px);
+        return -1;
+    }
+    out = malloc((size_t)w * (size_t)out_h * sizeof(*out));
+    assert(out);
+    for( int y = 0; y < out_h; y++ )
+    {
+        /* Top half from the top and bottom half from the bottom, so BOTH end
+         * caps are exact and the only repeated rows are the ones in the middle
+         * of the body. */
+        int const sy = y < out_h / 2 ? y : h - (out_h - y);
+        for( int x = 0; x < w; x++ )
+        {
+            uint32_t const p = px[sy * w + x];
+            uint32_t v = p & 0xFF000000u;
+
+            for( int ch = 0; ch < 3; ch++ )
+            {
+                int c = (int)((p >> (ch * 8)) & 0xFFu);
+                if( bright )
+                    c = c * FRAME_CHAT_BRIGHT_NUM / FRAME_CHAT_BRIGHT_DEN;
+                if( c > 255 )
+                    c = 255;
+                v |= (uint32_t)c << (ch * 8);
+            }
+            out[y * w + x] = v;
+        }
+    }
+    handle = g_api->image_compose(ctx, name, w, out_h, out);
+    free(px);
+    free(out);
+    return handle;
+}
+
+static void
+frame_build_chat_plates(struct ToriRS_PluginCtx* ctx)
+{
+    static struct
+    {
+        char const* name;
+        int src;
+        int bright;
+    } const PLATE[CHAT_PLATE_COUNT] = {
+        { "chat_plate_idle.png",        IMG_O_CHAT_BUTTON,             0 },
+        { "chat_plate_hover.png",       IMG_O_CHAT_BUTTON_HOVER,       0 },
+        { "chat_plate_active.png",      IMG_O_CHAT_BUTTON_ACTIVE,      0 },
+        { "chat_plate_active_hov.png",  IMG_O_CHAT_BUTTON_ACTIVE_HOVER,0 },
+        { "chat_plate_report.png",      IMG_O_CHAT_BUTTON_REPORT,      0 },
+        { "chat_plate_report_hov.png",  IMG_O_CHAT_BUTTON_REPORT,      1 },
+    };
+
+    assert(ctx);
+    if( g_chat_plates_built )
+        return;
+    /* Every one or none, and re-tried from the layout pass until they are all
+     * resident: an image crosses the IO queue like any other asset, so a set
+     * built from whichever had landed would be half the frame at the wrong
+     * height for the rest of the session. */
+    for( int i = 0; i < CHAT_PLATE_COUNT; i++ )
+        if( !g_api->image_size(ctx, g_image[PLATE[i].src], NULL, NULL) )
+            return;
+
+    for( int i = 0; i < CHAT_PLATE_COUNT; i++ )
+        g_chat_plate[i] =
+            frame_compose_plate(ctx, PLATE[i].name, g_image[PLATE[i].src], PLATE[i].bright);
+    g_chat_plates_built = 1;
 }
 
 /*
@@ -1280,7 +1294,7 @@ frame_on_layout(
     assert(ev);
 
     frame_build_redstones(ctx);
-    frame_build_chat_button_hover(ctx);
+    frame_build_chat_plates(ctx);
 
     g_frame.layout = frame_layout_from_config(ctx);
     g_frame.canvas_w = ev->width;
@@ -1326,6 +1340,8 @@ frame_on_layout(
 
 /** The tag a tab's hit region carries; the low bits are the tab number. */
 #define FRAME_TAG_TAB 0x7ab0000u
+/** A chat filter button's region, tagged with the filter it selects. */
+#define FRAME_TAG_CHAT 0x0c40000u
 
 /*
  * One three-slice, drawn now: the two end caps at their own size and the body
@@ -1384,6 +1400,7 @@ frame_on_draw(
     struct ToriRS_PluginEvDrawCanvas const* ev = payload;
     int const active = g_api->tab_active(ctx);
     static char const* const TAB_OP[1] = { "Open" };
+    static char const* const CHAT_OP[1] = { "View" };
 
     (void)userdata;
     assert(ctx);
@@ -1451,9 +1468,33 @@ frame_on_draw(
                 continue;
             hot = have_mouse && mx >= b->x && mx < b->x + b->w && my >= b->y &&
                   my < b->y + ih;
-            plate = hot && b->hover >= 0 ? b->hover : b->idle;
+            /*
+             * ACTIVE is "the chat is open and this is the filter it is
+             * showing" -- the reference's own %varcint41, which is a
+             * SELECTION and not a press. Hover is %varcint42 beside it, and
+             * the two combine: the family ships all four plates because a
+             * selected button still has to answer the pointer.
+             */
+            if( b->active >= 0 && g_chat_open && g_chat_filter == b->filter )
+                plate = hot && b->active_hover >= 0 ? b->active_hover : b->active;
+            else
+                plate = hot && b->hover >= 0 ? b->hover : b->idle;
             frame_draw_hslice(
                 ctx, ev->surface, plate, b->x, b->y, b->w, FRAME_O_CHAT_BUTTON_CAP);
+            /* Only a frame whose chatbox can be put away claims these: on the
+             * fixed frames the click belongs to the lane's own button, which
+             * cycles the filter's mode. */
+            if( b->active >= 0 )
+                g_api->hit_region(
+                    ctx,
+                    ev->surface,
+                    b->x,
+                    b->y,
+                    b->w,
+                    ih,
+                    CHAT_OP,
+                    1,
+                    FRAME_TAG_CHAT | (uint32_t)b->filter);
         }
     }
 
@@ -1544,6 +1585,9 @@ frame_on_draw_over(
     return TORIRS_PLUGIN_PASS;
 }
 
+static void
+frame_claim(struct ToriRS_PluginCtx* ctx);
+
 static enum ToriRS_PluginVerdict
 frame_on_click(
     struct ToriRS_PluginCtx* ctx,
@@ -1555,6 +1599,35 @@ frame_on_click(
     (void)userdata;
     assert(ctx);
     assert(ev);
+
+    if( (ev->tag & ~0xffffu) == FRAME_TAG_CHAT )
+    {
+        int const filter = (int)(ev->tag & 0xffffu);
+
+        /*
+         * The tab you are already looking at closes the chatbox; any other
+         * opens it on that filter. One button doing both is what makes the
+         * bar a switch rather than four buttons and a fifth to put it away --
+         * and it is what the reference does with the same art.
+         */
+        if( g_chat_open && g_chat_filter == filter )
+            g_chat_open = 0;
+        else
+        {
+            g_chat_open = 1;
+            g_chat_filter = filter;
+        }
+        /*
+         * The chatbox's presence is part of the DECLARATION, so the frame has
+         * to be restated rather than merely redrawn: the host hides a role a
+         * declaration stops mentioning, and that is what puts the chat away.
+         *
+         * A re-CLAIM is how a plugin asks for that -- it is idempotent for the
+         * holder and marks the frame as needing a fresh EV_LAYOUT, which is
+         * the same call the config-changed path makes. */
+        frame_claim(ctx);
+        return TORIRS_PLUGIN_PASS;
+    }
 
     if( (ev->tag & ~0xffffu) != FRAME_TAG_TAB )
         return TORIRS_PLUGIN_PASS;
@@ -1602,7 +1675,9 @@ frame_on_start(
 
     memset(&g_frame, 0, sizeof(g_frame));
     g_redstone_flipped = 0;
-    g_chat_button_report_hover = -1;
+    g_chat_plates_built = 0;
+    for( int i = 0; i < CHAT_PLATE_COUNT; i++ )
+        g_chat_plate[i] = -1;
     for( int i = 0; i < 3; i++ )
         for( int f = 0; f < REDSTONE_FLIP_COUNT; f++ )
             g_redstone_flip[i][f] = -1;
