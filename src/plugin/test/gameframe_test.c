@@ -392,6 +392,10 @@ static int fake_minimap_rect(void* u, int* x, int* y, int* w, int* h) { (void)u;
 static int fake_slot_rect(void* u, int a, int* x, int* y, int* w, int* h) { (void)u; (void)a; (void)x; (void)y; (void)w; (void)h; return 0; }
 static int fake_slot_member_rect(void* u, int a, int m, int* x, int* y, int* w, int* h) { (void)u; (void)a; (void)m; (void)x; (void)y; (void)w; (void)h; return 0; }
 static int fake_component_rect(void* u, int c, int* x, int* y, int* w, int* h) { (void)u; (void)c; (void)x; (void)y; (void)w; (void)h; return 0; }
+static int fake_role_rect(void* u, char const* r, int* x, int* y, int* w, int* h) { (void)u; (void)r; (void)x; (void)y; (void)w; (void)h; return 0; }
+static int fake_role_visible(void* u, char const* r) { (void)u; (void)r; return 0; }
+static int fake_role_click(void* u, char const* r, int op) { (void)u; (void)r; (void)op; return 0; }
+static int fake_role_id(void* u, char const* r) { (void)u; (void)r; return -1; }
 static int fake_stat(void* u, int s, int* c, int* b) { (void)u; (void)s; (void)c; (void)b; return 0; }
 static int fake_stat_xp(void* u, int s, int* a, int* b, int* c) { (void)u; (void)s; (void)a; (void)b; (void)c; return 0; }
 static char const* fake_skill_name(void* u, int s) { (void)u; (void)s; return NULL; }
@@ -508,6 +512,10 @@ main(void)
     e.slot_rect = fake_slot_rect;
     e.slot_member_rect = fake_slot_member_rect;
     e.component_rect = fake_component_rect;
+    e.role_rect = fake_role_rect;
+    e.role_visible = fake_role_visible;
+    e.role_click = fake_role_click;
+    e.role_id = fake_role_id;
     e.layout_set = fake_layout_set;
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;

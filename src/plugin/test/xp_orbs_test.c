@@ -474,6 +474,45 @@ fake_component_rect(void* u, int component_id, int* x, int* y, int* w, int* h)
     return 0;
 }
 
+/* No role table under test either: every name answers "this revision does not
+ * have that", which is the contract's own reading of an unbound role. */
+static int
+fake_role_rect(void* u, char const* role, int* x, int* y, int* w, int* h)
+{
+    (void)u;
+    (void)role;
+    (void)x;
+    (void)y;
+    (void)w;
+    (void)h;
+    return 0;
+}
+
+static int
+fake_role_visible(void* u, char const* role)
+{
+    (void)u;
+    (void)role;
+    return 0;
+}
+
+static int
+fake_role_click(void* u, char const* role, int op)
+{
+    (void)u;
+    (void)role;
+    (void)op;
+    return 0;
+}
+
+static int
+fake_role_id(void* u, char const* role)
+{
+    (void)u;
+    (void)role;
+    return -1;
+}
+
 static int
 fake_stat(void* u, int skill, int* cur, int* base)
 {
@@ -1209,6 +1248,10 @@ main(void)
     e.slot_rect = fake_slot_rect;
     e.slot_member_rect = fake_slot_member_rect;
     e.component_rect = fake_component_rect;
+    e.role_rect = fake_role_rect;
+    e.role_visible = fake_role_visible;
+    e.role_click = fake_role_click;
+    e.role_id = fake_role_id;
     e.stat = fake_stat;
     e.stat_xp = fake_stat_xp;
     e.skill_name = fake_skill_name;

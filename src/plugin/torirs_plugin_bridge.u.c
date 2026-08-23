@@ -2234,31 +2234,36 @@ app_plugin_hit_region(
  * op 0, the classic unnumbered button, is slot 0, which is exactly what a
  * cache-authored IF1 button's own row carries.
  */
+/*
+ * The node-index half of the press.
+ *
+ * Separate from the uid lookup because not every pressable node HAS a uid: a
+ * revconfig-authored control only gets a synthetic id when it carries a menu
+ * row, and a role names a node directly. So the pick carries whatever
+ * `component_id` the node holds -- -1 included, which the dispatcher reads as
+ * the same "no id" every builtin already has.
+ */
 static int
-app_plugin_if_click(void* user, int component_id, int op)
+app_plugin_click_node(struct App* app, int32_t node, int op)
 {
-    struct App* app = (struct App*)user;
     struct UIMinimenu scratch;
     struct UIMinimenu saved;
     struct UIMinimenuPick pick;
-    int32_t node;
     int action;
     int action_index;
     int button_type;
 
     assert(app);
+    assert(app->tree);
 
-    if( !app->tree )
+    if( node < 0 || (uint32_t)node >= app->tree->component_count )
         return 0;
-    /* A component id this tree does not hold is bad input -- a config key
-     * naming a button that is not on this cache -- not a broken contract. */
-    node = UITree_FindByComponentId(app->tree, component_id);
-    if( node < 0 )
+    if( app->tree->components[node].freed )
         return 0;
 
     memset(&pick, 0, sizeof(pick));
     pick.kind = UI_MINIMENU_PICK_UI;
-    pick.id = component_id;
+    pick.id = app->tree->components[node].component_id;
 
     /*
      * The action a real click on THIS button would carry, derived from its own
@@ -2315,6 +2320,24 @@ app_plugin_if_click(void* user, int component_id, int op)
     app_minimenu_run_option(app, 0, 0, 0);
     app->interact.minimenu = saved;
     return 1;
+}
+
+static int
+app_plugin_if_click(void* user, int component_id, int op)
+{
+    struct App* app = (struct App*)user;
+    int32_t node;
+
+    assert(app);
+
+    if( !app->tree )
+        return 0;
+    /* A component id this tree does not hold is bad input -- a config key
+     * naming a button that is not on this cache -- not a broken contract. */
+    node = UITree_FindByComponentId(app->tree, component_id);
+    if( node < 0 )
+        return 0;
+    return app_plugin_click_node(app, node, op);
 }
 
 /* Which overlay list the draw verbs above append to. @see app_overlay_push.
@@ -2562,6 +2585,153 @@ app_plugin_component_rect(
         out_y,
         out_w,
         out_h);
+}
+
+/* ----------------------------------------------------------- roles */
+
+/*
+ * The node a role names, or -1.
+ *
+ * The regions are answered by the SLOT vocabulary and not by the role table,
+ * even though a profile may also bind them there. Two reasons, and the second
+ * is the load-bearing one: every lane has a viewport whether or not its
+ * profile thought to say so, and `safe` and `canvas` are DERIVED -- there is
+ * no node for "the part of the canvas nothing is sitting on", so the only
+ * honest answer for them comes from the rect path below.
+ */
+static int
+app_plugin_role_slot(char const* role)
+{
+    assert(role);
+    if( strcmp(role, "canvas") == 0 )
+        return TORIRS_PLUGIN_SLOT_CANVAS;
+    if( strcmp(role, "safe") == 0 )
+        return TORIRS_PLUGIN_SLOT_SAFE;
+    return UITree_RoleSlotFromName(role);
+}
+
+static int32_t
+app_plugin_role_node(struct App* app, char const* role)
+{
+    int slot;
+
+    assert(app);
+    assert(role);
+    if( !app->tree )
+        return -1;
+
+    slot = app_plugin_role_slot(role);
+    /* SAFE and CANVAS are rectangles and not nodes, so they have no answer
+     * here at all -- the rect verb handles them and the others do not. */
+    if( slot >= 0 && slot < TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+        return app_plugin_slot_node_cached(app, slot);
+    if( slot >= 0 )
+        return -1;
+
+    return UITree_RoleNodeByName(app->tree, &app->ui_roles, role);
+}
+
+static int
+app_plugin_role_rect(
+    void* user, char const* role, int* out_x, int* out_y, int* out_w, int* out_h)
+{
+    struct App* app = (struct App*)user;
+    int slot;
+
+    assert(app);
+    assert(role);
+    if( !app->tree )
+        return 0;
+
+    /*
+     * A region role goes straight to the region reader, which knows the three
+     * things the node's own box does not: that the scene's rectangle is the
+     * one the frame was DRAWN with, that the minimap's comes from the emit
+     * desc, and that a dat2 modal has no declared region at all.
+     */
+    slot = app_plugin_role_slot(role);
+    if( slot >= 0 && slot != TORIRS_PLUGIN_SLOT_SAFE )
+        return app_plugin_slot_rect(user, slot, out_x, out_y, out_w, out_h);
+    if( slot == TORIRS_PLUGIN_SLOT_SAFE )
+        /* Derived from the others plus the reservation table, both of which
+         * live in the host; it reaches this verb only through slot_rect. */
+        return 0;
+
+    return app_plugin_node_rect(
+        app, app_plugin_role_node(app, role), out_x, out_y, out_w, out_h);
+}
+
+static int
+app_plugin_role_visible(void* user, char const* role)
+{
+    struct App* app = (struct App*)user;
+    int32_t node;
+
+    assert(app);
+    assert(role);
+    if( !app->tree )
+        return 0;
+
+    node = app_plugin_role_node(app, role);
+    if( node < 0 )
+        return 0;
+
+    /*
+     * Up the ancestry, because a visible child of a hidden parent is not on
+     * screen. Both flags, because they are set by different owners and mean
+     * the same thing to the player: `hide` is the cache's and the scripts',
+     * `frame_hidden` is a gameframe layout's.
+     *
+     * `hide` is read directly rather than through UITree_ComponentVisibleById,
+     * whose rule that a hidden node with no id counts as visible is right for
+     * the hover-reveal it was written for and wrong here -- every revconfig
+     * builtin has no id, and this verb would call all of them visible always.
+     */
+    while( node >= 0 && (uint32_t)node < app->tree->component_count )
+    {
+        struct UITreeComponent const* c = &app->tree->components[node];
+        if( c->freed || c->frame_hidden || c->behavior.hide )
+            return 0;
+        node = c->parent;
+    }
+    return 1;
+}
+
+static int
+app_plugin_role_click(void* user, char const* role, int op)
+{
+    struct App* app = (struct App*)user;
+    int32_t node;
+
+    assert(app);
+    assert(role);
+    if( !app->tree )
+        return 0;
+
+    node = app_plugin_role_node(app, role);
+    if( node < 0 )
+        return 0;
+    return app_plugin_click_node(app, node, op);
+}
+
+static int
+app_plugin_role_id(void* user, char const* role)
+{
+    struct App* app = (struct App*)user;
+    int32_t node;
+
+    assert(app);
+    assert(role);
+    if( !app->tree )
+        return -1;
+
+    node = app_plugin_role_node(app, role);
+    if( node < 0 )
+        return -1;
+    /* A node with no id of its own answers -1 too: an authored control that
+     * never earned a synthetic id has nothing to hand back, and inventing one
+     * would be handing out a number no other verb can use. */
+    return app->tree->components[node].component_id;
 }
 
 static int
@@ -3058,6 +3228,10 @@ app_plugin_engine(struct App* app)
     engine.slot_rect = app_plugin_slot_rect;
     engine.slot_member_rect = app_plugin_slot_member_rect;
     engine.component_rect = app_plugin_component_rect;
+    engine.role_rect = app_plugin_role_rect;
+    engine.role_visible = app_plugin_role_visible;
+    engine.role_click = app_plugin_role_click;
+    engine.role_id = app_plugin_role_id;
     engine.layout_set = app_plugin_layout_set;
     engine.layout_begin = app_plugin_layout_begin;
     engine.layout_end = app_plugin_layout_end;

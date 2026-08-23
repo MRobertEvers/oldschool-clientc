@@ -99,6 +99,9 @@ struct UIBuilderTreeOp
     int tabno;
     int selected;
     char slot[24];
+    /** RevConfig `role=`: the semantic name this node is stamped with, interned
+     *  into the builder's role table at bake. @see ui/uitree_role.h. */
+    char role[64];
     int dirty;
     int level_mask;
     /** Effect names this component advertises (revconfig hotkey= lines). */

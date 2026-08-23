@@ -18,6 +18,8 @@
 
 extern int g_failures;
 
+void test_roles(void);
+
 #define TEST_ASSERT(cond, msg)                                                                     \
     do                                                                                             \
     {                                                                                              \

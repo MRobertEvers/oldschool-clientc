@@ -15,6 +15,7 @@
 #include "ui/uitree.h"
 #include "ui/uitree_build.h"
 #include "ui/uitree_debug_overlay.h"
+#include "ui/uitree_role.h"
 
 #include <assert.h>
 #include <stdio.h>
@@ -612,6 +613,13 @@ push_builtin_op(
     apply_layout_position(op, &spec.position);
     spec.has_position = 1;
     spec.slot_tag = (uint8_t)slot_tag_from_string(op->slot);
+    if( op->role[0] != '\0' && builder->roles )
+    {
+        spec.role_id = UITree_RoleIntern(builder->roles, op->role);
+        /* Told at the same moment the tag is stamped, so a lookup for a role
+         * nothing authored never walks the tree hunting for one. */
+        UITree_RoleMarkAuthored(builder->roles, spec.role_id);
+    }
     if( op->dirty )
         spec.always_dirty = 1;
     copy_menu_options(op, &spec.menu_options);

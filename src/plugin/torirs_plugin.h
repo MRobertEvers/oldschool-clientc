@@ -24,7 +24,7 @@
 /* Bumped whenever anything below changes shape. A plugin compiled against a
  * different value is refused rather than run against a struct it disagrees
  * about. */
-#define TORIRS_PLUGIN_ABI 15
+#define TORIRS_PLUGIN_ABI 16
 
 #define TORIRS_PLUGIN_NAME_MAX 48
 /** Bytes of a plugin's human title, terminator included. Longer than the name
@@ -2201,6 +2201,104 @@ struct ToriRS_PluginApi
         int* out_y,
         int* out_w,
         int* out_h);
+
+    /* -- semantic roles --
+     *
+     * The same four verbs as above, addressed by what an element IS.
+     *
+     * if_click and component_rect take a number, and their docs say the same
+     * thing twice: which id it is on a given cache is the caller's problem,
+     * and there is no name in any profile for it. These are that missing name.
+     * A revision profile states `[role:report_button]` and what it is bound to
+     * on that lane, and a plugin asks for "report_button" -- so the plugin that
+     * could only work where its config key had been filled in by hand now
+     * works on every lane whose profile has been told, which is the same trade
+     * `[iface:…]` already made for the ids C needs.
+     *
+     * Deliberately a separate family and not an overload of the id verbs. A
+     * role is resolved LIVE against the tree on every call, because the thing
+     * it names may be a component a CS2 script built -- and a script-built
+     * component's id is a rotating handle that a rebuild hands straight back
+     * out to something else. A verb that took either a name or a number would
+     * be one whose answer is stable for half its callers.
+     *
+     * `role` is the profile's own spelling, and the well-known ones are the
+     * regions (`viewport`, `minimap`, `compass`, `chat`, `sidebar`,
+     * `main_modal`, `chat_buttons`, `canvas`, `safe`) plus whatever elements
+     * a profile has named. The vocabulary is OPEN: a role nobody declared is
+     * not an error, it is a role this revision does not have.
+     *
+     * Every one of these answers 0 (or -1) for a role that does not resolve,
+     * and that is an ANSWER and not a fault -- the same contract slot_rect
+     * has. A plugin that gets it offers no verb rather than acting on a guess.
+     */
+
+    /**
+     * Where the element named by `role` is, in canvas coordinates. Any out may
+     * be NULL.
+     *
+     * A role naming a REGION answers exactly what slot_rect answers for it,
+     * through the same lookup -- there is no second table, so a role and a
+     * layout cannot come to disagree about where the minimap is.
+     *
+     * @return 1 when the role resolves to a node with a laid-out, non-empty
+     * box.
+     */
+    int (*role_rect)(
+        struct ToriRS_PluginCtx* ctx,
+        char const* role,
+        int* out_x,
+        int* out_y,
+        int* out_w,
+        int* out_h);
+
+    /**
+     * Whether the element named by `role` is on screen right now.
+     *
+     * "Is the logout screen up", which no other verb in this contract can
+     * answer: role_rect says nothing about a node that is laid out and hidden,
+     * and a plugin cannot walk the tree to find out for itself.
+     *
+     * Counts the ancestors as well as the node: a visible child of a hidden
+     * parent is not on screen, and a surface a gameframe layout has suppressed
+     * is not either.
+     *
+     * @return 1 when it resolves and is visible, 0 when it is hidden or the
+     * role does not resolve at all. The two are deliberately one answer --
+     * "the player cannot see it" is what a caller is asking.
+     */
+    int (*role_visible)(struct ToriRS_PluginCtx* ctx, char const* role);
+
+    /**
+     * Press the element named by `role`, exactly as if_click presses one by id.
+     *
+     * The verb the report button needed. Its component is a chat-button member
+     * on a 2004 frame and an interface component on a modern one, neither of
+     * which a plugin can name by number and work on both.
+     *
+     * `op` is the numbered operation, 1..10, or 0 for the classic unnumbered
+     * button, the same as if_click. Unlike if_click this can press a node that
+     * carries NO component id -- a control the profile authored itself -- so a
+     * role is the only way to reach some of them.
+     *
+     * @return 1 when the role resolved and the press was dispatched.
+     */
+    int (*role_click)(struct ToriRS_PluginCtx* ctx, char const* role, int op);
+
+    /**
+     * The component id the role currently resolves to, or -1.
+     *
+     * For handing to the id verbs and to nothing else. The answer is only good
+     * for as long as the tree does not change underneath it: if the role names
+     * a script-built component, the id is recycled on the next rebuild of that
+     * subtree and will by then belong to a different node. Do not store it,
+     * and do not compare two of them taken at different times -- ask again.
+     *
+     * -1 for a role that does not resolve, and ALSO for one that resolves to a
+     * node with no id of its own, which is an ordinary state for a control a
+     * profile authored. Use role_click and role_rect for those.
+     */
+    int (*role_id)(struct ToriRS_PluginCtx* ctx, char const* role);
 
     /* -- images --
      *

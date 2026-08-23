@@ -107,6 +107,19 @@ struct UITreeRoleEntry
     struct UITreeRoleMatcher matchers[UITREE_ROLE_MAX_MATCHERS];
     int matcher_count;
 
+    /** A profile stamped some node with this role. Set by the table's builder,
+     *  because the tag and the flag come from the same `role=` line -- and
+     *  without it every lookup on every CS2-only role would walk the tree
+     *  hunting for an authored node that was never going to be there. */
+    uint8_t authored;
+
+    /** This role's answer can be changed by id churn, not just by a rebuild:
+     *  it names a uid, a clientCode or a cc sub id. A role built only from
+     *  slot() rungs cannot -- a frame slot is matched on builtin type and slot
+     *  tag, and CcCreate produces neither -- so it memoises on `generation`
+     *  alone, which is what the layout's own role cache has always done. */
+    uint8_t id_sensitive;
+
     /*
      * Memo. `node` is meaningful only while both generations still hold: the
      * tree bumps `generation` when it is rebuilt and `id_generation` on every
@@ -181,6 +194,15 @@ UITree_RoleNode(
     struct UITree const* tree,
     struct UITreeRoleTable* table,
     uint16_t role_id);
+
+/**
+ * Record that a node somewhere carries `role_id` as an authored tag.
+ *
+ * Called by whoever bakes the tag, from the same `role=` line that produced
+ * it. @see UITreeRoleEntry::authored.
+ */
+void
+UITree_RoleMarkAuthored(struct UITreeRoleTable* table, uint16_t role_id);
 
 /** UITree_RoleNode by name. 0 roles and unknown names answer -1. */
 int32_t

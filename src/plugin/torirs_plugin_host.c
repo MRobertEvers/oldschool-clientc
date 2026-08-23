@@ -1014,6 +1014,88 @@ api_slot_rect(
     return 1;
 }
 
+/* ------------------------------------------------------------ roles */
+
+/*
+ * Where a role's element is. @see ToriRS_PluginApi::role_rect.
+ *
+ * `safe` is answered here and never reaches the engine, for the same reason
+ * SLOT_SAFE does not: it is the placeable regions minus every plugin's edge
+ * reservation, and the reservation table is the host's. Routing it through
+ * api_slot_rect rather than re-deriving it is what keeps the name and the
+ * region enum answering with one rectangle.
+ */
+static int
+api_role_rect(
+    struct ToriRS_PluginCtx* ctx,
+    char const* role,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    int x = 0, y = 0, w = 0, h = 0;
+
+    assert(ctx);
+    /* An empty name is a plugin's own string handling, and the answer is the
+     * same one an undeclared role gets. */
+    if( !role || role[0] == '\0' )
+        return 0;
+
+    if( strcmp(role, "safe") == 0 )
+        return api_slot_rect(ctx, TORIRS_PLUGIN_SLOT_SAFE, out_x, out_y, out_w, out_h);
+
+    if( !ctx->host->engine.role_rect(ctx->host->engine.user, role, &x, &y, &w, &h) )
+        return 0;
+    if( w <= 0 || h <= 0 )
+        return 0;
+
+    if( out_x )
+        *out_x = x;
+    if( out_y )
+        *out_y = y;
+    if( out_w )
+        *out_w = w;
+    if( out_h )
+        *out_h = h;
+    return 1;
+}
+
+static int
+api_role_visible(struct ToriRS_PluginCtx* ctx, char const* role)
+{
+    assert(ctx);
+    if( !role || role[0] == '\0' )
+        return 0;
+    /* `safe` and `canvas` are rectangles rather than things that can be
+     * hidden, and a derived region is on screen whenever the client is. */
+    if( strcmp(role, "safe") == 0 || strcmp(role, "canvas") == 0 )
+        return api_role_rect(ctx, role, NULL, NULL, NULL, NULL);
+    return ctx->host->engine.role_visible(ctx->host->engine.user, role);
+}
+
+static int
+api_role_click(struct ToriRS_PluginCtx* ctx, char const* role, int op)
+{
+    assert(ctx);
+    if( !role || role[0] == '\0' )
+        return 0;
+    /* Same reading as if_click's: an op out of range came from a config key or
+     * a script, so it is bad input and not a broken contract. */
+    if( op < 0 || op > 10 )
+        return 0;
+    return ctx->host->engine.role_click(ctx->host->engine.user, role, op);
+}
+
+static int
+api_role_id(struct ToriRS_PluginCtx* ctx, char const* role)
+{
+    assert(ctx);
+    if( !role || role[0] == '\0' )
+        return -1;
+    return ctx->host->engine.role_id(ctx->host->engine.user, role);
+}
+
 /*
  * One member of a region. @see ToriRS_PluginApi::slot_member_rect.
  *
@@ -3131,6 +3213,10 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->slot_rect);
     assert(engine->slot_member_rect);
     assert(engine->component_rect);
+    assert(engine->role_rect);
+    assert(engine->role_visible);
+    assert(engine->role_click);
+    assert(engine->role_id);
     assert(engine->stat);
     assert(engine->stat_xp);
     assert(engine->skill_name);
@@ -3190,6 +3276,10 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .slot_rect = api_slot_rect,
         .slot_member_rect = api_slot_member_rect,
         .component_rect = api_component_rect,
+        .role_rect = api_role_rect,
+        .role_visible = api_role_visible,
+        .role_click = api_role_click,
+        .role_id = api_role_id,
         .layout_reserve = api_layout_reserve,
         .layout_revision = api_layout_revision,
         .layout_claim = api_layout_claim,

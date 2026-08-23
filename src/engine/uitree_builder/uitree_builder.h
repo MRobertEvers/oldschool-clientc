@@ -11,6 +11,7 @@ struct InvManager;
 struct RS_CS2Host;
 struct UIBuilderManifest;
 struct UITreeSceneBridge;
+struct UITreeRoleTable;
 
 #define UITREE_BUILDER_NAME_MAX 64
 #define UITREE_BUILDER_ONLOAD_ARGV_MAX 64
@@ -59,6 +60,10 @@ struct UITreeBuilder
     /** Next synthetic id for an authored control that carries a menu row.
      *  @see TORIRS_REVCONFIG_ID_BASE. */
     int authored_id_next;
+    /** Optional: where a component's `role=` is interned. NULL leaves the tag
+     *  unbaked, which is what a headless builder test wants. @see
+     *  ui/uitree_role.h. */
+    struct UITreeRoleTable* roles;
     char ini_path[512];
     /** Optional second RevConfig file (sprites/fonts). Empty = unused. */
     char cache_ini_path[512];

@@ -28,6 +28,7 @@
 #include "platform/platform_x_io.h"
 #include "plugin/torirs_plugin_host.h"
 #include "ui/uitree_frame.h"
+#include "ui/uitree_role.h"
 #include "ui/uitree_scroll.h"
 #include "revconfig/revconfig_profile.h"
 #include "revconfig/revconfig_refs.h"
@@ -668,6 +669,23 @@ struct App
      * is read on every wheel notch, long after Task_UITreeBuild is gone.
      */
     struct RevConfigProfile revconfig_profile;
+
+    /*
+     * The third half: which NODE a semantic name means.
+     *
+     * `[iface:…]` answers "which id is the XP panel" and stops there, because
+     * an id is all the client needed for the things it names. A plugin needs
+     * more -- it wants the report button's rectangle, and whether the logout
+     * screen is up -- and those are components, not interfaces, and on a CS2
+     * lane one of them may be a node a script built with no cache record at
+     * all. So a role is a name bound to a matcher chain, resolved against the
+     * live tree on ask. @see ui/uitree_role.h.
+     *
+     * Session-lifetime, and deliberately not on the tree: the table is a fact
+     * about the REVISION, and it has to survive the gameframe rebuild that
+     * throws the tree's nodes away.
+     */
+    struct UITreeRoleTable ui_roles;
 
     /* Phase 1: task runtime + disk (created first, freed last). Exactly one of
      * the two disks is live, per cfg.cache_kind. */

@@ -52,6 +52,7 @@ EM_JS(void, web_editor_open_panel_tab, (void), {
 #endif
 
 #include "engine/torirs_chrome_skin_baked.h"
+#include "engine/uitree_role_load.h"
 #include "engine/dat1/dat1_buildcache.h"
 #include "engine/dat1/dat1_tasks.h"
 #include "engine/dat2/dat2_buildcache.h"
@@ -7696,6 +7697,16 @@ App_Init(
         app->cfg.revconfig_ui_ini,
         app->cfg.revconfig_cache_ini,
         app->cfg.revconfig_inline_ini);
+    /* And the third: the semantic roles. After the refs and not beside them,
+     * because a matcher spelled `iface(<name>)` is resolved through the table
+     * loaded just above. */
+    memset(&app->ui_roles, 0, sizeof(app->ui_roles));
+    UITreeRoleLoad_LoadSources(
+        &app->ui_roles,
+        &app->revconfig_refs,
+        app->cfg.revconfig_ui_ini,
+        app->cfg.revconfig_cache_ini,
+        app->cfg.revconfig_inline_ini);
 
     ToriDraw_Init();
 
@@ -8619,6 +8630,7 @@ App_Shutdown(struct App* app)
     free(app->if_player_models);
     free(app->if_hides);
     RevConfigRefs_Free(&app->revconfig_refs);
+    UITree_RoleTableFree(&app->ui_roles);
 }
 
 /*
@@ -11103,6 +11115,10 @@ App_OpenRootInterface(
     app->builder.root_interface_id = interface_id;
     /* Bake remaps sprite/font ids to scene ids so the tree renders directly. */
     app->builder.bridge = &app->bridge;
+    /* Where a component's `role=` is interned. The table outlives the tree, so
+     * a remount re-stamps the same ids onto the new nodes rather than handing
+     * out fresh ones. */
+    app->builder.roles = &app->ui_roles;
     app->builder_active = 1;
 
     app->app_state = APP_STATE_BOOTING;

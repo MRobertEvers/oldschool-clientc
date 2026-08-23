@@ -150,6 +150,27 @@ struct ToriRS_PluginEngine
     int (*component_rect)(
         void* user, int component_id, int* out_x, int* out_y, int* out_w, int* out_h);
 
+    /* The semantic roles. @see ToriRS_PluginApi::role_rect and friends.
+     *
+     * Whole verbs and not a name->id resolver the host then feeds to the id
+     * verbs, because a role may name a node that HAS no id -- and because the
+     * answer has to be taken and used in one step: a role bound to a
+     * script-built component is only true until that subtree is next rebuilt.
+     *
+     * `safe` is the exception the engine cannot answer, for the same reason it
+     * cannot answer SLOT_SAFE: it is derived from the reservation table, which
+     * is the host's. The host intercepts that one name before it gets here. */
+
+    /** Where a role's element is. @see ToriRS_PluginApi::role_rect. */
+    int (*role_rect)(
+        void* user, char const* role, int* out_x, int* out_y, int* out_w, int* out_h);
+    /** Whether it is on screen. @see ToriRS_PluginApi::role_visible. */
+    int (*role_visible)(void* user, char const* role);
+    /** Press it. @see ToriRS_PluginApi::role_click. */
+    int (*role_click)(void* user, char const* role, int op);
+    /** Its component id right now, or -1. @see ToriRS_PluginApi::role_id. */
+    int (*role_id)(void* user, char const* role);
+
     /* The gameframe claim. @see ToriRS_PluginApi::layout_claim.
      *
      * The host owns WHO holds the frame; the engine owns what holding it does
