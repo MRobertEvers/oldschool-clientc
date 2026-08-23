@@ -77,6 +77,7 @@ export function build(project, { dryRun = false, log = () => {} } = {}) {
             name,
             interfaceId,
             scriptId: (scriptName) => ledger.scriptId(scriptName),
+            ranges: cacheContext.counts,
         });
 
         const scripts = ir.scripts.map((script) => {
@@ -138,7 +139,32 @@ function writeGenerated(path, text, marked = true) {
  * unpacked — in which case useVarbit asks for the varp explicitly.
  */
 function readCacheContext(project) {
-    return { varbitVarp: readVarbitVarps(project.content) };
+    return {
+        varbitVarp: readVarbitVarps(project.content),
+        counts: readCounts(project.content),
+    };
+}
+
+/**
+ * The highest id each config table defines.
+ *
+ * This is what turns `useVarp(99999)` into an error naming the range instead of a
+ * component that never moves. Where the tree does not carry a table, the count is
+ * absent and the check is skipped rather than guessed at.
+ */
+function readCounts(contentDir) {
+    const counts = {};
+    const tables = { varp: 'all.varp.compack', varbit: 'all.varbit.compack',
+                     varc: 'all.varc.compack', inv: 'all.inv.compack' };
+    for( const [kind, file] of Object.entries(tables) ) {
+        const path = join(contentDir, 'configs', file);
+        if( !existsSync(path) ) continue;
+        let highest = -1;
+        for( const id of readCompack(path).values() )
+            if( id > highest ) highest = id;
+        if( highest >= 0 ) counts[kind] = highest;
+    }
+    return counts;
 }
 
 /**

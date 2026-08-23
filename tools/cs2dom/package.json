@@ -4,24 +4,27 @@
   "private": true,
   "description": "Compile React (TypeScript) into CS2 source and authored IF3 interface components.",
   "type": "module",
-  "bin": { "cs2dom": "./bin/cs2dom.js" },
+  "bin": {
+    "cs2dom": "./bin/cs2dom.js"
+  },
   "scripts": {
+    "start": "node bin/cs2dom.js dev --project example",
+    "dev": "node bin/cs2dom.js dev --project example",
     "test": "node test/run_tests.js",
-
     "build": "node bin/cs2dom.js build --project example",
     "build:dry": "node bin/cs2dom.js build --project example --dry-run",
     "check": "node bin/cs2dom.js check --project example",
     "cachegen": "node bin/cs2dom.js cachegen --project example",
     "ops": "node bin/cs2dom.js ops",
-
     "cs2": "make -C ../../3rd/rscache/tools cs2",
     "bake": "make -C ../../src torirsserver-cache",
     "ship": "npm run build && npm run bake",
-
     "verify": "npm run cs2 && npm test"
   },
   "dependencies": {
     "typescript": "^5.6.0"
   },
-  "engines": { "node": ">=20" }
+  "engines": {
+    "node": ">=20"
+  }
 }

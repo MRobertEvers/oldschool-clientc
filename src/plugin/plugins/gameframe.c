@@ -217,6 +217,9 @@ enum FrameImage
     IMG_O_CHATBACK,
     IMG_O_CHAT_STONES,
     IMG_O_CHAT_BUTTON,
+    IMG_O_CHAT_BUTTON_HOVER,
+    IMG_O_CHAT_BUTTON_ACTIVE,
+    IMG_O_CHAT_BUTTON_ACTIVE_HOVER,
     IMG_O_CHAT_BUTTON_REPORT,
     IMG_O_SB_TROUGH,
     IMG_O_SB_DRAGGER_TOP,
@@ -305,6 +308,9 @@ static char const* const FRAME_IMAGE_FILE[FRAME_IMG_COUNT] = {
     [IMG_O_CHATBACK] = "osrs_chatback.png",
     [IMG_O_CHAT_STONES] = "osrs_chat_stones.png",
     [IMG_O_CHAT_BUTTON] = "osrs_chat_button.png",
+    [IMG_O_CHAT_BUTTON_HOVER] = "osrs_chat_button_hover.png",
+    [IMG_O_CHAT_BUTTON_ACTIVE] = "osrs_chat_button_active.png",
+    [IMG_O_CHAT_BUTTON_ACTIVE_HOVER] = "osrs_chat_button_active_hover.png",
     [IMG_O_CHAT_BUTTON_REPORT] = "osrs_chat_button_report.png",
     [IMG_O_SB_TROUGH] = "osrs_sb_trough.png",
     [IMG_O_SB_DRAGGER_TOP] = "osrs_sb_dragger_top.png",
@@ -373,6 +379,19 @@ enum
 static int g_redstone_flip[3][REDSTONE_FLIP_COUNT];
 static int g_redstone_flipped;
 
+/*
+ * The Report abuse plate, under the pointer.
+ *
+ * COMPOSED, unlike every other plate, because the cache has no red one to
+ * light. `chat_tab_button` is one shape in six states -- 0 idle, 1 hovered,
+ * 2 active, 3 active and hovered, 4 alerting, 5 red (`redraw_chat_buttons`,
+ * clientscript 178, picks between the first five) -- and the red is the only
+ * member of its pair. So the other three buttons brighten by swapping to the
+ * cache's own hovered plate and this one brightens by arithmetic, which is the
+ * same thing the pair does anyway: 1 is 0 with the light turned up.
+ */
+static int g_chat_button_report_hover = -1;
+
 /** One picture to blit, in canvas coordinates. Built by the layout pass. */
 struct FrameBlit
 {
@@ -392,20 +411,6 @@ struct FrameBlit
      */
     int tile_w;
     int tile_h;
-    /**
-     * Non-zero turns the repeat into a horizontal THREE-SLICE `cap` columns
-     * wide, drawn `tile_h` tall: the two end caps at their own size and the
-     * body repeated between them.
-     *
-     * Which is what a chat tab plate needs. `chat_tab_button` is a 56x22
-     * rounded rectangle -- its first four rows and last four taper, the
-     * columns between x=4 and x=51 are square, and down its middle runs a
-     * light-to-dark bevel -- so it stretches sideways and does not stretch
-     * upwards. A plain tile would repeat the rounded ENDS across the middle of
-     * a 100-wide button; a three-slice keeps them at the ends where they are
-     * the shape of the button.
-     */
-    int cap;
 };
 
 /*
@@ -468,6 +473,23 @@ static struct
     int over_count;
     struct FrameTab tab[FRAME_TAB_COUNT];
     int tab_count;
+    /*
+     * The filter buttons' plates.
+     *
+     * Declared here rather than blitted into the list above, for the reason
+     * the tab stones are: which plate a button wears changes with the POINTER
+     * and the list is built once per layout. Same shape, same reason -- a
+     * frame that has no plates simply records none.
+     */
+    struct FrameChatButton
+    {
+        int x;
+        int y;
+        int w;
+        int idle;
+        int hover;
+    } chat_button[FRAME_CHAT_BUTTON_COUNT];
+    int chat_button_count;
     /** Set once the layout has been declared at least once, so the draw pass
      *  can tell "nothing to draw yet" from "a frame with no chrome". */
     int declared;
@@ -483,8 +505,7 @@ frame_blit_into(
     int x,
     int y,
     int tile_w,
-    int tile_h,
-    int cap)
+    int tile_h)
 {
     assert(list);
     assert(count);
@@ -502,7 +523,6 @@ frame_blit_into(
     list[*count].y = y;
     list[*count].tile_w = tile_w;
     list[*count].tile_h = tile_h;
-    list[*count].cap = cap;
     (*count)++;
 }
 
@@ -510,28 +530,21 @@ frame_blit_into(
 static void
 frame_blit(int image, int x, int y)
 {
-    frame_blit_into(g_frame.blit, &g_frame.blit_count, image, x, y, 0, 0, 0);
-}
-
-/** Chrome behind them, three-sliced to `w`. @see FrameBlit::cap. */
-static void
-frame_blit_hslice(int image, int x, int y, int w, int cap)
-{
-    frame_blit_into(g_frame.blit, &g_frame.blit_count, image, x, y, w, 0, cap);
+    frame_blit_into(g_frame.blit, &g_frame.blit_count, image, x, y, 0, 0);
 }
 
 /** Chrome behind them, REPEATED over a box. @see FrameBlit::tile_w. */
 static void
 frame_blit_tiled(int image, int x, int y, int w, int h)
 {
-    frame_blit_into(g_frame.blit, &g_frame.blit_count, image, x, y, w, h, 0);
+    frame_blit_into(g_frame.blit, &g_frame.blit_count, image, x, y, w, h);
 }
 
 /** Chrome over them. @see ToriRS_PluginEvDrawCanvas and `over`. */
 static void
 frame_blit_over(int image, int x, int y)
 {
-    frame_blit_into(g_frame.over, &g_frame.over_count, image, x, y, 0, 0, 0);
+    frame_blit_into(g_frame.over, &g_frame.over_count, image, x, y, 0, 0);
 }
 
 static void
@@ -590,13 +603,17 @@ frame_chat_buttons_across(
          * one control on the bar with a consequence, and the reference marks
          * it apart from the three that only toggle what you can see.
          */
-        if( plate >= 0 )
-            frame_blit_hslice(
-                g_image[i == FRAME_CHAT_BUTTON_REPORT ? IMG_O_CHAT_BUTTON_REPORT : plate],
-                bx,
-                y + FRAME_O_CHAT_BUTTON_LIFT,
-                FRAME_CHAT_BUTTON_W,
-                FRAME_O_CHAT_BUTTON_CAP);
+        if( plate >= 0 && g_frame.chat_button_count < FRAME_CHAT_BUTTON_COUNT )
+        {
+            struct FrameChatButton* b = &g_frame.chat_button[g_frame.chat_button_count++];
+            int const report = i == FRAME_CHAT_BUTTON_REPORT;
+
+            b->x = bx;
+            b->y = y + FRAME_O_CHAT_BUTTON_LIFT;
+            b->w = FRAME_CHAT_BUTTON_W;
+            b->idle = g_image[report ? IMG_O_CHAT_BUTTON_REPORT : plate];
+            b->hover = report ? g_chat_button_report_hover : g_image[IMG_O_CHAT_BUTTON_HOVER];
+        }
         g_api->layout_slot_at(
             ctx, TORIRS_PLUGIN_SLOT_CHAT_BUTTONS, i, bx, y, FRAME_CHAT_BUTTON_W, height);
     }
@@ -1148,6 +1165,59 @@ frame_build_redstones(struct ToriRS_PluginCtx* ctx)
     g_redstone_flipped = 1;
 }
 
+/*
+ * The lit Report plate, built once out of the red one.
+ *
+ * The factor is measured rather than chosen: across the family's own idle and
+ * hovered pair the median channel goes up by about half again, so the same
+ * half again turns the red plate into a plate that is visibly the SAME button
+ * with the light on. Saturating at 255 rather than scaling the whole thing
+ * down keeps the bevel's dark edge dark, which is what makes it still read as
+ * a raised button.
+ */
+#define FRAME_CHAT_ACTIVE_NUM 3
+#define FRAME_CHAT_ACTIVE_DEN 2
+
+static void
+frame_build_chat_button_hover(struct ToriRS_PluginCtx* ctx)
+{
+    uint32_t* px;
+    int w = 0;
+    int h = 0;
+    int const src = g_image[IMG_O_CHAT_BUTTON_REPORT];
+
+    assert(ctx);
+    if( g_chat_button_report_hover >= 0 )
+        return;
+    if( src < 0 || !g_api->image_size(ctx, src, &w, &h) || w <= 0 || h <= 0 )
+        return;
+
+    px = malloc((size_t)w * (size_t)h * sizeof(*px));
+    assert(px);
+    if( g_api->image_pixels(ctx, src, px, w * h) != w * h )
+    {
+        free(px);
+        return;
+    }
+    for( int i = 0; i < w * h; i++ )
+    {
+        uint32_t const p = px[i];
+        uint32_t out = p & 0xFF000000u;
+        for( int ch = 0; ch < 3; ch++ )
+        {
+            int v = (int)((p >> (ch * 8)) & 0xFFu);
+            v = v * FRAME_CHAT_ACTIVE_NUM / FRAME_CHAT_ACTIVE_DEN;
+            if( v > 255 )
+                v = 255;
+            out |= (uint32_t)v << (ch * 8);
+        }
+        px[i] = out;
+    }
+    g_chat_button_report_hover =
+        g_api->image_compose(ctx, "chat_button_report_hover.png", w, h, px);
+    free(px);
+}
+
 /** The choices, in enum order. Also the schema's `choices` string, split. */
 static char const* const FRAME_LAYOUT_NAME[] = {
     "Classic Fixed",
@@ -1210,6 +1280,7 @@ frame_on_layout(
     assert(ev);
 
     frame_build_redstones(ctx);
+    frame_build_chat_button_hover(ctx);
 
     g_frame.layout = frame_layout_from_config(ctx);
     g_frame.canvas_w = ev->width;
@@ -1217,6 +1288,7 @@ frame_on_layout(
     g_frame.blit_count = 0;
     g_frame.over_count = 0;
     g_frame.tab_count = 0;
+    g_frame.chat_button_count = 0;
 
     switch( g_frame.layout )
     {
@@ -1255,6 +1327,54 @@ frame_on_layout(
 /** The tag a tab's hit region carries; the low bits are the tab number. */
 #define FRAME_TAG_TAB 0x7ab0000u
 
+/*
+ * One three-slice, drawn now: the two end caps at their own size and the body
+ * repeated between them, every copy scissored to the slice it belongs in.
+ *
+ * There is no sub-rect blit in the draw api, so a slice is the WHOLE picture
+ * drawn somewhere the scissor only lets the wanted columns through. What needs
+ * it is a chat tab plate: `chat_tab_button` is a 56x22 rounded rectangle whose
+ * first four rows and last four taper, whose columns between x=4 and x=51 are
+ * square, and down whose middle runs a light-to-dark bevel -- so it stretches
+ * sideways to any button width and does not stretch upwards at all. Tiling it
+ * whole would repeat the rounded ENDS across the middle of the button.
+ */
+static void
+frame_draw_hslice(
+    struct ToriRS_PluginCtx* ctx,
+    void* surface,
+    int image,
+    int x,
+    int y,
+    int w,
+    int cap)
+{
+    int iw = 0;
+    int ih = 0;
+    int body;
+    int inner;
+
+    assert(ctx);
+    if( image < 0 || !g_api->image_size(ctx, image, &iw, &ih) || iw <= 0 || ih <= 0 )
+        return;
+
+    body = iw - 2 * cap;
+    inner = w - 2 * cap;
+    /* Narrower than the art it is made of: draw it whole, which is a button
+     * that looks like a button rather than two caps with a gap between. */
+    if( cap <= 0 || body <= 0 || inner <= 0 || w < iw )
+    {
+        g_api->draw_image(ctx, surface, image, x, y, 0, 0, 0, 0, 0);
+        return;
+    }
+
+    g_api->draw_image(ctx, surface, image, x, y, x, y, cap, ih, 0);
+    for( int tx = 0; tx < inner; tx += body )
+        g_api->draw_image(ctx, surface, image, x + tx, y, x + cap, y, inner, ih, 0);
+    g_api->draw_image(
+        ctx, surface, image, x + w - iw, y, x + w - cap, y, cap, ih, 0);
+}
+
 static enum ToriRS_PluginVerdict
 frame_on_draw(
     struct ToriRS_PluginCtx* ctx,
@@ -1278,60 +1398,13 @@ frame_on_draw(
         int iw = 0;
         int ih = 0;
 
-        if( b->tile_w <= 0 || !g_api->image_size(ctx, b->image, &iw, &ih) || iw <= 0 ||
-            ih <= 0 || (b->tile_h <= 0 && b->cap <= 0) )
+        if( b->tile_w <= 0 || b->tile_h <= 0 ||
+            !g_api->image_size(ctx, b->image, &iw, &ih) || iw <= 0 || ih <= 0 )
         {
             g_api->draw_image(ctx, ev->surface, b->image, b->x, b->y, 0, 0, 0, 0, 0);
             continue;
         }
 
-        /*
-         * A three-slice: the ends at their own size, the body repeated between
-         * them, and every copy clipped to the slice it belongs in. The image is
-         * positioned so the WANTED columns land inside that clip -- there is no
-         * sub-rect blit, so a slice is the whole picture drawn somewhere the
-         * scissor only lets part of it through.
-         */
-        if( b->cap > 0 )
-        {
-            int const body = iw - 2 * b->cap;
-            int const inner = b->tile_w - 2 * b->cap;
-
-            if( body <= 0 || inner <= 0 || b->tile_w < iw )
-            {
-                /* Narrower than the art it is made of: draw it whole and let
-                 * the box be the art's size, which is a button that looks like
-                 * a button rather than two caps with a gap between them. */
-                g_api->draw_image(ctx, ev->surface, b->image, b->x, b->y, 0, 0, 0, 0, 0);
-                continue;
-            }
-            g_api->draw_image(
-                ctx, ev->surface, b->image, b->x, b->y, b->x, b->y, b->cap, ih, 0);
-            for( int tx = 0; tx < inner; tx += body )
-                g_api->draw_image(
-                    ctx,
-                    ev->surface,
-                    b->image,
-                    b->x + tx,
-                    b->y,
-                    b->x + b->cap,
-                    b->y,
-                    inner,
-                    ih,
-                    0);
-            g_api->draw_image(
-                ctx,
-                ev->surface,
-                b->image,
-                b->x + b->tile_w - iw,
-                b->y,
-                b->x + b->tile_w - b->cap,
-                b->y,
-                b->cap,
-                ih,
-                0);
-            continue;
-        }
         /* Every copy carries the WHOLE box as its clip, so the row and column
          * that overhang are cut at the panel's edge rather than at their own.
          * A swatch that divided the box exactly would not need it; 88x60 into
@@ -1349,6 +1422,39 @@ frame_on_draw(
                     b->tile_w,
                     b->tile_h,
                     /*trans=*/0);
+    }
+
+    /*
+     * The filter plates, picked by where the pointer is.
+     *
+     * Hover and not a selection, because these four are not a tab strip: three
+     * are independent toggles and the fourth opens a report, so there is no
+     * "the active one" among them -- what a person means by an active button
+     * here is the one under their hand. The reference draws the same
+     * distinction with the same art, `redraw_chat_buttons` picking its hovered
+     * plate off %varcint42.
+     */
+    {
+        int mx = 0;
+        int my = 0;
+        int const have_mouse = g_api->mouse_pos(ctx, &mx, &my);
+
+        for( int i = 0; i < g_frame.chat_button_count; i++ )
+        {
+            struct FrameChatButton const* b = &g_frame.chat_button[i];
+            int iw = 0;
+            int ih = 0;
+            int hot;
+            int plate;
+
+            if( !g_api->image_size(ctx, b->idle, &iw, &ih) || ih <= 0 )
+                continue;
+            hot = have_mouse && mx >= b->x && mx < b->x + b->w && my >= b->y &&
+                  my < b->y + ih;
+            plate = hot && b->hover >= 0 ? b->hover : b->idle;
+            frame_draw_hslice(
+                ctx, ev->surface, plate, b->x, b->y, b->w, FRAME_O_CHAT_BUTTON_CAP);
+        }
     }
 
     for( int i = 0; i < g_frame.tab_count; i++ )
@@ -1496,6 +1602,7 @@ frame_on_start(
 
     memset(&g_frame, 0, sizeof(g_frame));
     g_redstone_flipped = 0;
+    g_chat_button_report_hover = -1;
     for( int i = 0; i < 3; i++ )
         for( int f = 0; f < REDSTONE_FLIP_COUNT; f++ )
             g_redstone_flip[i][f] = -1;

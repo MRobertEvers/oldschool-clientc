@@ -24,6 +24,7 @@
 import { ELEMENTS, EVENTS, TRANSMIT } from './components.js';
 import { OPS } from './ops.js';
 import { isExpr, walk, typeOf, INT, STRING, BOOL } from './expr.js';
+import { checkRange, rangeContext } from './host.js';
 
 export class Cs2domError extends Error {
     constructor(message, where) {
@@ -37,9 +38,20 @@ export class Cs2domError extends Error {
  * `interfaceId` and `scriptId(name)` come from the id ledger, because an id is a
  * property of the content tree rather than of this render — see ledger.js.
  */
-export function lower({ tree, states, name, interfaceId, scriptId }) {
+export function lower({ tree, states, name, interfaceId, scriptId, ranges }) {
     const components = [];
     const byId = new Map();
+
+    /*
+     * Ids first. A varp or stat id outside the range the cache defines reads as
+     * nothing at runtime and shows as a component that never updates, which is a
+     * long way to travel for a typo — so it fails here, naming the range.
+     */
+    const context = rangeContext(ranges);
+    for( const source of states || [] ) {
+        const problem = checkRange(source.kind, source.id, context);
+        if( problem ) throw new Cs2domError(problem, name);
+    }
 
     collect(tree, null, components, byId, name);
 

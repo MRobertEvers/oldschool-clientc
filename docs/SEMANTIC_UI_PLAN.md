@@ -1,4 +1,8 @@
-# Semantic UI tagging — design and implementation plan
+# Semantic UI tagging — design, and what shipped
+
+> **Status: implemented.** Phases 1–6 below are done and green. §8 records what
+> the survey actually measured, and the three things the plan got wrong.
+
 
 The plugin system needs to talk about interface elements by what they ARE —
 the report button, the logout screen, the minimap box, the safe part of the
@@ -355,6 +359,29 @@ tree pays for.
 
 ---
 
+## 5a. What shipped, by file
+
+| layer | file | what it holds |
+|---|---|---|
+| revconfig | [revconfig.h](../src/revconfig/revconfig.h), [revconfig.c](../src/revconfig/revconfig.c), [revconfig_load.c](../src/revconfig/revconfig_load.c) | `RCITEM_ROLE`, `[role:]` + `match=` + component `role=`, `revconfig_parse_role_matcher` |
+| ui (leaf) | [uitree_role.h](../src/ui/uitree_role.h), [uitree_role.c](../src/ui/uitree_role.c) | the table, the resolver, the memo, the slot/member vocabulary |
+| ui | [uitree.h](../src/ui/uitree.h) | `UITreeComponent::role_id`, `UITreeNodeSpec::role_id` |
+| engine | [uitree_role_load.h](../src/engine/uitree_role_load.h)/[.c](../src/engine/uitree_role_load.c) | revconfig → ui translation; the only place that knows both spellings |
+| engine | [uitree_builder_bake.c](../src/engine/uitree_builder/uitree_builder_bake.c) | stamps `role=` onto the live node |
+| app | [app.h](../src/app.h), [app.c](../src/app.c) | `App::ui_roles`, loaded after the refs, freed with them |
+| plugin | [torirs_plugin.h](../src/plugin/torirs_plugin.h) | ABI 16; `role_rect` / `role_visible` / `role_click` / `role_id` |
+| plugin | [torirs_plugin_bridge.u.c](../src/plugin/torirs_plugin_bridge.u.c) | the four engine verbs + `app_plugin_click_node` |
+| plugin | [torirs_plugin_lua.c](../src/plugin/torirs_plugin_lua.c) | `api.role(name)` → a bound verb table |
+| diagnostics | [main.c](../src/main.c) | `TORIRS_DUMP_ROLES`, `TORIRS_DUMP_CLIENTCODES` |
+| profiles | [rs245_2lc_dat1_ui.ini](../revconfig/rs245_2lc/rs245_2lc_dat1_ui.ini), [osrs239_dat2_cache.ini](../revconfig/osrs239/osrs239_dat2_cache.ini) | the two roles, bound per lane |
+| proof | [_roleprobe.lua](../script/plugins/_roleprobe.lua) | one id-free script, both lanes |
+
+Tests: `revconfig_test_roles.c` (grammar, nesting, loud rejection),
+`uitree_test_roles.c` (resolution, precedence, the delete-all/rebuild case),
+plus role coverage in `torirs_plugin_host_test.c`. `make -C src test-revconfig
+test-uitree test-plugin-host test-gameframe test-xp-orbs test-feature-flags`
+all green.
+
 ## 6. Non-goals
 
 - **Retype/behaviour by role.** The registry identifies; it never changes what
@@ -375,3 +402,69 @@ tree pays for.
   `logout_screen`) via a `within(<role>, ...)` anchor form.
 - A CS2-host annotation channel (script id → role hint) if a lane ever ships
   an element that neither (parent, sub-id) nor clientCode can pin.
+
+## 8. What the survey measured, and what the plan got wrong
+
+### The bindings, read off the live tree
+
+Never from memory — `TORIRS_DUMP_ROLES` and `TORIRS_DUMP_CLIENTCODES` print
+what actually resolved, and every id below came from one of them.
+
+| role | rs245_2lc (dat1, rev 254/289/377) | osrs239 |
+|---|---|---|
+| `report_button` | `role=` on `[component:chat_button_report]`; resolves to a `UIELEM_BUILTIN_CHAT_BUTTON` at 408,467 100×32 with **`component_id` = −1** | `iface(chat, 31)` → 162:31, at 437,480 79×23, ops `["", "Report abuse", "", "Report game bug", ""]` — so *Report abuse* is **op 2** |
+| `logout_screen` | `slot(sidebar, 10)` → the tab-10 mount, uid 2449, at 553,205 190×261 | `iface(logout)` → 182:0, at 0,0 190×261 ("Use the buttons below to logout or switch worlds safely") |
+| regions | nothing declared — resolve through the layout vocabulary | same, via the cache's clientCodes: 1337 world, 1338 minimap, 1339 compass, 1336 chat, 1354 xp-drops, all on toplevel 161 |
+
+The dat1 report button having **no component id at all** is the finding that
+justifies the whole `role_click` design: `if_click` takes a uid, and there is
+no uid to give it. That element was unreachable by any pre-existing verb.
+
+`cc()` was proven on a real lane too, against interface 162 component 58 — the
+chat log's row container, whose children are `cc_create`d text rows. A role
+bound to `cc(iface(chat, 58), 3)` resolves to a `dynamic` node at uid
+0x00a28003, i.e. the 0x8000+ recycled range the design refuses to store.
+
+### Three things the plan got wrong
+
+**1. `role_visible` needed the host, not just the flags.** The plan said walk
+the ancestors checking `hide` and `frame_hidden`. That is not enough: a sidebar
+mount's visibility is not a flag on the node at all — it is
+`UITREE_HOST_GET_SELECTED_TAB` compared against its `tabno`, read at emit time.
+Without that test `logout_screen` reported *visible* from the moment the frame
+was built, on every tab, which is precisely the question the role exists to
+answer. The walk now consults `UITree_ComponentVisibleHost` for the four
+host-gated builtin types. Measured: pressing F10 on the dat1 lane flips
+`logout_screen` from `visible=no` to `visible=yes`.
+
+**2. Memoising on `(generation, id_generation)` for every role was wrong.**
+`id_generation` bumps on *every component pushed anywhere in the tree*, so a
+region role keyed on it would re-walk the tree every frame to reach the same
+answer. Roles are now split: one built only from `slot()` rungs keys on
+`generation` alone (a frame slot is matched on builtin type and slot tag, and
+`CcCreate` produces neither), and only a role that names a uid, a clientCode or
+a cc sub id pays the strict key. Same reasoning added an `authored` flag, so a
+lookup for a role nothing authored never walks the tree hunting for one.
+
+**3. Roles must not be resolved in `on_start`.** The plan never said when a
+plugin should ask. `on_start` runs before the gameframe is built, so every role
+answers "not here" and a plugin that latched the answer is wrong for the rest of
+the session. Binding the name (`api.role("x")`) is free and belongs in
+`on_start`; *resolving* it has to happen on the frame. `_roleprobe.lua` is
+written to demonstrate the split, and `torirs.Role`'s doc says so.
+
+### Diagnostics added
+
+- `TORIRS_DUMP_ROLES=1` — every declared role, what it resolved to (node, uid,
+  type, dynamic/hidden, box), and a census of mounted interface groups.
+  "Declared but unresolved" and "not declared at all" print differently,
+  because they are different bugs with the same symptom.
+- `TORIRS_DUMP_CLIENTCODES=1` — every live node carrying a clientCode, which is
+  where a `clientcode()` rung's number comes from.
+
+### Coverage still open
+
+Only `rs245_2lc` (serving rev 254/289/377) and `osrs239` have role bindings.
+`osrs_static`, `osrs_kronos`, `rs634void` and `rs377lc` declare none, so every
+element role answers "not here" there — correct behaviour, unfinished coverage.
+Each needs the same survey before anything is written into its profile.

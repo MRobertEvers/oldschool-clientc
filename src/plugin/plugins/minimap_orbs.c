@@ -748,8 +748,13 @@ orbs_draw(
      * Nothing to anchor to means nothing to draw. A gameframe with no minimap
      * -- the login screen, a cutscene that took it away -- is a state, not a
      * fault, and the orbs simply are not there for it.
+     *
+     * Asked for by ROLE rather than through minimap_rect, which is the same
+     * rectangle reached through the single-purpose verb that predates the
+     * vocabulary. One name for the map means a plugin that reads it and a
+     * layout that PLACES it cannot come to disagree about where it is.
      */
-    if( !g_api->minimap_rect(ctx, &map_x, &map_y, &map_w, &map_h) )
+    if( !g_api->slot_rect(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, &map_x, &map_y, &map_w, &map_h) )
         return TORIRS_PLUGIN_PASS;
 
     /* Asked for every frame, not only at start: an image that failed its read

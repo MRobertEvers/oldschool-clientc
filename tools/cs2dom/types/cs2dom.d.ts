@@ -127,6 +127,16 @@ declare module 'cs2dom' {
     };
 }
 
+/*
+ * The JSX factory the transform points at.
+ *
+ * TypeScript requires the classic factory to be in scope wherever a tag is
+ * written, but a component never calls it by hand — src/transform.js supplies it —
+ * so it is declared globally rather than imported into every file.
+ */
+declare const __jsx: (tag: unknown, props: unknown, ...children: unknown[]) => unknown;
+declare const __fragment: (props: unknown, ...children: unknown[]) => unknown;
+
 declare namespace JSX {
     interface IntrinsicElements {
         Layer: import('cs2dom').LayerProps;

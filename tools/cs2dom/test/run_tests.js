@@ -29,6 +29,10 @@ import { PackFile, Ledger } from '../src/ledger.js';
 import { OPS } from '../src/ops.js';
 import { ELEMENTS, EVENTS } from '../src/components.js';
 import { compileScripts, findRepoRoot, CS2_TOOL } from '../src/verify.js';
+import { checkRange, rangeContext, SLICES } from '../src/host.js';
+import { evaluate, resolveProps, stateInputs } from '../src/eval.js';
+import { layout, axisFromPositionMode, dimFromParentMode } from '../src/preview.js';
+import { decodeBmp, encodePng } from '../src/png.js';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const REPO = findRepoRoot(HERE);
@@ -82,7 +86,7 @@ function makeContent(name = 'content') {
 }
 
 /** Render one .tsx written inline, and lower it. */
-function compileSource(source, { name = 'fixture', varcPool = [1400, 1499], contentDir = null } = {}) {
+function compileSource(source, { name = 'fixture', varcPool = [1400, 1499], ranges = null } = {}) {
     const dir = mkdtempSync(join(scratch, 'src-'));
     const file = join(dir, `${name}.tsx`);
     writeFileSync(file, source);
@@ -103,6 +107,7 @@ function compileSource(source, { name = 'fixture', varcPool = [1400, 1499], cont
             if( !ids.has(scriptName) ) ids.set(scriptName, next++);
             return ids.get(scriptName);
         },
+        ranges,
     });
     return {
         ir,
@@ -110,6 +115,11 @@ function compileSource(source, { name = 'fixture', varcPool = [1400, 1499], cont
         compackText: emitCompack(ir),
         scripts: ir.scripts.map((s) => ({ ...emitScript(s, 700), name: s.name, id: s.id })),
     };
+}
+
+/** Compile with a declared set of id ceilings, for the range checks. */
+function compileSourceWithRanges(source, ranges) {
+    return compileSource(source, { ranges });
 }
 
 /* ---- 1. lowering --------------------------------------------------------- */
@@ -461,6 +471,154 @@ test('an import that is not cs2dom or a local file is refused', () => {
         const stolen = readFileSync;
         export default function Bad() { return <Layer id="root" name={String(stolen)} />; }
     `), "cannot import 'node:fs'");
+});
+
+/* ---- 3b. host state ------------------------------------------------------ */
+
+test('an id outside its slice is a build error naming the range', () => {
+    assertThrows(() => compileSourceWithRanges(`
+        import { Layer, Text, useStat } from 'cs2dom';
+        export default function Bad() {
+            const level = useStat(40);
+            return <Layer id="root"><Text id="t" font={495}>{\`\${level}\`}</Text></Layer>;
+        }
+    `, { varp: 5746, inv: 1025 }), 'outside the range this cache defines (0..22)');
+
+    assertThrows(() => compileSourceWithRanges(`
+        import { Layer, Text, useVarp } from 'cs2dom';
+        export default function Bad() {
+            const v = useVarp(99999);
+            return <Layer id="root"><Text id="t" font={495}>{\`\${v}\`}</Text></Layer>;
+        }
+    `, { varp: 5746 }), 'outside the range this cache defines (0..5746)');
+});
+
+test('a varc outside the cache table is allowed — an interface allocates its own', () => {
+    const built = compileSourceWithRanges(`
+        import { Layer, Text, useState } from 'cs2dom';
+        export default function Local() {
+            const [n] = useState(0, { varc: 99999 });
+            return <Layer id="root"><Text id="t" font={495} color={n === 1 ? 1 : 2}>x</Text></Layer>;
+        }
+    `, { varc: 1506 });
+    assert(built.scripts.length === 1, 'expected the update script');
+});
+
+test('the preview answers host reads out of the state it is given', () => {
+    const built = compileSource(`
+        import { Layer, Text, useVarp, useStat, useInvCount } from 'cs2dom';
+        export default function Panel() {
+            const energy = useVarp(300);
+            const hp = useStat(3);
+            const coins = useInvCount(93, 995);
+            return (
+                <Layer id="root" width={200} height={40}>
+                    <Text id="t" font={495}>{\`\${energy / 100} \${hp} \${coins}\`}</Text>
+                </Layer>
+            );
+        }
+    `);
+    const state = { 'varp:300': 4300, 'stat:3': 55, 'invobj:93': { 995: 250 } };
+    const boxes = layout(built.ir, state);
+    const text = boxes.find((b) => b.name === 't').props.text;
+    assert(text === '43 55 250', `preview text was "${text}"`);
+});
+
+test('a host read with no model is reported, not invented', () => {
+    const built = compileSource(`
+        import { Layer, Text, useVarp, cs2 } from 'cs2dom';
+        export default function Panel() {
+            const v = useVarp(300);
+            const named = cs2.enumLookup('int', 'string', 680, v);
+            return <Layer id="root"><Text id="t" font={495}>{\`\${named}\`}</Text></Layer>;
+        }
+    `);
+    const unmodelled = new Set();
+    layout(built.ir, {}, undefined, unmodelled);
+    assert([...unmodelled].some((u) => u.startsWith('enum:')),
+           `expected the enum read to be reported, got ${[...unmodelled]}`);
+});
+
+test('every state slice offers a control, so nothing is untestable', () => {
+    for( const [kind, slice] of Object.entries(SLICES) ) {
+        assert(slice.control, `${kind} has no control`);
+        assert(slice.request, `${kind} does not name a host request`);
+        assert(typeof slice.read === 'function', `${kind} cannot be read`);
+    }
+});
+
+test('state inputs carry the slice a control is built from', () => {
+    const built = compileSource(`
+        import { Layer, Text, useVarp, useStat } from 'cs2dom';
+        export default function Panel() {
+            const v = useVarp(300);
+            const hp = useStat(3);
+            return <Layer id="root"><Text id="t" font={495}>{\`\${v}\${hp}\`}</Text></Layer>;
+        }
+    `);
+    const inputs = stateInputs(built.ir);
+    const stat = inputs.find((i) => i.kind === 'stat');
+    assert(stat.control.max === 99, 'a stat control should stop at 99');
+    assert(stat.request === 'STAT', 'a stat should name its host request');
+    assert(inputs.find((i) => i.kind === 'varp').readBy.includes('t'), 'the reader should be named');
+});
+
+/* ---- 3c. the preview's geometry ------------------------------------------ */
+
+test('layout matches the client formulas, including the fixed-point modes', () => {
+    /* src/ui/ui_if3_layout.h: centre truncates, proportional is a 14-bit shift. */
+    assert(axisFromPositionMode(1, 0, 0, 100, 27) === 36, 'centre mode');
+    assert(axisFromPositionMode(2, 4, 0, 100, 20) === 76, 'right mode');
+    assert(axisFromPositionMode(3, 8192, 0, 100, 10) === 50, 'proportional mode');
+    assert(dimFromParentMode(1, 20, 100) === 80, 'minus mode');
+    assert(dimFromParentMode(2, 8192, 100) === 50, 'proportional size');
+});
+
+test('nested components lay out against their parent, not the viewport', () => {
+    const built = compileSource(`
+        import { Layer, Rect } from 'cs2dom';
+        export default function Nested() {
+            return (
+                <Layer id="root" x={10} y={10} width={100} height={100}>
+                    <Layer id="inner" x={5} y={5} width={50} height={50}>
+                        <Rect id="dot" xMode="abs_centre" yMode="abs_centre"
+                              width={10} height={10} color={1} fill />
+                    </Layer>
+                </Layer>
+            );
+        }
+    `);
+    const boxes = layout(built.ir, {});
+    const dot = boxes.find((b) => b.name === 'dot');
+    /* root at 10,10; inner at 15,15; centred 10x10 in a 50x50 is +20. */
+    assert(dot.x === 35 && dot.y === 35, `dot landed at ${dot.x},${dot.y}`);
+});
+
+/* ---- 3d. sprites --------------------------------------------------------- */
+
+test('a cachepack sprite bitmap becomes a PNG', () => {
+    /* A 2x1 BGRA bitmap, bottom-up, the shape cachepack writes. */
+    const header = Buffer.alloc(54);
+    header.write('BM', 0, 'ascii');
+    header.writeUInt32LE(54 + 8, 2);
+    header.writeUInt32LE(54, 10);
+    header.writeUInt32LE(40, 14);
+    header.writeInt32LE(2, 18);
+    header.writeInt32LE(1, 22);
+    header.writeUInt16LE(1, 26);
+    header.writeUInt16LE(32, 28);
+    const pixels = Buffer.from([0x10, 0x20, 0x30, 0xff, 0x40, 0x50, 0x60, 0x80]);
+    const decoded = decodeBmp(Buffer.concat([header, pixels]));
+
+    assert(decoded.width === 2 && decoded.height === 1, 'dimensions');
+    /* BGRA in, RGBA out. */
+    assert(decoded.rgba[0] === 0x30 && decoded.rgba[2] === 0x10, 'channel order');
+    assert(decoded.rgba[7] === 0x80, 'alpha survives');
+
+    const png = encodePng(decoded);
+    assert(png.subarray(0, 8).equals(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a])),
+           'PNG signature');
+    assert(png.readUInt32BE(16) === 2 && png.readUInt32BE(20) === 1, 'PNG dimensions');
 });
 
 /* ---- 4. ids -------------------------------------------------------------- */

@@ -136,33 +136,23 @@ local plugin = {
             label = "Camera button"
         },
 
-        -- Which widget the "report-button" placement replaces, as
-        -- `<interface>:<component>`.
-        --
-        -- A config key for the reason minimap_orbs has one: the button is the
-        -- CACHE's own widget on most lanes, its id is different in every
-        -- revision, and no profile names it. A frame that carries the report
-        -- button as a frame ROLE -- the 2004 one does -- is found without this
-        -- and does not read it.
-        --
-        -- The default is the OldSchool chat bar's, whose ops are "Report
-        -- abuse" and "Report game bug". Empty means "only the role", which is
-        -- what a lane whose id is unknown should say rather than covering
-        -- whatever component 31 of interface 162 happens to be there.
-        {
-            key = "report_button",
-            type = "string",
-            default = "162:31",
-            label = "Report button component (<interface>:<component>)"
-        },
     },
 }
 
 ------------------------------------------------------------------ the button
 
---- Filter 3 of the chat buttons, which is Report abuse. The role's own
---- numbering -- @see api.layout.<region>.rect(member).
-local REPORT_FILTER = 3
+--- The report button, wherever this revision keeps it.
+---
+--- This used to be a config key holding `<interface>:<component>`, parsed by
+--- hand and shifted into a uid, defaulting to the OldSchool chat bar's
+--- `162:31` -- which is a correct id on exactly one cache and covers whatever
+--- component 31 of interface 162 happens to be on every other. The profile is
+--- where that answer belongs, and a role is how it gets asked for.
+---
+--- Bound once, resolved on every call: on a 2004 frame this is a client
+--- builtin with no component id at all, and on an OldSchool one it is
+--- interface 162's component 31. Neither fact reaches this file.
+local report_button
 
 --- Handed to hit_region and read back in on_canvas_click. One region, so one
 --- tag; it is the plugin's own number and the host does not look at it.
@@ -378,28 +368,6 @@ function plugin.on_key(api, ev)
     capture_now(api)
 end
 
--- The configured report button's box, or nil.
---
--- Parsed on every call and not cached, for the same reason the boxes are not:
--- the key is editable in the settings panel while the client runs, and a
--- cached id is a button that keeps replacing the one the player just stopped
--- naming. It is two integers of parsing.
-local function report_component_rect(api)
-    local text = api.config.report_button
-    local iface, com = string.match(text or "", "^%s*(%d+)%s*:%s*(%d+)%s*$")
-
-    -- Empty is the deliberate "this lane has no id for it" answer. Anything
-    -- else that does not parse is a typo, and a typo that silently drew
-    -- nothing would look exactly like a frame without the button.
-    if not iface then
-        if text and text ~= "" then
-            api.log("report_button '" .. text .. "' is not <interface>:<component>")
-        end
-        return nil
-    end
-    return api.component_rect((tonumber(iface) << 16) | tonumber(com))
-end
-
 -- Where the button goes this frame, as x, y, and whether it is the solid one.
 --
 -- Measured EVERY frame and never cached, because every input is: the safe area
@@ -416,15 +384,13 @@ local function button_box(api, w, h)
     if where == "off" then return nil end
 
     if where == "report-button" then
-        -- The ROLE first, because a frame that carries the report button as
-        -- one survives a change of revision and needs no id from anybody. Only
-        -- the frames that do not -- every cache gameframe, whose chat filters
-        -- are the interface's own widgets -- fall through to the configured
-        -- component.
-        local box = api.layout.chat_buttons.rect(REPORT_FILTER)
-            or report_component_rect(api)
-        -- A frame with neither is an answer, not a fault: the button is simply
-        -- not offered rather than landing somewhere arbitrary.
+        -- One question, asked once. Which node answers it is the profile's
+        -- business: a chat-button member on a 2004 frame, interface 162's
+        -- component 31 on an OldSchool one, and neither spelling is here.
+        local box = report_button.rect()
+        -- A revision whose profile has not named it is an answer, not a fault:
+        -- the button is simply not offered rather than landing somewhere
+        -- arbitrary.
         if not box then return nil end
         return box.x + (box.w - w) // 2, box.y + (box.h - h) // 2, true, box
     end
@@ -519,6 +485,9 @@ function plugin.on_start(api)
     if not icon then
         api.log("camera.png did not load; the camera button is unavailable")
     end
+    -- Bound here and resolved later. on_start runs before the gameframe is
+    -- built, so asking now would answer "not here" on every lane.
+    report_button = api.role("report_button")
 end
 
 function plugin.on_stop(api)
