@@ -87,6 +87,18 @@ struct UITreeEntityOverlay
     char text[UITREE_ENTITY_OVERLAY_TEXT_LEN];
 };
 
+/** One role-local canvas list, already grouped by exact target incarnation.
+ * `replace` selects the pruned target's tombstone; otherwise it is appended
+ * after the complete live subtree. */
+struct UITreeRoleOverlayGroup
+{
+    int32_t node_index;
+    uint32_t node_incarnation;
+    uint8_t replace;
+    struct UITreeEntityOverlay const* items;
+    int item_count;
+};
+
 /* One blit on the world map surface: a baked map region, or a map element icon
  * over it. Both are positioned by the host in absolute screen pixels — regions
  * are baked at exactly the view's pixels-per-tile, so nothing scales here — the
@@ -197,6 +209,13 @@ enum UITreeHostRequestKind
      * clipped away entirely.
      */
     UITREE_HOST_GET_CANVAS_OVERLAYS,
+    /** Prepare the canvas dispatch and return its role-local groups. The host
+     * writes whether role.anchor was requested even when every target missed,
+     * which fences retained emit from silently promoting those draws global. */
+    UITREE_HOST_GET_ROLE_OVERLAY_GROUPS,
+    /** Publish the exact parent clip used for a role-local group so its hit
+     * regions obey the same local clipping on the next interaction frame. */
+    UITREE_HOST_SET_ROLE_OVERLAY_CLIP,
     /** The plugin FRAME overlay: a layout plugin's own chrome, cut to the
      *  canvas like GET_CANVAS_OVERLAYS and emitted in a different place --
      *  over the 3D scene, under the interfaces. @see EV_DRAW_FRAME. */
@@ -476,6 +495,21 @@ struct UITreeHostRequest
             int* out_clip_w;
             int* out_clip_h;
         } get_entity_overlays;
+        struct
+        {
+            struct UITreeRoleOverlayGroup const** out_groups;
+            int* out_anchor_seen;
+        } get_role_overlay_groups;
+        struct
+        {
+            int32_t node_index;
+            uint32_t node_incarnation;
+            int replace;
+            int clip_x;
+            int clip_y;
+            int clip_w;
+            int clip_h;
+        } set_role_overlay_clip;
         struct
         {
             struct UIMinimenu const** out;

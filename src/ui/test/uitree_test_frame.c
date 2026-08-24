@@ -80,6 +80,10 @@ struct RetainedOverlayHost
     int call_seq;
     int phase;
     int zero_initial;
+    int role_anchor_seen;
+    struct UITree* mutate_tree;
+    enum UITreeHostRequestKind mutate_kind;
+    int mutated;
     uint8_t empty_mask[RETAINED_OVERLAY_PHASE_COUNT];
 };
 
@@ -88,6 +92,12 @@ retained_overlay_host_request(void* user, struct UITreeHostRequest* req)
 {
     struct RetainedOverlayHost* state = user;
     int source;
+
+    if( state->mutate_tree && !state->mutated && req->kind == state->mutate_kind )
+    {
+        state->mutated = 1;
+        UITree_MarkNodeVisibilityDirty(state->mutate_tree, 0);
+    }
 
     switch( req->kind )
     {
@@ -101,6 +111,12 @@ retained_overlay_host_request(void* user, struct UITreeHostRequest* req)
         if( req->u.get_cross_position.out_y )
             *req->u.get_cross_position.out_y = 50;
         return 1;
+    case UITREE_HOST_GET_ROLE_OVERLAY_GROUPS:
+        if( req->u.get_role_overlay_groups.out_groups )
+            *req->u.get_role_overlay_groups.out_groups = NULL;
+        if( req->u.get_role_overlay_groups.out_anchor_seen )
+            *req->u.get_role_overlay_groups.out_anchor_seen = state->role_anchor_seen;
+        return 0;
     case UITREE_HOST_GET_ENTITY_OVERLAYS:
         source = RETAINED_OVERLAY_ENTITY;
         break;
@@ -310,6 +326,16 @@ emit_find(struct UITreeEmitBuffer const* buf, int32_t node)
         if( buf->cmds[i].node_index == node )
             return &buf->cmds[i];
     return NULL;
+}
+
+static int
+emit_find_scene(struct UITreeEmitBuffer const* buf, int scene_id)
+{
+    for( int i = 0; i < buf->count; i++ )
+        if( buf->cmds[i].kind == UITREE_EMIT_SPRITE &&
+            buf->cmds[i].scene_id == scene_id )
+            return i;
+    return -1;
 }
 
 static int
@@ -685,6 +711,30 @@ test_retained_overlay_refresh_preserves_source(void)
             state.calls[RETAINED_OVERLAY_CANVAS] == 1 &&
             state.calls[RETAINED_OVERLAY_FRAME] == 1,
         "the initial walk requests every overlay source once");
+
+    state.mutate_tree = tree;
+    state.mutate_kind = UITREE_HOST_GET_ROLE_OVERLAY_GROUPS;
+    TEST_ASSERT(
+        !UITree_EmitRefreshVolatile(tree, &host, &buf),
+        "a replacement visibility mutation during Canvas preflight rejects retention");
+    TEST_ASSERT(
+        state.calls[RETAINED_OVERLAY_ENTITY] == 1 &&
+            state.calls[RETAINED_OVERLAY_CANVAS] == 1 &&
+            state.calls[RETAINED_OVERLAY_FRAME] == 1,
+        "replacement mutation rejects before disposable overlay callbacks");
+    state.mutate_tree = NULL;
+    state.mutate_kind = 0;
+
+    state.role_anchor_seen = 1;
+    TEST_ASSERT(
+        !UITree_EmitRefreshVolatile(tree, &host, &buf),
+        "a role anchor appearing on a retained frame requires a local full walk");
+    TEST_ASSERT(
+        state.calls[RETAINED_OVERLAY_ENTITY] == 1 &&
+            state.calls[RETAINED_OVERLAY_CANVAS] == 1 &&
+            state.calls[RETAINED_OVERLAY_FRAME] == 1,
+        "anchor preflight rejects retention before any disposable overlay callback");
+    state.role_anchor_seen = 0;
 
     state.phase = 1;
     TEST_ASSERT(
@@ -1191,6 +1241,157 @@ test_release_ignores_same_id_recycled_incarnations(void)
     UITree_Free(tree);
 }
 
+static void
+test_frame_slot_overlay_follows_target_subtree(void)
+{
+    enum
+    {
+        ANCHOR_GROUP = 190,
+        ANCHOR_ROOT_ID = (ANCHOR_GROUP << 16) | 0,
+        ANCHOR_BUTTON_ID = (191 << 16) | 0,
+        ANCHOR_CHILD_ID = (CONTENT_GROUP << 16) | 20,
+        ANCHOR_SIBLING_ID = (CONTENT_GROUP << 16) | 21,
+        ANCHOR_SCENE = 7171,
+        ANCHOR_SCENE_CHANGED = 7172,
+        ANCHOR_X = 91,
+        ANCHOR_Y = 72,
+        ANCHOR_W = 280,
+        ANCHOR_H = 180,
+    };
+    struct UITree* tree = UITree_New(8);
+    struct UITreeEmitBuffer buf;
+    struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT];
+    struct UITreeHost host;
+    int32_t shell;
+    int32_t root;
+    int32_t button;
+    int32_t child;
+    int32_t sibling;
+    int overlay_at;
+    int child_at = -1;
+    int sibling_at = -1;
+    int button_descs = 0;
+    uint32_t quiet_dirty;
+
+    TEST_ASSERT(tree != NULL, "UITree_New");
+    UITree_EmitBufferInit(&buf);
+    UITree_HostInit(&host);
+    shell = UITree_TestPushXy(
+        tree, -1, UIELEM_RS_LAYER, SHELL_ROOT_ID, 0, 0,
+        UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    root = UITree_TestPushXy(
+        tree, shell, UIELEM_RS_LAYER, ANCHOR_ROOT_ID, 10, 11, 120, 90);
+    tree->components[root].slot_tag = UITREE_SLOT_CHAT;
+    button = UITree_TestPushXy(
+        tree, root, UIELEM_BUILTIN_CHAT_BUTTON, ANCHOR_BUTTON_ID, 8, 9, 100, 32);
+    child = UITree_TestPushXy(
+        tree, button, UIELEM_RS_RECT, ANCHOR_CHILD_ID, 2, 3, 12, 13);
+    sibling = UITree_TestPushXy(
+        tree, root, UIELEM_RS_RECT, ANCHOR_SIBLING_ID, 30, 40, 14, 15);
+    TEST_ASSERT(
+        shell >= 0 && root >= 0 && button >= 0 && child >= 0 && sibling >= 0,
+        "slot-overlay fixture builds");
+    snprintf(
+        tree->components[button].u.chat_button.label,
+        sizeof(tree->components[button].u.chat_button.label),
+        "%s",
+        "Public chat");
+    snprintf(
+        tree->components[button].u.chat_button.mode_label[0],
+        sizeof(tree->components[button].u.chat_button.mode_label[0]),
+        "%s",
+        "On");
+
+    memset(slots, 0, sizeof(slots));
+    slots[UITREE_FRAME_SLOT_CHAT].all =
+        (struct UITreeFrameRect){ 1, ANCHOR_X, ANCHOR_Y, ANCHOR_W, ANCHOR_H };
+    slots[UITREE_FRAME_SLOT_CHAT_BUTTONS].all =
+        (struct UITreeFrameRect){ 1, ANCHOR_X + 8, ANCHOR_Y + 9, 100, 32 };
+    slots[UITREE_FRAME_SLOT_CHAT_BUTTONS].overlay =
+        (struct UITreeFrameOverlay){ 1, ANCHOR_SCENE, ANCHOR_X + 3, ANCHOR_Y + 4, 17 };
+    UITree_FrameApply(tree, slots, /*root_group=*/-1);
+    UITree_EmitWalk(tree, &host, &buf, -1);
+
+    overlay_at = emit_find_scene(&buf, ANCHOR_SCENE);
+    for( int i = 0; i < buf.count; i++ )
+    {
+        if( buf.cmds[i].node_index == button )
+            button_descs++;
+        if( buf.cmds[i].node_index == child )
+            child_at = i;
+        if( buf.cmds[i].node_index == sibling )
+            sibling_at = i;
+    }
+    TEST_ASSERT(button_descs == 2, "the target expands into both of its own descriptors");
+    TEST_ASSERT(
+        child_at >= 0 && overlay_at == child_at + 1 && sibling_at == overlay_at + 1,
+        "slot paint is immediately after the whole target subtree and before its sibling");
+    if( overlay_at >= 0 )
+    {
+        struct UITreeEmitDesc const* overlay = &buf.cmds[overlay_at];
+        TEST_ASSERT(
+            overlay->node_index == -1 && overlay->component_id == -1,
+            "attached paint does not become an interactive copy of the target");
+        TEST_ASSERT(
+            overlay->x == ANCHOR_X + 3 && overlay->y == ANCHOR_Y + 4 &&
+                overlay->trans == 17 && !overlay->if3,
+            "attached paint retains its canvas sprite declaration");
+        TEST_ASSERT(
+            overlay->clip.x == ANCHOR_X && overlay->clip.y == ANCHOR_Y &&
+                overlay->clip.w == ANCHOR_W && overlay->clip.h == ANCHOR_H,
+            "attached paint uses the target parent clip, not the whole canvas");
+    }
+
+    quiet_dirty = tree->dirty_gen;
+    UITree_FrameApply(tree, slots, /*root_group=*/-1);
+    TEST_ASSERT(
+        tree->dirty_gen == quiet_dirty,
+        "an identical attached-paint declaration preserves the retained list");
+
+    slots[UITREE_FRAME_SLOT_CHAT_BUTTONS].overlay.scene_id = ANCHOR_SCENE_CHANGED;
+    UITree_FrameApply(tree, slots, /*root_group=*/-1);
+    TEST_ASSERT(
+        tree->dirty_gen > quiet_dirty,
+        "changing attached paint invalidates the target's retained subtree");
+    buf.count = 0;
+    UITree_EmitWalk(tree, &host, &buf, -1);
+    TEST_ASSERT(
+        emit_find_scene(&buf, ANCHOR_SCENE) < 0 &&
+            emit_find_scene(&buf, ANCHOR_SCENE_CHANGED) >= 0,
+        "a retained declaration changes overlay scene atomically");
+
+    quiet_dirty = tree->dirty_gen;
+    slots[UITREE_FRAME_SLOT_CHAT_BUTTONS].overlay.placed = 0;
+    UITree_FrameApply(tree, slots, /*root_group=*/-1);
+    TEST_ASSERT(tree->dirty_gen > quiet_dirty, "nonzero-to-zero attached paint invalidates emit");
+    buf.count = 0;
+    UITree_EmitWalk(tree, &host, &buf, -1);
+    TEST_ASSERT(
+        emit_find_scene(&buf, ANCHOR_SCENE_CHANGED) < 0,
+        "omitting attached paint removes it from the declaration");
+
+    slots[UITREE_FRAME_SLOT_CHAT_BUTTONS].overlay.placed = 1;
+    UITree_FrameApply(tree, slots, /*root_group=*/-1);
+    TEST_ASSERT(UITree_ApplyHide(tree, ANCHOR_BUTTON_ID, 1), "hide the semantic target");
+    buf.count = 0;
+    UITree_EmitWalk(tree, &host, &buf, -1);
+    TEST_ASSERT(
+        emit_find_scene(&buf, ANCHOR_SCENE_CHANGED) < 0,
+        "a hidden target drops its attached paint with the whole subtree");
+
+    TEST_ASSERT(UITree_ApplyHide(tree, ANCHOR_BUTTON_ID, 0), "show the semantic target");
+    UITree_ReclaimInterfaceGroup(tree, 191);
+    buf.count = 0;
+    UITree_EmitWalk(tree, &host, &buf, -1);
+    TEST_ASSERT(
+        emit_find_scene(&buf, ANCHOR_SCENE_CHANGED) < 0 &&
+            emit_find(&buf, sibling) != NULL,
+        "an absent target drops attached paint without disturbing later siblings");
+
+    UITree_EmitBufferFree(&buf);
+    UITree_Free(tree);
+}
+
 void
 test_frame_replacement(void)
 {
@@ -1205,4 +1406,5 @@ test_frame_replacement(void)
     test_frame_visibility_invalidates_retention_and_hover();
     test_large_ancestor_remains_effectively_stretched_after_shrink();
     test_release_ignores_same_id_recycled_incarnations();
+    test_frame_slot_overlay_follows_target_subtree();
 }

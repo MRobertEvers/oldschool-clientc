@@ -1479,6 +1479,32 @@ UITree_MarkNodeVisibilityDirty(
     uitree_topo_bump(tree, __LINE__);
 }
 
+int
+UITree_SetReplacementHidden(
+    struct UITree* tree,
+    int32_t node_index,
+    uint32_t incarnation,
+    int hidden)
+{
+    struct UITreeComponent* component;
+
+    assert(tree);
+    if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return 0;
+    component = &tree->components[node_index];
+    if( component->freed || incarnation == 0 || component->incarnation != incarnation )
+        return 0;
+    hidden = hidden ? 1 : 0;
+    if( component->replacement_hidden != hidden )
+    {
+        component->replacement_hidden = (uint8_t)hidden;
+        /* Both hiding and revealing change reachability. Use the unconditional
+         * visibility bump so a previously pruned target cannot be retained. */
+        UITree_MarkNodeVisibilityDirty(tree, node_index);
+    }
+    return 1;
+}
+
 void
 UITree_ClearNodeDirty(
     struct UITree* tree,
@@ -4554,16 +4580,16 @@ UITree_ComponentIsDropTarget(struct UITreeComponent const* c)
 }
 
 static int
-uitree_component_or_ancestor_hidden(
+uitree_node_or_ancestor_hidden(
     struct UITree const* tree,
-    int component_id,
-    int include_frame_hidden)
+    int32_t idx,
+    int include_plugin_hidden,
+    int32_t ignore_own_replacement)
 {
-    int32_t idx;
     int group;
     int mount_hops = 0;
+    int32_t group_root = -1;
     assert(tree);
-    idx = UITree_FindByComponentId(tree, component_id);
     while( idx >= 0 && (uint32_t)idx < tree->component_count )
     {
         group = (tree->components[idx].component_id >> 16) & 0xffff;
@@ -4578,8 +4604,12 @@ uitree_component_or_ancestor_hidden(
          * widgets when combat level changes on an XP update. */
         do
         {
+            group_root = idx;
             if( tree->components[idx].behavior.hide ||
-                (include_frame_hidden && tree->components[idx].frame_hidden) )
+                (include_plugin_hidden &&
+                 (tree->components[idx].frame_hidden ||
+                  (tree->components[idx].replacement_hidden &&
+                   idx != ignore_own_replacement))) )
                 return 1;
             idx = tree->components[idx].parent;
         } while( idx >= 0 && (uint32_t)idx < tree->component_count );
@@ -4597,7 +4627,9 @@ uitree_component_or_ancestor_hidden(
                 break;
             }
         }
-        if( idx < 0 || ++mount_hops > UITREE_INTERFACE_PARENT_MAX )
+        if( idx < 0 )
+            return group_root >= 0 && !UITree_RootIsDisplayable(tree, group_root);
+        if( ++mount_hops > UITREE_INTERFACE_PARENT_MAX )
             break;
     }
     return 0;
@@ -4610,7 +4642,8 @@ UITree_ComponentOrAncestorHidden(
 {
     /* Cache/script activity remains live beneath a plugin frame so native CS2
      * state is current the instant the effective frame layer is released. */
-    return uitree_component_or_ancestor_hidden(tree, component_id, 0);
+    return uitree_node_or_ancestor_hidden(
+        tree, UITree_FindByComponentId(tree, component_id), 0, -1);
 }
 
 int
@@ -4618,7 +4651,31 @@ UITree_ComponentOrAncestorDisplayHidden(
     struct UITree const* tree,
     int component_id)
 {
-    return uitree_component_or_ancestor_hidden(tree, component_id, 1);
+    return uitree_node_or_ancestor_hidden(
+        tree, UITree_FindByComponentId(tree, component_id), 1, -1);
+}
+
+int
+UITree_NodeOrAncestorDisplayHidden(
+    struct UITree const* tree,
+    int32_t node_index)
+{
+    assert(tree);
+    if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return 1;
+    return uitree_node_or_ancestor_hidden(tree, node_index, 1, -1);
+}
+
+int
+UITree_NodeOrAncestorDisplayHiddenExceptReplacement(
+    struct UITree const* tree,
+    int32_t node_index)
+{
+    assert(tree);
+    if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return 1;
+    return uitree_node_or_ancestor_hidden(
+        tree, node_index, 1, node_index);
 }
 
 static int
@@ -4633,6 +4690,7 @@ drop_target_pick_in_subtree(
     struct UITreeScrollClip const* clip,
     struct UITreeScrollClip const* surface,
     int* best_id,
+    int32_t* best_node,
     int* best_depth,
     int depth)
 {
@@ -4649,7 +4707,7 @@ drop_target_pick_in_subtree(
         return 0;
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_DROP, 1);
     c = &tree->components[idx];
-    if( c->behavior.hide || c->frame_hidden )
+    if( c->behavior.hide || c->frame_hidden || c->replacement_hidden )
         return 0;
     if( c->component_id == exclude_component_id )
         return 0;
@@ -4717,6 +4775,7 @@ drop_target_pick_in_subtree(
                 &child_clip,
                 &child_surface,
                 best_id,
+                best_node,
                 best_depth,
                 depth + 1);
         }
@@ -4726,8 +4785,47 @@ drop_target_pick_in_subtree(
     {
         *best_depth = depth;
         *best_id = c->component_id;
+        *best_node = idx;
     }
     return *best_id >= 0;
+}
+
+int32_t
+UITree_FindDropTargetNode(
+    struct UITree const* tree,
+    int px,
+    int py,
+    int exclude_component_id,
+    int* out_component_id)
+{
+    int32_t root;
+    int32_t best_node = -1;
+    int best_id = -1;
+    int best_depth = -1;
+    assert(tree);
+    for( root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
+    {
+        if( tree->components[root].behavior.hide || tree->components[root].frame_hidden ||
+            tree->components[root].replacement_hidden )
+            continue;
+        drop_target_pick_in_subtree(
+            tree,
+            root,
+            px,
+            py,
+            exclude_component_id,
+            0,
+            0,
+            NULL,
+            NULL,
+            &best_id,
+            &best_node,
+            &best_depth,
+            0);
+    }
+    if( out_component_id )
+        *out_component_id = best_id;
+    return best_node;
 }
 
 int
@@ -4737,16 +4835,8 @@ UITree_FindDropTarget(
     int py,
     int exclude_component_id)
 {
-    int32_t root;
-    int best_id = -1;
-    int best_depth = -1;
-    assert(tree);
-    for( root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
-    {
-        if( tree->components[root].behavior.hide || tree->components[root].frame_hidden )
-            continue;
-        drop_target_pick_in_subtree(
-            tree, root, px, py, exclude_component_id, 0, 0, NULL, NULL, &best_id, &best_depth, 0);
-    }
-    return best_id;
+    int component_id = -1;
+    (void)UITree_FindDropTargetNode(
+        tree, px, py, exclude_component_id, &component_id);
+    return component_id;
 }

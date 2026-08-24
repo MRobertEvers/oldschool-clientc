@@ -31,8 +31,18 @@ struct UIInteraction
      * branch. Owning the mouse through the release also stops the leaked press
      * from becoming a "Walk here" world click. */
     int sb_arrow_held;
+    /* The scrollbar which owned this physical press became display-hidden.
+     * Swallow the rest of that press through mouse-up; never retarget a held
+     * button to whatever replacement/underlay appeared beneath it. */
+    int sb_press_cancelled;
     int hover_com_id;
     int prev_hover_com_id;
+    /** Exact occupants behind the semantic hover ids. Component ids and array
+     * slots are both reusable, so neither alone is an event lifetime fence. */
+    int32_t hover_node_index;
+    uint32_t hover_node_incarnation;
+    int32_t prev_hover_node_index;
+    uint32_t prev_hover_node_incarnation;
     /*
      * onMouseRepeat is a CLIENT-CYCLE event, not a frame event: the reference
      * dispatches it from the same 20ms cycle loop that runs processWidgetTimers.
@@ -76,10 +86,10 @@ struct UIInteraction
  * past 60 KB. A separate list also stops a key burst from starving
  * click/hover/drag intents, which must not be dropped.
  *
- * Key targets carry component IDS rather than hook pointers, because
- * snapshot-by-value is not sufficient here: an earlier onKey script in the same
- * batch can delete a component collected during the scan, so app.c re-resolves
- * every id immediately before dispatching it.
+ * Key targets carry an exact node incarnation rather than hook pointers,
+ * because snapshot-by-value is not sufficient here: an earlier onKey script
+ * in the same batch can delete and rebuild a collected component. app.c
+ * validates each historical occupant immediately before dispatching it.
  */
 #define UI_KEY_TARGET_MAX 64
 
@@ -95,6 +105,11 @@ struct UIInteraction
 struct UIKeyTarget
 {
     int component_id;
+    /** Exact node collected for this broadcast. Earlier synchronous key/drag
+     * hooks can delete and rebuild the same component id before this target's
+     * turn; the replacement must not inherit the old event. */
+    int32_t node_index;
+    uint32_t node_incarnation;
     int abs_x;
     int abs_y;
     /** UI_KEY_HOOK_* bits present on the component at collection time. The
@@ -108,6 +123,11 @@ struct UIKeyTarget
 struct UIIntent
 {
     int component_id;
+    /** Exact source identity at collection time. An earlier intent may run
+     * CC_DELETEALL and rebuild the same component id into the same slot. */
+    int has_node_identity;
+    int32_t node_index;
+    uint32_t node_incarnation;
     struct UITreeRuntimeScriptHook const* hook;
     /** This intent is the component's primary pointer click. Kept separate
      *  from event_mouse because clicks and hover/drag hooks can both carry
@@ -118,6 +138,9 @@ struct UIIntent
     int event_mouse_y;
     int has_drag_target;
     int drag_target_id;
+    int has_drag_target_identity;
+    int32_t drag_target_node_index;
+    uint32_t drag_target_node_incarnation;
     /** Op index (1..10) reported to the script. 0 means "unset", which the
      *  dispatcher turns into 1, the primary left-click op. Only op-key matches
      *  currently set anything else. */
@@ -143,6 +166,12 @@ struct UIInteractOut
     int left_click_miss;
     int left_click_miss_x;
     int left_click_miss_y;
+    /** The physical left click belongs to a native gesture whose exact owner
+     * became display-hidden or was recycled before release. App-level plugin
+     * regions sit outside the UITree input bridge, so they must observe this
+     * fence too: the release is swallowed rather than retargeted to newly
+     * exposed replacement art. */
+    int cancelled_pointer_click;
     /** Menu option index selected this frame (mousedown), or -1. */
     int minimenu_select;
     /** Menu was closed by clicking away this frame. */
@@ -205,6 +234,19 @@ UITree_InteractFrame(
     struct UITreeHost const* ui_host,
     struct LibToriRS_Input* input,
     uint64_t now_ms,
+    struct UIInteractOut* out);
+
+/** Run a frame while an external surface owns the physical left press.
+ * Hover, wheel, keyboard, and right-click minimenu behavior remain live, but
+ * native left press/hold/repeat/release/drag behavior is suppressed. */
+void
+UITree_InteractFrameWithPointerCapture(
+    struct UIInteraction* interact,
+    struct UITree* tree,
+    struct UITreeHost const* ui_host,
+    struct LibToriRS_Input* input,
+    uint64_t now_ms,
+    int left_pointer_captured,
     struct UIInteractOut* out);
 
 /** Prefer on_op, else on_click; walk parents from leaf until a hooked node is

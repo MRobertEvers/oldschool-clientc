@@ -563,6 +563,10 @@ struct UITreeComponent
      * cannot be argued with.
      */
     uint8_t frame_hidden;
+    /** Suppressed by an owner-scoped semantic role replacement. Separate from
+     * frame_hidden so either declaration may release without revealing a
+     * subtree the other still owns. Cache scripts never write this flag. */
+    uint8_t replacement_hidden;
     /** enum UITreeSlotTag — nonzero marks this node as a mount region. */
     uint8_t slot_tag;
     /**
@@ -2004,6 +2008,16 @@ UITree_FindDropTarget(
     int py,
     int exclude_component_id);
 
+/** Exact-node form used by retained drag gestures. Returns the node index and
+ * optionally its component id, or -1 when no drop target is painted there. */
+int32_t
+UITree_FindDropTargetNode(
+    struct UITree const* tree,
+    int px,
+    int py,
+    int exclude_component_id,
+    int* out_component_id);
+
 /** Cache/script hide check, including InterfaceParent mount containers. */
 int
 UITree_ComponentOrAncestorHidden(
@@ -2015,6 +2029,38 @@ int
 UITree_ComponentOrAncestorDisplayHidden(
     struct UITree const* tree,
     int component_id);
+
+/**
+ * The node-index form of ComponentOrAncestorDisplayHidden.
+ *
+ * Input gestures keep node indices while they are active, and a revconfig
+ * builtin may have no component id at all.  Those callers must still observe
+ * plugin-frame suppression as a true display:none subtree rather than
+ * continuing a press/drag against an element which is no longer painted.
+ */
+int
+UITree_NodeOrAncestorDisplayHidden(
+    struct UITree const* tree,
+    int32_t node_index);
+
+/** The replacement-overlay visibility query: identical to the display-hidden
+ * form except the target node's own replacement_hidden is the tombstone being
+ * tested and is ignored. Native/frame hiding, an ancestor replacement,
+ * InterfaceParent containers and orphaned roots still hide it. */
+int
+UITree_NodeOrAncestorDisplayHiddenExceptReplacement(
+    struct UITree const* tree,
+    int32_t node_index);
+
+/** Set a replacement suppression only when `node_index` still holds the exact
+ * incarnation the caller resolved. Returns 1 when the identity was live (also
+ * for an idempotent write), 0 for a missing or recycled slot. */
+int
+UITree_SetReplacementHidden(
+    struct UITree* tree,
+    int32_t node_index,
+    uint32_t incarnation,
+    int hidden);
 
 /** Resync timer/key/wheel/resize/sub_change set membership from current hooks.
  *  Call after writing hook slots outside UITree_ApplyRuntimeHook (tests, etc.). */

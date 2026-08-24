@@ -78,6 +78,8 @@ test_scroll_hit(void)
      */
     {
         struct UITreeScrollbarHitInfo sb;
+        struct UITreeScrollbarHitInfo stale_down;
+        int const before_hidden = tree->components[layer].scroll_y;
         TEST_ASSERT(
             UITree_FindScrollbarAt(tree, &host, 108, 55, &sb) &&
                 sb.kind == UITREE_SCROLLBAR_V_GRIP,
@@ -91,9 +93,69 @@ test_scroll_hit(void)
                 sb.kind == UITREE_SCROLLBAR_V_UP,
             "up arrow");
         TEST_ASSERT(
-            UITree_FindScrollbarAt(tree, &host, 108, 90, &sb) &&
-                sb.kind == UITREE_SCROLLBAR_V_DOWN,
+            UITree_FindScrollbarAt(tree, &host, 108, 90, &stale_down) &&
+                stale_down.kind == UITREE_SCROLLBAR_V_DOWN,
             "down arrow");
+
+        /* A plugin frame hides replaced widgets as an effective display:none.
+         * IF1 scrollbars are synthetic hit regions rather than child nodes, so
+         * they must honor that gate explicitly. Also reject a hit latched while
+         * visible: a frame can replace the layer during an active arrow/grip
+         * hold, before the interaction code consumes its saved hit record. */
+        tree->components[layer].frame_hidden = 1;
+        TEST_ASSERT(
+            !UITree_FindScrollbarAt(tree, &host, 108, 90, &sb),
+            "a frame-hidden IF1 layer exposes no synthetic scrollbar hitbox");
+        TEST_ASSERT(
+            !UITree_ScrollbarHandle(
+                tree, &stale_down, 108, 90,
+                UITREE_SCROLLBAR_ACTION_ARROW_STEP, 0),
+            "a stale scrollbar hit cannot mutate a layer hidden by the frame");
+        TEST_ASSERT(
+            tree->components[layer].scroll_y == before_hidden,
+            "hidden IF1 scrollbar leaves its native scroll offset unchanged");
+
+        /* A rebuild can reuse the same id and array index. The saved hit still
+         * belongs to the former occupant and must not scroll the replacement. */
+        tree->components[layer].frame_hidden = 0;
+        tree->components[layer].incarnation++;
+        TEST_ASSERT(
+            !UITree_ScrollbarHandle(
+                tree, &stale_down, 108, 90,
+                UITREE_SCROLLBAR_ACTION_ARROW_STEP, 0),
+            "a stale scrollbar capture cannot transfer to a recycled layer slot");
+        TEST_ASSERT(
+            tree->components[layer].scroll_y == before_hidden,
+            "recycled layer keeps its native scroll offset");
+
+        /* The release edge is no longer `held`. If the layer disappears on
+         * exactly that frame, retain an explicit cancellation result for the
+         * app's out-of-tree plugin hit regions instead of treating the mouse
+         * up as a fresh click on the newly exposed replacement. */
+        {
+            struct UIInteraction interact;
+            struct UIInteractOut out;
+            struct LibToriRS_Input input_storage;
+            struct LibToriRS_Input* input = LibToriRS_Input_Init(&input_storage, 0);
+
+            UIInteraction_Init(&interact);
+            LibToriRS_Input_Begin(input, 0);
+            LibToriRS_Input_PushMouseMove(input, 108, 8);
+            LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 108, 8);
+            LibToriRS_Input_End(input);
+            UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+            TEST_ASSERT(interact.sb_arrow_held, "visible scrollbar owns its press");
+
+            tree->components[layer].frame_hidden = 1;
+            LibToriRS_Input_Begin(input, 20);
+            LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 108, 8);
+            LibToriRS_Input_End(input);
+            UITree_InteractFrame(&interact, tree, &host, input, 20, &out);
+            TEST_ASSERT(
+                out.cancelled_pointer_click,
+                "hidden scrollbar release is fenced from plugin regions");
+            TEST_ASSERT(!out.left_click_miss, "hidden scrollbar release cannot reach world");
+        }
     }
 
     UITree_Free(tree);

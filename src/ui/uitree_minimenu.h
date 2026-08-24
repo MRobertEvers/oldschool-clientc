@@ -2,6 +2,7 @@
 #define SRC_UITREE_MINIMENU_H
 
 #include <stdbool.h>
+#include <stdint.h>
 
 /*
  * Right-click minimenu model (reference Client "Choose Option" menu). Pure
@@ -40,9 +41,10 @@ enum UIMinimenuPickKind
 };
 
 /*
- * Target reference carried by a row. Nodes are referenced by component_id, not
- * node index — CS2 CC ops can realloc/reclaim node slots between menu open and
- * option select.
+ * Target reference carried by a row. The semantic fields use component ids;
+ * app-retained UI rows additionally stamp the exact node incarnation because
+ * CS2 CC ops can reclaim and reuse both ids and array slots while a popup is
+ * open.
  *  UI:       id = component_id
  *  INV_SLOT: id = component_id of the inv node, secondary = slot,
  *            tertiary = obj_id
@@ -54,6 +56,14 @@ struct UIMinimenuPick
     int secondary_id;
     int tertiary_id;
     int quaternary_id;
+    /** Optional exact UITree occupant retained with a popup row. Component
+     * ids and array slots can both be reused while the menu is open. */
+    int has_node_identity;
+    int32_t node_index;
+    uint32_t node_incarnation;
+    /** Synthetic engine click: the exact target's replacement tombstone is
+     * addressable, but native hiding and hidden ancestors still invalidate it. */
+    int allow_own_replacement_hidden;
 };
 
 struct UIMinimenuLayout

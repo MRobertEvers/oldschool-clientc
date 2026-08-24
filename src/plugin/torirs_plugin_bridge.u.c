@@ -2152,25 +2152,136 @@ app_plugin_draw_image(
 
 /* ------------------------------------------------------- canvas hit regions */
 
-/**
- * The topmost region covering a canvas point, or -1.
- *
- * Walked backwards: regions are recorded in DRAW order, so the last one to
- * cover the point is the one drawn on top, and the one a click belongs to.
- */
+/** The topmost live region covering a canvas point, or -1. */
+static int
+app_plugin_role_region_live(
+    struct App const* app,
+    struct AppPluginRegion const* region)
+{
+    struct UITreeComponent const* target;
+
+    assert(app);
+    assert(region);
+    if( !region->role_anchored )
+        return 1;
+    if( !app->tree || region->role_node < 0 ||
+        (uint32_t)region->role_node >= app->tree->component_count )
+        return 0;
+    target = &app->tree->components[region->role_node];
+    if( target->freed || target->incarnation != region->role_incarnation )
+        return 0;
+    if( region->role_clip_w <= 0 || region->role_clip_h <= 0 )
+        return 0;
+    if( !region->role_replace )
+        return !UITree_NodeOrAncestorDisplayHidden(app->tree, region->role_node);
+    if( !target->replacement_hidden )
+        return 0;
+    return !UITree_NodeOrAncestorDisplayHiddenExceptReplacement(
+        app->tree, region->role_node);
+}
+
+static int
+app_plugin_role_region_occluded(
+    struct App const* app,
+    struct AppPluginRegion const* region,
+    int x,
+    int y)
+{
+    assert(app);
+    assert(region);
+    if( !region->role_anchored || !app->tree )
+        return 0;
+    return UITree_PointInputCoverPaintsAfterRoleBoundary(
+        app->tree,
+        &app->ui_host,
+        x,
+        y,
+        region->role_node,
+        region->role_incarnation,
+        region->role_replace != 0);
+}
+
 static int
 app_plugin_region_at(struct App const* app, int x, int y)
 {
+    int frame_native_cover = -1;
+
     assert(app);
 
-    for( int i = app->plugin_region_count - 1; i >= 0; i-- )
+    /* Global Canvas paints over every interface. Anchored Canvas declarations
+     * were made in the same callback pass but were extracted into local tree
+     * boundaries, so global Canvas outranks them regardless of declaration
+     * order. FRAME is the lower chrome surface. */
+    for( int z_group = 0; z_group < 3; z_group++ )
     {
-        struct AppPluginRegion const* region = &app->plugin_regions[i];
-        if( x < region->x || x >= region->x + region->w )
-            continue;
-        if( y < region->y || y >= region->y + region->h )
-            continue;
-        return i;
+        int best = -1;
+        for( int i = 0; i < app->plugin_region_count; i++ )
+        {
+            struct AppPluginRegion const* region = &app->plugin_regions[i];
+            int const region_group =
+                region->surface == APP_PLUGIN_SURFACE_CANVAS
+                    ? (region->role_anchored ? 1 : 0)
+                    : (region->surface == APP_PLUGIN_SURFACE_FRAME ? 2 : -1);
+            if( region_group != z_group )
+                continue;
+            if( !app_plugin_role_region_live(app, region) )
+                continue;
+            if( x < region->x || x >= region->x + region->w )
+                continue;
+            if( y < region->y || y >= region->y + region->h )
+                continue;
+            if( region->role_anchored &&
+                (x < region->role_clip_x ||
+                 x >= region->role_clip_x + region->role_clip_w ||
+                 y < region->role_clip_y ||
+                 y >= region->role_clip_y + region->role_clip_h) )
+                continue;
+            if( app_plugin_role_region_occluded(app, region, x, y) )
+                continue;
+
+            /* FRAME chrome is emitted below native interfaces. Its regions
+             * must live at that same depth: an interactive widget, a blank
+             * noClickThrough layer or a modal mount above this point owns the
+             * pointer even when it contributes no ordinary hit node. */
+            if( region->surface == APP_PLUGIN_SURFACE_FRAME )
+            {
+                if( frame_native_cover < 0 )
+                    frame_native_cover = app->tree
+                                             ? UITree_PointHasNativeInputCover(
+                                                   app->tree,
+                                                   &app->ui_host,
+                                                   x,
+                                                   y)
+                                             : 0;
+                if( frame_native_cover )
+                    continue;
+            }
+
+            if( best < 0 )
+            {
+                best = i;
+                continue;
+            }
+            if( region->role_anchored )
+            {
+                struct AppPluginRegion const* prior = &app->plugin_regions[best];
+                /* Canvas callbacks declare in subscriber order, then semantic
+                 * anchors relocate those declarations into unrelated tree
+                 * boundaries. The emit-published boundary order is therefore
+                 * the z key; declaration order breaks a tie at one boundary. */
+                if( region->role_paint_order > prior->role_paint_order ||
+                    (region->role_paint_order == prior->role_paint_order && i > best) )
+                    best = i;
+            }
+            else if( i > best )
+            {
+                /* Global CANVAS and FRAME retain declaration order within
+                 * their own global surface. */
+                best = i;
+            }
+        }
+        if( best >= 0 )
+            return best;
     }
     return -1;
 }
@@ -2193,6 +2304,8 @@ app_plugin_hit_region(
 
     assert(app);
 
+    if( app->plugin_role_anchor_active && !app->plugin_role_anchor_valid )
+        return 0;
     if( app->plugin_region_count >= cap )
         return 0;
 
@@ -2204,6 +2317,18 @@ app_plugin_hit_region(
     region->w = w;
     region->h = h;
     region->tag = tag;
+    region->surface = (uint8_t)app->plugin_draw_canvas;
+    if( app->plugin_role_anchor_active )
+    {
+        region->role_anchored = 1;
+        region->role_replace = app->plugin_role_anchor_replace;
+        region->role_node = app->plugin_role_anchor_node;
+        region->role_incarnation = app->plugin_role_anchor_incarnation;
+        /* Zero until emit reaches this exact subtree and publishes the same
+         * parent clip as the role-local paint descriptor. */
+        region->role_clip_w = 0;
+        region->role_clip_h = 0;
+    }
     /* Empty entries are dropped rather than kept as blank rows, so a caller
      * with a fixed-size table can hand the whole thing over. The INDEX a click
      * reports is into what was kept, which is what the plugin then switches
@@ -2264,6 +2389,13 @@ app_plugin_click_node(struct App* app, int32_t node, int op)
     memset(&pick, 0, sizeof(pick));
     pick.kind = UI_MINIMENU_PICK_UI;
     pick.id = app->tree->components[node].component_id;
+    pick.has_node_identity = 1;
+    pick.node_index = node;
+    pick.node_incarnation = app->tree->components[node].incarnation;
+    /* A semantic replacement is still allowed to delegate its native action.
+     * Ignore only this node's own display:none tombstone; hidden ancestors and
+     * any rebuild during menu interception remain hard lifetime fences. */
+    pick.allow_own_replacement_hidden = 1;
 
     /*
      * The action a real click on THIS button would carry, derived from its own
@@ -2412,15 +2544,8 @@ app_plugin_node_rect(
         return 0;
     if( c->position.abs_w <= 0 || c->position.abs_h <= 0 )
         return 0;
-    if( out_x )
-        *out_x = c->position.abs_x;
-    if( out_y )
-        *out_y = c->position.abs_y;
-    if( out_w )
-        *out_w = c->position.abs_w;
-    if( out_h )
-        *out_h = c->position.abs_h;
-    return 1;
+    return UITree_NodeDrawnBounds(
+        app->tree, node, out_x, out_y, out_w, out_h);
 }
 
 /*
@@ -2707,7 +2832,8 @@ app_plugin_role_visible(void* user, char const* role)
     while( node >= 0 && (uint32_t)node < app->tree->component_count )
     {
         struct UITreeComponent const* c = &app->tree->components[node];
-        if( c->freed || c->frame_hidden || c->behavior.hide )
+        if( c->freed || c->frame_hidden || c->replacement_hidden ||
+            c->behavior.hide )
             return 0;
         if( c->type == UIELEM_BUILTIN_SIDEBAR || c->type == UIELEM_BUILTIN_REDSTONE_TAB ||
             c->type == UIELEM_BUILTIN_CROSS || c->type == UIELEM_BUILTIN_MINIMENU )
@@ -2756,6 +2882,191 @@ app_plugin_role_id(void* user, char const* role)
      * never earned a synthetic id has nothing to hand back, and inventing one
      * would be handing out a number no other verb can use. */
     return app->tree->components[node].component_id;
+}
+
+static int
+app_plugin_role_replacement_find(
+    struct App const* app,
+    int plugin,
+    char const* role)
+{
+    assert(app);
+    assert(role);
+    for( int i = 0; i < (int)(sizeof(app->plugin_role_replacements) /
+                              sizeof(app->plugin_role_replacements[0])); i++ )
+    {
+        struct AppPluginRoleReplacement const* row =
+            &app->plugin_role_replacements[i];
+        if( row->role[0] && row->plugin == plugin && strcmp(row->role, role) == 0 )
+            return i;
+    }
+    return -1;
+}
+
+static int
+app_plugin_role_replacement_free(struct App const* app)
+{
+    assert(app);
+    for( int i = 0; i < (int)(sizeof(app->plugin_role_replacements) /
+                              sizeof(app->plugin_role_replacements[0])); i++ )
+        if( !app->plugin_role_replacements[i].role[0] )
+            return i;
+    return -1;
+}
+
+static int
+app_plugin_role_replacement_node_claimed(
+    struct App const* app,
+    int except,
+    int32_t node,
+    uint32_t incarnation)
+{
+    assert(app);
+    for( int i = 0; i < (int)(sizeof(app->plugin_role_replacements) /
+                              sizeof(app->plugin_role_replacements[0])); i++ )
+    {
+        struct AppPluginRoleReplacement const* row =
+            &app->plugin_role_replacements[i];
+        if( i != except && row->role[0] && row->node_index == node &&
+            row->node_incarnation == incarnation )
+            return 1;
+    }
+    return 0;
+}
+
+/* Engine half of the standing claim. The host owns arbitration; the App owns
+ * this exact-incarnation fence because only it can resolve a semantic role to
+ * a tree node. Repeating enabled=1 is the per-frame reconciliation path. */
+static int
+app_plugin_role_replace(
+    void* user,
+    int plugin,
+    char const* role,
+    int enabled)
+{
+    struct App* app = (struct App*)user;
+    struct AppPluginRoleReplacement* row;
+    int at;
+    int32_t old_node;
+    uint32_t old_incarnation;
+    int32_t next_node = -1;
+    uint32_t next_incarnation = 0;
+
+    assert(app);
+    assert(role);
+    at = app_plugin_role_replacement_find(app, plugin, role);
+    if( !enabled )
+    {
+        if( at < 0 )
+            return 1;
+        row = &app->plugin_role_replacements[at];
+        old_node = row->node_index;
+        old_incarnation = row->node_incarnation;
+        memset(row, 0, sizeof(*row));
+        row->node_index = -1;
+        if( app->tree &&
+            !app_plugin_role_replacement_node_claimed(
+                app, at, old_node, old_incarnation) )
+            (void)UITree_SetReplacementHidden(
+                app->tree, old_node, old_incarnation, 0);
+        return 1;
+    }
+
+    if( at < 0 )
+    {
+        at = app_plugin_role_replacement_free(app);
+        if( at < 0 )
+            return 0;
+        row = &app->plugin_role_replacements[at];
+        memset(row, 0, sizeof(*row));
+        row->plugin = plugin;
+        row->node_index = -1;
+        snprintf(row->role, sizeof(row->role), "%s", role);
+    }
+    row = &app->plugin_role_replacements[at];
+    old_node = row->node_index;
+    old_incarnation = row->node_incarnation;
+
+    if( app->tree )
+    {
+        next_node = app_plugin_role_node(app, role);
+        if( next_node >= 0 && (uint32_t)next_node < app->tree->component_count &&
+            !app->tree->components[next_node].freed )
+            next_incarnation = app->tree->components[next_node].incarnation;
+        else
+            next_node = -1;
+    }
+
+    if( old_node == next_node && old_incarnation == next_incarnation )
+        return next_node >= 0;
+
+    row->node_index = next_node;
+    row->node_incarnation = next_incarnation;
+    if( app->tree &&
+        !app_plugin_role_replacement_node_claimed(
+            app, at, old_node, old_incarnation) )
+        (void)UITree_SetReplacementHidden(
+            app->tree, old_node, old_incarnation, 0);
+    if( app->tree && next_node >= 0 )
+        (void)UITree_SetReplacementHidden(
+            app->tree, next_node, next_incarnation, 1);
+    return next_node >= 0;
+}
+
+static int
+app_plugin_role_anchor(
+    void* user,
+    int plugin,
+    char const* role,
+    int replace)
+{
+    struct App* app = (struct App*)user;
+    int32_t node;
+
+    (void)plugin;
+    assert(app);
+    if( !role )
+    {
+        app->plugin_role_anchor_active = 0;
+        app->plugin_role_anchor_valid = 0;
+        app->plugin_role_anchor_node = -1;
+        app->plugin_role_anchor_incarnation = 0;
+        app->plugin_role_anchor_replace = 0;
+        return 1;
+    }
+
+    /* Active and invalid is intentionally distinct from no anchor: every
+     * subsequent draw is dropped until this subscriber returns. */
+    app->plugin_role_anchor_seen = 1;
+    app->plugin_role_anchor_active = 1;
+    app->plugin_role_anchor_valid = 0;
+    app->plugin_role_anchor_node = -1;
+    app->plugin_role_anchor_incarnation = 0;
+    app->plugin_role_anchor_replace = replace ? 1 : 0;
+    if( !app->tree )
+        return 0;
+    node = app_plugin_role_node(app, role);
+    if( node < 0 || (uint32_t)node >= app->tree->component_count ||
+        app->tree->components[node].freed )
+        return 0;
+    if( replace && !app->tree->components[node].replacement_hidden )
+        return 0;
+    if( replace &&
+        UITree_NodeOrAncestorDisplayHiddenExceptReplacement(app->tree, node) )
+        return 0;
+    if( !replace && UITree_NodeOrAncestorDisplayHidden(app->tree, node) )
+        return 0;
+
+    app->plugin_role_anchor_valid = 1;
+    app->plugin_role_anchor_node = node;
+    app->plugin_role_anchor_incarnation =
+        app->tree->components[node].incarnation;
+    app_role_overlay_group_seed(
+        app,
+        app->plugin_role_anchor_node,
+        app->plugin_role_anchor_incarnation,
+        app->plugin_role_anchor_replace);
+    return 1;
 }
 
 static int
@@ -2913,6 +3224,31 @@ app_plugin_layout_slot_skin(void* user, int slot, int art, int mask)
     out->mask_scene_id = app_plugin_image_scene_id(mask);
     /* The same "did that land on anything" answer layout_slot gives, and for
      * the same reason: a frame with no compass should get no compass ring. */
+    return app->tree && UITree_FrameSlotNode(app->tree, slot) >= 0;
+}
+
+static int
+app_plugin_layout_slot_overlay(
+    void* user,
+    int slot,
+    int image,
+    int x,
+    int y,
+    int trans)
+{
+    struct App* app = (struct App*)user;
+    struct UITreeFrameOverlay* out;
+
+    assert(app);
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+        return 0;
+
+    out = &app->plugin_layout_slots[slot].overlay;
+    out->placed = 1;
+    out->scene_id = app_plugin_image_scene_id(image);
+    out->x = x;
+    out->y = y;
+    out->trans = trans;
     return app->tree && UITree_FrameSlotNode(app->tree, slot) >= 0;
 }
 
@@ -3129,34 +3465,54 @@ app_plugin_menu_build(
      * covering the point is the one on top, and it is the one whose row is
      * added.
      */
-    for( int i = app->plugin_region_count - 1; i >= 0; i-- )
     {
-        struct AppPluginRegion const* region = &app->plugin_regions[i];
-        struct UIMinimenuPick pick;
+        int const i = app_plugin_region_at(app, click_x, click_y);
+        if( i >= 0 )
+        {
+            struct AppPluginRegion const* region = &app->plugin_regions[i];
+            struct UIMinimenuPick pick;
 
-        if( region->op_count <= 0 )
-            continue;
-        if( click_x < region->x || click_x >= region->x + region->w )
-            continue;
-        if( click_y < region->y || click_y >= region->y + region->h )
-            continue;
-
-        memset(&pick, 0, sizeof(pick));
-        pick.kind = UI_MINIMENU_PICK_NONE;
-        /* Last op first: rows draw bottom-to-top, so adding in reverse puts
-         * op 0 on top -- the same order add_menu_ops_rows walks a component's
-         * own verbs in, and the reason op 1 is the one beside Cancel. */
-        for( int op = region->op_count - 1; op >= 0; op-- )
-            UIMinimenu_AddOption(
-                menu,
-                region->ops[op],
-                RS_MINIMENU_ACTION_PLUGIN_REGION,
-                /* The region and the op, in the one field a row carries. */
-                i * TORIRS_PLUGIN_REGION_OPS_MAX + op,
-                pick);
-        break;
+            /* No verbs does not mean click-through: it is the plugin form of
+             * an opaque panel. Retain the standard escape row, but discard
+             * native/world actions which were built underneath its pixels. */
+            if( region->op_count <= 0 )
+            {
+                int write = 0;
+                for( int row = 0; row < menu->option_count; row++ )
+                    if( menu->options[row].action == REVCONFIG_MINIMENU_CANCEL )
+                    {
+                        if( write != row )
+                            menu->options[write] = menu->options[row];
+                        write++;
+                    }
+                menu->option_count = write;
+            }
+            else
+            {
+                memset(&pick, 0, sizeof(pick));
+                pick.kind = UI_MINIMENU_PICK_NONE;
+                /* A popup survives into later frames while this rebuilt list does not.
+                 * Stamp the region's logical owner and anchored node incarnation so a
+                 * recycled list index can never invoke a different plugin region. */
+                pick.id = region->plugin;
+                pick.secondary_id = (int)region->tag;
+                pick.tertiary_id = region->role_anchored ? region->role_node : -1;
+                pick.quaternary_id =
+                    region->role_anchored ? (int)region->role_incarnation : 0;
+                /* Last op first: rows draw bottom-to-top, so adding in reverse puts
+                 * op 0 on top -- the same order add_menu_ops_rows walks a component's
+                 * own verbs in, and the reason op 1 is the one beside Cancel. */
+                for( int op = region->op_count - 1; op >= 0; op-- )
+                    UIMinimenu_AddOption(
+                        menu,
+                        region->ops[op],
+                        RS_MINIMENU_ACTION_PLUGIN_REGION,
+                        /* The region and the op, in the one field a row carries. */
+                        i * TORIRS_PLUGIN_REGION_OPS_MAX + op,
+                        pick);
+            }
+        }
     }
-
     memset(&ev, 0, sizeof(ev));
     ev.row_count = menu->option_count < TORIRS_PLUGIN_MENU_ROWS_MAX
                        ? menu->option_count
@@ -3276,11 +3632,14 @@ app_plugin_engine(struct App* app)
     engine.role_visible = app_plugin_role_visible;
     engine.role_click = app_plugin_role_click;
     engine.role_id = app_plugin_role_id;
+    engine.role_replace = app_plugin_role_replace;
+    engine.role_anchor = app_plugin_role_anchor;
     engine.layout_set = app_plugin_layout_set;
     engine.layout_begin = app_plugin_layout_begin;
     engine.layout_end = app_plugin_layout_end;
     engine.layout_slot = app_plugin_layout_slot;
     engine.layout_slot_skin = app_plugin_layout_slot_skin;
+    engine.layout_slot_overlay = app_plugin_layout_slot_overlay;
     engine.layout_scrollbar = app_plugin_layout_scrollbar;
     engine.tab_active = app_plugin_tab_active;
     engine.tab_select = app_plugin_tab_select;

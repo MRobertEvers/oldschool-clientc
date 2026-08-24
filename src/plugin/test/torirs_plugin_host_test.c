@@ -729,6 +729,17 @@ fake_layout_slot_skin(void* u, int slot, int art, int mask)
     return 0;
 }
 static int
+fake_layout_slot_overlay(void* u, int slot, int image, int x, int y, int trans)
+{
+    (void)u;
+    (void)slot;
+    (void)image;
+    (void)x;
+    (void)y;
+    (void)trans;
+    return 0;
+}
+static int
 fake_layout_scrollbar(void* u, int const* images, int count)
 {
     (void)u;
@@ -876,6 +887,16 @@ static int g_role_visible;
 static int g_role_component_id = -1;
 static int g_role_clicked_op = -1;
 static char const* g_role_clicked;
+static int g_role_replace_calls;
+static int g_role_replace_plugin = -1;
+static int g_role_replace_enabled = -1;
+static char g_role_replace_name[TORIRS_PLUGIN_ROLE_NAME_MAX];
+static int g_role_anchor_calls;
+static int g_role_anchor_resets;
+static int g_role_anchor_invalids;
+static int g_role_anchor_current_plugin = -1;
+static int g_role_anchor_replace = -1;
+static int g_role_anchor_last_replace = -1;
 
 static int
 role_is(char const* role)
@@ -923,6 +944,42 @@ fake_role_id(void* u, char const* role)
 {
     (void)u;
     return role_is(role) ? g_role_component_id : -1;
+}
+
+static int
+fake_role_replace(void* u, int plugin, char const* role, int enabled)
+{
+    (void)u;
+    g_role_replace_calls++;
+    g_role_replace_plugin = plugin;
+    g_role_replace_enabled = enabled;
+    snprintf(g_role_replace_name, sizeof(g_role_replace_name), "%s", role ? role : "");
+    return role && role_is(role);
+}
+
+static int
+fake_role_anchor(void* u, int plugin, char const* role, int replace)
+{
+    (void)u;
+    if( !role )
+    {
+        g_role_anchor_resets++;
+        g_role_anchor_current_plugin = -1;
+        g_role_anchor_replace = -1;
+        return 1;
+    }
+    if( role[0] == '\0' )
+    {
+        g_role_anchor_invalids++;
+        g_role_anchor_current_plugin = plugin;
+        g_role_anchor_replace = -2;
+        return 0;
+    }
+    g_role_anchor_calls++;
+    g_role_anchor_current_plugin = plugin;
+    g_role_anchor_replace = replace;
+    g_role_anchor_last_replace = replace;
+    return role_is(role);
 }
 
 static int
@@ -1115,9 +1172,12 @@ fake_engine(void)
     e.role_visible = fake_role_visible;
     e.role_click = fake_role_click;
     e.role_id = fake_role_id;
+    e.role_replace = fake_role_replace;
+    e.role_anchor = fake_role_anchor;
     e.layout_set = fake_layout_set;
     e.layout_slot = fake_layout_slot;
     e.layout_slot_skin = fake_layout_slot_skin;
+    e.layout_slot_overlay = fake_layout_slot_overlay;
     e.layout_scrollbar = fake_layout_scrollbar;
     e.display_setting = fake_display_setting;
     e.display_setting_set = fake_display_setting_set;
@@ -1231,6 +1291,27 @@ alpha_draw(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
     return TORIRS_PLUGIN_PASS;
 }
 
+static int g_alpha_anchor_second_saw_reset;
+
+static enum ToriRS_PluginVerdict
+alpha_canvas_anchor(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
+{
+    (void)ev;
+    (void)ud;
+    (void)g_api->role_anchor(ctx, "report_button");
+    return TORIRS_PLUGIN_PASS;
+}
+
+static enum ToriRS_PluginVerdict
+alpha_canvas_after_anchor(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
+{
+    (void)ctx;
+    (void)ev;
+    (void)ud;
+    g_alpha_anchor_second_saw_reset = g_role_anchor_current_plugin < 0;
+    return TORIRS_PLUGIN_PASS;
+}
+
 static void
 alpha_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
 {
@@ -1240,6 +1321,8 @@ alpha_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
     api->subscribe(ctx, TORIRS_PLUGIN_EV_MENU_SELECT, alpha_select, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_PACKET_IN, alpha_packet_in, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_DRAW_WORLD, alpha_draw, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_DRAW_CANVAS, alpha_canvas_anchor, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_DRAW_CANVAS, alpha_canvas_after_anchor, NULL);
 }
 
 static struct ToriRS_PluginConfigItem const ALPHA_CONFIG[] = {
@@ -1510,11 +1593,33 @@ beta_key_consume(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
     return TORIRS_PLUGIN_CONSUME;
 }
 
+static int g_beta_anchor_attempt;
+static int g_beta_anchor_retarget_invalid;
+static int g_beta_draw_saw_invalid;
+
+static enum ToriRS_PluginVerdict
+beta_canvas_competing_anchor(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
+{
+    struct ToriRS_PluginEvDraw* draw = ev;
+
+    (void)ud;
+    if( !g_beta_anchor_attempt )
+        return TORIRS_PLUGIN_PASS;
+    g_beta_anchor_retarget_invalid =
+        !g_api->role_anchor(ctx, "report_button") &&
+        g_role_anchor_current_plugin >= 0 && g_role_anchor_replace == -2;
+    g_beta_draw_saw_invalid = g_role_anchor_replace == -2;
+    g_api->draw_rect(ctx, draw->surface, 1, 1, 2, 2, 0xffffffu, 0);
+    return TORIRS_PLUGIN_PASS;
+}
+
 static void
 beta_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
 {
     api->subscribe(ctx, TORIRS_PLUGIN_EV_LOGIC_TICK, beta_tick, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_KEY, beta_key_consume, NULL);
+    api->subscribe(
+        ctx, TORIRS_PLUGIN_EV_DRAW_CANVAS, beta_canvas_competing_anchor, NULL);
 }
 
 static struct ToriRS_PluginDef const BETA = {
@@ -1857,6 +1962,71 @@ main(void)
         g_role_clicked_op = -1;
         CHECK(!api->role_click(ctx, "report_button", 11), "an op past 10 is refused");
         CHECK(g_role_clicked_op == -1, "and never reaches the engine");
+
+        /* Replacement is a standing owner-scoped declaration, not a role
+         * lookup result. A temporarily absent target is still accepted and is
+         * reconciled again when the tree may have rebuilt. */
+        g_role_replace_calls = 0;
+        CHECK(api->role_replace(ctx, "temporarily_absent", 1),
+              "an absent role can be claimed persistently");
+        CHECK(g_role_replace_calls == 1 && g_role_replace_enabled == 1,
+              "the accepted claim is published even before it resolves");
+        CHECK(api->role_replace(ctx, "temporarily_absent", 0),
+              "the absent standing claim releases idempotently");
+
+        g_role_replace_calls = 0;
+        CHECK(api->role_replace(ctx, "report_button", 1),
+              "the first plugin claims a semantic replacement");
+        CHECK(g_role_replace_plugin == a && g_role_replace_enabled == 1,
+              "the engine receives the claim with its owner");
+        CHECK(!api->role_replace(
+                  PluginHost_Ctx(host, b), "report_button", 1),
+              "a second plugin cannot replace the same role");
+        CHECK(g_role_replace_calls == 1,
+              "a refused competing claim never reaches the engine");
+
+        PluginHost_ReconcileRoleReplacements(host);
+        CHECK(g_role_replace_calls == 2 && g_role_replace_enabled == 1,
+              "standing claims are restated at the pre-interaction fence");
+
+        g_role_anchor_calls = 0;
+        g_role_anchor_resets = 0;
+        g_role_anchor_invalids = 0;
+        g_role_anchor_last_replace = -1;
+        g_alpha_anchor_second_saw_reset = 0;
+        g_beta_anchor_attempt = 1;
+        g_beta_anchor_retarget_invalid = 0;
+        g_beta_draw_saw_invalid = 0;
+        PluginHost_DrawCanvas(host, 765, 503);
+        g_beta_anchor_attempt = 0;
+        CHECK(g_role_anchor_invalids == 1 && g_beta_anchor_retarget_invalid,
+              "a competing replacement anchor enters active-invalid state");
+        CHECK(g_beta_draw_saw_invalid,
+              "draws after the failed retarget cannot inherit a prior/global anchor");
+        CHECK(g_role_anchor_calls == 1 && g_role_anchor_last_replace == 1,
+              "the replacement owner can anchor its canvas declarations at the tombstone");
+        CHECK(g_alpha_anchor_second_saw_reset,
+              "a later canvas subscriber cannot inherit the prior subscriber's anchor");
+        CHECK(g_role_anchor_resets >= 4 && g_role_anchor_current_plugin < 0,
+              "the host resets the anchor on both sides of each subscriber");
+
+        CHECK(api->role_replace(ctx, "report_button", 0),
+              "the owner can release its replacement");
+        CHECK(g_role_replace_enabled == 0,
+              "release is published to reveal the native subtree");
+        CHECK(api->role_replace(
+                  PluginHost_Ctx(host, b), "report_button", 1),
+              "another plugin may claim after release");
+        g_role_replace_calls = 0;
+        PluginHost_SetEnabled(host, b, false);
+        CHECK(g_role_replace_calls == 1 && g_role_replace_plugin == b &&
+                  g_role_replace_enabled == 0,
+              "teardown automatically releases every replacement the plugin owns");
+        PluginHost_SetEnabled(host, b, true);
+
+        CHECK(!api->role_replace(ctx, "safe", 1) &&
+                  !api->role_replace(ctx, "canvas", 1),
+              "derived rectangles cannot be claimed as component replacements");
 
         /*
          * `safe` never reaches the engine at all: it is derived from the

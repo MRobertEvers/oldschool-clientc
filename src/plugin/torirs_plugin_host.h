@@ -170,6 +170,12 @@ struct ToriRS_PluginEngine
     int (*role_click)(void* user, char const* role, int op);
     /** Its component id right now, or -1. @see ToriRS_PluginApi::role_id. */
     int (*role_id)(void* user, char const* role);
+    /** Reconcile one persistent owner-scoped replacement declaration. */
+    int (*role_replace)(void* user, int plugin, char const* role, int enabled);
+    /** Select/reset the role anchor for the open canvas subscriber. A NULL
+     * role resets it; a non-NULL empty role selects active-invalid/drop state;
+     * `replace` says the caller owns the replacement claim. */
+    int (*role_anchor)(void* user, int plugin, char const* role, int replace);
 
     /* The gameframe claim. @see ToriRS_PluginApi::layout_claim.
      *
@@ -195,6 +201,12 @@ struct ToriRS_PluginEngine
      *  clipped to, as plugin image slots (art -1 keeps native; mask -1 clears).
      *  @see ToriRS_PluginApi::layout_slot_skin. */
     int (*layout_slot_skin)(void* user, int slot, int art, int mask);
+    /** Paint one plugin image immediately after a slot's primary subtree.
+     *  The image is a plugin slot and may still be pending; the engine maps
+     *  its stable handle to the stable scene id.
+     *  @see ToriRS_PluginApi::layout_slot_overlay. */
+    int (*layout_slot_overlay)(
+        void* user, int slot, int image, int x, int y, int trans);
     /** Six plugin image slots in UITreeScrollbarSkinPiece order, or NULL to
      *  clear. @see ToriRS_PluginApi::layout_scrollbar. */
     int (*layout_scrollbar)(void* user, int const* images, int count);
@@ -575,6 +587,10 @@ void PluginHost_DrawWorld(struct ToriRS_PluginHost* host);
 /** The same, for EV_DRAW_CANVAS: a different surface token, a different
  *  overlay list, and the canvas rather than the world viewport as the clip. */
 void PluginHost_DrawCanvas(struct ToriRS_PluginHost* host, int width, int height);
+
+/** Re-resolve all standing role replacement claims. Called before interaction
+ * so a reclaimed/rebuilt target can never retain or inherit suppression. */
+void PluginHost_ReconcileRoleReplacements(struct ToriRS_PluginHost* host);
 
 /** The same again, for EV_DRAW_FRAME -- the chrome surface, under the
  *  interfaces. Raised for the frame's owner alone, and not at all when nobody

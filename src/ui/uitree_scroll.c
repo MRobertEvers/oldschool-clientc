@@ -268,6 +268,82 @@ UITree_AccumScrollOffset(
     }
 }
 
+int
+UITree_NodeDrawnBounds(
+    struct UITree const* tree,
+    int32_t node_index,
+    int* out_x,
+    int* out_y,
+    int* out_w,
+    int* out_h)
+{
+    struct UITreeComponent const* node;
+    int x = 0;
+    int y = 0;
+    int w = 0;
+    int h = 0;
+    int scroll_x = 0;
+    int scroll_y = 0;
+    int drag_dx = 0;
+    int drag_dy = 0;
+
+    assert(tree);
+    if( node_index < 0 || (uint32_t)node_index >= tree->component_count )
+        return 0;
+    node = &tree->components[node_index];
+    if( node->freed )
+        return 0;
+
+    UITree_LayoutGetBounds(&node->position, &x, &y, &w, &h);
+
+    /* These three surfaces are positioned directly by their host descriptors.
+     * emit_walk_node explicitly exempts them from scroll and drag translation. */
+    if( node->type != UIELEM_BUILTIN_WORLD &&
+        node->type != UIELEM_BUILTIN_MINIMAP &&
+        node->type != UIELEM_BUILTIN_COMPASS )
+    {
+        int32_t cur;
+
+        UITree_AccumScrollOffset(tree, node_index, &scroll_x, &scroll_y);
+
+        /* Start at the target and take the first active source in its ancestry.
+         * That is the deepest one. The emit walk traverses root-to-leaf and a
+         * nested active source replaces the inherited delta, so this produces
+         * the identical result without rebuilding the whole DFS state. */
+        for( cur = node_index;
+             cur >= 0 && (uint32_t)cur < tree->component_count;
+             cur = tree->components[cur].parent )
+        {
+            struct UITreeComponent const* drag = &tree->components[cur];
+            int drag_x = 0;
+            int drag_y = 0;
+            int drag_scroll_x = 0;
+            int drag_scroll_y = 0;
+
+            if( !drag->drag_active )
+                continue;
+            UITree_LayoutGetBounds(&drag->position, &drag_x, &drag_y, NULL, NULL);
+            UITree_AccumScrollOffset(tree, cur, &drag_scroll_x, &drag_scroll_y);
+            drag_dx = drag->drag_visual_x - (drag_x - drag_scroll_x);
+            drag_dy = drag->drag_visual_y - (drag_y - drag_scroll_y);
+            break;
+        }
+
+        x = x - scroll_x + drag_dx;
+        y = y - scroll_y + drag_dy;
+    }
+
+    if( out_x )
+        *out_x = x;
+    if( out_y )
+        *out_y = y;
+    if( out_w )
+        *out_w = w;
+    if( out_h )
+        *out_h = h;
+    return 1;
+}
+
 static enum UITreeScrollbarHitKind
 hit_vertical_scrollbar(
     struct UITreeComponent const* layer,
@@ -374,7 +450,11 @@ find_scrollbar_recursive(
         return false;
 
     struct UITreeComponent const* component = &tree->components[node_index];
-    if( component->behavior.hide )
+    /* A plugin replacement is display:none, not merely unpainted.  Prune the
+     * whole subtree exactly as emit/hit/menu do, or an invisible IF1 bar can
+     * capture the pointer before generic hit-testing gets a say. */
+    if( component->behavior.hide || component->frame_hidden ||
+        component->replacement_hidden )
         return false;
     int bx = 0;
     int by = 0;
@@ -393,6 +473,7 @@ find_scrollbar_recursive(
         {
             out->kind = vhit;
             out->layer_index = node_index;
+            out->layer_incarnation = component->incarnation;
             out->layer_x = hit_bx;
             out->layer_y = hit_by;
             out->layer_w = bw;
@@ -408,6 +489,7 @@ find_scrollbar_recursive(
         {
             out->kind = hhit;
             out->layer_index = node_index;
+            out->layer_incarnation = component->incarnation;
             out->layer_x = hit_bx;
             out->layer_y = hit_by;
             out->layer_w = bw;
@@ -593,6 +675,11 @@ UITree_ScrollbarHandle(
     assert(tree);
     assert(hit);
     if( hit->kind == UITREE_SCROLLBAR_NONE || hit->layer_index < 0 )
+        return false;
+    if( (uint32_t)hit->layer_index >= tree->component_count ||
+        tree->components[hit->layer_index].freed || hit->layer_incarnation == 0 ||
+        tree->components[hit->layer_index].incarnation != hit->layer_incarnation ||
+        UITree_NodeOrAncestorDisplayHidden(tree, hit->layer_index) )
         return false;
 
     /* Write the canonical component scroll offset (what emit + CS2 opcodes read).

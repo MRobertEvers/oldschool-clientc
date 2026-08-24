@@ -59,10 +59,12 @@
 --     over the world has to be findable without being something you look past
 --     the whole session.
 --   * The REPORT ABUSE button. Not "beside it" -- in its place: the region is
---     claimed over the button's own box, so the click that was Report abuse is
---     Take Screenshot instead. Solid, because a chat button is chrome and a
---     half-transparent one would read as disabled, and wearing the red plate
---     that button wears -- @see PLATE_RAMP, which is measured off it.
+--     resolved by role, the native control is suppressed, and this plugin's
+--     draw declarations are attached directly to that same paint boundary.
+--     The click that was Report abuse is Take Screenshot instead. Solid,
+--     because a chat button is chrome and a half-transparent one would read as
+--     disabled, and wearing the red plate that button wears -- @see
+--     PLATE_RAMP, which is measured off it.
 --
 -- The art is `camera.png` and `camera_small.png`, both shipped in this
 -- plugin's asset folder and hand-authored in the options_icons palette --
@@ -173,13 +175,12 @@ local MARGIN = 6
 
 --- The report button's own red, one entry per row from its top to its bottom.
 ---
---- The plate is what makes the placement REPLACE the button rather than sit on
---- top of it: the widget underneath still draws its own label, and a camera
---- centred on a bare button leaves "Re" and "rt" showing either side. So
---- something has to be painted over the whole box -- and the question is only
---- what. This used to be a flat dark rect with a light outline: a grey square
---- with corners, in a row of rounded plates, where a red button was. It read
---- as a hole cut in the frame.
+--- The plate is the visual half of replacing the button. role.replace removes
+--- the native paint and interaction, so nothing underneath can flicker back or
+--- leak its label around the camera; this rebuilds the red control at the
+--- frame's own measured size. This used to be a flat dark rect with a light
+--- outline: a grey square with corners, in a row of rounded plates, where a red
+--- button was. It read as a hole cut in the frame.
 ---
 --- MEASURED off the button it stands in for rather than chosen, on both of the
 --- frames that draw one: the OldSchool chatbox's own `Report` (interface 162's
@@ -532,33 +533,50 @@ function plugin.on_draw_canvas(api, draw)
     local box, plated = button_box(api)
     if not box then return end
 
-    -- The read has not landed. Ordinary for the first frames after a start,
-    -- and not worth a message: the button appears when the picture does.
+    -- The read has not landed. Ordinary for the first frames after a start.
+    -- A corner has nothing useful to draw yet; a report-button replacement
+    -- still draws its plate and remains clickable so display:none never leaves
+    -- a transient hole in the chrome while the camera art is loading.
     local art = icon_that_fits(api, plated and box or nil)
-    if not art then return end
+    if not art and not plated then return end
 
-    local w, h = api.image_size(art)
-    if not w then return end
+    local x, y, rx, ry, rw, rh
+    if art then
+        local w, h = api.image_size(art)
+        if not w then
+            if not plated then return end
+            art = nil
+        else
+            if plated then
+                x = box.x + (box.w - w) // 2
+                y = box.y + (box.h - h) // 2
+            else
+                x, y = corner_at(api, box, w, h)
+                if not x then return end
+            end
 
-    local x, y
-    if plated then
-        x = box.x + (box.w - w) // 2
-        y = box.y + (box.h - h) // 2
-    else
-        x, y = corner_at(api, box, w, h)
-        if not x then return end
+            -- What is actually ON SCREEN, which is the art cut to the box it
+            -- was placed in: a frame whose report button is smaller than the
+            -- picture shows the middle of the camera rather than spilling it
+            -- over the chat. A corner button's area never cuts it.
+            rx = math.max(x, box.x)
+            ry = math.max(y, box.y)
+            rw = math.min(x + w, box.x + box.w) - rx
+            rh = math.min(y + h, box.y + box.h) - ry
+        end
+    end
+    if not art then
+        rx, ry, rw, rh = box.x, box.y, box.w, box.h
     end
 
-    -- What is actually ON SCREEN, which is the art cut to the box it was
-    -- placed in: a frame whose report button is smaller than the picture shows
-    -- the middle of the camera rather than spilling it over the chat. A corner
-    -- button's own area never cuts it, so there the two are the same rectangle.
-    local rx = math.max(x, box.x)
-    local ry = math.max(y, box.y)
-    local rw = math.min(x + w, box.x + box.w) - rx
-    local rh = math.min(y + h, box.y + box.h) - ry
-
     if rw <= 0 or rh <= 0 then return end
+
+    -- Only the report replacement changes local z-order. Its hit region and
+    -- every piece of its plate/art are emitted at the report role's own paint
+    -- boundary, immediately over the suppressed native subtree and under the
+    -- rest of the chrome. Corner buttons intentionally remain ordinary global
+    -- canvas overlays.
+    if plated and not report_button.anchor() then return end
 
     -- What answers the click. In the report button's place that is the whole
     -- BUTTON and not the camera on it -- a chat button is clickable across its
@@ -590,7 +608,9 @@ function plugin.on_draw_canvas(api, draw)
         trans = TRANS_HOVER
     end
 
-    draw.image(art, x, y, trans, rx, ry, rw, rh)
+    if art then
+        draw.image(art, x, y, trans, rx, ry, rw, rh)
+    end
 end
 
 --- The click, and the menu row, arriving as the one thing they are.
@@ -616,14 +636,30 @@ function plugin.on_start(api)
         api.log("camera_small.png did not load; the chat-button camera is unavailable")
     end
     -- Bound here and resolved later. on_start runs before the gameframe is
-    -- built, so asking now would answer "not here" on every lane.
+    -- built, so geometry asked now would answer "not here" on every lane. A
+    -- replacement claim is keyed by the semantic name, though, and survives
+    -- the later build; it is state reconciled at config transitions rather
+    -- than a command repeated in every draw handler.
     report_button = api.role("report_button")
+    report_button.replace(api.config.camera == "report-button")
+end
+
+function plugin.on_config_changed(api, ev)
+    if ev.key == "camera" then
+        report_button.replace(api.config.camera == "report-button")
+    end
 end
 
 function plugin.on_stop(api)
     -- Anything still waiting belongs to a session that is over. Dropped rather
     -- than taken on the way out: the frame it was waiting for never came.
     pending = {}
+    if report_button then
+        -- Teardown releases it too; doing it here makes the script's ownership
+        -- explicit and keeps a direct stop/restart transition whole.
+        report_button.replace(false)
+        report_button = nil
+    end
     if icon then
         api.image_release(icon)
         icon = nil

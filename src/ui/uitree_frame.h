@@ -94,6 +94,29 @@ struct UITreeFrameSkin
 };
 
 /**
+ * Paint attached to a live surface, immediately above that surface's subtree.
+ *
+ * This is deliberately not part of either plugin canvas display list. Those
+ * lists have canvas-wide z-order: FRAME is over the world and under every
+ * interface, CANVAS is over every interface. Neither can express a minimap
+ * housing, which has to be above the minimap and below whichever later sibling
+ * the gameframe puts over it.
+ *
+ * Coordinates are canvas coordinates, matching a frame declaration. The emit
+ * walk supplies the target's parent clip, so art may overlap the target (a map
+ * ring has to) without escaping the surface that contains it.
+ */
+struct UITreeFrameOverlay
+{
+    uint8_t placed;
+    int scene_id;
+    int x;
+    int y;
+    /** 0 opaque, 255 invisible -- the renderer's ordinary sprite sense. */
+    int trans;
+};
+
+/**
  * One slot of a declaration: a box for the whole role, and a box per member.
  *
  * Most roles are one surface and use `all`. Two are not, and they differ in a
@@ -113,6 +136,7 @@ struct UITreeFrameSlotRect
     struct UITreeFrameRect all;
     struct UITreeFrameRect at[UITREE_FRAME_SLOT_NODES_MAX];
     struct UITreeFrameSkin skin;
+    struct UITreeFrameOverlay overlay;
 };
 
 /**
@@ -254,6 +278,22 @@ UITree_FrameSkinOverride(
     int32_t node,
     int* out_art_scene_id,
     int* out_mask_scene_id);
+
+/**
+ * Copy the paint attached to `node`'s semantic slot, or return 0.
+ *
+ * A role may have several members (sidebar mounts and chat buttons), while a
+ * whole-slot overlay names exactly one semantic anchor. It is attached to the
+ * role's primary node -- the same deterministic first match returned by
+ * UITree_FrameSlotNode -- and only while that node is placed by the standing
+ * declaration. The emit walk performs the final visibility test: if the
+ * primary node/subtree emits nothing, neither does its attached paint.
+ */
+int
+UITree_FrameOverlayOverride(
+    struct UITree const* tree,
+    int32_t node,
+    struct UITreeFrameOverlay* out);
 
 /** Drop the frame table. Called from UITree_Free / UITree_Clear: the node
  *  indices in it name nodes that are about to stop existing. */

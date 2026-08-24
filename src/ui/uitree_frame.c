@@ -834,6 +834,37 @@ UITree_FrameSkinOverride(
 }
 
 int
+UITree_FrameOverlayOverride(
+    struct UITree const* tree,
+    int32_t node,
+    struct UITreeFrameOverlay* out)
+{
+    struct UITreeFrameLayout const* fl;
+
+    assert(tree);
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    fl = tree->frame_layout;
+    if( !fl || !fl->active )
+        return 0;
+
+    for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
+    {
+        if( !fl->slot_rect[s].overlay.placed || fl->slot_node_count[s] <= 0 )
+            continue;
+        /* One overlay names the role, not every member carrying it. The first
+         * binding is the stable primary used by UITree_FrameSlotNode too. */
+        if( fl->slot_node[s][0] != node ||
+            !frame_node_same(tree, node, fl->slot_incarnation[s][0]) ||
+            !frame_rect_for(&fl->slot_rect[s], fl->slot_member[s][0]) )
+            continue;
+        *out = fl->slot_rect[s].overlay;
+        return 1;
+    }
+    return 0;
+}
+
+int
 UITree_FrameActive(struct UITree const* tree)
 {
     assert(tree);

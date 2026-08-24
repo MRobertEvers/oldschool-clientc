@@ -99,6 +99,14 @@ struct PluginAsset
     bool pending;
 };
 
+#define TORIRS_PLUGIN_ROLE_REPLACEMENTS_MAX 64
+
+struct PluginRoleReplacement
+{
+    int plugin;
+    char role[TORIRS_PLUGIN_ROLE_NAME_MAX];
+};
+
 /**
  * Which of the three draw surfaces is open.
  *
@@ -160,6 +168,12 @@ struct ToriRS_PluginHost
     /** Non-zero only inside an EV_LAYOUT dispatch: layout_slot is legal then
      *  and at no other time, for the same reason hit_region is. */
     int layout_declaring;
+
+    /** Exclusive, persistent semantic replacements. The role spelling is
+     * retained rather than a node/id: only the engine can re-resolve it after
+     * a CS2 subtree rebuild, and reconciliation happens before interaction. */
+    struct PluginRoleReplacement
+        role_replacements[TORIRS_PLUGIN_ROLE_REPLACEMENTS_MAX];
 
     /*
      * Reservations: bites taken out of a derived region, one per
@@ -400,9 +414,16 @@ plugin_dispatch(struct ToriRS_PluginHost* host, enum ToriRS_PluginEvent ev, void
         if( !ctx->enabled || !ctx->running )
             continue;
 
+        /* A canvas anchor is subscriber-local. Reset on both sides of every
+         * callback so an early return, a plugin with no anchor call, or the
+         * next plugin in draw order can never inherit the previous target. */
+        if( ev == TORIRS_PLUGIN_EV_DRAW_CANVAS )
+            (void)host->engine.role_anchor(host->engine.user, -1, NULL, 0);
         host->dispatching = sub.plugin;
         verdict = sub.handler(ctx, payload, sub.userdata);
         host->dispatching = prev_dispatching;
+        if( ev == TORIRS_PLUGIN_EV_DRAW_CANVAS )
+            (void)host->engine.role_anchor(host->engine.user, -1, NULL, 0);
 
         if( verdict == TORIRS_PLUGIN_CONSUME )
             return TORIRS_PLUGIN_CONSUME;
@@ -1100,6 +1121,136 @@ api_role_id(struct ToriRS_PluginCtx* ctx, char const* role)
     if( !role || role[0] == '\0' )
         return -1;
     return ctx->host->engine.role_id(ctx->host->engine.user, role);
+}
+
+static int
+role_replacement_find(struct ToriRS_PluginHost const* host, char const* role)
+{
+    assert(host);
+    assert(role);
+    for( int i = 0; i < TORIRS_PLUGIN_ROLE_REPLACEMENTS_MAX; i++ )
+        if( host->role_replacements[i].plugin >= 0 &&
+            strcmp(host->role_replacements[i].role, role) == 0 )
+            return i;
+    return -1;
+}
+
+static int
+role_replacement_free(struct ToriRS_PluginHost const* host)
+{
+    assert(host);
+    for( int i = 0; i < TORIRS_PLUGIN_ROLE_REPLACEMENTS_MAX; i++ )
+        if( host->role_replacements[i].plugin < 0 )
+            return i;
+    return -1;
+}
+
+static void
+role_replacements_drop_plugin(struct ToriRS_PluginHost* host, int plugin)
+{
+    assert(host);
+    for( int i = 0; i < TORIRS_PLUGIN_ROLE_REPLACEMENTS_MAX; i++ )
+    {
+        struct PluginRoleReplacement* claim = &host->role_replacements[i];
+        if( claim->plugin != plugin )
+            continue;
+        (void)host->engine.role_replace(
+            host->engine.user, plugin, claim->role, /*enabled=*/0);
+        claim->plugin = -1;
+        claim->role[0] = '\0';
+    }
+}
+
+static int
+api_role_replace(
+    struct ToriRS_PluginCtx* ctx,
+    char const* role,
+    int enabled)
+{
+    struct ToriRS_PluginHost* host;
+    int at;
+
+    assert(ctx);
+    host = ctx->host;
+    if( !role || !role[0] || strlen(role) >= TORIRS_PLUGIN_ROLE_NAME_MAX )
+        return 0;
+    /* These are derived rectangles, not semantic component identities. */
+    if( strcmp(role, "safe") == 0 || strcmp(role, "canvas") == 0 )
+        return 0;
+
+    at = role_replacement_find(host, role);
+    if( enabled )
+    {
+        if( at >= 0 && host->role_replacements[at].plugin != ctx->index )
+            return 0;
+        if( at < 0 )
+        {
+            at = role_replacement_free(host);
+            if( at < 0 )
+                return 0;
+            host->role_replacements[at].plugin = ctx->index;
+            snprintf(
+                host->role_replacements[at].role,
+                sizeof(host->role_replacements[at].role),
+                "%s",
+                role);
+        }
+        /* Resolution is intentionally not the return value. The persistent
+         * claim must survive a temporarily missing role and bind when its next
+         * incarnation appears. */
+        (void)host->engine.role_replace(host->engine.user, ctx->index, role, 1);
+        return 1;
+    }
+
+    if( at < 0 )
+        return 1; /* idempotent release */
+    if( host->role_replacements[at].plugin != ctx->index )
+        return 0;
+    (void)host->engine.role_replace(host->engine.user, ctx->index, role, 0);
+    host->role_replacements[at].plugin = -1;
+    host->role_replacements[at].role[0] = '\0';
+    return 1;
+}
+
+static int
+api_role_anchor(struct ToriRS_PluginCtx* ctx, char const* role)
+{
+    struct ToriRS_PluginHost* host;
+    int at;
+    int replace = 0;
+
+    assert(ctx);
+    host = ctx->host;
+    assert(
+        host->draw_surface && host->draw_canvas == PLUGIN_DRAW_SURFACE_CANVAS &&
+        "role_anchor is legal only inside EV_DRAW_CANVAS");
+    if( !role || !role[0] || strlen(role) >= TORIRS_PLUGIN_ROLE_NAME_MAX )
+    {
+        /* Non-NULL empty is the engine-side active-invalid sentinel. A failed
+         * retarget must drop subsequent declarations from this subscriber,
+         * never leave its previous anchor active or fall back to global
+         * Canvas. Empty is safe because it is not a legal public role name. */
+        (void)host->engine.role_anchor(host->engine.user, ctx->index, "", 0);
+        return 0;
+    }
+    if( strcmp(role, "safe") == 0 || strcmp(role, "canvas") == 0 )
+    {
+        (void)host->engine.role_anchor(host->engine.user, ctx->index, "", 0);
+        return 0;
+    }
+
+    at = role_replacement_find(host, role);
+    if( at >= 0 )
+    {
+        if( host->role_replacements[at].plugin != ctx->index )
+        {
+            (void)host->engine.role_anchor(host->engine.user, ctx->index, "", 0);
+            return 0;
+        }
+        replace = 1;
+    }
+    return host->engine.role_anchor(
+        host->engine.user, ctx->index, role, replace);
 }
 
 /*
@@ -3028,6 +3179,38 @@ api_layout_slot_skin(
 }
 
 static int
+api_layout_slot_overlay(
+    struct ToriRS_PluginCtx* ctx,
+    int slot,
+    int image,
+    int x,
+    int y,
+    int trans)
+{
+    struct PluginImage const* owned;
+
+    assert(ctx);
+    assert(
+        ctx->host->layout_declaring &&
+        "layout_slot_overlay is legal only inside EV_LAYOUT");
+    assert(ctx->host->layout_owner == ctx->index);
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+        return 0;
+    if( trans < 0 || trans > 255 )
+        return 0;
+
+    /* Unlike a skin, this is an ordinary sprite scene. Its natural dimensions
+     * are read by the renderer after publication, so retaining a valid pending
+     * handle is both safe and necessary: otherwise a startup EV_LAYOUT would
+     * discard the declaration and the housing would not appear until resize. */
+    owned = plugin_image_owned(ctx, image);
+    if( !owned )
+        return 0;
+    return ctx->host->engine.layout_slot_overlay(
+        ctx->host->engine.user, slot, image, x, y, trans);
+}
+
+static int
 api_layout_scrollbar(
     struct ToriRS_PluginCtx* ctx,
     int trough,
@@ -3169,6 +3352,7 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->layout_end);
     assert(engine->layout_slot);
     assert(engine->layout_slot_skin);
+    assert(engine->layout_slot_overlay);
     assert(engine->layout_scrollbar);
     assert(engine->tab_active);
     assert(engine->tab_select);
@@ -3229,6 +3413,8 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
     assert(engine->role_visible);
     assert(engine->role_click);
     assert(engine->role_id);
+    assert(engine->role_replace);
+    assert(engine->role_anchor);
     assert(engine->stat);
     assert(engine->stat_xp);
     assert(engine->skill_name);
@@ -3258,6 +3444,8 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
      * its own rather than the calloc's zero. */
     for( int i = 0; i < TORIRS_PLUGIN_RESERVES_MAX; i++ )
         host->reserves[i].plugin = -1;
+    for( int i = 0; i < TORIRS_PLUGIN_ROLE_REPLACEMENTS_MAX; i++ )
+        host->role_replacements[i].plugin = -1;
     /* -1 is the free marker and 0 is plugin index zero, so the calloc above
      * would have handed every image slot to the first plugin registered. */
     for( int i = 0; i < TORIRS_PLUGIN_IMAGES_MAX; i++ )
@@ -3370,6 +3558,9 @@ PluginHost_New(struct ToriRS_PluginEngine const* engine)
         .win_set_checked = api_win_set_checked,
         .win_set_options = api_win_set_options,
         .win_clear = api_win_clear,
+        .layout_slot_overlay = api_layout_slot_overlay,
+        .role_replace = api_role_replace,
+        .role_anchor = api_role_anchor,
     };
     host->api = api;
     return host;
@@ -3397,6 +3588,7 @@ PluginHost_Free(struct ToriRS_PluginHost* host)
         host->dispatching = -1;
         if( ctx->def->shutdown )
             ctx->def->shutdown(ctx);
+        role_replacements_drop_plugin(host, i);
         ctx->running = false;
         plugin_objects_destroy_all(host, ctx);
         plugin_meshes_destroy_all(host, ctx);
@@ -3612,6 +3804,7 @@ plugin_teardown(struct ToriRS_PluginHost* host, int plugin_index)
      * and the readouts beside it widen on the next frame. */
     plugin_reserves_drop_plugin(host, plugin_index);
     plugin_models_drop_plugin(host, plugin_index);
+    role_replacements_drop_plugin(host, plugin_index);
     /* The tab goes with them: a stopped plugin's controls would otherwise sit
      * in the window still taking clicks, dispatching to a plugin that is not
      * running and silently doing nothing. */
@@ -4118,6 +4311,21 @@ PluginHost_DrawCanvas(struct ToriRS_PluginHost* host, int width, int height)
     host->draw_surface = NULL;
     host->draw_canvas = PLUGIN_DRAW_SURFACE_WORLD;
     host->engine.draw_select_canvas(host->engine.user, PLUGIN_DRAW_SURFACE_WORLD);
+}
+
+void
+PluginHost_ReconcileRoleReplacements(struct ToriRS_PluginHost* host)
+{
+    if( !host )
+        return;
+    for( int i = 0; i < TORIRS_PLUGIN_ROLE_REPLACEMENTS_MAX; i++ )
+    {
+        struct PluginRoleReplacement const* claim = &host->role_replacements[i];
+        if( claim->plugin < 0 )
+            continue;
+        (void)host->engine.role_replace(
+            host->engine.user, claim->plugin, claim->role, /*enabled=*/1);
+    }
 }
 
 void

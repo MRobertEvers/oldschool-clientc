@@ -54,6 +54,13 @@ struct TestHostState
     int entity_overlay_clip_y;
     int entity_overlay_clip_w;
     int entity_overlay_clip_h;
+    struct UITreeRoleOverlayGroup const* role_overlay_groups;
+    int role_overlay_group_count;
+    int role_anchor_seen;
+    int role_clip_updates;
+    int32_t role_clip_node;
+    uint32_t role_clip_incarnation;
+    struct UITreeScrollClip role_clip;
     /** When >= 0, GET_OBJ_NAME answers for that obj id and reports it as a bank
      *  placeholder — the one fact that suppresses an item cell's count text. */
     int placeholder_obj_id;
@@ -122,6 +129,21 @@ UITree_TestHostRequest(void* user, struct UITreeHostRequest* req)
         *req->u.get_entity_overlays.out_clip_w = st->entity_overlay_clip_w;
         *req->u.get_entity_overlays.out_clip_h = st->entity_overlay_clip_h;
         return st->entity_overlay_count;
+    case UITREE_HOST_GET_ROLE_OVERLAY_GROUPS:
+        if( req->u.get_role_overlay_groups.out_groups )
+            *req->u.get_role_overlay_groups.out_groups = st->role_overlay_groups;
+        if( req->u.get_role_overlay_groups.out_anchor_seen )
+            *req->u.get_role_overlay_groups.out_anchor_seen = st->role_anchor_seen;
+        return st->role_overlay_group_count;
+    case UITREE_HOST_SET_ROLE_OVERLAY_CLIP:
+        st->role_clip_updates++;
+        st->role_clip_node = req->u.set_role_overlay_clip.node_index;
+        st->role_clip_incarnation = req->u.set_role_overlay_clip.node_incarnation;
+        st->role_clip.clip_x = req->u.set_role_overlay_clip.clip_x;
+        st->role_clip.clip_y = req->u.set_role_overlay_clip.clip_y;
+        st->role_clip.clip_w = req->u.set_role_overlay_clip.clip_w;
+        st->role_clip.clip_h = req->u.set_role_overlay_clip.clip_h;
+        return 1;
     case UITREE_HOST_GET_MINIMAP_HIDDEN:
         return st->minimap_hidden;
     case UITREE_HOST_GET_MINIMAP_STATE:
@@ -235,6 +257,7 @@ void test_drag_scrollbar_inplace_emit(void);
 void test_drag_scrollbar_137_geometry(void);
 void test_drag_cc_dragpickup_seeds(void);
 void test_press_repeat_and_release(void);
+void test_frame_hidden_cancels_active_input(void);
 void test_scroll_hit(void);
 void test_wheel_stops_at_interface(void);
 void test_drag_scrolled(void);

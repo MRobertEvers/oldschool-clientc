@@ -59,11 +59,12 @@
  *
  * ## What one layout costs at runtime
  *
- * EV_LAYOUT builds the whole frame -- the slot rectangles and the blit list --
- * and runs at a claim, a resize and a rebuild, and at no other time.
- * EV_DRAW_FRAME then walks the blit list, which is a few dozen entries and no
- * arithmetic. The tab stones are the exception: which one is pressed changes
- * per frame, so those are placed in the layout pass and drawn in the draw one.
+ * EV_LAYOUT builds the whole frame -- slot rectangles, the backdrop blit list
+ * and the map housing attached to the minimap -- and runs at a claim, a resize
+ * and a rebuild, and at no other time. EV_DRAW_FRAME then walks the backdrop
+ * list, which is a few dozen entries and no arithmetic. The tab stones are the
+ * exception: which one is pressed changes per frame, so those are placed in
+ * the layout pass and drawn in the draw one.
  */
 
 /* ------------------------------------------------------------------ layouts */
@@ -485,22 +486,9 @@ static struct
     int canvas_h;
     struct FrameBlit blit[FRAME_BLIT_MAX];
     int blit_count;
-    /*
-     * Chrome that goes OVER the live surfaces instead of behind them.
-     *
-     * Almost all frame art sits behind: the panel is behind the inventory, the
-     * chatbox backing is behind the text. The map housing is the exception and
-     * it is not a detail -- the stone ring OVERLAPS the map, which is what
-     * turns a square blit of terrain into a round minimap. Drawn behind, the
-     * corners of the map cover the ring and the frame reads as a photograph
-     * pasted over the stones.
-     *
-     * Two lists rather than a flag per blit, because the two are drawn from
-     * different events: the frame surface (under the interfaces) and the
-     * canvas surface (over them). @see EV_DRAW_FRAME.
-     */
-    struct FrameBlit over[FRAME_BLIT_MAX];
-    int over_count;
+    /** Paint declarations attached directly to live slots (today, the one map
+     *  housing). Counted only for the one-line declaration diagnostic. */
+    int anchored_count;
     struct FrameTab tab[FRAME_TAB_COUNT];
     int tab_count;
     /*
@@ -595,11 +583,26 @@ frame_blit_tiled(int image, int x, int y, int w, int h, int trans)
     frame_blit_into(g_frame.blit, &g_frame.blit_count, image, x, y, w, h, trans);
 }
 
-/** Chrome over them. @see ToriRS_PluginEvDrawCanvas and `over`. */
+/**
+ * Chrome immediately over one live semantic surface.
+ *
+ * The map ring used to be an EV_DRAW_CANVAS blit, which put it over the whole
+ * chrome rather than merely over the minimap. An explicit declaration keeps
+ * ordinary frame/canvas draws global and gives this one local paint order.
+ */
 static void
-frame_blit_over(int image, int x, int y)
+frame_slot_overlay(
+    struct ToriRS_PluginCtx* ctx,
+    int slot,
+    int image,
+    int x,
+    int y)
 {
-    frame_blit_into(g_frame.over, &g_frame.over_count, image, x, y, 0, 0, 0);
+    assert(ctx);
+    if( image < 0 )
+        return;
+    g_api->layout_slot_overlay(ctx, slot, image, x, y, /*trans=*/0);
+    g_frame.anchored_count++;
 }
 
 static void
@@ -809,7 +812,7 @@ frame_layout_classic_fixed(struct ToriRS_PluginCtx* ctx)
     frame_blit(g_image[IMG_C_BACKTOP1], 0, 0);
     frame_blit(g_image[IMG_C_BACKLEFT1], 0, 4);
     frame_blit(g_image[IMG_C_BACKVMID1], 516, 4);
-    frame_blit_over(g_image[IMG_C_MAPBACK], 550, 4);
+    frame_slot_overlay(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, g_image[IMG_C_MAPBACK], 550, 4);
     frame_blit(g_image[IMG_C_BACKRIGHT1], 722, 4);
     frame_blit(g_image[IMG_C_BACKHMID1], 516, 160);
     frame_blit(g_image[IMG_C_BACKVMID2], 516, 205);
@@ -916,7 +919,7 @@ frame_layout_modern_fixed(struct ToriRS_PluginCtx* ctx)
     frame_blit(g_image[IMG_O_BACKTOP_RIGHT], 717, 0);
     frame_blit(g_image[IMG_O_BACKLEFT1], 0, 4);
     frame_blit(g_image[IMG_O_BACKVMID1], 516, 4);
-    frame_blit_over(g_image[IMG_O_MAPBACK], 545, 4);
+    frame_slot_overlay(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, g_image[IMG_O_MAPBACK], 545, 4);
     frame_blit(g_image[IMG_O_BACKRIGHT_TOP], 717, 4);
     frame_blit(g_image[IMG_O_BACKHMID1], 516, 160);
     frame_blit(g_image[IMG_O_TABS_TOP], 516, 167);
@@ -1071,7 +1074,7 @@ frame_layout_modern_resizable(
 
     assert(ctx);
 
-    frame_blit_over(g_image[IMG_O_MAPBACK_R], map_x, 0);
+    frame_slot_overlay(ctx, TORIRS_PLUGIN_SLOT_MINIMAP, g_image[IMG_O_MAPBACK_R], map_x, 0);
     /*
      * The panel backing FIRST, and larger than the panel.
      *
@@ -1534,7 +1537,7 @@ frame_on_layout(
     g_frame.canvas_w = ev->width;
     g_frame.canvas_h = ev->height;
     g_frame.blit_count = 0;
-    g_frame.over_count = 0;
+    g_frame.anchored_count = 0;
     g_frame.tab_count = 0;
     g_frame.chat_button_count = 0;
 
@@ -1567,7 +1570,7 @@ frame_on_layout(
         FRAME_LAYOUT_NAME[g_frame.layout],
         ev->width,
         ev->height,
-        g_frame.blit_count + g_frame.over_count,
+        g_frame.blit_count + g_frame.anchored_count,
         g_frame.tab_count);
     return TORIRS_PLUGIN_PASS;
 }
@@ -1732,46 +1735,6 @@ frame_on_draw(
             FRAME_TAG_TAB | (uint32_t)t->tabno);
     }
 
-    return TORIRS_PLUGIN_PASS;
-}
-
-/*
- * The over-chrome, on the canvas surface.
- *
- * Separate handler because it is a separate EVENT, and the tab regions are not
- * repeated here: a region declared in one draw pass is the same list either
- * way, and claiming each stone twice would put two rows in the right-click
- * menu for one stone.
- */
-static enum ToriRS_PluginVerdict
-frame_on_draw_over(
-    struct ToriRS_PluginCtx* ctx,
-    void* payload,
-    void* userdata)
-{
-    struct ToriRS_PluginEvDrawCanvas const* ev = payload;
-
-    (void)userdata;
-    assert(ctx);
-    assert(ev);
-
-    if( !g_frame.declared || !g_api->layout_owned(ctx) )
-        return TORIRS_PLUGIN_PASS;
-
-    for( int i = 0; i < g_frame.over_count; i++ )
-    {
-        g_api->draw_image(
-            ctx,
-            ev->surface,
-            g_frame.over[i].image,
-            g_frame.over[i].x,
-            g_frame.over[i].y,
-            0,
-            0,
-            0,
-            0,
-            /*trans=*/0);
-    }
     return TORIRS_PLUGIN_PASS;
 }
 
@@ -1959,7 +1922,6 @@ frame_init(
     api->subscribe(ctx, TORIRS_PLUGIN_EV_STOP, frame_on_stop, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_LAYOUT, frame_on_layout, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_DRAW_FRAME, frame_on_draw, NULL);
-    api->subscribe(ctx, TORIRS_PLUGIN_EV_DRAW_CANVAS, frame_on_draw_over, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_CANVAS_CLICK, frame_on_click, NULL);
     api->subscribe(ctx, TORIRS_PLUGIN_EV_CONFIG_CHANGED, frame_on_config, NULL);
 }

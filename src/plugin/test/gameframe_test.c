@@ -126,6 +126,14 @@ static struct
         int art;
         int mask;
     } skin[TORIRS_PLUGIN_SLOT_COUNT];
+    struct
+    {
+        int placed;
+        int image;
+        int x;
+        int y;
+        int trans;
+    } overlay[TORIRS_PLUGIN_SLOT_COUNT];
     int scrollbar_pieces;
     /** A sidebar tab this fake gameframe does NOT have, or -1. */
     int missing_tab;
@@ -157,6 +165,7 @@ fake_layout_begin(void* u)
     memset(g_frame.slot, 0, sizeof(g_frame.slot));
     memset(g_frame.member, 0, sizeof(g_frame.member));
     memset(g_frame.skin, 0, sizeof(g_frame.skin));
+    memset(g_frame.overlay, 0, sizeof(g_frame.overlay));
     g_frame.scrollbar_pieces = 0;
     g_frame.begin_calls++;
 }
@@ -208,6 +217,19 @@ fake_layout_slot_skin(void* u, int slot, int art, int mask)
     g_frame.skin[slot].placed = 1;
     g_frame.skin[slot].art = art;
     g_frame.skin[slot].mask = mask;
+    return fake_has_slot(slot);
+}
+
+static int
+fake_layout_slot_overlay(void* u, int slot, int image, int x, int y, int trans)
+{
+    (void)u;
+    assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_COUNT);
+    g_frame.overlay[slot].placed = 1;
+    g_frame.overlay[slot].image = image;
+    g_frame.overlay[slot].x = x;
+    g_frame.overlay[slot].y = y;
+    g_frame.overlay[slot].trans = trans;
     return fake_has_slot(slot);
 }
 
@@ -407,6 +429,10 @@ static int fake_role_rect(void* u, char const* r, int* x, int* y, int* w, int* h
 static int fake_role_visible(void* u, char const* r) { (void)u; (void)r; return 0; }
 static int fake_role_click(void* u, char const* r, int op) { (void)u; (void)r; (void)op; return 0; }
 static int fake_role_id(void* u, char const* r) { (void)u; (void)r; return -1; }
+static int fake_role_replace(void* u, int p, char const* r, int e)
+{ (void)u; (void)p; (void)r; (void)e; return 1; }
+static int fake_role_anchor(void* u, int p, char const* r, int replace)
+{ (void)u; (void)p; (void)replace; return r ? 0 : 1; }
 static int fake_stat(void* u, int s, int* c, int* b) { (void)u; (void)s; (void)c; (void)b; return 0; }
 static int fake_stat_xp(void* u, int s, int* a, int* b, int* c) { (void)u; (void)s; (void)a; (void)b; (void)c; return 0; }
 static char const* fake_skill_name(void* u, int s) { (void)u; (void)s; return NULL; }
@@ -466,15 +492,6 @@ draw(int w, int h)
     PluginHost_DrawFrame(g_host, w, h);
 }
 
-/** The chrome that goes OVER the live surfaces -- the map housing. */
-static void
-draw_over(int w, int h)
-{
-    g_frame.blits = 0;
-    g_frame.regions = 0;
-    PluginHost_DrawCanvas(g_host, w, h);
-}
-
 static int
 slot_is(int slot, int x, int y, int w, int h)
 {
@@ -527,11 +544,14 @@ main(void)
     e.role_visible = fake_role_visible;
     e.role_click = fake_role_click;
     e.role_id = fake_role_id;
+    e.role_replace = fake_role_replace;
+    e.role_anchor = fake_role_anchor;
     e.layout_set = fake_layout_set;
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
     e.layout_slot = fake_layout_slot;
     e.layout_slot_skin = fake_layout_slot_skin;
+    e.layout_slot_overlay = fake_layout_slot_overlay;
     e.layout_scrollbar = fake_layout_scrollbar;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
@@ -618,6 +638,12 @@ main(void)
     CHECK(
         slot_is(TORIRS_PLUGIN_SLOT_SIDEBAR, 553, 205, 190, 261),
         "classic sidebar is the dat1 frame's");
+    CHECK(
+        g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].placed &&
+            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].x == 550 &&
+            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].y == 4 &&
+            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].trans == 0,
+        "classic map housing is attached to the minimap slot");
     CHECK(
         g_frame.slot[TORIRS_PLUGIN_SLOT_MAIN_MODAL].placed,
         "the modal region is placed, not left to the lane");
@@ -708,6 +734,11 @@ main(void)
         "548's minimap sits five pixels left of the dat1 frame's");
     CHECK(
         slot_is(TORIRS_PLUGIN_SLOT_SIDEBAR, 547, 205, 190, 261), "548's sidebar panel");
+    CHECK(
+        g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].placed &&
+            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].x == 545 &&
+            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].y == 4,
+        "548's map housing is attached at its own minimap boundary");
 
     draw(765, 503);
     CHECK(g_frame.regions == 14, "548 has fourteen tabs as well");
@@ -744,6 +775,11 @@ main(void)
             g_frame.slot[TORIRS_PLUGIN_SLOT_MINIMAP].x == map_x + 24 &&
                 g_frame.slot[TORIRS_PLUGIN_SLOT_MINIMAP].y == 8,
             "the minimap is pinned to the top-right corner");
+        CHECK(
+            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].placed &&
+                g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].x == map_x &&
+                g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].y == 0,
+            "and its housing is declared directly above that semantic slot");
         /*
          * And it is CUT to the housing it sits in.
          *
@@ -872,18 +908,14 @@ main(void)
         g_frame.missing_tab = -1;
         declare(1440, 900);
 
-        /*
-         * And the map housing OVER them.
-         *
-         * Its own case because "behind" and "over" are one blit apart and the
-         * difference is invisible in a count of the whole frame: drawn behind,
-         * the square of terrain covers the ring and the minimap stops being
-         * round. That is the entire visible symptom, and no assertion about
-         * the frame surface can see it.
-         */
-        draw_over(1440, 900);
-        CHECK(g_frame.blits == 1, "the map housing is drawn over the minimap, not behind it");
-        CHECK(g_frame.regions == 0, "and the over-pass claims no regions of its own");
+        /* The map housing is no longer a global canvas draw. Legacy canvas
+         * drawing remains global by contract; moving this one there covered
+         * unrelated later chrome as well as the minimap it was meant for. */
+        g_frame.blits = 0;
+        g_frame.regions = 0;
+        PluginHost_DrawCanvas(g_host, 1440, 900);
+        CHECK(g_frame.blits == 0, "the map housing is not redrawn over the whole canvas");
+        CHECK(g_frame.regions == 0, "and no obsolete over-pass claims input regions");
     }
 
     /* ---- 6. release ---------------------------------------------------- */

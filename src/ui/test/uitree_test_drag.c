@@ -11,6 +11,15 @@ find_desc(struct UITreeEmitBuffer const* buf, int component_id)
     return -1;
 }
 
+static int
+out_has_script(struct UIInteractOut const* out, int script_id)
+{
+    for( int i = 0; i < out->intent_count; i++ )
+        if( out->intents[i].hook && out->intents[i].hook->script_id == script_id )
+            return 1;
+    return 0;
+}
+
 /*
  * A dragged composite widget (parent + child sprites, e.g. a scrollbar thumb
  * with end caps) must move as one unit, and its hitbox must follow the cursor.
@@ -620,4 +629,295 @@ test_press_repeat_and_release(void)
     }
 
     UITree_Free(tree);
+}
+
+/* Effective frame suppression is display:none for pointer ownership too. A
+ * target can become frame-hidden between two input frames when a plugin frame
+ * is applied/reasserted; that transition cancels the gesture rather than
+ * continuing to dispatch held/release/drag hooks into invisible native UI. */
+void
+test_frame_hidden_cancels_active_input(void)
+{
+    printf("TEST: frame-hidden cancels active press / drag ownership\n");
+
+    /* A plugin hit surface owns the physical press from its down edge through
+     * release. Native hooks and drag state beneath it never get an edge to
+     * inherit, including for an opaque zero-op plugin region. */
+    {
+        struct UITree* tree = UITree_New(4);
+        struct TestHostState hs;
+        struct UITreeHost host;
+        struct UIInteraction interact;
+        struct LibToriRS_Input storage;
+        struct LibToriRS_Input* input;
+        struct UIInteractOut out;
+        int32_t button;
+
+        printf("TEST: external plugin capture owns full left gesture\n");
+        UITree_TestHostInit(&host, &hs);
+        button = UITree_TestPushXy(
+            tree, -1, UIELEM_RS_GRAPHIC, 989, 100, 100, 40, 40);
+        tree->components[button].draggable = 1;
+        tree->components[button].drag_dead_zone = 0;
+        tree->components[button].drag_dead_time = 0;
+        UITree_HooksMut(&tree->components[button])->on_click.script_id = 811;
+        UITree_HooksMut(&tree->components[button])->on_hold.script_id = 812;
+        UITree_HooksMut(&tree->components[button])->on_click_repeat.script_id = 813;
+        UITree_HooksMut(&tree->components[button])->on_release.script_id = 814;
+        UITree_HooksMut(&tree->components[button])->on_drag.script_id = 815;
+        UITree_HooksMut(&tree->components[button])->on_drag_complete.script_id = 816;
+        UITree_TestResolve(tree);
+        UIInteraction_Init(&interact);
+        input = LibToriRS_Input_Init(&storage, 0);
+
+        LibToriRS_Input_Begin(input, 0);
+        LibToriRS_Input_PushMouseMove(input, 110, 110);
+        LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 110, 110);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrameWithPointerCapture(
+            &interact, tree, &host, input, 0, 1, &out);
+        TEST_ASSERT(out.intent_count == 0, "captured down emits no native pointer hook");
+        TEST_ASSERT(
+            interact.input_state.pressed < 0 && interact.input_state.drag_source_idx < 0,
+            "captured down arms no native press or drag");
+
+        LibToriRS_Input_Begin(input, 20);
+        LibToriRS_Input_PushMouseMove(input, 125, 125);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrameWithPointerCapture(
+            &interact, tree, &host, input, 20, 1, &out);
+        TEST_ASSERT(out.intent_count == 0, "captured hold emits no hold/repeat/drag hook");
+        TEST_ASSERT(!tree->components[button].drag_active, "captured hold has no drag visual");
+
+        LibToriRS_Input_Begin(input, 40);
+        LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 125, 125);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrameWithPointerCapture(
+            &interact, tree, &host, input, 40, 1, &out);
+        TEST_ASSERT(out.intent_count == 0, "captured release emits no release/complete hook");
+        TEST_ASSERT(!out.left_click_miss, "captured release cannot fall through to world");
+        TEST_ASSERT(out.cancelled_pointer_click, "captured release is marked native-consumed");
+
+        UITree_Free(tree);
+    }
+
+    /* Press ownership: stop repeats immediately, then swallow mouse-up without
+     * either releasing the hidden widget or leaking a click to the world. */
+    {
+        struct UITree* tree = UITree_New(4);
+        struct TestHostState hs;
+        struct UITreeHost host;
+        struct UIInteraction interact;
+        struct LibToriRS_Input storage;
+        struct LibToriRS_Input* input;
+        struct UIInteractOut out;
+        int32_t button;
+
+        UITree_TestHostInit(&host, &hs);
+        button = UITree_TestPushXy(
+            tree, -1, UIELEM_RS_GRAPHIC, 990, 100, 100, 40, 40);
+        UITree_HooksMut(&tree->components[button])->on_click_repeat.script_id = 821;
+        UITree_HooksMut(&tree->components[button])->on_release.script_id = 822;
+        UITree_TestResolve(tree);
+        UIInteraction_Init(&interact);
+        input = LibToriRS_Input_Init(&storage, 0);
+
+        LibToriRS_Input_Begin(input, 0);
+        LibToriRS_Input_PushMouseMove(input, 110, 110);
+        LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 110, 110);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+        TEST_ASSERT(interact.input_state.pressed == button, "visible button owns the press");
+        TEST_ASSERT(out_has_script(&out, 821), "visible press emits click-repeat");
+
+        tree->components[button].frame_hidden = 1;
+        LibToriRS_Input_Begin(input, 20);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, tree, &host, input, 20, &out);
+        TEST_ASSERT(!out_has_script(&out, 821), "hidden press owner emits no click-repeat");
+        TEST_ASSERT(!out_has_script(&out, 822), "hiding does not synthesize on-release");
+        TEST_ASSERT(
+            interact.input_state.pressed < 0 && interact.input_state.drag_source_idx < 0 &&
+                !interact.input_state.deferred_click,
+            "hiding cancels all stored press ownership");
+
+        LibToriRS_Input_Begin(input, 40);
+        LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 110, 110);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, tree, &host, input, 40, &out);
+        TEST_ASSERT(!out_has_script(&out, 821), "cancelled mouse-up emits no repeat");
+        TEST_ASSERT(!out_has_script(&out, 822), "cancelled mouse-up emits no hidden release");
+        TEST_ASSERT(!out.left_click_miss, "cancelled UI press does not leak into a world click");
+        TEST_ASSERT(
+            out.cancelled_pointer_click,
+            "cancelled UI release is fenced from app-level plugin hit regions");
+
+        /* Deletion/rebuild is the other display:none transition: CS2 may put
+         * the same component id back into the exact array slot while the
+         * physical button is still held. Incarnation, rather than either
+         * reusable number, keeps that new occupant from inheriting the press. */
+        tree->components[button].frame_hidden = 0;
+        LibToriRS_Input_Begin(input, 60);
+        LibToriRS_Input_PushMouseMove(input, 110, 110);
+        LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 110, 110);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, tree, &host, input, 60, &out);
+        TEST_ASSERT(interact.input_state.pressed == button, "rebuilt fixture owns fresh press");
+        tree->components[button].incarnation++;
+        UITree_HooksMut(&tree->components[button])->on_click_repeat.script_id = 823;
+
+        LibToriRS_Input_Begin(input, 80);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, tree, &host, input, 80, &out);
+        TEST_ASSERT(!out_has_script(&out, 823), "recycled same-id node inherits no held hook");
+        TEST_ASSERT(interact.input_state.pressed < 0, "recycle cancels stored press identity");
+
+        LibToriRS_Input_Begin(input, 100);
+        LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 110, 110);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, tree, &host, input, 100, &out);
+        TEST_ASSERT(!out.left_click_miss, "recycled press release remains swallowed");
+        TEST_ASSERT(
+            out.cancelled_pointer_click,
+            "recycled release is fenced from app-level plugin hit regions");
+
+        UITree_Free(tree);
+    }
+
+    /* Active drag ownership: retire both state-machine and component render
+     * state as soon as the source disappears. Cancellation is not a drop, so
+     * it emits neither onDrag nor onDragComplete/onRelease. */
+    {
+        struct UITree* tree = UITree_New(4);
+        struct TestHostState hs;
+        struct UITreeHost host;
+        struct UIInteraction interact;
+        struct LibToriRS_Input storage;
+        struct LibToriRS_Input* input;
+        struct UIInteractOut out;
+        int32_t source;
+
+        UITree_TestHostInit(&host, &hs);
+        source = UITree_TestPushXy(
+            tree, -1, UIELEM_RS_GRAPHIC, 991, 100, 100, 40, 40);
+        tree->components[source].draggable = 1;
+        tree->components[source].drag_dead_zone = 0;
+        tree->components[source].drag_dead_time = 0;
+        UITree_HooksMut(&tree->components[source])->on_drag.script_id = 831;
+        UITree_HooksMut(&tree->components[source])->on_drag_complete.script_id = 832;
+        UITree_HooksMut(&tree->components[source])->on_release.script_id = 833;
+        UITree_TestResolve(tree);
+        UIInteraction_Init(&interact);
+        input = LibToriRS_Input_Init(&storage, 0);
+
+        LibToriRS_Input_Begin(input, 0);
+        LibToriRS_Input_PushMouseMove(input, 110, 110);
+        LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 110, 110);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+        TEST_ASSERT(interact.input_state.drag_source_idx == source, "visible source arms drag");
+
+        LibToriRS_Input_Begin(input, 20);
+        LibToriRS_Input_PushMouseMove(input, 120, 120);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, tree, &host, input, 20, &out);
+        TEST_ASSERT(interact.input_state.drag_active, "visible source begins active drag");
+        TEST_ASSERT(tree->components[source].drag_active, "drag render state is active");
+        TEST_ASSERT(out_has_script(&out, 831), "visible source emits on-drag");
+
+        tree->components[source].frame_hidden = 1;
+        LibToriRS_Input_Begin(input, 40);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, tree, &host, input, 40, &out);
+        TEST_ASSERT(!out_has_script(&out, 831), "hidden drag source emits no on-drag");
+        TEST_ASSERT(!out_has_script(&out, 832), "hiding does not complete the drag");
+        TEST_ASSERT(!out_has_script(&out, 833), "hiding does not release the drag source");
+        TEST_ASSERT(
+            !interact.input_state.drag_active && interact.input_state.drag_source_idx < 0 &&
+                interact.input_state.pressed < 0,
+            "hiding cancels active drag and press ownership");
+        TEST_ASSERT(
+            !tree->components[source].drag_active && tree->drag_active_nodes == 0,
+            "hiding clears deferred drag render state");
+
+        LibToriRS_Input_Begin(input, 60);
+        LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 120, 120);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, tree, &host, input, 60, &out);
+        TEST_ASSERT(!out_has_script(&out, 832), "cancelled drag mouse-up does not complete");
+        TEST_ASSERT(!out_has_script(&out, 833), "cancelled drag mouse-up does not release");
+        TEST_ASSERT(!out.left_click_miss, "cancelled drag does not leak into a world click");
+
+        UITree_Free(tree);
+    }
+
+    /* A drop target is sampled while the button is held. Mouse-up does not
+     * run another drag tick, so retain that exact incarnation rather than
+     * resolving its component id after a synchronous same-id rebuild. */
+    {
+        struct UITree* tree = UITree_New(4);
+        struct TestHostState hs;
+        struct UITreeHost host;
+        struct UIInteraction interact;
+        struct LibToriRS_Input storage;
+        struct LibToriRS_Input* input;
+        struct UIInteractOut out;
+        int32_t source;
+        int32_t target;
+        uint32_t target_incarnation;
+        int found_complete = 0;
+
+        UITree_TestHostInit(&host, &hs);
+        source = UITree_TestPushXy(
+            tree, -1, UIELEM_RS_GRAPHIC, 991, 10, 10, 30, 30);
+        target = UITree_TestPushXy(
+            tree, -1, UIELEM_RS_RECT, 992, 100, 10, 40, 40);
+        tree->components[source].draggable = 1;
+        tree->components[source].drag_dead_zone = 0;
+        tree->components[source].drag_dead_time = 0;
+        tree->components[target].behavior.click_mask |= UITREE_FLAG_DRAG_ON;
+        UITree_HooksMut(&tree->components[source])->on_drag_complete.script_id = 842;
+        UITree_TestResolve(tree);
+        UIInteraction_Init(&interact);
+        input = LibToriRS_Input_Init(&storage, 0);
+
+        LibToriRS_Input_Begin(input, 0);
+        LibToriRS_Input_PushMouseMove(input, 20, 20);
+        LibToriRS_Input_PushMouseDown(input, TORIRSM_LEFT, 20, 20);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, tree, &host, input, 0, &out);
+
+        LibToriRS_Input_Begin(input, 20);
+        LibToriRS_Input_PushMouseMove(input, 110, 20);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, tree, &host, input, 20, &out);
+        target_incarnation = tree->components[target].incarnation;
+        TEST_ASSERT(
+            interact.input_state.drag_target_idx == target &&
+                interact.input_state.drag_target_incarnation == target_incarnation,
+            "held drag stamps the exact drop-target occupant");
+
+        tree->components[target].incarnation++;
+        LibToriRS_Input_Begin(input, 40);
+        LibToriRS_Input_PushMouseUp(input, TORIRSM_LEFT, 110, 20);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, tree, &host, input, 40, &out);
+        for( int i = 0; i < out.intent_count; i++ )
+        {
+            struct UIIntent const* intent = &out.intents[i];
+            if( !intent->hook || intent->hook->script_id != 842 )
+                continue;
+            found_complete = 1;
+            TEST_ASSERT(
+                intent->has_drag_target_identity &&
+                    intent->drag_target_node_index == target &&
+                    intent->drag_target_node_incarnation == target_incarnation &&
+                    intent->drag_target_node_incarnation !=
+                        tree->components[target].incarnation,
+                "release carries the historical target instead of blessing its replacement");
+        }
+        TEST_ASSERT(found_complete, "release emits the source's drag-complete intent");
+
+        UITree_Free(tree);
+    }
 }
