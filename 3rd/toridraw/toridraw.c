@@ -555,6 +555,7 @@ int g_toridraw_raster_scanline = 0;
 #include "triangles/toridraw_triangle_zbuf.u.c"
 #endif
 #include "toridraw_render.u.c"
+#ifndef TORIDRAW_PIXEL16
 /* The HD kernel set: five projection families x twelve compositing variants,
  * each with a depth-tested twin. One file per variant; they share two
  * templates. Included here rather than from the triangle wrappers because
@@ -691,6 +692,7 @@ int g_toridraw_raster_scanline = 0;
 #include "graphics/raster/texture/texsphere.persp.textrans.modulate.zbuf.branching.lerp8_v3.u.c"
 #include "graphics/raster/texture/texsphere.persp.textrans.zbuf.branching.lerp8_v3.u.c"
 // clang-format on
+#endif /* !TORIDRAW_PIXEL16 */
 
 #include "toridraw_raster.u.c"
 #include "toridraw_render_hd.u.c"
@@ -769,6 +771,12 @@ ToriDraw_RenderModel(
     struct ToriDraw_Camera* camera,
     toripixel_t* pixel_buffer)
 {
+    /* A kernel callback may render another scene, but must not overwrite this
+     * scene's projection and sort scratch before the nested raster guard gets
+     * a chance to reject it. */
+    if( !scene || scene->raster_pass_active )
+        return;
+
     int cull = ToriDraw_RenderModel1Project(hnd, scene, position, view_port, camera);
     if( cull != TORIDRAW_CULL_VISIBLE )
         return;
@@ -810,6 +818,9 @@ ToriDraw_RenderModel3Raster(
     toripixel_t* pixel_buffer,
     bool smooth)
 {
+    if( !scene || scene->raster_pass_active )
+        return TORIDRAW_CULL_ERROR;
+
     ToriDraw_Raster(scene, scene->active_hnd, view_port, camera, pixel_buffer, smooth);
     return TORIDRAW_CULL_VISIBLE;
 }
@@ -824,6 +835,9 @@ ToriDraw_RenderZBuffered(
     toripixel_t* pixel_buffer,
     bool smooth)
 {
+    if( !scene || scene->raster_pass_active )
+        return TORIDRAW_CULL_ERROR;
+
 #ifdef TORIDRAW_PIXEL16
     /* There is no depth-tested family in a 16-bit build (see the include block
      * above), so this entry point cannot keep its promise there. Saying so beats

@@ -10,6 +10,7 @@
  */
 
 #include "toridraw.c"
+#include "toridraw_raster_kernel.c"
 #include "toridraw_animation.c"
 #include "toridraw_hsl16.c"
 #include "toridraw_intrusive_list.c"

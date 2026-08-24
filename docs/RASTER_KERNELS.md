@@ -1,6 +1,8 @@
 # ToriDraw raster kernels
 
-Status: proposed design and migration plan.
+Status: implemented architecture and migration record. HD near-plane
+reconstruction and workload-level performance measurement remain documented
+follow-ups; neither changes the public dispatch contract.
 
 ## Purpose
 
@@ -24,7 +26,7 @@ texture, clipping, sorting, or depth behavior.
 
 ## Scope
 
-The first implementation covers the normal software model raster flow:
+The implementation covers the normal software model raster flow:
 
 ```text
 ToriDraw_RenderModel
@@ -40,11 +42,18 @@ It also covers the unsorted face loop used by `ToriDraw_RenderZBuffered` and the
 base model fields of both `TORIDRAWMK_MODEL` and `TORIDRAWMK_MODEL_HD` when they
 pass through that normal flow.
 
+`ToriDraw_RenderHD` and `ToriDraw_RenderHDZBuffered` use the same four-slot
+interface through HD-domain terminal roots while retaining their material,
+alpha, missing-material, mapping, tint, statistics, and depth policies.
+`TORIDRAW_PIXEL16` exposes the same public object/vtable layout and stock
+dispatch, while its HD render entry points return the defined unsupported
+result.
+
 The following are deliberately separate:
 
-- `ToriDraw_RenderHD` and `ToriDraw_RenderHDZBuffered` have different material,
-  alpha, texture-fallback, and mapping policy. They should gain an adapter in a
-  later phase without changing those semantics.
+- HD near-plane reconstruction remains incomplete in the underlying PMN/mapped
+  families and is a separately reviewed follow-up; the interface does not claim
+  to repair it.
 - `ToriDraw_ModelGround` is consumed by the ground/GPU/packet paths and is not
   accepted by the current software `ToriDraw_Raster` entry point.
 - Low-level Gouraud-RGB triangle kernels are implementation families, not a
@@ -88,16 +97,16 @@ partial overrides awkward.
 
 ## Public interface
 
-Add a public raster-kernel header and expose these names through
-[`toridraw.h`](../3rd/toridraw/toridraw.h). The callback descriptors are concrete
-public read-only structures, not opaque handles; Phase 1 is not complete until
-their fields and semantics are defined. Keep the object and vtable shape small:
+The implementation adds a public raster-kernel header and exposes these names
+through [`toridraw.h`](../3rd/toridraw/toridraw.h). The callback descriptors and
+HD mapping record are concrete public read-only structures, not opaque handles.
+The object and vtable shape is deliberately small:
 
 ```c
 struct ToriDraw_RasterKernel;
 struct ToriDraw_RasterTarget;
 struct ToriDraw_RasterFace;
-struct ToriDraw_TexMapping;
+/* ToriDraw_TexMapping is defined by toridraw_texture_mapping.h. */
 
 enum ToriDraw_RasterFaceClass
 {
@@ -210,6 +219,11 @@ from a callback is rejected; otherwise a callback could retire `user_data` that
 another resolved slot still needs. At pass entry ToriDraw snapshots the binding
 and terminal root. Concurrent mutation or rendering of the same scene requires
 external synchronization.
+
+A callback may render a different scene. A recursive convenience render of the
+active scene is rejected before projection or sorting can overwrite the outer
+pass's scratch. The split projection/sort APIs remain low-level phase controls;
+callers must not invoke those individual phases recursively on an active scene.
 
 Set the active flag before resolving and clear it through one cleanup path on
 every return, including an empty model or invalid live chain, so a failed pass
@@ -378,7 +392,8 @@ The active tagged texture payload, present only for `TEXTURED` and
     coordinate or a nonzero render type, while retaining the byte that controls
     affine routing;
   - `HD_MAPPING`: a non-null `const struct ToriDraw_TexMapping *` into the
-    `MODEL_HD` mapping tail for HD types 1-3;
+    `MODEL_HD` mapping tail for HD types 1-3; its prepared mapping fields are
+    public through `toridraw_texture_mapping.h`;
   - `HD_FRAME_FALLBACK`: three bounds-checked vertex indices reused by the
     current HD missing-mapping fallback;
 - prepared HD-only sampler fields such as modulation/tint when the target
@@ -685,7 +700,13 @@ run-to-run noise below that threshold is a redesign trigger. Inspect optimized
 output to confirm that the public indirect call occurs only at the face
 boundary and that no global family read remains below it.
 
-## Migration plan
+## Migration record
+
+The interface landed through the staged sequence below. The bullets retain the
+original acceptance wording so future changes can be checked against the same
+constraints. Phases 1-5 are implemented. Phase 0's routing oracles are present,
+with broader image/performance fixtures still useful; Phase 6 is explicitly the
+separate HD near-clip follow-up.
 
 ### Phase 0: lock down the oracle
 
@@ -846,7 +867,7 @@ coercion. The modulation test must compare pixels from an authored HSL hue that
 differs from the lit 0..127 shade; routing counters alone cannot catch use of the
 wrong colour source.
 
-The change is complete when:
+The functional interface cutover is complete when:
 
 1. Complete branching and scanline roots match their stock oracles, including
    the documented scanline differences.
@@ -857,21 +878,27 @@ The change is complete when:
 4. Sparse/domain-filtered overrides work without per-face chain traversal, and
    two scenes can use different variants independently.
 5. Existing scanline, z-buffer, near-clip, model-flag, picking, and HD tests
-   continue to pass; the final HD phase also covers near clipping rather than
-   claiming the old limitation as support.
+   continue to pass. HD near-plane reconstruction remains Phase 6 and is not
+   claimed as part of the completed adapter.
 6. Optimized stock builds contain no runtime family read in or below the
    selected callback; HD contains only its documented private table call.
-7. The complete and sparse paths meet the performance gate across the stated
-   small, mixed, and large fixtures.
+
+The remaining workload-level release gate is for the complete and sparse paths
+to meet the performance threshold across the stated small, mixed, and large
+fixtures. Optimized-output inspection already confirms that stock family
+selection is outside the callbacks and their descendants; the broader timed
+fixture run is intentionally tracked separately from functional acceptance.
 
 ## Expected file changes
 
 | File | Change |
 |---|---|
+| `3rd/toridraw/toridraw_texture_mapping.h` | public prepared HD mapping representation |
 | `3rd/toridraw/toridraw_raster_kernel.h` | public object, vtable, descriptors, built-in getters |
+| `3rd/toridraw/toridraw_raster_kernel.c` | chain validation/resolution and scene binding APIs |
 | `3rd/toridraw/toridraw.h` | export the new API; deprecate global scanline selection |
-| `3rd/toridraw/toridraw_types.h` | forward declaration plus nullable scene binding and active flag |
-| `3rd/toridraw/toridraw.c` | validating scene APIs and terminal selection compatibility shim |
+| `3rd/toridraw/toridraw_types.h` | public mapping include plus nullable scene binding and active flag |
+| `3rd/toridraw/toridraw.c` | Pixel16 guards and same-scene recursive-render rejection |
 | `3rd/toridraw/toridraw_raster.u.c` | classifier/preparer, domain-aware chain resolution, one-call face dispatch |
 | `3rd/toridraw/triangles/*` | direct branching/scanline face callbacks; remove leaf global checks |
 | `3rd/toridraw/toridraw_render_hd.u.c` | HD domain roots, prepared policy adapter, later near-clip closure |

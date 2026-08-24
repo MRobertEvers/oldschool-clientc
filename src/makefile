@@ -2268,6 +2268,42 @@ test-scanline: $(OBJ_DIR)
 		$(TORIDRAW_DIR)/toridraw_scanline_parity_test.c -lm
 	./$(OBJ_DIR)/scanline_parity_test
 
+# Public model-face dispatch: four normalized slots, sparse/domain fallback,
+# scene-local selection, and mutation/lifetime guards. CPU-only, no cache/disk.
+ifneq ($(strip $(ASAN_DYLD_SHIM)),)
+RASTER_KERNEL_TEST_ENV = DYLD_INSERT_LIBRARIES=$(abspath $(ASAN_DYLD_SHIM))
+endif
+
+test-raster-kernel: $(OBJ_DIR) $(TORIDRAW_UNITY_LINK_OBJS) $(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) $(filter -fsanitize=%,$(LDFLAGS)) -lm $(PLATFORM_STRIP_LDFLAGS) \
+		-o $(OBJ_DIR)/raster_kernel_test \
+		$(TORIDRAW_DIR)/toridraw_raster_kernel_test.c $(TORIDRAW_UNITY_LINK_OBJS) \
+		$(OBJ_DIR)/toridraw_font.o $(OBJ_DIR)/bmp.o $(ASAN_COMPAT_SRC)
+	$(RASTER_KERNEL_TEST_ENV) ./$(OBJ_DIR)/raster_kernel_test
+
+# Compile the complete linked subset under the 16-bit ABI as well. Textured
+# model faces intentionally collapse to solid classes in this configuration;
+# the shared source asserts that public routing contract and the alpha cutoff.
+RASTER_KERNEL_PIXEL16_OBJS = $(OBJ_DIR)/toridraw_unity_pixel16.o \
+	$(OBJ_DIR)/toridraw_font_pixel16.o $(OBJ_DIR)/bmp_pixel16.o
+
+$(OBJ_DIR)/toridraw_unity_pixel16.o: $(TORIDRAW_UNITY_SRC) | $(OBJ_DIR)
+	$(CC) $(TORIDRAW_CFLAGS) -DTORIDRAW_PIXEL16=1 -w -c $< -o $@
+
+$(OBJ_DIR)/toridraw_font_pixel16.o: $(TORIDRAW_DIR)/toridraw_font.c | $(OBJ_DIR)
+	$(CC) $(TORIDRAW_CFLAGS) -DTORIDRAW_PIXEL16=1 -I$(REPO_ROOT)/v0 -w -c $< -o $@
+
+$(OBJ_DIR)/bmp_pixel16.o: $(BMP_DIR)/bmp.c | $(OBJ_DIR)
+	$(CC) $(CFLAGS) -DTORIDRAW_PIXEL16=1 -w -c $< -o $@
+
+test-raster-kernel-pixel16: $(OBJ_DIR) $(RASTER_KERNEL_PIXEL16_OBJS) $(TORIDRAW_PROJECTION_ASM_OBJ) $(ASAN_DYLD_SHIM)
+	$(CC) $(CFLAGS) -DTORIDRAW_PIXEL16=1 $(filter -fsanitize=%,$(LDFLAGS)) \
+		-lm $(PLATFORM_STRIP_LDFLAGS) \
+		-o $(OBJ_DIR)/raster_kernel_pixel16_test \
+		$(TORIDRAW_DIR)/toridraw_raster_kernel_test.c $(RASTER_KERNEL_PIXEL16_OBJS) \
+		$(TORIDRAW_PROJECTION_ASM_OBJ) $(ASAN_COMPAT_SRC)
+	$(RASTER_KERNEL_TEST_ENV) ./$(OBJ_DIR)/raster_kernel_pixel16_test
+
 # ToriDraw2D_BlitArgbScaledAlpha's 1:1 shortcut against the stepping loop it
 # skips. Every if3 interface sprite reaches that call whether or not its
 # component box differs from the image, and in a measured client frame all of
@@ -2297,7 +2333,7 @@ test-gouraudrgb: $(OBJ_DIR)
 		$(TORIDRAW_DIR)/toridraw_gouraudrgb_test.c -lm
 	./$(OBJ_DIR)/gouraudrgb_test
 
-.PHONY: test-scanline test-gouraudrgb test-texture-matrix test-texmap test-render-hd
+.PHONY: test-scanline test-raster-kernel test-raster-kernel-pixel16 test-gouraudrgb test-texture-matrix test-texmap test-render-hd
 
 # The `texplane` compositing matrix on the `branching` family:
 # gate {texopaque,textrans,texalpha} x facealpha x modulate, plus clamp

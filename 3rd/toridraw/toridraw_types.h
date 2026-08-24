@@ -4,6 +4,7 @@
 #include "graphics/projection.h"
 #include "graphics/zdepth.h"
 #include "toridraw_intrusive_list.h"
+#include "toridraw_texture_mapping.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -253,10 +254,6 @@ enum ToriDraw_ModelKind
     TORIDRAWMK_MODEL_HD = 3,
 };
 
-/* Defined in graphics/raster/texture/texmap_common.h. Only ever held by pointer
- * here, so the model header does not pull in the raster layer. */
-struct ToriDraw_TexMapping;
-
 /**
  * A model that carries what the HD (procedural-material) render path needs, and
  * that nothing else does.
@@ -438,6 +435,7 @@ struct ToriDraw_Animation;
 struct ToriDraw_Map;
 struct ToriDraw_Vec;
 struct ToriDraw_ScenePendingPose;
+struct ToriDraw_RasterKernel;
 struct ToriDraw_Sprite;
 struct ToriDraw_Font;
 struct ToriDraw_Sound;
@@ -729,6 +727,11 @@ struct ToriDraw_Scene
     int anim_list_count;
     int anim_list_cap;
     bool anim_list_dirty;
+
+    /* Appended so the assembly-sensitive projection fields above retain their
+     * offsets. NULL means inherit the active raster entry point's terminal. */
+    const struct ToriDraw_RasterKernel* raster_kernel;
+    bool raster_pass_active;
 };
 
 #define TORIDRAW_CULL_VISIBLE 0

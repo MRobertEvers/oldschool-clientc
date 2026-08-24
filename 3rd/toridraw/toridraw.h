@@ -10,6 +10,7 @@
 #include "toridraw_model.h"
 #include "toridraw_model_sprite.h"
 #include "toridraw_model_transform.h"
+#include "toridraw_raster_kernel.h"
 #include "toridraw_scene.h"
 #include "toridraw_sprite.h"
 #include "toridraw_types.h"
@@ -25,9 +26,11 @@ void
 ToriDraw_Init(void);
 
 /**
- * Select the `scanline` raster family instead of the default `branching` /
- * `sort` kernels. Off by default; ToriDraw_Init() also honours
- * TORIDRAW_RASTER_SCANLINE=1 in the environment.
+ * Compatibility selector for the terminal inherited by an unpinned scene (or
+ * by null slots in a sparse raster-kernel chain). A complete explicitly bound
+ * kernel remains pinned. Off by default; ToriDraw_Init() also honours
+ * TORIDRAW_RASTER_SCANLINE=1 in the environment. New code should bind one of
+ * the built-in roots with ToriDraw_SceneSetRasterKernel instead.
  */
 /* The HD render flow and its material table. */
 #include "toridraw_render_hd.h"
