@@ -95,6 +95,11 @@ MEMTRACE_SUFFIX = _mt
 else
 MEMTRACE_SUFFIX =
 endif
+ifeq ($(MEMPROF),1)
+MEMPROF_SUFFIX = _mp
+else
+MEMPROF_SUFFIX =
+endif
 ifeq ($(ENABLE_ASAN),1)
 ASAN_SUFFIX = _asan
 else
@@ -121,10 +126,10 @@ else
 EMBED_SERVER_SUFFIX =
 endif
 ifeq ($(OPT),1)
-OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(MEMTRACE_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
+OBJ_DIR = $(PLATFORM_OBJ_BASE)_opt$(MEMTRACE_SUFFIX)$(MEMPROF_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
 O_LEVEL = -O3
 else
-OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
+OBJ_DIR = $(PLATFORM_OBJ_BASE)$(MEMTRACE_SUFFIX)$(MEMPROF_SUFFIX)$(ASAN_SUFFIX)$(UBSAN_SUFFIX)$(NOSIMD_SUFFIX)$(TORIDRAW_OPT_SUFFIX)$(EMBED_SERVER_SUFFIX)
 O_LEVEL = $(PLATFORM_DEBUG_O_LEVEL)
 endif
 
@@ -392,6 +397,33 @@ TORIDRAW_CFLAGS += $(MEMTRACE_CFLAGS)
 LDFLAGS += $(PLATFORM_MEMTRACE_WRAP_LDFLAGS)
 endif
 
+# --- Retained-heap profiling (MEMPROF=1) ---------------------------------
+# Windows-only sibling of MEMTRACE, and mutually exclusive with it: both define
+# the same __wrap_ entry points. This one keeps live totals per call site rather
+# than a timeline, so it answers "what is still allocated at exit, and by whom".
+# Its own wrap list rather than PLATFORM_MEMTRACE_WRAP_LDFLAGS -- ld errors on
+# a wrapped symbol whose __wrap_ half nobody defines, and this file defines
+# five of the seven that list names.
+# -g only: the profiler reads __builtin_return_address(0), not the stack, so the
+# frame pointer stays omitted and the lane keeps the codegen it is measuring.
+ifeq ($(MEMPROF),1)
+ifeq ($(MEMTRACE),1)
+$(error MEMPROF=1 and MEMTRACE=1 both define __wrap_malloc - pick one)
+endif
+ifeq ($(ENABLE_ASAN),1)
+$(error MEMPROF=1 and ENABLE_ASAN=1 both hook malloc - pick one)
+endif
+MEMPROF_CFLAGS := -DTORIRS_MEMPROF=1 -g \
+	-fno-builtin-malloc -fno-builtin-calloc -fno-builtin-realloc -fno-builtin-free
+CFLAGS          += $(MEMPROF_CFLAGS)
+RSCACHE_CFLAGS  += $(MEMPROF_CFLAGS)
+RSPROT_CFLAGS   += $(MEMPROF_CFLAGS)
+COMPRESS_CFLAGS += $(MEMPROF_CFLAGS)
+TORIDRAW_CFLAGS += $(MEMPROF_CFLAGS)
+LDFLAGS += -Wl,--wrap=malloc -Wl,--wrap=calloc -Wl,--wrap=realloc \
+	-Wl,--wrap=free -Wl,--wrap=strdup
+endif
+
 # platform/platform_sdl2*.c is shared (emscripten ports SDL2); the IO, audio
 # and 3D-renderer backends are per-platform and come in via $(PLATFORM_SRCS).
 SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_EXEC_SRC) \
@@ -555,6 +587,9 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	perf/torirs_perf.c
 ifeq ($(MEMTRACE),1)
 SRCS += platform/torirs_memtrace.c
+endif
+ifeq ($(MEMPROF),1)
+SRCS += platform/torirs_memprof_win32.c
 endif
 
 # Defined up here, above both the EMBED_SERVER block and the $(TARGET) rule.

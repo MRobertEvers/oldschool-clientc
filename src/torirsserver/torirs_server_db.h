@@ -74,11 +74,21 @@ struct ToriRSServerDbTable
     int column_count;
 };
 
+/** One value in a tuple. Which member is live is not recorded here — the
+ *  column's `is_string[position]` says, with position = index % type_count in
+ *  any flat values array. It used to be a pair (text non-NULL marking the
+ *  strings), but the tag merely restated the schema at a cost of 4 bytes per
+ *  value across the cache's ~2.4M imported values — and letting `text` answer
+ *  "is this a string" invited exactly the bug where a value of 0 and an absent
+ *  string were indistinguishable. */
 struct ToriRSServerDbValue
 {
-    int value;
-    /** Non-NULL only where the column's type at this position is `string`. */
-    const char* text;
+    union
+    {
+        int value;
+        /** May still be NULL on a string position: `null` spelled out. */
+        const char* text;
+    };
 };
 
 struct ToriRSServerDbRowColumn
@@ -92,12 +102,28 @@ struct ToriRSServerDbRowColumn
     int capacity;
 };
 
+/** One column a row actually states, keyed by the table's sparse column id. */
+struct ToriRSServerDbRowCell
+{
+    int col_id;
+    struct ToriRSServerDbRowColumn store;
+};
+
 struct ToriRSServerDbRow
 {
     const char* symbol;
     int row_id;
     int table_id;
-    struct ToriRSServerDbRowColumn columns[TORIRSSERVER_DB_COLUMN_MAX];
+    /** Sparse, in first-write order. A typical row states 1-3 of the 64
+     *  addressable columns, so the inline
+     *  `columns[TORIRSSERVER_DB_COLUMN_MAX]` array this replaces was ~97%
+     *  zeroes — ~21MB across the cache's ~25k rows. Read through
+     *  `ToriRSServer_DbRowColumn`, which answers NULL for a column the row
+     *  does not state — the same "fall back to the table's defaults" signal
+     *  a zero count used to carry. */
+    struct ToriRSServerDbRowCell* cells;
+    int cell_count;
+    int cell_capacity;
 };
 
 /** Read every `*.dbtable` then every `*.dbrow` under `dir`, recursively.
@@ -118,6 +144,14 @@ ToriRSServer_DbTable(int table_id);
 /** By the id `pack/dbrow.pack` gives its name, or NULL. */
 const struct ToriRSServerDbRow*
 ToriRSServer_DbRow(int row_id);
+
+/** The values `row` states at `col_id`, or NULL when it states none — the
+ *  caller then falls back to the column's defaults, exactly as it did when
+ *  every row carried an (empty) store for every column. */
+const struct ToriRSServerDbRowColumn*
+ToriRSServer_DbRowColumn(
+    const struct ToriRSServerDbRow* row,
+    int col_id);
 
 /** Column index within its table, or -1. */
 int

@@ -728,10 +728,12 @@ dat2_edit_ensure_table(
 
 static bool
 dat2_edit_set_children(
+    struct RSCache_ReferenceTable* table,
     struct RSCache_ReferenceTableArchive* archive,
     const int* file_ids,
     int file_count)
 {
+    assert(table != NULL);
     assert(archive != NULL);
     assert(file_count >= 0);
     assert(file_count == 0 || file_ids != NULL);
@@ -746,7 +748,10 @@ dat2_edit_set_children(
             files[i].id = file_ids[i];
     }
 
-    free(archive->children.files);
+    /* A decoded archive's children are a slice of the table's pool — replacing
+     * them just abandons the slice; only an owned array is freed. */
+    if( !RSCache_ReferenceTableChildrenPooled(table, archive->children.files) )
+        free(archive->children.files);
     archive->children.files = files;
     archive->children.count = file_count;
     return true;
@@ -771,17 +776,24 @@ dat2_edit_update_reference_entry(
         archive->uncompressed = info->uncompressed;
     }
     if( (table->flags & RSCACHE_REFTABLE_FLAG_WHIRLPOOL) != 0 )
-        memcpy(archive->whirlpool, info->whirlpool, sizeof(archive->whirlpool));
+    {
+        if( !archive->whirlpool )
+        {
+            archive->whirlpool = malloc(RSCACHE_REFTABLE_WHIRLPOOL_BYTES);
+            assert(archive->whirlpool);
+        }
+        memcpy(archive->whirlpool, info->whirlpool, RSCACHE_REFTABLE_WHIRLPOOL_BYTES);
+    }
 
     if( info->update_children )
     {
-        if( !dat2_edit_set_children(archive, info->file_ids, info->file_count) )
+        if( !dat2_edit_set_children(table, archive, info->file_ids, info->file_count) )
             return false;
     }
     else if( archive->children.count == 0 )
     {
         int zero = 0;
-        if( !dat2_edit_set_children(archive, &zero, 1) )
+        if( !dat2_edit_set_children(table, archive, &zero, 1) )
             return false;
     }
 

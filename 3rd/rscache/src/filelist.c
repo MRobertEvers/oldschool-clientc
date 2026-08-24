@@ -24,14 +24,28 @@
  * on such a group reads the wrong file and runs off the end for the last frame.
  * See seq_file_pos_for_id() in src/engine/dat2/task_dat2_sequence_load.c.
  */
-struct RSCache_FileList*
-RSCache_FileListNewFromDecode(
+/*
+ * Core of the two decode entry points. With `out_blob` NULL every member gets
+ * its own allocation and the result is freed with RSCache_FileListFree — the
+ * historical contract, and some callers rely on it to steal or replace
+ * individual member pointers. With `out_blob` non-NULL every member's bytes
+ * land in one shared block (returned through `out_blob`); the member pointers
+ * alias it and must never be freed or reseated individually, and the result is
+ * freed with RSCache_FileListFreeShared.
+ */
+static struct RSCache_FileList*
+filelist_new_from_decode(
     char* data,
     int data_size,
-    int num_files)
+    int num_files,
+    char** out_blob)
 {
     struct RSCache_FileList* filelist = malloc(sizeof(struct RSCache_FileList));
     assert(filelist != NULL);
+
+    char* blob = NULL;
+    if( out_blob )
+        *out_blob = NULL;
 
     struct RSCache_Buffer buffer;
     RSCache_BufferInit(&buffer, data, data_size);
@@ -64,7 +78,7 @@ RSCache_FileListNewFromDecode(
 
     if( num_files == 1 )
     {
-        filelist->files[0] = malloc((size_t)data_size);
+        filelist->files[0] = malloc((size_t)data_size > 0 ? (size_t)data_size : 1u);
         if( !filelist->files[0] )
         {
             free(filelist->files);
@@ -74,6 +88,8 @@ RSCache_FileListNewFromDecode(
         }
         memcpy(filelist->files[0], data, (size_t)data_size);
         filelist->file_sizes[0] = data_size;
+        if( out_blob )
+            *out_blob = filelist->files[0];
         return filelist;
     }
 
@@ -130,9 +146,38 @@ RSCache_FileListNewFromDecode(
          * cast of it. */
         if( sizes[id] < 0 || (uint64_t)sizes[id] > (uint64_t)buffer.size )
             goto error;
-        filelist->files[id] = malloc((size_t)sizes[id] ? (size_t)sizes[id] : 1u);
-        if( !filelist->files[id] )
+    }
+
+    if( out_blob )
+    {
+        /* The members partition the payload, so their sizes cannot sum past the
+         * container — a table that says otherwise is malformed, and on a 32-bit
+         * size_t the sum could also wrap and undersize the block. */
+        uint64_t total = 0;
+        for( int id = 0; id < num_files; id++ )
+            total += (uint64_t)sizes[id];
+        if( total > (uint64_t)buffer.size )
             goto error;
+
+        blob = malloc(total > 0 ? (size_t)total : 1u);
+        if( !blob )
+            goto error;
+
+        total = 0;
+        for( int id = 0; id < num_files; id++ )
+        {
+            filelist->files[id] = blob + total;
+            total += (uint64_t)sizes[id];
+        }
+    }
+    else
+    {
+        for( int id = 0; id < num_files; id++ )
+        {
+            filelist->files[id] = malloc((size_t)sizes[id] ? (size_t)sizes[id] : 1u);
+            if( !filelist->files[id] )
+                goto error;
+        }
     }
 
     buffer.position = 0;
@@ -157,6 +202,8 @@ RSCache_FileListNewFromDecode(
     free(sizes);
     free(file_offsets);
 
+    if( out_blob )
+        *out_blob = blob;
     return filelist;
 
 error:
@@ -169,8 +216,51 @@ error:
 
     free(sizes);
     free(file_offsets);
-    RSCache_FileListFree(filelist);
+    if( out_blob )
+    {
+        /* The member pointers alias `blob` — RSCache_FileListFree would free
+         * each of them individually. */
+        free(blob);
+        free(filelist->files);
+        free(filelist->file_sizes);
+        free(filelist);
+    }
+    else
+        RSCache_FileListFree(filelist);
     return NULL;
+}
+
+struct RSCache_FileList*
+RSCache_FileListNewFromDecode(
+    char* data,
+    int data_size,
+    int num_files)
+{
+    return filelist_new_from_decode(data, data_size, num_files, NULL);
+}
+
+struct RSCache_FileList*
+RSCache_FileListNewFromDecodeShared(
+    char* data,
+    int data_size,
+    int num_files,
+    char** out_blob)
+{
+    assert(out_blob);
+    return filelist_new_from_decode(data, data_size, num_files, out_blob);
+}
+
+void
+RSCache_FileListFreeShared(
+    struct RSCache_FileList* filelist,
+    char* blob)
+{
+    free(blob);
+    if( !filelist )
+        return;
+    free(filelist->files);
+    free(filelist->file_sizes);
+    free(filelist);
 }
 
 uint32_t

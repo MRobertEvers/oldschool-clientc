@@ -42,10 +42,6 @@
 #define TORIDRAW_DEPTH_LEVELS_16K       16384
 #define TORIDRAW_FULL_DEPTH_STRIDE 512
 
-#define TORIDRAW_SMALL_MAX_VERTICES  1024
-#define TORIDRAW_SMALL_MAX_FACES     2048
-#define TORIDRAW_SMALL_FLEX_PRIO11   TORIDRAW_SMALL_MAX_FACES
-#define TORIDRAW_SMALL_FLEX_PRIO12   TORIDRAW_SMALL_MAX_FACES
 
 struct ToriDraw_ScratchProfile
 {
@@ -128,23 +124,22 @@ resolve_caps(
                              ? TORIDRAW_DEPTH_LEVELS_16K
                              : TORIDRAW_DEPTH_LEVELS_REFERENCE;
 
+    /* Capacity always comes from the tier; SMALL only selects the CSR
+     * sorter, whose buffers scale with max_faces instead of carrying the
+     * dense depth_levels x depth_stride bucket table. */
+    caps->max_vertices = profile->max_vertices;
+    caps->max_faces = profile->max_faces;
+    caps->flex_prio11 = profile->flex_prio11;
+    caps->flex_prio12 = profile->flex_prio12;
     if( caps->small_mode )
     {
-        caps->max_vertices = TORIDRAW_SMALL_MAX_VERTICES;
-        caps->max_faces = TORIDRAW_SMALL_MAX_FACES;
         caps->depth_stride = 0;
         caps->priority_stride = 0;
-        caps->flex_prio11 = TORIDRAW_SMALL_FLEX_PRIO11;
-        caps->flex_prio12 = TORIDRAW_SMALL_FLEX_PRIO12;
     }
     else
     {
-        caps->max_vertices = profile->max_vertices;
-        caps->max_faces = profile->max_faces;
         caps->depth_stride = TORIDRAW_FULL_DEPTH_STRIDE;
         caps->priority_stride = profile->priority_stride;
-        caps->flex_prio11 = profile->flex_prio11;
-        caps->flex_prio12 = profile->flex_prio12;
     }
 
     return true;
@@ -267,7 +262,11 @@ ToriDraw_SceneAllocBuffers(
     if( caps->small_mode )
     {
         scene->sm_face_depth = malloc((size_t)caps->max_faces * sizeof(faceint_t));
-        scene->sm_depth_offset = malloc((size_t)(caps->depth_levels + 1) * sizeof(int));
+        /* calloc, not malloc: the counting sort never clears this table whole.
+         * Each sort re-zeroes only the [min, max + 1] window it dirtied after
+         * its consumer has walked it, so the all-zero state is established
+         * here, once (the full-mode tmp_depth_face_count invariant). */
+        scene->sm_depth_offset = calloc((size_t)(caps->depth_levels + 1), sizeof(int));
         scene->sm_depth_cursor = malloc((size_t)caps->depth_levels * sizeof(int));
         scene->sm_faces_by_depth = malloc((size_t)caps->max_faces * sizeof(faceint_t));
         scene->sm_prio_offset = malloc(13 * sizeof(int));

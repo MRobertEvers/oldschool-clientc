@@ -339,7 +339,8 @@ check_reftable_roundtrip(
             archive->children.files[j].name_hash = 0x5000 + j;
         }
 
-        for( int b = 0; b < 64; b++ )
+        archive->whirlpool = malloc(RSCACHE_REFTABLE_WHIRLPOOL_BYTES);
+        for( int b = 0; b < RSCACHE_REFTABLE_WHIRLPOOL_BYTES; b++ )
             archive->whirlpool[b] = (unsigned char)(ids[i] * 3 + b);
     }
 
@@ -411,7 +412,10 @@ check_reftable_roundtrip(
 
     free(encoded);
     for( int i = 0; i < id_count; i++ )
+    {
         free(source.archives[ids[i]].children.files);
+        free(source.archives[ids[i]].whirlpool);
+    }
     free(source.archives);
     free(source.ids);
 }

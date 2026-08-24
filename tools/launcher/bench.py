@@ -67,10 +67,24 @@ UNITS_PER_TURN = 2048
 # to put beside a soft3d number is the GPU number from the same scene.
 RENDERER_FLAGS = {
     "soft3d": "--soft3d",
+    # The same binary and the same flag as `soft3d`, with the scanline raster
+    # family selected instead of the default kernels. The client has no CLI
+    # switch for this — toridraw.c reads TORIDRAW_RASTER_SCANLINE once in
+    # ToriDraw_Init — so the variant lives in RENDERER_ENV, not here.
+    "soft3d-scanline": "--soft3d",
     "d3d9": "--d3d9",
     "d3d9-zbuffer": "--d3d9-zbuffer",
     "opengl3": "--opengl3",
     "opengl3-zbuffer": "--opengl3-zbuffer",
+}
+
+# Environment a renderer variant needs on top of the scene's. Plain `soft3d`
+# pins the selector to 0 rather than leaving it unset, so a stray
+# TORIDRAW_RASTER_SCANLINE=1 in the machine's environment cannot quietly turn
+# an A/B into a B/B.
+RENDERER_ENV = {
+    "soft3d": {"TORIDRAW_RASTER_SCANLINE": "0"},
+    "soft3d-scanline": {"TORIDRAW_RASTER_SCANLINE": "1"},
 }
 
 # The stage timers worth a column. `frame` is the whole loop iteration minus
@@ -634,6 +648,7 @@ class Run:
             # driver to point anywhere.
             "SDL_VIDEODRIVER": "dummy",
         }
+        env.update(RENDERER_ENV.get(self.renderer, {}))
         path = self.scene.wedge_cam_path_env()
         if path:
             # Set alongside TORIRS_WEDGE_CAM, not instead of it: the path

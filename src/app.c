@@ -7886,8 +7886,14 @@ App_Init(
      * Imported content — models built for a z-buffered client, whose parts
      * genuinely interpenetrate — has no correct face order to find, and this is
      * how those get the answer their geometry assumes. */
+    /* SMALL selects the CSR face sorter, not a capacity: the tier still sets
+     * vertex/face limits. The dense sorter's bucket table costs
+     * depth_levels * depth_stride * 2 bytes (16MB at DEPTH_16K) and ran at
+     * under 1%% occupancy; the CSR form scales with max_faces (~1MB) and its
+     * per-model passes are windowed to the model's depth span, so the draw
+     * cost stays proportional to the model like the dense path. */
     app->scene = ToriDraw_SceneNew(
-        TORIDRAW_SCENE_DEPTH_16K | TORIDRAW_SCENE_MODEL_ZBUFFER,
+        TORIDRAW_SCENE_SMALL | TORIDRAW_SCENE_DEPTH_16K | TORIDRAW_SCENE_MODEL_ZBUFFER,
         TORIDRAW_SCRATCH_BUFFER_VERYHIGH_16K);
     assert(app->scene);
     UITreeSceneBridge_Init(&app->bridge, app->scene, app->provider);

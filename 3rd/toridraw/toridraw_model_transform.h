@@ -6,6 +6,14 @@
 struct ToriDraw_Model*
 ToriDraw_ModelCopy(struct ToriDraw_Model* src);
 
+/**
+ * Heap bytes this model owns: the shell plus every array reachable from it.
+ * Mirrors ToriDraw_ModelCopy array for array, so it also answers "what would
+ * one more ToriDraw_ModelCopy of this cost".
+ */
+size_t
+ToriDraw_ModelHeapBytes(const struct ToriDraw_Model* model);
+
 /** Move all geometry from src into a new model; src arrays are NULL (free shell with ToriDraw_ModelFree). */
 struct ToriDraw_Model*
 ToriDraw_ModelSteal(struct ToriDraw_Model* src);

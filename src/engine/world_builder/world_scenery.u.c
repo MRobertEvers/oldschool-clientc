@@ -961,6 +961,7 @@ scenery_load_model(
     struct World* world = builder->world;
     struct ToriDraw_Model* model = NULL;
     int64_t proto_key = 0;
+    bool from_cache = false;
     bool const proto_shareable = scenery_loc_model_shareable(config_loc);
 
     /*
@@ -989,6 +990,7 @@ scenery_load_model(
 
     if( model )
     {
+        from_cache = true;
         /* Deferred draw-time rotation is an animated-loc mechanism, and
          * animated locs are never shareable — a non-zero value here means the
          * predicate and the shape helpers disagree about this loc. */
@@ -1019,6 +1021,29 @@ scenery_load_model(
                 TORIRS_MODEL_INST_LOC_BASE,
                 proto_key,
                 ToriDraw_ModelCopy(model));
+        }
+    }
+
+    if( wb_census_on() )
+    {
+        /* The cache's own copy is not counted: it is cleared at build end, so
+         * the steady-state cost of a key with N placements is N models, and
+         * sharing would make it 1. That 1 is the miss branch below. */
+        size_t const bytes = ToriDraw_ModelHeapBytes(model);
+        if( from_cache )
+        {
+            g_wb_census_dup_n++;
+            g_wb_census_dup_b += bytes;
+        }
+        else if( proto_shareable )
+        {
+            g_wb_census_proto_n++;
+            g_wb_census_proto_b += bytes;
+        }
+        else
+        {
+            g_wb_census_unique_n++;
+            g_wb_census_unique_b += bytes;
         }
     }
 

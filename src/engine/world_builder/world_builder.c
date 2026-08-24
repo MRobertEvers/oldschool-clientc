@@ -54,6 +54,33 @@ static double g_wb_t_model_transform_ms; /* apply_transforms + SD strip + bounds
 static int g_wb_n_model_builds;
 static int g_wb_n_model_srcs;
 
+/*
+ * Scenery model heap census (TORIRS_SCENERY_CENSUS=1). Splits the scene's model
+ * bytes into the part that is irreducible -- one prototype per distinct
+ * (id, shape, rotation), plus every placement-dependent model -- and the part
+ * that is pure duplication, i.e. the per-placement ToriDraw_ModelCopy of a
+ * shareable prototype that nothing ever mutates. `dup` is what refcounting the
+ * shareable path would hand back.
+ */
+static int g_wb_census_proto_n;      /* distinct shareable prototypes built */
+static size_t g_wb_census_proto_b;
+static int g_wb_census_dup_n;        /* placements served from the prototype cache */
+static size_t g_wb_census_dup_b;
+static int g_wb_census_unique_n;     /* non-shareable, genuinely per-placement */
+static size_t g_wb_census_unique_b;
+
+static int
+wb_census_on(void)
+{
+    static int v = -1;
+    if( v < 0 )
+    {
+        const char* e = getenv("TORIRS_SCENERY_CENSUS");
+        v = (e && *e && *e != '0') ? 1 : 0;
+    }
+    return v;
+}
+
 /* Cached env-flag probes for the per-model / per-tile debug hooks below.
  * getenv() in those loops was the single hottest symbol of a whole rebuild
  * (__findenv_locked walks the environment list on every call — ~8k models and
@@ -325,6 +352,12 @@ WorldBuilder_RebuildCenterzoneBegin(
     g_wb_t_model_transform_ms = 0.0;
     g_wb_n_model_builds = 0;
     g_wb_n_model_srcs = 0;
+    g_wb_census_proto_n = 0;
+    g_wb_census_proto_b = 0;
+    g_wb_census_dup_n = 0;
+    g_wb_census_dup_b = 0;
+    g_wb_census_unique_n = 0;
+    g_wb_census_unique_b = 0;
 
     /* Loc configs may have been reloaded (varbit morphs re-resolve per place;
      * the map editor re-seeds the provider) — a prototype baked from the old
@@ -931,6 +964,24 @@ WorldBuilder_RebuildCenterzoneEnd(struct WorldBuilder* builder)
             g_wb_n_model_srcs,
             g_wb_t_model_convert_ms,
             g_wb_t_model_transform_ms);
+    }
+
+    if( wb_census_on() )
+    {
+        size_t const kept = g_wb_census_proto_b + g_wb_census_unique_b;
+        fprintf(
+            stderr,
+            "scenery_census: total=%.2fMB kept=%.2fMB dup=%.2fMB | protos n=%d %.2fMB "
+            "| dup_placements n=%d %.2fMB | unique n=%d %.2fMB\n",
+            (double)(kept + g_wb_census_dup_b) / (1024.0 * 1024.0),
+            (double)kept / (1024.0 * 1024.0),
+            (double)g_wb_census_dup_b / (1024.0 * 1024.0),
+            g_wb_census_proto_n,
+            (double)g_wb_census_proto_b / (1024.0 * 1024.0),
+            g_wb_census_dup_n,
+            (double)g_wb_census_dup_b / (1024.0 * 1024.0),
+            g_wb_census_unique_n,
+            (double)g_wb_census_unique_b / (1024.0 * 1024.0));
     }
 
     world->load_complete = true;

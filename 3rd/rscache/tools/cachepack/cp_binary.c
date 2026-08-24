@@ -507,19 +507,36 @@ cp_reference_sync(
 
     if( children_differ )
     {
-        struct RSCache_ReferenceTableArchiveFile* grown = realloc(
-            archive->children.files, (size_t)file_count * sizeof(*grown));
-        if( !grown )
-            return 0;
+        struct RSCache_ReferenceTableArchiveFile* grown;
+        int old_count = archive->children.count;
+
+        if( RSCache_ReferenceTableChildrenPooled(rt, archive->children.files) )
+        {
+            /* A decoded archive's children are a slice of the table's pool and
+             * cannot be realloc'd; replace with an owned array and abandon the
+             * slice. */
+            grown = malloc((size_t)file_count * sizeof(*grown));
+            if( !grown )
+                return 0;
+            for( int i = 0; i < file_count && i < old_count; i++ )
+                grown[i] = archive->children.files[i];
+        }
+        else
+        {
+            grown = realloc(archive->children.files, (size_t)file_count * sizeof(*grown));
+            if( !grown )
+                return 0;
+        }
         /* The name hash is the client's `getArchive(name)` key. A file the tree
          * did not previously hold has no name to hash, so it gets -1 — which is
          * what the decoder reads for "unnamed" and what every id-addressed table
-         * already carries. */
+         * already carries. (Hashes for kept files are already in `grown` —
+         * realloc preserved them, the pooled path copied them.) */
         for( int i = 0; i < file_count; i++ )
         {
             grown[i].id = file_ids[i];
-            grown[i].name_hash = i < archive->children.count ? archive->children.files[i].name_hash
-                                                             : -1;
+            if( i >= old_count )
+                grown[i].name_hash = -1;
         }
         archive->children.files = grown;
         archive->children.count = file_count;
@@ -533,7 +550,14 @@ cp_reference_sync(
             archive->uncompressed = uncompressed;
     }
     if( rt->flags & RSCACHE_REFTABLE_FLAG_WHIRLPOOL )
+    {
+        if( !archive->whirlpool )
+        {
+            archive->whirlpool = malloc(RSCACHE_REFTABLE_WHIRLPOOL_BYTES);
+            assert(archive->whirlpool);
+        }
         RSCache_Whirlpool(container, (uint32_t)body, archive->whirlpool);
+    }
 
     /*
      * Take the version from the archive's own trailer rather than incrementing.

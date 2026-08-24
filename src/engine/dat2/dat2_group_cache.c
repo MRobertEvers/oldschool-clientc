@@ -43,8 +43,7 @@ dat2_group_cache_release(struct Dat2GroupCacheSlot* slot, size_t* bytes)
 {
     if( !slot->occupied )
         return;
-    if( slot->group.filelist )
-        RSCache_FileListFree(slot->group.filelist);
+    RSCache_FileListFreeShared(slot->group.filelist, slot->group.blob);
     free(slot->group.file_ids);
     assert(*bytes >= slot->group.bytes);
     *bytes -= slot->group.bytes;
@@ -165,6 +164,7 @@ Dat2GroupCache_Put(
 {
     struct Dat2GroupCacheSlot* slot;
     struct RSCache_FileList* filelist;
+    char* blob = NULL;
     int* file_ids = NULL;
     size_t bytes;
 
@@ -178,8 +178,8 @@ Dat2GroupCache_Put(
         return &slot->group;
     }
 
-    filelist = RSCache_FileListNewFromDecode(
-        archive->data, archive->data_size, archive->file_count);
+    filelist = RSCache_FileListNewFromDecodeShared(
+        archive->data, archive->data_size, archive->file_count, &blob);
     if( !filelist )
         return NULL;
 
@@ -206,7 +206,7 @@ Dat2GroupCache_Put(
     slot = dat2_group_cache_free_slot(cache);
     if( !slot )
     {
-        RSCache_FileListFree(filelist);
+        RSCache_FileListFreeShared(filelist, blob);
         free(file_ids);
         return NULL;
     }
@@ -216,6 +216,7 @@ Dat2GroupCache_Put(
     slot->group.table = table;
     slot->group.group = group;
     slot->group.filelist = filelist;
+    slot->group.blob = blob;
     slot->group.file_ids = file_ids;
     slot->group.file_count = archive->file_count;
     slot->group.revision = archive->revision;

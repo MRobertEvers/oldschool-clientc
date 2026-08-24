@@ -168,6 +168,13 @@ struct D3D9UIRotmaskSlot
     IDirect3DTexture9* mask_texture;
     UINT mask_texture_width;
     UINT mask_texture_height;
+    /* Content hash of the sprite the texture was last uploaded from; lets a
+     * frame whose sprite pixels are byte-identical skip the MANAGED
+     * lock/convert/upload entirely. */
+    uint32_t source_hash;
+    uint32_t mask_hash;
+    bool source_hash_valid;
+    bool mask_hash_valid;
     bool used;
 };
 
@@ -415,9 +422,21 @@ d3d9_zbuffer_begin_pass(struct ToriRS_D3D9* renderer);
 void
 d3d9_zbuffer_apply_pass_states(struct ToriRS_D3D9* renderer, bool blended_pass);
 
+/** Push the frame's gathered per-page opaque indices onto the core's IBO
+ *  chain, one node per (binding, page) instead of one per model.  Must run
+ *  before the core draws that chain. */
+void
+d3d9_zbuffer_flush_opaque(struct ToriRS_D3D9* renderer);
+
 /** Draw the deferred blended pass, after the core has drawn the opaque chain. */
 void
 d3d9_zbuffer_end_pass(struct ToriRS_D3D9* renderer);
+
+/** Print the depth path's retained CPU allocations to stdout, one
+ *  "d3d9_mem:" line per pool.  No-op in painter mode.  Part of the shutdown
+ *  memory report the core assembles in ToriRS_D3D9_Free. */
+void
+d3d9_zbuffer_report_memory(struct ToriRS_D3D9* renderer);
 
 /** Drop pass-scoped queues.  Runs on every end-of-3D, including early exits. */
 void

@@ -10,13 +10,21 @@ struct RSCache_ReferenceTableArchiveFile
     int id;
 };
 
+/* One digest per archive, allocated only when the table's whirlpool flag is
+ * set. Inlining the 64 bytes made this struct 100 bytes, and the resident
+ * tables (models alone is tens of thousands of archives) paid ~13MB for a
+ * field no shipped cache uses. */
+#define RSCACHE_REFTABLE_WHIRLPOOL_BYTES 64
+
 struct RSCache_ReferenceTableArchive
 {
     int index;
     int identifier;
     int crc;
     int hash;
-    unsigned char whirlpool[64];
+    /* NULL unless RSCACHE_REFTABLE_FLAG_WHIRLPOOL is set on the table; then
+     * RSCACHE_REFTABLE_WHIRLPOOL_BYTES bytes, owned by the table. */
+    unsigned char* whirlpool;
     int compressed;
     int uncompressed;
     int version;
@@ -50,6 +58,19 @@ struct RSCache_ReferenceTable
      */
     int id_capacity;
     int archive_capacity;
+
+    /*
+     * Decode pools every archive's children into this one block —
+     * `archives[].children.files` are slices of it. One allocation instead of
+     * one per archive: the resident tables carry ~139k child arrays averaging a
+     * few dozen bytes, so per-array headers rivalled the payload. A tool that
+     * replaces an archive's children mallocs a fresh array and leaves the dead
+     * slice in the pool; RSCache_ReferenceTableChildrenPooled tells the two
+     * ownerships apart, and the free paths consult it. NULL for a table built
+     * by hand (those allocate per archive, as ever).
+     */
+    struct RSCache_ReferenceTableArchiveFile* children_pool;
+    size_t children_pool_count;
 };
 
 #define RSCACHE_REFTABLE_FLAG_IDENTIFIERS 0x1
@@ -89,5 +110,13 @@ RSCache_ReferenceTableEncodeBound(const struct RSCache_ReferenceTable* table);
 
 void
 RSCache_ReferenceTableFree(struct RSCache_ReferenceTable* table);
+
+/** True when `files` is a slice of `table`'s pooled children block. A pooled
+ *  slice must never be freed or realloc'd — replace it and let the table free
+ *  the pool. `files` NULL answers false. */
+bool
+RSCache_ReferenceTableChildrenPooled(
+    const struct RSCache_ReferenceTable* table,
+    const struct RSCache_ReferenceTableArchiveFile* files);
 
 #endif

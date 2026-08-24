@@ -28,6 +28,7 @@
 
 #include "perf/torirs_perf.h"
 
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
@@ -77,6 +78,49 @@ struct D3D9AlphaSubmission
     uint32_t ordinal;
 };
 
+/**
+ * One model's contribution to an opaque bucket: where its indices sit in the
+ * bucket arena and the vertex span they reference.  The span is what software
+ * vertex processing pays for -- DrawIndexedPrimitive transforms every vertex
+ * in [min, max], referenced or not -- so the flush clusters segments by span
+ * locality instead of drawing whole pages.
+ */
+struct D3D9OpaqueSegment
+{
+    uint32_t first_index;
+    uint32_t index_count;
+    uint16_t min_vertex;
+    uint16_t max_vertex;
+};
+
+/**
+ * One frame's opaque/cutout indices for a single (binding, page_base) pair.
+ *
+ * Models arrive in scene-traversal order, which ping-pongs across the static
+ * batch pages -- pushed straight onto the IBO chain that order becomes one
+ * chain node (and so one draw call) per model.  Depth testing makes opaque
+ * submission order irrelevant, so the faces are gathered per page here and
+ * flushed as a handful of vertex-local clusters per page instead.  Slots keep
+ * their index and segment storage across frames; only the counts reset.
+ */
+struct D3D9OpaqueBucket
+{
+    uint32_t binding;
+    uint32_t page_base;
+    uint16_t* indices;
+    uint32_t index_count;
+    uint32_t index_capacity;
+    struct D3D9OpaqueSegment* segments;
+    uint32_t segment_count;
+    uint32_t segment_capacity;
+};
+
+/* When two sorted segments sit further apart than this many vertices, the
+ * flush starts a new cluster (draw call) rather than widening the span.  The
+ * threshold trades one draw call's fixed cost against software-transforming
+ * the gap's unreferenced vertices. */
+#define D3D9_OPAQUE_CLUSTER_GAP 2048u
+
 /** Everything depth mode owns that painter mode has no use for. */
 struct D3D9ZBufferWorld
 {
@@ -96,6 +140,14 @@ struct D3D9ZBufferWorld
     struct D3D9AlphaSubmission* alpha_submissions;
     uint32_t alpha_submission_count;
     uint32_t alpha_submission_capacity;
+
+    /* Per-page opaque gathering; see struct D3D9OpaqueBucket. */
+    struct D3D9OpaqueBucket* opaque_buckets;
+    uint32_t opaque_bucket_count;
+    uint32_t opaque_bucket_capacity;
+    /* Flush-time staging for one segment's cluster-rebased indices. */
+    uint16_t* cluster_scratch;
+    uint32_t cluster_scratch_capacity;
 };
 
 static struct D3D9ZBufferWorld*
@@ -475,6 +527,121 @@ d3d9_queue_alpha_submission(
     return true;
 }
 
+static void
+d3d9_queue_opaque_indices(
+    struct D3D9ZBufferWorld* world,
+    uint32_t binding,
+    uint32_t page_base,
+    const uint16_t* indices,
+    uint32_t index_count)
+{
+    struct D3D9OpaqueBucket* bucket = NULL;
+    uint32_t i;
+    assert(world);
+    assert(indices);
+    if( index_count == 0u )
+        return;
+    for( i = 0u; i < world->opaque_bucket_count; i++ )
+        if( world->opaque_buckets[i].binding == binding &&
+            world->opaque_buckets[i].page_base == page_base )
+        {
+            bucket = &world->opaque_buckets[i];
+            break;
+        }
+    if( !bucket )
+    {
+        if( world->opaque_bucket_count >= world->opaque_bucket_capacity )
+        {
+            uint32_t capacity = world->opaque_bucket_capacity
+                ? world->opaque_bucket_capacity * 2u
+                : 64u;
+            struct D3D9OpaqueBucket* grown = (struct D3D9OpaqueBucket*)realloc(
+                world->opaque_buckets,
+                (size_t)capacity * sizeof(*grown));
+            assert(grown);
+            memset(
+                grown + world->opaque_bucket_capacity,
+                0,
+                (size_t)(capacity - world->opaque_bucket_capacity) *
+                    sizeof(*grown));
+            world->opaque_buckets = grown;
+            world->opaque_bucket_capacity = capacity;
+        }
+        bucket = &world->opaque_buckets[world->opaque_bucket_count++];
+        bucket->binding = binding;
+        bucket->page_base = page_base;
+        bucket->index_count = 0u;
+    }
+    if( bucket->index_count + index_count > bucket->index_capacity )
+    {
+        uint32_t capacity = bucket->index_capacity ? bucket->index_capacity
+                                                   : 1024u;
+        uint16_t* grown;
+        while( capacity < bucket->index_count + index_count )
+            capacity *= 2u;
+        grown = (uint16_t*)realloc(
+            bucket->indices, (size_t)capacity * sizeof(*grown));
+        assert(grown);
+        bucket->indices = grown;
+        bucket->index_capacity = capacity;
+    }
+    memcpy(
+        bucket->indices + bucket->index_count,
+        indices,
+        (size_t)index_count * sizeof(*indices));
+    if( bucket->segment_count >= bucket->segment_capacity )
+    {
+        uint32_t capacity = bucket->segment_capacity
+            ? bucket->segment_capacity * 2u
+            : 64u;
+        struct D3D9OpaqueSegment* grown = (struct D3D9OpaqueSegment*)realloc(
+            bucket->segments, (size_t)capacity * sizeof(*grown));
+        assert(grown);
+        bucket->segments = grown;
+        bucket->segment_capacity = capacity;
+    }
+    {
+        struct D3D9OpaqueSegment* segment =
+            &bucket->segments[bucket->segment_count++];
+        uint16_t min_vertex = indices[0];
+        uint16_t max_vertex = indices[0];
+        for( i = 1u; i < index_count; i++ )
+        {
+            if( indices[i] < min_vertex )
+                min_vertex = indices[i];
+            if( indices[i] > max_vertex )
+                max_vertex = indices[i];
+        }
+        segment->first_index = bucket->index_count;
+        segment->index_count = index_count;
+        segment->min_vertex = min_vertex;
+        segment->max_vertex = max_vertex;
+    }
+    bucket->index_count += index_count;
+}
+
+static int
+d3d9_compare_opaque_segment(const void* lhs, const void* rhs)
+{
+    const struct D3D9OpaqueSegment* a = (const struct D3D9OpaqueSegment*)lhs;
+    const struct D3D9OpaqueSegment* b = (const struct D3D9OpaqueSegment*)rhs;
+    if( a->min_vertex != b->min_vertex )
+        return a->min_vertex < b->min_vertex ? -1 : 1;
+    return 0;
+}
+
+static int
+d3d9_compare_opaque_bucket(const void* lhs, const void* rhs)
+{
+    const struct D3D9OpaqueBucket* a = (const struct D3D9OpaqueBucket*)lhs;
+    const struct D3D9OpaqueBucket* b = (const struct D3D9OpaqueBucket*)rhs;
+    if( a->binding != b->binding )
+        return a->binding < b->binding ? -1 : 1;
+    if( a->page_base != b->page_base )
+        return a->page_base < b->page_base ? -1 : 1;
+    return 0;
+}
+
 static int
 d3d9_compare_alpha_submission(const void* lhs, const void* rhs)
 {
@@ -548,20 +715,213 @@ d3d9_zbuffer_destroy(struct ToriRS_D3D9* renderer)
     d3d9_material_pose_clear(&world->dynamic_material);
     free(world->alpha_indices);
     free(world->alpha_submissions);
+    for( uint32_t i = 0u; i < world->opaque_bucket_capacity; i++ )
+    {
+        free(world->opaque_buckets[i].indices);
+        free(world->opaque_buckets[i].segments);
+    }
+    free(world->opaque_buckets);
+    free(world->cluster_scratch);
     free(world);
     renderer->zbuffer = NULL;
+}
+
+static uint64_t
+d3d9_material_table_bytes(const struct D3D9MaterialTable* table)
+{
+    uint64_t bytes =
+        (uint64_t)table->element_capacity * sizeof(struct D3D9MaterialElement);
+    uint32_t element_index;
+    uint32_t track;
+    uint32_t pose;
+    for( element_index = 0u; element_index < table->element_count;
+         element_index++ )
+    {
+        for( track = 0u; track < TRSPK_POSE_TRACK_COUNT; track++ )
+        {
+            const struct D3D9MaterialTrack* t =
+                &table->elements[element_index].tracks[track];
+            bytes += (uint64_t)t->pose_capacity * sizeof(struct D3D9MaterialPose);
+            for( pose = 0u; pose < t->pose_count; pose++ )
+                bytes += t->poses[pose].face_count;
+        }
+    }
+    return bytes;
+}
+
+static uint64_t
+d3d9_ibochain_bytes(const struct TRSPK_IBOChain* chain, uint32_t* out_nodes)
+{
+    uint64_t bytes = 0u;
+    uint32_t nodes = 0u;
+    const struct TRSPK_IBOChainNode* node;
+    assert(chain);
+    for( node = chain->head; node; node = node->next )
+    {
+        bytes += sizeof(*node) + (uint64_t)node->capacity * sizeof(uint16_t);
+        nodes++;
+    }
+    for( node = chain->free_head; node; node = node->next )
+    {
+        bytes += sizeof(*node) + (uint64_t)node->capacity * sizeof(uint16_t);
+        nodes++;
+    }
+    if( out_nodes )
+        *out_nodes = nodes;
+    return bytes;
+}
+
+void
+d3d9_zbuffer_report_memory(struct ToriRS_D3D9* renderer)
+{
+    struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
+    uint64_t bucket_bytes = 0u;
+    uint64_t alpha_chain_bytes = 0u;
+    uint32_t alpha_chain_nodes = 0u;
+    uint32_t i;
+    if( !world )
+        return;
+    for( i = 0u; i < world->opaque_bucket_capacity; i++ )
+    {
+        bucket_bytes += sizeof(world->opaque_buckets[i]);
+        bucket_bytes +=
+            (uint64_t)world->opaque_buckets[i].index_capacity * sizeof(uint16_t);
+        bucket_bytes += (uint64_t)world->opaque_buckets[i].segment_capacity *
+            sizeof(struct D3D9OpaqueSegment);
+    }
+    if( world->alpha_ibo_chain )
+        alpha_chain_bytes =
+            d3d9_ibochain_bytes(world->alpha_ibo_chain, &alpha_chain_nodes);
+    printf(
+        "d3d9_mem: zb_materials          %10.2f MB\n"
+        "d3d9_mem: zb_batch_materials    %10.2f MB\n"
+        "d3d9_mem: zb_alpha_arena        %10.2f MB\n"
+        "d3d9_mem: zb_alpha_chain        %10.2f MB (%u nodes)\n"
+        "d3d9_mem: zb_opaque_buckets     %10.2f MB\n",
+        (double)d3d9_material_table_bytes(&world->materials) / 1048576.0,
+        (double)d3d9_material_table_bytes(&world->batch_materials) / 1048576.0,
+        ((double)world->alpha_index_capacity * sizeof(uint16_t) +
+            (double)world->alpha_submission_capacity *
+                sizeof(struct D3D9AlphaSubmission)) /
+            1048576.0,
+        (double)alpha_chain_bytes / 1048576.0,
+        alpha_chain_nodes,
+        (double)bucket_bytes / 1048576.0);
 }
 
 void
 d3d9_zbuffer_reset_pass(struct ToriRS_D3D9* renderer)
 {
     struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
+    uint32_t i;
     if( !world )
         return;
     if( world->alpha_ibo_chain )
         trspk_ibochain_reset(world->alpha_ibo_chain);
     world->alpha_index_count = 0u;
     world->alpha_submission_count = 0u;
+    for( i = 0u; i < world->opaque_bucket_count; i++ )
+    {
+        world->opaque_buckets[i].index_count = 0u;
+        world->opaque_buckets[i].segment_count = 0u;
+    }
+    world->opaque_bucket_count = 0u;
+}
+
+/**
+ * Push one segment's indices rebased against its cluster's minimum vertex.
+ *
+ * The chain merges consecutive pushes with an identical (binding, offset)
+ * pair, so segments of one cluster (same page_base + cluster_min) coalesce
+ * into a single node/draw while the next cluster's differing offset starts a
+ * fresh node.  Rebasing also means the draw range's vertex span covers only
+ * the cluster, which is what keeps software vertex processing from
+ * transforming an entire 64k page per draw.
+ */
+static void
+d3d9_push_opaque_segment(
+    struct ToriRS_D3D9* renderer,
+    struct D3D9ZBufferWorld* world,
+    const struct D3D9OpaqueBucket* bucket,
+    const struct D3D9OpaqueSegment* segment,
+    uint16_t cluster_min)
+{
+    const uint16_t* src = bucket->indices + segment->first_index;
+    uint32_t i;
+    assert(segment->index_count > 0u);
+    if( segment->index_count > world->cluster_scratch_capacity )
+    {
+        uint32_t capacity = world->cluster_scratch_capacity
+            ? world->cluster_scratch_capacity
+            : 1024u;
+        uint16_t* grown;
+        while( capacity < segment->index_count )
+            capacity *= 2u;
+        grown = (uint16_t*)realloc(
+            world->cluster_scratch, (size_t)capacity * sizeof(*grown));
+        assert(grown);
+        world->cluster_scratch = grown;
+        world->cluster_scratch_capacity = capacity;
+    }
+    for( i = 0u; i < segment->index_count; i++ )
+        world->cluster_scratch[i] = (uint16_t)(src[i] - cluster_min);
+    trspk_ibochain_push16(
+        renderer->ibo_chain,
+        bucket->binding,
+        bucket->page_base + cluster_min,
+        world->cluster_scratch,
+        segment->index_count);
+}
+
+void
+d3d9_zbuffer_flush_opaque(struct ToriRS_D3D9* renderer)
+{
+    struct D3D9ZBufferWorld* world = d3d9_zbuffer_state(renderer);
+    uint32_t i;
+    if( !world || world->opaque_bucket_count == 0u )
+        return;
+    /* Page order keeps consecutive chain nodes on the same VBO binding, so
+     * the draw loop's stream/page switches stay at their minimum. */
+    qsort(
+        world->opaque_buckets,
+        world->opaque_bucket_count,
+        sizeof(world->opaque_buckets[0]),
+        d3d9_compare_opaque_bucket);
+    for( i = 0u; i < world->opaque_bucket_count; i++ )
+    {
+        struct D3D9OpaqueBucket* bucket = &world->opaque_buckets[i];
+        uint16_t cluster_min = 0u;
+        uint16_t cluster_max = 0u;
+        uint32_t s;
+        if( bucket->segment_count == 0u )
+            continue;
+        qsort(
+            bucket->segments,
+            bucket->segment_count,
+            sizeof(bucket->segments[0]),
+            d3d9_compare_opaque_segment);
+        for( s = 0u; s < bucket->segment_count; s++ )
+        {
+            const struct D3D9OpaqueSegment* segment = &bucket->segments[s];
+            if( s == 0u ||
+                (segment->min_vertex > cluster_max &&
+                    (uint32_t)(segment->min_vertex - cluster_max) >
+                        D3D9_OPAQUE_CLUSTER_GAP) )
+            {
+                cluster_min = segment->min_vertex;
+                cluster_max = segment->max_vertex;
+            }
+            else if( segment->max_vertex > cluster_max )
+            {
+                cluster_max = segment->max_vertex;
+            }
+            d3d9_push_opaque_segment(
+                renderer, world, bucket, segment, cluster_min);
+        }
+        bucket->index_count = 0u;
+        bucket->segment_count = 0u;
+    }
+    world->opaque_bucket_count = 0u;
 }
 
 void
@@ -677,12 +1037,13 @@ d3d9_zbuffer_emit_model(
         renderer->model_indices[written++] = (uint16_t)(base + 1u);
         renderer->model_indices[written++] = (uint16_t)(base + 2u);
     }
-    trspk_ibochain_push16(
-        renderer->ibo_chain,
-        placement->binding,
-        placement->page_base,
-        renderer->model_indices,
-        written);
+    if( written > 0u )
+        d3d9_queue_opaque_indices(
+            world,
+            placement->binding,
+            placement->page_base,
+            renderer->model_indices,
+            written);
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_D3D9_Z_OPAQUE_TRIANGLES, written / 3u);
 
     /* Only models with true blended faces pay the legacy depth/priority sort.

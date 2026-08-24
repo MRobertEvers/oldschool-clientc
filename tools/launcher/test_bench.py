@@ -464,3 +464,14 @@ class CameraMotion(unittest.TestCase):
         scene = self.scene("at=3220,3170\n",
                            head="[bench]\nmotion=spline\nwrap=pingpong\n")
         self.assertIsNone(scene.motion)
+
+    def test_the_scanline_variant_is_the_same_flag_with_the_selector_pinned(self):
+        scene = self.scene("at=3220,3170\n")
+        default = Run(scene, "soft3d", 0, "out")
+        scanline = Run(scene, "soft3d-scanline", 0, "out")
+        self.assertEqual(default.args()[0], "--soft3d")
+        self.assertEqual(scanline.args()[0], "--soft3d")
+        # Both sides pin the selector: an inherited TORIDRAW_RASTER_SCANLINE=1
+        # on the bench machine must not turn the A/B into a B/B.
+        self.assertEqual(default.env()["TORIDRAW_RASTER_SCANLINE"], "0")
+        self.assertEqual(scanline.env()["TORIDRAW_RASTER_SCANLINE"], "1")

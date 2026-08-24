@@ -96,6 +96,14 @@ samples.
 ./launch bench osrs239-bench --baseline build/bench/osrs239-bench/<stamp>
 ```
 
+`soft3d-scanline` is a renderer *variant*, not a different flag: the same
+`--soft3d` binary launched with `TORIDRAW_RASTER_SCANLINE=1`, selecting the
+`graphics/raster/scanline/` kernel family instead of the default kernels
+(`bench.RENDERER_ENV` carries the variable; plain `soft3d` pins it to `0` so a
+stray value in the machine's environment cannot turn the A/B into a B/B). The
+bench world's `[bench] renderers=soft3d,soft3d-scanline` makes every scene a
+kernel A/B by default.
+
 Everything lands in `build/bench/<profile>/<stamp>/`: one `.csv` and
 `.csv.windows.csv` per run, the run's stdout+stderr in a `.log`, `--shots`
 BMPs under `shots/<run>/`, and a `summary.json` that `--baseline` reads back.
@@ -161,6 +169,37 @@ of ms more again in the run it writes its BMP from. **`cmds` is the number to
 trust between runs; the times need `--repeat` and a rested machine, and a delta
 under ~2x is not evidence on its own.** This is the harness's weakest point
 today.
+
+### Measured: the `scanline` family vs the default kernels (2026-08-23)
+
+Win64 `OPT=1`, 12 scenes x {`soft3d`, `soft3d-scanline`}, 1500 frames each.
+`cmds` and `r_cmds_model` were identical on both sides of every scene, so each
+pair is the same workload through a different rasteriser.
+
+| stage | median | range | slower in |
+|---|---|---|---|
+| `r_raster` | **+6.4%** | -5.9 .. +11.9% | 10/12 |
+| `render` | +2.7% | -8.0 .. +6.8% | 9/12 |
+| `frame` | +2.1% | -6.6 .. +6.5% | 9/12 |
+| `r_project` *(control)* | -0.4% | -12.8 .. +7.1% | 5/12 |
+| `r_sort` *(control)* | -0.3% | -6.2 .. +1.3% | 3/12 |
+
+**The scanline family is slower, by roughly 6% of raster time.** Read it off
+`r_raster`, not `frame`: the kernel cannot touch projection or the face sort, so
+`r_project` and `r_sort` are controls, and their spread is what this harness's
+run-to-run noise actually looks like (±13% on a single scene, centred on zero).
+That noise is why the per-scene numbers are not individually meaningful — but it
+is independent across scenes, so 10 of 12 pairs leaning one way is a sign test
+at p≈0.02, and the two apparent wins are the two scenes whose *control* stages
+also moved (lumbridge's `r_project` read -12.8%, i.e. the whole run was fast).
+
+This is against the family's design intent — it hoists the y-sort, the left/right
+edge choice, vertical clipping and the horizontal-clip test to once per triangle
+to buy cheaper inner loops (see `scanline_common.h`). Paying that setup per
+triangle only wins when triangles are large enough for the cheaper spans to
+repay it, and these scenes are hundreds of models of small ones. Confirming that
+reading means the `TORIDRAW_ABLATE` ladder, which can separate per-triangle
+prologue from walk from fill; nobody has run it against this axis yet.
 
 ### Adding a scene
 

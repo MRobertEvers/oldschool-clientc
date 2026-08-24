@@ -93,11 +93,16 @@ RSCache_ReferenceTableNewDecode(
     if( (table->flags & FLAG_WHIRLPOOL) != 0 )
     {
         for( int i = 0; i < id_count; i++ )
+        {
+            unsigned char* digest = malloc(RSCACHE_REFTABLE_WHIRLPOOL_BYTES);
+            assert(digest);
+            table->archives[ids[i]].whirlpool = digest;
             greadto(
                 &buffer,
-                (char*)table->archives[ids[i]].whirlpool,
-                sizeof(table->archives[ids[i]].whirlpool),
-                (int)sizeof(table->archives[ids[i]].whirlpool));
+                (char*)digest,
+                RSCACHE_REFTABLE_WHIRLPOOL_BYTES,
+                RSCACHE_REFTABLE_WHIRLPOOL_BYTES);
+        }
     }
 
     if( (table->flags & FLAG_SIZES) != 0 )
@@ -113,22 +118,47 @@ RSCache_ReferenceTableNewDecode(
     for( int i = 0; i < id_count; i++ )
         table->archives[ids[i]].version = g4(&buffer);
 
+    uint64_t total_children = 0;
     for( int i = 0; i < id_count; i++ )
     {
-        int id = ids[i];
         int child_count = table->format >= 7 ? gusmart(&buffer) : g2(&buffer);
-        table->archives[id].children.count = child_count;
-        table->archives[id].children.files =
-            malloc(child_count * sizeof(struct RSCache_ReferenceTableArchiveFile));
-        if( !table->archives[id].children.files )
+        table->archives[ids[i]].children.count = child_count;
+        total_children += (uint64_t)child_count;
+    }
+
+    /* Every child costs at least one delta byte in the stream, so a sum past
+     * the container is a malformed table — and on a 32-bit size_t the multiply
+     * below could wrap and undersize the pool. */
+    if( total_children > (uint64_t)buffer.size )
+    {
+        free(ids);
+        free(table->archives);
+        free(table);
+        return NULL;
+    }
+
+    if( total_children > 0 )
+    {
+        table->children_pool = malloc(
+            (size_t)total_children * sizeof(struct RSCache_ReferenceTableArchiveFile));
+        if( !table->children_pool )
         {
-            for( int j = 0; j < i; j++ )
-                free(table->archives[ids[j]].children.files);
             free(ids);
             free(table->archives);
             free(table);
             return NULL;
         }
+    }
+    table->children_pool_count = (size_t)total_children;
+
+    size_t pool_used = 0;
+    for( int i = 0; i < id_count; i++ )
+    {
+        int id = ids[i];
+        if( table->archives[id].children.count <= 0 )
+            continue;
+        table->archives[id].children.files = table->children_pool + pool_used;
+        pool_used += (size_t)table->archives[id].children.count;
     }
 
     for( int i = 0; i < id_count; i++ )
@@ -232,10 +262,13 @@ RSCache_ReferenceTableEncode(
     if( (table->flags & FLAG_WHIRLPOOL) != 0 )
     {
         for( int i = 0; i < table->id_count; i++ )
+        {
+            assert(table->archives[table->ids[i]].whirlpool);
             pbuf(
                 &buffer,
                 table->archives[table->ids[i]].whirlpool,
-                (int)sizeof(table->archives[table->ids[i]].whirlpool));
+                RSCACHE_REFTABLE_WHIRLPOOL_BYTES);
+        }
     }
 
     if( (table->flags & FLAG_SIZES) != 0 )
@@ -280,6 +313,24 @@ RSCache_ReferenceTableEncode(
     return buffer.position;
 }
 
+bool
+RSCache_ReferenceTableChildrenPooled(
+    const struct RSCache_ReferenceTable* table,
+    const struct RSCache_ReferenceTableArchiveFile* files)
+{
+    uintptr_t p;
+    uintptr_t base;
+    uintptr_t end;
+
+    assert(table);
+    if( !files || !table->children_pool )
+        return false;
+    p = (uintptr_t)files;
+    base = (uintptr_t)table->children_pool;
+    end = (uintptr_t)(table->children_pool + table->children_pool_count);
+    return p >= base && p < end;
+}
+
 void
 RSCache_ReferenceTableFree(struct RSCache_ReferenceTable* table)
 {
@@ -291,9 +342,16 @@ RSCache_ReferenceTableFree(struct RSCache_ReferenceTable* table)
 
     for( int i = 0; i < table->archive_count; i++ )
     {
-        if( table->archives[i].children.files )
+        /* A slice of the decode pool is not its own allocation; only an array a
+         * tool replaced after decode (or a hand-built table's) is freed here. */
+        if( table->archives[i].children.files &&
+            !RSCache_ReferenceTableChildrenPooled(table, table->archives[i].children.files) )
             free(table->archives[i].children.files);
+        if( table->archives[i].whirlpool )
+            free(table->archives[i].whirlpool);
     }
+
+    free(table->children_pool);
 
     if( table->archives )
         free(table->archives);

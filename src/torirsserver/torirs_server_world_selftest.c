@@ -15083,8 +15083,8 @@ ToriRSServer_WorldSelftest(void)
 
                 if( !row )
                     continue;
-                store = &row->columns[id_col];
-                if( store->count < 1 || store->values[0].value != 1 )
+                store = ToriRSServer_DbRowColumn(row, id_col);
+                if( !store || store->count < 1 || store->values[0].value != 1 )
                     continue;
                 found = row;
                 break;
@@ -15098,13 +15098,14 @@ ToriRSServer_WorldSelftest(void)
                                found->symbol ? found->symbol : "?");
                 if( name_col >= 0 )
                 {
-                    const struct ToriRSServerDbRowColumn* names = &found->columns[name_col];
+                    const struct ToriRSServerDbRowColumn* names =
+                        ToriRSServer_DbRowColumn(found, name_col);
 
-                    SELFTEST_CHECK(names->count >= 1 && names->values[0].text &&
+                    SELFTEST_CHECK(names && names->count >= 1 && names->values[0].text &&
                                        strcmp(names->values[0].text, "Cook's Assistant") == 0,
                                    "quest_cooksassistant displayname should be \"Cook's Assistant\", "
                                    "got \"%s\"",
-                                   names->count >= 1 && names->values[0].text
+                                   names && names->count >= 1 && names->values[0].text
                                        ? names->values[0].text
                                        : "(empty)");
                 }
@@ -15429,11 +15430,15 @@ ToriRSServer_WorldSelftest(void)
                 {
                     int end_col = ToriRSServer_DbColumnIndex(table, "endstate");
                     int points_col = ToriRSServer_DbColumnIndex(table, "questpoints");
+                    const struct ToriRSServerDbRowColumn* ends =
+                        end_col >= 0 ? ToriRSServer_DbRowColumn(found, end_col) : NULL;
+                    const struct ToriRSServerDbRowColumn* pts =
+                        points_col >= 0 ? ToriRSServer_DbRowColumn(found, points_col) : NULL;
 
-                    if( end_col >= 0 && found->columns[end_col].count >= 1 )
-                        endstate = found->columns[end_col].values[0].value;
-                    if( points_col >= 0 && found->columns[points_col].count >= 1 )
-                        points = found->columns[points_col].values[0].value;
+                    if( ends && ends->count >= 1 )
+                        endstate = ends->values[0].value;
+                    if( pts && pts->count >= 1 )
+                        points = pts->values[0].value;
                 }
                 SELFTEST_CHECK(cookquest > 0 && qp > 0,
                                "cookquest / qp should resolve out of the content pack");
@@ -15527,8 +15532,8 @@ ToriRSServer_WorldSelftest(void)
 
                     if( !row || !row->symbol )
                         continue;
-                    store = &row->columns[points_col];
-                    points = store->count >= 1 ? store->values[0].value : 0;
+                    store = ToriRSServer_DbRowColumn(row, points_col);
+                    points = store && store->count >= 1 ? store->values[0].value : 0;
 
                     if( (int)strlen(row->symbol) + 11 >= (int)sizeof(command) )
                         continue;
@@ -17285,12 +17290,23 @@ ToriRSServer_WorldSelftest(void)
                                                         "herder_plaguesheep_1");
                     int obj_id = ToriRSServer_ContentSymbol(TORIRSSERVER_PACK_OBJ, "sheepbonesa");
 
-                    SELFTEST_CHECK(row->columns[npc_column].values[0].value == npc_id,
+                    const struct ToriRSServerDbRowColumn* npc_store =
+                        ToriRSServer_DbRowColumn(row, npc_column);
+                    const struct ToriRSServerDbRowColumn* obj_store =
+                        ToriRSServer_DbRowColumn(row, obj_column);
+
+                    SELFTEST_CHECK(npc_store && npc_store->count >= 1 &&
+                                       npc_store->values[0].value == npc_id,
                                    "the row's sheep_type should be npc %d, got %d", npc_id,
-                                   row->columns[npc_column].values[0].value);
-                    SELFTEST_CHECK(row->columns[obj_column].values[0].value == obj_id,
+                                   npc_store && npc_store->count >= 1
+                                       ? npc_store->values[0].value
+                                       : -1);
+                    SELFTEST_CHECK(obj_store && obj_store->count >= 1 &&
+                                       obj_store->values[0].value == obj_id,
                                    "the row's sheep_bones should be obj %d, got %d", obj_id,
-                                   row->columns[obj_column].values[0].value);
+                                   obj_store && obj_store->count >= 1
+                                       ? obj_store->values[0].value
+                                       : -1);
                 }
             }
 

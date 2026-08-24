@@ -26,6 +26,7 @@
 #include "toridraw_texture_uv.c"
 #include "graphics/convex_hull.c"
 #include "graphics/raster/raster_ablate.c"
+#include "graphics/proj_census.c"
 #include "graphics/raster/span_census.c"
 #include "graphics/shared_tables.c"
 #include "osrs/palette.c"
