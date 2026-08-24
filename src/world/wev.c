@@ -669,6 +669,74 @@ Wev_Interpolate(
 }
 
 void
+Wev_FootprintTiles(
+    struct Wev const* wev,
+    int margin_index,
+    int* out_min_tile_x,
+    int* out_min_tile_z,
+    int* out_size_x,
+    int* out_size_z)
+{
+    int bucket;
+    int const* cx;
+    int const* cz;
+    int min_x;
+    int max_x;
+    int min_z;
+    int max_z;
+    int min_tile_x;
+    int max_tile_x;
+    int min_tile_z;
+    int max_tile_z;
+
+    assert(wev);
+    assert(wev->config);
+    assert(margin_index >= 0);
+    assert(margin_index < WEV_FOOTPRINT_MARGINS);
+    assert(out_min_tile_x);
+    assert(out_min_tile_z);
+    assert(out_size_x);
+    assert(out_size_z);
+
+    /* Nearest of the 16 baked buckets rather than the one below: the residual
+     * is at most half a bucket (64 of 2048, under 12 degrees) and the baked
+     * inflation margin more than covers it. */
+    bucket = (((wev->angle & 0x7FF) + 64) >> 7) & (WEV_ORIENTATIONS - 1);
+
+    cx = wev->config->corner_x[margin_index][bucket];
+    cz = wev->config->corner_z[margin_index][bucket];
+
+    min_x = cx[0];
+    max_x = cx[0];
+    min_z = cz[0];
+    max_z = cz[0];
+    for( int k = 1; k < 4; k++ )
+    {
+        if( cx[k] < min_x )
+            min_x = cx[k];
+        if( cx[k] > max_x )
+            max_x = cx[k];
+        if( cz[k] < min_z )
+            min_z = cz[k];
+        if( cz[k] > max_z )
+            max_z = cz[k];
+    }
+
+    /* Corners are fine units relative to the entity. >>7 and never /128: an
+     * arithmetic shift floors, so a negative absolute coordinate lands on the
+     * tile that contains it instead of the one toward zero. */
+    min_tile_x = (wev->x + min_x) >> 7;
+    max_tile_x = (wev->x + max_x) >> 7;
+    min_tile_z = (wev->z + min_z) >> 7;
+    max_tile_z = (wev->z + max_z) >> 7;
+
+    *out_min_tile_x = min_tile_x;
+    *out_min_tile_z = min_tile_z;
+    *out_size_x = max_tile_x - min_tile_x + 1;
+    *out_size_z = max_tile_z - min_tile_z + 1;
+}
+
+void
 Wevs_Frame(
     struct Wevs* wevs,
     double frame_cycles,

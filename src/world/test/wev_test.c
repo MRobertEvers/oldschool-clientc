@@ -602,6 +602,100 @@ test_config_decode_cache(char const* cache_dir)
     printf("ok - archive-72 WevConfig decode against %s (14 records, 4 pinned)\n", cache_dir);
 }
 
+/**
+ * The pseudo-loc footprint the painter takes its extent from. The property that
+ * matters is that it is a function of HEADING, not a constant: a hull pinned to
+ * a fixed extent under-covers at some angles and scenery beside it then sorts
+ * in front.
+ */
+static void
+test_footprint_tiles(void)
+{
+    struct WevConfig cfg;
+    struct Wev wev;
+    /* bounds 512 x 256, offsets 0; margin[0] = 256 => half-extents 512 x 384. */
+    uint8_t rec[] = {
+        2, 0,             /* plane */
+        6, 0x02, 0x00,    /* bounds_w = 512 */
+        7, 0x01, 0x00,    /* bounds_h = 256 */
+        0,
+    };
+    int mx;
+    int mz;
+    int sx;
+    int sz;
+
+    WevConfig_Init(&cfg, -1);
+    TEST_WEV_ASSERT(
+        WevConfig_Decode(&cfg, 3, rec, (int)sizeof(rec)), "footprint fixture decodes");
+
+    memset(&wev, 0, sizeof(wev));
+    wev.config = &cfg;
+
+    /* Unrotated: x spans [-512,512] -> tiles -4..4, z spans [-384,384] -> -3..3. */
+    wev.angle = 0;
+    Wev_FootprintTiles(&wev, 0, &mx, &mz, &sx, &sz);
+    TEST_WEV_ASSERT(mx == -4 && sx == 9, "heading 0: 9 tiles across the long axis");
+    TEST_WEV_ASSERT(mz == -3 && sz == 7, "heading 0: 7 tiles across the short axis");
+
+    /* 90 degrees (angle 512, bucket 4) swaps them. A fixed footprint cannot be
+     * right at both headings, which is the whole point of recomputing it. */
+    wev.angle = 512;
+    Wev_FootprintTiles(&wev, 0, &mx, &mz, &sx, &sz);
+    TEST_WEV_ASSERT(sx == 7 && sz == 9, "heading 90: the axes swap");
+
+    /* Off-axis is strictly wider than either: the diagonal reaches further. */
+    {
+        int dx;
+        int dz;
+
+        wev.angle = 256;
+        Wev_FootprintTiles(&wev, 0, &mx, &mz, &dx, &dz);
+        TEST_WEV_ASSERT(dx > 9, "heading 45 is wider in x than either axis-aligned pose");
+        TEST_WEV_ASSERT(dz > 9, "heading 45 is wider in z than either axis-aligned pose");
+    }
+
+    /* Every heading keeps the entity's own tile inside the box - the painter
+     * descends on the tile the boat is standing on. */
+    for( int a = 0; a < 2048; a += 64 )
+    {
+        wev.angle = a;
+        Wev_FootprintTiles(&wev, 0, &mx, &mz, &sx, &sz);
+        TEST_WEV_ASSERT(mx <= 0 && 0 < mx + sx, "the entity tile is inside the box in x");
+        TEST_WEV_ASSERT(mz <= 0 && 0 < mz + sz, "the entity tile is inside the box in z");
+    }
+
+    /* Translating by whole tiles shifts the box and leaves its extent alone. */
+    wev.angle = 0;
+    wev.x = 128 * 5;
+    wev.z = 128 * 2;
+    Wev_FootprintTiles(&wev, 0, &mx, &mz, &sx, &sz);
+    TEST_WEV_ASSERT(mx == -4 + 5 && sx == 9, "a whole-tile move shifts x, not the extent");
+    TEST_WEV_ASSERT(mz == -3 + 2 && sz == 7, "a whole-tile move shifts z, not the extent");
+
+    /* Negative absolute coordinates floor. >>7 gives -7 here; a /128 would
+     * truncate to -6 and mis-seed the box by a whole tile. */
+    wev.x = -128 * 3;
+    wev.z = 0;
+    Wev_FootprintTiles(&wev, 0, &mx, &mz, &sx, &sz);
+    TEST_WEV_ASSERT(mx == -7 && sx == 9, "a negative origin floors instead of truncating");
+
+    /* A wider margin never shrinks the box. */
+    {
+        int wide_sx;
+        int wide_sz;
+
+        wev.x = 0;
+        wev.angle = 0;
+        Wev_FootprintTiles(&wev, 0, &mx, &mz, &sx, &sz);
+        Wev_FootprintTiles(&wev, WEV_FOOTPRINT_MARGINS - 1, &mx, &mz, &wide_sx, &wide_sz);
+        TEST_WEV_ASSERT(wide_sx >= sx && wide_sz >= sz, "a wider margin never shrinks the box");
+    }
+
+    WevConfig_FreeContents(&cfg);
+    printf("ok - rotated footprint tiles (heading, floor, margin ordering)\n");
+}
+
 int
 main(int argc, char** argv)
 {
@@ -612,6 +706,7 @@ main(int argc, char** argv)
     test_interpolator();
     test_frame_driver();
     test_config_decode_synthetic();
+    test_footprint_tiles();
     test_config_decode_cache(cache_dir);
 
     printf("wev_test: all passed\n");

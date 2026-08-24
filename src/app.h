@@ -765,6 +765,20 @@ struct App
      */
     int active_world;
     /**
+     * The view the LOCAL player is standing in, recomputed every tick from
+     * geometry (SAILING_PLAN C5.1 — "local player aboard iff inside a non-zero
+     * view"). WORLDVIEW_ROOT when ashore, which is also its value in every
+     * build with no world entities.
+     *
+     * Distinct from `active_world`, which is a packet-decode cursor the server
+     * drives; this one is a fact about where the avatar is. Nothing steers off
+     * it yet: the camera deliberately keeps following the local player's ROOT
+     * position, which the server keeps projected onto the hull, so an aboard
+     * player's eye tracks the moving boat without an aboard camera existing.
+     * The deob's scene-mode flip and deck-height focus are what will read it.
+     */
+    int aboard_view;
+    /**
      * Plane the last SET_ACTIVE_WORLD said the addressed view draws (the deob
      * snapshots the active WorldView's plane beside the cursor). Nothing
      * consumes it at C0 — C1's view-local zone decode does. Reset to 0 with

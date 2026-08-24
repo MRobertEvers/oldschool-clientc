@@ -316,9 +316,27 @@ Task_GameProtoExec_Run(
          * already set load_complete; no entity shift (the view held nothing
          * until now) and no MAP_BUILD_COMPLETE — the server gates that ack
          * on the ROOT map load alone. */
+        if( getenv("TORIRS_WEV_DEBUG") )
+            fprintf(
+                stderr,
+                "wev: REBUILD view %d base %d,%d scene %d tiles, %d source "
+                "square(s)\n",
+                self->wev_view_id,
+                self->packet._rebuild_wev.base_x,
+                self->packet._rebuild_wev.base_z,
+                self->wev_scene_size,
+                self->chunk_count);
         PT_TASK_AWAITSELF_IF(CreateTask_WorldLoad(
             app->provider, wev_view(self)->builder, self->chunks, self->chunk_count,
             self->zone_x, self->zone_z, self->wev_scene_size, self->wev_zones, NULL, NULL));
+        if( getenv("TORIRS_WEV_DEBUG") )
+            fprintf(
+                stderr,
+                "wev: REBUILD view %d landed, world base %d,%d load_complete=%d\n",
+                self->wev_view_id,
+                wev_view(self)->world->_base_tile_x,
+                wev_view(self)->world->_base_tile_z,
+                wev_view(self)->world->load_complete);
         app->need_redraw = 1;
     }
     else if( self->packet.packet_type == PKT_NAME_OBJ_ADD ||

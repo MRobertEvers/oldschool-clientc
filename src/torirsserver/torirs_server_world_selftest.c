@@ -1548,6 +1548,167 @@ selftest_replay_obj_adds(
     return count;
 }
 
+/* ------------------------------------------------------------------ */
+/* WORLDENTITY_INFO read back the way the CLIENT reads it              */
+/* ------------------------------------------------------------------ */
+
+/*
+ * docs/SAILING_PLAN.md S2.1.
+ *
+ * Transcribed from the committed client decoder
+ * (`src/net/rev/osrs239/osrs239_parse.c`), deliberately NOT from the encoder
+ * beside it: a test written off the encoder's own source restates the encoder
+ * and passes on any layout at all, including the one the client cannot read.
+ * Every alt transform here is the reader that inverts the writer the encoder
+ * picked, so a `p1_neg` quietly becoming `p1_add128` shows up as a wrong size
+ * rather than as nothing.
+ */
+enum
+{
+    SELFTEST_WEV_MAX = 16,
+};
+
+struct selftest_wev_move
+{
+    int op;
+    int dx;
+    int dy;
+    int dz;
+    int dangle;
+    int update_flags;
+};
+
+struct selftest_wev_spawn
+{
+    int view_id;
+    int update_flags;
+    int size_byte;
+    int zones_x;
+    int zones_z;
+    int priority;
+    int config_id;
+    /* The spawn trailer's transform is absolute — the same four-axis bitfield
+     * applied against (0,0,0,0), so these are positions and not deltas. */
+    int fine_x;
+    int fine_y;
+    int fine_z;
+    int angle;
+    int op_mask;
+    int has_op_mask;
+};
+
+struct selftest_wev_packet
+{
+    int count;
+    struct selftest_wev_move moves[SELFTEST_WEV_MAX];
+    int spawn_count;
+    struct selftest_wev_spawn spawns[SELFTEST_WEV_MAX];
+    /** Bytes left over once the whole packet has been read the client's way.
+     *  Anything but zero means the two ends disagree about the layout, which is
+     *  the failure mode that produces a client abort rather than a wrong boat. */
+    int trailing;
+};
+
+static int
+selftest_wev_delta(
+    struct RSAreaBuf* buf,
+    int code)
+{
+    switch( code & 3 )
+    {
+    case 0:
+        return 0;
+    case 1:
+        return rsab_g1s(buf);
+    case 2:
+        return rsab_g2s(buf);
+    default:
+        return rsab_g4(buf);
+    }
+}
+
+static void
+selftest_wev_transform(
+    struct RSAreaBuf* buf,
+    int* dx,
+    int* dy,
+    int* dz,
+    int* dangle)
+{
+    /* Two bits per axis, LSB-first across x, y, z, angle. */
+    int mask = rsab_g1(buf);
+
+    *dx = selftest_wev_delta(buf, mask);
+    *dy = selftest_wev_delta(buf, mask >> 2);
+    *dz = selftest_wev_delta(buf, mask >> 4);
+    *dangle = selftest_wev_delta(buf, mask >> 6);
+}
+
+static void
+selftest_wev_decode(
+    const uint8_t* data,
+    int len,
+    struct selftest_wev_packet* out)
+{
+    struct RSAreaBuf buf;
+
+    assert(data);
+    assert(out);
+    memset(out, 0, sizeof(*out));
+    rsab_wrap(&buf, (void*)data, (size_t)len);
+
+    out->count = rsab_g1(&buf);
+    for( int i = 0; i < out->count && i < SELFTEST_WEV_MAX; i++ )
+    {
+        struct selftest_wev_move* move = &out->moves[i];
+
+        move->op = rsab_g1(&buf);
+        /* Op 0 is a despawn and carries NOTHING else — not even the flags
+         * byte. The client's `if (op != 0)` guards every read below. */
+        if( move->op == 0 )
+            continue;
+        if( move->op == 2 || move->op == 3 )
+            selftest_wev_transform(&buf, &move->dx, &move->dy, &move->dz, &move->dangle);
+        move->update_flags = rsab_g1(&buf);
+        if( move->update_flags & 0x2 )
+            rsab_g1_sub128(&buf);
+        if( move->update_flags & 0x1 )
+        {
+            rsab_g2(&buf);
+            rsab_g1(&buf);
+        }
+    }
+
+    /* The spawn trailer is read "while bytes remain" — it has no count. */
+    while( rsab_remaining(&buf) > 0 && out->spawn_count < SELFTEST_WEV_MAX )
+    {
+        struct selftest_wev_spawn* spawn = &out->spawns[out->spawn_count++];
+
+        spawn->view_id = rsab_g2(&buf);
+        spawn->update_flags = rsab_g1(&buf);
+        spawn->size_byte = rsab_g1_neg(&buf);
+        spawn->zones_x = (spawn->size_byte >> 4) & 0xf;
+        spawn->zones_z = spawn->size_byte & 0xf;
+        spawn->priority = rsab_g1_add128(&buf);
+        spawn->config_id = rsab_g2_le(&buf);
+        if( spawn->config_id > 32767 )
+            spawn->config_id -= 65536;
+        selftest_wev_transform(
+            &buf, &spawn->fine_x, &spawn->fine_y, &spawn->fine_z, &spawn->angle);
+        if( spawn->update_flags & 0x2 )
+        {
+            spawn->op_mask = rsab_g1_sub128(&buf);
+            spawn->has_op_mask = 1;
+        }
+        if( spawn->update_flags & 0x1 )
+        {
+            rsab_g2(&buf);
+            rsab_g1(&buf);
+        }
+    }
+    out->trailing = (int)rsab_remaining(&buf);
+}
+
 /*
  * Click "Click here to continue" until the parked script runs out of pages.
  *
@@ -38089,6 +38250,499 @@ ToriRSServer_WorldSelftest(void)
         SELFTEST_CHECK(ToriRSServer_VesselLiveCount(srv) == 0, "no vessel survives the rows");
         SELFTEST_CHECK(ToriRSServer_MapInstanceLiveCount() == instances_before,
                        "and the deck reservations went back to the pool");
+
+        /*
+         * docs/SAILING_PLAN.md S2 — the wire.
+         *
+         * Same stamped arena: the rows above proved the transform, these prove
+         * the three packets that put it on a client, and the cross-world
+         * placement that lets the shore and the deck see each other.
+         *
+         * Guarded on the revision because WORLDENTITY_INFO and
+         * REBUILD_WORLDENTITY are rev-239 packets that the osrs230 wire
+         * REFUSES by omission — its transcribed list does not name them, so
+         * `flush` drops them at the opcode lookup. Asserting their presence
+         * under `TORIRSSERVER_REV=osrs230` would be asserting that a
+         * deliberate refusal is a bug.
+         */
+        if( patch_found && srv->wire->revision >= 239 )
+        {
+            static struct ToriRSServerCapture wev_cap;
+            struct selftest_wev_packet decoded;
+            int hull = 0;
+            struct ToriRSServerVessel* boat = NULL;
+            int deck_base_x = 0;
+            int deck_base_z = 0;
+            int zones_x = 0;
+            int zones_z = 0;
+            int at;
+
+            /*
+             * The observer stands on the shore nine tiles east of the arena's
+             * centre — inside PLAYER_INFO's own +/-15, so the cross-world row
+             * below measures the projection and not the range test.
+             */
+            selftest_park_player(srv, patch_x + 9, patch_z);
+            player->wev_tracked_count = 0;
+
+            /*
+             * 6x12 tiles is two zones deep and one wide, so the spawn
+             * trailer's size nibbles are 1 and 2 — DIFFERENT, which is the
+             * only way the row can tell a swapped pair from a correct one.
+             * Centred on the arena (VesselSpawn's tile is the hull's centre,
+             * not its corner), leaving two tiles of stamped water past each
+             * end for the sail below.
+             */
+            hull = ToriRSServer_VesselSpawn(srv, 9, 6, 12, 0, patch_x, patch_z, 0);
+            boat = ToriRSServer_VesselGet(srv, hull);
+            SELFTEST_CHECK(boat != NULL, "a 6x12 hull spawns in the arena");
+            if( boat )
+            {
+                ToriRSServer_VesselDeckZones(boat, &zones_x, &zones_z);
+                SELFTEST_CHECK(zones_x == 1 && zones_z == 2,
+                               "whose deck reserves 1x2 zones, got %dx%d", zones_x, zones_z);
+                ToriRSServer_MapInstanceBase(boat->instance, &deck_base_x, &deck_base_z);
+                /* A real source zone under the whole deck: an unset zone
+                 * decodes to "void" and the client draws a hole. */
+                for( int zx = 0; zx < zones_x; zx++ )
+                    for( int zz = 0; zz < zones_z; zz++ )
+                        ToriRSServer_MapInstanceSetchunk(
+                            boat->instance, 0, zx, zz, 3216, 3216, 0, 0);
+                ToriRSServer_MapInstanceBuild(boat->instance);
+                ToriRSServer_WorldMapInstanceBuilt(srv, boat->instance);
+            }
+
+            ToriRSServer_CaptureBegin(srv, &wev_cap);
+            selftest_tick(srv);
+            ToriRSServer_CaptureEnd(srv);
+
+            at = ToriRSServer_CaptureFindNamed(&wev_cap, PKT_NAME_WORLDENTITY_INFO, 0);
+            SELFTEST_CHECK(at >= 0, "the spawn tick sends WORLDENTITY_INFO");
+            {
+                /*
+                 * The deck map follows the spawn, never precedes it: the
+                 * client's SET_ACTIVE_WORLD asserts that the id names a LIVE
+                 * view, and the spawn record is what makes it live. The
+                 * trailing select is the return to the root the rest of the
+                 * tick's packets are addressed to.
+                 */
+                static const int k_sandwich[] = {
+                    PKT_NAME_WORLDENTITY_INFO,
+                    PKT_NAME_SET_ACTIVE_WORLD,
+                    PKT_NAME_REBUILD_WORLDENTITY,
+                    PKT_NAME_SET_ACTIVE_WORLD,
+                };
+
+                SELFTEST_CHECK(
+                    ToriRSServer_CaptureHasSequenceNamed(&wev_cap, k_sandwich, 4),
+                    "and the deck map after it, inside a set-active-world sandwich");
+            }
+
+            if( at >= 0 && boat )
+            {
+                selftest_wev_decode(
+                    wev_cap.packets[at].data, wev_cap.packets[at].len, &decoded);
+
+                SELFTEST_CHECK(decoded.trailing == 0,
+                               "the client's own read consumes the packet exactly, "
+                               "%d byte(s) left over",
+                               decoded.trailing);
+                SELFTEST_CHECK(decoded.count == 0,
+                               "with no positional records on the spawn tick, got %d",
+                               decoded.count);
+                SELFTEST_CHECK(decoded.spawn_count == 1,
+                               "and exactly one spawn trailer, got %d", decoded.spawn_count);
+                if( decoded.spawn_count == 1 )
+                {
+                    const struct selftest_wev_spawn* spawn = &decoded.spawns[0];
+
+                    SELFTEST_CHECK(spawn->view_id == boat->view_id,
+                                   "the trailer names the hull's view id %d, got %d",
+                                   boat->view_id, spawn->view_id);
+                    SELFTEST_CHECK(spawn->view_id >= 1 && spawn->view_id <= 15,
+                                   "which has to be a registry slot the client will accept, "
+                                   "got %d",
+                                   spawn->view_id);
+                    SELFTEST_CHECK(spawn->zones_x == 1 && spawn->zones_z == 2,
+                                   "the size nibbles are the deck's zone counts, x first, "
+                                   "got %dx%d",
+                                   spawn->zones_x, spawn->zones_z);
+                    SELFTEST_CHECK(spawn->config_id == 9,
+                                   "the config id survives its little-endian transform, got %d",
+                                   spawn->config_id);
+                    SELFTEST_CHECK(spawn->priority == boat->priority,
+                                   "as does the priority group, got %d", spawn->priority);
+                    SELFTEST_CHECK(spawn->fine_x == boat->fine_x && spawn->fine_z == boat->fine_z,
+                                   "the trailer's transform is the ABSOLUTE position "
+                                   "(%d,%d), got (%d,%d)",
+                                   boat->fine_x, boat->fine_z, spawn->fine_x, spawn->fine_z);
+                    SELFTEST_CHECK(spawn->fine_y == 0, "with no height, got %d", spawn->fine_y);
+                    SELFTEST_CHECK(spawn->angle == (boat->angle & 0x7ff),
+                                   "and the hull's yaw, got %d", spawn->angle);
+                    SELFTEST_CHECK(spawn->update_flags == 0x2,
+                                   "flag bit 0x2 announces the op mask, got 0x%x",
+                                   spawn->update_flags);
+                    SELFTEST_CHECK(spawn->has_op_mask &&
+                                       spawn->op_mask == TORIRSSERVER_WEV_OP_MASK_ALL,
+                                   "which reads back as all five ops, got %d", spawn->op_mask);
+                }
+                SELFTEST_CHECK(player->wev_tracked_count == 1 &&
+                                   player->wev_view_ids[0] == boat->view_id,
+                               "and the observer's list now mirrors the client's, slot 0 "
+                               "holding view %d",
+                               boat->view_id);
+            }
+
+            at = ToriRSServer_CaptureFindNamed(&wev_cap, PKT_NAME_REBUILD_WORLDENTITY, 0);
+            SELFTEST_CHECK(at >= 0, "the spawn tick sends the deck's REBUILD_WORLDENTITY");
+            if( at >= 0 && boat )
+            {
+                struct RSAreaBuf rb;
+                int got_base_x;
+                int got_base_z;
+                int got_squares;
+                int grid_bits = 0;
+
+                rsab_wrap(&rb, (void*)wev_cap.packets[at].data,
+                          (size_t)wev_cap.packets[at].len);
+                got_base_x = rsab_g2(&rb);
+                got_base_z = rsab_g2(&rb);
+                got_squares = rsab_g2(&rb);
+
+                /* The header is the deck's SW TILE — the client asserts it is
+                 * zone-aligned and strides its own grid from it. */
+                SELFTEST_CHECK(got_base_x == deck_base_x && got_base_z == deck_base_z,
+                               "its header is the deck's SW tile (%d,%d), got (%d,%d)",
+                               deck_base_x, deck_base_z, got_base_x, got_base_z);
+                SELFTEST_CHECK((got_base_x % 8) == 0 && (got_base_z % 8) == 0,
+                               "zone-aligned, as the client asserts");
+                SELFTEST_CHECK(got_squares == 1,
+                               "and names the one source map square the deck came from, got %d",
+                               got_squares);
+
+                /*
+                 * The grid is the VIEW's extent, not a fixed 13x13: one
+                 * presence bit per zone over four levels, plus 26 descriptor
+                 * bits for the ones that are set. The client asserts it
+                 * consumed exactly this many bytes, so a wrong extent is a
+                 * hard stop there rather than a wrong-looking deck.
+                 */
+                grid_bits = 4 * zones_x * zones_z + 26 * zones_x * zones_z;
+                SELFTEST_CHECK(wev_cap.packets[at].len == 6 + (grid_bits + 7) / 8,
+                               "the descriptor grid is %d bits over %dx%d zones, so the "
+                               "packet is %d bytes, got %d",
+                               grid_bits, zones_x, zones_z, 6 + (grid_bits + 7) / 8,
+                               wev_cap.packets[at].len);
+            }
+
+            /*
+             * The sandwich's own addressing: the select before the deck map
+             * names the hull's view, and the one after it returns to the root.
+             * Read rather than assumed — a rebuild addressed to world 0 would
+             * overwrite the player's own scene with the deck.
+             */
+            at = ToriRSServer_CaptureFindNamed(&wev_cap, PKT_NAME_REBUILD_WORLDENTITY, 0);
+            if( at > 0 && boat )
+            {
+                int before = -1;
+                int after = -1;
+
+                for( int i = at - 1; i >= 0; i-- )
+                    if( wev_cap.packets[i].name == PKT_NAME_SET_ACTIVE_WORLD )
+                    {
+                        before = i;
+                        break;
+                    }
+                after = ToriRSServer_CaptureFindNamed(&wev_cap, PKT_NAME_SET_ACTIVE_WORLD, at);
+                SELFTEST_CHECK(before >= 0 && after >= 0,
+                               "the deck map is bracketed by two world selects");
+                if( before >= 0 && after >= 0 )
+                {
+                    struct RSAreaBuf rb;
+                    int selected;
+                    int restored;
+
+                    rsab_wrap(&rb, (void*)wev_cap.packets[before].data,
+                              (size_t)wev_cap.packets[before].len);
+                    selected = rsab_g2(&rb);
+                    rsab_wrap(&rb, (void*)wev_cap.packets[after].data,
+                              (size_t)wev_cap.packets[after].len);
+                    restored = rsab_g2(&rb);
+                    SELFTEST_CHECK(selected == boat->view_id,
+                                   "the first names the hull's view %d, got %d", boat->view_id,
+                                   selected);
+                    SELFTEST_CHECK(restored == 0,
+                                   "and the second puts the cursor back on the root, got %d",
+                                   restored);
+                }
+            }
+
+            /*
+             * A hull under way: op 2 every tick, and the deltas SUM to the
+             * path. Summing rather than checking one tick is the point — the
+             * client's position is the running total of everything this packet
+             * ever said, so a per-tick delta measured from the wrong origin
+             * looks right for one tick and drifts forever after.
+             */
+            if( boat )
+            {
+                int start_x = boat->fine_x;
+                int start_z = boat->fine_z;
+                int sum_dx = 0;
+                int sum_dz = 0;
+                int sum_dangle = 0;
+                int op2_ticks = 0;
+                int start_angle = boat->angle;
+
+                /* Heading 0 is the yaw the hull already carries, so it sails
+                 * without turning and stays inside the stamped water. */
+                ToriRSServer_VesselSetHeading(boat, 0);
+                ToriRSServer_VesselSetSpeed(boat, 1);
+                for( int tick = 0; tick < 3; tick++ )
+                {
+                    int index;
+
+                    ToriRSServer_CaptureBegin(srv, &wev_cap);
+                    selftest_tick(srv);
+                    ToriRSServer_CaptureEnd(srv);
+
+                    index = ToriRSServer_CaptureFindNamed(&wev_cap, PKT_NAME_WORLDENTITY_INFO, 0);
+                    if( index < 0 )
+                        continue;
+                    selftest_wev_decode(wev_cap.packets[index].data, wev_cap.packets[index].len,
+                                        &decoded);
+                    if( decoded.count != 1 || decoded.spawn_count != 0 )
+                        continue;
+                    if( decoded.moves[0].op != 2 )
+                        continue;
+                    op2_ticks++;
+                    sum_dx += decoded.moves[0].dx;
+                    sum_dz += decoded.moves[0].dz;
+                    sum_dangle += decoded.moves[0].dangle;
+                }
+                SELFTEST_CHECK(op2_ticks == 3,
+                               "every tick under way carries an op-2 record, got %d of 3",
+                               op2_ticks);
+                SELFTEST_CHECK(boat->fine_z < start_z,
+                               "the hull actually moved (heading 0 sails north), %d -> %d",
+                               start_z, boat->fine_z);
+                SELFTEST_CHECK(sum_dx == boat->fine_x - start_x && sum_dz == boat->fine_z - start_z,
+                               "and the deltas sum to the path (%d,%d), got (%d,%d)",
+                               boat->fine_x - start_x, boat->fine_z - start_z, sum_dx, sum_dz);
+                SELFTEST_CHECK(sum_dangle == 0,
+                               "with no yaw change on a heading it already held, got %d",
+                               sum_dangle);
+                SELFTEST_CHECK(boat->angle == start_angle, "nor any on the hull itself");
+                ToriRSServer_VesselStop(boat);
+            }
+
+            /*
+             * Cross-world visibility (S2.4, plan risk R1).
+             *
+             * A player standing on the deck is at the deck INSTANCE's
+             * coordinates — hundreds of tiles away in the pool, in a square no
+             * shore player's window covers. Without the projection the two are
+             * invisible to each other while standing side by side on screen.
+             */
+            if( boat )
+            {
+                struct ToriRSServerPlayer* sailor = ToriRSServer_WorldAddPlayer(srv, NULL);
+
+                SELFTEST_CHECK(sailor != NULL, "a second player joins to stand on the deck");
+                if( sailor )
+                {
+                    int deck_x = deck_base_x + boat->size_x_tiles / 2;
+                    int deck_z = deck_base_z + boat->size_z_tiles / 2;
+                    int expect_fine_x = 0;
+                    int expect_fine_z = 0;
+                    int sailor_pid;
+
+                    ToriRSServer_WorldPlayerInit(sailor);
+                    sailor_pid = sailor->pid;
+                    ToriRSServer_WorldSetActive(srv, sailor);
+                    ToriRSServer_WorldTeleport(srv, 0, deck_x, deck_z);
+                    ToriRSServer_WorldSetActive(srv, player);
+                    selftest_tick(srv);
+
+                    ToriRSServer_VesselDeckTileToRoot(
+                        boat, deck_x, deck_z, &expect_fine_x, &expect_fine_z);
+                    SELFTEST_CHECK(ToriRSServer_VesselAtTile(srv, deck_x, deck_z) == boat,
+                                   "the deck tile answers with the hull that owns it");
+                    SELFTEST_CHECK(sailor->x == deck_x && sailor->z == deck_z,
+                                   "the sailor's OWN position stays the deck tile (%d,%d), "
+                                   "got (%d,%d)",
+                                   deck_x, deck_z, sailor->x, sailor->z);
+                    SELFTEST_CHECK(sailor->obs_x == (expect_fine_x >> 7) &&
+                                       sailor->obs_z == (expect_fine_z >> 7),
+                                   "while their OBSERVED position is the root projection "
+                                   "(%d,%d), got (%d,%d)",
+                                   expect_fine_x >> 7, expect_fine_z >> 7, sailor->obs_x,
+                                   sailor->obs_z);
+                    SELFTEST_CHECK(abs(sailor->obs_x - player->x) <= 15 &&
+                                       abs(sailor->obs_z - player->z) <= 15,
+                                   "which lands beside the shore player, %d,%d vs %d,%d",
+                                   sailor->obs_x, sailor->obs_z, player->x, player->z);
+                    /*
+                     * The projection has to be LOAD-BEARING, or the rows below
+                     * pass on a fixture that never needed them: the two are
+                     * only in range once projected. Their feet are in the
+                     * map-instance pool, hundreds of squares off the arena.
+                     */
+                    SELFTEST_CHECK(abs(sailor->x - player->x) > 15 ||
+                                       abs(sailor->z - player->z) > 15,
+                                   "while their FEET are out of range of each other, "
+                                   "%d,%d vs %d,%d",
+                                   sailor->x, sailor->z, player->x, player->z);
+                    /*
+                     * Asked of the encoder's own admission test rather than of
+                     * `player_tracked`.
+                     *
+                     * `player_tracked` is written by the CLASSIC PLAYER_INFO
+                     * writer's tracked/entering loops. Revision 239's writer
+                     * forks before them and sends the local player only —
+                     * mock239_playerinfo.h:57, "It does not yet add, move or
+                     * remove other players" — so on this fixture's wire no
+                     * player ever tracks another, boat or no boat. The row
+                     * below with both players standing on plain ground is the
+                     * control that says so. Pinning `player_tracked` here would
+                     * pin that limitation, not the projection.
+                     */
+                    SELFTEST_CHECK(ToriRSServer_PlayerObservable(player, sailor),
+                                   "so PLAYER_INFO admits them to the shore player's set");
+                    SELFTEST_CHECK(ToriRSServer_PlayerObservable(sailor, player),
+                                   "and the shore player to the deck player's");
+
+                    /* Stepping OFF the deck is a jump in the offset, never a
+                     * walk step: the same pid moves hundreds of tiles in one
+                     * tick as far as PLAYER_INFO's v5 delta state is
+                     * concerned. The remove-and-re-add that answers plan risk
+                     * R1 is driven by exactly this flag. */
+                    ToriRSServer_WorldSetActive(srv, sailor);
+                    ToriRSServer_WorldTeleport(srv, 0, patch_x + 9, patch_z + 1);
+                    ToriRSServer_WorldSetActive(srv, player);
+                    selftest_tick(srv);
+                    SELFTEST_CHECK(sailor->obs_x == sailor->x && sailor->obs_z == sailor->z,
+                                   "ashore again, observed and own coordinates are one thing");
+                    SELFTEST_CHECK(sailor->obs_off_x == 0 && sailor->obs_off_z == 0,
+                                   "with no offset left over");
+                    SELFTEST_CHECK(ToriRSServer_PlayerObservable(player, sailor),
+                                   "and the shore player still has them in view");
+                    /* The control for the two rows above: two players on plain
+                     * ground, nine tiles apart, and the 239 wire still tracks
+                     * neither in the other's set. Whatever `player_tracked`
+                     * says here, sailing did not cause it. */
+                    SELFTEST_CHECK(player->player_tracked[sailor_pid] == 0,
+                                   "though revision 239's PLAYER_INFO tracks no other "
+                                   "player at all — not even ashore");
+
+                    ToriRSServer_WorldPlayerFree(srv, sailor_pid);
+                    ToriRSServer_WorldPlayerReap(srv);
+                }
+            }
+
+            /*
+             * A view id changing hulls between two ticks.
+             *
+             * View ids are handed out lowest-free and pool slots are reused, so
+             * a hull freed and another spawned before the next encode carry the
+             * SAME view id and the same handle. Described as a move, the client
+             * keeps the sunk boat's config model and deck size and slides it
+             * across the water — no packet malformed anywhere. The serial is
+             * the only thing that distinguishes them, and the record that has
+             * to come out is a despawn followed by a fresh spawn trailer.
+             */
+            if( boat )
+            {
+                int old_view = boat->view_id;
+                int old_serial = boat->serial;
+                int replacement;
+
+                SELFTEST_CHECK(ToriRSServer_VesselFree(srv, hull) == 1,
+                               "the hull frees mid-tick");
+                replacement = ToriRSServer_VesselSpawn(srv, 11, 6, 12, 0, patch_x, patch_z, 0);
+                hull = replacement;
+                boat = ToriRSServer_VesselGet(srv, replacement);
+                SELFTEST_CHECK(boat != NULL, "and another takes its place before the encode");
+                if( boat )
+                {
+                    SELFTEST_CHECK(boat->view_id == old_view,
+                                   "reusing view %d, as lowest-free must", old_view);
+                    SELFTEST_CHECK(boat->serial != old_serial,
+                                   "but never the serial, %d vs %d", old_serial, boat->serial);
+                    for( int zx = 0; zx < zones_x; zx++ )
+                        for( int zz = 0; zz < zones_z; zz++ )
+                            ToriRSServer_MapInstanceSetchunk(
+                                boat->instance, 0, zx, zz, 3216, 3216, 0, 0);
+                    ToriRSServer_MapInstanceBuild(boat->instance);
+                    ToriRSServer_WorldMapInstanceBuilt(srv, boat->instance);
+
+                    ToriRSServer_CaptureBegin(srv, &wev_cap);
+                    selftest_tick(srv);
+                    ToriRSServer_CaptureEnd(srv);
+                    at = ToriRSServer_CaptureFindNamed(&wev_cap, PKT_NAME_WORLDENTITY_INFO, 0);
+                    SELFTEST_CHECK(at >= 0, "the swap tick sends WORLDENTITY_INFO");
+                    if( at >= 0 )
+                    {
+                        selftest_wev_decode(wev_cap.packets[at].data, wev_cap.packets[at].len,
+                                            &decoded);
+                        SELFTEST_CHECK(decoded.count == 1 && decoded.moves[0].op == 0,
+                                       "retiring the old hull's slot with op 0, got count %d "
+                                       "op %d",
+                                       decoded.count, decoded.moves[0].op);
+                        SELFTEST_CHECK(decoded.spawn_count == 1 &&
+                                           decoded.spawns[0].view_id == old_view,
+                                       "and respawning view %d in the trailer, got %d spawns",
+                                       old_view, decoded.spawn_count);
+                        SELFTEST_CHECK(decoded.spawn_count == 1 &&
+                                           decoded.spawns[0].config_id == 11,
+                                       "carrying the NEW hull's config 11, got %d",
+                                       decoded.spawn_count == 1 ? decoded.spawns[0].config_id
+                                                                : -1);
+                        SELFTEST_CHECK(decoded.trailing == 0, "with nothing left over, %d",
+                                       decoded.trailing);
+                    }
+                    SELFTEST_CHECK(player->wev_tracked_count == 1 &&
+                                       player->wev_serials[0] == boat->serial,
+                                   "after which the observer's slot holds the new serial");
+                }
+            }
+
+            /*
+             * Teardown, and the despawn it owes: the hull goes, the observer
+             * still holds a slot for it, and the next tick has to say op 0 in
+             * that slot or the client keeps a boat nothing will ever move
+             * again.
+             */
+            if( boat )
+            {
+                int gone_view = boat->view_id;
+
+                SELFTEST_CHECK(ToriRSServer_VesselFree(srv, hull) == 1, "the hull frees");
+                ToriRSServer_CaptureBegin(srv, &wev_cap);
+                selftest_tick(srv);
+                ToriRSServer_CaptureEnd(srv);
+                at = ToriRSServer_CaptureFindNamed(&wev_cap, PKT_NAME_WORLDENTITY_INFO, 0);
+                SELFTEST_CHECK(at >= 0, "the tick after it still sends WORLDENTITY_INFO");
+                if( at >= 0 )
+                {
+                    selftest_wev_decode(wev_cap.packets[at].data, wev_cap.packets[at].len,
+                                        &decoded);
+                    SELFTEST_CHECK(decoded.count == 1 && decoded.moves[0].op == 0,
+                                   "carrying op 0 in view %d's slot, got count %d op %d",
+                                   gone_view, decoded.count, decoded.moves[0].op);
+                    SELFTEST_CHECK(decoded.trailing == 0,
+                                   "and op 0 carries no flags byte, %d left over",
+                                   decoded.trailing);
+                }
+                SELFTEST_CHECK(player->wev_tracked_count == 0,
+                               "after which the observer tracks nothing, got %d",
+                               player->wev_tracked_count);
+            }
+            SELFTEST_CHECK(ToriRSServer_VesselLiveCount(srv) == 0,
+                           "no hull survives the wire rows");
+            SELFTEST_CHECK(ToriRSServer_MapInstanceLiveCount() == instances_before,
+                           "and the deck went back to the pool with it");
+        }
 
         /* Unstamp the arena so the window's collision leaves the fixture the
          * way the cache built it. */

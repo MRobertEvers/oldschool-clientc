@@ -327,6 +327,28 @@ ToriDraw_SceneElementAddPool(
     struct ToriDraw_Scene* scene,
     int pool);
 
+/**
+ * Retag a live element into another pool. The element keeps its id, its model,
+ * its position and every other field — only which clear/sweep owns it changes.
+ *
+ * This is what an entity crossing a view boundary needs (the OSRS sailing case:
+ * a player walking onto a boat's deck, SAILING_PLAN C5). Free-and-reallocate
+ * cannot serve there: the element id is stored on the entity record and on the
+ * painter's scenery chains, and the model would have to be rebuilt for what is
+ * a bookkeeping move.
+ */
+void
+ToriDraw_SceneElementSetPool(
+    struct ToriDraw_Scene* scene,
+    int element_id,
+    int pool);
+
+/** The pool tag of a live element, or -1 when `element_id` names no element. */
+int
+ToriDraw_SceneElementPool(
+    struct ToriDraw_Scene* scene,
+    int element_id);
+
 int
 ToriDraw_SceneElementRemove(
     struct ToriDraw_Scene* scene,

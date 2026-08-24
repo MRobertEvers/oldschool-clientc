@@ -537,7 +537,7 @@ SRCS = main.c executor_config.c app.c $(PLATFORM_WINDOW_SRC) $(PLATFORM_CHROME_E
 	world/entity_pool.c world/world_entity.c world/entity_pathing.c \
 	world/entity_registry.c world/world_pickset.c world/world.c world/world_cycle.c \
 	world/worldview.c \
-	world/wev.c engine/dat2/task_dat2_wevconfig_load.c \
+	world/wev.c world/wev_deck.c engine/dat2/task_dat2_wevconfig_load.c \
 	engine/world_builder/task_world_load.c \
 	editor/editor.c editor/editor_doc.c editor/editor_jm2.c \
 	editor/editor_cmd.c editor/editor_derive.c editor/editor_host_local.c \
@@ -704,7 +704,7 @@ endif
 .PHONY: check-dks-contract check-boss-contract check-stronghold-contract
 .PHONY: check-gauntlet-contract test-poh-menagerie test-poh-league-hall test-poh-house-styles
 .PHONY: torirsserver-scripts-lanes torirsserver-lanes
-.PHONY: test-wev test-wev-rebuild
+.PHONY: test-wev test-wev-rebuild test-painters-world-entity
 
 all: $(OBJ_DIR) $(TARGET)
 
@@ -2107,6 +2107,27 @@ test-painters-ground-decor: $(OBJ_DIR)
 		perf/torirs_perf.c \
 		$(TORIDRAW_DIR)/graphics/shared_tables.c
 	./$(OBJ_DIR)/painters_test_ground_decor_dynamic
+
+# Painter descent into nested world views (sailing, SAILING_PLAN C3): a boat's
+# painter run to completion between BEGIN_WORLD/END_WORLD, in the PARENT
+# painter's draw order (a loc behind the boat before the pair, a loc in front
+# after it), plus the two refusals that must still balance the marker stream
+# (unbound view, A -> B -> A cycle), nesting to the 16-view registry bound on
+# the explicit stack, and zero-boat parity. Bare painter, no cache, no world.
+#
+# C5 extends the same family to actors: an actor routed onto a deck emits
+# between that boat's markers and one left ashore does not, plus the deck <->
+# parent transform and the half-open footprint that decide which of the two an
+# actor is (world/wev_deck.c -- pure arithmetic, still no cache and no world).
+test-painters-world-entity: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -I$(SRC_DIR)/painters \
+		-o $(OBJ_DIR)/painters_test_world_entity \
+		painters/test/painters_test_world_entity.c \
+		painters/painters.c painters/painters_cull_project.c painters/scene_occluders.c \
+		world/wev_deck.c \
+		perf/torirs_perf.c \
+		$(TORIDRAW_DIR)/graphics/shared_tables.c
+	./$(OBJ_DIR)/painters_test_world_entity
 
 # The model tests link no platform, so they are a build with no NATIVE chrome
 # executor -- a real and supported configuration, and the one every lane falls

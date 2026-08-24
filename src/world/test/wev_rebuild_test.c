@@ -294,6 +294,95 @@ test_pool_view_tags(void)
 }
 
 /* ------------------------------------------------------------------ */
+/* Handing an actor's element between view pools (SAILING_PLAN C5.1)   */
+/* ------------------------------------------------------------------ */
+
+/*
+ * An actor boarding a boat does not get a new scene element — its id is what
+ * the entity record, the painter's scenery chains and the plugin-facing
+ * EntityRemoved queue all hold. What changes is which view's sweep owns it,
+ * and that is one byte: ToriDraw_SceneElementSetPool.
+ *
+ * Three things have to hold or a boarding leaks or strands:
+ *   - after the move the OLD view's clear no longer reaches the element,
+ *   - the NEW view's clear does,
+ *   - and moving it back before that clear (which is what App_WevDespawn's
+ *     eviction does) saves it, with the element count proving nothing was
+ *     duplicated along the way.
+ * No cache: this is pure pool bookkeeping.
+ */
+static void
+test_actor_pool_handoff(void)
+{
+    struct ToriDraw_Scene* scene = ToriDraw_SceneNew(0, TORIDRAW_SCRATCH_BUFFER_HIGH_8K);
+    int const boat_view = 3;
+    int const boat_pool = TORIDRAW_SCENE_POOL_DYNAMIC_VIEW(boat_view);
+    int actor;
+    int bystander;
+
+    TEST_WEVR_ASSERT(scene != NULL, "scene allocates");
+
+    /* Ashore: every actor's element starts in the root's dynamic half. */
+    actor = ToriDraw_SceneElementAddPool(scene, TORIDRAW_SCENE_POOL_DYNAMIC);
+    bystander = ToriDraw_SceneElementAddPool(scene, TORIDRAW_SCENE_POOL_DYNAMIC);
+    TEST_WEVR_ASSERT(actor >= 0 && bystander >= 0, "two root dynamic elements allocate");
+    TEST_WEVR_ASSERT(
+        ToriDraw_SceneElementPool(scene, actor) == TORIDRAW_SCENE_POOL_DYNAMIC,
+        "an actor ashore is tagged with the root's dynamic pool");
+
+    /* Boarding. */
+    ToriDraw_SceneElementSetPool(scene, actor, boat_pool);
+    TEST_WEVR_ASSERT(
+        ToriDraw_SceneElementPool(scene, actor) == boat_pool,
+        "boarding retags the element into the boat's dynamic pool");
+    TEST_WEVR_ASSERT(
+        ToriDraw_SceneElementIsLive(scene, actor), "the element survives the retag");
+    TEST_WEVR_ASSERT(
+        ToriDraw_SceneElementPool(scene, bystander) == TORIDRAW_SCENE_POOL_DYNAMIC,
+        "the actor beside them did not move");
+
+    /* The old pool's sweep must no longer reach it -- this is the half that
+     * would otherwise delete a deck player on the mainland's next rebuild. */
+    ToriDraw_SceneClearPool(scene, TORIDRAW_SCENE_POOL_DYNAMIC);
+    TEST_WEVR_ASSERT(
+        ToriDraw_SceneElementIsLive(scene, actor),
+        "the root's dynamic clear no longer reaches an aboard actor");
+    TEST_WEVR_ASSERT(
+        !ToriDraw_SceneElementIsLive(scene, bystander),
+        "the root's dynamic clear still reaches an actor ashore");
+
+    /* Disembarking (or App_WevDespawn evicting them) puts it back, and the
+     * boat's clear then leaves it alone -- no element stranded in a pool that
+     * is about to be freed. */
+    ToriDraw_SceneElementSetPool(scene, actor, TORIDRAW_SCENE_POOL_DYNAMIC);
+    ToriDraw_SceneClearPool(scene, boat_pool);
+    TEST_WEVR_ASSERT(
+        ToriDraw_SceneElementIsLive(scene, actor),
+        "an evicted actor survives the sinking boat's pool clear");
+
+    /* And the counterfactual: had they still been aboard, that same clear is
+     * what would have taken them. */
+    {
+        int drowned = ToriDraw_SceneElementAddPool(scene, boat_pool);
+        TEST_WEVR_ASSERT(drowned >= 0, "a boat-pool element allocates");
+        ToriDraw_SceneClearPool(scene, boat_pool);
+        TEST_WEVR_ASSERT(
+            !ToriDraw_SceneElementIsLive(scene, drowned),
+            "the boat's clear does reach what is still tagged to it");
+    }
+
+    /* No leak: everything allocated here is either freed by a clear above or
+     * still reachable, so one final clear empties the scene. */
+    ToriDraw_SceneElementSetPool(scene, actor, TORIDRAW_SCENE_POOL_DYNAMIC);
+    ToriDraw_SceneClearPool(scene, TORIDRAW_SCENE_POOL_DYNAMIC);
+    TEST_WEVR_ASSERT(
+        !ToriDraw_SceneElementIsLive(scene, actor), "the last clear empties the scene");
+
+    ToriDraw_SceneFree(scene);
+    printf("ok - an actor's element moves between view pools without leaking or stranding\n");
+}
+
+/* ------------------------------------------------------------------ */
 /* The raft-deck rebuild against the real cache                        */
 /* ------------------------------------------------------------------ */
 
@@ -676,6 +765,7 @@ main(int argc, char** argv)
 
     test_parse_and_decode();
     test_pool_view_tags();
+    test_actor_pool_handoff();
     test_raft_deck_rebuild(cache_dir);
 
     printf("wev_rebuild_test: all passed\n");

@@ -248,6 +248,14 @@ enum PaintersSceneryFlags
      * see docs/painter_bucket_vs_world3d.md "Loc stacking").
      */
     PNTR_SCENERY_STACK_BASE = 1 << 1,
+    /**
+     * Pseudo-loc standing in for a nested world view (a boat). `entity` is the
+     * *view id*, not a scene element: the painter never emits a model command
+     * for it. When the drain reaches it, it emits PNTR_CMD_BEGIN_WORLD, descends
+     * into that view's own painter, and emits PNTR_CMD_END_WORLD on the way out.
+     * @see painter_add_world_entity, painter_set_world_entity_view.
+     */
+    PNTR_SCENERY_WORLDENTITY = 1 << 2,
 };
 
 struct NormalScenery
@@ -372,6 +380,10 @@ enum PaintersCommandKind
     PNTR_CMD_TERRAIN,
     /** Occluded terrain: hit-tested for picking but not rasterized. */
     PNTR_CMD_TERRAIN_PICK_ONLY,
+    /** Descend into nested world view `_bf_entity` (0..PAINTER_MAX_WORLD_VIEWS-1). */
+    PNTR_CMD_BEGIN_WORLD,
+    /** Leave the nested world view `_bf_entity`; pairs with PNTR_CMD_BEGIN_WORLD. */
+    PNTR_CMD_END_WORLD,
 };
 
 // Want to pack into 64 bits.
@@ -412,6 +424,24 @@ struct PaintersElementCommand
             uint32_t _bf_terrain_y : 4;
         } _terrain;
     };
+};
+
+/** Registry bound of nested world views, matching WORLDVIEW_MAX and the
+ *  reference class61 table of 16. Also the descent depth cap. */
+#define PAINTER_MAX_WORLD_VIEWS 16
+
+/**
+ * One nested world view as the parent painter sees it: which painter to descend
+ * into, and where the camera sits once transformed into that view's tile space.
+ * Rebuilt every frame alongside the pseudo-locs.
+ */
+struct PainterWorldEntityView
+{
+    struct Painter* painter;
+    int camera_sx;
+    int camera_sz;
+    int camera_slevel;
+    int active;
 };
 
 struct Painter;
@@ -928,6 +958,47 @@ painter_paint4_1(
     int camera_sx,
     int camera_sz,
     int camera_slevel);
+
+/**
+ * Bind view `view_id`'s painter and its view-space camera onto `painter`, so
+ * the bucket drain can descend into it when it reaches that view's pseudo-loc.
+ * Cleared wholesale by painter_clear_world_entity_views; both are per-frame.
+ */
+void
+painter_set_world_entity_view(
+    struct Painter* painter,
+    int view_id,
+    struct Painter* view_painter,
+    int camera_sx,
+    int camera_sz,
+    int camera_slevel);
+
+void
+painter_clear_world_entity_views(struct Painter* painter);
+
+/**
+ * Register the per-frame pseudo-loc that carries nested view `view_id` in this
+ * painter's draw order. Transient exactly like every other dynamic: the next
+ * painter_reset_to_static drops it.
+ *
+ * `sx`/`sz` are the MIN corner of the footprint and `size_x`/`size_z` its tile
+ * extent — not the entity's centre. The footprint is the axis-aligned bound of
+ * the hull ROTATED by its current heading, so it changes shape as the boat
+ * turns and the caller must recompute it every frame (@see Wev_FootprintTiles).
+ * A fixed 1x1 under-covers: the drain wakes only the tiles inside this
+ * rectangle and sorts neighbouring locs against its extent, so a long hull
+ * pinned to one tile lets scenery beside it sort in front.
+ */
+int
+painter_add_world_entity(
+    struct Painter* painter,
+    int level,
+    int sx,
+    int sz,
+    int view_id,
+    int model_height,
+    int size_x,
+    int size_z);
 
 int
 painter_paint_bucket(

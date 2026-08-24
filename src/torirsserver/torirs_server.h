@@ -2901,6 +2901,84 @@ struct ToriRSServerPlayer
     int v5_last_level;
 
     /*
+     * WORLDENTITY_INFO_V7 (docs/SAILING_PLAN.md S2) — what this client holds.
+     *
+     * The wire's update records are POSITIONAL: record `i` addresses entry `i`
+     * of the client's own per-view list (rs_gameproto_exec.c
+     * exec_worldentity_info indexes `Wevs_ViewListAt(view, i)`), and a count
+     * shorter than that list despawns the tail. So the server has to mirror the
+     * list, in the same order, per observer — an id appended here is an id the
+     * client appended, and trimming this array IS the despawn.
+     */
+    int wev_view_ids[TORIRSSERVER_WEV_VIEW_MAX];
+    /** Which HULL each tracked view id was, `struct ToriRSServerVessel::serial`.
+     *  View ids are recycled lowest-free, so the id alone cannot tell "the boat
+     *  moved" from "that boat sank and another took its number" — see the
+     *  serial's own comment for what the client draws when the two are
+     *  confused. */
+    int wev_serials[TORIRSSERVER_WEV_VIEW_MAX];
+    int wev_tracked_count;
+    /**
+     * Per tracked entity, the transform this client was last TOLD.
+     *
+     * The op-2 deltas are differences against what went out, not against last
+     * tick's vessel state: a tick the packet is not sent (or an entity that
+     * entered mid-tick) would otherwise lose the motion in between, and the
+     * client's copy would drift from the server's by exactly the missed step.
+     */
+    int wev_last_fine_x[TORIRSSERVER_WEV_VIEW_MAX];
+    int wev_last_fine_z[TORIRSSERVER_WEV_VIEW_MAX];
+    int wev_last_angle[TORIRSSERVER_WEV_VIEW_MAX];
+
+    /*
+     * Observation coordinates: where this player is to be SEEN, which is not
+     * where they stand (docs/SAILING_PLAN.md S2.4).
+     *
+     * A player on a vessel deck stands in the map-instance pool, hundreds of
+     * squares off the real map; the shore never sees them and they never see
+     * the shore. `obs_*` is that tile projected through the vessel transform
+     * into root-world coordinates, and it is what `player_in_view` and the
+     * PLAYER_INFO/NPC_INFO low-resolution records use. For everyone not on a
+     * deck it is simply x/z/level.
+     *
+     * Recomputed once per tick, before the info streams, so every observer's
+     * PLAYER_INFO for this tick agrees about where a player was.
+     */
+    int obs_x;
+    int obs_z;
+    int obs_level;
+    /** obs - own, i.e. the projection offset the tile carries this tick. All
+     *  three are zero for everyone not standing on a deck, which is what makes
+     *  a vessel-free world byte-identical to the pre-sailing encoder. */
+    int obs_off_x;
+    int obs_off_z;
+    int obs_off_level;
+    /**
+     * Did the projection move independently of this player's own feet?
+     *
+     * The v5 high-resolution section describes a tracked player as WALK STEPS,
+     * so the client's copy advances by the steps we send and by nothing else.
+     * A boat carrying a standing player moves the observed position with no
+     * step to describe it — as does boarding, disembarking and a plane change.
+     * Every one of those desynchronises the client's copy silently, so they are
+     * all funnelled into the one thing the section CAN say: remove, and re-add
+     * at the projected tile in the same packet, exactly as `place_dirty` does
+     * for a teleport. This is plan risk R1's answer — the v5 delta state is
+     * kept coherent by never letting a projected jump be encoded as a step.
+     *
+     * What it COSTS, stated because it is visible rather than merely wasteful:
+     * a hull under way moves its passengers' projection every tick, so a
+     * standing passenger is removed and re-added every tick for as long as the
+     * boat sails. Correct — the re-add restates the position absolutely — but
+     * it reads as a snap rather than a glide to anyone watching from the shore.
+     * The real client's answer is to report deck players inside the BOAT's
+     * world view and let its own transform carry them, which needs PLAYER_INFO
+     * to be encoded per active world; that is a later phase's shape, not a
+     * tweak to this flag.
+     */
+    int obs_jumped;
+
+    /*
      * The world this player is in, and where its bytes go.
      *
      * Both used to live on `struct ToriRSServer` — the session as a field, the
@@ -7165,8 +7243,61 @@ void
 ToriRSServer_SendPlayerInfo(struct ToriRSServerPlayer* player);
 void
 ToriRSServer_SendSetActiveWorld(struct ToriRSServerPlayer* player);
+/** SET_ACTIVE_WORLD naming any view: 0 for the root, 1..15 for a vessel's.
+ *  The sandwich around a deck-addressed packet is the only caller that wants
+ *  a non-root id; `ToriRSServer_SendSetActiveWorld` is this with 0. */
+void
+ToriRSServer_SendSetActiveWorldId(
+    struct ToriRSServerPlayer* player,
+    int world_id,
+    int level);
 void
 ToriRSServer_SendNpcInfo(struct ToriRSServerPlayer* player);
+
+/**
+ * Would PLAYER_INFO put `other` in `observer`'s tracked set this tick?
+ *
+ * The encoder's own admission test, exported so the world selftest can ask it
+ * rather than restate it. It reads OBSERVATION coordinates, so a player on a
+ * vessel deck answers yes to a shore player the hull has sailed alongside even
+ * though their feet are hundreds of squares apart in the map-instance pool
+ * (docs/SAILING_PLAN.md S2.4).
+ */
+int
+ToriRSServer_PlayerObservable(
+    const struct ToriRSServerPlayer* observer,
+    const struct ToriRSServerPlayer* other);
+
+/**
+ * WORLDENTITY_INFO_V7 for this observer, plus the SET_ACTIVE_WORLD-sandwiched
+ * REBUILD_WORLDENTITY_V4 that any entity spawning in it owes.
+ *
+ * Sends nothing when the observer tracks no entity and none is spawning, so a
+ * world with no vessels puts no new bytes on any wire.
+ */
+void
+ToriRSServer_SendWorldEntityInfo(struct ToriRSServerPlayer* player);
+
+/** REBUILD_WORLDENTITY_V4 for one vessel's deck. Only meaningful inside a
+ *  SET_ACTIVE_WORLD sandwich naming that vessel's view: the packet carries no
+ *  view id of its own. */
+void
+ToriRSServer_SendRebuildWorldEntity(
+    struct ToriRSServerPlayer* player,
+    struct ToriRSServerVessel* vessel);
+
+/**
+ * Recompute every player's observation coordinates for this tick
+ * (docs/SAILING_PLAN.md S2.4).
+ *
+ * A player on a vessel deck stands in the map-instance pool; `obs_*` is that
+ * tile projected through the vessel transform into root-world coordinates, and
+ * it is what the entity streams use for range tests and low-resolution
+ * placements. Run once per tick, before anything is encoded, so every
+ * observer's PLAYER_INFO agrees about where everyone was.
+ */
+void
+ToriRSServer_WorldRefreshObservation(struct ToriRSServer* srv);
 
 /**
  * How many NPC TRANSFORMATION blocks have been written since the process

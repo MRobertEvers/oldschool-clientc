@@ -58,6 +58,54 @@ typedef int (*World_HeightFn)(
     int world_z,
     int level);
 
+/**
+ * Per-frame world-entity (boat) pseudo-loc registration, SAILING_PLAN C3.
+ *
+ * Called from the dynamic-registration pass with the painter already reset to
+ * static, in the runtime-spawn scenery tier, so a hull painter-sorts against
+ * real locs, actors and projectiles exactly like a loc does. The hook lives on
+ * the World because the Wev table is the App's — world.h does not know wev.h —
+ * and NULL simply means "this build has no world entities".
+ */
+struct World;
+typedef void (*World_WorldEntityRegisterFn)(void* userdata, struct World* world);
+
+/**
+ * Per-frame registration of actors that STAND in `world` but are OWNED by
+ * another one — a player walking a boat's deck (SAILING_PLAN C5.1).
+ *
+ * Called from the dynamic-registration pass in the actor tier, right after
+ * this world's own players and NPCs, with the painter already reset to static.
+ * The deck world holds no entity records of its own: the server reports every
+ * player in root coordinates and the App decides, geometrically, whose deck
+ * they are on. So the hook is how the owner reaches in and says "these
+ * elements belong on your painter this frame".
+ *
+ * NULL means no actor can ever be aboard this world, which is the answer for
+ * every build with no world entities and for a world that is itself a deck
+ * nobody has boarded.
+ */
+typedef void (*World_ForeignActorRegisterFn)(void* userdata, struct World* world);
+
+/**
+ * The other half of the same arrangement: which scene elements in `world`'s
+ * DYNAMIC pool are owned from outside and must survive its rebuild sweep.
+ *
+ * `world_builder_reconcile_dynamic_elements` frees every element in the
+ * builder's dynamic pool that no entity in that world claims. A deck actor's
+ * element is tagged with the deck's pool — so that the mainland's rebuild does
+ * not sweep it — and is claimed by an entity the deck world has never heard
+ * of. Without this hook the deck's first rebuild after someone boards frees a
+ * live player's element out from under the root world.
+ *
+ * Writes at most `max` element ids into `out_element_ids` and returns how many.
+ */
+typedef int (*World_ForeignDynamicClaimFn)(
+    void* userdata,
+    struct World* world,
+    int* out_element_ids,
+    int max);
+
 struct ToriRS_FeatureTable;
 
 /*
@@ -251,6 +299,18 @@ struct World
 
     World_HeightFn height_fn;
     void* height_userdata;
+
+    /** Optional; NULL when nothing sails here. @see World_WorldEntityRegisterFn. */
+    World_WorldEntityRegisterFn world_entity_register_fn;
+    void* world_entity_register_userdata;
+
+    /** Optional; NULL when no actor can be aboard. @see World_ForeignActorRegisterFn. */
+    World_ForeignActorRegisterFn foreign_actor_register_fn;
+    void* foreign_actor_register_userdata;
+
+    /** Optional; NULL when no actor can be aboard. @see World_ForeignDynamicClaimFn. */
+    World_ForeignDynamicClaimFn foreign_dynamic_claim_fn;
+    void* foreign_dynamic_claim_userdata;
 
     struct Heightmap* heightmap;
     struct CollisionMap* collision_maps[COLLISION_LEVELS];
@@ -564,6 +624,64 @@ World_SetHeightFn(
     struct World* world,
     World_HeightFn fn,
     void* userdata);
+
+/** @see World_WorldEntityRegisterFn. Pass NULL to detach. */
+void
+World_SetWorldEntityRegisterFn(
+    struct World* world,
+    World_WorldEntityRegisterFn fn,
+    void* userdata);
+
+void
+World_SetForeignActorRegisterFn(
+    struct World* world,
+    World_ForeignActorRegisterFn fn,
+    void* userdata);
+
+void
+World_SetForeignDynamicClaimFn(
+    struct World* world,
+    World_ForeignDynamicClaimFn fn,
+    void* userdata);
+
+/**
+ * Re-publish `world`'s painter dynamics without advancing any simulation
+ * (SAILING_PLAN C5.1).
+ *
+ * A boat deck owns no entities: its actors belong to the world that carries
+ * the boat, and its own cycle would advance nothing. It still needs the
+ * registration half of a cycle every frame, because `painter_reset_to_static`
+ * is what clears the previous frame's actors off its painter. The root world
+ * gets this from World_Cycle; a view gets it from here.
+ */
+void
+World_CycleRegisterDynamics(struct World* world);
+
+/**
+ * Register one actor that another world owns onto `world`'s painter, at
+ * `world`'s own scene-local fine coordinates (SAILING_PLAN C5.1). Meant to be
+ * called only from a World_ForeignActorRegisterFn, which is the point in the
+ * cycle where the tier is right and the painter has been reset.
+ *
+ * The footprint padding, the yaw-oriented forward pad and the one-actor-per-
+ * tile claim are the mover rules a native actor gets, unchanged — a deck is
+ * scenery like any other, so nothing about standing on one should change how
+ * an actor sorts against what is around them.
+ */
+/** Fine-unit pad around a mover's draw position when it claims painter tiles
+ *  (reference addDynamic's 60). */
+#define WORLD_MOVER_PAINTER_PADDING 60
+
+void
+World_RegisterForeignActor(
+    struct World* world,
+    int element_id,
+    int level,
+    int deck_x,
+    int deck_z,
+    int padding,
+    int yaw,
+    int forward_padding);
 
 void
 World_ResetScene(

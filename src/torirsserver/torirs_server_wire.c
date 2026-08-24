@@ -831,6 +831,41 @@ w239_rebuild_region(struct RSAreaBuf* buf, int zone_x, int zone_z, int reload)
 }
 
 /*
+ * REBUILD_WORLDENTITY_V4 (op 109) and WORLDENTITY_INFO_V7 (op 122).
+ *
+ * These are the exact inverses of the committed client decoders
+ * (src/net/rev/osrs239/osrs239_parse.c) rather than transcriptions of an
+ * RSProt encoder: RSProt's generator excludes the whole info family, so the
+ * decoder is the only statement of the layout that exists on both ends.
+ *
+ * The alt transforms are the part that fails silently when it is wrong: a
+ * size byte written plain reads back as `(-b) & 0xFF`, i.e. a 1x1 deck
+ * arrives as a 15x15 one and the rebuild grid the client then expects is 225
+ * zones long instead of 1.
+ */
+static void
+w239_rebuild_worldentity(struct RSAreaBuf* buf, int base_x, int base_z, int source_squares)
+{
+    rsab_p2(buf, base_x);
+    rsab_p2(buf, base_z);
+    rsab_p2(buf, source_squares);
+}
+
+static void
+w239_wev_spawn_scalars(struct RSAreaBuf* buf, int size_byte, int priority_group, int config_id)
+{
+    rsab_p1_neg(buf, size_byte);      /* method13137: (-b) & 0xFF */
+    rsab_p1_add128(buf, priority_group); /* method13164: (b - 128) & 0xFF */
+    rsab_p2_le(buf, config_id);       /* method13178: signed little-endian */
+}
+
+static void
+w239_wev_op_mask(struct RSAreaBuf* buf, int op_mask)
+{
+    rsab_p1_sub128(buf, op_mask); /* method13166: (128 - b) & 0xFF */
+}
+
+/*
  * The zone sub-packets, transcribed from RSProt's zone/payload encoders.
  *
  * Every one of these is the same handful of fields in a different order and a
@@ -1542,6 +1577,9 @@ static const struct ToriRSServerWirePayload k_payload_osrs239 = {
     .cam_lookat = w239_cam_lookat,
     .cam_shake = w239_cam_shake,
     .rebuild_region = w239_rebuild_region,
+    .rebuild_worldentity = w239_rebuild_worldentity,
+    .wev_spawn_scalars = w239_wev_spawn_scalars,
+    .wev_op_mask = w239_wev_op_mask,
     .if_opentop = w239_if_opentop,
     .if_opensub = w239_if_opensub,
     .if_closesub = w239_if_closesub,
@@ -1632,6 +1670,13 @@ static const int k_transcribed_osrs239[] = {
      */
     PKT_NAME_SET_NPC_UPDATE_ORIGIN,
     PKT_NAME_SET_ACTIVE_WORLD,
+
+    /* Sailing (docs/SAILING_PLAN.md S2). Deliberately absent from revision
+     * 230's list: that prot table has no world-entity packet at all, so the
+     * opcode lookup drops them there — the refusal the wire convention wants,
+     * rather than a plausible frame at some other revision's opcode. */
+    PKT_NAME_REBUILD_WORLDENTITY,
+    PKT_NAME_WORLDENTITY_INFO,
 
     PKT_NAME_SERVER_TICK_END, PKT_NAME_VARP_RESET, PKT_NAME_VARP_SYNC,
     PKT_NAME_CAM_RESET,       PKT_NAME_RESET_ANIMS,
@@ -1784,6 +1829,8 @@ ToriRSServer_WirePktName(int pkt_name)
     case PKT_NAME_UPDATE_REBOOT_TIMER: return "UPDATE_REBOOT_TIMER";
     case PKT_NAME_HINT_ARROW: return "HINT_ARROW";
     case PKT_NAME_SET_ACTIVE_WORLD: return "SET_ACTIVE_WORLD";
+    case PKT_NAME_REBUILD_WORLDENTITY: return "REBUILD_WORLDENTITY";
+    case PKT_NAME_WORLDENTITY_INFO: return "WORLDENTITY_INFO";
     /* A `?` here is not cosmetic: this switch is what the "not transcribed"
      * report prints, so a name missing from it turns a work item into an
      * anonymous one. */

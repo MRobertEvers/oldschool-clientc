@@ -389,6 +389,35 @@ Wev_Interpolate(
     double now_cycle);
 
 /**
+ * The entity's footprint this frame, in ABSOLUTE root-world tiles: the
+ * axis-aligned bound of its baked corner box for the current heading.
+ *
+ * Must be re-evaluated every frame — the box is the hull ROTATED by `angle`,
+ * so its tile extent grows and shrinks as the boat turns (widest near 45
+ * degrees off-axis, by up to the diagonal). The painter's pseudo-loc takes its
+ * size from this; a fixed extent under-covers at some headings, which reads
+ * downstream as scenery sorting in front of a hull it is behind.
+ *
+ * `wev->config` must be present — "does this entity have a config?" is the
+ * caller's question. `margin_index` selects one of the baked inflation
+ * variants; index 0 is the tightest and is what the painter wants. Note even
+ * that one carries the deob's 256-unit inflation, so the box is conservative
+ * by ~2 tiles a side rather than exact; tightening it needs an un-inflated
+ * bake, which C4 can add if the over-coverage costs sorting accuracy.
+ *
+ * `out_min_tile_*` is the MIN corner, not the centre, matching what
+ * painter_add_world_entity expects.
+ */
+void
+Wev_FootprintTiles(
+    struct Wev const* wev,
+    int margin_index,
+    int* out_min_tile_x,
+    int* out_min_tile_z,
+    int* out_size_x,
+    int* out_size_z);
+
+/**
  * Per-frame driver: advance the clock by `frame_cycles`, then interpolate
  * every live view's entities — root first, then each entity's own view as it
  * is reached (iterative worklist, capped at WORLDVIEW_MAX; nesting comes
@@ -404,5 +433,77 @@ Wevs_Frame(
     double frame_cycles,
     WevHeightFn height_fn,
     void* height_userdata);
+
+/* -------------------------------------------------------------------- */
+/* Deck box — the view's base rectangle and the transform into it        */
+/* -------------------------------------------------------------------- */
+
+/**
+ * One entity's placement inside its PARENT view, plus the size of the deck it
+ * carries — everything needed to move a point between the two spaces and to
+ * answer "is this point aboard?".
+ *
+ * The forward transform (SAILING.md §5.2, and what C3's `frame_view_push`
+ * composes) is
+ *
+ *     parent = R(angle) * (deck + recenter) + pos
+ *
+ * with `recenter = (-size_x_tiles*64 - pivot_x, -size_z_tiles*64 - pivot_z)`,
+ * so the inverse is `deck = R(-angle) * (parent - pos) - recenter`.
+ *
+ * Every coordinate here is FINE units (128 per tile). `pos` is scene-local to
+ * the parent view — that is, absolute root fine units minus the parent world's
+ * `_base_tile_* << 7` — because that is the space scene elements and the
+ * painter grid live in. `recenter` is stored rather than derived so the caller
+ * that already has the config does not pass the pivot down twice.
+ */
+struct WevDeckBox
+{
+    int pos_x;
+    int pos_z;
+    int angle; /* 0..2047 */
+    int recenter_x;
+    int recenter_z;
+    /** The deck's base rectangle, in tiles; membership is [0, size*128). */
+    int size_x_tiles;
+    int size_z_tiles;
+};
+
+/** Parent-view fine (x,z) -> deck-local fine. Both outputs are required. */
+void
+Wev_DeckFromParent(
+    struct WevDeckBox const* box,
+    int parent_x,
+    int parent_z,
+    int* out_deck_x,
+    int* out_deck_z);
+
+/** Deck-local fine (x,z) -> parent-view fine. Both outputs are required. */
+void
+Wev_ParentFromDeck(
+    struct WevDeckBox const* box,
+    int deck_x,
+    int deck_z,
+    int* out_parent_x,
+    int* out_parent_z);
+
+/**
+ * Membership, the deob's geometric rule (SAILING_PLAN C5.1): a parent-view
+ * point is aboard when its deck-local image falls inside the base rectangle.
+ * Half-open on both axes, so a hull's tiles partition cleanly and a point on
+ * the far edge belongs to whatever is out there instead.
+ */
+bool
+Wev_DeckContainsParentPoint(
+    struct WevDeckBox const* box,
+    int parent_x,
+    int parent_z);
+
+/** The same test on an already-transformed deck-local point. */
+bool
+Wev_DeckContainsDeckPoint(
+    struct WevDeckBox const* box,
+    int deck_x,
+    int deck_z);
 
 #endif

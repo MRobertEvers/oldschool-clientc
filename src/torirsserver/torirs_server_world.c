@@ -7239,6 +7239,187 @@ handle_cheat(
         return;
     }
 
+    /*
+     * The sailing debug trio (docs/SAILING_PLAN.md S2.5).
+     *
+     * These exist to be driven from `[net:boot] cheat=` on a cold login with
+     * nothing else set up, so each one finds what it needs rather than being
+     * handed it: `::vesselspawn` picks the tile, stamps the water, sources the
+     * deck and builds the instance; `::vesselsail` and `::vesselboard` find the
+     * hull by taking the lowest live handle when no argument names one.
+     *
+     * Before the `item %d %d` / `tele %d %d` sscanf fallbacks below because
+     * those match on shape rather than on a name, and a mistyped vessel
+     * command should say so rather than fall through to a teleport.
+     */
+    if( strncmp(text, "vesselspawn", 11) == 0 )
+    {
+        /*
+         * `::vesselspawn [size_x] [size_z] [config]` — a hull beside the
+         * player, on stamped water, with a real deck under it.
+         *
+         * Config 9 is "The Zenith" and is a real archive-72 record in
+         * cache.osrs239 (src/world/test/wev_test.c pins its name and its
+         * "Board" op). The client asserts the id is in its config table, so a
+         * made-up default here would abort the client rather than draw a boat.
+         *
+         * The deck is sourced from Lumbridge castle's zone (402,402): this
+         * cache carries no boat-shaped map template, so the deck renders as a
+         * chunk of masonry. That is a correct render of the mechanism, and the
+         * alternative — an empty deck — renders as nothing at all.
+         */
+        int size_x = 2;
+        int size_z = 3;
+        int config_id = 9;
+        int tile_x;
+        int tile_z;
+        int handle;
+        struct ToriRSServerVessel* vessel;
+        int zones_x = 0;
+        int zones_z = 0;
+        int base_tile_x = 0;
+        int base_tile_z = 0;
+
+        sscanf(text, "vesselspawn %d %d %d", &size_x, &size_z, &config_id);
+        if( size_x < 1 )
+            size_x = 1;
+        if( size_z < 1 )
+            size_z = 1;
+        /* The wire's size nibbles are zone counts; 15 zones is the widest view
+         * an id can name, and the client's descriptor grid is narrower still. */
+        if( size_x > 96 )
+            size_x = 96;
+        if( size_z > 96 )
+            size_z = 96;
+
+        tile_x = player->x + 3;
+        tile_z = player->z + 3;
+
+        /*
+         * Water, stamped. In this cache only rivers and harbours carry the
+         * BLOCK setting that becomes COLL_FLAG_FLOOR — open ground reads a
+         * flag word of zero, which `ToriRSServer_VesselTileSailable` correctly
+         * refuses. Without a patch under the hull the mover's very first step
+         * is blocked and `::vesselsail` produces no deltas at all, which is
+         * the failure this command exists to avoid.
+         */
+        {
+            struct CollisionMap* cm = ToriRSServer_SceneCollision(player->level);
+            int base_x = ToriRSServer_SceneBaseX();
+            int base_z = ToriRSServer_SceneBaseZ();
+
+            if( cm && base_x >= 0 )
+                for( int dx = -16; dx <= 16; dx++ )
+                    for( int dz = -16; dz <= 16; dz++ )
+                        collision_map_add_floor(
+                            cm, tile_x + dx - base_x, tile_z + dz - base_z);
+        }
+
+        handle = ToriRSServer_VesselSpawn(
+            srv, config_id, size_x, size_z, player->level, tile_x, tile_z, 0);
+        if( handle == 0 )
+        {
+            say(srv, "No deck instance free — the map-instance pool is full.");
+            return;
+        }
+        vessel = ToriRSServer_VesselGet(srv, handle);
+        if( vessel->view_id == 0 )
+        {
+            say(srv, "Vessel %d spawned, but all 15 world-view ids are taken; "
+                     "it will not appear on any client.",
+                handle);
+            return;
+        }
+
+        /*
+         * The deck's terrain. Every zone of the reservation is pointed at the
+         * same source zone, so a multi-zone deck is a repeated courtyard
+         * rather than a hole — an unset zone decodes to 0 = void and the
+         * client draws nothing there.
+         */
+        ToriRSServer_VesselDeckZones(vessel, &zones_x, &zones_z);
+        ToriRSServer_MapInstanceBase(vessel->instance, &base_tile_x, &base_tile_z);
+        for( int zx = 0; zx < zones_x; zx++ )
+            for( int zz = 0; zz < zones_z; zz++ )
+                ToriRSServer_MapInstanceSetchunk(
+                    vessel->instance, 0, zx, zz, 402 * 8, 402 * 8, 0, 0);
+        ToriRSServer_MapInstanceBuild(vessel->instance);
+        ToriRSServer_WorldMapInstanceBuilt(srv, vessel->instance);
+
+        say(srv, "Vessel %d (config %d, view %d) at %d,%d; deck %d,%d.", handle,
+            config_id, vessel->view_id, tile_x, tile_z, base_tile_x, base_tile_z);
+        return;
+    }
+
+    if( strncmp(text, "vesselsail", 10) == 0 )
+    {
+        /*
+         * `::vesselsail [heading] [tier] [handle]` — put a hull under way so
+         * the op-2 delta path runs.
+         *
+         * Tier 1 by default (64 fine units, half a tile per tick): slow enough
+         * that the client's 30-cycle interpolator is visibly interpolating
+         * rather than snapping, which is the thing a capture is filming.
+         */
+        int heading = 4;
+        int tier = 1;
+        int handle = 0;
+        struct ToriRSServerVessel* vessel;
+
+        sscanf(text, "vesselsail %d %d %d", &heading, &tier, &handle);
+        vessel = handle > 0 ? ToriRSServer_VesselGet(srv, handle)
+                            : ToriRSServer_VesselByView(srv, 1);
+        if( !vessel )
+        {
+            say(srv, "No such vessel. ::vesselspawn first.");
+            return;
+        }
+        ToriRSServer_VesselSetHeading(vessel, heading & 15);
+        ToriRSServer_VesselSetSpeed(vessel, tier < 1 ? 1 : (tier > 4 ? 4 : tier));
+        say(srv, "Vessel %d sailing heading %d at tier %d.", vessel->index,
+            heading & 15, tier);
+        return;
+    }
+
+    if( strncmp(text, "vesselboard", 11) == 0 )
+    {
+        /*
+         * `::vesselboard [handle]` — stand the caller on the deck.
+         *
+         * A deck tile is an ordinary absolute tile inside the instance's
+         * reservation, so boarding is a plain teleport: nothing about the
+         * player becomes special, and `ToriRSServer_VesselAtTile` answers "is
+         * this player aboard" from the pool afterwards. The projection that
+         * makes the shore see them is recomputed by
+         * `ToriRSServer_WorldRefreshObservation` on the next tick.
+         */
+        int handle = 0;
+        struct ToriRSServerVessel* vessel;
+        int base_tile_x = 0;
+        int base_tile_z = 0;
+
+        sscanf(text, "vesselboard %d", &handle);
+        vessel = handle > 0 ? ToriRSServer_VesselGet(srv, handle)
+                            : ToriRSServer_VesselByView(srv, 1);
+        if( !vessel )
+        {
+            say(srv, "No such vessel. ::vesselspawn first.");
+            return;
+        }
+        if( !ToriRSServer_MapInstanceBase(vessel->instance, &base_tile_x, &base_tile_z) )
+        {
+            say(srv, "Vessel %d has no deck instance.", vessel->index);
+            return;
+        }
+        ToriRSServer_WorldTeleport(
+            srv, 0, base_tile_x + vessel->size_x_tiles / 2,
+            base_tile_z + vessel->size_z_tiles / 2);
+        say(srv, "Boarded vessel %d at %d,%d.", vessel->index,
+            base_tile_x + vessel->size_x_tiles / 2,
+            base_tile_z + vessel->size_z_tiles / 2);
+        return;
+    }
+
     if( sscanf(text, "item %d %d", &obj_id, &count) >= 1 )
     {
         int slot = inv_first_free(player);
@@ -12110,10 +12291,67 @@ phase_zones(struct ToriRSServer* srv)
  * PLAYER_INFO writes depends on the new origin zone, so it has to be decided
  * before any encoding starts.
  */
+/*
+ * Observation coordinates for every player (docs/SAILING_PLAN.md S2.4).
+ *
+ * `obs_*` is where a player is to be SEEN, which is not where they stand: a
+ * player on a vessel deck stands in the map-instance pool, hundreds of squares
+ * off the real map, and the projection through the hull transform is the only
+ * frame they and a shore player share.
+ *
+ * `obs_jumped` records that the projection moved independently of this
+ * player's own feet — the offset changing IS that motion, since obs = own +
+ * off and own motion is exactly what the walk steps describe. Boarding,
+ * disembarking, a plane change and a moving hull all land here, and the
+ * PLAYER_INFO encoder turns every one of them into remove-and-re-add rather
+ * than into a step it cannot express (plan risk R1).
+ */
+void
+ToriRSServer_WorldRefreshObservation(struct ToriRSServer* srv)
+{
+    struct ToriRSServerPlayer* player;
+
+    assert(srv);
+    TORIRSSERVER_FOR_EACH_PLAYER(srv, player)
+    {
+        struct ToriRSServerVessel* vessel;
+        int prev_off_x = player->obs_off_x;
+        int prev_off_z = player->obs_off_z;
+        int prev_off_level = player->obs_off_level;
+        int fine_x = 0;
+        int fine_z = 0;
+
+        vessel = ToriRSServer_VesselAtTile(srv, player->x, player->z);
+        if( vessel )
+        {
+            ToriRSServer_VesselDeckTileToRoot(vessel, player->x, player->z, &fine_x, &fine_z);
+            player->obs_x = fine_x >> 7;
+            player->obs_z = fine_z >> 7;
+            player->obs_level = vessel->level;
+        }
+        else
+        {
+            player->obs_x = player->x;
+            player->obs_z = player->z;
+            player->obs_level = player->level;
+        }
+        player->obs_off_x = player->obs_x - player->x;
+        player->obs_off_z = player->obs_z - player->z;
+        player->obs_off_level = player->obs_level - player->level;
+        player->obs_jumped = player->obs_off_x != prev_off_x ||
+                             player->obs_off_z != prev_off_z ||
+                             player->obs_off_level != prev_off_level;
+    }
+}
+
 static void
 phase_info(struct ToriRSServer* srv)
 {
     struct ToriRSServerPlayer* player;
+
+    /* Before anything is encoded, so all three streams of every observer read
+     * one snapshot of where everybody was this tick. */
+    ToriRSServer_WorldRefreshObservation(srv);
 
     /*
      * `TORIRSSERVER_ANIM_TRACE=1` — what a tick is about to ENCODE, per player.
@@ -12592,6 +12830,15 @@ phase_client_out(struct ToriRSServerPlayer* player)
      * login client has no initialized replacement WorldView before that
      * packet, while the active selection still has to precede PLAYER_INFO. */
     ToriRSServer_SendSetActiveWorld(player);
+    /*
+     * Sailing (docs/SAILING_PLAN.md S2). After the root selection because the
+     * update records address the ROOT view's entity list positionally, and
+     * before PLAYER_INFO because a spawn here is what makes the boat's view
+     * live — the deck rebuild it sandwiches would otherwise name a view the
+     * client asserts does not exist. The call re-selects the root on its way
+     * out, so everything below is root-addressed as it always was.
+     */
+    ToriRSServer_SendWorldEntityInfo(player);
     ToriRSServer_SendPlayerInfo(player);
     ToriRSServer_SendNpcInfo(player);
 

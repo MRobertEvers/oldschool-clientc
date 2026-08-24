@@ -1215,6 +1215,37 @@ ToriDraw_SceneElementAddPool(
     return td_scene_allocate_element_id(scene, pool);
 }
 
+void
+ToriDraw_SceneElementSetPool(
+    struct ToriDraw_Scene* scene,
+    int element_id,
+    int pool)
+{
+    struct ToriDraw_SceneElement* element;
+
+    assert(scene);
+    /* Same bound as the allocator: the tag is one byte, and a pool past the end
+     * would wrap onto another view's elements and be freed on that view's
+     * clear. */
+    assert(pool >= 0);
+    assert(pool < 256);
+    assert(td_scene_element_valid(scene, element_id));
+
+    element = td_scene_element_ptr(scene, element_id);
+    element->pool = (uint8_t)pool;
+}
+
+int
+ToriDraw_SceneElementPool(
+    struct ToriDraw_Scene* scene,
+    int element_id)
+{
+    assert(scene);
+    if( !td_scene_element_valid(scene, element_id) )
+        return -1;
+    return (int)td_scene_element_ptr(scene, element_id)->pool;
+}
+
 int
 ToriDraw_SceneElementRemove(
     struct ToriDraw_Scene* scene,

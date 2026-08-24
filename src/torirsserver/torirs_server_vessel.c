@@ -40,6 +40,15 @@
 #include <stdint.h>
 #include <string.h>
 
+/*
+ * Monotonic hull identity, never recycled (docs/SAILING_PLAN.md S2.1).
+ *
+ * Process-wide rather than per-world for the same reason the map-instance pool
+ * is: a serial only has to be unequal, and one counter cannot hand the same
+ * number to two live hulls however many worlds exist.
+ */
+static int g_vessel_serial;
+
 /* ------------------------------------------------------------------ */
 /* Fixed-point trig                                                    */
 /* ------------------------------------------------------------------ */
@@ -225,6 +234,26 @@ ToriRSServer_VesselSpawn(
     memset(vessel, 0, sizeof(*vessel));
     vessel->in_use = 1;
     vessel->index = slot + 1;
+    /* Never reused, unlike the slot and the view id. See the field's comment:
+     * this is the only thing that tells a wire encoder "the hull under view 1
+     * is not the hull you were told about", when a free and a spawn land in
+     * the same tick and both recycle the same numbers. */
+    vessel->serial = ++g_vessel_serial;
+    /* Lowest free world-view id. 0 when all 15 are taken: the hull still sails,
+     * it just has no name the wire can say — see the field's comment. */
+    for( int view = 1; view <= TORIRSSERVER_WEV_VIEW_MAX; view++ )
+    {
+        int taken = 0;
+
+        for( int i = 0; i < TORIRSSERVER_VESSEL_MAX && !taken; i++ )
+            if( srv->vessels[i].in_use && srv->vessels[i].view_id == view )
+                taken = 1;
+        if( !taken )
+        {
+            vessel->view_id = view;
+            break;
+        }
+    }
     vessel->config_id = config_id;
     vessel->size_x_tiles = size_x_tiles;
     vessel->size_z_tiles = size_z_tiles;
@@ -578,4 +607,64 @@ ToriRSServer_VesselDeckTileToRoot(
         (deck_tile_z - base_z) * TORIRSSERVER_VESSEL_FINE_PER_TILE + 64,
         out_fine_x,
         out_fine_z);
+}
+
+/* ------------------------------------------------------------------ */
+/* Wire-facing lookups (docs/SAILING_PLAN.md S2)                       */
+/* ------------------------------------------------------------------ */
+
+struct ToriRSServerVessel*
+ToriRSServer_VesselByView(
+    struct ToriRSServer* srv,
+    int view_id)
+{
+    assert(srv);
+
+    /* View 0 is the root world and names no vessel; an id past the registry is
+     * a value off the wire, not a caller bug. */
+    if( view_id <= 0 || view_id > TORIRSSERVER_WEV_VIEW_MAX )
+        return NULL;
+    for( int i = 0; i < TORIRSSERVER_VESSEL_MAX; i++ )
+        if( srv->vessels[i].in_use && srv->vessels[i].view_id == view_id )
+            return &srv->vessels[i];
+    return NULL;
+}
+
+struct ToriRSServerVessel*
+ToriRSServer_VesselAtTile(
+    struct ToriRSServer* srv,
+    int tile_x,
+    int tile_z)
+{
+    int instance;
+
+    assert(srv);
+
+    /* The pool already answers "which reservation is this tile in"; the vessel
+     * is the one hull that owns that reservation. Cheaper than re-deriving
+     * bounds here, and it agrees with the pool by construction. */
+    instance = ToriRSServer_MapInstanceFind(tile_x, tile_z);
+    if( instance == 0 )
+        return NULL;
+    for( int i = 0; i < TORIRSSERVER_VESSEL_MAX; i++ )
+        if( srv->vessels[i].in_use && srv->vessels[i].instance == instance )
+            return &srv->vessels[i];
+    return NULL;
+}
+
+void
+ToriRSServer_VesselDeckZones(
+    const struct ToriRSServerVessel* vessel,
+    int* out_zones_x,
+    int* out_zones_z)
+{
+    assert(vessel);
+    assert(vessel->in_use);
+    assert(out_zones_x);
+    assert(out_zones_z);
+
+    /* The same rounding VesselSpawn reserved the instance with — and the wire's
+     * size nibbles are zone counts, so this is what goes on the wire too. */
+    *out_zones_x = (vessel->size_x_tiles + 7) / 8;
+    *out_zones_z = (vessel->size_z_tiles + 7) / 8;
 }

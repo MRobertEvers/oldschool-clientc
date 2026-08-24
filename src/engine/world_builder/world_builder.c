@@ -254,6 +254,30 @@ world_builder_reconcile_dynamic_elements(struct WorldBuilder* builder)
             world_builder_claim_element(scene, claimed_by, keep, &s->element_id, 0x50000 | i);
     }
 
+    /* Actors standing here whose records live in another world (SAILING_PLAN
+     * C5.1: someone is on this deck). Their elements are tagged with this
+     * world's dynamic pool so the OTHER world's rebuild leaves them alone —
+     * which means this sweep is the one that would otherwise free them, out
+     * from under a live player. No claim map for these: two worlds cannot
+     * both own the same actor record, so there is nothing here to collide
+     * with the loops above. */
+    if( world->foreign_dynamic_claim_fn )
+    {
+        int* foreign = (int*)malloc((size_t)TORIDRAW_SCENE_MAX_ELEMENTS * sizeof(int));
+        int n;
+        assert(foreign && "world_builder_reconcile_dynamic_elements: foreign claim list");
+        n = world->foreign_dynamic_claim_fn(
+            world->foreign_dynamic_claim_userdata, world, foreign, TORIDRAW_SCENE_MAX_ELEMENTS);
+        assert(n >= 0);
+        assert(n <= TORIDRAW_SCENE_MAX_ELEMENTS);
+        for( int fi = 0; fi < n; fi++ )
+        {
+            if( foreign[fi] >= 0 && foreign[fi] < TORIDRAW_SCENE_MAX_ELEMENTS )
+                world_builder_mark_element_keep(keep, foreign[fi]);
+        }
+        free(foreign);
+    }
+
     for( id = scene->elements.head; id != TORIDRAW_INTRUSIVE_NIL; id = next )
     {
         struct ToriDraw_SceneElement* el;

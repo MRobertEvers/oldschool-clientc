@@ -37,6 +37,21 @@ struct ToriRSServer;
  *  feeds their decks (each vessel owns one reservation of the 8). */
 #define TORIRSSERVER_VESSEL_MAX 32
 
+/**
+ * World-view ids a vessel can be given on the wire, 1..15.
+ *
+ * WORLDENTITY_INFO's id IS the client's world-view id (src/world/worldview.h
+ * has 16 views and view 0 is the root), so the wire cannot name more than 15
+ * live entities however many hulls the server pool holds. Vessels beyond that
+ * exist server-side and simply have no view — `view_id == 0`.
+ */
+#define TORIRSSERVER_WEV_VIEW_MAX 15
+
+/** All five WORLDENTITY_INFO right-click ops enabled — the client's own
+ *  default (PKT_WEV_OP_MASK_ALL / WEV_OP_MASK_ALL), restated here because the
+ *  server tree does not include the client's headers. */
+#define TORIRSSERVER_WEV_OP_MASK_ALL 31
+
 /** Fine units per tile — the client's 128-unit tile, restated here because the
  *  server tree does not include the renderer's headers. */
 #define TORIRSSERVER_VESSEL_FINE_PER_TILE 128
@@ -77,6 +92,31 @@ struct ToriRSServerVessel
     /** 1-based handle, == pool index + 1. 0 is the surface's only "no
      *  vessel" value, mirroring the map-instance convention. */
     int index;
+
+    /**
+     * The client world-view id this hull is published under, 1..15, or 0 when
+     * every view was taken at spawn time.
+     *
+     * Distinct from `index` on purpose: the vessel pool is 32 deep and the
+     * wire's registry is 15, so a 1:1 mapping would put ids on the wire the
+     * client rejects as malformed (its decoder refuses id > 16 outright).
+     */
+    int view_id;
+
+    /**
+     * A number no other hull has ever carried, handed out at spawn and never
+     * recycled — unlike `index` (a pool slot) and `view_id` (15 of them, taken
+     * lowest-free).
+     *
+     * Both of those come back around, and a free followed by a spawn inside one
+     * tick hands the new hull the old hull's slot AND the old hull's view. A
+     * wire encoder comparing either would then describe the new boat as a
+     * MOVE of the old one: the client keeps the previous config's model and
+     * deck size and slides it across the water to the new position, with no
+     * packet malformed anywhere. Comparing serials is what makes that case a
+     * despawn and a respawn instead.
+     */
+    int serial;
 
     /** Content's vessel kind (the config-72 id this hull was spawned as). The
      *  server does not read config 72 in S1; the id is carried for S2's wire
@@ -169,6 +209,31 @@ ToriRSServer_VesselGet(
 /** How many vessels are live — the leak check's number. */
 int
 ToriRSServer_VesselLiveCount(struct ToriRSServer* srv);
+
+/** The live vessel published under this client world-view id, or NULL. View 0
+ *  (the root) and ids past the registry answer NULL — both arrive off the
+ *  wire, so neither is a caller bug. */
+struct ToriRSServerVessel*
+ToriRSServer_VesselByView(
+    struct ToriRSServer* srv,
+    int view_id);
+
+/** The vessel whose DECK INSTANCE reservation contains this absolute tile, or
+ *  NULL — the "is this player aboard something?" question, answered from the
+ *  map-instance pool so the two cannot disagree. */
+struct ToriRSServerVessel*
+ToriRSServer_VesselAtTile(
+    struct ToriRSServer* srv,
+    int tile_x,
+    int tile_z);
+
+/** The deck's size in whole zones — the reservation VesselSpawn made, and the
+ *  size nibbles WORLDENTITY_INFO's spawn trailer carries. */
+void
+ToriRSServer_VesselDeckZones(
+    const struct ToriRSServerVessel* vessel,
+    int* out_zones_x,
+    int* out_zones_z);
 
 /* ------------------------------------------------------------------ */
 /* Commands                                                            */

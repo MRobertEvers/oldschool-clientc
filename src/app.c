@@ -2182,6 +2182,11 @@ app_world_height(
     int world_x,
     int world_z,
     int level);
+/* Defined with the world-entity helpers further down (SAILING_PLAN C3). */
+static void
+app_wev_register_pseudo_locs(
+    void* userdata,
+    struct World* world);
 static int
 app_cinema_level(struct App* app);
 static int
@@ -8253,6 +8258,10 @@ App_Init(
      * WORLDENTITY_INFO spawns one; the config table fills at boot. */
     Wevs_Init(&app->wevs);
     WevConfigTable_Init(&app->wev_configs);
+    /* The dynamic-registration pass puts every entity floating in this world
+     * into its painter as a transient pseudo-loc (SAILING_PLAN C3). Boat worlds
+     * get the same hook at spawn, so nesting registers itself. */
+    World_SetWorldEntityRegisterFn(app->world, app_wev_register_pseudo_locs, app);
     app->painter_buffer = painter_buffer_new();
     assert(app->painter_buffer);
     /* v1 GameRunescape camera defaults; repositioned on world load complete. */
@@ -9214,6 +9223,840 @@ app_wev_terrain_height(
         world_x - (view->world->_base_tile_x << 7),
         world_z - (view->world->_base_tile_z << 7),
         level);
+}
+
+/* --- SAILING_PLAN C3: world entities in the painter ---------------------- */
+
+/**
+ * `TORIRS_WEV_DEBUG=1` — trace every world entity the client is told about and
+ * every frame's painter insertion.
+ *
+ * A boat that does not appear has one of three causes, and they are
+ * indistinguishable from a blank patch of water: the spawn never arrived, the
+ * spawn arrived but its own view never came live (no REBUILD_WORLDENTITY, so
+ * there is no deck to descend into), or the hull's tile falls outside the
+ * observer's scene. Each of those prints its own line here.
+ *
+ * Off by default and read once: this sits inside the per-frame painter
+ * registration, where an unconditional write costs whole milliseconds
+ * (docs — one stderr write per spawn was the entire "laggy scene" stutter).
+ */
+static int
+app_wev_debug_enabled(void)
+{
+    static int cached = -1;
+
+    if( cached < 0 )
+    {
+        char const* v = getenv("TORIRS_WEV_DEBUG");
+
+        cached = (v && v[0] && v[0] != '0') ? 1 : 0;
+    }
+    return cached;
+}
+
+/** The registry slot whose World is `world`, or -1. Views are 16 and the
+ * lookup runs once per painter pass, so a scan beats a back-pointer. */
+static int
+app_worldview_id_of(
+    struct App* app,
+    const struct World* world)
+{
+    assert(app);
+    assert(world);
+    for( int i = 0; i < WORLDVIEW_MAX; i++ )
+    {
+        if( WorldviewRegistry_IsLive(&app->worldviews, i) &&
+            WorldviewRegistry_Get(&app->worldviews, i)->world == world )
+            return i;
+    }
+    return -1;
+}
+
+/**
+ * World_WorldEntityRegisterFn: every entity floating in `world` goes in as a
+ * transient pseudo-loc covering its rotated footprint, flagged
+ * PNTR_SCENERY_WORLDENTITY so the drain descends instead of emitting a model.
+ * Painter-correct ordering against real locs, actors and projectiles then comes
+ * for free.
+ */
+static void
+app_wev_register_pseudo_locs(
+    void* userdata,
+    struct World* world)
+{
+    struct App* app = (struct App*)userdata;
+    int view_id;
+    int count;
+    int debug = app_wev_debug_enabled();
+
+    assert(app);
+    assert(world);
+    assert(world->painter);
+
+    view_id = app_worldview_id_of(app, world);
+    /* A world that is not a registered view has no entities floating in it -
+     * an offline harness world, say. */
+    if( view_id < 0 )
+        return;
+
+    count = Wevs_ViewListCount(&app->wevs, view_id);
+    for( int i = 0; i < count; i++ )
+    {
+        struct Wev* wev = Wevs_ViewListAt(&app->wevs, view_id, i);
+        int id;
+        int gx;
+        int gz;
+        int level;
+        int fx;
+        int fz;
+        int fsx;
+        int fsz;
+
+        assert(wev);
+        id = wev->id;
+
+        /* Its own view must exist before the painter can descend into it. */
+        if( !WorldviewRegistry_IsLive(&app->worldviews, id) )
+        {
+            if( debug )
+                fprintf(
+                    stderr,
+                    "wev: view %d entity %d SKIPPED — its own view is not live\n",
+                    view_id,
+                    id);
+            continue;
+        }
+
+        /* Wev transforms are absolute root-world fine units; the painter grid
+         * is scene-local tiles. >>7, never /128: truncation toward zero
+         * mis-seeds by a whole tile at negative coordinates. */
+        gx = (wev->x >> 7) - world->_base_tile_x;
+        gz = (wev->z >> 7) - world->_base_tile_z;
+        if( gx < 0 || gz < 0 || gx >= world->_scene_size || gz >= world->_scene_size )
+        {
+            if( debug )
+                fprintf(
+                    stderr,
+                    "wev: view %d entity %d SKIPPED — tile %d,%d outside the "
+                    "%d-tile scene based at %d,%d (fine %d,%d)\n",
+                    view_id,
+                    id,
+                    gx,
+                    gz,
+                    world->_scene_size,
+                    world->_base_tile_x,
+                    world->_base_tile_z,
+                    wev->x,
+                    wev->z);
+            continue;
+        }
+
+        level = wev->config ? wev->config->plane : 0;
+        if( level < 0 )
+            level = 0;
+        if( level >= COLLISION_LEVELS )
+            level = COLLISION_LEVELS - 1;
+        level = World_LocPaintLevel(world, gx, gz, level);
+
+        /* The footprint is the hull box ROTATED by this frame's heading, so it
+         * is recomputed every frame rather than fixed at spawn — its tile
+         * extent grows and shrinks as the boat turns. Absolute tiles out of the
+         * wev, then rebased onto this scene and clipped to it, since element
+         * sx/sz are unsigned and a negative min corner would wrap. */
+        fsx = 1;
+        fsz = 1;
+        fx = gx;
+        fz = gz;
+        if( wev->config )
+        {
+            Wev_FootprintTiles(wev, 0, &fx, &fz, &fsx, &fsz);
+            fx -= world->_base_tile_x;
+            fz -= world->_base_tile_z;
+            if( fx < 0 )
+            {
+                fsx += fx;
+                fx = 0;
+            }
+            if( fz < 0 )
+            {
+                fsz += fz;
+                fz = 0;
+            }
+            if( fx + fsx > world->_scene_size )
+                fsx = world->_scene_size - fx;
+            if( fz + fsz > world->_scene_size )
+                fsz = world->_scene_size - fz;
+        }
+
+        /* A box whose offsets carry it clean off this scene still leaves the
+         * centre tile in it — paint that rather than nothing. */
+        if( fsx <= 0 || fsz <= 0 )
+        {
+            fx = gx;
+            fz = gz;
+            fsx = 1;
+            fsz = 1;
+        }
+
+        /* model_height 0: the pseudo-loc is never occlusion-tested (the drain
+         * descends on it), and a hull has no single merged model to measure. */
+        painter_add_world_entity(world->painter, level, fx, fz, id, 0, fsx, fsz);
+        if( debug )
+            fprintf(
+                stderr,
+                "wev: view %d entity %d PAINTED at scene tile %d,%d level %d "
+                "(config plane %d) (fine %d,%d "
+                "angle %d)\n",
+                view_id,
+                id,
+                gx,
+                gz,
+                level,
+                wev->config ? wev->config->plane : -1,
+                wev->x,
+                wev->z,
+                wev->angle);
+    }
+}
+
+/**
+ * Bind every live entity's painter to its parent's world-entity table with the
+ * camera already carried into that entity's own space, once per entity per
+ * frame. Breadth-first over the view tree: a nested entity's camera derives
+ * from its carrier's, so a parent resolves first.
+ *
+ * The inverse of the descent transform. Forward (SAILING.md 5.2) is
+ * `root = R(angle) * (deck + T) + pos` with
+ * `T = (-size_x*64 - pivot_x, 0, -size_z*64 - pivot_z)`, so
+ * `deck = R(-angle) * (root - pos) - T`.
+ */
+static void
+app_wev_bind_view_cameras(
+    struct App* app,
+    int pitch,
+    int root_yaw,
+    int root_cam_x,
+    int root_cam_y,
+    int root_cam_z)
+{
+    struct
+    {
+        int view_id;
+        int cam_x;
+        int cam_y;
+        int cam_z;
+        int yaw;
+    } queue[WORLDVIEW_MAX];
+    int head = 0;
+    int tail = 0;
+
+    assert(app);
+
+    queue[tail].view_id = WORLDVIEW_ROOT;
+    queue[tail].cam_x = root_cam_x;
+    queue[tail].cam_y = root_cam_y;
+    queue[tail].cam_z = root_cam_z;
+    queue[tail].yaw = root_yaw;
+    tail++;
+
+    while( head < tail )
+    {
+        int parent_view_id = queue[head].view_id;
+        int cam_x = queue[head].cam_x;
+        int cam_y = queue[head].cam_y;
+        int cam_z = queue[head].cam_z;
+        int parent_yaw = queue[head].yaw;
+        struct World* parent_world;
+        int count;
+        head++;
+
+        if( !WorldviewRegistry_IsLive(&app->worldviews, parent_view_id) )
+            continue;
+        parent_world = WorldviewRegistry_Get(&app->worldviews, parent_view_id)->world;
+        assert(parent_world);
+        if( !parent_world->painter )
+            continue;
+
+        /* Per frame: a despawned entity must not leave a dangling painter. */
+        painter_clear_world_entity_views(parent_world->painter);
+
+        count = Wevs_ViewListCount(&app->wevs, parent_view_id);
+        for( int i = 0; i < count; i++ )
+        {
+            struct Wev* wev = Wevs_ViewListAt(&app->wevs, parent_view_id, i);
+            int id;
+            struct Worldview* view;
+            int boat_x;
+            int boat_z;
+            int dx;
+            int dy;
+            int dz;
+            int inv_angle;
+            int cs;
+            int sn;
+            int deck_x;
+            int deck_z;
+            int recenter_x;
+            int recenter_z;
+            int boat_yaw;
+            int sx;
+            int sz;
+            int max_tile;
+
+            assert(wev);
+            assert(wev->config);
+            id = wev->id;
+            if( !WorldviewRegistry_IsLive(&app->worldviews, id) )
+                continue;
+            view = WorldviewRegistry_Get(&app->worldviews, id);
+            assert(view->world);
+            if( !view->world->painter )
+                continue;
+
+            boat_x = wev->x - (parent_world->_base_tile_x << 7);
+            boat_z = wev->z - (parent_world->_base_tile_z << 7);
+            dx = cam_x - boat_x;
+            dy = cam_y - wev->y;
+            dz = cam_z - boat_z;
+
+            inv_angle = (2048 - (wev->angle & 0x7ff)) & 0x7ff;
+            cs = ToriDraw_Cos(inv_angle);
+            sn = ToriDraw_Sin(inv_angle);
+            deck_x = (dx * cs + dz * sn) >> 16;
+            deck_z = (dz * cs - dx * sn) >> 16;
+
+            recenter_x = -(view->size_x_tiles * 64) - wev->config->pivot_x;
+            recenter_z = -(view->size_z_tiles * 64) - wev->config->pivot_z;
+            deck_x -= recenter_x;
+            deck_z -= recenter_z;
+
+            boat_yaw = (parent_yaw - wev->angle) & 0x7ff;
+            painter_set_camera_angles(view->world->painter, pitch, boat_yaw);
+            painter_set_level_mask(view->world->painter, 0xF);
+            /* The deck is a handful of zones; draw all of it. */
+            painter_set_draw_distance(view->world->painter, view->world->_scene_size);
+
+            max_tile = view->world->_scene_size - 1;
+            sx = deck_x >> 7;
+            sz = deck_z >> 7;
+            if( sx < 0 )
+                sx = 0;
+            if( sx > max_tile )
+                sx = max_tile;
+            if( sz < 0 )
+                sz = 0;
+            if( sz > max_tile )
+                sz = max_tile;
+
+            painter_set_world_entity_view(
+                parent_world->painter, id, view->world->painter, sx, sz, 0);
+
+            /* Nested entities ride this deck; their cameras derive from it. */
+            assert(tail < WORLDVIEW_MAX);
+            queue[tail].view_id = id;
+            queue[tail].cam_x = deck_x;
+            queue[tail].cam_y = dy;
+            queue[tail].cam_z = deck_z;
+            queue[tail].yaw = boat_yaw;
+            tail++;
+        }
+    }
+}
+
+/**
+ * Publish every live entity's descent transform to the frame emitter, once per
+ * frame. The painter's BEGIN_WORLD / END_WORLD markers pick them up and compose
+ * them; nothing here needs the tree order, because each entry is expressed
+ * purely in its own PARENT's space.
+ */
+static void
+app_wev_bind_frame_xforms(
+    struct App* app,
+    struct ToriRS_Frame* frame)
+{
+    assert(app);
+    assert(frame);
+
+    ToriRS_FrameClearViewXforms(frame);
+
+    for( int parent = 0; parent < WORLDVIEW_MAX; parent++ )
+    {
+        struct World* parent_world;
+        int count;
+
+        if( !WorldviewRegistry_IsLive(&app->worldviews, parent) )
+            continue;
+        parent_world = WorldviewRegistry_Get(&app->worldviews, parent)->world;
+        assert(parent_world);
+
+        count = Wevs_ViewListCount(&app->wevs, parent);
+        for( int i = 0; i < count; i++ )
+        {
+            struct Wev* wev = Wevs_ViewListAt(&app->wevs, parent, i);
+            struct Worldview* view;
+
+            assert(wev);
+            assert(wev->config);
+            if( !WorldviewRegistry_IsLive(&app->worldviews, wev->id) )
+                continue;
+            view = WorldviewRegistry_Get(&app->worldviews, wev->id);
+            assert(view->world);
+
+            ToriRS_FrameSetViewXform(
+                frame,
+                wev->id,
+                view->world,
+                -(view->size_x_tiles * 64) - wev->config->pivot_x,
+                -(view->size_z_tiles * 64) - wev->config->pivot_z,
+                wev->x - (parent_world->_base_tile_x << 7),
+                wev->y,
+                wev->z - (parent_world->_base_tile_z << 7),
+                wev->angle);
+        }
+    }
+}
+
+/* --- SAILING_PLAN C5: actors aboard ------------------------------------- */
+
+/**
+ * The deck box of one live entity, expressed in `parent_world`'s scene-local
+ * fine units. Mirrors app_wev_bind_view_cameras' arithmetic exactly — same
+ * recenter, same base-tile subtraction — because a disagreement between the
+ * two is an actor drawn somewhere the camera is not looking.
+ */
+static void
+app_wev_deck_box(
+    struct App* app,
+    struct Wev const* wev,
+    struct World const* parent_world,
+    struct WevDeckBox* out_box)
+{
+    struct Worldview const* view;
+
+    assert(app);
+    assert(wev);
+    assert(wev->config);
+    assert(parent_world);
+    assert(out_box);
+    assert(WorldviewRegistry_IsLive(&app->worldviews, wev->id));
+
+    view = WorldviewRegistry_Get(&app->worldviews, wev->id);
+    out_box->pos_x = wev->x - (parent_world->_base_tile_x << 7);
+    out_box->pos_z = wev->z - (parent_world->_base_tile_z << 7);
+    out_box->angle = wev->angle;
+    out_box->recenter_x = -(view->size_x_tiles * 64) - wev->config->pivot_x;
+    out_box->recenter_z = -(view->size_z_tiles * 64) - wev->config->pivot_z;
+    out_box->size_x_tiles = view->size_x_tiles;
+    out_box->size_z_tiles = view->size_z_tiles;
+}
+
+/**
+ * Membership, the deob's geometric rule (SAILING_PLAN C5.1): descend the view
+ * tree from the root as long as some entity's base rectangle contains the
+ * point, carrying the point into each deck's space as we go. The result is the
+ * DEEPEST view that owns it, so a passenger on a dinghy lashed to a galleon is
+ * on the dinghy.
+ *
+ * The loop is bounded by WORLDVIEW_MAX rather than by "no entity matched": a
+ * cycle in the view tree would otherwise spin here, and the painter already
+ * refuses cycles at the descent, so refusing one here keeps the two agreeing.
+ */
+static void
+app_wev_route_point(
+    struct App* app,
+    int root_x,
+    int root_z,
+    int* out_view_id,
+    int* out_x,
+    int* out_z)
+{
+    int view_id = WORLDVIEW_ROOT;
+    int x = root_x;
+    int z = root_z;
+
+    assert(app);
+    assert(out_view_id);
+    assert(out_x);
+    assert(out_z);
+
+    for( int step = 0; step < WORLDVIEW_MAX; step++ )
+    {
+        struct World* parent_world;
+        int count;
+        int descended = 0;
+
+        if( !WorldviewRegistry_IsLive(&app->worldviews, view_id) )
+            break;
+        parent_world = WorldviewRegistry_Get(&app->worldviews, view_id)->world;
+        assert(parent_world);
+
+        count = Wevs_ViewListCount(&app->wevs, view_id);
+        for( int i = 0; i < count; i++ )
+        {
+            struct Wev* wev = Wevs_ViewListAt(&app->wevs, view_id, i);
+            struct WevDeckBox box;
+            int deck_x;
+            int deck_z;
+
+            assert(wev);
+            if( !WorldviewRegistry_IsLive(&app->worldviews, wev->id) )
+                continue;
+            app_wev_deck_box(app, wev, parent_world, &box);
+            Wev_DeckFromParent(&box, x, z, &deck_x, &deck_z);
+            if( !Wev_DeckContainsDeckPoint(&box, deck_x, deck_z) )
+                continue;
+            /* First containing entity wins. Hulls do not overlap on the
+             * server, and the deob does not arbitrate either. */
+            view_id = wev->id;
+            x = deck_x;
+            z = deck_z;
+            descended = 1;
+            break;
+        }
+        if( !descended )
+            break;
+    }
+
+    *out_view_id = view_id;
+    *out_x = x;
+    *out_z = z;
+}
+
+/**
+ * Move one actor's scene element between view pools when its membership
+ * changes, and record the new placement.
+ *
+ * The element is retagged, never freed and reallocated: its id is what the
+ * entity record, the painter's scenery chains and the plugin-facing
+ * EntityRemoved queue all hold. Retagging is what makes a boarding leak
+ * nothing and strand nothing — the old pool loses a member, the new pool
+ * gains one, and the sweep on either side then sees the truth.
+ */
+static void
+app_wev_apply_placement(
+    struct App* app,
+    struct WorldEntityFacet_ViewPlacement* placement,
+    int element_id,
+    int view_id,
+    int x,
+    int z)
+{
+    assert(app);
+    assert(app->scene);
+    assert(placement);
+    assert(element_id >= 0);
+    assert(view_id >= 0);
+    assert(view_id < WORLDVIEW_MAX);
+
+    if( placement->view_id != view_id )
+    {
+        ToriDraw_SceneElementSetPool(
+            app->scene, element_id, TORIDRAW_SCENE_POOL_DYNAMIC_VIEW(view_id));
+        placement->view_id = view_id;
+        app->need_redraw = 1;
+    }
+    placement->x = x;
+    placement->z = z;
+}
+
+/**
+ * Re-route every actor in the root world to the view whose base rectangle
+ * holds it, once per tick, before the registration passes read the answer.
+ *
+ * Ordered after World_MoversAdvance so the point tested is where the actor is
+ * NOW; ordered before World_Cycle so the root's own registration pass already
+ * knows to skip whoever just boarded. A tick's lag either way would draw a
+ * boarding player twice or not at all for a frame.
+ */
+static void
+app_wev_route_actors(struct App* app)
+{
+    struct World* world;
+    struct World_EntityPool* pool;
+
+    assert(app);
+    world = app->world;
+    if( !world || !app->scene )
+        return;
+
+    app->aboard_view = WORLDVIEW_ROOT;
+
+    pool = &world->entities.player;
+    for( int pi = World_EntityPoolHead(pool); pi != WORLD_ENTITY_NIL;
+         pi = World_EntityPoolNext(pool, pi) )
+    {
+        struct WorldEntity_Player* player = World_EntityPoolGet(pool, pi);
+        int view_id;
+        int x;
+        int z;
+
+        if( !player || player->element_id < 0 )
+            continue;
+        app_wev_route_point(
+            app,
+            (int)player->draw_position.x,
+            (int)player->draw_position.z,
+            &view_id,
+            &x,
+            &z);
+        app_wev_apply_placement(app, &player->view_placement, player->element_id, view_id, x, z);
+        /* SAILING_PLAN C5.1's "one int": which view the local player is in.
+         * Nothing steers off it yet — the camera still follows their ROOT
+         * position, which the server keeps projected onto the hull — but the
+         * aboard scene-mode flip and the deck-height focus both key off it. */
+        if( app->esync.local_pid >= 0 && player->server_pid == app->esync.local_pid )
+            app->aboard_view = view_id;
+    }
+
+    pool = &world->entities.npc;
+    for( int ni = World_EntityPoolHead(pool); ni != WORLD_ENTITY_NIL;
+         ni = World_EntityPoolNext(pool, ni) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
+        int view_id;
+        int x;
+        int z;
+
+        if( !npc || npc->element_id < 0 )
+            continue;
+        app_wev_route_point(
+            app, (int)npc->draw_position.x, (int)npc->draw_position.z, &view_id, &x, &z);
+        app_wev_apply_placement(app, &npc->view_placement, npc->element_id, view_id, x, z);
+    }
+}
+
+/**
+ * World_ForeignActorRegisterFn for a boat deck: register the root world's
+ * actors that this frame's routing put on THIS deck.
+ *
+ * The tier order inside the pass reproduces the root's — local player, then
+ * alwaysontop NPCs, then other players, then the rest — because the painter's
+ * one-actor-per-tile claim is decided by registration order and a deck is not
+ * a reason for two players sharing a tile to swap.
+ */
+static void
+app_wev_register_deck_actors(
+    void* userdata,
+    struct World* world)
+{
+    struct App* app = (struct App*)userdata;
+    struct World* owner;
+    struct World_EntityPool* pool;
+    int view_id;
+
+    assert(app);
+    assert(world);
+    assert(world->painter);
+
+    view_id = app_worldview_id_of(app, world);
+    /* Not a registered view (an offline harness world) — nobody can be aboard
+     * something the registry has never heard of. */
+    if( view_id < 0 || view_id == WORLDVIEW_ROOT )
+        return;
+    owner = app->world;
+    if( !owner )
+        return;
+
+    for( int pass = 0; pass < 4; pass++ )
+    {
+        int want_local = (pass == 0);
+        int want_alwaysontop = (pass == 1);
+
+        if( pass == 0 || pass == 2 )
+        {
+            pool = &owner->entities.player;
+            for( int pi = World_EntityPoolHead(pool); pi != WORLD_ENTITY_NIL;
+                 pi = World_EntityPoolNext(pool, pi) )
+            {
+                struct WorldEntity_Player* player = World_EntityPoolGet(pool, pi);
+                int is_local;
+
+                if( !player || player->element_id < 0 )
+                    continue;
+                if( player->view_placement.view_id != view_id )
+                    continue;
+                is_local =
+                    owner->local_pid >= 0 && player->server_pid == owner->local_pid ? 1 : 0;
+                if( is_local != want_local )
+                    continue;
+                World_RegisterForeignActor(
+                    world,
+                    player->element_id,
+                    /*level=*/0,
+                    player->view_placement.x,
+                    player->view_placement.z,
+                    WORLD_MOVER_PAINTER_PADDING,
+                    player->orientation.yaw,
+                    player->animation.needs_forward_draw_padding);
+            }
+        }
+        else
+        {
+            pool = &owner->entities.npc;
+            for( int ni = World_EntityPoolHead(pool); ni != WORLD_ENTITY_NIL;
+                 ni = World_EntityPoolNext(pool, ni) )
+            {
+                struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
+                int size;
+
+                if( !npc || npc->multinpc_hidden || npc->element_id < 0 )
+                    continue;
+                if( npc->view_placement.view_id != view_id )
+                    continue;
+                if( (npc->alwaysontop ? 1 : 0) != want_alwaysontop )
+                    continue;
+                size = npc->size > 0 ? npc->size : 1;
+                World_RegisterForeignActor(
+                    world,
+                    npc->element_id,
+                    /*level=*/0,
+                    npc->view_placement.x,
+                    npc->view_placement.z,
+                    WORLD_MOVER_PAINTER_PADDING + (size - 1) * 64,
+                    npc->orientation.yaw,
+                    npc->animation.needs_forward_draw_padding);
+            }
+        }
+    }
+}
+
+/**
+ * World_ForeignDynamicClaimFn for a boat deck: the elements standing on it
+ * that its own rebuild sweep must not free. @see World_ForeignDynamicClaimFn.
+ */
+static int
+app_wev_claim_deck_actors(
+    void* userdata,
+    struct World* world,
+    int* out_element_ids,
+    int max)
+{
+    struct App* app = (struct App*)userdata;
+    struct World* owner;
+    struct World_EntityPool* pool;
+    int view_id;
+    int n = 0;
+
+    assert(app);
+    assert(world);
+    assert(out_element_ids);
+    assert(max >= 0);
+
+    view_id = app_worldview_id_of(app, world);
+    if( view_id < 0 || view_id == WORLDVIEW_ROOT )
+        return 0;
+    owner = app->world;
+    if( !owner )
+        return 0;
+
+    pool = &owner->entities.player;
+    for( int pi = World_EntityPoolHead(pool); pi != WORLD_ENTITY_NIL && n < max;
+         pi = World_EntityPoolNext(pool, pi) )
+    {
+        struct WorldEntity_Player* player = World_EntityPoolGet(pool, pi);
+        if( player && player->element_id >= 0 && player->view_placement.view_id == view_id )
+            out_element_ids[n++] = player->element_id;
+    }
+    pool = &owner->entities.npc;
+    for( int ni = World_EntityPoolHead(pool); ni != WORLD_ENTITY_NIL && n < max;
+         ni = World_EntityPoolNext(pool, ni) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
+        if( npc && npc->element_id >= 0 && npc->view_placement.view_id == view_id )
+            out_element_ids[n++] = npc->element_id;
+    }
+    return n;
+}
+
+/**
+ * Put every actor currently aboard `view_id` back in the root, element pool
+ * included, before that view stops existing.
+ *
+ * App_WevDespawn clears the view's two pools. An aboard actor's element lives
+ * in the dynamic half, and the root world still holds its id — so without this
+ * the boat sinks and takes a live player's element with it, leaving the entity
+ * record pointing at a freed slot that the allocator will hand to somebody
+ * else. Their root position is authoritative and unchanged (the server
+ * projects it), so re-homing is exactly a retag plus a placement reset; the
+ * next routing pass re-decides where they are for real.
+ */
+static void
+app_wev_evict_view_actors(
+    struct App* app,
+    int view_id)
+{
+    struct World* owner;
+    struct World_EntityPool* pool;
+
+    assert(app);
+    assert(app->scene);
+    assert(view_id > 0);
+    assert(view_id < WORLDVIEW_MAX);
+
+    owner = app->world;
+    if( !owner )
+        return;
+
+    pool = &owner->entities.player;
+    for( int pi = World_EntityPoolHead(pool); pi != WORLD_ENTITY_NIL;
+         pi = World_EntityPoolNext(pool, pi) )
+    {
+        struct WorldEntity_Player* player = World_EntityPoolGet(pool, pi);
+        if( !player || player->element_id < 0 || player->view_placement.view_id != view_id )
+            continue;
+        app_wev_apply_placement(
+            app,
+            &player->view_placement,
+            player->element_id,
+            WORLDVIEW_ROOT,
+            (int)player->draw_position.x,
+            (int)player->draw_position.z);
+    }
+    pool = &owner->entities.npc;
+    for( int ni = World_EntityPoolHead(pool); ni != WORLD_ENTITY_NIL;
+         ni = World_EntityPoolNext(pool, ni) )
+    {
+        struct WorldEntity_NPC* npc = World_EntityPoolGet(pool, ni);
+        if( !npc || npc->element_id < 0 || npc->view_placement.view_id != view_id )
+            continue;
+        app_wev_apply_placement(
+            app,
+            &npc->view_placement,
+            npc->element_id,
+            WORLDVIEW_ROOT,
+            (int)npc->draw_position.x,
+            (int)npc->draw_position.z);
+    }
+    if( app->aboard_view == view_id )
+        app->aboard_view = WORLDVIEW_ROOT;
+}
+
+/**
+ * Re-publish every live non-root view's painter dynamics, once per tick.
+ *
+ * Only the root world is cycled (App_WorldTick); a deck advances no simulation
+ * of its own. But `painter_reset_to_static` is what clears last frame's actors
+ * and nested hulls off a deck's painter, so a view that never gets this pass
+ * accumulates every actor that ever stood on it.
+ */
+static void
+app_wev_cycle_views(struct App* app)
+{
+    assert(app);
+
+    for( int id = 1; id < WORLDVIEW_MAX; id++ )
+    {
+        struct Worldview* view;
+
+        if( !WorldviewRegistry_IsLive(&app->worldviews, id) )
+            continue;
+        view = WorldviewRegistry_Get(&app->worldviews, id);
+        assert(view->world);
+        if( !view->world->painter )
+            continue;
+        World_CycleRegisterDynamics(view->world);
+    }
 }
 
 /* World_SeqSource getters: seq timing resolved from the scene animation
@@ -13963,6 +14806,57 @@ app_logic_tick(struct App* app)
     return redraw;
 }
 
+/**
+ * Position an actor that is standing in a non-root view (SAILING_PLAN C5.2).
+ * Returns 1 when it handled the element, 0 when the actor is ashore and the
+ * caller's ordinary root-space path applies.
+ *
+ * The element carries DECK-LOCAL coordinates and the actor's deck-local yaw;
+ * C3's descent transform is what puts it back in root space at emit time,
+ * composing the hull's yaw onto the element's. Writing root coordinates here
+ * instead would rotate the actor around the boat twice. Height comes from the
+ * DECK's heightmap, so an actor stands on the deck rather than on the sea
+ * floor beneath it.
+ */
+static int
+app_world_sync_placement(
+    struct App* app,
+    struct WorldEntityFacet_ViewPlacement const* placement,
+    int element_id,
+    int yaw)
+{
+    struct Worldview* view;
+    struct Wev const* wev;
+    int deck_yaw;
+    int deck_y;
+
+    assert(app);
+    assert(placement);
+    assert(element_id >= 0);
+
+    if( placement->view_id == WORLDVIEW_ROOT )
+        return 0;
+    /* The view can die between the routing pass and this one only through
+     * App_WevDespawn, which evicts first — so a stale id here would be a bug,
+     * not a race. Guarded rather than asserted all the same: the alternative
+     * is aborting the client over one frame of one actor. */
+    if( !WorldviewRegistry_IsLive(&app->worldviews, placement->view_id) ||
+        !Wevs_IsLive(&app->wevs, placement->view_id) )
+        return 0;
+    view = WorldviewRegistry_Get(&app->worldviews, placement->view_id);
+    assert(view->world);
+    wev = Wevs_Get(&app->wevs, placement->view_id);
+    assert(wev);
+
+    /* The element's yaw is composed with the hull's on the way out, so what
+     * goes on the element is the actor's heading RELATIVE to the deck. */
+    deck_yaw = (yaw - wev->angle) & 0x7ff;
+    deck_y = app_world_height_in(view->world, placement->x, placement->z, /*level=*/0);
+    ToriDraw_SceneElementSetPosition(
+        app->scene, element_id, placement->x, deck_y, placement->z, deck_yaw);
+    return 1;
+}
+
 /* Movers (players/npcs) and in-flight projectiles push their sim positions
  * into the scene elements the frame emitter draws (v1 synced projectiles;
  * movers were spawn-time only there because nothing pathed them). */
@@ -13994,7 +14888,11 @@ app_world_sync_positions(struct App* app)
             continue;
         int wx = (int)player->draw_position.x;
         int wz = (int)player->draw_position.z;
-        int wy = app_world_height(app, wx, wz, local_level);
+        int wy;
+        if( app_world_sync_placement(app, &player->view_placement, player->element_id,
+                                     player->orientation.yaw) )
+            continue;
+        wy = app_world_height(app, wx, wz, local_level);
         if( npcpos_debug )
             fprintf(
                 stderr, "plrpos: tile=%d,%d lvl=%d(local %d) w=%d,%d y=%d\n",
@@ -14017,7 +14915,11 @@ app_world_sync_positions(struct App* app)
             continue;
         int wx = (int)npc->draw_position.x;
         int wz = (int)npc->draw_position.z;
-        int wy = app_world_height(app, wx, wz, local_level);
+        int wy;
+        if( app_world_sync_placement(
+                app, &npc->view_placement, npc->element_id, npc->orientation.yaw) )
+            continue;
+        wy = app_world_height(app, wx, wz, local_level);
         if( npcpos_debug )
             fprintf(
                 stderr,
@@ -15273,6 +16175,18 @@ app_world_paint(struct App* app)
     }
     painter_set_camera_angles(app->world->painter, app->world_camera.pitch, app->world_camera.yaw);
     painter_set_level_mask(app->world->painter, level_mask);
+
+    /* World entities (SAILING_PLAN C3): the eye is only final here — WEDGE_CAM
+     * has been applied and the shake added, and both are undone right after the
+     * paint — so this is the one place a boat-space camera can be derived.
+     * Once per boat per frame, not once per descent. */
+    app_wev_bind_view_cameras(
+        app,
+        app->world_camera.pitch,
+        app->world_camera.yaw,
+        app->world_camera_pos.x,
+        app->world_camera_pos.y,
+        app->world_camera_pos.z);
 
     app_update_painter_cull(app, cam_sx, cam_sz);
 
@@ -22318,7 +23232,14 @@ app_world_frame(
      * describe where the actors are now, not where they were a frame ago.
      */
     World_MoversAdvance(world, frame_cycles);
+    /* Membership before registration (SAILING_PLAN C5.1): the actors have just
+     * been moved, and World_Cycle's dynamic pass has to already know which of
+     * them belong to a deck rather than to the mainland. */
+    app_wev_route_actors(app);
     World_Cycle(world, cycles);
+    /* Only the root world is cycled; a deck advances nothing of its own but
+     * still needs its painter's dynamic half rebuilt every tick. */
+    app_wev_cycle_views(app);
     World_LocChangesTick(world, cycles, app_loc_change_apply_cb, app);
     App_WorldDrainEntityRemoved(app);
 
@@ -28519,6 +29440,20 @@ App_WevSpawn(
     struct WevConfig const* config;
 
     assert(app);
+    if( app_wev_debug_enabled() )
+        fprintf(
+            stderr,
+            "wev: SPAWN id=%d config=%d size=%dx%d prio=%d fine=%d,%d angle=%d "
+            "op_mask=0x%x\n",
+            id,
+            config_id,
+            size_x_tiles,
+            size_z_tiles,
+            priority_group,
+            x,
+            z,
+            angle,
+            op_mask);
     /* A spawn needs the full boot substrate: the shared scene the view's
      * builder writes into and the cache provider it reads from. A harness App
      * without them cannot spawn a boat — stop here, loudly. */
@@ -28592,6 +29527,16 @@ App_WevSpawn(
         World_ResetScene(world, scene_size / 16, scene_size / 16, scene_size);
     }
 
+    /* Nested entities ride this deck and register into ITS painter, so the boat
+     * world carries the same hook the root does (SAILING_PLAN C3). */
+    World_SetWorldEntityRegisterFn(world, app_wev_register_pseudo_locs, app);
+    /* Actors standing on this deck are owned by the world that carries the
+     * boat, so the deck needs both halves of the borrowing arrangement: who to
+     * draw each frame, and whose elements its rebuild must not sweep
+     * (SAILING_PLAN C5.1). */
+    World_SetForeignActorRegisterFn(world, app_wev_register_deck_actors, app);
+    World_SetForeignDynamicClaimFn(world, app_wev_claim_deck_actors, app);
+
     /* The per-view rebuild (REBUILD_WORLDENTITY, task_gameproto_exec.c) —
      * staging the deck map into the off-map rectangle this registers — fills
      * in base_x/base_z. Until then the view's membership box sits at (0,0)
@@ -28632,6 +29577,12 @@ App_WevDespawn(
     /* Entity first (asserts its own list is empty — nested entities despawn
      * leaves-first), then its view: Release frees the owned world/builder
      * pair the spawn built. */
+    /* Anyone standing on the deck goes back to the root FIRST: the pool clear
+     * below frees this view's dynamic elements, and an aboard actor's element
+     * is one of them while the root world still holds its id (SAILING_PLAN
+     * C5.1). */
+    app_wev_evict_view_actors(app, id);
+
     Wevs_Despawn(&app->wevs, id);
 
     view = WorldviewRegistry_Get(&app->worldviews, id);
@@ -29224,6 +30175,8 @@ App_BuildFrame(
                 app->world_camera_pos.x,
                 app->world_camera_pos.y,
                 app->world_camera_pos.z);
+            /* Must follow SetWorld: it resets slot 0 to the root identity. */
+            app_wev_bind_frame_xforms(app, frame);
         }
     }
     return true;
