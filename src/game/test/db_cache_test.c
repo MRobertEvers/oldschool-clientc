@@ -71,8 +71,29 @@ call_db(
 {
     struct CS2VM_HostRequest req;
     memset(&req, 0, sizeof(req));
-    req.kind = CS2VM_HOST_REQUEST_DB;
-    req.u.db.opcode = opcode;
+    req.kind = (enum CS2VM_HostRequestKind)opcode;
+    switch( req.kind )
+    {
+#define SET_DB_OPCODE(name)                                                 \
+    case CS2VM_HOST_REQUEST_##name:                                         \
+        req.u.name.opcode = opcode;                                 \
+        break
+        SET_DB_OPCODE(DB_FIND_WITH_COUNT);
+        SET_DB_OPCODE(DB_FINDNEXT);
+        SET_DB_OPCODE(DB_GETFIELD);
+        SET_DB_OPCODE(DB_GETFIELDCOUNT);
+        SET_DB_OPCODE(DB_FINDALL_WITH_COUNT);
+        SET_DB_OPCODE(DB_GETROWTABLE);
+        SET_DB_OPCODE(DB_GETROW);
+        SET_DB_OPCODE(DB_FIND_FILTER_WITH_COUNT);
+        SET_DB_OPCODE(DB_FIND);
+        SET_DB_OPCODE(DB_FINDALL);
+        SET_DB_OPCODE(DB_FIND_FILTER);
+#undef SET_DB_OPCODE
+    default:
+        assert(0 && "call_db: unexpected opcode");
+        return CS2VM_EXECNO_ERROR;
+    }
     return RS_CS2Host_Exec(t, &req);
 }
 
@@ -100,12 +121,12 @@ test_await_isolation(
     a = CS2VM2_ThreadMain(&vm_a);
     b = CS2VM2_ThreadMain(&vm_b);
 
-    req_a.kind = CS2VM_HOST_REQUEST_ENUM_LOOKUP;
-    req_a.u.enum_lookup.enum_id = 1000000001;
-    req_a.u.enum_lookup.input_type = 'i';
-    req_a.u.enum_lookup.output_type = 'i';
+    req_a.kind = CS2VM_HOST_REQUEST_ENUM;
+    req_a.u.ENUM.enum_id = 1000000001;
+    req_a.u.ENUM.input_type = 'i';
+    req_a.u.ENUM.output_type = 'i';
     req_b = req_a;
-    req_b.u.enum_lookup.enum_id = 1000000002;
+    req_b.u.ENUM.enum_id = 1000000002;
 
     CHECK(RS_CS2Host_Exec(a, &req_a) == CS2VM_EXECNO_YIELD, "thread A parks its enum load");
     CHECK(RS_CS2Host_Exec(b, &req_b) == CS2VM_EXECNO_YIELD, "thread B parks a distinct enum load");

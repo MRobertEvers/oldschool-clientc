@@ -46,7 +46,7 @@ struct RecordingHost
 {
     int calls;
     enum CS2VM_HostRequestKind kind;
-    struct CS2VM_HostRequest_CC_TriggerOp trigger_op;
+    struct CS2VM_HostRequest_CC_TRIGGEROP trigger_op;
 };
 
 static int
@@ -57,7 +57,7 @@ recording_host_exec(
     struct RecordingHost* host = (struct RecordingHost*)thread->vm->user;
     host->calls++;
     host->kind = request->kind;
-    host->trigger_op = request->u.cc_trigger_op;
+    host->trigger_op = request->u.CC_TRIGGEROP;
     return CS2VM_EXECNO_OK;
 }
 
@@ -120,8 +120,14 @@ main(void)
         run_op(&host, 0, 3, active, dot);
         CHECK_INT(host.calls, 1, "reaches the host exactly once (no StackMetaStub abort)");
         CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_CC_TRIGGEROP, "request kind");
-        CHECK_INT(host.trigger_op.component_id, active, "operand 0 targets the active component");
-        CHECK_INT(host.trigger_op.op_index, 3, "op index is the popped int, not the operand");
+        CHECK_INT(
+            host.trigger_op.component_id,
+            active,
+            "operand 0 targets the active component");
+        CHECK_INT(
+            host.trigger_op.op_index,
+            3,
+            "op index is the popped int, not the operand");
     }
 
     /* operand 1 targets the dot component, same convention as every other CC
@@ -130,7 +136,8 @@ main(void)
         struct RecordingHost host;
         memset(&host, 0, sizeof(host));
         run_op(&host, 1, 1, active, dot);
-        CHECK_INT(host.trigger_op.component_id, dot, "operand 1 targets the dot component");
+        CHECK_INT(
+            host.trigger_op.component_id, dot, "operand 1 targets the dot component");
         CHECK_INT(host.trigger_op.op_index, 1, "op index 1 (primary/left-click)");
     }
 

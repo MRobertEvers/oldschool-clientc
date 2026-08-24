@@ -116,14 +116,13 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     6204: (0, 0, 2, 0),  # VIEWPORT_GETZOOM
     6205: (0, 0, 2, 0),  # VIEWPORT_GETFOV
     # UI zoom (6210..6214; 6213 unconfirmed, left out). Dedicated dispatch in
-    # cs2vm2.c forwards them to the host (CS2VM_HOST_REQUEST_UIZOOM).
+    # cs2vm2.c forwards each opcode as its exact CS2VM host-request kind.
     6210: (1, 0, 0, 0),  # UIZOOM_SET(value)
     6211: (0, 0, 1, 0),  # UIZOOM_GET -> value
     6212: (0, 0, 0, 0),  # UIZOOM_RESET
     6214: (0, 0, 1, 0),  # UIZOOM_GETDEFAULT -> value
-    # Safe-area bounds (6220..6223). Dedicated
-    # dispatch in cs2vm2.c forwards them to the host
-    # (CS2VM_HOST_REQUEST_SAFEAREA).
+    # Safe-area bounds (6220..6223). Dedicated dispatch in cs2vm2.c forwards
+    # each opcode as its exact CS2VM host-request kind.
     6220: (0, 0, 1, 0),  # SAFEAREA_GETMINX -> value
     6221: (0, 0, 1, 0),  # SAFEAREA_GETMINY -> value
     6222: (0, 0, 1, 0),  # SAFEAREA_GETMAXX -> value
@@ -157,17 +156,17 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     3316: (0, 0, 1, 0),  # STAFFMODLEVEL -> staff rights level (stub: 0)
     3323: (0, 0, 1, 0),  # PLAYERMOD -> is-player-moderator bool (stub: 0)
     3324: (0, 0, 1, 0),  # WORLDFLAGS -> world flag bits (stub: 0)
-    # Minimap zoom (7250..7254). Dedicated dispatch in cs2vm2.c forwards them to
-    # the host (CS2VM_HOST_REQUEST_MINIMAP), so they never reach StackMetaStub —
-    # these document the contracts. Setters pop one value; GETZOOM pushes the zoom
-    # (polled by toplevel cc_setontimer scripts, 7052).
+    # Minimap zoom (7250..7254). Dedicated dispatch in cs2vm2.c forwards each
+    # opcode as its exact CS2VM host-request kind, so they never reach
+    # StackMetaStub — these document the contracts. Setters pop one value;
+    # GETZOOM pushes the zoom (polled by toplevel cc_setontimer scripts, 7052).
     7250: (1, 0, 0, 0),  # MINIMAP_SETZOOMABLE(flag)
     7252: (1, 0, 0, 0),  # MINIMAP_SETZOOM(zoom)
     7253: (0, 0, 1, 0),  # MINIMAP_GETZOOM -> zoom (2..8)
     7254: (1, 0, 0, 0),  # MINIMAP_SETICONZOOMLIMIT(limit)
     # MINIMENU_* (7100..7110): mouseover / right-click-menu queries, all no-arg
-    # getters. Dedicated dispatch in cs2vm2.c forwards them to the host
-    # (CS2VM_HOST_REQUEST_MINIMENU), so they never reach StackMetaStub — these just
+    # getters. Dedicated dispatch in cs2vm2.c forwards each opcode as its exact
+    # CS2VM host-request kind, so they never reach StackMetaStub — these just
     # document the contracts. MINIMENU_ENTRY pushes two strings (option, target);
     # the rest push one int (a bool for the FIND*/ISOPEN queries).
     7100: (0, 0, 1, 0),  # MINIMENU_TYPE:          -> 1 int (hovered target type)
@@ -358,9 +357,9 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     5630: (0, 0, 0, 0),
     # HIGHLIGHT_LOC_* (7011..7014): scene-object highlight family, keyed by
     # (locTypeId, coordPacked, slot, group). Dedicated dispatch in cs2vm2.c
-    # forwards them to the host (CS2VM_HOST_REQUEST_HIGHLIGHT, stubbed for now), so
-    # these never reach StackMetaStub — the entries just document the real
-    # contracts. See CS2VM2_Op_Highlight.
+    # forwards each opcode as its exact CS2VM host-request kind (stubbed for
+    # now), so these never reach StackMetaStub — the entries just document the
+    # real contracts. See CS2VM2_Op_Highlight.
     7011: (4, 0, 0, 0),  # HIGHLIGHT_LOC_ON:   pop 4
     7012: (4, 0, 0, 0),  # HIGHLIGHT_LOC_OFF:  pop 4
     7013: (4, 0, 1, 0),  # HIGHLIGHT_LOC_GET:  pop 4 -> bool
@@ -393,11 +392,11 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     3134: (0, 0, 0, 0),  # MOBILE_OPENSTORE: no args, no-op (marked known)
     3135: (2, 0, 0, 0),  # MOBILE_OPENSTORECATEGORY: pop 2 ints, discard
     # Audio volume (3203..3208) + client/game/device options (3209..3217).
-    # Dedicated dispatch in cs2vm2.c forwards them to the host
-    # (CS2VM_HOST_REQUEST_CLIENT_OPTION), so they never reach StackMetaStub — these
-    # document the contracts. Volume setters take just a value; the OPTION families
-    # are keyed by an option id (SET pops id+value, GET pops id, GETRANGE pops id
-    # and pushes min+max).
+    # Dedicated dispatch in cs2vm2.c forwards each opcode as its exact CS2VM
+    # host-request kind, so they never reach StackMetaStub — these document the
+    # contracts. Volume setters take just a value; the OPTION families are keyed
+    # by an option id (SET pops id+value, GET pops id, GETRANGE pops id and pushes
+    # min+max).
     3203: (1, 0, 0, 0),  # SETVOLUMEMUSIC(value)
     3204: (0, 0, 1, 0),  # GETVOLUMEMUSIC -> value
     3205: (1, 0, 0, 0),  # SETVOLUMESOUNDS(value)
@@ -413,8 +412,8 @@ MANUAL_STACK: dict[int, tuple[int, int, int, int]] = {
     3217: (1, 0, 2, 0),  # DEVICEOPTION_GETRANGE(id) -> min, max
     # CLIENTOP_* (6700..6709): enhanced client-side context-menu hooks. SET pops
     # (slot, scriptId) + string label; DEL pops slot. Dedicated dispatch in
-    # cs2vm2.c forwards them to the host (CS2VM_HOST_REQUEST_CLIENTOP, stubbed),
-    # so they never reach StackMetaStub — these document the contracts.
+    # cs2vm2.c forwards each opcode as its exact CS2VM host-request kind
+    # (stubbed), so they never reach StackMetaStub — these document the contracts.
     6700: (2, 1, 0, 0),  # CLIENTOP_NPC_SET(slot, scriptId) + label
     6701: (1, 0, 0, 0),  # CLIENTOP_NPC_DEL(slot)
     6702: (2, 1, 0, 0),  # CLIENTOP_LOC_SET(slot, scriptId) + label
@@ -533,7 +532,6 @@ BRIDGE_CONFLICTS_OK: dict[int, tuple[int, int, int, int]] = {
     #     `ScriptRunnerImpl_7200To7299.cpp` pops the slot in both
     #     GetScriptedOverlayIndex forms; the vendored (0 in) would read
     #     whatever the script left below it and answer about the wrong slot.
-    203: (1, 0, 0, 0),  # OVERLAY_CC_FIND -- reference pops overlay AND sub
     7205: (0, 0, 1, 0),  # OVERLAY_NPC_GET -- pops the slot
     7208: (0, 0, 1, 0),  # OVERLAY_PLAYER_GET -- pops the slot
     1006: (1, 0, 0, 0),  # cc_setnoscrollthrough

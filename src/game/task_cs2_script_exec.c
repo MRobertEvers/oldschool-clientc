@@ -2,8 +2,10 @@
 
 #include "cs2vm2/cs2vm2.h"
 #include "cs2vm2/cs2vm2_host.h"
+#include "cs2vm2/cs2vm2_opcode_stack.gen.h"
 #include "cs2vm2/cs2vm2_script.h"
 #include "engine/cache_provider.h"
+#include "engine/torirs_types.h"
 
 #include <3rd/minipt.h>
 
@@ -87,76 +89,49 @@ ScriptCache_StoreCopy(
     return entry;
 }
 
-static bool
-noop_host_pushes_int(enum CS2VM_HostRequestKind kind)
+/*
+ * The dummy host does not implement game state, but it must preserve the VM's
+ * stack shape. Host-request kinds are the originating opcode values, so use
+ * that opcode's exact output signature instead of maintaining another list of
+ * aliases such as WIDGET or ENUM_LOOKUP.
+ */
+static int
+dummy_host_push_results(
+    struct CS2VM2_Thread* thread,
+    enum CS2VM_HostRequestKind kind)
 {
-    switch( kind )
+    int opcode = (int)kind;
+    int result;
+
+    if( opcode < 0 || opcode >= CS2VM2_OPCODE_STACK_MAX )
+        return CS2VM_EXECNO_OK;
+
+    for( int i = 0; i < g_cs2vm2_opcode_stack[opcode].int_out; i++ )
     {
-    case CS2VM_HOST_REQUEST_INVS_GET_SIZE:
-    case CS2VM_HOST_REQUEST_INVS_GET_OBJ:
-    case CS2VM_HOST_REQUEST_INVS_GET_NUM:
-    case CS2VM_HOST_REQUEST_INVS_GET_TOTAL:
-    case CS2VM_HOST_REQUEST_VARS_READ_VARP_AKA_PUSH_VAR:
-    case CS2VM_HOST_REQUEST_VARS_READ_VARBIT:
-    case CS2VM_HOST_REQUEST_VARS_READ_VARC_INT:
-    case CS2VM_HOST_REQUEST_ENUM_LOOKUP:
-    case CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT:
-    case CS2VM_HOST_REQUEST_STRUCT_PARAM:
-    case CS2VM_HOST_REQUEST_CC_GETID:
-    case CS2VM_HOST_REQUEST_CC_GETX:
-    case CS2VM_HOST_REQUEST_CC_GETY:
-    case CS2VM_HOST_REQUEST_CC_GETWIDTH:
-    case CS2VM_HOST_REQUEST_CC_GETHEIGHT:
-    case CS2VM_HOST_REQUEST_CC_GETHIDE:
-    case CS2VM_HOST_REQUEST_IF_GETWIDTH:
-    case CS2VM_HOST_REQUEST_IF_GETHEIGHT:
-    case CS2VM_HOST_REQUEST_IF_GETY:
-    case CS2VM_HOST_REQUEST_IF_GETLAYER:
-    case CS2VM_HOST_REQUEST_IF_GETTOP:
-    case CS2VM_HOST_REQUEST_IF_GETSCROLLX:
-    case CS2VM_HOST_REQUEST_IF_GETSCROLLY:
-    case CS2VM_HOST_REQUEST_IF_GETSCROLLHEIGHT:
-    case CS2VM_HOST_REQUEST_IF_GETHIDE:
-    case CS2VM_HOST_REQUEST_ENTITY_OVERLAY:
-    case CS2VM_HOST_REQUEST_CC_RESOLVE_PARENT:
-    case CS2VM_HOST_REQUEST_CC_GETTEXT:
-    case CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM:
-    case CS2VM_HOST_REQUEST_CC_GETTRANS:
-    case CS2VM_HOST_REQUEST_IF_FIND:
-    case CS2VM_HOST_REQUEST_IF_GETX:
-    case CS2VM_HOST_REQUEST_IF_GETTEXT:
-    case CS2VM_HOST_REQUEST_IF_GETSCROLLWIDTH:
-    case CS2VM_HOST_REQUEST_OC_PARAM:
-    case CS2VM_HOST_REQUEST_OC_NAME:
-    case CS2VM_HOST_REQUEST_NC_NAME:
-    case CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER:
-    case CS2VM_HOST_REQUEST_PARAHEIGHT:
-    case CS2VM_HOST_REQUEST_PARAWIDTH:
-    case CS2VM_HOST_REQUEST_OC_INT_PARAM:
-    case CS2VM_HOST_REQUEST_CLIENTCLOCK:
-    case CS2VM_HOST_REQUEST_MOUSE_GETX:
-    case CS2VM_HOST_REQUEST_MOUSE_GETY:
-        return true;
-    case CS2VM_HOST_REQUEST_CC_CREATE:
-        printf("CC_CREATE\n");
-        return true;
-    default:
-        return false;
+        result = CS2VM2_PushInt(thread, 0);
+        if( result != CS2VM_EXECNO_OK )
+            return result;
     }
+    for( int i = 0; i < g_cs2vm2_opcode_stack[opcode].str_out; i++ )
+    {
+        result = CS2VM2_PushStr(thread, CS2VM2_StrEmpty(thread));
+        if( result != CS2VM_EXECNO_OK )
+            return result;
+    }
+    return CS2VM_EXECNO_OK;
 }
 
-static bool
-noop_host_pushes_str(enum CS2VM_HostRequestKind kind)
+static int
+dummy_host_push_param(
+    struct DummyHost* host,
+    struct CS2VM2_Thread* thread,
+    int param_id)
 {
-    switch( kind )
-    {
-    case CS2VM_HOST_REQUEST_VARS_READ_VARC_STRING:
-    case CS2VM_HOST_REQUEST_CC_GETOP:
-    case CS2VM_HOST_REQUEST_IF_GETOP:
-        return true;
-    default:
-        return false;
-    }
+    struct ToriRS_ParamType* param =
+        host->provider ? CacheProvider_ParamGet(host->provider, param_id) : NULL;
+    if( param && param->is_string )
+        return CS2VM2_PushStr(thread, CS2VM2_StrEmpty(thread));
+    return CS2VM2_PushInt(thread, 0);
 }
 
 static int
@@ -169,10 +144,10 @@ DummyHostExec(
     assert(request);
     assert(CS2VM_USER(thread));
 
-    if( request->kind == CS2VM_HOST_REQUEST_PUSHSCRIPT )
+    if( request->kind == CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS )
     {
         struct CS2VM2_Script* script = CacheProvider_ClientScriptGet(
-            host->provider, request->u.push_script.script_id);
+            host->provider, request->u.GOSUB_WITH_PARAMS.script_id);
         if( !script )
         {
             memcpy(&host->request, request, sizeof(struct CS2VM_HostRequest));
@@ -183,13 +158,29 @@ DummyHostExec(
         return CS2VM_EXECNO_OK;
     }
 
-    if( noop_host_pushes_int(request->kind) )
-        return CS2VM2_PushInt(thread, 0);
-
-    if( noop_host_pushes_str(request->kind) )
+    if( request->kind == CS2VM_HOST_REQUEST_ENUM_STRING )
+        return CS2VM2_PushStr(thread, CS2VM2_StrEmpty(thread));
+    if( request->kind == CS2VM_HOST_REQUEST_ENUM &&
+        request->u.ENUM.output_type == (int)'s' )
         return CS2VM2_PushStr(thread, CS2VM2_StrEmpty(thread));
 
-    return CS2VM_EXECNO_OK;
+    switch( request->kind )
+    {
+    case CS2VM_HOST_REQUEST_CC_GETPARAM:
+        return dummy_host_push_param(host, thread, request->u.CC_GETPARAM.param_id);
+    case CS2VM_HOST_REQUEST_NC_PARAM:
+        return dummy_host_push_param(host, thread, request->u.NC_PARAM.param_id);
+    case CS2VM_HOST_REQUEST_LC_PARAM:
+        return dummy_host_push_param(host, thread, request->u.LC_PARAM.param_id);
+    case CS2VM_HOST_REQUEST_OC_PARAM:
+        return dummy_host_push_param(host, thread, request->u.OC_PARAM.param_id);
+    case CS2VM_HOST_REQUEST_STRUCT_PARAM:
+        return dummy_host_push_param(host, thread, request->u.STRUCT_PARAM.param_id);
+    default:
+        break;
+    }
+
+    return dummy_host_push_results(thread, request->kind);
 }
 
 struct Task_CS2ScriptExec
@@ -232,9 +223,10 @@ Task_CS2ScriptExec_Run(
         if( status == CS2VM2_THREAD_YIELDED )
         {
             printf("CS2VM2_THREAD_YIELDED\n");
-            if( exec->host.request.kind == CS2VM_HOST_REQUEST_PUSHSCRIPT )
+            if( exec->host.request.kind == CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS )
             {
-                exec->script_id = exec->host.request.u.push_script.script_id;
+                exec->script_id =
+                    exec->host.request.u.GOSUB_WITH_PARAMS.script_id;
                 if( !CacheProvider_ClientScriptHas(exec->provider, exec->script_id) )
                 {
                     TASK_AWAITEX(

@@ -242,8 +242,8 @@ test_standard_sizes_exist_before_first_packet(void)
         fx.invs.source_count == 0 && fx.invs.container_count == 0,
         "the host starts with zero live inventory sources and containers");
 
-    request.kind = CS2VM_HOST_REQUEST_INVS_GET_SIZE;
-    request.u.invs_get_size.inv_id = INV_MANAGER_CONTAINER_BACKPACK;
+    request.kind = CS2VM_HOST_REQUEST_INV_SIZE;
+    request.u.INV_SIZE.inv_id = INV_MANAGER_CONTAINER_BACKPACK;
 
     CHECK(
         RS_CS2Host_Exec(thread, &request) == CS2VM_EXECNO_YIELD,
@@ -260,7 +260,7 @@ test_standard_sizes_exist_before_first_packet(void)
         "INV_SIZE(93) is the 28-slot type capacity, got %d",
         size);
 
-    request.u.invs_get_size.inv_id = INV_MANAGER_CONTAINER_WORN;
+    request.u.INV_SIZE.inv_id = INV_MANAGER_CONTAINER_WORN;
 
     CHECK(
         RS_CS2Host_Exec(thread, &request) == CS2VM_EXECNO_YIELD,
