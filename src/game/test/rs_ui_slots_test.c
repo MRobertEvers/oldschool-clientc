@@ -12,6 +12,17 @@
 
 #include <assert.h>
 #include <stdio.h>
+#include <stdlib.h>
+
+#define TEST_CHECK(cond)                                                                           \
+    do                                                                                             \
+    {                                                                                              \
+        if( !(cond) )                                                                              \
+        {                                                                                          \
+            fprintf(stderr, "FAIL: %s (%s:%d)\n", #cond, __FILE__, __LINE__);                     \
+            abort();                                                                               \
+        }                                                                                          \
+    } while( 0 )
 
 static int
 node_child_count(
@@ -134,11 +145,11 @@ main(
         node->behavior.script_operand = operands;
 
         assert(VarPManager_GetVarp(&app.varps, 173) == 0);
-        assert(RS_IF1_ApplyButtonClick(&app, com_id, REVCONFIG_MINIMENU_IF_BUTTON_TOGGLE));
+        TEST_CHECK(RS_IF1_ApplyButtonClick(&app, com_id, REVCONFIG_MINIMENU_IF_BUTTON_TOGGLE));
         assert(VarPManager_GetVarp(&app.varps, 173) == 1);
-        assert(RS_IF1_ApplyButtonClick(&app, com_id, REVCONFIG_MINIMENU_IF_BUTTON_TOGGLE));
+        TEST_CHECK(RS_IF1_ApplyButtonClick(&app, com_id, REVCONFIG_MINIMENU_IF_BUTTON_TOGGLE));
         assert(VarPManager_GetVarp(&app.varps, 173) == 0);
-        assert(RS_IF1_ApplyButtonClick(&app, com_id, REVCONFIG_MINIMENU_IF_BUTTON_SELECT));
+        TEST_CHECK(RS_IF1_ApplyButtonClick(&app, com_id, REVCONFIG_MINIMENU_IF_BUTTON_SELECT));
         assert(VarPManager_GetVarp(&app.varps, 173) == 7);
         /* Detach the synthetic behavior before shutdown frees the tree. */
         node->behavior.scripts_count = 0;

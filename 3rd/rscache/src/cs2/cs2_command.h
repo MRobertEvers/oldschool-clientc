@@ -107,8 +107,8 @@ enum RSCache_CS2_CommandKind
     RSCACHE_CS2_CMD_TYPED_POP,
     /** Three fixed ints, descriptor-selected values, then the descriptor string. */
     RSCACHE_CS2_CMD_DESCRIPTOR_ARGS,
-    /** Rev-239 opcode 210: all pending int payload values, one int result. */
-    RSCACHE_CS2_CMD_VARIADIC_INT_RESULT,
+    /** Opcode 210: two selector-controlled values among five fixed ints. */
+    RSCACHE_CS2_CMD_FIND_PARAM,
     RSCACHE_CS2_CMD_CLIENTSCRIPT,
     RSCACHE_CS2_CMD_PARAM,
     /** Active-component param lookup; result stack comes from the param config. */
@@ -181,7 +181,10 @@ RSCache_CS2_CommandClearOverrides(void);
 const char*
 RSCache_CS2_CommandName(int opcode);
 
-/** Opcode for a source spelling, or -1. Case-insensitive. */
+/**
+ * Opcode for a source spelling, or -1. Semantic names are case-insensitive;
+ * the `_1234` compatibility spelling is also accepted for an existing row.
+ */
 int
 RSCache_CS2_CommandOfName(const char* name);
 

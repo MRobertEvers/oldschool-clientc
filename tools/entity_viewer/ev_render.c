@@ -351,8 +351,16 @@ static int g_combined_frame = -2; /* neither a frame nor the detached -1 */
 static int g_combined_height = 0;
 static int g_spot_vertex_first = -1;
 
-/* The raster's own buffer, in toridraw's native pixel type. */
+/* The raster's own buffers, in toridraw's native pixel type. */
 static toripixel_t* g_pixels = NULL;
+/*
+ * A MODEL widget is not necessarily opaque.  The native client rasterises it
+ * directly over everything already drawn, while the browser receives each
+ * widget as a separate canvas layer.  A second raster over white lets the
+ * widget export recover the equivalent source-over RGBA layer instead of
+ * baking translucent faces over black (see ev_render_widget).
+ */
+static toripixel_t* g_pixels_white = NULL;
 /* What the page reads: the same image as RGBA bytes, which is what
  * ImageData wants. Kept separate rather than rasterising straight into RGBA
  * because the raster's blend maths is written against its own packing. */
@@ -925,14 +933,17 @@ ensure_buffers(int w, int h)
 {
     if( w <= 0 || h <= 0 || w > EV_MAX_DIM || h > EV_MAX_DIM )
         return 0;
-    if( g_pix_w == w && g_pix_h == h && g_pixels && g_rgba )
+    if( g_pix_w == w && g_pix_h == h && g_pixels && g_pixels_white && g_rgba )
         return 1;
 
     free(g_pixels);
+    free(g_pixels_white);
     free(g_rgba);
     g_pixels = malloc((size_t)w * (size_t)h * sizeof(toripixel_t));
+    g_pixels_white = malloc((size_t)w * (size_t)h * sizeof(toripixel_t));
     g_rgba = malloc((size_t)w * (size_t)h * 4);
     assert(g_pixels);
+    assert(g_pixels_white);
     assert(g_rgba);
     g_pix_w = w;
     g_pix_h = h;
@@ -1075,7 +1086,7 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
      * — "ignore priorities" and "no order at all" are different questions and
      * the toggles do not have to agree.
      */
-    faceint_t* saved_priorities = subject->face_priorities;
+    uint8_t* saved_priorities = subject->face_priorities;
     int saved_model_priority = subject->model_priority;
     if( g_ignore_priorities )
     {
@@ -1138,6 +1149,233 @@ ev_render(int width, int height, int yaw, int pitch, int zoom, int frame)
         g_rgba[i * 4 + 1] = (uint8_t)((p >> 8) & 0xFF);
         g_rgba[i * 4 + 2] = (uint8_t)(p & 0xFF);
         g_rgba[i * 4 + 3] = 0xFF;
+    }
+
+    return g_rgba;
+}
+
+/**
+ * Render a MODEL component through the same projection/raster entry point as
+ * the native client's Soft3D UI renderer.
+ *
+ * This is intentionally separate from ev_render.  ev_render is an orbiting
+ * entity viewer: it measures model bounds, invents a camera placement, applies
+ * pan/fly state, uses a near plane of 1, and paints EV_BG.  None of those are
+ * widget semantics.  Interface records already supply every transform term,
+ * and ToriDraw_RenderModelExtentsAtWidget is the native client's implementation
+ * of those terms.
+ */
+uint8_t*
+ev_render_widget(
+    int canvas_width,
+    int canvas_height,
+    int widget_x,
+    int widget_y,
+    int widget_width,
+    int widget_height,
+    int zoom,
+    int xan,
+    int yan,
+    int zan,
+    int x_offset,
+    int y_offset,
+    int orthographic,
+    int fixed_zoom,
+    int object_composed,
+    int frame)
+{
+    if( !g_scene || (!g_model && !g_model_hd) ||
+        !ensure_buffers(canvas_width, canvas_height) )
+        return NULL;
+
+    /* Resolve before posing: draw_model() may rebuild an attached-model merge,
+     * and ev_pose() must operate on exactly the handle rasterized below. */
+    struct ToriDraw_Model* subject = draw_model();
+    if( !subject )
+        return NULL;
+
+    ev_pose(frame);
+
+    size_t const pixel_count = (size_t)canvas_width * (size_t)canvas_height;
+    bool needs_source_alpha = false;
+    if( subject->face_alphas )
+        for( int face = 0; face < subject->face_count; face++ )
+        {
+            int const transparency = subject->face_alphas[face];
+            /* 0 is opaque; 254/255 are discarded by the stock raster. */
+            if( transparency > 0 && transparency < 254 )
+            {
+                needs_source_alpha = true;
+                break;
+            }
+        }
+    memset(g_pixels, 0, pixel_count * sizeof(*g_pixels));
+    memset(g_rgba, 0, pixel_count * 4);
+
+    struct ToriDraw_ModelHandle hnd;
+    memset(&hnd, 0, sizeof(hnd));
+    hnd.kind = TORIDRAWMK_MODEL;
+    hnd.u.model.model = subject;
+
+    int model_zoom = zoom;
+    int model_center_y = 0;
+    if( object_composed )
+    {
+        int const box = widget_width < widget_height ? widget_width : widget_height;
+        if( box > 0 )
+            model_zoom = model_zoom * 32 / box;
+
+        struct ToriDraw_BoundsCylinder* bounds = ToriDraw_ModelGetBoundsCylinder(hnd);
+        if( bounds )
+            model_center_y = -bounds->min_y / 2;
+    }
+    if( model_zoom <= 0 )
+        model_zoom = 2000;
+
+    int draw_x = 0;
+    int draw_y = 0;
+    int draw_width = 0;
+    int draw_height = 0;
+    bool rendered = ToriDraw_RenderModelExtentsAtWidget(
+        g_scene,
+        hnd,
+        model_zoom,
+        xan,
+        yan,
+        zan,
+        x_offset,
+        y_offset,
+        model_center_y,
+        orthographic != 0,
+        fixed_zoom != 0,
+        g_pixels,
+        canvas_width,
+        canvas_width,
+        canvas_height,
+        widget_x,
+        widget_y,
+        widget_width,
+        widget_height,
+        0,
+        0,
+        canvas_width,
+        canvas_height,
+        &draw_x,
+        &draw_y,
+        &draw_width,
+        &draw_height);
+
+    if( !rendered )
+        return NULL;
+
+    /* Most interface models are wholly opaque.  Keep that common path
+     * byte-for-byte identical and avoid paying for a second full raster. */
+    if( !needs_source_alpha )
+    {
+        for( size_t i = 0; i < pixel_count; i++ )
+        {
+            uint32_t const rgb = (uint32_t)g_pixels[i] & 0x00FFFFFFu;
+            if( !rgb )
+                continue;
+            g_rgba[i * 4 + 0] = (uint8_t)((rgb >> 16) & 0xFF);
+            g_rgba[i * 4 + 1] = (uint8_t)((rgb >> 8) & 0xFF);
+            g_rgba[i * 4 + 2] = (uint8_t)(rgb & 0xFF);
+            g_rgba[i * 4 + 3] = 0xFF;
+        }
+        return g_rgba;
+    }
+
+    /*
+     * Raster the same projected model over white as well as black.  Every
+     * stock face-alpha operation is affine in the destination, so for each
+     * pixel
+     *
+     *   black result = source contribution
+     *   white result - black result = destination contribution
+     *
+     * This remains true when several translucent faces overlap inside one
+     * model.  Turning those two terms into straight RGBA gives the browser a
+     * layer it can source-over the preceding DOM content, which is what the C
+     * client gets by drawing the model directly into its existing framebuffer.
+     * Opaque pixels still take the exact old path (delta zero, alpha 255), and
+     * untouched pixels are black=0/white=255 (alpha zero).
+     */
+    for( size_t i = 0; i < pixel_count; i++ )
+        g_pixels_white[i] = (toripixel_t)0x00FFFFFFu;
+    rendered = ToriDraw_RenderModelExtentsAtWidget(
+        g_scene,
+        hnd,
+        model_zoom,
+        xan,
+        yan,
+        zan,
+        x_offset,
+        y_offset,
+        model_center_y,
+        orthographic != 0,
+        fixed_zoom != 0,
+        g_pixels_white,
+        canvas_width,
+        canvas_width,
+        canvas_height,
+        widget_x,
+        widget_y,
+        widget_width,
+        widget_height,
+        0,
+        0,
+        canvas_width,
+        canvas_height,
+        &draw_x,
+        &draw_y,
+        &draw_width,
+        &draw_height);
+    if( !rendered )
+        return NULL;
+
+    for( size_t i = 0; i < pixel_count; i++ )
+    {
+        uint32_t const black = (uint32_t)g_pixels[i] & 0x00FFFFFFu;
+        uint32_t const white = (uint32_t)g_pixels_white[i] & 0x00FFFFFFu;
+        int const br = (int)((black >> 16) & 0xFF);
+        int const bg = (int)((black >> 8) & 0xFF);
+        int const bb = (int)(black & 0xFF);
+        int const wr = (int)((white >> 16) & 0xFF);
+        int const wg = (int)((white >> 8) & 0xFF);
+        int const wb = (int)(white & 0xFF);
+
+        /* The destination coefficient is channel-independent.  Integer
+         * raster rounding can separate the three observations by one; their
+         * median rejects that without biasing toward a bright/dark channel. */
+        int dr = wr - br;
+        int dg = wg - bg;
+        int db = wb - bb;
+        if( dr < 0 ) dr = 0;
+        if( dg < 0 ) dg = 0;
+        if( db < 0 ) db = 0;
+        if( dr > 255 ) dr = 255;
+        if( dg > 255 ) dg = 255;
+        if( db > 255 ) db = 255;
+        int delta = dr + dg + db - (dr < dg ? (dr < db ? dr : db)
+                                            : (dg < db ? dg : db)) -
+                    (dr > dg ? (dr > db ? dr : db) : (dg > db ? dg : db));
+        int const alpha = 255 - delta;
+        if( alpha <= 0 )
+            continue;
+
+        /* ImageData takes straight (not premultiplied) RGBA.  Choose the
+         * straight colour whose premultiplied contribution rounds back to the
+         * black raster. */
+        int r = (br * 255 + alpha / 2) / alpha;
+        int g = (bg * 255 + alpha / 2) / alpha;
+        int b = (bb * 255 + alpha / 2) / alpha;
+        if( r > 255 ) r = 255;
+        if( g > 255 ) g = 255;
+        if( b > 255 ) b = 255;
+        g_rgba[i * 4 + 0] = (uint8_t)r;
+        g_rgba[i * 4 + 1] = (uint8_t)g;
+        g_rgba[i * 4 + 2] = (uint8_t)b;
+        g_rgba[i * 4 + 3] = (uint8_t)alpha;
     }
 
     return g_rgba;

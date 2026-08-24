@@ -399,7 +399,8 @@ app_plugin_highlight_named_any(struct RS_HighlightState const* hl, int kind)
  * Does an OP GROUP name this thing?
  *
  * The 7040 family's subject is a right-click NAME and applies across the pools
- * -- `_7041("Cow", 9)` is about every Cow, npc or not -- so every entity pass
+ * -- `HIGHLIGHT_OPGROUP_ON("Cow", 9)` is about every Cow, npc or not -- so
+ * every entity pass
  * asks this in addition to its own kind's members. Returns the group, or -1.
  *
  * Nothing in this cache calls the family's ON, so this walk is over an empty

@@ -21,6 +21,16 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define TEST_CHECK(cond)                                                                           \
+    do                                                                                             \
+    {                                                                                              \
+        if( !(cond) )                                                                              \
+        {                                                                                          \
+            fprintf(stderr, "FAIL: %s (%s:%d)\n", #cond, __FILE__, __LINE__);                     \
+            abort();                                                                               \
+        }                                                                                          \
+    } while( 0 )
+
 enum
 {
     READY_YIELDS = 129,
@@ -217,7 +227,7 @@ test_ready_work_drains_without_cap(void)
 
     /* One initiating frame must cross every ready yield, including the old
      * 64-step boundary, and may publish only the completed tree. */
-    assert(settle_and_commit(&runner, &widgets, &frame) == 1);
+    TEST_CHECK(settle_and_commit(&runner, &widgets, &frame) == 1);
     assert(px.process_calls == READY_YIELDS);
     assert(runner.queue->head == NULL);
     assert(widgets.completed == 1);
@@ -244,7 +254,7 @@ test_external_wait_retains_last_frame(void)
 
     /* The task has already hidden Equipment when the external wait begins.
      * That partial state must not replace the stable published frame. */
-    assert(settle_and_commit(&runner, &widgets, &frame) == 0);
+    TEST_CHECK(settle_and_commit(&runner, &widgets, &frame) == 0);
     assert(px.pending == 1);
     assert(px.pending_checks > 0 && px.pending_checks < px.pending_watchdog);
     assert(runner.queue->head != NULL);
@@ -259,7 +269,7 @@ test_external_wait_retains_last_frame(void)
     /* Delivery resumes the same transaction.  Its first settled frame is the
      * final familiar view, published once; no mixed state was committed. */
     px.pending = 0;
-    assert(settle_and_commit(&runner, &widgets, &frame) == 1);
+    TEST_CHECK(settle_and_commit(&runner, &widgets, &frame) == 1);
     assert(runner.queue->head == NULL);
     assert(widgets.completed == 1);
     assert(widgets.mutation_count == 2);
@@ -340,7 +350,7 @@ test_cross_queue_wait_ends_the_settle(void)
 
     /* Blocked, not pending: no read is outstanding, so PENDING would send the
      * settle loop straight back into the same task. */
-    assert(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_BLOCKED);
+    TEST_CHECK(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_BLOCKED);
     assert(px.pending == 0);
     /* Exactly one pass. This is the anti-spin assertion. */
     assert(px.process_calls == 1);
@@ -349,13 +359,13 @@ test_cross_queue_wait_ends_the_settle(void)
 
     /* A blocked task stays blocked while the state holds, and re-testing it
      * costs one pass per frame — not one per step. */
-    assert(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_BLOCKED);
+    TEST_CHECK(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_BLOCKED);
     assert(px.process_calls == 2);
     assert(boot.mounted == 0);
 
     /* The other queue got its turn back and finished the rebuild. */
     boot.booting = 0;
-    assert(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_IDLE);
+    TEST_CHECK(TaskRunner_SettleFrame(&runner) == TASK_RUNNER_IDLE);
     assert(runner.queue->head == NULL);
     assert(boot.mounted == 1);
 

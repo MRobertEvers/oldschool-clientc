@@ -77,6 +77,7 @@ EM_JS(void, web_editor_open_panel_tab, (void), {
 #include "game/rs_game_events.h"
 #include "game/rs_gameproto_exec.h"
 #include "game/rs_minimenu_build.h"
+#include "game/preview_state.h"
 #include "plugin/torirs_plugin_lua.h"
 #include "plugin/task_plugin_io.h"
 #include "plugin/torirs_plugin_lua.h"
@@ -4521,7 +4522,8 @@ app_cs2_loc_at_coord(
 }
 
 /*
- * `_6902` / `_6903`: one player's queued route.
+ * ACTIVEPLAYER_GETROUTELENGTH / ACTIVEPLAYER_GETROUTECOORD: one player's
+ * queued route.
  *
  * The route is WorldEntityFacet_Pathing, which is the reference's
  * `ClientPlayer::m_routeLength` + its two `array<int,10>`s tile for tile --
@@ -4566,8 +4568,9 @@ app_cs2_player_route(void* user, int player_uid, int index, int* out_coord)
  * every trigger dispatch calls before firing the script.
  *
  * A trigger script takes no arguments, so the context IS its argument list:
- * 5203 reads the active player's route through `_6902` / `_6903` and compares
- * `_6904` with `_6905`; 5197 and 5209 read the active tile through `_6950`.
+ * 5203 reads the active player's route through ACTIVEPLAYER_GETROUTELENGTH /
+ * ACTIVEPLAYER_GETROUTECOORD and compares ACTIVEPLAYER_GETUID with
+ * LOCALPLAYER_GETUID; 5197 and 5209 read the active tile through `_6950`.
  * Both registers are the persistent kind -- the reference's are two fields on
  * its ScriptRunner and are left set after the script returns -- which is safe
  * because every script that reads one is fired right after it is written, and
@@ -11357,12 +11360,60 @@ Task_AppBoot_Run(
         printf("varc: seeded %d client vars from the manifest\n", app->cfg.varc_seed_count);
     }
 
+    /* A CS2Dom native preview seeds the actual client stores after cache types
+     * and manifest defaults exist, but before UITree build/onLoad reads them.
+     * The state path is an exact environment value supplied to a child process;
+     * its contents are a bounded binary packet, never command-line or shell
+     * syntax. Re-apply on a root remount so every preview build sees the same
+     * declared host state. Ordinary client runs cannot enable this by setting a
+     * state path alone: the headless preview output must also be requested. */
+    if( getenv("TORIRS_PREVIEW_BMP") && getenv("TORIRS_PREVIEW_STATE") )
+    {
+        char state_error[192];
+        int applied = 0;
+        app->preview_state_failed = !ToriRSPreviewState_ApplyFile(
+            getenv("TORIRS_PREVIEW_STATE"),
+            &app->varps,
+            &app->varcs,
+            &app->stats,
+            &applied,
+            &app->preview_state_stat_mask,
+            state_error,
+            sizeof(state_error));
+        if( app->preview_state_failed )
+            fprintf(stderr, "preview_state: %s\n", state_error);
+        else
+            fprintf(stderr, "preview_state: applied %d records\n", applied);
+    }
+
     /* One root-build path. A manifest that names no RevConfig at all still comes
      * through here: the builder synthesises the single rs_iface mount of
      * boot_interface_id, which is what the old open-the-interface-directly
      * branch produced (TS parity: WidgetManager.setRootInterface(groupId) — any
      * group can be the root, no hardcoded 161 chrome required). */
     PT_TASK_AWAITSELF(CreateTask_UITreeBuild(&app->builder));
+
+    /* Root-build already performs the reference client's initial var-transmit
+     * pass after onLoad, so preview varp/varbit seeds reach listeners without a
+     * synthetic tick. Stats normally arrive later in UPDATE_STAT and therefore
+     * have no equivalent build pass. A seeded preview stat is both the initial
+     * value onLoad reads and one precise post-registration stat transmit. This
+     * is preview-only and filtered to the supplied skills; unrelated hooks are
+     * not made to run merely because a state packet exists. */
+    if( app->preview_state_stat_mask )
+    {
+        int stat_ids[RS_PLAYER_STATS_SKILL_COUNT];
+        int stat_count = 0;
+        for( int stat_id = 0; stat_id < RS_PLAYER_STATS_SKILL_COUNT; stat_id++ )
+        {
+            if( app->preview_state_stat_mask & ((uint32_t)1u << stat_id) )
+                stat_ids[stat_count++] = stat_id;
+        }
+        PT_TASK_AWAITSELF_IF(
+            CreateTask_CS2StatTransmitDispatchSet(&app->host, stat_ids, stat_count));
+        UITree_LayoutResolve(
+            app->tree, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    }
     printf(
         "RevConfigBuild done: iface=%d ui=%s inline=%s tree_components=%u sprites=%d "
         "fonts=%d onloads=%d inv_hooks=%d var_hooks=%d mounts=%d\n",
@@ -13017,7 +13068,8 @@ app_logic_tick(struct App* app)
             }
         }
         app->host.local_coord = coord;
-        /* `_6905`, and the other half of every `_6904 = _6905` a per-player
+        /* LOCALPLAYER_GETUID, and the other half of every
+         * ACTIVEPLAYER_GETUID = LOCALPLAYER_GETUID comparison a per-player
          * trigger script opens with. Published here beside the coord because
          * it is the same fact about the same player and neither belongs to a
          * script's call. */
@@ -13052,11 +13104,12 @@ app_logic_tick(struct App* app)
      * What this client does NOT do is fan trigger_49 out over every player.
      * The reference fires it for each player whose route the packet updated
      * and each one that consumed a step this cycle; 5203, the only script in
-     * this cache that is a trigger_49, opens by comparing `_6904` with
-     * `_6905` and returns for anyone but the local player. A fan-out would be
-     * a script dispatch per moving player per cycle to reach that same early
-     * return. The opcodes it would need are all here, so a cache that starts
-     * marking other players' true tiles needs the loop and nothing else.
+     * this cache that is a trigger_49, opens by comparing ACTIVEPLAYER_GETUID
+     * with LOCALPLAYER_GETUID and returns for anyone but the local player. A
+     * fan-out would be a script dispatch per moving player per cycle to reach
+     * that same early return. The opcodes it would need are all here, so a cache
+     * that starts marking other players' true tiles needs the loop and nothing
+     * else.
      */
     {
         int dest_coord = -1;
@@ -13177,8 +13230,9 @@ app_logic_tick(struct App* app)
                         mo.kind = RS_CLIENTOP_PLAYER;
                         minimenu_type = RS_MINIMENU_TYPE_PLAYER;
                         /* The server slot, which is what a player uid is here
-                         * -- `_6904` reports it and app_cs2_player_route
-                         * resolves it back. Same choice as an npc's. */
+                         * -- ACTIVEPLAYER_GETUID reports it and
+                         * app_cs2_player_route resolves it back. Same choice as
+                         * an npc's. */
                         mo.uid = pl->server_pid;
                         mo.coord = RS_CLIENTOP_COORD(
                             pl->grid_position.level,
@@ -13282,7 +13336,8 @@ app_logic_tick(struct App* app)
             }
             /* The current tile: the local player's route changed, which is
              * both of the reference's trigger_49 edges. 5203 reads the route
-             * itself -- `_6903(0)` while walking, `coord` while still -- so
+             * itself -- ACTIVEPLAYER_GETROUTECOORD(0) while walking, `coord`
+             * while still -- so
              * the active player is the whole of what it needs. */
             if( route != app->highlight_last_route )
             {

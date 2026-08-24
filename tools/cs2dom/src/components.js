@@ -28,6 +28,9 @@ export const IF_TYPE = {
     text: 4,
     graphic: 5,
     model: 6,
+    /* IF1 hover text. Imported content presents it as React-style <Text>; cs2dom
+     * does not author new IF1 records. */
+    tooltip: 8,
     line: 9,
 };
 
@@ -125,6 +128,10 @@ export const ELEMENTS = {
             yOffset: { field: 'modelyof', type: INT, op: 'if_setmodelangle', default: 0 },
             seq: { field: 'modelanim', type: INT, op: 'if_setmodelanim', default: -1 },
             orthographic: { field: 'modelortho', type: BOOL, op: 'if_setmodelorthog', default: false },
+            /* Cache-only projection selector: drawModel2DAtZoom uses the
+             * widget's zoom as zoom3d; the ordinary path keeps the native 512.
+             * There is no CS2 setter, so React may author it only as a fixed prop. */
+            fixedZoom: { field: 'modelfixedzoom', type: BOOL, op: null, default: false },
         },
     },
     Line: {

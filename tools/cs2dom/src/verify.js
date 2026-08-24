@@ -12,7 +12,9 @@
  */
 
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync, mkdirSync, rmSync, existsSync } from 'node:fs';
+import {
+    existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
@@ -35,7 +37,15 @@ export function findRepoRoot(from) {
  * The tool takes a directory of `<id>.cs2`, so the sources are staged into a temp
  * one — scratch, never the content tree.
  */
-export function compileScripts(scripts, { repoRoot, scratch = tmpdir() } = {}) {
+export function compileScripts(scripts, {
+    repoRoot,
+    scratch = tmpdir(),
+    names = null,
+    revision = null,
+    cache = null,
+    rawScripts = [],
+    returnBytecode = false,
+} = {}) {
     const tool = join(repoRoot, CS2_TOOL);
     if( !existsSync(tool) )
         return { ok: false, missingTool: true, tool, failures: [], compiled: 0 };
@@ -51,11 +61,26 @@ export function compileScripts(scripts, { repoRoot, scratch = tmpdir() } = {}) {
         writeFileSync(join(src, `${script.id}.cs2`), script.source);
         byId.set(String(script.id), script);
     }
+    for( const script of rawScripts ) {
+        if( !Number.isInteger(script.id) || script.id < 0 ) continue;
+        const bytes = script.bytes ||
+            (script.file && existsSync(script.file) ? readFileSync(script.file) : null);
+        if( !bytes ) continue;
+        writeFileSync(join(raw, String(script.id)), bytes);
+    }
 
     /* Both streams: the tool reports failures on stderr and its tally on stdout,
      * and a verifier that read only one of them would call a failed run clean. */
-    const run = spawnSync(tool, ['compile', '--raw', raw, '--src', src, '--out', out],
-                          { encoding: 'utf8' });
+    /* A real Dat2 cache is the best signature oracle for edited source: every
+     * unchanged callee retains its original trigger/argument contract. Raw
+     * records are the cache-less fallback used by unit fixtures and authored
+     * projects. */
+    const args = cache
+        ? ['compile', '--cache', cache, '--src', src, '--out', out]
+        : ['compile', '--raw', raw, '--src', src, '--out', out];
+    if( revision ) args.push('--rev', revision);
+    if( names ) args.push('--names', names);
+    const run = spawnSync(tool, args, { encoding: 'utf8' });
     const output = `${run.stdout || ''}${run.stderr || ''}`;
 
     const failures = [];
@@ -69,6 +94,17 @@ export function compileScripts(scripts, { repoRoot, scratch = tmpdir() } = {}) {
     }
     const counted = /compiled (\d+), failed (\d+)/.exec(output);
 
+    const bytecode = [];
+    if( returnBytecode && existsSync(out) ) {
+        for( const file of readdirSync(out) ) {
+            if( !/^\d+$/.test(file) ) continue;
+            const id = Number(file);
+            const script = byId.get(file);
+            bytecode.push({ id, name: script?.name || `script_${id}`, bytes: readFileSync(join(out, file)) });
+        }
+        bytecode.sort((left, right) => left.id - right.id);
+    }
+
     rmSync(dir, { recursive: true, force: true });
 
     return {
@@ -78,5 +114,6 @@ export function compileScripts(scripts, { repoRoot, scratch = tmpdir() } = {}) {
         compiled: counted ? Number(counted[1]) : 0,
         failures,
         output,
+        bytecode,
     };
 }

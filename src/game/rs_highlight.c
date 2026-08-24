@@ -10,23 +10,20 @@
  * The opcode table.
  *
  * The family is eight kinds of five opcodes, laid out in a strict block of
- * five per kind from 7000, plus one more block at 7040 that the opcode header
- * has not named. Written out rather than computed from `(opcode - 7000) / 5`,
+ * five per kind from 7000, plus the OPGROUP block at 7040. Written out rather
+ * than computed from `(opcode - 7000) / 5`,
  * because that arithmetic would silently absorb a renumbering: a kind inserted
  * in the middle would shift every later block by one and the formula would go
  * on returning a plausible answer for the wrong kind.
  *
- * 7040..7044 -- "_7040 .. _7044" -- is a ninth block of the same shape, keyed
- * by a STRING like the player family. It is the OP GROUP kind: the reference
- * answers it with `HighlightManager::AddOpGroupHighlight` and friends, taking
+ * HIGHLIGHT_OPGROUP_* is a ninth block of the same shape, keyed by a STRING
+ * like the player family. The reference answers it with
+ * `HighlightManager::AddOpGroupHighlight` and friends, taking
  * an `OpGroup` that `OpGroup::Create` builds from a subject's NAME and its op
- * list -- so a scripted `_7041("Cow", 9)` marks everything the right-click
- * menu would call a Cow, whatever pool it lives in. This cache only ever sets
- * it up and clears it (script 5486's teardown walks `_7040(group, -1, 0, 0, 0)`
- * over twenty groups; 6686 calls `_7044(6)`), so its ON/OFF/GET have no caller
- * here -- they are recorded anyway, because the state is what makes them true
- * if one ever appears, and because half a family is how `_7031` came to be a
- * no-op.
+ * list -- so `HIGHLIGHT_OPGROUP_ON("Cow", 9)` marks everything the right-click
+ * menu would call a Cow, whatever pool it lives in. Script 5486 sets up all
+ * twenty groups, 6686 clears one, 6689 toggles ON/OFF behind GET, and 6698
+ * reads GET beside HIGHLIGHT_NPC_GET.
  */
 struct RS_HighlightOp
 {
@@ -120,11 +117,11 @@ static struct RS_HighlightOp const HIGHLIGHT_OPS[] = {
 
     /* The OP GROUP block, whose subject is a menu name -- same shape as the
      * player family's, one int and one string. See the header. */
-    { CS2_OP__7040,                     RS_HIGHLIGHT_OPGROUP,   OP_SETUP,  5,  0, -1, -1, -1, false },
-    { CS2_OP__7041,                     RS_HIGHLIGHT_OPGROUP,   OP_ON,     1,  0, -1, -1, -1, true  },
-    { CS2_OP__7042,                     RS_HIGHLIGHT_OPGROUP,   OP_OFF,    1,  0, -1, -1, -1, true  },
-    { CS2_OP__7043,                     RS_HIGHLIGHT_OPGROUP,   OP_GET,    1,  0, -1, -1, -1, true  },
-    { CS2_OP__7044,                     RS_HIGHLIGHT_OPGROUP,   OP_CLEAR,  1,  0, -1, -1, -1, false },
+    { CS2_OP_HIGHLIGHT_OPGROUP_SETUP,   RS_HIGHLIGHT_OPGROUP,   OP_SETUP,  5,  0, -1, -1, -1, false },
+    { CS2_OP_HIGHLIGHT_OPGROUP_ON,      RS_HIGHLIGHT_OPGROUP,   OP_ON,     1,  0, -1, -1, -1, true  },
+    { CS2_OP_HIGHLIGHT_OPGROUP_OFF,     RS_HIGHLIGHT_OPGROUP,   OP_OFF,    1,  0, -1, -1, -1, true  },
+    { CS2_OP_HIGHLIGHT_OPGROUP_GET,     RS_HIGHLIGHT_OPGROUP,   OP_GET,    1,  0, -1, -1, -1, true  },
+    { CS2_OP_HIGHLIGHT_OPGROUP_CLEAR,   RS_HIGHLIGHT_OPGROUP,   OP_CLEAR,  1,  0, -1, -1, -1, false },
 };
 /* clang-format on */
 

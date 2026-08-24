@@ -213,7 +213,7 @@ The host fills these when pushing hook arguments before `PushCallScript`.
 
 ### GOSUB / RETURN
 
-- `GOSUB_WITH_PARAMS` yields `CS2VM_HOST_REQUEST_PUSHSCRIPT`; the host looks up the
+- `GOSUB_WITH_PARAMS` yields `CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS`; the host looks up the
   callee script and calls `CS2VM2_PushCallScript`.
 - `RETURN` pops the frame and leaves return ints on the shared stack for the caller.
 
@@ -272,12 +272,13 @@ Register via `CS2VM2_BindHost(&vm, user, MyHostExec)`.
 ### Host responsibilities
 
 1. **Dispatch on `request->kind`** — switch over `CS2VM_HostRequestKind` and read
-   the matching payload from `request->u`.
+   fields directly from the identically named arm, `request->u.<OPCODE>.<field>`.
 2. **Return an exec code** — `CS2VM_EXECNO_OK`, `CS2VM_EXECNO_YIELD`, or
    `CS2VM_EXECNO_ERROR`.
 3. **Push results for getters** — use `CS2VM2_PushInt` / `CS2VM2_PushStr` on success.
-4. **Handle `PUSHSCRIPT`** — look up `request->u.push_script.script_id`, decode if
-   needed, call `CS2VM2_PushCallScript`.
+4. **Handle `GOSUB_WITH_PARAMS`** — look up
+   `request->u.GOSUB_WITH_PARAMS.script_id`, decode if needed, call
+   `CS2VM2_PushCallScript`.
 5. **Respect yield semantics** — on `YIELD`, do not touch VM stacks/frames; re-enter
    `RunScript` after async work.
 6. **Provide canvas size** — set `thread->canvas_w` / `thread->canvas_h` before
@@ -285,21 +286,26 @@ Register via `CS2VM2_BindHost(&vm, user, MyHostExec)`.
 7. **Access host state** — `CS2VM_USER(thread)` casts `thread->vm->user` to your
    host struct.
 
-### Request categories
+### Request kinds
 
-All request kinds are declared in `cs2vm2_host.h`. Grouped by domain:
+All request kinds are declared through `cs2vm2_host_request_kinds.def` in numeric
+CS2 opcode order. Every hosted opcode has its own identically named request kind,
+named struct, and union arm, and the kind has the opcode's numeric value. Fields
+live directly in the exact request struct. Shared behavior helpers take scalar
+values; requests are never folded into generic categories or reinterpreted through
+a shared layout. For example, `CC_SETTEXT` and `IF_SETTEXT` remain distinct structs
+throughout dispatch and yielding.
 
 | Category | Examples | Host does |
 |----------|----------|-----------|
-| **Script control** | `PUSHSCRIPT` | Push callee via `CS2VM2_PushCallScript` |
-| **Inventory** | `INVS_GET_SIZE`, `INVS_GET_OBJ`, `INVS_GET_NUM`, `INVS_GET_TOTAL` | Read container slots, push results |
-| **Vars** | `VARS_READ_VARP`, `VARS_READ_VARBIT`, `VARS_READ/WRITE_VARC_*` | Read/write game vars, push values |
-| **Enum** | `ENUM_LOOKUP`, `ENUM_GETOUTPUTCOUNT` | Config enum table access |
+| **Script control** | `GOSUB_WITH_PARAMS` | Push callee via `CS2VM2_PushCallScript` |
+| **Inventory** | `INV_SIZE`, `INV_GETOBJ`, `INV_GETNUM`, `INV_TOTAL` | Read container slots, push results |
+| **Vars** | `PUSH_VAR`, `PUSH_VARBIT`, `PUSH/POP_VARC_*` | Read/write game vars, push values |
+| **Enum** | `ENUM`, `ENUM_STRING`, `ENUM_GETOUTPUTCOUNT` | Config enum table access |
 | **CC (child component)** | `CC_CREATE`, `CC_SETPOSITION`, `CC_SETTEXT`, `CC_SETOBJECT`, `CC_GET*`, `CC_SETON*` | Create/update/query dynamic child widgets |
 | **IF (interface)** | `IF_SETPOSITION`, `IF_SETTEXT`, `IF_SETON*`, `IF_GET*`, `IF_FIND` | Update/query interface layers |
-| **Widget extras** | `WIDGET_SET_MODEL`, `WIDGET_SET_ARC`, `WIDGET_INPUT_INT`, … | Model, arc, fill, input field ops |
-| **Tree navigation** | `CC_FINDROOT`, `CC_CHILDREN_FIND`, `IF_CHILDREN_FIND` | Walk component hierarchies |
-| **Object config** | `OC_PARAM`, `OC_NAME`, `OC_INT_PARAM` | Item/object definition lookups |
+| **Tree navigation** | `CC_CHILDREN_FIND_COUNT`, `CC_CHILDREN_FINDNEXT`, `IF_CHILDREN_FIND` | Walk component hierarchies |
+| **Object config** | `OC_PARAM`, `OC_NAME`, `OC_COST`, `OC_STACKABLE` | Item/object definition lookups |
 | **Misc** | `CLIENTCLOCK`, `STRUCT_PARAM`, `PARAHEIGHT`, `PARAWIDTH` | Clock, struct params, text layout |
 
 Reference implementations (still on the CS2VMX API) live in `v1/games/`:

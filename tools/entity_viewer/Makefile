@@ -365,6 +365,15 @@ ev_texture_render_probe: $(BUILD)/ev_texture_render_probe.o $(NATIVE_CORE) $(COM
 		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
 
+# Cache-free ABI parity test for the interface-widget WASM render entry point.
+$(BUILD)/ev_widget_render_test.o: test/ev_widget_render_test.c | $(BUILD)
+	$(CC) $(CFLAGS) -I. -c $< -o $@
+
+ev_widget_render_test: $(BUILD)/ev_widget_render_test.o $(BUILD)/ev_render.o \
+		$(BUILD)/ev_wire.o $(BUILD)/toridraw_unity.o $(BUILD)/toridraw_font.o \
+		$(BUILD)/toridraw_model_sprite.o $(BUILD)/bmp.o
+	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
+
 ev_export: $(BUILD)/ev_export.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
 		$(ASAN_COMPAT_OBJ) $(ASAN_DYLD_SHIM)
 	$(CC) $(CFLAGS) $(ASAN_LDFLAGS) -o $@ $^ -lm
@@ -389,7 +398,7 @@ ev_export: $(BUILD)/ev_export.o $(NATIVE_CORE) $(COMMON_OBJS) $(DEP_OBJS) \
 
 EMCC ?= emcc
 SIMD ?= 1
-EM_EXPORTS := _ev_w_init,_ev_w_alloc,_ev_w_release,_ev_w_set_model,_ev_w_set_anim,_ev_w_clear_anim,_ev_w_frame_count,_ev_w_frame_delay,_ev_w_render,_ev_w_model_height,_ev_w_last_cull,_ev_w_set_pan,_ev_w_set_zbuffer,_ev_w_set_frame_height,_ev_w_set_spot_model,_ev_w_set_spot_anim,_ev_w_clear_spot,_ev_w_set_spot_state,_ev_w_spot_frame_count,_ev_w_spot_frame_delay,_ev_w_set_model_hd,_ev_w_clear_model_hd,_ev_w_model_hd_active,_ev_w_hd_stats,_ev_w_hd_stats_count,_ev_w_set_hd_placeholder,_ev_w_set_textures,_ev_w_texture_count,_ev_w_move,_ev_w_move_reset,_ev_w_set_ignore_priorities,_ev_w_set_zbuffer_kernels,_malloc,_free
+EM_EXPORTS := _ev_w_init,_ev_w_alloc,_ev_w_release,_ev_w_set_model,_ev_w_set_anim,_ev_w_clear_anim,_ev_w_frame_count,_ev_w_frame_delay,_ev_w_render,_ev_w_render_widget,_ev_w_model_height,_ev_w_last_cull,_ev_w_set_pan,_ev_w_set_zbuffer,_ev_w_set_frame_height,_ev_w_set_spot_model,_ev_w_set_spot_anim,_ev_w_clear_spot,_ev_w_set_spot_state,_ev_w_spot_frame_count,_ev_w_spot_frame_delay,_ev_w_set_model_hd,_ev_w_clear_model_hd,_ev_w_model_hd_active,_ev_w_hd_stats,_ev_w_hd_stats_count,_ev_w_set_hd_placeholder,_ev_w_set_textures,_ev_w_texture_count,_ev_w_move,_ev_w_move_reset,_ev_w_set_ignore_priorities,_ev_w_set_zbuffer_kernels,_malloc,_free
 
 EM_SIMD := $(if $(filter 1,$(SIMD)),-msimd128,)
 EM_OPT := -O3 -flto -mnontrapping-fptoint $(EM_SIMD)
@@ -398,7 +407,7 @@ EM_OPT := -O3 -flto -mnontrapping-fptoint $(EM_SIMD)
 # set, the sanitizer flags and the memory settings differ below, so the two
 # modules cannot drift in what they export or how the page reaches them.
 EM_SRCS := ev_wasm.c ev_render.c ev_wire.c $(TORIDRAW)/toridraw_unity.c \
-	$(TORIDRAW)/toridraw_font.c
+	$(TORIDRAW)/toridraw_font.c $(TORIDRAW)/toridraw_model_sprite.c
 EM_LINK := -sMODULARIZE=1 -sEXPORT_NAME=EVModule \
 	-sALLOW_MEMORY_GROWTH=1 -sFILESYSTEM=0 -sENVIRONMENT=web \
 	-sEXPORTED_FUNCTIONS='[$(EM_EXPORTS)]' \

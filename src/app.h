@@ -1771,6 +1771,10 @@ struct App
     int busy_frames;
     long busy_steps;
     int boot_interface_id;
+    /** Invalid TORIRS_PREVIEW_STATE packet; the headless caller turns this into
+     * a non-zero process exit after the async boot task returns. */
+    int preview_state_failed;
+    uint32_t preview_state_stat_mask;
     /**
      * The once-per-session half of Task_AppBoot has already run.
      *

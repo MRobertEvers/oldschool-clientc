@@ -19,7 +19,7 @@
 // clang-format on
 
 static inline void
-ToriDraw_TriangleGouraud(
+ToriDraw_TriangleGouraudImpl(
     toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -33,9 +33,10 @@ ToriDraw_TriangleGouraud(
     int color_a,
     int color_b,
     int color_c,
-    int alpha)
+    int alpha,
+    bool scanline)
 {
-    if( TORIDRAW_SCANLINE_SELECTED() )
+    if( scanline )
     {
         if( alpha == 0xFF )
         {
@@ -113,8 +114,42 @@ ToriDraw_TriangleGouraud(
     }
 }
 
+#define TORIDRAW_TRIANGLE_GOURAUD_PARAMETERS                                                     \
+    toripixel_t* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int x1,  \
+        int x2, int x3, int y1, int y2, int y3, int color_a, int color_b, int color_c, int alpha
+#define TORIDRAW_TRIANGLE_GOURAUD_ARGUMENTS                                                       \
+    pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color_a, color_b,  \
+        color_c, alpha
+
 static inline void
-ToriDraw_TriangleGouraudS1(
+ToriDraw_TriangleGouraudBranching(TORIDRAW_TRIANGLE_GOURAUD_PARAMETERS)
+{
+    ToriDraw_TriangleGouraudImpl(TORIDRAW_TRIANGLE_GOURAUD_ARGUMENTS, false);
+}
+
+static inline void
+ToriDraw_TriangleGouraudScanline(TORIDRAW_TRIANGLE_GOURAUD_PARAMETERS)
+{
+    ToriDraw_TriangleGouraudImpl(TORIDRAW_TRIANGLE_GOURAUD_ARGUMENTS, true);
+}
+
+static inline void
+ToriDraw_TriangleGouraud(TORIDRAW_TRIANGLE_GOURAUD_PARAMETERS)
+{
+    if( TORIDRAW_SCANLINE_SELECTED() )
+    {
+        ToriDraw_TriangleGouraudScanline(TORIDRAW_TRIANGLE_GOURAUD_ARGUMENTS);
+        return;
+    }
+
+    ToriDraw_TriangleGouraudBranching(TORIDRAW_TRIANGLE_GOURAUD_ARGUMENTS);
+}
+
+#undef TORIDRAW_TRIANGLE_GOURAUD_ARGUMENTS
+#undef TORIDRAW_TRIANGLE_GOURAUD_PARAMETERS
+
+static inline void
+ToriDraw_TriangleGouraudS1Impl(
     toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -128,11 +163,12 @@ ToriDraw_TriangleGouraudS1(
     int color_a,
     int color_b,
     int color_c,
-    int alpha)
+    int alpha,
+    bool scanline)
 {
-    if( TORIDRAW_SCANLINE_SELECTED() )
+    if( scanline )
     {
-        ToriDraw_TriangleGouraud(
+        ToriDraw_TriangleGouraudScanline(
             pixel_buffer,
             stride,
             screen_width,
@@ -187,11 +223,45 @@ ToriDraw_TriangleGouraudS1(
     }
 }
 
+#define TORIDRAW_TRIANGLE_GOURAUD_S1_PARAMETERS                                                  \
+    toripixel_t* RESTRICT pixel_buffer, int stride, int screen_width, int screen_height, int x1,  \
+        int x2, int x3, int y1, int y2, int y3, int color_a, int color_b, int color_c, int alpha
+#define TORIDRAW_TRIANGLE_GOURAUD_S1_ARGUMENTS                                                    \
+    pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color_a, color_b,  \
+        color_c, alpha
+
+static inline void
+ToriDraw_TriangleGouraudS1Branching(TORIDRAW_TRIANGLE_GOURAUD_S1_PARAMETERS)
+{
+    ToriDraw_TriangleGouraudS1Impl(TORIDRAW_TRIANGLE_GOURAUD_S1_ARGUMENTS, false);
+}
+
+static inline void
+ToriDraw_TriangleGouraudS1Scanline(TORIDRAW_TRIANGLE_GOURAUD_S1_PARAMETERS)
+{
+    ToriDraw_TriangleGouraudS1Impl(TORIDRAW_TRIANGLE_GOURAUD_S1_ARGUMENTS, true);
+}
+
+static inline void
+ToriDraw_TriangleGouraudS1(TORIDRAW_TRIANGLE_GOURAUD_S1_PARAMETERS)
+{
+    if( TORIDRAW_SCANLINE_SELECTED() )
+    {
+        ToriDraw_TriangleGouraudS1Scanline(TORIDRAW_TRIANGLE_GOURAUD_S1_ARGUMENTS);
+        return;
+    }
+
+    ToriDraw_TriangleGouraudS1Branching(TORIDRAW_TRIANGLE_GOURAUD_S1_ARGUMENTS);
+}
+
+#undef TORIDRAW_TRIANGLE_GOURAUD_S1_ARGUMENTS
+#undef TORIDRAW_TRIANGLE_GOURAUD_S1_PARAMETERS
+
 /**
  * This requires vertices to be wound counterclockwise.
  */
 static inline void
-ToriDraw_TriangleFaceGouraudNearClip(
+ToriDraw_TriangleFaceGouraudNearClipImpl(
     toripixel_t* RESTRICT pixel_buffer,
     int face,
     faceint_t* RESTRICT face_indices_a,
@@ -213,7 +283,8 @@ ToriDraw_TriangleFaceGouraudNearClip(
     int offset_y,
     int stride,
     int screen_width,
-    int screen_height)
+    int screen_height,
+    bool scanline)
 {
     int clipped_count = 0;
     int a = face_indices_a[face];
@@ -398,7 +469,7 @@ ToriDraw_TriangleFaceGouraudNearClip(
     yb += offset_y;
     xc += offset_x;
     yc += offset_y;
-    ToriDraw_TriangleGouraud(
+    ToriDraw_TriangleGouraudImpl(
             pixel_buffer,
             stride,
             screen_width,
@@ -412,7 +483,8 @@ ToriDraw_TriangleFaceGouraudNearClip(
             color_a,
             color_b,
             color_c,
-            alpha);
+            alpha,
+            scanline);
 
     if( clipped_count != 4 )
         return;
@@ -423,7 +495,7 @@ ToriDraw_TriangleFaceGouraudNearClip(
 
     xb += offset_x;
     yb += offset_y;
-    ToriDraw_TriangleGouraud(
+    ToriDraw_TriangleGouraudImpl(
             pixel_buffer,
             stride,
             screen_width,
@@ -437,7 +509,8 @@ ToriDraw_TriangleFaceGouraudNearClip(
             color_a,
             color_c,
             color_b,
-            alpha);
+            alpha,
+            scanline);
 }
 
 static inline void
@@ -727,7 +800,7 @@ raster_face_gouraud_near_clipf(
 }
 
 static inline void
-ToriDraw_TriangleFaceGouraud(
+ToriDraw_TriangleFaceGouraudImpl(
     toripixel_t* RESTRICT pixel_buffer,
     int face,
     faceint_t* RESTRICT face_indices_a,
@@ -751,7 +824,8 @@ ToriDraw_TriangleFaceGouraud(
     int screen_width,
     int screen_height,
     bool allow_near_clip,
-    bool near_clipped)
+    bool near_clipped,
+    bool scanline)
 {
     int x1 = screen_vertices_x[face_indices_a[face]];
     int x2 = screen_vertices_x[face_indices_b[face]];
@@ -771,7 +845,7 @@ ToriDraw_TriangleFaceGouraud(
     {
         if( !allow_near_clip || !orthographic_vertices_x )
             return;
-        ToriDraw_TriangleFaceGouraudNearClip(
+        ToriDraw_TriangleFaceGouraudNearClipImpl(
             pixel_buffer,
             face,
             face_indices_a,
@@ -793,7 +867,8 @@ ToriDraw_TriangleFaceGouraud(
             offset_y,
             stride,
             screen_width,
-            screen_height);
+            screen_height,
+            scanline);
         return;
     }
 
@@ -821,7 +896,7 @@ ToriDraw_TriangleFaceGouraud(
     assert(color_c >= 0 && color_c < 65536);
 
     // drawGouraudTriangle(pixel_buffer, y1, y2, y3, x1, x2, x3, color_a, color_b, color_c);
-    ToriDraw_TriangleGouraud(
+    ToriDraw_TriangleGouraudImpl(
             pixel_buffer,
             stride,
             screen_width,
@@ -835,11 +910,57 @@ ToriDraw_TriangleFaceGouraud(
             color_a,
             color_b,
             color_c,
-            alpha);
+            alpha,
+            scanline);
+}
+
+#define TORIDRAW_TRIANGLE_FACE_GOURAUD_PARAMETERS                                                \
+    toripixel_t* RESTRICT pixel_buffer, int face, faceint_t* RESTRICT face_indices_a,             \
+        faceint_t* RESTRICT face_indices_b, faceint_t* RESTRICT face_indices_c,                   \
+        int* RESTRICT screen_vertices_x, int* RESTRICT screen_vertices_y,                         \
+        int* RESTRICT screen_vertices_z, int* RESTRICT orthographic_vertices_x,                   \
+        int* RESTRICT orthographic_vertices_y, int* RESTRICT orthographic_vertices_z,             \
+        hsl16_t* RESTRICT colors_a, hsl16_t* RESTRICT colors_b, hsl16_t* RESTRICT colors_c,       \
+        alphaint_t* RESTRICT face_alphas_nullable, int near_plane_z, int camera_cot16,            \
+        int offset_x, int offset_y, int stride, int screen_width, int screen_height,              \
+        bool allow_near_clip, bool near_clipped
+
+#define TORIDRAW_TRIANGLE_FACE_GOURAUD_ARGUMENTS                                                  \
+    pixel_buffer, face, face_indices_a, face_indices_b, face_indices_c, screen_vertices_x,         \
+        screen_vertices_y, screen_vertices_z, orthographic_vertices_x, orthographic_vertices_y,   \
+        orthographic_vertices_z, colors_a, colors_b, colors_c, face_alphas_nullable, near_plane_z, \
+        camera_cot16, offset_x, offset_y, stride, screen_width, screen_height, allow_near_clip,   \
+        near_clipped
+
+static inline void
+ToriDraw_TriangleFaceGouraudBranching(TORIDRAW_TRIANGLE_FACE_GOURAUD_PARAMETERS)
+{
+    ToriDraw_TriangleFaceGouraudImpl(TORIDRAW_TRIANGLE_FACE_GOURAUD_ARGUMENTS, false);
 }
 
 static inline void
-ToriDraw_TriangleFaceGouraudNearClipS1(
+ToriDraw_TriangleFaceGouraudScanline(TORIDRAW_TRIANGLE_FACE_GOURAUD_PARAMETERS)
+{
+    ToriDraw_TriangleFaceGouraudImpl(TORIDRAW_TRIANGLE_FACE_GOURAUD_ARGUMENTS, true);
+}
+
+static inline void
+ToriDraw_TriangleFaceGouraud(TORIDRAW_TRIANGLE_FACE_GOURAUD_PARAMETERS)
+{
+    if( TORIDRAW_SCANLINE_SELECTED() )
+    {
+        ToriDraw_TriangleFaceGouraudScanline(TORIDRAW_TRIANGLE_FACE_GOURAUD_ARGUMENTS);
+        return;
+    }
+
+    ToriDraw_TriangleFaceGouraudBranching(TORIDRAW_TRIANGLE_FACE_GOURAUD_ARGUMENTS);
+}
+
+#undef TORIDRAW_TRIANGLE_FACE_GOURAUD_ARGUMENTS
+#undef TORIDRAW_TRIANGLE_FACE_GOURAUD_PARAMETERS
+
+static inline void
+ToriDraw_TriangleFaceGouraudNearClipS1Impl(
     toripixel_t* RESTRICT pixel_buffer,
     int face,
     faceint_t* RESTRICT face_indices_a,
@@ -861,7 +982,8 @@ ToriDraw_TriangleFaceGouraudNearClipS1(
     int offset_y,
     int stride,
     int screen_width,
-    int screen_height)
+    int screen_height,
+    bool scanline)
 {
     int clipped_count = 0;
     int a = face_indices_a[face];
@@ -1054,7 +1176,7 @@ ToriDraw_TriangleFaceGouraudNearClipS1(
     xc += offset_x;
     yc += offset_y;
 
-    ToriDraw_TriangleGouraudS1(
+    ToriDraw_TriangleGouraudS1Impl(
         pixel_buffer,
         stride,
         screen_width,
@@ -1068,7 +1190,8 @@ ToriDraw_TriangleFaceGouraudNearClipS1(
         color_a,
         color_b,
         color_c,
-        alpha);
+        alpha,
+        scanline);
 
     if( clipped_count != 4 )
         return;
@@ -1080,7 +1203,7 @@ ToriDraw_TriangleFaceGouraudNearClipS1(
     xb += offset_x;
     yb += offset_y;
 
-    ToriDraw_TriangleGouraudS1(
+    ToriDraw_TriangleGouraudS1Impl(
         pixel_buffer,
         stride,
         screen_width,
@@ -1094,11 +1217,12 @@ ToriDraw_TriangleFaceGouraudNearClipS1(
         color_a,
         color_c,
         color_b,
-        alpha);
+        alpha,
+        scanline);
 }
 
 static inline void
-ToriDraw_TriangleFaceGouraudS1(
+ToriDraw_TriangleFaceGouraudS1Impl(
     toripixel_t* RESTRICT pixel_buffer,
     int face,
     faceint_t* RESTRICT face_indices_a,
@@ -1122,7 +1246,8 @@ ToriDraw_TriangleFaceGouraudS1(
     int screen_width,
     int screen_height,
     bool allow_near_clip,
-    bool near_clipped)
+    bool near_clipped,
+    bool scanline)
 {
     int x1 = screen_vertices_x[face_indices_a[face]];
     int x2 = screen_vertices_x[face_indices_b[face]];
@@ -1142,7 +1267,7 @@ ToriDraw_TriangleFaceGouraudS1(
     {
         if( !allow_near_clip || !orthographic_vertices_x )
             return;
-        ToriDraw_TriangleFaceGouraudNearClipS1(
+        ToriDraw_TriangleFaceGouraudNearClipS1Impl(
             pixel_buffer,
             face,
             face_indices_a,
@@ -1164,7 +1289,8 @@ ToriDraw_TriangleFaceGouraudS1(
             offset_y,
             stride,
             screen_width,
-            screen_height);
+            screen_height,
+            scanline);
         return;
     }
 
@@ -1191,7 +1317,7 @@ ToriDraw_TriangleFaceGouraudS1(
     assert(color_b >= 0 && color_b < 65536);
     assert(color_c >= 0 && color_c < 65536);
 
-    ToriDraw_TriangleGouraudS1(
+    ToriDraw_TriangleGouraudS1Impl(
         pixel_buffer,
         stride,
         screen_width,
@@ -1205,8 +1331,66 @@ ToriDraw_TriangleFaceGouraudS1(
         color_a,
         color_b,
         color_c,
-        alpha);
+        alpha,
+        scanline);
 }
+
+#define TORIDRAW_TRIANGLE_FACE_GOURAUD_S1_PARAMETERS                                             \
+    toripixel_t* RESTRICT pixel_buffer, int face, faceint_t* RESTRICT face_indices_a,             \
+        faceint_t* RESTRICT face_indices_b, faceint_t* RESTRICT face_indices_c,                   \
+        int* RESTRICT screen_vertices_x, int* RESTRICT screen_vertices_y,                         \
+        int* RESTRICT screen_vertices_z, int* RESTRICT orthographic_vertices_x,                   \
+        int* RESTRICT orthographic_vertices_y, int* RESTRICT orthographic_vertices_z,             \
+        hsl16_t* RESTRICT colors_a, hsl16_t* RESTRICT colors_b, hsl16_t* RESTRICT colors_c,       \
+        alphaint_t* RESTRICT face_alphas_nullable, int near_plane_z, int camera_cot16,            \
+        int offset_x, int offset_y, int stride, int screen_width, int screen_height,              \
+        bool allow_near_clip, bool near_clipped
+
+#define TORIDRAW_TRIANGLE_FACE_GOURAUD_S1_ARGUMENTS                                               \
+    pixel_buffer, face, face_indices_a, face_indices_b, face_indices_c, screen_vertices_x,         \
+        screen_vertices_y, screen_vertices_z, orthographic_vertices_x, orthographic_vertices_y,   \
+        orthographic_vertices_z, colors_a, colors_b, colors_c, face_alphas_nullable, near_plane_z, \
+        camera_cot16, offset_x, offset_y, stride, screen_width, screen_height, allow_near_clip,   \
+        near_clipped
+
+static inline void
+ToriDraw_TriangleFaceGouraudS1Branching(TORIDRAW_TRIANGLE_FACE_GOURAUD_S1_PARAMETERS)
+{
+    ToriDraw_TriangleFaceGouraudS1Impl(TORIDRAW_TRIANGLE_FACE_GOURAUD_S1_ARGUMENTS, false);
+}
+
+static inline void
+ToriDraw_TriangleFaceGouraudS1Scanline(TORIDRAW_TRIANGLE_FACE_GOURAUD_S1_PARAMETERS)
+{
+    ToriDraw_TriangleFaceGouraudS1Impl(TORIDRAW_TRIANGLE_FACE_GOURAUD_S1_ARGUMENTS, true);
+}
+
+static inline void
+ToriDraw_TriangleFaceGouraudS1(TORIDRAW_TRIANGLE_FACE_GOURAUD_S1_PARAMETERS)
+{
+    if( TORIDRAW_SCANLINE_SELECTED() )
+    {
+        ToriDraw_TriangleFaceGouraudS1Scanline(TORIDRAW_TRIANGLE_FACE_GOURAUD_S1_ARGUMENTS);
+        return;
+    }
+
+    ToriDraw_TriangleFaceGouraudS1Branching(TORIDRAW_TRIANGLE_FACE_GOURAUD_S1_ARGUMENTS);
+}
+
+static inline void
+ToriDraw_TriangleFaceGouraudSmoothBranching(TORIDRAW_TRIANGLE_FACE_GOURAUD_S1_PARAMETERS)
+{
+    ToriDraw_TriangleFaceGouraudS1Branching(TORIDRAW_TRIANGLE_FACE_GOURAUD_S1_ARGUMENTS);
+}
+
+static inline void
+ToriDraw_TriangleFaceGouraudSmoothScanline(TORIDRAW_TRIANGLE_FACE_GOURAUD_S1_PARAMETERS)
+{
+    ToriDraw_TriangleFaceGouraudS1Scanline(TORIDRAW_TRIANGLE_FACE_GOURAUD_S1_ARGUMENTS);
+}
+
+#undef TORIDRAW_TRIANGLE_FACE_GOURAUD_S1_ARGUMENTS
+#undef TORIDRAW_TRIANGLE_FACE_GOURAUD_S1_PARAMETERS
 
 static inline void
 ToriDraw_TriangleFaceGouraudSmooth(

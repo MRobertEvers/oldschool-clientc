@@ -62,3 +62,41 @@ ev_w_render(int w, int h, int yaw, int pitch, int zoom, int frame)
 {
     return ev_render(w, h, yaw, pitch, zoom, frame);
 }
+
+EV_EXPORT uint8_t*
+ev_w_render_widget(
+    int canvas_w,
+    int canvas_h,
+    int widget_x,
+    int widget_y,
+    int widget_w,
+    int widget_h,
+    int zoom,
+    int xan,
+    int yan,
+    int zan,
+    int x_offset,
+    int y_offset,
+    int orthographic,
+    int fixed_zoom,
+    int object_composed,
+    int frame)
+{
+    return ev_render_widget(
+        canvas_w,
+        canvas_h,
+        widget_x,
+        widget_y,
+        widget_w,
+        widget_h,
+        zoom,
+        xan,
+        yan,
+        zan,
+        x_offset,
+        y_offset,
+        orthographic,
+        fixed_zoom,
+        object_composed,
+        frame);
+}

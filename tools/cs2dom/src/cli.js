@@ -2,11 +2,11 @@
  * The command line.
  *
  *   cs2dom build [--project DIR] [--dry-run] [--no-verify]
- *   cs2dom dev [--project DIR] [--port N] [--no-open]
+ *   cs2dom dev [--project DIR] [--cache DIR --rev NAME] [--port N] [--no-open]
       Watch ui/*.tsx, rebuild on save and show the result in a browser: the
-      components laid out by the client's own IF3 rules with the cache's real
-      sprites, sliders for every variable they read, and the .if and .cs2 the
-      build would write. Nothing is written to the content tree.
+      authored, imported content and Dat2 interfaces in the same live DOM/React
+      preview, with host-state controls and the .if/.cs2 records. The C client is
+      retained as a render oracle. Nothing is written to the content tree.
 
   cs2dom cachegen [--project DIR] [--out FILE]
  *   cs2dom check [--project DIR]
@@ -54,11 +54,13 @@ function usage(code) {
         '      Render every ui/*.tsx, write interfaces/<name>.if, its .compack and\n' +
         '      scripts/<name>.cs2 into the content tree, and allocate ids in the pack\n' +
         '      files. Bake afterwards with: make -C src torirsserver-cache\n\n' +
-        '  cs2dom dev [--project DIR] [--port N] [--no-open]\n' +
+        '  cs2dom dev [--project DIR] [--cache DIR --rev NAME] [--port N] [--no-open]\n' +
         '      Watch ui/*.tsx, rebuild on save and show the result in a browser: the\n' +
-        '      components laid out by the client\'s own IF3 rules with the cache\'s real\n' +
-        '      sprites, controls for the host state they read, and the .if and .cs2 the\n' +
-        '      build would write. Nothing is written to the content tree.\n\n' +
+        '      authored components, OSRS-Content and Dat2 interfaces through the same\n' +
+        '      live DOM/React runtime. Includes searchable\n' +
+        '      records, runtime-tree inspection and host-state controls.\n\n' +
+        '      --cache opens a Dat2 cache directly; --rev names its cachepack profile.\n' +
+        '      The selective decode is cached in the OS temporary directory.\n\n' +
         '  cs2dom cachegen [--project DIR] [--out FILE]\n' +
         '      Regenerate cache.gen.ts — sprite, font, varp, varbit and interface ids\n' +
         '      as typed constants, read from the content tree.\n\n' +
@@ -76,6 +78,8 @@ function parseFlags(args) {
         const arg = args[i];
         if( arg === '--project' ) flags.project = args[++i];
         else if( arg === '--out' ) flags.out = args[++i];
+        else if( arg === '--cache' ) flags.cache = args[++i];
+        else if( arg === '--rev' ) flags.rev = args[++i];
         else if( arg === '--dry-run' ) flags.dryRun = true;
         else if( arg === '--no-verify' ) flags.noVerify = true;
         else if( arg === '--quiet' ) flags.quiet = true;
@@ -151,6 +155,8 @@ function report(say, result, project, dryRun) {
 
 function commandDev(flags) {
     const project = loadProject(flags.project);
+    if( flags.cache ) project.cache = resolve(flags.cache);
+    if( flags.rev ) project.revision = flags.rev;
     /* Imported here rather than at the top: a build should not pay for the server. */
     return import('./dev.js').then(({ serve }) => {
         serve(project, { port: flags.port || 8099, open: !flags.noOpen });

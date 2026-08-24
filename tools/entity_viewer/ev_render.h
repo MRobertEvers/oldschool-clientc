@@ -169,6 +169,45 @@ uint8_t*
 ev_render(int width, int height, int yaw, int pitch, int zoom, int frame);
 
 /**
+ * Render the current model with the client's interface-widget projection.
+ *
+ * The canvas is the caller's parent clip, and widget_x/widget_y are already
+ * rebased into that canvas.  Unlike ev_render, this does not frame, orbit, pan,
+ * or paint a viewer background: it calls ToriDraw_RenderModelExtentsAtWidget
+ * with the values carried by the widget record.  Pixels outside the model are
+ * returned with alpha zero, so the RGBA buffer can be composited over the rest
+ * of a browser-rendered interface.
+ *
+ * `object_composed` applies the native CC_SETOBJECT composition: zoom is scaled
+ * by 32/min(widget_width,widget_height), and the model is vertically centred
+ * from its bounds cylinder.  Ordinary model/player widgets pass zero.
+ *
+ * The returned buffer is canvas_width*canvas_height*4 bytes of straight RGBA
+ * and is reused by subsequent render calls.  Its alpha preserves translucent
+ * model faces so the browser can source-over the preceding interface layers,
+ * just as the native raster draws into its existing framebuffer. `frame`
+ * selects the loaded sequence frame, or -1 for the bind pose.
+ */
+uint8_t*
+ev_render_widget(
+    int canvas_width,
+    int canvas_height,
+    int widget_x,
+    int widget_y,
+    int widget_width,
+    int widget_height,
+    int zoom,
+    int xan,
+    int yan,
+    int zan,
+    int x_offset,
+    int y_offset,
+    int orthographic,
+    int fixed_zoom,
+    int object_composed,
+    int frame);
+
+/**
  * Pin the height the framing lifts the model by, instead of measuring it off
  * the model's own bounds each render. 0 restores the measured behaviour.
  *

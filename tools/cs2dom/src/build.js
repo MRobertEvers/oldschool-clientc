@@ -29,10 +29,19 @@ export function loadProject(projectDir) {
         throw new Cs2domError(`no cs2dom.json in ${projectDir}`);
     const config = JSON.parse(readFileSync(path, 'utf8'));
     const root = resolve(projectDir);
+    if( !config.content && !config.cache )
+        throw new Cs2domError(
+            `${path} needs either "content" (an unpacked tree) or "cache" (a Dat2 directory)`);
+    const content = config.content ? resolve(root, config.content) : null;
     return {
         root,
         sources: resolve(root, config.sources || 'ui'),
-        content: resolve(root, config.content),
+        content,
+        unpackedContent: content,
+        cache: config.cache ? resolve(root, config.cache) : null,
+        revision: config.revision || config.rev || null,
+        cs2Names: config.cs2Names ? resolve(root, config.cs2Names) : null,
+        contentSource: content ? 'content' : 'dat2',
         varcPool: config.varcPool || null,
         prefix: config.prefix || '',
         cachegen: config.cachegen || null,
@@ -55,6 +64,9 @@ function sourceFiles(dir) {
  * what it would say.
  */
 export function build(project, { dryRun = false, log = () => {} } = {}) {
+    if( !project.content )
+        throw new Cs2domError(
+            'build needs an unpacked "content" tree; a Dat2 source is read-only and is available in dev');
     const ledger = new Ledger(project.content);
     const graph = new ModuleGraph({ log });
     const cacheContext = readCacheContext(project);

@@ -2222,21 +2222,20 @@ rev-239 gameframe scripts call opcode 210, which neither `Opcodes.kt` nor
 `Command.kt` lists and `src/cs2vm2` had no stack signature for. The decompiler
 refused the script for the same reason.
 
-`cs2 infer-arity` settled it without a reference client: ten call sites across the
-cache, every one solving to a six-int pop with nothing pushed, and no other
-candidate surviving at any of them. Recorded in both tables — `local_commands.py`
-for the decompiler and `gen_opcode_stack.py` for the VM — because the README's own
-rule is that there is one answer to "what is opcode N".
+The original arity inference found only the opcode's net stack change and recorded it
+as six inputs with no result. Later output exposed the ambiguity: thirteen call sites
+decompiled into impossible constant conditions such as `if (60817424 = 1)`. Raw
+bytecode shows the actual shape at every site: a component search root, three
+`(param, value)` pairs, and a boolean-like result consumed immediately afterward.
+The rev-239 client handler independently confirms that its bottom operand is passed to
+the component lookup and that it selects an active component.
 
-What it does is still unknown. The VM pops the six and does nothing, which is
-stack-correct and behaviourally a no-op; script 8489 now reads
-`_210(2372, $int0, 2373, $int1, 0, 0)`. Three more scripts decompile than before
-(5,589 of 9,725 at the time), and the client boots, logs in and renders.
-
-Worth noting what the method *did not* give: the trace made the first argument look
-like a component, which would have been a natural thing to write into the signature.
-The decompile shows the component belonged to the preceding gosub. The arity is
-evidence; the types would have been a guess, so they are plain `INT`.
+Opcode 210 is therefore fixed at seven integer inputs and one integer result, with the
+first input typed as `COMPONENT`. Script 8489 now reads
+`if (cc_find_param($int2, 2372, $int0, 2373, $int1, 0, 0) = 1)`, and the VM's
+generic stub pops the same seven values and supplies its placeholder result. The
+signature is recorded in both `local_commands.py` and `gen_opcode_stack.py` because
+the README's own rule is that there is one answer to "what is opcode N".
 
 ### G8. The DB family's stack shape is in the data, not the opcode *(Resolved)*
 
@@ -2606,10 +2605,11 @@ with RuneStar's 2021 source fixture:
   `1i/0s` arguments and independently reads array slot 0; merging them changed
   its trailer to `0i/1s`. Requiring a string-bank first argument prevents that
   false inference and fixes the same shape across rev 239.
-- The official opcode-210 handler reads its active-component flag. Its custom
-  variable-arity translator used to discard that operand, so the decompiler
-  could not print the dot form and the compiler rewrote operand 1 to 0. The
-  custom path now applies the same checked boolean rule as BASIC commands.
+- The official opcode-210 handler reads its active-component flag. Its former
+  custom translator discarded that operand, so the decompiler could not print
+  the dot form and the compiler rewrote operand 1 to 0. Opcode 210 now has its
+  fixed seven-input/one-result BASIC signature, so it uses the standard checked
+  active-form path without a special case.
 
 Together with four newly comparable scripts from the preceding rev-239 work,
 the reference measurement is now 6,491 compared, 6,271 identical and exactly
@@ -2643,6 +2643,24 @@ commands enable it. On `cache.osrs239`, 539 listings need the full snapshot.
 The final gate is **9,724/9,724 present scripts byte-exact**; numeric ID 0 is the
 only one of the scanned 9,725 IDs not decompiled because it is absent from the
 cache.
+
+### G15. Current opcode names differ from the 2021 reference *(Deviation)*
+
+The shared rev-239 VM metadata now has semantic names for 192 opcodes that the
+vendored 2021 RuneStar table still spells as numeric placeholders. The second
+96-name batch is backed by the canonical declarations in the adjacent
+`osrs-cache/data/commands` catalogue and cross-checked against the rev-239 Java
+dispatcher and rev-216 native decompile. The CS2 table
+generator previously used `setdefault`, so an older `_7000` placeholder won over
+the VM's established `HIGHLIGHT_NPC_SETUP` name. The compiler and decompiler
+therefore lagged the runtime metadata even though they read it.
+
+Current metadata now replaces only numeric placeholders; genuine vendor names
+keep their precedence. The compiler continues accepting `_1234` for any existing
+command row, while the decompiler emits the canonical semantic name. Against the
+RuneStar/cs2 fixture, 127 compared sources exercise one of the renamed rows:
+6,491 compared, 6,144 identical and exactly 347 different. This is a source-name
+difference only; the full rev-239 cache round trip remains 9,724/9,724 byte-exact.
 
 ---
 

@@ -74,6 +74,79 @@ export function encodePng({ width, height, rgba }) {
     ]);
 }
 
+/**
+ * Restore the nominal sprite canvas that cachepack records in pack.meta.
+ *
+ * Sprite BMPs contain only the non-transparent crop. The native IF3 renderer
+ * first places that crop at (x, y) in the nominal canvas and then scales the
+ * whole canvas to the component rectangle. Returning the cropped BMP directly
+ * therefore enlarges and misaligns icons whose transparent margins were
+ * stripped by the cache.
+ */
+export function spriteCanvas(sprite, meta = null) {
+    if( !meta ) return sprite;
+    const width = positiveInteger(meta.canvasWidth, sprite.width);
+    const height = positiveInteger(meta.canvasHeight, sprite.height);
+    const x = integer(meta.x, 0);
+    const y = integer(meta.y, 0);
+    if( width === sprite.width && height === sprite.height && x === 0 && y === 0 )
+        return sprite;
+
+    const rgba = Buffer.alloc(width * height * 4);
+    const sourceLeft = Math.max(0, -x);
+    const sourceTop = Math.max(0, -y);
+    const sourceRight = Math.min(sprite.width, width - x);
+    const sourceBottom = Math.min(sprite.height, height - y);
+    if( sourceRight <= sourceLeft || sourceBottom <= sourceTop ) return { width, height, rgba };
+
+    const copyWidth = (sourceRight - sourceLeft) * 4;
+    for( let sourceY = sourceTop; sourceY < sourceBottom; sourceY++ ) {
+        const from = (sourceY * sprite.width + sourceLeft) * 4;
+        const to = ((sourceY + y) * width + sourceLeft + x) * 4;
+        sprite.rgba.copy(rgba, to, from, from + copyWidth);
+    }
+    return { width, height, rgba };
+}
+
+/**
+ * Produce the repeat cell used by a native tiled sprite.
+ *
+ * Native tiling repeats the cropped pixels, not the nominal transparent
+ * canvas. Its first cell is phased by the crop offset. Rotating the repeat
+ * cell by that phase lets the browser repeat it beginning at (0, 0) without a
+ * second metadata request.
+ */
+export function spriteTile(sprite, meta = null) {
+    if( !meta || sprite.width <= 0 || sprite.height <= 0 ) return sprite;
+    const phaseX = modulo(-integer(meta.x, 0), sprite.width);
+    const phaseY = modulo(-integer(meta.y, 0), sprite.height);
+    if( phaseX === 0 && phaseY === 0 ) return sprite;
+
+    const rgba = Buffer.alloc(sprite.rgba.length);
+    for( let y = 0; y < sprite.height; y++ ) {
+        const sourceY = (y + phaseY) % sprite.height;
+        for( let x = 0; x < sprite.width; x++ ) {
+            const sourceX = (x + phaseX) % sprite.width;
+            const from = (sourceY * sprite.width + sourceX) * 4;
+            const to = (y * sprite.width + x) * 4;
+            sprite.rgba.copy(rgba, to, from, from + 4);
+        }
+    }
+    return { width: sprite.width, height: sprite.height, rgba };
+}
+
+function positiveInteger(value, fallback) {
+    return Number.isInteger(value) && value > 0 ? value : fallback;
+}
+
+function integer(value, fallback) {
+    return Number.isInteger(value) ? value : fallback;
+}
+
+function modulo(value, divisor) {
+    return ((value % divisor) + divisor) % divisor;
+}
+
 function chunk(type, data) {
     const out = Buffer.alloc(data.length + 12);
     out.writeUInt32BE(data.length, 0);

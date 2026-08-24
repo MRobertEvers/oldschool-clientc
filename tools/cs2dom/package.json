@@ -8,9 +8,12 @@
     "cs2dom": "./bin/cs2dom.js"
   },
   "scripts": {
+    "prestart": "make wasm",
     "start": "node bin/cs2dom.js dev --project example",
+    "predev": "make wasm",
     "dev": "node bin/cs2dom.js dev --project example",
     "test": "node test/run_tests.js",
+    "test:native": "node test/native_preview_test.js",
     "build": "node bin/cs2dom.js build --project example",
     "build:dry": "node bin/cs2dom.js build --project example --dry-run",
     "check": "node bin/cs2dom.js check --project example",
@@ -19,7 +22,7 @@
     "cs2": "make -C ../../3rd/rscache/tools cs2",
     "bake": "make -C ../../src torirsserver-cache",
     "ship": "npm run build && npm run bake",
-    "verify": "npm run cs2 && npm test"
+    "verify": "npm run cs2 && npm test && npm run test:native"
   },
   "dependencies": {
     "typescript": "^5.6.0"

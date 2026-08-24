@@ -1,5 +1,8 @@
 {
   "content": "../../../OSRS-Content/osrs239-content",
+  "cache": "../../../cache.osrs239",
+  "revision": "osrs239",
+  "cs2Names": "../../../../cs2/src/main/resources/org/runestar/cs2",
   "sources": "ui",
   "varcPool": [1400, 1499]
 }

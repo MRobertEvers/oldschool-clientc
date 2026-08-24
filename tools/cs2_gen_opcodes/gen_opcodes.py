@@ -3,6 +3,7 @@
 
 from __future__ import annotations
 
+import json
 import re
 import sys
 from pathlib import Path
@@ -11,8 +12,8 @@ ROOT = Path(__file__).resolve().parent
 VENDOR = ROOT / "vendor" / "Opcodes.kt"
 OUT_DIR = ROOT.parent.parent / "src" / "cs2vm2"
 RSCACHE_OUT_DIR = ROOT.parent.parent / "src" / "osrs" / "rscache" / "dat2a"
+DISPATCH_SOURCE = OUT_DIR / "cs2vm2.c"
 
-from opcode_docs import OPCODE_DOCS, OpcodeDoc
 from local_opcodes import (
     DECODE_OPERAND_OVERRIDES,
     HANDLER_OVERRIDES,
@@ -20,6 +21,14 @@ from local_opcodes import (
     LOCAL_NAMES,
     META_OPERAND_OVERRIDES,
     SECTION_COMMENTS,
+)
+from opcode_docs import OPCODE_DOCS, OpcodeDoc
+from opcode_groups import (
+    OPCODE_GROUPS,
+    OpcodeGroup,
+    OpcodeSpan,
+    group_for_opcode,
+    span_for_opcode,
 )
 
 # Opcodes executed by cs2_runtime.c without host invoke (RuneStar Command.kt core).
@@ -66,6 +75,100 @@ def merge_local(entries: list[tuple[str, int]]) -> list[tuple[str, int]]:
     merged += [(name, val) for val, name in LOCAL_NAMES.items()]
     merged.sort(key=lambda e: (e[1], e[0]))
     return merged
+
+
+def validate_documented_names(entries: list[tuple[str, int]]) -> None:
+    """A behavior we can document is specific enough to receive a real name."""
+
+    anonymous_docs = [
+        (name, opcode)
+        for name, opcode in entries
+        if re.fullmatch(r"_\d+", name) and name in OPCODE_DOCS
+    ]
+    if anonymous_docs:
+        joined = ", ".join(f"{name} ({opcode})" for name, opcode in anonymous_docs)
+        raise ValueError(f"documented opcodes still have placeholder names: {joined}")
+
+
+def validate_group_coverage(entries: list[tuple[str, int]]) -> None:
+    """Every real VM opcode must land in a reference dispatch group."""
+
+    uncovered = sorted(
+        {opcode for _, opcode in entries if opcode >= 0 and group_for_opcode(opcode) is None}
+    )
+    if uncovered:
+        joined = ", ".join(str(opcode) for opcode in uncovered)
+        raise ValueError(f"opcodes outside the rev-239 dispatch groups: {joined}")
+
+
+def validate_dispatch_grouping(entries: list[tuple[str, int]]) -> None:
+    """Keep the hand-written runtime switch in the generated group order."""
+
+    text = DISPATCH_SOURCE.read_text(encoding="utf-8")
+    try:
+        start = text.index("\nCS2VM2_RunOp(")
+        end = text.index("\n/* Fills *int_args", start)
+    except ValueError as error:
+        raise ValueError(f"cannot locate CS2VM2_RunOp in {DISPATCH_SOURCE}") from error
+    run_op = text[start:end]
+
+    opcode_by_macro = {f"CS2_OP_{name}": opcode for name, opcode in entries}
+    for opcode, aliases in LOCAL_ALIASES.items():
+        for alias in aliases:
+            opcode_by_macro[f"CS2_OP_{alias}"] = opcode
+
+    groups_by_slug = {group.slug: group for group in OPCODE_GROUPS}
+    seen_markers: list[str] = []
+    current_group: OpcodeGroup | None = None
+    marker_pattern = re.compile(r"/\* === CS2 opcode group: ([a-z0-9-]+) \(")
+    case_pattern = re.compile(r"\bcase\s+(CS2_OP_[A-Z0-9_]+)\s*:")
+
+    for lineno, line in enumerate(run_op.splitlines(), 1):
+        marker = marker_pattern.search(line)
+        if marker:
+            slug = marker.group(1)
+            current_group = groups_by_slug.get(slug)
+            if current_group is None:
+                raise ValueError(f"unknown dispatch group marker {slug!r} at line {lineno}")
+            seen_markers.append(slug)
+
+        for macro in case_pattern.findall(line):
+            if macro not in opcode_by_macro:
+                raise ValueError(f"dispatch case {macro} is absent from the opcode generator")
+            opcode = opcode_by_macro[macro]
+            expected = group_for_opcode(opcode)
+            if expected is None:
+                raise ValueError(f"dispatch case {macro} ({opcode}) has no opcode group")
+            if current_group != expected:
+                actual = current_group.slug if current_group else "none"
+                raise ValueError(
+                    f"dispatch case {macro} ({opcode}) is under {actual}, "
+                    f"expected {expected.slug}"
+                )
+
+    expected_markers = [group.slug for group in OPCODE_GROUPS]
+    if seen_markers != expected_markers:
+        raise ValueError(
+            "CS2VM2_RunOp group markers differ from opcode_groups.py:\n"
+            f"  dispatch: {', '.join(seen_markers)}\n"
+            f"  expected: {', '.join(expected_markers)}"
+        )
+
+
+def format_group_banner(group: OpcodeGroup, span: OpcodeSpan) -> list[str]:
+    label = group.label if len(group.spans) > 1 else span.label
+    lines = [
+        f"/* === CS2 opcode group: {group.slug} ({label}) ===",
+        f" * {group.summary}.",
+    ]
+    if group.enum_name == "VM_CORE":
+        lines.append(" * rev-239 execution: inline in Statics.method4464.")
+    else:
+        lines.append(f" * rev-239 dispatch: Statics.method6889 -> {group.deob_handler}.")
+    if len(group.spans) > 1:
+        lines.append(" * The listed ranges deliberately share one component handler.")
+    lines.append(" */")
+    return lines
 
 
 def operand_kind(opcode: int) -> str:
@@ -139,8 +242,16 @@ def emit_header(entries: list[tuple[str, int]]) -> str:
         "",
     ]
     emitted_banners: set[int] = set()
+    emitted_group_spans: set[tuple[int, int]] = set()
     emitted_aliases: set[int] = set()
     for name, val in entries:
+        grouped = span_for_opcode(val)
+        if grouped:
+            group, span = grouped
+            span_key = (span.lo, span.hi)
+            if span_key not in emitted_group_spans:
+                emitted_group_spans.add(span_key)
+                lines.extend(["", *format_group_banner(group, span)])
         if val in SECTION_COMMENTS and val not in emitted_banners:
             emitted_banners.add(val)
             lines.extend(SECTION_COMMENTS[val])
@@ -157,32 +268,41 @@ def emit_header(entries: list[tuple[str, int]]) -> str:
 
 
 def emit_meta_h() -> str:
-    return """/* Generated by tools/cs2_gen_opcodes/gen_opcodes.py */
+    group_enum = "\n".join(
+        f"    CS2_OPCODE_GROUP_{group.enum_name}," for group in OPCODE_GROUPS
+    )
+    return f"""/* Generated by tools/cs2_gen_opcodes/gen_opcodes.py */
 #ifndef CS2_OPCODE_META_H
 #define CS2_OPCODE_META_H
 
 #include <stdint.h>
 
 enum CS2_OperandKind
-{
+{{
     CS2_OPERAND_NONE = 0,
     CS2_OPERAND_INT8,
     CS2_OPERAND_INT32,
     CS2_OPERAND_STRING,
-};
+}};
 
 enum CS2_HandlerKind
-{
+{{
     CS2_HANDLER_VM = 0,
     CS2_HANDLER_HOST = 1,
-};
+}};
+
+enum CS2_OpcodeGroup
+{{
+    CS2_OPCODE_GROUP_UNKNOWN = 0,
+{group_enum}
+}};
 
 struct CS2_OpcodeMeta
-{
+{{
     const char* name;
     enum CS2_OperandKind operand;
     enum CS2_HandlerKind handler;
-};
+}};
 
 extern const struct CS2_OpcodeMeta cs2_opcode_meta_table[];
 extern const int cs2_opcode_meta_table_size;
@@ -196,8 +316,47 @@ cs2_opcode_operand_kind(int opcode);
 const char*
 CS2_OpCode_String(int opcode);
 
+enum CS2_OpcodeGroup
+CS2_OpcodeGroupOf(int opcode);
+
+const char*
+CS2_OpcodeGroupName(enum CS2_OpcodeGroup group);
+
 #endif
 """
+
+
+def emit_group_functions() -> list[str]:
+    lines = [
+        "enum CS2_OpcodeGroup",
+        "CS2_OpcodeGroupOf(int opcode)",
+        "{",
+    ]
+    for group in OPCODE_GROUPS:
+        tests = " || ".join(
+            f"(opcode >= {span.lo} && opcode < {span.hi})" for span in group.spans
+        )
+        lines.append(f"    if( {tests} )")
+        lines.append(f"        return CS2_OPCODE_GROUP_{group.enum_name};")
+    lines += [
+        "    return CS2_OPCODE_GROUP_UNKNOWN;",
+        "}",
+        "",
+        "const char*",
+        "CS2_OpcodeGroupName(enum CS2_OpcodeGroup group)",
+        "{",
+        "    switch( group )",
+        "    {",
+    ]
+    for group in OPCODE_GROUPS:
+        lines.append(f'    case CS2_OPCODE_GROUP_{group.enum_name}: return "{group.slug}";')
+    lines += [
+        '    default: return "unknown";',
+        "    }",
+        "}",
+        "",
+    ]
+    return lines
 
 
 def emit_meta_c(entries: list[tuple[str, int]]) -> str:
@@ -211,7 +370,16 @@ def emit_meta_c(entries: list[tuple[str, int]]) -> str:
         "",
         "const struct CS2_OpcodeMeta cs2_opcode_meta_table[] = {",
     ]
+    emitted_group_spans: set[tuple[int, int]] = set()
     for i in range(max_id + 1):
+        grouped = span_for_opcode(i)
+        if grouped:
+            group, span = grouped
+            span_key = (span.lo, span.hi)
+            if span_key not in emitted_group_spans:
+                emitted_group_spans.add(span_key)
+                lines.append("")
+                lines.append(f"    /* {group.slug}: {group.label} — {group.summary}. */")
         if i in id_to_name:
             name = id_to_name[i]
             opk = meta_operand_kind(i)
@@ -220,7 +388,9 @@ def emit_meta_c(entries: list[tuple[str, int]]) -> str:
                 f'    [{i}] = {{ "{name}", {opk}, {hdk} }},'
             )
         else:
-            lines.append(f'    [{i}] = {{ "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST }},')
+            lines.append(
+                f'    [{i}] = {{ "_unknown", CS2_OPERAND_INT32, CS2_HANDLER_HOST }},'
+            )
     lines += [
         "};",
         "",
@@ -256,7 +426,22 @@ def emit_meta_c(entries: list[tuple[str, int]]) -> str:
         "}",
         "",
     ]
+    lines += emit_group_functions()
     return "\n".join(lines)
+
+
+def emit_groups_json() -> str:
+    groups = [
+        {
+            "enum": group.enum_name,
+            "slug": group.slug,
+            "summary": group.summary,
+            "deob_handler": group.deob_handler,
+            "spans": [{"lo": span.lo, "hi": span.hi} for span in group.spans],
+        }
+        for group in OPCODE_GROUPS
+    ]
+    return json.dumps({"groups": groups}, indent=2) + "\n"
 
 
 def emit_rscache_decode_h() -> str:
@@ -298,7 +483,16 @@ def emit_rscache_decode_c(entries: list[tuple[str, int]]) -> str:
         "",
         "static const uint8_t rscache_cs2_operand_kind_table[] = {",
     ]
+    emitted_group_spans: set[tuple[int, int]] = set()
     for i in range(max_id + 1):
+        grouped = span_for_opcode(i)
+        if grouped:
+            group, span = grouped
+            span_key = (span.lo, span.hi)
+            if span_key not in emitted_group_spans:
+                emitted_group_spans.add(span_key)
+                lines.append("")
+                lines.append(f"    /* {group.slug}: {group.label} — {group.summary}. */")
         if i in id_to_name:
             opk = decode_operand_kind(i)
         else:
@@ -325,10 +519,14 @@ def main() -> int:
         print(f"missing {VENDOR}", file=sys.stderr)
         return 1
     entries = merge_local(parse_opcodes(VENDOR))
+    validate_documented_names(entries)
+    validate_group_coverage(entries)
+    validate_dispatch_grouping(entries)
     OUT_DIR.mkdir(parents=True, exist_ok=True)
     (OUT_DIR / "cs2_opcode.h").write_text(emit_header(entries), encoding="utf-8")
     (OUT_DIR / "cs2_opcode_meta.h").write_text(emit_meta_h(), encoding="utf-8")
     (OUT_DIR / "cs2_opcode_meta.c").write_text(emit_meta_c(entries), encoding="utf-8")
+    (OUT_DIR / "cs2_opcode_groups.json").write_text(emit_groups_json(), encoding="utf-8")
     RSCACHE_OUT_DIR.mkdir(parents=True, exist_ok=True)
     (RSCACHE_OUT_DIR / "dat2a_cs2_opcode_decode.h").write_text(
         emit_rscache_decode_h(), encoding="utf-8"

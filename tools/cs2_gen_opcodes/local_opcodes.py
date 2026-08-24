@@ -4,31 +4,57 @@ The vendored RuneStar table lags this client: it leaves placeholder names
 (_NNNN) for opcodes we have since identified, and omits some ids entirely.
 These overlays were recovered from the hand-maintained tables that had drifted
 out of src/cs2vm2/, so regenerating reproduces them instead of dropping them.
+The rev-239 command spellings added in the second audit come from the adjacent
+osrs-cache/data/commands catalogue and were checked against the rev-239 Java
+dispatcher plus the symbol-rich rev-216 native client decompile.
 """
 
 from __future__ import annotations
 
 # id -> name. Replaces a vendor placeholder, or adds an id vendor never listed.
 LOCAL_NAMES: dict[int, str] = {
+    # Modern nullable array/string-stack literal. The cache command catalogue
+    # calls this PUSH_CONSTANT_NULL; older RuneLite tables use PUSH_NULL.
+    63: "PUSH_CONSTANT_NULL",
     # RS2-era (rev 634) BRANCH_IF_ONE: pop int, branch by operand if value == 1.
     # Free in the OSRS numbering (nothing between 76 and 100), so claimed outright
     # rather than dialect-translated. See engine/cs2_opcode_dialect.h.
     86: "BRANCH_IF_ONE",
-    # Rev 634 Class66: same body for both — InterfaceParent lookup by widget,
-    # push 1 iff mounted group_id equals `parent`. cs2-editor names distinguish
-    # modal vs overlay; 634 does not check type. Free between IF_HASSUB (2702)
-    # and IF_GETTOP (2706) in the OSRS numbering.
-    2704: "IF_HASCHILD_MODAL",
+    # Dynamic-child traversal helpers used by the modern gameframe. The vendor
+    # table skips these ids entirely; their stack shapes are documented in
+    # src/cs2vm2/gen_opcode_stack.py.
+    103: "OVERLAY_CC_CREATE",
+    104: "OVERLAY_CC_DELETEALL",
+    106: "CC_CREATECHILD",
+    107: "CC_CREATESIBLING",
+    202: "OVERLAY_FIND",
+    203: "OVERLAY_CC_FIND",
+    204: "CC_CHILDREN_FINDNEXTID",
+    205: "IF_CHILDREN_FIND",
+    206: "IF_CHILDREN_FINDNEXTID",
+    209: "CC_PARENTID",
+    210: "CC_FIND_PARAM",
+    211: "IF_CHILDREN_COLLECT",
+    212: "CC_CHILDREN_FIND_COUNT",
+    213: "CC_CHILDREN_FINDNEXT",
+    215: "CHILDREN_ARRAY",
+    222: "CC_ASSERT",
+    # Rev-239 component runtime-param setter. This id was previously assigned
+    # the rev-634 IF_HASCHILD_MODAL name; keep that spelling as a source alias
+    # below, but use the current client semantics as the canonical name.
+    2704: "IF_SETPARAM",
     2705: "IF_HASCHILD_OVERLAY",
+    2929: "IF_TRIGGEROPLOCAL",
+    # Canonical command spellings from osrs-cache/data/commands/6900_player.txt.
+    6900: "P_NAME",
+    6901: "P_FINDSELF",
+    6902: "P_ROUTELENGTH",
+    6903: "P_ROUTE",
+    6904: "UID",
+    6905: "SELF_PLAYER_UID",
     # Rev 634 Class66.method704: push Class24.anInt359 (signed 24-bit login /
     # packet-54 field, updated with membership). No authoritative English name;
     # scripts compare against 8388605 (0x7FFFFD). Offline default is 0.
-    # The local-player setter of the _6900.._6905 block. The vendored table
-    # skips the id entirely; the reference implements it
-    # (ScriptRunnerImpl_6900To6999.cpp) and this client does too, so it needs
-    # a define to be routed by name. Kept in the placeholder spelling because
-    # that is what the cache's own decompiled corpus calls it.
-    6901: "_6901",
     6910: "LOGIN_INT24",
     # RS2-era (rev 634) widget param read: pop a param id, push the ParamType's
     # value for the active widget. A version -1 widget carries no param table
@@ -86,6 +112,10 @@ LOCAL_NAMES: dict[int, str] = {
     # that is what a table this port starts empty answers with.
     2703: "IF_GETCOMPONENTPARAM",
     1004: "CC_SETPINCH",  # not in vendor
+    1122: "CC_SETGRAPHIC2",  # vendor: _1122
+    1124: "CC_SETTRANSBOT",  # vendor: _1124
+    1125: "CC_SETFILLMODE",  # vendor: _1125
+    1129: "CC_SETHTTPSPRITE",
     1133: "CC_INPUT_SETSUBMITMODE",  # not in vendor
     1134: "CC_INPUT_SETSELECTCOLOUR",  # not in vendor
     1135: "CC_INPUT_SETACCEPTMODE",  # not in vendor
@@ -100,12 +130,24 @@ LOCAL_NAMES: dict[int, str] = {
     1144: "CC_INPUT_SETCURSOROFFSET",  # not in vendor
     1145: "CC_INPUT_SETLINEWIDTHLIMIT",  # not in vendor
     1146: "CC_INPUT_SETCHARFILTER",  # not in vendor
+    1152: "CC_CRMVIEW_DISMISS",
+    1203: "CC_SETPLAYERMODEL_SELF",  # not in vendor
+    1204: "CC_SETMODEL_PLAYERCHATHEAD",  # not in vendor
+    1214: "CC_SETLOCMODEL",
     1308: "CC_SETOPFORCELEFTCLICK",  # vendor: _1308
     1309: "CC_OP1309",  # vendor: _1309
     1310: "CC_CLEAROPSUBMENU",  # not in vendor
     1311: "CC_SETOPSUBMENU",  # not in vendor
     1312: "CC_SETTARGETPRIORITY",  # not in vendor
+    1610: "CC_GETBLENDTRANS",
+    1615: "CC_GETARCSTART",
+    1616: "CC_GETARCEND",
+    1624: "CC_INPUT_GETFOCUS",
+    1628: "CC_INPUT_GETCARETPOSITION",
     2004: "IF_SETPINCH",  # not in vendor
+    2122: "IF_SETGRAPHIC2",  # vendor: _2122
+    2124: "IF_SETTRANSBOT",  # vendor: _2124
+    2125: "IF_SETFILLMODE",  # vendor: _2125
     2133: "IF_INPUT_SETSUBMITMODE",  # not in vendor
     2134: "IF_INPUT_SETSELECTCOLOUR",  # not in vendor
     2135: "IF_INPUT_SETACCEPTMODE",  # not in vendor
@@ -120,7 +162,23 @@ LOCAL_NAMES: dict[int, str] = {
     2144: "IF_INPUT_SETCURSOROFFSET",  # not in vendor
     2145: "IF_INPUT_SETLINEWIDTHLIMIT",  # not in vendor
     2146: "IF_INPUT_SETCHARFILTER",  # not in vendor
+    2203: "IF_SETMODEL_PLAYERCHATHEAD",  # not in vendor
+    2214: "IF_SETLOCMODEL",
+    2215: "IF_SETNPCMODEL",
+    2308: "IF_SETCLICKMASK",  # vendor: _2308
     2309: "IF_OP2309",  # vendor: _2309
+    3102: "MES_TYPED",
+    3120: "SETDRAWPLAYERNAMES_FRIENDS",
+    3122: "SETDRAWPLAYERNAMES_OTHERS",
+    3124: "RESETDRAWPLAYERNAMES",
+    3130: "SETFEEDBACKSPRITE",
+    3131: "SETFEEDBACKSHOWPOPUPTEXT",
+    3157: "SHOP_OPENCATEGORIES",
+    3177: "MARKETING_INITANALYTICS",
+    3178: "MARKETING_SENDANALYTICSEVENT",
+    3179: "MARKETING_INITATTRIBUTION",
+    3180: "MARKETING_SENDATTRIBUTIONEVENT",
+    3189: "SEQ_PREFETCH",
     3129: "SETKEYINPUTENABLED",  # vendor: _3129
     3138: "SETKEYINPUTMODE_ALL",  # vendor: _3138
     3139: "SETKEYINPUTMODE_KEYBOARD",  # vendor: _3139
@@ -132,8 +190,36 @@ LOCAL_NAMES: dict[int, str] = {
     3214: "DEVICEOPTION_GET",  # not in vendor
     3215: "GAMEOPTION_GET",  # not in vendor
     3217: "DEVICEOPTION_GETRANGE",  # not in vendor
+    3221: "SOUND_SONG_WITHSECONDARY",  # vendor: _3221
+    3223: "RT7_SETENABLED",
+    3224: "RT7_SD",
+    3225: "RT7_HD",
+    3328: "IDLETIMER_GET",
+    3329: "IDLETIMER_RESET",
+    3330: "DESTINATIONCOORD",
     3500: "KEYHELD",  # not in vendor
     3501: "KEYPRESSED",  # not in vendor
+    3628: "FRIENDLIST_SORT_RESET",
+    3629: "FRIENDLIST_SORT_LEGACY",
+    3630: "FRIENDLIST_SORT_NAME",
+    3639: "FRIENDLIST_SORT_APPLY",
+    3644: "FRIENDSCHAT_SORT_RESET",
+    3645: "FRIENDSCHAT_SORT_LEGACY",
+    3646: "FRIENDSCHAT_SORT_NAME",
+    3647: "FRIENDSCHAT_SORT_WORLD",
+    3648: "FRIENDSCHAT_SORT_LASTWORLDCHANGE",
+    3652: "FRIENDSCHAT_SORT_ONLINE_WORLD",
+    3655: "FRIENDSCHAT_SORT_APPLY",
+    3656: "FRIENDLIST_SORT_RANK",
+    3657: "FRIENDSCHAT_SORT_RANK",
+    3700: "STEAM_SETACHIEVEMENT",
+    3701: "STEAM_SETSTAT",
+    3702: "STEAM_STORESTATS",
+    3931: "STOCKMARKET_SELLABLE",
+    3932: "STOCKMARKET_VALUE",
+    4036: "STRING_TO_INT",  # not in vendor
+    4123: "TEXT_PRONOUN",
+    4124: "PRONOUN",
     4213: "OC_SHIFTCLICKIOP",  # not in vendor
     4214: "OC_WEARPOS",  # not in vendor
     4215: "OC_WEARPOS2",  # not in vendor
@@ -141,6 +227,12 @@ LOCAL_NAMES: dict[int, str] = {
     4217: "OC_WEIGHT",  # not in vendor
     4218: "OC_EXAMINE",  # not in vendor
     4222: "OC_ISUBOP",  # not in vendor
+    5632: "FEDERATED_LOGIN_STATE",
+    5633: "FEDERATED_SHOP",
+    6522: "MOBILE_KEYBOARDSHOWSTRING",
+    6523: "MOBILE_KEYBOARDSHOWINTEGER",
+    6527: "PLATFORMTYPE",
+    6531: "CLIENT_VERSION",
     6210: "UIZOOM_SET",  # vendor: _6210
     6211: "UIZOOM_GET",  # not in vendor
     6212: "UIZOOM_RESET",  # vendor: _6212
@@ -173,6 +265,25 @@ LOCAL_NAMES: dict[int, str] = {
     6707: "CLIENTOP_PLAYER_DEL",  # vendor: _6707
     6708: "CLIENTOP_TILE_SET",  # vendor: _6708
     6709: "CLIENTOP_TILE_DEL",  # vendor: _6709
+    6750: "NPC_NAME",
+    6751: "NPC_UID",
+    6752: "NPC_CREATIONCYCLE",
+    6753: "NPC_TYPE",
+    6761: "NC_GETOPBASE",
+    6762: "NC_GETOP",
+    6801: "LOC_COORD",
+    6802: "LOC_TYPE",
+    6803: "LOC_FIND",  # vendor: _6803
+    6806: "LC_GETOPBASE",
+    6807: "LC_GETOP",
+    6809: "LC_NAME",
+    6851: "OBJ_COORD",
+    6852: "OBJ_TYPE",
+    6857: "OC_GETOPBASE",
+    6858: "OC_GETOP",
+    6863: "OBJ_OWNER",
+    6950: "TILE_COORD",
+    6951: "COORD_INSCENE",  # vendor: _6951
     # HIGHLIGHT_* runs in groups of five per subject -- SETUP, ON, OFF, GET,
     # CLEAR, in that order -- and the vendor table names only the ON/OFF pair of
     # each. The pair fixes which subject the group is, and the other three fall
@@ -183,9 +294,8 @@ LOCAL_NAMES: dict[int, str] = {
     # 7040..7044 are a NINTH group of the same shape -- (5), (int,str), (int,str),
     # (int,str)->int, (int) -- and are used by the cache (script 6689 toggles
     # 7041/7042 behind 7043, script 6698 reads 7043 beside HIGHLIGHT_NPC_GET on
-    # the same group). They are newer than the vendored Opcodes.kt, so no ON/OFF
-    # name pins their subject; they stay _70xx rather than being given an
-    # invented one.
+    # the same group). The reference identifies the subject as an OpGroup,
+    # built from a right-click subject name and its operation list.
     7000: "HIGHLIGHT_NPC_SETUP",  # vendor: _7000
     7003: "HIGHLIGHT_NPC_GET",  # vendor: _7003
     7004: "HIGHLIGHT_NPC_CLEAR",  # vendor: _7004
@@ -210,15 +320,11 @@ LOCAL_NAMES: dict[int, str] = {
     7035: "HIGHLIGHT_TILE_SETUP",  # vendor: _7035
     7038: "HIGHLIGHT_TILE_GET",  # vendor: _7038
     7039: "HIGHLIGHT_TILE_CLEAR",  # vendor: _7039
-    # The ninth group. Named after their ids on purpose: the shape is the
-    # PLAYER group's, but nothing names the subject, and a #define is the wrong
-    # place to guess one. They are listed here only so the ids get a define and
-    # a signature at all -- without an entry the vendor table simply has no 7040.
-    7040: "_7040",  # not in vendor
-    7041: "_7041",  # not in vendor
-    7042: "_7042",  # not in vendor
-    7043: "_7043",  # not in vendor
-    7044: "_7044",  # not in vendor
+    7040: "HIGHLIGHT_GROUP_SETUP",  # not in vendor
+    7041: "HIGHLIGHT_GROUP_ON",  # not in vendor
+    7042: "HIGHLIGHT_GROUP_OFF",  # not in vendor
+    7043: "HIGHLIGHT_GROUP_GET",  # not in vendor
+    7044: "HIGHLIGHT_GROUP_CLEAR",  # not in vendor
     7100: "MINIMENU_TYPE",  # vendor: _7100
     7101: "MINIMENU_ENTRY",  # vendor: _7101
     7102: "MINIMENU_FINDNPC",  # vendor: _7102
@@ -228,8 +334,37 @@ LOCAL_NAMES: dict[int, str] = {
     7108: "MINIMENU_ISOPEN",  # vendor: _7108
     7109: "MINIMENU_FINDCOMPONENT",  # vendor: _7109
     7110: "MINIMENU_NUMOPS",  # vendor: _7110
+    7200: "OVERLAY_NPC_CREATE",  # vendor: _7200
+    7201: "OVERLAY_LOC_CREATE",  # vendor: _7201
+    7203: "OVERLAY_PLAYER_CREATE",  # vendor: _7203
+    7204: "OVERLAY_COORD_CREATE",  # vendor: _7204
+    7205: "OVERLAY_NPC_GET",  # vendor: _7205
+    7206: "OVERLAY_LOC_GET",  # vendor: _7206
+    7208: "OVERLAY_PLAYER_GET",  # vendor: _7208
+    7209: "OVERLAY_COORD_GET",  # vendor: _7209
+    7210: "OVERLAY_NPC_DESTROY",  # vendor: _7210
+    7211: "OVERLAY_LOC_DESTROY",  # vendor: _7211
+    7213: "OVERLAY_PLAYER_DESTROY",  # vendor: _7213
+    7214: "OVERLAY_COORD_DESTROY",  # vendor: _7214
     7250: "MINIMAP_SETZOOMABLE",  # vendor: SETMINIMAPLOCK
     7252: "MINIMAP_SETZOOM",  # vendor: _7252
+    7253: "MINIMAP_GETZOOM",  # not in vendor
+    7254: "MINIMAP_SETICONZOOMLIMIT",  # not in vendor
+    # Loot-tracker auxiliary list. These live inside the reference client's
+    # broad 7200..7499 native-extension group.
+    7400: "LOOT_AUX_UPSERT2",
+    7401: "LOOT_AUX_UPSERT",
+    7404: "LOOT_AUX_REMOVE",
+    7406: "LOOT_AUX_GET",
+    7407: "LOOT_AUX_COUNT",
+    7408: "LOOT_AUX_LOOKUP",
+    7409: "LOOT_AUX_CLEAR",
+    7460: "MINIMENU_HOVERED_INDEX",
+    7462: "MINIMENU_SETBLOCKMODE",
+    7465: "MINIMENU_RESETORDER",
+    7466: "MINIMENU_SETORDEREDIT",
+    7470: "MINIMENU_TOGGLESCROLL",
+    7471: "MINIMENU_GETSCROLL",
     7500: "DB_FIND_WITH_COUNT",  # not in vendor
     7501: "DB_FINDNEXT",  # not in vendor
     7502: "DB_GETFIELD",  # not in vendor
@@ -241,12 +376,85 @@ LOCAL_NAMES: dict[int, str] = {
     7508: "DB_FIND",  # not in vendor
     7509: "DB_FINDALL",  # not in vendor
     7510: "DB_FIND_FILTER",  # not in vendor
+    # Loot-tracker native store. The rev-239 Java handler exists at this range
+    # but returns unhandled; this port supplies the host implementation used by
+    # the cache scripts.
+    7601: "LOOT_SOURCE_COUNT",
+    7602: "LOOT_SOURCE_NAME",
+    7603: "LOOT_SOURCE_ITEMCOUNT",
+    7604: "LOOT_SOURCE_TOTALVAL",
+    7605: "LOOT_BEGIN_QUERY",
+    7606: "LOOT_QUERY_ID",
+    7608: "LOOT_AUX_COUNT_TOTAL",
+    7609: "LOOT_ROW_COUNT_BYNAME",
+    7610: "LOOT_ROW_COUNT_BYID",
+    7611: "LOOT_ROW_BYNAME",
+    7612: "LOOT_ROW_BYID",
+    7613: "LOOT_CLEAR_ALL",
+    7614: "LOOT_CLEAR_SOURCE",
+    7615: "LOOT_REMOVE_BYID",
+    7616: "LOOT_IGNORE_ADD",
+    7617: "LOOT_IGNORE_REMOVE",
+    7619: "LOOT_GROUND_COUNT",
+    7620: "LOOT_GROUND_NAME",
+    7621: "LOOT_IGNORE_CLEAR",
+    7622: "LOOT_SOURCE_IGNORE_ADD",
+    7623: "LOOT_SOURCE_IGNORE_REMOVE",
+    7625: "LOOT_SRCLIST_COUNT",
+    7626: "LOOT_SRCLIST_NAME",
+    7628: "LOOT_ADD",
+    7630: "LOOT_SOURCE_NAME2",
+    7809: "HISCORES_STATUS",
+    7811: "HISCORES_ERROR",
+    7801: "HISCORE_GETRANK",
+    7802: "HISCORE_GETVALUE",
+    7810: "HISCORE_CLEAR",
+    7812: "HISCORE_SETAPI",
+    7819: "HISCORE_GETMEMBERLEVEL",
+    7823: "HISCORE_GETMEMBERNAME",
+    7824: "HISCORE_GETMEMBERHISCORES",
+    # Modern array handles live on the string stack. These ids are beyond the
+    # vendored table's maximum but are used by the Overview widget library.
+    8000: "ARRAY_SORT_ALL",
+    8003: "ARRAY_LENGTH",
+    8007: "ARRAY_COUNT_MATCHES",
+    8018: "ARRAY_SPLIT",
+    8019: "ARRAY_JOIN",
+    8021: "ENUM_GETOUTPUTS",
+    8022: "ARRAY_NEW",
+    8023: "ARRAY_SETLENGTH",
+    8024: "ARRAY_APPEND",
 }
 
 # id -> extra names emitted as additional #defines. Not an alternate spelling to
 # pick between: both names are referenced in C, so both have to exist.
 LOCAL_ALIASES: dict[int, tuple[str, ...]] = {
+    213: ("_213",),  # spelling retained by older decompiled scripts
+    2704: ("IF_HASCHILD_MODAL",),  # rev-634 spelling retained for old sources
     4030: ("SETBIT_RANGE_VALUE",),  # canonical name is vendor's SETBIT_RANGE_TOINT
+    # Retain names already used by this tree while canonical command spellings
+    # become the generated primary names.
+    3330: ("_3330",),
+    6750: ("_6750",),
+    6751: ("_6751",),
+    6752: ("_6752",),
+    6753: ("_6753",),
+    6801: ("_6801",),
+    6802: ("_6802",),
+    6851: ("_6851",),
+    6852: ("_6852",),
+    6900: ("_6900",),
+    6901: ("ACTIVEPLAYER_SETLOCAL",),
+    6902: ("ACTIVEPLAYER_GETROUTELENGTH",),
+    6903: ("ACTIVEPLAYER_GETROUTECOORD",),
+    6904: ("ACTIVEPLAYER_GETUID",),
+    6905: ("LOCALPLAYER_GETUID",),
+    6950: ("_6950",),
+    7040: ("HIGHLIGHT_OPGROUP_SETUP",),
+    7041: ("HIGHLIGHT_OPGROUP_ON",),
+    7042: ("HIGHLIGHT_OPGROUP_OFF",),
+    7043: ("HIGHLIGHT_OPGROUP_GET",),
+    7044: ("HIGHLIGHT_OPGROUP_CLEAR",),
 }
 
 # id -> operand kind for the VM meta table (cs2_opcode_meta.c) only.
@@ -355,15 +563,15 @@ SECTION_COMMENTS: dict[int, tuple[str, ...]] = {
         " *        alongside the membership flag). Scripts probe 8388605",
         " *        (0x7FFFFD). Offline/unlogged stub pushes 0 (static default). */",
     ),
-    2704: (
-        "/* IF_HASCHILD_MODAL / IF_HASCHILD_OVERLAY (2704/2705) — rev 634.",
+    2705: (
+        "/* IF_HASCHILD_OVERLAY (2705) — legacy interface-parent probe.",
         " * operand: unused",
         " * int stack in:   widget, parent  (parent = top)",
         " * str stack in:   -",
         " * int stack out:  1 if InterfaceParent[widget].group_id == parent, else 0",
         " * str stack out:  -",
-        " * notes: identical handlers in Class66; names follow cs2-editor",
-        " *        (hasChildModal / hasChildOverlay). Sibling of IF_HASSUB. */",
+        " * notes: retained from the rev-634 interface-parent family. Opcode",
+        " *        2704 is IF_SETPARAM in the current rev-239 dialect. */",
     ),
     1430: (
         "/* More SETON* listeners with no runtime model yet — signature-driven operand",
@@ -381,9 +589,9 @@ SECTION_COMMENTS: dict[int, tuple[str, ...]] = {
     2133: (
         "/*",
         " * IF_ variants of the input-field config setters. No UITree model for these",
-        " * fields yet, so they are left to the stack-meta stub -- but they must still be",
-        " * described, or the stub pops nothing and desyncs the operand stack. Each takes",
-        " * the component uid on top of the value.",
+        " * fields yet, so each is forwarded as its own exact host request. Their stack",
+        " * signatures must still be described to keep the operand stack synchronized.",
+        " * Each takes the component uid on top of the value.",
         " */",
     ),
     2430: (
@@ -413,8 +621,32 @@ SECTION_COMMENTS: dict[int, tuple[str, ...]] = {
         " * world coord. Map ids index the worldmap \"details\" archive (cache table 19).",
         " */",
     ),
+    7200: (
+        "/* Scripted entity overlays (7200..7214) — jag::oldscape::EntityOverlays.",
+        " * CREATE forms share the tail (slot, band, width, height, source_coord):",
+        " * band is 0 middle / 1 above / 2 below, and source_coord selects world-",
+        " * versus display-coordinate anchoring. GET and DESTROY address the same",
+        " * subject-specific slot. See game/rs_entity_overlay.h. */",
+    ),
+    7400: (
+        "/* Loot-tracker auxiliary-list ops inside the 7200..7499 native group. */",
+    ),
     7500: (
         "/* Client database family. Read DBROW config (kind 38) and the DBTABLEINDEX",
         " * (cache table 21); see CS2VM2_Op_Db / exec_db. */",
+    ),
+    7601: (
+        "/* Loot-tracker native store (7600-family host ops). The rev-239 Java",
+        " * range handler returns unhandled; this port implements the cache's",
+        " * native loot-tracker extension. */",
+    ),
+    7809: (
+        "/* Hiscores native-extension stubs (7809/7811). */",
+    ),
+    8007: (
+        "/* ARRAY_COUNT_MATCHES — count cells in [start, end) equal to a typed value.",
+        " * A negative end means \"to the end\". The array is a handle on the",
+        " * string stack; value_type selects whether the search value is popped",
+        " * from the int or string stack, so this opcode has variable arity. */",
     ),
 }

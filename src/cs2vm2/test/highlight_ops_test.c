@@ -44,7 +44,10 @@ struct RecordingHost
 {
     int calls;
     enum CS2VM_HostRequestKind kind;
-    struct CS2VM_HostRequest_Highlight highlight;
+    int highlight_opcode;
+    int highlight_args[CS2VM_HIGHLIGHT_ARG_MAX];
+    int highlight_arg_count;
+    bool highlight_query;
 };
 
 /* Answers a query the way rs_cs2_host.c does — "not highlighted" — because the
@@ -56,11 +59,68 @@ recording_host_exec(struct CS2VM2_Thread* thread, struct CS2VM_HostRequest* requ
 
     host->calls++;
     host->kind = request->kind;
-    if( request->kind != CS2VM_HOST_REQUEST_HIGHLIGHT )
-        return CS2VM_EXECNO_OK;
-
-    host->highlight = request->u.highlight;
-    if( request->u.highlight.query )
+    switch( request->kind )
+    {
+#define RECORD_HIGHLIGHT(name)                                              \
+    case CS2VM_HOST_REQUEST_##name:                                         \
+        host->highlight_opcode = request->u.name.opcode;            \
+        memcpy(                                                             \
+            host->highlight_args,                                           \
+            request->u.name.args,                                   \
+            sizeof(host->highlight_args));                                  \
+        host->highlight_arg_count = request->u.name.arg_count;      \
+        host->highlight_query = request->u.name.query;              \
+        break
+        RECORD_HIGHLIGHT(HIGHLIGHT_NPC_SETUP);
+        RECORD_HIGHLIGHT(HIGHLIGHT_NPC_ON);
+        RECORD_HIGHLIGHT(HIGHLIGHT_NPC_OFF);
+        RECORD_HIGHLIGHT(HIGHLIGHT_NPC_GET);
+        RECORD_HIGHLIGHT(HIGHLIGHT_NPC_CLEAR);
+        RECORD_HIGHLIGHT(HIGHLIGHT_NPCTYPE_SETUP);
+        RECORD_HIGHLIGHT(HIGHLIGHT_NPCTYPE_ON);
+        RECORD_HIGHLIGHT(HIGHLIGHT_NPCTYPE_OFF);
+        RECORD_HIGHLIGHT(HIGHLIGHT_NPCTYPE_GET);
+        RECORD_HIGHLIGHT(HIGHLIGHT_NPCTYPE_CLEAR);
+        RECORD_HIGHLIGHT(HIGHLIGHT_LOC_SETUP);
+        RECORD_HIGHLIGHT(HIGHLIGHT_LOC_ON);
+        RECORD_HIGHLIGHT(HIGHLIGHT_LOC_OFF);
+        RECORD_HIGHLIGHT(HIGHLIGHT_LOC_GET);
+        RECORD_HIGHLIGHT(HIGHLIGHT_LOC_CLEAR);
+        RECORD_HIGHLIGHT(HIGHLIGHT_LOCTYPE_SETUP);
+        RECORD_HIGHLIGHT(HIGHLIGHT_LOCTYPE_ON);
+        RECORD_HIGHLIGHT(HIGHLIGHT_LOCTYPE_OFF);
+        RECORD_HIGHLIGHT(HIGHLIGHT_LOCTYPE_GET);
+        RECORD_HIGHLIGHT(HIGHLIGHT_LOCTYPE_CLEAR);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OBJ_SETUP);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OBJ_ON);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OBJ_OFF);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OBJ_GET);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OBJ_CLEAR);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OBJTYPE_SETUP);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OBJTYPE_ON);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OBJTYPE_OFF);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OBJTYPE_GET);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OBJTYPE_CLEAR);
+        RECORD_HIGHLIGHT(HIGHLIGHT_PLAYER_SETUP);
+        RECORD_HIGHLIGHT(HIGHLIGHT_PLAYER_ON);
+        RECORD_HIGHLIGHT(HIGHLIGHT_PLAYER_OFF);
+        RECORD_HIGHLIGHT(HIGHLIGHT_PLAYER_GET);
+        RECORD_HIGHLIGHT(HIGHLIGHT_PLAYER_CLEAR);
+        RECORD_HIGHLIGHT(HIGHLIGHT_TILE_SETUP);
+        RECORD_HIGHLIGHT(HIGHLIGHT_TILE_ON);
+        RECORD_HIGHLIGHT(HIGHLIGHT_TILE_OFF);
+        RECORD_HIGHLIGHT(HIGHLIGHT_TILE_GET);
+        RECORD_HIGHLIGHT(HIGHLIGHT_TILE_CLEAR);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OPGROUP_SETUP);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OPGROUP_ON);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OPGROUP_OFF);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OPGROUP_GET);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OPGROUP_CLEAR);
+#undef RECORD_HIGHLIGHT
+    default:
+        return CS2VM_EXECNO_ERROR;
+    }
+    if( host->highlight_query )
         return CS2VM2_PushInt(thread, 0);
     return CS2VM_EXECNO_OK;
 }
@@ -68,68 +128,72 @@ recording_host_exec(struct CS2VM2_Thread* thread, struct CS2VM_HostRequest* requ
 struct HighlightCase
 {
     int opcode;
+    enum CS2VM_HostRequestKind kind;
     char const* name;
     int int_in;
     int str_in;
     int int_out;
 };
 
+#define HIGHLIGHT_CASE(name, int_in, str_in, int_out)                                             \
+    { CS2_OP_##name, CS2VM_HOST_REQUEST_##name, #name, int_in, str_in, int_out }
+
 /* SETUP, ON, OFF, GET, CLEAR per subject, in opcode order. */
 static struct HighlightCase const CASES[] = {
-    { CS2_OP_HIGHLIGHT_NPC_SETUP, "HIGHLIGHT_NPC_SETUP", 5, 0, 0 },
-    { CS2_OP_HIGHLIGHT_NPC_ON, "HIGHLIGHT_NPC_ON", 3, 0, 0 },
-    { CS2_OP_HIGHLIGHT_NPC_OFF, "HIGHLIGHT_NPC_OFF", 3, 0, 0 },
-    { CS2_OP_HIGHLIGHT_NPC_GET, "HIGHLIGHT_NPC_GET", 3, 0, 1 },
-    { CS2_OP_HIGHLIGHT_NPC_CLEAR, "HIGHLIGHT_NPC_CLEAR", 1, 0, 0 },
+    HIGHLIGHT_CASE(HIGHLIGHT_NPC_SETUP, 5, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_NPC_ON, 3, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_NPC_OFF, 3, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_NPC_GET, 3, 0, 1),
+    HIGHLIGHT_CASE(HIGHLIGHT_NPC_CLEAR, 1, 0, 0),
 
-    { CS2_OP_HIGHLIGHT_NPCTYPE_SETUP, "HIGHLIGHT_NPCTYPE_SETUP", 5, 0, 0 },
-    { CS2_OP_HIGHLIGHT_NPCTYPE_ON, "HIGHLIGHT_NPCTYPE_ON", 2, 0, 0 },
-    { CS2_OP_HIGHLIGHT_NPCTYPE_OFF, "HIGHLIGHT_NPCTYPE_OFF", 2, 0, 0 },
-    { CS2_OP_HIGHLIGHT_NPCTYPE_GET, "HIGHLIGHT_NPCTYPE_GET", 2, 0, 1 },
-    { CS2_OP_HIGHLIGHT_NPCTYPE_CLEAR, "HIGHLIGHT_NPCTYPE_CLEAR", 1, 0, 0 },
+    HIGHLIGHT_CASE(HIGHLIGHT_NPCTYPE_SETUP, 5, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_NPCTYPE_ON, 2, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_NPCTYPE_OFF, 2, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_NPCTYPE_GET, 2, 0, 1),
+    HIGHLIGHT_CASE(HIGHLIGHT_NPCTYPE_CLEAR, 1, 0, 0),
 
-    { CS2_OP_HIGHLIGHT_LOC_SETUP, "HIGHLIGHT_LOC_SETUP", 5, 0, 0 },
-    { CS2_OP_HIGHLIGHT_LOC_ON, "HIGHLIGHT_LOC_ON", 4, 0, 0 },
-    { CS2_OP_HIGHLIGHT_LOC_OFF, "HIGHLIGHT_LOC_OFF", 4, 0, 0 },
-    { CS2_OP_HIGHLIGHT_LOC_GET, "HIGHLIGHT_LOC_GET", 4, 0, 1 },
-    { CS2_OP_HIGHLIGHT_LOC_CLEAR, "HIGHLIGHT_LOC_CLEAR", 1, 0, 0 },
+    HIGHLIGHT_CASE(HIGHLIGHT_LOC_SETUP, 5, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_LOC_ON, 4, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_LOC_OFF, 4, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_LOC_GET, 4, 0, 1),
+    HIGHLIGHT_CASE(HIGHLIGHT_LOC_CLEAR, 1, 0, 0),
 
-    { CS2_OP_HIGHLIGHT_LOCTYPE_SETUP, "HIGHLIGHT_LOCTYPE_SETUP", 5, 0, 0 },
-    { CS2_OP_HIGHLIGHT_LOCTYPE_ON, "HIGHLIGHT_LOCTYPE_ON", 2, 0, 0 },
-    { CS2_OP_HIGHLIGHT_LOCTYPE_OFF, "HIGHLIGHT_LOCTYPE_OFF", 2, 0, 0 },
-    { CS2_OP_HIGHLIGHT_LOCTYPE_GET, "HIGHLIGHT_LOCTYPE_GET", 2, 0, 1 },
-    { CS2_OP_HIGHLIGHT_LOCTYPE_CLEAR, "HIGHLIGHT_LOCTYPE_CLEAR", 1, 0, 0 },
+    HIGHLIGHT_CASE(HIGHLIGHT_LOCTYPE_SETUP, 5, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_LOCTYPE_ON, 2, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_LOCTYPE_OFF, 2, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_LOCTYPE_GET, 2, 0, 1),
+    HIGHLIGHT_CASE(HIGHLIGHT_LOCTYPE_CLEAR, 1, 0, 0),
 
-    { CS2_OP_HIGHLIGHT_OBJ_SETUP, "HIGHLIGHT_OBJ_SETUP", 5, 0, 0 },
-    { CS2_OP_HIGHLIGHT_OBJ_ON, "HIGHLIGHT_OBJ_ON", 4, 0, 0 },
-    { CS2_OP_HIGHLIGHT_OBJ_OFF, "HIGHLIGHT_OBJ_OFF", 4, 0, 0 },
-    { CS2_OP_HIGHLIGHT_OBJ_GET, "HIGHLIGHT_OBJ_GET", 4, 0, 1 },
-    { CS2_OP_HIGHLIGHT_OBJ_CLEAR, "HIGHLIGHT_OBJ_CLEAR", 1, 0, 0 },
+    HIGHLIGHT_CASE(HIGHLIGHT_OBJ_SETUP, 5, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_OBJ_ON, 4, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_OBJ_OFF, 4, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_OBJ_GET, 4, 0, 1),
+    HIGHLIGHT_CASE(HIGHLIGHT_OBJ_CLEAR, 1, 0, 0),
 
-    { CS2_OP_HIGHLIGHT_OBJTYPE_SETUP, "HIGHLIGHT_OBJTYPE_SETUP", 5, 0, 0 },
-    { CS2_OP_HIGHLIGHT_OBJTYPE_ON, "HIGHLIGHT_OBJTYPE_ON", 2, 0, 0 },
-    { CS2_OP_HIGHLIGHT_OBJTYPE_OFF, "HIGHLIGHT_OBJTYPE_OFF", 2, 0, 0 },
-    { CS2_OP_HIGHLIGHT_OBJTYPE_GET, "HIGHLIGHT_OBJTYPE_GET", 2, 0, 1 },
-    { CS2_OP_HIGHLIGHT_OBJTYPE_CLEAR, "HIGHLIGHT_OBJTYPE_CLEAR", 1, 0, 0 },
+    HIGHLIGHT_CASE(HIGHLIGHT_OBJTYPE_SETUP, 5, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_OBJTYPE_ON, 2, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_OBJTYPE_OFF, 2, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_OBJTYPE_GET, 2, 0, 1),
+    HIGHLIGHT_CASE(HIGHLIGHT_OBJTYPE_CLEAR, 1, 0, 0),
 
     /* The two name-keyed groups: one int (the group) plus one string. */
-    { CS2_OP_HIGHLIGHT_PLAYER_SETUP, "HIGHLIGHT_PLAYER_SETUP", 5, 0, 0 },
-    { CS2_OP_HIGHLIGHT_PLAYER_ON, "HIGHLIGHT_PLAYER_ON", 1, 1, 0 },
-    { CS2_OP_HIGHLIGHT_PLAYER_OFF, "HIGHLIGHT_PLAYER_OFF", 1, 1, 0 },
-    { CS2_OP_HIGHLIGHT_PLAYER_GET, "HIGHLIGHT_PLAYER_GET", 1, 1, 1 },
-    { CS2_OP_HIGHLIGHT_PLAYER_CLEAR, "HIGHLIGHT_PLAYER_CLEAR", 1, 0, 0 },
+    HIGHLIGHT_CASE(HIGHLIGHT_PLAYER_SETUP, 5, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_PLAYER_ON, 1, 1, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_PLAYER_OFF, 1, 1, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_PLAYER_GET, 1, 1, 1),
+    HIGHLIGHT_CASE(HIGHLIGHT_PLAYER_CLEAR, 1, 0, 0),
 
-    { CS2_OP_HIGHLIGHT_TILE_SETUP, "HIGHLIGHT_TILE_SETUP", 5, 0, 0 },
-    { CS2_OP_HIGHLIGHT_TILE_ON, "HIGHLIGHT_TILE_ON", 3, 0, 0 },
-    { CS2_OP_HIGHLIGHT_TILE_OFF, "HIGHLIGHT_TILE_OFF", 3, 0, 0 },
-    { CS2_OP_HIGHLIGHT_TILE_GET, "HIGHLIGHT_TILE_GET", 3, 0, 1 },
-    { CS2_OP_HIGHLIGHT_TILE_CLEAR, "HIGHLIGHT_TILE_CLEAR", 1, 0, 0 },
+    HIGHLIGHT_CASE(HIGHLIGHT_TILE_SETUP, 5, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_TILE_ON, 3, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_TILE_OFF, 3, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_TILE_GET, 3, 0, 1),
+    HIGHLIGHT_CASE(HIGHLIGHT_TILE_CLEAR, 1, 0, 0),
 
-    { CS2_OP__7040, "_7040", 5, 0, 0 },
-    { CS2_OP__7041, "_7041", 1, 1, 0 },
-    { CS2_OP__7042, "_7042", 1, 1, 0 },
-    { CS2_OP__7043, "_7043", 1, 1, 1 },
-    { CS2_OP__7044, "_7044", 1, 0, 0 },
+    HIGHLIGHT_CASE(HIGHLIGHT_OPGROUP_SETUP, 5, 0, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_OPGROUP_ON, 1, 1, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_OPGROUP_OFF, 1, 1, 0),
+    HIGHLIGHT_CASE(HIGHLIGHT_OPGROUP_GET, 1, 1, 1),
+    HIGHLIGHT_CASE(HIGHLIGHT_OPGROUP_CLEAR, 1, 0, 0),
 };
 
 /* `push str? ; push int x N ; <opcode> ; return` — the shape every call site in
@@ -203,20 +267,20 @@ main(void)
         snprintf(label, sizeof(label), "%s reaches the host", c->name);
         CHECK_INT(host.calls, 1, label);
         snprintf(label, sizeof(label), "%s request kind", c->name);
-        CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_HIGHLIGHT, label);
+        CHECK_INT((int)host.kind, (int)c->kind, label);
         snprintf(label, sizeof(label), "%s opcode carried through", c->name);
-        CHECK_INT(host.highlight.opcode, c->opcode, label);
+        CHECK_INT(host.highlight_opcode, c->opcode, label);
 
         snprintf(label, sizeof(label), "%s arg count", c->name);
-        CHECK_INT(host.highlight.arg_count, c->int_in, label);
+        CHECK_INT(host.highlight_arg_count, c->int_in, label);
         snprintf(label, sizeof(label), "%s query flag", c->name);
-        CHECK_INT(host.highlight.query ? 1 : 0, c->int_out ? 1 : 0, label);
+        CHECK_INT(host.highlight_query ? 1 : 0, c->int_out ? 1 : 0, label);
 
         /* args[0] is the first int the script pushed, not the first popped. */
         for( int a = 0; a < c->int_in; a++ )
         {
             snprintf(label, sizeof(label), "%s args[%d]", c->name, a);
-            CHECK_INT(host.highlight.args[a], 101 + a, label);
+            CHECK_INT(host.highlight_args[a], 101 + a, label);
         }
 
         /* What the script sees afterwards: the GET result and nothing else. */

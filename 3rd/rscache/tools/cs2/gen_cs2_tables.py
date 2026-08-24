@@ -51,9 +51,13 @@ REPO_STACK = HERE.parents[3] / "src" / "cs2vm2" / "cs2vm2_opcode_stack.gen.h"
 # Names for the same opcodes. The VM's metadata table names more of them than
 # Opcodes.kt does, and an opcode with no name cannot be printed as source.
 REPO_OPCODE_META = HERE.parents[3] / "src" / "cs2vm2" / "cs2_opcode_meta.c"
+REPO_OPCODE_TOOLS = HERE.parents[3] / "tools" / "cs2_gen_opcodes"
 
 sys.path.insert(0, str(HERE))
 from local_commands import LOCAL_BASIC, LOCAL_KINDS, LOCAL_NAMES  # noqa: E402
+
+sys.path.insert(0, str(REPO_OPCODE_TOOLS))
+from opcode_groups import group_for_opcode, span_for_opcode  # noqa: E402
 
 # Prototype aliases Command.kt introduces at the top of the file so an enum
 # constant and a prototype of the same name can coexist.
@@ -84,7 +88,7 @@ KINDS = [
     "BASIC",
     "TYPED_POP",
     "DESCRIPTOR_ARGS",
-    "VARIADIC_INT_RESULT",
+    "FIND_PARAM",
     "CLIENTSCRIPT",
     "PARAM",
     "ACTIVE_PARAM",
@@ -272,7 +276,15 @@ def main() -> int:
     # so a LOCAL_BASIC entry for it used to fail with "has no opcode id".
     meta_names = parse_opcode_meta(REPO_OPCODE_META)
     for opcode, name in meta_names.items():
-        by_id.setdefault(opcode, name.lower())
+        # Opcodes.kt deliberately retains numeric placeholders for commands it
+        # did not understand when that snapshot was made.  The VM metadata is
+        # newer and is the shared source of truth for names, so a semantic name
+        # must replace an old `_1234` spelling rather than lose to setdefault().
+        # Keep the placeholder in by_name: old decompiles remain valid compiler
+        # input while newly decompiled source uses the established name.
+        old_name = by_id.get(opcode)
+        if old_name is None or re.fullmatch(r"_\d+", old_name):
+            by_id[opcode] = name.lower()
         by_name.setdefault(name, opcode)
     for opcode, name in LOCAL_NAMES.items():
         by_id[opcode] = name.lower()
@@ -386,6 +398,16 @@ def main() -> int:
             by_id[opcode] = f"_{opcode}"
 
     max_id = max(max(by_id), max(commands))
+    uncovered = sorted(
+        opcode
+        for opcode in set(by_id) | set(commands)
+        if opcode >= 0 and group_for_opcode(opcode) is None
+    )
+    if uncovered:
+        raise ValueError(
+            "opcodes outside the rev-239 dispatch groups: "
+            + ", ".join(str(opcode) for opcode in uncovered)
+        )
 
     # Argument and definition prototype lists are pooled into one flat array and
     # referenced by (offset, count), so the per-opcode row stays fixed width.
@@ -444,9 +466,21 @@ def main() -> int:
     lines.append("};")
     lines.append("")
     lines.append("static const struct RSCache_CS2_CommandInfo cs2_command_table[] = {")
+    emitted_group_spans: set[tuple[int, int]] = set()
     for opcode, row in enumerate(rows):
         if row is None:
             continue
+        grouped = span_for_opcode(opcode)
+        if grouped:
+            group, span = grouped
+            span_key = (span.lo, span.hi)
+            if span_key not in emitted_group_spans:
+                emitted_group_spans.add(span_key)
+                lines.append("")
+                lines.append(
+                    f"    /* {group.slug}: {group.label} — {group.summary}. "
+                    f"rev-239 {group.deob_handler}. */"
+                )
         name, kind, arg_off, arg_count, def_off, def_count, dot, extra = row
         name_c = c_string(name) if name else "NULL"
         lines.append(
