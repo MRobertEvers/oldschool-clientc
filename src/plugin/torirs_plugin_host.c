@@ -153,6 +153,10 @@ struct ToriRS_PluginHost
     int layout_canvas;
     int layout_fixed_w;
     int layout_fixed_h;
+    /** Advances across every claim/release transaction, even when the same
+     *  owner immediately reacquires. Fences an in-flight EV_LAYOUT scratch
+     *  declaration from committing across that ownership transition. */
+    uint32_t layout_claim_epoch;
     /** Non-zero only inside an EV_LAYOUT dispatch: layout_slot is legal then
      *  and at no other time, for the same reason hit_region is. */
     int layout_declaring;
@@ -698,6 +702,7 @@ api_layout_claim(
     if( host->layout_owner >= 0 && host->layout_owner != ctx->index )
         return false;
 
+    host->layout_claim_epoch++;
     host->layout_owner = ctx->index;
     host->layout_canvas = canvas;
     host->layout_fixed_w = canvas == TORIRS_PLUGIN_CANVAS_FIXED ? fixed_w : 0;
@@ -731,6 +736,7 @@ api_layout_release(struct ToriRS_PluginCtx* ctx)
     host = ctx->host;
     if( host->layout_owner != ctx->index )
         return;
+    host->layout_claim_epoch++;
     host->layout_owner = -1;
     host->layout_canvas = TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW;
     host->layout_fixed_w = 0;
@@ -766,7 +772,7 @@ api_layout_slot_at(
         "layout_slot is legal only inside EV_LAYOUT");
     assert(ctx->host->layout_owner == ctx->index);
     /* A number a plugin computed, so out of range is input. */
-    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_COUNT )
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
         return 0;
     if( w <= 0 || h <= 0 )
         return 0;
@@ -2991,7 +2997,13 @@ api_layout_slot_skin(
         ctx->host->layout_declaring &&
         "layout_slot_skin is legal only inside EV_LAYOUT");
     assert(ctx->host->layout_owner == ctx->index);
-    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_COUNT )
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+        return 0;
+    if( slot != TORIRS_PLUGIN_SLOT_MINIMAP && slot != TORIRS_PLUGIN_SLOT_COMPASS )
+        return 0;
+    /* The minimap picture is the live baked world; only its cut-out belongs to
+     * the frame. Compass art is static frame art and is replaceable. */
+    if( slot == TORIRS_PLUGIN_SLOT_MINIMAP && art >= 0 )
         return 0;
     /*
      * Not resident yet is the ORDINARY state for the first frames after a
@@ -3609,6 +3621,7 @@ plugin_teardown(struct ToriRS_PluginHost* host, int plugin_index)
      * it. */
     if( host->layout_owner == plugin_index )
     {
+        host->layout_claim_epoch++;
         host->layout_owner = -1;
         host->layout_canvas = TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW;
         host->layout_fixed_w = 0;
@@ -4177,6 +4190,8 @@ void
 PluginHost_Layout(struct ToriRS_PluginHost* host, int width, int height)
 {
     struct ToriRS_PluginEvLayout ev;
+    int owner;
+    uint32_t claim_epoch;
 
     if( !host || host->layout_owner < 0 )
         return;
@@ -4224,11 +4239,14 @@ PluginHost_Layout(struct ToriRS_PluginHost* host, int width, int height)
     /* Empty first, apply after: the dispatch is the whole declaration, so a
      * slot the handler does not mention this time is one the frame no longer
      * has. @see EV_LAYOUT. */
+    owner = host->layout_owner;
+    claim_epoch = host->layout_claim_epoch;
     host->engine.layout_begin(host->engine.user);
     host->layout_declaring = 1;
-    plugin_dispatch_one(host, host->layout_owner, TORIRS_PLUGIN_EV_LAYOUT, &ev);
+    plugin_dispatch_one(host, owner, TORIRS_PLUGIN_EV_LAYOUT, &ev);
     host->layout_declaring = 0;
-    host->engine.layout_end(host->engine.user);
+    if( host->layout_owner == owner && host->layout_claim_epoch == claim_epoch )
+        host->engine.layout_end(host->engine.user);
 }
 
 int

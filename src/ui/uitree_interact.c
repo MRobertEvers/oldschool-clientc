@@ -160,7 +160,7 @@ find_wheel_scroll_layer(
         c = &tree->components[i];
         if( c->type != UIELEM_RS_LAYER || c->if3 || c->freed || c->component_id < 0 )
             continue;
-        if( UITree_ComponentOrAncestorHidden(tree, c->component_id) )
+        if( UITree_ComponentOrAncestorDisplayHidden(tree, c->component_id) )
             continue;
         if( !UITree_ScrollLayerNeedsVertical(c) )
             continue;
@@ -213,7 +213,7 @@ find_wheel_hook_component(
             continue;
         if( UITree_Hooks(c)->on_scroll_wheel.script_id <= 0 )
             continue;
-        if( UITree_ComponentOrAncestorHidden(tree, c->component_id) )
+        if( UITree_ComponentOrAncestorDisplayHidden(tree, c->component_id) )
             continue;
         UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
         if( bw <= 0 || bh <= 0 )
@@ -241,7 +241,7 @@ find_wheel_hook_component(
  * still receive keys, and scripts self-gate on varcs.
  *
  * The flat array scan is equivalent to the reference's DFS for membership:
- * UITree_ComponentOrAncestorHidden encodes the same "hidden subtree is pruned"
+ * UITree_ComponentOrAncestorDisplayHidden encodes the same hidden-subtree rule
  * rule, mounted sub-interfaces are reparented into this same array (so they need
  * no separate pass as they do in the reference), and an array scan cannot
  * produce the duplicates the reference has to dedupe. Only enumeration ORDER
@@ -288,7 +288,7 @@ collect_key_targets(
             mask |= UI_KEY_HOOK_UP;
         if( !mask )
             continue;
-        if( UITree_ComponentOrAncestorHidden(tree, c->component_id) )
+        if( UITree_ComponentOrAncestorDisplayHidden(tree, c->component_id) )
             continue;
         UITree_LayoutGetBounds(&c->position, &bx, &by, &bw, &bh);
         UITree_AccumScrollOffset(tree, idx, &offx, &offy);
@@ -1263,7 +1263,7 @@ interact_op_keys(
             continue;
         if( UITree_Hooks(node)->on_op.script_id <= 0 )
             continue;
-        if( UITree_ComponentOrAncestorHidden(tree, node->component_id) )
+        if( UITree_ComponentOrAncestorDisplayHidden(tree, node->component_id) )
             continue;
 
         for( int ev = 0; ev < input->key_event_count; ev++ )

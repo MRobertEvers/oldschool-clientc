@@ -171,6 +171,10 @@ enum UITreeHostRequestKind
      * count (0 = no overlay).
      */
     UITREE_HOST_GET_MINIMAP_DOTS,
+    /** Begin one full/retained overlay-source refresh. Hosts use this to clear
+     * per-overlay-frame side state (notably plugin click regions) independently
+     * of whether a world exists and therefore a FRAME list is requested. */
+    UITREE_HOST_BEGIN_OVERLAYS,
     /**
      * Writes the host-owned entity overlay array (health bars + hitsplats,
      * same-frame lifetime) to u.get_entity_overlays.out_items; returns the

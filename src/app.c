@@ -4627,7 +4627,7 @@ app_entity_overlay_layout(struct App* app)
  * The plugin canvas overlay, built on demand.
  *
  * A whole function for four lines because the shape has to match the world
- * list's exactly: reset, let the pushers fill it, hand the array over. What is
+ * list's exactly: empty it, let the pushers fill it, hand the array over. What is
  * NOT here is any of the client's own drawing -- nothing but a plugin ever
  * writes to this list, which is why the pass that asks for it can be
  * unconditional and still cost nothing on a client with no plugins.
@@ -4641,11 +4641,8 @@ app_build_canvas_overlays(
     assert(out_items);
 
     app->canvas_overlay_count = 0;
-    /* The regions go with the pixels they describe: both are declared inside
-     * the draw dispatches, and a region kept from a frame whose drawing was
-     * replaced would answer clicks for something that is no longer on the
-     * screen. The reset lives in app_build_frame_overlays, which runs first in
-     * the same walk -- see there. */
+    /* Regions are reset by UITREE_HOST_BEGIN_OVERLAYS before either surface is
+     * requested, including trees with no world/FRAME pass. */
     *out_items = app->canvas_overlays;
     if( !app->plugins )
         return 0;
@@ -4657,10 +4654,9 @@ app_build_canvas_overlays(
 /*
  * The plugin FRAME overlay -- the same shape again, for the third surface.
  *
- * The regions are NOT reset here, unlike the canvas list's: this pass runs
- * first and the canvas pass runs later in the same emit walk, so clearing them
- * twice would throw away every tab stone the frame just claimed. One reset,
- * owned by whichever pass comes first, and it is this one.
+ * Click regions are reset once by UITREE_HOST_BEGIN_OVERLAYS, before this pass
+ * and the canvas pass. That remains true when no WORLD exists and this list is
+ * never requested, so canvas-only regions cannot accumulate over stale ones.
  */
 static int
 app_build_frame_overlays(
@@ -4671,7 +4667,6 @@ app_build_frame_overlays(
     assert(out_items);
 
     app->frame_overlay_count = 0;
-    app->plugin_region_count = 0;
     *out_items = app->frame_overlays;
     if( !app->plugins )
         return 0;
@@ -4997,6 +4992,9 @@ app_host_request(
 
     switch( req->kind )
     {
+    case UITREE_HOST_BEGIN_OVERLAYS:
+        app->plugin_region_count = 0;
+        return 0;
     case UITREE_HOST_GET_SCROLLBAR_SCENE:
         return UITreeSceneBridge_ScrollbarSceneId(&app->bridge);
     case UITREE_HOST_GET_STATIC_SPRITE_SCENE:
@@ -24063,7 +24061,7 @@ component_hidden_or_orphaned(
         struct UITreeComponent const* c;
         assert((uint32_t)idx < tree->component_count);
         c = &tree->components[idx];
-        if( c->freed || c->behavior.hide )
+        if( c->freed || c->behavior.hide || c->frame_hidden )
             return 1;
         idx = c->parent;
     }
@@ -24222,14 +24220,14 @@ App_SyncPluginLayoutCanvas(struct App* app)
      * The lane had a window mode before any plugin claimed the frame -- a dat1
      * world is fixed and says so in its manifest -- and a released layout
      * should hand that back rather than leave the client in whatever mode the
-     * plugin wanted. So only a live claim states one.
+     * plugin wanted. A live claim states its mode; a release restates the
+     * lane's default.
      */
-    if( !app->plugin_layout_owned )
-        return;
-
-    want = app->plugin_layout_canvas == TORIRS_PLUGIN_CANVAS_FIXED
-               ? CS2VM_WINDOW_MODE_FIXED
-               : CS2VM_WINDOW_MODE_RESIZABLE;
+    want = !app->plugin_layout_owned
+               ? app->host.default_window_mode
+               : app->plugin_layout_canvas == TORIRS_PLUGIN_CANVAS_FIXED
+                     ? CS2VM_WINDOW_MODE_FIXED
+                     : CS2VM_WINDOW_MODE_RESIZABLE;
     if( app->host.window_mode == want )
         return;
     /*
@@ -24283,8 +24281,16 @@ App_PluginLayoutTick(struct App* app)
         if( app->plugin_layout_dirty && app->tree )
         {
             UITree_FrameRelease(app->tree);
+            UITree_EnsureLayout(app->tree);
             app->plugin_layout_dirty = 0;
+            /* Clear before notifying: a subscriber may claim the frame from
+             * inside EV_LAYOUT_CHANGED, and its new dirty declaration must
+             * survive this release transaction. */
+            PluginHost_LayoutChanged(app->plugins);
         }
+        /* app_plugin_layout_set already restored the lane's default on the
+         * ownership transition. Do not restate it on every ownerless tick:
+         * ordinary CS2/user window-mode changes own this state again now. */
         return;
     }
     if( !app->tree || app->tree->root_index < 0 )
@@ -24328,6 +24334,11 @@ App_PluginLayoutTick(struct App* app)
         app->plugin_layout_h != UITREE_LAYOUT_ROOT_H )
     {
         PluginHost_Layout(app->plugins, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+        /* FrameApply installs an effective geometry layer and invalidates the
+         * resolved boxes. Publish that layer before anybody hears that regions
+         * moved: layout-changed subscribers are allowed to read role_rect from
+         * inside their handler, and interaction follows this tick immediately. */
+        UITree_EnsureLayout(app->tree);
         /*
          * And tell EVERY plugin, not just the frame's owner.
          *
@@ -24337,6 +24348,10 @@ App_PluginLayoutTick(struct App* app)
          * PluginHost_Layout is the owner's news; this is everybody else's.
          */
         PluginHost_LayoutChanged(app->plugins);
+        /* A subscriber may release (or replace) the claim synchronously. Its
+         * layout_set callback drops the effective frame immediately, so close
+         * that invalidation before interaction consumes the resolved boxes. */
+        UITree_EnsureLayout(app->tree);
     }
     /* UITree_EmitWalk keeps a final generation fence as well. It no longer
      * rewrites CS2 geometry: it only rebinds the standing semantic declaration
@@ -25943,6 +25958,14 @@ App_RunOnce(
          * whatever intermediate state the cooperative schedulers reached. */
         assert(App_FrameSettled(app));
         app_entity_overlay_layout(app);
+        /* Resolve before evaluating retention. Frame reconciliation and the
+         * projected entity-overlay pass can both invalidate boxes without
+         * changing an already-pruned node's filtered dirty mark; resolving here
+         * advances layout_resolve_seq and makes the gate observe that change. */
+        TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_LAYOUT)
+        {
+            UITree_EnsureLayout(app->tree);
+        }
         /* Opt 11 retention, SHADOW MODE: work out whether this walk could have
          * been skipped, but always run it anyway, and check the verdict against
          * the byte compare below. `emit_gen_unsound` counts frames the gate
@@ -25957,17 +25980,22 @@ App_RunOnce(
         {
             static uint32_t prev_dirty_gen = 0;
             static uint32_t prev_layout_seq = 0;
+            static uint32_t prev_tree_generation = 0;
             static int prev_hover = -2;
             static int primed = 0;
 
-            /* Three terms, not two. `dirty_gen` covers writes that claim to
+            /* Topology, resolved layout, visible writes, and hover all belong
+             * to the retained list's identity. `dirty_gen` covers writes that
+             * claim to
              * change what a node draws; it does NOT cover layout re-resolving,
              * which moves resolved boxes (and therefore emitted clips) off
              * `layout_stale` / `layout_force_full` / a changed root box without
              * raising anyone's `is_dirty`. That is the one hole the unsound
              * counter found: emit #5 of a 2,000-frame run, clip.w 765 -> 807 on
              * the group-548 root, gate quiet, list changed. */
-            gate_quiet = primed && app->tree->dirty_gen == prev_dirty_gen &&
+            gate_quiet = primed && !app->tree->layout_stale &&
+                         app->tree->generation == prev_tree_generation &&
+                         app->tree->dirty_gen == prev_dirty_gen &&
                          app->tree->layout_resolve_seq == prev_layout_seq &&
                          app->hover_com_id == prev_hover;
             /* Every dirty_gen source was measured bursty (creates, hide flips,
@@ -25985,6 +26013,7 @@ App_RunOnce(
                     (int)(app->tree->dirty_gen - prev_dirty_gen));
             prev_dirty_gen = app->tree->dirty_gen;
             prev_layout_seq = app->tree->layout_resolve_seq;
+            prev_tree_generation = app->tree->generation;
             prev_hover = app->hover_com_id;
             primed = 1;
         }
@@ -26025,9 +26054,25 @@ App_RunOnce(
 
             if( retain )
             {
-                TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_RETAINED, 1);
+                int reusable = 1;
                 if( app->emit.volatile_refs )
-                    UITree_EmitRefreshVolatile(app->tree, &app->ui_host, &app->emit);
+                    reusable = UITree_EmitRefreshVolatile(
+                        app->tree, &app->ui_host, &app->emit);
+                if( reusable )
+                    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_RETAINED, 1);
+                else
+                {
+                    /* Defensive fallback for a volatile source that could not
+                     * be refreshed safely. Rebuild once and retain normally
+                     * again next frame. */
+                    TORIRS_PERF_COUNT(TORIRS_PERF_CTR_EMIT_RETAIN_BLOCKED, 1);
+                    app->emit.count = 0;
+                    TORIRS_PERF_SCOPE(TORIRS_PERF_STAGE_EMIT)
+                    {
+                        UITree_EmitWalk(
+                            app->tree, &app->ui_host, &app->emit, app->hover_com_id);
+                    }
+                }
             }
             else
             {

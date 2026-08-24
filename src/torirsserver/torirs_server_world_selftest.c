@@ -40562,9 +40562,9 @@ ToriRSServer_WorldSelftest(void)
                 { "[proc,selftest_nightmare_scene]", 6,
                   "the selftest CAN build an arena: boss and four totems spawn, "
                   "live, and read their own stats" },
-                { "[proc,selftest_stronghold]", 8,
-                  "the Stronghold's portal skip is on combat level and is "
-                  "independent of the reward" },
+                { "[proc,selftest_stronghold]", 10,
+                  "Stronghold portals accept a floor claim OR combat level, "
+                  "and every security question has one correct answer" },
                 { "[proc,selftest_warriorsguild]", 10,
                   "a defender needs a re-entry before the next tier can drop" },
                 { "[proc,selftest_krystilia]", 7,

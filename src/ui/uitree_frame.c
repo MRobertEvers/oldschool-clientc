@@ -425,18 +425,13 @@ static void
 frame_stretch_node(
     struct UITree* tree,
     struct UITreeFrameLayout* fl,
-    int32_t idx,
-    int canvas_w,
-    int canvas_h)
+    int32_t idx)
 {
     struct UITreeComponent const* c;
 
     assert(tree);
     assert(fl);
     c = &tree->components[idx];
-    if( c->position.width >= canvas_w && c->position.height >= canvas_h &&
-        c->position.width_mode < 0 && c->position.height_mode < 0 )
-        return;
     for( int i = 0; i < fl->stretched_count; i++ )
         if( fl->stretched[i] == idx && fl->stretched_incarnation[i] == c->incarnation )
             return;
@@ -476,7 +471,8 @@ frame_is_placed_node(
     assert(fl);
     for( int s = 0; s < UITREE_FRAME_SLOT_COUNT; s++ )
         for( int n = 0; n < fl->slot_node_count[s]; n++ )
-            if( fl->slot_node[s][n] == idx )
+            if( fl->slot_node[s][n] == idx &&
+                frame_rect_for(&fl->slot_rect[s], fl->slot_member[s][n]) )
                 return 1;
     return 0;
 }
@@ -484,9 +480,7 @@ frame_is_placed_node(
 static void
 frame_stretch_ancestors(
     struct UITree* tree,
-    struct UITreeFrameLayout* fl,
-    int canvas_w,
-    int canvas_h)
+    struct UITreeFrameLayout* fl)
 {
     assert(tree);
     assert(fl);
@@ -495,7 +489,8 @@ frame_stretch_ancestors(
         for( int n = 0; n < fl->slot_node_count[s]; n++ )
         {
             int32_t const idx = fl->slot_node[s][n];
-            if( !frame_node_alive(tree, idx) )
+            if( !frame_node_alive(tree, idx) ||
+                !frame_rect_for(&fl->slot_rect[s], fl->slot_member[s][n]) )
                 continue;
             for( int32_t p = tree->components[idx].parent; p >= 0;
                  p = tree->components[p].parent )
@@ -509,7 +504,7 @@ frame_stretch_ancestors(
                  * declaration's effective box. */
                 if( frame_is_placed_node(fl, p) )
                     continue;
-                frame_stretch_node(tree, fl, p, canvas_w, canvas_h);
+                frame_stretch_node(tree, fl, p);
             }
         }
     }
@@ -614,7 +609,7 @@ UITree_FrameApply(
         }
     }
 
-    frame_stretch_ancestors(tree, &next, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    frame_stretch_ancestors(tree, &next);
     frame_collect_chrome(tree, &next, root_group);
 
     fl = frame_state(tree);
@@ -646,7 +641,7 @@ UITree_FrameApply(
         if( tree->components[idx].frame_hidden )
         {
             tree->components[idx].frame_hidden = 0;
-            UITree_MarkNodeDirty(tree, idx);
+            UITree_MarkNodeVisibilityDirty(tree, idx);
         }
     }
     for( int i = 0; i < next.hidden_count; i++ )
@@ -659,7 +654,7 @@ UITree_FrameApply(
         if( !tree->components[idx].frame_hidden )
         {
             tree->components[idx].frame_hidden = 1;
-            UITree_MarkNodeDirty(tree, idx);
+            UITree_MarkNodeVisibilityDirty(tree, idx);
         }
     }
 
@@ -708,7 +703,7 @@ UITree_FrameRelease(struct UITree* tree)
         if( tree->components[idx].frame_hidden )
         {
             tree->components[idx].frame_hidden = 0;
-            UITree_MarkNodeDirty(tree, idx);
+            UITree_MarkNodeVisibilityDirty(tree, idx);
         }
     }
 

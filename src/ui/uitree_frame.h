@@ -82,10 +82,9 @@ struct UITreeFrameRect
  * an unmasked square of minimap draws its corners over the world. A housing
  * that is opaque around its hole needs none, and passes 0.
  *
- * Scene sprite ids, because that is what a component holds; 0 is "nothing
- * said", which is distinct from a layout that deliberately un-masks a surface
- * -- nothing needs to say that yet, and a sentinel that means both would make
- * it unsayable later.
+ * Scene sprite ids, because that is what a component holds. `placed` carries
+ * declaration presence: art id 0 keeps native art, while mask id 0 explicitly
+ * removes the native mask (the public API's -1 image sentinel maps to 0 here).
  */
 struct UITreeFrameSkin
 {
@@ -245,8 +244,9 @@ UITree_FramePositionOwned(
     int32_t node);
 
 /**
- * Effective art/mask overrides for a skinned slot. Each output may be NULL;
- * zero means that half stays native. Returns 1 for a currently bound skin.
+ * Effective art/mask overrides for a skinned slot. Each output may be NULL.
+ * Art zero keeps native art; mask zero explicitly removes the native mask.
+ * Returns 1 for a currently bound skin.
  */
 int
 UITree_FrameSkinOverride(

@@ -1465,6 +1465,21 @@ UITree_MarkNodeDirty(
 }
 
 void
+UITree_MarkNodeVisibilityDirty(
+    struct UITree* tree,
+    int32_t idx)
+{
+    assert(tree);
+    if( idx < 0 || (uint32_t)idx >= tree->component_count )
+        return;
+    tree->components[idx].is_dirty = 1;
+    /* Visibility is also reachability. In particular, an unhidden node has a
+     * zero emit_visited bit precisely because it was hidden last walk, so the
+     * ordinary filtered mark cannot describe this transition. */
+    uitree_topo_bump(tree, __LINE__);
+}
+
+void
 UITree_ClearNodeDirty(
     struct UITree* tree,
     int32_t idx)
@@ -4538,10 +4553,11 @@ UITree_ComponentIsDropTarget(struct UITreeComponent const* c)
     return 0;
 }
 
-int
-UITree_ComponentOrAncestorHidden(
+static int
+uitree_component_or_ancestor_hidden(
     struct UITree const* tree,
-    int component_id)
+    int component_id,
+    int include_frame_hidden)
 {
     int32_t idx;
     int group;
@@ -4562,7 +4578,8 @@ UITree_ComponentOrAncestorHidden(
          * widgets when combat level changes on an XP update. */
         do
         {
-            if( tree->components[idx].behavior.hide )
+            if( tree->components[idx].behavior.hide ||
+                (include_frame_hidden && tree->components[idx].frame_hidden) )
                 return 1;
             idx = tree->components[idx].parent;
         } while( idx >= 0 && (uint32_t)idx < tree->component_count );
@@ -4584,6 +4601,24 @@ UITree_ComponentOrAncestorHidden(
             break;
     }
     return 0;
+}
+
+int
+UITree_ComponentOrAncestorHidden(
+    struct UITree const* tree,
+    int component_id)
+{
+    /* Cache/script activity remains live beneath a plugin frame so native CS2
+     * state is current the instant the effective frame layer is released. */
+    return uitree_component_or_ancestor_hidden(tree, component_id, 0);
+}
+
+int
+UITree_ComponentOrAncestorDisplayHidden(
+    struct UITree const* tree,
+    int component_id)
+{
+    return uitree_component_or_ancestor_hidden(tree, component_id, 1);
 }
 
 static int
@@ -4614,7 +4649,7 @@ drop_target_pick_in_subtree(
         return 0;
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_DROP, 1);
     c = &tree->components[idx];
-    if( c->behavior.hide )
+    if( c->behavior.hide || c->frame_hidden )
         return 0;
     if( c->component_id == exclude_component_id )
         return 0;
@@ -4708,7 +4743,7 @@ UITree_FindDropTarget(
     assert(tree);
     for( root = tree->root_index; root >= 0; root = tree->components[root].next_sibling )
     {
-        if( tree->components[root].behavior.hide )
+        if( tree->components[root].behavior.hide || tree->components[root].frame_hidden )
             continue;
         drop_target_pick_in_subtree(
             tree, root, px, py, exclude_component_id, 0, 0, NULL, NULL, &best_id, &best_depth, 0);

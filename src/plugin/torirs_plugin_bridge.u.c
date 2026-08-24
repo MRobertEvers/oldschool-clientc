@@ -2676,6 +2676,15 @@ app_plugin_role_visible(void* user, char const* role)
     if( node < 0 )
         return 0;
 
+    /* Pack ids can cross an InterfaceParent mount edge that is not represented
+     * by Component::parent. Use the tree's virtual-ancestry visibility check
+     * before the local walk below; revconfig-only builtins have no id and keep
+     * using the physical walk. */
+    if( app->tree->components[node].component_id >= 0 &&
+        UITree_ComponentOrAncestorDisplayHidden(
+            app->tree, app->tree->components[node].component_id) )
+        return 0;
+
     /*
      * Up the ancestry, because a visible child of a hidden parent is not on
      * screen. Three tests, because "hidden" is spelled three ways by three
@@ -2808,6 +2817,10 @@ app_plugin_layout_begin(void* user)
 
     assert(app);
     memset(app->plugin_layout_slots, 0, sizeof(app->plugin_layout_slots));
+    /* EV_LAYOUT is a whole declaration. A skin omitted by this declaration is
+     * native again; it must not inherit six scene ids from the prior owner or
+     * prior layout variant. */
+    memset(app->plugin_layout_scrollbar, 0, sizeof(app->plugin_layout_scrollbar));
 }
 
 static int
@@ -2817,7 +2830,9 @@ app_plugin_layout_slot(void* user, int slot, int member, int x, int y, int w, in
     struct UITreeFrameRect* out;
 
     assert(app);
-    assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_COUNT);
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+        return 0;
+    assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT);
 
     /* A member number out of range is a plugin's arithmetic, not a broken
      * contract: it is refused and reported as "this frame has no such
@@ -2884,7 +2899,13 @@ app_plugin_layout_slot_skin(void* user, int slot, int art, int mask)
     struct UITreeFrameSkin* out;
 
     assert(app);
-    assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_COUNT);
+    if( slot < 0 || slot >= TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT )
+        return 0;
+    assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_PLACEABLE_COUNT);
+    if( slot != TORIRS_PLUGIN_SLOT_MINIMAP && slot != TORIRS_PLUGIN_SLOT_COMPASS )
+        return 0;
+    if( slot == TORIRS_PLUGIN_SLOT_MINIMAP && art >= 0 )
+        return 0;
 
     out = &app->plugin_layout_slots[slot].skin;
     out->placed = 1;
@@ -2903,6 +2924,14 @@ app_plugin_layout_end(void* user)
     assert(app);
     if( !app->tree )
         return;
+    /* The owner may release from inside EV_LAYOUT. Its partial declaration is
+     * then abandoned; applying it after layout_set released the frame would
+     * suppress native chrome under an ownerless empty frame. */
+    if( !app->plugin_layout_owned )
+    {
+        UITree_FrameRelease(app->tree);
+        return;
+    }
 
     UITree_FrameApply(
         app->tree, app->plugin_layout_slots, app_plugin_layout_root_group(app));

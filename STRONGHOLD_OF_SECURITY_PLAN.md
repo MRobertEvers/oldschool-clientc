@@ -18,13 +18,18 @@ The gameplay contract comes from the Old School RuneScape Wiki:
 - [Grain of Plenty](https://oldschool.runescape.wiki/w/Grain_of_Plenty)
 - [Box of Health](https://oldschool.runescape.wiki/w/Box_of_Health)
 - [Cradle of Life](https://oldschool.runescape.wiki/w/Cradle_of_Life)
+- [Gate of War](https://oldschool.runescape.wiki/w/Gate_of_War)
+- [Rickety door](https://oldschool.runescape.wiki/w/Rickety_door)
+- [Oozing barrier](https://oldschool.runescape.wiki/w/Oozing_barrier)
+- [Portal of Death](https://oldschool.runescape.wiki/w/Portal_of_Death)
 
 The repository pins the main page at
 `docs/areas/stronghold/sources/Stronghold_of_Security.wiki`. It establishes:
 
 - four maze floors with a paired security gate between rooms;
 - a security question on the second gate, with a chance for the prompt to be
-  skipped, and no questions after all four floors are complete;
+  skipped; the detailed gate pages clarify that claiming a floor's reward
+  stops questions on that floor (so full completion stops all questions);
 - one-time coin rewards of 2,000, 3,000, and 5,000, plus the floor emotes;
 - Hitpoints and Prayer restoration at each reward, with every stat restored by
   the Box of Health;
@@ -62,21 +67,22 @@ All 280 placed leaves form 140 two-leaf barriers, arranged as 70 pairs with a
 safe vestibule between them. Every leaf uses the same geometry-driven pass:
 
 1. Snapshot the loc coordinate, angle, and shape.
-2. Determine the player's side with `~check_axis` and the opposite tile with
+2. Determine the player's side and the crossing vector with `~check_axis` and
    `~door_open`.
 3. Align to the near tile if necessary.
 4. Play the Stronghold door sound/effect and force-move across the closed wall.
 5. Leave both cache locs closed; do not invoke the generic double-door swing.
 
 When the clicked leaf is the second gate in a pair, ask a randomly selected
-wiki security question unless the skip roll succeeds or all four reward bits
-are set. A wrong answer leaves the player in place; a correct answer runs the
+wiki security question unless the skip roll succeeds or that floor's reward bit
+is set. A wrong answer leaves the player in place; a correct answer runs the
 same force-pass path. The first gate always passes without a question.
 
 Second-gate detection must be geometric, not a hard-coded list of 140 barrier
-coordinates: inspect for the matching barrier two to four tiles behind the
-player along the crossing axis. This keeps both directions, the Famine floor's
-two-tile spacing, one four-tile Vault exception, and all orientations correct.
+coordinates: use the crossing vector and player side to inspect for the
+matching barrier two to four tiles behind the player. This keeps both
+directions, the Famine floor's two-tile spacing, one four-tile Vault exception,
+and all orientations correct.
 
 ### 2. Rewards and progression
 
@@ -146,16 +152,34 @@ output. The central Death chain's existing surface maplink remains unchanged.
   claim-or-combat logic, completion suppression, and question correctness.
 - Add a static contract test for all eight exact-name gate handlers and all
   Stronghold rope/chain loc placements/destinations.
-- Compile scripts and pack content with zero errors.
+- Compile scripts and build the content/server packs with zero Stronghold
+  errors.
 - Run selftest registration, server tests, the door audit, and the broad
   content test where practical.
 
 ## Work checklist
 
-- [ ] Correct and extend progression/portal helper procs.
-- [ ] Implement all eight force-pass gate handlers and security questions.
-- [ ] Implement all four reward handlers and restoration/boots behavior.
-- [ ] Override and gate all four portal handlers.
-- [ ] Add and verify the missing rope/chain maplink rows.
-- [ ] Extend permanent contracts/selftests and update their registration.
-- [ ] Compile, pack, and run the relevant test suites.
+- [x] Correct and extend progression/portal helper procs.
+- [x] Implement all eight force-pass gate handlers and security questions.
+- [x] Implement all four reward handlers and restoration/boots behavior.
+- [x] Override and gate all four portal handlers.
+- [x] Add and verify the missing rope/chain maplink rows.
+- [x] Extend permanent contracts/selftests and update their registration.
+- [x] Compile, pack, and run the relevant test suites.
+
+## Verification results
+
+- `check_stronghold_contract.py`: passed; 8 exact force-walk handlers, all 280
+  placed leaves, 19 supplemental maplinks, and all four central Death exits.
+- `make -C src torirsserver-scripts`: passed; 29,578 scripts compiled.
+- `make -C src torirsserver-pack` and `make -C src torirsserver-servpack`:
+  passed.
+- `make -C src test-torirsserver`: passed; all native/server-script selftests,
+  including the ten-step Stronghold contract, completed successfully.
+- `door_audit.py`: passed read-only coverage audit.
+- The repository-wide packer's `--check-only` mode still reports the existing
+  `dragonslayer_giantrat_1_key` server-band/text mismatch (Attack, Defence, and
+  Hitpoints). It reports no Stronghold error. The generated maplink import check
+  is likewise already out of sync with its vendored TSV while the tracked
+  generated file is clean; the Stronghold additions deliberately remain in the
+  separate authored dbrow checked above.

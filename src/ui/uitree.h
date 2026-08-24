@@ -1370,6 +1370,16 @@ UITree_MarkNodeDirty(
     struct UITree* tree,
     int32_t idx);
 
+/**
+ * Mark a node whose visibility changed. Unlike UITree_MarkNodeDirty this
+ * always advances retained-output identity: a previously pruned node was not
+ * visited by the last emit, but revealing it necessarily changes the next one.
+ */
+void
+UITree_MarkNodeVisibilityDirty(
+    struct UITree* tree,
+    int32_t idx);
+
 /** Clear dirty after a successful emit (always_dirty nodes stay emit-eligible). */
 void
 UITree_ClearNodeDirty(
@@ -1994,9 +2004,15 @@ UITree_FindDropTarget(
     int py,
     int exclude_component_id);
 
-/** Ancestor hide check, including InterfaceParent mount containers. */
+/** Cache/script hide check, including InterfaceParent mount containers. */
 int
 UITree_ComponentOrAncestorHidden(
+    struct UITree const* tree,
+    int component_id);
+
+/** Display/input hide check, also including plugin-frame suppression. */
+int
+UITree_ComponentOrAncestorDisplayHidden(
     struct UITree const* tree,
     int component_id);
 

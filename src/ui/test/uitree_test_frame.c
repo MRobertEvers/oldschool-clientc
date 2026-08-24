@@ -30,6 +30,10 @@ enum
     FRAME_CHAT_ID = (FRAME_GROUP << 16) | 1,
     FRAME_COMPASS_ID = (FRAME_GROUP << 16) | 2,
     FRAME_CHROME_ID = (FRAME_GROUP << 16) | 3,
+    FRAME_MINIMAP_ID = (FRAME_GROUP << 16) | 4,
+    FRAME_WORLD_ID = (FRAME_GROUP << 16) | 5,
+    FRAME_ENTITY_OVERLAY_ID = (FRAME_GROUP << 16) | 6,
+    FRAME_CROSS_ID = (FRAME_GROUP << 16) | 7,
     FRAME_CONTENT_ID = (CONTENT_GROUP << 16) | 0,
     SHELL_ROOT_ID = 1,
 
@@ -53,9 +57,78 @@ enum
 
     NATIVE_COMPASS_ART = 41,
     NATIVE_COMPASS_MASK = 42,
+    NATIVE_MINIMAP_MASK = 43,
     PLUGIN_COMPASS_ART = 141,
     PLUGIN_COMPASS_MASK = 142,
 };
+
+enum RetainedOverlaySource
+{
+    RETAINED_OVERLAY_ENTITY = 0,
+    RETAINED_OVERLAY_CANVAS,
+    RETAINED_OVERLAY_FRAME,
+    RETAINED_OVERLAY_SOURCE_COUNT,
+};
+
+struct RetainedOverlayHost
+{
+    struct UITreeEntityOverlay items[RETAINED_OVERLAY_SOURCE_COUNT][2][3];
+    int calls[RETAINED_OVERLAY_SOURCE_COUNT];
+    int last_call_seq[RETAINED_OVERLAY_SOURCE_COUNT];
+    int call_seq;
+    int phase;
+    int zero_initial;
+    uint8_t empty_mask[2];
+};
+
+static int
+retained_overlay_host_request(void* user, struct UITreeHostRequest* req)
+{
+    struct RetainedOverlayHost* state = user;
+    int source;
+
+    switch( req->kind )
+    {
+    case UITREE_HOST_GET_CROSS_ACTIVE:
+        return 1;
+    case UITREE_HOST_GET_CROSS_ATLAS_FRAME:
+        return 0;
+    case UITREE_HOST_GET_CROSS_POSITION:
+        if( req->u.get_cross_position.out_x )
+            *req->u.get_cross_position.out_x = 40;
+        if( req->u.get_cross_position.out_y )
+            *req->u.get_cross_position.out_y = 50;
+        return 1;
+    case UITREE_HOST_GET_ENTITY_OVERLAYS:
+        source = RETAINED_OVERLAY_ENTITY;
+        break;
+    case UITREE_HOST_GET_CANVAS_OVERLAYS:
+        source = RETAINED_OVERLAY_CANVAS;
+        break;
+    case UITREE_HOST_GET_FRAME_OVERLAYS:
+        source = RETAINED_OVERLAY_FRAME;
+        break;
+    default:
+        return 0;
+    }
+
+    state->calls[source]++;
+    state->last_call_seq[source] = ++state->call_seq;
+    if( req->u.get_entity_overlays.out_items )
+        *req->u.get_entity_overlays.out_items = state->items[source][state->phase];
+    if( req->u.get_entity_overlays.out_clip_x )
+        *req->u.get_entity_overlays.out_clip_x = 10 * (source + 1) + state->phase;
+    if( req->u.get_entity_overlays.out_clip_y )
+        *req->u.get_entity_overlays.out_clip_y = 20 * (source + 1) + state->phase;
+    if( req->u.get_entity_overlays.out_clip_w )
+        *req->u.get_entity_overlays.out_clip_w = 100 + 10 * source + state->phase;
+    if( req->u.get_entity_overlays.out_clip_h )
+        *req->u.get_entity_overlays.out_clip_h = 200 + 10 * source + state->phase;
+    return (state->zero_initial && state->phase == 0) ||
+                   (state->empty_mask[state->phase] & (uint8_t)(1u << source))
+               ? 0
+               : source + 1;
+}
 
 struct FrameNodes
 {
@@ -235,6 +308,25 @@ emit_find(struct UITreeEmitBuffer const* buf, int32_t node)
         if( buf->cmds[i].node_index == node )
             return &buf->cmds[i];
     return NULL;
+}
+
+static int
+emit_find_overlay_source(
+    struct UITreeEmitBuffer const* buf,
+    int source)
+{
+    uint8_t wanted = UITREE_EMIT_OVERLAY_NONE;
+
+    if( source == RETAINED_OVERLAY_ENTITY )
+        wanted = UITREE_EMIT_OVERLAY_ENTITY;
+    else if( source == RETAINED_OVERLAY_CANVAS )
+        wanted = UITREE_EMIT_OVERLAY_CANVAS;
+    else if( source == RETAINED_OVERLAY_FRAME )
+        wanted = UITREE_EMIT_OVERLAY_FRAME;
+    for( int i = 0; i < buf->count; i++ )
+        if( buf->cmds[i].entity_overlay_source == wanted )
+            return i;
+    return -1;
 }
 
 static void
@@ -537,6 +629,504 @@ test_frame_reconciles_rebuilt_nodes_before_emit(void)
     UITree_Free(tree);
 }
 
+static void
+test_retained_overlay_refresh_preserves_source(void)
+{
+    struct UITree* tree = UITree_New(4);
+    struct UITreeEmitBuffer buf;
+    struct UITreeEmitBuffer fresh;
+    struct UITreeHost host;
+    struct RetainedOverlayHost state;
+    int32_t root;
+    int32_t world;
+    int32_t entity_overlay;
+    int desc[RETAINED_OVERLAY_SOURCE_COUNT];
+
+    TEST_ASSERT(tree != NULL, "UITree_New");
+    memset(&state, 0, sizeof(state));
+    state.zero_initial = 1;
+    UITree_HostInit(&host);
+    host.user = &state;
+    host.request = retained_overlay_host_request;
+
+    root = UITree_TestPushXy(
+        tree, -1, UIELEM_RS_LAYER, SHELL_ROOT_ID, 0, 0,
+        UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    world = UITree_TestPushXy(
+        tree, root, UIELEM_BUILTIN_WORLD, FRAME_WORLD_ID, 0, 0,
+        UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    entity_overlay = UITree_TestPushXy(
+        tree, root, UIELEM_BUILTIN_ENTITY_OVERLAY, FRAME_ENTITY_OVERLAY_ID, 0, 0,
+        UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    TEST_ASSERT(root >= 0 && world >= 0 && entity_overlay >= 0, "volatile overlay fixture");
+
+    UITree_EmitBufferInit(&buf);
+    UITree_EmitWalk(tree, &host, &buf, -1);
+
+    for( int source = 0; source < RETAINED_OVERLAY_SOURCE_COUNT; source++ )
+        desc[source] = emit_find_overlay_source(&buf, source);
+    TEST_ASSERT(
+        desc[RETAINED_OVERLAY_ENTITY] < 0 && desc[RETAINED_OVERLAY_CANVAS] < 0 &&
+            desc[RETAINED_OVERLAY_FRAME] < 0,
+        "zero-count overlay sources add no renderer commands");
+    TEST_ASSERT(
+        buf.volatile_refs == RETAINED_OVERLAY_SOURCE_COUNT && !buf.volatile_unrefreshable,
+        "zero-count overlay sources remain refreshable out of band");
+    TEST_ASSERT(
+        state.calls[RETAINED_OVERLAY_ENTITY] == 1 &&
+            state.calls[RETAINED_OVERLAY_CANVAS] == 1 &&
+            state.calls[RETAINED_OVERLAY_FRAME] == 1,
+        "the initial walk requests every overlay source once");
+
+    state.phase = 1;
+    TEST_ASSERT(
+        UITree_EmitRefreshVolatile(tree, &host, &buf),
+        "zero-to-nonzero refresh mutates the retained list without a second walk");
+
+    for( int source = 0; source < RETAINED_OVERLAY_SOURCE_COUNT; source++ )
+        desc[source] = emit_find_overlay_source(&buf, source);
+    TEST_ASSERT(
+        desc[RETAINED_OVERLAY_ENTITY] >= 0 && desc[RETAINED_OVERLAY_FRAME] >= 0 &&
+            desc[RETAINED_OVERLAY_CANVAS] >= 0,
+        "nonempty refresh inserts all three renderer descriptors");
+    TEST_ASSERT(
+        desc[RETAINED_OVERLAY_ENTITY] < desc[RETAINED_OVERLAY_FRAME] &&
+            desc[RETAINED_OVERLAY_FRAME] < desc[RETAINED_OVERLAY_CANVAS],
+        "entity overlays stay below frame chrome and canvas chrome stays above interfaces");
+    for( int source = 0; source < RETAINED_OVERLAY_SOURCE_COUNT; source++ )
+    {
+        struct UITreeEmitDesc const* refreshed =
+            desc[source] >= 0 ? &buf.cmds[desc[source]] : NULL;
+        TEST_ASSERT(
+            refreshed && refreshed->entity_overlays == state.items[source][1] &&
+                refreshed->entity_overlay_count == source + 1,
+            "retained refresh preserves each overlay descriptor's host source");
+        if( refreshed )
+            TEST_ASSERT(
+                refreshed->clip.x == 10 * (source + 1) + 1 &&
+                    refreshed->clip.y == 20 * (source + 1) + 1 &&
+                    refreshed->clip.w == 100 + 10 * source + 1 &&
+                    refreshed->clip.h == 200 + 10 * source + 1,
+                "retained refresh also takes the matching source clip");
+    }
+    TEST_ASSERT(
+        state.calls[RETAINED_OVERLAY_ENTITY] == 2 &&
+            state.calls[RETAINED_OVERLAY_CANVAS] == 2 &&
+            state.calls[RETAINED_OVERLAY_FRAME] == 2,
+        "retained refresh reissues entity, canvas, and frame requests once each");
+    TEST_ASSERT(
+        state.last_call_seq[RETAINED_OVERLAY_FRAME] <
+            state.last_call_seq[RETAINED_OVERLAY_CANVAS],
+        "retained refresh rebuilds frame state before the canvas overlay consumes it");
+
+    UITree_EmitBufferInit(&fresh);
+    UITree_EmitWalk(tree, &host, &fresh, -1);
+    TEST_ASSERT(
+        fresh.count == buf.count &&
+            (fresh.count == 0 ||
+             memcmp(
+                 fresh.cmds,
+                 buf.cmds,
+                 (size_t)fresh.count * sizeof(*fresh.cmds)) == 0),
+        "zero-to-nonzero refresh is byte-identical to a fresh full walk");
+    UITree_EmitBufferFree(&fresh);
+
+    state.phase = 0;
+    TEST_ASSERT(
+        UITree_EmitRefreshVolatile(tree, &host, &buf),
+        "nonzero-to-zero refresh removes descriptors without a second walk");
+    TEST_ASSERT(
+        emit_find_overlay_source(&buf, RETAINED_OVERLAY_ENTITY) < 0 &&
+            emit_find_overlay_source(&buf, RETAINED_OVERLAY_FRAME) < 0 &&
+            emit_find_overlay_source(&buf, RETAINED_OVERLAY_CANVAS) < 0,
+        "zeroed overlay sources leave no stale renderer descriptors");
+    TEST_ASSERT(
+        state.calls[RETAINED_OVERLAY_ENTITY] == 4 &&
+            state.calls[RETAINED_OVERLAY_CANVAS] == 4 &&
+            state.calls[RETAINED_OVERLAY_FRAME] == 4,
+        "each retained transition dispatches every overlay source exactly once");
+
+    UITree_EmitBufferInit(&fresh);
+    UITree_EmitWalk(tree, &host, &fresh, -1);
+    TEST_ASSERT(
+        fresh.count == buf.count &&
+            (fresh.count == 0 ||
+             memcmp(
+                 fresh.cmds,
+                 buf.cmds,
+                 (size_t)fresh.count * sizeof(*fresh.cmds)) == 0),
+        "nonzero-to-zero refresh is byte-identical to a fresh full walk");
+    UITree_EmitBufferFree(&fresh);
+
+    UITree_EmitBufferFree(&buf);
+    UITree_Free(tree);
+}
+
+static void
+test_retained_empty_entity_keeps_final_no_world_order(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct UITreeEmitBuffer buf;
+    struct UITreeEmitBuffer fresh;
+    struct UITreeHost host;
+    struct RetainedOverlayHost state;
+    struct UITreeNodeSpec cross_spec;
+    int32_t root;
+    int32_t before;
+    int32_t cross;
+    int32_t entity_overlay;
+    int32_t after;
+    int entity_desc;
+    int canvas_desc;
+    int cross_desc;
+
+    TEST_ASSERT(tree != NULL, "UITree_New");
+    memset(&state, 0, sizeof(state));
+    /* Canvas is already standing while ENTITY is empty. This makes the canvas
+     * rotate ahead of pointer feedback before the empty entity's conceptual
+     * insertion slot is recorded. */
+    state.empty_mask[0] = (uint8_t)(1u << RETAINED_OVERLAY_ENTITY);
+    UITree_HostInit(&host);
+    host.user = &state;
+    host.request = retained_overlay_host_request;
+
+    root = UITree_TestPushXy(
+        tree, -1, UIELEM_RS_LAYER, SHELL_ROOT_ID, 0, 0,
+        UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    before = UITree_TestPushXy(tree, root, UIELEM_RS_RECT, 8001, 0, 0, 8, 8);
+    memset(&cross_spec, 0, sizeof(cross_spec));
+    cross_spec.type = UIELEM_BUILTIN_CROSS;
+    cross_spec.component_id = FRAME_CROSS_ID;
+    cross_spec.width = 16;
+    cross_spec.height = 16;
+    cross_spec.u.sprite.scene_id = 77;
+    cross = UITree_Push(tree, root, &cross_spec);
+    entity_overlay = UITree_TestPushXy(
+        tree, root, UIELEM_BUILTIN_ENTITY_OVERLAY, FRAME_ENTITY_OVERLAY_ID,
+        0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    after = UITree_TestPushXy(tree, root, UIELEM_RS_RECT, 8002, 0, 0, 8, 8);
+    TEST_ASSERT(
+        root >= 0 && before >= 0 && cross >= 0 && entity_overlay >= 0 && after >= 0,
+        "no-world retained overlay fixture");
+
+    UITree_EmitBufferInit(&buf);
+    UITree_EmitWalk(tree, &host, &buf, -1);
+    entity_desc = emit_find_overlay_source(&buf, RETAINED_OVERLAY_ENTITY);
+    canvas_desc = emit_find_overlay_source(&buf, RETAINED_OVERLAY_CANVAS);
+    cross_desc = emit_find(&buf, cross) ? (int)(emit_find(&buf, cross) - buf.cmds) : -1;
+    TEST_ASSERT(entity_desc < 0, "empty no-world entity source is not published");
+    TEST_ASSERT(
+        canvas_desc >= 0 && cross_desc >= 0 && canvas_desc < cross_desc,
+        "standing canvas chrome remains below pointer feedback");
+
+    state.phase = 1;
+    TEST_ASSERT(
+        UITree_EmitRefreshVolatile(tree, &host, &buf),
+        "no-world entity source can become nonempty in the retained list");
+    entity_desc = emit_find_overlay_source(&buf, RETAINED_OVERLAY_ENTITY);
+    canvas_desc = emit_find_overlay_source(&buf, RETAINED_OVERLAY_CANVAS);
+    cross_desc = emit_find(&buf, cross) ? (int)(emit_find(&buf, cross) - buf.cmds) : -1;
+    TEST_ASSERT(
+        canvas_desc >= 0 && cross_desc >= 0 && entity_desc >= 0 &&
+            canvas_desc < cross_desc && cross_desc < entity_desc,
+        "retained insertion uses the entity source's final post-rotation slot");
+
+    UITree_EmitBufferInit(&fresh);
+    UITree_EmitWalk(tree, &host, &fresh, -1);
+    TEST_ASSERT(
+        fresh.count == buf.count &&
+            (fresh.count == 0 ||
+             memcmp(
+                 fresh.cmds,
+                 buf.cmds,
+                 (size_t)fresh.count * sizeof(*fresh.cmds)) == 0),
+        "no-world retained insertion is byte-identical to a fresh full walk");
+
+    UITree_EmitBufferFree(&fresh);
+    UITree_EmitBufferFree(&buf);
+    UITree_Free(tree);
+}
+
+static void
+test_zero_mask_skin_explicitly_unmasks(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT];
+    struct UITreeEmitBuffer buf;
+    struct UITreeHost host;
+    struct TestHostState host_state;
+    struct FrameNodes frame;
+    struct UITreeEmitDesc const* compass;
+    struct UITreeEmitDesc const* minimap_desc;
+    int32_t shell;
+    int32_t minimap;
+
+    TEST_ASSERT(tree != NULL, "UITree_New");
+    tree->mask_keep_opaque = 1;
+    shell = UITree_TestPushXy(
+        tree, -1, UIELEM_RS_LAYER, SHELL_ROOT_ID, 0, 0,
+        UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    frame = push_cache_frame(tree, shell, 0);
+    minimap = UITree_TestPushXy(
+        tree, frame.root, UIELEM_BUILTIN_MINIMAP, FRAME_MINIMAP_ID, 600, 20, 120, 120);
+    TEST_ASSERT(shell >= 0 && minimap >= 0, "skinned minimap fixture");
+    tree->components[minimap].u.minimap.mask_scene_id = NATIVE_MINIMAP_MASK;
+    tree->components[minimap].u.minimap.mask_atlas_index = 5;
+
+    memset(slots, 0, sizeof(slots));
+    slots[UITREE_FRAME_SLOT_COMPASS].all.placed = 1;
+    slots[UITREE_FRAME_SLOT_COMPASS].all.x = PLUGIN_COMPASS_X;
+    slots[UITREE_FRAME_SLOT_COMPASS].all.y = PLUGIN_COMPASS_Y;
+    slots[UITREE_FRAME_SLOT_COMPASS].all.w = PLUGIN_COMPASS_W;
+    slots[UITREE_FRAME_SLOT_COMPASS].all.h = PLUGIN_COMPASS_H;
+    slots[UITREE_FRAME_SLOT_COMPASS].skin.placed = 1;
+    slots[UITREE_FRAME_SLOT_COMPASS].skin.art_scene_id = PLUGIN_COMPASS_ART;
+    slots[UITREE_FRAME_SLOT_COMPASS].skin.mask_scene_id = 0;
+    slots[UITREE_FRAME_SLOT_MINIMAP].all.placed = 1;
+    slots[UITREE_FRAME_SLOT_MINIMAP].all.x = 600;
+    slots[UITREE_FRAME_SLOT_MINIMAP].all.y = 20;
+    slots[UITREE_FRAME_SLOT_MINIMAP].all.w = 120;
+    slots[UITREE_FRAME_SLOT_MINIMAP].all.h = 120;
+    slots[UITREE_FRAME_SLOT_MINIMAP].skin.placed = 1;
+    slots[UITREE_FRAME_SLOT_MINIMAP].skin.mask_scene_id = 0;
+    UITree_FrameApply(tree, slots, FRAME_GROUP);
+
+    UITree_TestHostInit(&host, &host_state);
+    host_state.minimap_scene_id = 501;
+    UITree_EmitBufferInit(&buf);
+    UITree_EmitWalk(tree, &host, &buf, -1);
+    compass = emit_find(&buf, frame.compass);
+    minimap_desc = emit_find(&buf, minimap);
+    TEST_ASSERT(compass != NULL && minimap_desc != NULL, "zero-mask frame surfaces emit");
+    if( compass )
+        TEST_ASSERT(
+            compass->scene_id == PLUGIN_COMPASS_ART && compass->mask_scene_id == 0 &&
+                compass->mask_atlas_index == 0 && !compass->mask_keep_opaque,
+            "a placed zero compass mask disables the native mask and its polarity");
+    if( minimap_desc )
+        TEST_ASSERT(
+            minimap_desc->scene_id == host_state.minimap_scene_id &&
+                minimap_desc->mask_scene_id == 0 && minimap_desc->mask_atlas_index == 0 &&
+                !minimap_desc->mask_keep_opaque,
+            "a placed zero minimap mask disables the native mask and its polarity");
+    TEST_ASSERT(
+        tree->components[frame.compass].u.sprite.mask_scene_id == NATIVE_COMPASS_MASK &&
+            tree->components[frame.compass].u.sprite.mask_atlas_index == 4 &&
+            tree->components[minimap].u.minimap.mask_scene_id == NATIVE_MINIMAP_MASK &&
+            tree->components[minimap].u.minimap.mask_atlas_index == 5,
+        "explicit unmasking leaves both cache-authored masks native");
+
+    UITree_FrameRelease(tree);
+    buf.count = 0;
+    UITree_EmitWalk(tree, &host, &buf, -1);
+    compass = emit_find(&buf, frame.compass);
+    minimap_desc = emit_find(&buf, minimap);
+    TEST_ASSERT(
+        compass && compass->mask_scene_id == NATIVE_COMPASS_MASK &&
+            compass->mask_atlas_index == 4 && compass->mask_keep_opaque == 1 && minimap_desc &&
+            minimap_desc->mask_scene_id == NATIVE_MINIMAP_MASK &&
+            minimap_desc->mask_atlas_index == 5 && minimap_desc->mask_keep_opaque == 1,
+        "release restores the native compass and minimap masks and polarity");
+
+    UITree_EmitBufferFree(&buf);
+    UITree_Free(tree);
+}
+
+static void
+test_frame_visibility_invalidates_retention_and_hover(void)
+{
+    struct UITree* tree = UITree_New(4);
+    struct UITreeFrameSlotRect slots[UITREE_FRAME_SLOT_COUNT];
+    struct UITreeEmitBuffer buf;
+    int32_t shell;
+    int32_t root;
+    int32_t chrome;
+    uint32_t hidden_dirty;
+    int hovered;
+
+    TEST_ASSERT(tree != NULL, "UITree_New");
+    shell = UITree_TestPushXy(
+        tree, -1, UIELEM_RS_LAYER, SHELL_ROOT_ID, 0, 0,
+        UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    root = UITree_TestPushXy(
+        tree, shell, UIELEM_RS_LAYER, FRAME_ROOT_ID, 0, 0,
+        UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    chrome = UITree_TestPushXy(
+        tree, root, UIELEM_RS_RECT, FRAME_CHROME_ID, 0, 0, 24, 24);
+    TEST_ASSERT(shell >= 0 && root >= 0 && chrome >= 0, "frame visibility fixture");
+    tree->components[chrome].behavior.over_color = 0x00FF00;
+
+    UITree_EmitBufferInit(&buf);
+    UITree_EmitWalk(tree, NULL, &buf, -1);
+    TEST_ASSERT(emit_find(&buf, chrome) != NULL, "native chrome starts reached and visible");
+
+    memset(slots, 0, sizeof(slots));
+    UITree_FrameApply(tree, slots, FRAME_GROUP);
+    buf.count = 0;
+    UITree_EmitWalk(tree, NULL, &buf, -1);
+    TEST_ASSERT(tree->components[chrome].frame_hidden, "frame claim hides native chrome");
+    TEST_ASSERT(emit_find(&buf, chrome) == NULL, "hidden frame chrome is not emitted");
+    TEST_ASSERT(
+        (uint32_t)chrome < tree->emit_visited_cap && !tree->emit_visited[chrome],
+        "the retained reachability map records hidden chrome as unreachable");
+    hovered = UITree_FindHoveredComponentIdForRegion(
+        tree, NULL, -1, 5, 5, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    TEST_ASSERT(hovered != FRAME_CHROME_ID, "hidden frame chrome cannot win hover routing");
+
+    hidden_dirty = tree->dirty_gen;
+    UITree_FrameRelease(tree);
+    TEST_ASSERT(!tree->components[chrome].frame_hidden, "frame release reveals native chrome");
+    TEST_ASSERT(
+        tree->dirty_gen > hidden_dirty,
+        "hidden-to-visible frame chrome invalidates a retained emit list");
+    UITree_TestResolve(tree);
+    hovered = UITree_FindHoveredComponentIdForRegion(
+        tree, NULL, -1, 5, 5, 0, 0, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    TEST_ASSERT(hovered == FRAME_CHROME_ID, "released native chrome participates in hover again");
+
+    UITree_EmitBufferFree(&buf);
+    UITree_Free(tree);
+}
+
+static void
+test_large_ancestor_remains_effectively_stretched_after_shrink(void)
+{
+    struct UITree* tree = UITree_New(8);
+    struct FrameNodes frame;
+    int32_t shell;
+    int const native_x = 37;
+    int const native_y = 23;
+    int const native_large_w = UITREE_LAYOUT_ROOT_W + 173;
+    int const native_large_h = UITREE_LAYOUT_ROOT_H + 91;
+    int const native_small_w = 320;
+    int const native_small_h = 240;
+
+    TEST_ASSERT(tree != NULL, "UITree_New");
+    shell = UITree_TestPushXy(
+        tree,
+        -1,
+        UIELEM_RS_LAYER,
+        SHELL_ROOT_ID,
+        native_x,
+        native_y,
+        native_large_w,
+        native_large_h);
+    TEST_ASSERT(shell >= 0, "large frame ancestor");
+    frame = push_cache_frame(tree, shell, 0);
+    declare_plugin_frame(tree);
+    UITree_TestResolve(tree);
+    TEST_ASSERT(
+        raw_box_is(tree, shell, native_x, native_y, native_large_w, native_large_h) &&
+            effective_box_is(
+                tree, shell, native_x, native_y, native_large_w, native_large_h),
+        "an initially oversized ancestor keeps its native effective extent");
+
+    TEST_ASSERT(
+        UITree_ApplySizeModes(tree, SHELL_ROOT_ID, native_small_w, native_small_h, 0, 0),
+        "CS2 later shrinks the frame ancestor");
+    UITree_FrameReassert(tree);
+    UITree_TestResolve(tree);
+    TEST_ASSERT(
+        raw_box_is(tree, shell, native_x, native_y, native_small_w, native_small_h) &&
+            raw_modes_are(tree, shell, -1, -1, 0, 0),
+        "the shrunken ancestor remains native beneath the frame");
+    TEST_ASSERT(
+        effective_box_is(
+            tree,
+            shell,
+            native_x,
+            native_y,
+            UITREE_LAYOUT_ROOT_W,
+            UITREE_LAYOUT_ROOT_H),
+        "the active frame keeps a later-shrunken ancestor canvas-sized");
+    TEST_ASSERT(
+        effective_box_is(
+            tree, frame.compass,
+            PLUGIN_COMPASS_X, PLUGIN_COMPASS_Y, PLUGIN_COMPASS_W, PLUGIN_COMPASS_H),
+        "canvas-coordinate plugin placement ignores the native ancestor offset");
+
+    UITree_FrameRelease(tree);
+    UITree_TestResolve(tree);
+    TEST_ASSERT(
+        effective_box_is(
+            tree, shell, native_x, native_y, native_small_w, native_small_h),
+        "release reveals the ancestor's later native shrink");
+
+    UITree_Free(tree);
+}
+
+static void
+test_release_ignores_same_id_recycled_incarnations(void)
+{
+    struct UITree* tree = UITree_New(4);
+    int32_t shell;
+    int32_t old_root;
+    int32_t old_compass;
+    int32_t new_root;
+    int32_t new_compass;
+    uint32_t old_incarnation;
+    struct UITreeEmitDesc native_desc;
+
+    TEST_ASSERT(tree != NULL, "UITree_New");
+    shell = UITree_TestPushXy(
+        tree, -1, UIELEM_RS_LAYER, SHELL_ROOT_ID, 0, 0,
+        UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    old_root = UITree_TestPushXy(
+        tree, shell, UIELEM_RS_LAYER, FRAME_ROOT_ID, 0, 0,
+        UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    old_compass = push_compass(
+        tree,
+        old_root,
+        NATIVE_COMPASS_X,
+        NATIVE_COMPASS_Y,
+        NATIVE_COMPASS_W,
+        NATIVE_COMPASS_H,
+        NATIVE_COMPASS_ART,
+        NATIVE_COMPASS_MASK);
+    TEST_ASSERT(shell >= 0 && old_root >= 0 && old_compass >= 0, "recycle fixture");
+    old_incarnation = tree->components[old_compass].incarnation;
+    declare_plugin_frame(tree);
+
+    UITree_ReclaimInterfaceGroup(tree, FRAME_GROUP);
+    new_root = UITree_TestPushXy(
+        tree, shell, UIELEM_RS_LAYER, FRAME_ROOT_ID, 0, 0,
+        UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H);
+    new_compass = push_compass(tree, new_root, 512, 27, 31, 32, 901, 902);
+    TEST_ASSERT(
+        new_root == old_root && new_compass == old_compass,
+        "free-list rebuild reuses the exact former frame indices");
+    TEST_ASSERT(
+        tree->components[new_compass].component_id == FRAME_COMPASS_ID &&
+            tree->components[new_compass].incarnation != old_incarnation,
+        "replacement keeps the same semantic id but has a new incarnation");
+
+    /* Do not reassert: the standing declaration still names the reclaimed
+     * incarnation. Effective geometry and skin lookups must reject that stale
+     * entry even though both its array index and semantic component id collide. */
+    UITree_TestResolve(tree);
+    memset(&native_desc, 0, sizeof(native_desc));
+    TEST_ASSERT(
+        effective_box_is(tree, new_compass, 512, 27, 31, 32),
+        "a recycled same-id node does not inherit stale effective geometry");
+    TEST_ASSERT(
+        UITree_EmitFill(
+            tree, NULL, &tree->components[new_compass], new_compass, -1, &native_desc) &&
+            native_desc.scene_id == 901 && native_desc.mask_scene_id == 902,
+        "a recycled same-id node does not inherit stale effective skin");
+
+    /* Release the declaration without reasserting it onto the replacement.
+     * Index + component id both collide; only incarnation can distinguish the
+     * new native node from the one whose frame layer is being dropped. */
+    UITree_FrameRelease(tree);
+    TEST_ASSERT(
+        raw_box_is(tree, new_compass, 512, 27, 31, 32) &&
+            tree->components[new_compass].u.sprite.scene_id == 901 &&
+            tree->components[new_compass].u.sprite.mask_scene_id == 902,
+        "release never restores stale geometry or skin onto a recycled same-id node");
+
+    UITree_Free(tree);
+}
+
 void
 test_frame_replacement(void)
 {
@@ -544,4 +1134,10 @@ test_frame_replacement(void)
 
     test_frame_keeps_native_state_beneath_effective_layout();
     test_frame_reconciles_rebuilt_nodes_before_emit();
+    test_retained_overlay_refresh_preserves_source();
+    test_retained_empty_entity_keeps_final_no_world_order();
+    test_zero_mask_skin_explicitly_unmasks();
+    test_frame_visibility_invalidates_retention_and_hover();
+    test_large_ancestor_remains_effectively_stretched_after_shrink();
+    test_release_ignores_same_id_recycled_incarnations();
 }

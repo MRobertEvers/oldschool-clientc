@@ -192,7 +192,7 @@ struct ToriRS_PluginEngine
      *  this frame have one" answer. */
     int (*layout_slot)(void* user, int slot, int member, int x, int y, int w, int h);
     /** Skin one slot: the picture it draws from and the alpha cut-out it is
-     *  clipped to, as plugin image slots (-1 for "leave it alone").
+     *  clipped to, as plugin image slots (art -1 keeps native; mask -1 clears).
      *  @see ToriRS_PluginApi::layout_slot_skin. */
     int (*layout_slot_skin)(void* user, int slot, int art, int mask);
     /** Six plugin image slots in UITreeScrollbarSkinPiece order, or NULL to

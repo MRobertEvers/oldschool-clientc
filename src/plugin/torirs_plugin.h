@@ -1629,12 +1629,16 @@ struct ToriRS_PluginApi
      * 2004 stones around an OldSchool inventory, and the layout that replaced
      * the one has no way to replace the other without this.
      *
-     * `art` replaces the surface's own picture; -1 keeps the lane's. `mask` is
-     * an alpha cut-out, and it is what makes a floating frame possible at all:
+     * `art` replaces COMPASS art; it must be -1 for MINIMAP, whose picture is
+     * the live baked world. -1 keeps the lane's compass art. `mask` is an alpha
+     * cut-out, and it is what makes a floating frame possible at all:
      * the OldSchool resizable map surround is a RING with the scene showing
      * through everywhere it is not, so an unmasked square of minimap draws its
      * corners over the world outside the ring. -1 is no mask, which is right
      * for a housing that is opaque around its hole.
+     *
+     * Plugin masks use a stable polarity across cache eras: transparent pixels
+     * are the window and opaque pixels are clipped away.
      *
      * Both are image handles from image_load or image_compose, and an image
      * still crossing the IO queue is refused rather than remembered -- the

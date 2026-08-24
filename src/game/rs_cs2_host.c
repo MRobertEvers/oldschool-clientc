@@ -1925,15 +1925,36 @@ RS_CS2Host_Tick(struct RS_CS2Host* host)
  * ========================================================================= */
 
 static int
-rs_cs2_inv_size(
+exec_inv_size(
     struct RS_CS2Host* host,
+    struct CS2VM2_Thread* thread,
     int inv_id)
 {
+    struct CacheProvider* provider;
+    int size = 0;
+
     assert(host);
-    assert(host->invs);
-    if( inv_id < 0 )
-        return 0;
-    return InvManager_Size(host->invs, inv_id);
+    assert(thread);
+
+    provider = rs_cs2_provider(host);
+    if( inv_id >= 0 && provider && CacheProvider_InvtypeGet(provider, inv_id, &size) )
+        return CS2VM2_PushInt(thread, size);
+
+    /* INV_SIZE reads the immutable inventory type, not the live container. A
+     * script can ask before UPDATE_INV_FULL has created that container (the
+     * equipment and inventory onLoads both do), so a runtime-state miss says
+     * nothing about the answer. Await the cache record once; if this revision
+     * has no such record/provider, complete the retry with the opcode default
+     * instead of yielding forever. */
+    if( inv_id >= 0 )
+    {
+        struct CS2VM_HostRequest req = { 0 };
+        req.kind = CS2VM_HOST_REQUEST_INVS_GET_SIZE;
+        req.u.invs_get_size.inv_id = inv_id;
+        if( !rs_cs2_await_spent(thread, req.kind, inv_id, -1) )
+            return rs_cs2_yield_load(host, thread, &req, inv_id, -1);
+    }
+    return CS2VM2_PushInt(thread, 0);
 }
 
 static int
@@ -7483,7 +7504,7 @@ rs_cs2_host_exec_dispatch(
         return exec_push_script(host, vm, request->u.push_script.script_id);
 
     case CS2VM_HOST_REQUEST_INVS_GET_SIZE:
-        return CS2VM2_PushInt(vm, rs_cs2_inv_size(host, request->u.invs_get_size.inv_id));
+        return exec_inv_size(host, vm, request->u.invs_get_size.inv_id);
 
     case CS2VM_HOST_REQUEST_INVS_GET_OBJ:
         return CS2VM2_PushInt(

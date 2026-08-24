@@ -78,6 +78,13 @@ struct FakeEngine
     int mesh_vertices;
     int mesh_faces;
     int mesh_clears;
+    int layout_begins;
+    int layout_ends;
+    int layout_sets;
+    int layout_owned;
+    int layout_canvas;
+    int layout_fixed_w;
+    int layout_fixed_h;
 };
 
 static struct FakeEngine g_engine;
@@ -452,12 +459,14 @@ fake_screenshot(
 static void
 fake_layout_begin(void* u)
 {
-    (void)u;
+    struct FakeEngine* e = u;
+    e->layout_begins++;
 }
 static void
 fake_layout_end(void* u)
 {
-    (void)u;
+    struct FakeEngine* e = u;
+    e->layout_ends++;
 }
 static int
 fake_model_publish(void* u, int model, void const* data, int size)
@@ -691,11 +700,12 @@ fake_minimap_rect(void* u, int* x, int* y, int* w, int* h)
 static void
 fake_layout_set(void* u, int owned, int canvas, int fixed_w, int fixed_h)
 {
-    (void)u;
-    (void)owned;
-    (void)canvas;
-    (void)fixed_w;
-    (void)fixed_h;
+    struct FakeEngine* e = u;
+    e->layout_sets++;
+    e->layout_owned = owned;
+    e->layout_canvas = canvas;
+    e->layout_fixed_w = fixed_w;
+    e->layout_fixed_h = fixed_h;
 }
 static int
 fake_layout_slot(void* u, int slot, int member, int x, int y, int w, int h)
@@ -1541,6 +1551,60 @@ static struct ToriRS_PluginDef const ESSENTIAL = {
 static struct ToriRS_PluginDef const TITLELESS = {
     .name = "ground-items_2",
     .version = "1",
+};
+
+/* Releasing a layout from inside its declaration abandons that transaction.
+ * Reclaiming it immediately is deliberately the hard case: comparing only the
+ * owner before and after dispatch mistakes the new claim for the old one and
+ * commits the half-built declaration. */
+static struct ToriRS_PluginApi const* g_layout_api;
+static int g_layout_initial_claim_ok;
+static int g_layout_reclaim_ok;
+static int g_layout_events;
+static int g_layout_width;
+static int g_layout_height;
+static int g_layout_canvas;
+
+static enum ToriRS_PluginVerdict
+layout_reclaimer_start(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
+{
+    (void)ev;
+    (void)ud;
+    g_layout_initial_claim_ok =
+        g_layout_api->layout_claim(ctx, TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW, 0, 0);
+    return TORIRS_PLUGIN_PASS;
+}
+
+static enum ToriRS_PluginVerdict
+layout_reclaimer_layout(struct ToriRS_PluginCtx* ctx, void* ev, void* ud)
+{
+    struct ToriRS_PluginEvLayout const* layout = ev;
+    (void)ud;
+    g_layout_events++;
+    g_layout_width = layout->width;
+    g_layout_height = layout->height;
+    g_layout_canvas = layout->canvas;
+    if( g_layout_events == 1 )
+    {
+        g_layout_api->layout_release(ctx);
+        g_layout_reclaim_ok =
+            g_layout_api->layout_claim(ctx, TORIRS_PLUGIN_CANVAS_FIXED, 765, 503);
+    }
+    return TORIRS_PLUGIN_PASS;
+}
+
+static void
+layout_reclaimer_init(struct ToriRS_PluginCtx* ctx, struct ToriRS_PluginApi const* api)
+{
+    g_layout_api = api;
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_START, layout_reclaimer_start, NULL);
+    api->subscribe(ctx, TORIRS_PLUGIN_EV_LAYOUT, layout_reclaimer_layout, NULL);
+}
+
+static struct ToriRS_PluginDef const LAYOUT_RECLAIMER = {
+    .name = "layout-reclaimer",
+    .version = "1",
+    .init = layout_reclaimer_init,
 };
 
 /* ------------------------------------------------------------------ tests */
@@ -2390,6 +2454,63 @@ main(void)
         }
 
         PluginHost_Free(hr);
+    }
+
+
+    /* ---- release and reclaim during EV_LAYOUT ----------------------------- */
+    {
+        struct ToriRS_PluginHost* hl = PluginHost_New(&engine);
+        int const l = PluginHost_Register(hl, &LAYOUT_RECLAIMER);
+
+        g_engine.layout_begins = 0;
+        g_engine.layout_ends = 0;
+        g_engine.layout_sets = 0;
+        g_engine.layout_owned = 0;
+        g_engine.layout_canvas = -1;
+        g_engine.layout_fixed_w = -1;
+        g_engine.layout_fixed_h = -1;
+        g_layout_initial_claim_ok = 0;
+        g_layout_reclaim_ok = 0;
+        g_layout_events = 0;
+        g_layout_width = 0;
+        g_layout_height = 0;
+        g_layout_canvas = -1;
+
+        PluginHost_Start(hl);
+        CHECK(g_layout_initial_claim_ok, "the test plugin claims the resizable frame at start");
+        CHECK(PluginHost_LayoutOwner(hl) == l, "the initial layout claim has an owner");
+        CHECK(
+            g_engine.layout_sets == 1 && g_engine.layout_owned == 1 &&
+                g_engine.layout_canvas == TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW,
+            "the initial claim is published to the engine");
+
+        PluginHost_Layout(hl, 1200, 800);
+        CHECK(g_layout_events == 1, "the initial claim receives its layout event");
+        CHECK(
+            g_layout_width == 1200 && g_layout_height == 800 &&
+                g_layout_canvas == TORIRS_PLUGIN_CANVAS_FOLLOW_WINDOW,
+            "the initial event uses the window canvas");
+        CHECK(g_layout_reclaim_ok, "the handler can release and reclaim its layout");
+        CHECK(g_engine.layout_begins == 1, "the abandoned declaration began once");
+        CHECK(g_engine.layout_ends == 0, "the abandoned declaration is not committed");
+        CHECK(PluginHost_LayoutOwner(hl) == l, "the replacement claim keeps the same owner");
+        CHECK(
+            g_engine.layout_sets == 3 && g_engine.layout_owned == 1 &&
+                g_engine.layout_canvas == TORIRS_PLUGIN_CANVAS_FIXED &&
+                g_engine.layout_fixed_w == 765 && g_engine.layout_fixed_h == 503,
+            "the replacement fixed-canvas claim is published after the release");
+
+        PluginHost_Layout(hl, 1200, 800);
+        CHECK(g_layout_events == 2, "the replacement claim receives a later layout event");
+        CHECK(
+            g_layout_width == 765 && g_layout_height == 503 &&
+                g_layout_canvas == TORIRS_PLUGIN_CANVAS_FIXED,
+            "the later event uses the replacement claim's fixed canvas");
+        CHECK(g_engine.layout_begins == 2, "the replacement declaration starts fresh");
+        CHECK(g_engine.layout_ends == 1, "the replacement declaration commits exactly once");
+        CHECK(PluginHost_LayoutOwner(hl) == l, "the replacement claim remains owned");
+
+        PluginHost_Free(hl);
     }
 
     PluginHost_Free(host);

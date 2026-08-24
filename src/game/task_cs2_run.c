@@ -75,6 +75,7 @@ enum TaskCS2YieldPlan
 {
     TASK_CS2_YIELD_NONE = 0,
     TASK_CS2_YIELD_SCRIPT,
+    TASK_CS2_YIELD_INVTYPE,
     TASK_CS2_YIELD_ENUM,
     TASK_CS2_YIELD_STRUCT,
     TASK_CS2_YIELD_OBJ,
@@ -724,6 +725,12 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
         task_cs2_plan_pushscript(self);
         break;
 
+    case CS2VM_HOST_REQUEST_INVS_GET_SIZE:
+        self->await_id = self->pending->u.invs_get_size.inv_id;
+        self->yield_plan =
+            self->await_id >= 0 ? TASK_CS2_YIELD_INVTYPE : TASK_CS2_YIELD_NONE;
+        break;
+
     case CS2VM_HOST_REQUEST_ENUM_LOOKUP:
     case CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT:
         task_cs2_plan_enum(self);
@@ -822,7 +829,6 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
         break;
 
     /* Sync-only: host never yields these for cache loads. Leave YIELD_NONE. */
-    case CS2VM_HOST_REQUEST_INVS_GET_SIZE:
     case CS2VM_HOST_REQUEST_INVS_GET_OBJ:
     case CS2VM_HOST_REQUEST_INVS_GET_NUM:
     case CS2VM_HOST_REQUEST_INVS_GET_TOTAL:
@@ -1216,6 +1222,10 @@ Task_CS2Run_Run(
         else if( self->yield_plan == TASK_CS2_YIELD_SCRIPT )
         {
             PT_TASK_AWAITSELF_IF(CreateTask_ClientScriptLoad(self->provider, self->await_id));
+        }
+        else if( self->yield_plan == TASK_CS2_YIELD_INVTYPE )
+        {
+            PT_TASK_AWAITSELF_IF(CreateTask_InvtypeLoad(self->provider, self->await_id));
         }
         else if( self->yield_plan == TASK_CS2_YIELD_ENUM )
         {

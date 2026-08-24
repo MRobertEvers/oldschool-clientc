@@ -177,7 +177,23 @@ layout_compute_node(
     int const old_h = pos->abs_h;
 
     if( UITree_FramePositionOverride(tree, (int32_t)i, &override) )
+    {
+        if( UITree_FramePositionOwned(tree, (int32_t)i) )
+        {
+            /* Slot declarations are in canvas coordinates, regardless of the
+             * cache nesting used to discover the semantic node. Treat the
+             * effective slot box as absolute rather than adding parent abs_*;
+             * the latter offsets deep roles whenever a native shell moves. */
+            pos->abs_x = override.x;
+            pos->abs_y = override.y;
+            pos->abs_w = override.width;
+            pos->abs_h = override.height;
+            pos->layout_resolved = 1;
+            return !was_resolved || pos->abs_x != old_x || pos->abs_y != old_y ||
+                   pos->abs_w != old_w || pos->abs_h != old_h;
+        }
         spec = &override;
+    }
 
     if( spec->kind == UIPOS_RELATIVE )
     {
