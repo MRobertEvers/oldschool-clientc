@@ -18,7 +18,7 @@
 // clang-format on
 
 static inline void
-ToriDraw_TriangleFlat(
+ToriDraw_TriangleFlatScanline(
     toripixel_t* RESTRICT pixel_buffer,
     int stride,
     int screen_width,
@@ -32,32 +32,44 @@ ToriDraw_TriangleFlat(
     int color,
     int alpha)
 {
-    if( TORIDRAW_SCANLINE_SELECTED() )
+    if( alpha == 0xFF )
     {
-        if( alpha == 0xFF )
-        {
-            raster_flat_screen_opaque_scanline_s8(
-                pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color);
-        }
-        else
-        {
-            raster_flat_screen_alpha_scanline_s8(
-                pixel_buffer,
-                stride,
-                screen_width,
-                screen_height,
-                x1,
-                x2,
-                x3,
-                y1,
-                y2,
-                y3,
-                color,
-                alpha);
-        }
-        return;
+        raster_flat_screen_opaque_scanline_s8(
+            pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color);
     }
+    else
+    {
+        raster_flat_screen_alpha_scanline_s8(
+            pixel_buffer,
+            stride,
+            screen_width,
+            screen_height,
+            x1,
+            x2,
+            x3,
+            y1,
+            y2,
+            y3,
+            color,
+            alpha);
+    }
+}
 
+static inline void
+ToriDraw_TriangleFlatBranching(
+    toripixel_t* RESTRICT pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    int x1,
+    int x2,
+    int x3,
+    int y1,
+    int y2,
+    int y3,
+    int color,
+    int alpha)
+{
     if( alpha == 0xFF )
     {
         raster_flat_screen_opaque_branching_s4(
@@ -81,11 +93,37 @@ ToriDraw_TriangleFlat(
     }
 }
 
+static inline void
+ToriDraw_TriangleFlat(
+    toripixel_t* RESTRICT pixel_buffer,
+    int stride,
+    int screen_width,
+    int screen_height,
+    int x1,
+    int x2,
+    int x3,
+    int y1,
+    int y2,
+    int y3,
+    int color,
+    int alpha)
+{
+    if( TORIDRAW_SCANLINE_SELECTED() )
+    {
+        ToriDraw_TriangleFlatScanline(
+            pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color, alpha);
+        return;
+    }
+
+    ToriDraw_TriangleFlatBranching(
+        pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color, alpha);
+}
+
 /**
  * This requires vertices to be wound counterclockwise.
  */
 static inline void
-ToriDraw_TriangleFaceFlatNearClip(
+ToriDraw_TriangleFaceFlatNearClipImpl(
     toripixel_t* RESTRICT pixel_buffer,
     int face,
     faceint_t* RESTRICT face_indices_a,
@@ -105,7 +143,8 @@ ToriDraw_TriangleFaceFlatNearClip(
     int offset_y,
     int stride,
     int screen_width,
-    int screen_height)
+    int screen_height,
+    bool scanline)
 {
     int clipped_count = 0;
     int a = face_indices_a[face];
@@ -266,8 +305,12 @@ ToriDraw_TriangleFaceFlatNearClip(
     xc += offset_x;
     yc += offset_y;
 
-    ToriDraw_TriangleFlat(
-        pixel_buffer, stride, screen_width, screen_height, xa, xb, xc, ya, yb, yc, color, alpha);
+    if( scanline )
+        ToriDraw_TriangleFlatScanline(
+            pixel_buffer, stride, screen_width, screen_height, xa, xb, xc, ya, yb, yc, color, alpha);
+    else
+        ToriDraw_TriangleFlatBranching(
+            pixel_buffer, stride, screen_width, screen_height, xa, xb, xc, ya, yb, yc, color, alpha);
 
     if( clipped_count != 4 )
         return;
@@ -278,12 +321,16 @@ ToriDraw_TriangleFaceFlatNearClip(
     xb += offset_x;
     yb += offset_y;
 
-    ToriDraw_TriangleFlat(
-        pixel_buffer, stride, screen_width, screen_height, xa, xc, xb, ya, yc, yb, color, alpha);
+    if( scanline )
+        ToriDraw_TriangleFlatScanline(
+            pixel_buffer, stride, screen_width, screen_height, xa, xc, xb, ya, yc, yb, color, alpha);
+    else
+        ToriDraw_TriangleFlatBranching(
+            pixel_buffer, stride, screen_width, screen_height, xa, xc, xb, ya, yc, yb, color, alpha);
 }
 
 static inline void
-ToriDraw_TriangleFaceFlat(
+ToriDraw_TriangleFaceFlatImpl(
     toripixel_t* RESTRICT pixel_buffer,
     int face,
     faceint_t* RESTRICT face_indices_a,
@@ -305,7 +352,8 @@ ToriDraw_TriangleFaceFlat(
     int screen_width,
     int screen_height,
     bool allow_near_clip,
-    bool near_clipped)
+    bool near_clipped,
+    bool scanline)
 {
     int x1 = screen_vertices_x[face_indices_a[face]];
     int x2 = screen_vertices_x[face_indices_b[face]];
@@ -318,7 +366,7 @@ ToriDraw_TriangleFaceFlat(
     {
         if( !allow_near_clip || !orthographic_vertices_x )
             return;
-        ToriDraw_TriangleFaceFlatNearClip(
+        ToriDraw_TriangleFaceFlatNearClipImpl(
             pixel_buffer,
             face,
             face_indices_a,
@@ -338,7 +386,8 @@ ToriDraw_TriangleFaceFlat(
             offset_y,
             stride,
             screen_width,
-            screen_height);
+            screen_height,
+            scanline);
         return;
     }
 
@@ -358,8 +407,55 @@ ToriDraw_TriangleFaceFlat(
 
     assert(color >= 0 && color < 65536);
 
-    ToriDraw_TriangleFlat(
-        pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color, alpha);
+    if( scanline )
+        ToriDraw_TriangleFlatScanline(
+            pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color, alpha);
+    else
+        ToriDraw_TriangleFlatBranching(
+            pixel_buffer, stride, screen_width, screen_height, x1, x2, x3, y1, y2, y3, color, alpha);
 }
+
+#define TORIDRAW_TRIANGLE_FACE_FLAT_PARAMETERS                                                   \
+    toripixel_t* RESTRICT pixel_buffer, int face, faceint_t* RESTRICT face_indices_a,             \
+        faceint_t* RESTRICT face_indices_b, faceint_t* RESTRICT face_indices_c,                   \
+        int* RESTRICT screen_vertices_x, int* RESTRICT screen_vertices_y,                         \
+        int* RESTRICT screen_vertices_z, int* RESTRICT orthographic_vertices_x,                   \
+        int* RESTRICT orthographic_vertices_y, int* RESTRICT orthographic_vertices_z,             \
+        hsl16_t* RESTRICT colors, alphaint_t* RESTRICT face_alphas_nullable, int near_plane_z,     \
+        int camera_cot16, int offset_x, int offset_y, int stride, int screen_width,                \
+        int screen_height, bool allow_near_clip, bool near_clipped
+
+#define TORIDRAW_TRIANGLE_FACE_FLAT_ARGUMENTS                                                     \
+    pixel_buffer, face, face_indices_a, face_indices_b, face_indices_c, screen_vertices_x,         \
+        screen_vertices_y, screen_vertices_z, orthographic_vertices_x, orthographic_vertices_y,   \
+        orthographic_vertices_z, colors, face_alphas_nullable, near_plane_z, camera_cot16,        \
+        offset_x, offset_y, stride, screen_width, screen_height, allow_near_clip, near_clipped
+
+static inline void
+ToriDraw_TriangleFaceFlatBranching(TORIDRAW_TRIANGLE_FACE_FLAT_PARAMETERS)
+{
+    ToriDraw_TriangleFaceFlatImpl(TORIDRAW_TRIANGLE_FACE_FLAT_ARGUMENTS, false);
+}
+
+static inline void
+ToriDraw_TriangleFaceFlatScanline(TORIDRAW_TRIANGLE_FACE_FLAT_PARAMETERS)
+{
+    ToriDraw_TriangleFaceFlatImpl(TORIDRAW_TRIANGLE_FACE_FLAT_ARGUMENTS, true);
+}
+
+static inline void
+ToriDraw_TriangleFaceFlat(TORIDRAW_TRIANGLE_FACE_FLAT_PARAMETERS)
+{
+    if( TORIDRAW_SCANLINE_SELECTED() )
+    {
+        ToriDraw_TriangleFaceFlatScanline(TORIDRAW_TRIANGLE_FACE_FLAT_ARGUMENTS);
+        return;
+    }
+
+    ToriDraw_TriangleFaceFlatBranching(TORIDRAW_TRIANGLE_FACE_FLAT_ARGUMENTS);
+}
+
+#undef TORIDRAW_TRIANGLE_FACE_FLAT_ARGUMENTS
+#undef TORIDRAW_TRIANGLE_FACE_FLAT_PARAMETERS
 
 #endif

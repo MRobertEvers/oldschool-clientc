@@ -13,7 +13,18 @@
 #include <assert.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
+
+#define TEST_CHECK(cond)                                                                           \
+    do                                                                                             \
+    {                                                                                              \
+        if( !(cond) )                                                                              \
+        {                                                                                          \
+            fprintf(stderr, "FAIL: %s (%s:%d)\n", #cond, __FILE__, __LINE__);                     \
+            abort();                                                                               \
+        }                                                                                          \
+    } while( 0 )
 
 /* Test RSA keypair (small but valid): the client encrypts with (e, n); the
  * test does not decrypt, it only checks the handshake byte stream is
@@ -46,7 +57,7 @@ run_login(int fragment_bytes, int response_byte, struct LoginProto** out_lp)
     struct rsa rsa;
     struct Isaac* rin = isaac_new(NULL, 0);
     struct Isaac* rout = isaac_new(NULL, 0);
-    assert(rsa_init(&rsa, TEST_RSA_E, TEST_RSA_N) == 0);
+    TEST_CHECK(rsa_init(&rsa, TEST_RSA_E, TEST_RSA_N) == 0);
 
     struct LoginProto* lp =
         loginproto_new(rin, rout, &rsa, GameProtoRev_LC245_2(), "testuser", "testpass");
@@ -121,7 +132,7 @@ static void
 test_login_success(void)
 {
     struct LoginProto* lp = NULL;
-    assert(run_login(17, 2, &lp)); /* whole hello at once, response 2 */
+    TEST_CHECK(run_login(17, 2, &lp)); /* whole hello at once, response 2 */
     assert(lp && lp->state == LOGINPROTO_SUCCESS);
     /* Outbound connect + credentials must have been produced (seed set). */
     assert(lp->seed[0] == 0x11111111 && lp->seed[1] == 0x22222222);
@@ -136,7 +147,7 @@ test_login_fragmented(void)
 {
     struct LoginProto* lp = NULL;
     /* One byte at a time, response 15 = reconnect handoff (no tail). */
-    assert(run_login(1, 15, &lp));
+    TEST_CHECK(run_login(1, 15, &lp));
     assert(lp && lp->state == LOGINPROTO_SUCCESS);
     loginproto_free(lp);
     printf("ok - login success, 1-byte-fragmented delivery (response 15)\n");
@@ -146,7 +157,7 @@ static void
 test_login_rejected(void)
 {
     struct LoginProto* lp = NULL;
-    assert(!run_login(17, 3, &lp)); /* response 3 = bad user/pass */
+    TEST_CHECK(!run_login(17, 3, &lp)); /* response 3 = bad user/pass */
     assert(lp == NULL);
     printf("ok - login rejected (response 3)\n");
 }
@@ -256,7 +267,7 @@ test_osrs239_partial_empty_slot(void)
 
     memset(&packet, 0, sizeof(packet));
     packet.packet_type = PKT_NAME_UPDATE_INV_PARTIAL;
-    assert(rev->parse(
+    TEST_CHECK(rev->parse(
         rev, PKT_NAME_UPDATE_INV_PARTIAL, body, sizeof(body), &packet) == 1);
     assert(packet._update_inv_partial.component_id == -1);
     assert(packet._update_inv_partial.inv_id == 93);
@@ -280,7 +291,7 @@ test_osrs239_partial_empty_slot(void)
             empty_body[6 + i * 3] = (uint8_t)i;
         memset(&packet, 0, sizeof(packet));
         packet.packet_type = PKT_NAME_UPDATE_INV_PARTIAL;
-        assert(rev->parse(
+        TEST_CHECK(rev->parse(
             rev, PKT_NAME_UPDATE_INV_PARTIAL, empty_body, sizeof(empty_body), &packet) == 1);
         assert(packet._update_inv_partial.count == 28);
         for( int i = 0; i < 28; i++ )
@@ -320,7 +331,7 @@ test_lc_inv_full_size_is_two_bytes(void)
     struct RevPacket packet;
 
     memset(&packet, 0, sizeof(packet));
-    assert(gameproto_parse(rev, PKT_NAME_UPDATE_INV_FULL, body, sizeof(body), &packet) == 1);
+    TEST_CHECK(gameproto_parse(rev, PKT_NAME_UPDATE_INV_FULL, body, sizeof(body), &packet) == 1);
     assert(packet._update_inv_full.component_id == 8847);
     assert(packet._update_inv_full.size == 3);
     assert(packet._update_inv_full.obj_ids[0] == 249);
@@ -346,7 +357,8 @@ test_lc_inv_partial_slot_is_smart(void)
     struct RevPacket packet;
 
     memset(&packet, 0, sizeof(packet));
-    assert(gameproto_parse(rev, PKT_NAME_UPDATE_INV_PARTIAL, body, sizeof(body), &packet) == 1);
+    TEST_CHECK(
+        gameproto_parse(rev, PKT_NAME_UPDATE_INV_PARTIAL, body, sizeof(body), &packet) == 1);
     assert(packet._update_inv_partial.component_id == 12);
     assert(packet._update_inv_partial.count == 2);
     assert(packet._update_inv_partial.entries[0].slot == 5);

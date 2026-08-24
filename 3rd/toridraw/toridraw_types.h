@@ -4,6 +4,7 @@
 #include "graphics/projection.h"
 #include "graphics/zdepth.h"
 #include "toridraw_intrusive_list.h"
+#include "toridraw_texture_mapping.h"
 
 #include <stdbool.h>
 #include <stdint.h>
@@ -252,10 +253,6 @@ enum ToriDraw_ModelKind
      *  takes a TORIDRAWMK_MODEL works unchanged — see ToriDraw_ModelAsFull. */
     TORIDRAWMK_MODEL_HD = 3,
 };
-
-/* Defined in graphics/raster/texture/texmap_common.h. Only ever held by pointer
- * here, so the model header does not pull in the raster layer. */
-struct ToriDraw_TexMapping;
 
 /**
  * A model that carries what the HD (procedural-material) render path needs, and
@@ -729,6 +726,7 @@ struct ToriDraw_Scene
     int anim_list_count;
     int anim_list_cap;
     bool anim_list_dirty;
+
 };
 
 #define TORIDRAW_CULL_VISIBLE 0

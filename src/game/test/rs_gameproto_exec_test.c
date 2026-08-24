@@ -112,7 +112,9 @@ main(void)
         event_spec.height = 27;
         event_behavior.click_mask = 6;
         event_spec.behavior = &event_behavior;
-        assert(UITree_Push(event_tree, -1, &event_spec) >= 0);
+        TEST_EXEC_ASSERT(
+            UITree_Push(event_tree, -1, &event_spec) >= 0,
+            "UITree_Push must install the event component");
         event_app->tree = event_tree;
 
         assert(App_IfEventsGetEffective(event_app, component) == 6);
@@ -270,7 +272,9 @@ main(void)
         assert((bit_pos + 7) / 8 == (int)sizeof(body));
 
         memset(&p, 0, sizeof(p));
-        assert(rev->parse(rev, PKT_NAME_REBUILD_REGION, body, sizeof(body), &p));
+        TEST_EXEC_ASSERT(
+            rev->parse(rev, PKT_NAME_REBUILD_REGION, body, sizeof(body), &p),
+            "REBUILD_REGION_V2 must parse");
         assert(p._map_rebuild.zonez == 0x0123);
         assert(p._map_rebuild.zonex == 0x0234);
         assert(p._map_rebuild.zones != NULL);
@@ -279,8 +283,9 @@ main(void)
         free(p._map_rebuild.zones);
 
         memset(&p, 0, sizeof(p));
-        assert(!rev->parse(
-            rev, PKT_NAME_REBUILD_REGION, body, (int)sizeof(body) - 1, &p));
+        TEST_EXEC_ASSERT(
+            !rev->parse(rev, PKT_NAME_REBUILD_REGION, body, (int)sizeof(body) - 1, &p),
+            "truncated REBUILD_REGION_V2 must be rejected");
         assert(p._map_rebuild.zones == NULL);
         printf("ok - REBUILD_REGION_V2 parsed and bounds checked\n");
     }
@@ -293,28 +298,38 @@ main(void)
 
         uint8_t partial[3] = { (uint8_t)(41 + 128), 55, (uint8_t)-1 };
         memset(&p, 0, sizeof(p));
-        assert(rev->parse(
-            rev, PKT_NAME_UPDATE_ZONE_PARTIAL_FOLLOWS, partial, (int)sizeof(partial), &p));
+        TEST_EXEC_ASSERT(
+            rev->parse(
+                rev,
+                PKT_NAME_UPDATE_ZONE_PARTIAL_FOLLOWS,
+                partial,
+                (int)sizeof(partial),
+                &p),
+            "UPDATE_ZONE_PARTIAL_FOLLOWS must parse");
         assert(p._update_zone_partial_follows.base_z == 41);
         assert(p._update_zone_partial_follows.base_x == 55);
         assert(p._update_zone_partial_follows.level == 1);
 
         uint8_t full[3] = { (uint8_t)(128 - 42), (uint8_t)-56, 2 };
         memset(&p, 0, sizeof(p));
-        assert(rev->parse(
-            rev, PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS, full, (int)sizeof(full), &p));
+        TEST_EXEC_ASSERT(
+            rev->parse(
+                rev, PKT_NAME_UPDATE_ZONE_FULL_FOLLOWS, full, (int)sizeof(full), &p),
+            "UPDATE_ZONE_FULL_FOLLOWS must parse");
         assert(p._update_zone_full_follows.base_z == 42);
         assert(p._update_zone_full_follows.base_x == 56);
         assert(p._update_zone_full_follows.level == 2);
 
         uint8_t enclosed[3] = { (uint8_t)-3, (uint8_t)(43 + 128), (uint8_t)(57 + 128) };
         memset(&p, 0, sizeof(p));
-        assert(rev->parse(
-            rev,
-            PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED,
-            enclosed,
-            (int)sizeof(enclosed),
-            &p));
+        TEST_EXEC_ASSERT(
+            rev->parse(
+                rev,
+                PKT_NAME_UPDATE_ZONE_PARTIAL_ENCLOSED,
+                enclosed,
+                (int)sizeof(enclosed),
+                &p),
+            "UPDATE_ZONE_PARTIAL_ENCLOSED must parse");
         assert(p._update_zone_enclosed.base_z == 43);
         assert(p._update_zone_enclosed.base_x == 57);
         assert(p._update_zone_enclosed.level == 3);
@@ -423,7 +438,9 @@ main(void)
         {
             uint8_t const wire[1] = { 2 };
             memset(&p, 0, sizeof(p));
-            assert(gameproto_parse(rev, PKT_NAME_MINIMAP_TOGGLE, (uint8_t*)wire, 1, &p));
+            TEST_EXEC_ASSERT(
+                gameproto_parse(rev, PKT_NAME_MINIMAP_TOGGLE, (uint8_t*)wire, 1, &p),
+                "MINIMAP_TOGGLE must parse");
             assert(p._minimap_toggle.state == 2);
             RS_GameProto_Exec(&ctx, &p);
             assert(app->minimap_state == APP_MINIMAP_STATE_HIDDEN_UNCLICKABLE);
