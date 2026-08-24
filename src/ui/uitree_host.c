@@ -337,10 +337,6 @@ UITree_ComponentIsActiveHost(
     struct UITreeHost const* host,
     struct UITreeComponent const* component)
 {
-    UITreeHostInputMask const dependencies =
-        UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CLIENT_STATE) |
-        UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_INVENTORY);
-
     assert(component);
     assert(host);
 
@@ -349,15 +345,7 @@ UITree_ComponentIsActiveHost(
         .u.is_active.component = component,
     };
 
-    /* This is the hottest host request in a full emit: every drawable widget
-     * asks whether its CS1 state is active. Record its already-known domains
-     * and dispatch it directly, avoiding the generic request classifier and
-     * fallback switch thousands of times per frame. The hostless fallback for
-     * IS_ACTIVE is exactly false, so this is semantically identical to
-     * UITree_Host. */
-    if( host->observed_input_mask )
-        *host->observed_input_mask |= dependencies;
-    return host->request ? host->request(host->user, &req) != 0 : false;
+    return UITree_Host(host, &req) != 0;
 }
 
 bool

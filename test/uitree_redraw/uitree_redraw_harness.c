@@ -831,8 +831,7 @@ set_cs1_active(struct Fixture* fx, int active)
         return;
     fx->hs.cs1_active = active;
 #if CANDIDATE
-    UITree_HostInputsChanged(
-        &fx->host, UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CLIENT_STATE));
+    (void)UITree_SetCS1ActiveAt(fx->tree, fx->active_rect, active);
 #endif
 }
 
@@ -1410,6 +1409,8 @@ visual_transition(
     case 16:
         *out_scenario = "host-input";
         *out_checkpoint = "cs1_active_on";
+        /* Baseline reads this through its host callback; candidate publishes
+         * the same result through the typed tree-owned CS1 setter. */
         set_cs1_active(fx, 1);
         break;
     case 17:

@@ -47,8 +47,10 @@ framebuffer redraw. In particular, it now has:
   overlays, and source-correct refresh of entity, canvas, and frame overlays;
 - one shared production retained-emit predicate used by the app, unit tests,
   and the A/B harness, bound to an exact tree/buffer publication and revalidated
-  after volatile callbacks, plus a dependency-preserving fast path for the
-  per-node active-state request;
+  after volatile callbacks;
+- direct consumption of tree-owned CS1 results after typed publication, plus
+  indexed standing-overlay refresh that avoids whole-list scans when sources
+  are empty;
 - focused tests for mutation impacts, unchanged writes, invalid inputs,
   dependency masking, stale-stamp rejection, and volatile overlay provenance.
 - a deterministic before/oracle/after raster and benchmark suite with exact RGB
@@ -511,7 +513,7 @@ full walk.
 
 The 24-state seeded trace covers initial/steady retention, hover enter/leave,
 two-axis nested scrolling, text/colour/alpha changes, randomized dynamic child
-replacement, host-only camera and CS1 changes, previously unreachable
+replacement, host-only camera and typed CS1 publication changes, previously unreachable
 hide/unhide, volatile overlay 0→1→2→0 refresh, arc/sprite transforms, and a real
 fishing-marker orbit. `App` and the harness call the same pure integer orbit and
 world-point projection leaf; fixed tile-centre goldens cover move, viewport

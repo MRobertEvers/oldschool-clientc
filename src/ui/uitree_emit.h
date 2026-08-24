@@ -197,6 +197,11 @@ struct UITreeEmitBuffer
      *  computed by testing the pointers, not by listing the kinds that set them,
      *  so a kind added later cannot quietly opt itself out of the check. */
     int volatile_refs;
+    /** Non-overlay volatile descriptors which require a command-list scan to
+     * refresh (currently minimap dots and debug prims). Standing overlay
+     * sources are tracked separately, so an all-empty overlay frame can skip
+     * that scan entirely. */
+    int volatile_desc_refs;
     /** Bitsets keyed by enum UITreeEmitOverlaySource. `seen` includes a source
      *  that returned zero items, so retained refresh can detect its first item
      *  without putting a no-op descriptor in the renderer's command list. */

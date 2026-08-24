@@ -137,8 +137,9 @@ fill_scrollbar_h(
  *
  * The reference client substitutes the value of the component's Nth value
  * script, rendering anything at or above CS1's "infinity" as "*" (the
- * inv-contains sentinel). Values come from the host, which serves them from
- * the last evaluation pass — drawing never runs the VM.
+ * inv-contains sentinel). Task_CS1Eval publishes the values on the component
+ * before the frame fence, so drawing neither runs the VM nor round-trips the
+ * already tree-owned result through the host.
  */
 static void
 uitree_emit_format_placeholders(
@@ -160,13 +161,7 @@ uitree_emit_format_placeholders(
     {
         if( src[0] == '%' && src[1] >= '1' && src[1] <= '0' + UITREE_CS1_VALUE_MAX )
         {
-            struct UITreeHostRequest req;
-            memset(&req, 0, sizeof(req));
-            req.kind = UITREE_HOST_EVAL_TEXT_PLACEHOLDER;
-            req.u.eval_text_placeholder.component = component;
-            req.u.eval_text_placeholder.script_idx = src[1] - '1';
-
-            int value = UITree_Host(host, &req);
+            int const value = host ? component->cs1_values[src[1] - '1'] : 0;
 
             char buf[16];
             int len;
@@ -235,7 +230,11 @@ UITree_EmitFill(
      * matches this component's own id. */
     bool const hovered =
         hovered_component_id >= 0 && component->component_id == hovered_component_id;
-    bool const active = host ? UITree_ComponentIsActiveHost(host, component) : false;
+    /* Task_CS1Eval publishes this through UITree_SetCS1ActiveAt before the
+     * settled frame fence. Reading the tree-owned cache directly avoids one
+     * host callback per drawable node and makes that typed publication the
+     * single mutation seam that retention observes. */
+    bool const active = host && component->cs1_active != 0;
 
     int x = 0, y = 0, w = 0, h = 0;
     UITree_LayoutGetBounds(&component->position, &x, &y, &w, &h);
@@ -3259,6 +3258,7 @@ UITree_EmitWalk(
      * stays correct as kinds are added. A few hundred predictable loads against
      * a walk that visits millions of nodes; it does not register in the stage. */
     out->volatile_refs = 0;
+    out->volatile_desc_refs = 0;
     out->volatile_unrefreshable = 0;
     for( int i = 0; i < out->count; i++ )
     {
@@ -3288,6 +3288,7 @@ UITree_EmitWalk(
         if( !d->minimap_dots && !d->entity_overlays && !d->worldmap_tiles && !d->debug_prims )
             continue;
         out->volatile_refs++;
+        out->volatile_desc_refs++;
         /* A WORLDMAP desc does not record which of the two host requests filled
          * it (tiles vs overview), so it cannot be re-issued from the desc alone.
          * Likewise an overlay without provenance is unsafe to guess. Refusing
@@ -3498,14 +3499,28 @@ UITree_EmitRefreshVolatile(
 
         if( !(out->volatile_overlay_seen & bit) )
             continue;
-        for( int i = 0; i < out->count; i++ )
-            if( out->cmds[i].entity_overlay_source == source )
+        /* A zero-count standing source has no descriptor in the published
+         * list. Trust the metadata built by the full walk instead of scanning
+         * thousands of unrelated commands three times on every retained frame. */
+        if( out->volatile_overlay_nonempty & bit )
+        {
+            int const hint = out->volatile_overlay_insert_at[source];
+            if( hint >= 0 && hint < out->count &&
+                out->cmds[hint].entity_overlay_source == source )
+                desc_index = hint;
+            else
+                for( int i = 0; i < out->count; i++ )
+                    if( out->cmds[i].entity_overlay_source == source )
+                    {
+                        desc_index = i;
+                        break;
+                    }
+            if( desc_index >= 0 )
             {
-                desc_index = i;
-                out->volatile_overlay_template[source] = out->cmds[i];
-                out->volatile_overlay_insert_at[source] = i;
-                break;
+                out->volatile_overlay_template[source] = out->cmds[desc_index];
+                out->volatile_overlay_insert_at[source] = desc_index;
             }
+        }
 
         switch( source )
         {
@@ -3582,27 +3597,28 @@ UITree_EmitRefreshVolatile(
         out->volatile_overlay_nonempty |= bit;
     }
 
-    for( int i = 0; i < out->count; i++ )
-    {
-        struct UITreeEmitDesc* d = &out->cmds[i];
+    if( out->volatile_desc_refs )
+        for( int i = 0; i < out->count; i++ )
+        {
+            struct UITreeEmitDesc* d = &out->cmds[i];
 
-        if( d->minimap_dots )
-        {
-            struct UITreeHostRequest req = {
-                .kind = UITREE_HOST_GET_MINIMAP_DOTS,
-                .u.get_minimap_dots.out_dots = &d->minimap_dots,
-            };
-            d->minimap_dot_count = UITree_Host(host, &req);
+            if( d->minimap_dots )
+            {
+                struct UITreeHostRequest req = {
+                    .kind = UITREE_HOST_GET_MINIMAP_DOTS,
+                    .u.get_minimap_dots.out_dots = &d->minimap_dots,
+                };
+                d->minimap_dot_count = UITree_Host(host, &req);
+            }
+            if( d->debug_prims )
+            {
+                struct UITreeHostRequest req;
+                req.kind = UITREE_HOST_GET_DEBUG_OVERLAY;
+                req.u.get_debug_overlay.out_prims = &d->debug_prims;
+                d->debug_prim_count = UITree_Host(host, &req);
+            }
+            if( tree->dirty_gen != dirty_before )
+                return 0;
         }
-        if( d->debug_prims )
-        {
-            struct UITreeHostRequest req;
-            req.kind = UITREE_HOST_GET_DEBUG_OVERLAY;
-            req.u.get_debug_overlay.out_prims = &d->debug_prims;
-            d->debug_prim_count = UITree_Host(host, &req);
-        }
-        if( tree->dirty_gen != dirty_before )
-            return 0;
-    }
     return 1;
 }

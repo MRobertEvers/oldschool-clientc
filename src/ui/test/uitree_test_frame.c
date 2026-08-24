@@ -707,6 +707,9 @@ test_retained_overlay_refresh_preserves_source(void)
         buf.volatile_refs == RETAINED_OVERLAY_SOURCE_COUNT && !buf.volatile_unrefreshable,
         "zero-count overlay sources remain refreshable out of band");
     TEST_ASSERT(
+        buf.volatile_desc_refs == 0,
+        "standing overlay records do not request a whole-list volatile scan");
+    TEST_ASSERT(
         state.calls[RETAINED_OVERLAY_ENTITY] == 1 &&
             state.calls[RETAINED_OVERLAY_CANVAS] == 1 &&
             state.calls[RETAINED_OVERLAY_FRAME] == 1,

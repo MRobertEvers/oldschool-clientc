@@ -30,7 +30,7 @@ refresh_mutation_request(void* user, struct UITreeHostRequest* req)
         case REFRESH_MUTATION_HOST:
             UITree_HostInputsChanged(
                 probe->host,
-                UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_CLIENT_STATE));
+                UITREE_HOST_INPUT_BIT(UITREE_HOST_INPUT_OVERLAYS));
             break;
         case REFRESH_MUTATION_LAYOUT:
             UITree_LayoutInvalidateBoxes(probe->tree);
@@ -221,25 +221,6 @@ test_emit_retain_gate(void)
     UITree_Free(tree);
 }
 
-struct ActiveHostProbe
-{
-    int result;
-    int calls;
-    enum UITreeHostRequestKind last_kind;
-    struct UITreeComponent const* last_component;
-};
-
-static int
-active_host_probe_request(void* user, struct UITreeHostRequest* req)
-{
-    struct ActiveHostProbe* probe = (struct ActiveHostProbe*)user;
-
-    probe->calls++;
-    probe->last_kind = req->kind;
-    probe->last_component = req->u.is_active.component;
-    return probe->result;
-}
-
 static void
 test_host_input_epochs(void)
 {
@@ -322,55 +303,6 @@ test_host_input_epochs(void)
             UITREE_HOST_INPUT_ALL,
         "unknown host request conservatively reads every input domain");
 
-    /* UITree_ComponentIsActiveHost bypasses the generic UITree_Host dispatcher
-     * because this request occurs once per drawable node. Pin its observable
-     * contract directly so a future dependency-table change cannot leave the
-     * optimized path subscribed to a stale set of input domains. */
-    {
-        struct UITreeHost active_host;
-        struct UITreeComponent component = { 0 };
-        struct ActiveHostProbe probe = { 0 };
-        UITreeHostInputMask observed = 0;
-        UITreeHostInputMask const active_dependencies =
-            UITree_HostRequestInputMask(UITREE_HOST_IS_ACTIVE);
-
-        UITree_HostInit(&active_host);
-        active_host.user = &probe;
-        active_host.request = active_host_probe_request;
-        active_host.observed_input_mask = &observed;
-        probe.result = 1;
-        TEST_ASSERT(
-            UITree_ComponentIsActiveHost(&active_host, &component),
-            "active-state hot path returns the host result");
-        TEST_ASSERT(probe.calls == 1, "active-state hot path dispatches exactly once");
-        TEST_ASSERT(
-            probe.last_kind == UITREE_HOST_IS_ACTIVE && probe.last_component == &component,
-            "active-state hot path preserves the request payload");
-        TEST_ASSERT(
-            observed == active_dependencies,
-            "active-state hot path observes the canonical dependency mask");
-
-        observed = 0;
-        probe.result = 0;
-        TEST_ASSERT(
-            !UITree_ComponentIsActiveHost(&active_host, &component),
-            "active-state hot path preserves a false host result");
-        TEST_ASSERT(probe.calls == 2, "false active-state result still dispatches once");
-        TEST_ASSERT(
-            observed == active_dependencies,
-            "false active-state result observes the canonical dependency mask");
-
-        observed = 0;
-        active_host.request = NULL;
-        TEST_ASSERT(
-            !UITree_ComponentIsActiveHost(&active_host, &component),
-            "hostless active-state fallback is false");
-        TEST_ASSERT(probe.calls == 2, "hostless active-state fallback does not dispatch");
-        TEST_ASSERT(
-            observed == active_dependencies,
-            "hostless active-state fallback still records its dependencies");
-    }
-
     UITree_TestHostInit(&host, &hs);
     TEST_ASSERT(
         UITree_HostPublishInputSignature(&host, UITREE_HOST_INPUT_CAMERA, 0x1234),
@@ -410,17 +342,45 @@ test_host_input_epochs(void)
     {
         struct UITree* tree = UITree_New(8);
         struct UITreeEmitBuffer emit;
+        struct UITreeComponent cached_active = { 0 };
+        struct UITreeEmitDesc cached_desc;
         int32_t const compass =
             UITree_TestPushXy(tree, -1, UIELEM_BUILTIN_COMPASS, 700, 0, 0, 32, 32);
 
         TEST_ASSERT(compass >= 0, "push camera-dependent compass");
         tree->components[compass].u.sprite.scene_id = 1;
+        cached_active.type = UIELEM_RS_RECT;
+        cached_active.u.rs_rect.color = 0xFF0000;
+        cached_active.u.rs_rect.filled = 1;
+        cached_active.behavior.active_color = 0x123456;
+        cached_active.cs1_active = 1;
+        memset(hs.request_count, 0, sizeof(hs.request_count));
+        TEST_ASSERT(
+            UITree_EmitFill(tree, &host, &cached_active, -1, -1, &cached_desc) &&
+                cached_desc.color == 0x123456,
+            "emit consumes the typed tree-owned CS1 active publication");
+        TEST_ASSERT(
+            hs.request_count[UITREE_HOST_IS_ACTIVE] == 0,
+            "emit does not round-trip cached CS1 active state through the host");
+        memset(&cached_active, 0, sizeof(cached_active));
+        cached_active.type = UIELEM_RS_TEXT;
+        cached_active.behavior.scripts_count = 1;
+        cached_active.u.rs_text.text = "%1";
+        cached_active.u.rs_text.font_id = 1;
+        cached_active.cs1_values[0] = 42;
+        TEST_ASSERT(
+            UITree_EmitFill(tree, &host, &cached_active, -1, -1, &cached_desc) &&
+                strcmp(cached_desc.text_formatted, "42") == 0,
+            "emit formats typed tree-owned CS1 placeholder values");
+        TEST_ASSERT(
+            hs.request_count[UITREE_HOST_EVAL_TEXT_PLACEHOLDER] == 0,
+            "emit does not round-trip cached CS1 placeholder values through the host");
         UITree_EmitBufferInit(&emit);
+        memset(hs.request_count, 0, sizeof(hs.request_count));
         UITree_EmitWalk(tree, &host, &emit, -1);
         TEST_ASSERT(
-            (emit.host_input_dependencies & (client | inventory)) ==
-                (client | inventory),
-            "hot active-state dispatch records both of its dependency domains");
+            !(emit.host_input_dependencies & (client | inventory)),
+            "cached CS1 active state does not manufacture ambient dependencies");
         TEST_ASSERT(
             emit.host_input_dependencies & camera,
             "emit walk observes the compass camera read");
