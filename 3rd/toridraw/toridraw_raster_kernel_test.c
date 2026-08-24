@@ -1,9 +1,10 @@
 /*
  * Public raster-kernel routing regression.
  *
- * This is deliberately a black-box test: it constructs one ordinary model,
- * binds public kernels to public scenes, and drives the three public model
- * phases.  No private resolver or raster context is included here.
+ * This constructs ordinary models, binds public kernels to public scenes, and
+ * drives the public render entry points. Callback checks also inspect the
+ * scene's published render-context identity so same-scene recursion proves it
+ * retained the outer scratch rather than merely producing plausible output.
  *
  * Build and run:
  *   make -C src test-raster-kernel
@@ -93,6 +94,7 @@ struct Spy
     int recursive_depth;
     int recursive_depth_limit;
     bool recursive_started[3];
+    const struct ToriDraw_RenderContext* context_by_depth[3];
     const int* screen_x_by_depth[3];
     const int* face_order_by_depth[3];
 };
@@ -332,9 +334,11 @@ verify_target(const struct Spy* spy, const struct ToriDraw_RasterTarget* target)
 {
     const struct Fixture* fixture = spy->fixture;
     const struct RenderEnv* env = spy->env;
+    const struct ToriDraw_RenderContext* context = env->scene->active_render_context;
 
     CHECK(target != NULL, "%s received a null target", spy->name);
-    if( !target )
+    CHECK(context != NULL, "%s callback has no active render context", spy->name);
+    if( !target || !context )
         return;
     CHECK(target->domain == TORIDRAW_RASTER_KERNEL_STOCK, "%s target domain %d", spy->name,
           (int)target->domain);
@@ -351,10 +355,10 @@ verify_target(const struct Spy* spy, const struct ToriDraw_RasterTarget* target)
               target->projection_center_y == (CLIP_BOTTOM - CLIP_TOP) / 2,
           "%s projection center (%d,%d)", spy->name, target->projection_center_x,
           target->projection_center_y);
-    CHECK(target->near_plane_z == env->scene->projection_near_plane_z,
+    CHECK(target->near_plane_z == context->projection_near_plane_z,
           "%s near plane %d", spy->name, target->near_plane_z);
     CHECK(target->camera_cot16 != 0, "%s camera cotangent was zero", spy->name);
-    CHECK(target->model_mid_z == env->scene->projected_vertex.z, "%s model mid-z %d", spy->name,
+    CHECK(target->model_mid_z == context->projected_vertex.z, "%s model mid-z %d", spy->name,
           target->model_mid_z);
     CHECK(!target->parallel_projection, "%s unexpectedly parallel", spy->name);
     CHECK(!target->smooth_shading, "%s unexpectedly smooth", spy->name);
@@ -362,14 +366,14 @@ verify_target(const struct Spy* spy, const struct ToriDraw_RasterTarget* target)
     CHECK(target->near_clip_available, "%s lost orthographic near-clip data", spy->name);
     CHECK(target->vertex_count == VERTEX_COUNT, "%s vertex count %d", spy->name,
           target->vertex_count);
-    CHECK(target->screen_vertices_x == env->scene->screen_vertices_x &&
-              target->screen_vertices_y == env->scene->screen_vertices_y &&
-              target->screen_vertices_z == env->scene->screen_vertices_z,
-          "%s projected arrays differ from scene scratch", spy->name);
-    CHECK(target->orthographic_vertices_x == env->scene->orthographic_vertices_x &&
-              target->orthographic_vertices_y == env->scene->orthographic_vertices_y &&
-              target->orthographic_vertices_z == env->scene->orthographic_vertices_z,
-          "%s orthographic arrays differ from scene scratch", spy->name);
+    CHECK(target->screen_vertices_x == context->screen_vertices_x &&
+              target->screen_vertices_y == context->screen_vertices_y &&
+              target->screen_vertices_z == context->screen_vertices_z,
+          "%s projected arrays differ from active-context scratch", spy->name);
+    CHECK(target->orthographic_vertices_x == context->orthographic_vertices_x &&
+              target->orthographic_vertices_y == context->orthographic_vertices_y &&
+              target->orthographic_vertices_z == context->orthographic_vertices_z,
+          "%s orthographic arrays differ from active-context scratch", spy->name);
     CHECK(target->posed_vertices_x == fixture->vertex_x &&
               target->posed_vertices_y == fixture->vertex_y &&
               target->posed_vertices_z == fixture->vertex_z,
@@ -493,33 +497,54 @@ static void
 spy_attempt_same_scene_recursion(struct Spy* spy)
 {
     struct ToriDraw_Scene* scene = spy->env->scene;
+    struct ToriDraw_RenderContext* context = scene->active_render_context;
     struct ToriDraw_ViewPort viewport = test_viewport();
     struct ToriDraw_Camera camera = test_camera();
     struct ToriDraw_Position position = { .x = 90, .y = -35, .z = 925, .yaw = 128 };
-    struct ToriDraw_ModelHandle active_hnd = scene->active_hnd;
-    struct ProjectedVertex projected_vertex = scene->projected_vertex;
-    struct ToriDraw_AABB aabb = scene->aabb;
-    struct ToriDraw_AABB cylinder_aabb = scene->cylinder_fast_aabb;
+    struct ToriDraw_ModelHandle active_hnd;
+    struct ProjectedVertex projected_vertex;
+    struct ToriDraw_AABB aabb;
+    struct ToriDraw_AABB cylinder_aabb;
     int screen_x[VERTEX_COUNT];
     int screen_y[VERTEX_COUNT];
     int screen_z[VERTEX_COUNT];
     int face_order[FACE_COUNT];
-    int const ordered = scene->tmp_face_order_count;
-    int const projection_near_plane_z = scene->projection_near_plane_z;
-    bool const near_clipped = scene->near_clipped;
-    int* const screen_x_pointer = scene->screen_vertices_x;
-    int* const screen_y_pointer = scene->screen_vertices_y;
-    int* const screen_z_pointer = scene->screen_vertices_z;
-    int* const orthographic_x_pointer = scene->orthographic_vertices_x;
-    int* const orthographic_y_pointer = scene->orthographic_vertices_y;
-    int* const orthographic_z_pointer = scene->orthographic_vertices_z;
-    int* const face_order_pointer = scene->tmp_face_order;
+    int ordered;
+    int projection_near_plane_z;
+    bool near_clipped;
+    int* screen_x_pointer;
+    int* screen_y_pointer;
+    int* screen_z_pointer;
+    int* orthographic_x_pointer;
+    int* orthographic_y_pointer;
+    int* orthographic_z_pointer;
+    int* face_order_pointer;
 
     spy->recursive_render_attempted = true;
-    memcpy(screen_x, scene->screen_vertices_x, sizeof(screen_x));
-    memcpy(screen_y, scene->screen_vertices_y, sizeof(screen_y));
-    memcpy(screen_z, scene->screen_vertices_z, sizeof(screen_z));
-    memcpy(face_order, scene->tmp_face_order, sizeof(face_order));
+    CHECK(context != NULL, "%s recursion started without an active context", spy->name);
+    if( !context )
+    {
+        spy->recursive_scratch_unchanged = false;
+        return;
+    }
+    active_hnd = context->active_hnd;
+    projected_vertex = context->projected_vertex;
+    aabb = context->aabb;
+    cylinder_aabb = context->cylinder_fast_aabb;
+    ordered = context->tmp_face_order_count;
+    projection_near_plane_z = context->projection_near_plane_z;
+    near_clipped = context->near_clipped;
+    screen_x_pointer = context->screen_vertices_x;
+    screen_y_pointer = context->screen_vertices_y;
+    screen_z_pointer = context->screen_vertices_z;
+    orthographic_x_pointer = context->orthographic_vertices_x;
+    orthographic_y_pointer = context->orthographic_vertices_y;
+    orthographic_z_pointer = context->orthographic_vertices_z;
+    face_order_pointer = context->tmp_face_order;
+    memcpy(screen_x, context->screen_vertices_x, sizeof(screen_x));
+    memcpy(screen_y, context->screen_vertices_y, sizeof(screen_y));
+    memcpy(screen_z, context->screen_vertices_z, sizeof(screen_z));
+    memcpy(face_order, context->tmp_face_order, sizeof(face_order));
 
     spy->recursive_depth++;
     ToriDraw_RenderModel(
@@ -527,24 +552,25 @@ spy_attempt_same_scene_recursion(struct Spy* spy)
     spy->recursive_depth--;
 
     spy->recursive_scratch_unchanged = spy->recursive_scratch_unchanged &&
-        scene->screen_vertices_x == screen_x_pointer &&
-        scene->screen_vertices_y == screen_y_pointer &&
-        scene->screen_vertices_z == screen_z_pointer &&
-        scene->orthographic_vertices_x == orthographic_x_pointer &&
-        scene->orthographic_vertices_y == orthographic_y_pointer &&
-        scene->orthographic_vertices_z == orthographic_z_pointer &&
-        scene->tmp_face_order == face_order_pointer &&
-        memcmp(&active_hnd, &scene->active_hnd, sizeof(active_hnd)) == 0 &&
-        memcmp(&projected_vertex, &scene->projected_vertex, sizeof(projected_vertex)) == 0 &&
-        memcmp(&aabb, &scene->aabb, sizeof(aabb)) == 0 &&
-        memcmp(&cylinder_aabb, &scene->cylinder_fast_aabb, sizeof(cylinder_aabb)) == 0 &&
-        memcmp(screen_x, scene->screen_vertices_x, sizeof(screen_x)) == 0 &&
-        memcmp(screen_y, scene->screen_vertices_y, sizeof(screen_y)) == 0 &&
-        memcmp(screen_z, scene->screen_vertices_z, sizeof(screen_z)) == 0 &&
-        scene->tmp_face_order_count == ordered &&
-        memcmp(face_order, scene->tmp_face_order, sizeof(face_order)) == 0 &&
-        scene->projection_near_plane_z == projection_near_plane_z &&
-        scene->near_clipped == near_clipped;
+        scene->active_render_context == context &&
+        context->screen_vertices_x == screen_x_pointer &&
+        context->screen_vertices_y == screen_y_pointer &&
+        context->screen_vertices_z == screen_z_pointer &&
+        context->orthographic_vertices_x == orthographic_x_pointer &&
+        context->orthographic_vertices_y == orthographic_y_pointer &&
+        context->orthographic_vertices_z == orthographic_z_pointer &&
+        context->tmp_face_order == face_order_pointer &&
+        memcmp(&active_hnd, &context->active_hnd, sizeof(active_hnd)) == 0 &&
+        memcmp(&projected_vertex, &context->projected_vertex, sizeof(projected_vertex)) == 0 &&
+        memcmp(&aabb, &context->aabb, sizeof(aabb)) == 0 &&
+        memcmp(&cylinder_aabb, &context->cylinder_fast_aabb, sizeof(cylinder_aabb)) == 0 &&
+        memcmp(screen_x, context->screen_vertices_x, sizeof(screen_x)) == 0 &&
+        memcmp(screen_y, context->screen_vertices_y, sizeof(screen_y)) == 0 &&
+        memcmp(screen_z, context->screen_vertices_z, sizeof(screen_z)) == 0 &&
+        context->tmp_face_order_count == ordered &&
+        memcmp(face_order, context->tmp_face_order, sizeof(face_order)) == 0 &&
+        context->projection_near_plane_z == projection_near_plane_z &&
+        context->near_clipped == near_clipped;
 
     /* Popping an inner context must not make the outer kernel binding mutable. */
     spy->set_after_nested =
@@ -574,25 +600,32 @@ spy_record(
 
     if( spy->attempt_recursive_render )
     {
+        const struct ToriDraw_RenderContext* context =
+            spy->env->scene->active_render_context;
         int const depth = spy->recursive_depth;
         CHECK(depth >= 0 && depth < 3, "%s recursive depth %d", spy->name, depth);
-        if( depth >= 0 && depth < 3 )
+        CHECK(context != NULL, "%s depth %d has no active context", spy->name, depth);
+        if( context && depth >= 0 && depth < 3 )
         {
-            if( !spy->screen_x_by_depth[depth] )
+            if( !spy->context_by_depth[depth] )
             {
+                spy->context_by_depth[depth] = context;
                 spy->screen_x_by_depth[depth] = target->screen_vertices_x;
-                spy->face_order_by_depth[depth] = spy->env->scene->tmp_face_order;
+                spy->face_order_by_depth[depth] = context->tmp_face_order;
             }
             else
             {
+                CHECK(spy->context_by_depth[depth] == context,
+                      "%s depth %d changed active context within a pass", spy->name, depth);
                 CHECK(spy->screen_x_by_depth[depth] == target->screen_vertices_x,
                       "%s depth %d changed projected context within a pass", spy->name, depth);
-                CHECK(spy->face_order_by_depth[depth] == spy->env->scene->tmp_face_order,
+                CHECK(spy->face_order_by_depth[depth] == context->tmp_face_order,
                       "%s depth %d changed face-order context within a pass", spy->name, depth);
             }
             if( depth > 0 )
             {
                 spy->recursive_contexts_distinct = spy->recursive_contexts_distinct &&
+                    spy->context_by_depth[depth] != spy->context_by_depth[depth - 1] &&
                     spy->screen_x_by_depth[depth] != spy->screen_x_by_depth[depth - 1] &&
                     spy->face_order_by_depth[depth] != spy->face_order_by_depth[depth - 1];
             }
@@ -760,7 +793,7 @@ test_same_scene_reentrant_stock(const struct Fixture* fixture, struct RenderEnv*
           "nested stock renders shared projected or face-order scratch");
     CHECK(!spy.set_after_nested && !spy.reset_after_nested,
           "popping a nested context cleared the outer binding guard");
-    CHECK(env->scene->render_context_depth == 0 &&
+    CHECK(env->scene->active_render_context == NULL &&
               env->scene->nested_render_contexts_used == 0,
           "recursive stock render leaked an active context");
     CHECK(count_nonzero_pixels(env) == 0, "recursive spy callbacks unexpectedly drew pixels");
@@ -768,6 +801,138 @@ test_same_scene_reentrant_stock(const struct Fixture* fixture, struct RenderEnv*
           "recursive render changed the scene binding");
     CHECK(ToriDraw_SceneResetRasterKernel(env->scene), "reset recursive stock spy");
 }
+
+#ifndef TORIDRAW_PIXEL16
+
+struct Phase3DepthSpy
+{
+    struct RenderEnv* env;
+    toripixel_t* nested_pixels;
+    const struct ToriDraw_RenderContext* outer_context;
+    const torizdepth_t* outer_zbuffer;
+    bool nested_started;
+    bool nested_completed;
+    bool depth_storage_isolated;
+    int depth;
+    int calls;
+};
+
+static void
+phase3_depth_spy_draw(
+    void* user_data,
+    const struct ToriDraw_RasterTarget* target,
+    const struct ToriDraw_RasterFace* face)
+{
+    struct Phase3DepthSpy* spy = user_data;
+    struct ToriDraw_Scene* scene = spy->env->scene;
+    struct ToriDraw_RenderContext* context = scene->active_render_context;
+
+    (void)face;
+    spy->calls++;
+    CHECK(context != NULL, "recursive phase 3 did not publish its projection context");
+    CHECK(target && target->depth_test && target->zbuffer,
+          "recursive phase 3 did not retain model depth testing");
+    if( !context || !target || !target->zbuffer )
+        return;
+
+    if( spy->depth != 0 )
+    {
+        CHECK(context == spy->outer_context,
+              "recursive phase 3 replaced its read-only projection context");
+        CHECK(scene->nested_render_contexts_used == 1,
+              "recursive phase 3 did not lease exactly one depth scratch context");
+        spy->depth_storage_isolated =
+            spy->depth_storage_isolated && target->zbuffer != spy->outer_zbuffer;
+        return;
+    }
+
+    if( spy->nested_started )
+        return;
+
+    spy->nested_started = true;
+    spy->outer_context = context;
+    spy->outer_zbuffer = context->zbuffer;
+
+    /* A larger target forces the recursive depth allocation to grow. If phase
+     * 3 reused the active context, this could realloc the outer pass's live
+     * target pointer; the leased startup context must absorb it instead. */
+    struct ToriDraw_ViewPort nested_viewport = {
+        .width = 640,
+        .height = 400,
+        .stride = 672,
+        .x_center = 320,
+        .y_center = 200,
+        .clip_right = 640,
+        .clip_bottom = 400,
+    };
+    struct ToriDraw_Camera camera = test_camera();
+
+    spy->depth++;
+    ToriDraw_RenderModel3Raster(
+        scene, &nested_viewport, &camera, spy->nested_pixels, false);
+    spy->depth--;
+    spy->nested_completed = true;
+
+    CHECK(scene->active_render_context == spy->outer_context,
+          "recursive phase 3 did not restore the outer active context");
+    CHECK(scene->nested_render_contexts_used == 0,
+          "recursive phase 3 leaked its depth scratch context");
+    CHECK(spy->outer_context->zbuffer == spy->outer_zbuffer,
+          "recursive phase 3 reallocated the outer depth buffer");
+}
+
+static const struct ToriDraw_RasterKernelVTable phase3_depth_spy_vtable = {
+    .draw_gouraud = phase3_depth_spy_draw,
+    .draw_flat = phase3_depth_spy_draw,
+    .draw_textured = phase3_depth_spy_draw,
+    .draw_textured_flat = phase3_depth_spy_draw,
+};
+
+static void
+test_recursive_phase3_depth_scratch(struct Fixture* fixture, struct RenderEnv* env)
+{
+    struct Phase3DepthSpy spy = {
+        .env = env,
+        .depth_storage_isolated = true,
+    };
+    struct ToriDraw_RasterKernel kernel = {
+        .vtable = &phase3_depth_spy_vtable,
+        .user_data = &spy,
+        .domains = TORIDRAW_RASTER_KERNEL_STOCK,
+    };
+    uint8_t const saved_model_flags = fixture->model.flags;
+    size_t const nested_pixel_count = (size_t)672 * 400;
+
+    printf("recursive phase 3 leases independent preallocated depth scratch\n");
+    spy.nested_pixels = calloc(nested_pixel_count, sizeof(*spy.nested_pixels));
+    CHECK(spy.nested_pixels != NULL, "recursive phase-3 framebuffer allocation");
+    if( !spy.nested_pixels )
+        return;
+
+    fixture->model.flags |= TORIDRAW_MODEL_FLAG_ZBUFFER;
+    CHECK(ToriDraw_SceneZBufferResize(env->scene, VIEW_STRIDE, VIEW_HEIGHT),
+          "explicit root z-buffer opt-in");
+    CHECK(ToriDraw_SceneSetRasterKernel(env->scene, &kernel),
+          "bind recursive phase-3 depth spy");
+    render_fixture(env, fixture);
+
+    CHECK(spy.nested_started && spy.nested_completed,
+          "recursive phase-3 depth pass did not complete");
+    CHECK(spy.depth_storage_isolated,
+          "recursive phase 3 shared the outer pass's live depth buffer");
+    CHECK(spy.calls == FACE_COUNT * 2, "recursive phase-3 callback count %d", spy.calls);
+    CHECK(env->scene->active_render_context == NULL &&
+              env->scene->nested_render_contexts_used == 0,
+          "recursive phase-3 depth test leaked render state");
+    CHECK(ToriDraw_SceneResetRasterKernel(env->scene),
+          "reset recursive phase-3 depth spy");
+
+    ToriDraw_SceneZBufferFree(env->scene);
+    fixture->model.flags = saved_model_flags;
+    free(spy.nested_pixels);
+}
+
+#endif
 
 static void
 check_one_face_suppressed(const struct Spy* spy, int suppressed_face)
@@ -1156,6 +1321,7 @@ struct HDSpy
     bool recursive_zbuffer;
     bool recursive_scratch_unchanged;
     bool recursive_context_distinct;
+    const struct ToriDraw_RenderContext* outer_context;
     const int* outer_screen_x;
     const int* outer_face_order;
     const torizdepth_t* outer_zbuffer;
@@ -1278,16 +1444,18 @@ static void
 verify_hd_target(const struct HDSpy* spy, const struct ToriDraw_RasterTarget* target)
 {
     const struct ToriDraw_Model* model = &spy->fixture->hd.base;
+    const struct ToriDraw_RenderContext* context =
+        spy->env->scene->active_render_context;
 
     CHECK(target && target->domain == TORIDRAW_RASTER_KERNEL_HD, "%s target domain", spy->name);
-    if( !target )
+    CHECK(context != NULL, "%s HD callback has no active render context", spy->name);
+    if( !target || !context )
         return;
     CHECK(target->pixel_buffer == spy->env->pixels + CLIP_LEFT + CLIP_TOP * VIEW_STRIDE,
           "%s HD framebuffer was not clip-rebased", spy->name);
     if( spy->expect_depth )
         CHECK(target->depth_test && target->zbuffer ==
-                                          spy->env->scene->zbuffer + CLIP_LEFT +
-                                              CLIP_TOP * VIEW_STRIDE,
+                                          context->zbuffer + CLIP_LEFT + CLIP_TOP * VIEW_STRIDE,
               "%s HD depth target was not clip-rebased", spy->name);
     else
         CHECK(target->zbuffer == NULL && !target->depth_test, "%s HD sorted pass depth-tested",
@@ -1302,17 +1470,16 @@ verify_hd_target(const struct HDSpy* spy, const struct ToriDraw_RasterTarget* ta
     CHECK(target->projection_center_x == (CLIP_RIGHT - CLIP_LEFT) / 2 &&
               target->projection_center_y == (CLIP_BOTTOM - CLIP_TOP) / 2,
           "%s HD projection centre", spy->name);
-    CHECK(target->near_plane_z == spy->env->scene->projection_near_plane_z &&
-              target->camera_cot16 != 0 &&
-              target->model_mid_z == spy->env->scene->projected_vertex.z,
+    CHECK(target->near_plane_z == context->projection_near_plane_z &&
+              target->camera_cot16 != 0 && target->model_mid_z == context->projected_vertex.z,
           "%s HD camera state", spy->name);
     CHECK(!target->parallel_projection && !target->smooth_shading &&
               !target->affine_textures && target->near_clip_available,
           "%s HD target flags", spy->name);
     CHECK(target->vertex_count == VERTEX_COUNT, "%s HD vertex count %d", spy->name,
           target->vertex_count);
-    CHECK(target->screen_vertices_x == spy->env->scene->screen_vertices_x &&
-              target->orthographic_vertices_x == spy->env->scene->orthographic_vertices_x,
+    CHECK(target->screen_vertices_x == context->screen_vertices_x &&
+              target->orthographic_vertices_x == context->orthographic_vertices_x,
           "%s HD projected arrays", spy->name);
     CHECK(target->posed_vertices_x == model->vertices_x &&
               target->bind_vertices_x == model->vertices_x,
@@ -1439,40 +1606,62 @@ static void
 hd_spy_attempt_same_scene_recursion(struct HDSpy* spy)
 {
     struct ToriDraw_Scene* scene = spy->env->scene;
+    struct ToriDraw_RenderContext* context = scene->active_render_context;
     struct ToriDraw_ViewPort viewport = test_viewport();
     struct ToriDraw_Camera camera = test_camera();
     struct ToriDraw_Position position = { .x = -70, .y = 25, .z = 900, .yaw = 96 };
     struct ToriDraw_HDMaterials table = { spy->materials, HD_TEXTURE_COUNT };
     struct ToriDraw_HDRenderStats stats;
-    struct ToriDraw_ModelHandle active_hnd = scene->active_hnd;
-    struct ProjectedVertex projected_vertex = scene->projected_vertex;
-    struct ToriDraw_AABB aabb = scene->aabb;
-    struct ToriDraw_AABB cylinder_aabb = scene->cylinder_fast_aabb;
+    struct ToriDraw_ModelHandle active_hnd;
+    struct ProjectedVertex projected_vertex;
+    struct ToriDraw_AABB aabb;
+    struct ToriDraw_AABB cylinder_aabb;
     int screen_x[VERTEX_COUNT];
     int screen_y[VERTEX_COUNT];
     int screen_z[VERTEX_COUNT];
     int face_order[FACE_COUNT];
-    int* const screen_x_pointer = scene->screen_vertices_x;
-    int* const screen_y_pointer = scene->screen_vertices_y;
-    int* const screen_z_pointer = scene->screen_vertices_z;
-    int* const orthographic_x_pointer = scene->orthographic_vertices_x;
-    int* const orthographic_y_pointer = scene->orthographic_vertices_y;
-    int* const orthographic_z_pointer = scene->orthographic_vertices_z;
-    int* const face_order_pointer = scene->tmp_face_order;
-    int const ordered = scene->tmp_face_order_count;
-    int const near_plane = scene->projection_near_plane_z;
-    bool const near_clipped = scene->near_clipped;
-
-    memcpy(screen_x, scene->screen_vertices_x, sizeof(screen_x));
-    memcpy(screen_y, scene->screen_vertices_y, sizeof(screen_y));
-    memcpy(screen_z, scene->screen_vertices_z, sizeof(screen_z));
-    memcpy(face_order, scene->tmp_face_order, sizeof(face_order));
+    int* screen_x_pointer;
+    int* screen_y_pointer;
+    int* screen_z_pointer;
+    int* orthographic_x_pointer;
+    int* orthographic_y_pointer;
+    int* orthographic_z_pointer;
+    int* face_order_pointer;
+    int ordered;
+    int near_plane;
+    bool near_clipped;
 
     spy->recursive_render_attempted = true;
+    CHECK(context != NULL, "%s HD recursion started without an active context", spy->name);
+    if( !context )
+    {
+        spy->recursive_scratch_unchanged = false;
+        return;
+    }
+    active_hnd = context->active_hnd;
+    projected_vertex = context->projected_vertex;
+    aabb = context->aabb;
+    cylinder_aabb = context->cylinder_fast_aabb;
+    screen_x_pointer = context->screen_vertices_x;
+    screen_y_pointer = context->screen_vertices_y;
+    screen_z_pointer = context->screen_vertices_z;
+    orthographic_x_pointer = context->orthographic_vertices_x;
+    orthographic_y_pointer = context->orthographic_vertices_y;
+    orthographic_z_pointer = context->orthographic_vertices_z;
+    face_order_pointer = context->tmp_face_order;
+    ordered = context->tmp_face_order_count;
+    near_plane = context->projection_near_plane_z;
+    near_clipped = context->near_clipped;
+    memcpy(screen_x, context->screen_vertices_x, sizeof(screen_x));
+    memcpy(screen_y, context->screen_vertices_y, sizeof(screen_y));
+    memcpy(screen_z, context->screen_vertices_z, sizeof(screen_z));
+    memcpy(face_order, context->tmp_face_order, sizeof(face_order));
+
     spy->recursive_render_active = true;
+    spy->outer_context = context;
     spy->outer_screen_x = screen_x_pointer;
     spy->outer_face_order = face_order_pointer;
-    spy->outer_zbuffer = scene->zbuffer;
+    spy->outer_zbuffer = context->zbuffer;
     int result = spy->recursive_zbuffer
                      ? ToriDraw_RenderHDZBuffered(
                            spy->fixture->handle, scene, &position, &viewport, &camera,
@@ -1484,23 +1673,24 @@ hd_spy_attempt_same_scene_recursion(struct HDSpy* spy)
 
     CHECK(result == TORIDRAW_CULL_VISIBLE, "%s nested HD render returned %d", spy->name, result);
     spy->recursive_scratch_unchanged = spy->recursive_scratch_unchanged &&
-        scene->screen_vertices_x == screen_x_pointer &&
-        scene->screen_vertices_y == screen_y_pointer &&
-        scene->screen_vertices_z == screen_z_pointer &&
-        scene->orthographic_vertices_x == orthographic_x_pointer &&
-        scene->orthographic_vertices_y == orthographic_y_pointer &&
-        scene->orthographic_vertices_z == orthographic_z_pointer &&
-        scene->tmp_face_order == face_order_pointer &&
-        memcmp(&active_hnd, &scene->active_hnd, sizeof(active_hnd)) == 0 &&
-        memcmp(&projected_vertex, &scene->projected_vertex, sizeof(projected_vertex)) == 0 &&
-        memcmp(&aabb, &scene->aabb, sizeof(aabb)) == 0 &&
-        memcmp(&cylinder_aabb, &scene->cylinder_fast_aabb, sizeof(cylinder_aabb)) == 0 &&
-        memcmp(screen_x, scene->screen_vertices_x, sizeof(screen_x)) == 0 &&
-        memcmp(screen_y, scene->screen_vertices_y, sizeof(screen_y)) == 0 &&
-        memcmp(screen_z, scene->screen_vertices_z, sizeof(screen_z)) == 0 &&
-        scene->tmp_face_order_count == ordered &&
-        memcmp(face_order, scene->tmp_face_order, sizeof(face_order)) == 0 &&
-        scene->projection_near_plane_z == near_plane && scene->near_clipped == near_clipped;
+        scene->active_render_context == context &&
+        context->screen_vertices_x == screen_x_pointer &&
+        context->screen_vertices_y == screen_y_pointer &&
+        context->screen_vertices_z == screen_z_pointer &&
+        context->orthographic_vertices_x == orthographic_x_pointer &&
+        context->orthographic_vertices_y == orthographic_y_pointer &&
+        context->orthographic_vertices_z == orthographic_z_pointer &&
+        context->tmp_face_order == face_order_pointer &&
+        memcmp(&active_hnd, &context->active_hnd, sizeof(active_hnd)) == 0 &&
+        memcmp(&projected_vertex, &context->projected_vertex, sizeof(projected_vertex)) == 0 &&
+        memcmp(&aabb, &context->aabb, sizeof(aabb)) == 0 &&
+        memcmp(&cylinder_aabb, &context->cylinder_fast_aabb, sizeof(cylinder_aabb)) == 0 &&
+        memcmp(screen_x, context->screen_vertices_x, sizeof(screen_x)) == 0 &&
+        memcmp(screen_y, context->screen_vertices_y, sizeof(screen_y)) == 0 &&
+        memcmp(screen_z, context->screen_vertices_z, sizeof(screen_z)) == 0 &&
+        context->tmp_face_order_count == ordered &&
+        memcmp(face_order, context->tmp_face_order, sizeof(face_order)) == 0 &&
+        context->projection_near_plane_z == near_plane && context->near_clipped == near_clipped;
 }
 
 static void
@@ -1524,12 +1714,16 @@ hd_spy_record(
 
     if( spy->recursive_render_active )
     {
+        const struct ToriDraw_RenderContext* context =
+            spy->env->scene->active_render_context;
+        CHECK(context != NULL, "%s nested HD callback has no active context", spy->name);
         spy->recursive_context_distinct = spy->recursive_context_distinct &&
+            context && context != spy->outer_context &&
             target->screen_vertices_x != spy->outer_screen_x &&
-            spy->env->scene->tmp_face_order != spy->outer_face_order;
+            context->tmp_face_order != spy->outer_face_order;
         if( spy->recursive_zbuffer )
             spy->recursive_context_distinct = spy->recursive_context_distinct &&
-                spy->env->scene->zbuffer != spy->outer_zbuffer;
+                context && context->zbuffer != spy->outer_zbuffer;
     }
     if( spy->attempt_recursive_render && !spy->recursive_render_attempted )
         hd_spy_attempt_same_scene_recursion(spy);
@@ -1579,8 +1773,9 @@ render_hd_fixture(
         fixture->handle, env->scene, &position, &viewport, &camera, env->pixels, materials,
         stats);
     CHECK(result == TORIDRAW_CULL_VISIBLE, "HD fixture render returned %d", result);
-    CHECK(env->scene->tmp_face_order_count == FACE_COUNT, "HD fixture ordered %d/%d faces",
-          env->scene->tmp_face_order_count, FACE_COUNT);
+    CHECK(env->scene->render_context.tmp_face_order_count == FACE_COUNT,
+          "HD fixture ordered %d/%d faces", env->scene->render_context.tmp_face_order_count,
+          FACE_COUNT);
 }
 
 static void
@@ -1674,7 +1869,7 @@ test_hd_routing(struct RenderEnv* env)
     CHECK(full.recursive_render_attempted && full.recursive_scratch_unchanged &&
               full.recursive_context_distinct,
           "same-scene HD recursion did not isolate and restore live scratch");
-    CHECK(env->scene->render_context_depth == 0 &&
+    CHECK(env->scene->active_render_context == NULL &&
               env->scene->nested_render_contexts_used == 0,
           "recursive HD render leaked an active context");
 
@@ -1687,7 +1882,7 @@ test_hd_routing(struct RenderEnv* env)
     CHECK(full.recursive_render_attempted && full.recursive_scratch_unchanged &&
               full.recursive_context_distinct,
           "same-scene HD zbuffer recursion shared live depth or projection scratch");
-    CHECK(env->scene->render_context_depth == 0 &&
+    CHECK(env->scene->active_render_context == NULL &&
               env->scene->nested_render_contexts_used == 0,
           "recursive HD zbuffer render leaked an active context");
 
@@ -1983,6 +2178,9 @@ main(void)
 
     test_four_slots_and_callback_guard(&fixture, &first);
     test_same_scene_reentrant_stock(&fixture, &first);
+#ifndef TORIDRAW_PIXEL16
+    test_recursive_phase3_depth_scratch(&fixture, &first);
+#endif
     test_pre_dispatch_skips(&fixture, &first);
     test_live_chain_mutation_recovery(&fixture, &first);
     test_sparse_fallback_and_noop(&fixture, &first);

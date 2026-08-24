@@ -19,6 +19,12 @@ enum DashModelRasterFlags
     RASTER_FLAG_TEXTURE_AFFINE = 1 << 1,
 };
 
+enum ToriDrawRasterPassFlags
+{
+    TORIDRAW_RASTER_PASS_FORCE_ZBUFFER = 1u << 0,
+    TORIDRAW_RASTER_PASS_UNSORTED = 1u << 1,
+};
+
 struct ToriDrawModelRasterContext
 {
     uint32_t bench_flag;
@@ -58,7 +64,7 @@ struct ToriDrawModelRasterContext
     int flags;
     bool allow_near_clip;
     /* Whether this model's projection could park TORIDRAW_SCREEN_X_NEAR_CLIPPED
-     * in screen_vertices_x at all — scene->near_clipped, set by ToriDraw_Project.
+     * in screen_vertices_x at all — copied from the render context after project.
      * The per-face sentinel tests below are gated on it, both to skip them
      * entirely for the common model and because the no-clip projection kernel
      * omits the -5001 nudge, so a genuine -5000 is possible when it is false. */
@@ -958,9 +964,18 @@ ToriDraw_RasterModelFaceKernel(
     }
 }
 
+static inline bool
+toridraw_scene_model_zbuffer_enabled(const struct ToriDraw_Scene* scene)
+{
+    return (scene->flags & TORIDRAW_SCENE_MODEL_ZBUFFER) != 0 ||
+           scene->render_context.zbuffer != NULL;
+}
+
 static inline void
 context_from_handle(
     struct ToriDraw_Scene* scene,
+    struct ToriDraw_RenderContext* render_context,
+    struct ToriDraw_RenderContext* depth_context,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera,
@@ -989,12 +1004,12 @@ context_from_handle(
         ctx->face_indices_b = m->face_indices_b;
         ctx->face_indices_c = m->face_indices_c;
         ctx->num_faces = m->face_count;
-        ctx->vertex_x = scene->screen_vertices_x;
-        ctx->vertex_y = scene->screen_vertices_y;
-        ctx->vertex_z = scene->screen_vertices_z;
-        ctx->orthographic_vertex_x_nullable = scene->orthographic_vertices_x;
-        ctx->orthographic_vertex_y_nullable = scene->orthographic_vertices_y;
-        ctx->orthographic_vertex_z_nullable = scene->orthographic_vertices_z;
+        ctx->vertex_x = render_context->screen_vertices_x;
+        ctx->vertex_y = render_context->screen_vertices_y;
+        ctx->vertex_z = render_context->screen_vertices_z;
+        ctx->orthographic_vertex_x_nullable = render_context->orthographic_vertices_x;
+        ctx->orthographic_vertex_y_nullable = render_context->orthographic_vertices_y;
+        ctx->orthographic_vertex_z_nullable = render_context->orthographic_vertices_z;
         ctx->num_vertices = m->vertex_count;
         ctx->face_textures = m->face_textures;
         ctx->face_texture_coords = m->face_texture_coords;
@@ -1040,7 +1055,7 @@ context_from_handle(
         /* Must match the plane ToriDraw_Project actually clipped against: the
          * near-clip builders lerp their new vertices onto it, and a plane the
          * projection never used would place them where nothing was cut. */
-        ctx->near_plane_z = scene->projection_near_plane_z;
+        ctx->near_plane_z = render_context->projection_near_plane_z;
         ctx->stride = view_port->stride ? view_port->stride : view_port->width;
         ctx->camera_cot16 = toridraw_proj_cot16(camera->proj_mode, camera->proj_scale, camera->fov_rpi2048);
         ctx->texture_map = &ToriDraw_SceneTexState(scene)->texture_map;
@@ -1055,32 +1070,42 @@ context_from_handle(
         if( camera->texture_affine )
             ctx->flags |= RASTER_FLAG_TEXTURE_AFFINE;
         ctx->allow_near_clip = ToriDraw_ModelHasTextures(hnd);
-        ctx->near_clipped = scene->near_clipped;
+        ctx->near_clipped = render_context->near_clipped;
         ctx->raster_debug = NULL;
         ctx->zbuffered = false;
 #ifndef TORIDRAW_PIXEL16
-        /* Opt-in per model; the scene's buffer is sized here on first use, so a
-         * caller that never draws a z-buffered model never pays for one. A
-         * failed allocation is not an error — the model simply draws by face
-         * order, exactly as it did before the flag existed. */
+        /* Opt-in per model; the context's buffer is sized here on first use, so
+         * a caller that never draws a z-buffered model never pays for one.
+         * Allocation failure is an assertion. Without the scene permission or
+         * an explicitly pre-sized buffer, the model flag remains inert and the
+         * model draws by face order exactly as it did before the flag existed. */
         if( force_zbuffer || (m->flags & TORIDRAW_MODEL_FLAG_ZBUFFER) != 0 )
         {
             int const clip_top = view_port->clip_top > 0 ? view_port->clip_top : 0;
             int const rows = clip_top + ctx->screen_height;
             int const stride = ctx->stride;
 
-            if( !ToriDraw_SceneHasZBuffer(scene, stride, rows) &&
-                (force_zbuffer || (scene->flags & TORIDRAW_SCENE_MODEL_ZBUFFER) != 0) )
-                ToriDraw_SceneZBufferResize(scene, stride, rows);
+            /* A resident root buffer is the public explicit-resize opt-in. A
+             * nested render must inherit that permission while still growing
+             * its own context-owned storage, or callback re-entry would
+             * silently fall back to painter order. */
+            bool const depth_storage_enabled =
+                force_zbuffer || toridraw_scene_model_zbuffer_enabled(scene);
+            if( !ToriDraw_RenderContextHasZBuffer(depth_context, stride, rows) &&
+                depth_storage_enabled )
+                ToriDraw_RenderContextZBufferResize(depth_context, stride, rows);
 
             /* A forced request that produced no buffer would silently draw by
              * face order, which is the one thing the caller asked not to do. */
-            assert(!force_zbuffer || ToriDraw_SceneHasZBuffer(scene, stride, rows));
+            assert(
+                !force_zbuffer ||
+                ToriDraw_RenderContextHasZBuffer(depth_context, stride, rows));
 
-            if( ToriDraw_SceneHasZBuffer(scene, stride, rows) )
+            if( depth_storage_enabled &&
+                ToriDraw_RenderContextHasZBuffer(depth_context, stride, rows) )
             {
                 ctx->zbuffered = true;
-                ctx->zbuf_target.zbuffer = scene->zbuffer;
+                ctx->zbuf_target.zbuffer = depth_context->zbuffer;
                 ctx->zbuf_target.stride = stride;
                 ctx->zbuf_target.screen_width = ctx->screen_width;
                 ctx->zbuf_target.screen_height = ctx->screen_height;
@@ -1088,7 +1113,7 @@ context_from_handle(
                 ctx->zbuf_target.offset_x = ctx->offset_x;
                 ctx->zbuf_target.offset_y = ctx->offset_y;
                 ctx->zbuf_target.near_plane_z = ctx->near_plane_z;
-                ctx->zbuf_target.model_mid_z = scene->projected_vertex.z;
+                ctx->zbuf_target.model_mid_z = render_context->projected_vertex.z;
                 ctx->zbuf_target.parallel = toridraw_proj_is_parallel(camera->proj_mode);
 
                 ctx->zbuf_source.face_indices_a = ctx->face_indices_a;
@@ -1149,21 +1174,30 @@ toridraw_raster_face_front_facing(
 static inline void
 ToriDraw_RasterWithFaceIndices(
     struct ToriDraw_Scene* scene,
-    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_RenderContext* render_context,
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera,
     toripixel_t* pixel_buffer,
     bool smooth,
-    bool force_zbuffer,
-    /* Ignore scene->tmp_face_order and walk the model's own face order. Only
-     * meaningful with force_zbuffer: without a depth buffer the face order IS
-     * the visibility answer. */
-    bool unsorted)
+    /* Tail-positioned so the ordinary ABI keeps every pre-existing argument
+     * in place and only supplies this rare phase-3 override at the end. */
+    struct ToriDraw_RenderContext* depth_context,
+    /* Keep the two pass controls in the final argument register. Separate
+     * booleans put the ninth argument on the stack on AArch64, growing every
+     * root raster frame even though the normal pass sets neither one. */
+    unsigned int pass_flags)
 {
     const struct ToriDraw_RasterKernel* terminal;
     struct ToriDraw_ResolvedRasterKernel resolved;
     struct ToriDrawModelRasterContext ctx;
     struct ToriDraw_Model* model;
+    struct ToriDraw_ModelHandle hnd = render_context->active_hnd;
+    bool const force_zbuffer =
+        (pass_flags & TORIDRAW_RASTER_PASS_FORCE_ZBUFFER) != 0;
+    /* Ignore render_context->tmp_face_order and walk the model's own face
+     * order. Only meaningful with forced depth: without a depth buffer the
+     * face order is the visibility answer. */
+    bool const unsorted = (pass_flags & TORIDRAW_RASTER_PASS_UNSORTED) != 0;
 
     terminal = ToriDraw_RasterGetScanline() ? ToriDraw_RasterKernelGetScanline()
                                             : ToriDraw_RasterKernelGetBranching();
@@ -1175,7 +1209,16 @@ ToriDraw_RasterWithFaceIndices(
         return;
 
     model = model_as_full(hnd);
-    context_from_handle(scene, hnd, view_port, camera, smooth, force_zbuffer, &ctx);
+    context_from_handle(
+        scene,
+        render_context,
+        depth_context,
+        hnd,
+        view_port,
+        camera,
+        smooth,
+        force_zbuffer,
+        &ctx);
     ctx.kernel = resolved;
     {
         int clip_left = view_port->clip_left > 0 ? view_port->clip_left : 0;
@@ -1207,7 +1250,7 @@ ToriDraw_RasterWithFaceIndices(
         ctx.target.projection_center_y = ctx.offset_y;
         ctx.target.near_plane_z = ctx.near_plane_z;
         ctx.target.camera_cot16 = ctx.camera_cot16;
-        ctx.target.model_mid_z = scene->projected_vertex.z;
+        ctx.target.model_mid_z = render_context->projected_vertex.z;
         ctx.target.parallel_projection = toridraw_proj_is_parallel(camera->proj_mode);
         ctx.target.smooth_shading = (ctx.flags & RASTER_FLAG_GOURAUD_SMOOTH) != 0;
         ctx.target.affine_textures = (ctx.flags & RASTER_FLAG_TEXTURE_AFFINE) != 0;
@@ -1263,9 +1306,13 @@ ToriDraw_RasterWithFaceIndices(
     {
         ctx.raster_debug = NULL;
     }
-    /* #region agent log */
-    ctx.ordered_faces = unsorted ? ctx.num_faces : scene->tmp_face_order_count;
-    /* #endregion */
+    /* Snapshot context-owned order before the first opaque kernel callback.
+     * Besides making callback mutation irrelevant to this pass, this keeps the
+     * compiler from reloading both fields on every face. */
+    int const ordered_face_count =
+        unsorted ? ctx.num_faces : render_context->tmp_face_order_count;
+    int const* const face_order = render_context->tmp_face_order;
+    ctx.ordered_faces = ordered_face_count;
 
     if( unsorted )
     {
@@ -1278,13 +1325,12 @@ ToriDraw_RasterWithFaceIndices(
     }
     else
     {
-        for( int i = 0; i < scene->tmp_face_order_count; i++ )
+        for( int i = 0; i < ordered_face_count; i++ )
         {
-            int face = scene->tmp_face_order[i];
+            int face = face_order[i];
             ToriDraw_RasterModelFaceKernel(face, &ctx);
         }
     }
-
     if( ctx.raster_debug )
         toridraw_raster_debug_print(ctx.raster_debug, &ctx, (void*)model_as_full(hnd));
 }
@@ -1292,19 +1338,27 @@ ToriDraw_RasterWithFaceIndices(
 static inline void
 ToriDraw_Raster(
     struct ToriDraw_Scene* scene,
-    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_RenderContext* render_context,
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera,
     toripixel_t* pixel_buffer,
-    bool smooth)
+    bool smooth,
+    struct ToriDraw_RenderContext* depth_context)
 {
-    switch( hnd.kind )
+    switch( render_context->active_hnd.kind )
     {
     case TORIDRAWMK_MODEL:
     case TORIDRAWMK_MODEL_HD:
     {
         return ToriDraw_RasterWithFaceIndices(
-            scene, hnd, view_port, camera, pixel_buffer, smooth, false, false);
+            scene,
+            render_context,
+            view_port,
+            camera,
+            pixel_buffer,
+            smooth,
+            depth_context,
+            0);
     }
     default:
         assert(false && "Invalid model handle kind");
@@ -1317,19 +1371,26 @@ ToriDraw_Raster(
 static inline void
 ToriDraw_RasterZBuffered(
     struct ToriDraw_Scene* scene,
-    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_RenderContext* render_context,
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera,
     toripixel_t* pixel_buffer,
     bool smooth)
 {
-    switch( hnd.kind )
+    switch( render_context->active_hnd.kind )
     {
     case TORIDRAWMK_MODEL:
     case TORIDRAWMK_MODEL_HD:
     {
         return ToriDraw_RasterWithFaceIndices(
-            scene, hnd, view_port, camera, pixel_buffer, smooth, true, true);
+            scene,
+            render_context,
+            view_port,
+            camera,
+            pixel_buffer,
+            smooth,
+            render_context,
+            TORIDRAW_RASTER_PASS_FORCE_ZBUFFER | TORIDRAW_RASTER_PASS_UNSORTED);
     }
     default:
         assert(false && "Invalid model handle kind");

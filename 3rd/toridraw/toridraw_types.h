@@ -580,113 +580,42 @@ struct ToriDraw_SceneBatchElementHandle
 
 #define TORIDRAW_CACHE_FONT_SLOT_COUNT 4
 
+/*
+ * Model-render state passed explicitly through projection, sorting, and
+ * rasterization. The root instance is the first member of ToriDraw_Scene, so
+ * its address and field offsets are identical to the legacy scene-resident
+ * scratch layout. Additional instances own only the buffers that remain live
+ * across a raster-kernel callback; sorting intermediates are safely shared.
+ */
+struct ToriDraw_RenderContext
+{
+#include "toridraw_render_context_fields.inc"
+
+    /* Non-null only for separately allocated nested-context buffer slabs. */
+    int* buffer_storage;
+
+    /* Cold LIFO metadata. Kept outside the scene-compatible render prefix so
+     * ordinary scene->field accesses and the resident context stay unchanged. */
+    struct ToriDraw_RenderContext* previous_active_render_context;
+};
+
 struct ToriDraw_Scene
 {
-    uint32_t flags;
-    int max_vertices;
-    int max_faces;
-    int depth_levels;
-    int depth_stride;
-    int priority_stride;
-    /** Entries in each flexible-priority (10/11) array. The two are allocated
-     *  the same size; the sorter merges 11 into 10, so the merged run must fit
-     *  this many entries. Kept so the sort can assert that rather than trust
-     *  it: these arrays sit next to the other scratch, and an overrun lands in
-     *  a live neighbour instead of anywhere a sanitizer can see. */
-    int flex_prio_capacity;
+    union
+    {
+        struct ToriDraw_RenderContext render_context;
+        struct
+        {
+#include "toridraw_render_context_fields.inc"
+        };
+    };
 
-    struct ToriDraw_ModelHandle active_hnd;
-
-    struct ProjectedVertex projected_vertex;
-    struct ToriDraw_AABB aabb;
-    struct ToriDraw_AABB cylinder_fast_aabb;
-
-    /*
-     * Whether the model ToriDraw_Project last projected could reach behind the
-     * near plane, and so whether screen_vertices_x may hold
-     * TORIDRAW_SCREEN_X_NEAR_CLIPPED. False for the overwhelming majority of
-     * models: the camera has to be inside the model's bounding sphere for a
-     * vertex to clip. Consumers that test for the sentinel (the triangle
-     * dispatchers, the per-face pick) must check this first, both to skip the
-     * test entirely in the common case and because the no-clip kernel does not
-     * nudge a genuine -5000 out of the way. Mirrors `clipped` in the reference
-     * (Client-TS Model.worldRender:1755, consumed at render2:1876).
-     */
-    bool near_clipped;
-
-    /*
-     * Near plane ToriDraw_Project actually used for the model it last
-     * projected, which is camera->near_plane_z raised far enough that no
-     * projected coordinate can leave the rasterizer's 16.16 domain. See
-     * toridraw_safe_near_plane_z. Every consumer of the projection scratch —
-     * the near-clip triangle builders above all — must clip against this
-     * value, not the camera's, or the two disagree about where the plane is.
-     */
-    int projection_near_plane_z;
-
-    struct ToriDraw_TextureState* tex_state;
-
-    /*
-     * The scene's one z-buffer scratch, screen sized. NULL unless the scene was
-     * created with TORIDRAW_SCENE_MODEL_ZBUFFER (allocated lazily, on the first
-     * raster of a model that opts in) or a caller sized it up front.
-     *
-     * Only models carrying TORIDRAW_MODEL_FLAG_ZBUFFER touch it, and each such
-     * model resets the region it draws into before drawing — see
-     * graphics/zdepth.h for why that reset is what bounds the effect to one
-     * model.
-     *
-     * `zbuffer_stride` is the row stride in ELEMENTS and matches the viewport
-     * stride the buffer was sized for, so a pixel at `offset` in the frame
-     * buffer is at the same `offset` here. Keeping the two layouts identical is
-     * what lets one offset walk both.
-     */
-    torizdepth_t* zbuffer;
-    int zbuffer_stride;
-    int zbuffer_rows;
-
-    int* screen_vertices_x;
-    int* screen_vertices_y;
-    int* screen_vertices_z;
-    int* orthographic_vertices_x;
-    int* orthographic_vertices_y;
-    int* orthographic_vertices_z;
-
-    /*
-     * Optional prepared-camera state for the projection hot path. Pointer
-     * identity makes the normal render-command stream a single cheap compare;
-     * callers using another camera continue through the portable kernels.
-     */
-    struct ToriDraw_ProjectionPreparedCamera projection_prepared_camera;
-    const struct ToriDraw_Camera* projection_prepared_camera_source;
-
-    faceint_t* tmp_depth_face_count;
-    faceint_t* tmp_depth_faces;
-    faceint_t* tmp_priority_face_count;
-    /* Sum of face depths per priority, for the flexible-priority averages in
-     * sort_face_draw_order. **int, not faceint_t**: this accumulates, where
-     * every other scratch array here holds one face index. A depth is 0..1499
-     * and a model can have hundreds of faces at one priority, so an int16 wraps
-     * — 451 faces at priority 4 on npc 999 sum past 32767 long before the
-     * average is taken. The reference holds these in an int array for the same
-     * reason. */
-    int* tmp_priority_depth_sum;
-    faceint_t* tmp_priority_faces;
-    int* tmp_flex_prio11_face_to_depth;
-    int* tmp_flex_prio12_face_to_depth;
-
-    faceint_t* sm_face_depth;
-    int* sm_depth_offset;
-    int* sm_depth_cursor;
-    faceint_t* sm_faces_by_depth;
-    int sm_prio_count[13];
-    int* sm_prio_offset;
-    faceint_t* sm_prio_faces;
-    int* sm_flex_prio11_face_to_depth;
-    int* sm_flex_prio12_face_to_depth;
-
-    int* tmp_face_order;
-    int tmp_face_order_count;
+    /* Cold nested-context pool plus the active complete-render context. Keep
+     * these near the render prefix so acquisition does not materialize a
+     * multi-megabyte field offset on the ordinary path. */
+    struct ToriDraw_RenderContext* render_contexts;
+    struct ToriDraw_RenderContext* active_render_context;
+    unsigned int nested_render_contexts_used;
 
     faceint_t sparse_a[4096];
     faceint_t sparse_b[4096];
@@ -733,16 +662,6 @@ struct ToriDraw_Scene
      * offsets. NULL means inherit the active raster entry point's terminal. */
     const struct ToriDraw_RasterKernel* raster_kernel;
 
-    /*
-     * Model rendering is normally single-depth and continues to use the
-     * resident scratch fields above. Recursive same-scene renders take an
-     * independent context allocated with the scene, so the normal path pays no
-     * allocation or extra hot-loop indirection. Concurrent use of one scene
-     * still requires external synchronization.
-     */
-    struct ToriDraw_RenderContext* render_contexts;
-    unsigned int render_context_depth;
-    unsigned int nested_render_contexts_used;
 };
 
 #define TORIDRAW_CULL_VISIBLE 0

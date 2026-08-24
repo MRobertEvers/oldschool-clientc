@@ -184,7 +184,7 @@ ToriDraw_WidgetModelBounds(
  *  origin at widget center, midZ = (eyeY*sinEyePitch + eyeZ*cosEyePitch) >> 16. */
 static bool
 widget_model_project_vertices_objrender(
-    struct ToriDraw_Scene* scene,
+    struct ToriDraw_RenderContext* context,
     struct ToriDraw_ModelHandle hnd,
     const struct ToriDraw_WidgetModelTransform* xf,
     int origin_x,
@@ -200,6 +200,7 @@ widget_model_project_vertices_objrender(
     vertexint_t* vertices_z = ToriDraw_ModelGetVerticesZ(hnd);
 
     int mid_z = (xf->var6 * xf->var16 + xf->var7 * xf->var17) >> 16;
+    context->projected_vertex.z = mid_z;
     int min_x = INT_MAX;
     int min_y = INT_MAX;
     int max_x = INT_MIN;
@@ -214,24 +215,24 @@ widget_model_project_vertices_objrender(
         widget_model_transform_vertex(
             xf, vertices_x[i], vertices_y[i], vertices_z[i], &cx, &cy, &cz);
 
-        scene->orthographic_vertices_x[i] = cx;
-        scene->orthographic_vertices_y[i] = cy;
-        scene->orthographic_vertices_z[i] = cz;
+        context->orthographic_vertices_x[i] = cx;
+        context->orthographic_vertices_y[i] = cy;
+        context->orthographic_vertices_z[i] = cz;
 
         if( cz <= WIDGET_MODEL_NEAR )
         {
-            scene->screen_vertices_x[i] = WIDGET_MODEL_CLIP_X;
-            scene->screen_vertices_y[i] = 0;
-            scene->screen_vertices_z[i] = cz - mid_z;
+            context->screen_vertices_x[i] = WIDGET_MODEL_CLIP_X;
+            context->screen_vertices_y[i] = 0;
+            context->screen_vertices_z[i] = cz - mid_z;
             continue;
         }
 
         int px = origin_x + (cx * xf->zoom3d) / cz;
         int py = origin_y + (cy * xf->zoom3d) / cz;
 
-        scene->screen_vertices_x[i] = px;
-        scene->screen_vertices_y[i] = py;
-        scene->screen_vertices_z[i] = cz - mid_z;
+        context->screen_vertices_x[i] = px;
+        context->screen_vertices_y[i] = py;
+        context->screen_vertices_z[i] = cz - mid_z;
 
         if( px < min_x )
             min_x = px;
@@ -256,7 +257,7 @@ widget_model_project_vertices_objrender(
 
 static bool
 widget_model_project_vertices(
-    struct ToriDraw_Scene* scene,
+    struct ToriDraw_RenderContext* context,
     struct ToriDraw_ModelHandle hnd,
     const struct ToriDraw_WidgetModelTransform* xf,
     int sw,
@@ -281,9 +282,9 @@ widget_model_project_vertices(
         widget_model_transform_vertex(
             xf, vertices_x[i], vertices_y[i], vertices_z[i], &cx, &cy, &cz);
 
-        scene->orthographic_vertices_x[i] = cx;
-        scene->orthographic_vertices_y[i] = cy;
-        scene->orthographic_vertices_z[i] = cz;
+        context->orthographic_vertices_x[i] = cx;
+        context->orthographic_vertices_y[i] = cy;
+        context->orthographic_vertices_z[i] = cz;
 
         int px;
         int py;
@@ -296,9 +297,9 @@ widget_model_project_vertices(
         {
             if( cz <= WIDGET_MODEL_NEAR )
             {
-                scene->screen_vertices_x[i] = WIDGET_MODEL_CLIP_X;
-                scene->screen_vertices_y[i] = 0;
-                scene->screen_vertices_z[i] = cz;
+                context->screen_vertices_x[i] = WIDGET_MODEL_CLIP_X;
+                context->screen_vertices_y[i] = 0;
+                context->screen_vertices_z[i] = cz;
                 continue;
             }
 
@@ -306,22 +307,23 @@ widget_model_project_vertices(
             py = (cy * xf->zoom3d) / cz;
         }
 
-        scene->screen_vertices_x[i] = px + dx - (sw >> 1);
-        scene->screen_vertices_y[i] = py + dy - (sh >> 1);
-        scene->screen_vertices_z[i] = cz;
+        context->screen_vertices_x[i] = px + dx - (sw >> 1);
+        context->screen_vertices_y[i] = py + dy - (sh >> 1);
+        context->screen_vertices_z[i] = cz;
         z_sum += cz;
         z_count++;
     }
 
     int model_mid_z = z_count > 0 ? z_sum / z_count : 0;
+    context->projected_vertex.z = model_mid_z;
     for( int i = 0; i < vc; i++ )
-        scene->screen_vertices_z[i] -= model_mid_z;
+        context->screen_vertices_z[i] -= model_mid_z;
 
     return z_count > 0;
 }
 
-bool
-ToriDraw_RenderModelExtentsAtWidget(
+static TORIDRAW_RENDER_CONTEXT_ALWAYS_INLINE bool
+toridraw_render_model_extents_at_widget_context(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     int zoom,
@@ -348,9 +350,10 @@ ToriDraw_RenderModelExtentsAtWidget(
     int* out_draw_x,
     int* out_draw_y,
     int* out_width,
-    int* out_height)
+    int* out_height,
+    struct ToriDraw_RenderContext* context)
 {
-    struct ToriDraw_RenderContextScope scope;
+    bool rendered = false;
 
     assert(scene);
     assert(hnd.kind == TORIDRAWMK_MODEL);
@@ -397,15 +400,13 @@ ToriDraw_RenderModelExtentsAtWidget(
     int raster_origin_x = raster_clip_left + ((raster_clip_right - raster_clip_left) >> 1);
     int raster_origin_y = raster_clip_top + ((raster_clip_bottom - raster_clip_top) >> 1);
 
-    if( !ToriDraw_RenderContextBegin(scene, &scope, true) )
-        return false;
-
-    scene->active_hnd = hnd;
+    context->active_hnd = hnd;
     /* Widget models are projected directly, independently of the world camera.
      * Do not inherit the previous world model's near-clipped state: widget
      * screen Z is model-relative (as in Model.objRender), so treating it as
      * camera-space depth clips ordinary animated faces. */
-    scene->near_clipped = false;
+    context->near_clipped = false;
+    context->projection_near_plane_z = WIDGET_MODEL_NEAR;
 
     if( !orthographic )
     {
@@ -417,17 +418,14 @@ ToriDraw_RenderModelExtentsAtWidget(
         int max_y = 0;
 
         if( !widget_model_project_vertices_objrender(
-                scene, hnd, &xf, origin_x, origin_y, &min_x, &min_y, &max_x, &max_y) )
-        {
-            ToriDraw_RenderContextEnd(&scope);
-            return false;
-        }
+                context, hnd, &xf, origin_x, origin_y, &min_x, &min_y, &max_x, &max_y) )
+            goto cleanup;
 
         int vc = ToriDraw_ModelGetVertexCount(hnd);
         for( int i = 0; i < vc; i++ )
         {
-            scene->screen_vertices_x[i] -= raster_origin_x;
-            scene->screen_vertices_y[i] -= raster_origin_y;
+            context->screen_vertices_x[i] -= raster_origin_x;
+            context->screen_vertices_y[i] -= raster_origin_y;
         }
 
         draw_x = min_x;
@@ -435,43 +433,35 @@ ToriDraw_RenderModelExtentsAtWidget(
         sw = max_x - min_x + 1;
         sh = max_y - min_y + 1;
         if( sw <= 0 || sh <= 0 )
-        {
-            ToriDraw_RenderContextEnd(&scope);
-            return false;
-        }
+            goto cleanup;
     }
     else
     {
         int blit_offset_x = 0;
         int blit_offset_y = 0;
         if( !ToriDraw_WidgetModelBounds(hnd, &xf, &sw, &sh, &blit_offset_x, &blit_offset_y) )
-        {
-            ToriDraw_RenderContextEnd(&scope);
-            return false;
-        }
+            goto cleanup;
 
         int bw = widget_w > 0 ? widget_w : sw;
         int bh = widget_h > 0 ? widget_h : sh;
         int origin_x = widget_x + (bw / 2) - blit_offset_x;
         int origin_y = widget_y + (bh / 2) - blit_offset_y;
 
-        if( !widget_model_project_vertices(scene, hnd, &xf, sw, sh, blit_offset_x, blit_offset_y) )
-        {
-            ToriDraw_RenderContextEnd(&scope);
-            return false;
-        }
+        if( !widget_model_project_vertices(
+                context, hnd, &xf, sw, sh, blit_offset_x, blit_offset_y) )
+            goto cleanup;
 
         int vc = ToriDraw_ModelGetVertexCount(hnd);
         for( int i = 0; i < vc; i++ )
         {
-            scene->screen_vertices_x[i] += origin_x;
-            scene->screen_vertices_y[i] += origin_y;
+            context->screen_vertices_x[i] += origin_x;
+            context->screen_vertices_y[i] += origin_y;
         }
 
         for( int i = 0; i < vc; i++ )
         {
-            scene->screen_vertices_x[i] -= raster_origin_x;
-            scene->screen_vertices_y[i] -= raster_origin_y;
+            context->screen_vertices_x[i] -= raster_origin_x;
+            context->screen_vertices_y[i] -= raster_origin_y;
         }
 
         draw_x = widget_x + (bw / 2) - blit_offset_x;
@@ -493,15 +483,176 @@ ToriDraw_RenderModelExtentsAtWidget(
     camera.proj_scale = TORIDRAW_PROJ_SCALE_DEFAULT;
     camera.texture_affine = 1;
 
-    ToriDraw_RenderModel2SortFaces(hnd, scene);
-    ToriDraw_RenderModel3Raster(scene, &view_port, &camera, pixels, false);
+    ToriDraw_RenderContextSortFaces(hnd, context);
+    ToriDraw_RenderContextRaster(scene, context, &view_port, &camera, pixels, false);
 
     *out_draw_x = draw_x;
     *out_draw_y = draw_y;
     *out_width = sw;
     *out_height = sh;
-    ToriDraw_RenderContextEnd(&scope);
-    return true;
+    rendered = true;
+
+cleanup:
+    return rendered;
+}
+
+static TORIDRAW_RENDER_CONTEXT_COLD bool
+toridraw_render_model_extents_at_widget_nested(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    int zoom,
+    int xan,
+    int yan,
+    int zan,
+    int orientation,
+    int model_offset,
+    int model_center_y,
+    bool orthographic,
+    bool fixed_zoom,
+    toripixel_t* pixels,
+    int stride,
+    int canvas_w,
+    int canvas_h,
+    int widget_x,
+    int widget_y,
+    int widget_w,
+    int widget_h,
+    int clip_left,
+    int clip_top,
+    int clip_right,
+    int clip_bottom,
+    int* out_draw_x,
+    int* out_draw_y,
+    int* out_width,
+    int* out_height)
+{
+    struct ToriDraw_RenderContext* context = ToriDraw_RenderContextAcquireNested(scene);
+    bool const rendered = toridraw_render_model_extents_at_widget_context(
+        scene,
+        hnd,
+        zoom,
+        xan,
+        yan,
+        zan,
+        orientation,
+        model_offset,
+        model_center_y,
+        orthographic,
+        fixed_zoom,
+        pixels,
+        stride,
+        canvas_w,
+        canvas_h,
+        widget_x,
+        widget_y,
+        widget_w,
+        widget_h,
+        clip_left,
+        clip_top,
+        clip_right,
+        clip_bottom,
+        out_draw_x,
+        out_draw_y,
+        out_width,
+        out_height,
+        context);
+    ToriDraw_RenderContextReleaseNested(scene, context);
+    return rendered;
+}
+
+bool
+ToriDraw_RenderModelExtentsAtWidget(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    int zoom,
+    int xan,
+    int yan,
+    int zan,
+    int orientation,
+    int model_offset,
+    int model_center_y,
+    bool orthographic,
+    bool fixed_zoom,
+    toripixel_t* pixels,
+    int stride,
+    int canvas_w,
+    int canvas_h,
+    int widget_x,
+    int widget_y,
+    int widget_w,
+    int widget_h,
+    int clip_left,
+    int clip_top,
+    int clip_right,
+    int clip_bottom,
+    int* out_draw_x,
+    int* out_draw_y,
+    int* out_width,
+    int* out_height)
+{
+    bool rendered;
+
+    if( !ToriDraw_RenderContextTryAcquireRoot(scene) )
+        return toridraw_render_model_extents_at_widget_nested(
+            scene,
+            hnd,
+            zoom,
+            xan,
+            yan,
+            zan,
+            orientation,
+            model_offset,
+            model_center_y,
+            orthographic,
+            fixed_zoom,
+            pixels,
+            stride,
+            canvas_w,
+            canvas_h,
+            widget_x,
+            widget_y,
+            widget_w,
+            widget_h,
+            clip_left,
+            clip_top,
+            clip_right,
+            clip_bottom,
+            out_draw_x,
+            out_draw_y,
+            out_width,
+            out_height);
+
+    rendered = toridraw_render_model_extents_at_widget_context(
+        scene,
+        hnd,
+        zoom,
+        xan,
+        yan,
+        zan,
+        orientation,
+        model_offset,
+        model_center_y,
+        orthographic,
+        fixed_zoom,
+        pixels,
+        stride,
+        canvas_w,
+        canvas_h,
+        widget_x,
+        widget_y,
+        widget_w,
+        widget_h,
+        clip_left,
+        clip_top,
+        clip_right,
+        clip_bottom,
+        out_draw_x,
+        out_draw_y,
+        out_width,
+        out_height,
+        &scene->render_context);
+    ToriDraw_RenderContextReleaseRoot(scene);
+    return rendered;
 }
 
 void
@@ -585,8 +736,8 @@ ToriDraw_SpritePostprocessObjIconOutlineColor(
     }
 }
 
-struct ToriDraw_ModelExtentsRaster
-ToriDraw_SpriteNewFromModelRasterExtents(
+static TORIDRAW_RENDER_CONTEXT_ALWAYS_INLINE struct ToriDraw_ModelExtentsRaster
+toridraw_sprite_new_from_model_raster_extents_context(
     struct ToriDraw_Scene* scene,
     struct ToriDraw_ModelHandle hnd,
     int zoom,
@@ -596,10 +747,10 @@ ToriDraw_SpriteNewFromModelRasterExtents(
     int offset_x,
     int offset_y,
     bool orthographic,
-    bool postprocess_outline)
+    bool postprocess_outline,
+    struct ToriDraw_RenderContext* context)
 {
     struct ToriDraw_ModelExtentsRaster result = { 0 };
-    struct ToriDraw_RenderContextScope scope;
 
     assert(scene);
     assert(hnd.kind == TORIDRAWMK_MODEL);
@@ -618,16 +769,12 @@ ToriDraw_SpriteNewFromModelRasterExtents(
     if( !ToriDraw_WidgetModelBounds(hnd, &xf, &width, &height, &blit_offset_x, &blit_offset_y) )
         return result;
 
-    if( !ToriDraw_RenderContextBegin(scene, &scope, true) )
-        return result;
-
-    scene->active_hnd = hnd;
+    context->active_hnd = hnd;
+    context->near_clipped = false;
+    context->projection_near_plane_z = WIDGET_MODEL_NEAR;
     if( !widget_model_project_vertices(
-            scene, hnd, &xf, width, height, blit_offset_x, blit_offset_y) )
-    {
-        ToriDraw_RenderContextEnd(&scope);
-        return result;
-    }
+            context, hnd, &xf, width, height, blit_offset_x, blit_offset_y) )
+        goto cleanup;
 
     struct ToriDraw_ViewPort view_port = { 0 };
     view_port.width = width;
@@ -647,8 +794,8 @@ ToriDraw_SpriteNewFromModelRasterExtents(
     toripixel_t* pixels = calloc(pixel_count, sizeof(toripixel_t));
     assert(pixels);
 
-    ToriDraw_RenderModel2SortFaces(hnd, scene);
-    ToriDraw_RenderModel3Raster(scene, &view_port, &camera, pixels, false);
+    ToriDraw_RenderContextSortFaces(hnd, context);
+    ToriDraw_RenderContextRaster(scene, context, &view_port, &camera, pixels, false);
 
     uint32_t* argb = malloc(pixel_count * sizeof(uint32_t));
     assert(argb);
@@ -667,7 +814,83 @@ ToriDraw_SpriteNewFromModelRasterExtents(
     result.sprite = ToriDraw_SpriteNewFromArgbOwned(argb, width, height);
     result.offset_x = blit_offset_x;
     result.offset_y = blit_offset_y;
-    ToriDraw_RenderContextEnd(&scope);
+
+cleanup:
+    return result;
+}
+
+static TORIDRAW_RENDER_CONTEXT_COLD struct ToriDraw_ModelExtentsRaster
+toridraw_sprite_new_from_model_raster_extents_nested(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    int zoom,
+    int xan,
+    int yan,
+    int zan,
+    int offset_x,
+    int offset_y,
+    bool orthographic,
+    bool postprocess_outline)
+{
+    struct ToriDraw_RenderContext* context = ToriDraw_RenderContextAcquireNested(scene);
+    struct ToriDraw_ModelExtentsRaster const result =
+        toridraw_sprite_new_from_model_raster_extents_context(
+            scene,
+            hnd,
+            zoom,
+            xan,
+            yan,
+            zan,
+            offset_x,
+            offset_y,
+            orthographic,
+            postprocess_outline,
+            context);
+    ToriDraw_RenderContextReleaseNested(scene, context);
+    return result;
+}
+
+struct ToriDraw_ModelExtentsRaster
+ToriDraw_SpriteNewFromModelRasterExtents(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_ModelHandle hnd,
+    int zoom,
+    int xan,
+    int yan,
+    int zan,
+    int offset_x,
+    int offset_y,
+    bool orthographic,
+    bool postprocess_outline)
+{
+    struct ToriDraw_ModelExtentsRaster result;
+
+    if( !ToriDraw_RenderContextTryAcquireRoot(scene) )
+        return toridraw_sprite_new_from_model_raster_extents_nested(
+            scene,
+            hnd,
+            zoom,
+            xan,
+            yan,
+            zan,
+            offset_x,
+            offset_y,
+            orthographic,
+            postprocess_outline);
+
+    result = toridraw_sprite_new_from_model_raster_extents_context(
+        scene,
+        hnd,
+        zoom,
+        xan,
+        yan,
+        zan,
+        offset_x,
+        offset_y,
+        orthographic,
+        postprocess_outline,
+        &scene->render_context);
+    ToriDraw_RenderContextReleaseRoot(scene);
     return result;
 }
 

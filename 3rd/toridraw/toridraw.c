@@ -55,6 +55,13 @@ _Static_assert(
         offsetof(struct ToriDraw_Scene, screen_vertices_x) + 6 * sizeof(int*),
     "prepared projection relative layout");
 _Static_assert(
+    offsetof(struct ToriDraw_Scene, render_context) == 0,
+    "resident render context must remain at scene offset zero");
+_Static_assert(
+    offsetof(struct ToriDraw_RenderContext, projection_prepared_camera) ==
+        offsetof(struct ToriDraw_RenderContext, screen_vertices_x) + 6 * sizeof(int*),
+    "context prepared projection relative layout");
+_Static_assert(
     offsetof(struct ToriDraw_Position, x) == 0,
     "projection position-x layout");
 _Static_assert(
@@ -264,44 +271,6 @@ ToriDraw_SceneBufferBytes(const struct ToriDraw_SceneCaps* caps)
     return bytes;
 }
 
-/*
- * Live state owned by one nested model-render extent.  The resident,
- * depth-zero context deliberately remains laid out directly on ToriDraw_Scene:
- * projection assembly and the sort/raster hot paths keep exactly the same
- * addresses and indirections as before.
- *
- * The depth/priority workspaces are intentionally not duplicated. A kernel
- * callback is reached only after its outer model has finished sorting, so a
- * nested sort may reuse those dead intermediates. The projected vertices and
- * final face order remain live while the callback runs and therefore do need a
- * context of their own. All such contexts are allocated with the scene.
- */
-struct ToriDraw_RenderContext
-{
-    int* buffer_storage;
-
-    struct ToriDraw_ModelHandle active_hnd;
-    struct ProjectedVertex projected_vertex;
-    struct ToriDraw_AABB aabb;
-    struct ToriDraw_AABB cylinder_fast_aabb;
-    bool near_clipped;
-    int projection_near_plane_z;
-
-    torizdepth_t* zbuffer;
-    int zbuffer_stride;
-    int zbuffer_rows;
-
-    int* screen_vertices_x;
-    int* screen_vertices_y;
-    int* screen_vertices_z;
-    int* orthographic_vertices_x;
-    int* orthographic_vertices_y;
-    int* orthographic_vertices_z;
-
-    int* tmp_face_order;
-    int tmp_face_order_count;
-};
-
 _Static_assert(TORIDRAW_NESTED_RENDER_CONTEXTS > 0, "nested render context count must be positive");
 
 static size_t
@@ -324,7 +293,7 @@ toridraw_render_context_release_buffers(struct ToriDraw_RenderContext* context)
     memset(context, 0, sizeof(*context));
 }
 
-static bool
+static void
 toridraw_render_context_allocate_buffers(
     struct ToriDraw_RenderContext* context,
     const struct ToriDraw_Scene* scene)
@@ -333,9 +302,23 @@ toridraw_render_context_allocate_buffers(
     size_t const integer_count = vertex_count * 6 + (size_t)scene->max_faces;
     int* cursor;
 
+    *context = scene->render_context;
+    context->buffer_storage = NULL;
+    context->zbuffer = NULL;
+    context->zbuffer_stride = 0;
+    context->zbuffer_rows = 0;
+    context->screen_vertices_x = NULL;
+    context->screen_vertices_y = NULL;
+    context->screen_vertices_z = NULL;
+    context->orthographic_vertices_x = NULL;
+    context->orthographic_vertices_y = NULL;
+    context->orthographic_vertices_z = NULL;
+    context->tmp_face_order = NULL;
+    context->tmp_face_order_count = 0;
+    context->previous_active_render_context = NULL;
+
     context->buffer_storage = malloc(integer_count * sizeof(int));
-    if( !context->buffer_storage )
-        return false;
+    assert(context->buffer_storage && "render context scratch allocation failed");
 
     cursor = context->buffer_storage;
     context->screen_vertices_x = cursor;
@@ -351,123 +334,104 @@ toridraw_render_context_allocate_buffers(
     context->orthographic_vertices_z = cursor;
     cursor += vertex_count;
     context->tmp_face_order = cursor;
-
-    return true;
 }
 
-static bool
+static void
 toridraw_render_contexts_allocate(struct ToriDraw_Scene* scene)
 {
     scene->render_contexts =
         calloc(TORIDRAW_NESTED_RENDER_CONTEXTS, sizeof(scene->render_contexts[0]));
-    if( !scene->render_contexts )
-        return false;
+    assert(scene->render_contexts && "render context pool allocation failed");
 
     for( int i = 0; i < TORIDRAW_NESTED_RENDER_CONTEXTS; i++ )
-    {
-        if( !toridraw_render_context_allocate_buffers(&scene->render_contexts[i], scene) )
-        {
-            for( int j = 0; j < i; j++ )
-                toridraw_render_context_release_buffers(&scene->render_contexts[j]);
-            free(scene->render_contexts);
-            scene->render_contexts = NULL;
-            return false;
-        }
-    }
-
-    return true;
+        toridraw_render_context_allocate_buffers(&scene->render_contexts[i], scene);
 }
 
-static void
-toridraw_render_context_swap(
-    struct ToriDraw_Scene* scene,
-    struct ToriDraw_RenderContext* context)
-{
-#define TORIDRAW_SWAP_RENDER_FIELD(type, field)                                                   \
-    do                                                                                            \
-    {                                                                                             \
-        type temporary = scene->field;                                                            \
-        scene->field = context->field;                                                            \
-        context->field = temporary;                                                               \
-    } while( 0 )
-
-    TORIDRAW_SWAP_RENDER_FIELD(struct ToriDraw_ModelHandle, active_hnd);
-    TORIDRAW_SWAP_RENDER_FIELD(struct ProjectedVertex, projected_vertex);
-    TORIDRAW_SWAP_RENDER_FIELD(struct ToriDraw_AABB, aabb);
-    TORIDRAW_SWAP_RENDER_FIELD(struct ToriDraw_AABB, cylinder_fast_aabb);
-    TORIDRAW_SWAP_RENDER_FIELD(bool, near_clipped);
-    TORIDRAW_SWAP_RENDER_FIELD(int, projection_near_plane_z);
-
-    TORIDRAW_SWAP_RENDER_FIELD(torizdepth_t*, zbuffer);
-    TORIDRAW_SWAP_RENDER_FIELD(int, zbuffer_stride);
-    TORIDRAW_SWAP_RENDER_FIELD(int, zbuffer_rows);
-
-    TORIDRAW_SWAP_RENDER_FIELD(int*, screen_vertices_x);
-    TORIDRAW_SWAP_RENDER_FIELD(int*, screen_vertices_y);
-    TORIDRAW_SWAP_RENDER_FIELD(int*, screen_vertices_z);
-    TORIDRAW_SWAP_RENDER_FIELD(int*, orthographic_vertices_x);
-    TORIDRAW_SWAP_RENDER_FIELD(int*, orthographic_vertices_y);
-    TORIDRAW_SWAP_RENDER_FIELD(int*, orthographic_vertices_z);
-
-    TORIDRAW_SWAP_RENDER_FIELD(int*, tmp_face_order);
-    TORIDRAW_SWAP_RENDER_FIELD(int, tmp_face_order_count);
-
-#undef TORIDRAW_SWAP_RENDER_FIELD
-}
-
-bool
-ToriDraw_RenderContextBeginNested(
-    struct ToriDraw_Scene* scene,
-    struct ToriDraw_RenderContextScope* scope)
+struct ToriDraw_RenderContext*
+ToriDraw_RenderContextAcquireNested(struct ToriDraw_Scene* scene)
 {
     struct ToriDraw_RenderContext* context;
 
     assert(scene);
-    assert(scope);
-    assert(scene->render_context_depth != 0);
-    assert(!scope->scene);
-    assert(!scope->nested_context);
-
-    if( scene->nested_render_contexts_used >= TORIDRAW_NESTED_RENDER_CONTEXTS )
-        return false;
+    assert(scene->active_render_context);
+    assert(scene->render_contexts && "nested render contexts must be allocated at SceneNew");
+    assert(scene->nested_render_contexts_used < TORIDRAW_NESTED_RENDER_CONTEXTS &&
+           "nested render context capacity exhausted; raise TORIDRAW_NESTED_RENDER_CONTEXTS");
 
     context = &scene->render_contexts[scene->nested_render_contexts_used++];
-    toridraw_render_context_swap(scene, context);
-    scope->nested_context = context;
-    scene->render_context_depth++;
-    scope->scene = scene;
-    return true;
+    assert(context->buffer_storage);
+    assert(!context->previous_active_render_context);
+
+    /* Prepared-camera publication is scene-level and immutable while a
+     * synchronous callback is active. Copy it only on the cold nested arm so
+     * the native projection ABI remains available without root-path work. */
+    context->projection_prepared_camera = scene->projection_prepared_camera;
+    context->projection_prepared_camera_source = scene->projection_prepared_camera_source;
+    context->tex_state = scene->tex_state;
+    context->previous_active_render_context = scene->active_render_context;
+    scene->active_render_context = context;
+    return context;
 }
 
 void
-ToriDraw_RenderContextEndNested(struct ToriDraw_RenderContextScope* scope)
+ToriDraw_RenderContextReleaseNested(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_RenderContext* context)
 {
-    struct ToriDraw_Scene* scene;
-    struct ToriDraw_RenderContext* context;
+    struct ToriDraw_RenderContext* previous;
 
-    assert(scope);
-    scene = scope->scene;
     assert(scene);
-    assert(scene->render_context_depth > 0);
-
-    context = scope->nested_context;
     assert(context);
+    assert(scene->active_render_context == context);
     assert(scene->nested_render_contexts_used > 0);
     assert(context == &scene->render_contexts[scene->nested_render_contexts_used - 1]);
-    toridraw_render_context_swap(scene, context);
-    scene->nested_render_contexts_used--;
+    previous = context->previous_active_render_context;
+    assert(previous);
+    context->previous_active_render_context = NULL;
+    --scene->nested_render_contexts_used;
+    scene->active_render_context = previous;
+}
 
-    scene->render_context_depth--;
-    scope->scene = NULL;
-    scope->nested_context = NULL;
+struct ToriDraw_RenderContext*
+ToriDraw_RenderContextAcquireScratch(struct ToriDraw_Scene* scene)
+{
+    struct ToriDraw_RenderContext* context;
+
+    assert(scene);
+    assert(scene->active_render_context);
+    assert(scene->render_contexts && "nested render contexts must be allocated at SceneNew");
+    assert(scene->nested_render_contexts_used < TORIDRAW_NESTED_RENDER_CONTEXTS &&
+           "nested render context capacity exhausted; raise TORIDRAW_NESTED_RENDER_CONTEXTS");
+
+    context = &scene->render_contexts[scene->nested_render_contexts_used++];
+    assert(context->buffer_storage);
+    assert(!context->previous_active_render_context);
+    return context;
+}
+
+void
+ToriDraw_RenderContextReleaseScratch(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_RenderContext* context)
+{
+    assert(scene);
+    assert(context);
+    assert(scene->active_render_context);
+    assert(scene->nested_render_contexts_used > 0);
+    assert(context == &scene->render_contexts[scene->nested_render_contexts_used - 1]);
+    assert(!context->previous_active_render_context);
+    --scene->nested_render_contexts_used;
 }
 
 static void
 toridraw_render_contexts_free(struct ToriDraw_Scene* scene)
 {
-    assert(scene->render_context_depth == 0);
+    assert(!scene->active_render_context);
     assert(scene->nested_render_contexts_used == 0);
 
+    /* Construction can fail in the older sort-workspace allocations before
+     * the mandatory context pool is reached; teardown must accept that
+     * partially initialized scene. Runtime acquisition never does. */
     if( !scene->render_contexts )
         return;
 
@@ -582,8 +546,7 @@ ToriDraw_SceneAllocBuffers(
             return false;
     }
 
-    if( !toridraw_render_contexts_allocate(scene) )
-        return false;
+    toridraw_render_contexts_allocate(scene);
 
     if( !caps->lazy_textures )
     {
@@ -595,8 +558,8 @@ ToriDraw_SceneAllocBuffers(
 }
 
 bool
-ToriDraw_SceneZBufferResize(
-    struct ToriDraw_Scene* scene,
+ToriDraw_RenderContextZBufferResize(
+    struct ToriDraw_RenderContext* context,
     int stride,
     int rows)
 {
@@ -605,27 +568,38 @@ ToriDraw_SceneZBufferResize(
 
     if( stride <= 0 || rows <= 0 )
         return false;
-    assert(scene);
+    assert(context);
 
     /* Never shrink: the buffer is scratch, and a scene alternating between two
      * viewport sizes would otherwise realloc on every switch. */
-    if( stride < scene->zbuffer_stride )
-        stride = scene->zbuffer_stride;
-    if( rows < scene->zbuffer_rows )
-        rows = scene->zbuffer_rows;
-    if( scene->zbuffer && stride == scene->zbuffer_stride && rows == scene->zbuffer_rows )
+    if( stride < context->zbuffer_stride )
+        stride = context->zbuffer_stride;
+    if( rows < context->zbuffer_rows )
+        rows = context->zbuffer_rows;
+    if( context->zbuffer && stride == context->zbuffer_stride && rows == context->zbuffer_rows )
         return true;
 
     want = (size_t)stride * (size_t)rows;
-    grown = (torizdepth_t*)realloc(scene->zbuffer, want * sizeof(torizdepth_t));
+    grown = (torizdepth_t*)realloc(context->zbuffer, want * sizeof(torizdepth_t));
     assert(grown);
 
-    scene->zbuffer = grown;
-    scene->zbuffer_stride = stride;
-    scene->zbuffer_rows = rows;
+    context->zbuffer = grown;
+    context->zbuffer_stride = stride;
+    context->zbuffer_rows = rows;
     /* Contents are undefined until a model resets the region it draws into, so
      * there is nothing to preserve or initialise here. */
     return true;
+}
+
+bool
+ToriDraw_SceneZBufferResize(
+    struct ToriDraw_Scene* scene,
+    int stride,
+    int rows)
+{
+    assert(scene);
+    assert(!scene->active_render_context && "cannot resize z-buffer scratch during rendering");
+    return ToriDraw_RenderContextZBufferResize(&scene->render_context, stride, rows);
 }
 
 void
@@ -633,10 +607,31 @@ ToriDraw_SceneZBufferFree(struct ToriDraw_Scene* scene)
 {
     if( !scene )
         return;
+    assert(!scene->active_render_context && "cannot free z-buffer scratch during rendering");
+
     free(scene->zbuffer);
     scene->zbuffer = NULL;
     scene->zbuffer_stride = 0;
     scene->zbuffer_rows = 0;
+
+    for( int i = 0; scene->render_contexts && i < TORIDRAW_NESTED_RENDER_CONTEXTS; i++ )
+    {
+        struct ToriDraw_RenderContext* context = &scene->render_contexts[i];
+        free(context->zbuffer);
+        context->zbuffer = NULL;
+        context->zbuffer_stride = 0;
+        context->zbuffer_rows = 0;
+    }
+}
+
+bool
+ToriDraw_RenderContextHasZBuffer(
+    const struct ToriDraw_RenderContext* context,
+    int stride,
+    int rows)
+{
+    return context && context->zbuffer && context->zbuffer_stride >= stride &&
+           context->zbuffer_rows >= rows;
 }
 
 bool
@@ -645,8 +640,8 @@ ToriDraw_SceneHasZBuffer(
     int stride,
     int rows)
 {
-    return scene && scene->zbuffer && scene->zbuffer_stride >= stride &&
-           scene->zbuffer_rows >= rows;
+    return scene &&
+        ToriDraw_RenderContextHasZBuffer(&scene->render_context, stride, rows);
 }
 
 struct ToriDraw_TextureState*
@@ -926,6 +921,68 @@ int g_toridraw_raster_scanline = 0;
 #include "toridraw_render_hd.u.c"
 // clang-format on
 
+int
+ToriDraw_RenderContextProject(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_RenderContext* context,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera)
+{
+    assert(context);
+    context->active_hnd = hnd;
+    return ToriDraw_Project(context, hnd, position, view_port, camera);
+}
+
+int
+ToriDraw_RenderContextSortFaces(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_RenderContext* context)
+{
+    assert(context);
+    if( context->flags & TORIDRAW_SCENE_SMALL )
+        ToriDraw_ComputeProjectedFaceOrderSmall(context, hnd);
+    else
+        ToriDraw_ComputeProjectedFaceOrder(context, hnd);
+    return context->tmp_face_order_count;
+}
+
+void
+ToriDraw_RenderContextRaster(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_RenderContext* context,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    bool smooth)
+{
+    ToriDraw_Raster(
+        scene, context, view_port, camera, pixel_buffer, smooth, context);
+}
+
+void
+ToriDraw_RenderContextRasterZBuffered(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_RenderContext* context,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    bool smooth)
+{
+#ifdef TORIDRAW_PIXEL16
+    (void)scene;
+    (void)context;
+    (void)view_port;
+    (void)camera;
+    (void)pixel_buffer;
+    (void)smooth;
+    assert(false && "z-buffered raster needs the 32-bit raster");
+#else
+    ToriDraw_RasterZBuffered(
+        scene, context, view_port, camera, pixel_buffer, smooth);
+#endif
+}
+
 void
 ToriDraw_Init(void)
 {
@@ -990,6 +1047,41 @@ ToriDraw_SceneClearProjectionCamera(struct ToriDraw_Scene* scene)
     scene->projection_prepared_camera_source = NULL;
 }
 
+static TORIDRAW_RENDER_CONTEXT_ALWAYS_INLINE void
+toridraw_render_model_context(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_RenderContext* context,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer)
+{
+    int const cull =
+        ToriDraw_RenderContextProject(hnd, context, position, view_port, camera);
+    if( cull != TORIDRAW_CULL_VISIBLE )
+        return;
+
+    ToriDraw_RenderContextSortFaces(hnd, context);
+    ToriDraw_RenderContextRaster(
+        scene, context, view_port, camera, pixel_buffer, false);
+}
+
+static TORIDRAW_RENDER_CONTEXT_COLD void
+toridraw_render_model_nested(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer)
+{
+    struct ToriDraw_RenderContext* context = ToriDraw_RenderContextAcquireNested(scene);
+    toridraw_render_model_context(
+        hnd, scene, context, position, view_port, camera, pixel_buffer);
+    ToriDraw_RenderContextReleaseNested(scene, context);
+}
+
 void
 ToriDraw_RenderModel(
     struct ToriDraw_ModelHandle hnd,
@@ -999,20 +1091,17 @@ ToriDraw_RenderModel(
     struct ToriDraw_Camera* camera,
     toripixel_t* pixel_buffer)
 {
-    struct ToriDraw_RenderContextScope scope;
-
-    if( !ToriDraw_RenderContextBegin(scene, &scope, true) )
+    assert(scene);
+    if( !ToriDraw_RenderContextTryAcquireRoot(scene) )
+    {
+        toridraw_render_model_nested(
+            hnd, scene, position, view_port, camera, pixel_buffer);
         return;
+    }
 
-    int cull = ToriDraw_RenderModel1Project(hnd, scene, position, view_port, camera);
-    if( cull != TORIDRAW_CULL_VISIBLE )
-        goto cleanup;
-
-    ToriDraw_RenderModel2SortFaces(hnd, scene);
-    ToriDraw_Raster(scene, scene->active_hnd, view_port, camera, pixel_buffer, false);
-
-cleanup:
-    ToriDraw_RenderContextEnd(&scope);
+    toridraw_render_model_context(
+        hnd, scene, &scene->render_context, position, view_port, camera, pixel_buffer);
+    ToriDraw_RenderContextReleaseRoot(scene);
 }
 
 int
@@ -1023,8 +1112,9 @@ ToriDraw_RenderModel1Project(
     struct ToriDraw_ViewPort* view_port,
     struct ToriDraw_Camera* camera)
 {
-    scene->active_hnd = hnd;
-    return ToriDraw_Project(scene, hnd, position, view_port, camera);
+    assert(scene);
+    return ToriDraw_RenderContextProject(
+        hnd, &scene->render_context, position, view_port, camera);
 }
 
 int
@@ -1032,11 +1122,39 @@ ToriDraw_RenderModel2SortFaces(
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Scene* scene)
 {
-    if( scene->flags & TORIDRAW_SCENE_SMALL )
-        ToriDraw_ComputeProjectedFaceOrderSmall(scene, hnd);
-    else
-        ToriDraw_ComputeProjectedFaceOrder(scene, hnd);
-    return scene->tmp_face_order_count;
+    assert(scene);
+    return ToriDraw_RenderContextSortFaces(hnd, &scene->render_context);
+}
+
+static TORIDRAW_RENDER_CONTEXT_COLD int
+toridraw_render_model3_raster_nested(
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_RenderContext* context,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    bool smooth)
+{
+    struct ToriDraw_RenderContext* depth_context = context;
+
+    assert(scene);
+    assert(context);
+    assert(scene->active_render_context == context);
+#ifndef TORIDRAW_PIXEL16
+    /* A recursive phase-3 pass reads the outer projection and face order, but
+     * a model depth pass resets and may grow its buffer. Lease only that
+     * mutable storage from the startup pool; copying the prepared vertex/order
+     * arrays would turn re-entry into an O(model) operation. */
+    if( (model_as_full(context->active_hnd)->flags & TORIDRAW_MODEL_FLAG_ZBUFFER) != 0 &&
+        toridraw_scene_model_zbuffer_enabled(scene) )
+        depth_context = ToriDraw_RenderContextAcquireScratch(scene);
+#endif
+
+    ToriDraw_Raster(
+        scene, context, view_port, camera, pixel_buffer, smooth, depth_context);
+    if( depth_context != context )
+        ToriDraw_RenderContextReleaseScratch(scene, depth_context);
+    return TORIDRAW_CULL_VISIBLE;
 }
 
 int
@@ -1047,19 +1165,73 @@ ToriDraw_RenderModel3Raster(
     toripixel_t* pixel_buffer,
     bool smooth)
 {
-    struct ToriDraw_RenderContextScope scope;
-
     /* Projection and sort scratch are read-only during phase 3. The pass-local
      * raster target, face descriptor, texture cache, and resolved vtable live
      * on this call's stack, so a callback may raster the prepared model again
      * without allocating or replacing the projection context. */
-    if( !ToriDraw_RenderContextBegin(scene, &scope, false) )
-        return TORIDRAW_CULL_ERROR;
+    assert(scene);
+    if( !ToriDraw_RenderContextTryAcquireRoot(scene) )
+        return toridraw_render_model3_raster_nested(
+            scene,
+            scene->active_render_context,
+            view_port,
+            camera,
+            pixel_buffer,
+            smooth);
 
-    ToriDraw_Raster(scene, scene->active_hnd, view_port, camera, pixel_buffer, smooth);
-    ToriDraw_RenderContextEnd(&scope);
+    ToriDraw_Raster(
+        scene,
+        &scene->render_context,
+        view_port,
+        camera,
+        pixel_buffer,
+        smooth,
+        &scene->render_context);
+    ToriDraw_RenderContextReleaseRoot(scene);
     return TORIDRAW_CULL_VISIBLE;
 }
+
+#ifndef TORIDRAW_PIXEL16
+static TORIDRAW_RENDER_CONTEXT_ALWAYS_INLINE int
+toridraw_render_zbuffered_context(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_RenderContext* context,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    bool smooth)
+{
+    int const cull =
+        ToriDraw_RenderContextProject(hnd, context, position, view_port, camera);
+    if( cull != TORIDRAW_CULL_VISIBLE )
+        return cull;
+
+    /* Deliberately no face sort: the depth buffer is the visibility answer,
+     * including over authored face priorities. */
+    ToriDraw_RenderContextRasterZBuffered(
+        scene, context, view_port, camera, pixel_buffer, smooth);
+    return TORIDRAW_CULL_VISIBLE;
+}
+
+static TORIDRAW_RENDER_CONTEXT_COLD int
+toridraw_render_zbuffered_nested(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    bool smooth)
+{
+    struct ToriDraw_RenderContext* context = ToriDraw_RenderContextAcquireNested(scene);
+    int const result = toridraw_render_zbuffered_context(
+        hnd, scene, context, position, view_port, camera, pixel_buffer, smooth);
+    ToriDraw_RenderContextReleaseNested(scene, context);
+    return result;
+}
+#endif
 
 int
 ToriDraw_RenderZBuffered(
@@ -1088,27 +1260,30 @@ ToriDraw_RenderZBuffered(
     (void)smooth;
     return TORIDRAW_CULL_ERROR;
 #else
-    struct ToriDraw_RenderContextScope scope;
     int result;
 
-    if( !ToriDraw_RenderContextBegin(scene, &scope, true) )
-        return TORIDRAW_CULL_ERROR;
+    if( !ToriDraw_RenderContextTryAcquireRoot(scene) )
+        return toridraw_render_zbuffered_nested(
+            hnd, scene, position, view_port, camera, pixel_buffer, smooth);
 
-    int cull = ToriDraw_RenderModel1Project(hnd, scene, position, view_port, camera);
-    if( cull != TORIDRAW_CULL_VISIBLE )
+    /* Keep the visible root path source-level straight-line. Folding this
+     * through the shared nested helper makes Clang preserve the known-zero
+     * projection result across the raster call in a callee-saved register. */
+    result = ToriDraw_RenderContextProject(
+        hnd, &scene->render_context, position, view_port, camera);
+    if( result != TORIDRAW_CULL_VISIBLE )
     {
-        result = cull;
-        goto cleanup;
+        ToriDraw_RenderContextReleaseRoot(scene);
+        return result;
     }
-
-    /* Deliberately no ToriDraw_RenderModel2SortFaces: the depth buffer is the
-     * visibility answer here, and the face order — priorities included — is the
-     * thing this entry point exists to discard. */
-    ToriDraw_RasterZBuffered(scene, hnd, view_port, camera, pixel_buffer, smooth);
-    result = TORIDRAW_CULL_VISIBLE;
-
-cleanup:
-    ToriDraw_RenderContextEnd(&scope);
-    return result;
+    ToriDraw_RenderContextRasterZBuffered(
+        scene,
+        &scene->render_context,
+        view_port,
+        camera,
+        pixel_buffer,
+        smooth);
+    ToriDraw_RenderContextReleaseRoot(scene);
+    return TORIDRAW_CULL_VISIBLE;
 #endif
 }
