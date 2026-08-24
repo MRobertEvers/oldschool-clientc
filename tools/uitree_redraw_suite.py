@@ -33,11 +33,18 @@ from typing import Any, Mapping, Sequence
 import xml.etree.ElementTree as ET
 
 
-SUITE_VERSION = 2
+SUITE_VERSION = 5
+PROJECTION_PARITY_FIELDS = (
+    "projection_yaw",
+    "projection_visible",
+    "projection_x",
+    "projection_y",
+)
 FRAME_PARITY_FIELDS = (
     "frame",
     "scenario",
     "checkpoint",
+    *PROJECTION_PARITY_FIELDS,
     "pixel_hash",
     "emit_hash",
     "emit_count",
@@ -50,6 +57,7 @@ BENCH_FIELDS = (
     "full_walks",
     "retained_frames",
     "emit_nodes",
+    "semantic_hash",
 )
 EXPECTED_BENCH_SCENARIOS = (
     "steady",
@@ -61,7 +69,9 @@ EXPECTED_BENCH_SCENARIOS = (
     "topology",
     "aggregate",
 )
-VISUAL_BASELINE_STALE_SCENARIOS = frozenset(("host-camera", "host-input"))
+VISUAL_BASELINE_STALE_SCENARIOS = frozenset(
+    ("host-camera", "host-drag", "host-input")
+)
 EXPECTED_VISUAL_TRACE = (
     ("initial", "initial"),
     ("steady", "steady"),
@@ -86,6 +96,9 @@ EXPECTED_VISUAL_TRACE = (
     ("volatile", "overlay_two_to_zero"),
     ("host-input", "cs1_active_off"),
     ("reachability", "subtree_hidden_again"),
+    ("host-drag", "generic_drag_start"),
+    ("host-drag", "generic_drag_move"),
+    ("host-drag", "generic_drag_release"),
     ("reset", "reset"),
 )
 BENCH_CAMERA_SCENARIOS = frozenset(("camera", "host-camera", "host-input"))
@@ -107,8 +120,8 @@ PROFILE_DEFAULTS = {
     "quick": {
         "visual_frames": 256,
         "bench_frames": 4000,
-        "trials": 6,
-        "bootstrap_samples": 5000,
+        "trials": 18,
+        "bootstrap_samples": 20000,
     },
     "full": {
         "visual_frames": 2048,
@@ -186,6 +199,27 @@ def git_value(root: Path, *args: str) -> str:
 def stable_seed(text: str, base: int) -> int:
     raw = hashlib.sha256(text.encode("utf-8")).digest()
     return base ^ int.from_bytes(raw[:8], "big")
+
+
+def fnv1a_u32(value: int, state: int) -> int:
+    for shift in (0, 8, 16, 24):
+        state = ((state ^ ((value >> shift) & 0xFF)) * 1099511628211) & 0xFFFFFFFFFFFFFFFF
+    return state
+
+
+def fnv1a_u64(value: int, state: int) -> int:
+    state = fnv1a_u32(value & 0xFFFFFFFF, state)
+    return fnv1a_u32((value >> 32) & 0xFFFFFFFF, state)
+
+
+def aggregate_semantic_hash(metrics: Mapping[str, Mapping[str, Any]]) -> str:
+    state = 1469598103934665603
+    for index, scenario in enumerate(
+        value for value in EXPECTED_BENCH_SCENARIOS if value != "aggregate"
+    ):
+        state = fnv1a_u32(index, state)
+        state = fnv1a_u64(int(metrics[scenario]["semantic_hash"], 16), state)
+    return f"{state:016x}"
 
 
 def percentile(sorted_values: Sequence[float], fraction: float) -> float:
@@ -450,6 +484,11 @@ class Suite:
         self.candidate_tree = ""
         self.baseline_status = ""
         self.candidate_status = candidate_status_at_start
+        self.candidate_commit_at_end = ""
+        self.candidate_tree_at_end = ""
+        self.candidate_status_at_end = ""
+        self.candidate_source_revalidated = False
+        self.candidate_source_stable = False
         self.baseline_submodules = ""
         self.candidate_submodules = ""
         self.reproducibility_reasons: list[str] = []
@@ -612,6 +651,56 @@ class Suite:
         if self.args.allow_baseline_mismatch:
             self.reproducibility_reasons.append("baseline mismatch override was allowed")
 
+    def revalidate_candidate_source(self) -> None:
+        """Prove the candidate identity did not change while evidence ran."""
+        self.candidate_commit_at_end = git_value(self.candidate_root, "rev-parse", "HEAD")
+        self.candidate_tree_at_end = git_value(
+            self.candidate_root, "rev-parse", "HEAD^{tree}"
+        )
+        self.candidate_status_at_end = capture(
+            (
+                "git",
+                "-C",
+                str(self.candidate_root),
+                "status",
+                "--short",
+                "--untracked-files=all",
+            )
+        )
+        self.candidate_source_revalidated = True
+
+        head_unchanged = bool(self.candidate_commit) and (
+            self.candidate_commit_at_end == self.candidate_commit
+        )
+        tree_unchanged = bool(self.candidate_tree) and (
+            self.candidate_tree_at_end == self.candidate_tree
+        )
+        status_unchanged = self.candidate_status_at_end == self.candidate_status
+        clean_at_end = not self.candidate_status_at_end
+        status_acceptable = status_unchanged if self.args.allow_dirty else clean_at_end
+        self.candidate_source_stable = (
+            head_unchanged and tree_unchanged and status_unchanged and status_acceptable
+        )
+        detail = (
+            f"head_unchanged={head_unchanged}, tree_unchanged={tree_unchanged}, "
+            f"status_unchanged={status_unchanged}, clean_at_end={clean_at_end}, "
+            f"allow_dirty={self.args.allow_dirty}"
+        )
+        self.add_gate(
+            "candidate HEAD/tree/worktree stable through evidence run",
+            self.candidate_source_stable,
+            detail,
+            "reproducibility",
+            head_unchanged=head_unchanged,
+            tree_unchanged=tree_unchanged,
+            status_unchanged=status_unchanged,
+            clean_at_end=clean_at_end,
+        )
+        if not self.candidate_source_stable:
+            reason = "candidate HEAD, tree, or worktree state changed during the evidence run"
+            if reason not in self.reproducibility_reasons:
+                self.reproducibility_reasons.append(reason)
+
     def clean_worktree(self) -> None:
         if not self.baseline_is_temporary or self.args.keep_baseline_worktree:
             if self.baseline_is_temporary:
@@ -716,6 +805,8 @@ class Suite:
             ("test-uitree", "all UITree unit and integration cases"),
             ("test-client-trigger", "client-trigger and scripted-overlay store cases"),
             ("test-cs2-frame-settle", "CS2 publication-fence cases"),
+            ("test-cache-trim", "cache trim and provider asset-revision cases"),
+            ("test-scene-profiles", "scene profile and scene asset-revision cases"),
             ("all", "optimized native client compile and link"),
         )
         for target, detail in targets:
@@ -801,6 +892,7 @@ class Suite:
         )
 
         baseline_stale_images = 0
+        baseline_stale_images_by_scenario: dict[str, int] = {}
         unexpected_baseline_images: list[str] = []
         diff_root = self.output / "visual" / "diff"
         for relative in sorted(all_keys):
@@ -839,6 +931,9 @@ class Suite:
             if not before_cmp["exact"]:
                 if baseline_difference_allowed:
                     baseline_stale_images += 1
+                    baseline_stale_images_by_scenario[scenario] = (
+                        baseline_stale_images_by_scenario.get(scenario, 0) + 1
+                    )
                 else:
                     unexpected_baseline_images.append(relative)
 
@@ -885,15 +980,23 @@ class Suite:
             )
 
         self.add_gate(
-            "baseline retained visual difference is host-input scoped",
+            "baseline retained visual differences are legacy-stale scoped",
             not unexpected_baseline_images,
             f"unexpected checkpoints={unexpected_baseline_images[:20]}",
             "visual-baseline-evidence",
         )
         self.add_gate(
-            "baseline retained demonstrates stale host input",
+            "baseline retained demonstrates declared stale behavior",
             baseline_stale_images > 0,
-            f"allowed differing host-camera/host-input checkpoints={baseline_stale_images}",
+            f"allowed differing checkpoints={baseline_stale_images}, "
+            f"by_scenario={baseline_stale_images_by_scenario}",
+            "visual-baseline-evidence",
+        )
+        self.add_gate(
+            "baseline retained screenshots demonstrate stale generic drag",
+            baseline_stale_images_by_scenario.get("host-drag", 0) > 0,
+            f"differing host-drag checkpoints="
+            f"{baseline_stale_images_by_scenario.get('host-drag', 0)}",
             "visual-baseline-evidence",
         )
 
@@ -948,7 +1051,7 @@ class Suite:
         missing = sorted(set(EXPECTED_VISUAL_TRACE) - observed)
         complete_cycle = len(rows) >= len(EXPECTED_VISUAL_TRACE)
         self.add_gate(
-            "frames.csv: required 24-step visual trace coverage",
+            "frames.csv: required 27-step visual trace coverage",
             complete_cycle and not missing and not mismatches,
             f"rows={len(rows)}, complete_cycle={complete_cycle}, "
             f"missing={missing}, first_mismatches={mismatches[:5]}",
@@ -1043,7 +1146,7 @@ class Suite:
                     "actual": actual[field],
                 }
                 # Frame identity is never permitted to drift. Only rendered
-                # content fields may expose the known legacy host-input bug.
+                # content fields may expose a declared legacy retention bug.
                 if (
                     field not in ("frame", "scenario", "checkpoint")
                     and scenario in VISUAL_BASELINE_STALE_SCENARIOS
@@ -1054,16 +1157,25 @@ class Suite:
 
         scoped = len(oracle) == len(baseline_retained) and not unexpected
         demonstrated = bool(allowed)
+        drag_differences = [
+            difference for difference in allowed if difference["scenario"] == "host-drag"
+        ]
         self.add_gate(
-            "frames.csv: baseline retained differences are host-input scoped",
+            "frames.csv: baseline retained differences are legacy-stale scoped",
             scoped,
             f"allowed_differences={len(allowed)}, unexpected={unexpected[:10]}",
             "frame-baseline-evidence",
         )
         self.add_gate(
-            "frames.csv: baseline retained demonstrates stale host input",
+            "frames.csv: baseline retained demonstrates declared stale behavior",
             demonstrated,
-            f"allowed host-camera/host-input differences={len(allowed)}",
+            f"allowed differences={len(allowed)}",
+            "frame-baseline-evidence",
+        )
+        self.add_gate(
+            "frames.csv: baseline retained demonstrates stale generic drag",
+            bool(drag_differences),
+            f"allowed host-drag differences={len(drag_differences)}",
             "frame-baseline-evidence",
         )
         return {
@@ -1077,6 +1189,7 @@ class Suite:
             "unexpected_differences_truncated": len(unexpected) > 500,
             "scoped": scoped,
             "demonstrated": demonstrated,
+            "drag_demonstrated": bool(drag_differences),
         }
 
     def run_visual_suite(self) -> None:
@@ -1340,6 +1453,13 @@ class Suite:
                     emit_nodes = int(raw["emit_nodes"], 0)
                 except ValueError as exc:
                     raise SuiteError(f"{path}:{line}: invalid numeric value: {exc}") from exc
+                semantic_hash = raw["semantic_hash"].strip()
+                if len(semantic_hash) != 16 or any(
+                    value not in "0123456789abcdef" for value in semantic_hash
+                ):
+                    raise SuiteError(
+                        f"{path}:{line}: semantic_hash must be 16 lowercase hex digits"
+                    )
                 if elapsed <= 0 or operations <= 0 or ns_per_op <= 0.0:
                     raise SuiteError(f"{path}:{line}: timing and operations must be positive")
                 if full_walks < 0 or retained_frames < 0 or emit_nodes < 0:
@@ -1359,6 +1479,7 @@ class Suite:
                     "full_walks": full_walks,
                     "retained_frames": retained_frames,
                     "emit_nodes": emit_nodes,
+                    "semantic_hash": semantic_hash,
                 }
         missing_scenarios = sorted(set(EXPECTED_BENCH_SCENARIOS) - set(rows))
         if missing_scenarios:
@@ -1386,6 +1507,7 @@ class Suite:
         operation_errors: list[str] = []
         accounting_errors: list[str] = []
         aggregate_errors: list[str] = []
+        aggregate_semantic_errors: list[str] = []
         for variant, metrics in metrics_by_variant.items():
             for scenario in EXPECTED_BENCH_SCENARIOS:
                 record = metrics[scenario]
@@ -1414,6 +1536,12 @@ class Suite:
                         f"{variant}/{field}: aggregate={aggregate[field]} "
                         f"components={component_total}"
                     )
+            expected_semantic_hash = aggregate_semantic_hash(metrics)
+            if aggregate["semantic_hash"] != expected_semantic_hash:
+                aggregate_semantic_errors.append(
+                    f"{variant}: aggregate={aggregate['semantic_hash']} "
+                    f"components={expected_semantic_hash}"
+                )
 
         operation_vectors = {
             scenario: tuple(
@@ -1445,8 +1573,8 @@ class Suite:
         )
         self.add_gate(
             f"benchmark trial {trial}: aggregate is exact component sum",
-            not aggregate_errors,
-            f"errors={aggregate_errors}",
+            not aggregate_errors and not aggregate_semantic_errors,
+            f"counter errors={aggregate_errors}, semantic rollup errors={aggregate_semantic_errors}",
             "benchmark-contract",
         )
 
@@ -1503,6 +1631,34 @@ class Suite:
             not candidate_emit_errors and not production_emit_errors,
             f"candidate forced/retained errors={candidate_emit_errors}; "
             f"production correct-scenario errors={production_emit_errors}",
+            "benchmark-contract",
+        )
+
+        candidate_semantic_errors: list[str] = []
+        for scenario in individual:
+            forced_hash = metrics_by_variant["candidate-forced"][scenario]["semantic_hash"]
+            retained_hash = metrics_by_variant["candidate-retained"][scenario]["semantic_hash"]
+            if forced_hash != retained_hash:
+                candidate_semantic_errors.append(
+                    f"{scenario}: forced={forced_hash}, retained={retained_hash}"
+                )
+        production_semantic_errors: list[str] = []
+        for scenario in sorted(CORRECT_AGGREGATE_SCENARIOS):
+            baseline_hash = metrics_by_variant["baseline-retained"][scenario][
+                "semantic_hash"
+            ]
+            candidate_hash = metrics_by_variant["candidate-retained"][scenario][
+                "semantic_hash"
+            ]
+            if baseline_hash != candidate_hash:
+                production_semantic_errors.append(
+                    f"{scenario}: baseline={baseline_hash}, candidate={candidate_hash}"
+                )
+        self.add_gate(
+            f"benchmark trial {trial}: untimed semantic command hashes",
+            not candidate_semantic_errors and not production_semantic_errors,
+            f"candidate forced/retained errors={candidate_semantic_errors}; "
+            f"production correct-scenario errors={production_semantic_errors}",
             "benchmark-contract",
         )
 
@@ -1589,6 +1745,12 @@ class Suite:
     def run_benchmarks(self) -> None:
         assert self.baseline_harness is not None
         assert self.candidate_harness is not None
+        self.add_gate(
+            "benchmark evidence has at least 18 independent trials",
+            self.args.trials >= 18,
+            f"independent paired process trials={self.args.trials}; required>=18",
+            "benchmark-contract",
+        )
         raw_root = self.output / "perf" / "raw"
         paired: dict[int, dict[str, dict[str, dict[str, Any]]]] = {}
         variants = {
@@ -1833,6 +1995,7 @@ class Suite:
             "harness_makefile": contract_dir / "Makefile",
             "harness_source": contract_dir / "uitree_redraw_harness.c",
             "harness_readme": contract_dir / "README.md",
+            "baseline_projection_oracle": contract_dir / "e6a_projection_oracle.h",
             "world_projection_header": self.candidate_root
             / "src"
             / "render"
@@ -1868,6 +2031,11 @@ class Suite:
                 "tree": self.candidate_tree,
                 "root": str(self.candidate_root),
                 "status_at_start": self.candidate_status,
+                "commit_at_end": self.candidate_commit_at_end,
+                "tree_at_end": self.candidate_tree_at_end,
+                "status_at_end": self.candidate_status_at_end,
+                "source_revalidated": self.candidate_source_revalidated,
+                "stable_through_run": self.candidate_source_stable,
                 "harness": str(candidate_binary) if candidate_binary else None,
                 "harness_sha256": sha256_file(candidate_binary) if candidate_binary else None,
             },
@@ -1937,6 +2105,16 @@ class Suite:
             "evidence_reproducible": not self.reproducibility_reasons,
             "reproducibility_reasons": self.reproducibility_reasons,
             "fatal_error": self.fatal_error,
+            "candidate_source": {
+                "revalidated_at_end": self.candidate_source_revalidated,
+                "stable_through_run": self.candidate_source_stable,
+                "commit_at_start": self.candidate_commit,
+                "commit_at_end": self.candidate_commit_at_end,
+                "tree_at_start": self.candidate_tree,
+                "tree_at_end": self.candidate_tree_at_end,
+                "status_at_start": self.candidate_status,
+                "status_at_end": self.candidate_status_at_end,
+            },
             "gate_count": len(self.gates),
             "failed_gate_count": len(failed),
             "failed_gates": failed,
@@ -1993,7 +2171,10 @@ class Suite:
                     }
                 )
             for gate in self.gates:
-                if gate["category"].startswith("benchmark"):
+                # Statistical comparison gates already have rich rows above.
+                # Contract/structure gates are independent evidence and must
+                # remain visible in the flat CI-friendly summary.
+                if gate["category"].startswith("benchmark-") and "comparison" in gate:
                     continue
                 writer.writerow(
                     {
@@ -2078,6 +2259,7 @@ img {{ max-width: 100%; image-rendering: pixelated; background: #000; border: 1p
             f"- Baseline: `{self.args.baseline_ref}` (`{self.baseline_commit or 'unresolved'}`)",
             f"- Candidate: `{self.candidate_commit or 'unresolved'}`",
             f"- Candidate tree: `{self.candidate_tree or 'unresolved'}`",
+            f"- Candidate source stable through run: `{'yes' if self.candidate_source_stable else 'no'}`",
             f"- Evidence complete: `{'yes' if self.evidence_complete() else 'no'}`",
             f"- Evidence reproducible: `{'yes' if not self.reproducibility_reasons else 'no'}`",
             f"- Profile: `{self.args.profile}`; seed `{self.args.seed}`",
@@ -2095,8 +2277,9 @@ img {{ max-width: 100%; image-rendering: pixelated; background: #000; border: 1p
             "Four independent harness runs separate the actual baseline-retained picture from the "
             "forced-full correctness oracle. Baseline full must equal candidate forced, and candidate "
             "retained must equal candidate forced, at every frame and decoded-RGB checkpoint. Differences "
-            "from baseline retained are accepted only in `host-camera`/`host-input` scenarios and at least "
-            "one such difference is required. The Soft3D chrome lane remains exact baseline/candidate parity.",
+            "from baseline retained are accepted only in `host-camera`, `host-input`, or `host-drag` "
+            "scenarios; a generic-drag difference is independently required. The Soft3D chrome lane "
+            "remains exact baseline/candidate parity.",
             "",
             f"- Harness BMP checkpoints: {len(self.visual_results)}",
             f"- Soft3D chrome BMP checkpoints: {len(self.chrome_results)}",
@@ -2121,6 +2304,10 @@ img {{ max-width: 100%; image-rendering: pixelated; background: #000; border: 1p
                 "require the upper paired-bootstrap confidence bound below 1.0. The all-scenario aggregate "
                 "and production camera comparison are informational because the baseline camera result is "
                 "known stale. Candidate camera cost is guarded against candidate forced-full instead.",
+                "The timed region contains fixture mutation plus the production UITree emit/retain gate only. "
+                "Untimed post-measurement semantic command hashes prove equal work per trial; these results do "
+                "not establish whole-App/frame performance because App host-signature publication, raster, "
+                "event polling, and presentation are outside the timer.",
             ]
         )
         if self.reproducibility_reasons:
@@ -2338,6 +2525,14 @@ def main(argv: Sequence[str] | None = None) -> int:
         (suite.logs / "fatal.log").write_text(traceback_text, encoding="utf-8", newline="\n")
         print(f"uitree_redraw_suite: {suite.fatal_error}", file=sys.stderr)
     finally:
+        try:
+            suite.revalidate_candidate_source()
+        except Exception as revalidate_exc:
+            reason = f"candidate source revalidation failed: {revalidate_exc}"
+            if reason not in suite.reproducibility_reasons:
+                suite.reproducibility_reasons.append(reason)
+            if suite.fatal_error is None:
+                suite.fatal_error = reason
         try:
             suite.clean_worktree()
         except Exception as cleanup_exc:

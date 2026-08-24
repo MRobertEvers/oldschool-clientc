@@ -51,18 +51,30 @@ framebuffer redraw. In particular, it now has:
 - direct consumption of tree-owned CS1 results after typed publication, plus
   indexed standing-overlay refresh that avoids whole-list scans when sources
   are empty;
+- authoritative monotonic revisions on provider assets, bridge-owned scene-id
+  bindings, and scene model/sprite/font registries, so same-id replacement and
+  late arrival invalidate retained host answers without registry scans;
+- a live-safe public `UITree_SetBehavior` seam which participates in emit and
+  reachability invalidation rather than silently bypassing the typed mutation
+  policy;
+- drag start/release invalidation plus a conservative no-retain rule while a
+  generic drag is active, covering the existing direct visual-coordinate writes
+  until typed drag mutations land;
 - focused tests for mutation impacts, unchanged writes, invalid inputs,
-  dependency masking, stale-stamp rejection, and volatile overlay provenance.
+  dependency masking, stale-stamp rejection, and volatile overlay provenance;
 - a deterministic before/oracle/after raster and benchmark suite with exact RGB
   comparisons, statistical performance gates, screenshots, diffs, reports,
   JUnit, and artifact checksums.
 
 The app currently derives coarse source signatures at the publication fence and
-also bumps inventory/client-state domains from authoritative callbacks. This is
-a conservative bridge to source-owned revisions. Asset signatures based on ids
-and map cardinalities cannot detect every same-id/same-cardinality replacement,
-so authoritative bridge/provider revisions and the forced-walk verifier remain
-future correctness work.
+also bumps inventory/client-state domains from authoritative callbacks. Assets
+use source-owned provider, bridge, and scene-registry revisions rather than map
+cardinalities. This is deliberately conservative: background asset streaming
+can force an extra full UITree walk when an emitted list depends on assets. It
+keeps retained answers sound without scanning registries or trying to predict
+which same-id replacement an individual host request will observe. The
+forced-walk verifier remains a required backstop while other domains transition
+from signatures to source-owned revisions.
 
 Still deliberately deferred are typed drag begin/move/end mutations, mutation
 transactions, a direct-write CI checker, keyed dependencies, per-node command
@@ -294,9 +306,9 @@ stable identifiers.
 |---|---|---|
 | P0 | `src/game/task_cs1_run.c` | **Migrated:** CS1 active/value publication uses typed setters and advances emit identity only on change. |
 | P0 | `src/ui/uitree_scroll.c`, `src/ui/uitree_interact.c` | **Migrated:** scrollbar and wheel publication use `UITree_SetScrollPosAt`; scroll is canonicalized at publication and every render/input consumer uses the same pure effective clamp. |
-| P0 | `src/ui/uitree_input.c`, `src/ui/uitree_interact.c`, drag helpers in `uitree.c` | **Pending:** drag active/offset/transparency changes affect a hoisted subtree and painter order. Specify typed begin/move/end semantics before migration. |
+| P0 | `src/ui/uitree_input.c`, `src/ui/uitree_interact.c`, drag helpers in `uitree.c` | **Sound, migration pending:** start/release advance emit identity and active drags disable retention, so direct offset/transparency writes cannot freeze. Typed begin/move/end APIs remain future cleanup because drag changes a hoisted subtree and painter order. |
 | P1 | `src/app.c` | **Migrated in audited paths:** minimenu font, force-show visibility, and local model binding use typed setters. Continue auditing unrelated runtime fields in Phase 3. |
-| P1 | `src/game/task_cs2_run.c` | **Migrated:** speculative visibility and async model arrival use typed setters. Authoritative asset revisions remain pending. |
+| P1 | `src/game/task_cs2_run.c` | **Migrated:** speculative visibility and async model arrival use typed setters; provider/bridge/scene asset revisions cover late arrival and same-id replacement. |
 | P1 | `src/ui/uitree_frame.c` | **Migrated:** frame visibility uses the reachability-aware setter. |
 | P1 | `src/ui/uitree_obj_cell.c` | **Partly migrated:** hide changes use the typed setter; atomic object-cell transactions remain pending. |
 | P1 | `src/game/rs_cs2_host.c` | **Partly migrated:** arc angles, model pose, transparency, and scroll publication use typed setters; the wider host audit remains Phase 3. |
@@ -326,10 +338,11 @@ the construction exemption.
 5. Keep compare-before-write counters so optimization work can distinguish real
    state changes from scripts restating current values.
 6. Run `tools/uitree_redraw_suite.py` for a cache-independent four-way oracle:
-   `origin/v3` forced and production-retained redraws plus candidate forced and
-   production-retained redraws. Forced-vs-forced proves implementation parity;
-   candidate retained-vs-forced proves retention soundness; legacy retained
-   differences are accepted only at named host-input regressions and become the
+   the immutable audited baseline forced and production-retained redraws plus
+   candidate forced and production-retained redraws. Forced-vs-forced proves
+   implementation parity; candidate retained-vs-forced proves retention
+   soundness; legacy retained differences are accepted only at the named
+   host-camera, host-input, and generic-drag regressions and become the
    before/fix evidence. Benchmark timings compare production policy with
    production policy in separate processes, with screenshots and verification
    work outside timed regions.
@@ -395,8 +408,11 @@ the construction exemption.
       completed layout sequence has advanced.
 - [x] Migrate CS1 result publication and scrollbar/wheel scrolling, the two P0
       direct-write paths that can currently leave `dirty_gen` quiet.
-- [ ] Specify and test drag begin/move/end impacts before migrating drag state;
-      it changes subtree translation and top-pass ordering.
+- [x] Prevent stale generic-drag retention: start/release dirty the source and
+      every active-drag frame rejects retention; test start, direct-coordinate
+      motion, release, and the emitted command positions.
+- [ ] Replace the remaining direct drag visual writes with typed begin/move/end
+      APIs; drag changes subtree translation and top-pass ordering.
 
 ### Phase 2: whole-buffer external dependency stamps
 
@@ -408,8 +424,11 @@ the construction exemption.
       inventory/client-state versions at audited authoritative transitions.
 - [x] Preserve zero-result volatile refresh records and refresh entity, canvas,
       and frame overlays through their original request kinds.
-- [ ] Replace heuristic asset/world signatures with authoritative source-owned
-      revisions for all same-id replacement and in-place mutation paths.
+- [x] Replace heuristic asset signatures with authoritative provider, bridge,
+      and scene-registry revisions for arrivals and same-id replacements.
+- [ ] Replace the remaining heuristic world signature with authoritative
+      source-owned revisions for all same-id replacement and in-place mutation
+      paths.
 - [x] Test changed-used, changed-unused, stale stamps, request classification,
       and volatile interactions.
 - [ ] Add an explicit wraparound test or adopt a wider/non-wrapping production
@@ -458,7 +477,7 @@ the changed boundary:
 | dependency stamps | emit host-stub tests for every classified domain; retention verifier |
 | CS2 writer migration | client-trigger and CS2 host tests |
 | topology/reachability | create/copy/delete, interface mount, hide/unhide tests |
-| integration | `make -C src test-uitree`, `make -C src test-client-trigger`, optimized native link |
+| integration | `make -C src test-uitree`, `make -C src test-client-trigger`, `make -C src test-cache-trim test-scene-profiles`, optimized native link |
 | camera regression | deterministic orbit capture with fishing sprite aligned to its world marker |
 | retention soundness | representative replay with `TORIRS_EMIT_VERIFY=1`, zero unsound reports |
 | A/B appearance and speed | `python3 tools/uitree_redraw_suite.py --profile quick` for PRs; `--profile full` for release/nightly evidence |
@@ -477,12 +496,15 @@ claims.
 ## Deterministic A/B redraw suite
 
 The implementation in `test/uitree_redraw/` and
-`tools/uitree_redraw_suite.py` makes appearance and speed claims reproducible
-without a cache, save, network session, or interactive camera. The runner
-creates a detached worktree at the resolved `origin/v3` commit and builds the
-same C driver against both source revisions. A release run refuses a dirty
-candidate worktree; `--allow-dirty` exists only for development evidence and is
-labelled as such.
+`tools/uitree_redraw_suite.py` makes appearance and focused UITree emit/retain
+speed claims reproducible without a cache, save, network session, or interactive
+camera. The runner resolves the requested baseline ref once, records its
+immutable commit/tree, creates a detached worktree, and builds the same C driver
+against both source revisions. PR evidence pins the audited legacy SHA rather
+than relying on a moving branch name. A release run refuses a dirty candidate
+worktree; `--allow-dirty` exists only for development evidence and is labelled
+as such. At the end of the run, candidate HEAD, tree, and full worktree status
+are captured again and must match their starting values.
 
 Four independent visual processes are required:
 
@@ -494,9 +516,13 @@ Four independent visual processes are required:
 4. candidate with its shared production retention predicate — the optimized
    after state.
 
-Every frame records scenario/checkpoint, normalized pixel hash, semantic command
-hash, descriptor count, full walks, and retained frames. Each 32-bit BMP is
-decoded to top-to-bottom RGB. Release gates require:
+Every frame records scenario/checkpoint, projected fish yaw/visibility/screen
+coordinates, normalized pixel hash, semantic command hash, descriptor count,
+full walks, and retained frames. The baseline projection fields come from a
+frozen copy of the audited e6a integer App math; the candidate fields come from
+the production projection helper. Fixed coordinate goldens and exact cross-build
+field comparisons prevent a shared helper from becoming a circular oracle. Each
+32-bit BMP is decoded to top-to-bottom RGB. Release gates require:
 
 ```text
 baseline forced RGB == candidate forced RGB
@@ -505,40 +531,52 @@ different pixels == 0 and maximum channel delta == 0
 ```
 
 Legacy retained output must equal the oracle outside the explicitly named
-`host-camera` and `host-input` frames, must differ in at least one such frame,
-and must recover on the following tree mutation. The gallery consequently shows
-the honest production-retained before image, forced oracle, candidate-retained
-after image, and exact diff instead of pretending that `origin/v3` always did a
-full walk.
+`host-camera`, `host-input`, and `host-drag` frames, must demonstrate the known
+host-input bug, and must independently demonstrate stale generic-drag movement
+or release. The gallery consequently shows the honest production-retained before
+image, forced oracle, candidate-retained after image, and exact diff without
+substituting a forced walk for the baseline's real policy.
 
-The 24-state seeded trace covers initial/steady retention, hover enter/leave,
+The 27-state seeded trace covers initial/steady retention, hover enter/leave,
 two-axis nested scrolling, text/colour/alpha changes, randomized dynamic child
-replacement, host-only camera and typed CS1 publication changes, previously unreachable
-hide/unhide, volatile overlay 0→1→2→0 refresh, arc/sprite transforms, and a real
-fishing-marker orbit. `App` and the harness call the same pure integer orbit and
-world-point projection leaf; fixed tile-centre goldens cover move, viewport
-clip, near-plane hide, and reveal without assigning screen coordinates as test
-inputs. The retained process uses an independent reference fixture, so its full
-oracle cannot mutate production reachability scratch. A separate 46-image lane
-compiles the real display-list translator, baked fonts, and Soft3D rasterizer
-against both revisions.
+replacement, host-only camera and typed CS1 publication changes, previously
+unreachable hide/unhide, volatile overlay 0→1→2→0 refresh, arc/sprite transforms,
+generic drag start/move/release, and a real fishing-marker orbit. The candidate
+harness and `App` call the same pure integer orbit/world-point projection leaf,
+while the baseline uses its frozen independent implementation. Fixed tile-centre
+goldens cover move, viewport clip, near-plane hide, and reveal without assigning
+screen coordinates as test inputs. The retained process uses an independent
+reference fixture, so its full oracle cannot mutate production reachability
+scratch. A separate 46-image lane compiles the real display-list translator,
+baked fonts, and Soft3D rasterizer against both revisions.
 
 Performance trials run three independent processes with the same seed:
 baseline production retention, candidate production retention, and candidate
 forced full walk. A balanced six-order schedule removes a fixed thermal/order
-bias. The report uses paired candidate/baseline ratios and deterministic paired
-bootstrap 95% confidence intervals. `steady` and `correct_aggregate` (steady,
+bias. Publishable evidence requires at least 18 independent trials. After all
+timed scenarios in each process, a fresh fixture replays each transition stream
+and hashes every semantic command list; per-trial equal-work gates compare the
+candidate retained/forced streams and every correctness-qualified
+baseline/candidate stream. This verification is outside the timer. The report
+uses paired candidate/baseline ratios and deterministic paired bootstrap 95%
+confidence intervals. `steady` and `correct_aggregate` (steady,
 overlay position, scroll, hover, content, and topology) must have an upper bound
 below 1.0. The stale legacy camera workload is reported but excluded from the
 speed claim; candidate retained-vs-forced measurements separately record the
 cost of producing the correct camera frame and the benefit on steady frames.
 Mutation workloads keep the 3%/100 ns non-regression guard.
 
+The timer covers deterministic fixture mutation plus the production UITree
+emit/retain gate. It intentionally excludes App host-signature publication,
+rasterization, presentation, and event polling, so these numbers are not claimed
+as whole-client frame time. Screenshots and semantic replays establish appearance
+and equal command work independently of that focused timing boundary.
+
 Profiles are intentionally different sizes:
 
 | Profile | Visual frames | Timed operations per scenario | Process pairs | Bootstrap samples |
 |---|---:|---:|---:|---:|
-| `quick` | 256 | 4,000 | 6 | 5,000 |
+| `quick` | 256 | 4,000 | 18 | 20,000 |
 | `full` | 2,048 | 30,000 | 18 | 20,000 |
 
 Every complete run first archives the full UITree tests, client-trigger tests,
@@ -551,39 +589,21 @@ evidence is uploaded by CI or retained locally rather than committed as source
 goldens. The exact runner/output contract and optional cache-backed full-client
 replay extension are documented in `test/uitree_redraw/README.md`.
 
-### Recorded PR-profile result (2026-08-24)
+### PR evidence publication
 
-The clean `quick` run compared candidate `93ca8ceef6e3e376c6c81e4077fdac05d63bf01c`
-with the immutable baseline `e6a4364221d5bc8c54e98d5614d84f8b42871b16`.
-The candidate tree was clean, all required lanes ran, the evidence was marked
-complete and reproducible, and all **882/882 gates passed**.
+The final PR-profile run must use the clean committed PR head, pin the audited
+legacy baseline `e6a4364221d5bc8c54e98d5614d84f8b42871b16`, and use the
+publishable `quick` defaults (18 balanced trials and 20,000 bootstrap samples).
+Its generated `report.md`, `manifest.json`, `summary.json`, `summary.csv`,
+`junit.xml`, gallery, raw BMPs/diffs, logs, and `SHA256SUMS` are the authoritative
+record; the PR description copies the exact gate counts and confidence intervals
+from that artifact rather than maintaining hand-edited results in this plan.
 
-- **Exact appearance parity:** all 256 baseline-forced/candidate-forced pairs
-  and all 256 candidate-retained/candidate-forced pairs had zero differing RGB
-  pixels and a maximum channel delta of zero. All 46 real Soft3D chrome pairs
-  were also exact. The legacy production-retained baseline demonstrated the
-  regression in 31 named host-only checkpoints (11 camera and 20 other host
-  inputs), while every non-allowlisted checkpoint remained exact.
-- **Primary steady-state speed:** 13,971.000 ns/op before versus 35.250 ns/op
-  after; median paired ratio 0.00252 with 95% bootstrap CI
-  `[0.00244, 0.00272]`.
-- **Correctness-qualified aggregate speed:** 273,293.125 ns/op before versus
-  263,298.062 ns/op after; median paired ratio 0.96187 with 95% bootstrap CI
-  `[0.95944, 0.96466]`. This aggregate excludes the legacy camera result because
-  that path rendered a stale frame. The candidate's correct camera path was
-  separately guarded against its own forced-full oracle and passed at ratio
-  1.00193 with CI `[0.99751, 1.00386]`.
-- **Evidence volume:** six balanced process-order trials at 4,000 operations per
-  scenario, 5,000 paired bootstrap samples, 2,022 BMP files, 2,114 checksummed
-  artifacts, archived native build/test logs, JSON/CSV summaries, JUnit, and an
-  HTML before/oracle/after/diff gallery.
-
-The complete local artifact is
-`build/uitree-redraw/quick-code-93ca/`; `report.md`, `manifest.json`,
-`summary.json`, and `SHA256SUMS` contain the human-readable result, immutable
-source/tool identity, machine-readable gates, and integrity hashes respectively.
-Development runs may be used to tune the suite, but cannot support the PR's
-appearance or performance claim.
+An earlier clean calibration at `93ca8ceef` achieved exact RGB parity and strong
+steady/aggregate results, but it used six trials and predated the independent
+legacy projection oracle, semantic replay hashes, and end-of-run source
+revalidation. It remains useful for suite development and is deliberately not
+accepted as final PR evidence.
 
 ## Verification performed in this worktree
 
@@ -592,12 +612,19 @@ appearance or performance claim.
       regressions.
 - [x] `make -C src test-client-trigger` — 35 checks, 0 failures.
 - [x] `make -C src test-cs2-frame-settle` — all settle/fence cases passed.
+- [x] `make -C src test-cache-trim test-scene-profiles` — provider, bridge,
+      and scene revision arrival/replacement/no-op cases passed; the focused
+      ASan binaries also passed with no findings.
 - [x] `make -C src -B OPT=1 all` — clean optimized rebuild and native link
       completed; only existing unrelated compiler/linker warnings were emitted.
-- [x] Run the clean four-way `quick` profile and record its gate/statistics
-      summary above.
+- [x] Run a focused four-way 27-frame smoke: baseline forced equalled candidate
+      forced, candidate retained equalled its forced oracle, and the legacy
+      retained lane visibly differed on generic drag move/release only where
+      allowlisted. The complete clean 18-trial PR run is published from the
+      committed head as described above.
 - [x] `git diff --check` — no whitespace errors.
-- [x] Run the deterministic App-shared fishing-overlay projection/orbit capture
+- [x] Run the deterministic fishing-overlay projection/orbit capture using the
+      independent frozen legacy oracle against the production candidate helper
       (move, clip, near-plane hide, and reveal goldens).
 - [ ] Run a representative replay with `TORIRS_EMIT_VERIFY=1` and confirm zero
       `[emit-unsound]` reports before shipping retention broadly.
@@ -613,7 +640,8 @@ The initial implementation is complete when:
 - the emit buffer can record coarse external dependency versions and reject a
   stale stamp;
 - direct-write audit output is documented and the foundation-scope high-risk
-  escapes are migrated, with drag and the wider audit explicitly staged;
+  escapes are migrated or conservatively guarded, with typed drag visual APIs
+  and the wider audit explicitly staged;
 - focused and full UITree tests pass, the client-trigger suite passes, and the
   optimized native client links;
 - the full future migration remains explicitly staged rather than claiming that

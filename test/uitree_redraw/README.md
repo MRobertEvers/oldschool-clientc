@@ -19,15 +19,18 @@ python3 tools/uitree_redraw_suite.py --profile full
 ```
 
 A complete run also executes and archives `test-uitree`,
-`test-client-trigger`, `test-cs2-frame-settle`, and an optimized native-client
-link before the A/B lanes.
+`test-client-trigger`, `test-cs2-frame-settle`, `test-cache-trim`,
+`test-scene-profiles`, and an optimized native-client link before the A/B
+lanes.
 
 `quick` uses 256 visual frames, 4,000 timed operations per benchmark scenario,
-six three-process trials, and 5,000 deterministic bootstrap resamples. `full`
+18 three-process trials, and 20,000 deterministic bootstrap resamples. `full`
 uses 2,048 visual frames, 30,000 operations, 18 trials, and 20,000 resamples.
 Override those values with `--visual-frames`, `--bench-frames`, `--trials`, and
 `--bootstrap-samples`. Benchmark trial counts must be a multiple of six so
-each execution order is represented equally.
+each execution order is represented equally. A six- or twelve-trial run is
+allowed for development but fails the benchmark evidence gate; publishable
+evidence requires at least 18 independent trials.
 
 Artifacts default to a new timestamped directory under
 `build/uitree-redraw/`, which is ignored by Git. Use `--out` to select another
@@ -103,20 +106,24 @@ its own oracle.
 Visual mode writes one row per trace frame using this schema:
 
 ```text
-frame,scenario,checkpoint,pixel_hash,emit_hash,emit_count,full_walks,retained_frames
+frame,scenario,checkpoint,projection_yaw,projection_visible,projection_x,projection_y,pixel_hash,emit_hash,emit_count,full_walks,retained_frames
 ```
 
 Benchmark mode writes exactly one row for each individual scenario and one
 aggregate row:
 
 ```text
-scenario,elapsed_ns,operations,ns_per_op,full_walks,retained_frames,emit_nodes
+scenario,elapsed_ns,operations,ns_per_op,full_walks,retained_frames,emit_nodes,semantic_hash
 ```
 
 The required scenarios are `steady`, `camera`, `overlay_position`, `scroll`,
 `hover`, `content`, `topology`, and `aggregate`. Each individual scenario is
 warmed outside its timed region and receives fresh deterministic fixture
-state.
+state. After every scenario's timing window has finished, the harness replays
+each transition stream on another fresh fixture and records a rolling
+`semantic_hash` of every frame's emitted command list. The aggregate hash is a
+deterministic rollup of the individual scenario hashes; none of this validation
+work runs inside, or before a later, timed scenario.
 
 ## Four-way visual oracle
 
@@ -134,24 +141,31 @@ baseline full == candidate forced
 candidate retained == candidate forced
 ```
 
-For every frame, `frame`, `scenario`, `checkpoint`, `pixel_hash`, `emit_hash`,
-and `emit_count` are compared exactly. For every checkpoint, all four BMP sets
-must contain the same filename. BMPs are decoded to top-to-bottom RGB, ignoring
-alpha, and dimensions and every RGB byte must match for each exact gate.
+For every frame, `frame`, `scenario`, `checkpoint`, the projected fish's
+`projection_yaw`, `projection_visible`, `projection_x`, and `projection_y`,
+`pixel_hash`, `emit_hash`, and `emit_count` are compared exactly. The baseline
+harness computes those projection fields with a frozen copy of e6a4364's
+integer App math; the candidate harness calls the production projection helper.
+Both are checked against fixed coordinate goldens before the trace begins. For
+every checkpoint, all four BMP sets must contain the same filename. BMPs are
+decoded to top-to-bottom RGB, ignoring alpha, and dimensions and every RGB byte
+must match for each exact gate.
 
 Coverage is also part of the contract. The runner checks every row against the
-fixture's complete repeating 24-step trace, including hover, two-axis scroll,
+fixture's complete repeating 27-step trace, including hover, two-axis scroll,
 content, transparency, topology, host-camera input, five projection states,
-shape rotation, host input, reachability, and volatile overlay counts. A run
-shorter than one complete cycle, a renamed scenario, or a dropped checkpoint
-fails even if the remaining images happen to match.
+shape rotation, host input, reachability, volatile overlay counts, and a
+generic drag's start/move/release states. A run shorter than one complete
+cycle, a renamed scenario, or a dropped checkpoint fails even if the remaining
+images happen to match.
 
 The production baseline is evidence of the known bug, not the oracle. Its
 retained output may differ from the forced oracle only on trace rows named
-`host-camera` or `host-input`; frame identity may never differ. Any baseline
-difference in another scenario fails the suite, and at least one permitted
-baseline-retained difference is required so the test proves it exercised the
-stale-host-input defect rather than silently passing a vacuous trace.
+`host-camera`, `host-input`, or `host-drag`; frame identity may never differ.
+Any baseline difference in another scenario fails the suite. At least one
+permitted baseline-retained difference is required overall, and `host-drag`
+must differ independently, so the test visibly proves the legacy retained gate
+held a stale generic drag command list through pointer motion or release.
 
 Structural gates independently require both production builds to retain some
 frames and require both forced modes to perform only full walks. Cumulative
@@ -227,9 +241,24 @@ report the requested operation count; aggregate values must exactly sum their
 components; `full_walks + retained_frames` must equal operations; production
 aggregates must exercise retention; and every forced record must contain only
 full walks. Equal-work scenarios also require exact emitted-node totals between
-candidate forced/retained and between baseline/candidate production. This
-prevents one malformed trial or a mismatched denominator from hiding inside a
+candidate forced/retained and between baseline/candidate production.
+
+Every trial also gates its untimed semantic command hashes. Candidate forced
+and candidate retained must match for every individual scenario. Baseline and
+candidate production must match for `steady`, `overlay_position`, `scroll`,
+`hover`, `content`, and `topology`; `camera` is intentionally excluded because
+the baseline's retained command stream is the known stale behavior. This
+proves the timed variants execute equivalent publication semantics where a
+performance ratio is claimed, while keeping hashing cost out of the measured
+region. Together with the operation and counter checks, it prevents one
+malformed trial or a mismatched denominator/workload from hiding inside a
 timing ratio.
+
+The timed region measures fixture mutation plus the production UITree
+emit/retain gate only. It does not establish whole-application frame time:
+App host-signature publication, raster/present, and event polling are outside
+the timer. A future full-client replay lane can measure those wider boundaries
+separately without changing this focused microbenchmark's contract.
 
 ## Reproducibility and artifacts
 
@@ -237,8 +266,18 @@ The report records both commit and tree IDs, source status, recursive submodule
 state, runner/harness source hashes, executable hashes, toolchain and host
 identity, selected compiler/linker environment variables, every command, all
 parameters, and the balanced order schedule. A clean run includes a concrete
-checkout command and runner invocation. Any development override is listed as
-a reproducibility warning.
+checkout command and runner invocation. Immediately after all evidence lanes,
+the runner resolves candidate `HEAD` and its tree again and recaptures the full
+worktree status. A publishable run requires the start/end commit and tree to
+match and the worktree to remain clean. With `--allow-dirty`, the exact dirty
+status must still remain unchanged, and the run remains non-reproducible. The
+start/end identities and stability result are stored in `manifest.json` and
+`summary.json`. Any development override is listed as a reproducibility
+warning.
+
+`summary.csv` includes benchmark semantic/counter/operation contract gates as
+well as the statistical comparison rows so a flat CI consumer cannot report
+performance success while omitting an equal-work failure.
 
 Every run emits:
 

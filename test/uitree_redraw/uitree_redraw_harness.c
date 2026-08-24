@@ -13,10 +13,11 @@
 #include "ui/uitree_host.h"
 #include "ui/uitree_layout.h"
 
-/* The candidate-owned pure projection leaf is also used by App. The harness
- * source is shared between SOURCE_ROOT builds, so both sides receive the same
- * camera/orbit input generator while their UITree implementations differ. */
+/* Baseline and candidate intentionally use independent projection code. */
+#include "e6a_projection_oracle.h"
+#if CANDIDATE
 #include "../../src/render/torirs_world_projection.h"
+#endif
 
 #include "bmp.h"
 #include "toridraw.h"
@@ -211,6 +212,10 @@ struct Fixture
     int hovered_component_id;
     struct ToriDraw_Camera projection_camera;
     struct ToriDraw_Position projection_eye;
+    int projection_yaw;
+    int projection_visible;
+    int projection_screen_x;
+    int projection_screen_y;
 
     int32_t root;
     int32_t compass;
@@ -245,6 +250,7 @@ struct BenchMetric
     uint64_t full_walks;
     uint64_t retained_frames;
     uint64_t emit_nodes;
+    uint64_t semantic_hash;
 };
 
 static void
@@ -347,6 +353,14 @@ hash_u32(uint64_t h, uint32_t value)
     h = hash_byte(h, (uint8_t)(value >> 8));
     h = hash_byte(h, (uint8_t)(value >> 16));
     h = hash_byte(h, (uint8_t)(value >> 24));
+    return h;
+}
+
+static uint64_t
+hash_u64(uint64_t h, uint64_t value)
+{
+    h = hash_u32(h, (uint32_t)(value >> 0));
+    h = hash_u32(h, (uint32_t)(value >> 32));
     return h;
 }
 
@@ -848,6 +862,69 @@ set_volatile_overlay_count(struct Fixture* fx, int count)
 }
 
 static int
+redraw_world_project_point(
+    struct ToriDraw_Camera const* camera,
+    struct ToriDraw_Position const* eye,
+    int viewport_x,
+    int viewport_y,
+    int viewport_w,
+    int viewport_h,
+    int near_plane_z,
+    int world_x,
+    int world_y,
+    int world_z,
+    int* out_x,
+    int* out_y)
+{
+#if CANDIDATE
+    return ToriRS_WorldProjectPoint(
+        camera,
+        eye,
+        viewport_x,
+        viewport_y,
+        viewport_w,
+        viewport_h,
+        near_plane_z,
+        world_x,
+        world_y,
+        world_z,
+        out_x,
+        out_y);
+#else
+    return UITreeRedraw_E6AWorldProjectPoint(
+        camera,
+        eye,
+        viewport_x,
+        viewport_y,
+        viewport_w,
+        viewport_h,
+        near_plane_z,
+        world_x,
+        world_y,
+        world_z,
+        out_x,
+        out_y);
+#endif
+}
+
+static void
+redraw_orbit_camera_eye(
+    int target_x,
+    int target_y,
+    int target_z,
+    int pitch,
+    int yaw,
+    int distance,
+    struct ToriDraw_Position* out_eye)
+{
+#if CANDIDATE
+    ToriRS_OrbitCameraEye(target_x, target_y, target_z, pitch, yaw, distance, out_eye);
+#else
+    UITreeRedraw_E6AOrbitCameraEye(target_x, target_y, target_z, pitch, yaw, distance, out_eye);
+#endif
+}
+
+static int
 project_fish_at_yaw(struct Fixture* fx, int yaw, int* out_screen_x, int* out_screen_y)
 {
     int screen_x = 0;
@@ -856,7 +933,7 @@ project_fish_at_yaw(struct Fixture* fx, int yaw, int* out_screen_x, int* out_scr
 
     set_camera_yaw(fx, yaw);
     fx->projection_camera.yaw = yaw & 0x7ff;
-    ToriRS_OrbitCameraEye(
+    redraw_orbit_camera_eye(
         ORBIT_ANCHOR_X,
         ORBIT_ANCHOR_Y,
         ORBIT_ANCHOR_Z,
@@ -864,7 +941,7 @@ project_fish_at_yaw(struct Fixture* fx, int yaw, int* out_screen_x, int* out_scr
         fx->projection_camera.yaw,
         ORBIT_DISTANCE,
         &fx->projection_eye);
-    visible = ToriRS_WorldProjectPoint(
+    visible = redraw_world_project_point(
         &fx->projection_camera,
         &fx->projection_eye,
         fx->hs.overlay_x,
@@ -877,6 +954,11 @@ project_fish_at_yaw(struct Fixture* fx, int yaw, int* out_screen_x, int* out_scr
         FISH_WORLD_Z,
         &screen_x,
         &screen_y);
+
+    fx->projection_yaw = yaw & 0x7ff;
+    fx->projection_visible = visible;
+    fx->projection_screen_x = screen_x;
+    fx->projection_screen_y = screen_y;
 
     if( visible )
     {
@@ -922,7 +1004,7 @@ verify_projection_contract(void)
         int visible;
 
         camera.yaw = yaw[i];
-        ToriRS_OrbitCameraEye(
+        redraw_orbit_camera_eye(
             ORBIT_ANCHOR_X,
             ORBIT_ANCHOR_Y,
             ORBIT_ANCHOR_Z,
@@ -930,7 +1012,7 @@ verify_projection_contract(void)
             camera.yaw,
             ORBIT_DISTANCE,
             &eye);
-        visible = ToriRS_WorldProjectPoint(
+        visible = redraw_world_project_point(
             &camera,
             &eye,
             18,
@@ -1291,8 +1373,8 @@ visual_transition(
     char const** out_scenario,
     char const** out_checkpoint)
 {
-    int step = frame % 24;
-    int cycle = frame / 24;
+    int step = frame % 27;
+    int cycle = frame / 27;
     uint32_t value = fx->seed ^ ((uint32_t)frame * UINT32_C(0x9E3779B9));
     value = prng_next(&value);
     *out_checkpoint = "checkpoint";
@@ -1447,6 +1529,44 @@ visual_transition(
         *out_checkpoint = "subtree_hidden_again";
         (void)UITree_ApplyHide(fx->tree, fx->hidden_layer_id, 1);
         break;
+    case 23:
+    {
+        struct UITreeComponent* dragged = &fx->tree->components[fx->rotating_sprite];
+        *out_scenario = "host-drag";
+        *out_checkpoint = "generic_drag_start";
+        dragged->drag_behavior = 0;
+        dragged->drag_visual_x = 492 + (cycle & 1) * 8;
+        dragged->drag_visual_y = 280;
+        dragged->drag_visual_trans = 128;
+        UITree_SetComponentDragActive(fx->tree, fx->rotating_sprite, 1);
+        /* Pin a published start image on the legacy build. Pointer-only motion
+         * below must then invalidate retention while active, and release must
+         * invalidate the last dragged command list. */
+        UITree_MarkNodeDirty(fx->tree, fx->rotating_sprite);
+        break;
+    }
+    case 24:
+    {
+        struct UITreeComponent* dragged = &fx->tree->components[fx->rotating_sprite];
+        *out_scenario = "host-drag";
+        *out_checkpoint = "generic_drag_move";
+        /* These are intentionally visual-only pointer coordinates: production
+         * changes them during a live drag without mutating authored layout. */
+        dragged->drag_visual_x = 438 + (cycle & 1) * 8;
+        dragged->drag_visual_y = 236 + (cycle & 1) * 6;
+        break;
+    }
+    case 25:
+    {
+        struct UITreeComponent* dragged = &fx->tree->components[fx->rotating_sprite];
+        *out_scenario = "host-drag";
+        *out_checkpoint = "generic_drag_release";
+        UITree_SetComponentDragActive(fx->tree, fx->rotating_sprite, 0);
+        dragged->drag_visual_x = 532;
+        dragged->drag_visual_y = 286;
+        dragged->drag_visual_trans = -1;
+        break;
+    }
     default:
     {
         char text[32];
@@ -1462,6 +1582,10 @@ visual_transition(
         (void)UITree_ApplyGraphic2DAngle(fx->tree, fx->rotating_sprite_id, 0);
         set_cs1_active(fx, 0);
         set_volatile_overlay_count(fx, 0);
+        UITree_SetComponentDragActive(fx->tree, fx->rotating_sprite, 0);
+        fx->tree->components[fx->rotating_sprite].drag_visual_x = 532;
+        fx->tree->components[fx->rotating_sprite].drag_visual_y = 286;
+        fx->tree->components[fx->rotating_sprite].drag_visual_trans = -1;
         (void)UITree_ApplyHide(fx->tree, fx->hidden_layer_id, 1);
         (void)project_fish_at_yaw(fx, 1536, NULL, NULL);
         UITree_CcDeleteAll(fx->tree, fx->topology_layer);
@@ -1498,7 +1622,8 @@ run_visual(struct Options const* opt)
         fatal("could not open frames.csv");
     fprintf(
         csv,
-        "frame,scenario,checkpoint,pixel_hash,emit_hash,emit_count,full_walks,retained_frames\n");
+        "frame,scenario,checkpoint,projection_yaw,projection_visible,projection_x,projection_y,"
+        "pixel_hash,emit_hash,emit_count,full_walks,retained_frames\n");
 #if CANDIDATE
     if( opt->retention )
         oracle_fx = fixture_new(opt->seed, 0);
@@ -1576,10 +1701,15 @@ run_visual(struct Options const* opt)
 
         fprintf(
             csv,
-            "%d,%s,%s,%016" PRIx64 ",%016" PRIx64 ",%d,%" PRIu64 ",%" PRIu64 "\n",
+            "%d,%s,%s,%d,%d,%d,%d,%016" PRIx64 ",%016" PRIx64 ",%d,%" PRIu64
+            ",%" PRIu64 "\n",
             frame,
             scenario,
             checkpoint,
+            fx->projection_yaw,
+            fx->projection_visible,
+            fx->projection_screen_x,
+            fx->projection_screen_y,
             ph,
             eh,
             fx->driver.emit.count,
@@ -1743,6 +1873,31 @@ bench_measure(enum BenchScenario scenario, struct Options const* opt)
     return metric;
 }
 
+/* Replay the exact measured transition stream on fresh state and hash every
+ * published command list. This is deliberately separate from bench_measure:
+ * no hashing is inside a timed region, and run_bench invokes these replays only
+ * after every scenario's timing window has closed. */
+static uint64_t
+bench_semantic_hash(enum BenchScenario scenario, struct Options const* opt)
+{
+    struct Fixture* fx = fixture_new(opt->seed, 4096);
+    uint64_t h = UINT64_C(1469598103934665603);
+
+    emit_primary(fx, opt->retention);
+    h = hash_u32(h, (uint32_t)scenario);
+    h = hash_u32(h, opt->seed);
+    h = hash_u32(h, (uint32_t)opt->frames);
+    for( int frame = 0; frame < opt->frames; frame++ )
+    {
+        bench_mutate(fx, scenario, frame, opt->seed);
+        emit_primary(fx, opt->retention);
+        h = hash_u32(h, (uint32_t)frame);
+        h = hash_u64(h, emit_hash(&fx->driver.emit));
+    }
+    fixture_free(fx);
+    return h;
+}
+
 static int
 run_bench(struct Options const* opt)
 {
@@ -1763,27 +1918,41 @@ run_bench(struct Options const* opt)
         aggregate.emit_nodes += metrics[i].emit_nodes;
     }
 
+    /* Keep validation work after all measurements so it cannot warm a later
+     * workload or otherwise become part of the performance comparison. */
+    aggregate.semantic_hash = UINT64_C(1469598103934665603);
+    for( int i = 0; i < ARRAY_COUNT(metrics); i++ )
+    {
+        metrics[i].semantic_hash = bench_semantic_hash((enum BenchScenario)i, opt);
+        aggregate.semantic_hash = hash_u32(aggregate.semantic_hash, (uint32_t)i);
+        aggregate.semantic_hash = hash_u64(
+            aggregate.semantic_hash, metrics[i].semantic_hash);
+    }
+
     path_join(path, sizeof(path), opt->out_dir, "metrics.csv");
     csv = fopen(path, "wb");
     if( !csv )
         fatal("could not open metrics.csv");
     fprintf(
         csv,
-        "scenario,elapsed_ns,operations,ns_per_op,full_walks,retained_frames,emit_nodes\n");
+        "scenario,elapsed_ns,operations,ns_per_op,full_walks,retained_frames,emit_nodes,"
+        "semantic_hash\n");
     for( int i = 0; i <= ARRAY_COUNT(metrics); i++ )
     {
         struct BenchMetric const* m = i < ARRAY_COUNT(metrics) ? &metrics[i] : &aggregate;
         double ns_per_op = m->operations ? (double)m->elapsed_ns / (double)m->operations : 0.0;
         fprintf(
             csv,
-            "%s,%" PRIu64 ",%" PRIu64 ",%.3f,%" PRIu64 ",%" PRIu64 ",%" PRIu64 "\n",
+            "%s,%" PRIu64 ",%" PRIu64 ",%.3f,%" PRIu64 ",%" PRIu64 ",%" PRIu64
+            ",%016" PRIx64 "\n",
             m->scenario,
             m->elapsed_ns,
             m->operations,
             ns_per_op,
             m->full_walks,
             m->retained_frames,
-            m->emit_nodes);
+            m->emit_nodes,
+            m->semantic_hash);
     }
     fclose(csv);
 
@@ -1806,7 +1975,8 @@ run_bench(struct Options const* opt)
             json,
             "    {\"scenario\":\"%s\",\"elapsed_ns\":%" PRIu64
             ",\"operations\":%" PRIu64 ",\"ns_per_op\":%.3f,\"full_walks\":%" PRIu64
-            ",\"retained_frames\":%" PRIu64 ",\"emit_nodes\":%" PRIu64 "}%s\n",
+            ",\"retained_frames\":%" PRIu64 ",\"emit_nodes\":%" PRIu64
+            ",\"semantic_hash\":\"%016" PRIx64 "\"}%s\n",
             m->scenario,
             m->elapsed_ns,
             m->operations,
@@ -1814,6 +1984,7 @@ run_bench(struct Options const* opt)
             m->full_walks,
             m->retained_frames,
             m->emit_nodes,
+            m->semantic_hash,
             i < ARRAY_COUNT(metrics) ? "," : "");
     }
     fprintf(json, "  ]\n}\n");
@@ -1857,20 +2028,22 @@ usage(FILE* out, char const* argv0)
         "\n"
         "  --mode visual  Run the scripted UI transition trace, write frames.csv,\n"
         "                 and write a BMP at every named checkpoint. With\n"
-        "                 --retention 1, compare every published frame against a\n"
-        "                 fresh full-walk raster and fail on any pixel/emit drift.\n"
+        "                 CANDIDATE=1 and --retention 1, also compare every frame\n"
+        "                 against a fresh full-walk pixel/emit oracle.\n"
         "  --mode bench   Rebuild a 4,000+ node fixture per workload, warm it up,\n"
-        "                 and write metrics.csv plus metrics.json.\n"
+        "                 time it, then run untimed semantic replays and write\n"
+        "                 metrics.csv plus metrics.json.\n"
         "  --out DIR      Artifact directory (created recursively).\n"
-        "  --retention N  0 forces full walks; 1 enables the candidate production\n"
-        "                 gate. An origin/v3 CANDIDATE=0 build stays forced-full.\n"
+        "  --retention N  0 forces full walks; 1 exercises production retention\n"
+        "                 for the selected baseline or candidate build.\n"
         "  --frames N     Trace frames or timed operations per workload (default 32).\n"
         "  --seed N       Unsigned 32-bit deterministic fixture seed (default 1).\n"
         "\n"
-        "Visual CSV columns: frame,scenario,checkpoint,pixel_hash,emit_hash,\n"
+        "Visual CSV columns: frame,scenario,checkpoint,projection_yaw,\n"
+        "projection_visible,projection_x,projection_y,pixel_hash,emit_hash,\n"
         "emit_count,full_walks,retained_frames.\n"
         "Benchmark CSV columns: scenario,elapsed_ns,operations,ns_per_op,\n"
-        "full_walks,retained_frames,emit_nodes.\n",
+        "full_walks,retained_frames,emit_nodes,semantic_hash.\n",
         argv0);
 }
 
