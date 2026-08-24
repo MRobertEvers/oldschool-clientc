@@ -2268,8 +2268,8 @@ test-scanline: $(OBJ_DIR)
 		$(TORIDRAW_DIR)/toridraw_scanline_parity_test.c -lm
 	./$(OBJ_DIR)/scanline_parity_test
 
-# Public model-face dispatch: four typed SD slots, six typed HD slots, explicit
-# sparse fallback, and per-call selection. CPU-only, no cache/disk.
+# Public model-face dispatch: four typed SD slots, six typed HD slots, complete
+# vtables, pass-requirement flags, and per-call selection. CPU-only, no cache/disk.
 ifneq ($(strip $(ASAN_DYLD_SHIM)),)
 RASTER_KERNEL_TEST_ENV = DYLD_INSERT_LIBRARIES=$(abspath $(ASAN_DYLD_SHIM))
 endif

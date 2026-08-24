@@ -4,6 +4,17 @@
 #include "toridraw_types.h"
 
 #include <stdbool.h>
+#include <stdint.h>
+
+enum ToriDraw_RasterKernelFlags
+{
+    /* Traverse model face order and do not provision a depth buffer. */
+    TORIDRAW_RASTER_KERNEL_FLAG_NONE = 0,
+    /* Produce and consume ToriDraw's back-to-front face order. */
+    TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING = 1u << 0,
+    /* Provision, rebase, and reset a model-local depth buffer. */
+    TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER = 1u << 1,
+};
 
 /* The four terminal algorithms in the stock/SD face rasterizer. */
 enum ToriDraw_RasterFaceClassSD
@@ -176,29 +187,21 @@ typedef void (*ToriDraw_RasterKernelHDFaceFn)(
     const struct ToriDraw_RasterTarget* target,
     const struct ToriDraw_RasterFaceHD* face);
 
-/* NULL slots are sparse overrides and resolve through the typed fallback. */
+/* Every slot is required. A kernel with a NULL callback is incomplete. */
 struct ToriDraw_RasterKernelSDVTable
 {
-    ToriDraw_RasterKernelSDFaceFn draw_gouraud;
-    ToriDraw_RasterKernelSDFaceFn draw_flat;
-    ToriDraw_RasterKernelSDFaceFn draw_textured;
-    ToriDraw_RasterKernelSDFaceFn draw_textured_flat;
+    ToriDraw_RasterKernelSDFaceFn draw[TORIDRAW_RASTER_FACE_SD_CLASS_COUNT];
 };
 
 struct ToriDraw_RasterKernelHDVTable
 {
-    ToriDraw_RasterKernelHDFaceFn draw_gouraud;
-    ToriDraw_RasterKernelHDFaceFn draw_flat;
-    ToriDraw_RasterKernelHDFaceFn draw_plane;
-    ToriDraw_RasterKernelHDFaceFn draw_cylinder;
-    ToriDraw_RasterKernelHDFaceFn draw_cube;
-    ToriDraw_RasterKernelHDFaceFn draw_sphere;
+    ToriDraw_RasterKernelHDFaceFn draw[TORIDRAW_RASTER_FACE_HD_CLASS_COUNT];
 };
 
 /*
- * A render call borrows the selected object, vtable, fallback chain, and
+ * A render call borrows the selected object, its complete vtable, and
  * user_data. They must remain alive and immutable until that call returns.
- * Sparse application kernels must explicitly fall back to a complete root.
+ * Flags describe pass-wide requirements and are read before the face loop.
  *
  * Rendering one scene recursively or concurrently is outside the contract:
  * the scene owns one startup-allocated projection/sort scratch set.
@@ -207,17 +210,17 @@ struct ToriDraw_RasterKernelSD
 {
     const struct ToriDraw_RasterKernelSDVTable* vtable;
     void* user_data;
-    const struct ToriDraw_RasterKernelSD* fallback;
+    uint32_t flags;
 };
 
 struct ToriDraw_RasterKernelHD
 {
     const struct ToriDraw_RasterKernelHDVTable* vtable;
     void* user_data;
-    const struct ToriDraw_RasterKernelHD* fallback;
+    uint32_t flags;
 };
 
-/* Process-lifetime, immutable built-in terminal roots. */
+/* Process-lifetime, immutable built-in kernels. */
 const struct ToriDraw_RasterKernelSD*
 ToriDraw_RasterKernelSDGetBranching(void);
 
@@ -230,10 +233,19 @@ ToriDraw_RasterKernelSDGetSmoothBranching(void);
 const struct ToriDraw_RasterKernelSD*
 ToriDraw_RasterKernelSDGetSmoothScanline(void);
 
+const struct ToriDraw_RasterKernelSD*
+ToriDraw_RasterKernelSDGetZBuffered(void);
+
+const struct ToriDraw_RasterKernelSD*
+ToriDraw_RasterKernelSDGetSmoothZBuffered(void);
+
 const struct ToriDraw_RasterKernelHD*
 ToriDraw_RasterKernelHDGetBranching(void);
 
 const struct ToriDraw_RasterKernelHD*
 ToriDraw_RasterKernelHDGetScanline(void);
+
+const struct ToriDraw_RasterKernelHD*
+ToriDraw_RasterKernelHDGetZBuffered(void);
 
 #endif

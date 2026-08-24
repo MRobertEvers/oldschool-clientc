@@ -243,12 +243,7 @@ struct hd_ctx
     const struct ToriDraw_HDMaterials* materials;
     struct ToriDraw_HDRenderStats* stats;
 
-    /*
-     * Depth state. `zbuffer` is NULL on the sorted path and nothing below reads
-     * the rest; when it is set, every face of this model routes to the depth
-     * twins and the buffer has already been reset for this model.
-     */
-    torizdepth_t* zbuffer;
+    /* Depth-only state is initialized before a Z kernel receives any face. */
     bool parallel;
     /** The model's camera-space centre depth, which the projection subtracted
      *  out of screen_vertices_z. See ToriDraw_ZbufTarget.model_mid_z. */
@@ -260,7 +255,7 @@ struct hd_ctx
     /* Public descriptors are reused for the whole pass / one face. */
     struct ToriDraw_RasterTarget target;
     struct ToriDraw_RasterFaceHD face;
-    struct ToriDraw_ResolvedRasterKernelHD kernel;
+    struct ToriDraw_RasterKernelHD kernel;
 };
 
 /**
@@ -290,19 +285,49 @@ hd_material(const struct hd_ctx* ctx, int texture_id)
 }
 
 static void
-hd_draw_solid_zbuffered(
-    struct hd_ctx* ctx,
+hd_draw_gouraud_z(
+    void* user_data,
+    const struct ToriDraw_RasterTarget* target,
     const struct ToriDraw_RasterFaceHD* face)
 {
-    int mode = face->face_class == TORIDRAW_RASTER_FACE_HD_FLAT
-                   ? TORIDRAW_ZBUF_MODE_FLAT
-                   : TORIDRAW_ZBUF_MODE_GOURAUD;
+    struct hd_ctx* ctx = target->internal;
+
+    (void)user_data;
 
     ToriDraw_TriangleFaceZBuffered(
         &ctx->zbuf_target,
         &ctx->zbuf_source,
         face->face_index,
-        mode,
+        TORIDRAW_ZBUF_MODE_GOURAUD,
+        face->shade[0],
+        face->shade[1],
+        face->shade[2],
+        face->opacity,
+        TORIDRAW_ZBUF_TEX_OPAQUE,
+        0,
+        0,
+        0,
+        NULL,
+        0,
+        false,
+        ctx->scene->near_clipped);
+}
+
+static void
+hd_draw_flat_z(
+    void* user_data,
+    const struct ToriDraw_RasterTarget* target,
+    const struct ToriDraw_RasterFaceHD* face)
+{
+    struct hd_ctx* ctx = target->internal;
+
+    (void)user_data;
+
+    ToriDraw_TriangleFaceZBuffered(
+        &ctx->zbuf_target,
+        &ctx->zbuf_source,
+        face->face_index,
+        TORIDRAW_ZBUF_MODE_FLAT,
         face->shade[0],
         face->shade[1],
         face->shade[2],
@@ -347,11 +372,7 @@ hd_branching_flat(
 {
     struct hd_ctx* ctx = target->internal;
     (void)user_data;
-
-    if( ctx->zbuffer )
-        hd_draw_solid_zbuffered(ctx, face);
-    else
-        ToriDraw_TriangleFaceFlatBranching(TORIDRAW_HD_FLAT_FACE_ARGS(ctx, face));
+    ToriDraw_TriangleFaceFlatBranching(TORIDRAW_HD_FLAT_FACE_ARGS(ctx, face));
 }
 
 static void
@@ -362,11 +383,7 @@ hd_scanline_flat(
 {
     struct hd_ctx* ctx = target->internal;
     (void)user_data;
-
-    if( ctx->zbuffer )
-        hd_draw_solid_zbuffered(ctx, face);
-    else
-        ToriDraw_TriangleFaceFlatScanline(TORIDRAW_HD_FLAT_FACE_ARGS(ctx, face));
+    ToriDraw_TriangleFaceFlatScanline(TORIDRAW_HD_FLAT_FACE_ARGS(ctx, face));
 }
 
 static void
@@ -377,11 +394,7 @@ hd_branching_gouraud(
 {
     struct hd_ctx* ctx = target->internal;
     (void)user_data;
-
-    if( ctx->zbuffer )
-        hd_draw_solid_zbuffered(ctx, face);
-    else
-        ToriDraw_TriangleFaceGouraudBranching(TORIDRAW_HD_GOURAUD_FACE_ARGS(ctx, face));
+    ToriDraw_TriangleFaceGouraudBranching(TORIDRAW_HD_GOURAUD_FACE_ARGS(ctx, face));
 }
 
 static void
@@ -392,11 +405,7 @@ hd_scanline_gouraud(
 {
     struct hd_ctx* ctx = target->internal;
     (void)user_data;
-
-    if( ctx->zbuffer )
-        hd_draw_solid_zbuffered(ctx, face);
-    else
-        ToriDraw_TriangleFaceGouraudScanline(TORIDRAW_HD_GOURAUD_FACE_ARGS(ctx, face));
+    ToriDraw_TriangleFaceGouraudScanline(TORIDRAW_HD_GOURAUD_FACE_ARGS(ctx, face));
 }
 
 static inline void
@@ -416,7 +425,7 @@ hd_sampler_from_face(
 }
 
 static void
-hd_draw_plane(
+hd_draw_plane_painter(
     void* user_data,
     const struct ToriDraw_RasterTarget* target,
     const struct ToriDraw_RasterFaceHD* face)
@@ -450,43 +459,6 @@ hd_draw_plane(
 
     (void)user_data;
     hd_sampler_from_face(&sampler, face);
-    if( ctx->zbuffer )
-    {
-        g_hd_pmn_zbuf[gate][use_facealpha][use_modulate](
-            ctx->pixel_buffer,
-            ctx->stride,
-            ctx->screen_width,
-            ctx->screen_height,
-            sx_a,
-            sx_b,
-            sx_c,
-            sy_a,
-            sy_b,
-            sy_c,
-            target->orthographic_vertices_z[ia],
-            target->orthographic_vertices_z[ib],
-            target->orthographic_vertices_z[ic],
-            bx[ia],
-            by[ia],
-            bz[ia],
-            bx[ib],
-            by[ib],
-            bz[ib],
-            bx[ic],
-            by[ic],
-            bz[ic],
-            face->shade[0],
-            face->shade[1],
-            face->shade[2],
-            &frame,
-            &sampler,
-            hd_vertex_key(ctx, ia),
-            hd_vertex_key(ctx, ib),
-            hd_vertex_key(ctx, ic),
-            ctx->zbuffer);
-        return;
-    }
-
     g_hd_pmn[gate][use_facealpha][use_modulate](
         ctx->pixel_buffer,
         ctx->stride,
@@ -517,11 +489,80 @@ hd_draw_plane(
         &sampler);
 }
 
+static void
+hd_draw_plane_z(
+    void* user_data,
+    const struct ToriDraw_RasterTarget* target,
+    const struct ToriDraw_RasterFaceHD* face)
+{
+    struct hd_ctx* ctx = target->internal;
+    const struct ToriDraw_RasterTextureHD* texture = &face->texture;
+    int const ia = face->vertex[0];
+    int const ib = face->vertex[1];
+    int const ic = face->vertex[2];
+    int const sx_a = target->screen_vertices_x[ia] + target->projection_center_x;
+    int const sx_b = target->screen_vertices_x[ib] + target->projection_center_x;
+    int const sx_c = target->screen_vertices_x[ic] + target->projection_center_x;
+    int const sy_a = target->screen_vertices_y[ia] + target->projection_center_y;
+    int const sy_b = target->screen_vertices_y[ib] + target->projection_center_y;
+    int const sy_c = target->screen_vertices_y[ic] + target->projection_center_y;
+    int const use_facealpha = face->opacity < 0xFF;
+    int const use_modulate = texture->modulate;
+    int const gate = (int)texture->gate;
+    int const tp = texture->mapping.vertex_frame.p;
+    int const tm = texture->mapping.vertex_frame.m;
+    int const tn = texture->mapping.vertex_frame.n;
+    const vertexint_t* bx = target->bind_vertices_x;
+    const vertexint_t* by = target->bind_vertices_y;
+    const vertexint_t* bz = target->bind_vertices_z;
+    struct ToriDraw_TexPlaneFrame frame = {
+        bx[tp], by[tp], bz[tp],
+        bx[tm], by[tm], bz[tm],
+        bx[tn], by[tn], bz[tn],
+    };
+    struct ToriDraw_TexSampler sampler;
+
+    (void)user_data;
+    hd_sampler_from_face(&sampler, face);
+    g_hd_pmn_zbuf[gate][use_facealpha][use_modulate](
+        ctx->pixel_buffer,
+        ctx->stride,
+        ctx->screen_width,
+        ctx->screen_height,
+        sx_a,
+        sx_b,
+        sx_c,
+        sy_a,
+        sy_b,
+        sy_c,
+        target->orthographic_vertices_z[ia],
+        target->orthographic_vertices_z[ib],
+        target->orthographic_vertices_z[ic],
+        bx[ia],
+        by[ia],
+        bz[ia],
+        bx[ib],
+        by[ib],
+        bz[ib],
+        bx[ic],
+        by[ic],
+        bz[ic],
+        face->shade[0],
+        face->shade[1],
+        face->shade[2],
+        &frame,
+        &sampler,
+        hd_vertex_key(ctx, ia),
+        hd_vertex_key(ctx, ib),
+        hd_vertex_key(ctx, ic),
+        target->zbuffer);
+}
+
 #if defined(__GNUC__) || defined(__clang__)
 __attribute__((always_inline))
 #endif
 static inline void
-hd_draw_mapped(
+hd_draw_mapped_painter(
     const struct ToriDraw_RasterTarget* target,
     const struct ToriDraw_RasterFaceHD* face,
     int mapped_kind)
@@ -549,43 +590,6 @@ hd_draw_mapped(
     assert(mapped_kind >= 0 && mapped_kind < 3);
     assert(mapping);
     hd_sampler_from_face(&sampler, face);
-    if( ctx->zbuffer )
-    {
-        g_hd_mapped_zbuf[mapped_kind][gate][use_facealpha][use_modulate](
-            ctx->pixel_buffer,
-            ctx->stride,
-            ctx->screen_width,
-            ctx->screen_height,
-            sx_a,
-            sx_b,
-            sx_c,
-            sy_a,
-            sy_b,
-            sy_c,
-            target->orthographic_vertices_z[ia],
-            target->orthographic_vertices_z[ib],
-            target->orthographic_vertices_z[ic],
-            bx[ia],
-            by[ia],
-            bz[ia],
-            bx[ib],
-            by[ib],
-            bz[ib],
-            bx[ic],
-            by[ic],
-            bz[ic],
-            face->shade[0],
-            face->shade[1],
-            face->shade[2],
-            mapping,
-            &sampler,
-            hd_vertex_key(ctx, ia),
-            hd_vertex_key(ctx, ib),
-            hd_vertex_key(ctx, ic),
-            ctx->zbuffer);
-        return;
-    }
-
     g_hd_mapped[mapped_kind][gate][use_facealpha][use_modulate](
         ctx->pixel_buffer,
         ctx->stride,
@@ -616,42 +620,141 @@ hd_draw_mapped(
         &sampler);
 }
 
+#if defined(__GNUC__) || defined(__clang__)
+__attribute__((always_inline))
+#endif
+static inline void
+hd_draw_mapped_z(
+    const struct ToriDraw_RasterTarget* target,
+    const struct ToriDraw_RasterFaceHD* face,
+    int mapped_kind)
+{
+    struct hd_ctx* ctx = target->internal;
+    const struct ToriDraw_RasterTextureHD* texture = &face->texture;
+    const struct ToriDraw_TexMapping* mapping = texture->mapping.hd_mapping;
+    int const ia = face->vertex[0];
+    int const ib = face->vertex[1];
+    int const ic = face->vertex[2];
+    int const sx_a = target->screen_vertices_x[ia] + target->projection_center_x;
+    int const sx_b = target->screen_vertices_x[ib] + target->projection_center_x;
+    int const sx_c = target->screen_vertices_x[ic] + target->projection_center_x;
+    int const sy_a = target->screen_vertices_y[ia] + target->projection_center_y;
+    int const sy_b = target->screen_vertices_y[ib] + target->projection_center_y;
+    int const sy_c = target->screen_vertices_y[ic] + target->projection_center_y;
+    int const use_facealpha = face->opacity < 0xFF;
+    int const use_modulate = texture->modulate;
+    int const gate = (int)texture->gate;
+    const vertexint_t* bx = target->bind_vertices_x;
+    const vertexint_t* by = target->bind_vertices_y;
+    const vertexint_t* bz = target->bind_vertices_z;
+    struct ToriDraw_TexSampler sampler;
+
+    assert(mapped_kind >= 0 && mapped_kind < 3);
+    assert(mapping);
+    hd_sampler_from_face(&sampler, face);
+    g_hd_mapped_zbuf[mapped_kind][gate][use_facealpha][use_modulate](
+        ctx->pixel_buffer,
+        ctx->stride,
+        ctx->screen_width,
+        ctx->screen_height,
+        sx_a,
+        sx_b,
+        sx_c,
+        sy_a,
+        sy_b,
+        sy_c,
+        target->orthographic_vertices_z[ia],
+        target->orthographic_vertices_z[ib],
+        target->orthographic_vertices_z[ic],
+        bx[ia],
+        by[ia],
+        bz[ia],
+        bx[ib],
+        by[ib],
+        bz[ib],
+        bx[ic],
+        by[ic],
+        bz[ic],
+        face->shade[0],
+        face->shade[1],
+        face->shade[2],
+        mapping,
+        &sampler,
+        hd_vertex_key(ctx, ia),
+        hd_vertex_key(ctx, ib),
+        hd_vertex_key(ctx, ic),
+        target->zbuffer);
+}
+
 #define TORIDRAW_DEFINE_HD_MAPPED_CALLBACK(name, kind)                                         \
     static void name(void* user_data, const struct ToriDraw_RasterTarget* target,              \
                      const struct ToriDraw_RasterFaceHD* face)                                 \
     {                                                                                          \
         (void)user_data;                                                                       \
-        hd_draw_mapped(target, face, kind);                                                    \
+        hd_draw_mapped_painter(target, face, kind);                                            \
+    }
+
+#define TORIDRAW_DEFINE_HD_MAPPED_Z_CALLBACK(name, kind)                                       \
+    static void name(void* user_data, const struct ToriDraw_RasterTarget* target,              \
+                     const struct ToriDraw_RasterFaceHD* face)                                 \
+    {                                                                                          \
+        (void)user_data;                                                                       \
+        hd_draw_mapped_z(target, face, kind);                                                  \
     }
 
 TORIDRAW_DEFINE_HD_MAPPED_CALLBACK(hd_draw_cylinder, 0)
 TORIDRAW_DEFINE_HD_MAPPED_CALLBACK(hd_draw_cube, 1)
 TORIDRAW_DEFINE_HD_MAPPED_CALLBACK(hd_draw_sphere, 2)
+TORIDRAW_DEFINE_HD_MAPPED_Z_CALLBACK(hd_draw_cylinder_z, 0)
+TORIDRAW_DEFINE_HD_MAPPED_Z_CALLBACK(hd_draw_cube_z, 1)
+TORIDRAW_DEFINE_HD_MAPPED_Z_CALLBACK(hd_draw_sphere_z, 2)
 
 static const struct ToriDraw_RasterKernelHDVTable g_hd_branching_vtable = {
-    .draw_gouraud = hd_branching_gouraud,
-    .draw_flat = hd_branching_flat,
-    .draw_plane = hd_draw_plane,
-    .draw_cylinder = hd_draw_cylinder,
-    .draw_cube = hd_draw_cube,
-    .draw_sphere = hd_draw_sphere,
+    .draw = {
+        [TORIDRAW_RASTER_FACE_HD_GOURAUD] = hd_branching_gouraud,
+        [TORIDRAW_RASTER_FACE_HD_FLAT] = hd_branching_flat,
+        [TORIDRAW_RASTER_FACE_HD_PLANE] = hd_draw_plane_painter,
+        [TORIDRAW_RASTER_FACE_HD_CYLINDER] = hd_draw_cylinder,
+        [TORIDRAW_RASTER_FACE_HD_CUBE] = hd_draw_cube,
+        [TORIDRAW_RASTER_FACE_HD_SPHERE] = hd_draw_sphere,
+    },
 };
 
 static const struct ToriDraw_RasterKernelHDVTable g_hd_scanline_vtable = {
-    .draw_gouraud = hd_scanline_gouraud,
-    .draw_flat = hd_scanline_flat,
-    .draw_plane = hd_draw_plane,
-    .draw_cylinder = hd_draw_cylinder,
-    .draw_cube = hd_draw_cube,
-    .draw_sphere = hd_draw_sphere,
+    .draw = {
+        [TORIDRAW_RASTER_FACE_HD_GOURAUD] = hd_scanline_gouraud,
+        [TORIDRAW_RASTER_FACE_HD_FLAT] = hd_scanline_flat,
+        [TORIDRAW_RASTER_FACE_HD_PLANE] = hd_draw_plane_painter,
+        [TORIDRAW_RASTER_FACE_HD_CYLINDER] = hd_draw_cylinder,
+        [TORIDRAW_RASTER_FACE_HD_CUBE] = hd_draw_cube,
+        [TORIDRAW_RASTER_FACE_HD_SPHERE] = hd_draw_sphere,
+    },
+};
+
+static const struct ToriDraw_RasterKernelHDVTable g_hd_z_vtable = {
+    .draw = {
+        [TORIDRAW_RASTER_FACE_HD_GOURAUD] = hd_draw_gouraud_z,
+        [TORIDRAW_RASTER_FACE_HD_FLAT] = hd_draw_flat_z,
+        [TORIDRAW_RASTER_FACE_HD_PLANE] = hd_draw_plane_z,
+        [TORIDRAW_RASTER_FACE_HD_CYLINDER] = hd_draw_cylinder_z,
+        [TORIDRAW_RASTER_FACE_HD_CUBE] = hd_draw_cube_z,
+        [TORIDRAW_RASTER_FACE_HD_SPHERE] = hd_draw_sphere_z,
+    },
 };
 
 static const struct ToriDraw_RasterKernelHD g_hd_branching_kernel = {
     .vtable = &g_hd_branching_vtable,
+    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
 };
 
 static const struct ToriDraw_RasterKernelHD g_hd_scanline_kernel = {
     .vtable = &g_hd_scanline_vtable,
+    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
+};
+
+static const struct ToriDraw_RasterKernelHD g_hd_z_kernel = {
+    .vtable = &g_hd_z_vtable,
+    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
 };
 
 const struct ToriDraw_RasterKernelHD*
@@ -666,6 +769,12 @@ ToriDraw_RasterKernelHDGetScanline(void)
     return &g_hd_scanline_kernel;
 }
 
+const struct ToriDraw_RasterKernelHD*
+ToriDraw_RasterKernelHDGetZBuffered(void)
+{
+    return &g_hd_z_kernel;
+}
+
 static inline void
 hd_dispatch_prepared_face(struct hd_ctx* ctx)
 {
@@ -673,6 +782,7 @@ hd_dispatch_prepared_face(struct hd_ctx* ctx)
 }
 
 #undef TORIDRAW_DEFINE_HD_MAPPED_CALLBACK
+#undef TORIDRAW_DEFINE_HD_MAPPED_Z_CALLBACK
 
 #undef TORIDRAW_HD_GOURAUD_FACE_ARGS
 #undef TORIDRAW_HD_FLAT_FACE_ARGS
@@ -908,12 +1018,7 @@ hd_draw_face(struct hd_ctx* ctx, int face)
 }
 
 /**
- * Everything both entry points need, and the clip rebasing they must agree on.
- *
- * Returns the rebased clip origin through `out_clip_left` / `out_clip_top`
- * because the depth path has to advance the z-buffer by the same amount it
- * advances the frame buffer: one index walks both, and a z-buffer that was not
- * rebased with the pixels tests each row against the wrong row.
+ * Everything both entry points need, including their shared clip rebasing.
  */
 static void
 hd_ctx_setup(
@@ -924,9 +1029,7 @@ hd_ctx_setup(
     struct ToriDraw_Camera* camera,
     toripixel_t* pixel_buffer,
     const struct ToriDraw_HDMaterials* materials,
-    struct ToriDraw_HDRenderStats* out_stats,
-    int* out_clip_left,
-    int* out_clip_top)
+    struct ToriDraw_HDRenderStats* out_stats)
 {
     memset(ctx, 0, sizeof(*ctx));
     ctx->m = model_as_full(hnd);
@@ -999,9 +1102,6 @@ hd_ctx_setup(
 
     if( out_stats )
         out_stats->faces = ctx->m->face_count;
-
-    *out_clip_left = clip_left;
-    *out_clip_top = clip_top;
 }
 
 static const struct ToriDraw_RasterKernelHD*
@@ -1014,12 +1114,12 @@ hd_builtin_kernel(void)
 /**
  * Is this face facing the camera?
  *
- * The unsorted entry points have to ask, because on the sorted path the face
- * SORT is what answers it — the depth bucketer drops a back-facing triangle
- * before it ever reaches a kernel. Skipping the sort therefore skips the cull
- * too, and a model drawn without it renders its own inside surfaces: with a
- * depth buffer they mostly lose, but "mostly" is exactly the wrong guarantee on
- * a model with interior geometry, and drawing them costs a full raster each.
+ * Model-order traversal has to ask, because on the sorted path the face sort
+ * is what answers it: the depth bucketer drops a back-facing triangle before
+ * it ever reaches a kernel. Skipping the sort therefore skips the cull too, and
+ * a model drawn without it renders its own inside surfaces. With a depth buffer
+ * they mostly lose, but "mostly" is exactly the wrong guarantee on a model with
+ * interior geometry, and drawing them costs a full raster each.
  *
  * Same test, same sign convention (TORIDRAW_FLIP_WINDING included), and the same
  * exemption: a face with a vertex behind the near plane has no screen-space
@@ -1050,7 +1150,8 @@ hd_face_front_facing(const struct hd_ctx* ctx, int face)
 }
 
 static int
-hd_render_with_kernel(
+hd_render_begin(
+    struct hd_ctx* ctx,
     struct ToriDraw_ModelHandle hnd,
     struct ToriDraw_Scene* scene,
     struct ToriDraw_Position* position,
@@ -1059,12 +1160,8 @@ hd_render_with_kernel(
     toripixel_t* pixel_buffer,
     const struct ToriDraw_HDMaterials* materials,
     struct ToriDraw_HDRenderStats* out_stats,
-    const struct ToriDraw_RasterKernelHD* kernel,
-    bool zbuffered)
+    const struct ToriDraw_RasterKernelHD* kernel)
 {
-    struct hd_ctx ctx;
-    int clip_left;
-    int clip_top;
     int result;
 
     if( out_stats )
@@ -1072,6 +1169,7 @@ hd_render_with_kernel(
 
     assert(scene);
     assert(kernel);
+    ToriDraw_RasterKernelHDAssertValid(kernel);
     if( !ToriDraw_ModelKindIsFull(hnd.kind) || !hnd.u.model.model )
         return TORIDRAW_CULL_ERROR;
 
@@ -1079,78 +1177,150 @@ hd_render_with_kernel(
     if( result != TORIDRAW_CULL_VISIBLE )
         return result;
 
-    if( !zbuffered )
-        ToriDraw_RenderModel2SortFaces(hnd, scene);
-
     hd_ctx_setup(
-        &ctx, hnd, scene, view_port, camera, pixel_buffer, materials, out_stats, &clip_left,
-        &clip_top);
-    if( !ToriDraw_RasterKernelHDResolve(kernel, &ctx.kernel) )
-        return TORIDRAW_CULL_ERROR;
+        ctx, hnd, scene, view_port, camera, pixel_buffer, materials, out_stats);
+    ctx->kernel = *kernel;
+    return TORIDRAW_CULL_VISIBLE;
+}
 
-    if( !zbuffered )
+static void
+hd_draw_faces_sorted(struct hd_ctx* ctx, struct ToriDraw_ModelHandle hnd)
+{
+    ToriDraw_RenderModel2SortFaces(hnd, ctx->scene);
+    for( int i = 0; i < ctx->scene->tmp_face_order_count; i++ )
+        hd_draw_face(ctx, ctx->scene->tmp_face_order[i]);
+}
+
+static void
+hd_draw_faces_model_order(struct hd_ctx* ctx)
+{
+    for( int face = 0; face < ctx->m->face_count; face++ )
     {
-        for( int i = 0; i < scene->tmp_face_order_count; i++ )
-            hd_draw_face(&ctx, scene->tmp_face_order[i]);
-        return TORIDRAW_CULL_VISIBLE;
+        if( !hd_face_front_facing(ctx, face) )
+            continue;
+        hd_draw_face(ctx, face);
     }
+}
+
+static void
+hd_enable_zbuffer(struct hd_ctx* ctx)
+{
+    struct ToriDraw_Scene* scene = ctx->scene;
+    int const clip_left = ctx->target.clip_origin_x;
+    int const clip_top = ctx->target.clip_origin_y;
 
     /* Calling this entry point IS the opt-in, so the buffer is sized here rather
      * than gated on TORIDRAW_SCENE_MODEL_ZBUFFER or on a per-model flag. */
-    int const rows = clip_top + ctx.screen_height;
-    if( !ToriDraw_SceneZBufferResize(scene, ctx.stride, rows) ||
-        !ToriDraw_SceneHasZBuffer(scene, ctx.stride, rows) )
-        return TORIDRAW_CULL_ERROR;
+    int const rows = clip_top + ctx->screen_height;
+    if( !ToriDraw_SceneHasZBuffer(scene, ctx->stride, rows) )
+    {
+        bool const provisioned = ToriDraw_SceneZBufferResize(scene, ctx->stride, rows);
+
+        assert(provisioned);
+        (void)provisioned;
+    }
+    assert(ToriDraw_SceneHasZBuffer(scene, ctx->stride, rows));
 
     /* Rebased by the same amount as the frame buffer, so one offset walks both. */
-    ctx.zbuffer = scene->zbuffer + clip_left + clip_top * ctx.stride;
-    ctx.target.zbuffer = ctx.zbuffer;
-    ctx.target.depth_test = true;
+    ctx->target.zbuffer = scene->zbuffer + clip_left + clip_top * ctx->stride;
+    ctx->target.depth_test = true;
 
-    ctx.zbuf_target.pixel_buffer = ctx.pixel_buffer;
-    ctx.zbuf_target.zbuffer = ctx.zbuffer;
-    ctx.zbuf_target.stride = ctx.stride;
-    ctx.zbuf_target.screen_width = ctx.screen_width;
-    ctx.zbuf_target.screen_height = ctx.screen_height;
-    ctx.zbuf_target.camera_cot16 = ctx.camera_cot16;
-    ctx.zbuf_target.offset_x = ctx.offset_x;
-    ctx.zbuf_target.offset_y = ctx.offset_y;
-    ctx.zbuf_target.near_plane_z = scene->projection_near_plane_z;
-    ctx.zbuf_target.model_mid_z = ctx.model_mid_z;
-    ctx.zbuf_target.parallel = ctx.parallel;
+    ctx->zbuf_target.pixel_buffer = ctx->pixel_buffer;
+    ctx->zbuf_target.zbuffer = ctx->target.zbuffer;
+    ctx->zbuf_target.stride = ctx->stride;
+    ctx->zbuf_target.screen_width = ctx->screen_width;
+    ctx->zbuf_target.screen_height = ctx->screen_height;
+    ctx->zbuf_target.camera_cot16 = ctx->camera_cot16;
+    ctx->zbuf_target.offset_x = ctx->offset_x;
+    ctx->zbuf_target.offset_y = ctx->offset_y;
+    ctx->zbuf_target.near_plane_z = scene->projection_near_plane_z;
+    ctx->zbuf_target.model_mid_z = ctx->model_mid_z;
+    ctx->zbuf_target.parallel = ctx->parallel;
 
-    ctx.zbuf_source.face_indices_a = ctx.m->face_indices_a;
-    ctx.zbuf_source.face_indices_b = ctx.m->face_indices_b;
-    ctx.zbuf_source.face_indices_c = ctx.m->face_indices_c;
-    ctx.zbuf_source.screen_vertices_x = scene->screen_vertices_x;
-    ctx.zbuf_source.screen_vertices_y = scene->screen_vertices_y;
-    ctx.zbuf_source.screen_vertices_z = scene->screen_vertices_z;
-    ctx.zbuf_source.orthographic_vertices_x = scene->orthographic_vertices_x;
-    ctx.zbuf_source.orthographic_vertices_y = scene->orthographic_vertices_y;
-    ctx.zbuf_source.orthographic_vertices_z = scene->orthographic_vertices_z;
+    ctx->zbuf_source.face_indices_a = ctx->m->face_indices_a;
+    ctx->zbuf_source.face_indices_b = ctx->m->face_indices_b;
+    ctx->zbuf_source.face_indices_c = ctx->m->face_indices_c;
+    ctx->zbuf_source.screen_vertices_x = scene->screen_vertices_x;
+    ctx->zbuf_source.screen_vertices_y = scene->screen_vertices_y;
+    ctx->zbuf_source.screen_vertices_z = scene->screen_vertices_z;
+    ctx->zbuf_source.orthographic_vertices_x = scene->orthographic_vertices_x;
+    ctx->zbuf_source.orthographic_vertices_y = scene->orthographic_vertices_y;
+    ctx->zbuf_source.orthographic_vertices_z = scene->orthographic_vertices_z;
 
     /* Before the first face, not after the last: the reset is what confines the
      * depth test to this model, so it happens even if the model draws nothing. */
     toridraw_zbuf_reset(
-        ctx.zbuffer,
-        ctx.stride,
-        ctx.screen_width,
-        ctx.screen_height,
+        ctx->target.zbuffer,
+        ctx->stride,
+        ctx->screen_width,
+        ctx->screen_height,
         scene->screen_vertices_x,
         scene->screen_vertices_y,
-        ctx.m->vertex_count,
-        ctx.offset_x,
-        ctx.offset_y,
+        ctx->m->vertex_count,
+        ctx->offset_x,
+        ctx->offset_y,
         scene->near_clipped,
-        ctx.parallel);
+        ctx->parallel);
+}
 
-    for( int face = 0; face < ctx.m->face_count; face++ )
-    {
-        if( !hd_face_front_facing(&ctx, face) )
-            continue;
-        hd_draw_face(&ctx, face);
-    }
+static int
+hd_render_with_kernel_painter(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    const struct ToriDraw_HDMaterials* materials,
+    struct ToriDraw_HDRenderStats* out_stats,
+    const struct ToriDraw_RasterKernelHD* kernel)
+{
+    struct hd_ctx ctx;
+    int result;
 
+    assert(kernel);
+    assert((kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER) == 0);
+    result = hd_render_begin(
+        &ctx, hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats,
+        kernel);
+    if( result != TORIDRAW_CULL_VISIBLE )
+        return result;
+
+    if( kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING )
+        hd_draw_faces_sorted(&ctx, hnd);
+    else
+        hd_draw_faces_model_order(&ctx);
+    return TORIDRAW_CULL_VISIBLE;
+}
+
+static int
+hd_render_with_kernel_z(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    const struct ToriDraw_HDMaterials* materials,
+    struct ToriDraw_HDRenderStats* out_stats,
+    const struct ToriDraw_RasterKernelHD* kernel)
+{
+    struct hd_ctx ctx;
+    int result;
+
+    assert(kernel);
+    assert(kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER);
+    result = hd_render_begin(
+        &ctx, hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats,
+        kernel);
+    if( result != TORIDRAW_CULL_VISIBLE )
+        return result;
+    hd_enable_zbuffer(&ctx);
+
+    if( kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING )
+        hd_draw_faces_sorted(&ctx, hnd);
+    else
+        hd_draw_faces_model_order(&ctx);
     return TORIDRAW_CULL_VISIBLE;
 }
 
@@ -1165,9 +1335,9 @@ ToriDraw_RenderHD(
     const struct ToriDraw_HDMaterials* materials,
     struct ToriDraw_HDRenderStats* out_stats)
 {
-    return hd_render_with_kernel(
+    return hd_render_with_kernel_painter(
         hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats,
-        hd_builtin_kernel(), false);
+        hd_builtin_kernel());
 }
 
 int
@@ -1182,9 +1352,13 @@ ToriDraw_RenderHDWithRasterKernel(
     struct ToriDraw_HDRenderStats* out_stats,
     const struct ToriDraw_RasterKernelHD* kernel)
 {
-    return hd_render_with_kernel(
-        hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats, kernel,
-        false);
+    assert(kernel);
+    if( kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER )
+        return hd_render_with_kernel_z(
+            hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats,
+            kernel);
+    return hd_render_with_kernel_painter(
+        hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats, kernel);
 }
 
 int
@@ -1198,9 +1372,9 @@ ToriDraw_RenderHDZBuffered(
     const struct ToriDraw_HDMaterials* materials,
     struct ToriDraw_HDRenderStats* out_stats)
 {
-    return hd_render_with_kernel(
+    return hd_render_with_kernel_z(
         hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats,
-        hd_builtin_kernel(), true);
+        ToriDraw_RasterKernelHDGetZBuffered());
 }
 
 int
@@ -1215,9 +1389,10 @@ ToriDraw_RenderHDZBufferedWithRasterKernel(
     struct ToriDraw_HDRenderStats* out_stats,
     const struct ToriDraw_RasterKernelHD* kernel)
 {
-    return hd_render_with_kernel(
-        hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats, kernel,
-        true);
+    assert(kernel);
+    assert(kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER);
+    return hd_render_with_kernel_z(
+        hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats, kernel);
 }
 
 #else /* TORIDRAW_PIXEL16 */
@@ -1234,20 +1409,29 @@ hd_pixel16_unsupported_face(
 }
 
 static const struct ToriDraw_RasterKernelHDVTable g_hd_pixel16_vtable = {
-    .draw_gouraud = hd_pixel16_unsupported_face,
-    .draw_flat = hd_pixel16_unsupported_face,
-    .draw_plane = hd_pixel16_unsupported_face,
-    .draw_cylinder = hd_pixel16_unsupported_face,
-    .draw_cube = hd_pixel16_unsupported_face,
-    .draw_sphere = hd_pixel16_unsupported_face,
+    .draw = {
+        [TORIDRAW_RASTER_FACE_HD_GOURAUD] = hd_pixel16_unsupported_face,
+        [TORIDRAW_RASTER_FACE_HD_FLAT] = hd_pixel16_unsupported_face,
+        [TORIDRAW_RASTER_FACE_HD_PLANE] = hd_pixel16_unsupported_face,
+        [TORIDRAW_RASTER_FACE_HD_CYLINDER] = hd_pixel16_unsupported_face,
+        [TORIDRAW_RASTER_FACE_HD_CUBE] = hd_pixel16_unsupported_face,
+        [TORIDRAW_RASTER_FACE_HD_SPHERE] = hd_pixel16_unsupported_face,
+    },
 };
 
 static const struct ToriDraw_RasterKernelHD g_hd_pixel16_branching_kernel = {
     .vtable = &g_hd_pixel16_vtable,
+    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
 };
 
 static const struct ToriDraw_RasterKernelHD g_hd_pixel16_scanline_kernel = {
     .vtable = &g_hd_pixel16_vtable,
+    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING,
+};
+
+static const struct ToriDraw_RasterKernelHD g_hd_pixel16_z_kernel = {
+    .vtable = &g_hd_pixel16_vtable,
+    .flags = TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER,
 };
 
 const struct ToriDraw_RasterKernelHD*
@@ -1260,6 +1444,12 @@ const struct ToriDraw_RasterKernelHD*
 ToriDraw_RasterKernelHDGetScanline(void)
 {
     return &g_hd_pixel16_scanline_kernel;
+}
+
+const struct ToriDraw_RasterKernelHD*
+ToriDraw_RasterKernelHDGetZBuffered(void)
+{
+    return &g_hd_pixel16_z_kernel;
 }
 
 static const struct ToriDraw_RasterKernelHD*
@@ -1284,6 +1474,7 @@ hd_pixel16_render_with_kernel(
     if( out_stats )
         memset(out_stats, 0, sizeof(*out_stats));
     assert(kernel);
+    ToriDraw_RasterKernelHDAssertValid(kernel);
     (void)hnd;
     (void)scene;
     (void)position;
@@ -1339,7 +1530,7 @@ ToriDraw_RenderHDZBuffered(
 {
     return hd_pixel16_render_with_kernel(
         hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats,
-        hd_pixel16_builtin_kernel());
+        ToriDraw_RasterKernelHDGetZBuffered());
 }
 
 int
@@ -1354,6 +1545,8 @@ ToriDraw_RenderHDZBufferedWithRasterKernel(
     struct ToriDraw_HDRenderStats* out_stats,
     const struct ToriDraw_RasterKernelHD* kernel)
 {
+    assert(kernel);
+    assert(kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER);
     return hd_pixel16_render_with_kernel(
         hnd, scene, position, view_port, camera, pixel_buffer, materials, out_stats, kernel);
 }

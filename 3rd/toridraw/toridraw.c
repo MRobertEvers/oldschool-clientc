@@ -732,6 +732,108 @@ toridraw_stock_builtin_kernel(bool smooth)
                   : ToriDraw_RasterKernelSDGetBranching();
 }
 
+static bool
+toridraw_stock_model_needs_zbuffer(
+    struct ToriDraw_ModelHandle hnd,
+    const struct ToriDraw_Scene* scene,
+    const struct ToriDraw_ViewPort* view_port)
+{
+#ifdef TORIDRAW_PIXEL16
+    (void)hnd;
+    (void)scene;
+    (void)view_port;
+    return false;
+#else
+    const struct ToriDraw_Model* model;
+    int clip_top;
+    int clip_bottom;
+    int rows;
+    int stride;
+
+    if( !ToriDraw_ModelKindIsFull(hnd.kind) || !hnd.u.model.model )
+        return false;
+
+    model = model_as_full(hnd);
+    if( !(model->flags & TORIDRAW_MODEL_FLAG_ZBUFFER) )
+        return false;
+
+    clip_top = view_port->clip_top > 0 ? view_port->clip_top : 0;
+    clip_bottom = view_port->clip_bottom > 0 ? view_port->clip_bottom : view_port->height;
+    if( clip_bottom < clip_top )
+        clip_bottom = clip_top;
+    rows = clip_top + (clip_bottom - clip_top);
+    stride = view_port->stride ? view_port->stride : view_port->width;
+
+    return ToriDraw_SceneHasZBuffer(scene, stride, rows) ||
+           (scene->flags & TORIDRAW_SCENE_MODEL_ZBUFFER) != 0;
+#endif
+}
+
+static int
+sd_render_with_kernel_painter(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    const struct ToriDraw_RasterKernelSD* kernel)
+{
+    int cull;
+
+    ToriDraw_RasterKernelSDAssertValid(kernel);
+    assert(!(kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER));
+
+    cull = ToriDraw_RenderModel1Project(hnd, scene, position, view_port, camera);
+    if( cull != TORIDRAW_CULL_VISIBLE )
+        return cull;
+
+    if( kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING )
+        ToriDraw_RenderModel2SortFaces(hnd, scene);
+
+    return ToriDraw_RasterPainter(scene, hnd, view_port, camera, pixel_buffer, kernel)
+               ? TORIDRAW_CULL_VISIBLE
+               : TORIDRAW_CULL_ERROR;
+}
+
+static int
+sd_render_with_kernel_z(
+    struct ToriDraw_ModelHandle hnd,
+    struct ToriDraw_Scene* scene,
+    struct ToriDraw_Position* position,
+    struct ToriDraw_ViewPort* view_port,
+    struct ToriDraw_Camera* camera,
+    toripixel_t* pixel_buffer,
+    const struct ToriDraw_RasterKernelSD* kernel)
+{
+    ToriDraw_RasterKernelSDAssertValid(kernel);
+    assert(kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER);
+
+#ifdef TORIDRAW_PIXEL16
+    assert(false && "SD Z-buffer raster kernels need the 32-bit raster");
+    (void)hnd;
+    (void)scene;
+    (void)position;
+    (void)view_port;
+    (void)camera;
+    (void)pixel_buffer;
+    return TORIDRAW_CULL_ERROR;
+#else
+    int cull;
+
+    cull = ToriDraw_RenderModel1Project(hnd, scene, position, view_port, camera);
+    if( cull != TORIDRAW_CULL_VISIBLE )
+        return cull;
+
+    if( kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_FACE_SORTING )
+        ToriDraw_RenderModel2SortFaces(hnd, scene);
+
+    return ToriDraw_RasterZ(scene, hnd, view_port, camera, pixel_buffer, kernel)
+               ? TORIDRAW_CULL_VISIBLE
+               : TORIDRAW_CULL_ERROR;
+#endif
+}
+
 void
 ToriDraw_ScenePrepareProjectionCamera(
     struct ToriDraw_Scene* scene,
@@ -780,14 +882,13 @@ ToriDraw_RenderModel(
     struct ToriDraw_Camera* camera,
     toripixel_t* pixel_buffer)
 {
+    const struct ToriDraw_RasterKernelSD* kernel = toridraw_stock_builtin_kernel(false);
+
+    if( toridraw_stock_model_needs_zbuffer(hnd, scene, view_port) )
+        kernel = toridraw_stock_zbuffered_kernel(false, true);
+
     (void)ToriDraw_RenderModelWithRasterKernel(
-        hnd,
-        scene,
-        position,
-        view_port,
-        camera,
-        pixel_buffer,
-        toridraw_stock_builtin_kernel(false));
+        hnd, scene, position, view_port, camera, pixel_buffer, kernel);
 }
 
 int
@@ -800,18 +901,14 @@ ToriDraw_RenderModelWithRasterKernel(
     toripixel_t* pixel_buffer,
     const struct ToriDraw_RasterKernelSD* kernel)
 {
-    int cull;
-
     assert(scene);
     assert(kernel);
 
-    cull = ToriDraw_RenderModel1Project(hnd, scene, position, view_port, camera);
-    if( cull != TORIDRAW_CULL_VISIBLE )
-        return cull;
-
-    ToriDraw_RenderModel2SortFaces(hnd, scene);
-    return ToriDraw_RenderModel3RasterWithRasterKernel(
-        scene, view_port, camera, pixel_buffer, kernel);
+    if( kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER )
+        return sd_render_with_kernel_z(
+            hnd, scene, position, view_port, camera, pixel_buffer, kernel);
+    return sd_render_with_kernel_painter(
+        hnd, scene, position, view_port, camera, pixel_buffer, kernel);
 }
 
 int
@@ -846,8 +943,13 @@ ToriDraw_RenderModel3Raster(
     toripixel_t* pixel_buffer,
     bool smooth)
 {
+    const struct ToriDraw_RasterKernelSD* kernel = toridraw_stock_builtin_kernel(smooth);
+
+    if( toridraw_stock_model_needs_zbuffer(scene->active_hnd, scene, view_port) )
+        kernel = toridraw_stock_zbuffered_kernel(smooth, true);
+
     return ToriDraw_RenderModel3RasterWithRasterKernel(
-        scene, view_port, camera, pixel_buffer, toridraw_stock_builtin_kernel(smooth));
+        scene, view_port, camera, pixel_buffer, kernel);
 }
 
 int
@@ -860,11 +962,25 @@ ToriDraw_RenderModel3RasterWithRasterKernel(
 {
     assert(scene);
     assert(kernel);
+    ToriDraw_RasterKernelSDAssertValid(kernel);
 
-    return ToriDraw_Raster(
+    if( kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER )
+    {
+#ifdef TORIDRAW_PIXEL16
+        assert(false && "SD Z-buffer raster kernels need the 32-bit raster");
+        return TORIDRAW_CULL_ERROR;
+#else
+        return ToriDraw_RasterZ(
+                   scene, scene->active_hnd, view_port, camera, pixel_buffer, kernel)
+                   ? TORIDRAW_CULL_VISIBLE
+                   : TORIDRAW_CULL_ERROR;
+#endif
+    }
+
+    return ToriDraw_RasterPainter(
                scene, scene->active_hnd, view_port, camera, pixel_buffer, kernel)
-        ? TORIDRAW_CULL_VISIBLE
-        : TORIDRAW_CULL_ERROR;
+               ? TORIDRAW_CULL_VISIBLE
+               : TORIDRAW_CULL_ERROR;
 }
 
 int
@@ -884,7 +1000,8 @@ ToriDraw_RenderZBuffered(
         view_port,
         camera,
         pixel_buffer,
-        toridraw_stock_builtin_kernel(smooth));
+        smooth ? ToriDraw_RasterKernelSDGetSmoothZBuffered()
+               : ToriDraw_RasterKernelSDGetZBuffered());
 }
 
 int
@@ -899,31 +1016,8 @@ ToriDraw_RenderZBufferedWithRasterKernel(
 {
     assert(scene);
     assert(kernel);
+    assert(kernel->flags & TORIDRAW_RASTER_KERNEL_FLAG_NEEDS_ZBUFFER);
 
-#ifdef TORIDRAW_PIXEL16
-    /* There is no depth-tested family in a 16-bit build (see the include block
-     * above), so this entry point cannot keep its promise there. Saying so beats
-     * quietly drawing by face order under a name that says otherwise. */
-    assert(false && "ToriDraw_RenderZBuffered needs the 32-bit raster");
-    (void)hnd;
-    (void)scene;
-    (void)position;
-    (void)view_port;
-    (void)camera;
-    (void)pixel_buffer;
-    (void)kernel;
-    return TORIDRAW_CULL_ERROR;
-#else
-    int cull = ToriDraw_RenderModel1Project(hnd, scene, position, view_port, camera);
-    if( cull != TORIDRAW_CULL_VISIBLE )
-        return cull;
-
-    /* Deliberately no ToriDraw_RenderModel2SortFaces: the depth buffer is the
-     * visibility answer here, and the face order — priorities included — is the
-     * thing this entry point exists to discard. */
-    return ToriDraw_RasterZBuffered(
-               scene, hnd, view_port, camera, pixel_buffer, kernel)
-        ? TORIDRAW_CULL_VISIBLE
-        : TORIDRAW_CULL_ERROR;
-#endif
+    return sd_render_with_kernel_z(
+        hnd, scene, position, view_port, camera, pixel_buffer, kernel);
 }

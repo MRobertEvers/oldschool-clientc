@@ -60,8 +60,8 @@ ToriDraw_RenderModel(
     struct ToriDraw_Camera* camera,
     toripixel_t* pixel_buffer);
 
-/* Project, sort and raster one model through an explicit SD kernel chain.
- * Sparse chains must name a complete SD built-in root through `fallback`. */
+/* Project and raster one model through a complete SD kernel, satisfying the
+ * face-sort and depth-buffer requirements in `kernel->flags`. */
 int
 ToriDraw_RenderModelWithRasterKernel(
     struct ToriDraw_ModelHandle hnd,
@@ -93,6 +93,8 @@ ToriDraw_RenderModel3Raster(
     toripixel_t* pixel_buffer,
     bool smooth);
 
+/* Raster the active projected model. A kernel that requires face sorting
+ * assumes ToriDraw_RenderModel2SortFaces has already completed for it. */
 int
 ToriDraw_RenderModel3RasterWithRasterKernel(
     struct ToriDraw_Scene* scene,
@@ -132,6 +134,8 @@ ToriDraw_RenderZBuffered(
     toripixel_t* pixel_buffer,
     bool smooth);
 
+/* The explicit kernel must require a z-buffer. Its face-sort flag is still
+ * honored; the compatibility function above uses a model-order Z kernel. */
 int
 ToriDraw_RenderZBufferedWithRasterKernel(
     struct ToriDraw_ModelHandle hnd,

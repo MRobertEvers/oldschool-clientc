@@ -225,8 +225,8 @@ ToriDraw_RenderHD(
     const struct ToriDraw_HDMaterials* materials,
     struct ToriDraw_HDRenderStats* out_stats);
 
-/* The same HD render through an explicit per-call kernel chain. Sparse chains
- * must name a complete HD built-in root through `fallback`. */
+/* Render through a complete per-call HD kernel, satisfying the face-sort and
+ * depth-buffer requirements in `kernel->flags`. */
 int
 ToriDraw_RenderHDWithRasterKernel(
     struct ToriDraw_ModelHandle hnd,
@@ -279,6 +279,8 @@ ToriDraw_RenderHDZBuffered(
     const struct ToriDraw_HDMaterials* materials,
     struct ToriDraw_HDRenderStats* out_stats);
 
+/* The explicit kernel must require a z-buffer. Its face-sort flag is still
+ * honored; the compatibility function above uses a model-order Z kernel. */
 int
 ToriDraw_RenderHDZBufferedWithRasterKernel(
     struct ToriDraw_ModelHandle hnd,
