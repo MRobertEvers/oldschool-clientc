@@ -37178,6 +37178,302 @@ ToriRSServer_WorldSelftest(void)
         }
     }
 
+    fprintf(stderr, "ToriRSServer selftest: a vessel spawns and its deck projection round-trips\n");
+    {
+        /*
+         * docs/SAILING_PLAN.md S1: the server half of a sailing boat is a map
+         * instance (the deck) plus a transform (the hull), and the mover that
+         * advances the transform once per tick.
+         *
+         * The water is STAMPED, not found. In this cache only rivers and
+         * harbours carry the BLOCK setting that becomes COLL_FLAG_FLOOR — the
+         * open sea's tiles read a flag word of zero, indistinguishable from an
+         * open field (the sailing water layer is its own map data, decoded in
+         * a later phase). No natural FLOOR patch in the Port Sarim window is
+         * big enough for the maneuvers below, so the fixture finds an
+         * all-zero patch and stamps it with the same collision_map_add_floor
+         * the terrain pass uses, exercising the mover against exactly the
+         * flag rule ToriRSServer_VesselTileSailable reads, then unstamps it.
+         */
+        int instances_before = ToriRSServer_MapInstanceLiveCount();
+        int patch_x = 0;
+        int patch_z = 0;
+        int patch_found = 0;
+        int handle = 0;
+        struct ToriRSServerVessel* vessel = NULL;
+
+        selftest_park_player(srv, 3047, 3204);
+        {
+            struct CollisionMap* cm = ToriRSServer_SceneCollision(0);
+            int base_x = ToriRSServer_SceneBaseX();
+            int base_z = ToriRSServer_SceneBaseZ();
+
+            /* A 17x17 patch of flag-zero tiles: nothing on it to collide with,
+             * and stamping FLOOR over it makes every tile sailable with an
+             * 8-tile margin around the maneuvers below. */
+            for( int x = base_x + 8; cm && x < base_x + 104 - 8 && !patch_found; x++ )
+                for( int z = base_z + 8; z < base_z + 104 - 8; z++ )
+                {
+                    int all = 1;
+
+                    for( int dx = -8; dx <= 8 && all; dx++ )
+                        for( int dz = -8; dz <= 8; dz++ )
+                            if( collision_map_tile(cm, x + dx - base_x, z + dz - base_z) !=
+                                COLL_FLAG_OPEN )
+                            {
+                                all = 0;
+                                break;
+                            }
+                    if( all )
+                    {
+                        patch_x = x;
+                        patch_z = z;
+                        patch_found = 1;
+                        break;
+                    }
+                }
+            if( patch_found )
+                for( int dx = -8; dx <= 8; dx++ )
+                    for( int dz = -8; dz <= 8; dz++ )
+                        collision_map_add_floor(cm, patch_x + dx - base_x,
+                                                patch_z + dz - base_z);
+        }
+        SELFTEST_CHECK(patch_found, "the window yields a 17x17 open patch to stamp as water");
+        SELFTEST_CHECK(!patch_found ||
+                           ToriRSServer_VesselTileSailable(0, patch_x - 8, patch_z - 8),
+                       "and the stamped arena reads sailable corner to corner");
+        SELFTEST_CHECK(!patch_found ||
+                           !ToriRSServer_VesselTileSailable(0, patch_x, patch_z + 9),
+                       "while the ground past its edge does not");
+
+        if( patch_found )
+        {
+            handle = ToriRSServer_VesselSpawn(srv, 1, 2, 3, 0, patch_x, patch_z, 0);
+            SELFTEST_CHECK(handle > 0, "a 2x3 vessel spawns on it");
+            vessel = ToriRSServer_VesselGet(srv, handle);
+            SELFTEST_CHECK(vessel != NULL, "and is addressable by its handle");
+        }
+        if( vessel )
+        {
+            /* The projection's constants for a 2x3 hull: deck-space pivot at
+             * the hull center, in fine units. */
+            const int pivot_x = 2 * 64;
+            const int pivot_z = 3 * 64;
+            static const int k_angles[] = { 0, 512, 1024, 1536, 256, 300, 1877 };
+            static const int k_deck[][2] = {
+                { 64, 64 }, { 192, 320 }, { 32, 160 }, { 128, 0 }
+            };
+            int base_tile_x = 0;
+            int base_tile_z = 0;
+            int fx;
+            int fz;
+
+            SELFTEST_CHECK(ToriRSServer_VesselLiveCount(srv) == 1,
+                           "the pool holds exactly the one vessel");
+            SELFTEST_CHECK(vessel->instance > 0 &&
+                               ToriRSServer_MapInstanceBase(
+                                   vessel->instance, &base_tile_x, &base_tile_z),
+                           "the vessel owns a live deck instance");
+            SELFTEST_CHECK(ToriRSServer_MapInstanceLiveCount() == instances_before + 1,
+                           "allocated out of the shared reservation pool");
+
+            /* The pivot projects to the hull's own position at EVERY angle,
+             * exactly — rotation about anywhere else would drag boarded
+             * players sideways whenever the hull turned. */
+            for( int i = 0; i < (int)(sizeof(k_angles) / sizeof(k_angles[0])); i++ )
+            {
+                vessel->angle = k_angles[i];
+                ToriRSServer_VesselDeckToRoot(vessel, pivot_x, pivot_z, &fx, &fz);
+                SELFTEST_CHECK(fx == vessel->fine_x && fz == vessel->fine_z,
+                               "the pivot maps to the hull position at angle %d",
+                               k_angles[i]);
+            }
+
+            /* Deck -> root -> deck round-trips: exact at the cardinals (the
+             * sine table holds 0/±65536 exactly), within one fine unit at any
+             * other angle (16.16 rounding, both directions). */
+            for( int i = 0; i < (int)(sizeof(k_angles) / sizeof(k_angles[0])); i++ )
+            {
+                int tolerance = (k_angles[i] & 511) == 0 ? 0 : 1;
+
+                vessel->angle = k_angles[i];
+                for( int j = 0; j < (int)(sizeof(k_deck) / sizeof(k_deck[0])); j++ )
+                {
+                    int back_x;
+                    int back_z;
+
+                    ToriRSServer_VesselDeckToRoot(vessel, k_deck[j][0], k_deck[j][1], &fx, &fz);
+                    ToriRSServer_VesselRootToDeck(vessel, fx, fz, &back_x, &back_z);
+                    SELFTEST_CHECK(abs(back_x - k_deck[j][0]) <= tolerance &&
+                                       abs(back_z - k_deck[j][1]) <= tolerance,
+                                   "deck (%d,%d) round-trips at angle %d, got (%d,%d)",
+                                   k_deck[j][0], k_deck[j][1], k_angles[i], back_x, back_z);
+                }
+            }
+
+            /* Direction: one tile bow-ward of the pivot lands one tile SOUTH
+             * of the hull at angle 0 and one tile WEST at 512 — the same
+             * (-sin, -cos) the mover advances along, so the deck and the
+             * wake cannot disagree about which way the boat points. */
+            vessel->angle = 0;
+            ToriRSServer_VesselDeckToRoot(vessel, pivot_x, pivot_z - 128, &fx, &fz);
+            SELFTEST_CHECK(fx == vessel->fine_x && fz == vessel->fine_z - 128,
+                           "the bow points south at angle 0, got (%d,%d)", fx, fz);
+            vessel->angle = 512;
+            ToriRSServer_VesselDeckToRoot(vessel, pivot_x, pivot_z - 128, &fx, &fz);
+            SELFTEST_CHECK(fx == vessel->fine_x - 128 && fz == vessel->fine_z,
+                           "and west at angle 512, got (%d,%d)", fx, fz);
+
+            /* A boarded player's ABSOLUTE deck tile projects through the
+             * instance base: the deck's south-west tile center sits half the
+             * hull west and south of the pivot at angle 0. */
+            vessel->angle = 0;
+            ToriRSServer_VesselDeckTileToRoot(vessel, base_tile_x, base_tile_z, &fx, &fz);
+            SELFTEST_CHECK(fx == vessel->fine_x - 64 && fz == vessel->fine_z - 128,
+                           "the deck's south-west tile projects half a hull away, got (%d,%d)",
+                           fx, fz);
+        }
+
+        fprintf(stderr,
+                "ToriRSServer selftest: the mover turns under the cap and steps on the quantum\n");
+        if( vessel )
+        {
+            vessel->angle = 0;
+            vessel->fine_x = patch_x * 128 + 64;
+            vessel->fine_z = patch_z * 128 + 64;
+            ToriRSServer_VesselSetSpeed(vessel, 1);
+            ToriRSServer_VesselSetHeading(vessel, 8);
+
+            /* South to north is a half turn: 1024 units at the default cap of
+             * 128 per tick is exactly eight ticks, every intermediate angle a
+             * multiple of the cap, every intermediate position still on the
+             * 32-unit quantum (the hull sails while it turns). */
+            for( int i = 1; i <= 8; i++ )
+            {
+                ToriRSServer_VesselTickAll(srv);
+                SELFTEST_CHECK(vessel->angle == i * 128,
+                               "tick %d turns to exactly %d, got %d", i, i * 128,
+                               vessel->angle);
+                SELFTEST_CHECK((vessel->fine_x & 31) == 0 && (vessel->fine_z & 31) == 0,
+                               "tick %d lands on the quarter-tile quantum, got (%d,%d)", i,
+                               vessel->fine_x, vessel->fine_z);
+            }
+            SELFTEST_CHECK(vessel->state == TORIRSSERVER_VESSEL_HEADING,
+                           "a heading sail never parks on its own");
+        }
+
+        fprintf(stderr,
+                "ToriRSServer selftest: a targeted sail arrives at speed and parks\n");
+        if( vessel )
+        {
+            int ticks = 0;
+
+            ToriRSServer_VesselStop(vessel);
+            vessel->angle = 1024;
+            vessel->fine_x = patch_x * 128 + 64;
+            vessel->fine_z = patch_z * 128 + 64;
+            ToriRSServer_VesselSetSpeed(vessel, 2);
+            ToriRSServer_VesselSetTarget(vessel, patch_x, patch_z + 4);
+
+            /* Driven through the WHOLE world tick, not TickAll directly: the
+             * claim includes that the vessels phase actually runs. */
+            while( vessel->state != TORIRSSERVER_VESSEL_IDLE && ticks < 20 )
+            {
+                ToriRSServer_WorldTick(srv);
+                ticks++;
+            }
+            SELFTEST_CHECK(vessel->state == TORIRSSERVER_VESSEL_IDLE, "the sail ends parked");
+            SELFTEST_CHECK(vessel->fine_x == patch_x * 128 + 64 &&
+                               vessel->fine_z == (patch_z + 4) * 128 + 64,
+                           "exactly on the target tile center, got (%d,%d)", vessel->fine_x,
+                           vessel->fine_z);
+            /* Four tiles at tier 2 (one tile per tick): three full steps, then
+             * the arrival check folds the last tile into the snap. */
+            SELFTEST_CHECK(ticks == 4, "and took exactly four ticks, got %d", ticks);
+        }
+
+        fprintf(stderr, "ToriRSServer selftest: a vessel refuses to drive onto land\n");
+        {
+            /* The arena's north edge is the shoreline: two stamped tiles
+             * running north into unstamped flag-zero ground, which
+             * VesselTileSailable reads as un-sailable land. */
+            int coast_x = patch_x;
+            int coast_z = patch_z + 7;
+            int coast_found = patch_found &&
+                              ToriRSServer_VesselTileSailable(0, coast_x, coast_z) &&
+                              ToriRSServer_VesselTileSailable(0, coast_x, coast_z + 1) &&
+                              ToriRSServer_SceneContains(coast_x, coast_z + 2) &&
+                              !ToriRSServer_VesselTileSailable(0, coast_x, coast_z + 2);
+
+            SELFTEST_CHECK(coast_found, "the arena edge gives a shoreline running north");
+
+            if( coast_found )
+            {
+                int skiff = ToriRSServer_VesselSpawn(srv, 1, 1, 1, 0, coast_x, coast_z, 1024);
+                struct ToriRSServerVessel* boat = ToriRSServer_VesselGet(srv, skiff);
+
+                SELFTEST_CHECK(skiff > 0 && boat != NULL, "a 1x1 vessel spawns at the shore");
+                if( boat )
+                {
+                    ToriRSServer_VesselSetSpeed(boat, 1);
+                    ToriRSServer_VesselSetTarget(boat, coast_x, coast_z + 2);
+                    for( int i = 0; i < 10; i++ )
+                        ToriRSServer_VesselTickAll(srv);
+
+                    SELFTEST_CHECK(boat->state == TORIRSSERVER_VESSEL_IDLE,
+                                   "the blocked sail parks");
+                    SELFTEST_CHECK((boat->fine_z >> 7) < coast_z + 2,
+                                   "short of the land tile, at tile z %d of %d",
+                                   boat->fine_z >> 7, coast_z + 2);
+                    SELFTEST_CHECK(
+                        ToriRSServer_VesselTileSailable(0, boat->fine_x >> 7, boat->fine_z >> 7),
+                        "still afloat where it parked");
+                    {
+                        int parked_x = boat->fine_x;
+                        int parked_z = boat->fine_z;
+
+                        ToriRSServer_VesselTickAll(srv);
+                        SELFTEST_CHECK(boat->fine_x == parked_x && boat->fine_z == parked_z,
+                                       "and stays parked");
+                    }
+                    ToriRSServer_VesselFree(srv, skiff);
+                }
+            }
+        }
+
+        /* Teardown: handles die, and the deck reservations go back with them
+         * (the pool leak check at the end of the suite counts on it). */
+        if( handle )
+        {
+            SELFTEST_CHECK(ToriRSServer_VesselFree(srv, handle) == 1, "the vessel frees");
+            SELFTEST_CHECK(ToriRSServer_VesselGet(srv, handle) == NULL,
+                           "and its handle is dead");
+            SELFTEST_CHECK(ToriRSServer_VesselFree(srv, handle) == 0,
+                           "freeing it again answers 0, the deallocator contract");
+        }
+        SELFTEST_CHECK(ToriRSServer_VesselLiveCount(srv) == 0, "no vessel survives the rows");
+        SELFTEST_CHECK(ToriRSServer_MapInstanceLiveCount() == instances_before,
+                       "and the deck reservations went back to the pool");
+
+        /* Unstamp the arena so the window's collision leaves the fixture the
+         * way the cache built it. */
+        if( patch_found )
+        {
+            struct CollisionMap* cm = ToriRSServer_SceneCollision(0);
+            int base_x = ToriRSServer_SceneBaseX();
+            int base_z = ToriRSServer_SceneBaseZ();
+
+            for( int dx = -8; dx <= 8; dx++ )
+                for( int dz = -8; dz <= 8; dz++ )
+                    collision_map_del_floor(cm, patch_x + dx - base_x, patch_z + dz - base_z);
+        }
+
+        /* Back to the suite's home window, the way the window row above left
+         * it for everything after. */
+        selftest_park_player(srv, 3222, 3218);
+        player->rebuild_pending = 0;
+    }
+
     fprintf(stderr, "ToriRSServer selftest: NPC_INFO measures view range to the footprint\n");
     {
         /*

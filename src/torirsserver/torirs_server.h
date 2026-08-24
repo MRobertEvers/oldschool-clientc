@@ -103,6 +103,7 @@
 #include "torirs_server_poh.h"
 #include "torirs_server_wire.h"
 #include "mock239_runclientscript.h"
+#include "torirs_server_vessel.h"
 #include "torirs_server_zone.h"
 
 #include "engine/world_builder/collision_map.h"
@@ -4140,6 +4141,14 @@ struct ToriRSServer
      *  `ToriRSServer_WorldNpcFree`; selftest asserts zero. */
     int silent_death_removals;
     unsigned char loot_credit_players[TORIRSSERVER_PLAYER_MAX];
+
+    /*
+     * Vessels — the sailing hulls and their deck instances (docs/SAILING_PLAN.md
+     * S1; torirs_server_vessel.c). Slot i holds handle i + 1; zero-init is an
+     * empty pool. Ticked by the world's `vessels` phase, before player info.
+     */
+    struct ToriRSServerVessel vessels[TORIRSSERVER_VESSEL_MAX];
+    int vessel_count;
 };
 
 /* ------------------------------------------------------------------ */

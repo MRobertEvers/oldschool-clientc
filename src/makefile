@@ -600,7 +600,7 @@ TORIRSSERVER_CORE_SRCS = torirsserver/torirs_server_world.c \
 	torirsserver/torirs_server_ids.c \
 	torirsserver/torirs_server_boot.c torirsserver/torirs_server_save.c torirsserver/torirs_server_transport.c torirsserver/torirs_server_session.c \
 	torirsserver/torirs_server_embed.c content/content_register.c content/content_fields.c $(INI_SRC) \
-	torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c \
+	torirsserver/torirs_server_scene.c torirsserver/torirs_server_loc_ops.c torirsserver/torirs_server_mapinstance.c torirsserver/torirs_server_vessel.c \
 	torirsserver/torirs_server_zone.c torirsserver/torirs_server_zone_index.c torirsserver/torirs_server_worldmap.c torirsserver/torirs_server_varbit.c \
 	engine/world_builder/collision_map.c features/features.c \
 	platform/net_transport_ws_frame.c platform/net_transport_ws_handshake.c $(SS_SRCS)

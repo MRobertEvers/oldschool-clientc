@@ -10006,6 +10006,11 @@ ToriRSServer_WorldReset(struct ToriRSServer* srv)
      * the pool and leave the next world's scene reading a previous world's
      * descriptors. */
     ToriRSServer_MapInstanceReset();
+    /* Vessels hold instance handles, and the reset above just tore every
+     * reservation down — a surviving vessel would sail on carrying a handle
+     * the next world reissues to somebody else's POH. */
+    memset(srv->vessels, 0, sizeof(srv->vessels));
+    srv->vessel_count = 0;
     srv->npc_slot_max = 0;
     /* The roster's marks are the world's too, and for the same reason: the next
      * world's `ToriRSServer_WorldBuildEntities` memsets the npc pool, so a
@@ -10923,7 +10928,7 @@ ToriRSServer_WorldLoginFinish(struct ToriRSServerPlayer* player)
  */
 enum
 {
-    TICK_BD_PHASES = 12
+    TICK_BD_PHASES = 13
 };
 
 enum
@@ -12685,8 +12690,8 @@ phase_cleanup(struct ToriRSServer* srv)
 }
 
 static char const* const g_tick_bd_names[TICK_BD_PHASES] = {
-    "world", "clients_in", "npc_events", "npcs",  "players",     "logouts",
-    "logins", "zones",     "worldmap",   "info",  "clients_out", "cleanup"
+    "world",  "clients_in", "npc_events", "npcs",    "players", "logouts",    "logins",
+    "zones",  "worldmap",   "vessels",    "info",    "clients_out", "cleanup"
 };
 
 static char const* const g_pp_names[PP_COUNT] = {
@@ -12775,6 +12780,12 @@ ToriRSServer_WorldTick(struct ToriRSServer* srv)
         ToriRSServer_WorldSetActive(srv, player);
         ToriRSServer_WorldMapTick(srv);
     }
+    BD_MARK();
+    /* Vessels move after every actor has, and before the info streams, so the
+     * tick a hull advances is the tick S2's WORLDENTITY_INFO will describe it
+     * on — never a frame behind the players standing on it
+     * (docs/SAILING_PLAN.md S1). */
+    ToriRSServer_VesselTickAll(srv);
     BD_MARK();
     phase_info(srv);
     BD_MARK();

@@ -9772,6 +9772,110 @@ ToriRSServer_ScriptCommand(
         return 1;
     }
 
+    /* ---- vessels --------------------------------------------------- */
+
+    /*
+     * The sailing hulls (docs/SAILING_PLAN.md S1), thin like the map-instance
+     * band above: pop the arguments, call the registry, push what it said.
+     * Script arguments are DATA here — an out-of-range footprint or heading is
+     * refused the way the registries refuse a dead handle, never handed to the
+     * C contract asserts that guard host-code callers.
+     */
+    case SS_OP_VESSEL_SPAWN:
+    {
+        /* config, size_x, size_z, coord, angle */
+        int32_t values[5];
+        int handle = 0;
+
+        for( int i = 4; i >= 0; i-- )
+        {
+            if( !SSVM_PopInt(state, &values[i]) )
+                return 1;
+        }
+        if( values[0] >= 0 && values[1] > 0 && values[2] > 0 )
+            handle = ToriRSServer_VesselSpawn(
+                srv, values[0], values[1], values[2], coord_level(values[3]),
+                coord_x(values[3]), coord_z(values[3]),
+                values[4] & TORIRSSERVER_VESSEL_ANGLE_MASK);
+        if( handle && srv->active_player )
+            ToriRSServer_VesselGet(srv, handle)->owner_uid = srv->active_player->pid + 1;
+        SSVM_PushInt(state, handle);
+        return 1;
+    }
+
+    case SS_OP_VESSEL_SETTARGET:
+    {
+        int32_t handle;
+        int32_t coord;
+        struct ToriRSServerVessel* vessel;
+
+        if( !SSVM_PopInt(state, &coord) || !SSVM_PopInt(state, &handle) )
+            return 1;
+        vessel = ToriRSServer_VesselGet(srv, handle);
+        if( vessel )
+            ToriRSServer_VesselSetTarget(vessel, coord_x(coord), coord_z(coord));
+        return 1;
+    }
+
+    case SS_OP_VESSEL_SETHEADING:
+    {
+        int32_t handle;
+        int32_t heading;
+        struct ToriRSServerVessel* vessel;
+
+        if( !SSVM_PopInt(state, &heading) || !SSVM_PopInt(state, &handle) )
+            return 1;
+        vessel = ToriRSServer_VesselGet(srv, handle);
+        if( vessel && heading >= 0 && heading < 16 )
+            ToriRSServer_VesselSetHeading(vessel, heading);
+        return 1;
+    }
+
+    case SS_OP_VESSEL_SETSPEED:
+    {
+        int32_t handle;
+        int32_t tier;
+        struct ToriRSServerVessel* vessel;
+
+        if( !SSVM_PopInt(state, &tier) || !SSVM_PopInt(state, &handle) )
+            return 1;
+        vessel = ToriRSServer_VesselGet(srv, handle);
+        if( vessel && tier >= TORIRSSERVER_VESSEL_SPEED_TIER_MIN &&
+            tier <= TORIRSSERVER_VESSEL_SPEED_TIER_MAX )
+            ToriRSServer_VesselSetSpeed(vessel, tier);
+        return 1;
+    }
+
+    /* The tile the hull centers on, or coord 0 for a dead handle — the same
+     * "nowhere" map_instance_coord answers with. */
+    case SS_OP_VESSEL_POS:
+    {
+        int32_t handle;
+        struct ToriRSServerVessel* vessel;
+
+        if( !SSVM_PopInt(state, &handle) )
+            return 1;
+        vessel = ToriRSServer_VesselGet(srv, handle);
+        if( !vessel )
+        {
+            SSVM_PushInt(state, 0);
+            return 1;
+        }
+        SSVM_PushInt(
+            state, coord_pack(vessel->level, vessel->fine_x >> 7, vessel->fine_z >> 7));
+        return 1;
+    }
+
+    case SS_OP_VESSEL_FREE:
+    {
+        int32_t handle;
+
+        if( !SSVM_PopInt(state, &handle) )
+            return 1;
+        ToriRSServer_VesselFree(srv, handle);
+        return 1;
+    }
+
     case SS_OP_NPC_SETRESPAWN:
     {
         int32_t delay;

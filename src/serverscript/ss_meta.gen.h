@@ -6,7 +6,7 @@
 /* Included by exactly one translation unit: ss_meta.c. */
 
 /* Opcode names, for traces and the loud stub's report. */
-static const char* const g_ss_opcode_names[11088] = {
+static const char* const g_ss_opcode_names[11094] = {
     [0] = "PUSH_CONSTANT_INT",
     [1] = "PUSH_VARP",
     [2] = "POP_VARP",
@@ -499,6 +499,12 @@ static const char* const g_ss_opcode_names[11088] = {
     [11085] = "MAP_INSTANCE_LINGER",
     [11086] = "MAP_INSTANCE_SETLINGERGROUP",
     [11087] = "NPC_SETMAXHP",
+    [11088] = "VESSEL_SPAWN",
+    [11089] = "VESSEL_SETTARGET",
+    [11090] = "VESSEL_SETHEADING",
+    [11091] = "VESSEL_SETSPEED",
+    [11092] = "VESSEL_POS",
+    [11093] = "VESSEL_FREE",
 };
 
 /* Per-opcode stack signature and runtime-safety metadata.
@@ -508,7 +514,7 @@ static const char* const g_ss_opcode_names[11088] = {
  *
  * known == 0 means neither engine.rs2 nor MANUAL_META declared this
  * opcode, so its arity is unknown and it must not be executed. */
-static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11088] = {
+static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11094] = {
     [0] = { 0, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* PUSH_CONSTANT_INT */
     [1] = { 0, 0, 1, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* PUSH_VARP */
     [2] = { 1, 0, 0, 0, 1, 0, 1, 0, 0x000, 0x000 }, /* POP_VARP */
@@ -1001,6 +1007,12 @@ static const struct SSVM_OpcodeMeta g_ss_opcode_meta[11088] = {
     [11085] = { 1, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_INSTANCE_LINGER */
     [11086] = { 2, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* MAP_INSTANCE_SETLINGERGROUP */
     [11087] = { 1, 0, 0, 0, 1, 0, 0, 0, 0x010, 0x000 }, /* NPC_SETMAXHP */
+    [11088] = { 5, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_SPAWN */
+    [11089] = { 2, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_SETTARGET */
+    [11090] = { 2, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_SETHEADING */
+    [11091] = { 2, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_SETSPEED */
+    [11092] = { 1, 0, 1, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_POS */
+    [11093] = { 1, 0, 0, 0, 1, 0, 0, 0, 0x000, 0x000 }, /* VESSEL_FREE */
 };
 
 /* Trigger names, for script-name parsing and diagnostics. */
