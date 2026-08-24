@@ -436,6 +436,7 @@ struct ToriDraw_Map;
 struct ToriDraw_Vec;
 struct ToriDraw_ScenePendingPose;
 struct ToriDraw_RasterKernel;
+struct ToriDraw_RenderContext;
 struct ToriDraw_Sprite;
 struct ToriDraw_Font;
 struct ToriDraw_Sound;
@@ -731,7 +732,17 @@ struct ToriDraw_Scene
     /* Appended so the assembly-sensitive projection fields above retain their
      * offsets. NULL means inherit the active raster entry point's terminal. */
     const struct ToriDraw_RasterKernel* raster_kernel;
-    bool raster_pass_active;
+
+    /*
+     * Model rendering is normally single-depth and continues to use the
+     * resident scratch fields above. Recursive same-scene renders take an
+     * independent context allocated with the scene, so the normal path pays no
+     * allocation or extra hot-loop indirection. Concurrent use of one scene
+     * still requires external synchronization.
+     */
+    struct ToriDraw_RenderContext* render_contexts;
+    unsigned int render_context_depth;
+    unsigned int nested_render_contexts_used;
 };
 
 #define TORIDRAW_CULL_VISIBLE 0

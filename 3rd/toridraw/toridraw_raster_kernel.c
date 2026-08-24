@@ -157,7 +157,7 @@ ToriDraw_SceneSetRasterKernel(
     struct ToriDraw_Scene* scene,
     const struct ToriDraw_RasterKernel* kernel)
 {
-    if( !scene || !kernel || scene->raster_pass_active ||
+    if( !scene || !kernel || ToriDraw_RenderContextIsActive(scene) ||
         !ToriDraw_RasterKernelChainIsValid(kernel) )
         return false;
 
@@ -168,7 +168,7 @@ ToriDraw_SceneSetRasterKernel(
 bool
 ToriDraw_SceneResetRasterKernel(struct ToriDraw_Scene* scene)
 {
-    if( !scene || scene->raster_pass_active )
+    if( !scene || ToriDraw_RenderContextIsActive(scene) )
         return false;
 
     scene->raster_kernel = NULL;
@@ -179,30 +179,6 @@ const struct ToriDraw_RasterKernel*
 ToriDraw_SceneGetRasterKernel(const struct ToriDraw_Scene* scene)
 {
     return scene ? scene->raster_kernel : NULL;
-}
-
-bool
-ToriDraw_RasterPassBegin(struct ToriDraw_Scene* scene)
-{
-    if( !scene || scene->raster_pass_active )
-        return false;
-
-    scene->raster_pass_active = true;
-    return true;
-}
-
-void
-ToriDraw_RasterPassEnd(struct ToriDraw_Scene* scene)
-{
-    assert(scene);
-    assert(scene->raster_pass_active);
-    scene->raster_pass_active = false;
-}
-
-bool
-ToriDraw_RasterPassIsActive(const struct ToriDraw_Scene* scene)
-{
-    return scene && scene->raster_pass_active;
 }
 
 #undef TORIDRAW_RASTER_KERNEL_ALL_DOMAINS

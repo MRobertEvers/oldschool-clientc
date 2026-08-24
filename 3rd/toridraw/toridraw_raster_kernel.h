@@ -172,8 +172,10 @@ struct ToriDraw_RasterKernelVTable
  * A scene borrows this object, its vtable, its fallback chain, and user_data.
  * They must remain alive and immutable while bound or while a raster pass is
  * active.  `domains` is a non-empty mask of ToriDraw_RasterKernelDomain bits.
- * A callback may render a different scene; a recursive render of its active
- * scene is rejected before that scene's projection/sort scratch is changed.
+ * A callback may synchronously render either a different scene or the same
+ * scene again. Complete same-scene renders use an independently preallocated
+ * render context. Concurrent use of one scene still requires external
+ * synchronization.
  */
 struct ToriDraw_RasterKernel
 {

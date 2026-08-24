@@ -2,6 +2,7 @@
 #define TORIDRAW_RASTER_KERNEL_INTERNAL_H
 
 #include "toridraw_raster_kernel.h"
+#include "toridraw_render_context_internal.h"
 
 struct ToriDraw_ResolvedRasterSlot
 {
@@ -34,15 +35,5 @@ ToriDraw_RasterKernelResolve(
     const struct ToriDraw_RasterKernel* terminal,
     enum ToriDraw_RasterKernelDomain domain,
     struct ToriDraw_ResolvedRasterKernel* out);
-
-/* Scene-local guard used to reject rebinding and recursive same-scene passes. */
-bool
-ToriDraw_RasterPassBegin(struct ToriDraw_Scene* scene);
-
-void
-ToriDraw_RasterPassEnd(struct ToriDraw_Scene* scene);
-
-bool
-ToriDraw_RasterPassIsActive(const struct ToriDraw_Scene* scene);
 
 #endif

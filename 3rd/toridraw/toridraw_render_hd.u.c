@@ -988,6 +988,7 @@ ToriDraw_RenderHD(
     struct ToriDraw_HDRenderStats* out_stats)
 {
     struct hd_ctx ctx;
+    struct ToriDraw_RenderContextScope scope;
     int clip_left;
     int clip_top;
     int result;
@@ -997,7 +998,7 @@ ToriDraw_RenderHD(
 
     if( !ToriDraw_ModelKindIsFull(hnd.kind) || !hnd.u.model.model )
         return TORIDRAW_CULL_ERROR;
-    if( !ToriDraw_RasterPassBegin(scene) )
+    if( !ToriDraw_RenderContextBegin(scene, &scope, true) )
         return TORIDRAW_CULL_ERROR;
 
     result = ToriDraw_RenderModel1Project(hnd, scene, position, view_port, camera);
@@ -1021,7 +1022,7 @@ ToriDraw_RenderHD(
     result = TORIDRAW_CULL_VISIBLE;
 
 cleanup:
-    ToriDraw_RasterPassEnd(scene);
+    ToriDraw_RenderContextEnd(&scope);
     return result;
 }
 
@@ -1075,6 +1076,7 @@ ToriDraw_RenderHDZBuffered(
     struct ToriDraw_HDRenderStats* out_stats)
 {
     struct hd_ctx ctx;
+    struct ToriDraw_RenderContextScope scope;
     int clip_left;
     int clip_top;
     int result;
@@ -1084,7 +1086,7 @@ ToriDraw_RenderHDZBuffered(
 
     if( !ToriDraw_ModelKindIsFull(hnd.kind) || !hnd.u.model.model )
         return TORIDRAW_CULL_ERROR;
-    if( !ToriDraw_RasterPassBegin(scene) )
+    if( !ToriDraw_RenderContextBegin(scene, &scope, true) )
         return TORIDRAW_CULL_ERROR;
 
     result = ToriDraw_RenderModel1Project(hnd, scene, position, view_port, camera);
@@ -1165,7 +1167,7 @@ ToriDraw_RenderHDZBuffered(
     result = TORIDRAW_CULL_VISIBLE;
 
 cleanup:
-    ToriDraw_RasterPassEnd(scene);
+    ToriDraw_RenderContextEnd(&scope);
     return result;
 }
 

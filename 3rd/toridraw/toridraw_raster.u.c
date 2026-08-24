@@ -1165,9 +1165,6 @@ ToriDraw_RasterWithFaceIndices(
     struct ToriDrawModelRasterContext ctx;
     struct ToriDraw_Model* model;
 
-    if( !ToriDraw_RasterPassBegin(scene) )
-        return;
-
     terminal = ToriDraw_RasterGetScanline() ? ToriDraw_RasterKernelGetScanline()
                                             : ToriDraw_RasterKernelGetBranching();
     if( !ToriDraw_RasterKernelResolve(
@@ -1175,7 +1172,7 @@ ToriDraw_RasterWithFaceIndices(
             terminal,
             TORIDRAW_RASTER_KERNEL_STOCK,
             &resolved) )
-        goto cleanup;
+        return;
 
     model = model_as_full(hnd);
     context_from_handle(scene, hnd, view_port, camera, smooth, force_zbuffer, &ctx);
@@ -1290,9 +1287,6 @@ ToriDraw_RasterWithFaceIndices(
 
     if( ctx.raster_debug )
         toridraw_raster_debug_print(ctx.raster_debug, &ctx, (void*)model_as_full(hnd));
-
-cleanup:
-    ToriDraw_RasterPassEnd(scene);
 }
 
 static inline void

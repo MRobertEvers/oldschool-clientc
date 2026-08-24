@@ -62,8 +62,9 @@ The following are deliberately separate:
 - Sorting, priority buckets, projection, picking, and lighting are not kernel
   services. In particular, a kernel cannot recover a face dropped by an
   upstream sort limit.
-- This change does not make ToriDraw reentrant. Existing global near-clip
-  scratch and other shared state remain separate work.
+- Same-thread callback re-entry is supported by preallocated scene render
+  contexts. This does not make one scene safe for concurrent rendering from
+  multiple threads; callers must still serialize that use.
 
 ## Why the interface belongs at the face boundary
 
@@ -203,10 +204,10 @@ explicit binding and may therefore return null. There is intentionally no
 context-free "effective" getter: stock and HD entry points supply different
 terminals.
 
-Append the kernel pointer and an internal active-pass flag to the end of
-`ToriDraw_Scene`. Appending avoids disturbing the assembly-sensitive offsets at
-the beginning of that public structure. Every scene allocation and
-buffer-initialization path must initialize both fields.
+Append the kernel pointer, render-depth counters, and context-array pointer to
+the end of `ToriDraw_Scene`. Appending avoids disturbing the assembly-sensitive
+offsets at the beginning of that public structure. Every scene allocation and
+buffer-initialization path initializes them.
 
 ### Ownership and mutation
 
@@ -220,14 +221,55 @@ another resolved slot still needs. At pass entry ToriDraw snapshots the binding
 and terminal root. Concurrent mutation or rendering of the same scene requires
 external synchronization.
 
-A callback may render a different scene. A recursive convenience render of the
-active scene is rejected before projection or sorting can overwrite the outer
-pass's scratch. The split projection/sort APIs remain low-level phase controls;
-callers must not invoke those individual phases recursively on an active scene.
+A callback may synchronously render the active scene again. The complete stock,
+forced-z-buffer, HD, HD-z-buffer, and direct widget-model entry points acquire a
+render context before projection and release it through one cleanup path on
+every return, including culls and invalid live chains. `ToriDraw_RenderModel3Raster`
+may also be called recursively because phase 3 only reads the prepared
+projection/order arrays and creates a fresh pass-local raster context. The split
+projection/sort APIs remain low-level phase controls and must not be interleaved
+recursively without an owning complete entry point.
 
-Set the active flag before resolving and clear it through one cleanup path on
-every return, including an empty model or invalid live chain, so a failed pass
-cannot permanently lock the scene binding.
+### Re-entrant render contexts
+
+The ordinary render continues to use the projection arrays and final face-order
+array resident on `ToriDraw_Scene`. `ToriDraw_SceneNew` also allocates
+`TORIDRAW_NESTED_RENDER_CONTEXTS` additional contexts (eight by default, and
+compile-time configurable). A nested render swaps one context's live state into
+the scene before projection and swaps the outer state back after rasterization.
+If that fixed nesting capacity is exhausted, the attempted render returns
+before touching the active context (`TORIDRAW_CULL_ERROR` for result-returning
+entry points). All fixed-capacity model scratch is therefore allocated during
+scene construction. The z-buffer retains its existing viewport-sized,
+grow-on-demand policy because `ToriDraw_SceneNew` has no viewport dimensions;
+each context keeps that allocation for later renders once first used.
+That state consists of:
+
+- the active model handle, projected centre/bounds, near-clip flag, and effective
+  near plane;
+- all six projected/orthographic vertex arrays;
+- the final face-order array and count; and
+- an independent z-buffer pointer, dimensions, and contents when a depth entry
+  point is used.
+
+Depth and priority bucket workspaces remain shared. Kernel callbacks run only
+after the outer sort has completed, so those intermediates are dead while the
+outer raster is paused; the nested sort may reuse them without copying or
+changing the outer result. This avoids multiplying the large 16K-depth sort
+allocation for every supported nesting level.
+
+The common single-threaded path performs one predictable depth check at model
+entry and one decrement at exit. It performs no allocation, locking, atomic or
+thread-local access, scratch copy, or additional face/span/pixel-loop
+indirection. Same-scene concurrent threads are outside the contract. The
+remaining legacy process globals are therefore acceptable for this synchronous
+callback-boundary guarantee: terminal selection is snapshotted per pass, and
+the near-clip arrays cannot overlap because built-in triangle primitives do not
+call application kernels.
+
+Set the active depth before resolving and clear it through the owning cleanup
+path, so popping an inner render never makes the scene binding mutable while an
+outer pass still uses its resolved `user_data`.
 
 Version 1 has no destructor or ownership callback. The repository builds
 ToriDraw from source, including its unity translation unit, rather than loading
@@ -729,7 +771,7 @@ separate HD near-clip follow-up.
 
 - Add the concrete public kernel/vtable, domain, target, face, gate, and mapping
   payload declarations.
-- Append and initialize the nullable binding/active flag in `ToriDraw_Scene`,
+- Append and initialize the nullable binding and render-context state in `ToriDraw_Scene`,
   but keep scene binding APIs private until the resolver and independent roots
   are tested and ready to affect rendering.
 - Implement and unit-test entry-point terminal injection, domain filtering,
@@ -843,6 +885,12 @@ The routing test should use a spy kernel and synthetic model faces to prove:
   unpinned chains at the next pass;
 - set/reset from inside a callback is rejected and the borrowed chain remains
   live for the entire pass;
+- same-scene stock recursion through at least two nested complete renders uses
+  distinct preallocated projection/order contexts, restores every outer pointer
+  and value, resumes all face slots, and keeps mutation rejected after an inner
+  context returns;
+- same-scene HD and HD-z-buffer recursion preserves independent resolved slots,
+  projection/order scratch, and live depth-buffer pointers;
 - Pixel16 routes every face surviving its common skip policy only to
   flat/Gouraud, never reaches its textured assertion stubs, and returns the
   defined unsupported result from HD entry points.
@@ -897,8 +945,9 @@ fixture run is intentionally tracked separately from functional acceptance.
 | `3rd/toridraw/toridraw_raster_kernel.h` | public object, vtable, descriptors, built-in getters |
 | `3rd/toridraw/toridraw_raster_kernel.c` | chain validation/resolution and scene binding APIs |
 | `3rd/toridraw/toridraw.h` | export the new API; deprecate global scanline selection |
-| `3rd/toridraw/toridraw_types.h` | public mapping include plus nullable scene binding and active flag |
-| `3rd/toridraw/toridraw.c` | Pixel16 guards and same-scene recursive-render rejection |
+| `3rd/toridraw/toridraw_types.h` | public mapping include plus nullable scene binding and render-context state |
+| `3rd/toridraw/toridraw_render_context_internal.h` | private render-scope contract and startup context capacity |
+| `3rd/toridraw/toridraw.c` | startup scratch allocation, context swapping, entry scopes, and Pixel16 guards |
 | `3rd/toridraw/toridraw_raster.u.c` | classifier/preparer, domain-aware chain resolution, one-call face dispatch |
 | `3rd/toridraw/triangles/*` | direct branching/scanline face callbacks; remove leaf global checks |
 | `3rd/toridraw/toridraw_render_hd.u.c` | HD domain roots, prepared policy adapter, later near-clip closure |

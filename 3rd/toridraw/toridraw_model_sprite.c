@@ -2,6 +2,7 @@
 
 #include "toridraw.h"
 #include "toridraw_model.h"
+#include "toridraw_render_context_internal.h"
 #include "toridraw_sprite.h"
 
 #include <assert.h>
@@ -349,6 +350,8 @@ ToriDraw_RenderModelExtentsAtWidget(
     int* out_width,
     int* out_height)
 {
+    struct ToriDraw_RenderContextScope scope;
+
     assert(scene);
     assert(hnd.kind == TORIDRAWMK_MODEL);
     assert(pixels);
@@ -394,6 +397,9 @@ ToriDraw_RenderModelExtentsAtWidget(
     int raster_origin_x = raster_clip_left + ((raster_clip_right - raster_clip_left) >> 1);
     int raster_origin_y = raster_clip_top + ((raster_clip_bottom - raster_clip_top) >> 1);
 
+    if( !ToriDraw_RenderContextBegin(scene, &scope, true) )
+        return false;
+
     scene->active_hnd = hnd;
     /* Widget models are projected directly, independently of the world camera.
      * Do not inherit the previous world model's near-clipped state: widget
@@ -412,7 +418,10 @@ ToriDraw_RenderModelExtentsAtWidget(
 
         if( !widget_model_project_vertices_objrender(
                 scene, hnd, &xf, origin_x, origin_y, &min_x, &min_y, &max_x, &max_y) )
+        {
+            ToriDraw_RenderContextEnd(&scope);
             return false;
+        }
 
         int vc = ToriDraw_ModelGetVertexCount(hnd);
         for( int i = 0; i < vc; i++ )
@@ -426,14 +435,20 @@ ToriDraw_RenderModelExtentsAtWidget(
         sw = max_x - min_x + 1;
         sh = max_y - min_y + 1;
         if( sw <= 0 || sh <= 0 )
+        {
+            ToriDraw_RenderContextEnd(&scope);
             return false;
+        }
     }
     else
     {
         int blit_offset_x = 0;
         int blit_offset_y = 0;
         if( !ToriDraw_WidgetModelBounds(hnd, &xf, &sw, &sh, &blit_offset_x, &blit_offset_y) )
+        {
+            ToriDraw_RenderContextEnd(&scope);
             return false;
+        }
 
         int bw = widget_w > 0 ? widget_w : sw;
         int bh = widget_h > 0 ? widget_h : sh;
@@ -441,7 +456,10 @@ ToriDraw_RenderModelExtentsAtWidget(
         int origin_y = widget_y + (bh / 2) - blit_offset_y;
 
         if( !widget_model_project_vertices(scene, hnd, &xf, sw, sh, blit_offset_x, blit_offset_y) )
+        {
+            ToriDraw_RenderContextEnd(&scope);
             return false;
+        }
 
         int vc = ToriDraw_ModelGetVertexCount(hnd);
         for( int i = 0; i < vc; i++ )
@@ -482,6 +500,7 @@ ToriDraw_RenderModelExtentsAtWidget(
     *out_draw_y = draw_y;
     *out_width = sw;
     *out_height = sh;
+    ToriDraw_RenderContextEnd(&scope);
     return true;
 }
 
@@ -580,6 +599,7 @@ ToriDraw_SpriteNewFromModelRasterExtents(
     bool postprocess_outline)
 {
     struct ToriDraw_ModelExtentsRaster result = { 0 };
+    struct ToriDraw_RenderContextScope scope;
 
     assert(scene);
     assert(hnd.kind == TORIDRAWMK_MODEL);
@@ -598,10 +618,16 @@ ToriDraw_SpriteNewFromModelRasterExtents(
     if( !ToriDraw_WidgetModelBounds(hnd, &xf, &width, &height, &blit_offset_x, &blit_offset_y) )
         return result;
 
+    if( !ToriDraw_RenderContextBegin(scene, &scope, true) )
+        return result;
+
     scene->active_hnd = hnd;
     if( !widget_model_project_vertices(
             scene, hnd, &xf, width, height, blit_offset_x, blit_offset_y) )
+    {
+        ToriDraw_RenderContextEnd(&scope);
         return result;
+    }
 
     struct ToriDraw_ViewPort view_port = { 0 };
     view_port.width = width;
@@ -641,6 +667,7 @@ ToriDraw_SpriteNewFromModelRasterExtents(
     result.sprite = ToriDraw_SpriteNewFromArgbOwned(argb, width, height);
     result.offset_x = blit_offset_x;
     result.offset_y = blit_offset_y;
+    ToriDraw_RenderContextEnd(&scope);
     return result;
 }
 

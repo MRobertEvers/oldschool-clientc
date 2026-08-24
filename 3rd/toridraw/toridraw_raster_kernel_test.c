@@ -87,7 +87,14 @@ struct Spy
     bool attempt_recursive_render;
     bool recursive_render_attempted;
     bool recursive_scratch_unchanged;
-    int recursive_raster_result;
+    bool recursive_contexts_distinct;
+    bool set_after_nested;
+    bool reset_after_nested;
+    int recursive_depth;
+    int recursive_depth_limit;
+    bool recursive_started[3];
+    const int* screen_x_by_depth[3];
+    const int* face_order_by_depth[3];
 };
 
 static void
@@ -316,6 +323,8 @@ spy_init(
     spy->name = name;
     spy->fixture = fixture;
     spy->env = env;
+    spy->recursive_scratch_unchanged = true;
+    spy->recursive_contexts_distinct = true;
 }
 
 static void
@@ -498,20 +507,33 @@ spy_attempt_same_scene_recursion(struct Spy* spy)
     int const ordered = scene->tmp_face_order_count;
     int const projection_near_plane_z = scene->projection_near_plane_z;
     bool const near_clipped = scene->near_clipped;
+    int* const screen_x_pointer = scene->screen_vertices_x;
+    int* const screen_y_pointer = scene->screen_vertices_y;
+    int* const screen_z_pointer = scene->screen_vertices_z;
+    int* const orthographic_x_pointer = scene->orthographic_vertices_x;
+    int* const orthographic_y_pointer = scene->orthographic_vertices_y;
+    int* const orthographic_z_pointer = scene->orthographic_vertices_z;
+    int* const face_order_pointer = scene->tmp_face_order;
 
     spy->recursive_render_attempted = true;
-    spy->recursive_raster_result = ToriDraw_RenderModel3Raster(
-        scene, &viewport, &camera, spy->env->pixels, false);
-
     memcpy(screen_x, scene->screen_vertices_x, sizeof(screen_x));
     memcpy(screen_y, scene->screen_vertices_y, sizeof(screen_y));
     memcpy(screen_z, scene->screen_vertices_z, sizeof(screen_z));
     memcpy(face_order, scene->tmp_face_order, sizeof(face_order));
 
+    spy->recursive_depth++;
     ToriDraw_RenderModel(
         spy->fixture->handle, scene, &position, &viewport, &camera, spy->env->pixels);
+    spy->recursive_depth--;
 
-    spy->recursive_scratch_unchanged =
+    spy->recursive_scratch_unchanged = spy->recursive_scratch_unchanged &&
+        scene->screen_vertices_x == screen_x_pointer &&
+        scene->screen_vertices_y == screen_y_pointer &&
+        scene->screen_vertices_z == screen_z_pointer &&
+        scene->orthographic_vertices_x == orthographic_x_pointer &&
+        scene->orthographic_vertices_y == orthographic_y_pointer &&
+        scene->orthographic_vertices_z == orthographic_z_pointer &&
+        scene->tmp_face_order == face_order_pointer &&
         memcmp(&active_hnd, &scene->active_hnd, sizeof(active_hnd)) == 0 &&
         memcmp(&projected_vertex, &scene->projected_vertex, sizeof(projected_vertex)) == 0 &&
         memcmp(&aabb, &scene->aabb, sizeof(aabb)) == 0 &&
@@ -523,6 +545,12 @@ spy_attempt_same_scene_recursion(struct Spy* spy)
         memcmp(face_order, scene->tmp_face_order, sizeof(face_order)) == 0 &&
         scene->projection_near_plane_z == projection_near_plane_z &&
         scene->near_clipped == near_clipped;
+
+    /* Popping an inner context must not make the outer kernel binding mutable. */
+    spy->set_after_nested =
+        spy->set_after_nested || ToriDraw_SceneSetRasterKernel(scene, spy->replacement);
+    spy->reset_after_nested =
+        spy->reset_after_nested || ToriDraw_SceneResetRasterKernel(scene);
 }
 
 static void
@@ -544,6 +572,33 @@ spy_record(
     verify_target(spy, target);
     verify_face(spy, face);
 
+    if( spy->attempt_recursive_render )
+    {
+        int const depth = spy->recursive_depth;
+        CHECK(depth >= 0 && depth < 3, "%s recursive depth %d", spy->name, depth);
+        if( depth >= 0 && depth < 3 )
+        {
+            if( !spy->screen_x_by_depth[depth] )
+            {
+                spy->screen_x_by_depth[depth] = target->screen_vertices_x;
+                spy->face_order_by_depth[depth] = spy->env->scene->tmp_face_order;
+            }
+            else
+            {
+                CHECK(spy->screen_x_by_depth[depth] == target->screen_vertices_x,
+                      "%s depth %d changed projected context within a pass", spy->name, depth);
+                CHECK(spy->face_order_by_depth[depth] == spy->env->scene->tmp_face_order,
+                      "%s depth %d changed face-order context within a pass", spy->name, depth);
+            }
+            if( depth > 0 )
+            {
+                spy->recursive_contexts_distinct = spy->recursive_contexts_distinct &&
+                    spy->screen_x_by_depth[depth] != spy->screen_x_by_depth[depth - 1] &&
+                    spy->face_order_by_depth[depth] != spy->face_order_by_depth[depth - 1];
+            }
+        }
+    }
+
     if( spy->attempt_mutation && !spy->mutation_attempted )
     {
         spy->mutation_attempted = true;
@@ -551,9 +606,12 @@ spy_record(
             spy->env->scene, spy->replacement);
         spy->reset_during_callback = ToriDraw_SceneResetRasterKernel(spy->env->scene);
     }
-    if( spy->attempt_recursive_render && !spy->recursive_render_attempted &&
-        spy->total_calls == fixture_dispatch_count() )
+    if( spy->attempt_recursive_render && spy->recursive_depth < spy->recursive_depth_limit &&
+        !spy->recursive_started[spy->recursive_depth] )
+    {
+        spy->recursive_started[spy->recursive_depth] = true;
         spy_attempt_same_scene_recursion(spy);
+    }
 }
 
 #define DEFINE_SPY_CALLBACK(name, slot)                                                           \
@@ -610,7 +668,7 @@ fixture_dispatch_count(void)
 }
 
 static void
-check_one_call_per_class(const struct Spy* spy)
+check_call_multiplier(const struct Spy* spy, int multiplier)
 {
 #ifdef TORIDRAW_PIXEL16
     static const int expected[TORIDRAW_RASTER_FACE_CLASS_COUNT] = { 2, 1, 0, 0 };
@@ -622,13 +680,22 @@ check_one_call_per_class(const struct Spy* spy)
     int const expected_total = FACE_COUNT;
 #endif
 
-    CHECK(spy->total_calls == expected_total, "%s total calls %d", spy->name, spy->total_calls);
+    CHECK(spy->total_calls == expected_total * multiplier, "%s total calls %d", spy->name,
+          spy->total_calls);
     for( int slot = 0; slot < TORIDRAW_RASTER_FACE_CLASS_COUNT; slot++ )
-        CHECK(spy->calls[slot] == expected[slot], "%s slot %d calls %d, expected %d", spy->name,
-              slot, spy->calls[slot], expected[slot]);
+        CHECK(spy->calls[slot] == expected[slot] * multiplier,
+              "%s slot %d calls %d, expected %d", spy->name, slot, spy->calls[slot],
+              expected[slot] * multiplier);
     for( int face = 0; face < FACE_COUNT; face++ )
-        CHECK(spy->face_calls[face] == expected_faces[face], "%s face %d calls %d, expected %d",
-              spy->name, face, spy->face_calls[face], expected_faces[face]);
+        CHECK(spy->face_calls[face] == expected_faces[face] * multiplier,
+              "%s face %d calls %d, expected %d", spy->name, face, spy->face_calls[face],
+              expected_faces[face] * multiplier);
+}
+
+static void
+check_one_call_per_class(const struct Spy* spy)
+{
+    check_call_multiplier(spy, 1);
 }
 
 static void
@@ -667,14 +734,16 @@ test_four_slots_and_callback_guard(
 }
 
 static void
-test_recursive_pass_guard(const struct Fixture* fixture, struct RenderEnv* env)
+test_same_scene_reentrant_stock(const struct Fixture* fixture, struct RenderEnv* env)
 {
     struct Spy spy;
     struct ToriDraw_RasterKernel kernel;
 
-    printf("same-scene recursive stock entry points reject before touching pass scratch\n");
+    printf("same-scene stock callbacks re-enter through independent startup contexts\n");
     spy_init(&spy, "recursive-stock", fixture, env);
     spy.attempt_recursive_render = true;
+    spy.recursive_depth_limit = 2;
+    spy.replacement = ToriDraw_RasterKernelGetBranching();
     kernel = (struct ToriDraw_RasterKernel){
         .vtable = &full_spy_vtable,
         .user_data = &spy,
@@ -683,14 +752,18 @@ test_recursive_pass_guard(const struct Fixture* fixture, struct RenderEnv* env)
 
     CHECK(ToriDraw_SceneSetRasterKernel(env->scene, &kernel), "bind recursive stock spy");
     render_fixture(env, fixture);
-    check_one_call_per_class(&spy);
+    check_call_multiplier(&spy, spy.recursive_depth_limit + 1);
     CHECK(spy.recursive_render_attempted, "recursive stock callback did not run");
-    CHECK(spy.recursive_raster_result == TORIDRAW_CULL_ERROR,
-          "active RenderModel3Raster returned %d instead of CULL_ERROR",
-          spy.recursive_raster_result);
     CHECK(spy.recursive_scratch_unchanged,
-          "same-scene recursive RenderModel mutated projection/sort scratch");
-    CHECK(count_nonzero_pixels(env) == 0, "rejected recursive render wrote pixels");
+          "same-scene recursive RenderModel did not restore live outer scratch");
+    CHECK(spy.recursive_contexts_distinct,
+          "nested stock renders shared projected or face-order scratch");
+    CHECK(!spy.set_after_nested && !spy.reset_after_nested,
+          "popping a nested context cleared the outer binding guard");
+    CHECK(env->scene->render_context_depth == 0 &&
+              env->scene->nested_render_contexts_used == 0,
+          "recursive stock render leaked an active context");
+    CHECK(count_nonzero_pixels(env) == 0, "recursive spy callbacks unexpectedly drew pixels");
     CHECK(ToriDraw_SceneGetRasterKernel(env->scene) == &kernel,
           "recursive render changed the scene binding");
     CHECK(ToriDraw_SceneResetRasterKernel(env->scene), "reset recursive stock spy");
@@ -1077,6 +1150,15 @@ struct HDSpy
     bool mutation_attempted;
     bool set_during_callback;
     bool reset_during_callback;
+    bool attempt_recursive_render;
+    bool recursive_render_attempted;
+    bool recursive_render_active;
+    bool recursive_zbuffer;
+    bool recursive_scratch_unchanged;
+    bool recursive_context_distinct;
+    const int* outer_screen_x;
+    const int* outer_face_order;
+    const torizdepth_t* outer_zbuffer;
 };
 
 static void
@@ -1188,6 +1270,8 @@ hd_spy_init(
     spy->fixture = fixture;
     spy->env = env;
     spy->materials = materials;
+    spy->recursive_scratch_unchanged = true;
+    spy->recursive_context_distinct = true;
 }
 
 static void
@@ -1352,6 +1436,74 @@ verify_hd_face(const struct HDSpy* spy, const struct ToriDraw_RasterFace* face)
 }
 
 static void
+hd_spy_attempt_same_scene_recursion(struct HDSpy* spy)
+{
+    struct ToriDraw_Scene* scene = spy->env->scene;
+    struct ToriDraw_ViewPort viewport = test_viewport();
+    struct ToriDraw_Camera camera = test_camera();
+    struct ToriDraw_Position position = { .x = -70, .y = 25, .z = 900, .yaw = 96 };
+    struct ToriDraw_HDMaterials table = { spy->materials, HD_TEXTURE_COUNT };
+    struct ToriDraw_HDRenderStats stats;
+    struct ToriDraw_ModelHandle active_hnd = scene->active_hnd;
+    struct ProjectedVertex projected_vertex = scene->projected_vertex;
+    struct ToriDraw_AABB aabb = scene->aabb;
+    struct ToriDraw_AABB cylinder_aabb = scene->cylinder_fast_aabb;
+    int screen_x[VERTEX_COUNT];
+    int screen_y[VERTEX_COUNT];
+    int screen_z[VERTEX_COUNT];
+    int face_order[FACE_COUNT];
+    int* const screen_x_pointer = scene->screen_vertices_x;
+    int* const screen_y_pointer = scene->screen_vertices_y;
+    int* const screen_z_pointer = scene->screen_vertices_z;
+    int* const orthographic_x_pointer = scene->orthographic_vertices_x;
+    int* const orthographic_y_pointer = scene->orthographic_vertices_y;
+    int* const orthographic_z_pointer = scene->orthographic_vertices_z;
+    int* const face_order_pointer = scene->tmp_face_order;
+    int const ordered = scene->tmp_face_order_count;
+    int const near_plane = scene->projection_near_plane_z;
+    bool const near_clipped = scene->near_clipped;
+
+    memcpy(screen_x, scene->screen_vertices_x, sizeof(screen_x));
+    memcpy(screen_y, scene->screen_vertices_y, sizeof(screen_y));
+    memcpy(screen_z, scene->screen_vertices_z, sizeof(screen_z));
+    memcpy(face_order, scene->tmp_face_order, sizeof(face_order));
+
+    spy->recursive_render_attempted = true;
+    spy->recursive_render_active = true;
+    spy->outer_screen_x = screen_x_pointer;
+    spy->outer_face_order = face_order_pointer;
+    spy->outer_zbuffer = scene->zbuffer;
+    int result = spy->recursive_zbuffer
+                     ? ToriDraw_RenderHDZBuffered(
+                           spy->fixture->handle, scene, &position, &viewport, &camera,
+                           spy->env->pixels, &table, &stats)
+                     : ToriDraw_RenderHD(
+                           spy->fixture->handle, scene, &position, &viewport, &camera,
+                           spy->env->pixels, &table, &stats);
+    spy->recursive_render_active = false;
+
+    CHECK(result == TORIDRAW_CULL_VISIBLE, "%s nested HD render returned %d", spy->name, result);
+    spy->recursive_scratch_unchanged = spy->recursive_scratch_unchanged &&
+        scene->screen_vertices_x == screen_x_pointer &&
+        scene->screen_vertices_y == screen_y_pointer &&
+        scene->screen_vertices_z == screen_z_pointer &&
+        scene->orthographic_vertices_x == orthographic_x_pointer &&
+        scene->orthographic_vertices_y == orthographic_y_pointer &&
+        scene->orthographic_vertices_z == orthographic_z_pointer &&
+        scene->tmp_face_order == face_order_pointer &&
+        memcmp(&active_hnd, &scene->active_hnd, sizeof(active_hnd)) == 0 &&
+        memcmp(&projected_vertex, &scene->projected_vertex, sizeof(projected_vertex)) == 0 &&
+        memcmp(&aabb, &scene->aabb, sizeof(aabb)) == 0 &&
+        memcmp(&cylinder_aabb, &scene->cylinder_fast_aabb, sizeof(cylinder_aabb)) == 0 &&
+        memcmp(screen_x, scene->screen_vertices_x, sizeof(screen_x)) == 0 &&
+        memcmp(screen_y, scene->screen_vertices_y, sizeof(screen_y)) == 0 &&
+        memcmp(screen_z, scene->screen_vertices_z, sizeof(screen_z)) == 0 &&
+        scene->tmp_face_order_count == ordered &&
+        memcmp(face_order, scene->tmp_face_order, sizeof(face_order)) == 0 &&
+        scene->projection_near_plane_z == near_plane && scene->near_clipped == near_clipped;
+}
+
+static void
 hd_spy_record(
     struct HDSpy* spy,
     enum ToriDraw_RasterFaceClass slot,
@@ -1369,6 +1521,18 @@ hd_spy_record(
         spy->face_calls[face->face_index]++;
     verify_hd_target(spy, target);
     verify_hd_face(spy, face);
+
+    if( spy->recursive_render_active )
+    {
+        spy->recursive_context_distinct = spy->recursive_context_distinct &&
+            target->screen_vertices_x != spy->outer_screen_x &&
+            spy->env->scene->tmp_face_order != spy->outer_face_order;
+        if( spy->recursive_zbuffer )
+            spy->recursive_context_distinct = spy->recursive_context_distinct &&
+                spy->env->scene->zbuffer != spy->outer_zbuffer;
+    }
+    if( spy->attempt_recursive_render && !spy->recursive_render_attempted )
+        hd_spy_attempt_same_scene_recursion(spy);
 
     if( spy->attempt_mutation && !spy->mutation_attempted )
     {
@@ -1500,6 +1664,32 @@ test_hd_routing(struct RenderEnv* env)
               stats.with_modulate == 1,
           "HD full routing stats");
     CHECK(count_nonzero_pixels(env) == 0, "HD spy callbacks unexpectedly drew pixels");
+
+    hd_spy_init(&full, "hd-reentrant", &fixture, env, materials);
+    full.attempt_recursive_render = true;
+    render_hd_fixture(env, &fixture, &table, &stats);
+    CHECK(full.total_calls == FACE_COUNT * 2, "reentrant HD total calls %d", full.total_calls);
+    for( int slot = 0; slot < TORIDRAW_RASTER_FACE_CLASS_COUNT; slot++ )
+        CHECK(full.calls[slot] == 2, "reentrant HD slot %d calls %d", slot, full.calls[slot]);
+    CHECK(full.recursive_render_attempted && full.recursive_scratch_unchanged &&
+              full.recursive_context_distinct,
+          "same-scene HD recursion did not isolate and restore live scratch");
+    CHECK(env->scene->render_context_depth == 0 &&
+              env->scene->nested_render_contexts_used == 0,
+          "recursive HD render leaked an active context");
+
+    hd_spy_init(&full, "hd-zbuffer-reentrant", &fixture, env, materials);
+    full.expect_depth = true;
+    full.attempt_recursive_render = true;
+    full.recursive_zbuffer = true;
+    render_hd_zbuffer_fixture(env, &fixture, &table, &stats);
+    CHECK(full.total_calls == FACE_COUNT * 2, "reentrant HD zbuffer calls %d", full.total_calls);
+    CHECK(full.recursive_render_attempted && full.recursive_scratch_unchanged &&
+              full.recursive_context_distinct,
+          "same-scene HD zbuffer recursion shared live depth or projection scratch");
+    CHECK(env->scene->render_context_depth == 0 &&
+              env->scene->nested_render_contexts_used == 0,
+          "recursive HD zbuffer render leaked an active context");
 
     hd_spy_init(&full, "hd-missing-material", &fixture, env, materials);
     full.missing_last_material = true;
@@ -1792,7 +1982,7 @@ main(void)
     }
 
     test_four_slots_and_callback_guard(&fixture, &first);
-    test_recursive_pass_guard(&fixture, &first);
+    test_same_scene_reentrant_stock(&fixture, &first);
     test_pre_dispatch_skips(&fixture, &first);
     test_live_chain_mutation_recovery(&fixture, &first);
     test_sparse_fallback_and_noop(&fixture, &first);
