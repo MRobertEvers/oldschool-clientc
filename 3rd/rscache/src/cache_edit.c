@@ -751,8 +751,14 @@ dat2_edit_set_children(
     /* A decoded archive's children are a slice of the table's pool — replacing
      * them just abandons the slice; only an owned array is freed. */
     if( !RSCache_ReferenceTableChildrenPooled(table, archive->children.files) )
+    {
         free(archive->children.files);
+        free(archive->children.name_hashes);
+    }
     archive->children.files = files;
+    /* A child list built from ids alone carries no names, which is what the
+     * calloc'd array used to say by leaving every name_hash zero. */
+    archive->children.name_hashes = NULL;
     archive->children.count = file_count;
     return true;
 }

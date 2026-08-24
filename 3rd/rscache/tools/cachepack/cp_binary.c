@@ -508,37 +508,54 @@ cp_reference_sync(
     if( children_differ )
     {
         struct RSCache_ReferenceTableArchiveFile* grown;
+        int* grown_hashes = NULL;
         int old_count = archive->children.count;
+        bool pooled = RSCache_ReferenceTableChildrenPooled(rt, archive->children.files);
 
-        if( RSCache_ReferenceTableChildrenPooled(rt, archive->children.files) )
+        /* The name hash is the client's `getArchive(name)` key, so the hashes of
+         * files the tree kept have to survive the regrow. They sit in an array
+         * parallel to the ids now, present only on a table with identifiers. A
+         * file the tree did not previously hold has no name to hash, so it gets
+         * -1 — what the decoder reads for "unnamed" and what every id-addressed
+         * table already carries. */
+        if( (rt->flags & RSCACHE_REFTABLE_FLAG_IDENTIFIERS) != 0 )
+        {
+            const int* old_hashes = archive->children.name_hashes;
+
+            grown_hashes = malloc((size_t)file_count * sizeof(int));
+            if( !grown_hashes )
+                return 0;
+            for( int i = 0; i < file_count; i++ )
+                grown_hashes[i] = (old_hashes && i < old_count) ? old_hashes[i] : -1;
+        }
+
+        if( pooled )
         {
             /* A decoded archive's children are a slice of the table's pool and
              * cannot be realloc'd; replace with an owned array and abandon the
              * slice. */
             grown = malloc((size_t)file_count * sizeof(*grown));
             if( !grown )
+            {
+                free(grown_hashes);
                 return 0;
-            for( int i = 0; i < file_count && i < old_count; i++ )
-                grown[i] = archive->children.files[i];
+            }
         }
         else
         {
             grown = realloc(archive->children.files, (size_t)file_count * sizeof(*grown));
             if( !grown )
+            {
+                free(grown_hashes);
                 return 0;
+            }
+            /* Read above into grown_hashes, so it is safe to drop now. */
+            free(archive->children.name_hashes);
         }
-        /* The name hash is the client's `getArchive(name)` key. A file the tree
-         * did not previously hold has no name to hash, so it gets -1 — which is
-         * what the decoder reads for "unnamed" and what every id-addressed table
-         * already carries. (Hashes for kept files are already in `grown` —
-         * realloc preserved them, the pooled path copied them.) */
         for( int i = 0; i < file_count; i++ )
-        {
             grown[i].id = file_ids[i];
-            if( i >= old_count )
-                grown[i].name_hash = -1;
-        }
         archive->children.files = grown;
+        archive->children.name_hashes = grown_hashes;
         archive->children.count = file_count;
     }
 

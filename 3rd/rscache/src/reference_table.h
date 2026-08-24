@@ -4,9 +4,14 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+/* The file id, and nothing else. The name hash that used to sit beside it is
+ * now an array parallel to the ids on the archive, because only tables that
+ * set FLAG_IDENTIFIERS ever had one: 97.4% of the 733k children in a shipped
+ * cache are in tables that do not, and for those this second word was a zero
+ * the resident tables paid megabytes to carry.
+ * RSCache_ReferenceTableChildNameHash reads it back. */
 struct RSCache_ReferenceTableArchiveFile
 {
-    int name_hash;
     int id;
 };
 
@@ -21,7 +26,6 @@ struct RSCache_ReferenceTableArchive
     int index;
     int identifier;
     int crc;
-    int hash;
     /* NULL unless RSCACHE_REFTABLE_FLAG_WHIRLPOOL is set on the table; then
      * RSCACHE_REFTABLE_WHIRLPOOL_BYTES bytes, owned by the table. */
     unsigned char* whirlpool;
@@ -31,6 +35,12 @@ struct RSCache_ReferenceTableArchive
     struct
     {
         struct RSCache_ReferenceTableArchiveFile* files;
+        /* One name hash per child, parallel to `files`. NULL unless the table
+         * sets FLAG_IDENTIFIERS, and a NULL reads as all-zero -- which is what
+         * the pool used to hold for those tables anyway. Ownership tracks
+         * `files`: a pooled slice here whenever that is a pooled slice, an
+         * array allocated beside it whenever a tool replaced one. */
+        int* name_hashes;
         int count;
     } children;
 };
@@ -71,6 +81,11 @@ struct RSCache_ReferenceTable
      */
     struct RSCache_ReferenceTableArchiveFile* children_pool;
     size_t children_pool_count;
+
+    /* Name hashes for children_pool, same length and same offsets, allocated
+     * only for a table that sets FLAG_IDENTIFIERS. NULL otherwise, which every
+     * reader takes as "no child here is named". */
+    int* children_name_hash_pool;
 };
 
 #define RSCACHE_REFTABLE_FLAG_IDENTIFIERS 0x1
@@ -118,5 +133,13 @@ bool
 RSCache_ReferenceTableChildrenPooled(
     const struct RSCache_ReferenceTable* table,
     const struct RSCache_ReferenceTableArchiveFile* files);
+
+/** The name hash of `archive`'s child `child_index`, or 0 when the archive
+ *  carries no names -- which is every archive in a table without
+ *  FLAG_IDENTIFIERS. */
+int
+RSCache_ReferenceTableChildNameHash(
+    const struct RSCache_ReferenceTableArchive* archive,
+    int child_index);
 
 #endif

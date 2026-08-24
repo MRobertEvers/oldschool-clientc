@@ -139,10 +139,9 @@ RSCache_ReferenceTableNewDecode(
 
     if( total_children > 0 )
     {
-        /* Zeroed, because name_hash is filled in only under FLAG_IDENTIFIERS and
-         * most tables do not set it -- a malloc'd pool left every child in those
-         * tables carrying whatever the heap had there, which the encoder would
-         * then write out as a name. */
+        /* Zeroed rather than malloc'd: a table that declares more children than
+         * its remaining bytes can supply leaves the tail of the pool unwritten,
+         * and the encoder would hand those ids straight back out. */
         table->children_pool = calloc(
             (size_t)total_children, sizeof(struct RSCache_ReferenceTableArchiveFile));
         if( !table->children_pool )
@@ -151,6 +150,15 @@ RSCache_ReferenceTableNewDecode(
             free(table->archives);
             free(table);
             return NULL;
+        }
+
+        /* Only a table with identifiers has anything to put here; the rest
+         * leave it NULL and every reader takes that as "unnamed". */
+        if( (table->flags & FLAG_IDENTIFIERS) != 0 )
+        {
+            table->children_name_hash_pool =
+                calloc((size_t)total_children, sizeof(int));
+            assert(table->children_name_hash_pool);
         }
     }
     table->children_pool_count = (size_t)total_children;
@@ -162,6 +170,9 @@ RSCache_ReferenceTableNewDecode(
         if( table->archives[id].children.count <= 0 )
             continue;
         table->archives[id].children.files = table->children_pool + pool_used;
+        if( table->children_name_hash_pool )
+            table->archives[id].children.name_hashes =
+                table->children_name_hash_pool + pool_used;
         pool_used += (size_t)table->archives[id].children.count;
     }
 
@@ -182,7 +193,7 @@ RSCache_ReferenceTableNewDecode(
         {
             int id = ids[i];
             for( int j = 0; j < table->archives[id].children.count; j++ )
-                table->archives[id].children.files[j].name_hash = g4(&buffer);
+                table->archives[id].children.name_hashes[j] = g4(&buffer);
         }
     }
 
@@ -308,7 +319,8 @@ RSCache_ReferenceTableEncode(
         {
             int id = table->ids[i];
             for( int j = 0; j < table->archives[id].children.count; j++ )
-                p4(&buffer, table->archives[id].children.files[j].name_hash);
+                p4(&buffer,
+                   RSCache_ReferenceTableChildNameHash(&table->archives[id], j));
         }
     }
 
@@ -335,6 +347,22 @@ RSCache_ReferenceTableChildrenPooled(
     return p >= base && p < end;
 }
 
+int
+RSCache_ReferenceTableChildNameHash(
+    const struct RSCache_ReferenceTableArchive* archive,
+    int child_index)
+{
+    assert(archive);
+    assert(child_index >= 0);
+    assert(child_index < archive->children.count);
+
+    /* Absent means unnamed. Tables without FLAG_IDENTIFIERS never carried a
+     * hash for a child; they only ever stored the zero this returns. */
+    if( !archive->children.name_hashes )
+        return 0;
+    return archive->children.name_hashes[child_index];
+}
+
 void
 RSCache_ReferenceTableFree(struct RSCache_ReferenceTable* table)
 {
@@ -350,12 +378,18 @@ RSCache_ReferenceTableFree(struct RSCache_ReferenceTable* table)
          * tool replaced after decode (or a hand-built table's) is freed here. */
         if( table->archives[i].children.files &&
             !RSCache_ReferenceTableChildrenPooled(table, table->archives[i].children.files) )
+        {
             free(table->archives[i].children.files);
+            /* name_hashes is pooled exactly when files is, so the same test
+             * decides both. */
+            free(table->archives[i].children.name_hashes);
+        }
         if( table->archives[i].whirlpool )
             free(table->archives[i].whirlpool);
     }
 
     free(table->children_pool);
+    free(table->children_name_hash_pool);
 
     if( table->archives )
         free(table->archives);

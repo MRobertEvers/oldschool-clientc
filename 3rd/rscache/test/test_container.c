@@ -333,10 +333,11 @@ check_reftable_roundtrip(
         archive->children.count = child_count;
         archive->children.files =
             calloc((size_t)child_count, sizeof(struct RSCache_ReferenceTableArchiveFile));
+        archive->children.name_hashes = calloc((size_t)child_count, sizeof(int));
         for( int j = 0; j < child_count; j++ )
         {
             archive->children.files[j].id = j * 7;
-            archive->children.files[j].name_hash = 0x5000 + j;
+            archive->children.name_hashes[j] = 0x5000 + j;
         }
 
         archive->whirlpool = malloc(RSCACHE_REFTABLE_WHIRLPOOL_BYTES);
@@ -389,7 +390,8 @@ check_reftable_roundtrip(
                 RSCACHE_CHECK_EQ(got->children.files[j].id, want->children.files[j].id);
                 if( flags & RSCACHE_REFTABLE_FLAG_IDENTIFIERS )
                     RSCACHE_CHECK_EQ(
-                        got->children.files[j].name_hash, want->children.files[j].name_hash);
+                        RSCache_ReferenceTableChildNameHash(got, j),
+                        RSCache_ReferenceTableChildNameHash(want, j));
             }
         }
 
@@ -414,6 +416,7 @@ check_reftable_roundtrip(
     for( int i = 0; i < id_count; i++ )
     {
         free(source.archives[ids[i]].children.files);
+        free(source.archives[ids[i]].children.name_hashes);
         free(source.archives[ids[i]].whirlpool);
     }
     free(source.archives);
