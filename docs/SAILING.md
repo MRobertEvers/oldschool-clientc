@@ -250,14 +250,29 @@ overwritten every frame from the parent terrain under the boat.
 
 **REBUILD for a specific view**: the rebuild packet is prefixed with a world
 entity id (0 = main world) + plane; the client throws if the id is unknown.
+(At rev 239 that prefix is gone from `REBUILD_WORLDENTITY` itself — V2 wrote a
+u16 index, V3/V4 dropped it, and the target view now comes from the preceding
+`SET_ACTIVE_WORLD`. `REBUILD_NORMAL` still carries its own `world_area`.)
 The targeted view then loads map regions exactly like a main-world rebuild
 (instance-template or normal), and player lists are re-bucketed geometrically.
 
 **Config** (`class387`, config index **archive 72**, file = id): op 2 plane;
-ops 4/5 pivot offset x/y; ops 6–9 bounds w/h/offsets (baked into 16-orientation
-corner tables, with margin variants 256/334/362); op 12 name; ops 14–19
-right-click ops; op 20 category; op 23 click mode; op 25 default animation
-(the bob); op 27 flattened HSL (default 39188).
+ops 4/5 pivot offset x/y (**signed** — −64 occurs); ops 6–9 bounds w/h/offsets,
+u16 each (baked into 16-orientation corner tables, with margin variants
+256/334/362); op 12 name; op 14 a **parameterless flag** (no payload); ops
+**15–19** the five right-click ops; op 20 category; op 23 click mode; op 24 u8
+(purpose unknown); op 25 default animation (the bob); op 26 u16 (unknown,
+seq-id-shaped); op 27 flattened HSL (default 39188).
+
+> Ops 14–19 were originally written here as "right-click ops", and ops 24/26
+> were missing. Decoding all 14 records that archive 72 actually holds in
+> `cache.osrs239` settled it: op 14 is always followed immediately by the next
+> opcode, and the op strings start at 15 ("Board" on *The Zenith*). A loader
+> built from the old table mis-parses 6 of the 14 entries. Op 27 never appears
+> in this cache, so every hull uses the 39188 default; its u16 width is taken
+> from the deob, not from data. The w/h-vs-offset assignment within 6–9 is
+> likewise unconfirmed — op 7 reads back negative and a boardable ship carries
+> op8=op9=0, which a width/height pair should not.
 
 **Click routing**: the menu hash gains a **world-view id in bits 52–63**
 (4095 = none) alongside type (4 = world entity, 5 = blocker). While drawing a
