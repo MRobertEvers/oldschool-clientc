@@ -1958,8 +1958,11 @@ UITree_SetBehavior(
         return;
 
     struct UITreeComponent* c = &tree->components[idx];
+    if( c->freed )
+        return;
     struct UITreeBehavior* dst = &c->behavior;
     int old_client_code = dst->client_code;
+    uint8_t const old_hide = dst->hide;
 
     if( dst->scripts )
     {
@@ -1998,7 +2001,14 @@ UITree_SetBehavior(
     }
 
     if( src->scripts_count <= 0 || !src->scripts )
+    {
+        uitree_note_mutation(
+            tree,
+            idx,
+            UITREE_IMPACT_EMIT_SELF |
+                (old_hide != dst->hide ? UITREE_IMPACT_REACHABILITY : 0));
         return;
+    }
 
     dst->scripts = calloc((size_t)src->scripts_count, sizeof(int*));
     dst->scripts_lengths = calloc((size_t)src->scripts_count, sizeof(int));
@@ -2037,6 +2047,16 @@ UITree_SetBehavior(
         memcpy(
             dst->script_operand, src->script_operand, (size_t)src->comparator_count * sizeof(int));
     }
+
+    /* SetBehavior is mostly a construction API today, but it is public and can
+     * replace fields consumed by emit (active/hover colours and CS1 scripts) or
+     * traversal (`hide`). Keep it on the same mutation seam as the typed runtime
+     * setters so a post-publication call cannot leave a retained list stale. */
+    uitree_note_mutation(
+        tree,
+        idx,
+        UITREE_IMPACT_EMIT_SELF |
+            (old_hide != dst->hide ? UITREE_IMPACT_REACHABILITY : 0));
 }
 
 int32_t
@@ -4861,12 +4881,19 @@ UITree_SetComponentDragActive(
         return;
     com->drag_active = want;
     if( want )
-    {
         tree->drag_active_nodes++;
-        return;
+    else
+    {
+        assert(tree->drag_active_nodes > 0);
+        tree->drag_active_nodes--;
     }
-    assert(tree->drag_active_nodes > 0);
-    tree->drag_active_nodes--;
+
+    /* Starting or ending a drag changes both the source subtree's position in
+     * the command list and, for deferred drags, its z-order/pass membership.
+     * Active frames are deliberately non-retainable because drag_visual_x/y
+     * move independently below; this mark is still required for the release
+     * frame, after drag_active_nodes has returned to zero. */
+    uitree_note_mutation(tree, idx, UITREE_IMPACT_EMIT_SELF);
 }
 
 int

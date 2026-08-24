@@ -18,6 +18,17 @@ struct RefreshMutationProbe
 };
 
 static int
+find_emit_desc(
+    struct UITreeEmitBuffer const* buf,
+    int component_id)
+{
+    for( int i = 0; i < buf->count; i++ )
+        if( buf->cmds[i].component_id == component_id )
+            return i;
+    return -1;
+}
+
+static int
 refresh_mutation_request(void* user, struct UITreeHostRequest* req)
 {
     struct RefreshMutationProbe* probe = (struct RefreshMutationProbe*)user;
@@ -218,6 +229,110 @@ test_emit_retain_gate(void)
     UITree_EmitBufferFree(&other_emit);
     UITree_EmitBufferFree(&emit);
     UITree_Free(other_tree);
+    UITree_Free(tree);
+}
+
+static void
+test_drag_retain_gate(void)
+{
+    struct UITree* tree = UITree_New(4);
+    struct TestHostState hs;
+    struct UITreeHost host;
+    struct UITreeEmitBuffer emit;
+    struct UITreeEmitRetainGate gate = { 0 };
+    int32_t rect;
+    int at;
+
+    printf("TEST: retained emit rejects drag start / move / release\n");
+    TEST_ASSERT(tree != NULL, "drag retain-gate tree allocation");
+    if( !tree )
+        return;
+
+    UITree_TestHostInit(&host, &hs);
+    rect = UITree_TestPushXy(tree, -1, UIELEM_RS_RECT, 690, 5, 6, 40, 30);
+    TEST_ASSERT(rect >= 0, "drag retain-gate fixture component");
+    tree->components[rect].drag_behavior = 0; /* deferred picked-up drag */
+    UITree_TestResolve(tree);
+    UITree_EmitBufferInit(&emit);
+    UITree_EmitWalk(tree, &host, &emit, -1);
+    UITree_EmitRetainGateCapture(tree, &emit, -1, &gate);
+    at = find_emit_desc(&emit, 690);
+    TEST_ASSERT(
+        at >= 0 && emit.cmds[at].x == 5 && emit.cmds[at].y == 6,
+        "drag retain-gate baseline command");
+    TEST_ASSERT(
+        UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "drag retain-gate baseline is reusable");
+
+    {
+        uint32_t const dirty_before = tree->dirty_gen;
+        UITree_SetComponentDragActive(tree, rect, 1);
+        tree->components[rect].drag_visual_x = 55;
+        tree->components[rect].drag_visual_y = 66;
+        tree->components[rect].drag_visual_trans = 128;
+        TEST_ASSERT(
+            tree->dirty_gen != dirty_before,
+            "drag activation enters retained-list identity");
+    }
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "drag start cannot reuse the pre-drag command list");
+    emit.count = 0;
+    UITree_EmitWalk(tree, &host, &emit, -1);
+    at = find_emit_desc(&emit, 690);
+    TEST_ASSERT(
+        at >= 0 && emit.cmds[at].x == 55 && emit.cmds[at].y == 66,
+        "drag-start walk publishes the picked-up position");
+    UITree_EmitRetainGateCapture(tree, &emit, -1, &gate);
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "an active drag is never considered retainable");
+
+    /* Production drag ticks update these visual-only coordinates directly.
+     * The active-drag gate must therefore reject retention even without a new
+     * dirty generation. */
+    {
+        uint32_t const dirty_before = tree->dirty_gen;
+        tree->components[rect].drag_visual_x = 75;
+        tree->components[rect].drag_visual_y = 86;
+        TEST_ASSERT(
+            tree->dirty_gen == dirty_before,
+            "drag movement fixture isolates the active-drag retain guard");
+    }
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "drag movement cannot reuse stale visual coordinates");
+    emit.count = 0;
+    UITree_EmitWalk(tree, &host, &emit, -1);
+    at = find_emit_desc(&emit, 690);
+    TEST_ASSERT(
+        at >= 0 && emit.cmds[at].x == 75 && emit.cmds[at].y == 86,
+        "drag-move walk publishes the latest visual coordinates");
+    UITree_EmitRetainGateCapture(tree, &emit, -1, &gate);
+
+    {
+        uint32_t const dirty_before = tree->dirty_gen;
+        UITree_SetComponentDragActive(tree, rect, 0);
+        tree->components[rect].drag_visual_trans = -1;
+        TEST_ASSERT(
+            tree->dirty_gen != dirty_before,
+            "drag release enters retained-list identity");
+    }
+    TEST_ASSERT(
+        !UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "drag release cannot reuse the last dragged command list");
+    emit.count = 0;
+    UITree_EmitWalk(tree, &host, &emit, -1);
+    at = find_emit_desc(&emit, 690);
+    TEST_ASSERT(
+        at >= 0 && emit.cmds[at].x == 5 && emit.cmds[at].y == 6,
+        "release walk restores the component's layout position");
+    UITree_EmitRetainGateCapture(tree, &emit, -1, &gate);
+    TEST_ASSERT(
+        UITree_EmitRetainGateQuiet(tree, &host, &emit, -1, &gate),
+        "settled post-release list is reusable again");
+
+    UITree_EmitBufferFree(&emit);
     UITree_Free(tree);
 }
 
@@ -479,6 +594,7 @@ test_mutate_emit(void)
     printf("TEST: mutate / emit / hide\n");
 
     test_emit_retain_gate();
+    test_drag_retain_gate();
     test_host_input_epochs();
 
     struct UITree* tree = UITree_New(16);

@@ -698,6 +698,9 @@ struct ToriDraw_Scene
     struct ToriDraw_Map* animation_hmap;
     struct ToriDraw_Map* sprites_hmap;
     struct ToriDraw_Map* fonts_hmap;
+    /** Monotonic version of model/sprite/font registry mutations. UITree uses
+     *  this instead of map cardinality so same-id replacements are visible. */
+    uint64_t ui_asset_revision;
     /** Decoded sound clips by id — see ToriDraw_SceneSoundAdd. */
     struct ToriDraw_Map* sounds_hmap;
     /** Always-resident cache fonts indexed by revconfig cache_font_id 0–3. */

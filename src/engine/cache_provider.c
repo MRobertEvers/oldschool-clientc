@@ -60,6 +60,23 @@
 /* One record per table; cache.osrs239 has 247 of them. */
 #define CACHE_PROVIDER_DBTABLE_CAPACITY 256
 
+static void
+cache_provider_ui_assets_changed(struct CacheProvider* provider)
+{
+    assert(provider);
+    provider->ui_asset_revision++;
+    /* Zero is the never-mutated value and is useful in zeroed fixtures. */
+    if( provider->ui_asset_revision == 0 )
+        provider->ui_asset_revision++;
+}
+
+uint64_t
+CacheProvider_UIAssetRevision(struct CacheProvider const* provider)
+{
+    assert(provider);
+    return provider->ui_asset_revision;
+}
+
 /*
  * `last_used` is the LRU clock for the two caches that grow without bound over
  * a session: models and sprites. Both are *derived* — every reader converts
@@ -328,6 +345,9 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider)
 {
     assert(provider);
 
+    provider->derived_clock = 0;
+    provider->ui_asset_revision = 0;
+
     /* Unset until the boot path calls CacheProvider_SetProfile. Decoding through
      * CacheProvider_Profile before that asserts. */
     provider->profile = RSCache_ProfileZero();
@@ -496,6 +516,7 @@ CacheProvider_ModelAdd(
     entry->id = model_id;
     entry->model = model;
     entry->last_used = ++provider->derived_clock;
+    cache_provider_ui_assets_changed(provider);
 }
 
 struct ToriRS_Model*
@@ -623,6 +644,8 @@ cache_provider_trim_models(struct CacheProvider* provider, size_t keep)
             ToriRS_ModelFree(entry->model);
     }
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CACHE_MODEL_EVICT, doomed_count);
+    if( doomed_count > 0 )
+        cache_provider_ui_assets_changed(provider);
     free(doomed);
 }
 
@@ -665,6 +688,8 @@ cache_provider_trim_sprites(struct CacheProvider* provider, size_t keep)
             ToriRS_SpriteFree(entry->sprite);
     }
     TORIRS_PERF_COUNT(TORIRS_PERF_CTR_CACHE_SPRITE_EVICT, doomed_count);
+    if( doomed_count > 0 )
+        cache_provider_ui_assets_changed(provider);
     free(doomed);
 }
 
@@ -681,10 +706,12 @@ CacheProvider_ModelsCleanup(struct CacheProvider* provider)
 {
     struct HMapIter* iter;
     struct MapEntry_ProviderModel* entry;
+    bool changed;
 
     assert(provider);
     if( !provider->model_cache )
         return;
+    changed = provider->model_cache->size > 0;
 
     iter = hmap_iter_new(provider->model_cache);
     while( (entry = (struct MapEntry_ProviderModel*)hmap_iter_next(iter)) )
@@ -697,6 +724,8 @@ CacheProvider_ModelsCleanup(struct CacheProvider* provider)
     cache_provider_hmap_free(provider->model_cache);
     provider->model_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderModel), CACHE_PROVIDER_MODEL_CAPACITY);
+    if( changed )
+        cache_provider_ui_assets_changed(provider);
 }
 
 void
@@ -718,6 +747,7 @@ CacheProvider_SpriteAdd(
     entry->id = sprite_id;
     entry->sprite = sprite;
     entry->last_used = ++provider->derived_clock;
+    cache_provider_ui_assets_changed(provider);
 }
 
 struct ToriRS_Sprite*
@@ -815,10 +845,12 @@ CacheProvider_SpritesCleanup(struct CacheProvider* provider)
 {
     struct HMapIter* iter;
     struct MapEntry_ProviderSprite* entry;
+    bool changed;
 
     assert(provider);
     if( !provider->sprite_cache )
         return;
+    changed = provider->sprite_cache->size > 0;
 
     iter = hmap_iter_new(provider->sprite_cache);
     while( (entry = (struct MapEntry_ProviderSprite*)hmap_iter_next(iter)) )
@@ -831,6 +863,8 @@ CacheProvider_SpritesCleanup(struct CacheProvider* provider)
     cache_provider_hmap_free(provider->sprite_cache);
     provider->sprite_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderSprite), CACHE_PROVIDER_SPRITE_CAPACITY);
+    if( changed )
+        cache_provider_ui_assets_changed(provider);
 }
 
 void
@@ -851,6 +885,7 @@ CacheProvider_FontAdd(
 
     entry->id = font_id;
     entry->font = font;
+    cache_provider_ui_assets_changed(provider);
 }
 
 struct ToriRS_Font*
@@ -881,10 +916,12 @@ CacheProvider_FontsCleanup(struct CacheProvider* provider)
 {
     struct HMapIter* iter;
     struct MapEntry_ProviderFont* entry;
+    bool changed;
 
     assert(provider);
     if( !provider->font_cache )
         return;
+    changed = provider->font_cache->size > 0;
 
     iter = hmap_iter_new(provider->font_cache);
     while( (entry = (struct MapEntry_ProviderFont*)hmap_iter_next(iter)) )
@@ -897,6 +934,8 @@ CacheProvider_FontsCleanup(struct CacheProvider* provider)
     cache_provider_hmap_free(provider->font_cache);
     provider->font_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderFont), CACHE_PROVIDER_FONT_CAPACITY);
+    if( changed )
+        cache_provider_ui_assets_changed(provider);
 }
 
 void
@@ -1769,6 +1808,7 @@ CacheProvider_ObjtypeAdd(
             }
         }
     }
+    cache_provider_ui_assets_changed(provider);
 }
 
 /*
@@ -1794,6 +1834,7 @@ CacheProvider_ObjtypeGet(
 {
     struct MapEntry_ProviderObjtype* entry;
     struct ToriRS_Objtype* objtype;
+    bool changed = false;
 
     assert(provider);
 
@@ -1810,7 +1851,11 @@ CacheProvider_ObjtypeGet(
      * resident; a non-empty name marks the copy as already done. */
     if( objtype && objtype->cert_template > 0 )
     {
-        objtype->stackable = 1;
+        if( !objtype->stackable )
+        {
+            objtype->stackable = 1;
+            changed = true;
+        }
         if( objtype_name_is_unset(objtype->name) && objtype->cert_link > 0 )
         {
             struct MapEntry_ProviderObjtype* link_entry =
@@ -1834,6 +1879,7 @@ CacheProvider_ObjtypeGet(
                         : "a";
                 snprintf(objtype->desc, sizeof(objtype->desc),
                          "Swap this note at any bank for %s %s.", article, link_name);
+                changed = true;
             }
         }
     }
@@ -1861,8 +1907,11 @@ CacheProvider_ObjtypeGet(
         {
             memcpy(objtype->name, link_entry->objtype->name, sizeof(objtype->name));
             memcpy(objtype->desc, link_entry->objtype->desc, sizeof(objtype->desc));
+            changed = true;
         }
     }
+    if( changed )
+        cache_provider_ui_assets_changed(provider);
     return objtype;
 }
 
@@ -1879,10 +1928,12 @@ CacheProvider_ObjtypesCleanup(struct CacheProvider* provider)
 {
     struct HMapIter* iter;
     struct MapEntry_ProviderObjtype* entry;
+    bool changed;
 
     assert(provider);
     if( !provider->objtype_cache )
         return;
+    changed = provider->objtype_cache->size > 0;
 
     iter = hmap_iter_new(provider->objtype_cache);
     while( (entry = (struct MapEntry_ProviderObjtype*)hmap_iter_next(iter)) )
@@ -1905,6 +1956,8 @@ CacheProvider_ObjtypesCleanup(struct CacheProvider* provider)
             sizeof(struct MapEntry_ProviderObjtypeName), CACHE_PROVIDER_OBJTYPE_NAME_CAPACITY);
     }
     provider->objtypes_all_loaded = false;
+    if( changed )
+        cache_provider_ui_assets_changed(provider);
 }
 
 int

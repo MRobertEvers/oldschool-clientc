@@ -898,7 +898,8 @@ emit_retain_gate_sources_quiet(
     /* A pending invalidation precedes the completed resolver-sequence bump.
      * Both pending flags therefore belong to the identity; otherwise the
      * frame between invalidation and resolution could retain stale boxes. */
-    return gate->primed && gate->source_tree == tree && !tree->layout_stale &&
+    return gate->primed && gate->source_tree == tree && !UITree_HasActiveDrag(tree) &&
+           !tree->layout_stale &&
            !tree->layout_force_full &&
            tree->dirty_gen == gate->dirty_gen &&
            tree->layout_resolve_seq == gate->layout_resolve_seq &&

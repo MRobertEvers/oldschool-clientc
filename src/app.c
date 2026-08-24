@@ -5604,6 +5604,14 @@ app_ui_input_hash_int(
 }
 
 static uint64_t
+app_ui_input_hash_u64(
+    uint64_t hash,
+    uint64_t value)
+{
+    return app_ui_input_hash_bytes(hash, &value, sizeof(value));
+}
+
+static uint64_t
 app_ui_input_hash_string(
     uint64_t hash,
     char const* value)
@@ -5614,24 +5622,6 @@ app_ui_input_hash_string(
     if( length )
         hash = app_ui_input_hash_bytes(hash, value, length);
     return hash;
-}
-
-static uint64_t
-app_ui_input_hash_hmap_size(
-    uint64_t hash,
-    struct HMap const* map)
-{
-    size_t size = map ? map->size : 0;
-    return app_ui_input_hash_bytes(hash, &size, sizeof(size));
-}
-
-static uint64_t
-app_ui_input_hash_scene_map_count(
-    uint64_t hash,
-    struct ToriDraw_Map* map)
-{
-    uint32_t count = map ? ToriDraw_MapCount(map) : 0;
-    return app_ui_input_hash_bytes(hash, &count, sizeof(count));
 }
 
 static void
@@ -5783,44 +5773,19 @@ app_ui_host_publish_inputs(struct App* app)
         &app->inv_drag_com_id,
         sizeof(app->inv_drag_com_id) * 4);
 
-    /* ASSETS: availability changes are additions/replacements in the bridge
-     * maps or scene maps. The ids capture reserved-slot replacements whose map
-     * cardinality remains unchanged. */
-    signature[UITREE_HOST_INPUT_ASSETS] =
-        app_ui_input_hash_int(signature[UITREE_HOST_INPUT_ASSETS], app->bridge.next_scene_id);
-    signature[UITREE_HOST_INPUT_ASSETS] = app_ui_input_hash_bytes(
+    /* ASSETS: owner-side mutation revisions catch arrivals before a skipped
+     * host request gets another chance to publish them, plus same-id registry
+     * replacements which map cardinality cannot see. Provider model/sprite
+     * streaming may conservatively cause an extra full UI walk; three scalar
+     * reads are still cheaper and more reliable than scanning the registries. */
+    signature[UITREE_HOST_INPUT_ASSETS] = app_ui_input_hash_u64(
         signature[UITREE_HOST_INPUT_ASSETS],
-        app->bridge.static_sprite_scene,
-        sizeof(app->bridge.static_sprite_scene));
-    signature[UITREE_HOST_INPUT_ASSETS] = app_ui_input_hash_bytes(
+        app->provider ? CacheProvider_UIAssetRevision(app->provider) : 0);
+    signature[UITREE_HOST_INPUT_ASSETS] = app_ui_input_hash_u64(
+        signature[UITREE_HOST_INPUT_ASSETS], UITreeSceneBridge_AssetRevision(&app->bridge));
+    signature[UITREE_HOST_INPUT_ASSETS] = app_ui_input_hash_u64(
         signature[UITREE_HOST_INPUT_ASSETS],
-        &app->bridge.player_scene_id,
-        sizeof(app->bridge.player_scene_id) * 3);
-    signature[UITREE_HOST_INPUT_ASSETS] =
-        app_ui_input_hash_hmap_size(signature[UITREE_HOST_INPUT_ASSETS], app->bridge.sprite_map);
-    signature[UITREE_HOST_INPUT_ASSETS] =
-        app_ui_input_hash_hmap_size(signature[UITREE_HOST_INPUT_ASSETS], app->bridge.model_map);
-    signature[UITREE_HOST_INPUT_ASSETS] =
-        app_ui_input_hash_hmap_size(signature[UITREE_HOST_INPUT_ASSETS], app->bridge.obj_icon_map);
-    signature[UITREE_HOST_INPUT_ASSETS] = app_ui_input_hash_hmap_size(
-        signature[UITREE_HOST_INPUT_ASSETS], app->bridge.obj_icon_outline_map);
-    signature[UITREE_HOST_INPUT_ASSETS] = app_ui_input_hash_hmap_size(
-        signature[UITREE_HOST_INPUT_ASSETS], app->bridge.obj_icon_plain_map);
-    signature[UITREE_HOST_INPUT_ASSETS] = app_ui_input_hash_hmap_size(
-        signature[UITREE_HOST_INPUT_ASSETS], app->bridge.obj_icon_border_map);
-    signature[UITREE_HOST_INPUT_ASSETS] =
-        app_ui_input_hash_hmap_size(signature[UITREE_HOST_INPUT_ASSETS], app->bridge.npc_head_map);
-    signature[UITREE_HOST_INPUT_ASSETS] =
-        app_ui_input_hash_hmap_size(signature[UITREE_HOST_INPUT_ASSETS], app->bridge.obj_model_map);
-    if( app->scene )
-    {
-        signature[UITREE_HOST_INPUT_ASSETS] = app_ui_input_hash_scene_map_count(
-            signature[UITREE_HOST_INPUT_ASSETS], app->scene->models_hmap);
-        signature[UITREE_HOST_INPUT_ASSETS] = app_ui_input_hash_scene_map_count(
-            signature[UITREE_HOST_INPUT_ASSETS], app->scene->sprites_hmap);
-        signature[UITREE_HOST_INPUT_ASSETS] = app_ui_input_hash_scene_map_count(
-            signature[UITREE_HOST_INPUT_ASSETS], app->scene->fonts_hmap);
-    }
+        app->scene ? ToriDraw_SceneUIAssetRevision(app->scene) : 0);
 
     signature[UITREE_HOST_INPUT_WORLD] =
         app_ui_input_hash_int(signature[UITREE_HOST_INPUT_WORLD], app->minimap_state);
