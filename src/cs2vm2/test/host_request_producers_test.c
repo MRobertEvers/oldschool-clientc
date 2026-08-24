@@ -10,7 +10,8 @@ struct HostRequestProducerEntry
 };
 
 static struct HostRequestProducerEntry const HOST_REQUEST_PRODUCERS[] = {
-#define CS2VM_HOST_REQUEST_KIND(name, opcode, layout) { #name, CS2_OP_##name },
+#define CS2VM_HOST_REQUEST_KIND(name, opcode, fields) \
+    { #name, CS2_OP_##name },
 #include "cs2vm2/cs2vm2_host_request_kinds.def"
 #undef CS2VM_HOST_REQUEST_KIND
 };
@@ -31,6 +32,15 @@ struct CaptureHost
     int kinds[2];
 };
 
+struct InputSetCaptureHost
+{
+    enum CS2VM_HostRequestKind expected_kind;
+    int calls;
+    int bad_kind;
+    int component_ids[2];
+    int values[2];
+};
+
 static int
 capture_host_exec(
     struct CS2VM2_Thread* thread,
@@ -45,6 +55,40 @@ capture_host_exec(
     /* Force the interpreter to roll the opcode back once, then let its exact
      * retry complete. This catches both first-emission aliases and handlers
      * that accidentally rebuild a retry as a family-level request. */
+    return host->calls == 1 ? CS2VM_EXECNO_YIELD : CS2VM_EXECNO_OK;
+}
+
+static int
+capture_input_set_exec(
+    struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest* request)
+{
+    struct InputSetCaptureHost* host = (struct InputSetCaptureHost*)CS2VM_USER(thread);
+    int call = host->calls++;
+
+    if( request->kind != host->expected_kind || call >= 2 )
+    {
+        host->bad_kind = 1;
+        return CS2VM_EXECNO_ERROR;
+    }
+
+    switch( request->kind )
+    {
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETCURSORWIDTH:
+        host->component_ids[call] =
+            request->u.CC_INPUT_SETCURSORWIDTH.component_id;
+        host->values[call] = request->u.CC_INPUT_SETCURSORWIDTH.value;
+        break;
+    case CS2VM_HOST_REQUEST_IF_INPUT_SETCURSORWIDTH:
+        host->component_ids[call] =
+            request->u.IF_INPUT_SETCURSORWIDTH.component_id;
+        host->values[call] = request->u.IF_INPUT_SETCURSORWIDTH.value;
+        break;
+    default:
+        host->bad_kind = 1;
+        return CS2VM_EXECNO_ERROR;
+    }
+
     return host->calls == 1 ? CS2VM_EXECNO_YIELD : CS2VM_EXECNO_OK;
 }
 
@@ -129,6 +173,113 @@ exercise_producer(struct HostRequestProducerEntry const* entry)
     return failed;
 }
 
+static int
+exercise_input_set_producer(
+    enum CS2VM_HostRequestKind kind,
+    int component_id,
+    int value)
+{
+    struct CS2VM2 vm;
+    struct InputSetCaptureHost host;
+    struct CS2VM2_Script script;
+    struct CS2VM2_Thread* thread;
+    struct CS2VM2_ThreadError error;
+    enum CS2VM2_ThreadStatus first_status;
+    enum CS2VM2_ThreadStatus retry_status;
+    uint16_t opcode = (uint16_t)kind;
+    int int_operand = 0;
+    char* string_operand = NULL;
+    int expected_initial_stack_top;
+    int failed = 0;
+
+    memset(&vm, 0, sizeof(vm));
+    memset(&host, 0, sizeof(host));
+    memset(&script, 0, sizeof(script));
+    memset(&error, 0, sizeof(error));
+
+    host.expected_kind = kind;
+    script.script_id = 2;
+    script.op_count = 1;
+    script.opcodes = &opcode;
+    script.int_operands = &int_operand;
+    script.string_operands = &string_operand;
+
+    CS2VM2_Init(&vm);
+    CS2VM2_BindHost(&vm, &host, capture_input_set_exec);
+    thread = CS2VM2_ThreadMain(&vm);
+    if( CS2VM2_ThreadStart(thread, &script) != CS2VM_EXECNO_OK )
+    {
+        fprintf(stderr, "FAIL: input-set %d could not start\n", (int)kind);
+        CS2VM2_Free(&vm);
+        return 1;
+    }
+
+    if( kind == CS2VM_HOST_REQUEST_CC_INPUT_SETCURSORWIDTH )
+    {
+        thread->active_component_id = component_id;
+        thread->ints_stack[0] = value;
+        expected_initial_stack_top = 1;
+    }
+    else
+    {
+        /* IF_INPUT_SET* pops the component first, then the value. Distinct
+         * sentinels make a reversed pop order visible in the captured arm. */
+        thread->ints_stack[0] = value;
+        thread->ints_stack[1] = component_id;
+        expected_initial_stack_top = 2;
+    }
+    thread->ints_stack_top = expected_initial_stack_top;
+
+    first_status = CS2VM2_ThreadRun(thread, &error);
+    if( first_status != CS2VM2_THREAD_YIELDED ||
+        thread->ints_stack_top != expected_initial_stack_top )
+    {
+        fprintf(
+            stderr,
+            "FAIL: input-set %d initial status=%d restored_top=%d\n",
+            (int)kind,
+            (int)first_status,
+            thread->ints_stack_top);
+        failed = 1;
+    }
+
+    retry_status = first_status == CS2VM2_THREAD_YIELDED
+                       ? CS2VM2_ThreadResume(thread, &error)
+                       : CS2VM2_THREAD_ERROR;
+
+    if( retry_status != CS2VM2_THREAD_DONE || host.calls != 2 || host.bad_kind ||
+        thread->ints_stack_top != 0 )
+    {
+        fprintf(
+            stderr,
+            "FAIL: input-set %d retry status=%d calls=%d bad_kind=%d final_top=%d\n",
+            (int)kind,
+            (int)retry_status,
+            host.calls,
+            host.bad_kind,
+            thread->ints_stack_top);
+        failed = 1;
+    }
+
+    for( int call = 0; call < host.calls && call < 2; call++ )
+    {
+        if( host.component_ids[call] != component_id || host.values[call] != value )
+        {
+            fprintf(
+                stderr,
+                "FAIL: input-set %d call %d: component=%d value=%d\n",
+                (int)kind,
+                call + 1,
+                host.component_ids[call],
+                host.values[call]);
+            failed = 1;
+        }
+    }
+
+    CS2VM2_Free(&vm);
+    return failed;
+}
+
 int
 main(void)
 {
@@ -137,6 +288,15 @@ main(void)
     for( int i = 0; i < HOST_REQUEST_PRODUCER_COUNT; i++ )
         failures += exercise_producer(&HOST_REQUEST_PRODUCERS[i]);
 
+    failures += exercise_input_set_producer(
+        CS2VM_HOST_REQUEST_CC_INPUT_SETCURSORWIDTH,
+        0x13579,
+        -0x2468);
+    failures += exercise_input_set_producer(
+        CS2VM_HOST_REQUEST_IF_INPUT_SETCURSORWIDTH,
+        0x24680,
+        -0x1357);
+
     if( failures )
     {
         fprintf(stderr, "host request producer replay: %d failure(s)\n", failures);
@@ -144,7 +304,8 @@ main(void)
     }
 
     printf(
-        "host request producer replay: %d exact kinds preserved across yield/retry\n",
+        "host request producer replay: %d exact kinds and CC/IF input payloads "
+        "preserved across yield/retry\n",
         HOST_REQUEST_PRODUCER_COUNT);
     return 0;
 }

@@ -25,43 +25,51 @@ recording_host_exec(struct CS2VM2_Thread* thread, struct CS2VM_HostRequest* requ
     struct RecordingHost* host = (struct RecordingHost*)thread->vm->user;
     host->calls++;
     host->kind = request->kind;
-    if( request->kind == CS2VM_HOST_REQUEST_CC_SETTARGETVERB ||
-        request->kind == CS2VM_HOST_REQUEST_IF_SETTARGETVERB )
-    {
-        host->component_id = request->u.if_set_target_verb.component_id;
-        snprintf(host->text, sizeof(host->text), "%s", request->u.if_set_target_verb.text);
-    }
-    else if( request->kind == CS2VM_HOST_REQUEST_IF_SETONTARGETENTER ||
-             request->kind == CS2VM_HOST_REQUEST_IF_SETONTARGETLEAVE ||
-             request->kind == CS2VM_HOST_REQUEST_IF_SETONCLICKREPEAT ||
-             request->kind == CS2VM_HOST_REQUEST_IF_SETONRELEASE ||
-             request->kind == CS2VM_HOST_REQUEST_IF_SETONDIALOGABORT )
-    {
-        host->component_id = request->u.if_set_on_op.component_id;
-        host->script_id = request->u.if_set_on_op.script_id;
-        host->argc = request->u.if_set_on_op.int_arg_count;
-        memcpy(host->argv, request->u.if_set_on_op.int_args, sizeof(host->argv));
-    }
-    else if( request->kind == CS2VM_HOST_REQUEST_CC_SETONTARGETENTER ||
-             request->kind == CS2VM_HOST_REQUEST_CC_SETONTARGETLEAVE ||
-             request->kind == CS2VM_HOST_REQUEST_CC_SETONCLICKREPEAT ||
-             request->kind == CS2VM_HOST_REQUEST_CC_SETONRELEASE ||
-             request->kind == CS2VM_HOST_REQUEST_CC_SETONDIALOGABORT ||
-             request->kind == CS2VM_HOST_REQUEST_CC_SETONFRIENDTRANSMIT ||
-             request->kind == CS2VM_HOST_REQUEST_CC_SETONSTATTRANSMIT )
-    {
-        host->component_id = request->u.cc_set_on_op.component_id;
-        host->script_id = request->u.cc_set_on_op.script_id;
-        host->argc = request->u.cc_set_on_op.int_arg_count;
-        memcpy(host->argv, request->u.cc_set_on_op.int_args, sizeof(host->argv));
-    }
-    else if( request->kind == CS2VM_HOST_REQUEST_CC_GETOP ||
-             request->kind == CS2VM_HOST_REQUEST_IF_GETOP )
-    {
-        host->component_id = request->u.widget_get_op.component_id;
-        host->op_index = request->u.widget_get_op.op_index;
+#define RECORD_TARGET_VERB(name)                                            \
+    case CS2VM_HOST_REQUEST_##name:                                         \
+        host->component_id = request->u.name.component_id;          \
+        snprintf(                                                           \
+            host->text, sizeof(host->text), "%s", request->u.name.text); \
+        break
+#define RECORD_SET_ON(name)                                                 \
+    case CS2VM_HOST_REQUEST_##name:                                         \
+        host->component_id = request->u.name.component_id;          \
+        host->script_id = request->u.name.script_id;                \
+        host->argc = request->u.name.int_arg_count;                 \
+        memcpy(                                                             \
+            host->argv, request->u.name.int_args, sizeof(host->argv)); \
+        break
+#define RECORD_GET_OP(name)                                                \
+    case CS2VM_HOST_REQUEST_##name:                                        \
+        host->component_id = request->u.name.component_id;         \
+        host->op_index = request->u.name.op_index;                 \
         return CS2VM2_PushStr(thread, CS2VM2_StrDup(thread, "fixture operation"));
+
+    switch( request->kind )
+    {
+        RECORD_TARGET_VERB(CC_SETTARGETVERB);
+        RECORD_SET_ON(CC_SETONRELEASE);
+        RECORD_SET_ON(CC_SETONTARGETLEAVE);
+        RECORD_SET_ON(CC_SETONCLICKREPEAT);
+        RECORD_SET_ON(CC_SETONSTATTRANSMIT);
+        RECORD_SET_ON(CC_SETONTARGETENTER);
+        RECORD_SET_ON(CC_SETONFRIENDTRANSMIT);
+        RECORD_SET_ON(CC_SETONDIALOGABORT);
+        RECORD_GET_OP(CC_GETOP);
+
+        RECORD_TARGET_VERB(IF_SETTARGETVERB);
+        RECORD_SET_ON(IF_SETONRELEASE);
+        RECORD_SET_ON(IF_SETONTARGETLEAVE);
+        RECORD_SET_ON(IF_SETONCLICKREPEAT);
+        RECORD_SET_ON(IF_SETONTARGETENTER);
+        RECORD_SET_ON(IF_SETONDIALOGABORT);
+        RECORD_GET_OP(IF_GETOP);
+    default:
+        break;
     }
+#undef RECORD_TARGET_VERB
+#undef RECORD_SET_ON
+#undef RECORD_GET_OP
     return CS2VM_EXECNO_OK;
 }
 

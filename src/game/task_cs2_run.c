@@ -316,7 +316,17 @@ task_cs2_component_id_from_request(struct CS2VM_HostRequest const* request)
     switch( request->kind )
     {
 #define TASK_CS2_COMPONENT_ID_CASE(name, field) \
-    case CS2VM_HOST_REQUEST_##name: return request->u.name.payload.field
+    case CS2VM_HOST_REQUEST_##name: return request->u.name.field
+        TASK_CS2_COMPONENT_ID_CASE(CC_CREATE, parent_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_COPY, parent_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_CREATECHILD, parent_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_CREATESIBLING, parent_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_FIND, parent_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_FIND, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_CHILDREN_FIND, uid);
+        TASK_CS2_COMPONENT_ID_CASE(IF_CHILDREN_COLLECT, uid);
+        TASK_CS2_COMPONENT_ID_CASE(CC_CHILDREN_FIND_COUNT, parent_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_CHILDREN_FINDNEXT, parent_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_SETPINCH, component_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_SETNOSCROLLTHROUGH, component_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_SETLINEWID, component_id);
@@ -330,6 +340,20 @@ task_cs2_component_id_from_request(struct CS2VM_HostRequest const* request)
         TASK_CS2_COMPONENT_ID_CASE(CC_SETFILLMODE, component_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_SETLINEDIRECTION, component_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_SETMODELTRANSPARENT, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETSUBMITMODE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETSELECTCOLOUR, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETACCEPTMODE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETWRAPMODE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETLINEWRAPPINGWIDTH, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETSELECTBGCOLOUR, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETLINECOUNTLIMIT, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCURSORCOLOUR, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCURSORTRANS, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCURSORWIDTH, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCURSORHEIGHT, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCURSOROFFSET, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETLINEWIDTHLIMIT, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCHARFILTER, component_id);
         TASK_CS2_COMPONENT_ID_CASE(CC_SETOPFORCELEFTCLICK, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_SETPINCH, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_SETNOCLICKTHROUGH, component_id);
@@ -345,23 +369,6 @@ task_cs2_component_id_from_request(struct CS2VM_HostRequest const* request)
         TASK_CS2_COMPONENT_ID_CASE(IF_SETFILLMODE, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_SETLINEDIRECTION, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_SETMODELTRANSPARENT, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(IF_SETDRAGDEADZONE, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(IF_SETDRAGDEADTIME, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(IF_SETCLICKMASK, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETSUBMITMODE, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETSELECTCOLOUR, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETACCEPTMODE, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETWRAPMODE, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETLINEWRAPPINGWIDTH, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETSELECTBGCOLOUR, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETLINECOUNTLIMIT, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCURSORCOLOUR, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCURSORTRANS, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCURSORWIDTH, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCURSORHEIGHT, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCURSOROFFSET, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETLINEWIDTHLIMIT, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCHARFILTER, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETSUBMITMODE, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETSELECTCOLOUR, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETACCEPTMODE, component_id);
@@ -376,16 +383,9 @@ task_cs2_component_id_from_request(struct CS2VM_HostRequest const* request)
         TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETCURSOROFFSET, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETLINEWIDTHLIMIT, component_id);
         TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETCHARFILTER, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_CREATE, parent_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_COPY, parent_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_CREATECHILD, parent_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_CREATESIBLING, parent_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_FIND, parent_id);
-        TASK_CS2_COMPONENT_ID_CASE(IF_FIND, component_id);
-        TASK_CS2_COMPONENT_ID_CASE(IF_CHILDREN_FIND, uid);
-        TASK_CS2_COMPONENT_ID_CASE(IF_CHILDREN_COLLECT, uid);
-        TASK_CS2_COMPONENT_ID_CASE(CC_CHILDREN_FIND_COUNT, parent_id);
-        TASK_CS2_COMPONENT_ID_CASE(CC_CHILDREN_FINDNEXT, parent_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETDRAGDEADZONE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETDRAGDEADTIME, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETCLICKMASK, component_id);
 #undef TASK_CS2_COMPONENT_ID_CASE
     default:
         return -1;
@@ -519,7 +519,7 @@ task_cs2_bake_pack(struct Task_CS2Run* self)
 static void
 task_cs2_plan_pushscript(struct Task_CS2Run* self)
 {
-    self->await_id = self->pending->u.push_script.script_id;
+    self->await_id = self->pending->u.GOSUB_WITH_PARAMS.script_id;
     assert(self->await_id > 0);
     self->yield_plan = TASK_CS2_YIELD_SCRIPT;
 }
@@ -527,10 +527,22 @@ task_cs2_plan_pushscript(struct Task_CS2Run* self)
 static void
 task_cs2_plan_enum(struct Task_CS2Run* self)
 {
-    if( self->pending->kind == CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT )
-        self->await_id = self->pending->u.enum_get_output_count.enum_id;
-    else
-        self->await_id = self->pending->u.enum_lookup.enum_id;
+    switch( self->pending->kind )
+    {
+    case CS2VM_HOST_REQUEST_ENUM_STRING:
+        self->await_id = self->pending->u.ENUM_STRING.enum_id;
+        break;
+    case CS2VM_HOST_REQUEST_ENUM:
+        self->await_id = self->pending->u.ENUM.enum_id;
+        break;
+    case CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT:
+        self->await_id = self->pending->u.ENUM_GETOUTPUTCOUNT.enum_id;
+        break;
+    default:
+        assert(0 && "task_cs2_plan_enum: unexpected kind");
+        self->yield_plan = TASK_CS2_YIELD_ABORT;
+        return;
+    }
     assert(self->await_id >= 0);
     self->yield_plan = TASK_CS2_YIELD_ENUM;
 }
@@ -540,12 +552,38 @@ task_cs2_plan_enum(struct Task_CS2Run* self)
 static void
 task_cs2_plan_db(struct Task_CS2Run* self)
 {
-    self->await_id = self->pending->u.db.load_id;
-    if( self->pending->u.db.load_kind == CS2VM_DB_LOAD_ROW )
+    int load_kind;
+
+    switch( self->pending->kind )
+    {
+#define TASK_CS2_DB_CASE(name)                                               \
+    case CS2VM_HOST_REQUEST_##name:                                          \
+        self->await_id = self->pending->u.name.load_id;              \
+        load_kind = self->pending->u.name.load_kind;                 \
+        break
+        TASK_CS2_DB_CASE(DB_FIND_WITH_COUNT);
+        TASK_CS2_DB_CASE(DB_FINDNEXT);
+        TASK_CS2_DB_CASE(DB_GETFIELD);
+        TASK_CS2_DB_CASE(DB_GETFIELDCOUNT);
+        TASK_CS2_DB_CASE(DB_FINDALL_WITH_COUNT);
+        TASK_CS2_DB_CASE(DB_GETROWTABLE);
+        TASK_CS2_DB_CASE(DB_GETROW);
+        TASK_CS2_DB_CASE(DB_FIND_FILTER_WITH_COUNT);
+        TASK_CS2_DB_CASE(DB_FIND);
+        TASK_CS2_DB_CASE(DB_FINDALL);
+        TASK_CS2_DB_CASE(DB_FIND_FILTER);
+#undef TASK_CS2_DB_CASE
+    default:
+        assert(0 && "task_cs2_plan_db: unexpected kind");
+        self->yield_plan = TASK_CS2_YIELD_ABORT;
+        return;
+    }
+
+    if( load_kind == CS2VM_DB_LOAD_ROW )
         self->yield_plan = TASK_CS2_YIELD_DBROW;
-    else if( self->pending->u.db.load_kind == CS2VM_DB_LOAD_INDEX )
+    else if( load_kind == CS2VM_DB_LOAD_INDEX )
         self->yield_plan = TASK_CS2_YIELD_DBINDEX;
-    else if( self->pending->u.db.load_kind == CS2VM_DB_LOAD_TABLE )
+    else if( load_kind == CS2VM_DB_LOAD_TABLE )
         self->yield_plan = TASK_CS2_YIELD_DBTABLE;
     else
         self->yield_plan = TASK_CS2_YIELD_NONE;
@@ -563,7 +601,22 @@ task_cs2_plan_worldmap(struct Task_CS2Run* self)
 static void
 task_cs2_plan_mapelement(struct Task_CS2Run* self)
 {
-    self->await_id = self->pending->u.mec.mec_id;
+    switch( self->pending->kind )
+    {
+#define TASK_CS2_MEC_CASE(name)                                              \
+    case CS2VM_HOST_REQUEST_##name:                                          \
+        self->await_id = self->pending->u.name.mec_id;               \
+        break
+        TASK_CS2_MEC_CASE(MEC_TEXT);
+        TASK_CS2_MEC_CASE(MEC_TEXTSIZE);
+        TASK_CS2_MEC_CASE(MEC_CATEGORY);
+        TASK_CS2_MEC_CASE(MEC_SPRITE);
+#undef TASK_CS2_MEC_CASE
+    default:
+        assert(0 && "task_cs2_plan_mapelement: unexpected kind");
+        self->yield_plan = TASK_CS2_YIELD_ABORT;
+        return;
+    }
     self->yield_plan = self->await_id >= 0 ? TASK_CS2_YIELD_MAPELEMENT : TASK_CS2_YIELD_NONE;
 }
 
@@ -574,8 +627,21 @@ task_cs2_plan_mapelement(struct Task_CS2Run* self)
 static void
 task_cs2_plan_struct(struct Task_CS2Run* self)
 {
-    self->await_id = self->pending->u.struct_param.struct_id;
-    self->await_id2 = self->pending->u.struct_param.param_id;
+    switch( self->pending->kind )
+    {
+    case CS2VM_HOST_REQUEST_CC_GETPARAM:
+        self->await_id = self->pending->u.CC_GETPARAM.struct_id;
+        self->await_id2 = self->pending->u.CC_GETPARAM.param_id;
+        break;
+    case CS2VM_HOST_REQUEST_STRUCT_PARAM:
+        self->await_id = self->pending->u.STRUCT_PARAM.struct_id;
+        self->await_id2 = self->pending->u.STRUCT_PARAM.param_id;
+        break;
+    default:
+        assert(0 && "task_cs2_plan_struct: unexpected kind");
+        self->yield_plan = TASK_CS2_YIELD_ABORT;
+        return;
+    }
     assert(self->await_id >= 0 || self->await_id2 >= 0);
     self->yield_plan = TASK_CS2_YIELD_STRUCT;
 }
@@ -586,37 +652,45 @@ task_cs2_plan_obj(struct Task_CS2Run* self)
     switch( self->pending->kind )
     {
     case CS2VM_HOST_REQUEST_OC_NAME:
-        self->await_id = self->pending->u.oc_name.item_id;
+        self->await_id = self->pending->u.OC_NAME.item_id;
         break;
     case CS2VM_HOST_REQUEST_OC_OP:
-        self->await_id = self->pending->u.oc_op.item_id;
+        self->await_id = self->pending->u.OC_OP.item_id;
         break;
     case CS2VM_HOST_REQUEST_OC_IOP:
-        self->await_id = self->pending->u.oc_iop.item_id;
+        self->await_id = self->pending->u.OC_IOP.item_id;
         break;
     case CS2VM_HOST_REQUEST_OC_COST:
+        self->await_id = self->pending->u.OC_COST.item_id;
+        break;
     case CS2VM_HOST_REQUEST_OC_STACKABLE:
+        self->await_id = self->pending->u.OC_STACKABLE.item_id;
+        break;
     case CS2VM_HOST_REQUEST_OC_CERT:
+        self->await_id = self->pending->u.OC_CERT.item_id;
+        break;
     case CS2VM_HOST_REQUEST_OC_UNCERT:
+        self->await_id = self->pending->u.OC_UNCERT.item_id;
+        break;
     case CS2VM_HOST_REQUEST_OC_MEMBERS:
-        self->await_id = self->pending->u.oc_int_param.item_id;
+        self->await_id = self->pending->u.OC_MEMBERS.item_id;
         break;
     case CS2VM_HOST_REQUEST_OC_PLACEHOLDER:
+        self->await_id = self->pending->u.OC_PLACEHOLDER.item_id;
+        break;
     case CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER:
-        /* Both directions live in the same request payload (the union aliases
-         * `oc_placeholder` onto `oc_unplaceholder`). */
-        self->await_id = self->pending->u.oc_unplaceholder.item_id;
+        self->await_id = self->pending->u.OC_UNPLACEHOLDER.item_id;
         break;
     case CS2VM_HOST_REQUEST_OC_SHIFTCLICKIOP:
-        self->await_id = self->pending->u.oc_shiftclickiop.item_id;
+        self->await_id = self->pending->u.OC_SHIFTCLICKIOP.item_id;
         break;
     case CS2VM_HOST_REQUEST_OC_EXAMINE:
-        self->await_id = self->pending->u.oc_examine.item_id;
+        self->await_id = self->pending->u.OC_EXAMINE.item_id;
         break;
     case CS2VM_HOST_REQUEST_OC_PARAM:
         /* Same pairing as task_cs2_plan_struct: objtype + ParamType. */
-        self->await_id = self->pending->u.oc_param.item_id;
-        self->await_id2 = self->pending->u.oc_param.param_id;
+        self->await_id = self->pending->u.OC_PARAM.item_id;
+        self->await_id2 = self->pending->u.OC_PARAM.param_id;
         break;
     default:
         assert(0 && "task_cs2_plan_obj: unexpected kind");
@@ -632,7 +706,7 @@ static void
 task_cs2_plan_npc_name(struct Task_CS2Run* self)
 {
     assert(self->pending->kind == CS2VM_HOST_REQUEST_NC_NAME);
-    self->await_id = self->pending->u.nc_name.npc_id;
+    self->await_id = self->pending->u.NC_NAME.npc_id;
     if( self->await_id < 0 )
     {
         self->yield_plan = TASK_CS2_YIELD_NONE;
@@ -652,7 +726,19 @@ task_cs2_plan_component(struct Task_CS2Run* self)
 static void
 task_cs2_plan_widget_set_model(struct Task_CS2Run* self)
 {
-    self->await_id = self->pending->u.widget_set_model.model_id;
+    switch( self->pending->kind )
+    {
+    case CS2VM_HOST_REQUEST_CC_SETMODEL:
+        self->await_id = self->pending->u.CC_SETMODEL.model_id;
+        break;
+    case CS2VM_HOST_REQUEST_IF_SETMODEL:
+        self->await_id = self->pending->u.IF_SETMODEL.model_id;
+        break;
+    default:
+        assert(0 && "task_cs2_plan_widget_set_model: unexpected kind");
+        self->yield_plan = TASK_CS2_YIELD_ABORT;
+        return;
+    }
     if( self->await_id < 0 )
     {
         self->yield_plan = TASK_CS2_YIELD_NONE;
@@ -664,8 +750,29 @@ task_cs2_plan_widget_set_model(struct Task_CS2Run* self)
 static void
 task_cs2_plan_widget_set_model_kind(struct Task_CS2Run* self)
 {
-    int model_id = self->pending->u.widget_set_model_kind.model_id;
-    enum CS2VM_ModelKind kind = self->pending->u.widget_set_model_kind.model_kind;
+    int model_id;
+    enum CS2VM_ModelKind kind;
+
+    switch( self->pending->kind )
+    {
+#define TASK_CS2_MODEL_KIND_CASE(name)                                       \
+    case CS2VM_HOST_REQUEST_##name:                                          \
+        model_id = self->pending->u.name.model_id;                   \
+        kind = self->pending->u.name.model_kind;                     \
+        break
+        TASK_CS2_MODEL_KIND_CASE(CC_SETNPCHEAD);
+        TASK_CS2_MODEL_KIND_CASE(CC_SETPLAYERHEAD_SELF);
+        TASK_CS2_MODEL_KIND_CASE(CC_SETPLAYERMODEL_SELF);
+        TASK_CS2_MODEL_KIND_CASE(CC_SETMODEL_PLAYERCHATHEAD);
+        TASK_CS2_MODEL_KIND_CASE(IF_SETNPCHEAD);
+        TASK_CS2_MODEL_KIND_CASE(IF_SETPLAYERHEAD_SELF);
+        TASK_CS2_MODEL_KIND_CASE(IF_SETMODEL_PLAYERCHATHEAD);
+#undef TASK_CS2_MODEL_KIND_CASE
+    default:
+        assert(0 && "task_cs2_plan_widget_set_model_kind: unexpected kind");
+        self->yield_plan = TASK_CS2_YIELD_ABORT;
+        return;
+    }
 
     if( kind == CS2VM_MODEL_KIND_PLAIN )
     {
@@ -710,17 +817,24 @@ task_cs2_plan_widget_set_model_kind(struct Task_CS2Run* self)
 static void
 task_cs2_plan_setobject(struct Task_CS2Run* self)
 {
-    if( self->pending->kind == CS2VM_HOST_REQUEST_IF_SETOBJECT ||
-        self->pending->kind == CS2VM_HOST_REQUEST_IF_SETOBJECT_NONUM ||
-        self->pending->kind == CS2VM_HOST_REQUEST_IF_SETOBJECT_ALWAYS_NUM )
+    switch( self->pending->kind )
     {
-        self->yield_obj_id = self->pending->u.if_set_object.obj_id;
-        self->yield_obj_count = self->pending->u.if_set_object.count;
-    }
-    else
-    {
-        self->yield_obj_id = self->pending->u.cc_set_object.obj_id;
-        self->yield_obj_count = self->pending->u.cc_set_object.count;
+#define TASK_CS2_SETOBJECT_CASE(name)                                        \
+    case CS2VM_HOST_REQUEST_##name:                                          \
+        self->yield_obj_id = self->pending->u.name.obj_id;           \
+        self->yield_obj_count = self->pending->u.name.count;         \
+        break
+        TASK_CS2_SETOBJECT_CASE(CC_SETOBJECT);
+        TASK_CS2_SETOBJECT_CASE(CC_SETOBJECT_NONUM);
+        TASK_CS2_SETOBJECT_CASE(CC_SETOBJECT_ALWAYS_NUM);
+        TASK_CS2_SETOBJECT_CASE(IF_SETOBJECT);
+        TASK_CS2_SETOBJECT_CASE(IF_SETOBJECT_NONUM);
+        TASK_CS2_SETOBJECT_CASE(IF_SETOBJECT_ALWAYS_NUM);
+#undef TASK_CS2_SETOBJECT_CASE
+    default:
+        assert(0 && "task_cs2_plan_setobject: unexpected kind");
+        self->yield_plan = TASK_CS2_YIELD_ABORT;
+        return;
     }
 
     /* obj_id <= 0 clears the slot — no load. */
@@ -736,7 +850,19 @@ task_cs2_plan_setobject(struct Task_CS2Run* self)
 static void
 task_cs2_plan_setgraphic(struct Task_CS2Run* self)
 {
-    self->await_id = self->pending->u.cc_set_graphic.graphic_id;
+    switch( self->pending->kind )
+    {
+    case CS2VM_HOST_REQUEST_CC_SETGRAPHIC:
+        self->await_id = self->pending->u.CC_SETGRAPHIC.graphic_id;
+        break;
+    case CS2VM_HOST_REQUEST_IF_SETGRAPHIC:
+        self->await_id = self->pending->u.IF_SETGRAPHIC.graphic_id;
+        break;
+    default:
+        assert(0 && "task_cs2_plan_setgraphic: unexpected kind");
+        self->yield_plan = TASK_CS2_YIELD_ABORT;
+        return;
+    }
     if( self->await_id < 0 )
     {
         self->yield_plan = TASK_CS2_YIELD_NONE;
@@ -748,11 +874,25 @@ task_cs2_plan_setgraphic(struct Task_CS2Run* self)
 static void
 task_cs2_plan_font(struct Task_CS2Run* self)
 {
-    if( self->pending->kind == CS2VM_HOST_REQUEST_CC_SETTEXTFONT ||
-        self->pending->kind == CS2VM_HOST_REQUEST_IF_SETTEXTFONT )
-        self->await_id = self->pending->u.cc_set_text_font.font_id;
-    else
-        self->await_id = self->pending->u.para_height.font_id;
+    switch( self->pending->kind )
+    {
+    case CS2VM_HOST_REQUEST_CC_SETTEXTFONT:
+        self->await_id = self->pending->u.CC_SETTEXTFONT.font_id;
+        break;
+    case CS2VM_HOST_REQUEST_IF_SETTEXTFONT:
+        self->await_id = self->pending->u.IF_SETTEXTFONT.font_id;
+        break;
+    case CS2VM_HOST_REQUEST_PARAHEIGHT:
+        self->await_id = self->pending->u.PARAHEIGHT.font_id;
+        break;
+    case CS2VM_HOST_REQUEST_PARAWIDTH:
+        self->await_id = self->pending->u.PARAWIDTH.font_id;
+        break;
+    default:
+        assert(0 && "task_cs2_plan_font: unexpected kind");
+        self->yield_plan = TASK_CS2_YIELD_ABORT;
+        return;
+    }
     if( self->await_id < 0 )
     {
         self->yield_plan = TASK_CS2_YIELD_NONE;
@@ -798,7 +938,7 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     self->yield_npc_depth = 0;
 
     /* These exact opcode families share a load plan, not a discriminator. */
-    if( task_cs2_kind_is_widget_set_int(self->pending->kind) )
+    if( task_cs2_group_id_from_request(self->pending) >= 0 )
     {
         task_cs2_plan_component(self);
         return;
@@ -826,50 +966,69 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
         break;
 
     case CS2VM_HOST_REQUEST_CC_CREATE:
+        task_cs2_plan_component(self);
+        break;
     case CS2VM_HOST_REQUEST_CC_COPY:
+        task_cs2_plan_component(self);
+        break;
     case CS2VM_HOST_REQUEST_CC_CREATECHILD:
+        task_cs2_plan_component(self);
+        break;
     case CS2VM_HOST_REQUEST_CC_CREATESIBLING:
+        task_cs2_plan_component(self);
+        break;
     case CS2VM_HOST_REQUEST_CC_FIND:
+        task_cs2_plan_component(self);
+        break;
     case CS2VM_HOST_REQUEST_IF_FIND:
+        task_cs2_plan_component(self);
+        break;
     case CS2VM_HOST_REQUEST_IF_CHILDREN_FIND:
+        task_cs2_plan_component(self);
+        break;
     case CS2VM_HOST_REQUEST_IF_CHILDREN_COLLECT:
+        task_cs2_plan_component(self);
+        break;
     case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND_COUNT:
+        task_cs2_plan_component(self);
+        break;
     case CS2VM_HOST_REQUEST_CC_CHILDREN_FINDNEXT:
         task_cs2_plan_component(self);
         break;
 
     case CS2VM_HOST_REQUEST_CC_SETGRAPHIC:
-    case CS2VM_HOST_REQUEST_IF_SETGRAPHIC:
         task_cs2_plan_setgraphic(self);
         break;
 
     case CS2VM_HOST_REQUEST_CC_SETMODEL:
-    case CS2VM_HOST_REQUEST_IF_SETMODEL:
         task_cs2_plan_widget_set_model(self);
         break;
 
-    case CS2VM_HOST_REQUEST_CC_SETNPCHEAD:
-    case CS2VM_HOST_REQUEST_CC_SETPLAYERHEAD_SELF:
-    case CS2VM_HOST_REQUEST_CC_SETPLAYERMODEL_SELF:
-    case CS2VM_HOST_REQUEST_CC_SETMODEL_PLAYERCHATHEAD:
-    case CS2VM_HOST_REQUEST_IF_SETNPCHEAD:
-    case CS2VM_HOST_REQUEST_IF_SETPLAYERHEAD_SELF:
-    case CS2VM_HOST_REQUEST_IF_SETMODEL_PLAYERCHATHEAD:
-        task_cs2_plan_widget_set_model_kind(self);
+    case CS2VM_HOST_REQUEST_CC_SETTEXTFONT:
+        task_cs2_plan_font(self);
         break;
 
     case CS2VM_HOST_REQUEST_CC_SETOBJECT:
-    case CS2VM_HOST_REQUEST_CC_SETOBJECT_NONUM:
-    case CS2VM_HOST_REQUEST_CC_SETOBJECT_ALWAYS_NUM:
-    case CS2VM_HOST_REQUEST_IF_SETOBJECT:
-    case CS2VM_HOST_REQUEST_IF_SETOBJECT_NONUM:
-    case CS2VM_HOST_REQUEST_IF_SETOBJECT_ALWAYS_NUM:
         task_cs2_plan_setobject(self);
         break;
 
-    case CS2VM_HOST_REQUEST_CC_SETTEXTFONT:
-    case CS2VM_HOST_REQUEST_IF_SETTEXTFONT:
-        task_cs2_plan_font(self);
+    case CS2VM_HOST_REQUEST_CC_SETNPCHEAD:
+        task_cs2_plan_widget_set_model_kind(self);
+        break;
+    case CS2VM_HOST_REQUEST_CC_SETPLAYERHEAD_SELF:
+        task_cs2_plan_widget_set_model_kind(self);
+        break;
+    case CS2VM_HOST_REQUEST_CC_SETPLAYERMODEL_SELF:
+        task_cs2_plan_widget_set_model_kind(self);
+        break;
+    case CS2VM_HOST_REQUEST_CC_SETMODEL_PLAYERCHATHEAD:
+        task_cs2_plan_widget_set_model_kind(self);
+        break;
+    case CS2VM_HOST_REQUEST_CC_SETOBJECT_NONUM:
+        task_cs2_plan_setobject(self);
+        break;
+    case CS2VM_HOST_REQUEST_CC_SETOBJECT_ALWAYS_NUM:
+        task_cs2_plan_setobject(self);
         break;
 
     case CS2VM_HOST_REQUEST_CC_GETPARAM:
@@ -881,41 +1040,93 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
      * skips the struct load). */
     case CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM:
         self->await_id = -1;
-        self->await_id2 = self->pending->u.cc_component_param.param_id;
+        self->await_id2 = self->pending->u.CC_GETCOMPONENTPARAM.param_id;
         self->yield_plan =
             self->await_id2 >= 0 ? TASK_CS2_YIELD_STRUCT : TASK_CS2_YIELD_NONE;
         break;
 
+    case CS2VM_HOST_REQUEST_IF_SETGRAPHIC:
+        task_cs2_plan_setgraphic(self);
+        break;
+
+    case CS2VM_HOST_REQUEST_IF_SETMODEL:
+        task_cs2_plan_widget_set_model(self);
+        break;
+
+    case CS2VM_HOST_REQUEST_IF_SETTEXTFONT:
+        task_cs2_plan_font(self);
+        break;
+
+    case CS2VM_HOST_REQUEST_IF_SETOBJECT:
+        task_cs2_plan_setobject(self);
+        break;
+    case CS2VM_HOST_REQUEST_IF_SETNPCHEAD:
+        task_cs2_plan_widget_set_model_kind(self);
+        break;
+    case CS2VM_HOST_REQUEST_IF_SETPLAYERHEAD_SELF:
+        task_cs2_plan_widget_set_model_kind(self);
+        break;
+    case CS2VM_HOST_REQUEST_IF_SETMODEL_PLAYERCHATHEAD:
+        task_cs2_plan_widget_set_model_kind(self);
+        break;
+    case CS2VM_HOST_REQUEST_IF_SETOBJECT_NONUM:
+        task_cs2_plan_setobject(self);
+        break;
+    case CS2VM_HOST_REQUEST_IF_SETOBJECT_ALWAYS_NUM:
+        task_cs2_plan_setobject(self);
+        break;
+
     case CS2VM_HOST_REQUEST_INV_SIZE:
-        self->await_id = self->pending->u.invs_get_size.inv_id;
+        self->await_id = self->pending->u.INV_SIZE.inv_id;
         self->yield_plan =
             self->await_id >= 0 ? TASK_CS2_YIELD_INVTYPE : TASK_CS2_YIELD_NONE;
         break;
 
     case CS2VM_HOST_REQUEST_ENUM_STRING:
+        task_cs2_plan_enum(self);
+        break;
     case CS2VM_HOST_REQUEST_ENUM:
+        task_cs2_plan_enum(self);
+        break;
     case CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT:
         task_cs2_plan_enum(self);
         break;
 
     case CS2VM_HOST_REQUEST_PARAHEIGHT:
+        task_cs2_plan_font(self);
+        break;
     case CS2VM_HOST_REQUEST_PARAWIDTH:
         task_cs2_plan_font(self);
         break;
 
     case CS2VM_HOST_REQUEST_OC_NAME:
+        task_cs2_plan_obj(self);
+        break;
     case CS2VM_HOST_REQUEST_OC_OP:
+        task_cs2_plan_obj(self);
+        break;
     case CS2VM_HOST_REQUEST_OC_IOP:
+        task_cs2_plan_obj(self);
+        break;
     case CS2VM_HOST_REQUEST_OC_COST:
+        task_cs2_plan_obj(self);
+        break;
     case CS2VM_HOST_REQUEST_OC_STACKABLE:
+        task_cs2_plan_obj(self);
+        break;
     case CS2VM_HOST_REQUEST_OC_CERT:
+        task_cs2_plan_obj(self);
+        break;
     case CS2VM_HOST_REQUEST_OC_UNCERT:
+        task_cs2_plan_obj(self);
+        break;
     case CS2VM_HOST_REQUEST_OC_MEMBERS:
+        task_cs2_plan_obj(self);
+        break;
     case CS2VM_HOST_REQUEST_OC_PLACEHOLDER:
+        task_cs2_plan_obj(self);
+        break;
     case CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER:
-    case CS2VM_HOST_REQUEST_OC_SHIFTCLICKIOP:
-    case CS2VM_HOST_REQUEST_OC_EXAMINE:
-    case CS2VM_HOST_REQUEST_OC_PARAM:
         task_cs2_plan_obj(self);
         break;
 
@@ -926,13 +1137,26 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
         self->yield_plan = TASK_CS2_YIELD_OBJALL;
         break;
 
+    case CS2VM_HOST_REQUEST_OC_SHIFTCLICKIOP:
+        task_cs2_plan_obj(self);
+        break;
+    case CS2VM_HOST_REQUEST_OC_EXAMINE:
+        task_cs2_plan_obj(self);
+        break;
     case CS2VM_HOST_REQUEST_NC_PARAM:
+        self->await_id = self->pending->u.NC_PARAM.type_id;
+        self->await_id2 = self->pending->u.NC_PARAM.param_id;
+        self->yield_plan = TASK_CS2_YIELD_NPC_PARAM;
+        break;
+
     case CS2VM_HOST_REQUEST_LC_PARAM:
-        self->await_id = self->pending->u.nc_param.type_id;
-        self->await_id2 = self->pending->u.nc_param.param_id;
-        self->yield_plan = self->pending->kind == CS2VM_HOST_REQUEST_NC_PARAM
-                               ? TASK_CS2_YIELD_NPC_PARAM
-                               : TASK_CS2_YIELD_LOC_PARAM;
+        self->await_id = self->pending->u.LC_PARAM.type_id;
+        self->await_id2 = self->pending->u.LC_PARAM.param_id;
+        self->yield_plan = TASK_CS2_YIELD_LOC_PARAM;
+        break;
+
+    case CS2VM_HOST_REQUEST_OC_PARAM:
+        task_cs2_plan_obj(self);
         break;
 
     case CS2VM_HOST_REQUEST_STRUCT_PARAM:

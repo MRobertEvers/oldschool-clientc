@@ -476,9 +476,9 @@ SECTION_COMMENTS: dict[int, tuple[str, ...]] = {
     2133: (
         "/*",
         " * IF_ variants of the input-field config setters. No UITree model for these",
-        " * fields yet, so they are left to the stack-meta stub -- but they must still be",
-        " * described, or the stub pops nothing and desyncs the operand stack. Each takes",
-        " * the component uid on top of the value.",
+        " * fields yet, so each is forwarded as its own exact host request. Their stack",
+        " * signatures must still be described to keep the operand stack synchronized.",
+        " * Each takes the component uid on top of the value.",
         " */",
     ),
     2430: (

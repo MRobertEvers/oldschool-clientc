@@ -6,7 +6,7 @@
 /* Every manifest suffix must name the same canonical CS2 opcode, and every
  * public request discriminator must retain that opcode's value. Token-pasting
  * here deliberately makes a renamed or family-level request fail to compile. */
-#define CS2VM_HOST_REQUEST_KIND(name, opcode, layout)                                            \
+#define CS2VM_HOST_REQUEST_KIND(name, opcode, fields)                                          \
     _Static_assert(                                                                             \
         (int)CS2_OP_##name == (int)(opcode),                                                     \
         "host request/opcode name mismatch: " #name);                                           \
@@ -18,17 +18,22 @@
             &((struct CS2VM_HostRequest*)0)->u.name,                                             \
             struct CS2VM_HostRequest_##name*: 1,                                                \
             default: 0),                                                                        \
-        "host request payload tag/arm mismatch: " #name);                                      \
-    _Static_assert(                                                                             \
-        sizeof(struct CS2VM_HostRequest_##name) == sizeof(struct CS2VM_HostPayload_##layout),   \
-        "host request private layout mismatch: " #name);
+        "host request struct tag/arm mismatch: " #name);
 #include "cs2vm2/cs2vm2_host_request_kinds.def"
 #undef CS2VM_HOST_REQUEST_KIND
+
+#if defined(__GNUC__) || defined(__clang__)
+_Static_assert(
+    !__builtin_types_compatible_p(
+        struct CS2VM_HostRequest_CC_INPUT_SETCURSORWIDTH,
+        struct CS2VM_HostRequest_IF_INPUT_SETCURSORWIDTH),
+    "CC and IF input setters must have distinct request struct types");
+#endif
 
 enum
 {
     HOST_REQUEST_MANIFEST_COUNT = 0
-#define CS2VM_HOST_REQUEST_KIND(name, opcode, layout) +1
+#define CS2VM_HOST_REQUEST_KIND(name, opcode, fields) +1
 #include "cs2vm2/cs2vm2_host_request_kinds.def"
 #undef CS2VM_HOST_REQUEST_KIND
 };
@@ -45,7 +50,7 @@ struct HostRequestKindEntry
 };
 
 static struct HostRequestKindEntry const HOST_REQUEST_KINDS[] = {
-#define CS2VM_HOST_REQUEST_KIND(name, opcode, layout)                                            \
+#define CS2VM_HOST_REQUEST_KIND(name, opcode, fields) \
     { #name, (int)CS2_OP_##name, (int)CS2VM_HOST_REQUEST_##name },
 #include "cs2vm2/cs2vm2_host_request_kinds.def"
 #undef CS2VM_HOST_REQUEST_KIND

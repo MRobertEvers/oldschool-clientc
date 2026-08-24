@@ -62,8 +62,16 @@ stub_varc_read(
     struct StubVarcHost* host,
     struct CS2VM_HostRequest* request)
 {
-    int id = request->u.vars_read_varc_string.varc_id;
+    int id;
     char const* value = "";
+
+    if( request->kind == CS2VM_HOST_REQUEST_PUSH_VARC_STRING_OLD )
+        id = request->u.PUSH_VARC_STRING_OLD.varc_id;
+    else
+    {
+        assert(request->kind == CS2VM_HOST_REQUEST_PUSH_VARC_STRING);
+        id = request->u.PUSH_VARC_STRING.varc_id;
+    }
     if( id >= 0 && id < 8 && host->slots[id] )
         value = host->slots[id];
     return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, value));
@@ -74,8 +82,20 @@ stub_varc_write(
     struct StubVarcHost* host,
     struct CS2VM_HostRequest* request)
 {
-    int id = request->u.vars_write_varc_string.varc_id;
-    char* value = request->u.vars_write_varc_string.value;
+    int id;
+    char* value;
+
+    if( request->kind == CS2VM_HOST_REQUEST_POP_VARC_STRING_OLD )
+    {
+        id = request->u.POP_VARC_STRING_OLD.varc_id;
+        value = request->u.POP_VARC_STRING_OLD.value;
+    }
+    else
+    {
+        assert(request->kind == CS2VM_HOST_REQUEST_POP_VARC_STRING);
+        id = request->u.POP_VARC_STRING.varc_id;
+        value = request->u.POP_VARC_STRING.value;
+    }
     /* The request's string is borrowed from the VM's pool, so a host that
      * keeps it must copy (as the real VarCManager does). */
     if( id >= 0 && id < 8 )

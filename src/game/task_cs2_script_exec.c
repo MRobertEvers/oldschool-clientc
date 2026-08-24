@@ -147,7 +147,7 @@ DummyHostExec(
     if( request->kind == CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS )
     {
         struct CS2VM2_Script* script = CacheProvider_ClientScriptGet(
-            host->provider, request->u.GOSUB_WITH_PARAMS.payload.script_id);
+            host->provider, request->u.GOSUB_WITH_PARAMS.script_id);
         if( !script )
         {
             memcpy(&host->request, request, sizeof(struct CS2VM_HostRequest));
@@ -158,23 +158,24 @@ DummyHostExec(
         return CS2VM_EXECNO_OK;
     }
 
-    if( request->kind == CS2VM_HOST_REQUEST_ENUM_STRING ||
-        (request->kind == CS2VM_HOST_REQUEST_ENUM &&
-         request->u.ENUM.payload.output_type == (int)'s') )
+    if( request->kind == CS2VM_HOST_REQUEST_ENUM_STRING )
+        return CS2VM2_PushStr(thread, CS2VM2_StrEmpty(thread));
+    if( request->kind == CS2VM_HOST_REQUEST_ENUM &&
+        request->u.ENUM.output_type == (int)'s' )
         return CS2VM2_PushStr(thread, CS2VM2_StrEmpty(thread));
 
     switch( request->kind )
     {
     case CS2VM_HOST_REQUEST_CC_GETPARAM:
-        return dummy_host_push_param(host, thread, request->u.CC_GETPARAM.payload.param_id);
-    case CS2VM_HOST_REQUEST_STRUCT_PARAM:
-        return dummy_host_push_param(host, thread, request->u.STRUCT_PARAM.payload.param_id);
+        return dummy_host_push_param(host, thread, request->u.CC_GETPARAM.param_id);
     case CS2VM_HOST_REQUEST_NC_PARAM:
-        return dummy_host_push_param(host, thread, request->u.NC_PARAM.payload.param_id);
+        return dummy_host_push_param(host, thread, request->u.NC_PARAM.param_id);
     case CS2VM_HOST_REQUEST_LC_PARAM:
-        return dummy_host_push_param(host, thread, request->u.LC_PARAM.payload.param_id);
+        return dummy_host_push_param(host, thread, request->u.LC_PARAM.param_id);
     case CS2VM_HOST_REQUEST_OC_PARAM:
-        return dummy_host_push_param(host, thread, request->u.OC_PARAM.payload.param_id);
+        return dummy_host_push_param(host, thread, request->u.OC_PARAM.param_id);
+    case CS2VM_HOST_REQUEST_STRUCT_PARAM:
+        return dummy_host_push_param(host, thread, request->u.STRUCT_PARAM.param_id);
     default:
         break;
     }
@@ -225,7 +226,7 @@ Task_CS2ScriptExec_Run(
             if( exec->host.request.kind == CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS )
             {
                 exec->script_id =
-                    exec->host.request.u.GOSUB_WITH_PARAMS.payload.script_id;
+                    exec->host.request.u.GOSUB_WITH_PARAMS.script_id;
                 if( !CacheProvider_ClientScriptHas(exec->provider, exec->script_id) )
                 {
                     TASK_AWAITEX(

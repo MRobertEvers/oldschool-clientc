@@ -153,8 +153,11 @@ struct RecordingHost
 {
     int calls;
     enum CS2VM_HostRequestKind kind;
-    struct CS2VM_HostRequest_Social social;
-    struct CS2VM_HostRequest_Chat chat;
+    int social_index;
+    int chat_public_mode;
+    int chat_private_mode;
+    int chat_trade_mode;
+    int chat_colour_effect;
     char seen_name[64];
     char seen_text[64];
 };
@@ -168,31 +171,53 @@ recording_host_exec(
 
     host->calls++;
     host->kind = request->kind;
-    if( request->kind == CS2VM_HOST_REQUEST_FRIEND_GETNAME ||
-        request->kind == CS2VM_HOST_REQUEST_FRIEND_ADD )
+    if( request->kind == CS2VM_HOST_REQUEST_FRIEND_GETNAME )
     {
-        host->social = request->u.social;
+        host->social_index = request->u.FRIEND_GETNAME.index;
         snprintf(
             host->seen_name,
             sizeof(host->seen_name),
             "%s",
-            request->u.social.name ? request->u.social.name : "");
+            request->u.FRIEND_GETNAME.name
+                ? request->u.FRIEND_GETNAME.name
+                : "");
     }
-    if( request->kind == CS2VM_HOST_REQUEST_CHAT_SETFILTER ||
-        request->kind == CS2VM_HOST_REQUEST_CHAT_SENDPUBLIC ||
-        request->kind == CS2VM_HOST_REQUEST_CHAT_SENDPRIVATE )
+    else if( request->kind == CS2VM_HOST_REQUEST_FRIEND_ADD )
     {
-        host->chat = request->u.chat;
+        host->social_index = request->u.FRIEND_ADD.index;
         snprintf(
             host->seen_name,
             sizeof(host->seen_name),
             "%s",
-            request->u.chat.name ? request->u.chat.name : "");
-        snprintf(
-            host->seen_text,
-            sizeof(host->seen_text),
-            "%s",
-            request->u.chat.text ? request->u.chat.text : "");
+            request->u.FRIEND_ADD.name ? request->u.FRIEND_ADD.name : "");
+    }
+    switch( request->kind )
+    {
+#define RECORD_CHAT(req_name)                                               \
+    case CS2VM_HOST_REQUEST_##req_name:                                     \
+        host->chat_public_mode = request->u.req_name.public_mode;   \
+        host->chat_private_mode = request->u.req_name.private_mode; \
+        host->chat_trade_mode = request->u.req_name.trade_mode;     \
+        host->chat_colour_effect = request->u.req_name.colour_effect; \
+        snprintf(                                                           \
+            host->seen_name,                                                \
+            sizeof(host->seen_name),                                        \
+            "%s",                                                          \
+            request->u.req_name.name                                \
+                ? request->u.req_name.name                          \
+                : "");                                                      \
+        snprintf(                                                           \
+            host->seen_text,                                                \
+            sizeof(host->seen_text),                                        \
+            "%s",                                                          \
+            request->u.req_name.text ? request->u.req_name.text : ""); \
+        break
+        RECORD_CHAT(CHAT_SETFILTER);
+        RECORD_CHAT(CHAT_SENDPUBLIC);
+        RECORD_CHAT(CHAT_SENDPRIVATE);
+#undef RECORD_CHAT
+    default:
+        return CS2VM_EXECNO_OK;
     }
     return CS2VM_EXECNO_OK;
 }
@@ -279,7 +304,7 @@ test_vm_dispatch(void)
         run_op(&host, CS2_OP_FRIEND_GETNAME, 0, pushes, 1, NULL, NULL, NULL);
         CHECK(host.calls == 1, "friend_getname reaches the host");
         CHECK(host.kind == CS2VM_HOST_REQUEST_FRIEND_GETNAME, "as a FRIEND_GETNAME request");
-        CHECK(host.social.index == 3, "carrying the index it was given, got %d", host.social.index);
+        CHECK(host.social_index == 3, "carrying the index it was given, got %d", host.social_index);
     }
 
     /* FRIEND_ADD(username): one string arg. */
@@ -339,9 +364,9 @@ test_vm_dispatch(void)
             "with the first argument as the body, got \"%s\"",
             host.seen_text);
         CHECK(
-            host.chat.colour_effect == 0x0102,
+            host.chat_colour_effect == 0x0102,
             "and the second as the packed colour/effect, got 0x%X",
-            host.chat.colour_effect);
+            host.chat_colour_effect);
     }
 
     /* CHAT_SETFILTER(public, private, trade) — three ints in source order. */
@@ -353,11 +378,12 @@ test_vm_dispatch(void)
         CHECK(host.calls == 1, "chat_setfilter reaches the host");
         CHECK(host.kind == CS2VM_HOST_REQUEST_CHAT_SETFILTER, "as a CHAT_SETFILTER request");
         CHECK(
-            host.chat.public_mode == 1 && host.chat.private_mode == 2 && host.chat.trade_mode == 0,
+            host.chat_public_mode == 1 && host.chat_private_mode == 2 &&
+                host.chat_trade_mode == 0,
             "with its three modes in source order, got %d/%d/%d",
-            host.chat.public_mode,
-            host.chat.private_mode,
-            host.chat.trade_mode);
+            host.chat_public_mode,
+            host.chat_private_mode,
+            host.chat_trade_mode);
     }
 
     /*
@@ -427,9 +453,31 @@ call_social(
     struct CS2VM_HostRequest req;
     memset(&req, 0, sizeof(req));
     req.kind = (enum CS2VM_HostRequestKind)opcode;
-    req.u.social.opcode = opcode;
-    req.u.social.index = index;
-    req.u.social.name = name;
+    switch( req.kind )
+    {
+#define SET_SOCIAL_REQUEST(name_)                                           \
+    case CS2VM_HOST_REQUEST_##name_:                                        \
+        req.u.name_.opcode = opcode;                                \
+        req.u.name_.index = index;                                  \
+        req.u.name_.name = name;                                    \
+        break
+        SET_SOCIAL_REQUEST(FRIEND_COUNT);
+        SET_SOCIAL_REQUEST(FRIEND_GETNAME);
+        SET_SOCIAL_REQUEST(FRIEND_GETWORLD);
+        SET_SOCIAL_REQUEST(FRIEND_GETRANK);
+        SET_SOCIAL_REQUEST(FRIEND_ADD);
+        SET_SOCIAL_REQUEST(FRIEND_DEL);
+        SET_SOCIAL_REQUEST(IGNORE_ADD);
+        SET_SOCIAL_REQUEST(IGNORE_DEL);
+        SET_SOCIAL_REQUEST(FRIEND_TEST);
+        SET_SOCIAL_REQUEST(IGNORE_COUNT);
+        SET_SOCIAL_REQUEST(IGNORE_GETNAME);
+        SET_SOCIAL_REQUEST(IGNORE_TEST);
+#undef SET_SOCIAL_REQUEST
+    default:
+        assert(0 && "call_social: unexpected opcode");
+        return CS2VM_EXECNO_ERROR;
+    }
     return RS_CS2Host_Exec(t, &req);
 }
 
@@ -537,9 +585,9 @@ test_host_ops(void)
 
         memset(&req, 0, sizeof(req));
         req.kind = CS2VM_HOST_REQUEST_CHAT_SENDPRIVATE;
-        req.u.chat.opcode = CS2_OP_CHAT_SENDPRIVATE;
-        req.u.chat.name = to;
-        req.u.chat.text = body;
+        req.u.CHAT_SENDPRIVATE.opcode = CS2_OP_CHAT_SENDPRIVATE;
+        req.u.CHAT_SENDPRIVATE.name = to;
+        req.u.CHAT_SENDPRIVATE.text = body;
         RS_CS2Host_Exec(t, &req);
 
         CHECK(RS_CS2Host_TakeSocialSend(&host, &send), "chat_sendprivate queues a message");
@@ -561,8 +609,8 @@ test_host_ops(void)
 
         memset(&req, 0, sizeof(req));
         req.kind = CS2VM_HOST_REQUEST_DOCHEAT;
-        req.u.chat.opcode = CS2_OP_DOCHEAT;
-        req.u.chat.text = cheat;
+        req.u.DOCHEAT.opcode = CS2_OP_DOCHEAT;
+        req.u.DOCHEAT.text = cheat;
         RS_CS2Host_Exec(t, &req);
 
         CHECK(RS_CS2Host_TakeSocialSend(&host, &send), "docheat queues a cheat send");
@@ -576,10 +624,10 @@ test_host_ops(void)
         struct CS2VM_HostRequest req;
         memset(&req, 0, sizeof(req));
         req.kind = CS2VM_HOST_REQUEST_CHAT_SETFILTER;
-        req.u.chat.opcode = CS2_OP_CHAT_SETFILTER;
-        req.u.chat.public_mode = 0;
-        req.u.chat.private_mode = 2;
-        req.u.chat.trade_mode = 1;
+        req.u.CHAT_SETFILTER.opcode = CS2_OP_CHAT_SETFILTER;
+        req.u.CHAT_SETFILTER.public_mode = 0;
+        req.u.CHAT_SETFILTER.private_mode = 2;
+        req.u.CHAT_SETFILTER.trade_mode = 1;
         RS_CS2Host_Exec(t, &req);
         CHECK(
             filter_modes[RS_UI_CHAT_FILTER_PRIVATE] == 2,

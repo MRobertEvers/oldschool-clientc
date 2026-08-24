@@ -44,7 +44,10 @@ struct RecordingHost
 {
     int calls;
     enum CS2VM_HostRequestKind kind;
-    struct CS2VM_HostRequest_Highlight highlight;
+    int highlight_opcode;
+    int highlight_args[CS2VM_HIGHLIGHT_ARG_MAX];
+    int highlight_arg_count;
+    bool highlight_query;
 };
 
 /* Answers a query the way rs_cs2_host.c does — "not highlighted" — because the
@@ -56,8 +59,68 @@ recording_host_exec(struct CS2VM2_Thread* thread, struct CS2VM_HostRequest* requ
 
     host->calls++;
     host->kind = request->kind;
-    host->highlight = request->u.highlight;
-    if( request->u.highlight.query )
+    switch( request->kind )
+    {
+#define RECORD_HIGHLIGHT(name)                                              \
+    case CS2VM_HOST_REQUEST_##name:                                         \
+        host->highlight_opcode = request->u.name.opcode;            \
+        memcpy(                                                             \
+            host->highlight_args,                                           \
+            request->u.name.args,                                   \
+            sizeof(host->highlight_args));                                  \
+        host->highlight_arg_count = request->u.name.arg_count;      \
+        host->highlight_query = request->u.name.query;              \
+        break
+        RECORD_HIGHLIGHT(HIGHLIGHT_NPC_SETUP);
+        RECORD_HIGHLIGHT(HIGHLIGHT_NPC_ON);
+        RECORD_HIGHLIGHT(HIGHLIGHT_NPC_OFF);
+        RECORD_HIGHLIGHT(HIGHLIGHT_NPC_GET);
+        RECORD_HIGHLIGHT(HIGHLIGHT_NPC_CLEAR);
+        RECORD_HIGHLIGHT(HIGHLIGHT_NPCTYPE_SETUP);
+        RECORD_HIGHLIGHT(HIGHLIGHT_NPCTYPE_ON);
+        RECORD_HIGHLIGHT(HIGHLIGHT_NPCTYPE_OFF);
+        RECORD_HIGHLIGHT(HIGHLIGHT_NPCTYPE_GET);
+        RECORD_HIGHLIGHT(HIGHLIGHT_NPCTYPE_CLEAR);
+        RECORD_HIGHLIGHT(HIGHLIGHT_LOC_SETUP);
+        RECORD_HIGHLIGHT(HIGHLIGHT_LOC_ON);
+        RECORD_HIGHLIGHT(HIGHLIGHT_LOC_OFF);
+        RECORD_HIGHLIGHT(HIGHLIGHT_LOC_GET);
+        RECORD_HIGHLIGHT(HIGHLIGHT_LOC_CLEAR);
+        RECORD_HIGHLIGHT(HIGHLIGHT_LOCTYPE_SETUP);
+        RECORD_HIGHLIGHT(HIGHLIGHT_LOCTYPE_ON);
+        RECORD_HIGHLIGHT(HIGHLIGHT_LOCTYPE_OFF);
+        RECORD_HIGHLIGHT(HIGHLIGHT_LOCTYPE_GET);
+        RECORD_HIGHLIGHT(HIGHLIGHT_LOCTYPE_CLEAR);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OBJ_SETUP);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OBJ_ON);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OBJ_OFF);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OBJ_GET);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OBJ_CLEAR);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OBJTYPE_SETUP);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OBJTYPE_ON);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OBJTYPE_OFF);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OBJTYPE_GET);
+        RECORD_HIGHLIGHT(HIGHLIGHT_OBJTYPE_CLEAR);
+        RECORD_HIGHLIGHT(HIGHLIGHT_PLAYER_SETUP);
+        RECORD_HIGHLIGHT(HIGHLIGHT_PLAYER_ON);
+        RECORD_HIGHLIGHT(HIGHLIGHT_PLAYER_OFF);
+        RECORD_HIGHLIGHT(HIGHLIGHT_PLAYER_GET);
+        RECORD_HIGHLIGHT(HIGHLIGHT_PLAYER_CLEAR);
+        RECORD_HIGHLIGHT(HIGHLIGHT_TILE_SETUP);
+        RECORD_HIGHLIGHT(HIGHLIGHT_TILE_ON);
+        RECORD_HIGHLIGHT(HIGHLIGHT_TILE_OFF);
+        RECORD_HIGHLIGHT(HIGHLIGHT_TILE_GET);
+        RECORD_HIGHLIGHT(HIGHLIGHT_TILE_CLEAR);
+        RECORD_HIGHLIGHT(_7040);
+        RECORD_HIGHLIGHT(_7041);
+        RECORD_HIGHLIGHT(_7042);
+        RECORD_HIGHLIGHT(_7043);
+        RECORD_HIGHLIGHT(_7044);
+#undef RECORD_HIGHLIGHT
+    default:
+        return CS2VM_EXECNO_ERROR;
+    }
+    if( host->highlight_query )
         return CS2VM2_PushInt(thread, 0);
     return CS2VM_EXECNO_OK;
 }
@@ -206,18 +269,18 @@ main(void)
         snprintf(label, sizeof(label), "%s request kind", c->name);
         CHECK_INT((int)host.kind, (int)c->kind, label);
         snprintf(label, sizeof(label), "%s opcode carried through", c->name);
-        CHECK_INT(host.highlight.opcode, c->opcode, label);
+        CHECK_INT(host.highlight_opcode, c->opcode, label);
 
         snprintf(label, sizeof(label), "%s arg count", c->name);
-        CHECK_INT(host.highlight.arg_count, c->int_in, label);
+        CHECK_INT(host.highlight_arg_count, c->int_in, label);
         snprintf(label, sizeof(label), "%s query flag", c->name);
-        CHECK_INT(host.highlight.query ? 1 : 0, c->int_out ? 1 : 0, label);
+        CHECK_INT(host.highlight_query ? 1 : 0, c->int_out ? 1 : 0, label);
 
         /* args[0] is the first int the script pushed, not the first popped. */
         for( int a = 0; a < c->int_in; a++ )
         {
             snprintf(label, sizeof(label), "%s args[%d]", c->name, a);
-            CHECK_INT(host.highlight.args[a], 101 + a, label);
+            CHECK_INT(host.highlight_args[a], 101 + a, label);
         }
 
         /* What the script sees afterwards: the GET result and nothing else. */

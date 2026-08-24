@@ -40,7 +40,10 @@ struct RecordingHost
 {
     int calls;
     enum CS2VM_HostRequestKind kind;
-    struct CS2VM_HostRequest_CC_SetTextAlign align;
+    int component_id;
+    int x_align;
+    int y_align;
+    int line_height;
 };
 
 static int
@@ -51,7 +54,21 @@ recording_host_exec(
     struct RecordingHost* host = (struct RecordingHost*)thread->vm->user;
     host->calls++;
     host->kind = request->kind;
-    host->align = request->u.cc_set_text_align;
+    switch( request->kind )
+    {
+#define RECORD_TEXT_ALIGN(name)                                             \
+    case CS2VM_HOST_REQUEST_##name:                                         \
+        host->component_id = request->u.name.component_id;          \
+        host->x_align = request->u.name.x_align;                    \
+        host->y_align = request->u.name.y_align;                    \
+        host->line_height = request->u.name.line_height;            \
+        break
+        RECORD_TEXT_ALIGN(CC_SETTEXTALIGN);
+        RECORD_TEXT_ALIGN(IF_SETTEXTALIGN);
+#undef RECORD_TEXT_ALIGN
+    default:
+        break;
+    }
     return CS2VM_EXECNO_OK;
 }
 
@@ -115,14 +132,14 @@ main(void)
         run_align(&host, CS2_OP_IF_SETTEXTALIGN, 0, pushes, 4, -1, -1);
         CHECK_INT(host.calls, 1, "IF_SETTEXTALIGN reaches the host once");
         CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_IF_SETTEXTALIGN, "host request kind");
-        CHECK_INT(host.align.component_id, chat_left_text, "chat_left:text component");
-        CHECK_INT(host.align.x_align, 1, "horizontal centre");
-        CHECK_INT(host.align.y_align, 1, "vertical centre");
-        CHECK_INT(host.align.line_height, 16, "revision-239 line height");
+        CHECK_INT(host.component_id, chat_left_text, "chat_left:text component");
+        CHECK_INT(host.x_align, 1, "horizontal centre");
+        CHECK_INT(host.y_align, 1, "vertical centre");
+        CHECK_INT(host.line_height, 16, "revision-239 line height");
     }
 
-    /* The CC form shares the payload layout, but retains its own request kind
-     * and gets its target from the active/dot selector instead of the stack. */
+    /* The CC form has its own exact payload type and request kind, and gets its
+     * target from the active/dot selector instead of the stack. */
     {
         struct RecordingHost host;
         int const active = (217 << 16) | 6;
@@ -132,10 +149,10 @@ main(void)
         run_align(&host, CS2_OP_CC_SETTEXTALIGN, 1, pushes, 3, active, dot);
         CHECK_INT(host.calls, 1, "CC_SETTEXTALIGN reaches the host once");
         CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_CC_SETTEXTALIGN, "CC request kind");
-        CHECK_INT(host.align.component_id, dot, "operand 1 selects dot component");
-        CHECK_INT(host.align.x_align, 2, "CC horizontal alignment");
-        CHECK_INT(host.align.y_align, 0, "CC vertical alignment");
-        CHECK_INT(host.align.line_height, 13, "CC line height");
+        CHECK_INT(host.component_id, dot, "operand 1 selects dot component");
+        CHECK_INT(host.x_align, 2, "CC horizontal alignment");
+        CHECK_INT(host.y_align, 0, "CC vertical alignment");
+        CHECK_INT(host.line_height, 13, "CC line height");
     }
 
     if( g_fail )

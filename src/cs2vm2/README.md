@@ -272,12 +272,12 @@ Register via `CS2VM2_BindHost(&vm, user, MyHostExec)`.
 ### Host responsibilities
 
 1. **Dispatch on `request->kind`** — switch over `CS2VM_HostRequestKind` and read
-   the identically named payload arm from `request->u.<OPCODE>.payload`.
+   fields directly from the identically named arm, `request->u.<OPCODE>.<field>`.
 2. **Return an exec code** — `CS2VM_EXECNO_OK`, `CS2VM_EXECNO_YIELD`, or
    `CS2VM_EXECNO_ERROR`.
 3. **Push results for getters** — use `CS2VM2_PushInt` / `CS2VM2_PushStr` on success.
 4. **Handle `GOSUB_WITH_PARAMS`** — look up
-   `request->u.GOSUB_WITH_PARAMS.payload.script_id`, decode if needed, call
+   `request->u.GOSUB_WITH_PARAMS.script_id`, decode if needed, call
    `CS2VM2_PushCallScript`.
 5. **Respect yield semantics** — on `YIELD`, do not touch VM stacks/frames; re-enter
    `RunScript` after async work.
@@ -290,10 +290,11 @@ Register via `CS2VM2_BindHost(&vm, user, MyHostExec)`.
 
 All request kinds are declared through `cs2vm2_host_request_kinds.def` in numeric
 CS2 opcode order. Every hosted opcode has its own identically named request kind,
-struct tag, and union arm, and the kind has the opcode's numeric value. Field
-layouts may be reused internally, but public request payload identities are
-never folded into generic categories; for example `CC_SETTEXT` and `IF_SETTEXT`
-remain distinct structs and arms throughout dispatch and yielding.
+named struct, and union arm, and the kind has the opcode's numeric value. Fields
+live directly in the exact request struct. Shared behavior helpers take scalar
+values; requests are never folded into generic categories or reinterpreted through
+a shared layout. For example, `CC_SETTEXT` and `IF_SETTEXT` remain distinct structs
+throughout dispatch and yielding.
 
 | Category | Examples | Host does |
 |----------|----------|-----------|

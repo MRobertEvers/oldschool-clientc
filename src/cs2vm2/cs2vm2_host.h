@@ -68,10 +68,10 @@ enum CS2VM_HostRequestKind
 {
     /*
      * Host-request discriminators are the originating CS2 opcodes. Every row
-     * also generates its own exact payload struct and union arm, in numeric
-     * opcode order. Only the private field layout may be reused.
+     * also generates its own exact request struct and union arm, in numeric
+     * opcode order. Each row carries that request's direct field declarations.
      */
-#define CS2VM_HOST_REQUEST_KIND(name, opcode, layout) \
+#define CS2VM_HOST_REQUEST_KIND(name, opcode, fields) \
     CS2VM_HOST_REQUEST_##name = CS2_OP_##name,
 #include "cs2vm2_host_request_kinds.def"
 #undef CS2VM_HOST_REQUEST_KIND
@@ -80,56 +80,15 @@ enum CS2VM_HostRequestKind
 /** Friends / ignore accessors + mutators (3600..3609, 3621..3623).
  *  `index` is set for the indexed getters, `name` (borrowed, never owned) for
  *  the ones that take a username. */
-struct CS2VM_HostPayload_None
-{
-    unsigned char _unused;
-};
-
-struct CS2VM_HostPayload_Social
-{
-    int opcode;
-    int index;
-    char* name;
-};
 
 /** RESUME_COUNTDIALOG (3104). `text` is BORROWED from the VM's string pool —
  *  the handler must copy it, never free it. */
-struct CS2VM_HostPayload_ResumeCountDialog
-{
-    char* text;
-};
 
 /** IF_RESUME_PAUSEBUTTON / CC_RESUME_PAUSEBUTTON. Component that the paused
  *  server script armed with if_addresumebutton. */
-struct CS2VM_HostPayload_ResumePauseButton
-{
-    int component_id;
-};
 
 /** Chat filter get/set and the two sends (5000/5001/5005/5008/5009/5016).
  *  `name` is borrowed for CHAT_SENDPRIVATE, `text` for either send. */
-struct CS2VM_HostPayload_Chat
-{
-    int opcode;
-    int public_mode;
-    int private_mode;
-    int trade_mode;
-    /** CHAT_GETHISTORYLENGTH / GETHISTORY*_BYTYPEANDLINE: which chat type. */
-    int type;
-    /** GETHISTORY*_BYTYPEANDLINE: line 0 is the newest message of that type. */
-    int line;
-    /** GETHISTORY*_BYUID / GETNEXTUID / GETPREVUID: the message handle the
-     *  cache's scripts walk the history with. */
-    int uid;
-    /** CHAT_SETTIMESTAMPS. */
-    int timestamps;
-    /** CHAT_SENDPUBLIC's second argument: the packed colour/effect the line is
-     *  spoken in — high byte colour, low byte effect, the same pairing the
-     *  inbound PLAYER_INFO chat block carries (`colour_effect`). */
-    int colour_effect;
-    char* name;
-    char* text;
-};
 
 enum CS2VM_OC_IntField
 {
@@ -137,44 +96,6 @@ enum CS2VM_OC_IntField
     CS2VM_OC_INT_STACKABLE,
     CS2VM_OC_INT_MEMBERS,
     CS2VM_OC_INT_ID,
-};
-
-struct CS2VM_HostPayload_PushScript
-{
-    int script_id;
-};
-
-struct CS2VM_HostPayload_InvSize
-{
-    int inv_id;
-};
-
-struct CS2VM_HostPayload_InvGetObj
-{
-    int inv_id;
-    int slot;
-};
-
-struct CS2VM_HostPayload_InvGetNum
-{
-    int inv_id;
-    int slot;
-};
-
-struct CS2VM_HostPayload_InvTotal
-{
-    int inv_id;
-    int item_id;
-};
-
-struct CS2VM_HostPayload_VarsReadVarp
-{
-    int varp_id;
-};
-
-struct CS2VM_HostPayload_VarsReadVarbit
-{
-    int varbit_id;
 };
 
 /**
@@ -185,33 +106,8 @@ struct CS2VM_HostPayload_VarsReadVarbit
  * never pushes the id into its changed-varp ring, so a widget hook that writes
  * a var does not re-trigger itself. See VarPManager_ServerUpdateFn's header.
  */
-struct CS2VM_HostPayload_VarsWriteVarp
-{
-    int varp_id;
-    int value;
-};
-
-struct CS2VM_HostPayload_VarsWriteVarbit
-{
-    int varbit_id;
-    int value;
-};
-
-struct CS2VM_HostPayload_VarsReadVarcInt
-{
-    int varc_id;
-};
-
-struct CS2VM_HostPayload_VarsReadVarcString
-{
-    int varc_id;
-};
 
 /** KEYHELD / KEYPRESSED: key_code is an OSRS internal code, not ASCII. */
-struct CS2VM_HostPayload_KeyQuery
-{
-    int key_code;
-};
 
 #define CS2VM_OPKEY_PAIR_MAX 5
 /** The SETOPTKEY ("typed key") opcode variants target this op slot implicitly. */
@@ -219,50 +115,9 @@ struct CS2VM_HostPayload_KeyQuery
 
 /** CC/IF_SETOPKEY and the OPT variants. op_index is 1..10 (10 = typed key);
  *  pair_count == 0 clears the slot. */
-struct CS2VM_HostPayload_WidgetSetOpKey
-{
-    int component_id;
-    int op_index;
-    int pair_count;
-    int key_chars[CS2VM_OPKEY_PAIR_MAX];
-    int key_codes[CS2VM_OPKEY_PAIR_MAX];
-};
 
-/** CC/IF_SETOPKEYRATE and SETOPKEYIGNOREHELD share one payload. */
-struct CS2VM_HostPayload_WidgetSetOpKeyRate
-{
-    int component_id;
-    int op_index;
-    int rate;
-    int enabled;
-    /** 1 = also set ignore-held; 0 = leave unchanged. */
-    int ignore_held;
-};
-
-struct CS2VM_HostPayload_VarsWriteVarcInt
-{
-    int varc_id;
-    int value;
-};
-
-struct CS2VM_HostPayload_VarsWriteVarcString
-{
-    int varc_id;
-    char* value;
-};
-
-struct CS2VM_HostPayload_EnumLookup
-{
-    int input_type;
-    int output_type;
-    int enum_id;
-    int key;
-};
-
-struct CS2VM_HostPayload_EnumGetOutputCount
-{
-    int enum_id;
-};
+/** CC/IF_SETOPKEYRATE and SETOPKEYIGNOREHELD carry the same rate fields in
+ * their distinct exact payloads. */
 
 enum CS2VM_DbLoadKind
 {
@@ -272,93 +127,7 @@ enum CS2VM_DbLoadKind
     CS2VM_DB_LOAD_TABLE = 3,
 };
 
-struct CS2VM_HostPayload_Db
-{
-    int opcode;    /* the DB_* opcode (7500..7510) */
-    int load_kind; /* enum CS2VM_DbLoadKind — what a pending yield awaits */
-    int load_id;   /* row id (LOAD_ROW) or table id (LOAD_INDEX / LOAD_TABLE) */
-};
-
-struct CS2VM_HostPayload_CC_DeleteAll
-{
-    int component_id;
-};
-
-struct CS2VM_HostPayload_CC_Create
-{
-    int parent_id;
-    int component_type;
-    int child_index;
-    int is_nested;
-    int dot_operand;
-    /** CC_CREATESIBLING names the existing sibling here; the host resolves
-     *  its parent before creating the new child. Other create opcodes name the
-     *  parent directly. */
-    int parent_is_sibling;
-};
-
 /** CC_COPY: clone dynamic child src_sub_id of parent_id into dst_sub_id. */
-struct CS2VM_HostPayload_CC_Copy
-{
-    int parent_id;
-    int src_sub_id;
-    int dst_sub_id;
-    int dot_operand;
-};
-
-struct CS2VM_HostPayload_CC_Find
-{
-    int parent_id;
-    int sub_id;
-    int dot_operand;
-};
-
-struct CS2VM_HostPayload_IF_GetWidth
-{
-    int component_id;
-};
-
-struct CS2VM_HostPayload_IF_HasChild
-{
-    int component_id;
-    int group_id;
-};
-
-struct CS2VM_HostPayload_IF_GetHeight
-{
-    int component_id;
-};
-
-struct CS2VM_HostPayload_IF_GetLayer
-{
-    int component_id;
-};
-
-struct CS2VM_HostPayload_IF_SetHide
-{
-    int component_id;
-    bool hidden;
-};
-
-struct CS2VM_HostPayload_IF_SetScrollPos
-{
-    int component_id;
-    int scroll_x;
-    int scroll_y;
-};
-
-struct CS2VM_HostPayload_IF_SetScrollSize
-{
-    int component_id;
-    int scroll_width;
-    int scroll_height;
-};
-
-struct CS2VM_HostPayload_IF_SetOutline
-{
-    int component_id;
-    int outline;
-};
 
 /* Hook string args ('s'/'W'/'X' signature chars). str_arg_mask bit i marks
  * signature position i as a string; strings fill str_args[] in position order
@@ -395,80 +164,12 @@ struct CS2VM_HostPayload_IF_SetOutline
  */
 #define CS2VM_SETON_INT_ARG_MAX 64
 
-struct CS2VM_HostPayload_IF_SetOnVarTransmit
-{
-    int component_id;
-    int script_id;
-    char* signature;
-    int* trigger_ids;
-    int trigger_count;
-    int int_args[CS2VM_SETON_INT_ARG_MAX];
-    int int_arg_count;
-    uint64_t str_arg_mask;
-    int str_arg_count;
-    char str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN];
-};
-
-struct CS2VM_HostPayload_IF_SetOnInvTransmit
-{
-    int component_id;
-    int script_id;
-    char* signature;
-    int* trigger_ids;
-    int trigger_count;
-    int int_args[CS2VM_SETON_INT_ARG_MAX];
-    int int_arg_count;
-    uint64_t str_arg_mask;
-    int str_arg_count;
-    char str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN];
-};
-
-struct CS2VM_HostPayload_IF_SetOnOp
-{
-    int component_id;
-    int script_id;
-    char* signature;
-    int* trigger_ids;
-    int trigger_count;
-    int int_args[CS2VM_SETON_INT_ARG_MAX];
-    int int_arg_count;
-    uint64_t str_arg_mask;
-    int str_arg_count;
-    char str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN];
-};
-
-struct CS2VM_HostPayload_CC_SetOnOp
-{
-    /* Target child: dot ops (operand 1) bind the dot register, plain ops the
-     * active register. Resolved at op-execution time in the VM — the host must
-     * not re-read a register that later ops may have retargeted. */
-    int component_id;
-    int script_id;
-    char* signature;
-    int* trigger_ids;
-    int trigger_count;
-    int int_args[CS2VM_SETON_INT_ARG_MAX];
-    int int_arg_count;
-    uint64_t str_arg_mask;
-    int str_arg_count;
-    char str_args[CS2VM_SETON_STR_ARG_MAX][CS2VM_SETON_STR_ARG_LEN];
-};
-
-struct CS2VM_HostPayload_IF_ClearOps
-{
-    int component_id;
-};
-
 /** IF_CALLONRESIZE — the component whose on-resize listener to run. */
-struct CS2VM_HostPayload_IF_CallOnResize
-{
-    int component_id;
-};
 
 /** CC_TRIGGEROP — the dot/active component whose on_op listener to run, and
  *  the op index to report through it (event_opindex). */
 /**
- * One sound request, shared by all four sound opcodes.
+ * Payload fields used by the four distinct sound opcode requests.
  *
  * Which fields are meaningful depends on `kind`: SYNTH uses id/loops/delay,
  * JINGLE uses id/delay, SONG uses id and the four fade fields, and
@@ -476,221 +177,17 @@ struct CS2VM_HostPayload_IF_CallOnResize
  * scripts and the wire both carry them; the conversion to milliseconds happens
  * where the player is called, so both entry points convert the same way.
  */
-struct CS2VM_HostPayload_Sound
-{
-    int id;
-    int secondary_id;
-    int loops;
-    int delay;
-    int fade_out_delay;
-    int fade_out_speed;
-    int fade_in_delay;
-    int fade_in_speed;
-};
-
-struct CS2VM_HostPayload_CC_TriggerOp
-{
-    int component_id;
-    int op_index;
-};
 
 /** IF_TRIGGEROPLOCAL — component to click and the sub-id that becomes
  *  last_slot (quest id when childIndex was -1 and the signature carried "i"). */
-struct CS2VM_HostPayload_IF_TriggerOpLocal
-{
-    int component_id;
-    int sub;
-};
-
-struct CS2VM_HostPayload_IF_ClearOpSubmenu
-{
-    int component_id;
-    int op_index; /* 1-based */
-};
-
-struct CS2VM_HostPayload_IF_SetOp
-{
-    int component_id;
-    int index;
-    char* text;
-};
-
-struct CS2VM_HostPayload_IF_SetOpBase
-{
-    int component_id;
-    char* text;
-};
 
 /** CC/IF_SETTARGETVERB: the selection verb used when WidgetFlags' target mask
  * is nonzero (for example an object-backed backpack cell's generic action). */
-struct CS2VM_HostPayload_IF_SetTargetVerb
-{
-    int component_id;
-    char* text;
-};
-
-struct CS2VM_HostPayload_IF_SetOpSubmenu
-{
-    int component_id;
-    int sub_index;
-    int op_index;
-    char* text;
-};
-
-struct CS2VM_HostPayload_IF_SetTargetPriority
-{
-    int component_id;
-    int priority;
-};
-
-struct CS2VM_HostPayload_CC_SetPosition
-{
-    int component_id;
-    int x;
-    int y;
-    int xmode;
-    int ymode;
-};
-
-struct CS2VM_HostPayload_CC_SetSize
-{
-    int component_id;
-    int width;
-    int height;
-    int wmode;
-    int hmode;
-};
-
-struct CS2VM_HostPayload_CC_SetGraphic
-{
-    int component_id;
-    int graphic_id;
-};
-
-struct CS2VM_HostPayload_CC_SetTiling
-{
-    int component_id;
-    int tiling;
-};
-
-struct CS2VM_HostPayload_CC_SetOutline
-{
-    int component_id;
-    int outline;
-};
-
-struct CS2VM_HostPayload_CC_SetGraphicShadow
-{
-    int component_id;
-    int shadow;
-};
-
-struct CS2VM_HostPayload_CC_SetColour
-{
-    int component_id;
-    int colour;
-};
-
-struct CS2VM_HostPayload_CC_SetFill
-{
-    int component_id;
-    int filled;
-};
-
-struct CS2VM_HostPayload_CC_SetTrans
-{
-    int component_id;
-    int trans;
-};
-
-struct CS2VM_HostPayload_CC_SetNoClickThrough
-{
-    int component_id;
-    int enabled;
-};
-
-struct CS2VM_HostPayload_CC_SetText
-{
-    int component_id;
-    char* text;
-};
-
-struct CS2VM_HostPayload_CC_SetTextFont
-{
-    int component_id;
-    int font_id;
-};
-
-struct CS2VM_HostPayload_CC_SetTextAlign
-{
-    int component_id;
-    int x_align;
-    int y_align;
-    int line_height;
-};
-
-struct CS2VM_HostPayload_CC_SetTextShadow
-{
-    int component_id;
-    int shadowed;
-};
-
-struct CS2VM_HostPayload_CC_SetDraggable
-{
-    int component_id;
-    int parent_uid;
-    int child_index;
-};
 
 /** IF/CC_DRAGPICKUP — start (or re-target) a component drag with an explicit
  *  grab offset inside the widget. Reference Client.dragTryPickup. */
-struct CS2VM_HostPayload_DragPickup
-{
-    int component_id;
-    int pickup_x;
-    int pickup_y;
-};
-
-struct CS2VM_HostPayload_CC_SetDraggableBehavior
-{
-    int component_id;
-    int behavior;
-};
-
-struct CS2VM_HostPayload_CC_SetDragDeadZone
-{
-    int component_id;
-    int zone;
-};
-
-struct CS2VM_HostPayload_CC_SetDragDeadTime
-{
-    int component_id;
-    int time;
-};
-
-struct CS2VM_HostPayload_CC_SetObject
-{
-    int component_id;
-    int obj_id;
-    int count;
-    /** Count-text mode from which opcode variant ran: 0 = draw when
-     *  stackable (plain SETOBJECT), 1 = always (_ALWAYS_NUM),
-     *  2 = never (_NONUM). */
-    int num_mode;
-};
-
-struct CS2VM_HostPayload_CC_GetId
-{
-    int component_id;
-};
 
 /** CC_GETOP / IF_GETOP: one-based operation slot on the resolved component. */
-struct CS2VM_HostPayload_WidgetGetOp
-{
-    int component_id;
-    int op_index;
-};
 
 /**
  * CC_SETCOMPONENTPARAM's `kind` argument: which stack the value arrived on.
@@ -703,99 +200,22 @@ struct CS2VM_HostPayload_WidgetGetOp
 #define CS2_CC_COMPONENTPARAM_KIND_INT 0
 #define CS2_CC_COMPONENTPARAM_KIND_STRING 2
 
-struct CS2VM_HostPayload_CC_ComponentParam
-{
-    int component_id;
-    int param_id;
-    /** Setter only, and only when `kind` is not STRING. */
-    int value;
-    /** Setter only, and only when `kind` is STRING: the value, owned by the VM's
-     *  string pool, so a host that keeps it must copy it. */
-    char const* str_value;
-    /** Setter only. One of CS2_CC_COMPONENTPARAM_KIND_*. */
-    int kind;
-};
-
-struct CS2VM_HostPayload_IF_SetObject
-{
-    int component_id;
-    int obj_id;
-    int count;
-    /** See CS2VM_HostRequest_CC_SetObject.num_mode. */
-    int num_mode;
-};
-
-struct CS2VM_HostPayload_OC_Param
-{
-    int param_id;
-    int item_id;
-};
-
 /** NC_PARAM (6513) / LC_PARAM (6514): the same shape as OC_PARAM over an npc
  *  or a loc type. `type_id` is the record; the answer is its param, or the
  *  ParamType's default when the record does not carry that key. */
-struct CS2VM_HostPayload_TypeParam
-{
-    int param_id;
-    int type_id;
-};
 
-struct CS2VM_HostPayload_OC_Name
-{
-    int item_id;
-};
-
-struct CS2VM_HostPayload_NC_Name
-{
-    int npc_id;
-};
-
-struct CS2VM_HostPayload_OC_Unplaceholder
-{
-    int item_id;
-};
-
-/** OC_OP/OC_IOP shared payload. `opcode` distinguishes ground vs inventory;
+/** OC_OP/OC_IOP payload fields. `opcode` records ground vs inventory;
  *  `op_index` is the normalized zero-based menu slot (0..4). */
-struct CS2VM_HostPayload_OC_Op
-{
-    int opcode;
-    int item_id;
-    int op_index;
-};
 
-/** OC_FIND/OC_FINDNEXT/OC_FINDRESET shared payload. `opcode` distinguishes which
- *  of the three fired. `query` is OC_FIND's popped search string (NULL for the
+/** OC_FIND/OC_FINDNEXT/OC_FINDRESET payload fields. `opcode` records which of
+ *  the three fired. `query` is OC_FIND's popped search string (NULL for the
  *  other two); it is *borrowed* — still owned by the VM handler, which keeps it
  *  on the stack across a load yield and frees it on completion. */
-struct CS2VM_HostPayload_OC_Find
-{
-    int opcode;
-    char* query;
-};
 
-/** OC_WEARPOS/WEARPOS2/WEARPOS3 shared payload. `opcode` distinguishes which
- *  slot is being asked about. */
-struct CS2VM_HostPayload_OC_WearPos
-{
-    int opcode;
-    int item_id;
-};
+/** OC_WEARPOS/WEARPOS2/WEARPOS3 payload fields. `opcode` records which slot is
+ *  being asked about. */
 
 /** oc_isubop(obj, opIndex, subIndex) -> string. */
-struct CS2VM_HostPayload_OC_Isubop
-{
-    int item_id;
-    int op_index;
-    int sub_index;
-};
-
-struct CS2VM_HostPayload_ParaHeight
-{
-    int font_id;
-    int max_width;
-    char* text;
-};
 
 enum CS2VM_WidgetIntField
 {
@@ -820,144 +240,18 @@ enum CS2VM_WidgetIntField
     CS2VM_WIDGET_INT_RESUME_PAUSEBUTTON,
 };
 
-enum CS2VM_WidgetInputField
-{
-    CS2VM_WIDGET_INPUT_SUBMITMODE,
-    CS2VM_WIDGET_INPUT_SELECTCOLOUR,
-    CS2VM_WIDGET_INPUT_ACCEPTMODE,
-    CS2VM_WIDGET_INPUT_WRAPMODE,
-    CS2VM_WIDGET_INPUT_LINEWRAPPINGWIDTH,
-    CS2VM_WIDGET_INPUT_SELECTBGCOLOUR,
-    CS2VM_WIDGET_INPUT_LINECOUNTLIMIT,
-    CS2VM_WIDGET_INPUT_CURSORCOLOUR,
-    CS2VM_WIDGET_INPUT_CURSORTRANS,
-    CS2VM_WIDGET_INPUT_CURSORWIDTH,
-    CS2VM_WIDGET_INPUT_CURSORHEIGHT,
-    CS2VM_WIDGET_INPUT_CURSOROFFSET,
-    CS2VM_WIDGET_INPUT_LINEWIDTHLIMIT,
-    CS2VM_WIDGET_INPUT_CHARFILTER,
-};
-
-struct CS2VM_HostPayload_WidgetSetInt
-{
-    int component_id;
-    enum CS2VM_WidgetIntField field;
-    int value;
-};
-
-struct CS2VM_HostPayload_WidgetSetInt2
-{
-    int component_id;
-    enum CS2VM_WidgetIntField field;
-    int value_a;
-    int value_b;
-};
-
-struct CS2VM_HostPayload_WidgetSetModelAngle
-{
-    int component_id;
-    int offset_x;
-    int offset_y;
-    int angle_x;
-    int angle_y;
-    int angle_z;
-    int zoom;
-};
-
-struct CS2VM_HostPayload_WidgetSetArc
-{
-    int component_id;
-    int arc_start;
-    int arc_end;
-};
-
-struct CS2VM_HostPayload_WidgetSetModel
-{
-    int component_id;
-    int model_id;
-};
-
-struct CS2VM_HostPayload_WidgetSetModelKind
-{
-    int component_id;
-    enum CS2VM_ModelKind model_kind;
-    int model_id;
-};
-
-struct CS2VM_HostPayload_WidgetInputInt
-{
-    int component_id;
-    enum CS2VM_WidgetInputField field;
-    int value;
-};
-
-struct CS2VM_HostPayload_TargetFind
-{
-    int component_id;
-    int dot_operand;
-};
-
-struct CS2VM_HostPayload_CC_ChildrenFind
-{
-    int parent_id;
-    int start_index;
-};
-
-struct CS2VM_HostPayload_IF_ChildrenFind
-{
-    int uid;
-    int start_index;
-    int dot_operand;
-};
-
-struct CS2VM_HostPayload_StructParam
-{
-    int struct_id;
-    int param_id;
-};
-
-struct CS2VM_HostPayload_OC_IntParam
-{
-    int item_id;
-    enum CS2VM_OC_IntField field;
-};
-
 /** Any 6600..6640 opcode. `arg0`/`arg1` hold its popped int args in push
  *  order (arg0 pushed first), unused ones left at 0. */
-struct CS2VM_HostPayload_WorldMap
-{
-    int opcode;
-    int arg0;
-    int arg1;
-};
 
 /** Any 6693..6699 map element config opcode. */
-struct CS2VM_HostPayload_MEC
-{
-    int opcode;
-    int mec_id;
-};
 
 /** STAT / STAT_BASE / STAT_XP. `stat` is the protocol skill index. */
-struct CS2VM_HostPayload_Stat
-{
-    int stat;
-};
 
 /** CAM_SETFOLLOWHEIGHT payload; the getter carries no args. */
-struct CS2VM_HostPayload_CamSetFollowHeight
-{
-    int height;
-};
 
 /** CAM_FORCEANGLE (5504): snap the orbit camera. `angle_x` is the pitch in the
  *  script's 128..383 units, `angle_y` the yaw in 0..2047 — the same units
  *  CAM_GETANGLE_XA/YA read back. */
-struct CS2VM_HostPayload_CamForceAngle
-{
-    int angle_x;
-    int angle_y;
-};
 
 /** Any HIGHLIGHT_* opcode. `args` holds its popped int args in push order
  *  (args[0] pushed first); the widest variant is any group's SETUP, which pops
@@ -965,24 +259,6 @@ struct CS2VM_HostPayload_CamForceAngle
  *  string argument in the family -- the PLAYER group's name -- is popped and
  *  dropped by the VM rather than carried here: no host state keys on it. */
 #define CS2VM_HIGHLIGHT_ARG_MAX 5
-struct CS2VM_HostPayload_Highlight
-{
-    int opcode;
-    int args[CS2VM_HIGHLIGHT_ARG_MAX];
-    int arg_count;
-    bool query;
-    /**
-     * The subject the PLAYER family's ON / OFF / GET take off the STRING
-     * stack, and NULL for every other form.
-     *
-     * Borrowed from the VM's string pool, like CS2VM_HostRequest_Loot::name:
-     * the pool entry dies with the frame, so a host that keeps it must copy
-     * it. This used to be popped and dropped on the floor, which left
-     * `highlight_player_on(_6900, 5)` -- the mouse-over player highlight --
-     * with no subject to record.
-     */
-    char* name;
-};
 
 /**
  * LOC_FIND (6803) and COORD_INSCENE (6951): the two "is this still there"
@@ -992,12 +268,6 @@ struct CS2VM_HostPayload_Highlight
  * which is what the OVERLAY_LOC_* ops and the `_6800/_6801/_6802` getters then
  * answer about. `loc_type` is unused by COORD_INSCENE.
  */
-struct CS2VM_HostPayload_SubjectFind
-{
-    int opcode;
-    int coord;
-    int loc_type;
-};
 
 /** Widest scripted-entity-overlay op: OVERLAY_COORD_CREATE takes six ints. */
 #define CS2VM_OVERLAY_ARG_MAX 6
@@ -1012,137 +282,62 @@ struct CS2VM_HostPayload_SubjectFind
  * member of the family is implemented. `dot_operand` carries the `.` form for
  * the ops that set the active component. See game/rs_entity_overlay.h.
  */
-struct CS2VM_HostPayload_EntityOverlay
-{
-    int opcode;
-    int args[CS2VM_OVERLAY_ARG_MAX];
-    int arg_count;
-    bool query;
-    int dot_operand;
-};
 
 /** Any MINIMENU_* opcode (7100..7110); they take no args, so only the opcode
  *  distinguishes them. The host pushes the result. */
-struct CS2VM_HostPayload_Minimenu
-{
-    int opcode;
-};
 
 /** Any volume / *OPTION_* opcode (3203..3217). `option_id` is the option key for
  *  the CLIENT/GAME/DEVICE families (0 for the direct volume ops); `value` is the
  *  SET payload (unused by the getters). The host pushes getter results. */
-struct CS2VM_HostPayload_ClientOption
-{
-    int opcode;
-    int option_id;
-    int value;
-};
 
 /** Any minimap zoom opcode (7250..7254). `value` is the setters' popped arg
  *  (unused by GETZOOM, which the host answers). */
-struct CS2VM_HostPayload_Minimap
-{
-    int opcode;
-    int value;
-};
 
 /** Any local-notification opcode (3170..3173). Only LOCAL_NOTIFICATION fills the
  *  payload; CANCEL uses `id` alone, and CANCELALL/SUPPORTED carry nothing. The
  *  strings are borrowed for the duration of the call — the op frees them. */
-struct CS2VM_HostPayload_LocalNotification
-{
-    int opcode;
-    int id;
-    int delay_ms;
-    char const* title;
-    char const* body;
-};
 
 /** Any VIEWPORT_* opcode (6200..6205). `args` holds the popped ints in push
  *  order (SETFOV/SETZOOM pop 2, CLAMPFOV pops 4, the GETs pop none). */
 #define CS2VM_VIEWPORT_ARG_MAX 4
-struct CS2VM_HostPayload_Viewport
-{
-    int opcode;
-    int args[CS2VM_VIEWPORT_ARG_MAX];
-    int arg_count;
-};
 
 /** Any UIZOOM_* opcode (6210..6214). `value` is UIZOOM_SET's popped arg (unused
  *  by the others). */
-struct CS2VM_HostPayload_UiZoom
-{
-    int opcode;
-    int value;
-};
 
 /** Any SAFEAREA_* opcode (6220..6223, 6231); no args to carry. */
-struct CS2VM_HostPayload_SafeArea
-{
-    int opcode;
-};
 
 /** Any CLIENTOP_* opcode (6700..6709). SET carries slot + script_id + label;
  *  DEL carries only slot (`is_set` false, label NULL, script_id unused). */
-struct CS2VM_HostPayload_ClientOp
-{
-    int opcode;
-    bool is_set;
-    int slot;
-    int script_id;
-    char* label;
-};
 
 /** A client-op context getter. The opcode is the whole request: these take no
  *  arguments and the host pushes the answer. */
-struct CS2VM_HostPayload_ClientOpContext
-{
-    int opcode;
-};
 
 /** 6902..6905. `index` is `_6903`'s route index and -1 for the three forms
  *  that pop nothing. */
-struct CS2VM_HostPayload_ActivePlayer
-{
-    int opcode;
-    int index;
-};
 
 /** Any loot-tracker opcode (7400-family + 7600-family). `name` is borrowed
  *  from the VM's string pool for the ops that pop a string; the host must
  *  copy it if kept. `int_args` hold remaining int arguments in pop order. */
-struct CS2VM_HostPayload_Loot
-{
-    int opcode;
-    char* name;
-    int int_args[4];
-    int int_arg_count;
-};
 
 /** Any hiscores opcode (7809/7811). Only the opcode distinguishes them. */
-struct CS2VM_HostPayload_Hiscores
-{
-    int opcode;
-};
 
 /** SETWINDOWMODE / SETDEFAULTWINDOWMODE payload: one enum CS2VM_WindowMode. */
-struct CS2VM_HostPayload_WindowMode
-{
-    int mode;
-};
 
 /*
- * Every request has its own public payload identity. Layout structs above are
- * implementation details only; exact request structs and union arms are
- * generated from the canonical opcode-ordered manifest.
+ * Every hosted opcode has its own public struct and union arm. The final
+ * manifest argument is a parenthesized declaration list expanded directly
+ * into that opcode's named request struct; no shared public request type
+ * exists.
  */
-#define CS2VM_HOST_REQUEST_KIND(name, opcode, layout) \
+#define CS2VM_HOST_REQUEST_FIELDS(...) __VA_ARGS__
+#define CS2VM_HOST_REQUEST_KIND(name, opcode, fields) \
     struct CS2VM_HostRequest_##name                  \
     {                                                 \
-        struct CS2VM_HostPayload_##layout payload;    \
+        CS2VM_HOST_REQUEST_FIELDS fields              \
     };
 #include "cs2vm2_host_request_kinds.def"
 #undef CS2VM_HOST_REQUEST_KIND
+#undef CS2VM_HOST_REQUEST_FIELDS
 
 struct CS2VM_HostRequest
 {
@@ -1150,7 +345,8 @@ struct CS2VM_HostRequest
 
     union
     {
-#define CS2VM_HOST_REQUEST_KIND(name, opcode, layout) struct CS2VM_HostRequest_##name name;
+#define CS2VM_HOST_REQUEST_KIND(name, opcode, fields) \
+    struct CS2VM_HostRequest_##name name;
 #include "cs2vm2_host_request_kinds.def"
 #undef CS2VM_HOST_REQUEST_KIND
     } u;

@@ -41,7 +41,7 @@ struct RecordingHost
 {
     int calls;
     enum CS2VM_HostRequestKind kind;
-    struct CS2VM_HostRequest_IF_TriggerOpLocal trig;
+    struct CS2VM_HostRequest_IF_TRIGGEROPLOCAL trig;
 };
 
 static int
@@ -52,7 +52,7 @@ recording_host_exec(
     struct RecordingHost* host = (struct RecordingHost*)thread->vm->user;
     host->calls++;
     host->kind = request->kind;
-    host->trig = request->u.if_triggeroplocal;
+    host->trig = request->u.IF_TRIGGEROPLOCAL;
     return CS2VM_EXECNO_OK;
 }
 
@@ -119,7 +119,10 @@ main(void)
         CHECK_INT(
             (int)host.kind, (int)CS2VM_HOST_REQUEST_IF_TRIGGEROPLOCAL, "request kind");
         CHECK_INT(host.trig.component_id, trigger, "component is the trigger");
-        CHECK_INT(host.trig.sub, quest_id, "sub is the typed quest id when childIndex is -1");
+        CHECK_INT(
+            host.trig.sub,
+            quest_id,
+            "sub is the typed quest id when childIndex is -1");
     }
 
     /* childIndex set → sub is childIndex, typed int ignored for the packet. */
