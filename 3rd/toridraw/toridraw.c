@@ -428,12 +428,7 @@ toridraw_render_contexts_free(struct ToriDraw_Scene* scene)
 {
     assert(!scene->active_render_context);
     assert(scene->nested_render_contexts_used == 0);
-
-    /* Construction can fail in the older sort-workspace allocations before
-     * the mandatory context pool is reached; teardown must accept that
-     * partially initialized scene. Runtime acquisition never does. */
-    if( !scene->render_contexts )
-        return;
+    assert(scene->render_contexts && "render context pool missing at SceneFree");
 
     for( int i = 0; i < TORIDRAW_NESTED_RENDER_CONTEXTS; i++ )
         toridraw_render_context_release_buffers(&scene->render_contexts[i]);
@@ -478,7 +473,7 @@ ToriDraw_SceneFreeBuffers(struct ToriDraw_Scene* scene)
     memset(scene, 0, sizeof(*scene));
 }
 
-static bool
+static void
 ToriDraw_SceneAllocBuffers(
     struct ToriDraw_Scene* scene,
     const struct ToriDraw_SceneCaps* caps)
@@ -520,10 +515,14 @@ ToriDraw_SceneAllocBuffers(
         scene->sm_flex_prio12_face_to_depth =
             malloc((size_t)caps->flex_prio12 * sizeof(int));
 
-        if( !scene->sm_face_depth || !scene->sm_depth_offset || !scene->sm_depth_cursor ||
-            !scene->sm_faces_by_depth || !scene->sm_prio_offset || !scene->sm_prio_faces ||
-            !scene->sm_flex_prio11_face_to_depth || !scene->sm_flex_prio12_face_to_depth )
-            return false;
+        assert(scene->sm_face_depth);
+        assert(scene->sm_depth_offset);
+        assert(scene->sm_depth_cursor);
+        assert(scene->sm_faces_by_depth);
+        assert(scene->sm_prio_offset);
+        assert(scene->sm_prio_faces);
+        assert(scene->sm_flex_prio11_face_to_depth);
+        assert(scene->sm_flex_prio12_face_to_depth);
     }
     else
     {
@@ -539,11 +538,13 @@ ToriDraw_SceneAllocBuffers(
         scene->tmp_flex_prio12_face_to_depth =
             malloc((size_t)caps->flex_prio12 * sizeof(int));
 
-        if( !scene->tmp_depth_face_count || !scene->tmp_depth_faces ||
-            !scene->tmp_priority_face_count || !scene->tmp_priority_depth_sum ||
-            !scene->tmp_priority_faces || !scene->tmp_flex_prio11_face_to_depth ||
-            !scene->tmp_flex_prio12_face_to_depth )
-            return false;
+        assert(scene->tmp_depth_face_count);
+        assert(scene->tmp_depth_faces);
+        assert(scene->tmp_priority_face_count);
+        assert(scene->tmp_priority_depth_sum);
+        assert(scene->tmp_priority_faces);
+        assert(scene->tmp_flex_prio11_face_to_depth);
+        assert(scene->tmp_flex_prio12_face_to_depth);
     }
 
     toridraw_render_contexts_allocate(scene);
@@ -553,8 +554,6 @@ ToriDraw_SceneAllocBuffers(
         scene->tex_state = calloc(1, sizeof(struct ToriDraw_TextureState));
         assert(scene->tex_state);
     }
-
-    return true;
 }
 
 bool
@@ -732,12 +731,7 @@ ToriDraw_SceneNew(
     /* Build on first query rather than reporting an empty list. */
     scene->anim_list_dirty = true;
 
-    if( !ToriDraw_SceneAllocBuffers(scene, &caps) )
-    {
-        ToriDraw_SceneFreeBuffers(scene);
-        free(scene);
-        return NULL;
-    }
+    ToriDraw_SceneAllocBuffers(scene, &caps);
 
     if( !ToriDraw_SceneGraphInit(scene) )
     {
