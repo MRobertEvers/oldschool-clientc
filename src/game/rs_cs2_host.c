@@ -77,6 +77,30 @@ torirs_cc_debug(void)
  */
 #define RS_CS2_UIZOOM_DEFAULT RS_CS2_UI_SCALE_MIN
 
+/*
+ * Select the public payload through the request's exact opcode arm.  Shared
+ * CS2VM_HostPayload_* layouts are private implementation details; no consumer
+ * may recover a layout by naming some other opcode's union member.
+ */
+static void const*
+rs_cs2_exact_payload(struct CS2VM_HostRequest const* request)
+{
+    assert(request);
+    switch( request->kind )
+    {
+#define CS2VM_HOST_REQUEST_KIND(name, opcode, layout) \
+    case CS2VM_HOST_REQUEST_##name:                    \
+        return &request->u.name.payload;
+#include "cs2vm2/cs2vm2_host_request_kinds.def"
+#undef CS2VM_HOST_REQUEST_KIND
+    }
+    assert(0 && "unknown exact CS2 host-request kind");
+    return NULL;
+}
+
+#define RS_CS2_PAYLOAD(request, layout) \
+    ((struct CS2VM_HostPayload_##layout const*)rs_cs2_exact_payload(request))
+
 /* =========================================================================
  * Helpers
  * ========================================================================= */
@@ -1286,7 +1310,7 @@ static void
 rs_cs2_sound_push(
     struct RS_CS2Host* host,
     int kind,
-    const struct CS2VM_HostRequest_Sound* sound)
+    const struct CS2VM_HostPayload_Sound* sound)
 {
     int slot;
 
@@ -1928,6 +1952,7 @@ static int
 exec_inv_size(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest const* exact_request,
     int inv_id)
 {
     struct CacheProvider* provider;
@@ -1948,11 +1973,8 @@ exec_inv_size(
      * instead of yielding forever. */
     if( inv_id >= 0 )
     {
-        struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_INV_SIZE;
-        req.u.invs_get_size.inv_id = inv_id;
-        if( !rs_cs2_await_spent(thread, req.kind, inv_id, -1) )
-            return rs_cs2_yield_load(host, thread, &req, inv_id, -1);
+        if( !rs_cs2_await_spent(thread, exact_request->kind, inv_id, -1) )
+            return rs_cs2_yield_load(host, thread, exact_request, inv_id, -1);
     }
     return CS2VM2_PushInt(thread, 0);
 }
@@ -2010,6 +2032,7 @@ static int
 exec_push_script(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
+    struct CS2VM_HostRequest const* exact_request,
     int script_id)
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
@@ -2019,17 +2042,14 @@ exec_push_script(
         script = CacheProvider_ClientScriptGet(provider, script_id);
     if( !script )
     {
-        struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS;
-        req.u.push_script.script_id = script_id;
-        if( rs_cs2_await_spent(thread, req.kind, script_id, -1) )
+        if( rs_cs2_await_spent(thread, exact_request->kind, script_id, -1) )
         {
             /* No degrade possible: the caller expects this script's return
              * values on the stack and we cannot synthesise them. */
             fprintf(stderr, "RS_CS2Host: script %d failed to load\n", script_id);
             return CS2VM_EXECNO_ERROR;
         }
-        return rs_cs2_yield_load(host, thread, &req, script_id, -1);
+        return rs_cs2_yield_load(host, thread, exact_request, script_id, -1);
     }
     return CS2VM2_PushCallScript(thread, script);
 }
@@ -2038,7 +2058,8 @@ static int
 exec_para_height(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_ParaHeight request,
+    struct CS2VM_HostRequest const* exact_request,
+    struct CS2VM_HostPayload_ParaHeight request,
     int is_width)
 {
     int result = 0;
@@ -2050,12 +2071,10 @@ exec_para_height(
                                   : NULL;
         if( !font )
         {
-            struct CS2VM_HostRequest req = { 0 };
-            req.kind = is_width ? CS2VM_HOST_REQUEST_PARAWIDTH : CS2VM_HOST_REQUEST_PARAHEIGHT;
-            req.u.para_height = request;
             /* Font still missing after its load: measure as 0. */
-            if( !rs_cs2_await_spent(thread, req.kind, request.font_id, -1) )
-                return rs_cs2_yield_load(host, thread, &req, request.font_id, -1);
+            if( !rs_cs2_await_spent(thread, exact_request->kind, request.font_id, -1) )
+                return rs_cs2_yield_load(
+                    host, thread, exact_request, request.font_id, -1);
         }
         else
         {
@@ -2177,8 +2196,8 @@ static int
 exec_enum_lookup(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_EnumLookup request,
-    enum CS2VM_HostRequestKind kind)
+    struct CS2VM_HostRequest const* exact_request,
+    struct CS2VM_HostPayload_EnumLookup request)
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
     struct ToriRS_Enum* e = provider ? CacheProvider_EnumGet(provider, request.enum_id) : NULL;
@@ -2192,11 +2211,9 @@ exec_enum_lookup(
          * yielding would queue a load for a negative id, which asserts. */
         if( request.enum_id >= 0 )
         {
-            struct CS2VM_HostRequest req = { 0 };
-            req.kind = kind;
-            req.u.enum_lookup = request;
-            if( !rs_cs2_await_spent(thread, req.kind, request.enum_id, -1) )
-                return rs_cs2_yield_load(host, thread, &req, request.enum_id, -1);
+            if( !rs_cs2_await_spent(thread, exact_request->kind, request.enum_id, -1) )
+                return rs_cs2_yield_load(
+                    host, thread, exact_request, request.enum_id, -1);
         }
         /* Enum still missing after its load: answer like a key that misses. */
         if( request.output_type == (int)'s' )
@@ -2236,8 +2253,8 @@ static int
 exec_worldmap(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_WorldMap request,
-    enum CS2VM_HostRequestKind kind)
+    struct CS2VM_HostRequest const* exact_request,
+    struct CS2VM_HostPayload_WorldMap request)
 {
     struct RS_WorldMapState* map = host->worldmap;
     struct ToriRS_WorldMapArea* area;
@@ -2252,11 +2269,8 @@ exec_worldmap(
      * this cache has no world map and every getter answers "nothing". */
     if( !RS_WorldMap_Sync(map) )
     {
-        struct CS2VM_HostRequest req = { 0 };
-        req.kind = kind;
-        req.u.worldmap = request;
-        if( !rs_cs2_await_spent(thread, req.kind, -1, -1) )
-            return rs_cs2_yield_load(host, thread, &req, -1, -1);
+        if( !rs_cs2_await_spent(thread, exact_request->kind, -1, -1) )
+            return rs_cs2_yield_load(host, thread, exact_request, -1, -1);
     }
 
     switch( request.opcode )
@@ -2465,8 +2479,8 @@ static int
 exec_mec(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_MEC request,
-    enum CS2VM_HostRequestKind kind)
+    struct CS2VM_HostRequest const* exact_request,
+    struct CS2VM_HostPayload_MEC request)
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
     struct ToriRS_MapElement* element =
@@ -2474,11 +2488,8 @@ exec_mec(
 
     if( !element )
     {
-        struct CS2VM_HostRequest req = { 0 };
-        req.kind = kind;
-        req.u.mec = request;
-        if( !rs_cs2_await_spent(thread, req.kind, request.mec_id, -1) )
-            return rs_cs2_yield_load(host, thread, &req, request.mec_id, -1);
+        if( !rs_cs2_await_spent(thread, exact_request->kind, request.mec_id, -1) )
+            return rs_cs2_yield_load(host, thread, exact_request, request.mec_id, -1);
         /* Still missing after its load: answer as the reference does for an
          * absent map element config. */
         if( request.opcode == CS2_OP_MEC_TEXT )
@@ -2680,7 +2691,7 @@ static int
 exec_client_option(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_ClientOption request)
+    struct CS2VM_HostPayload_ClientOption request)
 {
     switch( request.opcode )
     {
@@ -2779,7 +2790,7 @@ exec_client_option(
 static int
 exec_local_notification(
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_LocalNotification request)
+    struct CS2VM_HostPayload_LocalNotification request)
 {
     switch( request.opcode )
     {
@@ -2806,7 +2817,7 @@ static int
 exec_minimap(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_Minimap request)
+    struct CS2VM_HostPayload_Minimap request)
 {
     switch( request.opcode )
     {
@@ -2930,7 +2941,7 @@ static int
 exec_viewport(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_Viewport request)
+    struct CS2VM_HostPayload_Viewport request)
 {
     switch( request.opcode )
     {
@@ -3047,7 +3058,7 @@ static int
 exec_uizoom(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_UiZoom request)
+    struct CS2VM_HostPayload_UiZoom request)
 {
     switch( request.opcode )
     {
@@ -3320,7 +3331,7 @@ rs_cs2_settings_apply_client_layout(
 static int
 exec_safearea(
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_SafeArea request)
+    struct CS2VM_HostPayload_SafeArea request)
 {
     switch( request.opcode )
     {
@@ -3342,7 +3353,8 @@ static int
 exec_enum_output_count(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_EnumGetOutputCount request)
+    struct CS2VM_HostRequest const* exact_request,
+    struct CS2VM_HostPayload_EnumGetOutputCount request)
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
     struct ToriRS_Enum* e = provider ? CacheProvider_EnumGet(provider, request.enum_id) : NULL;
@@ -3352,11 +3364,9 @@ exec_enum_output_count(
          * archive to wait for. */
         if( request.enum_id >= 0 )
         {
-            struct CS2VM_HostRequest req = { 0 };
-            req.kind = CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT;
-            req.u.enum_get_output_count = request;
-            if( !rs_cs2_await_spent(thread, req.kind, request.enum_id, -1) )
-                return rs_cs2_yield_load(host, thread, &req, request.enum_id, -1);
+            if( !rs_cs2_await_spent(thread, exact_request->kind, request.enum_id, -1) )
+                return rs_cs2_yield_load(
+                    host, thread, exact_request, request.enum_id, -1);
         }
         /* Enum still missing after its load: an empty enum has no outputs. */
         return CS2VM2_PushInt(thread, 0);
@@ -3368,8 +3378,8 @@ static int
 exec_struct_param(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_StructParam request,
-    enum CS2VM_HostRequestKind kind)
+    struct CS2VM_HostRequest const* exact_request,
+    struct CS2VM_HostPayload_StructParam request)
 {
     bool is_string = false;
     int intval = 0;
@@ -3388,11 +3398,10 @@ exec_struct_param(
      * never awaited, it just falls through to the param default. */
     if( (!s && request.struct_id >= 0) || (!param && request.param_id >= 0) )
     {
-        struct CS2VM_HostRequest req = { 0 };
-        req.kind = kind;
-        req.u.struct_param = request;
-        if( !rs_cs2_await_spent(thread, req.kind, request.struct_id, request.param_id) )
-            return rs_cs2_yield_load(host, thread, &req, request.struct_id, request.param_id);
+        if( !rs_cs2_await_spent(
+                thread, exact_request->kind, request.struct_id, request.param_id) )
+            return rs_cs2_yield_load(
+                host, thread, exact_request, request.struct_id, request.param_id);
         /* Still missing after the load: complete with whatever did arrive. */
     }
 
@@ -3426,7 +3435,8 @@ static int
 exec_cc_getcomponentparam(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_CC_ComponentParam request)
+    struct CS2VM_HostRequest const* exact_request,
+    struct CS2VM_HostPayload_CC_ComponentParam request)
 {
     struct UITree* tree = rs_cs2_tree(host);
     int value = 0;
@@ -3438,11 +3448,9 @@ exec_cc_getcomponentparam(
         provider ? CacheProvider_ParamGet(provider, request.param_id) : NULL;
     if( !param && request.param_id >= 0 )
     {
-        struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM;
-        req.u.cc_component_param = request;
-        if( !rs_cs2_await_spent(thread, req.kind, -1, request.param_id) )
-            return rs_cs2_yield_load(host, thread, &req, -1, request.param_id);
+        if( !rs_cs2_await_spent(thread, exact_request->kind, -1, request.param_id) )
+            return rs_cs2_yield_load(
+                host, thread, exact_request, -1, request.param_id);
         /* Still missing after the load: 0 is the answer a param-less id gets. */
     }
     return CS2VM2_PushInt(thread, param && !param->is_string ? param->default_int : 0);
@@ -3460,7 +3468,7 @@ static int
 exec_if_getcomponentparam(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_CC_ComponentParam request)
+    struct CS2VM_HostPayload_CC_ComponentParam request)
 {
     struct UITree* tree = rs_cs2_tree(host);
     int value = 0;
@@ -3474,7 +3482,8 @@ static int
 exec_oc_param(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_OC_Param request)
+    struct CS2VM_HostRequest const* exact_request,
+    struct CS2VM_HostPayload_OC_Param request)
 {
     bool is_string = false;
     int intval = 0;
@@ -3491,11 +3500,10 @@ exec_oc_param(
      * never awaited — the param default answers it. */
     if( (!obj && request.item_id >= 0) || (!param && request.param_id >= 0) )
     {
-        struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_OC_PARAM;
-        req.u.oc_param = request;
-        if( !rs_cs2_await_spent(thread, req.kind, request.item_id, request.param_id) )
-            return rs_cs2_yield_load(host, thread, &req, request.item_id, request.param_id);
+        if( !rs_cs2_await_spent(
+                thread, exact_request->kind, request.item_id, request.param_id) )
+            return rs_cs2_yield_load(
+                host, thread, exact_request, request.item_id, request.param_id);
         /* Still missing after the load: complete with whatever did arrive. */
     }
 
@@ -3525,7 +3533,8 @@ static int
 exec_type_param(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_TypeParam request,
+    struct CS2VM_HostRequest const* exact_request,
+    struct CS2VM_HostPayload_TypeParam request,
     bool is_npc)
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
@@ -3561,11 +3570,10 @@ exec_type_param(
 
     if( (!have_record && request.type_id >= 0) || (!param && request.param_id >= 0) )
     {
-        struct CS2VM_HostRequest req = { 0 };
-        req.kind = is_npc ? CS2VM_HOST_REQUEST_NC_PARAM : CS2VM_HOST_REQUEST_LC_PARAM;
-        req.u.nc_param = request;
-        if( !rs_cs2_await_spent(thread, req.kind, request.type_id, request.param_id) )
-            return rs_cs2_yield_load(host, thread, &req, request.type_id, request.param_id);
+        if( !rs_cs2_await_spent(
+                thread, exact_request->kind, request.type_id, request.param_id) )
+            return rs_cs2_yield_load(
+                host, thread, exact_request, request.type_id, request.param_id);
         /* Still missing after the load: complete with whatever did arrive. */
     }
 
@@ -3592,7 +3600,7 @@ static int
 exec_oc_int_param(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_OC_IntParam request,
+    struct CS2VM_HostPayload_OC_IntParam request,
     enum CS2VM_HostRequestKind kind)
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
@@ -3637,7 +3645,7 @@ static int
 exec_oc_name(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_OC_Name request)
+    struct CS2VM_HostPayload_OC_Name request)
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
     struct ToriRS_Objtype* obj =
@@ -3667,7 +3675,7 @@ static int
 exec_nc_name(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_NC_Name request)
+    struct CS2VM_HostPayload_NC_Name request)
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
     struct ToriRS_Npctype* npc =
@@ -3707,7 +3715,7 @@ static int
 exec_oc_placeholder_pair(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_OC_Unplaceholder request,
+    struct CS2VM_HostPayload_OC_Unplaceholder request,
     enum CS2VM_HostRequestKind kind)
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
@@ -3745,7 +3753,7 @@ static int
 exec_oc_unplaceholder(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_OC_Unplaceholder request)
+    struct CS2VM_HostPayload_OC_Unplaceholder request)
 {
     return exec_oc_placeholder_pair(
         host, thread, request, CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER);
@@ -3757,7 +3765,7 @@ static int
 exec_oc_op(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_OC_Op request)
+    struct CS2VM_HostPayload_OC_Op request)
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
     struct ToriRS_Objtype* obj =
@@ -3791,7 +3799,7 @@ static int
 exec_oc_examine(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_OC_Name request)
+    struct CS2VM_HostPayload_OC_Name request)
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
     struct ToriRS_Objtype* obj =
@@ -3817,7 +3825,7 @@ static int
 exec_oc_placeholder(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_OC_Unplaceholder request)
+    struct CS2VM_HostPayload_OC_Unplaceholder request)
 {
     return exec_oc_placeholder_pair(host, thread, request, CS2VM_HOST_REQUEST_OC_PLACEHOLDER);
 }
@@ -3856,7 +3864,7 @@ static int
 exec_oc_find(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_OC_Find request,
+    struct CS2VM_HostPayload_OC_Find request,
     enum CS2VM_HostRequestKind kind)
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
@@ -3940,7 +3948,7 @@ static int
 exec_oc_shiftclickiop(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_OC_Name request)
+    struct CS2VM_HostPayload_OC_Name request)
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
     struct ToriRS_Objtype* obj = NULL;
@@ -3986,7 +3994,7 @@ exec_oc_shiftclickiop(
 static int
 exec_oc_wearpos(
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_OC_WearPos request)
+    struct CS2VM_HostPayload_OC_WearPos request)
 {
     (void)request;
     return CS2VM2_PushInt(thread, -1);
@@ -3996,7 +4004,7 @@ exec_oc_wearpos(
 static int
 exec_oc_weight(
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_OC_Name request)
+    struct CS2VM_HostPayload_OC_Name request)
 {
     (void)request;
     return CS2VM2_PushInt(thread, 0);
@@ -4007,7 +4015,7 @@ exec_oc_weight(
 static int
 exec_oc_isubop(
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_OC_Isubop request)
+    struct CS2VM_HostPayload_OC_Isubop request)
 {
     (void)request;
     return CS2VM2_PushStr(thread, CS2VM2_StrEmpty(thread));
@@ -4017,7 +4025,7 @@ static int
 exec_set_graphic(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_CC_SetGraphic request,
+    struct CS2VM_HostPayload_CC_SetGraphic request,
     enum CS2VM_HostRequestKind kind)
 {
     struct UITree* tree = rs_cs2_tree(host);
@@ -4248,7 +4256,7 @@ static int
 exec_set_text_font(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_CC_SetTextFont request,
+    struct CS2VM_HostPayload_CC_SetTextFont request,
     enum CS2VM_HostRequestKind kind)
 {
     (void)thread;
@@ -4281,7 +4289,7 @@ static int
 exec_cc_copy(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest_CC_Copy request)
+    struct CS2VM_HostPayload_CC_Copy request)
 {
     struct UITree* tree = rs_cs2_tree(host);
     int const parent_id = request.parent_id;
@@ -4417,7 +4425,7 @@ static int
 exec_entity_overlay(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest_EntityOverlay request)
+    struct CS2VM_HostPayload_EntityOverlay request)
 {
     struct UITree* tree = rs_cs2_tree(host);
     int const* a = request.args;
@@ -4595,7 +4603,7 @@ static int
 exec_subject_find(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest_SubjectFind request)
+    struct CS2VM_HostPayload_SubjectFind request)
 {
     assert(host);
 
@@ -4648,7 +4656,7 @@ static int
 exec_cc_create(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest_CC_Create request,
+    struct CS2VM_HostPayload_CC_Create request,
     enum CS2VM_HostRequestKind kind)
 {
     struct UITree* tree = rs_cs2_tree(host);
@@ -4719,7 +4727,7 @@ static int
 exec_cc_find(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest_CC_Find request,
+    struct CS2VM_HostPayload_CC_Find request,
     enum CS2VM_HostRequestKind kind)
 {
     struct UITree* tree = rs_cs2_tree(host);
@@ -4758,7 +4766,7 @@ static int
 exec_if_find(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest_TargetFind request)
+    struct CS2VM_HostPayload_TargetFind request)
 {
     int found = 0;
     int yield_res;
@@ -4829,7 +4837,7 @@ static int
 exec_widget_set_model(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest_WidgetSetModel request,
+    struct CS2VM_HostPayload_WidgetSetModel request,
     enum CS2VM_HostRequestKind kind)
 {
     if( request.model_id >= 0 && !rs_cs2_model_ready(host, request.model_id) )
@@ -4856,7 +4864,7 @@ static int
 exec_widget_set_model_kind(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest_WidgetSetModelKind request,
+    struct CS2VM_HostPayload_WidgetSetModelKind request,
     enum CS2VM_HostRequestKind kind)
 {
 #if UITREE_CLICK_DEBUG
@@ -4949,7 +4957,7 @@ static int
 exec_widget_set_int(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest_WidgetSetInt request,
+    struct CS2VM_HostPayload_WidgetSetInt request,
     enum CS2VM_HostRequestKind kind)
 {
     struct UITreeComponent* node = rs_cs2_node(host, request.component_id);
@@ -5067,7 +5075,7 @@ static int
 exec_widget_set_arc(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest_WidgetSetArc request)
+    struct CS2VM_HostPayload_WidgetSetArc request)
 {
     struct UITree* tree = rs_cs2_tree(host);
     int32_t idx;
@@ -5087,7 +5095,7 @@ static int
 exec_widget_set_model_angle(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest_WidgetSetModelAngle request)
+    struct CS2VM_HostPayload_WidgetSetModelAngle request)
 {
     struct UITree* tree = rs_cs2_tree(host);
     int32_t idx;
@@ -5444,7 +5452,7 @@ RS_CS2_RegisterCacheTransmitHooks(
 static int
 exec_set_on_inv_transmit(
     struct RS_CS2Host* host,
-    struct CS2VM_HostRequest_IF_SetOnInvTransmit const* request)
+    struct CS2VM_HostPayload_IF_SetOnInvTransmit const* request)
 {
     struct RS_CS2InvTransmitHook* hook;
     assert(host);
@@ -5856,7 +5864,7 @@ rs_cs2_copy_transmit_triggers(
 static int
 exec_set_on_stat_transmit(
     struct RS_CS2Host* host,
-    struct CS2VM_HostRequest_IF_SetOnVarTransmit const* request)
+    struct CS2VM_HostPayload_IF_SetOnVarTransmit const* request)
 {
     struct RS_CS2StatTransmitHook* hook;
 
@@ -5880,7 +5888,7 @@ exec_set_on_stat_transmit(
 static int
 exec_set_on_var_transmit(
     struct RS_CS2Host* host,
-    struct CS2VM_HostRequest_IF_SetOnVarTransmit const* request)
+    struct CS2VM_HostPayload_IF_SetOnVarTransmit const* request)
 {
     struct RS_CS2VarTransmitHook* hook;
     assert(host);
@@ -5924,7 +5932,7 @@ exec_set_on_cc_transmit(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
     enum CS2VM_HostRequestKind kind,
-    struct CS2VM_HostRequest_CC_SetOnOp const* request)
+    struct CS2VM_HostPayload_CC_SetOnOp const* request)
 {
     int component_id;
 
@@ -6187,7 +6195,7 @@ static int
 exec_set_on_if_event(
     struct RS_CS2Host* host,
     enum CS2VM_HostRequestKind kind,
-    struct CS2VM_HostRequest_IF_SetOnOp const* request)
+    struct CS2VM_HostPayload_IF_SetOnOp const* request)
 {
     struct UITree* tree;
     struct UITreeComponent* node;
@@ -6241,7 +6249,7 @@ exec_set_on_cc_event(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
     enum CS2VM_HostRequestKind kind,
-    struct CS2VM_HostRequest_CC_SetOnOp const* request)
+    struct CS2VM_HostPayload_CC_SetOnOp const* request)
 {
     struct UITree* tree;
     struct UITreeComponent* node;
@@ -6925,7 +6933,7 @@ static int
 exec_loot(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest_Loot const* req)
+    struct CS2VM_HostPayload_Loot const* req)
 {
     struct LootStore* loot = host->loot;
     assert(loot && "host->loot must be non-NULL when loot ops are reached");
@@ -7105,7 +7113,7 @@ static int
 exec_hiscores(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest_Hiscores const* req)
+    struct CS2VM_HostPayload_Hiscores const* req)
 {
     (void)host;
 
@@ -7135,7 +7143,7 @@ static int
 exec_social(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest_Social const* req)
+    struct CS2VM_HostPayload_Social const* req)
 {
     struct RS_Social* social = host->social;
     char name[RS_SOCIAL_NAME_LEN];
@@ -7235,7 +7243,7 @@ static int
 exec_chat(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest_Chat const* req)
+    struct CS2VM_HostPayload_Chat const* req)
 {
     int* modes = host->chat_filter_mode;
 
@@ -7526,32 +7534,32 @@ rs_cs2_host_exec_dispatch(
     switch( request->kind )
     {
     case CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS:
-        return exec_push_script(host, vm, request->u.push_script.script_id);
+        return exec_push_script(host, vm, RS_CS2_PAYLOAD(request, PushScript)->script_id);
 
     case CS2VM_HOST_REQUEST_INV_SIZE:
-        return exec_inv_size(host, vm, request->u.invs_get_size.inv_id);
+        return exec_inv_size(host, vm, RS_CS2_PAYLOAD(request, InvSize)->inv_id);
 
     case CS2VM_HOST_REQUEST_INV_GETOBJ:
         return CS2VM2_PushInt(
             vm,
-            rs_cs2_inv_get_obj(host, request->u.invs_get_obj.inv_id, request->u.invs_get_obj.slot));
+            rs_cs2_inv_get_obj(host, RS_CS2_PAYLOAD(request, InvGetObj)->inv_id, RS_CS2_PAYLOAD(request, InvGetObj)->slot));
 
     case CS2VM_HOST_REQUEST_INV_GETNUM:
         return CS2VM2_PushInt(
             vm,
-            rs_cs2_inv_get_num(host, request->u.invs_get_num.inv_id, request->u.invs_get_num.slot));
+            rs_cs2_inv_get_num(host, RS_CS2_PAYLOAD(request, InvGetNum)->inv_id, RS_CS2_PAYLOAD(request, InvGetNum)->slot));
 
     case CS2VM_HOST_REQUEST_INV_TOTAL:
         return CS2VM2_PushInt(
             vm,
             rs_cs2_inv_total(
-                host, request->u.invs_get_total.inv_id, request->u.invs_get_total.item_id));
+                host, RS_CS2_PAYLOAD(request, InvTotal)->inv_id, RS_CS2_PAYLOAD(request, InvTotal)->item_id));
 
     case CS2VM_HOST_REQUEST_PUSH_VAR:
-        return exec_vars_read_varp(host, vm, request->u.vars_read_varp.varp_id);
+        return exec_vars_read_varp(host, vm, RS_CS2_PAYLOAD(request, VarsReadVarp)->varp_id);
 
     case CS2VM_HOST_REQUEST_PUSH_VARBIT:
-        return exec_vars_read_varbit(host, vm, request->u.vars_read_varbit.varbit_id);
+        return exec_vars_read_varbit(host, vm, RS_CS2_PAYLOAD(request, VarsReadVarbit)->varbit_id);
 
     /* POP_VAR / POP_VARBIT — until 2026-08-02 both popped their value and
      * returned OK, so every client-side var write in the cache vanished.
@@ -7585,26 +7593,26 @@ rs_cs2_host_exec_dispatch(
      * new value re-dispatches. */
     case CS2VM_HOST_REQUEST_POP_VAR:
         RS_CS2Host_ScriptWriteVarp(
-            host, request->u.vars_write_varp.varp_id, request->u.vars_write_varp.value);
+            host, RS_CS2_PAYLOAD(request, VarsWriteVarp)->varp_id, RS_CS2_PAYLOAD(request, VarsWriteVarp)->value);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_POP_VARBIT:
         rs_cs2_settings_record_action(
-            host, vm, request->u.vars_write_varbit.varbit_id,
-            request->u.vars_write_varbit.value);
+            host, vm, RS_CS2_PAYLOAD(request, VarsWriteVarbit)->varbit_id,
+            RS_CS2_PAYLOAD(request, VarsWriteVarbit)->value);
         rs_cs2_settings_record_mirror(
-            host, vm, request->u.vars_write_varbit.varbit_id,
-            request->u.vars_write_varbit.value);
+            host, vm, RS_CS2_PAYLOAD(request, VarsWriteVarbit)->varbit_id,
+            RS_CS2_PAYLOAD(request, VarsWriteVarbit)->value);
         rs_cs2_settings_apply_client_layout(
-            host, vm, request->u.vars_write_varbit.varbit_id,
-            request->u.vars_write_varbit.value);
+            host, vm, RS_CS2_PAYLOAD(request, VarsWriteVarbit)->varbit_id,
+            RS_CS2_PAYLOAD(request, VarsWriteVarbit)->value);
         RS_CS2Host_ScriptWriteVarbit(
-            host, request->u.vars_write_varbit.varbit_id, request->u.vars_write_varbit.value);
+            host, RS_CS2_PAYLOAD(request, VarsWriteVarbit)->varbit_id, RS_CS2_PAYLOAD(request, VarsWriteVarbit)->value);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_PUSH_VARC_INT:
     {
-        int id = request->u.vars_read_varc_int.varc_id;
+        int id = RS_CS2_PAYLOAD(request, VarsReadVarcInt)->varc_id;
         int value = host->varcs ? VarCManager_GetInt(host->varcs, id) : -1;
         return CS2VM2_PushInt(vm, value);
     }
@@ -7612,7 +7620,7 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_KEYHELD:
     case CS2VM_HOST_REQUEST_KEYPRESSED:
     {
-        int key_code = request->u.key_query.key_code;
+        int key_code = RS_CS2_PAYLOAD(request, KeyQuery)->key_code;
         unsigned char const* state = request->kind == CS2VM_HOST_REQUEST_KEYHELD
                                          ? host->osrs_key_held
                                          : host->osrs_key_pressed;
@@ -7625,14 +7633,14 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_PUSH_VARC_STRING_OLD:
     case CS2VM_HOST_REQUEST_PUSH_VARC_STRING:
     {
-        int id = request->u.vars_read_varc_string.varc_id;
+        int id = RS_CS2_PAYLOAD(request, VarsReadVarcString)->varc_id;
         char const* value = host->varcs ? VarCManager_GetString(host->varcs, id) : "";
         return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, value));
     }
 
     case CS2VM_HOST_REQUEST_POP_VARC_INT:
     {
-        int id = request->u.vars_write_varc_int.varc_id;
+        int id = RS_CS2_PAYLOAD(request, VarsWriteVarcInt)->varc_id;
         /*
          * A varc write notifies nothing, and that is the reference's design
          * rather than a gap here.
@@ -7658,92 +7666,92 @@ rs_cs2_host_exec_dispatch(
          * for why feeding script-side writes into the ring is also wrong.
          */
         if( host->varcs )
-            VarCManager_SetInt(host->varcs, id, request->u.vars_write_varc_int.value);
+            VarCManager_SetInt(host->varcs, id, RS_CS2_PAYLOAD(request, VarsWriteVarcInt)->value);
         return CS2VM_EXECNO_OK;
     }
 
     case CS2VM_HOST_REQUEST_POP_VARC_STRING_OLD:
     case CS2VM_HOST_REQUEST_POP_VARC_STRING:
     {
-        int id = request->u.vars_write_varc_string.varc_id;
+        int id = RS_CS2_PAYLOAD(request, VarsWriteVarcString)->varc_id;
         if( host->varcs )
-            VarCManager_SetString(host->varcs, id, request->u.vars_write_varc_string.value);
+            VarCManager_SetString(host->varcs, id, RS_CS2_PAYLOAD(request, VarsWriteVarcString)->value);
         return CS2VM_EXECNO_OK;
     }
 
     case CS2VM_HOST_REQUEST_ENUM_STRING:
     case CS2VM_HOST_REQUEST_ENUM:
-        return exec_enum_lookup(host, vm, request->u.enum_lookup, request->kind);
+        return exec_enum_lookup(host, vm, *RS_CS2_PAYLOAD(request, EnumLookup), request->kind);
 
     case CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT:
-        return exec_enum_output_count(host, vm, request->u.enum_get_output_count);
+        return exec_enum_output_count(host, vm, *RS_CS2_PAYLOAD(request, EnumGetOutputCount));
 
     case CS2VM_HOST_REQUEST_STRUCT_PARAM:
-        return exec_struct_param(host, vm, request->u.struct_param, request->kind);
+        return exec_struct_param(host, vm, *RS_CS2_PAYLOAD(request, StructParam), request->kind);
 
     case CS2VM_HOST_REQUEST_CC_GETPARAM:
-        return exec_struct_param(host, vm, request->u.struct_param, request->kind);
+        return exec_struct_param(host, vm, *RS_CS2_PAYLOAD(request, StructParam), request->kind);
 
     case CS2VM_HOST_REQUEST_OC_COST:
     case CS2VM_HOST_REQUEST_OC_STACKABLE:
     case CS2VM_HOST_REQUEST_OC_CERT:
     case CS2VM_HOST_REQUEST_OC_UNCERT:
     case CS2VM_HOST_REQUEST_OC_MEMBERS:
-        return exec_oc_int_param(host, vm, request->u.oc_int_param, request->kind);
+        return exec_oc_int_param(host, vm, *RS_CS2_PAYLOAD(request, OC_IntParam), request->kind);
 
     case CS2VM_HOST_REQUEST_OC_NAME:
-        return exec_oc_name(host, vm, request->u.oc_name);
+        return exec_oc_name(host, vm, *RS_CS2_PAYLOAD(request, OC_Name));
 
     case CS2VM_HOST_REQUEST_NC_NAME:
-        return exec_nc_name(host, vm, request->u.nc_name);
+        return exec_nc_name(host, vm, *RS_CS2_PAYLOAD(request, NC_Name));
 
     case CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER:
-        return exec_oc_unplaceholder(host, vm, request->u.oc_unplaceholder);
+        return exec_oc_unplaceholder(host, vm, *RS_CS2_PAYLOAD(request, OC_Unplaceholder));
 
     case CS2VM_HOST_REQUEST_OC_OP:
-        return exec_oc_op(host, vm, request->u.oc_op);
+        return exec_oc_op(host, vm, *RS_CS2_PAYLOAD(request, OC_Op));
 
     case CS2VM_HOST_REQUEST_OC_IOP:
-        return exec_oc_op(host, vm, request->u.oc_iop);
+        return exec_oc_op(host, vm, *RS_CS2_PAYLOAD(request, OC_Op));
 
     case CS2VM_HOST_REQUEST_OC_EXAMINE:
-        return exec_oc_examine(host, vm, request->u.oc_examine);
+        return exec_oc_examine(host, vm, *RS_CS2_PAYLOAD(request, OC_Name));
 
     case CS2VM_HOST_REQUEST_OC_PLACEHOLDER:
-        return exec_oc_placeholder(host, vm, request->u.oc_placeholder);
+        return exec_oc_placeholder(host, vm, *RS_CS2_PAYLOAD(request, OC_Unplaceholder));
 
     case CS2VM_HOST_REQUEST_OC_FIND:
     case CS2VM_HOST_REQUEST_OC_FINDNEXT:
     case CS2VM_HOST_REQUEST_OC_FINDRESET:
-        return exec_oc_find(host, vm, request->u.oc_find, request->kind);
+        return exec_oc_find(host, vm, *RS_CS2_PAYLOAD(request, OC_Find), request->kind);
 
     case CS2VM_HOST_REQUEST_OC_SHIFTCLICKIOP:
-        return exec_oc_shiftclickiop(host, vm, request->u.oc_shiftclickiop);
+        return exec_oc_shiftclickiop(host, vm, *RS_CS2_PAYLOAD(request, OC_Name));
 
     case CS2VM_HOST_REQUEST_OC_WEARPOS:
     case CS2VM_HOST_REQUEST_OC_WEARPOS2:
     case CS2VM_HOST_REQUEST_OC_WEARPOS3:
-        return exec_oc_wearpos(vm, request->u.oc_wearpos);
+        return exec_oc_wearpos(vm, *RS_CS2_PAYLOAD(request, OC_WearPos));
 
     case CS2VM_HOST_REQUEST_OC_WEIGHT:
-        return exec_oc_weight(vm, request->u.oc_weight);
+        return exec_oc_weight(vm, *RS_CS2_PAYLOAD(request, OC_Name));
 
     case CS2VM_HOST_REQUEST_OC_ISUBOP:
-        return exec_oc_isubop(vm, request->u.oc_isubop);
+        return exec_oc_isubop(vm, *RS_CS2_PAYLOAD(request, OC_Isubop));
 
     case CS2VM_HOST_REQUEST_OC_PARAM:
-        return exec_oc_param(host, vm, request->u.oc_param);
+        return exec_oc_param(host, vm, *RS_CS2_PAYLOAD(request, OC_Param));
 
     case CS2VM_HOST_REQUEST_NC_PARAM:
-        return exec_type_param(host, vm, request->u.nc_param, true);
+        return exec_type_param(host, vm, *RS_CS2_PAYLOAD(request, TypeParam), true);
     case CS2VM_HOST_REQUEST_LC_PARAM:
-        return exec_type_param(host, vm, request->u.lc_param, false);
+        return exec_type_param(host, vm, *RS_CS2_PAYLOAD(request, TypeParam), false);
 
     case CS2VM_HOST_REQUEST_PARAHEIGHT:
-        return exec_para_height(host, vm, request->u.para_height, 0);
+        return exec_para_height(host, vm, *RS_CS2_PAYLOAD(request, ParaHeight), 0);
 
     case CS2VM_HOST_REQUEST_PARAWIDTH:
-        return exec_para_height(host, vm, request->u.para_height, 1);
+        return exec_para_height(host, vm, *RS_CS2_PAYLOAD(request, ParaHeight), 1);
 
     case CS2VM_HOST_REQUEST_CLIENTCLOCK:
         return CS2VM2_PushInt(vm, host->client_clock);
@@ -7763,7 +7771,7 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_STAT_BASE:
     case CS2VM_HOST_REQUEST_STAT_XP:
     {
-        int stat = request->u.stat.stat;
+        int stat = RS_CS2_PAYLOAD(request, Stat)->stat;
         int value = 0;
 
         if( host->stats && stat >= 0 && stat < RS_PLAYER_STATS_SKILL_COUNT )
@@ -7790,7 +7798,7 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_IGNORE_COUNT:
     case CS2VM_HOST_REQUEST_IGNORE_GETNAME:
     case CS2VM_HOST_REQUEST_IGNORE_TEST:
-        return exec_social(host, vm, &request->u.social);
+        return exec_social(host, vm, RS_CS2_PAYLOAD(request, Social));
 
     case CS2VM_HOST_REQUEST_LOOT_AUX_UPSERT2:
     case CS2VM_HOST_REQUEST_LOOT_AUX_UPSERT:
@@ -7824,11 +7832,11 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_LOOT_SRCLIST_NAME:
     case CS2VM_HOST_REQUEST_LOOT_ADD:
     case CS2VM_HOST_REQUEST_LOOT_SOURCE_NAME2:
-        return exec_loot(host, vm, &request->u.loot);
+        return exec_loot(host, vm, RS_CS2_PAYLOAD(request, Loot));
 
     case CS2VM_HOST_REQUEST_HISCORES_STATUS:
     case CS2VM_HOST_REQUEST_HISCORES_ERROR:
-        return exec_hiscores(host, vm, &request->u.hiscores);
+        return exec_hiscores(host, vm, RS_CS2_PAYLOAD(request, Hiscores));
 
     case CS2VM_HOST_REQUEST_CHAT_GETFILTER_PUBLIC:
     case CS2VM_HOST_REQUEST_CHAT_SETFILTER:
@@ -7852,7 +7860,7 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_CHAT_GETHISTORYEX_BYUID:
     case CS2VM_HOST_REQUEST_MES:
     case CS2VM_HOST_REQUEST_STAFFMODLEVEL:
-        return exec_chat(host, vm, &request->u.chat);
+        return exec_chat(host, vm, RS_CS2_PAYLOAD(request, Chat));
 
     case CS2VM_HOST_REQUEST_MAP_WORLD:
         /* Non-zero, or the friends panel headers read "World 0" and every
@@ -7873,7 +7881,7 @@ rs_cs2_host_exec_dispatch(
         return CS2VM2_PushInt(vm, host->mouse_y);
 
     case CS2VM_HOST_REQUEST_CAM_SETFOLLOWHEIGHT:
-        host->cam_follow_height = request->u.cam_set_follow_height.height;
+        host->cam_follow_height = RS_CS2_PAYLOAD(request, CamSetFollowHeight)->height;
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CAM_GETFOLLOWHEIGHT:
@@ -7938,7 +7946,7 @@ rs_cs2_host_exec_dispatch(
             bool handled;
             bool const debug = getenv("TORIRS_HIGHLIGHT_DEBUG") != NULL;
             enum RS_HighlightKind kind;
-            bool const known = RS_HighlightOpcodeKind(request->u.highlight.opcode, &kind);
+            bool const known = RS_HighlightOpcodeKind(RS_CS2_PAYLOAD(request, Highlight)->opcode, &kind);
 
             /* Every call, on request. The family is written entirely by cache
              * scripts, so when a highlight does not appear the first question
@@ -7949,20 +7957,20 @@ rs_cs2_host_exec_dispatch(
                 fprintf(
                     stderr,
                     "highlight: op %d (%s)",
-                    request->u.highlight.opcode,
+                    RS_CS2_PAYLOAD(request, Highlight)->opcode,
                     known ? RS_HighlightKindName(kind) : "?");
-                for( int i = 0; i < request->u.highlight.arg_count; i++ )
-                    fprintf(stderr, " %d", request->u.highlight.args[i]);
-                if( request->u.highlight.name )
-                    fprintf(stderr, " '%s'", request->u.highlight.name);
+                for( int i = 0; i < RS_CS2_PAYLOAD(request, Highlight)->arg_count; i++ )
+                    fprintf(stderr, " %d", RS_CS2_PAYLOAD(request, Highlight)->args[i]);
+                if( RS_CS2_PAYLOAD(request, Highlight)->name )
+                    fprintf(stderr, " '%s'", RS_CS2_PAYLOAD(request, Highlight)->name);
             }
 
             handled = RS_HighlightApply(
                 &host->highlight,
-                request->u.highlight.opcode,
-                request->u.highlight.args,
-                request->u.highlight.arg_count,
-                request->u.highlight.name,
+                RS_CS2_PAYLOAD(request, Highlight)->opcode,
+                RS_CS2_PAYLOAD(request, Highlight)->args,
+                RS_CS2_PAYLOAD(request, Highlight)->arg_count,
+                RS_CS2_PAYLOAD(request, Highlight)->name,
                 &answer);
 
             /* The kind's subject count AFTER the op, on the same line.
@@ -8001,10 +8009,10 @@ rs_cs2_host_exec_dispatch(
                         stderr,
                         "cs2: HIGHLIGHT opcode %d is not recorded -- nothing in this "
                         "cache names a subject for its family\n",
-                        request->u.highlight.opcode);
+                        RS_CS2_PAYLOAD(request, Highlight)->opcode);
                 }
             }
-            if( request->u.highlight.query )
+            if( RS_CS2_PAYLOAD(request, Highlight)->query )
                 return CS2VM2_PushInt(vm, answer);
         }
         return CS2VM_EXECNO_OK;
@@ -8030,22 +8038,22 @@ rs_cs2_host_exec_dispatch(
             fprintf(
                 stderr,
                 "clientop: op %d %s slot %d script %d '%s'\n",
-                request->u.clientop.opcode,
-                request->u.clientop.is_set ? "set" : "del",
-                request->u.clientop.slot,
-                request->u.clientop.script_id,
-                request->u.clientop.label ? request->u.clientop.label : "");
+                RS_CS2_PAYLOAD(request, ClientOp)->opcode,
+                RS_CS2_PAYLOAD(request, ClientOp)->is_set ? "set" : "del",
+                RS_CS2_PAYLOAD(request, ClientOp)->slot,
+                RS_CS2_PAYLOAD(request, ClientOp)->script_id,
+                RS_CS2_PAYLOAD(request, ClientOp)->label ? RS_CS2_PAYLOAD(request, ClientOp)->label : "");
         if( !RS_ClientOpApply(
                 &host->clientop,
-                request->u.clientop.opcode,
-                request->u.clientop.is_set,
-                request->u.clientop.slot,
-                request->u.clientop.label,
-                request->u.clientop.script_id) )
+                RS_CS2_PAYLOAD(request, ClientOp)->opcode,
+                RS_CS2_PAYLOAD(request, ClientOp)->is_set,
+                RS_CS2_PAYLOAD(request, ClientOp)->slot,
+                RS_CS2_PAYLOAD(request, ClientOp)->label,
+                RS_CS2_PAYLOAD(request, ClientOp)->script_id) )
             fprintf(
                 stderr,
                 "cs2: CLIENTOP opcode %d is not in the 6700..6709 family\n",
-                request->u.clientop.opcode);
+                RS_CS2_PAYLOAD(request, ClientOp)->opcode);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST__6750:
@@ -8081,12 +8089,12 @@ rs_cs2_host_exec_dispatch(
             running = vm->frames[0]->script->script_id;
 
         if( !RS_ClientOpContextRead(
-                &host->clientop, request->u.clientop_context.opcode, running, &value, &text) )
+                &host->clientop, RS_CS2_PAYLOAD(request, ClientOpContext)->opcode, running, &value, &text) )
         {
             fprintf(
                 stderr,
                 "cs2: opcode %d is not a client-op context getter\n",
-                request->u.clientop_context.opcode);
+                RS_CS2_PAYLOAD(request, ClientOpContext)->opcode);
             return CS2VM_EXECNO_ERROR;
         }
 
@@ -8105,7 +8113,7 @@ rs_cs2_host_exec_dispatch(
          * one that way, and inventing a mouseover subject for them would put
          * whatever the pointer grazed into a highlight group.
          */
-        if( request->u.clientop_context.opcode == CS2_OP__6950 && value < 0 )
+        if( RS_CS2_PAYLOAD(request, ClientOpContext)->opcode == CS2_OP__6950 && value < 0 )
             value = host->hover_coord;
         /* A non-NULL `text` is what says this opcode is string-valued -- the
          * reader knows which stack each one belongs on and says so, rather than
@@ -8139,7 +8147,7 @@ rs_cs2_host_exec_dispatch(
          * consumer reads "no route" as standing still, which is the truthful
          * reading of "no player is active".
          */
-        int const opcode = request->u.active_player.opcode;
+        int const opcode = RS_CS2_PAYLOAD(request, ActivePlayer)->opcode;
         int running = -1;
         struct RS_ClientOpContext const* subject;
         int uid = -1;
@@ -8197,7 +8205,7 @@ rs_cs2_host_exec_dispatch(
 
             if( uid >= 0 && host->player_route )
                 length = host->player_route(
-                    host->world_user, uid, request->u.active_player.index, &coord);
+                    host->world_user, uid, RS_CS2_PAYLOAD(request, ActivePlayer)->index, &coord);
             /* A uid the world has no player for is a player who has left the
              * scene since the register was written. No route, not a fatal. */
             if( length < 0 )
@@ -8219,7 +8227,7 @@ rs_cs2_host_exec_dispatch(
                 "activeplayer: op %d (uid %d, index %d) -> %d\n",
                 opcode,
                 uid,
-                request->u.active_player.index,
+                RS_CS2_PAYLOAD(request, ActivePlayer)->index,
                 answer);
         return CS2VM2_PushInt(vm, answer);
     }
@@ -8235,7 +8243,7 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_DB_FIND:
     case CS2VM_HOST_REQUEST_DB_FINDALL:
     case CS2VM_HOST_REQUEST_DB_FIND_FILTER:
-        return exec_db(host, vm, request->u.db.opcode);
+        return exec_db(host, vm, RS_CS2_PAYLOAD(request, Db)->opcode);
 
     case CS2VM_HOST_REQUEST_MINIMENU_TYPE:
     case CS2VM_HOST_REQUEST_MINIMENU_ENTRY:
@@ -8248,7 +8256,7 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_MINIMENU_ISOPEN:
     case CS2VM_HOST_REQUEST_MINIMENU_FINDCOMPONENT:
     case CS2VM_HOST_REQUEST_MINIMENU_NUMOPS:
-        return exec_minimenu(host, vm, request->u.minimenu.opcode);
+        return exec_minimenu(host, vm, RS_CS2_PAYLOAD(request, Minimenu)->opcode);
 
     case CS2VM_HOST_REQUEST_GETREMOVEROOFS:
     case CS2VM_HOST_REQUEST_SETREMOVEROOFS:
@@ -8265,19 +8273,19 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_DEVICEOPTION_GET:
     case CS2VM_HOST_REQUEST_GAMEOPTION_GET:
     case CS2VM_HOST_REQUEST_DEVICEOPTION_GETRANGE:
-        return exec_client_option(host, vm, request->u.client_option);
+        return exec_client_option(host, vm, *RS_CS2_PAYLOAD(request, ClientOption));
 
     case CS2VM_HOST_REQUEST_MINIMAP_SETZOOMABLE:
     case CS2VM_HOST_REQUEST_MINIMAP_SETZOOM:
     case CS2VM_HOST_REQUEST_MINIMAP_GETZOOM:
     case CS2VM_HOST_REQUEST_MINIMAP_SETICONZOOMLIMIT:
-        return exec_minimap(host, vm, request->u.minimap);
+        return exec_minimap(host, vm, *RS_CS2_PAYLOAD(request, Minimap));
 
     case CS2VM_HOST_REQUEST_LOCAL_NOTIFICATION:
     case CS2VM_HOST_REQUEST_LOCAL_NOTIFICATION_CANCEL:
     case CS2VM_HOST_REQUEST_LOCAL_NOTIFICATION_CANCELALL:
     case CS2VM_HOST_REQUEST_LOCAL_NOTIFICATION_SUPPORTED:
-        return exec_local_notification(vm, request->u.local_notification);
+        return exec_local_notification(vm, *RS_CS2_PAYLOAD(request, LocalNotification));
 
     case CS2VM_HOST_REQUEST_LOGOUT:
         host->logout_requested = true;
@@ -8292,18 +8300,18 @@ rs_cs2_host_exec_dispatch(
         /* Last write wins within a tick — a double-fire of the continue
          * listener (key + click) would otherwise queue two resumes for one
          * pause. The server matches on the component uid either way. */
-        host->resume_pausebutton_component_id = request->u.resume_pausebutton.component_id;
+        host->resume_pausebutton_component_id = RS_CS2_PAYLOAD(request, ResumePauseButton)->component_id;
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_SETWINDOWMODE:
         /* Reject anything outside the dialect's own domain rather than
          * resizing to a mode nothing names. */
-        if( request->u.window_mode.mode != CS2VM_WINDOW_MODE_FIXED &&
-            request->u.window_mode.mode != CS2VM_WINDOW_MODE_RESIZABLE )
+        if( RS_CS2_PAYLOAD(request, WindowMode)->mode != CS2VM_WINDOW_MODE_FIXED &&
+            RS_CS2_PAYLOAD(request, WindowMode)->mode != CS2VM_WINDOW_MODE_RESIZABLE )
             return CS2VM_EXECNO_OK;
-        if( host->window_mode != request->u.window_mode.mode )
+        if( host->window_mode != RS_CS2_PAYLOAD(request, WindowMode)->mode )
         {
-            host->window_mode = request->u.window_mode.mode;
+            host->window_mode = RS_CS2_PAYLOAD(request, WindowMode)->mode;
             /* The canvas and the window are the App's; it drains this. */
             host->window_mode_dirty = true;
         }
@@ -8327,10 +8335,10 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_SETDEFAULTWINDOWMODE:
-        if( request->u.window_mode.mode != CS2VM_WINDOW_MODE_FIXED &&
-            request->u.window_mode.mode != CS2VM_WINDOW_MODE_RESIZABLE )
+        if( RS_CS2_PAYLOAD(request, WindowMode)->mode != CS2VM_WINDOW_MODE_FIXED &&
+            RS_CS2_PAYLOAD(request, WindowMode)->mode != CS2VM_WINDOW_MODE_RESIZABLE )
             return CS2VM_EXECNO_OK;
-        host->default_window_mode = request->u.window_mode.mode;
+        host->default_window_mode = RS_CS2_PAYLOAD(request, WindowMode)->mode;
         /* A script chose it, so it is the player's setting and outlives the
          * launch (game/rs_prefs.c). The boot config setting the same field is
          * not that, which is what this flag separates. */
@@ -8343,12 +8351,12 @@ rs_cs2_host_exec_dispatch(
 
         /* An empty answer is not a zero: the opcode's callers always push a
          * rendered number, so nothing to send means nothing happened. */
-        if( !request->u.resume_countdialog.text || !request->u.resume_countdialog.text[0] )
+        if( !RS_CS2_PAYLOAD(request, ResumeCountDialog)->text || !RS_CS2_PAYLOAD(request, ResumeCountDialog)->text[0] )
             return CS2VM_EXECNO_OK;
         memset(&send, 0, sizeof(send));
         send.kind = RS_CS2_SOCIAL_SEND_RESUME_COUNTDIALOG;
         snprintf(
-            send.text, sizeof(send.text), "%s", request->u.resume_countdialog.text);
+            send.text, sizeof(send.text), "%s", RS_CS2_PAYLOAD(request, ResumeCountDialog)->text);
         rs_cs2_social_send_push(host, &send);
         return CS2VM_EXECNO_OK;
     }
@@ -8359,32 +8367,32 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_VIEWPORT_GETEFFECTIVESIZE:
     case CS2VM_HOST_REQUEST_VIEWPORT_GETZOOM:
     case CS2VM_HOST_REQUEST_VIEWPORT_GETFOV:
-        return exec_viewport(host, vm, request->u.viewport);
+        return exec_viewport(host, vm, *RS_CS2_PAYLOAD(request, Viewport));
 
     case CS2VM_HOST_REQUEST_UIZOOM_SET:
     case CS2VM_HOST_REQUEST_UIZOOM_GET:
     case CS2VM_HOST_REQUEST_UIZOOM_RESET:
     case CS2VM_HOST_REQUEST_UIZOOM_GETDEFAULT:
-        return exec_uizoom(host, vm, request->u.uizoom);
+        return exec_uizoom(host, vm, *RS_CS2_PAYLOAD(request, UiZoom));
 
     case CS2VM_HOST_REQUEST_SAFEAREA_GETMINX:
     case CS2VM_HOST_REQUEST_SAFEAREA_GETMINY:
     case CS2VM_HOST_REQUEST_SAFEAREA_GETMAXX:
     case CS2VM_HOST_REQUEST_SAFEAREA_GETMAXY:
-        return exec_safearea(vm, request->u.safearea);
+        return exec_safearea(vm, *RS_CS2_PAYLOAD(request, SafeArea));
 
     /* Pitch is clamped to the range the orbit camera can actually reach, so a
      * script that reads, adjusts and writes back cannot walk the camera out of
      * bounds one call at a time. */
     case CS2VM_HOST_REQUEST_CAM_FORCEANGLE:
     {
-        int angle_x = request->u.cam_force_angle.angle_x;
+        int angle_x = RS_CS2_PAYLOAD(request, CamForceAngle)->angle_x;
         if( angle_x < 128 )
             angle_x = 128;
         if( angle_x > 383 )
             angle_x = 383;
         host->cam_angle_x = angle_x;
-        host->cam_angle_y = request->u.cam_force_angle.angle_y & 0x7ff;
+        host->cam_angle_y = RS_CS2_PAYLOAD(request, CamForceAngle)->angle_y & 0x7ff;
         host->cam_yaw = host->cam_angle_y;
         host->cam_angle_forced = true;
         return CS2VM_EXECNO_OK;
@@ -8440,13 +8448,13 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_WORLDMAP_ELEMENT:
     case CS2VM_HOST_REQUEST_WORLDMAP_ELEMENTCOORD1:
     case CS2VM_HOST_REQUEST_WORLDMAP_ELEMENTCOORD:
-        return exec_worldmap(host, vm, request->u.worldmap, request->kind);
+        return exec_worldmap(host, vm, *RS_CS2_PAYLOAD(request, WorldMap), request->kind);
 
     case CS2VM_HOST_REQUEST_MEC_TEXT:
     case CS2VM_HOST_REQUEST_MEC_TEXTSIZE:
     case CS2VM_HOST_REQUEST_MEC_CATEGORY:
     case CS2VM_HOST_REQUEST_MEC_SPRITE:
-        return exec_mec(host, vm, request->u.mec, request->kind);
+        return exec_mec(host, vm, *RS_CS2_PAYLOAD(request, MEC), request->kind);
 
     /* These listeners are parsed to keep the VM stacks exact, but UITree does
      * not expose their corresponding event sources yet. Each opcode retains
@@ -8475,11 +8483,11 @@ rs_cs2_host_exec_dispatch(
     /* ---- IF getters ---- */
     case CS2VM_HOST_REQUEST_IF_GETWIDTH:
         return CS2VM2_PushInt(
-            vm, tree ? UITree_GetLayoutWidth(tree, request->u.if_get_width.component_id) : 0);
+            vm, tree ? UITree_GetLayoutWidth(tree, RS_CS2_PAYLOAD(request, IF_GetWidth)->component_id) : 0);
 
     case CS2VM_HOST_REQUEST_IF_GETHEIGHT:
     {
-        int cid = request->u.if_get_height.component_id;
+        int cid = RS_CS2_PAYLOAD(request, IF_GetHeight)->component_id;
         int h = tree ? UITree_GetLayoutHeight(tree, cid) : 0;
         if( torirs_trace_drag() )
             fprintf(stderr, "TORIRS_TRACE_DRAG if_getheight id=%d -> %d\n", cid, h);
@@ -8488,11 +8496,11 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_IF_GETX:
         return CS2VM2_PushInt(
-            vm, tree ? UITree_GetRelativeX(tree, request->u.if_getx.component_id) : 0);
+            vm, tree ? UITree_GetRelativeX(tree, RS_CS2_PAYLOAD(request, IF_GetWidth)->component_id) : 0);
 
     case CS2VM_HOST_REQUEST_IF_GETY:
         return CS2VM2_PushInt(
-            vm, tree ? UITree_GetRelativeY(tree, request->u.if_get_width.component_id) : 0);
+            vm, tree ? UITree_GetRelativeY(tree, RS_CS2_PAYLOAD(request, IF_GetWidth)->component_id) : 0);
 
     case CS2VM_HOST_REQUEST_IF_GETLAYER:
     {
@@ -8513,7 +8521,7 @@ rs_cs2_host_exec_dispatch(
          * "All music" list was positioned at x≈1158 on an 807px canvas — built
          * correctly, mounted correctly, and entirely off-screen.
          */
-        int component_id = request->u.if_get_layer.component_id;
+        int component_id = RS_CS2_PAYLOAD(request, IF_GetLayer)->component_id;
         int parent = tree ? rs_cs2_parent_component_id(tree, component_id) : -1;
         if( parent >= 0 && ((parent >> 16) & 0xffff) != ((component_id >> 16) & 0xffff) )
             parent = -1;
@@ -8524,16 +8532,16 @@ rs_cs2_host_exec_dispatch(
         return CS2VM2_PushInt(vm, host->top_interface_id);
 
     case CS2VM_HOST_REQUEST_IF_GETSCROLLX:
-        node = rs_cs2_node(host, request->u.if_get_scroll_x.component_id);
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, IF_GetLayer)->component_id);
         return CS2VM2_PushInt(vm, node ? node->scroll_x : 0);
 
     case CS2VM_HOST_REQUEST_IF_GETSCROLLY:
-        node = rs_cs2_node(host, request->u.if_get_scroll_y.component_id);
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, IF_GetLayer)->component_id);
         return CS2VM2_PushInt(vm, node ? node->scroll_y : 0);
 
     case CS2VM_HOST_REQUEST_IF_GETSCROLLHEIGHT:
     {
-        int cid = request->u.if_get_scroll_height.component_id;
+        int cid = RS_CS2_PAYLOAD(request, IF_GetLayer)->component_id;
         int sh = 0;
         node = rs_cs2_node(host, cid);
         if( node && node->type == UIELEM_RS_LAYER )
@@ -8549,20 +8557,20 @@ rs_cs2_host_exec_dispatch(
     }
 
     case CS2VM_HOST_REQUEST_IF_GETSCROLLWIDTH:
-        node = rs_cs2_node(host, request->u.if_getscrollwidth.component_id);
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, IF_GetWidth)->component_id);
         return CS2VM2_PushInt(
             vm, (node && node->type == UIELEM_RS_LAYER) ? node->u.rs_layer.scroll_width : 0);
 
     case CS2VM_HOST_REQUEST_IF_GETHIDE:
-        node = rs_cs2_node(host, request->u.if_get_width.component_id);
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, IF_GetWidth)->component_id);
         return CS2VM2_PushInt(vm, node && node->behavior.hide ? 1 : 0);
 
     case CS2VM_HOST_REQUEST_IF_GETOP:
     case CS2VM_HOST_REQUEST_CC_GETOP:
     {
         char const* op = "";
-        int const op_index = request->u.widget_get_op.op_index - 1;
-        node = rs_cs2_node(host, request->u.widget_get_op.component_id);
+        int const op_index = RS_CS2_PAYLOAD(request, WidgetGetOp)->op_index - 1;
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, WidgetGetOp)->component_id);
         if( node && op_index >= 0 && op_index < UITREE_MENU_OPTION_SLOTS )
             op = UITree_MenuOptions(node)->ops[op_index];
         return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, op));
@@ -8572,7 +8580,7 @@ rs_cs2_host_exec_dispatch(
     {
         /* A component "has a sub" when an interface group is mounted into it
          * (IF_OPENSUB target). The InterfaceParent map records exactly that. */
-        int cid = request->u.if_get_width.component_id;
+        int cid = RS_CS2_PAYLOAD(request, IF_GetWidth)->component_id;
         int has = tree && UITree_InterfaceParentFind(tree, cid) >= 0;
         static int hassub_debug = -1;
         if( hassub_debug < 0 )
@@ -8593,8 +8601,8 @@ rs_cs2_host_exec_dispatch(
     {
         /* 2704/2705: widget has the given parent group mounted (rev 634 does
          * not distinguish modal vs overlay on the type field). */
-        int cid = request->u.if_has_child.component_id;
-        int want = request->u.if_has_child.group_id;
+        int cid = RS_CS2_PAYLOAD(request, IF_HasChild)->component_id;
+        int want = RS_CS2_PAYLOAD(request, IF_HasChild)->group_id;
         int idx = tree ? UITree_InterfaceParentFind(tree, cid) : -1;
         int has = 0;
         if( idx >= 0 && tree->interface_parents[idx].group_id == want )
@@ -8607,24 +8615,24 @@ rs_cs2_host_exec_dispatch(
         char buf[512];
         buf[0] = '\0';
         if( tree )
-            rs_cs2_get_text(tree, request->u.if_gettext.component_id, buf, (int)sizeof(buf));
+            rs_cs2_get_text(tree, RS_CS2_PAYLOAD(request, IF_GetWidth)->component_id, buf, (int)sizeof(buf));
         return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, buf));
     }
 
     case CS2VM_HOST_REQUEST_IF_GETCOLOUR:
-        node = rs_cs2_node(host, request->u.if_gettext.component_id);
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, IF_GetWidth)->component_id);
         return CS2VM2_PushInt(vm, node ? node->colour : 0);
 
     case CS2VM_HOST_REQUEST_IF_GETFILLCOLOUR:
-        node = rs_cs2_node(host, request->u.if_gettext.component_id);
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, IF_GetWidth)->component_id);
         return CS2VM2_PushInt(vm, node ? node->fill_colour : 0);
 
     case CS2VM_HOST_REQUEST_IF_GETINVOBJECT:
-        node = rs_cs2_node(host, request->u.if_gettext.component_id);
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, IF_GetWidth)->component_id);
         return CS2VM2_PushInt(vm, node ? node->item_id : 0);
 
     case CS2VM_HOST_REQUEST_IF_GETINVCOUNT:
-        node = rs_cs2_node(host, request->u.if_gettext.component_id);
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, IF_GetWidth)->component_id);
         return CS2VM2_PushInt(vm, node ? node->item_count : 0);
 
     /* ---- IF / CC mutators ---- */
@@ -8639,37 +8647,37 @@ rs_cs2_host_exec_dispatch(
             fprintf(
                 stderr,
                 "uitree_click: IF_SETHIDE component_id=%d hide=%d\n",
-                request->u.if_set_hide.component_id,
-                request->u.if_set_hide.hidden ? 1 : 0);
+                RS_CS2_PAYLOAD(request, IF_SetHide)->component_id,
+                RS_CS2_PAYLOAD(request, IF_SetHide)->hidden ? 1 : 0);
 #endif
             static int sethide_debug = -1;
             if( sethide_debug < 0 )
                 sethide_debug = getenv("TORIRS_SETHIDE_DEBUG") != NULL;
             if( sethide_debug )
             {
-                int g = (request->u.if_set_hide.component_id >> 16) & 0xffff;
+                int g = (RS_CS2_PAYLOAD(request, IF_SetHide)->component_id >> 16) & 0xffff;
                 if( g == 149 || g == 320 || g == 218 ||
-                    (g == 161 && (request->u.if_set_hide.component_id & 0xffff) >= 73) )
+                    (g == 161 && (RS_CS2_PAYLOAD(request, IF_SetHide)->component_id & 0xffff) >= 73) )
                     fprintf(
                         stderr,
                         "sethide: component 0x%08x (%d|%d) hide=%d found=%d\n",
-                        (unsigned)request->u.if_set_hide.component_id,
+                        (unsigned)RS_CS2_PAYLOAD(request, IF_SetHide)->component_id,
                         g,
-                        request->u.if_set_hide.component_id & 0xffff,
-                        request->u.if_set_hide.hidden ? 1 : 0,
-                        UITree_FindByComponentId(tree, request->u.if_set_hide.component_id) >= 0
+                        RS_CS2_PAYLOAD(request, IF_SetHide)->component_id & 0xffff,
+                        RS_CS2_PAYLOAD(request, IF_SetHide)->hidden ? 1 : 0,
+                        UITree_FindByComponentId(tree, RS_CS2_PAYLOAD(request, IF_SetHide)->component_id) >= 0
                             ? 1
                             : 0);
             }
-            hide_idx = UITree_FindByComponentId(tree, request->u.if_set_hide.component_id);
+            hide_idx = UITree_FindByComponentId(tree, RS_CS2_PAYLOAD(request, IF_SetHide)->component_id);
             if( hide_idx >= 0 )
                 was_hidden = tree->components[hide_idx].behavior.hide ? 1 : 0;
             (void)UITree_ApplyHide(
-                tree, request->u.if_set_hide.component_id, request->u.if_set_hide.hidden ? 1 : 0);
+                tree, RS_CS2_PAYLOAD(request, IF_SetHide)->component_id, RS_CS2_PAYLOAD(request, IF_SetHide)->hidden ? 1 : 0);
             /* Unhide → mark widgets-loaded (TS markWidgetsLoaded). Consumed once per
              * logic tick by RS_CS2_PumpTransmits; per-hook serials keep already-fired
              * hooks from re-running, so this no longer re-dispatches everything. */
-            if( was_hidden && !request->u.if_set_hide.hidden )
+            if( was_hidden && !RS_CS2_PAYLOAD(request, IF_SetHide)->hidden )
                 host->widgets_loaded_dirty = 1;
         }
         return CS2VM_EXECNO_OK;
@@ -8679,11 +8687,11 @@ rs_cs2_host_exec_dispatch(
         if( tree )
             (void)UITree_ApplyPositionModes(
                 tree,
-                request->u.cc_set_position.component_id,
-                request->u.cc_set_position.x,
-                request->u.cc_set_position.y,
-                request->u.cc_set_position.xmode,
-                request->u.cc_set_position.ymode);
+                RS_CS2_PAYLOAD(request, CC_SetPosition)->component_id,
+                RS_CS2_PAYLOAD(request, CC_SetPosition)->x,
+                RS_CS2_PAYLOAD(request, CC_SetPosition)->y,
+                RS_CS2_PAYLOAD(request, CC_SetPosition)->xmode,
+                RS_CS2_PAYLOAD(request, CC_SetPosition)->ymode);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_IF_SETSIZE:
@@ -8703,45 +8711,45 @@ rs_cs2_host_exec_dispatch(
             if( setsize_want >= 0 )
             {
                 int want = setsize_want;
-                int group = (request->u.cc_set_size.component_id >> 16) & 0xffff;
+                int group = (RS_CS2_PAYLOAD(request, CC_SetSize)->component_id >> 16) & 0xffff;
                 if( group == want )
                     fprintf(
                         stderr,
                         "SETSIZE com=0x%08x (%d|%d) %dx%d modes=%d,%d\n",
-                        (unsigned)request->u.cc_set_size.component_id,
+                        (unsigned)RS_CS2_PAYLOAD(request, CC_SetSize)->component_id,
                         group,
-                        request->u.cc_set_size.component_id & 0xffff,
-                        request->u.cc_set_size.width,
-                        request->u.cc_set_size.height,
-                        request->u.cc_set_size.wmode,
-                        request->u.cc_set_size.hmode);
+                        RS_CS2_PAYLOAD(request, CC_SetSize)->component_id & 0xffff,
+                        RS_CS2_PAYLOAD(request, CC_SetSize)->width,
+                        RS_CS2_PAYLOAD(request, CC_SetSize)->height,
+                        RS_CS2_PAYLOAD(request, CC_SetSize)->wmode,
+                        RS_CS2_PAYLOAD(request, CC_SetSize)->hmode);
             }
 #if UITREE_CLICK_DEBUG
             fprintf(
                 stderr,
                 "uitree_click: SETSIZE component_id=%d size=%dx%d modes=%d,%d\n",
-                request->u.cc_set_size.component_id,
-                request->u.cc_set_size.width,
-                request->u.cc_set_size.height,
-                request->u.cc_set_size.wmode,
-                request->u.cc_set_size.hmode);
+                RS_CS2_PAYLOAD(request, CC_SetSize)->component_id,
+                RS_CS2_PAYLOAD(request, CC_SetSize)->width,
+                RS_CS2_PAYLOAD(request, CC_SetSize)->height,
+                RS_CS2_PAYLOAD(request, CC_SetSize)->wmode,
+                RS_CS2_PAYLOAD(request, CC_SetSize)->hmode);
 #endif
             (void)UITree_ApplySizeModes(
                 tree,
-                request->u.cc_set_size.component_id,
-                request->u.cc_set_size.width,
-                request->u.cc_set_size.height,
-                request->u.cc_set_size.wmode,
-                request->u.cc_set_size.hmode);
+                RS_CS2_PAYLOAD(request, CC_SetSize)->component_id,
+                RS_CS2_PAYLOAD(request, CC_SetSize)->width,
+                RS_CS2_PAYLOAD(request, CC_SetSize)->height,
+                RS_CS2_PAYLOAD(request, CC_SetSize)->wmode,
+                RS_CS2_PAYLOAD(request, CC_SetSize)->hmode);
         }
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_IF_SETSCROLLPOS:
     case CS2VM_HOST_REQUEST_CC_SETSCROLLPOS:
     {
-        int cid = request->u.if_set_scroll_pos.component_id;
-        int sx = request->u.if_set_scroll_pos.scroll_x;
-        int sy = request->u.if_set_scroll_pos.scroll_y;
+        int cid = RS_CS2_PAYLOAD(request, IF_SetScrollPos)->component_id;
+        int sx = RS_CS2_PAYLOAD(request, IF_SetScrollPos)->scroll_x;
+        int sy = RS_CS2_PAYLOAD(request, IF_SetScrollPos)->scroll_y;
         int req_sy = sy;
         node = rs_cs2_node(host, cid);
         if( node && node->type == UIELEM_RS_LAYER )
@@ -8789,13 +8797,13 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_CC_SETSCROLLSIZE:
         if( tree && UITree_ApplyScrollSize(
                         tree,
-                        request->u.if_set_scroll_size.component_id,
-                        request->u.if_set_scroll_size.scroll_width,
-                        request->u.if_set_scroll_size.scroll_height) )
+                        RS_CS2_PAYLOAD(request, IF_SetScrollSize)->component_id,
+                        RS_CS2_PAYLOAD(request, IF_SetScrollSize)->scroll_width,
+                        RS_CS2_PAYLOAD(request, IF_SetScrollSize)->scroll_height) )
         {
             /* Reference revalidateWidgetScroll: re-clamp scroll offsets after
              * the scroll area changes. */
-            node = rs_cs2_node(host, request->u.if_set_scroll_size.component_id);
+            node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, IF_SetScrollSize)->component_id);
             if( node && node->type == UIELEM_RS_LAYER )
             {
                 UITree_EnsureLayout(tree);
@@ -8806,16 +8814,16 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_IF_SETGRAPHIC:
     case CS2VM_HOST_REQUEST_CC_SETGRAPHIC:
-        return exec_set_graphic(host, vm, request->u.cc_set_graphic, request->kind);
+        return exec_set_graphic(host, vm, *RS_CS2_PAYLOAD(request, CC_SetGraphic), request->kind);
 
     case CS2VM_HOST_REQUEST_CC_SETGRAPHIC2:
     case CS2VM_HOST_REQUEST_IF_SETGRAPHIC2:
-        node = rs_cs2_node(host, request->u.cc_set_graphic2.component_id);
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, CC_SetGraphic)->component_id);
         if( node && node->type == UIELEM_RS_GRAPHIC )
         {
-            node->u.rs_graphic.scene_id_active = request->u.cc_set_graphic2.graphic_id;
+            node->u.rs_graphic.scene_id_active = RS_CS2_PAYLOAD(request, CC_SetGraphic)->graphic_id;
             UITree_MarkNodeDirty(
-                tree, rs_cs2_find_node(host, request->u.cc_set_graphic2.component_id));
+                tree, rs_cs2_find_node(host, RS_CS2_PAYLOAD(request, CC_SetGraphic)->component_id));
         }
         return CS2VM_EXECNO_OK;
 
@@ -8825,31 +8833,31 @@ rs_cs2_host_exec_dispatch(
         fprintf(
             stderr,
             "uitree_click: SETTEXT component_id=%d text=\"%.48s\"\n",
-            request->u.cc_set_text.component_id,
-            request->u.cc_set_text.text ? request->u.cc_set_text.text : "");
+            RS_CS2_PAYLOAD(request, CC_SetText)->component_id,
+            RS_CS2_PAYLOAD(request, CC_SetText)->text ? RS_CS2_PAYLOAD(request, CC_SetText)->text : "");
 #endif
         if( tree )
             (void)UITree_ApplyText(
-                tree, request->u.cc_set_text.component_id, request->u.cc_set_text.text);
+                tree, RS_CS2_PAYLOAD(request, CC_SetText)->component_id, RS_CS2_PAYLOAD(request, CC_SetText)->text);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_IF_SETOUTLINE:
         if( tree )
             (void)UITree_ApplyGraphicOutline(
-                tree, request->u.if_set_outline.component_id, request->u.if_set_outline.outline);
+                tree, RS_CS2_PAYLOAD(request, IF_SetOutline)->component_id, RS_CS2_PAYLOAD(request, IF_SetOutline)->outline);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETOUTLINE:
         if( tree )
             (void)UITree_ApplyGraphicOutline(
-                tree, request->u.cc_set_outline.component_id, request->u.cc_set_outline.outline);
+                tree, RS_CS2_PAYLOAD(request, CC_SetOutline)->component_id, RS_CS2_PAYLOAD(request, CC_SetOutline)->outline);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETTILING:
     case CS2VM_HOST_REQUEST_IF_SETTILING:
         if( tree )
             (void)UITree_ApplyGraphicTiled(
-                tree, request->u.cc_set_tiling.component_id, request->u.cc_set_tiling.tiling);
+                tree, RS_CS2_PAYLOAD(request, CC_SetTiling)->component_id, RS_CS2_PAYLOAD(request, CC_SetTiling)->tiling);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETGRAPHICSHADOW:
@@ -8857,20 +8865,20 @@ rs_cs2_host_exec_dispatch(
         if( tree )
             (void)UITree_ApplyGraphicShadow(
                 tree,
-                request->u.cc_set_graphic_shadow.component_id,
-                request->u.cc_set_graphic_shadow.shadow);
+                RS_CS2_PAYLOAD(request, CC_SetGraphicShadow)->component_id,
+                RS_CS2_PAYLOAD(request, CC_SetGraphicShadow)->shadow);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETCOLOUR:
     case CS2VM_HOST_REQUEST_IF_SETCOLOUR:
         if( tree )
             (void)UITree_ApplyColour(
-                tree, request->u.cc_set_colour.component_id, request->u.cc_set_colour.colour);
+                tree, RS_CS2_PAYLOAD(request, CC_SetColour)->component_id, RS_CS2_PAYLOAD(request, CC_SetColour)->colour);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETFILL:
     case CS2VM_HOST_REQUEST_IF_SETFILL:
-        node = rs_cs2_node(host, request->u.cc_set_fill.component_id);
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, CC_SetFill)->component_id);
         if( node && node->type == UIELEM_RS_RECT )
         {
             /* Compare before marking. Scripts re-assert the same value every
@@ -8878,12 +8886,12 @@ rs_cs2_host_exec_dispatch(
              * mark costs a repaint the client does not need plus a dirty_gen
              * bump that defeats the emit retention gate (Opt 11). This is the
              * pattern UITree_SetHide and set_node_text already use. */
-            uint8_t const filled = request->u.cc_set_fill.filled ? 1 : 0;
+            uint8_t const filled = RS_CS2_PAYLOAD(request, CC_SetFill)->filled ? 1 : 0;
             if( node->u.rs_rect.filled != filled )
             {
                 node->u.rs_rect.filled = filled;
                 UITree_MarkNodeDirty(
-                    tree, rs_cs2_find_node(host, request->u.cc_set_fill.component_id));
+                    tree, rs_cs2_find_node(host, RS_CS2_PAYLOAD(request, CC_SetFill)->component_id));
             }
         }
         /* An arc reads the same flag as "whole disc" vs "band along the arc"
@@ -8891,49 +8899,49 @@ rs_cs2_host_exec_dispatch(
          * it and its outline clears it. */
         else if( node && node->type == UIELEM_RS_ARC )
         {
-            node->u.rs_arc.filled = request->u.cc_set_fill.filled ? 1 : 0;
-            UITree_MarkNodeDirty(tree, rs_cs2_find_node(host, request->u.cc_set_fill.component_id));
+            node->u.rs_arc.filled = RS_CS2_PAYLOAD(request, CC_SetFill)->filled ? 1 : 0;
+            UITree_MarkNodeDirty(tree, rs_cs2_find_node(host, RS_CS2_PAYLOAD(request, CC_SetFill)->component_id));
         }
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETTRANS:
     case CS2VM_HOST_REQUEST_IF_SETTRANS:
-        node = rs_cs2_node(host, request->u.cc_set_trans.component_id);
-        if( node && node->trans != request->u.cc_set_trans.trans )
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, CC_SetTrans)->component_id);
+        if( node && node->trans != RS_CS2_PAYLOAD(request, CC_SetTrans)->trans )
         {
-            node->trans = request->u.cc_set_trans.trans;
+            node->trans = RS_CS2_PAYLOAD(request, CC_SetTrans)->trans;
             UITree_MarkNodeDirty(
-                tree, rs_cs2_find_node(host, request->u.cc_set_trans.component_id));
+                tree, rs_cs2_find_node(host, RS_CS2_PAYLOAD(request, CC_SetTrans)->component_id));
         }
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETNOCLICKTHROUGH:
-        node = rs_cs2_node(host, request->u.cc_set_no_click_through.component_id);
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, CC_SetNoClickThrough)->component_id);
         if( node )
         {
-            uint8_t const enabled = request->u.cc_set_no_click_through.enabled ? 1 : 0;
+            uint8_t const enabled = RS_CS2_PAYLOAD(request, CC_SetNoClickThrough)->enabled ? 1 : 0;
             if( node->no_click_through != enabled )
             {
                 node->no_click_through = enabled;
                 UITree_MarkNodeDirty(
-                    tree, rs_cs2_find_node(host, request->u.cc_set_no_click_through.component_id));
+                    tree, rs_cs2_find_node(host, RS_CS2_PAYLOAD(request, CC_SetNoClickThrough)->component_id));
             }
         }
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETTEXTFONT:
     case CS2VM_HOST_REQUEST_IF_SETTEXTFONT:
-        return exec_set_text_font(host, vm, request->u.cc_set_text_font, request->kind);
+        return exec_set_text_font(host, vm, *RS_CS2_PAYLOAD(request, CC_SetTextFont), request->kind);
 
     case CS2VM_HOST_REQUEST_CC_SETTEXTALIGN:
     case CS2VM_HOST_REQUEST_IF_SETTEXTALIGN:
         if( tree )
             (void)UITree_ApplyTextAlign(
                 tree,
-                request->u.cc_set_text_align.component_id,
-                request->u.cc_set_text_align.x_align,
-                request->u.cc_set_text_align.y_align,
-                request->u.cc_set_text_align.line_height);
+                RS_CS2_PAYLOAD(request, CC_SetTextAlign)->component_id,
+                RS_CS2_PAYLOAD(request, CC_SetTextAlign)->x_align,
+                RS_CS2_PAYLOAD(request, CC_SetTextAlign)->y_align,
+                RS_CS2_PAYLOAD(request, CC_SetTextAlign)->line_height);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETTEXTSHADOW:
@@ -8941,17 +8949,17 @@ rs_cs2_host_exec_dispatch(
         if( tree )
             (void)UITree_ApplyTextShadow(
                 tree,
-                request->u.cc_set_text_shadow.component_id,
-                request->u.cc_set_text_shadow.shadowed);
+                RS_CS2_PAYLOAD(request, CC_SetTextShadow)->component_id,
+                RS_CS2_PAYLOAD(request, CC_SetTextShadow)->shadowed);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETDRAGGABLE:
     case CS2VM_HOST_REQUEST_IF_SETDRAGGABLE:
-        node = rs_cs2_node(host, request->u.cc_set_draggable.component_id);
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, CC_SetDraggable)->component_id);
         if( node )
         {
-            int const parent_uid = request->u.cc_set_draggable.parent_uid;
-            int const child_index = request->u.cc_set_draggable.child_index;
+            int const parent_uid = RS_CS2_PAYLOAD(request, CC_SetDraggable)->parent_uid;
+            int const child_index = RS_CS2_PAYLOAD(request, CC_SetDraggable)->child_index;
             int area_uid = parent_uid;
             /* Resolve the render-area child at set time (reference WidgetOps /
              * InterfaceList.method1418(parent, childIndex)). ~scrollbar_vertical
@@ -8979,48 +8987,48 @@ rs_cs2_host_exec_dispatch(
                 node->drag_render_area_uid = area_uid;
                 node->drag_render_area_child_index = -1;
                 UITree_MarkNodeDirty(
-                    tree, rs_cs2_find_node(host, request->u.cc_set_draggable.component_id));
+                    tree, rs_cs2_find_node(host, RS_CS2_PAYLOAD(request, CC_SetDraggable)->component_id));
             }
         }
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETDRAGGABLEBEHAVIOR:
     case CS2VM_HOST_REQUEST_IF_SETDRAGGABLEBEHAVIOR:
-        node = rs_cs2_node(host, request->u.cc_set_draggable_behavior.component_id);
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, CC_SetDraggableBehavior)->component_id);
         if( node )
         {
-            if( node->drag_behavior != request->u.cc_set_draggable_behavior.behavior )
+            if( node->drag_behavior != RS_CS2_PAYLOAD(request, CC_SetDraggableBehavior)->behavior )
             {
-                node->drag_behavior = request->u.cc_set_draggable_behavior.behavior;
+                node->drag_behavior = RS_CS2_PAYLOAD(request, CC_SetDraggableBehavior)->behavior;
                 UITree_MarkNodeDirty(
                     tree,
-                    rs_cs2_find_node(host, request->u.cc_set_draggable_behavior.component_id));
+                    rs_cs2_find_node(host, RS_CS2_PAYLOAD(request, CC_SetDraggableBehavior)->component_id));
             }
         }
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETDRAGDEADZONE:
-        node = rs_cs2_node(host, request->u.cc_set_drag_dead_zone.component_id);
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, CC_SetDragDeadZone)->component_id);
         if( node )
         {
-            if( node->drag_dead_zone != (uint8_t)request->u.cc_set_drag_dead_zone.zone )
+            if( node->drag_dead_zone != (uint8_t)RS_CS2_PAYLOAD(request, CC_SetDragDeadZone)->zone )
             {
-                node->drag_dead_zone = (uint8_t)request->u.cc_set_drag_dead_zone.zone;
+                node->drag_dead_zone = (uint8_t)RS_CS2_PAYLOAD(request, CC_SetDragDeadZone)->zone;
                 UITree_MarkNodeDirty(
-                    tree, rs_cs2_find_node(host, request->u.cc_set_drag_dead_zone.component_id));
+                    tree, rs_cs2_find_node(host, RS_CS2_PAYLOAD(request, CC_SetDragDeadZone)->component_id));
             }
         }
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETDRAGDEADTIME:
-        node = rs_cs2_node(host, request->u.cc_set_drag_dead_time.component_id);
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, CC_SetDragDeadTime)->component_id);
         if( node )
         {
-            if( node->drag_dead_time != (uint8_t)request->u.cc_set_drag_dead_time.time )
+            if( node->drag_dead_time != (uint8_t)RS_CS2_PAYLOAD(request, CC_SetDragDeadTime)->time )
             {
-                node->drag_dead_time = (uint8_t)request->u.cc_set_drag_dead_time.time;
+                node->drag_dead_time = (uint8_t)RS_CS2_PAYLOAD(request, CC_SetDragDeadTime)->time;
                 UITree_MarkNodeDirty(
-                    tree, rs_cs2_find_node(host, request->u.cc_set_drag_dead_time.component_id));
+                    tree, rs_cs2_find_node(host, RS_CS2_PAYLOAD(request, CC_SetDragDeadTime)->component_id));
             }
         }
         return CS2VM_EXECNO_OK;
@@ -9031,10 +9039,10 @@ rs_cs2_host_exec_dispatch(
         return exec_set_object(
             host,
             vm,
-            request->u.if_set_object.component_id,
-            request->u.if_set_object.obj_id,
-            request->u.if_set_object.count,
-            request->u.if_set_object.num_mode,
+            RS_CS2_PAYLOAD(request, IF_SetObject)->component_id,
+            RS_CS2_PAYLOAD(request, IF_SetObject)->obj_id,
+            RS_CS2_PAYLOAD(request, IF_SetObject)->count,
+            RS_CS2_PAYLOAD(request, IF_SetObject)->num_mode,
             request->kind);
 
     case CS2VM_HOST_REQUEST_CC_SETOBJECT:
@@ -9043,16 +9051,16 @@ rs_cs2_host_exec_dispatch(
         return exec_set_object(
             host,
             vm,
-            request->u.cc_set_object.component_id,
-            request->u.cc_set_object.obj_id,
-            request->u.cc_set_object.count,
-            request->u.cc_set_object.num_mode,
+            RS_CS2_PAYLOAD(request, CC_SetObject)->component_id,
+            RS_CS2_PAYLOAD(request, CC_SetObject)->obj_id,
+            RS_CS2_PAYLOAD(request, CC_SetObject)->count,
+            RS_CS2_PAYLOAD(request, CC_SetObject)->num_mode,
             request->kind);
 
     case CS2VM_HOST_REQUEST_CC_DELETEALL:
     {
         int32_t parent_idx =
-            tree ? UITree_FindByComponentId(tree, request->u.cc_delete_all.component_id) : -1;
+            tree ? UITree_FindByComponentId(tree, RS_CS2_PAYLOAD(request, CC_DeleteAll)->component_id) : -1;
         if( parent_idx >= 0 )
             UITree_CcDeleteAll(tree, parent_idx);
         return CS2VM_EXECNO_OK;
@@ -9064,7 +9072,7 @@ rs_cs2_host_exec_dispatch(
          * node and its subtree and leaves the parent's remaining children in
          * place — the sub-ids of the survivors do not shift, which is what a
          * script deleting row 3 of a list expects. */
-        int32_t idx = tree ? UITree_FindByComponentId(tree, request->u.cc_delete.component_id) : -1;
+        int32_t idx = tree ? UITree_FindByComponentId(tree, RS_CS2_PAYLOAD(request, CC_DeleteAll)->component_id) : -1;
         if( idx >= 0 )
             UITree_CcDelete(tree, idx);
         return CS2VM_EXECNO_OK;
@@ -9073,16 +9081,16 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_CC_CREATE:
     case CS2VM_HOST_REQUEST_CC_CREATECHILD:
     case CS2VM_HOST_REQUEST_CC_CREATESIBLING:
-        return exec_cc_create(host, vm, request->u.cc_create, request->kind);
+        return exec_cc_create(host, vm, *RS_CS2_PAYLOAD(request, CC_Create), request->kind);
     case CS2VM_HOST_REQUEST_CC_COPY:
-        return exec_cc_copy(host, vm, request->u.cc_copy);
+        return exec_cc_copy(host, vm, *RS_CS2_PAYLOAD(request, CC_Copy));
 
     case CS2VM_HOST_REQUEST_CC_FIND:
     case CS2VM_HOST_REQUEST_CC_CHILDREN_FINDNEXT:
-        return exec_cc_find(host, vm, request->u.cc_find, request->kind);
+        return exec_cc_find(host, vm, *RS_CS2_PAYLOAD(request, CC_Find), request->kind);
 
     case CS2VM_HOST_REQUEST_IF_FIND:
-        return exec_if_find(host, vm, request->u.if_find);
+        return exec_if_find(host, vm, *RS_CS2_PAYLOAD(request, TargetFind));
 
     case CS2VM_HOST_REQUEST_OVERLAY_CC_CREATE:
     case CS2VM_HOST_REQUEST_OVERLAY_CC_DELETEALL:
@@ -9100,18 +9108,18 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_OVERLAY_LOC_DESTROY:
     case CS2VM_HOST_REQUEST_OVERLAY_PLAYER_DESTROY:
     case CS2VM_HOST_REQUEST_OVERLAY_COORD_DESTROY:
-        return exec_entity_overlay(host, vm, request->u.entity_overlay);
+        return exec_entity_overlay(host, vm, *RS_CS2_PAYLOAD(request, EntityOverlay));
 
     case CS2VM_HOST_REQUEST_LOC_FIND:
     case CS2VM_HOST_REQUEST_COORD_INSCENE:
-        return exec_subject_find(host, vm, request->u.subject_find);
+        return exec_subject_find(host, vm, *RS_CS2_PAYLOAD(request, SubjectFind));
 
     case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND_COUNT:
         return exec_children_find(
             host,
             vm,
-            request->u.cc_children_find.parent_id,
-            request->u.cc_children_find.start_index,
+            RS_CS2_PAYLOAD(request, CC_ChildrenFind)->parent_id,
+            RS_CS2_PAYLOAD(request, CC_ChildrenFind)->start_index,
             0,
             0,
             request->kind);
@@ -9121,36 +9129,36 @@ rs_cs2_host_exec_dispatch(
         return exec_children_find(
             host,
             vm,
-            request->u.if_children_find.uid,
-            request->u.if_children_find.start_index,
+            RS_CS2_PAYLOAD(request, IF_ChildrenFind)->uid,
+            RS_CS2_PAYLOAD(request, IF_ChildrenFind)->start_index,
             1,
-            request->u.if_children_find.dot_operand,
+            RS_CS2_PAYLOAD(request, IF_ChildrenFind)->dot_operand,
             request->kind);
 
     case CS2VM_HOST_REQUEST_CC_GETID:
-        node = rs_cs2_node(host, request->u.cc_get_id.component_id);
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, CC_GetId)->component_id);
         assert(node);
 
         return CS2VM2_PushInt(vm, node->dynamic ? node->dynamic_child_index : -1);
 
     case CS2VM_HOST_REQUEST_CC_GETX:
         return CS2VM2_PushInt(
-            vm, tree ? UITree_GetRelativeX(tree, request->u.cc_get_id.component_id) : 0);
+            vm, tree ? UITree_GetRelativeX(tree, RS_CS2_PAYLOAD(request, CC_GetId)->component_id) : 0);
 
     case CS2VM_HOST_REQUEST_CC_GETY:
         return CS2VM2_PushInt(
-            vm, tree ? UITree_GetRelativeY(tree, request->u.cc_get_id.component_id) : 0);
+            vm, tree ? UITree_GetRelativeY(tree, RS_CS2_PAYLOAD(request, CC_GetId)->component_id) : 0);
 
     case CS2VM_HOST_REQUEST_CC_GETWIDTH:
         return CS2VM2_PushInt(
-            vm, tree ? UITree_GetLayoutWidth(tree, request->u.cc_get_id.component_id) : 0);
+            vm, tree ? UITree_GetLayoutWidth(tree, RS_CS2_PAYLOAD(request, CC_GetId)->component_id) : 0);
 
     case CS2VM_HOST_REQUEST_CC_GETHEIGHT:
         return CS2VM2_PushInt(
-            vm, tree ? UITree_GetLayoutHeight(tree, request->u.cc_get_id.component_id) : 0);
+            vm, tree ? UITree_GetLayoutHeight(tree, RS_CS2_PAYLOAD(request, CC_GetId)->component_id) : 0);
 
     case CS2VM_HOST_REQUEST_CC_GETHIDE:
-        node = rs_cs2_node(host, request->u.cc_get_id.component_id);
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, CC_GetId)->component_id);
         return CS2VM2_PushInt(vm, node && node->behavior.hide ? 1 : 0);
 
     case CS2VM_HOST_REQUEST_CC_GETTEXT:
@@ -9158,50 +9166,50 @@ rs_cs2_host_exec_dispatch(
         char buf[512];
         buf[0] = '\0';
         if( tree )
-            rs_cs2_get_text(tree, request->u.cc_gettext.component_id, buf, (int)sizeof(buf));
+            rs_cs2_get_text(tree, RS_CS2_PAYLOAD(request, CC_GetId)->component_id, buf, (int)sizeof(buf));
         return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, buf));
     }
 
     case CS2VM_HOST_REQUEST_CC_GETCOLOUR:
-        node = rs_cs2_node(host, request->u.cc_gettext.component_id);
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, CC_GetId)->component_id);
         return CS2VM2_PushInt(vm, node ? node->colour : 0);
 
     case CS2VM_HOST_REQUEST_CC_GETFILLCOLOUR:
-        node = rs_cs2_node(host, request->u.cc_gettext.component_id);
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, CC_GetId)->component_id);
         return CS2VM2_PushInt(vm, node ? node->fill_colour : 0);
 
     case CS2VM_HOST_REQUEST_CC_GETINVOBJECT:
-        node = rs_cs2_node(host, request->u.cc_gettext.component_id);
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, CC_GetId)->component_id);
         return CS2VM2_PushInt(vm, node ? node->item_id : 0);
 
     case CS2VM_HOST_REQUEST_CC_GETINVCOUNT:
-        node = rs_cs2_node(host, request->u.cc_gettext.component_id);
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, CC_GetId)->component_id);
         return CS2VM2_PushInt(vm, node ? node->item_count : 0);
 
     case CS2VM_HOST_REQUEST_CC_GETTRANS:
-        node = rs_cs2_node(host, request->u.cc_gettrans.component_id);
+        node = rs_cs2_node(host, RS_CS2_PAYLOAD(request, CC_GetId)->component_id);
         return CS2VM2_PushInt(vm, node ? node->trans : 0);
 
     case CS2VM_HOST_REQUEST_CC_GETTARGETMASK:
     case CS2VM_HOST_REQUEST_IF_GETTARGETMASK:
         return CS2VM2_PushInt(
-            vm, rs_cs2_target_mask(host, request->u.cc_gettext.component_id));
+            vm, rs_cs2_target_mask(host, RS_CS2_PAYLOAD(request, CC_GetId)->component_id));
 
     case CS2VM_HOST_REQUEST_CC_GETCOMPONENTPARAM:
-        return exec_cc_getcomponentparam(host, vm, request->u.cc_component_param);
+        return exec_cc_getcomponentparam(host, vm, *RS_CS2_PAYLOAD(request, CC_ComponentParam));
 
     case CS2VM_HOST_REQUEST_IF_GETCOMPONENTPARAM:
-        return exec_if_getcomponentparam(host, vm, request->u.cc_component_param);
+        return exec_if_getcomponentparam(host, vm, *RS_CS2_PAYLOAD(request, CC_ComponentParam));
 
     case CS2VM_HOST_REQUEST_CC_SETCOMPONENTPARAM:
     case CS2VM_HOST_REQUEST_IF_SETPARAM:
         if( tree )
             (void)UITree_ApplyComponentParam(
                 tree,
-                request->u.cc_component_param.component_id,
-                request->u.cc_component_param.param_id,
-                request->u.cc_component_param.value,
-                request->u.cc_component_param.str_value);
+                RS_CS2_PAYLOAD(request, CC_ComponentParam)->component_id,
+                RS_CS2_PAYLOAD(request, CC_ComponentParam)->param_id,
+                RS_CS2_PAYLOAD(request, CC_ComponentParam)->value,
+                RS_CS2_PAYLOAD(request, CC_ComponentParam)->str_value);
         return CS2VM_EXECNO_OK;
 
     /* ---- Ops ---- */
@@ -9210,16 +9218,16 @@ rs_cs2_host_exec_dispatch(
         if( tree )
             rs_cs2_apply_op(
                 tree,
-                request->u.if_set_op.component_id,
-                request->u.if_set_op.index,
-                request->u.if_set_op.text);
+                RS_CS2_PAYLOAD(request, IF_SetOp)->component_id,
+                RS_CS2_PAYLOAD(request, IF_SetOp)->index,
+                RS_CS2_PAYLOAD(request, IF_SetOp)->text);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETOPBASE:
     case CS2VM_HOST_REQUEST_IF_SETOPBASE:
         if( tree )
             (void)UITree_ApplyOpBase(
-                tree, request->u.if_set_op_base.component_id, request->u.if_set_op_base.text);
+                tree, RS_CS2_PAYLOAD(request, IF_SetOpBase)->component_id, RS_CS2_PAYLOAD(request, IF_SetOpBase)->text);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETTARGETVERB:
@@ -9227,8 +9235,8 @@ rs_cs2_host_exec_dispatch(
         if( tree )
             (void)UITree_ApplyTargetVerb(
                 tree,
-                request->u.if_set_target_verb.component_id,
-                request->u.if_set_target_verb.text);
+                RS_CS2_PAYLOAD(request, IF_SetTargetVerb)->component_id,
+                RS_CS2_PAYLOAD(request, IF_SetTargetVerb)->text);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETOPSUBMENU:
@@ -9236,18 +9244,18 @@ rs_cs2_host_exec_dispatch(
         if( tree )
             rs_cs2_apply_op_submenu(
                 tree,
-                request->u.if_set_op_submenu.component_id,
-                request->u.if_set_op_submenu.op_index,
-                request->u.if_set_op_submenu.sub_index,
-                request->u.if_set_op_submenu.text);
+                RS_CS2_PAYLOAD(request, IF_SetOpSubmenu)->component_id,
+                RS_CS2_PAYLOAD(request, IF_SetOpSubmenu)->op_index,
+                RS_CS2_PAYLOAD(request, IF_SetOpSubmenu)->sub_index,
+                RS_CS2_PAYLOAD(request, IF_SetOpSubmenu)->text);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_CLEAROPSUBMENU:
         if( tree )
             (void)UITree_ClearOpSubmenu(
                 tree,
-                request->u.if_clear_op_submenu.component_id,
-                request->u.if_clear_op_submenu.op_index);
+                RS_CS2_PAYLOAD(request, IF_ClearOpSubmenu)->component_id,
+                RS_CS2_PAYLOAD(request, IF_ClearOpSubmenu)->op_index);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETTARGETPRIORITY:
@@ -9255,8 +9263,8 @@ rs_cs2_host_exec_dispatch(
         if( tree )
             (void)UITree_ApplyTargetPriority(
                 tree,
-                request->u.if_set_target_priority.component_id,
-                request->u.if_set_target_priority.priority);
+                RS_CS2_PAYLOAD(request, IF_SetTargetPriority)->component_id,
+                RS_CS2_PAYLOAD(request, IF_SetTargetPriority)->priority);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETOPKEY:
@@ -9266,11 +9274,11 @@ rs_cs2_host_exec_dispatch(
         if( tree )
             (void)UITree_ApplyOpKey(
                 tree,
-                request->u.widget_set_opkey.component_id,
-                request->u.widget_set_opkey.op_index,
-                request->u.widget_set_opkey.key_chars,
-                request->u.widget_set_opkey.key_codes,
-                request->u.widget_set_opkey.pair_count);
+                RS_CS2_PAYLOAD(request, WidgetSetOpKey)->component_id,
+                RS_CS2_PAYLOAD(request, WidgetSetOpKey)->op_index,
+                RS_CS2_PAYLOAD(request, WidgetSetOpKey)->key_chars,
+                RS_CS2_PAYLOAD(request, WidgetSetOpKey)->key_codes,
+                RS_CS2_PAYLOAD(request, WidgetSetOpKey)->pair_count);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETOPKEYRATE:
@@ -9283,25 +9291,25 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_IF_SETOPTKEYIGNOREHELD:
         if( tree )
         {
-            if( request->u.widget_set_opkey_rate.ignore_held )
+            if( RS_CS2_PAYLOAD(request, WidgetSetOpKeyRate)->ignore_held )
                 (void)UITree_ApplyOpKeyIgnoreHeld(
                     tree,
-                    request->u.widget_set_opkey_rate.component_id,
-                    request->u.widget_set_opkey_rate.op_index);
+                    RS_CS2_PAYLOAD(request, WidgetSetOpKeyRate)->component_id,
+                    RS_CS2_PAYLOAD(request, WidgetSetOpKeyRate)->op_index);
             else
                 (void)UITree_ApplyOpKeyRate(
                     tree,
-                    request->u.widget_set_opkey_rate.component_id,
-                    request->u.widget_set_opkey_rate.op_index,
-                    request->u.widget_set_opkey_rate.rate,
-                    request->u.widget_set_opkey_rate.enabled);
+                    RS_CS2_PAYLOAD(request, WidgetSetOpKeyRate)->component_id,
+                    RS_CS2_PAYLOAD(request, WidgetSetOpKeyRate)->op_index,
+                    RS_CS2_PAYLOAD(request, WidgetSetOpKeyRate)->rate,
+                    RS_CS2_PAYLOAD(request, WidgetSetOpKeyRate)->enabled);
         }
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_CLEAROPS:
     case CS2VM_HOST_REQUEST_IF_CLEAROPS:
         if( tree )
-            rs_cs2_clear_ops(tree, request->u.if_clear_ops.component_id);
+            rs_cs2_clear_ops(tree, RS_CS2_PAYLOAD(request, IF_ClearOps)->component_id);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_IF_CALLONRESIZE:
@@ -9309,96 +9317,96 @@ rs_cs2_host_exec_dispatch(
          * the host has no runner to nest a second one on. See the queue's
          * comment in rs_cs2_host.h for why deferring is safe for every call
          * site in this cache. */
-        rs_cs2_call_on_resize_push(host, request->u.if_call_on_resize.component_id);
+        rs_cs2_call_on_resize_push(host, RS_CS2_PAYLOAD(request, IF_CallOnResize)->component_id);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_TRIGGEROP:
         /* Queued for the same reason as IF_CALLONRESIZE above. */
         rs_cs2_trigger_op_push(
             host,
-            request->u.cc_trigger_op.component_id,
-            request->u.cc_trigger_op.op_index);
+            RS_CS2_PAYLOAD(request, CC_TriggerOp)->component_id,
+            RS_CS2_PAYLOAD(request, CC_TriggerOp)->op_index);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_SOUND_SYNTH:
-        rs_cs2_sound_push(host, RS_CS2_SOUND_SYNTH, &request->u.sound);
+        rs_cs2_sound_push(host, RS_CS2_SOUND_SYNTH, RS_CS2_PAYLOAD(request, Sound));
         return CS2VM_EXECNO_OK;
     case CS2VM_HOST_REQUEST_SOUND_SONG:
-        rs_cs2_sound_push(host, RS_CS2_SOUND_SONG, &request->u.sound);
+        rs_cs2_sound_push(host, RS_CS2_SOUND_SONG, RS_CS2_PAYLOAD(request, Sound));
         return CS2VM_EXECNO_OK;
     case CS2VM_HOST_REQUEST_SOUND_JINGLE:
-        rs_cs2_sound_push(host, RS_CS2_SOUND_JINGLE, &request->u.sound);
+        rs_cs2_sound_push(host, RS_CS2_SOUND_JINGLE, RS_CS2_PAYLOAD(request, Sound));
         return CS2VM_EXECNO_OK;
     case CS2VM_HOST_REQUEST_SOUND_SONG_WITHSECONDARY:
-        rs_cs2_sound_push(host, RS_CS2_SOUND_SONG_WITHSECONDARY, &request->u.sound);
+        rs_cs2_sound_push(host, RS_CS2_SOUND_SONG_WITHSECONDARY, RS_CS2_PAYLOAD(request, Sound));
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_IF_TRIGGEROPLOCAL:
         /* Queued so the App can turn it into IF_BUTTON1 on the wire. */
         rs_cs2_triggeroplocal_push(
             host,
-            request->u.if_triggeroplocal.component_id,
-            request->u.if_triggeroplocal.sub);
+            RS_CS2_PAYLOAD(request, IF_TriggerOpLocal)->component_id,
+            RS_CS2_PAYLOAD(request, IF_TriggerOpLocal)->sub);
         return CS2VM_EXECNO_OK;
 
     /* ---- SetOn (hooks / no-ops) ---- */
     case CS2VM_HOST_REQUEST_IF_SETONVARTRANSMIT:
-        return exec_set_on_var_transmit(host, &request->u.if_set_on_var_transmit);
+        return exec_set_on_var_transmit(host, RS_CS2_PAYLOAD(request, IF_SetOnVarTransmit));
 
     case CS2VM_HOST_REQUEST_IF_SETONINVTRANSMIT:
-        return exec_set_on_inv_transmit(host, &request->u.if_set_on_inv_transmit);
+        return exec_set_on_inv_transmit(host, RS_CS2_PAYLOAD(request, IF_SetOnInvTransmit));
 
     case CS2VM_HOST_REQUEST_IF_SETONSTATTRANSMIT:
         /* Same request shape as the var one — script, captured args, a trigger
          * list — so it shares the payload struct. The trigger ids are stat ids
          * rather than varp ids, which is the only difference and is the
          * dispatcher's business, not this one's. */
-        return exec_set_on_stat_transmit(host, &request->u.if_set_on_var_transmit);
+        return exec_set_on_stat_transmit(host, RS_CS2_PAYLOAD(request, IF_SetOnVarTransmit));
 
     case CS2VM_HOST_REQUEST_IF_SETONOP:
-        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
+        return exec_set_on_if_event(host, request->kind, RS_CS2_PAYLOAD(request, IF_SetOnOp));
     case CS2VM_HOST_REQUEST_IF_SETONCLICK:
-        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
+        return exec_set_on_if_event(host, request->kind, RS_CS2_PAYLOAD(request, IF_SetOnOp));
     case CS2VM_HOST_REQUEST_IF_SETONHOLD:
-        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
+        return exec_set_on_if_event(host, request->kind, RS_CS2_PAYLOAD(request, IF_SetOnOp));
     case CS2VM_HOST_REQUEST_IF_SETONMOUSEOVER:
-        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
+        return exec_set_on_if_event(host, request->kind, RS_CS2_PAYLOAD(request, IF_SetOnOp));
     case CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE:
-        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
+        return exec_set_on_if_event(host, request->kind, RS_CS2_PAYLOAD(request, IF_SetOnOp));
     case CS2VM_HOST_REQUEST_IF_SETONCLICKREPEAT:
     case CS2VM_HOST_REQUEST_IF_SETONRELEASE:
     case CS2VM_HOST_REQUEST_IF_SETONDIALOGABORT:
-        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
+        return exec_set_on_if_event(host, request->kind, RS_CS2_PAYLOAD(request, IF_SetOnOp));
     case CS2VM_HOST_REQUEST_IF_SETONTARGETENTER:
     case CS2VM_HOST_REQUEST_IF_SETONTARGETLEAVE:
-        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
+        return exec_set_on_if_event(host, request->kind, RS_CS2_PAYLOAD(request, IF_SetOnOp));
     case CS2VM_HOST_REQUEST_IF_SETONDRAG:
     case CS2VM_HOST_REQUEST_IF_SETONDRAGCOMPLETE:
     case CS2VM_HOST_REQUEST_IF_SETONRESIZE:
     case CS2VM_HOST_REQUEST_IF_SETONSUBCHANGE:
     case CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL:
-        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
+        return exec_set_on_if_event(host, request->kind, RS_CS2_PAYLOAD(request, IF_SetOnOp));
     case CS2VM_HOST_REQUEST_IF_SETONMOUSEREPEAT:
     case CS2VM_HOST_REQUEST_IF_SETONTIMER:
-        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
+        return exec_set_on_if_event(host, request->kind, RS_CS2_PAYLOAD(request, IF_SetOnOp));
     case CS2VM_HOST_REQUEST_IF_SETONKEY:
     case CS2VM_HOST_REQUEST_IF_SETONITEMONITEM:
     case CS2VM_HOST_REQUEST_IF_SETONCLANSETTINGS:
-        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
+        return exec_set_on_if_event(host, request->kind, RS_CS2_PAYLOAD(request, IF_SetOnOp));
     case CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT:
         /* Was `return CS2VM_EXECNO_OK` — a well-formed request the VM had
          * already built, thrown away. Registering it is the same call every
          * other SetOn makes; the walker that fires them is
          * CreateTask_CS2MiscTransmitDispatch. */
-        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
+        return exec_set_on_if_event(host, request->kind, RS_CS2_PAYLOAD(request, IF_SetOnOp));
     case CS2VM_HOST_REQUEST_IF_SETONFRIENDTRANSMIT:
         /* The friends/ignore panels' only repaint trigger. Walked by
          * CreateTask_CS2FriendTransmitDispatch. */
-        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_friend_transmit);
+        return exec_set_on_if_event(host, request->kind, RS_CS2_PAYLOAD(request, IF_SetOnOp));
     case CS2VM_HOST_REQUEST_IF_SETONCHATTRANSMIT:
         /* The chatbox's only repaint trigger -- the cache's own scripts own
          * every line in it. Walked by CreateTask_CS2ChatTransmitDispatch. */
-        return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_friend_transmit);
+        return exec_set_on_if_event(host, request->kind, RS_CS2_PAYLOAD(request, IF_SetOnOp));
     case CS2VM_HOST_REQUEST_CC_SETONCLICK:
     case CS2VM_HOST_REQUEST_CC_SETONHOLD:
     case CS2VM_HOST_REQUEST_CC_SETONMOUSEOVER:
@@ -9421,14 +9429,14 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_CC_SETONKEY:
     case CS2VM_HOST_REQUEST_CC_SETONITEMONITEM:
     case CS2VM_HOST_REQUEST_CC_SETONCLANSETTINGS:
-        return exec_set_on_cc_event(host, vm, request->kind, &request->u.cc_set_on_op);
+        return exec_set_on_cc_event(host, vm, request->kind, RS_CS2_PAYLOAD(request, CC_SetOnOp));
     case CS2VM_HOST_REQUEST_CC_SETONVARTRANSMIT:
     case CS2VM_HOST_REQUEST_CC_SETONINVTRANSMIT:
     case CS2VM_HOST_REQUEST_CC_SETONSTATTRANSMIT:
-        return exec_set_on_cc_transmit(host, vm, request->kind, &request->u.cc_set_on_op);
+        return exec_set_on_cc_transmit(host, vm, request->kind, RS_CS2_PAYLOAD(request, CC_SetOnOp));
     case CS2VM_HOST_REQUEST_SETANTIDRAG:
         if( tree )
-            tree->anti_drag = request->u.widget_set_int.value ? 1 : 0;
+            tree->anti_drag = RS_CS2_PAYLOAD(request, WidgetSetInt)->value ? 1 : 0;
         return CS2VM_EXECNO_OK;
     case CS2VM_HOST_REQUEST_IF_DRAGPICKUP:
     case CS2VM_HOST_REQUEST_CC_DRAGPICKUP:
@@ -9437,7 +9445,7 @@ rs_cs2_host_exec_dispatch(
          * request here the same way SETANTIDRAG parks anti_drag. */
         if( tree )
         {
-            int const cid = request->u.drag_pickup.component_id;
+            int const cid = RS_CS2_PAYLOAD(request, DragPickup)->component_id;
             node = rs_cs2_node(host, cid);
             if( node )
             {
@@ -9449,8 +9457,8 @@ rs_cs2_host_exec_dispatch(
                     return CS2VM_EXECNO_OK;
                 tree->pending_drag_pickup = 1;
                 tree->pending_drag_pickup_id = cid;
-                tree->pending_drag_pickup_x = request->u.drag_pickup.pickup_x;
-                tree->pending_drag_pickup_y = request->u.drag_pickup.pickup_y;
+                tree->pending_drag_pickup_x = RS_CS2_PAYLOAD(request, DragPickup)->pickup_x;
+                tree->pending_drag_pickup_y = RS_CS2_PAYLOAD(request, DragPickup)->pickup_y;
             }
         }
         return CS2VM_EXECNO_OK;
@@ -9487,19 +9495,19 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_IF_SETDRAGDEADZONE:
     case CS2VM_HOST_REQUEST_IF_SETDRAGDEADTIME:
     case CS2VM_HOST_REQUEST_IF_SETCLICKMASK:
-        return exec_widget_set_int(host, vm, request->u.widget_set_int, request->kind);
+        return exec_widget_set_int(host, vm, *RS_CS2_PAYLOAD(request, WidgetSetInt), request->kind);
 
     case CS2VM_HOST_REQUEST_CC_SETMODEL:
     case CS2VM_HOST_REQUEST_IF_SETMODEL:
-        return exec_widget_set_model(host, vm, request->u.widget_set_model, request->kind);
+        return exec_widget_set_model(host, vm, *RS_CS2_PAYLOAD(request, WidgetSetModel), request->kind);
 
     case CS2VM_HOST_REQUEST_CC_SETMODELANGLE:
     case CS2VM_HOST_REQUEST_IF_SETMODELANGLE:
-        return exec_widget_set_model_angle(host, vm, request->u.widget_set_model_angle);
+        return exec_widget_set_model_angle(host, vm, *RS_CS2_PAYLOAD(request, WidgetSetModelAngle));
 
     case CS2VM_HOST_REQUEST_CC_SETARC:
     case CS2VM_HOST_REQUEST_IF_SETARC:
-        return exec_widget_set_arc(host, vm, request->u.widget_set_arc);
+        return exec_widget_set_arc(host, vm, *RS_CS2_PAYLOAD(request, WidgetSetArc));
 
     case CS2VM_HOST_REQUEST_CC_SETNPCHEAD:
     case CS2VM_HOST_REQUEST_CC_SETPLAYERHEAD_SELF:
@@ -9509,7 +9517,7 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_IF_SETPLAYERHEAD_SELF:
     case CS2VM_HOST_REQUEST_IF_SETMODEL_PLAYERCHATHEAD:
         return exec_widget_set_model_kind(
-            host, vm, request->u.widget_set_model_kind, request->kind);
+            host, vm, *RS_CS2_PAYLOAD(request, WidgetSetModelKind), request->kind);
 
     case CS2VM_HOST_REQUEST_CC_INPUT_SETSUBMITMODE:
     case CS2VM_HOST_REQUEST_CC_INPUT_SETSELECTCOLOUR:

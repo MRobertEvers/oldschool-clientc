@@ -272,12 +272,13 @@ Register via `CS2VM2_BindHost(&vm, user, MyHostExec)`.
 ### Host responsibilities
 
 1. **Dispatch on `request->kind`** — switch over `CS2VM_HostRequestKind` and read
-   the matching payload from `request->u`.
+   the identically named payload arm from `request->u.<OPCODE>.payload`.
 2. **Return an exec code** — `CS2VM_EXECNO_OK`, `CS2VM_EXECNO_YIELD`, or
    `CS2VM_EXECNO_ERROR`.
 3. **Push results for getters** — use `CS2VM2_PushInt` / `CS2VM2_PushStr` on success.
-4. **Handle `GOSUB_WITH_PARAMS`** — look up `request->u.push_script.script_id`, decode if
-   needed, call `CS2VM2_PushCallScript`.
+4. **Handle `GOSUB_WITH_PARAMS`** — look up
+   `request->u.GOSUB_WITH_PARAMS.payload.script_id`, decode if needed, call
+   `CS2VM2_PushCallScript`.
 5. **Respect yield semantics** — on `YIELD`, do not touch VM stacks/frames; re-enter
    `RunScript` after async work.
 6. **Provide canvas size** — set `thread->canvas_w` / `thread->canvas_h` before
@@ -288,10 +289,11 @@ Register via `CS2VM2_BindHost(&vm, user, MyHostExec)`.
 ### Request kinds
 
 All request kinds are declared through `cs2vm2_host_request_kinds.def` in numeric
-CS2 opcode order. Every hosted opcode has its own identically named request kind
-and the same numeric value. Payload layouts can be shared, but request kinds are
+CS2 opcode order. Every hosted opcode has its own identically named request kind,
+struct tag, and union arm, and the kind has the opcode's numeric value. Field
+layouts may be reused internally, but public request payload identities are
 never folded into generic categories; for example `CC_SETTEXT` and `IF_SETTEXT`
-remain distinct throughout dispatch and yielding.
+remain distinct structs and arms throughout dispatch and yielding.
 
 | Category | Examples | Host does |
 |----------|----------|-----------|

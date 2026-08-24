@@ -6,27 +6,36 @@
 /* Every manifest suffix must name the same canonical CS2 opcode, and every
  * public request discriminator must retain that opcode's value. Token-pasting
  * here deliberately makes a renamed or family-level request fail to compile. */
-#define CS2VM_HOST_REQUEST_KIND(name, opcode)                                                    \
+#define CS2VM_HOST_REQUEST_KIND(name, opcode, layout)                                            \
     _Static_assert(                                                                             \
         (int)CS2_OP_##name == (int)(opcode),                                                     \
         "host request/opcode name mismatch: " #name);                                           \
     _Static_assert(                                                                             \
         (int)CS2VM_HOST_REQUEST_##name == (int)CS2_OP_##name,                                   \
-        "host request/opcode value mismatch: " #name);
+        "host request/opcode value mismatch: " #name);                                         \
+    _Static_assert(                                                                             \
+        _Generic(                                                                               \
+            &((struct CS2VM_HostRequest*)0)->u.name,                                             \
+            struct CS2VM_HostRequest_##name*: 1,                                                \
+            default: 0),                                                                        \
+        "host request payload tag/arm mismatch: " #name);                                      \
+    _Static_assert(                                                                             \
+        sizeof(struct CS2VM_HostRequest_##name) == sizeof(struct CS2VM_HostPayload_##layout),   \
+        "host request private layout mismatch: " #name);
 #include "cs2vm2/cs2vm2_host_request_kinds.def"
 #undef CS2VM_HOST_REQUEST_KIND
 
 enum
 {
     HOST_REQUEST_MANIFEST_COUNT = 0
-#define CS2VM_HOST_REQUEST_KIND(name, opcode) +1
+#define CS2VM_HOST_REQUEST_KIND(name, opcode, layout) +1
 #include "cs2vm2/cs2vm2_host_request_kinds.def"
 #undef CS2VM_HOST_REQUEST_KIND
 };
 
 _Static_assert(
-    HOST_REQUEST_MANIFEST_COUNT == 597,
-    "the CS2VM host-request manifest must contain all 597 host opcodes");
+    HOST_REQUEST_MANIFEST_COUNT == 611,
+    "the CS2VM host-request manifest must contain all 611 host opcodes");
 
 struct HostRequestKindEntry
 {
@@ -36,7 +45,7 @@ struct HostRequestKindEntry
 };
 
 static struct HostRequestKindEntry const HOST_REQUEST_KINDS[] = {
-#define CS2VM_HOST_REQUEST_KIND(name, opcode)                                                    \
+#define CS2VM_HOST_REQUEST_KIND(name, opcode, layout)                                            \
     { #name, (int)CS2_OP_##name, (int)CS2VM_HOST_REQUEST_##name },
 #include "cs2vm2/cs2vm2_host_request_kinds.def"
 #undef CS2VM_HOST_REQUEST_KIND

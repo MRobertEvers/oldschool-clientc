@@ -309,111 +309,101 @@ task_cs2_set_int_local(
     }
 }
 
-static bool
-task_cs2_kind_is_widget_set_int(enum CS2VM_HostRequestKind kind)
+static int
+task_cs2_component_id_from_request(struct CS2VM_HostRequest const* request)
 {
-    switch( kind )
+    assert(request);
+    switch( request->kind )
     {
-    case CS2VM_HOST_REQUEST_CC_SETPINCH:
-    case CS2VM_HOST_REQUEST_CC_SETNOSCROLLTHROUGH:
-    case CS2VM_HOST_REQUEST_CC_SETLINEWID:
-    case CS2VM_HOST_REQUEST_CC_SET2DANGLE:
-    case CS2VM_HOST_REQUEST_CC_SETMODELANIM:
-    case CS2VM_HOST_REQUEST_CC_SETMODELORTHOG:
-    case CS2VM_HOST_REQUEST_CC_SETVFLIP:
-    case CS2VM_HOST_REQUEST_CC_SETHFLIP:
-    case CS2VM_HOST_REQUEST_CC_SETFILLCOLOUR:
-    case CS2VM_HOST_REQUEST_CC_SETTRANSBOT:
-    case CS2VM_HOST_REQUEST_CC_SETFILLMODE:
-    case CS2VM_HOST_REQUEST_CC_SETLINEDIRECTION:
-    case CS2VM_HOST_REQUEST_CC_SETMODELTRANSPARENT:
-    case CS2VM_HOST_REQUEST_CC_SETOPFORCELEFTCLICK:
-    case CS2VM_HOST_REQUEST_IF_SETPINCH:
-    case CS2VM_HOST_REQUEST_IF_SETNOCLICKTHROUGH:
-    case CS2VM_HOST_REQUEST_IF_SETNOSCROLLTHROUGH:
-    case CS2VM_HOST_REQUEST_IF_SETLINEWID:
-    case CS2VM_HOST_REQUEST_IF_SET2DANGLE:
-    case CS2VM_HOST_REQUEST_IF_SETMODELANIM:
-    case CS2VM_HOST_REQUEST_IF_SETMODELORTHOG:
-    case CS2VM_HOST_REQUEST_IF_SETVFLIP:
-    case CS2VM_HOST_REQUEST_IF_SETHFLIP:
-    case CS2VM_HOST_REQUEST_IF_SETFILLCOLOUR:
-    case CS2VM_HOST_REQUEST_IF_SETTRANSBOT:
-    case CS2VM_HOST_REQUEST_IF_SETFILLMODE:
-    case CS2VM_HOST_REQUEST_IF_SETLINEDIRECTION:
-    case CS2VM_HOST_REQUEST_IF_SETMODELTRANSPARENT:
-    case CS2VM_HOST_REQUEST_IF_SETDRAGDEADZONE:
-    case CS2VM_HOST_REQUEST_IF_SETDRAGDEADTIME:
-    case CS2VM_HOST_REQUEST_IF_SETCLICKMASK:
-        return true;
+#define TASK_CS2_COMPONENT_ID_CASE(name, field) \
+    case CS2VM_HOST_REQUEST_##name: return request->u.name.payload.field
+        TASK_CS2_COMPONENT_ID_CASE(CC_SETPINCH, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_SETNOSCROLLTHROUGH, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_SETLINEWID, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_SET2DANGLE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_SETMODELANIM, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_SETMODELORTHOG, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_SETVFLIP, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_SETHFLIP, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_SETFILLCOLOUR, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_SETTRANSBOT, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_SETFILLMODE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_SETLINEDIRECTION, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_SETMODELTRANSPARENT, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_SETOPFORCELEFTCLICK, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETPINCH, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETNOCLICKTHROUGH, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETNOSCROLLTHROUGH, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETLINEWID, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SET2DANGLE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETMODELANIM, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETMODELORTHOG, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETVFLIP, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETHFLIP, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETFILLCOLOUR, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETTRANSBOT, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETFILLMODE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETLINEDIRECTION, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETMODELTRANSPARENT, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETDRAGDEADZONE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETDRAGDEADTIME, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_SETCLICKMASK, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETSUBMITMODE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETSELECTCOLOUR, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETACCEPTMODE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETWRAPMODE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETLINEWRAPPINGWIDTH, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETSELECTBGCOLOUR, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETLINECOUNTLIMIT, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCURSORCOLOUR, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCURSORTRANS, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCURSORWIDTH, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCURSORHEIGHT, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCURSOROFFSET, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETLINEWIDTHLIMIT, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_INPUT_SETCHARFILTER, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETSUBMITMODE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETSELECTCOLOUR, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETACCEPTMODE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETWRAPMODE, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETLINEWRAPPINGWIDTH, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETSELECTBGCOLOUR, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETLINECOUNTLIMIT, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETCURSORCOLOUR, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETCURSORTRANS, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETCURSORWIDTH, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETCURSORHEIGHT, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETCURSOROFFSET, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETLINEWIDTHLIMIT, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_INPUT_SETCHARFILTER, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_CREATE, parent_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_COPY, parent_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_CREATECHILD, parent_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_CREATESIBLING, parent_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_FIND, parent_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_FIND, component_id);
+        TASK_CS2_COMPONENT_ID_CASE(IF_CHILDREN_FIND, uid);
+        TASK_CS2_COMPONENT_ID_CASE(IF_CHILDREN_COLLECT, uid);
+        TASK_CS2_COMPONENT_ID_CASE(CC_CHILDREN_FIND_COUNT, parent_id);
+        TASK_CS2_COMPONENT_ID_CASE(CC_CHILDREN_FINDNEXT, parent_id);
+#undef TASK_CS2_COMPONENT_ID_CASE
     default:
-        return false;
+        return -1;
     }
 }
 
 static int
 task_cs2_group_id_from_request(struct CS2VM_HostRequest const* request)
 {
-    assert(request);
-    if( task_cs2_kind_is_widget_set_int(request->kind) )
-        return (request->u.widget_set_int.component_id >> 16) & 0xffff;
-
-    switch( request->kind )
-    {
-    case CS2VM_HOST_REQUEST_CC_CREATE:
-        return (request->u.cc_create.parent_id >> 16) & 0xffff;
-    case CS2VM_HOST_REQUEST_CC_COPY:
-        return (request->u.cc_copy.parent_id >> 16) & 0xffff;
-    case CS2VM_HOST_REQUEST_CC_CREATECHILD:
-    case CS2VM_HOST_REQUEST_CC_CREATESIBLING:
-        return (request->u.cc_create.parent_id >> 16) & 0xffff;
-    case CS2VM_HOST_REQUEST_CC_FIND:
-        return (request->u.cc_find.parent_id >> 16) & 0xffff;
-    case CS2VM_HOST_REQUEST_IF_FIND:
-        return (request->u.if_find.component_id >> 16) & 0xffff;
-    case CS2VM_HOST_REQUEST_IF_CHILDREN_FIND:
-    case CS2VM_HOST_REQUEST_IF_CHILDREN_COLLECT:
-        return (request->u.if_children_find.uid >> 16) & 0xffff;
-    case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND_COUNT:
-        return (request->u.cc_children_find.parent_id >> 16) & 0xffff;
-    case CS2VM_HOST_REQUEST_CC_CHILDREN_FINDNEXT:
-        return (request->u.cc_find.parent_id >> 16) & 0xffff;
-    default:
-        return -1;
-    }
+    int component_id = task_cs2_component_id_from_request(request);
+    return component_id < 0 ? -1 : (component_id >> 16) & 0xffff;
 }
 
 /** Parent component id that triggered a missing-group yield, or -1. */
 static int
 task_cs2_mount_parent_id_from_request(struct CS2VM_HostRequest const* request)
 {
-    assert(request);
-    if( task_cs2_kind_is_widget_set_int(request->kind) )
-        return request->u.widget_set_int.component_id;
-
-    switch( request->kind )
-    {
-    case CS2VM_HOST_REQUEST_CC_CREATE:
-        return request->u.cc_create.parent_id;
-    case CS2VM_HOST_REQUEST_CC_COPY:
-        return request->u.cc_copy.parent_id;
-    case CS2VM_HOST_REQUEST_CC_CREATECHILD:
-    case CS2VM_HOST_REQUEST_CC_CREATESIBLING:
-        return request->u.cc_create.parent_id;
-    case CS2VM_HOST_REQUEST_CC_FIND:
-        return request->u.cc_find.parent_id;
-    case CS2VM_HOST_REQUEST_IF_FIND:
-        return request->u.if_find.component_id;
-    case CS2VM_HOST_REQUEST_IF_CHILDREN_FIND:
-    case CS2VM_HOST_REQUEST_IF_CHILDREN_COLLECT:
-        return request->u.if_children_find.uid;
-    case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND_COUNT:
-        return request->u.cc_children_find.parent_id;
-    case CS2VM_HOST_REQUEST_CC_CHILDREN_FINDNEXT:
-        return request->u.cc_find.parent_id;
-    default:
-        return -1;
-    }
+    return task_cs2_component_id_from_request(request);
 }
 
 static void
