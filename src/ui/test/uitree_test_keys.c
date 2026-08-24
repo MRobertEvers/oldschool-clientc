@@ -179,6 +179,14 @@ test_key_dispatch(void)
         int li = key_target_index(&out, 11);
         int ri = key_target_index(&out, 12);
         TEST_ASSERT(
+            out.key_targets[li].node_index == left &&
+                out.key_targets[li].node_incarnation == tree->components[left].incarnation,
+            "key target retains the exact collected node incarnation");
+        TEST_ASSERT(
+            out.key_targets[ri].node_index == right &&
+                out.key_targets[ri].node_incarnation == tree->components[right].incarnation,
+            "each broadcast target carries its own exact occupant");
+        TEST_ASSERT(
             out.key_mouse_x - out.key_targets[li].abs_x == 200, "left rel x = mouse - abs");
         TEST_ASSERT(
             out.key_mouse_x - out.key_targets[ri].abs_x == 200 - 300, "right rel x = mouse - abs");

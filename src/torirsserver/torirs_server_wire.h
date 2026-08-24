@@ -432,6 +432,113 @@ ToriRSServer_WireDefault(void);
 int
 ToriRSServer_WireOpcode(const struct ToriRSServerWire* wire, int pkt_name);
 
+/**
+ * Decode a captured IF_OPENSUB payload in whichever layout this wire writes.
+ *
+ * Revisions disagree about both the order and the transforms of its three
+ * fields, so a caller that reads the bytes itself is asserting about one
+ * revision. Returns non-zero when the payload was long enough.
+ */
+/**
+ * Decode an UPDATE_INV_FULL / UPDATE_INV_PARTIAL header.
+ *
+ * `*out_component` is -1 when the revision does not carry one — 239 addresses
+ * these by inventory id and writes a sentinel in the component's place. Do not
+ * read that -1 as a component. `*out_capacity` is -1 for the partial form.
+ */
+int
+ToriRSServer_WireReadInvHeader(
+    const struct ToriRSServerWire* wire,
+    int pkt_name,
+    const uint8_t* data,
+    int len,
+    int* out_component,
+    int* out_container,
+    int* out_capacity);
+
+/**
+ * Decode a captured VARP_SMALL / VARP_LARGE. The two forms put their fields in
+ * different orders at 239 and the same order at 230, so `pkt_name` selects.
+ */
+int
+ToriRSServer_WireReadVarp(
+    const struct ToriRSServerWire* wire,
+    int pkt_name,
+    const uint8_t* data,
+    int len,
+    int* out_varp,
+    int* out_value);
+
+/**
+ * Decode a captured IF_SETTEXT: the uid and the string swap places between
+ * revisions, and the string's terminator differs with them.
+ */
+int
+ToriRSServer_WireReadIfSettext(
+    const struct ToriRSServerWire* wire,
+    const uint8_t* data,
+    int len,
+    int* out_uid,
+    char* out_text,
+    int text_cap);
+
+/**
+ * Copy a captured MESSAGE_GAME's text out, in whichever layout this wire
+ * writes. The string starts at a different offset per revision. Returns
+ * non-zero on success.
+ */
+int
+ToriRSServer_WireReadMessageGame(
+    const struct ToriRSServerWire* wire,
+    const uint8_t* data,
+    int len,
+    char* out_text,
+    int text_cap);
+
+/**
+ * Decode a captured IF_SETEVENTS payload in this wire's layout.
+ *
+ * `out_events` is the CLASSIC mask: 239 splits it across two words and this
+ * puts it back, so callers keep speaking the numbers the assertions use.
+ */
+int
+ToriRSServer_WireReadIfSetevents(
+    const struct ToriRSServerWire* wire,
+    const uint8_t* data,
+    int len,
+    int* out_uid,
+    int* out_start,
+    int* out_end,
+    uint32_t* out_events);
+
+/**
+ * Decode a captured RUNCLIENTSCRIPT payload, all-int arguments only.
+ *
+ * The type string's terminator differs by revision (newline at 230, NUL at
+ * 239) and reading the wrong one shifts every argument silently. Returns
+ * non-zero on success; 0 for a short payload or a non-int argument.
+ */
+int
+ToriRSServer_WireReadRunClientscript(
+    const struct ToriRSServerWire* wire,
+    const uint8_t* data,
+    int len,
+    char* out_types,
+    int types_cap,
+    int* out_argv,
+    int argv_cap,
+    int* out_argc,
+    int* out_script_id);
+
+int
+ToriRSServer_WireReadIfOpensub(
+    const struct ToriRSServerWire* wire,
+    const uint8_t* data,
+    int len,
+    int* out_group,
+    int* out_uid,
+    int* out_type);
+
 /** Human-readable name for a canonical packet, for those same diagnostics. */
 char const*
 ToriRSServer_WirePktName(int pkt_name);

@@ -31,6 +31,15 @@ enum UITreeEmitKind
     UITREE_EMIT_DEBUG_OVERLAY,
 };
 
+/** Host request that owns an ENTITY_OVERLAY descriptor's volatile array. */
+enum UITreeEmitOverlaySource
+{
+    UITREE_EMIT_OVERLAY_NONE = 0,
+    UITREE_EMIT_OVERLAY_ENTITY,
+    UITREE_EMIT_OVERLAY_CANVAS,
+    UITREE_EMIT_OVERLAY_FRAME,
+};
+
 struct UITreeEmitClip
 {
     int x;
@@ -82,6 +91,9 @@ struct UITreeEmitDesc
      * Host-owned pointer, same-frame lifetime (like `minimap_dots`). */
     struct UITreeEntityOverlay const* entity_overlays;
     int entity_overlay_count;
+    /** Which host list produced entity_overlays; retained refresh must reissue
+     *  that exact request because ENTITY, CANVAS, and FRAME layer differently. */
+    uint8_t entity_overlay_source;
     /** WORLDMAP: the baked map-surface regions covering the widget this frame,
      * already positioned in absolute screen pixels by the host. Host-owned
      * pointer, same-frame lifetime (like `minimap_dots`). */
@@ -185,10 +197,20 @@ struct UITreeEmitBuffer
      *  computed by testing the pointers, not by listing the kinds that set them,
      *  so a kind added later cannot quietly opt itself out of the check. */
     int volatile_refs;
+    /** Bitsets keyed by enum UITreeEmitOverlaySource. `seen` includes a source
+     *  that returned zero items, so retained refresh can detect its first item
+     *  without putting a no-op descriptor in the renderer's command list. */
+    uint8_t volatile_overlay_seen;
+    uint8_t volatile_overlay_nonempty;
+    /** Fully processed descriptor shapes, including node identity and common
+     *  clipping/scroll fields, retained even while a source has zero items. */
+    struct UITreeEmitDesc volatile_overlay_template[UITREE_EMIT_OVERLAY_FRAME + 1];
+    struct UITreeEmitClip volatile_overlay_enclosing_clip[UITREE_EMIT_OVERLAY_FRAME + 1];
+    int volatile_overlay_insert_at[UITREE_EMIT_OVERLAY_FRAME + 1];
     /** Set when at least one volatile desc cannot be re-issued from the desc
      *  alone, so the whole list must be rebuilt by the walk instead of
-     *  refreshed. Today that is WORLDMAP only: its desc does not record which of
-     *  the two host requests (tiles vs overview) produced it. */
+     *  refreshed. Today that is WORLDMAP, whose desc does not record tiles vs
+     *  overview, or a legacy entity-overlay desc with no recorded source. */
     int volatile_unrefreshable;
 };
 
@@ -223,7 +245,10 @@ UITree_EmitWalk(
  *
  * Requires `volatile_unrefreshable == 0`.
  */
-void
+/** Returns 1 when every refreshable volatile source was re-issued in place.
+ *  The retained overlay templates also handle empty/non-empty transitions
+ *  without exposing empty commands to the renderer. */
+int
 UITree_EmitRefreshVolatile(
     struct UITree const* tree,
     struct UITreeHost const* host,

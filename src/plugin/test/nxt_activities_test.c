@@ -523,6 +523,20 @@ fake_role_id(void* u, char const* role)
 }
 
 static int
+fake_role_replace(void* u, int plugin, char const* role, int enabled)
+{
+    (void)u; (void)plugin; (void)role; (void)enabled;
+    return 1;
+}
+
+static int
+fake_role_anchor(void* u, int plugin, char const* role, int replace)
+{
+    (void)u; (void)plugin; (void)replace;
+    return role ? 0 : 1;
+}
+
+static int
 fake_layout_slot(void* u, int slot, int member, int x, int y, int w, int h)
 {
     (void)u;
@@ -541,6 +555,17 @@ fake_layout_slot_skin(void* u, int slot, int art, int mask)
     (void)slot;
     (void)art;
     (void)mask;
+    return 0;
+}
+static int
+fake_layout_slot_overlay(void* u, int slot, int image, int x, int y, int trans)
+{
+    (void)u;
+    (void)slot;
+    (void)image;
+    (void)x;
+    (void)y;
+    (void)trans;
     return 0;
 }
 static int
@@ -1006,8 +1031,11 @@ fake_engine(void)
     e.role_visible = fake_role_visible;
     e.role_click = fake_role_click;
     e.role_id = fake_role_id;
+    e.role_replace = fake_role_replace;
+    e.role_anchor = fake_role_anchor;
     e.layout_slot = fake_layout_slot;
     e.layout_slot_skin = fake_layout_slot_skin;
+    e.layout_slot_overlay = fake_layout_slot_overlay;
     e.layout_scrollbar = fake_layout_scrollbar;
     e.display_setting = fake_display_setting;
     e.display_setting_set = fake_display_setting_set;

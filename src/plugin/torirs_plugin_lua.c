@@ -910,6 +910,44 @@ lua_role_visible(lua_State* L)
     return 1;
 }
 
+/**
+ * `replace([enabled])` -- suppress the native role while plugin chrome stands
+ * in its place. The claim is persistent host state, not a per-frame drawing,
+ * so scripts reconcile it at start/config changes and explicitly release it
+ * when their mode changes. Omitted means true, matching the ordinary
+ * `role.replace()` spelling.
+ */
+static int
+lua_role_replace(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+    int enabled = 1;
+
+    if( !lua_isnoneornil(L, 1) )
+    {
+        luaL_checktype(L, 1, LUA_TBOOLEAN);
+        enabled = lua_toboolean(L, 1);
+    }
+    lua_pushboolean(
+        L, g_api->role_replace(script->cur_ctx, lua_role_name(L), enabled));
+    return 1;
+}
+
+/**
+ * `anchor()` -- attach the rest of this canvas subscriber's declarations to
+ * the role's local paint boundary. The host clears the stamp when the
+ * subscriber returns, so a script cannot accidentally retarget the next
+ * plugin's drawing.
+ */
+static int
+lua_role_anchor(lua_State* L)
+{
+    struct LuaScript* script = lua_upvalue_script(L);
+
+    lua_pushboolean(L, g_api->role_anchor(script->cur_ctx, lua_role_name(L)));
+    return 1;
+}
+
 /** `click([op])` -- op defaults to 0, the classic unnumbered button. */
 static int
 lua_role_click(lua_State* L)
@@ -955,6 +993,8 @@ lua_api_role(lua_State* L)
     } VERBS[] = {
         { "rect", lua_role_rect },
         { "visible", lua_role_visible },
+        { "replace", lua_role_replace },
+        { "anchor", lua_role_anchor },
         { "click", lua_role_click },
         { "id", lua_role_id },
     };

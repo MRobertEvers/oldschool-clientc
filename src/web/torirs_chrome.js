@@ -54,6 +54,14 @@
     COLORPICK: 10, TEXTAREA: 11, FREE: 12
   };
 
+  /*
+   * A LISTROW's shape bits, carried in WIDGET_ADD's `cw` -- the
+   * TORIRS_CHROME_ROW_* defines in torirs_chrome_exec.h. Not an enum, so the
+   * sync test above cannot read them; kept beside the tables it does read
+   * because they rot the same way.
+   */
+  const ROW = { ACTION: 0x1, LOCKED: 0x2 };
+
   /* Intent kinds — enum ToriRSChromeIntentKind. */
   const INTENT = {
     ACTIVATE: 1, ACTION: 2, TOGGLE: 3, TEXT: 4, PICK: 5, TAB: 6, CLOSE: 7
@@ -1666,16 +1674,24 @@
            * DIFFERENT intents -- ACTION opens the entry's own page, TOGGLE flips
            * it -- which is the whole reason a roster row is not a checkbox.
            *
-           * `cmd.cw` carries the row's `row_action` flag: it rides WIDGET_ADD
-           * because whether a row has an action is part of its shape, and a row
-           * that gained or lost one is re-added rather than updated.
+           * `cmd.cw` carries the row's SHAPE bits (TORIRS_CHROME_ROW_* in
+           * torirs_chrome_exec.h): they ride WIDGET_ADD because whether a row
+           * has an action, and whether it can be switched off at all, are part
+           * of its shape -- a row that gained or lost either is re-added rather
+           * than updated.
+           *
+           * A LOCKED row is the roster's essential one. It has no second state,
+           * so it gets no switch: an unchecked box beside it reads as a plugin
+           * somebody turned off, and a checked one as a switch that does nothing
+           * when clicked.
            */
+          const locked = (cmd.cw & ROW.LOCKED) !== 0;
           const name = doc.createElement('span');
           name.className = 'rowname';
           name.textContent = cmd.label || '';
           row.appendChild(name);
 
-          if (cmd.cw) {
+          if (cmd.cw & ROW.ACTION) {
             const action = doc.createElement('button');
             action.type = 'button';
             action.className = 'rowact';
@@ -1686,6 +1702,11 @@
               this.push({ k: INTENT.ACTION, p: cmd.p, w: cmd.w, v: 0, text: '' });
             });
             row.appendChild(action);
+          }
+
+          if (locked) {
+            entry.labelNode = name;
+            break;
           }
 
           const sw = doc.createElement('input');

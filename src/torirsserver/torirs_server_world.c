@@ -2457,6 +2457,36 @@ player_process_locstep(struct ToriRSServer* srv)
  * keeps the server's collision and the client's REBUILD_REGION descriptors from
  * disagreeing about which map the scene is.
  */
+/*
+ * Which reservation a window centred at this zone is a copy of, and which BUILD
+ * of it.
+ *
+ * The handle alone is not enough: a reservation is reused in place — same slot,
+ * same base — so re-entering an activity keeps the handle and the coordinates
+ * while the zones underneath are refilled from a different square. Nothing in
+ * the window moves, so `maybe_rebuild` sees no reason to re-centre and the
+ * server's collision copy stays the PREVIOUS occupant's.
+ *
+ * Measured on the Theatre: `::tob 2` refilled reservation 1 from m51_69 and the
+ * server's scene remained m49_68 — Xarpus's square — for the rest of the run,
+ * so every `loc_find` in the Bloat room answered about the wrong room and its
+ * central tank read as absent.
+ *
+ * The generation is bumped by every `ToriRSServer_MapInstanceBuild`, so
+ * comparing it against the one the window was built from catches exactly that.
+ */
+static int
+zone_centre_generation(
+    int zone_x,
+    int zone_z)
+{
+    int handle =
+        ToriRSServer_MapInstanceFind(ToriRSServer_SceneOrigin(zone_x) + TORIRSSERVER_SCENE_TILES / 2,
+                                     ToriRSServer_SceneOrigin(zone_z) + TORIRSSERVER_SCENE_TILES / 2);
+
+    return handle ? ToriRSServer_MapInstanceGeneration(handle) : 0;
+}
+
 static void
 world_window_scene_build(
     struct ToriRSServer* srv,
@@ -2517,11 +2547,13 @@ world_player_scene_build(
     player->scene_build_attempted = 1;
     world_window_scene_build(srv, ToriRSServer_PlayerSceneWindow(player), player->zone_x,
                              player->zone_z);
+    player->scene_built_generation = zone_centre_generation(player->zone_x, player->zone_z);
 }
 
 void
 ToriRSServer_WorldSceneRebuild(struct ToriRSServer* srv)
 {
+    srv->scene_built_generation = zone_centre_generation(srv->zone_x, srv->zone_z);
     world_window_scene_build(srv, ToriRSServer_SceneWindowRoot(), srv->zone_x, srv->zone_z);
 }
 
@@ -2664,6 +2696,14 @@ maybe_rebuild(struct ToriRSServer* srv)
     int edge = TORIRSSERVER_SCENE_TILES - TORIRSSERVER_REBUILD_MARGIN;
     int rebuilt = 0;
 
+    /*
+     * A reservation rebuilt UNDER the root window is a new map at the same
+     * address. Nothing moves the root, so only its contents can go stale;
+     * rebuild in place (the rebuild re-stamps srv->scene_built_generation).
+     */
+    if( zone_centre_generation(srv->zone_x, srv->zone_z) != srv->scene_built_generation )
+        ToriRSServer_WorldSceneRebuild(srv);
+
     for( int i = 0; i < srv->player_count; i++ )
     {
         struct ToriRSServerPlayer* player = &srv->players[i];
@@ -2679,10 +2719,49 @@ maybe_rebuild(struct ToriRSServer* srv)
          * the skip off "built" re-attempted the build — and reset every
          * player's zones — every tick, forever. The margins alone decide a
          * re-centre once a placement exists. */
-        if( player->scene_build_attempted &&
-            local_x >= TORIRSSERVER_REBUILD_MARGIN && local_x < edge &&
-            local_z >= TORIRSSERVER_REBUILD_MARGIN && local_z < edge )
-            continue;
+        {
+            /*
+             * A DIFFERENT INSTANCE IS A DIFFERENT MAP, even at the same
+             * window.
+             *
+             * The window is 104 tiles and an instance square is 64, so a
+             * teleport from one reservation to a neighbouring one can land
+             * well inside the margins and move the window not at all. The
+             * window then stays centred on the square the player LEFT — which
+             * content has usually just released — and the next build at that
+             * stale centre answers "not instanced" and builds the pool's empty
+             * land instead: a scene with no locs at all, and a `loc_find` in
+             * the new room that reports the room is missing.
+             *
+             * Measured on the Theatre, walking room 3 -> room 4: the Nylocas
+             * square and Sotetseg's are both inside one window, so the
+             * Sotetseg chamber built as "scene built at zone 803,14 — 0 locs"
+             * and its exit passage could not be found on any plane. The
+             * generation check in phase_client_out sees the change but
+             * rebuilds at the stale centre, so it cannot repair this on its
+             * own.
+             *
+             * Zones are 8 tiles and squares are 64, both aligned, so the
+             * re-centre below puts the window's centre tile back inside the
+             * player's own square and the condition cannot re-trigger against
+             * itself.
+             *
+             * The generation half of the test catches the other stale case: a
+             * reservation rebuilt IN PLACE under an unmoved window — same
+             * handle, same base, new zones (see zone_centre_generation).
+             */
+            int window_handle = ToriRSServer_MapInstanceFind(
+                ToriRSServer_SceneOrigin(player->zone_x) + TORIRSSERVER_SCENE_TILES / 2,
+                ToriRSServer_SceneOrigin(player->zone_z) + TORIRSSERVER_SCENE_TILES / 2);
+
+            if( player->scene_build_attempted &&
+                local_x >= TORIRSSERVER_REBUILD_MARGIN && local_x < edge &&
+                local_z >= TORIRSSERVER_REBUILD_MARGIN && local_z < edge &&
+                ToriRSServer_MapInstanceFind(player->x, player->z) == window_handle &&
+                zone_centre_generation(player->zone_x, player->zone_z) ==
+                    player->scene_built_generation )
+                continue;
+        }
 
         /*
          * The server's collision window moves with this client's scene, and a
@@ -12401,24 +12480,60 @@ phase_client_out(struct ToriRSServerPlayer* player)
         int instance_gen =
             instance_handle ? ToriRSServer_MapInstanceGeneration(instance_handle) : 0;
 
+        if( getenv("TORIRS_GEN_PROBE") && instance_handle )
+            fprintf(stderr, "  PROBE gen h=%d inst=%d scene=%d pending=%d\n", instance_handle,
+                    instance_gen, player->scene_instance_generation, player->rebuild_pending);
         if( instance_gen != player->scene_instance_generation )
         {
-            /* Skip when a rebuild is already owed this tick (teleport in
-             * moved the window and maybe_rebuild has run) — rebuilding the
-             * server scene twice in one tick is wasted work, not a bug. */
+            /*
+             * Skip when a rebuild is already owed this tick (teleport in moved
+             * the window and maybe_rebuild has run) — rebuilding the server
+             * scene twice in one tick is wasted work, not a bug.
+             *
+             * BUT THE GENERATION IS ONLY CONSUMED BY A REBUILD THAT HAPPENED.
+             * It used to be stamped either way, on the assumption that a
+             * pending rebuild would cover this one. It does not when the window
+             * has not MOVED: re-entering an activity gets the same handle at
+             * the same base, so `maybe_rebuild` sees nothing to re-centre and
+             * the owed rebuild is the client's, not the server's collision
+             * copy. Stamping the generation there marked a scene as current
+             * that had never been read from the new square.
+             *
+             * Measured on the Theatre: `::tob 2` refills reservation 1's zones
+             * from m51_69 and the teleport sets `rebuild_pending`, so this
+             * branch skipped and recorded the generation — and the server's
+             * scene stayed the previous room's copy of m49_68 for the rest of
+             * the run. Every `loc_find` in the Bloat room then answered about
+             * Xarpus's square, which is why its central tank read as absent.
+             *
+             * Leaving it unconsumed costs at most one extra rebuild on the next
+             * tick, which is the outcome the skip was protecting against in the
+             * first place.
+             */
+            /*
+             * The SERVER's copy is rebuilt unconditionally; only the client's
+             * paperwork is conditional. The two were one branch, and they are
+             * not the same thing: `rebuild_pending` says the CLIENT is owed a
+             * REBUILD packet, while this is about the server's own collision
+             * and loc arrays being a copy of the square the player is standing
+             * in. Skipping the rebuild because the client already owed one left
+             * the server reading the previous occupant of the same
+             * reservation — forever, since the flag is set again every tick the
+             * player is behind the scene barrier.
+             *
+             * Locs, occupancy and the npc roster are folded into the window
+             * build itself — see world_window_scene_build. A first build
+             * upgrades this player from the root binding, so refresh.
+             */
+            world_player_scene_build(srv, player);
+            ToriRSServer_WorldSetActive(srv, player);
+            player->scene_instance_generation = instance_gen;
             if( !player->rebuild_pending )
             {
-                /* Locs, occupancy and the npc roster are folded into the
-                 * window build itself — see world_window_scene_build. A first
-                 * build upgrades this player from the root binding, so
-                 * refresh. */
-                world_player_scene_build(srv, player);
-                ToriRSServer_WorldSetActive(srv, player);
                 ToriRSServer_ZonePlayerReset(player);
                 player->rebuild_pending = 1;
                 player->place_dirty = 1;
             }
-            player->scene_instance_generation = instance_gen;
         }
     }
 

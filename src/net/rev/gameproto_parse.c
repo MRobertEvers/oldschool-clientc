@@ -109,6 +109,20 @@ read_loc_merge(struct RSCache_Buffer* b, struct PktLocMerge* p)
 static void
 read_map_projanim(struct RSCache_Buffer* b, struct PktMapProjAnim* p)
 {
+    /*
+     * The classic layout states the destination as a pair of signed tile
+     * offsets from the source; the absolute packed CoordGrid rev239's
+     * MapProjAnimV2 carries instead does not exist here. `dst_abs` is how the
+     * executor chooses between the two, so it has to be WRITTEN as zero rather
+     * than left alone -- inside UPDATE_ZONE_PARTIAL_ENCLOSED this struct lives
+     * in a malloc'd entry array, so "left alone" is heap garbage, the executor
+     * takes the absolute branch, and `dst_abs_level` becomes the projectile's
+     * plane. Under ASan's 0xbe fill that is level -1094795586 and the
+     * heightmap's level assert fires the moment anything casts a spell; on an
+     * ordinary heap it is a shot that flies off the map. Same reason
+     * read_loc_add_change zeroes its V2 fields.
+     */
+    memset(p, 0, sizeof(*p));
     p->pos = g1(b);
     p->dx_offset = g1b(b);
     p->dz_offset = g1b(b);

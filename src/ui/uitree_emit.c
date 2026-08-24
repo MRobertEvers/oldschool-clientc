@@ -543,6 +543,7 @@ UITree_EmitFill(
 
     case UIELEM_BUILTIN_MINIMAP:
     {
+        int frame_mask_overridden = 0;
         /* The pack graphic is only a mask placeholder; the drawable is the world
          * map the host bakes, which also owns the camera pivot inside it. */
         struct UITreeHostRequest req = {
@@ -567,7 +568,18 @@ UITree_EmitFill(
          * property — see UITree.mask_keep_opaque. */
         out->mask_scene_id = component->u.minimap.mask_scene_id;
         out->mask_atlas_index = component->u.minimap.mask_atlas_index;
-        out->mask_keep_opaque = tree->mask_keep_opaque;
+        {
+            int mask_override = 0;
+            if( UITree_FrameSkinOverride(tree, node_index, NULL, &mask_override) )
+            {
+                frame_mask_overridden = 1;
+                out->mask_scene_id = mask_override;
+                out->mask_atlas_index = 0;
+            }
+        }
+        /* Plugin masks have one stable API convention: transparent pixels are
+         * the window. Native cache masks remain era-dependent. */
+        out->mask_keep_opaque = frame_mask_overridden ? 0 : tree->mask_keep_opaque;
         out->rotation_r2pi2048 = UITree_ComponentSpriteRotation(component, host);
         /* Entity/flag overlay dots, computed by the host in center-relative
          * pixels (reference minimapDraw). */
@@ -637,13 +649,35 @@ UITree_EmitFill(
         };
         out->kind = UITREE_EMIT_ENTITY_OVERLAY;
         out->entity_overlay_count = UITree_Host(host, &req);
-        return out->entity_overlay_count > 0;
+        out->entity_overlay_source = UITREE_EMIT_OVERLAY_ENTITY;
+        /* The walk temporarily carries a zero-count descriptor through common
+         * clipping so it can retain that exact shape out of band, then removes
+         * it before publishing the renderer command list. */
+        return true;
     }
 
     case UIELEM_BUILTIN_COMPASS:
+    {
+        int frame_mask_overridden = 0;
         out->kind = UITREE_EMIT_COMPASS;
         out->scene_id = component->u.sprite.scene_id;
         out->atlas_index = component->u.sprite.atlas_index;
+        {
+            int art_override = 0;
+            int mask_override = 0;
+            if( UITree_FrameSkinOverride(
+                    tree, node_index, &art_override, &mask_override) )
+            {
+                frame_mask_overridden = 1;
+                if( art_override > 0 )
+                {
+                    out->scene_id = art_override;
+                    out->atlas_index = 0;
+                }
+                out->mask_scene_id = mask_override;
+                out->mask_atlas_index = 0;
+            }
+        }
         /* No RevConfig sprite= binding (interface-open path): fall back to the
          * client-hardcoded compass the host loaded. */
         if( out->scene_id <= 0 )
@@ -651,11 +685,15 @@ UITree_EmitFill(
         if( out->scene_id <= 0 )
             return false;
         /* The pack's placeholder graphic doubles as the circular clip. */
-        out->mask_scene_id = component->u.sprite.mask_scene_id;
-        out->mask_atlas_index = component->u.sprite.mask_atlas_index;
-        out->mask_keep_opaque = tree->mask_keep_opaque;
+        if( !frame_mask_overridden )
+        {
+            out->mask_scene_id = component->u.sprite.mask_scene_id;
+            out->mask_atlas_index = component->u.sprite.mask_atlas_index;
+        }
+        out->mask_keep_opaque = frame_mask_overridden ? 0 : tree->mask_keep_opaque;
         out->rotation_r2pi2048 = UITree_ComponentSpriteRotation(component, host);
         return true;
+    }
 
     case UIELEM_RS_LAYER:
     {
@@ -1993,6 +2031,117 @@ child_is_interface_parent_mount(
     return UITree_ChildMountType(tree, container_uid, child) >= 0;
 }
 
+/*
+ * Paint declared against a semantic frame slot belongs at one exact boundary:
+ * after the slot node's whole subtree, before the next sibling.
+ *
+ * It cannot use the FRAME or CANVAS plugin passes. Both are global z-order
+ * buckets and turn a local relationship (the map housing is directly over the
+ * minimap) into a relationship with every interface on the screen. Emitting
+ * here preserves ordinary descriptor/item order, including a target expanded
+ * into several descriptors and descendants several levels deep.
+ *
+ * `subtree_emit_start` is also the visibility fence. A host-hidden minimap,
+ * collapsed container, inactive tab, or otherwise empty target emitted no
+ * part of its subtree, so attaching its housing would leave chrome for a
+ * surface that is not there. Early structural visibility rejects return before
+ * this helper; the count catches draw-time rejects such as MINIMAP_TOGGLE.
+ */
+static void
+emit_frame_slot_overlay(
+    struct UITree const* tree,
+    struct UITreeEmitBuffer* out,
+    int32_t idx,
+    struct UITreeEmitClip const* parent_clip,
+    int subtree_emit_start)
+{
+    struct UITreeFrameOverlay overlay;
+    struct UITreeEmitDesc desc;
+
+    assert(tree);
+    assert(out);
+    assert(parent_clip);
+    if( out->count <= subtree_emit_start ||
+        !UITree_FrameOverlayOverride(tree, idx, &overlay) || overlay.scene_id <= 0 )
+        return;
+
+    memset(&desc, 0, sizeof(desc));
+    desc.kind = UITREE_EMIT_SPRITE;
+    /* Paint-only: it borrows the semantic node's placement and clip but is not
+     * another interactive component, so it must not acquire its id. */
+    desc.node_index = -1;
+    desc.component_id = -1;
+    desc.scene_id = overlay.scene_id;
+    desc.atlas_index = 0;
+    desc.x = overlay.x;
+    desc.y = overlay.y;
+    desc.clip = *parent_clip;
+    desc.if3 = 0;
+    desc.trans = overlay.trans;
+    emit_buffer_append(out, &desc);
+}
+
+static void
+emit_role_overlay_groups(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    struct UITreeEmitBuffer* out,
+    int32_t idx,
+    struct UITreeEmitClip const* parent_clip,
+    struct UITreeRoleOverlayGroup const* groups,
+    int group_count,
+    int replace)
+{
+    struct UITreeComponent const* component;
+
+    assert(tree);
+    assert(out);
+    assert(parent_clip);
+    if( !groups || group_count <= 0 || idx < 0 ||
+        (uint32_t)idx >= tree->component_count )
+        return;
+    component = &tree->components[idx];
+    for( int i = 0; i < group_count; i++ )
+    {
+        struct UITreeRoleOverlayGroup const* group = &groups[i];
+        struct UITreeEmitDesc desc;
+        struct UITreeHostRequest clip_req;
+
+        if( group->node_index != idx ||
+            group->node_incarnation != component->incarnation ||
+            !!group->replace != !!replace )
+            continue;
+
+        /* Hit regions are consumed on the following interaction frame. Stamp
+         * the exact same parent clip as paint now; a missing/hidden target is
+         * never reached and therefore leaves its regions inactive. */
+        memset(&clip_req, 0, sizeof(clip_req));
+        clip_req.kind = UITREE_HOST_SET_ROLE_OVERLAY_CLIP;
+        clip_req.u.set_role_overlay_clip.node_index = idx;
+        clip_req.u.set_role_overlay_clip.node_incarnation = component->incarnation;
+        clip_req.u.set_role_overlay_clip.replace = replace;
+        clip_req.u.set_role_overlay_clip.clip_x = parent_clip->x;
+        clip_req.u.set_role_overlay_clip.clip_y = parent_clip->y;
+        clip_req.u.set_role_overlay_clip.clip_w = parent_clip->w;
+        clip_req.u.set_role_overlay_clip.clip_h = parent_clip->h;
+        (void)UITree_Host(host, &clip_req);
+
+        if( group->item_count <= 0 || !group->items )
+            continue;
+        memset(&desc, 0, sizeof(desc));
+        desc.kind = UITREE_EMIT_ENTITY_OVERLAY;
+        /* Paint-only: the replacement's hit surface is the plugin region, not
+         * a second copy of the native semantic component. */
+        desc.node_index = -1;
+        desc.component_id = -1;
+        desc.clip = *parent_clip;
+        desc.entity_overlays = group->items;
+        desc.entity_overlay_count = group->item_count;
+        desc.entity_overlay_source = UITREE_EMIT_OVERLAY_NONE;
+        emit_buffer_append(out, &desc);
+    }
+}
+
 static void
 emit_walk_node(
     struct UITree const* tree,
@@ -2008,7 +2157,9 @@ emit_walk_node(
     int in_drag,
     int drag_dx,
     int drag_dy,
-    int in_deferred)
+    int in_deferred,
+    struct UITreeRoleOverlayGroup const* role_groups,
+    int role_group_count)
 {
     struct UITreeComponent* c;
     struct UITreeEmitDesc desc;
@@ -2022,6 +2173,7 @@ emit_walk_node(
     int scroll_layer;
     int child_scroll_x;
     int child_scroll_y;
+    int subtree_emit_start;
 
     assert(tree && out && parent_clip);
     if( idx < 0 || (uint32_t)idx >= tree->component_count )
@@ -2033,8 +2185,9 @@ emit_walk_node(
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_WALK_EMIT, 1);
 
     c = &tree->components[idx];
-    /* A plugin layout's suppression, and it admits no exception: the whole
-     * subtree goes, because the lane's chrome is what the layout replaced. */
+    /* Native/script hiding outranks replacement art too: an anchor is local to
+     * a target that is actually present in this frame, not a way to resurrect
+     * a collapsed tab or a gameframe lane that suppressed the whole surface. */
     if( c->frame_hidden )
     {
         TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
@@ -2070,6 +2223,32 @@ emit_walk_node(
     }
 
     UITree_LayoutGetBounds(&c->position, &x, &y, &w, &h);
+
+    /* Structural collapse is decided before replacement and before drag. A
+     * replacement cannot resurrect a zero-sized clipping layer; conversely a
+     * target that became replacement-hidden during the canvas prepass must
+     * never enter the deferred-drag machinery and leak its native ghost on the
+     * second pass. */
+    if( UITree_LayerCullsChildren(c, w, h) )
+    {
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
+        return;
+    }
+    if( c->replacement_hidden )
+    {
+        if( !drag_pass )
+            emit_role_overlay_groups(
+                tree,
+                host,
+                out,
+                idx,
+                parent_clip,
+                role_groups,
+                role_group_count,
+                /*replace=*/1);
+        TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
+        return;
+    }
 
     /* A drag source begins a screen-space translation that carries to its whole
      * subtree, so a composite widget (e.g. a scrollbar thumb built from cap +
@@ -2124,7 +2303,9 @@ emit_walk_node(
                     in_drag,
                     drag_dx,
                     drag_dy,
-                    in_deferred);
+                    in_deferred,
+                    role_groups,
+                    role_group_count);
             }
         }
         return;
@@ -2162,11 +2343,6 @@ emit_walk_node(
          * Returning here also skips this node's own draw, which costs nothing —
          * the types that clip (RS_LAYER, sidebar, chat, inv grid) paint no
          * content of their own. */
-        if( UITree_LayerCullsChildren(c, w, h) )
-        {
-            TORIRS_PERF_COUNT(TORIRS_PERF_CTR_UITREE_EMIT_SKIP, 1);
-            return;
-        }
         if( UITree_LayerChildClip(c, &surf, clip_x, clip_y, w, h, &cc, &cs) )
         {
             layer_clip = (struct UITreeEmitClip){ cc.clip_x, cc.clip_y, cc.clip_w, cc.clip_h };
@@ -2200,6 +2376,8 @@ emit_walk_node(
             child_surface = &layer_clip;
         }
     }
+
+    subtree_emit_start = out->count;
 
     if( !if1_bar && c->type == UIELEM_RS_INV )
     {
@@ -2345,6 +2523,8 @@ emit_walk_node(
              * drawEntities runs inside the scene pass, clipped to the game
              * viewport). */
             struct UITreeEmitClip world_box = desc.clip;
+            if( desc.entity_overlay_source != UITREE_EMIT_OVERLAY_NONE )
+                out->volatile_overlay_enclosing_clip[desc.entity_overlay_source] = *parent_clip;
             clip_intersect(
                 &desc.clip, parent_clip, world_box.x, world_box.y, world_box.w, world_box.h);
         }
@@ -2408,7 +2588,9 @@ emit_walk_node(
                 in_drag,
                 drag_dx,
                 drag_dy,
-                in_deferred);
+                in_deferred,
+                role_groups,
+                role_group_count);
         }
     }
 
@@ -2417,6 +2599,17 @@ emit_walk_node(
         emit_append_layer_scrollbars(
             host, out, c, idx, parent_clip, x - scroll_off_x, y - scroll_off_y, w, h);
     }
+
+    emit_frame_slot_overlay(tree, out, idx, parent_clip, subtree_emit_start);
+    emit_role_overlay_groups(
+        tree,
+        host,
+        out,
+        idx,
+        parent_clip,
+        role_groups,
+        role_group_count,
+        /*replace=*/0);
 }
 
 static void
@@ -2427,7 +2620,9 @@ emit_walk_pass(
     int canvas_w,
     int canvas_h,
     int hovered_component_id,
-    int drag_pass)
+    int drag_pass,
+    struct UITreeRoleOverlayGroup const* role_groups,
+    int role_group_count)
 {
     struct UITreeEmitClip root_clip;
     int32_t root;
@@ -2458,7 +2653,9 @@ emit_walk_pass(
             0,
             0,
             0,
-            0);
+            0,
+            role_groups,
+            role_group_count);
     }
 }
 
@@ -2537,7 +2734,7 @@ emit_debug_overlay_pass(
 
 /*
  * The plugin FRAME overlay: one desc, in canvas space, hoisted to sit directly
- * over the 3D scene -- under every interface, and under the entity overlays.
+ * over the 3D scene -- under every interface, and over the entity overlays.
  *
  * This is where the reference's own frame art is drawn, and a gameframe cannot
  * be drawn anywhere else. The canvas pass below paints over the interfaces,
@@ -2582,13 +2779,16 @@ emit_plugin_frame_pass(
     req.u.get_entity_overlays.out_clip_y = &desc.clip.y;
     req.u.get_entity_overlays.out_clip_w = &desc.clip.w;
     req.u.get_entity_overlays.out_clip_h = &desc.clip.h;
+    out->volatile_overlay_seen |= (uint8_t)(1u << UITREE_EMIT_OVERLAY_FRAME);
     desc.entity_overlay_count = UITree_Host(host, &req);
-    if( desc.entity_overlay_count <= 0 || !desc.entity_overlays )
-        return;
-
     desc.kind = UITREE_EMIT_ENTITY_OVERLAY;
+    desc.entity_overlay_source = UITREE_EMIT_OVERLAY_FRAME;
     desc.node_index = -1;
     desc.component_id = -1;
+    out->volatile_overlay_template[UITREE_EMIT_OVERLAY_FRAME] = desc;
+    if( desc.entity_overlay_count <= 0 || !desc.entity_overlays )
+        return;
+    out->volatile_overlay_nonempty |= (uint8_t)(1u << UITREE_EMIT_OVERLAY_FRAME);
     emit_buffer_append(out, &desc);
 
     /* Stable rotate to just after the world, exactly as the entity-overlay
@@ -2644,15 +2844,18 @@ emit_plugin_canvas_pass(
     req.u.get_entity_overlays.out_clip_y = &desc.clip.y;
     req.u.get_entity_overlays.out_clip_w = &desc.clip.w;
     req.u.get_entity_overlays.out_clip_h = &desc.clip.h;
+    out->volatile_overlay_seen |= (uint8_t)(1u << UITREE_EMIT_OVERLAY_CANVAS);
     desc.entity_overlay_count = UITree_Host(host, &req);
-    if( desc.entity_overlay_count <= 0 || !desc.entity_overlays )
-        return;
-
-    /* The same emit kind, because the item vocabulary and the renderer's
-     * expansion of it are the same; only the clip the host reported differs. */
     desc.kind = UITREE_EMIT_ENTITY_OVERLAY;
+    desc.entity_overlay_source = UITREE_EMIT_OVERLAY_CANVAS;
     desc.node_index = -1;
     desc.component_id = -1;
+    out->volatile_overlay_template[UITREE_EMIT_OVERLAY_CANVAS] = desc;
+    if( desc.entity_overlay_count <= 0 || !desc.entity_overlays )
+        return;
+    /* The same emit kind, because the item vocabulary and the renderer's
+     * expansion of it are the same; only the clip the host reported differs. */
+    out->volatile_overlay_nonempty |= (uint8_t)(1u << UITREE_EMIT_OVERLAY_CANVAS);
     emit_buffer_append(out, &desc);
 
     /*
@@ -2761,7 +2964,8 @@ emit_hoist_entity_overlays(struct UITree const* tree, struct UITreeEmitBuffer* o
          * builtin, emitting ordinary sprites and text. Both have to move, or a
          * fishing-spot marker draws over the inventory instead of in the world.
          */
-        if( out->cmds[i].kind != UITREE_EMIT_ENTITY_OVERLAY &&
+        if( !(out->cmds[i].kind == UITREE_EMIT_ENTITY_OVERLAY &&
+              out->cmds[i].entity_overlay_source == UITREE_EMIT_OVERLAY_ENTITY) &&
             !emit_is_in_entity_overlay(tree, out->cmds[i].node_index) )
             continue;
         if( i != write )
@@ -2786,8 +2990,27 @@ UITree_EmitWalk(
     struct UITreeEmitBuffer* out,
     int hovered_component_id)
 {
+    struct UITreeRoleOverlayGroup const* role_groups = NULL;
+    int role_group_count = 0;
+    int role_anchor_seen = 0;
+
     assert(tree);
     assert(out);
+    out->volatile_overlay_seen = 0;
+    out->volatile_overlay_nonempty = 0;
+    memset(out->volatile_overlay_template, 0, sizeof(out->volatile_overlay_template));
+    memset(
+        out->volatile_overlay_enclosing_clip,
+        0,
+        sizeof(out->volatile_overlay_enclosing_clip));
+    for( int source = UITREE_EMIT_OVERLAY_NONE;
+         source <= UITREE_EMIT_OVERLAY_FRAME;
+         source++ )
+        out->volatile_overlay_insert_at[source] = -1;
+    {
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_BEGIN_OVERLAYS };
+        (void)UITree_Host(host, &req);
+    }
     /*
      * Draw never reads a stale box (reference ensureLayout, run before the
      * widget draw for exactly this reason). A layout input can be written from
@@ -2798,25 +3021,27 @@ UITree_EmitWalk(
      * interface, so the sidebar's whole inventory drew at 16,8 under a clip of
      * zero width: no item icons at all. No-op when nothing invalidated.
      */
-    /*
-     * A plugin layout is restated here, at the last moment before anything is
-     * drawn, and that placement is the whole point.
-     *
-     * Every other writer of a node's box and hide flag runs during the TICK --
-     * the CS1 value scripts on a dat1 frame, the CS2 onload and resize hooks on
-     * a cache one, the slot manager on both -- and each of them is right about
-     * the frame it was written for. A declaration applied once, earlier in the
-     * frame, simply loses to whichever of them ran last, and what that looks
-     * like is the plugin's gameframe and the lane's gameframe on screen
-     * together. Being last is the only way to be authoritative, and this is
-     * where last is.
-     *
-     * Costs a comparison per node the declaration touched, and nothing at all
-     * when no plugin holds the frame. Before EnsureLayout, so a box it changes
-     * is resolved by the pass below rather than a frame later.
-     */
+    /* Publication fence for a plugin gameframe. Geometry and art are effective
+     * layers now, so this does not race CS1/CS2 by rewriting their native
+     * fields. It only re-resolves semantic membership when topology changed
+     * since the declaration, before EnsureLayout consumes those bindings. */
     UITree_FrameReassert((struct UITree*)tree);
     UITree_EnsureLayout(tree);
+    /* Canvas subscribers run once, after layout is resolved and before the DFS,
+     * so explicit role anchors are known at the exact subtree boundary where
+     * they belong. Ordinary canvas items remain in their global pass below. */
+    {
+        struct UITreeHostRequest req = {
+            .kind = UITREE_HOST_GET_ROLE_OVERLAY_GROUPS,
+            .u.get_role_overlay_groups = {
+                .out_groups = &role_groups,
+                .out_anchor_seen = &role_anchor_seen,
+            },
+        };
+        role_group_count = UITree_Host(host, &req);
+        if( role_group_count < 0 )
+            role_group_count = 0;
+    }
     /* Reachability scratch for the retention signal — see UITree::emit_visited.
      * Grown to the current node count and cleared here so that what it holds
      * during the frame after this walk is exactly "entered by this walk". */
@@ -2852,7 +3077,15 @@ UITree_EmitWalk(
      * text in the tree above every non-text, so a widget group that should cover
      * an earlier one — an open dropdown over a label — drew under its text. */
     emit_walk_pass(
-        tree, host, out, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 0);
+        tree,
+        host,
+        out,
+        UITREE_LAYOUT_ROOT_W,
+        UITREE_LAYOUT_ROOT_H,
+        hovered_component_id,
+        0,
+        role_groups,
+        role_group_count);
     /* The second pass has nothing to draw unless a drag is running: every node it
      * reaches takes the descend-only branch. It was the single largest traversal
      * in the client (more visits than the draw pass, since descend-only bypasses
@@ -2860,7 +3093,28 @@ UITree_EmitWalk(
     if( UITree_HasActiveDrag(tree) )
     {
         emit_walk_pass(
-            tree, host, out, UITREE_LAYOUT_ROOT_W, UITREE_LAYOUT_ROOT_H, hovered_component_id, 1);
+            tree,
+            host,
+            out,
+            UITREE_LAYOUT_ROOT_W,
+            UITREE_LAYOUT_ROOT_H,
+            hovered_component_id,
+            1,
+            role_groups,
+            role_group_count);
+    }
+    /* Keep an empty builtin overlay in the private working list through every
+     * z-order rotation. The final scan removes it before publication, after it
+     * has captured the exact slot where a later retained refresh must put it
+     * back. Recording its earlier tree-order slot is insufficient on a lane
+     * without a world, where the canvas overlay can still rotate ahead of it. */
+    for( int i = 0; i < out->count; i++ )
+    {
+        struct UITreeEmitDesc const* d = &out->cmds[i];
+        if( d->entity_overlay_source != UITREE_EMIT_OVERLAY_ENTITY )
+            continue;
+        out->volatile_overlay_seen |= (uint8_t)(1u << UITREE_EMIT_OVERLAY_ENTITY);
+        out->volatile_overlay_template[UITREE_EMIT_OVERLAY_ENTITY] = *d;
     }
     /* A layout plugin's gameframe: over the scene, under the interfaces.
      * Before the hoist, which is what puts the bars and hitsplats it moves
@@ -2882,45 +3136,322 @@ UITree_EmitWalk(
     for( int i = 0; i < out->count; i++ )
     {
         struct UITreeEmitDesc const* d = &out->cmds[i];
+        if( d->entity_overlay_source != UITREE_EMIT_OVERLAY_NONE )
+        {
+            uint8_t const bit = (uint8_t)(1u << d->entity_overlay_source);
+            out->volatile_overlay_seen |= bit;
+            out->volatile_overlay_template[d->entity_overlay_source] = *d;
+            out->volatile_overlay_insert_at[d->entity_overlay_source] = i;
+            if( d->entity_overlay_count <= 0 || !d->entity_overlays )
+            {
+                /* Empty descriptors are useful only as placement metadata;
+                 * never expose them to renderer or golden-list consumers. */
+                if( i + 1 < out->count )
+                    memmove(
+                        &out->cmds[i],
+                        &out->cmds[i + 1],
+                        (size_t)(out->count - i - 1) * sizeof(*out->cmds));
+                out->count--;
+                i--;
+                continue;
+            }
+            out->volatile_overlay_nonempty |= bit;
+            continue;
+        }
         if( !d->minimap_dots && !d->entity_overlays && !d->worldmap_tiles && !d->debug_prims )
             continue;
         out->volatile_refs++;
         /* A WORLDMAP desc does not record which of the two host requests filled
          * it (tiles vs overview), so it cannot be re-issued from the desc alone.
-         * Refusing to refresh is the safe direction: the caller falls back to the
-         * full walk, which is the path that was always correct. */
-        if( d->worldmap_tiles )
+         * Likewise an overlay without provenance is unsafe to guess. Refusing
+         * to refresh falls back to the full walk, which was always correct. */
+        if( d->worldmap_tiles ||
+            (d->entity_overlays &&
+             d->entity_overlay_source == UITREE_EMIT_OVERLAY_NONE) )
             out->volatile_unrefreshable = 1;
+    }
+    for( int source = UITREE_EMIT_OVERLAY_ENTITY;
+         source <= UITREE_EMIT_OVERLAY_FRAME;
+         source++ )
+        if( out->volatile_overlay_seen & (uint8_t)(1u << source) )
+            out->volatile_refs++;
+    if( role_anchor_seen )
+    {
+        /* Local anchors are interleaved at arbitrary subtree boundaries and a
+         * retained refresh has no stable insertion table for them. A full walk
+         * is the bounded, correct refresh while any subscriber asks for one. */
+        out->volatile_refs++;
+        out->volatile_unrefreshable = 1;
     }
 }
 
-void
+static void
+emit_buffer_insert_at(
+    struct UITreeEmitBuffer* out,
+    int at,
+    struct UITreeEmitDesc const* desc)
+{
+    int const old_count = out->count;
+    int const source = desc->entity_overlay_source;
+
+    assert(out);
+    assert(desc);
+    assert(at >= 0 && at <= old_count);
+    assert(source >= UITREE_EMIT_OVERLAY_ENTITY && source <= UITREE_EMIT_OVERLAY_FRAME);
+    emit_buffer_append(out, desc);
+    if( at < old_count )
+    {
+        memmove(
+            &out->cmds[at + 1],
+            &out->cmds[at],
+            (size_t)(old_count - at) * sizeof(*out->cmds));
+        out->cmds[at] = *desc;
+    }
+    /* Preserve conceptual insertion slots for sources that are currently
+     * empty. A strictly later slot moves with this insertion; an equal slot
+     * remains before it, which preserves the order captured by the full walk
+     * when two absent overlays share the same boundary. */
+    for( int other = UITREE_EMIT_OVERLAY_ENTITY;
+         other <= UITREE_EMIT_OVERLAY_FRAME;
+         other++ )
+        if( other != source && out->volatile_overlay_insert_at[other] > at )
+            out->volatile_overlay_insert_at[other]++;
+    out->volatile_overlay_insert_at[source] = at;
+}
+
+static void
+emit_buffer_remove_at(struct UITreeEmitBuffer* out, int at)
+{
+    int source;
+
+    assert(out);
+    assert(at >= 0 && at < out->count);
+    source = out->cmds[at].entity_overlay_source;
+    assert(source >= UITREE_EMIT_OVERLAY_ENTITY && source <= UITREE_EMIT_OVERLAY_FRAME);
+    if( at + 1 < out->count )
+        memmove(
+            &out->cmds[at],
+            &out->cmds[at + 1],
+            (size_t)(out->count - at - 1) * sizeof(*out->cmds));
+    out->count--;
+    for( int other = UITREE_EMIT_OVERLAY_ENTITY;
+         other <= UITREE_EMIT_OVERLAY_FRAME;
+         other++ )
+        if( other != source && out->volatile_overlay_insert_at[other] > at )
+            out->volatile_overlay_insert_at[other]--;
+    /* The removed source still belongs immediately before the command that
+     * slid into its old slot (or at end if it was last). */
+    out->volatile_overlay_insert_at[source] = at;
+}
+
+static int
+emit_overlay_insert_index(
+    struct UITree const* tree,
+    struct UITreeEmitBuffer const* out,
+    enum UITreeEmitOverlaySource source)
+{
+    int world = -1;
+
+    assert(tree);
+    assert(out);
+    if( source == UITREE_EMIT_OVERLAY_CANVAS )
+    {
+        int debug = -1;
+        for( int i = 0; i < out->count; i++ )
+        {
+            int32_t const node = out->cmds[i].node_index;
+            if( out->cmds[i].kind == UITREE_EMIT_DEBUG_OVERLAY && debug < 0 )
+                debug = i;
+            if( node >= 0 && (uint32_t)node < tree->component_count )
+            {
+                enum UITreeComponentType const type = tree->components[node].type;
+                if( type == UIELEM_BUILTIN_MINIMENU ||
+                    type == UIELEM_BUILTIN_HOVERTEXT ||
+                    type == UIELEM_BUILTIN_CROSS )
+                    return i;
+            }
+        }
+        return debug >= 0 ? debug : out->count;
+    }
+
+    for( int i = 0; i < out->count; i++ )
+        if( out->cmds[i].kind == UITREE_EMIT_WORLD )
+            world = i;
+    if( world < 0 )
+        return -1;
+    if( source == UITREE_EMIT_OVERLAY_ENTITY )
+        return world + 1;
+
+    /* Frame chrome belongs after host + scripted entity overlays and before
+     * every interface. The full walk's hoist establishes the same block. */
+    for( int at = world + 1; at < out->count; at++ )
+    {
+        struct UITreeEmitDesc const* d = &out->cmds[at];
+        if( (d->kind == UITREE_EMIT_ENTITY_OVERLAY &&
+             d->entity_overlay_source == UITREE_EMIT_OVERLAY_ENTITY) ||
+            emit_is_in_entity_overlay(tree, d->node_index) )
+            continue;
+        return at;
+    }
+    return out->count;
+}
+
+int
 UITree_EmitRefreshVolatile(
     struct UITree const* tree,
     struct UITreeHost const* host,
     struct UITreeEmitBuffer* out)
 {
+    static enum UITreeEmitOverlaySource const overlay_order[] = {
+        UITREE_EMIT_OVERLAY_ENTITY,
+        UITREE_EMIT_OVERLAY_FRAME,
+        UITREE_EMIT_OVERLAY_CANVAS,
+    };
+    uint32_t dirty_before;
+
     assert(tree);
     assert(out);
     assert(!out->volatile_unrefreshable);
+    dirty_before = tree->dirty_gen;
 
-    (void)tree;
+    {
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_BEGIN_OVERLAYS };
+        (void)UITree_Host(host, &req);
+    }
+    if( tree->dirty_gen != dirty_before )
+        return 0;
+
+    /* Discover Canvas role anchors before refreshing any disposable source.
+     * A role anchor has no global descriptor to patch in place: its exact
+     * target boundary is part of the DFS, so the retained frame must fall
+     * back to a full walk. Asking only after FRAME/CANVAS refresh used to run
+     * those plugin callbacks once here and again in the fallback, consuming
+     * the per-frame draw budget and intermittently publishing a blank or
+     * truncated replacement. The App host caches this preflight's Canvas
+     * result across the immediate fallback walk. */
+    {
+        struct UITreeRoleOverlayGroup const* ignored_groups = NULL;
+        int anchor_seen = 0;
+        struct UITreeHostRequest anchor_req = {
+            .kind = UITREE_HOST_GET_ROLE_OVERLAY_GROUPS,
+            .u.get_role_overlay_groups = {
+                .out_groups = &ignored_groups,
+                .out_anchor_seen = &anchor_seen,
+            },
+        };
+        (void)UITree_Host(host, &anchor_req);
+        /* A draw callback may acquire or release a standing replacement even
+         * without anchoring any art. That mutates native reachability, so the
+         * old retained descriptor list is no longer publishable. */
+        if( anchor_seen || tree->dirty_gen != dirty_before )
+            return 0;
+    }
+
+    /* Reissue even sources that were empty on the full walk. Keep its host-call
+     * order: ENTITY, then FRAME (resets plugin hit regions), then CANVAS (adds
+     * its regions). Insert/remove commands from the returned data directly so
+     * a zero crossing never dispatches plugin draw callbacks twice. */
+    for( size_t oi = 0; oi < sizeof(overlay_order) / sizeof(overlay_order[0]); oi++ )
+    {
+        enum UITreeEmitOverlaySource const source = overlay_order[oi];
+        uint8_t const bit = (uint8_t)(1u << source);
+        struct UITreeEntityOverlay const* items = NULL;
+        struct UITreeEmitClip clip = { 0 };
+        enum UITreeHostRequestKind request_kind;
+        int desc_index = -1;
+        int count;
+        int now_nonempty;
+
+        if( !(out->volatile_overlay_seen & bit) )
+            continue;
+        for( int i = 0; i < out->count; i++ )
+            if( out->cmds[i].entity_overlay_source == source )
+            {
+                desc_index = i;
+                out->volatile_overlay_template[source] = out->cmds[i];
+                out->volatile_overlay_insert_at[source] = i;
+                break;
+            }
+
+        switch( source )
+        {
+        case UITREE_EMIT_OVERLAY_ENTITY:
+            request_kind = UITREE_HOST_GET_ENTITY_OVERLAYS;
+            break;
+        case UITREE_EMIT_OVERLAY_CANVAS:
+            request_kind = UITREE_HOST_GET_CANVAS_OVERLAYS;
+            break;
+        case UITREE_EMIT_OVERLAY_FRAME:
+            request_kind = UITREE_HOST_GET_FRAME_OVERLAYS;
+            break;
+        default:
+            assert(!"invalid volatile overlay source");
+            continue;
+        }
+        {
+            struct UITreeHostRequest req = {
+                .kind = request_kind,
+                .u.get_entity_overlays.out_items = &items,
+                .u.get_entity_overlays.out_clip_x = &clip.x,
+                .u.get_entity_overlays.out_clip_y = &clip.y,
+                .u.get_entity_overlays.out_clip_w = &clip.w,
+                .u.get_entity_overlays.out_clip_h = &clip.h,
+            };
+            count = UITree_Host(host, &req);
+        }
+        if( tree->dirty_gen != dirty_before )
+            return 0;
+        if( source == UITREE_EMIT_OVERLAY_ENTITY )
+        {
+            struct UITreeEmitClip const host_clip = clip;
+            (void)clip_intersect(
+                &clip,
+                &out->volatile_overlay_enclosing_clip[source],
+                host_clip.x,
+                host_clip.y,
+                host_clip.w,
+                host_clip.h);
+        }
+        now_nonempty = count > 0 && items;
+        if( !now_nonempty )
+        {
+            if( desc_index >= 0 )
+                emit_buffer_remove_at(out, desc_index);
+            out->volatile_overlay_nonempty &= (uint8_t)~bit;
+            continue;
+        }
+
+        if( desc_index < 0 )
+        {
+            struct UITreeEmitDesc desc = out->volatile_overlay_template[source];
+            int insert_at = emit_overlay_insert_index(tree, out, source);
+            if( insert_at < 0 )
+                insert_at = out->volatile_overlay_insert_at[source];
+            if( insert_at < 0 )
+                insert_at = out->count;
+            if( insert_at > out->count )
+                insert_at = out->count;
+            desc.kind = UITREE_EMIT_ENTITY_OVERLAY;
+            desc.entity_overlay_source = (uint8_t)source;
+            desc.entity_overlays = items;
+            desc.entity_overlay_count = count;
+            desc.clip = clip;
+            emit_buffer_insert_at(out, insert_at, &desc);
+        }
+        else
+        {
+            struct UITreeEmitDesc* d = &out->cmds[desc_index];
+            d->entity_overlays = items;
+            d->entity_overlay_count = count;
+            d->clip = clip;
+        }
+        out->volatile_overlay_nonempty |= bit;
+    }
+
     for( int i = 0; i < out->count; i++ )
     {
         struct UITreeEmitDesc* d = &out->cmds[i];
 
-        if( d->entity_overlays )
-        {
-            struct UITreeHostRequest req = {
-                .kind = UITREE_HOST_GET_ENTITY_OVERLAYS,
-                .u.get_entity_overlays.out_items = &d->entity_overlays,
-                .u.get_entity_overlays.out_clip_x = &d->clip.x,
-                .u.get_entity_overlays.out_clip_y = &d->clip.y,
-                .u.get_entity_overlays.out_clip_w = &d->clip.w,
-                .u.get_entity_overlays.out_clip_h = &d->clip.h,
-            };
-            d->entity_overlay_count = UITree_Host(host, &req);
-        }
         if( d->minimap_dots )
         {
             struct UITreeHostRequest req = {
@@ -2936,5 +3467,8 @@ UITree_EmitRefreshVolatile(
             req.u.get_debug_overlay.out_prims = &d->debug_prims;
             d->debug_prim_count = UITree_Host(host, &req);
         }
+        if( tree->dirty_gen != dirty_before )
+            return 0;
     }
+    return 1;
 }

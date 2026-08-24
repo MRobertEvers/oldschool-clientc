@@ -46,6 +46,26 @@
 #define TORIRS_CHROME_TEXT_MAX TORIRS_CHROME_INPUT_MAX
 
 /**
+ * A LISTROW's SHAPE, carried in TORIRS_CHROME_CMD_WIDGET_ADD's `w`.
+ *
+ * Bits rather than a second field because both answers are shape -- they are
+ * fixed for the life of the row, and a row that gained or lost either is
+ * re-added rather than updated -- and the ADD is the one command that states a
+ * widget's shape. A field of its own would be a command every executor has to
+ * switch on for one widget kind.
+ *
+ * LOCKED is the roster's essential row: it has no second state, so it has no
+ * switch at all and its name takes the column (@see ToriRS_PluginDef::essential
+ * and ToriRSChrome_ListRowLocked). Executors that never heard it drew the
+ * switch anyway, unchecked -- a red cross beside Client Settings and Feature
+ * Flags, which reads as two disabled plugins rather than as two that cannot be
+ * disabled. A LOCKED row is always an ACTION row: with no switch, opening its
+ * page is the only thing it does.
+ */
+#define TORIRS_CHROME_ROW_ACTION 0x1
+#define TORIRS_CHROME_ROW_LOCKED 0x2
+
+/**
  * What one command says.
  *
  * Coarse enough that an executor can switch on it and fine enough that nothing
@@ -95,7 +115,7 @@ enum ToriRSChromeCmdKind
      * rebuild that changed it gives it a new serial, which the shadow answers
      * with a remove-then-add:
      *
-     *   `w` -- a LISTROW carries its settings affordance.
+     *   `w` -- a LISTROW's shape bits, TORIRS_CHROME_ROW_*.
      *   `h` -- a TEXTAREA is this many lines tall.
      */
     TORIRS_CHROME_CMD_WIDGET_ADD,

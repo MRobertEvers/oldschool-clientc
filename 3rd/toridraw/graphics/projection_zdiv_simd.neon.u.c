@@ -5,7 +5,6 @@
 #if ( defined(__ARM_NEON) || defined(__ARM_NEON__) ) && !defined(NEON_DISABLED)
 #include <arm_neon.h>
 #include <assert.h>
-#include <limits.h>
 
 /* Float reciprocal + one Newton-Raphson step on vrecpeq_f32; truncating cvt matches SSE _mm_cvttps_epi32. */
 /*
@@ -207,56 +206,29 @@ projection_neon_zdiv_tex_tail_clip(
     int model_mid_z,
     int near_plane_z)
 {
-    if( rem <= 0 )
+    assert(rem >= 0);
+    if( rem == 0 )
         return;
     assert(rem < 4);
 
-    int z_pad = (near_plane_z < INT_MAX) ? (near_plane_z + 1) : near_plane_z;
-    int zbuf[4];
-    int xbuf[4];
-    int ybuf[4];
-    for( int j = 0; j < 4; j++ )
+    for( int j = 0; j < rem; j++ )
     {
-        if( j < rem )
+        int i = base + j;
+        int z = orthographic_vertices_z[i];
+
+        screen_vertices_z[i] = z - model_mid_z;
+
+        if( z < near_plane_z )
         {
-            zbuf[j] = orthographic_vertices_z[base + j];
-            xbuf[j] = screen_vertices_x[base + j];
-            ybuf[j] = screen_vertices_y[base + j];
+            screen_vertices_x[i] = TORIDRAW_SCREEN_X_NEAR_CLIPPED;
         }
         else
         {
-            zbuf[j] = z_pad;
-            xbuf[j] = 0;
-            ybuf[j] = 0;
+            screen_vertices_x[i] = screen_vertices_x[i] / z;
+            if( screen_vertices_x[i] == TORIDRAW_SCREEN_X_NEAR_CLIPPED )
+                screen_vertices_x[i] = TORIDRAW_SCREEN_X_NEAR_CLIPPED_NUDGE;
+            screen_vertices_y[i] = screen_vertices_y[i] / z;
         }
-    }
-
-    int32x4_t z_i = vld1q_s32(zbuf);
-    int32x4_t x = vld1q_s32(xbuf);
-    int32x4_t y = vld1q_s32(ybuf);
-
-    int32x4_t v_near = vdupq_n_s32(near_plane_z);
-    int32x4_t v_mid = vdupq_n_s32(model_mid_z);
-    int32x4_t v_neg5000 = vdupq_n_s32(-5000);
-    int32x4_t v_neg5001 = vdupq_n_s32(-5001);
-
-    int32x4_t vscreen_z;
-    int32x4_t final_x;
-    int32x4_t final_y;
-    projection_zdiv_neon_apply_clip(
-        z_i, x, y, v_near, v_mid, v_neg5000, v_neg5001, &vscreen_z, &final_x, &final_y);
-
-    int out_z[4];
-    int out_x[4];
-    int out_y[4];
-    vst1q_s32(out_z, vscreen_z);
-    vst1q_s32(out_x, final_x);
-    vst1q_s32(out_y, final_y);
-    for( int j = 0; j < rem; j++ )
-    {
-        screen_vertices_z[base + j] = out_z[j];
-        screen_vertices_x[base + j] = out_x[j];
-        screen_vertices_y[base + j] = out_y[j];
     }
 }
 
@@ -271,56 +243,20 @@ projection_neon_zdiv_tex_tail_noclip(
     int model_mid_z,
     int near_plane_z)
 {
-    if( rem <= 0 )
+    assert(rem >= 0);
+    if( rem == 0 )
         return;
     assert(rem < 4);
+    (void)near_plane_z;
 
-    int z_pad = (near_plane_z < INT_MAX) ? (near_plane_z + 1) : near_plane_z;
-    int zbuf[4];
-    int xbuf[4];
-    int ybuf[4];
-    for( int j = 0; j < 4; j++ )
-    {
-        if( j < rem )
-        {
-            zbuf[j] = orthographic_vertices_z[base + j];
-            xbuf[j] = screen_vertices_x[base + j];
-            ybuf[j] = screen_vertices_y[base + j];
-        }
-        else
-        {
-            zbuf[j] = z_pad;
-            xbuf[j] = 0;
-            ybuf[j] = 0;
-        }
-    }
-
-    int32x4_t z_i = vld1q_s32(zbuf);
-    int32x4_t x = vld1q_s32(xbuf);
-    int32x4_t y = vld1q_s32(ybuf);
-
-    int32x4_t v_near = vdupq_n_s32(near_plane_z);
-    int32x4_t v_mid = vdupq_n_s32(model_mid_z);
-    int32x4_t v_neg5000 = vdupq_n_s32(-5000);
-    int32x4_t v_neg5001 = vdupq_n_s32(-5001);
-
-    int32x4_t vscreen_z;
-    int32x4_t final_x;
-    int32x4_t final_y;
-    projection_zdiv_neon_apply_noclip(
-        z_i, x, y, v_near, v_mid, v_neg5000, v_neg5001, &vscreen_z, &final_x, &final_y);
-
-    int out_z[4];
-    int out_x[4];
-    int out_y[4];
-    vst1q_s32(out_z, vscreen_z);
-    vst1q_s32(out_x, final_x);
-    vst1q_s32(out_y, final_y);
     for( int j = 0; j < rem; j++ )
     {
-        screen_vertices_z[base + j] = out_z[j];
-        screen_vertices_x[base + j] = out_x[j];
-        screen_vertices_y[base + j] = out_y[j];
+        int i = base + j;
+        int z = orthographic_vertices_z[i];
+
+        screen_vertices_z[i] = z - model_mid_z;
+        screen_vertices_x[i] = screen_vertices_x[i] / z;
+        screen_vertices_y[i] = screen_vertices_y[i] / z;
     }
 }
 
@@ -334,56 +270,29 @@ projection_neon_zdiv_notex_tail_clip(
     int model_mid_z,
     int near_plane_z)
 {
-    if( rem <= 0 )
+    assert(rem >= 0);
+    if( rem == 0 )
         return;
     assert(rem < 4);
 
-    int z_pad = (near_plane_z < INT_MAX) ? (near_plane_z + 1) : near_plane_z;
-    int zbuf[4];
-    int xbuf[4];
-    int ybuf[4];
-    for( int j = 0; j < 4; j++ )
+    for( int j = 0; j < rem; j++ )
     {
-        if( j < rem )
+        int i = base + j;
+        int z = screen_vertices_z[i];
+
+        screen_vertices_z[i] = z - model_mid_z;
+
+        if( z < near_plane_z )
         {
-            zbuf[j] = screen_vertices_z[base + j];
-            xbuf[j] = screen_vertices_x[base + j];
-            ybuf[j] = screen_vertices_y[base + j];
+            screen_vertices_x[i] = TORIDRAW_SCREEN_X_NEAR_CLIPPED;
         }
         else
         {
-            zbuf[j] = z_pad;
-            xbuf[j] = 0;
-            ybuf[j] = 0;
+            screen_vertices_x[i] = screen_vertices_x[i] / z;
+            if( screen_vertices_x[i] == TORIDRAW_SCREEN_X_NEAR_CLIPPED )
+                screen_vertices_x[i] = TORIDRAW_SCREEN_X_NEAR_CLIPPED_NUDGE;
+            screen_vertices_y[i] = screen_vertices_y[i] / z;
         }
-    }
-
-    int32x4_t z_i = vld1q_s32(zbuf);
-    int32x4_t x = vld1q_s32(xbuf);
-    int32x4_t y = vld1q_s32(ybuf);
-
-    int32x4_t v_near = vdupq_n_s32(near_plane_z);
-    int32x4_t v_mid = vdupq_n_s32(model_mid_z);
-    int32x4_t v_neg5000 = vdupq_n_s32(-5000);
-    int32x4_t v_neg5001 = vdupq_n_s32(-5001);
-
-    int32x4_t vscreen_z;
-    int32x4_t final_x;
-    int32x4_t final_y;
-    projection_zdiv_neon_apply_clip(
-        z_i, x, y, v_near, v_mid, v_neg5000, v_neg5001, &vscreen_z, &final_x, &final_y);
-
-    int out_z[4];
-    int out_x[4];
-    int out_y[4];
-    vst1q_s32(out_z, vscreen_z);
-    vst1q_s32(out_x, final_x);
-    vst1q_s32(out_y, final_y);
-    for( int j = 0; j < rem; j++ )
-    {
-        screen_vertices_z[base + j] = out_z[j];
-        screen_vertices_x[base + j] = out_x[j];
-        screen_vertices_y[base + j] = out_y[j];
     }
 }
 
@@ -397,56 +306,20 @@ projection_neon_zdiv_notex_tail_noclip(
     int model_mid_z,
     int near_plane_z)
 {
-    if( rem <= 0 )
+    assert(rem >= 0);
+    if( rem == 0 )
         return;
     assert(rem < 4);
+    (void)near_plane_z;
 
-    int z_pad = (near_plane_z < INT_MAX) ? (near_plane_z + 1) : near_plane_z;
-    int zbuf[4];
-    int xbuf[4];
-    int ybuf[4];
-    for( int j = 0; j < 4; j++ )
-    {
-        if( j < rem )
-        {
-            zbuf[j] = screen_vertices_z[base + j];
-            xbuf[j] = screen_vertices_x[base + j];
-            ybuf[j] = screen_vertices_y[base + j];
-        }
-        else
-        {
-            zbuf[j] = z_pad;
-            xbuf[j] = 0;
-            ybuf[j] = 0;
-        }
-    }
-
-    int32x4_t z_i = vld1q_s32(zbuf);
-    int32x4_t x = vld1q_s32(xbuf);
-    int32x4_t y = vld1q_s32(ybuf);
-
-    int32x4_t v_near = vdupq_n_s32(near_plane_z);
-    int32x4_t v_mid = vdupq_n_s32(model_mid_z);
-    int32x4_t v_neg5000 = vdupq_n_s32(-5000);
-    int32x4_t v_neg5001 = vdupq_n_s32(-5001);
-
-    int32x4_t vscreen_z;
-    int32x4_t final_x;
-    int32x4_t final_y;
-    projection_zdiv_neon_apply_noclip(
-        z_i, x, y, v_near, v_mid, v_neg5000, v_neg5001, &vscreen_z, &final_x, &final_y);
-
-    int out_z[4];
-    int out_x[4];
-    int out_y[4];
-    vst1q_s32(out_z, vscreen_z);
-    vst1q_s32(out_x, final_x);
-    vst1q_s32(out_y, final_y);
     for( int j = 0; j < rem; j++ )
     {
-        screen_vertices_z[base + j] = out_z[j];
-        screen_vertices_x[base + j] = out_x[j];
-        screen_vertices_y[base + j] = out_y[j];
+        int i = base + j;
+        int z = screen_vertices_z[i];
+
+        screen_vertices_z[i] = z - model_mid_z;
+        screen_vertices_x[i] = screen_vertices_x[i] / z;
+        screen_vertices_y[i] = screen_vertices_y[i] / z;
     }
 }
 

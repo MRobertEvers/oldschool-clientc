@@ -257,7 +257,8 @@ hit_test_interactive_recursive(
     struct UITreeComponent const* component = &tree->components[node_index];
 
     /* Match emit: hidden subtrees are not interactive. */
-    if( component->behavior.hide || component->frame_hidden )
+    if( component->behavior.hide || component->frame_hidden ||
+        component->replacement_hidden )
         return -1;
 
     /* Inactive sidebar tabs contribute nothing — gate FIRST, exactly like the
@@ -436,7 +437,8 @@ UITree_HitTestRecursive(
     struct UITreeComponent const* component = &tree->components[node_index];
 
     /* Match emit: hidden subtrees are not interactive. */
-    if( component->behavior.hide || component->frame_hidden )
+    if( component->behavior.hide || component->frame_hidden ||
+        component->replacement_hidden )
         return -1;
 
     int32_t hit = -1;
@@ -515,7 +517,8 @@ collect_nodes_recursive(
 
     struct UITreeComponent const* component = &tree->components[node_index];
 
-    if( component->behavior.hide || component->frame_hidden )
+    if( component->behavior.hide || component->frame_hidden ||
+        component->replacement_hidden )
         return;
 
     /* Inactive sidebar tabs contribute nothing — gate FIRST (like the emit
@@ -706,6 +709,380 @@ UITree_HitTestInteractive(
     return hit;
 }
 
+/* A structural paint-order key for a native node and a semantic overlay
+ * boundary. This deliberately mirrors emit_walk_node instead of relying on
+ * array/component ids: dynamic nodes reuse both, mounted roots have their own
+ * final sweep, and a picked-up drag subtree is emitted in a second global
+ * pass. */
+struct role_boundary_order
+{
+    struct UITree const* tree;
+    struct UITreeHost const* host;
+    int32_t candidate;
+    int32_t anchor;
+    uint32_t anchor_incarnation;
+    bool replace;
+    uint64_t sequence;
+    uint64_t candidate_sequence;
+    uint64_t boundary_sequence;
+    /** Optional point query, sharing this exact structural sequence. A cover is
+     * either an interactive native node or an input-blocking native boundary
+     * (`noClickThrough` / a type-0 InterfaceParent) at the queried pixel. */
+    int point_query;
+    int point_x;
+    int point_y;
+    uint64_t cover_sequence;
+    bool candidate_seen;
+    bool boundary_seen;
+    bool cover_seen;
+};
+
+static void
+role_boundary_mark_node(
+    struct role_boundary_order* order,
+    int32_t node,
+    struct UITreeComponent const* component,
+    bool point_in_self)
+{
+    order->sequence++;
+    if( node == order->candidate )
+    {
+        order->candidate_sequence = order->sequence;
+        order->candidate_seen = true;
+    }
+    if( order->point_query && point_in_self &&
+        (component->no_click_through ||
+         (!UITree_ComponentIsPassThrough(component, order->host) &&
+          UITree_ComponentHitTestVisibleHost(component, -1, order->host))) )
+    {
+        order->cover_sequence = order->sequence;
+        order->cover_seen = true;
+    }
+}
+
+static void
+role_boundary_mark_anchor(struct role_boundary_order* order)
+{
+    order->sequence++;
+    order->boundary_sequence = order->sequence;
+    order->boundary_seen = true;
+}
+
+/** A blocking boundary which has no native paint node of its own. Type-0
+ * InterfaceParents raise this between the host's ordinary children and the
+ * mounted subtree, so it needs a sequence position of its own. */
+static void
+role_boundary_mark_cover(struct role_boundary_order* order)
+{
+    order->sequence++;
+    order->cover_sequence = order->sequence;
+    order->cover_seen = true;
+}
+
+static void
+role_boundary_walk_node(
+    struct role_boundary_order* order,
+    int32_t node,
+    bool drag_pass,
+    bool in_deferred,
+    int scroll_off_x,
+    int scroll_off_y,
+    struct UITreeScrollClip const* clip,
+    struct UITreeScrollClip const* surface)
+{
+    struct UITree const* tree;
+    struct UITreeComponent const* component;
+    struct UITreeScrollClip child_clip;
+    struct UITreeScrollClip child_surface;
+    int x, y, w, h;
+    int child_scroll_x;
+    int child_scroll_y;
+    bool point_in_self = false;
+
+    assert(order);
+    tree = order->tree;
+    if( node < 0 || (uint32_t)node >= tree->component_count )
+        return;
+    component = &tree->components[node];
+    if( component->freed || component->frame_hidden || component->behavior.hide )
+        return;
+
+    /* Same selected-tab pruning as emit and interactive hit testing. */
+    if( component->type == UIELEM_BUILTIN_SIDEBAR && order->host )
+    {
+        struct UITreeHostRequest req = { .kind = UITREE_HOST_GET_SELECTED_TAB };
+        if( UITree_Host(order->host, &req) != component->u.sidebar.tabno )
+            return;
+    }
+
+    UITree_LayoutGetBounds(&component->position, &x, &y, &w, &h);
+    if( UITree_LayerCullsChildren(component, w, h) )
+        return;
+
+    /* Replacement art is inserted before drag classification, exactly where
+     * the native subtree becomes a tombstone. It appears only in the ordinary
+     * pass; replacement-hidden descendants and unrelated replacements prune. */
+    if( component->replacement_hidden )
+    {
+        if( !drag_pass && order->replace && node == order->anchor &&
+            component->incarnation == order->anchor_incarnation )
+            role_boundary_mark_anchor(order);
+        return;
+    }
+
+    /* A picked-up component carries its whole subtree in screen space. Folding
+     * that delta into the inherited scroll offset is the same transform the
+     * interactive hit walk uses, while the structural half below still decides
+     * whether this node belongs to the ordinary or deferred paint pass. */
+    if( component->drag_active )
+    {
+        scroll_off_x -= component->drag_visual_x - (x - scroll_off_x);
+        scroll_off_y -= component->drag_visual_y - (y - scroll_off_y);
+    }
+    if( order->point_query &&
+        (!clip || clip->clip_w <= 0 || clip->clip_h <= 0 ||
+         UITree_PointInClip(order->point_x, order->point_y, clip)) )
+        point_in_self = UITree_PointInScrolledBounds(
+            order->point_x,
+            order->point_y,
+            x,
+            y,
+            w,
+            h,
+            scroll_off_x,
+            scroll_off_y);
+
+    if( component->drag_active && component->drag_behavior != 1 )
+        in_deferred = true;
+
+    if( in_deferred )
+    {
+        if( !drag_pass )
+            return;
+    }
+    else if( drag_pass )
+    {
+        /* The drag pass descends through ordinary nodes without painting them
+         * until it reaches a deferred drag source. */
+        int const has_mounts = UITree_ContainerHasMounts(tree, component->component_id);
+        for( int mount_sweep = 0; mount_sweep <= has_mounts; mount_sweep++ )
+        {
+            for( int32_t child = component->first_child; child >= 0;
+                 child = tree->components[child].next_sibling )
+            {
+                int const is_mount =
+                    has_mounts &&
+                    UITree_ChildMountType(tree, component->component_id,
+                                          &tree->components[child]) >= 0;
+                if( is_mount != mount_sweep )
+                    continue;
+                role_boundary_walk_node(
+                    order,
+                    child,
+                    drag_pass,
+                    false,
+                    scroll_off_x,
+                    scroll_off_y,
+                    clip,
+                    surface);
+            }
+        }
+        return;
+    }
+
+    /* A node's own native descriptors precede its children. Treat even a
+     * visually empty interactive container as occupying that structural paint
+     * position; that is the conservative input answer when it covers a plugin
+     * region. */
+    role_boundary_mark_node(order, node, component, point_in_self);
+
+    child_scroll_x = scroll_off_x;
+    child_scroll_y = scroll_off_y;
+    child_clip = clip ? *clip : (struct UITreeScrollClip){ 0 };
+    child_surface = surface ? *surface : (struct UITreeScrollClip){ 0 };
+    {
+        struct UITreeScrollClip cc, cs;
+        if( UITree_LayerChildClip(
+                component,
+                surface,
+                x - scroll_off_x,
+                y - scroll_off_y,
+                w,
+                h,
+                &cc,
+                &cs) )
+        {
+            child_clip = cc;
+            child_surface = cs;
+        }
+    }
+    if( component->type == UIELEM_RS_LAYER )
+    {
+        if( UITree_ScrollLayerNeedsHorizontal(component) )
+            child_scroll_x += component->scroll_x;
+        if( UITree_ScrollLayerNeedsVertical(component) )
+            child_scroll_y += component->scroll_y;
+    }
+
+    {
+        int const mount_rec = UITree_InterfaceParentFind(tree, component->component_id);
+        int const has_mounts = UITree_ContainerHasMounts(tree, component->component_id);
+        int const mount_type = mount_rec >= 0 ? tree->interface_parents[mount_rec].type : -1;
+        for( int mount_sweep = 0; mount_sweep <= has_mounts; mount_sweep++ )
+        {
+            /* Reference input installs a modal barrier at the host boundary,
+             * after ordinary children and before its mounted interface. It can
+             * cover an earlier role overlay even when the mounted root has no
+             * interactive child at this pixel. */
+            if( order->point_query && mount_sweep == 1 && mount_type == 0 &&
+                point_in_self )
+                role_boundary_mark_cover(order);
+            for( int32_t child = component->first_child; child >= 0;
+                 child = tree->components[child].next_sibling )
+            {
+                int const is_mount =
+                    has_mounts &&
+                    UITree_ChildMountType(tree, component->component_id,
+                                          &tree->components[child]) >= 0;
+                if( is_mount != mount_sweep )
+                    continue;
+                role_boundary_walk_node(
+                    order,
+                    child,
+                    drag_pass,
+                    in_deferred,
+                    is_mount ? scroll_off_x : child_scroll_x,
+                    is_mount ? scroll_off_y : child_scroll_y,
+                    &child_clip,
+                    &child_surface);
+            }
+        }
+    }
+
+    if( !order->replace && node == order->anchor &&
+        component->incarnation == order->anchor_incarnation )
+        role_boundary_mark_anchor(order);
+}
+
+static void
+role_boundary_walk_tree(struct role_boundary_order* order)
+{
+    struct UITree const* tree;
+
+    assert(order);
+    tree = order->tree;
+    /* One monotonically increasing sequence spans both passes, so every
+     * deferred drag node naturally sorts above every ordinary descriptor. */
+    for( int drag_pass = 0; drag_pass <= (UITree_HasActiveDrag(tree) ? 1 : 0);
+         drag_pass++ )
+    {
+        for( int32_t root = tree->root_index; root >= 0;
+             root = tree->components[root].next_sibling )
+        {
+            if( !UITree_RootIsDisplayable(tree, root) )
+                continue;
+            role_boundary_walk_node(
+                order,
+                root,
+                drag_pass != 0,
+                false,
+                0,
+                0,
+                NULL,
+                NULL);
+        }
+    }
+}
+
+bool
+UITree_NodePaintsAfterRoleBoundary(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int32_t candidate_node,
+    int32_t anchor_node,
+    uint32_t anchor_incarnation,
+    bool replace)
+{
+    struct role_boundary_order order;
+
+    assert(tree);
+    if( candidate_node < 0 || anchor_node < 0 ||
+        (uint32_t)candidate_node >= tree->component_count ||
+        (uint32_t)anchor_node >= tree->component_count )
+        return false;
+    if( tree->components[candidate_node].freed || tree->components[anchor_node].freed ||
+        tree->components[anchor_node].incarnation != anchor_incarnation )
+        return false;
+
+    memset(&order, 0, sizeof(order));
+    order.tree = tree;
+    order.host = host;
+    order.candidate = candidate_node;
+    order.anchor = anchor_node;
+    order.anchor_incarnation = anchor_incarnation;
+    order.replace = replace;
+
+    role_boundary_walk_tree(&order);
+
+    return order.candidate_seen && order.boundary_seen &&
+           order.candidate_sequence > order.boundary_sequence;
+}
+
+bool
+UITree_PointInputCoverPaintsAfterRoleBoundary(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int px,
+    int py,
+    int32_t anchor_node,
+    uint32_t anchor_incarnation,
+    bool replace)
+{
+    struct role_boundary_order order;
+
+    assert(tree);
+    if( anchor_node < 0 || (uint32_t)anchor_node >= tree->component_count ||
+        tree->components[anchor_node].freed || anchor_incarnation == 0 ||
+        tree->components[anchor_node].incarnation != anchor_incarnation )
+        return false;
+
+    memset(&order, 0, sizeof(order));
+    order.tree = tree;
+    order.host = host;
+    order.candidate = -1;
+    order.anchor = anchor_node;
+    order.anchor_incarnation = anchor_incarnation;
+    order.replace = replace;
+    order.point_query = 1;
+    order.point_x = px;
+    order.point_y = py;
+    role_boundary_walk_tree(&order);
+    return order.cover_seen && order.boundary_seen &&
+           order.cover_sequence > order.boundary_sequence;
+}
+
+bool
+UITree_PointHasNativeInputCover(
+    struct UITree const* tree,
+    struct UITreeHost const* host,
+    int px,
+    int py)
+{
+    struct role_boundary_order order;
+
+    assert(tree);
+    memset(&order, 0, sizeof(order));
+    order.tree = tree;
+    order.host = host;
+    order.candidate = -1;
+    order.anchor = -1;
+    order.point_query = 1;
+    order.point_x = px;
+    order.point_y = py;
+    role_boundary_walk_tree(&order);
+    return order.cover_seen;
+}
+
 int
 UITree_PointBlocksWorld(
     struct UITree const* tree,
@@ -732,6 +1109,91 @@ UITree_PointBlocksWorld(
     return 0;
 }
 
+static int
+input_gesture_target_display_hidden(
+    struct UIInputState const* state,
+    struct UITree const* tree)
+{
+    assert(state);
+    assert(tree);
+
+    if( state->pressed >= 0 )
+    {
+        if( (uint32_t)state->pressed >= tree->component_count ||
+            tree->components[state->pressed].freed || state->pressed_incarnation == 0 ||
+            tree->components[state->pressed].incarnation != state->pressed_incarnation )
+            return 1;
+        if( UITree_NodeOrAncestorDisplayHidden(tree, state->pressed) )
+            return 1;
+    }
+    /* UIInputState predates an explicit initializer, so callers which only
+     * initialize hovered/pressed leave this scalar at C's zero default. A
+     * source index has ownership only while a deferred or active drag says it
+     * does; index 0 by itself is not a latent gesture. */
+    if( state->drag_source_idx < 0 ||
+        (!state->deferred_click && !state->drag_active) )
+        return 0;
+    if( (uint32_t)state->drag_source_idx >= tree->component_count )
+        return 1;
+    if( tree->components[state->drag_source_idx].freed ||
+        state->drag_source_incarnation == 0 ||
+        tree->components[state->drag_source_idx].incarnation !=
+            state->drag_source_incarnation ||
+        tree->components[state->drag_source_idx].component_id != state->drag_source_id )
+        return 1;
+    return UITree_NodeOrAncestorDisplayHidden(tree, state->drag_source_idx);
+}
+
+static void
+input_cancel_gesture(
+    struct UIInputState* state,
+    struct UITree* tree)
+{
+    assert(state);
+    assert(tree);
+
+    /* Only mutate render state when the saved incarnation still names this
+     * component; a reclaimed index belongs to its new node. */
+    if( state->drag_source_idx >= 0 &&
+        (uint32_t)state->drag_source_idx < tree->component_count &&
+        !tree->components[state->drag_source_idx].freed &&
+        state->drag_source_incarnation != 0 &&
+        tree->components[state->drag_source_idx].incarnation ==
+            state->drag_source_incarnation &&
+        tree->components[state->drag_source_idx].component_id == state->drag_source_id )
+    {
+        UITree_SetComponentDragActive(tree, state->drag_source_idx, 0);
+        tree->components[state->drag_source_idx].drag_visual_trans = -1;
+    }
+    state->pressed = -1;
+    state->pressed_incarnation = 0;
+    state->drag_active = 0;
+    state->drag_source_idx = -1;
+    state->drag_source_incarnation = 0;
+    state->drag_source_id = -1;
+    state->drag_target_id = -1;
+    state->drag_target_idx = -1;
+    state->drag_target_incarnation = 0;
+    state->deferred_click = 0;
+    state->release_click_suppressed = 0;
+    state->drag_duration = 0;
+    state->thresholds_set = 0;
+    state->cancelled_press = 1;
+}
+
+int
+UITree_InputCancelDisplayHidden(
+    struct UIInputState* state,
+    struct UITree* tree)
+{
+    assert(state);
+    assert(tree);
+    if( !input_gesture_target_display_hidden(state, tree) )
+        return 0;
+    input_cancel_gesture(state, tree);
+    return 1;
+}
+
 struct UIInputResult
 UITree_InputUpdate(
     struct UIInputState* state,
@@ -747,13 +1209,24 @@ UITree_InputUpdate(
     result.prev_hovered = prev_hovered;
     result.clicked = -1;
     result.drag_source_idx = -1;
+    result.drag_source_incarnation = 0;
     result.drag_source_id = -1;
     result.drag_target_id = -1;
+    result.drag_target_idx = -1;
+    result.drag_target_incarnation = 0;
     result.released_source_idx = -1;
+    result.released_source_incarnation = 0;
     result.released_source_id = -1;
 
     assert(state);
     assert(tree);
+
+    /* A frame replacement can become active between input frames. Treat its
+     * native subtree exactly like CSS display:none: retire any pointer
+     * ownership before hold/repeat/drag/release code gets another chance to
+     * dispatch into it. Keep a small latch until mouse-up so the same physical
+     * press cannot be retargeted to the plugin or world underneath. */
+    (void)UITree_InputCancelDisplayHidden(state, tree);
 
     switch( event.kind )
     {
@@ -762,12 +1235,22 @@ UITree_InputUpdate(
         break;
 
     case UI_INPUT_DOWN:
+        /* A new physical press cannot belong to an older cancelled gesture
+         * whose release was lost to focus loss. */
+        state->cancelled_press = 0;
         state->hovered = UITree_HitTestInteractive(tree, host, event.x, event.y);
         state->pressed = state->hovered;
+        state->pressed_incarnation =
+            state->pressed >= 0 && (uint32_t)state->pressed < tree->component_count
+                ? tree->components[state->pressed].incarnation
+                : 0;
         state->drag_active = 0;
         state->drag_source_idx = -1;
+        state->drag_source_incarnation = 0;
         state->drag_source_id = -1;
         state->drag_target_id = -1;
+        state->drag_target_idx = -1;
+        state->drag_target_incarnation = 0;
         state->deferred_click = 0;
         state->release_click_suppressed = 0;
         state->drag_duration = 0;
@@ -793,6 +1276,7 @@ UITree_InputUpdate(
                 /* Defer click until mouseup if drag never starts. */
                 state->deferred_click = 1;
                 state->drag_source_idx = state->pressed;
+                state->drag_source_incarnation = c->incarnation;
                 state->drag_source_id = c->component_id;
             }
             else
@@ -815,17 +1299,22 @@ UITree_InputUpdate(
 
     case UI_INPUT_UP:
     {
+        int const cancelled_press = state->cancelled_press;
         int32_t const up_hit = UITree_HitTestInteractive(tree, host, event.x, event.y);
         state->hovered = up_hit;
         result.released_source_idx = state->pressed;
+        result.released_source_incarnation = state->pressed_incarnation;
         if( state->pressed >= 0 && (uint32_t)state->pressed < tree->component_count )
             result.released_source_id = tree->components[state->pressed].component_id;
         if( state->drag_active )
         {
             result.drag_ended = 1;
             result.drag_source_idx = state->drag_source_idx;
+            result.drag_source_incarnation = state->drag_source_incarnation;
             result.drag_source_id = state->drag_source_id;
             result.drag_target_id = state->drag_target_id;
+            result.drag_target_idx = state->drag_target_idx;
+            result.drag_target_incarnation = state->drag_target_incarnation;
             if( state->drag_source_idx >= 0 &&
                 (uint32_t)state->drag_source_idx < tree->component_count )
             {
@@ -848,17 +1337,26 @@ UITree_InputUpdate(
             result.clicked = up_hit;
         }
         state->pressed = -1;
+        state->pressed_incarnation = 0;
         state->deferred_click = 0;
         state->release_click_suppressed = 0;
         state->drag_active = 0;
         state->drag_duration = 0;
         /* End of gesture: drop the source so a stale idx cannot resume drag. */
         state->drag_source_idx = -1;
+        state->drag_source_incarnation = 0;
         state->drag_source_id = -1;
         state->drag_target_id = -1;
+        state->drag_target_idx = -1;
+        state->drag_target_incarnation = 0;
+        state->cancelled_press = 0;
+        result.cancelled_press = cancelled_press;
         break;
     }
     }
+
+    if( event.kind != UI_INPUT_UP )
+        result.cancelled_press = state->cancelled_press;
 
     result.hovered = state->hovered;
     result.prev_hovered = prev_hovered;
@@ -886,6 +1384,11 @@ UITree_InputDragTick(
     assert(state);
     assert(tree);
     (void)host;
+
+    /* Direct callers may tick a drag without first delivering a MOVE event.
+     * Apply the same display:none cancellation invariant here as InputUpdate. */
+    if( UITree_InputCancelDisplayHidden(state, tree) )
+        return 1;
 
     if( !left_held || state->drag_source_idx < 0 ||
         (uint32_t)state->drag_source_idx >= tree->component_count )
@@ -975,7 +1478,13 @@ UITree_InputDragTick(
     src->drag_visual_x = target_x;
     src->drag_visual_y = target_y;
 
-    state->drag_target_id = UITree_FindDropTarget(tree, mouse_x, mouse_y, state->drag_source_id);
+    state->drag_target_idx = UITree_FindDropTargetNode(
+        tree, mouse_x, mouse_y, state->drag_source_id, &state->drag_target_id);
+    state->drag_target_incarnation =
+        state->drag_target_idx >= 0 &&
+                (uint32_t)state->drag_target_idx < tree->component_count
+            ? tree->components[state->drag_target_idx].incarnation
+            : 0;
 
     return changed || state->drag_active;
 }

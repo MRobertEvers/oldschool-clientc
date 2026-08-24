@@ -75,18 +75,20 @@ static struct
 #define FRAME_CHAT_BUTTON_COUNT 4
 
 /**
- * Draws per chat-button plate: two end caps and the body repeated between them.
+ * Draws per chat-button plate: ONE.
  *
- * A 56-wide plate with 8-wide caps has a 40-wide body, and a 100-wide button
- * has 84 columns to fill between its caps -- three copies. Counted rather than
- * assumed, because a three-slice that dropped its middle would leave a button
- * with two rounded ends and a hole, which no assertion about the button's
- * RECTANGLE can see.
+ * The plate is composed at the button's own size -- caps copied, body
+ * stretched -- so nothing is sliced at draw time. It was five while the slice
+ * happened per frame, and the count is kept as an assertion rather than
+ * dropped: a plate that went back to being assembled from pieces every frame
+ * would be four extra blits per button and no assertion about the button's
+ * RECTANGLE could see it.
  */
-#define FRAME_CHAT_PLATE_DRAWS (2 + 3)
-#define FRAME_CHAT_PLATES (4 * FRAME_CHAT_PLATE_DRAWS)
+#define FRAME_CHAT_PLATES 4
 
-#define FAKE_SLOT_MEMBERS 8
+/* Fourteen sidebar mounts and four chat buttons: a member number is the
+ * role's OWN numbering, so the table has to be as wide as the widest role. */
+#define FAKE_SLOT_MEMBERS 16
 
 /** What the frame declared: the claim, the slots, and the drawing. */
 static struct
@@ -124,7 +126,17 @@ static struct
         int art;
         int mask;
     } skin[TORIRS_PLUGIN_SLOT_COUNT];
+    struct
+    {
+        int placed;
+        int image;
+        int x;
+        int y;
+        int trans;
+    } overlay[TORIRS_PLUGIN_SLOT_COUNT];
     int scrollbar_pieces;
+    /** A sidebar tab this fake gameframe does NOT have, or -1. */
+    int missing_tab;
 } g_frame;
 
 /** Which roles this fake gameframe has. Everything but the compass, so that
@@ -153,6 +165,7 @@ fake_layout_begin(void* u)
     memset(g_frame.slot, 0, sizeof(g_frame.slot));
     memset(g_frame.member, 0, sizeof(g_frame.member));
     memset(g_frame.skin, 0, sizeof(g_frame.skin));
+    memset(g_frame.overlay, 0, sizeof(g_frame.overlay));
     g_frame.scrollbar_pieces = 0;
     g_frame.begin_calls++;
 }
@@ -170,6 +183,10 @@ fake_layout_slot(void* u, int slot, int member, int x, int y, int w, int h)
     (void)u;
     assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_COUNT);
     if( member >= FAKE_SLOT_MEMBERS )
+        return 0;
+    /* A lane whose sidebar is missing one panel -- rs289lc has no clan chat --
+     * answers "no such member" for it, and the layout has to cope. */
+    if( slot == TORIRS_PLUGIN_SLOT_SIDEBAR && member >= 0 && member == g_frame.missing_tab )
         return 0;
     if( member < 0 )
     {
@@ -200,6 +217,19 @@ fake_layout_slot_skin(void* u, int slot, int art, int mask)
     g_frame.skin[slot].placed = 1;
     g_frame.skin[slot].art = art;
     g_frame.skin[slot].mask = mask;
+    return fake_has_slot(slot);
+}
+
+static int
+fake_layout_slot_overlay(void* u, int slot, int image, int x, int y, int trans)
+{
+    (void)u;
+    assert(slot >= 0 && slot < TORIRS_PLUGIN_SLOT_COUNT);
+    g_frame.overlay[slot].placed = 1;
+    g_frame.overlay[slot].image = image;
+    g_frame.overlay[slot].x = x;
+    g_frame.overlay[slot].y = y;
+    g_frame.overlay[slot].trans = trans;
     return fake_has_slot(slot);
 }
 
@@ -414,6 +444,10 @@ static int fake_role_rect(void* u, char const* r, int* x, int* y, int* w, int* h
 static int fake_role_visible(void* u, char const* r) { (void)u; (void)r; return 0; }
 static int fake_role_click(void* u, char const* r, int op) { (void)u; (void)r; (void)op; return 0; }
 static int fake_role_id(void* u, char const* r) { (void)u; (void)r; return -1; }
+static int fake_role_replace(void* u, int p, char const* r, int e)
+{ (void)u; (void)p; (void)r; (void)e; return 1; }
+static int fake_role_anchor(void* u, int p, char const* r, int replace)
+{ (void)u; (void)p; (void)replace; return r ? 0 : 1; }
 static int fake_stat(void* u, int s, int* c, int* b) { (void)u; (void)s; (void)c; (void)b; return 0; }
 static int fake_stat_xp(void* u, int s, int* a, int* b, int* c) { (void)u; (void)s; (void)a; (void)b; (void)c; return 0; }
 static char const* fake_skill_name(void* u, int s) { (void)u; (void)s; return NULL; }
@@ -473,15 +507,6 @@ draw(int w, int h)
     PluginHost_DrawFrame(g_host, w, h);
 }
 
-/** The chrome that goes OVER the live surfaces -- the map housing. */
-static void
-draw_over(int w, int h)
-{
-    g_frame.blits = 0;
-    g_frame.regions = 0;
-    PluginHost_DrawCanvas(g_host, w, h);
-}
-
 static int
 slot_is(int slot, int x, int y, int w, int h)
 {
@@ -535,11 +560,14 @@ main(void)
     e.role_visible = fake_role_visible;
     e.role_click = fake_role_click;
     e.role_id = fake_role_id;
+    e.role_replace = fake_role_replace;
+    e.role_anchor = fake_role_anchor;
     e.layout_set = fake_layout_set;
     e.layout_begin = fake_layout_begin;
     e.layout_end = fake_layout_end;
     e.layout_slot = fake_layout_slot;
     e.layout_slot_skin = fake_layout_slot_skin;
+    e.layout_slot_overlay = fake_layout_slot_overlay;
     e.layout_scrollbar = fake_layout_scrollbar;
     e.tab_active = fake_tab_active;
     e.tab_select = fake_tab_select;
@@ -583,6 +611,7 @@ main(void)
 
     /* asset_read answers into the host it is reading for, and the engine user
      * pointer is the only channel it has -- so the host is built twice. */
+    g_frame.missing_tab = -1;
     g_host = PluginHost_New(&e);
     e.user = g_host;
     PluginHost_Free(g_host);
@@ -625,6 +654,12 @@ main(void)
     CHECK(
         slot_is(TORIRS_PLUGIN_SLOT_SIDEBAR, 553, 205, 190, 261),
         "classic sidebar is the dat1 frame's");
+    CHECK(
+        g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].placed &&
+            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].x == 550 &&
+            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].y == 4 &&
+            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].trans == 0,
+        "classic map housing is attached to the minimap slot");
     CHECK(
         g_frame.slot[TORIRS_PLUGIN_SLOT_MAIN_MODAL].placed,
         "the modal region is placed, not left to the lane");
@@ -715,6 +750,11 @@ main(void)
         "548's minimap sits five pixels left of the dat1 frame's");
     CHECK(
         slot_is(TORIRS_PLUGIN_SLOT_SIDEBAR, 547, 205, 190, 261), "548's sidebar panel");
+    CHECK(
+        g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].placed &&
+            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].x == 545 &&
+            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].y == 4,
+        "548's map housing is attached at its own minimap boundary");
 
     draw(765, 503);
     CHECK(g_frame.regions == 14, "548 has fourteen tabs as well");
@@ -751,6 +791,11 @@ main(void)
             g_frame.slot[TORIRS_PLUGIN_SLOT_MINIMAP].x == map_x + 24 &&
                 g_frame.slot[TORIRS_PLUGIN_SLOT_MINIMAP].y == 8,
             "the minimap is pinned to the top-right corner");
+        CHECK(
+            g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].placed &&
+                g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].x == map_x &&
+                g_frame.overlay[TORIRS_PLUGIN_SLOT_MINIMAP].y == 0,
+            "and its housing is declared directly above that semantic slot");
         /*
          * And it is CUT to the housing it sits in.
          *
@@ -838,9 +883,18 @@ main(void)
          * own button, which cycles the filter's mode, and stealing it would
          * trade a working control for a decorative one.
          */
+        /*
+         * Fourteen tabs and the three filter buttons that SELECT something.
+         *
+         * Report abuse claims none: it is not a view of the chat, it opens a
+         * report, so the click stays the lane's. That asymmetry is the whole
+         * reason to count regions rather than buttons -- claiming all four
+         * would take the report button away from the client that implements
+         * it and give it to a plugin that does not.
+         */
         CHECK(
-            g_frame.regions == 14 + FRAME_CHAT_BUTTON_COUNT,
-            "and claims all fourteen tabs plus the four filter buttons");
+            g_frame.regions == 14 + FRAME_CHAT_BUTTON_COUNT - 1,
+            "and claims the tabs plus the three selectable filter buttons");
 
         /* No tab open: no lit stone, and everything else unchanged. */
         g_frame.active_tab = -1;
@@ -850,17 +904,34 @@ main(void)
             "with no tab open there is no lit stone");
 
         /*
-         * And the map housing OVER them.
+         * A tab this gameframe does not have draws its STONE and no icon.
          *
-         * Its own case because "behind" and "over" are one blit apart and the
-         * difference is invisible in a count of the whole frame: drawn behind,
-         * the square of terrain covers the ring and the minimap stops being
-         * round. That is the entire visible symptom, and no assertion about
-         * the frame surface can see it.
+         * The stone is the frame's own furniture -- fourteen of them make the
+         * two rows, and a hole where one should be is a broken strip -- but
+         * the icon stands for a panel, and rs289lc has no clan chat to stand
+         * for. An icon over nothing invites the click that does nothing, which
+         * is worse than a blank stone.
          */
-        draw_over(1440, 900);
-        CHECK(g_frame.blits == 1, "the map housing is drawn over the minimap, not behind it");
-        CHECK(g_frame.regions == 0, "and the over-pass claims no regions of its own");
+        g_frame.missing_tab = 7;
+        /* Re-DECLARED, not merely redrawn: which icon a stone wears is decided
+         * in the layout pass, because that is where the frame is asked what
+         * tabs it has. */
+        declare(1440, 900);
+        draw(1440, 900);
+        CHECK(
+            g_frame.blits == 6 + FRAME_R_PANEL_TILES + FRAME_CHAT_PLATES + 13,
+            "a tab the frame has no panel for draws a blank stone");
+        g_frame.missing_tab = -1;
+        declare(1440, 900);
+
+        /* The map housing is no longer a global canvas draw. Legacy canvas
+         * drawing remains global by contract; moving this one there covered
+         * unrelated later chrome as well as the minimap it was meant for. */
+        g_frame.blits = 0;
+        g_frame.regions = 0;
+        PluginHost_DrawCanvas(g_host, 1440, 900);
+        CHECK(g_frame.blits == 0, "the map housing is not redrawn over the whole canvas");
+        CHECK(g_frame.regions == 0, "and no obsolete over-pass claims input regions");
     }
 
     /* ---- 6. release ---------------------------------------------------- */

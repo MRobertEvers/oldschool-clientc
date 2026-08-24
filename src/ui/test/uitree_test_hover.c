@@ -480,6 +480,80 @@ test_hover_input(void)
         UITree_Free(mt);
     }
 
+    /* Hover events retain an exact node incarnation. A cycle rebuild may put
+     * the same component id back into the same slot while the pointer never
+     * moves; the replacement gets a fresh over, never its own leave on behalf
+     * of the reclaimed occupant. */
+    {
+        struct UITree* ht = UITree_New(8);
+        struct UIInteraction interact;
+        struct LibToriRS_Input storage;
+        struct LibToriRS_Input* input;
+        struct UIInteractOut out;
+        int const parent_id = (700 << 16) | 0;
+        int32_t parent =
+            UITree_TestPushXy(ht, -1, UIELEM_RS_LAYER, parent_id, 0, 0, 200, 200);
+        int32_t old = UITree_CcCreate(ht, parent, parent_id, UIELEM_RS_RECT, 0);
+        uint32_t old_incarnation;
+        int saw_old_over = 0;
+        int saw_new_over = 0;
+        int saw_replacement_leave = 0;
+
+        printf("TEST: hover identity survives same-id/same-slot recycle\n");
+        ht->components[old].position.x = 10;
+        ht->components[old].position.y = 10;
+        ht->components[old].position.width = 100;
+        ht->components[old].position.height = 100;
+        UITree_HooksMut(&ht->components[old])->on_mouse_over.script_id = 851;
+        UITree_HooksMut(&ht->components[old])->on_mouse_leave.script_id = 852;
+        UITree_TestResolve(ht);
+        old_incarnation = ht->components[old].incarnation;
+        UIInteraction_Init(&interact);
+        input = LibToriRS_Input_Init(&storage, 0);
+
+        LibToriRS_Input_Begin(input, 0);
+        LibToriRS_Input_PushMouseMove(input, 20, 20);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, ht, &host, input, 0, &out);
+        for( int i = 0; i < out.intent_count; i++ )
+            if( out.intents[i].hook && out.intents[i].hook->script_id == 851 )
+                saw_old_over = 1;
+        TEST_ASSERT(saw_old_over, "initial occupant receives mouse-over");
+
+        UITree_CcDeleteAll(ht, parent);
+        {
+            int32_t replacement = UITree_CcCreate(
+                ht, parent, parent_id, UIELEM_RS_RECT, 0);
+            TEST_ASSERT(replacement == old, "hover fixture reuses the same array slot");
+            TEST_ASSERT(
+                ht->components[replacement].incarnation != old_incarnation,
+                "replacement has a fresh incarnation");
+            ht->components[replacement].position.x = 10;
+            ht->components[replacement].position.y = 10;
+            ht->components[replacement].position.width = 100;
+            ht->components[replacement].position.height = 100;
+            UITree_HooksMut(&ht->components[replacement])->on_mouse_over.script_id = 861;
+            UITree_HooksMut(&ht->components[replacement])->on_mouse_leave.script_id = 862;
+        }
+        UITree_TestResolve(ht);
+        interact.client_cycle++;
+        LibToriRS_Input_Begin(input, 20);
+        LibToriRS_Input_End(input);
+        UITree_InteractFrame(&interact, ht, &host, input, 20, &out);
+        for( int i = 0; i < out.intent_count; i++ )
+        {
+            if( out.intents[i].hook && out.intents[i].hook->script_id == 861 )
+                saw_new_over = 1;
+            if( out.intents[i].hook && out.intents[i].hook->script_id == 862 )
+                saw_replacement_leave = 1;
+        }
+        TEST_ASSERT(saw_new_over, "same-id replacement receives a fresh mouse-over");
+        TEST_ASSERT(
+            !saw_replacement_leave,
+            "replacement never inherits reclaimed occupant's mouse-leave");
+        UITree_Free(ht);
+    }
+
     (void)graphic;
     UITree_Free(tree);
 }

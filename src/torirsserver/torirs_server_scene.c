@@ -51,6 +51,10 @@ enum
  * against an OldSchool cache). */
 static struct ToriRS_FeatureTable const* g_features;
 
+/* Loc placement tracing, armed by TORIRS_TRACE_LOC (a loc id) in the
+ * environment; resolved lazily at the first scene build. */
+static int g_trace_loc = -1;
+
 /*
  * One 104x104 window per watcher.
  *
@@ -1274,6 +1278,11 @@ record_locs_zone(
         int dz;
         int angle;
 
+        if( g_trace_loc && map_loc->loc_id == g_trace_loc && sx >= 0 && sx < 8 && sz >= 0 &&
+            sz < 8 )
+            fprintf(stderr, "TRACE zone loc=%d cpl=%d srclvl=%d sx=%d sz=%d cfg=%d dst=%d\n",
+                    map_loc->loc_id, map_loc->chunk_pos_level, zone->src_level, sx, sz,
+                    config != NULL, dst_level);
         if( map_loc->chunk_pos_level != zone->src_level )
             continue;
         if( sx < 0 || sx >= 8 || sz < 0 || sz >= 8 )
@@ -1378,6 +1387,19 @@ ToriRSServer_SceneBuildInstance(
 
     square_count =
         window_source_squares(window, square_x, square_z, (int)(sizeof(square_x) / sizeof(*square_x)));
+    if( g_trace_loc < 0 )
+    {
+        const char* t = getenv("TORIRS_TRACE_LOC");
+        g_trace_loc = t ? atoi(t) : 0;
+    }
+    if( g_trace_loc )
+    {
+        fprintf(stderr, "TRACE build zone=%d,%d base=%d,%d squares=%d:", zone_x, zone_z, g_base_x,
+                g_base_z, square_count);
+        for( int q = 0; q < square_count; q++ )
+            fprintf(stderr, " %d_%d", square_x[q], square_z[q]);
+        fprintf(stderr, "\n");
+    }
 
     for( int s = 0; s < square_count; s++ )
     {

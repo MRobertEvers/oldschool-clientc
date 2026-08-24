@@ -329,6 +329,9 @@ struct ChromeCs2
     /** LISTROW: whether the row carries a settings affordance. Arrives on the
      *  ADD as `w`, the one command that carries a widget's shape. */
     int wrow_action[TORIRS_CHROME_MAX_WIDGETS];
+    /** LISTROW: the row cannot be switched off, so it has no switch -- the
+     *  other bit of the same `w`. @see TORIRS_CHROME_ROW_LOCKED. */
+    int wrow_locked[TORIRS_CHROME_MAX_WIDGETS];
     /** TEXTAREA: how many lines tall its box is. The ADD's `h`, the other half
      *  of the same rule. */
     int wrows[TORIRS_CHROME_MAX_WIDGETS];
@@ -1571,10 +1574,13 @@ cs2_rebuild(struct ChromeCs2* s)
             /* The roster row, in game chrome: the name at the left, a settings
              * affordance and a switch pinned to the right so a column of them
              * lines up. Two component ids -- see CS2_ID_ACTION_BASE. */
+            int const locked = s->wrow_locked[i];
             int const tog_w = TORIRS_CHROME_M_TOGGLE_W;
             int const tog_h = TORIRS_CHROME_M_TOGGLE_H;
             int const icon = TORIRS_CHROME_M_ROW_ICON;
-            int const tog_x = CS2_PAD + row_w - tog_w;
+            /* A locked row reserves no switch column: the furniture shifts
+             * right by its width and the name takes the space. */
+            int const tog_x = CS2_PAD + row_w - (locked ? 0 : tog_w);
             int const tog_y = y + (CS2_ROW_H - tog_h) / 2;
             int const icon_x = tog_x - TORIRS_CHROME_M_ROW_ICON_GAP - icon;
             int const icon_y = y + (CS2_ROW_H - icon) / 2;
@@ -1598,6 +1604,13 @@ cs2_rebuild(struct ChromeCs2* s)
                         icon_y + icon / 2 - 1, TORIRS_CHROME_M_DOT, TORIRS_CHROME_M_DOT,
                         CS2_COL_LABEL, 1);
             }
+
+            /* A locked row has no second state, so it has no switch: nothing
+             * below is drawn and no component takes the widget's own id, which
+             * is what keeps a click off it from arriving as a toggle. The
+             * settings well above is the row's only outcome. */
+            if( locked )
+                break;
 
             /* The same tick/cross a checkbox wears -- see the note there. A
              * sliding switch is an idiom this game does not have. */
@@ -2014,8 +2027,9 @@ chrome_cs2_apply(void* user, struct ToriRSChromeCmd const* cmd)
             if( s->drop_open == cmd->widget )
                 cs2_dropdown_close(s);
             /* The ADD is the one command carrying a widget's shape; `w` is a
-             * LISTROW's action affordance and `h` a TEXTAREA's line count. */
-            s->wrow_action[cmd->widget] = cmd->w;
+             * LISTROW's shape bits and `h` a TEXTAREA's line count. */
+            s->wrow_action[cmd->widget] = (cmd->w & TORIRS_CHROME_ROW_ACTION) ? 1 : 0;
+            s->wrow_locked[cmd->widget] = (cmd->w & TORIRS_CHROME_ROW_LOCKED) ? 1 : 0;
             s->wrows[cmd->widget] = cmd->h;
         }
         if( cmd->value == TORIRS_CHROME_W_TABSTRIP )

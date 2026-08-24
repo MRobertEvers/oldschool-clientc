@@ -39,6 +39,9 @@ struct CacheProvider
     struct HMap* enum_cache;
     struct HMap* struct_cache;
     struct HMap* param_cache;
+    /** Inventory type capacity by inv id. Entries are scalar values rather
+     *  than pointers so a cached zero can represent an absent config record. */
+    struct HMap* invtype_cache;
     struct HMap* componentpack_cache;
     struct HMap* clientscript_cache;
     struct HMap* objtype_cache;
@@ -275,6 +278,11 @@ struct CacheProviderVTable
     struct ToriRS_Task* (*Task_ParamLoad)(
         struct CacheProvider* provider,
         int param_id);
+    /** Load one inventory type's capacity. Missing records are cached as zero
+     *  so a script does not yield and re-read config group 5 forever. */
+    struct ToriRS_Task* (*Task_InvtypeLoad)(
+        struct CacheProvider* provider,
+        int inv_id);
     /** Decode DBROW config (kind 38) for a row id into dbrow_cache. */
     struct ToriRS_Task* (*Task_DbRowLoad)(
         struct CacheProvider* provider,
@@ -482,6 +490,30 @@ CacheProvider_ParamHas(
 
 void
 CacheProvider_ParamsCleanup(struct CacheProvider* provider);
+
+/** Cache one inventory type capacity. A size of zero is a cached answer. */
+void
+CacheProvider_InvtypeAdd(
+    struct CacheProvider* provider,
+    int inv_id,
+    int size);
+
+/**
+ * Look up an inventory type capacity.
+ *
+ * Returns true when the id has been cached and writes its capacity to
+ * `out_size`. The presence return is deliberately separate from the value:
+ * zero is the cached default for an absent inventory type, while false means
+ * the provider has not attempted to load this id yet.
+ */
+bool
+CacheProvider_InvtypeGet(
+    struct CacheProvider* provider,
+    int inv_id,
+    int* out_size);
+
+void
+CacheProvider_InvtypesCleanup(struct CacheProvider* provider);
 
 void
 CacheProvider_DbRowAdd(
@@ -1221,6 +1253,16 @@ CreateTask_ParamLoad(
     if( !provider->vtable->Task_ParamLoad )
         return NULL;
     return provider->vtable->Task_ParamLoad(provider, param_id);
+}
+
+static inline struct ToriRS_Task*
+CreateTask_InvtypeLoad(
+    struct CacheProvider* provider,
+    int inv_id)
+{
+    if( !provider->vtable->Task_InvtypeLoad )
+        return NULL;
+    return provider->vtable->Task_InvtypeLoad(provider, inv_id);
 }
 
 static inline struct ToriRS_Task*

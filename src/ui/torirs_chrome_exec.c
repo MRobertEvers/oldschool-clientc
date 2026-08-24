@@ -271,12 +271,14 @@ ToriRSChromeSync_Run(struct ToriRSChromeSync* sync, struct ToriRSChrome const* u
             cmd.value = w->kind;
             cmd.tab = w->tab;
             cmd.color = w->color;
-            /* A LISTROW's action affordance is part of its SHAPE, so it rides
-             * the one command that states a widget's shape. A row that gained
-             * or lost one is a different row: the panel rebuild that changed it
-             * gives it a new serial, and the shadow answers that with a
-             * remove-then-add rather than an update. */
-            cmd.w = w->row_action;
+            /* A LISTROW's action affordance and its lock are part of its
+             * SHAPE, so they ride the one command that states a widget's
+             * shape. A row that gained or lost either is a different row: the
+             * panel rebuild that changed it gives it a new serial, and the
+             * shadow answers that with a remove-then-add rather than an
+             * update. */
+            cmd.w = (w->row_action ? TORIRS_CHROME_ROW_ACTION : 0) |
+                    (w->row_locked ? TORIRS_CHROME_ROW_LOCKED : 0);
             /* ...and a TEXTAREA's line count, the other half of the same
              * rule. An executor that never heard it would build every
              * multiline field one line tall. */

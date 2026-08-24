@@ -33,6 +33,8 @@
 #define CS2_T_DROP_UP (TORIRS_CHROME_CS2_ID_BASE + 0x24)
 #define CS2_T_DROP_DOWN (TORIRS_CHROME_CS2_ID_BASE + 0x25)
 #define CS2_T_LABEL_BASE (TORIRS_CHROME_CS2_ID_BASE + 0x2800)
+/** A LISTROW's settings well -- the parallel block its ACTION zone answers on. */
+#define CS2_T_ACTION_BASE (TORIRS_CHROME_CS2_ID_BASE + 0x400)
 /** The window X this presentation used to draw, and must not draw again. */
 #define CS2_T_CLOSE (TORIRS_CHROME_CS2_ID_BASE + 0x23)
 /** Rows the list shows at once (TORIRS_CHROME_DROPDOWN_ROWS). */
@@ -557,6 +559,60 @@ test_chrome_cs2_textarea(void)
     cs2_unbind();
 }
 
+/*
+ * A LOCKED roster row has NO SWITCH here either.
+ *
+ * `row_locked` is the model's answer for a plugin that cannot be switched off
+ * -- the client's own settings, and the feature flags beside them -- and only
+ * the in-canvas chrome was reading it. This executor drew the switch anyway,
+ * and drew it from `checked`, which a locked row never sets: a red cross
+ * beside Client Settings and Feature Flags, reading as two plugins somebody
+ * had turned off and offering a click that would not turn them back on.
+ *
+ * So the contract is the ABSENCE of the widget's own component. The switch is
+ * how a click gets home to a toggle -- see CS2_ID_WIDGET_BASE -- and a row
+ * that builds no component in that slot cannot report one however it is
+ * clicked, which is a stronger statement than "the sprite is not drawn".
+ */
+static void
+test_chrome_cs2_locked_row(void)
+{
+    int panel;
+    int locked;
+    int plain;
+    int32_t node;
+    int lx = 0, ly = 0, lw = 0, lh = 0;
+    int px = 0, py = 0, pw = 0, ph = 0;
+
+    cs2_bind();
+    panel = ToriRSChrome_PanelAdd(&g_ui, TORIRS_CHROME_PANEL_WINDOW, 0, 0, 260, "Plugins");
+    locked = ToriRSChrome_ListRowLocked(&g_ui, panel, "Client Settings");
+    plain = ToriRSChrome_ListRow(&g_ui, panel, "Client Settings", 0, 1);
+    cs2_frame();
+
+    TEST_ASSERT(
+        cs2_has_id(CS2_T_WIDGET_BASE + plain), "an ordinary roster row carries its switch");
+    TEST_ASSERT(
+        !cs2_has_id(CS2_T_WIDGET_BASE + locked), "a locked one carries no switch at all");
+    TEST_ASSERT(
+        cs2_has_id(CS2_T_ACTION_BASE + locked),
+        "but keeps its settings well -- with no switch, the page is its only outcome");
+
+    /* And the column the switch is not in goes to the NAME, rather than being
+     * left as a hole in the row. */
+    node = UITree_FindByComponentId(g_tree, CS2_T_LABEL_BASE + locked);
+    TEST_ASSERT(node >= 0, "the locked row's name is in the tree");
+    UITree_LayoutGetBounds(&g_tree->components[node].position, &lx, &ly, &lw, &lh);
+    node = UITree_FindByComponentId(g_tree, CS2_T_LABEL_BASE + plain);
+    TEST_ASSERT(node >= 0, "and so is the ordinary row's");
+    UITree_LayoutGetBounds(&g_tree->components[node].position, &px, &py, &pw, &ph);
+    TEST_ASSERT(
+        lw == pw + TORIRS_CHROME_M_TOGGLE_W,
+        "and it is wider by exactly the switch column it does not have");
+
+    cs2_unbind();
+}
+
 void
 test_chrome_cs2(void)
 {
@@ -569,4 +625,5 @@ test_chrome_cs2(void)
     test_chrome_cs2_row_lights_up();
     test_chrome_cs2_check_style();
     test_chrome_cs2_textarea();
+    test_chrome_cs2_locked_row();
 }

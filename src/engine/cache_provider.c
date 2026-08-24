@@ -35,6 +35,7 @@
 #define CACHE_PROVIDER_ENUM_CAPACITY 2048
 #define CACHE_PROVIDER_STRUCT_CAPACITY 2048
 #define CACHE_PROVIDER_PARAM_CAPACITY 2048
+#define CACHE_PROVIDER_INVTYPE_CAPACITY 2048
 #define CACHE_PROVIDER_COMPONENTPACK_CAPACITY 512
 #define CACHE_PROVIDER_CLIENTSCRIPT_CAPACITY 4096
 #define CACHE_PROVIDER_OBJTYPE_CAPACITY 4096
@@ -115,6 +116,12 @@ struct MapEntry_ProviderParamType
 {
     int id;
     struct ToriRS_ParamType* param;
+};
+
+struct MapEntry_ProviderInvtype
+{
+    int id;
+    int size;
 };
 
 struct MapEntry_ProviderSound
@@ -337,6 +344,8 @@ CacheProvider_InitEngineCaches(struct CacheProvider* provider)
         sizeof(struct MapEntry_ProviderStruct), CACHE_PROVIDER_STRUCT_CAPACITY);
     provider->param_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderParamType), CACHE_PROVIDER_PARAM_CAPACITY);
+    provider->invtype_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderInvtype), CACHE_PROVIDER_INVTYPE_CAPACITY);
     provider->componentpack_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderComponentPack), CACHE_PROVIDER_COMPONENTPACK_CAPACITY);
     provider->clientscript_cache = cache_provider_hmap_new(
@@ -392,6 +401,7 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     CacheProvider_EnumsCleanup(provider);
     CacheProvider_StructsCleanup(provider);
     CacheProvider_ParamsCleanup(provider);
+    CacheProvider_InvtypesCleanup(provider);
     CacheProvider_ComponentPacksCleanup(provider);
     CacheProvider_ClientScriptsCleanup(provider);
     CacheProvider_ObjtypesCleanup(provider);
@@ -425,6 +435,8 @@ CacheProvider_FreeEngineCaches(struct CacheProvider* provider)
     provider->struct_cache = NULL;
     cache_provider_hmap_free(provider->param_cache);
     provider->param_cache = NULL;
+    cache_provider_hmap_free(provider->invtype_cache);
+    provider->invtype_cache = NULL;
     cache_provider_hmap_free(provider->componentpack_cache);
     provider->componentpack_cache = NULL;
     cache_provider_hmap_free(provider->clientscript_cache);
@@ -1085,6 +1097,62 @@ CacheProvider_ParamsCleanup(struct CacheProvider* provider)
     cache_provider_hmap_free(provider->param_cache);
     provider->param_cache = cache_provider_hmap_new(
         sizeof(struct MapEntry_ProviderParamType), CACHE_PROVIDER_PARAM_CAPACITY);
+}
+
+void
+CacheProvider_InvtypeAdd(
+    struct CacheProvider* provider,
+    int inv_id,
+    int size)
+{
+    struct MapEntry_ProviderInvtype* entry;
+
+    assert(provider);
+    assert(provider->invtype_cache);
+    assert(inv_id >= 0);
+    assert(size >= 0);
+
+    cache_provider_hmap_prepare_insert(&provider->invtype_cache);
+    entry = (struct MapEntry_ProviderInvtype*)hmap_search(
+        provider->invtype_cache, &inv_id, HMAP_INSERT);
+    assert(entry && "Inventory type must be inserted into hmap");
+
+    entry->id = inv_id;
+    entry->size = size;
+}
+
+bool
+CacheProvider_InvtypeGet(
+    struct CacheProvider* provider,
+    int inv_id,
+    int* out_size)
+{
+    struct MapEntry_ProviderInvtype* entry;
+
+    assert(provider);
+    assert(out_size);
+    *out_size = 0;
+    if( !provider->invtype_cache || inv_id < 0 )
+        return false;
+
+    entry = (struct MapEntry_ProviderInvtype*)hmap_search(
+        provider->invtype_cache, &inv_id, HMAP_FIND);
+    if( !entry )
+        return false;
+    *out_size = entry->size;
+    return true;
+}
+
+void
+CacheProvider_InvtypesCleanup(struct CacheProvider* provider)
+{
+    assert(provider);
+    if( !provider->invtype_cache )
+        return;
+
+    cache_provider_hmap_free(provider->invtype_cache);
+    provider->invtype_cache = cache_provider_hmap_new(
+        sizeof(struct MapEntry_ProviderInvtype), CACHE_PROVIDER_INVTYPE_CAPACITY);
 }
 
 void

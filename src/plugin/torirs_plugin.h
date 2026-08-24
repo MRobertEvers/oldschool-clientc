@@ -27,6 +27,9 @@
 #define TORIRS_PLUGIN_ABI 17
 
 #define TORIRS_PLUGIN_NAME_MAX 48
+/** Semantic role spelling, terminator included. Kept in the public contract
+ * because replacement claims retain the name for their whole lifetime. */
+#define TORIRS_PLUGIN_ROLE_NAME_MAX 64
 /** Bytes of a plugin's human title, terminator included. Longer than the name
  *  because a title carries spaces and words the kebab-case id compresses. */
 #define TORIRS_PLUGIN_TITLE_MAX 64
@@ -1712,12 +1715,16 @@ struct ToriRS_PluginApi
      * 2004 stones around an OldSchool inventory, and the layout that replaced
      * the one has no way to replace the other without this.
      *
-     * `art` replaces the surface's own picture; -1 keeps the lane's. `mask` is
-     * an alpha cut-out, and it is what makes a floating frame possible at all:
+     * `art` replaces COMPASS art; it must be -1 for MINIMAP, whose picture is
+     * the live baked world. -1 keeps the lane's compass art. `mask` is an alpha
+     * cut-out, and it is what makes a floating frame possible at all:
      * the OldSchool resizable map surround is a RING with the scene showing
      * through everywhere it is not, so an unmasked square of minimap draws its
      * corners over the world outside the ring. -1 is no mask, which is right
      * for a housing that is opaque around its hole.
+     *
+     * Plugin masks use a stable polarity across cache eras: transparent pixels
+     * are the window and opaque pixels are clipped away.
      *
      * Both are image handles from image_load or image_compose, and an image
      * still crossing the IO queue is refused rather than remembered -- the
@@ -2217,10 +2224,12 @@ struct ToriRS_PluginApi
      * as several regions to say so.
      *
      * A left click runs op 0, because a region is the plugin's own real estate
-     * with nothing of the game's underneath: this is the one place a plugin
-     * row may be the default, unlike api->menu_add, which appends to a menu
-     * the game owns and where a plugin taking the default click would be
-     * taking it from something else.
+     * with nothing of the game's underneath. The region owns the complete
+     * physical press through release, so native hold/repeat/release/drag paths
+     * underneath it cannot arm before the plugin receives the click. This is
+     * the one place a plugin row may be the default, unlike api->menu_add,
+     * which appends to a menu the game owns and where a plugin taking the
+     * default click would be taking it from something else.
      *
      * NULL or an `op_count` of 0 claims the pointer without offering anything
      * -- a region that only wants to stop a click falling through to whatever
@@ -2233,8 +2242,10 @@ struct ToriRS_PluginApi
      * `tag` comes back in EV_CANVAS_CLICK, and is the plugin's own; the host
      * does not read it.
      *
-     * Later regions win where two overlap, matching the draw order: the last
-     * thing drawn is the thing on top, so it is the thing clicked.
+     * Overlap follows actual paint order. Global Canvas is above role-local
+     * Canvas, which is above Frame; role-local regions compare the semantic
+     * tree boundaries where their art was inserted. Declaration order breaks
+     * ties only when two regions occupy the same paint boundary.
      *
      * @return 1 when the region was recorded, 0 when the frame's region table
      * is full.
@@ -2823,6 +2834,82 @@ struct ToriRS_PluginApi
 
     /** Drop every control on this plugin's tab, to rebuild it from the top. */
     void (*win_clear)(struct ToriRS_PluginCtx* ctx);
+
+    /* -- ABI 17 append --------------------------------------------------- */
+
+    /**
+     * Attach one image to a placed layout slot, immediately above that live
+     * surface's whole UI subtree.
+     *
+     * This is the local-z-order counterpart to draw_image. A draw made in
+     * EV_DRAW_FRAME or EV_DRAW_CANVAS remains in that global surface's paint
+     * order; the host never guesses that an ordinary draw intended to replace
+     * or decorate some component. This declaration is explicit, and legal
+     * only inside EV_LAYOUT (asserted).
+     *
+     * The anchor is the role's primary semantic node -- the deterministic node
+     * slot_rect addresses for a whole role. The image is emitted after that
+     * node and every descendant, before its next sibling, using the node's
+     * PARENT clip. That permits a housing to overlap the live surface while
+     * preventing it from painting over unrelated chrome outside the containing
+     * panel. A role with several independently placed members needs a future
+     * member-specific declaration rather than duplicating one image over all
+     * of them.
+     *
+     * `x`/`y` are canvas coordinates and `trans` is 0 opaque, 255 invisible.
+     * The same slot must be placed in this declaration. If the target is
+     * absent, hidden, collapsed, or emits no visible subtree this image is
+     * omitted too. The image handle may still be loading: its stable scene
+     * identity is retained and it begins drawing as soon as its pixels land,
+     * without waiting for another EV_LAYOUT.
+     *
+     * @return 1 when this gameframe currently has the primary surface for the
+     * role, 0 otherwise. Recording and the answer are separate, exactly as for
+     * layout_slot: a declaration remains whole across a later tree rebuild.
+     */
+    int (*layout_slot_overlay)(
+        struct ToriRS_PluginCtx* ctx,
+        int slot,
+        int image,
+        int x,
+        int y,
+        int trans);
+
+    /**
+     * Claim or release replacement of the component named by `role`.
+     *
+     * A replacement is CSS `display:none` semantics for the native subtree:
+     * it is omitted from paint, hit testing, menus, hover and focus while its
+     * cache/client scripts remain alive in the background. Claims are owned by
+     * the calling plugin, exclusive per role, persistent across tree rebuilds,
+     * and released automatically when that plugin stops.
+     *
+     * `enabled` nonzero claims (or idempotently restates) the role; zero
+     * releases this plugin's claim. The claim remains valid while its target is
+     * temporarily absent and rebinds to the next incarnation that resolves.
+     *
+     * @return 1 when the claim/release was accepted, 0 for an invalid role or
+     * a role currently claimed by another plugin.
+     */
+    int (*role_replace)(
+        struct ToriRS_PluginCtx* ctx,
+        char const* role,
+        int enabled);
+
+    /**
+     * Anchor subsequent EV_DRAW_CANVAS primitives and hit regions to `role`.
+     *
+     * The anchor lasts only until the current canvas subscriber returns. Its
+     * primitives paint immediately after the target's complete subtree with
+     * the target's parent clip. If this plugin owns a replacement claim for
+     * the role, they paint at the pruned subtree's tombstone instead. A missing,
+     * hidden or rebuilt target drops the declarations; they never fall back to
+     * the global canvas overlay.
+     *
+     * @return 1 when the role resolves for this draw pass, 0 when it does not
+     * or another plugin owns its replacement.
+     */
+    int (*role_anchor)(struct ToriRS_PluginCtx* ctx, char const* role);
 };
 
 /* ------------------------------------------------------------------------ */

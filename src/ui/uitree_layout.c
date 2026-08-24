@@ -2,6 +2,7 @@
 
 #include "perf/torirs_perf.h"
 #include "ui_if3_layout.h"
+#include "uitree_frame.h"
 
 #include <assert.h>
 #include <stdlib.h>
@@ -73,7 +74,8 @@ axis_from_position_mode(
 
 static void
 resolve_relative(
-    struct UITreeElemPosition* pos,
+    struct UITreeElemPosition const* spec,
+    struct UITreeElemPosition* out,
     int parent_x,
     int parent_y,
     int parent_w,
@@ -81,29 +83,29 @@ resolve_relative(
 {
     int x = parent_x;
     int y = parent_y;
-    int w = pos->width > 0 ? pos->width : parent_w;
-    int h = pos->height > 0 ? pos->height : parent_h;
+    int w = spec->width > 0 ? spec->width : parent_w;
+    int h = spec->height > 0 ? spec->height : parent_h;
 
-    if( pos->relative_flags & UITREE_RELATIVE_FLAG_LEFT )
-        x = parent_x + pos->left;
-    else if( pos->relative_flags & UITREE_RELATIVE_FLAG_RIGHT )
-        x = parent_x + parent_w - pos->right - w;
+    if( spec->relative_flags & UITREE_RELATIVE_FLAG_LEFT )
+        x = parent_x + spec->left;
+    else if( spec->relative_flags & UITREE_RELATIVE_FLAG_RIGHT )
+        x = parent_x + parent_w - spec->right - w;
 
-    if( pos->relative_flags & UITREE_RELATIVE_FLAG_TOP )
-        y = parent_y + pos->top;
-    else if( pos->relative_flags & UITREE_RELATIVE_FLAG_BOTTOM )
-        y = parent_y + parent_h - pos->bottom - h;
+    if( spec->relative_flags & UITREE_RELATIVE_FLAG_TOP )
+        y = parent_y + spec->top;
+    else if( spec->relative_flags & UITREE_RELATIVE_FLAG_BOTTOM )
+        y = parent_y + parent_h - spec->bottom - h;
 
-    if( !(pos->relative_flags & (UITREE_RELATIVE_FLAG_LEFT | UITREE_RELATIVE_FLAG_RIGHT)) )
+    if( !(spec->relative_flags & (UITREE_RELATIVE_FLAG_LEFT | UITREE_RELATIVE_FLAG_RIGHT)) )
         x = parent_x + (parent_w - w) / 2;
-    if( !(pos->relative_flags & (UITREE_RELATIVE_FLAG_TOP | UITREE_RELATIVE_FLAG_BOTTOM)) )
+    if( !(spec->relative_flags & (UITREE_RELATIVE_FLAG_TOP | UITREE_RELATIVE_FLAG_BOTTOM)) )
         y = parent_y + (parent_h - h) / 2;
 
-    pos->abs_x = x;
-    pos->abs_y = y;
-    pos->abs_w = w;
-    pos->abs_h = h;
-    pos->layout_resolved = 1;
+    out->abs_x = x;
+    out->abs_y = y;
+    out->abs_w = w;
+    out->abs_h = h;
+    out->layout_resolved = 1;
 }
 
 /*
@@ -166,43 +168,64 @@ layout_compute_node(
 {
     struct UITreeComponent* c = &tree->components[i];
     struct UITreeElemPosition* pos = &c->position;
+    struct UITreeElemPosition override;
+    struct UITreeElemPosition const* spec = pos;
     int const was_resolved = pos->layout_resolved;
     int const old_x = pos->abs_x;
     int const old_y = pos->abs_y;
     int const old_w = pos->abs_w;
     int const old_h = pos->abs_h;
 
-    if( pos->kind == UIPOS_RELATIVE )
+    if( UITree_FramePositionOverride(tree, (int32_t)i, &override) )
     {
-        resolve_relative(pos, px, py, pw, ph);
+        if( UITree_FramePositionOwned(tree, (int32_t)i) )
+        {
+            /* Slot declarations are in canvas coordinates, regardless of the
+             * cache nesting used to discover the semantic node. Treat the
+             * effective slot box as absolute rather than adding parent abs_*;
+             * the latter offsets deep roles whenever a native shell moves. */
+            pos->abs_x = override.x;
+            pos->abs_y = override.y;
+            pos->abs_w = override.width;
+            pos->abs_h = override.height;
+            pos->layout_resolved = 1;
+            return !was_resolved || pos->abs_x != old_x || pos->abs_y != old_y ||
+                   pos->abs_w != old_w || pos->abs_h != old_h;
+        }
+        spec = &override;
+    }
+
+    if( spec->kind == UIPOS_RELATIVE )
+    {
+        resolve_relative(spec, pos, px, py, pw, ph);
         return !was_resolved || pos->abs_x != old_x || pos->abs_y != old_y ||
                pos->abs_w != old_w || pos->abs_h != old_h;
     }
 
-    int w = pos->width;
-    int h = pos->height;
-    if( pos->width_mode >= 0 || pos->height_mode >= 0 )
+    int w = spec->width;
+    int h = spec->height;
+    if( spec->width_mode >= 0 || spec->height_mode >= 0 )
     {
-        int8_t wm = pos->width_mode >= 0 ? pos->width_mode : 0;
-        int8_t hm = pos->height_mode >= 0 ? pos->height_mode : 0;
+        int8_t wm = spec->width_mode >= 0 ? spec->width_mode : 0;
+        int8_t hm = spec->height_mode >= 0 ? spec->height_mode : 0;
         if( wm == 4 || hm == 4 )
         {
             UITree_If3ComputeSize(
                 wm,
                 hm,
-                pos->width,
-                pos->height,
+                spec->width,
+                spec->height,
                 pw,
                 ph,
-                pos->aspect_w > 0 ? pos->aspect_w : 1,
-                pos->aspect_h > 0 ? pos->aspect_h : 1,
+                spec->aspect_w > 0 ? spec->aspect_w : 1,
+                spec->aspect_h > 0 ? spec->aspect_h : 1,
                 &w,
                 &h);
         }
         else
         {
-            w = dim_from_parent_mode(wm, pos->width, pw);
-            h = dim_from_parent_mode(hm, pos->height, ph);
+            w = dim_from_parent_mode(wm, spec->width, pw);
+            h = dim_from_parent_mode(hm, spec->height, ph);
         }
     }
 
@@ -212,14 +235,14 @@ layout_compute_node(
         h = ph;
     }
 
-    int rx = pos->x;
-    int ry = pos->y;
-    if( pos->x_mode >= 0 || pos->y_mode >= 0 )
+    int rx = spec->x;
+    int ry = spec->y;
+    if( spec->x_mode >= 0 || spec->y_mode >= 0 )
     {
-        int8_t ym = pos->y_mode >= 0 ? pos->y_mode : 0;
-        int8_t xm = pos->x_mode >= 0 ? pos->x_mode : 0;
-        rx = axis_from_position_mode(xm, pos->x, 0, pw, w);
-        ry = axis_from_position_mode(ym, pos->y, 0, ph, h);
+        int8_t ym = spec->y_mode >= 0 ? spec->y_mode : 0;
+        int8_t xm = spec->x_mode >= 0 ? spec->x_mode : 0;
+        rx = axis_from_position_mode(xm, spec->x, 0, pw, w);
+        ry = axis_from_position_mode(ym, spec->y, 0, ph, h);
     }
 
     pos->abs_x = px + rx;
