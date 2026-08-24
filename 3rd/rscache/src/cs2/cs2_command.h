@@ -107,6 +107,8 @@ enum RSCache_CS2_CommandKind
     RSCACHE_CS2_CMD_TYPED_POP,
     /** Three fixed ints, descriptor-selected values, then the descriptor string. */
     RSCACHE_CS2_CMD_DESCRIPTOR_ARGS,
+    /** Opcode 210: two selector-controlled values among five fixed ints. */
+    RSCACHE_CS2_CMD_FIND_PARAM,
     RSCACHE_CS2_CMD_CLIENTSCRIPT,
     RSCACHE_CS2_CMD_PARAM,
     /** Active-component param lookup; result stack comes from the param config. */

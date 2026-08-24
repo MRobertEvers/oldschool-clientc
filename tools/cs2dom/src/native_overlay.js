@@ -197,7 +197,11 @@ export function collectInterfaceScripts(contentDir, interfaceName) {
          * to resolve and which become future runtime roots. Follow both forms. */
         const callPatterns = [
             /~([A-Za-z_][A-Za-z0-9_]*)/g,
-            /["']([A-Za-z_][A-Za-z0-9_]*)\s*[({]/g,
+            /* Deferred hook strings can be either `name(args)` or the bare
+             * `name` spelling used by no-argument callbacks. Ordinary labels
+             * are harmless because only names present in the script ledger are
+             * followed. */
+            /["']([A-Za-z_][A-Za-z0-9_]*)(?=\s*(?:[({]|["']))/g,
         ];
         for( const calls of callPatterns ) {
             for( let call; (call = calls.exec(source)); ) {

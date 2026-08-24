@@ -648,6 +648,7 @@ emit_component(
     IF_EMIT_INT(modelYOffset, "modelyof");
     IF_EMIT_INT(modelSeqId, "modelanim");
     IF_EMIT_BOOL(modelOrthographic, "modelortho");
+    IF_EMIT_BOOL(aBoolean411, "modelfixedzoom");
     IF_EMIT_INT(activeModelId, "activemodel");
     IF_EMIT_INT(activeAnimId, "activeanim");
     IF_EMIT_INT(activeGraphic, "activegraphic");
@@ -1070,6 +1071,7 @@ read_component_line(
     IF_READ_INT("modelyof", modelYOffset)
     IF_READ_INT("modelanim", modelSeqId)
     IF_READ_BOOL("modelortho", modelOrthographic)
+    IF_READ_BOOL("modelfixedzoom", aBoolean411)
     IF_READ_INT("activemodel", activeModelId)
     IF_READ_INT("activeanim", activeAnimId)
     IF_READ_INT("activegraphic", activeGraphic)
@@ -2380,6 +2382,7 @@ script_write(
     memset(&verify, 0, sizeof(verify));
     verify.scripts = options.scripts;
     verify.param_types = options.param_types;
+    verify.db_columns = options.db_columns;
     verify.names = options.names;
 
     struct RSCache_ClientScript check;
@@ -2439,6 +2442,8 @@ script_read(
     options.scripts.load = cs2_load_script;
     options.param_types.user = &g_cs2;
     options.param_types.load = cs2_load_param_type;
+    options.db_columns.user = g_cs2.db_columns;
+    options.db_columns.load = tool_db_columns_lookup;
     options.names = g_cs2.names_loaded ? &g_cs2.names : NULL;
 
     struct RSCache_ClientScript script;

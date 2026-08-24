@@ -107,9 +107,9 @@ function resolveGeometry(node, viewport) {
     if( node.geometry ) return node.geometry;
     const parent = node.parent;
     const parentGeometry = parent ? resolveGeometry(parent, viewport) : viewport;
-    const parentW = parent && parent.component.type === IF_TYPE.layer && int(parent.props.scrollWidth) > 0
+    const parentW = parent && componentIsLayer(parent.component) && int(parent.props.scrollWidth) > 0
         ? int(parent.props.scrollWidth) : parentGeometry.w;
-    const parentH = parent && parent.component.type === IF_TYPE.layer && int(parent.props.scrollHeight) > 0
+    const parentH = parent && componentIsLayer(parent.component) && int(parent.props.scrollHeight) > 0
         ? int(parent.props.scrollHeight) : parentGeometry.h;
     const props = node.props;
     const widthMode = int(props.widthMode);
@@ -145,15 +145,16 @@ function traverse(node, context, boxes) {
     const { component, props, geometry } = node;
     const x = geometry.x - context.scrollX;
     const y = geometry.y - context.scrollY;
-    const clipsChildren = component.type === IF_TYPE.layer || component.type === IF_TYPE.inv;
+    const clipsChildren = componentClipsChildren(component);
+    const scrollLayer = componentIsLayer(component);
     const ownCull = clipsChildren && (geometry.w <= 0 || geometry.h <= 0);
     const effectiveHidden = context.hidden || Boolean(props.hidden);
     const culled = context.culled || ownCull;
     const scrollWidth = int(props.scrollWidth);
     const scrollHeight = int(props.scrollHeight);
-    const maxScrollX = component.type === IF_TYPE.layer
+    const maxScrollX = scrollLayer
         ? Math.max(0, scrollWidth - geometry.w) : 0;
-    const maxScrollY = component.type === IF_TYPE.layer
+    const maxScrollY = scrollLayer
         ? Math.max(0, scrollHeight - geometry.h) : 0;
     const ownScrollX = clamp(int(props.scrollX), 0, maxScrollX);
     const ownScrollY = clamp(int(props.scrollY), 0, maxScrollY);
@@ -194,7 +195,7 @@ function traverse(node, context, boxes) {
          * not with context.clip. A genuinely scrollable layer then becomes the
          * new surface so its content cannot escape the viewport. */
         childClip = intersect(context.surface, rectangle(x, y, geometry.w, geometry.h));
-        if( component.type === IF_TYPE.layer && (maxScrollX > 0 || maxScrollY > 0) )
+        if( scrollLayer && (maxScrollX > 0 || maxScrollY > 0) )
             childSurface = childClip;
     }
 
@@ -208,6 +209,25 @@ function traverse(node, context, boxes) {
         depth: context.depth + 1,
     };
     for( const child of node.children ) traverse(child, childContext, boxes);
+}
+
+/* `cc_create`'s widget type is not the UITree element type. In particular,
+ * widget types 0 and 2 (and every unknown value) create UIELEM_CC_OBJ, not an
+ * RS_LAYER/RS_INV. HostRuntime deliberately keeps the original widget type on
+ * the React component, so use the dynamic Object identity before interpreting
+ * those numeric values as cache component types. A CC object neither clips nor
+ * culls its children; they inherit the enclosing layer's clip. */
+function componentClipsChildren(component) {
+    if( isDynamicObject(component) ) return false;
+    return componentIsLayer(component) || component.type === IF_TYPE.inv;
+}
+
+function componentIsLayer(component) {
+    return component.type === IF_TYPE.layer && !isDynamicObject(component);
+}
+
+function isDynamicObject(component) {
+    return component.runtimeDynamic && component.kind === 'Object';
 }
 
 function breakParentCycles(nodes) {

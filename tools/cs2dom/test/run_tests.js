@@ -30,16 +30,24 @@ import { emitInterface, emitCompack } from '../src/emit_if.js';
 import { emitScript } from '../src/emit_cs2.js';
 import { PackFile, Ledger } from '../src/ledger.js';
 import { OPS } from '../src/ops.js';
-import { ELEMENTS, EVENTS } from '../src/components.js';
+import { ELEMENTS, EVENTS, IF_TYPE } from '../src/components.js';
 import { compileScripts, findRepoRoot, CS2_TOOL } from '../src/verify.js';
 import { checkRange, rangeContext, SLICES } from '../src/host.js';
+import {
+    createHostRuntime, HOST_REQUEST_COVERAGE, HOST_RUNTIME_SCHEMA, hostRequestCapability,
+} from '../src/host_runtime.js';
+import { createSourceRuntimeSession } from '../src/cache_runtime.js';
+import { createWasmCS2Runtime, __wasmRuntimeTest } from '../src/wasm_runtime.js';
 import { evaluate, resolveProps, stateInputs } from '../src/eval.js';
 import { layout, axisFromPositionMode, dimFromParentMode } from '../src/preview.js';
-import { decodeBmp, encodePng } from '../src/png.js';
+import { decodeBmp, encodePng, spriteCanvas, spriteTile } from '../src/png.js';
+import { spritePng } from '../src/dev.js';
 import {
     contentInterfaceCatalog, executeContentHooks, openContentInterface, parseBlocks,
 } from '../src/content.js';
 import { prepareDat2Project } from '../src/dat2.js';
+import { compileInterfaceProgram } from '../src/bytecode.js';
+import { parseEnums, parseObjects, parseParams, parseStructs } from '../src/host_data.js';
 import { page as devPage } from '../src/dev_page.js';
 import { modelIndex, rawModel } from '../src/model.js';
 import { nativeTreeInspector, parseNativeTree } from '../src/native_tree.js';
@@ -51,6 +59,7 @@ const REPO = findRepoRoot(HERE);
 
 let passed = 0;
 const failures = [];
+const pendingTests = [];
 
 function test(name, fn) {
     try {
@@ -60,6 +69,8 @@ function test(name, fn) {
         failures.push({ name, error });
     }
 }
+
+function testAsync(name, fn) { pendingTests.push({ name, fn }); }
 
 function assert(condition, message) {
     if( !condition ) throw new Error(message || 'assertion failed');
@@ -89,22 +100,125 @@ test('the interface picker is searchable and keyboard accessible', () => {
 test('the preview embeds the toridraw WASM model component', () => {
     const html = devPage();
     assertIncludes(html, '<script src="/toridraw/ev_wasm.js"></script>');
-    assertIncludes(html, "wrap('ev_w_render'");
+    assertIncludes(html, "wrap('ev_w_render_widget'");
+    assertIncludes(html, 'function modelRenderSurface(box, stageWidth, stageHeight)');
+    assertIncludes(html, 'box.props.zAngle | 0');
+    assertIncludes(html, 'Boolean(source.composed), timing.frame');
     assertIncludes(html, "'/model/' + iface.modelSource");
+    assert(!html.includes('element.title ='), 'component hover still opens a native browser tooltip');
 });
 
 test('untouched controls do not seed false native-state defaults', () => {
     const html = devPage();
-    assertIncludes(html, 'return key in state ? state[key] : fallback;');
-    assertIncludes(html, 'contents = state[key] = { ...contents };');
+    assertIncludes(html, 'return key in draftState ? draftState[key] : fallback;');
+    assertIncludes(html, 'contents = draftState[key] = { ...contents };');
 });
 
-test('native tree metadata replaces the diagnostic inspector without moving the framebuffer', () => {
+test('host-state edits stay focused as drafts until Save state is pressed', () => {
     const html = devPage();
-    assertIncludes(html, 'hydrateNativeTree(iface, epoch)');
-    assertIncludes(html, 'iface.viewport = native.viewport;');
-    assertIncludes(html, 'const originX = native ? 0');
+    assertIncludes(html, 'id="save-state" disabled>Save state</button>');
+    assertIncludes(html, 'draftState[input.key] = field.value;');
+    assertIncludes(html, 'draftState[input.key] = Number(slider.value);');
+    assertIncludes(html, 'replaceState(state, draftState);');
+    assertIncludes(html, "setStateDirty(false, 'State saved');");
+    assertIncludes(html, 'if( !force && nextKey === renderedControlsKey ) return;');
+    assert(!html.includes('field.value; refresh();'), 'text edits still refresh on every key');
+});
+
+test('the generated dev-page script parses', () => {
+    const html = devPage();
+    const scripts = [...html.matchAll(/<script(?: [^>]*)?>([\s\S]*?)<\/script>/g)];
+    const inline = scripts.find((match) => match[1].trim());
+    assert(inline, 'dev page has no inline script');
+    new Function(inline[1].replace(/^import .*;$/gm, ''));
+});
+
+test('the dev page paints native tiled sprites and full-geometry lines', () => {
+    const html = devPage();
+    assertIncludes(html, "(props.tiled ? '?tile=1' : '')");
+    assertIncludes(html, "context?.createPattern(image, 'repeat')");
+    assertIncludes(html, "document.createElementNS('http://www.w3.org/2000/svg', 'line')");
+    assertIncludes(html, 'pad + (props.lineDirection ? box.h : 0)');
+    assertIncludes(html, 'pad + (props.lineDirection ? 0 : box.h)');
+    assert(!html.includes("element.style.height = Math.max(1, props.lineWidth | 0) + 'px'"),
+           'line paint still collapses every line to a horizontal strip');
+});
+
+test('HOST lookup data preserves cache strings, actions and typed parameters', () => {
+    const params = parseParams([
+        '[count]', 'type=i', 'default=7', '[label]', 'type=s', 'defaultstr=none',
+    ].join('\n'), '31=count\n32=label\n');
+    const enums = parseEnums([
+        '[links]', 'outputstring=yes', 'defaultstr=https://fallback.test/',
+        'valstr=1,https://example.test/path',
+    ].join('\n'), '44=links\n');
+    const objects = parseObjects([
+        '[bank_item]', 'name=Bank item', 'cost=25', 'stackable=yes',
+        'model=55', '2dzoom=1337', '2dxan=111', '2dyan=222', '2dzan=333',
+        '2dxof=-4', '2dyof=17', 'countobj1=stacked_item,10',
+        'ifop1=Withdraw-1', 'op2=Take', 'param=count,int,12',
+        'param=label,str,https://item.test/',
+        '[stacked_item]', 'model=56', '2dzoom=1777',
+    ].join('\n'), '100=bank_item\n101=stacked_item\n', '31=count\n32=label\n');
+    const structs = parseStructs([
+        '[bank_rules]', 'param=count,int,18', 'param=label,str,ready',
+    ].join('\n'), '9=bank_rules\n', '31=count\n32=label\n');
+    assert(params[31].defaultInt === 7 && params[32].defaultString === 'none');
+    assert(enums[44].values[1] === 'https://example.test/path' &&
+        enums[44].defaultString === 'https://fallback.test/');
+    assert(objects[100].inventoryOps[0] === 'Withdraw-1' &&
+        objects[100].groundOps[1] === 'Take' && objects[100].params[31] === 12 &&
+        objects[100].params[32].string === 'https://item.test/');
+    assert(objects[100].model === 55 && objects[100].zoom2d === 1337 &&
+        objects[100].xan2d === 111 && objects[100].yan2d === 222 &&
+        objects[100].zan2d === 333 && objects[100].offsetX2d === -4 &&
+        objects[100].offsetY2d === 17 && objects[100].countVariants[0].id === 101 &&
+        objects[100].countVariants[0].count === 10,
+        `object model presentation data was ${JSON.stringify(objects[100])}`);
+    assert(structs[9].params[31] === 18 && structs[9].params[32].string === 'ready');
+});
+
+test('unset integer varcs match the C client sentinel', () => {
+    const host = createHostRuntime({ interfaceId: 1, components: [{
+        fileId: 0, name: 'root', kind: 'Layer', type: 0, layer: null,
+        static: { width: 1, height: 1 }, hooks: {},
+    }] });
+    assert(host.readState('varc', 1422) === -1, 'unset varc did not read as -1');
+    host.writeState('varc', 1422, 0, { transmit: false });
+    assert(host.readState('varc', 1422) === 0, 'explicit varc zero was lost');
+});
+
+test('source analysis matches the C client integer varc sentinel', () => {
+    const state = {};
+    const source = createSourceRuntimeSession({ interfaceId: 12, components: [] }, { state });
+    assert(source.stateRead('%varcint1381') === -1,
+           'unset source-analysis varc did not read as -1');
+    state['varc:1381'] = 0;
+    assert(source.stateRead('%varcint1381') === 0,
+           'explicit source-analysis varc zero was lost');
+});
+
+test('the dev page renders and interacts with the live React-side host tree', () => {
+    const html = devPage();
+    assertIncludes(html, "import { createHostRuntime } from '/runtime/host_runtime.js';");
+    assertIncludes(html, "import { createWasmCS2Runtime } from '/runtime/wasm_runtime.js';");
+    assertIncludes(html, 'session.host = createHostRuntime(iface.runtime.ir');
+    assertIncludes(html, 'if( bytecode?.available )');
+    assertIncludes(html, 'session.wasm = await createWasmCS2Runtime');
+    assertIncludes(html, 'const hostDataCache = new Map();');
+    assertIncludes(html, 'const hostData = await loadHostData(iface.runtime);');
+    assertIncludes(html, "'Original CS2 bytecode is unavailable; scripts are not executed.'");
+    assert(!html.includes('createSourceRuntimeSession'), 'the browser still contains a JS CS2 fallback');
+    assertIncludes(html, 'if( epoch !== refreshEpoch )');
+    assertIncludes(html, 'disposeRuntimeSession(session, false);');
+    assertIncludes(html, 'const result = hostRuntime.dispatch(input);');
+    assertIncludes(html, 'iface.boxes = snapshot.boxes;');
+    assert(!html.includes('nativeframe'), 'the native framebuffer is still the primary preview');
     assertIncludes(html, "box.effectiveHidden ? 'hidden' : ''");
+    assertIncludes(html, "source.kind === 'object' ? 'obj/' + source.id + '.model'",
+        'configured object models are not routed through toridraw');
+    assertIncludes(html, "source.kind === 'npcHead' || source.kind === 'npcModel'",
+        'NPC-backed model components are not routed through toridraw');
 });
 
 /* ---- a scratch project --------------------------------------------------- */
@@ -125,6 +239,27 @@ function makeContent(name = 'content') {
     writeFileSync(join(dir, 'configs', 'all.varp.compack'), '300=sa_energy\n');
     return dir;
 }
+
+test('Dat2 programs feed original clientscript bytes to the C/WASM VM', () => {
+    const content = makeContent('dat2-bytecode-content');
+    const rawScripts = join(content, '.raw', 'scripts');
+    mkdirSync(rawScripts, { recursive: true });
+    writeFileSync(join(content, 'pack', '12_clientscripts.pack'), '7=raw_entry\n');
+    const original = Buffer.from([0x43, 0x53, 0x32, 0, 7, 0xfe, 0x81]);
+    writeFileSync(join(rawScripts, 'raw_entry.cs2b'), original);
+    const result = {
+        source: 'dat2', name: 'raw_panel', contentDir: content,
+        scripts: [{ id: 7, name: 'raw_entry', source: '[clientscript,raw_entry]\nreturn;\n' }],
+        ir: { components: [{ hooks: { onload: { script: { id: 7 } } } }] },
+    };
+    const program = compileInterfaceProgram({
+        revision: 'osrs239', dat2Content: content, dat2RawScripts: rawScripts,
+    }, result);
+    assert(program.available && program.scripts.length === 1,
+        `raw Dat2 program was unavailable: ${program.warnings.join('; ')}`);
+    assert(Buffer.from(program.scripts[0].data, 'base64').equals(original),
+        'Dat2 bytecode was decompiled/recompiled instead of transported verbatim');
+});
 
 /** A complete but tiny Dat2/content pair for exercising native cache overlays. */
 function makeNativeOverlayFixture(name, { fail = false } = {}) {
@@ -316,6 +451,18 @@ test('composition, props and loops are resolved at build time', () => {
     assertIncludes(built.interfaceText, '[row2]');
     assertIncludes(built.interfaceText, 'y=24');
     assertIncludes(built.interfaceText, 'fill=yes');
+});
+
+test('React model components preserve the native fixed-zoom projection flag', () => {
+    const built = compileSource(`
+        import { Layer, Model } from 'cs2dom';
+        export default function Models() {
+            return <Layer id="root"><Model id="preview" model={55} zoom={700} fixedZoom /></Layer>;
+        }
+    `);
+    const model = built.ir.components.find((component) => component.name === 'preview');
+    assert(model.static.fixedZoom === true, 'fixed zoom was lost from React IR');
+    assertIncludes(built.interfaceText, 'modelfixedzoom=yes');
 });
 
 test('a prop reading a varp becomes a script bound to that varp', () => {
@@ -871,6 +1018,922 @@ test('ordinary nested layers replace clips while scroll layers establish surface
            `scroll surface leaked: ${JSON.stringify(clippedLeaf.clip)}`);
 });
 
+test('dynamic CC objects inherit their layer clip instead of clipping as widget type zero', () => {
+    const built = compileSource(`
+        import { Layer } from 'cs2dom';
+        export default function ObjectClip() {
+            return <Layer id="root" width={100} height={80} />;
+        }
+    `);
+    const host = createHostRuntime(built.ir, { viewport: { width: 100, height: 80 } });
+    const object = host.createChild('root', 0, 0);
+    const defaults = host.component(object).props;
+    assert(defaults.xMode === -1 && defaults.yMode === -1 &&
+           defaults.widthMode === -1 && defaults.heightMode === -1,
+           `CC geometry modes did not retain native unset defaults: ${JSON.stringify(defaults)}`);
+    host.request({ kind: 'CC_SETPOSITION', component: object,
+        x: 20, y: 10, xmode: 0, ymode: 0 });
+    host.request({ kind: 'CC_SETSIZE', component: object,
+        width: 20, height: 20, wmode: 0, hmode: 0 });
+    const graphic = host.createChild(object, IF_TYPE.graphic, 1);
+    host.request({ kind: 'CC_SETPOSITION', component: graphic,
+        x: 10, y: 5, xmode: 0, ymode: 0 });
+    host.request({ kind: 'CC_SETSIZE', component: graphic,
+        width: 30, height: 30, wmode: 0, hmode: 0 });
+    host.request({ kind: 'CC_SETSCROLLSIZE', component: object,
+        scrollWidth: 200, scrollHeight: 160 });
+
+    const boxes = host.snapshot().boxes;
+    const objectBox = boxes.find((box) => box.ref?.key === object.key);
+    const graphicBox = boxes.find((box) => box.ref?.key === graphic.key);
+    assert(objectBox.kind === 'Object' && objectBox.type === 0,
+           'the HOST did not retain the CC object/widget-type distinction');
+    assert(objectBox.props.scrollWidth === 0 && objectBox.props.scrollHeight === 0,
+           'a CC object incorrectly accepted an RS_LAYER-only scroll extent');
+    assert(graphicBox.x === 30 && graphicBox.y === 15 &&
+           graphicBox.clip.left === 0 && graphicBox.clip.top === 0 &&
+           graphicBox.clip.right === 100 && graphicBox.clip.bottom === 80,
+           `CC object incorrectly clipped its child: ${JSON.stringify(graphicBox.clip)}`);
+});
+
+/* ---- 3d. the live React-side host --------------------------------------- */
+
+function liveHostFixture() {
+    const built = compileSource(`
+        import { Graphic, Layer, Model, Rect, Text } from 'cs2dom';
+        export default function LiveHost() {
+            return (
+                <Layer id="root" width={120} height={100}>
+                    <Rect id="button" x={10} y={12} width={40} height={24} color={1} fill />
+                    <Text id="first_key" x={2} y={50} width={30} height={10} font={495}>a</Text>
+                    <Text id="second_key" x={34} y={50} width={30} height={10} font={495}>b</Text>
+                    <Text id="hidden_key" x={66} y={50} width={30} height={10} font={495} hidden>c</Text>
+                    <Graphic id="icon" x={98} y={2} width={20} height={20} sprite={10} />
+                    <Model id="figure" x={98} y={24} width={20} height={24} model={20} zoom={100} />
+                </Layer>
+            );
+        }
+    `, { name: 'live_host' });
+    const component = (name) => built.ir.components.find((item) => item.name === name);
+    const bind = (name, key, script) => {
+        component(name).hooks[key] = { script: { id: script }, args: [] };
+    };
+    bind('root', 'onload', 1);
+    bind('button', 'onmouseover', 2);
+    bind('button', 'onmouseleave', 3);
+    bind('button', 'onclick', 4);
+    bind('button', 'onhold', 5);
+    bind('button', 'onclickrepeat', 6);
+    bind('button', 'onrelease', 7);
+    bind('button', 'onscrollwheel', 8);
+    bind('first_key', 'onkey', 9);
+    bind('second_key', 'on_key', 10);
+    bind('hidden_key', 'onkey', 11);
+    component('button').events.onClick = { imported: false };
+    component('button').events.onMouseOver = { imported: false };
+    return { built, component };
+}
+
+test('the live host owns its React IR and exposes stable component refs', () => {
+    const { built } = liveHostFixture();
+    const host = createHostRuntime(built.ir, { viewport: { width: 120, height: 100 } });
+    const button = host.ref('button');
+    const original = built.ir.components.find((component) => component.name === 'button');
+
+    host.request({
+        kind: 'IF_SETPOSITION', component: button,
+        x: 20, y: 22, xmode: 0, ymode: 0,
+    });
+    host.mutate('if_setcolour', button, 0xabcdef);
+    host.mutate('if_setgraphicshadow', 'icon', 255);
+    host.request({
+        kind: 'IF_SETTEXT', component: host.ref('first_key'), text: 'hosted',
+    });
+    const rendered = host.snapshot();
+    const box = rendered.boxes.find((item) => item.name === 'button');
+    assert(rendered.schema === HOST_RUNTIME_SCHEMA, 'state-tree schema');
+    assert(box.x === 20 && box.y === 22 && box.props.color === 0xabcdef,
+           `runtime mutation did not reach React layout: ${JSON.stringify(box)}`);
+    assert(rendered.boxes.find((item) => item.name === 'icon').props.shadow === 255,
+           'type-specific graphic mutation did not reach React layout');
+    assert(original.static.x === 10 && original.static.color === 1,
+           'host mutated the caller-owned source IR');
+    assert(host.read('if_gettext', 'first_key') === 'hosted',
+           'exact C request fields did not map to the component vocabulary');
+    assert(host.request({ kind: 'IF_GETWIDTH', component: button }) === 40,
+           'named IF_GETWIDTH did not return resolved React geometry');
+    assert(host.request({ kind: 'IF_GETLAYER', component: 'root' }) === -1,
+           'root IF_GETLAYER did not preserve the native -1 sentinel');
+    assert(host.request({ kind: 'IF_GETLAYER', component: button }).componentId ===
+           host.ref('root').componentId,
+           'child IF_GETLAYER did not return its packed parent reference');
+    assert(host.resolve(button).fileId === button.fileId && host.resolve(button).props.color === 0xabcdef,
+           'public ref resolver did not expose the cloned runtime component view');
+    assertThrows(() => host.request({ kind: 2502, component: button }), 'must be a name');
+    assertThrows(() => host.request({ kind: 'IF_GETWIDTH', fields: { component: button } }), 'top-level');
+
+    const child = host.createChild('root', IF_TYPE.text, 7);
+    host.request({ kind: 'CC_SETTEXT', component: child, text: 'dynamic' });
+    assert(host.component(child).props.text === 'dynamic', 'dynamic child was not addressable by ref');
+    const copied = host.request({
+        kind: 'CC_COPY', parent: host.ref('root'), srcSubId: 7, dstSubId: 8, dotOperand: false,
+    });
+    assert(host.component(copied).props.text === 'dynamic', 'CC_COPY did not clone runtime fields');
+    assert(child.componentId !== copied.componentId &&
+           (child.componentId & 0xffff) >= 0x8000 && (copied.componentId & 0xffff) >= 0x8000,
+           `dynamic C/WASM ids aliased: ${child.componentId}, ${copied.componentId}`);
+    host.request({ kind: 'IF_SETTEXT', component_id: copied.componentId, text: 'exact dynamic' });
+    assert(host.component(copied).props.text === 'exact dynamic' &&
+           host.component(child).props.text === 'dynamic',
+           'an explicit IF request did not preserve dynamic component identity');
+    const found = host.request({
+        kind: 'CC_FIND', parent: host.ref('root'), subId: 8, dotOperand: true,
+    });
+    assert(found.key === copied.key && host.activeRef({ dot: true }).key === copied.key,
+           'CC_FIND did not return and activate the exact dynamic ref');
+    host.delete(child);
+    assertThrows(() => host.component(child), 'stale');
+});
+
+test('the live host models sprite, text, model, object and arc presentation fields', () => {
+    const { built } = liveHostFixture();
+    const host = createHostRuntime(built.ir, {
+        viewport: { width: 120, height: 100 },
+        hostData: { objects: {
+            995: { countVariants: [{ id: 996, count: 100 }] },
+            996: { xan2d: 321, yan2d: 654, zoom2d: 1777, offsetY2d: -29 },
+        } },
+    });
+
+    host.request({ kind: 'IF_SETGRAPHIC', component: 'icon', graphicId: 41 });
+    host.request({ kind: 'IF_SETGRAPHIC2', component: 'icon', graphicId: 42 });
+    host.request({ kind: 'IF_SET2DANGLE', component: 'icon', angle: 512 });
+    host.request({ kind: 'IF_SETHFLIP', component: 'icon', value: 1 });
+    const sprite = host.presentation('icon');
+    assert(sprite.kind === 'sprite' && sprite.sprite === 41 && sprite.activeSprite === 42 &&
+           sprite.angle === 512 && sprite.hFlip, `sprite presentation was ${JSON.stringify(sprite)}`);
+
+    host.request({ kind: 'IF_SETMODELANGLE', component: 'figure',
+        xOffset: 1, yOffset: 2, xAngle: 3, yAngle: 4, zAngle: 5, zoom: 600 });
+    host.request({ kind: 'IF_SETMODELANGLE', component: 'figure',
+        xOffset: 6, yOffset: 7, xAngle: 8, yAngle: 9, zAngle: 10, zoom: 0 });
+    host.request({ kind: 'IF_SETNPCHEAD', component: 'figure', npcId: 77 });
+    host.request({ kind: 'IF_SETMODELTRANSPARENT', component: 'figure', value: 1 });
+    host.request({ kind: 'IF_SETMODELORTHOG', component: 'figure', value: 1 });
+    let model = host.presentation('figure');
+    assert(model.source.kind === 'npcHead' && model.source.id === 77 && model.transform.zoom === 600 &&
+           model.transform.xOffset === 6 && model.transparent && model.orthographic,
+           `model presentation was ${JSON.stringify(model)}`);
+    assert(host.request({ kind: 'IF_GETMODELZOOM', component: 'figure' }) === 600 &&
+           host.request({ kind: 'IF_GETMODELANGLE_X', component: 'figure' }) === 8 &&
+           host.request({ kind: 'IF_GETMODELANGLE_Y', component: 'figure' }) === 9 &&
+           host.request({ kind: 'IF_GETMODELANGLE_Z', component: 'figure' }) === 10 &&
+           host.request({ kind: 'IF_GETMODELTRANSPARENT', component: 'figure' }) === true,
+           'IF model getters did not expose the current imperative transform');
+    host.setActive('figure');
+    assert(host.request({ kind: 'CC_GETMODELZOOM' }) === 600 &&
+           host.request({ kind: 'CC_GETMODELANGLE_X' }) === 8 &&
+           host.request({ kind: 'CC_GETMODELANGLE_Y' }) === 9 &&
+           host.request({ kind: 'CC_GETMODELANGLE_Z' }) === 10 &&
+           host.request({ kind: 'CC_GETMODELTRANSPARENT' }) === true,
+           'CC model getters did not use the active component transform');
+
+    /* Pirate combilock's timer reads its last x angle and adds its spin speed.
+     * Each invocation must therefore observe the previous setter, not the
+     * cache-time value (or a synthetic zero). */
+    for( let tick = 0; tick < 2; tick++ ) {
+        const xAngle = host.request({ kind: 'IF_GETMODELANGLE_X', component: 'figure' });
+        host.request({ kind: 'IF_SETMODELANGLE', component: 'figure',
+            xOffset: 6, yOffset: 7, xAngle: xAngle + 12, yAngle: 9, zAngle: 10, zoom: 0 });
+    }
+    assert(host.presentation('figure').transform.xAngle === 32,
+           'timer-style model angle updates did not accumulate across requests');
+    host.request({ kind: 'IF_SETOBJECT_ALWAYS_NUM', component: 'figure', objectId: 995, count: 123 });
+    model = host.presentation('figure');
+    assert(model.source.kind === 'object' && model.source.baseId === 995 && model.source.id === 996 &&
+           model.source.count === 123 && model.source.numberMode === 1 && model.source.composed &&
+           model.transform.xAngle === 321 && model.transform.yAngle === 654 &&
+           model.transform.zoom === 1777 && model.transform.xOffset === 0 &&
+           model.transform.yOffset === -29,
+           `object-backed model presentation was ${JSON.stringify(model)}`);
+
+    host.request({ kind: 'IF_SETTEXT', component: 'first_key', text: 'Ready' });
+    host.request({ kind: 'IF_SETTEXTFONT', component: 'first_key', fontId: 494 });
+    host.request({ kind: 'IF_SETTEXTALIGN', component: 'first_key', xAlign: 2, yAlign: 1, lineHeight: 13 });
+    host.request({ kind: 'IF_SETTEXTSHADOW', component: 'first_key', shadow: 1 });
+    const textPresentation = host.presentation('first_key');
+    assert(textPresentation.text === 'Ready' && textPresentation.font === 494 &&
+           textPresentation.halign === 2 && textPresentation.valign === 1 &&
+           textPresentation.lineHeight === 13 && textPresentation.shadow,
+           `text presentation was ${JSON.stringify(textPresentation)}`);
+
+    const arc = host.createChild('root', 10, 11);
+    host.request({ kind: 'CC_SETSIZE', component: arc, width: 20, height: 20, wmode: 0, hmode: 0 });
+    host.request({ kind: 'CC_SETARC', component: arc, arcStart: 32, arcEnd: 768 });
+    host.request({ kind: 'CC_SETFILL', component: arc, filled: 1 });
+    host.request({ kind: 'CC_SETFILLCOLOUR', component: arc, value: 0x224466 });
+    host.request({ kind: 'CC_SETLINEWID', component: arc, value: 3 });
+    const arcPresentation = host.presentation(arc);
+    assert(arcPresentation.kind === 'arc' && arcPresentation.start === 32 &&
+           arcPresentation.end === 768 && arcPresentation.fill &&
+           arcPresentation.fillColor === 0x224466 && arcPresentation.lineWidth === 3,
+           `arc presentation was ${JSON.stringify(arcPresentation)}`);
+
+    const before = host.version;
+    host.request({ kind: 'IF_SETGRAPHIC', component: 'button', graphicId: 99 });
+    assert(host.version === before && host.component('button').props.sprite === undefined,
+           'a type-mismatched sprite setter was not a deterministic no-op');
+});
+
+test('the live host owns typed input metadata, focus/caret state and entity model sources', () => {
+    const { built } = liveHostFixture();
+    const seen = [];
+    const host = createHostRuntime(built.ir, { invoke: (intent) => seen.push(intent) });
+    const setters = [
+        ['SUBMITMODE', 'submitMode'], ['SELECTCOLOUR', 'selectionColor'],
+        ['ACCEPTMODE', 'acceptMode'], ['WRAPMODE', 'wrapMode'],
+        ['LINEWRAPPINGWIDTH', 'lineWrappingWidth'],
+        ['SELECTBGCOLOUR', 'selectionBackgroundColor'],
+        ['LINECOUNTLIMIT', 'lineCountLimit'], ['CURSORCOLOUR', 'cursorColor'],
+        ['CURSORTRANS', 'cursorTransparency'], ['CURSORWIDTH', 'cursorWidth'],
+        ['CURSORHEIGHT', 'cursorHeight'], ['CURSOROFFSET', 'cursorOffset'],
+        ['LINEWIDTHLIMIT', 'lineWidthLimit'], ['CHARFILTER', 'characterFilter'],
+    ];
+    setters.forEach(([suffix, field], index) => {
+        for( const family of ['IF', 'CC'] ) {
+            host.request({ kind: `${family}_INPUT_SET${suffix}`,
+                component: 'first_key', value: index + 1 });
+            assert(host.inputState('first_key')[field] === index + 1,
+                   `${family}_INPUT_SET${suffix} did not retain ${field}`);
+            assert(hostRequestCapability(`${family}_INPUT_SET${suffix}`).supported,
+                   `${family}_INPUT_SET${suffix} remained classified unsupported`);
+        }
+    });
+    assert(host.request({ kind: 'CC_INPUT_GETFOCUS', component: 'first_key' }) === false &&
+           host.request({ kind: 'CC_INPUT_GETCARETPOSITION', component: 'first_key' }) === 0,
+           'unfocused input defaults were not deterministic');
+    host.request({ kind: 'CC_INPUT_SETONFOCUSCHANGED', component: 'first_key',
+        scriptId: 88, args: [] });
+    const focused = host.setInputState('first_key', { focused: true, caretPosition: 9 });
+    assert(focused.intents.length === 1 && focused.intents[0].hook.canonical === 'on_focus_changed' &&
+           host.request({ kind: 'CC_INPUT_GETFOCUS', component: 'first_key' }) === true &&
+           host.request({ kind: 'CC_INPUT_GETCARETPOSITION', component: 'first_key' }) === 9,
+           'focus/caret state did not round-trip through input getters');
+    assert(host.presentation('first_key').input.cursorHeight === 11 && seen.at(-1).hook.scriptId === 88,
+           'typed input state was absent from the text presentation or focus hook');
+    host.mutate('cc_input_setwrapmode', 'first_key', 77);
+    assert(host.inputState('first_key').wrapMode === 77 &&
+           host.read('cc_input_getfocus', 'first_key') === true,
+           'source-interpreter mutate/read aliases bypassed typed input state');
+
+    host.request({ kind: 'CC_SETLOCMODEL', component: 'figure', locId: 321 });
+    assert(host.presentation('figure').source.kind === 'locModel' &&
+           host.presentation('figure').source.id === 321,
+           'CC_SETLOCMODEL did not select a loc presentation source');
+    host.request({ kind: 'IF_SETNPCMODEL', component: 'figure', npcId: 654 });
+    assert(host.presentation('figure').source.kind === 'npcModel' &&
+           host.presentation('figure').source.id === 654,
+           'IF_SETNPCMODEL did not select an NPC presentation source');
+    host.mutate('cc_setlocmodel', 'figure', 987);
+    assert(host.presentation('figure').source.kind === 'locModel' &&
+           host.presentation('figure').source.id === 987,
+           'source-interpreter model mutation bypassed the model presentation state');
+});
+
+test('the live host implements dynamic traversal and component metadata operations', () => {
+    const { built } = liveHostFixture();
+    const seen = [];
+    const host = createHostRuntime(built.ir, {
+        paramDefault: (id) => id === 44 ? -1 : 0,
+        invoke: (intent) => seen.push(intent),
+    });
+    const first = host.request({ kind: 'CC_CREATECHILD', parent: 'root',
+        componentType: IF_TYPE.text, childIndex: 5 });
+    const replacement = host.request({ kind: 'CC_CREATECHILD', parent: 'root',
+        componentType: IF_TYPE.text, childIndex: 5 });
+    assert(host.resolve(first) === null && replacement.generation !== first.generation,
+           're-creating a dynamic slot did not fence the stale incarnation');
+    const low = host.request({ kind: 'CC_CREATECHILD', parent: 'root',
+        componentType: IF_TYPE.rectangle, childIndex: 2 });
+    const nested = host.request({ kind: 'CC_CREATECHILD', parent: replacement,
+        componentType: IF_TYPE.text, childIndex: 1 });
+    const sibling = host.request({ kind: 'CC_CREATESIBLING', parent: nested,
+        componentType: IF_TYPE.graphic, childIndex: 7 });
+    assert(host.resolve(sibling).parent.key === replacement.key,
+           'CC_CREATESIBLING did not use the requested component\'s parent');
+
+    const collected = host.request({ kind: 'IF_CHILDREN_COLLECT', component: 'root', startIndex: 2 });
+    assert(collected.map((ref) => ref.subId).join(',') === '2,5',
+           `dynamic collection order was ${collected.map((ref) => ref.subId)}`);
+    assert(host.request({ kind: 'CC_CHILDREN_FIND_COUNT', parent: 'root', startIndex: 3 }) === 1,
+           'dynamic child count did not honor the inclusive lower bound');
+    const next = host.request({ kind: 'CC_CHILDREN_FINDNEXT' });
+    assert(next.key === replacement.key && host.activeRef().key === replacement.key,
+           'child iteration did not activate the next exact component');
+
+    host.request({ kind: 'CC_SETOP', component: replacement, index: 1, text: 'Choose' });
+    host.request({ kind: 'CC_SETOPBASE', component: replacement, text: 'Widget' });
+    host.request({ kind: 'CC_SETOPSUBMENU', component: replacement,
+        opIndex: 1, subIndex: 3, text: 'Detailed' });
+    host.request({ kind: 'CC_SETTARGETPRIORITY', component: replacement, priority: 9 });
+    host.request({ kind: 'CC_SETCOMPONENTPARAM', component: replacement, paramId: 12, value: 345 });
+    assert(host.request({ kind: 'CC_GETCOMPONENTPARAM', component: replacement, paramId: 12 }) === 345 &&
+           host.request({ kind: 'CC_GETCOMPONENTPARAM', component: replacement, paramId: 44 }) === -1,
+           'component parameter value/default semantics diverged');
+    const view = host.resolve(replacement);
+    assert(view.runtime.opBase === 'Widget' && view.runtime.targetPriority === 9 &&
+           view.runtime.submenus[1][3] === 'Detailed' && view.runtime.params[12].value === 345,
+           `component runtime metadata was ${JSON.stringify(view.runtime)}`);
+    assert(host.request({ kind: 'CC_GETID', component: replacement }) === 5 &&
+           host.request({ kind: 'IF_GETLAYER', component: replacement }).key === host.ref('root').key &&
+           host.request({ kind: 'IF_GETTOP' }) === built.ir.interfaceId,
+           'tree identity getters did not preserve component topology');
+
+    host.setHook(replacement, 'on_resize', { scriptId: 77, args: [] });
+    const resize = host.request({ kind: 'CC_CALLONRESIZE', component: replacement });
+    assert(resize.intents.length === 1 && resize.intents[0].hook.canonical === 'on_resize' &&
+           seen.at(-1).component.key === replacement.key,
+           'named resize trigger did not dispatch through the HOST hook path');
+    host.request({ kind: 'CC_CLEAROPS', component: replacement });
+    assert(host.resolve(replacement).ops.length === 0, 'CC_CLEAROPS did not clear component options');
+    assert(host.resolve(low), 'unrelated dynamic sibling was removed by metadata changes');
+});
+
+test('the live host classifies every generated command name deterministically', () => {
+    assert(HOST_REQUEST_COVERAGE.total === HOST_REQUEST_COVERAGE.entries.length &&
+           HOST_REQUEST_COVERAGE.supported + HOST_REQUEST_COVERAGE.unsupported ===
+               HOST_REQUEST_COVERAGE.total,
+           `HOST coverage counts were ${JSON.stringify(HOST_REQUEST_COVERAGE)}`);
+    assert(HOST_REQUEST_COVERAGE.uiSupported > 100 &&
+           HOST_REQUEST_COVERAGE.uiSupported === HOST_REQUEST_COVERAGE.uiTotal,
+           `component HOST coverage was ${HOST_REQUEST_COVERAGE.uiSupported}/` +
+           `${HOST_REQUEST_COVERAGE.uiTotal}`);
+    assert(hostRequestCapability('IF_SETTEXT').supported,
+           'a concrete component handler was classified unsupported');
+    const outside = hostRequestCapability('DB_GETFIELD');
+    assert(outside.known && !outside.supported && outside.reason.includes('outside'),
+           `non-UITree command classification was ${JSON.stringify(outside)}`);
+    assert(!hostRequestCapability('NOT_A_COMMAND').known,
+           'an unknown command was reported as generated metadata');
+
+    const { built } = liveHostFixture();
+    const host = createHostRuntime(built.ir);
+    assert(host.request({ kind: 'OC_NAME', id: 1 }) === 'null',
+           'missing object record did not use the C host null-name fallback');
+    assertThrows(() => host.request({ kind: 'DB_GETFIELD' }), 'explicitly unsupported');
+    assertThrows(() => host.request({ kind: 'NOT_A_COMMAND' }), 'unknown host request');
+});
+
+test('the complete CC/IF HOST surface has bounded C-client service and tree semantics', () => {
+    const { built } = liveHostFixture();
+    const seen = [];
+    const host = createHostRuntime(built.ir, {
+        viewport: { width: 120, height: 100 },
+        invoke: (intent) => seen.push(intent),
+        interfaceParents: { button: 77 },
+        hostData: {
+            params: {
+                9: { defaultInt: -5 },
+                10: { string: true, defaultString: 'fallback' },
+            },
+            structs: { 2: { params: { 9: 123, 10: 'configured' } } },
+        },
+    });
+    const button = host.ref('button');
+
+    assert(host.request({ kind: 'IF_HASSUB', component_id: button.componentId }) === 1 &&
+           host.request({ kind: 'IF_HASCHILD_OVERLAY', component_id: button.componentId,
+               group_id: 77 }) === 1 &&
+           host.request({ kind: 'IF_HASCHILD_OVERLAY', component_id: button.componentId,
+               group_id: 78 }) === 0,
+           'interface-parent queries did not mirror the mounted group map');
+    assert(host.request({ kind: 'CC_GETPARAM', struct_id: 2, param_id: 9 }) === 123 &&
+           host.request({ kind: 'CC_GETPARAM', struct_id: 2, param_id: 10 }) === 'configured' &&
+           host.request({ kind: 'CC_GETPARAM', struct_id: -1, param_id: 9 }) === -5 &&
+           host.request({ kind: 'CC_GETPARAM', struct_id: -1, param_id: 10 }) === 'fallback',
+           'struct parameter values/defaults diverged from the C host');
+
+    host.request({ kind: 'CC_SETCOMPONENTPARAM', component: 'first_key', param_id: 31, value: 200 });
+    host.request({ kind: 'CC_SETCOMPONENTPARAM', component: 'first_key', param_id: 32,
+        str_value: 'needle' });
+    const found = host.request({ kind: 'CC_FIND_PARAM', dot_operand: true,
+        args: [host.ref('root'), 31, 200, 32, 'needle', 0, 2] });
+    assert(found?.key === host.ref('first_key').key && host.activeRef({ dot: true }).key === found.key,
+           `parameter search selected ${JSON.stringify(found)}`);
+
+    host.request({ kind: 'CC_SETHTTPSPRITE', component: 'icon', text: 'https://example.test/a.png' });
+    assert(host.presentation('icon').httpSprite === 'https://example.test/a.png',
+           'HTTPS sprite state did not reach React presentation');
+    assertThrows(() => host.request({ kind: 'CC_SETHTTPSPRITE', component: 'icon', text: 'http://bad' }),
+        'must use https');
+
+    host.setHook(button, 'on_drag', { scriptId: 70, args: [] });
+    const dragArea = host.ref('root');
+    host.request({ kind: 'CC_SETDRAGGABLE', component_id: button.componentId,
+        parent_uid: dragArea.componentId, child_index: -1 });
+    assert(host.resolve(button).dragParent.key === dragArea.key,
+           'CC_SETDRAGGABLE rejected or discarded the C child-index -1 sentinel');
+    host.dispatch({ type: 'pointer_move', x: 20, y: 20 });
+    const pickup = host.request({ kind: 'CC_DRAGPICKUP', component_id: button.componentId,
+        pickup_x: 3, pickup_y: 4 });
+    assert(pickup.interaction.dragging && pickup.interaction.dragPickupX === 3 &&
+           pickup.interaction.dragPickupY === 4 && pickup.intents[0]?.hook.scriptId === 70,
+           `scripted drag pickup was ${JSON.stringify(pickup)}`);
+    host.dispatch({ type: 'pointer_up', x: 20, y: 20, button: 0 });
+
+    host.request({ kind: 'CC_RESUME_PAUSEBUTTON', component_id: button.componentId });
+    host.request({ kind: 'IF_CLOSE' });
+    assert(host.request({ kind: 'CC_CRMVIEW_DISMISS' }) === 0,
+           'desktop CRM dismissal did not return its deterministic sentinel');
+    host.request({ kind: 'CC_ASSERT' });
+    host.request({ kind: 'CC_OP1309', value: 1 });
+    host.request({ kind: 'IF_OP2309', component_id: button.componentId, value: 1 });
+    const services = host.snapshot().services;
+    assert(services.closeModalRequested && services.resumePauseButton.key === button.key &&
+           services.crmViewDismissals === 1,
+           `bounded service state was ${JSON.stringify(services)}`);
+});
+
+test('browser HOST cache reads and bank setter payloads match the C client', () => {
+    const { built } = liveHostFixture();
+    const advances = new Array(256).fill(0);
+    advances[32] = 3;
+    advances[65] = 5;
+    advances[66] = 6;
+    const host = createHostRuntime(built.ir, {
+        state: { runenergy: 73, runweight: -4 },
+        hostData: {
+            clientType: 4,
+            mapMembers: false,
+            enums: {
+                7: { string: true, defaultString: 'missing', values: { 2: 'two' } },
+                8: { string: false, defaultInt: -9, values: { 3: 30 } },
+            },
+            fonts: { 494: { lineHeight: 10, advances } },
+            params: {
+                9: { defaultInt: -5 },
+                10: { string: true, defaultString: 'fallback' },
+            },
+            structs: {
+                2: { params: { 9: 123, 10: 'configured' } },
+                3: { params: { 10: 456 } },
+            },
+            objects: {
+                100: { name: 'Item', cost: 50, stackable: 1,
+                    placeholderLink: 101, placeholderTemplate: -1,
+                    params: { 9: 321, 10: 'object string' },
+                    inventoryOps: ['Use', 'Wear', null, null, 'Drop'],
+                    groundOps: ['Take', null, null, null, null] },
+                101: { placeholderLink: 100, placeholderTemplate: 14401 },
+            },
+            npcs: { 4: { params: { 9: 44, 10: 'npc string' } } },
+            locs: { 5: { params: { 9: 55, 10: 'loc string' } } },
+        },
+    });
+
+    assert(host.request({ kind: 'CLIENTTYPE' }) === 4 &&
+           host.request({ kind: 'MAP_MEMBERS' }) === 0 &&
+           host.request({ kind: 'ON_MOBILE' }) === 0,
+           'deterministic client-platform reads diverged');
+    assert(host.request({ kind: 'RUNENERGY_VISIBLE' }) === 73 &&
+           host.request({ kind: 'RUNWEIGHT_VISIBLE' }) === -4,
+           'visible run stats did not use host state');
+    assert(host.request({ kind: 'ENUM', args: [105, 115, 7, 2] }) === 'two' &&
+           host.request({ kind: 'ENUM_STRING', args: [7, 9] }) === 'missing' &&
+           host.request({ kind: 'ENUM', args: [105, 105, 8, 3] }) === 30 &&
+           host.request({ kind: 'ENUM', args: [105, 105, 8, 4] }) === -9 &&
+           host.request({ kind: 'ENUM_GETOUTPUTCOUNT', args: [7] }) === 1,
+           'enum value/default/count semantics diverged');
+    assert(host.request({ kind: 'ENUM_STRING', args: [-1, 0] }) === 'null' &&
+           host.request({ kind: 'ENUM', args: [105, 105, -1, 0] }) === -1,
+           'unavailable enum miss sentinels diverged');
+
+    const tagged = '<col=ff0000>AA</col> BB';
+    assert(host.request({ kind: 'PARAWIDTH', args: [tagged, 10, 494] }) === 10 &&
+           host.request({ kind: 'PARAHEIGHT', args: [tagged, 10, 494] }) === 2,
+           'paragraph measurement counted markup or wrapped inside a word');
+    assert(host.request({ kind: 'OC_NAME', args: [100] }) === 'Item' &&
+           host.request({ kind: 'OC_COST', args: [100] }) === 50 &&
+           host.request({ kind: 'OC_PLACEHOLDER', args: [100] }) === 101 &&
+           host.request({ kind: 'OC_UNPLACEHOLDER', args: [101] }) === 100 &&
+           host.request({ kind: 'OC_UNPLACEHOLDER', args: [999] }) === 999,
+           'object/placeholder cache reads diverged');
+    assert(host.request({ kind: 'OC_PARAM', item_id: 100, param_id: 9 }) === 321 &&
+           host.request({ kind: 'OC_PARAM', item_id: 100, param_id: 10 }) === 'object string' &&
+           host.request({ kind: 'OC_PARAM', item_id: -1, param_id: 9 }) === -5 &&
+           host.request({ kind: 'OC_PARAM', item_id: -1, param_id: 10 }) === 'fallback' &&
+           host.request({ kind: 'STRUCT_PARAM', struct_id: 2, param_id: 9 }) === 123 &&
+           host.request({ kind: 'STRUCT_PARAM', struct_id: 2, param_id: 10 }) === 'configured' &&
+           host.request({ kind: 'STRUCT_PARAM', struct_id: 3, param_id: 10 }) === 'fallback' &&
+           host.request({ kind: 'NC_PARAM', type_id: 4, param_id: 9 }) === 44 &&
+           host.request({ kind: 'NC_PARAM', type_id: 4, param_id: 10 }) === 'npc string' &&
+           host.request({ kind: 'LC_PARAM', type_id: 5, param_id: 9 }) === 55 &&
+           host.request({ kind: 'LC_PARAM', type_id: -1, param_id: 10 }) === 'fallback',
+           'entity/struct parameter value and default semantics diverged');
+    assert(host.request({ kind: 'OC_IOP', item_id: 100, op_index: 1 }) === 'Wear' &&
+           host.request({ kind: 'OC_IOP', item_id: 100, op_index: 2 }) === '' &&
+           host.request({ kind: 'OC_OP', item_id: 100, op_index: 0 }) === 'Take' &&
+           host.request({ kind: 'OC_IOP', item_id: -1, op_index: 0 }) === '',
+           'object operation strings diverged from their zero-based C slots');
+
+    const button = host.ref('button');
+    host.request({ kind: 'CC_SETOPBASE', ref: button, values: ['Bank'] });
+    host.request({ kind: 'CC_SETDRAGGABLEBEHAVIOR', ref: button, values: [1] });
+    host.request({ kind: 'CC_SETDRAGDEADTIME', ref: button, values: [0x7fffffff], time: 0x7fffffff });
+    const view = host.resolve(button);
+    assert(view.runtime.opBase === 'Bank' && view.dragBehavior === 1 && view.dragDeadTime === 255,
+           `bank setter payload/truncation was ${JSON.stringify(view)}`);
+
+    host.request({
+        kind: 'CC_SETONCLICK', ref: button, script_id: 44, signature: 'isiY',
+        int_args: Int32Array.from([7, 0, 9]), int_arg_count: 3,
+        str_arg_mask: 2n, str_args: ['middle'], str_arg_count: 1,
+        trigger_ids: Int32Array.from([101, 202, 303]), trigger_count: 2,
+    });
+    const armed = host._component(button).hooks.on_click;
+    assert(armed.script.id === 44 && armed.signature === 'isiY' &&
+           JSON.stringify(armed.args) === JSON.stringify([7, 'middle', 9]) &&
+           JSON.stringify(armed.triggerIds) === JSON.stringify([101, 202]),
+           `packed C SETON payload was ${JSON.stringify(armed)}`);
+});
+
+test('pointer hooks preserve exact cache/authored identity and client event locals', () => {
+    const { built, component } = liveHostFixture();
+    const seen = [];
+    component('root').hooks.onload.args = [
+        { type: 'int', value: -2147483645 },
+        { type: 'string', value: 'bank' },
+    ];
+    const host = createHostRuntime(built.ir, {
+        viewport: { width: 120, height: 100 },
+        invoke(intent, runtime) {
+            seen.push(intent);
+            if( intent.hook.canonical === 'on_click' )
+                runtime.mutate('if_setcolour', intent.component, 99);
+        },
+    });
+
+    const mounted = host.mount();
+    assert(mounted.intents.length === 1 && mounted.intents[0].hook.name === 'onload',
+           'onLoad did not preserve its imported binding name');
+    assert(JSON.stringify(mounted.intents[0].hook.args) === JSON.stringify([
+        { type: 'int', value: -2147483645 },
+        { type: 'string', value: 'bank' },
+    ]), 'typed imported hook arguments were mistaken for component references');
+    host.dispatch({ type: 'pointer_move', x: 15, y: 18 });
+    const pressed = host.dispatch({ type: 'pointer_down', x: 15, y: 18, button: 'left' });
+    host.dispatch({ type: 'tick', cycle: 1 });
+    host.dispatch({ type: 'pointer_up', x: 15, y: 18, button: 0 });
+
+    const over = seen.find((intent) => intent.hook.canonical === 'on_mouse_over');
+    const click = seen.find((intent) => intent.hook.canonical === 'on_click');
+    assert(over.hook.name === 'onmouseover' && over.hook.authoredEvent === 'onMouseOver',
+           `hover identity was ${JSON.stringify(over.hook)}`);
+    assert(click.hook.name === 'onclick' && click.hook.authoredEvent === 'onClick',
+           `click identity was ${JSON.stringify(click.hook)}`);
+    assert(click.component.key === pressed.hit.key && click.component.generation === pressed.hit.generation,
+           'hook did not carry the exact hit component incarnation');
+    assert(click.locals.mouseX === 5 && click.locals.mouseY === 6 && click.locals.opIndex === 1,
+           `click locals were ${JSON.stringify(click.locals)}`);
+    assert(seen.some((intent) => intent.hook.canonical === 'on_hold'), 'held press did not run onHold');
+    assert(seen.some((intent) => intent.hook.canonical === 'on_click_repeat'),
+           'held press did not run onClickRepeat');
+    assert(seen.some((intent) => intent.hook.canonical === 'on_release'),
+           'release did not return to the press owner');
+    assert(host.component('button').props.color === 99, 'synchronous hook mutation was not committed');
+});
+
+test('drag, wheel and direct op dispatch stay in the React host transaction', () => {
+    const { built } = liveHostFixture();
+    const seen = [];
+    const host = createHostRuntime(built.ir, {
+        viewport: { width: 120, height: 100 },
+        invoke: (intent) => seen.push(intent),
+    });
+    const button = host.ref('button');
+    host.setHook(button, 'on_drag', { scriptId: 20, args: [] });
+    host.setHook(button, 'on_drag_complete', { scriptId: 21, args: [] });
+    host.setHook(button, 'on_op', { scriptId: 22, args: [] });
+    host.mutate('if_setdraggable', button, true);
+    host.mutate('if_setdragdeadzone', button, 2);
+
+    host.dispatch({ type: 'pointer_down', x: 15, y: 18, button: 0 });
+    host.dispatch({ type: 'pointer_move', x: 25, y: 22 });
+    host.dispatch({ type: 'pointer_up', x: 25, y: 22, button: 0 });
+    const wheel = host.dispatch({ type: 'wheel', x: 15, y: 18, deltaY: 120 });
+    host.dispatch({ type: 'op', target: button, opIndex: 3 });
+
+    assert(seen.some((intent) => intent.hook.canonical === 'on_drag'), 'drag hook did not run');
+    assert(seen.some((intent) => intent.hook.canonical === 'on_drag_complete'),
+           'drag-complete hook did not run');
+    assert(!seen.some((intent) => intent.hook.canonical === 'on_click'),
+           'drag gesture incorrectly fired click');
+    assert(wheel.intents[0].locals.wheel === 1 && wheel.intents[0].locals.eventMouseY === 1,
+           `wheel locals were ${JSON.stringify(wheel.intents[0]?.locals)}`);
+    const op = seen.findLast((intent) => intent.hook.canonical === 'on_op');
+    assert(op.locals.opIndex === 3, `direct op index was ${op.locals.opIndex}`);
+});
+
+test('keyboard is a visible-hook broadcast with generation fencing, not a focus route', () => {
+    const { built } = liveHostFixture();
+    const seen = [];
+    let hideSecond = false;
+    const host = createHostRuntime(built.ir, {
+        viewport: { width: 120, height: 100 },
+        invoke(intent, runtime) {
+            seen.push(intent);
+            if( hideSecond && intent.component.name === 'first_key' )
+                runtime.mutate('if_sethide', 'second_key', true);
+        },
+    });
+
+    host.dispatch({ type: 'key', keyTyped: 65, keyPressed: 97 });
+    const firstPass = seen.filter((intent) => intent.hook.canonical === 'on_key');
+    assert(firstPass.map((intent) => intent.component.name).join(',') === 'first_key,second_key',
+           `keyboard targets were ${firstPass.map((intent) => intent.component.name)}`);
+    assert(firstPass.every((intent) => intent.locals.keyTyped === 65 && intent.locals.keyPressed === 97),
+           'keyboard event locals were not broadcast intact');
+    assert(firstPass[0].hook.name === 'onkey' && firstPass[1].hook.name === 'on_key',
+           'imported and canonical key hook names were collapsed');
+
+    seen.length = 0;
+    hideSecond = true;
+    host.dispatch({ type: 'key', keyTyped: 66, keyPressed: 98 });
+    assert(seen.map((intent) => intent.component.name).join(',') === 'first_key',
+           'later keyboard target was not revalidated after a synchronous mutation');
+});
+
+test('the browser source session executes hooks inside the live React host', () => {
+    const { built, component } = liveHostFixture();
+    component('root').hooks = {};
+    component('first_key').hooks = {
+        onload: { script: { id: 70 }, args: [] },
+    };
+    component('button').hooks = { onclick: {
+        script: { id: 71 }, args: [{ type: 'int', value: -2147483645 }],
+    } };
+    component('button').events = {};
+    const scripts = [{
+        id: 70, name: 'source_mount',
+        source: [
+            '[clientscript,source_mount]()',
+            'if_settext("mounted", interface_700:2);',
+            'if_setonclick("script72(event_com)", interface_700:2);',
+        ].join('\n'),
+    }, {
+        id: 71, name: 'source_click',
+        source: [
+            '[clientscript,source_click](component $self)',
+            'if_setcolour(77, $self);',
+            '%varcint5 = 9;',
+        ].join('\n'),
+    }, {
+        id: 72, name: 'source_dynamic',
+        source: [
+            '[clientscript,source_dynamic](component $self)',
+            'if_setcolour(88, $self);',
+        ].join('\n'),
+    }];
+    const warnings = [];
+    let source;
+    const host = createHostRuntime(built.ir, {
+        viewport: { width: 120, height: 100 },
+        invoke: (intent) => source.invokeIntent(intent),
+    });
+    source = createSourceRuntimeSession(built.ir, {
+        host, scripts, warnings,
+        scriptNames: { 70: 'source_mount', 71: 'source_click', 72: 'source_dynamic' },
+    });
+
+    host.mount();
+    assert(host.read('if_gettext', 'first_key') === 'mounted',
+           'source onLoad did not mutate the React tree');
+    host.dispatch({ type: 'pointer_down', x: 5, y: 55, button: 0 });
+    host.dispatch({ type: 'pointer_up', x: 5, y: 55, button: 0 });
+    assert(host.component('first_key').props.color === 88,
+           'numeric deferred source hook did not execute in the React tree');
+    host.dispatch({ type: 'pointer_down', x: 15, y: 18, button: 0 });
+    assert(host.component('button').props.color === 77,
+           'source click did not mutate its live component');
+    assert(host.readState('varc', 5) === 9, 'source state write did not reach the host state');
+    assert(warnings.length === 0, `source runtime warnings: ${warnings.join('; ')}`);
+});
+
+testAsync('the browser WASM adapter loads raw bytecode and synchronously bridges HOST', async () => {
+    const fake = fakeWasmModule();
+    const requests = [];
+    const active = [];
+    const host = {
+        viewport: { width: 120, height: 100 },
+        request(request) {
+            requests.push(request);
+            return request.kind === 'PUSH_VAR' ? 42 : undefined;
+        },
+        ref(value) { return value?.ref || value; },
+        setActive(value, options = {}) { active.push([value, Boolean(options.dot)]); },
+        read() { return 'Choose'; },
+    };
+    const runtime = await createWasmCS2Runtime({
+        host,
+        moduleFactory: fake.factory,
+        program: {
+            available: true, dialect: 'osrs', revision: 'osrs239',
+            scripts: [{ id: 70, data: 'AQID' }],
+        },
+    });
+    const component = { key: 'dyn:1', componentId: 700 * 65536 + 2, subId: 7, generation: 1 };
+    const result = runtime.invokeIntent({
+        component,
+        hook: { scriptId: 70, args: [{ type: 'int', value: -2147483645 }, 'hello'] },
+        locals: { eventMouseX: 3, eventMouseY: 4, opIndex: 2, keyTyped: 80, keyPressed: 65 },
+    });
+    assert(fake.loaded.length === 1 && fake.loaded[0].id === 70 &&
+           fake.loaded[0].bytes.join(',') === '1,2,3', 'raw .cs2b bytes did not enter C');
+    assert(fake.intArgs.join(',') === '-2147483645' && fake.stringArgs.join(',') === 'hello',
+           'mixed hook arguments were not staged in their C local banks');
+    assert(fake.events.get(0) === 3 && fake.events.get(1) === 4 && fake.events.get(3) === 7,
+           `ScriptEvent fields were ${JSON.stringify([...fake.events])}`);
+    assert(fake.eventStrings.get(0) === 'Choose', 'event_opbase was not staged');
+    assert(active.length === 2 && active[0][1] === false && active[1][1] === true,
+           'HostRuntime active and dot refs were not initialized from the hook');
+    assert(requests[0].kind === 'PUSH_VAR' && requests[0].id === 5 && requests[0].dot_operand &&
+           fake.pushedInts.join(',') === '42', 'HOST getter/result did not cross the WASM seam');
+    assert(requests[1].kind === 'POP_VAR' && requests[1].value === 9 &&
+           requests[1].transmit === false, 'script POP_VAR incorrectly fanned out transmit hooks');
+    assert(result.hostRequests === 2, 'WASM invocation did not report its HOST calls');
+    runtime.destroy();
+    assert(fake.destroyed, 'WASM session was not destroyed');
+
+    const setOn = {
+        kind: 'CC_SETONCLICK', int_args: [12, 0, 34], int_arg_count: 3,
+        str_arg_mask: [2, 0], str_args: ['label'], trigger_ids: [5, 6],
+    };
+    __wasmRuntimeTest.normalizeSetOn(setOn);
+    assert(JSON.stringify(setOn.args) === JSON.stringify([12, 'label', 34]) &&
+           setOn.triggerIds.join(',') === '5,6', 'reflected set-on arguments lost their stack order');
+});
+
+testAsync('browser HOST clock aliases and sound intents let C scripts continue', async () => {
+    const { built } = liveHostFixture();
+    const fake = fakeWasmModule({
+        3300: { name: 'CLIENTCLOCK', fields: [] },
+        3200: { name: 'SOUND_SYNTH', fields: [
+            ['id', 2277], ['secondary_id', 0], ['loops', 1], ['delay', 4],
+            ['fade_out_delay', 0], ['fade_out_speed', 0],
+            ['fade_in_delay', 0], ['fade_in_speed', 0],
+        ] },
+        3201: { name: 'POP_VAR', fields: [['id', 91], ['value', 37]] },
+    });
+    const host = createHostRuntime(built.ir, {
+        viewport: { width: 120, height: 100 }, state: { clock: 2468 },
+    });
+    const runtime = await createWasmCS2Runtime({
+        host,
+        moduleFactory: fake.factory,
+        program: {
+            available: true, dialect: 'osrs', revision: 'osrs239',
+            scripts: [{ id: 73, data: 'AQID' }],
+        },
+    });
+    const result = runtime.invokeIntent({
+        component: host.ref('root'), hook: { scriptId: 73, args: [] }, locals: {},
+    });
+    const services = host.snapshot().services;
+    assert(fake.pushedInts[0] === 2468 &&
+           host.request({ kind: 'CLIENT_CLOCK' }) === 2468,
+           'compiled CLIENTCLOCK and the legacy CLIENT_CLOCK alias diverged');
+    assert(services.soundSynthCount === 1 && services.lastSoundSynth.id === 2277 &&
+           services.lastSoundSynth.loops === 1 && services.lastSoundSynth.delay === 4,
+           `sound intent was ${JSON.stringify(services.lastSoundSynth)}`);
+    assert(host.readState('varp', 91) === 37,
+           'the C script stopped before its request following SOUND_SYNTH');
+    assert(result.hostRequests === 3, 'the fake C script did not complete all HOST requests');
+    runtime.destroy();
+});
+
+test('the browser WASM adapter honors C-owned special HOST result semantics', () => {
+    const heap = new Uint8Array(4096);
+    let cursor = 256;
+    const pushedInts = [];
+    const pushedStrings = [];
+    const iterators = [];
+    const targets = [];
+    const read = (pointer) => {
+        let end = pointer;
+        while( heap[end] ) end++;
+        return new TextDecoder().decode(heap.subarray(pointer, end));
+    };
+    const write = (value) => {
+        const bytes = new TextEncoder().encode(value);
+        const pointer = cursor;
+        heap.set(bytes, pointer);
+        heap[pointer + bytes.length] = 0;
+        cursor += bytes.length + 1;
+        return pointer;
+    };
+    const api = {
+        HEAPU8: heap,
+        _malloc(size) { cursor = (cursor + 3) & ~3; const at = cursor; cursor += size; return at; },
+        _free() {},
+        _cs2w_thread_push_int(thread, value) { pushedInts.push(value); return 1; },
+        _cs2w_thread_push_string(thread, pointer) { pushedStrings.push(read(pointer)); return 1; },
+        _cs2w_thread_set_target(thread, dot, componentId) {
+            targets.push({ dot, componentId }); return 1;
+        },
+        _cs2w_thread_set_children(thread, parent, pointer, count) {
+            const values = count ? [...new Int32Array(heap.buffer, pointer, count)] : [];
+            iterators.push({ parent, values }); return 1;
+        },
+    };
+    const parentId = 700 * 65536 + 2;
+    const refs = [
+        { key: 'dyn:2', componentId: parentId, subId: 2 },
+        { key: 'dyn:7', componentId: parentId, subId: 7 },
+    ];
+    const host = { childIteration: { refs } };
+
+    __wasmRuntimeTest.writeHostResult(api, 33, 211, {
+        kind: 'IF_CHILDREN_COLLECT', uid: parentId, dot_operand: true,
+    }, refs, host);
+    assert(iterators[0].parent === parentId && iterators[0].values.join(',') === '2,7' &&
+           targets[0].dot === 1 && targets[0].componentId === parentId && pushedInts.length === 0,
+           'IF child collection did not populate C iterator/target without double-pushing count');
+
+    __wasmRuntimeTest.writeHostResult(api, 33, 212, {
+        kind: 'CC_CHILDREN_FIND_COUNT', parent_id: parentId, dot_operand: false,
+    }, refs.length, host);
+    assert(iterators[1].values.join(',') === '2,7' && pushedInts.length === 0,
+           'CC child count did not reuse HostRuntime iteration without double-pushing count');
+
+    __wasmRuntimeTest.writeHostResult(api, 33, 3408,
+        { kind: 'ENUM', output_type: 's'.charCodeAt(0) }, 'bank', host);
+    __wasmRuntimeTest.writeHostResult(api, 33, 3408,
+        { kind: 'ENUM', output_type: 'i'.charCodeAt(0) }, 19, host);
+    __wasmRuntimeTest.writeHostResult(api, 33, 1703,
+        { kind: 'CC_GETCOMPONENTPARAM' }, -1, host);
+    __wasmRuntimeTest.writeHostResult(api, 33, 1613,
+        { kind: 'CC_GETPARAM' }, 'tag', host);
+    __wasmRuntimeTest.writeHostResult(api, 33, 6516,
+        { kind: 'STRUCT_PARAM' }, 72, host);
+    assert(pushedStrings.join(',') === 'bank,tag' && pushedInts.join(',') === '19,-1,72',
+           'polymorphic enum/component-param HOST results used command-table defaults');
+
+    const fieldNames = ['component_id', 'param_id', 'value', 'str_value', 'kind'];
+    const namePointers = fieldNames.map(write);
+    const requestName = write('CC_SETCOMPONENTPARAM');
+    const reflectParam = ({ componentId, paramId, value, stringValue, valueKind }) => {
+        const values = [componentId, paramId, value, 0, valueKind];
+        const stringPointer = stringValue === null ? 0 : write(stringValue);
+        return __wasmRuntimeTest.reflectRequest({
+            ...api,
+            _cs2w_request_kind_name() { return requestName; },
+            _cs2w_request_field_count() { return fieldNames.length; },
+            _cs2w_request_field_name(kind, index) { return namePointers[index]; },
+            _cs2w_request_field_kind(kind, index) { return index === 3 ? 4 : 1; },
+            _cs2w_request_field_length() { return 1; },
+            _cs2w_request_field_i32(pointer, index) { return values[index]; },
+            _cs2w_request_field_string() { return stringPointer; },
+            _cs2w_thread_current_operand() { return 0; },
+        }, 44, 1704, 33);
+    };
+    const { built } = liveHostFixture();
+    const live = createHostRuntime(built.ir);
+    const button = live.ref('button');
+    live.request(reflectParam({ componentId: button.componentId, paramId: 40,
+        value: 345, stringValue: null, valueKind: 1 }));
+    live.request(reflectParam({ componentId: button.componentId, paramId: 41,
+        value: 0, stringValue: 'label', valueKind: 2 }));
+    const params = live.resolve(button).runtime.params;
+    assert(params[40].value === 345 && params[41].string === 'label',
+           `nullable reflected component params were ${JSON.stringify(params)}`);
+});
+
+test('state writes dispatch only matching visible transmit hooks', () => {
+    const { built, component } = liveHostFixture();
+    component('first_key').hooks.onvarptransmit = { script: { id: 30 }, args: [] };
+    component('first_key').triggers.varptriggers = [5];
+    component('second_key').hooks.on_var_transmit = { script: { id: 31 }, args: [] };
+    component('second_key').triggers.varptriggers = [6];
+    component('hidden_key').hooks.onvarptransmit = { script: { id: 32 }, args: [] };
+    component('hidden_key').triggers.varptriggers = [5];
+    const seen = [];
+    const host = createHostRuntime(built.ir, { invoke: (intent) => seen.push(intent) });
+
+    const result = host.writeState('varp', 5, 42);
+    assert(host.readState('varp', 5) === 42, 'state write was not retained');
+    assert(result.intents.length === 1 && result.intents[0].component.name === 'first_key',
+           `transmit targets were ${result.intents.map((intent) => intent.component.name)}`);
+    assert(result.intents[0].hook.name === 'onvarptransmit' &&
+           result.intents[0].hook.canonical === 'on_var_transmit',
+           'transmit hook identity was not preserved');
+    host.request({ kind: 'POP_VAR', varp_id: 7, value: 81 });
+    assert(host.request({ kind: 'PUSH_VAR', varpId: 7 }) === 81,
+           'named PUSH/POP variable requests did not use host state');
+    host.request({ kind: 'POP_VARC_STRING', varcId: 9, text: 'query' });
+    assert(host.request({ kind: 'PUSH_VARC_STRING', varcId: 9 }) === 'query',
+           'string state was not preserved as an ordinary JS value');
+});
+
 test('native UITree snapshots drive inspector topology, runtime boxes, visibility and hooks', () => {
     const node = ({
         id, uid, parent = -1, firstChild = -1, nextSibling = -1,
@@ -1035,6 +2098,59 @@ test('a cachepack sprite bitmap becomes a PNG', () => {
     assert(png.readUInt32BE(16) === 2 && png.readUInt32BE(20) === 1, 'PNG dimensions');
 });
 
+test('sprite metadata restores nominal margins and native tile phase', () => {
+    const rgba = Buffer.from([
+        255, 0, 0, 255, 0, 255, 0, 255,
+        0, 0, 255, 255, 255, 255, 0, 255,
+    ]);
+    const crop = { width: 2, height: 2, rgba };
+    const meta = { canvasWidth: 5, canvasHeight: 4, width: 2, height: 2, x: 1, y: 1 };
+    const canvas = spriteCanvas(crop, meta);
+    assert(canvas.width === 5 && canvas.height === 4, 'nominal canvas dimensions were lost');
+    assert(canvas.rgba.subarray(0, 4).equals(Buffer.alloc(4)),
+           'nominal transparent margin was not restored');
+    const redAtOffset = (1 * canvas.width + 1) * 4;
+    const yellowAtOffset = (2 * canvas.width + 2) * 4;
+    assert(canvas.rgba.subarray(redAtOffset, redAtOffset + 4).equals(rgba.subarray(0, 4)),
+           'sprite crop was not placed at its pack.meta x/y offset');
+    assert(canvas.rgba.subarray(yellowAtOffset, yellowAtOffset + 4).equals(rgba.subarray(12, 16)),
+           'sprite crop bottom-right pixel was misplaced');
+
+    const tile = spriteTile(crop, meta);
+    assert(tile.width === 2 && tile.height === 2, 'tiled sprite used the nominal canvas as its cell');
+    assert(tile.rgba.subarray(0, 4).equals(rgba.subarray(12, 16)),
+           'tiled sprite did not phase its first pixel by the crop offset');
+});
+
+test('the sprite server applies pack.meta differently for scaled and tiled graphics', () => {
+    const content = makeContent('sprite-metadata');
+    const spriteDir = join(content, 'sprites', 'offset_icon');
+    mkdirSync(spriteDir, { recursive: true });
+    writeFileSync(join(spriteDir, 'pack.meta'), 'sprite0=5,3,2,1,2,1\n');
+
+    const header = Buffer.alloc(54);
+    header.write('BM', 0, 'ascii');
+    header.writeUInt32LE(54 + 8, 2);
+    header.writeUInt32LE(54, 10);
+    header.writeUInt32LE(40, 14);
+    header.writeInt32LE(2, 18);
+    header.writeInt32LE(1, 22);
+    header.writeUInt16LE(1, 26);
+    header.writeUInt16LE(32, 28);
+    writeFileSync(join(spriteDir, '0.bmp'), Buffer.concat([
+        header,
+        Buffer.from([0x10, 0x20, 0x30, 0xff, 0x40, 0x50, 0x60, 0xff]),
+    ]));
+
+    const index = new Map([[77, 'offset_icon']]);
+    const scaled = spritePng(content, index, 77);
+    const tiled = spritePng(content, index, 77, { tiled: true });
+    assert(scaled.readUInt32BE(16) === 5 && scaled.readUInt32BE(20) === 3,
+           'ordinary sprite response did not restore the nominal canvas');
+    assert(tiled.readUInt32BE(16) === 2 && tiled.readUInt32BE(20) === 1,
+           'tiled sprite response did not retain the cropped repeat-cell size');
+});
+
 /* ---- 3e. opening unpacked content --------------------------------------- */
 
 test('an unpacked .if is rebuilt as React-style preview IR with linked scripts', () => {
@@ -1184,13 +2300,13 @@ test('a Dat2 project is selectively decoded once and invalidated when the cache 
 
     const again = prepareDat2Project(project, { tool, cacheRoot: derived });
     assert(again.content === first.content && again.reusedDat2Decode, 'decode was not reused');
-    assert(readFileSync(join(cache, 'invocations'), 'utf8').trim().split('\n').length === 1,
-           'cachepack ran for an unchanged cache');
+    assert(readFileSync(join(cache, 'invocations'), 'utf8').trim().split('\n').length === 2,
+           'the interface/source and raw-byte extraction passes were not reused');
 
     writeFileSync(join(cache, 'main_file_cache.dat2'), 'changed cache bytes');
     const changed = prepareDat2Project(project, { tool, cacheRoot: derived });
     assert(changed.content !== first.content, 'a changed Dat2 cache reused stale output');
-    assert(readFileSync(join(cache, 'invocations'), 'utf8').trim().split('\n').length === 2,
+    assert(readFileSync(join(cache, 'invocations'), 'utf8').trim().split('\n').length === 4,
            'changed cache was not decoded again');
 
     const unpacked = join(root, 'content');
@@ -1342,6 +2458,101 @@ test('a pack file keeps its comment header when rewritten', () => {
     assertIncludes(text, '1=second');
 });
 
+function fakeWasmModule(customRequests = null) {
+    const heap = new Uint8Array(128 * 1024);
+    let cursor = 256;
+    let options;
+    const loaded = [];
+    const intArgs = [];
+    const stringArgs = [];
+    const events = new Map();
+    const eventStrings = new Map();
+    const pushedInts = [];
+    const requests = customRequests || {
+        1: { name: 'PUSH_VAR', fields: [['id', 5]] },
+        2: { name: 'POP_VAR', fields: [['id', 5], ['value', 9]] },
+    };
+    const requestKinds = Object.keys(requests).map(Number);
+    const persistent = new Map();
+    const alloc = (size) => { const at = cursor; cursor += Math.max(1, size); return at; };
+    const read = (pointer) => {
+        let end = pointer;
+        while( heap[end] ) end++;
+        return new TextDecoder().decode(heap.subarray(pointer, end));
+    };
+    const write = (text) => {
+        if( persistent.has(text) ) return persistent.get(text);
+        const bytes = new TextEncoder().encode(text);
+        const at = alloc(bytes.length + 1);
+        heap.set(bytes, at); heap[at + bytes.length] = 0;
+        persistent.set(text, at);
+        return at;
+    };
+    const api = {
+        HEAPU8: heap,
+        _malloc: alloc,
+        _free() {},
+        _cs2w_session_create(dialect, revision) {
+            assert(dialect === 0 && revision === 239, 'dialect/revision were not normalized');
+            return 11;
+        },
+        _cs2w_session_destroy() { fixture.destroyed = true; return 1; },
+        _cs2w_session_load_script(session, id, pointer, length) {
+            loaded.push({ id, bytes: [...heap.slice(pointer, pointer + length)] }); return 1;
+        },
+        _cs2w_session_seal() { return 1; },
+        _cs2w_session_last_error() { return 0; },
+        _cs2w_session_last_error_message() { return 0; },
+        _cs2w_invocation_create() { return 22; },
+        _cs2w_invocation_destroy() { return 1; },
+        _cs2w_invocation_add_int_arg(invocation, value) { intArgs.push(value); return 1; },
+        _cs2w_invocation_add_string_arg(invocation, pointer) { stringArgs.push(read(pointer)); return 1; },
+        _cs2w_invocation_set_event_i32(invocation, field, value) { events.set(field, value); return 1; },
+        _cs2w_invocation_set_event_string(invocation, field, pointer) {
+            eventStrings.set(field, read(pointer)); return 1;
+        },
+        _cs2w_invocation_run() {
+            for( const kind of requestKinds )
+                if( options.cs2HostExec(11, 22, 33, 44, kind) !== 0 ) return 2;
+            return 0;
+        },
+        _cs2w_invocation_error_opcode() { return 0; },
+        _cs2w_invocation_error_pc() { return 0; },
+        _cs2w_invocation_error_script_id() { return 70; },
+        _cs2w_invocation_host_call_count() { return requestKinds.length; },
+        _cs2w_request_kind_name(kind) { return write(requests[kind].name); },
+        _cs2w_request_field_count(kind) { return requests[kind].fields.length; },
+        _cs2w_request_field_name(kind, index) { return write(requests[kind].fields[index][0]); },
+        _cs2w_request_field_kind() { return 1; },
+        _cs2w_request_field_length() { return 1; },
+        _cs2w_request_field_i32(pointer, index) {
+            /* The callback's current kind is recoverable from which reflection
+             * table last supplied this index in this deterministic fake. */
+            const table = fixture.reflectKind;
+            return requests[table].fields[index][1];
+        },
+        _cs2w_request_field_string() { return 0; },
+        _cs2w_thread_push_int(thread, value) { pushedInts.push(value); return 1; },
+        _cs2w_thread_push_string() { return 1; },
+        _cs2w_thread_set_target() { return 1; },
+        _cs2w_thread_set_children() { return 1; },
+        _cs2w_thread_current_operand() { return 1; },
+    };
+    /* Reflection does not carry kind into field_i32, so remember it when the
+     * field-count walk starts (the real C accessor reads it from the request). */
+    const originalFieldCount = api._cs2w_request_field_count;
+    api._cs2w_request_field_count = (kind) => {
+        fixture.reflectKind = kind;
+        return originalFieldCount(kind);
+    };
+    const fixture = {
+        loaded, intArgs, stringArgs, events, eventStrings, pushedInts,
+        destroyed: false, reflectKind: 0,
+        async factory(value) { options = value; return api; },
+    };
+    return fixture;
+}
+
 /* ---- 5. the build -------------------------------------------------------- */
 
 test('a build writes the tree, and refuses to stand on a file it did not write', () => {
@@ -1380,6 +2591,15 @@ test('a build writes the tree, and refuses to stand on a file it did not write',
 });
 
 /* ---- done ---------------------------------------------------------------- */
+
+for( const pending of pendingTests ) {
+    try {
+        await pending.fn();
+        passed++;
+    } catch( error ) {
+        failures.push({ name: pending.name, error });
+    }
+}
 
 rmSync(scratch, { recursive: true, force: true });
 

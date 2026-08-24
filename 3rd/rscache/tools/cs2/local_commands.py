@@ -43,13 +43,8 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
     # CC_COPY 105 = { int_in 3 }: parent, src_sub, dst_sub. Clones a dynamic
     # child into another slot under the same parent and makes the copy active.
     "CC_COPY": (["COMPONENT", "COMSUBID", "COMSUBID"], [], True),
-    # Rev-239 opcode 210 takes the search root followed by three (param, value)
-    # pairs and returns whether it found a matching component. Every cache call
-    # site pushes exactly that seven-int shape and immediately consumes the
-    # result. The first value is also passed to the client's component lookup,
-    # so COMPONENT is established rather than inferred from source aesthetics.
-    # Treating this as six inputs left the root on the decompiler's simulated
-    # stack and produced constants-as-conditions such as `if (60817424 = 1)`.
+    # Rev-239 opcode 210 has five fixed ints and two values selected by the two
+    # trailing base-type ids. LOCAL_KINDS below models that dynamic payload.
     "cc_find_param":
         (["COMPONENT", "INT", "INT", "INT", "INT", "INT", "INT"], ["INT"], False),
     # The cache's 7200-range collection iterators consume their selectors;
@@ -814,6 +809,9 @@ LOCAL_BASIC: dict[str, tuple[list[str], list[str], bool]] = {
 # one out -- desynchronised the operand stack of every script that read a
 # multi-field column, which is what took script 7603 and 79 others.
 LOCAL_KINDS: dict[int, str] = {
+    # Statics.method4548/210 pops two trailing base-type ids, conditionally pops
+    # one value for each non--1 id, then pops two params and a component root.
+    210: "FIND_PARAM",
     216: "TYPED_POP",
     2929: "DESCRIPTOR_ARGS",
     1703: "ACTIVE_PARAM",

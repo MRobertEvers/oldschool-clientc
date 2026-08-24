@@ -532,6 +532,20 @@ rs_cs2_parent_component_id(
     return tree->components[parent].component_id;
 }
 
+/* IfType.layer never crosses an interface-group boundary. Mounted groups are
+ * baked into one UITree, so a raw parent walk must explicitly preserve that
+ * seam for both IF_GETLAYER and its active-component CC twin. */
+static int
+rs_cs2_declared_layer_component_id(
+    struct UITree* tree,
+    int component_id)
+{
+    int parent = tree ? rs_cs2_parent_component_id(tree, component_id) : -1;
+    if( parent >= 0 && ((parent >> 16) & 0xffff) != ((component_id >> 16) & 0xffff) )
+        parent = -1;
+    return parent;
+}
+
 /*
  * PARAWIDTH / PARAHEIGHT: how wide, and how many lines, a string wraps to.
  *
@@ -5005,8 +5019,10 @@ exec_widget_set_int(
         if( node->type == UIELEM_RS_MODEL )
             node->u.rs_model.orthog = value != 0;
         break;
-    case CS2VM_WIDGET_INT_FILL_MODE:
     case CS2VM_WIDGET_INT_TRANS_BOT:
+        node->trans_bot = value;
+        break;
+    case CS2VM_WIDGET_INT_FILL_MODE:
     case CS2VM_WIDGET_INT_NO_SCROLL_THROUGH:
     case CS2VM_WIDGET_INT_PINCH:
     case CS2VM_WIDGET_INT_RESUME_PAUSEBUTTON:
@@ -8150,6 +8166,17 @@ exec_widget_set_op_base(
 }
 
 static int
+exec_widget_get_op_base(
+    struct RS_CS2Host* host,
+    struct CS2VM2_Thread* vm,
+    int component_id)
+{
+    struct UITreeComponent* node = rs_cs2_node(host, component_id);
+    char const* text = node ? UITree_MenuOptions(node)->option : "";
+    return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, text ? text : ""));
+}
+
+static int
 exec_widget_set_target_verb(
     struct RS_CS2Host* host,
     int component_id,
@@ -8654,6 +8681,20 @@ rs_cs2_host_exec_dispatch(
 #define RS_CS2_WIDGET_MODEL_KIND_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
         return exec_widget_set_model_kind(host, vm, request, request->u.opname.component_id, request->u.opname.model_kind, request->u.opname.model_id)
+#define RS_CS2_WIDGET_MODEL_GET_CASE(opname, member)                           \
+    case CS2VM_HOST_REQUEST_##opname:                                          \
+        node = rs_cs2_node(host, request->u.opname.component_id);              \
+        return CS2VM2_PushInt(                                                 \
+            vm, node && node->type == UIELEM_RS_MODEL                         \
+                    ? node->u.rs_model.member                                  \
+                    : 0)
+#define RS_CS2_WIDGET_MODEL_TRANSPARENT_GET_CASE(opname)                       \
+    case CS2VM_HOST_REQUEST_##opname:                                          \
+        node = rs_cs2_node(host, request->u.opname.component_id);              \
+        return CS2VM2_PushInt(                                                 \
+            vm, node && node->type == UIELEM_RS_MODEL                         \
+                    ? (node->model_transparent ? 1 : 0)                        \
+                    : 0)
 #define RS_CS2_UNMODELED_INPUT_CASE(opname) \
     case CS2VM_HOST_REQUEST_##opname: \
         (void)request->u.opname.component_id; \
@@ -9125,6 +9166,20 @@ rs_cs2_host_exec_dispatch(
         node = rs_cs2_node(host, request->u.CC_GETHIDE.component_id);
         return CS2VM2_PushInt(vm, node && node->behavior.hide ? 1 : 0);
 
+    case CS2VM_HOST_REQUEST_CC_GETLAYER:
+        return CS2VM2_PushInt(
+            vm,
+            rs_cs2_declared_layer_component_id(
+                tree, request->u.CC_GETLAYER.component_id));
+
+    case CS2VM_HOST_REQUEST_CC_GETSCROLLX:
+        node = rs_cs2_node(host, request->u.CC_GETSCROLLX.component_id);
+        return CS2VM2_PushInt(vm, node ? node->scroll_x : 0);
+
+    case CS2VM_HOST_REQUEST_CC_GETSCROLLY:
+        node = rs_cs2_node(host, request->u.CC_GETSCROLLY.component_id);
+        return CS2VM2_PushInt(vm, node ? node->scroll_y : 0);
+
     case CS2VM_HOST_REQUEST_CC_GETTEXT:
     {
         char buf[512];
@@ -9134,9 +9189,31 @@ rs_cs2_host_exec_dispatch(
         return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, buf));
     }
 
+    case CS2VM_HOST_REQUEST_CC_GETSCROLLWIDTH:
+        node = rs_cs2_node(host, request->u.CC_GETSCROLLWIDTH.component_id);
+        return CS2VM2_PushInt(
+            vm, (node && node->type == UIELEM_RS_LAYER) ? node->u.rs_layer.scroll_width : 0);
+
+    case CS2VM_HOST_REQUEST_CC_GETSCROLLHEIGHT:
+        node = rs_cs2_node(host, request->u.CC_GETSCROLLHEIGHT.component_id);
+        return CS2VM2_PushInt(
+            vm, (node && node->type == UIELEM_RS_LAYER) ? node->u.rs_layer.scroll_height : 0);
+
+        RS_CS2_WIDGET_MODEL_GET_CASE(CC_GETMODELZOOM, zoom);
+
+        RS_CS2_WIDGET_MODEL_GET_CASE(CC_GETMODELANGLE_X, xan);
+
+        RS_CS2_WIDGET_MODEL_GET_CASE(CC_GETMODELANGLE_Z, zan);
+
+        RS_CS2_WIDGET_MODEL_GET_CASE(CC_GETMODELANGLE_Y, yan);
+
     case CS2VM_HOST_REQUEST_CC_GETTRANS:
         node = rs_cs2_node(host, request->u.CC_GETTRANS.component_id);
         return CS2VM2_PushInt(vm, node ? node->trans : 0);
+
+    case CS2VM_HOST_REQUEST_CC_GETBLENDTRANS:
+        node = rs_cs2_node(host, request->u.CC_GETBLENDTRANS.component_id);
+        return CS2VM2_PushInt(vm, node ? node->trans_bot : 0);
 
     case CS2VM_HOST_REQUEST_CC_GETCOLOUR:
         node = rs_cs2_node(host, request->u.CC_GETCOLOUR.component_id);
@@ -9145,6 +9222,18 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_CC_GETFILLCOLOUR:
         node = rs_cs2_node(host, request->u.CC_GETFILLCOLOUR.component_id);
         return CS2VM2_PushInt(vm, node ? node->fill_colour : 0);
+
+        RS_CS2_WIDGET_MODEL_TRANSPARENT_GET_CASE(CC_GETMODELTRANSPARENT);
+
+    case CS2VM_HOST_REQUEST_CC_GETARCSTART:
+        node = rs_cs2_node(host, request->u.CC_GETARCSTART.component_id);
+        return CS2VM2_PushInt(
+            vm, node && node->type == UIELEM_RS_ARC ? node->u.rs_arc.arc_start : 0);
+
+    case CS2VM_HOST_REQUEST_CC_GETARCEND:
+        node = rs_cs2_node(host, request->u.CC_GETARCEND.component_id);
+        return CS2VM2_PushInt(
+            vm, node && node->type == UIELEM_RS_ARC ? node->u.rs_arc.arc_end : 0);
 
     case CS2VM_HOST_REQUEST_CC_GETPARAM:
         return exec_struct_param(
@@ -9183,6 +9272,10 @@ rs_cs2_host_exec_dispatch(
             vm, rs_cs2_target_mask(host, request->u.CC_GETTARGETMASK.component_id));
 
         RS_CS2_GET_OP_CASE(CC_GETOP);
+
+    case CS2VM_HOST_REQUEST_CC_GETOPBASE:
+        return exec_widget_get_op_base(
+            host, vm, request->u.CC_GETOPBASE.component_id);
 
     case CS2VM_HOST_REQUEST_CC_TRIGGEROP:
         /* Queued for the same reason as IF_CALLONRESIZE above. */
@@ -9456,11 +9549,10 @@ rs_cs2_host_exec_dispatch(
          * "All music" list was positioned at x≈1158 on an 807px canvas — built
          * correctly, mounted correctly, and entirely off-screen.
          */
-        int component_id = request->u.IF_GETLAYER.component_id;
-        int parent = tree ? rs_cs2_parent_component_id(tree, component_id) : -1;
-        if( parent >= 0 && ((parent >> 16) & 0xffff) != ((component_id >> 16) & 0xffff) )
-            parent = -1;
-        return CS2VM2_PushInt(vm, parent >= 0 ? parent : -1);
+        return CS2VM2_PushInt(
+            vm,
+            rs_cs2_declared_layer_component_id(
+                tree, request->u.IF_GETLAYER.component_id));
     }
 
     case CS2VM_HOST_REQUEST_IF_GETSCROLLX:
@@ -9479,6 +9571,18 @@ rs_cs2_host_exec_dispatch(
             rs_cs2_get_text(tree, request->u.IF_GETTEXT.component_id, buf, (int)sizeof(buf));
         return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, buf));
     }
+
+        RS_CS2_WIDGET_MODEL_GET_CASE(IF_GETMODELZOOM, zoom);
+
+        RS_CS2_WIDGET_MODEL_GET_CASE(IF_GETMODELANGLE_X, xan);
+
+        RS_CS2_WIDGET_MODEL_GET_CASE(IF_GETMODELANGLE_Z, zan);
+
+        RS_CS2_WIDGET_MODEL_GET_CASE(IF_GETMODELANGLE_Y, yan);
+
+    case CS2VM_HOST_REQUEST_IF_GETTRANS:
+        node = rs_cs2_node(host, request->u.IF_GETTRANS.component_id);
+        return CS2VM2_PushInt(vm, node ? node->trans : 0);
 
     case CS2VM_HOST_REQUEST_IF_GETSCROLLWIDTH:
         node = rs_cs2_node(host, request->u.IF_GETSCROLLWIDTH.component_id);
@@ -9509,6 +9613,8 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_IF_GETFILLCOLOUR:
         node = rs_cs2_node(host, request->u.IF_GETFILLCOLOUR.component_id);
         return CS2VM2_PushInt(vm, node ? node->fill_colour : 0);
+
+        RS_CS2_WIDGET_MODEL_TRANSPARENT_GET_CASE(IF_GETMODELTRANSPARENT);
 
     case CS2VM_HOST_REQUEST_IF_GETINVOBJECT:
         node = rs_cs2_node(host, request->u.IF_GETINVOBJECT.component_id);
@@ -9572,6 +9678,10 @@ rs_cs2_host_exec_dispatch(
             rs_cs2_target_mask(host, request->u.IF_GETTARGETMASK.component_id));
 
         RS_CS2_GET_OP_CASE(IF_GETOP);
+
+    case CS2VM_HOST_REQUEST_IF_GETOPBASE:
+        return exec_widget_get_op_base(
+            host, vm, request->u.IF_GETOPBASE.component_id);
 
     case CS2VM_HOST_REQUEST_IF_CALLONRESIZE:
         /* Queued, not run: this is reached from inside a running CS2 script and
@@ -10510,6 +10620,8 @@ rs_cs2_host_exec_dispatch(
 #undef RS_CS2_WIDGET_MODEL_ANGLE_CASE
 #undef RS_CS2_WIDGET_ARC_CASE
 #undef RS_CS2_WIDGET_MODEL_KIND_CASE
+#undef RS_CS2_WIDGET_MODEL_GET_CASE
+#undef RS_CS2_WIDGET_MODEL_TRANSPARENT_GET_CASE
 #undef RS_CS2_UNMODELED_INPUT_CASE
 
     default:

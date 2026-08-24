@@ -7,11 +7,11 @@
  * real sprites out of the content tree, and the generated .if and .cs2 beside it so
  * the cache records are never further away than a glance.
  *
- * It is a preview, and the README says where it stops: browser text is not the
- * cache's bitmap font. Models use the entity viewer's toridraw/WASM path and
- * imported source hooks run in a bounded UI-focused CS2 interpreter. The fidelity
- * path is unchanged — `cs2dom build` then a bake, into the real client. This buys the twenty
- * seconds between having an idea and seeing whether the geometry works.
+ * Cache text is painted from its original bitmap font and models use the entity
+ * viewer's toridraw/WASM path. Imported hooks run in the existing C CS2VM/WASM
+ * and call synchronously into the browser-owned React tree through its JavaScript
+ * HOST implementation. The production C client is retained as a reference
+ * oracle, not the interactive surface.
  *
  * State is the other half. Everything the interface reads — each varp, varbit, stat
  * and varc — becomes a control in the page, and moving one re-evaluates the same
@@ -21,17 +21,23 @@
 
 import { createServer } from 'node:http';
 import { readFileSync, existsSync, watch, readdirSync, writeFileSync, mkdirSync } from 'node:fs';
-import { join, extname, basename } from 'node:path';
+import { join, extname, basename, dirname } from 'node:path';
 import { spawn } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 
 import { build } from './build.js';
+import { createBytecodePrograms } from './bytecode.js';
 import { layout } from './preview.js';
 import { stateInputs } from './eval.js';
-import { bmpToPng } from './png.js';
+import { decodeBmp, encodePng, spriteCanvas, spriteTile } from './png.js';
 import { readCompack } from './build.js';
 import { page } from './dev_page.js';
-import { contentInterfaceCatalog, executeContentHooks, openContentInterface } from './content.js';
+import {
+    contentInterfaceCatalog, executeContentHooks, openContentInterface,
+} from './content.js';
 import { prepareDat2Project } from './dat2.js';
+import { fontGlyphPng, fontManifest, parseSpriteMeta } from './font.js';
+import { contentHostData } from './host_data.js';
 import { modelAssets, modelIndex, proxyModel, rawModel, startModelServer } from './model.js';
 import {
     nativePreviewFingerprint, nativePreviewStatus, renderNativeInterface,
@@ -40,6 +46,12 @@ import { prepareNativeOverlay } from './native_overlay.js';
 import { nativeTreeInspector } from './native_tree.js';
 
 const DEBOUNCE_MS = 40;
+const MODULE_ROOT = dirname(fileURLToPath(import.meta.url));
+const CS2VM_WEB_ROOT = join(MODULE_ROOT, '..', 'web');
+const BROWSER_RUNTIME_MODULES = new Set([
+    'components.js', 'cs2_commands.js', 'eval.js', 'expr.js', 'font_runtime.js', 'host.js',
+    'host_runtime.js', 'ops.js', 'preview.js', 'wasm_runtime.js',
+]);
 
 export function serve(project, { port = 8099, open = true, log = console.log } = {}) {
     project = prepareDat2Project(project, { log });
@@ -49,9 +61,16 @@ export function serve(project, { port = 8099, open = true, log = console.log } =
     const sources = interfaceSources(project);
     const sprites = new Map([...sources].map(([source, dir]) => [source, spriteIndex(dir)]));
     const models = new Map([...sources].map(([source, dir]) => [source, modelIndex(dir)]));
+    const hostData = new Map([...sources].map(([source, dir]) => [source, contentHostData(dir)]));
+    /* HOST lookups are several megabytes for a full cache. Serialize each source
+     * once and let the page cache it across interface changes and hot reloads;
+     * embedding it in /state made every preview refresh resend the whole cache. */
+    const hostDataJson = new Map([...hostData].map(([source, value]) =>
+        [source, JSON.stringify(value)]));
     const renderer = startModelServer(project, port + 1, log);
     const rendererAssets = modelAssets();
     const nativeFrames = new Map();
+    const bytecodeProgram = createBytecodePrograms(project, { log });
     const contentCatalog = [...sources].flatMap(([source, dir]) =>
         contentInterfaceCatalog(dir, { source }));
 
@@ -80,13 +99,40 @@ export function serve(project, { port = 8099, open = true, log = console.log } =
             const state = url.searchParams.get('state');
             const selected = url.searchParams.get('interface');
             return send(response, 200, 'application/json',
-                        JSON.stringify(view(project, current, selected, state, contentCatalog, sources)));
+                        JSON.stringify(view(project, current, selected, state, contentCatalog, sources,
+                            bytecodeProgram, hostData)));
         }
 
         if( url.pathname === '/catalog' ) {
             return send(response, 200, 'application/json', JSON.stringify({
                 interfaces: catalog(current, contentCatalog),
             }));
+        }
+
+        const hostDataMatch = /^\/host-data\/([^/]+)\.json$/.exec(url.pathname);
+        if( hostDataMatch ) {
+            let source;
+            try { source = decodeURIComponent(hostDataMatch[1]); }
+            catch { return send(response, 400, 'text/plain', 'invalid host-data source'); }
+            const payload = hostDataJson.get(source);
+            return payload === undefined
+                ? send(response, 404, 'text/plain', 'no such host-data source')
+                : send(response, 200, 'application/json', payload);
+        }
+
+        const runtimeModule = /^\/runtime\/([a-z0-9_]+\.js)$/.exec(url.pathname);
+        if( runtimeModule && BROWSER_RUNTIME_MODULES.has(runtimeModule[1]) )
+            return send(response, 200, 'text/javascript; charset=utf-8',
+                readFileSync(join(MODULE_ROOT, runtimeModule[1])));
+
+        const cs2vmAsset = /^\/cs2vm-wasm\/(cs2vm_wasm\.(?:js|wasm))$/.exec(url.pathname);
+        if( cs2vmAsset ) {
+            const file = join(CS2VM_WEB_ROOT, cs2vmAsset[1]);
+            if( !existsSync(file) ) return send(response, 404, 'text/plain',
+                'C CS2VM/WASM module is not built');
+            return send(response, 200,
+                cs2vmAsset[1].endsWith('.wasm') ? 'application/wasm' : 'text/javascript; charset=utf-8',
+                readFileSync(file));
         }
 
         if( url.pathname === '/native/status' )
@@ -164,9 +210,29 @@ export function serve(project, { port = 8099, open = true, log = console.log } =
             const source = parts.length === 3 ? parts[1] : project.contentSource;
             const id = Number.parseInt(basename(parts.at(-1), '.png'), 10);
             const contentDir = sources.get(source);
-            const png = contentDir ? spritePng(contentDir, sprites.get(source), id) : null;
+            const png = contentDir ? spritePng(contentDir, sprites.get(source), id, {
+                tiled: url.searchParams.get('tile') === '1',
+            }) : null;
             if( !png ) return send(response, 404, 'text/plain', 'no such sprite');
             return send(response, 200, 'image/png', png);
+        }
+
+        const fontManifestMatch = /^\/font\/([^/]+)\/(\d+)\.json$/.exec(url.pathname);
+        if( fontManifestMatch ) {
+            const contentDir = sources.get(decodeURIComponent(fontManifestMatch[1]));
+            const manifest = contentDir ? fontManifest(contentDir, Number(fontManifestMatch[2]), {
+                source: decodeURIComponent(fontManifestMatch[1]),
+            }) : null;
+            return manifest ? send(response, 200, 'application/json', JSON.stringify(manifest))
+                : send(response, 404, 'text/plain', 'no such font');
+        }
+        const fontGlyphMatch = /^\/font\/([^/]+)\/(\d+)\/(\d+)\.png$/.exec(url.pathname);
+        if( fontGlyphMatch ) {
+            const contentDir = sources.get(decodeURIComponent(fontGlyphMatch[1]));
+            const png = contentDir ? fontGlyphPng(contentDir,
+                Number(fontGlyphMatch[2]), Number(fontGlyphMatch[3])) : null;
+            return png ? send(response, 200, 'image/png', png)
+                : send(response, 404, 'text/plain', 'no such glyph');
         }
 
         if( url.pathname === '/toridraw/ev_wasm.js' && existsSync(rendererAssets.javascript) )
@@ -189,10 +255,20 @@ export function serve(project, { port = 8099, open = true, log = console.log } =
             if( !sources.has(source) ) return send(response, 404, 'text/plain', 'no such model source');
             if( leaf === 'player.model' )
                 return proxyModel(renderer, response, { path: '/api/player.model' });
+            if( ['obj', 'npc', 'loc', 'spot'].includes(leaf) && parts.length === 4 ) {
+                const id = Number.parseInt(basename(parts[3], '.model'), 10);
+                if( !Number.isInteger(id) )
+                    return send(response, 404, 'text/plain', 'no such configured model');
+                return proxyModel(renderer, response, { path: `/api/${leaf}/${id}.model${url.search}` });
+            }
             const id = Number.parseInt(basename(leaf, '.model'), 10);
             const bytes = rawModel(sources.get(source), models.get(source), id);
             if( !bytes ) return send(response, 404, 'text/plain', 'no such model');
-            return proxyModel(renderer, response, { method: 'POST', path: '/api/modelfile', body: bytes });
+            /* A UI archive model uses scene lighting and the native widget's
+             * SD-texture gate. The entity viewer's general /api/modelfile path
+             * intentionally uses an actor/HD preview profile, so keep the UI
+             * route explicit. */
+            return proxyModel(renderer, response, { method: 'POST', path: '/api/widgetmodel', body: bytes });
         }
 
         if( url.pathname === '/new' && request.method === 'POST' ) {
@@ -241,7 +317,7 @@ function compile(project) {
 }
 
 /** What the page needs for one render, at the state it asked for. */
-function view(project, current, selected, stateJson, contentCatalog, sources) {
+function view(project, current, selected, stateJson, contentCatalog, sources, bytecodeProgram, hostData) {
     const available = catalog(current, contentCatalog);
     const key = selected || available[0]?.key;
     let result;
@@ -271,12 +347,20 @@ function view(project, current, selected, stateJson, contentCatalog, sources) {
 
     let state = {};
     try { if( stateJson ) state = JSON.parse(stateJson); } catch { /* fall back to defaults */ }
-    const requestedState = { ...state };
+    let renderedIr = result.ir;
+    const bytecode = bytecodeProgram ? bytecodeProgram(result) : null;
+    if( result.source === 'content' || result.source === 'dat2' ) {
+        /* Execute against a second import for controls and the no-JS first
+         * frame. The browser receives the pristine IR and mounts those hooks
+         * into its live HostRuntime exactly once. */
+        const analysis = openContentInterface(result.contentDir, result.name, { source: result.source });
+        executeContentHooks(analysis, state);
+        renderedIr = analysis.ir;
+        result.scripts = analysis.scripts;
+        result.warnings = analysis.warnings;
+    }
+    const viewport = previewViewport(result);
 
-    if( result.source === 'content' || result.source === 'dat2' )
-        executeContentHooks(result, state);
-
-    const native = nativePreviewStatus(project);
     return {
         error: null,
         warnings: [...(result.warnings || []), ...(result.source === 'authored' ? current.warnings : [])],
@@ -284,7 +368,7 @@ function view(project, current, selected, stateJson, contentCatalog, sources) {
             /* Host reads the preview cannot answer are collected while laying out,
              * so the page can say which values it is showing as zero. */
             const unmodelled = new Set();
-            const boxes = layout(result.ir, state, undefined, unmodelled);
+            const boxes = layout(renderedIr, state, viewport, unmodelled);
             return {
             name: result.name,
             interfaceId: result.interfaceId,
@@ -292,13 +376,19 @@ function view(project, current, selected, stateJson, contentCatalog, sources) {
             source: result.source || 'authored',
             spriteSource: result.source === 'authored' ? project.contentSource : result.source,
             modelSource: result.source === 'authored' ? project.contentSource : result.source,
-            /* Dat2 records go to the production client verbatim; an unpacked
-             * content record is compiled into a keyed cache overlay by the HTTP
-             * route. Authored dry-run TSX has no file to overlay until build. */
-            ...nativePreviewUrls(native, result, requestedState),
+            viewport,
             boxes,
+            runtime: {
+                ir: browserRuntimeIr(result.ir),
+                bytecode,
+                hostDataUrl: hostData?.has(result.source === 'authored'
+                    ? project.contentSource : result.source)
+                    ? `/host-data/${encodeURIComponent(result.source === 'authored'
+                        ? project.contentSource : result.source)}.json`
+                    : null,
+            },
             unmodelled: [...unmodelled],
-            inputs: stateInputs(result.ir),
+            inputs: stateInputs(renderedIr),
             interfaceText: result.interfaceText,
             compackText: result.compackText,
             scripts: result.scripts,
@@ -307,22 +397,83 @@ function view(project, current, selected, stateJson, contentCatalog, sources) {
     };
 }
 
-function nativePreviewUrls(native, result, state) {
-    if( !native.available || (result.source !== 'dat2' && result.source !== 'content') )
-        return { nativeFrame: null, nativeTree: null, viewport: null };
-    const width = 512;
-    const height = 334;
-    const query = `?width=${width}&height=${height}&source=` + encodeURIComponent(result.source) +
-        '&name=' + encodeURIComponent(result.name) +
-        '&state=' + encodeURIComponent(JSON.stringify(state));
-    const root = `/native/interface/${result.interfaceId}`;
+function previewViewport(result) {
+    if( result.source === 'content' || result.source === 'dat2' )
+        return { width: 512, height: 334 };
+    const root = result.ir.components.find((component) => component.layer === null);
+    const width = root && (root.static.widthMode | 0) === 0 && Number(root.static.width) > 0
+        ? Number(root.static.width) : 512;
+    const height = root && (root.static.heightMode | 0) === 0 && Number(root.static.height) > 0
+        ? Number(root.static.height) : 334;
+    return { width: Math.max(1, width | 0), height: Math.max(1, height | 0) };
+}
+
+function browserRuntimeIr(ir) {
     return {
-        nativeFrame: `${root}.png${query}`,
-        nativeTree: `${root}.tree.json${query}`,
-        /* Known before the asynchronous tree sidecar arrives, so the browser
-         * never sizes the native bitmap from an imported component record. */
-        viewport: { width, height },
+        name: ir.name,
+        interfaceId: ir.interfaceId,
+        states: jsonValue(ir.states || []),
+        components: ir.components.map((component) => ({
+            fileId: component.fileId,
+            name: component.name,
+            kind: component.kind,
+            type: component.type,
+            layer: component.layer,
+            subId: component.subId,
+            props: jsonValue(component.props || component.static || {}),
+            static: jsonValue(component.static || {}),
+            authoredProps: [...(component.authoredProps || [])],
+            dynamic: (component.dynamic || []).map((binding) => ({
+                prop: binding.prop,
+                expr: jsonValue(binding.expr),
+            })),
+            ops: jsonValue(component.ops || []),
+            events: {},
+            hooks: Object.fromEntries(Object.entries(component.hooks || {}).map(([name, binding]) =>
+                [name, browserHook(binding)])),
+            triggers: jsonValue(component.triggers || {}),
+            dependencies: jsonValue(component.dependencies || []),
+            scriptBindings: jsonValue(component.scriptBindings || []),
+            rawFields: jsonValue(component.rawFields || {}),
+            runtimeDynamic: Boolean(component.runtimeDynamic),
+        })),
     };
+}
+
+function browserHook(binding) {
+    if( !binding ) return null;
+    return {
+        script: {
+            id: Number(binding.script?.id ?? binding.scriptId ?? binding.script_id ?? -1),
+            name: binding.script?.name || null,
+        },
+        args: jsonValue(binding.args || []),
+        signature: binding.signature || null,
+        triggerIds: jsonValue(binding.triggerIds || binding.trigger_ids || []),
+    };
+}
+
+function jsonValue(value, seen = new WeakSet()) {
+    if( value === null || typeof value !== 'object' ) return typeof value === 'function' ? null : value;
+    if( seen.has(value) ) return null;
+    seen.add(value);
+    if( Array.isArray(value) ) {
+        const result = value.map((item) => jsonValue(item, seen));
+        seen.delete(value);
+        return result;
+    }
+    if( value instanceof Set ) {
+        const result = [...value].map((item) => jsonValue(item, seen));
+        seen.delete(value);
+        return result;
+    }
+    const result = {};
+    for( const [key, item] of Object.entries(value) ) {
+        if( typeof item === 'function' ) continue;
+        result[key] = jsonValue(item, seen);
+    }
+    seen.delete(value);
+    return result;
 }
 
 function interfaceSources(project) {
@@ -356,7 +507,7 @@ function spriteIndex(contentDir) {
     return byId;
 }
 
-function spritePng(contentDir, index, id) {
+export function spritePng(contentDir, index, id, options = {}) {
     const name = index.get(id);
     if( !name ) return null;
     const dir = join(contentDir, 'sprites', name);
@@ -366,7 +517,14 @@ function spritePng(contentDir, index, id) {
     const bitmap = readdirSync(dir).filter((f) => extname(f) === '.bmp').sort()[0];
     if( !bitmap ) return null;
     try {
-        return bmpToPng(readFileSync(join(dir, bitmap)));
+        const decoded = decodeBmp(readFileSync(join(dir, bitmap)));
+        const frameIndex = Number.parseInt(basename(bitmap, '.bmp'), 10);
+        const metaPath = join(dir, 'pack.meta');
+        const meta = existsSync(metaPath) && Number.isInteger(frameIndex)
+            ? parseSpriteMeta(readFileSync(metaPath, 'utf8')).get(frameIndex)
+            : null;
+        const pixels = options.tiled ? spriteTile(decoded, meta) : spriteCanvas(decoded, meta);
+        return encodePng(pixels);
     } catch {
         return null;
     }

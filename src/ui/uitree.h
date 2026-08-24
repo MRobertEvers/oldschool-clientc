@@ -591,6 +591,9 @@ struct UITreeComponent
     int params_capacity;
     int scroll_x;
     int scroll_y;
+    /** CC/IF_SETTRANSBOT and CC_GETBLENDTRANS. Kept separately from `trans`,
+     *  matching the reference widget's top/bottom transparency pair. */
+    int trans_bot;
     /* Lazily allocated — see ui/uitree_component_options.h. Read through
      * UITree_MenuOptions / UITree_OpKeys (never NULL), write through the Mut
      * accessors, test with the Has ones. */

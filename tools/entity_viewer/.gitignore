@@ -1,5 +1,6 @@
 build/
 ev_catalog
 ev_server
+ev_widget_render_test
 web/ev_wasm_san.js
 web/ev_wasm_san.wasm

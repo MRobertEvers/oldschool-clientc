@@ -21,6 +21,7 @@
  *   GET /api/spot/<id>.json      that graphic's own sequence id
  *   GET /api/rig/<id>.json       every sequence on one framemap
  *   GET /api/rigs.json           how far along the active cache's rig walk is
+ *   POST /api/widgetmodel        raw model bytes, prepared as a native UI model
  *   GET /<anything else>        static files from the web directory
  *
  * Request handling is single-threaded and blocking on purpose: one viewer, one
@@ -46,8 +47,8 @@
 #include "ev_rigs.h"
 #include "ev_textures.h"
 
-/* The client's own RSCache_Model -> ToriDraw_Model pair, for POST /api/modelfile.
- * Hand-rolling that conversion is what ev_build.c's header comment warns about. */
+/* The client's own RSCache_Model -> ToriDraw_Model pair, for the raw-model POST
+ * routes. Hand-rolling that conversion is what ev_build.c warns about. */
 #include "engine/toridraw_model_from_torirs.h"
 #include "engine/torirs_model_from_rscache.h"
 #include "ev_player.h"
@@ -1959,6 +1960,112 @@ done_params:
     free(tv);
 }
 
+/* ------------------------------------------------------ a widget model ---
+ *
+ * POST /api/widgetmodel with the raw bytes of a model archive as the body.
+ *
+ * /api/modelfile deliberately prepares an entity-viewer subject: actor
+ * lighting and an EVH1 mapping tail, because that endpoint exists to inspect
+ * HD routing.  An interface MODEL is a different asset profile.  The native UI
+ * bridge keeps the classic model, drops textures the active cache cannot ship,
+ * and scene-lights it with the reference 0/0 adjustments.  Keeping this as a
+ * separate route protects the general entity viewer from a silent behaviour
+ * change while giving browser UI renderers the exact model the C client uses.
+ */
+static void
+handle_widget_model_file(int fd, const uint8_t* body, size_t body_len)
+{
+    if( !body || body_len < 3 )
+    {
+        send_404(fd);
+        return;
+    }
+
+    const char* format = model_format_name(body, body_len);
+    struct RSCache_Model* rs = RSCache_ModelNewDecode((uint8_t*)body, (int)body_len);
+    if( !rs )
+    {
+        send_404(fd);
+        return;
+    }
+
+    struct ToriRS_Model* mid = ToriRS_ModelFromRSCache(rs);
+    RSCache_ModelFree(rs);
+    if( !mid )
+    {
+        send_404(fd);
+        return;
+    }
+
+    struct ToriDraw_Model* model = ToriDraw_ModelFromToriRS(mid);
+    ToriRS_ModelFree(mid);
+    if( !model )
+    {
+        send_404(fd);
+        return;
+    }
+
+    /* Equivalent to UITreeSceneBridge_EnsureModel's DropNonSdTextures step for
+     * this server: the active cache's baked texture set is precisely what the
+     * browser can sample.  A texture absent there must fall back to face colour
+     * before lighting, or the classic raster skips that face entirely. */
+    if( model->face_textures )
+        for( int face = 0; face < model->face_count; face++ )
+            if( !server_texture_available((int)model->face_textures[face], NULL) )
+                model->face_textures[face] = (faceint_t)-1;
+
+    ToriDraw_ModelNoteTextureWants(model);
+
+    struct ToriDraw_ModelHandle hnd;
+    memset(&hnd, 0, sizeof(hnd));
+    hnd.kind = TORIDRAWMK_MODEL;
+    hnd.u.model.model = model;
+    ToriDraw_LightModelScene(hnd, 0, 0);
+    ToriDraw_ModelSetBoundsCylinder(model);
+    ToriDraw_ModelCaptureOriginalVertices(model);
+
+    struct EV_WireBuf buf = { 0 };
+    int const ok = ev_wire_write_model(&buf, model);
+    int const faces = model->face_count;
+    int const textured = model->textured_face_count;
+    char tex_ids[1024];
+    model_texture_ids(model, tex_ids, sizeof(tex_ids));
+    ToriDraw_ModelFree(model);
+
+    if( !ok )
+    {
+        ev_wire_free(&buf);
+        send_404(fd);
+        return;
+    }
+
+    char header[1536];
+    int const hlen = snprintf(
+        header,
+        sizeof(header),
+        "HTTP/1.1 200 OK\r\n"
+        "Content-Type: application/octet-stream\r\n"
+        "Content-Length: %zu\r\n"
+        "Cache-Control: no-store\r\n"
+        "X-Model-Format: %s\r\n"
+        "X-Model-Faces: %d\r\n"
+        "X-Model-Textured: %d\r\n"
+        "X-Model-HD: 0\r\n"
+        "X-Model-Profile: widget\r\n"
+        "X-Texture-Ids: %s\r\n"
+        "Access-Control-Expose-Headers: X-Model-Format, X-Model-Faces, "
+        "X-Model-Textured, X-Model-HD, X-Model-Profile, X-Texture-Ids\r\n"
+        "Connection: close\r\n\r\n",
+        buf.len,
+        format,
+        faces,
+        textured,
+        tex_ids);
+    send_all(fd, header, (size_t)hlen);
+    send_all(fd, buf.data, buf.len);
+    ev_wire_free(&buf);
+}
+
 /* ---- the cache registry -------------------------------------------------- */
 
 
@@ -2228,7 +2335,7 @@ handle_request(int fd, const char* target, const char* query)
         handle_search_ids(fd, query, g_index.seq_ids, g_index.seq_count);
     else if( strcmp(target, "/api/search/models.json") == 0 )
         handle_search_ids(fd, query, g_index.model_ids, g_index.model_count);
-    /* POST /api/modelfile is routed in the accept loop, where the body is. */
+    /* Raw-model POST routes are handled in the accept loop, where the body is. */
     else
         handle_static(fd, target[0] == '/' ? target + 1 : target);
 }
@@ -2906,7 +3013,8 @@ main(int argc, char** argv)
                     handle_request(fd, target, q ? q + 1 : NULL);
                 }
                 else if( strcmp(method, "POST") == 0 &&
-                         strcmp(target, "/api/modelfile") == 0 )
+                         (strcmp(target, "/api/modelfile") == 0 ||
+                          strcmp(target, "/api/widgetmodel") == 0) )
                 {
                     const char* hdr_end = strstr(req, "\r\n\r\n");
                     size_t want = 0;
@@ -2938,7 +3046,12 @@ main(int argc, char** argv)
                     }
 
                     if( body && have == want )
-                        handle_model_file(fd, body, want);
+                    {
+                        if( strcmp(target, "/api/widgetmodel") == 0 )
+                            handle_widget_model_file(fd, body, want);
+                        else
+                            handle_model_file(fd, body, want);
+                    }
                     else
                         send_404(fd);
                     free(body);

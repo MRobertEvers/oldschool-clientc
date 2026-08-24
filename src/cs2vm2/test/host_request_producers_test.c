@@ -23,7 +23,7 @@ enum
 };
 
 _Static_assert(
-    HOST_REQUEST_PRODUCER_COUNT == 611,
+    HOST_REQUEST_PRODUCER_COUNT == 632,
     "the producer replay test must exercise every hosted opcode");
 
 struct CaptureHost
@@ -130,7 +130,7 @@ exercise_producer(struct HostRequestProducerEntry const* entry)
     }
 
     /* Every producer gets valid, deterministic operands without coupling this
-     * contract test to 611 separate stack signatures. Hosted ops pop at most a
+     * contract test to 632 separate stack signatures. Hosted ops pop at most a
      * small fraction of these values; `i` is also a valid SETON descriptor. */
     for( int i = 0; i < CS2VM_STACK_MAX / 2; i++ )
     {

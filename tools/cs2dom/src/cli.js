@@ -4,9 +4,9 @@
  *   cs2dom build [--project DIR] [--dry-run] [--no-verify]
  *   cs2dom dev [--project DIR] [--cache DIR --rev NAME] [--port N] [--no-open]
       Watch ui/*.tsx, rebuild on save and show the result in a browser: the
-      authored components in the diagnostic renderer, and imported content or
-      Dat2 interfaces in the production C-client framebuffer, with host-state
-      controls and the .if/.cs2 records. Nothing is written to the content tree.
+      authored, imported content and Dat2 interfaces in the same live DOM/React
+      preview, with host-state controls and the .if/.cs2 records. The C client is
+      retained as a render oracle. Nothing is written to the content tree.
 
   cs2dom cachegen [--project DIR] [--out FILE]
  *   cs2dom check [--project DIR]
@@ -56,8 +56,8 @@ function usage(code) {
         '      files. Bake afterwards with: make -C src torirsserver-cache\n\n' +
         '  cs2dom dev [--project DIR] [--cache DIR --rev NAME] [--port N] [--no-open]\n' +
         '      Watch ui/*.tsx, rebuild on save and show the result in a browser: the\n' +
-        '      authored components in the fast diagnostic renderer, and OSRS-Content\n' +
-        '      or Dat2 interfaces through the production C client. Includes searchable\n' +
+        '      authored components, OSRS-Content and Dat2 interfaces through the same\n' +
+        '      live DOM/React runtime. Includes searchable\n' +
         '      records, runtime-tree inspection and host-state controls.\n\n' +
         '      --cache opens a Dat2 cache directly; --rev names its cachepack profile.\n' +
         '      The selective decode is cached in the OS temporary directory.\n\n' +

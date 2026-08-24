@@ -54,8 +54,10 @@ export const SLICES = {
         /* A varc the interface allocates for itself is not in the cache's table,
          * so the tree's count is a floor rather than a ceiling. */
         limit: () => null,
-        control: { min: 0, max: 1000, step: 1 },
-        read: (state, source) => value(state, source, source.initial ?? 0),
+        control: { min: -1, max: 1000, step: 1 },
+        /* The production VarCManager's unset integer sentinel is -1. Authored
+         * useState values still carry their explicit `initial` override. */
+        read: (state, source) => value(state, source, source.initial ?? -1),
     },
     varcstr: {
         label: 'client string variable',
@@ -113,7 +115,7 @@ export const HOST_READS = {
     },
     stat: { request: 'STAT', evaluate: (args, state) => state[`stat:${args[0]}`] ?? 1 },
     stat_base: { request: 'STAT_BASE', evaluate: (args, state) => state[`stat:${args[0]}`] ?? 1 },
-    clientclock: { request: 'CLIENT_CLOCK', evaluate: (args, state) => state['clock'] ?? 0 },
+    clientclock: { request: 'CLIENTCLOCK', evaluate: (args, state) => state['clock'] ?? 0 },
 };
 
 /**

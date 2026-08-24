@@ -171,7 +171,8 @@ function importComponent(block, fileId, interfaceId, warnings) {
 /** Apply source-form cache hooks to a freshly imported IR. */
 export function executeContentHooks(result, state = {}) {
     if( !result?.contentDir ) return { dependencies: new Map(), warnings: [] };
-    const execution = runCacheHooks(result.ir, result.contentDir, state, result.warnings);
+    const execution = runCacheHooks(result.ir, sourceRuntimeOptions(result.contentDir, result.scripts),
+        state, result.warnings);
     const seen = new Set(result.scripts.map((script) => script.name));
     for( const script of execution.scripts ) {
         if( seen.has(script.name) ) continue;
@@ -179,6 +180,86 @@ export function executeContentHooks(result, state = {}) {
         result.scripts.push(script);
     }
     return execution;
+}
+
+/** Browser-safe source records for one live HostRuntime session. */
+export function contentRuntimeManifest(result) {
+    if( !result?.contentDir ) return sourceManifest(result?.scripts || []);
+    const scriptNames = readPack(join(result.contentDir, 'pack', '12_clientscripts.pack'));
+    const sprites = readPack(join(result.contentDir, 'pack', '8_sprites.pack'));
+    const scripts = sourceClosure(result.contentDir, result.scripts || [], scriptNames);
+    const usedText = scripts.map((script) => script.source).join('\n');
+    const spriteIds = new Map();
+    for( const [id, name] of sprites ) {
+        if( usedText.includes(`"${name}"`) || usedText.includes(`"${name.replace('_', ',')}"`) )
+            spriteIds.set(name, id);
+    }
+    return sourceManifest(scripts, scriptNames, spriteIds);
+}
+
+function sourceClosure(contentDir, roots, scriptNames) {
+    const idByName = new Map([...scriptNames].map(([id, name]) => [name, id]));
+    const records = new Map();
+    const queue = [];
+    const add = (record) => {
+        if( !record?.name || records.has(record.name) ) return;
+        const normalized = {
+            ...record,
+            id: Number.isInteger(record.id) ? record.id : idByName.get(record.name) ?? null,
+        };
+        records.set(normalized.name, normalized);
+        queue.push(normalized);
+    };
+    for( const script of roots ) add(script);
+    while( queue.length ) {
+        const script = queue.shift();
+        const dependencies = new Set([
+            ...[...script.source.matchAll(/~([A-Za-z_][A-Za-z0-9_]*)\s*\(/g)].map((match) => match[1]),
+            ...[...script.source.matchAll(/["']([A-Za-z_][A-Za-z0-9_]*)\s*\(/g)].map((match) => match[1]),
+            /* Deferred callbacks are also commonly written as a bare script
+             * name (for example cc_setonclick("closebutton_click", null)). */
+            ...[...script.source.matchAll(
+                /(?:cc|if)_seton[a-z0-9_]*\(\s*["']([A-Za-z_][A-Za-z0-9_]*)/g,
+            )].map((match) => match[1]),
+        ]);
+        for( const dependency of dependencies ) {
+            const numeric = /^script(\d+)$/.exec(dependency);
+            const name = numeric ? scriptNames.get(Number(numeric[1])) || dependency : dependency;
+            if( records.has(name) ) continue;
+            const file = join(contentDir, 'scripts', `${name}.cs2`);
+            if( existsSync(file) ) add({ name, file, source: readFileSync(file, 'utf8') });
+        }
+    }
+    return [...records.values()];
+}
+
+function sourceRuntimeOptions(contentDir, scripts) {
+    const scriptNames = readPack(join(contentDir, 'pack', '12_clientscripts.pack'));
+    const sprites = readPack(join(contentDir, 'pack', '8_sprites.pack'));
+    return {
+        scripts,
+        scriptNames,
+        spriteIds: new Map([...sprites].map(([id, name]) => [name, id])),
+        loadScript(name) {
+            const file = join(contentDir, 'scripts', `${name}.cs2`);
+            return existsSync(file) ? { name, file, source: readFileSync(file, 'utf8') } : null;
+        },
+    };
+}
+
+function sourceManifest(scripts, scriptNames = new Map(), spriteIds = new Map()) {
+    const records = scripts.filter((script) => typeof script?.source === 'string').map((script) => ({
+        id: Number.isInteger(script.id) ? script.id : null,
+        name: script.name,
+        source: script.source,
+    }));
+    const names = new Map();
+    for( const script of records ) if( Number.isInteger(script.id) ) names.set(script.id, script.name);
+    return {
+        scripts: records,
+        scriptNames: Object.fromEntries(names),
+        spriteIds: Object.fromEntries(spriteIds),
+    };
 }
 
 /** `[name]` blocks, preserving everything after the first '=' verbatim. */

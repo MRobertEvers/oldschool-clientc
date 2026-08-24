@@ -1,13 +1,9 @@
 /*
- * A deliberately bounded interpreter for the source-form CS2 shipped beside an
- * unpacked interface.  It is not a second game VM: it models the part of CS2
- * which paints interfaces (component reads/writes, control flow, locals and
- * procedure calls).  Unknown game reads are zero and unknown commands are
- * harmless, while limits keep a bad cache script from hanging the dev server.
+ * Bounded source analysis for readable CS2 shipped beside an unpacked interface.
+ * This is used by the Node importer to derive an initial no-JavaScript snapshot
+ * and state controls. It is not served to the browser and is not a bytecode VM;
+ * interactive hooks run only in the existing C CS2VM compiled to WASM.
  */
-
-import { existsSync, readFileSync } from 'node:fs';
-import { join } from 'node:path';
 
 import { ELEMENTS, IF_TYPE } from './components.js';
 
@@ -28,9 +24,18 @@ const CONSTANTS = {
     settextalign_center: 1, settextalign_right: 2, settextalign_bottom: 2,
 };
 
+/**
+ * Create one synchronous source-analysis session. File discovery belongs to
+ * content.js; keeping this module free of node:* imports also keeps it easy to
+ * exercise against a focused HostRuntime in importer tests.
+ */
+export function createSourceRuntimeSession(ir, options = {}) {
+    return new Runtime(ir, options);
+}
+
 /** Execute every cache-authored onload hook and return its observable state. */
-export function runCacheHooks(ir, contentDir, state = {}, warnings = []) {
-    const runtime = new Runtime(ir, contentDir, state, warnings);
+export function runCacheHooks(ir, options = {}, state = {}, warnings = []) {
+    const runtime = new Runtime(ir, { ...options, state, warnings });
     /* Snapshot: scripts can append dynamic components while this loop runs. Only
      * cache components own automatic onload hooks. */
     for( const component of [...ir.components] ) {
@@ -47,16 +52,19 @@ export function runCacheHooks(ir, contentDir, state = {}, warnings = []) {
     };
 }
 
-class Runtime {
-    constructor(ir, contentDir, state, warnings) {
+export class SourceRuntimeSession {
+    constructor(ir, options = {}) {
         this.ir = ir;
-        this.contentDir = contentDir;
-        this.state = state;
-        this.runtimeWarnings = warnings;
+        this.host = options.host || null;
+        this.state = this.host?.state || options.state || {};
+        this.runtimeWarnings = options.warnings || [];
         this.byId = new Map(ir.components.map((component) => [component.fileId, component]));
         this.byUid = new Map(ir.components.map((component) => [ir.interfaceId * 65536 + component.fileId, component]));
-        this.scriptNames = readPack(join(contentDir, 'pack', '12_clientscripts.pack'));
-        this.spriteIds = reversePack(join(contentDir, 'pack', '8_sprites.pack'));
+        this.scriptNames = asNumberMap(options.scriptNames);
+        this.scriptIds = new Map([...this.scriptNames].map(([id, name]) => [name, id]));
+        this.spriteIds = asStringMap(options.spriteIds);
+        this.scriptSources = scriptSourceMap(options.scripts);
+        this.loadScript = typeof options.loadScript === 'function' ? options.loadScript : null;
         this.cache = new Map();
         this.dependencies = new Map();
         this.current = null;
@@ -66,19 +74,41 @@ class Runtime {
         this.dynamicId = 0;
         this.dynamicByParent = new Map();
         this.warned = new Set();
+        this.intent = null;
     }
 
-    invokeId(id, rawArgs, current) {
+    /** HostRuntime invoke callback. The call is deliberately synchronous. */
+    invokeIntent(intent) {
+        const current = this.component(intent?.component);
+        if( !intent?.hook || !current ) return 0;
+        return this.invokeId(intent.hook.scriptId, intent.hook.args || [], current, intent);
+    }
+
+    invokeId(id, rawArgs, current, intent = null) {
         const name = this.scriptNames.get(id);
         if( !name ) return this.warnOnce(`script ${id} has no name`);
-        const args = rawArgs.map((arg) => this.hookArg(arg, current));
-        return this.invoke(name, args, current);
+        const args = rawArgs.map((arg) => this.hookArg(arg, current, intent));
+        const previousIntent = this.intent;
+        this.intent = intent;
+        try { return this.invoke(name, args, current); }
+        finally { this.intent = previousIntent; }
     }
 
-    hookArg(arg, current) {
+    hookArg(arg, current, intent = this.intent) {
         if( arg?.type === 'string' ) return arg.value;
         const value = arg?.value ?? arg;
+        const locals = intent?.locals || {};
+        const dragTarget = this.component(intent?.dragTarget);
+        if( value === -2147483647 ) return locals.eventMouseX ?? locals.mouseX ?? 0;
+        if( value === -2147483646 ) return locals.eventMouseY ?? locals.mouseY ?? 0;
         if( value === -2147483645 ) return current;
+        if( value === -2147483644 ) return locals.opIndex ?? 1;
+        if( value === -2147483643 ) return this.subId(current);
+        if( value === -2147483642 ) return dragTarget || 0;
+        if( value === -2147483641 ) return this.subId(dragTarget);
+        if( value === -2147483640 ) return locals.keyTyped ?? -1;
+        if( value === -2147483639 ) return locals.keyPressed ?? -1;
+        if( value === -2147483638 ) return locals.opSubIndex ?? 0;
         return this.component(value) || value;
     }
 
@@ -113,14 +143,16 @@ class Runtime {
          * the procedure identity. */
         const numeric = /^script(\d+)$/.exec(name);
         const canonical = numeric ? this.scriptNames.get(Number(numeric[1])) || name : name;
-        const path = join(this.contentDir, 'scripts', `${canonical}.cs2`);
-        if( !existsSync(path) ) {
+        const record = this.scriptSources.get(canonical) || this.scriptSources.get(name) ||
+            (this.loadScript ? this.loadScript(canonical) : null);
+        if( !record?.source ) {
             this.cache.set(name, null);
+            this.warnOnce(`${canonical}: source is unavailable; bytecode VM support is required`);
             return null;
         }
         try {
-            const source = readFileSync(path, 'utf8');
-            const parsed = { ...parseScript(source), source, file: path, name: canonical };
+            const source = record.source;
+            const parsed = { ...parseScript(source), source, file: record.file || null, name: canonical };
             this.cache.set(name, parsed);
             return parsed;
         } catch( error ) {
@@ -224,6 +256,13 @@ class Runtime {
         if( name.startsWith('~') ) return this.invoke(name.slice(1), [], this.current);
         if( name === 'cc_getid' ) return this.current?.subId ?? -1;
         if( name === '.cc_getid' ) return this.dotCurrent?.subId ?? -1;
+        const getter = /^(\.)?cc_get(width|height|x|y|scrollwidth|scrollheight|scrollx|scrolly|hide|text|layer)$/.exec(name);
+        if( getter ) {
+            const target = getter[1] ? this.dotCurrent : this.current;
+            if( !target ) return 0;
+            return this.host ? this.host.read(`if_get${getter[2]}`, target)
+                : this.call(`if_get${getter[2]}`, [target], env);
+        }
         if( name.startsWith('^') ) return CONSTANTS[name.slice(1)] ?? 0;
         if( name.startsWith('%') ) return this.stateRead(name);
         if( /^interface_\d+:\d+$/.test(name) ) return this.componentName(name);
@@ -256,12 +295,18 @@ class Runtime {
         const [kind, id] = parsed;
         const key = `${kind}:${id}`;
         this.dependencies.set(key, { kind, id });
-        return key in this.state ? this.state[key] : (kind === 'varcstr' ? '' : 0);
+        if( this.host ) return this.host.readState(kind, id);
+        return key in this.state ? this.state[key]
+            : kind === 'varcstr' ? ''
+            : kind === 'varc' ? -1
+            : 0;
     }
 
     stateWrite(name, value) {
         const parsed = this.stateKey(name);
-        if( parsed ) this.state[`${parsed[0]}:${parsed[1]}`] = value;
+        if( !parsed ) return;
+        if( this.host ) this.host.writeState(parsed[0], parsed[1], value, { transmit: false });
+        else this.state[`${parsed[0]}:${parsed[1]}`] = value;
     }
 
     call(rawName, args, env) {
@@ -275,35 +320,54 @@ class Runtime {
         if( name === 'min' ) return Math.min(Number(args[0]), Number(args[1]));
         if( name === 'max' ) return Math.max(Number(args[0]), Number(args[1]));
         if( name === 'testbit' ) return ((Number(args[0]) >>> Number(args[1])) & 1) !== 0;
-        if( name === 'if_getwidth' ) return this.box(this.component(args[0]))?.w ?? 0;
-        if( name === 'if_getheight' ) return this.box(this.component(args[0]))?.h ?? 0;
-        if( name === 'if_getx' ) return this.box(this.component(args[0]))?.relX ?? 0;
-        if( name === 'if_gety' ) return this.box(this.component(args[0]))?.relY ?? 0;
+        if( /^(?:cc|if)_seton/.test(name) ) return this.setSourceHook(name, args, env, dotted);
+        if( name === 'if_getwidth' ) return this.hostRead(name, args[0], 'w');
+        if( name === 'if_getheight' ) return this.hostRead(name, args[0], 'h');
+        if( name === 'if_getx' ) return this.hostRead(name, args[0], 'relX');
+        if( name === 'if_gety' ) return this.hostRead(name, args[0], 'relY');
         if( name === 'if_getscrollwidth' ) {
             const component = this.component(args[0]);
-            return component?.static.scrollWidth || this.box(component)?.w || 0;
+            return this.host ? this.host.read(name, component) :
+                component?.static.scrollWidth || this.box(component)?.w || 0;
         }
         if( name === 'if_getscrollheight' ) {
             const component = this.component(args[0]);
-            return component?.static.scrollHeight || this.box(component)?.h || 0;
+            return this.host ? this.host.read(name, component) :
+                component?.static.scrollHeight || this.box(component)?.h || 0;
         }
-        if( name === 'if_getscrollx' ) return this.component(args[0])?.static.scrollX ?? 0;
-        if( name === 'if_getscrolly' ) return this.component(args[0])?.static.scrollY ?? 0;
+        if( name === 'if_getscrollx' || name === 'if_getscrolly' || name === 'if_gethide' ||
+            name === 'if_gettext' ) {
+            const component = this.component(args[0]);
+            if( this.host ) return component ? this.host.read(name, component) : 0;
+            if( name === 'if_getscrollx' ) return component?.static.scrollX ?? 0;
+            if( name === 'if_getscrolly' ) return component?.static.scrollY ?? 0;
+            if( name === 'if_gethide' ) return Boolean(component?.static.hidden);
+            return component?.static.text ?? '';
+        }
         if( name === 'if_getlayer' ) {
             const component = this.component(args[0]);
+            if( this.host ) return component ? this.host.read(name, component) : null;
             return component?.layer === null ? null : this.byId.get(component?.layer) || null;
         }
-        if( name === 'if_gethide' ) return Boolean(this.component(args[0])?.static.hidden);
-        if( name === 'if_gettext' ) return this.component(args[0])?.static.text ?? '';
         if( name === 'cc_create' ) return this.createDynamic(args, dotted);
         if( name === 'cc_find' ) {
             const parent = this.component(args[0]);
+            if( this.host ) {
+                const foundRef = parent ? this.host.findChild(parent, Number(args[1]) || 0, true, { dot: dotted }) : null;
+                const found = this.component(foundRef);
+                if( dotted ) this.dotCurrent = found || null; else this.current = found || null;
+                return Boolean(found);
+            }
             const found = parent ? this.dynamicByParent.get(`${parent.fileId}:${Number(args[1]) || 0}`) : null;
             if( dotted ) this.dotCurrent = found || null; else this.current = found || null;
             return Boolean(found);
         }
         if( name === 'cc_deleteall' ) {
             const parent = this.component(args[0]);
+            if( parent && this.host ) {
+                this.host.deleteAll(parent);
+                return 0;
+            }
             if( parent ) {
                 this.ir.components = this.ir.components.filter((component) => {
                     if( component.runtimeDynamic && component.layer === parent.fileId ) {
@@ -320,7 +384,8 @@ class Runtime {
         const target = name.startsWith('cc_')
             ? (dotted ? this.dotCurrent : this.current)
             : this.component(args.at(-1));
-        const values = name.startsWith('cc_') ? args : args.slice(0, -1);
+        const values = name.startsWith('cc_') ? [...args] : args.slice(0, -1);
+        if( /^(?:cc|if)_setobject$/.test(name) && values.length === 2 ) values.push(0);
         if( target && this.mutate(name.replace(/^cc_/, 'if_'), target, values) ) return 0;
 
         /* A bare identifier followed by parentheses is a host command in CS2,
@@ -330,7 +395,48 @@ class Runtime {
         return 0;
     }
 
+    setSourceHook(name, args, env, dotted) {
+        if( !this.host ) return 0;
+        const isCc = name.startsWith('cc_');
+        const target = isCc ? (dotted ? this.dotCurrent : this.current) : this.component(args.at(-1));
+        if( !target ) return 0;
+        const trigger = args[0];
+        const eventName = name.replace(/^(?:cc|if)_set/, '');
+        if( trigger === null || trigger === 0 || trigger === '' ) {
+            this.host.setHook(target, eventName, null);
+            return 0;
+        }
+        const parsed = parseTrigger(String(trigger), env, this);
+        if( !parsed ) {
+            this.warnOnce(`${name}: unsupported source trigger ${String(trigger)}`);
+            return 0;
+        }
+        const numeric = /^script(\d+)$/.exec(parsed.name);
+        const id = numeric ? Number(numeric[1]) : this.scriptIds.get(parsed.name);
+        if( !Number.isInteger(id) ) {
+            this.warnOnce(`${name}: trigger script ${parsed.name} has no id`);
+            return 0;
+        }
+        this.host.setHook(target, eventName, {
+            script: { id }, args: parsed.args, triggerIds: parsed.triggerIds,
+        });
+        return 0;
+    }
+
     mutate(name, target, a) {
+        if( this.host ) {
+            try {
+                const values = [...a];
+                if( name === 'if_setgraphic' ) values[0] = this.sprite(values[0]);
+                if( name === 'if_settextfont' ) values[0] = this.namedId(values[0]);
+                if( name === 'if_settext' ) values[0] = interpolate(String(values[0] ?? ''), this);
+                this.host.mutate(name, target, ...values);
+                return true;
+            } catch( error ) {
+                if( error?.code !== 'UNSUPPORTED' ) throw error;
+                return false;
+            }
+        }
         const props = target.static;
         switch( name ) {
             case 'if_sethide': props.hidden = Boolean(a[0]); return true;
@@ -364,7 +470,15 @@ class Runtime {
     createDynamic(args, dotted) {
         const parent = this.component(args[0]);
         const type = Number(args[1]);
-        if( !parent || !TYPE_KIND.has(type) ) return 0;
+        if( !parent ) return 0;
+        if( this.host ) {
+            const ref = this.host.createChild(parent, type, Number(args[2]) || 0, { dot: dotted });
+            const component = this.component(ref);
+            if( dotted ) this.dotCurrent = component;
+            else this.current = component;
+            return component;
+        }
+        if( !TYPE_KIND.has(type) ) return 0;
         const kind = TYPE_KIND.get(type);
         const definition = ELEMENTS[kind];
         const staticProps = Object.fromEntries(Object.entries(definition.props).map(([key, schema]) => [key, schema.default]));
@@ -385,6 +499,10 @@ class Runtime {
 
     component(value) {
         if( value && typeof value === 'object' && value.static ) return value;
+        if( this.host && value && typeof value === 'object' )
+            return this.host.resolve(value);
+        if( this.host && (typeof value === 'string' || Number.isInteger(value)) )
+            return this.host.resolve(value);
         if( typeof value === 'string' && /^interface_\d+:\d+$/.test(value) ) return this.componentName(value);
         if( Number.isInteger(value) ) return this.byUid.get(value) || this.byId.get(value) || null;
         return null;
@@ -392,12 +510,30 @@ class Runtime {
 
     componentName(value) {
         const match = /^interface_(\d+):(\d+)$/.exec(value);
-        return match ? this.byUid.get(Number(match[1]) * 65536 + Number(match[2])) || null : null;
+        if( !match ) return null;
+        const uid = Number(match[1]) * 65536 + Number(match[2]);
+        return this.host ? this.host.resolve(uid) : this.byUid.get(uid) || null;
+    }
+
+    subId(component) {
+        if( !component ) return -1;
+        return this.host ? this.host.ref(component)?.subId ?? -1 : component.subId ?? -1;
+    }
+
+    hostRead(name, value, boxField) {
+        const component = this.component(value);
+        if( !component ) return 0;
+        return this.host ? this.host.read(name, component) : this.box(component)?.[boxField] ?? 0;
     }
 
     /** The same root-to-node, on-demand layout the C CS2 host getters use. */
     box(component, visiting = new Set()) {
         if( !component || visiting.has(component) ) return null;
+        if( this.host ) {
+            const ref = this.host.ref(component);
+            return this.host.layout().find((box) => box.ref?.key === ref?.key &&
+                box.ref?.generation === ref?.generation) || null;
+        }
         visiting.add(component);
         const parent = component.layer === null ? null : this.byId.get(component.layer);
         const parentBox = parent
@@ -438,6 +574,7 @@ class Runtime {
     }
 
     finish() {
+        if( this.host ) return;
         /* Empty dynamic inventory slots have no pixels. Keeping thousands of
          * them would only make the browser tree unusable; decorated children
          * remain and are laid out normally. */
@@ -450,6 +587,10 @@ class Runtime {
             (this.ir.components[0]?.dependencies || []).push(source);
     }
 }
+
+/* Preserve the old local name internally while exposing the session as a
+ * deliberate API to both Node and the browser. */
+const Runtime = SourceRuntimeSession;
 
 function interpolate(value) {
     /* Most decompiled strings contain runtime <tostring(...)> tags. The parser
@@ -634,20 +775,82 @@ class Parser {
     }
 }
 
-function readPack(path) {
+function asNumberMap(value) {
+    if( value instanceof Map ) return new Map(value);
+    const entries = Array.isArray(value) ? value : Object.entries(value || {});
+    return new Map(entries.map(([key, item]) => [Number(key), String(item)]));
+}
+
+function asStringMap(value) {
+    if( value instanceof Map ) return new Map(value);
+    const entries = Array.isArray(value) ? value : Object.entries(value || {});
+    return new Map(entries.map(([key, item]) => [String(key), Number(item)]));
+}
+
+function scriptSourceMap(records = []) {
     const result = new Map();
-    if( !existsSync(path) ) return result;
-    for( const line of readFileSync(path, 'utf8').split(/\r?\n/) ) {
-        const split = line.indexOf('=');
-        if( split < 1 ) continue;
-        const id = Number.parseInt(line.slice(0, split), 10);
-        if( !Number.isNaN(id) ) result.set(id, line.slice(split + 1).trim());
+    for( const record of records || [] ) {
+        if( !record || typeof record.source !== 'string' ) continue;
+        if( record.name ) result.set(String(record.name), record);
+        if( Number.isInteger(record.id) ) result.set(`script${record.id}`, record);
     }
     return result;
 }
 
-function reversePack(path) {
-    return new Map([...readPack(path)].map(([id, name]) => [name, id]));
+function parseTrigger(source, env, runtime) {
+    const match = /^([A-Za-z_][A-Za-z0-9_]*)(?:\s*\((.*?)\))?(?:\{([^}]*)\})?$/.exec(source.trim());
+    if( !match ) return null;
+    const args = splitTriggerArgs(match[2] || '').map((value) => triggerValue(value, env, runtime));
+    const triggerIds = splitTriggerArgs(match[3] || '').map((value) => {
+        const numeric = /(-?\d+)$/.exec(value.trim());
+        return numeric ? Number(numeric[1]) : null;
+    }).filter(Number.isInteger);
+    return { name: match[1], args, triggerIds };
+}
+
+function splitTriggerArgs(source) {
+    if( !source.trim() ) return [];
+    const result = [];
+    let at = 0;
+    let start = 0;
+    let quote = null;
+    let depth = 0;
+    while( at < source.length ) {
+        const char = source[at];
+        if( quote ) {
+            if( char === '\\' ) at++;
+            else if( char === quote ) quote = null;
+        } else if( char === '"' || char === "'" ) quote = char;
+        else if( char === '(' ) depth++;
+        else if( char === ')' ) depth--;
+        else if( char === ',' && depth === 0 ) {
+            result.push(source.slice(start, at).trim());
+            start = at + 1;
+        }
+        at++;
+    }
+    result.push(source.slice(start).trim());
+    return result;
+}
+
+function triggerValue(source, env, runtime) {
+    const sentinels = {
+        event_mousex: -2147483647, event_mousey: -2147483646,
+        event_com: -2147483645, event_op: -2147483644,
+        event_comsubid: -2147483643, event_drop: -2147483642,
+        event_dropsubid: -2147483641, event_keycode: -2147483640,
+        event_keychar: -2147483639, event_opsubindex: -2147483638,
+    };
+    if( source in sentinels ) return sentinels[source];
+    if( env.has(source) ) return env.get(source);
+    if( /^-?\d+$/.test(source) ) return Number(source);
+    if( source === 'true' || source === '^true' ) return 1;
+    if( source === 'false' || source === '^false' || source === 'null' ) return 0;
+    if( (source.startsWith('"') && source.endsWith('"')) ||
+        (source.startsWith("'") && source.endsWith("'")) )
+        return source.slice(1, -1);
+    if( source.startsWith('^') ) return CONSTANTS[source.slice(1)] ?? 0;
+    return runtime.component(source) || source;
 }
 
 function bindParameters(params, args) {

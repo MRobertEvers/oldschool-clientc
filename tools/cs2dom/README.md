@@ -61,6 +61,7 @@ cd tools/cs2dom
 npm install          # one dependency: typescript
 make -C ../../src torirs
 make -C ../../3rd/rscache/tools cachepack
+make wasm           # compile the existing C cs2vm2 for the browser
 npm start            # dev server + browser, watching example/ui/*.tsx
 ```
 
@@ -75,12 +76,16 @@ on demand, rebuilds the parent/child component tree into cs2dom's React-style IR
 and shows a read-only decompiled `.tsx` view beside the original records. The
 records are never copied into `ui/` or modified.
 
-For presentation, cs2dom makes a content-addressed copy-on-write Dat2 overlay,
-replaces the selected interface and every reachable source CS2 script, and asks
-the production C client to boot and render it. That means the preview uses the
-same App, UITree, CS2 VM, bitmap fonts, sprites, models, animation, clipping,
-dynamic children and Soft3D rasterizer as the client itself. A warm overlay is
-reused; editing the `.if` or one of its reachable scripts gives it a new key.
+For presentation, cs2dom mounts that IR into a browser-owned HostRuntime. The
+preview remains a normal React/DOM-style component tree: cache scripts mutate
+the same components synchronously, conditional hooks can create and delete
+children, cache bitmap fonts and sprites paint into their boxes, and models use
+the toridraw WASM component. Script execution is not reimplemented in
+JavaScript: Emscripten compiles the repository's existing `src/cs2vm2` C VM to
+WASM. Each C HOST request crosses a synchronous bridge to the JavaScript
+HostRuntime, which owns and updates the React-style tree. The production C
+client remains available as a reference oracle, but its framebuffer is not the
+interactive UI.
 
 The same browser can open a Dat2 cache without an OSRS-Content checkout:
 
@@ -90,14 +95,15 @@ node bin/cs2dom.js dev --project example \
 ```
 
 `--rev` is the cachepack profile name; cache formats are revision-sensitive, so it
-is stated rather than guessed. The exact frame reads that Dat2 cache directly.
-On first open, cs2dom also asks the repository's `cachepack` to decode the
-interfaces, clientscripts, sprites and models into a read-only tree under the OS
-temporary directory. That derived tree supplies the searchable catalog, records
-pane and diagnostic authored-component fallback. It is keyed by every cache
-file, the revision and cachepack build, so subsequent opens reuse it and a
-changed cache invalidates it automatically. The disposable `cs2dom-dat2`
-directory may be removed from the OS temporary directory at any time.
+is stated rather than guessed. On first open, cs2dom asks the repository's
+`cachepack` to decode interfaces, readable clientscripts, sprites, fonts and
+models into a read-only tree under the OS temporary directory, and retains the
+original clientscript bytes for the C CS2VM compiled to WASM. That derived tree
+supplies the searchable catalog, live React tree and records pane. It is keyed
+by every cache file, the revision and cachepack build, so subsequent opens reuse
+it and a changed cache invalidates it automatically. The disposable
+`cs2dom-dat2` directory may be removed from the OS temporary directory at any
+time.
 
 When the project has `content` and a Dat2 cache is supplied as above, the picker
 shows both **OSRS-Content** and **Dat2 cache** groups. The same interface may appear
@@ -181,29 +187,27 @@ Each slice declares three things:
   that cannot be tested. Variables and stats get sliders; an inventory gets an
   item/count editor, since `inv_getnum` asks about contents rather than a number.
 
-A read with no model — `enum`, the `db_*` commands — is **listed in the page as
-unmodelled** rather than answered with a zero. A preview that quietly invents
-values is worse than one that admits what it is guessing.
+Cache enums, object/parameter/struct records and font metrics are loaded once per
+selected source for synchronous HOST lookups. A read with no model — currently
+the `db_*` commands and world/account services that were not supplied — is
+**listed in the page as unmodelled** rather than answered with a zero. A preview
+that quietly invents values is worse than one that admits what it is guessing.
 
 ## Preview fidelity
 
-An **OSRS-Content** or **Dat2 cache** selection is rendered by the production C
-client into one framebuffer. There is no parallel browser implementation in
-that path: layout, conditional CS2, component mutation, runtime-created children,
-cache fonts, sprites, item and player models, animation, clipping, blending and
-rasterization all come from the same code that renders the game. The transparent
-HTML boxes on top are inspector hit regions only and never repaint client pixels.
+**Authored TSX**, **OSRS-Content** and **Dat2 cache** selections all use the same
+live browser component runtime. `src/preview.js` ports the C layout and clipping
+rules; HostRuntime implements the component and input host API; cache bitmap
+fonts and sprites use their original assets; models use toridraw WASM. Imported
+hooks run during mount and every mouse, keyboard, transmit and timer event can
+mutate the tree before it is repainted.
 
-An unsaved **Authored TSX** selection is different: it has no cache record for
-the C client to open yet. It therefore keeps the fast diagnostic renderer while
-you edit. `src/preview.js` ports the C layout and clipping rules, real cache
-sprites are used, and models use toridraw WASM. Build the component to put it
-through the authoritative native path.
-
-The native preview is offline, so state that normally comes from a logged-in
-server starts at the C client's own boot defaults. The controls seed supported
-varp, varbit, varc and stat values before UITree build and `onLoad`; they do not
-invent an account, inventory or world scene that was never supplied.
+State that normally comes from a logged-in server starts at explicit preview
+defaults. The controls seed supported varp, varbit, varc and stat values before
+HostRuntime mounts `onLoad`; they do not invent an account, inventory or world
+scene that was never supplied. Editing state is a draft until **Save** is
+pressed, and hot reload replaces only the preview/tree/records so that draft and
+keyboard focus survive source changes.
 
 ## Commands
 
@@ -277,8 +281,9 @@ would be authoring something the format does not have.
   runtime, so those props are written correctly but do not arrive.
 - No common-subexpression elimination — an expression used by two props of one
   component is emitted twice.
-- Unsaved authored TSX uses the diagnostic browser renderer until it is built;
-  imported OSRS-Content and Dat2 records use the exact native framebuffer.
+- If no original or compiled `.cs2b` is available, the preview says that scripts
+  are not running. There is no JavaScript bytecode VM or silent engine switch;
+  original Dat2 clientscript bytes run directly in the C CS2VM/WASM runtime.
 
 ## Layout of the source
 
@@ -297,7 +302,11 @@ would be authoring something the format does not have.
 | `src/eval.js` | evaluating the IR against made-up state |
 | `src/preview.js` | the client's IF3 layout, ported |
 | `src/content.js` | `.if`/`.compack` → preview IR and read-only React-style TSX |
-| `src/cache_runtime.js` | bounded source-CS2 runtime for imported hooks and dynamic UI |
+| `src/bytecode.js` | original/compiled `.cs2b` program transport for the C VM |
+| `src/wasm_runtime.js` | browser adapter for the C VM ABI and synchronous HOST bridge |
+| `src/host_runtime.js`, `src/host_data.js` | JavaScript HOST implementation over the live React-style tree |
+| `wasm/` | narrow Emscripten ABI around the existing `src/cs2vm2` implementation |
+| `src/cache_runtime.js` | bounded source analysis used while importing readable records |
 | `src/model.js` | cache model records → entity-viewer wire bridge for toridraw/WASM |
 | `src/dat2.js` | selective, cached Dat2 → read-only content source |
 | `src/native_overlay.js` | selected `.if` + reachable CS2 → keyed COW Dat2 overlay |

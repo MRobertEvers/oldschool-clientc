@@ -55,19 +55,35 @@ export function prepareDat2Project(project, options = {}) {
 
     const log = options.log || (() => {});
     log(`  decoding Dat2 cache ${cache}`);
-    log('  first open extracts interfaces, clientscripts, sprites and models; later opens reuse it');
+    log('  first open extracts interfaces, clientscripts, sprites, models, fonts and HOST lookup data; later opens reuse it');
 
     const staging = mkdtempSync(join(cacheRoot, `${key}.staging-`));
     const args = [
         'unpack', '--cache', cache, '--rev', project.revision, '--src', staging,
-        '--types', 'varp,varbit,inv,varc',
-        '--assets=interfaces,scripts,sprites,models', '--warn', '5',
+        '--types', 'varp,varbit,inv,varc,enum,obj,param,struct',
+        '--assets=interfaces,scripts,sprites,models,fonts', '--warn', '5',
     ];
     const run = spawnSync(tool, args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
     if( run.status !== 0 ) {
         rmSync(staging, { recursive: true, force: true });
         const output = `${run.stdout || ''}${run.stderr || ''}`.trim();
         throw new Error(`cachepack could not open ${cache}:\n${output || `exit ${run.status}`}`);
+    }
+
+    /* Keep the original clientscript payloads beside the readable source tree.
+     * Imported Dat2 interfaces execute these bytes directly in the C/WASM VM,
+     * avoiding a lossy decompile/recompile cycle. */
+    const raw = join(staging, '.raw');
+    const rawArgs = [
+        'unpack', '--cache', cache, '--rev', project.revision, '--src', raw,
+        '--types', 'varp', '--assets=scripts', '--raw-assets', '--warn', '5',
+    ];
+    const rawRun = spawnSync(tool, rawArgs, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
+    if( rawRun.status !== 0 ) {
+        rmSync(staging, { recursive: true, force: true });
+        const output = `${rawRun.stdout || ''}${rawRun.stderr || ''}`.trim();
+        throw new Error(`cachepack could not extract raw clientscripts from ${cache}:\n` +
+            (output || `exit ${rawRun.status}`));
     }
 
     writeFileSync(join(staging, '.cs2dom-ready.json'), JSON.stringify({
@@ -102,7 +118,7 @@ export function dat2CacheKey(cacheDir, revision, tool) {
             return [name, info.size, info.mtimeMs];
         });
     return createHash('sha256').update(JSON.stringify({
-        schema: 2,
+        schema: 4,
         cache,
         revision,
         files,
@@ -162,6 +178,7 @@ function derivedProject(project, cache, content, reused) {
          * a cache-only project uses the derived ledgers instead. */
         content: project.content || content,
         dat2Content: content,
+        dat2RawScripts: join(content, '.raw', 'scripts'),
         contentSource: project.content ? 'content' : 'dat2',
         derivedContent: true,
         reusedDat2Decode: reused,

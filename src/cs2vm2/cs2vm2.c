@@ -3529,8 +3529,21 @@ cs2vm2_op_cc_get_int(
         break
     switch( kind )
     {
+        CS2VM_CC_GET_INT_CASE(CC_GETLAYER);
+        CS2VM_CC_GET_INT_CASE(CC_GETSCROLLX);
+        CS2VM_CC_GET_INT_CASE(CC_GETSCROLLY);
+        CS2VM_CC_GET_INT_CASE(CC_GETSCROLLWIDTH);
+        CS2VM_CC_GET_INT_CASE(CC_GETSCROLLHEIGHT);
+        CS2VM_CC_GET_INT_CASE(CC_GETMODELZOOM);
+        CS2VM_CC_GET_INT_CASE(CC_GETMODELANGLE_X);
+        CS2VM_CC_GET_INT_CASE(CC_GETMODELANGLE_Z);
+        CS2VM_CC_GET_INT_CASE(CC_GETMODELANGLE_Y);
+        CS2VM_CC_GET_INT_CASE(CC_GETBLENDTRANS);
         CS2VM_CC_GET_INT_CASE(CC_GETCOLOUR);
         CS2VM_CC_GET_INT_CASE(CC_GETFILLCOLOUR);
+        CS2VM_CC_GET_INT_CASE(CC_GETMODELTRANSPARENT);
+        CS2VM_CC_GET_INT_CASE(CC_GETARCSTART);
+        CS2VM_CC_GET_INT_CASE(CC_GETARCEND);
         CS2VM_CC_GET_INT_CASE(CC_GETINVOBJECT);
         CS2VM_CC_GET_INT_CASE(CC_GETINVCOUNT);
         CS2VM_CC_GET_INT_CASE(CC_GETTARGETMASK);
@@ -3567,8 +3580,14 @@ cs2vm2_op_if_get_int(
         break
     switch( kind )
     {
+        CS2VM_IF_GET_INT_CASE(IF_GETMODELZOOM);
+        CS2VM_IF_GET_INT_CASE(IF_GETMODELANGLE_X);
+        CS2VM_IF_GET_INT_CASE(IF_GETMODELANGLE_Z);
+        CS2VM_IF_GET_INT_CASE(IF_GETMODELANGLE_Y);
+        CS2VM_IF_GET_INT_CASE(IF_GETTRANS);
         CS2VM_IF_GET_INT_CASE(IF_GETCOLOUR);
         CS2VM_IF_GET_INT_CASE(IF_GETFILLCOLOUR);
+        CS2VM_IF_GET_INT_CASE(IF_GETMODELTRANSPARENT);
         CS2VM_IF_GET_INT_CASE(IF_GETINVOBJECT);
         CS2VM_IF_GET_INT_CASE(IF_GETINVCOUNT);
         CS2VM_IF_GET_INT_CASE(IF_GETTARGETMASK);
@@ -3577,6 +3596,45 @@ cs2vm2_op_if_get_int(
         return CS2VM_EXECNO_ERROR;
     }
 #undef CS2VM_IF_GET_INT_CASE
+    return vm->vm->host_exec(vm, &request);
+}
+
+static int
+cs2vm2_op_cc_get_opbase(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+
+    struct CS2VM_HostRequest request;
+    request.kind = CS2VM_HOST_REQUEST_CC_GETOPBASE;
+    memset(&request.u.CC_GETOPBASE, 0, sizeof(request.u.CC_GETOPBASE));
+    request.u.CC_GETOPBASE.component_id = CS2VM2_DotOrActiveComponentId(vm, operand);
+    return vm->vm->host_exec(vm, &request);
+}
+
+static int
+cs2vm2_op_if_get_opbase(
+    struct CS2VM2_Thread* vm,
+    struct CS2VM2_Frame* frame,
+    int operand)
+{
+    assert(vm);
+    assert(frame);
+    (void)frame;
+    (void)operand;
+
+    int component_id;
+    if( CS2VM2_PopInt(vm, &component_id) != CS2VM_EXECNO_OK )
+        return CS2VM_EXECNO_ERROR;
+
+    struct CS2VM_HostRequest request;
+    request.kind = CS2VM_HOST_REQUEST_IF_GETOPBASE;
+    memset(&request.u.IF_GETOPBASE, 0, sizeof(request.u.IF_GETOPBASE));
+    request.u.IF_GETOPBASE.component_id = component_id;
     return vm->vm->host_exec(vm, &request);
 }
 
@@ -11492,20 +11550,56 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_GetHeight(vm, frame, operand);
     case CS2_OP_CC_GETHIDE:
         return CS2VM2_Op_CC_GetHide(vm, frame, operand);
+    case CS2_OP_CC_GETLAYER:
+        return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETLAYER);
 
     /* === CS2 opcode group: cc-appearance (1600..1699) ===
      * active-component appearance getters.
      * rev-239 dispatch: Statics.method6889 -> method6296. */
+    case CS2_OP_CC_GETSCROLLX:
+        return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETSCROLLX);
+    case CS2_OP_CC_GETSCROLLY:
+        return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETSCROLLY);
     case CS2_OP_CC_GETTEXT:
         return CS2VM2_Op_CC_GetText(vm, frame, operand);
+    case CS2_OP_CC_GETSCROLLWIDTH:
+        return cs2vm2_op_cc_get_int(
+            vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETSCROLLWIDTH);
+    case CS2_OP_CC_GETSCROLLHEIGHT:
+        return cs2vm2_op_cc_get_int(
+            vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETSCROLLHEIGHT);
+    case CS2_OP_CC_GETMODELZOOM:
+        return cs2vm2_op_cc_get_int(
+            vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETMODELZOOM);
+    case CS2_OP_CC_GETMODELANGLE_X:
+        return cs2vm2_op_cc_get_int(
+            vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETMODELANGLE_X);
+    case CS2_OP_CC_GETMODELANGLE_Z:
+        return cs2vm2_op_cc_get_int(
+            vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETMODELANGLE_Z);
+    case CS2_OP_CC_GETMODELANGLE_Y:
+        return cs2vm2_op_cc_get_int(
+            vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETMODELANGLE_Y);
     case CS2_OP_CC_GETCOLOUR:
         return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETCOLOUR);
     case CS2_OP_CC_GETFILLCOLOUR:
         return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETFILLCOLOUR);
     case CS2_OP_CC_GETTRANS:
         return CS2VM2_Op_CC_GetTrans(vm, frame, operand);
+    case CS2_OP_CC_GETBLENDTRANS:
+        return cs2vm2_op_cc_get_int(
+            vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETBLENDTRANS);
     case CS2_OP_CC_GETPARAM:
         return CS2VM2_Op_CC_GetParam(vm, frame, operand);
+    case CS2_OP_CC_GETMODELTRANSPARENT:
+        return cs2vm2_op_cc_get_int(
+            vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETMODELTRANSPARENT);
+    case CS2_OP_CC_GETARCSTART:
+        return cs2vm2_op_cc_get_int(
+            vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETARCSTART);
+    case CS2_OP_CC_GETARCEND:
+        return cs2vm2_op_cc_get_int(
+            vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETARCEND);
 
     /* === CS2 opcode group: cc-inventory (1700..1799) ===
      * active-component inventory and identity getters.
@@ -11528,6 +11622,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_CC_GetOp(vm, frame, operand);
     case CS2_OP_CC_GETTARGETMASK:
         return cs2vm2_op_cc_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_CC_GETTARGETMASK);
+    case CS2_OP_CC_GETOPBASE:
+        return cs2vm2_op_cc_get_opbase(vm, frame, operand);
 
     /* === CS2 opcode group: component-action (1900..1999 / 2900..2999) ===
      * component resize and trigger actions.
@@ -11566,12 +11662,29 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_GetScrollHeight(vm, frame, operand);
     case CS2_OP_IF_GETTEXT:
         return CS2VM2_Op_IF_GetText(vm, frame, operand);
+    case CS2_OP_IF_GETMODELZOOM:
+        return cs2vm2_op_if_get_int(
+            vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETMODELZOOM);
+    case CS2_OP_IF_GETMODELANGLE_X:
+        return cs2vm2_op_if_get_int(
+            vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETMODELANGLE_X);
+    case CS2_OP_IF_GETMODELANGLE_Z:
+        return cs2vm2_op_if_get_int(
+            vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETMODELANGLE_Z);
+    case CS2_OP_IF_GETMODELANGLE_Y:
+        return cs2vm2_op_if_get_int(
+            vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETMODELANGLE_Y);
+    case CS2_OP_IF_GETTRANS:
+        return cs2vm2_op_if_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETTRANS);
     case CS2_OP_IF_GETCOLOUR:
         return cs2vm2_op_if_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETCOLOUR);
     case CS2_OP_IF_GETFILLCOLOUR:
         return cs2vm2_op_if_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETFILLCOLOUR);
     case CS2_OP_IF_GETSCROLLWIDTH:
         return CS2VM2_Op_IF_GetScrollWidth(vm, frame, operand);
+    case CS2_OP_IF_GETMODELTRANSPARENT:
+        return cs2vm2_op_if_get_int(
+            vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETMODELTRANSPARENT);
 
     /* === CS2 opcode group: if-inventory (2700..2799) ===
      * interface inventory, parent and identity getters.
@@ -11598,6 +11711,8 @@ CS2VM2_RunOp(
         return CS2VM2_Op_IF_GetOp(vm, frame, operand);
     case CS2_OP_IF_GETTARGETMASK:
         return cs2vm2_op_if_get_int(vm, frame, operand, CS2VM_HOST_REQUEST_IF_GETTARGETMASK);
+    case CS2_OP_IF_GETOPBASE:
+        return cs2vm2_op_if_get_opbase(vm, frame, operand);
 
     /* === CS2 opcode group: client (3000..3199) ===
      * general client commands and preferences.
