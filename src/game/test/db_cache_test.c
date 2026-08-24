@@ -71,7 +71,7 @@ call_db(
 {
     struct CS2VM_HostRequest req;
     memset(&req, 0, sizeof(req));
-    req.kind = CS2VM_HOST_REQUEST_DB;
+    req.kind = (enum CS2VM_HostRequestKind)opcode;
     req.u.db.opcode = opcode;
     return RS_CS2Host_Exec(t, &req);
 }
@@ -100,7 +100,7 @@ test_await_isolation(
     a = CS2VM2_ThreadMain(&vm_a);
     b = CS2VM2_ThreadMain(&vm_b);
 
-    req_a.kind = CS2VM_HOST_REQUEST_ENUM_LOOKUP;
+    req_a.kind = CS2VM_HOST_REQUEST_ENUM;
     req_a.u.enum_lookup.enum_id = 1000000001;
     req_a.u.enum_lookup.input_type = 'i';
     req_a.u.enum_lookup.output_type = 'i';

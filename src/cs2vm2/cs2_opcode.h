@@ -2,8 +2,8 @@
 #ifndef CS2_OPCODE_H
 #define CS2_OPCODE_H
 
-#define CS2_OPCODE_MAX 7510
-#define CS2_OPCODE_COUNT 858
+#define CS2_OPCODE_MAX 8024
+#define CS2_OPCODE_COUNT 886
 
 #define CS2_OP_SS_AND -2
 #define CS2_OP_SS_OR -1
@@ -346,6 +346,8 @@
  * notes: sets active to the copy; used by the bank tab strip builder
  */
 #define CS2_OP_CC_COPY 105
+#define CS2_OP_CC_CREATECHILD 106
+#define CS2_OP_CC_CREATESIBLING 107
 /* CC_FIND — Find child by sub-id.
  * int stack in:   parent, sub                     (sub = top)
  * str stack in:   -
@@ -381,6 +383,14 @@
  *        has it and the family is otherwise complete.
  */
 #define CS2_OP_OVERLAY_CC_FIND 203
+#define CS2_OP_CC_CHILDREN_FINDNEXTID 204
+#define CS2_OP_IF_CHILDREN_FIND 205
+#define CS2_OP_IF_CHILDREN_FINDNEXTID 206
+#define CS2_OP_IF_CHILDREN_COLLECT 211
+#define CS2_OP_CC_CHILDREN_FIND_COUNT 212
+#define CS2_OP_CC_CHILDREN_FINDNEXT 213
+#define CS2_OP__213 213
+#define CS2_OP_CHILDREN_ARRAY 215
 /* CC_SETPOSITION — Set position modes.
  * int stack in:   x, y, x_mode, y_mode  (y_mode = top)
  * str stack in:   -
@@ -503,10 +513,28 @@
 #define CS2_OP_CC_SETHFLIP 1119
 #define CS2_OP_CC_SETSCROLLSIZE 1120
 #define CS2_OP_CC_RESUME_PAUSEBUTTON 1121
-#define CS2_OP__1122 1122
+/* CC_SETGRAPHIC2 — Set secondary sprite graphic.
+ * int stack in:   graphic_id
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_CC_SETGRAPHIC2 1122
 #define CS2_OP_CC_SETFILLCOLOUR 1123
-#define CS2_OP__1124 1124
-#define CS2_OP__1125 1125
+/* CC_SETTRANSBOT — Set bottom transparency.
+ * int stack in:   trans
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_CC_SETTRANSBOT 1124
+/* CC_SETFILLMODE — Set fill mode.
+ * int stack in:   fill_mode
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_CC_SETFILLMODE 1125
 #define CS2_OP_CC_SETLINEDIRECTION 1126
 #define CS2_OP_CC_SETMODELTRANSPARENT 1127
 /* CC_SETARC — Set the arc's start and end angle on the active child.
@@ -543,6 +571,20 @@
 #define CS2_OP_CC_SETOBJECT 1200
 #define CS2_OP_CC_SETNPCHEAD 1201
 #define CS2_OP_CC_SETPLAYERHEAD_SELF 1202
+/* CC_SETPLAYERMODEL_SELF — Set the active child's model to the local player.
+ * int stack in:   model_id
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_CC_SETPLAYERMODEL_SELF 1203
+/* CC_SETMODEL_PLAYERCHATHEAD — Set the active child's model to a player chathead.
+ * int stack in:   player_id
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_CC_SETMODEL_PLAYERCHATHEAD 1204
 /* CC_SETOBJECT_NONUM — Set object icon without qty.
  * int stack in:   obj_id
  * str stack in:   -
@@ -1099,10 +1141,28 @@
  */
 #define CS2_OP_IF_SETSCROLLSIZE 2120
 #define CS2_OP_IF_RESUME_PAUSEBUTTON 2121
-#define CS2_OP__2122 2122
+/* IF_SETGRAPHIC2 — Set secondary sprite graphic.
+ * int stack in:   graphic_id, component  (component = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_IF_SETGRAPHIC2 2122
 #define CS2_OP_IF_SETFILLCOLOUR 2123
-#define CS2_OP__2124 2124
-#define CS2_OP__2125 2125
+/* IF_SETTRANSBOT — Set bottom transparency.
+ * int stack in:   trans, component  (component = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_IF_SETTRANSBOT 2124
+/* IF_SETFILLMODE — Set fill mode.
+ * int stack in:   fill_mode, component  (component = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_IF_SETFILLMODE 2125
 #define CS2_OP_IF_SETLINEDIRECTION 2126
 /* IF_SETMODELTRANSPARENT — Set model transparency.
  * int stack in:   transparent, component  (component = top)
@@ -1232,6 +1292,13 @@
 #define CS2_OP_IF_SETOBJECT 2200
 #define CS2_OP_IF_SETNPCHEAD 2201
 #define CS2_OP_IF_SETPLAYERHEAD_SELF 2202
+/* IF_SETMODEL_PLAYERCHATHEAD — Set a component's model to a player chathead.
+ * int stack in:   player_id, component  (component = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_IF_SETMODEL_PLAYERCHATHEAD 2203
 /* IF_SETOBJECT_NONUM — Set object icon without qty.
  * int stack in:   obj_id, obj_count, component  (component = top)
  * str stack in:   -
@@ -1303,7 +1370,13 @@
  * str stack out:  -
  */
 #define CS2_OP_IF_CLEAROPS 2307
-#define CS2_OP__2308 2308
+/* IF_SETCLICKMASK — Set click mask.
+ * int stack in:   click_mask, component  (component = top)
+ * str stack in:   -
+ * int stack out:  -
+ * str stack out:  -
+ */
+#define CS2_OP_IF_SETCLICKMASK 2308
 /* IF_OP2309 — Client stub: pop component + one int and discard.
  * int stack in:   value, component  (component = top)
  * str stack in:   -
@@ -2138,6 +2211,7 @@
 #define CS2_OP_COS_DEG 4033
 #define CS2_OP__4034 4034
 #define CS2_OP_ABS 4035
+#define CS2_OP_STRING_TO_INT 4036
 /* APPEND_NUM — Append int as decimal.
  * int stack in:   value
  * str stack in:   dest
@@ -3285,6 +3359,8 @@
 #define CS2_OP_OVERLAY_COORD_DESTROY 7214
 #define CS2_OP_MINIMAP_SETZOOMABLE 7250
 #define CS2_OP_MINIMAP_SETZOOM 7252
+#define CS2_OP_MINIMAP_GETZOOM 7253
+#define CS2_OP_MINIMAP_SETICONZOOMLIMIT 7254
 /* Client database family. Read DBROW config (kind 38) and the DBTABLEINDEX
  * (cache table 21); see CS2VM2_Op_Db / exec_db. */
 #define CS2_OP_DB_FIND_WITH_COUNT 7500

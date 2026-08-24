@@ -1057,6 +1057,18 @@ test-cs2-discard: $(OBJ_DIR) $(filter-out $(OBJ_DIR)/main.o,$(OBJS))
 		cs2vm2/test/discard_ops_test.c $(filter-out $(OBJ_DIR)/main.o,$(OBJS)) $(LDFLAGS)
 	./$(OBJ_DIR)/cs2_discard_ops_test
 
+.PHONY: test-cs2-opcode-groups
+test-cs2-opcode-groups: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_opcode_group_test \
+		cs2vm2/test/opcode_group_test.c cs2vm2/cs2_opcode_meta.c $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_opcode_group_test
+
+.PHONY: test-cs2-host-request-kinds
+test-cs2-host-request-kinds: $(OBJ_DIR)
+	$(CC) $(CFLAGS) -o $(OBJ_DIR)/cs2_host_request_kinds_test \
+		cs2vm2/test/host_request_kinds_test.c $(LDFLAGS)
+	./$(OBJ_DIR)/cs2_host_request_kinds_test
+
 # Procedural-texture coverage report over a 643-era cache. Not a pass/fail test â it
 # names the unported operation blocking the most textures, which is the number to work
 # against while porting. Run from the repo root so the default cache path resolves.

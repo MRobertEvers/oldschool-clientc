@@ -242,7 +242,7 @@ test_standard_sizes_exist_before_first_packet(void)
         fx.invs.source_count == 0 && fx.invs.container_count == 0,
         "the host starts with zero live inventory sources and containers");
 
-    request.kind = CS2VM_HOST_REQUEST_INVS_GET_SIZE;
+    request.kind = CS2VM_HOST_REQUEST_INV_SIZE;
     request.u.invs_get_size.inv_id = INV_MANAGER_CONTAINER_BACKPACK;
 
     CHECK(

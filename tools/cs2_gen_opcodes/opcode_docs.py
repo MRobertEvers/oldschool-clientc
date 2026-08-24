@@ -354,6 +354,18 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Set sprite graphic",
         int_in=("graphic_id",),
     ),
+    "CC_SETGRAPHIC2": OpcodeDoc(
+        summary="Set secondary sprite graphic",
+        int_in=("graphic_id",),
+    ),
+    "CC_SETTRANSBOT": OpcodeDoc(
+        summary="Set bottom transparency",
+        int_in=("trans",),
+    ),
+    "CC_SETFILLMODE": OpcodeDoc(
+        summary="Set fill mode",
+        int_in=("fill_mode",),
+    ),
     "CC_SETPOSITION": OpcodeDoc(
         summary="Set position modes",
         int_in=("x", "y", "x_mode", "y_mode"),
@@ -385,6 +397,14 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     "CC_SETOBJECT_NONUM": OpcodeDoc(
         summary="Set object icon without qty",
         int_in=("obj_id",),
+    ),
+    "CC_SETPLAYERMODEL_SELF": OpcodeDoc(
+        summary="Set the active child's model to the local player",
+        int_in=("model_id",),
+    ),
+    "CC_SETMODEL_PLAYERCHATHEAD": OpcodeDoc(
+        summary="Set the active child's model to a player chathead",
+        int_in=("player_id",),
     ),
     "CC_SETCOMPONENTPARAM": OpcodeDoc(
         summary="Write a param onto the component's runtime param table",
@@ -526,6 +546,22 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
         summary="Set graphic",
         int_in=("graphic_id", "component"),
     ),
+    "IF_SETGRAPHIC2": OpcodeDoc(
+        summary="Set secondary sprite graphic",
+        int_in=("graphic_id", "component"),
+    ),
+    "IF_SETTRANSBOT": OpcodeDoc(
+        summary="Set bottom transparency",
+        int_in=("trans", "component"),
+    ),
+    "IF_SETFILLMODE": OpcodeDoc(
+        summary="Set fill mode",
+        int_in=("fill_mode", "component"),
+    ),
+    "IF_SETCLICKMASK": OpcodeDoc(
+        summary="Set click mask",
+        int_in=("click_mask", "component"),
+    ),
     "IF_SETCOLOUR": OpcodeDoc(
         summary="Set colour",
         int_in=("component", "colour"),
@@ -568,6 +604,10 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     "IF_SETMODEL": OpcodeDoc(
         summary="Set model id",
         int_in=("model_id", "component"),
+    ),
+    "IF_SETMODEL_PLAYERCHATHEAD": OpcodeDoc(
+        summary="Set a component's model to a player chathead",
+        int_in=("player_id", "component"),
     ),
     "IF_SETMODELTRANSPARENT": OpcodeDoc(
         summary="Set model transparency",
@@ -1397,6 +1437,221 @@ OPCODE_DOCS: dict[str, OpcodeDoc] = {
     ),
     "WORLDMAP_STOPCURRENTFLASHES": OpcodeDoc(
         summary="Clear every active flash",
+    ),
+    # --- Rev-239 component/native extensions recovered locally ---
+    "OVERLAY_CC_CREATE": OpcodeDoc(
+        summary="Create a dynamic child in a scripted entity overlay layer",
+        int_in=("overlay", "type", "child_index"),
+        notes=(
+            "The parent is an overlay index, not a component id. Sets the active "
+            "component to the new child; dynamic layers (type 0) and child-slot "
+            "gaps are rejected. See game/rs_entity_overlay.h."
+        ),
+    ),
+    "OVERLAY_CC_DELETEALL": OpcodeDoc(
+        summary="Delete every dynamic child from a scripted entity overlay layer",
+        int_in=("overlay",),
+    ),
+    "OVERLAY_FIND": OpcodeDoc(
+        summary="Make a scripted entity overlay layer the active component",
+        int_in=("overlay",),
+        int_out=("1 if found (active set) else 0",),
+        notes=(
+            "This is opcode 202 even though the vendored decompiler maps both "
+            "_202 and _203 to 202. Rev-239 call sites pass one argument; treating "
+            "it as the old guessed CC_FINDROOT leaks an int."
+        ),
+    ),
+    "OVERLAY_CC_FIND": OpcodeDoc(
+        summary="Find a dynamic child inside a scripted entity overlay layer",
+        int_in=("overlay", "sub"),
+        int_out=("1 if found (active set) else 0",),
+        notes="Opcode 203; completes the reference overlay-layer family.",
+    ),
+    "IF_SETPARAM": OpcodeDoc(
+        summary="Write a runtime param onto a named component",
+        int_in=("param_id", "value", "component_uid", "child_index", "type"),
+        str_in=("value when type names a string",),
+        notes=(
+            "Variable arity: type 2/115 takes the value from the string stack, "
+            "so the integer `value` is absent. child_index -1 names the component "
+            "itself. Rev-239 call sites identify this opcode; IF_HASCHILD_MODAL is "
+            "retained only as a legacy source alias."
+        ),
+    ),
+    "IF_TRIGGEROPLOCAL": OpcodeDoc(
+        summary="Synthesize a server component click with typed arguments",
+        int_in=("crc", "component", "child_index", "typed ints"),
+        str_in=("typed strings", "signature"),
+        notes=(
+            "Variable arity is described by the signature. The rev-239 wire op is "
+            "IF_SCRIPT_TRIGGER; this client adapts it to IF_BUTTON1."
+        ),
+    ),
+    "SOUND_SONG_WITHSECONDARY": OpcodeDoc(
+        summary="Play a song with a secondary track and cross-fade settings",
+        int_in=(
+            "primary",
+            "secondary",
+            "fade_out_delay",
+            "fade_out_speed",
+            "fade_in_delay",
+            "fade_in_speed",
+        ),
+        notes=(
+            "Named _3221 upstream. Script 9630 falls back to SOUND_SONG when its "
+            "secondary lookup returns -1, which identifies the operation."
+        ),
+    ),
+    "LOC_FIND": OpcodeDoc(
+        summary="Find a location of a given type at a tile and make it active",
+        int_in=("coord", "loc_type"),
+        int_out=("1 if found (active loc set) else 0",),
+        notes=(
+            "Static-overlay scripts use this as their scene-presence gate; later "
+            "active-loc and OVERLAY_LOC operations address the selected location."
+        ),
+    ),
+    "COORD_INSCENE": OpcodeDoc(
+        summary="Test whether a packed coordinate is inside the loaded scene",
+        int_in=("coord",),
+        int_out=("1 if inside the build area else 0",),
+        notes=(
+            "The coordinate-anchored twin of LOC_FIND; overlays recheck it as the "
+            "scene window moves."
+        ),
+    ),
+    "OVERLAY_NPC_CREATE": OpcodeDoc(
+        summary="Attach an overlay to the active NPC",
+        int_in=("slot", "band", "width", "height", "source_coord"),
+        int_out=("overlay index (-1 when none)",),
+    ),
+    "OVERLAY_LOC_CREATE": OpcodeDoc(
+        summary="Attach an overlay to the active location",
+        int_in=("slot", "band", "width", "height", "source_coord"),
+        int_out=("overlay index (-1 when none)",),
+        notes=(
+            "Anchored at the location coord and layer, so separate locations on "
+            "one tile retain separate overlays."
+        ),
+    ),
+    "OVERLAY_PLAYER_CREATE": OpcodeDoc(
+        summary="Attach an overlay to the active player",
+        int_in=("slot", "band", "width", "height", "source_coord"),
+        int_out=("overlay index (-1 when none)",),
+    ),
+    "OVERLAY_COORD_CREATE": OpcodeDoc(
+        summary="Attach an overlay to a bare tile",
+        int_in=("coord", "slot", "band", "width", "height", "source_coord"),
+        int_out=("overlay index (-1 when none)",),
+    ),
+    "OVERLAY_NPC_GET": OpcodeDoc(
+        summary="Get one overlay attached to the active NPC",
+        int_in=("slot",),
+        int_out=("overlay index (-1 when none)",),
+        notes=(
+            "The vendored signature incorrectly recorded zero inputs; the slot "
+            "must be popped or the integer stack leaks."
+        ),
+    ),
+    "OVERLAY_LOC_GET": OpcodeDoc(
+        summary="Get one overlay attached to the active location",
+        int_in=("slot",),
+        int_out=("overlay index (-1 when none)",),
+    ),
+    "OVERLAY_PLAYER_GET": OpcodeDoc(
+        summary="Get one overlay attached to the active player",
+        int_in=("slot",),
+        int_out=("overlay index (-1 when none)",),
+    ),
+    "OVERLAY_COORD_GET": OpcodeDoc(
+        summary="Get one overlay attached to a tile",
+        int_in=("coord", "slot"),
+        int_out=("overlay index (-1 when none)",),
+    ),
+    "OVERLAY_NPC_DESTROY": OpcodeDoc(
+        summary="Destroy one overlay attached to the active NPC",
+        int_in=("slot",),
+    ),
+    "OVERLAY_LOC_DESTROY": OpcodeDoc(
+        summary="Destroy one overlay attached to the active location",
+        int_in=("slot",),
+    ),
+    "OVERLAY_PLAYER_DESTROY": OpcodeDoc(
+        summary="Destroy one overlay attached to the active player",
+        int_in=("slot",),
+    ),
+    "OVERLAY_COORD_DESTROY": OpcodeDoc(
+        summary="Destroy one overlay attached to a tile",
+        int_in=("coord", "slot"),
+    ),
+    "LOOT_SOURCE_TOTALVAL": OpcodeDoc(
+        summary="Get the recorded kill count for one loot source",
+        str_in=("source_name",),
+        int_out=("kill_count",),
+        notes=(
+            "The historical name says TOTALVAL, but scripts use this as a source "
+            "kill count. GP totals are calculated from item widgets."
+        ),
+    ),
+    "LOOT_ADD": OpcodeDoc(
+        summary="Write one kill-drop row into the native loot store",
+        int_in=("obj", "qty", "event_id"),
+        str_in=("source_name",),
+        notes=(
+            "event_id batches multi-item kills so each event increments the kill "
+            "count once; rows merge by (source name, object id)."
+        ),
+    ),
+    "ARRAY_SORT_ALL": OpcodeDoc(
+        summary="Sort two paired arrays by the first array",
+        str_in=("primary handle", "secondary handle"),
+        notes=(
+            "Sorts primary ascending (lexically for strings, numerically otherwise) "
+            "and applies the same permutation to secondary. Array handles travel "
+            "on the string stack at this revision."
+        ),
+    ),
+    "ARRAY_COUNT_MATCHES": OpcodeDoc(
+        summary="Count matching cells in a typed array range",
+        int_in=("typed value", "start", "end", "value_type"),
+        str_in=("array handle", "typed value when string"),
+        int_out=("match_count",),
+        notes=(
+            "Variable arity: value_type selects the value stack. Counts [start, "
+            "end); a negative end means the array end."
+        ),
+    ),
+    "ARRAY_LENGTH": OpcodeDoc(
+        summary="Get the element count of an array handle",
+        str_in=("array handle",),
+        int_out=("length",),
+    ),
+    "ARRAY_SPLIT": OpcodeDoc(
+        summary="Split a string into a new string-array handle",
+        str_in=("text", "separator"),
+        str_out=("array handle",),
+    ),
+    "ARRAY_JOIN": OpcodeDoc(
+        summary="Join a string array with a separator",
+        str_in=("array handle", "separator"),
+        str_out=("joined text",),
+    ),
+    "ARRAY_NEW": OpcodeDoc(
+        summary="Create a typed array handle",
+        int_in=("type_code", "length", "capacity"),
+        str_out=("array handle",),
+    ),
+    "ARRAY_SETLENGTH": OpcodeDoc(
+        summary="Resize an array handle",
+        int_in=("length",),
+        str_in=("array handle",),
+    ),
+    "ARRAY_APPEND": OpcodeDoc(
+        summary="Append a typed value to an array handle",
+        int_in=("typed value", "value_type"),
+        str_in=("array handle", "typed value when string"),
+        notes="Variable arity: value_type selects the value stack.",
     ),
     # --- Entity highlight (7000..7044) ---
     #

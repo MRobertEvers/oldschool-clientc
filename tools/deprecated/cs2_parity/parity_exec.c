@@ -262,11 +262,12 @@ parity_bare_host_exec(
         return CS2VM_EXECNO_ERROR;
     switch( request->kind )
     {
-    case CS2VM_HOST_REQUEST_ENUM_LOOKUP:
+    case CS2VM_HOST_REQUEST_ENUM_STRING:
+    case CS2VM_HOST_REQUEST_ENUM:
         return CS2VMX_PushInt(vm, request->u.enum_lookup.key);
     case CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT:
         return CS2VMX_PushInt(vm, 0);
-    case CS2VM_HOST_REQUEST_PUSHSCRIPT:
+    case CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS:
     {
         struct CS2_Script* script = parity_resolve_script(request->u.push_script.script_id);
         if( !script )

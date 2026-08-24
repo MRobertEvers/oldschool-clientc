@@ -25,7 +25,8 @@ recording_host_exec(struct CS2VM2_Thread* thread, struct CS2VM_HostRequest* requ
     struct RecordingHost* host = (struct RecordingHost*)thread->vm->user;
     host->calls++;
     host->kind = request->kind;
-    if( request->kind == CS2VM_HOST_REQUEST_IF_SETTARGETVERB )
+    if( request->kind == CS2VM_HOST_REQUEST_CC_SETTARGETVERB ||
+        request->kind == CS2VM_HOST_REQUEST_IF_SETTARGETVERB )
     {
         host->component_id = request->u.if_set_target_verb.component_id;
         snprintf(host->text, sizeof(host->text), "%s", request->u.if_set_target_verb.text);
@@ -234,7 +235,7 @@ main(void)
 
     if( run_target_verb(CS2_OP_CC_SETTARGETVERB, 1, -1, inventory, child, &host) !=
             CS2VM_EXECNO_DONE ||
-        host.calls != 1 || host.kind != CS2VM_HOST_REQUEST_IF_SETTARGETVERB ||
+        host.calls != 1 || host.kind != CS2VM_HOST_REQUEST_CC_SETTARGETVERB ||
         host.component_id != child || strcmp(host.text, "Use") != 0 )
     {
         fputs("CC_SETTARGETVERB did not preserve its dot target and text\n", stderr);

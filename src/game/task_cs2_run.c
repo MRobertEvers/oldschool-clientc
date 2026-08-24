@@ -309,26 +309,75 @@ task_cs2_set_int_local(
     }
 }
 
+static bool
+task_cs2_kind_is_widget_set_int(enum CS2VM_HostRequestKind kind)
+{
+    switch( kind )
+    {
+    case CS2VM_HOST_REQUEST_CC_SETPINCH:
+    case CS2VM_HOST_REQUEST_CC_SETNOSCROLLTHROUGH:
+    case CS2VM_HOST_REQUEST_CC_SETLINEWID:
+    case CS2VM_HOST_REQUEST_CC_SET2DANGLE:
+    case CS2VM_HOST_REQUEST_CC_SETMODELANIM:
+    case CS2VM_HOST_REQUEST_CC_SETMODELORTHOG:
+    case CS2VM_HOST_REQUEST_CC_SETVFLIP:
+    case CS2VM_HOST_REQUEST_CC_SETHFLIP:
+    case CS2VM_HOST_REQUEST_CC_SETFILLCOLOUR:
+    case CS2VM_HOST_REQUEST_CC_SETTRANSBOT:
+    case CS2VM_HOST_REQUEST_CC_SETFILLMODE:
+    case CS2VM_HOST_REQUEST_CC_SETLINEDIRECTION:
+    case CS2VM_HOST_REQUEST_CC_SETMODELTRANSPARENT:
+    case CS2VM_HOST_REQUEST_CC_SETOPFORCELEFTCLICK:
+    case CS2VM_HOST_REQUEST_IF_SETPINCH:
+    case CS2VM_HOST_REQUEST_IF_SETNOCLICKTHROUGH:
+    case CS2VM_HOST_REQUEST_IF_SETNOSCROLLTHROUGH:
+    case CS2VM_HOST_REQUEST_IF_SETLINEWID:
+    case CS2VM_HOST_REQUEST_IF_SET2DANGLE:
+    case CS2VM_HOST_REQUEST_IF_SETMODELANIM:
+    case CS2VM_HOST_REQUEST_IF_SETMODELORTHOG:
+    case CS2VM_HOST_REQUEST_IF_SETVFLIP:
+    case CS2VM_HOST_REQUEST_IF_SETHFLIP:
+    case CS2VM_HOST_REQUEST_IF_SETFILLCOLOUR:
+    case CS2VM_HOST_REQUEST_IF_SETTRANSBOT:
+    case CS2VM_HOST_REQUEST_IF_SETFILLMODE:
+    case CS2VM_HOST_REQUEST_IF_SETLINEDIRECTION:
+    case CS2VM_HOST_REQUEST_IF_SETMODELTRANSPARENT:
+    case CS2VM_HOST_REQUEST_IF_SETDRAGDEADZONE:
+    case CS2VM_HOST_REQUEST_IF_SETDRAGDEADTIME:
+    case CS2VM_HOST_REQUEST_IF_SETCLICKMASK:
+        return true;
+    default:
+        return false;
+    }
+}
+
 static int
 task_cs2_group_id_from_request(struct CS2VM_HostRequest const* request)
 {
     assert(request);
+    if( task_cs2_kind_is_widget_set_int(request->kind) )
+        return (request->u.widget_set_int.component_id >> 16) & 0xffff;
+
     switch( request->kind )
     {
     case CS2VM_HOST_REQUEST_CC_CREATE:
         return (request->u.cc_create.parent_id >> 16) & 0xffff;
     case CS2VM_HOST_REQUEST_CC_COPY:
         return (request->u.cc_copy.parent_id >> 16) & 0xffff;
+    case CS2VM_HOST_REQUEST_CC_CREATECHILD:
+    case CS2VM_HOST_REQUEST_CC_CREATESIBLING:
+        return (request->u.cc_create.parent_id >> 16) & 0xffff;
     case CS2VM_HOST_REQUEST_CC_FIND:
         return (request->u.cc_find.parent_id >> 16) & 0xffff;
     case CS2VM_HOST_REQUEST_IF_FIND:
         return (request->u.if_find.component_id >> 16) & 0xffff;
-    case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND:
-        return (request->u.cc_children_find.parent_id >> 16) & 0xffff;
     case CS2VM_HOST_REQUEST_IF_CHILDREN_FIND:
+    case CS2VM_HOST_REQUEST_IF_CHILDREN_COLLECT:
         return (request->u.if_children_find.uid >> 16) & 0xffff;
-    case CS2VM_HOST_REQUEST_WIDGET_SET_INT:
-        return (request->u.widget_set_int.component_id >> 16) & 0xffff;
+    case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND_COUNT:
+        return (request->u.cc_children_find.parent_id >> 16) & 0xffff;
+    case CS2VM_HOST_REQUEST_CC_CHILDREN_FINDNEXT:
+        return (request->u.cc_find.parent_id >> 16) & 0xffff;
     default:
         return -1;
     }
@@ -339,22 +388,29 @@ static int
 task_cs2_mount_parent_id_from_request(struct CS2VM_HostRequest const* request)
 {
     assert(request);
+    if( task_cs2_kind_is_widget_set_int(request->kind) )
+        return request->u.widget_set_int.component_id;
+
     switch( request->kind )
     {
     case CS2VM_HOST_REQUEST_CC_CREATE:
         return request->u.cc_create.parent_id;
     case CS2VM_HOST_REQUEST_CC_COPY:
         return request->u.cc_copy.parent_id;
+    case CS2VM_HOST_REQUEST_CC_CREATECHILD:
+    case CS2VM_HOST_REQUEST_CC_CREATESIBLING:
+        return request->u.cc_create.parent_id;
     case CS2VM_HOST_REQUEST_CC_FIND:
         return request->u.cc_find.parent_id;
     case CS2VM_HOST_REQUEST_IF_FIND:
         return request->u.if_find.component_id;
-    case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND:
-        return request->u.cc_children_find.parent_id;
     case CS2VM_HOST_REQUEST_IF_CHILDREN_FIND:
+    case CS2VM_HOST_REQUEST_IF_CHILDREN_COLLECT:
         return request->u.if_children_find.uid;
-    case CS2VM_HOST_REQUEST_WIDGET_SET_INT:
-        return request->u.widget_set_int.component_id;
+    case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND_COUNT:
+        return request->u.cc_children_find.parent_id;
+    case CS2VM_HOST_REQUEST_CC_CHILDREN_FINDNEXT:
+        return request->u.cc_find.parent_id;
     default:
         return -1;
     }
@@ -539,22 +595,8 @@ task_cs2_plan_obj(struct Task_CS2Run* self)
 {
     switch( self->pending->kind )
     {
-    case CS2VM_HOST_REQUEST_OC_PARAM:
-        /* Same pairing as task_cs2_plan_struct: objtype + ParamType. */
-        self->await_id = self->pending->u.oc_param.item_id;
-        self->await_id2 = self->pending->u.oc_param.param_id;
-        break;
     case CS2VM_HOST_REQUEST_OC_NAME:
         self->await_id = self->pending->u.oc_name.item_id;
-        break;
-    case CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER:
-    case CS2VM_HOST_REQUEST_OC_PLACEHOLDER:
-        /* Both directions live in the same request payload (the union aliases
-         * `oc_placeholder` onto `oc_unplaceholder`). */
-        self->await_id = self->pending->u.oc_unplaceholder.item_id;
-        break;
-    case CS2VM_HOST_REQUEST_OC_INT_PARAM:
-        self->await_id = self->pending->u.oc_int_param.item_id;
         break;
     case CS2VM_HOST_REQUEST_OC_OP:
         self->await_id = self->pending->u.oc_op.item_id;
@@ -562,8 +604,29 @@ task_cs2_plan_obj(struct Task_CS2Run* self)
     case CS2VM_HOST_REQUEST_OC_IOP:
         self->await_id = self->pending->u.oc_iop.item_id;
         break;
+    case CS2VM_HOST_REQUEST_OC_COST:
+    case CS2VM_HOST_REQUEST_OC_STACKABLE:
+    case CS2VM_HOST_REQUEST_OC_CERT:
+    case CS2VM_HOST_REQUEST_OC_UNCERT:
+    case CS2VM_HOST_REQUEST_OC_MEMBERS:
+        self->await_id = self->pending->u.oc_int_param.item_id;
+        break;
+    case CS2VM_HOST_REQUEST_OC_PLACEHOLDER:
+    case CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER:
+        /* Both directions live in the same request payload (the union aliases
+         * `oc_placeholder` onto `oc_unplaceholder`). */
+        self->await_id = self->pending->u.oc_unplaceholder.item_id;
+        break;
+    case CS2VM_HOST_REQUEST_OC_SHIFTCLICKIOP:
+        self->await_id = self->pending->u.oc_shiftclickiop.item_id;
+        break;
     case CS2VM_HOST_REQUEST_OC_EXAMINE:
         self->await_id = self->pending->u.oc_examine.item_id;
+        break;
+    case CS2VM_HOST_REQUEST_OC_PARAM:
+        /* Same pairing as task_cs2_plan_struct: objtype + ParamType. */
+        self->await_id = self->pending->u.oc_param.item_id;
+        self->await_id2 = self->pending->u.oc_param.param_id;
         break;
     default:
         assert(0 && "task_cs2_plan_obj: unexpected kind");
@@ -657,7 +720,9 @@ task_cs2_plan_widget_set_model_kind(struct Task_CS2Run* self)
 static void
 task_cs2_plan_setobject(struct Task_CS2Run* self)
 {
-    if( self->pending->kind == CS2VM_HOST_REQUEST_IF_SETOBJECT )
+    if( self->pending->kind == CS2VM_HOST_REQUEST_IF_SETOBJECT ||
+        self->pending->kind == CS2VM_HOST_REQUEST_IF_SETOBJECT_NONUM ||
+        self->pending->kind == CS2VM_HOST_REQUEST_IF_SETOBJECT_ALWAYS_NUM )
     {
         self->yield_obj_id = self->pending->u.if_set_object.obj_id;
         self->yield_obj_count = self->pending->u.if_set_object.count;
@@ -693,7 +758,8 @@ task_cs2_plan_setgraphic(struct Task_CS2Run* self)
 static void
 task_cs2_plan_font(struct Task_CS2Run* self)
 {
-    if( self->pending->kind == CS2VM_HOST_REQUEST_CC_SETTEXTFONT )
+    if( self->pending->kind == CS2VM_HOST_REQUEST_CC_SETTEXTFONT ||
+        self->pending->kind == CS2VM_HOST_REQUEST_IF_SETTEXTFONT )
         self->await_id = self->pending->u.cc_set_text_font.font_id;
     else
         self->await_id = self->pending->u.para_height.font_id;
@@ -703,6 +769,28 @@ task_cs2_plan_font(struct Task_CS2Run* self)
         return;
     }
     self->yield_plan = TASK_CS2_YIELD_FONT;
+}
+
+static bool
+task_cs2_kind_is_worldmap(enum CS2VM_HostRequestKind kind)
+{
+    return (kind >= CS2VM_HOST_REQUEST_WORLDMAP_INIT &&
+            kind <= CS2VM_HOST_REQUEST_WORLDMAP_LISTELEMENT_NEXT) ||
+           (kind >= CS2VM_HOST_REQUEST_WORLDMAP_ELEMENT &&
+            kind <= CS2VM_HOST_REQUEST_WORLDMAP_ELEMENTCOORD);
+}
+
+static bool
+task_cs2_kind_is_mapelement(enum CS2VM_HostRequestKind kind)
+{
+    return kind >= CS2VM_HOST_REQUEST_MEC_TEXT && kind <= CS2VM_HOST_REQUEST_MEC_SPRITE;
+}
+
+static bool
+task_cs2_kind_is_db(enum CS2VM_HostRequestKind kind)
+{
+    return kind >= CS2VM_HOST_REQUEST_DB_FIND_WITH_COUNT &&
+           kind <= CS2VM_HOST_REQUEST_DB_FIND_FILTER;
 }
 
 static void
@@ -719,24 +807,82 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     self->yield_npc_id = -1;
     self->yield_npc_depth = 0;
 
+    /* These exact opcode families share a load plan, not a discriminator. */
+    if( task_cs2_kind_is_widget_set_int(self->pending->kind) )
+    {
+        task_cs2_plan_component(self);
+        return;
+    }
+    if( task_cs2_kind_is_worldmap(self->pending->kind) )
+    {
+        task_cs2_plan_worldmap(self);
+        return;
+    }
+    if( task_cs2_kind_is_mapelement(self->pending->kind) )
+    {
+        task_cs2_plan_mapelement(self);
+        return;
+    }
+    if( task_cs2_kind_is_db(self->pending->kind) )
+    {
+        task_cs2_plan_db(self);
+        return;
+    }
+
     switch( self->pending->kind )
     {
-    case CS2VM_HOST_REQUEST_PUSHSCRIPT:
+    case CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS:
         task_cs2_plan_pushscript(self);
         break;
 
-    case CS2VM_HOST_REQUEST_INVS_GET_SIZE:
-        self->await_id = self->pending->u.invs_get_size.inv_id;
-        self->yield_plan =
-            self->await_id >= 0 ? TASK_CS2_YIELD_INVTYPE : TASK_CS2_YIELD_NONE;
+    case CS2VM_HOST_REQUEST_CC_CREATE:
+    case CS2VM_HOST_REQUEST_CC_COPY:
+    case CS2VM_HOST_REQUEST_CC_CREATECHILD:
+    case CS2VM_HOST_REQUEST_CC_CREATESIBLING:
+    case CS2VM_HOST_REQUEST_CC_FIND:
+    case CS2VM_HOST_REQUEST_IF_FIND:
+    case CS2VM_HOST_REQUEST_IF_CHILDREN_FIND:
+    case CS2VM_HOST_REQUEST_IF_CHILDREN_COLLECT:
+    case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND_COUNT:
+    case CS2VM_HOST_REQUEST_CC_CHILDREN_FINDNEXT:
+        task_cs2_plan_component(self);
         break;
 
-    case CS2VM_HOST_REQUEST_ENUM_LOOKUP:
-    case CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT:
-        task_cs2_plan_enum(self);
+    case CS2VM_HOST_REQUEST_CC_SETGRAPHIC:
+    case CS2VM_HOST_REQUEST_IF_SETGRAPHIC:
+        task_cs2_plan_setgraphic(self);
         break;
 
-    case CS2VM_HOST_REQUEST_STRUCT_PARAM:
+    case CS2VM_HOST_REQUEST_CC_SETMODEL:
+    case CS2VM_HOST_REQUEST_IF_SETMODEL:
+        task_cs2_plan_widget_set_model(self);
+        break;
+
+    case CS2VM_HOST_REQUEST_CC_SETNPCHEAD:
+    case CS2VM_HOST_REQUEST_CC_SETPLAYERHEAD_SELF:
+    case CS2VM_HOST_REQUEST_CC_SETPLAYERMODEL_SELF:
+    case CS2VM_HOST_REQUEST_CC_SETMODEL_PLAYERCHATHEAD:
+    case CS2VM_HOST_REQUEST_IF_SETNPCHEAD:
+    case CS2VM_HOST_REQUEST_IF_SETPLAYERHEAD_SELF:
+    case CS2VM_HOST_REQUEST_IF_SETMODEL_PLAYERCHATHEAD:
+        task_cs2_plan_widget_set_model_kind(self);
+        break;
+
+    case CS2VM_HOST_REQUEST_CC_SETOBJECT:
+    case CS2VM_HOST_REQUEST_CC_SETOBJECT_NONUM:
+    case CS2VM_HOST_REQUEST_CC_SETOBJECT_ALWAYS_NUM:
+    case CS2VM_HOST_REQUEST_IF_SETOBJECT:
+    case CS2VM_HOST_REQUEST_IF_SETOBJECT_NONUM:
+    case CS2VM_HOST_REQUEST_IF_SETOBJECT_ALWAYS_NUM:
+        task_cs2_plan_setobject(self);
+        break;
+
+    case CS2VM_HOST_REQUEST_CC_SETTEXTFONT:
+    case CS2VM_HOST_REQUEST_IF_SETTEXTFONT:
+        task_cs2_plan_font(self);
+        break;
+
+    case CS2VM_HOST_REQUEST_CC_GETPARAM:
         task_cs2_plan_struct(self);
         break;
 
@@ -750,16 +896,37 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
             self->await_id2 >= 0 ? TASK_CS2_YIELD_STRUCT : TASK_CS2_YIELD_NONE;
         break;
 
-    case CS2VM_HOST_REQUEST_DB:
-        task_cs2_plan_db(self);
+    case CS2VM_HOST_REQUEST_INV_SIZE:
+        self->await_id = self->pending->u.invs_get_size.inv_id;
+        self->yield_plan =
+            self->await_id >= 0 ? TASK_CS2_YIELD_INVTYPE : TASK_CS2_YIELD_NONE;
         break;
 
-    case CS2VM_HOST_REQUEST_WORLDMAP:
-        task_cs2_plan_worldmap(self);
+    case CS2VM_HOST_REQUEST_ENUM_STRING:
+    case CS2VM_HOST_REQUEST_ENUM:
+    case CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT:
+        task_cs2_plan_enum(self);
         break;
 
-    case CS2VM_HOST_REQUEST_MEC:
-        task_cs2_plan_mapelement(self);
+    case CS2VM_HOST_REQUEST_PARAHEIGHT:
+    case CS2VM_HOST_REQUEST_PARAWIDTH:
+        task_cs2_plan_font(self);
+        break;
+
+    case CS2VM_HOST_REQUEST_OC_NAME:
+    case CS2VM_HOST_REQUEST_OC_OP:
+    case CS2VM_HOST_REQUEST_OC_IOP:
+    case CS2VM_HOST_REQUEST_OC_COST:
+    case CS2VM_HOST_REQUEST_OC_STACKABLE:
+    case CS2VM_HOST_REQUEST_OC_CERT:
+    case CS2VM_HOST_REQUEST_OC_UNCERT:
+    case CS2VM_HOST_REQUEST_OC_MEMBERS:
+    case CS2VM_HOST_REQUEST_OC_PLACEHOLDER:
+    case CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER:
+    case CS2VM_HOST_REQUEST_OC_SHIFTCLICKIOP:
+    case CS2VM_HOST_REQUEST_OC_EXAMINE:
+    case CS2VM_HOST_REQUEST_OC_PARAM:
+        task_cs2_plan_obj(self);
         break;
 
     /* OC_FIND yields once to bulk-load the whole obj group before its item-name
@@ -767,21 +934,6 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
     case CS2VM_HOST_REQUEST_OC_FIND:
         self->await_id = -1;
         self->yield_plan = TASK_CS2_YIELD_OBJALL;
-        break;
-
-    case CS2VM_HOST_REQUEST_OC_PARAM:
-    case CS2VM_HOST_REQUEST_OC_NAME:
-    case CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER:
-    case CS2VM_HOST_REQUEST_OC_PLACEHOLDER:
-    case CS2VM_HOST_REQUEST_OC_INT_PARAM:
-    case CS2VM_HOST_REQUEST_OC_OP:
-    case CS2VM_HOST_REQUEST_OC_IOP:
-    case CS2VM_HOST_REQUEST_OC_EXAMINE:
-        task_cs2_plan_obj(self);
-        break;
-
-    case CS2VM_HOST_REQUEST_NC_NAME:
-        task_cs2_plan_npc_name(self);
         break;
 
     case CS2VM_HOST_REQUEST_NC_PARAM:
@@ -793,161 +945,12 @@ task_cs2_plan_yield(struct Task_CS2Run* self)
                                : TASK_CS2_YIELD_LOC_PARAM;
         break;
 
-    case CS2VM_HOST_REQUEST_CC_CREATE:
-    case CS2VM_HOST_REQUEST_CC_FIND:
-    case CS2VM_HOST_REQUEST_IF_FIND:
-    case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND:
-    case CS2VM_HOST_REQUEST_IF_CHILDREN_FIND:
-    /* Set-ops yield only when their target's group isn't baked yet (e.g.
-     * search targeting the chatbox group); load + mount it like a find. */
-    case CS2VM_HOST_REQUEST_WIDGET_SET_INT:
-        task_cs2_plan_component(self);
+    case CS2VM_HOST_REQUEST_STRUCT_PARAM:
+        task_cs2_plan_struct(self);
         break;
 
-    case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL:
-        task_cs2_plan_widget_set_model(self);
-        break;
-
-    case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND:
-        task_cs2_plan_widget_set_model_kind(self);
-        break;
-
-    case CS2VM_HOST_REQUEST_CC_SETOBJECT:
-    case CS2VM_HOST_REQUEST_IF_SETOBJECT:
-        task_cs2_plan_setobject(self);
-        break;
-
-    case CS2VM_HOST_REQUEST_CC_SETGRAPHIC:
-    case CS2VM_HOST_REQUEST_IF_SETGRAPHIC:
-        task_cs2_plan_setgraphic(self);
-        break;
-
-    case CS2VM_HOST_REQUEST_PARAHEIGHT:
-    case CS2VM_HOST_REQUEST_PARAWIDTH:
-    case CS2VM_HOST_REQUEST_CC_SETTEXTFONT:
-        task_cs2_plan_font(self);
-        break;
-
-    /* Sync-only: host never yields these for cache loads. Leave YIELD_NONE. */
-    case CS2VM_HOST_REQUEST_INVS_GET_OBJ:
-    case CS2VM_HOST_REQUEST_INVS_GET_NUM:
-    case CS2VM_HOST_REQUEST_INVS_GET_TOTAL:
-    case CS2VM_HOST_REQUEST_VARS_READ_VARP_AKA_PUSH_VAR:
-    case CS2VM_HOST_REQUEST_VARS_READ_VARBIT:
-    case CS2VM_HOST_REQUEST_VARS_READ_VARC_INT:
-    case CS2VM_HOST_REQUEST_KEYHELD:
-    case CS2VM_HOST_REQUEST_KEYPRESSED:
-    case CS2VM_HOST_REQUEST_VARS_READ_VARC_STRING:
-    case CS2VM_HOST_REQUEST_VARS_WRITE_VARC_INT:
-    case CS2VM_HOST_REQUEST_VARS_WRITE_VARC_STRING:
-    case CS2VM_HOST_REQUEST_CC_DELETEALL:
-    case CS2VM_HOST_REQUEST_CC_SETPOSITION:
-    case CS2VM_HOST_REQUEST_CC_SETSIZE:
-    case CS2VM_HOST_REQUEST_CC_SETGRAPHIC2:
-    case CS2VM_HOST_REQUEST_CC_SETTILING:
-    case CS2VM_HOST_REQUEST_CC_SETOUTLINE:
-    case CS2VM_HOST_REQUEST_CC_SETGRAPHICSHADOW:
-    case CS2VM_HOST_REQUEST_CC_SETCOLOUR:
-    case CS2VM_HOST_REQUEST_CC_SETFILL:
-    case CS2VM_HOST_REQUEST_CC_SETTRANS:
-    case CS2VM_HOST_REQUEST_CC_SETNOCLICKTHROUGH:
-    case CS2VM_HOST_REQUEST_CC_SETTEXT:
-    case CS2VM_HOST_REQUEST_CC_SETTEXTALIGN:
-    case CS2VM_HOST_REQUEST_CC_SETTEXTSHADOW:
-    case CS2VM_HOST_REQUEST_CC_SETDRAGGABLE:
-    case CS2VM_HOST_REQUEST_CC_SETDRAGGABLEBEHAVIOR:
-    case CS2VM_HOST_REQUEST_CC_SETDRAGDEADZONE:
-    case CS2VM_HOST_REQUEST_CC_SETDRAGDEADTIME:
-    case CS2VM_HOST_REQUEST_CC_SETOP:
-    case CS2VM_HOST_REQUEST_CC_GETID:
-    case CS2VM_HOST_REQUEST_CC_GETX:
-    case CS2VM_HOST_REQUEST_CC_GETY:
-    case CS2VM_HOST_REQUEST_CC_GETWIDTH:
-    case CS2VM_HOST_REQUEST_CC_GETHEIGHT:
-    case CS2VM_HOST_REQUEST_CC_GETHIDE:
-    case CS2VM_HOST_REQUEST_CC_GETOP:
-    case CS2VM_HOST_REQUEST_CC_GETTEXT:
-    case CS2VM_HOST_REQUEST_CC_GETCOLOUR:
-    case CS2VM_HOST_REQUEST_CC_GETFILLCOLOUR:
-    case CS2VM_HOST_REQUEST_CC_GETINVOBJECT:
-    case CS2VM_HOST_REQUEST_CC_GETINVCOUNT:
-    case CS2VM_HOST_REQUEST_CC_SETCOMPONENTPARAM:
-    case CS2VM_HOST_REQUEST_CC_GETTRANS:
-    case CS2VM_HOST_REQUEST_CC_SETONCLICK:
-    case CS2VM_HOST_REQUEST_CC_SETONHOLD:
-    case CS2VM_HOST_REQUEST_CC_SETONMOUSEOVER:
-    case CS2VM_HOST_REQUEST_CC_SETONMOUSELEAVE:
-    case CS2VM_HOST_REQUEST_CC_SETONDRAG:
-    case CS2VM_HOST_REQUEST_CC_SETONSCROLLWHEEL:
-    case CS2VM_HOST_REQUEST_CC_SETONKEY:
-    case CS2VM_HOST_REQUEST_CC_SETONOP:
-    case CS2VM_HOST_REQUEST_CC_SETONDRAGCOMPLETE:
-    case CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT:
-    case CS2VM_HOST_REQUEST_CC_SETONTIMER:
-    case CS2VM_HOST_REQUEST_CC_SETONVARTRANSMIT:
-    case CS2VM_HOST_REQUEST_CC_SETONINVTRANSMIT:
-    case CS2VM_HOST_REQUEST_CC_SETON_DISCARD:
-    case CS2VM_HOST_REQUEST_CC_SETSCROLLPOS:
-    case CS2VM_HOST_REQUEST_CC_SETSCROLLSIZE:
-    case CS2VM_HOST_REQUEST_ENTITY_OVERLAY:
-    case CS2VM_HOST_REQUEST_CC_RESOLVE_PARENT:
-    case CS2VM_HOST_REQUEST_IF_GETWIDTH:
-    case CS2VM_HOST_REQUEST_IF_GETHEIGHT:
-    case CS2VM_HOST_REQUEST_IF_GETY:
-    case CS2VM_HOST_REQUEST_IF_GETLAYER:
-    case CS2VM_HOST_REQUEST_IF_GETTOP:
-    case CS2VM_HOST_REQUEST_IF_GETSCROLLX:
-    case CS2VM_HOST_REQUEST_IF_GETSCROLLY:
-    case CS2VM_HOST_REQUEST_IF_GETSCROLLHEIGHT:
-    case CS2VM_HOST_REQUEST_IF_GETHIDE:
-    case CS2VM_HOST_REQUEST_IF_GETOP:
-    case CS2VM_HOST_REQUEST_IF_GETX:
-    case CS2VM_HOST_REQUEST_IF_GETTEXT:
-    case CS2VM_HOST_REQUEST_IF_GETCOLOUR:
-    case CS2VM_HOST_REQUEST_IF_GETFILLCOLOUR:
-    case CS2VM_HOST_REQUEST_IF_GETINVOBJECT:
-    case CS2VM_HOST_REQUEST_IF_GETINVCOUNT:
-    case CS2VM_HOST_REQUEST_IF_GETSCROLLWIDTH:
-    case CS2VM_HOST_REQUEST_IF_SETHIDE:
-    case CS2VM_HOST_REQUEST_IF_SETPOSITION:
-    case CS2VM_HOST_REQUEST_IF_SETSIZE:
-    case CS2VM_HOST_REQUEST_IF_SETSCROLLPOS:
-    case CS2VM_HOST_REQUEST_IF_SETSCROLLSIZE:
-    case CS2VM_HOST_REQUEST_IF_SETTEXT:
-    case CS2VM_HOST_REQUEST_IF_SETOUTLINE:
-    case CS2VM_HOST_REQUEST_IF_SETONVARTRANSMIT:
-    case CS2VM_HOST_REQUEST_IF_SETONINVTRANSMIT:
-    case CS2VM_HOST_REQUEST_IF_SETONOP:
-    case CS2VM_HOST_REQUEST_IF_SETONMOUSEOVER:
-    case CS2VM_HOST_REQUEST_IF_SETONMOUSELEAVE:
-    case CS2VM_HOST_REQUEST_IF_SETONMOUSEREPEAT:
-    case CS2VM_HOST_REQUEST_IF_SETONTIMER:
-    case CS2VM_HOST_REQUEST_IF_SETONSCROLLWHEEL:
-    case CS2VM_HOST_REQUEST_IF_SETONKEY:
-    case CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT:
-    case CS2VM_HOST_REQUEST_IF_SETONFRIENDTRANSMIT:
-    case CS2VM_HOST_REQUEST_SOCIAL:
-    case CS2VM_HOST_REQUEST_CHAT:
-    case CS2VM_HOST_REQUEST_MAP_WORLD:
-    case CS2VM_HOST_REQUEST_IF_SETON_DISCARD:
-    case CS2VM_HOST_REQUEST_IF_SETOP:
-    case CS2VM_HOST_REQUEST_IF_SETOPBASE:
-    case CS2VM_HOST_REQUEST_IF_SETTARGETVERB:
-    case CS2VM_HOST_REQUEST_IF_SETOPSUBMENU:
-    case CS2VM_HOST_REQUEST_IF_SETTARGETPRIORITY:
-    case CS2VM_HOST_REQUEST_IF_CLEAROPS:
-    case CS2VM_HOST_REQUEST_IF_CLEAROPSUBMENU:
-    case CS2VM_HOST_REQUEST_WIDGET_SET_OPKEY:
-    case CS2VM_HOST_REQUEST_WIDGET_SET_OPKEY_RATE:
-    case CS2VM_HOST_REQUEST_WIDGET_SET_INT2:
-    case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_ANGLE:
-    case CS2VM_HOST_REQUEST_WIDGET_SET_ARC:
-    case CS2VM_HOST_REQUEST_WIDGET_INPUT_INT:
-    case CS2VM_HOST_REQUEST_CLIENTCLOCK:
-    case CS2VM_HOST_REQUEST_MOUSE_GETX:
-    case CS2VM_HOST_REQUEST_MOUSE_GETY:
-    case CS2VM_HOST_REQUEST_CAM_SETFOLLOWHEIGHT:
-    case CS2VM_HOST_REQUEST_CAM_GETFOLLOWHEIGHT:
+    case CS2VM_HOST_REQUEST_NC_NAME:
+        task_cs2_plan_npc_name(self);
         break;
 
     default:

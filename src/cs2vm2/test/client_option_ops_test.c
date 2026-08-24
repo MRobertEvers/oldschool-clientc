@@ -60,17 +60,14 @@ recording_host_exec(
 
     host->calls++;
     host->kind = request->kind;
-    if( request->kind == CS2VM_HOST_REQUEST_CLIENT_OPTION )
+    host->option = request->u.client_option;
+    switch( request->kind )
     {
-        host->option = request->u.client_option;
-        switch( request->u.client_option.opcode )
-        {
-        case CS2_OP_GETREMOVEROOFS:
-        case CS2_OP_CLIENTOPTION_GET:
-            return CS2VM2_PushInt(thread, host->get_result);
-        default:
-            break;
-        }
+    case CS2VM_HOST_REQUEST_GETREMOVEROOFS:
+    case CS2VM_HOST_REQUEST_CLIENTOPTION_GET:
+        return CS2VM2_PushInt(thread, host->get_result);
+    default:
+        break;
     }
     return CS2VM_EXECNO_OK;
 }
@@ -136,7 +133,7 @@ main(void)
         memset(&host, 0, sizeof(host));
         run_op(&host, CS2_OP_SETREMOVEROOFS, 1, 1, 0);
         CHECK_INT(host.calls, 1, "setremoveroofs reaches the host");
-        CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_CLIENT_OPTION, "request kind");
+        CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_SETREMOVEROOFS, "request kind");
         CHECK_INT(host.option.opcode, CS2_OP_SETREMOVEROOFS, "opcode carried through");
         CHECK_INT(host.option.value, 1, "the pushed flag is the value");
     }
@@ -149,6 +146,7 @@ main(void)
         host.get_result = 1;
         run_op(&host, CS2_OP_GETREMOVEROOFS, 0, 0, 0);
         CHECK_INT(host.calls, 1, "getremoveroofs reaches the host");
+        CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_GETREMOVEROOFS, "getter request kind");
         CHECK_INT(host.option.opcode, CS2_OP_GETREMOVEROOFS, "opcode carried through");
     }
 
@@ -161,8 +159,22 @@ main(void)
         memset(&host, 0, sizeof(host));
         run_op(&host, CS2_OP_CLIENTOPTION_SET, 2, 7, 42);
         CHECK_INT(host.calls, 1, "clientoption_set reaches the host");
+        CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_CLIENTOPTION_SET, "set request kind");
         CHECK_INT(host.option.option_id, 7, "option id (music volume)");
         CHECK_INT(host.option.value, 42, "option value");
+    }
+
+    /* The getter has the same payload shape as the setter, but must remain a
+     * distinct host request and return the host-provided value. */
+    {
+        struct RecordingHost host;
+
+        memset(&host, 0, sizeof(host));
+        host.get_result = 73;
+        run_op(&host, CS2_OP_CLIENTOPTION_GET, 1, 7, 0);
+        CHECK_INT(host.calls, 1, "clientoption_get reaches the host");
+        CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_CLIENTOPTION_GET, "get request kind");
+        CHECK_INT(host.option.option_id, 7, "getter option id");
     }
 
     if( g_fail )

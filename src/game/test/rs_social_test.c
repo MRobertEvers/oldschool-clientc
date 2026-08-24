@@ -168,7 +168,8 @@ recording_host_exec(
 
     host->calls++;
     host->kind = request->kind;
-    if( request->kind == CS2VM_HOST_REQUEST_SOCIAL )
+    if( request->kind == CS2VM_HOST_REQUEST_FRIEND_GETNAME ||
+        request->kind == CS2VM_HOST_REQUEST_FRIEND_ADD )
     {
         host->social = request->u.social;
         snprintf(
@@ -177,7 +178,9 @@ recording_host_exec(
             "%s",
             request->u.social.name ? request->u.social.name : "");
     }
-    if( request->kind == CS2VM_HOST_REQUEST_CHAT )
+    if( request->kind == CS2VM_HOST_REQUEST_CHAT_SETFILTER ||
+        request->kind == CS2VM_HOST_REQUEST_CHAT_SENDPUBLIC ||
+        request->kind == CS2VM_HOST_REQUEST_CHAT_SENDPRIVATE )
     {
         host->chat = request->u.chat;
         snprintf(
@@ -275,7 +278,7 @@ test_vm_dispatch(void)
         memset(&host, 0, sizeof(host));
         run_op(&host, CS2_OP_FRIEND_GETNAME, 0, pushes, 1, NULL, NULL, NULL);
         CHECK(host.calls == 1, "friend_getname reaches the host");
-        CHECK(host.kind == CS2VM_HOST_REQUEST_SOCIAL, "as a SOCIAL request");
+        CHECK(host.kind == CS2VM_HOST_REQUEST_FRIEND_GETNAME, "as a FRIEND_GETNAME request");
         CHECK(host.social.index == 3, "carrying the index it was given, got %d", host.social.index);
     }
 
@@ -287,6 +290,7 @@ test_vm_dispatch(void)
         memset(&host, 0, sizeof(host));
         run_op(&host, CS2_OP_FRIEND_ADD, 0, pushes, 1, strs, NULL, NULL);
         CHECK(host.calls == 1, "friend_add reaches the host");
+        CHECK(host.kind == CS2VM_HOST_REQUEST_FRIEND_ADD, "as a FRIEND_ADD request");
         CHECK(strcmp(host.seen_name, "bob") == 0, "with the name, got \"%s\"", host.seen_name);
     }
 
@@ -304,7 +308,7 @@ test_vm_dispatch(void)
         memset(&host, 0, sizeof(host));
         run_op(&host, CS2_OP_CHAT_SENDPRIVATE, 0, pushes, 2, strs, NULL, NULL);
         CHECK(host.calls == 1, "chat_sendprivate reaches the host");
-        CHECK(host.kind == CS2VM_HOST_REQUEST_CHAT, "as a CHAT request");
+        CHECK(host.kind == CS2VM_HOST_REQUEST_CHAT_SENDPRIVATE, "as a CHAT_SENDPRIVATE request");
         CHECK(strcmp(host.seen_name, "bob") == 0, "addressed to the first argument, got \"%s\"", host.seen_name);
         CHECK(strcmp(host.seen_text, "hi there") == 0, "with the second as the body, got \"%s\"", host.seen_text);
     }
@@ -329,7 +333,7 @@ test_vm_dispatch(void)
         memset(&host, 0, sizeof(host));
         run_op(&host, CS2_OP_CHAT_SENDPUBLIC, 0, pushes, 2, strs, NULL, NULL);
         CHECK(host.calls == 1, "chat_sendpublic reaches the host");
-        CHECK(host.kind == CS2VM_HOST_REQUEST_CHAT, "as a CHAT request");
+        CHECK(host.kind == CS2VM_HOST_REQUEST_CHAT_SENDPUBLIC, "as a CHAT_SENDPUBLIC request");
         CHECK(
             strcmp(host.seen_text, "hi there") == 0,
             "with the first argument as the body, got \"%s\"",
@@ -347,6 +351,7 @@ test_vm_dispatch(void)
         memset(&host, 0, sizeof(host));
         run_op(&host, CS2_OP_CHAT_SETFILTER, 0, pushes, 3, NULL, NULL, NULL);
         CHECK(host.calls == 1, "chat_setfilter reaches the host");
+        CHECK(host.kind == CS2VM_HOST_REQUEST_CHAT_SETFILTER, "as a CHAT_SETFILTER request");
         CHECK(
             host.chat.public_mode == 1 && host.chat.private_mode == 2 && host.chat.trade_mode == 0,
             "with its three modes in source order, got %d/%d/%d",
@@ -403,8 +408,8 @@ test_vm_dispatch(void)
         CHECK(depth == 1, "cc_setonfriendtransmit consumes exactly its own operands, %d left", depth);
         CHECK(top == 0x5EED, "leaving the sentinel below it untouched, got 0x%X", top);
         CHECK(
-            host.kind == CS2VM_HOST_REQUEST_CC_SETON_DISCARD,
-            "and is dropped deliberately rather than falling through to the asserting stub");
+            host.kind == CS2VM_HOST_REQUEST_CC_SETONFRIENDTRANSMIT,
+            "and retains its own request kind while the host drops it deliberately");
     }
 }
 
@@ -421,7 +426,7 @@ call_social(
 {
     struct CS2VM_HostRequest req;
     memset(&req, 0, sizeof(req));
-    req.kind = CS2VM_HOST_REQUEST_SOCIAL;
+    req.kind = (enum CS2VM_HostRequestKind)opcode;
     req.u.social.opcode = opcode;
     req.u.social.index = index;
     req.u.social.name = name;
@@ -531,7 +536,7 @@ test_host_ops(void)
         char body[] = "hi there";
 
         memset(&req, 0, sizeof(req));
-        req.kind = CS2VM_HOST_REQUEST_CHAT;
+        req.kind = CS2VM_HOST_REQUEST_CHAT_SENDPRIVATE;
         req.u.chat.opcode = CS2_OP_CHAT_SENDPRIVATE;
         req.u.chat.name = to;
         req.u.chat.text = body;
@@ -555,7 +560,7 @@ test_host_ops(void)
         char cheat[] = "tele 0,50,50";
 
         memset(&req, 0, sizeof(req));
-        req.kind = CS2VM_HOST_REQUEST_CHAT;
+        req.kind = CS2VM_HOST_REQUEST_DOCHEAT;
         req.u.chat.opcode = CS2_OP_DOCHEAT;
         req.u.chat.text = cheat;
         RS_CS2Host_Exec(t, &req);
@@ -570,7 +575,7 @@ test_host_ops(void)
     {
         struct CS2VM_HostRequest req;
         memset(&req, 0, sizeof(req));
-        req.kind = CS2VM_HOST_REQUEST_CHAT;
+        req.kind = CS2VM_HOST_REQUEST_CHAT_SETFILTER;
         req.u.chat.opcode = CS2_OP_CHAT_SETFILTER;
         req.u.chat.public_mode = 0;
         req.u.chat.private_mode = 2;

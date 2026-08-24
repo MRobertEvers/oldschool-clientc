@@ -1949,7 +1949,7 @@ exec_inv_size(
     if( inv_id >= 0 )
     {
         struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_INVS_GET_SIZE;
+        req.kind = CS2VM_HOST_REQUEST_INV_SIZE;
         req.u.invs_get_size.inv_id = inv_id;
         if( !rs_cs2_await_spent(thread, req.kind, inv_id, -1) )
             return rs_cs2_yield_load(host, thread, &req, inv_id, -1);
@@ -2020,7 +2020,7 @@ exec_push_script(
     if( !script )
     {
         struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_PUSHSCRIPT;
+        req.kind = CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS;
         req.u.push_script.script_id = script_id;
         if( rs_cs2_await_spent(thread, req.kind, script_id, -1) )
         {
@@ -2177,7 +2177,8 @@ static int
 exec_enum_lookup(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_EnumLookup request)
+    struct CS2VM_HostRequest_EnumLookup request,
+    enum CS2VM_HostRequestKind kind)
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
     struct ToriRS_Enum* e = provider ? CacheProvider_EnumGet(provider, request.enum_id) : NULL;
@@ -2192,7 +2193,7 @@ exec_enum_lookup(
         if( request.enum_id >= 0 )
         {
             struct CS2VM_HostRequest req = { 0 };
-            req.kind = CS2VM_HOST_REQUEST_ENUM_LOOKUP;
+            req.kind = kind;
             req.u.enum_lookup = request;
             if( !rs_cs2_await_spent(thread, req.kind, request.enum_id, -1) )
                 return rs_cs2_yield_load(host, thread, &req, request.enum_id, -1);
@@ -2235,7 +2236,8 @@ static int
 exec_worldmap(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_WorldMap request)
+    struct CS2VM_HostRequest_WorldMap request,
+    enum CS2VM_HostRequestKind kind)
 {
     struct RS_WorldMapState* map = host->worldmap;
     struct ToriRS_WorldMapArea* area;
@@ -2251,7 +2253,7 @@ exec_worldmap(
     if( !RS_WorldMap_Sync(map) )
     {
         struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_WORLDMAP;
+        req.kind = kind;
         req.u.worldmap = request;
         if( !rs_cs2_await_spent(thread, req.kind, -1, -1) )
             return rs_cs2_yield_load(host, thread, &req, -1, -1);
@@ -2463,7 +2465,8 @@ static int
 exec_mec(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_MEC request)
+    struct CS2VM_HostRequest_MEC request,
+    enum CS2VM_HostRequestKind kind)
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
     struct ToriRS_MapElement* element =
@@ -2472,7 +2475,7 @@ exec_mec(
     if( !element )
     {
         struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_MEC;
+        req.kind = kind;
         req.u.mec = request;
         if( !rs_cs2_await_spent(thread, req.kind, request.mec_id, -1) )
             return rs_cs2_yield_load(host, thread, &req, request.mec_id, -1);
@@ -3365,7 +3368,8 @@ static int
 exec_struct_param(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_StructParam request)
+    struct CS2VM_HostRequest_StructParam request,
+    enum CS2VM_HostRequestKind kind)
 {
     bool is_string = false;
     int intval = 0;
@@ -3385,7 +3389,7 @@ exec_struct_param(
     if( (!s && request.struct_id >= 0) || (!param && request.param_id >= 0) )
     {
         struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_STRUCT_PARAM;
+        req.kind = kind;
         req.u.struct_param = request;
         if( !rs_cs2_await_spent(thread, req.kind, request.struct_id, request.param_id) )
             return rs_cs2_yield_load(host, thread, &req, request.struct_id, request.param_id);
@@ -3588,7 +3592,8 @@ static int
 exec_oc_int_param(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_OC_IntParam request)
+    struct CS2VM_HostRequest_OC_IntParam request,
+    enum CS2VM_HostRequestKind kind)
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
     struct ToriRS_Objtype* obj =
@@ -3601,7 +3606,7 @@ exec_oc_int_param(
     if( !obj )
     {
         struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_OC_INT_PARAM;
+        req.kind = kind;
         req.u.oc_int_param = request;
         if( !rs_cs2_await_spent(thread, req.kind, request.item_id, -1) )
             return rs_cs2_yield_load(host, thread, &req, request.item_id, -1);
@@ -3851,7 +3856,8 @@ static int
 exec_oc_find(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_OC_Find request)
+    struct CS2VM_HostRequest_OC_Find request,
+    enum CS2VM_HostRequestKind kind)
 {
     struct CacheProvider* provider = rs_cs2_provider(host);
 
@@ -3882,7 +3888,7 @@ exec_oc_find(
         if( !rs_cs2_objtypes_ready(host) )
         {
             struct CS2VM_HostRequest req = { 0 };
-            req.kind = CS2VM_HOST_REQUEST_OC_FIND;
+            req.kind = kind;
             req.u.oc_find = request;
             if( !rs_cs2_await_spent(thread, req.kind, -1, -1) )
                 return rs_cs2_yield_load(host, thread, &req, -1, -1);
@@ -4011,7 +4017,8 @@ static int
 exec_set_graphic(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_CC_SetGraphic request)
+    struct CS2VM_HostRequest_CC_SetGraphic request,
+    enum CS2VM_HostRequestKind kind)
 {
     struct UITree* tree = rs_cs2_tree(host);
     (void)thread;
@@ -4029,7 +4036,7 @@ exec_set_graphic(
     if( request.graphic_id >= 0 && !rs_cs2_sprite_ready(host, request.graphic_id) )
     {
         struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_CC_SETGRAPHIC;
+        req.kind = kind;
         req.u.cc_set_graphic = request;
         if( !rs_cs2_await_spent(thread, req.kind, request.graphic_id, -1) )
             return rs_cs2_yield_load(host, thread, &req, request.graphic_id, -1);
@@ -4063,7 +4070,8 @@ exec_set_object(
     int component_id,
     int obj_id,
     int count,
-    int num_mode)
+    int num_mode,
+    enum CS2VM_HostRequestKind kind)
 {
     struct UITree* tree = rs_cs2_tree(host);
     struct CacheProvider* provider = rs_cs2_provider(host);
@@ -4101,10 +4109,11 @@ exec_set_object(
     if( !provider || ObjModelLoad_NeedsWork(provider, obj_id, count) )
     {
         struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_CC_SETOBJECT;
+        req.kind = kind;
         req.u.cc_set_object.component_id = component_id;
         req.u.cc_set_object.obj_id = obj_id;
         req.u.cc_set_object.count = count;
+        req.u.cc_set_object.num_mode = num_mode;
         if( provider && !rs_cs2_await_spent(thread, req.kind, obj_id, count) )
             return rs_cs2_yield_load(host, thread, &req, obj_id, count);
         if( !provider )
@@ -4239,14 +4248,15 @@ static int
 exec_set_text_font(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* thread,
-    struct CS2VM_HostRequest_CC_SetTextFont request)
+    struct CS2VM_HostRequest_CC_SetTextFont request,
+    enum CS2VM_HostRequestKind kind)
 {
     (void)thread;
 
     if( request.font_id >= 0 && !rs_cs2_font_ready(host, request.font_id) )
     {
         struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_CC_SETTEXTFONT;
+        req.kind = kind;
         req.u.cc_set_text_font = request;
         if( !rs_cs2_await_spent(thread, req.kind, request.font_id, -1) )
             return rs_cs2_yield_load(host, thread, &req, request.font_id, -1);
@@ -4638,7 +4648,8 @@ static int
 exec_cc_create(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest_CC_Create request)
+    struct CS2VM_HostRequest_CC_Create request,
+    enum CS2VM_HostRequestKind kind)
 {
     struct UITree* tree = rs_cs2_tree(host);
     int parent_id = request.parent_id;
@@ -4647,13 +4658,20 @@ exec_cc_create(
     int yield_res;
     struct CS2VM_HostRequest yield_req = { 0 };
 
-    yield_req.kind = CS2VM_HOST_REQUEST_CC_CREATE;
+    yield_req.kind = kind;
     yield_req.u.cc_create = request;
     yield_res = rs_cs2_yield_if_group_missing(host, vm, parent_id, &yield_req);
     if( yield_res != CS2VM_EXECNO_OK )
         return yield_res;
 
     assert(tree);
+
+    if( request.parent_is_sibling )
+    {
+        parent_id = rs_cs2_parent_component_id(tree, request.parent_id);
+        if( parent_id < 0 )
+            return CS2VM_EXECNO_OK;
+    }
 
     /* Group is mounted; a parent that still isn't there cannot be loaded in. */
     parent_idx = UITree_FindByComponentId(tree, parent_id);
@@ -4701,7 +4719,8 @@ static int
 exec_cc_find(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest_CC_Find request)
+    struct CS2VM_HostRequest_CC_Find request,
+    enum CS2VM_HostRequestKind kind)
 {
     struct UITree* tree = rs_cs2_tree(host);
     int found = 0;
@@ -4709,7 +4728,7 @@ exec_cc_find(
     struct CS2VM_HostRequest yield_req = { 0 };
     int32_t parent_idx;
 
-    yield_req.kind = CS2VM_HOST_REQUEST_CC_FIND;
+    yield_req.kind = kind;
     yield_req.u.cc_find = request;
     yield_res = rs_cs2_yield_if_group_missing(host, vm, request.parent_id, &yield_req);
     if( yield_res != CS2VM_EXECNO_OK )
@@ -4776,7 +4795,7 @@ exec_children_find(
     struct CS2VM_HostRequest yield_req = { 0 };
 
     yield_req.kind = kind;
-    if( kind == CS2VM_HOST_REQUEST_CC_CHILDREN_FIND )
+    if( kind == CS2VM_HOST_REQUEST_CC_CHILDREN_FIND_COUNT )
     {
         yield_req.u.cc_children_find.parent_id = parent_id;
         yield_req.u.cc_children_find.start_index = start_index;
@@ -4810,12 +4829,13 @@ static int
 exec_widget_set_model(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest_WidgetSetModel request)
+    struct CS2VM_HostRequest_WidgetSetModel request,
+    enum CS2VM_HostRequestKind kind)
 {
     if( request.model_id >= 0 && !rs_cs2_model_ready(host, request.model_id) )
     {
         struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_WIDGET_SET_MODEL;
+        req.kind = kind;
         req.u.widget_set_model = request;
         if( !rs_cs2_await_spent(vm, req.kind, request.model_id, -1) )
             return rs_cs2_yield_load(host, vm, &req, request.model_id, -1);
@@ -4836,7 +4856,8 @@ static int
 exec_widget_set_model_kind(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest_WidgetSetModelKind request)
+    struct CS2VM_HostRequest_WidgetSetModelKind request,
+    enum CS2VM_HostRequestKind kind)
 {
 #if UITREE_CLICK_DEBUG
     fprintf(
@@ -4850,7 +4871,7 @@ exec_widget_set_model_kind(
         !rs_cs2_model_ready(host, request.model_id) )
     {
         struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND;
+        req.kind = kind;
         req.u.widget_set_model_kind = request;
         if( !rs_cs2_await_spent(vm, req.kind, request.model_id, -1) )
             return rs_cs2_yield_load(host, vm, &req, request.model_id, -1);
@@ -4875,7 +4896,7 @@ exec_widget_set_model_kind(
         if( !rs_cs2_npc_head_ready(host, request.model_id) )
         {
             struct CS2VM_HostRequest req = { 0 };
-            req.kind = CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND;
+            req.kind = kind;
             req.u.widget_set_model_kind = request;
             if( !rs_cs2_await_spent(vm, req.kind, request.model_id, -1) )
                 return rs_cs2_yield_load(host, vm, &req, request.model_id, -1);
@@ -4928,7 +4949,8 @@ static int
 exec_widget_set_int(
     struct RS_CS2Host* host,
     struct CS2VM2_Thread* vm,
-    struct CS2VM_HostRequest_WidgetSetInt request)
+    struct CS2VM_HostRequest_WidgetSetInt request,
+    enum CS2VM_HostRequestKind kind)
 {
     struct UITreeComponent* node = rs_cs2_node(host, request.component_id);
     int32_t idx;
@@ -4939,7 +4961,7 @@ exec_widget_set_int(
          * baked, a still-missing child is a no-op (reference tolerates sets on
          * absent widgets). */
         struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_WIDGET_SET_INT;
+        req.kind = kind;
         req.u.widget_set_int = request;
         return rs_cs2_yield_if_group_missing(host, vm, request.component_id, &req);
     }
@@ -6058,11 +6080,11 @@ rs_cs2_runtime_hook_slot(
     case CS2VM_HOST_REQUEST_IF_SETONKEY:
     case CS2VM_HOST_REQUEST_CC_SETONKEY:
         return &hooks->on_key;
-    case CS2VM_HOST_REQUEST_IF_SETONKEYDOWN:
-    case CS2VM_HOST_REQUEST_CC_SETONKEYDOWN:
+    case CS2VM_HOST_REQUEST_IF_SETONITEMONITEM:
+    case CS2VM_HOST_REQUEST_CC_SETONITEMONITEM:
         return &hooks->on_key_down;
-    case CS2VM_HOST_REQUEST_IF_SETONKEYUP:
-    case CS2VM_HOST_REQUEST_CC_SETONKEYUP:
+    case CS2VM_HOST_REQUEST_IF_SETONCLANSETTINGS:
+    case CS2VM_HOST_REQUEST_CC_SETONCLANSETTINGS:
         return &hooks->on_key_up;
     case CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT:
         /* IF_ only — there is no CC_ misc-transmit request kind at this
@@ -6113,14 +6135,14 @@ rs_cs2_seton_kind_str(enum CS2VM_HostRequestKind kind)
         return "IF_SETONKEY";
     case CS2VM_HOST_REQUEST_CC_SETONKEY:
         return "CC_SETONKEY";
-    case CS2VM_HOST_REQUEST_IF_SETONKEYDOWN:
-        return "IF_SETONKEYDOWN";
-    case CS2VM_HOST_REQUEST_CC_SETONKEYDOWN:
-        return "CC_SETONKEYDOWN";
-    case CS2VM_HOST_REQUEST_IF_SETONKEYUP:
-        return "IF_SETONKEYUP";
-    case CS2VM_HOST_REQUEST_CC_SETONKEYUP:
-        return "CC_SETONKEYUP";
+    case CS2VM_HOST_REQUEST_IF_SETONITEMONITEM:
+        return "IF_SETONITEMONITEM";
+    case CS2VM_HOST_REQUEST_CC_SETONITEMONITEM:
+        return "CC_SETONITEMONITEM";
+    case CS2VM_HOST_REQUEST_IF_SETONCLANSETTINGS:
+        return "IF_SETONCLANSETTINGS";
+    case CS2VM_HOST_REQUEST_CC_SETONCLANSETTINGS:
+        return "CC_SETONCLANSETTINGS";
     case CS2VM_HOST_REQUEST_CC_SETONCLICK:
         return "CC_SETONCLICK";
     case CS2VM_HOST_REQUEST_CC_SETONOP:
@@ -6361,7 +6383,7 @@ db_yield_load(
     int load_id)
 {
     struct CS2VM_HostRequest req = { 0 };
-    req.kind = CS2VM_HOST_REQUEST_DB;
+    req.kind = (enum CS2VM_HostRequestKind)opcode;
     req.u.db.opcode = opcode;
     req.u.db.load_kind = load_kind;
     req.u.db.load_id = load_id;
@@ -6387,7 +6409,8 @@ db_row_or_yield(
     *yielded = false;
     if( row || row_id < 0 )
         return row;
-    if( !rs_cs2_await_spent(thread, CS2VM_HOST_REQUEST_DB, row_id, CS2VM_DB_LOAD_ROW) )
+    if( !rs_cs2_await_spent(
+            thread, (enum CS2VM_HostRequestKind)opcode, row_id, CS2VM_DB_LOAD_ROW) )
     {
         *yielded = true;
         *out_code = db_yield_load(host, thread, opcode, CS2VM_DB_LOAD_ROW, row_id);
@@ -6411,7 +6434,8 @@ db_index_or_yield(
     *yielded = false;
     if( idx || table_id < 0 )
         return idx;
-    if( !rs_cs2_await_spent(thread, CS2VM_HOST_REQUEST_DB, table_id, CS2VM_DB_LOAD_INDEX) )
+    if( !rs_cs2_await_spent(
+            thread, (enum CS2VM_HostRequestKind)opcode, table_id, CS2VM_DB_LOAD_INDEX) )
     {
         *yielded = true;
         *out_code = db_yield_load(host, thread, opcode, CS2VM_DB_LOAD_INDEX, table_id);
@@ -6435,7 +6459,8 @@ db_table_or_yield(
     *yielded = false;
     if( table || table_id < 0 )
         return table;
-    if( !rs_cs2_await_spent(thread, CS2VM_HOST_REQUEST_DB, table_id, CS2VM_DB_LOAD_TABLE) )
+    if( !rs_cs2_await_spent(
+            thread, (enum CS2VM_HostRequestKind)opcode, table_id, CS2VM_DB_LOAD_TABLE) )
     {
         *yielded = true;
         *out_code = db_yield_load(host, thread, opcode, CS2VM_DB_LOAD_TABLE, table_id);
@@ -7500,32 +7525,32 @@ rs_cs2_host_exec_dispatch(
 
     switch( request->kind )
     {
-    case CS2VM_HOST_REQUEST_PUSHSCRIPT:
+    case CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS:
         return exec_push_script(host, vm, request->u.push_script.script_id);
 
-    case CS2VM_HOST_REQUEST_INVS_GET_SIZE:
+    case CS2VM_HOST_REQUEST_INV_SIZE:
         return exec_inv_size(host, vm, request->u.invs_get_size.inv_id);
 
-    case CS2VM_HOST_REQUEST_INVS_GET_OBJ:
+    case CS2VM_HOST_REQUEST_INV_GETOBJ:
         return CS2VM2_PushInt(
             vm,
             rs_cs2_inv_get_obj(host, request->u.invs_get_obj.inv_id, request->u.invs_get_obj.slot));
 
-    case CS2VM_HOST_REQUEST_INVS_GET_NUM:
+    case CS2VM_HOST_REQUEST_INV_GETNUM:
         return CS2VM2_PushInt(
             vm,
             rs_cs2_inv_get_num(host, request->u.invs_get_num.inv_id, request->u.invs_get_num.slot));
 
-    case CS2VM_HOST_REQUEST_INVS_GET_TOTAL:
+    case CS2VM_HOST_REQUEST_INV_TOTAL:
         return CS2VM2_PushInt(
             vm,
             rs_cs2_inv_total(
                 host, request->u.invs_get_total.inv_id, request->u.invs_get_total.item_id));
 
-    case CS2VM_HOST_REQUEST_VARS_READ_VARP_AKA_PUSH_VAR:
+    case CS2VM_HOST_REQUEST_PUSH_VAR:
         return exec_vars_read_varp(host, vm, request->u.vars_read_varp.varp_id);
 
-    case CS2VM_HOST_REQUEST_VARS_READ_VARBIT:
+    case CS2VM_HOST_REQUEST_PUSH_VARBIT:
         return exec_vars_read_varbit(host, vm, request->u.vars_read_varbit.varbit_id);
 
     /* POP_VAR / POP_VARBIT — until 2026-08-02 both popped their value and
@@ -7558,12 +7583,12 @@ rs_cs2_host_exec_dispatch(
      * early-returns on an equal write, so a hook that writes the same value
      * back announces nothing and the cascade stops on its own. Only a genuine
      * new value re-dispatches. */
-    case CS2VM_HOST_REQUEST_VARS_WRITE_VARP_AKA_POP_VAR:
+    case CS2VM_HOST_REQUEST_POP_VAR:
         RS_CS2Host_ScriptWriteVarp(
             host, request->u.vars_write_varp.varp_id, request->u.vars_write_varp.value);
         return CS2VM_EXECNO_OK;
 
-    case CS2VM_HOST_REQUEST_VARS_WRITE_VARBIT:
+    case CS2VM_HOST_REQUEST_POP_VARBIT:
         rs_cs2_settings_record_action(
             host, vm, request->u.vars_write_varbit.varbit_id,
             request->u.vars_write_varbit.value);
@@ -7577,7 +7602,7 @@ rs_cs2_host_exec_dispatch(
             host, request->u.vars_write_varbit.varbit_id, request->u.vars_write_varbit.value);
         return CS2VM_EXECNO_OK;
 
-    case CS2VM_HOST_REQUEST_VARS_READ_VARC_INT:
+    case CS2VM_HOST_REQUEST_PUSH_VARC_INT:
     {
         int id = request->u.vars_read_varc_int.varc_id;
         int value = host->varcs ? VarCManager_GetInt(host->varcs, id) : -1;
@@ -7597,14 +7622,15 @@ rs_cs2_host_exec_dispatch(
         return CS2VM2_PushInt(vm, value);
     }
 
-    case CS2VM_HOST_REQUEST_VARS_READ_VARC_STRING:
+    case CS2VM_HOST_REQUEST_PUSH_VARC_STRING_OLD:
+    case CS2VM_HOST_REQUEST_PUSH_VARC_STRING:
     {
         int id = request->u.vars_read_varc_string.varc_id;
         char const* value = host->varcs ? VarCManager_GetString(host->varcs, id) : "";
         return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, value));
     }
 
-    case CS2VM_HOST_REQUEST_VARS_WRITE_VARC_INT:
+    case CS2VM_HOST_REQUEST_POP_VARC_INT:
     {
         int id = request->u.vars_write_varc_int.varc_id;
         /*
@@ -7636,7 +7662,8 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
     }
 
-    case CS2VM_HOST_REQUEST_VARS_WRITE_VARC_STRING:
+    case CS2VM_HOST_REQUEST_POP_VARC_STRING_OLD:
+    case CS2VM_HOST_REQUEST_POP_VARC_STRING:
     {
         int id = request->u.vars_write_varc_string.varc_id;
         if( host->varcs )
@@ -7644,17 +7671,25 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
     }
 
-    case CS2VM_HOST_REQUEST_ENUM_LOOKUP:
-        return exec_enum_lookup(host, vm, request->u.enum_lookup);
+    case CS2VM_HOST_REQUEST_ENUM_STRING:
+    case CS2VM_HOST_REQUEST_ENUM:
+        return exec_enum_lookup(host, vm, request->u.enum_lookup, request->kind);
 
     case CS2VM_HOST_REQUEST_ENUM_GETOUTPUTCOUNT:
         return exec_enum_output_count(host, vm, request->u.enum_get_output_count);
 
     case CS2VM_HOST_REQUEST_STRUCT_PARAM:
-        return exec_struct_param(host, vm, request->u.struct_param);
+        return exec_struct_param(host, vm, request->u.struct_param, request->kind);
 
-    case CS2VM_HOST_REQUEST_OC_INT_PARAM:
-        return exec_oc_int_param(host, vm, request->u.oc_int_param);
+    case CS2VM_HOST_REQUEST_CC_GETPARAM:
+        return exec_struct_param(host, vm, request->u.struct_param, request->kind);
+
+    case CS2VM_HOST_REQUEST_OC_COST:
+    case CS2VM_HOST_REQUEST_OC_STACKABLE:
+    case CS2VM_HOST_REQUEST_OC_CERT:
+    case CS2VM_HOST_REQUEST_OC_UNCERT:
+    case CS2VM_HOST_REQUEST_OC_MEMBERS:
+        return exec_oc_int_param(host, vm, request->u.oc_int_param, request->kind);
 
     case CS2VM_HOST_REQUEST_OC_NAME:
         return exec_oc_name(host, vm, request->u.oc_name);
@@ -7678,12 +7713,16 @@ rs_cs2_host_exec_dispatch(
         return exec_oc_placeholder(host, vm, request->u.oc_placeholder);
 
     case CS2VM_HOST_REQUEST_OC_FIND:
-        return exec_oc_find(host, vm, request->u.oc_find);
+    case CS2VM_HOST_REQUEST_OC_FINDNEXT:
+    case CS2VM_HOST_REQUEST_OC_FINDRESET:
+        return exec_oc_find(host, vm, request->u.oc_find, request->kind);
 
     case CS2VM_HOST_REQUEST_OC_SHIFTCLICKIOP:
         return exec_oc_shiftclickiop(host, vm, request->u.oc_shiftclickiop);
 
     case CS2VM_HOST_REQUEST_OC_WEARPOS:
+    case CS2VM_HOST_REQUEST_OC_WEARPOS2:
+    case CS2VM_HOST_REQUEST_OC_WEARPOS3:
         return exec_oc_wearpos(vm, request->u.oc_wearpos);
 
     case CS2VM_HOST_REQUEST_OC_WEIGHT:
@@ -7717,7 +7756,7 @@ rs_cs2_host_exec_dispatch(
          * cannot tell it from a position. */
         return CS2VM2_PushInt(vm, host->local_coord);
 
-    case CS2VM_HOST_REQUEST_DEST_COORD:
+    case CS2VM_HOST_REQUEST__3330:
         return CS2VM2_PushInt(vm, host->dest_coord);
 
     case CS2VM_HOST_REQUEST_STAT:
@@ -7739,16 +7778,80 @@ rs_cs2_host_exec_dispatch(
         return CS2VM2_PushInt(vm, value);
     }
 
-    case CS2VM_HOST_REQUEST_SOCIAL:
+    case CS2VM_HOST_REQUEST_FRIEND_COUNT:
+    case CS2VM_HOST_REQUEST_FRIEND_GETNAME:
+    case CS2VM_HOST_REQUEST_FRIEND_GETWORLD:
+    case CS2VM_HOST_REQUEST_FRIEND_GETRANK:
+    case CS2VM_HOST_REQUEST_FRIEND_ADD:
+    case CS2VM_HOST_REQUEST_FRIEND_DEL:
+    case CS2VM_HOST_REQUEST_IGNORE_ADD:
+    case CS2VM_HOST_REQUEST_IGNORE_DEL:
+    case CS2VM_HOST_REQUEST_FRIEND_TEST:
+    case CS2VM_HOST_REQUEST_IGNORE_COUNT:
+    case CS2VM_HOST_REQUEST_IGNORE_GETNAME:
+    case CS2VM_HOST_REQUEST_IGNORE_TEST:
         return exec_social(host, vm, &request->u.social);
 
-    case CS2VM_HOST_REQUEST_LOOT:
+    case CS2VM_HOST_REQUEST_LOOT_AUX_UPSERT2:
+    case CS2VM_HOST_REQUEST_LOOT_AUX_UPSERT:
+    case CS2VM_HOST_REQUEST_LOOT_AUX_REMOVE:
+    case CS2VM_HOST_REQUEST_LOOT_AUX_GET:
+    case CS2VM_HOST_REQUEST_LOOT_AUX_COUNT:
+    case CS2VM_HOST_REQUEST_LOOT_AUX_LOOKUP:
+    case CS2VM_HOST_REQUEST_LOOT_AUX_CLEAR:
+    case CS2VM_HOST_REQUEST_LOOT_SOURCE_COUNT:
+    case CS2VM_HOST_REQUEST_LOOT_SOURCE_NAME:
+    case CS2VM_HOST_REQUEST_LOOT_SOURCE_ITEMCOUNT:
+    case CS2VM_HOST_REQUEST_LOOT_SOURCE_TOTALVAL:
+    case CS2VM_HOST_REQUEST_LOOT_BEGIN_QUERY:
+    case CS2VM_HOST_REQUEST_LOOT_QUERY_ID:
+    case CS2VM_HOST_REQUEST_LOOT_AUX_COUNT_TOTAL:
+    case CS2VM_HOST_REQUEST_LOOT_ROW_COUNT_BYNAME:
+    case CS2VM_HOST_REQUEST_LOOT_ROW_COUNT_BYID:
+    case CS2VM_HOST_REQUEST_LOOT_ROW_BYNAME:
+    case CS2VM_HOST_REQUEST_LOOT_ROW_BYID:
+    case CS2VM_HOST_REQUEST_LOOT_CLEAR_ALL:
+    case CS2VM_HOST_REQUEST_LOOT_CLEAR_SOURCE:
+    case CS2VM_HOST_REQUEST_LOOT_REMOVE_BYID:
+    case CS2VM_HOST_REQUEST_LOOT_IGNORE_ADD:
+    case CS2VM_HOST_REQUEST_LOOT_IGNORE_REMOVE:
+    case CS2VM_HOST_REQUEST_LOOT_GROUND_COUNT:
+    case CS2VM_HOST_REQUEST_LOOT_GROUND_NAME:
+    case CS2VM_HOST_REQUEST_LOOT_IGNORE_CLEAR:
+    case CS2VM_HOST_REQUEST_LOOT_SOURCE_IGNORE_ADD:
+    case CS2VM_HOST_REQUEST_LOOT_SOURCE_IGNORE_REMOVE:
+    case CS2VM_HOST_REQUEST_LOOT_SRCLIST_COUNT:
+    case CS2VM_HOST_REQUEST_LOOT_SRCLIST_NAME:
+    case CS2VM_HOST_REQUEST_LOOT_ADD:
+    case CS2VM_HOST_REQUEST_LOOT_SOURCE_NAME2:
         return exec_loot(host, vm, &request->u.loot);
 
-    case CS2VM_HOST_REQUEST_HISCORES:
+    case CS2VM_HOST_REQUEST_HISCORES_STATUS:
+    case CS2VM_HOST_REQUEST_HISCORES_ERROR:
         return exec_hiscores(host, vm, &request->u.hiscores);
 
-    case CS2VM_HOST_REQUEST_CHAT:
+    case CS2VM_HOST_REQUEST_CHAT_GETFILTER_PUBLIC:
+    case CS2VM_HOST_REQUEST_CHAT_SETFILTER:
+    case CS2VM_HOST_REQUEST_CHAT_GETHISTORY_BYTYPEANDLINE:
+    case CS2VM_HOST_REQUEST_CHAT_GETHISTORY_BYUID:
+    case CS2VM_HOST_REQUEST_CHAT_GETFILTER_PRIVATE:
+    case CS2VM_HOST_REQUEST_CHAT_SENDPUBLIC:
+    case CS2VM_HOST_REQUEST_CHAT_SENDPRIVATE:
+    case CS2VM_HOST_REQUEST_CHAT_SENDCLAN:
+    case CS2VM_HOST_REQUEST_CHAT_PLAYERNAME:
+    case CS2VM_HOST_REQUEST_CHAT_GETFILTER_TRADE:
+    case CS2VM_HOST_REQUEST_CHAT_GETHISTORYLENGTH:
+    case CS2VM_HOST_REQUEST_CHAT_GETNEXTUID:
+    case CS2VM_HOST_REQUEST_CHAT_GETPREVUID:
+    case CS2VM_HOST_REQUEST_DOCHEAT:
+    case CS2VM_HOST_REQUEST_CHAT_SETMESSAGEFILTER:
+    case CS2VM_HOST_REQUEST_CHAT_GETMESSAGEFILTER:
+    case CS2VM_HOST_REQUEST_CHAT_SETTIMESTAMPS:
+    case CS2VM_HOST_REQUEST_CHAT_GETTIMESTAMPS:
+    case CS2VM_HOST_REQUEST_CHAT_GETHISTORYEX_BYTYPEANDLINE:
+    case CS2VM_HOST_REQUEST_CHAT_GETHISTORYEX_BYUID:
+    case CS2VM_HOST_REQUEST_MES:
+    case CS2VM_HOST_REQUEST_STAFFMODLEVEL:
         return exec_chat(host, vm, &request->u.chat);
 
     case CS2VM_HOST_REQUEST_MAP_WORLD:
@@ -7757,10 +7860,10 @@ rs_cs2_host_exec_dispatch(
          * against this to pick the green same-world colour). */
         return CS2VM2_PushInt(vm, host->map_world);
 
-    case CS2VM_HOST_REQUEST_RUNENERGY:
+    case CS2VM_HOST_REQUEST_RUNENERGY_VISIBLE:
         return CS2VM2_PushInt(vm, host->stats ? host->stats->run_energy : 0);
 
-    case CS2VM_HOST_REQUEST_RUNWEIGHT:
+    case CS2VM_HOST_REQUEST_RUNWEIGHT_VISIBLE:
         return CS2VM2_PushInt(vm, host->stats ? host->stats->run_weight : 0);
 
     case CS2VM_HOST_REQUEST_MOUSE_GETX:
@@ -7776,7 +7879,51 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_CAM_GETFOLLOWHEIGHT:
         return CS2VM2_PushInt(vm, host->cam_follow_height);
 
-    case CS2VM_HOST_REQUEST_HIGHLIGHT:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_NPC_SETUP:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_NPC_ON:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_NPC_OFF:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_NPC_GET:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_NPC_CLEAR:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_NPCTYPE_SETUP:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_NPCTYPE_ON:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_NPCTYPE_OFF:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_NPCTYPE_GET:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_NPCTYPE_CLEAR:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_LOC_SETUP:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_LOC_ON:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_LOC_OFF:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_LOC_GET:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_LOC_CLEAR:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_LOCTYPE_SETUP:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_LOCTYPE_ON:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_LOCTYPE_OFF:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_LOCTYPE_GET:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_LOCTYPE_CLEAR:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_OBJ_SETUP:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_OBJ_ON:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_OBJ_OFF:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_OBJ_GET:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_OBJ_CLEAR:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_OBJTYPE_SETUP:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_OBJTYPE_ON:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_OBJTYPE_OFF:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_OBJTYPE_GET:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_OBJTYPE_CLEAR:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_PLAYER_SETUP:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_PLAYER_ON:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_PLAYER_OFF:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_PLAYER_GET:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_PLAYER_CLEAR:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_TILE_SETUP:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_TILE_ON:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_TILE_OFF:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_TILE_GET:
+    case CS2VM_HOST_REQUEST_HIGHLIGHT_TILE_CLEAR:
+    case CS2VM_HOST_REQUEST__7040:
+    case CS2VM_HOST_REQUEST__7041:
+    case CS2VM_HOST_REQUEST__7042:
+    case CS2VM_HOST_REQUEST__7043:
+    case CS2VM_HOST_REQUEST__7044:
         /*
          * HIGHLIGHT_* (7000..7044): recorded, and drawn by the `nxt-highlight`
          * builtin through the plugin layer. See rs_highlight.h for what the
@@ -7862,7 +8009,16 @@ rs_cs2_host_exec_dispatch(
         }
         return CS2VM_EXECNO_OK;
 
-    case CS2VM_HOST_REQUEST_CLIENTOP:
+    case CS2VM_HOST_REQUEST_CLIENTOP_NPC_SET:
+    case CS2VM_HOST_REQUEST_CLIENTOP_NPC_DEL:
+    case CS2VM_HOST_REQUEST_CLIENTOP_LOC_SET:
+    case CS2VM_HOST_REQUEST_CLIENTOP_LOC_DEL:
+    case CS2VM_HOST_REQUEST_CLIENTOP_OBJ_SET:
+    case CS2VM_HOST_REQUEST_CLIENTOP_OBJ_DEL:
+    case CS2VM_HOST_REQUEST_CLIENTOP_PLAYER_SET:
+    case CS2VM_HOST_REQUEST_CLIENTOP_PLAYER_DEL:
+    case CS2VM_HOST_REQUEST_CLIENTOP_TILE_SET:
+    case CS2VM_HOST_REQUEST_CLIENTOP_TILE_DEL:
         /*
          * CLIENTOP_* (6700..6709): a right-click row the cache owns.
          *
@@ -7892,7 +8048,19 @@ rs_cs2_host_exec_dispatch(
                 request->u.clientop.opcode);
         return CS2VM_EXECNO_OK;
 
-    case CS2VM_HOST_REQUEST_CLIENTOP_CONTEXT:
+    case CS2VM_HOST_REQUEST__6750:
+    case CS2VM_HOST_REQUEST__6751:
+    case CS2VM_HOST_REQUEST__6752:
+    case CS2VM_HOST_REQUEST__6753:
+    case CS2VM_HOST_REQUEST__6800:
+    case CS2VM_HOST_REQUEST__6801:
+    case CS2VM_HOST_REQUEST__6802:
+    case CS2VM_HOST_REQUEST__6850:
+    case CS2VM_HOST_REQUEST__6851:
+    case CS2VM_HOST_REQUEST__6852:
+    case CS2VM_HOST_REQUEST__6853:
+    case CS2VM_HOST_REQUEST__6900:
+    case CS2VM_HOST_REQUEST__6950:
     {
         /*
          * The subject of the client op being dispatched. Outside a dispatch
@@ -7947,7 +8115,11 @@ rs_cs2_host_exec_dispatch(
         return CS2VM2_PushInt(vm, value);
     }
 
-    case CS2VM_HOST_REQUEST_ACTIVE_PLAYER:
+    case CS2VM_HOST_REQUEST__6901:
+    case CS2VM_HOST_REQUEST__6902:
+    case CS2VM_HOST_REQUEST__6903:
+    case CS2VM_HOST_REQUEST__6904:
+    case CS2VM_HOST_REQUEST__6905:
     {
         /*
          * The ACTIVE PLAYER's route (`_6902` / `_6903`) and the two uids
@@ -8052,19 +8224,59 @@ rs_cs2_host_exec_dispatch(
         return CS2VM2_PushInt(vm, answer);
     }
 
-    case CS2VM_HOST_REQUEST_DB:
+    case CS2VM_HOST_REQUEST_DB_FIND_WITH_COUNT:
+    case CS2VM_HOST_REQUEST_DB_FINDNEXT:
+    case CS2VM_HOST_REQUEST_DB_GETFIELD:
+    case CS2VM_HOST_REQUEST_DB_GETFIELDCOUNT:
+    case CS2VM_HOST_REQUEST_DB_FINDALL_WITH_COUNT:
+    case CS2VM_HOST_REQUEST_DB_GETROWTABLE:
+    case CS2VM_HOST_REQUEST_DB_GETROW:
+    case CS2VM_HOST_REQUEST_DB_FIND_FILTER_WITH_COUNT:
+    case CS2VM_HOST_REQUEST_DB_FIND:
+    case CS2VM_HOST_REQUEST_DB_FINDALL:
+    case CS2VM_HOST_REQUEST_DB_FIND_FILTER:
         return exec_db(host, vm, request->u.db.opcode);
 
-    case CS2VM_HOST_REQUEST_MINIMENU:
+    case CS2VM_HOST_REQUEST_MINIMENU_TYPE:
+    case CS2VM_HOST_REQUEST_MINIMENU_ENTRY:
+    case CS2VM_HOST_REQUEST_MINIMENU_FINDNPC:
+    case CS2VM_HOST_REQUEST_MINIMENU_FINDLOC:
+    case CS2VM_HOST_REQUEST_MINIMENU_FINDOBJ:
+    case CS2VM_HOST_REQUEST_MINIMENU_FINDPLAYER:
+    case CS2VM_HOST_REQUEST__7106:
+    case CS2VM_HOST_REQUEST__7107:
+    case CS2VM_HOST_REQUEST_MINIMENU_ISOPEN:
+    case CS2VM_HOST_REQUEST_MINIMENU_FINDCOMPONENT:
+    case CS2VM_HOST_REQUEST_MINIMENU_NUMOPS:
         return exec_minimenu(host, vm, request->u.minimenu.opcode);
 
-    case CS2VM_HOST_REQUEST_CLIENT_OPTION:
+    case CS2VM_HOST_REQUEST_GETREMOVEROOFS:
+    case CS2VM_HOST_REQUEST_SETREMOVEROOFS:
+    case CS2VM_HOST_REQUEST_SETVOLUMEMUSIC:
+    case CS2VM_HOST_REQUEST_GETVOLUMEMUSIC:
+    case CS2VM_HOST_REQUEST_SETVOLUMESOUNDS:
+    case CS2VM_HOST_REQUEST_GETVOLUMESOUNDS:
+    case CS2VM_HOST_REQUEST_SETVOLUMEAREASOUNDS:
+    case CS2VM_HOST_REQUEST_GETVOLUMEAREASOUNDS:
+    case CS2VM_HOST_REQUEST_CLIENTOPTION_SET:
+    case CS2VM_HOST_REQUEST_CLIENTOPTION_GET:
+    case CS2VM_HOST_REQUEST_DEVICEOPTION_SET:
+    case CS2VM_HOST_REQUEST_GAMEOPTION_SET:
+    case CS2VM_HOST_REQUEST_DEVICEOPTION_GET:
+    case CS2VM_HOST_REQUEST_GAMEOPTION_GET:
+    case CS2VM_HOST_REQUEST_DEVICEOPTION_GETRANGE:
         return exec_client_option(host, vm, request->u.client_option);
 
-    case CS2VM_HOST_REQUEST_MINIMAP:
+    case CS2VM_HOST_REQUEST_MINIMAP_SETZOOMABLE:
+    case CS2VM_HOST_REQUEST_MINIMAP_SETZOOM:
+    case CS2VM_HOST_REQUEST_MINIMAP_GETZOOM:
+    case CS2VM_HOST_REQUEST_MINIMAP_SETICONZOOMLIMIT:
         return exec_minimap(host, vm, request->u.minimap);
 
     case CS2VM_HOST_REQUEST_LOCAL_NOTIFICATION:
+    case CS2VM_HOST_REQUEST_LOCAL_NOTIFICATION_CANCEL:
+    case CS2VM_HOST_REQUEST_LOCAL_NOTIFICATION_CANCELALL:
+    case CS2VM_HOST_REQUEST_LOCAL_NOTIFICATION_SUPPORTED:
         return exec_local_notification(vm, request->u.local_notification);
 
     case CS2VM_HOST_REQUEST_LOGOUT:
@@ -8075,14 +8287,15 @@ rs_cs2_host_exec_dispatch(
         host->close_modal_requested = true;
         return CS2VM_EXECNO_OK;
 
-    case CS2VM_HOST_REQUEST_RESUME_PAUSEBUTTON:
+    case CS2VM_HOST_REQUEST_CC_RESUME_PAUSEBUTTON:
+    case CS2VM_HOST_REQUEST_IF_RESUME_PAUSEBUTTON:
         /* Last write wins within a tick — a double-fire of the continue
          * listener (key + click) would otherwise queue two resumes for one
          * pause. The server matches on the component uid either way. */
         host->resume_pausebutton_component_id = request->u.resume_pausebutton.component_id;
         return CS2VM_EXECNO_OK;
 
-    case CS2VM_HOST_REQUEST_SET_WINDOW_MODE:
+    case CS2VM_HOST_REQUEST_SETWINDOWMODE:
         /* Reject anything outside the dialect's own domain rather than
          * resizing to a mode nothing names. */
         if( request->u.window_mode.mode != CS2VM_WINDOW_MODE_FIXED &&
@@ -8113,7 +8326,7 @@ rs_cs2_host_exec_dispatch(
         }
         return CS2VM_EXECNO_OK;
 
-    case CS2VM_HOST_REQUEST_SET_DEFAULT_WINDOW_MODE:
+    case CS2VM_HOST_REQUEST_SETDEFAULTWINDOWMODE:
         if( request->u.window_mode.mode != CS2VM_WINDOW_MODE_FIXED &&
             request->u.window_mode.mode != CS2VM_WINDOW_MODE_RESIZABLE )
             return CS2VM_EXECNO_OK;
@@ -8140,17 +8353,25 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
     }
 
-    case CS2VM_HOST_REQUEST_VIEWPORT:
+    case CS2VM_HOST_REQUEST_VIEWPORT_SETFOV:
+    case CS2VM_HOST_REQUEST_VIEWPORT_SETZOOM:
+    case CS2VM_HOST_REQUEST_VIEWPORT_CLAMPFOV:
+    case CS2VM_HOST_REQUEST_VIEWPORT_GETEFFECTIVESIZE:
+    case CS2VM_HOST_REQUEST_VIEWPORT_GETZOOM:
+    case CS2VM_HOST_REQUEST_VIEWPORT_GETFOV:
         return exec_viewport(host, vm, request->u.viewport);
 
-    case CS2VM_HOST_REQUEST_UIZOOM:
+    case CS2VM_HOST_REQUEST_UIZOOM_SET:
+    case CS2VM_HOST_REQUEST_UIZOOM_GET:
+    case CS2VM_HOST_REQUEST_UIZOOM_RESET:
+    case CS2VM_HOST_REQUEST_UIZOOM_GETDEFAULT:
         return exec_uizoom(host, vm, request->u.uizoom);
 
-    case CS2VM_HOST_REQUEST_SAFEAREA:
+    case CS2VM_HOST_REQUEST_SAFEAREA_GETMINX:
+    case CS2VM_HOST_REQUEST_SAFEAREA_GETMINY:
+    case CS2VM_HOST_REQUEST_SAFEAREA_GETMAXX:
+    case CS2VM_HOST_REQUEST_SAFEAREA_GETMAXY:
         return exec_safearea(vm, request->u.safearea);
-
-    case CS2VM_HOST_REQUEST_CAM_GETYAW:
-        return CS2VM2_PushInt(vm, host->cam_yaw);
 
     /* Pitch is clamped to the range the orbit camera can actually reach, so a
      * script that reads, adjusts and writes back cannot walk the camera out of
@@ -8175,14 +8396,80 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_CAM_GETANGLE_YA:
         return CS2VM2_PushInt(vm, host->cam_angle_y);
 
-    case CS2VM_HOST_REQUEST_WORLDMAP:
-        return exec_worldmap(host, vm, request->u.worldmap);
+    case CS2VM_HOST_REQUEST_WORLDMAP_INIT:
+    case CS2VM_HOST_REQUEST_WORLDMAP_GETMAPNAME:
+    case CS2VM_HOST_REQUEST_WORLDMAP_SETMAP:
+    case CS2VM_HOST_REQUEST_WORLDMAP_GETZOOM:
+    case CS2VM_HOST_REQUEST_WORLDMAP_SETZOOM:
+    case CS2VM_HOST_REQUEST_WORLDMAP_ISLOADED:
+    case CS2VM_HOST_REQUEST_WORLDMAP_JUMPTODISPLAYCOORD:
+    case CS2VM_HOST_REQUEST_WORLDMAP_JUMPTODISPLAYCOORD_INSTANT:
+    case CS2VM_HOST_REQUEST_WORLDMAP_JUMPTOSOURCECOORD:
+    case CS2VM_HOST_REQUEST_WORLDMAP_JUMPTOSOURCECOORD_INSTANT:
+    case CS2VM_HOST_REQUEST_WORLDMAP_GETDISPLAYPOSITION:
+    case CS2VM_HOST_REQUEST_WORLDMAP_GETCONFIGORIGIN:
+    case CS2VM_HOST_REQUEST_WORLDMAP_GETCONFIGSIZE:
+    case CS2VM_HOST_REQUEST_WORLDMAP_GETCONFIGBOUNDS:
+    case CS2VM_HOST_REQUEST_WORLDMAP_GETCONFIGZOOM:
+    case CS2VM_HOST_REQUEST_WORLDMAP_GETDISPLAYCOORD_CURRENT:
+    case CS2VM_HOST_REQUEST_WORLDMAP_GETCURRENTMAP:
+    case CS2VM_HOST_REQUEST_WORLDMAP_GETDISPLAYCOORD:
+    case CS2VM_HOST_REQUEST_WORLDMAP_GETSOURCECOORD:
+    case CS2VM_HOST_REQUEST_WORLDMAP_JUMPTOMAP:
+    case CS2VM_HOST_REQUEST_WORLDMAP_JUMPTOMAP_INSTANT:
+    case CS2VM_HOST_REQUEST_WORLDMAP_COORDINMAP:
+    case CS2VM_HOST_REQUEST_WORLDMAP_GETSIZE:
+    case CS2VM_HOST_REQUEST_WORLDMAP_GETMAP:
+    case CS2VM_HOST_REQUEST_WORLDMAP_SETMAXFLASHCOUNT:
+    case CS2VM_HOST_REQUEST_WORLDMAP_RESETMAXFLASHCOUNT:
+    case CS2VM_HOST_REQUEST_WORLDMAP_SETCYCLESPERFLASH:
+    case CS2VM_HOST_REQUEST_WORLDMAP_RESETCYCLESPERFLASH:
+    case CS2VM_HOST_REQUEST_WORLDMAP_PERPETUALFLASH:
+    case CS2VM_HOST_REQUEST_WORLDMAP_FLASHELEMENT:
+    case CS2VM_HOST_REQUEST_WORLDMAP_FLASHELEMENTCATEGORY:
+    case CS2VM_HOST_REQUEST_WORLDMAP_STOPCURRENTFLASHES:
+    case CS2VM_HOST_REQUEST_WORLDMAP_DISABLEELEMENTS:
+    case CS2VM_HOST_REQUEST_WORLDMAP_DISABLEELEMENT:
+    case CS2VM_HOST_REQUEST_WORLDMAP_DISABLEELEMENTCATEGORY:
+    case CS2VM_HOST_REQUEST_WORLDMAP_GETDISABLEELEMENTS:
+    case CS2VM_HOST_REQUEST_WORLDMAP_GETDISABLEELEMENT:
+    case CS2VM_HOST_REQUEST_WORLDMAP_GETDISABLEELEMENTCATEGORY:
+    case CS2VM_HOST_REQUEST_WORLDMAP_GETNEARESTICON:
+    case CS2VM_HOST_REQUEST_WORLDMAP_LISTELEMENT_START:
+    case CS2VM_HOST_REQUEST_WORLDMAP_LISTELEMENT_NEXT:
+    case CS2VM_HOST_REQUEST_WORLDMAP_ELEMENT:
+    case CS2VM_HOST_REQUEST_WORLDMAP_ELEMENTCOORD1:
+    case CS2VM_HOST_REQUEST_WORLDMAP_ELEMENTCOORD:
+        return exec_worldmap(host, vm, request->u.worldmap, request->kind);
 
-    case CS2VM_HOST_REQUEST_MEC:
-        return exec_mec(host, vm, request->u.mec);
+    case CS2VM_HOST_REQUEST_MEC_TEXT:
+    case CS2VM_HOST_REQUEST_MEC_TEXTSIZE:
+    case CS2VM_HOST_REQUEST_MEC_CATEGORY:
+    case CS2VM_HOST_REQUEST_MEC_SPRITE:
+        return exec_mec(host, vm, request->u.mec, request->kind);
 
-    case CS2VM_HOST_REQUEST_IF_SETON_DISCARD:
-    case CS2VM_HOST_REQUEST_CC_SETON_DISCARD:
+    /* These listeners are parsed to keep the VM stacks exact, but UITree does
+     * not expose their corresponding event sources yet. Each opcode retains
+     * its own request kind even though their current host behavior is a no-op. */
+    case CS2VM_HOST_REQUEST_CC_SETONCLANTRANSMIT:
+    case CS2VM_HOST_REQUEST_CC_SETONMISCTRANSMIT:
+    case CS2VM_HOST_REQUEST_CC_SETONSTOCKTRANSMIT:
+    case CS2VM_HOST_REQUEST_CC_SETONCLANSETTINGSTRANSMIT:
+    case CS2VM_HOST_REQUEST_CC_SETONCLANCHANNELTRANSMIT:
+    case CS2VM_HOST_REQUEST_CC_SETONMAPPOST:
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETONSUBMIT:
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETONABORT:
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETONFOCUSCHANGED:
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETONUPDATE:
+    case CS2VM_HOST_REQUEST_IF_SETONCLANTRANSMIT:
+    case CS2VM_HOST_REQUEST_IF_SETONSTOCKTRANSMIT:
+    case CS2VM_HOST_REQUEST_IF_SETONCLANSETTINGSTRANSMIT:
+    case CS2VM_HOST_REQUEST_IF_SETONCLANCHANNELTRANSMIT:
+    case CS2VM_HOST_REQUEST_IF_SETONMAPPOST:
+    case CS2VM_HOST_REQUEST_IF_INPUT_SETONSUBMIT:
+    case CS2VM_HOST_REQUEST_IF_INPUT_SETONABORT:
+    case CS2VM_HOST_REQUEST_IF_INPUT_SETONFOCUSCHANGED:
+    case CS2VM_HOST_REQUEST_IF_INPUT_SETONUPDATE:
         return CS2VM_EXECNO_OK;
 
     /* ---- IF getters ---- */
@@ -8302,7 +8589,7 @@ rs_cs2_host_exec_dispatch(
         return CS2VM2_PushInt(vm, has ? 1 : 0);
     }
 
-    case CS2VM_HOST_REQUEST_IF_HASCHILD:
+    case CS2VM_HOST_REQUEST_IF_HASCHILD_OVERLAY:
     {
         /* 2704/2705: widget has the given parent group mounted (rev 634 does
          * not distinguish modal vs overlay on the type field). */
@@ -8341,6 +8628,7 @@ rs_cs2_host_exec_dispatch(
         return CS2VM2_PushInt(vm, node ? node->item_count : 0);
 
     /* ---- IF / CC mutators ---- */
+    case CS2VM_HOST_REQUEST_CC_SETHIDE:
     case CS2VM_HOST_REQUEST_IF_SETHIDE:
         if( tree )
         {
@@ -8518,9 +8806,10 @@ rs_cs2_host_exec_dispatch(
 
     case CS2VM_HOST_REQUEST_IF_SETGRAPHIC:
     case CS2VM_HOST_REQUEST_CC_SETGRAPHIC:
-        return exec_set_graphic(host, vm, request->u.cc_set_graphic);
+        return exec_set_graphic(host, vm, request->u.cc_set_graphic, request->kind);
 
     case CS2VM_HOST_REQUEST_CC_SETGRAPHIC2:
+    case CS2VM_HOST_REQUEST_IF_SETGRAPHIC2:
         node = rs_cs2_node(host, request->u.cc_set_graphic2.component_id);
         if( node && node->type == UIELEM_RS_GRAPHIC )
         {
@@ -8557,12 +8846,14 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETTILING:
+    case CS2VM_HOST_REQUEST_IF_SETTILING:
         if( tree )
             (void)UITree_ApplyGraphicTiled(
                 tree, request->u.cc_set_tiling.component_id, request->u.cc_set_tiling.tiling);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETGRAPHICSHADOW:
+    case CS2VM_HOST_REQUEST_IF_SETGRAPHICSHADOW:
         if( tree )
             (void)UITree_ApplyGraphicShadow(
                 tree,
@@ -8571,12 +8862,14 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETCOLOUR:
+    case CS2VM_HOST_REQUEST_IF_SETCOLOUR:
         if( tree )
             (void)UITree_ApplyColour(
                 tree, request->u.cc_set_colour.component_id, request->u.cc_set_colour.colour);
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETFILL:
+    case CS2VM_HOST_REQUEST_IF_SETFILL:
         node = rs_cs2_node(host, request->u.cc_set_fill.component_id);
         if( node && node->type == UIELEM_RS_RECT )
         {
@@ -8604,6 +8897,7 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETTRANS:
+    case CS2VM_HOST_REQUEST_IF_SETTRANS:
         node = rs_cs2_node(host, request->u.cc_set_trans.component_id);
         if( node && node->trans != request->u.cc_set_trans.trans )
         {
@@ -8628,9 +8922,11 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETTEXTFONT:
-        return exec_set_text_font(host, vm, request->u.cc_set_text_font);
+    case CS2VM_HOST_REQUEST_IF_SETTEXTFONT:
+        return exec_set_text_font(host, vm, request->u.cc_set_text_font, request->kind);
 
     case CS2VM_HOST_REQUEST_CC_SETTEXTALIGN:
+    case CS2VM_HOST_REQUEST_IF_SETTEXTALIGN:
         if( tree )
             (void)UITree_ApplyTextAlign(
                 tree,
@@ -8641,6 +8937,7 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CC_SETTEXTSHADOW:
+    case CS2VM_HOST_REQUEST_IF_SETTEXTSHADOW:
         if( tree )
             (void)UITree_ApplyTextShadow(
                 tree,
@@ -8729,22 +9026,28 @@ rs_cs2_host_exec_dispatch(
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_IF_SETOBJECT:
+    case CS2VM_HOST_REQUEST_IF_SETOBJECT_NONUM:
+    case CS2VM_HOST_REQUEST_IF_SETOBJECT_ALWAYS_NUM:
         return exec_set_object(
             host,
             vm,
             request->u.if_set_object.component_id,
             request->u.if_set_object.obj_id,
             request->u.if_set_object.count,
-            request->u.if_set_object.num_mode);
+            request->u.if_set_object.num_mode,
+            request->kind);
 
     case CS2VM_HOST_REQUEST_CC_SETOBJECT:
+    case CS2VM_HOST_REQUEST_CC_SETOBJECT_NONUM:
+    case CS2VM_HOST_REQUEST_CC_SETOBJECT_ALWAYS_NUM:
         return exec_set_object(
             host,
             vm,
             request->u.cc_set_object.component_id,
             request->u.cc_set_object.obj_id,
             request->u.cc_set_object.count,
-            request->u.cc_set_object.num_mode);
+            request->u.cc_set_object.num_mode,
+            request->kind);
 
     case CS2VM_HOST_REQUEST_CC_DELETEALL:
     {
@@ -8768,23 +9071,42 @@ rs_cs2_host_exec_dispatch(
     }
 
     case CS2VM_HOST_REQUEST_CC_CREATE:
-        return exec_cc_create(host, vm, request->u.cc_create);
+    case CS2VM_HOST_REQUEST_CC_CREATECHILD:
+    case CS2VM_HOST_REQUEST_CC_CREATESIBLING:
+        return exec_cc_create(host, vm, request->u.cc_create, request->kind);
     case CS2VM_HOST_REQUEST_CC_COPY:
         return exec_cc_copy(host, vm, request->u.cc_copy);
 
     case CS2VM_HOST_REQUEST_CC_FIND:
-        return exec_cc_find(host, vm, request->u.cc_find);
+    case CS2VM_HOST_REQUEST_CC_CHILDREN_FINDNEXT:
+        return exec_cc_find(host, vm, request->u.cc_find, request->kind);
 
     case CS2VM_HOST_REQUEST_IF_FIND:
         return exec_if_find(host, vm, request->u.if_find);
 
-    case CS2VM_HOST_REQUEST_ENTITY_OVERLAY:
+    case CS2VM_HOST_REQUEST_OVERLAY_CC_CREATE:
+    case CS2VM_HOST_REQUEST_OVERLAY_CC_DELETEALL:
+    case CS2VM_HOST_REQUEST_OVERLAY_FIND:
+    case CS2VM_HOST_REQUEST_OVERLAY_CC_FIND:
+    case CS2VM_HOST_REQUEST_OVERLAY_NPC_CREATE:
+    case CS2VM_HOST_REQUEST_OVERLAY_LOC_CREATE:
+    case CS2VM_HOST_REQUEST_OVERLAY_PLAYER_CREATE:
+    case CS2VM_HOST_REQUEST_OVERLAY_COORD_CREATE:
+    case CS2VM_HOST_REQUEST_OVERLAY_NPC_GET:
+    case CS2VM_HOST_REQUEST_OVERLAY_LOC_GET:
+    case CS2VM_HOST_REQUEST_OVERLAY_PLAYER_GET:
+    case CS2VM_HOST_REQUEST_OVERLAY_COORD_GET:
+    case CS2VM_HOST_REQUEST_OVERLAY_NPC_DESTROY:
+    case CS2VM_HOST_REQUEST_OVERLAY_LOC_DESTROY:
+    case CS2VM_HOST_REQUEST_OVERLAY_PLAYER_DESTROY:
+    case CS2VM_HOST_REQUEST_OVERLAY_COORD_DESTROY:
         return exec_entity_overlay(host, vm, request->u.entity_overlay);
 
-    case CS2VM_HOST_REQUEST_SUBJECT_FIND:
+    case CS2VM_HOST_REQUEST_LOC_FIND:
+    case CS2VM_HOST_REQUEST_COORD_INSCENE:
         return exec_subject_find(host, vm, request->u.subject_find);
 
-    case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND:
+    case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND_COUNT:
         return exec_children_find(
             host,
             vm,
@@ -8792,9 +9114,10 @@ rs_cs2_host_exec_dispatch(
             request->u.cc_children_find.start_index,
             0,
             0,
-            CS2VM_HOST_REQUEST_CC_CHILDREN_FIND);
+            request->kind);
 
     case CS2VM_HOST_REQUEST_IF_CHILDREN_FIND:
+    case CS2VM_HOST_REQUEST_IF_CHILDREN_COLLECT:
         return exec_children_find(
             host,
             vm,
@@ -8802,16 +9125,7 @@ rs_cs2_host_exec_dispatch(
             request->u.if_children_find.start_index,
             1,
             request->u.if_children_find.dot_operand,
-            CS2VM_HOST_REQUEST_IF_CHILDREN_FIND);
-
-    case CS2VM_HOST_REQUEST_CC_RESOLVE_PARENT:
-    {
-        int parent =
-            tree ? rs_cs2_parent_component_id(tree, request->u.cc_resolve_parent.component_id) : -1;
-        if( parent < 0 )
-            return CS2VM_EXECNO_ERROR;
-        return CS2VM2_PushInt(vm, parent);
-    }
+            request->kind);
 
     case CS2VM_HOST_REQUEST_CC_GETID:
         node = rs_cs2_node(host, request->u.cc_get_id.component_id);
@@ -8880,6 +9194,7 @@ rs_cs2_host_exec_dispatch(
         return exec_if_getcomponentparam(host, vm, request->u.cc_component_param);
 
     case CS2VM_HOST_REQUEST_CC_SETCOMPONENTPARAM:
+    case CS2VM_HOST_REQUEST_IF_SETPARAM:
         if( tree )
             (void)UITree_ApplyComponentParam(
                 tree,
@@ -8900,12 +9215,14 @@ rs_cs2_host_exec_dispatch(
                 request->u.if_set_op.text);
         return CS2VM_EXECNO_OK;
 
+    case CS2VM_HOST_REQUEST_CC_SETOPBASE:
     case CS2VM_HOST_REQUEST_IF_SETOPBASE:
         if( tree )
             (void)UITree_ApplyOpBase(
                 tree, request->u.if_set_op_base.component_id, request->u.if_set_op_base.text);
         return CS2VM_EXECNO_OK;
 
+    case CS2VM_HOST_REQUEST_CC_SETTARGETVERB:
     case CS2VM_HOST_REQUEST_IF_SETTARGETVERB:
         if( tree )
             (void)UITree_ApplyTargetVerb(
@@ -8914,6 +9231,7 @@ rs_cs2_host_exec_dispatch(
                 request->u.if_set_target_verb.text);
         return CS2VM_EXECNO_OK;
 
+    case CS2VM_HOST_REQUEST_CC_SETOPSUBMENU:
     case CS2VM_HOST_REQUEST_IF_SETOPSUBMENU:
         if( tree )
             rs_cs2_apply_op_submenu(
@@ -8924,7 +9242,7 @@ rs_cs2_host_exec_dispatch(
                 request->u.if_set_op_submenu.text);
         return CS2VM_EXECNO_OK;
 
-    case CS2VM_HOST_REQUEST_IF_CLEAROPSUBMENU:
+    case CS2VM_HOST_REQUEST_CC_CLEAROPSUBMENU:
         if( tree )
             (void)UITree_ClearOpSubmenu(
                 tree,
@@ -8932,6 +9250,7 @@ rs_cs2_host_exec_dispatch(
                 request->u.if_clear_op_submenu.op_index);
         return CS2VM_EXECNO_OK;
 
+    case CS2VM_HOST_REQUEST_CC_SETTARGETPRIORITY:
     case CS2VM_HOST_REQUEST_IF_SETTARGETPRIORITY:
         if( tree )
             (void)UITree_ApplyTargetPriority(
@@ -8940,7 +9259,10 @@ rs_cs2_host_exec_dispatch(
                 request->u.if_set_target_priority.priority);
         return CS2VM_EXECNO_OK;
 
-    case CS2VM_HOST_REQUEST_WIDGET_SET_OPKEY:
+    case CS2VM_HOST_REQUEST_CC_SETOPKEY:
+    case CS2VM_HOST_REQUEST_CC_SETOPTKEY:
+    case CS2VM_HOST_REQUEST_IF_SETOPKEY:
+    case CS2VM_HOST_REQUEST_IF_SETOPTKEY:
         if( tree )
             (void)UITree_ApplyOpKey(
                 tree,
@@ -8951,7 +9273,14 @@ rs_cs2_host_exec_dispatch(
                 request->u.widget_set_opkey.pair_count);
         return CS2VM_EXECNO_OK;
 
-    case CS2VM_HOST_REQUEST_WIDGET_SET_OPKEY_RATE:
+    case CS2VM_HOST_REQUEST_CC_SETOPKEYRATE:
+    case CS2VM_HOST_REQUEST_CC_SETOPTKEYRATE:
+    case CS2VM_HOST_REQUEST_CC_SETOPKEYIGNOREHELD:
+    case CS2VM_HOST_REQUEST_CC_SETOPTKEYIGNOREHELD:
+    case CS2VM_HOST_REQUEST_IF_SETOPKEYRATE:
+    case CS2VM_HOST_REQUEST_IF_SETOPTKEYRATE:
+    case CS2VM_HOST_REQUEST_IF_SETOPKEYIGNOREHELD:
+    case CS2VM_HOST_REQUEST_IF_SETOPTKEYIGNOREHELD:
         if( tree )
         {
             if( request->u.widget_set_opkey_rate.ignore_held )
@@ -8969,6 +9298,7 @@ rs_cs2_host_exec_dispatch(
         }
         return CS2VM_EXECNO_OK;
 
+    case CS2VM_HOST_REQUEST_CC_CLEAROPS:
     case CS2VM_HOST_REQUEST_IF_CLEAROPS:
         if( tree )
             rs_cs2_clear_ops(tree, request->u.if_clear_ops.component_id);
@@ -9052,8 +9382,8 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_IF_SETONTIMER:
         return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
     case CS2VM_HOST_REQUEST_IF_SETONKEY:
-    case CS2VM_HOST_REQUEST_IF_SETONKEYDOWN:
-    case CS2VM_HOST_REQUEST_IF_SETONKEYUP:
+    case CS2VM_HOST_REQUEST_IF_SETONITEMONITEM:
+    case CS2VM_HOST_REQUEST_IF_SETONCLANSETTINGS:
         return exec_set_on_if_event(host, request->kind, &request->u.if_set_on_op);
     case CS2VM_HOST_REQUEST_IF_SETONMISCTRANSMIT:
         /* Was `return CS2VM_EXECNO_OK` — a well-formed request the VM had
@@ -9089,8 +9419,8 @@ rs_cs2_host_exec_dispatch(
     case CS2VM_HOST_REQUEST_CC_SETONMOUSEREPEAT:
     case CS2VM_HOST_REQUEST_CC_SETONTIMER:
     case CS2VM_HOST_REQUEST_CC_SETONKEY:
-    case CS2VM_HOST_REQUEST_CC_SETONKEYDOWN:
-    case CS2VM_HOST_REQUEST_CC_SETONKEYUP:
+    case CS2VM_HOST_REQUEST_CC_SETONITEMONITEM:
+    case CS2VM_HOST_REQUEST_CC_SETONCLANSETTINGS:
         return exec_set_on_cc_event(host, vm, request->kind, &request->u.cc_set_on_op);
     case CS2VM_HOST_REQUEST_CC_SETONVARTRANSMIT:
     case CS2VM_HOST_REQUEST_CC_SETONINVTRANSMIT:
@@ -9125,27 +9455,76 @@ rs_cs2_host_exec_dispatch(
         }
         return CS2VM_EXECNO_OK;
 
-    /* ---- Widget extras ---- */
-    case CS2VM_HOST_REQUEST_WIDGET_SET_INT:
-        return exec_widget_set_int(host, vm, request->u.widget_set_int);
+    /* ---- Widget payloads shared by exact CC/IF opcode kinds ---- */
+    case CS2VM_HOST_REQUEST_CC_SETPINCH:
+    case CS2VM_HOST_REQUEST_CC_SETNOSCROLLTHROUGH:
+    case CS2VM_HOST_REQUEST_CC_SETLINEWID:
+    case CS2VM_HOST_REQUEST_CC_SET2DANGLE:
+    case CS2VM_HOST_REQUEST_CC_SETMODELANIM:
+    case CS2VM_HOST_REQUEST_CC_SETMODELORTHOG:
+    case CS2VM_HOST_REQUEST_CC_SETVFLIP:
+    case CS2VM_HOST_REQUEST_CC_SETHFLIP:
+    case CS2VM_HOST_REQUEST_CC_SETFILLCOLOUR:
+    case CS2VM_HOST_REQUEST_CC_SETTRANSBOT:
+    case CS2VM_HOST_REQUEST_CC_SETFILLMODE:
+    case CS2VM_HOST_REQUEST_CC_SETLINEDIRECTION:
+    case CS2VM_HOST_REQUEST_CC_SETMODELTRANSPARENT:
+    case CS2VM_HOST_REQUEST_CC_SETOPFORCELEFTCLICK:
+    case CS2VM_HOST_REQUEST_IF_SETPINCH:
+    case CS2VM_HOST_REQUEST_IF_SETNOCLICKTHROUGH:
+    case CS2VM_HOST_REQUEST_IF_SETNOSCROLLTHROUGH:
+    case CS2VM_HOST_REQUEST_IF_SETLINEWID:
+    case CS2VM_HOST_REQUEST_IF_SET2DANGLE:
+    case CS2VM_HOST_REQUEST_IF_SETMODELANIM:
+    case CS2VM_HOST_REQUEST_IF_SETMODELORTHOG:
+    case CS2VM_HOST_REQUEST_IF_SETVFLIP:
+    case CS2VM_HOST_REQUEST_IF_SETHFLIP:
+    case CS2VM_HOST_REQUEST_IF_SETFILLCOLOUR:
+    case CS2VM_HOST_REQUEST_IF_SETTRANSBOT:
+    case CS2VM_HOST_REQUEST_IF_SETFILLMODE:
+    case CS2VM_HOST_REQUEST_IF_SETLINEDIRECTION:
+    case CS2VM_HOST_REQUEST_IF_SETMODELTRANSPARENT:
+    case CS2VM_HOST_REQUEST_IF_SETDRAGDEADZONE:
+    case CS2VM_HOST_REQUEST_IF_SETDRAGDEADTIME:
+    case CS2VM_HOST_REQUEST_IF_SETCLICKMASK:
+        return exec_widget_set_int(host, vm, request->u.widget_set_int, request->kind);
 
-    case CS2VM_HOST_REQUEST_WIDGET_SET_INT2:
-        /* No UITree fields for paired int setters yet. */
-        return CS2VM_EXECNO_OK;
+    case CS2VM_HOST_REQUEST_CC_SETMODEL:
+    case CS2VM_HOST_REQUEST_IF_SETMODEL:
+        return exec_widget_set_model(host, vm, request->u.widget_set_model, request->kind);
 
-    case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL:
-        return exec_widget_set_model(host, vm, request->u.widget_set_model);
-
-    case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_ANGLE:
+    case CS2VM_HOST_REQUEST_CC_SETMODELANGLE:
+    case CS2VM_HOST_REQUEST_IF_SETMODELANGLE:
         return exec_widget_set_model_angle(host, vm, request->u.widget_set_model_angle);
 
-    case CS2VM_HOST_REQUEST_WIDGET_SET_ARC:
+    case CS2VM_HOST_REQUEST_CC_SETARC:
+    case CS2VM_HOST_REQUEST_IF_SETARC:
         return exec_widget_set_arc(host, vm, request->u.widget_set_arc);
 
-    case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND:
-        return exec_widget_set_model_kind(host, vm, request->u.widget_set_model_kind);
+    case CS2VM_HOST_REQUEST_CC_SETNPCHEAD:
+    case CS2VM_HOST_REQUEST_CC_SETPLAYERHEAD_SELF:
+    case CS2VM_HOST_REQUEST_CC_SETPLAYERMODEL_SELF:
+    case CS2VM_HOST_REQUEST_CC_SETMODEL_PLAYERCHATHEAD:
+    case CS2VM_HOST_REQUEST_IF_SETNPCHEAD:
+    case CS2VM_HOST_REQUEST_IF_SETPLAYERHEAD_SELF:
+    case CS2VM_HOST_REQUEST_IF_SETMODEL_PLAYERCHATHEAD:
+        return exec_widget_set_model_kind(
+            host, vm, request->u.widget_set_model_kind, request->kind);
 
-    case CS2VM_HOST_REQUEST_WIDGET_INPUT_INT:
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETSUBMITMODE:
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETSELECTCOLOUR:
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETACCEPTMODE:
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETWRAPMODE:
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETLINEWRAPPINGWIDTH:
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETSELECTBGCOLOUR:
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETLINECOUNTLIMIT:
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETCURSORCOLOUR:
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETCURSORTRANS:
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETCURSORWIDTH:
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETCURSORHEIGHT:
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETCURSOROFFSET:
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETLINEWIDTHLIMIT:
+    case CS2VM_HOST_REQUEST_CC_INPUT_SETCHARFILTER:
         /* Input widget fields not on UITree yet. */
         return CS2VM_EXECNO_OK;
 

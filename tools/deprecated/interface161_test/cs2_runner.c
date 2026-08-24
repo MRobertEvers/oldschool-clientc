@@ -669,7 +669,7 @@ interface161_cs2_host_exec(
 
     switch( request->kind )
     {
-    case CS2VM_HOST_REQUEST_PUSHSCRIPT:
+    case CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS:
     {
         struct CS2_Script* script =
             interface161_cs2_resolve_script(ctx, request->u.push_script.script_id);
@@ -684,37 +684,40 @@ interface161_cs2_host_exec(
         return CS2VMX_PushCallScript(vm, script);
     }
 
-    case CS2VM_HOST_REQUEST_INVS_GET_SIZE:
+    case CS2VM_HOST_REQUEST_INV_SIZE:
         return CS2VMX_PushInt(vm, interface161_cs2_inv_size(ctx, request->u.invs_get_size.inv_id));
 
-    case CS2VM_HOST_REQUEST_INVS_GET_OBJ:
+    case CS2VM_HOST_REQUEST_INV_GETOBJ:
         return CS2VMX_PushInt(
             vm,
             interface161_cs2_inv_get_obj(
                 ctx, request->u.invs_get_obj.inv_id, request->u.invs_get_obj.slot));
 
-    case CS2VM_HOST_REQUEST_INVS_GET_NUM:
+    case CS2VM_HOST_REQUEST_INV_GETNUM:
         return CS2VMX_PushInt(
             vm,
             interface161_cs2_inv_get_num(
                 ctx, request->u.invs_get_num.inv_id, request->u.invs_get_num.slot));
 
-    case CS2VM_HOST_REQUEST_INVS_GET_TOTAL:
+    case CS2VM_HOST_REQUEST_INV_TOTAL:
         return CS2VMX_PushInt(vm, 0);
 
-    case CS2VM_HOST_REQUEST_VARS_READ_VARP_AKA_PUSH_VAR:
-    case CS2VM_HOST_REQUEST_VARS_READ_VARBIT:
-    case CS2VM_HOST_REQUEST_VARS_READ_VARC_INT:
+    case CS2VM_HOST_REQUEST_PUSH_VAR:
+    case CS2VM_HOST_REQUEST_PUSH_VARBIT:
+    case CS2VM_HOST_REQUEST_PUSH_VARC_INT:
         return CS2VMX_PushInt(vm, 0);
 
-    case CS2VM_HOST_REQUEST_VARS_READ_VARC_STRING:
+    case CS2VM_HOST_REQUEST_PUSH_VARC_STRING_OLD:
+    case CS2VM_HOST_REQUEST_PUSH_VARC_STRING:
         return CS2VMX_PushStr(vm, (char*)"");
 
-    case CS2VM_HOST_REQUEST_VARS_WRITE_VARC_INT:
-    case CS2VM_HOST_REQUEST_VARS_WRITE_VARC_STRING:
+    case CS2VM_HOST_REQUEST_POP_VARC_INT:
+    case CS2VM_HOST_REQUEST_POP_VARC_STRING_OLD:
+    case CS2VM_HOST_REQUEST_POP_VARC_STRING:
         return CS2VM_EXECNO_OK;
 
-    case CS2VM_HOST_REQUEST_ENUM_LOOKUP:
+    case CS2VM_HOST_REQUEST_ENUM_STRING:
+    case CS2VM_HOST_REQUEST_ENUM:
     {
         int input_type = request->u.enum_lookup.input_type;
         int output_type = request->u.enum_lookup.output_type;
@@ -764,16 +767,26 @@ interface161_cs2_host_exec(
         return CS2VMX_PushInt(vm, 0);
 
     case CS2VM_HOST_REQUEST_CC_CREATE:
+    case CS2VM_HOST_REQUEST_CC_CREATECHILD:
+    case CS2VM_HOST_REQUEST_CC_CREATESIBLING:
     {
         if( !tree )
             return CS2VM_EXECNO_OK;
-        int32_t parent_idx = uitree_find_by_component_id(tree, request->u.cc_create.parent_id);
+        int parent_id = request->u.cc_create.parent_id;
+        if( request->u.cc_create.parent_is_sibling )
+        {
+            int32_t sibling_idx = uitree_find_by_component_id(tree, parent_id);
+            if( sibling_idx < 0 || tree->components[sibling_idx].parent < 0 )
+                return CS2VM_EXECNO_OK;
+            parent_id = tree->components[tree->components[sibling_idx].parent].component_id;
+        }
+        int32_t parent_idx = uitree_find_by_component_id(tree, parent_id);
         if( parent_idx < 0 )
             return CS2VM_EXECNO_OK;
         int32_t child_idx = uitree_cc_create(
             tree,
             parent_idx,
-            request->u.cc_create.parent_id,
+            parent_id,
             request->u.cc_create.component_type,
             request->u.cc_create.child_index);
         if( child_idx < 0 )
@@ -784,6 +797,7 @@ interface161_cs2_host_exec(
     }
 
     case CS2VM_HOST_REQUEST_CC_FIND:
+    case CS2VM_HOST_REQUEST_CC_CHILDREN_FINDNEXT:
     {
         int found = 0;
         if( tree )
@@ -819,17 +833,24 @@ interface161_cs2_host_exec(
     }
 
     case CS2VM_HOST_REQUEST_CC_SETOBJECT:
+    case CS2VM_HOST_REQUEST_CC_SETOBJECT_NONUM:
+    case CS2VM_HOST_REQUEST_CC_SETOBJECT_ALWAYS_NUM:
     case CS2VM_HOST_REQUEST_IF_SETOBJECT:
+    case CS2VM_HOST_REQUEST_IF_SETOBJECT_NONUM:
+    case CS2VM_HOST_REQUEST_IF_SETOBJECT_ALWAYS_NUM:
     {
         if( !tree )
             return CS2VM_EXECNO_OK;
-        int cid = request->kind == CS2VM_HOST_REQUEST_CC_SETOBJECT
+        bool const is_cc = request->kind == CS2VM_HOST_REQUEST_CC_SETOBJECT ||
+                           request->kind == CS2VM_HOST_REQUEST_CC_SETOBJECT_NONUM ||
+                           request->kind == CS2VM_HOST_REQUEST_CC_SETOBJECT_ALWAYS_NUM;
+        int cid = is_cc
                       ? request->u.cc_set_object.component_id
                       : request->u.if_set_object.component_id;
-        int obj = request->kind == CS2VM_HOST_REQUEST_CC_SETOBJECT
+        int obj = is_cc
                       ? request->u.cc_set_object.obj_id
                       : request->u.if_set_object.obj_id;
-        int count = request->kind == CS2VM_HOST_REQUEST_CC_SETOBJECT
+        int count = is_cc
                         ? request->u.cc_set_object.count
                         : request->u.if_set_object.count;
         int scene_id = -1;
@@ -864,7 +885,8 @@ interface161_cs2_host_exec(
         return CS2VM_EXECNO_OK;
     }
 
-    case CS2VM_HOST_REQUEST_WIDGET_SET_INT:
+    case CS2VM_HOST_REQUEST_IF_SETDRAGDEADZONE:
+    case CS2VM_HOST_REQUEST_IF_SETDRAGDEADTIME:
     {
         if( !tree )
             return CS2VM_EXECNO_OK;
@@ -879,8 +901,6 @@ interface161_cs2_host_exec(
         return CS2VM_EXECNO_OK;
     }
 
-    case CS2VM_HOST_REQUEST_CC_SETON_DISCARD:
-    case CS2VM_HOST_REQUEST_IF_SETON_DISCARD:
     case CS2VM_HOST_REQUEST_IF_SETONVARTRANSMIT:
     case CS2VM_HOST_REQUEST_IF_SETONOP:
     case CS2VM_HOST_REQUEST_IF_SETONMOUSEOVER:
@@ -900,9 +920,6 @@ interface161_cs2_host_exec(
     case CS2VM_HOST_REQUEST_CC_SETONKEY:
     case CS2VM_HOST_REQUEST_CC_SETONOP:
     case CS2VM_HOST_REQUEST_CC_SETONDRAGCOMPLETE:
-    case CS2VM_HOST_REQUEST_WIDGET_SET_INT2:
-    case CS2VM_HOST_REQUEST_WIDGET_SET_ARC:
-    case CS2VM_HOST_REQUEST_WIDGET_INPUT_INT:
         return CS2VM_EXECNO_OK;
 
     case CS2VM_HOST_REQUEST_CLIENTCLOCK:
@@ -926,7 +943,11 @@ interface161_cs2_host_exec(
     case CS2VM_HOST_REQUEST_CC_GETHEIGHT:
     case CS2VM_HOST_REQUEST_CC_GETHIDE:
     case CS2VM_HOST_REQUEST_CC_GETTRANS:
-    case CS2VM_HOST_REQUEST_OC_INT_PARAM:
+    case CS2VM_HOST_REQUEST_OC_COST:
+    case CS2VM_HOST_REQUEST_OC_STACKABLE:
+    case CS2VM_HOST_REQUEST_OC_CERT:
+    case CS2VM_HOST_REQUEST_OC_UNCERT:
+    case CS2VM_HOST_REQUEST_OC_MEMBERS:
     case CS2VM_HOST_REQUEST_OC_UNPLACEHOLDER:
     case CS2VM_HOST_REQUEST_PARAHEIGHT:
     case CS2VM_HOST_REQUEST_PARAWIDTH:

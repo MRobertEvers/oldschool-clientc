@@ -533,7 +533,6 @@ BRIDGE_CONFLICTS_OK: dict[int, tuple[int, int, int, int]] = {
     #     `ScriptRunnerImpl_7200To7299.cpp` pops the slot in both
     #     GetScriptedOverlayIndex forms; the vendored (0 in) would read
     #     whatever the script left below it and answer about the wrong slot.
-    203: (1, 0, 0, 0),  # OVERLAY_CC_FIND -- reference pops overlay AND sub
     7205: (0, 0, 1, 0),  # OVERLAY_NPC_GET -- pops the slot
     7208: (0, 0, 1, 0),  # OVERLAY_PLAYER_GET -- pops the slot
     1006: (1, 0, 0, 0),  # cc_setnoscrollthrough

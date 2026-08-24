@@ -52,7 +52,39 @@ static int g_fail = 0;
 struct StubVarcHost
 {
     char* slots[8];
+    int calls;
+    enum CS2VM_HostRequestKind kinds[2];
 };
+
+static int
+stub_varc_read(
+    struct CS2VM2_Thread* vm,
+    struct StubVarcHost* host,
+    struct CS2VM_HostRequest* request)
+{
+    int id = request->u.vars_read_varc_string.varc_id;
+    char const* value = "";
+    if( id >= 0 && id < 8 && host->slots[id] )
+        value = host->slots[id];
+    return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, value));
+}
+
+static int
+stub_varc_write(
+    struct StubVarcHost* host,
+    struct CS2VM_HostRequest* request)
+{
+    int id = request->u.vars_write_varc_string.varc_id;
+    char* value = request->u.vars_write_varc_string.value;
+    /* The request's string is borrowed from the VM's pool, so a host that
+     * keeps it must copy (as the real VarCManager does). */
+    if( id >= 0 && id < 8 )
+    {
+        free(host->slots[id]);
+        host->slots[id] = strdup(value ? value : "");
+    }
+    return CS2VM_EXECNO_OK;
+}
 
 static int
 stub_host_exec(
@@ -61,30 +93,19 @@ stub_host_exec(
 {
     struct StubVarcHost* host = (struct StubVarcHost*)vm->vm->user;
     assert(host);
+    assert(host->calls < 2);
+    host->kinds[host->calls++] = request->kind;
 
     switch( request->kind )
     {
-    case CS2VM_HOST_REQUEST_VARS_READ_VARC_STRING:
-    {
-        int id = request->u.vars_read_varc_string.varc_id;
-        char const* value = "";
-        if( id >= 0 && id < 8 && host->slots[id] )
-            value = host->slots[id];
-        return CS2VM2_PushStr(vm, CS2VM2_StrDup(vm, value));
-    }
-    case CS2VM_HOST_REQUEST_VARS_WRITE_VARC_STRING:
-    {
-        int id = request->u.vars_write_varc_string.varc_id;
-        char* value = request->u.vars_write_varc_string.value;
-        /* The request's string is borrowed from the VM's pool, so a host that
-         * keeps it must copy (as the real VarCManager does). */
-        if( id >= 0 && id < 8 )
-        {
-            free(host->slots[id]);
-            host->slots[id] = strdup(value ? value : "");
-        }
-        return CS2VM_EXECNO_OK;
-    }
+    case CS2VM_HOST_REQUEST_PUSH_VARC_STRING_OLD:
+        return stub_varc_read(vm, host, request);
+    case CS2VM_HOST_REQUEST_POP_VARC_STRING_OLD:
+        return stub_varc_write(host, request);
+    case CS2VM_HOST_REQUEST_PUSH_VARC_STRING:
+        return stub_varc_read(vm, host, request);
+    case CS2VM_HOST_REQUEST_POP_VARC_STRING:
+        return stub_varc_write(host, request);
     default:
         return CS2VM_EXECNO_ERROR;
     }
@@ -291,9 +312,14 @@ test_branch_if_one(void)
 }
 
 static void
-test_varc_string_old(void)
+test_varc_string_pair(
+    int pop_opcode,
+    int push_opcode,
+    enum CS2VM_HostRequestKind expected_pop_kind,
+    enum CS2VM_HostRequestKind expected_push_kind,
+    char const* label)
 {
-    printf("TEST: PUSH/POP_VARC_STRING_OLD (47/48)\n");
+    printf("TEST: %s\n", label);
 
     struct StubVarcHost host;
     memset(&host, 0, sizeof(host));
@@ -304,18 +330,18 @@ test_varc_string_old(void)
 
     struct CS2VM2_Script script;
     CS2VM2_ScriptInit(&script);
-    script.script_id = 4748;
+    script.script_id = pop_opcode * 100 + push_opcode;
     script.op_count = 4;
     script.opcodes = calloc(4, sizeof(uint16_t));
     script.int_operands = calloc(4, sizeof(int));
     script.string_operands = calloc(4, sizeof(char*));
 
-    /* PUSH_CONSTANT_STRING "hello"; POP_VARC_STRING_OLD 3; PUSH_VARC_STRING_OLD 3; RETURN */
+    /* PUSH_CONSTANT_STRING "hello"; POP pair 3; PUSH pair 3; RETURN. */
     script.opcodes[0] = (uint16_t)CS2_OP_PUSH_CONSTANT_STRING;
     script.string_operands[0] = strdup("hello");
-    script.opcodes[1] = (uint16_t)CS2_OP_POP_VARC_STRING_OLD;
+    script.opcodes[1] = (uint16_t)pop_opcode;
     script.int_operands[1] = 3;
-    script.opcodes[2] = (uint16_t)CS2_OP_PUSH_VARC_STRING_OLD;
+    script.opcodes[2] = (uint16_t)push_opcode;
     script.int_operands[2] = 3;
     script.opcodes[3] = (uint16_t)CS2_OP_RETURN;
 
@@ -326,7 +352,10 @@ test_varc_string_old(void)
     /* Pool-owned: read it, don't free it — CS2VM2_Free releases the pool. */
     char* result = NULL;
     CS2VM2_PopStr(t, &result);
-    CHECK(result && strcmp(result, "hello") == 0, "varc string-old roundtrip");
+    CHECK(result && strcmp(result, "hello") == 0, "varc string roundtrip");
+    CHECK_EQ(host.calls, 2, "one host request per varc opcode");
+    CHECK_EQ((int)host.kinds[0], (int)expected_pop_kind, "pop request keeps its opcode kind");
+    CHECK_EQ((int)host.kinds[1], (int)expected_push_kind, "push request keeps its opcode kind");
 
     CS2VM2_Free(&vm);
     for( int i = 0; i < 8; i++ )
@@ -345,7 +374,18 @@ main(void)
     test_rs2_switch_miss();
     test_canonical_leaves_51();
     test_branch_if_one();
-    test_varc_string_old();
+    test_varc_string_pair(
+        CS2_OP_POP_VARC_STRING_OLD,
+        CS2_OP_PUSH_VARC_STRING_OLD,
+        CS2VM_HOST_REQUEST_POP_VARC_STRING_OLD,
+        CS2VM_HOST_REQUEST_PUSH_VARC_STRING_OLD,
+        "PUSH/POP_VARC_STRING_OLD (47/48)");
+    test_varc_string_pair(
+        CS2_OP_POP_VARC_STRING,
+        CS2_OP_PUSH_VARC_STRING,
+        CS2VM_HOST_REQUEST_POP_VARC_STRING,
+        CS2VM_HOST_REQUEST_PUSH_VARC_STRING,
+        "PUSH/POP_VARC_STRING (49/50)");
 
     if( g_fail )
     {

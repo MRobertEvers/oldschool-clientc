@@ -3596,7 +3596,7 @@ InterfaceX_VMHost_Load(
 
     switch( request->kind )
     {
-    case CS2VM_HOST_REQUEST_PUSHSCRIPT:
+    case CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS:
         if( !InterfaceX_HostIO_LoadClientScript(&host->host_io, request->u.push_script.script_id) )
             return -1;
         return 0;
@@ -3611,7 +3611,11 @@ InterfaceX_VMHost_Load(
         return 0;
     }
     case CS2VM_HOST_REQUEST_CC_SETOBJECT:
+    case CS2VM_HOST_REQUEST_CC_SETOBJECT_NONUM:
+    case CS2VM_HOST_REQUEST_CC_SETOBJECT_ALWAYS_NUM:
     case CS2VM_HOST_REQUEST_IF_SETOBJECT:
+    case CS2VM_HOST_REQUEST_IF_SETOBJECT_NONUM:
+    case CS2VM_HOST_REQUEST_IF_SETOBJECT_ALWAYS_NUM:
     {
         int scene_id = -1;
         if( !InterfaceX_HostIO_LoadObjIconScene(
@@ -3622,7 +3626,8 @@ InterfaceX_VMHost_Load(
             return -1;
         return 0;
     }
-    case CS2VM_HOST_REQUEST_ENUM_LOOKUP:
+    case CS2VM_HOST_REQUEST_ENUM_STRING:
+    case CS2VM_HOST_REQUEST_ENUM:
         if( !InterfaceX_HostIO_LoadConfigEntry(
                 &host->host_io, RSCacheDat2A_ConfigKind_Enum, request->u.enum_lookup.enum_id) )
             return -1;
@@ -3635,6 +3640,7 @@ InterfaceX_VMHost_Load(
             return -1;
         return 0;
     case CS2VM_HOST_REQUEST_STRUCT_PARAM:
+    case CS2VM_HOST_REQUEST_CC_GETPARAM:
         if( !InterfaceX_HostIO_LoadConfigEntry(
                 &host->host_io, RSCacheDat2A_ConfigKind_Struct, request->u.struct_param.struct_id) )
             return -1;
@@ -3658,21 +3664,33 @@ InterfaceX_VMHost_Load(
                 &host->host_io, request->u.oc_unplaceholder.item_id) )
             return -1;
         return 0;
-    case CS2VM_HOST_REQUEST_OC_INT_PARAM:
+    case CS2VM_HOST_REQUEST_OC_COST:
+    case CS2VM_HOST_REQUEST_OC_STACKABLE:
+    case CS2VM_HOST_REQUEST_OC_CERT:
+    case CS2VM_HOST_REQUEST_OC_UNCERT:
+    case CS2VM_HOST_REQUEST_OC_MEMBERS:
         if( !InterfaceX_HostIO_LoadObjectConfig(&host->host_io, request->u.oc_int_param.item_id) )
             return -1;
         return 0;
     case CS2VM_HOST_REQUEST_CC_SETTEXTFONT:
+    case CS2VM_HOST_REQUEST_IF_SETTEXTFONT:
         if( !InterfaceX_HostIO_LoadSceneFont(&host->host_io, request->u.cc_set_text_font.font_id) )
             return -1;
         return 0;
-    case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL:
+    case CS2VM_HOST_REQUEST_CC_SETMODEL:
+    case CS2VM_HOST_REQUEST_IF_SETMODEL:
         if( request->u.widget_set_model.model_id < 0 )
             return 0;
         if( !InterfaceX_HostIO_LoadModel(&host->host_io, request->u.widget_set_model.model_id) )
             return -1;
         return 0;
-    case CS2VM_HOST_REQUEST_WIDGET_SET_MODEL_KIND:
+    case CS2VM_HOST_REQUEST_CC_SETNPCHEAD:
+    case CS2VM_HOST_REQUEST_CC_SETPLAYERHEAD_SELF:
+    case CS2VM_HOST_REQUEST_CC_SETPLAYERMODEL_SELF:
+    case CS2VM_HOST_REQUEST_CC_SETMODEL_PLAYERCHATHEAD:
+    case CS2VM_HOST_REQUEST_IF_SETNPCHEAD:
+    case CS2VM_HOST_REQUEST_IF_SETPLAYERHEAD_SELF:
+    case CS2VM_HOST_REQUEST_IF_SETMODEL_PLAYERCHATHEAD:
     {
         enum InterfaceX_ModelKind kind = request->u.widget_set_model_kind.model_kind;
         int model_id = request->u.widget_set_model_kind.model_id;
@@ -3702,14 +3720,18 @@ InterfaceX_VMHost_Load(
         return 0;
     }
     case CS2VM_HOST_REQUEST_CC_CREATE:
+    case CS2VM_HOST_REQUEST_CC_CREATECHILD:
+    case CS2VM_HOST_REQUEST_CC_CREATESIBLING:
         return InterfaceX_VMHost_Load_CC_Create(host, &request->u.cc_create);
     case CS2VM_HOST_REQUEST_CC_FIND:
+    case CS2VM_HOST_REQUEST_CC_CHILDREN_FINDNEXT:
         return InterfaceX_VMHost_Load_CC_Find(host, &request->u.cc_find);
     case CS2VM_HOST_REQUEST_IF_FIND:
         return InterfaceX_VMHost_Load_IF_Find(host, &request->u.if_find);
-    case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND:
+    case CS2VM_HOST_REQUEST_CC_CHILDREN_FIND_COUNT:
         return InterfaceX_VMHost_Load_CC_ChildrenFind(host, &request->u.cc_children_find);
     case CS2VM_HOST_REQUEST_IF_CHILDREN_FIND:
+    case CS2VM_HOST_REQUEST_IF_CHILDREN_COLLECT:
         return InterfaceX_VMHost_Load_IF_ChildrenFind(host, &request->u.if_children_find);
     default:
         fprintf(stderr, "InterfaceX_VMHost_Load: unhandled kind %d\n", (int)request->kind);
@@ -3731,7 +3753,7 @@ InterfaceX_VMHost_Exec_PushScript(
     if( !cs )
     {
         struct CS2VM_HostRequest req = { 0 };
-        req.kind = CS2VM_HOST_REQUEST_PUSHSCRIPT;
+        req.kind = CS2VM_HOST_REQUEST_GOSUB_WITH_PARAMS;
         req.u.push_script.script_id = script_id;
         return InterfaceX_VMHost_Yield(host, &req);
     }
@@ -4001,6 +4023,7 @@ int
 InterfaceX_VMHost_Exec_EnumLookup(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
+    enum CS2VM_HostRequestKind kind,
     struct CS2VM_HostRequest_EnumLookup request)
 {
     assert(host);
@@ -4012,7 +4035,7 @@ InterfaceX_VMHost_Exec_EnumLookup(
         return InterfaceX_VMHost_Yield(
             host,
             &(struct CS2VM_HostRequest){
-                .kind = CS2VM_HOST_REQUEST_ENUM_LOOKUP,
+                .kind = kind,
                 .u.enum_lookup = request,
             });
 
@@ -4606,7 +4629,8 @@ InterfaceX_NodeStoreGraphicId(
     struct InterfaceX_VMHost* host,
     struct UITreeXNode* node,
     int graphic_id,
-    int component_id)
+    int component_id,
+    enum CS2VM_HostRequestKind kind)
 {
     assert(host);
     assert(node);
@@ -4620,8 +4644,11 @@ InterfaceX_NodeStoreGraphicId(
             int scene_id = -1;
             if( !InterfaceX_HostIO_GraphicSceneId(&host->host_io, graphic_id, &scene_id) )
             {
+                if( kind != CS2VM_HOST_REQUEST_CC_SETGRAPHIC &&
+                    kind != CS2VM_HOST_REQUEST_IF_SETGRAPHIC )
+                    return CS2VM_EXECNO_OK;
                 struct CS2VM_HostRequest req = { 0 };
-                req.kind = CS2VM_HOST_REQUEST_CC_SETGRAPHIC;
+                req.kind = kind;
                 req.u.cc_set_graphic.component_id = component_id;
                 req.u.cc_set_graphic.graphic_id = graphic_id;
                 return InterfaceX_VMHost_Yield(host, &req);
@@ -5139,6 +5166,7 @@ int
 InterfaceX_VMHost_Exec_CC_Create(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
+    enum CS2VM_HostRequestKind kind,
     struct CS2VM_HostRequest_CC_Create request)
 {
     assert(host);
@@ -5150,11 +5178,18 @@ InterfaceX_VMHost_Exec_CC_Create(
     int child_index = request.child_index;
     (void)request.is_nested;
 
+    if( request.parent_is_sibling )
+    {
+        parent_id = UITreeX_ParentComponentId(host->tree, parent_id);
+        if( parent_id < 0 )
+            return CS2VM_EXECNO_ERROR;
+    }
+
     {
         struct CS2VM_HostRequest yield_req = { 0 };
         int yield_res;
 
-        yield_req.kind = CS2VM_HOST_REQUEST_CC_CREATE;
+        yield_req.kind = kind;
         yield_req.u.cc_create = request;
         yield_res = InterfaceX_VMHost_YieldIfGroupNeeded(host, parent_id, &yield_req);
         if( yield_res != CS2VM_EXECNO_OK )
@@ -5280,7 +5315,11 @@ InterfaceX_VMHost_Exec_CC_Create(
             struct UITreeXNode_RSGraphic const* parent_graphic = UITreeX_NodeRSGraphic(parent_node);
             if( parent_graphic->graphic_id >= 0 )
                 InterfaceX_NodeStoreGraphicId(
-                    host, node, parent_graphic->graphic_id, node->user_id);
+                    host,
+                    node,
+                    parent_graphic->graphic_id,
+                    node->user_id,
+                    CS2VM_HOST_REQUEST_CC_CREATE);
             UITreeX_NodeRSGraphicMut(node)->outline = parent_graphic->outline;
             UITreeX_NodeRSGraphicMut(node)->graphic_shadow = parent_graphic->graphic_shadow;
         }
@@ -5326,6 +5365,7 @@ int
 InterfaceX_VMHost_Exec_CC_Find(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
+    enum CS2VM_HostRequestKind kind,
     struct CS2VM_HostRequest_CC_Find request)
 {
     assert(host);
@@ -5335,7 +5375,7 @@ InterfaceX_VMHost_Exec_CC_Find(
         struct CS2VM_HostRequest yield_req = { 0 };
         int yield_res;
 
-        yield_req.kind = CS2VM_HOST_REQUEST_CC_FIND;
+        yield_req.kind = kind;
         yield_req.u.cc_find = request;
         yield_res = InterfaceX_VMHost_YieldIfGroupNeeded(host, request.parent_id, &yield_req);
         if( yield_res != CS2VM_EXECNO_OK )
@@ -5430,6 +5470,7 @@ int
 InterfaceX_VMHost_Exec_CC_SetGraphic(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
+    enum CS2VM_HostRequestKind kind,
     struct CS2VM_HostRequest_CC_SetGraphic request)
 {
     assert(host);
@@ -5440,7 +5481,8 @@ InterfaceX_VMHost_Exec_CC_SetGraphic(
     if( !node )
         return CS2VM_EXECNO_OK;
 
-    return InterfaceX_NodeStoreGraphicId(host, node, request.graphic_id, request.component_id);
+    return InterfaceX_NodeStoreGraphicId(
+        host, node, request.graphic_id, request.component_id, kind);
 }
 
 int
@@ -5493,9 +5535,10 @@ int
 InterfaceX_VMHost_Exec_IF_SetGraphic(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
+    enum CS2VM_HostRequestKind kind,
     struct CS2VM_HostRequest_CC_SetGraphic request)
 {
-    return InterfaceX_VMHost_Exec_CC_SetGraphic(host, vm, request);
+    return InterfaceX_VMHost_Exec_CC_SetGraphic(host, vm, kind, request);
 }
 
 int
@@ -5935,6 +5978,7 @@ int
 InterfaceX_VMHost_Exec_CC_ChildrenFind(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
+    enum CS2VM_HostRequestKind kind,
     struct CS2VM_HostRequest_CC_ChildrenFind request)
 {
     assert(host);
@@ -5944,7 +5988,7 @@ InterfaceX_VMHost_Exec_CC_ChildrenFind(
         struct CS2VM_HostRequest yield_req = { 0 };
         int yield_res;
 
-        yield_req.kind = CS2VM_HOST_REQUEST_CC_CHILDREN_FIND;
+        yield_req.kind = kind;
         yield_req.u.cc_children_find = request;
         yield_res = InterfaceX_VMHost_YieldIfGroupNeeded(host, request.parent_id, &yield_req);
         if( yield_res != CS2VM_EXECNO_OK )
@@ -5969,6 +6013,7 @@ int
 InterfaceX_VMHost_Exec_IF_ChildrenFind(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
+    enum CS2VM_HostRequestKind kind,
     struct CS2VM_HostRequest_IF_ChildrenFind request)
 {
     assert(host);
@@ -5978,7 +6023,7 @@ InterfaceX_VMHost_Exec_IF_ChildrenFind(
         struct CS2VM_HostRequest yield_req = { 0 };
         int yield_res;
 
-        yield_req.kind = CS2VM_HOST_REQUEST_IF_CHILDREN_FIND;
+        yield_req.kind = kind;
         yield_req.u.if_children_find = request;
         yield_res = InterfaceX_VMHost_YieldIfGroupNeeded(host, request.uid, &yield_req);
         if( yield_res != CS2VM_EXECNO_OK )
@@ -6025,6 +6070,7 @@ int
 InterfaceX_VMHost_Exec_StructParam(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
+    enum CS2VM_HostRequestKind kind,
     struct CS2VM_HostRequest_StructParam request)
 {
     assert(host);
@@ -6040,7 +6086,7 @@ InterfaceX_VMHost_Exec_StructParam(
         return InterfaceX_VMHost_Yield(
             host,
             &(struct CS2VM_HostRequest){
-                .kind = CS2VM_HOST_REQUEST_STRUCT_PARAM,
+                .kind = kind,
                 .u.struct_param = request,
             });
     }
@@ -6175,6 +6221,7 @@ int
 InterfaceX_VMHost_Exec_OC_IntParam(
     struct InterfaceX_VMHost* host,
     struct CS2VMX* vm,
+    enum CS2VM_HostRequestKind kind,
     struct CS2VM_HostRequest_OC_IntParam request)
 {
     assert(host);
@@ -6187,7 +6234,7 @@ InterfaceX_VMHost_Exec_OC_IntParam(
         return InterfaceX_VMHost_Yield(
             host,
             &(struct CS2VM_HostRequest){
-                .kind = CS2VM_HOST_REQUEST_OC_INT_PARAM,
+                .kind = kind,
                 .u.oc_int_param = request,
             });
     }

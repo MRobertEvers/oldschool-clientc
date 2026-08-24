@@ -114,15 +114,15 @@ main(void)
         memset(&host, 0, sizeof(host));
         run_align(&host, CS2_OP_IF_SETTEXTALIGN, 0, pushes, 4, -1, -1);
         CHECK_INT(host.calls, 1, "IF_SETTEXTALIGN reaches the host once");
-        CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_CC_SETTEXTALIGN, "host request kind");
+        CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_IF_SETTEXTALIGN, "host request kind");
         CHECK_INT(host.align.component_id, chat_left_text, "chat_left:text component");
         CHECK_INT(host.align.x_align, 1, "horizontal centre");
         CHECK_INT(host.align.y_align, 1, "vertical centre");
         CHECK_INT(host.align.line_height, 16, "revision-239 line height");
     }
 
-    /* The CC form uses the same host request but gets its target from the
-     * active/dot selector instead of the stack. */
+    /* The CC form shares the payload layout, but retains its own request kind
+     * and gets its target from the active/dot selector instead of the stack. */
     {
         struct RecordingHost host;
         int const active = (217 << 16) | 6;
@@ -131,6 +131,7 @@ main(void)
         memset(&host, 0, sizeof(host));
         run_align(&host, CS2_OP_CC_SETTEXTALIGN, 1, pushes, 3, active, dot);
         CHECK_INT(host.calls, 1, "CC_SETTEXTALIGN reaches the host once");
+        CHECK_INT((int)host.kind, (int)CS2VM_HOST_REQUEST_CC_SETTEXTALIGN, "CC request kind");
         CHECK_INT(host.align.component_id, dot, "operand 1 selects dot component");
         CHECK_INT(host.align.x_align, 2, "CC horizontal alignment");
         CHECK_INT(host.align.y_align, 0, "CC vertical alignment");

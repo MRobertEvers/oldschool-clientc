@@ -14,12 +14,28 @@ LOCAL_NAMES: dict[int, str] = {
     # Free in the OSRS numbering (nothing between 76 and 100), so claimed outright
     # rather than dialect-translated. See engine/cs2_opcode_dialect.h.
     86: "BRANCH_IF_ONE",
-    # Rev 634 Class66: same body for both — InterfaceParent lookup by widget,
-    # push 1 iff mounted group_id equals `parent`. cs2-editor names distinguish
-    # modal vs overlay; 634 does not check type. Free between IF_HASSUB (2702)
-    # and IF_GETTOP (2706) in the OSRS numbering.
-    2704: "IF_HASCHILD_MODAL",
+    # Dynamic-child traversal helpers used by the modern gameframe. The vendor
+    # table skips these ids entirely; their stack shapes are documented in
+    # src/cs2vm2/gen_opcode_stack.py.
+    103: "OVERLAY_CC_CREATE",
+    104: "OVERLAY_CC_DELETEALL",
+    106: "CC_CREATECHILD",
+    107: "CC_CREATESIBLING",
+    202: "OVERLAY_FIND",
+    203: "OVERLAY_CC_FIND",
+    204: "CC_CHILDREN_FINDNEXTID",
+    205: "IF_CHILDREN_FIND",
+    206: "IF_CHILDREN_FINDNEXTID",
+    211: "IF_CHILDREN_COLLECT",
+    212: "CC_CHILDREN_FIND_COUNT",
+    213: "CC_CHILDREN_FINDNEXT",
+    215: "CHILDREN_ARRAY",
+    # Rev-239 component runtime-param setter. This id was previously assigned
+    # the rev-634 IF_HASCHILD_MODAL name; keep that spelling as a source alias
+    # below, but use the current client semantics as the canonical name.
+    2704: "IF_SETPARAM",
     2705: "IF_HASCHILD_OVERLAY",
+    2929: "IF_TRIGGEROPLOCAL",
     # Rev 634 Class66.method704: push Class24.anInt359 (signed 24-bit login /
     # packet-54 field, updated with membership). No authoritative English name;
     # scripts compare against 8388605 (0x7FFFFD). Offline default is 0.
@@ -86,6 +102,9 @@ LOCAL_NAMES: dict[int, str] = {
     # that is what a table this port starts empty answers with.
     2703: "IF_GETCOMPONENTPARAM",
     1004: "CC_SETPINCH",  # not in vendor
+    1122: "CC_SETGRAPHIC2",  # vendor: _1122
+    1124: "CC_SETTRANSBOT",  # vendor: _1124
+    1125: "CC_SETFILLMODE",  # vendor: _1125
     1133: "CC_INPUT_SETSUBMITMODE",  # not in vendor
     1134: "CC_INPUT_SETSELECTCOLOUR",  # not in vendor
     1135: "CC_INPUT_SETACCEPTMODE",  # not in vendor
@@ -100,12 +119,17 @@ LOCAL_NAMES: dict[int, str] = {
     1144: "CC_INPUT_SETCURSOROFFSET",  # not in vendor
     1145: "CC_INPUT_SETLINEWIDTHLIMIT",  # not in vendor
     1146: "CC_INPUT_SETCHARFILTER",  # not in vendor
+    1203: "CC_SETPLAYERMODEL_SELF",  # not in vendor
+    1204: "CC_SETMODEL_PLAYERCHATHEAD",  # not in vendor
     1308: "CC_SETOPFORCELEFTCLICK",  # vendor: _1308
     1309: "CC_OP1309",  # vendor: _1309
     1310: "CC_CLEAROPSUBMENU",  # not in vendor
     1311: "CC_SETOPSUBMENU",  # not in vendor
     1312: "CC_SETTARGETPRIORITY",  # not in vendor
     2004: "IF_SETPINCH",  # not in vendor
+    2122: "IF_SETGRAPHIC2",  # vendor: _2122
+    2124: "IF_SETTRANSBOT",  # vendor: _2124
+    2125: "IF_SETFILLMODE",  # vendor: _2125
     2133: "IF_INPUT_SETSUBMITMODE",  # not in vendor
     2134: "IF_INPUT_SETSELECTCOLOUR",  # not in vendor
     2135: "IF_INPUT_SETACCEPTMODE",  # not in vendor
@@ -120,6 +144,8 @@ LOCAL_NAMES: dict[int, str] = {
     2144: "IF_INPUT_SETCURSOROFFSET",  # not in vendor
     2145: "IF_INPUT_SETLINEWIDTHLIMIT",  # not in vendor
     2146: "IF_INPUT_SETCHARFILTER",  # not in vendor
+    2203: "IF_SETMODEL_PLAYERCHATHEAD",  # not in vendor
+    2308: "IF_SETCLICKMASK",  # vendor: _2308
     2309: "IF_OP2309",  # vendor: _2309
     3129: "SETKEYINPUTENABLED",  # vendor: _3129
     3138: "SETKEYINPUTMODE_ALL",  # vendor: _3138
@@ -132,8 +158,10 @@ LOCAL_NAMES: dict[int, str] = {
     3214: "DEVICEOPTION_GET",  # not in vendor
     3215: "GAMEOPTION_GET",  # not in vendor
     3217: "DEVICEOPTION_GETRANGE",  # not in vendor
+    3221: "SOUND_SONG_WITHSECONDARY",  # vendor: _3221
     3500: "KEYHELD",  # not in vendor
     3501: "KEYPRESSED",  # not in vendor
+    4036: "STRING_TO_INT",  # not in vendor
     4213: "OC_SHIFTCLICKIOP",  # not in vendor
     4214: "OC_WEARPOS",  # not in vendor
     4215: "OC_WEARPOS2",  # not in vendor
@@ -173,6 +201,8 @@ LOCAL_NAMES: dict[int, str] = {
     6707: "CLIENTOP_PLAYER_DEL",  # vendor: _6707
     6708: "CLIENTOP_TILE_SET",  # vendor: _6708
     6709: "CLIENTOP_TILE_DEL",  # vendor: _6709
+    6803: "LOC_FIND",  # vendor: _6803
+    6951: "COORD_INSCENE",  # vendor: _6951
     # HIGHLIGHT_* runs in groups of five per subject -- SETUP, ON, OFF, GET,
     # CLEAR, in that order -- and the vendor table names only the ON/OFF pair of
     # each. The pair fixes which subject the group is, and the other three fall
@@ -228,8 +258,31 @@ LOCAL_NAMES: dict[int, str] = {
     7108: "MINIMENU_ISOPEN",  # vendor: _7108
     7109: "MINIMENU_FINDCOMPONENT",  # vendor: _7109
     7110: "MINIMENU_NUMOPS",  # vendor: _7110
+    7200: "OVERLAY_NPC_CREATE",  # vendor: _7200
+    7201: "OVERLAY_LOC_CREATE",  # vendor: _7201
+    7203: "OVERLAY_PLAYER_CREATE",  # vendor: _7203
+    7204: "OVERLAY_COORD_CREATE",  # vendor: _7204
+    7205: "OVERLAY_NPC_GET",  # vendor: _7205
+    7206: "OVERLAY_LOC_GET",  # vendor: _7206
+    7208: "OVERLAY_PLAYER_GET",  # vendor: _7208
+    7209: "OVERLAY_COORD_GET",  # vendor: _7209
+    7210: "OVERLAY_NPC_DESTROY",  # vendor: _7210
+    7211: "OVERLAY_LOC_DESTROY",  # vendor: _7211
+    7213: "OVERLAY_PLAYER_DESTROY",  # vendor: _7213
+    7214: "OVERLAY_COORD_DESTROY",  # vendor: _7214
     7250: "MINIMAP_SETZOOMABLE",  # vendor: SETMINIMAPLOCK
     7252: "MINIMAP_SETZOOM",  # vendor: _7252
+    7253: "MINIMAP_GETZOOM",  # not in vendor
+    7254: "MINIMAP_SETICONZOOMLIMIT",  # not in vendor
+    # Loot-tracker auxiliary list. These live inside the reference client's
+    # broad 7200..7499 native-extension group.
+    7400: "LOOT_AUX_UPSERT2",
+    7401: "LOOT_AUX_UPSERT",
+    7404: "LOOT_AUX_REMOVE",
+    7406: "LOOT_AUX_GET",
+    7407: "LOOT_AUX_COUNT",
+    7408: "LOOT_AUX_LOOKUP",
+    7409: "LOOT_AUX_CLEAR",
     7500: "DB_FIND_WITH_COUNT",  # not in vendor
     7501: "DB_FINDNEXT",  # not in vendor
     7502: "DB_GETFIELD",  # not in vendor
@@ -241,11 +294,53 @@ LOCAL_NAMES: dict[int, str] = {
     7508: "DB_FIND",  # not in vendor
     7509: "DB_FINDALL",  # not in vendor
     7510: "DB_FIND_FILTER",  # not in vendor
+    # Loot-tracker native store. The rev-239 Java handler exists at this range
+    # but returns unhandled; this port supplies the host implementation used by
+    # the cache scripts.
+    7601: "LOOT_SOURCE_COUNT",
+    7602: "LOOT_SOURCE_NAME",
+    7603: "LOOT_SOURCE_ITEMCOUNT",
+    7604: "LOOT_SOURCE_TOTALVAL",
+    7605: "LOOT_BEGIN_QUERY",
+    7606: "LOOT_QUERY_ID",
+    7608: "LOOT_AUX_COUNT_TOTAL",
+    7609: "LOOT_ROW_COUNT_BYNAME",
+    7610: "LOOT_ROW_COUNT_BYID",
+    7611: "LOOT_ROW_BYNAME",
+    7612: "LOOT_ROW_BYID",
+    7613: "LOOT_CLEAR_ALL",
+    7614: "LOOT_CLEAR_SOURCE",
+    7615: "LOOT_REMOVE_BYID",
+    7616: "LOOT_IGNORE_ADD",
+    7617: "LOOT_IGNORE_REMOVE",
+    7619: "LOOT_GROUND_COUNT",
+    7620: "LOOT_GROUND_NAME",
+    7621: "LOOT_IGNORE_CLEAR",
+    7622: "LOOT_SOURCE_IGNORE_ADD",
+    7623: "LOOT_SOURCE_IGNORE_REMOVE",
+    7625: "LOOT_SRCLIST_COUNT",
+    7626: "LOOT_SRCLIST_NAME",
+    7628: "LOOT_ADD",
+    7630: "LOOT_SOURCE_NAME2",
+    7809: "HISCORES_STATUS",
+    7811: "HISCORES_ERROR",
+    # Modern array handles live on the string stack. These ids are beyond the
+    # vendored table's maximum but are used by the Overview widget library.
+    8000: "ARRAY_SORT_ALL",
+    8003: "ARRAY_LENGTH",
+    8007: "ARRAY_COUNT_MATCHES",
+    8018: "ARRAY_SPLIT",
+    8019: "ARRAY_JOIN",
+    8022: "ARRAY_NEW",
+    8023: "ARRAY_SETLENGTH",
+    8024: "ARRAY_APPEND",
 }
 
 # id -> extra names emitted as additional #defines. Not an alternate spelling to
 # pick between: both names are referenced in C, so both have to exist.
 LOCAL_ALIASES: dict[int, tuple[str, ...]] = {
+    213: ("_213",),  # spelling retained by older decompiled scripts
+    2704: ("IF_HASCHILD_MODAL",),  # rev-634 spelling retained for old sources
     4030: ("SETBIT_RANGE_VALUE",),  # canonical name is vendor's SETBIT_RANGE_TOINT
 }
 
@@ -355,15 +450,15 @@ SECTION_COMMENTS: dict[int, tuple[str, ...]] = {
         " *        alongside the membership flag). Scripts probe 8388605",
         " *        (0x7FFFFD). Offline/unlogged stub pushes 0 (static default). */",
     ),
-    2704: (
-        "/* IF_HASCHILD_MODAL / IF_HASCHILD_OVERLAY (2704/2705) — rev 634.",
+    2705: (
+        "/* IF_HASCHILD_OVERLAY (2705) — legacy interface-parent probe.",
         " * operand: unused",
         " * int stack in:   widget, parent  (parent = top)",
         " * str stack in:   -",
         " * int stack out:  1 if InterfaceParent[widget].group_id == parent, else 0",
         " * str stack out:  -",
-        " * notes: identical handlers in Class66; names follow cs2-editor",
-        " *        (hasChildModal / hasChildOverlay). Sibling of IF_HASSUB. */",
+        " * notes: retained from the rev-634 interface-parent family. Opcode",
+        " *        2704 is IF_SETPARAM in the current rev-239 dialect. */",
     ),
     1430: (
         "/* More SETON* listeners with no runtime model yet — signature-driven operand",
@@ -413,8 +508,26 @@ SECTION_COMMENTS: dict[int, tuple[str, ...]] = {
         " * world coord. Map ids index the worldmap \"details\" archive (cache table 19).",
         " */",
     ),
+    7200: (
+        "/* Scripted entity overlays (7200..7214) — jag::oldscape::EntityOverlays.",
+        " * CREATE forms share the tail (slot, band, width, height, source_coord):",
+        " * band is 0 middle / 1 above / 2 below, and source_coord selects world-",
+        " * versus display-coordinate anchoring. GET and DESTROY address the same",
+        " * subject-specific slot. See game/rs_entity_overlay.h. */",
+    ),
+    7400: (
+        "/* Loot-tracker auxiliary-list ops inside the 7200..7499 native group. */",
+    ),
     7500: (
         "/* Client database family. Read DBROW config (kind 38) and the DBTABLEINDEX",
         " * (cache table 21); see CS2VM2_Op_Db / exec_db. */",
+    ),
+    7601: (
+        "/* Loot-tracker native store (7600-family host ops). The rev-239 Java",
+        " * range handler returns unhandled; this port implements the cache's",
+        " * native loot-tracker extension. */",
+    ),
+    7809: (
+        "/* Hiscores native-extension stubs (7809/7811). */",
     ),
 }
